@@ -111,18 +111,18 @@ enum class aspect {
 }
 ----
 
-If a SYCL device has this aspect, that device supports the `get` and `open`
-functions specified in the following section.
+If a SYCL device has this aspect, that device supports the `ipc::memory::get`
+and `ipc::memory::open` functions specified in the following section.
 
 
 === Inter-process communicable memory
 
 This extension adds a new type aliases `handle_data_t` and `handle_data_view_t`
-as well as a new IPC memory handle type `handle` under the `ipc_memory`
-experimental namespace.
+as well as a new IPC memory handle type `handle` under the `ipc` experimental
+namespace.
 
 ```
-namespace sycl::ext::oneapi::experimental::ipc_memory {
+namespace sycl::ext::oneapi::experimental::ipc {
 
 using handle_data_t = std::vector<std::byte>;
 
@@ -175,11 +175,11 @@ be used to recreate a `handle` object.
 
 |====
 
-Additionally, this extension adds new free functions under the `ipc_memory`
+Additionally, this extension adds new free functions under the `ipc::memory`
 experimental namespace.
 
 ```
-namespace sycl::ext::oneapi::experimental::ipc_memory {
+namespace sycl::ext::oneapi::experimental::ipc::memory {
 
 handle get(void *ptr, const sycl::context &ctx);
 
@@ -250,7 +250,7 @@ _Effects_: Equivalent to:
 ----
 sycl::device d;
 sycl::context ctxt = d.get_platform().khr_get_default_context();
-return ipc_memory::get(ptr, ctxt);
+return ipc::memory::get(ptr, ctxt);
 ----
 
 !====
@@ -291,7 +291,7 @@ _Effects_: Equivalent to:
 ----
 sycl::device d;
 sycl::context ctxt = d.get_platform().khr_get_default_context();
-ipc_memory::put(handle_data, ctxt);
+ipc::memory::put(ipc_handle, ctxt);
 ----
 
 !====
@@ -345,15 +345,14 @@ _Effects_: Equivalent to:
 [source,c++,indent=2]
 ----
 sycl::context ctxt = dev.get_platform().khr_get_default_context();
-return ipc_memory::put(handle_data, ctxt, dev);
+return ipc::memory::open(handle_data, ctxt, dev);
 ----
 
 !====
 a!
 [source]
 ----
-void *open(const handle_data_t &handle_data, const sycl::context &ctx,
-           const sycl::device &dev)
+void *open(const handle_data_t &handle_data)
 ----
 !====
 
@@ -363,7 +362,7 @@ _Effects_: Equivalent to:
 ----
 sycl::device d;
 sycl::context ctxt = d.get_platform().khr_get_default_context();
-return ipc_memory::open(handle_data, ctxt, d);
+return ipc::memory::open(handle_data, ctxt, d);
 ----
 
 !====
@@ -380,7 +379,7 @@ _Effects_: Equivalent to:
 [source,c++,indent=2]
 ----
 handle_data_t handle_data{handle_data_view.begin(), handle_data_view.end()};
-return ipc_memory::put(handle_data, ctx, dev);
+return ipc::memory::open(handle_data, ctx, dev);
 ----
 
 !====
@@ -396,15 +395,14 @@ _Effects_: Equivalent to:
 [source,c++,indent=2]
 ----
 sycl::context ctxt = dev.get_platform().khr_get_default_context();
-return ipc_memory::put(handle_data_view, ctxt, dev);
+return ipc::memory::open(handle_data_view, ctxt, dev);
 ----
 
 !====
 a!
 [source]
 ----
-void *open(const handle_data_view_t &handle_data_view, const sycl::context &ctx,
-           const sycl::device &dev)
+void *open(const handle_data_view_t &handle_data_view)
 ----
 !====
 
@@ -414,7 +412,7 @@ _Effects_: Equivalent to:
 ----
 sycl::device d;
 sycl::context ctxt = d.get_platform().khr_get_default_context();
-return ipc_memory::open(handle_data_view, ctxt, d);
+return ipc::memory::open(handle_data_view, ctxt, d);
 ----
 
 !====
@@ -446,10 +444,23 @@ _Effects_: Equivalent to:
 ----
 sycl::device d;
 sycl::context ctxt = d.get_platform().khr_get_default_context();
-ipc_memory::close(ptr, ctxt);
+ipc::memory::close(ptr, ctxt);
 ----
 
 |====
+
+=== Backward compatibility
+
+To provide backward compatibility of the extension API, the extension defines
+the following namespace:
+
+[source,c++,indent=2]
+----
+namespace sycl::ext::oneapi::experimental::ipc_memory {
+  using namespace ipc;
+  using namespace ipc::memory;
+}
+----
 
 
 == Issues
