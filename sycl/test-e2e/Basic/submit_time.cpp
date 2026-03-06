@@ -1,7 +1,7 @@
 // RUN: %{build} -o %t.out
 // There is an issue with reported device time for the L0 backend. No such
 // problems for other backends.
-// RUN: %if (!level_zero) %{ %{run} %t.out %}
+// RUN-IF: !level_zero, %{run} %t.out
 
 // Check that submission time is calculated properly.
 
