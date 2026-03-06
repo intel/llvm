@@ -14,6 +14,7 @@
 #include "tsan_shadow.hpp"
 #include "sanitizer_common/sanitizer_utils.hpp"
 #include "tsan_interceptor.hpp"
+#include <sys/personality.h>
 
 namespace ur_sanitizer_layer {
 namespace tsan {
@@ -36,15 +37,32 @@ std::shared_ptr<ShadowMemory> GetShadowMemory(ur_context_handle_t Context,
 }
 
 ur_result_t ShadowMemoryCPU::Setup() {
-  static ur_result_t URes = [this]() {
+  static bool Initialized = [this]() {
     ShadowBegin = 0x100000000000ULL;
     ShadowEnd = 0x300000000000ULL;
-    if (MmapFixedNoReserve(ShadowBegin, ShadowEnd - ShadowBegin) == 0)
-      return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+    if (!MmapFixedNoReserve(ShadowBegin, ShadowEnd - ShadowBegin))
+      return false;
     DontCoredumpRange(ShadowBegin, ShadowEnd - ShadowBegin);
-    return UR_RESULT_SUCCESS;
+    return true;
   }();
-  return URes;
+
+  if (!Initialized) {
+    // If failed to reserve shadow memory, check if ASLR is on. If ASLR is on,
+    // re-exec with ASLR off.
+    int OldPersonality = personality(0xffffffff);
+    if ((OldPersonality != -1) && ((OldPersonality & ADDR_NO_RANDOMIZE) == 0)) {
+      UR_LOG_L(getContext()->logger, DEBUG,
+               "memory layout is incompatible, possibly due to high-entropy "
+               "ASLR. Re-execing with fixed virtual address space.");
+      if (personality(OldPersonality | ADDR_NO_RANDOMIZE) == -1) {
+        die("Unable to disable ASLR, Device ThreadSanitizer can't work "
+            "properly.");
+      }
+      ReExec();
+    }
+    return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+  }
+  return UR_RESULT_SUCCESS;
 }
 
 ur_result_t ShadowMemoryCPU::Destroy() {
