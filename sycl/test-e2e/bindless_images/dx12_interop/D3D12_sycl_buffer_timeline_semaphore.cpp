@@ -8,7 +8,6 @@
 // UNSUPPORTED: gpu-intel-gen12
 // UNSUPPORTED-TRACKER: Gen12-semaphores-work-but-this-test-hangs.
 
-
 // RUN: %{build} -ld3d12 -ldxgi -ld3dcompiler -o %t.exe %if target-spir %{ -Wno-ignored-attributes %}
 // RUN: %{run} %t.exe --no-sem
 // RUN: %{run} %t.exe
