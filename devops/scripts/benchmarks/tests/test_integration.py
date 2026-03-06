@@ -216,7 +216,7 @@ class TestE2E(unittest.TestCase):
 
     def test_torch_l0(self):
         self._checkCase(
-            "torch_benchmark_l0 KernelSubmitEventRecordWait",
+            "torch_benchmark_l0 KernelSubmitEventRecordWait KernelWGCount 256, KernelWGSize 512, Profiling 0",
             "KernelSubmitEventRecordWait medium",
             {"pytorch", "L0"},
         )
@@ -272,7 +272,7 @@ class TestE2E(unittest.TestCase):
 
     def test_torch_sycl(self):
         self._checkCase(
-            "torch_benchmark_sycl KernelSubmitEventRecordWait CPU count",
+            "torch_benchmark_sycl KernelSubmitEventRecordWait KernelWGCount 256, KernelWGSize 512, Profiling 0 CPU count",
             "KernelSubmitEventRecordWait medium, CPU count",
             {"pytorch", "SYCL"},
         )
@@ -321,7 +321,7 @@ class TestE2E(unittest.TestCase):
 
     def test_torch_syclpreview(self):
         self._checkCase(
-            "torch_benchmark_syclpreview KernelSubmitEventRecordWait",
+            "torch_benchmark_syclpreview KernelSubmitEventRecordWait KernelWGCount 256, KernelWGSize 512, Profiling 0",
             "KernelSubmitEventRecordWait medium",
             {"pytorch", "SYCL"},
         )
