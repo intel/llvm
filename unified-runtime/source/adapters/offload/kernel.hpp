@@ -51,7 +51,8 @@ struct ur_kernel_handle_t_ : RefCounted {
       size_t InsertPos = std::accumulate(std::begin(ParamSizes),
                                          std::begin(ParamSizes) + Index, 0);
       // Validate bounds before memcpy to prevent heap buffer overflow
-      if (InsertPos + Size > MaxParamBytes) {
+      // Check for integer overflow: avoid InsertPos + Size computation
+      if (InsertPos > MaxParamBytes || Size > MaxParamBytes - InsertPos) {
         throw UR_RESULT_ERROR_OUT_OF_RESOURCES;
       }
       ParamSizes[Index] = Size;
