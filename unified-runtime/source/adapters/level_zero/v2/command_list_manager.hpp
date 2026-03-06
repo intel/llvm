@@ -1,6 +1,6 @@
 //===--------- command_list_manager.hpp - Level Zero Adapter --------------===//
 //
-// Copyright (C) 2024 Intel Corporation
+// Copyright (C) 2024-2026 Intel Corporation
 //
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
@@ -15,6 +15,7 @@
 #include "event_pool_cache.hpp"
 #include "queue_api.hpp"
 #include "ur_api.h"
+#include <unordered_set>
 #include <ze_api.h>
 
 struct ur_mem_buffer_t;
@@ -43,6 +44,25 @@ struct wait_list_view {
     handles = nullptr;
     num = 0;
   }
+};
+
+struct graph_capture_tracking_data_t {
+  void enableCapture(ur_exp_graph_handle_t graph) {
+    capturedGraph = graph;
+    enableCapture();
+  }
+  void enableCapture() { active = true; }
+  void disableCapture() {
+    active = false;
+    capturedGraph = nullptr;
+  }
+
+  ur_exp_graph_handle_t getGraph() const { return capturedGraph; }
+  bool isActive() const { return active; }
+
+private:
+  bool active = false;
+  ur_exp_graph_handle_t capturedGraph = nullptr;
 };
 
 struct ur_command_list_manager {
@@ -227,6 +247,20 @@ struct ur_command_list_manager {
       const ur_kernel_launch_ext_properties_t *launchPropList,
       wait_list_view &waitListView, ur_event_handle_t phEvent);
 
+  ur_result_t
+  appendHostTaskExp(ur_exp_host_task_function_t pfnHostTask, void *data,
+                    const ur_exp_host_task_properties_t *pProperties,
+                    wait_list_view &waitListView, ur_event_handle_t phEvent);
+
+  /************ Graph methods *************/
+  ur_result_t appendGraph(ur_exp_executable_graph_handle_t hGraph,
+                          wait_list_view &waitListView,
+                          ur_event_handle_t hEvent);
+  ur_result_t beginGraphCapture();
+  ur_result_t beginCaptureIntoGraph(ur_exp_graph_handle_t hGraph);
+  ur_result_t endGraphCapture(ur_exp_graph_handle_t *phGraph);
+  ur_result_t isGraphCaptureActive(bool *pResult);
+
   v2::raii::command_list_unique_handle &&releaseCommandList();
 
   void replaceCommandList(v2::raii::command_list_unique_handle &&cmdlist);
@@ -298,7 +332,9 @@ private:
   v2::raii::ur_context_handle_t hContext;
   v2::raii::ur_device_handle_t hDevice;
 
-  std::vector<ur_kernel_handle_t> submittedKernels;
+  std::unordered_set<ur_kernel_handle_t> submittedKernels;
   v2::raii::command_list_unique_handle zeCommandList;
   std::vector<ze_event_handle_t> waitList;
+
+  graph_capture_tracking_data_t graphCapture;
 };

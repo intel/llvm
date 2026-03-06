@@ -1,6 +1,6 @@
 //===--------- command_list_manager.cpp - Level Zero Adapter --------------===//
 //
-// Copyright (C) 2024 Intel Corporation
+// Copyright (C) 2024-2026 Intel Corporation
 //
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
@@ -16,11 +16,11 @@
 #include "command_buffer.hpp"
 #include "common.hpp"
 #include "context.hpp"
+#include "graph.hpp"
 #include "kernel.hpp"
 #include "memory.hpp"
 
 thread_local std::vector<ze_event_handle_t> waitList;
-
 // The wait_list_view is a wrapper for eventsWaitLists, which:
 // -  enables passing a ze_event_handle_t buffer created from events as an
 // argument for the driver API;
@@ -879,8 +879,8 @@ ur_result_t ur_command_list_manager::appendUSMAllocHelper(
   auto device = (type == UR_USM_TYPE_HOST) ? nullptr : hDevice.get();
 
   ur_event_handle_t originAllocEvent = nullptr;
-  auto asyncAlloc = pPool->allocateEnqueued(hContext.get(), Queue, true, device,
-                                            nullptr, type, size);
+  auto asyncAlloc = pPool->allocateEnqueued(
+      hContext.get(), Queue, Queue->isInOrder(), device, type, size);
   if (!asyncAlloc) {
     auto Ret =
         pPool->allocate(hContext.get(), device, nullptr, type, size, ppMem);
@@ -891,7 +891,9 @@ ur_result_t ur_command_list_manager::appendUSMAllocHelper(
     std::tie(*ppMem, originAllocEvent) = *asyncAlloc;
   }
 
-  waitListView.addEvent(originAllocEvent);
+  if (originAllocEvent) {
+    waitListView.addEvent(originAllocEvent);
+  }
 
   ur_command_t commandType = UR_COMMAND_FORCE_UINT32;
   switch (type) {
@@ -930,8 +932,6 @@ ur_result_t ur_command_list_manager::appendUSMFreeExp(
     ur_queue_t_ *Queue, ur_usm_pool_handle_t, void *pMem,
     wait_list_view &waitListView, ur_event_handle_t phEvent) {
   TRACK_SCOPE_LATENCY("ur_command_list_manager::appendUSMFreeExp");
-  assert(phEvent);
-
   auto zeSignalEvent = getSignalEvent(phEvent, UR_COMMAND_ENQUEUE_USM_FREE_EXP);
   auto [pWaitEvents, numWaitEvents, _] = waitListView;
 
@@ -961,8 +961,16 @@ ur_result_t ur_command_list_manager::appendUSMFreeExp(
                (getZeCommandList(), numWaitEvents, pWaitEvents));
   }
 
-  ZE2UR_CALL(zeCommandListAppendSignalEvent,
-             (getZeCommandList(), zeSignalEvent));
+  if (zeSignalEvent) {
+    ZE2UR_CALL(zeCommandListAppendSignalEvent,
+               (getZeCommandList(), zeSignalEvent));
+  }
+
+  // If event is specified, it's also going to be inserted
+  // into the async pool, so it needs to be retained.
+  if (phEvent) {
+    phEvent->retain();
+  }
 
   // Insert must be done after the signal event is appended.
   usmPool->asyncPool.insert(pMem, size, phEvent, Queue);
@@ -1061,8 +1069,10 @@ ur_result_t ur_command_list_manager::appendNativeCommandExp(
 
 void ur_command_list_manager::recordSubmittedKernel(
     ur_kernel_handle_t hKernel) {
-  submittedKernels.push_back(hKernel);
-  hKernel->RefCount.retain();
+  auto [_, inserted] = submittedKernels.insert(hKernel);
+  if (inserted) {
+    hKernel->RefCount.retain();
+  }
 }
 
 ze_command_list_handle_t ur_command_list_manager::getZeCommandList() {
@@ -1122,19 +1132,20 @@ ur_result_t ur_command_list_manager::appendKernelLaunchWithArgsExpOld(
     wait_list_view &waitListView, ur_event_handle_t phEvent) {
   {
     std::scoped_lock<ur_shared_mutex> guard(hKernel->Mutex);
+    ur_device_handle_t hDevice = this->hDevice.get();
     for (uint32_t argIndex = 0; argIndex < numArgs; argIndex++) {
       switch (pArgs[argIndex].type) {
       case UR_EXP_KERNEL_ARG_TYPE_LOCAL:
-        UR_CALL(hKernel->setArgValue(pArgs[argIndex].index,
+        UR_CALL(hKernel->setArgValue(hDevice, pArgs[argIndex].index,
                                      pArgs[argIndex].size, nullptr, nullptr));
         break;
       case UR_EXP_KERNEL_ARG_TYPE_VALUE:
-        UR_CALL(hKernel->setArgValue(pArgs[argIndex].index,
+        UR_CALL(hKernel->setArgValue(hDevice, pArgs[argIndex].index,
                                      pArgs[argIndex].size, nullptr,
                                      pArgs[argIndex].value.value));
         break;
       case UR_EXP_KERNEL_ARG_TYPE_POINTER:
-        UR_CALL(hKernel->setArgPointer(pArgs[argIndex].index, nullptr,
+        UR_CALL(hKernel->setArgPointer(hDevice, pArgs[argIndex].index, nullptr,
                                        pArgs[argIndex].value.pointer));
         break;
       case UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ:
@@ -1146,7 +1157,7 @@ ur_result_t ur_command_list_manager::appendKernelLaunchWithArgsExpOld(
         break;
       case UR_EXP_KERNEL_ARG_TYPE_SAMPLER: {
         UR_CALL(
-            hKernel->setArgValue(argIndex, sizeof(void *), nullptr,
+            hKernel->setArgValue(hDevice, argIndex, sizeof(void *), nullptr,
                                  &pArgs[argIndex].value.sampler->ZeSampler));
         break;
       }
@@ -1174,6 +1185,13 @@ ur_result_t ur_command_list_manager::appendKernelLaunchWithArgsExpNew(
   ur_result_t checkResult = kernelLaunchChecks(hKernel, workDim);
   if (checkResult != UR_RESULT_SUCCESS) {
     return checkResult;
+  }
+
+  if (numArgs != hKernel->getCommonProperties().numKernelArgs) {
+    setErrorMessage("Wrong number of kernel arguments",
+                    UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX,
+                    static_cast<int32_t>(ZE_RESULT_ERROR_INVALID_ARGUMENT));
+    return UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX;
   }
 
   // It is needed in case of UR_KERNEL_LAUNCH_PROPERTY_ID_COOPERATIVE
@@ -1218,6 +1236,13 @@ ur_result_t ur_command_list_manager::appendKernelLaunchWithArgsExpNew(
   hKernel->kernelArgs.resize(numArgs, 0);
 
   for (uint32_t argIndex = 0; argIndex < numArgs; argIndex++) {
+    if (pArgs[argIndex].index != argIndex) {
+      setErrorMessage("Missing kernel argument",
+                      UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX,
+                      static_cast<int32_t>(ZE_RESULT_ERROR_INVALID_ARGUMENT));
+      return UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX;
+    }
+
     switch (pArgs[argIndex].type) {
     case UR_EXP_KERNEL_ARG_TYPE_LOCAL:
       hKernel->kernelArgs[argIndex] =
@@ -1299,6 +1324,107 @@ ur_result_t ur_command_list_manager::appendKernelLaunchWithArgsExp(
         hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize, pLocalWorkSize,
         numArgs, pArgs, launchPropList, waitListView, phEvent);
   }
+
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t ur_command_list_manager::beginGraphCapture() {
+  if (!checkGraphExtensionSupport(hContext.get())) {
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  }
+
+  ZE2UR_CALL(hContext.get()
+                 ->getPlatform()
+                 ->ZeGraphExt.zeCommandListBeginGraphCaptureExp,
+             (getZeCommandList(), nullptr));
+  graphCapture.enableCapture();
+
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t
+ur_command_list_manager::beginCaptureIntoGraph(ur_exp_graph_handle_t hGraph) {
+  if (!checkGraphExtensionSupport(hContext.get())) {
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  }
+
+  ZE2UR_CALL(hContext.get()
+                 ->getPlatform()
+                 ->ZeGraphExt.zeCommandListBeginCaptureIntoGraphExp,
+             (getZeCommandList(), hGraph->getZeHandle(), nullptr));
+  graphCapture.enableCapture(hGraph);
+
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t
+ur_command_list_manager::endGraphCapture(ur_exp_graph_handle_t *phGraph) {
+  if (!checkGraphExtensionSupport(hContext.get())) {
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  }
+
+  ze_graph_handle_t zeGraph = nullptr;
+  ZE2UR_CALL(
+      hContext.get()->getPlatform()->ZeGraphExt.zeCommandListEndGraphCaptureExp,
+      (getZeCommandList(), &zeGraph, nullptr));
+  auto graph = graphCapture.getGraph();
+  graphCapture.disableCapture();
+
+  *phGraph =
+      graph ? graph : new ur_exp_graph_handle_t_(hContext.get(), zeGraph);
+
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t
+ur_command_list_manager::appendGraph(ur_exp_executable_graph_handle_t hGraph,
+                                     wait_list_view &waitListView,
+                                     ur_event_handle_t hEvent) {
+  if (!checkGraphExtensionSupport(hContext.get())) {
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  }
+
+  auto zeSignalEvent = getSignalEvent(hEvent, UR_COMMAND_ENQUEUE_GRAPH_EXP);
+  ZE2UR_CALL(
+      hContext.get()->getPlatform()->ZeGraphExt.zeCommandListAppendGraphExp,
+      (getZeCommandList(), hGraph->getZeHandle(), nullptr, zeSignalEvent,
+       waitListView.num, waitListView.handles));
+
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t ur_command_list_manager::isGraphCaptureActive(bool *pResult) {
+  if (!checkGraphExtensionSupport(hContext.get())) {
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  }
+
+  ze_result_t ZeResult =
+      ZE_CALL_NOCHECK(hContext.get()
+                          ->getPlatform()
+                          ->ZeGraphExt.zeCommandListIsGraphCaptureEnabledExp,
+                      (getZeCommandList()));
+
+  *pResult = (ZeResult == ZE_RESULT_QUERY_TRUE);
+
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t ur_command_list_manager::appendHostTaskExp(
+    ur_exp_host_task_function_t pfnHostTask, void *data,
+    const ur_exp_host_task_properties_t *pProperties,
+    wait_list_view &waitListView, ur_event_handle_t phEvent) {
+
+  ur_platform_handle_t hPlatform = hContext->getPlatform();
+
+  if (!hPlatform->ZeHostTaskExt.Supported) {
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  }
+
+  ZE2UR_CALL(hPlatform->ZeHostTaskExt.zeCommandListAppendHostFunction,
+             (getZeCommandList(), (void *)pfnHostTask, data,
+              const_cast<void *>(reinterpret_cast<const void *>(pProperties)),
+              getSignalEvent(phEvent, UR_COMMAND_HOST_TASK_EXP),
+              waitListView.num, waitListView.handles));
 
   return UR_RESULT_SUCCESS;
 }

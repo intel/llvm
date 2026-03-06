@@ -197,9 +197,11 @@ ur_result_t urProgramLink(
   auto UrRes = getContext()->urDdiTable.Program.pfnLink(
       hContext, count, phPrograms, pOptions, phProgram);
   if (UrRes != UR_RESULT_SUCCESS) {
-    auto Devices = GetDevices(hContext);
-    PrintUrBuildLogIfError(UrRes, *phProgram, Devices.data(), Devices.size());
-    UR_CALL(getTsanInterceptor()->insertProgram(*phProgram));
+    if (*phProgram) {
+      auto Devices = GetDevices(hContext);
+      PrintUrBuildLogIfError(UrRes, *phProgram, Devices.data(), Devices.size());
+      UR_CALL(getTsanInterceptor()->insertProgram(*phProgram));
+    }
     return UrRes;
   }
   UR_CALL(getTsanInterceptor()->insertProgram(*phProgram));
@@ -364,8 +366,10 @@ ur_result_t urProgramLinkExp(
       hContext, numDevices, phDevices, flags, count, phPrograms, pOptions,
       phProgram);
   if (UrRes != UR_RESULT_SUCCESS) {
-    PrintUrBuildLogIfError(UrRes, *phProgram, phDevices, numDevices);
-    UR_CALL(getTsanInterceptor()->insertProgram(*phProgram));
+    if (*phProgram) {
+      PrintUrBuildLogIfError(UrRes, *phProgram, phDevices, numDevices);
+      UR_CALL(getTsanInterceptor()->insertProgram(*phProgram));
+    }
     return UrRes;
   }
 
@@ -1403,6 +1407,11 @@ ur_result_t urEnqueueKernelLaunchWithArgsExp(
   UR_LOG_L(getContext()->logger, DEBUG,
            "==== urEnqueueKernelLaunchWithArgsExp");
 
+  auto &KernelInfo = getTsanInterceptor()->getKernelInfo(hKernel);
+  KernelInfo.ArgProps.resize(numArgs);
+  std::memcpy(KernelInfo.ArgProps.data(), pArgs,
+              numArgs * sizeof(ur_exp_kernel_arg_properties_t));
+
   // We need to set all the args now rather than letting LaunchWithArgs handle
   // them. This is because some implementations of
   // urKernelGetSuggestedLocalWorkSize, which is used in preLaunchKernel, rely
@@ -1436,6 +1445,15 @@ ur_result_t urEnqueueKernelLaunchWithArgsExp(
       UR_CALL(ur_sanitizer_layer::tsan::urKernelSetArgMemObj(
           hKernel, pArgs[ArgPropIndex].index, &Properties,
           pArgs[ArgPropIndex].value.memObjTuple.hMem));
+      if (std::shared_ptr<MemBuffer> MemBuffer =
+              getTsanInterceptor()->getMemBuffer(
+                  pArgs[ArgPropIndex].value.memObjTuple.hMem)) {
+        char *Handle = nullptr;
+        UR_CALL(MemBuffer->getHandle(GetDevice(hQueue), Handle));
+        KernelInfo.ArgProps[ArgPropIndex].type =
+            ur_exp_kernel_arg_type_t::UR_EXP_KERNEL_ARG_TYPE_POINTER;
+        KernelInfo.ArgProps[ArgPropIndex].value.pointer = Handle;
+      }
       break;
     }
     case UR_EXP_KERNEL_ARG_TYPE_SAMPLER: {
@@ -1456,18 +1474,10 @@ ur_result_t urEnqueueKernelLaunchWithArgsExp(
 
   UR_CALL(getTsanInterceptor()->preLaunchKernel(hKernel, hQueue, LaunchInfo));
 
-  /*
-    // TODO: revert to the correct call to pfnKernelLaunchWithArgsExp():
-    UR_CALL(getContext()->urDdiTable.EnqueueExp.pfnKernelLaunchWithArgsExp(
-        hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
-        pLocalWorkSize, numArgs, pArgs,
-    launchPropList, numEventsInWaitList, phEventWaitList, phEvent));
-  */
-
-  UR_CALL(getContext()->urDdiTable.Enqueue.pfnKernelLaunch(
+  UR_CALL(getContext()->urDdiTable.EnqueueExp.pfnKernelLaunchWithArgsExp(
       hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
-      pLocalWorkSize, launchPropList, numEventsInWaitList, phEventWaitList,
-      phEvent));
+      LaunchInfo.LocalWorkSize.data(), numArgs, KernelInfo.ArgProps.data(),
+      launchPropList, numEventsInWaitList, phEventWaitList, phEvent));
 
   UR_CALL(getTsanInterceptor()->postLaunchKernel(hKernel, hQueue, LaunchInfo));
 

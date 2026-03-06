@@ -1,4 +1,4 @@
-# Copyright (C) 2024-2025 Intel Corporation
+# Copyright (C) 2024-2026 Intel Corporation
 # Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -15,9 +15,6 @@ from utils.validate import Validate
 from utils.result import BenchmarkRun
 from utils.logger import log, initialize_logger
 from options import options
-
-
-verbose = False
 
 
 @dataclass
@@ -66,12 +63,12 @@ class Compare:
             result_name (str): Name of benchmarking result to obtain average for
             result_dir (str): Path to folder containing benchmark results
             cutoff (str): Timestamp in YYYYMMDD_HHMMSS of oldest results used in
-            average calcultaion
+                average calculation
             hostname (str): Hostname of machine on which results ran on
             aggregator (Aggregator): The aggregator to use for calculating the
-            historic average
+                historic average
             exclude (list[str]): List of filenames (only the stem) to exclude
-            from average calculation
+                from average calculation
 
         Returns:
             A dictionary mapping benchmark names to BenchmarkHistoricAverage
@@ -157,10 +154,10 @@ class Compare:
                     }
 
                 # Add every benchmark run to average_aggregate:
-                if test_run.name not in average_aggregate:
-                    average_aggregate[test_run.name] = reset_aggregate()
+                if test_run.label not in average_aggregate:
+                    average_aggregate[test_run.label] = reset_aggregate()
                 else:
-                    average_aggregate[test_run.name]["aggregate"].add(test_run.value)
+                    average_aggregate[test_run.label]["aggregate"].add(test_run.value)
 
         return {
             name: BenchmarkHistoricAverage(
@@ -202,23 +199,23 @@ class Compare:
         regression = []
 
         for test in target.results:
-            if test.name not in hist_avg:
+            if test.label not in hist_avg:
                 continue
             # TODO compare command args which have an impact on performance
             # (i.e. ignore --save-name): if command results are incomparable,
             # skip the result.
 
             delta = 1 - (
-                test.value / hist_avg[test.name].value
+                test.value / hist_avg[test.label].value
                 if test.lower_is_better
-                else hist_avg[test.name].value / test.value
+                else hist_avg[test.label].value / test.value
             )
 
             def perf_diff_entry() -> dict:
                 res = asdict(test)
                 res["delta"] = delta
-                res["hist_avg"] = hist_avg[test.name].value
-                res["avg_type"] = hist_avg[test.name].average_type
+                res["hist_avg"] = hist_avg[test.label].value
+                res["avg_type"] = hist_avg[test.label].average_type
                 return res
 
             # Round to 2 decimal places: not going to fail a test on 0.001% over
@@ -229,7 +226,7 @@ class Compare:
                 regression.append(perf_diff_entry())
 
             log.debug(
-                f"{test.name}: expect {hist_avg[test.name].value}, got {test.value}"
+                f"{test.label}: expect {hist_avg[test.label].value}, got {test.value}"
             )
 
         return improvement, regression
@@ -242,17 +239,17 @@ class Compare:
         cutoff: str,
     ) -> tuple:
         """
-        Pregenerate a historic average from results named result_name in
+        Regenerate a historic average from results named result_name in
         result_dir, and compares the results in compare_file to it
 
         Args:
             result_name (str): Save name of the result
-            compare_name (str): Result file name to compare historic average against
+            compare_file (str): Result file name to compare historic average against
             result_dir (str): Directory to look for results in
             cutoff (str): Timestamp (in YYYYMMDD_HHMMSS) indicating the oldest
-            result included in the historic average calculation
+                result included in the historic average calculation
             avg_type (str): Type of "average" (measure of central tendency) to
-            use in historic "average" calculation
+                use in historic "average" calculation
 
         Returns:
             A tuple returning (list of improved tests, list of regressed tests).

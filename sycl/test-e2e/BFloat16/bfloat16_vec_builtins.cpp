@@ -2,9 +2,9 @@
 // RUN: %{build} %{mathflags} -o %t.out
 // RUN: %{run} %t.out
 
-// Test new, ABI-breaking for all platforms.
-// RUN:  %if preview-breaking-changes-supported %{  %{build} -fpreview-breaking-changes -o %t-pfrev.out %}
-// RUN:  %if preview-breaking-changes-supported %{  %{run} %t-pfrev.out  %}
+// Test old vec implementation for all platforms.
+// RUN:  %{build}  -D__SYCL_USE_LIBSYCL8_VEC_IMPL=1 -o %t-pfrev.out
+// RUN: %{run} %t-pfrev.out
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/bfloat16_math.hpp>

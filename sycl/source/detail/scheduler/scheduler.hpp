@@ -628,7 +628,7 @@ protected:
                       std::vector<Command *> &ToCleanUp);
 
     /// Perform connection of events in multiple contexts
-    /// \param Cmd dependant command
+    /// \param Cmd dependent command
     /// \param DepEvent event to depend on
     /// \param Dep optional DepDesc to perform connection properly
     /// \param ToCleanUp container for commands that can be cleaned up due to

@@ -364,26 +364,6 @@ MemoryManager::allocateBufferObject(context_impl *TargetContext, void *UserPtr,
   ur_buffer_properties_t AllocProps = {UR_STRUCTURE_TYPE_BUFFER_PROPERTIES,
                                        nullptr, UserPtr};
 
-  void **Next = &AllocProps.pNext;
-  ur_buffer_alloc_location_properties_t LocationProperties = {
-      UR_STRUCTURE_TYPE_BUFFER_ALLOC_LOCATION_PROPERTIES, nullptr, 0};
-  if (PropsList.has_property<property::buffer::detail::buffer_location>() &&
-      TargetContext->isBufferLocationSupported()) {
-    LocationProperties.location =
-        PropsList.get_property<property::buffer::detail::buffer_location>()
-            .get_buffer_location();
-    *Next = &LocationProperties;
-    Next = &LocationProperties.pNext;
-  }
-
-  ur_buffer_channel_properties_t ChannelProperties = {
-      UR_STRUCTURE_TYPE_BUFFER_CHANNEL_PROPERTIES, nullptr, 0};
-  if (PropsList.has_property<property::buffer::mem_channel>()) {
-    ChannelProperties.channel =
-        PropsList.get_property<property::buffer::mem_channel>().get_channel();
-    *Next = &ChannelProperties;
-  }
-
   memBufferCreateHelper(Adapter, TargetContext->getHandleRef(), CreationFlags,
                         Size, &NewMem, &AllocProps);
   return NewMem;

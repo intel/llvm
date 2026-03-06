@@ -324,6 +324,7 @@ file(GLOB_RECURSE license_src ${license_glob})
 
 # Add license check target
 list(FILTER license_src EXCLUDE REGEX "registry.yml")
+list(FILTER format_src EXCLUDE REGEX "source/adapters/level_zero/external")
 add_custom_target(verify-licenses
     COMMAND ${Python3_EXECUTABLE}
         "${PROJECT_SOURCE_DIR}/scripts/verify_license.py"

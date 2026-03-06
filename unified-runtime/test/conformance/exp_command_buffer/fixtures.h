@@ -1,4 +1,4 @@
-// Copyright (C) 2022-2024 Intel Corporation
+// Copyright (C) 2022-2026 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
 //
@@ -68,9 +68,9 @@ struct urCommandBufferExpTest : uur::urContextTest {
 };
 
 template <class T>
-struct urCommandBufferExpTestWithParam : urQueueTestWithParam<T> {
+struct urCommandBufferExpTestWithParam : urMultiQueueTypeTestWithParam<T> {
   void SetUp() override {
-    UUR_RETURN_ON_FATAL_FAILURE(uur::urQueueTestWithParam<T>::SetUp());
+    UUR_RETURN_ON_FATAL_FAILURE(uur::urMultiQueueTypeTestWithParam<T>::SetUp());
 
     UUR_RETURN_ON_FATAL_FAILURE(checkCommandBufferSupport(this->device));
 
@@ -85,7 +85,8 @@ struct urCommandBufferExpTestWithParam : urQueueTestWithParam<T> {
     if (cmd_buf_handle) {
       EXPECT_SUCCESS(urCommandBufferReleaseExp(cmd_buf_handle));
     }
-    UUR_RETURN_ON_FATAL_FAILURE(uur::urQueueTestWithParam<T>::TearDown());
+    UUR_RETURN_ON_FATAL_FAILURE(
+        uur::urMultiQueueTypeTestWithParam<T>::TearDown());
   }
 
   ur_exp_command_buffer_handle_t cmd_buf_handle = nullptr;
@@ -209,37 +210,6 @@ struct urUpdatableCommandBufferExpExecutionTest : uur::urKernelExecutionTest {
 
   ur_backend_t backend{};
   ur_exp_command_buffer_handle_t updatable_cmd_buf_handle = nullptr;
-};
-
-struct urCommandBufferCommandExpTest
-    : urUpdatableCommandBufferExpExecutionTest {
-  void SetUp() override {
-    UUR_RETURN_ON_FATAL_FAILURE(
-        urUpdatableCommandBufferExpExecutionTest::SetUp());
-
-    // Append 2 kernel commands to command-buffer and close command-buffer
-    ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchExp(
-        updatable_cmd_buf_handle, kernel, n_dimensions, &global_offset,
-        &global_size, &local_size, 0, nullptr, 0, nullptr, 0, nullptr, nullptr,
-        nullptr, &command_handle));
-    ASSERT_NE(command_handle, nullptr);
-
-    ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchExp(
-        updatable_cmd_buf_handle, kernel, n_dimensions, &global_offset,
-        &global_size, &local_size, 0, nullptr, 0, nullptr, 0, nullptr, nullptr,
-        nullptr, &command_handle_2));
-    ASSERT_NE(command_handle_2, nullptr);
-
-    ASSERT_SUCCESS(urCommandBufferFinalizeExp(updatable_cmd_buf_handle));
-  }
-
-  static constexpr size_t local_size = 4;
-  static constexpr size_t global_size = 32;
-  static constexpr size_t global_offset = 0;
-  static constexpr size_t n_dimensions = 1;
-
-  ur_exp_command_buffer_command_handle_t command_handle = nullptr;
-  ur_exp_command_buffer_command_handle_t command_handle_2 = nullptr;
 };
 
 struct TestKernel {

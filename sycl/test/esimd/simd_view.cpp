@@ -149,7 +149,7 @@ SYCL_ESIMD_FUNCTION void test_simd_view_move_assign() {
   v0_view = std::move(v1_view);
 }
 
-// Check that the same holds for specialization with lenght==1.
+// Check that the same holds for specialization with length==1.
 SYCL_ESIMD_FUNCTION void test_simd_view_ctors_length1() {
   simd<int, 16> v = 1;
   auto v0_view = v[0];

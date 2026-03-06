@@ -1,4 +1,4 @@
-# Copyright (C) 2022-2023 Intel Corporation
+# Copyright (C) 2022-2026 Intel Corporation
 # Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -84,6 +84,7 @@ set(TEST_SUBDIRECTORIES_DPCXX
     "exp_usm_p2p"
     "memory-migrate"
     "usm"
+    "exp_host_task"
 )
 
 if(UR_FOUND_DPCXX)

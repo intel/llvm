@@ -6,7 +6,8 @@
 ; On LLVM level, we'll check that the intrinsics were generated again in reverse
 ; translation, replacing the SPIR-V level implementations.
 ; RUN: llvm-dis %t.rev.bc -o - | FileCheck %s --check-prefix=CHECK-LLVM \
-; RUN:   "--implicit-check-not=declare {{.*}} @spirv.llvm_umul_with_overflow_{{.*}}"
+; RUN:   "--implicit-check-not=declare {{.*}} @spirv.llvm_umul_with_overflow_{{.*}}" \
+; RUN:   "--implicit-check-not=old_llvm.umul.with.overflow.{{.*}}"
 
 ; CHECK-SPIRV: Name [[NAME_UMUL_FUNC_8:[0-9]+]] "spirv.llvm_umul_with_overflow_i8"
 ; CHECK-SPIRV: Name [[NAME_UMUL_FUNC_32:[0-9]+]] "spirv.llvm_umul_with_overflow_i32"
@@ -25,6 +26,8 @@ entry:
   %umul.value = extractvalue { i8, i1 } %umul, 0
   %storemerge = select i1 %cmp, i8 0, i8 %umul.value
   store i8 %storemerge, ptr %c, align 1, !tbaa !2
+  ; This test case verifies we don't leave any artifact calls behind (e.g. old_llvm.umul.with.overflow.i8).
+  %umul2 = tail call { i8, i1 } @llvm.umul.with.overflow.i8(i8 %a, i8 %b)
   ret void
 }
 

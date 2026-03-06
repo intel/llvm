@@ -1,4 +1,4 @@
-// Copyright (C) 2023 Intel Corporation
+// Copyright (C) 2023-2026 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
 //
@@ -18,7 +18,8 @@ struct urProgramGetFunctionPointerTest : uur::urProgramTest {
 
   std::string function_name;
 };
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(urProgramGetFunctionPointerTest);
+
+UUR_DEVICE_TEST_SUITE_WITH_DEFAULT_QUEUE(urProgramGetFunctionPointerTest);
 
 TEST_P(urProgramGetFunctionPointerTest, Success) {
   void *function_pointer = nullptr;

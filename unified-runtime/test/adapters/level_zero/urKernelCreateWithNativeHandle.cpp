@@ -1,4 +1,4 @@
-// Copyright (C) 2024 Intel Corporation
+// Copyright (C) 2024-2026 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
 //
@@ -12,8 +12,9 @@
 #include "ze_api.h"
 #include <uur/fixtures.h>
 
-using urLevelZeroKernelNativeHandleTest = uur::urQueueTest;
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(urLevelZeroKernelNativeHandleTest);
+using urLevelZeroKernelNativeHandleTest = uur::urMultiQueueTypeTest;
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_MULTI_QUEUE(
+    urLevelZeroKernelNativeHandleTest);
 
 TEST_P(urLevelZeroKernelNativeHandleTest, OwnedHandleRelease) {
   ze_context_handle_t native_context;

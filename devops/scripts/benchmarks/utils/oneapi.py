@@ -1,4 +1,4 @@
-# Copyright (C) 2024-2025 Intel Corporation
+# Copyright (C) 2024-2026 Intel Corporation
 # Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -19,11 +19,15 @@ class OneAPI:
         Path(self.oneapi_dir).mkdir(parents=True, exist_ok=True)
         self.oneapi_instance_id = self.generate_unique_oneapi_id(self.oneapi_dir)
 
+        if options.offline:
+            log.info("Skipping OneAPI download and installation.")
+            return
+
         self.install_package(
             "base",
-            "2025.1.0+627",
-            "https://registrationcenter-download.intel.com/akdlm/IRC_NAS/cca951e1-31e7-485e-b300-fe7627cb8c08/intel-oneapi-base-toolkit-2025.1.0.651_offline.sh",
-            "98cad2489f2c90a2b328568a59371cf35855a3338643f61a9fc2d16a265d29f22feb2d673916dd7be18fa12a5e6d2475",
+            "2025.3.1+36",
+            "https://registrationcenter-download.intel.com/akdlm/IRC_NAS/6caa93ca-e10a-4cc5-b210-68f385feea9e/intel-oneapi-base-toolkit-2025.3.1.36_offline.sh",
+            "5b496bad1bb5d3fc835722931035be83612aa04777c6f6388aaf657f96f3bc671d50a92998da9b0f0c120aeaf877071c",
         )
         return
 
@@ -111,6 +115,7 @@ class OneAPI:
 
 
 oneapi_instance = None
+
 
 def get_oneapi() -> OneAPI:  # oneAPI singleton
     if not hasattr(get_oneapi, "instance"):

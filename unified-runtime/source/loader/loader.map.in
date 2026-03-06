@@ -31,6 +31,7 @@
 		urBindlessImagesUnsampledImageHandleDestroyExp;
 		urBindlessImagesWaitExternalSemaphoreExp;
 		urCommandBufferAppendKernelLaunchExp;
+		urCommandBufferAppendKernelLaunchWithArgsExp;
 		urCommandBufferAppendMemBufferCopyExp;
 		urCommandBufferAppendMemBufferCopyRectExp;
 		urCommandBufferAppendMemBufferFillExp;
@@ -77,6 +78,7 @@
 		urEnqueueEventsWaitWithBarrier;
 		urEnqueueEventsWaitWithBarrierExt;
 		urEnqueueGraphExp;
+		urEnqueueHostTaskExp;
 		urEnqueueKernelLaunch;
 		urEnqueueKernelLaunchWithArgsExp;
 		urEnqueueMemBufferCopy;
@@ -240,6 +242,7 @@
 		urPrintCodeLocation;
 		urPrintCommand;
 		urPrintCommandBufferAppendKernelLaunchExpParams;
+		urPrintCommandBufferAppendKernelLaunchWithArgsExpParams;
 		urPrintCommandBufferAppendMemBufferCopyExpParams;
 		urPrintCommandBufferAppendMemBufferCopyRectExpParams;
 		urPrintCommandBufferAppendMemBufferFillExpParams;
@@ -306,6 +309,7 @@
 		urPrintEnqueueEventsWaitWithBarrierExtParams;
 		urPrintEnqueueEventsWaitWithBarrierParams;
 		urPrintEnqueueGraphExpParams;
+		urPrintEnqueueHostTaskExpParams;
 		urPrintEnqueueKernelLaunchParams;
 		urPrintEnqueueKernelLaunchWithArgsExpParams;
 		urPrintEnqueueMemBufferCopyParams;
@@ -365,6 +369,8 @@
 		urPrintExpExternalSemaphoreDesc;
 		urPrintExpExternalSemaphoreType;
 		urPrintExpFileDescriptor;
+		urPrintExpHostTaskFlags;
+		urPrintExpHostTaskProperties;
 		urPrintExpImageCopyFlags;
 		urPrintExpImageCopyInputTypes;
 		urPrintExpImageCopyRegion;

@@ -477,5 +477,8 @@ inline void printDeviceInfos(ur_device_handle_t hDevice,
   std::cout << prefix;
   printDeviceInfo<ur_bool_t>(
       hDevice, UR_DEVICE_INFO_MEMORY_EXPORT_EXPORTABLE_DEVICE_MEM_EXP);
+  std::cout << prefix;
+  printDeviceInfo<ur_bool_t>(hDevice,
+                             UR_DEVICE_INFO_ENQUEUE_HOST_TASK_SUPPORT_EXP);
 }
 } // namespace urinfo

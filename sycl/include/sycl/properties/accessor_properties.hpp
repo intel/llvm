@@ -33,27 +33,6 @@ inline namespace _V1 {
   __SYCL_DATA_LESS_PROP_DEPRECATED_ALIAS(NS_QUALIFIER, PROP_NAME, ENUM_VAL, )
 #include <sycl/properties/runtime_accessor_properties.def>
 
-namespace ext::intel {
-namespace property {
-struct __SYCL_TYPE(buffer_location) buffer_location {
-  template <int A = 0> struct instance {
-    template <int B>
-    constexpr bool operator==(const buffer_location::instance<B> &) const {
-      return A == B;
-    }
-    template <int B>
-    constexpr bool operator!=(const buffer_location::instance<B> &) const {
-      return A != B;
-    }
-    int get_location() { return A; }
-  };
-};
-} // namespace property
-
-template <int A>
-inline constexpr property::buffer_location::instance<A> buffer_location{};
-} // namespace ext::intel
-
 namespace ext::oneapi {
 namespace property {
 struct no_offset {
@@ -86,9 +65,6 @@ struct is_compile_time_property<ext::oneapi::property::no_offset>
     : std::true_type {};
 template <>
 struct is_compile_time_property<ext::oneapi::property::no_alias>
-    : std::true_type {};
-template <>
-struct is_compile_time_property<sycl::ext::intel::property::buffer_location>
     : std::true_type {};
 } // namespace ext::oneapi
 
@@ -162,8 +138,6 @@ template <>
 struct is_property<ext::oneapi::property::no_offset> : std::true_type {};
 template <>
 struct is_property<ext::oneapi::property::no_alias> : std::true_type {};
-template <>
-struct is_property<ext::intel::property::buffer_location> : std::true_type {};
 
 template <typename T>
 struct is_property_of<property::noinit, T>
@@ -186,14 +160,7 @@ template <typename T>
 struct is_property_of<ext::oneapi::property::no_alias, T>
     : std::bool_constant<detail::acc_properties::is_accessor_v<T>> {};
 
-template <typename T>
-struct is_property_of<ext::intel::property::buffer_location, T>
-    : std::bool_constant<detail::acc_properties::is_accessor_v<T>> {};
-
 namespace detail {
-template <int I>
-struct IsCompileTimePropertyInstance<
-    ext::intel::property::buffer_location::instance<I>> : std::true_type {};
 template <>
 struct IsCompileTimePropertyInstance<
     ext::oneapi::property::no_alias::instance<>> : std::true_type {};

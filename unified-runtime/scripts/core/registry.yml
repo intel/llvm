@@ -724,7 +724,13 @@ etors:
 - name: ENQUEUE_GRAPH_EXP
   desc: Enumerator for $xEnqueueGraphExp
   value: '308'
-max_id: '308'
+- name: ENQUEUE_HOST_TASK_EXP
+  desc: Enumerator for $xEnqueueHostTaskExp
+  value: '309'
+- name: COMMAND_BUFFER_APPEND_KERNEL_LAUNCH_WITH_ARGS_EXP
+  desc: Enumerator for $xCommandBufferAppendKernelLaunchWithArgsExp
+  value: '310'
+max_id: '310'
 ---
 type: enum
 desc: Defines structure types

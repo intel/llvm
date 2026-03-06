@@ -42,21 +42,14 @@ template <typename T> struct IsValidAtomicType {
 };
 
 template <sycl::access::address_space AS> struct IsValidAtomicAddressSpace {
-  static constexpr bool value =
-      (AS == access::address_space::global_space ||
-       AS == access::address_space::local_space ||
-       AS == access::address_space::ext_intel_global_device_space);
+  static constexpr bool value = (AS == access::address_space::global_space ||
+                                 AS == access::address_space::local_space);
 };
 
 // Type trait to translate a sycl::access::address_space to
 // a SPIR-V memory scope
 template <access::address_space AS> struct GetSpirvMemoryScope {};
 template <> struct GetSpirvMemoryScope<access::address_space::global_space> {
-  static constexpr auto scope = __spv::Scope::Device;
-};
-template <>
-struct GetSpirvMemoryScope<
-    access::address_space::ext_intel_global_device_space> {
   static constexpr auto scope = __spv::Scope::Device;
 };
 template <> struct GetSpirvMemoryScope<access::address_space::local_space> {
@@ -174,7 +167,7 @@ class __SYCL2020_DEPRECATED(
                 "long long, float");
   static_assert(detail::IsValidAtomicAddressSpace<addressSpace>::value,
                 "Invalid SYCL atomic address_space. Valid address spaces are: "
-                "global_space, local_space, ext_intel_global_device_space");
+                "global_space and local_space");
   static constexpr auto SpirvScope =
       detail::GetSpirvMemoryScope<addressSpace>::scope;
 
@@ -200,27 +193,6 @@ public:
     static_assert(sizeof(T) == sizeof(pointerT),
                   "T and pointerT must be same size");
   }
-
-#ifdef __ENABLE_USM_ADDR_SPACE__
-  // Create atomic in global_space with one from ext_intel_global_device_space
-  template <access::address_space _Space = addressSpace,
-            typename = typename std::enable_if_t<
-                _Space == addressSpace &&
-                addressSpace == access::address_space::global_space>>
-  atomic(const atomic<T, access::address_space::ext_intel_global_device_space>
-             &RHS) {
-    Ptr = RHS.Ptr;
-  }
-
-  template <access::address_space _Space = addressSpace,
-            typename = typename std::enable_if_t<
-                _Space == addressSpace &&
-                addressSpace == access::address_space::global_space>>
-  atomic(
-      atomic<T, access::address_space::ext_intel_global_device_space> &&RHS) {
-    Ptr = RHS.Ptr;
-  }
-#endif // __ENABLE_USM_ADDR_SPACE__
 
   void store(T Operand, memory_order Order = memory_order::relaxed) {
     __spirv_AtomicStore(Ptr, SpirvScope,

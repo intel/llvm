@@ -63,11 +63,11 @@ clang_flags = [
     "-Xclang",
     "-mlink-builtin-bitcode",
     "-Xclang",
-    os.path.join(config.libclc_output_dir, f"libspirv-{config.libclc_target}.bc"),
+    os.path.join(config.libclc_output_dir, config.libclc_target, f"libspirv.bc"),
     "-nogpulib",
 ]
 
-if config.libclc_target == "amdgcn--amdhsa":
+if config.libclc_target == "amdgcn-amd-amdhsa":
     # libclc for amdgcn is currently built for tahiti which doesn't support
     # fp16 so disable the extension for the tests
     clang_flags += ["-Xclang", "-cl-ext=-cl_khr_fp16"]

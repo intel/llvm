@@ -1,0 +1,63 @@
+; REQUIRES: spirv-as, spirv-dis
+; RUN: spirv-as -o %t.spv %s
+; RUN: spirv-val %t.spv
+; RUN: llvm-spirv -r -o %t.bc %t.spv
+; RUN: llvm-dis %t.bc -o - | FileCheck %s --check-prefix=LLVM
+; RUN: llvm-spirv --spirv-ext=+SPV_KHR_float_controls2 %t.bc -o - --spirv-text | FileCheck %s --check-prefix=SPIRV
+; RUN: llvm-spirv --spirv-ext=+SPV_KHR_float_controls2 %t.bc -o %t.back.spv
+; RUN: spirv-val %t.back.spv
+;
+; Check that the FPFastMathDefault set to "contract" on a function is honored
+; when translating from SPIRV to LLVM-IR.
+;
+; However, when generating SPIRV back again from LLVM-IR set FPFastMathMode
+; decorations on the instructions.
+;
+; LLVM: %{{.*}} = fadd contract float %{{.*}}, %{{.*}}
+; LLVM: !spirv.ExecutionMode = !{![[#ExecMode:]]}
+; LLVM: ![[#ExecMode]] = !{ptr @foo, i32 6028, float poison, i32 65536}
+;
+; SPIRV: Capability FloatControls2
+; SPIRV: EntryPoint {{[0-9]+}} [[#FOO:]] "foo"
+; SPIRV-DAG: TypeFloat [[#FLOAT:]] 32
+; SPIRV-DAG: ExecutionModeId [[#FOO]] 6028 [[#FLOAT]] [[#FLAG:]]
+; SPIRV-DAG: FAdd [[#FLOAT]] [[#ADD_ID:]] {{[0-9]+}} {{[0-9]+}}
+; SPIRV-DAG: Decorate [[#ADD_ID]] FPFastMathMode 65536
+; SPIRV-DAG: Name [[#ADD_ID]] "add.i"
+; SPIRV-DAG: Constant {{[0-9]+}} [[#FLAG]] 65536
+
+             OpCapability Kernel
+             OpCapability Addresses
+             OpCapability FloatControls2
+             OpExtension "SPV_KHR_float_controls2"
+        %1 = OpExtInstImport "OpenCL.std"
+             OpMemoryModel Physical64 OpenCL
+             OpEntryPoint Kernel %foo "foo" %11
+             OpExecutionModeId %foo FPFastMathDefault %float %10
+             OpSource OpenCL_C 102000
+             OpName %a "a"
+             OpName %b "b"
+             OpName %c "c"
+             OpName %foo "foo"
+             OpName %add_i "add.i"
+             OpName %entry "entry"
+             OpDecorate %11 Constant
+    %float = OpTypeFloat 32
+%ptr_float = OpTypePointer CrossWorkgroup %float
+     %void = OpTypeVoid
+        %7 = OpTypeFunction %void %ptr_float %ptr_float %ptr_float
+     %uint = OpTypeInt 32 0
+ %ptr_uint = OpTypePointer CrossWorkgroup %uint
+       %10 = OpConstant %uint 65536
+       %11 = OpVariable %ptr_uint CrossWorkgroup %10
+      %foo = OpFunction %void None %7
+        %a = OpFunctionParameter %ptr_float
+        %b = OpFunctionParameter %ptr_float
+        %c = OpFunctionParameter %ptr_float
+    %entry = OpLabel
+       %16 = OpLoad %float %a
+       %17 = OpLoad %float %b
+    %add_i = OpFAdd %float %17 %16
+             OpStore %c %add_i
+             OpReturn
+             OpFunctionEnd

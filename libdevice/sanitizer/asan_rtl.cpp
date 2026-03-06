@@ -485,7 +485,7 @@ void ReportAccessError(uptr poisoned_addr, uint32_t as, bool is_recover,
   // Check Error Type
   auto *shadow_address =
       (__SYCL_GLOBAL__ s8 *)MemToShadow(poisoned_addr, as, debug);
-  int shadow_value = *shadow_address;
+  s8 shadow_value = *shadow_address;
   if (shadow_value > 0) {
     shadow_value = *(shadow_address + 1);
   }
@@ -531,7 +531,7 @@ void ReportMisalignError(uptr addr, uint32_t as, bool is_recover,
   while (*shadow >= 0) {
     ++shadow;
   }
-  int shadow_value = *shadow;
+  s8 shadow_value = *shadow;
 
   SaveReport(ErrorType::MISALIGNED, GetMemoryTypeByShadowValue(shadow_value),
              is_recover, debug);
@@ -564,7 +564,7 @@ inline int IsAddressPoisoned(uptr a, uint32_t as, size_t size,
                              const DebugInfo *debug) {
   auto *shadow_address = (__SYCL_GLOBAL__ s8 *)MemToShadow(a, as, debug);
   if (shadow_address) {
-    auto shadow_value = *shadow_address;
+    s8 shadow_value = *shadow_address;
     if (shadow_value) {
       if (size == ASAN_SHADOW_GRANULARITY)
         return true;
@@ -934,5 +934,94 @@ __asan_set_private_base(__SYCL_PRIVATE__ void *ptr) {
   }
   SubGroupBarrier();
 }
+
+// Intercept string functions
+#define ASAN_MEMSET(as)                                                        \
+  DEVICE_EXTERN_C_NOINLINE __attribute__((address_space(as))) void *           \
+  __asan_memset_p##as(__attribute__((address_space(as))) char *ptr, int val,   \
+                      size_t size, const char __SYCL_CONSTANT__ *file,         \
+                      uint32_t line, const char __SYCL_CONSTANT__ *func) {     \
+    if (__AsanLaunchInfo) {                                                    \
+      DebugInfo debug{(uptr)ptr, as, size, true, file, func, line};            \
+      if (auto poisoned_addr =                                                 \
+              IsRegionPoisoned((uptr)ptr, as, size, &debug)) {                 \
+        ReportAccessError(poisoned_addr, as, false, &debug);                   \
+      }                                                                        \
+    }                                                                          \
+    return Memset(ptr, val, size);                                             \
+  }
+
+ASAN_MEMSET(0)
+ASAN_MEMSET(1)
+ASAN_MEMSET(3)
+ASAN_MEMSET(4)
+
+#define ASAN_MEMCPY_BASE(dst_as, src_as)                                       \
+  DEVICE_EXTERN_C_NOINLINE __attribute__((address_space(dst_as))) void *       \
+  __asan_memcpy_p##dst_as##_p##src_as(                                         \
+      __attribute__((address_space(dst_as))) char *dst,                        \
+      __attribute__((address_space(src_as))) char *src, size_t size,           \
+      const char __SYCL_CONSTANT__ *file, uint32_t line,                       \
+      const char __SYCL_CONSTANT__ *func) {                                    \
+    if (__AsanLaunchInfo) {                                                    \
+      DebugInfo debug_dst{(uptr)dst, dst_as, size, true, file, func, line};    \
+      if (auto poisoned_addr =                                                 \
+              IsRegionPoisoned((uptr)dst, dst_as, size, &debug_dst)) {         \
+        ReportAccessError(poisoned_addr, dst_as, false, &debug_dst);           \
+      }                                                                        \
+      DebugInfo debug_src{(uptr)src, src_as, size, false, file, func, line};   \
+      if (auto poisoned_addr =                                                 \
+              IsRegionPoisoned((uptr)src, src_as, size, &debug_src)) {         \
+        ReportAccessError(poisoned_addr, src_as, false, &debug_src);           \
+      }                                                                        \
+    }                                                                          \
+    return Memcpy(dst, src, size);                                             \
+  }
+
+#define ASAN_MEMCPY(dst_as)                                                    \
+  ASAN_MEMCPY_BASE(dst_as, 0)                                                  \
+  ASAN_MEMCPY_BASE(dst_as, 1)                                                  \
+  ASAN_MEMCPY_BASE(dst_as, 2)                                                  \
+  ASAN_MEMCPY_BASE(dst_as, 3)                                                  \
+  ASAN_MEMCPY_BASE(dst_as, 4)
+
+ASAN_MEMCPY(0)
+ASAN_MEMCPY(1)
+ASAN_MEMCPY(3)
+ASAN_MEMCPY(4)
+
+#define ASAN_MEMMOVE_BASE(dst_as, src_as)                                      \
+  DEVICE_EXTERN_C_NOINLINE __attribute__((address_space(dst_as))) void *       \
+  __asan_memmove_p##dst_as##_p##src_as(                                        \
+      __attribute__((address_space(dst_as))) char *dst,                        \
+      __attribute__((address_space(src_as))) char *src, size_t size,           \
+      const char __SYCL_CONSTANT__ *file, uint32_t line,                       \
+      const char __SYCL_CONSTANT__ *func) {                                    \
+    if (__AsanLaunchInfo) {                                                    \
+      DebugInfo debug_dst{(uptr)dst, dst_as, size, true, file, func, line};    \
+      if (auto poisoned_addr =                                                 \
+              IsRegionPoisoned((uptr)dst, dst_as, size, &debug_dst)) {         \
+        ReportAccessError(poisoned_addr, dst_as, false, &debug_dst);           \
+      }                                                                        \
+      DebugInfo debug_src{(uptr)src, src_as, size, false, file, func, line};   \
+      if (auto poisoned_addr =                                                 \
+              IsRegionPoisoned((uptr)src, src_as, size, &debug_src)) {         \
+        ReportAccessError(poisoned_addr, src_as, false, &debug_src);           \
+      }                                                                        \
+    }                                                                          \
+    return Memmove(dst, src, size);                                            \
+  }
+
+#define ASAN_MEMMOVE(dst_as)                                                   \
+  ASAN_MEMMOVE_BASE(dst_as, 0)                                                 \
+  ASAN_MEMMOVE_BASE(dst_as, 1)                                                 \
+  ASAN_MEMMOVE_BASE(dst_as, 2)                                                 \
+  ASAN_MEMMOVE_BASE(dst_as, 3)                                                 \
+  ASAN_MEMMOVE_BASE(dst_as, 4)
+
+ASAN_MEMMOVE(0)
+ASAN_MEMMOVE(1)
+ASAN_MEMMOVE(3)
+ASAN_MEMMOVE(4)
 
 #endif // __SPIR__ || __SPIRV__

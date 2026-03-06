@@ -62,7 +62,7 @@ if(WIN32)
   # FIXME: Unified runtime build fails with /DUNICODE
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /UUNICODE")
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /UUNICODE")
-  # USE_Z7 forces use of /Z7 instead of /Zi which is broken with sccache
+  # USE_Z7 forces use of /Z7 instead of /Zi which is broken with (s)ccache
   set(USE_Z7 ON)
 else()
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error")

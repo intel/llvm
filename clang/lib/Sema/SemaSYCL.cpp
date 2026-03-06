@@ -6613,6 +6613,437 @@ static void PrintNSClosingBraces(raw_ostream &OS, const DeclContext *DC) {
       [](raw_ostream &, const NamespaceDecl *) {}, OS, DC);
 }
 
+/// Dedicated visitor which helps with printing of kernel arguments in forward
+/// declarations of free function kernels which are declared as function
+/// templates.
+///
+/// Based on:
+/// \code
+/// template <typename T1, typename T2>
+/// void foo(T1 a, int b, T2 c);
+/// \endcode
+///
+/// It prints into the output stream "T1, int, T2".
+///
+/// The main complexity (which motivates addition of such visitor) comes from
+/// the fact that there could be type aliases and default template arguments.
+/// For example:
+/// \code
+/// template<typename T>
+/// void kernel(sycl::accessor<T, 1>);
+/// template void kernel(sycl::accessor<int, 1>);
+/// \endcode
+/// sycl::accessor has many template arguments which have default values. If
+/// we iterate over non-canonicalized argument type, we don't get those default
+/// values and we don't get necessary namespace qualifiers for all the template
+/// arguments. If we iterate over canonicalized argument type, then all
+/// references to T will be replaced with something like type-argument-X-Y.
+/// What this visitor does is it iterates over both in sync, picking the right
+/// values from one or another.
+///
+/// The template argument visitor functions take an additional
+/// ArrayRef<TemplateArgument> argument corresponding to the template arguments
+/// of the outermost template. This is used by some of these functions for
+/// mapping dependent template arguments.
+///
+/// Moral of the story: drop integration header ASAP (but that is blocked
+/// by support for 3rd-party host compilers, which is important).
+static std::string stringifyTypeWithEnumValues(QualType T,
+                                               PrintingPolicy &Policy,
+                                               ASTContext &Ctx);
+
+class FreeFunctionTemplateKernelArgsPrinter
+    : public ConstTemplateArgumentVisitor<FreeFunctionTemplateKernelArgsPrinter,
+                                          void, ArrayRef<TemplateArgument>> {
+  raw_ostream &O;
+  PrintingPolicy &Policy;
+  ASTContext &Context;
+
+  using Base =
+      ConstTemplateArgumentVisitor<FreeFunctionTemplateKernelArgsPrinter, void,
+                                   ArrayRef<TemplateArgument>>;
+
+  // Desugars a template argument. This helps avoid aliases.
+  static TemplateArgument DesugarTemplateArgument(const TemplateArgument &Arg) {
+    switch (Arg.getKind()) {
+    case TemplateArgument::ArgKind::Type: {
+      QualType ArgTy = Arg.getAsType();
+      return {QualType(ArgTy->getUnqualifiedDesugaredType(),
+                       ArgTy.getCVRQualifiers())};
+    }
+    case TemplateArgument::ArgKind::Template: {
+      TemplateName TN = Arg.getAsTemplate();
+      while (std::optional<TemplateName> DesugaredTN =
+                 TN.desugar(/*IgnoreDeduced=*/false))
+        TN = *DesugaredTN;
+      return {TN};
+    }
+    default:
+      return Arg;
+    }
+  }
+
+  void PrintDesugared(const TemplateArgument &Arg) {
+    DesugarTemplateArgument(Arg).print(Policy, O, /*IncludeType=*/false);
+  }
+
+  void printEnumValue(QualType EnumTy, const llvm::APSInt &Val) {
+    O << "static_cast<";
+    if (const auto *ET = EnumTy->getAs<EnumType>())
+      ET->getOriginalDecl()->printQualifiedName(O, Policy,
+                                                /*WithGlobalNsPrefix=*/false);
+    else
+      EnumTy.print(O, Policy);
+    llvm::SmallString<8> Num;
+    Val.toString(Num, /*Radix=*/10, /*Signed=*/Val.isSigned());
+    O << ">(" << Num << ")";
+  }
+
+public:
+  FreeFunctionTemplateKernelArgsPrinter(raw_ostream &O, PrintingPolicy &Policy,
+                                        ASTContext &Context)
+      : O(O), Policy(Policy), Context(Context) {}
+
+  void Visit(const ParmVarDecl *Param) {
+    // There are cases when we can't directly use neither the original
+    // argument type, nor its canonical version. An example would be:
+    // template<typename T>
+    // void kernel(sycl::accessor<T, 1>);
+    // template void kernel(sycl::accessor<int, 1>);
+    // Accessor has multiple non-type template arguments with default values
+    // and non-qualified type will not include necessary namespaces for all
+    // of them. Qualified type will have that information, but all references
+    // to T will be replaced to something like type-argument-0
+    // What we do instead is we iterate template arguments of both versions
+    // of a type in sync and take elements from one or another to get the best
+    // of both: proper references to template arguments of a kernel itself and
+    // fully-qualified names for enumerations.
+    //
+    // Moral of the story: drop integration header ASAP (but that is blocked
+    // by support for 3rd-party host compilers, which is important).
+    QualType T = Param->getType();
+    QualType CT = T.getCanonicalType();
+
+    const auto *TST = dyn_cast<TemplateSpecializationType>(T.getTypePtr());
+    const auto *CTST = dyn_cast<TemplateSpecializationType>(CT.getTypePtr());
+    if (!TST || !CTST) {
+      O << stringifyTypeWithEnumValues(T.getDesugaredType(Context), Policy,
+                                       Context);
+      return;
+    }
+
+    const TemplateSpecializationType *TSTAsNonAlias =
+        TST->getAsNonAliasTemplateSpecializationType();
+    if (TSTAsNonAlias)
+      TST = TSTAsNonAlias;
+
+    ArrayRef<TemplateArgument> SpecArgs = TST->template_arguments();
+    ArrayRef<TemplateArgument> DeclArgs = CTST->template_arguments();
+
+    const TemplateDecl *TD = CTST->getTemplateName().getAsTemplateDecl();
+    if (!TD->getIdentifier())
+      TD = TST->getTemplateName().getAsTemplateDecl();
+    assert(TD->getIdentifier() &&
+           "Either the type or the canonical type should have an identifier.");
+    T.getLocalQualifiers().print(O, Policy, /*appendSpaceIfNotEmpty=*/true);
+    TD->printQualifiedName(O);
+
+    O << "<";
+    for (size_t I = 0, E = std::max(DeclArgs.size(), SpecArgs.size()),
+                SE = SpecArgs.size();
+         I < E; ++I) {
+      if (I != 0)
+        O << ", ";
+      // If we have a specialized argument, use it. Otherwise fallback to a
+      // default argument.
+      // We pass specialized arguments in case there are references to them
+      // from other types.
+      // FIXME: passing SpecArgs here is incorrect. It refers to template
+      // arguments of a single function argument, but DeclArgs contain
+      // references (in form of depth-index) to template arguments of the
+      // function itself which results in incorrect integration header being
+      // produced.
+      Base::Visit(I < SE ? SpecArgs[I] : DeclArgs[I], SpecArgs);
+    }
+    O << ">";
+  }
+
+  // Internal version of the function above that is used when template argument
+  // is a template by itself
+  void Visit(const TemplateSpecializationType *T,
+             ArrayRef<TemplateArgument> SpecArgs) {
+    const TemplateDecl *TD = T->getTemplateName().getAsTemplateDecl();
+    const auto *TTPD = dyn_cast<TemplateTemplateParmDecl>(TD);
+    if (TTPD && !TTPD->getIdentifier())
+      PrintDesugared(SpecArgs[TTPD->getIndex()]);
+    else
+      TD->printQualifiedName(O);
+    O << "<";
+    ArrayRef<const TemplateArgument> DeclArgs = T->template_arguments();
+    for (size_t I = 0, E = DeclArgs.size(); I < E; ++I) {
+      if (I != 0)
+        O << ", ";
+      Base::Visit(DeclArgs[I], SpecArgs);
+    }
+    O << ">";
+  }
+
+  void VisitNullTemplateArgument(const TemplateArgument &,
+                                 ArrayRef<TemplateArgument>) {
+    llvm_unreachable("If template argument has not been deduced, then we can't "
+                     "forward-declare it, something went wrong");
+  }
+
+  void VisitTypeTemplateArgument(const TemplateArgument &Arg,
+                                 ArrayRef<TemplateArgument> SpecArgs) {
+    TemplateArgument DesugaredArg = DesugarTemplateArgument(Arg);
+    // If we reference an existing template argument without a known identifier,
+    // print it instead.
+    const auto *TPT = dyn_cast<TemplateTypeParmType>(DesugaredArg.getAsType());
+    if (TPT && !TPT->getIdentifier()) {
+      PrintDesugared(SpecArgs[TPT->getIndex()]);
+      return;
+    }
+
+    const auto *TST =
+        dyn_cast<TemplateSpecializationType>(DesugaredArg.getAsType());
+    if (TST && Arg.isInstantiationDependent()) {
+      // This is an instantiation dependent template specialization, meaning
+      // that some of its arguments reference template arguments of the free
+      // function kernel itself.
+      Visit(TST, SpecArgs);
+      return;
+    }
+
+    DesugaredArg.print(Policy, O, /* IncludeType = */ false);
+  }
+
+  void VisitDeclarationTemplateArgument(const TemplateArgument &,
+                                        ArrayRef<TemplateArgument>) {
+    llvm_unreachable("Free function kernels cannot have non-type template "
+                     "arguments which are pointers or references");
+  }
+
+  void VisitNullPtrTemplateArgument(const TemplateArgument &,
+                                    ArrayRef<TemplateArgument>) {
+    llvm_unreachable("Free function kernels cannot have non-type template "
+                     "arguments which are pointers or references");
+  }
+
+  void VisitIntegralTemplateArgument(const TemplateArgument &Arg,
+                                     ArrayRef<TemplateArgument>) {
+    QualType T = Arg.getIntegralType();
+    if (T->isEnumeralType())
+      return printEnumValue(T, Arg.getAsIntegral());
+    PrintDesugared(Arg);
+  }
+
+  void VisitStructuralValueTemplateArgument(const TemplateArgument &Arg,
+                                            ArrayRef<TemplateArgument>) {
+    QualType T = Arg.getIntegralType();
+    if (T->isEnumeralType())
+      return printEnumValue(T, Arg.getAsIntegral());
+    PrintDesugared(Arg);
+  }
+
+  void VisitTemplateTemplateArgument(const TemplateArgument &Arg,
+                                     ArrayRef<TemplateArgument>) {
+    PrintDesugared(Arg);
+  }
+
+  void VisitTemplateExpansionTemplateArgument(const TemplateArgument &Arg,
+                                              ArrayRef<TemplateArgument>) {
+    PrintDesugared(Arg);
+  }
+
+  void VisitExpressionTemplateArgument(const TemplateArgument &Arg,
+                                       ArrayRef<TemplateArgument>) {
+    Expr *E = Arg.getAsExpr();
+    assert(E && "Failed to get an Expr for an Expression template arg?");
+
+    if (Arg.isInstantiationDependent()) {
+      PrintDesugared(Arg);
+      return;
+    }
+
+    if (E->getType()->isEnumeralType()) {
+      Expr::EvalResult Res;
+      if (E->EvaluateAsConstantExpr(Res, Context) && !Res.Val.isAbsent() &&
+          Res.Val.isInt())
+        return printEnumValue(E->getType(), Res.Val.getInt());
+    }
+
+    Expr::EvalResult Res;
+    [[maybe_unused]] bool Success = E->EvaluateAsConstantExpr(Res, Context);
+    assert(Success && "invalid non-type template argument?");
+    assert(!Res.Val.isAbsent() && "couldn't read the evaulation result?");
+    Res.Val.printPretty(O, Policy, E->getType(), &Context);
+  }
+
+  void VisitPackTemplateArgument(const TemplateArgument &Arg,
+                                 ArrayRef<TemplateArgument>) {
+    PrintDesugared(Arg);
+  }
+};
+
+class EnumValueTemplateArgPrinter
+    : public ConstTemplateArgumentVisitor<EnumValueTemplateArgPrinter> {
+  raw_ostream &OS;
+  PrintingPolicy &Policy;
+  ASTContext &Ctx;
+
+  void printEnumValue(QualType EnumTy, const llvm::APSInt &Val) {
+    OS << "static_cast<";
+    if (const auto *ET = EnumTy->getAs<EnumType>())
+      ET->getOriginalDecl()->printQualifiedName(OS, Policy,
+                                                /*WithGlobalNsPrefix=*/false);
+    else
+      EnumTy.print(OS, Policy);
+    llvm::SmallString<8> Num;
+    Val.toString(Num, /*Radix=*/10, /*Signed=*/Val.isSigned());
+    OS << ">(" << Num << ")";
+  }
+
+  void printTemplateArgs(ArrayRef<TemplateArgument> Args) {
+    llvm::ListSeparator LS(", ");
+    for (const auto &A : Args) {
+      // Skip empty packs without emitting separators.
+      if (A.getKind() == TemplateArgument::ArgKind::Pack && !A.pack_size())
+        continue;
+      OS << LS;
+      Visit(A);
+    }
+  }
+
+  void printTypeWithEnumValues(QualType T) {
+    QualType DT = T.getDesugaredType(Ctx);
+
+    if (const auto *CTSD = dyn_cast_or_null<ClassTemplateSpecializationDecl>(
+            DT->getAsCXXRecordDecl())) {
+      T.getLocalQualifiers().print(OS, Policy, /*appendSpaceIfNotEmpty=*/true);
+      if (!Policy.SuppressTagKeyword)
+        OS << CTSD->getKindName() << " ";
+      CTSD->printQualifiedName(OS, Policy,
+                               /*WithGlobalNsPrefix=*/false);
+      OS << "<";
+      printTemplateArgs(CTSD->getTemplateArgs().asArray());
+      OS << ">";
+      return;
+    }
+
+    if (const auto *TST = DT->getAs<TemplateSpecializationType>()) {
+      T.getLocalQualifiers().print(OS, Policy, /*appendSpaceIfNotEmpty=*/true);
+      if (const auto *RT = TST->getAs<RecordType>()) {
+        if (!Policy.SuppressTagKeyword)
+          OS << RT->getDecl()->getKindName() << " ";
+      }
+
+      if (TemplateDecl *TD = TST->getTemplateName().getAsTemplateDecl())
+        TD->printQualifiedName(OS, Policy,
+                               /*WithGlobalNsPrefix=*/false);
+      else
+        TST->getTemplateName().print(OS, Policy);
+
+      OS << "<";
+      printTemplateArgs(TST->template_arguments());
+      OS << ">";
+      return;
+    }
+
+    T.print(OS, Policy);
+  }
+
+public:
+  EnumValueTemplateArgPrinter(raw_ostream &OS, PrintingPolicy &Policy,
+                              ASTContext &Ctx)
+      : OS(OS), Policy(Policy), Ctx(Ctx) {}
+
+  void PrintType(QualType T) { printTypeWithEnumValues(T); }
+
+  void Visit(const TemplateArgument &TA) {
+    if (TA.isNull())
+      return;
+    ConstTemplateArgumentVisitor::Visit(TA);
+  }
+
+  void VisitTypeTemplateArgument(const TemplateArgument &Arg) {
+    printTypeWithEnumValues(Arg.getAsType());
+  }
+
+  void VisitIntegralTemplateArgument(const TemplateArgument &Arg) {
+    QualType T = Arg.getIntegralType();
+    if (T->isEnumeralType())
+      return printEnumValue(T, Arg.getAsIntegral());
+    Arg.print(Policy, OS, /*IncludeType=*/false);
+  }
+
+  void VisitExpressionTemplateArgument(const TemplateArgument &Arg) {
+    Expr *E = Arg.getAsExpr();
+    if (!E || Arg.isInstantiationDependent()) {
+      Arg.print(Policy, OS, /*IncludeType=*/false);
+      return;
+    }
+
+    if (E->getType()->isEnumeralType()) {
+      Expr::EvalResult Res;
+      if (E->EvaluateAsConstantExpr(Res, Ctx) && !Res.Val.isAbsent() &&
+          Res.Val.isInt()) {
+        return printEnumValue(E->getType(), Res.Val.getInt());
+      }
+    }
+
+    E = E->IgnoreParenImpCasts();
+    const EnumConstantDecl *ECD = nullptr;
+    if (const auto *DRE = dyn_cast<DeclRefExpr>(E))
+      ECD = dyn_cast<EnumConstantDecl>(DRE->getDecl());
+    else if (const auto *ME = dyn_cast<MemberExpr>(E))
+      ECD = dyn_cast<EnumConstantDecl>(ME->getMemberDecl());
+
+    if (ECD)
+      return printEnumValue(ECD->getType(), ECD->getInitVal());
+
+    Arg.print(Policy, OS, /*IncludeType=*/false);
+  }
+
+  void VisitTemplateTemplateArgument(const TemplateArgument &Arg) {
+    Arg.getAsTemplate().print(OS, Policy);
+  }
+
+  void VisitTemplateExpansionTemplateArgument(const TemplateArgument &Arg) {
+    Arg.print(Policy, OS, /*IncludeType=*/false);
+  }
+
+  void VisitStructuralValueTemplateArgument(const TemplateArgument &Arg) {
+    Arg.print(Policy, OS, /*IncludeType=*/false);
+  }
+
+  void VisitPackTemplateArgument(const TemplateArgument &Arg) {
+    printTemplateArgs(Arg.getPackAsArray());
+  }
+};
+
+static std::string
+stringifyTemplateArgWithEnumValues(const TemplateArgument &Arg,
+                                   PrintingPolicy &Policy, ASTContext &Ctx) {
+  std::string Out;
+  llvm::raw_string_ostream OS(Out);
+  EnumValueTemplateArgPrinter Printer(OS, Policy, Ctx);
+  Printer.Visit(Arg);
+  OS.flush();
+  return Out;
+}
+
+static std::string stringifyTypeWithEnumValues(QualType T,
+                                               PrintingPolicy &Policy,
+                                               ASTContext &Ctx) {
+  std::string Out;
+  llvm::raw_string_ostream OS(Out);
+  EnumValueTemplateArgPrinter Printer(OS, Policy, Ctx);
+  Printer.PrintType(T);
+  OS.flush();
+  return Out;
+}
+
 class FreeFunctionPrinter {
   raw_ostream &O;
   PrintingPolicy &Policy;
@@ -6745,13 +7176,14 @@ private:
       else if (X.getKind() == TemplateArgument::Pack) {
         for (const auto &PackArg : X.pack_elements()) {
           StringStream << ", ";
-          PackArg.print(Policy, StringStream, /*IncludeType*/ true);
+          StringStream << stringifyTemplateArgWithEnumValues(PackArg, Policy,
+                                                             Context);
         }
         continue;
       } else
         StringStream << ", ";
 
-      X.print(Policy, StringStream, /*IncludeType*/ true);
+      StringStream << stringifyTemplateArgWithEnumValues(X, Policy, Context);
     }
     StringStream.flush();
     if (Buffer.front() != '<')
@@ -6776,86 +7208,16 @@ private:
     llvm::raw_svector_ostream ParmListOstream{ParamList};
     Policy.SuppressTagKeyword = true;
 
-    for (ParmVarDecl *Param : Parameters) {
+    FreeFunctionTemplateKernelArgsPrinter Printer(ParmListOstream, Policy,
+                                                  Context);
+
+    for (const ParmVarDecl *Param : Parameters) {
       if (FirstParam)
         FirstParam = false;
       else
         ParmListOstream << ", ";
 
-      // There are cases when we can't directly use neither the original
-      // argument type, nor its canonical version. An example would be:
-      // template<typename T>
-      // void kernel(sycl::accessor<T, 1>);
-      // template void kernel(sycl::accessor<int, 1>);
-      // Accessor has multiple non-type template arguments with default values
-      // and non-qualified type will not include necessary namespaces for all
-      // of them. Qualified type will have that information, but all references
-      // to T will be replaced to something like type-argument-0
-      // What we do instead is we iterate template arguments of both versions
-      // of a type in sync and take elements from one or another to get the best
-      // of both: proper references to template arguments of a kernel itself and
-      // fully-qualified names for enumerations.
-      //
-      // Moral of the story: drop integration header ASAP (but that is blocked
-      // by support for 3rd-party host compilers, which is important).
-      QualType T = Param->getType();
-      QualType CT = T.getCanonicalType();
-
-      const auto *TST = dyn_cast<TemplateSpecializationType>(T.getTypePtr());
-      const auto *CTST = dyn_cast<TemplateSpecializationType>(CT.getTypePtr());
-      if (!TST || !CTST) {
-        ParmListOstream << T.getAsString(Policy);
-        continue;
-      }
-
-      const TemplateSpecializationType *TSTAsNonAlias =
-          TST->getAsNonAliasTemplateSpecializationType();
-      if (TSTAsNonAlias)
-        TST = TSTAsNonAlias;
-
-      TemplateName CTN = CTST->getTemplateName();
-      CTN.getAsTemplateDecl()->printQualifiedName(ParmListOstream);
-      ParmListOstream << "<";
-
-      ArrayRef<TemplateArgument> SpecArgs = TST->template_arguments();
-      ArrayRef<TemplateArgument> DeclArgs = CTST->template_arguments();
-
-      auto TemplateArgPrinter = [&](const TemplateArgument &Arg) {
-        if (Arg.getKind() != TemplateArgument::ArgKind::Expression ||
-            Arg.isInstantiationDependent()) {
-          Arg.print(Policy, ParmListOstream, /* IncludeType = */ false);
-          return;
-        }
-
-        Expr *E = Arg.getAsExpr();
-        assert(E && "Failed to get an Expr for an Expression template arg?");
-        if (E->getType().getTypePtr()->isScopedEnumeralType()) {
-          // Scoped enumerations can't be implicitly cast from integers, so
-          // we don't need to evaluate them.
-          Arg.print(Policy, ParmListOstream, /* IncludeType = */ false);
-          return;
-        }
-
-        Expr::EvalResult Res;
-        [[maybe_unused]] bool Success =
-            Arg.getAsExpr()->EvaluateAsConstantExpr(Res, Context);
-        assert(Success && "invalid non-type template argument?");
-        assert(!Res.Val.isAbsent() && "couldn't read the evaulation result?");
-        Res.Val.printPretty(ParmListOstream, Policy, Arg.getAsExpr()->getType(),
-                            &Context);
-      };
-
-      for (size_t I = 0, E = std::max(DeclArgs.size(), SpecArgs.size()),
-                  SE = SpecArgs.size();
-           I < E; ++I) {
-        if (I != 0)
-          ParmListOstream << ", ";
-        // If we have a specialized argument, use it. Otherwise fallback to a
-        // default argument.
-        TemplateArgPrinter(I < SE ? SpecArgs[I] : DeclArgs[I]);
-      }
-
-      ParmListOstream << ">";
+      Printer.Visit(Param);
     }
     return ParamList.str().str();
   }
@@ -6873,25 +7235,38 @@ private:
   std::string getTemplateParameters(const clang::TemplateParameterList *TPL) {
     std::string TemplateParams{"template <"};
     bool FirstParam{true};
-    for (NamedDecl *Param : *TPL) {
+    for (const NamedDecl *Param : *TPL) {
       if (!FirstParam)
         TemplateParams += ", ";
       FirstParam = false;
-      if (const auto *TemplateParam = dyn_cast<TemplateTypeParmDecl>(Param)) {
-        TemplateParams +=
-            TemplateParam->wasDeclaredWithTypename() ? "typename " : "class ";
-        if (TemplateParam->isParameterPack())
-          TemplateParams += "... ";
-        TemplateParams += TemplateParam->getNameAsString();
-      } else if (const auto *NonTypeParam =
-                     dyn_cast<NonTypeTemplateParmDecl>(Param)) {
-        TemplateParams += NonTypeParam->getType().getAsString();
-        TemplateParams += " ";
-        TemplateParams += NonTypeParam->getNameAsString();
-      }
+      TemplateParams += getTemplateParameter(Param);
     }
     TemplateParams += "> ";
     return TemplateParams;
+  }
+
+  /// Helper method to get text representation of a template parameter.
+  /// \param Param The template parameter.
+  std::string getTemplateParameter(const NamedDecl *Param) {
+    auto GetTypenameOrClass = [](const auto *Param) {
+      return Param->wasDeclaredWithTypename() ? "typename " : "class ";
+    };
+    if (const auto *TemplateParam = dyn_cast<TemplateTypeParmDecl>(Param)) {
+      std::string TemplateParamStr = GetTypenameOrClass(TemplateParam);
+      if (TemplateParam->isParameterPack())
+        TemplateParamStr += "... ";
+      TemplateParamStr += TemplateParam->getNameAsString();
+      return TemplateParamStr;
+    } else if (const auto *NonTypeParam =
+                   dyn_cast<NonTypeTemplateParmDecl>(Param)) {
+      return NonTypeParam->getType().getAsString() + " " +
+             NonTypeParam->getNameAsString();
+    } else if (const auto *TTParam =
+                   dyn_cast<TemplateTemplateParmDecl>(Param)) {
+      return getTemplateParameters(TTParam->getTemplateParameters()) + " " +
+             GetTypenameOrClass(TTParam) + TTParam->getNameAsString();
+    }
+    return "";
   }
 };
 
@@ -7181,7 +7556,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
 
   unsigned ShimCounter = 1;
   int FreeFunctionCount = 0;
-  // Structs with special types inside needs some special code generation in the
+  // Structs with special types inside need some special code generation in the
   // header and we keep this visited map to not have duplicates in case several
   // free function kernels use the same struct type as parameters.
   llvm::DenseMap<const RecordDecl *, bool> visitedStructWithSpecialType;
@@ -7197,6 +7572,11 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     Policy.SuppressDefaultTemplateArgs = false;
     FwdDeclEmitter.Visit(K.SyclKernel->getType());
     O << "\n";
+    // Forward declare template arguments as well.
+    if (const TemplateArgumentList *TAL =
+            K.SyclKernel->getTemplateSpecializationArgs())
+      for (const TemplateArgument &TA : TAL->asArray())
+        FwdDeclEmitter.Visit(TA);
 
     if (K.SyclKernel->getLanguageLinkage() == CLanguageLinkage)
       O << "extern \"C\" ";
@@ -7218,12 +7598,15 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
         ParmList += "Args ...";
       } else {
         Policy.SuppressTagKeyword = true;
-        Param->getType().print(ParmListWithNamesOstream, Policy);
+        ParmListWithNamesOstream << stringifyTypeWithEnumValues(
+            Param->getType(), Policy, S.getASTContext());
         Policy.SuppressTagKeyword = false;
         ParmListWithNamesOstream << " " << Param->getNameAsString();
-        ParmList += Param->getType().getCanonicalType().getAsString(Policy);
+        ParmList += stringifyTypeWithEnumValues(
+            Param->getType().getCanonicalType(), Policy, S.getASTContext());
       }
     }
+
     ParmListWithNamesOstream.flush();
     FunctionTemplateDecl *FTD = K.SyclKernel->getPrimaryTemplate();
     Policy.PrintAsCanonical = false;
@@ -7918,40 +8301,40 @@ void SemaSYCL::CheckSYCLEntryPointFunctionDecl(FunctionDecl *FD) {
   if (const auto *MD = dyn_cast<CXXMethodDecl>(FD)) {
     if (!MD->isStatic()) {
       Diag(SKEPAttr->getLocation(), diag::err_sycl_entry_point_invalid)
-          << SKEPAttr << /*non-static member function*/ 0;
+          << SKEPAttr << diag::InvalidSKEPReason::NonStaticMemberFn;
       SKEPAttr->setInvalidAttr();
     }
   }
 
   if (FD->isVariadic()) {
     Diag(SKEPAttr->getLocation(), diag::err_sycl_entry_point_invalid)
-        << SKEPAttr << /*variadic function*/ 1;
+        << SKEPAttr << diag::InvalidSKEPReason::VariadicFn;
     SKEPAttr->setInvalidAttr();
   }
 
   if (FD->isDefaulted()) {
     Diag(SKEPAttr->getLocation(), diag::err_sycl_entry_point_invalid)
-        << SKEPAttr << /*defaulted function*/ 3;
+        << SKEPAttr << diag::InvalidSKEPReason::DefaultedFn;
     SKEPAttr->setInvalidAttr();
   } else if (FD->isDeleted()) {
     Diag(SKEPAttr->getLocation(), diag::err_sycl_entry_point_invalid)
-        << SKEPAttr << /*deleted function*/ 2;
+        << SKEPAttr << diag::InvalidSKEPReason::DeletedFn;
     SKEPAttr->setInvalidAttr();
   }
 
   if (FD->isConsteval()) {
     Diag(SKEPAttr->getLocation(), diag::err_sycl_entry_point_invalid)
-        << SKEPAttr << /*consteval function*/ 5;
+        << SKEPAttr << diag::InvalidSKEPReason::ConstevalFn;
     SKEPAttr->setInvalidAttr();
   } else if (FD->isConstexpr()) {
     Diag(SKEPAttr->getLocation(), diag::err_sycl_entry_point_invalid)
-        << SKEPAttr << /*constexpr function*/ 4;
+        << SKEPAttr << diag::InvalidSKEPReason::ConstexprFn;
     SKEPAttr->setInvalidAttr();
   }
 
   if (FD->isNoReturn()) {
     Diag(SKEPAttr->getLocation(), diag::err_sycl_entry_point_invalid)
-        << SKEPAttr << /*function declared with the 'noreturn' attribute*/ 6;
+        << SKEPAttr << diag::InvalidSKEPReason::NoreturnFn;
     SKEPAttr->setInvalidAttr();
   }
 

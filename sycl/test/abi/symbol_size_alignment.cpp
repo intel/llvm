@@ -47,7 +47,7 @@ int main() {
   check<buffer<int>, 40, 8>();
   check<context, 16, 8>();
   check<cpu_selector, 8, 8>();
-  check<device, 16, 8>();
+  check<device, 8, 8>();
   check<device_event, 8, 8>();
   check<device_selector, 8, 8>();
   check<event, 16, 8>();

@@ -152,10 +152,6 @@ protected:
 
   const std::unique_ptr<SYCLMemObjAllocator> &get_allocator_internal() const;
 
-  void deleteAccProps(const sycl::detail::PropWithDataKind &Kind);
-
-  void addOrReplaceAccessorProperties(const property_list &PropertyList);
-
   size_t getSize() const;
 
   void handleRelease() const;
@@ -767,14 +763,6 @@ private:
     buffer_plain::constructorNotification(
         CodeLoc, (void *)impl.get(), &MemObject, (const void *)typeid(T).name(),
         dimensions, sizeof(T), detail::rangeToArray(Range).data());
-  }
-
-  void addOrReplaceAccessorProperties(const property_list &PropertyList) {
-    buffer_plain::addOrReplaceAccessorProperties(PropertyList);
-  }
-
-  void deleteAccProps(const sycl::detail::PropWithDataKind &Kind) {
-    buffer_plain::deleteAccProps(Kind);
   }
 
   // Reinterpret contructor

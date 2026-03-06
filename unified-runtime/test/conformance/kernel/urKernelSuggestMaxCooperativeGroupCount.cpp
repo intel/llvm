@@ -1,4 +1,4 @@
-// Copyright (C) 2025 Intel Corporation
+// Copyright (C) 2025-2026 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
 //
@@ -27,7 +27,9 @@ struct urKernelSuggestMaxCooperativeGroupCountTest
   const uint32_t n_dimensions = 1;
   const size_t local_size = 1;
 };
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(urKernelSuggestMaxCooperativeGroupCountTest);
+
+UUR_DEVICE_TEST_SUITE_WITH_DEFAULT_QUEUE(
+    urKernelSuggestMaxCooperativeGroupCountTest);
 
 TEST_P(urKernelSuggestMaxCooperativeGroupCountTest, Success) {
   ASSERT_SUCCESS(urKernelSuggestMaxCooperativeGroupCount(

@@ -745,6 +745,9 @@ enum ASTRecordTypes {
   UPDATE_MODULE_LOCAL_VISIBLE = 76,
 
   UPDATE_TU_LOCAL_VISIBLE = 77,
+
+  /// Record code for #pragma clang riscv intrinsic vector.
+  RISCV_VECTOR_INTRINSICS_PRAGMA = 78,
 };
 
 /// Record types used within a source manager block.
@@ -1698,6 +1701,9 @@ enum StmtCode {
   /// An ExtVectorElementExpr record.
   EXPR_EXT_VECTOR_ELEMENT,
 
+  /// A MatrixElementExpr record.
+  EXPR_MATRIX_ELEMENT,
+
   /// An InitListExpr record.
   EXPR_INIT_LIST,
 
@@ -1930,6 +1936,9 @@ enum StmtCode {
   EXPR_CONCEPT_SPECIALIZATION,            // ConceptSpecializationExpr
   EXPR_REQUIRES,                          // RequiresExpr
 
+  // Reflection
+  EXPR_REFLECT,
+
   // CUDA
   EXPR_CUDA_KERNEL_CALL, // CUDAKernelCallExpr
 
@@ -2072,6 +2081,7 @@ enum StmtCode {
   // HLSL Constructs
   EXPR_HLSL_OUT_ARG,
 
+  STMT_DEFER,
 };
 
 /// The kinds of designators that can occur in a

@@ -372,7 +372,7 @@ std::vector<kernel_id> get_kernel_ids() {
 }
 
 bool is_compatible(const std::vector<kernel_id> &KernelIDs, const device &Dev) {
-  return detail::is_compatible(KernelIDs, *getSyclObjImpl(Dev));
+  return detail::is_compatible(KernelIDs, *detail::getSyclObjImpl(Dev));
 }
 
 /////////////////////////

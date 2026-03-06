@@ -1,4 +1,4 @@
-// Copyright (C) 2024 Intel Corporation
+// Copyright (C) 2024-2026 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
 //
@@ -9,13 +9,13 @@
 #include <thread>
 #include <uur/known_failure.h>
 
-struct QueueUSMTestWithParam : uur::IntegrationQueueTestWithParam {
+struct QueueUSMTest : uur::IntegrationQueueTest {
   void SetUp() override {
     UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{},
                          uur::NativeCPU{});
 
     program_name = "cpy_and_mult_usm";
-    UUR_RETURN_ON_FATAL_FAILURE(uur::IntegrationQueueTestWithParam::SetUp());
+    UUR_RETURN_ON_FATAL_FAILURE(uur::IntegrationQueueTest::SetUp());
 
     ur_device_usm_access_capability_flags_t shared_usm_flags = 0;
     ASSERT_SUCCESS(
@@ -38,12 +38,12 @@ struct QueueUSMTestWithParam : uur::IntegrationQueueTestWithParam {
     if (DeviceMem2) {
       ASSERT_SUCCESS(urUSMFree(context, DeviceMem2));
     }
-    uur::IntegrationQueueTestWithParam::TearDown();
+    uur::IntegrationQueueTest::TearDown();
   }
 
   void verifyResults(void *DeviceMem, uint32_t ExpectedValue) {
     uint32_t HostMem[ArraySize] = {};
-    ASSERT_SUCCESS(urEnqueueUSMMemcpy(Queue, true, HostMem, DeviceMem,
+    ASSERT_SUCCESS(urEnqueueUSMMemcpy(queue, true, HostMem, DeviceMem,
                                       sizeof(uint32_t) * ArraySize, 0, nullptr,
                                       nullptr));
 
@@ -56,11 +56,11 @@ struct QueueUSMTestWithParam : uur::IntegrationQueueTestWithParam {
   void *DeviceMem2 = nullptr;
 };
 
-UUR_DEVICE_TEST_SUITE_WITH_PARAM(
-    QueueUSMTestWithParam,
+UUR_DEVICE_TEST_SUITE_WITH_QUEUE_TYPES_PRINTER(
+    QueueUSMTest,
     testing::Values(0, /* In-Order */
                     UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE),
-    uur::IntegrationQueueTestWithParam::paramPrinter);
+    uur::IntegrationQueueTest::paramPrinter);
 
 /* Submits multiple kernels that interact with each other by accessing and
  * writing to the same USM memory locations.
@@ -68,16 +68,16 @@ UUR_DEVICE_TEST_SUITE_WITH_PARAM(
  * between calls to urEnqueueKernelLaunch.
  * Checks that when using an OUT_OF_ORDER queue, synchronizing using only
  * event barriers is enough. */
-TEST_P(QueueUSMTestWithParam, QueueUSMTest) {
+TEST_P(QueueUSMTest, QueueUSMTest) {
 
   std::vector<ur_event_handle_t> EventsFill;
   ur_event_handle_t Event;
-  ASSERT_SUCCESS(urEnqueueUSMFill(Queue, DeviceMem1, sizeof(uint32_t),
+  ASSERT_SUCCESS(urEnqueueUSMFill(queue, DeviceMem1, sizeof(uint32_t),
                                   &InitialValue, ArraySize * sizeof(uint32_t),
                                   0, nullptr, &Event));
   EventsFill.push_back(Event);
 
-  ASSERT_SUCCESS(urEnqueueUSMFill(Queue, DeviceMem2, sizeof(uint32_t),
+  ASSERT_SUCCESS(urEnqueueUSMFill(queue, DeviceMem2, sizeof(uint32_t),
                                   &InitialValue, ArraySize * sizeof(uint32_t),
                                   0, nullptr, &Event));
   EventsFill.push_back(Event);
@@ -98,7 +98,7 @@ TEST_P(QueueUSMTestWithParam, QueueUSMTest) {
     ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, DeviceMem1));
     ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 1, nullptr, DeviceMem2));
 
-    ASSERT_SUCCESS(urEnqueueKernelLaunch(Queue, kernel, NDimensions,
+    ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, NDimensions,
                                          &GlobalOffset, &ArraySize, nullptr,
                                          nullptr, 0, nullptr, &Event));
     ASSERT_NO_FATAL_FAILURE(submitBarrierIfNeeded(Event));
@@ -109,7 +109,7 @@ TEST_P(QueueUSMTestWithParam, QueueUSMTest) {
     ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, DeviceMem2));
     ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 1, nullptr, DeviceMem1));
 
-    ASSERT_SUCCESS(urEnqueueKernelLaunch(Queue, kernel, NDimensions,
+    ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, NDimensions,
                                          &GlobalOffset, &ArraySize, nullptr,
                                          nullptr, 0, nullptr, &Event));
     ASSERT_NO_FATAL_FAILURE(submitBarrierIfNeeded(Event));
@@ -117,7 +117,7 @@ TEST_P(QueueUSMTestWithParam, QueueUSMTest) {
     CurValueMem1 = CurValueMem2 * 2;
   }
 
-  ASSERT_SUCCESS(urQueueFinish(Queue));
+  ASSERT_SUCCESS(urQueueFinish(queue));
 
   ASSERT_NO_FATAL_FAILURE(verifyResults(DeviceMem1, CurValueMem1));
   ASSERT_NO_FATAL_FAILURE(verifyResults(DeviceMem2, CurValueMem2));

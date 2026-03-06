@@ -117,3 +117,16 @@ struct ur_kernel_handle_t_ : ur_object {
 
 ur_result_t getZeKernel(ze_device_handle_t hDevice, ur_kernel_handle_t hKernel,
                         ze_kernel_handle_t *phZeKernel);
+
+namespace ur::level_zero {
+
+ur_result_t urKernelSetArgValueHelper(ur_kernel_handle_t Kernel,
+                                      uint32_t ArgIndex, size_t ArgSize,
+                                      const void *PArgValue);
+
+ur_result_t
+urKernelSetArgMemObjHelper(ur_kernel_handle_t Kernel, uint32_t ArgIndex,
+                           const ur_kernel_arg_mem_obj_properties_t *Properties,
+                           ur_mem_handle_t ArgValue);
+
+} // namespace ur::level_zero

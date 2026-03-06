@@ -11,6 +11,7 @@
   * [llvm-lit parameters](#llvm-lit-parameters)
   * [Marking tests as expected to fail](#marking-tests-as-expected-to-fail)
   * [Marking tests as unsupported](#marking-tests-as-unsupported)
+  * [RUN-IF](#RUN-IF)
 * [SYCL core header file](#sycl-core-header-file)
 * [Compiling and executing tests on separate systems](#compiling-and-executing-tests-on-separate-systems)
   * [Run only mode](#run-only-mode)
@@ -44,7 +45,7 @@ This custom LIT test format also overrides the meaning of
 `REQUIRES`/`UNSUPPORTED`/`XFAIL` directives, although in a natural way that
 suits the `%{run}` expansion described above. First, "features" are split into
 device independent (e.g. "linux" or "cuda_dev_kit") and device dependent
-("cpu/gpu/accelerator", "opencl/cuda/hip/level_zero" and multiple "aspect-\*").
+("cpu/gpu", "opencl/cuda/hip/level_zero" and multiple "aspect-\*").
 Second, for each device in `sycl_devices` LIT parameter, we check if it
 satisfies the conditions in `UNSUPPORTED`/`REQUIRES` rules. If none of the
 devices do, the entire test is skipped as `UNSUPPORTED`. Otherwise, if multiple
@@ -237,7 +238,7 @@ The following features are automatically detected by `llvm-lit` by scanning the
 environment:
 
 * **windows**, **linux** - host OS;
-* **cpu**, **gpu**, **accelerator** - target device;
+* **cpu**, **gpu** - target device;
 * **cuda**, **hip**, **opencl**, **level_zero** - target backend;
 * **sycl-ls** - sycl-ls tool availability;
 * **cm-compiler** - C for Metal compiler availability;
@@ -323,6 +324,7 @@ configure specific single test execution in the command line:
   by CMake variable HIP_LIBS_DIR (autodetected).
 * **run_launcher** - part of `%{run*}` expansion/substitution to alter execution
   of the test by, e.g., running it through Valgrind.
+* **enable_new_offload_model** - enables New Offload Model driver mode for all tests.
 
 Example:
 
@@ -394,6 +396,21 @@ Note: please avoid using `REQUIRES: TEMPORARY_DISABLED` for this purpose, it's a
 non-standard mechanism. Use `UNSUPPORTED: true` instead, we track `UNSUPPORTED`
 tests using the mechanism described above. Otherwise the test risks remaining
 untraceable.
+
+#### RUN-IF
+
+As a convenience, we provide the `RUN-IF` lit keyword, which simplifies running
+commands conditionally.  The syntax is:
+  
+```bash
+RUN-IF: condition, command
+```
+
+A full example would be:
+
+```bash
+RUN-IF: cpu, %{run} %t_cpu.out
+```
 
 ### SYCL core header file
 

@@ -1154,20 +1154,8 @@ UsmPool *ur_usm_pool_handle_t_::getPool(const usm::pool_descriptor &Desc) {
 std::optional<std::pair<void *, ur_event_handle_t>>
 ur_usm_pool_handle_t_::allocateEnqueued(ur_queue_handle_t Queue,
                                         ur_device_handle_t Device,
-                                        const ur_usm_desc_t *USMDesc,
                                         ur_usm_type_t Type, size_t Size) {
-  uint32_t Alignment = USMDesc ? USMDesc->align : 0;
-  if (Alignment > 0) {
-    if (Alignment > 65536 || (Alignment & (Alignment - 1)) != 0)
-      return std::nullopt;
-  }
-
   bool DeviceReadOnly = false;
-  if (auto UsmDeviceDesc = find_stype_node<ur_usm_device_desc_t>(USMDesc)) {
-    DeviceReadOnly =
-        (Type == UR_USM_TYPE_SHARED) &&
-        (UsmDeviceDesc->flags & UR_USM_DEVICE_MEM_FLAG_DEVICE_READ_ONLY);
-  }
 
   auto *Pool = getPool(
       usm::pool_descriptor{this, Queue->Context, Device, Type, DeviceReadOnly});
@@ -1175,7 +1163,7 @@ ur_usm_pool_handle_t_::allocateEnqueued(ur_queue_handle_t Queue,
     return std::nullopt;
   }
 
-  auto Allocation = Pool->AsyncPool.getBestFit(Size, Alignment, Queue);
+  auto Allocation = Pool->AsyncPool.getBestFit(Size, Queue);
 
   if (!Allocation) {
     return std::nullopt;
