@@ -1,3 +1,4 @@
+address_space/qualifier.cl
 math/clc_exp.cl
 math/clc_ldexp.cl
 math/clc_lgamma.cl
