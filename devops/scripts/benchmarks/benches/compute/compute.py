@@ -664,23 +664,20 @@ class ComputeBenchCoreSuite(ComputeBench):
         submit_kernel_params = product(
             list(RUNTIMES),
             [0, 1],  # in_order_queue
-            [0, 1],  # measure_completion
-            [0, 1],  # use_events
+            list(PROFILERS),
         )
         for (
             runtime,
             in_order_queue,
-            measure_completion,
-            use_events,
+            profiler_type,
         ) in submit_kernel_params:
             core_benches.append(
                 SubmitKernel(
                     self,
                     runtime,
                     in_order_queue,
-                    measure_completion,
-                    use_events,
                     KernelExecTime=1,
+                    profiler_type=profiler_type,
                 )
             )
         return core_benches
