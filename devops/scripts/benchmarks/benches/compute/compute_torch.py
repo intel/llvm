@@ -211,3 +211,22 @@ class TorchGraphMultiQueue(TorchBenchmark):
             profiler_type,
             **kwargs,
         )
+
+
+class TorchSubmitEventRecordWait(TorchBenchmark):
+    def __init__(
+        self,
+        suite,
+        runtime: RUNTIMES,
+        variant_name: str,
+        profiler_type: PROFILERS,
+        **kwargs,
+    ):
+        super().__init__(
+            suite,
+            runtime,
+            "KernelSubmitEventRecordWait",
+            variant_name,
+            profiler_type,
+            **kwargs,
+        )

@@ -414,8 +414,8 @@ int main(int argc, char **argv) {
     vkDestroySemaphore(vkCtx.device, signalSem, nullptr);
     vkDestroySemaphore(vkCtx.device, waitSem, nullptr);
   }
-  vkDestroyDevice(vkCtx.device, nullptr);
-  vkDestroyInstance(vkCtx.instance, nullptr);
+
+  cleanupVulkanContext(vkCtx);
 
   return (errors == 0) ? 0 : 1;
 }
