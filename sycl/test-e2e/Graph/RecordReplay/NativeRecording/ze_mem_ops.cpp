@@ -35,7 +35,12 @@ int main() {
 
   exp_ext::command_graph Graph{Context, Device};
 
+  CommandListStateVerifier verifier(ZeCommandList);
+  verifier.verify(EXECUTING);
+
   Graph.begin_recording(Queue);
+
+  verifier.verify(RECORDING);
 
   // 1. Level Zero memset - fill DeviceSrc with pattern 0x42 (byte pattern)
   uint32_t Pattern = 0x42;
@@ -54,6 +59,8 @@ int main() {
                                     N * sizeof(uint32_t), nullptr, 0, nullptr));
 
   Graph.end_recording(Queue);
+
+  verifier.verify(EXECUTING);
 
   auto ExecutableGraph = Graph.finalize();
   Queue.submit([&](handler &CGH) { CGH.ext_oneapi_graph(ExecutableGraph); });

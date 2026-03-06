@@ -1,14 +1,25 @@
 #pragma once
 
+#include <array>
 #include <cassert>
 #include <fstream>
 #include <iostream>
 #include <level_zero/ze_api.h>
 #include <sycl/ext/oneapi/backend/level_zero.hpp>
+#include <utility>
 #include <variant>
 #include <vector>
 
 #define ASSERT_ZE_RESULT_SUCCESS(status) assert((status) == ZE_RESULT_SUCCESS);
+
+// These are currently defined in experimental graph headers. If they are aren't
+// defined, then define them manually.
+#ifndef ZE_RESULT_QUERY_TRUE
+#define ZE_RESULT_QUERY_TRUE ((ze_result_t)0x7fff0000)
+#endif
+#ifndef ZE_RESULT_QUERY_FALSE
+#define ZE_RESULT_QUERY_FALSE ((ze_result_t)0x7fff0001)
+#endif
 
 inline ze_result_t getDriver(ze_driver_handle_t &ZeDriver) {
   uint32_t DriverCount = 0;
@@ -54,6 +65,9 @@ inline bool getCommandListFromQueue(sycl::queue &Queue,
 typedef ze_result_t(ZE_APICALL *zeCommandListAppendHostFunction_fn)(
     ze_command_list_handle_t, void *, void *, void *, ze_event_handle_t,
     uint32_t, ze_event_handle_t *);
+
+typedef ze_result_t(ZE_APICALL *zeCommandListIsGraphCaptureEnabledExp_fn)(
+    ze_command_list_handle_t);
 
 template <typename FunctionPtr>
 inline ze_result_t loadZeExtensionFunction(ze_driver_handle_t ZeDriver,
@@ -133,3 +147,62 @@ private:
   std::vector<ze_module_handle_t> Modules;
   std::vector<ze_kernel_handle_t> Kernels;
 };
+
+// Verify recording states of one or more command lists
+template <size_t N> class CommandListStateVerifier {
+  std::array<ze_command_list_handle_t, N> commandLists;
+  zeCommandListIsGraphCaptureEnabledExp_fn pfnIsGraphCaptureEnabled = nullptr;
+
+public:
+  template <typename... CommandLists>
+  CommandListStateVerifier(CommandLists... cmdLists)
+      : commandLists{cmdLists...} {
+    loadGraphIsCapturingExtension();
+  }
+
+  template <typename... States> void verify(States... expected_states) {
+    verifyImpl(std::index_sequence_for<States...>{}, expected_states...);
+  }
+
+private:
+  void loadGraphIsCapturingExtension() {
+    ze_driver_handle_t driver;
+    ASSERT_ZE_RESULT_SUCCESS(getDriver(driver));
+    ASSERT_ZE_RESULT_SUCCESS(
+        loadZeExtensionFunction(driver, "zeCommandListIsGraphCaptureEnabledExp",
+                                pfnIsGraphCaptureEnabled));
+  }
+
+  template <size_t... Is, typename... States>
+  void verifyImpl(std::index_sequence<Is...>, States... expected_states) {
+    (checkCommandList(Is, commandLists[Is], expected_states), ...);
+  }
+
+  void checkCommandList(size_t index, ze_command_list_handle_t cmdList,
+                        exp_ext::queue_state expected) {
+    exp_ext::queue_state actual = getCommandListState(cmdList);
+
+    if (actual != expected) {
+      std::cerr << "CommandList " << index << " L0 state mismatch: expected "
+                << stateToString(expected) << " but got "
+                << stateToString(actual) << std::endl;
+      assert(false);
+    }
+  }
+
+  exp_ext::queue_state
+  getCommandListState(ze_command_list_handle_t cmdList) const {
+    ze_result_t captureStatus = pfnIsGraphCaptureEnabled(cmdList);
+    return (captureStatus == ZE_RESULT_QUERY_TRUE)
+               ? exp_ext::queue_state::recording
+               : exp_ext::queue_state::executing;
+  }
+
+  const char *stateToString(exp_ext::queue_state state) {
+    return state == exp_ext::queue_state::recording ? "recording" : "executing";
+  }
+};
+
+template <typename... CommandLists>
+CommandListStateVerifier(CommandLists...)
+    -> CommandListStateVerifier<sizeof...(CommandLists)>;
