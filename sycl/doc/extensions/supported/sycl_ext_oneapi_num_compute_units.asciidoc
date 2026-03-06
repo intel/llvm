@@ -142,6 +142,10 @@ This section is non-normative and applies only to the {dpcpp} implementation.
 The table below explains how {dpcpp} calculates the number of compute units for
 different combinations of device and backend.
 
+:intel-link: https://www.intel.com/content/www/us/en/docs/oneapi/optimization-guide-gpu/2025-2/intel-xe-gpu-architecture.html#INTEL-R-XE-GPU-BUILDING-BLOCKS
+:nvidia-link: https://docs.nvidia.com/deeplearning/performance/dl-performance-gpu-background/index.html#gpu-arch
+:amd-link: https://rocm.docs.amd.com/projects/HIP/en/latest/understand/hardware_implementation.html#hierarchical-organization
+
 [%header,cols="1,5,10"]
 |===
 |Device Type
@@ -154,20 +158,16 @@ different combinations of device and backend.
 
 |Intel GPU
 |Any
-|Number of Xe cores [1]
+|Number of Xe cores (link:{intel-link}[link])
 
 |NVIDIA GPU
 |Any
-|Number of streaming multiprocessors (SMs) [2]
+|Number of streaming multiprocessors (SMs) (link:{nvidia-link}[link])
 
 |AMD GPU
 |Any
-|Number of compute units (CUs) [3]
+|Number of compute units (CUs) (link:{amd-link}[link])
 |===
-
-[1]: https://www.intel.com/content/www/us/en/docs/oneapi/optimization-guide-gpu/2025-2/intel-xe-gpu-architecture.html#INTEL-R-XE-GPU-BUILDING-BLOCKS +
-[2]: https://docs.nvidia.com/deeplearning/performance/dl-performance-gpu-background/index.html#gpu-arch +
-[3]: https://rocm.docs.amd.com/projects/HIP/en/latest/understand/hardware_implementation.html#hierarchical-organization +
 
 == Issues
 
