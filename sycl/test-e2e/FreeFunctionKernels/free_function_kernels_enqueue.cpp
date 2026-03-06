@@ -72,7 +72,7 @@ void squareWithAccessor(accType src, accType dst) {
   dst[Lid] = src[Lid] * src[Lid];
 }
 
-constexpr int SIZE = 16;
+constexpr int SIZE = 8;
 
 int main() {
   sycl::queue Q;
