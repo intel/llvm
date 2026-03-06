@@ -90,6 +90,8 @@ private:
   // Whether any operation has been enqueued on the current batch
   uint64_t enqueuedOperationsCounter = 0;
 
+  bool graphCaptureActive = false;
+
 public:
   batch_manager(ur_context_handle_t context, ur_device_handle_t device,
                 v2::raii::command_list_unique_handle &&commandListRegular,
@@ -115,9 +117,15 @@ public:
 
   ur_result_t enqueueCurrentBatchUnlocked();
 
-  ur_command_list_manager &getActiveBatch() { return activeBatch; }
-
   ur_command_list_manager &getImmediateManager() { return immediateList; }
+
+  // Graph recording can be performed only on immediate command list.
+  // When graph capture is active, the batch manager should return the immediate
+  // command list manager for enqueueing operations, otherwise the regular
+  // command list manager is returned.
+  ur_command_list_manager &getListManager() {
+    return isGraphCaptureActive() ? immediateList : activeBatch;
+  }
 
   ur_event_generation_t getCurrentGeneration() {
     return regularGenerationNumber;
@@ -146,6 +154,8 @@ public:
   bool isLimitOfEnqueuedCommandsReached() {
     return maxNumberOfEnqueuedOperations <= enqueuedOperationsCounter;
   }
+
+  bool isGraphCaptureActive() const { return graphCaptureActive; }
 };
 
 struct ur_queue_batched_t : ur_object, ur_queue_t_ {
@@ -191,9 +201,11 @@ private:
   createEventIfRequestedRegular(ur_event_handle_t *phEvent,
                                 ur_event_generation_t generation_number);
 
-  ur_event_handle_t
-  createEventAndRetainRegular(ur_event_handle_t *phEvent,
-                              ur_event_generation_t batch_generation);
+  ur_event_handle_t getEvent(locked<batch_manager> &batchLocked,
+                             ur_event_handle_t *phEvent);
+
+  ur_event_handle_t getEventAndRetain(locked<batch_manager> &batchLocked,
+                                      ur_event_handle_t *phEvent);
 
   ur_result_t queueFinishPoolsUnlocked();
 
@@ -466,44 +478,26 @@ public:
       uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
       ur_event_handle_t *phEvent) override;
 
-  ur_result_t queueBeginGraphCapteExp() override {
-    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-  }
+  ur_result_t enqueueGraphExp(ur_exp_executable_graph_handle_t hGraph,
+                              uint32_t numEventsInWaitList,
+                              const ur_event_handle_t *phEventWaitList,
+                              ur_event_handle_t *phEvent) override;
+
+  ur_result_t queueBeginGraphCapteExp() override;
 
   ur_result_t
-  queueBeginCapteIntoGraphExp(ur_exp_graph_handle_t /* hGraph */) override {
-    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-  }
+  queueBeginCapteIntoGraphExp(ur_exp_graph_handle_t hGraph) override;
 
-  ur_result_t
-  queueEndGraphCapteExp(ur_exp_graph_handle_t * /* phGraph */) override {
-    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-  }
+  ur_result_t queueEndGraphCapteExp(ur_exp_graph_handle_t *phGraph) override;
 
-  ur_result_t enqueueGraphExp(ur_exp_executable_graph_handle_t /* hGraph */,
-                              uint32_t /* numEventsInWaitList */,
-                              const ur_event_handle_t * /* phEventWaitList */,
-                              ur_event_handle_t * /* phEvent */) override {
-    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-  }
-
-  ur_result_t queueIsGraphCapteEnabledExp(bool * /* pResult */) override {
-    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-  }
+  ur_result_t queueIsGraphCapteEnabledExp(bool *pResult) override;
 
   ur_result_t
   enqueueHostTaskExp(ur_exp_host_task_function_t pfnHostTask, void *data,
                      const ur_exp_host_task_properties_t *pProperties,
                      uint32_t numEventsInWaitList,
                      const ur_event_handle_t *phEventWaitList,
-                     ur_event_handle_t *phEvent) override {
-    wait_list_view waitListView =
-        wait_list_view(phEventWaitList, numEventsInWaitList);
-
-    return currentCmdLists.lock()->getActiveBatch().appendHostTaskExp(
-        pfnHostTask, data, pProperties, waitListView,
-        createEventIfRequested(eventPoolRegular.get(), phEvent, this));
-  }
+                     ur_event_handle_t *phEvent) override;
 
   bool isInOrder() override { return true; }
 
