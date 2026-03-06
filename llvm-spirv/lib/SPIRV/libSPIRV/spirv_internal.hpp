@@ -91,7 +91,6 @@ enum InternalOp {
 
 enum InternalDecoration {
   IDecRuntimeAlignedINTEL = 5940,
-  IDecCallableFunctionINTEL = 6087,
   IDecHostAccessINTEL = 6147,
   IDecInitModeINTEL = 6148,
   IDecImplementInCSRINTEL = 6149,
