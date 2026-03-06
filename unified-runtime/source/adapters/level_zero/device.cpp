@@ -225,6 +225,57 @@ uint64_t calculateGlobalMemSize(ur_device_handle_t Device) {
   return Device->ZeGlobalMemSize.get().value;
 }
 
+static bool
+supportsDeviceUsableMemSizeExtension(ur_platform_handle_t Platform) {
+  constexpr const char *ExtensionName =
+      ZE_DEVICE_USABLEMEM_SIZE_PROPERTIES_EXT_NAME;
+  constexpr uint32_t MinVersion = ZE_MAKE_VERSION(1, 0);
+
+  auto Extension = Platform->zeDriverExtensionMap.find(ExtensionName);
+  return Extension != Platform->zeDriverExtensionMap.end() &&
+         Extension->second >= MinVersion;
+}
+
+static std::optional<uint64_t>
+getDeviceUsableMemSizeFromCore(ur_device_handle_t Device) {
+  if (!supportsDeviceUsableMemSizeExtension(Device->Platform)) {
+    return std::nullopt;
+  }
+
+  uint32_t MemCount = 0;
+  auto ZeResult = ZE_CALL_NOCHECK(zeDeviceGetMemoryProperties,
+                                  (Device->ZeDevice, &MemCount, nullptr));
+  if (ZeResult != ZE_RESULT_SUCCESS || MemCount == 0) {
+    return std::nullopt;
+  }
+
+  std::vector<ze_device_memory_properties_t> MemProperties(MemCount);
+  std::vector<ze_device_usablemem_size_ext_properties_t> UsableMemProperties(
+      MemCount);
+
+  for (uint32_t I = 0; I < MemCount; ++I) {
+    MemProperties[I].stype = ZE_STRUCTURE_TYPE_DEVICE_MEMORY_PROPERTIES;
+    MemProperties[I].pNext = &UsableMemProperties[I];
+    UsableMemProperties[I].stype =
+        ZE_STRUCTURE_TYPE_DEVICE_USABLEMEM_SIZE_EXT_PROPERTIES;
+    UsableMemProperties[I].pNext = nullptr;
+  }
+
+  ZeResult =
+      ZE_CALL_NOCHECK(zeDeviceGetMemoryProperties,
+                      (Device->ZeDevice, &MemCount, MemProperties.data()));
+  if (ZeResult != ZE_RESULT_SUCCESS) {
+    return std::nullopt;
+  }
+
+  uint64_t FreeMemory = 0;
+  for (uint32_t I = 0; I < MemCount; ++I) {
+    FreeMemory += UsableMemProperties[I].currUsableMemSize;
+  }
+
+  return FreeMemory;
+}
+
 // Return the Sysman device handle and correpsonding data for the given UR
 // device.
 static std::tuple<zes_device_handle_t, ur_zes_device_handle_data_t, ur_result_t>
@@ -870,6 +921,10 @@ ur_result_t urDeviceGetInfo(
     // Currently this is only the one enumerated with ordinal 0.
     uint64_t FreeMemory = 0;
     uint32_t MemCount = 0;
+
+    if (auto CoreUsableMemSize = getDeviceUsableMemSizeFromCore(Device)) {
+      return ReturnValue(std::min(GlobalMemSize, *CoreUsableMemSize));
+    }
 
     auto [ZesDevice, ZesDeviceData, Result] = getZesDeviceData(Device);
     if (Result != UR_RESULT_SUCCESS)
