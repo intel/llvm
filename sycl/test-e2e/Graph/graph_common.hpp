@@ -6,10 +6,12 @@
 
 #include <sycl/ext/oneapi/experimental/graph.hpp>
 
+#include <array>
 #include <condition_variable> // std::conditional_variable
 #include <fstream>
 #include <mutex> // std::mutex, std::unique_lock
 #include <numeric>
+#include <utility>
 
 #if GRAPH_TESTS_VERBOSE_PRINT
 #include <chrono>
@@ -24,6 +26,12 @@ constexpr size_t Offset = 100; // Number of offset elements for Buffer accessors
 namespace exp_ext = sycl::ext::oneapi::experimental;
 // Make tests less verbose by using sycl namespace.
 using namespace sycl;
+
+// Queue state constants for recording tests
+inline constexpr exp_ext::queue_state RECORDING =
+    exp_ext::queue_state::recording;
+inline constexpr exp_ext::queue_state EXECUTING =
+    exp_ext::queue_state::executing;
 
 // Helper functions for wrapping depends_on calls when add_node is used so they
 // are not used in the explicit API
@@ -441,6 +449,43 @@ private:
   std::condition_variable cv;
   std::size_t threadNum;
 };
+
+// Verify recording states of one or more queues
+template <size_t N>
+class QueueStateVerifier {
+  std::array<queue, N> queues;
+
+public:
+  template <typename... Queues>
+  QueueStateVerifier(Queues... qs) : queues{qs...} {}
+
+  template <typename... States> void verify(States... expected_states) {
+    verifyImpl(std::index_sequence_for<States...>{}, expected_states...);
+  }
+
+private:
+  template <size_t... Is, typename... States>
+  void verifyImpl(std::index_sequence<Is...>, States... expected_states) {
+    (checkQueue(Is, queues[Is], expected_states), ...);
+  }
+
+  void checkQueue(size_t index, queue q, exp_ext::queue_state expected) {
+    auto actual = q.ext_oneapi_get_state();
+    if (actual != expected) {
+      std::cerr << "Queue " << index << " SYCL state mismatch: expected "
+                << stateToString(expected) << " but got "
+                << stateToString(actual) << std::endl;
+      assert(false);
+    }
+  }
+
+  const char *stateToString(exp_ext::queue_state state) {
+    return state == exp_ext::queue_state::recording ? "recording" : "executing";
+  }
+};
+
+template <typename... Queues>
+QueueStateVerifier(Queues...) -> QueueStateVerifier<sizeof...(Queues)>;
 
 template <typename T>
 bool inline check_value(const T &Ref, const T &Got,

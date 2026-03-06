@@ -36,9 +36,18 @@ int main() {
   // Allocate shared memory (accessible from both device and host)
   uint32_t *DataShared = malloc_shared<uint32_t>(N, Queue);
 
+  // Get the command list before recording starts
+  ze_command_list_handle_t ZeCommandList;
+  bool success = getCommandListFromQueue(Queue, ZeCommandList);
+  assert(success);
+
   exp_ext::command_graph Graph{Context, Device};
 
+  CommandListStateVerifier verifier(ZeCommandList);
+  verifier.verify(EXECUTING);
+
   Graph.begin_recording(Queue);
+  verifier.verify(RECORDING);
 
   // 1. Record SYCL kernel - initialize data
   Queue.submit([&](handler &CGH) {
@@ -55,15 +64,13 @@ int main() {
   // 3. Record L0 host function directly to the recording command list
   // The host function will run on the host but is part of the command list,
   // so it will execute after the kernels complete
-  ze_command_list_handle_t ZeCommandList;
-  bool success = getCommandListFromQueue(Queue, ZeCommandList);
-  assert(success);
 
   ASSERT_ZE_RESULT_SUCCESS(zeCommandListAppendHostFunction(
       ZeCommandList, reinterpret_cast<void *>(HostFunction),
       static_cast<void *>(DataShared), nullptr, nullptr, 0, nullptr));
 
   Graph.end_recording(Queue);
+  verifier.verify(EXECUTING);
 
   auto ExecutableGraph = Graph.finalize();
   Queue.submit([&](handler &CGH) { CGH.ext_oneapi_graph(ExecutableGraph); });

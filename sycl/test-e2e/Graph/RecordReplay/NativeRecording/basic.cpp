@@ -25,8 +25,12 @@ int main() {
   const size_t N = 1024;
   int *Data = malloc_device<int>(N, Queue);
 
+  QueueStateVerifier verifier(Queue);
+  verifier.verify(EXECUTING);
+
   // Use queue recording mode to create the graph
   Graph.begin_recording(Queue);
+  verifier.verify(RECORDING);
 
   // Record initialization kernel
   Queue.submit([&](handler &CGH) {
@@ -41,6 +45,7 @@ int main() {
   });
 
   Graph.end_recording(Queue);
+  verifier.verify(EXECUTING);
 
   // Finalize and execute the graph
   auto ExecutableGraph = Graph.finalize();

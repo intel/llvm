@@ -41,8 +41,16 @@ int main(int, char **argv) {
   // Create graph for native recording
   exp_ext::command_graph Graph{Context, Device};
 
+  ze_command_list_handle_t ZeCommandList;
+  bool result = getCommandListFromQueue(Queue, ZeCommandList);
+  assert(result);
+
+  CommandListStateVerifier verifier(ZeCommandList);
+  verifier.verify(EXECUTING);
+
   // Begin recording
   Graph.begin_recording(Queue);
+  verifier.verify(RECORDING);
 
   // 1. Record SYCL kernel - multiply X by 2
   Queue.submit([&](handler &CGH) {
@@ -51,9 +59,6 @@ int main(int, char **argv) {
   });
 
   // 2. Record L0 kernel directly to the recording command list
-  ze_command_list_handle_t ZeCommandList;
-  bool result = getCommandListFromQueue(Queue, ZeCommandList);
-  assert(result);
 
   // Suggest and prepare group size
   uint32_t GroupSizeX;
@@ -76,6 +81,7 @@ int main(int, char **argv) {
       nullptr, 0, nullptr));
 
   Graph.end_recording(Queue);
+  verifier.verify(EXECUTING);
 
   auto ExecutableGraph = Graph.finalize();
   Queue.submit([&](handler &CGH) { CGH.ext_oneapi_graph(ExecutableGraph); });
