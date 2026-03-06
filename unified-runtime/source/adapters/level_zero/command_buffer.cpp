@@ -12,8 +12,8 @@
 #include "helpers/kernel_helpers.hpp"
 #include "helpers/mutable_helpers.hpp"
 #include "logger/ur_logger.hpp"
+#include "unified-runtime/ur_api.h"
 #include "ur/ur.hpp"
-#include "ur_api.h"
 #include "ur_interface_loader.hpp"
 #include "ur_level_zero.hpp"
 

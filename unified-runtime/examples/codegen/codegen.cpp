@@ -21,7 +21,7 @@
 #include <vector>
 
 #include "helpers.h"
-#include "ur_api.h"
+#include "unified-runtime/ur_api.h"
 
 constexpr unsigned PAGE_SIZE = 4096;
 

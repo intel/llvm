@@ -17,7 +17,7 @@
 #include <umf/memory_provider.h>
 #include <umf/memory_provider_ops.h>
 #include <umf/pools/pool_proxy.h>
-#include <ur_api.h>
+#include <unified-runtime/ur_api.h>
 
 #include "logger/ur_logger.hpp"
 

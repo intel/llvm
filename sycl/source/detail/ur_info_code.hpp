@@ -10,7 +10,7 @@
 
 #include <sycl/detail/info_desc_helpers.hpp>
 
-#include <ur_api.h>
+#include <unified-runtime/ur_api.h>
 
 namespace sycl {
 inline namespace _V1 {

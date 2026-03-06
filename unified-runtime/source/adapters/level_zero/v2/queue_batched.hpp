@@ -27,7 +27,7 @@
 #include "command_list_manager.hpp"
 #include "lockable.hpp"
 #include "queue_immediate_in_order.hpp"
-#include "ur_api.h"
+#include "unified-runtime/ur_api.h"
 #include "ze_api.h"
 
 // Batched queues enable submission of operations to the driver in batches,

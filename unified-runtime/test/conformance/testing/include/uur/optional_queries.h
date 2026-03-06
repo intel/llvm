@@ -18,7 +18,7 @@
 
 #include <algorithm>
 #include <array>
-#include <ur_api.h>
+#include <unified-runtime/ur_api.h>
 
 namespace uur {
 

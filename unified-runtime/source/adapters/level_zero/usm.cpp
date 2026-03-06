@@ -18,7 +18,7 @@
 #include "event.hpp"
 #include "logger/ur_logger.hpp"
 #include "queue.hpp"
-#include "ur_api.h"
+#include "unified-runtime/ur_api.h"
 #include "ur_interface_loader.hpp"
 #include "ur_level_zero.hpp"
 #include "ur_util.hpp"

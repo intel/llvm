@@ -4,7 +4,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-#include "ur_api.h"
+#include "unified-runtime/ur_api.h"
 #include <gtest/gtest.h>
 #include <thread>
 #include <uur/fixtures.h>
