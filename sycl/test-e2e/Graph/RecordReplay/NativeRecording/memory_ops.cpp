@@ -32,8 +32,12 @@ int main() {
   std::vector<int> HostData1(N);
   std::vector<int> HostData2(N);
 
+  QueueStateVerifier verifier(Queue);
+  verifier.verify(EXECUTING);
+
   // Use queue recording mode to create the graph
   Graph.begin_recording(Queue);
+  verifier.verify(RECORDING);
 
   // Test memory operations on two buffers:
   // Data1: memset first half (byte-wise to 0x2A), D2D memcpy to second half and
@@ -50,6 +54,7 @@ int main() {
   exp_ext::copy(Queue, Data2 + N, HostData2.data(), N);
 
   Graph.end_recording(Queue);
+  verifier.verify(EXECUTING);
 
   // Finalize and execute the graph
   auto ExecutableGraph = Graph.finalize();

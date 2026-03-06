@@ -24,14 +24,7 @@ int main() {
   queue Queue1{Ctx, Dev, {property::queue::in_order{}}};
   queue Queue2{Ctx, Dev, {property::queue::in_order{}}};
 
-  const exp_ext::queue_state Recording = exp_ext::queue_state::recording;
-  const exp_ext::queue_state Executing = exp_ext::queue_state::executing;
-
-  auto assertQueueState = [&](exp_ext::queue_state ExpectedQ1,
-                              exp_ext::queue_state ExpectedQ2) {
-    assert(Queue1.ext_oneapi_get_state() == ExpectedQ1);
-    assert(Queue2.ext_oneapi_get_state() == ExpectedQ2);
-  };
+  QueueStateVerifier verifier(Queue1, Queue2);
 
   exp_ext::command_graph Graph{Ctx, Dev};
 
@@ -40,16 +33,19 @@ int main() {
   int *VecA = malloc_device<int>(N, Dev, Ctx);
   int *VecB = malloc_device<int>(N, Dev, Ctx);
 
-  assertQueueState(Executing, Executing);
+  // Initialize both arrays to 555
+  Queue1.fill(VecA, 555, N).wait();
+  Queue1.fill(VecB, 555, N).wait();
+  verifier.verify(EXECUTING, EXECUTING);
 
   // 1) record on Queue1
   Graph.begin_recording(Queue1);
-  assertQueueState(Recording, Executing);
+  verifier.verify(RECORDING, EXECUTING);
 
   // 2) barrier (ext_oneapi_barrier) and recording transition on Queue2
   event ForkBarrier = Queue1.ext_oneapi_submit_barrier();
   exp_ext::partial_barrier(Queue2, {ForkBarrier});
-  assertQueueState(Recording, Recording);
+  verifier.verify(RECORDING, RECORDING);
 
   // 3) two streams of independent kernels on Queue1 and Queue2
   exp_ext::parallel_for(Queue1, range<1>{N},
@@ -71,7 +67,20 @@ int main() {
   exp_ext::partial_barrier(Queue1, {JoinBarrier});
 
   Graph.end_recording();
-  assertQueueState(Executing, Executing);
+  verifier.verify(EXECUTING, EXECUTING);
+
+  // Wait on both queues after recording
+  Queue1.wait();
+  Queue2.wait();
+
+  // Verify that values are still at initial value (no eager execution)
+  std::vector<int> HostVecA_Check(N);
+  std::vector<int> HostVecB_Check(N);
+  Queue1.memcpy(HostVecA_Check.data(), VecA, N * sizeof(int)).wait();
+  Queue1.memcpy(HostVecB_Check.data(), VecB, N * sizeof(int)).wait();
+
+  assert(std::count(HostVecA_Check.begin(), HostVecA_Check.end(), 555) == N);
+  assert(std::count(HostVecB_Check.begin(), HostVecB_Check.end(), 555) == N);
 
   // Finalize and execute the graph
   auto ExecutableGraph = Graph.finalize();

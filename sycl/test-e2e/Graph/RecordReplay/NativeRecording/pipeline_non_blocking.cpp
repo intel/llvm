@@ -22,11 +22,18 @@ int main() {
   const size_t N = 1024;
   int *Data = malloc_device<int>(N, Queue);
 
+  QueueStateVerifier verifier(Queue);
+  verifier.verify(EXECUTING);
+
   // Record graph with two kernels: add 3, then subtract 1
   Graph.begin_recording(Queue);
+  verifier.verify(RECORDING);
+
   exp_ext::parallel_for(Queue, range<1>{N}, [=](id<1> idx) { Data[idx] += 3; });
   exp_ext::parallel_for(Queue, range<1>{N}, [=](id<1> idx) { Data[idx] -= 1; });
+
   Graph.end_recording(Queue);
+  verifier.verify(EXECUTING);
 
   auto ExecutableGraph = Graph.finalize();
 

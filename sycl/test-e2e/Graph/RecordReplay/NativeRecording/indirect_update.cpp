@@ -47,7 +47,11 @@ int main() {
   }
   Queue.memcpy(Input2, HostInput2.data(), N * sizeof(int)).wait();
 
+  QueueStateVerifier verifier(Queue);
+  verifier.verify(EXECUTING);
+
   Graph.begin_recording(Queue);
+  verifier.verify(RECORDING);
 
   Queue.submit([&](handler &CGH) {
     CGH.parallel_for(range<1>{N}, [=](id<1> idx) {
@@ -59,6 +63,7 @@ int main() {
   });
 
   Graph.end_recording(Queue);
+  verifier.verify(EXECUTING);
 
   auto ExecutableGraph = Graph.finalize();
 
