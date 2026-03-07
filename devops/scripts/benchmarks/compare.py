@@ -389,7 +389,7 @@ if __name__ == "__main__":
         if args.regression_filter is not None:
             filter_pattern = re.compile(args.regression_filter)
             for test in regressions:
-                if filter_pattern.search(test["name"]):
+                if filter_pattern.search(test["label"]):
                     regressions_of_concern.append(test)
                 else:
                     regressions_ignored.append(test)
@@ -402,13 +402,13 @@ if __name__ == "__main__":
                 is_warning (bool): If True, use log.warning instead of log.info
             """
             log_func = log.warning if is_warning else log.info
-            log_func(f"Test: {entry['name']}")
+            log_func(f"Test: {entry['label']}")
             log_func(f"-- Historic {entry['avg_type']}: {entry['hist_avg']}")
             log_func(f"-- Run result: {entry['value']}")
             log_func(f"-- Delta: {entry['delta']}")
             log_func("")
             if args.produce_github_summary:
-                gh_summary.append(f"##### {entry['name']}:")
+                gh_summary.append(f"##### {entry['label']}:")
                 gh_summary.append(
                     f"- Historic {entry['avg_type']}: {entry['hist_avg']}"
                 )
