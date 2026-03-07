@@ -417,6 +417,10 @@ add_custom_target( sycl-toolchain ALL
   COMMENT "Building SYCL compiler toolchain..."
 )
 
+if (WIN32)
+  add_dependencies(sycl-toolchain unified-runtimed-build)
+endif()
+
 if("cuda" IN_LIST SYCL_ENABLE_BACKENDS)
   add_dependencies(sycl-toolchain clang-nvlink-wrapper)
 endif()
