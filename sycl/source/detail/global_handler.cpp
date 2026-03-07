@@ -330,6 +330,8 @@ void shutdown_early(bool CanJoinThreads = true) {
     GlobalHandler::RTGlobalObjHandler->MHostTaskThreadPool.Inst.reset(nullptr);
   }
 
+// Let OS cleanup the heap memory on Windows.
+#ifndef _WIN32
   // Reset in-memory cache before releasing default contexts.
   {
     // Keeping the default context for platforms in the global cache to avoid
@@ -349,6 +351,7 @@ void shutdown_early(bool CanJoinThreads = true) {
   // This releases OUR reference to the default context, but
   // other may yet have refs
   GlobalHandler::RTGlobalObjHandler->releaseDefaultContexts();
+#endif
 }
 
 void shutdown_late() {
@@ -406,13 +409,7 @@ extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
       // != NULL if library is unloaded during process termination. In this case
       // Windows terminates threads but leave them in signalled state, prevents
       // DLL_THREAD_DETACH notification and we can call join() as NOP.
-
-      // When handling DLL_PROCESS_DETACH, a DLL should free resources such as
-      // heap memory only if the DLL is being unloaded dynamically
-      // (the lpvReserved parameter is NULL)
-      // https://learn.microsoft.com/en-us/windows/win32/dlls/dllmain
-      if (lpReserved != NULL)
-        shutdown_early(true);
+      shutdown_early(lpReserved != NULL);
     } catch (std::exception &e) {
       __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in DLL_PROCESS_DETACH", e);
       return FALSE;
