@@ -3,10 +3,12 @@
 // REQUIRES: windows
 
 // UNSUPPORTED: gpu-intel-dg2
-// UNSUPPORTED-TRACKER: semaphores-do-not-work-dg2
+// UNSUPPORTED-TRACKER: GSD-12428
+// semaphores-do-not-work-dg2
 
 // UNSUPPORTED: gpu-intel-gen12
-// UNSUPPORTED-TRACKER: Gen12-semaphores-work-but-this-test-hangs.
+// UNSUPPORTED-TRACKER: GSD-12427
+// Gen12-semaphores-work-but-this-test-hangs.
 
 // RUN: %{build} -ld3d12 -ldxgi -ld3dcompiler -o %t.exe %if target-spir %{ -Wno-ignored-attributes %}
 // RUN: %{run} %t.exe --no-sem
