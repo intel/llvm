@@ -12,12 +12,11 @@ target triple = "nvptx64-nvidia-cuda"
 define i64 @_ZN7__spirv21getGlobalInvocationIdILi1EEEmv() !dbg !5 {
 entry:
   %0 = call i32 @llvm.nvvm.read.ptx.sreg.ctaid.y(), !dbg !9
-  %1 = call ptr @llvm.nvvm.implicit.offset()
+  %1 = call i64 @_Z27__spirv_BuiltInGlobalOffseti(i32 0)
   ret i64 0
 }
 
-; Function Attrs: nounwind speculatable memory(none)
-declare ptr @llvm.nvvm.implicit.offset() #0
+declare i64 @_Z27__spirv_BuiltInGlobalOffseti(i32)
 
 ; Function Attrs: nocallback nofree nosync nounwind speculatable willreturn memory(none)
 declare noundef i32 @llvm.nvvm.read.ptx.sreg.ctaid.y() #1
@@ -49,18 +48,21 @@ attributes #1 = { nocallback nofree nosync nounwind speculatable willreturn memo
 ; CHECK-SAME: ptr [[TMP0:%.*]]) !dbg [[DBG10:![0-9]+]] {
 ; CHECK-NEXT:  [[ENTRY:.*:]]
 ; CHECK-NEXT:    [[TMP1:%.*]] = call i32 @llvm.nvvm.read.ptx.sreg.ctaid.y(), !dbg [[DBG11:![0-9]+]]
+; CHECK-NEXT:    [[TMP2:%.*]] = getelementptr inbounds i32, ptr [[TMP0]], i32 0
+; CHECK-NEXT:    [[TMP3:%.*]] = load i32, ptr [[TMP2]], align 4
+; CHECK-NEXT:    [[TMP4:%.*]] = zext i32 [[TMP3]] to i64
 ; CHECK-NEXT:    ret i64 0
 ;
 ;.
 ; CHECK: attributes #[[ATTR0:[0-9]+]] = { nocallback nofree nosync nounwind speculatable willreturn memory(none) }
 ;.
 ; CHECK: [[META0:![0-9]+]] = distinct !DICompileUnit(language: DW_LANG_C_plus_plus_14, file: [[META1:![0-9]+]], producer: "{{.*}}clang version {{.*}}", isOptimized: false, runtimeVersion: 0, emissionKind: FullDebug, enums: [[META2:![0-9]+]], retainedTypes: [[META2]], globals: [[META2]], imports: [[META2]], splitDebugInlining: false, nameTableKind: None)
-; CHECK: [[META1]] = !DIFile(filename: "test.cpp", directory: {{.*}})
+; CHECK: [[META1]] = !DIFile(filename: "{{.*}}test.cpp", directory: {{.*}})
 ; CHECK: [[META2]] = !{}
 ; CHECK: [[META3:![0-9]+]] = !{i32 2, !"Debug Info Version", i32 3}
 ; CHECK: [[META4:![0-9]+]] = !{i32 1, !"sycl-device", i32 1}
 ; CHECK: [[DBG5]] = distinct !DISubprogram(name: "getGlobalInvocationId<1>", linkageName: "_ZN7__spirv21getGlobalInvocationIdILi1EEEmv", scope: [[META7:![0-9]+]], file: [[META6:![0-9]+]], line: 201, type: [[META8:![0-9]+]], scopeLine: 201, flags: DIFlagPrototyped, spFlags: DISPFlagDefinition, unit: [[META0]], templateParams: [[META2]])
-; CHECK: [[META6]] = !DIFile(filename: "header.hpp", directory: {{.*}})
+; CHECK: [[META6]] = !DIFile(filename: "{{.*}}header.hpp", directory: {{.*}})
 ; CHECK: [[META7]] = !DINamespace(name: "__spirv", scope: null)
 ; CHECK: [[META8]] = distinct !DISubroutineType(types: [[META2]])
 ; CHECK: [[DBG9]] = !DILocation(line: 201, column: 1, scope: [[DBG5]])
