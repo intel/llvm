@@ -70,6 +70,8 @@ struct PostLinkSettings {
 
   std::optional<SpecConstantsPass::HandlingMode> SpecConstMode;
   bool GenerateModuleDescWithDefaultSpecConsts = false;
+
+  llvm::sycl::ESIMDProcessingOptions ESIMDOptions;
 };
 
 std::string convertSettingsToString(const PostLinkSettings &Settings);

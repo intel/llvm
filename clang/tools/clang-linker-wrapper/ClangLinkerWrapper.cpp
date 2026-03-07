@@ -728,6 +728,32 @@ getTripleBasedSYCLPostLinkOpts(const ArgList &Args,
     PostLinkArgs.push_back("-generate-device-image-default-spec-consts");
 }
 
+static sycl::ESIMDProcessingOptions
+getTripleBasedESIMDPostLinkOpts(const ArgList &Args,
+                                const llvm::Triple Triple) {
+  sycl::ESIMDProcessingOptions Options;
+
+  // On Intel targets we don't need non-kernel functions as entry points,
+  // because it only increases amount of code for device compiler to handle,
+  // without any actual benefits.
+  // TODO: Try to extend this feature for non-Intel GPUs.
+  if (!Args.hasFlag(OPT_no_sycl_remove_unused_external_funcs,
+                    OPT_sycl_remove_unused_external_funcs, false) &&
+      !Args.hasArg(OPT_sycl_allow_device_image_dependencies) &&
+      !Triple.isNVPTX() && !Triple.isAMDGPU())
+    Options.EmitOnlyKernelsAsEntryPoints = true;
+
+  bool SplitEsimdByDefault = Triple.isSPIROrSPIRV();
+  bool SplitEsimd =
+      Args.hasFlag(OPT_sycl_device_code_split_esimd,
+                   OPT_no_sycl_device_code_split_esimd, SplitEsimdByDefault);
+  if (SplitEsimd)
+    Options.SplitESIMD = true;
+
+  Options.LowerESIMD = true;
+  return Options;
+}
+
 /// Run sycl-post-link tool for SYCL offloading.
 /// 'InputFiles' is the list of input LLVM IR files.
 /// 'Args' encompasses all arguments required for linking and wrapping device
@@ -831,6 +857,8 @@ runSYCLPostLinkLibrary(ArrayRef<StringRef> InputFiles, const ArgList &Args,
                    OPT_no_sycl_add_default_spec_consts_image, false) &&
       IsAOTTarget)
     Settings.GenerateModuleDescWithDefaultSpecConsts = true;
+
+  Settings.ESIMDOptions = getTripleBasedESIMDPostLinkOpts(Args, Triple);
 
   if (DryRun) {
     auto OutputFileOrErr = createOutputFile(

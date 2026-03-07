@@ -84,6 +84,20 @@ linkModules(std::unique_ptr<ModuleDesc> MD1, std::unique_ptr<ModuleDesc> MD2) {
 
 } // anonymous namespace
 
+SmallString<0>
+sycl::convertESIMDOptionsToString(cosnt sycl::ESIMDProcessingOptions &Options) {
+  return formatv(
+             "esimd.split_mode: {0}, esimd.EmitOnlyKernelsAsEntryPoints: {1}, "
+             "esimd.AllowDeviceImageDependencies: {2}, esimd.LowerESIMD: {3}, "
+             "esimd.SplitESIMD: {4}, esimd.OptLevel: {5}, "
+             "esimd.ForceDisableESIMDOpt: {6}",
+             module_split::convertSplitModeToString(Options.SplitMode),
+             Options.EmitOnlyKernelsAsEntryPoints,
+             Options.AllowDeviceImageDependencies, Options.LowerESIMD,
+             Options.SplitESIMD, Options.OptLevel, Options.ForceDisableESIMDOpt)
+      .sstr<0>();
+}
+
 // When ESIMD code was separated from the regular SYCL code,
 // we can safely process ESIMD part.
 bool sycl::lowerESIMDConstructs(ModuleDesc &MD,
