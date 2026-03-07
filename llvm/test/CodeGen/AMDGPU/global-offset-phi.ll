@@ -1,4 +1,4 @@
-; RUN: opt -bugpoint-enable-legacy-pm -globaloffset %s -S -o - | FileCheck %s
+; RUN: opt -passes=globaloffset %s -S -o - | FileCheck %s
 
 ; Check that phi is correctly handled in load's defs collection.
 
