@@ -60,29 +60,6 @@ struct UrFuncPtrMapT {
 
 template <UrApiKind UrApiOffset> struct UrFuncInfo {};
 
-#ifdef _WIN32
-void *GetWinProcAddress(void *module, const char *funcName);
-inline void PopulateUrFuncPtrTable(UrFuncPtrMapT *funcs, void *module) {
-#define _UR_API(api)                                                           \
-  funcs->pfn_##api = (decltype(&::api))GetWinProcAddress(module, #api);
-#include <ur_api_funcs.def>
-#undef _UR_API
-}
-
-#define _UR_API(api)                                                           \
-  template <> struct UrFuncInfo<UrApiKind::api> {                              \
-    using FuncPtrT = decltype(&::api);                                         \
-    inline const char *getFuncName() { return #api; }                          \
-    inline FuncPtrT getFuncPtr(const UrFuncPtrMapT *funcs) {                   \
-      return funcs->pfn_##api;                                                 \
-    }                                                                          \
-    inline FuncPtrT getFuncPtrFromModule(void *module) {                       \
-      return (FuncPtrT)GetWinProcAddress(module, #api);                        \
-    }                                                                          \
-  };
-#include <ur_api_funcs.def>
-#undef _UR_API
-#else
 #define _UR_API(api)                                                           \
   template <> struct UrFuncInfo<UrApiKind::api> {                              \
     using FuncPtrT = decltype(&::api);                                         \
@@ -92,8 +69,6 @@ inline void PopulateUrFuncPtrTable(UrFuncPtrMapT *funcs, void *module) {
   };
 #include <ur_api_funcs.def>
 #undef _UR_API
-#endif
-
 namespace pi {
 // This function is deprecated and it should be removed in the next release
 // cycle (along with the definition for pi_context_extended_deleter).

@@ -330,6 +330,8 @@ void shutdown_early(bool CanJoinThreads = true) {
     GlobalHandler::RTGlobalObjHandler->MHostTaskThreadPool.Inst.reset(nullptr);
   }
 
+// Let OS cleanup the heap memory on Windows.
+#ifndef _WIN32
   // Reset in-memory cache before releasing default contexts.
   {
     // Keeping the default context for platforms in the global cache to avoid
@@ -349,6 +351,7 @@ void shutdown_early(bool CanJoinThreads = true) {
   // This releases OUR reference to the default context, but
   // other may yet have refs
   GlobalHandler::RTGlobalObjHandler->releaseDefaultContexts();
+#endif
 }
 
 void shutdown_late() {

@@ -22,14 +22,8 @@
 #endif
 
 ZeUSMImportExtension ZeUSMImport;
-
-// Due to multiple DLLMain definitions with SYCL, Global Adapter is init at
-// variable creation.
-#if defined(_WIN32)
-ur_adapter_handle_t_ *GlobalAdapter = new ur_adapter_handle_t_();
-#else
 ur_adapter_handle_t_ *GlobalAdapter;
-#endif
+
 // This is a temporary workaround on windows, where UR adapter is teardowned
 // before the UR loader, which will result in access violation when we use print
 // function as the overrided print function was already released with the UR
@@ -601,13 +595,6 @@ void globalAdapterOnDemandCleanup() {
 }
 
 ur_result_t adapterStateTeardown() {
-  // Due to multiple DLLMain definitions with SYCL, register to cleanup the
-  // Global Adapter after refcnt is 0
-#if defined(_WIN32)
-  umfTearDown();
-  std::atexit(globalAdapterOnDemandCleanup);
-#endif
-
   return UR_RESULT_SUCCESS;
 }
 
