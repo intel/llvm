@@ -7474,6 +7474,73 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urKernelGetSuggestedLocalWorkSizeWithArgs
+__urdlllocal ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSizeWithArgs(
+    /// [in] handle of the kernel
+    ur_kernel_handle_t hKernel,
+    /// [in] handle of the queue object
+    ur_queue_handle_t hQueue,
+    /// [in] number of dimensions, from 1 to 3, to specify the global
+    /// and work-group work-items
+    uint32_t numWorkDim,
+    /// [in] pointer to an array of numWorkDim unsigned values that specify
+    /// the offset used to calculate the global ID of a work-item
+    const size_t *pGlobalWorkOffset,
+    /// [in] pointer to an array of numWorkDim unsigned values that specify
+    /// the number of global work-items in workDim that will execute the
+    /// kernel function
+    const size_t *pGlobalWorkSize,
+    /// [in] Number of entries in pArgs
+    uint32_t numArgs,
+    /// [in][optional][range(0, numArgs)] pointer to a list of kernel arg
+    /// properties.
+    const ur_exp_kernel_arg_properties_t *pArgs,
+    /// [out] pointer to an array of numWorkDim unsigned values that specify
+    /// suggested local work size that will contain the result of the query
+    size_t *pSuggestedLocalWorkSize) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_kernel_get_suggested_local_work_size_with_args_params_t params = {
+      &hKernel,         &hQueue,  &numWorkDim, &pGlobalWorkOffset,
+      &pGlobalWorkSize, &numArgs, &pArgs,      &pSuggestedLocalWorkSize};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback(
+          "urKernelGetSuggestedLocalWorkSizeWithArgs"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback(
+          "urKernelGetSuggestedLocalWorkSizeWithArgs"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback(
+          "urKernelGetSuggestedLocalWorkSizeWithArgs"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urKernelSuggestMaxCooperativeGroupCount
 __urdlllocal ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCount(
     /// [in] handle of the kernel object
@@ -13663,6 +13730,9 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetKernelProcAddrTable(
 
   pDdiTable->pfnGetSuggestedLocalWorkSize =
       driver::urKernelGetSuggestedLocalWorkSize;
+
+  pDdiTable->pfnGetSuggestedLocalWorkSizeWithArgs =
+      driver::urKernelGetSuggestedLocalWorkSizeWithArgs;
 
   pDdiTable->pfnSetArgValue = driver::urKernelSetArgValue;
 
