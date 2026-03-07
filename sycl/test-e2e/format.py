@@ -413,6 +413,10 @@ class SYCLEndToEndTest(lit.formats.ShTest):
                     if cond_features in test.config.available_features:
                         conditions[cond_features] = True
 
+                # Add per-device features to conditions (gpu-intel-dg2, aspect-*, arch-*, etc.)
+                for feature in test.config.sycl_dev_features[full_dev_name]:
+                    conditions[feature] = True
+
                 tmp_script = lit.TestRunner.applySubstitutions(
                     tmp_script,
                     [],
