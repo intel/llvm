@@ -7123,7 +7123,8 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
                    options::OPT_fno_offload_via_llvm, false) ||
       Args.hasFlag(options::OPT_offload_new_driver,
                    options::OPT_no_offload_new_driver,
-                   C.isOffloadingHostKind(Action::OFK_Cuda));
+                   (C.isOffloadingHostKind(Action::OFK_Cuda) ||
+                    C.isOffloadingHostKind(Action::OFK_HIP)));
 
   // Builder to be used to build offloading actions.
   std::unique_ptr<OffloadingActionBuilder> OffloadBuilder =
