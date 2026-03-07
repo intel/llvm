@@ -78,8 +78,7 @@ static bool shouldEmitLifetimeMarkers(const CodeGenOptions &CGOpts,
 
 CodeGenFunction::CodeGenFunction(CodeGenModule &cgm, bool suppressNewContext)
     : CodeGenTypeCache(cgm), CGM(cgm), Target(cgm.getTarget()),
-      Builder(cgm, cgm.getModule().getContext(), llvm::ConstantFolder(),
-              CGBuilderInserterTy(this)),
+      Builder(cgm, cgm.getModule().getContext(), CGBuilderInserterTy(this)),
       SanOpts(CGM.getLangOpts().Sanitize), CurFPFeatures(CGM.getLangOpts()),
       DebugInfo(CGM.getModuleDebugInfo()),
       PGO(std::make_unique<CodeGenPGO>(cgm)),
@@ -495,7 +494,7 @@ void CodeGenFunction::FinishFunction(SourceLocation EndLoc) {
       EscapeArgs[Pair.second] = Pair.first;
     llvm::Function *FrameEscapeFn = llvm::Intrinsic::getOrInsertDeclaration(
         &CGM.getModule(), llvm::Intrinsic::localescape);
-    CGBuilderTy(*this, AllocaInsertPt).CreateCall(FrameEscapeFn, EscapeArgs);
+    CGBuilderTy(CGM, AllocaInsertPt).CreateCall(FrameEscapeFn, EscapeArgs);
   }
 
   // Remove the AllocaInsertPt instruction, which is just a convenience for us.
@@ -2726,7 +2725,7 @@ llvm::BasicBlock *CodeGenFunction::GetIndirectGotoBlock() {
   // If we already made the indirect branch for indirect goto, return its block.
   if (IndirectBranch) return IndirectBranch->getParent();
 
-  CGBuilderTy TmpBuilder(*this, createBasicBlock("indirectgoto"));
+  CGBuilderTy TmpBuilder(CGM, createBasicBlock("indirectgoto"));
 
   // Create the PHI node that indirect gotos will add entries to.
   llvm::Value *DestVal = TmpBuilder.CreatePHI(Int8PtrTy, 0,
@@ -3594,7 +3593,7 @@ void CodeGenFunction::EmitRISCVMultiVersionResolver(
     llvm::Value *FeatsCondition = EmitRISCVCpuSupports(CurrTargetAttrFeats);
 
     llvm::BasicBlock *RetBlock = createBasicBlock("resolver_return", Resolver);
-    CGBuilderTy RetBuilder(*this, RetBlock);
+    CGBuilderTy RetBuilder(CGM, RetBlock);
     CreateMultiVersionResolverReturn(CGM, Resolver, RetBuilder,
                                      Options[Index].Function, SupportsIFunc);
     llvm::BasicBlock *ElseBlock = createBasicBlock("resolver_else", Resolver);
@@ -3655,7 +3654,7 @@ void CodeGenFunction::EmitAArch64MultiVersionResolver(
       continue;
 
     llvm::BasicBlock *RetBlock = createBasicBlock("resolver_return", Resolver);
-    CGBuilderTy RetBuilder(*this, RetBlock);
+    CGBuilderTy RetBuilder(CGM, RetBlock);
     CreateMultiVersionResolverReturn(CGM, Resolver, RetBuilder, RO.Function,
                                      SupportsIFunc);
     CurBlock = createBasicBlock("resolver_else", Resolver);
@@ -3695,7 +3694,7 @@ void CodeGenFunction::EmitX86MultiVersionResolver(
     }
 
     llvm::BasicBlock *RetBlock = createBasicBlock("resolver_return", Resolver);
-    CGBuilderTy RetBuilder(*this, RetBlock);
+    CGBuilderTy RetBuilder(CGM, RetBlock);
     CreateMultiVersionResolverReturn(CGM, Resolver, RetBuilder, RO.Function,
                                      SupportsIFunc);
     CurBlock = createBasicBlock("resolver_else", Resolver);
