@@ -3523,7 +3523,7 @@ void Driver::BuildInputs(const ToolChain &TC, DerivedArgList &Args,
           CType = types::TY_CXX;
 
         // stdin must be handled specially.
-        if (memcmp(Value, "-", 2) == 0) {
+        if (strcmp(Value, "-") == 0) {
           if (IsFlangMode()) {
             Ty = types::TY_Fortran;
           } else if (IsDXCMode()) {
