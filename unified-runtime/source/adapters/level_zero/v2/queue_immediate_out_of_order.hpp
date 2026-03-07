@@ -615,20 +615,19 @@ public:
   }
 
   ur_result_t queueBeginGraphCapteExp() override {
-    auto commandListId = getNextCommandListId();
-    return commandListManagers.lock()[commandListId].beginGraphCapture();
+    return commandListManagers.lock()[captureCmdListManagerIdx]
+        .beginGraphCapture();
   }
 
   ur_result_t
   queueBeginCapteIntoGraphExp(ur_exp_graph_handle_t hGraph) override {
-    auto commandListId = getNextCommandListId();
-    return commandListManagers.lock()[commandListId].beginCaptureIntoGraph(
-        hGraph);
+    return commandListManagers.lock()[captureCmdListManagerIdx]
+        .beginCaptureIntoGraph(hGraph);
   }
 
   ur_result_t queueEndGraphCapteExp(ur_exp_graph_handle_t *phGraph) override {
-    auto commandListId = getNextCommandListId();
-    return commandListManagers.lock()[commandListId].endGraphCapture(phGraph);
+    return commandListManagers.lock()[captureCmdListManagerIdx].endGraphCapture(
+        phGraph);
   }
 
   ur_result_t enqueueGraphExp(ur_exp_executable_graph_handle_t hGraph,
@@ -645,9 +644,8 @@ public:
   }
 
   ur_result_t queueIsGraphCapteEnabledExp(bool *pResult) override {
-    auto commandListId = getNextCommandListId();
-    return commandListManagers.lock()[commandListId].isGraphCaptureActive(
-        pResult);
+    return commandListManagers.lock()[captureCmdListManagerIdx]
+        .isGraphCaptureActive(pResult);
   }
 
   ur_result_t
