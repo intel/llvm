@@ -61,6 +61,7 @@ enum class arch_category {
   nvidia_gpu = 1,
   amd_gpu = 2,
   // TODO: add intel_cpu = 3,
+  qcom_gpu = 4,
 };
 
 } // namespace ext::oneapi::experimental
@@ -87,6 +88,13 @@ static constexpr ext::oneapi::experimental::architecture
 static constexpr ext::oneapi::experimental::architecture
     max_amd_gpu_architecture =
         ext::oneapi::experimental::architecture::amd_gpu_gfx1201;
+
+static constexpr ext::oneapi::experimental::architecture
+    min_qcom_gpu_architecture =
+        ext::oneapi::experimental::architecture::qcom_gpu_x1_85;
+static constexpr ext::oneapi::experimental::architecture
+    max_qcom_gpu_architecture =
+        ext::oneapi::experimental::architecture::qcom_gpu_x2_90;
 
 #ifndef __SYCL_TARGET_INTEL_X86_64__
 #define __SYCL_TARGET_INTEL_X86_64__ 0
@@ -361,6 +369,15 @@ static constexpr ext::oneapi::experimental::architecture
 #ifndef __SYCL_TARGET_AMD_GPU_GFX1201__
 #define __SYCL_TARGET_AMD_GPU_GFX1201__ 0
 #endif
+#ifndef __SYCL_TARGET_QCOM_GPU_X1_85__
+#define __SYCL_TARGET_QCOM_GPU_X1_85__ 0
+#endif
+#ifndef __SYCL_TARGET_QCOM_GPU_X2_85__
+#define __SYCL_TARGET_QCOM_GPU_X2_85__ 0
+#endif
+#ifndef __SYCL_TARGET_QCOM_GPU_X2_90__
+#define __SYCL_TARGET_QCOM_GPU_X2_90__ 0
+#endif
 
 // This is true when the translation unit is compiled in AOT mode with target
 // names that supports the "if_architecture_is" features.  If an unsupported
@@ -458,7 +475,10 @@ static constexpr bool is_allowable_aot_mode =
     (__SYCL_TARGET_AMD_GPU_GFX1150__ == 1) ||
     (__SYCL_TARGET_AMD_GPU_GFX1151__ == 1) ||
     (__SYCL_TARGET_AMD_GPU_GFX1200__ == 1) ||
-    (__SYCL_TARGET_AMD_GPU_GFX1201__ == 1);
+    (__SYCL_TARGET_AMD_GPU_GFX1201__ == 1) ||
+    (__SYCL_TARGET_QCOM_GPU_X1_85__ == 1) ||
+    (__SYCL_TARGET_QCOM_GPU_X2_85__ == 1) ||
+    (__SYCL_TARGET_QCOM_GPU_X2_90__ == 1);
 
 constexpr static std::optional<ext::oneapi::experimental::architecture>
 get_current_architecture_aot() {
@@ -737,6 +757,15 @@ get_current_architecture_aot() {
 #if __SYCL_TARGET_AMD_GPU_GFX1201__
   return ext::oneapi::experimental::architecture::amd_gpu_gfx1201;
 #endif
+#if __SYCL_TARGET_QCOM_GPU_X1_85__
+  return ext::oneapi::experimental::architecture::qcom_gpu_x1_85;
+#endif
+#if __SYCL_TARGET_QCOM_GPU_X2_85__
+  return ext::oneapi::experimental::architecture::qcom_gpu_x2_85;
+#endif
+#if __SYCL_TARGET_QCOM_GPU_X2_90__
+  return ext::oneapi::experimental::architecture::qcom_gpu_x2_90;
+#endif
   return std::nullopt;
 }
 
@@ -773,6 +802,8 @@ get_category_min_architecture(
     return min_nvidia_gpu_architecture;
   } else if (Category == ext::oneapi::experimental::arch_category::amd_gpu) {
     return min_amd_gpu_architecture;
+  } else if (Category == ext::oneapi::experimental::arch_category::qcom_gpu) {
+    return min_qcom_gpu_architecture;
   } // add "else if " when adding new category, "else" not needed
   return std::nullopt;
 }
@@ -786,6 +817,8 @@ get_category_max_architecture(
     return max_nvidia_gpu_architecture;
   } else if (Category == ext::oneapi::experimental::arch_category::amd_gpu) {
     return max_amd_gpu_architecture;
+  } else if (Category == ext::oneapi::experimental::arch_category::qcom_gpu) {
+    return max_qcom_gpu_architecture;
   } // add "else if " when adding new category, "else" not needed
   return std::nullopt;
 }

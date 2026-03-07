@@ -783,6 +783,26 @@ amd_gpu_gfx1201
 ----
 |-
 |AMD RDNA 4 architecture.
+
+3+^|*Qualcomm GPU family*
+
+a|
+[source]
+----
+qcom_gpu_x1_85
+----
+|-
+|Qualcomm X1 architecture.
+
+a|
+[source]
+----
+qcom_gpu_x2_85
+qcom_gpu_x2_90
+----
+|-
+|Qualcomm X2 architecture.
+
 |===
 
 The enumerators are guaranteed to be partially ordered, which means that some
@@ -866,6 +886,16 @@ amd_gpu
 |
 Any AMD GPU device.
 This category includes all device architectures in the AMD GPU family.
+
+a|
+[source]
+----
+qcom_gpu
+----
+|-
+|
+Any Qualcomm GPU device.
+This category includes all device architectures in the Qualcomm GPU family.
 |===
 
 === New free functions to query the architecture in device code

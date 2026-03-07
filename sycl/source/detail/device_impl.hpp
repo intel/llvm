@@ -1796,6 +1796,14 @@ public:
             {"gfx1201", oneapi_exp_arch::amd_gpu_gfx1201},
         };
 
+    // Only for Qualcomm GPU architectures
+    constexpr std::pair<const char *, oneapi_exp_arch>
+        QualcommGPUArchitectures[] = {
+            {"X1-85", oneapi_exp_arch::qcom_gpu_x1_85},
+            {"X2-85", oneapi_exp_arch::qcom_gpu_x2_85},
+            {"X2-90", oneapi_exp_arch::qcom_gpu_x2_90},
+        };
+
     // Only for Intel GPU architectures
     constexpr std::pair<const int, oneapi_exp_arch> IntelGPUArchitectures[] = {
         {0x02000000, oneapi_exp_arch::intel_gpu_bdw},
@@ -1884,24 +1892,53 @@ public:
       return std::nullopt;
     };
 
+    auto MapQcomArchIDToArchName = [&](const char *arch) {
+      for (const auto &Item : QualcommGPUArchitectures) {
+        if (std::string_view(Item.first) == arch)
+          return Item.second;
+      }
+      return oneapi_exp_arch::unknown;
+    };
+
+    auto MapNvOrAMDArchIDToArchName = [&](const char *arch) {
+      for (const auto &Item : NvidiaAmdGPUArchitectures) {
+        if (std::string_view(Item.first) == arch)
+          return Item.second;
+      }
+      return oneapi_exp_arch::unknown;
+    };
+
     if (is_gpu() && (backend::ext_oneapi_level_zero == CurrentBackend ||
                      backend::opencl == CurrentBackend)) {
-      return LookupIPVersion(IntelGPUArchitectures)
-          .value_or(ext::oneapi::experimental::architecture::unknown);
-    } else if (is_gpu() && (backend::ext_oneapi_cuda == CurrentBackend ||
-                            backend::ext_oneapi_hip == CurrentBackend)) {
-      auto MapArchIDToArchName = [&](const char *arch) {
-        for (const auto &Item : NvidiaAmdGPUArchitectures) {
-          if (std::string_view(Item.first) == arch)
-            return Item.second;
+      // Check if device is Intel architecture.
+      {
+        oneapi_exp_arch DeviceArch = LookupIPVersion(IntelGPUArchitectures)
+                                         .value_or(oneapi_exp_arch::unknown);
+        if (DeviceArch != oneapi_exp_arch::unknown) {
+          return DeviceArch;
         }
-        return ext::oneapi::experimental::architecture::unknown;
-      };
+      }
+
+      // Otherwise, check if device is Qualcomm architecture. If not, return
+      // `architecture::unknown`.
+
+      // Qualcomm architecture doesn't support LevelZero.
+      if (backend::ext_oneapi_level_zero == CurrentBackend) {
+        return oneapi_exp_arch::unknown;
+      }
+
       std::string DeviceArch =
           get_info_impl<UrInfoCode<info::device::version>::value>();
       std::string_view DeviceArchSubstr =
           std::string_view{DeviceArch}.substr(0, DeviceArch.find(":"));
-      return MapArchIDToArchName(DeviceArchSubstr.data());
+      return MapQcomArchIDToArchName(DeviceArchSubstr.data());
+    } else if (is_gpu() && (backend::ext_oneapi_cuda == CurrentBackend ||
+                            backend::ext_oneapi_hip == CurrentBackend)) {
+    std::string DeviceArch =
+        get_info_impl<UrInfoCode<info::device::version>::value>();
+    std::string_view DeviceArchSubstr =
+        std::string_view{DeviceArch}.substr(0, DeviceArch.find(":"));
+    return MapNvOrAMDArchIDToArchName(DeviceArchSubstr.data());
     } else if (is_cpu() && backend::opencl == CurrentBackend) {
       return LookupIPVersion(IntelCPUArchitectures)
           .value_or(ext::oneapi::experimental::architecture::x86_64);
