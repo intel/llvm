@@ -76,7 +76,7 @@ jobs:
             extra_lit_opts: -a -j 1 --param enable-perf-tests=True
             target_devices: all
           - name: SPIR-V Backend / Intel Battlemage Graphics
-            runner: '["Linux", "bmg"]'
+            runner: '["Linux", "bmg-test"]'
             image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
             target_devices: level_zero:gpu;opencl:gpu;opencl:cpu
             extra_lit_opts: --param spirv-backend=True
@@ -143,7 +143,7 @@ jobs:
     uses: ./.github/workflows/sycl-windows-run-tests.yml
     with:
       name: Intel Battlemage Graphics with Level Zero
-      runner: '["Windows","bmg"]'
+      runner: '["Windows","bmg-test"]'
       target_devices: "level_zero:gpu"
       toolchain_artifact_filename: ${{ needs.build-win.outputs.toolchain_artifact_filename }}
       cxx: icx
