@@ -8900,7 +8900,10 @@ static void handleTimeTrace(Compilation &C, const ArgList &Args,
       // The trace file is ${dumpdir}${basename}.json. Note that dumpdir may not
       // end with a path separator.
       Path = DumpDir->getValue();
-      Path += llvm::sys::path::filename(BaseInput);
+      if (JA->isOffloading(Action::OFK_SYCL))
+        Path += Result.getFilename();
+      else
+        Path += llvm::sys::path::filename(BaseInput);
     } else {
       Path = Result.getFilename();
     }
@@ -9288,11 +9291,14 @@ InputInfoList Driver::BuildJobsForActionNoCache(
     } else {
       // We only have to generate a prefix for the host if this is not a
       // top-level action.
+      const bool IsSYCLHost = JA->isHostOffloading(Action::OFK_SYCL);
+      const bool CreatePrefixForHost =
+          isa<OffloadPackagerJobAction>(A) ||
+          (A->getOffloadingHostActiveKinds() != Action::OFK_None &&
+           (!AtTopLevel || IsSYCLHost));
       OffloadingPrefix = Action::GetOffloadingFileNamePrefix(
         A->getOffloadingDeviceKind(), EffectiveTriple.normalize(),
-        /*CreatePrefixForHost=*/isa<OffloadPackagerJobAction>(A) ||
-            !(A->getOffloadingHostActiveKinds() == Action::OFK_None ||
-              AtTopLevel));
+        CreatePrefixForHost);
     }
     if (isa<OffloadWrapperJobAction>(JA)) {
       if (Arg *FinalOutput = C.getArgs().getLastArg(options::OPT_o))
@@ -9307,7 +9313,10 @@ InputInfoList Driver::BuildJobsForActionNoCache(
                                              AtTopLevel, MultipleArchs,
                                              OffloadingPrefix),
                        BaseInput);
-    if (T->canEmitIR() && OffloadingPrefix.empty())
+    // Enable time tracing capability for SYCL host and device compilations
+    //  as well.
+    if (T->canEmitIR() &&
+        (OffloadingPrefix.empty() || A->isOffloading(Action::OFK_SYCL)))
       handleTimeTrace(C, Args, JA, BaseInput, Result);
   }
 
@@ -9460,9 +9469,31 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
   std::string BoundArch = sanitizeTargetIDInFileName(OrigBoundArch);
   llvm::PrettyStackTraceString CrashInfo("Computing output path");
   // Output to a user requested destination?
+  // SYCL host compilation call a-host-x86_64 when passed -c
   if (AtTopLevel && !isa<DsymutilJobAction>(JA) && !isa<VerifyJobAction>(JA)) {
-    if (Arg *FinalOutput = C.getArgs().getLastArg(options::OPT_o))
+    if (Arg *FinalOutput = C.getArgs().getLastArg(options::OPT_o)) {
+      // For SYCL offloading with new driver, add offloading prefix to avoid
+      // collisions
+      if (!OffloadingPrefix.empty() &&
+          C.getArgs().hasArg(options::OPT_offload_new_driver) &&
+          JA.isOffloading(Action::OFK_SYCL) &&
+          C.getArgs().hasArg(options::OPT_c)) {
+        SmallString<128> OutputPath(FinalOutput->getValue());
+        SmallString<128> Dir = llvm::sys::path::parent_path(OutputPath);
+        StringRef Stem = llvm::sys::path::stem(OutputPath);
+        StringRef Ext = llvm::sys::path::extension(OutputPath);
+        SmallString<128> NewPath;
+        if (!Dir.empty()) {
+          NewPath = Dir;
+          llvm::sys::path::append(NewPath,
+                                  (Stem + OffloadingPrefix + Ext).str());
+        } else {
+          NewPath = (Stem + OffloadingPrefix + Ext).str();
+        }
+        return C.addResultFile(C.getArgs().MakeArgString(NewPath), &JA);
+      }
       return C.addResultFile(FinalOutput->getValue(), &JA);
+    }
     // Output to destination for -fsycl-device-only/-fsyclbin and Windows -o
     if ((offloadDeviceOnly() ||
          C.getArgs().hasArgNoClaim(options::OPT_fsyclbin_EQ)) &&
@@ -9599,16 +9630,22 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
     return GetModuleOutputPath(C, JA, BaseInput);
   }
 
+  const bool IsSYCLDeviceBackendJobAction =
+      JA.isDeviceOffloading(Action::OFK_SYCL) && isa<BackendJobAction>(JA);
+  const bool IsSYCLHostOffloading =
+      JA.isHostOffloading(Action::OFK_SYCL) && isa<AssembleJobAction>(JA);
+  const bool SaveTempsEnabled = isSaveTempsEnabled();
+  const bool HasFo = C.getArgs().hasArg(options::OPT__SLASH_Fo);
+  const bool IsHostOffloading = JA.isOffloading(Action::OFK_None);
+  const bool FoInvalidForOffload =
+      HasFo && (!IsHostOffloading || isa<OffloadUnbundlingJobAction>(JA) ||
+                JA.getOffloadingHostActiveKinds() > Action::OFK_Host);
+  const bool IsNewOffloadDriver =
+      C.getArgs().hasArg(options::OPT_offload_new_driver);
   // Output to a temporary file?
-  if ((!AtTopLevel && !isSaveTempsEnabled() &&
-       (!C.getArgs().hasArg(options::OPT__SLASH_Fo) ||
-        // FIXME - The use of /Fo is limited when offloading is enabled.  When
-        // compiling to exe use of /Fo does not produce the named obj.  We also
-        // should not use the named output when performing unbundling.
-        (C.getArgs().hasArg(options::OPT__SLASH_Fo) &&
-         (!JA.isOffloading(Action::OFK_None) ||
-          isa<OffloadUnbundlingJobAction>(JA) ||
-          JA.getOffloadingHostActiveKinds() > Action::OFK_Host)))) ||
+  if ((!AtTopLevel && !(IsSYCLDeviceBackendJobAction && IsNewOffloadDriver) &&
+       !(IsSYCLHostOffloading && IsNewOffloadDriver) && !SaveTempsEnabled &&
+       (!HasFo || FoInvalidForOffload)) ||
       CCGenDiagnostics) {
     StringRef Name = llvm::sys::path::filename(BaseInput);
     std::pair<StringRef, StringRef> Split = Name.split('.');
@@ -9630,6 +9667,16 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
   SmallString<128> ExternalPath("");
   StringRef BaseName;
 
+  // For SYCL offloading compile-only with -o, use the output path to preserve
+  // directory
+  if (!OffloadingPrefix.empty() &&
+      C.getArgs().hasArg(options::OPT_offload_new_driver) &&
+      JA.isDeviceOffloading(Action::OFK_SYCL) &&
+      C.getArgs().hasArg(options::OPT_c)) {
+    if (Arg *FinalOutput = C.getArgs().getLastArg(options::OPT_o))
+      BasePath = FinalOutput->getValue();
+  }
+
   // Dsymutil actions should use the full path.
   if (isa<DsymutilJobAction>(JA) && C.getArgs().hasArg(options::OPT_dsym_dir)) {
     ExternalPath += C.getArgs().getLastArg(options::OPT_dsym_dir)->getValue();
@@ -9642,6 +9689,12 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
     BaseName = ExternalPath;
   } else if (isa<DsymutilJobAction>(JA) || isa<VerifyJobAction>(JA))
     BaseName = BasePath;
+  else if (!OffloadingPrefix.empty() &&
+           C.getArgs().hasArg(options::OPT_offload_new_driver) &&
+           JA.isOffloading(Action::OFK_SYCL) &&
+           C.getArgs().hasArg(options::OPT_c) &&
+           C.getArgs().getLastArg(options::OPT_o))
+    BaseName = BasePath; // Keep full path for SYCL offloading with -c -o
   else
     BaseName = llvm::sys::path::filename(BasePath);
 
