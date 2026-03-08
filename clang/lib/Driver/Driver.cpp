@@ -8882,7 +8882,7 @@ static void handleTimeTrace(Compilation &C, const ArgList &Args,
       // The trace file is ${dumpdir}${basename}.json. Note that dumpdir may not
       // end with a path separator.
       Path = DumpDir->getValue();
-      if(JA->isOffloading(Action::OFK_SYCL))
+      if (JA->isOffloading(Action::OFK_SYCL))
         Path += Result.getFilename();
       else
         Path += llvm::sys::path::filename(BaseInput);
@@ -9274,9 +9274,10 @@ InputInfoList Driver::BuildJobsForActionNoCache(
       // We only have to generate a prefix for the host if this is not a
       // top-level action.
       const bool IsSYCLHost = JA->isHostOffloading(Action::OFK_SYCL);
-      const bool CreatePrefixForHost = isa<OffloadPackagerJobAction>(A) ||
-                                      (A->getOffloadingHostActiveKinds() != Action::OFK_None
-                                      && (!AtTopLevel || IsSYCLHost));
+      const bool CreatePrefixForHost =
+          isa<OffloadPackagerJobAction>(A) ||
+          (A->getOffloadingHostActiveKinds() != Action::OFK_None &&
+           (!AtTopLevel || IsSYCLHost));
       OffloadingPrefix = Action::GetOffloadingFileNamePrefix(
         A->getOffloadingDeviceKind(), EffectiveTriple.normalize(),
         CreatePrefixForHost);
@@ -9294,7 +9295,8 @@ InputInfoList Driver::BuildJobsForActionNoCache(
                                              AtTopLevel, MultipleArchs,
                                              OffloadingPrefix),
                        BaseInput);
-    // Enable time tracing capability for SYCL host and device compilations as well.
+    // Enable time tracing capability for SYCL host and device compilations
+    //  as well.
     if (T->canEmitIR() &&
         (OffloadingPrefix.empty() || A->isOffloading(Action::OFK_SYCL)))
       handleTimeTrace(C, Args, JA, BaseInput, Result);
@@ -9617,7 +9619,9 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
   const bool SaveTempsEnabled = isSaveTempsEnabled();
   const bool HasFo = C.getArgs().hasArg(options::OPT__SLASH_Fo);
   const bool IsHostOffloading = JA.isOffloading(Action::OFK_None);
-  const bool FoInvalidForOffload = HasFo && (!IsHostOffloading || isa<OffloadUnbundlingJobAction>(JA) || JA.getOffloadingHostActiveKinds() > Action::OFK_Host);
+  const bool FoInvalidForOffload =
+      HasFo && (!IsHostOffloading || isa<OffloadUnbundlingJobAction>(JA) ||
+                JA.getOffloadingHostActiveKinds() > Action::OFK_Host);
   const bool IsNewOffloadDriver =
       C.getArgs().hasArg(options::OPT_offload_new_driver);
   // Output to a temporary file?
