@@ -482,12 +482,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramGetFunctionPointer(
 
   cl_context CLContext = hProgram->Context->CLContext;
 
-  cl_ext::clGetDeviceFunctionPointer_fn FuncT = nullptr;
+  cl_ext::clGetDeviceFunctionPointerINTEL_fn FuncT = nullptr;
 
   UR_RETURN_ON_FAILURE(
-      cl_ext::getExtFuncFromContext<cl_ext::clGetDeviceFunctionPointer_fn>(
+      cl_ext::getExtFuncFromContext<cl_ext::clGetDeviceFunctionPointerINTEL_fn>(
           CLContext,
-          ur::cl::getAdapter()->fnCache.clGetDeviceFunctionPointerCache,
+          ur::cl::getAdapter()->fnCache.clGetDeviceFunctionPointerINTELCache,
           cl_ext::GetDeviceFunctionPointerName, &FuncT));
 
   // Check if the kernel name exists to prevent the OpenCL runtime from throwing
@@ -539,12 +539,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramGetGlobalVariablePointer(
                                         sizeof(CLContext), &CLContext,
                                         nullptr));
 
-  cl_ext::clGetDeviceGlobalVariablePointer_fn FuncT = nullptr;
+  cl_ext::clGetDeviceGlobalVariablePointerINTEL_fn FuncT = nullptr;
 
   UR_RETURN_ON_FAILURE(cl_ext::getExtFuncFromContext<
-                       cl_ext::clGetDeviceGlobalVariablePointer_fn>(
+                       cl_ext::clGetDeviceGlobalVariablePointerINTEL_fn>(
       CLContext,
-      ur::cl::getAdapter()->fnCache.clGetDeviceGlobalVariablePointerCache,
+      ur::cl::getAdapter()->fnCache.clGetDeviceGlobalVariablePointerINTELCache,
       cl_ext::GetDeviceGlobalVariablePointerName, &FuncT));
 
   const cl_int CLResult =
