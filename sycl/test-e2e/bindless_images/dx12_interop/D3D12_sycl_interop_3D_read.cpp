@@ -67,18 +67,19 @@
 // RUN-IF: !gpu-intel-gen12, %{run} %t.exe --type unorm8 --channels 4 --sampled 7x9x8
 
 // Semaphore coverage tests
-// RUN-IF: !gpu-intel-dg2, %{run} %t.exe --type float --channels 4 --semaphores 16x17x15
-// RUN-IF: !gpu-intel-dg2, %{run} %t.exe --type half --channels 2 --semaphores 17x16x15
-// RUN-IF: !gpu-intel-dg2, %{run} %t.exe --type int32 --channels 1 --semaphores 9x8x7
-// RUN-IF: !gpu-intel-dg2, %{run} %t.exe --type uint32 --channels 4 --semaphores 33x31x32
-// RUN-IF: !gpu-intel-dg2, %{run} %t.exe --type int16 --channels 2 --semaphores 15x17x16
-// RUN-IF: !gpu-intel-dg2, %{run} %t.exe --type uint16 --channels 1 --semaphores 9x7x8
-// RUN-IF: !gpu-intel-dg2, %{run} %t.exe --type uint8 --channels 4 --semaphores 32x31x33
-// RUN-IF: !gpu-intel-dg2, %{run} %t.exe --type int8 --channels 2 --semaphores 16x15x17
-// RUN-IF: !gpu-intel-dg2, %{run} %t.exe --type float --channels 4 --sampled --semaphores 31x32x33
-// RUN-IF: !gpu-intel-dg2, %{run} %t.exe --type half --channels 2 --sampled --semaphores 15x16x17
-// RUN-IF: !gpu-intel-dg2, %{run} %t.exe --type int32 --channels 1 --sampled --semaphores 7x8x9
-// RUN-IF: !gpu-intel-dg2, %{run} %t.exe --type uint32 --channels 4 --sampled --semaphores 32x31x33
+// At this time, semaphores aren't working on DG2 (GSD-12428), and can hang on BMG if run in parallel (GSD-12436).
+// RUN-IF: (!gpu-intel-dg2 && !gpu-intel-bmg), %{run} %t.exe --type float --channels 4 --semaphores 16x17x15
+// RUN-IF: (!gpu-intel-dg2 && !gpu-intel-bmg), %{run} %t.exe --type half --channels 2 --semaphores 17x16x15
+// RUN-IF: (!gpu-intel-dg2 && !gpu-intel-bmg), %{run} %t.exe --type int32 --channels 1 --semaphores 9x8x7
+// RUN-IF: (!gpu-intel-dg2 && !gpu-intel-bmg), %{run} %t.exe --type uint32 --channels 4 --semaphores 33x31x32
+// RUN-IF: (!gpu-intel-dg2 && !gpu-intel-bmg), %{run} %t.exe --type int16 --channels 2 --semaphores 15x17x16
+// RUN-IF: (!gpu-intel-dg2 && !gpu-intel-bmg), %{run} %t.exe --type uint16 --channels 1 --semaphores 9x7x8
+// RUN-IF: (!gpu-intel-dg2 && !gpu-intel-bmg), %{run} %t.exe --type uint8 --channels 4 --semaphores 32x31x33
+// RUN-IF: (!gpu-intel-dg2 && !gpu-intel-bmg), %{run} %t.exe --type int8 --channels 2 --semaphores 16x15x17
+// RUN-IF: (!gpu-intel-dg2 && !gpu-intel-bmg), %{run} %t.exe --type float --channels 4 --sampled --semaphores 31x32x33
+// RUN-IF: (!gpu-intel-dg2 && !gpu-intel-bmg), %{run} %t.exe --type half --channels 2 --sampled --semaphores 15x16x17
+// RUN-IF: (!gpu-intel-dg2 && !gpu-intel-bmg), %{run} %t.exe --type int32 --channels 1 --sampled --semaphores 7x8x9
+// RUN-IF: (!gpu-intel-dg2 && !gpu-intel-bmg), %{run} %t.exe --type uint32 --channels 4 --sampled --semaphores 32x31x33
 
 /*
     clang++.exe -fsycl -o ds3r.exe D3D12_sycl_interop_3D_read.cpp -ld3d12 -ldxgi -ld3dcompiler
