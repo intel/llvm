@@ -142,7 +142,7 @@ void GlobalOffsetPass::createClonesAndPopulateVMap(
       continue; // Not interesting.
 
     auto *Func = Call->getFunction();
-    if (0 != (*GlobalVMap).count(Func))
+    if (0 != GlobalVMap->count(Func))
       continue; // Already processed.
 
     const bool IsKernel = KCache.isKernel(*Func);
@@ -406,7 +406,7 @@ std::pair<Function *, Value *> GlobalOffsetPass::addOffsetArgumentToFunction(
   bool ImplicitOffsetAllocaInserted = false;
   if (KeepOriginal) {
     SmallVector<ReturnInst *, 8> Returns;
-    CloneFunctionInto(NewFunc, Func, (*GlobalVMap),
+    CloneFunctionInto(NewFunc, Func, *GlobalVMap,
                       CloneFunctionChangeType::GlobalChanges, Returns);
 
     // In order to keep the signatures of functions called by the kernel
