@@ -272,6 +272,10 @@ public:
     if (!R)
       return;
 
+#ifdef _WIN32
+    return;
+#endif
+
     try {
       Adapter->call<Release>(R);
     } catch (std::exception &e) {

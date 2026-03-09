@@ -133,8 +133,10 @@ context_impl::~context_impl() {
          detail::ProgramManager::getInstance()
              .getProfileCounterDeviceGlobalEntries(this))
       DGEntry->cleanupProfileCounter(this);
+#ifndef _WIN32
     // TODO catch an exception and put it to list of asynchronous exceptions
     getAdapter().call_nocheck<UrApiKind::urContextRelease>(MContext);
+#endif
   } catch (std::exception &e) {
     __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~context_impl", e);
   }

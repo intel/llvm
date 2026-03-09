@@ -246,7 +246,7 @@ struct StaticVarShutdownHandler {
         shutdown_early(true);
       }
 
-      shutdown_late();
+      // Skipping late shutdown on WIndows and leaving it to OS to cleanup.
 #else
       shutdown_early(true);
 #endif
