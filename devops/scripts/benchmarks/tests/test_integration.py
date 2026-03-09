@@ -262,7 +262,7 @@ class TestE2E(unittest.TestCase):
         # FIXME: Graph benchmarks segfault on pvc
         if not ("pvc" in self.device_arch.lower()):
             self._checkCase(
-                "torch_benchmark_l0 KernelSubmitGraphSingleQueue KernelBatchSize 10, KernelGroupsCount 10, KernelName Add CPU count",
+                "torch_benchmark_l0 KernelSubmitGraphSingleQueue KernelBatchSize 10, KernelName Add, KernelGroupsCount 10 CPU count",
                 "KernelSubmitGraphSingleQueue small, CPU count",
                 {"pytorch", "L0"},
             )
@@ -311,7 +311,7 @@ class TestE2E(unittest.TestCase):
         # FIXME: Graph benchmarks segfault on pvc
         if not ("pvc" in self.device_arch.lower()):
             self._checkCase(
-                "torch_benchmark_sycl KernelSubmitGraphSingleQueue KernelBatchSize 32, KernelGroupsCount 32, KernelName Add",
+                "torch_benchmark_sycl KernelSubmitGraphSingleQueue KernelBatchSize 32, KernelName Add, KernelGroupsCount 32",
                 "KernelSubmitGraphSingleQueue medium",
                 {"pytorch", "SYCL"},
             )
@@ -365,7 +365,7 @@ class TestE2E(unittest.TestCase):
         # FIXME: Graph benchmarks segfault on pvc
         if not ("pvc" in self.device_arch.lower()):
             self._checkCase(
-                "torch_benchmark_syclpreview KernelSubmitGraphSingleQueue KernelBatchSize 64, KernelGroupsCount 64, KernelName Add",
+                "torch_benchmark_syclpreview KernelSubmitGraphSingleQueue KernelBatchSize 64, KernelName Add, KernelGroupsCount 64",
                 "KernelSubmitGraphSingleQueue large",
                 {"pytorch", "SYCL"},
             )
