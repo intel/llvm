@@ -45,6 +45,10 @@ jobs:
         '-DLLVM_LIT_ARGS=-v -vv'
         -DCMAKE_INSTALL_PREFIX=./llvm-project-install
 
+    - name: Download LLVM
+      uses: actions/download-artifact@v7
+      with:
+        name: sycl_linux_default
 
     - name: Build and install llvm-project
       run: ninja -C llvm-project/build -j100 install

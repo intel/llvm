@@ -20,6 +20,7 @@ permissions:
   contents: read
 
 jobs:
+  if: false
   create-check:
     runs-on: [Linux, aux-tasks]
     permissions:

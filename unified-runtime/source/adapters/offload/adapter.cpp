@@ -22,6 +22,8 @@
 
 ur_adapter_handle_t Adapter = nullptr;
 
+// dummy parasite change
+
 // Initialize liboffload and perform the initial platform and device discovery
 ur_result_t ur_adapter_handle_t_::init() {
   auto Res = olInit(nullptr);

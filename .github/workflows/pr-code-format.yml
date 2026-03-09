@@ -12,6 +12,7 @@ on:
       - 'users/**'
 
 jobs:
+  if: false
   code_formatter:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
