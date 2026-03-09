@@ -100,7 +100,7 @@ inline __SYCL_ALWAYS_INLINE std::enable_if_t<
 tanh(T x) __NOEXC {
 #if defined(__NVPTX__)
   return sycl::detail::convertFromOpenCLTypeFor<T>(
-      __clc_native_tanh(sycl::detail::convertToOpenCLType(x)));
+      __spirv_ocl_native_tanh(sycl::detail::convertToOpenCLType(x)));
 #else
   return sycl::tanh(x);
 #endif
@@ -148,7 +148,7 @@ inline __SYCL_ALWAYS_INLINE
     exp2(T x) __NOEXC {
 #if defined(__NVPTX__)
   return sycl::detail::convertFromOpenCLTypeFor<T>(
-      __clc_native_exp2(sycl::detail::convertToOpenCLType(x)));
+      __spirv_ocl_native_exp2(sycl::detail::convertToOpenCLType(x)));
 #else
   return sycl::exp2(x);
 #endif
