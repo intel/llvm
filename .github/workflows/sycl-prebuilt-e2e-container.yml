@@ -39,7 +39,7 @@ jobs:
   # Couldn't make it work from inside the container, so have to use an extra job
   # and pass an artifact.
   docker:
-    runs-on: [Linux, build]
+    runs-on: [Linux, build-test]
     needs: build
     permissions:
       packages: write

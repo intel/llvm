@@ -72,7 +72,7 @@ jobs:
   # build all the e2e tests
   build_run_native_cpu_e2e_tests:
     if: ${{ !cancelled() && needs.build.outputs.build_conclusion == 'success' }}
-    runs-on: [Linux, build]
+    runs-on: [Linux, build-test]
     needs: [build]
     container:
       image: ghcr.io/intel/llvm/sycl_ubuntu2404_nightly:latest
