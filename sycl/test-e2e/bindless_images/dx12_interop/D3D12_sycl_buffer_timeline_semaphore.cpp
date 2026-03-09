@@ -12,7 +12,8 @@
 
 // UNSUPPORTED: gpu-intel-bmg
 // UNSUPPORTED-TRACKER: GSD-12436
-// this test works on BMG, but if run in parallel with itself, or with other semaphore tests, it can hang. 
+// this test works on BMG, but if run in parallel with itself, or with  other
+// semaphore tests, it can hang.
 
 // RUN: %{build} -ld3d12 -ldxgi -ld3dcompiler -o %t.exe %if target-spir %{ -Wno-ignored-attributes %}
 // RUN: %{run} %t.exe --no-sem
