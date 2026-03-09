@@ -778,11 +778,14 @@ ur_command_list_manager::appendMemUnmap(ur_mem_handle_t hMem, void *pMappedPtr,
   // TODO: currently unmapHostPtr deallocates memory immediately,
   // since the memory might be used by the user, we need to make sure
   // all dependencies are completed.
-  ZE2UR_CALL(zeCommandListAppendWaitOnEvents,
-             (getZeCommandList(), waitListView.num, waitListView.handles));
-  waitListView.clear();
-
   hBuffer->unmapHostPtr(pMappedPtr, zeCommandList.get(), waitListView);
+
+  if (waitListView) {
+    // If memory was not migrated (e.g. zero-copy path), we still need to
+    // wait on the events here.
+    ZE2UR_CALL(zeCommandListAppendWaitOnEvents,
+               (getZeCommandList(), waitListView.num, waitListView.handles));
+  }
   if (zeSignalEvent) {
     ZE2UR_CALL(zeCommandListAppendSignalEvent,
                (getZeCommandList(), zeSignalEvent));
