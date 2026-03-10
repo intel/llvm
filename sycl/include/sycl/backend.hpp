@@ -26,7 +26,7 @@
 #include <sycl/kernel_bundle_enums.hpp>       // for bundle_state
 #include <sycl/platform.hpp>                  // for platform, get_n...
 #include <sycl/queue.hpp>                     // for queue, get_native
-#include <ur_api.h>                           // for ur_native_handle_t
+#include <unified-runtime/ur_api.h>           // for ur_native_handle_t
 
 #if SYCL_BACKEND_OPENCL
 #include <sycl/detail/backend_traits_opencl.hpp> // for interop

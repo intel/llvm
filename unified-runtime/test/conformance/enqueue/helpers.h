@@ -7,7 +7,7 @@
 #ifndef UUR_ENQUEUE_RECT_HELPERS_H_INCLUDED
 #define UUR_ENQUEUE_RECT_HELPERS_H_INCLUDED
 
-#include "ur_api.h"
+#include "unified-runtime/ur_api.h"
 #include <cstring>
 #include <sstream>
 #include <uur/fixtures.h>

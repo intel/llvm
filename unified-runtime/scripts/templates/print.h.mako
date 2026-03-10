@@ -23,7 +23,7 @@ from templates import print_helper as tph
 #ifndef ${X}_PRINT_H
 #define ${X}_PRINT_H 1
 
-#include "${x}_api.h"
+#include "unified-runtime/${x}_api.h"
 
 #if defined(__cplusplus)
 extern "C" {

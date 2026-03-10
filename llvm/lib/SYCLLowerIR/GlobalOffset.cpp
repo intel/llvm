@@ -142,7 +142,7 @@ void GlobalOffsetPass::createClonesAndPopulateVMap(
       continue; // Not interesting.
 
     auto *Func = Call->getFunction();
-    if (0 != GlobalVMap.count(Func))
+    if (0 != GlobalVMap->count(Func))
       continue; // Already processed.
 
     const bool IsKernel = KCache.isKernel(*Func);
@@ -183,9 +183,9 @@ void GlobalOffsetPass::createClonesAndPopulateVMap(
                                 FuncEnd = Func->arg_end(),
                                 NewFuncArg = NewFunc->arg_begin();
          FuncArg != FuncEnd; ++FuncArg, ++NewFuncArg) {
-      GlobalVMap[FuncArg] = NewFuncArg;
+      (*GlobalVMap)[FuncArg] = NewFuncArg;
     }
-    GlobalVMap[Func] = NewFunc;
+    (*GlobalVMap)[Func] = NewFunc;
 
     // Extend the work list with the users of the function.
     for (auto *U : Func->users())
@@ -333,7 +333,7 @@ void GlobalOffsetPass::addImplicitParameterToCallers(
           /*KernelImplicitArgumentType*/ nullptr,
           /*KeepOriginal=*/true, /*IsKernel=*/false);
     }
-    CallToOld = cast<CallInst>(GlobalVMap[CallToOld]);
+    CallToOld = cast<CallInst>((*GlobalVMap)[CallToOld]);
     if (!CalleeWithImplicitParam) {
       // Replace intrinsic call with parameter.
       CallToOld->replaceAllUsesWith(ImplicitOffset);
@@ -398,15 +398,15 @@ std::pair<Function *, Value *> GlobalOffsetPass::addOffsetArgumentToFunction(
   AttributeList NAttrs =
       AttributeList::get(Func->getContext(), FuncAttrs.getFnAttrs(),
                          FuncAttrs.getRetAttrs(), ArgumentAttributes);
-  assert(GlobalVMap.count(Func) != 0 &&
+  assert((*GlobalVMap).count(Func) != 0 &&
          "All relevant functions must be prepared ahead of time.");
-  Function *NewFunc = dyn_cast<Function>(GlobalVMap[Func]);
+  Function *NewFunc = dyn_cast<Function>((*GlobalVMap)[Func]);
 
   Value *ImplicitOffset = nullptr;
   bool ImplicitOffsetAllocaInserted = false;
   if (KeepOriginal) {
     SmallVector<ReturnInst *, 8> Returns;
-    CloneFunctionInto(NewFunc, Func, GlobalVMap,
+    CloneFunctionInto(NewFunc, Func, *GlobalVMap,
                       CloneFunctionChangeType::GlobalChanges, Returns);
 
     // In order to keep the signatures of functions called by the kernel

@@ -23,7 +23,7 @@ from templates import helper as th
 
 #pragma once
 
-#include <ur_api.h>
+#include <unified-runtime/ur_api.h>
 #include "utils.hpp"
 #include <cstdlib>
 #include <string_view>

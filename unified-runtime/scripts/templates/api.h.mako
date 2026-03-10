@@ -29,7 +29,7 @@ from templates import helper as th
 
 %if n != x:
 // 'core' API headers
-#include "${x}_api.h"
+#include "unified-runtime/${x}_api.h"
 %else:
 // standard headers
 #include <stdint.h>

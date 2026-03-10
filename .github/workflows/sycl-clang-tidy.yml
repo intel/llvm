@@ -1,12 +1,25 @@
 name: clang-tidy
 
 on:
-  workflow_call:
+  pull_request:
+    branches:
+      - sycl
+    paths:
+      - "**/*.cpp"
+      - "**/*.h"
+      - "**/*.hpp"
+
+
+concurrency:
+  #  Cancel a currently running workflow from the same PR, branch or tag.
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 permissions: read-all
 
 jobs:
   run-clang-tidy:
+    if: ${{ !contains(github.event.pull_request.labels.*.name, 'disable-lint') }}
     runs-on: [Linux, build]
     container:
       image: ghcr.io/intel/llvm/sycl_ubuntu2404_nightly:latest

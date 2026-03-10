@@ -10,7 +10,7 @@
 
 #include "memory.hpp"
 #include "common.hpp"
-#include "ur_api.h"
+#include "unified-runtime/ur_api.h"
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urMemImageCreate(ur_context_handle_t /*hContext*/, ur_mem_flags_t /*flags*/,

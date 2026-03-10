@@ -18,8 +18,8 @@
 #include "logger/ur_logger.hpp"
 #include "queue.hpp"
 #include "sampler.hpp"
+#include "unified-runtime/ur_api.h"
 #include "ur/ur.hpp"
-#include "ur_api.h"
 
 ur_result_t urCalculateNumChannels(ur_image_channel_order_t order,
                                    unsigned int *NumChannels) {

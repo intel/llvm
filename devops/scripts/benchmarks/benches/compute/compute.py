@@ -40,8 +40,8 @@ class ComputeBench(Suite):
         return "https://github.com/intel/compute-benchmarks.git"
 
     def git_hash(self) -> str:
-        # Mar 03, 2026
-        return "48504d2957a83ad32deff78563e855eeb6855dae"
+        # Mar 05, 2026
+        return "2be1a1e345d44e63187d49f67363de4378956fb9"
 
     def setup(self) -> None:
         if options.sycl is None:
@@ -598,6 +598,21 @@ class ComputeBench(Suite):
                         ),
                     ]
 
+        # Add TorchSubmitEventRecordWait benchmarks
+        for runtime in filter(lambda x: x != RUNTIMES.UR, RUNTIMES):
+            for profiler_type in list(PROFILERS):
+                benches.append(
+                    TorchSubmitEventRecordWait(
+                        self,
+                        runtime,
+                        "medium",
+                        profiler_type,
+                        Profiling=0,
+                        KernelWGCount=256,
+                        KernelWGSize=512,
+                    )
+                )
+
         # Add UR-specific benchmarks
         benches += [
             # TODO: multithread_benchmark_ur fails with segfault
@@ -649,23 +664,20 @@ class ComputeBenchCoreSuite(ComputeBench):
         submit_kernel_params = product(
             list(RUNTIMES),
             [0, 1],  # in_order_queue
-            [0, 1],  # measure_completion
-            [0, 1],  # use_events
+            list(PROFILERS),
         )
         for (
             runtime,
             in_order_queue,
-            measure_completion,
-            use_events,
+            profiler_type,
         ) in submit_kernel_params:
             core_benches.append(
                 SubmitKernel(
                     self,
                     runtime,
                     in_order_queue,
-                    measure_completion,
-                    use_events,
                     KernelExecTime=1,
+                    profiler_type=profiler_type,
                 )
             )
         return core_benches

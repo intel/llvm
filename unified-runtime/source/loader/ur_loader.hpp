@@ -13,8 +13,8 @@
 #ifndef UR_LOADER_HPP
 #define UR_LOADER_HPP 1
 
+#include "unified-runtime/ur_ddi.h"
 #include "ur_adapter_registry.hpp"
-#include "ur_ddi.h"
 #include "ur_lib_loader.hpp"
 
 namespace ur_loader {
