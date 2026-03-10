@@ -8862,6 +8862,24 @@ InputInfoList Driver::BuildJobsForAction(
   return Result;
 }
 
+/// Add an offloading prefix to a file path.
+/// Given a path like "dir/file.ext" and prefix "-host-x86_64",
+/// returns "dir/file-host-x86_64.ext".
+static SmallString<128> addOffloadingPrefixToPath(StringRef Path,
+                                                  StringRef OffloadingPrefix) {
+  SmallString<128> Dir = llvm::sys::path::parent_path(Path);
+  StringRef Stem = llvm::sys::path::stem(Path);
+  StringRef Ext = llvm::sys::path::extension(Path);
+  SmallString<128> NewPath;
+  if (!Dir.empty()) {
+    NewPath = Dir;
+    llvm::sys::path::append(NewPath, (Stem + OffloadingPrefix + Ext).str());
+  } else {
+    NewPath = (Stem + OffloadingPrefix + Ext).str();
+  }
+  return NewPath;
+}
+
 static void handleTimeTrace(Compilation &C, const ArgList &Args,
                             const JobAction *JA, const char *BaseInput,
                             const InputInfo &Result, StringRef OffloadingPrefix,
@@ -8873,8 +8891,15 @@ static void handleTimeTrace(Compilation &C, const ArgList &Args,
   SmallString<128> Path;
   if (A->getOption().matches(options::OPT_ftime_trace_EQ)) {
     Path = A->getValue();
+    SmallString<128> Tmp;
+    Tmp = Result.getFilename();
     if (llvm::sys::fs::is_directory(Path)) {
-      SmallString<128> Tmp(Result.getFilename());
+      if (!OffloadingPrefix.empty() &&
+          Args.hasArg(options::OPT_offload_new_driver) &&
+          JA->isOffloading(Action::OFK_SYCL)) {
+        Tmp = addOffloadingPrefixToPath(Result.getFilename(), OffloadingPrefix);
+      }
+
       llvm::sys::path::replace_extension(Tmp, "json");
       llvm::sys::path::append(Path, llvm::sys::path::filename(Tmp));
     }
@@ -8896,20 +8921,10 @@ static void handleTimeTrace(Compilation &C, const ArgList &Args,
       // Only applies when not using -dumpdir (which already has the prefix).
       // Example: clang++ --offload-new-driver -fsycl -c -ftime-trace mycode.cpp -o e/a.o
       //   Object file: e/a.o, Time-trace: e/a-host-x86_64-unknown-linux-gnu.json
-      if (AtTopLevel && !OffloadingPrefix.empty() &&
+      if (!OffloadingPrefix.empty() &&
           Args.hasArg(options::OPT_offload_new_driver) &&
-          JA->isHostOffloading(Action::OFK_SYCL)) {
-        SmallString<128> Dir = llvm::sys::path::parent_path(Path);
-        StringRef Stem = llvm::sys::path::stem(Path);
-        StringRef Ext = llvm::sys::path::extension(Path);
-        SmallString<128> NewPath;
-        if (!Dir.empty()) {
-          NewPath = Dir;
-          llvm::sys::path::append(NewPath, (Stem + OffloadingPrefix + Ext).str());
-        } else {
-          NewPath = (Stem + OffloadingPrefix + Ext).str();
-        }
-        Path = NewPath;
+          JA->isOffloading(Action::OFK_SYCL)) {
+        Path = addOffloadingPrefixToPath(Path, OffloadingPrefix);
       }
     }
     llvm::sys::path::replace_extension(Path, "json");
@@ -9299,9 +9314,16 @@ InputInfoList Driver::BuildJobsForActionNoCache(
       // 2. Action is SYCL host compilation (needs prefix even at top level)
       // 3. Action involves any offloading and is nested in the pipeline
       const bool IsSYCLHost = JA->isHostOffloading(Action::OFK_SYCL);
+      const bool IsSYCLHostTimeTrace =
+          IsSYCLHost && AtTopLevel &&
+          Args.hasArg(options::OPT_offload_new_driver) &&
+          Args.hasArg(options::OPT_ftime_trace, options::OPT_ftime_trace_EQ);
+
       const bool CreatePrefixForHost =
-          isa<OffloadPackagerJobAction>(A) || IsSYCLHost ||
-          (A->getOffloadingHostActiveKinds() != Action::OFK_None && !AtTopLevel);
+          isa<OffloadPackagerJobAction>(A) || IsSYCLHostTimeTrace ||
+          (A->getOffloadingHostActiveKinds() != Action::OFK_None &&
+           !AtTopLevel);
+
       OffloadingPrefix = Action::GetOffloadingFileNamePrefix(
         A->getOffloadingDeviceKind(), EffectiveTriple.normalize(),
         CreatePrefixForHost);
@@ -9476,17 +9498,43 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
   std::string BoundArch = sanitizeTargetIDInFileName(OrigBoundArch);
   llvm::PrettyStackTraceString CrashInfo("Computing output path");
   // Output to a user requested destination?
-  // SYCL host compilation call a-host-x86_64 when passed -c
   if (AtTopLevel && !isa<DsymutilJobAction>(JA) && !isa<VerifyJobAction>(JA)) {
-    if (Arg *FinalOutput = C.getArgs().getLastArg(options::OPT_o)) {
+    if (Arg *FinalOutput = C.getArgs().getLastArg(options::OPT_o))
       return C.addResultFile(FinalOutput->getValue(), &JA);
-    }
     // Output to destination for -fsycl-device-only/-fsyclbin and Windows -o
     if ((offloadDeviceOnly() ||
          C.getArgs().hasArgNoClaim(options::OPT_fsyclbin_EQ)) &&
         JA.getOffloadingDeviceKind() == Action::OFK_SYCL)
       if (Arg *FinalOutput = C.getArgs().getLastArg(options::OPT__SLASH_o))
         return C.addResultFile(FinalOutput->getValue(), &JA);
+  }
+  // For SYCL device compilation with -c -o and c + l -o
+  const bool IsSYCLDeviceTimeTrace =
+      JA.isDeviceOffloading(Action::OFK_SYCL) && isa<BackendJobAction>(JA) &&
+      !AtTopLevel && C.getArgs().hasArg(options::OPT_offload_new_driver) &&
+      C.getArgs().hasArg(options::OPT_ftime_trace, options::OPT_ftime_trace_EQ);
+
+  if (IsSYCLDeviceTimeTrace) {
+    if (Arg *FinalOutput = C.getArgs().getLastArg(options::OPT_o))
+      return C.addResultFile(FinalOutput->getValue(), &JA);
+    else {
+      StringRef BaseName = llvm::sys::path::filename(BaseInput);
+      return C.addResultFile(C.getArgs().MakeArgString(BaseName), &JA);
+    }
+  }
+  // For SYCL Host compilation with c + l -o
+  const bool IsSYCLHostTimeTraceNotTopLevel =
+      JA.isHostOffloading(Action::OFK_SYCL) && isa<AssembleJobAction>(JA) &&
+      !AtTopLevel && C.getArgs().hasArg(options::OPT_offload_new_driver) &&
+      C.getArgs().hasArg(options::OPT_ftime_trace, options::OPT_ftime_trace_EQ);
+
+  if (IsSYCLHostTimeTraceNotTopLevel) {
+    if (Arg *FinalOutput = C.getArgs().getLastArg(options::OPT_o))
+      return C.addResultFile(FinalOutput->getValue(), &JA);
+    else {
+      StringRef BaseName = llvm::sys::path::filename(BaseInput);
+      return C.addResultFile(C.getArgs().MakeArgString(BaseName), &JA);
+    }
   }
 
   // For /P, preprocess to file named after BaseInput.
@@ -9617,10 +9665,6 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
     return GetModuleOutputPath(C, JA, BaseInput);
   }
 
-  const bool IsSYCLDeviceBackendJobAction =
-      JA.isDeviceOffloading(Action::OFK_SYCL) && isa<BackendJobAction>(JA);
-  const bool IsSYCLHostOffloading =
-      JA.isHostOffloading(Action::OFK_SYCL) && isa<AssembleJobAction>(JA);
   const bool SaveTempsEnabled = isSaveTempsEnabled();
   const bool HasFo = C.getArgs().hasArg(options::OPT__SLASH_Fo);
   const bool IsHostOffloading = JA.isOffloading(Action::OFK_None);
@@ -9630,9 +9674,7 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
   const bool IsNewOffloadDriver =
       C.getArgs().hasArg(options::OPT_offload_new_driver);
   // Output to a temporary file?
-  if ((!AtTopLevel && !(IsSYCLDeviceBackendJobAction && IsNewOffloadDriver) &&
-       !(IsSYCLHostOffloading && IsNewOffloadDriver) && !SaveTempsEnabled &&
-       (!HasFo || FoInvalidForOffload)) ||
+  if ((!AtTopLevel && !SaveTempsEnabled && (!HasFo || FoInvalidForOffload)) ||
       CCGenDiagnostics) {
     StringRef Name = llvm::sys::path::filename(BaseInput);
     std::pair<StringRef, StringRef> Split = Name.split('.');
@@ -9654,16 +9696,6 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
   SmallString<128> ExternalPath("");
   StringRef BaseName;
 
-  // For SYCL offloading compile-only with -o, use the output path to preserve
-  // directory
-  if (!OffloadingPrefix.empty() &&
-      C.getArgs().hasArg(options::OPT_offload_new_driver) &&
-      JA.isDeviceOffloading(Action::OFK_SYCL) &&
-      C.getArgs().hasArg(options::OPT_c)) {
-    if (Arg *FinalOutput = C.getArgs().getLastArg(options::OPT_o))
-      BasePath = FinalOutput->getValue();
-  }
-
   // Dsymutil actions should use the full path.
   if (isa<DsymutilJobAction>(JA) && C.getArgs().hasArg(options::OPT_dsym_dir)) {
     ExternalPath += C.getArgs().getLastArg(options::OPT_dsym_dir)->getValue();
@@ -9676,12 +9708,7 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
     BaseName = ExternalPath;
   } else if (isa<DsymutilJobAction>(JA) || isa<VerifyJobAction>(JA))
     BaseName = BasePath;
-  else if (!OffloadingPrefix.empty() &&
-           C.getArgs().hasArg(options::OPT_offload_new_driver) &&
-           JA.isOffloading(Action::OFK_SYCL) &&
-           C.getArgs().hasArg(options::OPT_c) &&
-           C.getArgs().getLastArg(options::OPT_o))
-    BaseName = BasePath; // Keep full path for SYCL offloading with -c -o
+
   else
     BaseName = llvm::sys::path::filename(BasePath);
 
