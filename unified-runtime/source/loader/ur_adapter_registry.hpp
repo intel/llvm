@@ -361,22 +361,34 @@ private:
       // 1. Every path from UR_ADAPTERS_SEARCH_PATH.
       // 2. OS search paths.
       // 3. Loader library directory.
+      // If UR_ADAPTER_SEARCH_LOADER_DIR_FIRST is set,
+      // then the order of 2 and 3 is switched.
       if (searchPathsEnvOpt.has_value()) {
         for (const auto &p : searchPathsEnvOpt.value()) {
           loadPaths.emplace_back(p / adapterName);
         }
       }
 
-      auto adapterNamePathOpt = getAdapterNameAsPath(adapterName);
-      if (adapterNamePathOpt.has_value()) {
-        const auto &adapterNamePath = adapterNamePathOpt.value();
-        loadPaths.emplace_back(adapterNamePath);
-      }
+      auto AddOsSearchPath = [&] {
+        auto AdapterNamePathOpt = getAdapterNameAsPath(adapterName);
+        if (AdapterNamePathOpt.has_value()) {
+          loadPaths.emplace_back(AdapterNamePathOpt.value());
+        }
+      };
 
-      if (loaderLibPathOpt.has_value()) {
-        const auto &loaderLibPath = loaderLibPathOpt.value();
-        loadPaths.emplace_back(loaderLibPath / adapterName);
-      }
+      auto AddLoaderLibPath = [&] {
+        if (loaderLibPathOpt.has_value()) {
+          loadPaths.emplace_back(loaderLibPathOpt.value() / adapterName);
+        }
+      };
+
+#ifdef UR_ADAPTER_SEARCH_LOADER_DIR_FIRST
+      AddLoaderLibPath();
+      AddOsSearchPath();
+#else
+      AddOsSearchPath();
+      AddLoaderLibPath();
+#endif
 
       adaptersLoadPaths.emplace_back(loadPaths);
     }

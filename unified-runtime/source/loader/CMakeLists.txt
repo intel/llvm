@@ -23,6 +23,7 @@ install_ur_library(ur_loader)
 
 target_compile_definitions(ur_loader PRIVATE
     UR_USE_DEBUG_POSTFIX=$<BOOL:${UR_USE_DEBUG_POSTFIX}>
+    UR_ADAPTER_SEARCH_LOADER_DIR_FIRST=$<BOOL:${UR_ADAPTER_SEARCH_LOADER_DIR_FIRST}>
 )
 
 if (MSVC)
