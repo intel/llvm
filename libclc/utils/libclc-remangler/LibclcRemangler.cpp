@@ -812,13 +812,10 @@ public:
 
   void Initialize(ASTContext &C) override {
     ASTCtx = &C;
-    std::unique_ptr<MemoryBuffer> const Buff = ExitOnErr(
-        errorOrToExpected(MemoryBuffer::getFileOrSTDIN(InputIRFilename)));
 
     SMDiagnostic Err;
-    std::unique_ptr<llvm::Module> const M =
-        parseIR(Buff.get()->getMemBufferRef(), Err, LLVMCtx);
-
+    std::unique_ptr<llvm::Module> M =
+        parseIRFile(StringRef(InputIRFilename), Err, LLVMCtx);
     if (!M) {
       Err.print("libclc-remangler", errs());
       exit(1);
