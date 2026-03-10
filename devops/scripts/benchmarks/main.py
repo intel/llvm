@@ -279,6 +279,23 @@ def main(directory, additional_env_vars, compare_names, filter, execution_stats)
     # Collect metadata from all benchmarks without setting them up
     metadata = collect_metadata(suites)
 
+    if options.list_benchmarks:
+        for suite in suites:
+            if suite.name() not in enabled_suites(options.preset):
+                continue
+            suite_benchmarks = [
+                benchmark for benchmark in suite.benchmarks() if benchmark.enabled()
+            ]
+            if filter:
+                suite_benchmarks = [
+                    benchmark
+                    for benchmark in suite_benchmarks
+                    if filter.search(benchmark.name())
+                ]
+            for benchmark in suite_benchmarks:
+                log.info(benchmark.name())
+        return
+
     # If dry run, we're done
     if options.dry_run:
         suites = []
@@ -633,6 +650,12 @@ if __name__ == "__main__":
         default=False,
     )
     parser.add_argument(
+        "--list",
+        help="List all benchmark names that would be run (respects --filter and --preset) and exit.",
+        action="store_true",
+        default=False,
+    )
+    parser.add_argument(
         "--compute-runtime",
         nargs="?",
         const=options.compute_runtime_tag,
@@ -812,6 +835,7 @@ if __name__ == "__main__":
     if args.output_html is not None:
         options.output_html = args.output_html
     options.dry_run = args.dry_run
+    options.list_benchmarks = args.list
     options.umf = args.umf
     options.iterations_stddev = args.iterations_stddev
     options.stddev_threshold = args.stddev_threshold
