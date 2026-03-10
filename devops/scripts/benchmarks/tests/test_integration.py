@@ -370,7 +370,7 @@ class TestE2E(unittest.TestCase):
                 {"pytorch", "SYCL"},
             )
             self._checkCase(
-                "torch_benchmark_syclpreview KernelSubmitGraphMultiQueue KernelsPerQueue 10",
+                "torch_benchmark_syclpreview KernelSubmitGraphMultiQueue kernelsPerQueue 10",
                 "KernelSubmitGraphMultiQueue small",
                 {"pytorch", "SYCL"},
             )
