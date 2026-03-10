@@ -847,6 +847,20 @@ extern __DPCPP_SYCL_EXTERNAL __ocl_vec_t<_Float16, 8>
 extern __DPCPP_SYCL_EXTERNAL __ocl_vec_t<_Float16, 16>
     __spirv_ocl_native_tanh(__ocl_vec_t<_Float16, 16>);
 
+// FIXME: Explicitly add float version to prevent improper selection of
+// _Float16; consider moving _Float16 definition to SPIRVBuiltins.td.
+extern __DPCPP_SYCL_EXTERNAL float __spirv_ocl_native_exp2(float) noexcept;
+extern __DPCPP_SYCL_EXTERNAL __ocl_vec_t<float, 2>
+    __spirv_ocl_native_exp2(__ocl_vec_t<float, 2>) noexcept;
+extern __DPCPP_SYCL_EXTERNAL __ocl_vec_t<float, 3>
+    __spirv_ocl_native_exp2(__ocl_vec_t<float, 3>) noexcept;
+extern __DPCPP_SYCL_EXTERNAL __ocl_vec_t<float, 4>
+    __spirv_ocl_native_exp2(__ocl_vec_t<float, 4>) noexcept;
+extern __DPCPP_SYCL_EXTERNAL __ocl_vec_t<float, 8>
+    __spirv_ocl_native_exp2(__ocl_vec_t<float, 8>) noexcept;
+extern __DPCPP_SYCL_EXTERNAL __ocl_vec_t<float, 16>
+    __spirv_ocl_native_exp2(__ocl_vec_t<float, 16>) noexcept;
+
 extern __DPCPP_SYCL_EXTERNAL _Float16 __spirv_ocl_native_exp2(_Float16);
 extern __DPCPP_SYCL_EXTERNAL __ocl_vec_t<_Float16, 2>
     __spirv_ocl_native_exp2(__ocl_vec_t<_Float16, 2>);
