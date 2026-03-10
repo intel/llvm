@@ -339,8 +339,9 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_load(
 #endif // defined(__SYCL_DEVICE_ONLY__)
 }
 
-template <typename Group, typename S, typename T, size_t NumRows, size_t NumCols,
-          access::address_space Space, access::decorated IsDecorated>
+template <typename Group, typename S, typename T, size_t NumRows,
+          size_t NumCols, access::address_space Space,
+          access::decorated IsDecorated>
 inline __SYCL_ALWAYS_INLINE void joint_matrix_store(
     Group sg,
     const joint_matrix<Group, S, use::accumulator, NumRows, NumCols,
@@ -381,8 +382,8 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_store(
 #endif // defined(__SYCL_DEVICE_ONLY__)
 }
 
-template <typename Group, typename S, typename T, size_t NumRows, size_t NumCols,
-          typename PropertyListT>
+template <typename Group, typename S, typename T, size_t NumRows,
+          size_t NumCols, typename PropertyListT>
 inline __SYCL_ALWAYS_INLINE void joint_matrix_store(
     Group sg,
     const joint_matrix<Group, S, use::accumulator, NumRows, NumCols,
