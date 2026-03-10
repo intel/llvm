@@ -420,7 +420,11 @@ add_custom_target( sycl-toolchain ALL
 )
 
 if (WIN32)
-  add_dependencies(sycl-toolchain ur_win_proxy_loader unified-runtimed-build)
+  if(SYCL_BUILD_UR_DEBUG_LIBRARIES)
+    add_dependencies(sycl-toolchain ur_win_proxy_loader unified-runtimed-build)
+  else()
+    add_dependencies(sycl-toolchain ur_win_proxy_loader)
+  endif()
 endif()
 
 if("cuda" IN_LIST SYCL_ENABLE_BACKENDS)

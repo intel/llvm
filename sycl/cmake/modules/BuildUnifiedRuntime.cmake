@@ -52,6 +52,9 @@ endif()
 if("native_cpu" IN_LIST SYCL_ENABLE_BACKENDS)
   set(UR_BUILD_ADAPTER_NATIVE_CPU ON)
 endif()
+if("offload" IN_LIST SYCL_ENABLE_BACKENDS)
+  set(UR_BUILD_ADAPTER_OFFLOAD ON)
+endif()
 
 # Disable errors from warnings while building the UR.
 # And remember origin flags before doing that.
@@ -186,7 +189,9 @@ if("offload" IN_LIST SYCL_ENABLE_BACKENDS)
   add_sycl_ur_adapter(offload)
 endif()
 
-if(CMAKE_SYSTEM_NAME STREQUAL Windows)
+option(SYCL_BUILD_UR_DEBUG_LIBRARIES "Build debug versions of UR libraries on Windows" ON)
+
+if(CMAKE_SYSTEM_NAME STREQUAL Windows AND SYCL_BUILD_UR_DEBUG_LIBRARIES)
   # On Windows, also build/install debug libraries with the d suffix that are
   # compiled with /MDd so users can link against these in debug builds.
   include(ExternalProject)
@@ -223,6 +228,9 @@ if(CMAKE_SYSTEM_NAME STREQUAL Windows)
       -DUR_BUILD_ADAPTER_CUDA:BOOL=${UR_BUILD_ADAPTER_CUDA}
       -DUR_BUILD_ADAPTER_HIP:BOOL=${UR_BUILD_ADAPTER_HIP}
       -DUR_BUILD_ADAPTER_NATIVE_CPU:BOOL=${UR_BUILD_ADAPTER_NATIVE_CPU}
+      -DUR_BUILD_ADAPTER_OFFLOAD:BOOL=${UR_BUILD_ADAPTER_OFFLOAD}
+      -DUR_OFFLOAD_INSTALL_DIR:PATH=${UR_OFFLOAD_INSTALL_DIR}
+      -DUR_OFFLOAD_INCLUDE_DIR:PATH=${UR_OFFLOAD_INCLUDE_DIR}
       -DUMF_BUILD_EXAMPLES:BOOL=${UMF_BUILD_EXAMPLES}
       -DUMF_BUILD_SHARED_LIBRARY:BOOL=${UMF_BUILD_SHARED_LIBRARY}
       -DUMF_LINK_HWLOC_STATICALLY:BOOL=${UMF_LINK_HWLOC_STATICALLY}
@@ -261,16 +269,18 @@ if(CMAKE_SYSTEM_NAME STREQUAL Windows)
   endmacro()
 
   urd_copy_library_to_build(ur_loaderd "NOT;${UR_STATIC_LOADER}")
-  foreach(adatper ${SYCL_ENABLE_BACKENDS})
+  foreach(adapter ${SYCL_ENABLE_BACKENDS})
     if(adapter MATCHES "level_zero")
       set(shared "NOT;${UR_STATIC_ADAPTER_L0}")
     else()
       set(shared TRUE)
     endif()
-    urd_copy_library_to_build(ur_adapter_${adatper}d "${shared}")
+    urd_copy_library_to_build(ur_adapter_${adapter}d "${shared}")
   endforeach()
-  # Also copy umfd.dll/umfd.lib
-  urd_copy_library_to_build(umfd ${UMF_BUILD_SHARED_LIBRARY})
+  # Also copy umfd.dll/umfd.lib when UMF is built as a shared library
+  if(UMF_BUILD_SHARED_LIBRARY)
+    urd_copy_library_to_build(umfd ${UMF_BUILD_SHARED_LIBRARY})
+  endif()
 
   add_custom_target(unified-runtimed-build ALL DEPENDS ${URD_COPY_FILES})
   add_dependencies(unified-runtimed-build unified-runtimed)
