@@ -272,6 +272,9 @@ jobs:
       uses: actions/download-artifact@v7
       with:
         name: ${{ inputs.toolchain_artifact }}
+    - name: Install git-lfs
+      shell: bash
+      run: sudo apt update && sudo apt install git-lfs -y
     - name: Download SYCL toolchain [workflow_run]
       # NOTE: This is for `sycl-linux-precommit-aws.yml`.
       if: inputs.toolchain_artifact != '' && github.event_name == 'workflow_run'

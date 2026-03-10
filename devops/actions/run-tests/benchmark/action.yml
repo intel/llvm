@@ -55,6 +55,9 @@ runs:
   # composite actions don't make use of 'name', so copy-paste steps' names as a comment in the first line of each step
   using: "composite"
   steps:
+  - name: Install git-lfs
+    shell: bash
+    run: sudo apt update && sudo apt install git-lfs -y
   - name: Check inputs and set up environment
     shell: bash
     env:
@@ -201,6 +204,41 @@ runs:
       ref: ${{ steps.establish_outputs.outputs.BENCHMARK_RESULTS_BRANCH }}
       path: ${{ steps.establish_outputs.outputs.BENCHMARK_RESULTS_REPO_PATH }}
       persist-credentials: true
+      lfs: true
+  - name: Setup Git LFS for benchmark results
+    shell: bash
+    env:
+      BENCHMARK_RESULTS_REPO_PATH: ${{ steps.establish_outputs.outputs.BENCHMARK_RESULTS_REPO_PATH }}
+    run: |
+      pwd
+      cd "${BENCHMARK_RESULTS_REPO_PATH}"
+      pwd
+      git lfs install
+      
+      # Create .gitattributes file if it doesn't exist
+      if [ ! -f .gitattributes ]; then
+        echo "Setting up .gitattributes for Git LFS..."
+        cat > .gitattributes << 'EOF'
+      # Track benchmark result JSON files with LFS
+      results/*.json filter=lfs diff=lfs merge=lfs -text
+      
+      # Track large generated data files
+      data.json filter=lfs diff=lfs merge=lfs -text
+      data_archive.json filter=lfs diff=lfs merge=lfs -text
+
+      EOF
+        
+        # Commit .gitattributes if this is a new setup
+        git add .gitattributes
+        if ! git diff --cached --quiet; then
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git commit -m "[GHA] Add Git LFS configuration for benchmark results"
+          git push
+        fi
+      fi
+      
+      cd -
   # Compute-benchmarks relies on UR static libraries, cmake config files, etc.
   # DPC++ doesn't ship with these files. The easiest way of obtaining these
   # files is to build from scratch.
@@ -317,6 +355,9 @@ runs:
       pip install --user --break-system-packages -r ./devops/scripts/benchmarks/requirements.txt
 
       echo "::endgroup::"
+      echo "::group::install_git_lfs"
+      sudo apt update && sudo aptinstall -y git-lfs
+      echo "::endgroup::"
   - name: Run sycl-ls
     shell: bash
     run: |
@@ -407,6 +448,18 @@ runs:
         mkdir -p "../cached_changes/$(dirname $diff)"
         cp "$diff" "../cached_changes/$diff"
       done
+  - name: Check status of LFS files
+    if: always()
+    shell: bash
+    env:
+      BENCHMARK_RESULTS_REPO_PATH: ${{ steps.establish_outputs.outputs.BENCHMARK_RESULTS_REPO_PATH }}
+    run: |
+      # Check status of LFS files
+      cd "${BENCHMARK_RESULTS_REPO_PATH}"
+      echo "Current Git LFS status:"
+      git lfs status || echo "No LFS files"
+      git lfs ls-files
+
   - name: Push benchmarks results
     if: always() && inputs.upload_results == 'true' &&  inputs.gdb_mode == '0'
     shell: bash
@@ -428,11 +481,18 @@ runs:
       for attempt in 1 2 3; do
         echo "Attempt $attempt to push new results"
         git add .
+        
+        # Show which files will be tracked by LFS
+        echo "Files to be tracked by Git LFS:"
+        git lfs ls-files --name-only 2>/dev/null || echo "No LFS files staged"
+        
         git commit -m "[GHA] Upload compute-benchmarks results from https://github.com/intel/llvm/actions/runs/${{ github.run_id }}"
         results_file="$(git diff HEAD~1 --name-only -- results/ | head -n 1)"
 
         if git push; then
           echo "Push succeeded"
+          echo "Final LFS status:"
+          git lfs status || echo "No LFS files"
           break
         fi
 
