@@ -1,4 +1,4 @@
-// Copyright (C) 2024 Intel Corporation
+// Copyright (C) 2024-2026 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
 //
@@ -100,7 +100,8 @@ struct urEnqueueEventsWaitWithBarrierOrderingTest : uur::urProgramTest {
   ur_mem_handle_t buffer = nullptr;
 };
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEnqueueEventsWaitWithBarrierOrderingTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_MULTI_QUEUE(
+    urEnqueueEventsWaitWithBarrierOrderingTest);
 
 TEST_P(urEnqueueEventsWaitWithBarrierTest, Success) {
   UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::NativeCPU{});

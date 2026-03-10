@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "sycl/detail/helpers.hpp"
-#include "ur_api.h"
+#include "unified-runtime/ur_api.h"
 #include <algorithm>
 
 #include <detail/buffer_impl.hpp>
@@ -204,10 +204,14 @@ verify_sub_copy(const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
             static_cast<bool>(result[2]));
   };
 
-  sycl::range<3> SrcImageSize = {SrcImgDesc.width, SrcImgDesc.height,
-                                 SrcImgDesc.depth};
-  sycl::range<3> DestImageSize = {DestImgDesc.width, DestImgDesc.height,
-                                  DestImgDesc.depth};
+  // If this is a multi-layer array image, use the layer count; otherwise, use
+  // the depth dimension (following the logic in fill_image_type() ).
+  sycl::range<3> SrcImageSize = {
+      SrcImgDesc.width, SrcImgDesc.height,
+      SrcImgDesc.array_size > 1 ? SrcImgDesc.array_size : SrcImgDesc.depth};
+  sycl::range<3> DestImageSize = {
+      DestImgDesc.width, DestImgDesc.height,
+      DestImgDesc.array_size > 1 ? DestImgDesc.array_size : DestImgDesc.depth};
 
   if (isOutOfRange(SrcImageSize, SrcOffset, CopyExtent) ||
       isOutOfRange(DestImageSize, DestOffset, CopyExtent)) {
@@ -692,8 +696,7 @@ detail::EventImplPtr handler::finalize() {
 
     } else {
       detail::queue_impl &Queue = impl->get_queue();
-      bool DiscardEvent = !impl->MEventNeeded &&
-                          Queue.supportsDiscardingPiEvents() &&
+      bool DiscardEvent = !impl->MEventNeeded && Queue.isInOrder() &&
                           !impl->MExecGraph->containsHostTask();
       auto [GraphCompletionEvent, Unused] = impl->MExecGraph->enqueue(
           Queue, std::move(impl->CGData), !DiscardEvent);
@@ -770,7 +773,7 @@ detail::EventImplPtr handler::finalize() {
   // could have been bypassed (not supported yet), the event can be skipped.
   bool DiscardEvent =
       (type != detail::CGType::Kernel && KernelSchedulerBypass &&
-       !impl->MEventNeeded && Queue->supportsDiscardingPiEvents());
+       !impl->MEventNeeded && Queue->isInOrder());
 
   detail::EventImplPtr Event = detail::Scheduler::getInstance().addCG(
       std::move(CommandGroup), *Queue, !DiscardEvent);

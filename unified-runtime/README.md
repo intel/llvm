@@ -206,9 +206,9 @@ to use the following naming convention:
 
 ### Source code generation
 
-Code is generated using included [Python scripts](/scripts/README.md).
+Code is generated using included [Python scripts](/unified-runtime/scripts/).
 
 ### Documentation
 
 Documentation is generated from source code using Sphinx -
-see [scripts dir](/scripts/README.md) for details.
+see [scripts dir](/unified-runtime/scripts/README.md) for details.

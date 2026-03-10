@@ -18,7 +18,7 @@
 #include <sycl/detail/util.hpp>
 #include <sycl/device_selector.hpp>
 #include <sycl/info/info_desc.hpp>
-#include <ur_api.h>
+#include <unified-runtime/ur_api.h>
 
 #ifdef __SYCL_INTERNAL_API
 #include <sycl/detail/cl.h>
@@ -203,6 +203,13 @@ public:
   ///
   /// \return the default context
   context khr_get_default_context() const;
+
+  /// If the index is within range of the std::vector that is returned when
+  /// calling platform::get_devices(), returns a copy of the device object which
+  /// has that index.
+  ///
+  /// \return a copy of the device object which has that index.
+  device ext_oneapi_device_at_index(size_t index) const;
 
 private:
   ur_native_handle_t getNative() const;

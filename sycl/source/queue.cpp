@@ -218,11 +218,16 @@ event queue::ext_oneapi_submit_barrier(const std::vector<event> &WaitList,
                !EventImpl.hasCommandGraph();
       });
 
-  if (WaitList.empty() || AllEventsEmptyOrNop)
-    return submit([=](handler &CGH) { CGH.ext_oneapi_barrier(); }, CodeLoc);
-  else
-    return submit([=](handler &CGH) { CGH.ext_oneapi_barrier(WaitList); },
-                  CodeLoc);
+  // TODO: Support no-handler barrier submission for queues with command graphs.
+  if (impl->getCommandGraph()) {
+    if (WaitList.empty() || AllEventsEmptyOrNop)
+      return submit([=](handler &CGH) { CGH.ext_oneapi_barrier(); }, CodeLoc);
+    else
+      return submit([=](handler &CGH) { CGH.ext_oneapi_barrier(WaitList); },
+                    CodeLoc);
+  } else {
+    return impl->submit_barrier_direct_with_event(WaitList, CodeLoc);
+  }
 }
 
 template <typename Param>

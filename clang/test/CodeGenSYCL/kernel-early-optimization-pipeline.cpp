@@ -13,6 +13,7 @@
 // CHECK: AlwaysInlinerPass
 // CHECK: ModuleInlinerWrapperPass
 // CHECK: SYCLLowerWGLocalMemoryPass
+// CHECK: EarlyCSEPass
 // CHECK: SYCLOptimizeBarriersPass
 // CHECK: ConstantMergePass
 // CHECK: SYCLMutatePrintfAddrspacePass

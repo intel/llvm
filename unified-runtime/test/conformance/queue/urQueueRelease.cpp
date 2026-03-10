@@ -1,4 +1,4 @@
-// Copyright (C) 2023 Intel Corporation
+// Copyright (C) 2023-2026 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
 //
@@ -6,8 +6,8 @@
 #include <uur/fixtures.h>
 #include <uur/known_failure.h>
 
-using urQueueReleaseTest = uur::urQueueTest;
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(urQueueReleaseTest);
+using urQueueReleaseTest = uur::urMultiQueueTypeTest;
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_MULTI_QUEUE(urQueueReleaseTest);
 
 TEST_P(urQueueReleaseTest, Success) {
   UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});

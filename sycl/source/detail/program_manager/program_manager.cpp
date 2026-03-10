@@ -474,8 +474,6 @@ ProgramManager::getOrCreateURProgram(
     const std::vector<const RTDeviceBinaryImage *> &AllImages,
     context_impl &ContextImpl, devices_range Devices,
     const std::string &CompileAndLinkOptions, SerializedObj SpecConsts) {
-  Managed<ur_program_handle_t> NativePrg;
-
   // Get binaries for each device (1:1 correpsondence with input Devices).
   auto Binaries = PersistentDeviceCodeCache::getItemFromDisc(
       Devices, AllImages, SpecConsts, CompileAndLinkOptions);
@@ -618,7 +616,7 @@ static bool checkLinkingSupport(const device_impl &DeviceImpl,
     return true;
   }
   if (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN) == 0) {
-    return DeviceImpl.is_gpu() && DeviceImpl.getBackend() == backend::opencl;
+    return DeviceImpl.is_gpu();
   }
   return false;
 }
@@ -1720,9 +1718,8 @@ void ProgramManager::addImage(sycl_device_binary RawImg,
     m_KernelIDs2BinImage.insert(
         std::make_pair(It->second.getKernelID(), Img.get()));
     KernelIDs->push_back(It->second.getKernelID());
-
     // Keep track of image to kernel name reference count for cleanup.
-    m_KernelNameRefCount[name]++;
+    ++It->second.getRefCount();
   }
 
   // check if kernel uses sanitizer
@@ -1852,18 +1849,12 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
       removeFromMultimapByVal(m_KernelIDs2BinImage, DKIIt->second.getKernelID(),
                               Img);
 
-      auto RefCountIt = m_KernelNameRefCount.find(Name);
-      assert(RefCountIt != m_KernelNameRefCount.end());
-      int &RefCount = RefCountIt->second;
+      int &RefCount = DKIIt->second.getRefCount();
       assert(RefCount > 0);
-
-      // Remove everything associated with this KernelName if this is the last
+      // Clean up the device kernel info instance if this is the last
       // image referencing it.
       if (--RefCount == 0) {
-        // TODO aggregate all these maps into a single one since their entries
-        // share lifetime.
         m_DeviceKernelInfoMap.erase(DKIIt);
-        m_KernelNameRefCount.erase(RefCountIt);
       }
     }
 
@@ -2292,8 +2283,12 @@ ProgramManager::createDependencyImage(const context &Ctx, devices_range Devs,
     if (DepIt != m_BinImg2KernelIDs.end())
       DepKernelIDs = DepIt->second;
   }
-
-  assert(DepState == getBinImageState(DepImage) &&
+  // The only difference between object and executable images is whether they
+  // have external dependencies, so executable images are valid dependencies for
+  // object ones.
+  assert((DepState == getBinImageState(DepImage) ||
+          (DepState == bundle_state::object &&
+           getBinImageState(DepImage) == bundle_state::executable)) &&
          "State mismatch between main image and its dependency");
 
   return createSyclObjFromImpl<device_image_plain>(device_image_impl::create(
@@ -2568,7 +2563,6 @@ ProgramManager::link(device_images_range Imgs, devices_range Devs,
         PropList, NoAllowedPropertiesCheck, NoAllowedPropertiesCheck);
   }
 
-  auto URPrograms = Imgs.to<std::vector<ur_program_handle_t>>();
   auto URDevices = Devs.to<std::vector<ur_device_handle_t>>();
 
   // FIXME: Linker options are picked from the first object, but is that safe?
@@ -2583,6 +2577,16 @@ ProgramManager::link(device_images_range Imgs, devices_range Devs,
   const context &Context = FirstImgImpl.get_context();
   context_impl &ContextImpl = *getSyclObjImpl(Context);
   adapter_impl &Adapter = ContextImpl.getAdapter();
+
+  // We create UR programs lazily, so device_images that started off in the
+  // object state might not have a UR program associated with them.
+  for (auto &Img : Imgs) {
+    if (Img.get_ur_program() == nullptr) {
+      Img.set_ur_program(
+          createURProgram(*Img.get_bin_image_ref(), ContextImpl, Devs));
+    }
+  }
+  auto URPrograms = Imgs.to<std::vector<ur_program_handle_t>>();
 
   ur_exp_program_flags_t UrLinkFlags{};
   if (AllowUnresolvedSymbols)
@@ -2685,10 +2689,6 @@ void ProgramManager::dynamicLink(device_images_range Imgs) {
                                                     URPrograms.data());
 }
 
-// The function duplicates most of the code from existing getBuiltPIProgram.
-// The differences are:
-// Different API - uses different objects to extract required info
-// Supports caching of a program built for multiple devices
 device_image_plain
 ProgramManager::build(const DevImgPlainWithDeps &DevImgWithDeps,
                       devices_range Devs, const property_list &PropList) {
@@ -3416,6 +3416,11 @@ bool doesImageTargetMatchDevice(const RTDeviceBinaryImage &Img,
         return (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_AMDGCN) == 0 ||
                 strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_LLVM_AMDGCN) == 0);
       }
+      if (PlatformName == "LEVEL_ZERO") {
+        return (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_SPIRV64) == 0 ||
+                strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN) == 0);
+      }
+
       assert(false && "Unhandled liboffload platform");
       return false;
     }

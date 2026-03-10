@@ -1,6 +1,6 @@
 //===--------------- queue_batched.hpp - Level Zero Adapter ---------------===//
 //
-// Copyright (C) 2025 Intel Corporation
+// Copyright (C) 2025-2026 Intel Corporation
 //
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
@@ -27,7 +27,7 @@
 #include "command_list_manager.hpp"
 #include "lockable.hpp"
 #include "queue_immediate_in_order.hpp"
-#include "ur_api.h"
+#include "unified-runtime/ur_api.h"
 #include "ze_api.h"
 
 // Batched queues enable submission of operations to the driver in batches,
@@ -43,9 +43,21 @@
 //
 // Batched queues can be enabled by setting UR_QUEUE_FLAG_SUBMISSION_BATCHED in
 // ur_queue_flags_t or globally, through the environment variable
-// UR_L0_FORCE_BATCHED=1.
+// UR_L0_V2_FORCE_BATCHED=1.
 
 namespace v2 {
+
+// The limit of regular command lists stored for execution; if exceeded, the
+// vector is cleared as part of queueFinish and slots are renewed.
+inline constexpr uint64_t initialSlotsForBatches = 10;
+
+// For the explanation of the purpose of generation numbers, see the comment for
+// regularGenerationNumber below
+inline constexpr ur_event_generation_t initialGenerationNumber = 0;
+
+// The limit of operations enqueued in the active batch (for definitions see the
+// comments below). If exceeded, the queue is flushed
+inline constexpr uint64_t maxNumberOfEnqueuedOperations = 120;
 
 struct batch_manager {
 private:
@@ -75,11 +87,8 @@ private:
   // associated with the event has already been submitted for execution and
   // additional submission of the current batch is not needed.
   ur_event_generation_t regularGenerationNumber;
-  // The limit of regular command lists stored for execution; if exceeded, the
-  // vector is cleared as part of queueFinish and slots are renewed.
-  static constexpr uint64_t initialSlotsForBatches = 10;
   // Whether any operation has been enqueued on the current batch
-  bool isEmpty = true;
+  uint64_t enqueuedOperationsCounter = 0;
 
 public:
   batch_manager(ur_context_handle_t context, ur_device_handle_t device,
@@ -91,7 +100,7 @@ public:
         immediateList(context, device,
                       std::forward<v2::raii::command_list_unique_handle>(
                           commandListImmediate)),
-        regularGenerationNumber(0) {
+        regularGenerationNumber(initialGenerationNumber) {
     runBatches.reserve(initialSlotsForBatches);
   }
 
@@ -124,14 +133,18 @@ public:
     return activeBatch.getZeCommandList();
   }
 
-  bool isActiveBatchEmpty() { return isEmpty; }
+  bool isActiveBatchEmpty() { return enqueuedOperationsCounter == 0; }
 
-  void markIssuedCommand() { isEmpty = false; }
+  void markNextIssuedCommand() { enqueuedOperationsCounter++; }
 
-  void setBatchEmpty() { isEmpty = true; }
+  void setBatchEmpty() { enqueuedOperationsCounter = 0; }
 
   bool isLimitOfUsedCommandListsReached() {
     return initialSlotsForBatches <= runBatches.size();
+  }
+
+  bool isLimitOfEnqueuedCommandsReached() {
+    return maxNumberOfEnqueuedOperations <= enqueuedOperationsCounter;
   }
 };
 
@@ -187,6 +200,8 @@ private:
   ur_result_t queueFinishUnlocked(locked<batch_manager> &batchLocked);
 
   ur_result_t queueFlushUnlocked(locked<batch_manager> &batchLocked);
+
+  ur_result_t markIssuedCommandInBatch(locked<batch_manager> &batchLocked);
 
 public:
   ur_queue_batched_t(ur_context_handle_t, ur_device_handle_t, uint32_t ordinal,
@@ -475,6 +490,22 @@ public:
   ur_result_t queueIsGraphCapteEnabledExp(bool * /* pResult */) override {
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
+
+  ur_result_t
+  enqueueHostTaskExp(ur_exp_host_task_function_t pfnHostTask, void *data,
+                     const ur_exp_host_task_properties_t *pProperties,
+                     uint32_t numEventsInWaitList,
+                     const ur_event_handle_t *phEventWaitList,
+                     ur_event_handle_t *phEvent) override {
+    wait_list_view waitListView =
+        wait_list_view(phEventWaitList, numEventsInWaitList);
+
+    return currentCmdLists.lock()->getActiveBatch().appendHostTaskExp(
+        pfnHostTask, data, pProperties, waitListView,
+        createEventIfRequested(eventPoolRegular.get(), phEvent, this));
+  }
+
+  bool isInOrder() override { return true; }
 
   ur::RefCount RefCount;
 };

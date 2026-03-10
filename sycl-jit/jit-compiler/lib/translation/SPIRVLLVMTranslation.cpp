@@ -42,7 +42,6 @@ SPIRV::TranslatorOpts &SPIRVLLVMTranslator::translatorOpts() {
       SPIRV::ExtensionID::SPV_INTEL_arbitrary_precision_integers,
       SPIRV::ExtensionID::SPV_INTEL_float_controls2,
       SPIRV::ExtensionID::SPV_INTEL_vector_compute,
-      SPIRV::ExtensionID::SPV_INTEL_fast_composite,
       SPIRV::ExtensionID::SPV_INTEL_arbitrary_precision_fixed_point,
       SPIRV::ExtensionID::SPV_INTEL_arbitrary_precision_floating_point,
       SPIRV::ExtensionID::SPV_INTEL_variable_length_array,

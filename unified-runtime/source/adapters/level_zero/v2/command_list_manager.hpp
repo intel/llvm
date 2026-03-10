@@ -1,6 +1,6 @@
 //===--------- command_list_manager.hpp - Level Zero Adapter --------------===//
 //
-// Copyright (C) 2024 Intel Corporation
+// Copyright (C) 2024-2026 Intel Corporation
 //
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
@@ -14,7 +14,8 @@
 #include "context.hpp"
 #include "event_pool_cache.hpp"
 #include "queue_api.hpp"
-#include "ur_api.h"
+#include "unified-runtime/ur_api.h"
+#include <unordered_set>
 #include <ze_api.h>
 
 struct ur_mem_buffer_t;
@@ -246,6 +247,11 @@ struct ur_command_list_manager {
       const ur_kernel_launch_ext_properties_t *launchPropList,
       wait_list_view &waitListView, ur_event_handle_t phEvent);
 
+  ur_result_t
+  appendHostTaskExp(ur_exp_host_task_function_t pfnHostTask, void *data,
+                    const ur_exp_host_task_properties_t *pProperties,
+                    wait_list_view &waitListView, ur_event_handle_t phEvent);
+
   /************ Graph methods *************/
   ur_result_t appendGraph(ur_exp_executable_graph_handle_t hGraph,
                           wait_list_view &waitListView,
@@ -326,7 +332,7 @@ private:
   v2::raii::ur_context_handle_t hContext;
   v2::raii::ur_device_handle_t hDevice;
 
-  std::vector<ur_kernel_handle_t> submittedKernels;
+  std::unordered_set<ur_kernel_handle_t> submittedKernels;
   v2::raii::command_list_unique_handle zeCommandList;
   std::vector<ze_event_handle_t> waitList;
 

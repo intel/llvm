@@ -1,0 +1,1130 @@
+= sycl_ext_intel_device_info
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+:endnote: &#8212;{nbsp}end{nbsp}note
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2026 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 11 specification.
+All references below to the "core SYCL specification" or to section numbers in
+the SYCL specification refer to that revision.
+
+== Status
+
+This extension is implemented and fully supported by DPC++.
+
+== Overview
+
+This extension adds a variety of information descriptors for the `device`
+class, which allow applications to query various device specific information.
+
+All of the queries in this extension have both a device aspect and a device
+information descriptor.
+The aspect indicates whether the device supports the information descriptor,
+and the information descriptor returns some information about the device.
+This pattern is necessary because the information descriptors are not supported
+by all devices, and the aspect provides a way for the application to know
+whether it is safe to use the information descriptor.
+
+== Specification
+
+=== Feature test macro
+
+The Feature Test Macro SYCL_EXT_INTEL_DEVICE_INFO will be defined as one of the
+values defined in the table below. The existence of this macro can be tested to
+determine if the implementation supports this feature, or applications can test
+the macro's value to determine which of the extension's APIs the implementation
+supports.
+
+[%header,cols="1,5"]
+|===
+| Value | Description
+| 1     | Initial extension version. Base features are supported
+| 2     | Device UUID is supported
+| 3     | HW threads per EU device query is supported
+| 4     | Free device memory query is supported
+| 5     | Device ID is supported
+| 6     | Memory clock rate and bus width queries are supported
+| 7     | Throttle reasons, fan speed and power limits queries are supported
+| 8     | Device LUID and device node mask is supported
+|===
+
+=== PCI Address
+
+This extension adds the following device aspect and information descriptor,
+which allow an application to query a device's PCI Address.
+
+==== New device aspect
+
+[source,c++]
+----
+namespace sycl {
+
+enum class aspect {
+  ext_intel_pci_address
+  // ...
+};
+
+} // namespace sycl
+----
+
+`ext_intel_pci_address`: Indicates that the device supports the `pci_address`
+information descriptor.
+
+==== New device information descriptor
+
+[source,c++]
+----
+namespace sycl::ext::intel::info::device {
+struct pci_address {
+  using return_type = std::string;
+};
+} // namespace sycl::ext::intel::info::device
+----
+
+_Remarks:_ Template parameter to `device::get_info`.
+
+_Returns:_ For Level Zero BE, returns the PCI address in BDF format:
+`domain:bus:device.function`.
+
+_Throws:_ An `exception` with the `errc::feature_not_supported` error code if
+the device does not have `aspect::ext_intel_pci_address`.
+
+==== Example Usage
+
+[source,c++]
+----
+if (dev.has(aspect::ext_intel_pci_address)) {
+  auto BDF = dev.get_info<ext::intel::info::device::pci_address>();
+}
+----
+
+'''
+
+=== Intel GPU Execution Unit SIMD Width
+
+This extension adds the following device aspect and information descriptor,
+which allow an application to query the physical SIMD width of an execution
+unit on an Intel GPU.
+
+==== New device aspect
+
+[source,c++]
+----
+namespace sycl {
+
+enum class aspect {
+  ext_intel_gpu_eu_simd_width
+  // ...
+};
+
+} // namespace sycl
+----
+
+`ext_intel_gpu_eu_simd_width`: Indicates that the device supports the
+`gpu_eu_simd_width` information descriptor.
+
+==== New device information descriptor
+
+[source,c++]
+----
+namespace sycl::ext::intel::info::device {
+struct gpu_eu_simd_width {
+  using return_type = uint32_t;
+};
+} // namespace sycl::ext::intel::info::device
+----
+
+_Remarks:_ Template parameter to `device::get_info`.
+
+_Returns:_ The physical SIMD width of the execution unit (EU). This data will
+be used to calculate the computational capabilities of the device.
+
+_Throws:_ An `exception` with the `errc::feature_not_supported` error code if
+the device does not have `aspect::ext_intel_gpu_eu_simd_width`.
+
+==== Example Usage
+
+[source,c++]
+----
+if (dev.has(aspect::ext_intel_gpu_eu_simd_width)) {
+  auto euSimdWidth = dev.get_info<ext::intel::info::device::gpu_eu_simd_width>();
+}
+----
+
+'''
+
+=== Intel GPU Execution Unit Count
+
+This extension adds the following device aspect and information descriptor,
+which allow an application to query the number of execution units on an Intel
+GPU.
+
+==== New device aspect
+
+[source,c++]
+----
+namespace sycl {
+
+enum class aspect {
+  ext_intel_gpu_eu_count
+  // ...
+};
+
+} // namespace sycl
+----
+
+`ext_intel_gpu_eu_count`: Indicates that the device supports the
+`gpu_eu_count` information descriptor.
+
+==== New device information descriptor
+
+[source,c++]
+----
+namespace sycl::ext::intel::info::device {
+struct gpu_eu_count {
+  using return_type = uint32_t;
+};
+} // namespace sycl::ext::intel::info::device
+----
+
+_Remarks:_ Template parameter to `device::get_info`.
+
+_Returns:_ The number of execution units (EUs) associated with the Intel GPU.
+If the device is a subdevice, then the number of EUs in the subdevice is
+returned. This new device descriptor will provide the same information as
+"max_compute_units" does today. We would like to have an API which is
+specific for Intel GPUs.
+
+_Throws:_ An `exception` with the `errc::feature_not_supported` error code if
+the device does not have `aspect::ext_intel_gpu_eu_count`.
+
+==== Example Usage
+
+[source,c++]
+----
+if (dev.has(aspect::ext_intel_gpu_eu_count)) {
+  auto euCount = dev.get_info<ext::intel::info::device::gpu_eu_count>();
+}
+----
+
+'''
+
+=== Intel GPU Number of Slices
+
+This extension adds the following device aspect and information descriptor,
+which allow an application to query the maximum number of slices on an Intel
+GPU.
+
+==== New device aspect
+
+[source,c++]
+----
+namespace sycl {
+
+enum class aspect {
+  ext_intel_gpu_slices
+  // ...
+};
+
+} // namespace sycl
+----
+
+`ext_intel_gpu_slices`: Indicates that the device supports the `gpu_slices`
+information descriptor.
+
+==== New device information descriptor
+
+[source,c++]
+----
+namespace sycl::ext::intel::info::device {
+struct gpu_slices {
+  using return_type = uint32_t;
+};
+} // namespace sycl::ext::intel::info::device
+----
+
+_Remarks:_ Template parameter to `device::get_info`.
+
+_Returns:_ The maximum number of slices. If the device is a subdevice, then the
+maximum number of slices in the subdevice is returned.
+
+_Throws:_ An `exception` with the `errc::feature_not_supported` error code if
+the device does not have `aspect::ext_intel_gpu_slices`.
+
+==== Example Usage
+
+[source,c++]
+----
+if (dev.has(aspect::ext_intel_gpu_slices)) {
+  auto slices = dev.get_info<ext::intel::info::device::gpu_slices>();
+}
+----
+
+'''
+
+=== Intel GPU Number of Subslices per Slice
+
+This extension adds the following device aspect and information descriptor,
+which allow an application to query the maximum number of subslices per slice
+on an Intel GPU.
+
+==== New device aspect
+
+[source,c++]
+----
+namespace sycl {
+
+enum class aspect {
+  ext_intel_gpu_subslices_per_slice
+  // ...
+};
+
+} // namespace sycl
+----
+
+`ext_intel_gpu_subslices_per_slice`: Indicates that the device supports the
+`gpu_subslices_per_slice` information descriptor.
+
+==== New device information descriptor
+
+[source,c++]
+----
+namespace sycl::ext::intel::info::device {
+struct gpu_subslices_per_slice {
+  using return_type = uint32_t;
+};
+} // namespace sycl::ext::intel::info::device
+----
+
+_Remarks:_ Template parameter to `device::get_info`.
+
+_Returns:_ The maximum number of subslices per slice. If the device is a
+subdevice, then the maximum number of subslices per slice in the subdevice is
+returned.
+
+_Throws:_ An `exception` with the `errc::feature_not_supported` error code if
+the device does not have `aspect::ext_intel_gpu_subslices_per_slice`.
+
+==== Example Usage
+
+[source,c++]
+----
+if (dev.has(aspect::ext_intel_gpu_subslices_per_slice)) {
+  auto subslices = dev.get_info<ext::intel::info::device::gpu_subslices_per_slice>();
+}
+----
+
+'''
+
+=== Intel GPU Number of Execution Units (EUs) per Subslice
+
+This extension adds the following device aspect and information descriptor,
+which allow an application to query the maximum number of EUs per subslice on
+an Intel GPU.
+
+==== New device aspect
+
+[source,c++]
+----
+namespace sycl {
+
+enum class aspect {
+  ext_intel_gpu_eu_count_per_subslice
+  // ...
+};
+
+} // namespace sycl
+----
+
+`ext_intel_gpu_eu_count_per_subslice`: Indicates that the device supports the
+`gpu_eu_count_per_subslice` information descriptor.
+
+==== New device information descriptor
+
+[source,c++]
+----
+namespace sycl::ext::intel::info::device {
+struct gpu_eu_count_per_subslice {
+  using return_type = uint32_t;
+};
+} // namespace sycl::ext::intel::info::device
+----
+
+_Remarks:_ Template parameter to `device::get_info`.
+
+_Returns:_ The maximum number of EUs in a subslice. If the device is a
+subdevice, then the maximum number of EUs per subslice in the subdevice is
+returned.
+
+_Throws:_ An `exception` with the `errc::feature_not_supported` error code if
+the device does not have `aspect::ext_intel_gpu_eu_count_per_subslice`.
+
+==== Example Usage
+
+[source,c++]
+----
+if (dev.has(aspect::ext_intel_gpu_eu_count_per_subslice)) {
+  auto euCount = dev.get_info<ext::intel::info::device::gpu_eu_count_per_subslice>();
+}
+----
+
+'''
+
+=== Maximum Memory Bandwidth
+
+This extension adds the following device aspect and information descriptor,
+which allow an application to query the device maximum memory bandwidth.
+
+==== New device aspect
+
+[source,c++]
+----
+namespace sycl {
+
+enum class aspect {
+  ext_intel_max_mem_bandwidth
+  // ...
+};
+
+} // namespace sycl
+----
+
+`ext_intel_max_mem_bandwidth`: Indicates that the device supports the
+`max_mem_bandwidth` information descriptor.
+
+==== New device information descriptor
+
+[source,c++]
+----
+namespace sycl::ext::intel::info::device {
+struct max_mem_bandwidth {
+  using return_type = uint32_t;
+};
+} // namespace sycl::ext::intel::info::device
+----
+
+_Remarks:_ Template parameter to `device::get_info`.
+
+_Returns:_ The maximum memory bandwidth in units of bytes/second. If the device
+is a subdevice, then the maximum bandwidth of the subdevice is returned.
+
+_Throws:_ An `exception` with the `errc::feature_not_supported` error code if
+the device does not have `aspect::ext_intel_max_mem_bandwidth`.
+
+==== Example Usage
+
+[source,c++]
+----
+if (dev.has(aspect::ext_intel_max_mem_bandwidth)) {
+  auto maxBW = dev.get_info<ext::intel::info::device::max_mem_bandwidth>();
+}
+----
+
+'''
+
+=== Device UUID
+
+Missing before version 2 of this extension.
+
+This extension adds the following device aspect and information descriptor,
+which allow an application to query a device's UUID.
+
+==== New device aspect
+
+[source,c++]
+----
+namespace sycl {
+
+enum class aspect {
+  ext_intel_device_info_uuid
+  // ...
+};
+
+} // namespace sycl
+----
+
+`ext_intel_device_info_uuid`: Indicates that the device supports the `uuid`
+information descriptor.
+
+==== New device information descriptor
+
+[source,c++]
+----
+namespace sycl::ext::intel::info::device {
+struct uuid {
+  using return_type = std::array<unsigned char, 16>;
+};
+} // namespace sycl::ext::intel::info::device
+----
+
+_Remarks:_ Template parameter to `device::get_info`.
+
+_Returns:_ Returns the device UUID. The DPC++ default behavior would be to
+expose the UUIDs of all supported devices which enables detection of total
+number of unique devices.
+
+_Throws:_ An `exception` with the `errc::feature_not_supported` error code if
+the device does not have `aspect::ext_intel_device_info_uuid`.
+
+==== Example Usage
+
+[source,c++]
+----
+if (dev.has(aspect::ext_intel_device_info_uuid)) {
+  auto UUID = dev.get_info<ext::intel::info::device::uuid>();
+}
+----
+
+'''
+
+=== Intel GPU Number of hardware threads per EU
+
+Missing before version 3 of this extension.
+
+This extension adds the following device aspect and information descriptor,
+which allow an application to query the maximum number of hardware threads per
+EU on an Intel GPU.
+
+==== New device aspect
+
+[source,c++]
+----
+namespace sycl {
+
+enum class aspect {
+  ext_intel_gpu_hw_threads_per_eu
+  // ...
+};
+
+} // namespace sycl
+----
+
+`ext_intel_gpu_hw_threads_per_eu`: Indicates that the device supports the
+`gpu_hw_threads_per_eu` information descriptor.
+
+==== New device information descriptor
+
+[source,c++]
+----
+namespace sycl::ext::intel::info::device {
+struct gpu_hw_threads_per_eu {
+  using return_type = uint32_t;
+};
+} // namespace sycl::ext::intel::info::device
+----
+
+_Remarks:_ Template parameter to `device::get_info`.
+
+_Returns:_ The maximum number of hardware threads in EU. If the device is a
+subdevice, then the maximum number of hardware threads per EU in the subdevice
+is returned.
+
+_Throws:_ An `exception` with the `errc::feature_not_supported` error code if
+the device does not have `aspect::ext_intel_gpu_hw_threads_per_eu`.
+
+==== Example Usage
+
+[source,c++]
+----
+if (dev.has(aspect::ext_intel_gpu_hw_threads_per_eu)) {
+  auto threadsCount = dev.get_info<ext::intel::info::device::gpu_hw_threads_per_eu>();
+}
+----
+
+'''
+
+=== Free Global Memory
+
+Missing before version 4 of this extension.
+
+This extension adds the following device aspect and information descriptor,
+which allow an application to query the number of bytes of free global memory
+for the device.
+
+==== New device aspect
+
+[source,c++]
+----
+namespace sycl {
+
+enum class aspect {
+  ext_intel_free_memory
+  // ...
+};
+
+} // namespace sycl
+----
+
+`ext_intel_free_memory`: Indicates that the device supports the `free_memory`
+information descriptor.
+
+==== New device information descriptor
+
+[source,c++]
+----
+namespace sycl::ext::intel::info::device {
+struct free_memory {
+  using return_type = uint64_t;
+};
+} // namespace sycl::ext::intel::info::device
+----
+
+_Remarks:_ Template parameter to `device::get_info`.
+
+_Returns:_ The memory available on the device in units of bytes. The amount of
+free global memory may be affected by other processes on the system that are
+also using this device. Beware that when other processes or threads are using
+this device when this call is made, the value it returns may be stale even
+before it is returned to the caller.
+
+_Throws:_ An `exception` with the `errc::feature_not_supported` error code if
+the device does not have `aspect::ext_intel_free_memory`.
+
+==== Example Usage
+
+[source,c++]
+----
+if (dev.has(aspect::ext_intel_free_memory)) {
+  auto FreeMemory = dev.get_info<ext::intel::info::device::free_memory>();
+}
+----
+
+'''
+
+=== Device ID
+
+Missing before version 5 of this extension.
+
+This extension adds the following device aspect and information descriptor,
+which allow an application to query a device's ID.
+
+==== New device aspect
+
+[source,c++]
+----
+namespace sycl {
+
+enum class aspect {
+  ext_intel_device_id
+  // ...
+};
+
+} // namespace sycl
+----
+
+`ext_intel_device_id`: Indicates that the device supports the `device_id`
+information descriptor.
+
+==== New device information descriptor
+
+[source,c++]
+----
+namespace sycl::ext::intel::info::device {
+struct device_id {
+  using return_type = uint32_t;
+};
+} // namespace sycl::ext::intel::info::device
+----
+
+_Remarks:_ Template parameter to `device::get_info`.
+
+_Returns:_ If the implementation is driven primarily by a PCI device with a PCI
+device ID, returns that PCI device ID.
+Otherwise, the choice of what to return is determined by operating system or
+platform policies - but should uniquely identify both the device version and any
+major configuration options (for example, core count in the case of multi-core
+devices).
+
+_Throws:_ An `exception` with the `errc::feature_not_supported` error code if
+the device does not have `aspect::ext_intel_device_id`.
+
+==== Example Usage
+
+[source,c++]
+----
+if (dev.has(aspect::ext_intel_device_id)) {
+  auto deviceID = dev.get_info<ext::intel::info::device::device_id>();
+}
+----
+
+'''
+
+=== Memory Clock Rate
+
+Missing before version 6 of this extension.
+
+This extension adds the following device aspect and information descriptor,
+which allow an application to query the maximum clock rate of device's global
+memory.
+
+==== New device aspect
+
+[source,c++]
+----
+namespace sycl {
+
+enum class aspect {
+  ext_intel_memory_clock_rate
+  // ...
+};
+
+} // namespace sycl
+----
+
+`ext_intel_memory_clock_rate`: Indicates that the device supports the
+`memory_clock_rate` information descriptor.
+
+==== New device information descriptor
+
+[source,c++]
+----
+namespace sycl::ext::intel::info::device {
+struct memory_clock_rate {
+  using return_type = uint32_t;
+};
+} // namespace sycl::ext::intel::info::device
+----
+
+_Remarks:_ Template parameter to `device::get_info`.
+
+_Returns:_ The maximum clock rate of device's global memory in MHz. If device
+doesn't have memory then returns 0. If there are several memories on the device
+then the minimum of the clock rate values is returned.
+
+_Throws:_ An `exception` with the `errc::feature_not_supported` error code if
+the device does not have `aspect::ext_intel_memory_clock_rate`.
+
+==== Example Usage
+
+[source,c++]
+----
+if (dev.has(aspect::ext_intel_memory_clock_rate)) {
+  auto MemoryClockRate = dev.get_info<ext::intel::info::device::memory_clock_rate>();
+}
+----
+
+'''
+
+=== Memory Bus Width
+
+Missing before version 6 of this extension.
+
+This extension adds the following device aspect and information descriptor,
+which allow an application to query the maximum bus width between device and
+memory.
+
+==== New device aspect
+
+[source,c++]
+----
+namespace sycl {
+
+enum class aspect {
+  ext_intel_memory_bus_width
+  // ...
+};
+
+} // namespace sycl
+----
+
+`ext_intel_memory_bus_width`: Indicates that the device supports the
+`memory_bus_width` information descriptor.
+
+==== New device information descriptor
+
+[source,c++]
+----
+namespace sycl::ext::intel::info::device {
+struct memory_bus_width {
+  using return_type = uint32_t;
+};
+} // namespace sycl::ext::intel::info::device
+----
+
+_Remarks:_ Template parameter to `device::get_info`.
+
+_Returns:_ The maximum bus width between device and memory in bits. If device
+doesn't have memory then returns 0. If there are several memories on the device
+then the minimum of the bus width values is returned.
+
+_Throws:_ An `exception` with the `errc::feature_not_supported` error code if
+the device does not have `aspect::ext_intel_memory_bus_width`.
+
+==== Example Usage
+
+[source,c++]
+----
+if (dev.has(aspect::ext_intel_memory_bus_width)) {
+  auto MemoryBusWidth = dev.get_info<ext::intel::info::device::memory_bus_width>();
+}
+----
+
+'''
+
+=== Throttle reason
+
+Missing before version 7 of this extension.
+
+This extension adds the following device aspect and information descriptor,
+which allow an application to query the device current clock throttle reasons.
+
+==== New device aspect
+
+[source,c++]
+----
+namespace sycl {
+
+enum class aspect {
+  ext_intel_current_clock_throttle_reasons
+  // ...
+};
+
+} // namespace sycl
+----
+
+`ext_intel_current_clock_throttle_reasons`: Indicates that the device supports the
+`current_clock_throttle_reasons` information descriptor.
+
+==== Throttle reasons
+
+[source,c++]
+----
+namespace sycl::ext::intel {
+
+enum class throttle_reason {
+  power_cap,
+  current_limit,
+  thermal_limit,
+  psu_alert,
+  sw_range,
+  hw_range,
+  other
+};
+
+}
+----
+
+[%header,cols="1,5"]
+|===
+| Reason | Description
+| `power_cap` | The clock frequency is throttled due to hitting the power limit.
+| `current_limit` | The clock frequency is throttled due to hitting the current limit.
+| `thermal_limit` | The clock frequency is throttled due to hitting the thermal limit.
+| `psu_alert` | The clock frequency is throttled due to power supply assertion.
+| `sw_range` | The clock frequency is throttled due to software supplied frequency range.
+| `hw_range` | The clock frequency is throttled because there is a sub block
+that has a lower frequency when it receives clocks.
+| `other` | The clock frequency is throttled due to other reason.
+|===
+
+==== New device information descriptor
+
+[source,c++]
+----
+namespace sycl::ext::intel::info::device {
+struct current_clock_throttle_reasons {
+  using return_type = std::vector<ext::intel::throttle_reason>;
+};
+} // namespace sycl::ext::intel::info::device
+----
+
+_Remarks:_ Template parameter to `device::get_info`.
+
+_Returns:_ The set of throttle reasons describing why the frequency is being
+limited by the hardware. Returns empty set if frequency is not throttled.
+
+_Throws:_ An `exception` with the `errc::feature_not_supported` error code if
+the device does not have `aspect::ext_intel_current_clock_throttle_reasons`.
+
+==== Example Usage
+
+[source,c++]
+----
+if (dev.has(aspect::ext_intel_current_clock_throttle_reasons)) {
+  std::vector<ext::intel::throttle_reason> Reasons = dev.get_info<ext::intel::info::device::current_clock_throttle_reasons>();
+}
+----
+
+'''
+
+=== Fan speed
+
+Missing before version 7 of this extension.
+
+This extension adds the following device aspect and information descriptor,
+which allow an application to query the fan speed for the device.
+
+==== New device aspect
+
+[source,c++]
+----
+namespace sycl {
+
+enum class aspect {
+  ext_intel_fan_speed
+  // ...
+};
+
+} // namespace sycl
+----
+
+`ext_intel_fan_speed`: Indicates that the device supports the `fan_speed`
+information descriptor.
+
+==== New device information descriptor
+
+[source,c++]
+----
+namespace sycl::ext::intel::info::device {
+struct fan_speed {
+  using return_type = int32_t;
+};
+} // namespace sycl::ext::intel::info::device
+----
+
+_Remarks:_ Template parameter to `device::get_info`.
+
+_Returns:_ The current speed of device's fan (as a percentage of the maximum
+speed of the fan). If fan speed can't be measured then returns -1. If there
+are multiple fans, then returns maximum value.
+
+_Throws:_ An `exception` with the `errc::feature_not_supported` error code if
+the device does not have `aspect::ext_intel_fan_speed`.
+
+==== Example Usage
+
+[source,c++]
+----
+if (dev.has(aspect::ext_intel_fan_speed)) {
+  auto FanSpeed = dev.get_info<ext::intel::info::device::fan_speed>();
+}
+----
+
+'''
+
+=== Power limits
+
+Missing before version 7 of this extension.
+
+This extension adds the following device aspect and information descriptor,
+which allow an application to query the maximum and minimum power limits for
+the device.
+
+==== New device aspect
+
+[source,c++]
+----
+namespace sycl {
+
+enum class aspect {
+  ext_intel_power_limits
+  // ...
+};
+
+} // namespace sycl
+----
+
+`ext_intel_power_limits`: Indicates that the device supports the
+`min_power_limit` and `max_power_limit` information descriptor.
+
+==== New device information descriptors
+
+[source,c++]
+----
+namespace sycl::ext::intel::info::device {
+struct min_power_limit {
+  using return_type = int32_t;
+};
+} // namespace sycl::ext::intel::info::device
+----
+
+_Remarks:_ Template parameter to `device::get_info`.
+
+_Returns:_ The minimum power limit of the device in milliwatts. Returns -1 if
+the limit is not known.
+
+_Throws:_ An `exception` with the `errc::feature_not_supported` error code if
+the device does not have `aspect::ext_intel_power_limits`.
+
+[source,c++]
+----
+namespace sycl::ext::intel::info::device {
+struct max_power_limit {
+  using return_type = int32_t;
+};
+} // namespace sycl::ext::intel::info::device
+----
+
+_Remarks:_ Template parameter to `device::get_info`.
+
+_Returns:_ The maximum power limit of the device in milliwatts. Returns -1 if
+the limit is not known.
+
+_Throws:_ An `exception` with the `errc::feature_not_supported` error code if
+the device does not have `aspect::ext_intel_power_limits`.
+
+==== Example Usage
+
+[source,c++]
+----
+if (dev.has(aspect::ext_intel_power_limits)) {
+  auto Min = dev.get_info<ext::intel::info::device::min_power_limit>();
+  auto Max = dev.get_info<ext::intel::info::device::max_power_limit>();
+}
+----
+
+'''
+
+=== Device LUID
+
+Missing before version 8 of this extension.
+
+This extension adds the following device aspect and information descriptor,
+which allow an application to query the device Locally Unique ID (LUID).
+
+==== New device aspect
+
+[source,c++]
+----
+namespace sycl {
+
+enum class aspect {
+  ext_intel_device_info_luid
+  // ...
+};
+
+} // namespace sycl
+----
+
+`ext_intel_device_info_luid`: Indicates that the device supports the `luid`
+information descriptor.
+
+==== New device information descriptor
+
+[source,c++]
+----
+namespace sycl::ext::intel::info::device {
+struct luid {
+  using return_type = std::array<unsigned char, 8>;
+};
+} // namespace sycl::ext::intel::info::device
+----
+
+_Remarks:_ Template parameter to `device::get_info`.
+
+_Returns:_ The device LUID.
+
+_Throws:_ An `exception` with the `errc::feature_not_supported` error code if
+the device does not have `aspect::ext_intel_device_info_luid`.
+
+==== Example Usage
+
+[source,c++]
+----
+if (dev.has(aspect::ext_intel_device_info_luid)) {
+  auto LUID = dev.get_info<ext::intel::info::device::luid>();
+}
+----
+
+'''
+
+=== Device Node Mask
+
+Missing before version 8 of this extension.
+
+This extension adds the following device aspect and information descriptor,
+which allow an application to query the device node mask.
+
+==== New device aspect
+
+[source,c++]
+----
+namespace sycl {
+
+enum class aspect {
+  ext_intel_device_info_node_mask
+  // ...
+};
+
+} // namespace sycl
+----
+
+`ext_intel_device_info_node_mask`: Indicates that the device supports the
+`node_mask` information descriptor.
+
+==== New device information descriptor
+
+[source,c++]
+----
+namespace sycl::ext::intel::info::device {
+struct node_mask {
+  using return_type = unsigned int;
+};
+} // namespace sycl::ext::intel::info::device
+----
+
+_Remarks:_ Template parameter to `device::get_info`.
+
+_Returns:_ The device node mask.
+
+_Throws:_ An `exception` with the `errc::feature_not_supported` error code if
+the device does not have `aspect::ext_intel_device_info_node_mask`.
+
+==== Example Usage
+
+[source,c++]
+----
+if (dev.has(aspect::ext_intel_device_info_node_mask)) {
+  auto NodeMask = dev.get_info<ext::intel::info::device::node_mask>();
+}
+----
+
+'''
+
+=== Deprecated queries
+
+The table below lists deprecated queries, that would soon be removed and their replacements:
+
+[%header,cols="1,1"]
+|===
+| Device Descriptors | Replacement Descriptors
+| info::device::ext_intel_device_info_uuid  | ext::intel::info::device::uuid
+| info::device::ext_intel_pci_address        | ext::intel::info::device::pci_address
+| info::device::ext_intel_gpu_eu_simd_width  | ext::intel::info::device::gpu_eu_simd_width
+| info::device::ext_intel_gpu_eu_count       | ext::intel::info::device::gpu_eu_count
+| info::device::ext_intel_gpu_slices               | ext::intel::info::device::gpu_slices
+| info::device::ext_intel_gpu_subslices_per_slice | ext::intel::info::device::gpu_subslices_per_slice
+| info::device::ext_intel_gpu_eu_count_per_subslice | ext::intel::info::device::gpu_eu_count_per_subslice
+| info::device::ext_intel_gpu_hw_threads_per_eu    | ext::intel::info::device::gpu_hw_threads_per_eu
+| info::device::ext_intel_max_mem_bandwidth | ext::intel::info::device::max_mem_bandwidth
+|===

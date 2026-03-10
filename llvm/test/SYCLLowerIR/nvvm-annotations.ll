@@ -94,13 +94,13 @@ define ptx_kernel void @foo_maxwgpermp() !max_work_groups_per_mp !3 {
 ;.
 ; CHECK: [[META0:![0-9]+]] = !{ptr @foo_reqd0, !"reqntidx", i32 4}
 ; CHECK: [[META1:![0-9]+]] = !{ptr @foo_reqd0, !"reqntidy", i32 8}
-; CHECK: [[META2:![0-9]+]] = !{ptr @foo_reqd0, !"reqntidx", i32 16}
+; CHECK: [[META2:![0-9]+]] = !{ptr @foo_reqd0, !"reqntidz", i32 16}
 ; CHECK: [[META3:![0-9]+]] = !{ptr @foo_reqd1, !"reqntidx", i32 4}
 ; CHECK: [[META4:![0-9]+]] = !{ptr @foo_reqd2, !"reqntidx", i32 4}
 ; CHECK: [[META5:![0-9]+]] = !{ptr @foo_reqd2, !"reqntidy", i32 8}
 ; CHECK: [[META6:![0-9]+]] = !{ptr @foo_reqd3, !"reqntidx", i32 4}
 ; CHECK: [[META7:![0-9]+]] = !{ptr @foo_reqd3, !"reqntidy", i32 8}
-; CHECK: [[META8:![0-9]+]] = !{ptr @foo_reqd3, !"reqntidx", i32 16}
+; CHECK: [[META8:![0-9]+]] = !{ptr @foo_reqd3, !"reqntidz", i32 16}
 ; CHECK: [[META9:![0-9]+]] = !{ptr @foo_reqd4, !"reqntidx", i32 4}
 ; CHECK: [[META10:![0-9]+]] = !{ptr @foo_max0, !"maxntidx", i32 4}
 ; CHECK: [[META11:![0-9]+]] = !{ptr @foo_max1, !"maxntidx", i32 4}

@@ -1,6 +1,6 @@
 // REQUIRES: linux, cpu || (gpu && level_zero)
 // RUN: %{build} %device_asan_flags -O0 -g -o %t
-// RUN: env UR_LAYER_ASAN_OPTIONS="quarantine_size_mb:5;detect_kernel_arguments:0" %{run} not %t 2>&1 | FileCheck %s
+// RUN: env UR_LAYER_ASAN_OPTIONS="quarantine_size_mb:5;detect_kernel_arguments:0" %{run} not --crash %t 2>&1 | FileCheck %s
 #include <sycl/usm.hpp>
 
 constexpr size_t N = 1024;

@@ -1,4 +1,4 @@
-# Copyright (C) 2024-2025 Intel Corporation
+# Copyright (C) 2024-2026 Intel Corporation
 # Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -134,6 +134,17 @@ def generate_html(
 
     # Sorted in reverse, such that runs are ordered from newest to oldest
     current_runs.sort(key=lambda run: run.date or datetime.min, reverse=True)
+
+    # The solution below requires the above sort to happen (dashboard also uses the same order).
+    #
+    # Don't write "env" & "command" fields for all runs, but first 10 - it spams the output file.
+    # In dashboard we use only newest commands anyway. We actually pick command for each "label"
+    # from one of the newest runs; number 10 was picked arbitrarily as most likely all available
+    # benchmarks was within the last 10 runs (a few Baselines plus potentially a few custom runs).
+    for run in current_runs[10:]:
+        for result in run.results:
+            result.command = []
+            result.env = {}
 
     # Create the comprehensive output object
     output = BenchmarkOutput(

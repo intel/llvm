@@ -118,6 +118,8 @@ StringRef Triple::getArchName(ArchType Kind, SubArchType SubArch) {
       return "arm64ec";
     if (SubArch == AArch64SubArch_arm64e)
       return "arm64e";
+    if (SubArch == AArch64SubArch_lfi)
+      return "aarch64_lfi";
     break;
   case Triple::spirv:
     switch (SubArch) {
@@ -329,6 +331,12 @@ StringRef Triple::getOSTypeName(OSType Kind) {
   case TvOS: return "tvos";
   case UEFI: return "uefi";
   case WASI: return "wasi";
+  case WASIp1:
+    return "wasip1";
+  case WASIp2:
+    return "wasip2";
+  case WASIp3:
+    return "wasip3";
   case WatchOS: return "watchos";
   case Win32: return "windows";
   case ZOS: return "zos";
@@ -338,6 +346,12 @@ StringRef Triple::getOSTypeName(OSType Kind) {
   case Vulkan: return "vulkan";
   case CheriotRTOS:
     return "cheriotrtos";
+  case OpenCL:
+    return "opencl";
+  case ChipStar:
+    return "chipstar";
+  case Firmware:
+    return "firmware";
   }
 
   llvm_unreachable("Invalid OSType");
@@ -400,8 +414,6 @@ StringRef Triple::getEnvironmentTypeName(EnvironmentType Kind) {
   case Amplification: return "amplification";
   case RootSignature:
     return "rootsignature";
-  case OpenCL:
-    return "opencl";
   case OpenHOS: return "ohos";
   case PAuthTest:
     return "pauthtest";
@@ -601,6 +613,7 @@ static Triple::ArchType parseArch(StringRef ArchName) {
           .Case("aarch64", Triple::aarch64)
           .Case("aarch64_be", Triple::aarch64_be)
           .Case("aarch64_32", Triple::aarch64_32)
+          .Case("aarch64_lfi", Triple::aarch64)
           .Case("arc", Triple::arc)
           .Case("arm64", Triple::aarch64)
           .Case("arm64_32", Triple::aarch64_32)
@@ -746,6 +759,9 @@ static Triple::OSType parseOS(StringRef OSName) {
       .StartsWith("amdpal", Triple::AMDPAL)
       .StartsWith("hermit", Triple::HermitCore)
       .StartsWith("hurd", Triple::Hurd)
+      .StartsWith("wasip1", Triple::WASIp1)
+      .StartsWith("wasip2", Triple::WASIp2)
+      .StartsWith("wasip3", Triple::WASIp3)
       .StartsWith("wasi", Triple::WASI)
       .StartsWith("emscripten", Triple::Emscripten)
       .StartsWith("shadermodel", Triple::ShaderModel)
@@ -753,6 +769,9 @@ static Triple::OSType parseOS(StringRef OSName) {
       .StartsWith("serenity", Triple::Serenity)
       .StartsWith("vulkan", Triple::Vulkan)
       .StartsWith("cheriotrtos", Triple::CheriotRTOS)
+      .StartsWith("opencl", Triple::OpenCL)
+      .StartsWith("chipstar", Triple::ChipStar)
+      .StartsWith("firmware", Triple::Firmware)
       .Default(Triple::UnknownOS);
 }
 
@@ -806,7 +825,6 @@ static Triple::EnvironmentType parseEnvironment(StringRef EnvironmentName) {
       .StartsWith("mesh", Triple::Mesh)
       .StartsWith("amplification", Triple::Amplification)
       .StartsWith("rootsignature", Triple::RootSignature)
-      .StartsWith("opencl", Triple::OpenCL)
       .StartsWith("ohos", Triple::OpenHOS)
       .StartsWith("pauthtest", Triple::PAuthTest)
       .StartsWith("llvm", Triple::LLVM)
@@ -860,6 +878,9 @@ static Triple::SubArchType parseSubArch(StringRef SubArchName) {
 
   if (SubArchName == "arm64ec")
     return Triple::AArch64SubArch_arm64ec;
+
+  if (SubArchName == "aarch64_lfi")
+    return Triple::AArch64SubArch_lfi;
 
   if (SubArchName.starts_with("spirv"))
     return StringSwitch<Triple::SubArchType>(SubArchName)
@@ -1410,6 +1431,12 @@ std::string Triple::normalize(StringRef Str, CanonicalForm Form) {
     }
   }
 
+  // Currently the firmware OS is an Apple specific concept.
+  if ((Components.size() > 2) && (Components[2] == "firmware") &&
+      (Components[1] != "apple"))
+    llvm::reportFatalUsageError(
+        "the firmware target os is only supported for the apple vendor");
+
   // Canonicalize the components if necessary.
   switch (Form) {
   case CanonicalForm::ANY:
@@ -1543,6 +1570,8 @@ bool Triple::getMacOSXVersion(VersionTuple &Version) const {
     llvm_unreachable("OSX version isn't relevant for xrOS");
   case DriverKit:
     llvm_unreachable("OSX version isn't relevant for DriverKit");
+  case Firmware:
+    llvm_unreachable("OSX version isn't relevant for Firmware");
   }
   return true;
 }
@@ -1593,6 +1622,8 @@ VersionTuple Triple::getiOSVersion() const {
     llvm_unreachable("conflicting triple info");
   case DriverKit:
     llvm_unreachable("DriverKit doesn't have an iOS version");
+  case Firmware:
+    llvm_unreachable("iOS version isn't relevant for Firmware");
   }
 }
 
@@ -1618,6 +1649,8 @@ VersionTuple Triple::getWatchOSVersion() const {
     llvm_unreachable("watchOS version isn't relevant for xrOS");
   case DriverKit:
     llvm_unreachable("DriverKit doesn't have a WatchOS version");
+  case Firmware:
+    llvm_unreachable("watchOS version isn't relevant for Firmware");
   }
 }
 

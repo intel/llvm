@@ -1,4 +1,4 @@
-// Copyright (C) 2023 Intel Corporation
+// Copyright (C) 2023-2026 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
 //
@@ -15,7 +15,7 @@ struct urKernelSetArgLocalTest : uur::urKernelTest {
   }
   size_t local_mem_size = 4 * sizeof(uint32_t);
 };
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(urKernelSetArgLocalTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_MULTI_QUEUE(urKernelSetArgLocalTest);
 
 TEST_P(urKernelSetArgLocalTest, Success) {
   ASSERT_SUCCESS(urKernelSetArgLocal(kernel, 1, local_mem_size, nullptr));
@@ -147,7 +147,7 @@ struct urKernelSetArgLocalMultiTest : uur::urKernelExecutionTest {
   static constexpr uint64_t hip_local_offset = 0;
   ur_backend_t backend{};
 };
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(urKernelSetArgLocalMultiTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_MULTI_QUEUE(urKernelSetArgLocalMultiTest);
 
 TEST_P(urKernelSetArgLocalMultiTest, Basic) {
   ASSERT_SUCCESS(urEnqueueKernelLaunch(

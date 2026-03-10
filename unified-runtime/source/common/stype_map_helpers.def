@@ -180,3 +180,6 @@ struct stype_map<ur_exp_enqueue_ext_properties_t>
 template <>
 struct stype_map<ur_exp_kernel_arg_properties_t>
     : stype_map_impl<UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES> {};
+template <>
+struct stype_map<ur_exp_host_task_properties_t>
+    : stype_map_impl<UR_STRUCTURE_TYPE_EXP_HOST_TASK_PROPERTIES> {};

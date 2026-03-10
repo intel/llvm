@@ -7,7 +7,7 @@
 #include "ze_api.h"
 #include <functional>
 #include <memory>
-#include <ur_api.h>
+#include <unified-runtime/ur_api.h>
 #include <uur/fixtures.h>
 
 static bool ze_initialized = false;

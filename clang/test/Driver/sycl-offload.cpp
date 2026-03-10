@@ -328,7 +328,7 @@
 
 // RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver -fsycl-targets=spir64-unknown-unknown -Xsycl-target-backend "-DFOO1 -DFOO2" %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-TOOLS-OPTS %s
-// CHK-TOOLS-OPTS: clang-linker-wrapper{{.*}} "--sycl-backend-compile-options=-DFOO1 -DFOO2"
+// CHK-TOOLS-OPTS: clang-linker-wrapper{{.*}} "--device-compiler=sycl:spir64-unknown-unknown=-DFOO1 -DFOO2"
 
 /// Check for implied options (-g -O0)
 // RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver -fsycl-targets=spir64-unknown-unknown -g -O0 -Xsycl-target-backend "-DFOO1 -DFOO2" %s 2>&1 \
@@ -348,7 +348,7 @@
 
 // RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver -fsycl-targets=spir64-unknown-unknown -Xsycl-target-linker "-DFOO1 -DFOO2" %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-TOOLS-OPTS2 %s
-// CHK-TOOLS-OPTS2: clang-linker-wrapper{{.*}} "--sycl-target-link-options=-DFOO1 -DFOO2"
+// CHK-TOOLS-OPTS2: clang-linker-wrapper{{.*}} "--device-linker=sycl:spir64-unknown-unknown=-DFOO1 -DFOO2"
 
 /// -fsycl-range-rounding settings
 ///
@@ -667,7 +667,7 @@
 // RUN:    | FileCheck -check-prefixes=SYCL_TARGET_OPT %s
 // RUN:  %clangxx -### -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver -Xsycl-target-backend=spir64 -DFOO -Xsycl-target-linker=spir64 -DFOO2 %S/Inputs/SYCL/objlin64.o 2>&1 \
 // RUN:    | FileCheck -check-prefixes=SYCL_TARGET_OPT %s
-// SYCL_TARGET_OPT: clang-linker-wrapper{{.*}} "--sycl-backend-compile-options=-DFOO" "--sycl-target-link-options=-DFOO2"
+// SYCL_TARGET_OPT: clang-linker-wrapper{{.*}} "--device-compiler=sycl:spir64-unknown-unknown=-DFOO" "--device-linker=sycl:spir64-unknown-unknown=-DFOO2"
 
 /// ###########################################################################
 
@@ -676,8 +676,8 @@
 // RUN:  %clangxx -### -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver -fsycl-targets=spir64_gen -Xsycl-target-backend -DFOO %S/Inputs/SYCL/objlin64.o 2>&1 \
 // RUN:    | FileCheck -check-prefixes=SYCL_TARGET_OPT_AOT,SYCL_TARGET_OPT_GPU %s
 // SYCL_TARGET_OPT_AOT-NOT: error: cannot deduce implicit triple value for '-Xsycl-target-backend'
-// SYCL_TARGET_OPT_CPU: clang-linker-wrapper{{.*}} "--cpu-tool-arg=-DFOO"
-// SYCL_TARGET_OPT_GPU: clang-linker-wrapper{{.*}} "--gpu-tool-arg=-DFOO"
+// SYCL_TARGET_OPT_CPU: clang-linker-wrapper{{.*}} "--device-compiler=sycl:spir64_x86_64-unknown-unknown=-DFOO"
+// SYCL_TARGET_OPT_GPU: clang-linker-wrapper{{.*}} "--device-compiler=sycl:spir64_gen-unknown-unknown=-DFOO"
 
 /// ###########################################################################
 

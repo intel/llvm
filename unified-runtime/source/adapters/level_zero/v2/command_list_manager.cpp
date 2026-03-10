@@ -1,6 +1,6 @@
 //===--------- command_list_manager.cpp - Level Zero Adapter --------------===//
 //
-// Copyright (C) 2024 Intel Corporation
+// Copyright (C) 2024-2026 Intel Corporation
 //
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
@@ -21,7 +21,6 @@
 #include "memory.hpp"
 
 thread_local std::vector<ze_event_handle_t> waitList;
-
 // The wait_list_view is a wrapper for eventsWaitLists, which:
 // -  enables passing a ze_event_handle_t buffer created from events as an
 // argument for the driver API;
@@ -744,15 +743,15 @@ ur_result_t ur_command_list_manager::appendMemBufferMap(
 
   auto zeSignalEvent = getSignalEvent(phEvent, UR_COMMAND_MEM_BUFFER_MAP);
 
+  if (waitListView) {
+    ZE2UR_CALL(zeCommandListAppendWaitOnEvents,
+               (getZeCommandList(), waitListView.num, waitListView.handles));
+    waitListView.clear();
+  }
+
   auto pDst = ur_cast<char *>(hBuffer->mapHostPtr(
       mapFlags, offset, size, zeCommandList.get(), waitListView));
   *ppRetMap = pDst;
-
-  if (waitListView) {
-    // If memory was not migrated, we need to wait on the events here.
-    ZE2UR_CALL(zeCommandListAppendWaitOnEvents,
-               (getZeCommandList(), waitListView.num, waitListView.handles));
-  }
 
   if (zeSignalEvent) {
     ZE2UR_CALL(zeCommandListAppendSignalEvent,
@@ -779,9 +778,11 @@ ur_command_list_manager::appendMemUnmap(ur_mem_handle_t hMem, void *pMappedPtr,
   // TODO: currently unmapHostPtr deallocates memory immediately,
   // since the memory might be used by the user, we need to make sure
   // all dependencies are completed.
-  ZE2UR_CALL(zeCommandListAppendWaitOnEvents,
-             (getZeCommandList(), waitListView.num, waitListView.handles));
-  waitListView.clear();
+  if (waitListView) {
+    ZE2UR_CALL(zeCommandListAppendWaitOnEvents,
+               (getZeCommandList(), waitListView.num, waitListView.handles));
+    waitListView.clear();
+  }
 
   hBuffer->unmapHostPtr(pMappedPtr, zeCommandList.get(), waitListView);
   if (zeSignalEvent) {
@@ -880,8 +881,8 @@ ur_result_t ur_command_list_manager::appendUSMAllocHelper(
   auto device = (type == UR_USM_TYPE_HOST) ? nullptr : hDevice.get();
 
   ur_event_handle_t originAllocEvent = nullptr;
-  auto asyncAlloc = pPool->allocateEnqueued(hContext.get(), Queue, true, device,
-                                            nullptr, type, size);
+  auto asyncAlloc = pPool->allocateEnqueued(
+      hContext.get(), Queue, Queue->isInOrder(), device, type, size);
   if (!asyncAlloc) {
     auto Ret =
         pPool->allocate(hContext.get(), device, nullptr, type, size, ppMem);
@@ -892,7 +893,9 @@ ur_result_t ur_command_list_manager::appendUSMAllocHelper(
     std::tie(*ppMem, originAllocEvent) = *asyncAlloc;
   }
 
-  waitListView.addEvent(originAllocEvent);
+  if (originAllocEvent) {
+    waitListView.addEvent(originAllocEvent);
+  }
 
   ur_command_t commandType = UR_COMMAND_FORCE_UINT32;
   switch (type) {
@@ -931,8 +934,6 @@ ur_result_t ur_command_list_manager::appendUSMFreeExp(
     ur_queue_t_ *Queue, ur_usm_pool_handle_t, void *pMem,
     wait_list_view &waitListView, ur_event_handle_t phEvent) {
   TRACK_SCOPE_LATENCY("ur_command_list_manager::appendUSMFreeExp");
-  assert(phEvent);
-
   auto zeSignalEvent = getSignalEvent(phEvent, UR_COMMAND_ENQUEUE_USM_FREE_EXP);
   auto [pWaitEvents, numWaitEvents, _] = waitListView;
 
@@ -962,8 +963,16 @@ ur_result_t ur_command_list_manager::appendUSMFreeExp(
                (getZeCommandList(), numWaitEvents, pWaitEvents));
   }
 
-  ZE2UR_CALL(zeCommandListAppendSignalEvent,
-             (getZeCommandList(), zeSignalEvent));
+  if (zeSignalEvent) {
+    ZE2UR_CALL(zeCommandListAppendSignalEvent,
+               (getZeCommandList(), zeSignalEvent));
+  }
+
+  // If event is specified, it's also going to be inserted
+  // into the async pool, so it needs to be retained.
+  if (phEvent) {
+    phEvent->retain();
+  }
 
   // Insert must be done after the signal event is appended.
   usmPool->asyncPool.insert(pMem, size, phEvent, Queue);
@@ -1062,8 +1071,10 @@ ur_result_t ur_command_list_manager::appendNativeCommandExp(
 
 void ur_command_list_manager::recordSubmittedKernel(
     ur_kernel_handle_t hKernel) {
-  submittedKernels.push_back(hKernel);
-  hKernel->RefCount.retain();
+  auto [_, inserted] = submittedKernels.insert(hKernel);
+  if (inserted) {
+    hKernel->RefCount.retain();
+  }
 }
 
 ze_command_list_handle_t ur_command_list_manager::getZeCommandList() {
@@ -1178,6 +1189,13 @@ ur_result_t ur_command_list_manager::appendKernelLaunchWithArgsExpNew(
     return checkResult;
   }
 
+  if (numArgs != hKernel->getCommonProperties().numKernelArgs) {
+    setErrorMessage("Wrong number of kernel arguments",
+                    UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX,
+                    static_cast<int32_t>(ZE_RESULT_ERROR_INVALID_ARGUMENT));
+    return UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX;
+  }
+
   // It is needed in case of UR_KERNEL_LAUNCH_PROPERTY_ID_COOPERATIVE
   // to launch the cooperative kernel.
   ZeStruct<ze_command_list_append_launch_kernel_param_cooperative_desc_t>
@@ -1220,6 +1238,13 @@ ur_result_t ur_command_list_manager::appendKernelLaunchWithArgsExpNew(
   hKernel->kernelArgs.resize(numArgs, 0);
 
   for (uint32_t argIndex = 0; argIndex < numArgs; argIndex++) {
+    if (pArgs[argIndex].index != argIndex) {
+      setErrorMessage("Missing kernel argument",
+                      UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX,
+                      static_cast<int32_t>(ZE_RESULT_ERROR_INVALID_ARGUMENT));
+      return UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX;
+    }
+
     switch (pArgs[argIndex].type) {
     case UR_EXP_KERNEL_ARG_TYPE_LOCAL:
       hKernel->kernelArgs[argIndex] =
@@ -1375,7 +1400,33 @@ ur_result_t ur_command_list_manager::isGraphCaptureActive(bool *pResult) {
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
 
-  *pResult = graphCapture.isActive();
+  ze_result_t ZeResult =
+      ZE_CALL_NOCHECK(hContext.get()
+                          ->getPlatform()
+                          ->ZeGraphExt.zeCommandListIsGraphCaptureEnabledExp,
+                      (getZeCommandList()));
+
+  *pResult = (ZeResult == ZE_RESULT_QUERY_TRUE);
+
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t ur_command_list_manager::appendHostTaskExp(
+    ur_exp_host_task_function_t pfnHostTask, void *data,
+    const ur_exp_host_task_properties_t *pProperties,
+    wait_list_view &waitListView, ur_event_handle_t phEvent) {
+
+  ur_platform_handle_t hPlatform = hContext->getPlatform();
+
+  if (!hPlatform->ZeHostTaskExt.Supported) {
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  }
+
+  ZE2UR_CALL(hPlatform->ZeHostTaskExt.zeCommandListAppendHostFunction,
+             (getZeCommandList(), (void *)pfnHostTask, data,
+              const_cast<void *>(reinterpret_cast<const void *>(pProperties)),
+              getSignalEvent(phEvent, UR_COMMAND_HOST_TASK_EXP),
+              waitListView.num, waitListView.handles));
 
   return UR_RESULT_SUCCESS;
 }

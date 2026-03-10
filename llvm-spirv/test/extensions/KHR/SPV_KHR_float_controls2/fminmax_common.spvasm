@@ -1,0 +1,58 @@
+; REQUIRES: spirv-as, spirv-dis
+; RUN: spirv-as -o %t.spv %s
+; RUN: spirv-val %t.spv
+; RUN: llvm-spirv -r -o %t.ocl.bc %t.spv
+; RUN: llvm-dis %t.ocl.bc -o - | FileCheck %s --check-prefix=LLVM-OCL
+; RUN: llvm-spirv --spirv-target-env=SPV-IR -r -o %t.spv.bc %t.spv
+; RUN: llvm-dis %t.spv.bc -o - | FileCheck %s --check-prefix=LLVM-SPV
+; RUN: llvm-spirv --spirv-ext=-SPV_KHR_float_controls2 %t.spv.bc -o - --spirv-text | FileCheck %s --check-prefix=FLOAT_CONTROLS-OFF
+; RUN: llvm-spirv --spirv-ext=-SPV_KHR_float_controls2 %t.spv.bc -o %t.back.off.spv
+; RUN: spirv-val %t.back.off.spv
+; RUN: llvm-spirv --spirv-ext=+SPV_KHR_float_controls2 %t.spv.bc -o - --spirv-text | FileCheck %s --check-prefix=FLOAT_CONTROLS-ON
+; RUN: llvm-spirv --spirv-ext=+SPV_KHR_float_controls2 %t.spv.bc -o %t.back.on.spv
+; RUN: spirv-val %t.back.on.spv
+;
+; Verifies fmin_common/fmax_common round-trip with SPV_KHR_float_controls2.
+; With the extension disabled, both stay as ExtInst; with it enabled, they
+; are promoted to core fmin/fmax.
+; fmin/fmax_common do not have an OpenCL API equivalent. When the target-env is OpenCL, lower them to
+; llvm.fminnum/llvm.fmaxnum with the fast-math flags set appropiately.
+;
+; LLVM-OCL: call nnan ninf float @llvm.minnum.f32(float %{{.*}}, float %{{.*}})
+; LLVM-OCL: call nnan ninf float @llvm.maxnum.f32(float %{{.*}}, float %{{.*}})
+; LLVM-SPV: call spir_func float @_Z23__spirv_ocl_fmin_commonff(float %{{.*}}, float %{{.*}})
+; LLVM-SPV: call spir_func float @_Z23__spirv_ocl_fmax_commonff(float %{{.*}}, float %{{.*}})
+;
+; FLOAT_CONTROLS-OFF-DAG: ExtInst {{[0-9]+}} {{[0-9]+}} {{[0-9]+}} fmin_common {{[0-9]+}} {{[0-9]+}}
+; FLOAT_CONTROLS-OFF-DAG: ExtInst {{[0-9]+}} {{[0-9]+}} {{[0-9]+}} fmax_common {{[0-9]+}} {{[0-9]+}}
+; FLOAT_CONTROLS-OFF-NOT: Decorate {{[0-9]+}} FPFastMathMode
+; FLOAT_CONTROLS-ON-DAG: ExtInst {{[0-9]+}} [[#MIN:]] {{[0-9]+}} fmin {{[0-9]+}} {{[0-9]+}}
+; FLOAT_CONTROLS-ON-DAG: ExtInst {{[0-9]+}} [[#MAX:]] {{[0-9]+}} fmax {{[0-9]+}} {{[0-9]+}}
+; FLOAT_CONTROLS-ON-DAG: Decorate [[#MIN]] FPFastMathMode 3
+; FLOAT_CONTROLS-ON-DAG: Decorate [[#MAX]] FPFastMathMode 3
+;
+
+               OpCapability Addresses
+               OpCapability Linkage
+               OpCapability Kernel
+          %1 = OpExtInstImport "OpenCL.std"
+               OpMemoryModel Physical64 OpenCL
+               OpSource Unknown 0
+               OpName %foo "foo"
+               OpName %x "x"
+               OpName %y "y"
+               OpName %entry "entry"
+               OpName %m "m"
+               OpName %M "M"
+               OpDecorate %foo LinkageAttributes "foo" Export
+      %float = OpTypeFloat 32
+          %3 = OpTypeFunction %float %float %float
+        %foo = OpFunction %float None %3
+          %x = OpFunctionParameter %float
+          %y = OpFunctionParameter %float
+      %entry = OpLabel
+          %m = OpExtInst %float %1 fmin_common %x %y
+          %M = OpExtInst %float %1 fmax_common %x %y
+        %add = OpFAdd %float %m %M
+               OpReturnValue %add
+               OpFunctionEnd

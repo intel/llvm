@@ -9,7 +9,7 @@
 // UNSUPPORTED: system-windows
 // REQUIRES: v1
 
-#include "ur_print.hpp"
+#include "unified-runtime/ur_print.hpp"
 #include "uur/fixtures.h"
 #include "uur/raii.h"
 
@@ -142,7 +142,11 @@ TEST_P(urEventCacheTest, eventsReuseWithVisibleEvent) {
     verifyData();
   }
 
-  ASSERT_LT(eventCreateCount, numIters * numEnqueues);
+  if (flags & UR_QUEUE_FLAG_PROFILING_ENABLE) {
+    ASSERT_GE(eventCreateCount, numIters * numEnqueues);
+  } else {
+    ASSERT_LT(eventCreateCount, numIters * numEnqueues);
+  }
 }
 
 TEST_P(urEventCacheTest, eventsReuseWithVisibleEventAndWait) {

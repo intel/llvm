@@ -55,8 +55,9 @@ if(MSVC)
   include(CheckLinkerFlag)
   check_linker_flag(CXX "LINKER:/DEBUG" LINKER_SUPPORTS_DEBUG)
   if(LINKER_SUPPORTS_DEBUG)
-    # sccache is not compatible with /Zi flag
-    if (CMAKE_CXX_COMPILER_LAUNCHER STREQUAL "sccache")
+    # (s)ccache is not compatible with /Zi flag
+    if (CMAKE_CXX_COMPILER_LAUNCHER STREQUAL "ccache" OR
+	CMAKE_CXX_COMPILER_LAUNCHER STREQUAL "sccache")
       # CMake may put /Zi by default
       if(CMAKE_BUILD_TYPE STREQUAL "Debug")
         string(REPLACE "/Zi" "/Z7" CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG}")
@@ -248,6 +249,10 @@ install(FILES
 file(GLOB_RECURSE HEADERS_IN_SYCL_DIR CONFIGURE_DEPENDS "${sycl_inc_dir}/sycl/*")
 file(GLOB_RECURSE HEADERS_IN_CL_DIR CONFIGURE_DEPENDS "${sycl_inc_dir}/CL/*")
 file(GLOB_RECURSE HEADERS_IN_STD_DIR CONFIGURE_DEPENDS "${sycl_inc_dir}/std/*")
+file(GLOB_RECURSE HEADERS_IN_UR_DIR CONFIGURE_DEPENDS "${UNIFIED_RUNTIME_INCLUDE_DIR}/unified-runtime/*")
+list(REMOVE_ITEM HEADERS_IN_UR_DIR
+  "${UNIFIED_RUNTIME_INCLUDE_DIR}/unified-runtime/ur_ddi.h"
+  "${UNIFIED_RUNTIME_INCLUDE_DIR}/unified-runtime/ur_print.h")
 
 string(REPLACE "${sycl_inc_dir}" "${SYCL_INCLUDE_BUILD_DIR}"
   OUT_HEADERS_IN_SYCL_DIR "${HEADERS_IN_SYCL_DIR}")
@@ -257,15 +262,8 @@ string(REPLACE "${sycl_inc_dir}" "${SYCL_INCLUDE_BUILD_DIR}"
   OUT_HEADERS_IN_STD_DIR "${HEADERS_IN_STD_DIR}")
 string(REPLACE "${sycl_inc_dir}" "${SYCL_INCLUDE_BUILD_DIR}"
   OUT_HEADERS_IN_SYCLCOMPAT_DIR "${HEADERS_IN_SYCLCOMPAT_DIR}")
-
-set(OUT_UR_HEADERS
-  ${SYCL_INCLUDE_BUILD_DIR}/ur_api.h
-  ${SYCL_INCLUDE_BUILD_DIR}/ur_api_funcs.def
-  ${SYCL_INCLUDE_BUILD_DIR}/ur_print.hpp)
-set(UR_HEADERS_TO_COPY
-  ${UNIFIED_RUNTIME_INCLUDE_DIR}/ur_api.h
-  ${UNIFIED_RUNTIME_INCLUDE_DIR}/ur_api_funcs.def
-  ${UNIFIED_RUNTIME_INCLUDE_DIR}/ur_print.hpp)
+string(REPLACE "${UNIFIED_RUNTIME_INCLUDE_DIR}/unified-runtime" "${SYCL_INCLUDE_BUILD_DIR}/unified-runtime"
+  OUT_HEADERS_IN_UR_DIR "${HEADERS_IN_UR_DIR}")
 
 # Copy SYCL headers from sources to build directory
 add_custom_target(sycl-headers
@@ -273,7 +271,7 @@ add_custom_target(sycl-headers
           ${OUT_HEADERS_IN_CL_DIR}
           ${OUT_HEADERS_IN_STD_DIR}
           ${OUT_HEADERS_IN_SYCLCOMPAT_DIR}
-          ${OUT_UR_HEADERS}
+          ${OUT_HEADERS_IN_UR_DIR}
           sycl-device-aspect-macros-header
           )
 
@@ -282,28 +280,23 @@ add_custom_command(
           ${OUT_HEADERS_IN_CL_DIR}
           ${OUT_HEADERS_IN_STD_DIR}
           ${OUT_HEADERS_IN_SYCLCOMPAT_DIR}
-          ${OUT_UR_HEADERS}
+          ${OUT_HEADERS_IN_UR_DIR}
   DEPENDS ${HEADERS_IN_SYCL_DIR}
           ${HEADERS_IN_CL_DIR}
           ${HEADERS_IN_STD_DIR}
           ${HEADERS_IN_SYCLCOMPAT_DIR}
-          ${UR_HEADERS_TO_COPY}
+          ${HEADERS_IN_UR_DIR}
   COMMAND ${CMAKE_COMMAND} -E copy_directory ${sycl_inc_dir}/sycl ${SYCL_INCLUDE_BUILD_DIR}/sycl
   COMMAND ${CMAKE_COMMAND} -E copy_directory ${sycl_inc_dir}/CL ${SYCL_INCLUDE_BUILD_DIR}/CL
   COMMAND ${CMAKE_COMMAND} -E copy_directory ${sycl_inc_dir}/std ${SYCL_INCLUDE_BUILD_DIR}/std
-  COMMAND ${CMAKE_COMMAND} -E copy ${UR_HEADERS_TO_COPY} ${SYCL_INCLUDE_BUILD_DIR}
+  COMMAND ${CMAKE_COMMAND} -E copy_directory ${UNIFIED_RUNTIME_INCLUDE_DIR}/unified-runtime ${SYCL_INCLUDE_BUILD_DIR}/unified-runtime
   COMMENT "Copying SYCL headers ...")
 
 # Copy SYCL headers from source to install directory
 install(DIRECTORY "${sycl_inc_dir}/sycl" DESTINATION ${SYCL_INCLUDE_DIR} COMPONENT sycl-headers)
 install(DIRECTORY "${sycl_inc_dir}/CL" DESTINATION ${SYCL_INCLUDE_DIR}/ COMPONENT sycl-headers)
 install(DIRECTORY "${sycl_inc_dir}/std" DESTINATION ${SYCL_INCLUDE_DIR} COMPONENT sycl-headers)
-install(FILES "${UNIFIED_RUNTIME_INCLUDE_DIR}/ur_api.h" DESTINATION ${SYCL_INCLUDE_DIR}
-  COMPONENT sycl-headers)
-install(FILES "${UNIFIED_RUNTIME_INCLUDE_DIR}/ur_api_funcs.def" DESTINATION ${SYCL_INCLUDE_DIR}
-  COMPONENT sycl-headers)
-install(FILES "${UNIFIED_RUNTIME_INCLUDE_DIR}/ur_print.hpp" DESTINATION ${SYCL_INCLUDE_DIR}
-  COMPONENT sycl-headers)
+install(DIRECTORY "${UNIFIED_RUNTIME_INCLUDE_DIR}/unified-runtime" DESTINATION ${SYCL_INCLUDE_DIR} COMPONENT sycl-headers)
 
 if (WIN32)
   set(SYCL_RT_LIBS sycl${SYCL_MAJOR_VERSION})

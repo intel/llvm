@@ -5,8 +5,8 @@ name: SYCL Run Benchmarks
 
 on:
   schedule:
-    # 2 hours after SYCL nightly
-    - cron: '0 5 * * *'
+    # 2 hours after SYCL nightly, every day after weekday (we built in the morning the next day)
+    - cron: '0 5 * * 2-6'
   # Run on pull requests only when a benchmark-related files were changed.
   pull_request:
     # These paths are exactly the same as in sycl-linux/windows-precommit.yml (to ignore over there)
@@ -64,15 +64,17 @@ on:
         description: Self-hosted runner to use for the benchmarks
         type: choice
         options:
-          - '["PVC_PERF"]'
           - '["BMG_PERF"]'
+          - '["PVC_PERF"]'
           - '["TEST_PERF"]'
+        default: '["BMG_PERF"]'
       backend:
         description: Backend to use
         type: choice
         options:
           - 'level_zero:gpu'
           - 'level_zero_v2:gpu'
+        default: 'level_zero_v2:gpu'
       exit_on_failure:
         description: Fail benchmark script on any error. If true, limit number of iterations to just test correctness.
         type: choice
@@ -88,6 +90,18 @@ on:
           - 'false'
           - 'true'
         default: 'false'
+      gdb_mode:
+        description: Whether or not to run benchmarks under gdb.
+        type: choice
+        options:
+          - '0'
+          - '1'
+        default: '0'
+      custom_cr:
+        description: Custom Compute Runtime to use in benchmarks.
+        type: string
+        required: false
+        default: ''
 
 concurrency:
   # Cancel a currently running workflow for:
@@ -112,6 +126,7 @@ jobs:
       COMMIT_HASH: ${{ inputs.commit_hash }}
       PR_NO: ${{ inputs.pr_no }}
       SAVE_NAME: ${{ inputs.save_name }}
+      CUSTOM_CR: ${{ inputs.custom_cr }}
     outputs:
       benchmark_save_name: ${{ steps.sanitize.outputs.benchmark_save_name }}
       build_ref: ${{ steps.sanitize.outputs.build_ref }}
@@ -119,22 +134,28 @@ jobs:
       - id: sanitize
         run: |
           # Validate user inputs:
-          # usage: check_if_nonempty <var> <regex to check var against> <err message>
-          check_nonempty() {
+          # Usage: validate_if_nonempty <var> <regex to check var against> <err message>
+          # If <var> is empty we skip validation. Either of these vars can be left empty by the user.
+          validate_if_nonempty() {
             [ -z "$1" ] && return
             if [ -z "$(echo "$1" | grep -P "$2")" ]; then
               echo "$3"
               exit 1
             fi
           }
-          check_nonempty "$COMMIT_HASH" '^[0-9a-f]{7,}$' "Bad commit hash (or hash short)."
-          check_nonempty "$PR_NO" '^[0-9]+$' "Bad PR number."
-          check_nonempty "$SAVE_NAME" '^[A-Za-z][A-Za-z0-9_-]+$' "Bad save name."
+          validate_if_nonempty "$COMMIT_HASH" '^[0-9a-f]{7,}$' "Bad commit hash (or hash short)."
+          validate_if_nonempty "$PR_NO" '^[0-9]+$' "Bad PR number."
+          validate_if_nonempty "$SAVE_NAME" '^[A-Za-z][A-Za-z0-9_-]+$' "Bad save name. Use only alphanumerics, dash, underscore, and start with a letter."
+          validate_if_nonempty "$SAVE_NAME" '^(?![Bb]+aseline$)' "Save name cannot be 'Baseline' nor 'baseline' - it's reserved for nightly."
+
+          # Just validate, don't output this var. We pass unquoted string via inputs.custom_cr, as we actually
+          # quote it within the benchmark's action. Double quoting can produce unexpected issues.
+          validate_if_nonempty "$CUSTOM_CR" '^[A-Za-z0-9._/-]+$' "Custom Compute Runtime can be either a proper git ref or 'PR_<no.>'."
 
           BENCHMARK_SAVE_NAME=""
-          BUILD_REF="${{ github.ref }}"
+          BUILD_REF="$GITHUB_REF"
           if [ -n "$SAVE_NAME" ]; then
-            BENCHMARK_SAVE_NAME="$(echo "$SAVE_NAME" | tr -cd 'A-Za-z0-9_-')"
+            BENCHMARK_SAVE_NAME="$SAVE_NAME"
           fi;
           if [ -n "$COMMIT_HASH" ]; then
             echo "Using commit hash $COMMIT_HASH for build..."
@@ -146,7 +167,8 @@ jobs:
             BUILD_REF="refs/pull/$PR_NO/head"
             [ -z "$BENCHMARK_SAVE_NAME" ] && BENCHMARK_SAVE_NAME="PR_${PR_NO}"
           fi
-          [ -z "$BENCHMARK_SAVE_NAME" ] && BENCHMARK_SAVE_NAME="Baseline"
+          # Fall back to ref_name that triggered the workflow:
+          [ -z "$BENCHMARK_SAVE_NAME" ] && BENCHMARK_SAVE_NAME="$GITHUB_REF_NAME"
 
           echo "benchmark_save_name=$BENCHMARK_SAVE_NAME" >> $GITHUB_OUTPUT
           echo "build_ref=$BUILD_REF" >> $GITHUB_OUTPUT
@@ -185,7 +207,7 @@ jobs:
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     secrets: inherit
     with:
-      name: "Benchmarks (${{ matrix.runner }}, ${{ matrix.backend }}, preset: ${{ inputs.preset }})"
+      name: "Benchmarks (${{ matrix.runner }}, ${{ matrix.backend }}, preset: ${{ inputs.preset }}, gdb_mode: ${{ inputs.gdb_mode }})"
       runner: ${{ matrix.runner }}
       image: ghcr.io/intel/llvm/sycl_ubuntu2404_nightly:latest
       image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
@@ -195,6 +217,8 @@ jobs:
       benchmark_save_name: ${{ needs.sanitize_inputs_dispatch.outputs.benchmark_save_name }}
       benchmark_preset: ${{ inputs.preset }}
       benchmark_exit_on_failure: ${{ inputs.exit_on_failure }}
+      benchmark_gdb_mode: ${{ inputs.gdb_mode }}
+      benchmark_custom_cr: ${{ inputs.custom_cr }}
       repo_ref: ${{ needs.sanitize_inputs_dispatch.outputs.build_ref }}
       toolchain_artifact: ${{ needs.build_sycl_dispatch.outputs.toolchain_artifact }}
       toolchain_artifact_filename: ${{ needs.build_sycl_dispatch.outputs.toolchain_artifact_filename }}
@@ -250,7 +274,6 @@ jobs:
   # END nightly benchmarking path
 
   # BEGIN benchmark framework builds and runs on PRs path
-  # TODO: When we have stable BMG runner(s), consider moving this job to that runner.
   test_benchmark_framework:
     name: '[PR] Benchmark suite testing'
     permissions:

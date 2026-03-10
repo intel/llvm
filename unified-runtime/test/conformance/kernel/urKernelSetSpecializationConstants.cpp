@@ -1,4 +1,4 @@
-// Copyright (C) 2023 Intel Corporation
+// Copyright (C) 2023-2026 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
 //
@@ -24,7 +24,8 @@ struct urKernelSetSpecializationConstantsTest : uur::urBaseKernelExecutionTest {
   uint32_t spec_value = 42;
   ur_specialization_constant_info_t info = {0, sizeof(spec_value), &spec_value};
 };
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(urKernelSetSpecializationConstantsTest);
+UUR_DEVICE_TEST_SUITE_WITH_DEFAULT_QUEUE(
+    urKernelSetSpecializationConstantsTest);
 
 struct urKernelSetSpecializationConstantsNegativeTest
     : uur::urBaseKernelExecutionTest {
@@ -44,7 +45,7 @@ struct urKernelSetSpecializationConstantsNegativeTest
   uint32_t spec_value = 42;
   ur_specialization_constant_info_t info = {0, sizeof(spec_value), &spec_value};
 };
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(
+UUR_DEVICE_TEST_SUITE_WITH_DEFAULT_QUEUE(
     urKernelSetSpecializationConstantsNegativeTest);
 
 TEST_P(urKernelSetSpecializationConstantsTest, Success) {

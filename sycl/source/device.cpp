@@ -36,6 +36,9 @@ void force_type(info::device_type &t, const info::device_type &ft) {
 
 device::device() : device(default_selector_v) {}
 
+device::device(const device &rhs) = default;
+device::device(device &&rhs) = default;
+
 device::device(cl_device_id DeviceId) {
   detail::adapter_impl &Adapter =
       sycl::detail::ur::getAdapter<backend::opencl>();
@@ -347,6 +350,13 @@ void device::ext_oneapi_wait() {
 }
 
 void device::ext_oneapi_throw_asynchronous() { impl->throwAsynchronous(); }
+
+size_t device::ext_oneapi_index_within_platform() const {
+  if (!impl->isRootDevice())
+    throw sycl::exception(sycl::make_error_code(errc::invalid),
+                          "this device is not a root device");
+  return impl->getIndexWithinPlatform();
+}
 
 } // namespace _V1
 } // namespace sycl

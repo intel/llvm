@@ -8,7 +8,10 @@
 
 using urGraphDestroyExpTest = uur::urGraphSupportedExpTest;
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(urGraphDestroyExpTest);
+UUR_DEVICE_TEST_SUITE_WITH_QUEUE_TYPES(
+    urGraphDestroyExpTest,
+    ::testing::Values(0 /* In-Order */,
+                      UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE));
 
 /* TODO: Test destroying graph with active executable graph instances. */
 

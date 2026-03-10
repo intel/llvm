@@ -10,8 +10,8 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
-#include <ur_api.h>
-#include <ur_ddi.h>
+#include <unified-runtime/ur_api.h>
+#include <unified-runtime/ur_ddi.h>
 
 namespace ur::level_zero {
 ur_result_t urAdapterGet(uint32_t NumEntries, ur_adapter_handle_t *phAdapters,
@@ -237,69 +237,6 @@ ur_result_t urProgramCreateWithNativeHandle(
     ur_native_handle_t hNativeProgram, ur_context_handle_t hContext,
     const ur_program_native_properties_t *pProperties,
     ur_program_handle_t *phProgram);
-ur_result_t urKernelCreate(ur_program_handle_t hProgram,
-                           const char *pKernelName,
-                           ur_kernel_handle_t *phKernel);
-ur_result_t urKernelSetArgValue(
-    ur_kernel_handle_t hKernel, uint32_t argIndex, size_t argSize,
-    const ur_kernel_arg_value_properties_t *pProperties, const void *pArgValue);
-ur_result_t
-urKernelSetArgLocal(ur_kernel_handle_t hKernel, uint32_t argIndex,
-                    size_t argSize,
-                    const ur_kernel_arg_local_properties_t *pProperties);
-ur_result_t urKernelGetInfo(ur_kernel_handle_t hKernel,
-                            ur_kernel_info_t propName, size_t propSize,
-                            void *pPropValue, size_t *pPropSizeRet);
-ur_result_t urKernelGetGroupInfo(ur_kernel_handle_t hKernel,
-                                 ur_device_handle_t hDevice,
-                                 ur_kernel_group_info_t propName,
-                                 size_t propSize, void *pPropValue,
-                                 size_t *pPropSizeRet);
-ur_result_t urKernelGetSubGroupInfo(ur_kernel_handle_t hKernel,
-                                    ur_device_handle_t hDevice,
-                                    ur_kernel_sub_group_info_t propName,
-                                    size_t propSize, void *pPropValue,
-                                    size_t *pPropSizeRet);
-ur_result_t urKernelRetain(ur_kernel_handle_t hKernel);
-ur_result_t urKernelRelease(ur_kernel_handle_t hKernel);
-ur_result_t
-urKernelSetArgPointer(ur_kernel_handle_t hKernel, uint32_t argIndex,
-                      const ur_kernel_arg_pointer_properties_t *pProperties,
-                      const void *pArgValue);
-ur_result_t
-urKernelSetExecInfo(ur_kernel_handle_t hKernel, ur_kernel_exec_info_t propName,
-                    size_t propSize,
-                    const ur_kernel_exec_info_properties_t *pProperties,
-                    const void *pPropValue);
-ur_result_t
-urKernelSetArgSampler(ur_kernel_handle_t hKernel, uint32_t argIndex,
-                      const ur_kernel_arg_sampler_properties_t *pProperties,
-                      ur_sampler_handle_t hArgValue);
-ur_result_t
-urKernelSetArgMemObj(ur_kernel_handle_t hKernel, uint32_t argIndex,
-                     const ur_kernel_arg_mem_obj_properties_t *pProperties,
-                     ur_mem_handle_t hArgValue);
-ur_result_t urKernelSetSpecializationConstants(
-    ur_kernel_handle_t hKernel, uint32_t count,
-    const ur_specialization_constant_info_t *pSpecConstants);
-ur_result_t urKernelGetNativeHandle(ur_kernel_handle_t hKernel,
-                                    ur_native_handle_t *phNativeKernel);
-ur_result_t
-urKernelCreateWithNativeHandle(ur_native_handle_t hNativeKernel,
-                               ur_context_handle_t hContext,
-                               ur_program_handle_t hProgram,
-                               const ur_kernel_native_properties_t *pProperties,
-                               ur_kernel_handle_t *phKernel);
-ur_result_t urKernelGetSuggestedLocalWorkSize(ur_kernel_handle_t hKernel,
-                                              ur_queue_handle_t hQueue,
-                                              uint32_t numWorkDim,
-                                              const size_t *pGlobalWorkOffset,
-                                              const size_t *pGlobalWorkSize,
-                                              size_t *pSuggestedLocalWorkSize);
-ur_result_t urKernelSuggestMaxCooperativeGroupCount(
-    ur_kernel_handle_t hKernel, ur_device_handle_t hDevice, uint32_t workDim,
-    const size_t *pLocalWorkSize, size_t dynamicSharedMemorySize,
-    uint32_t *pGroupCountRet);
 ur_result_t urQueueGetInfo(ur_queue_handle_t hQueue, ur_queue_info_t propName,
                            size_t propSize, void *pPropValue,
                            size_t *pPropSizeRet);
@@ -479,6 +416,77 @@ ur_result_t urEnqueueWriteHostPipe(ur_queue_handle_t hQueue,
                                    uint32_t numEventsInWaitList,
                                    const ur_event_handle_t *phEventWaitList,
                                    ur_event_handle_t *phEvent);
+ur_result_t urEnqueueKernelLaunchWithArgsExp(
+    ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel, uint32_t workDim,
+    const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
+    const size_t *pLocalWorkSize, uint32_t numArgs,
+    const ur_exp_kernel_arg_properties_t *pArgs,
+    const ur_kernel_launch_ext_properties_t *launchPropList,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent);
+ur_result_t urKernelCreate(ur_program_handle_t hProgram,
+                           const char *pKernelName,
+                           ur_kernel_handle_t *phKernel);
+ur_result_t urKernelSetArgValue(
+    ur_kernel_handle_t hKernel, uint32_t argIndex, size_t argSize,
+    const ur_kernel_arg_value_properties_t *pProperties, const void *pArgValue);
+ur_result_t
+urKernelSetArgLocal(ur_kernel_handle_t hKernel, uint32_t argIndex,
+                    size_t argSize,
+                    const ur_kernel_arg_local_properties_t *pProperties);
+ur_result_t urKernelGetInfo(ur_kernel_handle_t hKernel,
+                            ur_kernel_info_t propName, size_t propSize,
+                            void *pPropValue, size_t *pPropSizeRet);
+ur_result_t urKernelGetGroupInfo(ur_kernel_handle_t hKernel,
+                                 ur_device_handle_t hDevice,
+                                 ur_kernel_group_info_t propName,
+                                 size_t propSize, void *pPropValue,
+                                 size_t *pPropSizeRet);
+ur_result_t urKernelGetSubGroupInfo(ur_kernel_handle_t hKernel,
+                                    ur_device_handle_t hDevice,
+                                    ur_kernel_sub_group_info_t propName,
+                                    size_t propSize, void *pPropValue,
+                                    size_t *pPropSizeRet);
+ur_result_t urKernelRetain(ur_kernel_handle_t hKernel);
+ur_result_t urKernelRelease(ur_kernel_handle_t hKernel);
+ur_result_t
+urKernelSetArgPointer(ur_kernel_handle_t hKernel, uint32_t argIndex,
+                      const ur_kernel_arg_pointer_properties_t *pProperties,
+                      const void *pArgValue);
+ur_result_t
+urKernelSetExecInfo(ur_kernel_handle_t hKernel, ur_kernel_exec_info_t propName,
+                    size_t propSize,
+                    const ur_kernel_exec_info_properties_t *pProperties,
+                    const void *pPropValue);
+ur_result_t
+urKernelSetArgSampler(ur_kernel_handle_t hKernel, uint32_t argIndex,
+                      const ur_kernel_arg_sampler_properties_t *pProperties,
+                      ur_sampler_handle_t hArgValue);
+ur_result_t
+urKernelSetArgMemObj(ur_kernel_handle_t hKernel, uint32_t argIndex,
+                     const ur_kernel_arg_mem_obj_properties_t *pProperties,
+                     ur_mem_handle_t hArgValue);
+ur_result_t urKernelSetSpecializationConstants(
+    ur_kernel_handle_t hKernel, uint32_t count,
+    const ur_specialization_constant_info_t *pSpecConstants);
+ur_result_t urKernelGetNativeHandle(ur_kernel_handle_t hKernel,
+                                    ur_native_handle_t *phNativeKernel);
+ur_result_t
+urKernelCreateWithNativeHandle(ur_native_handle_t hNativeKernel,
+                               ur_context_handle_t hContext,
+                               ur_program_handle_t hProgram,
+                               const ur_kernel_native_properties_t *pProperties,
+                               ur_kernel_handle_t *phKernel);
+ur_result_t urKernelGetSuggestedLocalWorkSize(ur_kernel_handle_t hKernel,
+                                              ur_queue_handle_t hQueue,
+                                              uint32_t numWorkDim,
+                                              const size_t *pGlobalWorkOffset,
+                                              const size_t *pGlobalWorkSize,
+                                              size_t *pSuggestedLocalWorkSize);
+ur_result_t urKernelSuggestMaxCooperativeGroupCount(
+    ur_kernel_handle_t hKernel, ur_device_handle_t hDevice, uint32_t workDim,
+    const size_t *pLocalWorkSize, size_t dynamicSharedMemorySize,
+    uint32_t *pGroupCountRet);
 ur_result_t urEnqueueUSMDeviceAllocExp(
     ur_queue_handle_t hQueue, ur_usm_pool_handle_t pPool, const size_t size,
     const ur_exp_async_usm_alloc_properties_t *pProperties,
@@ -626,6 +634,62 @@ ur_result_t urBindlessImagesSignalExternalSemaphoreExp(
     ur_queue_handle_t hQueue, ur_exp_external_semaphore_handle_t hSemaphore,
     bool hasSignalValue, uint64_t signalValue, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent);
+ur_result_t urDeviceWaitExp(ur_device_handle_t hDevice);
+ur_result_t urProgramDynamicLinkExp(ur_context_handle_t hContext,
+                                    uint32_t count,
+                                    const ur_program_handle_t *phPrograms);
+ur_result_t urEnqueueTimestampRecordingExp(
+    ur_queue_handle_t hQueue, bool blocking, uint32_t numEventsInWaitList,
+    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent);
+ur_result_t urIPCGetMemHandleExp(ur_context_handle_t hContext, void *pMem,
+                                 void **ppIPCMemHandleData,
+                                 size_t *pIPCMemHandleDataSizeRet);
+ur_result_t urIPCPutMemHandleExp(ur_context_handle_t hContext,
+                                 void *pIPCMemHandleData);
+ur_result_t urIPCOpenMemHandleExp(ur_context_handle_t hContext,
+                                  ur_device_handle_t hDevice,
+                                  void *pIPCMemHandleData,
+                                  size_t ipcMemHandleDataSize, void **ppMem);
+ur_result_t urIPCCloseMemHandleExp(ur_context_handle_t hContext, void *pMem);
+ur_result_t urMemoryExportAllocExportableMemoryExp(
+    ur_context_handle_t hContext, ur_device_handle_t hDevice, size_t alignment,
+    size_t size, ur_exp_external_mem_type_t handleTypeToExport, void **ppMem);
+ur_result_t urMemoryExportFreeExportableMemoryExp(ur_context_handle_t hContext,
+                                                  ur_device_handle_t hDevice,
+                                                  void *pMem);
+ur_result_t urMemoryExportExportMemoryHandleExp(
+    ur_context_handle_t hContext, ur_device_handle_t hDevice,
+    ur_exp_external_mem_type_t handleTypeToExport, void *pMem,
+    void *pMemHandleRet);
+ur_result_t urProgramBuildExp(ur_program_handle_t hProgram, uint32_t numDevices,
+                              ur_device_handle_t *phDevices,
+                              ur_exp_program_flags_t flags,
+                              const char *pOptions);
+ur_result_t urProgramCompileExp(ur_program_handle_t hProgram,
+                                uint32_t numDevices,
+                                ur_device_handle_t *phDevices,
+                                ur_exp_program_flags_t flags,
+                                const char *pOptions);
+ur_result_t urProgramLinkExp(ur_context_handle_t hContext, uint32_t numDevices,
+                             ur_device_handle_t *phDevices,
+                             ur_exp_program_flags_t flags, uint32_t count,
+                             const ur_program_handle_t *phPrograms,
+                             const char *pOptions,
+                             ur_program_handle_t *phProgram);
+ur_result_t urUSMContextMemcpyExp(ur_context_handle_t hContext, void *pDst,
+                                  const void *pSrc, size_t size);
+ur_result_t urUSMImportExp(ur_context_handle_t hContext, void *pMem,
+                           size_t size);
+ur_result_t urUSMReleaseExp(ur_context_handle_t hContext, void *pMem);
+ur_result_t urUsmP2PEnablePeerAccessExp(ur_device_handle_t commandDevice,
+                                        ur_device_handle_t peerDevice);
+ur_result_t urUsmP2PDisablePeerAccessExp(ur_device_handle_t commandDevice,
+                                         ur_device_handle_t peerDevice);
+ur_result_t urUsmP2PPeerAccessGetInfoExp(ur_device_handle_t commandDevice,
+                                         ur_device_handle_t peerDevice,
+                                         ur_exp_peer_info_t propName,
+                                         size_t propSize, void *pPropValue,
+                                         size_t *pPropSizeRet);
 ur_result_t
 urCommandBufferCreateExp(ur_context_handle_t hContext,
                          ur_device_handle_t hDevice,
@@ -641,6 +705,17 @@ ur_result_t urCommandBufferAppendKernelLaunchExp(
     ur_exp_command_buffer_handle_t hCommandBuffer, ur_kernel_handle_t hKernel,
     uint32_t workDim, const size_t *pGlobalWorkOffset,
     const size_t *pGlobalWorkSize, const size_t *pLocalWorkSize,
+    uint32_t numKernelAlternatives, ur_kernel_handle_t *phKernelAlternatives,
+    uint32_t numSyncPointsInWaitList,
+    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_exp_command_buffer_sync_point_t *pSyncPoint, ur_event_handle_t *phEvent,
+    ur_exp_command_buffer_command_handle_t *phCommand);
+ur_result_t urCommandBufferAppendKernelLaunchWithArgsExp(
+    ur_exp_command_buffer_handle_t hCommandBuffer, ur_kernel_handle_t hKernel,
+    uint32_t workDim, const size_t *pGlobalWorkOffset,
+    const size_t *pGlobalWorkSize, const size_t *pLocalWorkSize,
+    uint32_t numArgs, const ur_exp_kernel_arg_properties_t *pArgs,
     uint32_t numKernelAlternatives, ur_kernel_handle_t *phKernelAlternatives,
     uint32_t numSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
@@ -767,68 +842,9 @@ urCommandBufferGetInfoExp(ur_exp_command_buffer_handle_t hCommandBuffer,
 ur_result_t
 urCommandBufferGetNativeHandleExp(ur_exp_command_buffer_handle_t hCommandBuffer,
                                   ur_native_handle_t *phNativeCommandBuffer);
-ur_result_t urDeviceWaitExp(ur_device_handle_t hDevice);
-ur_result_t urProgramDynamicLinkExp(ur_context_handle_t hContext,
-                                    uint32_t count,
-                                    const ur_program_handle_t *phPrograms);
-ur_result_t urEnqueueTimestampRecordingExp(
-    ur_queue_handle_t hQueue, bool blocking, uint32_t numEventsInWaitList,
-    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent);
-ur_result_t urIPCGetMemHandleExp(ur_context_handle_t hContext, void *pMem,
-                                 void **ppIPCMemHandleData,
-                                 size_t *pIPCMemHandleDataSizeRet);
-ur_result_t urIPCPutMemHandleExp(ur_context_handle_t hContext,
-                                 void *pIPCMemHandleData);
-ur_result_t urIPCOpenMemHandleExp(ur_context_handle_t hContext,
-                                  ur_device_handle_t hDevice,
-                                  void *pIPCMemHandleData,
-                                  size_t ipcMemHandleDataSize, void **ppMem);
-ur_result_t urIPCCloseMemHandleExp(ur_context_handle_t hContext, void *pMem);
-ur_result_t urMemoryExportAllocExportableMemoryExp(
-    ur_context_handle_t hContext, ur_device_handle_t hDevice, size_t alignment,
-    size_t size, ur_exp_external_mem_type_t handleTypeToExport, void **ppMem);
-ur_result_t urMemoryExportFreeExportableMemoryExp(ur_context_handle_t hContext,
-                                                  ur_device_handle_t hDevice,
-                                                  void *pMem);
-ur_result_t urMemoryExportExportMemoryHandleExp(
-    ur_context_handle_t hContext, ur_device_handle_t hDevice,
-    ur_exp_external_mem_type_t handleTypeToExport, void *pMem,
-    void *pMemHandleRet);
-ur_result_t urProgramBuildExp(ur_program_handle_t hProgram, uint32_t numDevices,
-                              ur_device_handle_t *phDevices,
-                              ur_exp_program_flags_t flags,
-                              const char *pOptions);
-ur_result_t urProgramCompileExp(ur_program_handle_t hProgram,
-                                uint32_t numDevices,
-                                ur_device_handle_t *phDevices,
-                                ur_exp_program_flags_t flags,
-                                const char *pOptions);
-ur_result_t urProgramLinkExp(ur_context_handle_t hContext, uint32_t numDevices,
-                             ur_device_handle_t *phDevices,
-                             ur_exp_program_flags_t flags, uint32_t count,
-                             const ur_program_handle_t *phPrograms,
-                             const char *pOptions,
-                             ur_program_handle_t *phProgram);
-ur_result_t urUSMContextMemcpyExp(ur_context_handle_t hContext, void *pDst,
-                                  const void *pSrc, size_t size);
-ur_result_t urUSMImportExp(ur_context_handle_t hContext, void *pMem,
-                           size_t size);
-ur_result_t urUSMReleaseExp(ur_context_handle_t hContext, void *pMem);
-ur_result_t urUsmP2PEnablePeerAccessExp(ur_device_handle_t commandDevice,
-                                        ur_device_handle_t peerDevice);
-ur_result_t urUsmP2PDisablePeerAccessExp(ur_device_handle_t commandDevice,
-                                         ur_device_handle_t peerDevice);
-ur_result_t urUsmP2PPeerAccessGetInfoExp(ur_device_handle_t commandDevice,
-                                         ur_device_handle_t peerDevice,
-                                         ur_exp_peer_info_t propName,
-                                         size_t propSize, void *pPropValue,
-                                         size_t *pPropSizeRet);
-ur_result_t urEnqueueKernelLaunchWithArgsExp(
-    ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel, uint32_t workDim,
-    const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
-    const size_t *pLocalWorkSize, uint32_t numArgs,
-    const ur_exp_kernel_arg_properties_t *pArgs,
-    const ur_kernel_launch_ext_properties_t *launchPropList,
+ur_result_t urEnqueueHostTaskExp(
+    ur_queue_handle_t hQueue, ur_exp_host_task_function_t pfnHostTask,
+    void *data, const ur_exp_host_task_properties_t *pProperties,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent);
 ur_result_t urEnqueueEventsWaitWithBarrierExt(

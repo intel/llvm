@@ -47,6 +47,10 @@ and not recommended to use in production environment.
     Special target values specific to Intel, NVIDIA and AMD Processor Graphics
     support are accepted, providing a streamlined interface for AOT.
     A comma-separated list of valid Intel, NVIDIA and AMD Processor Graphics values are supported.
+    * intel_gpu_cri, intel_gpu_35_11_0 - Crescent Island Intel graphics architecture
+    * intel_gpu_nvl_p, intel_gpu_35_10_0 - Nova Lake P Intel graphics architecture
+    * intel_gpu_nvl_u, intel_gpu_nvl_h, intel_gpu_30_5_0 - Nova Lake U/H Intel graphics architecture
+    * intel_gpu_nvl_s, intel_gpu_nvl_hx, intel_gpu_nvl_ul, intel_gpu_30_4_0 - Nova Lake S/HX/UL Intel graphics architecture
     * intel_gpu_wcl, intel_gpu_30_3_0 - Wildcat Lake Intel graphics architecture
     * intel_gpu_ptl_u, intel_gpu_30_1_1 - Panther Lake U Intel graphics architecture
     * intel_gpu_ptl_h, intel_gpu_30_0_4 - Panther Lake H Intel graphics architecture
@@ -391,6 +395,13 @@ and not recommended to use in production environment.
     This option is replaced with -foffload-fp32-prec-sqrt.
 
     NOTE: This flag is currently only supported with the CUDA and HIP targets.
+
+**`-fsycl-fp64-conv-emu`**
+
+    Use fp64 partial emulation for kernels with only fp64 conversion operations
+    and no fp64 computation operations.
+
+    NOTE: This requires an Intel GPU that supports fp64 partial emulation.
 
 **`-fsycl-dump-device-code=<path-to-device-build-artifacts-directory>`** [DEPRECATED]
 

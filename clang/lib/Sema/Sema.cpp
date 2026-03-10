@@ -1538,6 +1538,12 @@ void Sema::ActOnEndOfTranslationUnit() {
     Consumer.CompleteExternalDeclaration(D);
   }
 
+  // Visit all pending #pragma export.
+  for (const PendingPragmaInfo &Exported : PendingExportedNames.values()) {
+    if (!Exported.Used)
+      Diag(Exported.NameLoc, diag::warn_failed_to_resolve_pragma) << "export";
+  }
+
   if (LangOpts.HLSL)
     HLSL().ActOnEndOfTranslationUnit(getASTContext().getTranslationUnitDecl());
   if (LangOpts.OpenACC)
@@ -2584,8 +2590,8 @@ static void markEscapingByrefs(const FunctionScopeInfo &FSI, Sema &S) {
 }
 
 Sema::PoppedFunctionScopePtr
-Sema::PopFunctionScopeInfo(const AnalysisBasedWarnings::Policy *WP,
-                           const Decl *D, QualType BlockType) {
+Sema::PopFunctionScopeInfo(const AnalysisBasedWarnings::Policy *WP, Decl *D,
+                           QualType BlockType) {
   assert(!FunctionScopes.empty() && "mismatched push/pop!");
 
   markEscapingByrefs(*FunctionScopes.back(), *this);

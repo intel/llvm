@@ -22,7 +22,7 @@
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_kernel_attributes,+SPV_INTEL_io_pipes
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_inline_assembly,+SPV_INTEL_arbitrary_precision_integers
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_float_controls2
-// CHECK-DEFAULT-SAME:,+SPV_INTEL_vector_compute,+SPV_INTEL_fast_composite
+// CHECK-DEFAULT-SAME:,+SPV_INTEL_vector_compute
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_arbitrary_precision_fixed_point
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_arbitrary_precision_floating_point
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_variable_length_array,+SPV_INTEL_fp_fast_math_mode
@@ -61,7 +61,7 @@
 // CHECK-CPU-SAME:,+SPV_INTEL_kernel_attributes,+SPV_INTEL_io_pipes
 // CHECK-CPU-SAME:,+SPV_INTEL_inline_assembly,+SPV_INTEL_arbitrary_precision_integers
 // CHECK-CPU-SAME:,+SPV_INTEL_float_controls2
-// CHECK-CPU-SAME:,+SPV_INTEL_vector_compute,+SPV_INTEL_fast_composite
+// CHECK-CPU-SAME:,+SPV_INTEL_vector_compute
 // CHECK-CPU-SAME:,+SPV_INTEL_arbitrary_precision_fixed_point
 // CHECK-CPU-SAME:,+SPV_INTEL_arbitrary_precision_floating_point
 // CHECK-CPU-SAME:,+SPV_INTEL_variable_length_array,+SPV_INTEL_fp_fast_math_mode

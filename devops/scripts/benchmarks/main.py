@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-# Copyright (C) 2024-2025 Intel Corporation
+# Copyright (C) 2024-2026 Intel Corporation
 # Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -10,13 +10,12 @@ import re
 import statistics
 import os
 
-from benches.compute import *
+from benches.compute.compute import *
 from benches.gromacs import GromacsBench
 from benches.velocity import VelocityBench
 from benches.syclbench import *
 from benches.llamacpp import *
 from benches.umf import *
-from benches.test import TestSuite
 from benches.benchdnn import OneDnnBench
 from benches.base import TracingType
 from options import Compare, options
@@ -107,8 +106,8 @@ def run_iterations(
     Unless options.exit_on_failure is set, then exception is raised.
     """
 
+    log.info(f"Running '{benchmark.name()}' {iters}x iterations...")
     for iter in range(iters):
-        log.info(f"running {benchmark.name()}, iteration {iter}... ")
         try:
             bench_results = benchmark.run(
                 env_vars, run_trace=run_trace, force_trace=force_trace
@@ -122,9 +121,8 @@ def run_iterations(
 
             for bench_result in bench_results:
                 log.info(
-                    f"{benchmark.name()} complete ({bench_result.label}: {bench_result.value:.3f} {bench_result.unit})."
+                    f"{benchmark.name()} complete: {bench_result.value:.3f} {bench_result.unit}."
                 )
-                bench_result.name = bench_result.label
                 bench_result.lower_is_better = benchmark.lower_is_better()
                 bench_result.suite = benchmark.get_suite_name()
 
@@ -145,7 +143,7 @@ def run_iterations(
                 log.error(f"{failure_label}: verification failed: {str(e)}.")
                 continue
 
-    # Iterations completed successfully
+    log.info(f"Completed '{benchmark.name()}' {iters}x iterations")
     return True
 
 
@@ -276,7 +274,6 @@ def main(directory, additional_env_vars, compare_names, filter, execution_stats)
         UMFSuite(),
         GromacsBench(),
         OneDnnBench(),
-        TestSuite(),
     ]
 
     # Collect metadata from all benchmarks without setting them up
@@ -486,7 +483,7 @@ def main(directory, additional_env_vars, compare_names, filter, execution_stats)
             html_path = os.path.normpath(
                 os.path.join(os.path.dirname(__file__), "html")
             )
-        log.info(f"Generating HTML with benchmark results in {html_path}...")
+        log.info(f"Generating HTML with benchmark results in '{html_path}'...")
 
         generate_html(history, compare_names, html_path, metadata)
         log.info(f"HTML with benchmark results has been generated")
@@ -529,6 +526,12 @@ if __name__ == "__main__":
         default="level_zero",
     )
     parser.add_argument(
+        "--offline",
+        help="Skip rebuilding projects, oneAPI updates, and benchmark data downloads.",
+        action="store_true",
+        default=False,
+    )
+    parser.add_argument(
         "--redownload",
         help="Always download benchmark data dependencies, even if they already exist.",
         action="store_true",
@@ -542,7 +545,12 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--save",
-        type=str,
+        type=lambda save: Validate.clean_name(
+            save,
+            throw=argparse.ArgumentTypeError(
+                "Specified save name is not within characters [a-zA-Z0-9_-]."
+            ),
+        ),
         help="Save the results for comparison under a specified name.",
     )
     parser.add_argument(
@@ -789,6 +797,7 @@ if __name__ == "__main__":
     additional_env_vars = validate_and_parse_env_args(args.env)
 
     options.workdir = args.benchmark_directory
+    options.offline = args.offline
     options.redownload = args.redownload
     options.sycl = args.sycl
     options.iterations = args.iterations

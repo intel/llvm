@@ -5,7 +5,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "ur_api.h"
+#include "unified-runtime/ur_api.h"
 #include <detail/error_handling/error_handling.hpp>
 
 #include <detail/context_impl.hpp>
@@ -33,15 +33,6 @@
 #include <optional>
 #include <string>
 #include <vector>
-
-#ifdef __has_include
-#if __has_include(<cxxabi.h>)
-#define __SYCL_ENABLE_GNU_DEMANGLING
-#include <cstdlib>
-#include <cxxabi.h>
-#include <memory>
-#endif
-#endif
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 #include <detail/xpti_registry.hpp>
@@ -131,27 +122,6 @@ static context_impl *getContext(queue_impl *Queue) {
 static context_impl *getContext(const std::shared_ptr<queue_impl> &Queue) {
   return getContext(Queue.get());
 }
-
-#ifdef __SYCL_ENABLE_GNU_DEMANGLING
-struct DemangleHandle {
-  char *p;
-  DemangleHandle(char *ptr) : p(ptr) {}
-
-  DemangleHandle(const DemangleHandle &) = delete;
-  DemangleHandle &operator=(const DemangleHandle &) = delete;
-
-  ~DemangleHandle() { std::free(p); }
-};
-static std::string demangleKernelName(const std::string_view Name) {
-  int Status = -1; // some arbitrary value to eliminate the compiler warning
-  DemangleHandle result(abi::__cxa_demangle(Name.data(), NULL, NULL, &Status));
-  return (Status == 0) ? result.p : std::string(Name);
-}
-#else
-static std::string demangleKernelName(const std::string_view Name) {
-  return std::string(Name);
-}
-#endif
 
 static std::string accessModeToString(access::mode Mode) {
   switch (Mode) {
@@ -252,49 +222,6 @@ std::vector<ur_event_handle_t> Command::getUrEvents(events_range Events,
 
 std::vector<ur_event_handle_t> Command::getUrEvents(events_range Events) const {
   return getUrEvents(Events, MWorkerQueue.get(), isHostTask());
-}
-
-// This function is implemented (duplicating getUrEvents a lot) as short term
-// solution for the issue that barrier with wait list could not
-// handle empty ur event handles when kernel is enqueued on host task
-// completion.
-std::vector<ur_event_handle_t>
-Command::getUrEventsBlocking(events_range Events, bool HasEventMode) const {
-  std::vector<ur_event_handle_t> RetUrEvents;
-  for (event_impl &Event : Events) {
-    // Throwaway events created with empty constructor will not have a context
-    // (which is set lazily) calling getContextImpl() would set that
-    // context, which we wish to avoid as it is expensive.
-    // Skip host task and NOP events also.
-    if (Event.isDefaultConstructed() || Event.isHost() || Event.isNOP())
-      continue;
-
-    // If command has not been enqueued then we have to enqueue it.
-    // It may happen if async enqueue in a host task is involved.
-    // Interoperability events are special cases and they are not enqueued, as
-    // they don't have an associated queue and command.
-    if (!Event.isInterop() && !Event.isEnqueued()) {
-      if (!Event.getCommand() || !Event.getCommand()->producesPiEvent())
-        continue;
-      std::vector<Command *> AuxCmds;
-      Scheduler::getInstance().enqueueCommandForCG(Event, AuxCmds, BLOCKING);
-    }
-    // Do not add redundant event dependencies for in-order queues.
-    // At this stage dependency is definitely ur task and need to check if
-    // current one is a host task. In this case we should not skip pi event due
-    // to different sync mechanisms for different task types on in-order queue.
-    // If the resulting event is supposed to have a specific event mode,
-    // redundant events may still differ from the resulting event, so they are
-    // kept.
-    if (!HasEventMode && MWorkerQueue &&
-        Event.getWorkerQueue() == MWorkerQueue && MWorkerQueue->isInOrder() &&
-        !isHostTask())
-      continue;
-
-    RetUrEvents.push_back(Event.getHandle());
-  }
-
-  return RetUrEvents;
 }
 
 bool Command::isHostTask() const {
@@ -588,7 +515,7 @@ void Command::emitEdgeEventForCommandDependence(
     std::optional<access::mode> AccMode) {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   // Bail early if either the source or the target node for the given
-  // dependency is undefined or NULL
+  // dependency is undefined or NULL, or if no one is subscribed to edge_create
   constexpr uint16_t NotificationTraceType = xpti::trace_edge_create;
   if (!(xptiCheckTraceEnabled(MStreamID, NotificationTraceType) &&
         MTraceEvent && Cmd && Cmd->MTraceEvent))
@@ -671,6 +598,11 @@ void Command::emitEdgeEventForEventDependence(Command *Cmd,
                             detail::GSYCLGraphEvent, NodeEvent, VNodeInstanceNo,
                             nullptr);
     }
+    // Bail early if no one is subscribed to edge_create to avoid unnecessary
+    // work
+    if (!(xptiCheckTraceEnabled(MStreamID, xpti::trace_edge_create)))
+      return;
+
     // Create a new event for the edge
     std::string EdgeName = SH.nameWithAddressString("Event", AddressStr);
     xpti_tracepoint_t *EEvent =
@@ -944,7 +876,9 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
 void Command::resolveReleaseDependencies(std::set<Command *> &DepList) {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   assert(MType == CommandType::RELEASE && "Expected release command");
-  if (!MTraceEvent)
+  // Bail early if no one is subscribed to edge_create to avoid unnecessary work
+  if (!(xptiCheckTraceEnabled(MStreamID, xpti::trace_edge_create) &&
+        MTraceEvent))
     return;
   // The current command is the target node for all dependencies as the source
   // nodes have to be completed first before the current node can begin to
@@ -1189,7 +1123,7 @@ ur_result_t AllocaSubBufCommand::enqueueImp() {
           MMemAllocation, MemoryManager::allocateMemSubBuffer,
           getContext(MQueue), MParentAlloca->getMemAllocation(),
           MRequirement.MElemSize, MRequirement.MOffsetInBytes,
-          MRequirement.MAccessRange, std::move(EventImpls), UREvent);
+          MRequirement.MMemoryRange, std::move(EventImpls), UREvent);
       Result != UR_RESULT_SUCCESS)
     return Result;
 
@@ -1958,7 +1892,7 @@ ExecCGCommand::ExecCGCommand(
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 std::string instrumentationGetKernelName(const kernel_impl *SyclKernel,
                                          const std::string_view FunctionName,
-                                         const std::string_view SyclKernelName,
+                                         DeviceKernelInfo &DeviceKernelInfo,
                                          void *&Address,
                                          std::optional<bool> &FromSource) {
   std::string KernelName;
@@ -1969,7 +1903,7 @@ std::string instrumentationGetKernelName(const kernel_impl *SyclKernel,
     KernelName = FunctionName;
   } else {
     FromSource = false;
-    KernelName = demangleKernelName(SyclKernelName);
+    KernelName = DeviceKernelInfo.getDemangledName();
   }
   return KernelName;
 }
@@ -2093,7 +2027,7 @@ std::pair<xpti_td *, uint64_t> emitKernelInstrumentationData(
   std::optional<bool> FromSource;
   std::string KernelName =
       instrumentationGetKernelName(SyclKernel, CodeLoc.functionName(),
-                                   DeviceKernelInfo.Name, Address, FromSource);
+                                   DeviceKernelInfo, Address, FromSource);
 
   auto &[CmdTraceEvent, InstanceID] = XptiObjects;
 
@@ -2150,7 +2084,7 @@ void ExecCGCommand::emitInstrumentationData() {
         reinterpret_cast<detail::CGExecKernel *>(MCommandGroup.get());
     KernelName = instrumentationGetKernelName(
         KernelCG->MSyclKernel.get(), MCommandGroup->MFunctionName,
-        KernelCG->getKernelName(), MAddress, FromSource);
+        KernelCG->MDeviceKernelInfo, MAddress, FromSource);
   } break;
   default:
     KernelName = getTypeString();
@@ -2174,12 +2108,14 @@ void ExecCGCommand::emitInstrumentationData() {
                                  getQueueID(MQueue));
     MTraceEvent = static_cast<void *>(CmdTraceEvent);
     if (MCommandGroup->getType() == detail::CGType::Kernel) {
-      auto KernelCG =
-          reinterpret_cast<detail::CGExecKernel *>(MCommandGroup.get());
-      instrumentationAddExtraKernelMetadata(
-          CmdTraceEvent, KernelCG->MNDRDesc, KernelCG->getKernelBundle().get(),
-          KernelCG->MDeviceKernelInfo, KernelCG->MSyclKernel.get(),
-          MQueue.get(), KernelCG->MArgs);
+      if (detail::isDebugStream(MStreamID)) {
+        auto KernelCG =
+            reinterpret_cast<detail::CGExecKernel *>(MCommandGroup.get());
+        instrumentationAddExtraKernelMetadata(
+            CmdTraceEvent, KernelCG->MNDRDesc,
+            KernelCG->getKernelBundle().get(), KernelCG->MDeviceKernelInfo,
+            KernelCG->MSyclKernel.get(), MQueue.get(), KernelCG->MArgs);
+      }
     }
 
     xptiNotifySubscribers(
@@ -2204,7 +2140,7 @@ void ExecCGCommand::printDot(std::ostream &Stream) const {
     if (KernelCG->MSyclKernel && KernelCG->MSyclKernel->isCreatedFromSource())
       Stream << "created from source";
     else
-      Stream << demangleKernelName(KernelCG->getKernelName());
+      Stream << KernelCG->MDeviceKernelInfo.getDemangledName();
     Stream << "\\n";
     break;
   }
@@ -2532,93 +2468,6 @@ static ur_result_t SetKernelParamsAndLaunch(
   return Error;
 }
 
-// Sets arguments for a given kernel and device based on the argument type.
-// This is a legacy path which the graphs extension still uses.
-static void SetArgBasedOnType(
-    adapter_impl &Adapter, ur_kernel_handle_t Kernel,
-    device_image_impl *DeviceImageImpl,
-    const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
-    context_impl &ContextImpl, detail::ArgDesc &Arg, size_t NextTrueIndex) {
-  switch (Arg.MType) {
-  case kernel_param_kind_t::kind_dynamic_work_group_memory:
-    break;
-  case kernel_param_kind_t::kind_work_group_memory:
-    break;
-  case kernel_param_kind_t::kind_stream:
-    break;
-  case kernel_param_kind_t::kind_dynamic_accessor:
-  case kernel_param_kind_t::kind_accessor: {
-    Requirement *Req = (Requirement *)(Arg.MPtr);
-
-    // getMemAllocationFunc is nullptr when there are no requirements. However,
-    // we may pass default constructed accessors to a command, which don't add
-    // requirements. In such case, getMemAllocationFunc is nullptr, but it's a
-    // valid case, so we need to properly handle it.
-    ur_mem_handle_t MemArg =
-        getMemAllocationFunc
-            ? reinterpret_cast<ur_mem_handle_t>(getMemAllocationFunc(Req))
-            : nullptr;
-    ur_kernel_arg_mem_obj_properties_t MemObjData{};
-    MemObjData.stype = UR_STRUCTURE_TYPE_KERNEL_ARG_MEM_OBJ_PROPERTIES;
-    MemObjData.memoryAccess = AccessModeToUr(Req->MAccessMode);
-    Adapter.call<UrApiKind::urKernelSetArgMemObj>(Kernel, NextTrueIndex,
-                                                  &MemObjData, MemArg);
-    break;
-  }
-  case kernel_param_kind_t::kind_std_layout: {
-    if (Arg.MPtr) {
-      Adapter.call<UrApiKind::urKernelSetArgValue>(
-          Kernel, NextTrueIndex, Arg.MSize, nullptr, Arg.MPtr);
-    } else {
-      Adapter.call<UrApiKind::urKernelSetArgLocal>(Kernel, NextTrueIndex,
-                                                   Arg.MSize, nullptr);
-    }
-
-    break;
-  }
-  case kernel_param_kind_t::kind_struct_with_special_type: {
-    Adapter.call<UrApiKind::urKernelSetArgValue>(Kernel, NextTrueIndex,
-                                                 Arg.MSize, nullptr, Arg.MPtr);
-    break;
-  }
-  case kernel_param_kind_t::kind_sampler: {
-    sampler *SamplerPtr = (sampler *)Arg.MPtr;
-    ur_sampler_handle_t Sampler =
-        (ur_sampler_handle_t)detail::getSyclObjImpl(*SamplerPtr)
-            ->getOrCreateSampler(ContextImpl);
-    Adapter.call<UrApiKind::urKernelSetArgSampler>(Kernel, NextTrueIndex,
-                                                   nullptr, Sampler);
-    break;
-  }
-  case kernel_param_kind_t::kind_pointer: {
-    // We need to de-rerence this to get the actual USM allocation - that's the
-    // pointer UR is expecting.
-    const void *Ptr = *static_cast<const void *const *>(Arg.MPtr);
-    Adapter.call<UrApiKind::urKernelSetArgPointer>(Kernel, NextTrueIndex,
-                                                   nullptr, Ptr);
-    break;
-  }
-  case kernel_param_kind_t::kind_specialization_constants_buffer: {
-    assert(DeviceImageImpl != nullptr);
-    ur_mem_handle_t SpecConstsBuffer =
-        DeviceImageImpl->get_spec_const_buffer_ref();
-
-    ur_kernel_arg_mem_obj_properties_t MemObjProps{};
-    MemObjProps.pNext = nullptr;
-    MemObjProps.stype = UR_STRUCTURE_TYPE_KERNEL_ARG_MEM_OBJ_PROPERTIES;
-    MemObjProps.memoryAccess = UR_MEM_FLAG_READ_ONLY;
-    Adapter.call<UrApiKind::urKernelSetArgMemObj>(
-        Kernel, NextTrueIndex, &MemObjProps, SpecConstsBuffer);
-    break;
-  }
-  case kernel_param_kind_t::kind_invalid:
-    throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
-                          "Invalid kernel param kind " +
-                              codeToString(UR_RESULT_ERROR_INVALID_VALUE));
-    break;
-  }
-}
-
 static std::tuple<ur_kernel_handle_t, device_image_impl *,
                   const KernelArgMask *>
 getCGKernelInfo(const CGExecKernel &CommandGroup, context_impl &ContextImpl,
@@ -2689,17 +2538,38 @@ ur_result_t enqueueImpCommandBufferKernel(
     AltUrKernels.push_back(AltUrKernel);
   }
 
-  adapter_impl &Adapter = ContextImpl.getAdapter();
-  auto SetFunc = [&Adapter, &UrKernel, &ContextImpl, &getMemAllocationFunc,
-                  DeviceImageImpl](sycl::detail::ArgDesc &Arg,
-                                   size_t NextTrueIndex) {
-    sycl::detail::SetArgBasedOnType(Adapter, UrKernel, DeviceImageImpl,
-                                    getMemAllocationFunc, ContextImpl, Arg,
-                                    NextTrueIndex);
-  };
   // Copy args for modification
   auto Args = CommandGroup.MArgs;
-  sycl::detail::applyFuncOnFilteredArgs(EliminatedArgMask, Args, SetFunc);
+
+  // just a performance optimization - avoid heap allocations
+  static thread_local std::vector<ur_exp_kernel_arg_properties_t> UrCmdArgs;
+  UrCmdArgs.clear();
+  UrCmdArgs.reserve(Args.size());
+
+  adapter_impl &Adapter = ContextImpl.getAdapter();
+  auto GetFunc = [&DeviceImageImpl, &getMemAllocationFunc,
+                  &ContextImpl](detail::ArgDesc &Arg, size_t NextTrueIndex) {
+    GetUrArgsBasedOnType(DeviceImageImpl, getMemAllocationFunc, ContextImpl,
+                         Arg, NextTrueIndex, UrCmdArgs);
+  };
+
+  sycl::detail::applyFuncOnFilteredArgs(EliminatedArgMask, Args, GetFunc);
+
+  const std::optional<int> &ImplicitLocalArg =
+      CommandGroup.MDeviceKernelInfo.getImplicitLocalArgPos();
+
+  // Set the implicit local memory buffer to support
+  // get_work_group_scratch_memory. This is for backend not supporting
+  // CUDA-style local memory setting. Note that we may have -1 as a position,
+  // this indicates the buffer is actually unused and was elided.
+  if (ImplicitLocalArg.has_value() && ImplicitLocalArg.value() != -1) {
+    UrCmdArgs.push_back({UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+                         nullptr,
+                         UR_EXP_KERNEL_ARG_TYPE_LOCAL,
+                         static_cast<uint32_t>(ImplicitLocalArg.value()),
+                         CommandGroup.MKernelWorkGroupMemorySize,
+                         {nullptr}});
+  }
 
   // Remember this information before the range dimensions are reversed
   const bool HasLocalSize = (CommandGroup.MNDRDesc.LocalSize[0] != 0);
@@ -2733,6 +2603,17 @@ ur_result_t enqueueImpCommandBufferKernel(
       LocalSize = RequiredWGSize;
   }
 
+  // If there is no implicit arg, let the driver handle it via a property
+  // which is not yet supported!
+  if (CommandGroup.MKernelWorkGroupMemorySize &&
+      !ImplicitLocalArg.has_value()) {
+    throw sycl::exception(
+        sycl::make_error_code(errc::invalid),
+        "Setting work group scratch memory size is not yet supported "
+        "for use with the SYCL Graph extension and backends using "
+        "CUDA-style local memory settings.");
+  }
+
   // Command-buffers which are not updatable cannot return command handles, so
   // we query the descriptor here to check if a handle is required.
   ur_exp_command_buffer_desc_t CommandBufferDesc{};
@@ -2742,15 +2623,14 @@ ur_result_t enqueueImpCommandBufferKernel(
       ur_exp_command_buffer_info_t::UR_EXP_COMMAND_BUFFER_INFO_DESCRIPTOR,
       sizeof(ur_exp_command_buffer_desc_t), &CommandBufferDesc, nullptr);
 
-  ur_result_t Res =
-      Adapter.call_nocheck<UrApiKind::urCommandBufferAppendKernelLaunchExp>(
-          CommandBuffer, UrKernel, NDRDesc.Dims,
-          HasOffset ? &NDRDesc.GlobalOffset[0] : nullptr,
-          &NDRDesc.GlobalSize[0], LocalSize, AltUrKernels.size(),
-          AltUrKernels.size() ? AltUrKernels.data() : nullptr,
-          SyncPoints.size(), SyncPoints.size() ? SyncPoints.data() : nullptr, 0,
-          nullptr, OutSyncPoint, nullptr,
-          CommandBufferDesc.isUpdatable ? OutCommand : nullptr);
+  ur_result_t Res = Adapter.call_nocheck<
+      UrApiKind::urCommandBufferAppendKernelLaunchWithArgsExp>(
+      CommandBuffer, UrKernel, NDRDesc.Dims,
+      HasOffset ? &NDRDesc.GlobalOffset[0] : nullptr, &NDRDesc.GlobalSize[0],
+      LocalSize, UrCmdArgs.size(), UrCmdArgs.data(), AltUrKernels.size(),
+      AltUrKernels.size() ? AltUrKernels.data() : nullptr, SyncPoints.size(),
+      SyncPoints.size() ? SyncPoints.data() : nullptr, 0, nullptr, OutSyncPoint,
+      nullptr, CommandBufferDesc.isUpdatable ? OutCommand : nullptr);
 
   if (Res != UR_RESULT_SUCCESS) {
     detail::enqueue_kernel_launch::handleErrorOrWarning(Res, DeviceImpl,
@@ -3549,7 +3429,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     bool HasEventMode =
         Barrier->MEventMode != ext::oneapi::experimental::event_mode_enum::none;
     std::vector<ur_event_handle_t> UrEvents =
-        getUrEventsBlocking(Events, HasEventMode);
+        getUrEventsBlocking(Events, HasEventMode, *MWorkerQueue, isHostTask());
     if (UrEvents.empty()) {
       // If Events is empty, then the barrier has no effect.
       return UR_RESULT_SUCCESS;

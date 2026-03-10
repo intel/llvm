@@ -53,6 +53,8 @@ enum IRSplitMode {
 // returned.
 std::optional<IRSplitMode> convertStringToSplitMode(StringRef S);
 
+StringRef convertSplitModeToString(IRSplitMode Mode);
+
 // A vector that contains all entry point functions in a split module.
 using EntryPointSet = SetVector<Function *>;
 
@@ -339,13 +341,8 @@ struct SplitModule {
 
 struct ModuleSplitterSettings {
   IRSplitMode Mode;
-  bool OutputAssembly = false; // Bitcode or LLVM IR.
-  StringRef OutputPrefix;
   bool AllowDeviceImageDependencies = false;
 };
-
-/// Parses the output table file from sycl-post-link tool.
-Expected<std::vector<SplitModule>> parseSplitModulesFromFile(StringRef File);
 
 /// PreSplitProcessingPipeline maintains correctness.
 /// Note: After migration from sycl-post-link to NewOffload Model this
@@ -353,8 +350,10 @@ Expected<std::vector<SplitModule>> parseSplitModulesFromFile(StringRef File);
 bool runPreSplitProcessingPipeline(Module &M);
 
 /// Splits the given module \p M according to the given \p Settings.
-Expected<std::vector<SplitModule>>
-splitSYCLModule(std::unique_ptr<Module> M, ModuleSplitterSettings Settings);
+/// Every output split part is passed into \p PostSplitCallback.
+Error splitSYCLModule(
+    std::unique_ptr<Module> M, ModuleSplitterSettings Settings,
+    function_ref<Error(std::unique_ptr<ModuleDesc>)> PostSplitCallback);
 
 bool isESIMDFunction(const Function &F);
 bool canBeImportedFunction(const Function &F,

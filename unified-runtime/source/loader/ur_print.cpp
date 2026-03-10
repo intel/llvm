@@ -12,8 +12,8 @@
  *
  */
 
-#include "ur_print.h"
-#include "ur_print.hpp"
+#include "unified-runtime/ur_print.h"
+#include "unified-runtime/ur_print.hpp"
 
 #include <algorithm>
 #include <sstream>
@@ -702,102 +702,6 @@ ur_result_t urPrintProgramNativeProperties(
   return str_copy(&ss, buffer, buff_size, out_size);
 }
 
-ur_result_t urPrintKernelArgValueProperties(
-    const struct ur_kernel_arg_value_properties_t params, char *buffer,
-    const size_t buff_size, size_t *out_size) {
-  std::stringstream ss;
-  ss << params;
-  return str_copy(&ss, buffer, buff_size, out_size);
-}
-
-ur_result_t urPrintKernelArgLocalProperties(
-    const struct ur_kernel_arg_local_properties_t params, char *buffer,
-    const size_t buff_size, size_t *out_size) {
-  std::stringstream ss;
-  ss << params;
-  return str_copy(&ss, buffer, buff_size, out_size);
-}
-
-ur_result_t urPrintKernelInfo(enum ur_kernel_info_t value, char *buffer,
-                              const size_t buff_size, size_t *out_size) {
-  std::stringstream ss;
-  ss << value;
-  return str_copy(&ss, buffer, buff_size, out_size);
-}
-
-ur_result_t urPrintKernelGroupInfo(enum ur_kernel_group_info_t value,
-                                   char *buffer, const size_t buff_size,
-                                   size_t *out_size) {
-  std::stringstream ss;
-  ss << value;
-  return str_copy(&ss, buffer, buff_size, out_size);
-}
-
-ur_result_t urPrintKernelSubGroupInfo(enum ur_kernel_sub_group_info_t value,
-                                      char *buffer, const size_t buff_size,
-                                      size_t *out_size) {
-  std::stringstream ss;
-  ss << value;
-  return str_copy(&ss, buffer, buff_size, out_size);
-}
-
-ur_result_t urPrintKernelCacheConfig(enum ur_kernel_cache_config_t value,
-                                     char *buffer, const size_t buff_size,
-                                     size_t *out_size) {
-  std::stringstream ss;
-  ss << value;
-  return str_copy(&ss, buffer, buff_size, out_size);
-}
-
-ur_result_t urPrintKernelExecInfo(enum ur_kernel_exec_info_t value,
-                                  char *buffer, const size_t buff_size,
-                                  size_t *out_size) {
-  std::stringstream ss;
-  ss << value;
-  return str_copy(&ss, buffer, buff_size, out_size);
-}
-
-ur_result_t urPrintKernelArgPointerProperties(
-    const struct ur_kernel_arg_pointer_properties_t params, char *buffer,
-    const size_t buff_size, size_t *out_size) {
-  std::stringstream ss;
-  ss << params;
-  return str_copy(&ss, buffer, buff_size, out_size);
-}
-
-ur_result_t urPrintKernelExecInfoProperties(
-    const struct ur_kernel_exec_info_properties_t params, char *buffer,
-    const size_t buff_size, size_t *out_size) {
-  std::stringstream ss;
-  ss << params;
-  return str_copy(&ss, buffer, buff_size, out_size);
-}
-
-ur_result_t urPrintKernelArgSamplerProperties(
-    const struct ur_kernel_arg_sampler_properties_t params, char *buffer,
-    const size_t buff_size, size_t *out_size) {
-  std::stringstream ss;
-  ss << params;
-  return str_copy(&ss, buffer, buff_size, out_size);
-}
-
-ur_result_t urPrintKernelArgMemObjProperties(
-    const struct ur_kernel_arg_mem_obj_properties_t params, char *buffer,
-    const size_t buff_size, size_t *out_size) {
-  std::stringstream ss;
-  ss << params;
-  return str_copy(&ss, buffer, buff_size, out_size);
-}
-
-ur_result_t
-urPrintKernelNativeProperties(const struct ur_kernel_native_properties_t params,
-                              char *buffer, const size_t buff_size,
-                              size_t *out_size) {
-  std::stringstream ss;
-  ss << params;
-  return str_copy(&ss, buffer, buff_size, out_size);
-}
-
 ur_result_t urPrintQueueInfo(enum ur_queue_info_t value, char *buffer,
                              const size_t buff_size, size_t *out_size) {
   std::stringstream ss;
@@ -934,6 +838,126 @@ ur_result_t urPrintUsmMigrationFlags(enum ur_usm_migration_flag_t value,
                                      size_t *out_size) {
   std::stringstream ss;
   ss << value;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintExpKernelArgType(enum ur_exp_kernel_arg_type_t value,
+                                    char *buffer, const size_t buff_size,
+                                    size_t *out_size) {
+  std::stringstream ss;
+  ss << value;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintExpKernelArgMemObjTuple(
+    const struct ur_exp_kernel_arg_mem_obj_tuple_t params, char *buffer,
+    const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintExpKernelArgProperties(
+    const struct ur_exp_kernel_arg_properties_t params, char *buffer,
+    const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintKernelArgValueProperties(
+    const struct ur_kernel_arg_value_properties_t params, char *buffer,
+    const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintKernelArgLocalProperties(
+    const struct ur_kernel_arg_local_properties_t params, char *buffer,
+    const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintKernelInfo(enum ur_kernel_info_t value, char *buffer,
+                              const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << value;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintKernelGroupInfo(enum ur_kernel_group_info_t value,
+                                   char *buffer, const size_t buff_size,
+                                   size_t *out_size) {
+  std::stringstream ss;
+  ss << value;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintKernelSubGroupInfo(enum ur_kernel_sub_group_info_t value,
+                                      char *buffer, const size_t buff_size,
+                                      size_t *out_size) {
+  std::stringstream ss;
+  ss << value;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintKernelCacheConfig(enum ur_kernel_cache_config_t value,
+                                     char *buffer, const size_t buff_size,
+                                     size_t *out_size) {
+  std::stringstream ss;
+  ss << value;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintKernelExecInfo(enum ur_kernel_exec_info_t value,
+                                  char *buffer, const size_t buff_size,
+                                  size_t *out_size) {
+  std::stringstream ss;
+  ss << value;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintKernelArgPointerProperties(
+    const struct ur_kernel_arg_pointer_properties_t params, char *buffer,
+    const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintKernelExecInfoProperties(
+    const struct ur_kernel_exec_info_properties_t params, char *buffer,
+    const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintKernelArgSamplerProperties(
+    const struct ur_kernel_arg_sampler_properties_t params, char *buffer,
+    const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintKernelArgMemObjProperties(
+    const struct ur_kernel_arg_mem_obj_properties_t params, char *buffer,
+    const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t
+urPrintKernelNativeProperties(const struct ur_kernel_native_properties_t params,
+                              char *buffer, const size_t buff_size,
+                              size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
   return str_copy(&ss, buffer, buff_size, out_size);
 }
 
@@ -1089,6 +1113,21 @@ urPrintExpImageCopyRegion(const struct ur_exp_image_copy_region_t params,
   return str_copy(&ss, buffer, buff_size, out_size);
 }
 
+ur_result_t urPrintExpProgramFlags(enum ur_exp_program_flag_t value,
+                                   char *buffer, const size_t buff_size,
+                                   size_t *out_size) {
+  std::stringstream ss;
+  ss << value;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintExpPeerInfo(enum ur_exp_peer_info_t value, char *buffer,
+                               const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << value;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
 ur_result_t urPrintDeviceCommandBufferUpdateCapabilityFlags(
     enum ur_device_command_buffer_update_capability_flag_t value, char *buffer,
     const size_t buff_size, size_t *out_size) {
@@ -1154,22 +1193,7 @@ ur_result_t urPrintExpCommandBufferUpdateKernelLaunchDesc(
   return str_copy(&ss, buffer, buff_size, out_size);
 }
 
-ur_result_t urPrintExpProgramFlags(enum ur_exp_program_flag_t value,
-                                   char *buffer, const size_t buff_size,
-                                   size_t *out_size) {
-  std::stringstream ss;
-  ss << value;
-  return str_copy(&ss, buffer, buff_size, out_size);
-}
-
-ur_result_t urPrintExpPeerInfo(enum ur_exp_peer_info_t value, char *buffer,
-                               const size_t buff_size, size_t *out_size) {
-  std::stringstream ss;
-  ss << value;
-  return str_copy(&ss, buffer, buff_size, out_size);
-}
-
-ur_result_t urPrintExpKernelArgType(enum ur_exp_kernel_arg_type_t value,
+ur_result_t urPrintExpHostTaskFlags(enum ur_exp_host_task_flag_t value,
                                     char *buffer, const size_t buff_size,
                                     size_t *out_size) {
   std::stringstream ss;
@@ -1177,17 +1201,10 @@ ur_result_t urPrintExpKernelArgType(enum ur_exp_kernel_arg_type_t value,
   return str_copy(&ss, buffer, buff_size, out_size);
 }
 
-ur_result_t urPrintExpKernelArgMemObjTuple(
-    const struct ur_exp_kernel_arg_mem_obj_tuple_t params, char *buffer,
-    const size_t buff_size, size_t *out_size) {
-  std::stringstream ss;
-  ss << params;
-  return str_copy(&ss, buffer, buff_size, out_size);
-}
-
-ur_result_t urPrintExpKernelArgProperties(
-    const struct ur_exp_kernel_arg_properties_t params, char *buffer,
-    const size_t buff_size, size_t *out_size) {
+ur_result_t
+urPrintExpHostTaskProperties(const struct ur_exp_host_task_properties_t params,
+                             char *buffer, const size_t buff_size,
+                             size_t *out_size) {
   std::stringstream ss;
   ss << params;
   return str_copy(&ss, buffer, buff_size, out_size);
@@ -1517,6 +1534,15 @@ ur_result_t urPrintCommandBufferFinalizeExpParams(
 
 ur_result_t urPrintCommandBufferAppendKernelLaunchExpParams(
     const struct ur_command_buffer_append_kernel_launch_exp_params_t *params,
+    char *buffer, const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintCommandBufferAppendKernelLaunchWithArgsExpParams(
+    const struct ur_command_buffer_append_kernel_launch_with_args_exp_params_t
+        *params,
     char *buffer, const size_t buff_size, size_t *out_size) {
   std::stringstream ss;
   ss << params;
@@ -1972,6 +1998,14 @@ ur_result_t urPrintEnqueueUsmFreeExpParams(
   return str_copy(&ss, buffer, buff_size, out_size);
 }
 
+ur_result_t urPrintEnqueueTimestampRecordingExpParams(
+    const struct ur_enqueue_timestamp_recording_exp_params_t *params,
+    char *buffer, const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
 ur_result_t urPrintEnqueueCommandBufferExpParams(
     const struct ur_enqueue_command_buffer_exp_params_t *params, char *buffer,
     const size_t buff_size, size_t *out_size) {
@@ -1980,9 +2014,9 @@ ur_result_t urPrintEnqueueCommandBufferExpParams(
   return str_copy(&ss, buffer, buff_size, out_size);
 }
 
-ur_result_t urPrintEnqueueTimestampRecordingExpParams(
-    const struct ur_enqueue_timestamp_recording_exp_params_t *params,
-    char *buffer, const size_t buff_size, size_t *out_size) {
+ur_result_t urPrintEnqueueHostTaskExpParams(
+    const struct ur_enqueue_host_task_exp_params_t *params, char *buffer,
+    const size_t buff_size, size_t *out_size) {
   std::stringstream ss;
   ss << params;
   return str_copy(&ss, buffer, buff_size, out_size);

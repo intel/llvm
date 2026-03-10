@@ -500,10 +500,8 @@ ur_result_t urEnqueueKernelLaunch(
 
   UR_LOG_L(getContext()->logger, DEBUG, "==== urEnqueueKernelLaunch");
 
-  USMLaunchInfo LaunchInfo(GetContext(hQueue), GetDevice(hQueue),
-                           pGlobalWorkSize, pLocalWorkSize, pGlobalWorkOffset,
-                           workDim);
-  UR_CALL(LaunchInfo.initialize());
+  LaunchInfo LaunchInfo(GetContext(hQueue), GetDevice(hQueue), pGlobalWorkSize,
+                        pLocalWorkSize, pGlobalWorkOffset, workDim);
 
   UR_CALL(getMsanInterceptor()->preLaunchKernel(hKernel, hQueue, LaunchInfo));
 
@@ -652,8 +650,8 @@ ur_result_t urMemBufferCreate(
       // Update shadow memory
       std::shared_ptr<DeviceInfo> DeviceInfo =
           getMsanInterceptor()->getDeviceInfo(hDevice);
-      UR_CALL(DeviceInfo->Shadow->EnqueuePoisonShadow(InternalQueue,
-                                                      (uptr)Handle, size, 0));
+      UR_CALL(DeviceInfo->Shadow->EnqueuePoisonShadow(
+          InternalQueue, (uptr)Handle, size, &kMemInitializedMagic));
     }
   }
 
@@ -1552,8 +1550,8 @@ ur_result_t urEnqueueUSMFill(
     uptr MemShadow = DeviceInfo->Shadow->MemToShadow((uptr)pMem);
 
     ur_event_handle_t Event = nullptr;
-    UR_CALL(EnqueueUSMSet(hQueue, (void *)MemShadow, (char)0, size, 0, nullptr,
-                          &Event));
+    UR_CALL(
+        EnqueueUSMSetZero(hQueue, (void *)MemShadow, size, 0, nullptr, &Event));
     Events.push_back(Event);
   }
 
@@ -1645,8 +1643,8 @@ ur_result_t urEnqueueUSMMemcpy(
     {
       const auto DstShadow = DstDI->Shadow->MemToShadow((uptr)pDst);
       ur_event_handle_t Event = nullptr;
-      UR_CALL(EnqueueUSMSet(hQueue, (void *)DstShadow, (char)0, size, 0,
-                            nullptr, &Event));
+      UR_CALL(EnqueueUSMSetZero(hQueue, (void *)DstShadow, size, 0, nullptr,
+                                &Event));
       Events.push_back(Event);
     }
   }
@@ -1883,6 +1881,11 @@ ur_result_t urEnqueueKernelLaunchWithArgsExp(
   UR_LOG_L(getContext()->logger, DEBUG,
            "==== urEnqueueKernelLaunchWithArgsExp");
 
+  auto &KernelInfo = getMsanInterceptor()->getOrCreateKernelInfo(hKernel);
+  KernelInfo.ArgProps.resize(numArgs);
+  std::memcpy(KernelInfo.ArgProps.data(), pArgs,
+              numArgs * sizeof(ur_exp_kernel_arg_properties_t));
+
   // We need to set all the args now rather than letting LaunchWithArgs handle
   // them. This is because some implementations of
   // urKernelGetSuggestedLocalWorkSize, which is used in preLaunchKernel, rely
@@ -1916,6 +1919,15 @@ ur_result_t urEnqueueKernelLaunchWithArgsExp(
       UR_CALL(ur_sanitizer_layer::msan::urKernelSetArgMemObj(
           hKernel, pArgs[ArgPropIndex].index, &Properties,
           pArgs[ArgPropIndex].value.memObjTuple.hMem));
+      if (std::shared_ptr<MemBuffer> MemBuffer =
+              getMsanInterceptor()->getMemBuffer(
+                  pArgs[ArgPropIndex].value.memObjTuple.hMem)) {
+        char *Handle = nullptr;
+        UR_CALL(MemBuffer->getHandle(GetDevice(hQueue), Handle));
+        KernelInfo.ArgProps[ArgPropIndex].type =
+            ur_exp_kernel_arg_type_t::UR_EXP_KERNEL_ARG_TYPE_POINTER;
+        KernelInfo.ArgProps[ArgPropIndex].value.pointer = Handle;
+      }
       break;
     }
     case UR_EXP_KERNEL_ARG_TYPE_SAMPLER: {
@@ -1931,26 +1943,15 @@ ur_result_t urEnqueueKernelLaunchWithArgsExp(
     }
   }
 
-  USMLaunchInfo LaunchInfo(GetContext(hQueue), GetDevice(hQueue),
-                           pGlobalWorkSize, pLocalWorkSize, pGlobalWorkOffset,
-                           workDim);
-  UR_CALL(LaunchInfo.initialize());
+  LaunchInfo LaunchInfo(GetContext(hQueue), GetDevice(hQueue), pGlobalWorkSize,
+                        pLocalWorkSize, pGlobalWorkOffset, workDim);
 
   UR_CALL(getMsanInterceptor()->preLaunchKernel(hKernel, hQueue, LaunchInfo));
 
-  /*
-    // TODO: revert to the correct call to pfnKernelLaunchWithArgsExp():
-    UR_CALL(getContext()->urDdiTable.EnqueueExp.pfnKernelLaunchWithArgsExp(
-        hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
-        LaunchInfo.LocalWorkSize.data(), numArgs, pArgs,
-    launchPropList, numEventsInWaitList,
-    phEventWaitList, phEvent));
-  */
-
-  UR_CALL(getContext()->urDdiTable.Enqueue.pfnKernelLaunch(
+  UR_CALL(getContext()->urDdiTable.EnqueueExp.pfnKernelLaunchWithArgsExp(
       hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
-      LaunchInfo.LocalWorkSize.data(), launchPropList, numEventsInWaitList,
-      phEventWaitList, phEvent));
+      LaunchInfo.LocalWorkSize.data(), numArgs, KernelInfo.ArgProps.data(),
+      launchPropList, numEventsInWaitList, phEventWaitList, phEvent));
 
   UR_CALL(getMsanInterceptor()->postLaunchKernel(hKernel, hQueue, LaunchInfo));
 

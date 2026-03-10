@@ -1,6 +1,6 @@
 //===----------- device.cpp - LLVM Offload Adapter  -----------------------===//
 //
-// Copyright (C) 2025 Intel Corporation
+// Copyright (C) 2025-2026 Intel Corporation
 //
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
@@ -9,8 +9,8 @@
 //===----------------------------------------------------------------------===//
 
 #include <OffloadAPI.h>
+#include <unified-runtime/ur_api.h>
 #include <ur/ur.hpp>
-#include <ur_api.h>
 
 #include "adapters/offload/adapter.hpp"
 #include "device.hpp"
@@ -53,7 +53,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_VERSION:
     return ReturnValue("");
   case UR_DEVICE_INFO_EXTENSIONS:
-    return ReturnValue("");
+    // todo: use offload API to query supported extensions
+    return ReturnValue("cl_khr_il_program");
   case UR_DEVICE_INFO_USE_NATIVE_ASSERT:
     return ReturnValue(false);
   case UR_DEVICE_INFO_TYPE:
@@ -359,6 +360,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_MAX_WRITE_IMAGE_ARGS:
   case UR_DEVICE_INFO_MAX_SAMPLERS:
     return ReturnValue(uint32_t{0});
+  case UR_DEVICE_INFO_ENQUEUE_HOST_TASK_SUPPORT_EXP:
+    return ReturnValue(false);
   default:
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   }

@@ -17,7 +17,7 @@
 #include "utils.hpp"
 #include <cstdlib>
 #include <string_view>
-#include <ur_api.h>
+#include <unified-runtime/ur_api.h>
 
 namespace urinfo {
 inline void printLoaderConfigInfos(ur_loader_config_handle_t hLoaderConfig,
@@ -477,5 +477,8 @@ inline void printDeviceInfos(ur_device_handle_t hDevice,
   std::cout << prefix;
   printDeviceInfo<ur_bool_t>(
       hDevice, UR_DEVICE_INFO_MEMORY_EXPORT_EXPORTABLE_DEVICE_MEM_EXP);
+  std::cout << prefix;
+  printDeviceInfo<ur_bool_t>(hDevice,
+                             UR_DEVICE_INFO_ENQUEUE_HOST_TASK_SUPPORT_EXP);
 }
 } // namespace urinfo

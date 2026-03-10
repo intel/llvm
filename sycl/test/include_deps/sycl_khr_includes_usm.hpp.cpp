@@ -84,6 +84,7 @@
 // CHECK-NEXT: detail/util.hpp
 // CHECK-NEXT: device_selector.hpp
 // CHECK-NEXT: kernel_bundle_enums.hpp
+// CHECK-NEXT: platform.hpp
 // CHECK-NEXT: property_list.hpp
 // CHECK-NEXT: detail/property_helper.hpp
 // CHECK-NEXT: detail/property_list_base.hpp
