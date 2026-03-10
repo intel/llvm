@@ -8,7 +8,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <ur_api.h>
+#include <unified-runtime/ur_api.h>
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueNativeCommandExp(
     ur_queue_handle_t, ur_exp_enqueue_native_command_function_t, void *,

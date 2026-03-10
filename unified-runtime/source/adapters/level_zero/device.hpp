@@ -22,8 +22,8 @@
 #include "adapters/level_zero/platform.hpp"
 #include "common.hpp"
 #include "common/ur_ref_count.hpp"
+#include <unified-runtime/ur_ddi.h>
 #include <ur/ur.hpp>
-#include <ur_ddi.h>
 #include <ze_api.h>
 #include <zes_api.h>
 

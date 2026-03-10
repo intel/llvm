@@ -16,9 +16,9 @@
 #include "adapter.hpp"
 #include "device.hpp"
 #include "platform.hpp"
+#include "unified-runtime/ur_api.h"
 #include "ur/ur.hpp"
 #include "ur2offload.hpp"
-#include "ur_api.h"
 
 ur_adapter_handle_t Adapter = nullptr;
 

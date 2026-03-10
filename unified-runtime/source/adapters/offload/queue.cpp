@@ -9,8 +9,8 @@
 //===----------------------------------------------------------------------===//
 
 #include <OffloadAPI.h>
+#include <unified-runtime/ur_api.h>
 #include <ur/ur.hpp>
-#include <ur_api.h>
 
 #include "context.hpp"
 #include "device.hpp"

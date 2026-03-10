@@ -13,7 +13,7 @@
 #include "memory.hpp"
 #include "queue.hpp"
 #include "sampler.hpp"
-#include "ur_api.h"
+#include "unified-runtime/ur_api.h"
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urKernelCreate(ur_program_handle_t hProgram, const char *pKernelName,

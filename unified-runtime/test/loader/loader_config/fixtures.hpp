@@ -7,7 +7,7 @@
 #ifndef UR_LOADER_CONFIG_TEST_FIXTURES_H
 #define UR_LOADER_CONFIG_TEST_FIXTURES_H
 
-#include "ur_api.h"
+#include "unified-runtime/ur_api.h"
 #include <gtest/gtest.h>
 
 #ifndef ASSERT_SUCCESS

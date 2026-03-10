@@ -28,8 +28,8 @@
 #include <vector>
 
 #include "logger/ur_logger.hpp"
-#include "ur_api.h"
-#include "ur_print.hpp"
+#include "unified-runtime/ur_api.h"
+#include "unified-runtime/ur_print.hpp"
 #include "ur_util.hpp"
 #include "xpti/xpti_trace_framework.h"
 

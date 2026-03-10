@@ -14,7 +14,7 @@
 #include "context.hpp"
 #include "event_pool_cache.hpp"
 #include "queue_api.hpp"
-#include "ur_api.h"
+#include "unified-runtime/ur_api.h"
 #include <unordered_set>
 #include <ze_api.h>
 

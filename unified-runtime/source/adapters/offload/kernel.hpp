@@ -14,7 +14,7 @@
 #include <array>
 #include <cstring>
 #include <numeric>
-#include <ur_api.h>
+#include <unified-runtime/ur_api.h>
 #include <vector>
 
 #include "common.hpp"

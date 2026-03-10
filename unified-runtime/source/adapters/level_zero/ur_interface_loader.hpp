@@ -10,8 +10,8 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
-#include <ur_api.h>
-#include <ur_ddi.h>
+#include <unified-runtime/ur_api.h>
+#include <unified-runtime/ur_ddi.h>
 
 namespace ur::level_zero {
 ur_result_t urAdapterGet(uint32_t NumEntries, ur_adapter_handle_t *phAdapters,
