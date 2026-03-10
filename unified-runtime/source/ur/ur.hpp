@@ -24,7 +24,7 @@
 #include <variant>
 #include <vector>
 
-#include <ur_api.h>
+#include <unified-runtime/ur_api.h>
 
 #include "logger/ur_logger.hpp"
 #include "ur_util.hpp"

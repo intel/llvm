@@ -10,7 +10,7 @@
 #pragma once
 #include "common.hpp"
 #include "threadpool.hpp"
-#include "ur_api.h"
+#include "unified-runtime/ur_api.h"
 #include <cstdint>
 #include <future>
 #include <mutex>

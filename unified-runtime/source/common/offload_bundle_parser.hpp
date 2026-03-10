@@ -9,7 +9,7 @@
  *
  */
 
-#include <ur_api.h>
+#include <unified-runtime/ur_api.h>
 
 #include <cstdint>
 #include <optional>

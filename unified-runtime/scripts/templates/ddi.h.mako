@@ -26,7 +26,7 @@ from templates import helper as th
 #if defined(__cplusplus)
 #pragma once
 #endif
-#include "${n}_api.h"
+#include "unified-runtime/${n}_api.h"
 
 #if defined(__cplusplus)
 extern "C" {

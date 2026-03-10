@@ -9,9 +9,9 @@
 //===----------------------------------------------------------------------===//
 
 #include <OffloadAPI.h>
+#include <unified-runtime/ur_api.h>
 #include <unordered_set>
 #include <ur/ur.hpp>
-#include <ur_api.h>
 
 #include "adapter.hpp"
 #include "device.hpp"

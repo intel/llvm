@@ -13,7 +13,7 @@
 
 #include "uur/raii.h"
 #include <gtest/gtest.h>
-#include <ur_api.h>
+#include <unified-runtime/ur_api.h>
 
 #include <ur_mock_helpers.hpp>
 
