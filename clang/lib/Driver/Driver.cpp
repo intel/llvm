@@ -6801,25 +6801,24 @@ public:
     assert((isIncludePCHArg || isYuArg) && "Invalid PCH unbundle");
     SmallString<128> PCHArgValue;
     if (isIncludePCHArg)
-        PCHArgValue = Args.getLastArg(options::OPT_include_pch)->getValue();
+      PCHArgValue = Args.getLastArg(options::OPT_include_pch)->getValue();
     else {
-        // /Yu accepts a header file as its argument.
-        PCHArgValue = Args.getLastArg(options::OPT__SLASH_Yu)->getValue();
-			            PCHArgValue.c_str();
-        llvm::sys::path::replace_extension(PCHArgValue, "pch");
+      // /Yu accepts a header file as its argument.
+      PCHArgValue = Args.getLastArg(options::OPT__SLASH_Yu)->getValue();
+      llvm::sys::path::replace_extension(PCHArgValue, "pch");
     }
     Arg *InputArg = MakeInputArg(Args, C.getDriver().getOpts(),
                                  Args.MakeArgString(PCHArgValue));
     Action *A = C.MakeAction<InputAction>(*InputArg, types::TY_PCH);
-    auto UnbundlingHostAction = C.MakeAction<OffloadUnbundlingJobAction>(
-        A, A->getType());
+    auto UnbundlingHostAction =
+        C.MakeAction<OffloadUnbundlingJobAction>(A, A->getType());
     UnbundlingHostAction->registerDependentActionInfo(
-          C.getSingleOffloadToolChain<Action::OFK_Host>(),
-          /*BoundArch=*/StringRef(), Action::OFK_Host);
+        C.getSingleOffloadToolChain<Action::OFK_Host>(),
+        /*BoundArch=*/StringRef(), Action::OFK_Host);
     addHostDependenceToDeviceActions(A, MainArg, Args);
     auto PL = types::getCompilationPhases(types::TY_PCH);
-    addDeviceDependencesToHostAction(A, MainArg, phases::Compile,
-                                     PL.back(), PL);
+    addDeviceDependencesToHostAction(A, MainArg, phases::Compile, PL.back(),
+                                     PL);
     AL.push_back(A);
     OffloadAction::DeviceDependences DDep;
     DDep.add(*UnbundlingHostAction,
@@ -7064,8 +7063,8 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
     }
     for (auto &I : Inputs) {
       std::string SrcFileName(I.second->getAsString(Args));
-      bool isHeaderFile = I.first == types::TY_CHeader ||
-                          I.first == types::TY_CXXHeader;
+      bool IsHeaderFile =
+          I.first == types::TY_CHeader || I.first == types::TY_CXXHeader;
       if ((I.first == types::TY_PP_C || I.first == types::TY_PP_CXX ||
            types::isSrcFile(I.first))) {
         // Unique ID is generated for source files and preprocessed files.
@@ -7082,7 +7081,7 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
       // If we are compiling a header file, the PCH will contain references
       // to the integration header/footer files.  Those files need to be
       // accessible at the time of PCH use, so they cannot be temporary.
-      if (IsSaveTemps || isHeaderFile) {
+      if (IsSaveTemps || IsHeaderFile) {
         TmpFileNameHeader.append(C.getDriver().GetUniquePath(
             OutFileDir.c_str() + StemmedSrcFileName + "-header", "h"));
         TmpFileNameFooter.append(C.getDriver().GetUniquePath(
@@ -7094,32 +7093,23 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
             C.getDriver().GetTemporaryPath(StemmedSrcFileName + "-footer", "h");
       }
       // Also, do not add the integration files to the removal list.
-#if 0
-      const char *TmpFileHeaderName =
-          C.getArgs().MakeArgString(TmpFileNameHeader);
-      const char *TmpFileFooterName =
-          C.getArgs().MakeArgString(TmpFileNameHeader);
-      StringRef TmpFileHeader = isHeaderFile
-	  ? TmpFileHeaderName : C.addTempFile(TmpFileHeaderName);
-      StringRef TmpFileFooter = isHeaderFile
-	  ? TmpFileFooterName : C.addTempFile(TmpFileFooterName);
-#else
-      StringRef TmpFileHeader = isHeaderFile
-	  ? C.getArgs().MakeArgString(TmpFileNameHeader)
-	  : C.addTempFile(C.getArgs().MakeArgString(TmpFileNameHeader));
-      StringRef TmpFileFooter = isHeaderFile
-	  ? C.getArgs().MakeArgString(TmpFileNameFooter)
-	  : C.addTempFile(C.getArgs().MakeArgString(TmpFileNameFooter));
-#endif
+      StringRef TmpFileHeader =
+          IsHeaderFile
+              ? C.getArgs().MakeArgString(TmpFileNameHeader)
+              : C.addTempFile(C.getArgs().MakeArgString(TmpFileNameHeader));
+      StringRef TmpFileFooter =
+          IsHeaderFile
+              ? C.getArgs().MakeArgString(TmpFileNameFooter)
+              : C.addTempFile(C.getArgs().MakeArgString(TmpFileNameFooter));
       // Use of -fsycl-footer-path puts the integration footer into that
       // specified location.
       if (Arg *A = C.getArgs().getLastArg(options::OPT_fsycl_footer_path_EQ)) {
         SmallString<128> OutName(A->getValue());
         llvm::sys::path::append(OutName,
                                 llvm::sys::path::filename(TmpFileNameFooter));
-        TmpFileFooter = isHeaderFile
-            ? C.getArgs().MakeArgString(OutName)
-            : C.addTempFile(C.getArgs().MakeArgString(OutName));
+        TmpFileFooter = IsHeaderFile
+                            ? C.getArgs().MakeArgString(OutName)
+                            : C.addTempFile(C.getArgs().MakeArgString(OutName));
       }
       addIntegrationFiles(TmpFileHeader, TmpFileFooter, SrcFileName);
     }
@@ -7169,8 +7159,8 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
     // Use the current host action in any of the offloading actions, if
     // required.
     if (!UseNewOffloadingDriver) {
-      if (Args.hasArg(options::OPT_include_pch)
-	  || Args.getLastArg(options::OPT__SLASH_Yu))
+      if (Args.hasArg(options::OPT_include_pch) ||
+          Args.getLastArg(options::OPT__SLASH_Yu))
         OffloadBuilder->unbundlePCH(C, Actions, Args, InputArg);
       if (OffloadBuilder->addHostDependenceToDeviceActions(Current, InputArg, Args))
         break;

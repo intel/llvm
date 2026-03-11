@@ -1056,7 +1056,7 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
       // If a PCH file is being used, use the unbundled versions for SYCL.
       if (YuArg && JA.isOffloading(Action::OFK_SYCL))
         PCHHeader = D.getSYCLPrecompiledHeaderFile(
-                        getToolChain().getTriple().getTriple());
+            getToolChain().getTriple().getTriple());
       // If a PCH file is available, include it.
       if (!isa<PrecompileJobAction>(JA)) {
         CmdArgs.push_back("-include-pch");
@@ -1100,8 +1100,7 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
       // files from the fat binary, so use that instead.
       if (JA.isOffloading(Action::OFK_SYCL)) {
         SmallString<128> SYCLPCHFile = D.getSYCLPrecompiledHeaderFile(
-                                           getToolChain().getTriple()
-					       .getTriple());
+            getToolChain().getTriple().getTriple());
         if (D.getVFS().exists(SYCLPCHFile)) {
           P = SYCLPCHFile;
           FoundPCH = true;
@@ -10144,8 +10143,8 @@ void OffloadBundler::ConstructJobMultipleOutputs(
   for (unsigned I = 0; I < Outputs.size(); ++I) {
     SmallString<128> UB;
     UB += "-output=";
-    std::string IFName = DepInfo[I].DependentToolChain->
-                             getInputFilename(Outputs[I]);
+    std::string IFName =
+        DepInfo[I].DependentToolChain->getInputFilename(Outputs[I]);
     UB += IFName;
     CmdArgs.push_back(TCArgs.MakeArgString(UB));
     /* If this is a bundled PCH file, save the triple-filename pair. */
