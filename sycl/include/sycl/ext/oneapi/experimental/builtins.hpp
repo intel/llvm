@@ -110,13 +110,18 @@ tanh(T x) __NOEXC {
   } else if constexpr (std::is_same_v<T, half>) {
     return __nvvm_reflect("__CUDA_ARCH") >= 750 ? __nvvm_tanh_approx_f16(x)
                                                 : __nv_tanhf(x);
-  } else if constexpr (std::is_same_v<T, vec<half, 2>>) {
-    if (__nvvm_reflect("__CUDA_ARCH") >= 750) {
-      return __nvvm_tanh_approx_f16x2(x);
-    } else {
-      return vec<half, 2>(__nv_tanhf(x[0]), __nv_tanhf(x[1]));
-    }
   } else if constexpr (sycl::detail::is_vgenfloat_v<T>) {
+    // Special case for vec<half, 2> - use native f16x2 intrinsic
+    if constexpr (std::is_same_v<sycl::detail::element_type_t<T>, half> &&
+                  sycl::detail::num_elements_v<T> == 2) {
+      if (__nvvm_reflect("__CUDA_ARCH") >= 750) {
+        auto ocl_vec = sycl::detail::convertToOpenCLType(x);
+        return sycl::bit_cast<T>(__nvvm_tanh_approx_f16x2(ocl_vec));
+      } else {
+        return T(__nv_tanhf(x[0]), __nv_tanhf(x[1]));
+      }
+    }
+    // General vector case - scalarize
     T res;
     for (int i = 0; i < x.size(); ++i) {
       res[i] = native::tanh(x[i]);
@@ -178,14 +183,19 @@ exp2(T x) __NOEXC {
     } else {
       return native::exp2(static_cast<float>(x));
     }
-  } else if constexpr (std::is_same_v<T, vec<half, 2>>) {
-    if (__nvvm_reflect("__CUDA_ARCH") >= 750) {
-      return __nvvm_ex2_approx_f16x2(x);
-    } else {
-      return vec<half, 2>(native::exp2(static_cast<float>(x[0])),
-                          native::exp2(static_cast<float>(x[1])));
-    }
   } else if constexpr (sycl::detail::is_vgenfloat_v<T>) {
+    // Special case for vec<half, 2> - use native f16x2 intrinsic
+    if constexpr (std::is_same_v<sycl::detail::element_type_t<T>, half> &&
+                  sycl::detail::num_elements_v<T> == 2) {
+      if (__nvvm_reflect("__CUDA_ARCH") >= 750) {
+        auto ocl_vec = sycl::detail::convertToOpenCLType(x);
+        return sycl::bit_cast<T>(__nvvm_ex2_approx_f16x2(ocl_vec));
+      } else {
+        return T(native::exp2(static_cast<float>(x[0])),
+                 native::exp2(static_cast<float>(x[1])));
+      }
+    }
+    // General vector case - scalarize
     T res;
     for (int i = 0; i < x.size(); ++i) {
       res[i] = native::exp2(x[i]);
