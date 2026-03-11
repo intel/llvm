@@ -18,7 +18,7 @@
     Wx             Set custom Width (e.g. 8x)
 */
 
-// RUN: %{run} %t.exe --type float --channels 1 33x
+// RUN: %{run} %t.exe --type float --channels 1 35x
 // RUN: %{run} %t.exe --type float --channels 2 33x
 // RUN: %{run} %t.exe --type float --channels 4 33x
 // RUN: %{run} %t.exe --type half --channels 1 33x
