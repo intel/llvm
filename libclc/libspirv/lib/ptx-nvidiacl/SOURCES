@@ -81,7 +81,7 @@ workitem/get_num_groups.cl
 workitem/get_sub_group_local_id.cl
 images/image_helpers.ll
 images/image.cl
-group/collectives_helpers.ll
+group/collectives_helpers.cl
 group/collectives.cl
 group/group_non_uniform.cl
 atomic/atomic_add.cl
