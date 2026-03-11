@@ -191,7 +191,7 @@ return sycl::ext::oneapi::experimental::make_event(d, ctxt, props);
 
 '''
 
-==== New event member functions
+=== New event member functions
 
 This extension adds new event type member functions to get the device and
 context associated with the event.
