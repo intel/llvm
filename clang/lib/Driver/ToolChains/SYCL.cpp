@@ -616,6 +616,30 @@ SYCLToolChain::getDeviceLibNames(const Driver &D,
   // Currently, device sanitizer support is required by some developers on
   // Linux platform only, so compiler only provides device sanitizer libraries
   // on Linux platform.
+  // Do not pull these in with the new offloading model, as they will be pulled
+  // in separately to be linked in with the clang-linker-wrapper.
+  if (getDriver().getUseNewOffloadingDriver())
+    return LibraryList;
+#if !defined(_WIN32)
+  addSYCLDeviceSanitizerLibs(Args, LibraryList);
+#endif
+
+  return LibraryList;
+}
+
+// Get the list of SYCL device library names associated with the sanitizers.
+SmallVector<std::string, 8>
+SYCLToolChain::getDeviceSanitizerLibNames(
+    const llvm::opt::ArgList &Args) const {
+  SmallVector<std::string, 8> LibraryList;
+  bool NoOffloadLib =
+      !Args.hasFlag(options::OPT_offloadlib, options::OPT_no_offloadlib, true);
+
+  if (NoOffloadLib)
+    return {};
+  // Currently, device sanitizer support is required by some developers on
+  // Linux platform only, so compiler only provides device sanitizer libraries
+  // on Linux platform.
 #if !defined(_WIN32)
   addSYCLDeviceSanitizerLibs(Args, LibraryList);
 #endif

@@ -63,12 +63,12 @@
 // SYCL_DEVICE_LIB_ASAN-SAME: {{.*}}libsycl-fallback-imf.bc
 // SYCL_DEVICE_LIB_ASAN-SAME: {{.*}}libsycl-fallback-imf-fp64.bc
 // SYCL_DEVICE_LIB_ASAN-SAME: {{.*}}libsycl-fallback-imf-bf16.bc
-// SYCL_DEVICE_LIB_ASAN-SAME: {{.*}}libsycl-asan.bc
+// SYCL_DEVICE_LIB_ASAN: clang-linker-wrapper{{.*}} "--bitcode-library={{.*}}libsycl-asan.bc"
 
 // RUN: %clangxx -fsycl --offload-new-driver %s --sysroot=%S/Inputs/SYCL -Xarch_device "-fsanitize=address -DUSE_SYCL_DEVICE_ASAN" -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_ASAN_MACRO
-// SYCL_DEVICE_ASAN_MACRO: clang{{.*}} "-mlink-builtin-bitcode" "{{.*}}libsycl-asan.bc"
-// SYCL_DEVICE_ASAN_MACRO-SAME: "USE_SYCL_DEVICE_ASAN"
+// SYCL_DEVICE_ASAN_MACRO: clang{{.*}} "USE_SYCL_DEVICE_ASAN"
+// SYCL_DEVICE_ASAN_MACRO: clang-linker-wrapper{{.*}} "--bitcode-library={{.*}}libsycl-asan.bc"
 
 /// ###########################################################################
 /// test behavior of linking libsycl-asan-pvc for PVC target AOT compilation when asan flag is applied.
@@ -105,7 +105,7 @@
 // SYCL_DEVICE_LIB_ASAN_PVC-SAME: {{.*}}libsycl-fallback-imf.bc
 // SYCL_DEVICE_LIB_ASAN_PVC-SAME: {{.*}}libsycl-fallback-imf-fp64.bc
 // SYCL_DEVICE_LIB_ASAN_PVC-SAME: {{.*}}libsycl-fallback-imf-bf16.bc
-// SYCL_DEVICE_LIB_ASAN_PVC-SAME: {{.*}}libsycl-asan-pvc.bc
+// SYCL_DEVICE_LIB_ASAN_PVC: clang-linker-wrapper{{.*}} "--bitcode-library={{.*}}libsycl-asan-pvc.bc"
 
 /// ###########################################################################
 /// test behavior of linking libsycl-asan-cpu for CPU target AOT compilation when asan flag is applied.
@@ -127,7 +127,7 @@
 // SYCL_DEVICE_LIB_ASAN_CPU-SAME: {{.*}}libsycl-fallback-imf.bc
 // SYCL_DEVICE_LIB_ASAN_CPU-SAME: {{.*}}libsycl-fallback-imf-fp64.bc
 // SYCL_DEVICE_LIB_ASAN_CPU-SAME: {{.*}}libsycl-fallback-imf-bf16.bc
-// SYCL_DEVICE_LIB_ASAN_CPU-SAME: {{.*}}libsycl-asan-cpu.bc
+// SYCL_DEVICE_LIB_ASAN_CPU: clang-linker-wrapper{{.*}} "--bitcode-library={{.*}}libsycl-asan-cpu.bc"
 
 /// ###########################################################################
 /// test behavior of linking libsycl-asan-dg2 for DG2 target AOT compilation when asan flag is applied.
@@ -158,7 +158,7 @@
 // SYCL_DEVICE_LIB_ASAN_DG2-SAME: {{.*}}libsycl-fallback-imf.bc
 // SYCL_DEVICE_LIB_ASAN_DG2-SAME: {{.*}}libsycl-fallback-imf-fp64.bc
 // SYCL_DEVICE_LIB_ASAN_DG2-SAME: {{.*}}libsycl-fallback-imf-bf16.bc
-// SYCL_DEVICE_LIB_ASAN_DG2-SAME: {{.*}}libsycl-asan-dg2.bc
+// SYCL_DEVICE_LIB_ASAN_DG2: clang-linker-wrapper{{.*}} "--bitcode-library={{.*}}libsycl-asan-dg2.bc"
 
 /// ###########################################################################
 /// test behavior of linking libsycl-asan for multiple targets AOT compilation
@@ -185,7 +185,7 @@
 // SYCL_DEVICE_LIB_ASAN_MUL-SAME: {{.*}}libsycl-fallback-imf.bc
 // SYCL_DEVICE_LIB_ASAN_MUL-SAME: {{.*}}libsycl-fallback-imf-fp64.bc
 // SYCL_DEVICE_LIB_ASAN_MUL-SAME: {{.*}}libsycl-fallback-imf-bf16.bc
-// SYCL_DEVICE_LIB_ASAN_MUL-SAME: {{.*}}libsycl-asan.bc
+// SYCL_DEVICE_LIB_ASAN_MUL: clang-linker-wrapper{{.*}} "--bitcode-library={{.*}}libsycl-asan.bc"
 
 /// ###########################################################################
 /// test behavior of libsycl-msan.o linking when -fsanitize=memory is available
@@ -215,23 +215,22 @@
 // SYCL_DEVICE_LIB_MSAN-SAME: {{.*}}libsycl-fallback-imf.bc
 // SYCL_DEVICE_LIB_MSAN-SAME: {{.*}}libsycl-fallback-imf-fp64.bc
 // SYCL_DEVICE_LIB_MSAN-SAME: {{.*}}libsycl-fallback-imf-bf16.bc
-// SYCL_DEVICE_LIB_MSAN-SAME: {{.*}}libsycl-msan.bc
+// SYCL_DEVICE_LIB_MSAN: clang-linker-wrapper{{.*}} "--bitcode-library={{.*}}libsycl-msan.bc"
 
 // RUN: %clangxx -fsycl --offload-new-driver %s --sysroot=%S/Inputs/SYCL -Xarch_device "-fsanitize=memory -DUSE_SYCL_DEVICE_MSAN" -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_MSAN_MACRO
-// SYCL_DEVICE_MSAN_MACRO: clang{{.*}} "-mlink-builtin-bitcode" "{{.*}}libsycl-msan.bc"
-// SYCL_DEVICE_MSAN_MACRO-SAME: "USE_SYCL_DEVICE_MSAN"
+// SYCL_DEVICE_MSAN_MACRO: clang{{.*}} "USE_SYCL_DEVICE_MSAN"
+// SYCL_DEVICE_MSAN_MACRO: clang-linker-wrapper{{.*}} "--bitcode-library={{.*}}libsycl-msan.bc"
 
 /// test behavior of msan libdevice linking when -fsanitize=memory is available for AOT targets
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_pvc --offload-new-driver %s --sysroot=%S/Inputs/SYCL \
 // RUN: -fsanitize=memory -### 2>&1 | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_MSAN_PVC
-// SYCL_DEVICE_LIB_MSAN_PVC: clang{{.*}} "-mlink-builtin-bitcode
-// SYCL_DEVICE_LIB_MSAN_PVC-SAME: {{.*}}libsycl-msan-pvc.bc
+// SYCL_DEVICE_LIB_MSAN_PVC: clang-linker-wrapper{{.*}} "--bitcode-library={{.*}}libsycl-msan-pvc.bc"
 
 /// test behavior of msan libdevice linking when -fsanitize=memory is available for AOT targets
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64 --offload-new-driver %s --sysroot=%S/Inputs/SYCL \
 // RUN: -fsanitize=memory -### 2>&1 | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_MSAN_CPU
-// SYCL_DEVICE_LIB_MSAN_CPU: clang{{.*}} "-mlink-builtin-bitcode" "{{.*}}libsycl-msan-cpu.bc"
+// SYCL_DEVICE_LIB_MSAN_CPU: clang-linker-wrapper{{.*}} "--bitcode-library={{.*}}libsycl-msan-cpu.bc"
 
 /// ###########################################################################
 /// test behavior of libsycl-tsan.o linking when -fsanitize=thread is available
@@ -261,19 +260,19 @@
 // SYCL_DEVICE_LIB_TSAN-SAME: {{.*}}libsycl-fallback-imf.bc
 // SYCL_DEVICE_LIB_TSAN-SAME: {{.*}}libsycl-fallback-imf-fp64.bc
 // SYCL_DEVICE_LIB_TSAN-SAME: {{.*}}libsycl-fallback-imf-bf16.bc
-// SYCL_DEVICE_LIB_TSAN-SAME: {{.*}}libsycl-tsan.bc
+// SYCL_DEVICE_LIB_TSAN: clang-linker-wrapper{{.*}} "--bitcode-library={{.*}}libsycl-tsan.bc"
 
 // RUN: %clangxx -fsycl --offload-new-driver %s --sysroot=%S/Inputs/SYCL -Xarch_device "-fsanitize=thread -DUSE_SYCL_DEVICE_TSAN" -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_TSAN_MACRO
-// SYCL_DEVICE_TSAN_MACRO: clang{{.*}} "-mlink-builtin-bitcode" "{{.*}}libsycl-tsan.bc"
-// SYCL_DEVICE_TSAN_MACRO-SAME: "USE_SYCL_DEVICE_TSAN"
+// SYCL_DEVICE_TSAN_MACRO: clang{{.*}} "USE_SYCL_DEVICE_TSAN"
+// SYCL_DEVICE_TSAN_MACRO: clang-linker-wrapper{{.*}} "--bitcode-library={{.*}}libsycl-tsan.bc"
 
 /// test behavior of tsan libdevice linking when -fsanitize=thread is available for AOT targets
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_pvc --offload-new-driver %s --sysroot=%S/Inputs/SYCL \
 // RUN: -fsanitize=thread -### 2>&1 | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_TSAN_PVC
-// SYCL_DEVICE_LIB_TSAN_PVC: clang{{.*}} "-mlink-builtin-bitcode" "{{.*}}libsycl-tsan-pvc.bc"
+// SYCL_DEVICE_LIB_TSAN_PVC: clang-linker-wrapper{{.*}} "--bitcode-library={{.*}}libsycl-tsan-pvc.bc"
 
 /// test behavior of tsan libdevice linking when -fsanitize=thread is available for AOT targets
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64 --offload-new-driver %s --sysroot=%S/Inputs/SYCL \
 // RUN: -fsanitize=thread -### 2>&1 | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_TSAN_CPU
-// SYCL_DEVICE_LIB_TSAN_CPU: clang{{.*}} "-mlink-builtin-bitcode" "{{.*}}libsycl-tsan-cpu.bc"
+// SYCL_DEVICE_LIB_TSAN_CPU: clang-linker-wrapper{{.*}} "--bitcode-library={{.*}}libsycl-tsan-cpu.bc"
