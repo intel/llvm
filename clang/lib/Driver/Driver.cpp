@@ -8897,9 +8897,9 @@ static void handleTimeTrace(Compilation &C, const ArgList &Args,
       if (!OffloadingPrefix.empty() &&
           Args.hasArg(options::OPT_offload_new_driver) &&
           JA->isOffloading(Action::OFK_SYCL)) {
-        Tmp = addOffloadingPrefixToPath(Result.getFilename(), OffloadingPrefix);
+        Tmp = addOffloadingPrefixToPath(llvm::sys::path::filename(BaseInput),
+                                        OffloadingPrefix);
       }
-
       llvm::sys::path::replace_extension(Tmp, "json");
       llvm::sys::path::append(Path, llvm::sys::path::filename(Tmp));
     }
@@ -8908,7 +8908,11 @@ static void handleTimeTrace(Compilation &C, const ArgList &Args,
       // The trace file is ${dumpdir}${basename}.json. Note that dumpdir may not
       // end with a path separator.
       Path = DumpDir->getValue();
-      if (JA->isOffloading(Action::OFK_SYCL))
+      if (JA->isOffloading(Action::OFK_SYCL) && !AtTopLevel) {
+        SmallString<128> FileWithPrefix = addOffloadingPrefixToPath(
+            llvm::sys::path::filename(Result.getFilename()), OffloadingPrefix);
+        Path += FileWithPrefix;
+      } else if (JA->isHostOffloading(Action::OFK_SYCL) && AtTopLevel)
         Path += Result.getFilename();
       else
         Path += llvm::sys::path::filename(BaseInput);
@@ -9671,8 +9675,6 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
   const bool FoInvalidForOffload =
       HasFo && (!IsHostOffloading || isa<OffloadUnbundlingJobAction>(JA) ||
                 JA.getOffloadingHostActiveKinds() > Action::OFK_Host);
-  const bool IsNewOffloadDriver =
-      C.getArgs().hasArg(options::OPT_offload_new_driver);
   // Output to a temporary file?
   if ((!AtTopLevel && !SaveTempsEnabled && (!HasFo || FoInvalidForOffload)) ||
       CCGenDiagnostics) {
