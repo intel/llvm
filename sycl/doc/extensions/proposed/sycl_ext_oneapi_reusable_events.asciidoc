@@ -224,7 +224,7 @@ class event {
 } // namespace sycl
 ----
 
-_Returns:_ A context object associated with the event.
+_Returns:_ The context object associated with this event.
 
 '''
 
