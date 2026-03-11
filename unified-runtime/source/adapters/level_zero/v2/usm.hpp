@@ -10,7 +10,7 @@
 
 #pragma once
 
-#include "ur_api.h"
+#include "unified-runtime/ur_api.h"
 
 #include "../enqueued_pool.hpp"
 #include "common.hpp"

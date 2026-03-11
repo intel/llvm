@@ -9,7 +9,7 @@
 
 #include <thread>
 
-#include "ur_api.h"
+#include "unified-runtime/ur_api.h"
 #include "uur/utils.h"
 #include <uur/fixtures.h>
 

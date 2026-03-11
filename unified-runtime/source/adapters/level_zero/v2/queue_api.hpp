@@ -17,7 +17,7 @@
 #pragma once
 
 #include "queue_extensions.hpp"
-#include <ur_api.h>
+#include <unified-runtime/ur_api.h>
 
 struct ur_queue_t_ : ur_queue_extensions {
   virtual ~ur_queue_t_();

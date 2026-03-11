@@ -97,12 +97,11 @@ jobs:
       image_options: ${{ matrix.image_options || '' }}
       install_igc_driver: ${{ contains(needs.detect_changes.outputs.filters, 'drivers') }}
 
-# TODO: Enable once the apt package at https://apt.llvm.org/noble/pool/main/l/llvm-toolchain-snapshot/ is updated
-#  offload_build:
-#    name: Adapters (Offload)
-#    needs: [detect_changes, source_checks]
-#    if: ${{ !cancelled() && contains(needs.detect_changes.outputs.filters, 'ur_offload_adapter') }}
-#    uses: ./.github/workflows/ur-build-offload.yml
+  offload_build:
+    name: Adapters (Offload)
+    needs: [detect_changes, source_checks]
+    if: ${{ !cancelled() && contains(needs.detect_changes.outputs.filters, 'ur_offload_adapter') }}
+    uses: ./.github/workflows/ur-build-offload.yml
 
   macos:
     name: MacOS build only

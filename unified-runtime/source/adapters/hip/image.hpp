@@ -11,7 +11,7 @@
 
 #include <cassert>
 #include <hip/hip_runtime.h>
-#include <ur_api.h>
+#include <unified-runtime/ur_api.h>
 
 #include "common.hpp"
 ur_result_t urCalculateNumChannels(ur_image_channel_order_t order,

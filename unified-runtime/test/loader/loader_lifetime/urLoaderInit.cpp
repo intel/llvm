@@ -4,8 +4,8 @@
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #include "fixtures.hpp"
-#include "ur_api.h"
-#include <ur_print.hpp>
+#include "unified-runtime/ur_api.h"
+#include <unified-runtime/ur_print.hpp>
 
 using urLoaderInitTestWithParam =
     ::testing::TestWithParam<ur_device_init_flags_t>;

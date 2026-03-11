@@ -10,7 +10,7 @@
 #pragma once
 
 #include <cuda.h>
-#include <ur_api.h>
+#include <unified-runtime/ur_api.h>
 
 #include <array>
 #include <atomic>
@@ -129,9 +129,13 @@ struct ur_kernel_handle_t_ : ur::cuda::handle_base {
       }
       // Otherwise, update the existing argument.
       else {
+        // Validate that the update size matches the original size to prevent
+        // heap buffer overflow
+        if (Size != ParamSizes[Index]) {
+          throw UR_RESULT_ERROR_INVALID_ARGUMENT;
+        }
         std::memcpy(ArgPointers[Index], Arg, Size);
         AlignedLocalMemSize[Index] = LocalSize;
-        assert(Size == ParamSizes[Index]);
       }
     }
 

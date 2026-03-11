@@ -15,7 +15,7 @@
 // REQUIRES: sanitizer
 
 #include <gtest/gtest.h>
-#include <ur_api.h>
+#include <unified-runtime/ur_api.h>
 
 TEST(DeviceAsan, Initialization) {
   ur_result_t status;
