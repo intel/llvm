@@ -8,7 +8,7 @@
 // This test is copied from SeparateCompile/test.cpp
 // and modified to test with the New Offloading Model.
 //
-// The original manual pipeline
+// The original manual pipeline found in SeparateCompile/test.cpp
 // (llvm-link -> sycl-post-link -> llvm-spirv -> clang-offload-wrapper) is
 // removed as clang-linker-wrapper does not support SPIR-V objects produced by
 // the old clang-offload-wrapper, and device libraries are now auto-forwarded
