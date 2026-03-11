@@ -8921,10 +8921,13 @@ static void handleTimeTrace(Compilation &C, const ArgList &Args,
       Path = Result.getFilename();
 
       // For SYCL offloading with the new driver, add offloading prefix to
-      // SYCL host time-trace filename to prevent collisions between host and device outputs.
-      // Only applies when not using -dumpdir (which already has the prefix).
-      // Example: clang++ --offload-new-driver -fsycl -c -ftime-trace mycode.cpp -o e/a.o
-      //   Object file: e/a.o, Time-trace: e/a-host-x86_64-unknown-linux-gnu.json
+      // SYCL host and device time-trace filename to prevent collisions
+      // between host and device outputs.
+      // Example: clang++ --offload-new-driver -fsycl -c
+      // -ftime-trace mycode.cpp -o e/a.o
+      // Object file: e/a.o,
+      // SYCL host time-trace: e/a-host-x86_64-unknown-linux-gnu.json
+      // SYCL device time-trace: e/a-sycl-spir64-unknown-unknown.json
       if (!OffloadingPrefix.empty() &&
           Args.hasArg(options::OPT_offload_new_driver) &&
           JA->isOffloading(Action::OFK_SYCL)) {
@@ -9329,8 +9332,8 @@ InputInfoList Driver::BuildJobsForActionNoCache(
            !AtTopLevel);
 
       OffloadingPrefix = Action::GetOffloadingFileNamePrefix(
-        A->getOffloadingDeviceKind(), EffectiveTriple.normalize(),
-        CreatePrefixForHost);
+          A->getOffloadingDeviceKind(), EffectiveTriple.normalize(),
+          CreatePrefixForHost);
     }
     if (isa<OffloadWrapperJobAction>(JA)) {
       if (Arg *FinalOutput = C.getArgs().getLastArg(options::OPT_o))
