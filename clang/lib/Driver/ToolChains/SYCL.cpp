@@ -628,8 +628,7 @@ SYCLToolChain::getDeviceLibNames(const Driver &D,
 }
 
 // Get the list of SYCL device library names associated with the sanitizers.
-SmallVector<std::string, 8>
-SYCLToolChain::getDeviceSanitizerLibNames(
+SmallVector<std::string, 8> SYCLToolChain::getDeviceSanitizerLibNames(
     const llvm::opt::ArgList &Args) const {
   SmallVector<std::string, 8> LibraryList;
   bool NoOffloadLib =
