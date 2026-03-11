@@ -8917,7 +8917,6 @@ static void handleTimeTrace(Compilation &C, const ArgList &Args,
       else
         Path += llvm::sys::path::filename(BaseInput);
     } else {
-      // clang++ -c -ftime-trace mycode.cpp -o e/a.o case
       Path = Result.getFilename();
 
       // For SYCL offloading with the new driver, add offloading prefix to
