@@ -93,7 +93,7 @@ namespace native {
 
 #if defined(__NVPTX__)
 // Libdevice function declaration
-extern "C" SYCL_EXTERNAL float __nv_tanhf(float);
+extern "C" __DPCPP_SYCL_EXTERNAL float __nv_tanhf(float);
 #endif
 
 // genfloatfh tanh (genfloatfh x)
