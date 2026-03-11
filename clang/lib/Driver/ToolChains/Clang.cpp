@@ -11495,7 +11495,6 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
         SYCLDeviceLibs.append(SYCLTC.getDeviceLibNames(D, Args, TargetTriple));
       const DerivedArgList &ToolChainArgs =
           C.getArgsForToolChain(TC, StringRef(), Kind);
-      //SYCLDeviceLibs.append(SYCLTC.getDeviceSanitizerLibNames(ToolChainArgs));
       for (const auto &AddLib : SYCLDeviceLibs) {
         if (llvm::sys::path::extension(AddLib) == ".bc") {
           SmallString<256> LibPath(DeviceLibDir);
