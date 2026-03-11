@@ -157,6 +157,6 @@ jobs:
         LIT_OPTS: "--timeout 120 -j 50"
       run: cmake --build build -j $(($(nproc)/3)) -- check-unified-runtime-conformance
 
-    - name: Get information about platform
+    - name: Debug CI platform information
       if: ${{ always() }}
-      run: devops/scripts/get_system_info.sh
+      run: ./devops/scripts/get_system_info.sh
