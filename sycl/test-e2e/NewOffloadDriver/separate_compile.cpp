@@ -12,12 +12,12 @@
 // (llvm-link -> sycl-post-link -> llvm-spirv -> clang-offload-wrapper) is
 // removed as clang-linker-wrapper does not support SPIR-V objects produced by
 // the old clang-offload-wrapper, and device libraries are now auto-forwarded
-// by the driver.
+// to clang-linker-wrapper from the driver.
 //
 // REQUIRES: target-spir
 //
 // >> ---- compile src1 (produces fat object with device code)
-// RUN: %{run-aux} %clangxx --offload-new-driver -fsycl -fsycl-targets=spir64 -DSYCL_DISABLE_FALLBACK_ASSERT -fno-sycl-dead-args-optimization -c %s -o a.o -Wno-sycl-strict
+// RUN: %{run-aux} %clangxx --offload-new-driver -fsycl -fsycl-targets=spir64 -Wno-error=unused-command-line-argument -DSYCL_DISABLE_FALLBACK_ASSERT -fno-sycl-dead-args-optimization -c %s -o a.o -Wno-sycl-strict
 //
 // >> ---- compile src2 (produces fat object with device code)
 // RUN: %{run-aux} %clangxx --offload-new-driver -fsycl -fsycl-targets=spir64 -Wno-error=unused-command-line-argument -DSYCL_DISABLE_FALLBACK_ASSERT -DB_CPP=1 -fno-sycl-dead-args-optimization -c %s -o b.o -Wno-sycl-strict

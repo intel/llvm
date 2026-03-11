@@ -1,9 +1,9 @@
 // REQUIRES: target-spir
 //
 // UNSUPPORTED: new-offload-model
-// UNSUPPORTED-INTENDED: This test is not supported with the new offloading model
-// because clang-offload-bundler only works with libraries built with the old
-// offloading model.
+// UNSUPPORTED-INTENDED: This test is not supported with the new offloading
+// model because clang-offload-bundler only works with libraries built with the
+// old offloading model.
 //
 // A modified test can be found at NewOffloadDriver/separate_compile.cpp
 //
