@@ -2,12 +2,12 @@
 // on opencl & level-zero backends
 // (because only SPIR-V supports specialization constants natively)
 
-// REQUIRES: opencl-aot, ocloc, target-spir
+// REQUIRES: opencl-aot, ocloc, target-spir, build-mode
 
 // RUN: %{build} -DJIT -o %t1.out
 // RUN: %{run} %t1.out
 
-// RUN: %if gpu %{ %{run-aux} %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen %gpu_aot_target_opts %s -o %t2.out %}
+// RUN: %if any-device-is-gpu %{ %{run-aux} %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen %gpu_aot_target_opts %s -o %t2.out %}
 // RUN: %if gpu %{ %{run} %t2.out %}
 
 // RUN: %if any-device-is-cpu %{ %{run-aux} %clangxx -fsycl -fsycl-targets=spir64_x86_64 %s -o %t3.out %}
