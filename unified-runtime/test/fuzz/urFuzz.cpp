@@ -12,7 +12,7 @@ tests.
 */
 
 #include "kernel_entry_points.h"
-#include "ur_api.h"
+#include "unified-runtime/ur_api.h"
 #include "utils.hpp"
 #include <cassert>
 

@@ -162,7 +162,7 @@ class BenchmarkHistory:
         if hostname is None:
             hostname = socket.gethostname()
         else:
-            Validate.runner_name(
+            Validate.clean_name(
                 hostname,
                 throw=ValueError("Illegal characters found in specified RUNNER_NAME."),
             )

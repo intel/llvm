@@ -16,7 +16,7 @@
 #ifndef UR_UTIL_H
 #define UR_UTIL_H 1
 
-#include <ur_api.h>
+#include <unified-runtime/ur_api.h>
 
 #include <atomic>
 #include <iostream>

@@ -21,7 +21,7 @@ from templates import helper as th
  * @version v${ver}-r${rev}
  *
  */
-#include "${n}_api.h"
+#include "unified-runtime/${n}_api.h"
 
 %for obj in th.extract_objs(specs, r"function"):
 %if 'guard' in obj:

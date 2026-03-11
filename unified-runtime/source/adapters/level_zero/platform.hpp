@@ -11,7 +11,7 @@
 
 #include "common.hpp"
 #include "external/driver_experimental/zex_graph.h"
-#include "ur_api.h"
+#include "unified-runtime/ur_api.h"
 #include "ze_api.h"
 #include "ze_ddi.h"
 #include "zes_api.h"
@@ -69,7 +69,8 @@ struct ur_platform_handle_t_ : ur::handle_base<ur::level_zero::ddi_getter>,
   bool zeDriverImmediateCommandListAppendFound{false};
   bool ZeDriverEuCountExtensionFound{false};
   bool ZeCopyOffloadExtensionSupported{false};
-  bool ZeCopyOffloadFlagSupported{false};
+  bool ZeCopyOffloadQueueFlagSupported{false};
+  bool ZeCopyOffloadListFlagSupported{false};
   bool ZeBindlessImagesExtensionSupported{false};
   bool ZeLUIDSupported{false};
 

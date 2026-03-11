@@ -13,8 +13,8 @@
 #ifndef UR_PROXY_LAYER_H
 #define UR_PROXY_LAYER_H 1
 
+#include "unified-runtime/ur_ddi.h"
 #include "ur_codeloc.hpp"
-#include "ur_ddi.h"
 #include "ur_util.hpp"
 
 #include <set>

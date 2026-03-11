@@ -25,8 +25,8 @@
 
 #include "../program.hpp"
 #include "../ur_interface_loader.hpp"
+#include "unified-runtime/ur_api.h"
 #include "ur.hpp"
-#include "ur_api.h"
 #include "ze_api.h"
 #include <cstddef>
 #include <cstdint>

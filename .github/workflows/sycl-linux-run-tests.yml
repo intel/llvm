@@ -375,3 +375,9 @@ jobs:
         runner: ${{ inputs.runner }}
         gdb_mode: ${{ inputs.benchmark_gdb_mode }}
         custom_cr: ${{ inputs.benchmark_custom_cr }}
+
+    - name: Debug CI platform information
+      if: always()
+      shell: bash
+      run: |
+        ./devops/scripts/get_system_info.sh

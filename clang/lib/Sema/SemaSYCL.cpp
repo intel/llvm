@@ -6745,6 +6745,7 @@ public:
       TD = TST->getTemplateName().getAsTemplateDecl();
     assert(TD->getIdentifier() &&
            "Either the type or the canonical type should have an identifier.");
+    T.getLocalQualifiers().print(O, Policy, /*appendSpaceIfNotEmpty=*/true);
     TD->printQualifiedName(O);
 
     O << "<";
@@ -6919,6 +6920,7 @@ class EnumValueTemplateArgPrinter
 
     if (const auto *CTSD = dyn_cast_or_null<ClassTemplateSpecializationDecl>(
             DT->getAsCXXRecordDecl())) {
+      T.getLocalQualifiers().print(OS, Policy, /*appendSpaceIfNotEmpty=*/true);
       if (!Policy.SuppressTagKeyword)
         OS << CTSD->getKindName() << " ";
       CTSD->printQualifiedName(OS, Policy,
@@ -6930,6 +6932,7 @@ class EnumValueTemplateArgPrinter
     }
 
     if (const auto *TST = DT->getAs<TemplateSpecializationType>()) {
+      T.getLocalQualifiers().print(OS, Policy, /*appendSpaceIfNotEmpty=*/true);
       if (const auto *RT = TST->getAs<RecordType>()) {
         if (!Policy.SuppressTagKeyword)
           OS << RT->getDecl()->getKindName() << " ";

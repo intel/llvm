@@ -13,6 +13,7 @@
 #include "llvm/IR/PassManager.h"
 #include "llvm/SYCLLowerIR/TargetHelpers.h"
 #include "llvm/Transforms/Utils/Cloning.h"
+#include <memory>
 
 namespace llvm {
 
@@ -25,7 +26,8 @@ class PassRegistry;
 /// entry point.
 class GlobalOffsetPass : public PassInfoMixin<GlobalOffsetPass> {
 public:
-  explicit GlobalOffsetPass() {}
+  explicit GlobalOffsetPass()
+      : GlobalVMap(std::make_unique<llvm::ValueToValueMapTy>()) {}
 
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
   static StringRef getPassName() { return "Add implicit SYCL global offset"; }
@@ -104,7 +106,7 @@ private:
   /// Keep track of all cloned offset functions to avoid processing them.
   llvm::SmallPtrSet<Function *, 8> Clones;
   /// Save clone mappings to obtain pointers to CallInsts during processing.
-  llvm::ValueToValueMapTy GlobalVMap;
+  std::unique_ptr<llvm::ValueToValueMapTy> GlobalVMap;
   /// Keep track of which non-offset functions have been processed to avoid
   /// processing twice.
   llvm::DenseMap<Function *, Value *> ProcessedFunctions;

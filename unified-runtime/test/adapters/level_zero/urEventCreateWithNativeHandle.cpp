@@ -7,7 +7,7 @@
 // RUN: %maybe-v1 ./event_create-test
 // RUN: %maybe-v2 ./event_create-test
 
-#include "ur_api.h"
+#include "unified-runtime/ur_api.h"
 #include "uur/checks.h"
 #include "ze_api.h"
 #include <cstring>

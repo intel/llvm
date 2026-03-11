@@ -14,7 +14,7 @@
 #include <array>
 #include <cstring>
 #include <numeric>
-#include <ur_api.h>
+#include <unified-runtime/ur_api.h>
 #include <vector>
 
 #include "common.hpp"
@@ -47,10 +47,15 @@ struct ur_kernel_handle_t_ : RefCounted {
         Pointers.resize(Index + 1);
         ParamSizes.resize(Index + 1);
       }
-      ParamSizes[Index] = Size;
       // Calculate the insertion point in the array.
       size_t InsertPos = std::accumulate(std::begin(ParamSizes),
                                          std::begin(ParamSizes) + Index, 0);
+      // Validate bounds before memcpy to prevent heap buffer overflow
+      // Check for integer overflow: validate Size first to avoid underflow
+      if (Size > MaxParamBytes || InsertPos > MaxParamBytes - Size) {
+        throw UR_RESULT_ERROR_OUT_OF_RESOURCES;
+      }
+      ParamSizes[Index] = Size;
       // Update the stored value for the argument.
       std::memcpy(&Storage[InsertPos], Arg, Size);
       Pointers[Index] = &Storage[InsertPos];

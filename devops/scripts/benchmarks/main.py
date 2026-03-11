@@ -10,7 +10,7 @@ import re
 import statistics
 import os
 
-from benches.compute import *
+from benches.compute.compute import *
 from benches.gromacs import GromacsBench
 from benches.velocity import VelocityBench
 from benches.syclbench import *
@@ -121,9 +121,8 @@ def run_iterations(
 
             for bench_result in bench_results:
                 log.info(
-                    f"{benchmark.name()} complete ({bench_result.label}: {bench_result.value:.3f} {bench_result.unit})."
+                    f"{benchmark.name()} complete: {bench_result.value:.3f} {bench_result.unit}."
                 )
-                bench_result.name = bench_result.label
                 bench_result.lower_is_better = benchmark.lower_is_better()
                 bench_result.suite = benchmark.get_suite_name()
 
@@ -546,7 +545,12 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--save",
-        type=str,
+        type=lambda save: Validate.clean_name(
+            save,
+            throw=argparse.ArgumentTypeError(
+                "Specified save name is not within characters [a-zA-Z0-9_-]."
+            ),
+        ),
         help="Save the results for comparison under a specified name.",
     )
     parser.add_argument(

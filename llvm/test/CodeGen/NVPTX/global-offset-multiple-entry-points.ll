@@ -1,4 +1,4 @@
-; RUN: opt -bugpoint-enable-legacy-pm -globaloffset %s -S -o - | FileCheck %s
+; RUN: opt -passes=globaloffset %s -S -o - | FileCheck %s
 ; ModuleID = 'multiple-entry-points.bc'
 source_filename = "multiple-entry-points.ll"
 target datalayout = "e-i64:64-i128:128-v16:16-v32:32-n16:32:64"
