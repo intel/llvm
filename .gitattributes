@@ -1,0 +1,7 @@
+# Track benchmark result JSON files with LFS
+results/*.json filter=lfs diff=lfs merge=lfs -text
+
+# Track large generated data files
+data.json filter=lfs diff=lfs merge=lfs -text
+data_archive.json filter=lfs diff=lfs merge=lfs -text
+
