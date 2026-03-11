@@ -7715,6 +7715,9 @@ def fsycl_fp64_conv_emu : Flag<["-"], "fsycl-fp64-conv-emu">,
            "conversion operations and no fp64 computation operations (requires "
            "Intel GPU backend supporting fp64 partial emulation).">,
   MarshallingInfoFlag<CodeGenOpts<"FP64ConvEmu">>;
+def fno_sycl_use_header : Flag<["-"], "fno-sycl-use-header">,
+  HelpText<"Disable usage of the integration header during SYCL enabled "
+           "compilations.">;
 def fno_sycl_use_footer : Flag<["-"], "fno-sycl-use-footer">,
   HelpText<"Disable usage of the integration footer during SYCL enabled "
            "compilations.">;

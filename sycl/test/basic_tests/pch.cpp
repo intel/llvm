@@ -1,5 +1,5 @@
-// RUN: %clang -fsycl -c -x c++-header %S/head.hpp -o %S/head.pchi
-// RUN: %clang -fsycl -c -include-pch %S/head.pchi %s
+// RUN: %clang -fsycl -c -x c++-header %S/head.hpp -o %S/head.pch
+// RUN: %clang -fsycl -c -include-pch %S/head.pch %s
 
 // Verify a PCH file created from the header file can be
 // successfully included in a source file compilation.
