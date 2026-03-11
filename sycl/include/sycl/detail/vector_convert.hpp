@@ -392,7 +392,10 @@ using enable_if_to_int_vector_t =
   template <typename From, typename To, int VecSize, typename Enable>          \
   enable_if_to_int_scalar_t<sycl::opencl::cl_##DestType, Enable, VecSize, To>  \
   Op##Convert(From value) {                                                    \
-    return __spirv_##Op##Convert_R##DestType(value);                           \
+    using RetType = enable_if_to_int_scalar_t<sycl::opencl::cl_##DestType,     \
+                                              Enable, VecSize, To>;            \
+    return __builtin_bit_cast(RetType,                                         \
+                              __spirv_##Op##Convert_R##DestType(value));       \
   }
 
 #define __SYCL_VECTOR_INT_INT_CONVERT(Op, N, DestType)                         \
@@ -400,7 +403,10 @@ using enable_if_to_int_vector_t =
   enable_if_to_int_vector_t<sycl::opencl::cl_##DestType, Enable, N, VecSize,   \
                             To>                                                \
   Op##Convert(From value) {                                                    \
-    return __spirv_##Op##Convert_R##DestType##N(value);                        \
+    using RetType = enable_if_to_int_vector_t<sycl::opencl::cl_##DestType,     \
+                                              Enable, N, VecSize, To>;         \
+    return __builtin_bit_cast(RetType,                                         \
+                              __spirv_##Op##Convert_R##DestType##N(value));    \
   }
 
 #define __SYCL_INT_INT_CONVERT(Op, DestType)                                   \
@@ -433,7 +439,11 @@ __SYCL_INT_INT_CONVERT(U, ulong)
   enable_if_to_int_scalar_t<sycl::opencl::cl_##DestType, Enable, VecSize, To,  \
                             RoundingModeCondition, RM>                         \
   Convert##Op(From Value) {                                                    \
-    return __spirv_Convert##Op##_R##DestType##_##RoundingMode(Value);          \
+    using RetType =                                                            \
+        enable_if_to_int_scalar_t<sycl::opencl::cl_##DestType, Enable,         \
+                                  VecSize, To, RoundingModeCondition, RM>;     \
+    return __builtin_bit_cast(                                                 \
+        RetType, __spirv_Convert##Op##_R##DestType##_##RoundingMode(Value));   \
   }
 
 #define __SYCL_VECTOR_FLOAT_INT_CONVERT(Op, N, DestType, RoundingMode,         \
@@ -443,7 +453,12 @@ __SYCL_INT_INT_CONVERT(U, ulong)
   enable_if_to_int_vector_t<sycl::opencl::cl_##DestType, Enable, N, VecSize,   \
                             To, RoundingModeCondition, RM>                     \
   Convert##Op(From Value) {                                                    \
-    return __spirv_Convert##Op##_R##DestType##N##_##RoundingMode(Value);       \
+    using RetType =                                                            \
+        enable_if_to_int_vector_t<sycl::opencl::cl_##DestType, Enable, N,      \
+                                  VecSize, To, RoundingModeCondition, RM>;     \
+    return __builtin_bit_cast(                                                 \
+        RetType,                                                               \
+        __spirv_Convert##Op##_R##DestType##N##_##RoundingMode(Value));         \
   }
 
 #define __SYCL_FLOAT_INT_CONVERT(Op, DestType, RoundingMode,                   \
