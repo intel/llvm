@@ -9674,6 +9674,9 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
   const bool SaveTempsEnabled = isSaveTempsEnabled();
   const bool HasFo = C.getArgs().hasArg(options::OPT__SLASH_Fo);
   const bool IsHostOffloading = JA.isOffloading(Action::OFK_None);
+  // FIXME - The use of /Fo is limited when offloading is enabled. When
+  // compiling to exe use of /Fo does not produce the named obj. We also
+  // should not use the named output when performing unbundling.
   const bool FoInvalidForOffload =
       HasFo && (!IsHostOffloading || isa<OffloadUnbundlingJobAction>(JA) ||
                 JA.getOffloadingHostActiveKinds() > Action::OFK_Host);
