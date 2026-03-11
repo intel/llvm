@@ -11,6 +11,6 @@
 using namespace std;
 int main() {
   sycl::range<3> three_dim_range(64, 1, 2);
-  assert(three_dim_range.size() ==128);
+  assert(three_dim_range.size() == 128);
   cout << "three_dim_range passed " << endl;
 }
