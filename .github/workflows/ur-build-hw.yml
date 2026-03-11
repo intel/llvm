@@ -101,7 +101,6 @@ jobs:
 
     steps:
     # TODO:
-    # - investigate if DUR_CONFORMANCE_AMD_ARCH could be removed
     # - switch to Ninja generator in CMake
     # - downloading DPC++ should be integrated somehow; most likely use nightly release.
     #
@@ -144,7 +143,7 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ github.token }}
       run: |
-        sudo -E bash devops/scripts/install_drivers.sh devops/dependencies.json  --igfx
+        sudo -E bash devops/scripts/install_drivers.sh devops/dependencies.json --igfx
 
     - name: Configure Unified Runtime project
       # ">" is used to avoid adding "\" at the end of each line; this command is quite long
@@ -165,8 +164,6 @@ jobs:
         -DUR_DPCXX=./dpcpp_compiler/bin/clang++
         -DUR_SYCL_LIBRARY_DIR=./dpcpp_compiler/lib
         -DCMAKE_INSTALL_PREFIX=./install
-        ${{ matrix.adapter.name == 'HIP' && '-DUR_CONFORMANCE_AMD_ARCH=gfx1030' || '' }}
-        ${{ matrix.adapter.name == 'HIP' && '-DUR_HIP_PLATFORM=AMD' || '' }}
 
     - name: Build
       # This is so that device binaries can find the sycl runtime library
