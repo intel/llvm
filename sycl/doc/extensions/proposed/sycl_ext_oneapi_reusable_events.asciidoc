@@ -209,7 +209,7 @@ class event {
 } // namespace sycl
 ----
 
-_Returns:_ A device object associated with the event.
+_Returns:_ The device object associated with this event.
 
 '''
 
