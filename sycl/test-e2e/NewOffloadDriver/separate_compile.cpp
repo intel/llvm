@@ -36,8 +36,76 @@
 // RUN: %{run-aux} clang-offload-wrapper -o wrapper.bc -host=x86_64 -kind=sycl -target=spir64 -batch test_spv.table
 //
 // >> compile .bc to .o
-// RUN: %{run-aux} %clangxx --offload-new-driver -Wno-error=override-module -c wrapper.bc -o wrapper.o %if preview-mode %{-Wno-unused-command-line-argument%}
+// RUN: %{run-aux} %clangxx -fsycl --offload-new-driver -Wno-error=override-module -c wrapper.bc -o wrapper.o %if preview-mode %{-Wno-unused-command-line-argument%}
 //
 // >> ---- link the full hetero app
 // RUN:%{run-aux} %clangxx wrapper.o a.o b.o -Wno-unused-command-line-argument -o app.exe %sycl_options
 // RUN: %{run} ./app.exe
+
+#ifdef B_CPP
+// -----------------------------------------------------------------------------
+#include <iostream>
+#include <sycl/detail/core.hpp>
+
+int run_test_b(int v) {
+  int arr[] = {v};
+  {
+    sycl::queue deviceQueue;
+    sycl::buffer<int, 1> buf(arr, 1);
+    deviceQueue.submit([&](sycl::handler &cgh) {
+      auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
+      cgh.single_task<class kernel_b>([=]() { acc[0] *= 3; });
+    });
+  }
+  return arr[0];
+}
+
+#else // !B_CPP
+
+// -----------------------------------------------------------------------------
+#include <iostream>
+#include <sycl/detail/core.hpp>
+
+using namespace std;
+
+const int VAL = 10;
+
+extern int run_test_b(int);
+
+int run_test_a(int v) {
+  int arr[] = {v};
+  {
+    sycl::queue deviceQueue;
+    sycl::buffer<int, 1> buf(arr, 1);
+    deviceQueue.submit([&](sycl::handler &cgh) {
+      auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
+      cgh.single_task<class kernel_a>([=]() { acc[0] *= 2; });
+    });
+  }
+  return arr[0];
+}
+
+int main(int argc, char **argv) {
+  bool pass = true;
+
+  int test_a = run_test_a(VAL);
+  const int GOLD_A = 2 * VAL;
+
+  if (test_a != GOLD_A) {
+    std::cout << "FAILD test_a. Expected: " << GOLD_A << ", got: " << test_a
+              << "\n";
+    pass = false;
+  }
+
+  int test_b = run_test_b(VAL);
+  const int GOLD_B = 3 * VAL;
+
+  if (test_b != GOLD_B) {
+    std::cout << "FAILD test_b. Expected: " << GOLD_B << ", got: " << test_b
+              << "\n";
+    pass = false;
+  }
+
+  return pass ? 0 : 1;
+}
+#endif // !B_CPP
