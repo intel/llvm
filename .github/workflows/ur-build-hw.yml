@@ -33,38 +33,6 @@ on:
         required: false
         type: string
         default: ""
-  workflow_dispatch:
-    inputs:
-      adapter_name:
-        required: true
-        type: string
-      other_adapter_name:
-        required: false
-        type: string
-        default: ""
-      runner_name:
-        required: true
-        type: string
-      static_loader:
-        required: false
-        type: string
-        default: OFF
-      static_adapter:
-        required: false
-        type: string
-        default: OFF
-      docker_image:
-        required: true
-        type: string
-        default: ""
-      image_options:
-        required: true
-        type: string
-        default: ""
-      install_igc_driver:
-        required: false
-        type: string
-        default: ""
 
 permissions: read-all
 
