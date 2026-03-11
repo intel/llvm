@@ -1,7 +1,7 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// Check that submission time is calculated properly.
+// Check that submission time is valid.
 
 // Test fails on hip flakily, disable temprorarily.
 // UNSUPPORTED: hip
