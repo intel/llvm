@@ -191,6 +191,43 @@ return sycl::ext::oneapi::experimental::make_event(d, ctxt, props);
 
 '''
 
+==== New event member functions
+
+This extension adds new event type member functions to get the device and
+context associated with the event.
+
+'''
+
+[source,c++]
+----
+namespace sycl {
+
+class event {
+  sycl::device get_device() const;
+};
+
+} // namespace sycl
+----
+
+_Returns:_ A device object associated with the event.
+
+'''
+
+[source,c++]
+----
+namespace sycl {
+
+class event {
+  sycl::context get_context() const;
+};
+
+} // namespace sycl
+----
+
+_Returns:_ A context object associated with the event.
+
+'''
+
 === New property for creating an event
 
 This extension adds the following property, which can be used with `make_event`:
@@ -322,7 +359,7 @@ time.
 _{endnote}_]
 
 _Throws:_ An `exception` with the `errc::invalid` error code if `evt` and `q`
-don't have the same context or the same device.
+don't have the same context or don't have the same device.
 
 === Interaction with other event APIs
 
