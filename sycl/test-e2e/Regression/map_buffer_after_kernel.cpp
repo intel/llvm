@@ -1,7 +1,6 @@
-// REQUIRES: arch-intel_gpu_mtl_h || arch-intel_gpu_mtl_u || arch-intel_gpu_lnl_m || arch-intel_gpu_ptl_h || arch-intel_gpu_ptl_u
+// REQUIRES: aspect-ext_oneapi_is_integrated_gpu
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-// RUN: %if level_zero %{ env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 UR_L0_V2_FORCE_BATCHED=1 %{run} %t.out %}
 
 #include <sycl/detail/core.hpp>
 
