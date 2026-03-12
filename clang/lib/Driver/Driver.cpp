@@ -8899,10 +8899,17 @@ static void handleTimeTrace(Compilation &C, const ArgList &Args,
     if (!IsSYCLNonTopLevel)
       return SmallString<128>(Result.getFilename());
 
-    if (Arg *FinalOutput = Args.getLastArg(options::OPT_o))
-      return SmallString<128>(FinalOutput->getValue());
-    else
-      return SmallString<128>(llvm::sys::path::filename(BaseInput));
+    // When compiling with -c, -o specifies the object file for this specific
+    // source, so it's safe to use for the trace filename. But in compile+link
+    // mode, -o names the final executable and is shared across all sources,
+    // which would cause trace filename collisions. In that case, fall back to
+    // using the input filename to keep traces unique per source.
+    const bool IsCompileOnly = Args.hasArg(options::OPT_c);
+    if (IsCompileOnly) {
+      if (Arg *FinalOutput = Args.getLastArg(options::OPT_o))
+        return SmallString<128>(FinalOutput->getValue());
+    }
+    return SmallString<128>(llvm::sys::path::filename(BaseInput));
   };
 
   SmallString<128> Path;
@@ -8935,7 +8942,7 @@ static void handleTimeTrace(Compilation &C, const ArgList &Args,
     } else {
       Path = GetTracePathForSYCLNonTopLevel();
 
-      // For SYCL offloading with the new driver, add offloading prefix to
+      // For SYCL offloading, add offloading prefix to
       // SYCL host and device time-trace filename to prevent collisions
       // between host and device outputs.
       // Example: clang++ --offload-new-driver -fsycl -c
