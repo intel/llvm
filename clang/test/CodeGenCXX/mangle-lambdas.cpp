@@ -397,8 +397,6 @@ int nonLocalStaticInlineMemberUse() {
 // CHECK-LABEL: define linkonce_odr void @_Z1fIZZNK23TestNestedInstantiationclEvENKUlvE_clEvEUlvE_EvT_
 
 // CHECK-LABEL: define linkonce_odr void @_ZZN16pr139089_vlambdaIiEC1EvENKUlRiE_clES1_
-
-
 namespace PR12808 {
   template <typename> struct B {
     int a;
