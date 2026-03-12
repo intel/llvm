@@ -195,8 +195,7 @@ Error llvm::sycl_post_link::saveFinalModuleForEveryTarget(
   sycl_post_link::IrPropSymFilenameTriple BaseTriple = {FM.IR, "", SymbolsPath};
   PropSetRegTy PropSet = FM.Properties;
   for (const auto &[Table, OutputFile] : zip_equal(OutTables, OutputFiles)) {
-    if (!isTargetCompatibleWithModule(OutputFile.Target,
-                                      FM.MD))
+    if (!isTargetCompatibleWithModule(OutputFile.Target, FM.MD))
       continue;
 
     auto CopyTriple = BaseTriple;

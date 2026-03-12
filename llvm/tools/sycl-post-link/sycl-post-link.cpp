@@ -284,9 +284,9 @@ Error saveDeviceLibModule(
     return FM.takeError();
 
   StringRef Suffix = DeviceLibMD.isESIMD() ? "_esimd" : "";
-  return sycl_post_link::saveFinalModuleForEveryTarget(*FM, OutTables, DoSymGen, I,
-                                         OutputPrefix, OutputFiles, DoPropGen,
-                                         Suffix);
+  return sycl_post_link::saveFinalModuleForEveryTarget(
+      *FM, OutTables, DoSymGen, I, OutputPrefix, OutputFiles, DoPropGen,
+      Suffix);
 }
 
 std::vector<std::unique_ptr<util::SimpleTable>>
@@ -414,9 +414,9 @@ processInputModule(std::unique_ptr<Module> M, const StringRef OutputPrefix) {
         ExitOnErr(FM.takeError());
 
       StringRef Suffix = IrMD->isESIMD() ? "_esimd" : "";
-      ExitOnErr(sycl_post_link::saveFinalModuleForEveryTarget(*FM, Tables, DoSymGen, ID,
-                                                OutputPrefix, OutputFiles,
-                                                DoPropGen, Suffix));
+      ExitOnErr(sycl_post_link::saveFinalModuleForEveryTarget(
+          *FM, Tables, DoSymGen, ID, OutputPrefix, OutputFiles, DoPropGen,
+          Suffix));
     }
 
     ++ID;
@@ -435,9 +435,9 @@ processInputModule(std::unique_ptr<Module> M, const StringRef OutputPrefix) {
           ExitOnErr(FM.takeError());
 
         StringRef Suffix = IrMD->isESIMD() ? "_esimd" : "";
-        ExitOnErr(sycl_post_link::saveFinalModuleForEveryTarget(*FM, Tables, DoSymGen, ID,
-                                                  OutputPrefix, OutputFiles,
-                                                  DoPropGen, Suffix));
+        ExitOnErr(sycl_post_link::saveFinalModuleForEveryTarget(
+            *FM, Tables, DoSymGen, ID, OutputPrefix, OutputFiles, DoPropGen,
+            Suffix));
       }
 
       ++ID;
