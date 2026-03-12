@@ -6,6 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
+#ifndef LLVM_SYCL_LOWER_IR_DEVICE_CONFIG_FILE_HPP
+#define LLVM_SYCL_LOWER_IR_DEVICE_CONFIG_FILE_HPP
+
 #include <map>
 #include <string>
 #include <string_view>
@@ -30,3 +33,5 @@ using TargetTable_t = std::map<std::string, TargetInfo>;
 #include "llvm/SYCLLowerIR/DeviceConfigFile.inc"
 #undef GET_TargetTable_IMPL
 } // namespace DeviceConfigFile
+
+#endif // LLVM_SYCL_LOWER_IR_DEVICE_CONFIG_FILE_HPP
