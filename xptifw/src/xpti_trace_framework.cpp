@@ -19,6 +19,7 @@
 #include "xpti_int64_hash_table.hpp"
 #include "xpti_object_table.hpp"
 #include "xpti_string_table.hpp"
+#include "spin_lock.hpp"
 #include <hash_table7.hpp>
 
 #include <algorithm>
@@ -923,7 +924,7 @@ public:
 
     xpti::uid128_t UId = TP->MUId;
     {
-      std::unique_lock<std::shared_mutex> Lock(MTracepointMutex);
+      std::lock_guard<xpti::SharedSpinLock> Lock(MTracepointMutex);
       // Find the event list for a given UID
       auto &Instances = MTracepoints[UId];
       MUID64Check.erase(UId.uid64);
@@ -1060,7 +1061,7 @@ public:
     // Check is Key is valid; If the payload is fully populated, then we will
     // have both Key.p1 and Key.p2 set. However, if only a function name is
     // provided, then we will have Key.p1 populated.
-    std::unique_lock<std::shared_mutex> Lock(MPayloadMutex);
+    std::lock_guard<xpti::SharedSpinLock> Lock(MPayloadMutex);
     auto &PayloadEntry = MPayloads[Key];
     if (PayloadEntry.first.Payload.flags == 0) {
 #ifdef XPTI_STATISTICS
@@ -1133,7 +1134,7 @@ public:
       return nullptr;
 
     // Lock the mutex to ensure thread-safe access to the tracepoints map
-    std::unique_lock<std::shared_mutex> Lock(MTracepointMutex);
+    std::lock_guard<xpti::SharedSpinLock> Lock(MTracepointMutex);
     // Access or create the tracepoint instance associated with the universal ID
     auto &Tracepoint = MTracepoints[UniversalId];
     // Access or create the specific instance of the tracepoint based on the
@@ -1168,7 +1169,7 @@ public:
     {
       xpti::uid128_t UId = TP->MUId;
       // Lock the mutex to ensure thread-safe access to the tracepoints map
-      std::unique_lock<std::shared_mutex> Lock(MTracepointMutex);
+      std::lock_guard<xpti::SharedSpinLock> Lock(MTracepointMutex);
       // Find the tracepoint for a given UID
       auto &Instances = MTracepoints[UId];
       // Now release the 64-bit UID associated with tracepoint instance
@@ -1438,23 +1439,24 @@ private:
   /// information.
   std::mutex MMetadataMutex;
 
-  /// @var mutable std::shared_mutex MTracepointMutex
-  /// @brief Shared mutex for protecting access to the event lookup table.
+  /// @var mutable xpti::SharedSpinLock MTracepointMutex
+  /// @brief Shared spin lock for protecting access to the event lookup table.
   ///
-  /// This shared mutex allows multiple readers or a single writer to access
+  /// This shared spin lock allows multiple readers or a single writer to access
   /// the `MEvents` lookup table, ensuring thread-safe operations. The
   /// `mutable` keyword allows the mutex to be locked even in const member
-  /// functions.
-  mutable std::shared_mutex MTracepointMutex;
+  /// functions. Uses SharedSpinLock for better performance in low-contention
+  /// scenarios.
+  mutable xpti::SharedSpinLock MTracepointMutex;
 
-  /// @var mutable std::shared_mutex MPayloadMutex
-  /// @brief Reader/Writer mutex for protecting access to the payload lookup
+  /// @var mutable xpti::SharedSpinLock MPayloadMutex
+  /// @brief Reader/Writer spin lock for protecting access to the payload lookup
   /// table.
   ///
-  /// Similar to `MTracepointMutex`, this shared mutex ensures thread-safe
+  /// Similar to `MTracepointMutex`, this shared spin lock ensures thread-safe
   /// access to the `MPayloads` lookup table, allowing multiple readers or a
-  /// single writer.
-  mutable std::shared_mutex MPayloadMutex;
+  /// single writer. Uses SharedSpinLock for better performance.
+  mutable xpti::SharedSpinLock MPayloadMutex;
 };
 
 /// @brief Helper class to manage subscriber callbacks for a given tracepoint
@@ -1566,14 +1568,14 @@ public:
     }
 #endif
     {
-      std::unique_lock<std::shared_mutex> Lock(MFlagsLock);
+      std::lock_guard<xpti::SharedSpinLock> Lock(MFlagsLock);
       // Get the flags for the stream
       auto &TraceFlags = MStreamFlags[StreamID];
       TraceFlags[TraceType] = true; // Set the trace type flag to true
     }
     // If reader-writer locks were emplyed, this is where the writer lock can
     // be used
-    std::unique_lock<std::shared_mutex> Lock(MCBsLock);
+    std::lock_guard<xpti::SharedSpinLock> Lock(MCBsLock);
 
     auto &StreamCBs =
         MCallbacksByStream[StreamID]; // thread-safe
@@ -1644,7 +1646,7 @@ public:
       return xpti::result_t::XPTI_RESULT_INVALIDARG;
 
     {
-      std::unique_lock<std::shared_mutex> Lock(MFlagsLock);
+      std::lock_guard<xpti::SharedSpinLock> Lock(MFlagsLock);
       auto &TraceFlags = MStreamFlags[StreamID]; // Get the trace flags for the
                                                  // stream ID
       TraceFlags[TraceType] = false; // Set the trace type flag to false
@@ -1652,7 +1654,7 @@ public:
     // Since we do not remove the callback function when they are unregistered
     // and only reset the flag, the writer lock is not held for very long; use
     // writer lock here.
-    std::unique_lock<std::shared_mutex> Lock(MCBsLock);
+    std::lock_guard<xpti::SharedSpinLock> Lock(MCBsLock);
     auto &StreamCBs =
         MCallbacksByStream[StreamID]; // thread-safe
                                       //  What we get is a concurrent_hash_map
@@ -1694,20 +1696,19 @@ public:
   ///         successful. Returns `xpti::result_t::XPTI_RESULT_NOTFOUND` if no
   ///         callbacks are registered for the specified StreamID.
   ///
-  /// @note This function uses a `std::unique_lock` to ensure thread safety when
-  /// modifying the callbacks and stream flags. If the implementation evolves to
-  /// use reader-writer locks, a reader lock should be used where appropriate.
+  /// @note This function uses a `std::lock_guard` with `SharedSpinLock` to
+  /// ensure thread safety when modifying the callbacks and stream flags.
 
   xpti::result_t unregisterStream(xpti::stream_id_t StreamID) {
     {
-      std::unique_lock<std::shared_mutex> Lock(MFlagsLock);
+      std::lock_guard<xpti::SharedSpinLock> Lock(MFlagsLock);
       // Get the trace flags for the stream
       MStreamFlags.erase(StreamID);
     }
     // If there are no callbacks registered for the requested stream ID, we
     // return not found; use reader lock here if the implementation moves to
     // reader-writer locks.
-    std::unique_lock<std::shared_mutex> Lock(MCBsLock);
+    std::lock_guard<xpti::SharedSpinLock> Lock(MCBsLock);
     if (MCallbacksByStream.count(StreamID) == 0)
       return xpti::result_t::XPTI_RESULT_NOTFOUND;
 
@@ -1742,7 +1743,7 @@ public:
     if (StreamID == 0)
       return false;
 
-    std::shared_lock<std::shared_mutex> Lock(MFlagsLock);
+    xpti::SharedLock Lock(MFlagsLock);
     // Instead of checking the MCallbacksByStream to see if there are
     // registered callbacks for a given stream/trace type query, we check
     // this against a shadow data structure that sets a boolean flag equals
@@ -1796,8 +1797,7 @@ public:
   ///
   /// @return Always returns `xpti::result_t::XPTI_RESULT_SUCCESS`.
   ///
-  /// @note This function uses a `std::shared_lock` (when compiled with C++14 or
-  /// later) to allow
+  /// @note This function uses `xpti::SharedLock` (shared reader lock) to allow
   ///       multiple readers for the callback registration data, improving
   ///       concurrency. The lock is released before invoking the callbacks to
   ///       prevent deadlocks and reduce lock contention. In environments where
@@ -1819,7 +1819,7 @@ public:
       // the notification functions when the lock is held and then releases
       // the lock before calling the notification functions. When using
       // reader-writer locks, use reader lock here.
-      std::shared_lock<std::shared_mutex> Lock(MCBsLock);
+      xpti::SharedLock Lock(MCBsLock);
       cb_t &Stream = MCallbacksByStream[StreamID]; // Thread-safe
       Acc = Stream.find(TraceType);
       Success = (Acc != Stream.end());
@@ -1910,9 +1910,9 @@ private:
   }
 #endif
   stream_cb_t MCallbacksByStream;
-  mutable std::shared_mutex MCBsLock;
-  mutable std::shared_mutex MFlagsLock;
   std::mutex MStatsLock;
+  mutable xpti::SharedSpinLock MCBsLock;
+  mutable xpti::SharedSpinLock MFlagsLock;
   statistics_t MStats;
   stream_flags_t MStreamFlags;
 };

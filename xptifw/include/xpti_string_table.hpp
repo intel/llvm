@@ -6,6 +6,7 @@
 #pragma once
 
 #include "parallel_hashmap/phmap.h"
+#include "spin_lock.hpp"
 #include "xpti/xpti_data_types.h"
 #include <hash_table7.hpp>
 
@@ -104,7 +105,7 @@ public:
     string_id_t StrID;
     {
       // Employ a double-check pattern here
-      std::unique_lock<std::shared_mutex> Lock(MMutex);
+      std::lock_guard<xpti::SharedSpinLock> Lock(MMutex);
       auto Loc = MStringToID.find(str);
       // String not present in the table
       if (Loc == MStringToID.end()) {
@@ -160,7 +161,7 @@ public:
   //  The reverse query allows one to get the string from the string_id_t that
   //  may have been cached somewhere.
   const char *query(xpti::string_id_t id) {
-    std::shared_lock<std::shared_mutex> lock(MMutex);
+    xpti::SharedLock lock(MMutex);
 #ifndef XPTI_USE_VECTOR_LOOKUP
     auto Loc = MIDToString.find(id);
     if (Loc != MIDToString.end()) {
@@ -212,7 +213,7 @@ private:
   safe_uint32_t MIds;               ///< Thread-safe ID generator
   st_forward_t MStringToID;         ///< Forward lookup hash map
   st_reverse_t MIDToString;         ///< Reverse lookup hash map
-  mutable std::shared_mutex MMutex; ///< Mutex required for double-check pattern
+  mutable xpti::SharedSpinLock MMutex; ///< Shared spin lock for double-check pattern
 
   safe_int32_t MStrings; ///< The count of strings in the table
 #ifdef XPTI_STATISTICS
