@@ -62,6 +62,6 @@ jobs:
       # This is so that device binaries can find the sycl runtime library
       run: python3 llvm/buildbot/compile.py
 
-    - name: Get information about platform
+    - name: Debug CI platform information
       if: ${{ always() }}
       run: ./llvm/devops/scripts/get_system_info.sh
