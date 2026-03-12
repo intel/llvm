@@ -64,6 +64,12 @@ jobs:
     - name: Compile test file
       run: llvm/build/bin/clang++ -fsycl llvm/sycl/test-e2e/Basic/liboffload_test.cpp -o test_liboffload
 
+    - name: Run sycl-ls
+      run: >
+        LD_LIBRARY_PATH=./llvm-project-install/lib
+        UR_ADAPTERS_FORCE_LOAD=./llvm/build/lib/libur_adapter_offload.so
+        ./llvm/build/bin/sycl-ls
+
     - name: Run test
       run: LD_LIBRARY_PATH=llvm/build/lib UR_ADAPTERS_FORCE_LOAD=llvm/build/lib/libur_adapter_offload.so ZE_AFFINITY_MASK=1 ./test_liboffload
 
