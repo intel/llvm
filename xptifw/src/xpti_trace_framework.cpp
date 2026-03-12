@@ -15,11 +15,11 @@
 
 #include "xpti/xpti_trace_framework.hpp"
 #include "parallel_hashmap/phmap.h"
+#include "spin_lock.hpp"
 #include "xpti/xpti_trace_framework.h"
 #include "xpti_int64_hash_table.hpp"
 #include "xpti_object_table.hpp"
 #include "xpti_string_table.hpp"
-#include "spin_lock.hpp"
 #include <hash_table7.hpp>
 
 #include <algorithm>

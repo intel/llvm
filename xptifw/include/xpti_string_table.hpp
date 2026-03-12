@@ -213,7 +213,8 @@ private:
   safe_uint32_t MIds;               ///< Thread-safe ID generator
   st_forward_t MStringToID;         ///< Forward lookup hash map
   st_reverse_t MIDToString;         ///< Reverse lookup hash map
-  mutable xpti::SharedSpinLock MMutex; ///< Shared spin lock for double-check pattern
+  mutable xpti::SharedSpinLock
+      MMutex; ///< Shared spin lock for double-check pattern
 
   safe_int32_t MStrings; ///< The count of strings in the table
 #ifdef XPTI_STATISTICS
