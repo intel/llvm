@@ -199,7 +199,12 @@ template <typename T>
 void host_task(sycl::queue Q, T &&hostTaskCallable,
                const sycl::detail::code_location &CodeLoc =
                    sycl::detail::code_location::current()) {
-  Q.submit([&](sycl::handler &h) { h.host_task(hostTaskCallable); });
+  submit(
+      std::move(Q),
+      [&](sycl::handler &cgh) {
+        cgh.host_task(std::forward<T>(hostTaskCallable));
+      },
+      CodeLoc);
 }
 
 template <typename T> void host_task(handler &CGH, T &&hostTaskCallable) {
