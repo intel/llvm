@@ -8,7 +8,7 @@
 
 #include "include/tsan_rtl.hpp"
 
-DeviceGlobal<void *> __TsanLaunchInfo;
+inline DeviceGlobal<void *> __TsanLaunchInfo;
 
 #define TsanLaunchInfo                                                         \
   ((__SYCL_GLOBAL__ TsanRuntimeData *)__TsanLaunchInfo.get())
