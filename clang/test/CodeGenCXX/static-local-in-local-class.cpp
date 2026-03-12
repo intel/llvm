@@ -1,11 +1,11 @@
 // RUN: %clang_cc1 -triple x86_64-linux -fblocks -emit-llvm -o - %s -std=c++1y | FileCheck %s
 
-// CHECK: @"_ZZZNK17pr18020_constexpr3$_1clEvENKUlvE_clEvE2l2" =
-// CHECK: internal global ptr @"_ZZNK17pr18020_constexpr3$_1clEvE2l1"
+// CHECK: @"_ZZNK17pr18020_constexpr1xM3$_1clEvE2l1"
+// CHECK: internal global ptr @"_ZZNK17pr18020_constexpr1xM3$_1clEvE2l1"
 // CHECK: @_ZZL14deduced_returnvE1n = internal global i32 42
 // CHECK: @_ZZZL20block_deduced_returnvEUb_E1n = internal global i32 42
 // CHECK: @_ZZ18static_local_labelPvE1q = linkonce_odr global ptr blockaddress(@_Z18static_local_labelPv, %{{.*}})
-// CHECK: @"_ZZNK3$_2clEvE1x" = internal global i32 42
+// CHECK: @"_ZZNK13global_lambdaM3$_2clEvE1x" = internal global i32 42
 
 namespace pr6769 {
 struct X {
@@ -55,8 +55,8 @@ auto x = []() {
 int f() { return x()(); }
 }
 
-// CHECK-LABEL: define internal noundef i32 @"_ZZNK14pr18020_lambda3$_0clEvENKUlvE_clEv"
-// CHECK: load i32, ptr @"_ZZNK14pr18020_lambda3$_0clEvE2l1"
+// CHECK-LABEL: define internal noundef i32 @"_ZZNK14pr18020_lambda1xM3$_0clEvENKUlvE_clEv"
+// CHECK:  load i32, ptr @"_ZZNK14pr18020_lambda1xM3$_0clEvE2l1"
 
 namespace pr18020_constexpr {
 // Taking the address of l1 in a constant expression used to crash.
@@ -70,8 +70,8 @@ auto x = []() {
 int f() { return x()(); }
 }
 
-// CHECK-LABEL: define internal noundef i32 @"_ZZNK17pr18020_constexpr3$_1clEvENKUlvE_clEv"
-// CHECK: load ptr, ptr @"_ZZZNK17pr18020_constexpr3$_1clEvENKUlvE_clEvE2l2"
+// CHECK-LABEL: define internal noundef i32 @"_ZZNK17pr18020_constexpr1xM3$_1clEvENKUlvE_clEv"
+// CHECK: load ptr, ptr @"_ZZZNK17pr18020_constexpr1xM3$_1clEvENKUlvE_clEvE2l2"
 
 // Lambda-less reduction that references l1 before emitting it.  This didn't
 // crash if you put it in a namespace.
@@ -154,7 +154,7 @@ extern "C" int use_global_lambda() {
   return *decltype(global_lambda())::get();
 }
 // CHECK-LABEL: define{{.*}} i32 @use_global_lambda()
-// CHECK: call noundef ptr @"_ZZNK3$_2clEvEN1S3getEv"()
+// CHECK: call noundef ptr @"_ZZNK13global_lambdaM3$_2clEvEN1S3getEv"
 
-// CHECK-LABEL: define internal noundef ptr @"_ZZNK3$_2clEvEN1S3getEv"()
-// CHECK: ret ptr @"_ZZNK3$_2clEvE1x"
+// CHECK-LABEL: define internal noundef ptr @"_ZZNK13global_lambdaM3$_2clEvEN1S3getEv"
+// CHECK: ret ptr @"_ZZNK13global_lambdaM3$_2clEvE1x"

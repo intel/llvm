@@ -44,15 +44,9 @@ void g() {
 // MSVC: @"??$dg_template@$02@QL@@3V<lambda_1>@01@A" = linkonce_odr dso_local global %class.anon.4 undef, comdat, align 1
 
 
-// CHECK: define internal void @"_Z1fIN2QL3$_0EEvT_"
-// CHECK: call noundef i32 @"_ZNK2QL3$_0clEv"
-// CHECK: define internal void @"_Z1fIN2QL3$_1EEvT_"
-// CHECK: define linkonce_odr void @_Z1fIN2QL10dg_inline1MUlvE_EEvT_
-// CHECK: call noundef i32 @_ZNK2QL10dg_inline1MUlvE_clEv
-// CHECK: define linkonce_odr void @_Z1fIN2QL11dg_templateILi3EEMUlvE_EEvT_
-// CHECK: call noundef i32 @_ZNK2QL11dg_templateILi3EEMUlvE_clEv
-// CHECK: define internal noundef i32 @"_ZNK2QL3$_0clEv"
-// CHECK: define internal noundef i32 @"_ZNK2QL3$_1clEv"
+// CHECK: define internal void @"_Z1fIN2QL3dg1M3$_0EEvT_"
+// CHECK: call noundef i32 @"_ZNK2QL3dg1M3$_0clEv"
+// CHECK: define internal noundef i32 @"_ZNK2QL3dg2M3$_1clEv"
 // CHECK: define linkonce_odr noundef i32 @_ZNK2QL10dg_inline1MUlvE_clEv
 // CHECK: define linkonce_odr noundef i32 @_ZNK2QL11dg_templateILi3EEMUlvE_clEv
 
