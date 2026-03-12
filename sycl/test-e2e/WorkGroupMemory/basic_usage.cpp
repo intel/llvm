@@ -1,3 +1,4 @@
+// TIMEOUT: 1200
 // UNSUPPORTED: hip
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/17339
 // UNSUPPORTED: level_zero_v2_adapter
