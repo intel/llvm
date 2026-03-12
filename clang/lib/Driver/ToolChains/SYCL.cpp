@@ -616,6 +616,30 @@ SYCLToolChain::getDeviceLibNames(const Driver &D,
   // Currently, device sanitizer support is required by some developers on
   // Linux platform only, so compiler only provides device sanitizer libraries
   // on Linux platform.
+  // Do not pull these in with the new offloading model, as they will be pulled
+  // in separately to be linked in with -mlink-bitcode-file.
+  if (getDriver().getUseNewOffloadingDriver())
+    return LibraryList;
+#if !defined(_WIN32)
+  addSYCLDeviceSanitizerLibs(Args, LibraryList);
+#endif
+
+  return LibraryList;
+}
+
+// Get the list of SYCL device library names associated with the sanitizers.
+SmallVector<std::string, 8>
+SYCLToolChain::getDeviceSanitizerLibNames(
+    const llvm::opt::ArgList &Args) const {
+  SmallVector<std::string, 8> LibraryList;
+  bool NoOffloadLib =
+      !Args.hasFlag(options::OPT_offloadlib, options::OPT_no_offloadlib, true);
+
+  if (NoOffloadLib)
+    return {};
+  // Currently, device sanitizer support is required by some developers on
+  // Linux platform only, so compiler only provides device sanitizer libraries
+  // on Linux platform.
 #if !defined(_WIN32)
   addSYCLDeviceSanitizerLibs(Args, LibraryList);
 #endif
@@ -1448,6 +1472,14 @@ void SYCLToolChain::addClangTargetOptions(
   }
   CC1Args.push_back("-mlink-builtin-bitcode-postopt");
 
+  // Link in any of the Sanitizer libraries.
+  llvm::SmallVector<BitCodeLibraryInfo, 12> BCSanitizerLibs;
+  BCSanitizerLibs.append(SYCLToolChain::getDeviceSanitizerLibs(DriverArgs));
+  for (auto BCFile : BCSanitizerLibs) {
+    CC1Args.push_back("-mlink-bitcode-file");
+    CC1Args.push_back(DriverArgs.MakeArgString(BCFile.Path));
+  }
+
   // FIXME: Turn off potential linker warnings when linking in device library
   // files that are built for spir64, but we are compiling for AOT.
   CC1Args.push_back("-Wno-linker-warnings");
@@ -1899,6 +1931,33 @@ SYCLToolChain::getDeviceLibs(
   // Formulate all of the device libraries needed for this compilation.
   SmallVector<std::string, 8> DeviceLibs =
       getDeviceLibNames(getDriver(), DriverArgs, getTriple());
+
+  // Create full path names to each device library.  If found, add to the list
+  // of device libraries that will be linked against.
+  for (auto DeviceLib : DeviceLibs) {
+    for (auto LibraryPath : LibraryPaths) {
+      SmallString<1208> FullLibName(LibraryPath);
+      llvm::sys::path::append(FullLibName, DeviceLib);
+      if (llvm::sys::fs::exists(FullLibName)) {
+        BCLibs.emplace_back(FullLibName);
+        break;
+      }
+    }
+  }
+  return BCLibs;
+}
+
+llvm::SmallVector<ToolChain::BitCodeLibraryInfo, 12>
+SYCLToolChain::getDeviceSanitizerLibs(
+    const llvm::opt::ArgList &DriverArgs) const {
+  llvm::SmallVector<ToolChain::BitCodeLibraryInfo, 12> BCLibs;
+
+  SmallVector<SmallString<128>, 4> LibraryPaths;
+  SYCLInstallation.getSYCLDeviceLibPath(LibraryPaths);
+
+  // Formulate all of the device libraries needed for this compilation.
+  SmallVector<std::string, 8> DeviceLibs =
+      getDeviceSanitizerLibNames(DriverArgs);
 
   // Create full path names to each device library.  If found, add to the list
   // of device libraries that will be linked against.
