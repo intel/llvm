@@ -8888,6 +8888,24 @@ static void handleTimeTrace(Compilation &C, const ArgList &Args,
       Args.getLastArg(options::OPT_ftime_trace, options::OPT_ftime_trace_EQ);
   if (!A)
     return;
+
+  // For SYCL non-top-level jobs, derive trace path from -o or BaseInput.
+  // Result.getFilename() is now correctly the job's temp output, not the
+  // final -o path, so we need a separate trace path source.
+  auto GetTracePathForSYCLNonTopLevel = [&]() -> SmallString<128> {
+    const bool IsSYCLNonTopLevel = JA->isOffloading(Action::OFK_SYCL) &&
+                                   !AtTopLevel &&
+                                   Args.hasArg(options::OPT_offload_new_driver);
+
+    if (!IsSYCLNonTopLevel)
+      return SmallString<128>(Result.getFilename());
+
+    if (Arg *FinalOutput = Args.getLastArg(options::OPT_o))
+      return SmallString<128>(FinalOutput->getValue());
+    else
+      return SmallString<128>(llvm::sys::path::filename(BaseInput));
+  };
+
   SmallString<128> Path;
   if (A->getOption().matches(options::OPT_ftime_trace_EQ)) {
     Path = A->getValue();
@@ -8909,15 +8927,16 @@ static void handleTimeTrace(Compilation &C, const ArgList &Args,
       // end with a path separator.
       Path = DumpDir->getValue();
       if (JA->isOffloading(Action::OFK_SYCL) && !AtTopLevel) {
+        SmallString<128> TracePath = GetTracePathForSYCLNonTopLevel();
         SmallString<128> FileWithPrefix = addOffloadingPrefixToPath(
-            llvm::sys::path::filename(Result.getFilename()), OffloadingPrefix);
+            llvm::sys::path::filename(TracePath), OffloadingPrefix);
         Path += FileWithPrefix;
       } else if (JA->isHostOffloading(Action::OFK_SYCL) && AtTopLevel)
         Path += Result.getFilename();
       else
         Path += llvm::sys::path::filename(BaseInput);
     } else {
-      Path = Result.getFilename();
+      Path = GetTracePathForSYCLNonTopLevel();
 
       // For SYCL offloading with the new driver, add offloading prefix to
       // SYCL host and device time-trace filename to prevent collisions
@@ -9513,34 +9532,6 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
         JA.getOffloadingDeviceKind() == Action::OFK_SYCL)
       if (Arg *FinalOutput = C.getArgs().getLastArg(options::OPT__SLASH_o))
         return C.addResultFile(FinalOutput->getValue(), &JA);
-  }
-  // For SYCL device compilation with -c -o and c + l -o
-  const bool IsSYCLDeviceTimeTrace =
-      JA.isDeviceOffloading(Action::OFK_SYCL) && isa<BackendJobAction>(JA) &&
-      !AtTopLevel && C.getArgs().hasArg(options::OPT_offload_new_driver) &&
-      C.getArgs().hasArg(options::OPT_ftime_trace, options::OPT_ftime_trace_EQ);
-
-  if (IsSYCLDeviceTimeTrace) {
-    if (Arg *FinalOutput = C.getArgs().getLastArg(options::OPT_o))
-      return C.addResultFile(FinalOutput->getValue(), &JA);
-    else {
-      StringRef BaseName = llvm::sys::path::filename(BaseInput);
-      return C.addResultFile(C.getArgs().MakeArgString(BaseName), &JA);
-    }
-  }
-  // For SYCL Host compilation with c + l -o
-  const bool IsSYCLHostTimeTraceNotTopLevel =
-      JA.isHostOffloading(Action::OFK_SYCL) && isa<AssembleJobAction>(JA) &&
-      !AtTopLevel && C.getArgs().hasArg(options::OPT_offload_new_driver) &&
-      C.getArgs().hasArg(options::OPT_ftime_trace, options::OPT_ftime_trace_EQ);
-
-  if (IsSYCLHostTimeTraceNotTopLevel) {
-    if (Arg *FinalOutput = C.getArgs().getLastArg(options::OPT_o))
-      return C.addResultFile(FinalOutput->getValue(), &JA);
-    else {
-      StringRef BaseName = llvm::sys::path::filename(BaseInput);
-      return C.addResultFile(C.getArgs().MakeArgString(BaseName), &JA);
-    }
   }
 
   // For /P, preprocess to file named after BaseInput.
