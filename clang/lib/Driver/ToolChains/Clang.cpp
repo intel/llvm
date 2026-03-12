@@ -11682,7 +11682,7 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
             // If target is intel_gpu_*, "-device <arch>"
             // is appended to BackendArgs.
             appendOption(BackendArgs, "-device " + Device.str());
-            }
+          }
         }
         SYCLTC.TranslateBackendTargetArgs(TC->getTriple(), Args, BuildArgs,
                                           Device);
@@ -11706,10 +11706,10 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
 
       for (auto &[Device, BackendArgs] : BackendOptVec) {
         if (!BackendArgs.empty())
-          CmdArgs.push_back(Args.MakeArgString(
-              "--device-compiler=" +
-              Action::GetOffloadKindName(Action::OFK_SYCL) + ":" +
-              Device + "=" + BackendArgs));
+          CmdArgs.push_back(
+              Args.MakeArgString("--device-compiler=" +
+                                 Action::GetOffloadKindName(Action::OFK_SYCL) +
+                                 ":" + Device + "=" + BackendArgs));
       }
       if (!LinkOptString.empty()) {
         CmdArgs.push_back(Args.MakeArgString(
