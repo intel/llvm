@@ -240,6 +240,27 @@ def collect_metadata(suites):
     return metadata
 
 
+def filter_benchmarks(
+    suites: list[Suite], filter: re.Pattern | None = None
+) -> list[Benchmark]:
+    filtered_benchmarks = []
+    for suite in suites:
+        if suite.name() not in enabled_suites(options.preset):
+            continue
+        suite_benchmarks = [
+            benchmark for benchmark in suite.benchmarks() if benchmark.enabled()
+        ]
+        if filter:
+            suite_benchmarks = [
+                benchmark
+                for benchmark in suite_benchmarks
+                if filter.search(benchmark.name())
+            ]
+        filtered_benchmarks.extend(suite_benchmarks)
+
+    return filtered_benchmarks
+
+
 def main(directory, additional_env_vars, compare_names, filter, execution_stats):
     prepare_workdir(directory, INTERNAL_WORKDIR_VERSION)
 
@@ -276,25 +297,13 @@ def main(directory, additional_env_vars, compare_names, filter, execution_stats)
         OneDnnBench(),
     ]
 
+    if options.list_benchmarks:
+        for benchmark in filter_benchmarks(suites, filter):
+            log.info(benchmark.name())
+        return
+
     # Collect metadata from all benchmarks without setting them up
     metadata = collect_metadata(suites)
-
-    if options.list_benchmarks:
-        for suite in suites:
-            if suite.name() not in enabled_suites(options.preset):
-                continue
-            suite_benchmarks = [
-                benchmark for benchmark in suite.benchmarks() if benchmark.enabled()
-            ]
-            if filter:
-                suite_benchmarks = [
-                    benchmark
-                    for benchmark in suite_benchmarks
-                    if filter.search(benchmark.name())
-                ]
-            for benchmark in suite_benchmarks:
-                log.info(benchmark.name())
-        return
 
     # If dry run, we're done
     if options.dry_run:
@@ -304,25 +313,7 @@ def main(directory, additional_env_vars, compare_names, filter, execution_stats)
     failures = {}
 
     for suite in suites:
-        if suite.name() not in enabled_suites(options.preset):
-            continue
-
-        # Filter out benchmarks with filter given by user
-        suite_benchmarks = [
-            benchmark for benchmark in suite.benchmarks() if benchmark.enabled()
-        ]
-        if filter:
-            log.debug(
-                f"All benchmarks in suite '{suite.name()}' ({len(suite_benchmarks)}):\n"
-                + "\n".join([b.name() for b in suite_benchmarks])
-            )
-            log.debug(f"Filtering '{suite.name()}' suite for: '{filter.pattern}'")
-            suite_benchmarks = [
-                benchmark
-                for benchmark in suite_benchmarks
-                if filter.search(benchmark.name())
-            ]
-
+        suite_benchmarks = filter_benchmarks([suite], filter)
         if suite_benchmarks:
             log.info(f"Setting up {type(suite).__name__}")
             try:
