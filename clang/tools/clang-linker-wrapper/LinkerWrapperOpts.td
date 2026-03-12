@@ -31,7 +31,7 @@ def device_linker_args_EQ : Joined<["--"], "device-linker=">,
   Flags<[WrapperOnlyOption]>, MetaVarName<"[<kind>:][<triple>=]<value>">,
   HelpText<"Arguments to pass to the device linker invocation">;
 def device_compiler_args_EQ : Joined<["--"], "device-compiler=">,
-  Flags<[WrapperOnlyOption]>, MetaVarName<"[<kind>:][<triple>|<arch>]=<value>">,
+  Flags<[WrapperOnlyOption]>, MetaVarName<"[<kind>:][<triple>|<arch>=]<value>">,
   HelpText<"Arguments to pass to the device compiler invocation">;
 def clang_backend : Flag<["--"], "clang-backend">,
   Flags<[WrapperOnlyOption]>,
