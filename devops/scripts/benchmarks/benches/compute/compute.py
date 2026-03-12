@@ -40,8 +40,8 @@ class ComputeBench(Suite):
         return "https://github.com/intel/compute-benchmarks.git"
 
     def git_hash(self) -> str:
-        # Mar 11, 2026
-        return "5daa36aef97c1a57ca94aed2b43ed5d6829bcc11"
+        # Mar 13, 2026
+        return "0237dade20798127c6432635b47c6bdb2f9d59b0"
 
     def setup(self) -> None:
         if options.sycl is None:
@@ -581,8 +581,8 @@ class ComputeBench(Suite):
                             variant_name,
                             profiler_type,
                             fixed_args={
-                                "workgroupCount": 512,
-                                "workgroupSize": 256,
+                                "KernelWGCount": 512,
+                                "KernelWGSize": 256,
                                 "Profiling": 0,
                                 "UseEvents": 0,
                             },
@@ -592,15 +592,15 @@ class ComputeBench(Suite):
                     benches += [
                         createTorchGraphMultiQueueBench(
                             "small",
-                            kernelsPerQueue=10,
+                            KernelsPerQueue=10,
                         ),
                         createTorchGraphMultiQueueBench(
                             "medium",
-                            kernelsPerQueue=32,
+                            KernelsPerQueue=32,
                         ),
                         createTorchGraphMultiQueueBench(
                             "large",
-                            kernelsPerQueue=64,
+                            KernelsPerQueue=64,
                         ),
                     ]
 
