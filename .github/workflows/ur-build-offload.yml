@@ -13,7 +13,7 @@ jobs:
         build_type: [Release]
         compiler: [{c: gcc, cxx: g++}]
 
-    runs-on: [ "Linux", "build" ]
+    runs-on: ["Linux", "bmg"]
     container:
       image: 'ghcr.io/intel/llvm/ubuntu2404_build'
 
@@ -54,7 +54,6 @@ jobs:
       run: >
         python3 llvm/buildbot/configure.py
         --offload
-        --cuda
         -t ${{matrix.build_type}}
         --liboffload-path=./llvm-project-install
 
@@ -62,6 +61,12 @@ jobs:
       # This is so that device binaries can find the sycl runtime library
       run: python3 llvm/buildbot/compile.py
 
-    - name: Debug CI platform information
+    - name: Compile test file
+      run: llvm/build/bin/clang++ -fsycl llvm/sycl/test-e2e/Basic/liboffload_test.cpp -o test_liboffload
+
+    - name: Run test
+      run: LD_LIBRARY_PATH=llvm/build/lib UR_ADAPTERS_FORCE_LOAD=llvm/build/lib/libur_adapter_offload.so ZE_AFFINITY_MASK=0 ./test_liboffload
+
+    - name: Get information about platform
       if: ${{ always() }}
       run: ./llvm/devops/scripts/get_system_info.sh

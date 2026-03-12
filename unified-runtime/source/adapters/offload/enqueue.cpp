@@ -203,7 +203,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
 
   OL_RETURN_ON_ERR(olLaunchKernel(
       Queue, hQueue->OffloadDevice, hKernel->OffloadKernel,
-      hKernel->Args.getStorage(), hKernel->Args.getStorageSize(), &LaunchArgs));
+      hKernel->Args.getStorage(), hKernel->Args.getStorageSize(), &LaunchArgs, NULL));
 
   OL_RETURN_ON_ERR(makeEvent(UR_COMMAND_KERNEL_LAUNCH, Queue, hQueue, phEvent));
   return UR_RESULT_SUCCESS;
