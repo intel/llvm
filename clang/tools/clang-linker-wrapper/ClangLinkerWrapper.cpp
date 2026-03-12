@@ -2112,9 +2112,8 @@ DerivedArgList getLinkerArgs(ArrayRef<OffloadFile> Input,
                                llvm::opt::OptSpecifier ForwardedOptionID) {
     for (StringRef DeviceArgValue : Args.getAllArgValues(DeviceArgsOptionID)) {
       size_t ColonPos = DeviceArgValue.find(':');
-      StringRef Kind;
       if (ColonPos != StringRef::npos) {
-        Kind = DeviceArgValue.take_front(ColonPos);
+        StringRef Kind = DeviceArgValue.take_front(ColonPos);
         if (getOffloadKind(Kind) != OFK_SYCL)
           continue;
         DeviceArgValue = DeviceArgValue.drop_front(ColonPos + 1);
@@ -2122,8 +2121,15 @@ DerivedArgList getLinkerArgs(ArrayRef<OffloadFile> Input,
       size_t EqPos = DeviceArgValue.find('=');
       if (EqPos != StringRef::npos) {
         StringRef TargetArchOrTripleStr = DeviceArgValue.take_front(EqPos);
-        if(TargetArchOrTripleStr != CurrentArch && TargetArchOrTripleStr != TripleStr)
-          continue;
+        if (ArgTargetTriple.getArch() != Triple::ArchType::UnknownArch) {
+          // If the triple is specified, check it against the current target triple.
+          if (ArgTargetTripleStr != TripleStr)
+            continue;
+        } else {
+          // If the triple is not specified, this is a SYCL case, and we should check the arch instead.
+          if (TargetArchOrTripleStr != CurrentArch)
+            continue;
+        }
         DeviceArgValue = DeviceArgValue.drop_front(EqPos + 1);
       }
       if (DeviceArgValue.empty())

@@ -11658,7 +11658,6 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       const ToolChain *TC = ToolChainMember.second;
       if (!TC->getTriple().isSPIROrSPIRV())
         continue;
-
       ArgStringList BuildArgs;
       SmallVector<std::pair<StringRef, SmallString<128>>> BackendOptVec;
       SmallString<128> LinkOptString;
