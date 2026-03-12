@@ -132,6 +132,15 @@ int main() {
   for (size_t I = 0; I < N; ++I)
     Failed += Check(Memory, 54, I, "3D nd_launch shortcut with launch config");
 
+  // host_task
+  oneapiext::host_task(Q, [&]() {
+    for (size_t I = 0; I < N; ++I)
+      Memory[I] = 55;
+  });
+  Q.wait();
+  for (size_t I = 0; I < N; ++I)
+    Failed += Check(Memory, 55, I, "host_task");
+
   sycl::free(Memory, Q);
   return Failed;
 }
