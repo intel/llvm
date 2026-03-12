@@ -8893,9 +8893,8 @@ static void handleTimeTrace(Compilation &C, const ArgList &Args,
   // Result.getFilename() is now correctly the job's temp output, not the
   // final -o path, so we need a separate trace path source.
   auto GetTracePathForSYCLNonTopLevel = [&]() -> SmallString<128> {
-    const bool IsSYCLNonTopLevel = JA->isOffloading(Action::OFK_SYCL) &&
-                                   !AtTopLevel &&
-                                   Args.hasArg(options::OPT_offload_new_driver);
+    const bool IsSYCLNonTopLevel =
+        JA->isOffloading(Action::OFK_SYCL) && !AtTopLevel;
 
     if (!IsSYCLNonTopLevel)
       return SmallString<128>(Result.getFilename());
@@ -8912,9 +8911,7 @@ static void handleTimeTrace(Compilation &C, const ArgList &Args,
     SmallString<128> Tmp;
     Tmp = Result.getFilename();
     if (llvm::sys::fs::is_directory(Path)) {
-      if (!OffloadingPrefix.empty() &&
-          Args.hasArg(options::OPT_offload_new_driver) &&
-          JA->isOffloading(Action::OFK_SYCL)) {
+      if (!OffloadingPrefix.empty() && JA->isOffloading(Action::OFK_SYCL)) {
         Tmp = addOffloadingPrefixToPath(llvm::sys::path::filename(BaseInput),
                                         OffloadingPrefix);
       }
@@ -8946,9 +8943,7 @@ static void handleTimeTrace(Compilation &C, const ArgList &Args,
       // Object file: e/a.o,
       // SYCL host time-trace: e/a-host-x86_64-unknown-linux-gnu.json
       // SYCL device time-trace: e/a-sycl-spir64-unknown-unknown.json
-      if (!OffloadingPrefix.empty() &&
-          Args.hasArg(options::OPT_offload_new_driver) &&
-          JA->isOffloading(Action::OFK_SYCL)) {
+      if (!OffloadingPrefix.empty() && JA->isOffloading(Action::OFK_SYCL)) {
         Path = addOffloadingPrefixToPath(Path, OffloadingPrefix);
       }
     }
@@ -9341,7 +9336,6 @@ InputInfoList Driver::BuildJobsForActionNoCache(
       const bool IsSYCLHost = JA->isHostOffloading(Action::OFK_SYCL);
       const bool IsSYCLHostTimeTrace =
           IsSYCLHost && AtTopLevel &&
-          Args.hasArg(options::OPT_offload_new_driver) &&
           Args.hasArg(options::OPT_ftime_trace, options::OPT_ftime_trace_EQ);
 
       const bool CreatePrefixForHost =
