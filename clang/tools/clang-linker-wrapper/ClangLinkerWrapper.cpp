@@ -2100,32 +2100,47 @@ DerivedArgList getLinkerArgs(ArrayRef<OffloadFile> Input,
     DAL.AddFlagArg(nullptr, Tbl.getOption(OPT_whole_program));
 
   // This function filters the SYCL device compiler and linker options by target
-  // triple and offload kind.
-  // The device_linker_args and device_compiler_args options accept values
-  // in the form [<kind>:][<triple>=]<value>.
+  // triple, offload kind, and device architecture.
+  // The device_linker_args options accept values in the form
+  // [<kind>:][<triple>:]<value>.
+  // The device_compiler_args options accept values in the form
+  // [<kind>:][<triple>:][<arch>=]<value>.
   // An example of passing such an option to clang-linker-wrapper is:
-  // --device-compiler=sycl:spir64_gen-unknown-unknown=opt_val.
+  // --device-compiler=sycl:spir64_gen-unknown-unknown:pvc=opt_val.
   const StringRef TripleStr = DAL.getLastArgValue(OPT_triple_EQ);
   auto ProcessDeviceArgs = [&](llvm::opt::OptSpecifier DeviceArgsOptionID,
                                llvm::opt::OptSpecifier ForwardedOptionID) {
+    const StringRef TripleStr = DAL.getLastArgValue(OPT_triple_EQ);
+    StringRef CurrentArch = DAL.getLastArgValue(OPT_arch_EQ);
     for (StringRef DeviceArgValue : Args.getAllArgValues(DeviceArgsOptionID)) {
-      size_t ColonPos = DeviceArgValue.find(':');
-      if (ColonPos != StringRef::npos) {
-        StringRef Kind = DeviceArgValue.take_front(ColonPos);
-        if (getOffloadKind(Kind) != OFK_SYCL)
-          continue;
-        DeviceArgValue = DeviceArgValue.drop_front(ColonPos + 1);
+      size_t FirstColonPos = DeviceArgValue.find(':');
+       // Parse [<kind>:] prefix
+      if (FirstColonPos != StringRef::npos) {
+        StringRef Kind = DeviceArgValue.take_front(FirstColonPos);
+        if(getOffloadKind(Kind) != OFK_None) {
+          if (getOffloadKind(Kind) != OFK_SYCL)
+            continue;
+          DeviceArgValue = DeviceArgValue.drop_front(FirstColonPos + 1);
+        }
       }
-      size_t EqPos = DeviceArgValue.find('=');
-      if (EqPos != StringRef::npos) {
-        StringRef ArgTargetTripleStr = DeviceArgValue.take_front(EqPos);
+      // Parse [<triple>:] prefix 
+      size_t SecondColonPos = DeviceArgValue.find(':');
+      if (SecondColonPos != StringRef::npos) {
+        StringRef ArgTargetTripleStr = DeviceArgValue.take_front(SecondColonPos);
         llvm::Triple ArgTargetTriple(ArgTargetTripleStr);
-        // If this isn't a recognized triple then it's an `arg=value` option.
         if (ArgTargetTriple.getArch() != Triple::ArchType::UnknownArch) {
           if (ArgTargetTripleStr != TripleStr)
             continue;
-          DeviceArgValue = DeviceArgValue.drop_front(EqPos + 1);
+          DeviceArgValue = DeviceArgValue.drop_front(SecondColonPos + 1);
         }
+      }
+      // Parse [<arch>=] prefix
+      size_t EqPos = DeviceArgValue.find('=');
+      if (DeviceArgsOptionID == OPT_device_compiler_args_EQ && EqPos != StringRef::npos) {
+        StringRef ArgArchStr = DeviceArgValue.take_front(EqPos);
+        if(ArgArchStr != CurrentArch)
+          continue;
+        DeviceArgValue = DeviceArgValue.drop_front(EqPos + 1);
       }
       if (DeviceArgValue.empty())
         continue;
