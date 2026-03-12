@@ -19,7 +19,8 @@ setup_host_tool( libclc-remangler LIBCLC_REMANGLER
 
 target_include_directories(libclc-remangler PRIVATE
   ${CMAKE_SOURCE_DIR}/../clang/include
-  ${LLVM_BINARY_DIR}/tools/clang/include)
+  ${LLVM_BINARY_DIR}/tools/clang/include
+  ${LLVM_INCLUDE_DIRS})
 
 clang_target_link_libraries(libclc-remangler
   PRIVATE

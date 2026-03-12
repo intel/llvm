@@ -30,6 +30,15 @@ option(
   LIBCLC_USE_SPIRV_BACKEND "Build SPIR-V targets with the SPIR-V backend." OFF
 )
 
+option( LIBCLC_GENERATE_REMANGLED_VARIANTS
+  "Generate remangled variants of enabled libclc targets." OFF )
+
+option( LIBCLC_NATIVECPU_HOST_TARGET "Build libclc for Native CPU." Off)
+
+if( LIBCLC_NATIVECPU_HOST_TARGET )
+  list(APPEND LIBCLC_TARGETS_TO_BUILD native_cpu)
+endif()
+
 # List of all supported targets.
 set( LIBCLC_TARGETS_ALL
   amdgcn-amd-amdhsa-llvm
@@ -114,8 +123,6 @@ else()
   endforeach()
 endif()
 
-option( LIBCLC_NATIVECPU_HOST_TARGET "Build libclc for Native CPU." Off)
-
 if( LIBCLC_NATIVECPU_HOST_TARGET )
   list(APPEND LIBCLC_TARGETS_TO_BUILD native_cpu)
 endif()
@@ -128,6 +135,9 @@ foreach( tool IN ITEMS opt llvm-link )
   endif()
 endforeach()
 
+# Configure libclc-remangler tool
+add_subdirectory( utils )
+
 add_subdirectory(clc/lib/generic)
 add_subdirectory(clc/lib/amdgpu)
 add_subdirectory(clc/lib/ptx-nvidiacl)
@@ -139,6 +149,11 @@ add_subdirectory(opencl/lib/amdgpu)
 add_subdirectory(opencl/lib/clspv)
 add_subdirectory(opencl/lib/spirv)
 
+add_subdirectory(libspirv/lib/generic)
+add_subdirectory(libspirv/lib/amdgcn-amdhsa)
+add_subdirectory(libspirv/lib/ptx-nvidiacl)
+add_subdirectory(libspirv/lib/native_cpu)
+
 add_custom_target( libclc ALL )
 
 add_custom_target( libclc-opencl-builtins COMMENT "Build libclc OpenCL builtins" )
@@ -146,8 +161,6 @@ add_dependencies( libclc libclc-opencl-builtins )
 
 add_custom_target( libspirv-builtins COMMENT "Build libspirv builtins" )
 add_dependencies( libclc libspirv-builtins )
-
-enable_testing()
 
 foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
   message( STATUS "libclc target '${t}' is enabled" )
@@ -207,6 +220,25 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
     list(APPEND target_compile_flags "SHELL:-Xclang -mcode-object-version=none")
   endif()
 
+  # OpenCL 3.0 extensions
+  string(CONCAT CL_3_0_EXTENSIONS
+    "-cl-ext="
+    "+__opencl_c_3d_image_writes,"
+    "+__opencl_c_images,"
+    "+cl_khr_3d_image_writes")
+  list(APPEND target_compile_flags "-Xclang" ${CL_3_0_EXTENSIONS})
+
+  # Some targets don't have a specific GPU to target
+  if( ARCH STREQUAL nvptx OR ARCH STREQUAL nvptx64 )
+    # Disable NVVM reflection to deferring to after linking
+    list(APPEND target_compile_flags "SHELL:-Xclang -target-feature"
+          "SHELL:-Xclang +ptx72" -march=sm_86
+          "SHELL:-mllvm --nvvm-reflect-enable=false")
+  elseif(ARCH STREQUAL amdgcn)
+    # Disable AMDGPU reflection, deferring to after linking
+    list(APPEND target_compile_flags -mllvm --amdgpu-oclc-reflect-enable=false)
+  endif()
+
   # Collect CLC sources; target-specific sources override generic ones by basename.
   set(_clc_overrides)
   if(ARCH STREQUAL amdgcn)
@@ -233,6 +265,25 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
     endif()
     libclc_merge_sources(opencl_sources
       ${OPENCL_GENERIC_SOURCES} ${_opencl_overrides})
+  endif()
+
+  set( libspirv_dirs ${opencl_dirs} )
+
+  # Collect libspirv sources.
+  set(BUILD_LIBSPIRV_${t} FALSE)
+  if (t STREQUAL amdgcn-amd-amdhsa-llvm OR t STREQUAL nvptx64-nvidia-cuda OR t STREQUAL native_cpu)
+    set(BUILD_LIBSPIRV_${t} TRUE)
+
+    set(_libspirv_overrides)
+    if(ARCH STREQUAL amdgcn)
+      list(APPEND _libspirv_overrides ${LISPIRV_AMDGCN_SOURCES})
+    elseif(ARCH STREQUAL nvptx64)
+      list(APPEND _libspirv_overrides ${LISPIRV_PTX_NVIDIACL_SOURCES})
+    elseif(t STREQUAL native_cpu)
+      list(APPEND _libspirv_overrides ${LISPIRV_NATIVE_CPU_SOURCES})
+    endif()
+    libclc_merge_sources(libspirv_sources
+      ${LISPIRV_GENERIC_SOURCES} ${_libspirv_overrides})
   endif()
 
   # Common compile options shared by CLC and OpenCL libraries.
@@ -287,6 +338,25 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
     OUTPUT_FILENAME libclc
     PARENT_TARGET libclc-opencl-builtins
   )
+
+  if( BUILD_LIBSPIRV_${t} )
+    add_libclc_library(libspirv-${t}
+      ARCH ${ARCH}
+      TRIPLE ${clang_triple}
+      TARGET_TRIPLE ${t}
+      SOURCES ${libspirv_sources}
+      COMPILE_OPTIONS ${compile_flags} "SHELL:-Xclang -fdeclare-spirv-builtins"
+      INCLUDE_DIRS
+        ${CMAKE_CURRENT_SOURCE_DIR}/clc/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/libspirv/include
+      COMPILE_DEFINITIONS ${_common_defs}
+      INTERNALIZE_LIBRARIES ${clc_lib}
+      OPT_FLAGS ${opt_flags}
+      OUTPUT_FILENAME libspirv
+      PARENT_TARGET libspirv-builtins
+      REMANGLE ${LIBCLC_GENERATE_REMANGLED_VARIANTS}
+    )
+  endif()
 endforeach()
 
 add_subdirectory(test)
