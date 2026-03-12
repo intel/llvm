@@ -228,9 +228,9 @@ semantics.
 ====
 The `sycl::range<N>` constructors map dimensions in **X, Y, Z order** (width, height, depth), which differs from the SYCL 2020 specification's general `range` convention of "fastest-incrementing" dimension order. This follows standard image/graphics conventions where:
 
-* `range<1>{width}` → `width` = `dims[0]`
-* `range<2>{width, height}` → `width` = `dims[0]`, `height` = `dims[1]`  
-* `range<3>{width, height, depth}` → `width` = `dims[0]`, `height` = `dims[1]`, `depth` = `dims[2]`
+* `range<1>{width}` => `width` = `dims[0]`
+* `range<2>{width, height}` => `width` = `dims[0]`, `height` = `dims[1]`
+* `range<3>{width, height, depth}` => `width` = `dims[0]`, `height` = `dims[1]`, `depth` = `dims[2]`
 
 This ordering is consistent throughout the bindless images API, including coordinate parameters for read/write operations where `x`, `y`, `z` correspond to indices `0`, `1`, `2` respectively (as detailed in the copy API preconditions).
 ====
