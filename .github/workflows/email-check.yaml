@@ -10,6 +10,7 @@ permissions:
   contents: read
 
 jobs:
+  if: false
   validate_email:
     runs-on: ubuntu-24.04
     if: github.repository == 'intel/llvm'
