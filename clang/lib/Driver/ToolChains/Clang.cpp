@@ -11659,6 +11659,7 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       if (!TC->getTriple().isSPIROrSPIRV())
         continue;
 
+      ArgStringList BuildArgs;
       SmallVector<std::pair<StringRef, SmallString<128>>> BackendOptVec;
       SmallString<128> LinkOptString;
       // Build backend options for each target passed via
@@ -11689,7 +11690,7 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
         for (const auto &BA : BuildArgs) {
           appendOption(BackendArgs, BA);
         }
-        BackendOptVec.push_back(BackendArgs);
+        BackendOptVec.push_back(std::make_pair(Device, BackendArgs));
         BuildArgs.clear();
       }
 
