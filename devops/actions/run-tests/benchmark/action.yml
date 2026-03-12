@@ -389,6 +389,9 @@ runs:
     run: |
       # Run benchmarks' integration tests
 
+      # Enable testing UR benchmarks
+      export LLVM_BENCH_UR_INSTALL_DIR="$(realpath ./ur/install)"
+
       # NOTE: Each integration test prints its own group name as part of test script
       python3 ./devops/scripts/benchmarks/tests/test_integration.py
   - name: Upload github summaries and cache changes

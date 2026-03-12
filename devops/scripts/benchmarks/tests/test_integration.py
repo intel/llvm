@@ -40,11 +40,14 @@ class App:
         self.OUTPUT_DIR = None
         self.RESULTS_DIR = None
         self.WORKDIR_DIR = None
+        self.UR_INSTALL_DIR = None
 
     def prepare_dirs(self):
         self.OUTPUT_DIR = tempfile.mkdtemp()
         self.RESULTS_DIR = tempfile.mkdtemp()
         self.WORKDIR_DIR = tempfile.mkdtemp()
+
+        self.UR_INSTALL_DIR = os.environ.get("LLVM_BENCH_UR_INSTALL_DIR")
 
         # when UT does not want to build compute-benchmarks from scratch, it can provide prebuilt path
         cb_targetpath = os.environ.get("COMPUTE_BENCHMARKS_BUILD_PATH")
@@ -64,6 +67,9 @@ class App:
     def run_main(self, *args) -> subprocess.CompletedProcess:
 
         # TODO: not yet tested: "--detect-version", "sycl,compute_runtime"
+        extra_args = []
+        if self.UR_INSTALL_DIR:
+            extra_args += ["--ur", self.UR_INSTALL_DIR]
 
         proc = subprocess.run(
             [
@@ -87,6 +93,7 @@ class App:
                 "999999999.9",
                 "--exit-on-failure",
                 "--verbose" if VERBOSE_LOGS else "--log-level=info",
+                *extra_args,
                 *args,
             ],
             capture_output=True,
@@ -203,6 +210,17 @@ class TestE2E(unittest.TestCase):
             "RecordGraph large",
             {"L0"},
         )
+
+    def test_submit_kernel_ur(self):
+        if self.app.UR_INSTALL_DIR:
+            self._checkCase(
+                "api_overhead_benchmark_ur SubmitKernel out of order not using events",
+                "SubmitKernel out of order",
+                {"UR", "latency", "micro", "submit"},
+            )
+        else:
+            print("Skipping UR benchmark test...")
+            self.skipTest("UR install dir not provided")
 
     def test_submit_kernel(self):
         self._checkCase(
