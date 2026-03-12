@@ -11488,7 +11488,7 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       llvm::Triple TargetTriple = TC->getTriple();
       const toolchains::SYCLToolChain &SYCLTC =
           static_cast<const toolchains::SYCLToolChain &>(*TC);
-      SmallVector<std::string, 8> SYCLDeviceLibs;
+      SmallVector<ToolChain::BitCodeLibraryInfo, 8> SYCLDeviceLibs;
       // SPIR or SPIR-V device libraries are compiled into the device compile
       // step.
       if (!TargetTriple.isSPIROrSPIRV())
@@ -11496,9 +11496,9 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       const DerivedArgList &ToolChainArgs =
           C.getArgsForToolChain(TC, StringRef(), Kind);
       for (const auto &AddLib : SYCLDeviceLibs) {
-        if (llvm::sys::path::extension(AddLib) == ".bc") {
+        if (llvm::sys::path::extension(AddLib.Path) == ".bc") {
           SmallString<256> LibPath(DeviceLibDir);
-          llvm::sys::path::append(LibPath, AddLib);
+          llvm::sys::path::append(LibPath, AddLib.Path);
           BCLibList.push_back(
               (Twine(TC->getTriple().str()) + "=" + LibPath).str());
           continue;

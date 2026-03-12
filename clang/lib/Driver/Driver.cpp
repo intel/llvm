@@ -5765,7 +5765,7 @@ class OffloadingActionBuilder final {
 
       const toolchains::SYCLToolChain &SYCLTC =
           static_cast<const toolchains::SYCLToolChain &>(*TC);
-      SmallVector<std::string, 8> DeviceLibraries;
+      SmallVector<ToolChain::BitCodeLibraryInfo, 8> DeviceLibraries;
       // TODO: Use the getDeviceLibs for each toolchain instead of using the
       // specific libs and doing a separate directory search.  Each toolchain
       // has their own getDeviceLibs that we can potentially use.
@@ -5775,7 +5775,7 @@ class OffloadingActionBuilder final {
       for (const auto &DeviceLib : DeviceLibraries) {
         for (const auto &LLCandidate : LibLocCandidates) {
           SmallString<128> LibName(LLCandidate);
-          llvm::sys::path::append(LibName, DeviceLib);
+          llvm::sys::path::append(LibName, DeviceLib.Path);
           if (llvm::sys::fs::exists(LibName)) {
             ++NumOfDeviceLibLinked;
             Arg *InputArg = MakeInputArg(Args, C.getDriver().getOpts(),

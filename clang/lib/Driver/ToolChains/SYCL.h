@@ -156,19 +156,9 @@ public:
                           StringRef Device) const;
   // Provides a vector of device library names that are associated with the
   // given triple and AOT information.
-  SmallVector<std::string, 8>
+  SmallVector<ToolChain::BitCodeLibraryInfo, 8>
   getDeviceLibNames(const Driver &D, const llvm::opt::ArgList &Args,
                     const llvm::Triple &TargetTriple) const;
-
-  // Provides a vector of device library names that are associated with the
-  // sanitizers.  This is pulled out separately from the normal device library
-  // names to provide the ability to link in these with the clang-linker-wrapper
-  // instead of at compile time.
-  SmallVector<std::string, 8>
-  getDeviceSanitizerLibNames(const llvm::opt::ArgList &Args) const;
-
-  llvm::SmallVector<BitCodeLibraryInfo, 12>
-  getDeviceSanitizerLibs(const llvm::opt::ArgList &Args) const;
 
   bool useIntegratedAs() const override { return true; }
   bool isPICDefault() const override {
