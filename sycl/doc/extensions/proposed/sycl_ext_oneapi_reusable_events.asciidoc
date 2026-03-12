@@ -193,8 +193,7 @@ return sycl::ext::oneapi::experimental::make_event(d, ctxt, props);
 
 === New event member functions
 
-This extension adds new event type member functions to get the device and
-context associated with the event.
+This extension adds the following new member functions to the event class:
 
 '''
 
@@ -203,10 +202,19 @@ context associated with the event.
 namespace sycl {
 
 class event {
-  sycl::device get_device() const;
+  // ...
+  device ext_oneapi_get_device() const;
+  context ext_oneapi_get_context() const;
 };
 
 } // namespace sycl
+----
+
+'''
+
+[source,c++]
+----
+device ext_oneapi_get_device() const;
 ----
 
 _Returns:_ The device object associated with this event.
@@ -215,13 +223,7 @@ _Returns:_ The device object associated with this event.
 
 [source,c++]
 ----
-namespace sycl {
-
-class event {
-  sycl::context get_context() const;
-};
-
-} // namespace sycl
+context ext_oneapi_get_context() const;
 ----
 
 _Returns:_ The context object associated with this event.
@@ -380,6 +382,9 @@ If another host thread is blocked waiting for event _E_ to complete via
 new command via `enqueue_signal_event`, the behavior of the `event:wait` or
 `event::wait_and_throw` call is undefined.
 
+The core SYCL specification defines a default constructor for the `event`
+class. The default constructor creates an event that is equivalent to calling
+`make_event` with no parameters.
 
 == Examples
 
@@ -393,15 +398,11 @@ namespace syclex = sycl::ext::oneapi::experimental;
 static constexpr size_t N = 1024;
 
 int main() {
-  sycl::queue q1{sycl::property::queue::in_order{}};
-  sycl::queue q2{sycl::property::queue::in_order{}};
-
-  // Make sure both queues are associated with the same device and context,
-  // since the event will be used for signaling on both queues.
-  assert(q1.get_device() == q2.get_device());
-  assert(q1.get_context() == q2.get_context());
-
-  sycl::event e = syclex::make_event(q1.get_device(), q1.get_context());
+  sycl::device d;
+  sycl::context ctxt = d.ext_oneapi_get_default_context();
+  sycl::queue q1{ctxt, d, sycl::property::queue::in_order{}};
+  sycl::queue q2{ctxt, d, sycl::property::queue::in_order{}};
+  sycl::event e = syclex::make_event(d, ctxt);
 
   // Launch a kernel on `q1` and then signal an event when the kernel completes.
   syclex::parallel_for(q1, {N}, [=](sycl::item<> it) { /* ... */ });
