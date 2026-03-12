@@ -11658,28 +11658,58 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       const ToolChain *TC = ToolChainMember.second;
       if (!TC->getTriple().isSPIROrSPIRV())
         continue;
-      ArgStringList BuildArgs;
-      SmallString<128> BackendOptString;
-      SmallString<128> LinkOptString;
-      SYCLTC.TranslateBackendTargetArgs(TC->getTriple(), Args, BuildArgs);
-      for (const auto &A : BuildArgs)
-        appendOption(BackendOptString, A);
 
-      BuildArgs.clear();
+      SmallVector<std::pair<StringRef, SmallString<128>>> BackendOptVec;
+      SmallString<128> LinkOptString;
+      // Build backend options for each target passed via
+      // -Xsycl-target-backend or
+      // -Xsycl-target-backend=spir64_gen, spir64_x86_64, intel_gpu_*
+      // in the form: "-device <arch> <backend_opt>"
+      for (const Arg *A : Args.filtered(options::OPT_Xsycl_backend_EQ,
+                                        options::OPT_Xsycl_backend)) {
+        StringRef Device = "";
+        SmallString<128> BackendArgs;
+        // Handle the OPT_Xsycl_backend_EQ case
+        if (A->getNumValues() > 1) {
+          Device = SYCL::gen::resolveGenDevice(A->getValue());
+          if (Device.empty()) {
+            // If the target is spir64_gen, the device name needs to be
+            // extracted from the backend arguments. If the target is
+            // spir64_x86_64, the Device value returned by extractDeviceFromArg
+            // will be an empty string.
+            Device = SYCL::gen::extractDeviceFromArg(A->getValue(1));
+          } else {
+            // If target is intel_gpu_*, "-device <arch>"
+            // is appended to BackendArgs.
+            appendOption(BackendArgs, "-device " + Device.str());
+            }
+        }
+        SYCLTC.TranslateBackendTargetArgs(TC->getTriple(), Args, BuildArgs,
+                                          Device);
+        for (const auto &BA : BuildArgs) {
+          appendOption(BackendArgs, BA);
+        }
+        BackendOptVec.push_back(BackendArgs);
+        BuildArgs.clear();
+      }
+
       SYCLTC.TranslateLinkerTargetArgs(TC->getTriple(), Args, BuildArgs);
       for (const auto &A : BuildArgs) {
         if (TC->getTriple().getSubArch() == llvm::Triple::NoSubArch)
           appendOption(LinkOptString, A);
-        else
+        else {
           // For AOT, combine the Backend and Linker strings into one.
-          appendOption(BackendOptString, A);
+          for (auto &[Device, BackendArgs] : BackendOptVec)
+            appendOption(BackendArgs, A);
+        }
       }
 
-      if (!BackendOptString.empty()) {
-        CmdArgs.push_back(Args.MakeArgString(
-            "--device-compiler=" +
-            Action::GetOffloadKindName(Action::OFK_SYCL) + ":" +
-            TC->getTripleString() + "=" + BackendOptString));
+      for (auto &[Device, BackendArgs] : BackendOptVec) {
+        if (!BackendArgs.empty())
+          CmdArgs.push_back(Args.MakeArgString(
+              "--device-compiler=" +
+              Action::GetOffloadKindName(Action::OFK_SYCL) + ":" +
+              Device + "=" + BackendArgs));
       }
       if (!LinkOptString.empty()) {
         CmdArgs.push_back(Args.MakeArgString(

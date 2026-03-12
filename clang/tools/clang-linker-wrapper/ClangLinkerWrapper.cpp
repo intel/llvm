@@ -2103,6 +2103,7 @@ DerivedArgList getLinkerArgs(ArrayRef<OffloadFile> Input,
   // triple and offload kind.
   // The device_linker_args and device_compiler_args options accept values
   // in the form [<kind>:][<triple>=]<value>.
+  // For SYCL, the device_compiler_args options is in the form [<kind>:][<arch>=]<value>.
   // An example of passing such an option to clang-linker-wrapper is:
   // --device-compiler=sycl:spir64_gen-unknown-unknown=opt_val.
   const StringRef TripleStr = DAL.getLastArgValue(OPT_triple_EQ);
@@ -2118,14 +2119,23 @@ DerivedArgList getLinkerArgs(ArrayRef<OffloadFile> Input,
       }
       size_t EqPos = DeviceArgValue.find('=');
       if (EqPos != StringRef::npos) {
-        StringRef ArgTargetTripleStr = DeviceArgValue.take_front(EqPos);
-        llvm::Triple ArgTargetTriple(ArgTargetTripleStr);
-        // If this isn't a recognized triple then it's an `arg=value` option.
-        if (ArgTargetTriple.getArch() != Triple::ArchType::UnknownArch) {
-          if (ArgTargetTripleStr != TripleStr)
-            continue;
-          DeviceArgValue = DeviceArgValue.drop_front(EqPos + 1);
+        StringRef TargetArchOrTripleStr = DeviceArgValue.take_front(EqPos);
+        if (getOffloadKind(Kind) == OFK_SYCL &&
+            DeviceArgsOptionID == OPT_device_compiler_args_EQ) {
+            // For SYCL device compiler args, check against the architecture
+            StringRef CurrentArch = DAL.getLastArgValue(OPT_arch_EQ);
+            if (TargetArchOrTripleStr != CurrentArch)
+              continue;
+        } else {
+          // For other cases, check against the target triple.
+          llvm::Triple ArgTargetTriple(TargetArchOrTripleStr);
+          // If this isn't a recognized triple then it's an `arg=value` option.
+          if (ArgTargetTriple.getArch() != llvm::Triple::ArchType::UnknownArch) {
+            if (TargetArchOrTripleStr != TripleStr)
+              continue;
+          }
         }
+        DeviceArgValue = DeviceArgValue.drop_front(EqPos + 1);
       }
       if (DeviceArgValue.empty())
         continue;
