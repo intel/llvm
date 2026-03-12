@@ -10098,9 +10098,8 @@ std::string Driver::GetClPchPath(Compilation &C, StringRef BaseName) const {
   } else {
     if (Arg *YcArg = C.getArgs().getLastArg(options::OPT__SLASH_Yc))
       Output = YcArg->getValue();
-    if (Output.empty()) {
+    if (Output.empty())
       Output = BaseName;
-    }
     llvm::sys::path::replace_extension(Output, ".pch");
   }
   return std::string(Output);

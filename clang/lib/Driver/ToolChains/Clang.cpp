@@ -1093,9 +1093,6 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
       // so that replace_extension does the right thing.
       P += ".dummy";
       llvm::sys::path::replace_extension(P, "pch");
-      if (D.getVFS().exists(P))
-        FoundPCH = true;
-
       // If this is a SYCL compilation, we would have unbundled the PCH
       // files from the fat binary, so use that instead.
       if (JA.isOffloading(Action::OFK_SYCL)) {
