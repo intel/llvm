@@ -2,7 +2,7 @@ name: UR - Build offload adapter
 
 permissions: read-all
 
-on: [ workflow_call, workflow_dispatch ]
+on: [ workflow_call, workflow_dispatch, pull_request ]
 
 jobs:
   offload_build:
