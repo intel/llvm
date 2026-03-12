@@ -8,7 +8,7 @@
 
 #include <libspirv/spirv.h>
 
-#pragma OPENCL EXTENSION __cl_clang_non_kernel_scope_local_memory : enable
+#pragma OPENCL EXTENSION __cl_clang_function_scope_local_variables : enable
 
 __attribute__((always_inline)) local char* __clc__get_group_scratch_char() {
   local char a[32];
