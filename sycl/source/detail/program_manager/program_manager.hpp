@@ -438,12 +438,6 @@ protected:
                      std::shared_ptr<std::vector<kernel_id>>>
       m_BinImg2KernelIDs;
 
-  /// Keeps track of binary image to kernel name reference count.
-  /// Used for checking if the last image referencing the kernel name
-  /// is removed in order to trigger cleanup of kernel specific information.
-  /// Access must be guarded by the m_ImgMapsMutex mutex.
-  std::unordered_map<std::string_view, int> m_KernelNameRefCount;
-
   /// Caches all exported symbols to allow faster lookup when excluding these
   /// from kernel bundles.
   /// Access must be guarded by the m_ImgMapsMutex mutex.

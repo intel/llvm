@@ -14,7 +14,9 @@
 // RUN: | FileCheck -check-prefix=CHK-ACTIONS-WIN %s
 
 // CHK-ACTIONS: "-cc1" "-triple" "nvptx64-nvidia-cuda" "-{{.*}}"-aux-triple" "x86_64-unknown-linux-gnu"{{.*}} "-fsycl-is-device"{{.*}} "-Wno-sycl-strict"{{.*}} "-sycl-std=2020" {{.*}} "-emit-llvm-bc" {{.*}} "-internal-isystem" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl{{[/\\]+}}stl_wrappers"{{.*}} "-mlink-builtin-bitcode" "{{.*}}libspirv.bc"{{.*}} "-mlink-builtin-bitcode" "{{.*}}libdevice{{.*}}.10.bc"{{.*}} "-target-sdk-version=[[CUDA_VERSION:[0-9.]+]]"{{.*}} "-target-cpu" "sm_75"{{.*}} "-target-feature" "+ptx63"{{.*}} "-std=c++11"{{.*}}
-// CHK-ACTIONS: sycl-post-link{{.*}} "-split=auto"
+// CHK-ACTIONS: sycl-post-link
+// CHK-ACTIONS-NOT: -split
+// CHK-ACTIONS-SAME: -o
 // CHK-ACTIONS: file-table-tform" "-extract=Code" "-drop_titles"
 // CHK-ACTIONS: llvm-foreach" {{.*}} "--" "{{.*}}clang-{{[0-9]+}}"
 // CHK-ACTIONS: llvm-foreach" {{.*}} "--" "{{.*}}ptxas"
@@ -24,7 +26,9 @@
 // CHK-ACTIONS: clang-offload-wrapper"{{.*}} "-host=x86_64-unknown-linux-gnu" "-target=nvptx64" "-kind=sycl"{{.*}}
 
 // CHK-ACTIONS-WIN: "-cc1" "-triple" "nvptx64-nvidia-cuda" "-{{.*}}"-aux-triple" "x86_64-pc-windows-msvc"{{.*}} "-fsycl-is-device"{{.*}} "-Wno-sycl-strict"{{.*}} "-sycl-std=2020" {{.*}} "-emit-llvm-bc" {{.*}} "-internal-isystem" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl{{[/\\]+}}stl_wrappers"{{.*}} "-mlink-builtin-bitcode" "{{.*}}libspirv.bc"{{.*}} "-mlink-builtin-bitcode" "{{.*}}libdevice{{.*}}.10.bc"{{.*}} "-target-sdk-version=[[CUDA_VERSION:[0-9.]+]]"{{.*}} "-target-cpu" "sm_75"{{.*}} "-target-feature" "+ptx63"{{.*}}
-// CHK-ACTIONS-WIN: sycl-post-link{{.*}} "-split=auto"
+// CHK-ACTIONS-WIN: sycl-post-link
+// CHK-ACTIONS-WIN-NOT: -split
+// CHK-ACTIONS-WIN-SAME: -o
 // CHK-ACTIONS-WIN: file-table-tform" "-extract=Code" "-drop_titles"
 // CHK-ACTIONS-WIN: llvm-foreach" {{.*}} "--" "{{.*}}clang-{{[0-9]+}}"
 // CHK-ACTIONS-WIN: llvm-foreach" {{.*}} "--" "{{.*}}ptxas"
@@ -38,7 +42,7 @@
 // RUN: %clangxx -ccc-print-phases --sysroot=%S/Inputs/SYCL -std=c++11 \
 // RUN: -target x86_64-unknown-linux-gnu -fsycl --no-offloadlib \
 // RUN: -fsycl-targets=nvptx64-nvidia-cuda %s 2>&1 \
-// RUN: -fsycl-libspirv-path=%S/Inputs/SYCL/lib/clang/resource_dir/lib/libclc/remangled-l32-signed_char.libspirv-nvptx64-nvidia-cuda.bc \
+// RUN: -fsycl-libspirv-path=%S/Inputs/SYCL/lib/clang/resource_dir/lib/nvptx64-nvidia-cuda/remangled-l32-signed_char.libspirv.bc \
 // RUN: --cuda-path=%S/Inputs/CUDA_111/usr/local/cuda \
 // RUN: | FileCheck -check-prefix=CHK-PHASES-NO-CC %s
 //
@@ -54,7 +58,7 @@
 // CHK-PHASES-NO-CC: 7: backend, {6}, assembler, (host-sycl)
 // CHK-PHASES-NO-CC: 8: assembler, {7}, object, (host-sycl)
 // CHK-PHASES-NO-CC: 9: linker, {4}, ir, (device-sycl, sm_75)
-// CHK-PHASES-NO-CC: 10: input, "{{.*}}libspirv-nvptx64{{.*}}", ir, (device-sycl, sm_75)
+// CHK-PHASES-NO-CC: 10: input, "{{.*}}libspirv{{.*}}", ir, (device-sycl, sm_75)
 // CHK-PHASES-NO-CC: 11: linker, {9, 10}, ir, (device-sycl, sm_75)
 // CHK-PHASES-NO-CC: 12: sycl-post-link, {11}, ir, (device-sycl, sm_75)
 // CHK-PHASES-NO-CC: 13: file-table-tform, {12}, ir, (device-sycl, sm_75)
@@ -71,7 +75,7 @@
 // RUN: %clangxx -ccc-print-phases --sysroot=%S/Inputs/SYCL -std=c++11 \
 // RUN: -target x86_64-unknown-linux-gnu -fsycl --no-offloadlib \
 // RUN: -fsycl-targets=nvptx64-nvidia-cuda \
-// RUN: -fsycl-libspirv-path=%S/Inputs/SYCL/lib/clang/resource_dir/lib/libclc/remangled-l32-signed_char.libspirv-nvptx64-nvidia-cuda.bc \
+// RUN: -fsycl-libspirv-path=%S/Inputs/SYCL/lib/clang/resource_dir/lib/nvptx64-nvidia-cuda/remangled-l32-signed_char.libspirv.bc \
 // RUN: --cuda-path=%S/Inputs/CUDA_111/usr/local/cuda \
 // RUN: -Xsycl-target-backend "--cuda-gpu-arch=sm_35" %s 2>&1 \
 // RUN: | FileCheck -check-prefix=CHK-PHASES %s
@@ -88,7 +92,7 @@
 // CHK-PHASES: 7: backend, {6}, assembler, (host-sycl)
 // CHK-PHASES: 8: assembler, {7}, object, (host-sycl)
 // CHK-PHASES: 9: linker, {4}, ir, (device-sycl, sm_35)
-// CHK-PHASES: 10: input, "{{.*}}libspirv-nvptx64{{.*}}", ir, (device-sycl, sm_35)
+// CHK-PHASES: 10: input, "{{.*}}libspirv{{.*}}", ir, (device-sycl, sm_35)
 // CHK-PHASES: 11: linker, {9, 10}, ir, (device-sycl, sm_35)
 // CHK-PHASES: 12: sycl-post-link, {11}, ir, (device-sycl, sm_35)
 // CHK-PHASES: 13: file-table-tform, {12}, ir, (device-sycl, sm_35)

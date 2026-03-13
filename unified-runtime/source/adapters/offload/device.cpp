@@ -9,8 +9,8 @@
 //===----------------------------------------------------------------------===//
 
 #include <OffloadAPI.h>
+#include <unified-runtime/ur_api.h>
 #include <ur/ur.hpp>
-#include <ur_api.h>
 
 #include "adapters/offload/adapter.hpp"
 #include "device.hpp"
@@ -53,7 +53,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_VERSION:
     return ReturnValue("");
   case UR_DEVICE_INFO_EXTENSIONS:
-    return ReturnValue("");
+    // todo: use offload API to query supported extensions
+    return ReturnValue("cl_khr_il_program");
   case UR_DEVICE_INFO_USE_NATIVE_ASSERT:
     return ReturnValue(false);
   case UR_DEVICE_INFO_TYPE:

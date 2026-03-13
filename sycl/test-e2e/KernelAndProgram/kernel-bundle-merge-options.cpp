@@ -1,4 +1,4 @@
-// XFAIL: new-offload-model && linux
+// XFAIL: new-offload-model && cuda
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/20797
 
 // REQUIRES: gpu

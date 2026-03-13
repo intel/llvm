@@ -1,5 +1,7 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
+// RUN: %if level_zero %{ env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 UR_L0_V2_FORCE_BATCHED=1 %{run} %t.out %}
+
 // SYCL in ordered queues explicit USM test.
 // Simple test checking explicit USM functionality using a Queue with the
 // in_order property.

@@ -4005,886 +4005,6 @@ __urdlllocal ur_result_t UR_APICALL urProgramCreateWithNativeHandle(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urKernelCreate
-__urdlllocal ur_result_t UR_APICALL urKernelCreate(
-    /// [in] handle of the program instance
-    ur_program_handle_t hProgram,
-    /// [in] pointer to null-terminated string.
-    const char *pKernelName,
-    /// [out][alloc] pointer to handle of kernel object created.
-    ur_kernel_handle_t *phKernel) try {
-  ur_result_t result = UR_RESULT_SUCCESS;
-
-  ur_kernel_create_params_t params = {&hProgram, &pKernelName, &phKernel};
-
-  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_before_callback("urKernelCreate"));
-  if (beforeCallback) {
-    result = beforeCallback(&params);
-    if (result != UR_RESULT_SUCCESS) {
-      return result;
-    }
-  }
-
-  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_replace_callback("urKernelCreate"));
-  if (replaceCallback) {
-    result = replaceCallback(&params);
-  } else {
-
-    *phKernel = mock::createDummyHandle<ur_kernel_handle_t>();
-    result = UR_RESULT_SUCCESS;
-  }
-
-  if (result != UR_RESULT_SUCCESS) {
-    return result;
-  }
-
-  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_after_callback("urKernelCreate"));
-  if (afterCallback) {
-    return afterCallback(&params);
-  }
-
-  return result;
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urKernelSetArgValue
-__urdlllocal ur_result_t UR_APICALL urKernelSetArgValue(
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] argument index in range [0, num args - 1]
-    uint32_t argIndex,
-    /// [in] size of argument type
-    size_t argSize,
-    /// [in][optional] pointer to value properties.
-    const ur_kernel_arg_value_properties_t *pProperties,
-    /// [in] argument value represented as matching arg type.
-    /// The data pointed to will be copied and therefore can be reused on
-    /// return.
-    const void *pArgValue) try {
-  ur_result_t result = UR_RESULT_SUCCESS;
-
-  ur_kernel_set_arg_value_params_t params = {&hKernel, &argIndex, &argSize,
-                                             &pProperties, &pArgValue};
-
-  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_before_callback("urKernelSetArgValue"));
-  if (beforeCallback) {
-    result = beforeCallback(&params);
-    if (result != UR_RESULT_SUCCESS) {
-      return result;
-    }
-  }
-
-  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_replace_callback("urKernelSetArgValue"));
-  if (replaceCallback) {
-    result = replaceCallback(&params);
-  } else {
-
-    result = UR_RESULT_SUCCESS;
-  }
-
-  if (result != UR_RESULT_SUCCESS) {
-    return result;
-  }
-
-  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_after_callback("urKernelSetArgValue"));
-  if (afterCallback) {
-    return afterCallback(&params);
-  }
-
-  return result;
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urKernelSetArgLocal
-__urdlllocal ur_result_t UR_APICALL urKernelSetArgLocal(
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] argument index in range [0, num args - 1]
-    uint32_t argIndex,
-    /// [in] size of the local buffer to be allocated by the runtime
-    size_t argSize,
-    /// [in][optional] pointer to local buffer properties.
-    const ur_kernel_arg_local_properties_t *pProperties) try {
-  ur_result_t result = UR_RESULT_SUCCESS;
-
-  ur_kernel_set_arg_local_params_t params = {&hKernel, &argIndex, &argSize,
-                                             &pProperties};
-
-  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_before_callback("urKernelSetArgLocal"));
-  if (beforeCallback) {
-    result = beforeCallback(&params);
-    if (result != UR_RESULT_SUCCESS) {
-      return result;
-    }
-  }
-
-  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_replace_callback("urKernelSetArgLocal"));
-  if (replaceCallback) {
-    result = replaceCallback(&params);
-  } else {
-
-    result = UR_RESULT_SUCCESS;
-  }
-
-  if (result != UR_RESULT_SUCCESS) {
-    return result;
-  }
-
-  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_after_callback("urKernelSetArgLocal"));
-  if (afterCallback) {
-    return afterCallback(&params);
-  }
-
-  return result;
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urKernelGetInfo
-__urdlllocal ur_result_t UR_APICALL urKernelGetInfo(
-    /// [in] handle of the Kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] name of the Kernel property to query
-    ur_kernel_info_t propName,
-    /// [in] the size of the Kernel property value.
-    size_t propSize,
-    /// [in,out][optional][typename(propName, propSize)] array of bytes
-    /// holding the kernel info property.
-    /// If propSize is not equal to or greater than the real number of bytes
-    /// needed to return
-    /// the info then the ::UR_RESULT_ERROR_INVALID_SIZE error is returned and
-    /// pPropValue is not used.
-    void *pPropValue,
-    /// [out][optional] pointer to the actual size in bytes of data being
-    /// queried by propName.
-    size_t *pPropSizeRet) try {
-  ur_result_t result = UR_RESULT_SUCCESS;
-
-  ur_kernel_get_info_params_t params = {&hKernel, &propName, &propSize,
-                                        &pPropValue, &pPropSizeRet};
-
-  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_before_callback("urKernelGetInfo"));
-  if (beforeCallback) {
-    result = beforeCallback(&params);
-    if (result != UR_RESULT_SUCCESS) {
-      return result;
-    }
-  }
-
-  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_replace_callback("urKernelGetInfo"));
-  if (replaceCallback) {
-    result = replaceCallback(&params);
-  } else {
-
-    result = UR_RESULT_SUCCESS;
-  }
-
-  if (result != UR_RESULT_SUCCESS) {
-    return result;
-  }
-
-  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_after_callback("urKernelGetInfo"));
-  if (afterCallback) {
-    return afterCallback(&params);
-  }
-
-  return result;
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urKernelGetGroupInfo
-__urdlllocal ur_result_t UR_APICALL urKernelGetGroupInfo(
-    /// [in] handle of the Kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] handle of the Device object
-    ur_device_handle_t hDevice,
-    /// [in] name of the work Group property to query
-    ur_kernel_group_info_t propName,
-    /// [in] size of the Kernel Work Group property value
-    size_t propSize,
-    /// [in,out][optional][typename(propName, propSize)] value of the Kernel
-    /// Work Group property.
-    void *pPropValue,
-    /// [out][optional] pointer to the actual size in bytes of data being
-    /// queried by propName.
-    size_t *pPropSizeRet) try {
-  ur_result_t result = UR_RESULT_SUCCESS;
-
-  ur_kernel_get_group_info_params_t params = {
-      &hKernel, &hDevice, &propName, &propSize, &pPropValue, &pPropSizeRet};
-
-  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_before_callback("urKernelGetGroupInfo"));
-  if (beforeCallback) {
-    result = beforeCallback(&params);
-    if (result != UR_RESULT_SUCCESS) {
-      return result;
-    }
-  }
-
-  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_replace_callback("urKernelGetGroupInfo"));
-  if (replaceCallback) {
-    result = replaceCallback(&params);
-  } else {
-
-    result = UR_RESULT_SUCCESS;
-  }
-
-  if (result != UR_RESULT_SUCCESS) {
-    return result;
-  }
-
-  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_after_callback("urKernelGetGroupInfo"));
-  if (afterCallback) {
-    return afterCallback(&params);
-  }
-
-  return result;
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urKernelGetSubGroupInfo
-__urdlllocal ur_result_t UR_APICALL urKernelGetSubGroupInfo(
-    /// [in] handle of the Kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] handle of the Device object
-    ur_device_handle_t hDevice,
-    /// [in] name of the SubGroup property to query
-    ur_kernel_sub_group_info_t propName,
-    /// [in] size of the Kernel SubGroup property value
-    size_t propSize,
-    /// [in,out][optional][typename(propName, propSize)] value of the Kernel
-    /// SubGroup property.
-    void *pPropValue,
-    /// [out][optional] pointer to the actual size in bytes of data being
-    /// queried by propName.
-    size_t *pPropSizeRet) try {
-  ur_result_t result = UR_RESULT_SUCCESS;
-
-  ur_kernel_get_sub_group_info_params_t params = {
-      &hKernel, &hDevice, &propName, &propSize, &pPropValue, &pPropSizeRet};
-
-  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_before_callback("urKernelGetSubGroupInfo"));
-  if (beforeCallback) {
-    result = beforeCallback(&params);
-    if (result != UR_RESULT_SUCCESS) {
-      return result;
-    }
-  }
-
-  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_replace_callback("urKernelGetSubGroupInfo"));
-  if (replaceCallback) {
-    result = replaceCallback(&params);
-  } else {
-
-    result = UR_RESULT_SUCCESS;
-  }
-
-  if (result != UR_RESULT_SUCCESS) {
-    return result;
-  }
-
-  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_after_callback("urKernelGetSubGroupInfo"));
-  if (afterCallback) {
-    return afterCallback(&params);
-  }
-
-  return result;
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urKernelRetain
-__urdlllocal ur_result_t UR_APICALL urKernelRetain(
-    /// [in][retain] handle for the Kernel to retain
-    ur_kernel_handle_t hKernel) try {
-  ur_result_t result = UR_RESULT_SUCCESS;
-
-  ur_kernel_retain_params_t params = {&hKernel};
-
-  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_before_callback("urKernelRetain"));
-  if (beforeCallback) {
-    result = beforeCallback(&params);
-    if (result != UR_RESULT_SUCCESS) {
-      return result;
-    }
-  }
-
-  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_replace_callback("urKernelRetain"));
-  if (replaceCallback) {
-    result = replaceCallback(&params);
-  } else {
-
-    mock::retainDummyHandle(hKernel);
-    result = UR_RESULT_SUCCESS;
-  }
-
-  if (result != UR_RESULT_SUCCESS) {
-    return result;
-  }
-
-  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_after_callback("urKernelRetain"));
-  if (afterCallback) {
-    return afterCallback(&params);
-  }
-
-  return result;
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urKernelRelease
-__urdlllocal ur_result_t UR_APICALL urKernelRelease(
-    /// [in][release] handle for the Kernel to release
-    ur_kernel_handle_t hKernel) try {
-  ur_result_t result = UR_RESULT_SUCCESS;
-
-  ur_kernel_release_params_t params = {&hKernel};
-
-  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_before_callback("urKernelRelease"));
-  if (beforeCallback) {
-    result = beforeCallback(&params);
-    if (result != UR_RESULT_SUCCESS) {
-      return result;
-    }
-  }
-
-  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_replace_callback("urKernelRelease"));
-  if (replaceCallback) {
-    result = replaceCallback(&params);
-  } else {
-
-    mock::releaseDummyHandle(hKernel);
-    result = UR_RESULT_SUCCESS;
-  }
-
-  if (result != UR_RESULT_SUCCESS) {
-    return result;
-  }
-
-  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_after_callback("urKernelRelease"));
-  if (afterCallback) {
-    return afterCallback(&params);
-  }
-
-  return result;
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urKernelSetArgPointer
-__urdlllocal ur_result_t UR_APICALL urKernelSetArgPointer(
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] argument index in range [0, num args - 1]
-    uint32_t argIndex,
-    /// [in][optional] pointer to USM pointer properties.
-    const ur_kernel_arg_pointer_properties_t *pProperties,
-    /// [in][optional] Pointer obtained by USM allocation or virtual memory
-    /// mapping operation. If null then argument value is considered null.
-    const void *pArgValue) try {
-  ur_result_t result = UR_RESULT_SUCCESS;
-
-  ur_kernel_set_arg_pointer_params_t params = {&hKernel, &argIndex,
-                                               &pProperties, &pArgValue};
-
-  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_before_callback("urKernelSetArgPointer"));
-  if (beforeCallback) {
-    result = beforeCallback(&params);
-    if (result != UR_RESULT_SUCCESS) {
-      return result;
-    }
-  }
-
-  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_replace_callback("urKernelSetArgPointer"));
-  if (replaceCallback) {
-    result = replaceCallback(&params);
-  } else {
-
-    result = UR_RESULT_SUCCESS;
-  }
-
-  if (result != UR_RESULT_SUCCESS) {
-    return result;
-  }
-
-  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_after_callback("urKernelSetArgPointer"));
-  if (afterCallback) {
-    return afterCallback(&params);
-  }
-
-  return result;
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urKernelSetExecInfo
-__urdlllocal ur_result_t UR_APICALL urKernelSetExecInfo(
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] name of the execution attribute
-    ur_kernel_exec_info_t propName,
-    /// [in] size in byte the attribute value
-    size_t propSize,
-    /// [in][optional] pointer to execution info properties.
-    const ur_kernel_exec_info_properties_t *pProperties,
-    /// [in][typename(propName, propSize)] pointer to memory location holding
-    /// the property value.
-    const void *pPropValue) try {
-  ur_result_t result = UR_RESULT_SUCCESS;
-
-  ur_kernel_set_exec_info_params_t params = {&hKernel, &propName, &propSize,
-                                             &pProperties, &pPropValue};
-
-  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_before_callback("urKernelSetExecInfo"));
-  if (beforeCallback) {
-    result = beforeCallback(&params);
-    if (result != UR_RESULT_SUCCESS) {
-      return result;
-    }
-  }
-
-  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_replace_callback("urKernelSetExecInfo"));
-  if (replaceCallback) {
-    result = replaceCallback(&params);
-  } else {
-
-    result = UR_RESULT_SUCCESS;
-  }
-
-  if (result != UR_RESULT_SUCCESS) {
-    return result;
-  }
-
-  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_after_callback("urKernelSetExecInfo"));
-  if (afterCallback) {
-    return afterCallback(&params);
-  }
-
-  return result;
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urKernelSetArgSampler
-__urdlllocal ur_result_t UR_APICALL urKernelSetArgSampler(
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] argument index in range [0, num args - 1]
-    uint32_t argIndex,
-    /// [in][optional] pointer to sampler properties.
-    const ur_kernel_arg_sampler_properties_t *pProperties,
-    /// [in] handle of Sampler object.
-    ur_sampler_handle_t hArgValue) try {
-  ur_result_t result = UR_RESULT_SUCCESS;
-
-  ur_kernel_set_arg_sampler_params_t params = {&hKernel, &argIndex,
-                                               &pProperties, &hArgValue};
-
-  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_before_callback("urKernelSetArgSampler"));
-  if (beforeCallback) {
-    result = beforeCallback(&params);
-    if (result != UR_RESULT_SUCCESS) {
-      return result;
-    }
-  }
-
-  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_replace_callback("urKernelSetArgSampler"));
-  if (replaceCallback) {
-    result = replaceCallback(&params);
-  } else {
-
-    result = UR_RESULT_SUCCESS;
-  }
-
-  if (result != UR_RESULT_SUCCESS) {
-    return result;
-  }
-
-  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_after_callback("urKernelSetArgSampler"));
-  if (afterCallback) {
-    return afterCallback(&params);
-  }
-
-  return result;
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urKernelSetArgMemObj
-__urdlllocal ur_result_t UR_APICALL urKernelSetArgMemObj(
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] argument index in range [0, num args - 1]
-    uint32_t argIndex,
-    /// [in][optional] pointer to Memory object properties.
-    const ur_kernel_arg_mem_obj_properties_t *pProperties,
-    /// [in][optional] handle of Memory object.
-    ur_mem_handle_t hArgValue) try {
-  ur_result_t result = UR_RESULT_SUCCESS;
-
-  ur_kernel_set_arg_mem_obj_params_t params = {&hKernel, &argIndex,
-                                               &pProperties, &hArgValue};
-
-  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_before_callback("urKernelSetArgMemObj"));
-  if (beforeCallback) {
-    result = beforeCallback(&params);
-    if (result != UR_RESULT_SUCCESS) {
-      return result;
-    }
-  }
-
-  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_replace_callback("urKernelSetArgMemObj"));
-  if (replaceCallback) {
-    result = replaceCallback(&params);
-  } else {
-
-    result = UR_RESULT_SUCCESS;
-  }
-
-  if (result != UR_RESULT_SUCCESS) {
-    return result;
-  }
-
-  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_after_callback("urKernelSetArgMemObj"));
-  if (afterCallback) {
-    return afterCallback(&params);
-  }
-
-  return result;
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urKernelSetSpecializationConstants
-__urdlllocal ur_result_t UR_APICALL urKernelSetSpecializationConstants(
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] the number of elements in the pSpecConstants array
-    uint32_t count,
-    /// [in] array of specialization constant value descriptions
-    const ur_specialization_constant_info_t *pSpecConstants) try {
-  ur_result_t result = UR_RESULT_SUCCESS;
-
-  ur_kernel_set_specialization_constants_params_t params = {&hKernel, &count,
-                                                            &pSpecConstants};
-
-  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_before_callback(
-          "urKernelSetSpecializationConstants"));
-  if (beforeCallback) {
-    result = beforeCallback(&params);
-    if (result != UR_RESULT_SUCCESS) {
-      return result;
-    }
-  }
-
-  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_replace_callback(
-          "urKernelSetSpecializationConstants"));
-  if (replaceCallback) {
-    result = replaceCallback(&params);
-  } else {
-
-    result = UR_RESULT_SUCCESS;
-  }
-
-  if (result != UR_RESULT_SUCCESS) {
-    return result;
-  }
-
-  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_after_callback(
-          "urKernelSetSpecializationConstants"));
-  if (afterCallback) {
-    return afterCallback(&params);
-  }
-
-  return result;
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urKernelGetNativeHandle
-__urdlllocal ur_result_t UR_APICALL urKernelGetNativeHandle(
-    /// [in] handle of the kernel.
-    ur_kernel_handle_t hKernel,
-    /// [out] a pointer to the native handle of the kernel.
-    ur_native_handle_t *phNativeKernel) try {
-  ur_result_t result = UR_RESULT_SUCCESS;
-
-  ur_kernel_get_native_handle_params_t params = {&hKernel, &phNativeKernel};
-
-  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_before_callback("urKernelGetNativeHandle"));
-  if (beforeCallback) {
-    result = beforeCallback(&params);
-    if (result != UR_RESULT_SUCCESS) {
-      return result;
-    }
-  }
-
-  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_replace_callback("urKernelGetNativeHandle"));
-  if (replaceCallback) {
-    result = replaceCallback(&params);
-  } else {
-
-    *phNativeKernel = reinterpret_cast<ur_native_handle_t>(hKernel);
-    result = UR_RESULT_SUCCESS;
-  }
-
-  if (result != UR_RESULT_SUCCESS) {
-    return result;
-  }
-
-  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_after_callback("urKernelGetNativeHandle"));
-  if (afterCallback) {
-    return afterCallback(&params);
-  }
-
-  return result;
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urKernelCreateWithNativeHandle
-__urdlllocal ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
-    /// [in][nocheck] the native handle of the kernel.
-    ur_native_handle_t hNativeKernel,
-    /// [in] handle of the context object
-    ur_context_handle_t hContext,
-    /// [in][optional] handle of the program associated with the kernel
-    ur_program_handle_t hProgram,
-    /// [in][optional] pointer to native kernel properties struct
-    const ur_kernel_native_properties_t *pProperties,
-    /// [out][alloc] pointer to the handle of the kernel object created.
-    ur_kernel_handle_t *phKernel) try {
-  ur_result_t result = UR_RESULT_SUCCESS;
-
-  ur_kernel_create_with_native_handle_params_t params = {
-      &hNativeKernel, &hContext, &hProgram, &pProperties, &phKernel};
-
-  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_before_callback(
-          "urKernelCreateWithNativeHandle"));
-  if (beforeCallback) {
-    result = beforeCallback(&params);
-    if (result != UR_RESULT_SUCCESS) {
-      return result;
-    }
-  }
-
-  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_replace_callback(
-          "urKernelCreateWithNativeHandle"));
-  if (replaceCallback) {
-    result = replaceCallback(&params);
-  } else {
-
-    *phKernel = reinterpret_cast<ur_kernel_handle_t>(hNativeKernel);
-    mock::retainDummyHandle(*phKernel);
-    result = UR_RESULT_SUCCESS;
-  }
-
-  if (result != UR_RESULT_SUCCESS) {
-    return result;
-  }
-
-  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_after_callback(
-          "urKernelCreateWithNativeHandle"));
-  if (afterCallback) {
-    return afterCallback(&params);
-  }
-
-  return result;
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urKernelGetSuggestedLocalWorkSize
-__urdlllocal ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
-    /// [in] handle of the kernel
-    ur_kernel_handle_t hKernel,
-    /// [in] handle of the queue object
-    ur_queue_handle_t hQueue,
-    /// [in] number of dimensions, from 1 to 3, to specify the global
-    /// and work-group work-items
-    uint32_t numWorkDim,
-    /// [in] pointer to an array of numWorkDim unsigned values that specify
-    /// the offset used to calculate the global ID of a work-item
-    const size_t *pGlobalWorkOffset,
-    /// [in] pointer to an array of numWorkDim unsigned values that specify
-    /// the number of global work-items in workDim that will execute the
-    /// kernel function
-    const size_t *pGlobalWorkSize,
-    /// [out] pointer to an array of numWorkDim unsigned values that specify
-    /// suggested local work size that will contain the result of the query
-    size_t *pSuggestedLocalWorkSize) try {
-  ur_result_t result = UR_RESULT_SUCCESS;
-
-  ur_kernel_get_suggested_local_work_size_params_t params = {
-      &hKernel,           &hQueue,          &numWorkDim,
-      &pGlobalWorkOffset, &pGlobalWorkSize, &pSuggestedLocalWorkSize};
-
-  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_before_callback(
-          "urKernelGetSuggestedLocalWorkSize"));
-  if (beforeCallback) {
-    result = beforeCallback(&params);
-    if (result != UR_RESULT_SUCCESS) {
-      return result;
-    }
-  }
-
-  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_replace_callback(
-          "urKernelGetSuggestedLocalWorkSize"));
-  if (replaceCallback) {
-    result = replaceCallback(&params);
-  } else {
-
-    result = UR_RESULT_SUCCESS;
-  }
-
-  if (result != UR_RESULT_SUCCESS) {
-    return result;
-  }
-
-  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_after_callback(
-          "urKernelGetSuggestedLocalWorkSize"));
-  if (afterCallback) {
-    return afterCallback(&params);
-  }
-
-  return result;
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urKernelSuggestMaxCooperativeGroupCount
-__urdlllocal ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCount(
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] handle of the device object
-    ur_device_handle_t hDevice,
-    /// [in] number of dimensions, from 1 to 3, to specify the work-group
-    /// work-items
-    uint32_t workDim,
-    /// [in] pointer to an array of workDim unsigned values that specify the
-    /// number of local work-items forming a work-group that will execute the
-    /// kernel function.
-    const size_t *pLocalWorkSize,
-    /// [in] size of dynamic shared memory, for each work-group, in bytes,
-    /// that will be used when the kernel is launched
-    size_t dynamicSharedMemorySize,
-    /// [out] pointer to maximum number of groups
-    uint32_t *pGroupCountRet) try {
-  ur_result_t result = UR_RESULT_SUCCESS;
-
-  ur_kernel_suggest_max_cooperative_group_count_params_t params = {
-      &hKernel,
-      &hDevice,
-      &workDim,
-      &pLocalWorkSize,
-      &dynamicSharedMemorySize,
-      &pGroupCountRet};
-
-  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_before_callback(
-          "urKernelSuggestMaxCooperativeGroupCount"));
-  if (beforeCallback) {
-    result = beforeCallback(&params);
-    if (result != UR_RESULT_SUCCESS) {
-      return result;
-    }
-  }
-
-  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_replace_callback(
-          "urKernelSuggestMaxCooperativeGroupCount"));
-  if (replaceCallback) {
-    result = replaceCallback(&params);
-  } else {
-
-    result = UR_RESULT_SUCCESS;
-  }
-
-  if (result != UR_RESULT_SUCCESS) {
-    return result;
-  }
-
-  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_after_callback(
-          "urKernelSuggestMaxCooperativeGroupCount"));
-  if (afterCallback) {
-    return afterCallback(&params);
-  }
-
-  return result;
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urQueueGetInfo
 __urdlllocal ur_result_t UR_APICALL urQueueGetInfo(
     /// [in] handle of the queue object
@@ -7448,6 +6568,977 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueWriteHostPipe(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urEnqueueKernelLaunchWithArgsExp
+__urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunchWithArgsExp(
+    /// [in] handle of the queue object
+    ur_queue_handle_t hQueue,
+    /// [in] handle of the kernel object
+    ur_kernel_handle_t hKernel,
+    /// [in] number of dimensions, from 1 to 3, to specify the global and
+    /// work-group work-items
+    uint32_t workDim,
+    /// [in][optional] pointer to an array of workDim unsigned values that
+    /// specify the offset used to calculate the global ID of a work-item
+    const size_t *pGlobalWorkOffset,
+    /// [in] pointer to an array of workDim unsigned values that specify the
+    /// number of global work-items in workDim that will execute the kernel
+    /// function
+    const size_t *pGlobalWorkSize,
+    /// [in][optional] pointer to an array of workDim unsigned values that
+    /// specify the number of local work-items forming a work-group that will
+    /// execute the kernel function.
+    /// If nullptr, the runtime implementation will choose the work-group size.
+    const size_t *pLocalWorkSize,
+    /// [in] Number of entries in pArgs
+    uint32_t numArgs,
+    /// [in][optional][range(0, numArgs)] pointer to a list of kernel arg
+    /// properties.
+    const ur_exp_kernel_arg_properties_t *pArgs,
+    /// [in][optional] pointer to a single linked list of launch properties
+    const ur_kernel_launch_ext_properties_t *launchPropList,
+    /// [in] size of the event wait list
+    uint32_t numEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before the kernel execution.
+    /// If nullptr, the numEventsInWaitList must be 0, indicating that no wait
+    /// event.
+    const ur_event_handle_t *phEventWaitList,
+    /// [out][optional][alloc] return an event object that identifies this
+    /// particular kernel execution instance. If phEventWaitList and phEvent
+    /// are not NULL, phEvent must not refer to an element of the
+    /// phEventWaitList array.
+    ur_event_handle_t *phEvent) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_enqueue_kernel_launch_with_args_exp_params_t params = {
+      &hQueue,          &hKernel,
+      &workDim,         &pGlobalWorkOffset,
+      &pGlobalWorkSize, &pLocalWorkSize,
+      &numArgs,         &pArgs,
+      &launchPropList,  &numEventsInWaitList,
+      &phEventWaitList, &phEvent};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback(
+          "urEnqueueKernelLaunchWithArgsExp"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback(
+          "urEnqueueKernelLaunchWithArgsExp"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    // optional output handle
+    if (phEvent) {
+      *phEvent = mock::createDummyHandle<ur_event_handle_t>();
+    }
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback(
+          "urEnqueueKernelLaunchWithArgsExp"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urKernelCreate
+__urdlllocal ur_result_t UR_APICALL urKernelCreate(
+    /// [in] handle of the program instance
+    ur_program_handle_t hProgram,
+    /// [in] pointer to null-terminated string.
+    const char *pKernelName,
+    /// [out][alloc] pointer to handle of kernel object created.
+    ur_kernel_handle_t *phKernel) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_kernel_create_params_t params = {&hProgram, &pKernelName, &phKernel};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback("urKernelCreate"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback("urKernelCreate"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    *phKernel = mock::createDummyHandle<ur_kernel_handle_t>();
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback("urKernelCreate"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urKernelSetArgValue
+__urdlllocal ur_result_t UR_APICALL urKernelSetArgValue(
+    /// [in] handle of the kernel object
+    ur_kernel_handle_t hKernel,
+    /// [in] argument index in range [0, num args - 1]
+    uint32_t argIndex,
+    /// [in] size of argument type
+    size_t argSize,
+    /// [in][optional] pointer to value properties.
+    const ur_kernel_arg_value_properties_t *pProperties,
+    /// [in] argument value represented as matching arg type.
+    /// The data pointed to will be copied and therefore can be reused on
+    /// return.
+    const void *pArgValue) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_kernel_set_arg_value_params_t params = {&hKernel, &argIndex, &argSize,
+                                             &pProperties, &pArgValue};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback("urKernelSetArgValue"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback("urKernelSetArgValue"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback("urKernelSetArgValue"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urKernelSetArgLocal
+__urdlllocal ur_result_t UR_APICALL urKernelSetArgLocal(
+    /// [in] handle of the kernel object
+    ur_kernel_handle_t hKernel,
+    /// [in] argument index in range [0, num args - 1]
+    uint32_t argIndex,
+    /// [in] size of the local buffer to be allocated by the runtime
+    size_t argSize,
+    /// [in][optional] pointer to local buffer properties.
+    const ur_kernel_arg_local_properties_t *pProperties) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_kernel_set_arg_local_params_t params = {&hKernel, &argIndex, &argSize,
+                                             &pProperties};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback("urKernelSetArgLocal"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback("urKernelSetArgLocal"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback("urKernelSetArgLocal"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urKernelGetInfo
+__urdlllocal ur_result_t UR_APICALL urKernelGetInfo(
+    /// [in] handle of the Kernel object
+    ur_kernel_handle_t hKernel,
+    /// [in] name of the Kernel property to query
+    ur_kernel_info_t propName,
+    /// [in] the size of the Kernel property value.
+    size_t propSize,
+    /// [in,out][optional][typename(propName, propSize)] array of bytes
+    /// holding the kernel info property.
+    /// If propSize is not equal to or greater than the real number of bytes
+    /// needed to return
+    /// the info then the ::UR_RESULT_ERROR_INVALID_SIZE error is returned and
+    /// pPropValue is not used.
+    void *pPropValue,
+    /// [out][optional] pointer to the actual size in bytes of data being
+    /// queried by propName.
+    size_t *pPropSizeRet) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_kernel_get_info_params_t params = {&hKernel, &propName, &propSize,
+                                        &pPropValue, &pPropSizeRet};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback("urKernelGetInfo"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback("urKernelGetInfo"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback("urKernelGetInfo"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urKernelGetGroupInfo
+__urdlllocal ur_result_t UR_APICALL urKernelGetGroupInfo(
+    /// [in] handle of the Kernel object
+    ur_kernel_handle_t hKernel,
+    /// [in] handle of the Device object
+    ur_device_handle_t hDevice,
+    /// [in] name of the work Group property to query
+    ur_kernel_group_info_t propName,
+    /// [in] size of the Kernel Work Group property value
+    size_t propSize,
+    /// [in,out][optional][typename(propName, propSize)] value of the Kernel
+    /// Work Group property.
+    void *pPropValue,
+    /// [out][optional] pointer to the actual size in bytes of data being
+    /// queried by propName.
+    size_t *pPropSizeRet) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_kernel_get_group_info_params_t params = {
+      &hKernel, &hDevice, &propName, &propSize, &pPropValue, &pPropSizeRet};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback("urKernelGetGroupInfo"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback("urKernelGetGroupInfo"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback("urKernelGetGroupInfo"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urKernelGetSubGroupInfo
+__urdlllocal ur_result_t UR_APICALL urKernelGetSubGroupInfo(
+    /// [in] handle of the Kernel object
+    ur_kernel_handle_t hKernel,
+    /// [in] handle of the Device object
+    ur_device_handle_t hDevice,
+    /// [in] name of the SubGroup property to query
+    ur_kernel_sub_group_info_t propName,
+    /// [in] size of the Kernel SubGroup property value
+    size_t propSize,
+    /// [in,out][optional][typename(propName, propSize)] value of the Kernel
+    /// SubGroup property.
+    void *pPropValue,
+    /// [out][optional] pointer to the actual size in bytes of data being
+    /// queried by propName.
+    size_t *pPropSizeRet) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_kernel_get_sub_group_info_params_t params = {
+      &hKernel, &hDevice, &propName, &propSize, &pPropValue, &pPropSizeRet};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback("urKernelGetSubGroupInfo"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback("urKernelGetSubGroupInfo"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback("urKernelGetSubGroupInfo"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urKernelRetain
+__urdlllocal ur_result_t UR_APICALL urKernelRetain(
+    /// [in][retain] handle for the Kernel to retain
+    ur_kernel_handle_t hKernel) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_kernel_retain_params_t params = {&hKernel};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback("urKernelRetain"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback("urKernelRetain"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    mock::retainDummyHandle(hKernel);
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback("urKernelRetain"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urKernelRelease
+__urdlllocal ur_result_t UR_APICALL urKernelRelease(
+    /// [in][release] handle for the Kernel to release
+    ur_kernel_handle_t hKernel) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_kernel_release_params_t params = {&hKernel};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback("urKernelRelease"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback("urKernelRelease"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    mock::releaseDummyHandle(hKernel);
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback("urKernelRelease"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urKernelSetArgPointer
+__urdlllocal ur_result_t UR_APICALL urKernelSetArgPointer(
+    /// [in] handle of the kernel object
+    ur_kernel_handle_t hKernel,
+    /// [in] argument index in range [0, num args - 1]
+    uint32_t argIndex,
+    /// [in][optional] pointer to USM pointer properties.
+    const ur_kernel_arg_pointer_properties_t *pProperties,
+    /// [in][optional] Pointer obtained by USM allocation or virtual memory
+    /// mapping operation. If null then argument value is considered null.
+    const void *pArgValue) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_kernel_set_arg_pointer_params_t params = {&hKernel, &argIndex,
+                                               &pProperties, &pArgValue};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback("urKernelSetArgPointer"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback("urKernelSetArgPointer"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback("urKernelSetArgPointer"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urKernelSetExecInfo
+__urdlllocal ur_result_t UR_APICALL urKernelSetExecInfo(
+    /// [in] handle of the kernel object
+    ur_kernel_handle_t hKernel,
+    /// [in] name of the execution attribute
+    ur_kernel_exec_info_t propName,
+    /// [in] size in byte the attribute value
+    size_t propSize,
+    /// [in][optional] pointer to execution info properties.
+    const ur_kernel_exec_info_properties_t *pProperties,
+    /// [in][typename(propName, propSize)] pointer to memory location holding
+    /// the property value.
+    const void *pPropValue) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_kernel_set_exec_info_params_t params = {&hKernel, &propName, &propSize,
+                                             &pProperties, &pPropValue};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback("urKernelSetExecInfo"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback("urKernelSetExecInfo"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback("urKernelSetExecInfo"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urKernelSetArgSampler
+__urdlllocal ur_result_t UR_APICALL urKernelSetArgSampler(
+    /// [in] handle of the kernel object
+    ur_kernel_handle_t hKernel,
+    /// [in] argument index in range [0, num args - 1]
+    uint32_t argIndex,
+    /// [in][optional] pointer to sampler properties.
+    const ur_kernel_arg_sampler_properties_t *pProperties,
+    /// [in] handle of Sampler object.
+    ur_sampler_handle_t hArgValue) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_kernel_set_arg_sampler_params_t params = {&hKernel, &argIndex,
+                                               &pProperties, &hArgValue};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback("urKernelSetArgSampler"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback("urKernelSetArgSampler"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback("urKernelSetArgSampler"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urKernelSetArgMemObj
+__urdlllocal ur_result_t UR_APICALL urKernelSetArgMemObj(
+    /// [in] handle of the kernel object
+    ur_kernel_handle_t hKernel,
+    /// [in] argument index in range [0, num args - 1]
+    uint32_t argIndex,
+    /// [in][optional] pointer to Memory object properties.
+    const ur_kernel_arg_mem_obj_properties_t *pProperties,
+    /// [in][optional] handle of Memory object.
+    ur_mem_handle_t hArgValue) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_kernel_set_arg_mem_obj_params_t params = {&hKernel, &argIndex,
+                                               &pProperties, &hArgValue};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback("urKernelSetArgMemObj"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback("urKernelSetArgMemObj"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback("urKernelSetArgMemObj"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urKernelSetSpecializationConstants
+__urdlllocal ur_result_t UR_APICALL urKernelSetSpecializationConstants(
+    /// [in] handle of the kernel object
+    ur_kernel_handle_t hKernel,
+    /// [in] the number of elements in the pSpecConstants array
+    uint32_t count,
+    /// [in] array of specialization constant value descriptions
+    const ur_specialization_constant_info_t *pSpecConstants) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_kernel_set_specialization_constants_params_t params = {&hKernel, &count,
+                                                            &pSpecConstants};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback(
+          "urKernelSetSpecializationConstants"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback(
+          "urKernelSetSpecializationConstants"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback(
+          "urKernelSetSpecializationConstants"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urKernelGetNativeHandle
+__urdlllocal ur_result_t UR_APICALL urKernelGetNativeHandle(
+    /// [in] handle of the kernel.
+    ur_kernel_handle_t hKernel,
+    /// [out] a pointer to the native handle of the kernel.
+    ur_native_handle_t *phNativeKernel) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_kernel_get_native_handle_params_t params = {&hKernel, &phNativeKernel};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback("urKernelGetNativeHandle"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback("urKernelGetNativeHandle"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    *phNativeKernel = reinterpret_cast<ur_native_handle_t>(hKernel);
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback("urKernelGetNativeHandle"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urKernelCreateWithNativeHandle
+__urdlllocal ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
+    /// [in][nocheck] the native handle of the kernel.
+    ur_native_handle_t hNativeKernel,
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in][optional] handle of the program associated with the kernel
+    ur_program_handle_t hProgram,
+    /// [in][optional] pointer to native kernel properties struct
+    const ur_kernel_native_properties_t *pProperties,
+    /// [out][alloc] pointer to the handle of the kernel object created.
+    ur_kernel_handle_t *phKernel) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_kernel_create_with_native_handle_params_t params = {
+      &hNativeKernel, &hContext, &hProgram, &pProperties, &phKernel};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback(
+          "urKernelCreateWithNativeHandle"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback(
+          "urKernelCreateWithNativeHandle"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    *phKernel = reinterpret_cast<ur_kernel_handle_t>(hNativeKernel);
+    mock::retainDummyHandle(*phKernel);
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback(
+          "urKernelCreateWithNativeHandle"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urKernelGetSuggestedLocalWorkSize
+__urdlllocal ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
+    /// [in] handle of the kernel
+    ur_kernel_handle_t hKernel,
+    /// [in] handle of the queue object
+    ur_queue_handle_t hQueue,
+    /// [in] number of dimensions, from 1 to 3, to specify the global
+    /// and work-group work-items
+    uint32_t numWorkDim,
+    /// [in] pointer to an array of numWorkDim unsigned values that specify
+    /// the offset used to calculate the global ID of a work-item
+    const size_t *pGlobalWorkOffset,
+    /// [in] pointer to an array of numWorkDim unsigned values that specify
+    /// the number of global work-items in workDim that will execute the
+    /// kernel function
+    const size_t *pGlobalWorkSize,
+    /// [out] pointer to an array of numWorkDim unsigned values that specify
+    /// suggested local work size that will contain the result of the query
+    size_t *pSuggestedLocalWorkSize) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_kernel_get_suggested_local_work_size_params_t params = {
+      &hKernel,           &hQueue,          &numWorkDim,
+      &pGlobalWorkOffset, &pGlobalWorkSize, &pSuggestedLocalWorkSize};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback(
+          "urKernelGetSuggestedLocalWorkSize"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback(
+          "urKernelGetSuggestedLocalWorkSize"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback(
+          "urKernelGetSuggestedLocalWorkSize"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urKernelSuggestMaxCooperativeGroupCount
+__urdlllocal ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCount(
+    /// [in] handle of the kernel object
+    ur_kernel_handle_t hKernel,
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
+    /// [in] number of dimensions, from 1 to 3, to specify the work-group
+    /// work-items
+    uint32_t workDim,
+    /// [in] pointer to an array of workDim unsigned values that specify the
+    /// number of local work-items forming a work-group that will execute the
+    /// kernel function.
+    const size_t *pLocalWorkSize,
+    /// [in] size of dynamic shared memory, for each work-group, in bytes,
+    /// that will be used when the kernel is launched
+    size_t dynamicSharedMemorySize,
+    /// [out] pointer to maximum number of groups
+    uint32_t *pGroupCountRet) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_kernel_suggest_max_cooperative_group_count_params_t params = {
+      &hKernel,
+      &hDevice,
+      &workDim,
+      &pLocalWorkSize,
+      &dynamicSharedMemorySize,
+      &pGroupCountRet};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback(
+          "urKernelSuggestMaxCooperativeGroupCount"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback(
+          "urKernelSuggestMaxCooperativeGroupCount"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback(
+          "urKernelSuggestMaxCooperativeGroupCount"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urEnqueueUSMDeviceAllocExp
 __urdlllocal ur_result_t UR_APICALL urEnqueueUSMDeviceAllocExp(
     /// [in] handle of the queue object
@@ -9488,6 +9579,970 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesSignalExternalSemaphoreExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urDeviceWaitExp
+__urdlllocal ur_result_t UR_APICALL urDeviceWaitExp(
+    /// [in] handle of the device instance.
+    ur_device_handle_t hDevice) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_device_wait_exp_params_t params = {&hDevice};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback("urDeviceWaitExp"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback("urDeviceWaitExp"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback("urDeviceWaitExp"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urProgramDynamicLinkExp
+__urdlllocal ur_result_t UR_APICALL urProgramDynamicLinkExp(
+    /// [in] handle of the context instance.
+    ur_context_handle_t hContext,
+    /// [in] number of program handles in `phPrograms`.
+    uint32_t count,
+    /// [in][range(0, count)] pointer to array of program handles.
+    const ur_program_handle_t *phPrograms) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_program_dynamic_link_exp_params_t params = {&hContext, &count,
+                                                 &phPrograms};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback("urProgramDynamicLinkExp"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback("urProgramDynamicLinkExp"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback("urProgramDynamicLinkExp"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urEnqueueTimestampRecordingExp
+__urdlllocal ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
+    /// [in] handle of the queue object
+    ur_queue_handle_t hQueue,
+    /// [in] indicates whether the call to this function should block until
+    /// until the device timestamp recording command has executed on the
+    /// device.
+    bool blocking,
+    /// [in] size of the event wait list
+    uint32_t numEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before the kernel execution.
+    /// If nullptr, the numEventsInWaitList must be 0, indicating no wait
+    /// events.
+    const ur_event_handle_t *phEventWaitList,
+    /// [in,out] return an event object that identifies this particular kernel
+    /// execution instance. Profiling information can be queried
+    /// from this event as if `hQueue` had profiling enabled. Querying
+    /// `UR_PROFILING_INFO_COMMAND_QUEUED` or `UR_PROFILING_INFO_COMMAND_SUBMIT`
+    /// reports the timestamp at the time of the call to this function.
+    /// Querying `UR_PROFILING_INFO_COMMAND_START` or
+    /// `UR_PROFILING_INFO_COMMAND_END` reports the timestamp recorded when the
+    /// command is executed on the device. If phEventWaitList and phEvent are
+    /// not NULL, phEvent must not refer to an element of the phEventWaitList
+    /// array.
+    ur_event_handle_t *phEvent) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_enqueue_timestamp_recording_exp_params_t params = {
+      &hQueue, &blocking, &numEventsInWaitList, &phEventWaitList, &phEvent};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback(
+          "urEnqueueTimestampRecordingExp"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback(
+          "urEnqueueTimestampRecordingExp"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    *phEvent = mock::createDummyHandle<ur_event_handle_t>();
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback(
+          "urEnqueueTimestampRecordingExp"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urIPCGetMemHandleExp
+__urdlllocal ur_result_t UR_APICALL urIPCGetMemHandleExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] pointer to device USM memory
+    void *pMem,
+    /// [out][optional] a pointer to the IPC memory handle data
+    void **ppIPCMemHandleData,
+    /// [out][optional] size of the resulting IPC memory handle data
+    size_t *pIPCMemHandleDataSizeRet) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_ipc_get_mem_handle_exp_params_t params = {
+      &hContext, &pMem, &ppIPCMemHandleData, &pIPCMemHandleDataSizeRet};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback("urIPCGetMemHandleExp"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback("urIPCGetMemHandleExp"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback("urIPCGetMemHandleExp"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urIPCPutMemHandleExp
+__urdlllocal ur_result_t UR_APICALL urIPCPutMemHandleExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] a pointer to the IPC memory handle data
+    void *pIPCMemHandleData) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_ipc_put_mem_handle_exp_params_t params = {&hContext, &pIPCMemHandleData};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback("urIPCPutMemHandleExp"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback("urIPCPutMemHandleExp"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback("urIPCPutMemHandleExp"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urIPCOpenMemHandleExp
+__urdlllocal ur_result_t UR_APICALL urIPCOpenMemHandleExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device object the corresponding USM device memory
+    /// was allocated on
+    ur_device_handle_t hDevice,
+    /// [in] the IPC memory handle data
+    void *pIPCMemHandleData,
+    /// [in] size of the IPC memory handle data
+    size_t ipcMemHandleDataSize,
+    /// [out] pointer to a pointer to device USM memory
+    void **ppMem) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_ipc_open_mem_handle_exp_params_t params = {
+      &hContext, &hDevice, &pIPCMemHandleData, &ipcMemHandleDataSize, &ppMem};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback("urIPCOpenMemHandleExp"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback("urIPCOpenMemHandleExp"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback("urIPCOpenMemHandleExp"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urIPCCloseMemHandleExp
+__urdlllocal ur_result_t UR_APICALL urIPCCloseMemHandleExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] pointer to device USM memory opened through urIPCOpenMemHandleExp
+    void *pMem) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_ipc_close_mem_handle_exp_params_t params = {&hContext, &pMem};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback("urIPCCloseMemHandleExp"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback("urIPCCloseMemHandleExp"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback("urIPCCloseMemHandleExp"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urMemoryExportAllocExportableMemoryExp
+__urdlllocal ur_result_t UR_APICALL urMemoryExportAllocExportableMemoryExp(
+    /// [in] Handle to context in which to allocate memory.
+    ur_context_handle_t hContext,
+    /// [in] Handle to device on which to allocate memory.
+    ur_device_handle_t hDevice,
+    /// [in] Requested alignment of the allocation.
+    size_t alignment,
+    /// [in] Requested size of the allocation.
+    size_t size,
+    /// [in] Type of the memory handle to be exported (e.g. file descriptor,
+    /// or win32 NT handle).
+    ur_exp_external_mem_type_t handleTypeToExport,
+    /// [out][alloc] Pointer to allocated exportable memory.
+    void **ppMem) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_memory_export_alloc_exportable_memory_exp_params_t params = {
+      &hContext, &hDevice, &alignment, &size, &handleTypeToExport, &ppMem};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback(
+          "urMemoryExportAllocExportableMemoryExp"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback(
+          "urMemoryExportAllocExportableMemoryExp"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback(
+          "urMemoryExportAllocExportableMemoryExp"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urMemoryExportFreeExportableMemoryExp
+__urdlllocal ur_result_t UR_APICALL urMemoryExportFreeExportableMemoryExp(
+    /// [in] Handle to context in which to free memory.
+    ur_context_handle_t hContext,
+    /// [in] Handle to device on which to free memory.
+    ur_device_handle_t hDevice,
+    /// [in][release] Pointer to exportable memory to be deallocated.
+    void *pMem) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_memory_export_free_exportable_memory_exp_params_t params = {
+      &hContext, &hDevice, &pMem};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback(
+          "urMemoryExportFreeExportableMemoryExp"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback(
+          "urMemoryExportFreeExportableMemoryExp"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback(
+          "urMemoryExportFreeExportableMemoryExp"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urMemoryExportExportMemoryHandleExp
+__urdlllocal ur_result_t UR_APICALL urMemoryExportExportMemoryHandleExp(
+    /// [in] Handle to context in which the exportable memory was allocated.
+    ur_context_handle_t hContext,
+    /// [in] Handle to device on which the exportable memory was allocated.
+    ur_device_handle_t hDevice,
+    /// [in] Type of the memory handle to be exported (e.g. file descriptor,
+    /// or win32 NT handle).
+    ur_exp_external_mem_type_t handleTypeToExport,
+    /// [in] Pointer to exportable memory handle.
+    void *pMem,
+    /// [out] Returned exportable handle to memory allocated in `pMem`
+    void *pMemHandleRet) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_memory_export_export_memory_handle_exp_params_t params = {
+      &hContext, &hDevice, &handleTypeToExport, &pMem, &pMemHandleRet};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback(
+          "urMemoryExportExportMemoryHandleExp"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback(
+          "urMemoryExportExportMemoryHandleExp"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback(
+          "urMemoryExportExportMemoryHandleExp"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urProgramBuildExp
+__urdlllocal ur_result_t UR_APICALL urProgramBuildExp(
+    /// [in] Handle of the program to build.
+    ur_program_handle_t hProgram,
+    /// [in] number of devices
+    uint32_t numDevices,
+    /// [in][range(0, numDevices)] pointer to array of device handles
+    ur_device_handle_t *phDevices,
+    /// [in] program information flags
+    ur_exp_program_flags_t flags,
+    /// [in][optional] pointer to build options null-terminated string.
+    const char *pOptions) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_program_build_exp_params_t params = {&hProgram, &numDevices, &phDevices,
+                                          &flags, &pOptions};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback("urProgramBuildExp"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback("urProgramBuildExp"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback("urProgramBuildExp"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urProgramCompileExp
+__urdlllocal ur_result_t UR_APICALL urProgramCompileExp(
+    /// [in][out] handle of the program to compile.
+    ur_program_handle_t hProgram,
+    /// [in] number of devices
+    uint32_t numDevices,
+    /// [in][range(0, numDevices)] pointer to array of device handles
+    ur_device_handle_t *phDevices,
+    /// [in] program information flags
+    ur_exp_program_flags_t flags,
+    /// [in][optional] pointer to build options null-terminated string.
+    const char *pOptions) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_program_compile_exp_params_t params = {&hProgram, &numDevices, &phDevices,
+                                            &flags, &pOptions};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback("urProgramCompileExp"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback("urProgramCompileExp"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback("urProgramCompileExp"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urProgramLinkExp
+__urdlllocal ur_result_t UR_APICALL urProgramLinkExp(
+    /// [in] handle of the context instance.
+    ur_context_handle_t hContext,
+    /// [in] number of devices
+    uint32_t numDevices,
+    /// [in][range(0, numDevices)] pointer to array of device handles
+    ur_device_handle_t *phDevices,
+    /// [in] program information flags
+    ur_exp_program_flags_t flags,
+    /// [in] number of program handles in `phPrograms`.
+    uint32_t count,
+    /// [in][range(0, count)] pointer to array of program handles.
+    const ur_program_handle_t *phPrograms,
+    /// [in][optional] pointer to linker options null-terminated string.
+    const char *pOptions,
+    /// [out][alloc] pointer to handle of program object created.
+    ur_program_handle_t *phProgram) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+  if (nullptr != phProgram) {
+    *phProgram = nullptr;
+  }
+
+  ur_program_link_exp_params_t params = {&hContext, &numDevices, &phDevices,
+                                         &flags,    &count,      &phPrograms,
+                                         &pOptions, &phProgram};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback("urProgramLinkExp"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback("urProgramLinkExp"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    *phProgram = mock::createDummyHandle<ur_program_handle_t>();
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback("urProgramLinkExp"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUSMContextMemcpyExp
+__urdlllocal ur_result_t UR_APICALL urUSMContextMemcpyExp(
+    /// [in] Context associated with the device(s) that own the allocations
+    /// `pSrc` and `pDst`.
+    ur_context_handle_t hContext,
+    /// [in] Destination pointer to copy to.
+    void *pDst,
+    /// [in] Source pointer to copy from.
+    const void *pSrc,
+    /// [in] Size in bytes to be copied.
+    size_t size) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_usm_context_memcpy_exp_params_t params = {&hContext, &pDst, &pSrc, &size};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback("urUSMContextMemcpyExp"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback("urUSMContextMemcpyExp"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback("urUSMContextMemcpyExp"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUSMImportExp
+__urdlllocal ur_result_t UR_APICALL urUSMImportExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] pointer to host memory object
+    void *pMem,
+    /// [in] size in bytes of the host memory object to be imported
+    size_t size) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_usm_import_exp_params_t params = {&hContext, &pMem, &size};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback("urUSMImportExp"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback("urUSMImportExp"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback("urUSMImportExp"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUSMReleaseExp
+__urdlllocal ur_result_t UR_APICALL urUSMReleaseExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] pointer to host memory object
+    void *pMem) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_usm_release_exp_params_t params = {&hContext, &pMem};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback("urUSMReleaseExp"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback("urUSMReleaseExp"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback("urUSMReleaseExp"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUsmP2PEnablePeerAccessExp
+__urdlllocal ur_result_t UR_APICALL urUsmP2PEnablePeerAccessExp(
+    /// [in] handle of the command device object
+    ur_device_handle_t commandDevice,
+    /// [in] handle of the peer device object
+    ur_device_handle_t peerDevice) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_usm_p2p_enable_peer_access_exp_params_t params = {&commandDevice,
+                                                       &peerDevice};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback("urUsmP2PEnablePeerAccessExp"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback("urUsmP2PEnablePeerAccessExp"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback("urUsmP2PEnablePeerAccessExp"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUsmP2PDisablePeerAccessExp
+__urdlllocal ur_result_t UR_APICALL urUsmP2PDisablePeerAccessExp(
+    /// [in] handle of the command device object
+    ur_device_handle_t commandDevice,
+    /// [in] handle of the peer device object
+    ur_device_handle_t peerDevice) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_usm_p2p_disable_peer_access_exp_params_t params = {&commandDevice,
+                                                        &peerDevice};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback("urUsmP2PDisablePeerAccessExp"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback(
+          "urUsmP2PDisablePeerAccessExp"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback("urUsmP2PDisablePeerAccessExp"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUsmP2PPeerAccessGetInfoExp
+__urdlllocal ur_result_t UR_APICALL urUsmP2PPeerAccessGetInfoExp(
+    /// [in] handle of the command device object
+    ur_device_handle_t commandDevice,
+    /// [in] handle of the peer device object
+    ur_device_handle_t peerDevice,
+    /// [in] type of the info to retrieve
+    ur_exp_peer_info_t propName,
+    /// [in] the number of bytes pointed to by pPropValue.
+    size_t propSize,
+    /// [out][optional][typename(propName, propSize)] array of bytes holding
+    /// the info.
+    /// If propSize is not equal to or greater than the real number of bytes
+    /// needed to return the info
+    /// then the ::UR_RESULT_ERROR_INVALID_SIZE error is returned and
+    /// pPropValue is not used.
+    void *pPropValue,
+    /// [out][optional] pointer to the actual size in bytes of the queried
+    /// propName.
+    size_t *pPropSizeRet) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_usm_p2p_peer_access_get_info_exp_params_t params = {
+      &commandDevice, &peerDevice, &propName,
+      &propSize,      &pPropValue, &pPropSizeRet};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback("urUsmP2PPeerAccessGetInfoExp"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback(
+          "urUsmP2PPeerAccessGetInfoExp"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback("urUsmP2PPeerAccessGetInfoExp"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urCommandBufferCreateExp
 __urdlllocal ur_result_t UR_APICALL urCommandBufferCreateExp(
     /// [in] Handle of the context object.
@@ -9767,6 +10822,124 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
   auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
       mock::getCallbacks().get_after_callback(
           "urCommandBufferAppendKernelLaunchExp"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urCommandBufferAppendKernelLaunchWithArgsExp
+__urdlllocal ur_result_t UR_APICALL
+urCommandBufferAppendKernelLaunchWithArgsExp(
+    /// [in] Handle of the command-buffer object.
+    ur_exp_command_buffer_handle_t hCommandBuffer,
+    /// [in] Kernel to append.
+    ur_kernel_handle_t hKernel,
+    /// [in] Dimension of the kernel execution.
+    uint32_t workDim,
+    /// [in][optional] Offset to use when executing kernel.
+    const size_t *pGlobalWorkOffset,
+    /// [in] Global work size to use when executing kernel.
+    const size_t *pGlobalWorkSize,
+    /// [in][optional] Local work size to use when executing kernel. If this
+    /// parameter is nullptr, then a local work size will be generated by the
+    /// implementation.
+    const size_t *pLocalWorkSize,
+    /// [in] Number of entries in pArgs
+    uint32_t numArgs,
+    /// [in][optional][range(0, numArgs)] pointer to a list of kernel arg
+    /// properties.
+    const ur_exp_kernel_arg_properties_t *pArgs,
+    /// [in] The number of kernel alternatives provided in
+    /// phKernelAlternatives.
+    uint32_t numKernelAlternatives,
+    /// [in][optional][range(0, numKernelAlternatives)] List of kernel handles
+    /// that might be used to update the kernel in this
+    /// command after the command-buffer is finalized. The default kernel
+    /// `hKernel` is implicitly marked as an alternative. It's
+    /// invalid to specify it as part of this list.
+    ur_kernel_handle_t *phKernelAlternatives,
+    /// [in] The number of sync points in the provided dependency list.
+    uint32_t numSyncPointsInWaitList,
+    /// [in][optional] A list of sync points that this command depends on.
+    /// Will be ignored if command-buffer is in-order.
+    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
+    /// [in] Size of the event wait list.
+    uint32_t numEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before the command execution. If nullptr,
+    /// the numEventsInWaitList must be 0, indicating no wait events.
+    const ur_event_handle_t *phEventWaitList,
+    /// [out][optional] Sync point associated with this command.
+    ur_exp_command_buffer_sync_point_t *pSyncPoint,
+    /// [out][optional][alloc] return an event object that will be signaled by
+    /// the completion of this command in the next execution of the
+    /// command-buffer.
+    ur_event_handle_t *phEvent,
+    /// [out][optional][alloc] Handle to this command. Only available if the
+    /// command-buffer is updatable.
+    ur_exp_command_buffer_command_handle_t *phCommand) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_command_buffer_append_kernel_launch_with_args_exp_params_t params = {
+      &hCommandBuffer,
+      &hKernel,
+      &workDim,
+      &pGlobalWorkOffset,
+      &pGlobalWorkSize,
+      &pLocalWorkSize,
+      &numArgs,
+      &pArgs,
+      &numKernelAlternatives,
+      &phKernelAlternatives,
+      &numSyncPointsInWaitList,
+      &pSyncPointWaitList,
+      &numEventsInWaitList,
+      &phEventWaitList,
+      &pSyncPoint,
+      &phEvent,
+      &phCommand};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback(
+          "urCommandBufferAppendKernelLaunchWithArgsExp"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback(
+          "urCommandBufferAppendKernelLaunchWithArgsExp"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    // optional output handle
+    if (phEvent) {
+      *phEvent = mock::createDummyHandle<ur_event_handle_t>();
+    }
+    // optional output handle
+    if (phCommand) {
+      *phCommand =
+          mock::createDummyHandle<ur_exp_command_buffer_command_handle_t>();
+    }
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback(
+          "urCommandBufferAppendKernelLaunchWithArgsExp"));
   if (afterCallback) {
     return afterCallback(&params);
   }
@@ -11230,1061 +12403,6 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferGetNativeHandleExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urDeviceWaitExp
-__urdlllocal ur_result_t UR_APICALL urDeviceWaitExp(
-    /// [in] handle of the device instance.
-    ur_device_handle_t hDevice) try {
-  ur_result_t result = UR_RESULT_SUCCESS;
-
-  ur_device_wait_exp_params_t params = {&hDevice};
-
-  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_before_callback("urDeviceWaitExp"));
-  if (beforeCallback) {
-    result = beforeCallback(&params);
-    if (result != UR_RESULT_SUCCESS) {
-      return result;
-    }
-  }
-
-  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_replace_callback("urDeviceWaitExp"));
-  if (replaceCallback) {
-    result = replaceCallback(&params);
-  } else {
-
-    result = UR_RESULT_SUCCESS;
-  }
-
-  if (result != UR_RESULT_SUCCESS) {
-    return result;
-  }
-
-  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_after_callback("urDeviceWaitExp"));
-  if (afterCallback) {
-    return afterCallback(&params);
-  }
-
-  return result;
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urProgramDynamicLinkExp
-__urdlllocal ur_result_t UR_APICALL urProgramDynamicLinkExp(
-    /// [in] handle of the context instance.
-    ur_context_handle_t hContext,
-    /// [in] number of program handles in `phPrograms`.
-    uint32_t count,
-    /// [in][range(0, count)] pointer to array of program handles.
-    const ur_program_handle_t *phPrograms) try {
-  ur_result_t result = UR_RESULT_SUCCESS;
-
-  ur_program_dynamic_link_exp_params_t params = {&hContext, &count,
-                                                 &phPrograms};
-
-  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_before_callback("urProgramDynamicLinkExp"));
-  if (beforeCallback) {
-    result = beforeCallback(&params);
-    if (result != UR_RESULT_SUCCESS) {
-      return result;
-    }
-  }
-
-  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_replace_callback("urProgramDynamicLinkExp"));
-  if (replaceCallback) {
-    result = replaceCallback(&params);
-  } else {
-
-    result = UR_RESULT_SUCCESS;
-  }
-
-  if (result != UR_RESULT_SUCCESS) {
-    return result;
-  }
-
-  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_after_callback("urProgramDynamicLinkExp"));
-  if (afterCallback) {
-    return afterCallback(&params);
-  }
-
-  return result;
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urEnqueueTimestampRecordingExp
-__urdlllocal ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
-    /// [in] handle of the queue object
-    ur_queue_handle_t hQueue,
-    /// [in] indicates whether the call to this function should block until
-    /// until the device timestamp recording command has executed on the
-    /// device.
-    bool blocking,
-    /// [in] size of the event wait list
-    uint32_t numEventsInWaitList,
-    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
-    /// events that must be complete before the kernel execution.
-    /// If nullptr, the numEventsInWaitList must be 0, indicating no wait
-    /// events.
-    const ur_event_handle_t *phEventWaitList,
-    /// [in,out] return an event object that identifies this particular kernel
-    /// execution instance. Profiling information can be queried
-    /// from this event as if `hQueue` had profiling enabled. Querying
-    /// `UR_PROFILING_INFO_COMMAND_QUEUED` or `UR_PROFILING_INFO_COMMAND_SUBMIT`
-    /// reports the timestamp at the time of the call to this function.
-    /// Querying `UR_PROFILING_INFO_COMMAND_START` or
-    /// `UR_PROFILING_INFO_COMMAND_END` reports the timestamp recorded when the
-    /// command is executed on the device. If phEventWaitList and phEvent are
-    /// not NULL, phEvent must not refer to an element of the phEventWaitList
-    /// array.
-    ur_event_handle_t *phEvent) try {
-  ur_result_t result = UR_RESULT_SUCCESS;
-
-  ur_enqueue_timestamp_recording_exp_params_t params = {
-      &hQueue, &blocking, &numEventsInWaitList, &phEventWaitList, &phEvent};
-
-  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_before_callback(
-          "urEnqueueTimestampRecordingExp"));
-  if (beforeCallback) {
-    result = beforeCallback(&params);
-    if (result != UR_RESULT_SUCCESS) {
-      return result;
-    }
-  }
-
-  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_replace_callback(
-          "urEnqueueTimestampRecordingExp"));
-  if (replaceCallback) {
-    result = replaceCallback(&params);
-  } else {
-
-    *phEvent = mock::createDummyHandle<ur_event_handle_t>();
-    result = UR_RESULT_SUCCESS;
-  }
-
-  if (result != UR_RESULT_SUCCESS) {
-    return result;
-  }
-
-  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_after_callback(
-          "urEnqueueTimestampRecordingExp"));
-  if (afterCallback) {
-    return afterCallback(&params);
-  }
-
-  return result;
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urIPCGetMemHandleExp
-__urdlllocal ur_result_t UR_APICALL urIPCGetMemHandleExp(
-    /// [in] handle of the context object
-    ur_context_handle_t hContext,
-    /// [in] pointer to device USM memory
-    void *pMem,
-    /// [out][optional] a pointer to the IPC memory handle data
-    void **ppIPCMemHandleData,
-    /// [out][optional] size of the resulting IPC memory handle data
-    size_t *pIPCMemHandleDataSizeRet) try {
-  ur_result_t result = UR_RESULT_SUCCESS;
-
-  ur_ipc_get_mem_handle_exp_params_t params = {
-      &hContext, &pMem, &ppIPCMemHandleData, &pIPCMemHandleDataSizeRet};
-
-  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_before_callback("urIPCGetMemHandleExp"));
-  if (beforeCallback) {
-    result = beforeCallback(&params);
-    if (result != UR_RESULT_SUCCESS) {
-      return result;
-    }
-  }
-
-  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_replace_callback("urIPCGetMemHandleExp"));
-  if (replaceCallback) {
-    result = replaceCallback(&params);
-  } else {
-
-    result = UR_RESULT_SUCCESS;
-  }
-
-  if (result != UR_RESULT_SUCCESS) {
-    return result;
-  }
-
-  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_after_callback("urIPCGetMemHandleExp"));
-  if (afterCallback) {
-    return afterCallback(&params);
-  }
-
-  return result;
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urIPCPutMemHandleExp
-__urdlllocal ur_result_t UR_APICALL urIPCPutMemHandleExp(
-    /// [in] handle of the context object
-    ur_context_handle_t hContext,
-    /// [in] a pointer to the IPC memory handle data
-    void *pIPCMemHandleData) try {
-  ur_result_t result = UR_RESULT_SUCCESS;
-
-  ur_ipc_put_mem_handle_exp_params_t params = {&hContext, &pIPCMemHandleData};
-
-  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_before_callback("urIPCPutMemHandleExp"));
-  if (beforeCallback) {
-    result = beforeCallback(&params);
-    if (result != UR_RESULT_SUCCESS) {
-      return result;
-    }
-  }
-
-  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_replace_callback("urIPCPutMemHandleExp"));
-  if (replaceCallback) {
-    result = replaceCallback(&params);
-  } else {
-
-    result = UR_RESULT_SUCCESS;
-  }
-
-  if (result != UR_RESULT_SUCCESS) {
-    return result;
-  }
-
-  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_after_callback("urIPCPutMemHandleExp"));
-  if (afterCallback) {
-    return afterCallback(&params);
-  }
-
-  return result;
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urIPCOpenMemHandleExp
-__urdlllocal ur_result_t UR_APICALL urIPCOpenMemHandleExp(
-    /// [in] handle of the context object
-    ur_context_handle_t hContext,
-    /// [in] handle of the device object the corresponding USM device memory
-    /// was allocated on
-    ur_device_handle_t hDevice,
-    /// [in] the IPC memory handle data
-    void *pIPCMemHandleData,
-    /// [in] size of the IPC memory handle data
-    size_t ipcMemHandleDataSize,
-    /// [out] pointer to a pointer to device USM memory
-    void **ppMem) try {
-  ur_result_t result = UR_RESULT_SUCCESS;
-
-  ur_ipc_open_mem_handle_exp_params_t params = {
-      &hContext, &hDevice, &pIPCMemHandleData, &ipcMemHandleDataSize, &ppMem};
-
-  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_before_callback("urIPCOpenMemHandleExp"));
-  if (beforeCallback) {
-    result = beforeCallback(&params);
-    if (result != UR_RESULT_SUCCESS) {
-      return result;
-    }
-  }
-
-  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_replace_callback("urIPCOpenMemHandleExp"));
-  if (replaceCallback) {
-    result = replaceCallback(&params);
-  } else {
-
-    result = UR_RESULT_SUCCESS;
-  }
-
-  if (result != UR_RESULT_SUCCESS) {
-    return result;
-  }
-
-  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_after_callback("urIPCOpenMemHandleExp"));
-  if (afterCallback) {
-    return afterCallback(&params);
-  }
-
-  return result;
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urIPCCloseMemHandleExp
-__urdlllocal ur_result_t UR_APICALL urIPCCloseMemHandleExp(
-    /// [in] handle of the context object
-    ur_context_handle_t hContext,
-    /// [in] pointer to device USM memory opened through urIPCOpenMemHandleExp
-    void *pMem) try {
-  ur_result_t result = UR_RESULT_SUCCESS;
-
-  ur_ipc_close_mem_handle_exp_params_t params = {&hContext, &pMem};
-
-  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_before_callback("urIPCCloseMemHandleExp"));
-  if (beforeCallback) {
-    result = beforeCallback(&params);
-    if (result != UR_RESULT_SUCCESS) {
-      return result;
-    }
-  }
-
-  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_replace_callback("urIPCCloseMemHandleExp"));
-  if (replaceCallback) {
-    result = replaceCallback(&params);
-  } else {
-
-    result = UR_RESULT_SUCCESS;
-  }
-
-  if (result != UR_RESULT_SUCCESS) {
-    return result;
-  }
-
-  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_after_callback("urIPCCloseMemHandleExp"));
-  if (afterCallback) {
-    return afterCallback(&params);
-  }
-
-  return result;
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urMemoryExportAllocExportableMemoryExp
-__urdlllocal ur_result_t UR_APICALL urMemoryExportAllocExportableMemoryExp(
-    /// [in] Handle to context in which to allocate memory.
-    ur_context_handle_t hContext,
-    /// [in] Handle to device on which to allocate memory.
-    ur_device_handle_t hDevice,
-    /// [in] Requested alignment of the allocation.
-    size_t alignment,
-    /// [in] Requested size of the allocation.
-    size_t size,
-    /// [in] Type of the memory handle to be exported (e.g. file descriptor,
-    /// or win32 NT handle).
-    ur_exp_external_mem_type_t handleTypeToExport,
-    /// [out][alloc] Pointer to allocated exportable memory.
-    void **ppMem) try {
-  ur_result_t result = UR_RESULT_SUCCESS;
-
-  ur_memory_export_alloc_exportable_memory_exp_params_t params = {
-      &hContext, &hDevice, &alignment, &size, &handleTypeToExport, &ppMem};
-
-  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_before_callback(
-          "urMemoryExportAllocExportableMemoryExp"));
-  if (beforeCallback) {
-    result = beforeCallback(&params);
-    if (result != UR_RESULT_SUCCESS) {
-      return result;
-    }
-  }
-
-  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_replace_callback(
-          "urMemoryExportAllocExportableMemoryExp"));
-  if (replaceCallback) {
-    result = replaceCallback(&params);
-  } else {
-
-    result = UR_RESULT_SUCCESS;
-  }
-
-  if (result != UR_RESULT_SUCCESS) {
-    return result;
-  }
-
-  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_after_callback(
-          "urMemoryExportAllocExportableMemoryExp"));
-  if (afterCallback) {
-    return afterCallback(&params);
-  }
-
-  return result;
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urMemoryExportFreeExportableMemoryExp
-__urdlllocal ur_result_t UR_APICALL urMemoryExportFreeExportableMemoryExp(
-    /// [in] Handle to context in which to free memory.
-    ur_context_handle_t hContext,
-    /// [in] Handle to device on which to free memory.
-    ur_device_handle_t hDevice,
-    /// [in][release] Pointer to exportable memory to be deallocated.
-    void *pMem) try {
-  ur_result_t result = UR_RESULT_SUCCESS;
-
-  ur_memory_export_free_exportable_memory_exp_params_t params = {
-      &hContext, &hDevice, &pMem};
-
-  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_before_callback(
-          "urMemoryExportFreeExportableMemoryExp"));
-  if (beforeCallback) {
-    result = beforeCallback(&params);
-    if (result != UR_RESULT_SUCCESS) {
-      return result;
-    }
-  }
-
-  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_replace_callback(
-          "urMemoryExportFreeExportableMemoryExp"));
-  if (replaceCallback) {
-    result = replaceCallback(&params);
-  } else {
-
-    result = UR_RESULT_SUCCESS;
-  }
-
-  if (result != UR_RESULT_SUCCESS) {
-    return result;
-  }
-
-  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_after_callback(
-          "urMemoryExportFreeExportableMemoryExp"));
-  if (afterCallback) {
-    return afterCallback(&params);
-  }
-
-  return result;
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urMemoryExportExportMemoryHandleExp
-__urdlllocal ur_result_t UR_APICALL urMemoryExportExportMemoryHandleExp(
-    /// [in] Handle to context in which the exportable memory was allocated.
-    ur_context_handle_t hContext,
-    /// [in] Handle to device on which the exportable memory was allocated.
-    ur_device_handle_t hDevice,
-    /// [in] Type of the memory handle to be exported (e.g. file descriptor,
-    /// or win32 NT handle).
-    ur_exp_external_mem_type_t handleTypeToExport,
-    /// [in] Pointer to exportable memory handle.
-    void *pMem,
-    /// [out] Returned exportable handle to memory allocated in `pMem`
-    void *pMemHandleRet) try {
-  ur_result_t result = UR_RESULT_SUCCESS;
-
-  ur_memory_export_export_memory_handle_exp_params_t params = {
-      &hContext, &hDevice, &handleTypeToExport, &pMem, &pMemHandleRet};
-
-  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_before_callback(
-          "urMemoryExportExportMemoryHandleExp"));
-  if (beforeCallback) {
-    result = beforeCallback(&params);
-    if (result != UR_RESULT_SUCCESS) {
-      return result;
-    }
-  }
-
-  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_replace_callback(
-          "urMemoryExportExportMemoryHandleExp"));
-  if (replaceCallback) {
-    result = replaceCallback(&params);
-  } else {
-
-    result = UR_RESULT_SUCCESS;
-  }
-
-  if (result != UR_RESULT_SUCCESS) {
-    return result;
-  }
-
-  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_after_callback(
-          "urMemoryExportExportMemoryHandleExp"));
-  if (afterCallback) {
-    return afterCallback(&params);
-  }
-
-  return result;
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urProgramBuildExp
-__urdlllocal ur_result_t UR_APICALL urProgramBuildExp(
-    /// [in] Handle of the program to build.
-    ur_program_handle_t hProgram,
-    /// [in] number of devices
-    uint32_t numDevices,
-    /// [in][range(0, numDevices)] pointer to array of device handles
-    ur_device_handle_t *phDevices,
-    /// [in] program information flags
-    ur_exp_program_flags_t flags,
-    /// [in][optional] pointer to build options null-terminated string.
-    const char *pOptions) try {
-  ur_result_t result = UR_RESULT_SUCCESS;
-
-  ur_program_build_exp_params_t params = {&hProgram, &numDevices, &phDevices,
-                                          &flags, &pOptions};
-
-  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_before_callback("urProgramBuildExp"));
-  if (beforeCallback) {
-    result = beforeCallback(&params);
-    if (result != UR_RESULT_SUCCESS) {
-      return result;
-    }
-  }
-
-  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_replace_callback("urProgramBuildExp"));
-  if (replaceCallback) {
-    result = replaceCallback(&params);
-  } else {
-
-    result = UR_RESULT_SUCCESS;
-  }
-
-  if (result != UR_RESULT_SUCCESS) {
-    return result;
-  }
-
-  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_after_callback("urProgramBuildExp"));
-  if (afterCallback) {
-    return afterCallback(&params);
-  }
-
-  return result;
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urProgramCompileExp
-__urdlllocal ur_result_t UR_APICALL urProgramCompileExp(
-    /// [in][out] handle of the program to compile.
-    ur_program_handle_t hProgram,
-    /// [in] number of devices
-    uint32_t numDevices,
-    /// [in][range(0, numDevices)] pointer to array of device handles
-    ur_device_handle_t *phDevices,
-    /// [in] program information flags
-    ur_exp_program_flags_t flags,
-    /// [in][optional] pointer to build options null-terminated string.
-    const char *pOptions) try {
-  ur_result_t result = UR_RESULT_SUCCESS;
-
-  ur_program_compile_exp_params_t params = {&hProgram, &numDevices, &phDevices,
-                                            &flags, &pOptions};
-
-  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_before_callback("urProgramCompileExp"));
-  if (beforeCallback) {
-    result = beforeCallback(&params);
-    if (result != UR_RESULT_SUCCESS) {
-      return result;
-    }
-  }
-
-  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_replace_callback("urProgramCompileExp"));
-  if (replaceCallback) {
-    result = replaceCallback(&params);
-  } else {
-
-    result = UR_RESULT_SUCCESS;
-  }
-
-  if (result != UR_RESULT_SUCCESS) {
-    return result;
-  }
-
-  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_after_callback("urProgramCompileExp"));
-  if (afterCallback) {
-    return afterCallback(&params);
-  }
-
-  return result;
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urProgramLinkExp
-__urdlllocal ur_result_t UR_APICALL urProgramLinkExp(
-    /// [in] handle of the context instance.
-    ur_context_handle_t hContext,
-    /// [in] number of devices
-    uint32_t numDevices,
-    /// [in][range(0, numDevices)] pointer to array of device handles
-    ur_device_handle_t *phDevices,
-    /// [in] program information flags
-    ur_exp_program_flags_t flags,
-    /// [in] number of program handles in `phPrograms`.
-    uint32_t count,
-    /// [in][range(0, count)] pointer to array of program handles.
-    const ur_program_handle_t *phPrograms,
-    /// [in][optional] pointer to linker options null-terminated string.
-    const char *pOptions,
-    /// [out][alloc] pointer to handle of program object created.
-    ur_program_handle_t *phProgram) try {
-  ur_result_t result = UR_RESULT_SUCCESS;
-  if (nullptr != phProgram) {
-    *phProgram = nullptr;
-  }
-
-  ur_program_link_exp_params_t params = {&hContext, &numDevices, &phDevices,
-                                         &flags,    &count,      &phPrograms,
-                                         &pOptions, &phProgram};
-
-  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_before_callback("urProgramLinkExp"));
-  if (beforeCallback) {
-    result = beforeCallback(&params);
-    if (result != UR_RESULT_SUCCESS) {
-      return result;
-    }
-  }
-
-  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_replace_callback("urProgramLinkExp"));
-  if (replaceCallback) {
-    result = replaceCallback(&params);
-  } else {
-
-    *phProgram = mock::createDummyHandle<ur_program_handle_t>();
-    result = UR_RESULT_SUCCESS;
-  }
-
-  if (result != UR_RESULT_SUCCESS) {
-    return result;
-  }
-
-  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_after_callback("urProgramLinkExp"));
-  if (afterCallback) {
-    return afterCallback(&params);
-  }
-
-  return result;
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urUSMContextMemcpyExp
-__urdlllocal ur_result_t UR_APICALL urUSMContextMemcpyExp(
-    /// [in] Context associated with the device(s) that own the allocations
-    /// `pSrc` and `pDst`.
-    ur_context_handle_t hContext,
-    /// [in] Destination pointer to copy to.
-    void *pDst,
-    /// [in] Source pointer to copy from.
-    const void *pSrc,
-    /// [in] Size in bytes to be copied.
-    size_t size) try {
-  ur_result_t result = UR_RESULT_SUCCESS;
-
-  ur_usm_context_memcpy_exp_params_t params = {&hContext, &pDst, &pSrc, &size};
-
-  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_before_callback("urUSMContextMemcpyExp"));
-  if (beforeCallback) {
-    result = beforeCallback(&params);
-    if (result != UR_RESULT_SUCCESS) {
-      return result;
-    }
-  }
-
-  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_replace_callback("urUSMContextMemcpyExp"));
-  if (replaceCallback) {
-    result = replaceCallback(&params);
-  } else {
-
-    result = UR_RESULT_SUCCESS;
-  }
-
-  if (result != UR_RESULT_SUCCESS) {
-    return result;
-  }
-
-  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_after_callback("urUSMContextMemcpyExp"));
-  if (afterCallback) {
-    return afterCallback(&params);
-  }
-
-  return result;
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urUSMImportExp
-__urdlllocal ur_result_t UR_APICALL urUSMImportExp(
-    /// [in] handle of the context object
-    ur_context_handle_t hContext,
-    /// [in] pointer to host memory object
-    void *pMem,
-    /// [in] size in bytes of the host memory object to be imported
-    size_t size) try {
-  ur_result_t result = UR_RESULT_SUCCESS;
-
-  ur_usm_import_exp_params_t params = {&hContext, &pMem, &size};
-
-  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_before_callback("urUSMImportExp"));
-  if (beforeCallback) {
-    result = beforeCallback(&params);
-    if (result != UR_RESULT_SUCCESS) {
-      return result;
-    }
-  }
-
-  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_replace_callback("urUSMImportExp"));
-  if (replaceCallback) {
-    result = replaceCallback(&params);
-  } else {
-
-    result = UR_RESULT_SUCCESS;
-  }
-
-  if (result != UR_RESULT_SUCCESS) {
-    return result;
-  }
-
-  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_after_callback("urUSMImportExp"));
-  if (afterCallback) {
-    return afterCallback(&params);
-  }
-
-  return result;
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urUSMReleaseExp
-__urdlllocal ur_result_t UR_APICALL urUSMReleaseExp(
-    /// [in] handle of the context object
-    ur_context_handle_t hContext,
-    /// [in] pointer to host memory object
-    void *pMem) try {
-  ur_result_t result = UR_RESULT_SUCCESS;
-
-  ur_usm_release_exp_params_t params = {&hContext, &pMem};
-
-  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_before_callback("urUSMReleaseExp"));
-  if (beforeCallback) {
-    result = beforeCallback(&params);
-    if (result != UR_RESULT_SUCCESS) {
-      return result;
-    }
-  }
-
-  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_replace_callback("urUSMReleaseExp"));
-  if (replaceCallback) {
-    result = replaceCallback(&params);
-  } else {
-
-    result = UR_RESULT_SUCCESS;
-  }
-
-  if (result != UR_RESULT_SUCCESS) {
-    return result;
-  }
-
-  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_after_callback("urUSMReleaseExp"));
-  if (afterCallback) {
-    return afterCallback(&params);
-  }
-
-  return result;
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urUsmP2PEnablePeerAccessExp
-__urdlllocal ur_result_t UR_APICALL urUsmP2PEnablePeerAccessExp(
-    /// [in] handle of the command device object
-    ur_device_handle_t commandDevice,
-    /// [in] handle of the peer device object
-    ur_device_handle_t peerDevice) try {
-  ur_result_t result = UR_RESULT_SUCCESS;
-
-  ur_usm_p2p_enable_peer_access_exp_params_t params = {&commandDevice,
-                                                       &peerDevice};
-
-  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_before_callback("urUsmP2PEnablePeerAccessExp"));
-  if (beforeCallback) {
-    result = beforeCallback(&params);
-    if (result != UR_RESULT_SUCCESS) {
-      return result;
-    }
-  }
-
-  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_replace_callback("urUsmP2PEnablePeerAccessExp"));
-  if (replaceCallback) {
-    result = replaceCallback(&params);
-  } else {
-
-    result = UR_RESULT_SUCCESS;
-  }
-
-  if (result != UR_RESULT_SUCCESS) {
-    return result;
-  }
-
-  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_after_callback("urUsmP2PEnablePeerAccessExp"));
-  if (afterCallback) {
-    return afterCallback(&params);
-  }
-
-  return result;
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urUsmP2PDisablePeerAccessExp
-__urdlllocal ur_result_t UR_APICALL urUsmP2PDisablePeerAccessExp(
-    /// [in] handle of the command device object
-    ur_device_handle_t commandDevice,
-    /// [in] handle of the peer device object
-    ur_device_handle_t peerDevice) try {
-  ur_result_t result = UR_RESULT_SUCCESS;
-
-  ur_usm_p2p_disable_peer_access_exp_params_t params = {&commandDevice,
-                                                        &peerDevice};
-
-  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_before_callback("urUsmP2PDisablePeerAccessExp"));
-  if (beforeCallback) {
-    result = beforeCallback(&params);
-    if (result != UR_RESULT_SUCCESS) {
-      return result;
-    }
-  }
-
-  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_replace_callback(
-          "urUsmP2PDisablePeerAccessExp"));
-  if (replaceCallback) {
-    result = replaceCallback(&params);
-  } else {
-
-    result = UR_RESULT_SUCCESS;
-  }
-
-  if (result != UR_RESULT_SUCCESS) {
-    return result;
-  }
-
-  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_after_callback("urUsmP2PDisablePeerAccessExp"));
-  if (afterCallback) {
-    return afterCallback(&params);
-  }
-
-  return result;
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urUsmP2PPeerAccessGetInfoExp
-__urdlllocal ur_result_t UR_APICALL urUsmP2PPeerAccessGetInfoExp(
-    /// [in] handle of the command device object
-    ur_device_handle_t commandDevice,
-    /// [in] handle of the peer device object
-    ur_device_handle_t peerDevice,
-    /// [in] type of the info to retrieve
-    ur_exp_peer_info_t propName,
-    /// [in] the number of bytes pointed to by pPropValue.
-    size_t propSize,
-    /// [out][optional][typename(propName, propSize)] array of bytes holding
-    /// the info.
-    /// If propSize is not equal to or greater than the real number of bytes
-    /// needed to return the info
-    /// then the ::UR_RESULT_ERROR_INVALID_SIZE error is returned and
-    /// pPropValue is not used.
-    void *pPropValue,
-    /// [out][optional] pointer to the actual size in bytes of the queried
-    /// propName.
-    size_t *pPropSizeRet) try {
-  ur_result_t result = UR_RESULT_SUCCESS;
-
-  ur_usm_p2p_peer_access_get_info_exp_params_t params = {
-      &commandDevice, &peerDevice, &propName,
-      &propSize,      &pPropValue, &pPropSizeRet};
-
-  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_before_callback("urUsmP2PPeerAccessGetInfoExp"));
-  if (beforeCallback) {
-    result = beforeCallback(&params);
-    if (result != UR_RESULT_SUCCESS) {
-      return result;
-    }
-  }
-
-  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_replace_callback(
-          "urUsmP2PPeerAccessGetInfoExp"));
-  if (replaceCallback) {
-    result = replaceCallback(&params);
-  } else {
-
-    result = UR_RESULT_SUCCESS;
-  }
-
-  if (result != UR_RESULT_SUCCESS) {
-    return result;
-  }
-
-  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_after_callback("urUsmP2PPeerAccessGetInfoExp"));
-  if (afterCallback) {
-    return afterCallback(&params);
-  }
-
-  return result;
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urEnqueueKernelLaunchWithArgsExp
-__urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunchWithArgsExp(
-    /// [in] handle of the queue object
-    ur_queue_handle_t hQueue,
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] number of dimensions, from 1 to 3, to specify the global and
-    /// work-group work-items
-    uint32_t workDim,
-    /// [in][optional] pointer to an array of workDim unsigned values that
-    /// specify the offset used to calculate the global ID of a work-item
-    const size_t *pGlobalWorkOffset,
-    /// [in] pointer to an array of workDim unsigned values that specify the
-    /// number of global work-items in workDim that will execute the kernel
-    /// function
-    const size_t *pGlobalWorkSize,
-    /// [in][optional] pointer to an array of workDim unsigned values that
-    /// specify the number of local work-items forming a work-group that will
-    /// execute the kernel function.
-    /// If nullptr, the runtime implementation will choose the work-group size.
-    const size_t *pLocalWorkSize,
-    /// [in] Number of entries in pArgs
-    uint32_t numArgs,
-    /// [in][optional][range(0, numArgs)] pointer to a list of kernel arg
-    /// properties.
-    const ur_exp_kernel_arg_properties_t *pArgs,
-    /// [in][optional] pointer to a single linked list of launch properties
-    const ur_kernel_launch_ext_properties_t *launchPropList,
-    /// [in] size of the event wait list
-    uint32_t numEventsInWaitList,
-    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
-    /// events that must be complete before the kernel execution.
-    /// If nullptr, the numEventsInWaitList must be 0, indicating that no wait
-    /// event.
-    const ur_event_handle_t *phEventWaitList,
-    /// [out][optional][alloc] return an event object that identifies this
-    /// particular kernel execution instance. If phEventWaitList and phEvent
-    /// are not NULL, phEvent must not refer to an element of the
-    /// phEventWaitList array.
-    ur_event_handle_t *phEvent) try {
-  ur_result_t result = UR_RESULT_SUCCESS;
-
-  ur_enqueue_kernel_launch_with_args_exp_params_t params = {
-      &hQueue,          &hKernel,
-      &workDim,         &pGlobalWorkOffset,
-      &pGlobalWorkSize, &pLocalWorkSize,
-      &numArgs,         &pArgs,
-      &launchPropList,  &numEventsInWaitList,
-      &phEventWaitList, &phEvent};
-
-  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_before_callback(
-          "urEnqueueKernelLaunchWithArgsExp"));
-  if (beforeCallback) {
-    result = beforeCallback(&params);
-    if (result != UR_RESULT_SUCCESS) {
-      return result;
-    }
-  }
-
-  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_replace_callback(
-          "urEnqueueKernelLaunchWithArgsExp"));
-  if (replaceCallback) {
-    result = replaceCallback(&params);
-  } else {
-
-    // optional output handle
-    if (phEvent) {
-      *phEvent = mock::createDummyHandle<ur_event_handle_t>();
-    }
-    result = UR_RESULT_SUCCESS;
-  }
-
-  if (result != UR_RESULT_SUCCESS) {
-    return result;
-  }
-
-  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_after_callback(
-          "urEnqueueKernelLaunchWithArgsExp"));
-  if (afterCallback) {
-    return afterCallback(&params);
-  }
-
-  return result;
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urEnqueueHostTaskExp
 __urdlllocal ur_result_t UR_APICALL urEnqueueHostTaskExp(
     /// [in] handle of the queue object
@@ -13168,6 +13286,9 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetCommandBufferExpProcAddrTable(
   pDdiTable->pfnAppendKernelLaunchExp =
       driver::urCommandBufferAppendKernelLaunchExp;
 
+  pDdiTable->pfnAppendKernelLaunchWithArgsExp =
+      driver::urCommandBufferAppendKernelLaunchWithArgsExp;
+
   pDdiTable->pfnAppendUSMMemcpyExp = driver::urCommandBufferAppendUSMMemcpyExp;
 
   pDdiTable->pfnAppendUSMFillExp = driver::urCommandBufferAppendUSMFillExp;
@@ -13373,9 +13494,9 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
 
   pDdiTable->pfnUSMFreeExp = driver::urEnqueueUSMFreeExp;
 
-  pDdiTable->pfnCommandBufferExp = driver::urEnqueueCommandBufferExp;
-
   pDdiTable->pfnTimestampRecordingExp = driver::urEnqueueTimestampRecordingExp;
+
+  pDdiTable->pfnCommandBufferExp = driver::urEnqueueCommandBufferExp;
 
   pDdiTable->pfnHostTaskExp = driver::urEnqueueHostTaskExp;
 

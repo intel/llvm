@@ -659,6 +659,9 @@ void SPIRVExecutionMode::decode(std::istream &I) {
   case ExecutionModeMaxWorkgroupSizeINTEL:
     WordLiterals.resize(3);
     break;
+  case ExecutionModeFPFastMathDefault:
+    WordLiterals.resize(2);
+    break;
   case ExecutionModeInvocations:
   case ExecutionModeOutputVertices:
   case ExecutionModeVecTypeHint:

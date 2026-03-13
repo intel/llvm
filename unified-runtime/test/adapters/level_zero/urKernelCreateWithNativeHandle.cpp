@@ -7,7 +7,7 @@
 // RUN: %maybe-v1 ./kernel_create-test
 // RUN: %maybe-v2 ./kernel_create-test
 
-#include "ur_api.h"
+#include "unified-runtime/ur_api.h"
 #include "uur/checks.h"
 #include "ze_api.h"
 #include <uur/fixtures.h>

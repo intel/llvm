@@ -604,15 +604,11 @@ PreservedAnalyses CompileTimePropertiesPass::run(Module &M,
   }
 
   // Process all properties on kernels.
-  TargetHelpers::KernelCache HIPCUDAKCache;
-  HIPCUDAKCache.populateKernels(M);
+  TargetHelpers::KernelCache Kernels;
+  Kernels.populateKernels(M);
 
-  for (Function &F : M) {
-    // Only consider kernels.
-    if (F.getCallingConv() != CallingConv::SPIR_KERNEL &&
-        !HIPCUDAKCache.isKernel(F))
-      continue;
-
+  for (auto *Kernel : Kernels) {
+    Function &F = *Kernel;
     // Compile time properties on kernel arguments
     {
       SmallVector<Metadata *, 8> MDOps;

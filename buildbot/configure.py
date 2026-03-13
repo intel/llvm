@@ -158,12 +158,7 @@ def do_configure(args, passthrough_args):
             # libclc passes `--nvvm-reflect-enable=false`, build NVPTX to enable it
             if "NVPTX" not in llvm_targets_to_build:
                 llvm_targets_to_build += ";NVPTX"
-            # since we are building AMD libclc target we must have AMDGPU target
-            if "AMDGPU" not in llvm_targets_to_build:
-                llvm_targets_to_build += ";AMDGPU"
-            # Add both NVIDIA and AMD libclc targets
-            if libclc_amd_target_names not in libclc_targets_to_build:
-                libclc_targets_to_build += libclc_amd_target_names
+            # Add NVIDIA libclc targets
             if libclc_nvidia_target_names not in libclc_targets_to_build:
                 libclc_targets_to_build += libclc_nvidia_target_names
             libclc_gen_remangled_variants = "ON"
@@ -231,6 +226,15 @@ def do_configure(args, passthrough_args):
                 "-DUR_BUILD_ADAPTER_OFFLOAD=ON",
             ]
         )
+
+        if args.liboffload_path:
+            liboffload_path = os.path.abspath(args.liboffload_path)
+            cmake_cmd.extend(
+                [
+                    f"-DUR_OFFLOAD_INSTALL_DIR={liboffload_path}",
+                    f"-DUR_OFFLOAD_INCLUDE_DIR={os.path.join(liboffload_path, 'include')}",
+                ]
+            )
 
     if libclc_enabled:
         cmake_cmd.extend(
@@ -365,6 +369,11 @@ def main():
         "--offload",
         action="store_true",
         help="Enable UR liboffload adapter (experimental)",
+    )
+    parser.add_argument(
+        "--liboffload-path",
+        metavar="PATH",
+        help="Optional path to user provided liboffload installation",
     )
     parser.add_argument(
         "--level_zero_adapter_version",

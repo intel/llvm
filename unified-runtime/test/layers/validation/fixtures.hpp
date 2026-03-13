@@ -10,7 +10,7 @@
 #include <atomic>
 #include <gtest/gtest.h>
 
-#include <ur_api.h>
+#include <unified-runtime/ur_api.h>
 #include <ur_mock_helpers.hpp>
 
 struct urTest : ::testing::Test {

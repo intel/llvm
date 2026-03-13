@@ -11,7 +11,7 @@
 #include "common/latency_tracker.hpp"
 #include "event.hpp"
 #include "queue_api.hpp"
-#include "ur_api.h"
+#include "unified-runtime/ur_api.h"
 
 namespace v2 {
 

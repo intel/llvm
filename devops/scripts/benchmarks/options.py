@@ -54,7 +54,7 @@ class Options:
     ur: str = None
     ur_adapter: str = None
     umf: str = None
-    no_rebuild: bool = False
+    offline: bool = False
     redownload: bool = False
     benchmark_cwd: str = "INVALID"
     timeout: float = 600
@@ -66,6 +66,7 @@ class Options:
     output_html: str = "local"
     output_directory: str = None
     dry_run: bool = False
+    list_benchmarks: bool = False
     stddev_threshold: float = 0.02
     iterations_stddev: int = 5
     extra_ld_libraries: list[str] = field(default_factory=list)

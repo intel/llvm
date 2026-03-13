@@ -1,4 +1,6 @@
 // REQUIRES: aspect-ext_oneapi_bindless_images
+// UNSUPPORTED: windows && arch-intel_gpu_mtl_h
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21380
 // XFAIL: hip
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/19957
 

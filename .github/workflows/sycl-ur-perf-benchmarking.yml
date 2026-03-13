@@ -5,8 +5,8 @@ name: SYCL Run Benchmarks
 
 on:
   schedule:
-    # 2 hours after SYCL nightly
-    - cron: '0 5 * * *'
+    # 2 hours after SYCL nightly, every day after weekday (we built in the morning the next day)
+    - cron: '0 5 * * 2-6'
   # Run on pull requests only when a benchmark-related files were changed.
   pull_request:
     # These paths are exactly the same as in sycl-linux/windows-precommit.yml (to ignore over there)
@@ -64,15 +64,17 @@ on:
         description: Self-hosted runner to use for the benchmarks
         type: choice
         options:
-          - '["PVC_PERF"]'
           - '["BMG_PERF"]'
+          - '["PVC_PERF"]'
           - '["TEST_PERF"]'
+        default: '["BMG_PERF"]'
       backend:
         description: Backend to use
         type: choice
         options:
           - 'level_zero:gpu'
           - 'level_zero_v2:gpu'
+        default: 'level_zero_v2:gpu'
       exit_on_failure:
         description: Fail benchmark script on any error. If true, limit number of iterations to just test correctness.
         type: choice
@@ -272,7 +274,6 @@ jobs:
   # END nightly benchmarking path
 
   # BEGIN benchmark framework builds and runs on PRs path
-  # TODO: When we have stable BMG runner(s), consider moving this job to that runner.
   test_benchmark_framework:
     name: '[PR] Benchmark suite testing'
     permissions:

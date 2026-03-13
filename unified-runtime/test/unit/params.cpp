@@ -11,7 +11,7 @@
 #include <memory>
 
 #include "print.h"
-#include "ur_print.hpp"
+#include "unified-runtime/ur_print.hpp"
 
 TYPED_TEST(ParamsTest, Print) {
   std::ostringstream out;

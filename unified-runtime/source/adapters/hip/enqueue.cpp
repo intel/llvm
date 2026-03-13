@@ -17,7 +17,7 @@
 #include "memory.hpp"
 #include "queue.hpp"
 #include "sampler.hpp"
-#include "ur_api.h"
+#include "unified-runtime/ur_api.h"
 
 #include <ur/ur.hpp>
 

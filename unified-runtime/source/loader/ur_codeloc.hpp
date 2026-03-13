@@ -14,7 +14,7 @@
 #ifndef UR_CODELOC_HPP
 #define UR_CODELOC_HPP 1
 
-#include "ur_api.h"
+#include "unified-runtime/ur_api.h"
 #include <optional>
 
 struct codeloc_data {

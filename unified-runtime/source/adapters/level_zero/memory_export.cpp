@@ -14,7 +14,7 @@
 #else
 #include "context.hpp"
 #endif
-#include "ur_api.h"
+#include "unified-runtime/ur_api.h"
 
 namespace ur::level_zero {
 
