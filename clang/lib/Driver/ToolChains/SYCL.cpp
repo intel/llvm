@@ -568,7 +568,7 @@ SYCLToolChain::getDeviceLibNames(const Driver &D,
   // Ignore no-offloadlib for NativeCPU device library, it provides some
   // critical builtins which must be linked with user's device image.
   if (TargetTriple.isNativeCPU()) {
-    addLibToList("libsycl-nativecpu_utils.bc");
+    addLibToList("libsycl-nativecpu_utils.bc", false);
     return LibraryList;
   }
 
@@ -1448,7 +1448,7 @@ void SYCLToolChain::addClangTargetOptions(
   // Add device libraries.
   // This is currently only done with the new offloading model, to better fit
   // with community expectations
-  if (!getDriver().getUseNewOffloadingDriver() || !getTriple().isSPIROrSPIRV())
+  if (!getDriver().getUseNewOffloadingDriver())
     return;
 
   llvm::SmallVector<BitCodeLibraryInfo, 12> BCLibs;
