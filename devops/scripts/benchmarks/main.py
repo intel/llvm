@@ -297,15 +297,13 @@ def main(directory, additional_env_vars, compare_names, filter, execution_stats)
         OneDnnBench(),
     ]
 
-    if options.list_benchmarks:
-        for benchmark in filter_benchmarks(suites, filter):
-            log.info(benchmark.name())
-        return
-
     # Collect metadata from all benchmarks without setting them up
     metadata = collect_metadata(suites)
 
-    # If dry run, we're done
+    if options.list_benchmarks:
+        log.info("List of filtered benchmarks:")
+        for benchmark in filter_benchmarks(suites, filter):
+            log.info(benchmark.name())
     if options.dry_run:
         suites = []
 
@@ -642,7 +640,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--list",
-        help="List all benchmark names that would be run (respects --filter and --preset) and exit.",
+        help="List all benchmark names with respect to --filter and --preset)",
         action="store_true",
         default=False,
     )
