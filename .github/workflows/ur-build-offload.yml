@@ -15,7 +15,7 @@ jobs:
 
     runs-on: ["Linux", "bmg"]
     container:
-      image: 'ghcr.io/intel/llvm/ubuntu2404_intel_drivers'
+      image: 'ghcr.io/intel/llvm/ubuntu2404_intel_drivers:latest'
 
     steps:
     - name: Checkout LLVM-project
