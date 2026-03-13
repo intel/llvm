@@ -200,12 +200,15 @@ runs:
       echo "CR_BUILD_REF=${CR_BUILD_REF}" >> $GITHUB_OUTPUT
   - name: Checkout results repo
     uses: actions/checkout@v5
+  - name: Checkout results repo
+    uses: actions/checkout@v5
     with:
-      repo: luszczewskakasia1/llvm
+      repository: luszczewskakasia1/llvm
       ref: ${{ steps.establish_outputs.outputs.BENCHMARK_RESULTS_BRANCH }}
       path: ${{ steps.establish_outputs.outputs.BENCHMARK_RESULTS_REPO_PATH }}
       persist-credentials: true
       lfs: true
+      fetch-depth: 0
   - name: Setup Git LFS for benchmark results
     shell: bash
     env:
