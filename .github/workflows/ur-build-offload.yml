@@ -18,37 +18,50 @@ jobs:
       image: 'ghcr.io/intel/llvm/ubuntu2404_build'
 
     steps:
+    - name: Checkout LLVM-project
+      uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+      with:
+        repository: llvm/llvm-project
+        persist-credentials: false
+        path: llvm-project
+
     - name: Checkout LLVM
       uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+      with:
+        path: llvm
+        persist-credentials: false
 
-    - name: Install liboffload
-      run: sudo apt-get update -qq && sudo apt-get install --no-install-recommends -yqq liboffload-21 liboffload-21-dev
+    - name: Configure llvm-project
+      run: >
+        cmake -S llvm-project/llvm -B llvm-project/build -G Ninja
+        -DCMAKE_BUILD_TYPE=${{matrix.build_type}}
+        -DLLVM_TARGETS_TO_BUILD='host;SPIRV;NVPTX'
+        -DLLVM_ENABLE_PROJECTS='clang;clang-tools-extra;lldb;lld'
+        -DLLVM_ENABLE_RUNTIMES='offload;openmp;libc'
+        -DLIBOMPTARGET_PLUGINS_TO_BUILD="level_zero;cuda"
+        -DLLVM_PARALLEL_LINK_JOBS=20
+        -DLLVM_BUILD_TESTS=ON
+        -DLLVM_INCLUDE_TESTS=on
+        '-DLLVM_LIT_ARGS=-v -vv'
+        -DCMAKE_INSTALL_PREFIX=./llvm-project-install
 
-    - name: Configure Unified Runtime project
+
+    - name: Build and install llvm-project
+      run: ninja -C llvm-project/build -j $(($(nproc)/3)) install
+
+    - name: Configure intel/llvm
       # ">" is used to avoid adding "\" at the end of each line; this command is quite long
       run: >
-        cmake
-        -S unified-runtime
-        -B $GITHUB_WORKSPACE/build
-        -DCMAKE_C_COMPILER=${{matrix.compiler.c}}
-        -DCMAKE_CXX_COMPILER=${{matrix.compiler.cxx}}
-        -DCMAKE_BUILD_TYPE=${{matrix.build_type}}
-        -DUR_ENABLE_TRACING=ON
-        -DUR_DEVELOPER_MODE=ON
-        -DUR_BUILD_TESTS=OFF
-        -DUR_BUILD_ADAPTER_OFFLOAD=ON
-        -DUR_OFFLOAD_INSTALL_DIR="/usr/lib/llvm-21"
-        -DUR_OFFLOAD_INCLUDE_DIR="/usr/lib/llvm-21/include"
-        -DCMAKE_INSTALL_PREFIX=$GITHUB_WORKSPACE/install
+        python3 llvm/buildbot/configure.py
+        --offload
+        --cuda
+        -t ${{matrix.build_type}}
+        --liboffload-path=./llvm-project-install
 
-    - name: Build
+    - name: Build intel/llvm
       # This is so that device binaries can find the sycl runtime library
-      run: cmake --build $GITHUB_WORKSPACE/build -j $(($(nproc)/3))
+      run: python3 llvm/buildbot/compile.py
 
-    - name: Install
-      # This is to check that install command does not fail
-      run: cmake --install $GITHUB_WORKSPACE/build
-
-    - name: Get information about platform
+    - name: Debug CI platform information
       if: ${{ always() }}
-      run: devops/scripts/get_system_info.sh
+      run: ./llvm/devops/scripts/get_system_info.sh

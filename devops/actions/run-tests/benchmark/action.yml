@@ -352,6 +352,7 @@ runs:
         --results-dir "${BENCHMARK_RESULTS_REPO_PATH}/" \
         --output-dir "${BENCHMARK_RESULTS_REPO_PATH}/" \
         --preset "$PRESET" \
+        --list \
         --timestamp-override "$SAVE_TIMESTAMP" \
         --detect-version sycl,compute_runtime \
         --produce-github-summary \
@@ -388,6 +389,9 @@ runs:
       COMPUTE_BENCHMARKS_BUILD_PATH: ${{ steps.establish_outputs.outputs.BENCH_WORKDIR }}/compute-benchmarks-build
     run: |
       # Run benchmarks' integration tests
+
+      # Enable testing UR benchmarks
+      export LLVM_BENCH_UR_INSTALL_DIR="$(realpath ./ur/install)"
 
       # NOTE: Each integration test prints its own group name as part of test script
       python3 ./devops/scripts/benchmarks/tests/test_integration.py
