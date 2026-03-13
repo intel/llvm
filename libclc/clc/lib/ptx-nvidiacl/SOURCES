@@ -1,5 +1,4 @@
 math/clc_log.cl
-math/clc_native_exp2.cl
 math/clc_rsqrt.cl
 math/clc_sinpi.cl
 math/clc_sqrt.cl
