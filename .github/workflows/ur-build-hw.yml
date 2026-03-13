@@ -33,38 +33,6 @@ on:
         required: false
         type: string
         default: ""
-  workflow_dispatch:
-    inputs:
-      adapter_name:
-        required: true
-        type: string
-      other_adapter_name:
-        required: false
-        type: string
-        default: ""
-      runner_name:
-        required: true
-        type: string
-      static_loader:
-        required: false
-        type: string
-        default: OFF
-      static_adapter:
-        required: false
-        type: string
-        default: OFF
-      docker_image:
-        required: true
-        type: string
-        default: ""
-      image_options:
-        required: true
-        type: string
-        default: ""
-      install_igc_driver:
-        required: false
-        type: string
-        default: ""
 
 permissions: read-all
 
@@ -101,7 +69,6 @@ jobs:
 
     steps:
     # TODO:
-    # - investigate if DUR_CONFORMANCE_AMD_ARCH could be removed
     # - switch to Ninja generator in CMake
     # - downloading DPC++ should be integrated somehow; most likely use nightly release.
     #
@@ -144,7 +111,7 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ github.token }}
       run: |
-        sudo -E bash devops/scripts/install_drivers.sh devops/dependencies.json  --igfx
+        sudo -E bash devops/scripts/install_drivers.sh devops/dependencies.json --igfx
 
     - name: Configure Unified Runtime project
       # ">" is used to avoid adding "\" at the end of each line; this command is quite long
@@ -165,8 +132,6 @@ jobs:
         -DUR_DPCXX=./dpcpp_compiler/bin/clang++
         -DUR_SYCL_LIBRARY_DIR=./dpcpp_compiler/lib
         -DCMAKE_INSTALL_PREFIX=./install
-        ${{ matrix.adapter.name == 'HIP' && '-DUR_CONFORMANCE_AMD_ARCH=gfx1030' || '' }}
-        ${{ matrix.adapter.name == 'HIP' && '-DUR_HIP_PLATFORM=AMD' || '' }}
 
     - name: Build
       # This is so that device binaries can find the sycl runtime library
@@ -192,6 +157,6 @@ jobs:
         LIT_OPTS: "--timeout 120 -j 50"
       run: cmake --build build -j $(($(nproc)/3)) -- check-unified-runtime-conformance
 
-    - name: Get information about platform
+    - name: Debug CI platform information
       if: ${{ always() }}
-      run: devops/scripts/get_system_info.sh
+      run: ./devops/scripts/get_system_info.sh

@@ -8,8 +8,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "unified-runtime/ur_api.h"
 #include "ur/ur.hpp"
-#include "ur_api.h"
 
 #include "common.hpp"
 #include "context.hpp"

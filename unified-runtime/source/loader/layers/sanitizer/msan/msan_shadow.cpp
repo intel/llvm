@@ -14,7 +14,7 @@
 #include "msan_shadow.hpp"
 #include "msan_interceptor.hpp"
 #include "sanitizer_common/sanitizer_utils.hpp"
-#include "ur_api.h"
+#include "unified-runtime/ur_api.h"
 #include "ur_sanitizer_layer.hpp"
 
 namespace ur_sanitizer_layer {

@@ -1587,7 +1587,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_GRAPH_RECORD_AND_REPLAY_SUPPORT_EXP:
     return ReturnValue(false);
   default: {
-    return UR_RESULT_ERROR_INVALID_ENUMERATION;
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   }
   }
 }

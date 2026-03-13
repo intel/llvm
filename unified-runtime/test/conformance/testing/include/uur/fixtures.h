@@ -7,7 +7,7 @@
 #ifndef UR_CONFORMANCE_INCLUDE_FIXTURES_H_INCLUDED
 #define UR_CONFORMANCE_INCLUDE_FIXTURES_H_INCLUDED
 
-#include "ur_api.h"
+#include "unified-runtime/ur_api.h"
 
 #include "gtest/gtest.h"
 #include <uur/checks.h>

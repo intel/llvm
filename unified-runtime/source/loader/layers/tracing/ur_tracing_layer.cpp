@@ -11,7 +11,7 @@
  *
  */
 #include "ur_tracing_layer.hpp"
-#include "ur_api.h"
+#include "unified-runtime/ur_api.h"
 #include "ur_util.hpp"
 #include "xpti/xpti_data_types.h"
 #include "xpti/xpti_trace_framework.h"
