@@ -168,17 +168,18 @@ template float StaticMembers<float>::z;
 template int (*StaticMembers<float>::f)();
 
 // CHECK-LABEL: define internal void @__cxx_global_var_init
-// CHECK: call noundef i32 @"_ZNK13StaticMembersIdE3$_2clEv"
-// CHECK-LABEL: define internal noundef i32 @"_ZNK13StaticMembersIdE3$_2clEv"
+// CHECK: call noundef i32 @"_ZNK13StaticMembersIdE1zM3$_2clEv"
+// CHECK-LABEL: define internal noundef i32 @"_ZNK13StaticMembersIdE1zM3$_2clEv"
 // CHECK: ret i32 42
 template<> double StaticMembers<double>::z = []{return side_effect(), 42; }();
 
 template<typename T>
 void func_template(T = []{ return T(); }());
 
-// CHECK-LABEL: define{{.*}} void @_Z17use_func_templatev()
+// CHECK-LABEL: define void @_Z17use_func_templatev
 void use_func_template() {
   // CHECK: call noundef i32 @"_ZZ13func_templateIiEvT_ENK3$_0clEv"
+  // CHECK: call void @_Z13func_templateIiEvT_(i32 noundef {{.*}})
   func_template<int>();
 }
 

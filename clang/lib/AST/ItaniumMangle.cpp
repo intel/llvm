@@ -1861,7 +1861,8 @@ void CXXNameMangler::mangleNestedNameWithClosurePrefix(
   Out << 'N';
 
   mangleClosurePrefix(PrefixND);
-  mangleUnqualifiedName(GD, nullptr, AdditionalAbiTags);
+  const DeclContext *DC = Context.getEffectiveDeclContext(PrefixND);
+  mangleUnqualifiedName(GD, DC, AdditionalAbiTags);
 
   Out << 'E';
 }
@@ -2228,7 +2229,8 @@ void CXXNameMangler::manglePrefix(const DeclContext *DC, bool NoFunction) {
     mangleTemplateArgs(asTemplateName(TD), *TemplateArgs);
   } else if (const NamedDecl *PrefixND = getClosurePrefix(ND)) {
     mangleClosurePrefix(PrefixND, NoFunction);
-    mangleUnqualifiedName(ND, nullptr, nullptr);
+    const DeclContext *DC = Context.getEffectiveDeclContext(PrefixND);
+    mangleUnqualifiedName(ND, DC, nullptr);
   } else {
     const DeclContext *DC = Context.getEffectiveDeclContext(ND);
     manglePrefix(DC, NoFunction);
