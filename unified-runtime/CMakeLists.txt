@@ -379,32 +379,37 @@ if(UR_BUILD_TOOLS)
     add_subdirectory(tools)
 endif()
 
-# Add the list of installed targets to the install. This includes the namespace
-# which all installed targets will be prefixed with, e.g. for the headers
-# target users will depend on ${PROJECT_NAME}::headers.
-install(
-    EXPORT ${PROJECT_NAME}-targets
-    FILE ${PROJECT_NAME}-targets.cmake
-    NAMESPACE ${PROJECT_NAME}::
-    DESTINATION lib/cmake/${PROJECT_NAME})
+# The export set and package config files are only needed when UR is built as
+# a standalone project. When built in-tree (LLVM/SYCL), the
+# parent project provides its own install rules.
+if(UR_STANDALONE_BUILD)
+    # Add the list of installed targets to the install. This includes the
+    # namespace which all installed targets will be prefixed with, e.g. for
+    # the headers target users will depend on ${PROJECT_NAME}::headers.
+    install(
+        EXPORT ${PROJECT_NAME}-targets
+        FILE ${PROJECT_NAME}-targets.cmake
+        NAMESPACE ${PROJECT_NAME}::
+        DESTINATION lib/cmake/${PROJECT_NAME})
 
-# Configure the package versions file for use in find_package when installed.
-write_basic_package_version_file(
-    ${PROJECT_BINARY_DIR}/cmake/${PROJECT_NAME}-config-version.cmake
-    COMPATIBILITY SameMajorVersion)
-# Configure the package file that is searched for by find_package when
-# installed.
-configure_package_config_file(
-    ${PROJECT_SOURCE_DIR}/cmake/${PROJECT_NAME}-config.cmake.in
-    ${PROJECT_BINARY_DIR}/cmake/${PROJECT_NAME}-config.cmake
-    INSTALL_DESTINATION lib/cmake/${PROJECT_NAME})
-
-# Add the package files to the install.
-install(
-    FILES
-        ${PROJECT_BINARY_DIR}/cmake/${PROJECT_NAME}-config.cmake
+    # Configure the package versions file for use in find_package when installed.
+    write_basic_package_version_file(
         ${PROJECT_BINARY_DIR}/cmake/${PROJECT_NAME}-config-version.cmake
-    DESTINATION lib/cmake/${PROJECT_NAME})
+        COMPATIBILITY SameMajorVersion)
+    # Configure the package file that is searched for by find_package when
+    # installed.
+    configure_package_config_file(
+        ${PROJECT_SOURCE_DIR}/cmake/${PROJECT_NAME}-config.cmake.in
+        ${PROJECT_BINARY_DIR}/cmake/${PROJECT_NAME}-config.cmake
+        INSTALL_DESTINATION lib/cmake/${PROJECT_NAME})
+
+    # Add the package files to the install.
+    install(
+        FILES
+            ${PROJECT_BINARY_DIR}/cmake/${PROJECT_NAME}-config.cmake
+            ${PROJECT_BINARY_DIR}/cmake/${PROJECT_NAME}-config-version.cmake
+        DESTINATION lib/cmake/${PROJECT_NAME})
+endif()
 
 set(API_JSON_FILE ${PROJECT_BINARY_DIR}/unified_runtime.json)
 

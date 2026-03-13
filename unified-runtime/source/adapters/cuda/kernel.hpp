@@ -10,7 +10,7 @@
 #pragma once
 
 #include <cuda.h>
-#include <ur_api.h>
+#include <unified-runtime/ur_api.h>
 
 #include <array>
 #include <atomic>

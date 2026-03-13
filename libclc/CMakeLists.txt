@@ -372,10 +372,6 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
     set( libspirv_lib_files )
     set( BUILD_LIBSPIRV_${t} TRUE )
 
-    if ( NOT ENABLE_RUNTIME_SUBNORMAL )
-      list( APPEND libspirv_lib_files libspirv/lib/generic/subnormal_use_default.ll )
-    endif()
-
     libclc_configure_lib_source(
       libspirv_lib_files
       LIB_ROOT_DIR libspirv
