@@ -352,6 +352,7 @@ runs:
         --results-dir "${BENCHMARK_RESULTS_REPO_PATH}/" \
         --output-dir "${BENCHMARK_RESULTS_REPO_PATH}/" \
         --preset "$PRESET" \
+        --list \
         --timestamp-override "$SAVE_TIMESTAMP" \
         --detect-version sycl,compute_runtime \
         --produce-github-summary \
