@@ -11678,10 +11678,6 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
             // spir64_x86_64, the Device value returned by extractDeviceFromArg
             // will be an empty string.
             Device = SYCL::gen::extractDeviceFromArg(A->getValue(1));
-          } else {
-            // If target is intel_gpu_*, "-device <arch>"
-            // is appended to BackendArgs.
-            appendOption(BackendArgs, "-device " + Device.str());
           }
         }
         SYCLTC.TranslateBackendTargetArgs(TC->getTriple(), Args, BuildArgs,
