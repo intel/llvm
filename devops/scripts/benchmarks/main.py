@@ -640,7 +640,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--list",
-        help="List all benchmark names with respect to --filter and --preset)",
+        help="List all benchmark names with respect to --filter and --preset",
         action="store_true",
         default=False,
     )
