@@ -8918,12 +8918,14 @@ static void handleTimeTrace(Compilation &C, const ArgList &Args,
     SmallString<128> Tmp;
     Tmp = Result.getFilename();
     if (llvm::sys::fs::is_directory(Path)) {
+      // Derive a unique base trace path (handles SYCL non-top-level jobs)
+      SmallString<128> TracePath = GetTracePathForSYCLNonTopLevel();
+      SmallString<128> FileName(llvm::sys::path::filename(TracePath));
       if (!OffloadingPrefix.empty() && JA->isOffloading(Action::OFK_SYCL)) {
-        Tmp = addOffloadingPrefixToPath(llvm::sys::path::filename(BaseInput),
-                                        OffloadingPrefix);
+        FileName = addOffloadingPrefixToPath(FileName, OffloadingPrefix);
       }
-      llvm::sys::path::replace_extension(Tmp, "json");
-      llvm::sys::path::append(Path, llvm::sys::path::filename(Tmp));
+      llvm::sys::path::replace_extension(FileName, "json");
+      llvm::sys::path::append(Path, FileName);
     }
   } else {
     if (Arg *DumpDir = Args.getLastArgNoClaim(options::OPT_dumpdir)) {
@@ -8935,10 +8937,14 @@ static void handleTimeTrace(Compilation &C, const ArgList &Args,
         SmallString<128> FileWithPrefix = addOffloadingPrefixToPath(
             llvm::sys::path::filename(TracePath), OffloadingPrefix);
         Path += FileWithPrefix;
-      } else if (JA->isHostOffloading(Action::OFK_SYCL) && AtTopLevel)
-        Path += Result.getFilename();
-      else
-        Path += llvm::sys::path::filename(BaseInput);
+      } else {
+        SmallString<128> FileComponent(llvm::sys::path::filename(BaseInput));
+        if (JA->isOffloading(Action::OFK_SYCL) && AtTopLevel &&
+            !OffloadingPrefix.empty())
+          FileComponent =
+              addOffloadingPrefixToPath(FileComponent, OffloadingPrefix);
+        Path += FileComponent;
+      }
     } else {
       Path = GetTracePathForSYCLNonTopLevel();
 
