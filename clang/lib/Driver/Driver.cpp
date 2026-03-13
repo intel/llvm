@@ -8933,8 +8933,6 @@ static void handleTimeTrace(Compilation &C, const ArgList &Args,
   SmallString<128> Path;
   if (A->getOption().matches(options::OPT_ftime_trace_EQ)) {
     Path = A->getValue();
-    SmallString<128> Tmp;
-    Tmp = Result.getFilename();
     if (llvm::sys::fs::is_directory(Path)) {
       // Derive a unique base trace path (handles SYCL non-top-level jobs)
       SmallString<128> TracePath = GetTracePathForSYCLNonTopLevel();
