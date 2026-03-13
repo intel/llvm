@@ -1322,6 +1322,18 @@ function addRunDataPoint(group, run, result, comparison, name = null) {
     return group;
 }
 
+function getRunSortPriority(name) {
+    if (name.startsWith('Baseline_BMG')) return 0;
+    if (name.startsWith('Baseline_PVC')) return 1;
+    return 2;
+}
+
+function compareRunNamesForSelector(a, b) {
+    const priorityDiff = getRunSortPriority(a) - getRunSortPriority(b);
+    if (priorityDiff !== 0) return priorityDiff;
+    return a.localeCompare(b);
+}
+
 // Setup functions
 function setupRunSelector() {
     runSelect = document.getElementById('run-select');
@@ -1329,6 +1341,9 @@ function setupRunSelector() {
 
     // Clear existing options first to prevent duplicates when reloading with archived data
     runSelect.innerHTML = '';
+
+    // Sort runs so Baseline_BMG and Baseline_PVC are first, then alphabetically
+    allRunNames = [...allRunNames].sort(compareRunNamesForSelector);
 
     allRunNames.forEach(name => {
         const option = document.createElement('option');
