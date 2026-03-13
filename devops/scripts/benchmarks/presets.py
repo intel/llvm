@@ -17,12 +17,14 @@ presets: dict[str, list[str]] = {
         "SYCL-Bench",
         "Velocity Bench",
         "UMF",
+        "PTI XPTI Overhead",
     ],
     "SYCL": [
         "Compute Benchmarks",
         # "llama.cpp bench",
         "SYCL-Bench",
         "Velocity Bench",
+        "PTI XPTI Overhead",
     ],
     "Minimal": [
         "Compute Benchmarks",
@@ -45,6 +47,9 @@ presets: dict[str, list[str]] = {
     ],
     "LLama": [
         "llama.cpp bench",
+    ],
+    "PTI_XPTI": [
+        "PTI XPTI Overhead",
     ],
 }
 

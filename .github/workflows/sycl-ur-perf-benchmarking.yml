@@ -30,6 +30,7 @@ on:
           - OneDNN
           - Gromacs
           - LLama
+          - PTI_XPTI
         default: 'Minimal'  # Only compute-benchmarks
       pr_no:
         type: string
