@@ -1,6 +1,9 @@
 // RUN: %{build} -o %t2.out
 // RUN: %{run} %t2.out
-// RUN: %if level_zero %{ env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 UR_L0_V2_FORCE_BATCHED=1 %{run} %t2.out %}
+
+// TODO: Enable force batched submission test for Windows too.
+// https://github.com/intel/llvm/issues/21520
+// RUN-IF: level_zero && linux, env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 UR_L0_V2_FORCE_BATCHED=1 %{run} %t2.out
 
 //==------------------- buffer.cpp - SYCL buffer basic test ----------------==//
 //
