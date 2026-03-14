@@ -11417,10 +11417,6 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
             C.getSingleOffloadToolChain<Action::OFK_Host>();
         SYCLTC.AddSPIRVImpliedTargetArgs(SYCLTC.getTriple(), BaseCompilerArgs,
                                          CompilerArgs, JA, *HostTC);
-        // Render the remaining compiler arguments
-        for (Arg *A : BaseCompilerArgs) {
-          A->render(BaseCompilerArgs, CompilerArgs);
-        }
       } else {
         // For non-SPIR-V SYCL targets or other offload kinds (CUDA, OpenMP,
         // HIP), directly convert the BaseCompilerArgs to CompilerArgs without

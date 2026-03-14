@@ -1757,6 +1757,16 @@ void SYCLToolChain::AddSPIRVImpliedTargetArgs(const llvm::Triple &Triple,
     // -foffload-fp32-prec-sqrt JIT
     Args.AddLastArg(BeArgs, options::OPT_foffload_fp32_prec_sqrt);
   }
+
+  // Add compiler instrumentation options for JIT mode.
+  // AOT backends (like ocloc) don't understand these options.
+  if (IsJIT) {
+    Args.AddLastArg(CmdArgs, options::OPT_ftime_trace);
+    Args.AddLastArg(CmdArgs, options::OPT_ftime_trace_EQ);
+    Args.AddLastArg(CmdArgs, options::OPT_ftime_trace_granularity_EQ);
+    Args.AddLastArg(CmdArgs, options::OPT_ftime_trace_verbose);
+  }
+
   if (IsGen) {
     for (auto [DeviceName, BackendArgStr] : PerDeviceArgs) {
       CmdArgs.push_back("-device_options");
@@ -1764,6 +1774,7 @@ void SYCLToolChain::AddSPIRVImpliedTargetArgs(const llvm::Triple &Triple,
       CmdArgs.push_back(Args.MakeArgString(BackendArgStr));
     }
   }
+
   if (BeArgs.empty())
     return;
   if (Triple.getSubArch() == llvm::Triple::NoSubArch) {
