@@ -1763,7 +1763,16 @@ void SYCLToolChain::AddSPIRVImpliedTargetArgs(const llvm::Triple &Triple,
   if (IsJIT) {
     Args.AddLastArg(CmdArgs, options::OPT_ftime_trace);
     Args.AddLastArg(CmdArgs, options::OPT_ftime_trace_EQ);
-    Args.AddLastArg(CmdArgs, options::OPT_ftime_trace_granularity_EQ);
+    // Only forward -ftime-trace-granularity if it has a valid integer value.
+    // The JIT runtime handles invalid values gracefully (warns but continues),
+    // but forwarding them here would make them go through the driver's integer
+    // validation again, which treats invalid values as fatal compilation
+    // errors.
+    if (Arg *A = Args.getLastArg(options::OPT_ftime_trace_granularity_EQ)) {
+      unsigned Granularity;
+      if (llvm::to_integer(A->getValue(), Granularity))
+        Args.AddLastArg(CmdArgs, options::OPT_ftime_trace_granularity_EQ);
+    }
     Args.AddLastArg(CmdArgs, options::OPT_ftime_trace_verbose);
   }
 
