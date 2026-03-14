@@ -5,7 +5,7 @@
 
 // REQUIRES: level_zero
 //
-// UNSUPPORTED: windows && level_zero_v2_adapter
+// UNSUPPORTED: windows
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20852
 //
 // RUN: %{build} -o %t.out
@@ -38,6 +38,6 @@ int main() {
         NDRange, Redu, [=](nd_item<1> NDIt, auto &Sum) {
           Sum.combine(In[NDIt.get_global_linear_id()]);
         });
-  });
+  }).wait_and_throw();
   return 0;
 }
