@@ -363,7 +363,6 @@ Expected<StringRef> linkDeviceCode(ArrayRef<std::string> InputFiles,
 
   // Link in SYCL device library files.
   const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
-  llvm::errs() << "[DEBUG 1] " << Triple.str() << "\n";
   for (auto &File : *SYCLDeviceLibFiles) {
     auto LibMod = getBitcodeModule(File, C);
     if (!LibMod)
@@ -424,7 +423,6 @@ static Error runCodeGen(StringRef File, const ArgList &Args,
     return Err;
 
   Triple TargetTriple(Args.getLastArgValue(OPT_triple_EQ));
-  llvm::errs() << "[DEBUG 2] " << TargetTriple.str() << "\n";
 
   M->setTargetTriple(TargetTriple);
 
@@ -648,7 +646,6 @@ Error runSYCLLink(ArrayRef<std::string> Files, const ArgList &Args) {
     TheImage.TheOffloadKind = OFK_SYCL;
     TheImage.StringData["triple"] =
         Args.MakeArgString(Args.getLastArgValue(OPT_triple_EQ));
-    llvm::errs() << "[DEBUG 3] " << Args.MakeArgString(Args.getLastArgValue(OPT_triple_EQ)) << "\n";
     TheImage.StringData["arch"] =
         Args.MakeArgString(Args.getLastArgValue(OPT_arch_EQ));
     TheImage.StringData["symbols"] = SymbolTable[I];
@@ -665,7 +662,6 @@ Error runSYCLLink(ArrayRef<std::string> Files, const ArgList &Args) {
 } // namespace
 
 int main(int argc, char **argv) {
-  llvm::errs() << "clang-sycl-linker is called \n";
   InitLLVM X(argc, argv);
   InitializeAllTargetInfos();
   InitializeAllTargets();

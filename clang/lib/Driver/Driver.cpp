@@ -9173,13 +9173,11 @@ InputInfoList Driver::BuildJobsForActionNoCache(
       // cause a overwrite.
       InputInfo CurI;
       if (C.getDriver().getOffloadStaticLibSeen() &&
-          (JA->getType() == types::TY_Archive ||
-          JA->getType() == types::TY_Tempfilelist)) {
+           (JA->getType() == types::TY_Archive ||
+           JA->getType() == types::TY_Tempfilelist)) {
         // Host part of the unbundled static archive is not used.
         if (UI.DependentOffloadKind == Action::OFK_Host)
-        {
           continue;
-        }
         std::string TmpFileName = C.getDriver().GetTemporaryPath(
             llvm::sys::path::stem(BaseInput),
             JA->getType() == types::TY_Archive ? "a" : "txt");
@@ -9194,10 +9192,10 @@ InputInfoList Driver::BuildJobsForActionNoCache(
         CurI = InputInfo(
           UA,
           GetNamedOutputPath(C, *UA, BaseInput, UI.DependentBoundArch,
-                            /*AtTopLevel=*/false,
-                            MultipleArchs ||
-                                UI.DependentOffloadKind == Action::OFK_HIP,
-                            OffloadingPrefix),
+                             /*AtTopLevel=*/false,
+                             MultipleArchs ||
+                                 UI.DependentOffloadKind == Action::OFK_HIP,
+                             OffloadingPrefix),
           BaseInput);
       }
       // Save the unbundling result.
@@ -9235,12 +9233,12 @@ InputInfoList Driver::BuildJobsForActionNoCache(
     std::pair<const Action *, std::string> ActionTC = {
         A, GetTriplePlusArchString(TC, BoundArch, TargetDeviceOffloadKind)};
     assert(CachedResults.find(ActionTC) != CachedResults.end() &&
-          "Result does not exist??");
+           "Result does not exist??");
     Result = CachedResults[ActionTC].front();
   } else if (auto *DA = dyn_cast<OffloadDepsJobAction>(JA)) {
     for (auto &DI : DA->getDependentActionsInfo()) {
       assert(DI.DependentOffloadKind != Action::OFK_None &&
-            "Deps job with no offloading");
+             "Deps job with no offloading");
 
       std::string OffloadingPrefix = Action::GetOffloadingFileNamePrefix(
           DI.DependentOffloadKind,
@@ -9249,10 +9247,10 @@ InputInfoList Driver::BuildJobsForActionNoCache(
       auto CurI = InputInfo(
           DA,
           GetNamedOutputPath(C, *DA, BaseInput, DI.DependentBoundArch,
-                            /*AtTopLevel=*/false,
-                            MultipleArchs ||
-                                DI.DependentOffloadKind == Action::OFK_HIP,
-                            OffloadingPrefix),
+                             /*AtTopLevel=*/false,
+                             MultipleArchs ||
+                                 DI.DependentOffloadKind == Action::OFK_HIP,
+                             OffloadingPrefix),
           BaseInput);
       // Save the result.
       UnbundlingResults.push_back(CurI);
@@ -9260,10 +9258,10 @@ InputInfoList Driver::BuildJobsForActionNoCache(
       // Get the unique string identifier for this dependence and cache the
       // result.
       StringRef Arch = TargetDeviceOffloadKind == Action::OFK_HIP
-                          ? DI.DependentOffloadKind == Action::OFK_Host
-                                ? StringRef()
-                                : DI.DependentBoundArch
-                          : BoundArch;
+                           ? DI.DependentOffloadKind == Action::OFK_Host
+                                 ? StringRef()
+                                 : DI.DependentBoundArch
+                           : BoundArch;
 
       CachedResults[{A, GetTriplePlusArchString(DI.DependentToolChain, Arch,
                                                 DI.DependentOffloadKind)}] = {
@@ -9306,16 +9304,16 @@ InputInfoList Driver::BuildJobsForActionNoCache(
           C.getArgs().MakeArgString(std::string(BaseInput) + "-wrapper");
     }
     Result = InputInfo(A, GetNamedOutputPath(C, *JA, BaseInput, BoundArch,
-                                            AtTopLevel, MultipleArchs,
-                                            OffloadingPrefix),
-                      BaseInput);
+                                             AtTopLevel, MultipleArchs,
+                                             OffloadingPrefix),
+                       BaseInput);
     if (T->canEmitIR() && OffloadingPrefix.empty())
       handleTimeTrace(C, Args, JA, BaseInput, Result);
   }
 
   if (CCCPrintBindings && !CCGenDiagnostics) {
     llvm::errs() << "# \"" << T->getToolChain().getTripleString() << '"'
-                << " - \"" << T->getName() << "\", inputs: [";
+                 << " - \"" << T->getName() << "\", inputs: [";
     for (unsigned i = 0, e = InputInfos.size(); i != e; ++i) {
       llvm::errs() << InputInfos[i].getAsString();
       if (i + 1 != e)
@@ -9333,12 +9331,11 @@ InputInfoList Driver::BuildJobsForActionNoCache(
       llvm::errs() << "] \n";
     }
   } else {
-    if (UnbundlingResults.empty()){
+    if (UnbundlingResults.empty())
       T->ConstructJob(C, *JA, Result, InputInfos, Args, LinkingOutput);
-    } else {
+    else
       T->ConstructJobMultipleOutputs(C, *JA, UnbundlingResults, InputInfos,
-                                    Args, LinkingOutput);
-    }
+                                     Args, LinkingOutput);
   }
   return {Result};
 }

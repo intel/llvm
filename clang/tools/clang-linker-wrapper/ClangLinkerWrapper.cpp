@@ -893,9 +893,6 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args,
                        OPT_whole_archive, OPT_no_whole_archive)) {
       // Sometimes needed libraries are passed by name, such as when using
       // sanitizers. We need to check the file magic for any libraries.
-      if(Arg->getOption().matches(OPT_INPUT)) {
-        llvm::errs() << "[DEBUG] OPT_INPUT " << Arg->getValue(0) << "\n";
-      }
       if (Arg->getOption().matches(OPT_INPUT)) {
         if (!sys::fs::exists(Arg->getValue()) ||
             sys::fs::is_directory(Arg->getValue()))
@@ -993,10 +990,8 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args,
     CmdArgs.append({"-mllvm", "-openmp-opt-disable"});
 
   //TO REMOVE 2
-  llvm::errs() << "[DEBUG] calling clang \n";
   if (Error Err = executeCommands(*ClangPath, CmdArgs))
     return std::move(Err);
-  llvm::errs() << "[DEBUG] clang call finish successfully \n";
 
   return *TempFileOrErr;
 }
