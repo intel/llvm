@@ -185,7 +185,6 @@ Driver::Driver(StringRef ClangExecutable, StringRef TargetTriple,
       TargetTriple(TargetTriple), Saver(Alloc), PrependArg(nullptr),
       PreferredLinker(CLANG_DEFAULT_LINKER), CheckInputsExist(true),
       ProbePrecompiled(true), SuppressMissingInputWarning(false) {
-  llvm::errs() <<  "[DEBUG] driver is called \n";
   // Provide a sane fallback if no VFS is specified.
   if (!this->VFS)
     this->VFS = llvm::vfs::getRealFileSystem();
@@ -9171,176 +9170,176 @@ InputInfoList Driver::BuildJobsForActionNoCache(
       // Unbundling actions are never at the top level. When we generate the
       // offloading prefix, we also do that for the host file because the
       // unbundling action does not change the type of the output which can
-        // cause a overwrite.
-        InputInfo CurI;
-        if (C.getDriver().getOffloadStaticLibSeen() &&
-            (JA->getType() == types::TY_Archive ||
-            JA->getType() == types::TY_Tempfilelist)) {
-          // Host part of the unbundled static archive is not used.
-          if (UI.DependentOffloadKind == Action::OFK_Host)
-          {
-            continue;
-          }
-          std::string TmpFileName = C.getDriver().GetTemporaryPath(
-              llvm::sys::path::stem(BaseInput),
-              JA->getType() == types::TY_Archive ? "a" : "txt");
-          const char *TmpFile = C.addTempFile(
-              C.getArgs().MakeArgString(TmpFileName), JA->getType());
-          CurI = InputInfo(JA->getType(), TmpFile, TmpFile);
-        } else {
-          std::string OffloadingPrefix = Action::GetOffloadingFileNamePrefix(
-            UI.DependentOffloadKind,
-            UI.DependentToolChain->getTriple().normalize(),
-            /*CreatePrefixForHost=*/true);
-          CurI = InputInfo(
-            UA,
-            GetNamedOutputPath(C, *UA, BaseInput, UI.DependentBoundArch,
-                              /*AtTopLevel=*/false,
-                              MultipleArchs ||
-                                  UI.DependentOffloadKind == Action::OFK_HIP,
-                              OffloadingPrefix),
-            BaseInput);
+      // cause a overwrite.
+      InputInfo CurI;
+      if (C.getDriver().getOffloadStaticLibSeen() &&
+          (JA->getType() == types::TY_Archive ||
+          JA->getType() == types::TY_Tempfilelist)) {
+        // Host part of the unbundled static archive is not used.
+        if (UI.DependentOffloadKind == Action::OFK_Host)
+        {
+          continue;
         }
-        // Save the unbundling result.
-        UnbundlingResults.push_back(CurI);
-
-        // Get the unique string identifier for this dependence and cache the
-        // result.
-        StringRef Arch;
-        if (TargetDeviceOffloadKind == Action::OFK_HIP ||
-            TargetDeviceOffloadKind == Action::OFK_SYCL) {
-          if (UI.DependentOffloadKind == Action::OFK_Host)
-            Arch = StringRef();
-          else
-            Arch = UI.DependentBoundArch;
-        } else
-          Arch = BoundArch;
-        // When unbundling for SYCL and there is no Target offload, assume
-        // Host as the dependent offload, as the host path has been stripped
-        // in this instance
-        Action::OffloadKind DependentOffloadKind;
-        if (UI.DependentOffloadKind == Action::OFK_SYCL &&
-            TargetDeviceOffloadKind == Action::OFK_None &&
-            !(C.getDefaultToolChain().getTriple().isNativeCPU() &&
-              UA->getDependentActionsInfo().size() > 1))
-          DependentOffloadKind = Action::OFK_Host;
-        else
-          DependentOffloadKind = UI.DependentOffloadKind;
-
-        CachedResults[{A, GetTriplePlusArchString(UI.DependentToolChain, Arch,
-                                                  DependentOffloadKind)}] = {
-            CurI};
-      }
-      // Now that we have all the results generated, select the one that should
-      // be returned for the current depending action.
-      std::pair<const Action *, std::string> ActionTC = {
-          A, GetTriplePlusArchString(TC, BoundArch, TargetDeviceOffloadKind)};
-      assert(CachedResults.find(ActionTC) != CachedResults.end() &&
-            "Result does not exist??");
-      Result = CachedResults[ActionTC].front();
-    } else if (auto *DA = dyn_cast<OffloadDepsJobAction>(JA)) {
-      for (auto &DI : DA->getDependentActionsInfo()) {
-        assert(DI.DependentOffloadKind != Action::OFK_None &&
-              "Deps job with no offloading");
-
-        std::string OffloadingPrefix = Action::GetOffloadingFileNamePrefix(
-            DI.DependentOffloadKind,
-            DI.DependentToolChain->getTriple().normalize(),
-            /*CreatePrefixForHost=*/true);
-        auto CurI = InputInfo(
-            DA,
-            GetNamedOutputPath(C, *DA, BaseInput, DI.DependentBoundArch,
-                              /*AtTopLevel=*/false,
-                              MultipleArchs ||
-                                  DI.DependentOffloadKind == Action::OFK_HIP,
-                              OffloadingPrefix),
-            BaseInput);
-        // Save the result.
-        UnbundlingResults.push_back(CurI);
-
-        // Get the unique string identifier for this dependence and cache the
-        // result.
-        StringRef Arch = TargetDeviceOffloadKind == Action::OFK_HIP
-                            ? DI.DependentOffloadKind == Action::OFK_Host
-                                  ? StringRef()
-                                  : DI.DependentBoundArch
-                            : BoundArch;
-
-        CachedResults[{A, GetTriplePlusArchString(DI.DependentToolChain, Arch,
-                                                  DI.DependentOffloadKind)}] = {
-            CurI};
-      }
-
-      // Now that we have all the results generated, select the one that should be
-      // returned for the current depending action.
-      std::pair<const Action *, std::string> ActionTC = {
-          A, GetTriplePlusArchString(TC, BoundArch, TargetDeviceOffloadKind)};
-      auto It = CachedResults.find(ActionTC);
-      assert(It != CachedResults.end() && "Result does not exist??");
-      Result = It->second.front();
-    } else if (JA->getType() == types::TY_Nothing)
-      Result = {InputInfo(A, BaseInput)};
-    else {
-      std::string OffloadingPrefix;
-      // When generating binaries with -fsycl-link, the output file prefix is the
-      // triple arch only.  Do not add the arch when compiling for host.
-      if (!A->getOffloadingHostActiveKinds() &&
-          Args.hasArg(options::OPT_fsycl_link_EQ)) {
-        OffloadingPrefix = "-";
-        OffloadingPrefix += TC->getTriple().getArchName();
+        std::string TmpFileName = C.getDriver().GetTemporaryPath(
+            llvm::sys::path::stem(BaseInput),
+            JA->getType() == types::TY_Archive ? "a" : "txt");
+        const char *TmpFile = C.addTempFile(
+            C.getArgs().MakeArgString(TmpFileName), JA->getType());
+        CurI = InputInfo(JA->getType(), TmpFile, TmpFile);
       } else {
-        // We only have to generate a prefix for the host if this is not a
-        // top-level action.
-        OffloadingPrefix = Action::GetOffloadingFileNamePrefix(
-          A->getOffloadingDeviceKind(), EffectiveTriple.normalize(),
-          /*CreatePrefixForHost=*/isa<OffloadPackagerJobAction>(A) ||
-              !(A->getOffloadingHostActiveKinds() == Action::OFK_None ||
-                AtTopLevel));
+        std::string OffloadingPrefix = Action::GetOffloadingFileNamePrefix(
+          UI.DependentOffloadKind,
+          UI.DependentToolChain->getTriple().normalize(),
+          /*CreatePrefixForHost=*/true);
+        CurI = InputInfo(
+          UA,
+          GetNamedOutputPath(C, *UA, BaseInput, UI.DependentBoundArch,
+                            /*AtTopLevel=*/false,
+                            MultipleArchs ||
+                                UI.DependentOffloadKind == Action::OFK_HIP,
+                            OffloadingPrefix),
+          BaseInput);
       }
-      if (isa<OffloadWrapperJobAction>(JA)) {
-        if (Arg *FinalOutput = C.getArgs().getLastArg(options::OPT_o))
-          BaseInput = FinalOutput->getValue();
-        // Do not use the default image name when using -fno-sycl-rdc
-        else if (!tools::SYCL::shouldDoPerObjectFileLinking(C))
-          BaseInput = getDefaultImageName();
-        BaseInput =
-            C.getArgs().MakeArgString(std::string(BaseInput) + "-wrapper");
-      }
-      Result = InputInfo(A, GetNamedOutputPath(C, *JA, BaseInput, BoundArch,
-                                              AtTopLevel, MultipleArchs,
-                                              OffloadingPrefix),
-                        BaseInput);
-      if (T->canEmitIR() && OffloadingPrefix.empty())
-        handleTimeTrace(C, Args, JA, BaseInput, Result);
+      // Save the unbundling result.
+      UnbundlingResults.push_back(CurI);
+
+      // Get the unique string identifier for this dependence and cache the
+      // result.
+      StringRef Arch;
+      if (TargetDeviceOffloadKind == Action::OFK_HIP ||
+          TargetDeviceOffloadKind == Action::OFK_SYCL) {
+        if (UI.DependentOffloadKind == Action::OFK_Host)
+          Arch = StringRef();
+        else
+          Arch = UI.DependentBoundArch;
+      } else
+        Arch = BoundArch;
+      // When unbundling for SYCL and there is no Target offload, assume
+      // Host as the dependent offload, as the host path has been stripped
+      // in this instance
+      Action::OffloadKind DependentOffloadKind;
+      if (UI.DependentOffloadKind == Action::OFK_SYCL &&
+          TargetDeviceOffloadKind == Action::OFK_None &&
+          !(C.getDefaultToolChain().getTriple().isNativeCPU() &&
+            UA->getDependentActionsInfo().size() > 1))
+        DependentOffloadKind = Action::OFK_Host;
+      else
+        DependentOffloadKind = UI.DependentOffloadKind;
+
+      CachedResults[{A, GetTriplePlusArchString(UI.DependentToolChain, Arch,
+                                                DependentOffloadKind)}] = {
+          CurI};
+    }
+    // Now that we have all the results generated, select the one that should
+    // be returned for the current depending action.
+    std::pair<const Action *, std::string> ActionTC = {
+        A, GetTriplePlusArchString(TC, BoundArch, TargetDeviceOffloadKind)};
+    assert(CachedResults.find(ActionTC) != CachedResults.end() &&
+          "Result does not exist??");
+    Result = CachedResults[ActionTC].front();
+  } else if (auto *DA = dyn_cast<OffloadDepsJobAction>(JA)) {
+    for (auto &DI : DA->getDependentActionsInfo()) {
+      assert(DI.DependentOffloadKind != Action::OFK_None &&
+            "Deps job with no offloading");
+
+      std::string OffloadingPrefix = Action::GetOffloadingFileNamePrefix(
+          DI.DependentOffloadKind,
+          DI.DependentToolChain->getTriple().normalize(),
+          /*CreatePrefixForHost=*/true);
+      auto CurI = InputInfo(
+          DA,
+          GetNamedOutputPath(C, *DA, BaseInput, DI.DependentBoundArch,
+                            /*AtTopLevel=*/false,
+                            MultipleArchs ||
+                                DI.DependentOffloadKind == Action::OFK_HIP,
+                            OffloadingPrefix),
+          BaseInput);
+      // Save the result.
+      UnbundlingResults.push_back(CurI);
+
+      // Get the unique string identifier for this dependence and cache the
+      // result.
+      StringRef Arch = TargetDeviceOffloadKind == Action::OFK_HIP
+                          ? DI.DependentOffloadKind == Action::OFK_Host
+                                ? StringRef()
+                                : DI.DependentBoundArch
+                          : BoundArch;
+
+      CachedResults[{A, GetTriplePlusArchString(DI.DependentToolChain, Arch,
+                                                DI.DependentOffloadKind)}] = {
+          CurI};
     }
 
-    if (CCCPrintBindings && !CCGenDiagnostics) {
-      llvm::errs() << "# \"" << T->getToolChain().getTripleString() << '"'
-                  << " - \"" << T->getName() << "\", inputs: [";
-      for (unsigned i = 0, e = InputInfos.size(); i != e; ++i) {
-        llvm::errs() << InputInfos[i].getAsString();
+    // Now that we have all the results generated, select the one that should be
+    // returned for the current depending action.
+    std::pair<const Action *, std::string> ActionTC = {
+        A, GetTriplePlusArchString(TC, BoundArch, TargetDeviceOffloadKind)};
+    auto It = CachedResults.find(ActionTC);
+    assert(It != CachedResults.end() && "Result does not exist??");
+    Result = It->second.front();
+  } else if (JA->getType() == types::TY_Nothing)
+    Result = {InputInfo(A, BaseInput)};
+  else {
+    std::string OffloadingPrefix;
+    // When generating binaries with -fsycl-link, the output file prefix is the
+    // triple arch only.  Do not add the arch when compiling for host.
+    if (!A->getOffloadingHostActiveKinds() &&
+        Args.hasArg(options::OPT_fsycl_link_EQ)) {
+      OffloadingPrefix = "-";
+      OffloadingPrefix += TC->getTriple().getArchName();
+    } else {
+      // We only have to generate a prefix for the host if this is not a
+      // top-level action.
+      OffloadingPrefix = Action::GetOffloadingFileNamePrefix(
+        A->getOffloadingDeviceKind(), EffectiveTriple.normalize(),
+        /*CreatePrefixForHost=*/isa<OffloadPackagerJobAction>(A) ||
+            !(A->getOffloadingHostActiveKinds() == Action::OFK_None ||
+              AtTopLevel));
+    }
+    if (isa<OffloadWrapperJobAction>(JA)) {
+      if (Arg *FinalOutput = C.getArgs().getLastArg(options::OPT_o))
+        BaseInput = FinalOutput->getValue();
+      // Do not use the default image name when using -fno-sycl-rdc
+      else if (!tools::SYCL::shouldDoPerObjectFileLinking(C))
+        BaseInput = getDefaultImageName();
+      BaseInput =
+          C.getArgs().MakeArgString(std::string(BaseInput) + "-wrapper");
+    }
+    Result = InputInfo(A, GetNamedOutputPath(C, *JA, BaseInput, BoundArch,
+                                            AtTopLevel, MultipleArchs,
+                                            OffloadingPrefix),
+                      BaseInput);
+    if (T->canEmitIR() && OffloadingPrefix.empty())
+      handleTimeTrace(C, Args, JA, BaseInput, Result);
+  }
+
+  if (CCCPrintBindings && !CCGenDiagnostics) {
+    llvm::errs() << "# \"" << T->getToolChain().getTripleString() << '"'
+                << " - \"" << T->getName() << "\", inputs: [";
+    for (unsigned i = 0, e = InputInfos.size(); i != e; ++i) {
+      llvm::errs() << InputInfos[i].getAsString();
+      if (i + 1 != e)
+        llvm::errs() << ", ";
+    }
+    if (UnbundlingResults.empty())
+      llvm::errs() << "], output: " << Result.getAsString() << "\n";
+    else {
+      llvm::errs() << "], outputs: [";
+      for (unsigned i = 0, e = UnbundlingResults.size(); i != e; ++i) {
+        llvm::errs() << UnbundlingResults[i].getAsString();
         if (i + 1 != e)
           llvm::errs() << ", ";
       }
-      if (UnbundlingResults.empty())
-        llvm::errs() << "], output: " << Result.getAsString() << "\n";
-      else {
-        llvm::errs() << "], outputs: [";
-        for (unsigned i = 0, e = UnbundlingResults.size(); i != e; ++i) {
-          llvm::errs() << UnbundlingResults[i].getAsString();
-          if (i + 1 != e)
-            llvm::errs() << ", ";
-        }
-        llvm::errs() << "] \n";
-      }
-    } else {
-      if (UnbundlingResults.empty()){
-        T->ConstructJob(C, *JA, Result, InputInfos, Args, LinkingOutput);
-      } else {
-        T->ConstructJobMultipleOutputs(C, *JA, UnbundlingResults, InputInfos,
-                                      Args, LinkingOutput);
-      }
+      llvm::errs() << "] \n";
     }
+  } else {
+    if (UnbundlingResults.empty()){
+      T->ConstructJob(C, *JA, Result, InputInfos, Args, LinkingOutput);
+    } else {
+      T->ConstructJobMultipleOutputs(C, *JA, UnbundlingResults, InputInfos,
+                                    Args, LinkingOutput);
+    }
+  }
   return {Result};
 }
 

@@ -4966,8 +4966,6 @@ void Clang::ConstructHostCompilerJob(Compilation &C, const JobAction &JA,
                                      const InputInfo &Output,
                                      const InputInfoList &Inputs,
                                      const llvm::opt::ArgList &TCArgs) const {
-  llvm::errs() << "[DEBUG] Clang::ConstructHostCompilerJob is called";
-
   // The Host compilation step that occurs here is constructed based on the
   // input from the user.  This consists of the compiler to call and the
   // options that will be used during the compilation.
@@ -5260,7 +5258,6 @@ static void ProcessVSRuntimeLibrary(const ToolChain &TC, const ArgList &Args,
 void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                          const InputInfo &Output, const InputInfoList &Inputs,
                          const ArgList &Args, const char *LinkingOutput) const {
-  llvm::errs() << "[DEBUG] Clang::ConstructJob is called \n";
   const auto &TC = getToolChain();
   const llvm::Triple &RawTriple = TC.getTriple();
   llvm::Triple Triple = TC.getEffectiveTriple();

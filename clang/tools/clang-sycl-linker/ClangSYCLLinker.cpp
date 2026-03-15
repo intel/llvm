@@ -195,6 +195,96 @@ Expected<SmallVector<std::string>> getInput(const ArgList &Args) {
       return createStringError("Failed to open file " + *Filename);
     // TODO: Current use case involves LLVM IR bitcode files as input.
     // This will be extended to support SPIR-V IR files.
+    switch (Magic) {
+    case file_magic::unknown: 
+      llvm::errs() << "[DEBUG] unknown file: " << *Filename << "\n"; break;
+    case file_magic::bitcode: 
+      llvm::errs() << "[DEBUG] bitcode file: " << *Filename << "\n"; break;
+    case file_magic::clang_ast: 
+      llvm::errs() << "[DEBUG] clang AST (PCH/PCM) file: " << *Filename << "\n"; break;
+    case file_magic::archive: 
+      llvm::errs() << "[DEBUG] archive file: " << *Filename << "\n"; break;
+    case file_magic::elf: 
+      llvm::errs() << "[DEBUG] ELF unknown type: " << *Filename << "\n"; break;
+    case file_magic::elf_relocatable: 
+      llvm::errs() << "[DEBUG] ELF relocatable object: " << *Filename << "\n"; break;
+    case file_magic::elf_executable: 
+      llvm::errs() << "[DEBUG] ELF executable: " << *Filename << "\n"; break;
+    case file_magic::elf_shared_object: 
+      llvm::errs() << "[DEBUG] ELF shared object: " << *Filename << "\n"; break;
+    case file_magic::elf_core: 
+      llvm::errs() << "[DEBUG] ELF core file: " << *Filename << "\n"; break;
+    case file_magic::goff_object: 
+      llvm::errs() << "[DEBUG] GOFF object file: " << *Filename << "\n"; break;
+    case file_magic::macho_object: 
+      llvm::errs() << "[DEBUG] Mach-O object: " << *Filename << "\n"; break;
+    case file_magic::macho_executable: 
+      llvm::errs() << "[DEBUG] Mach-O executable: " << *Filename << "\n"; break;
+    case file_magic::macho_fixed_virtual_memory_shared_lib: 
+      llvm::errs() << "[DEBUG] Mach-O shared lib (FVM): " << *Filename << "\n"; break;
+    case file_magic::macho_core: 
+      llvm::errs() << "[DEBUG] Mach-O core: " << *Filename << "\n"; break;
+    case file_magic::macho_preload_executable: 
+      llvm::errs() << "[DEBUG] Mach-O preload executable: " << *Filename << "\n"; break;
+    case file_magic::macho_dynamically_linked_shared_lib: 
+      llvm::errs() << "[DEBUG] Mach-O dynamically linked shared lib: " << *Filename << "\n"; break;
+    case file_magic::macho_dynamic_linker: 
+      llvm::errs() << "[DEBUG] Mach-O dynamic linker: " << *Filename << "\n"; break;
+    case file_magic::macho_bundle: 
+      llvm::errs() << "[DEBUG] Mach-O bundle: " << *Filename << "\n"; break;
+    case file_magic::macho_dynamically_linked_shared_lib_stub: 
+      llvm::errs() << "[DEBUG] Mach-O shared lib stub: " << *Filename << "\n"; break;
+    case file_magic::macho_dsym_companion: 
+      llvm::errs() << "[DEBUG] Mach-O dSYM companion: " << *Filename << "\n"; break;
+    case file_magic::macho_kext_bundle: 
+      llvm::errs() << "[DEBUG] Mach-O kext bundle: " << *Filename << "\n"; break;
+    case file_magic::macho_universal_binary: 
+      llvm::errs() << "[DEBUG] Mach-O universal binary: " << *Filename << "\n"; break;
+    case file_magic::macho_file_set: 
+      llvm::errs() << "[DEBUG] Mach-O file set: " << *Filename << "\n"; break;
+    case file_magic::minidump: 
+      llvm::errs() << "[DEBUG] Windows minidump: " << *Filename << "\n"; break;
+    case file_magic::coff_cl_gl_object: 
+      llvm::errs() << "[DEBUG] COFF cl.exe intermediate: " << *Filename << "\n"; break;
+    case file_magic::coff_object: 
+      llvm::errs() << "[DEBUG] COFF object: " << *Filename << "\n"; break;
+    case file_magic::coff_import_library: 
+      llvm::errs() << "[DEBUG] COFF import library: " << *Filename << "\n"; break;
+    case file_magic::pecoff_executable: 
+      llvm::errs() << "[DEBUG] PECOFF executable: " << *Filename << "\n"; break;
+    case file_magic::windows_resource: 
+      llvm::errs() << "[DEBUG] Windows resource file (.res): " << *Filename << "\n"; break;
+    case file_magic::xcoff_object_32: 
+      llvm::errs() << "[DEBUG] XCOFF 32-bit object: " << *Filename << "\n"; break;
+    case file_magic::xcoff_object_64: 
+      llvm::errs() << "[DEBUG] XCOFF 64-bit object: " << *Filename << "\n"; break;
+    case file_magic::wasm_object: 
+      llvm::errs() << "[DEBUG] WebAssembly object: " << *Filename << "\n"; break;
+    case file_magic::pdb: 
+      llvm::errs() << "[DEBUG] Windows PDB debug info: " << *Filename << "\n"; break;
+    case file_magic::tapi_file: 
+      llvm::errs() << "[DEBUG] TAPI stub file: " << *Filename << "\n"; break;
+    case file_magic::cuda_fatbinary: 
+      llvm::errs() << "[DEBUG] CUDA fatbinary: " << *Filename << "\n"; break;
+    case file_magic::offload_binary: 
+      llvm::errs() << "[DEBUG] LLVM offload object: " << *Filename << "\n"; break;
+    case file_magic::dxcontainer_object: 
+      llvm::errs() << "[DEBUG] DirectX container object: " << *Filename << "\n"; break;
+    case file_magic::offload_bundle: 
+      llvm::errs() << "[DEBUG] Clang offload bundle: " << *Filename << "\n"; break;
+    case file_magic::offload_bundle_compressed: 
+      llvm::errs() << "[DEBUG] Compressed Clang offload bundle: " << *Filename << "\n"; break;
+    case file_magic::spirv_object: 
+      llvm::errs() << "[DEBUG] SPIR-V object: " << *Filename << "\n"; break;
+    default: 
+      llvm::errs() << "[DEBUG] unhandled file type: " << *Filename << "\n"; break;
+    }
+    if(Magic == file_magic::elf_shared_object) {
+      continue;
+    }
+    if(Magic == file_magic::spirv_object) {
+      continue;
+    }
     if (Magic != file_magic::bitcode)
       return createStringError("Unsupported file type");
     BitcodeFiles.push_back(*Filename);
