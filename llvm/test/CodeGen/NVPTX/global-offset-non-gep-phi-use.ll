@@ -15,7 +15,7 @@ define i64 @test_non_gep_phi_use(i32 %x) {
 ; CHECK-NEXT:    [[CTAID_X:%.*]] = tail call i32 @llvm.nvvm.read.ptx.sreg.ctaid.x()
 ; CHECK-NEXT:    [[CTAID_Y:%.*]] = tail call i32 @llvm.nvvm.read.ptx.sreg.ctaid.y()
 ; CHECK-NEXT:    [[CTAID_XY:%.*]] = select i1 [[TRUNC]], i32 [[CTAID_Y]], i32 [[CTAID_X]]
-; CHECK-NEXT:    [[SEL:%.*]] = select i1 [[TRUNC]], i64 4, i64 0
+; CHECK-NEXT:    [[SEL:%.*]] = select i1 [[TRUNC]], i64 1, i64 0
 ; CHECK-NEXT:    [[IDX:%.*]] = trunc i64 [[SEL]] to i32
 ; CHECK-NEXT:    ret i64 0
 ;
@@ -24,7 +24,7 @@ entry:
   %ctaid_x = tail call i32 @llvm.nvvm.read.ptx.sreg.ctaid.x()
   %ctaid_y = tail call i32 @llvm.nvvm.read.ptx.sreg.ctaid.y()
   %ctaid_xy = select i1 %trunc, i32 %ctaid_y, i32 %ctaid_x
-  %sel = select i1 %trunc, i64 4, i64 0
+  %sel = select i1 %trunc, i64 1, i64 0
   %idx = trunc i64 %sel to i32
   %offset = tail call i64 @_Z27__spirv_BuiltInGlobalOffseti(i32 %idx)
   ret i64 %offset
@@ -37,7 +37,7 @@ entry:
 ; CHECK-NEXT:    [[CTAID_X:%.*]] = tail call i32 @llvm.nvvm.read.ptx.sreg.ctaid.x()
 ; CHECK-NEXT:    [[CTAID_Y:%.*]] = tail call i32 @llvm.nvvm.read.ptx.sreg.ctaid.y()
 ; CHECK-NEXT:    [[CTAID_XY:%.*]] = select i1 [[TRUNC]], i32 [[CTAID_Y]], i32 [[CTAID_X]]
-; CHECK-NEXT:    [[SEL:%.*]] = select i1 [[TRUNC]], i64 4, i64 0
+; CHECK-NEXT:    [[SEL:%.*]] = select i1 [[TRUNC]], i64 1, i64 0
 ; CHECK-NEXT:    [[IDX:%.*]] = trunc i64 [[SEL]] to i32
 ; CHECK-NEXT:    [[GEP:%.*]] = getelementptr inbounds i32, ptr [[PTR]], i32 [[IDX]]
 ; CHECK-NEXT:    [[LOAD:%.*]] = load i32, ptr [[GEP]], align 4
