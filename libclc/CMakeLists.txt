@@ -147,10 +147,6 @@ add_dependencies( libclc libclc-opencl-builtins )
 add_custom_target( libspirv-builtins COMMENT "Build libspirv builtins" )
 add_dependencies( libclc libspirv-builtins )
 
-configure_file( libclc.pc.in libclc.pc @ONLY )
-install( FILES ${CMAKE_CURRENT_BINARY_DIR}/libclc.pc
-  DESTINATION "${CMAKE_INSTALL_DATADIR}/pkgconfig" )
-
 enable_testing()
 
 foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
