@@ -1,4 +1,7 @@
 # -*- Python -*-
+"""
+Lit configuration file for libclc tests.
+"""
 
 import os
 

@@ -288,3 +288,5 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
     PARENT_TARGET libclc-opencl-builtins
   )
 endforeach()
+
+add_subdirectory(test)

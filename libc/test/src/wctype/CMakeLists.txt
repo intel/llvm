@@ -62,3 +62,22 @@ add_libc_test(
     libc.src.wctype.iswspace
 )
 
+add_libc_test(
+  iswblank_test
+  SUITE
+    libc_wctype_unittests
+  SRCS
+    iswblank_test.cpp
+  DEPENDS
+    libc.src.wctype.iswblank
+)
+
+add_libc_test(
+  iswxdigit_test
+  SUITE
+    libc_wctype_unittests
+  SRCS
+    iswxdigit_test.cpp
+  DEPENDS
+    libc.src.wctype.iswxdigit
+)
