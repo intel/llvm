@@ -80,9 +80,9 @@ JIT_EXPORT_SYMBOL RTCResult compileSYCL(InMemoryFile SourceFile,
             clang::options::OPT_ftime_trace_granularity_EQ)) {
       if (!llvm::to_integer(Arg->getValue(), Granularity)) {
         return errorTo<RTCResult>(
-            createStringError("invalid integral value '" +
-                              std::string(Arg->getValue()) + "' in '" +
-                              Arg->getAsString(UserArgList) + "'"),
+            llvm::createStringError("invalid integral value '" +
+                                    std::string(Arg->getValue()) + "' in '" +
+                                    Arg->getAsString(UserArgList) + "'"),
             "Invalid time trace granularity", RTCResult::RTCErrorCode::INVALID);
       }
     }

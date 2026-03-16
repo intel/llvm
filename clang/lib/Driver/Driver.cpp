@@ -8927,7 +8927,9 @@ static void handleTimeTrace(Compilation &C, const ArgList &Args,
       if (Arg *FinalOutput = Args.getLastArg(options::OPT_o))
         return SmallString<128>(FinalOutput->getValue());
     }
-    return SmallString<128>(llvm::sys::path::filename(BaseInput));
+    // In compile+link mode, fall back to the job's unique temporary output
+    // name instead of the potentially-colliding source basename.
+    return SmallString<128>(llvm::sys::path::filename(Result.getFilename()));
   };
 
   SmallString<128> Path;
