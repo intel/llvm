@@ -49,7 +49,6 @@ math/sincos.cl
 math/sinh.cl
 math/tan.cl
 math/tanh.cl
-workitem/get_global_offset.cl
 workitem/get_global_size.cl
 workitem/get_local_linear_id.cl
 workitem/get_local_size.cl
