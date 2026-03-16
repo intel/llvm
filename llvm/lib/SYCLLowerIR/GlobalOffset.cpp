@@ -254,13 +254,6 @@ void GlobalOffsetPass::addImplicitParameterToCallers(
     }
     CallToOld = cast<CallInst>((*GlobalVMap)[CallToOld]);
     if (!CalleeWithImplicitParam) {
-      // If the result of the intrinsic is unused, just erase the call and
-      // avoid materializing dead memory operations.
-      if (CallToOld->use_empty()) {
-        CallToOld->eraseFromParent();
-        continue;
-      }
-
       // Replace __spirv_BuiltInGlobalOffset call with load from parameter.
       IRBuilder<> Builder(CallToOld);
       Value *Index = CallToOld->getArgOperand(0);
