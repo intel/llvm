@@ -629,6 +629,71 @@ sycl::context ctxt = d.get_platform().khr_get_default_context();
 ipc::event::open(handle_data, ctxt);
 ----
 
+!====
+a!
+[source]
+----
+sycl::event open(const handle_data_view_t &handle_data, const sycl::context &ctx)
+----
+!====
+
+_Effects_: Equivalent to:
+
+[source,c++,indent=2]
+----
+handle_data_t handle_data{handle_data_view.begin(), handle_data_view.end()};
+return ipc::event::open(handle_data, ctx);
+----
+
+!====
+a!
+[source]
+----
+sycl::event open(const handle_data_view_t &handle_data)
+----
+!====
+
+_Effects_: Equivalent to:
+
+[source,c++,indent=2]
+----
+sycl::device d;
+sycl::context ctxt = d.get_platform().khr_get_default_context();
+return ipc::event::open(handle_data, ctx);
+----
+
+!====
+a!
+[source]
+----
+void close(sycl::event &evt, const sycl::context &ctx)
+----
+!====
+
+_Precondition:_ `evt` was previously returned from a call to the `open` function
+in this same process, where `ctx` was passed as the context. This `evt` value
+has not yet been closed by calling the `close` function.
+
+_Effects:_ Closes an event object previously returned by a call to the `open`
+function.
+
+!====
+a!
+[source]
+----
+void close(sycl::event &evt)
+----
+!====
+
+_Effects_: Equivalent to:
+
+[source,c++,indent=2]
+----
+sycl::device d;
+sycl::context ctxt = d.get_platform().khr_get_default_context();
+return ipc::event::close(evt, ctx);
+----
+
 
 
 |====
