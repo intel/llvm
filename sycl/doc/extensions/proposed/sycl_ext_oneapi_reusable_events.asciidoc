@@ -58,6 +58,11 @@ finalized.
 *Shipping software products should not rely on APIs defined in this
 specification.*
 
+== Backend support status
+
+This extension is not supported with the Level Zero v1 adapter. All of the
+functions defined in the extension will throw an `exception` with the
+`errc::feature_not_supported` error code.
 
 == Overview
 
@@ -386,6 +391,12 @@ The core SYCL specification defines a default constructor for the `event`
 class. The default constructor creates an event that is equivalent to calling
 `make_event` with no parameters.
 
+Several of the `queue` class member functions from the core SYCL specification
+return an event. These events are associated with the queue's context and the
+queue's device as though created by `make_event` with that context and device.
+These events may be passed to any of the functions in this extension that take
+an event parameter.
+
 == Examples
 
 === Recording cross queue dependencies
@@ -465,8 +476,6 @@ int main() {
 
 === Mapping on Level Zero
 
-==== V2 adapter
-
 The APIs in this extension have a straightforward mapping to Level Zero when
 using counter-based events:
 
@@ -481,12 +490,6 @@ using counter-based events:
   `ze_event_handle_t`.
   Each call to `zeCommandListAppendSignalEvent` can pass this same
   `ze_event_handle_t`, thus reusing the backend event across many calls.
-
-==== V1 adapter
-
-This extension is not supported with the Level Zero v1 adapter. All of the
-functions defined in the extension will throw an `exception` with the
-`errc::feature_not_supported` error code.
 
 === Mapping on OpenCL
 
