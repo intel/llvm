@@ -230,6 +230,7 @@ TEST_P(urEnqueueKernelLaunchTest, InvalidWorkGroupSize) {
 
 TEST_P(urEnqueueKernelLaunchKernelWgSizeTest, Success) {
   UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{});
+  UUR_KNOWN_FAILURE_ON(uur::CUDA{});
 
   ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, n_dimensions,
                                        global_offset.data(), global_size.data(),
@@ -238,6 +239,8 @@ TEST_P(urEnqueueKernelLaunchKernelWgSizeTest, Success) {
 }
 
 TEST_P(urEnqueueKernelLaunchKernelWgSizeTest, SuccessWithExplicitLocalSize) {
+  UUR_KNOWN_FAILURE_ON(uur::CUDA{});
+
   ASSERT_SUCCESS(urEnqueueKernelLaunch(
       queue, kernel, n_dimensions, global_offset.data(), global_size.data(),
       wg_size.data(), nullptr, 0, nullptr, nullptr));

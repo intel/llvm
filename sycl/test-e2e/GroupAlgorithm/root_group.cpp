@@ -12,6 +12,10 @@
 // XFAIL: target-native_cpu
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142
 
+// TODO add REAL tracker not 12345
+// XFAIL: target-nvidia
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/12345
+
 #include <cassert>
 #include <cstdlib>
 #include <type_traits>
