@@ -16,10 +16,13 @@ define void @call_1() !dbg !5 {
 entry:
   %0 = call i64 @_Z27__spirv_BuiltInGlobalOffseti(i32 0)
     #dbg_declare(!8, !9, !DIExpression(), !11)
+  call void @use(i64 %0)
   ret void
 }
 
 declare i64 @_Z27__spirv_BuiltInGlobalOffseti(i32)
+
+declare void @use(i64)
 
 !llvm.dbg.cu = !{!0}
 !llvm.module.flags = !{!2, !3, !12}
@@ -55,6 +58,7 @@ declare i64 @_Z27__spirv_BuiltInGlobalOffseti(i32)
 ; CHECK-SAME: ) !dbg [[DBG6:![0-9]+]] {
 ; CHECK-NEXT:  [[ENTRY:.*:]]
 ; CHECK-NEXT:      #dbg_declare([[META9:![0-9]+]], [[META10:![0-9]+]], !DIExpression(), [[META12:![0-9]+]])
+; CHECK-NEXT:    call void @use(i64 0)
 ; CHECK-NEXT:    ret void
 ;
 ;
@@ -65,6 +69,7 @@ declare i64 @_Z27__spirv_BuiltInGlobalOffseti(i32)
 ; CHECK-NEXT:    [[TMP2:%.*]] = load i32, ptr [[TMP1]], align 4
 ; CHECK-NEXT:    [[TMP3:%.*]] = zext i32 [[TMP2]] to i64
 ; CHECK-NEXT:      #dbg_declare([[META9]], [[META14:![0-9]+]], !DIExpression(), [[META15:![0-9]+]])
+; CHECK-NEXT:    call void @use(i64 [[TMP3]])
 ; CHECK-NEXT:    ret void
 ;
 ;.

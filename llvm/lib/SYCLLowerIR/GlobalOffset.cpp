@@ -175,7 +175,7 @@ PreservedAnalyses GlobalOffsetPass::run(Module &M, ModuleAnalysisManager &) {
     addImplicitParameterToCallers(M, GlobalOffsetFunc, nullptr, KCache);
   }
 
-  // Replace each use of a collected Load with a Constant 0
+  // Replace each use with a Constant 0
   for (auto *U : make_early_inc_range(GlobalOffsetFunc->users())) {
     auto *CI = cast<CallInst>(U);
     CI->replaceAllUsesWith(ConstantInt::get(CI->getType(), 0));
@@ -254,6 +254,13 @@ void GlobalOffsetPass::addImplicitParameterToCallers(
     }
     CallToOld = cast<CallInst>((*GlobalVMap)[CallToOld]);
     if (!CalleeWithImplicitParam) {
+      // If the result of the intrinsic is unused, just erase the call and
+      // avoid materializing dead memory operations.
+      if (CallToOld->use_empty()) {
+        CallToOld->eraseFromParent();
+        continue;
+      }
+
       // Replace __spirv_BuiltInGlobalOffset call with load from parameter.
       IRBuilder<> Builder(CallToOld);
       Value *Index = CallToOld->getArgOperand(0);

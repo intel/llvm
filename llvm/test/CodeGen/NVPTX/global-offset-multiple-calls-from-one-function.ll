@@ -5,22 +5,26 @@ target datalayout = "e-i64:64-i128:128-v16:16-v32:32-n16:32:64"
 target triple = "nvptx64-nvidia-cuda"
 
 ; This test checks that when there are multiple calls to a function that uses
-; the intrinsic that the caller and the callee have two clones each - one with
+; the bulit-in that the caller and the callee have two clones each - one with
 ; the offset parameter and one without. It also checks that a clone with
 ; multiple calls to other functions that have a clone as well will have
 ; all calls redirected to the corresponding variants.
 
 declare i64 @_Z27__spirv_BuiltInGlobalOffseti(i32)
 
+declare void @use(i64)
+
 define i64 @_ZTS14other_function() {
 ; CHECK: define i64 @_ZTS14other_function() {
   %1 = tail call i64 @_Z27__spirv_BuiltInGlobalOffseti(i32 2)
+  call void @use(i64 %1)
 ; CHECK-NOT: tail call i64 @_Z27__spirv_BuiltInGlobalOffseti(i32 2)
-; CHECK zext i32 0 to i64
+; CHECK: call void @use(i64 0)
 
   %5 = tail call i64 @_Z27__spirv_BuiltInGlobalOffseti(i32 2)
 ; CHECK-NOT: tail call i64 @_Z27__spirv_BuiltInGlobalOffseti(i32 2)
 
+  call void @use(i64 %5)
   ret i64 %1
 ; CHECK: ret i64 0
 }

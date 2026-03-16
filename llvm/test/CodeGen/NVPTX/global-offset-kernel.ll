@@ -8,13 +8,17 @@ target triple = "nvptx64-nvidia-cuda"
 
 declare i64 @_Z27__spirv_BuiltInGlobalOffseti(i32)
 
+declare void @use(i64)
+
 define ptx_kernel void @_ZTS14example_kernel() {
 ; CHECK-LABEL: define ptx_kernel void @_ZTS14example_kernel() {
 ; CHECK-NEXT:  [[ENTRY:.*:]]
+; CHECK-NEXT:    call void @use(i64 0)
 ; CHECK-NEXT:    ret void
 ;
 entry:
   %0 = call i64 @_Z27__spirv_BuiltInGlobalOffseti(i32 2)
+  call void @use(i64 %0)
   ret void
 }
 
@@ -24,6 +28,7 @@ entry:
 ; CHECK-NEXT:   [[GEP:%.*]] = getelementptr inbounds i32, ptr [[A]], i32 2
 ; CHECK-NEXT:   [[L:%.*]] = load i32, ptr [[GEP]], align 4
 ; CHECK-NEXT:   [[EXT:%.*]] = zext i32 [[L]] to i64
+; CHECK-NEXT:   call void @use(
 ; CHECK-NEXT:   ret void
 ; CHECK-NEXT: }
 

@@ -13,10 +13,13 @@ define i64 @_ZN7__spirv21getGlobalInvocationIdILi1EEEmv() !dbg !5 {
 entry:
   %0 = call i32 @llvm.nvvm.read.ptx.sreg.ctaid.y(), !dbg !9
   %1 = call i64 @_Z27__spirv_BuiltInGlobalOffseti(i32 0)
+  call void @use(i64 %1)
   ret i64 0
 }
 
 declare i64 @_Z27__spirv_BuiltInGlobalOffseti(i32)
+
+declare void @use(i64)
 
 ; Function Attrs: nocallback nofree nosync nounwind speculatable willreturn memory(none)
 declare noundef i32 @llvm.nvvm.read.ptx.sreg.ctaid.y() #1
@@ -41,6 +44,7 @@ attributes #1 = { nocallback nofree nosync nounwind speculatable willreturn memo
 ; CHECK-SAME: ) !dbg [[DBG5:![0-9]+]] {
 ; CHECK-NEXT:  [[ENTRY:.*:]]
 ; CHECK-NEXT:    [[TMP0:%.*]] = call i32 @llvm.nvvm.read.ptx.sreg.ctaid.y(), !dbg [[DBG9:![0-9]+]]
+; CHECK-NEXT:    call void @use(i64 0)
 ; CHECK-NEXT:    ret i64 0
 ;
 ;
@@ -51,6 +55,7 @@ attributes #1 = { nocallback nofree nosync nounwind speculatable willreturn memo
 ; CHECK-NEXT:    [[TMP2:%.*]] = getelementptr inbounds i32, ptr [[TMP0]], i32 0
 ; CHECK-NEXT:    [[TMP3:%.*]] = load i32, ptr [[TMP2]], align 4
 ; CHECK-NEXT:    [[TMP4:%.*]] = zext i32 [[TMP3]] to i64
+; CHECK-NEXT:    call void @use(i64 [[TMP4]])
 ; CHECK-NEXT:    ret i64 0
 ;
 ;.

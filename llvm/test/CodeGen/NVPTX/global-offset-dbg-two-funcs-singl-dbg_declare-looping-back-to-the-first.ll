@@ -17,10 +17,13 @@ define void @call_1() {
 entry:
     #dbg_declare(ptr null, !9, !DIExpression(), !20)
   %0 = call i64 @_Z27__spirv_BuiltInGlobalOffseti(i32 0)
+  call void @use(i64 %0)
   ret void
 }
 
 declare i64 @_Z27__spirv_BuiltInGlobalOffseti(i32)
+
+declare void @use(i64)
 
 attributes #0 = { nounwind speculatable memory(none) }
 
@@ -65,6 +68,7 @@ attributes #0 = { nounwind speculatable memory(none) }
 ; CHECK-LABEL: define void @call_1() {
 ; CHECK-NEXT:  [[ENTRY:.*:]]
 ; CHECK-NEXT:      #dbg_declare(ptr null, [[META10:![0-9]+]], !DIExpression(), [[META21:![0-9]+]])
+; CHECK-NEXT:    call void @use(i64 0)
 ; CHECK-NEXT:    ret void
 ;
 ;
@@ -75,6 +79,7 @@ attributes #0 = { nounwind speculatable memory(none) }
 ; CHECK-NEXT:    [[TMP1:%.*]] = getelementptr inbounds i32, ptr [[TMP0]], i32 0
 ; CHECK-NEXT:    [[TMP2:%.*]] = load i32, ptr [[TMP1]], align 4
 ; CHECK-NEXT:    [[TMP3:%.*]] = zext i32 [[TMP2]] to i64
+; CHECK-NEXT:    call void @use(i64 [[TMP3]])
 ; CHECK-NEXT:    ret void
 ;
 ;.

@@ -8,11 +8,14 @@ target triple = "nvptx64-nvidia-cuda"
 
 declare i64 @_Z27__spirv_BuiltInGlobalOffseti(i32)
 
+declare void @use(i64)
+
 define i64 @_ZTS15other_function() {
 ; CHECK: define i64 @_ZTS15other_function() {
   %1 = tail call i64 @_Z27__spirv_BuiltInGlobalOffseti(i32 2)
 ; CHECK-NOT: tail call i64 @_Z27__spirv_BuiltInGlobalOffseti(i32 2)
 ; CHECK: ret i64 0
+  call void @use(i64 %1)
   ret i64 %1
 }
 
@@ -30,6 +33,7 @@ define i64 @_ZTS14mixed_function() {
   %2 = tail call i64 @_Z27__spirv_BuiltInGlobalOffseti(i32 2)
 ; CHECK-NOT: tail call i64 @_Z27__spirv_BuiltInGlobalOffseti(i32 2)
 ; CHECK: ret i64 %1
+  call void @use(i64 %2)
   ret i64 %1
 }
 

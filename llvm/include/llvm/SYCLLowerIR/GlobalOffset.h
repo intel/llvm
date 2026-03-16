@@ -20,9 +20,10 @@ namespace llvm {
 class ModulePass;
 class PassRegistry;
 
-/// This pass operates on SYCL kernels that target AMDGPU or NVVM. It looks for
-/// uses of the `llvm.{amdgcn|nvvm}.implicit.offset` intrinsic and replaces it
-/// with an offset parameter which will be threaded through from the kernel
+/// This pass operates on SYCL kernels and looks for calls to the
+/// `__spirv_BuiltInGlobalOffset` builtin (mangled as
+/// `_Z27__spirv_BuiltInGlobalOffseti`). These uses are replaced with an
+/// explicit offset parameter which is threaded through from the kernel
 /// entry point.
 class GlobalOffsetPass : public PassInfoMixin<GlobalOffsetPass> {
 public:
