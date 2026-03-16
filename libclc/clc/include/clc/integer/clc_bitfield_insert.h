@@ -9,11 +9,11 @@
 #ifndef __CLC_INTEGER_CLC_BITFIELD_INSERT_H__
 #define __CLC_INTEGER_CLC_BITFIELD_INSERT_H__
 
-#include <clc/internal/clc.h>
+#include "clc/internal/clc.h"
 
 #define __CLC_FUNCTION __clc_bitfield_insert
-#define __CLC_BODY <clc/integer/clc_bitfield_insert.inc>
-#include <clc/integer/gentype.inc>
+#define __CLC_BODY "clc/integer/clc_bitfield_insert.inc"
+#include "clc/integer/gentype.inc"
 
 #undef __CLC_FUNCTION
 
