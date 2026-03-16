@@ -752,8 +752,18 @@ detail::EventImplPtr handler::finalize() {
     return EventImpl;
   }
 
-  // Because graph case is handled right above.
+  // Because command graph case is handled right above.
   assert(Queue);
+
+  // Native graph recording limitation
+  if (Queue->isNativeRecording()) {
+    if (type == detail::CGType::CodeplayHostTask) {
+      throw sycl::exception(
+          make_error_code(errc::feature_not_supported),
+          "SYCL host_task is not supported in native recording mode. Use "
+          "zeCommandListAppendHostFunction as a workaround.");
+    }
+  }
 
   // If the queue has an associated graph then we need to take the CG and pass
   // it to the graph to create a node, rather than submit it to the scheduler.

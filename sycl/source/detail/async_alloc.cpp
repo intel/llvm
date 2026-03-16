@@ -67,6 +67,14 @@ void *async_malloc(sycl::handler &h, sycl::usm::alloc kind, size_t size) {
         sycl::make_error_code(sycl::errc::feature_not_supported),
         "Only device backed asynchronous allocations are supported!");
 
+  // Allocations not supported in graph native recording mode
+  if (auto *Queue = h.impl->get_queue_or_null();
+      Queue && Queue->isNativeRecording()) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "async_malloc is not supported in native recording mode.");
+  }
+
   detail::adapter_impl &Adapter = h.getContextImpl().getAdapter();
 
   // Get CG event dependencies for this allocation.
@@ -116,6 +124,14 @@ __SYCL_EXPORT void *async_malloc(const sycl::queue &q, sycl::usm::alloc kind,
 
 __SYCL_EXPORT void *async_malloc_from_pool(sycl::handler &h, size_t size,
                                            const memory_pool &pool) {
+
+  // Allocations not supported in graph native recording mode
+  if (auto *Queue = h.impl->get_queue_or_null();
+      Queue && Queue->isNativeRecording()) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "async_malloc is not supported in native recording mode.");
+  }
 
   detail::adapter_impl &Adapter = h.getContextImpl().getAdapter();
   detail::memory_pool_impl &memPoolImpl = *detail::getSyclObjImpl(pool);
@@ -179,6 +195,14 @@ __SYCL_EXPORT void async_free(sycl::handler &h, void *ptr) {
                             "Cannot add a free node to a graph for which "
                             "there is no associated allocation node!");
     }
+  }
+
+  // Not supported in graph native recording mode
+  if (auto *Queue = h.impl->get_queue_or_null();
+      Queue && Queue->isNativeRecording()) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "async_free is not supported in native recording mode.");
   }
 
   h.impl->MFreePtr = ptr;

@@ -590,3 +590,17 @@ bool compareProfiling(event Event1, event Event2) {
 
   return (Pass1 && Pass2);
 }
+
+/// Helper to test that a callable throws a sycl::exception.
+/// Returns true if exception was thrown, false otherwise.
+template <typename Func>
+bool expectException(Func &&Operation, const char *OperationName) {
+  try {
+    Operation();
+    std::cerr << "ERROR: Expected exception was not thrown for "
+              << OperationName << std::endl;
+    return false;
+  } catch (const sycl::exception &e) {
+    return true;
+  }
+}
