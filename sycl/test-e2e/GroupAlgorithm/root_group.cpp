@@ -1,3 +1,4 @@
+// TIMEOUT: 600
 // Fails with opencl non-cpu, enable when fixed.
 // XFAIL: (opencl && !cpu)
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/14641

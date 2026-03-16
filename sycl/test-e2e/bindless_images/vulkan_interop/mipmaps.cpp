@@ -1,3 +1,4 @@
+// TIMEOUT: 600
 // REQUIRES: aspect-ext_oneapi_bindless_images
 // REQUIRES: aspect-ext_oneapi_external_memory_import
 // REQUIRES: aspect-ext_oneapi_mipmap
