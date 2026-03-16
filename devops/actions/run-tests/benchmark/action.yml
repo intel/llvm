@@ -196,7 +196,7 @@ runs:
       fi
       echo "CR_BUILD_REF=${CR_BUILD_REF}" >> $GITHUB_OUTPUT
   - name: Checkout results repo
-    uses: actions/checkout@v5
+    uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
     with:
       ref: ${{ steps.establish_outputs.outputs.BENCHMARK_RESULTS_BRANCH }}
       path: ${{ steps.establish_outputs.outputs.BENCHMARK_RESULTS_REPO_PATH }}
@@ -352,6 +352,7 @@ runs:
         --results-dir "${BENCHMARK_RESULTS_REPO_PATH}/" \
         --output-dir "${BENCHMARK_RESULTS_REPO_PATH}/" \
         --preset "$PRESET" \
+        --list \
         --timestamp-override "$SAVE_TIMESTAMP" \
         --detect-version sycl,compute_runtime \
         --produce-github-summary \

@@ -285,7 +285,7 @@ class TestE2E(unittest.TestCase):
                 {"pytorch", "L0"},
             )
             self._checkCase(
-                "torch_benchmark_l0 KernelSubmitGraphMultiQueue kernelsPerQueue 64 CPU count",
+                "torch_benchmark_l0 KernelSubmitGraphMultiQueue KernelsPerQueue 64 CPU count",
                 "KernelSubmitGraphMultiQueue large, CPU count",
                 {"pytorch", "L0"},
             )
@@ -334,7 +334,7 @@ class TestE2E(unittest.TestCase):
                 {"pytorch", "SYCL"},
             )
             self._checkCase(
-                "torch_benchmark_sycl KernelSubmitGraphMultiQueue kernelsPerQueue 32 CPU count",
+                "torch_benchmark_sycl KernelSubmitGraphMultiQueue KernelsPerQueue 32 CPU count",
                 "KernelSubmitGraphMultiQueue medium, CPU count",
                 {"pytorch", "SYCL"},
             )
@@ -388,7 +388,7 @@ class TestE2E(unittest.TestCase):
                 {"pytorch", "SYCL"},
             )
             self._checkCase(
-                "torch_benchmark_syclpreview KernelSubmitGraphMultiQueue kernelsPerQueue 10",
+                "torch_benchmark_syclpreview KernelSubmitGraphMultiQueue KernelsPerQueue 10",
                 "KernelSubmitGraphMultiQueue small",
                 {"pytorch", "SYCL"},
             )

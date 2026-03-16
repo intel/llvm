@@ -2759,12 +2759,6 @@ foreach layout_a = ["row", "col"] in {
   } // layout_b
 } // layout_a
 
-// SYCL
-def int_nvvm_implicit_offset :
-  ClangBuiltin<"__builtin_ptx_implicit_offset">,
-  Intrinsic<[llvm_ptr_ty], [],
-  [IntrNoMem, IntrSpeculatable]>;
-
 class NVVM_MMA_BLOCK_SCALE<WMMA_REGS A, WMMA_REGS B, WMMA_REGS C, WMMA_REGS D>
   : Intrinsic<D.regs,
               !listconcat(A.regs, B.regs, C.regs,
