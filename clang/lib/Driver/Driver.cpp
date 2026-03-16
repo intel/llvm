@@ -5758,7 +5758,6 @@ class OffloadingActionBuilder final {
     bool addSYCLDeviceLibs(const ToolChain *TC, ActionList &DeviceLinkObjects,
                            bool isMSVCEnv, bool isNativeCPU,
                            Action *&NativeCPULib, const char *BoundArch) {
-
       int NumOfDeviceLibLinked = 0;
       SmallVector<SmallString<128>, 4> LibLocCandidates;
       SYCLInstallation.getSYCLDeviceLibPath(LibLocCandidates);

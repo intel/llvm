@@ -1446,8 +1446,8 @@ void SYCLToolChain::addClangTargetOptions(
   }
 
   // Add device libraries.
-  // This is currently only done with the new offloading model, to better fit
-  // with community expectations
+  // This is only done with the new offloading model, to fit with LLVM community
+  // implementation.
   if (!getDriver().getUseNewOffloadingDriver() || !getTriple().isSPIROrSPIRV())
     return;
 

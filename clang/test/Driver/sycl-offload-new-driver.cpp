@@ -29,7 +29,6 @@
 // CHK-FLOW-NEXT: clang{{.*}} "-cc1" "-triple" "x86_64-unknown-linux-gnu"{{.*}} "-fsycl-is-host"{{.*}} "-include-internal-header" "[[HEADER]].h" "-dependency-filter" "[[HEADER]].h" {{.*}} "-include-internal-footer" "[[FOOTER]].h" "-dependency-filter" "[[FOOTER]].h"{{.*}} "--offload-new-driver" {{.*}} "-fembed-offload-object=[[PACKOUT]]" {{.*}} "-o" "[[CC1FINALOUT:.*]]" "-x" "c++" "[[INPUT]]"
 // CHK-FLOW-NEXT: clang-linker-wrapper{{.*}} "--host-triple=x86_64-unknown-linux-gnu"{{.*}} "--linker-path={{.*}}/ld" {{.*}} "[[CC1FINALOUT]]"
 
-/// Verify options passed to clang-linker-wrapper
 /// Verify phases used to generate SPIR-V instead of LLVM-IR
 // RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver \
 // RUN:          -fsycl-device-obj=spirv -ccc-print-phases %s 2>&1 \
