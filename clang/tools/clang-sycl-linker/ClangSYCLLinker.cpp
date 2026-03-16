@@ -61,7 +61,7 @@ static bool SaveTemps = false;
 static bool DryRun = false;
 
 /// Print verbose output.
-static bool Verbose = true;
+static bool Verbose = false;
 
 /// Filename of the output being created.
 static StringRef OutputFile;
@@ -281,9 +281,12 @@ Expected<SmallVector<std::string>> getInput(const ArgList &Args) {
     default: 
       llvm::errs() << "[DEBUG] unhandled file type: " << *Filename << "\n"; break;
     }
-    if(Magic == file_magic::elf_shared_object) {
+    if (Magic == file_magic::elf_shared_object  ||
+        Magic == file_magic::elf_relocatable    ||
+        Magic == file_magic::elf_executable     ||
+        Magic == file_magic::spirv_object       ||
+        Magic == file_magic::archive)
       continue;
-    }
     if(Magic == file_magic::spirv_object) {
       continue;
     }
@@ -403,70 +406,6 @@ Expected<StringRef> linkDeviceCode(ArrayRef<std::string> InputFiles,
   }
 
   return *BitcodeOutput;
-}
-
-/// Run Code Generation using LLVM backend.
-/// \param 'File' The input LLVM IR bitcode file.
-/// \param 'Args' encompasses all arguments required for linking device code and
-/// will be parsed to generate options required to be passed into the backend.
-/// \param 'OutputFile' The output file name.
-/// \param 'C' The LLVM context.
-static Error runCodeGen(StringRef File, const ArgList &Args,
-                        StringRef OutputFile, LLVMContext &C) {
-  llvm::TimeTraceScope TimeScope("Code generation");
-
-  // Parse input module.
-  SMDiagnostic Err;
-  std::unique_ptr<Module> M = parseIRFile(File, Err, C);
-  if (!M)
-    return createStringError(Err.getMessage());
-
-  if (Error Err = M->materializeAll())
-    return Err;
-
-  Triple TargetTriple(Args.getLastArgValue(OPT_triple_EQ));
-
-  M->setTargetTriple(TargetTriple);
-
-  // Get a handle to a target backend.
-  std::string Msg;
-  const Target *T = TargetRegistry::lookupTarget(M->getTargetTriple(), Msg);
-  if (!T)
-    return createStringError(Msg + ": " + M->getTargetTriple().str());
-
-  // Allocate target machine.
-  TargetOptions Options;
-  std::optional<Reloc::Model> RM;
-  std::optional<CodeModel::Model> CM;
-  std::unique_ptr<TargetMachine> TM(
-      T->createTargetMachine(M->getTargetTriple(), /* CPU */ "",
-                             /* Features */ "", Options, RM, CM));
-  if (!TM)
-    return createStringError("Could not allocate target machine!");
-
-  // Set data layout if needed.
-  if (M->getDataLayout().isDefault())
-    M->setDataLayout(TM->createDataLayout());
-
-  // Open output file for writing.
-  int FD = -1;
-  if (std::error_code EC = sys::fs::openFileForWrite(OutputFile, FD))
-    return errorCodeToError(EC);
-  auto OS = std::make_unique<llvm::raw_fd_ostream>(FD, true);
-
-  legacy::PassManager CodeGenPasses;
-  TargetLibraryInfoImpl TLII(M->getTargetTriple());
-  CodeGenPasses.add(new TargetLibraryInfoWrapperPass(TLII));
-  if (TM->addPassesToEmitFile(CodeGenPasses, *OS, nullptr,
-                              CodeGenFileType::ObjectFile))
-    return createStringError("Failed to execute LLVM backend");
-  CodeGenPasses.run(*M);
-
-  if (Verbose)
-    errs() << formatv("LLVM backend: input: {0}, output: {1}\n", File,
-                      OutputFile);
-
-  return Error::success();
 }
 
 /// Run AOT compilation for Intel CPU.

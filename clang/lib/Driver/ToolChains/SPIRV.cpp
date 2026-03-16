@@ -147,7 +147,17 @@ void SPIRV::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   const ToolChain &ToolChain = getToolChain();
   std::string Linker = ToolChain.GetProgramPath(getShortName());
   ArgStringList CmdArgs;
-  AddLinkerInputs(getToolChain(), Inputs, Args, CmdArgs, JA);
+  for (const Arg *A : Args) {
+    if (A->getOption().matches(options::OPT_Xlinker)) {
+      // Each -Xlinker val becomes a direct argument to clang-sycl-linker.
+      CmdArgs.push_back(A->getValue());
+      A->claim();
+    }
+  }
+  for (const InputInfo &II : Inputs) {
+    if (II.isFilename())
+      CmdArgs.push_back(II.getFilename());
+  }
 
   CmdArgs.push_back("-o");
   CmdArgs.push_back(Output.getFilename());
@@ -159,13 +169,6 @@ void SPIRV::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     // All SYCL-specific args were already forwarded as -Xlinker values
     // by clang-linker-wrapper. AddLinkerInputs collects them here.
     Linker = ToolChain.GetProgramPath("clang-sycl-linker");
-
-    // Collect all -Xlinker args (triple, arch, library-path, etc.)
-    // and input files into CmdArgs.
-    AddLinkerInputs(getToolChain(), Inputs, Args, CmdArgs, JA);
-
-    CmdArgs.push_back("-o");
-    CmdArgs.push_back(Output.getFilename());
   }
   else if (!llvm::sys::fs::can_execute(Linker) &&
            !C.getArgs().hasArg(clang::options::OPT__HASH_HASH_HASH)) {
@@ -176,6 +179,8 @@ void SPIRV::Linker::ConstructJob(Compilation &C, const JobAction &JA,
                                          Args.MakeArgString(Linker), CmdArgs,
                                          Inputs, Output));
   llvm::errs() << "[DEBUG] calling the command " << Linker << "\n";
+  llvm::errs() << "[DEBUG] with arguments: " << llvm::join(CmdArgs, " ") << "\n";
+  llvm::errs() << "[DEBUG] output file: " << Output.getFilename() << "\n";
 }
 
 SPIRVToolChain::SPIRVToolChain(const Driver &D, const llvm::Triple &Triple,

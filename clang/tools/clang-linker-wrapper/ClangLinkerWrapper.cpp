@@ -966,7 +966,7 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args,
                                + A->getValue())});
 
     // AOT backend options (ocloc for Intel GPU)
-    if (Arg *A = Args.getLastArg(OPT_sycl_post_link_options_EQ))
+    if (Arg *A = Args.getLastArg(OPT_compiler_arg_EQ))
         CmdArgs.append({"-Xlinker",
             Args.MakeArgString(StringRef("-ocloc-options=")
                                + A->getValue())});
