@@ -323,6 +323,27 @@ ur_result_t ur_platform_handle_t_::initialize() {
                                                  &sizeOfDriverString);
   }
 
+  auto driver_blacklist = ur_getenv("UR_L0_DRIVER_BLACKLIST");
+  if (driver_blacklist.has_value()) {
+    UR_LOG(DEBUG, "ZeDriverVersion is set to: {}", ZeDriverVersion);
+    UR_LOG(DEBUG, "UR_L0_DRIVER_BLACKLIST is set to: {}", *driver_blacklist);
+    const char *driverVersionStr = ZeDriverVersion.c_str();
+    char *saveptr = nullptr;
+    char *version = strtok_r(driver_blacklist->data(), ",", &saveptr);
+    while (version) {
+      if (strcmp(version, driverVersionStr) == 0) {
+        UR_LOG(WARN,
+               "Skipping L0 driver due to driver version blacklist "
+               "(UR_L0_DRIVER_BLACKLIST): "
+               "{} matches blacklist entry",
+               version);
+        isDriverVersionBlacklisted = true;
+        break;
+      }
+      version = strtok_r(nullptr, ",", &saveptr);
+    }
+  }
+
   // Check if import user ptr into USM feature has been requested.
   // If yes, then set up L0 API pointers if the platform supports it.
   ZeUSMImport.setZeUSMImport(this);

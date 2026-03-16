@@ -59,6 +59,8 @@ struct ur_platform_handle_t_ : ur::handle_base<ur::level_zero::ddi_getter>,
   std::string ZeDriverApiVersion;
   ze_api_version_t ZeApiVersion;
 
+  bool isDriverVersionBlacklisted{false};
+
   // Cache driver extensions
   std::unordered_map<std::string, uint32_t> zeDriverExtensionMap;
 
