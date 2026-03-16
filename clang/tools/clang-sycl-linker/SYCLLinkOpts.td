@@ -54,3 +54,11 @@ def ocloc_options_EQ : Joined<["--", "-"], "ocloc-options=">,
 def opencl_aot_options_EQ : Joined<["--", "-"], "opencl-aot-options=">,
   Flags<[LinkerOnlyOption]>,
   HelpText<"Options passed to opencl-aot for Intel CPU AOT compilation">;
+
+def llvm_spirv_options_EQ : Joined<["--", "-"], "llvm-spirv-options=">,
+  Flags<[LinkerOnlyOption]>,
+  HelpText<"Options passed to llvm-spirv for LLVM IR to SPIR-V translation">;
+
+def sycl_post_link_options_EQ : Joined<["--", "-"], "sycl-post-link-options=">,
+  Flags<[LinkerOnlyOption]>,
+  HelpText<"Options passed to sycl-post-link tool">;

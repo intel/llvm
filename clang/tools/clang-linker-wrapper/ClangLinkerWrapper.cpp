@@ -933,11 +933,49 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args,
   if (ActiveOffloadKindMask & OFK_SYCL) {
     llvm::errs() << "[DEBUG] add the sycl-link";
     CmdArgs.push_back("--sycl-link");
-    // CmdArgs.append(
-    //     {"-Xlinker", Args.MakeArgString("-triple=" + Triple.getTriple())});
-    CmdArgs.append(
-        {"-Xlinker", Args.MakeArgString("-triple=spir64")});
-    CmdArgs.append({"-Xlinker", Args.MakeArgString("-arch=" + Arch)});
+     // These become -Xlinker values that AddLinkerInputs
+    // will collect in SPIRV::Linker::ConstructJob.
+    CmdArgs.append({"-Xlinker",
+        Args.MakeArgString("-triple=" + Triple.getTriple())});
+
+    StringRef Arch = Args.getLastArgValue(OPT_arch_EQ);
+    CmdArgs.append({"-Xlinker",
+        Args.MakeArgString("-arch=" + Arch)});
+
+    // Device library location
+    if (Arg *A = Args.getLastArg(OPT_sycl_device_library_location_EQ))
+        CmdArgs.append({"-Xlinker",
+            Args.MakeArgString(StringRef("-library-path=")
+                               + A->getValue())});
+
+    // Device library files
+    for (StringRef Lib : Args.getAllArgValues(OPT_sycl_device_lib_EQ))
+        CmdArgs.append({"-Xlinker",
+            Args.MakeArgString("-device-libs=" + Lib)});
+
+    // sycl-post-link options
+    if (Arg *A = Args.getLastArg(OPT_sycl_post_link_options_EQ))
+        CmdArgs.append({"-Xlinker",
+            Args.MakeArgString(StringRef("-sycl-post-link-options=")
+                               + A->getValue())});
+
+    // llvm-spirv options
+    if (Arg *A = Args.getLastArg(OPT_llvm_spirv_options_EQ))
+        CmdArgs.append({"-Xlinker",
+            Args.MakeArgString(StringRef("-llvm-spirv-options=")
+                               + A->getValue())});
+
+    // AOT backend options (ocloc for Intel GPU)
+    if (Arg *A = Args.getLastArg(OPT_sycl_post_link_options_EQ))
+        CmdArgs.append({"-Xlinker",
+            Args.MakeArgString(StringRef("-ocloc-options=")
+                               + A->getValue())});
+
+    // verbose and save-temps
+    if (Args.hasArg(OPT_verbose))
+        CmdArgs.append({"-Xlinker", "-v"});
+    if (Args.hasArg(OPT_save_temps))
+        CmdArgs.append({"-Xlinker", "-save-temps"});
   }
 
   for (StringRef Arg : Args.getAllArgValues(OPT_linker_arg_EQ))
