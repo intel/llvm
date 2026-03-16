@@ -193,8 +193,8 @@ ur_result_t initPlatforms(ur_adapter_handle_t_ *adapter, PlatformVec &platforms,
           if (ZeDriverGetProperties.driverVersion ==
               ZeInitDriverProperties.driverVersion) {
             UR_LOG(DEBUG,
-                   "\nzeDriverHandle {} matched between zeDriverGet and "
-                   "zeInitDrivers. Not adding duplicate driver to list\n",
+                   "zeDriverHandle {} matched between zeDriverGet and "
+                   "zeInitDrivers. Not adding duplicate driver to list",
                    ZeDriverGetHandles[Y]);
             unMatchedDriverHandle = false;
             break;
@@ -202,8 +202,8 @@ ur_result_t initPlatforms(ur_adapter_handle_t_ *adapter, PlatformVec &platforms,
         }
         if (unMatchedDriverHandle) {
           UR_LOG(DEBUG,
-                 "\nzeDriverHandle {} not found in zeInitDrivers. Adding to "
-                 "driver list.\n",
+                 "zeDriverHandle {} not found in zeInitDrivers. Adding to "
+                 "driver list.",
                  driverGetHandle);
           ZeDrivers.push_back(driverGetHandle);
         }
@@ -214,7 +214,7 @@ ur_result_t initPlatforms(ur_adapter_handle_t_ *adapter, PlatformVec &platforms,
     ZeDrivers.assign(ZeDriverGetHandles.begin(), ZeDriverGetHandles.end());
   }
   ZeDriverCount = ZeDrivers.size();
-  UR_LOG(DEBUG, "\n{} L0 Drivers found.\n", ZeDriverCount);
+  UR_LOG(DEBUG, "{} L0 Drivers found.", ZeDriverCount);
   for (uint32_t I = 0; I < ZeDriverCount; ++I) {
     // Keep track of the first platform init for this Driver
     bool DriverPlatformInit = false;
@@ -233,6 +233,11 @@ ur_result_t initPlatforms(ur_adapter_handle_t_ *adapter, PlatformVec &platforms,
         if (!DriverPlatformInit) {
           // If this Driver is a GPU, save it as a usable platform.
           UR_CALL(platform->initialize());
+
+          // Forget platform with blacklisted driver
+          if (platform->isDriverVersionBlacklisted) {
+            break;
+          }
 
           // Save a copy in the cache for future uses.
           platforms.push_back(std::move(platform));
@@ -442,13 +447,12 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
   if (UrL0InitAllDrivers) {
     L0InitFlags |= ZE_INIT_FLAG_VPU_ONLY;
   }
-  UR_LOG(DEBUG, "\nzeInit with flags value of {}\n",
-         static_cast<int>(L0InitFlags));
+  UR_LOG(DEBUG, "zeInit with flags value of {}", static_cast<int>(L0InitFlags));
   ZeInitResult = ZE_CALL_NOCHECK(zeInit, (L0InitFlags));
   if (ZeInitResult != ZE_RESULT_SUCCESS) {
     const char *ErrorString = "Unknown";
     zeParseError(ZeInitResult, ErrorString);
-    UR_LOG(ERR, "\nzeInit failed with {}\n", ErrorString);
+    UR_LOG(ERR, "zeInit failed with {}", ErrorString);
   }
 
   bool useInitDrivers = false;
@@ -464,7 +468,7 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
         if (strncmp(versions[i].component_name, "loader", strlen("loader")) ==
             0) {
           loader_version = versions[i].component_lib_version;
-          UR_LOG(DEBUG, "\nLevel Zero Loader Version: {}.{}.{}\n",
+          UR_LOG(DEBUG, "Level Zero Loader Version: {}.{}.{}",
                  loader_version.major, loader_version.minor,
                  loader_version.patch);
           break;
@@ -484,7 +488,32 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
          loader_version.patch < 2)) {
       UR_LOG(WARN,
              "WARNING: Level Zero Loader version is older than 1.21.2. "
-             "Please update to the latest version for API logging support.\n");
+             "Please update to the latest version for API logging support.");
+    }
+
+    auto loader_blacklist = ur_getenv("UR_L0_LOADER_BLACKLIST");
+    if (loader_blacklist.has_value()) {
+      UR_LOG(DEBUG, "UR_L0_LOADER_BLACKLIST is set to: {}", *loader_blacklist);
+      auto loaderVersionString = std::to_string(loader_version.major) + "." +
+                                 std::to_string(loader_version.minor) + "." +
+                                 std::to_string(loader_version.patch);
+      const char *loaderVersionStr = loaderVersionString.c_str();
+      char *saveptr = nullptr;
+      char *version = strtok_r(loader_blacklist->data(), ",", &saveptr);
+      while (version) {
+        if (strcmp(version, loaderVersionStr) == 0) {
+          UR_LOG(WARN,
+                 "Skipping L0 adapter due to loader version blacklist "
+                 "(UR_L0_LOADER_BLACKLIST): "
+                 "{} matches blacklist entry",
+                 version);
+          useInitDrivers = false;
+          ZeInitResult = ZE_RESULT_ERROR_UNINITIALIZED;
+          ZeInitDriversResult = ZE_RESULT_ERROR_UNINITIALIZED;
+          break;
+        }
+        version = strtok_r(nullptr, ",", &saveptr);
+      }
     }
   }
 
@@ -497,7 +526,7 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
             processHandle, "zeInitDrivers");
 #endif
     if (initDriversFunctionPtr) {
-      UR_LOG(DEBUG, "\nzeInitDrivers with flags value of {}\n",
+      UR_LOG(DEBUG, "zeInitDrivers with flags value of {}",
              static_cast<int>(InitDriversDesc.flags));
       ZeInitDriversResult =
           ZE_CALL_NOCHECK(initDriversFunctionPtr,
@@ -507,7 +536,7 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
       } else {
         const char *ErrorString = "Unknown";
         zeParseError(ZeInitDriversResult, ErrorString);
-        UR_LOG(ERR, "\nzeInitDrivers failed with {}\n", ErrorString);
+        UR_LOG(ERR, "zeInitDrivers failed with {}", ErrorString);
       }
     }
   }
@@ -515,7 +544,7 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
   if (ZeInitResult != ZE_RESULT_SUCCESS &&
       ZeInitDriversResult != ZE_RESULT_SUCCESS) {
     // Absorb the ZE_RESULT_ERROR_UNINITIALIZED and just return 0 Platforms.
-    UR_LOG(ERR, "Level Zero Uninitialized\n");
+    UR_LOG(ERR, "Level Zero Uninitialized");
     return;
   }
 
