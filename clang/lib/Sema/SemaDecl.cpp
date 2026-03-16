@@ -21289,11 +21289,9 @@ Sema::FunctionEmissionStatus Sema::getEmissionStatus(const FunctionDecl *FD,
   if (FD->isDependentContext())
     return FunctionEmissionStatus::TemplateDiscarded;
 
-  if (LangOpts.SYCLIsDevice && (FD->hasAttr<SYCLDeviceAttr>() ||
-                                FD->hasAttr<SYCLExternalAttr>() ||
-                                FD->hasAttr<SYCLKernelAttr>() ||
-                                FD->hasAttr<SYCLKernelEntryPointAttr>()) &&
-                               !FD->hasAttr<ArtificialAttr>())
+  if (LangOpts.SYCLIsDevice && (FD->hasAttr<SYCLKernelAttr>() ||
+                                FD->hasAttr<SYCLKernelEntryPointAttr>() ||
+                                FD->hasAttr<SYCLExternalAttr>()))
     return FunctionEmissionStatus::Emitted;
 
   // Check whether this function is an externally visible definition.

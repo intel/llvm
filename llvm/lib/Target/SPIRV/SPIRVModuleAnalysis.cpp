@@ -2813,8 +2813,6 @@ static void collectFPFastMathDefaults(const Module &M,
   }
 }
 
-struct SPIRV::ModuleAnalysisInfo SPIRVModuleAnalysis::MAI;
-
 void SPIRVModuleAnalysis::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<TargetPassConfig>();
   AU.addRequired<MachineModuleInfoWrapperPass>();
