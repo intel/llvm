@@ -455,7 +455,7 @@ void graph_impl::markCGMemObjs(
 
 node_impl &graph_impl::add(nodes_range Deps) {
   // Native recording limitation: explicit API not supported
-  if (MEnableNativeRecording) {
+  if (MNativeGraphHandle) {
     throw sycl::exception(
         make_error_code(errc::feature_not_supported),
         "graph.add(): The explicit graph API is not supported in native "
@@ -475,7 +475,7 @@ node_impl &graph_impl::add(std::function<void(handler &)> CGF,
                            const std::vector<sycl::detail::ArgDesc> &Args,
                            nodes_range Deps) {
   // Native recording limitation: explicit API not supported
-  if (MEnableNativeRecording) {
+  if (MNativeGraphHandle) {
     throw sycl::exception(
         make_error_code(errc::feature_not_supported),
         "graph.add(): The explicit graph API is not supported in native "
@@ -553,7 +553,7 @@ node_impl &graph_impl::add(node_type NodeType,
                            std::shared_ptr<sycl::detail::CG> CommandGroup,
                            nodes_range Deps) {
   // Native recording limitation: explicit API not supported
-  if (MEnableNativeRecording) {
+  if (MNativeGraphHandle) {
     throw sycl::exception(
         make_error_code(errc::feature_not_supported),
         "graph.add(): The explicit graph API is not supported in native "
@@ -587,7 +587,7 @@ node_impl &
 graph_impl::add(std::shared_ptr<dynamic_command_group_impl> &DynCGImpl,
                 nodes_range Deps) {
   // Native recording limitation: explicit API not supported
-  if (MEnableNativeRecording) {
+  if (MNativeGraphHandle) {
     throw sycl::exception(
         make_error_code(errc::feature_not_supported),
         "graph.add(): The explicit graph API is not supported in native "
@@ -816,14 +816,14 @@ void graph_impl::beginRecordingImpl(sycl::detail::queue_impl &Queue,
   graph_impl::WriteLock Lock(MMutex);
 
   // Native recording limitation: single queue at a time
-  if (MEnableNativeRecording && !MRecordingQueues.empty()) {
+  if (MNativeGraphHandle && !MRecordingQueues.empty()) {
     throw sycl::exception(
         make_error_code(errc::feature_not_supported),
         "Recording the same graph to multiple queues is not supported in native mode");
   }
 
   // Native recording limitation: in-order queues only
-  if (MEnableNativeRecording && !Queue.isInOrder()) {
+  if (MNativeGraphHandle && !Queue.isInOrder()) {
     throw sycl::exception(
         make_error_code(errc::feature_not_supported),
         "Native recording only works with in-order queues");
