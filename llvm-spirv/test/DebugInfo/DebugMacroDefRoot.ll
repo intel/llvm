@@ -47,7 +47,7 @@
 ; CHECK-SPIRV-NON-SEMANTIC-200-DAG: %[[uint_1_reg:.*]] = OpConstant %[[type]] 1
 ; CHECK-SPIRV-NON-SEMANTIC-200-DAG: %[[size_name:.*]] = OpString "SIZE"
 ; CHECK-SPIRV-NON-SEMANTIC-200-DAG: %[[size_value:.*]] = OpString "5"
-; CHECK-SPIRV-NON-SEMANTIC-200-DAG: %[[#]] = OpExtInst %void %[[#]] 32 %[[#]] %[[uint_1_reg]] %[[size_name]] %[[size_value]]
+; CHECK-SPIRV-NON-SEMANTIC-200-DAG: %[[#]] = OpExtInst %void %[[#]] {{(32|DebugMacroDef)}} %[[#]] %[[uint_1_reg]] %[[size_name]] %[[size_value]]
 
 target triple = "spir64-unknown-unknown"
 

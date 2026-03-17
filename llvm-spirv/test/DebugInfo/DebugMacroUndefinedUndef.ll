@@ -48,8 +48,8 @@
 ; CHECK-SPIRV-NON-SEMANTIC-200-DAG: %[[type:.*]] = OpTypeInt 32 0
 ; CHECK-SPIRV-NON-SEMANTIC-200-DAG: %[[uint_1_reg:.*]] = OpConstant %[[type]] 1
 ; CHECK-SPIRV-NON-SEMANTIC-200-DAG: %[[source_file:.*]] = OpString "./def.c"
-; CHECK-SPIRV-NON-SEMANTIC-200-DAG: %[[debug_none:.*]] = OpExtInst %void %[[#]] 0
-; CHECK-SPIRV-NON-SEMANTIC-200-DAG: %[[#]] = OpExtInst %void %[[#]] 33 %[[source_file]] %[[uint_1_reg]] %[[debug_none]]
+; CHECK-SPIRV-NON-SEMANTIC-200-DAG: %[[debug_none:.*]] = OpExtInst %void %[[#]] {{(0|DebugInfoNone)}}
+; CHECK-SPIRV-NON-SEMANTIC-200-DAG: %[[#]] = OpExtInst %void %[[#]] {{(33|DebugMacroUndef)}} %[[source_file]] %[[uint_1_reg]] %[[debug_none]]
 
 target triple = "spir64-unknown-unknown"
 

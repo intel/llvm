@@ -44,7 +44,7 @@
 
 ; CHECK-SPIRV-NON-SEMANTIC-200-DAG: %[[type:.*]] = OpTypeInt 32 0
 ; CHECK-SPIRV-NON-SEMANTIC-200-DAG: %[[uint_1_reg:.*]] = OpConstant %[[type]] 1
-; CHECK-SPIRV-NON-SEMANTIC-200-DAG: %[[#]] = OpExtInst %void %[[#]] 32 %[[#]] %[[uint_1_reg]] %[[#]] %[[#]]
+; CHECK-SPIRV-NON-SEMANTIC-200-DAG: %[[#]] = OpExtInst %void %[[#]] {{(32|DebugMacroDef)}} %[[#]] %[[uint_1_reg]] %[[#]] %[[#]]
 
 target triple = "spir64-unknown-unknown"
 

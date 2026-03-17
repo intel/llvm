@@ -64,9 +64,9 @@
 ; CHECK-SPIRV-NON-SEMANTIC-200-DAG: %[[baz_name:.*]] = OpString "BAZ"
 ; CHECK-SPIRV-NON-SEMANTIC-200-DAG: %[[foo_name:.*]] = OpString "FOO"
 ; CHECK-SPIRV-NON-SEMANTIC-200-DAG: %[[foo_value:.*]] = OpString "1"
-; CHECK-SPIRV-NON-SEMANTIC-200-DAG: %[[#]] = OpExtInst %void %[[#]] 32 %[[#]] %[[uint_1_reg]] %[[bar_name]]
-; CHECK-SPIRV-NON-SEMANTIC-200-DAG: %[[#]] = OpExtInst %void %[[#]] 32 %[[#]] %[[uint_2_reg]] %[[baz_name]]
-; CHECK-SPIRV-NON-SEMANTIC-200-DAG: %[[#]] = OpExtInst %void %[[#]] 32 %[[#]] %[[uint_3_reg]] %[[foo_name]] %[[foo_value]]
+; CHECK-SPIRV-NON-SEMANTIC-200-DAG: %[[#]] = OpExtInst %void %[[#]] {{(32|DebugMacroDef)}} %[[#]] %[[uint_1_reg]] %[[bar_name]]
+; CHECK-SPIRV-NON-SEMANTIC-200-DAG: %[[#]] = OpExtInst %void %[[#]] {{(32|DebugMacroDef)}} %[[#]] %[[uint_2_reg]] %[[baz_name]]
+; CHECK-SPIRV-NON-SEMANTIC-200-DAG: %[[#]] = OpExtInst %void %[[#]] {{(32|DebugMacroDef)}} %[[#]] %[[uint_3_reg]] %[[foo_name]] %[[foo_value]]
 
 target triple = "spir64-unknown-unknown"
 
