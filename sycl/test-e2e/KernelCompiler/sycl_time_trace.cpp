@@ -52,7 +52,7 @@ int test_tracing() {
       syclex::save_log{&log}};
   syclex::build(kbSrc, props2);
   std::cout << log << std::endl;
-  // CHECK: error: invalid integral value 'invalid_int' in '-ftime-trace-granularity=invalid_int'
+  // CHECK: invalid integral value 'invalid_int' in '-ftime-trace-granularity=invalid_int'
 
   return 0;
 }
