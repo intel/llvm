@@ -542,7 +542,7 @@ bool queue_impl::isNativeRecording() const {
 ext::oneapi::experimental::queue_state
 queue_impl::ext_oneapi_get_state_impl() const {
   // A graph may either be recording at the SYCL level or recording at a lower
-  // level API (e.g. L0)
+  // level API (e.g. UR)
   if (hasCommandGraph() || isNativeRecording()) {
     return ext::oneapi::experimental::queue_state::recording;
   }
