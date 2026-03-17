@@ -479,7 +479,7 @@ This extension adds the following property, which can be used with `make_event`
 namespace sycl::ext::oneapi::experimental {
 
 struct enable_ipc {
-  enable_ipc(bool enable);  (1)
+  enable_ipc(bool enable = true);  (1)
 };
 using enable_ipc_key = enable_ipc;
 
