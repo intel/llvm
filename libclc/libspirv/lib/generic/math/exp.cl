@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <libspirv/spirv.h>
 #include <clc/math/clc_exp.h>
+#include <libspirv/spirv.h>
 
 #define __CLC_FUNCTION __spirv_ocl_exp
 #define __CLC_IMPL_FUNCTION(x) __clc_exp
