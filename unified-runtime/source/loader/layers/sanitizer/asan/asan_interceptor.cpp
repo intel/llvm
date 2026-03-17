@@ -724,8 +724,8 @@ AsanInterceptor::getMemBuffer(ur_mem_handle_t MemHandle) {
 ur_result_t AsanInterceptor::prepareLaunch(
     std::shared_ptr<ContextInfo> &ContextInfo,
     std::shared_ptr<DeviceInfo> &DeviceInfo, ur_queue_handle_t Queue,
-    ur_kernel_handle_t Kernel, LaunchInfo &LaunchInfo, uint32_t numArgs,
-    const ur_exp_kernel_arg_properties_t *pArgs) {
+    ur_kernel_handle_t Kernel, LaunchInfo &LaunchInfo, uint32_t,
+    const ur_exp_kernel_arg_properties_t *) {
   auto &KernelInfo = getOrCreateKernelInfo(Kernel);
   std::shared_lock<ur_shared_mutex> Guard(KernelInfo.Mutex);
 
@@ -805,7 +805,8 @@ ur_result_t AsanInterceptor::prepareLaunch(
         getContext()->urDdiTable.Kernel.pfnGetSuggestedLocalWorkSizeWithArgs(
             Kernel, Queue, LaunchInfo.WorkDim,
             LaunchInfo.GlobalWorkOffset.data(), LaunchInfo.GlobalWorkSize,
-            numArgs, pArgs, LaunchInfo.LocalWorkSize.data());
+            ArgNums, KernelInfo.ArgProps.data(),
+            LaunchInfo.LocalWorkSize.data());
     if (URes != UR_RESULT_SUCCESS) {
       if (URes != UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
         return URes;
