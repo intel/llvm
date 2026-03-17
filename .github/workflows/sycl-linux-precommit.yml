@@ -159,6 +159,12 @@ jobs:
             runner: '["Linux", "cuda"]'
             image_options: -u 1001 --gpus all --cap-add SYS_ADMIN
             target_devices: cuda:gpu
+            # TODO: change label and docker image 
+          - name: NVIDIA/CUDA 13.1
+            runner: '["Linux", "test-cuda"]'
+            image: "ghcr.io/intel/llvm/ubuntu2404_intel_drivers_cuda131:latest"
+            image_options: -u 1001 --gpus all --cap-add SYS_ADMIN
+            target_devices: cuda:gpu
           - name: Intel / Arc A-Series Graphics
             runner: '["Linux", "arc"]'
             target_devices: level_zero:gpu;opencl:gpu;level_zero_v2:gpu         
@@ -247,6 +253,12 @@ jobs:
             runner: '["Linux", "cuda"]'
             image_options: -u 1001 --gpus all --cap-add SYS_ADMIN
             target_devices: cuda:gpu
+            # TODO: change label and docker image
+          - name: NVIDIA/CUDA 13.1
+            runner: '["Linux", "test-cuda"]'
+            image: "ghcr.io/intel/llvm/ubuntu2404_intel_drivers_cuda131:latest"
+            image_options: -u 1001 --gpus all --cap-add SYS_ADMIN
+            target_devices: cuda:gpu
 
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
@@ -286,6 +298,11 @@ jobs:
             image_extra_opts: --device=/dev/dri
           - name: CUDA system
             runner: '["Linux", "cuda"]'
+            image_extra_opts: --gpus all
+            # TODO: Change label and docker image
+          - name: CUDA system with CUDA 13.1
+            runner: '["Linux", "test-cuda"]'
+            image: "ghcr.io/intel/llvm/ubuntu2404_intel_drivers_cuda131:latest"
             image_extra_opts: --gpus all
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
