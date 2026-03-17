@@ -176,28 +176,10 @@ llvm-foreach --in-file-list=modules.list \
 **Purpose:** Wraps device binaries into a host object file for final linking.
 
 **Functionality:**
+- SYCL Offload Wrapping differs from one used in LLVM.
 - Creates wrapper object with embedded device binaries
-- Generates offload descriptor data structure
+- Generates offload descriptor data structure. The format is a part of ABI and is established with SYCL Runtime.
 - Inserts registration/unregistration functions
-
-**Data Structures:**
-```cpp
-// Simplified view of offload descriptor hierarchy
-struct sycl_device_binary {
-  uint8_t Format;          // SPIR-V, LLVM IR, native, etc.
-  const char *DeviceTargetSpec;
-  const void *DeviceBinary;
-  uint32_t BinarySize;
-  // ... property sets, symbol tables, etc.
-};
-
-struct sycl_device_binaries_struct {
-  uint16_t Version;
-  uint16_t NumDeviceBinaries;
-  sycl_device_binary *DeviceBinaries;
-  // ... host entries, etc.
-};
-```
 
 **Output:**
 - Host object file (`.o`) with embedded device code
@@ -457,7 +439,7 @@ fat_obj1.o  fat_obj2.o  fat_obj3.o
 **Why split?**
 1. **JIT Performance:** Loading only needed kernels reduces JIT time
 2. **Device Compatibility:** Different kernels may need different device features
-3. **Modularity:** Separate modules for separate functionality
+
 
 #### File Table Format
 
@@ -548,7 +530,7 @@ This separation provides flexibility, enables new features, and simplifies the d
 
 **Usage Example:**
 ```bash
-llvm-offload-packager \
+llvm-offload-binary \
   --image=file=device.bc,triple=spir64-unknown-unknown,kind=sycl \
   -o offload.bin
 ```
@@ -565,6 +547,8 @@ OffloadBinary {
   // ... device binary data
 }
 ```
+
+**Code:** `llvm/Object/OffloadBinary.h`
 
 #### 2. **clang-linker-wrapper** (Community Tool, Enhanced for SYCL)
 
@@ -583,9 +567,13 @@ OffloadBinary {
 
 **Key Features:**
 - **Dynamic Pipeline Construction:** Builds compilation steps at runtime based on discovered binaries
-- **Parallelism:** Can process multiple device binaries in parallel
-- **LTO Support:** Integrates device-side LTO (thin-LTO)
+- **Parallelism:** Can process multiple device binaries in parallel. That is possible to perform many SYCL processing steps in parallel.
+- **LTO Support:** Opens a way to integrate device-side LTO (thin-LTO)
 - **Target Flexibility:** Easier to add new targets
+
+**Upstreaming Note:**
+- SYCL functionality diverges from the initial LLVM Offloading design
+- Therefore, we were asked to extract SYCL specific processing from clang-linker-wrapper to clang-sycl-linker.
 
 **Command Line Interface:**
 ```bash
@@ -609,7 +597,7 @@ clang-linker-wrapper \
 | `--llvm-spirv-options=<opts>` | Options for llvm-spirv invocation |
 | `--gpu-tool-arg=<arg>` | Arguments for GPU AOT compiler (ocloc) |
 | `--cpu-tool-arg=<arg>` | Arguments for CPU AOT compiler (opencl-aot) |
-| `--parallel-link-sycl=<N>` | Number of parallel jobs for split modules |
+
 
 #### 3. **clang-sycl-linker** (New SYCL-Specific Tool, upstreamed to llvm-project)
 
@@ -624,10 +612,15 @@ clang-linker-wrapper \
 - Supports creation of SYCLBIN files
 
 **Usage:**
-Typically invoked by `clang-linker-wrapper` or driver, not directly by users.
+Typically invoked by `clang-linker-wrapper` or driver, not directly by users. It is going to contain all SYCL specific offload processing.
 
 **Key Responsibilities:**
 - Device bitcode linking
+- Module splitting
+- Spec const lowering
+- ESIMD processing
+- SPIRV compilation
+- AOT compilation (optional)
 - Device library resolution
 - Metadata propagation
 - Symbol table generation
@@ -722,7 +715,7 @@ The following tools are still used but now invoked by the linker-wrapper:
          │                    │
          ▼                    │
 ┌──────────────────┐          │
-│  Parallel Loop   │          │
+│  Loop over output│          │
 │  (no llvm-       │          │
 │   foreach needed)│          │
 └────────┬─────────┘          │
@@ -740,7 +733,7 @@ The following tools are still used but now invoked by the linker-wrapper:
    ▼         ▼        ▼       │
 ┌────────────────────────┐    │
 │  Optional: AOT         │    │
-│  Parallel Loop         │    │
+│  Loop over output      │    │
 │  (ocloc/ptxas/etc)     │    │
 └──────────┬─────────────┘    │
            │                  │
@@ -778,7 +771,7 @@ The following tools are still used but now invoked by the linker-wrapper:
 1. **Driver is simpler:** Just compiles and packages
 2. **Linker-wrapper does the heavy lifting:** All device processing in one tool
 3. **No file tables needed:** Linker-wrapper handles multiple files natively
-4. **Parallel processing built-in:** Can process split modules in parallel
+4. **Parallel processing built-in:** Can process split modules in parallel (Not implemented today)
 
 #### Separate Compilation and Linking
 
@@ -859,7 +852,7 @@ fat_obj1.o  fat_obj2.o  lib.a
 
 4. **Parallel processing:**
    - Multiple device binaries processed simultaneously
-   - Utilizes multi-core systems effectively
+   - Possible effective utilization of multi-core systems
 
 ### New Device Code Processing
 
@@ -880,10 +873,10 @@ Linked Module
          └─ module_2.bc + module_2.sym + module_2.props
                 │
                 ▼
-  ┌──────────────────────────────┐
-  │ clang-linker-wrapper         │
-  │ (Processes each in parallel) │
-  └──────────────────────────────┘
+  ┌───────────────────────────────────┐
+  │ clang-linker-wrapper              │
+  │ (Processes each inside a process) │
+  └───────────────────────────────────┘
 ```
 
 **Benefits:**
@@ -894,7 +887,7 @@ Linked Module
 
 #### LTO Support
 
-The new model supports device-side Link-Time Optimization (LTO):
+The new model opens a way to support device-side Link-Time Optimization (LTO):
 
 ```
 device1.bc  device2.bc  device3.bc
@@ -1056,226 +1049,6 @@ clang++ -fsycl -fsyclbin --offload-new-driver device.cpp -o device.syclbin
 
 ---
 
-## Detailed Tool Descriptions
-
-### Old Model Tools
-
-#### clang-offload-bundler
-
-**Location:** `clang/tools/clang-offload-bundler/ClangOffloadBundler.cpp`
-
-**Key Functionality:**
-```cpp
-// Simplified view
-struct OffloadBundle {
-  StringRef Kind;        // "sycl", "openmp", etc.
-  StringRef Triple;      // "spir64-unknown-unknown"
-  StringRef Binary;      // Actual binary data
-};
-
-// Bundles device binaries into host object
-void bundleFiles(ArrayRef<OffloadBundle> Bundles, StringRef Output);
-
-// Extracts device binaries from bundled object
-void unbundleFiles(StringRef Input,
-                   SmallVectorImpl<OffloadBundle> &Bundles);
-```
-
-**Section Naming Convention:**
-- Format: `__CLANG_OFFLOAD_BUNDLE__<kind>-<triple>`
-- Example: `__CLANG_OFFLOAD_BUNDLE__sycl-spir64-unknown-unknown`
-
-#### sycl-post-link
-
-**Location:** `llvm/tools/sycl-post-link/sycl-post-link.cpp`
-
-**Key Options:**
-```bash
--split=<mode>              # off, per_source, per_kernel, auto
--symbols                   # Generate symbol tables
--spec-const=<mode>         # native, default, rt
--split-esimd              # Separate ESIMD kernels
--lower-esimd              # Lower ESIMD constructs
--emit-exported-symbols    # Generate exported symbol list
--emit-imported-symbols    # Generate imported symbol list
--emit-program-metadata    # Generate program metadata
-```
-
-**Major Passes:**
-- Module splitting
-- Specialization constant lowering
-- Symbol table generation
-- Device requirements extraction
-- Property set generation
-
-#### file-table-tform
-
-**Location:** `clang/tools/file-table-tform/`
-
-**Operations:**
-```bash
-# Extract column
-file-table-tform -extract=Code -o code.list input.table
-
-# Replace column
-file-table-tform -replace=Code,new.list -o output.table input.table
-
-# New table from list
-file-table-tform -new-table=Code,code.list -o output.table
-```
-
-#### llvm-foreach
-
-**Location:** `clang/tools/llvm-foreach/`
-
-**Usage Pattern:**
-```bash
-llvm-foreach \
-  --in-file-list=input.list \
-  --out-file-list=output.list \
-  --jobs=8 \
-  -- command {out} {in}
-```
-
-**Substitutions:**
-- `{in}` → input filename
-- `{out}` → output filename
-
-#### clang-offload-wrapper
-
-**Location:** `clang/tools/clang-offload-wrapper/ClangOffloadWrapper.cpp`
-
-**Key Structures:**
-```cpp
-// Offload binary descriptor
-struct __tgt_offload_entry {
-  void *addr;      // Kernel address
-  char *name;      // Kernel name
-  size_t size;     // Binary size
-  int32_t flags;   // Flags
-  int32_t reserved;
-};
-
-struct __tgt_device_image {
-  void *ImageStart;
-  void *ImageEnd;
-  __tgt_offload_entry *EntriesBegin;
-  __tgt_offload_entry *EntriesEnd;
-};
-
-struct __tgt_bin_desc {
-  int32_t NumDeviceImages;
-  __tgt_device_image *DeviceImages;
-  __tgt_offload_entry *HostEntriesBegin;
-  __tgt_offload_entry *HostEntriesEnd;
-};
-```
-
-**Generated Code:**
-```c
-// Registration function (in .init_array section)
-__attribute__((constructor))
-void __sycl_register_lib(__tgt_bin_desc *desc) {
-  __sycl_register_lib(desc);  // Calls runtime
-}
-
-// Unregistration function (in .fini_array section)
-__attribute__((destructor))
-void __sycl_unregister_lib(__tgt_bin_desc *desc) {
-  __sycl_unregister_lib(desc);  // Calls runtime
-}
-```
-
-### New Model Tools
-
-#### llvm-offload-binary
-
-**Location:** `llvm/tools/llvm-offload-binary/` (community LLVM)
-
-**Format:**
-```cpp
-struct OffloadBinary {
-  uint32_t Magic = 0x10FF10AD;
-  uint32_t Version = 1;
-  uint64_t Size;
-  uint64_t EntryOffset;
-  uint64_t EntrySize;
-
-  // String table with metadata
-  StringMap<StringRef> Strings;
-  // Key-value pairs: "triple", "arch", "kind", etc.
-
-  // Followed by actual binary data
-  ArrayRef<uint8_t> Image;
-};
-```
-
-**Command Line:**
-```bash
-llvm-offload-binary \
-  --image=file=dev1.bc,triple=spir64,kind=sycl \
-  --image=file=dev2.bc,triple=spir64_gen,kind=sycl,arch=pvc \
-  -o output.bin
-```
-
-#### clang-linker-wrapper
-
-**Location:** `clang/tools/clang-linker-wrapper/ClangLinkerWrapper.cpp`
-
-**Architecture:**
-```cpp
-// High-level pseudocode
-class LinkerWrapper {
-  // 1. Extract device binaries from inputs
-  SmallVector<OffloadFile> extractDeviceBinaries(ArrayRef<StringRef> Inputs);
-
-  // 2. Link device code per target
-  Expected<StringRef> linkDeviceCode(ArrayRef<OffloadFile> Files,
-                                     StringRef Triple);
-
-  // 3. Run post-link processing
-  Expected<SmallVector<StringRef>>
-    postLinkDevice(StringRef LinkedBitcode, StringRef Triple);
-
-  // 4. Translate to SPIR-V or native code
-  Expected<StringRef> compileDevice(StringRef DeviceCode,
-                                    StringRef Triple);
-
-  // 5. Wrap device binaries
-  Expected<StringRef> wrapDeviceBinaries(ArrayRef<StringRef> Binaries);
-
-  // 6. Link host code
-  Error linkHost(ArrayRef<StringRef> Objects, StringRef Output);
-};
-```
-
-**Pipeline Example for SYCL spir64_gen:**
-```
-Extract → Link (llvm-link) → Post-Link (sycl-post-link)
-  → Split Handling → SPIR-V (llvm-spirv)
-  → AOT (ocloc) → Wrap → Host Link
-```
-
-#### clang-sycl-linker
-
-**Location:** `clang/tools/clang-sycl-linker/ClangSYCLLinker.cpp`
-
-**Purpose:**
-- SYCL-specific device linking logic
-- Can be used standalone or via linker-wrapper
-- Handles device library linking
-- Manages metadata propagation
-
-**Options:**
-```bash
---device-libs=<libs>      # Device libraries to link
---llvm-link-opts=<opts>   # Options for llvm-link
---sycl-post-link-opts=<opts> # Options for sycl-post-link
---spirv-opts=<opts>       # Options for llvm-spirv
-```
-
----
-
 ## References
 
 ### Documentation
@@ -1336,84 +1109,6 @@ clang++ -fsycl -fsyclbin --offload-new-driver device.cpp -o device.syclbin
 
 ---
 
-## Appendix: Common Workflows
-
-### Workflow 1: Simple JIT Compilation
-
-**Old Model:**
-```bash
-clang++ -fsycl app.cpp -o app
-# Driver orchestrates everything
-```
-
-**New Model:**
-```bash
-clang++ -fsycl --offload-new-driver app.cpp -o app
-# Driver compiles, linker-wrapper processes
-```
-
-### Workflow 2: AOT for Intel GPU
-
-**Old Model:**
-```bash
-clang++ -fsycl -fsycl-targets=spir64_gen \
-  -Xsycl-target-backend=spir64_gen "-device pvc" \
-  app.cpp -o app
-```
-
-**New Model:**
-```bash
-clang++ -fsycl --offload-new-driver \
-  -fsycl-targets=spir64_gen \
-  -Xsycl-target-backend=spir64_gen "-device pvc" \
-  app.cpp -o app
-
-# OR using --offload-arch
-clang++ -fsycl --offload-new-driver \
-  --offload-arch=pvc \
-  app.cpp -o app
-```
-
-### Workflow 3: Separate Compilation
-
-**Old Model:**
-```bash
-# Compile
-clang++ -fsycl -c file1.cpp -o file1.o
-clang++ -fsycl -c file2.cpp -o file2.o
-
-# Link
-clang++ -fsycl file1.o file2.o -o app
-```
-
-**New Model:**
-```bash
-# Compile
-clang++ -fsycl --offload-new-driver -c file1.cpp -o file1.o
-clang++ -fsycl --offload-new-driver -c file2.cpp -o file2.o
-
-# Link
-clang++ -fsycl --offload-new-driver file1.o file2.o -o app
-```
-
-### Workflow 4: Device Code Splitting
-
-**Old Model:**
-```bash
-clang++ -fsycl -fsycl-device-code-split=per_kernel app.cpp -o app
-# Driver uses file tables internally
-```
-
-**New Model:**
-```bash
-clang++ -fsycl --offload-new-driver \
-  -fsycl-device-code-split=per_kernel \
-  app.cpp -o app
-# Linker-wrapper handles splits natively
-```
-
----
-
 ## Conclusion
 
 The transition from the **old driver-based offload model** to the **new linker-wrapper-based model** represents a significant architectural improvement for the DPC++ compiler:
@@ -1427,9 +1122,15 @@ The transition from the **old driver-based offload model** to the **new linker-w
 - Easier extensibility
 
 **Migration:**
+- The SYCL specific functionality is extracted from Old tools to LLVM Libraries such as `llvm/SYCLPostLink/` and `llvm/SYCLLowerIR/`.
 - Use `--offload-new-driver` flag to opt-in
 - Rebuild projects with new flag for full benefits
 - Old and new models cannot mix binaries
+
+**Upstreaming:**
+- clang-sycl-linker contains minimal required functionality for SYCL offloading
+- Module splitting was upstreamed without many SYCL-specific features (`llvm/Transforms/Utils/SplitModuleByCategory.h`)
+- SYCL Offload Wrapping was upstreamed (`llvm/Frontend/Offloading/OffloadWrapper.h`). It differs from standard LLVM wrapping significantly.
 
 **Future:**
 - New model will become default
