@@ -11,7 +11,6 @@
 #include <hash_table7.hpp>
 
 #include <atomic>
-#include <shared_mutex>
 #include <unordered_map>
 #include <vector>
 

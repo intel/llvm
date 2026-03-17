@@ -30,7 +30,6 @@
 #include <iostream>
 #include <map>
 #include <mutex>
-#include <shared_mutex>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -1752,7 +1751,11 @@ public:
     // present. This will be a lock-free operation and if trace type is not
     // set or is going to be set simultaneously, we may miss an event if we
     // access it earlier than the the write operation.
-    auto &StreamFlags = MStreamFlags[StreamID];
+    auto StreamIt = MStreamFlags.find(StreamID);
+    if (StreamIt == MStreamFlags.end())
+      return false; // Stream has no registered callbacks
+
+    auto &StreamFlags = StreamIt->second;
     // When it is required that a particular stream has at least one active
     // subscriber, the TraceType will be set to 0. In this case we scan the
     // booleans of all set TraceType active subscribers and bail on the first
@@ -1766,10 +1769,11 @@ public:
     } else {
       // If a specific TraceType has to be examined, we returns tis boolean
       // value
-      if (StreamFlags.count(TraceType) == 0)
+      auto TypeIt = StreamFlags.find(TraceType);
+      if (TypeIt == StreamFlags.end())
         return false;
       // Otherwise, it is success
-      return StreamFlags[TraceType];
+      return TypeIt->second;
     }
   }
 
@@ -1820,7 +1824,11 @@ public:
       // the lock before calling the notification functions. When using
       // reader-writer locks, use reader lock here.
       xpti::SharedLock Lock(MCBsLock);
-      cb_t &Stream = MCallbacksByStream[StreamID]; // Thread-safe
+      auto StreamIt = MCallbacksByStream.find(StreamID);
+      if (StreamIt == MCallbacksByStream.end())
+        return xpti::result_t::XPTI_RESULT_SUCCESS; // No callbacks registered
+
+      cb_t &Stream = StreamIt->second;
       Acc = Stream.find(TraceType);
       Success = (Acc != Stream.end());
       if (Success) {
