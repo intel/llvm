@@ -68,13 +68,17 @@ macro(add_device_binary SOURCE_FILE)
         set(BIN_PATH "${DEVICE_BINARY_DIR}/${TRIPLE}.bin.0")
 
         if(${TRIPLE} MATCHES "amd")
-            set(AMD_TARGET_BACKEND -Xsycl-target-backend=${TRIPLE})
-            set(AMD_OFFLOAD_ARCH  --offload-arch=${AMD_ARCH})
-            set(AMD_NOGPULIB -nogpulib)
+            set(TARGET_BACKEND -Xsycl-target-backend=${TRIPLE})
+            set(TARGET_ARCH  --offload-arch=${AMD_ARCH})
+            set(TARGET_NOGPULIB -nogpulib)
+        elseif(${TRIPLE} MATCHES "nvptx")
+            set(TARGET_BACKEND -Xsycl-target-backend=${TRIPLE})
+            set(TARGET_ARCH --cuda-gpu-arch=${UR_CONFORMANCE_NVIDIA_ARCH})
+            set(TARGET_NOGPULIB)
         else()
-            set(AMD_TARGET_BACKEND)
-            set(AMD_OFFLOAD_ARCH)
-            set(AMD_NOGPULIB)
+            set(TARGET_BACKEND)
+            set(TARGET_ARCH)
+            set(TARGET_NOGPULIB)
         endif()
         # images are not yet supported in sycl on AMD
         if(${TRIPLE} MATCHES "amd" AND ${KERNEL_NAME} MATCHES "image_copy")
@@ -107,8 +111,8 @@ macro(add_device_binary SOURCE_FILE)
         add_custom_command(OUTPUT ${BIN_PATH}
             COMMAND LD_LIBRARY_PATH=${UR_SYCL_LIBRARY_DIR}:$ENV{LD_LIBRARY_PATH} 
             ${UR_FOUND_DPCXX} -fsycl -fsycl-targets=${TRIPLE}
-            -fsycl-device-code-split=off ${AMD_TARGET_BACKEND}
-            ${AMD_OFFLOAD_ARCH} ${AMD_NOGPULIB} ${DPCXX_BUILD_FLAGS_LIST}
+            -fsycl-device-code-split=off ${TARGET_BACKEND}
+            ${TARGET_ARCH} ${TARGET_NOGPULIB} ${DPCXX_BUILD_FLAGS_LIST}
             ${SOURCE_FILE} -o ${EXE_PATH}
 
             COMMAND ${CMAKE_COMMAND} -E env ${EXTRA_ENV} ${UR_FOUND_DEVICE_CODE_EXTRACTOR} -q --stem="${TRIPLE}.bin" ${EXE_PATH}

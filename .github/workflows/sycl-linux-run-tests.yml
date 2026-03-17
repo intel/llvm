@@ -321,6 +321,10 @@ jobs:
         tar xf sycl_linux.tar.gz -C toolchain
         echo PATH=$PWD/toolchain/bin/:$PATH >> $GITHUB_ENV
         echo LD_LIBRARY_PATH=$PWD/toolchain/lib/:$LD_LIBRARY_PATH >> $GITHUB_ENV
+    - name: Check nvcc
+      shell: bash
+      run: nvcc --version
+      
     - run: which clang++ sycl-ls
     - run: sycl-ls --verbose
     - run: SYCL_UR_TRACE=1 sycl-ls

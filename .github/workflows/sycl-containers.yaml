@@ -43,12 +43,12 @@ jobs:
     strategy:
       matrix:
         include:
-          - name: Build Ubuntu 22.04 Docker image
-            file: ubuntu2204_build
-            tag: latest
-            build_args: ""
+          # - name: Build Ubuntu 22.04 Docker image
+          #   file: ubuntu2204_build
+          #   tag: latest
+          #   build_args: ""
           - name: Build Ubuntu 24.04 Docker image
-            file: ubuntu2404_build
+            file: temp_test_ubuntu2404_build
             tag: latest
             build_args: ""
     steps:
@@ -81,11 +81,11 @@ jobs:
     strategy:
       matrix:
         include:
-          - name: Build + Intel Drivers Ubuntu 22.04 Docker image
-            file: ubuntu2204_intel_drivers
-            tag: latest
+          # - name: Build + Intel Drivers Ubuntu 22.04 Docker image
+          #   file: ubuntu2204_intel_drivers
+          #   tag: latest
           - name: Build + Intel Drivers Ubuntu 24.04 Docker image
-            file: ubuntu2404_intel_drivers
+            file: temp_test_ubuntu2404_intel_drivers
             tag: latest
     steps:
       - name: Checkout
