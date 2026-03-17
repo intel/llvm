@@ -1,5 +1,7 @@
 # SYCL Offload Model: Old vs New
 
+DISCLAIMER: LLM has been extensively used for generating this document. Mistakes may be present.
+
 ## Table of Contents
 
 1. [Introduction](#introduction)
@@ -26,7 +28,12 @@
 
 ## Introduction
 
-The DPC++ compiler has evolved from a **driver-centric offload model** to a more flexible **linker-wrapper-based offload model**. This document provides a comprehensive comparison of both approaches to help developers understand the architecture, tools, and workflows involved in SYCL device code compilation.
+The DPC++ compiler is evolving from a **driver-centric offload model** to a more flexible **linker-wrapper-based offload model**. This document provides a comprehensive comparison of both approaches to help developers understand the architecture, tools, and workflows involved in SYCL device code compilation.
+
+**Reasons of transition to NewOffloadModel:**
+- Much simpler way to upstream DPC++
+- Less customized workarounds, more unified LLVM functionality
+- More possible parallel optimizations by using thin-LTO and parallel processing. The current old offload model is known as very slow.
 
 **Purpose of this document:**
 - Explain the old offload model's design and limitations
@@ -49,11 +56,15 @@ In the old model, the **Clang driver** is responsible for orchestrating all aspe
 
 This centralized approach means the driver must know about all stages of the compilation pipeline and coordinate them through a static action graph.
 
+Note: Old model may contain functionality or reference to FPGA functionality in both code and documentation. As of today, this is not relevant after the separation of Altera.
+
 ![Old Model High Level Flow](images/Compiler-HLD.svg)
 
 ### Key Tools and Components
 
-#### 1. **clang-offload-bundler**
+#### 1. **clang-offload-bundler (Community tool)**
+
+**Code:** `clang/tools/clang-offload-bundler/ClangOffloadBundler.cpp`
 
 **Purpose:** Bundles and unbundles device code into/from host objects during separate compilation.
 
@@ -76,15 +87,18 @@ clang-offload-bundler \
 - Each section labeled with offload kind and target triple
 - Simple but inflexible format
 
-#### 2. **sycl-post-link**
+#### 2. **sycl-post-link (Intel tool)**
 
-**Purpose:** Post-processing tool for linked device LLVM IR before SPIR-V translation.
+**Code:** `llvm/tools/sycl-post-link/sycl-post-link.cpp`, `llvm/lib/SYCLPostLink/*`
+
+**Purpose:** Post-link processing tool for linked device LLVM IR before SPIR-V translation.
 
 **Functionality:**
 - **Device code splitting:** Divides large modules into smaller ones
   - `per_source`: One module per translation unit
   - `per_kernel`: One module per kernel
   - `off`: No splitting (single module)
+- **ESIMD Handling:** Separates ESIMD kernels from SYCL and lowers ESIMD intrinsics.
 - **Symbol table generation:** Creates lists of kernels for each module
 - **Specialization constants lowering:** Transforms spec constant intrinsics
 - **Device requirements analysis:** Extracts aspects, sub-group sizes, etc.
@@ -113,7 +127,9 @@ module_0.bc|module_0.sym|module_0.props
 module_1.bc|module_1.sym|module_1.props
 ```
 
-#### 3. **file-table-tform**
+#### 3. **file-table-tform (Intel tool)**
+
+**Code:** `llvm/tools/file-table-tform/file-table-tform.cpp`
 
 **Purpose:** Transforms file tables to support multiple input/output clusters in the driver.
 
@@ -134,7 +150,9 @@ file-table-tform -extract=Code -o code.list input.table
 file-table-tform -replace=Code,code.bin.list -o output.table input.table
 ```
 
-#### 4. **llvm-foreach**
+#### 4. **llvm-foreach (Intel tool)**
+
+**Code:** `llvm/tools/llvm-foreach/llvm-foreach.cpp`
 
 **Purpose:** Execute a command for each file in a file list.
 
@@ -151,7 +169,9 @@ llvm-foreach --in-file-list=modules.list \
 
 **Note:** This is essentially a workaround for the driver's static action graph limitations.
 
-#### 5. **clang-offload-wrapper**
+#### 5. **clang-offload-wrapper (Community tool with many intel customizations. Today is removed from llvm-project)**
+
+**Code:** `clang/tools/clang-offload-wrapper/*`
 
 **Purpose:** Wraps device binaries into a host object file for final linking.
 
@@ -159,7 +179,6 @@ llvm-foreach --in-file-list=modules.list \
 - Creates wrapper object with embedded device binaries
 - Generates offload descriptor data structure
 - Inserts registration/unregistration functions
-- Functions are placed in special sections (`.init_array`, `.fini_array`) for automatic invocation
 
 **Data Structures:**
 ```cpp
@@ -184,7 +203,9 @@ struct sycl_device_binaries_struct {
 - Host object file (`.o`) with embedded device code
 - Can be linked with standard linker (`ld`, `link.exe`)
 
-#### 6. **llvm-link**
+#### 6. **llvm-link (Community tool)**
+
+**Code:** `llvm/tools/llvm-link/llvm-link.cpp`
 
 **Purpose:** Links multiple LLVM IR modules into a single module.
 
@@ -193,14 +214,20 @@ struct sycl_device_binaries_struct {
 - Links device libraries (libdevice)
 - Produces single module for post-link processing
 
-#### 7. **llvm-spirv**
+#### 7. **llvm-spirv (Khronos tool that is pulled into intel/llvm. Maintained by Intel and others)**
+
+**Code:** https://github.com/KhronosGroup/SPIRV-LLVM-Translator
 
 **Purpose:** Translates LLVM IR to SPIR-V and vice versa.
 
 **Functionality:**
 - Converts LLVM IR bitcode to SPIR-V format
-- Handles SYCL-specific LLVM IR patterns
+- Supports SYCL-specific extensions and patterns.
 - Supports both forward (IR→SPIR-V) and reverse (SPIR-V→IR) translation
+
+**Upstreaming Note:**
+- It has been refused to be used in llvm-project as a part of SYCL pipeline.
+- The replacement for this is going to be a LLVM SPIRV Backend located in `llvm/lib/Target/SPIRV/`.
 
 ### Compilation Flow
 
@@ -438,9 +465,9 @@ File tables (`.table` files) are simple text files:
 
 ```
 [Code|Symbols|Properties]
-_0.bc|_0.sym|_0.props
-_1.bc|_1.sym|_1.props
-_2.bc|_2.sym|_2.props
+code_0.bc|symbols_0.sym|properties_0.props
+code_1.bc|symbols_1.sym|properties_1.props
+code_2.bc|symbols_2.sym|properties_2.props
 ```
 
 **Columns:**
@@ -502,7 +529,9 @@ This separation provides flexibility, enables new features, and simplifies the d
 
 ### New Key Tools and Components
 
-#### 1. **llvm-offload-packager** (Community Tool)
+#### 1. **llvm-offload-binary** (Community Tool, ex clang-offload-packager)
+
+**Code:** `llvm/tools/llvm-offload-binary/llvm-offload-binary.cpp`
 
 **Purpose:** Packages device binaries in a standard format for embedding in host objects.
 
@@ -538,6 +567,8 @@ OffloadBinary {
 ```
 
 #### 2. **clang-linker-wrapper** (Community Tool, Enhanced for SYCL)
+
+**Code:** `clang/tools/clang-linker-wrapper/ClangLinkerWrapper.cpp`, `llvm/lib/Frontend/Offloading/*`.
 
 **Purpose:** Central tool for orchestrating device code linking and processing.
 
@@ -578,11 +609,11 @@ clang-linker-wrapper \
 | `--llvm-spirv-options=<opts>` | Options for llvm-spirv invocation |
 | `--gpu-tool-arg=<arg>` | Arguments for GPU AOT compiler (ocloc) |
 | `--cpu-tool-arg=<arg>` | Arguments for CPU AOT compiler (opencl-aot) |
-| `--fpga-tool-arg=<arg>` | Arguments for FPGA AOT compiler (aoc) |
-| `--fpga-link-type=<type>` | FPGA link type (early/image) |
 | `--parallel-link-sycl=<N>` | Number of parallel jobs for split modules |
 
-#### 3. **clang-sycl-linker** (New SYCL-Specific Tool)
+#### 3. **clang-sycl-linker** (New SYCL-Specific Tool, upstreamed to llvm-project)
+
+**Code:** `clang/tools/clang-sycl-linker/*`
 
 **Purpose:** Specialized linker for SYCL device code that integrates with new offload model.
 
@@ -1157,9 +1188,9 @@ void __sycl_unregister_lib(__tgt_bin_desc *desc) {
 
 ### New Model Tools
 
-#### llvm-offload-packager
+#### llvm-offload-binary
 
-**Location:** `llvm/tools/llvm-offload-packager/` (community LLVM)
+**Location:** `llvm/tools/llvm-offload-binary/` (community LLVM)
 
 **Format:**
 ```cpp
@@ -1181,7 +1212,7 @@ struct OffloadBinary {
 
 **Command Line:**
 ```bash
-llvm-offload-packager \
+llvm-offload-binary \
   --image=file=dev1.bc,triple=spir64,kind=sycl \
   --image=file=dev2.bc,triple=spir64_gen,kind=sycl,arch=pvc \
   -o output.bin
