@@ -13,6 +13,10 @@
 #include "ur_level_zero.hpp"
 #include <iomanip>
 
+// The default value of the loader versions skiplist
+// (SYCL_UR_L0_LOADER_SKIPLIST)
+static const std::vector<std::string> LoaderSkiplistDefault = {};
+
 // As windows order of unloading dlls is reversed from linux, windows will call
 // umfTearDown before it could release umf objects in level_zero, so we call
 // umfInit on urAdapterGet and umfAdapterTearDown to enforce the teardown of umf
@@ -226,7 +230,17 @@ ur_result_t initPlatforms(ur_adapter_handle_t_ *adapter, PlatformVec &platforms,
         // Check if this driver's platform has already been init.
         if (!DriverPlatformInit) {
           // If this Driver is a GPU, save it as a usable platform.
-          UR_CALL(platform->initialize());
+          ur_result_t Result;
+          UR_CALL_NOCHECK(Result = platform->initialize());
+
+          // Forget platform with L0 driver version listed in the skiplist
+          if (platform->IsDriverVersionSkipListed) {
+            break;
+          }
+
+          if (Result != UR_RESULT_SUCCESS) {
+            return Result;
+          }
 
           // Save a copy in the cache for future uses.
           platforms.push_back(std::move(platform));
@@ -465,6 +479,40 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
       }
     }
     delete[] versions;
+
+    auto LoaderSkiplist = getenv_to_vec("SYCL_UR_L0_LOADER_SKIPLIST");
+    if (!LoaderSkiplist.has_value()) {
+      LoaderSkiplist = LoaderSkiplistDefault;
+
+      if ((loader_version.major == 1 && loader_version.minor < 8)) {
+        UR_LOG(ERR,
+               "ERROR: Level Zero Loader version older than 1.8.0 is not "
+               "supported (current version: {}.{}.{}). Please update Intel GPU "
+               "compute drivers.",
+               loader_version.major, loader_version.minor,
+               loader_version.patch);
+        // Return 0 platforms as the loader is too old to be supported.
+        return;
+      }
+    }
+
+    auto LoaderVersionString = std::to_string(loader_version.major) + "." +
+                               std::to_string(loader_version.minor) + "." +
+                               std::to_string(loader_version.patch);
+    for (const auto &version : LoaderSkiplist.value()) {
+      UR_LOG(DEBUG, "Checking loader version {} against skiplist entry {}",
+             LoaderVersionString, version);
+      if (version == LoaderVersionString) {
+        UR_LOG(WARN,
+               "Skipping Level Zero adapter due to the loader version: {} "
+               "matches a skiplist entry (set SYCL_UR_L0_LOADER_SKIPLIST to "
+               "override)",
+               version);
+        // Return 0 platforms
+        return;
+      }
+    }
+
     if (loader_version.major > 1 ||
         (loader_version.major == 1 && loader_version.minor > 19) ||
         (loader_version.major == 1 && loader_version.minor == 19 &&
@@ -580,6 +628,7 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
 
   ur_result_t err = initPlatforms(this, platforms, ZesResult);
   if (err == UR_RESULT_SUCCESS) {
+    UR_LOG(DEBUG, "Initialized {} platforms", platforms.size());
     Platforms = std::move(platforms);
   } else {
     UR_LOG(ERR, "Failed to initialize Platforms");
