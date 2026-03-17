@@ -295,9 +295,7 @@ public:
   ur_result_t unregisterProgram(ur_program_handle_t Program);
 
   ur_result_t preLaunchKernel(ur_kernel_handle_t Kernel,
-                              ur_queue_handle_t Queue, LaunchInfo &LaunchInfo,
-                              uint32_t numArgs,
-                              const ur_exp_kernel_arg_properties_t *pArgs);
+                              ur_queue_handle_t Queue, LaunchInfo &LaunchInfo);
   ur_result_t postLaunchKernel(ur_kernel_handle_t Kernel,
                                ur_queue_handle_t Queue, LaunchInfo &LaunchInfo);
 
@@ -360,8 +358,7 @@ private:
   /// Initialize Global Variables & Kernel Name at first Launch
   ur_result_t prepareLaunch(std::shared_ptr<DeviceInfo> &DeviceInfo,
                             ur_queue_handle_t Queue, ur_kernel_handle_t Kernel,
-                            LaunchInfo &LaunchInfo, uint32_t numArgs,
-                            const ur_exp_kernel_arg_properties_t *pArgs);
+                            LaunchInfo &LaunchInfo);
 
   ur_result_t allocShadowMemory(ur_context_handle_t Context,
                                 std::shared_ptr<DeviceInfo> &DeviceInfo);

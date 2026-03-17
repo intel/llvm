@@ -377,8 +377,6 @@ typedef enum ur_function_t {
   UR_FUNCTION_COMMAND_BUFFER_GET_INFO_EXP = 221,
   /// Enumerator for ::urEnqueueTimestampRecordingExp
   UR_FUNCTION_ENQUEUE_TIMESTAMP_RECORDING_EXP = 223,
-  /// Enumerator for ::urKernelGetSuggestedLocalWorkSizeWithArgs
-  UR_FUNCTION_KERNEL_GET_SUGGESTED_LOCAL_WORK_SIZE_WITH_ARGS = 224,
   /// Enumerator for ::urKernelGetSuggestedLocalWorkSize
   UR_FUNCTION_KERNEL_GET_SUGGESTED_LOCAL_WORK_SIZE = 225,
   /// Enumerator for ::urBindlessImagesImportExternalMemoryExp
@@ -517,6 +515,8 @@ typedef enum ur_function_t {
   UR_FUNCTION_ENQUEUE_HOST_TASK_EXP = 309,
   /// Enumerator for ::urCommandBufferAppendKernelLaunchWithArgsExp
   UR_FUNCTION_COMMAND_BUFFER_APPEND_KERNEL_LAUNCH_WITH_ARGS_EXP = 310,
+  /// Enumerator for ::urKernelGetSuggestedLocalWorkSizeWithArgs
+  UR_FUNCTION_KERNEL_GET_SUGGESTED_LOCAL_WORK_SIZE_WITH_ARGS = 311,
   /// @cond
   UR_FUNCTION_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -9504,8 +9504,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
     size_t *pSuggestedLocalWorkSize);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Get the suggested local work size for a kernel and set args at kernel
-///        launch time.
+/// @brief Set kernel args and get the suggested local work size for a kernel.
 ///
 /// @details
 ///     - Query a suggested local work size for a kernel given a global size for
@@ -9525,6 +9524,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
 ///         + `NULL == pGlobalWorkOffset`
 ///         + `NULL == pGlobalWorkSize`
 ///         + `NULL == pSuggestedLocalWorkSize`
+///         + `pArgs == NULL && numArgs > 0`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `NULL != pArgs && ::UR_EXP_KERNEL_ARG_TYPE_SAMPLER < pArgs->type`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE

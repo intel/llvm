@@ -336,16 +336,15 @@ TsanInterceptor::getMemBuffer(ur_mem_handle_t MemHandle) {
   return nullptr;
 }
 
-ur_result_t TsanInterceptor::preLaunchKernel(
-    ur_kernel_handle_t Kernel, ur_queue_handle_t Queue, LaunchInfo &LaunchInfo,
-    uint32_t numArgs, const ur_exp_kernel_arg_properties_t *pArgs) {
+ur_result_t TsanInterceptor::preLaunchKernel(ur_kernel_handle_t Kernel,
+                                             ur_queue_handle_t Queue,
+                                             LaunchInfo &LaunchInfo) {
   auto CI = getContextInfo(GetContext(Queue));
   auto DI = getDeviceInfo(GetDevice(Queue));
 
   ur_queue_handle_t InternalQueue = CI->getInternalQueue(DI->Handle);
 
-  UR_CALL(
-      prepareLaunch(CI, DI, InternalQueue, Kernel, LaunchInfo, numArgs, pArgs));
+  UR_CALL(prepareLaunch(CI, DI, InternalQueue, Kernel, LaunchInfo));
 
   UR_CALL(updateShadowMemory(DI, Kernel, InternalQueue));
 
@@ -374,10 +373,11 @@ ur_result_t TsanInterceptor::postLaunchKernel(ur_kernel_handle_t Kernel,
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t TsanInterceptor::prepareLaunch(
-    std::shared_ptr<ContextInfo> &, std::shared_ptr<DeviceInfo> &DI,
-    ur_queue_handle_t Queue, ur_kernel_handle_t Kernel, LaunchInfo &LaunchInfo,
-    uint32_t numArgs, const ur_exp_kernel_arg_properties_t *pArgs) {
+ur_result_t TsanInterceptor::prepareLaunch(std::shared_ptr<ContextInfo> &,
+                                           std::shared_ptr<DeviceInfo> &DI,
+                                           ur_queue_handle_t Queue,
+                                           ur_kernel_handle_t Kernel,
+                                           LaunchInfo &LaunchInfo) {
   // Set membuffer arguments
   auto &KernelInfo = getKernelInfo(Kernel);
   {
@@ -399,11 +399,13 @@ ur_result_t TsanInterceptor::prepareLaunch(
   // Get suggested local work size if user doesn't determine it.
   if (LaunchInfo.LocalWorkSize.empty()) {
     LaunchInfo.LocalWorkSize.resize(LaunchInfo.WorkDim);
+    auto ArgNums = GetKernelNumArgs(Kernel);
     auto URes =
         getContext()->urDdiTable.Kernel.pfnGetSuggestedLocalWorkSizeWithArgs(
             Kernel, Queue, LaunchInfo.WorkDim,
             LaunchInfo.GlobalWorkOffset.data(), LaunchInfo.GlobalWorkSize,
-            numArgs, pArgs, LaunchInfo.LocalWorkSize.data());
+            ArgNums, KernelInfo.ArgProps.data(),
+            LaunchInfo.LocalWorkSize.data());
     if (URes != UR_RESULT_SUCCESS) {
       if (URes != UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
         return URes;

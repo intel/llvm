@@ -6929,6 +6929,9 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSizeWithArgs(
     if (NULL == pSuggestedLocalWorkSize)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
+    if (pArgs == NULL && numArgs > 0)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
     if (NULL == hKernel)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
