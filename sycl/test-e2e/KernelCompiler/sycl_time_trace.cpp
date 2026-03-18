@@ -54,8 +54,8 @@ int test_tracing() {
     syclex::build(kbSrc, props2);
   } catch (const sycl::exception &e) {
     std::cout << e.what() << std::endl;
-  // CHECK: Invalid time trace granularity
-  // CHECK: invalid integral value 'invalid_int' in '-ftime-trace-granularity=invalid_int'
+    // CHECK: Invalid time trace granularity
+    // CHECK: invalid integral value 'invalid_int' in '-ftime-trace-granularity=invalid_int'
   }
   return 0;
 }
