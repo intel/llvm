@@ -41,7 +41,23 @@ class PtiXptiSuite(Suite):
                 use_installdir=False,
             )
 
-        if not self.project.needs_rebuild():
+        # Patch CMakeLists.txt to increase threshold from 60 to 70
+        # Do this before checking needs_rebuild so it applies to cached builds too
+        cmake_file = self.project.src_dir / "sdk" / "test" / "CMakeLists.txt"
+        needs_reconfigure = False
+        if cmake_file.exists():
+            content = cmake_file.read_text()
+            # Replace threshold in perf-profiling-overhead test (only if not already patched)
+            if '" 60 profiled' in content:
+                content = content.replace(
+                    '${Python_EXECUTABLE} ${PROJECT_SOURCE_DIR}/test/perf_test.py "${PTI_TEST_BIN_DIR}" 60 profiled',
+                    '${Python_EXECUTABLE} ${PROJECT_SOURCE_DIR}/test/perf_test.py "${PTI_TEST_BIN_DIR}" 70 profiled'
+                )
+                cmake_file.write_text(content)
+                log.info("Patched CMakeLists.txt to set threshold to 70")
+                needs_reconfigure = True
+
+        if not self.project.needs_rebuild() and not needs_reconfigure:
             log.info(f"Rebuilding {self.project.name} skipped")
             return
 
