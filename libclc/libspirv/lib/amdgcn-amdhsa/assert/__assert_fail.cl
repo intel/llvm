@@ -20,8 +20,6 @@ ulong __ockl_fprintf_append_args(ulong msg, int num_args, ulong arg0,
                                  ulong arg1, ulong arg2, ulong arg3, ulong arg4,
                                  ulong arg5, ulong arg6, int is_last);
 
-_CLC_OVERLOAD size_t __spirv_BuiltInGlobalInvocationId(int);
-
 // String length helper for assertions
 ulong __strlen_assert(__constant char *str) {
   __constant char *tmp = str;
