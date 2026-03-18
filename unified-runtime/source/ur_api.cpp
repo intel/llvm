@@ -8410,6 +8410,7 @@ ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
 ///         + `NULL == hKernel`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pGlobalWorkSize`
+///         + `pArgs == NULL && numArgs > 0`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `NULL != pArgs && ::UR_EXP_KERNEL_ARG_TYPE_SAMPLER < pArgs->type`
 ///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
