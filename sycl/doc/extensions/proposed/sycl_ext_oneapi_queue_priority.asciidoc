@@ -51,7 +51,7 @@ not rely on APIs defined in this specification.*
 
 == Overview
 
-This extension defines an additional queue properties that permit a backend,
+This extension defines additional queue properties that permit a backend,
 when supported, to create command queues with different levels of priority.
 Priorities are hints from the programmer that certain command submissions
 to a device may execute before others of lesser priority.
