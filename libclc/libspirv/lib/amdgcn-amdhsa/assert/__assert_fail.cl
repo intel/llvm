@@ -10,9 +10,6 @@
 __constant char __assert_fmt[] = "%s:%u: %s: global id: [%u,%u,%u], local id: "
                                  "[%u,%u,%u] Assertion `%s` failed.\n";
 
-// LLVM intrinsic for trap
-void __llvm_trap(void) __asm("llvm.trap");
-
 // OCKL fprintf functions for stderr output
 ulong __ockl_fprintf_stderr_begin(void);
 ulong __ockl_fprintf_append_string_n(ulong msg, __constant char *str, ulong len,
@@ -41,18 +38,18 @@ void __assert_fail(__constant char *assertion, __constant char *file, uint line,
   ulong msg = __ockl_fprintf_stderr_begin();
 
   // Append format string
-  msg = __ockl_fprintf_append_string_n(msg, __assert_fmt, 79, 0);
+  msg = __ockl_fprintf_append_string_n(msg, __assert_fmt, sizeof(assert_fmt) / sizeof(n), /*is_last=*/0);
 
   // Append file name
   ulong len_file = __strlen_assert(file);
   msg = __ockl_fprintf_append_string_n(msg, file, len_file, 0);
 
   // Append line number
-  msg = __ockl_fprintf_append_args(msg, 1, (ulong)line, 0, 0, 0, 0, 0, 0, 0);
+  msg = __ockl_fprintf_append_args(msg, /*num_args=/*1, /*arg0=/*line, /*arg1*/0, 0, 0, 0, 0, 0, /*is_last=*/0);
 
   // Append function name
   ulong len_func = __strlen_assert(function);
-  msg = __ockl_fprintf_append_string_n(msg, function, len_func, 0);
+  msg = __ockl_fprintf_append_string_n(msg, function, len_func, /*is_last=/*0);
 
   // Get global invocation IDs (x, y, z)
   ulong gidx = _Z33__spirv_BuiltInGlobalInvocationIdi(0);
@@ -65,14 +62,14 @@ void __assert_fail(__constant char *assertion, __constant char *file, uint line,
   ulong lidz = _Z32__spirv_BuiltInLocalInvocationIdi(2);
 
   // Append all 6 ID values (global x,y,z and local x,y,z)
-  msg = __ockl_fprintf_append_args(msg, 6, gidx, gidy, gidz, lidx, lidy, lidz,
-                                   0, 0);
+  msg = __ockl_fprintf_append_args(msg, 6, /*arg0*/gidx, gidy, gidz, lidx, lidy, lidz,
+                                   /*arg6*/0, /*is_last*/0);
 
   // Append assertion string (is_last=1)
   ulong len_assertion = __strlen_assert(assertion);
-  msg = __ockl_fprintf_append_string_n(msg, assertion, len_assertion, 1);
+  msg = __ockl_fprintf_append_string_n(msg, assertion, len_assertion, /*is_last=*/1);
 
   // Trap to halt execution
-  __llvm_trap();
+  __builtin_trap();
   __builtin_unreachable();
 }
