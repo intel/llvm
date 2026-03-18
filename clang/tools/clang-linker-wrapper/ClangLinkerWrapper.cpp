@@ -671,11 +671,8 @@ static Expected<StringRef> convertSPIRVToIR(StringRef Filename,
 /// \brief Creates and configures PostLinkSettings for SYCL post-link
 /// processing.
 ///
-/// This function analyzes command line arguments and target triple information
-/// to determine the appropriate settings for the SYCL post-link phase. The
-/// settings control various aspects of device code processing including
-/// specialization constants handling, kernel entry point emission, metadata
-/// generation, and ESIMD code splitting.
+/// This function analyzes command line arguments and target triple
+/// to determine the settings for the SYCL post-link phase.
 ///
 /// \param Args The command line argument list containing SYCL-specific flags
 ///             and options that influence post-link behavior.
@@ -706,25 +703,24 @@ getSYCLPostLinkSettings(const ArgList &Args, const llvm::Triple Triple) {
 
   if (!Triple.isAMDGCN())
     Settings.EmitParamInfo = true;
-  // Enable program metadata
   if (Triple.isNVPTX() || Triple.isAMDGCN() || Triple.isNativeCPU())
     Settings.EmitProgramMetadata = true;
 
-  //  Emit kernel names if we are producing SYCLBIN.
   if (Args.hasArg(OPT_syclbin_EQ))
     Settings.EmitKernelNames = true;
   // Specialization constant info generation is mandatory -
-  // add options unconditionally
+  // add options unconditionally.
   Settings.EmitExportedSymbols = true;
   Settings.EmitImportedSymbols = true;
 
   bool SplitEsimdByDefault = Triple.isSPIROrSPIRV();
-  bool SplitEsimd =
-      Args.hasFlag(OPT_sycl_device_code_split_esimd,
-                   OPT_no_sycl_device_code_split_esimd, SplitEsimdByDefault);
-  if (SplitEsimd)
+  if (Args.hasFlag(OPT_sycl_device_code_split_esimd,
+                   OPT_no_sycl_device_code_split_esimd, SplitEsimdByDefault))
     Settings.ESIMDOptions.SplitESIMD = true;
 
+  // If the code doesn't contain ESIMD intrinsics then lowering has no effect.
+  // Otherwise, it is mandatory to lower ESIMD intrinsics.
+  // Therefore, it is always set true.
   Settings.ESIMDOptions.LowerESIMD = true;
 
   bool IsAOT = Triple.isNVPTX() || Triple.isAMDGCN() || Triple.isSPIRAOT();
