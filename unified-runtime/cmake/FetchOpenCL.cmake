@@ -1,6 +1,6 @@
 # Finds or fetches OpenCL Headers and the ICD loader.
-if(TARGET OpenCL-Headers)
-  # If we already ran this module (so the OpenCL-Headers target exists),
+if(TARGET OpenCL)
+  # If we already ran this module (so the OpenCL target exists),
   # everything is already set up, nothing to do.
   return()
 endif()
@@ -17,40 +17,54 @@ set(OCL_LOADER_REPO
 set(OCL_HEADERS_TAG v2025.07.22)
 set(OCL_LOADER_TAG v2025.07.22)
 
-# Set NO_CMAKE_PACKAGE_REGISTRY so only system-wide installs are
-# detected.
-find_package(OpenCL 3.0 QUIET NO_CMAKE_PACKAGE_REGISTRY)
-
-if(OpenCL_FOUND)
-  # The OpenCL-Headers CMake files don't provide granular info
-  # on what is and isn't supposed, just the overall OpenCL version.
-  # The current tag we are using happens to define an extension, so just check
-  # if that extension exists to make sure the system install is not
-  # too old.
-  set(OPENCL_TEST_PROGRAM "#define CL_TARGET_OPENCL_VERSION 300
+# We have a unique use case where even if we find a system install with the
+# correct OpenCL version, it may not support the extension we need.
+# We can't use find_package because that doesn't allow us to undefine targets if it
+# turns out we can't use the system install, so instead use find_path and find_library
+# which have validator functions (starting in version 3.25.0) that do exactly what we want.
+find_path(OpenCL_INCLUDE_DIR
+  NAMES
+    CL/cl.h OpenCL/cl.h)
+if(OpenCL_INCLUDE_DIR AND
+    CMAKE_VERSION VERSION_GREATER_EQUAL "3.25.0")
+  function(opencl_validator validator_result_var item)
+    # The OpenCL-Headers CMake files don't provide granular info
+    # on what is and isn't supposed, just the overall OpenCL version.
+    # The current tag we are using happens to define an extension, so just check
+    # if that extension exists to make sure the system install is not
+    # too old.
+    set(OPENCL_TEST_PROGRAM "#define CL_TARGET_OPENCL_VERSION 300
         #include <CL/cl_ext.h>
         #ifndef cl_khr_spirv_queries
         #error Unsupported header version
         #endif
         int main(int, char*[]) { return 0; }"
-  )
-  include(CheckCXXSourceCompiles)
-  set(CMAKE_REQUIRED_INCLUDES ${OpenCL_INCLUDE_DIRS})
-  set(CMAKE_REQUIRED_LIBRARIES ${OpenCL_LIBRARY})
-  check_cxx_source_compiles("${OPENCL_TEST_PROGRAM}" OPENCL_HEADERS_VERSION_SUPPORTED)
-  if(NOT OPENCL_HEADERS_VERSION_SUPPORTED)
-    message(WARNING "Preinstalled OpenCL-Headers are not supported, "
-      "use commit ${OCL_HEADERS_TAG} or later. Will fetch OpenCL.")
-    set(OpenCL_FOUND FALSE CACHE BOOL "" FORCE)
+      )
+    include(CheckCXXSourceCompiles)
+    set(CMAKE_REQUIRED_INCLUDES ${OpenCL_INCLUDE_DIR})
+    set(CMAKE_REQUIRED_LIBRARIES ${item})
+    check_cxx_source_compiles("${OPENCL_TEST_PROGRAM}" OPENCL_HEADERS_VERSION_SUPPORTED)
+    if(NOT OPENCL_HEADERS_VERSION_SUPPORTED)
+      message(WARNING "Preinstalled OpenCL-Headers are not supported, "
+	"use commit ${OCL_HEADERS_TAG} or later. Will fetch OpenCL.")
+      set(${validator_result_var} FALSE PARENT_SCOPE)
+    endif()
+  endfunction()
+  find_library(OpenCL_LIBRARY_CAND
+    NAMES OpenCL
+    VALIDATOR opencl_validator)
+  if(OpenCL_LIBRARY_CAND)
+    add_library(OpenCL INTERFACE)
+    target_include_directories(OpenCL INTERFACE ${OpenCL_INCLUDE_DIR})
+    target_link_libraries(OpenCL INTERFACE ${OpenCL_LIBRARY_CAND})
+    # Signal to callers that we are using a system OpeNCL install so OpenCL
+    # doesn't need to be installed as part of their install step.
+    set(OpenCL_FOUND TRUE CACHE BOOL "" FORCE)
   endif()
 endif()
 
-# Ideally we could use the FIND_PACKAGE_ARGS argument to FetchContent_Declare to avoid
-# the conditonals, but that was added in CMake 3.24 and the current minimum we require is
-# 3.20.
-
 # OpenCL Headers
-if(NOT OpenCL_FOUND)
+if(NOT TARGET OpenCL)
   FetchContent_Declare(ocl-headers
       GIT_REPOSITORY    ${OCL_HEADERS_REPO}
       GIT_TAG           ${OCL_HEADERS_TAG}
@@ -70,7 +84,7 @@ endif()
 
 set(BUILD_SHARED_LIBS ON)
 
-if(NOT OpenCL_FOUND)
+if(NOT TARGET OpenCL)
   FetchContent_Declare(ocl-icd
       GIT_REPOSITORY    ${OCL_LOADER_REPO}
       GIT_TAG           ${OCL_LOADER_TAG}
@@ -80,7 +94,6 @@ if(NOT OpenCL_FOUND)
     message(STATUS "Will fetch OpenCL ICD Loader from ${OCL_LOADER_REPO}")
   endif()
   FetchContent_MakeAvailable(ocl-icd)
-  set(OpenCL_LIBRARY OpenCL::OpenCL CACHE PATH "" FORCE)
 else()
   message(STATUS
     "Using OpenCL ICD Loader at ${OpenCL_LIBRARY}")
@@ -90,4 +103,4 @@ add_library(OpenCL-Headers INTERFACE)
 target_include_directories(OpenCL-Headers INTERFACE ${OpenCL_INCLUDE_DIR})
 target_compile_definitions(OpenCL-Headers INTERFACE -DCL_TARGET_OPENCL_VERSION=300 -DCL_USE_DEPRECATED_OPENCL_1_2_APIS=1)
 
-set(OpenCL_FOUND ${OpenCL_FOUND} CACHE BOOL INTERNAL)
+set(OpenCL_LIBRARY OpenCL CACHE PATH "" FORCE)
