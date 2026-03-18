@@ -43,11 +43,13 @@ SYCL specification refer to that revision.
 
 == Status
 
-This is a proposed extension specification, intended to gather community
-feedback.  Interfaces defined in this specification may not be implemented yet
-or may be in a preliminary state.  The specification itself may also change in
-incompatible ways before it is finalized.  *Shipping software products should
-not rely on APIs defined in this specification.*
+This is a proposed update to an existing extension. Interfaces defined in this
+specification may not be implemented yet or may be in a preliminary state. The
+specification itself may also change in incompatible ways before it is
+finalized. *Shipping software products should not rely on APIs defined in this
+specification.* See
+link:../supported/sycl_ext_oneapi_queue_priority.asciidoc[here] for the existing
+extension, which is implemented.
 
 == Overview
 
@@ -78,9 +80,16 @@ supports.
 
 |1
 |Initial version of this extension.
+
+|2
+|Adds `sycl::ext::oneapi::property::queue::priority` property and
+`sycl::ext::oneapi::info::device::priority_range` information descriptor.
+
 |===
 
 === New queue property for numeric priority value
+
+Added in revision 2 of this specification.
 
 This extension defines the following new property that may be passed to
 the constructor of the `queue` class:
@@ -126,13 +135,13 @@ public:
   priority_normal() = default;
 };
 
-// Equivalent to: priority(1)
+// Equivalent to the lowest possible priority for the device
 class priority_low {
 public:
   priority_low() = default;
 };
 
-// Equivalent to: priority(-1)
+// Equivalent to the highest possible priority for the device
 class priority_high {
 public:
   priority_high() = default;
@@ -144,13 +153,15 @@ public:
 _Effects:_ Specifies that the queue should be constructed with the specified
 pre-defined priority. The properties map to the numeric priority values in the
 following way: `priority_normal` has a priority value of 0, `priority_low` has
-a priority value of 1, and `priority_high` has a priority value of -1. If the
-user specifies a pre-defined priority property which is outside the range
-returned by `sycl::ext::oneapi::info::device::priority_range` for the device
-associated with the queue, the priority value will be clamped down or up to the
-lowest or highest priority in the range.
+a priority value of the lowest possible priority (highest numerical value) for
+the device as reported by the `priority_range` information descriptor, and
+`priority_high` has a priority value of the highest possible priority (lowest
+numerical value) for the device as reported by the `priority_range` information
+descriptor.
 
 === New device information descriptor
+
+Added in revision 2 of this specification.
 
 '''
 
