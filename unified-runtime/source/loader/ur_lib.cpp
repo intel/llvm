@@ -16,7 +16,7 @@
 // (not quite sure why windows.h is being included here)
 #ifndef NOMINMAX
 #define NOMINMAX
-#include "ur_api.h"
+#include "unified-runtime/ur_api.h"
 #endif // !NOMINMAX
 
 #include "logger/ur_logger.hpp"

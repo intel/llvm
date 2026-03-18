@@ -8,7 +8,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "ur_api.h"
+#include "unified-runtime/ur_api.h"
 
 UR_APIEXPORT ur_result_t UR_APICALL urSamplerCreate(
     ur_context_handle_t /*hContext*/, const ur_sampler_desc_t * /*pDesc*/,

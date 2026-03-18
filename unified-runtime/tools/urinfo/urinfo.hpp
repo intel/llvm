@@ -17,7 +17,7 @@
 #include "utils.hpp"
 #include <cstdlib>
 #include <string_view>
-#include <ur_api.h>
+#include <unified-runtime/ur_api.h>
 
 namespace urinfo {
 inline void printLoaderConfigInfos(ur_loader_config_handle_t hLoaderConfig,
