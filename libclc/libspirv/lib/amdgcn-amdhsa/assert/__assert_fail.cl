@@ -6,6 +6,8 @@
 //
 //===----------------------------------------------------------------------===*/
 
+#include <libspirv/spirv.h>
+
 // Assert failure format string
 __constant char __assert_fmt[] = "%s:%u: %s: global id: [%u,%u,%u], local id: "
                                  "[%u,%u,%u] Assertion `%s` failed.\n";
@@ -18,9 +20,7 @@ ulong __ockl_fprintf_append_args(ulong msg, int num_args, ulong arg0,
                                  ulong arg1, ulong arg2, ulong arg3, ulong arg4,
                                  ulong arg5, ulong arg6, int is_last);
 
-// SPIR-V built-in functions for work-item IDs
-ulong _Z33__spirv_BuiltInGlobalInvocationIdi(int dim);
-ulong _Z32__spirv_BuiltInLocalInvocationIdi(int dim);
+__attribute__((overloadable)) size_t __spirv_BuiltInGlobalInvocationId(int);
 
 // String length helper for assertions
 ulong __strlen_assert(__constant char *str) {
@@ -38,36 +38,40 @@ void __assert_fail(__constant char *assertion, __constant char *file, uint line,
   ulong msg = __ockl_fprintf_stderr_begin();
 
   // Append format string
-  msg = __ockl_fprintf_append_string_n(msg, __assert_fmt, sizeof(assert_fmt) / sizeof(n), /*is_last=*/0);
+  msg = __ockl_fprintf_append_string_n(
+      msg, __assert_fmt, sizeof(__assert_fmt) / sizeof(char), /*is_last=*/0);
 
   // Append file name
   ulong len_file = __strlen_assert(file);
   msg = __ockl_fprintf_append_string_n(msg, file, len_file, 0);
 
   // Append line number
-  msg = __ockl_fprintf_append_args(msg, /*num_args=/*1, /*arg0=/*line, /*arg1*/0, 0, 0, 0, 0, 0, /*is_last=*/0);
+  msg = __ockl_fprintf_append_args(msg, /*num_args=*/1, /*arg0=*/line,
+                                   /*arg1*/ 0, 0, 0, 0, 0, 0, /*is_last=*/0);
 
   // Append function name
   ulong len_func = __strlen_assert(function);
-  msg = __ockl_fprintf_append_string_n(msg, function, len_func, /*is_last=/*0);
+  msg = __ockl_fprintf_append_string_n(msg, function, len_func, /*is_last=*/0);
 
   // Get global invocation IDs (x, y, z)
-  ulong gidx = _Z33__spirv_BuiltInGlobalInvocationIdi(0);
-  ulong gidy = _Z33__spirv_BuiltInGlobalInvocationIdi(1);
-  ulong gidz = _Z33__spirv_BuiltInGlobalInvocationIdi(2);
+  ulong gidx = __spirv_BuiltInGlobalInvocationId(0);
+  ulong gidy = __spirv_BuiltInGlobalInvocationId(1);
+  ulong gidz = __spirv_BuiltInGlobalInvocationId(2);
 
   // Get local invocation IDs (x, y, z)
-  ulong lidx = _Z32__spirv_BuiltInLocalInvocationIdi(0);
-  ulong lidy = _Z32__spirv_BuiltInLocalInvocationIdi(1);
-  ulong lidz = _Z32__spirv_BuiltInLocalInvocationIdi(2);
+  ulong lidx = __spirv_BuiltInLocalInvocationId(0);
+  ulong lidy = __spirv_BuiltInLocalInvocationId(1);
+  ulong lidz = __spirv_BuiltInLocalInvocationId(2);
 
   // Append all 6 ID values (global x,y,z and local x,y,z)
-  msg = __ockl_fprintf_append_args(msg, 6, /*arg0*/gidx, gidy, gidz, lidx, lidy, lidz,
-                                   /*arg6*/0, /*is_last*/0);
+  msg = __ockl_fprintf_append_args(msg, 6, /*arg0*/ gidx, gidy, gidz, lidx,
+                                   lidy, lidz,
+                                   /*arg6*/ 0, /*is_last*/ 0);
 
   // Append assertion string (is_last=1)
   ulong len_assertion = __strlen_assert(assertion);
-  msg = __ockl_fprintf_append_string_n(msg, assertion, len_assertion, /*is_last=*/1);
+  msg = __ockl_fprintf_append_string_n(msg, assertion, len_assertion,
+                                       /*is_last=*/1);
 
   // Trap to halt execution
   __builtin_trap();

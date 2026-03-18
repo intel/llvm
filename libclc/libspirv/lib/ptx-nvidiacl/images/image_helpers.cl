@@ -44,66 +44,31 @@ typedef struct {
 
 // Struct-to-vector conversion helpers
 inline short4 __nvvm_v4i16_to_vec(__nvvm_v4i16_t s) {
-  union {
-    __nvvm_v4i16_t s;
-    short4 v;
-  } u;
-  u.s = s;
-  return u.v;
+  return __builtin_bit_cast(short4, s);
 }
 
 inline short2 __nvvm_v2i16_to_vec(__nvvm_v2i16_t s) {
-  union {
-    __nvvm_v2i16_t s;
-    short2 v;
-  } u;
-  u.s = s;
-  return u.v;
+  return __builtin_bit_cast(short2, s);
 }
 
 inline int4 __nvvm_v4i32_to_vec(__nvvm_v4i32_t s) {
-  union {
-    __nvvm_v4i32_t s;
-    int4 v;
-  } u;
-  u.s = s;
-  return u.v;
+  return __builtin_bit_cast(int4, s);
 }
 
 inline int2 __nvvm_v2i32_to_vec(__nvvm_v2i32_t s) {
-  union {
-    __nvvm_v2i32_t s;
-    int2 v;
-  } u;
-  u.s = s;
-  return u.v;
+  return __builtin_bit_cast(int2, s);
 }
 
 inline uint4 __nvvm_v4u32_to_vec(__nvvm_v4u32_t s) {
-  union {
-    __nvvm_v4u32_t s;
-    uint4 v;
-  } u;
-  u.s = s;
-  return u.v;
+  return __builtin_bit_cast(uint4, s);
 }
 
 inline uint2 __nvvm_v2u32_to_vec(__nvvm_v2u32_t s) {
-  union {
-    __nvvm_v2u32_t s;
-    uint2 v;
-  } u;
-  u.s = s;
-  return u.v;
+  return __builtin_bit_cast(uint2, s);
 }
 
 inline float4 __nvvm_v4f32_to_vec(__nvvm_v4f32_t s) {
-  union {
-    __nvvm_v4f32_t s;
-    float4 v;
-  } u;
-  u.s = s;
-  return u.v;
+  return __builtin_bit_cast(float4, s);
 }
 
 // Sampled image pack/unpack helpers
