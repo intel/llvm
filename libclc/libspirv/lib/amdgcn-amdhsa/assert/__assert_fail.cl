@@ -1,0 +1,78 @@
+/*===----------------------------------------------------------------------===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===*/
+
+// Assert failure format string
+__constant char __assert_fmt[] = "%s:%u: %s: global id: [%u,%u,%u], local id: "
+                                 "[%u,%u,%u] Assertion `%s` failed.\n";
+
+// LLVM intrinsic for trap
+void __llvm_trap(void) __asm("llvm.trap");
+
+// OCKL fprintf functions for stderr output
+ulong __ockl_fprintf_stderr_begin(void);
+ulong __ockl_fprintf_append_string_n(ulong msg, __constant char *str, ulong len,
+                                     int is_last);
+ulong __ockl_fprintf_append_args(ulong msg, int num_args, ulong arg0,
+                                 ulong arg1, ulong arg2, ulong arg3, ulong arg4,
+                                 ulong arg5, ulong arg6, int is_last);
+
+// SPIR-V built-in functions for work-item IDs
+ulong _Z33__spirv_BuiltInGlobalInvocationIdi(int dim);
+ulong _Z32__spirv_BuiltInLocalInvocationIdi(int dim);
+
+// String length helper for assertions
+ulong __strlen_assert(__constant char *str) {
+  __constant char *tmp = str;
+  while (*tmp != '\0') {
+    tmp++;
+  }
+  return (ulong)(tmp - str);
+}
+
+// Assert failure handler
+void __assert_fail(__constant char *assertion, __constant char *file, uint line,
+                   __constant char *function) {
+  // Start building the error message
+  ulong msg = __ockl_fprintf_stderr_begin();
+
+  // Append format string
+  msg = __ockl_fprintf_append_string_n(msg, __assert_fmt, 79, 0);
+
+  // Append file name
+  ulong len_file = __strlen_assert(file);
+  msg = __ockl_fprintf_append_string_n(msg, file, len_file, 0);
+
+  // Append line number
+  msg = __ockl_fprintf_append_args(msg, 1, (ulong)line, 0, 0, 0, 0, 0, 0, 0);
+
+  // Append function name
+  ulong len_func = __strlen_assert(function);
+  msg = __ockl_fprintf_append_string_n(msg, function, len_func, 0);
+
+  // Get global invocation IDs (x, y, z)
+  ulong gidx = _Z33__spirv_BuiltInGlobalInvocationIdi(0);
+  ulong gidy = _Z33__spirv_BuiltInGlobalInvocationIdi(1);
+  ulong gidz = _Z33__spirv_BuiltInGlobalInvocationIdi(2);
+
+  // Get local invocation IDs (x, y, z)
+  ulong lidx = _Z32__spirv_BuiltInLocalInvocationIdi(0);
+  ulong lidy = _Z32__spirv_BuiltInLocalInvocationIdi(1);
+  ulong lidz = _Z32__spirv_BuiltInLocalInvocationIdi(2);
+
+  // Append all 6 ID values (global x,y,z and local x,y,z)
+  msg = __ockl_fprintf_append_args(msg, 6, gidx, gidy, gidz, lidx, lidy, lidz,
+                                   0, 0);
+
+  // Append assertion string (is_last=1)
+  ulong len_assertion = __strlen_assert(assertion);
+  msg = __ockl_fprintf_append_string_n(msg, assertion, len_assertion, 1);
+
+  // Trap to halt execution
+  __llvm_trap();
+  __builtin_unreachable();
+}
