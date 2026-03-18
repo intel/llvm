@@ -408,6 +408,11 @@ static void addSYCLDeviceSanitizerLibs(
     const llvm::opt::ArgList &Args,
     SmallVector<ToolChain::BitCodeLibraryInfo, 8> &LibraryList) {
   enum { JIT = 0, AOT_CPU, AOT_DG2, AOT_PVC };
+  // TODO: Device code linking during the compilation phase provides the
+  // opportunity to link in the specific arch related sanitizer libraries
+  // without having to default to the fallback device sanitizer library when
+  // compiling for multiple targets.
+
   // Default internalization to 'false' for these libraries, as they are
   // expected to link with -mlink-bitcode-file, which does not link with
   // only-needed.

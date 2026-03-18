@@ -131,6 +131,48 @@
 // SYCL_DEVICE_LIB_ASAN_CPU-SAME: "-mlink-bitcode-file" "{{.*}}libsycl-asan-cpu.bc"
 
 /// ###########################################################################
+/// Test link behavior for multiple targets. Currently, we default to the
+/// fallback JIT ASAN device library in this case.
+// RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64,intel_gpu_pvc \
+// RUN: --offload-new-driver %s --sysroot=%S/Inputs/SYCL -Xarch_device \
+// RUN: -fsanitize=address -### 2>&1 \
+// RUN: | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_ASAN_CPU_GPU
+// SYCL_DEVICE_LIB_ASAN_CPU_GPU: clang{{.*}} "-triple" "spir64_gen-unknown-unknown"{{.*}} "-mlink-builtin-bitcode" "{{.*}}libsycl-crt.bc"
+// SYCL_DEVICE_LIB_ASAN_CPU_GPU-SAME: {{.*}}libsycl-complex.bc
+// SYCL_DEVICE_LIB_ASAN_CPU_GPU-SAME: {{.*}}libsycl-complex-fp64.bc
+// SYCL_DEVICE_LIB_ASAN_CPU_GPU-SAME: {{.*}}libsycl-cmath.bc
+// SYCL_DEVICE_LIB_ASAN_CPU_GPU-SAME: {{.*}}libsycl-cmath-fp64.bc
+// SYCL_DEVICE_LIB_ASAN_CPU_GPU-SAME: {{.*}}libsycl-imf.bc
+// SYCL_DEVICE_LIB_ASAN_CPU_GPU-SAME: {{.*}}libsycl-imf-fp64.bc
+// SYCL_DEVICE_LIB_ASAN_CPU_GPU-SAME: {{.*}}libsycl-imf-bf16.bc
+// SYCL_DEVICE_LIB_ASAN_CPU_GPU-SAME: {{.*}}libsycl-fallback-cstring.bc
+// SYCL_DEVICE_LIB_ASAN_CPU_GPU-SAME: {{.*}}libsycl-fallback-complex.bc
+// SYCL_DEVICE_LIB_ASAN_CPU_GPU-SAME: {{.*}}libsycl-fallback-complex-fp64.bc
+// SYCL_DEVICE_LIB_ASAN_CPU_GPU-SAME: {{.*}}libsycl-fallback-cmath.bc
+// SYCL_DEVICE_LIB_ASAN_CPU_GPU-SAME: {{.*}}libsycl-fallback-cmath-fp64.bc
+// SYCL_DEVICE_LIB_ASAN_CPU_GPU-SAME: {{.*}}libsycl-fallback-imf.bc
+// SYCL_DEVICE_LIB_ASAN_CPU_GPU-SAME: {{.*}}libsycl-fallback-imf-fp64.bc
+// SYCL_DEVICE_LIB_ASAN_CPU_GPU-SAME: {{.*}}libsycl-fallback-imf-bf16.bc
+// SYCL_DEVICE_LIB_ASAN_CPU_GPU-SAME: "-mlink-bitcode-file" "{{.*}}libsycl-asan.bc"
+// SYCL_DEVICE_LIB_ASAN_CPU_GPU: clang{{.*}} "-triple" "spir64_x86_64-unknown-unknown"{{.*}} "-mlink-builtin-bitcode" "{{.*}}libsycl-crt.bc"
+// SYCL_DEVICE_LIB_ASAN_CPU_GPU-SAME: {{.*}}libsycl-complex.bc
+// SYCL_DEVICE_LIB_ASAN_CPU_GPU-SAME: {{.*}}libsycl-complex-fp64.bc
+// SYCL_DEVICE_LIB_ASAN_CPU_GPU-SAME: {{.*}}libsycl-cmath.bc
+// SYCL_DEVICE_LIB_ASAN_CPU_GPU-SAME: {{.*}}libsycl-cmath-fp64.bc
+// SYCL_DEVICE_LIB_ASAN_CPU_GPU-SAME: {{.*}}libsycl-imf.bc
+// SYCL_DEVICE_LIB_ASAN_CPU_GPU-SAME: {{.*}}libsycl-imf-fp64.bc
+// SYCL_DEVICE_LIB_ASAN_CPU_GPU-SAME: {{.*}}libsycl-imf-bf16.bc
+// SYCL_DEVICE_LIB_ASAN_CPU_GPU-SAME: {{.*}}libsycl-fallback-cstring.bc
+// SYCL_DEVICE_LIB_ASAN_CPU_GPU-SAME: {{.*}}libsycl-fallback-complex.bc
+// SYCL_DEVICE_LIB_ASAN_CPU_GPU-SAME: {{.*}}libsycl-fallback-complex-fp64.bc
+// SYCL_DEVICE_LIB_ASAN_CPU_GPU-SAME: {{.*}}libsycl-fallback-cmath.bc
+// SYCL_DEVICE_LIB_ASAN_CPU_GPU-SAME: {{.*}}libsycl-fallback-cmath-fp64.bc
+// SYCL_DEVICE_LIB_ASAN_CPU_GPU-SAME: {{.*}}libsycl-fallback-imf.bc
+// SYCL_DEVICE_LIB_ASAN_CPU_GPU-SAME: {{.*}}libsycl-fallback-imf-fp64.bc
+// SYCL_DEVICE_LIB_ASAN_CPU_GPU-SAME: {{.*}}libsycl-fallback-imf-bf16.bc
+// SYCL_DEVICE_LIB_ASAN_CPU_GPU-SAME: "-mlink-bitcode-file" "{{.*}}libsycl-asan.bc"
+
+/// ###########################################################################
 /// test behavior of linking libsycl-asan-dg2 for DG2 target AOT compilation when asan flag is applied.
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_dg2_g10 --offload-new-driver %s --sysroot=%S/Inputs/SYCL \
 // RUN: -Xarch_device -fsanitize=address -### 2>&1 | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_ASAN_DG2
