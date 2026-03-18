@@ -188,6 +188,8 @@ public:
       const llvm::opt::ArgList &Args,
       llvm::opt::ArgStringList &CC1Args) const override;
 
+  // Provides a vector of device library names including the full path that are
+  // associated with the offloading kind.
   llvm::SmallVector<BitCodeLibraryInfo, 12>
   getDeviceLibs(const llvm::opt::ArgList &Args,
                 const Action::OffloadKind DeviceOffloadingKind) const override;

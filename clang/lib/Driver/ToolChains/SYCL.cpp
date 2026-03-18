@@ -538,7 +538,7 @@ static void addSYCLDeviceSanitizerLibs(
 }
 #endif
 
-// Get the list of SYCL device library names to link with user's device image.
+// Retuns the list of SYCL device library names for the given target.
 SmallVector<ToolChain::BitCodeLibraryInfo, 8>
 SYCLToolChain::getDeviceLibNames(const Driver &D,
                                  const llvm::opt::ArgList &Args,
@@ -1444,8 +1444,8 @@ void SYCLToolChain::addClangTargetOptions(
     SYCLInstallation.addLibspirvLinkArgs(getEffectiveTriple(), DriverArgs,
                                          HostTC.getTriple(), CC1Args);
   }
-
-  // Add device libraries.
+  // Only link device libraries at compile time for SPIR/SPIRV targets.
+  // Other targets (NVPTX, AMD) link at link time via clang-linker-wrapper.
   // This is only done with the new offloading model, to fit with LLVM community
   // implementation.
   if (!getDriver().getUseNewOffloadingDriver() || !getTriple().isSPIROrSPIRV())
@@ -1453,11 +1453,15 @@ void SYCLToolChain::addClangTargetOptions(
 
   llvm::SmallVector<BitCodeLibraryInfo, 12> BCLibs;
   BCLibs.append(SYCLToolChain::getDeviceLibs(DriverArgs, DeviceOffloadingKind));
-  for (auto BCFile : BCLibs) {
+  for (const auto &BCFile : BCLibs) {
     CC1Args.push_back(BCFile.ShouldInternalize ? "-mlink-builtin-bitcode"
                                                : "-mlink-bitcode-file");
     CC1Args.push_back(DriverArgs.MakeArgString(BCFile.Path));
   }
+  // Use -mlink-builtin-bitcode-postopt to link the device libraries after the
+  // middle-end passes. This makes sure the device libraries are added after
+  // the user code has been instrumented with the dependent calls to the
+  // added device libraries.
   CC1Args.push_back("-mlink-builtin-bitcode-postopt");
 
   // FIXME: Turn off potential linker warnings when linking in device library
@@ -1914,9 +1918,9 @@ SYCLToolChain::getDeviceLibs(
 
   // Create full path names to each device library.  If found, add to the list
   // of device libraries that will be linked against.
-  for (auto DeviceLib : DeviceLibs) {
-    for (auto LibraryPath : LibraryPaths) {
-      SmallString<1208> FullLibName(LibraryPath);
+  for (const auto &DeviceLib : DeviceLibs) {
+    for (const auto &LibraryPath : LibraryPaths) {
+      SmallString<128> FullLibName(LibraryPath);
       llvm::sys::path::append(FullLibName, DeviceLib.Path);
       if (llvm::sys::fs::exists(FullLibName)) {
         BitCodeLibraryInfo BitCodeLibrary(
