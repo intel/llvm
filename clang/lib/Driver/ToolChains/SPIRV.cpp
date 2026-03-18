@@ -148,30 +148,22 @@ void SPIRV::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   std::string Linker = ToolChain.GetProgramPath(getShortName());
   ArgStringList CmdArgs;
   for (const Arg *A : Args) {
-    if (A->getOption().matches(options::OPT_Xlinker)) {
-      // Each -Xlinker val becomes a direct argument to clang-sycl-linker.
-      CmdArgs.push_back(A->getValue());
-      A->claim();
+      if (A->getOption().matches(options::OPT_Xlinker)) {
+        // Each -Xlinker val becomes a direct argument to clang-sycl-linker.
+        CmdArgs.push_back(A->getValue());
+        A->claim();
+      }
     }
-  }
-  for (const InputInfo &II : Inputs) {
-    if (II.isFilename())
-      CmdArgs.push_back(II.getFilename());
-  }
 
   CmdArgs.push_back("-o");
   CmdArgs.push_back(Output.getFilename());
 
-  // Use of --sycl-link will call the clang-sycl-linker instead of
-  // the default linker (spirv-link).
   if (Args.hasArg(options::OPT_sycl_link)) {
-    // clang-sycl-linker path.
-    // All SYCL-specific args were already forwarded as -Xlinker values
-    // by clang-linker-wrapper. AddLinkerInputs collects them here.
+    // Use of --sycl-link will call the clang-sycl-linker instead of
+    // the default linker (spirv-link).
     Linker = ToolChain.GetProgramPath("clang-sycl-linker");
-  }
-  else if (!llvm::sys::fs::can_execute(Linker) &&
-           !C.getArgs().hasArg(clang::options::OPT__HASH_HASH_HASH)) {
+  } else if (!llvm::sys::fs::can_execute(Linker) &&
+             !C.getArgs().hasArg(clang::options::OPT__HASH_HASH_HASH)) {
     C.getDriver().Diag(clang::diag::err_drv_no_spv_tools) << getShortName();
     return;
   }

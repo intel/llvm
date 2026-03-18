@@ -606,6 +606,43 @@ fatbinary(ArrayRef<std::tuple<StringRef, StringRef, StringRef>> InputFiles,
 } // namespace amdgcn
 
 namespace sycl {
+/// This routine is used to convert SPIR-V input files into LLVM IR files.
+/// 'llvm-spirv -r' command is used for this purpose.
+/// If input is not a SPIR-V file, then the original file is returned.
+/// TODO: Add a check to identify SPIR-V files and exit early if the input is
+/// not a SPIR-V file.
+/// 'Filename' is the input file that could be a SPIR-V file.
+/// 'Args' encompasses all arguments required for linking and wrapping device
+/// code and will be parsed to generate options required to be passed into the
+/// llvm-spirv tool.
+static Expected<StringRef> convertSPIRVToIR(StringRef Filename,
+                                            const ArgList &Args) {
+  llvm::errs() << "[DEBUG] Converting SPIR-V file " << Filename
+               << " to LLVM IR\n";
+  Expected<std::string> SPIRVToIRWrapperPath = findProgram(
+      "spirv-to-ir-wrapper", {getMainExecutable("spirv-to-ir-wrapper")});
+  if (!SPIRVToIRWrapperPath)
+    return SPIRVToIRWrapperPath.takeError();
+
+  // Create a new file to write the converted file to.
+  auto TempFileOrErr =
+      createOutputFile(sys::path::filename(ExecutableName), "bc");
+  if (!TempFileOrErr)
+    return TempFileOrErr.takeError();
+
+  SmallVector<StringRef, 8> CmdArgs;
+  CmdArgs.push_back(*SPIRVToIRWrapperPath);
+  CmdArgs.push_back(Filename);
+  CmdArgs.push_back("-o");
+  CmdArgs.push_back(*TempFileOrErr);
+  CmdArgs.push_back("--llvm-spirv-opts");
+  CmdArgs.push_back("--spirv-preserve-auxdata --spirv-target-env=SPV-IR "
+                    "--spirv-builtin-format=global");
+  if (Error Err = executeCommands(*SPIRVToIRWrapperPath, CmdArgs))
+    return std::move(Err);
+  return *TempFileOrErr;
+}
+
 /// Write an OffloadBinary containing the serialized SYCLBIN resulting from
 /// \p ModuleDescs to the ExecutableName file with the .syclbin extension.
 static Expected<StringRef>
@@ -933,7 +970,7 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args,
   if (ActiveOffloadKindMask & OFK_SYCL) {
     llvm::errs() << "[DEBUG] add the sycl-link";
     CmdArgs.push_back("--sycl-link");
-     // These become -Xlinker values that AddLinkerInputs
+    // These become -Xlinker values that AddLinkerInputs
     // will collect in SPIRV::Linker::ConstructJob.
     CmdArgs.append({"-Xlinker",
         Args.MakeArgString("-triple=" + Triple.getTriple())});
@@ -1306,7 +1343,7 @@ DerivedArgList getLinkerArgs(ArrayRef<OffloadFile> Input,
   if (llvm::all_of(Input, ContainsBitcode))
     DAL.AddFlagArg(nullptr, Tbl.getOption(OPT_whole_program));
 
-// This function filters the SYCL device compiler and linker options by target
+  // This function filters the SYCL device compiler and linker options by target
   // triple and offload kind.
   // The device_linker_args and device_compiler_args options accept values
   // in the form [<kind>:][<triple>=]<value>.
@@ -1418,10 +1455,16 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
           reportError(createStringError(Err));
         });
     auto LinkerArgs = getLinkerArgs(Input, BaseArgs);
-    
+    bool HasSYCLOffloadKind = false;
+    bool HasNonSYCLOffloadKinds = false;
     uint16_t ActiveOffloadKindMask = 0u;
-    for (const auto &File : Input)
+    for (const auto &File : Input) {
       ActiveOffloadKindMask |= File.getBinary()->getOffloadKind();
+      if (File.getBinary()->getOffloadKind() == OFK_SYCL)
+        HasSYCLOffloadKind = true;
+      else
+        HasNonSYCLOffloadKinds = true;
+    }
 
     // Linking images of SYCL offload kind with images of other kind is not
     // supported.
@@ -1430,52 +1473,77 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
         ((ActiveOffloadKindMask ^ OFK_SYCL) != 0))
       return createStringError("Linking images of SYCL offload kind with "
                                "images of any other kind is not supported");
+    
+    // not sure if this part is needed, to be decided later
+    // Expected<std::pair<std::string, std::string>> CompileLinkOptionsOrErr =
+    //       extractSYCLCompileLinkOptions(Input);
+    // if (!CompileLinkOptionsOrErr)
+    //   return CompileLinkOptionsOrErr.takeError();
 
-      SmallVector<StringRef> InputFiles;
-      // Write device inputs to an output file for the linker.
-      for (const OffloadFile &File : Input) {
-        auto FileNameOrErr = writeOffloadFile(File);
-        if (!FileNameOrErr)
-          return FileNameOrErr.takeError();
-        InputFiles.emplace_back(*FileNameOrErr);
+    // Append device compiler and linker options passed via
+    // -device-compiler= and -device-linker= to clang-linker-warpper,
+    // together with options extracted from the image.
+    // StringRef DeviceCompilerArgs =
+    //     LinkerArgs.getLastArgValue(OPT_compiler_arg_EQ);
+    // if (!DeviceCompilerArgs.empty()) {
+    //   CompileLinkOptionsOrErr->first += " ";
+    //   CompileLinkOptionsOrErr->first += DeviceCompilerArgs;
+    // }
+    // StringRef DeviceLinkerArgs =
+    //     LinkerArgs.getLastArgValue(OPT_linker_arg_EQ);
+    // if (!DeviceLinkerArgs.empty()) {
+    //   CompileLinkOptionsOrErr->second += " ";
+    //   CompileLinkOptionsOrErr->second += DeviceLinkerArgs;
+    // }
+
+    SmallVector<StringRef> InputFiles;
+    for (const OffloadFile &File : Input) {
+      auto FileNameOrErr = writeOffloadFile(File, HasSYCLOffloadKind);
+      if (!FileNameOrErr)
+        return FileNameOrErr.takeError();
+      auto IRFile = sycl::convertSPIRVToIR(*FileNameOrErr, LinkerArgs);
+      if (!IRFile)
+        return IRFile.takeError();
+      InputFiles.emplace_back(*IRFile);
+    }
+
+    // Link the input device files using the device linker for SYCL
+    // offload.
+    auto TmpOutputOrErr = linkDevice(InputFiles, LinkerArgs, ActiveOffloadKindMask);
+    if (!TmpOutputOrErr)
+      return TmpOutputOrErr.takeError();
+
+    // Store the offloading image for each linked output file.
+    for (OffloadKind Kind = OFK_OpenMP; Kind != OFK_LAST;
+        Kind = static_cast<OffloadKind>((uint16_t)(Kind) << 1)) {
+      if ((ActiveOffloadKindMask & Kind) == 0)
+        continue;
+      llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> FileOrErr =
+          llvm::MemoryBuffer::getFileOrSTDIN(*TmpOutputOrErr);
+      if (std::error_code EC = FileOrErr.getError()) {
+        if (DryRun)
+          FileOrErr = MemoryBuffer::getMemBuffer("");
+        else
+          return createFileError(*TmpOutputOrErr, EC);
       }
-      // Link the input device files using the device linker for SYCL
-      // offload.
-      auto TmpOutputOrErr = linkDevice(InputFiles, LinkerArgs, ActiveOffloadKindMask);
-      if (!TmpOutputOrErr)
-        return TmpOutputOrErr.takeError();
 
-      // Store the offloading image for each linked output file.
-      for (OffloadKind Kind = OFK_OpenMP; Kind != OFK_LAST;
-           Kind = static_cast<OffloadKind>((uint16_t)(Kind) << 1)) {
-        if ((ActiveOffloadKindMask & Kind) == 0)
-          continue;
-        llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> FileOrErr =
-            llvm::MemoryBuffer::getFileOrSTDIN(*TmpOutputOrErr);
-        if (std::error_code EC = FileOrErr.getError()) {
-          if (DryRun)
-            FileOrErr = MemoryBuffer::getMemBuffer("");
-          else
-            return createFileError(*TmpOutputOrErr, EC);
-        }
+      // Manually containerize offloading images not in ELF format.
+      if (Error E = containerizeRawImage(*FileOrErr, Kind, LinkerArgs))
+        return E;
 
-        // Manually containerize offloading images not in ELF format.
-        if (Error E = containerizeRawImage(*FileOrErr, Kind, LinkerArgs))
-          return E;
+      std::scoped_lock<decltype(ImageMtx)> Guard(ImageMtx);
+      OffloadingImage TheImage{};
+      TheImage.TheImageKind =
+          Args.hasArg(OPT_embed_bitcode) ? IMG_Bitcode : IMG_Object;
+      TheImage.TheOffloadKind = Kind;
+      TheImage.StringData["triple"] =
+          Args.MakeArgString(LinkerArgs.getLastArgValue(OPT_triple_EQ));
+      TheImage.StringData["arch"] =
+          Args.MakeArgString(LinkerArgs.getLastArgValue(OPT_arch_EQ));
+      TheImage.Image = std::move(*FileOrErr);
 
-        std::scoped_lock<decltype(ImageMtx)> Guard(ImageMtx);
-        OffloadingImage TheImage{};
-        TheImage.TheImageKind =
-            Args.hasArg(OPT_embed_bitcode) ? IMG_Bitcode : IMG_Object;
-        TheImage.TheOffloadKind = Kind;
-        TheImage.StringData["triple"] =
-            Args.MakeArgString(LinkerArgs.getLastArgValue(OPT_triple_EQ));
-        TheImage.StringData["arch"] =
-            Args.MakeArgString(LinkerArgs.getLastArgValue(OPT_arch_EQ));
-        TheImage.Image = std::move(*FileOrErr);
-
-        Images[Kind].emplace_back(std::move(TheImage));
-      }
+      Images[Kind].emplace_back(std::move(TheImage));
+    }
     return Error::success();
   });
   if (Err)
