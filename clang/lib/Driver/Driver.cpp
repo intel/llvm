@@ -8927,6 +8927,11 @@ static void handleTimeTrace(Compilation &C, const ArgList &Args,
       if (Arg *FinalOutput = Args.getLastArg(options::OPT_o))
         return SmallString<128>(FinalOutput->getValue());
     }
+    // Multiple inputs: prevent basename collisions with unique temp names
+    if (Args.hasMultipleArgs(options::OPT_INPUT))
+      return SmallString<128>(llvm::sys::path::filename(Result.getFilename()));
+
+    // Single input: use predictable basename
     return SmallString<128>(llvm::sys::path::filename(BaseInput));
   };
 
@@ -8942,6 +8947,24 @@ static void handleTimeTrace(Compilation &C, const ArgList &Args,
       }
       llvm::sys::path::replace_extension(FileName, "json");
       llvm::sys::path::append(Path, FileName);
+    } else if (JA->isOffloading(Action::OFK_SYCL)) {
+      // User specified a file path, but for SYCL we still need per-job
+      // disambiguation so host/device and multi-source compilations do not
+      // overwrite each other's traces. Preserve the user directory, but
+      // synthesize a unique filename based on the SYCL job characteristics.
+      SmallString<128> Dir(Path);
+      llvm::sys::path::remove_filename(Dir);
+      SmallString<128> TracePath = GetTracePathForSYCLNonTopLevel();
+      SmallString<128> FileName(llvm::sys::path::filename(TracePath));
+      if (!OffloadingPrefix.empty())
+        FileName = addOffloadingPrefixToPath(FileName, OffloadingPrefix);
+      llvm::sys::path::replace_extension(FileName, "json");
+      if (!Dir.empty()) {
+        Path = Dir;
+        llvm::sys::path::append(Path, FileName);
+      } else {
+        Path = FileName;
+      }
     }
   } else {
     if (Arg *DumpDir = Args.getLastArgNoClaim(options::OPT_dumpdir)) {
