@@ -132,6 +132,8 @@ class XptiOverheadBench(Benchmark):
         # Run the test using ctest
         command = [
             "ctest",
+            "--test-dir",
+            str(build_dir),
             "-V",
             "-R",
             "perf-profiling-overhead",
