@@ -539,8 +539,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
                         pLocalWorkSize, pGlobalWorkOffset, workDim);
   UR_CALL(LaunchInfo.Data.syncToDevice(hQueue));
 
-  UR_CALL(getAsanInterceptor()->preLaunchKernel(hKernel, hQueue, LaunchInfo, 0,
-                                                nullptr));
+  UR_CALL(getAsanInterceptor()->preLaunchKernel(hKernel, hQueue, LaunchInfo));
 
   ur_result_t UrRes = getContext()->urDdiTable.Enqueue.pfnKernelLaunch(
       hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
@@ -1806,8 +1805,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunchWithArgsExp(
                         pLocalWorkSize, pGlobalWorkOffset, workDim);
   UR_CALL(LaunchInfo.Data.syncToDevice(hQueue));
 
-  UR_CALL(getAsanInterceptor()->preLaunchKernel(hKernel, hQueue, LaunchInfo,
-                                                numArgs, pArgs));
+  UR_CALL(getAsanInterceptor()->preLaunchKernel(hKernel, hQueue, LaunchInfo));
 
   UR_CALL(getContext()->urDdiTable.EnqueueExp.pfnKernelLaunchWithArgsExp(
       hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,

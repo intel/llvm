@@ -503,8 +503,7 @@ ur_result_t urEnqueueKernelLaunch(
   LaunchInfo LaunchInfo(GetContext(hQueue), GetDevice(hQueue), pGlobalWorkSize,
                         pLocalWorkSize, pGlobalWorkOffset, workDim);
 
-  UR_CALL(getMsanInterceptor()->preLaunchKernel(hKernel, hQueue, LaunchInfo, 0,
-                                                nullptr));
+  UR_CALL(getMsanInterceptor()->preLaunchKernel(hKernel, hQueue, LaunchInfo));
 
   UR_CALL(getContext()->urDdiTable.Enqueue.pfnKernelLaunch(
       hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
@@ -1947,8 +1946,7 @@ ur_result_t urEnqueueKernelLaunchWithArgsExp(
   LaunchInfo LaunchInfo(GetContext(hQueue), GetDevice(hQueue), pGlobalWorkSize,
                         pLocalWorkSize, pGlobalWorkOffset, workDim);
 
-  UR_CALL(getMsanInterceptor()->preLaunchKernel(hKernel, hQueue, LaunchInfo,
-                                                numArgs, pArgs));
+  UR_CALL(getMsanInterceptor()->preLaunchKernel(hKernel, hQueue, LaunchInfo));
 
   UR_CALL(getContext()->urDdiTable.EnqueueExp.pfnKernelLaunchWithArgsExp(
       hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,

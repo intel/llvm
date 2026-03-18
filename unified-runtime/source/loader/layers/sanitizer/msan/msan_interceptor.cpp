@@ -135,9 +135,9 @@ ur_result_t MsanInterceptor::releaseMemory(ur_context_handle_t Context,
   return getContext()->urDdiTable.USM.pfnFree(Context, Ptr);
 }
 
-ur_result_t MsanInterceptor::preLaunchKernel(
-    ur_kernel_handle_t Kernel, ur_queue_handle_t Queue, LaunchInfo &LaunchInfo,
-    uint32_t numArgs, const ur_exp_kernel_arg_properties_t *pArgs) {
+ur_result_t MsanInterceptor::preLaunchKernel(ur_kernel_handle_t Kernel,
+                                             ur_queue_handle_t Queue,
+                                             LaunchInfo &LaunchInfo) {
   auto Context = GetContext(Queue);
   auto Device = GetDevice(Queue);
   auto ContextInfo = getContextInfo(Context);
@@ -149,8 +149,7 @@ ur_result_t MsanInterceptor::preLaunchKernel(
     return UR_RESULT_ERROR_INVALID_QUEUE;
   }
 
-  UR_CALL(prepareLaunch(DeviceInfo, InternalQueue, Kernel, LaunchInfo, numArgs,
-                        pArgs));
+  UR_CALL(prepareLaunch(DeviceInfo, InternalQueue, Kernel, LaunchInfo));
 
   return UR_RESULT_SUCCESS;
 }
@@ -459,8 +458,7 @@ MsanInterceptor::getMemBuffer(ur_mem_handle_t MemHandle) {
 
 ur_result_t MsanInterceptor::prepareLaunch(
     std::shared_ptr<DeviceInfo> &DeviceInfo, ur_queue_handle_t Queue,
-    ur_kernel_handle_t Kernel, LaunchInfo &LaunchInfo, uint32_t numArgs,
-    const ur_exp_kernel_arg_properties_t *pArgs) {
+    ur_kernel_handle_t Kernel, LaunchInfo &LaunchInfo) {
   auto Program = GetProgram(Kernel);
 
   // Set membuffer arguments
@@ -511,11 +509,13 @@ ur_result_t MsanInterceptor::prepareLaunch(
 
   if (LaunchInfo.LocalWorkSize.empty()) {
     LaunchInfo.LocalWorkSize.resize(LaunchInfo.WorkDim);
+    auto ArgNums = GetKernelNumArgs(Kernel);
     auto URes =
         getContext()->urDdiTable.Kernel.pfnGetSuggestedLocalWorkSizeWithArgs(
             Kernel, Queue, LaunchInfo.WorkDim,
             LaunchInfo.GlobalWorkOffset.data(), LaunchInfo.GlobalWorkSize,
-            numArgs, pArgs, LaunchInfo.LocalWorkSize.data());
+            ArgNums, KernelInfo.ArgProps.data(),
+            LaunchInfo.LocalWorkSize.data());
     if (URes != UR_RESULT_SUCCESS) {
       if (URes != UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
         return URes;
