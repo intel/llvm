@@ -53,6 +53,7 @@
 #include "SPIRVValue.h"
 
 #include "llvm/ADT/APInt.h"
+#include "llvm/ADT/STLExtras.h"
 
 #include <set>
 #include <unordered_map>
@@ -1433,6 +1434,13 @@ SPIRVValue *SPIRVModuleImpl::addNullConstant(SPIRVType *Ty) {
 
 SPIRVValue *SPIRVModuleImpl::addCompositeConstant(
     SPIRVType *Ty, const std::vector<SPIRVValue *> &Elements) {
+  // Add an OpSpecConstantComposite instead if any of the elements is a
+  // SpecConstant.
+  if (llvm::any_of(Elements, [](SPIRVValue *V) {
+        return isSpecConstantOpCode(V->getOpCode());
+      }))
+    return addSpecConstantComposite(Ty, Elements);
+
   constexpr int MaxNumElements = MaxWordCount - SPIRVConstantComposite::FixedWC;
   const int NumElements = Elements.size();
 
