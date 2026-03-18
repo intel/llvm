@@ -6,7 +6,6 @@
 //
 //===----------------------------------------------------------------------===*/
 
-#include <clc/clcfunc.h>
 #include <libspirv/spirv.h>
 
 // Assert failure format string
