@@ -51,7 +51,7 @@ class PtiXptiSuite(Suite):
             if '" 60 profiled' in content:
                 content = content.replace(
                     '${Python_EXECUTABLE} ${PROJECT_SOURCE_DIR}/test/perf_test.py "${PTI_TEST_BIN_DIR}" 60 profiled',
-                    '${Python_EXECUTABLE} ${PROJECT_SOURCE_DIR}/test/perf_test.py "${PTI_TEST_BIN_DIR}" 70 profiled'
+                    '${Python_EXECUTABLE} ${PROJECT_SOURCE_DIR}/test/perf_test.py "${PTI_TEST_BIN_DIR}" 70 profiled',
                 )
                 cmake_file.write_text(content)
                 log.info("Patched CMakeLists.txt to set threshold to 70")
@@ -76,6 +76,7 @@ class PtiXptiSuite(Suite):
 
         # Configure the sdk subdirectory
         from utils.utils import run
+
         run(
             [
                 "cmake",
@@ -83,7 +84,8 @@ class PtiXptiSuite(Suite):
                 "-DCMAKE_BUILD_TYPE=Release",
                 f"-S{self.project.src_dir}/sdk",
                 f"-B{build_dir}",
-            ] + extra_args,
+            ]
+            + extra_args,
             add_sycl=True,
         )
 
