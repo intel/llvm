@@ -50,6 +50,10 @@ inputs:
     type: string
     required: False
     default: ""
+  verbose:
+    type: string
+    required: False
+    default: "false"
 
 runs:
   # composite actions don't make use of 'name', so copy-paste steps' names as a comment in the first line of each step
@@ -357,7 +361,8 @@ runs:
         --detect-version sycl,compute_runtime \
         --produce-github-summary \
         $([[ -n "${CR_BUILD_REF}" ]] && echo "--compute-runtime ${CR_BUILD_REF}" || echo '') \
-        ${{ inputs.exit_on_failure == 'true' && '--exit-on-failure --iterations 1' || '' }}
+        ${{ inputs.exit_on_failure == 'true' && '--exit-on-failure --iterations 1' || '' }} \
+        ${{ inputs.verbose == 'true' && '--verbose' || '' }}
       # TODO: add back: "--flamegraph inclusive" once works properly
 
       echo "::endgroup::"

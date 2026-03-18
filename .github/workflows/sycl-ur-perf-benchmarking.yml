@@ -98,6 +98,13 @@ on:
           - '0'
           - '1'
         default: '0'
+      verbose:
+        description: Enable verbose output from benchmarks
+        type: choice
+        options:
+          - 'false'
+          - 'true'
+        default: 'false'
       custom_cr:
         description: Custom Compute Runtime to use in benchmarks.
         type: string
@@ -219,6 +226,7 @@ jobs:
       benchmark_preset: ${{ inputs.preset }}
       benchmark_exit_on_failure: ${{ inputs.exit_on_failure }}
       benchmark_gdb_mode: ${{ inputs.gdb_mode }}
+      benchmark_verbose: ${{ inputs.verbose }}
       benchmark_custom_cr: ${{ inputs.custom_cr }}
       repo_ref: ${{ needs.sanitize_inputs_dispatch.outputs.build_ref }}
       toolchain_artifact: ${{ needs.build_sycl_dispatch.outputs.toolchain_artifact }}
