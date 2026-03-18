@@ -916,8 +916,8 @@ EnableIfNativeShuffle<T> Shuffle(GroupT g, T x, id<1> local_id) {
   uint32_t LocalId = MapShuffleID(g, local_id);
 #ifndef __NVPTX__
   (void)g;
-  return convertFromOpenCLTypeFor<T>(__spirv_GroupNonUniformShuffle(group_scope<GroupT>::value,
-                                        convertToOpenCLType(x), LocalId));
+  return convertFromOpenCLTypeFor<T>(__spirv_GroupNonUniformShuffle(
+      group_scope<GroupT>::value, convertToOpenCLType(x), LocalId));
 #else
   if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
                     GroupT>) {
