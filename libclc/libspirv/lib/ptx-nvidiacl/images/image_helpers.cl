@@ -407,7 +407,7 @@ uint4 __clc_llvm_nvvm_tex_1d_v4j32_s32(ulong img, int x) {
 }
 uint4 __clc_llvm_nvvm_tex_2d_v4j32_s32(ulong img, int x, int y) {
   uint4 r;
-  __asm__("tex.2d.v4.s32.s32 {%0, %1, %2, %3}, [%4, {%5, %6}];"
+  __asm__("tex.2d.v4.u32.s32 {%0, %1, %2, %3}, [%4, {%5, %6}];"
           : "=r"(r.x), "=r"(r.y), "=r"(r.z), "=r"(r.w)
           : "l"(img), "r"(x), "r"(y));
   return r;
