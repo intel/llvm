@@ -602,7 +602,7 @@ returns:
     - $X_RESULT_ERROR_UNSUPPORTED_FEATURE
 --- #--------------------------------------------------------------------------
 type: function
-desc: "Get the suggested local work size for a kernel and set args at kernel launch time."
+desc: "Set kernel args and get the suggested local work size for a kernel."
 class: $xKernel
 name: GetSuggestedLocalWorkSizeWithArgs
 ordinal: "0"
@@ -646,6 +646,8 @@ params:
             [out] pointer to an array of numWorkDim unsigned values that specify
             suggested local work size that will contain the result of the query
 returns:
+    - $X_RESULT_ERROR_INVALID_NULL_POINTER:
+        - "`pArgs == NULL && numArgs > 0`"
     - $X_RESULT_ERROR_UNSUPPORTED_FEATURE
 --- #--------------------------------------------------------------------------
 type: function

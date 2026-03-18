@@ -6894,8 +6894,7 @@ ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Get the suggested local work size for a kernel and set args at kernel
-///        launch time.
+/// @brief Set kernel args and get the suggested local work size for a kernel.
 ///
 /// @details
 ///     - Query a suggested local work size for a kernel given a global size for
@@ -6915,6 +6914,7 @@ ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
 ///         + `NULL == pGlobalWorkOffset`
 ///         + `NULL == pGlobalWorkSize`
 ///         + `NULL == pSuggestedLocalWorkSize`
+///         + `pArgs == NULL && numArgs > 0`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `NULL != pArgs && ::UR_EXP_KERNEL_ARG_TYPE_SAMPLER < pArgs->type`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE

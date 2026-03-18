@@ -1165,9 +1165,6 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
   case UR_FUNCTION_ENQUEUE_TIMESTAMP_RECORDING_EXP:
     os << "UR_FUNCTION_ENQUEUE_TIMESTAMP_RECORDING_EXP";
     break;
-  case UR_FUNCTION_KERNEL_GET_SUGGESTED_LOCAL_WORK_SIZE_WITH_ARGS:
-    os << "UR_FUNCTION_KERNEL_GET_SUGGESTED_LOCAL_WORK_SIZE_WITH_ARGS";
-    break;
   case UR_FUNCTION_KERNEL_GET_SUGGESTED_LOCAL_WORK_SIZE:
     os << "UR_FUNCTION_KERNEL_GET_SUGGESTED_LOCAL_WORK_SIZE";
     break;
@@ -1375,6 +1372,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
     break;
   case UR_FUNCTION_COMMAND_BUFFER_APPEND_KERNEL_LAUNCH_WITH_ARGS_EXP:
     os << "UR_FUNCTION_COMMAND_BUFFER_APPEND_KERNEL_LAUNCH_WITH_ARGS_EXP";
+    break;
+  case UR_FUNCTION_KERNEL_GET_SUGGESTED_LOCAL_WORK_SIZE_WITH_ARGS:
+    os << "UR_FUNCTION_KERNEL_GET_SUGGESTED_LOCAL_WORK_SIZE_WITH_ARGS";
     break;
   default:
     os << "unknown enumerator";
