@@ -10,7 +10,7 @@
 
 #include "../fixtures.hpp"
 #include "logger/ur_logger_details.hpp"
-#include "ur_api.h"
+#include "unified-runtime/ur_api.h"
 
 //////////////////////////////////////////////////////////////////////////////
 TEST_F(DefaultLoggerWithFileSink, DefaultLevelNoOutput) {

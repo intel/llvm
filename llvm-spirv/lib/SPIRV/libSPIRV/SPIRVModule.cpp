@@ -1745,7 +1745,8 @@ SPIRVInstruction *
 SPIRVModuleImpl::addUnaryInst(Op TheOpCode, SPIRVType *TheType, SPIRVValue *Op,
                               SPIRVBasicBlock *BB,
                               SPIRVInstruction *InsertBefore) {
-  if (TheType->isTypeFloat(16, FPEncodingBFloat16KHR) && TheOpCode != OpDot)
+  if (TheType->isTypeFloat(16, FPEncodingBFloat16KHR) &&
+      (TheOpCode == OpFNegate || isUnaryPredicateOpCode(TheOpCode)))
     addCapability(internal::CapabilityBFloat16ArithmeticINTEL);
   return addInstruction(
       SPIRVInstTemplateBase::create(TheOpCode, TheType, getId(),

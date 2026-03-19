@@ -22,7 +22,7 @@ from templates import helper as th
  */
 #include "${x}_lib.hpp"
 #ifndef DYNAMIC_LOAD_LOADER
-#include "${n}_ddi.h"
+#include "unified-runtime/${n}_ddi.h"
 #endif
 
 namespace ${x}_lib

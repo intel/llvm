@@ -10,7 +10,7 @@
 
 #include <sycl/detail/info_desc_helpers.hpp>
 
-#include <ur_api.h>
+#include <unified-runtime/ur_api.h>
 
 namespace sycl {
 inline namespace _V1 {
@@ -28,8 +28,8 @@ template <typename T> struct UrInfoCode;
 #include <sycl/info/kernel_traits.def>
 #include <sycl/info/platform_traits.def>
 #include <sycl/info/queue_traits.def>
-#define __SYCL_PARAM_TRAITS_SPEC_SPECIALIZED(DescType, Desc, ReturnT, PiCode)  \
-  __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)
+#define __SYCL_PARAM_TRAITS_SPEC_SPECIALIZED(DescType, Desc, ReturnT, UrCode)  \
+  __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, UrCode)
 #include <sycl/info/device_traits.def>
 #undef __SYCL_PARAM_TRAITS_SPEC_SPECIALIZED
 #undef __SYCL_PARAM_TRAITS_SPEC

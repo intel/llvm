@@ -743,15 +743,15 @@ ur_result_t ur_command_list_manager::appendMemBufferMap(
 
   auto zeSignalEvent = getSignalEvent(phEvent, UR_COMMAND_MEM_BUFFER_MAP);
 
+  if (waitListView) {
+    ZE2UR_CALL(zeCommandListAppendWaitOnEvents,
+               (getZeCommandList(), waitListView.num, waitListView.handles));
+    waitListView.clear();
+  }
+
   auto pDst = ur_cast<char *>(hBuffer->mapHostPtr(
       mapFlags, offset, size, zeCommandList.get(), waitListView));
   *ppRetMap = pDst;
-
-  if (waitListView) {
-    // If memory was not migrated, we need to wait on the events here.
-    ZE2UR_CALL(zeCommandListAppendWaitOnEvents,
-               (getZeCommandList(), waitListView.num, waitListView.handles));
-  }
 
   if (zeSignalEvent) {
     ZE2UR_CALL(zeCommandListAppendSignalEvent,
@@ -778,9 +778,11 @@ ur_command_list_manager::appendMemUnmap(ur_mem_handle_t hMem, void *pMappedPtr,
   // TODO: currently unmapHostPtr deallocates memory immediately,
   // since the memory might be used by the user, we need to make sure
   // all dependencies are completed.
-  ZE2UR_CALL(zeCommandListAppendWaitOnEvents,
-             (getZeCommandList(), waitListView.num, waitListView.handles));
-  waitListView.clear();
+  if (waitListView) {
+    ZE2UR_CALL(zeCommandListAppendWaitOnEvents,
+               (getZeCommandList(), waitListView.num, waitListView.handles));
+    waitListView.clear();
+  }
 
   hBuffer->unmapHostPtr(pMappedPtr, zeCommandList.get(), waitListView);
   if (zeSignalEvent) {

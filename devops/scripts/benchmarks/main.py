@@ -10,7 +10,7 @@ import re
 import statistics
 import os
 
-from benches.compute import *
+from benches.compute.compute import *
 from benches.gromacs import GromacsBench
 from benches.velocity import VelocityBench
 from benches.syclbench import *
@@ -121,9 +121,8 @@ def run_iterations(
 
             for bench_result in bench_results:
                 log.info(
-                    f"{benchmark.name()} complete ({bench_result.label}: {bench_result.value:.3f} {bench_result.unit})."
+                    f"{benchmark.name()} complete: {bench_result.value:.3f} {bench_result.unit}."
                 )
-                bench_result.name = bench_result.label
                 bench_result.lower_is_better = benchmark.lower_is_better()
                 bench_result.suite = benchmark.get_suite_name()
 
@@ -241,6 +240,27 @@ def collect_metadata(suites):
     return metadata
 
 
+def filter_benchmarks(
+    suites: list[Suite], filter: re.Pattern | None = None
+) -> list[Benchmark]:
+    filtered_benchmarks = []
+    for suite in suites:
+        if suite.name() not in enabled_suites(options.preset):
+            continue
+        suite_benchmarks = [
+            benchmark for benchmark in suite.benchmarks() if benchmark.enabled()
+        ]
+        if filter:
+            suite_benchmarks = [
+                benchmark
+                for benchmark in suite_benchmarks
+                if filter.search(benchmark.name())
+            ]
+        filtered_benchmarks.extend(suite_benchmarks)
+
+    return filtered_benchmarks
+
+
 def main(directory, additional_env_vars, compare_names, filter, execution_stats):
     prepare_workdir(directory, INTERNAL_WORKDIR_VERSION)
 
@@ -280,7 +300,10 @@ def main(directory, additional_env_vars, compare_names, filter, execution_stats)
     # Collect metadata from all benchmarks without setting them up
     metadata = collect_metadata(suites)
 
-    # If dry run, we're done
+    if options.list_benchmarks:
+        log.info("List of filtered benchmarks:")
+        for benchmark in filter_benchmarks(suites, filter):
+            log.info(benchmark.name())
     if options.dry_run:
         suites = []
 
@@ -288,25 +311,7 @@ def main(directory, additional_env_vars, compare_names, filter, execution_stats)
     failures = {}
 
     for suite in suites:
-        if suite.name() not in enabled_suites(options.preset):
-            continue
-
-        # Filter out benchmarks with filter given by user
-        suite_benchmarks = [
-            benchmark for benchmark in suite.benchmarks() if benchmark.enabled()
-        ]
-        if filter:
-            log.debug(
-                f"All benchmarks in suite '{suite.name()}' ({len(suite_benchmarks)}):\n"
-                + "\n".join([b.name() for b in suite_benchmarks])
-            )
-            log.debug(f"Filtering '{suite.name()}' suite for: '{filter.pattern}'")
-            suite_benchmarks = [
-                benchmark
-                for benchmark in suite_benchmarks
-                if filter.search(benchmark.name())
-            ]
-
+        suite_benchmarks = filter_benchmarks([suite], filter)
         if suite_benchmarks:
             log.info(f"Setting up {type(suite).__name__}")
             try:
@@ -546,7 +551,12 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--save",
-        type=str,
+        type=lambda save: Validate.clean_name(
+            save,
+            throw=argparse.ArgumentTypeError(
+                "Specified save name is not within characters [a-zA-Z0-9_-]."
+            ),
+        ),
         help="Save the results for comparison under a specified name.",
     )
     parser.add_argument(
@@ -625,6 +635,12 @@ if __name__ == "__main__":
     parser.add_argument(
         "--dry-run",
         help="Do not run any actual benchmarks",
+        action="store_true",
+        default=False,
+    )
+    parser.add_argument(
+        "--list",
+        help="List all benchmark names with respect to --filter and --preset",
         action="store_true",
         default=False,
     )
@@ -808,6 +824,7 @@ if __name__ == "__main__":
     if args.output_html is not None:
         options.output_html = args.output_html
     options.dry_run = args.dry_run
+    options.list_benchmarks = args.list
     options.umf = args.umf
     options.iterations_stddev = args.iterations_stddev
     options.stddev_threshold = args.stddev_threshold

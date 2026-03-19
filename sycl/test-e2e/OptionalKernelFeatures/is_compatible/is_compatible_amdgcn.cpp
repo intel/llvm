@@ -1,4 +1,4 @@
-// REQUIRES: hip_dev_kit
+// REQUIRES: target-amd && hip_dev_kit
 
 // XFAIL: new-offload-model && windows
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/20797

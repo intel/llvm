@@ -1,6 +1,6 @@
 // Test -fsycl-allow-device-image-dependencies with dynamic libraries and AOT.
 
-// REQUIRES: ocloc, gpu, target_spir
+// REQUIRES: ocloc, gpu, target-spir
 
 // DEFINE: %{aot_options} = -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen %gpu_aot_target_opts -DUSE_AOT
 // DEFINE: %{dynamic_lib_options} = %{aot_options} %fPIC %shared_lib -fsycl-allow-device-image-dependencies -ftarget-export-symbols -I %S/Inputs %if windows %{-DMAKE_DLL %}

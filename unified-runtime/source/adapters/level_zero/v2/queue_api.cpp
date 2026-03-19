@@ -344,6 +344,21 @@ ur_result_t urEnqueueWriteHostPipe(ur_queue_handle_t hQueue,
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
+ur_result_t urEnqueueKernelLaunchWithArgsExp(
+    ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel, uint32_t workDim,
+    const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
+    const size_t *pLocalWorkSize, uint32_t numArgs,
+    const ur_exp_kernel_arg_properties_t *pArgs,
+    const ur_kernel_launch_ext_properties_t *launchPropList,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent) try {
+  return hQueue->get().enqueueKernelLaunchWithArgsExp(
+      hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize, pLocalWorkSize,
+      numArgs, pArgs, launchPropList, numEventsInWaitList, phEventWaitList,
+      phEvent);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
 ur_result_t urEnqueueUSMDeviceAllocExp(
     ur_queue_handle_t hQueue, ur_usm_pool_handle_t pPool, const size_t size,
     const ur_exp_async_usm_alloc_properties_t *pProperties,
@@ -421,21 +436,6 @@ ur_result_t urBindlessImagesSignalExternalSemaphoreExp(
   return hQueue->get().bindlessImagesSignalExternalSemaphoreExp(
       hSemaphore, hasSignalValue, signalValue, numEventsInWaitList,
       phEventWaitList, phEvent);
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-ur_result_t urEnqueueKernelLaunchWithArgsExp(
-    ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel, uint32_t workDim,
-    const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
-    const size_t *pLocalWorkSize, uint32_t numArgs,
-    const ur_exp_kernel_arg_properties_t *pArgs,
-    const ur_kernel_launch_ext_properties_t *launchPropList,
-    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-    ur_event_handle_t *phEvent) try {
-  return hQueue->get().enqueueKernelLaunchWithArgsExp(
-      hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize, pLocalWorkSize,
-      numArgs, pArgs, launchPropList, numEventsInWaitList, phEventWaitList,
-      phEvent);
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }

@@ -13,8 +13,8 @@
 
 #pragma once
 
+#include "unified-runtime/ur_ddi.h"
 #include "ur/ur.hpp"
-#include "ur_ddi.h"
 
 #include <cassert>
 #include <cmath>

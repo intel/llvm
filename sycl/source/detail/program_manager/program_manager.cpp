@@ -197,7 +197,7 @@ ProgramManager::createURProgram(const RTDeviceBinaryImage &Img,
 
   if (Format == SYCL_DEVICE_BINARY_TYPE_NONE)
     Format = ur::getBinaryImageFormat(RawImg.BinaryStart, ImgSize);
-  // sycl::detail::pi::PiDeviceBinaryType Format = Img->Format;
+  // ur::DeviceBinaryType Format = Img->Format;
   // assert(Format != SYCL_DEVICE_BINARY_TYPE_NONE && "Image format not set");
 
   if (!isDeviceBinaryTypeSupported(ContextImpl, Format))
@@ -474,8 +474,6 @@ ProgramManager::getOrCreateURProgram(
     const std::vector<const RTDeviceBinaryImage *> &AllImages,
     context_impl &ContextImpl, devices_range Devices,
     const std::string &CompileAndLinkOptions, SerializedObj SpecConsts) {
-  Managed<ur_program_handle_t> NativePrg;
-
   // Get binaries for each device (1:1 correpsondence with input Devices).
   auto Binaries = PersistentDeviceCodeCache::getItemFromDisc(
       Devices, AllImages, SpecConsts, CompileAndLinkOptions);

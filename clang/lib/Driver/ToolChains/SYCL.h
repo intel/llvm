@@ -135,11 +135,11 @@ public:
   addClangTargetOptions(const llvm::opt::ArgList &DriverArgs,
                         llvm::opt::ArgStringList &CC1Args,
                         Action::OffloadKind DeviceOffloadKind) const override;
-  void AddImpliedTargetArgs(const llvm::Triple &Triple,
-                            const llvm::opt::ArgList &Args,
-                            llvm::opt::ArgStringList &CmdArgs,
-                            const JobAction &JA, const ToolChain &HostTC,
-                            StringRef Device = "") const;
+  void AddSPIRVImpliedTargetArgs(const llvm::Triple &Triple,
+                                 const llvm::opt::ArgList &Args,
+                                 llvm::opt::ArgStringList &CmdArgs,
+                                 const JobAction &JA, const ToolChain &HostTC,
+                                 StringRef Device = "") const;
   void TranslateBackendTargetArgs(const llvm::Triple &Triple,
                                   const llvm::opt::ArgList &Args,
                                   llvm::opt::ArgStringList &CmdArgs,

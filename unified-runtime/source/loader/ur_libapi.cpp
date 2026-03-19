@@ -3758,719 +3758,6 @@ ur_result_t UR_APICALL urProgramCreateWithNativeHandle(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Create kernel object from a program.
-///
-/// @details
-///     - The application may call this function from simultaneous threads.
-///     - The implementation of this function should be lock-free.
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hProgram`
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == pKernelName`
-///         + `NULL == phKernel`
-///     - ::UR_RESULT_ERROR_INVALID_KERNEL_NAME
-///         + If `pKernelName` wasn't found in `hProgram`.
-ur_result_t UR_APICALL urKernelCreate(
-    /// [in] handle of the program instance
-    ur_program_handle_t hProgram,
-    /// [in] pointer to null-terminated string.
-    const char *pKernelName,
-    /// [out][alloc] pointer to handle of kernel object created.
-    ur_kernel_handle_t *phKernel) try {
-  auto pfnCreate = ur_lib::getContext()->urDdiTable.Kernel.pfnCreate;
-  if (nullptr == pfnCreate)
-    return UR_RESULT_ERROR_UNINITIALIZED;
-
-  return pfnCreate(hProgram, pKernelName, phKernel);
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Set kernel argument to a value.
-///
-/// @details
-///     - The application may call this function from simultaneous threads with
-///       the same kernel handle.
-///     - The implementation of this function should be lock-free.
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hKernel`
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == pArgValue`
-///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX
-///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE
-ur_result_t UR_APICALL urKernelSetArgValue(
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] argument index in range [0, num args - 1]
-    uint32_t argIndex,
-    /// [in] size of argument type
-    size_t argSize,
-    /// [in][optional] pointer to value properties.
-    const ur_kernel_arg_value_properties_t *pProperties,
-    /// [in] argument value represented as matching arg type.
-    /// The data pointed to will be copied and therefore can be reused on
-    /// return.
-    const void *pArgValue) try {
-  auto pfnSetArgValue = ur_lib::getContext()->urDdiTable.Kernel.pfnSetArgValue;
-  if (nullptr == pfnSetArgValue)
-    return UR_RESULT_ERROR_UNINITIALIZED;
-
-  return pfnSetArgValue(hKernel, argIndex, argSize, pProperties, pArgValue);
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Set kernel argument to a local buffer.
-///
-/// @details
-///     - The application may call this function from simultaneous threads with
-///       the same kernel handle.
-///     - The implementation of this function should be lock-free.
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hKernel`
-///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX
-///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE
-ur_result_t UR_APICALL urKernelSetArgLocal(
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] argument index in range [0, num args - 1]
-    uint32_t argIndex,
-    /// [in] size of the local buffer to be allocated by the runtime
-    size_t argSize,
-    /// [in][optional] pointer to local buffer properties.
-    const ur_kernel_arg_local_properties_t *pProperties) try {
-  auto pfnSetArgLocal = ur_lib::getContext()->urDdiTable.Kernel.pfnSetArgLocal;
-  if (nullptr == pfnSetArgLocal)
-    return UR_RESULT_ERROR_UNINITIALIZED;
-
-  return pfnSetArgLocal(hKernel, argIndex, argSize, pProperties);
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Query information about a Kernel object
-///
-/// @remarks
-///   _Analogues_
-///     - **clGetKernelInfo**
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hKernel`
-///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_KERNEL_INFO_SPILL_MEM_SIZE < propName`
-///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
-///         + If `propName` is not supported by the adapter.
-///     - ::UR_RESULT_ERROR_INVALID_SIZE
-///         + `propSize == 0 && pPropValue != NULL`
-///         + If `propSize` is less than the real number of bytes needed to
-///         return the info.
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `propSize != 0 && pPropValue == NULL`
-///         + `pPropValue == NULL && pPropSizeRet == NULL`
-///     - ::UR_RESULT_ERROR_INVALID_KERNEL
-///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
-///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
-ur_result_t UR_APICALL urKernelGetInfo(
-    /// [in] handle of the Kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] name of the Kernel property to query
-    ur_kernel_info_t propName,
-    /// [in] the size of the Kernel property value.
-    size_t propSize,
-    /// [in,out][optional][typename(propName, propSize)] array of bytes
-    /// holding the kernel info property.
-    /// If propSize is not equal to or greater than the real number of bytes
-    /// needed to return
-    /// the info then the ::UR_RESULT_ERROR_INVALID_SIZE error is returned and
-    /// pPropValue is not used.
-    void *pPropValue,
-    /// [out][optional] pointer to the actual size in bytes of data being
-    /// queried by propName.
-    size_t *pPropSizeRet) try {
-  auto pfnGetInfo = ur_lib::getContext()->urDdiTable.Kernel.pfnGetInfo;
-  if (nullptr == pfnGetInfo)
-    return UR_RESULT_ERROR_UNINITIALIZED;
-
-  return pfnGetInfo(hKernel, propName, propSize, pPropValue, pPropSizeRet);
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Query work Group information about a Kernel object
-///
-/// @remarks
-///   _Analogues_
-///     - **clGetKernelWorkGroupInfo**
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hKernel`
-///         + `NULL == hDevice`
-///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_KERNEL_GROUP_INFO_COMPILE_MAX_LINEAR_WORK_GROUP_SIZE <
-///         propName`
-ur_result_t UR_APICALL urKernelGetGroupInfo(
-    /// [in] handle of the Kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] handle of the Device object
-    ur_device_handle_t hDevice,
-    /// [in] name of the work Group property to query
-    ur_kernel_group_info_t propName,
-    /// [in] size of the Kernel Work Group property value
-    size_t propSize,
-    /// [in,out][optional][typename(propName, propSize)] value of the Kernel
-    /// Work Group property.
-    void *pPropValue,
-    /// [out][optional] pointer to the actual size in bytes of data being
-    /// queried by propName.
-    size_t *pPropSizeRet) try {
-  auto pfnGetGroupInfo =
-      ur_lib::getContext()->urDdiTable.Kernel.pfnGetGroupInfo;
-  if (nullptr == pfnGetGroupInfo)
-    return UR_RESULT_ERROR_UNINITIALIZED;
-
-  return pfnGetGroupInfo(hKernel, hDevice, propName, propSize, pPropValue,
-                         pPropSizeRet);
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Query SubGroup information about a Kernel object
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hKernel`
-///         + `NULL == hDevice`
-///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_KERNEL_SUB_GROUP_INFO_SUB_GROUP_SIZE_INTEL < propName`
-ur_result_t UR_APICALL urKernelGetSubGroupInfo(
-    /// [in] handle of the Kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] handle of the Device object
-    ur_device_handle_t hDevice,
-    /// [in] name of the SubGroup property to query
-    ur_kernel_sub_group_info_t propName,
-    /// [in] size of the Kernel SubGroup property value
-    size_t propSize,
-    /// [in,out][optional][typename(propName, propSize)] value of the Kernel
-    /// SubGroup property.
-    void *pPropValue,
-    /// [out][optional] pointer to the actual size in bytes of data being
-    /// queried by propName.
-    size_t *pPropSizeRet) try {
-  auto pfnGetSubGroupInfo =
-      ur_lib::getContext()->urDdiTable.Kernel.pfnGetSubGroupInfo;
-  if (nullptr == pfnGetSubGroupInfo)
-    return UR_RESULT_ERROR_UNINITIALIZED;
-
-  return pfnGetSubGroupInfo(hKernel, hDevice, propName, propSize, pPropValue,
-                            pPropSizeRet);
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Get a reference to the Kernel object.
-///
-/// @details
-///     - Get a reference to the Kernel object handle. Increment its reference
-///       count
-///     - The application may call this function from simultaneous threads.
-///     - The implementation of this function should be lock-free.
-///
-/// @remarks
-///   _Analogues_
-///     - **clRetainKernel**
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hKernel`
-ur_result_t UR_APICALL urKernelRetain(
-    /// [in][retain] handle for the Kernel to retain
-    ur_kernel_handle_t hKernel) try {
-  auto pfnRetain = ur_lib::getContext()->urDdiTable.Kernel.pfnRetain;
-  if (nullptr == pfnRetain)
-    return UR_RESULT_ERROR_UNINITIALIZED;
-
-  return pfnRetain(hKernel);
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Release Kernel.
-///
-/// @details
-///     - Decrement reference count and destroy the Kernel if reference count
-///       becomes zero.
-///     - The application may call this function from simultaneous threads.
-///     - The implementation of this function should be lock-free.
-///
-/// @remarks
-///   _Analogues_
-///     - **clReleaseKernel**
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hKernel`
-ur_result_t UR_APICALL urKernelRelease(
-    /// [in][release] handle for the Kernel to release
-    ur_kernel_handle_t hKernel) try {
-  auto pfnRelease = ur_lib::getContext()->urDdiTable.Kernel.pfnRelease;
-  if (nullptr == pfnRelease)
-    return UR_RESULT_ERROR_UNINITIALIZED;
-
-  return pfnRelease(hKernel);
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Set a USM pointer as the argument value of a Kernel.
-///
-/// @details
-///     - The application may call this function from simultaneous threads with
-///       the same kernel handle.
-///     - The implementation of this function should be lock-free.
-///
-/// @remarks
-///   _Analogues_
-///     - **clSetKernelArgSVMPointer**
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hKernel`
-///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX
-ur_result_t UR_APICALL urKernelSetArgPointer(
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] argument index in range [0, num args - 1]
-    uint32_t argIndex,
-    /// [in][optional] pointer to USM pointer properties.
-    const ur_kernel_arg_pointer_properties_t *pProperties,
-    /// [in][optional] Pointer obtained by USM allocation or virtual memory
-    /// mapping operation. If null then argument value is considered null.
-    const void *pArgValue) try {
-  auto pfnSetArgPointer =
-      ur_lib::getContext()->urDdiTable.Kernel.pfnSetArgPointer;
-  if (nullptr == pfnSetArgPointer)
-    return UR_RESULT_ERROR_UNINITIALIZED;
-
-  return pfnSetArgPointer(hKernel, argIndex, pProperties, pArgValue);
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Set additional Kernel execution attributes.
-///
-/// @details
-///     - The application must **not** call this function from simultaneous
-///       threads with the same kernel handle.
-///     - The implementation of this function should be lock-free.
-///
-/// @remarks
-///   _Analogues_
-///     - **clSetKernelExecInfo**
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hKernel`
-///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_KERNEL_EXEC_INFO_CACHE_CONFIG < propName`
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == pPropValue`
-ur_result_t UR_APICALL urKernelSetExecInfo(
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] name of the execution attribute
-    ur_kernel_exec_info_t propName,
-    /// [in] size in byte the attribute value
-    size_t propSize,
-    /// [in][optional] pointer to execution info properties.
-    const ur_kernel_exec_info_properties_t *pProperties,
-    /// [in][typename(propName, propSize)] pointer to memory location holding
-    /// the property value.
-    const void *pPropValue) try {
-  auto pfnSetExecInfo = ur_lib::getContext()->urDdiTable.Kernel.pfnSetExecInfo;
-  if (nullptr == pfnSetExecInfo)
-    return UR_RESULT_ERROR_UNINITIALIZED;
-
-  return pfnSetExecInfo(hKernel, propName, propSize, pProperties, pPropValue);
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Set a Sampler object as the argument value of a Kernel.
-///
-/// @details
-///     - The application may call this function from simultaneous threads with
-///       the same kernel handle.
-///     - The implementation of this function should be lock-free.
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hKernel`
-///         + `NULL == hArgValue`
-///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX
-///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
-///         + Device `::UR_DEVICE_INFO_IMAGE_SUPPORT` is false
-ur_result_t UR_APICALL urKernelSetArgSampler(
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] argument index in range [0, num args - 1]
-    uint32_t argIndex,
-    /// [in][optional] pointer to sampler properties.
-    const ur_kernel_arg_sampler_properties_t *pProperties,
-    /// [in] handle of Sampler object.
-    ur_sampler_handle_t hArgValue) try {
-  auto pfnSetArgSampler =
-      ur_lib::getContext()->urDdiTable.Kernel.pfnSetArgSampler;
-  if (nullptr == pfnSetArgSampler)
-    return UR_RESULT_ERROR_UNINITIALIZED;
-
-  return pfnSetArgSampler(hKernel, argIndex, pProperties, hArgValue);
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Set a Memory object as the argument value of a Kernel.
-///
-/// @details
-///     - The application may call this function from simultaneous threads with
-///       the same kernel handle.
-///     - The implementation of this function should be lock-free.
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hKernel`
-///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `NULL != pProperties && ::UR_MEM_FLAGS_MASK &
-///         pProperties->memoryAccess`
-///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX
-ur_result_t UR_APICALL urKernelSetArgMemObj(
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] argument index in range [0, num args - 1]
-    uint32_t argIndex,
-    /// [in][optional] pointer to Memory object properties.
-    const ur_kernel_arg_mem_obj_properties_t *pProperties,
-    /// [in][optional] handle of Memory object.
-    ur_mem_handle_t hArgValue) try {
-  auto pfnSetArgMemObj =
-      ur_lib::getContext()->urDdiTable.Kernel.pfnSetArgMemObj;
-  if (nullptr == pfnSetArgMemObj)
-    return UR_RESULT_ERROR_UNINITIALIZED;
-
-  return pfnSetArgMemObj(hKernel, argIndex, pProperties, hArgValue);
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Set an array of specialization constants on a Kernel.
-///
-/// @details
-///     - This entry point is optional, the application should query for support
-///       with device query ::UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS
-///       passed to ::urDeviceGetInfo.
-///     - Adapters which are capable of setting specialization constants
-///       immediately prior to ::urEnqueueKernelLaunch with low overhead should
-///       implement this entry point.
-///     - Otherwise, if setting specialization constants late requires
-///       recompiling or linking a program, adapters should not implement this
-///       entry point.
-///     - The application may call this function from simultaneous threads for
-///       the same device.
-///     - The implementation of this function should be thread-safe.
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hKernel`
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == pSpecConstants`
-///     - ::UR_RESULT_ERROR_INVALID_SIZE
-///         + `count == 0`
-///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
-///         + If ::UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS query is
-///         false
-///     - ::UR_RESULT_ERROR_INVALID_VALUE
-///         + A pSpecConstant entry contains a size that does not match that of
-///         the specialization constant in the module.
-///         + A pSpecConstant entry contains a nullptr pValue.
-///     - ::UR_RESULT_ERROR_INVALID_SPEC_ID
-///         + Any id specified in a pSpecConstant entry is not a valid
-///         specialization constant identifier.
-ur_result_t UR_APICALL urKernelSetSpecializationConstants(
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] the number of elements in the pSpecConstants array
-    uint32_t count,
-    /// [in] array of specialization constant value descriptions
-    const ur_specialization_constant_info_t *pSpecConstants) try {
-  auto pfnSetSpecializationConstants =
-      ur_lib::getContext()->urDdiTable.Kernel.pfnSetSpecializationConstants;
-  if (nullptr == pfnSetSpecializationConstants)
-    return UR_RESULT_ERROR_UNINITIALIZED;
-
-  return pfnSetSpecializationConstants(hKernel, count, pSpecConstants);
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Return platform native kernel handle.
-///
-/// @details
-///     - Retrieved native handle can be used for direct interaction with the
-///       native platform driver.
-///     - Use interoperability platform extensions to convert native handle to
-///       native type.
-///     - The application may call this function from simultaneous threads for
-///       the same context.
-///     - The implementation of this function should be thread-safe.
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hKernel`
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == phNativeKernel`
-///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
-///         + If the adapter has no underlying equivalent handle.
-ur_result_t UR_APICALL urKernelGetNativeHandle(
-    /// [in] handle of the kernel.
-    ur_kernel_handle_t hKernel,
-    /// [out] a pointer to the native handle of the kernel.
-    ur_native_handle_t *phNativeKernel) try {
-  auto pfnGetNativeHandle =
-      ur_lib::getContext()->urDdiTable.Kernel.pfnGetNativeHandle;
-  if (nullptr == pfnGetNativeHandle)
-    return UR_RESULT_ERROR_UNINITIALIZED;
-
-  return pfnGetNativeHandle(hKernel, phNativeKernel);
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Create runtime kernel object from native kernel handle.
-///
-/// @details
-///     - Creates runtime kernel handle from native driver kernel handle.
-///     - The application may call this function from simultaneous threads for
-///       the same context.
-///     - The implementation of this function should be thread-safe.
-///     - The implementation may require a valid program handle to return the
-///       native kernel handle
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hContext`
-///         + If `hProgram == NULL` and the implementation requires a valid
-///         program.
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == phKernel`
-///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
-///         + If the adapter has no underlying equivalent handle.
-ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
-    /// [in][nocheck] the native handle of the kernel.
-    ur_native_handle_t hNativeKernel,
-    /// [in] handle of the context object
-    ur_context_handle_t hContext,
-    /// [in][optional] handle of the program associated with the kernel
-    ur_program_handle_t hProgram,
-    /// [in][optional] pointer to native kernel properties struct
-    const ur_kernel_native_properties_t *pProperties,
-    /// [out][alloc] pointer to the handle of the kernel object created.
-    ur_kernel_handle_t *phKernel) try {
-  auto pfnCreateWithNativeHandle =
-      ur_lib::getContext()->urDdiTable.Kernel.pfnCreateWithNativeHandle;
-  if (nullptr == pfnCreateWithNativeHandle)
-    return UR_RESULT_ERROR_UNINITIALIZED;
-
-  return pfnCreateWithNativeHandle(hNativeKernel, hContext, hProgram,
-                                   pProperties, phKernel);
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Get the suggested local work size for a kernel.
-///
-/// @details
-///     - Query a suggested local work size for a kernel given a global size for
-///       each dimension.
-///     - The application may call this function from simultaneous threads for
-///       the same context.
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hKernel`
-///         + `NULL == hQueue`
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == pGlobalWorkOffset`
-///         + `NULL == pGlobalWorkSize`
-///         + `NULL == pSuggestedLocalWorkSize`
-///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
-ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
-    /// [in] handle of the kernel
-    ur_kernel_handle_t hKernel,
-    /// [in] handle of the queue object
-    ur_queue_handle_t hQueue,
-    /// [in] number of dimensions, from 1 to 3, to specify the global
-    /// and work-group work-items
-    uint32_t numWorkDim,
-    /// [in] pointer to an array of numWorkDim unsigned values that specify
-    /// the offset used to calculate the global ID of a work-item
-    const size_t *pGlobalWorkOffset,
-    /// [in] pointer to an array of numWorkDim unsigned values that specify
-    /// the number of global work-items in workDim that will execute the
-    /// kernel function
-    const size_t *pGlobalWorkSize,
-    /// [out] pointer to an array of numWorkDim unsigned values that specify
-    /// suggested local work size that will contain the result of the query
-    size_t *pSuggestedLocalWorkSize) try {
-  auto pfnGetSuggestedLocalWorkSize =
-      ur_lib::getContext()->urDdiTable.Kernel.pfnGetSuggestedLocalWorkSize;
-  if (nullptr == pfnGetSuggestedLocalWorkSize)
-    return UR_RESULT_ERROR_UNINITIALIZED;
-
-  return pfnGetSuggestedLocalWorkSize(hKernel, hQueue, numWorkDim,
-                                      pGlobalWorkOffset, pGlobalWorkSize,
-                                      pSuggestedLocalWorkSize);
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Query the maximum number of work groups for a cooperative kernel
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hKernel`
-///         + `NULL == hDevice`
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == pLocalWorkSize`
-///         + `NULL == pGroupCountRet`
-///     - ::UR_RESULT_ERROR_INVALID_KERNEL
-///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
-///         + If ::UR_DEVICE_INFO_KERNEL_LAUNCH_CAPABILITIES returns a value
-///         without the ::UR_KERNEL_LAUNCH_PROPERTIES_FLAG_COOPERATIVE bit set.
-///     - ::UR_RESULT_ERROR_INVALID_WORK_DIMENSION
-///         + `workDim < 1 || workDim > 3`
-ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCount(
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] handle of the device object
-    ur_device_handle_t hDevice,
-    /// [in] number of dimensions, from 1 to 3, to specify the work-group
-    /// work-items
-    uint32_t workDim,
-    /// [in] pointer to an array of workDim unsigned values that specify the
-    /// number of local work-items forming a work-group that will execute the
-    /// kernel function.
-    const size_t *pLocalWorkSize,
-    /// [in] size of dynamic shared memory, for each work-group, in bytes,
-    /// that will be used when the kernel is launched
-    size_t dynamicSharedMemorySize,
-    /// [out] pointer to maximum number of groups
-    uint32_t *pGroupCountRet) try {
-  auto pfnSuggestMaxCooperativeGroupCount =
-      ur_lib::getContext()
-          ->urDdiTable.Kernel.pfnSuggestMaxCooperativeGroupCount;
-  if (nullptr == pfnSuggestMaxCooperativeGroupCount)
-    return UR_RESULT_ERROR_UNINITIALIZED;
-
-  return pfnSuggestMaxCooperativeGroupCount(
-      hKernel, hDevice, workDim, pLocalWorkSize, dynamicSharedMemorySize,
-      pGroupCountRet);
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Query information about a command queue
 ///
 /// @remarks
@@ -6847,6 +6134,816 @@ ur_result_t UR_APICALL urEnqueueWriteHostPipe(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Enqueue a command to execute a kernel and set args at kernel launch
+///        time.
+///
+/// @remarks
+///   _Analogues_
+///     - **clEnqueueNDRangeKernel**
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hQueue`
+///         + `NULL == hKernel`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pGlobalWorkSize`
+///         + `pArgs == NULL && numArgs > 0`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `NULL != pArgs && ::UR_EXP_KERNEL_ARG_TYPE_SAMPLER < pArgs->type`
+///         + `NULL != launchPropList && ::UR_KERNEL_LAUNCH_FLAGS_MASK &
+///         launchPropList->flags`
+///     - ::UR_RESULT_ERROR_INVALID_QUEUE
+///     - ::UR_RESULT_ERROR_INVALID_KERNEL
+///     - ::UR_RESULT_ERROR_INVALID_EVENT
+///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
+///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
+///         + If event objects in phEventWaitList are not valid events.
+///     - ::UR_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS
+///         + An event in `phEventWaitList` has ::UR_EVENT_STATUS_ERROR.
+///     - ::UR_RESULT_ERROR_INVALID_WORK_DIMENSION
+///         + `pGlobalWorkSize[0] == 0 || pGlobalWorkSize[1] == 0 ||
+///         pGlobalWorkSize[2] == 0`
+///     - ::UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE
+///         + `pLocalWorkSize && (pLocalWorkSize[0] == 0 || pLocalWorkSize[1] ==
+///         0 || pLocalWorkSize[2] == 0)`
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGS - "The kernel argument values
+///     have not been specified."
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_INVALID_OPERATION
+///         + If any property in `launchPropList` isn't supported by the device.
+ur_result_t UR_APICALL urEnqueueKernelLaunchWithArgsExp(
+    /// [in] handle of the queue object
+    ur_queue_handle_t hQueue,
+    /// [in] handle of the kernel object
+    ur_kernel_handle_t hKernel,
+    /// [in] number of dimensions, from 1 to 3, to specify the global and
+    /// work-group work-items
+    uint32_t workDim,
+    /// [in][optional] pointer to an array of workDim unsigned values that
+    /// specify the offset used to calculate the global ID of a work-item
+    const size_t *pGlobalWorkOffset,
+    /// [in] pointer to an array of workDim unsigned values that specify the
+    /// number of global work-items in workDim that will execute the kernel
+    /// function
+    const size_t *pGlobalWorkSize,
+    /// [in][optional] pointer to an array of workDim unsigned values that
+    /// specify the number of local work-items forming a work-group that will
+    /// execute the kernel function.
+    /// If nullptr, the runtime implementation will choose the work-group size.
+    const size_t *pLocalWorkSize,
+    /// [in] Number of entries in pArgs
+    uint32_t numArgs,
+    /// [in][optional][range(0, numArgs)] pointer to a list of kernel arg
+    /// properties.
+    const ur_exp_kernel_arg_properties_t *pArgs,
+    /// [in][optional] pointer to a single linked list of launch properties
+    const ur_kernel_launch_ext_properties_t *launchPropList,
+    /// [in] size of the event wait list
+    uint32_t numEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before the kernel execution.
+    /// If nullptr, the numEventsInWaitList must be 0, indicating that no wait
+    /// event.
+    const ur_event_handle_t *phEventWaitList,
+    /// [out][optional][alloc] return an event object that identifies this
+    /// particular kernel execution instance. If phEventWaitList and phEvent
+    /// are not NULL, phEvent must not refer to an element of the
+    /// phEventWaitList array.
+    ur_event_handle_t *phEvent) try {
+  auto pfnKernelLaunchWithArgsExp =
+      ur_lib::getContext()->urDdiTable.EnqueueExp.pfnKernelLaunchWithArgsExp;
+  if (nullptr == pfnKernelLaunchWithArgsExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  return pfnKernelLaunchWithArgsExp(hQueue, hKernel, workDim, pGlobalWorkOffset,
+                                    pGlobalWorkSize, pLocalWorkSize, numArgs,
+                                    pArgs, launchPropList, numEventsInWaitList,
+                                    phEventWaitList, phEvent);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Create kernel object from a program.
+///
+/// @details
+///     - The application may call this function from simultaneous threads.
+///     - The implementation of this function should be lock-free.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hProgram`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pKernelName`
+///         + `NULL == phKernel`
+///     - ::UR_RESULT_ERROR_INVALID_KERNEL_NAME
+///         + If `pKernelName` wasn't found in `hProgram`.
+ur_result_t UR_APICALL urKernelCreate(
+    /// [in] handle of the program instance
+    ur_program_handle_t hProgram,
+    /// [in] pointer to null-terminated string.
+    const char *pKernelName,
+    /// [out][alloc] pointer to handle of kernel object created.
+    ur_kernel_handle_t *phKernel) try {
+  auto pfnCreate = ur_lib::getContext()->urDdiTable.Kernel.pfnCreate;
+  if (nullptr == pfnCreate)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  return pfnCreate(hProgram, pKernelName, phKernel);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Set kernel argument to a value.
+///
+/// @details
+///     - The application may call this function from simultaneous threads with
+///       the same kernel handle.
+///     - The implementation of this function should be lock-free.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hKernel`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pArgValue`
+///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX
+///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE
+ur_result_t UR_APICALL urKernelSetArgValue(
+    /// [in] handle of the kernel object
+    ur_kernel_handle_t hKernel,
+    /// [in] argument index in range [0, num args - 1]
+    uint32_t argIndex,
+    /// [in] size of argument type
+    size_t argSize,
+    /// [in][optional] pointer to value properties.
+    const ur_kernel_arg_value_properties_t *pProperties,
+    /// [in] argument value represented as matching arg type.
+    /// The data pointed to will be copied and therefore can be reused on
+    /// return.
+    const void *pArgValue) try {
+  auto pfnSetArgValue = ur_lib::getContext()->urDdiTable.Kernel.pfnSetArgValue;
+  if (nullptr == pfnSetArgValue)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  return pfnSetArgValue(hKernel, argIndex, argSize, pProperties, pArgValue);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Set kernel argument to a local buffer.
+///
+/// @details
+///     - The application may call this function from simultaneous threads with
+///       the same kernel handle.
+///     - The implementation of this function should be lock-free.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hKernel`
+///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX
+///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE
+ur_result_t UR_APICALL urKernelSetArgLocal(
+    /// [in] handle of the kernel object
+    ur_kernel_handle_t hKernel,
+    /// [in] argument index in range [0, num args - 1]
+    uint32_t argIndex,
+    /// [in] size of the local buffer to be allocated by the runtime
+    size_t argSize,
+    /// [in][optional] pointer to local buffer properties.
+    const ur_kernel_arg_local_properties_t *pProperties) try {
+  auto pfnSetArgLocal = ur_lib::getContext()->urDdiTable.Kernel.pfnSetArgLocal;
+  if (nullptr == pfnSetArgLocal)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  return pfnSetArgLocal(hKernel, argIndex, argSize, pProperties);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Query information about a Kernel object
+///
+/// @remarks
+///   _Analogues_
+///     - **clGetKernelInfo**
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hKernel`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_KERNEL_INFO_SPILL_MEM_SIZE < propName`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
+///         + If `propName` is not supported by the adapter.
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         + `propSize == 0 && pPropValue != NULL`
+///         + If `propSize` is less than the real number of bytes needed to
+///         return the info.
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `propSize != 0 && pPropValue == NULL`
+///         + `pPropValue == NULL && pPropSizeRet == NULL`
+///     - ::UR_RESULT_ERROR_INVALID_KERNEL
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+ur_result_t UR_APICALL urKernelGetInfo(
+    /// [in] handle of the Kernel object
+    ur_kernel_handle_t hKernel,
+    /// [in] name of the Kernel property to query
+    ur_kernel_info_t propName,
+    /// [in] the size of the Kernel property value.
+    size_t propSize,
+    /// [in,out][optional][typename(propName, propSize)] array of bytes
+    /// holding the kernel info property.
+    /// If propSize is not equal to or greater than the real number of bytes
+    /// needed to return
+    /// the info then the ::UR_RESULT_ERROR_INVALID_SIZE error is returned and
+    /// pPropValue is not used.
+    void *pPropValue,
+    /// [out][optional] pointer to the actual size in bytes of data being
+    /// queried by propName.
+    size_t *pPropSizeRet) try {
+  auto pfnGetInfo = ur_lib::getContext()->urDdiTable.Kernel.pfnGetInfo;
+  if (nullptr == pfnGetInfo)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  return pfnGetInfo(hKernel, propName, propSize, pPropValue, pPropSizeRet);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Query work Group information about a Kernel object
+///
+/// @remarks
+///   _Analogues_
+///     - **clGetKernelWorkGroupInfo**
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hKernel`
+///         + `NULL == hDevice`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_KERNEL_GROUP_INFO_COMPILE_MAX_LINEAR_WORK_GROUP_SIZE <
+///         propName`
+ur_result_t UR_APICALL urKernelGetGroupInfo(
+    /// [in] handle of the Kernel object
+    ur_kernel_handle_t hKernel,
+    /// [in] handle of the Device object
+    ur_device_handle_t hDevice,
+    /// [in] name of the work Group property to query
+    ur_kernel_group_info_t propName,
+    /// [in] size of the Kernel Work Group property value
+    size_t propSize,
+    /// [in,out][optional][typename(propName, propSize)] value of the Kernel
+    /// Work Group property.
+    void *pPropValue,
+    /// [out][optional] pointer to the actual size in bytes of data being
+    /// queried by propName.
+    size_t *pPropSizeRet) try {
+  auto pfnGetGroupInfo =
+      ur_lib::getContext()->urDdiTable.Kernel.pfnGetGroupInfo;
+  if (nullptr == pfnGetGroupInfo)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  return pfnGetGroupInfo(hKernel, hDevice, propName, propSize, pPropValue,
+                         pPropSizeRet);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Query SubGroup information about a Kernel object
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hKernel`
+///         + `NULL == hDevice`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_KERNEL_SUB_GROUP_INFO_SUB_GROUP_SIZE_INTEL < propName`
+ur_result_t UR_APICALL urKernelGetSubGroupInfo(
+    /// [in] handle of the Kernel object
+    ur_kernel_handle_t hKernel,
+    /// [in] handle of the Device object
+    ur_device_handle_t hDevice,
+    /// [in] name of the SubGroup property to query
+    ur_kernel_sub_group_info_t propName,
+    /// [in] size of the Kernel SubGroup property value
+    size_t propSize,
+    /// [in,out][optional][typename(propName, propSize)] value of the Kernel
+    /// SubGroup property.
+    void *pPropValue,
+    /// [out][optional] pointer to the actual size in bytes of data being
+    /// queried by propName.
+    size_t *pPropSizeRet) try {
+  auto pfnGetSubGroupInfo =
+      ur_lib::getContext()->urDdiTable.Kernel.pfnGetSubGroupInfo;
+  if (nullptr == pfnGetSubGroupInfo)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  return pfnGetSubGroupInfo(hKernel, hDevice, propName, propSize, pPropValue,
+                            pPropSizeRet);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Get a reference to the Kernel object.
+///
+/// @details
+///     - Get a reference to the Kernel object handle. Increment its reference
+///       count
+///     - The application may call this function from simultaneous threads.
+///     - The implementation of this function should be lock-free.
+///
+/// @remarks
+///   _Analogues_
+///     - **clRetainKernel**
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hKernel`
+ur_result_t UR_APICALL urKernelRetain(
+    /// [in][retain] handle for the Kernel to retain
+    ur_kernel_handle_t hKernel) try {
+  auto pfnRetain = ur_lib::getContext()->urDdiTable.Kernel.pfnRetain;
+  if (nullptr == pfnRetain)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  return pfnRetain(hKernel);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Release Kernel.
+///
+/// @details
+///     - Decrement reference count and destroy the Kernel if reference count
+///       becomes zero.
+///     - The application may call this function from simultaneous threads.
+///     - The implementation of this function should be lock-free.
+///
+/// @remarks
+///   _Analogues_
+///     - **clReleaseKernel**
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hKernel`
+ur_result_t UR_APICALL urKernelRelease(
+    /// [in][release] handle for the Kernel to release
+    ur_kernel_handle_t hKernel) try {
+  auto pfnRelease = ur_lib::getContext()->urDdiTable.Kernel.pfnRelease;
+  if (nullptr == pfnRelease)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  return pfnRelease(hKernel);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Set a USM pointer as the argument value of a Kernel.
+///
+/// @details
+///     - The application may call this function from simultaneous threads with
+///       the same kernel handle.
+///     - The implementation of this function should be lock-free.
+///
+/// @remarks
+///   _Analogues_
+///     - **clSetKernelArgSVMPointer**
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hKernel`
+///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX
+ur_result_t UR_APICALL urKernelSetArgPointer(
+    /// [in] handle of the kernel object
+    ur_kernel_handle_t hKernel,
+    /// [in] argument index in range [0, num args - 1]
+    uint32_t argIndex,
+    /// [in][optional] pointer to USM pointer properties.
+    const ur_kernel_arg_pointer_properties_t *pProperties,
+    /// [in][optional] Pointer obtained by USM allocation or virtual memory
+    /// mapping operation. If null then argument value is considered null.
+    const void *pArgValue) try {
+  auto pfnSetArgPointer =
+      ur_lib::getContext()->urDdiTable.Kernel.pfnSetArgPointer;
+  if (nullptr == pfnSetArgPointer)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  return pfnSetArgPointer(hKernel, argIndex, pProperties, pArgValue);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Set additional Kernel execution attributes.
+///
+/// @details
+///     - The application must **not** call this function from simultaneous
+///       threads with the same kernel handle.
+///     - The implementation of this function should be lock-free.
+///
+/// @remarks
+///   _Analogues_
+///     - **clSetKernelExecInfo**
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hKernel`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_KERNEL_EXEC_INFO_CACHE_CONFIG < propName`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pPropValue`
+ur_result_t UR_APICALL urKernelSetExecInfo(
+    /// [in] handle of the kernel object
+    ur_kernel_handle_t hKernel,
+    /// [in] name of the execution attribute
+    ur_kernel_exec_info_t propName,
+    /// [in] size in byte the attribute value
+    size_t propSize,
+    /// [in][optional] pointer to execution info properties.
+    const ur_kernel_exec_info_properties_t *pProperties,
+    /// [in][typename(propName, propSize)] pointer to memory location holding
+    /// the property value.
+    const void *pPropValue) try {
+  auto pfnSetExecInfo = ur_lib::getContext()->urDdiTable.Kernel.pfnSetExecInfo;
+  if (nullptr == pfnSetExecInfo)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  return pfnSetExecInfo(hKernel, propName, propSize, pProperties, pPropValue);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Set a Sampler object as the argument value of a Kernel.
+///
+/// @details
+///     - The application may call this function from simultaneous threads with
+///       the same kernel handle.
+///     - The implementation of this function should be lock-free.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hKernel`
+///         + `NULL == hArgValue`
+///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + Device `::UR_DEVICE_INFO_IMAGE_SUPPORT` is false
+ur_result_t UR_APICALL urKernelSetArgSampler(
+    /// [in] handle of the kernel object
+    ur_kernel_handle_t hKernel,
+    /// [in] argument index in range [0, num args - 1]
+    uint32_t argIndex,
+    /// [in][optional] pointer to sampler properties.
+    const ur_kernel_arg_sampler_properties_t *pProperties,
+    /// [in] handle of Sampler object.
+    ur_sampler_handle_t hArgValue) try {
+  auto pfnSetArgSampler =
+      ur_lib::getContext()->urDdiTable.Kernel.pfnSetArgSampler;
+  if (nullptr == pfnSetArgSampler)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  return pfnSetArgSampler(hKernel, argIndex, pProperties, hArgValue);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Set a Memory object as the argument value of a Kernel.
+///
+/// @details
+///     - The application may call this function from simultaneous threads with
+///       the same kernel handle.
+///     - The implementation of this function should be lock-free.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hKernel`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `NULL != pProperties && ::UR_MEM_FLAGS_MASK &
+///         pProperties->memoryAccess`
+///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX
+ur_result_t UR_APICALL urKernelSetArgMemObj(
+    /// [in] handle of the kernel object
+    ur_kernel_handle_t hKernel,
+    /// [in] argument index in range [0, num args - 1]
+    uint32_t argIndex,
+    /// [in][optional] pointer to Memory object properties.
+    const ur_kernel_arg_mem_obj_properties_t *pProperties,
+    /// [in][optional] handle of Memory object.
+    ur_mem_handle_t hArgValue) try {
+  auto pfnSetArgMemObj =
+      ur_lib::getContext()->urDdiTable.Kernel.pfnSetArgMemObj;
+  if (nullptr == pfnSetArgMemObj)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  return pfnSetArgMemObj(hKernel, argIndex, pProperties, hArgValue);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Set an array of specialization constants on a Kernel.
+///
+/// @details
+///     - This entry point is optional, the application should query for support
+///       with device query ::UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS
+///       passed to ::urDeviceGetInfo.
+///     - Adapters which are capable of setting specialization constants
+///       immediately prior to ::urEnqueueKernelLaunch with low overhead should
+///       implement this entry point.
+///     - Otherwise, if setting specialization constants late requires
+///       recompiling or linking a program, adapters should not implement this
+///       entry point.
+///     - The application may call this function from simultaneous threads for
+///       the same device.
+///     - The implementation of this function should be thread-safe.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hKernel`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pSpecConstants`
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         + `count == 0`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If ::UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS query is
+///         false
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///         + A pSpecConstant entry contains a size that does not match that of
+///         the specialization constant in the module.
+///         + A pSpecConstant entry contains a nullptr pValue.
+///     - ::UR_RESULT_ERROR_INVALID_SPEC_ID
+///         + Any id specified in a pSpecConstant entry is not a valid
+///         specialization constant identifier.
+ur_result_t UR_APICALL urKernelSetSpecializationConstants(
+    /// [in] handle of the kernel object
+    ur_kernel_handle_t hKernel,
+    /// [in] the number of elements in the pSpecConstants array
+    uint32_t count,
+    /// [in] array of specialization constant value descriptions
+    const ur_specialization_constant_info_t *pSpecConstants) try {
+  auto pfnSetSpecializationConstants =
+      ur_lib::getContext()->urDdiTable.Kernel.pfnSetSpecializationConstants;
+  if (nullptr == pfnSetSpecializationConstants)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  return pfnSetSpecializationConstants(hKernel, count, pSpecConstants);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Return platform native kernel handle.
+///
+/// @details
+///     - Retrieved native handle can be used for direct interaction with the
+///       native platform driver.
+///     - Use interoperability platform extensions to convert native handle to
+///       native type.
+///     - The application may call this function from simultaneous threads for
+///       the same context.
+///     - The implementation of this function should be thread-safe.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hKernel`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == phNativeKernel`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the adapter has no underlying equivalent handle.
+ur_result_t UR_APICALL urKernelGetNativeHandle(
+    /// [in] handle of the kernel.
+    ur_kernel_handle_t hKernel,
+    /// [out] a pointer to the native handle of the kernel.
+    ur_native_handle_t *phNativeKernel) try {
+  auto pfnGetNativeHandle =
+      ur_lib::getContext()->urDdiTable.Kernel.pfnGetNativeHandle;
+  if (nullptr == pfnGetNativeHandle)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  return pfnGetNativeHandle(hKernel, phNativeKernel);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Create runtime kernel object from native kernel handle.
+///
+/// @details
+///     - Creates runtime kernel handle from native driver kernel handle.
+///     - The application may call this function from simultaneous threads for
+///       the same context.
+///     - The implementation of this function should be thread-safe.
+///     - The implementation may require a valid program handle to return the
+///       native kernel handle
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///         + If `hProgram == NULL` and the implementation requires a valid
+///         program.
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == phKernel`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the adapter has no underlying equivalent handle.
+ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
+    /// [in][nocheck] the native handle of the kernel.
+    ur_native_handle_t hNativeKernel,
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in][optional] handle of the program associated with the kernel
+    ur_program_handle_t hProgram,
+    /// [in][optional] pointer to native kernel properties struct
+    const ur_kernel_native_properties_t *pProperties,
+    /// [out][alloc] pointer to the handle of the kernel object created.
+    ur_kernel_handle_t *phKernel) try {
+  auto pfnCreateWithNativeHandle =
+      ur_lib::getContext()->urDdiTable.Kernel.pfnCreateWithNativeHandle;
+  if (nullptr == pfnCreateWithNativeHandle)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  return pfnCreateWithNativeHandle(hNativeKernel, hContext, hProgram,
+                                   pProperties, phKernel);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Get the suggested local work size for a kernel.
+///
+/// @details
+///     - Query a suggested local work size for a kernel given a global size for
+///       each dimension.
+///     - The application may call this function from simultaneous threads for
+///       the same context.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hKernel`
+///         + `NULL == hQueue`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pGlobalWorkOffset`
+///         + `NULL == pGlobalWorkSize`
+///         + `NULL == pSuggestedLocalWorkSize`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
+    /// [in] handle of the kernel
+    ur_kernel_handle_t hKernel,
+    /// [in] handle of the queue object
+    ur_queue_handle_t hQueue,
+    /// [in] number of dimensions, from 1 to 3, to specify the global
+    /// and work-group work-items
+    uint32_t numWorkDim,
+    /// [in] pointer to an array of numWorkDim unsigned values that specify
+    /// the offset used to calculate the global ID of a work-item
+    const size_t *pGlobalWorkOffset,
+    /// [in] pointer to an array of numWorkDim unsigned values that specify
+    /// the number of global work-items in workDim that will execute the
+    /// kernel function
+    const size_t *pGlobalWorkSize,
+    /// [out] pointer to an array of numWorkDim unsigned values that specify
+    /// suggested local work size that will contain the result of the query
+    size_t *pSuggestedLocalWorkSize) try {
+  auto pfnGetSuggestedLocalWorkSize =
+      ur_lib::getContext()->urDdiTable.Kernel.pfnGetSuggestedLocalWorkSize;
+  if (nullptr == pfnGetSuggestedLocalWorkSize)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  return pfnGetSuggestedLocalWorkSize(hKernel, hQueue, numWorkDim,
+                                      pGlobalWorkOffset, pGlobalWorkSize,
+                                      pSuggestedLocalWorkSize);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Query the maximum number of work groups for a cooperative kernel
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hKernel`
+///         + `NULL == hDevice`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pLocalWorkSize`
+///         + `NULL == pGroupCountRet`
+///     - ::UR_RESULT_ERROR_INVALID_KERNEL
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If ::UR_DEVICE_INFO_KERNEL_LAUNCH_CAPABILITIES returns a value
+///         without the ::UR_KERNEL_LAUNCH_PROPERTIES_FLAG_COOPERATIVE bit set.
+///     - ::UR_RESULT_ERROR_INVALID_WORK_DIMENSION
+///         + `workDim < 1 || workDim > 3`
+ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCount(
+    /// [in] handle of the kernel object
+    ur_kernel_handle_t hKernel,
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
+    /// [in] number of dimensions, from 1 to 3, to specify the work-group
+    /// work-items
+    uint32_t workDim,
+    /// [in] pointer to an array of workDim unsigned values that specify the
+    /// number of local work-items forming a work-group that will execute the
+    /// kernel function.
+    const size_t *pLocalWorkSize,
+    /// [in] size of dynamic shared memory, for each work-group, in bytes,
+    /// that will be used when the kernel is launched
+    size_t dynamicSharedMemorySize,
+    /// [out] pointer to maximum number of groups
+    uint32_t *pGroupCountRet) try {
+  auto pfnSuggestMaxCooperativeGroupCount =
+      ur_lib::getContext()
+          ->urDdiTable.Kernel.pfnSuggestMaxCooperativeGroupCount;
+  if (nullptr == pfnSuggestMaxCooperativeGroupCount)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  return pfnSuggestMaxCooperativeGroupCount(
+      hKernel, hDevice, workDim, pLocalWorkSize, dynamicSharedMemorySize,
+      pGroupCountRet);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Enqueue an async device allocation
 ///
 /// @returns
@@ -8565,102 +8662,6 @@ ur_result_t UR_APICALL urProgramDynamicLinkExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Enqueue a command to execute a kernel
-///
-/// @remarks
-///   _Analogues_
-///     - **clEnqueueNDRangeKernel**
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hQueue`
-///         + `NULL == hKernel`
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == pGlobalWorkSize`
-///         + `pArgs == NULL && numArgs > 0`
-///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `NULL != pArgs && ::UR_EXP_KERNEL_ARG_TYPE_SAMPLER < pArgs->type`
-///         + `NULL != launchPropList && ::UR_KERNEL_LAUNCH_FLAGS_MASK &
-///         launchPropList->flags`
-///     - ::UR_RESULT_ERROR_INVALID_QUEUE
-///     - ::UR_RESULT_ERROR_INVALID_KERNEL
-///     - ::UR_RESULT_ERROR_INVALID_EVENT
-///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
-///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
-///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
-///         + If event objects in phEventWaitList are not valid events.
-///     - ::UR_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS
-///         + An event in `phEventWaitList` has ::UR_EVENT_STATUS_ERROR.
-///     - ::UR_RESULT_ERROR_INVALID_WORK_DIMENSION
-///         + `pGlobalWorkSize[0] == 0 || pGlobalWorkSize[1] == 0 ||
-///         pGlobalWorkSize[2] == 0`
-///     - ::UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE
-///         + `pLocalWorkSize && (pLocalWorkSize[0] == 0 || pLocalWorkSize[1] ==
-///         0 || pLocalWorkSize[2] == 0)`
-///     - ::UR_RESULT_ERROR_INVALID_VALUE
-///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGS - "The kernel argument values
-///     have not been specified."
-///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
-///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
-///     - ::UR_RESULT_ERROR_INVALID_OPERATION
-///         + If any property in `launchPropList` isn't supported by the device.
-ur_result_t UR_APICALL urEnqueueKernelLaunchWithArgsExp(
-    /// [in] handle of the queue object
-    ur_queue_handle_t hQueue,
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] number of dimensions, from 1 to 3, to specify the global and
-    /// work-group work-items
-    uint32_t workDim,
-    /// [in][optional] pointer to an array of workDim unsigned values that
-    /// specify the offset used to calculate the global ID of a work-item
-    const size_t *pGlobalWorkOffset,
-    /// [in] pointer to an array of workDim unsigned values that specify the
-    /// number of global work-items in workDim that will execute the kernel
-    /// function
-    const size_t *pGlobalWorkSize,
-    /// [in][optional] pointer to an array of workDim unsigned values that
-    /// specify the number of local work-items forming a work-group that will
-    /// execute the kernel function.
-    /// If nullptr, the runtime implementation will choose the work-group size.
-    const size_t *pLocalWorkSize,
-    /// [in] Number of entries in pArgs
-    uint32_t numArgs,
-    /// [in][optional][range(0, numArgs)] pointer to a list of kernel arg
-    /// properties.
-    const ur_exp_kernel_arg_properties_t *pArgs,
-    /// [in][optional] pointer to a single linked list of launch properties
-    const ur_kernel_launch_ext_properties_t *launchPropList,
-    /// [in] size of the event wait list
-    uint32_t numEventsInWaitList,
-    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
-    /// events that must be complete before the kernel execution.
-    /// If nullptr, the numEventsInWaitList must be 0, indicating that no wait
-    /// event.
-    const ur_event_handle_t *phEventWaitList,
-    /// [out][optional][alloc] return an event object that identifies this
-    /// particular kernel execution instance. If phEventWaitList and phEvent
-    /// are not NULL, phEvent must not refer to an element of the
-    /// phEventWaitList array.
-    ur_event_handle_t *phEvent) try {
-  auto pfnKernelLaunchWithArgsExp =
-      ur_lib::getContext()->urDdiTable.EnqueueExp.pfnKernelLaunchWithArgsExp;
-  if (nullptr == pfnKernelLaunchWithArgsExp)
-    return UR_RESULT_ERROR_UNINITIALIZED;
-
-  return pfnKernelLaunchWithArgsExp(hQueue, hKernel, workDim, pGlobalWorkOffset,
-                                    pGlobalWorkSize, pLocalWorkSize, numArgs,
-                                    pArgs, launchPropList, numEventsInWaitList,
-                                    phEventWaitList, phEvent);
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Enqueue a command for recording the device timestamp
 ///
 /// @returns
@@ -9648,6 +9649,116 @@ ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
       pLocalWorkSize, numKernelAlternatives, phKernelAlternatives,
       numSyncPointsInWaitList, pSyncPointWaitList, numEventsInWaitList,
       phEventWaitList, pSyncPoint, phEvent, phCommand);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Append a kernel execution command to a command-buffer object and set
+///        args at kernel launch time.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hCommandBuffer`
+///         + `NULL == hKernel`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pGlobalWorkSize`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `NULL != pArgs && ::UR_EXP_KERNEL_ARG_TYPE_SAMPLER < pArgs->type`
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
+///     - ::UR_RESULT_ERROR_INVALID_KERNEL
+///     - ::UR_RESULT_ERROR_INVALID_WORK_DIMENSION
+///     - ::UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///         + `phKernelAlternatives == NULL && numKernelAlternatives > 0`
+///         + `phKernelAlternatives != NULL && numKernelAlternatives == 0`
+///         + If `phKernelAlternatives` contains `hKernel`
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP
+///         + `pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0`
+///         + `pSyncPointWaitList != NULL && numSyncPointsInWaitList == 0`
+///     - ::UR_RESULT_ERROR_INVALID_EVENT
+///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
+///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
+///         + If event objects in phEventWaitList are not valid events.
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the device associated with `hCommandBuffer` does not support
+///         UR_DEVICE_INFO_COMMAND_BUFFER_EVENT_SUPPORT_EXP and either `phEvent`
+///         or `phEventWaitList` are not NULL.
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_INVALID_OPERATION - "phCommand is not NULL and
+///     hCommandBuffer is not updatable."
+///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX - "If the number of
+///     the kernel arguments `numArgs` passed in `pArgs` is not equal to the
+///     number of the kernel arguments in `hKernel`." - "If the kernel argument
+///     indices in `pArgs` are not the consecutive natural numbers starting from
+///     0."
+ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchWithArgsExp(
+    /// [in] Handle of the command-buffer object.
+    ur_exp_command_buffer_handle_t hCommandBuffer,
+    /// [in] Kernel to append.
+    ur_kernel_handle_t hKernel,
+    /// [in] Dimension of the kernel execution.
+    uint32_t workDim,
+    /// [in][optional] Offset to use when executing kernel.
+    const size_t *pGlobalWorkOffset,
+    /// [in] Global work size to use when executing kernel.
+    const size_t *pGlobalWorkSize,
+    /// [in][optional] Local work size to use when executing kernel. If this
+    /// parameter is nullptr, then a local work size will be generated by the
+    /// implementation.
+    const size_t *pLocalWorkSize,
+    /// [in] Number of entries in pArgs
+    uint32_t numArgs,
+    /// [in][optional][range(0, numArgs)] pointer to a list of kernel arg
+    /// properties.
+    const ur_exp_kernel_arg_properties_t *pArgs,
+    /// [in] The number of kernel alternatives provided in
+    /// phKernelAlternatives.
+    uint32_t numKernelAlternatives,
+    /// [in][optional][range(0, numKernelAlternatives)] List of kernel handles
+    /// that might be used to update the kernel in this
+    /// command after the command-buffer is finalized. The default kernel
+    /// `hKernel` is implicitly marked as an alternative. It's
+    /// invalid to specify it as part of this list.
+    ur_kernel_handle_t *phKernelAlternatives,
+    /// [in] The number of sync points in the provided dependency list.
+    uint32_t numSyncPointsInWaitList,
+    /// [in][optional] A list of sync points that this command depends on.
+    /// Will be ignored if command-buffer is in-order.
+    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
+    /// [in] Size of the event wait list.
+    uint32_t numEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before the command execution. If nullptr,
+    /// the numEventsInWaitList must be 0, indicating no wait events.
+    const ur_event_handle_t *phEventWaitList,
+    /// [out][optional] Sync point associated with this command.
+    ur_exp_command_buffer_sync_point_t *pSyncPoint,
+    /// [out][optional][alloc] return an event object that will be signaled by
+    /// the completion of this command in the next execution of the
+    /// command-buffer.
+    ur_event_handle_t *phEvent,
+    /// [out][optional][alloc] Handle to this command. Only available if the
+    /// command-buffer is updatable.
+    ur_exp_command_buffer_command_handle_t *phCommand) try {
+  auto pfnAppendKernelLaunchWithArgsExp =
+      ur_lib::getContext()
+          ->urDdiTable.CommandBufferExp.pfnAppendKernelLaunchWithArgsExp;
+  if (nullptr == pfnAppendKernelLaunchWithArgsExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  return pfnAppendKernelLaunchWithArgsExp(
+      hCommandBuffer, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
+      pLocalWorkSize, numArgs, pArgs, numKernelAlternatives,
+      phKernelAlternatives, numSyncPointsInWaitList, pSyncPointWaitList,
+      numEventsInWaitList, phEventWaitList, pSyncPoint, phEvent, phCommand);
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }

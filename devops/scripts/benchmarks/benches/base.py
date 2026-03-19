@@ -124,7 +124,7 @@ class Benchmark(ABC):
         extra_trace_opt=None,
         force_trace: bool = False,
     ):
-        env_vars = env_vars.copy()
+        env_vars = dict(env_vars) if env_vars else {}
         if options.ur is not None:
             env_vars.update(
                 {"UR_ADAPTERS_FORCE_LOAD": Benchmark.get_adapter_full_path()}
@@ -217,7 +217,7 @@ class Benchmark(ABC):
         self.data_path = self.create_data_path(name, skip_data_dir)
         return download(self.data_path, url, file, untar, unzip, checksum)
 
-    def lower_is_better(self):
+    def lower_is_better(self) -> bool:
         return True
 
     def stddev_threshold(self):
@@ -226,7 +226,7 @@ class Benchmark(ABC):
     def get_suite_name(self) -> str:
         return self.suite.name()
 
-    def description(self):
+    def description(self) -> str:
         return ""
 
     def notes(self) -> str:
