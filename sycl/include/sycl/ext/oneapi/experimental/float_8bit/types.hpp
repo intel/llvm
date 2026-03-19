@@ -78,10 +78,7 @@ enum class saturation { none, finite };
 enum class rounding {
   to_even,
   upward,
-  downward,
   toward_zero,
-  to_away,
-  stochastic
 };
 
 struct stochastic_seed {
@@ -451,23 +448,11 @@ uint8_t round(rounding r, uint8_t b, sycl::half yi, T vi) {
       return nextE4M3(b, /*up=*/true);
     break;
   }
-  case rounding::downward: {
-    if (yi > vi)
-      return nextE4M3(b, /*up=*/false);
-    break;
-  }
   case rounding::toward_zero:
     if (vi > 0.0f && yi > vi) {
       return nextE4M3(b, /*up=*/false);
     } else if (vi < 0.0f && yi < vi) {
       return nextE4M3(b, /*up=*/true);
-    }
-    break;
-  case rounding::to_away:
-    if (vi > 0.0f && yi < vi) {
-      return nextE4M3(b, /*up=*/true);
-    } else if (vi < 0.0f && yi > vi) {
-      return nextE4M3(b, /*up=*/false);
     }
     break;
   default:
@@ -1140,7 +1125,7 @@ public:
 #endif
   }
 
-  explicit fp8_e5m2_x([[maybe_unused]] double const (&in)[N],
+  explicit fp8_e5m2_x([[maybe_unused]] float const (&in)[N],
                       [[maybe_unused]] const stochastic_seed &seed,
                       [[maybe_unused]] saturation s = saturation::finite) {
     static_assert(N == 1 || N == 2,
@@ -1204,7 +1189,7 @@ public:
 #endif
   }
 
-  explicit fp8_e5m2_x([[maybe_unused]] const sycl::marray<double, N> &in,
+  explicit fp8_e5m2_x([[maybe_unused]] const sycl::marray<float, N> &in,
                       [[maybe_unused]] const stochastic_seed &seed,
                       [[maybe_unused]] saturation s = saturation::finite) {
     static_assert(N == 1 || N == 2,
@@ -1545,7 +1530,6 @@ static inline uint8_t ConvertToE8M0_CPU(float x, rounding R,
     if (!is_exact_power_of_two && E < Emax)
       ++E;
     break;
-  case rounding::downward:
   case rounding::toward_zero:
     // toward -inf / toward 0: both pick the lower power for non-exact.
     break;
