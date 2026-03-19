@@ -533,8 +533,8 @@ template <size_t N> class fp8_e4m3_x {
 
   template <typename T> T ConvertFromFP8(uint8_t v) const {
 #ifdef __SYCL_DEVICE_ONLY__
-  sycl::half hi = __builtin_spirv_ClampConvertE4M3ToFP16INTEL(v);//sycl_fp8_ClampConvertE4M3ToFP16INTEL(v);
-  return static_cast<T>(hi);
+    sycl::half hi = __builtin_spirv_ClampConvertE4M3ToFP16INTEL(v);
+    return static_cast<T>(hi);
 #else
     return ConvertFromFP8_CPU<4, 3, T>(v);
 #endif
