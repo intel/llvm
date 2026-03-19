@@ -1924,6 +1924,7 @@ SYCLToolChain::getDeviceLibs(
   // Create full path names to each device library.  If found, add to the list
   // of device libraries that will be linked against.
   for (const auto &DeviceLib : DeviceLibs) {
+    bool DeviceLibFound = false;
     for (const auto &LibraryPath : LibraryPaths) {
       SmallString<128> FullLibName(LibraryPath);
       llvm::sys::path::append(FullLibName, DeviceLib.Path);
@@ -1931,9 +1932,14 @@ SYCLToolChain::getDeviceLibs(
         BitCodeLibraryInfo BitCodeLibrary(
             {FullLibName, DeviceLib.ShouldInternalize});
         BCLibs.emplace_back(BitCodeLibrary);
+        DeviceLibFound = true;
         break;
       }
     }
+    // The device libraries are all known internal libraries.  If any are not
+    // found, emit an error.
+    if (!DeviceLibFound)
+      getDriver().Diag(diag::err_drv_no_sycl_device_lib) << DeviceLib.Path;
   }
   return BCLibs;
 }
