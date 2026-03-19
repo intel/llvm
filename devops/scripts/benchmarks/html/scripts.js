@@ -897,10 +897,6 @@ function generateExtraInfo(data, type = 'benchmark') {
         if (metadata && latestRun) {
             html += `<strong>${displayLabel}:</strong> ${formatCommand(latestRun.result)}<br>`;
 
-            if (metadata.description) {
-                html += `<em>Description:</em> ${metadata.description}`;
-            }
-
             if (metadata.notes) {
                 html += `<br><em>Notes:</em> <span class="note-text">${metadata.notes}</span>`;
             }
