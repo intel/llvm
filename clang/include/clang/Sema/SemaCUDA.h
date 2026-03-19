@@ -72,14 +72,13 @@ public:
   /// same deferred diag twice.
   llvm::DenseSet<FunctionDeclAndLoc> LocsWithCUDACallDiags;
 
-  /// An inverse call graph, mapping known-emitted functions to their
+  /// An inverse call graph, mapping known-emitted functions to one of their
   /// known-emitted callers (plus the location of the call).
   ///
   /// Functions that we can tell a priori must be emitted aren't added to this
-  /// map. A function may have multiple callers that force it into device
-  /// context, so we store all of them to produce complete diagnostics.
+  /// map.
   llvm::DenseMap</* Callee = */ CanonicalDeclPtr<const FunctionDecl>,
-                 /* Callers = */ llvm::SmallVector<FunctionDeclAndLoc, 1>>
+                 /* Caller = */ FunctionDeclAndLoc>
       DeviceKnownEmittedFns;
 
   /// Creates a SemaDiagnosticBuilder that emits the diagnostic if the current

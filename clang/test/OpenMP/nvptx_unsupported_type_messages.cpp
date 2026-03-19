@@ -247,7 +247,7 @@ long double c = q + b;
 #endif
 
 void hostFoo() {
-  boo(c - b); // expected-note {{called by 'hostFoo'}}
+  boo(c - b);
 }
 
 long double qa, qb;

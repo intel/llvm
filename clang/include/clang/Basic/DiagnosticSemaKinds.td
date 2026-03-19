@@ -9798,7 +9798,6 @@ def err_deleted_inherited_ctor_use : Error<
   "constructor inherited by %0 from base class %1 is implicitly deleted">;
 
 def note_called_by : Note<"called by %0">;
-def note_which_is_called_by : Note<"which is called by %0">;
 def err_kern_type_not_void_return : Error<
   "kernel function type %0 must have void return type">;
 def err_config_scalar_return : Error<
