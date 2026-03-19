@@ -146,6 +146,19 @@ std::string getClangFullCPPVersion() {
 
   return buf;
 }
+std::string getDPCPPFullCPPVersion() {
+  // Format: "DPC++ 6.3.0 git (https://github.com/intel/llvm.git ...)"
+  std::string buf;
+  llvm::raw_string_ostream OS(buf);
+  OS << "DPC++ " DPCPP_VERSION;
+
+  std::string repo = getClangFullRepositoryVersion();
+  if (!repo.empty()) {
+    OS << " " << repo;
+  }
+
+  return buf;
+}
 
 llvm::SmallVector<std::pair<llvm::StringRef, llvm::StringRef>, 2>
 getSYCLVersionMacros(const LangOptions &LangOpts) {

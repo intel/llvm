@@ -1192,7 +1192,7 @@
 // SPARC:#define __UINT_LEAST8_MAX__ 255
 // SPARC:#define __UINT_LEAST8_TYPE__ unsigned char
 // SPARC:#define __USER_LABEL_PREFIX__
-// SPARC:#define __VERSION__ "{{.*}}Clang{{.*}}
+// SPARC:#define __VERSION__ "{{.*}}DPC++{{.*}}
 // SPARC:#define __WCHAR_MAX__ 2147483647
 // SPARC:#define __WCHAR_TYPE__ int
 // SPARC:#define __WCHAR_WIDTH__ 32
@@ -1727,6 +1727,7 @@
 // WEBASSEMBLY-NEXT:#define __DBL_MIN__ 2.2250738585072014e-308
 // WEBASSEMBLY-NEXT:#define __DBL_NORM_MAX__ 1.7976931348623157e+308
 // WEBASSEMBLY-NEXT:#define __DECIMAL_DIG__ __LDBL_DECIMAL_DIG__
+// WEBASSEMBLY-NEXT:#define __DPCPP__ 1
 // WEBASSEMBLY-NOT:#define __ELF__
 // EMSCRIPTEN-THREADS-NEXT:#define __EMSCRIPTEN_PTHREADS__ 1
 // EMSCRIPTEN-NEXT:#define __EMSCRIPTEN__ 1
@@ -2090,6 +2091,9 @@
 // WEBASSEMBLY-NEXT:#define __clang_patchlevel__ {{.*}}
 // WEBASSEMBLY-NEXT:#define __clang_version__ "{{.*}}"
 // WEBASSEMBLY-NEXT:#define __clang_wide_literal_encoding__ {{.*}}
+// WEBASSEMBLY-NEXT:#define __dpcpp_major__ 6
+// WEBASSEMBLY-NEXT:#define __dpcpp_minor__ 3
+// WEBASSEMBLY-NEXT:#define __dpcpp_patchlevel__ 0
 // WEBASSEMBLY-NEXT:#define __llvm__ 1
 // WASI-NOT:#define __unix
 // WASI-NOT:#define __unix__
