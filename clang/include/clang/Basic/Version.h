@@ -67,8 +67,8 @@ namespace clang {
   llvm::SmallVector<std::pair<llvm::StringRef, llvm::StringRef>, 2>
   getSYCLVersionMacros(const LangOptions &LangOpts);
 
-  /// Retrieves a string representing the Intel SYCL compiler build info.
-  std::string getSYCLBuildInfo();
+  /// Retrieves a string representing the DPC++ Version.
+  std::string getDPCPPVersion();
 }
 
 #endif // LLVM_CLANG_BASIC_VERSION_H

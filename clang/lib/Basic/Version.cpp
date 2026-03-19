@@ -65,11 +65,11 @@ std::string getClangVendor() {
 #endif
 }
 
-std::string getSYCLBuildInfo() {
+std::string getDPCPPVersion() {
 #ifdef SYCL_BUILD_INFO
   return SYCL_BUILD_INFO;
 #else
-  return "development";
+  return DPCPP_VERSION;
 #endif
 }
 
