@@ -331,39 +331,47 @@ DefineShuffleVec2to16(float, f32, float);
 
 #define DefGroupNonUniformShuffle(Type, Sfx, MuxType)                          \
   DEVICE_EXTERN_C MuxType __mux_sub_group_shuffle_##Sfx(MuxType val,           \
-                                                        int32_t lid);          \
+                                                        int32_t lid) noexcept; \
   DEVICE_EXTERNAL Type __spirv_GroupNonUniformShuffle(                         \
-      , Type data, unsigned value) noexcept {                                  \
-    return (Type)__mux_sub_group_shuffle_##Sfx((MuxType)data, value);          \
+      int32_t scope, Type data, unsigned value) noexcept {                     \
+    if (__spv::Scope::Flag::Subgroup == scope)                                 \
+      return (Type)__mux_sub_group_shuffle_##Sfx((MuxType)data, value);        \
+    return (Type)0;                                                            \
   }                                                                            \
   static_assert(true)
 
 #define DefGroupNonUniformShuffleUp(Type, Sfx, MuxType)                        \
   DEVICE_EXTERN_C MuxType __mux_sub_group_shuffle_up_##Sfx(                    \
-      MuxType prev, MuxType curr, int32_t delta);                              \
+      MuxType prev, MuxType curr, int32_t delta) noexcept;                     \
   DEVICE_EXTERNAL Type __spirv_GroupNonUniformShuffleUp(                       \
-      , Type data, unsigned delta) noexcept {                                  \
-    return (Type)__mux_sub_group_shuffle_up_##Sfx((MuxType)data,               \
-                                                  (MuxType)data, delta);       \
+      int32_t scope, Type data, unsigned delta) noexcept {                     \
+    if (__spv::Scope::Flag::Subgroup == scope)                                 \
+      return (Type)__mux_sub_group_shuffle_up_##Sfx((MuxType)data,             \
+                                                    (MuxType)data, delta);     \
+    return (Type)0;                                                            \
   }                                                                            \
   static_assert(true)
 
 #define DefGroupNonUniformShuffleDown(Type, Sfx, MuxType)                      \
   DEVICE_EXTERN_C MuxType __mux_sub_group_shuffle_down_##Sfx(                  \
-      MuxType curr, MuxType next, int32_t delta);                              \
+      MuxType curr, MuxType next, int32_t delta) noexcept;                     \
   DEVICE_EXTERNAL Type __spirv_GroupNonUniformShuffleDown(                     \
-      , Type data, unsigned delta) noexcept {                                  \
-    return (Type)__mux_sub_group_shuffle_down_##Sfx((MuxType)data,             \
-                                                    (MuxType)data, delta);     \
+      int32_t scope, Type data, unsigned delta) noexcept {                     \
+    if (__spv::Scope::Flag::Subgroup == scope)                                 \
+      return (Type)__mux_sub_group_shuffle_down_##Sfx((MuxType)data,           \
+                                                      (MuxType)data, delta);   \
+    return (Type)0;                                                            \
   }                                                                            \
   static_assert(true)
 
 #define DefGroupNonUniformShuffleXor(Type, Sfx, MuxType)                       \
-  DEVICE_EXTERN_C MuxType __mux_sub_group_shuffle_xor_##Sfx(MuxType val,       \
-                                                            int32_t xor_val);  \
+  DEVICE_EXTERN_C MuxType __mux_sub_group_shuffle_xor_##Sfx(                   \
+      MuxType val, int32_t xor_val) noexcept;                                  \
   DEVICE_EXTERNAL Type __spirv_GroupNonUniformShuffleXor(                      \
-      , Type data, unsigned value) noexcept {                                  \
-    return (Type)__mux_sub_group_shuffle_xor_##Sfx((MuxType)data, value);      \
+      int32_t scope, Type data, unsigned value) noexcept {                     \
+    if (__spv::Scope::Flag::Subgroup == scope)                                 \
+      return (Type)__mux_sub_group_shuffle_xor_##Sfx((MuxType)data, value);    \
+    return (Type)0;                                                            \
   }                                                                            \
   static_assert(true)
 
