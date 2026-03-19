@@ -6,7 +6,7 @@
 // XFAIL: arch-intel_gpu_ptl_u || arch-intel_gpu_ptl_h || arch-intel_gpu_wcl
 // XFAIL-TRACKER: CMPLRTST-27275
 // XFAIL-TRACKER: CMPLRLLVM-72055
-// XFAIL-TRACKER: GSD-12323
+// XFAIL-TRACKER: CMPLRTST-28665
 
 #define GRAPH_E2E_RECORD_REPLAY
 
