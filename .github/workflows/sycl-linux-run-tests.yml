@@ -189,7 +189,6 @@ on:
           - 'level_zero:gpu'
           - 'opencl:cpu'
           - 'opencl:gpu'
-          - 'hip:gpu'
           - 'cuda:gpu'
           - 'level_zero_v2:arch-intel_gpu_mtl_u'
       tests_selector:
@@ -249,7 +248,7 @@ jobs:
       options: ${{ inputs.image_options }}
     env: ${{ fromJSON(inputs.env) }}
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       with:
         sparse-checkout: |
           devops
@@ -376,3 +375,9 @@ jobs:
         runner: ${{ inputs.runner }}
         gdb_mode: ${{ inputs.benchmark_gdb_mode }}
         custom_cr: ${{ inputs.benchmark_custom_cr }}
+
+    - name: Debug CI platform information
+      if: always()
+      shell: bash
+      run: |
+        ./devops/scripts/get_system_info.sh

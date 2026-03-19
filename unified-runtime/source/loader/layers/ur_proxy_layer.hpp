@@ -1,6 +1,6 @@
 /*
  *
- * Copyright (C) 2023 Corporation
+ * Copyright (C) 2023-2026 Intel Corporation
  *
  * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
  * Exceptions. See LICENSE.TXT
@@ -13,8 +13,8 @@
 #ifndef UR_PROXY_LAYER_H
 #define UR_PROXY_LAYER_H 1
 
+#include "unified-runtime/ur_ddi.h"
 #include "ur_codeloc.hpp"
-#include "ur_ddi.h"
 #include "ur_util.hpp"
 
 #include <set>

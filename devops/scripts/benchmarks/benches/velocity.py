@@ -160,6 +160,7 @@ class VelocityBase(Benchmark):
         run_trace: TracingType = TracingType.NONE,
         force_trace: bool = False,
     ) -> list[Result]:
+        env_vars = dict(env_vars) if env_vars else {}
         env_vars.update(self.extra_env_vars())
 
         command = [

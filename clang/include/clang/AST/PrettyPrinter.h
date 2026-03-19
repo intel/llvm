@@ -88,7 +88,7 @@ struct PrintingPolicy {
         AlwaysIncludeTypeForTemplateArgument(false),
         CleanUglifiedParameters(false), EntireContentsOfLargeArray(true),
         UseEnumerators(true), UseFullyQualifiedEnumerators(false),
-        UseHLSLTypes(LO.HLSL) {}
+        UseHLSLTypes(LO.HLSL), SuppressDeclAttributes(false) {}
 
   /// Adjust this printing policy for cases where it's known that we're
   /// printing C++ code (for instance, if AST dumping reaches a C++-only
@@ -437,6 +437,10 @@ struct PrintingPolicy {
   /// sugared types when possible.
   LLVM_PREFERRED_TYPE(bool)
   unsigned UseHLSLTypes : 1;
+
+  /// Whether to suppress attributes in decl printing.
+  LLVM_PREFERRED_TYPE(bool)
+  unsigned SuppressDeclAttributes : 1;
 
   /// Callbacks to use to allow the behavior of printing to be customized.
   const PrintingCallbacks *Callbacks = nullptr;

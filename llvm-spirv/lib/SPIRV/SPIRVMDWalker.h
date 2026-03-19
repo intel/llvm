@@ -91,7 +91,9 @@ public:
 
     bool atEnd() const { return !(M && I < E); }
 
-    template <typename T> MDWrapper &get(T &V) {
+    template <typename IntegerType,
+              typename = std::enable_if_t<std::is_integral_v<IntegerType>>>
+    MDWrapper &get(IntegerType &V) {
       if (!Q)
         assert(I < E && "out of bound");
       if (atEnd())
@@ -115,12 +117,14 @@ public:
       return *this;
     }
 
-    MDWrapper &get(Function *&F) {
+    template <typename ValueType,
+              typename = std::enable_if_t<std::is_base_of_v<Value, ValueType>>>
+    MDWrapper &get(ValueType *&V) {
       if (!Q)
         assert(I < E && "out of bound");
       if (atEnd())
         return *this;
-      F = mdconst::dyn_extract<Function>(M->getOperand(I++));
+      V = mdconst::dyn_extract<ValueType>(M->getOperand(I++));
       return *this;
     }
 

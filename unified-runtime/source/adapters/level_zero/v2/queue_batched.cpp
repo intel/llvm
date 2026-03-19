@@ -25,8 +25,8 @@
 
 #include "../program.hpp"
 #include "../ur_interface_loader.hpp"
+#include "unified-runtime/ur_api.h"
 #include "ur.hpp"
-#include "ur_api.h"
 #include "ze_api.h"
 #include <cstddef>
 #include <cstdint>
@@ -429,8 +429,8 @@ ur_result_t ur_queue_batched_t::enqueueUSMFreeExp(
 
   UR_CALL(lockedBatch->getActiveBatch().appendUSMFreeExp(
       this, pPool, pMem, waitListView,
-      createEventAndRetainRegular(phEvent,
-                                  lockedBatch->getCurrentGeneration())));
+      createEventIfRequestedRegular(phEvent,
+                                    lockedBatch->getCurrentGeneration())));
 
   return queueFlushUnlocked(lockedBatch);
 }

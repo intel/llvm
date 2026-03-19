@@ -141,17 +141,16 @@ void *ur_integrated_buffer_handle_t::getDevicePtr(
 
 void *ur_integrated_buffer_handle_t::mapHostPtr(
     ur_map_flags_t flags, size_t offset, size_t mapSize,
-    ze_command_list_handle_t /*cmdList*/, wait_list_view & /*waitListView*/) {
+    ze_command_list_handle_t cmdList, wait_list_view & /*waitListView*/) {
   if (writeBackPtr) {
     // Copy-back path: user gets back their original pointer
     void *mappedPtr = ur_cast<char *>(writeBackPtr) + offset;
 
     if (flags & UR_MAP_FLAG_READ) {
       // Use Level Zero copy for USM HOST memory to ensure GPU visibility
-      auto hDevice = hContext->getDevices()[0];
-      UR_CALL_THROWS(synchronousZeCopy(hContext, hDevice, mappedPtr,
-                                       ur_cast<char *>(ptr.get()) + offset,
-                                       mapSize));
+      ZE_CALL_NOCHECK(zeCommandListAppendMemoryCopy,
+                      (cmdList, mappedPtr, ur_cast<char *>(ptr.get()) + offset,
+                       mapSize, nullptr, 0, nullptr));
     }
 
     // Track this mapping for unmap
@@ -166,7 +165,7 @@ void *ur_integrated_buffer_handle_t::mapHostPtr(
 }
 
 void ur_integrated_buffer_handle_t::unmapHostPtr(
-    void *pMappedPtr, ze_command_list_handle_t /*cmdList*/,
+    void *pMappedPtr, ze_command_list_handle_t cmdList,
     wait_list_view & /*waitListView*/) {
   if (writeBackPtr) {
     // Copy-back path: find the mapped region and copy data back if needed
@@ -184,10 +183,10 @@ void ur_integrated_buffer_handle_t::unmapHostPtr(
     if (mappedRegion->flags &
         (UR_MAP_FLAG_WRITE | UR_MAP_FLAG_WRITE_INVALIDATE_REGION)) {
       // Use Level Zero copy for USM HOST memory to ensure GPU visibility
-      auto hDevice = hContext->getDevices()[0];
-      UR_CALL_THROWS(synchronousZeCopy(
-          hContext, hDevice, ur_cast<char *>(ptr.get()) + mappedRegion->offset,
-          mappedRegion->ptr.get(), mappedRegion->size));
+      ZE_CALL_NOCHECK(
+          zeCommandListAppendMemoryCopy,
+          (cmdList, ur_cast<char *>(ptr.get()) + mappedRegion->offset,
+           mappedRegion->ptr.get(), mappedRegion->size, nullptr, 0, nullptr));
     }
 
     mappedRegions.erase(mappedRegion);

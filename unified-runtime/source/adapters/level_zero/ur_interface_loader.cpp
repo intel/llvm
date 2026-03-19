@@ -9,8 +9,8 @@
 //
 //===----------------------------------------------------------------------===//
 #include <mutex>
-#include <ur_api.h>
-#include <ur_ddi.h>
+#include <unified-runtime/ur_api.h>
+#include <unified-runtime/ur_ddi.h>
 
 #include "ur_interface_loader.hpp"
 
@@ -119,6 +119,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetCommandBufferExpProcAddrTable(
   pDdiTable->pfnFinalizeExp = ur::level_zero::urCommandBufferFinalizeExp;
   pDdiTable->pfnAppendKernelLaunchExp =
       ur::level_zero::urCommandBufferAppendKernelLaunchExp;
+  pDdiTable->pfnAppendKernelLaunchWithArgsExp =
+      ur::level_zero::urCommandBufferAppendKernelLaunchWithArgsExp;
   pDdiTable->pfnAppendUSMMemcpyExp =
       ur::level_zero::urCommandBufferAppendUSMMemcpyExp;
   pDdiTable->pfnAppendUSMFillExp =

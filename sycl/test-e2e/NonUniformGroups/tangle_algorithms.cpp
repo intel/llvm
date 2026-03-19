@@ -2,8 +2,8 @@
 // RUN: %{run} %t.out
 //
 // Test CPU AOT as well when possible.
-// RUN: %if any-device-is-cpu && opencl-aot %{ %{run-aux} %clangxx -fsycl -fsycl-targets=spir64_x86_64 -fno-sycl-early-optimizations -o %t.x86.out %s %}
-// RUN: %if cpu && opencl-aot %{ %{run} %t.x86.out %}
+// RUN-IF: any-device-is-cpu && opencl-aot, %{run-aux} %clangxx -fsycl -fsycl-targets=spir64_x86_64 -fno-sycl-early-optimizations -o %t.x86.out %s
+// RUN-IF: cpu, %{run} %t.x86.out
 //
 // REQUIRES: sg-32
 // REQUIRES: aspect-ext_oneapi_tangle

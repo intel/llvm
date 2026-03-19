@@ -1,18 +1,31 @@
 name: clang-tidy
 
 on:
-  workflow_call:
+  pull_request:
+    branches:
+      - sycl
+    paths:
+      - "**/*.cpp"
+      - "**/*.h"
+      - "**/*.hpp"
+
+
+concurrency:
+  #  Cancel a currently running workflow from the same PR, branch or tag.
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 permissions: read-all
 
 jobs:
   run-clang-tidy:
+    if: ${{ !contains(github.event.pull_request.labels.*.name, 'disable-lint') }}
     runs-on: [Linux, build]
     container:
       image: ghcr.io/intel/llvm/sycl_ubuntu2404_nightly:latest
       options: -u 1001:1001
     steps:
-      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           sparse-checkout: |
             devops/actions
@@ -50,16 +63,8 @@ jobs:
           cd $GITHUB_WORKSPACE/build
           python3 $GITHUB_WORKSPACE/src/buildbot/configure.py -w $GITHUB_WORKSPACE \
             -s $GITHUB_WORKSPACE/src -o $GITHUB_WORKSPACE/build -t Release \
-            --ci-defaults -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
-
-      - name: Preprocess compile_commands.json
-        if: steps.should_run_tidy.outputs.run == 'true'
-        run: |
-          # TODO: this might be avoided if configure with -DSYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB=Off,
-          #       but for now this configure.py fails because of this flag.
-          # Remove commands containing "-D__INTEL_PREVIEW_BREAKING_CHANGES" to avoid running on the same file twice.
-          jq '[ .[] | select(.command | contains("-D__INTEL_PREVIEW_BREAKING_CHANGES") | not) ]' $GITHUB_WORKSPACE/build/compile_commands.json > $GITHUB_WORKSPACE/build/compile_commands.temp.json
-          mv $GITHUB_WORKSPACE/build/compile_commands.temp.json $GITHUB_WORKSPACE/build/compile_commands.json
+            --ci-defaults -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+            -DSYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB=Off
 
       - name: Run clang-tidy on modified files
         if: steps.should_run_tidy.outputs.run == 'true'

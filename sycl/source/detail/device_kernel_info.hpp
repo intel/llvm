@@ -113,6 +113,10 @@ public:
 
   int &getRefCount() { return RefCount; }
 
+  // Returns the demangled kernel name, caching the result to avoid repeated
+  // demangling overhead.
+  std::string_view getDemangledName() const;
+
 private:
   bool isCompileTimeInfoSet() const { return KernelSize != 0; }
 
@@ -123,6 +127,9 @@ private:
   // Used for checking if the last image referencing the kernel name
   // is removed in order to trigger cleanup of this struct.
   int RefCount = 0;
+  // Cached demangled kernel name for instrumentation
+  mutable std::string MDemangledName;
+  mutable std::once_flag MDemangledNameInitFlag;
 };
 
 } // namespace detail

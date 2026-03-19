@@ -68,10 +68,6 @@ jobs:
       e2e_binaries_preview_artifact: e2e_bin_preview
       e2e_binaries_new_offload_model_artifact: e2e_bin_new_offload_model
 
-  clang-tidy:
-    if: ${{ !contains(github.event.pull_request.labels.*.name, 'disable-lint') }}
-    uses: ./.github/workflows/sycl-clang-tidy.yml
-
   # Build and run native cpu e2e tests separately as cannot currently
   # build all the e2e tests
   build_run_native_cpu_e2e_tests:
@@ -82,7 +78,7 @@ jobs:
       image: ghcr.io/intel/llvm/sycl_ubuntu2404_nightly:latest
       options: -u 1001:1001
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           sparse-checkout: |
             devops/
@@ -101,7 +97,7 @@ jobs:
       - name: Build and run E2E tests
         uses: ./devops/actions/run-tests/linux/e2e
         with:
-          ref: ${{ inputs.ref || github.sha }}
+          ref: ${{ github.ref || github.sha }}
           testing_mode: full
           target_devices: native_cpu:cpu
           sycl_compiler: $GITHUB_WORKSPACE/toolchain/bin/clang++
@@ -132,7 +128,7 @@ jobs:
       FILTER_6_2: ${{ steps.result.outputs.FILTER_6_2 }}
       FILTER_6_3: ${{ steps.result.outputs.FILTER_6_3 }}
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       with:
         sparse-checkout: |
           devops/
@@ -163,11 +159,6 @@ jobs:
             runner: '["Linux", "cuda"]'
             image_options: -u 1001 --gpus all --cap-add SYS_ADMIN
             target_devices: cuda:gpu
-          - name: AMD/HIP
-            runner: '["Linux", "amdgpu"]'
-            image_options: -u 1001 --device=/dev/dri --device=/dev/kfd
-            target_devices: hip:gpu
-            extra_lit_opts: -j 1
           - name: Intel / Arc A-Series Graphics
             runner: '["Linux", "arc"]'
             target_devices: level_zero:gpu;opencl:gpu;level_zero_v2:gpu         
@@ -228,7 +219,7 @@ jobs:
       env: ${{ matrix.env || (contains(needs.detect_changes.outputs.filters, 'esimd') && '{}' || '{"LIT_FILTER_OUT":"ESIMD/"}') }}
 
   E2E-with-new-offload-model:
-    needs: [build, detect_changes]
+    needs: [build]
     if: |
       !cancelled() &&
       needs.build.outputs.build_conclusion == 'success' &&
@@ -256,11 +247,6 @@ jobs:
             runner: '["Linux", "cuda"]'
             image_options: -u 1001 --gpus all --cap-add SYS_ADMIN
             target_devices: cuda:gpu
-          - name: AMD/HIP
-            runner: '["Linux", "amdgpu"]'
-            image_options: -u 1001 --device=/dev/dri --device=/dev/kfd
-            target_devices: hip:gpu
-            extra_lit_opts: -j 1
 
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
@@ -298,9 +284,6 @@ jobs:
           - name: Intel Arc A-Series Graphics system
             runner: '["Linux", "arc"]'
             image_extra_opts: --device=/dev/dri
-          - name: AMD system
-            runner: '["Linux", "amdgpu"]'
-            image_extra_opts: --device=/dev/dri --device=/dev/kfd
           - name: CUDA system
             runner: '["Linux", "cuda"]'
             image_extra_opts: --gpus all

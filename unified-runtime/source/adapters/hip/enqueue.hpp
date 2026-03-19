@@ -11,7 +11,7 @@
 
 #include <cassert>
 #include <hip/hip_runtime.h>
-#include <ur_api.h>
+#include <unified-runtime/ur_api.h>
 
 ur_result_t enqueueEventsWait(ur_queue_handle_t CommandQueue,
                               hipStream_t Stream, uint32_t NumEventsInWaitList,

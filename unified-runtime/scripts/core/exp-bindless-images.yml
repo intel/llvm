@@ -641,6 +641,10 @@ returns:
       - "`pDstImageDesc && UR_MEM_TYPE_IMAGE_CUBEMAP_EXP < pDstImageDesc->type`"
     - $X_RESULT_ERROR_INVALID_IMAGE_SIZE
     - $X_RESULT_ERROR_INVALID_OPERATION
+    - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
+      - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
+      - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
+      - "If event objects in phEventWaitList are not valid events."
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Query an image memory handle for specific properties"

@@ -10,11 +10,11 @@
  * @file ur_null.hpp
  *
  */
-#include "ur_api.h"
+#include "unified-runtime/ur_api.h"
 #ifndef UR_ADAPTER_MOCK_H
 #define UR_ADAPTER_MOCK_H 1
 
-#include "ur_ddi.h"
+#include "unified-runtime/ur_ddi.h"
 #include "ur_util.hpp"
 
 namespace driver {

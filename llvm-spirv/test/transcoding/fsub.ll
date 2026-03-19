@@ -1,8 +1,12 @@
 ; RUN: llvm-as %s -o %t.bc
-; RUN: llvm-spirv -spirv-text %t.bc -o - | FileCheck %s --check-prefix=CHECK-SPIRV
+; RUN: llvm-spirv -spirv-text %t.bc -o - | FileCheck %s --check-prefixes=CHECK-SPIRV,CHECK-SPIRV-DEFAULT
+; RUN: llvm-spirv -spirv-text %t.bc --spirv-ext=+SPV_KHR_float_controls2 -o - | FileCheck %s --check-prefixes=CHECK-SPIRV,CHECK-SPIRV-FC2
 ; RUN: llvm-spirv %t.bc -o %t.spv
+; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_KHR_float_controls2 -o %t.fc2.spv
 ; RUN: spirv-val %t.spv
-; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o - | FileCheck %s --check-prefix=CHECK-LLVM
+; RUN: spirv-val %t.fc2.spv
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o - | FileCheck %s --check-prefixes=CHECK-LLVM,CHECK-LLVM-DEFAULT
+; RUN: llvm-spirv -r %t.fc2.spv -o - | llvm-dis -o - | FileCheck %s --check-prefixes=CHECK-LLVM,CHECK-LLVM-FC2
 
 ; CHECK-SPIRV: 3 Name [[#r1:]] "r1"
 ; CHECK-SPIRV: 3 Name [[#r2:]] "r2"
@@ -11,13 +15,20 @@
 ; CHECK-SPIRV: 3 Name [[#r5:]] "r5"
 ; CHECK-SPIRV: 3 Name [[#r6:]] "r6"
 ; CHECK-SPIRV: 3 Name [[#r7:]] "r7"
+; CHECK-SPIRV: 3 Name [[#r8:]] "r8"
+; CHECK-SPIRV: 3 Name [[#r9:]] "r9"
 ; CHECK-SPIRV-NOT: 4 Decorate [[#r1]] FPFastMathMode
 ; CHECK-SPIRV-DAG: 4 Decorate [[#r2]] FPFastMathMode 1
 ; CHECK-SPIRV-DAG: 4 Decorate [[#r3]] FPFastMathMode 2
 ; CHECK-SPIRV-DAG: 4 Decorate [[#r4]] FPFastMathMode 4
 ; CHECK-SPIRV-DAG: 4 Decorate [[#r5]] FPFastMathMode 8
-; CHECK-SPIRV-DAG: 4 Decorate [[#r6]] FPFastMathMode 16
+; CHECK-SPIRV-DEFAULT-DAG: 4 Decorate [[#r6]] FPFastMathMode 16
+; CHECK-SPIRV-FC2-DAG: 4 Decorate [[#r6]] FPFastMathMode 458767
 ; CHECK-SPIRV-DAG: 4 Decorate [[#r7]] FPFastMathMode 3
+; CHECK-SPIRV-DEFAULT-NOT: 4 Decorate [[#r8]] FPFastMathMode
+; CHECK-SPIRV-FC2-DAG: 4 Decorate [[#r8]] FPFastMathMode 65536
+; CHECK-SPIRV-DEFAULT-NOT: 4 Decorate [[#r9]] FPFastMathMode
+; CHECK-SPIRV-FC2-DAG: 4 Decorate [[#r9]] FPFastMathMode 458752
 ; CHECK-SPIRV: 3 TypeFloat [[float:[0-9]+]] 32
 ; CHECK-SPIRV: 5 FSub [[float]] [[#r1]]
 ; CHECK-SPIRV: 5 FSub [[float]] [[#r2]]
@@ -26,14 +37,21 @@
 ; CHECK-SPIRV: 5 FSub [[float]] [[#r5]]
 ; CHECK-SPIRV: 5 FSub [[float]] [[#r6]]
 ; CHECK-SPIRV: 5 FSub [[float]] [[#r7]]
+; CHECK-SPIRV: 5 FSub [[float]] [[#r8]]
+; CHECK-SPIRV: 5 FSub [[float]] [[#r9]]
 
 ; CHECK-LLVM: %r1 = fsub float %a, %b
 ; CHECK-LLVM: %r2 = fsub nnan float %a, %b
 ; CHECK-LLVM: %r3 = fsub ninf float %a, %b
 ; CHECK-LLVM: %r4 = fsub nsz float %a, %b
 ; CHECK-LLVM: %r5 = fsub arcp float %a, %b
-; CHECK-LLVM: %r6 = fsub fast float %a, %b
+; CHECK-LLVM-DEFAULT: %r6 = fsub fast float %a, %b
+; CHECK-LLVM-FC2: %r6 = fsub reassoc nnan ninf nsz arcp contract float %a, %b
 ; CHECK-LLVM: %r7 = fsub nnan ninf float %a, %b
+; CHECK-LLVM-DEFAULT: %r8 = fsub float %a, %b
+; CHECK-LLVM-FC2: %r8 = fsub contract float %a, %b
+; CHECK-LLVM-DEFAULT: %r9 = fsub float %a, %b
+; CHECK-LLVM-FC2: %r9 = fsub reassoc contract float %a, %b
 
 target datalayout = "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
 target triple = "spir-unknown-unknown"
@@ -48,6 +66,8 @@ entry:
   %r5 = fsub arcp float %a, %b
   %r6 = fsub fast float %a, %b
   %r7 = fsub nnan ninf float %a, %b
+  %r8 = fsub contract float %a, %b
+  %r9 = fsub reassoc float %a, %b
   ret void
 }
 

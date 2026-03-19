@@ -127,6 +127,8 @@ struct KernelInfo {
   // Need preserve the order of local arguments
   std::map<uint32_t, TsanLocalArgsInfo> LocalArgs;
 
+  std::vector<ur_exp_kernel_arg_properties_t> ArgProps;
+
   KernelInfo() = default;
 
   explicit KernelInfo(ur_kernel_handle_t Kernel) : Handle(Kernel) {

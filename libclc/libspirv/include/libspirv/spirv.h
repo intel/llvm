@@ -24,7 +24,6 @@
 #include <clc/clcfunc.h>
 
 /* Supported Data Types */
-#include <clc/clctypes.h>
 #include <libspirv/spirv_types.h>
 
 /* Supported builtins */

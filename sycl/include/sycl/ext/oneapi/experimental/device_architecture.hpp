@@ -72,7 +72,7 @@ static constexpr ext::oneapi::experimental::architecture
         ext::oneapi::experimental::architecture::intel_gpu_bdw;
 static constexpr ext::oneapi::experimental::architecture
     max_intel_gpu_architecture =
-        ext::oneapi::experimental::architecture::intel_gpu_wcl;
+        ext::oneapi::experimental::architecture::intel_gpu_cri;
 
 static constexpr ext::oneapi::experimental::architecture
     min_nvidia_gpu_architecture =
@@ -183,6 +183,18 @@ static constexpr ext::oneapi::experimental::architecture
 #endif
 #ifndef __SYCL_TARGET_INTEL_GPU_WCL__
 #define __SYCL_TARGET_INTEL_GPU_WCL__ 0
+#endif
+#ifndef __SYCL_TARGET_INTEL_GPU_NVL_S__
+#define __SYCL_TARGET_INTEL_GPU_NVL_S__ 0
+#endif
+#ifndef __SYCL_TARGET_INTEL_GPU_NVL_U__
+#define __SYCL_TARGET_INTEL_GPU_NVL_U__ 0
+#endif
+#ifndef __SYCL_TARGET_INTEL_GPU_NVL_P__
+#define __SYCL_TARGET_INTEL_GPU_NVL_P__ 0
+#endif
+#ifndef __SYCL_TARGET_INTEL_GPU_CRI__
+#define __SYCL_TARGET_INTEL_GPU_CRI__ 0
 #endif
 #ifndef __SYCL_TARGET_NVIDIA_GPU_SM_50__
 #define __SYCL_TARGET_NVIDIA_GPU_SM_50__ 0
@@ -388,6 +400,10 @@ static constexpr bool is_allowable_aot_mode =
     (__SYCL_TARGET_INTEL_GPU_PTL_H__ == 1) ||
     (__SYCL_TARGET_INTEL_GPU_PTL_U__ == 1) ||
     (__SYCL_TARGET_INTEL_GPU_WCL__ == 1) ||
+    (__SYCL_TARGET_INTEL_GPU_NVL_S__ == 1) ||
+    (__SYCL_TARGET_INTEL_GPU_NVL_U__ == 1) ||
+    (__SYCL_TARGET_INTEL_GPU_NVL_P__ == 1) ||
+    (__SYCL_TARGET_INTEL_GPU_CRI__ == 1) ||
     (__SYCL_TARGET_NVIDIA_GPU_SM_50__ == 1) ||
     (__SYCL_TARGET_NVIDIA_GPU_SM_52__ == 1) ||
     (__SYCL_TARGET_NVIDIA_GPU_SM_53__ == 1) ||
@@ -546,6 +562,18 @@ get_current_architecture_aot() {
 #endif
 #if __SYCL_TARGET_INTEL_GPU_WCL__
   return ext::oneapi::experimental::architecture::intel_gpu_wcl;
+#endif
+#if __SYCL_TARGET_INTEL_GPU_NVL_S__
+  return ext::oneapi::experimental::architecture::intel_gpu_nvl_s;
+#endif
+#if __SYCL_TARGET_INTEL_GPU_NVL_U__
+  return ext::oneapi::experimental::architecture::intel_gpu_nvl_u;
+#endif
+#if __SYCL_TARGET_INTEL_GPU_NVL_P__
+  return ext::oneapi::experimental::architecture::intel_gpu_nvl_p;
+#endif
+#if __SYCL_TARGET_INTEL_GPU_CRI__
+  return ext::oneapi::experimental::architecture::intel_gpu_cri;
 #endif
 #if __SYCL_TARGET_NVIDIA_GPU_SM_50__
   return ext::oneapi::experimental::architecture::nvidia_gpu_sm_50;

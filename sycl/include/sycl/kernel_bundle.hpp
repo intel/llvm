@@ -20,7 +20,7 @@
 #include <sycl/kernel_bundle_enums.hpp> // for bundle_state
 #include <sycl/property_list.hpp>       // for property_list
 #include <sycl/sycl_span.hpp>
-#include <ur_api.h>
+#include <unified-runtime/ur_api.h>
 
 #include <sycl/ext/oneapi/experimental/free_function_traits.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>     // PropertyT

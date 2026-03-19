@@ -22,8 +22,8 @@
 #include "adapters/level_zero/platform.hpp"
 #include "common.hpp"
 #include "common/ur_ref_count.hpp"
+#include <unified-runtime/ur_ddi.h>
 #include <ur/ur.hpp>
-#include <ur_ddi.h>
 #include <ze_api.h>
 #include <zes_api.h>
 
@@ -224,6 +224,13 @@ struct ur_device_handle_t_ : ur_object {
     auto ValidBits = ZeDeviceProperties->kernelTimestampValidBits;
     assert(ValidBits <= 64);
     return ValidBits == 64 ? ~0ULL : (1ULL << ValidBits) - 1ULL;
+  }
+
+  // Get timer resolution in nanoseconds.
+  // With ZE_STRUCTURE_TYPE_DEVICE_PROPERTIES_1_2, timerResolution is in
+  // cycles/sec, so we convert to nanoseconds.
+  double getTimerResolution() {
+    return 1000000000.0 / ZeDeviceProperties->timerResolution;
   }
 
   // Cache of the immutable device properties.

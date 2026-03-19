@@ -154,6 +154,17 @@ runs:
       NUMA_NODE=0
       echo "ZE_AFFINITY_MASK=$NUMA_NODE" >> $GITHUB_ENV
       echo "NUMA_NODE=$NUMA_NODE" >> $GITHUB_ENV
+  - name: Update benchmark scripts to build_ref
+    if: ${{ inputs.build_ref != '' }}
+    shell: bash
+    env:
+      BUILD_REF: ${{ inputs.build_ref }}
+    run: |
+      # Update benchmark scripts to build_ref
+      git fetch origin "$BUILD_REF"
+      git checkout FETCH_HEAD -- devops/scripts/benchmarks
+      echo "Benchmark scripts checked out at ref:"
+      git -C devops/scripts/benchmarks show FETCH_HEAD --no-patch --format='%H %s'
   - name: Establish results branch, repo path, and workdir
     id: establish_outputs
     shell: bash
@@ -185,7 +196,7 @@ runs:
       fi
       echo "CR_BUILD_REF=${CR_BUILD_REF}" >> $GITHUB_OUTPUT
   - name: Checkout results repo
-    uses: actions/checkout@v5
+    uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
     with:
       ref: ${{ steps.establish_outputs.outputs.BENCHMARK_RESULTS_BRANCH }}
       path: ${{ steps.establish_outputs.outputs.BENCHMARK_RESULTS_REPO_PATH }}
@@ -341,6 +352,7 @@ runs:
         --results-dir "${BENCHMARK_RESULTS_REPO_PATH}/" \
         --output-dir "${BENCHMARK_RESULTS_REPO_PATH}/" \
         --preset "$PRESET" \
+        --list \
         --timestamp-override "$SAVE_TIMESTAMP" \
         --detect-version sycl,compute_runtime \
         --produce-github-summary \
@@ -377,6 +389,9 @@ runs:
       COMPUTE_BENCHMARKS_BUILD_PATH: ${{ steps.establish_outputs.outputs.BENCH_WORKDIR }}/compute-benchmarks-build
     run: |
       # Run benchmarks' integration tests
+
+      # Enable testing UR benchmarks
+      export LLVM_BENCH_UR_INSTALL_DIR="$(realpath ./ur/install)"
 
       # NOTE: Each integration test prints its own group name as part of test script
       python3 ./devops/scripts/benchmarks/tests/test_integration.py

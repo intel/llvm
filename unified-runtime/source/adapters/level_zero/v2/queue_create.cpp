@@ -15,7 +15,7 @@
 #include "queue_batched.hpp"
 #include "queue_handle.hpp"
 #include "queue_immediate_in_order.hpp"
-#include "ur_api.h"
+#include "unified-runtime/ur_api.h"
 
 static const bool ForceBatched = getenv_tobool("UR_L0_V2_FORCE_BATCHED");
 

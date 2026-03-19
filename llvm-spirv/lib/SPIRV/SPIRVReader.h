@@ -274,6 +274,14 @@ private:
   void
   transFunctionPointerCallArgumentAttributes(SPIRVValue *BV, CallInst *CI,
                                              SPIRVTypeFunction *CalledFnTy);
+
+  using FunctionAndTypeIdPair = std::pair<Function *, Type *>;
+  using FunctionToFastMathFlagsMap =
+      DenseMap<FunctionAndTypeIdPair, FastMathFlags>;
+  FunctionToFastMathFlagsMap FuncToFastMathFlags;
+  FastMathFlags translateFastMathFlags(SPIRVWord V) const;
+  void parseFloatControls2ExecutionModeId(SPIRVFunction *BF, Function *F);
+  void applyFPFastMathModeDecorations(const SPIRVValue *BV, Instruction *Inst);
 }; // class SPIRVToLLVM
 
 } // namespace SPIRV
