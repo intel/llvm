@@ -1,4 +1,4 @@
-// Copyright (C) 2023 Intel Corporation
+// Copyright (C) 2023-2026 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
 //
@@ -7,7 +7,7 @@
 
 using urEnqueueReadHostPipeTest = uur::urHostPipeTest;
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEnqueueReadHostPipeTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_MULTI_QUEUE(urEnqueueReadHostPipeTest);
 
 TEST_P(urEnqueueReadHostPipeTest, InvalidNullHandleQueue) {
   uint32_t numEventsInWaitList = 0;

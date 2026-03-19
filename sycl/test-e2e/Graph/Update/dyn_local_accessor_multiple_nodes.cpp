@@ -21,9 +21,8 @@ int main() {
   std::vector<T> HostDataA(Size * Size);
 
   exp_ext::dynamic_local_accessor<T, 2> DynLocalMemA{
-      Graph, range<2>{LocalSize, LocalSize}};
-  exp_ext::dynamic_local_accessor<T, 1> DynLocalMemC{Graph,
-                                                     range<1>{LocalSize}};
+      range<2>{LocalSize, LocalSize}};
+  exp_ext::dynamic_local_accessor<T, 1> DynLocalMemC{range<1>{LocalSize}};
 
   Queue.memset(PtrA, 0, Size * Size * sizeof(T)).wait();
 

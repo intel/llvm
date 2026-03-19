@@ -31,6 +31,7 @@ add_llvm_unittest(SupportTests
   DataExtractorTest.cpp
   DebugCounterTest.cpp
   DebugTest.cpp
+  DebugLogTest.cpp
   DivisionByConstantTest.cpp
   DJBTest.cpp
   EndianStreamTest.cpp
@@ -43,6 +44,7 @@ add_llvm_unittest(SupportTests
   ExtensibleRTTITest.cpp
   FileCollectorTest.cpp
   FileOutputBufferTest.cpp
+  Format.cpp
   FormatVariadicTest.cpp
   FSUniqueIDTest.cpp
   GenericDomTreeTest.cpp
@@ -51,6 +53,7 @@ add_llvm_unittest(SupportTests
   IndexedAccessorTest.cpp
   InstructionCostTest.cpp
   InterleavedRangeTest.cpp
+  JobserverTest.cpp
   JSONTest.cpp
   KnownBitsTest.cpp
   LEB128Test.cpp
@@ -74,6 +77,7 @@ add_llvm_unittest(SupportTests
   ProgramTest.cpp
   PropertySetIOTest.cpp
   ProgramStackTest.cpp
+  IntegerInclusiveIntervalTest.cpp
   RecyclerTest.cpp
   RegexTest.cpp
   ReverseIterationTest.cpp
@@ -105,6 +109,10 @@ add_llvm_unittest(SupportTests
   UTCTimeTest.cpp
   VersionTupleTest.cpp
   VirtualFileSystemTest.cpp
+  VirtualOutputBackendTest.cpp
+  VirtualOutputBackendsTest.cpp
+  VirtualOutputConfigTest.cpp
+  VirtualOutputFileTest.cpp
   WithColorTest.cpp
   YAMLIOTest.cpp
   YAMLParserTest.cpp
@@ -112,6 +120,7 @@ add_llvm_unittest(SupportTests
   formatted_raw_ostream_test.cpp
   raw_fd_stream_test.cpp
   raw_ostream_test.cpp
+  raw_ostream_proxy_test.cpp
   raw_pwrite_stream_test.cpp
   raw_sha1_ostream_test.cpp
   raw_socket_stream_test.cpp
@@ -120,6 +129,8 @@ add_llvm_unittest(SupportTests
   DEPENDS
   intrinsics_gen
   )
+
+add_subdirectory(LSP)
 
 target_link_libraries(SupportTests PRIVATE LLVMTestingSupport)
 

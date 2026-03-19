@@ -16,6 +16,9 @@ set(UR_BUILD_EXAMPLES "${SYCL_UR_BUILD_TESTS}" CACHE BOOL "" FORCE)
 option(SYCL_UR_FORMAT_CPP_STYLE "Format code style of UR C++ sources" OFF)
 set(UR_FORMAT_CPP_STYLE "${SYCL_UR_FORMAT_CPP_STYLE}" CACHE BOOL "" FORCE)
 
+option(SYCL_UR_ENABLE_ASSERTIONS "Enable assertions for all UR build types" OFF)
+set(UR_ENABLE_ASSERTIONS "${SYCL_UR_ENABLE_ASSERTIONS}" CACHE BOOL "" FORCE)
+
 # Here we override the defaults to unified-runtime
 set(UR_BUILD_XPTI_LIBS OFF CACHE BOOL "")
 set(UR_ENABLE_SYMBOLIZER ON CACHE BOOL "Enable symbolizer for sanitizer layer.")
@@ -23,6 +26,10 @@ set(UR_ENABLE_TRACING ON CACHE BOOL "")
 
 set(UR_EXTERNAL_DEPENDENCIES "sycl-headers" CACHE STRING
   "List of external CMake targets for executables/libraries to depend on" FORCE)
+
+# Force fetch Level Zero loader and headers from github.com
+option(SYCL_UR_FORCE_FETCH_LEVEL_ZERO "Force fetching Level Zero even if preinstalled loader is found" OFF)
+set(UR_FORCE_FETCH_LEVEL_ZERO "${SYCL_UR_FORCE_FETCH_LEVEL_ZERO}" CACHE BOOL "" FORCE)
 
 if("level_zero" IN_LIST SYCL_ENABLE_BACKENDS)
   set(UR_BUILD_ADAPTER_L0 ON)
@@ -55,7 +62,7 @@ if(WIN32)
   # FIXME: Unified runtime build fails with /DUNICODE
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /UUNICODE")
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /UUNICODE")
-  # USE_Z7 forces use of /Z7 instead of /Zi which is broken with sccache
+  # USE_Z7 forces use of /Z7 instead of /Zi which is broken with (s)ccache
   set(USE_Z7 ON)
 else()
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error")
@@ -175,6 +182,10 @@ if("native_cpu" IN_LIST SYCL_ENABLE_BACKENDS)
   endif()
 endif()
 
+if("offload" IN_LIST SYCL_ENABLE_BACKENDS)
+  add_sycl_ur_adapter(offload)
+endif()
+
 if(CMAKE_SYSTEM_NAME STREQUAL Windows)
   # On Windows, also build/install debug libraries with the d suffix that are
   # compiled with /MDd so users can link against these in debug builds.
@@ -216,7 +227,6 @@ if(CMAKE_SYSTEM_NAME STREQUAL Windows)
       -DUMF_BUILD_SHARED_LIBRARY:BOOL=${UMF_BUILD_SHARED_LIBRARY}
       -DUMF_LINK_HWLOC_STATICALLY:BOOL=${UMF_LINK_HWLOC_STATICALLY}
       -DUMF_DISABLE_HWLOC:BOOL=${UMF_DISABLE_HWLOC}
-      -DSYCL_EMHASH_DIR:STRING=${SYCL_EMHASH_DIR}
       # Enable d suffix in UMF
       -DUMF_USE_DEBUG_POSTFIX:BOOL=ON
   )

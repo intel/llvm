@@ -9,7 +9,7 @@
 #include <clc/math/clc_fma.h>
 #include <libspirv/spirv.h>
 
-#define FUNCTION __spirv_ocl_fma
-#define __IMPL_FUNCTION(x) __clc_fma
+#define __CLC_FUNCTION __spirv_ocl_fma
+#define __CLC_IMPL_FUNCTION(x) __clc_fma
 #define __CLC_BODY <clc/shared/ternary_def.inc>
 #include <clc/math/gentype.inc>

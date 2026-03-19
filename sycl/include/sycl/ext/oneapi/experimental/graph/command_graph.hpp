@@ -85,6 +85,8 @@ UnsupportedFeatureToString(UnsupportedGraphFeatures Feature) {
 /// Graph in the modifiable state.
 template <graph_state State = graph_state::modifiable>
 class command_graph : public detail::modifiable_command_graph {
+  friend sycl::detail::ImplUtils;
+
 public:
   /// Constructor.
   /// @param SyclContext Context to use for graph.
@@ -101,18 +103,18 @@ public:
                          const property_list &PropList = {})
       : modifiable_command_graph(SyclQueue, PropList) {}
 
+  /// Constructor with default context.
+  /// @param SyclDevice Device all nodes will be associated with.
+  /// @param PropList Optional list of properties to pass.
+  explicit command_graph(const device &SyclDevice,
+                         const property_list &PropList = {})
+      : modifiable_command_graph(SyclDevice, PropList) {}
+
 private:
   /// Constructor used internally by the runtime.
   /// @param Impl Detail implementation class to construct object with.
   command_graph(const std::shared_ptr<detail::graph_impl> &Impl)
       : modifiable_command_graph(Impl) {}
-
-  template <class T>
-  friend T sycl::detail::createSyclObjFromImpl(
-      std::add_rvalue_reference_t<decltype(T::impl)> ImplObj);
-  template <class T>
-  friend T sycl::detail::createSyclObjFromImpl(
-      std::add_lvalue_reference_t<const decltype(T::impl)> ImplObj);
 };
 
 template <>

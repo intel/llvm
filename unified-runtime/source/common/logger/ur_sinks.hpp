@@ -13,16 +13,14 @@
 #include <mutex>
 #include <sstream>
 
-#include "ur_api.h"
+#include "unified-runtime/ur_api.h"
+#include "unified-runtime/ur_print.hpp"
 #include "ur_filesystem_resolved.hpp"
 #include "ur_level.hpp"
-#include "ur_print.hpp"
 
 namespace logger {
 
-#if defined(_WIN32)
 inline bool isTearDowned = false;
-#endif
 
 class Sink {
 public:
@@ -35,28 +33,27 @@ public:
              << "[" << level_to_str(level) << "]: ";
     }
 
-    format(buffer, filename, lineno, fmt, std::forward<Args &&>(args)...);
+    format(buffer, filename, lineno, fmt, std::forward<Args>(args)...);
     if (add_fileline) {
       buffer << " <" << filename << ":" << lineno << ">";
     }
     if (!skip_linebreak) {
       buffer << "\n";
     }
-// This is a temporary workaround on windows, where UR adapter is teardowned
-// before the UR loader, which will result in access violation when we use print
-// function as the overrided print function was already released with the UR
-// adapter.
-// TODO: Change adapters to use a common sink class in the loader instead of
-// using thier own sink class that inherit from logger::Sink.
-#if defined(_WIN32)
+
+    std::string message = buffer.str();
+
+    // This is a temporary workaround, where UR adapter is teardowned
+    // before the UR loader, which will result in access violation when we use
+    // print function as the overrided print function was already released with
+    // the UR adapter.
+    // TODO: Change adapters to use a common sink class in the loader instead of
+    // using thier own sink class that inherit from logger::Sink.
     if (isTearDowned) {
-      std::cerr << buffer.str() << "\n";
+      std::cerr << message;
     } else {
-      print(level, buffer.str());
+      print(level, message);
     }
-#else
-    print(level, buffer.str());
-#endif
   }
 
   void setFileLine(bool fileline) { add_fileline = fileline; }
@@ -155,7 +152,7 @@ private:
       }
     }
 
-    format(buffer, filename, lineno, ++fmt, std::forward<Args &&>(args)...);
+    format(buffer, filename, lineno, ++fmt, std::forward<Args>(args)...);
   }
 };
 
@@ -190,7 +187,7 @@ public:
     this->flush_level = flush_lvl;
   }
 
-  ~StderrSink() = default;
+  ~StderrSink() { logger::isTearDowned = true; }
 };
 
 class FileSink : public Sink {

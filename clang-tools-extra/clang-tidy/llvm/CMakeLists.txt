@@ -11,6 +11,10 @@ add_clang_library(clangTidyLLVMModule STATIC
   PreferRegisterOverUnsignedCheck.cpp
   PreferStaticOverAnonymousNamespaceCheck.cpp
   TwineLocalCheck.cpp
+  TypeSwitchCaseTypesCheck.cpp
+  UseNewMLIROpBuilderCheck.cpp
+  UseRangesCheck.cpp
+  UseVectorUtilsCheck.cpp
 
   LINK_LIBS
   clangTidy
@@ -29,4 +33,5 @@ clang_target_link_libraries(clangTidyLLVMModule
   clangBasic
   clangLex
   clangTooling
+  clangTransformer
   )

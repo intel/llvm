@@ -10,11 +10,11 @@
 
 #include <sycl/detail/type_traits/vec_marray_traits.hpp>
 
-#include <sycl/access/access.hpp> // for decorated, address_space
+#include <sycl/detail/fwd/multi_ptr.hpp>
 
-#include <array>       // for array
-#include <cstddef>     // for size_t
-#include <type_traits> // for true_type, false_type
+#include <array>
+#include <cstddef>
+#include <type_traits>
 
 namespace sycl {
 inline namespace _V1 {
@@ -107,11 +107,6 @@ class half;
 }
 } // namespace detail
 using half = detail::half_impl::half;
-
-// Forward declaration
-template <typename ElementType, access::address_space Space,
-          access::decorated DecorateAddress>
-class multi_ptr;
 
 template <class T>
 struct is_group : std::bool_constant<detail::is_group<T>::value ||

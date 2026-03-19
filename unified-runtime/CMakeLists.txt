@@ -56,6 +56,7 @@ option(UR_BUILD_XPTI_LIBS "Build the XPTI libraries when tracing is enabled" ON)
 option(UR_STATIC_LOADER "Build loader as a static library" OFF)
 option(UR_FORCE_LIBSTDCXX "Force use of libstdc++ in a build using libc++ on Linux" OFF)
 option(UR_ENABLE_LATENCY_HISTOGRAM "Enable latncy histogram" OFF)
+option(UR_FORCE_FETCH_LEVEL_ZERO "Force fetching Level Zero even if preinstalled loader is found" OFF)
 set(UR_EXTERNAL_DEPENDENCIES "" CACHE STRING
     "List of external CMake targets for executables/libraries to depend on")
 set(UR_DPCXX "" CACHE FILEPATH "Path of the DPC++ compiler executable")
@@ -225,7 +226,7 @@ if(UR_ENABLE_TRACING)
     endif()
 
     if (MSVC)
-        set(TARGET_XPTI $<IF:$<CONFIG:Release>,xpti,xptid>)
+        set(TARGET_XPTI $<IF:$<CONFIG:Release,RelWithDebInfo,MinSizeRel>,xpti,xptid>)
     else()
         set(TARGET_XPTI xpti)
     endif()
@@ -274,7 +275,7 @@ endif()
 if(NOT (UR_BUILD_ADAPTER_CUDA OR UR_BUILD_ADAPTER_HIP
     OR UR_BUILD_ADAPTER_L0 OR UR_BUILD_ADAPTER_OPENCL
     OR UR_BUILD_ADAPTER_NATIVE_CPU OR UR_BUILD_ADAPTER_L0_V2
-    OR UR_BUILD_ADAPTER_ALL))
+    OR UR_BUILD_ADAPTER_OFFLOAD OR UR_BUILD_ADAPTER_ALL))
     message(WARNING "No adapters have been enabled; conformance tests will not be ran")
     message(STATUS "Consider setting UR_BUILD_ADAPTER_*")
 endif()
@@ -323,6 +324,7 @@ file(GLOB_RECURSE license_src ${license_glob})
 
 # Add license check target
 list(FILTER license_src EXCLUDE REGEX "registry.yml")
+list(FILTER format_src EXCLUDE REGEX "source/adapters/level_zero/external")
 add_custom_target(verify-licenses
     COMMAND ${Python3_EXECUTABLE}
         "${PROJECT_SOURCE_DIR}/scripts/verify_license.py"
@@ -377,32 +379,37 @@ if(UR_BUILD_TOOLS)
     add_subdirectory(tools)
 endif()
 
-# Add the list of installed targets to the install. This includes the namespace
-# which all installed targets will be prefixed with, e.g. for the headers
-# target users will depend on ${PROJECT_NAME}::headers.
-install(
-    EXPORT ${PROJECT_NAME}-targets
-    FILE ${PROJECT_NAME}-targets.cmake
-    NAMESPACE ${PROJECT_NAME}::
-    DESTINATION lib/cmake/${PROJECT_NAME})
+# The export set and package config files are only needed when UR is built as
+# a standalone project. When built in-tree (LLVM/SYCL), the
+# parent project provides its own install rules.
+if(UR_STANDALONE_BUILD)
+    # Add the list of installed targets to the install. This includes the
+    # namespace which all installed targets will be prefixed with, e.g. for
+    # the headers target users will depend on ${PROJECT_NAME}::headers.
+    install(
+        EXPORT ${PROJECT_NAME}-targets
+        FILE ${PROJECT_NAME}-targets.cmake
+        NAMESPACE ${PROJECT_NAME}::
+        DESTINATION lib/cmake/${PROJECT_NAME})
 
-# Configure the package versions file for use in find_package when installed.
-write_basic_package_version_file(
-    ${PROJECT_BINARY_DIR}/cmake/${PROJECT_NAME}-config-version.cmake
-    COMPATIBILITY SameMajorVersion)
-# Configure the package file that is searched for by find_package when
-# installed.
-configure_package_config_file(
-    ${PROJECT_SOURCE_DIR}/cmake/${PROJECT_NAME}-config.cmake.in
-    ${PROJECT_BINARY_DIR}/cmake/${PROJECT_NAME}-config.cmake
-    INSTALL_DESTINATION lib/cmake/${PROJECT_NAME})
-
-# Add the package files to the install.
-install(
-    FILES
-        ${PROJECT_BINARY_DIR}/cmake/${PROJECT_NAME}-config.cmake
+    # Configure the package versions file for use in find_package when installed.
+    write_basic_package_version_file(
         ${PROJECT_BINARY_DIR}/cmake/${PROJECT_NAME}-config-version.cmake
-    DESTINATION lib/cmake/${PROJECT_NAME})
+        COMPATIBILITY SameMajorVersion)
+    # Configure the package file that is searched for by find_package when
+    # installed.
+    configure_package_config_file(
+        ${PROJECT_SOURCE_DIR}/cmake/${PROJECT_NAME}-config.cmake.in
+        ${PROJECT_BINARY_DIR}/cmake/${PROJECT_NAME}-config.cmake
+        INSTALL_DESTINATION lib/cmake/${PROJECT_NAME})
+
+    # Add the package files to the install.
+    install(
+        FILES
+            ${PROJECT_BINARY_DIR}/cmake/${PROJECT_NAME}-config.cmake
+            ${PROJECT_BINARY_DIR}/cmake/${PROJECT_NAME}-config-version.cmake
+        DESTINATION lib/cmake/${PROJECT_NAME})
+endif()
 
 set(API_JSON_FILE ${PROJECT_BINARY_DIR}/unified_runtime.json)
 

@@ -415,6 +415,36 @@ etors:
 - name: ENQUEUE_USM_MEMCPY_2D
   desc: Enumerator for $xEnqueueUSMMemcpy2D
   value: '152'
+- name: VIRTUAL_MEM_GRANULARITY_GET_INFO
+  desc: Enumerator for $xVirtualMemGranularityGetInfo
+  value: '153'
+- name: VIRTUAL_MEM_RESERVE
+  desc: Enumerator for $xVirtualMemReserve
+  value: '154'
+- name: VIRTUAL_MEM_FREE
+  desc: Enumerator for $xVirtualMemFree
+  value: '155'
+- name: VIRTUAL_MEM_MAP
+  desc: Enumerator for $xVirtualMemMap
+  value: '156'
+- name: VIRTUAL_MEM_UNMAP
+  desc: Enumerator for $xVirtualMemUnmap
+  value: '157'
+- name: VIRTUAL_MEM_SET_ACCESS
+  desc: Enumerator for $xVirtualMemSetAccess
+  value: '158'
+- name: VIRTUAL_MEM_GET_INFO
+  desc: Enumerator for $xVirtualMemGetInfo
+  value: '159'
+- name: PHYSICAL_MEM_CREATE
+  desc: Enumerator for $xPhysicalMemCreate
+  value: '160'
+- name: PHYSICAL_MEM_RETAIN
+  desc: Enumerator for $xPhysicalMemRetain
+  value: '161'
+- name: PHYSICAL_MEM_RELEASE
+  desc: Enumerator for $xPhysicalMemRelease
+  value: '162'
 - name: USM_IMPORT_EXP
   desc: Enumerator for $xUSMImportExp
   value: '163'
@@ -559,6 +589,9 @@ etors:
 - name: ENQUEUE_EVENTS_WAIT_WITH_BARRIER_EXT
   desc: Enumerator for $xEnqueueEventsWaitWithBarrierExt
   value: '246'
+- name: PHYSICAL_MEM_GET_INFO
+  desc: Enumerator for $xPhysicalMemGetInfo
+  value: '249'
 - name: ENQUEUE_USM_DEVICE_ALLOC_EXP
   desc: Enumerator for $xEnqueueUSMDeviceAllocExp
   value: '250'
@@ -625,39 +658,6 @@ etors:
 - name: USM_CONTEXT_MEMCPY_EXP
   desc: Enumerator for $xUSMContextMemcpyExp
   value: '273'
-- name: VIRTUAL_MEM_GRANULARITY_GET_INFO
-  desc: Enumerator for $xVirtualMemGranularityGetInfo
-  value: '274'
-- name: VIRTUAL_MEM_RESERVE
-  desc: Enumerator for $xVirtualMemReserve
-  value: '275'
-- name: VIRTUAL_MEM_FREE
-  desc: Enumerator for $xVirtualMemFree
-  value: '276'
-- name: VIRTUAL_MEM_MAP
-  desc: Enumerator for $xVirtualMemMap
-  value: '277'
-- name: VIRTUAL_MEM_UNMAP
-  desc: Enumerator for $xVirtualMemUnmap
-  value: '278'
-- name: VIRTUAL_MEM_SET_ACCESS
-  desc: Enumerator for $xVirtualMemSetAccess
-  value: '279'
-- name: VIRTUAL_MEM_GET_INFO
-  desc: Enumerator for $xVirtualMemGetInfo
-  value: '280'
-- name: PHYSICAL_MEM_CREATE
-  desc: Enumerator for $xPhysicalMemCreate
-  value: '281'
-- name: PHYSICAL_MEM_RETAIN
-  desc: Enumerator for $xPhysicalMemRetain
-  value: '282'
-- name: PHYSICAL_MEM_RELEASE
-  desc: Enumerator for $xPhysicalMemRelease
-  value: '283'
-- name: PHYSICAL_MEM_GET_INFO
-  desc: Enumerator for $xPhysicalMemGetInfo
-  value: '284'
 - name: MEMORY_EXPORT_ALLOC_EXPORTABLE_MEMORY_EXP
   desc: Enumerator for $xMemoryExportAllocExportableMemoryExp
   value: '285'
@@ -670,6 +670,67 @@ etors:
 - name: BINDLESS_IMAGES_SUPPORTS_IMPORTING_HANDLE_TYPE_EXP
   desc: Enumerator for $xBindlessImagesSupportsImportingHandleTypeExp
   value: '288'
+- name: IPC_GET_MEM_HANDLE_EXP
+  desc: Enumerator for $xIPCGetMemHandleExp
+  value: '289'
+- name: IPC_PUT_MEM_HANDLE_EXP
+  desc: Enumerator for $xIPCPutMemHandleExp
+  value: '290'
+- name: IPC_OPEN_MEM_HANDLE_EXP
+  desc: Enumerator for $xIPCOpenMemHandleExp
+  value: '291'
+- name: IPC_CLOSE_MEM_HANDLE_EXP
+  desc: Enumerator for $xIPCCloseMemHandleExp
+  value: '292'
+- name: DEVICE_WAIT_EXP
+  desc: Enumerator for $xDeviceWaitExp
+  value: '293'
+- name: PROGRAM_DYNAMIC_LINK_EXP
+  desc: Enumerator for $xProgramDynamicLinkExp
+  value: '294'
+- name: ENQUEUE_KERNEL_LAUNCH_WITH_ARGS_EXP
+  desc: Enumerator for $xEnqueueKernelLaunchWithArgsExp
+  value: '295'
+- name: GRAPH_CREATE_EXP
+  desc: Enumerator for $xGraphCreateExp
+  value: '296'
+- name: QUEUE_BEGIN_GRAPH_CAPTURE_EXP
+  desc: Enumerator for $xQueueBeginGraphCaptureExp
+  value: '297'
+- name: QUEUE_BEGIN_CAPTURE_INTO_GRAPH_EXP
+  desc: Enumerator for $xQueueBeginCaptureIntoGraphExp
+  value: '298'
+- name: QUEUE_END_GRAPH_CAPTURE_EXP
+  desc: Enumerator for $xQueueEndGraphCaptureExp
+  value: '299'
+- name: GRAPH_DESTROY_EXP
+  desc: Enumerator for $xGraphDestroyExp
+  value: '302'
+- name: GRAPH_EXECUTABLE_GRAPH_DESTROY_EXP
+  desc: Enumerator for $xGraphExecutableGraphDestroyExp
+  value: '303'
+- name: QUEUE_IS_GRAPH_CAPTURE_ENABLED_EXP
+  desc: Enumerator for $xQueueIsGraphCaptureEnabledExp
+  value: '304'
+- name: GRAPH_IS_EMPTY_EXP
+  desc: Enumerator for $xGraphIsEmptyExp
+  value: '305'
+- name: GRAPH_DUMP_CONTENTS_EXP
+  desc: Enumerator for $xGraphDumpContentsExp
+  value: '306'
+- name: GRAPH_INSTANTIATE_GRAPH_EXP
+  desc: Enumerator for $xGraphInstantiateGraphExp
+  value: '307'
+- name: ENQUEUE_GRAPH_EXP
+  desc: Enumerator for $xEnqueueGraphExp
+  value: '308'
+- name: ENQUEUE_HOST_TASK_EXP
+  desc: Enumerator for $xEnqueueHostTaskExp
+  value: '309'
+- name: COMMAND_BUFFER_APPEND_KERNEL_LAUNCH_WITH_ARGS_EXP
+  desc: Enumerator for $xCommandBufferAppendKernelLaunchWithArgsExp
+  value: '310'
+max_id: '310'
 ---
 type: enum
 desc: Defines structure types
@@ -783,3 +844,12 @@ etors:
 - name: PHYSICAL_MEM_PROPERTIES
   desc: $x_physical_mem_properties_t
   value: '37'
+- name: KERNEL_LAUNCH_EXT_PROPERTIES
+  desc: $x_kernel_launch_ext_properties_t
+  value: '38'
+- name: KERNEL_LAUNCH_CLUSTER_PROPERTY
+  desc: $x_kernel_launch_cluster_property_t
+  value: '40'
+- name: KERNEL_LAUNCH_WORKGROUP_PROPERTY
+  desc: $x_kernel_launch_workgroup_property_t
+  value: '41'

@@ -6,37 +6,15 @@ For framework-specific information, see [README.md](README.md) and [CONTRIB.md](
 ## Table of Contents
 
 - [Overview](#overview)
-- [System Configuration](#system-configuration)
 - [CPU Tuning](#cpu-tuning)
 - [GPU Configuration](#gpu-configuration)
+- [Driver Version](#driver-version)
 - [Perf Configuration](#perf-configuration)
 - [Environment Variables](#environment-variables)
 
 ## Overview
 
 Performance benchmarking requires a stable and optimized system environment to produce reliable and reproducible results. This guide covers essential system tuning steps for reducing run-to-run variance in benchmark results.
-
-## System Configuration
-
-### Kernel Parameters
-
-Add the following to `/etc/default/grub` in `GRUB_CMDLINE_LINUX`:
-```
-# Disable CPU frequency scaling
-# intel_pstate=disable
-
-# Isolate CPUs for benchmark workloads (example: reserve cores 2-7), preventing other processes
-# from using them.
-# isolcpus=2-7
-
-GRUB_CMDLINE_LINUX="intel_pstate=disable isolcpus=2-7 <other_options>"
-```
-
-Update GRUB and reboot:
-```bash
-sudo update-grub
-sudo reboot
-```
 
 ## CPU Tuning
 
@@ -66,7 +44,7 @@ After=multi-user.target
 
 [Service]
 Type=oneshot
-ExecStart=/usr/bin/cpupower frequency-set --governor performance && sysctl --system
+ExecStart=/usr/bin/cpupower frequency-set --governor performance
 
 [Install]
 WantedBy=multi-user.target
@@ -99,7 +77,12 @@ cat /sys/class/drm/card1/device/vendor  # Should be 0x8086 for Intel
 cat /sys/class/drm/card1/device/device  # Device ID
 ```
 
-Verify the max frequency is set to the true max. For Arc B580, the maximum frequency is 2850 MHz. To see this value, run “cat /sys/class/drm/card1/device/tile0/gt0/freq0/max_freq”. If the above value is not equal to the max frequency, set it as such:
+Verify the max frequency is set to the true max. For Arc B580, the maximum frequency is 2850 MHz. To see this value, run:
+```bash
+cat /sys/class/drm/card1/device/tile0/gt0/freq0/max_freq
+```
+
+If the above value is not equal to the max frequency, set it as such:
 ```bash
 # Arc B580 (Battlemage)
 echo 2850 > /sys/class/drm/card1/device/tile0/gt0/freq0/max_freq
@@ -118,9 +101,9 @@ max_freq=$(cat /sys/class/drm/card1/gt_max_freq_mhz)
 echo $max_freq | sudo tee /sys/class/drm/card1/gt_min_freq_mhz
 ```
 
-The result can be verified using tools such as oneprof or unitrace to track frequency over time for some arbitrary benchmark (many iterations of a small problem size is recommended). The frequency should remain fixed assuming thermal throttling does not occur.
+The result can be verified using tools such as `oneprof` or `unitrace` to track frequency over time for some arbitrary benchmark (many iterations of a small problem size is recommended). The frequency should remain fixed assuming thermal throttling does not occur.
 
-## Driver version
+## Driver Version
 Make sure you are using the latest driver (Ubuntu)
 ```bash
 sudo apt update && sudo apt upgrade
@@ -145,6 +128,7 @@ Make the setting persistent across reboots by adding it to sysctl configuration:
 echo 'kernel.perf_event_paranoid = -1' | sudo tee -a /etc/sysctl.d/99-perf.conf
 
 # Apply immediately
+sudo sysctl kernel.perf_event_paranoid=-1
 sudo sysctl -p
 ```
 

@@ -229,7 +229,7 @@ Parse_ONEAPI_DEVICE_SELECTOR(const std::string &envString) {
 
       backend be = Parse_ODS_Backend(input_be, Entry);
 
-      // For each backend, we can have multiple targets, seperated by ','.
+      // For each backend, we can have multiple targets, separated by ','.
       std::vector<std::string_view> Targets = tokenize(Pair[1], ",");
       for (auto TargetStr : Targets) {
         ods_target DeviceTarget(be);

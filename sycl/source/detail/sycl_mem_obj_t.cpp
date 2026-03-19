@@ -141,16 +141,25 @@ void SYCLMemObjT::updateHostMemory(void *const Ptr) {
 }
 
 void SYCLMemObjT::updateHostMemory() {
-  if ((MUploadDataFunctor != nullptr) && MNeedWriteBack)
+  // Don't try updating host memory when shutting down.
+  if ((MUploadDataFunctor != nullptr) && MNeedWriteBack &&
+      GlobalHandler::instance().isOkToDefer())
     MUploadDataFunctor();
 
   // If we're attached to a memory record, process the deletion of the memory
   // record. We may get detached before we do this.
   if (MRecord) {
-    bool Result = Scheduler::getInstance().removeMemoryObject(this);
+    // Don't strictly try holding the lock in removeMemoryObject during shutdown
+    // to prevent deadlocks.
+    bool Result = Scheduler::getInstance().removeMemoryObject(
+        this, GlobalHandler::instance().isOkToDefer());
     std::ignore = Result; // for no assert build
+
+    // removeMemoryObject might fail during shutdown because of not being
+    // able to hold write lock. This can happen if shutdown happens due to
+    // exception/termination while holding lock.
     assert(
-        Result &&
+        (Result || !GlobalHandler::instance().isOkToDefer()) &&
         "removeMemoryObject should not return false in mem object destructor");
   }
   releaseHostMem(MShadowCopy);

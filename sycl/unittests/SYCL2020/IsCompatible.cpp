@@ -12,7 +12,6 @@ class TestKernelCPUInvalidReqdWGSize2D;
 class TestKernelCPUInvalidReqdWGSize3D;
 class TestKernelCPUValidReqdWGSize3D;
 class TestKernelGPU;
-class TestKernelACC;
 
 MOCK_INTEGRATION_HEADER(TestKernelCPU)
 MOCK_INTEGRATION_HEADER(TestKernelCPUInvalidReqdWGSize1D)
@@ -20,7 +19,6 @@ MOCK_INTEGRATION_HEADER(TestKernelCPUInvalidReqdWGSize2D)
 MOCK_INTEGRATION_HEADER(TestKernelCPUInvalidReqdWGSize3D)
 MOCK_INTEGRATION_HEADER(TestKernelCPUValidReqdWGSize3D)
 MOCK_INTEGRATION_HEADER(TestKernelGPU)
-MOCK_INTEGRATION_HEADER(TestKernelACC)
 
 static sycl::unittest::MockDeviceImage
 generateDefaultImage(std::initializer_list<std::string> KernelNames,
@@ -37,7 +35,7 @@ generateDefaultImage(std::initializer_list<std::string> KernelNames,
   return Img;
 }
 
-static sycl::unittest::MockDeviceImage Imgs[7] = {
+static sycl::unittest::MockDeviceImage Imgs[6] = {
     // Images for validating checks based on max_work_group_size + aspects
     generateDefaultImage({"TestKernelCPU"}, {sycl::aspect::cpu},
                          {32}), // 32 <= 256 (OK)
@@ -53,10 +51,9 @@ static sycl::unittest::MockDeviceImage Imgs[7] = {
         {"TestKernelCPUValidReqdWGSize3D"}, {sycl::aspect::cpu},
         {2, 4, 5}), // 2 <= 254 (OK), 4 <= 255 (OK), 5 <= 256 (OK)
     // Images for validating checks for aspects
-    generateDefaultImage({"TestKernelGPU"}, {sycl::aspect::gpu}),
-    generateDefaultImage({"TestKernelACC"}, {sycl::aspect::accelerator})};
+    generateDefaultImage({"TestKernelGPU"}, {sycl::aspect::gpu})};
 
-static sycl::unittest::MockDeviceImageArray<7> ImgArray{Imgs};
+static sycl::unittest::MockDeviceImageArray<6> ImgArray{Imgs};
 
 static ur_result_t redefinedDeviceGetInfoCPU(void *pParams) {
   auto params = *static_cast<ur_device_get_info_params_t *>(pParams);
@@ -105,15 +102,6 @@ static ur_result_t redefinedDeviceGetInfoGPU(void *pParams) {
   return UR_RESULT_SUCCESS;
 }
 
-static ur_result_t redefinedDeviceGetInfoACC(void *pParams) {
-  auto params = *static_cast<ur_device_get_info_params_t *>(pParams);
-  if (*params.ppropName == UR_DEVICE_INFO_TYPE) {
-    auto *Result = reinterpret_cast<ur_device_type_t *>(*params.ppPropValue);
-    *Result = UR_DEVICE_TYPE_FPGA;
-  }
-  return UR_RESULT_SUCCESS;
-}
-
 TEST(IsCompatible, CPU) {
   sycl::unittest::UrMock<> Mock;
   mock::getCallbacks().set_after_callback("urDeviceGetInfo",
@@ -124,7 +112,6 @@ TEST(IsCompatible, CPU) {
   EXPECT_TRUE(Dev.is_cpu());
   EXPECT_TRUE(sycl::is_compatible<TestKernelCPU>(Dev));
   EXPECT_FALSE(sycl::is_compatible<TestKernelGPU>(Dev));
-  EXPECT_FALSE(sycl::is_compatible<TestKernelACC>(Dev));
 }
 
 TEST(IsCompatible, CPUInvalidReqdWGSize1D) {
@@ -177,18 +164,4 @@ TEST(IsCompatible, GPU) {
   EXPECT_TRUE(Dev.is_gpu());
   EXPECT_FALSE(sycl::is_compatible<TestKernelCPU>(Dev));
   EXPECT_TRUE(sycl::is_compatible<TestKernelGPU>(Dev));
-  EXPECT_FALSE(sycl::is_compatible<TestKernelACC>(Dev));
-}
-
-TEST(IsCompatible, ACC) {
-  sycl::unittest::UrMock<> Mock;
-  mock::getCallbacks().set_after_callback("urDeviceGetInfo",
-                                          &redefinedDeviceGetInfoACC);
-  sycl::platform Plt = sycl::platform();
-  const sycl::device Dev = Plt.get_devices()[0];
-
-  EXPECT_TRUE(Dev.is_accelerator());
-  EXPECT_FALSE(sycl::is_compatible<TestKernelCPU>(Dev));
-  EXPECT_FALSE(sycl::is_compatible<TestKernelGPU>(Dev));
-  EXPECT_TRUE(sycl::is_compatible<TestKernelACC>(Dev));
 }

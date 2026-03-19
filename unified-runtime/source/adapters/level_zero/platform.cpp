@@ -1,6 +1,6 @@
 //===--------- platform.cpp - Level Zero Adapter --------------------------===//
 //
-// Copyright (C) 2023 Intel Corporation
+// Copyright (C) 2023-2026 Intel Corporation
 //
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
@@ -526,6 +526,74 @@ ur_result_t ur_platform_handle_t_::initialize() {
   ZeMemGetPitchFor2dImageExt.Supported =
       ZeMemGetPitchFor2dImageExt.zeMemGetPitchFor2dImage != nullptr;
 
+  // Populate Graph Extension structure.
+  std::unordered_map<std::string, void **> ZeGraphFuncNameToAddrMap = {
+      {"zeGraphCreateExp",
+       reinterpret_cast<void **>(&ZeGraphExt.zeGraphCreateExp)},
+      {"zeCommandListBeginGraphCaptureExp",
+       reinterpret_cast<void **>(
+           &ZeGraphExt.zeCommandListBeginGraphCaptureExp)},
+      {"zeCommandListBeginCaptureIntoGraphExp",
+       reinterpret_cast<void **>(
+           &ZeGraphExt.zeCommandListBeginCaptureIntoGraphExp)},
+      {"zeCommandListEndGraphCaptureExp",
+       reinterpret_cast<void **>(&ZeGraphExt.zeCommandListEndGraphCaptureExp)},
+      {"zeCommandListInstantiateGraphExp",
+       reinterpret_cast<void **>(&ZeGraphExt.zeCommandListInstantiateGraphExp)},
+      {"zeCommandListAppendGraphExp",
+       reinterpret_cast<void **>(&ZeGraphExt.zeCommandListAppendGraphExp)},
+      {"zeGraphDestroyExp",
+       reinterpret_cast<void **>(&ZeGraphExt.zeGraphDestroyExp)},
+      {"zeExecutableGraphDestroyExp",
+       reinterpret_cast<void **>(&ZeGraphExt.zeExecutableGraphDestroyExp)},
+      {"zeCommandListIsGraphCaptureEnabledExp",
+       reinterpret_cast<void **>(
+           &ZeGraphExt.zeCommandListIsGraphCaptureEnabledExp)},
+      {"zeGraphIsEmptyExp",
+       reinterpret_cast<void **>(&ZeGraphExt.zeGraphIsEmptyExp)},
+      {"zeGraphDumpContentsExp",
+       reinterpret_cast<void **>(&ZeGraphExt.zeGraphDumpContentsExp)},
+  };
+
+  ZeGraphExt.Supported = true;
+  for (auto &[funcName, funcAddr] : ZeGraphFuncNameToAddrMap) {
+    ZE_CALL_NOCHECK(zeDriverGetExtensionFunctionAddress,
+                    (ZeDriver, funcName.c_str(), funcAddr));
+    ZeGraphExt.Supported &= (*funcAddr != nullptr);
+  }
+
+  if (this->isDriverVersionNewerOrSimilar(1, 14, 36035)) {
+    ZeCommandListAppendLaunchKernelWithArgumentsExt.Supported = true;
+  } else {
+    ZeCommandListAppendLaunchKernelWithArgumentsExt.Supported = false;
+  }
+
+  // Check if the driver supports zeCommandListAppendLaunchKernelWithArguments()
+  // with cooperative mode (version >= 1.6.35005)
+  ZeCommandListAppendLaunchKernelWithArgumentsExt
+      .DriverSupportsCooperativeKernelLaunchWithArgs =
+      this->isDriverVersionNewerOrSimilar(1, 6, 35005);
+
+  ZeCommandListAppendLaunchKernelWithArgumentsExt
+      .DisableZeLaunchKernelWithArgs =
+      getenv_tobool("UR_L0_V2_DISABLE_ZE_LAUNCH_KERNEL_WITH_ARGS", false);
+
+  ZE_CALL_NOCHECK(zeDriverGetExtensionFunctionAddress,
+                  (ZeDriver, "zeCommandListAppendHostFunction",
+                   reinterpret_cast<void **>(
+                       &ZeHostTaskExt.zeCommandListAppendHostFunction)));
+
+  ZeHostTaskExt.Supported =
+      ZeHostTaskExt.zeCommandListAppendHostFunction != nullptr;
+
+  // ZE_COMMAND_QUEUE_FLAG_COPY_OFFLOAD_HINT flag is support since L0 v1.14.0
+  ZeCopyOffloadQueueFlagSupported =
+      this->isDriverVersionNewerOrSimilar(1, 14, 0);
+
+  // ZE_COMMAND_LIST_FLAG_COPY_OFFLOAD_HINT flag is support since L0 v1.15.0
+  ZeCopyOffloadListFlagSupported =
+      this->isDriverVersionNewerOrSimilar(1, 15, 0);
+
   return UR_RESULT_SUCCESS;
 }
 
@@ -783,6 +851,19 @@ ur_result_t ur_platform_handle_t_::populateDeviceCacheIfNeeded() {
   size_t id = 0;
   for (auto &dev : URDevicesCache) {
     dev->Id = id++;
+  }
+
+  // Check if platform supports device synchronization by calling
+  // zeDeviceSynchronize on the first device.
+  // Don't call zeDeviceSynchronize if driver version is older than 1.13.36015,
+  // it may cause a crash on older drivers.
+  if (this->isDriverVersionNewerOrSimilar(1, 13, 36015) &&
+      !URDevicesCache.empty()) {
+    auto ZeDevice = URDevicesCache[0]->ZeDevice;
+    auto ZeResult = ZE_CALL_NOCHECK(zeDeviceSynchronize, (ZeDevice));
+    bool Supported = (ZeResult != ZE_RESULT_ERROR_UNSUPPORTED_FEATURE &&
+                      ZeResult != ZE_RESULT_ERROR_UNSUPPORTED_VERSION);
+    ZeDeviceSynchronizeSupported = Supported;
   }
 
   return UR_RESULT_SUCCESS;

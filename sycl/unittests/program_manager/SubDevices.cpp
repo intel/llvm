@@ -14,11 +14,24 @@
 
 #include <helpers/TestKernel.hpp>
 
-static ur_device_handle_t rootDevice;
-static ur_device_handle_t urSubDev1 = (ur_device_handle_t)0x1;
-static ur_device_handle_t urSubDev2 = (ur_device_handle_t)0x2;
+static ur_device_handle_t rootDevice = (ur_device_handle_t)0x1;
+// Sub-devices under rootDevice
+static ur_device_handle_t urSubDev1 = (ur_device_handle_t)0x11;
+static ur_device_handle_t urSubDev2 = (ur_device_handle_t)0x12;
+// Sub-sub-devices under urSubDev1
+static ur_device_handle_t urSubSubDev1 = (ur_device_handle_t)0x111;
+static ur_device_handle_t urSubSubDev2 = (ur_device_handle_t)0x112;
 
 namespace {
+ur_result_t redefinedDeviceGet(void *pParams) {
+  auto params = *static_cast<ur_device_get_params_t *>(pParams);
+  if (*params.ppNumDevices)
+    **params.ppNumDevices = 1;
+  if (*params.pphDevices)
+    (*params.pphDevices)[0] = rootDevice;
+  return UR_RESULT_SUCCESS;
+}
+
 ur_result_t redefinedDeviceGetInfo(void *pParams) {
   auto params = *static_cast<ur_device_get_info_params_t *>(pParams);
   if (*params.ppropName == UR_DEVICE_INFO_SUPPORTED_PARTITIONS) {
@@ -41,13 +54,32 @@ ur_result_t redefinedDeviceGetInfo(void *pParams) {
     }
   }
   if (*params.ppropName == UR_DEVICE_INFO_PARTITION_MAX_SUB_DEVICES) {
-    ((uint32_t *)*params.ppPropValue)[0] = 2;
+    if (!*params.ppPropValue)
+      **params.ppPropSizeRet = sizeof(uint32_t);
+    else
+      ((uint32_t *)*params.ppPropValue)[0] = 2;
   }
   if (*params.ppropName == UR_DEVICE_INFO_PARENT_DEVICE) {
-    if (*params.phDevice == urSubDev1 || *params.phDevice == urSubDev2)
-      ((ur_device_handle_t *)*params.ppPropValue)[0] = rootDevice;
+    if (!*params.ppPropValue) {
+      **params.ppPropSizeRet = sizeof(ur_device_handle_t);
+    } else {
+      ur_device_handle_t &ret =
+          *static_cast<ur_device_handle_t *>(*params.ppPropValue);
+      if (*params.phDevice == urSubDev1 || *params.phDevice == urSubDev2) {
+        ret = rootDevice;
+      } else if (*params.phDevice == urSubSubDev1 ||
+                 *params.phDevice == urSubSubDev2) {
+        ret = urSubDev1;
+      } else {
+        ret = nullptr;
+      }
+    }
+  }
+  if (*params.ppropName == UR_DEVICE_INFO_BUILD_ON_SUBDEVICE) {
+    if (!*params.ppPropValue)
+      **params.ppPropSizeRet = sizeof(ur_bool_t);
     else
-      ((ur_device_handle_t *)*params.ppPropValue)[0] = nullptr;
+      ((ur_bool_t *)*params.ppPropValue)[0] = false;
   }
   return UR_RESULT_SUCCESS;
 }
@@ -74,6 +106,13 @@ ur_result_t redefinedProgramBuild(void *) {
   if (m > 1)
     return UR_RESULT_ERROR_UNKNOWN;
 
+  return UR_RESULT_SUCCESS;
+}
+
+static int buildCallCount = 0;
+
+ur_result_t redefinedProgramBuildExp(void *) {
+  buildCallCount++;
   return UR_RESULT_SUCCESS;
 }
 
@@ -127,4 +166,34 @@ TEST(SubDevices, DISABLED_BuildProgramForSubdevices) {
   sycl::detail::ProgramManager::getInstance().getBuiltURProgram(
       *sycl::detail::getSyclObjImpl(Ctx), subDev2,
       sycl::detail::KernelInfo<TestKernel>::getName());
+}
+
+// Check that program is built once for all sub-sub-devices
+TEST(SubDevices, BuildProgramForSubSubDevices) {
+  sycl::unittest::UrMock<> Mock;
+  mock::getCallbacks().set_after_callback("urDeviceGet", &redefinedDeviceGet);
+  mock::getCallbacks().set_after_callback("urDeviceGetInfo",
+                                          &redefinedDeviceGetInfo);
+  mock::getCallbacks().set_after_callback("urProgramBuildExp",
+                                          &redefinedProgramBuildExp);
+  sycl::platform Plt = sycl::platform();
+  sycl::device root = Plt.get_devices()[0];
+  sycl::detail::platform_impl &PltImpl = *sycl::detail::getSyclObjImpl(Plt);
+  // Initialize sub-sub-devices
+  sycl::detail::device_impl &SubSub1 =
+      PltImpl.getOrMakeDeviceImpl(urSubSubDev1);
+  sycl::detail::device_impl &SubSub2 =
+      PltImpl.getOrMakeDeviceImpl(urSubSubDev2);
+
+  sycl::context Ctx{root};
+  buildCallCount = 0;
+  sycl::detail::ProgramManager::getInstance().getBuiltURProgram(
+      *sycl::detail::getSyclObjImpl(Ctx), SubSub1,
+      sycl::detail::KernelInfo<TestKernel>::getName());
+  sycl::detail::ProgramManager::getInstance().getBuiltURProgram(
+      *sycl::detail::getSyclObjImpl(Ctx), SubSub2,
+      sycl::detail::KernelInfo<TestKernel>::getName());
+
+  // Check that program is built only once.
+  EXPECT_EQ(buildCallCount, 1);
 }

@@ -247,13 +247,17 @@ void SPIRVToOCLBase::visitCastInst(CastInst &Cast) {
       DstVecTy->getScalarSizeInBits() == 1)
     return;
 
+  // We don't have OpenCL builtins for 4-bit conversions.
+  if (DstVecTy->getScalarSizeInBits() == 4 || SrcTy->getScalarSizeInBits() == 4)
+    return;
+
   // Assemble built-in name -> convert_gentypeN
   std::string CastBuiltInName(kOCLBuiltinName::ConvertPrefix);
   // Check if this is 'floating point -> unsigned integer' cast
   CastBuiltInName += mapLLVMTypeToOCLType(DstVecTy, !isa<FPToUIInst>(Cast));
 
   // Replace LLVM conversion instruction with call to conversion built-in
-  BuiltinFuncMangleInfo Mangle;
+  OCLBuiltinFuncMangleInfo Mangle;
   // It does matter if the source is unsigned integer or not. SExt is for
   // signed source, ZExt and UIToFPInst are for unsigned source.
   if (isa<ZExtInst>(Cast) || isa<UIToFPInst>(Cast))
@@ -275,7 +279,7 @@ void SPIRVToOCLBase::visitCallSPIRVImageQuerySize(CallInst *CI) {
   bool ImgArray = Desc.Arrayed;
 
   AttributeList Attributes = CI->getCalledFunction()->getAttributes();
-  BuiltinFuncMangleInfo Mangle;
+  OCLBuiltinFuncMangleInfo Mangle;
   Mangle.getTypeMangleInfo(0).PointerTy = ImgTy;
   Type *Int32Ty = Type::getInt32Ty(*Ctx);
   Instruction *GetImageSize = nullptr;
@@ -676,6 +680,13 @@ void SPIRVToOCLBase::visitCallGenericCastToPtrExplicitBuiltIn(CallInst *CI,
 
 void SPIRVToOCLBase::visitCallSPIRVCvtBuiltin(CallInst *CI, Op OC,
                                               StringRef DemangledName) {
+  if (auto *TET =
+          dyn_cast<TargetExtType>(CI->getFunctionType()->getReturnType())) {
+    // Preserve any cooperative matrix type conversions as SPIR-V calls.
+    if (TET->getName() == "spirv.CooperativeMatrixKHR") {
+      return;
+    }
+  }
   std::string CastBuiltInName;
   if (isCvtFromUnsignedOpCode(OC))
     CastBuiltInName = "u";

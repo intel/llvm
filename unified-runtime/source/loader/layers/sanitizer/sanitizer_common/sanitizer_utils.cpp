@@ -176,6 +176,11 @@ bool IsHostUSM(ur_context_handle_t Context, const void *MemPtr) {
   return USMType == UR_USM_TYPE_HOST;
 }
 
+bool IsDeviceUSM(ur_context_handle_t Context, const void *MemPtr) {
+  ur_usm_type_t USMType = GetUSMType(Context, MemPtr);
+  return USMType == UR_USM_TYPE_DEVICE;
+}
+
 ur_device_handle_t GetUSMAllocDevice(ur_context_handle_t Context,
                                      const void *MemPtr) {
   assert(IsUSM(Context, MemPtr));
@@ -351,6 +356,15 @@ void PrintUrBuildLogIfError(ur_result_t Result, ur_program_handle_t Program,
     UR_LOG_L(getContext()->logger, ERR, "For device {}:\n{}", (void *)Device,
              LogBuf.data());
   }
+}
+
+ur_result_t EnqueueUSMSetZero(ur_queue_handle_t Queue, void *Ptr, size_t Size,
+                              uint32_t NumEvents,
+                              const ur_event_handle_t *EventWaitList,
+                              ur_event_handle_t *OutEvent) {
+  static const char Zero = 0;
+  return getContext()->urDdiTable.Enqueue.pfnUSMFill(
+      Queue, Ptr, 1, &Zero, Size, NumEvents, EventWaitList, OutEvent);
 }
 
 } // namespace ur_sanitizer_layer

@@ -11,7 +11,7 @@
                OpCapability Int8
           %1 = OpExtInstImport "OpenCL.std"
                OpMemoryModel Physical64 OpenCL
-               OpEntryPoint Kernel %19 "test_atomic_global"
+               OpEntryPoint Kernel %19 "entry_test_atomic_global"
                OpSource OpenCL_C 200000
                OpName %test_atomic_global "test_atomic_global"
                OpName %dst "dst"

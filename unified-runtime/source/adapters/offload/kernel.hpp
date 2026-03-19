@@ -14,10 +14,11 @@
 #include <array>
 #include <cstring>
 #include <numeric>
-#include <ur_api.h>
+#include <unified-runtime/ur_api.h>
 #include <vector>
 
 #include "common.hpp"
+#include "memory.hpp"
 
 struct ur_kernel_handle_t_ : RefCounted {
 
@@ -46,17 +47,27 @@ struct ur_kernel_handle_t_ : RefCounted {
         Pointers.resize(Index + 1);
         ParamSizes.resize(Index + 1);
       }
-      ParamSizes[Index] = Size;
       // Calculate the insertion point in the array.
       size_t InsertPos = std::accumulate(std::begin(ParamSizes),
                                          std::begin(ParamSizes) + Index, 0);
+      // Validate bounds before memcpy to prevent heap buffer overflow
+      // Check for integer overflow: validate Size first to avoid underflow
+      if (Size > MaxParamBytes || InsertPos > MaxParamBytes - Size) {
+        throw UR_RESULT_ERROR_OUT_OF_RESOURCES;
+      }
+      ParamSizes[Index] = Size;
       // Update the stored value for the argument.
       std::memcpy(&Storage[InsertPos], Arg, Size);
       Pointers[Index] = &Storage[InsertPos];
     }
 
     void addMemObjArg(int Index, ur_mem_handle_t hMem, ur_mem_flags_t Flags) {
-      assert(hMem && "Invalid mem handle");
+      // Handle zero-sized buffers
+      if (hMem == nullptr) {
+        addArg(Index, 0, nullptr);
+        return;
+      }
+
       // If a memobj is already set at this index, update the entry rather
       // than adding a duplicate one
       for (auto &Arg : MemObjArgs) {
@@ -66,6 +77,9 @@ struct ur_kernel_handle_t_ : RefCounted {
         }
       }
       MemObjArgs.push_back(MemObjArg{hMem, Index, Flags});
+
+      auto Ptr = std::get<BufferMem>(hMem->Mem).Ptr;
+      addArg(Index, sizeof(void *), &Ptr);
     }
 
     const args_ptr_t &getPointers() const noexcept { return Pointers; }

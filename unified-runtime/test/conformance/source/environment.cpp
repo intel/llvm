@@ -10,7 +10,7 @@
 #include <sstream>
 #include <string>
 
-#include "ur_api.h"
+#include "unified-runtime/ur_api.h"
 #include "ur_filesystem_resolved.hpp"
 #include "uur/checks.h"
 #include "uur/known_failure.h"
@@ -33,15 +33,15 @@ AdapterEnvironment::AdapterEnvironment() {
   instance = this;
 
   ur_loader_config_handle_t config;
-  if (urLoaderConfigCreate(&config) == UR_RESULT_SUCCESS) {
-    if (urLoaderConfigEnableLayer(config, "UR_LAYER_FULL_VALIDATION") !=
-        UR_RESULT_SUCCESS) {
-      urLoaderConfigRelease(config);
-      error = "Failed to enable validation layer";
-      return;
-    }
-  } else {
+  if (urLoaderConfigCreate(&config) != UR_RESULT_SUCCESS) {
     error = "Failed to create loader config handle";
+    return;
+  }
+
+  if (urLoaderConfigEnableLayer(config, "UR_LAYER_FULL_VALIDATION") !=
+      UR_RESULT_SUCCESS) {
+    urLoaderConfigRelease(config);
+    error = "Failed to enable validation layer";
     return;
   }
 
@@ -88,9 +88,8 @@ void uur::PlatformEnvironment::populatePlatforms() {
     std::vector<ur_platform_handle_t> platform_list(count);
     ASSERT_SUCCESS(urPlatformGet(a, count, platform_list.data(), nullptr));
 
-    for (auto p : platform_list) {
-      platforms.push_back(p);
-    }
+    platforms.insert(platforms.end(), platform_list.begin(),
+                     platform_list.end());
   }
 
   ASSERT_FALSE(platforms.empty())
@@ -192,62 +191,10 @@ KernelsEnvironment::parseKernelOptions(int argc, char **argv,
 }
 
 std::string
-KernelsEnvironment::getDefaultTargetName(ur_platform_handle_t platform) {
-  if (instance->GetDevices().size() == 0) {
-    error = "no devices available on the platform";
-    return {};
-  }
-
-  ur_backend_t backend;
-  if (urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND, sizeof(backend),
-                        &backend, nullptr)) {
-    error = "failed to get backend from platform.";
-    return {};
-  }
-
-  switch (backend) {
-  case UR_BACKEND_OPENCL:
-  case UR_BACKEND_LEVEL_ZERO:
-    return "spir64";
-  case UR_BACKEND_CUDA:
-    return "nvptx64-nvidia-cuda";
-  case UR_BACKEND_HIP:
-    return "amdgcn-amd-amdhsa";
-  case UR_BACKEND_OFFLOAD: {
-    // All Offload platforms report this backend, use the platform name to select
-    // the actual underlying backend.
-    std::vector<char> PlatformName;
-    size_t PlatformNameSize = 0;
-    urPlatformGetInfo(platform, UR_PLATFORM_INFO_NAME, 0, nullptr,
-                      &PlatformNameSize);
-    PlatformName.resize(PlatformNameSize);
-    urPlatformGetInfo(platform, UR_PLATFORM_INFO_NAME, PlatformNameSize,
-                      PlatformName.data(), nullptr);
-    if (std::strcmp(PlatformName.data(), "CUDA") == 0) {
-      return "nvptx64-nvidia-cuda";
-    } else if (std::strcmp(PlatformName.data(), "AMDGPU") == 0) {
-      return "amdgcn-amd-amdhsa";
-    } else {
-      error = "Could not detect target for Offload platform";
-      return {};
-    }
-  }
-  case UR_BACKEND_NATIVE_CPU:
-    error = "native_cpu doesn't support kernel tests yet";
-    return {};
-  default:
-    error = "unknown target.";
-    return {};
-  }
-}
-
-std::string
 KernelsEnvironment::getKernelSourcePath(const std::string &kernel_name,
                                         const std::string &target_name) {
-  std::stringstream path;
-  path << kernel_options.kernel_directory << "/" << kernel_name << "/"
-       << target_name << ".bin.0";
-  return path.str();
+  return kernel_options.kernel_directory + "/" + kernel_name + "/" +
+         target_name + ".bin.0";
 }
 
 void KernelsEnvironment::LoadSource(
@@ -256,12 +203,17 @@ void KernelsEnvironment::LoadSource(
   // We don't have a way to build device code for native cpu yet.
   UUR_KNOWN_FAILURE_ON_PARAM(platform, uur::NativeCPU{});
 
-  std::string target_name = getDefaultTargetName(platform);
-  if (target_name.empty()) {
-    FAIL() << error;
+  if (instance->GetDevices().size() == 0) {
+    FAIL() << "no devices available on the platform";
   }
 
-  return LoadSource(kernel_name, target_name, binary_out);
+  std::string triple_name;
+  auto Err = GetPlatformTriple(platform, triple_name);
+  if (Err) {
+    FAIL() << "GetPlatformTriple failed with error " << Err << "\n";
+  }
+
+  LoadSource(kernel_name, triple_name, binary_out);
 }
 
 void KernelsEnvironment::LoadSource(
@@ -270,8 +222,9 @@ void KernelsEnvironment::LoadSource(
   std::string source_path =
       instance->getKernelSourcePath(kernel_name, target_name);
 
-  if (cached_kernels.find(source_path) != cached_kernels.end()) {
-    binary_out = cached_kernels[source_path];
+  auto cached = cached_kernels.find(source_path);
+  if (cached != cached_kernels.end()) {
+    binary_out = cached->second;
     return;
   }
 
@@ -315,18 +268,18 @@ void KernelsEnvironment::CreateProgram(
   ur_backend_t backend;
   ASSERT_SUCCESS(urPlatformGetInfo(hPlatform, UR_PLATFORM_INFO_BACKEND,
                                    sizeof(ur_backend_t), &backend, nullptr));
+  size_t size = binary.size();
+  const char *data = binary.data();
   if (backend == UR_BACKEND_HIP || backend == UR_BACKEND_CUDA ||
       backend == UR_BACKEND_OFFLOAD) {
     // The CUDA and HIP adapters do not support urProgramCreateWithIL so we
     // need to use urProgramCreateWithBinary instead.
-    auto size = binary.size();
-    auto data = binary.data();
-    ASSERT_SUCCESS(urProgramCreateWithBinary(
-        hContext, 1, &hDevice, &size, reinterpret_cast<const uint8_t **>(&data),
-        properties, phProgram));
+    const uint8_t *u8data = reinterpret_cast<const uint8_t *>(data);
+    ASSERT_SUCCESS(urProgramCreateWithBinary(hContext, 1, &hDevice, &size,
+                                             &u8data, properties, phProgram));
   } else {
-    ASSERT_SUCCESS(urProgramCreateWithIL(hContext, binary.data(), binary.size(),
-                                         properties, phProgram));
+    ASSERT_SUCCESS(
+        urProgramCreateWithIL(hContext, data, size, properties, phProgram));
   }
 }
 

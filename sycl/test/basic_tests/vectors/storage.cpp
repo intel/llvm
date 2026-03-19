@@ -1,5 +1,5 @@
 // RUN: %clangxx -fsycl -Xclang -verify %s -fsyntax-only
-// RUN: %clangxx -fsycl -Xclang -verify %s -fsyntax-only -fpreview-breaking-changes
+// RUN: %clangxx -fsycl -Xclang -verify %s -fsyntax-only -D__SYCL_USE_LIBSYCL8_VEC_IMPL=1
 // RUN: %clangxx -fsycl -Xclang -verify %s -fsyntax-only -D__SYCL_USE_PLAIN_ARRAY_AS_VEC_STORAGE=1
 // expected-no-diagnostics
 

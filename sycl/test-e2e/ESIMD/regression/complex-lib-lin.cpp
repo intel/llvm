@@ -30,7 +30,7 @@
 //
 // FIXME: is there better way to handle libraries loading than LD_PRELOAD?
 // There is no LIT substitution, which would point to a directory, where
-// temporary files are located. There is %T, but it is marked as "deprecated,
-// do not use"
+// temporary files are located.
+
 // RUN: env LD_PRELOAD=%t-lib-a.so %{run} %t-a.run
 // RUN: env LD_PRELOAD=%t-lib-o.so %{run} %t-o.run

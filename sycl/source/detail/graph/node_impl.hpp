@@ -297,8 +297,6 @@ public:
       return createCGCopy<sycl::detail::CGCopyToDeviceGlobal>();
     case sycl::detail::CGType::CopyFromDeviceGlobal:
       return createCGCopy<sycl::detail::CGCopyFromDeviceGlobal>();
-    case sycl::detail::CGType::ReadWriteHostPipe:
-      return createCGCopy<sycl::detail::CGReadWriteHostPipe>();
     case sycl::detail::CGType::CopyImage:
       return createCGCopy<sycl::detail::CGCopyImage>();
     case sycl::detail::CGType::SemaphoreSignal:
@@ -341,7 +339,7 @@ public:
           static_cast<sycl::detail::CGExecKernel *>(MCommandGroup.get());
       sycl::detail::CGExecKernel *ExecKernelB =
           static_cast<sycl::detail::CGExecKernel *>(Node.MCommandGroup.get());
-      return ExecKernelA->MKernelName.compare(ExecKernelB->MKernelName) == 0;
+      return ExecKernelA->getKernelName() == ExecKernelB->getKernelName();
     }
     case sycl::detail::CGType::CopyUSM: {
       sycl::detail::CGCopyUSM *CopyA =
@@ -543,7 +541,7 @@ private:
       Stream << "CGExecKernel \\n";
       sycl::detail::CGExecKernel *Kernel =
           static_cast<sycl::detail::CGExecKernel *>(MCommandGroup.get());
-      Stream << "NAME = " << Kernel->MKernelName << "\\n";
+      Stream << "NAME = " << Kernel->getKernelName() << "\\n";
       if (Verbose) {
         Stream << "ARGS = \\n";
         for (size_t i = 0; i < Kernel->MArgs.size(); i++) {
@@ -701,9 +699,6 @@ private:
             static_cast<sycl::detail::CGMemset2DUSM *>(MCommandGroup.get());
         Stream << "Dst: " << Memset2DUSM->getDst() << "\\n";
       }
-      break;
-    case sycl::detail::CGType::ReadWriteHostPipe:
-      Stream << "CGReadWriteHostPipe \\n";
       break;
     case sycl::detail::CGType::CopyToDeviceGlobal:
       Stream << "CGCopyToDeviceGlobal \\n";

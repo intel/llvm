@@ -1,21 +1,22 @@
-# Copyright (C) 2024-2025 Intel Corporation
+# Copyright (C) 2024-2026 Intel Corporation
 # Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import os
 import csv
-import io
-from utils.utils import run, git_clone, create_build_path
-from .base import Benchmark, Suite
+from pathlib import Path
+
+from .base import Benchmark, Suite, TracingType
+from utils.logger import log
 from utils.result import Result
 from options import options
+from git_project import GitProject
 
 
 class SyclBench(Suite):
-    def __init__(self, directory):
-        self.directory = directory
-        return
+    def __init__(self):
+        self.project = None
 
     def name(self) -> str:
         return "SYCL-Bench"
@@ -24,44 +25,42 @@ class SyclBench(Suite):
         return "https://github.com/unisa-hpc/sycl-bench.git"
 
     def git_hash(self) -> str:
+        # 21 Feb, 2025
         return "31fc70be6266193c4ba60eb1fe3ce26edee4ca5b"
 
     def setup(self) -> None:
         if options.sycl is None:
             return
 
-        build_path = create_build_path(self.directory, "sycl-bench-build")
-        repo_path = git_clone(
-            self.directory,
-            "sycl-bench-repo",
-            self.git_url(),
-            self.git_hash(),
-        )
+        if self.project is None:
+            self.project = GitProject(
+                self.git_url(),
+                self.git_hash(),
+                Path(options.workdir),
+                "sycl-bench",
+                use_installdir=False,
+            )
 
-        configure_command = [
-            "cmake",
-            f"-B {build_path}",
-            f"-S {repo_path}",
-            f"-DCMAKE_BUILD_TYPE=Release",
+        if not self.project.needs_rebuild():
+            log.info(f"Rebuilding {self.project.name} skipped")
+            return
+
+        extra_args = [
             f"-DCMAKE_CXX_COMPILER={options.sycl}/bin/clang++",
             f"-DCMAKE_C_COMPILER={options.sycl}/bin/clang",
             f"-DSYCL_IMPL=dpcpp",
         ]
-
         if options.ur_adapter == "cuda":
-            configure_command += [
+            extra_args += [
                 f"-DCMAKE_CXX_FLAGS=-fsycl -fsycl-targets=nvptx64-nvidia-cuda"
             ]
-
         if options.ur_adapter == "hip":
-            configure_command += [
+            extra_args += [
                 f"-DCMAKE_CXX_FLAGS=-fsycl -fsycl-targets=amdgcn-amd-amdhsa -Xsycl-target-backend --offload-arch={options.hip_arch}"
             ]
 
-        run(configure_command, add_sycl=True)
-        run(f"cmake --build {build_path} -j {options.build_jobs}", add_sycl=True)
-
-        self.built = True
+        self.project.configure(extra_args, add_sycl=True)
+        self.project.build(add_sycl=True)
 
     def benchmarks(self) -> list[Benchmark]:
         return [
@@ -93,7 +92,7 @@ class SyclBench(Suite):
             # Gesumv(self), # validation failure
             # Gramschmidt(self), # validation failure
             KMeans(self),
-            LinRegCoeff(self),
+            # LinRegCoeff(self), # FIXME: causes serious GPU hangs on 25.31.34666.3
             # LinRegError(self), # run time < 1ms
             # MatmulChain(self), # validation failure
             MolDyn(self),
@@ -105,11 +104,15 @@ class SyclBench(Suite):
 
 
 class SyclBenchmark(Benchmark):
-    def __init__(self, bench, name, test):
-        super().__init__(bench.directory, bench)
-        self.bench = bench
+    def __init__(self, suite: SyclBench, name: str, test: str):
+        super().__init__(suite)
+        self.suite = suite
         self.bench_name = name
         self.test = test
+
+    @property
+    def benchmark_bin(self) -> Path:
+        return self.suite.project.build_dir / self.bench_name
 
     def enabled(self) -> bool:
         return options.sycl is not None
@@ -132,30 +135,27 @@ class SyclBenchmark(Benchmark):
             base_tags.append("latency")
         return base_tags
 
-    def setup(self):
-        self.benchmark_bin = os.path.join(
-            self.directory, "sycl-bench-build", self.bench_name
-        )
-
-    def run(self, env_vars, run_unitrace: bool = False) -> list[Result]:
-        self.outputfile = os.path.join(self.bench.directory, self.test + ".csv")
+    def run(
+        self,
+        env_vars,
+        run_trace: TracingType = TracingType.NONE,
+        force_trace: bool = False,
+    ) -> list[Result]:
+        self.outputfile = os.path.join(options.workdir, self.test + ".csv")
 
         command = [
-            f"{self.benchmark_bin}",
+            str(self.benchmark_bin),
             f"--warmup-run",
             f"--num-runs={options.iterations}",
             f"--output={self.outputfile}",
         ]
 
         command += self.bin_args()
+        env_vars = dict(env_vars) if env_vars else {}
         env_vars.update(self.extra_env_vars())
 
         # no output to stdout, all in outputfile
-        self.run_bench(
-            command,
-            env_vars,
-            run_unitrace=run_unitrace,
-        )
+        self.run_bench(command, env_vars, run_trace=run_trace, force_trace=force_trace)
 
         with open(self.outputfile, "r") as f:
             reader = csv.reader(f)
@@ -172,8 +172,8 @@ class SyclBenchmark(Benchmark):
                             command=command,
                             env=env_vars,
                             unit="ms",
-                            git_url=self.bench.git_url(),
-                            git_hash=self.bench.git_hash(),
+                            git_url=self.suite.git_url(),
+                            git_hash=self.suite.git_hash(),
                         )
                     )
 
@@ -182,10 +182,7 @@ class SyclBenchmark(Benchmark):
         return res_list
 
     def name(self):
-        return f"{self.bench.name()} {self.test}"
-
-    def teardown(self):
-        return
+        return f"{self.suite.name()} {self.test}"
 
 
 # multi benchmarks

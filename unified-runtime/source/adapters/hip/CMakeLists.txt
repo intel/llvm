@@ -72,6 +72,7 @@ add_ur_adapter(${TARGET_NAME}
     ${CMAKE_CURRENT_SOURCE_DIR}/enqueue_native.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/event.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/event.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/graph.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/image.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/kernel.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/kernel.cpp
@@ -144,12 +145,22 @@ if("${UR_HIP_PLATFORM}" STREQUAL "AMD")
         endif()
 
         add_library(amd_comgr SHARED IMPORTED GLOBAL)
+        if(WIN32)
+        set_target_properties(
+            amd_comgr PROPERTIES
+                IMPORTED_LOCATION                    "${UR_HIP_ROCM_DIR}/bin/amd_comgr_3.dll"
+                IMPORTED_IMPLIB                      "${UR_HIP_LIB_DIR}/amd_comgr_3.lib"
+                INTERFACE_INCLUDE_DIRECTORIES        "${HIP_HEADERS}"
+                INTERFACE_SYSTEM_INCLUDE_DIRECTORIES "${HIP_HEADERS}"
+            )
+        else()
         set_target_properties(
         amd_comgr PROPERTIES
             IMPORTED_LOCATION                    "${UR_HIP_LIB_DIR}/libamd_comgr.so"
             INTERFACE_INCLUDE_DIRECTORIES        "${HIP_HEADERS}"
             INTERFACE_SYSTEM_INCLUDE_DIRECTORIES "${HIP_HEADERS}"
         )
+        endif()
         target_link_libraries(${TARGET_NAME} PUBLIC amd_comgr)
         target_compile_definitions(${TARGET_NAME} PRIVATE SYCL_ENABLE_KERNEL_FUSION)
     endif(UR_ENABLE_COMGR)

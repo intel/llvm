@@ -6,10 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <clc/integer/clc_popcount.h>
 #include <libspirv/spirv.h>
 
-#define FUNCTION __spirv_BitCount
-#define __IMPL_FUNCTION(x) __spirv_ocl_popcount
+#define __CLC_FUNCTION __spirv_BitCount
+#define __CLC_IMPL_FUNCTION(x) __clc_popcount
 #define __CLC_BODY <clc/shared/unary_def.inc>
 
 #include <clc/integer/gentype.inc>

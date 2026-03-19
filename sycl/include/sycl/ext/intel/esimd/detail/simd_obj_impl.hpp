@@ -1022,7 +1022,7 @@ public:
   /// Unary logical negation operator, available in all subclasses, but only for
   /// integral element types (\c simd_mask included).
   /// Similarly to C++, where !x returns bool, !simd returns a simd_mask, where
-  /// each element is a result of comparision with zero.
+  /// each element is a result of comparison with zero.
   /// @return A \c simd_mask instance where each element is a result of
   ///   comparison of the original element with zero.
   template <class T1 = Ty, class = std::enable_if_t<std::is_integral_v<T1>>>

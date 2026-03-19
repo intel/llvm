@@ -9,6 +9,7 @@
 #include <detail/device_impl.hpp>
 #include <detail/jit_compiler.hpp>
 #include <detail/platform_impl.hpp>
+#include <detail/scheduler/scheduler.hpp>
 #include <detail/ur_info_code.hpp>
 #include <sycl/detail/ur.hpp>
 #include <sycl/device.hpp>
@@ -22,14 +23,14 @@ namespace detail {
 /// Constructs a SYCL device instance using the provided
 /// UR device instance.
 device_impl::device_impl(ur_device_handle_t Device, platform_impl &Platform,
-                         device_impl::private_tag)
+                         device_impl::private_tag, size_t idx)
     : MDevice(Device), MPlatform(Platform),
       // No need to set MRootDevice when MAlwaysRootDevice is true
       MRootDevice(Platform.MAlwaysRootDevice
                       ? nullptr
                       : get_info_impl<UR_DEVICE_INFO_PARENT_DEVICE>()),
       // TODO catch an exception and put it to list of asynchronous exceptions:
-      MCache{*this} {
+      MCache{*this}, MIndexWithinPlatform(idx) {
   // Interoperability Constructor already calls DeviceRetain in
   // urDeviceCreateWithNativeHandle.
   getAdapter().call<UrApiKind::urDeviceRetain>(MDevice);
@@ -62,48 +63,6 @@ cl_device_id device_impl::get() const {
 platform device_impl::get_platform() const {
   return createSyclObjFromImpl<platform>(MPlatform);
 }
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-template <>
-typename info::platform::version::return_type
-device_impl::get_backend_info<info::platform::version>() const {
-  if (getBackend() != backend::opencl) {
-    throw sycl::exception(errc::backend_mismatch,
-                          "the info::platform::version info descriptor can "
-                          "only be queried with an OpenCL backend");
-  }
-  return get_platform().get_info<info::platform::version>();
-}
-#endif
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-template <>
-typename info::device::version::return_type
-device_impl::get_backend_info<info::device::version>() const {
-  if (getBackend() != backend::opencl) {
-    throw sycl::exception(errc::backend_mismatch,
-                          "the info::device::version info descriptor can only "
-                          "be queried with an OpenCL backend");
-  }
-  return get_info<info::device::version>();
-}
-#endif
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-template <>
-typename info::device::backend_version::return_type
-device_impl::get_backend_info<info::device::backend_version>() const {
-  if (getBackend() != backend::ext_oneapi_level_zero) {
-    throw sycl::exception(errc::backend_mismatch,
-                          "the info::device::backend_version info descriptor "
-                          "can only be queried with a Level Zero backend");
-  }
-  return "";
-  // Currently The Level Zero backend does not define the value of this
-  // information descriptor and implementations are encouraged to return the
-  // empty string as per specification.
-}
-#endif
 
 bool device_impl::has_extension(const std::string &ExtensionName) const {
   if (ExtensionName.empty())
@@ -167,6 +126,21 @@ std::vector<device> device_impl::create_sub_devices(
                       MPlatform.getOrMakeDeviceImpl(a_ur_device));
                   res.push_back(sycl_device);
                 });
+  // urDevicePartition returns devices with their reference counts
+  // incremented. Each device_impl wrapper increments the reference count and
+  // decrements it on destruction (shared ownership). So, we have to decrement
+  // the reference count once here to release temporary handles.
+#ifdef _WIN32
+  // On Windows OpenCL backend, releasing the sub-devices here leads to a crash
+  // during late shutdown. There have been issues observed with premature
+  // unloading of opencl related dlls and seems like that might be the case. So,
+  // intentionally leak sub-devices on Windows OpenCL backend for now.
+  // TODO: Remove this workaround.
+  if (getAdapter().getBackend() != backend::opencl)
+#endif
+    for (ur_device_handle_t &SubDevice : SubDevices)
+      Adapter.call<UrApiKind::urDeviceRelease>(SubDevice);
+
   return res;
 }
 
@@ -283,7 +257,7 @@ std::vector<device> device_impl::create_sub_devices(
                               affinityDomainToString(AffinityDomain) + ".");
   }
 
-  ur_device_partition_property_t Prop;
+  ur_device_partition_property_t Prop{};
   Prop.type = UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN;
   Prop.value.affinity_domain =
       static_cast<ur_device_affinity_domain_flags_t>(AffinityDomain);
@@ -310,9 +284,8 @@ std::vector<device> device_impl::create_sub_devices() const {
         "sycl::info::partition_property::ext_intel_partition_by_cslice.");
   }
 
-  ur_device_partition_property_t Prop;
+  ur_device_partition_property_t Prop{};
   Prop.type = UR_DEVICE_PARTITION_BY_CSLICE;
-
   ur_device_partition_properties_t Properties{};
   Properties.stype = UR_STRUCTURE_TYPE_DEVICE_PARTITION_PROPERTIES;
   Properties.pProperties = &Prop;
@@ -336,61 +309,11 @@ ur_native_handle_t device_impl::getNative() const {
   return Handle;
 }
 
-// On the first call this function queries for device timestamp
-// along with host synchronized timestamp and stores it in member variable
-// MDeviceHostBaseTime. Subsequent calls to this function would just retrieve
-// the host timestamp, compute difference against the host timestamp in
-// MDeviceHostBaseTime and calculate the device timestamp based on the
-// difference.
-//
-// The MDeviceHostBaseTime is refreshed with new device and host timestamp
-// after a certain interval (determined by TimeTillRefresh) to account for
-// clock drift between host and device.
-//
 uint64_t device_impl::getCurrentDeviceTime() {
-  auto GetGlobalTimestamps = [this](ur_device_handle_t Device,
-                                    uint64_t *DeviceTime, uint64_t *HostTime) {
-    auto Result =
-        getAdapter().call_nocheck<UrApiKind::urDeviceGetGlobalTimestamps>(
-            Device, DeviceTime, HostTime);
-    if (Result == UR_RESULT_ERROR_INVALID_OPERATION) {
-      // NOTE(UR port): Removed the call to GetLastError because  we shouldn't
-      // be calling it after ERROR_INVALID_OPERATION: there is no
-      // adapter-specific error.
-      throw detail::set_ur_error(
-          sycl::exception(
-              make_error_code(errc::feature_not_supported),
-              "Device and/or backend does not support querying timestamp."),
-          UR_RESULT_ERROR_INVALID_OPERATION);
-    } else {
-      getAdapter().checkUrResult<errc::feature_not_supported>(Result);
-    }
-  };
-
-  uint64_t HostTime = 0;
-  uint64_t Diff = 0;
-  // To account for potential clock drift between host clock and device clock.
-  // The value set is arbitrary: 200 seconds
-  constexpr uint64_t TimeTillRefresh = 200e9;
-  // If getCurrentDeviceTime is called for the first time or we have to refresh.
-  std::shared_lock<std::shared_mutex> ReadLock(MDeviceHostBaseTimeMutex);
-  if (!MDeviceHostBaseTime.second || Diff > TimeTillRefresh) {
-    ReadLock.unlock();
-    std::unique_lock<std::shared_mutex> WriteLock(MDeviceHostBaseTimeMutex);
-    // Recheck the condition after acquiring the write lock.
-    if (MDeviceHostBaseTime.second && Diff <= TimeTillRefresh) {
-      // If we are here, it means that another thread has already updated
-      // MDeviceHostBaseTime, so we can just return the current device time.
-      return MDeviceHostBaseTime.first + Diff;
-    }
-    GetGlobalTimestamps(MDevice, &MDeviceHostBaseTime.first,
-                        &MDeviceHostBaseTime.second);
-  } else {
-    GetGlobalTimestamps(MDevice, nullptr, &HostTime);
-    assert(HostTime >= MDeviceHostBaseTime.second);
-    Diff = HostTime - MDeviceHostBaseTime.second;
-  }
-  return MDeviceHostBaseTime.first + Diff;
+  uint64_t DeviceTime = 0;
+  getAdapter().call<UrApiKind::urDeviceGetGlobalTimestamps>(
+      MDevice, &DeviceTime, nullptr);
+  return DeviceTime;
 }
 
 bool device_impl::extOneapiCanBuild(
@@ -504,61 +427,26 @@ device_impl::getImmediateProgressGuarantee(
   return forward_progress_guarantee::weakly_parallel;
 }
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-#define EXPORT_GET_INFO(PARAM)                                                 \
-  template <>                                                                  \
-  __SYCL_EXPORT PARAM::return_type device_impl::get_info<PARAM>() const {      \
-    return get_info_abi_workaround<PARAM>();                                   \
+void device_impl::wait() {
+  // Firstly, all associated queues should be cleaned through of all
+  // not-yet-enqueued commands and host_task.
+  {
+    std::lock_guard<std::mutex> Lock(MQueuesMutex);
+    for (const std::weak_ptr<queue_impl> &WQueue : MQueues) {
+      std::shared_ptr<queue_impl> Queue = WQueue.lock();
+      assert(Queue && "Queue should never be dangling in the list of queues "
+                      "associated with the device!");
+      Queue->waitForRuntimeLevelCmdsAndClear();
+    }
   }
 
-// clang-format off
-EXPORT_GET_INFO(ext::intel::info::device::device_id)
-EXPORT_GET_INFO(ext::intel::info::device::pci_address)
-EXPORT_GET_INFO(ext::intel::info::device::gpu_eu_count)
-EXPORT_GET_INFO(ext::intel::info::device::gpu_eu_simd_width)
-EXPORT_GET_INFO(ext::intel::info::device::gpu_slices)
-EXPORT_GET_INFO(ext::intel::info::device::gpu_subslices_per_slice)
-EXPORT_GET_INFO(ext::intel::info::device::gpu_eu_count_per_subslice)
-EXPORT_GET_INFO(ext::intel::info::device::gpu_hw_threads_per_eu)
-EXPORT_GET_INFO(ext::intel::info::device::max_mem_bandwidth)
-EXPORT_GET_INFO(ext::intel::info::device::uuid)
-EXPORT_GET_INFO(ext::intel::info::device::free_memory)
-EXPORT_GET_INFO(ext::intel::info::device::memory_clock_rate)
-EXPORT_GET_INFO(ext::intel::info::device::memory_bus_width)
-EXPORT_GET_INFO(ext::intel::info::device::max_compute_queue_indices)
-EXPORT_GET_INFO(ext::intel::esimd::info::device::has_2d_block_io_support)
-EXPORT_GET_INFO(ext::intel::info::device::current_clock_throttle_reasons)
-EXPORT_GET_INFO(ext::intel::info::device::fan_speed)
-EXPORT_GET_INFO(ext::intel::info::device::min_power_limit)
-EXPORT_GET_INFO(ext::intel::info::device::max_power_limit)
+  // Then we synchronize the entire device.
+  getAdapter().call<detail::UrApiKind::urDeviceWaitExp>(getHandleRef());
+}
 
-EXPORT_GET_INFO(ext::codeplay::experimental::info::device::supports_fusion)
-EXPORT_GET_INFO(ext::codeplay::experimental::info::device::max_registers_per_work_group)
-
-EXPORT_GET_INFO(ext::oneapi::experimental::info::device::max_global_work_groups)
-EXPORT_GET_INFO(ext::oneapi::experimental::info::device::max_work_groups<1>)
-EXPORT_GET_INFO(ext::oneapi::experimental::info::device::max_work_groups<2>)
-EXPORT_GET_INFO(ext::oneapi::experimental::info::device::max_work_groups<3>)
-EXPORT_GET_INFO(ext::oneapi::experimental::info::device::work_group_progress_capabilities<ext::oneapi::experimental::execution_scope::root_group>)
-EXPORT_GET_INFO(ext::oneapi::experimental::info::device::sub_group_progress_capabilities<ext::oneapi::experimental::execution_scope::root_group>)
-EXPORT_GET_INFO(ext::oneapi::experimental::info::device::sub_group_progress_capabilities<ext::oneapi::experimental::execution_scope::work_group>)
-EXPORT_GET_INFO(ext::oneapi::experimental::info::device::work_item_progress_capabilities<ext::oneapi::experimental::execution_scope::root_group>)
-EXPORT_GET_INFO(ext::oneapi::experimental::info::device::work_item_progress_capabilities<ext::oneapi::experimental::execution_scope::work_group>)
-EXPORT_GET_INFO(ext::oneapi::experimental::info::device::work_item_progress_capabilities<ext::oneapi::experimental::execution_scope::sub_group>)
-EXPORT_GET_INFO(ext::oneapi::experimental::info::device::architecture)
-EXPORT_GET_INFO(ext::oneapi::experimental::info::device::matrix_combinations)
-EXPORT_GET_INFO(ext::oneapi::experimental::info::device::image_row_pitch_align)
-EXPORT_GET_INFO(ext::oneapi::experimental::info::device::max_image_linear_row_pitch)
-EXPORT_GET_INFO(ext::oneapi::experimental::info::device::max_image_linear_width)
-EXPORT_GET_INFO(ext::oneapi::experimental::info::device::max_image_linear_height)
-EXPORT_GET_INFO(ext::oneapi::experimental::info::device::mipmap_max_anisotropy)
-EXPORT_GET_INFO(ext::oneapi::experimental::info::device::component_devices)
-EXPORT_GET_INFO(ext::oneapi::experimental::info::device::composite_device)
-EXPORT_GET_INFO(ext::oneapi::info::device::num_compute_units)
-// clang-format on
-
-#undef EXPORT_GET_INFO
-#endif
+void device_impl::throwAsynchronous() {
+  Scheduler::getInstance().flushAsyncExceptions();
+}
 
 } // namespace detail
 } // namespace _V1

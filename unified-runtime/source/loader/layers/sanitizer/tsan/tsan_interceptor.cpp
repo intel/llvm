@@ -78,9 +78,9 @@ ur_result_t TsanRuntimeDataWrapper::importLocalArgsInfo(
   Host.NumLocalArgs = LocalArgs.size();
   const size_t LocalArgsInfoSize =
       sizeof(TsanLocalArgsInfo) * Host.NumLocalArgs;
-  UR_CALL(getContext()->urDdiTable.USM.pfnDeviceAlloc(
-      Context, Device, nullptr, nullptr, LocalArgsInfoSize,
-      ur_cast<void **>(&Host.LocalArgs)));
+  UR_CALL(SafeAllocate(Context, Device, LocalArgsInfoSize, nullptr, nullptr,
+                       AllocType::DEVICE_USM,
+                       ur_cast<void **>(&Host.LocalArgs)));
 
   UR_CALL(getContext()->urDdiTable.Enqueue.pfnUSMMemcpy(
       Queue, true, Host.LocalArgs, &LocalArgs[0], LocalArgsInfoSize, 0, nullptr,
@@ -140,16 +140,8 @@ ur_result_t TsanInterceptor::allocateMemory(ur_context_handle_t Context,
 
   void *Allocated = nullptr;
 
-  if (Type == AllocType::DEVICE_USM) {
-    UR_CALL(getContext()->urDdiTable.USM.pfnDeviceAlloc(
-        Context, Device, Properties, Pool, Size, &Allocated));
-  } else if (Type == AllocType::HOST_USM) {
-    UR_CALL(getContext()->urDdiTable.USM.pfnHostAlloc(Context, Properties, Pool,
-                                                      Size, &Allocated));
-  } else if (Type == AllocType::SHARED_USM) {
-    UR_CALL(getContext()->urDdiTable.USM.pfnSharedAlloc(
-        Context, Device, Properties, Pool, Size, &Allocated));
-  }
+  UR_CALL(
+      SafeAllocate(Context, Device, Size, Properties, Pool, Type, &Allocated));
 
   auto AI = TsanAllocInfo{reinterpret_cast<uptr>(Allocated), Size};
   // For updating shadow memory
@@ -307,19 +299,6 @@ ur_result_t TsanInterceptor::insertProgram(ur_program_handle_t Program) {
   if (m_ProgramMap.find(Program) != m_ProgramMap.end()) {
     return UR_RESULT_SUCCESS;
   }
-  auto CI = getContextInfo(GetContext(Program));
-  auto DI = getDeviceInfo(CI->DeviceList[0]);
-  ur_specialization_constant_info_t SpecConstantInfo{
-      SPEC_CONSTANT_DEVICE_TYPE_ID, sizeof(DeviceType), &DI->Type};
-  ur_result_t URes =
-      getContext()->urDdiTable.Program.pfnSetSpecializationConstants(
-          Program, 1, &SpecConstantInfo);
-  if (URes != UR_RESULT_SUCCESS) {
-    UR_LOG_L(getContext()->logger, DEBUG,
-             "Set specilization constant for device type failed: {}, the "
-             "program may not be sanitized or is created from binary.",
-             URes);
-  }
   m_ProgramMap.emplace(Program, Program);
   return UR_RESULT_SUCCESS;
 }
@@ -421,7 +400,7 @@ ur_result_t TsanInterceptor::prepareLaunch(std::shared_ptr<ContextInfo> &,
   if (LaunchInfo.LocalWorkSize.empty()) {
     LaunchInfo.LocalWorkSize.resize(LaunchInfo.WorkDim);
     auto URes = getContext()->urDdiTable.Kernel.pfnGetSuggestedLocalWorkSize(
-        Kernel, Queue, LaunchInfo.WorkDim, LaunchInfo.GlobalWorkOffset,
+        Kernel, Queue, LaunchInfo.WorkDim, LaunchInfo.GlobalWorkOffset.data(),
         LaunchInfo.GlobalWorkSize, LaunchInfo.LocalWorkSize.data());
     if (URes != UR_RESULT_SUCCESS) {
       if (URes != UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
@@ -438,6 +417,7 @@ ur_result_t TsanInterceptor::prepareLaunch(std::shared_ptr<ContextInfo> &,
   // Prepare launch info data
   LaunchInfo.Data.Host.GlobalShadowOffset = DI->Shadow->ShadowBegin;
   LaunchInfo.Data.Host.GlobalShadowOffsetEnd = DI->Shadow->ShadowEnd;
+  LaunchInfo.Data.Host.DeviceTy = DI->Type;
   LaunchInfo.Data.Host.Debug = getContext()->Options.Debug ? 1 : 0;
 
   const size_t *LocalWorkSize = LaunchInfo.LocalWorkSize.data();

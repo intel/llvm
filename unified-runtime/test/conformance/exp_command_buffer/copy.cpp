@@ -1,4 +1,4 @@
-// Copyright (C) 2025 Intel Corporation
+// Copyright (C) 2025-2026 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
 //
@@ -21,10 +21,10 @@ struct urCommandBufferMemcpyCommandsTest
         uur::command_buffer::urCommandBufferExpTestWithParam<
             testParametersMemcpy>::SetUp());
 
-    size = std::get<1>(GetParam()).size;
-    offset_src = std::get<1>(GetParam()).offset_src;
-    offset_dst = std::get<1>(GetParam()).offset_dst;
-    copy_size = std::get<1>(GetParam()).copy_size;
+    size = getParam().size;
+    offset_src = getParam().offset_src;
+    offset_dst = getParam().offset_dst;
+    copy_size = getParam().copy_size;
     assert(size >= offset_src + copy_size);
     assert(size >= offset_dst + copy_size);
     // Allocate USM pointers
@@ -103,15 +103,20 @@ static std::string printMemcpyTestString(
   const auto platform_device_name =
       uur::GetPlatformAndDeviceName(device_handle);
   std::stringstream test_name;
-  test_name << platform_device_name << "__size__"
-            << std::get<1>(info.param).size << "__offset_src__"
-            << std::get<1>(info.param).offset_src << "__offset_src__"
-            << std::get<1>(info.param).offset_dst << "__copy_size__"
-            << std::get<1>(info.param).copy_size;
+
+  auto paramTuple = std::get<1>(info.param);
+  auto param = std::get<0>(paramTuple);
+  auto queueMode = std::get<1>(paramTuple);
+
+  test_name << platform_device_name << "__size__" << param.size
+            << "__offset_src__" << param.offset_src << "__offset_src__"
+            << param.offset_dst << "__copy_size__" << param.copy_size << "__"
+            << queueMode;
+
   return test_name.str();
 }
 
-UUR_DEVICE_TEST_SUITE_WITH_PARAM(
+UUR_MULTI_QUEUE_TYPE_TEST_SUITE_WITH_PARAM(
     urCommandBufferMemcpyCommandsTest, testing::ValuesIn(test_cases),
     printMemcpyTestString<urCommandBufferMemcpyCommandsTest>);
 

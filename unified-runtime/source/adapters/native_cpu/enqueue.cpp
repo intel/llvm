@@ -10,7 +10,7 @@
 #include <cstdint>
 #include <vector>
 
-#include "ur_api.h"
+#include "unified-runtime/ur_api.h"
 
 #include "common.hpp"
 #include "event.hpp"
@@ -70,8 +70,18 @@ public:
   }
 };
 
+template <class T>
 inline static WaitInfo getWaitInfo(uint32_t numEventsInWaitList,
-                                   const ur_event_handle_t *phEventWaitList) {
+                                   const ur_event_handle_t *phEventWaitList,
+                                   const T &scheduler) {
+  if (numEventsInWaitList && !scheduler.CanWaitInThread()) {
+    // Waiting for dependent events in threads launched by the enqueue may
+    // not work correctly for some backend/schedulers, so we have the safe
+    // option here to wait in the main thread instead (potentially at the
+    // expense of performance).
+    urEventWait(numEventsInWaitList, phEventWaitList);
+    numEventsInWaitList = 0;
+  }
   return native_cpu::WaitInfo(numEventsInWaitList, phEventWaitList);
 }
 
@@ -89,16 +99,26 @@ static inline native_cpu::state getState(const native_cpu::NDRDescT &ndr) {
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel, uint32_t workDim,
     const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
-    const size_t *pLocalWorkSize, uint32_t numPropsInLaunchPropList,
-    const ur_kernel_launch_property_t *launchPropList,
+    const size_t *pLocalWorkSize,
+    const ur_kernel_launch_ext_properties_t *launchPropList,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
-  // We don't support any launch properties.
-  for (uint32_t propIndex = 0; propIndex < numPropsInLaunchPropList;
-       propIndex++) {
-    if (launchPropList[propIndex].id != UR_KERNEL_LAUNCH_PROPERTY_ID_IGNORE) {
+
+  ur_kernel_launch_ext_properties_t *_launchPropList =
+      const_cast<ur_kernel_launch_ext_properties_t *>(launchPropList);
+  if (_launchPropList && _launchPropList->flags) {
+    // We don't support any flags.
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  }
+
+  while (_launchPropList != nullptr) {
+    if (_launchPropList->stype !=
+        as_stype<ur_kernel_launch_ext_properties_t>()) {
+      // We don't support any launch properties.
       return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
+    _launchPropList = static_cast<ur_kernel_launch_ext_properties_t *>(
+        _launchPropList->pNext);
   }
 
   UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
@@ -151,7 +171,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
 
   auto &tp = hQueue->getDevice()->tp;
   const size_t numParallelThreads = tp.num_threads();
-  std::vector<std::future<void>> futures;
+  auto Tasks = native_cpu::getScheduler(tp);
   auto numWG0 = ndr.GlobalSize[0] / ndr.LocalSize[0];
   auto numWG1 = ndr.GlobalSize[1] / ndr.LocalSize[1];
   auto numWG2 = ndr.GlobalSize[2] / ndr.LocalSize[2];
@@ -162,7 +182,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   auto kernel = std::make_unique<ur_kernel_handle_t_>(*hKernel);
   kernel->updateMemPool(numParallelThreads);
 
-  auto InEvents = native_cpu::getWaitInfo(numEventsInWaitList, phEventWaitList);
+  auto InEvents =
+      native_cpu::getWaitInfo(numEventsInWaitList, phEventWaitList, Tasks);
 
   const size_t numWG = numWG0 * numWG1 * numWG2;
   const size_t numWGPerThread = numWG / numParallelThreads;
@@ -177,42 +198,41 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     rangeEnd[0] = rangeEnd[3] % numWG0;
     rangeEnd[1] = (rangeEnd[3] / numWG0) % numWG1;
     rangeEnd[2] = rangeEnd[3] / (numWG0 * numWG1);
-    futures.emplace_back(tp.schedule_task(
-        [ndr, InEvents, &kernel = *kernel, rangeStart, rangeEnd = rangeEnd[3],
-         numWG0, numWG1, numParallelThreads](size_t threadId) {
-          auto state = getState(ndr);
-          InEvents.wait();
-          for (size_t g0 = rangeStart[0], g1 = rangeStart[1],
-                      g2 = rangeStart[2], g3 = rangeStart[3];
-               g3 < rangeEnd; ++g3) {
+    Tasks.schedule([ndr, InEvents, &kernel = *kernel, rangeStart,
+                    rangeEnd = rangeEnd[3], numWG0, numWG1,
+                    numParallelThreads](size_t threadId) {
+      auto state = getState(ndr);
+      InEvents.wait();
+      for (size_t g0 = rangeStart[0], g1 = rangeStart[1], g2 = rangeStart[2],
+                  g3 = rangeStart[3];
+           g3 < rangeEnd; ++g3) {
 #ifdef NATIVECPU_USE_OCK
-            state.update(g0, g1, g2);
-            kernel._subhandler(
-                kernel.getArgs(numParallelThreads, threadId).data(), &state);
+        state.update(g0, g1, g2);
+        kernel._subhandler(kernel.getArgs(numParallelThreads, threadId).data(),
+                           &state);
 #else
-            for (size_t local2 = 0; local2 < ndr.LocalSize[2]; ++local2) {
-              for (size_t local1 = 0; local1 < ndr.LocalSize[1]; ++local1) {
-                for (size_t local0 = 0; local0 < ndr.LocalSize[0]; ++local0) {
-                  state.update(g0, g1, g2, local0, local1, local2);
-                  kernel._subhandler(
-                      kernel.getArgs(numParallelThreads, threadId).data(),
-                      &state);
-                }
-              }
-            }
-#endif
-            if (++g0 == numWG0) {
-              g0 = 0;
-              if (++g1 == numWG1) {
-                g1 = 0;
-                ++g2;
-              }
+        for (size_t local2 = 0; local2 < ndr.LocalSize[2]; ++local2) {
+          for (size_t local1 = 0; local1 < ndr.LocalSize[1]; ++local1) {
+            for (size_t local0 = 0; local0 < ndr.LocalSize[0]; ++local0) {
+              state.update(g0, g1, g2, local0, local1, local2);
+              kernel._subhandler(
+                  kernel.getArgs(numParallelThreads, threadId).data(), &state);
             }
           }
-        }));
+        }
+#endif
+        if (++g0 == numWG0) {
+          g0 = 0;
+          if (++g1 == numWG1) {
+            g1 = 0;
+            ++g2;
+          }
+        }
+      }
+    });
     rangeStart = rangeEnd;
   }
-  event->set_futures(futures);
+  event->set_tasksinfo(Tasks.getMovedTaskInfo());
 
   if (phEvent) {
     *phEvent = event;
@@ -248,14 +268,14 @@ withTimingEvent(ur_command_t command_type, ur_queue_handle_t hQueue,
       return result;
     }
     auto &tp = hQueue->getDevice()->tp;
-    std::vector<std::future<void>> futures;
+    auto Tasks = native_cpu::getScheduler(tp);
     auto InEvents =
-        native_cpu::getWaitInfo(numEventsInWaitList, phEventWaitList);
-    futures.emplace_back(tp.schedule_task([f, InEvents](size_t) {
+        native_cpu::getWaitInfo(numEventsInWaitList, phEventWaitList, Tasks);
+    Tasks.schedule([f, InEvents](size_t) {
       InEvents.wait();
       f();
-    }));
-    event->set_futures(futures);
+    });
+    event->set_tasksinfo(Tasks.getMovedTaskInfo());
     event->set_callback(
         [event, InEvents = InEvents.getUniquePtr()]() { event->tick_end(); });
     return UR_RESULT_SUCCESS;
@@ -465,7 +485,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferFill(
         // TODO: error checking
         // TODO: handle async
         void *startingPtr = hBuffer->_mem + offset;
-        unsigned steps = size / patternSize;
+        size_t steps = size / patternSize;
         for (unsigned i = 0; i < steps; i++) {
           memcpy(static_cast<int8_t *>(startingPtr) + i * patternSize, pPattern,
                  patternSize);
@@ -575,7 +595,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill(
           break;
         }
         default: {
-          for (unsigned int step{0}; step < size; step += patternSize) {
+          for (size_t step{0}; step < size; step += patternSize) {
             auto *dest = reinterpret_cast<void *>(
                 reinterpret_cast<uint8_t *>(ptr) + step);
             memcpy(dest, pPattern, patternSize);
@@ -629,13 +649,23 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill2D(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
-    ur_queue_handle_t /*hQueue*/, bool /*blocking*/, void * /*pDst*/,
-    size_t /*dstPitch*/, const void * /*pSrc*/, size_t /*srcPitch*/,
-    size_t /*width*/, size_t /*height*/, uint32_t /*numEventsInWaitList*/,
-    const ur_event_handle_t * /*phEventWaitList*/,
-    ur_event_handle_t * /*phEvent*/) {
-
-  DIE_NO_IMPLEMENTATION;
+    ur_queue_handle_t hQueue, bool blocking, void *pDst, size_t dstPitch,
+    const void *pSrc, size_t srcPitch, size_t width, size_t height,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent) {
+  return withTimingEvent(
+      UR_COMMAND_USM_MEMCPY_2D, hQueue, numEventsInWaitList, phEventWaitList,
+      phEvent,
+      [width, height, srcPitch, dstPitch, pDst, pSrc]() {
+        for (size_t h = 0, Src_ind = 0, Dst_ind = 0; h < height;
+             h++, Src_ind += srcPitch, Dst_ind += dstPitch) {
+          int8_t &d_mem = ur_cast<int8_t *>(pDst)[Dst_ind];
+          const int8_t &s_mem = ur_cast<const int8_t *>(pSrc)[Src_ind];
+          std::memcpy(&d_mem, &s_mem, width);
+        }
+        return UR_RESULT_SUCCESS;
+      },
+      blocking);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableWrite(
@@ -684,4 +714,44 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueNativeCommandExp(
     const ur_exp_enqueue_native_command_properties_t *, uint32_t,
     const ur_event_handle_t *, ur_event_handle_t *) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunchWithArgsExp(
+    ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel, uint32_t workDim,
+    const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
+    const size_t *pLocalWorkSize, uint32_t numArgs,
+    const ur_exp_kernel_arg_properties_t *pArgs,
+    const ur_kernel_launch_ext_properties_t *launchPropList,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent) {
+  for (uint32_t argIndex = 0; argIndex < numArgs; argIndex++) {
+    switch (pArgs[argIndex].type) {
+    case UR_EXP_KERNEL_ARG_TYPE_VALUE:
+      UR_CALL(hKernel->addArg(pArgs[argIndex].value.value,
+                              pArgs[argIndex].index, pArgs[argIndex].size));
+      break;
+    case UR_EXP_KERNEL_ARG_TYPE_POINTER:
+      UR_CALL(
+          hKernel->addPtrArg(const_cast<void *>(pArgs[argIndex].value.pointer),
+                             pArgs[argIndex].index));
+      break;
+    case UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ: {
+      auto MemObj = pArgs[argIndex].value.memObjTuple.hMem;
+      UR_CALL(hKernel->addMemObjArg(MemObj, pArgs[argIndex].index));
+      break;
+    }
+    case UR_EXP_KERNEL_ARG_TYPE_LOCAL:
+      UR_CALL(
+          hKernel->addLocalArg(pArgs[argIndex].index, pArgs[argIndex].size));
+      break;
+    case UR_EXP_KERNEL_ARG_TYPE_SAMPLER:
+      return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+      break;
+    default:
+      return UR_RESULT_ERROR_INVALID_ENUMERATION;
+    }
+  }
+  return urEnqueueKernelLaunch(hQueue, hKernel, workDim, pGlobalWorkOffset,
+                               pGlobalWorkSize, pLocalWorkSize, launchPropList,
+                               numEventsInWaitList, phEventWaitList, phEvent);
 }

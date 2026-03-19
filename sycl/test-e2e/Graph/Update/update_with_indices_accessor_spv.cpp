@@ -37,11 +37,14 @@ int main(int, char **argv) {
   BufB.set_write_back(false);
   // Initial accessor for use in kernel and dynamic parameter
   auto Acc = BufA.get_access();
-  exp_ext::dynamic_parameter InputParam(Graph, Acc);
+  exp_ext::dynamic_parameter InputParam(Acc);
 
   auto KernelNode = Graph.add([&](handler &cgh) {
     cgh.require(InputParam);
+    // the kernel requires two arguments, the second one is an offset which is
+    // set to 0 here
     cgh.set_arg(0, InputParam);
+    cgh.set_arg(1, 0); // offset
     cgh.single_task(kernel);
   });
 

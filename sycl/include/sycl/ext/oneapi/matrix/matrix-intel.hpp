@@ -520,7 +520,7 @@ template <typename Group, typename T,
 inline __SYCL_ALWAYS_INLINE decltype(auto)
 get_wi_data(Group sg, sycl::ext::oneapi::experimental::matrix::joint_matrix<
                           Group, T, Use, Rows, Cols, Layout> &jm) {
-  std::ignore = sg;
+  (void)sg;
   return wi_data(jm);
 }
 
@@ -546,9 +546,9 @@ joint_matrix_store(Group,
   static_assert(Space != access::address_space::private_space,
                 "Joint Matrix doesn't support store to private memory!");
 #if defined(__NVPTX__)
-  std::ignore = src;
-  std::ignore = dst;
-  std::ignore = stride;
+  (void)src;
+  (void)dst;
+  (void)stride;
   throw exception(
       make_error_code(errc::runtime),
       "This version of the matrix extension is only currently supported on "
@@ -569,9 +569,9 @@ joint_matrix_store(Group,
       stride);
 #endif // defined(__NVPTX__)
 #else
-  std::ignore = src;
-  std::ignore = dst;
-  std::ignore = stride;
+  (void)src;
+  (void)dst;
+  (void)stride;
   throw exception(make_error_code(errc::runtime),
                   "joint matrix is not supported on host.");
 #endif // defined(__SYCL_DEVICE_ONLY__)
@@ -593,9 +593,9 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_store(
     size_t stride) {
 #if defined(__SYCL_DEVICE_ONLY__)
 #if defined(__NVPTX__)
-  std::ignore = src;
-  std::ignore = dst;
-  std::ignore = stride;
+  (void)src;
+  (void)dst;
+  (void)stride;
   throw exception(
       make_error_code(errc::runtime),
       "This version of the matrix extension is only currently supported on "
@@ -615,9 +615,9 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_store(
       stride);
 #endif // defined(__NVPTX__)
 #else
-  std::ignore = src;
-  std::ignore = dst;
-  std::ignore = stride;
+  (void)src;
+  (void)dst;
+  (void)stride;
   throw exception(make_error_code(errc::runtime),
                   "joint matrix is not supported on host.");
 #endif // defined(__SYCL_DEVICE_ONLY__)
@@ -634,7 +634,7 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_apply(
     F &&lambda) {
 #if defined(__SYCL_DEVICE_ONLY__)
 #if defined(__NVPTX__)
-  std::ignore = sg;
+  (void)sg;
   for (int i = 0; i < jm.matrix_impl.wi_marray.size(); i++) {
     lambda(jm.matrix_impl.wi_marray[i]);
   }
@@ -651,9 +651,9 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_apply(
   }
 #endif
 #else
-  std::ignore = sg;
-  std::ignore = jm;
-  std::ignore = lambda;
+  (void)sg;
+  (void)jm;
+  (void)lambda;
   throw exception(make_error_code(errc::runtime),
                   "joint matrix is not supported on host.");
 #endif
@@ -679,12 +679,12 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_fill_checked(
       spv_matrix_layout_traits<Layout>::value>(
       CoordX, CoordY, Height, Width, static_cast<storage_element_type>(Value));
 #else
-  std::ignore = Res;
-  std::ignore = Value;
-  std::ignore = Height;
-  std::ignore = Width;
-  std::ignore = CoordX;
-  std::ignore = CoordY;
+  (void)Res;
+  (void)Value;
+  (void)Height;
+  (void)Width;
+  (void)CoordX;
+  (void)CoordY;
   throw exception(make_error_code(errc::runtime),
                   "joint matrix is not supported on host.");
 #endif // defined(__SYCL_DEVICE_ONLY__)
@@ -704,7 +704,7 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_load_checked(
 #if defined(__SYCL_DEVICE_ONLY__)
   static_assert(Space != access::address_space::private_space,
                 "Joint Matrix doesn't support load from private memory!");
-  std::ignore = sg;
+  (void)sg;
   using DecorT = typename sycl::detail::DecoratedType<T, Space>::type;
   DecorT *Ptr = sycl::detail::getDecorated<DecorT>(Src);
   Res.spvm = __spirv_CooperativeMatrixLoadCheckedINTEL<
@@ -714,15 +714,15 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_load_checked(
       Ptr, CoordX, CoordY, sycl::detail::joint_matrix_layout_to_spv(Layout),
       Height, Width, Stride);
 #else
-  std::ignore = sg;
-  std::ignore = Res;
-  std::ignore = Src;
-  std::ignore = Stride;
-  std::ignore = Height;
-  std::ignore = Width;
-  std::ignore = Layout;
-  std::ignore = CoordX;
-  std::ignore = CoordY;
+  (void)sg;
+  (void)Res;
+  (void)Src;
+  (void)Stride;
+  (void)Height;
+  (void)Width;
+  (void)Layout;
+  (void)CoordX;
+  (void)CoordY;
   throw exception(make_error_code(errc::runtime),
                   "joint matrix is not supported on host.");
 #endif // defined(__SYCL_DEVICE_ONLY__)
@@ -743,7 +743,7 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_load_checked(
 #if defined(__SYCL_DEVICE_ONLY__)
   static_assert(Space != access::address_space::private_space,
                 "Joint Matrix doesn't support load from private memory!");
-  std::ignore = sg;
+  (void)sg;
   using DecorT = typename sycl::detail::DecoratedType<T, Space>::type;
   DecorT *Ptr = sycl::detail::getDecorated<DecorT>(Src);
   Res.spvm = __spirv_CooperativeMatrixLoadCheckedINTEL<
@@ -752,14 +752,14 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_load_checked(
       Ptr, CoordX, CoordY, spv_matrix_layout_traits<Layout>::value, Height,
       Width, Stride);
 #else
-  std::ignore = sg;
-  std::ignore = Res;
-  std::ignore = Src;
-  std::ignore = Stride;
-  std::ignore = Height;
-  std::ignore = Width;
-  std::ignore = CoordX;
-  std::ignore = CoordY;
+  (void)sg;
+  (void)Res;
+  (void)Src;
+  (void)Stride;
+  (void)Height;
+  (void)Width;
+  (void)CoordX;
+  (void)CoordY;
   throw exception(make_error_code(errc::runtime),
                   "joint matrix is not supported on host.");
 #endif // defined(__SYCL_DEVICE_ONLY__)
@@ -776,7 +776,7 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_store_checked(
 #if defined(__SYCL_DEVICE_ONLY__)
   static_assert(Space != access::address_space::private_space,
                 "Joint Matrix doesn't support store to private memory!");
-  std::ignore = sg;
+  (void)sg;
   using DecorT = typename sycl::detail::DecoratedType<T, Space>::type;
   DecorT *Ptr = sycl::detail::getDecorated<DecorT>(Dst);
   __spirv_CooperativeMatrixStoreCheckedINTEL<
@@ -786,15 +786,15 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_store_checked(
       Ptr, CoordX, CoordY, Src.spvm,
       sycl::detail::joint_matrix_layout_to_spv(Layout), Height, Width, Stride);
 #else
-  std::ignore = sg;
-  std::ignore = Src;
-  std::ignore = Dst;
-  std::ignore = Stride;
-  std::ignore = Height;
-  std::ignore = Width;
-  std::ignore = Layout;
-  std::ignore = CoordX;
-  std::ignore = CoordY;
+  (void)sg;
+  (void)Src;
+  (void)Dst;
+  (void)Stride;
+  (void)Height;
+  (void)Width;
+  (void)Layout;
+  (void)CoordX;
+  (void)CoordY;
   throw exception(make_error_code(errc::runtime),
                   "joint matrix is not supported on host.");
 #endif // defined(__SYCL_DEVICE_ONLY__)
@@ -811,7 +811,7 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_store_checked(
 #if defined(__SYCL_DEVICE_ONLY__)
   static_assert(Space != access::address_space::private_space,
                 "Joint Matrix doesn't support store to private memory!");
-  std::ignore = sg;
+  (void)sg;
   using DecorT = typename sycl::detail::DecoratedType<T, Space>::type;
   DecorT *Ptr = sycl::detail::getDecorated<DecorT>(Dst);
   __spirv_CooperativeMatrixStoreCheckedINTEL<
@@ -820,14 +820,14 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_store_checked(
       Ptr, CoordX, CoordY, Src.spvm, spv_matrix_layout_traits<Layout>::value,
       Height, Width, Stride);
 #else
-  std::ignore = sg;
-  std::ignore = Src;
-  std::ignore = Dst;
-  std::ignore = Stride;
-  std::ignore = Height;
-  std::ignore = Width;
-  std::ignore = CoordX;
-  std::ignore = CoordY;
+  (void)sg;
+  (void)Src;
+  (void)Dst;
+  (void)Stride;
+  (void)Height;
+  (void)Width;
+  (void)CoordX;
+  (void)CoordY;
   throw exception(make_error_code(errc::runtime),
                   "joint matrix is not supported on host.");
 #endif // defined(__SYCL_DEVICE_ONLY__)
@@ -846,7 +846,7 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_load_checked(
     size_t Stride, layout Layout, size_t Height, size_t Width, size_t CoordX,
     size_t CoordY) {
 #if defined(__SYCL_DEVICE_ONLY__)
-  std::ignore = sg;
+  (void)sg;
   T *Ptr = Src.get();
   Res.spvm = __spirv_CooperativeMatrixLoadCheckedINTEL<
       T, S, NumRows, NumCols, spv_matrix_use_traits<use::accumulator>::value,
@@ -854,15 +854,15 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_load_checked(
       Ptr, CoordX, CoordY, sycl::detail::joint_matrix_layout_to_spv(Layout),
       Height, Width, Stride);
 #else
-  std::ignore = sg;
-  std::ignore = Res;
-  std::ignore = Src;
-  std::ignore = Stride;
-  std::ignore = Height;
-  std::ignore = Width;
-  std::ignore = Layout;
-  std::ignore = CoordX;
-  std::ignore = CoordY;
+  (void)sg;
+  (void)Res;
+  (void)Src;
+  (void)Stride;
+  (void)Height;
+  (void)Width;
+  (void)Layout;
+  (void)CoordX;
+  (void)CoordY;
   throw exception(make_error_code(errc::runtime),
                   "joint matrix is not supported on host.");
 #endif // defined(__SYCL_DEVICE_ONLY__)
@@ -880,7 +880,7 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_load_checked(
     ext::oneapi::experimental::annotated_ptr<T, PropertyListT> Src,
     size_t Stride, size_t Height, size_t Width, size_t CoordX, size_t CoordY) {
 #if defined(__SYCL_DEVICE_ONLY__)
-  std::ignore = sg;
+  (void)sg;
   T *Ptr = Src.get();
   Res.spvm = __spirv_CooperativeMatrixLoadCheckedINTEL<
       T, S, NumRows, NumCols, spv_matrix_use_traits<Use>::value,
@@ -888,14 +888,14 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_load_checked(
       Ptr, CoordX, CoordY, spv_matrix_layout_traits<Layout>::value, Height,
       Width, Stride);
 #else
-  std::ignore = sg;
-  std::ignore = Res;
-  std::ignore = Src;
-  std::ignore = Stride;
-  std::ignore = Height;
-  std::ignore = Width;
-  std::ignore = CoordX;
-  std::ignore = CoordY;
+  (void)sg;
+  (void)Res;
+  (void)Src;
+  (void)Stride;
+  (void)Height;
+  (void)Width;
+  (void)CoordX;
+  (void)CoordY;
   throw exception(make_error_code(errc::runtime),
                   "joint matrix is not supported on host.");
 #endif // defined(__SYCL_DEVICE_ONLY__)
@@ -911,7 +911,7 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_store_checked(
     size_t Stride, layout Layout, size_t Height, size_t Width, size_t CoordX,
     size_t CoordY) {
 #if defined(__SYCL_DEVICE_ONLY__)
-  std::ignore = sg;
+  (void)sg;
   T *Ptr = Dst.get();
   __spirv_CooperativeMatrixStoreCheckedINTEL<
       T, T, NumRows, NumCols, spv_matrix_use_traits<use::accumulator>::value,
@@ -919,15 +919,15 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_store_checked(
       Ptr, CoordX, CoordY, Src.spvm,
       sycl::detail::joint_matrix_layout_to_spv(Layout), Height, Width, Stride);
 #else
-  std::ignore = sg;
-  std::ignore = Src;
-  std::ignore = Dst;
-  std::ignore = Stride;
-  std::ignore = Height;
-  std::ignore = Width;
-  std::ignore = Layout;
-  std::ignore = CoordX;
-  std::ignore = CoordY;
+  (void)sg;
+  (void)Src;
+  (void)Dst;
+  (void)Stride;
+  (void)Height;
+  (void)Width;
+  (void)Layout;
+  (void)CoordX;
+  (void)CoordY;
   throw exception(make_error_code(errc::runtime),
                   "joint matrix is not supported on host.");
 #endif // defined(__SYCL_DEVICE_ONLY__)
@@ -941,7 +941,7 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_store_checked(
     ext::oneapi::experimental::annotated_ptr<T, PropertyListT> Dst,
     size_t Stride, size_t Height, size_t Width, size_t CoordX, size_t CoordY) {
 #if defined(__SYCL_DEVICE_ONLY__)
-  std::ignore = sg;
+  (void)sg;
   T *Ptr = Dst.get();
   __spirv_CooperativeMatrixStoreCheckedINTEL<
       T, Tp, NumRows, NumCols, spv_matrix_use_traits<Use>::value,
@@ -949,14 +949,14 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_store_checked(
       Ptr, CoordX, CoordY, Src.spvm, spv_matrix_layout_traits<Layout>::value,
       Height, Width, Stride);
 #else
-  std::ignore = sg;
-  std::ignore = Src;
-  std::ignore = Dst;
-  std::ignore = Stride;
-  std::ignore = Height;
-  std::ignore = Width;
-  std::ignore = CoordX;
-  std::ignore = CoordY;
+  (void)sg;
+  (void)Src;
+  (void)Dst;
+  (void)Stride;
+  (void)Height;
+  (void)Width;
+  (void)CoordX;
+  (void)CoordY;
   throw exception(make_error_code(errc::runtime),
                   "joint matrix is not supported on host.");
 #endif // defined(__SYCL_DEVICE_ONLY__)

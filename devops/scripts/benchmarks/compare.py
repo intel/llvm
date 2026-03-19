@@ -1,4 +1,4 @@
-# Copyright (C) 2024-2025 Intel Corporation
+# Copyright (C) 2024-2026 Intel Corporation
 # Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -13,11 +13,8 @@ from dataclasses import dataclass, asdict
 from utils.aggregate import Aggregator, SimpleMedian, EWMA
 from utils.validate import Validate
 from utils.result import BenchmarkRun
-from utils.logger import log
+from utils.logger import log, initialize_logger
 from options import options
-
-
-verbose = False
 
 
 @dataclass
@@ -66,12 +63,12 @@ class Compare:
             result_name (str): Name of benchmarking result to obtain average for
             result_dir (str): Path to folder containing benchmark results
             cutoff (str): Timestamp in YYYYMMDD_HHMMSS of oldest results used in
-            average calcultaion
+                average calculation
             hostname (str): Hostname of machine on which results ran on
             aggregator (Aggregator): The aggregator to use for calculating the
-            historic average
+                historic average
             exclude (list[str]): List of filenames (only the stem) to exclude
-            from average calculation
+                from average calculation
 
         Returns:
             A dictionary mapping benchmark names to BenchmarkHistoricAverage
@@ -157,10 +154,10 @@ class Compare:
                     }
 
                 # Add every benchmark run to average_aggregate:
-                if test_run.name not in average_aggregate:
-                    average_aggregate[test_run.name] = reset_aggregate()
+                if test_run.label not in average_aggregate:
+                    average_aggregate[test_run.label] = reset_aggregate()
                 else:
-                    average_aggregate[test_run.name]["aggregate"].add(test_run.value)
+                    average_aggregate[test_run.label]["aggregate"].add(test_run.value)
 
         return {
             name: BenchmarkHistoricAverage(
@@ -202,23 +199,23 @@ class Compare:
         regression = []
 
         for test in target.results:
-            if test.name not in hist_avg:
+            if test.label not in hist_avg:
                 continue
             # TODO compare command args which have an impact on performance
             # (i.e. ignore --save-name): if command results are incomparable,
             # skip the result.
 
             delta = 1 - (
-                test.value / hist_avg[test.name].value
+                test.value / hist_avg[test.label].value
                 if test.lower_is_better
-                else hist_avg[test.name].value / test.value
+                else hist_avg[test.label].value / test.value
             )
 
             def perf_diff_entry() -> dict:
                 res = asdict(test)
                 res["delta"] = delta
-                res["hist_avg"] = hist_avg[test.name].value
-                res["avg_type"] = hist_avg[test.name].average_type
+                res["hist_avg"] = hist_avg[test.label].value
+                res["avg_type"] = hist_avg[test.label].average_type
                 return res
 
             # Round to 2 decimal places: not going to fail a test on 0.001% over
@@ -229,7 +226,7 @@ class Compare:
                 regression.append(perf_diff_entry())
 
             log.debug(
-                f"{test.name}: expect {hist_avg[test.name].value}, got {test.value}"
+                f"{test.label}: expect {hist_avg[test.label].value}, got {test.value}"
             )
 
         return improvement, regression
@@ -242,17 +239,17 @@ class Compare:
         cutoff: str,
     ) -> tuple:
         """
-        Pregenerate a historic average from results named result_name in
+        Regenerate a historic average from results named result_name in
         result_dir, and compares the results in compare_file to it
 
         Args:
             result_name (str): Save name of the result
-            compare_name (str): Result file name to compare historic average against
+            compare_file (str): Result file name to compare historic average against
             result_dir (str): Directory to look for results in
             cutoff (str): Timestamp (in YYYYMMDD_HHMMSS) indicating the oldest
-            result included in the historic average calculation
+                result included in the historic average calculation
             avg_type (str): Type of "average" (measure of central tendency) to
-            use in historic "average" calculation
+                use in historic "average" calculation
 
         Returns:
             A tuple returning (list of improved tests, list of regressed tests).
@@ -321,7 +318,7 @@ if __name__ == "__main__":
         "--compare-file",
         type=str,
         required=True,
-        help="Result file to compare against te historic average",
+        help="Result file to compare against the historic average",
     )
     parser_avg.add_argument(
         "--results-dir", type=str, required=True, help="Directory storing results"
@@ -357,12 +354,13 @@ if __name__ == "__main__":
     parser_avg.add_argument(
         "--produce-github-summary",
         action="store_true",
-        help=f"Create a summary file '{options.github_summary_filename}' for Github workflow summaries.",
+        help=f"Produce regression summary for Github workflow, in file '{options.github_summary_regression_filename}'.",
+        default=False,
     )
 
     args = parser.parse_args()
 
-    log.initialize(args.verbose)
+    initialize_logger(args.verbose)
     log.info("-- Compare.py --")
 
     if args.operation == "to_hist":
@@ -391,7 +389,7 @@ if __name__ == "__main__":
         if args.regression_filter is not None:
             filter_pattern = re.compile(args.regression_filter)
             for test in regressions:
-                if filter_pattern.search(test["name"]):
+                if filter_pattern.search(test["label"]):
                     regressions_of_concern.append(test)
                 else:
                     regressions_ignored.append(test)
@@ -404,13 +402,13 @@ if __name__ == "__main__":
                 is_warning (bool): If True, use log.warning instead of log.info
             """
             log_func = log.warning if is_warning else log.info
-            log_func(f"Test: {entry['name']}")
+            log_func(f"Test: {entry['label']}")
             log_func(f"-- Historic {entry['avg_type']}: {entry['hist_avg']}")
             log_func(f"-- Run result: {entry['value']}")
             log_func(f"-- Delta: {entry['delta']}")
             log_func("")
             if args.produce_github_summary:
-                gh_summary.append(f"#### {entry['name']}:")
+                gh_summary.append(f"##### {entry['label']}:")
                 gh_summary.append(
                     f"- Historic {entry['avg_type']}: {entry['hist_avg']}"
                 )
@@ -426,12 +424,16 @@ if __name__ == "__main__":
                 )
                 gh_summary.append("")
 
+        if args.produce_github_summary:
+            gh_summary.append("")
+            gh_summary.append("### Regressions and Improvements")
+
         if improvements:
             log.info("#")
             log.info("# Improvements:")
             log.info("#")
             if args.produce_github_summary:
-                gh_summary.append(f"### Improvements")
+                gh_summary.append(f"#### Improvements")
                 gh_summary.append(
                     f"<details><summary>{len(improvements)} improved tests:</summary>"
                 )
@@ -443,12 +445,16 @@ if __name__ == "__main__":
                 gh_summary.append("")
         if regressions_ignored:
             log.info("#")
-            log.info("# Regressions (filtered out by --regression-filter):")
+            log.info(
+                f"# Regressions Ignored (filtered out by --regression-filter: {filter_type_capitalized})"
+            )
             log.info("#")
             if args.produce_github_summary:
-                gh_summary.append(f"### Non-{filter_type_capitalized} Regressions")
                 gh_summary.append(
-                    f"<details><summary>{len(regressions_ignored)} non-{args.regression_filter_type} regressions:</summary>"
+                    f"#### Regressions Ignored (filtered out by --regression-filter: {filter_type_capitalized})"
+                )
+                gh_summary.append(
+                    f"<details><summary>{len(regressions_ignored)} non-'{args.regression_filter_type}' regressions:</summary>"
                 )
                 gh_summary.append("")
             for test in regressions_ignored:
@@ -461,7 +467,7 @@ if __name__ == "__main__":
             log.warning("# Regressions:")
             log.warning("#")
             if args.produce_github_summary:
-                gh_summary.append(f"### {filter_type_capitalized} Regressions")
+                gh_summary.append(f"#### {filter_type_capitalized} Regressions")
                 gh_summary.append(
                     f"{len(regressions_of_concern)} {args.regression_filter_type} regressions. These regressions warrant a CI failure:"
                 )
@@ -473,14 +479,14 @@ if __name__ == "__main__":
 
             if not args.dry_run:
                 if args.produce_github_summary:
-                    with open(options.github_summary_filename, "w") as f:
+                    with open(options.github_summary_regression_filename, "w") as f:
                         f.write("\n".join(gh_summary))
                 exit(1)  # Exit 1 to trigger Github test failure
 
         log.info("No unexpected regressions found!")
         if args.produce_github_summary:
             gh_summary.append("No unexpected regressions found!")
-            with open(options.github_summary_filename, "w") as f:
+            with open(options.github_summary_regression_filename, "w") as f:
                 f.write("\n".join(gh_summary))
 
     else:

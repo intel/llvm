@@ -4,6 +4,7 @@
 ///
 
 // RUN: %clangxx -### -fsycl --offload-compress --offload-compression-level=3 %s 2>&1 | FileCheck %s --check-prefix=CHECK-COMPRESS
+// RUN: %clangxx -### -fsycl -fsycl-link --offload-compress --offload-compression-level=3 %s 2>&1 | FileCheck %s --check-prefix=CHECK-COMPRESS
 // CHECK-COMPRESS: {{.*}}clang-offload-wrapper{{.*}}"-offload-compress"{{.*}}"-offload-compression-level=3"{{.*}}
 
 // Make sure that the compression options are not passed when --offload-compress is not set.

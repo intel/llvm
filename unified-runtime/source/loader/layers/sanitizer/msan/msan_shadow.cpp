@@ -14,7 +14,7 @@
 #include "msan_shadow.hpp"
 #include "msan_interceptor.hpp"
 #include "sanitizer_common/sanitizer_utils.hpp"
-#include "ur_api.h"
+#include "unified-runtime/ur_api.h"
 #include "ur_sanitizer_layer.hpp"
 
 namespace ur_sanitizer_layer {
@@ -142,16 +142,17 @@ uptr MsanShadowMemoryCPU::MemToOrigin(uptr Ptr) {
 }
 
 ur_result_t MsanShadowMemoryCPU::EnqueuePoisonShadow(
-    ur_queue_handle_t Queue, uptr Ptr, uptr Size, u8 Value, uint32_t NumEvents,
-    const ur_event_handle_t *EventWaitList, ur_event_handle_t *OutEvent) {
-  return EnqueuePoisonShadowWithOrigin(Queue, Ptr, Size, Value, 0, NumEvents,
-                                       EventWaitList, OutEvent);
+    ur_queue_handle_t Queue, uptr Ptr, uptr Size, const u8 *Value,
+    uint32_t NumEvents, const ur_event_handle_t *EventWaitList,
+    ur_event_handle_t *OutEvent) {
+  return EnqueuePoisonShadowWithOrigin(Queue, Ptr, Size, Value, nullptr,
+                                       NumEvents, EventWaitList, OutEvent);
 }
 
 ur_result_t MsanShadowMemoryCPU::EnqueuePoisonShadowWithOrigin(
-    ur_queue_handle_t Queue, uptr Ptr, uptr Size, u8 Value, uint32_t Origin,
-    uint32_t NumEvents, const ur_event_handle_t *EventWaitList,
-    ur_event_handle_t *OutEvent) {
+    ur_queue_handle_t Queue, uptr Ptr, uptr Size, const u8 *Value,
+    const uint32_t *Origin, uint32_t NumEvents,
+    const ur_event_handle_t *EventWaitList, ur_event_handle_t *OutEvent) {
   if (Size) {
     {
       const uptr ShadowBegin = MemToShadow(Ptr);
@@ -160,10 +161,10 @@ ur_result_t MsanShadowMemoryCPU::EnqueuePoisonShadowWithOrigin(
       UR_LOG_L(getContext()->logger, DEBUG,
                "EnqueuePoisonShadow(addr={}, count={}, value={})",
                (void *)ShadowBegin, ShadowEnd - ShadowBegin + 1,
-               (void *)(uptr)Value);
-      memset((void *)ShadowBegin, Value, ShadowEnd - ShadowBegin + 1);
+               (void *)(uptr)*Value);
+      memset((void *)ShadowBegin, *Value, ShadowEnd - ShadowBegin + 1);
     }
-    {
+    if (Origin && *Origin != 0) {
       const uptr OriginBegin = MemToOrigin(Ptr);
       const uptr OriginEnd =
           MemToOrigin(Ptr + Size - 1) + MSAN_ORIGIN_GRANULARITY;
@@ -171,9 +172,9 @@ ur_result_t MsanShadowMemoryCPU::EnqueuePoisonShadowWithOrigin(
       UR_LOG_L(getContext()->logger, DEBUG,
                "EnqueuePoisonOrigin(addr={}, count={}, value={})",
                (void *)OriginBegin, OriginEnd - OriginBegin + 1,
-               (void *)(uptr)Origin);
+               (void *)(uptr)*Origin);
       // memset((void *)OriginBegin, Value, OriginEnd - OriginBegin + 1);
-      std::fill((uint32_t *)OriginBegin, (uint32_t *)OriginEnd, Origin);
+      std::fill((uint32_t *)OriginBegin, (uint32_t *)OriginEnd, *Origin);
     }
   }
 
@@ -286,16 +287,17 @@ ur_result_t MsanShadowMemoryGPU::EnqueueVirtualMemMap(
 }
 
 ur_result_t MsanShadowMemoryGPU::EnqueuePoisonShadow(
-    ur_queue_handle_t Queue, uptr Ptr, uptr Size, u8 Value, uint32_t NumEvents,
-    const ur_event_handle_t *EventWaitList, ur_event_handle_t *OutEvent) {
-  return EnqueuePoisonShadowWithOrigin(Queue, Ptr, Size, Value, 0, NumEvents,
-                                       EventWaitList, OutEvent);
+    ur_queue_handle_t Queue, uptr Ptr, uptr Size, const u8 *Value,
+    uint32_t NumEvents, const ur_event_handle_t *EventWaitList,
+    ur_event_handle_t *OutEvent) {
+  return EnqueuePoisonShadowWithOrigin(Queue, Ptr, Size, Value, nullptr,
+                                       NumEvents, EventWaitList, OutEvent);
 }
 
 ur_result_t MsanShadowMemoryGPU::EnqueuePoisonShadowWithOrigin(
-    ur_queue_handle_t Queue, uptr Ptr, uptr Size, u8 Value, uint32_t Origin,
-    uint32_t NumEvents, const ur_event_handle_t *EventWaitList,
-    ur_event_handle_t *OutEvent) {
+    ur_queue_handle_t Queue, uptr Ptr, uptr Size, const u8 *Value,
+    const uint32_t *Origin, uint32_t NumEvents,
+    const ur_event_handle_t *EventWaitList, ur_event_handle_t *OutEvent) {
   if (Size == 0) {
     if (OutEvent) {
       UR_CALL(getContext()->urDdiTable.Enqueue.pfnEventsWait(
@@ -316,7 +318,7 @@ ur_result_t MsanShadowMemoryGPU::EnqueuePoisonShadowWithOrigin(
     UR_LOG_L(getContext()->logger, DEBUG,
              "EnqueuePoisonShadow(addr={}, size={}, value={})",
              (void *)ShadowBegin, ShadowEnd - ShadowBegin + 1,
-             (void *)(size_t)Value);
+             (void *)(size_t)*Value);
 
     UR_CALL(EnqueueUSMSet(Queue, (void *)ShadowBegin, Value,
                           ShadowEnd - ShadowBegin + 1, Events.size(),
@@ -325,17 +327,19 @@ ur_result_t MsanShadowMemoryGPU::EnqueuePoisonShadowWithOrigin(
 
   {
     uptr OriginBegin = MemToOrigin(Ptr);
-    uptr OriginEnd = MemToOrigin(Ptr + Size - 1) + sizeof(Origin) - 1;
+    uptr OriginEnd = MemToOrigin(Ptr + Size - 1) + sizeof(*Origin) - 1;
     UR_CALL(EnqueueVirtualMemMap(OriginBegin, OriginEnd, Events, OutEvent));
 
-    UR_LOG_L(getContext()->logger, DEBUG,
-             "EnqueuePoisonOrigin(addr={}, size={}, value={})",
-             (void *)OriginBegin, OriginEnd - OriginBegin + 1,
-             (void *)(uptr)Origin);
+    if (Origin && *Origin != 0) {
+      UR_LOG_L(getContext()->logger, DEBUG,
+               "EnqueuePoisonOrigin(addr={}, size={}, value={})",
+               (void *)OriginBegin, OriginEnd - OriginBegin + 1,
+               (void *)(uptr)*Origin);
 
-    UR_CALL(getContext()->urDdiTable.Enqueue.pfnUSMFill(
-        Queue, (void *)OriginBegin, sizeof(Origin), &Origin,
-        OriginEnd - OriginBegin + 1, NumEvents, EventWaitList, OutEvent));
+      UR_CALL(getContext()->urDdiTable.Enqueue.pfnUSMFill(
+          Queue, (void *)OriginBegin, sizeof(*Origin), Origin,
+          OriginEnd - OriginBegin + 1, NumEvents, EventWaitList, OutEvent));
+    }
   }
 
   return UR_RESULT_SUCCESS;
@@ -385,13 +389,12 @@ ur_result_t MsanShadowMemoryGPU::AllocLocalShadow(ur_queue_handle_t Queue,
       LastAllocedSize = 0;
     }
 
-    UR_CALL(getContext()->urDdiTable.USM.pfnDeviceAlloc(
-        Context, Device, nullptr, nullptr, RequiredShadowSize,
-        (void **)&LocalShadowOffset));
+    UR_CALL(SafeAllocate(Context, Device, RequiredShadowSize, nullptr, nullptr,
+                         AllocType::DEVICE_USM, (void **)&LocalShadowOffset));
 
     // Initialize shadow memory
-    ur_result_t URes = EnqueueUSMSet(Queue, (void *)LocalShadowOffset, (char)0,
-                                     RequiredShadowSize);
+    ur_result_t URes =
+        EnqueueUSMSetZero(Queue, (void *)LocalShadowOffset, RequiredShadowSize);
     if (URes != UR_RESULT_SUCCESS) {
       UR_CALL(getContext()->urDdiTable.USM.pfnFree(Context,
                                                    (void *)LocalShadowOffset));
@@ -431,9 +434,9 @@ ur_result_t MsanShadowMemoryGPU::AllocPrivateShadow(ur_queue_handle_t Queue,
 
       ur_usm_desc_t PrivateBaseProps{UR_STRUCTURE_TYPE_USM_DESC, nullptr,
                                      UR_USM_ADVICE_FLAG_DEFAULT, sizeof(uptr)};
-      UR_CALL_THROWS(getContext()->urDdiTable.USM.pfnDeviceAlloc(
-          Context, Device, &PrivateBaseProps, nullptr, NewPrivateBaseSize,
-          (void **)&PrivateBasePtr));
+      UR_CALL_THROWS(SafeAllocate(
+          Context, Device, NewPrivateBaseSize, &PrivateBaseProps, nullptr,
+          AllocType::DEVICE_USM, (void **)&PrivateBasePtr));
 
       // No need to clean the shadow base, their should be set by work item on
       // launch
@@ -452,12 +455,12 @@ ur_result_t MsanShadowMemoryGPU::AllocPrivateShadow(ur_queue_handle_t Queue,
         LastPrivateShadowAllocedSize = 0;
       }
 
-      UR_CALL_THROWS(getContext()->urDdiTable.USM.pfnDeviceAlloc(
-          Context, Device, nullptr, nullptr, NewPrivateShadowSize,
-          (void **)&PrivateShadowOffset));
+      UR_CALL_THROWS(SafeAllocate(Context, Device, NewPrivateShadowSize,
+                                  nullptr, nullptr, AllocType::DEVICE_USM,
+                                  (void **)&PrivateShadowOffset));
       LastPrivateShadowAllocedSize = NewPrivateShadowSize;
-      UR_CALL_THROWS(EnqueueUSMSet(Queue, (void *)PrivateShadowOffset, (char)0,
-                                   NewPrivateShadowSize));
+      UR_CALL_THROWS(EnqueueUSMSetZero(Queue, (void *)PrivateShadowOffset,
+                                       NewPrivateShadowSize));
     }
 
     Base = (uptr *)PrivateBasePtr;

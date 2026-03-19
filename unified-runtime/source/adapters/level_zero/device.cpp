@@ -1,6 +1,6 @@
 //===--------- device.cpp - Level Zero Adapter ----------------------------===//
 //
-// Copyright (C) 2023-2025 Intel Corporation
+// Copyright (C) 2023-2026 Intel Corporation
 //
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
@@ -104,6 +104,13 @@ ur_result_t urDeviceGet(
   //     nullptr in this mode.
   //   - If COMBINED, L0 returns tiles as devices, and zeDeviceGetRootdevice
   //     returns the card containing a given tile.
+
+  // Track best discrete and integrated GPU candidates (device, max compute
+  // units)
+  std::pair<ur_device_handle_t, uint32_t> GPUDeviceDiscrete = {nullptr, 0};
+  std::pair<ur_device_handle_t, uint32_t> GPUDeviceIntegrated = {nullptr, 0};
+  bool DeviceDefaultGPU = false;
+
   bool isCombinedMode =
       std::any_of(Platform->URDevicesCache.begin(),
                   Platform->URDevicesCache.end(), [](const auto &D) {
@@ -133,8 +140,11 @@ ur_result_t urDeviceGet(
       Matched = true;
       break;
     case UR_DEVICE_TYPE_GPU:
+      Matched = (D->ZeDeviceProperties->type == ZE_DEVICE_TYPE_GPU);
+      break;
     case UR_DEVICE_TYPE_DEFAULT:
       Matched = (D->ZeDeviceProperties->type == ZE_DEVICE_TYPE_GPU);
+      DeviceDefaultGPU = true;
       break;
     case UR_DEVICE_TYPE_CPU:
       Matched = (D->ZeDeviceProperties->type == ZE_DEVICE_TYPE_CPU);
@@ -156,12 +166,32 @@ ur_result_t urDeviceGet(
           isCombinedMode && (D->ZeDeviceProperties->flags &
                              ZE_DEVICE_PROPERTY_FLAG_SUBDEVICE) == 0;
       if (!isComposite) {
-        MatchedDevices.push_back(D.get());
-        // For UR_DEVICE_TYPE_DEFAULT only a single device should be returned,
-        // so exit the loop after first proper match.
-        if (DeviceType == UR_DEVICE_TYPE_DEFAULT)
-          break;
+        // In case of DeviceType is DEFAULT, pick only the most powerful GPU
+        // device.
+        if (DeviceDefaultGPU) {
+          uint32_t maxComputeUnits = 0;
+          ur_result_t UrRet = ur::level_zero::urDeviceGetInfo(
+              D.get(), UR_DEVICE_INFO_MAX_COMPUTE_UNITS,
+              sizeof(maxComputeUnits), &maxComputeUnits, nullptr);
+          maxComputeUnits = (UrRet == UR_RESULT_SUCCESS) ? maxComputeUnits : 0;
+          auto &BestGpu =
+              D->isIntegrated() ? GPUDeviceIntegrated : GPUDeviceDiscrete;
+          if (!BestGpu.first || maxComputeUnits > BestGpu.second)
+            BestGpu = std::make_pair(D.get(), maxComputeUnits);
+        } else {
+          MatchedDevices.push_back(D.get());
+        }
       }
+    }
+  }
+
+  // Handle GPU/DEFAULT device selection outside the loop
+  if (DeviceDefaultGPU) {
+    // Prefer discrete GPU over integrated GPU
+    if (GPUDeviceDiscrete.first) {
+      MatchedDevices = {GPUDeviceDiscrete.first};
+    } else if (GPUDeviceIntegrated.first) {
+      MatchedDevices = {GPUDeviceIntegrated.first};
     }
   }
 
@@ -556,8 +586,7 @@ ur_result_t urDeviceGetInfo(
     return ReturnValue(static_cast<ur_bool_t>(
         Device->ZeDeviceProperties->flags & ZE_DEVICE_PROPERTY_FLAG_ECC));
   case UR_DEVICE_INFO_PROFILING_TIMER_RESOLUTION:
-    return ReturnValue(
-        static_cast<size_t>(Device->ZeDeviceProperties->timerResolution));
+    return ReturnValue(static_cast<size_t>(Device->getTimerResolution()));
   case UR_DEVICE_INFO_LOCAL_MEM_TYPE:
     return ReturnValue(UR_DEVICE_LOCAL_MEM_TYPE_LOCAL);
   case UR_DEVICE_INFO_MAX_CONSTANT_ARGS:
@@ -1276,6 +1305,13 @@ ur_result_t urDeviceGetInfo(
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
 #endif
   }
+  case UR_DEVICE_INFO_IPC_MEMORY_SUPPORT_EXP:
+#ifdef _WIN32
+    // TODO: Remove when IPC memory works in UMF on Windows.
+    return ReturnValue(false);
+#else
+    return ReturnValue(true);
+#endif
   case UR_DEVICE_INFO_ASYNC_BARRIER:
     return ReturnValue(false);
   case UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORT:
@@ -1283,10 +1319,16 @@ ur_result_t urDeviceGetInfo(
   case UR_DEVICE_INFO_USM_CONTEXT_MEMCPY_SUPPORT_EXP:
     return ReturnValue(true);
   case UR_DEVICE_INFO_USE_NATIVE_ASSERT:
-    return ReturnValue(false);
+    return ReturnValue(true);
   case UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP:
     return ReturnValue(true);
   case UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP:
+    return ReturnValue(true);
+  case UR_DEVICE_INFO_DEVICE_WAIT_SUPPORT_EXP: {
+    auto Supported = Device->Platform->ZeDeviceSynchronizeSupported;
+    return ReturnValue(Supported);
+  }
+  case UR_DEVICE_INFO_DYNAMIC_LINK_SUPPORT_EXP:
     return ReturnValue(true);
   case UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_SUPPORT_EXP:
     return ReturnValue(true);
@@ -1452,6 +1494,29 @@ ur_result_t urDeviceGetInfo(
       return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
   }
+  case UR_DEVICE_INFO_CLOCK_SUB_GROUP_SUPPORT_EXP: {
+    // IGC supports this since v.2.16.0
+    return ReturnValue(
+        Device->Platform->isDriverVersionNewerOrSimilar(1, 6, 34666));
+  }
+  case UR_DEVICE_INFO_CLOCK_WORK_GROUP_SUPPORT_EXP:
+  case UR_DEVICE_INFO_CLOCK_DEVICE_SUPPORT_EXP:
+    // Currently GPUs only support sub-group clock.
+    return ReturnValue(false);
+  case UR_DEVICE_INFO_IS_INTEGRATED_GPU:
+    return ReturnValue(static_cast<ur_bool_t>(Device->isIntegrated() != 0));
+  case UR_DEVICE_INFO_GRAPH_RECORD_AND_REPLAY_SUPPORT_EXP:
+#ifdef UR_ADAPTER_LEVEL_ZERO_V2
+    return ReturnValue(Device->Platform->ZeGraphExt.Supported);
+#else
+    return ReturnValue(false);
+#endif
+  case UR_DEVICE_INFO_ENQUEUE_HOST_TASK_SUPPORT_EXP:
+#ifdef UR_ADAPTER_LEVEL_ZERO_V2
+    return ReturnValue(Device->Platform->ZeHostTaskExt.Supported);
+#else
+    return ReturnValue(false);
+#endif
   default:
     UR_LOG(ERR, "Unsupported ParamName in urGetDeviceInfo");
     UR_LOG(ERR, "ParamNameParamName={}(0x{})", ParamName,
@@ -1708,8 +1773,7 @@ ur_result_t urDeviceGetGlobalTimestamps(
 #endif
   }
 
-  const uint64_t &ZeTimerResolution =
-      Device->ZeDeviceProperties->timerResolution;
+  const double ZeTimerResolution = Device->getTimerResolution();
   const uint64_t TimestampMaxCount = Device->getTimestampMask();
   uint64_t DeviceClockCount, Dummy;
 
@@ -1742,6 +1806,11 @@ ur_result_t urDeviceRelease(ur_device_handle_t Device) {
     }
   }
 
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t urDeviceWaitExp(ur_device_handle_t Device) {
+  ZE2UR_CALL(zeDeviceSynchronize, (Device->ZeDevice));
   return UR_RESULT_SUCCESS;
 }
 } // namespace ur::level_zero
@@ -1795,12 +1864,19 @@ ur_device_handle_t_::useImmediateCommandLists() {
     bool isDG2OrNewer = this->isIntelDG2OrNewer();
     bool isDG2SupportedDriver =
         this->Platform->isDriverVersionNewerOrSimilar(1, 5, 30820);
+    bool isIntelMTLDevice = this->isIntelMTL();
+    bool isIntelARLDevice = this->isIntelARL();
     // Disable immediate command lists for DG2 devices on Windows due to driver
     // limitations.
     bool isLinux = true;
 #ifdef _WIN32
     isLinux = false;
 #endif
+    // Disable immediate command lists for Intel MTL/ARL devices on Linux by
+    // default due to driver limitations.
+    if ((isIntelMTLDevice || isIntelARLDevice) && isLinux) {
+      return NotUsed;
+    }
     if ((isDG2SupportedDriver && isDG2OrNewer && isLinux) || isPVC() ||
         isNewerThanIntelDG2()) {
       return PerQueue;
@@ -1957,7 +2033,7 @@ ur_result_t ur_device_handle_t_::initialize(int SubSubDeviceOrdinal,
 #ifdef ZE_INTEL_DEVICE_BLOCK_ARRAY_EXP_NAME
   ZeDeviceBlockArrayProperties.Compute =
       [ZeDevice](
-          ZeStruct<ze_intel_device_block_array_exp_properties_t> &Properties) {
+          ZexStruct<ze_intel_device_block_array_exp_properties_t> &Properties) {
         ze_device_properties_t P;
         P.stype = ZE_STRUCTURE_TYPE_DEVICE_PROPERTIES;
         P.pNext = &Properties;

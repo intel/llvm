@@ -20,7 +20,7 @@
 // RUN: | FileCheck %s --check-prefix=CHECK_TOOLS_INPUT
 // RUN: %clang_cl -fsycl -fsyclbin=input --offload-new-driver %s -### 2>&1 \
 // RUN: | FileCheck %s --check-prefix=CHECK_TOOLS_INPUT
-// CHECK_TOOLS_INPUT: clang-offload-packager
+// CHECK_TOOLS_INPUT: llvm-offload-binary
 // CHECK_TOOLS_INPUT-SAME: --image=file={{.*}}.bc,triple=spir64-unknown-unknown
 // CHECK_TOOLS_INPUT-SAME: kind=sycl
 // CHECK_TOOLS_INPUT: clang-linker-wrapper
@@ -32,7 +32,7 @@
 // RUN: | FileCheck %s --check-prefix=CHECK_TOOLS_OBJECT
 // RUN: %clang_cl -fsycl -fsyclbin=object --offload-new-driver %s -### 2>&1 \
 // RUN: | FileCheck %s --check-prefix=CHECK_TOOLS_OBJECT
-// CHECK_TOOLS_OBJECT: clang-offload-packager
+// CHECK_TOOLS_OBJECT: llvm-offload-binary
 // CHECK_TOOLS_OBJECT-SAME: --image=file={{.*}}.bc,triple=spir64-unknown-unknown
 // CHECK_TOOLS_OBJECT-SAME: kind=sycl
 // CHECK_TOOLS_OBJECT: clang-linker-wrapper
@@ -50,7 +50,7 @@
 // RUN: | FileCheck %s --check-prefix=CHECK_TOOLS_EXECUTABLE
 // RUN: %clang_cl -fsycl -fsyclbin --offload-new-driver %s -### 2>&1 \
 // RUN: | FileCheck %s --check-prefix=CHECK_TOOLS_EXECUTABLE
-// CHECK_TOOLS_EXECUTABLE: clang-offload-packager
+// CHECK_TOOLS_EXECUTABLE: llvm-offload-binary
 // CHECK_TOOLS_EXECUTABLE-SAME: --image=file={{.*}}.bc,triple=spir64-unknown-unknown
 // CHECK_TOOLS_EXECUTABLE-SAME: kind=sycl
 // CHECK_TOOLS_EXECUTABLE: clang-linker-wrapper
@@ -68,7 +68,7 @@
 // CHECK_PHASES: 2: compiler, {1}, ir, (device-sycl)
 // CHECK_PHASES: 3: backend, {2}, ir, (device-sycl)
 // CHECK_PHASES: 4: offload, "device-sycl (spir64-unknown-unknown)" {3}, ir
-// CHECK_PHASES: 5: clang-offload-packager, {4}, image, (device-sycl)
+// CHECK_PHASES: 5: llvm-offload-binary, {4}, image, (device-sycl)
 // CHECK_PHASES: 6: clang-linker-wrapper, {5}, image, (device-sycl)
 // CHECK_PHASES: 7: offload, "device-sycl (x86_64-unknown-linux-gnu)" {6}, none
 

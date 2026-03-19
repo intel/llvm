@@ -7,9 +7,9 @@ compiler and runtime.
 
 | Environment variable | Values | Description |
 | -------------------- | ------ | ----------- |
-| `ONEAPI_DEVICE_SELECTOR` | [See below.](#oneapi_device_selector)  | This device selection environment variable can be used to limit the choice of devices available when the SYCL-using application is run.  Useful for limiting devices to a certain type (like GPUs or accelerators) or backends (like Level Zero or OpenCL).  This device selection mechanism is replacing `SYCL_DEVICE_FILTER` .  The `ONEAPI_DEVICE_SELECTOR` syntax is shared with OpenMP and also allows sub-devices to be chosen. [See below.](#oneapi_device_selector) for a full description.   |
+| `ONEAPI_DEVICE_SELECTOR` | [See below.](#oneapi_device_selector)  | This device selection environment variable can be used to limit the choice of devices available when the SYCL-using application is run.  Useful for limiting devices to a certain type (like GPUs or CPUs) or backends (like Level Zero or OpenCL).  This device selection mechanism is replacing `SYCL_DEVICE_FILTER` .  The `ONEAPI_DEVICE_SELECTOR` syntax is shared with OpenMP and also allows sub-devices to be chosen. [See below.](#oneapi_device_selector) for a full description.   |
 | `ONEAPI_PVC_SEND_WAR_WA` | '1' or '0' | Controls the workaround for Erratum "FP64 register ordering violation" on Intel Ponte Vecchio GPUs. Setting `ONEAPI_PVC_SEND_WAR_WA=0` disables the workaround and is only safe if the secondary FP64 pipeline is disabled. Default is enabled ('1') and applied throughout the oneAPI software stack - including OneDNN, OneMKL, OpenCL and Level Zero Runtimes, and Intel Graphics Compiler. |
-| `SYCL_DEVICE_ALLOWLIST` | See [below](#sycl_device_allowlist) | Filter out devices that do not match the pattern specified. `BackendName` accepts `host`, `opencl`, `level_zero`, `native_cpu` or `cuda`. `DeviceType` accepts `host`, `cpu`, `gpu`, `fpga`, or `acc`. `fpga` and `acc` are handled in the same manner. `DeviceVendorId` accepts uint32_t in hex form (`0xXYZW`). `DriverVersion`, `PlatformVersion`, `DeviceName` and `PlatformName` accept regular expression. Special characters, such as parenthesis, must be escaped. DPC++ runtime will select only those devices which satisfy provided values above and regex. More than one device can be specified using the piping symbol "\|".|
+| `SYCL_DEVICE_ALLOWLIST` | See [below](#sycl_device_allowlist) | Filter out devices that do not match the pattern specified. `BackendName` accepts `host`, `opencl`, `level_zero`, `native_cpu` or `cuda`. `DeviceType` accepts `host`, `cpu`, `gpu`. `DeviceVendorId` accepts uint32_t in hex form (`0xXYZW`). `DriverVersion`, `PlatformVersion`, `DeviceName` and `PlatformName` accept regular expression. Special characters, such as parenthesis, must be escaped. DPC++ runtime will select only those devices which satisfy provided values above and regex. More than one device can be specified using the piping symbol "\|".|
 | `SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING` | Any(\*) | Disables automatic rounding-up of `parallel_for` invocation ranges. |
 | `SYCL_CACHE_DIR` | Path | Path to persistent cache root directory. Default values are `%AppData%\libsycl_cache` for Windows and `$XDG_CACHE_HOME/libsycl_cache` on Linux, if `XDG_CACHE_HOME` is not set then `$HOME/.cache/libsycl_cache`. When none of the environment variables are set SYCL persistent cache is disabled. |
 | `SYCL_CACHE_DISABLE_PERSISTENT (deprecated)` | Any(\*) | Has no effect. |
@@ -47,10 +47,10 @@ ONEAPI_DEVICE_SELECTOR = <selector-string>
 <term> ::= <backend>:<devices>
 <backend> ::= { * | level_zero | opencl | cuda | hip | native_cpu }  // case insensitive
 <devices> ::= <device>[,<device>...]
-<device> ::= { * | cpu | gpu | fpga | <num> | <num>.<num> | <num>.* | *.* | <num>.<num>.<num> | <num>.<num>.* | <num>.*.* | *.*.*  }  // case insensitive
+<device> ::= { * | cpu | gpu | <num> | <num>.<num> | <num>.* | *.* | <num>.<num>.<num> | <num>.<num>.* | <num>.*.* | *.*.*  }  // case insensitive
 ```
 
-Each term in the grammar selects a collection of devices from a particular backend. The device names cpu, gpu, and fpga select all devices from that backend with the corresponding type. A backend's device can also be selected by its numeric index (zero-based) or by using `*` which selects all devices in the backend.
+Each term in the grammar selects a collection of devices from a particular backend. The device names "cpu" and "gpu" select all devices from that backend with the corresponding type. A backend's device can also be selected by its numeric index (zero-based) or by using `*` which selects all devices in the backend.
 
 The dot syntax (e.g. `<num>.<num>`) causes one or more GPU sub-devices to be exposed to the application as SYCL root devices. For example, `1.0` exposes the first sub-device of the second device as a SYCL root device. The syntax `<num>.*` exposes all sub-devices of the give device as SYCL root devices. The syntax `*.*` exposes all sub-devices of all GPU devices as SYCL root devices.
 
@@ -120,12 +120,11 @@ This environment variable controls the preferred work-group size for reductions 
 The value of this environment variable is a comma separated list of one or more configurations, where each configuration is a pair of the form "`device_type`:`size`" (without the quotes). Possible values of `device_type` are:
 - `cpu`
 - `gpu`
-- `acc`
 - `*`
 
 `size` is a positive integer larger than 0.
 
-For a configuration `device_type`:`size` the `device_type` element specifies the type of device the configuration applies to, that is `cpu` is for CPU devices, `gpu` is for GPU devices, and `acc` is for accelerator devices. If `device_type` is `*` the configuration applies to all applicable device types. `size` denotes the preferred work-group size to be used for devices of types specified by `device_type`.
+For a configuration `device_type`:`size` the `device_type` element specifies the type of device the configuration applies to, that is `cpu` is for CPU devices, `gpu` is for GPU devices. If `device_type` is `*` the configuration applies to all applicable device types. `size` denotes the preferred work-group size to be used for devices of types specified by `device_type`.
 
 If `info::device::max_work_group_size` on a device on which a reduction is being enqueued is less than the value specified by a configuration in this environment variable, the value of `info::device::max_work_group_size` on that device is used instead.
 
@@ -203,7 +202,6 @@ variables in production code.</span>
 | `SYCL_PRINT_EXECUTION_GRAPH` | Described [below](#sycl_print_execution_graph-options) | Print execution graph to DOT text file. |
 | `SYCL_DISABLE_EXECUTION_GRAPH_CLEANUP` | Any(\*) | Disable regular cleanup of enqueued (or finished, in case of host tasks) non-leaf command nodes. If disabled, command nodes will be cleaned up only during the destruction of the last remaining memory object used by them. |
 | `SYCL_DISABLE_POST_ENQUEUE_CLEANUP` (deprecated) | Any(\*) | Use `SYCL_DISABLE_EXECUTION_GRAPH_CLEANUP` instead. |
-| `SYCL_DEVICELIB_INHIBIT_NATIVE` | String of device library extensions (separated by a whitespace) | Do not rely on device native support for devicelib extensions listed in this option. |
 | `SYCL_PROGRAM_COMPILE_OPTIONS` | String of valid compile options | Override compile options for all programs. |
 | `SYCL_PROGRAM_LINK_OPTIONS` | String of valid link options | Override link options for all programs. |
 | `SYCL_PROGRAM_APPEND_COMPILE_OPTIONS` | String of valid compile options | Append to the end of compile options for all programs. |
@@ -272,6 +270,8 @@ older hardware or when SYCL_UR_USE_LEVEL_ZERO_V2=0 is set.</span>
 | Environment variable | Values | Description | Adapter Support |
 | -------------------- | ------ | ----------- | --------------- |
 | `UR_L0_V2_FORCE_DISABLE_COPY_OFFLOAD` | Integer | By default, copy operations submitted to any queue can be offloaded to dedicated copy engines. Setting this variable instructs the driver to keep all copy operations on the engine behind the original queue. The default value is 0. | V2 |
+| `UR_L0_V2_DISABLE_ZE_LAUNCH_KERNEL_WITH_ARGS` | Integer | By default, `ZeCommandListAppendLaunchKernelWithArguments()` will be called. Setting this variable instructs the adapter to not call `ZeCommandListAppendLaunchKernelWithArguments()` and use the old path using `ZeCommandListAppendLaunchKernel()`. The default value is 0. | V2 |
+| `UR_L0_V2_FORCE_BATCHED` | Any(\*) | Adds UR_QUEUE_FLAG_SUBMISSION_BATCHED flag to the flags passed to urQueueCreate as arguments. The variable does not overwrite other passed flags, therefore invalid combinations (such as setting both UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE and UR_QUEUE_FLAG_SUBMISSION_BATCHED) are possible. | V2 |
 | `SYCL_PI_LEVEL_ZERO_SINGLE_THREAD_MODE` | Integer | A single-threaded app has an opportunity to enable this mode to avoid overhead from mutex locking in the Level Zero adapter. A value greater than 0 enables single thread mode. A value of 0 disables single thread mode. The default is 0. | Legacy |
 | `SYCL_PI_LEVEL_ZERO_USM_ALLOCATOR` | [EnableBuffers][;[MaxPoolSize][;[host\|device\|shared:][MaxPoolableSize][,[Capacity][,SlabMinSize]]]...] | EnableBuffers enables pooling for SYCL buffers, default 1, set to 0 to disable. MaxPoolSize is the maximum size of the pool, by default there is no size limit. MemType is host, device, shared or read_only_shared. Other parameters are values specified as positive integers with optional K, M or G suffix. MaxPoolableSize is the maximum allocation size that may be pooled, default 0 for shared, 2MB for host, 4MB for device and read_only_shared. Capacity is the number of allocations in each size range freed by the program but retained in the pool for reallocation, default 4. Size ranges follow this pattern: 64, 96, 128, 192, and so on, i.e., powers of 2, with one range in between. SlabMinSize is the minimum allocation size, 64KB for host and device, 2MB for shared and read_only_shared. Example: SYCL_PI_LEVEL_ZERO_USM_ALLOCATOR=1;32M;host:1M,4,64K;device:1M,4,64K;shared:0,0,2M| Legacy and V2 |
 | `SYCL_PI_LEVEL_ZERO_BATCH_SIZE` | Integer | Sets a preferred number of compute commands to batch into a command list before executing the command list. A value of 0 causes the batch size to be adjusted dynamically. A value greater than 0 specifies fixed size batching, with the batch size set to the specified value. The default is 0. | Legacy |
@@ -291,6 +291,8 @@ older hardware or when SYCL_UR_USE_LEVEL_ZERO_V2=0 is set.</span>
 | `SYCL_PI_LEVEL_ZERO_IMMEDIATE_COMMANDLISTS_EVENT_CLEANUP_THRESHOLD` | Integer | If non-negative then the threshold is set to this value. If negative, the threshold is set to INT_MAX. Whenever the number of events associated with an immediate command list exceeds this threshold, a check is made for signaled events and these events are recycled. Setting this threshold low causes events to be checked more often, which could result in unneeded events being recycled sooner. However, more frequent event status checks may cost time. The default is 1000. | Legacy |
 | `SYCL_PI_LEVEL_ZERO_USM_RESIDENT` | Integer | Bit-mask controls if/where to make USM allocations resident at the time of allocation. Input value is of the form 0xHSD, where 4-bits of D control device allocations, 4-bits of S control shared allocations, and 4-bits of H control host allocations. Each 4-bit component is holding one of the following values: "0" - then no special residency is forced, "1" - then allocation is made resident at the device of allocation, or "2" - then allocation is made resident on all devices in the context of allocation that have P2P access to the device of allocation. Default is 0x002, i.e. force full residency for device allocations only. | Legacy |
 | `SYCL_PI_LEVEL_ZERO_USE_NATIVE_USM_MEMCPY2D` | Integer | When set to a positive value enables the use of Level Zero USM 2D memory copy operations. Default is 0. | Legacy |
+
+`(*) Note: Any means this environment variable is effective when set to any non-null value.`
 
 ## Debugging variables for CUDA Adapter
 

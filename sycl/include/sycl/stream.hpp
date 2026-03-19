@@ -42,6 +42,7 @@ inline namespace _V1 {
 namespace detail {
 
 class stream_impl;
+class KernelData;
 
 using FmtFlags = unsigned int;
 
@@ -829,6 +830,8 @@ inline __width_manipulator__ setw(int Width) {
 /// \ingroup sycl_api
 class __SYCL_EXPORT __SYCL_SPECIAL_CLASS __SYCL_TYPE(stream) stream
     : public detail::OwnerLessBase<stream> {
+  friend sycl::detail::ImplUtils;
+
 private:
 #ifndef __SYCL_DEVICE_ONLY__
   // Constructor for recreating a stream.
@@ -908,9 +911,6 @@ private:
   char padding[sizeof(std::shared_ptr<detail::stream_impl>)];
 #else
   std::shared_ptr<detail::stream_impl> impl;
-  template <class Obj>
-  friend const decltype(Obj::impl) &
-  detail::getSyclObjImpl(const Obj &SyclObject);
 #endif
 
   // NOTE: Some members are required for reconstructing the stream, but are not
@@ -1041,7 +1041,7 @@ private:
   }
 #endif
 
-  friend class handler;
+  friend class detail::KernelData;
 
   template <typename SYCLObjT> friend class ext::oneapi::weak_object;
 

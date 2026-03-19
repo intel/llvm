@@ -16,7 +16,7 @@
 #include <sycl/detail/owner_less_base.hpp>    // for OwnerLessBase
 #include <sycl/property_list.hpp>             // for property_list
 #include <sycl/usm/usm_enums.hpp>             // for usm::alloc
-#include <ur_api.h>                           // for ur_native_handle_t
+#include <unified-runtime/ur_api.h>           // for ur_native_handle_t
 
 #ifdef __SYCL_INTERNAL_API
 #include <sycl/detail/cl.h>
@@ -51,6 +51,8 @@ auto get_native(const SyclT &Obj) -> backend_return_t<Backend, SyclT>;
 ///
 /// \ingroup sycl_api
 class __SYCL_EXPORT context : public detail::OwnerLessBase<context> {
+  friend sycl::detail::ImplUtils;
+
 public:
   /// Constructs a SYCL context instance using an instance of default_selector.
   ///
@@ -180,21 +182,9 @@ public:
   /// Queries this SYCL context for SYCL backend-specific information.
   ///
   /// The return type depends on information being queried.
-  template <typename Param
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-#if defined(_GLIBCXX_USE_CXX11_ABI) && _GLIBCXX_USE_CXX11_ABI == 0
-            ,
-            int = detail::emit_get_backend_info_error<context, Param>()
-#endif
-#endif
-            >
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  __SYCL_DEPRECATED(
-      "All current implementations of get_backend_info() are to be removed. "
-      "Use respective variants of get_info() instead.")
-#endif
+  template <typename Param>
   typename detail::is_backend_info_desc<Param>::return_type
-      get_backend_info() const;
+  get_backend_info() const;
 
   context(const context &rhs) = default;
 
@@ -266,17 +256,6 @@ private:
 
   template <backend Backend, class SyclT>
   friend auto get_native(const SyclT &Obj) -> backend_return_t<Backend, SyclT>;
-
-  template <class Obj>
-  friend const decltype(Obj::impl) &
-  detail::getSyclObjImpl(const Obj &SyclObject);
-
-  template <class T>
-  friend T detail::createSyclObjFromImpl(
-      std::add_rvalue_reference_t<decltype(T::impl)> ImplObj);
-  template <class T>
-  friend T detail::createSyclObjFromImpl(
-      std::add_lvalue_reference_t<const decltype(T::impl)> ImplObj);
 
   const property_list &getPropList() const;
 };

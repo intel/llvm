@@ -50,7 +50,7 @@ on:
     - cron: 0 0 * * *
 
 env:
-  LLVM_VERSION: 22
+  LLVM_VERSION: 23
 
 jobs:
   build_and_test_linux:
@@ -63,14 +63,14 @@ jobs:
           - build_type: Release
             shared_libs: EnableSharedLibs
       fail-fast: false
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     steps:
       - name: Install dependencies
         run: |
           curl -L "https://apt.llvm.org/llvm-snapshot.gpg.key" | sudo apt-key add -
           curl -L "https://packages.lunarg.com/lunarg-signing-key-pub.asc" | sudo apt-key add -
-          echo "deb https://apt.llvm.org/jammy/ llvm-toolchain-jammy main" | sudo tee -a /etc/apt/sources.list
-          echo "deb https://packages.lunarg.com/vulkan jammy main" | sudo tee -a /etc/apt/sources.list
+          echo "deb https://apt.llvm.org/noble/ llvm-toolchain-noble main" | sudo tee -a /etc/apt/sources.list
+          echo "deb https://packages.lunarg.com/vulkan noble main" | sudo tee -a /etc/apt/sources.list
           sudo apt-get update
           sudo apt-get -yq --no-install-suggests --no-install-recommends install \
             clang-${{ env.LLVM_VERSION }} \
@@ -79,13 +79,13 @@ jobs:
           # pre-installed. Make sure to override these with the relevant version.
           sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-${{ env.LLVM_VERSION }} 1000
       - name: Checkout LLVM sources
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: llvm/llvm-project
           ref: main
           path: llvm-project
       - name:  Checkout the translator sources
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           path: llvm-project/llvm/projects/SPIRV-LLVM-Translator
       - name:  Get tag for SPIR-V Headers
@@ -93,7 +93,7 @@ jobs:
         run: |
           echo "spirv_headers_tag=$(cat llvm-project/llvm/projects/SPIRV-LLVM-Translator/spirv-headers-tag.conf)" >> $GITHUB_ENV
       - name:  Checkout SPIR-V Headers
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: KhronosGroup/SPIRV-Headers
           ref: ${{ env.spirv_headers_tag }}
@@ -119,11 +119,11 @@ jobs:
       - name: Build
         run: |
           cd build
-          make llvm-spirv -j2
+          make llvm-spirv -j$(nproc)
       - name: Build tests & test
         run: |
           cd build
-          make check-llvm-spirv -j2
+          make check-llvm-spirv -j$(nproc)
 
   build_windows:
     name: Windows
@@ -134,13 +134,13 @@ jobs:
     runs-on: windows-latest
     steps:
       - name: Checkout LLVM sources
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: llvm/llvm-project
           ref: main
           path: llvm-project
       - name:  Checkout the translator sources
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           path: llvm-project\\llvm\\projects\\SPIRV-LLVM-Translator
       - name:  Get tag for SPIR-V Headers
@@ -148,7 +148,7 @@ jobs:
         run: |
           echo "spirv_headers_tag=$(type llvm-project\\llvm\\projects\\SPIRV-LLVM-Translator\\spirv-headers-tag.conf)" >> $GITHUB_ENV
       - name:  Checkout SPIR-V Headers
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: KhronosGroup/SPIRV-Headers
           ref: ${{ env.spirv_headers_tag }}
@@ -186,13 +186,13 @@ jobs:
     continue-on-error: true
     steps:
       - name: Checkout LLVM sources
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: llvm/llvm-project
           ref: main
           path: llvm-project
       - name:  Checkout the translator sources
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           path: llvm-project/llvm/projects/SPIRV-LLVM-Translator
       - name:  Get tag for SPIR-V Headers
@@ -200,7 +200,7 @@ jobs:
         run: |
           echo "spirv_headers_tag=$(cat llvm-project/llvm/projects/SPIRV-LLVM-Translator/spirv-headers-tag.conf)" >> $GITHUB_ENV
       - name:  Checkout SPIR-V Headers
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: KhronosGroup/SPIRV-Headers
           ref: ${{ env.spirv_headers_tag }}
@@ -218,7 +218,7 @@ jobs:
       - name: Build
         run: |
           cd build
-          make llvm-spirv -j2
+          make llvm-spirv -j$(sysctl -n hw.logicalcpu)
           # FIXME: Testing is disabled at the moment as it requires clang to be present
           # - name: Build tests & test
           #   run: |

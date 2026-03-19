@@ -11,7 +11,6 @@
 #include <sycl/detail/spinlock.hpp>
 #include <sycl/detail/util.hpp>
 
-#include <deque>
 #include <memory>
 #include <unordered_map>
 
@@ -27,7 +26,6 @@ class adapter_impl;
 class ods_target_list;
 class XPTIRegistry;
 class ThreadPool;
-struct KernelNameBasedCacheT;
 
 /// Wrapper class for global data structures with non-trivial destructors.
 ///
@@ -43,14 +41,11 @@ struct KernelNameBasedCacheT;
 /// construction or destruction is generated anyway.
 class GlobalHandler {
 public:
-  /// \return a reference to a GlobalHandler singleton instance. Memory for
-  /// storing objects is allocated on first call. The reference is valid as long
-  /// as runtime library is loaded (i.e. untill `DllMain` or
+  static bool isInstanceAlive() { return RTGlobalObjHandler != nullptr; }
+  /// \return a reference to a GlobalHandler singleton instance. The reference
+  /// is valid as long as runtime library is loaded (i.e. until `DllMain` or
   /// `__attribute__((destructor))` is called).
-  static GlobalHandler &instance();
-
-  /// \return true if the instance has not been deallocated yet.
-  static bool isInstanceAlive();
+  static GlobalHandler &instance() { return *RTGlobalObjHandler; }
 
   GlobalHandler(const GlobalHandler &) = delete;
   GlobalHandler(GlobalHandler &&) = delete;
@@ -73,7 +68,6 @@ public:
   ods_target_list &getOneapiDeviceSelectorTargets(const std::string &InitValue);
   XPTIRegistry &getXPTIRegistry();
   ThreadPool &getHostTaskThreadPool();
-  KernelNameBasedCacheT *createKernelNameBasedCache();
   static void registerStaticVarShutdownHandler();
 
   bool isOkToDefer() const;
@@ -88,19 +82,23 @@ public:
   // For testing purposes only
   void attachScheduler(Scheduler *Scheduler);
 
+  // Used in SYCL unit tests to reset the GlobalHandler instance.
+  static void resetGlobalHandler() {
+    RTGlobalObjHandler = new GlobalHandler();
+  };
+
 private:
+  // Constructor and destructor are declared out-of-line to allow incomplete
+  // types as template arguments to unique_ptr.
+  GlobalHandler();
+  ~GlobalHandler();
+
   bool OkToDefer = true;
 
   friend void shutdown_early(bool);
   friend void shutdown_late();
   friend class ObjectUsageCounter;
-  static GlobalHandler *&getInstancePtr();
   static SpinLock MSyclGlobalHandlerProtector;
-
-  // Constructor and destructor are declared out-of-line to allow incomplete
-  // types as template arguments to unique_ptr.
-  GlobalHandler();
-  ~GlobalHandler();
 
   template <typename T> struct InstWithLock {
     std::unique_ptr<T> Inst;
@@ -125,8 +123,10 @@ private:
   InstWithLock<XPTIRegistry> MXPTIRegistry;
   // Thread pool for host task and event callbacks execution
   InstWithLock<ThreadPool> MHostTaskThreadPool;
-  InstWithLock<std::deque<KernelNameBasedCacheT>> MKernelNameBasedCaches;
+
+  static GlobalHandler *RTGlobalObjHandler;
 };
+
 } // namespace detail
 } // namespace _V1
 } // namespace sycl

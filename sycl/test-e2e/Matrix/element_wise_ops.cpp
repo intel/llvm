@@ -9,11 +9,15 @@
 
 // REQUIRES: aspect-ext_intel_matrix
 
+// This test fails on LNL Windows machines with new driver versions.
+// XFAIL: windows && intel_gpu_lnl_m
+// XFAIL-TRACKER: CMPLRLLVM-72111
+
+// XFAIL: windows && intel_gpu_lnl_m && O0
+// XFAIL-TRACKER: CMPLRLLVM-72111
+
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-
-// XFAIL: arch-intel_gpu_ptl_u || arch-intel_gpu_ptl_h
-// XFAIL-TRACKER: CMPLRLLVM-66710
 
 #include "common.hpp"
 #include "element_wise_ops_impl.hpp"

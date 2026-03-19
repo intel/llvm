@@ -1,4 +1,4 @@
-// Copyright (C) 2023 Intel Corporation
+// Copyright (C) 2023-2026 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
 //
@@ -8,7 +8,7 @@
 #include <uur/known_failure.h>
 
 using urKernelSetExecInfoTest = uur::urKernelTest;
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(urKernelSetExecInfoTest);
+UUR_DEVICE_TEST_SUITE_WITH_DEFAULT_QUEUE(urKernelSetExecInfoTest);
 
 TEST_P(urKernelSetExecInfoTest, SuccessIndirectAccess) {
   UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{});
@@ -59,7 +59,7 @@ struct urKernelSetExecInfoUSMPointersTest : uur::urKernelTest {
   size_t allocation_size = 16;
   void *allocation = nullptr;
 };
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(urKernelSetExecInfoUSMPointersTest);
+UUR_DEVICE_TEST_SUITE_WITH_DEFAULT_QUEUE(urKernelSetExecInfoUSMPointersTest);
 
 TEST_P(urKernelSetExecInfoUSMPointersTest, SuccessHost) {
   UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{});
@@ -119,12 +119,12 @@ TEST_P(urKernelSetExecInfoUSMPointersTest, SuccessShared) {
 using urKernelSetExecInfoCacheConfigTest =
     uur::urKernelTestWithParam<ur_kernel_cache_config_t>;
 
-UUR_DEVICE_TEST_SUITE_WITH_PARAM(
+UUR_MULTI_QUEUE_TYPE_TEST_SUITE_WITH_PARAM(
     urKernelSetExecInfoCacheConfigTest,
     ::testing::Values(UR_KERNEL_CACHE_CONFIG_DEFAULT,
                       UR_KERNEL_CACHE_CONFIG_LARGE_SLM,
                       UR_KERNEL_CACHE_CONFIG_LARGE_DATA),
-    uur::deviceTestWithParamPrinter<ur_kernel_cache_config_t>);
+    uur::deviceTestWithParamPrinterMulti<ur_kernel_cache_config_t>);
 
 TEST_P(urKernelSetExecInfoCacheConfigTest, Success) {
   auto property_value = getParam();

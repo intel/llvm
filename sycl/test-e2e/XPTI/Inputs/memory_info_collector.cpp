@@ -56,7 +56,7 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int MajorVersion,
       xptiRegisterCallback(StreamID, static_cast<uint16_t>(t),
                            syclImageCallback);
   }
-  if (NameView == "sycl") {
+  if (NameView == "sycl" || NameView == "sycl.debug") {
     uint8_t StreamID = xptiRegisterStream(StreamName);
     for (type t : std::initializer_list<type>{
              type::graph_create, type::node_create, type::edge_create,
@@ -105,10 +105,9 @@ XPTI_CALLBACK_API void syclBufferCallback(uint16_t TraceType,
               << BufConstr->user_object_handle << "|0x"
               << BufConstr->host_object_handle << "|" << std::dec
               << BufConstr->element_type << "|" << BufConstr->element_size
-              << "|" << BufConstr->dim << "|"
-              << "{" << BufConstr->range[0] << "," << BufConstr->range[1] << ","
-              << BufConstr->range[2] << "}|"
-              << Event->reserved.payload->source_file << ":"
+              << "|" << BufConstr->dim << "|" << "{" << BufConstr->range[0]
+              << "," << BufConstr->range[1] << "," << BufConstr->range[2]
+              << "}|" << Event->reserved.payload->source_file << ":"
               << Event->reserved.payload->line_no << ":"
               << Event->reserved.payload->column_no << "\n";
 
@@ -167,9 +166,9 @@ XPTI_CALLBACK_API void syclImageCallback(uint16_t TraceType,
       std::cout << "un";
     std::cout << "sampled image|0x" << std::hex << ImgConstr->user_object_handle
               << "|0x" << ImgConstr->host_object_handle << "|" << std::dec
-              << ImgConstr->dim << "|"
-              << "{" << ImgConstr->range[0] << "," << ImgConstr->range[1] << ","
-              << ImgConstr->range[2] << "}|" << ImgConstr->format << "|";
+              << ImgConstr->dim << "|" << "{" << ImgConstr->range[0] << ","
+              << ImgConstr->range[1] << "," << ImgConstr->range[2] << "}|"
+              << ImgConstr->format << "|";
     if (IsSampledImage)
       std::cout << *ImgConstr->addressing << "|"
                 << *ImgConstr->coordinate_normalization << "|"
@@ -282,8 +281,7 @@ void parseMetadata(xpti::trace_event_data_t *Event) {
           Metadata, Name.c_str());
       std::cout << "  " << Name << " : {" << arg.type << ", " << std::hex
                 << "0x" << (uintptr_t)arg.pointer << std::dec << ", "
-                << arg.size << ", " << arg.index << "} "
-                << "\n";
+                << arg.size << ", " << arg.index << "} " << "\n";
     }
   } else {
     std::cout << "\n";

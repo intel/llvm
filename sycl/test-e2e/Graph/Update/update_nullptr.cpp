@@ -21,7 +21,7 @@ int main() {
   int PtrPattern = 42;
   Queue.fill(PtrIn, PtrPattern, N).wait();
 
-  exp_ext::dynamic_parameter InputParam(Graph, PtrIn);
+  exp_ext::dynamic_parameter InputParam(PtrIn);
   int DefaultPattern = 10;
   auto KernelNode = Graph.add([&](handler &cgh) {
     cgh.set_arg(0, InputParam);

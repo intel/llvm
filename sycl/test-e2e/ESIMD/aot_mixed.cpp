@@ -6,10 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 // TODO: Enable on other GPUs once internal ticket is fixed
-// REQUIRES: ocloc && gpu-intel-gen12
-// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen "-device tgllp" -o %t.sycl.out -DENABLE_SYCL=0 %s
+// REQUIRES: ocloc && gpu-intel-dg2
+// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen "-device dg2" -o %t.sycl.out -DENABLE_SYCL=0 %s
 // RUN: %{run} %t.sycl.out
-// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen "-device tgllp" -o %t.out %s
+// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen "-device dg2" -o %t.out %s
 // RUN: %{run} %t.out
 
 // This test checks the following ESIMD ahead-of-time compilation scenarios:

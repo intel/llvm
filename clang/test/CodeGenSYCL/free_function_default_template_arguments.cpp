@@ -204,6 +204,23 @@ namespace Testing::Tests {
 }
 
 
+template <typename T>
+struct SomeStruct{
+  T a;
+  SomeStruct() : a() {}
+};
+
+template <typename T>
+[[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 1)]] void
+templated_const(const SomeStruct<T> start, T end) {
+}
+
+template void templated_const<int>(const SomeStruct<int>, int);
+
+// Special case to check decltype deduction
+const SomeStruct<float> someStructFloat;
+template void templated_const<decltype(someStructFloat)>(const SomeStruct<decltype(someStructFloat)>, decltype(someStructFloat));
+
 // CHECK: namespace sycl {
 // CHECK-NEXT:  inline namespace _V1 {
 // CHECK-NEXT:  namespace detail {
@@ -238,6 +255,8 @@ namespace Testing::Tests {
 // CHECK-NEXT:    "_Z33__sycl_kernel_variadic_templated1IiJfcEEvT_DpT0_",
 // CHECK-NEXT:    "_ZN21__sycl_kernel_Testing5Tests18variadic_templatedIfJfEEEvT_DpT0_", 
 // CHECK-NEXT:    "_ZN21__sycl_kernel_Testing5Tests18variadic_templatedIiJiiiEEEvT_DpT0_", 
+// CHECK-NEXT:    "_Z29__sycl_kernel_templated_constIiEv10SomeStructIT_ES1_",
+// CHECK-NEXT:    "_Z29__sycl_kernel_templated_constIK10SomeStructIfEEvS0_IT_ES3_",
 // CHECK-NEXT:    "",
 // CHECK-NEXT:  };
 
@@ -380,9 +399,9 @@ namespace Testing::Tests {
 // CHECK-NEXT: }
 // CHECK-NEXT: template <typename T, typename> struct Arg1;
 
-// CHECK: void foo(Arg1<int, sycl::X<sycl::detail::Y> > arg);
+// CHECK: void foo(Arg1<int, sycl::X<sycl::detail::Y>> arg);
 // CHECK-NEXT: static constexpr auto __sycl_shim7() {
-// CHECK-NEXT:   return (void (*)(struct Arg1<int, struct sycl::X<struct sycl::detail::Y> >))foo;
+// CHECK-NEXT:   return (void (*)(struct Arg1<int, struct sycl::X<struct sycl::detail::Y>>))foo;
 // CHECK-NEXT: }
 
 // CHECK: namespace sycl {
@@ -1085,17 +1104,27 @@ namespace Testing::Tests {
 // CHECK-NEXT:  };
 // CHECK-NEXT:  }
 
+// CHECK: template <typename T> struct SomeStruct;
+// CHECK: template <typename T> void templated_const(const SomeStruct<T>, T);
+// CHECK-NEXT: static constexpr auto __sycl_shim29() {
+// CHECK-NEXT:  return (void (*)(const struct SomeStruct<int>, int))templated_const<int>;
+// CHECK-NEXT: }
+
+// CHECK: template <typename T> void templated_const(const SomeStruct<T>, T);
+// CHECK-NEXT: static constexpr auto __sycl_shim30() {
+// CHECK-NEXT:  return (void (*)(const struct SomeStruct<const struct SomeStruct<float>>, const struct SomeStruct<float>))templated_const<const struct SomeStruct<float>>;
+// CHECK-NEXT: }
+
 // CHECK: #include <sycl/kernel_bundle.hpp>
 // CHECK-NEXT: #include <sycl/detail/kernel_global_info.hpp>
-// CHECK-NEXT: namespace sycl {
-// CHECK-NEXT: inline namespace _V1 {
-// CHECK-NEXT: namespace detail {
+// CHECK-NEXT: namespace {
 // CHECK-NEXT: struct GlobalMapUpdater {
 // CHECK-NEXT:   GlobalMapUpdater() {
-// CHECK-NEXT:     sycl::detail::free_function_info_map::add(sycl::detail::kernel_names, sycl::detail::kernel_args_sizes, 28);
+// CHECK-NEXT:     sycl::detail::free_function_info_map::add(sycl::detail::kernel_names, sycl::detail::kernel_args_sizes, 30);
+// CHECK-NEXT:   }
+// CHECK-NEXT:   ~GlobalMapUpdater() {
+// CHECK-NEXT:     sycl::detail::free_function_info_map::remove(sycl::detail::kernel_names, sycl::detail::kernel_args_sizes, 30);
 // CHECK-NEXT:   }
 // CHECK-NEXT: };
 // CHECK-NEXT: static GlobalMapUpdater updater;
-// CHECK-NEXT: } // namespace detail
-// CHECK-NEXT: } // namespace _V1
-// CHECK-NEXT: } // namespace sycl
+// CHECK-NEXT: }

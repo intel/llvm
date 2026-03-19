@@ -10,7 +10,7 @@
 
 #include <OffloadAPI.h>
 #include <assert.h>
-#include <ur_api.h>
+#include <unified-runtime/ur_api.h>
 
 #include "context.hpp"
 #include "event.hpp"
@@ -25,11 +25,15 @@ ol_result_t waitOnEvents(ol_queue_handle_t Queue,
   if (NumEvents) {
     std::vector<ol_event_handle_t> OlEvents;
     OlEvents.reserve(NumEvents);
+    size_t RealEventCount = 0;
     for (size_t I = 0; I < NumEvents; I++) {
-      OlEvents.push_back(UrEvents[I]->OffloadEvent);
+      if (UrEvents[I]->OffloadEvent) {
+        RealEventCount++;
+        OlEvents.push_back(UrEvents[I]->OffloadEvent);
+      }
     }
 
-    return olWaitEvents(Queue, OlEvents.data(), NumEvents);
+    return olWaitEvents(Queue, OlEvents.data(), RealEventCount);
   }
   return OL_SUCCESS;
 }
@@ -137,12 +141,25 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
   return doWait<true>(hQueue, numEventsInWaitList, phEventWaitList, phEvent);
 }
 
+// This function only makes sense for level_zero, the flag in properties is
+// ignored
+UR_APIEXPORT ur_result_t urEnqueueEventsWaitWithBarrierExt(
+    ur_queue_handle_t hQueue, const ur_exp_enqueue_ext_properties_t *,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent) {
+  return urEnqueueEventsWaitWithBarrier(hQueue, numEventsInWaitList,
+                                        phEventWaitList, phEvent);
+}
+
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel, uint32_t workDim,
     const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
-    const size_t *pLocalWorkSize, uint32_t, const ur_kernel_launch_property_t *,
+    const size_t *pLocalWorkSize, const ur_kernel_launch_ext_properties_t *,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
+  UR_ASSERT(workDim > 0, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
+  UR_ASSERT(workDim < 4, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
+
   ol_queue_handle_t Queue;
   OL_RETURN_ON_ERR(hQueue->nextQueue(Queue));
   OL_RETURN_ON_ERR(waitOnEvents(Queue, phEventWaitList, numEventsInWaitList));
@@ -231,6 +248,8 @@ ur_result_t doMemcpy(ur_command_t Command, ur_queue_handle_t hQueue,
   OL_RETURN_ON_ERR(waitOnEvents(Queue, phEventWaitList, numEventsInWaitList));
 
   if (blocking) {
+    // Ensure all work in the queue is complete
+    OL_RETURN_ON_ERR(olSyncQueue(Queue));
     OL_RETURN_ON_ERR(
         olMemcpy(nullptr, DestPtr, DestDevice, SrcPtr, SrcDevice, size));
     if (phEvent) {
@@ -437,4 +456,66 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
                   phEventWaitList, phEvent);
 
   return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMAdvise(
+    ur_queue_handle_t hQueue, [[maybe_unused]] const void *pMem,
+    [[maybe_unused]] size_t size, [[maybe_unused]] ur_usm_advice_flags_t advice,
+    ur_event_handle_t *phEvent) {
+  // Currently not supported - do nothing
+  if (phEvent) {
+    *phEvent =
+        ur_event_handle_t_::createEmptyEvent(UR_COMMAND_USM_ADVISE, hQueue);
+  }
+  return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
+    ur_queue_handle_t hQueue, [[maybe_unused]] const void *pMem,
+    [[maybe_unused]] size_t size,
+    [[maybe_unused]] ur_usm_migration_flags_t flags,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent) {
+  // Currently not supported - do nothing
+  ol_queue_handle_t Queue;
+  OL_RETURN_ON_ERR(hQueue->nextQueue(Queue));
+  OL_RETURN_ON_ERR(waitOnEvents(Queue, phEventWaitList, numEventsInWaitList));
+  OL_RETURN_ON_ERR(makeEvent(UR_COMMAND_USM_PREFETCH, Queue, hQueue, phEvent));
+
+  return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunchWithArgsExp(
+    ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel, uint32_t workDim,
+    const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
+    const size_t *pLocalWorkSize, uint32_t numArgs,
+    const ur_exp_kernel_arg_properties_t *pArgs,
+    const ur_kernel_launch_ext_properties_t *launchPropList,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent) {
+  for (uint32_t i = 0; i < numArgs; i++) {
+    switch (pArgs[i].type) {
+    case UR_EXP_KERNEL_ARG_TYPE_POINTER:
+      hKernel->Args.addArg(pArgs[i].index, sizeof(pArgs[i].value.pointer),
+                           &pArgs[i].value.pointer);
+      break;
+    case UR_EXP_KERNEL_ARG_TYPE_VALUE:
+      hKernel->Args.addArg(pArgs[i].index, pArgs[i].size, pArgs[i].value.value);
+      break;
+    case UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ:
+      hKernel->Args.addMemObjArg(pArgs[i].index,
+                                 pArgs[i].value.memObjTuple.hMem,
+                                 pArgs[i].value.memObjTuple.flags);
+      break;
+    case UR_EXP_KERNEL_ARG_TYPE_LOCAL:
+    case UR_EXP_KERNEL_ARG_TYPE_SAMPLER:
+      return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    default:
+      return UR_RESULT_ERROR_INVALID_ENUMERATION;
+    }
+  }
+
+  return urEnqueueKernelLaunch(hQueue, hKernel, workDim, pGlobalWorkOffset,
+                               pGlobalWorkSize, pLocalWorkSize, launchPropList,
+                               numEventsInWaitList, phEventWaitList, phEvent);
 }

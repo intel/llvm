@@ -1,0 +1,80 @@
+name: clang-tidy
+
+on:
+  pull_request:
+    branches:
+      - sycl
+    paths:
+      - "**/*.cpp"
+      - "**/*.h"
+      - "**/*.hpp"
+
+
+concurrency:
+  #  Cancel a currently running workflow from the same PR, branch or tag.
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions: read-all
+
+jobs:
+  run-clang-tidy:
+    if: ${{ !contains(github.event.pull_request.labels.*.name, 'disable-lint') }}
+    runs-on: [Linux, build]
+    container:
+      image: ghcr.io/intel/llvm/sycl_ubuntu2404_nightly:latest
+      options: -u 1001:1001
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          sparse-checkout: |
+            devops/actions
+            devops/scripts
+          persist-credentials: false
+      - name: Register cleanup after job is finished
+        uses: ./devops/actions/cleanup
+
+      - name: Check diff
+        id: should_run_tidy
+        run: |
+          echo "Downloading the diff"
+          curl -L "${{ github.server_url }}/${{ github.repository }}/pull/${{ github.event.pull_request.number }}.diff" -o pr.diff
+
+          if python3 devops/scripts/should_run_clang-tidy.py pr.diff; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - if: steps.should_run_tidy.outputs.run == 'true'
+        uses: ./devops/actions/cached_checkout
+        with:
+          path: src
+          ref: ${{ github.sha }}
+          cache_path: "/__w/repo_cache/"
+      - name: Configure
+        if: steps.should_run_tidy.outputs.run == 'true'
+        env:
+          CC: clang
+          CXX: clang++
+          CUDA_LIB_PATH: "/usr/local/cuda/lib64/stubs"
+        run: |
+          mkdir -p $GITHUB_WORKSPACE/build
+          cd $GITHUB_WORKSPACE/build
+          python3 $GITHUB_WORKSPACE/src/buildbot/configure.py -w $GITHUB_WORKSPACE \
+            -s $GITHUB_WORKSPACE/src -o $GITHUB_WORKSPACE/build -t Release \
+            --ci-defaults -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+            -DSYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB=Off
+
+      - name: Run clang-tidy on modified files
+        if: steps.should_run_tidy.outputs.run == 'true'
+        # Exeprimental workflow, it won't affect the pre-commit status in case of failure.
+        continue-on-error: true
+        run: |
+          cd "$GITHUB_WORKSPACE/src"
+          python3 "$GITHUB_WORKSPACE/src/clang-tools-extra/clang-tidy/tool/clang-tidy-diff.py" \
+            -clang-tidy-binary "/opt/sycl/bin/clang-tidy" \
+            -p 1 \
+            -path "$GITHUB_WORKSPACE/build" \
+            -checks "clang-analyzer-*,bugprone-*,performance-*,-bugprone-std-namespace-modification" \
+            < "$GITHUB_WORKSPACE/pr.diff"

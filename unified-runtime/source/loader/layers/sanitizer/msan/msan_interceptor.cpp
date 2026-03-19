@@ -107,12 +107,14 @@ ur_result_t MsanInterceptor::allocateMemory(ur_context_handle_t Context,
 
   // Update shadow memory
   auto EnqueuePoison = [&](const std::vector<ur_device_handle_t> &Devices) {
-    u8 Value = DontCheckHostOrSharedUSM ? 0 : 0xff;
     for (ur_device_handle_t Device : Devices) {
       ManagedQueue Queue(Context, Device);
       std::shared_ptr<DeviceInfo> DI = getDeviceInfo(Device);
       DI->Shadow->EnqueuePoisonShadowWithOrigin(Queue, (uptr)Allocated, Size,
-                                                Value, HeapOrigin.rawId());
+                                                DontCheckHostOrSharedUSM
+                                                    ? &kMemInitializedMagic
+                                                    : &kMemUninitializedMagic,
+                                                HeapOrigin.rawId());
     }
   };
   if (Device) { // shared/device USM
@@ -135,7 +137,7 @@ ur_result_t MsanInterceptor::releaseMemory(ur_context_handle_t Context,
 
 ur_result_t MsanInterceptor::preLaunchKernel(ur_kernel_handle_t Kernel,
                                              ur_queue_handle_t Queue,
-                                             USMLaunchInfo &LaunchInfo) {
+                                             LaunchInfo &LaunchInfo) {
   auto Context = GetContext(Queue);
   auto Device = GetDevice(Queue);
   auto ContextInfo = getContextInfo(Context);
@@ -154,7 +156,7 @@ ur_result_t MsanInterceptor::preLaunchKernel(ur_kernel_handle_t Kernel,
 
 ur_result_t MsanInterceptor::postLaunchKernel(ur_kernel_handle_t Kernel,
                                               ur_queue_handle_t Queue,
-                                              USMLaunchInfo &LaunchInfo) {
+                                              LaunchInfo &LaunchInfo) {
   // FIXME: We must use block operation here, until we support
   // urEventSetCallback
   auto Result = getContext()->urDdiTable.Queue.pfnFinish(Queue);
@@ -256,7 +258,7 @@ ur_result_t MsanInterceptor::registerSpirKernels(ur_program_handle_t Program) {
                KernelName, true, CheckLocals, CheckPrivates, TrackOrigins);
 
       PI->KernelMetadataMap[KernelName] =
-          ProgramInfo::KernelMetada{CheckLocals, CheckPrivates, TrackOrigins};
+          ProgramInfo::KernelMetadata{CheckLocals, CheckPrivates, TrackOrigins};
     }
     UR_LOG_L(getContext()->logger, INFO, "Number of sanitized kernel: {}",
              PI->KernelMetadataMap.size());
@@ -310,8 +312,8 @@ MsanInterceptor::registerDeviceGlobals(ur_program_handle_t Program) {
            MsanShadowMemoryPVC::IsDeviceUSM(GVInfo.Addr)) ||
           (DeviceInfo->Type == DeviceType::GPU_DG2 &&
            MsanShadowMemoryDG2::IsDeviceUSM(GVInfo.Addr))) {
-        UR_CALL(DeviceInfo->Shadow->EnqueuePoisonShadow(Queue, GVInfo.Addr,
-                                                        GVInfo.Size, 0));
+        UR_CALL(DeviceInfo->Shadow->EnqueuePoisonShadow(
+            Queue, GVInfo.Addr, GVInfo.Size, &kMemInitializedMagic));
         ContextInfo->CleanShadowSize =
             std::max(ContextInfo->CleanShadowSize, GVInfo.Size);
       }
@@ -383,19 +385,6 @@ ur_result_t MsanInterceptor::insertProgram(ur_program_handle_t Program) {
   std::scoped_lock<ur_shared_mutex> Guard(m_ProgramMapMutex);
   if (m_ProgramMap.find(Program) != m_ProgramMap.end()) {
     return UR_RESULT_SUCCESS;
-  }
-  auto CI = getContextInfo(GetContext(Program));
-  auto DI = getDeviceInfo(CI->DeviceList[0]);
-  ur_specialization_constant_info_t SpecConstantInfo{
-      SPEC_CONSTANT_DEVICE_TYPE_ID, sizeof(DeviceType), &DI->Type};
-  ur_result_t URes =
-      getContext()->urDdiTable.Program.pfnSetSpecializationConstants(
-          Program, 1, &SpecConstantInfo);
-  if (URes != UR_RESULT_SUCCESS) {
-    UR_LOG_L(getContext()->logger, DEBUG,
-             "Set specilization constant for device type failed: {}, the "
-             "program may not be sanitized or is created from binary.",
-             URes);
   }
   m_ProgramMap.emplace(Program, std::make_shared<ProgramInfo>(Program));
   return UR_RESULT_SUCCESS;
@@ -469,7 +458,7 @@ MsanInterceptor::getMemBuffer(ur_mem_handle_t MemHandle) {
 
 ur_result_t MsanInterceptor::prepareLaunch(
     std::shared_ptr<DeviceInfo> &DeviceInfo, ur_queue_handle_t Queue,
-    ur_kernel_handle_t Kernel, USMLaunchInfo &LaunchInfo) {
+    ur_kernel_handle_t Kernel, LaunchInfo &LaunchInfo) {
   auto Program = GetProgram(Kernel);
 
   // Set membuffer arguments
@@ -505,23 +494,23 @@ ur_result_t MsanInterceptor::prepareLaunch(
   LaunchInfo.Data.Host.GlobalShadowOffset = DeviceInfo->Shadow->ShadowBegin;
   LaunchInfo.Data.Host.GlobalShadowOffsetEnd = DeviceInfo->Shadow->ShadowEnd;
 
+  LaunchInfo.Data.Host.DeviceTy = DeviceInfo->Type;
   LaunchInfo.Data.Host.Debug = getContext()->Options.Debug ? 1 : 0;
   LaunchInfo.Data.Host.IsRecover = getContext()->Options.Recover ? 1 : 0;
 
   // Clean shadow
   // Its content is always zero, and is used for unsupport memory types
-  UR_CALL(getContext()->urDdiTable.USM.pfnDeviceAlloc(
-      ContextInfo->Handle, DeviceInfo->Handle, nullptr, nullptr,
-      ContextInfo->CleanShadowSize,
-      (void **)&LaunchInfo.Data.Host.CleanShadow));
-  UR_CALL(EnqueueUSMSet(Queue, (void *)LaunchInfo.Data.Host.CleanShadow,
-                        (char)0, ContextInfo->CleanShadowSize, 0, nullptr,
-                        nullptr));
+  UR_CALL(SafeAllocate(ContextInfo->Handle, DeviceInfo->Handle,
+                       ContextInfo->CleanShadowSize, nullptr, nullptr,
+                       AllocType::DEVICE_USM,
+                       (void **)&LaunchInfo.Data.Host.CleanShadow));
+  UR_CALL(EnqueueUSMSetZero(Queue, (void *)LaunchInfo.Data.Host.CleanShadow,
+                            ContextInfo->CleanShadowSize));
 
   if (LaunchInfo.LocalWorkSize.empty()) {
     LaunchInfo.LocalWorkSize.resize(LaunchInfo.WorkDim);
     auto URes = getContext()->urDdiTable.Kernel.pfnGetSuggestedLocalWorkSize(
-        Kernel, Queue, LaunchInfo.WorkDim, LaunchInfo.GlobalWorkOffset,
+        Kernel, Queue, LaunchInfo.WorkDim, LaunchInfo.GlobalWorkOffset.data(),
         LaunchInfo.GlobalWorkSize, LaunchInfo.LocalWorkSize.data());
     if (URes != UR_RESULT_SUCCESS) {
       if (URes != UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
@@ -611,7 +600,7 @@ ur_result_t MsanInterceptor::prepareLaunch(
   UR_LOG_L(getContext()->logger, INFO,
            "LaunchInfo {} (GlobalShadow={}, LocalShadow={}, PrivateBase={}, "
            "PrivateShadow={}, CleanShadow={}, LocalArgs={}, NumLocalArgs={}, "
-           "Debug={})",
+           "Device={}, Debug={})",
            (void *)LaunchInfo.Data.getDevicePtr(),
            (void *)LaunchInfo.Data.Host.GlobalShadowOffset,
            (void *)LaunchInfo.Data.Host.LocalShadowOffset,
@@ -619,7 +608,8 @@ ur_result_t MsanInterceptor::prepareLaunch(
            (void *)LaunchInfo.Data.Host.PrivateShadowOffset,
            (void *)LaunchInfo.Data.Host.CleanShadow,
            (void *)LaunchInfo.Data.Host.LocalArgs,
-           LaunchInfo.Data.Host.NumLocalArgs, LaunchInfo.Data.Host.Debug);
+           LaunchInfo.Data.Host.NumLocalArgs,
+           ToString(LaunchInfo.Data.Host.DeviceTy), LaunchInfo.Data.Host.Debug);
 
   ur_result_t URes =
       getContext()->urDdiTable.Enqueue.pfnDeviceGlobalVariableWrite(
@@ -650,7 +640,7 @@ bool ProgramInfo::isKernelInstrumented(ur_kernel_handle_t Kernel) const {
   return KernelMetadataMap.find(Name) != KernelMetadataMap.end();
 }
 
-const ProgramInfo::KernelMetada &
+const ProgramInfo::KernelMetadata &
 ProgramInfo::getKernelMetadata(ur_kernel_handle_t Kernel) const {
   const auto Name = GetKernelName(Kernel);
   assert(KernelMetadataMap.find(Name) != KernelMetadataMap.end());
@@ -661,12 +651,6 @@ ContextInfo::~ContextInfo() {
   [[maybe_unused]] auto Result =
       getContext()->urDdiTable.Context.pfnRelease(Handle);
   assert(Result == UR_RESULT_SUCCESS);
-}
-
-ur_result_t USMLaunchInfo::initialize() {
-  UR_CALL(getContext()->urDdiTable.Context.pfnRetain(Context));
-  UR_CALL(getContext()->urDdiTable.Device.pfnRetain(Device));
-  return UR_RESULT_SUCCESS;
 }
 
 MsanRuntimeDataWrapper::~MsanRuntimeDataWrapper() {
@@ -680,14 +664,6 @@ MsanRuntimeDataWrapper::~MsanRuntimeDataWrapper() {
         getContext()->urDdiTable.USM.pfnFree(Context, (void *)DevicePtr);
     assert(Result == UR_RESULT_SUCCESS);
   }
-}
-
-USMLaunchInfo::~USMLaunchInfo() {
-  [[maybe_unused]] ur_result_t Result;
-  Result = getContext()->urDdiTable.Context.pfnRelease(Context);
-  assert(Result == UR_RESULT_SUCCESS);
-  Result = getContext()->urDdiTable.Device.pfnRelease(Device);
-  assert(Result == UR_RESULT_SUCCESS);
 }
 
 } // namespace msan

@@ -16,7 +16,7 @@
 
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/os_util.hpp>
-#include <ur_api.h>
+#include <unified-runtime/ur_api.h>
 
 #include <type_traits>
 #include <vector>
@@ -48,13 +48,13 @@ namespace detail {
 
 enum class UrApiKind {
 #define _UR_API(api) api,
-#include <ur_api_funcs.def>
+#include <unified-runtime/ur_api_funcs.def>
 #undef _UR_API
 };
 
 struct UrFuncPtrMapT {
 #define _UR_API(api) decltype(&::api) pfn_##api = nullptr;
-#include <ur_api_funcs.def>
+#include <unified-runtime/ur_api_funcs.def>
 #undef _UR_API
 };
 
@@ -65,7 +65,7 @@ void *GetWinProcAddress(void *module, const char *funcName);
 inline void PopulateUrFuncPtrTable(UrFuncPtrMapT *funcs, void *module) {
 #define _UR_API(api)                                                           \
   funcs->pfn_##api = (decltype(&::api))GetWinProcAddress(module, #api);
-#include <ur_api_funcs.def>
+#include <unified-runtime/ur_api_funcs.def>
 #undef _UR_API
 }
 
@@ -80,7 +80,7 @@ inline void PopulateUrFuncPtrTable(UrFuncPtrMapT *funcs, void *module) {
       return (FuncPtrT)GetWinProcAddress(module, #api);                        \
     }                                                                          \
   };
-#include <ur_api_funcs.def>
+#include <unified-runtime/ur_api_funcs.def>
 #undef _UR_API
 #else
 #define _UR_API(api)                                                           \
@@ -90,7 +90,7 @@ inline void PopulateUrFuncPtrTable(UrFuncPtrMapT *funcs, void *module) {
     constexpr inline FuncPtrT getFuncPtr(const void *) { return &api; }        \
     constexpr inline FuncPtrT getFuncPtrFromModule(void *) { return &api; }    \
   };
-#include <ur_api_funcs.def>
+#include <unified-runtime/ur_api_funcs.def>
 #undef _UR_API
 #endif
 
@@ -101,10 +101,6 @@ __SYCL_EXPORT void contextSetExtendedDeleter(const sycl::context &constext,
                                              pi_context_extended_deleter func,
                                              void *user_data);
 }
-
-// TODO: To be removed as this was only introduced for esimd which was removed.
-template <sycl::backend BE>
-__SYCL_EXPORT void *getPluginOpaqueData(void *opaquedata_arg);
 
 namespace ur {
 // Function to load a shared library

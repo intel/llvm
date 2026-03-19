@@ -15,7 +15,7 @@
 #define UR_TRACING_LAYER_H 1
 
 #include "logger/ur_logger.hpp"
-#include "ur_ddi.h"
+#include "unified-runtime/ur_ddi.h"
 #include "ur_proxy_layer.hpp"
 #include "ur_util.hpp"
 
@@ -48,6 +48,7 @@ private:
   void notify(uint16_t trace_type, uint32_t id, const char *name, void *args,
               ur_result_t *resultp, uint64_t instance);
   uint8_t call_stream_id;
+  uint8_t debug_call_stream_id;
 
   inline static const std::string name = "UR_LAYER_TRACING";
 

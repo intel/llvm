@@ -46,7 +46,12 @@ TEST_P(cudaUrContextCreateTest, CreateWithChildThread) {
 TEST_P(cudaUrContextCreateTest, ContextLifetimeExisting) {
   // start by setting up a CUDA context on the thread
   CUcontext original;
+#if CUDA_VERSION >= 13000
+  ASSERT_SUCCESS_CUDA(
+      cuCtxCreate(&original, nullptr, CU_CTX_MAP_HOST, device->get()));
+#else
   ASSERT_SUCCESS_CUDA(cuCtxCreate(&original, CU_CTX_MAP_HOST, device->get()));
+#endif
 
   // ensure the CUDA context is active
   CUcontext current = nullptr;

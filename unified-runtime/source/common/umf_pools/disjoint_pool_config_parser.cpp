@@ -40,12 +40,14 @@ DisjointPoolAllConfigs::DisjointPoolAllConfigs(int trace) {
   Configs[DisjointPoolMemType::Shared].Name = "Shared";
   Configs[DisjointPoolMemType::SharedReadOnly].Name = "SharedReadOnly";
 
-  // Buckets for Host use a minimum of the cache line size of 64 bytes.
-  // This prevents two separate allocations residing in the same cache line.
+  // Buckets for Host use 256-byte minimum (Intel GPU cache line size) to
+  // prevent separate allocations from sharing cache lines, avoiding cache
+  // coherency issues during GPU-to-Host copies.
+
   // Buckets for Device and Shared allocations will use starting size of 512.
   // This is because memory compression on newer GPUs makes the
   // minimum granularity 512 bytes instead of 64.
-  Configs[DisjointPoolMemType::Host].MinBucketSize = 64;
+  Configs[DisjointPoolMemType::Host].MinBucketSize = 256;
   Configs[DisjointPoolMemType::Device].MinBucketSize = 512;
   Configs[DisjointPoolMemType::Shared].MinBucketSize = 512;
   Configs[DisjointPoolMemType::SharedReadOnly].MinBucketSize = 512;
@@ -266,5 +268,14 @@ DisjointPoolAllConfigs parseDisjointPoolConfig(const std::string &config,
             << std::endl;
 
   return AllConfigs;
+}
+
+std::optional<DisjointPoolAllConfigs>
+parseDisjointPoolConfigOptional(const std::string &config, int trace) {
+  auto configs = parseDisjointPoolConfig(config, trace);
+  if (configs.EnableBuffers == 0) {
+    return std::nullopt;
+  }
+  return configs;
 }
 } // namespace usm

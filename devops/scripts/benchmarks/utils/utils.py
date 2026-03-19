@@ -1,4 +1,4 @@
-# Copyright (C) 2024-2025 Intel Corporation
+# Copyright (C) 2024-2026 Intel Corporation
 # Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -19,27 +19,62 @@ from options import options
 from utils.logger import log
 
 
+def sanitize_filename(name: str) -> str:
+    """
+    Sanitize a string to be safe for use as a filename or directory name.
+    Replace invalid characters with underscores.
+    Invalid characters: " : < > | * ? \r \n
+    """
+    # Replace invalid characters with underscores
+    # Added space to list to avoid directories with spaces which cause issues in shell commands
+    invalid_chars = r'[":;<>|*?\r\n ]'
+    sanitized = re.sub(invalid_chars, "_", name)
+    return sanitized
+
+
 def run(
     command,
-    env_vars={},
+    env_vars=None,
     cwd=None,
     add_sycl=False,
     ld_library=[],
     timeout=None,
+    input=None,
 ):
     try:
+        env_vars = dict(env_vars) if env_vars else {}
+
         if timeout is None:
             timeout = options.timeout
 
         if isinstance(command, str):
             command = command.split()
 
-        env = os.environ.copy()
+        is_gdb_mode = os.environ.get("LLVM_BENCHMARKS_USE_GDB", "") == "1"
+        if any("/compute-benchmarks-build/bin/" in x for x in command) and is_gdb_mode:
+            command = [
+                "gdb",
+                "-return-child-result",
+                "--batch",
+                "--ex",
+                "set auto-load safe-path /",
+                "--ex",
+                "set confirm off",
+                "--ex",
+                "run",
+                "--ex",
+                "bt",
+                "--ex",
+                "quit",
+                "--args",
+            ] + command
+            log.info(f"Running in gdb mode")
 
+        env = os.environ.copy()
         for ldlib in ld_library:
             if os.path.isdir(ldlib):
-                env["LD_LIBRARY_PATH"] = (
-                    ldlib + os.pathsep + env.get("LD_LIBRARY_PATH", "")
+                env_vars["LD_LIBRARY_PATH"] = os.pathsep.join(
+                    filter(None, [ldlib, env_vars.get("LD_LIBRARY_PATH", "")])
                 )
             else:
                 log.warning(f"LD_LIBRARY_PATH component does not exist: {ldlib}")
@@ -47,18 +82,32 @@ def run(
         # order is important, we want provided sycl rt libraries to be first
         if add_sycl:
             sycl_bin_path = os.path.join(options.sycl, "bin")
-            env["PATH"] = sycl_bin_path + os.pathsep + env.get("PATH", "")
             sycl_lib_path = os.path.join(options.sycl, "lib")
-            env["LD_LIBRARY_PATH"] = (
-                sycl_lib_path + os.pathsep + env.get("LD_LIBRARY_PATH", "")
-            )
 
-        env.update(env_vars)
+            env_vars["PATH"] = os.pathsep.join(
+                filter(None, [sycl_bin_path, env_vars.get("PATH", "")])
+            )
+            env_vars["LD_LIBRARY_PATH"] = os.pathsep.join(
+                filter(None, [sycl_lib_path, env_vars.get("LD_LIBRARY_PATH", "")])
+            )
 
         command_str = " ".join(command)
         env_str = " ".join(f"{key}={value}" for key, value in env_vars.items())
         full_command_str = f"{env_str} {command_str}".strip()
-        log.debug(f"Running: {full_command_str}")
+        log.info(f"Running: {full_command_str}")
+
+        for key, value in env_vars.items():
+            # Only PATH and LD_LIBRARY_PATH should be prepended to existing values
+            if key in ("PATH", "LD_LIBRARY_PATH") and (old := env.get(key)):
+                env[key] = os.pathsep.join([value, old])
+            else:
+                env[key] = value
+
+        # Normalize input to bytes if it's a str
+        if isinstance(input, str):
+            input_bytes = input.encode()
+        else:
+            input_bytes = input
 
         result = subprocess.run(
             command,
@@ -68,6 +117,7 @@ def run(
             stderr=subprocess.PIPE,
             env=env,
             timeout=timeout,
+            input=input_bytes,
         )  # nosec B603
 
         if result.stdout:
@@ -77,28 +127,11 @@ def run(
 
         return result
     except subprocess.CalledProcessError as e:
-        log.error(e.stdout.decode())
-        log.error(e.stderr.decode())
+        if e.stdout and e.stdout.decode().strip():
+            log.error(e.stdout.decode())
+        if e.stderr and e.stderr.decode().strip():
+            log.error(e.stderr.decode())
         raise
-
-
-def git_clone(dir, name, repo, commit):
-    repo_path = os.path.join(dir, name)
-    log.debug(f"Cloning {repo} into {repo_path} at commit {commit}")
-
-    if os.path.isdir(repo_path) and os.path.isdir(os.path.join(repo_path, ".git")):
-        run("git fetch", cwd=repo_path)
-        run("git reset --hard", cwd=repo_path)
-        run(f"git checkout {commit}", cwd=repo_path)
-    elif not os.path.exists(repo_path):
-        run(f"git clone --recursive {repo} {repo_path}")
-        run(f"git checkout {commit}", cwd=repo_path)
-    else:
-        raise Exception(
-            f"The directory {repo_path} exists but is not a git repository."
-        )
-    log.debug(f"Cloned {repo} into {repo_path} at commit {commit}")
-    return repo_path
 
 
 def prepare_bench_cwd(dir):
@@ -136,17 +169,6 @@ def prepare_workdir(dir, version):
         version_file.write(version)
 
 
-def create_build_path(directory, name):
-    build_path = os.path.join(directory, name)
-
-    if options.rebuild and Path(build_path).exists():
-        shutil.rmtree(build_path)
-
-    Path(build_path).mkdir(parents=True, exist_ok=True)
-
-    return build_path
-
-
 def calculate_checksum(file_path):
     sha_hash = hashlib.sha384()
     with open(file_path, "rb") as f:
@@ -157,28 +179,34 @@ def calculate_checksum(file_path):
 
 def download(dir, url, file, untar=False, unzip=False, checksum=""):
     data_file = os.path.join(dir, file)
-    if not Path(data_file).exists():
-        log.info(f"{data_file} does not exist, downloading")
-        with urlopen(url) as in_stream, open(data_file, "wb") as out_file:
-            copyfileobj(in_stream, out_file)
+    if options.offline:
+        log.debug("Skipping download due to --offline option.")
+        return data_file
 
-        calculated_checksum = calculate_checksum(data_file)
-        if calculated_checksum != checksum:
-            log.critical(
-                f"Checksum mismatch: expected {checksum}, got {calculated_checksum}. Refusing to continue."
-            )
-            exit(1)
-
-        if untar:
-            file = tarfile.open(data_file)
-            file.extractall(dir)
-            file.close()
-        if unzip:
-            [stripped_gz, _] = os.path.splitext(data_file)
-            with gzip.open(data_file, "rb") as f_in, open(stripped_gz, "wb") as f_out:
-                shutil.copyfileobj(f_in, f_out)
-    else:
+    if Path(data_file).exists():
         log.debug(f"{data_file} exists, skipping...")
+        return data_file
+
+    log.info(f"{data_file} does not exist, downloading")
+    with urlopen(url) as in_stream, open(data_file, "wb") as out_file:
+        copyfileobj(in_stream, out_file)
+
+    calculated_checksum = calculate_checksum(data_file)
+    if calculated_checksum != checksum:
+        log.critical(
+            f"Checksum mismatch: expected {checksum}, got {calculated_checksum}. Refusing to continue."
+        )
+        exit(1)
+
+    if untar:
+        file = tarfile.open(data_file)
+        file.extractall(dir)
+        file.close()
+    if unzip:
+        [stripped_gz, _] = os.path.splitext(data_file)
+        with gzip.open(data_file, "rb") as f_in, open(stripped_gz, "wb") as f_out:
+            # copyfileobj expects binary file-like objects; type checker may complain about union types
+            shutil.copyfileobj(f_in, f_out)  # type: ignore[arg-type]
     return data_file
 
 
@@ -195,8 +223,89 @@ def get_device_architecture(additional_env_vars):
 
     if len(architectures) != 1:
         raise ValueError(
-            f"Expected exactly one device architecture, but found {len(architectures)}: {architectures}."
+            f"Expected exactly one device architecture, but found {len(architectures)}: {architectures}. "
             "Set ONEAPI_DEVICE_SELECTOR=backend:device_id to specify a single device."
         )
 
     return architectures.pop()
+
+
+def warn_if_level_zero_is_not_found(additional_env_vars) -> bool:
+    warning_found = False
+    sycl_ls_found_l0 = False
+
+    sycl_ls_output = run(
+        ["sycl-ls"], add_sycl=True, env_vars=additional_env_vars
+    ).stdout.decode()
+
+    for line in sycl_ls_output.splitlines():
+        if "level_zero" in line:
+            sycl_ls_found_l0 = True
+
+    if not "level_zero" in options.ur_adapter:
+        log.warning(
+            f"  None of Level Zero adapters were set in main.py '--adapter' param."
+        )
+        warning_found = True
+    if not sycl_ls_found_l0:
+        log.warning(f"  sycl-ls did not list any Level Zero devices.")
+        warning_found = True
+
+    if warning_found:
+        log.warning(
+            "  Please double check if proper setup is used for benchmarking!!! "
+            + "Perhaps check 'ONEAPI_DEVICE_SELECTOR' env var?"
+        )
+        return True
+
+    return False
+
+
+def prune_old_files(directory: str, keep_count: int = 10):
+    """Keep only the most recent keep_count files in the directory."""
+    if not os.path.isdir(directory):
+        log.debug(f"Directory {directory} does not exist, skipping pruning")
+        return
+
+    # Get all files sorted by modification time (newest first)
+    files = [
+        os.path.join(directory, f)
+        for f in os.listdir(directory)
+        if os.path.isfile(os.path.join(directory, f))
+    ]
+    files.sort(key=os.path.getmtime, reverse=True)
+
+    # Remove files beyond the keep count
+    files_to_remove = files[keep_count:]
+    for file_path in files_to_remove:
+        try:
+            os.remove(file_path)
+            log.debug(f"Deleted file: {file_path}")
+        except OSError as e:
+            log.debug(f"Failed to remove {file_path}: {e}")
+
+
+def remove_by_prefix(directory: str, prefix: str):
+    """Remove files with names starting with prefix."""
+    if not os.path.exists(directory):
+        return
+
+    for f in os.listdir(directory):
+        if f.startswith(prefix):
+            file_path = os.path.join(directory, f)
+            if os.path.isfile(file_path):
+                os.remove(file_path)
+                log.debug(f"Deleted file: {file_path}")
+
+
+def remove_by_extension(directory: str, extension: str):
+    """Remove files with specified extension from directory."""
+    if not os.path.exists(directory):
+        return
+
+    for f in os.listdir(directory):
+        if f.endswith(extension):
+            file_path = os.path.join(directory, f)
+            if os.path.isfile(file_path):
+                os.remove(file_path)
+                log.debug(f"Deleted file: {file_path}")

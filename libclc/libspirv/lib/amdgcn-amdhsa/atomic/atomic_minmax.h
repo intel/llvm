@@ -34,12 +34,3 @@
       AS TYPE *p, int scope, int semantics, TYPE val) {                        \
     FUNC_BODY(OP, TYPE, STORAGE_TYPE, AS)                                      \
   }
-
-#define AMDGPU_ATOMIC_FP_MINMAX_IMPL_CHECK(OPNAME, OP, TYPE, STORAGE_TYPE, AS, \
-                                           CHECK, NEW_BUILTIN)                 \
-  _CLC_OVERLOAD _CLC_DEF TYPE __spirv_AtomicF##OPNAME##EXT(                    \
-      AS TYPE *p, int scope, int semantics, TYPE val) {                        \
-    if (CHECK)                                                                 \
-      return NEW_BUILTIN(p, val);                                              \
-    FUNC_BODY(OP, TYPE, STORAGE_TYPE, AS)                                      \
-  }

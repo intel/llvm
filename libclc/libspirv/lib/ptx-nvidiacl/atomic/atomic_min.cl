@@ -20,9 +20,8 @@ __CLC_NVVM_ATOMIC(ulong, ulong, ul, min, __spirv_AtomicUMin)
 #undef __CLC_NVVM_ATOMIC_IMPL
 
 #define __CLC_NVVM_ATOMIC_MIN_IMPL(TYPE, TYPE_INT, OP_MANGLED, ADDR_SPACE)     \
-  __attribute__((always_inline)) _CLC_OVERLOAD _CLC_DECL TYPE                  \
-      __spirv_Atomic##OP_MANGLED(ADDR_SPACE TYPE *pointer, int scope,          \
-                                 int semantics, TYPE val) {                    \
+  _CLC_OVERLOAD _CLC_DEF TYPE __spirv_Atomic##OP_MANGLED(                      \
+      ADDR_SPACE TYPE *pointer, int scope, int semantics, TYPE val) {          \
     int load_order;                                                            \
     switch (semantics) {                                                       \
     case SequentiallyConsistent:                                               \

@@ -49,11 +49,11 @@
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/Bitcode/BitcodeReader.h"
 #include "llvm/Bitcode/BitcodeWriter.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Verifier.h"
+#include "llvm/IRReader/IRReader.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/Error.h"
@@ -62,6 +62,7 @@
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/PrettyStackTrace.h"
 #include "llvm/Support/Signals.h"
+#include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/ToolOutputFile.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -375,11 +376,14 @@ private:
 static int convertLLVMToSPIRV(const SPIRV::TranslatorOpts &Opts) {
   LLVMContext Context;
 
-  std::unique_ptr<MemoryBuffer> MB =
-      ExitOnErr(errorOrToExpected(MemoryBuffer::getFileOrSTDIN(InputFile)));
-  std::unique_ptr<Module> M =
-      ExitOnErr(getOwningLazyBitcodeModule(std::move(MB), Context,
-                                           /*ShouldLazyLoadMetadata=*/true));
+  SMDiagnostic GetIRErr;
+  std::unique_ptr<Module> M = getLazyIRFileModule(
+      InputFile, GetIRErr, Context, /*ShouldLazyLoadMetadata=*/true);
+  if (!M) {
+    ExitOnErr(
+        createStringError(inconvertibleErrorCode(), GetIRErr.getMessage()));
+  }
+
   ExitOnErr(M->materializeAll());
 
   if (OutputFile.empty()) {
@@ -574,7 +578,7 @@ static int parseSPVExtOption(
     cl::list<std::string> &SPVExtList,
     SPIRV::TranslatorOpts::ExtensionsStatusMap &ExtensionsStatus) {
   // Map name -> id for known extensions
-  std::map<std::string, ExtensionID> ExtensionNamesMap;
+  DenseMap<StringRef, ExtensionID> ExtensionNamesMap;
 #define _STRINGIFY(X) #X
 #define STRINGIFY(X) _STRINGIFY(X)
 #define EXT(X) ExtensionNamesMap[STRINGIFY(X)] = ExtensionID::X;
@@ -598,7 +602,7 @@ static int parseSPVExtOption(
     return 0; // Nothing to do
 
   for (unsigned i = 0; i < SPVExtList.size(); ++i) {
-    const std::string &ExtString = SPVExtList[i];
+    StringRef ExtString = SPVExtList[i];
     if (ExtString.empty() ||
         ('+' != ExtString.front() && '-' != ExtString.front())) {
       errs() << "Invalid value of --spirv-ext, expected format is:\n"
@@ -606,7 +610,7 @@ static int parseSPVExtOption(
       return -1;
     }
 
-    auto ExtName = ExtString.substr(1);
+    StringRef ExtName = ExtString.drop_front();
 
     if (ExtName.empty()) {
       errs() << "Invalid value of --spirv-ext, expected format is:\n"
@@ -774,7 +778,7 @@ int main(int Ac, char **Av) {
   // be used by a user anyway. After that we may safely add the instance of
   // "spirv-ext" required by LLVM/SPIRV Translator from the corresponding auto
   // variable (SPVExt).
-  StringMap<llvm::cl::Option *> &RegisteredOptions =
+  DenseMap<llvm::StringRef, llvm::cl::Option *> &RegisteredOptions =
       llvm::cl::getRegisteredOptions();
   if (RegisteredOptions.count("spirv-ext") == 1) {
     llvm::cl::Option *OptToDisable = RegisteredOptions["spirv-ext"];

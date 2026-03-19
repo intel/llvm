@@ -93,6 +93,8 @@ struct KernelInfo {
   // Need preserve the order of local arguments
   std::map<uint32_t, MsanLocalArgsInfo> LocalArgs;
 
+  std::vector<ur_exp_kernel_arg_properties_t> ArgProps;
+
   explicit KernelInfo(ur_kernel_handle_t Kernel) : Handle(Kernel) {
     [[maybe_unused]] auto Result =
         getContext()->urDdiTable.Kernel.pfnRetain(Kernel);
@@ -110,14 +112,14 @@ struct ProgramInfo {
   ur_program_handle_t Handle;
   std::atomic<int32_t> RefCount = 1;
 
-  struct KernelMetada {
+  struct KernelMetadata {
     bool CheckLocals;
     bool CheckPrivates;
     bool TrackOrigins;
   };
 
   // Program is built only once, so we don't need to lock it
-  std::unordered_map<std::string, KernelMetada> KernelMetadataMap;
+  std::unordered_map<std::string, KernelMetadata> KernelMetadataMap;
 
   explicit ProgramInfo(ur_program_handle_t Program) : Handle(Program) {
     [[maybe_unused]] auto Result =
@@ -132,7 +134,7 @@ struct ProgramInfo {
   }
 
   bool isKernelInstrumented(ur_kernel_handle_t Kernel) const;
-  const KernelMetada &getKernelMetadata(ur_kernel_handle_t Kernel) const;
+  const KernelMetadata &getKernelMetadata(ur_kernel_handle_t Kernel) const;
 };
 
 struct ContextInfo {
@@ -207,9 +209,9 @@ struct MsanRuntimeDataWrapper {
     Host.NumLocalArgs = LocalArgs.size();
     const size_t LocalArgsInfoSize =
         sizeof(MsanLocalArgsInfo) * Host.NumLocalArgs;
-    UR_CALL(getContext()->urDdiTable.USM.pfnDeviceAlloc(
-        Context, Device, nullptr, nullptr, LocalArgsInfoSize,
-        ur_cast<void **>(&Host.LocalArgs)));
+    UR_CALL(SafeAllocate(Context, Device, LocalArgsInfoSize, nullptr, nullptr,
+                         AllocType::DEVICE_USM,
+                         ur_cast<void **>(&Host.LocalArgs)));
 
     UR_CALL(getContext()->urDdiTable.Enqueue.pfnUSMMemcpy(
         Queue, true, Host.LocalArgs, &LocalArgs[0], LocalArgsInfoSize, 0,
@@ -219,30 +221,50 @@ struct MsanRuntimeDataWrapper {
   }
 };
 
-struct USMLaunchInfo {
+struct LaunchInfo {
   MsanRuntimeDataWrapper Data;
 
   ur_context_handle_t Context = nullptr;
   ur_device_handle_t Device = nullptr;
   const size_t *GlobalWorkSize = nullptr;
-  const size_t *GlobalWorkOffset = nullptr;
+  std::vector<size_t> GlobalWorkOffset;
   std::vector<size_t> LocalWorkSize;
   uint32_t WorkDim = 0;
 
-  USMLaunchInfo(ur_context_handle_t Context, ur_device_handle_t Device,
-                const size_t *GlobalWorkSize, const size_t *LocalWorkSize,
-                const size_t *GlobalWorkOffset, uint32_t WorkDim)
+  LaunchInfo(ur_context_handle_t Context, ur_device_handle_t Device,
+             const size_t *GlobalWorkSize, const size_t *LocalWorkSize,
+             const size_t *GlobalWorkOffset, uint32_t WorkDim)
       : Data(Context, Device), Context(Context), Device(Device),
-        GlobalWorkSize(GlobalWorkSize), GlobalWorkOffset(GlobalWorkOffset),
-        WorkDim(WorkDim) {
+        GlobalWorkSize(GlobalWorkSize), WorkDim(WorkDim) {
+    [[maybe_unused]] auto Result =
+        getContext()->urDdiTable.Context.pfnRetain(Context);
+    assert(Result == UR_RESULT_SUCCESS);
+    Result = getContext()->urDdiTable.Device.pfnRetain(Device);
+    assert(Result == UR_RESULT_SUCCESS);
     if (LocalWorkSize) {
       this->LocalWorkSize =
           std::vector<size_t>(LocalWorkSize, LocalWorkSize + WorkDim);
     }
+    // UR doesn't allow GlobalWorkOffset is null, we need to construct a zero
+    // value array if user doesn't specify its value.
+    if (GlobalWorkOffset) {
+      this->GlobalWorkOffset =
+          std::vector<size_t>(GlobalWorkOffset, GlobalWorkOffset + WorkDim);
+    } else {
+      this->GlobalWorkOffset = std::vector<size_t>(WorkDim, 0);
+    }
   }
-  ~USMLaunchInfo();
+  ~LaunchInfo() {
+    [[maybe_unused]] ur_result_t Result;
+    Result = getContext()->urDdiTable.Context.pfnRelease(Context);
+    assert(Result == UR_RESULT_SUCCESS);
+    Result = getContext()->urDdiTable.Device.pfnRelease(Device);
+    assert(Result == UR_RESULT_SUCCESS);
+  }
 
-  ur_result_t initialize();
+  LaunchInfo(const LaunchInfo &) = delete;
+
+  LaunchInfo &operator=(const LaunchInfo &) = delete;
 };
 
 struct DeviceGlobalInfo {
@@ -273,11 +295,9 @@ public:
   ur_result_t unregisterProgram(ur_program_handle_t Program);
 
   ur_result_t preLaunchKernel(ur_kernel_handle_t Kernel,
-                              ur_queue_handle_t Queue,
-                              USMLaunchInfo &LaunchInfo);
+                              ur_queue_handle_t Queue, LaunchInfo &LaunchInfo);
   ur_result_t postLaunchKernel(ur_kernel_handle_t Kernel,
-                               ur_queue_handle_t Queue,
-                               USMLaunchInfo &LaunchInfo);
+                               ur_queue_handle_t Queue, LaunchInfo &LaunchInfo);
 
   ur_result_t insertContext(ur_context_handle_t Context,
                             std::shared_ptr<ContextInfo> &CI);
@@ -338,7 +358,7 @@ private:
   /// Initialize Global Variables & Kernel Name at first Launch
   ur_result_t prepareLaunch(std::shared_ptr<DeviceInfo> &DeviceInfo,
                             ur_queue_handle_t Queue, ur_kernel_handle_t Kernel,
-                            USMLaunchInfo &LaunchInfo);
+                            LaunchInfo &LaunchInfo);
 
   ur_result_t allocShadowMemory(ur_context_handle_t Context,
                                 std::shared_ptr<DeviceInfo> &DeviceInfo);

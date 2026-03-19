@@ -34,3 +34,7 @@ if config.l0_static_link:
     config.available_features.add("static-link")
 
 config.environment["ONEAPI_DEVICE_SELECTOR"] = "level_zero:*"
+
+# Copy offload leads to timeouts
+# Tracker: https://jira.devtools.intel.com/browse/URT-1026
+config.environment["UR_L0_V2_FORCE_DISABLE_COPY_OFFLOAD"] = "1"

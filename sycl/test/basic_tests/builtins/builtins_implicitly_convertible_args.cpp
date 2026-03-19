@@ -1,5 +1,4 @@
-// RUN: %clangxx -fsycl -fpreview-breaking-changes -fsyntax-only %s -o %t
-// REQUIRES: preview-breaking-changes-supported
+// RUN: %clangxx -fsycl -fsyntax-only %s -o %t
 
 // Checks that builtins without template arguments allow for implicit
 // conversions of arguments.

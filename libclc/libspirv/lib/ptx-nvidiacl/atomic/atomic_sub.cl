@@ -12,9 +12,8 @@
 #define __CLC_NVVM_ATOMIC_SUB_IMPL(TYPE, OP_MANGLED, ADDR_SPACE)               \
   _CLC_OVERLOAD _CLC_DECL TYPE __spirv_AtomicIAdd(ADDR_SPACE TYPE *, int, int, \
                                                   TYPE);                       \
-  __attribute__((always_inline)) _CLC_OVERLOAD _CLC_DECL TYPE                  \
-      __spirv_Atomic##OP_MANGLED(ADDR_SPACE TYPE *pointer, int scope,          \
-                                 int semantics, TYPE val) {                    \
+  _CLC_OVERLOAD _CLC_DEF TYPE __spirv_Atomic##OP_MANGLED(                      \
+      ADDR_SPACE TYPE *pointer, int scope, int semantics, TYPE val) {          \
     return __spirv_AtomicIAdd(pointer, scope, semantics, -val);                \
   }
 

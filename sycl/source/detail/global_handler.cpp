@@ -13,8 +13,8 @@
 
 #include <detail/adapter_impl.hpp>
 #include <detail/config.hpp>
+#include <detail/device_kernel_info.hpp>
 #include <detail/global_handler.hpp>
-#include <detail/kernel_name_based_cache_t.hpp>
 #include <detail/platform_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
 #include <detail/scheduler/scheduler.hpp>
@@ -95,8 +95,8 @@ void GlobalHandler::TraceEventXPTI(const char *Message) {
     xpti::framework::tracepoint_scope_t TP(
         CodeLocation.fileName(), CodeLocation.functionName(),
         CodeLocation.lineNumber(), CodeLocation.columnNumber(), nullptr);
-
-    TP.stream(detail::GSYCLStreamID)
+    // Notify the subscriber with a diagnostic message when an exception occurs.
+    TP.stream(detail::getActiveXPTIStreamID())
         .traceType(xpti::trace_point_type_t::diagnostics)
         .parentEvent(GSYCLCallEvent)
         .notify(static_cast<const void *>(Message));
@@ -105,20 +105,7 @@ void GlobalHandler::TraceEventXPTI(const char *Message) {
 #endif
 }
 
-GlobalHandler *&GlobalHandler::getInstancePtr() {
-  static GlobalHandler *RTGlobalObjHandler = new GlobalHandler();
-  return RTGlobalObjHandler;
-}
-
-GlobalHandler &GlobalHandler::instance() {
-  GlobalHandler *RTGlobalObjHandler = GlobalHandler::getInstancePtr();
-  assert(RTGlobalObjHandler && "Handler must not be deallocated earlier");
-  return *RTGlobalObjHandler;
-}
-
-bool GlobalHandler::isInstanceAlive() {
-  return GlobalHandler::getInstancePtr();
-}
+GlobalHandler *GlobalHandler::RTGlobalObjHandler = new GlobalHandler();
 
 template <typename T, typename... Types>
 T &GlobalHandler::getOrCreate(InstWithLock<T> &IWL, Types &&...Args) {
@@ -231,13 +218,6 @@ ThreadPool &GlobalHandler::getHostTaskThreadPool() {
   return TP;
 }
 
-KernelNameBasedCacheT *GlobalHandler::createKernelNameBasedCache() {
-  static std::deque<KernelNameBasedCacheT> &KernelNameBasedCaches =
-      getOrCreate(MKernelNameBasedCaches);
-  LockGuard LG{MKernelNameBasedCaches.Lock};
-  return &KernelNameBasedCaches.emplace_back();
-}
-
 void GlobalHandler::releaseDefaultContexts() {
   // Release shared-pointers to SYCL objects.
   // Note that on Windows the destruction of the default context
@@ -328,8 +308,7 @@ void GlobalHandler::drainThreadPool() {
 //  2) when process is being terminated
 void shutdown_early(bool CanJoinThreads = true) {
   const LockGuard Lock{GlobalHandler::MSyclGlobalHandlerProtector};
-  GlobalHandler *&Handler = GlobalHandler::getInstancePtr();
-  if (!Handler)
+  if (!GlobalHandler::RTGlobalObjHandler)
     return;
 
 #if defined(XPTI_ENABLE_INSTRUMENTATION) && defined(_WIN32)
@@ -339,26 +318,42 @@ void shutdown_early(bool CanJoinThreads = true) {
 #endif
 
   // Now that we are shutting down, we will no longer defer MemObj releases.
-  Handler->endDeferredRelease();
+  GlobalHandler::RTGlobalObjHandler->endDeferredRelease();
 
   // Ensure neither host task is working so that no default context is accessed
   // upon its release
-  Handler->prepareSchedulerToRelease(true);
+  GlobalHandler::RTGlobalObjHandler->prepareSchedulerToRelease(true);
 
-  if (Handler->MHostTaskThreadPool.Inst) {
-    Handler->MHostTaskThreadPool.Inst->finishAndWait(CanJoinThreads);
-    Handler->MHostTaskThreadPool.Inst.reset(nullptr);
+  if (GlobalHandler::RTGlobalObjHandler->MHostTaskThreadPool.Inst) {
+    GlobalHandler::RTGlobalObjHandler->MHostTaskThreadPool.Inst->finishAndWait(
+        CanJoinThreads);
+    GlobalHandler::RTGlobalObjHandler->MHostTaskThreadPool.Inst.reset(nullptr);
+  }
+
+  // Reset in-memory cache before releasing default contexts.
+  {
+    // Keeping the default context for platforms in the global cache to avoid
+    // shared_ptr based circular dependency between platform and context classes
+    std::lock_guard<std::mutex> Lock{
+        GlobalHandler::RTGlobalObjHandler
+            ->getPlatformToDefaultContextCacheMutex()};
+
+    auto &PlatformToDefaultContextCache =
+        GlobalHandler::RTGlobalObjHandler->getPlatformToDefaultContextCache();
+
+    for (auto &Pair : PlatformToDefaultContextCache) {
+      Pair.second->getKernelProgramCache().reset();
+    }
   }
 
   // This releases OUR reference to the default context, but
   // other may yet have refs
-  Handler->releaseDefaultContexts();
+  GlobalHandler::RTGlobalObjHandler->releaseDefaultContexts();
 }
 
 void shutdown_late() {
   const LockGuard Lock{GlobalHandler::MSyclGlobalHandlerProtector};
-  GlobalHandler *&Handler = GlobalHandler::getInstancePtr();
-  if (!Handler)
+  if (!GlobalHandler::RTGlobalObjHandler)
     return;
 
 #if defined(XPTI_ENABLE_INSTRUMENTATION) && defined(_WIN32)
@@ -368,24 +363,20 @@ void shutdown_late() {
 #endif
 
   // First, release resources, that may access adapters.
-  Handler->MPlatformCache.Inst.reset(nullptr);
-  Handler->MScheduler.Inst.reset(nullptr);
-  Handler->MProgramManager.Inst.reset(nullptr);
-
-  // Cache stores handles to the adapter, so clear it before
-  // releasing adapters.
-  Handler->MKernelNameBasedCaches.Inst.reset(nullptr);
+  GlobalHandler::RTGlobalObjHandler->MPlatformCache.Inst.reset(nullptr);
+  GlobalHandler::RTGlobalObjHandler->MScheduler.Inst.reset(nullptr);
+  GlobalHandler::RTGlobalObjHandler->MProgramManager.Inst.reset(nullptr);
 
   // Clear the adapters and reset the instance if it was there.
-  Handler->unloadAdapters();
-  if (Handler->MAdapters.Inst)
-    Handler->MAdapters.Inst.reset(nullptr);
+  GlobalHandler::RTGlobalObjHandler->unloadAdapters();
+  if (GlobalHandler::RTGlobalObjHandler->MAdapters.Inst)
+    GlobalHandler::RTGlobalObjHandler->MAdapters.Inst.reset(nullptr);
 
-  Handler->MXPTIRegistry.Inst.reset(nullptr);
+  GlobalHandler::RTGlobalObjHandler->MXPTIRegistry.Inst.reset(nullptr);
 
   // Release the rest of global resources.
-  delete Handler;
-  Handler = nullptr;
+  delete GlobalHandler::RTGlobalObjHandler;
+  GlobalHandler::RTGlobalObjHandler = nullptr;
 }
 
 #ifdef _WIN32

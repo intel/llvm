@@ -1,4 +1,4 @@
-// Copyright (C) 2024 Intel Corporation
+// Copyright (C) 2024-2026 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
 //
@@ -8,7 +8,7 @@
 
 using urProgramGetGlobalVariablePointerTest = uur::urGlobalVariableTest;
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(urProgramGetGlobalVariablePointerTest);
+UUR_DEVICE_TEST_SUITE_WITH_DEFAULT_QUEUE(urProgramGetGlobalVariablePointerTest);
 
 TEST_P(urProgramGetGlobalVariablePointerTest, Success) {
   size_t global_variable_size = 0;

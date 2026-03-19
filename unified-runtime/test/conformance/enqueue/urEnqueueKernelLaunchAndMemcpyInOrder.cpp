@@ -203,7 +203,7 @@ TEST_P(urEnqueueKernelLaunchIncrementTest, Success) {
 
     // execute kernel that increments each element by 1
     ASSERT_SUCCESS(urEnqueueKernelLaunch(
-        queue, kernels[i], n_dimensions, &global_offset, &ArraySize, nullptr, 0,
+        queue, kernels[i], n_dimensions, &global_offset, &ArraySize, nullptr,
         nullptr, bool(lastMemcpyEvent), lastMemcpyEvent, kernelEvent));
 
     // copy the memory (input for the next kernel)
@@ -298,10 +298,9 @@ TEST_P(urEnqueueKernelLaunchIncrementMultiDeviceTest, Success) {
     memcpyEvent = i < devices.size() - 1 ? memcpyEvents[i].ptr() : nullptr;
 
     // execute kernel that increments each element by 1
-    ASSERT_SUCCESS(urEnqueueKernelLaunch(queues[i], kernels[i], n_dimensions,
-                                         &global_offset, &ArraySize, nullptr, 0,
-                                         nullptr, bool(lastMemcpyEvent),
-                                         lastMemcpyEvent, kernelEvent));
+    ASSERT_SUCCESS(urEnqueueKernelLaunch(
+        queues[i], kernels[i], n_dimensions, &global_offset, &ArraySize,
+        nullptr, nullptr, bool(lastMemcpyEvent), lastMemcpyEvent, kernelEvent));
 
     // copy the memory to next device
     if (i < devices.size() - 1) {
@@ -402,7 +401,7 @@ TEST_P(urEnqueueKernelLaunchIncrementMultiDeviceMultiThreadTest, Success) {
 
         // execute kernel that increments each element by 1
         ASSERT_SUCCESS(urEnqueueKernelLaunch(
-            queue, kernel, n_dimensions, &global_offset, &ArraySize, nullptr, 0,
+            queue, kernel, n_dimensions, &global_offset, &ArraySize, nullptr,
             nullptr, waitNum, lastEvent, signalEvent));
       }
 

@@ -6,3 +6,6 @@
 // RUN: %clangxx -fsycl %S/Inputs/d.cpp -I %S/Inputs -c -o %t_d.o
 // RUN: %clangxx -fsycl %{sycl_target_opts} -fsycl-device-code-split=per_kernel -fsycl-allow-device-image-dependencies %t_a.o %t_b.o %t_c.o %t_d.o %S/Inputs/basic.cpp -o %t.out
 // RUN: %{run} %t.out
+
+// XFAIL: target-native_cpu
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142

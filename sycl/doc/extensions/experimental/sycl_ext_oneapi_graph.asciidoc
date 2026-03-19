@@ -124,7 +124,6 @@ dependency graph to the SYCL runtime prior to execution:
 * Unlock DMA hardware features through graph analysis by the runtime.
 
 * Graph optimizations become available, including but not limited to:
-** Kernel fusion/fission.
 ** Inter-node memory reuse from data staying resident on device.
 ** Identification of the peak intermediate output memory requirement, used for
    more optimal memory allocation.
@@ -150,8 +149,7 @@ requirements were considered:
 4. Integrate sub-graphs (previously constructed graphs) when constructing a new
    graph.
 5. Support the USM model of memory as well as buffer/accessor model.
-6. Compatible with other SYCL extensions and features, e.g. kernel fusion &
-   built-in kernels.
+6. Compatible with other SYCL extensions and features, e.g. built-in kernels.
 7. Ability to record a graph with commands submitted to different devices in the
    same context.
 8. Capability to serialize graphs to a binary format which can then be
@@ -1257,6 +1255,29 @@ Section <<graph-properties, Graph Properties>>.
 _Throws:_ Synchronously `exception` with error code `invalid` if the device
 associated with
 `syclQueue` <<device-info-query, reports this extension as unsupported>>.
+
+[source,c++]
+----
+command_graph(const device& syclDevice,
+              const property_list& propList = {});
+----
+
+_Effects:_ Simplified constructor form where only device `syclDevice` is provided
+without explicitly passing a context. The graph uses the platform's default context.
+Zero or more properties can be provided to the constructed SYCL `command_graph`
+via an instance of `property_list`. All other properties of the queue are
+ignored for the purposes of graph creation. See the
+<<Queue Properties, Queue Properties>> section for more general information
+about how queue properties interact with `command_graph` objects.
+
+_Constraints:_ This constructor is only available when the `command_graph` state is
+`graph_state::modifiable`.
+
+_Preconditions:_ Valid `command_graph` constructor properties are listed in
+Section <<graph-properties, Graph Properties>>.
+
+_Throws:_ Synchronously `exception` with error code `invalid` if `syclDevice`
+  <<device-info-query, reports this extension as unsupported>>.
 
 ===== Member functions of the `command_graph` class
 

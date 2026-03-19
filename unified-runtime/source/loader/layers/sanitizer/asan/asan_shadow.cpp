@@ -47,7 +47,7 @@ ur_result_t ShadowMemoryCPU::Setup() {
   // For CPU, we use a typical page size of 4K bytes.
   constexpr size_t NullptrRedzoneSize = 4096;
   auto URes =
-      EnqueuePoisonShadow({}, 0, NullptrRedzoneSize, kNullPointerRedzoneMagic);
+      EnqueuePoisonShadow({}, 0, NullptrRedzoneSize, &kNullPointerRedzoneMagic);
   if (URes != UR_RESULT_SUCCESS) {
     UR_LOG_L(getContext()->logger, ERR,
              "EnqueuePoisonShadow(NullPointerRZ): {}", URes);
@@ -74,7 +74,8 @@ uptr ShadowMemoryCPU::MemToShadow(uptr Ptr) {
 }
 
 ur_result_t ShadowMemoryCPU::EnqueuePoisonShadow(ur_queue_handle_t, uptr Ptr,
-                                                 uptr Size, u8 Value) {
+                                                 uptr Size,
+                                                 const int8_t *Value) {
   if (Size == 0) {
     return UR_RESULT_SUCCESS;
   }
@@ -85,8 +86,8 @@ ur_result_t ShadowMemoryCPU::EnqueuePoisonShadow(ur_queue_handle_t, uptr Ptr,
   UR_LOG_L(getContext()->logger, DEBUG,
            "EnqueuePoisonShadow(addr={}, count={}, value={})",
            (void *)ShadowBegin, ShadowEnd - ShadowBegin + 1,
-           (void *)(size_t)Value);
-  memset((void *)ShadowBegin, Value, ShadowEnd - ShadowBegin + 1);
+           (void *)(size_t)*Value);
+  memset((void *)ShadowBegin, *Value, ShadowEnd - ShadowBegin + 1);
 
   return UR_RESULT_SUCCESS;
 }
@@ -118,7 +119,7 @@ ur_result_t ShadowMemoryGPU::Setup() {
                                     << ASAN_SHADOW_SCALE;
   ManagedQueue Queue(Context, Device);
   Result = EnqueuePoisonShadow(Queue, 0, NullptrRedzoneSize,
-                               kNullPointerRedzoneMagic);
+                               &kNullPointerRedzoneMagic);
   if (Result != UR_RESULT_SUCCESS) {
     UR_LOG_L(getContext()->logger, ERR,
              "EnqueuePoisonShadow(NullPointerRZ): {}", Result);
@@ -168,7 +169,7 @@ ur_result_t ShadowMemoryGPU::Destory() {
 
 ur_result_t ShadowMemoryGPU::EnqueuePoisonShadow(ur_queue_handle_t Queue,
                                                  uptr Ptr, uptr Size,
-                                                 u8 Value) {
+                                                 const int8_t *Value) {
   if (Size == 0) {
     return UR_RESULT_SUCCESS;
   }
@@ -180,7 +181,7 @@ ur_result_t ShadowMemoryGPU::EnqueuePoisonShadow(ur_queue_handle_t Queue,
   UR_LOG_L(getContext()->logger, DEBUG,
            "EnqueuePoisonShadow(addr={}, count={}, value={})",
            (void *)ShadowBegin, ShadowEnd - ShadowBegin + 1,
-           (void *)(size_t)Value);
+           (void *)(size_t)*Value);
 
   // Make sure the shadow memory is mapped to physical memory
   {
@@ -216,7 +217,7 @@ ur_result_t ShadowMemoryGPU::EnqueuePoisonShadow(ur_queue_handle_t Queue,
                  (void *)MappedPtr, (void *)(MappedPtr + PageSize - 1));
 
         // Initialize to zero
-        URes = EnqueueUSMSet(Queue, (void *)MappedPtr, (char)0, PageSize);
+        URes = EnqueueUSMSetZero(Queue, (void *)MappedPtr, PageSize);
         if (URes != UR_RESULT_SUCCESS) {
           UR_LOG_L(getContext()->logger, ERR, "EnqueueUSMBlockingSet(): {}",
                    URes);
@@ -226,6 +227,11 @@ ur_result_t ShadowMemoryGPU::EnqueuePoisonShadow(ur_queue_handle_t Queue,
         VirtualMemMaps[MappedPtr] = PhysicalMem;
       }
     }
+
+    ShadowLowerBound =
+        std::min(ShadowLowerBound, RoundDownTo(ShadowBegin, PageSize));
+    ShadowUpperBound =
+        std::max(ShadowUpperBound, RoundUpTo(ShadowEnd, PageSize));
   }
 
   auto URes = EnqueueUSMSet(Queue, (void *)ShadowBegin, Value,
@@ -235,7 +241,7 @@ ur_result_t ShadowMemoryGPU::EnqueuePoisonShadow(ur_queue_handle_t Queue,
     UR_LOG_L(getContext()->logger, ERR,
              "EnqueuePoisonShadow(addr={}, count={}, value={}): {}",
              (void *)ShadowBegin, ShadowEnd - ShadowBegin + 1,
-             (void *)(size_t)Value, URes);
+             (void *)(size_t)*Value, URes);
     return URes;
   }
 
@@ -261,13 +267,12 @@ ur_result_t ShadowMemoryGPU::AllocLocalShadow(ur_queue_handle_t Queue,
       LastAllocedSize = 0;
     }
 
-    UR_CALL(getContext()->urDdiTable.USM.pfnDeviceAlloc(
-        Context, Device, nullptr, nullptr, RequiredShadowSize,
-        (void **)&LocalShadowOffset));
+    UR_CALL(SafeAllocate(Context, Device, RequiredShadowSize, nullptr, nullptr,
+                         AllocType::DEVICE_USM, (void **)&LocalShadowOffset));
 
     // Initialize shadow memory
-    ur_result_t URes = EnqueueUSMSet(Queue, (void *)LocalShadowOffset, (char)0,
-                                     RequiredShadowSize);
+    ur_result_t URes =
+        EnqueueUSMSetZero(Queue, (void *)LocalShadowOffset, RequiredShadowSize);
     if (URes != UR_RESULT_SUCCESS) {
       UR_CALL(getContext()->urDdiTable.USM.pfnFree(Context,
                                                    (void *)LocalShadowOffset));
@@ -307,9 +312,9 @@ ur_result_t ShadowMemoryGPU::AllocPrivateShadow(ur_queue_handle_t Queue,
 
       ur_usm_desc_t PrivateBaseProps{UR_STRUCTURE_TYPE_USM_DESC, nullptr,
                                      UR_USM_ADVICE_FLAG_DEFAULT, sizeof(uptr)};
-      UR_CALL_THROWS(getContext()->urDdiTable.USM.pfnDeviceAlloc(
-          Context, Device, &PrivateBaseProps, nullptr, NewPrivateBaseSize,
-          (void **)&PrivateBasePtr));
+      UR_CALL_THROWS(SafeAllocate(
+          Context, Device, NewPrivateBaseSize, &PrivateBaseProps, nullptr,
+          AllocType::DEVICE_USM, (void **)&PrivateBasePtr));
 
       // No need to clean the shadow base, their should be set by work item on
       // launch
@@ -332,12 +337,12 @@ ur_result_t ShadowMemoryGPU::AllocPrivateShadow(ur_queue_handle_t Queue,
         LastPrivateShadowAllocedSize = 0;
       }
 
-      UR_CALL_THROWS(getContext()->urDdiTable.USM.pfnDeviceAlloc(
-          Context, Device, nullptr, nullptr, NewPrivateShadowSize,
-          (void **)&PrivateShadowOffset));
+      UR_CALL_THROWS(SafeAllocate(Context, Device, NewPrivateShadowSize,
+                                  nullptr, nullptr, AllocType::DEVICE_USM,
+                                  (void **)&PrivateShadowOffset));
       LastPrivateShadowAllocedSize = NewPrivateShadowSize;
-      UR_CALL_THROWS(EnqueueUSMSet(Queue, (void *)PrivateShadowOffset, (char)0,
-                                   NewPrivateShadowSize));
+      UR_CALL_THROWS(EnqueueUSMSetZero(Queue, (void *)PrivateShadowOffset,
+                                       NewPrivateShadowSize));
       ContextInfo->Stats.UpdateShadowMalloced(NewPrivateShadowSize);
     }
 

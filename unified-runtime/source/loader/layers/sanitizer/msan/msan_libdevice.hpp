@@ -64,6 +64,7 @@ struct MsanRuntimeData {
 
   uintptr_t CleanShadow = 0;
 
+  DeviceType DeviceTy = DeviceType::UNKNOWN;
   uint32_t Debug = 0;
   uint32_t IsRecover = 0;
 
@@ -76,6 +77,9 @@ struct MsanRuntimeData {
 // Based on the observation, only the last 24 bits of the address of the private
 // variable have changed
 constexpr std::size_t MSAN_PRIVATE_SIZE = 0xffffffULL + 1;
+
+constexpr uint8_t kMemInitializedMagic = 0;
+constexpr uint8_t kMemUninitializedMagic = 0xff;
 
 constexpr auto kSPIR_MsanDeviceGlobalMetadata = "__MsanDeviceGlobalMetadata";
 constexpr auto kSPIR_MsanSpirKernelMetadata = "__MsanKernelMetadata";

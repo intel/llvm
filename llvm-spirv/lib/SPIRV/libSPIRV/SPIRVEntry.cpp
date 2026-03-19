@@ -86,10 +86,6 @@ SPIRVEntry *SPIRVEntry::create(Op OpCode) {
   static const OpToFactoryMapTy OpToFactoryMap(std::begin(Table),
                                                std::end(Table));
 
-  // TODO: To remove this when we make a switch to new version
-  if (OpCode == internal::OpTypeJointMatrixINTELv2)
-    OpCode = internal::OpTypeJointMatrixINTEL;
-
   // OpAtomicCompareExchangeWeak is removed starting from SPIR-V 1.4
   if (OpCode == OpAtomicCompareExchangeWeak)
     OpCode = OpAtomicCompareExchange;
@@ -662,6 +658,9 @@ void SPIRVExecutionMode::decode(std::istream &I) {
   case ExecutionModeLocalSizeHintId:
   case ExecutionModeMaxWorkgroupSizeINTEL:
     WordLiterals.resize(3);
+    break;
+  case ExecutionModeFPFastMathDefault:
+    WordLiterals.resize(2);
     break;
   case ExecutionModeInvocations:
   case ExecutionModeOutputVertices:

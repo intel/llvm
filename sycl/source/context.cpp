@@ -90,7 +90,7 @@ context::get_info() const {
   return impl->template get_info<Param>();
 }
 
-#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
+#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, UrCode)              \
   template __SYCL_EXPORT ReturnT context::get_info<info::DescType::Desc>()     \
       const;
 
@@ -103,14 +103,6 @@ typename detail::is_backend_info_desc<Param>::return_type
 context::get_backend_info() const {
   return impl->get_backend_info<Param>();
 }
-
-#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, Picode)              \
-  template __SYCL_EXPORT ReturnT                                               \
-  context::get_backend_info<info::DescType::Desc>() const;
-
-#include <sycl/info/sycl_backend_traits.def>
-
-#undef __SYCL_PARAM_TRAITS_SPEC
 
 cl_context context::get() const { return impl->get(); }
 

@@ -116,7 +116,7 @@ public:
   /// reference will be invalid if context_impl was destroyed.
   ///
   /// \return an instance of raw UR context handle.
-  ur_context_handle_t &getHandleRef();
+  ur_context_handle_t &getHandleRef() { return MContext; }
 
   /// Gets the underlying context object (if any) without reference count
   /// modification.
@@ -126,35 +126,19 @@ public:
   /// reference will be invalid if context_impl was destroyed.
   ///
   /// \return an instance of raw UR context handle.
-  const ur_context_handle_t &getHandleRef() const;
+  const ur_context_handle_t &getHandleRef() const { return MContext; }
 
   devices_range getDevices() const { return MDevices; }
 
-  using CachedLibProgramsT =
-      std::map<std::pair<DeviceLibExt, ur_device_handle_t>,
-               Managed<ur_program_handle_t>>;
-
-  /// In contrast to user programs, which are compiled from user code, library
-  /// programs come from the SYCL runtime. They are identified by the
-  /// corresponding extension:
-  ///
-  ///  cl_intel_devicelib_assert -> #<ur program with assert functions>
-  ///  cl_intel_devicelib_complex -> #<ur program with complex functions>
-  ///  etc.
-  ///
-  /// See `doc/design/DeviceLibExtensions.rst' for
-  /// more details.
-  ///
-  /// \returns an instance of sycl::detail::Locked which wraps a map with device
-  /// library programs and the corresponding lock for synchronized access.
-  Locked<CachedLibProgramsT> acquireCachedLibPrograms() {
-    return {MCachedLibPrograms, MCachedLibProgramsMutex};
+  KernelProgramCache &getKernelProgramCache() const {
+    return MKernelProgramCache;
   }
 
-  KernelProgramCache &getKernelProgramCache() const;
-
   /// Returns true if and only if context contains the given device.
-  bool hasDevice(const detail::device_impl &Device) const;
+  bool hasDevice(const detail::device_impl &Device) const {
+    return std::any_of(MDevices.begin(), MDevices.end(),
+                       [&](auto *D) { return D == &Device; });
+  }
 
   /// Returns true if and only if the device can be used within this context.
   /// For OpenCL this is currently equivalent to hasDevice, for other backends
@@ -181,8 +165,7 @@ public:
         return false;
       }
       CurrDevice = detail::getSyclObjImpl(
-                       CurrDevice->get_info<info::device::parent_device>())
-                       .get();
+          CurrDevice->get_info<info::device::parent_device>());
     }
 
     return true;
@@ -199,9 +182,6 @@ public:
   ///
   /// \return a native handle.
   ur_native_handle_t getNative() const;
-
-  // Returns true if buffer_location property is supported by devices
-  bool isBufferLocationSupported() const;
 
   /// Adds an associated device global to the tracked associates.
   void addAssociatedDeviceGlobal(const void *DeviceGlobalPtr);
@@ -234,9 +214,6 @@ public:
   std::optional<ur_program_handle_t>
   getProgramForDeviceGlobal(const device &Device,
                             DeviceGlobalMapEntry *DeviceGlobalEntry);
-  /// Gets a program associated with a HostPipe Entry from the cache.
-  std::optional<ur_program_handle_t>
-  getProgramForHostPipe(const device &Device, HostPipeMapEntry *HostPipeEntry);
 
   /// Gets a program associated with Dev / Images pairs.
   std::optional<ur_program_handle_t>
@@ -261,8 +238,6 @@ private:
   ur_context_handle_t MContext;
   platform_impl &MPlatform;
   property_list MPropList;
-  CachedLibProgramsT MCachedLibPrograms;
-  std::mutex MCachedLibProgramsMutex;
   mutable KernelProgramCache MKernelProgramCache;
   mutable PropertySupport MSupportBufferLocationByDevices;
 
@@ -348,7 +323,7 @@ void GetCapabilitiesIntersectionSet(devices_range Devices,
         CapabilityList.begin(), CapabilityList.end(),
         DeviceCapabilities.begin(), DeviceCapabilities.end(),
         std::inserter(NewCapabilityList, NewCapabilityList.begin()));
-    CapabilityList = NewCapabilityList;
+    CapabilityList = std::move(NewCapabilityList);
   }
   CapabilityList.shrink_to_fit();
 }

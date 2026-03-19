@@ -1,6 +1,6 @@
 //===----------- queue.cpp - Native CPU Adapter ---------------------------===//
 //
-// Copyright (C) 2023 Intel Corporation
+// Copyright (C) 2023-2026 Intel Corporation
 //
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
@@ -11,8 +11,8 @@
 #include "queue.hpp"
 #include "common.hpp"
 
+#include "unified-runtime/ur_api.h"
 #include "ur/ur.hpp"
-#include "ur_api.h"
 
 UR_APIEXPORT ur_result_t UR_APICALL urQueueGetInfo(ur_queue_handle_t hQueue,
                                                    ur_queue_info_t propName,
@@ -21,6 +21,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueGetInfo(ur_queue_handle_t hQueue,
                                                    size_t *pPropSizeRet) {
 
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
+  ur_queue_flags_t flags = 0;
 
   switch (propName) {
   case UR_QUEUE_INFO_CONTEXT:
@@ -31,6 +32,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueGetInfo(ur_queue_handle_t hQueue,
     return ReturnValue(hQueue->getReferenceCount());
   case UR_QUEUE_INFO_EMPTY:
     return ReturnValue(hQueue->isEmpty());
+  case UR_QUEUE_INFO_FLAGS:
+    if (!hQueue->isInOrder()) {
+      flags |= UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE;
+    }
+    if (hQueue->isProfiling()) {
+      flags |= UR_QUEUE_FLAG_PROFILING_ENABLE;
+    }
+
+    return ReturnValue(flags);
   default:
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   }
@@ -82,5 +92,49 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueFinish(ur_queue_handle_t hQueue) {
 
 UR_APIEXPORT ur_result_t UR_APICALL urQueueFlush(ur_queue_handle_t /*hQueue*/) {
 
+  DIE_NO_IMPLEMENTATION;
+}
+
+UR_APIEXPORT ur_result_t
+urQueueBeginGraphCaptureExp(ur_queue_handle_t /* hQueue */) {
+
+  DIE_NO_IMPLEMENTATION;
+}
+
+UR_APIEXPORT ur_result_t urQueueBeginCaptureIntoGraphExp(
+    ur_queue_handle_t /* hQueue */, ur_exp_graph_handle_t /* hGraph */) {
+
+  DIE_NO_IMPLEMENTATION;
+}
+
+UR_APIEXPORT ur_result_t urQueueEndGraphCaptureExp(
+    ur_queue_handle_t /* hQueue */, ur_exp_graph_handle_t * /* phGraph */) {
+
+  DIE_NO_IMPLEMENTATION;
+}
+
+UR_APIEXPORT ur_result_t
+urEnqueueGraphExp(ur_queue_handle_t /* hQueue */,
+                  ur_exp_executable_graph_handle_t /* hGraph */,
+                  uint32_t /* numEventsInWaitList */,
+                  const ur_event_handle_t * /* phEventWaitList */,
+                  ur_event_handle_t * /* phEvent */) {
+
+  DIE_NO_IMPLEMENTATION;
+}
+
+UR_APIEXPORT ur_result_t urQueueIsGraphCaptureEnabledExp(
+    ur_queue_handle_t /* hQueue */, bool * /* hResult */) {
+
+  DIE_NO_IMPLEMENTATION;
+}
+
+UR_APIEXPORT ur_result_t urEnqueueHostTaskExp(
+    ur_queue_handle_t /* hQueue */,
+    ur_exp_host_task_function_t /* pfnHostTask */, void * /* data */,
+    const ur_exp_host_task_properties_t * /* pProperties */,
+    uint32_t /* numEventsInWaitList */,
+    const ur_event_handle_t * /* phEventWaitList */,
+    ur_event_handle_t * /* phEvent */) {
   DIE_NO_IMPLEMENTATION;
 }

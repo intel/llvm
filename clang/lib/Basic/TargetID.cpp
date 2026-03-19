@@ -9,10 +9,13 @@
 #include "clang/Basic/TargetID.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallSet.h"
+#include "llvm/ADT/SmallVector.h"
+#include "llvm/Support/Path.h"
 #include "llvm/TargetParser/TargetParser.h"
 #include "llvm/TargetParser/Triple.h"
 #include <map>
 #include <optional>
+#include <string>
 
 namespace clang {
 
@@ -181,6 +184,18 @@ bool isCompatibleTargetID(llvm::StringRef Provided, llvm::StringRef Requested) {
       return false;
   }
   return true;
+}
+
+std::string sanitizeTargetIDInFileName(llvm::StringRef TargetID) {
+  std::string FileName = TargetID.str();
+  if (llvm::sys::path::is_style_windows(llvm::sys::path::Style::native)) {
+    llvm::replace(FileName, ':', '@');
+    llvm::replace(FileName, '*', '@');
+  }
+  // FileName may contain ',', which may create strings that interfere with
+  // the StringMap for the llvm-offload-binary input values.
+  std::replace(FileName.begin(), FileName.end(), ',', '@');
+  return FileName;
 }
 
 } // namespace clang

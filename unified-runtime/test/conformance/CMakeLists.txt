@@ -1,4 +1,4 @@
-# Copyright (C) 2022-2023 Intel Corporation
+# Copyright (C) 2022-2026 Intel Corporation
 # Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -70,6 +70,7 @@ add_subdirectory(queue)
 add_subdirectory(sampler)
 add_subdirectory(virtual_memory)
 add_subdirectory(exp_usm_context_memcpy)
+add_subdirectory(exp_graph)
 
 set(TEST_SUBDIRECTORIES_DPCXX
     "device_code"
@@ -79,9 +80,11 @@ set(TEST_SUBDIRECTORIES_DPCXX
     "integration"
     "exp_command_buffer"
     "exp_enqueue_native"
+    "exp_enqueue_kernel_launch_with_args"
     "exp_usm_p2p"
     "memory-migrate"
     "usm"
+    "exp_host_task"
 )
 
 if(UR_FOUND_DPCXX)

@@ -54,7 +54,7 @@
 // tests to match the required format and in that case you should just update
 // (i.e. reduce) the number and the list below.
 //
-// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 178
+// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 141
 //
 // List of improperly UNSUPPORTED tests.
 // Remove the CHECK once the test has been properly UNSUPPORTED.
@@ -67,7 +67,6 @@
 // CHECK-NEXT: Adapters/level_zero/dynamic_batch_test.cpp
 // CHECK-NEXT: Adapters/level_zero/imm_cmdlist_per_thread.cpp
 // CHECK-NEXT: Adapters/level_zero/interop-buffer-ownership.cpp
-// CHECK-NEXT: Adapters/level_zero/interop-buffer.cpp
 // CHECK-NEXT: Adapters/level_zero/interop-direct.cpp
 // CHECK-NEXT: Adapters/level_zero/interop-image-get-native-mem.cpp
 // CHECK-NEXT: Adapters/level_zero/interop-image-ownership.cpp
@@ -122,33 +121,8 @@
 // CHECK-NEXT: ESIMD/regression/copyto_char_test.cpp
 // CHECK-NEXT: ESIMD/regression/variable_gather_mask.cpp
 // CHECK-NEXT: ESIMD/slm_init_no_inline.cpp
-// CHECK-NEXT: Graph/Explicit/buffer_copy_host2target.cpp
-// CHECK-NEXT: Graph/Explicit/buffer_copy_host2target_2d.cpp
-// CHECK-NEXT: Graph/Explicit/buffer_copy_host2target_offset.cpp
-// CHECK-NEXT: Graph/Explicit/buffer_copy_target2host.cpp
-// CHECK-NEXT: Graph/Explicit/buffer_copy_target2host_2d.cpp
-// CHECK-NEXT: Graph/Explicit/buffer_copy_target2host_offset.cpp
-// CHECK-NEXT: Graph/Explicit/host_task2_multiple_roots.cpp
-// CHECK-NEXT: Graph/Explicit/host_task_multiple_roots.cpp
 // CHECK-NEXT: Graph/Explicit/interop-level-zero-launch-kernel.cpp
-// CHECK-NEXT: Graph/Explicit/memadvise.cpp
-// CHECK-NEXT: Graph/Explicit/prefetch.cpp
-// CHECK-NEXT: Graph/Explicit/spec_constants_kernel_bundle_api.cpp
-// CHECK-NEXT: Graph/Explicit/work_group_size_prop.cpp
-// CHECK-NEXT: Graph/RecordReplay/buffer_copy_host2target.cpp
-// CHECK-NEXT: Graph/RecordReplay/buffer_copy_host2target_2d.cpp
-// CHECK-NEXT: Graph/RecordReplay/buffer_copy_host2target_offset.cpp
-// CHECK-NEXT: Graph/RecordReplay/buffer_copy_target2host.cpp
-// CHECK-NEXT: Graph/RecordReplay/buffer_copy_target2host_2d.cpp
-// CHECK-NEXT: Graph/RecordReplay/buffer_copy_target2host_offset.cpp
-// CHECK-NEXT: Graph/RecordReplay/host_task2_multiple_roots.cpp
-// CHECK-NEXT: Graph/RecordReplay/host_task_multiple_roots.cpp
 // CHECK-NEXT: Graph/RecordReplay/interop-level-zero-launch-kernel.cpp
-// CHECK-NEXT: Graph/RecordReplay/memadvise.cpp
-// CHECK-NEXT: Graph/RecordReplay/prefetch.cpp
-// CHECK-NEXT: Graph/RecordReplay/spec_constants_kernel_bundle_api.cpp
-// CHECK-NEXT: Graph/RecordReplay/work_group_size_prop.cpp
-// CHECK-NEXT: Graph/UnsupportedDevice/device_query.cpp
 // CHECK-NEXT: GroupAlgorithm/root_group.cpp
 // CHECK-NEXT: HierPar/hier_par_wgscope.cpp
 // CHECK-NEXT: InvokeSimd/Feature/ImplicitSubgroup/SPMD_invoke_ESIMD_external.cpp
@@ -225,15 +199,4 @@
 // CHECK-NEXT: Tracing/usm/queue_single_task_nullptr.cpp
 // CHECK-NEXT: Tracing/usm/queue_single_task_released_pointer.cpp
 // CHECK-NEXT: USM/badmalloc.cpp
-// CHECK-NEXT: USM/memops2d/copy2d_device_to_host.cpp
-// CHECK-NEXT: USM/memops2d/copy2d_host_to_device.cpp
-// CHECK-NEXT: USM/memops2d/memcpy2d_device_to_host.cpp
-// CHECK-NEXT: USM/memops2d/memcpy2d_host_to_device.cpp
 // CHECK-NEXT: USM/pointer_query_descendent_device.cpp
-// CHECK-NEXT: syclcompat/atomic/atomic_arith.cpp
-// CHECK-NEXT: syclcompat/atomic/atomic_bitwise.cpp
-// CHECK-NEXT: syclcompat/atomic/atomic_class.cpp
-// CHECK-NEXT: syclcompat/atomic/atomic_comp_exchange.cpp
-// CHECK-NEXT: syclcompat/atomic/atomic_memory_acq_rel.cpp
-// CHECK-NEXT: syclcompat/atomic/atomic_minmax.cpp
-// CHECK-NEXT: syclcompat/kernel/kernel_lin.cpp

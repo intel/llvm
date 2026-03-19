@@ -1,5 +1,4 @@
-; RUN: llvm-as %s -o %t.bc
-; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_KHR_bfloat16 -o %t.spv
+; RUN: llvm-spirv %s --spirv-ext=+SPV_KHR_bfloat16 -o %t.spv
 ; RUN: llvm-spirv %t.spv -to-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
 
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
@@ -20,9 +19,9 @@ target triple = "spirv64-unknown-unknown"
 ; CHECK-LLVM: %addrB = alloca <2 x bfloat>
 ; CHECK-LLVM: %dataA = load <2 x bfloat>, ptr %addrA
 ; CHECK-LLVM: %dataB = load <2 x bfloat>, ptr %addrB
-; CHECK-LLVM: %call = call spir_func bfloat @_Z3dotDv2_u6__bf16S_(<2 x bfloat> %dataA, <2 x bfloat> %dataB)
+; CHECK-LLVM: %call = call spir_func bfloat @_Z3dotDv2_DF16bS_(<2 x bfloat> %dataA, <2 x bfloat> %dataB)
 
-declare spir_func bfloat @_Z3dotDv2_u6__bf16Dv2_S_(<2 x bfloat>, <2 x bfloat>)
+declare spir_func bfloat @_Z3dotDv2_DF16bDv2_S_(<2 x bfloat>, <2 x bfloat>)
 
 define spir_kernel void @test() {
 entry:
@@ -30,7 +29,7 @@ entry:
   %addrB = alloca <2 x bfloat>
   %dataA = load <2 x bfloat>, ptr %addrA
   %dataB = load <2 x bfloat>, ptr %addrB
-  %call = call spir_func bfloat @_Z3dotDv2_u6__bf16Dv2_S_(<2 x bfloat> %dataA, <2 x bfloat> %dataB)
+  %call = call spir_func bfloat @_Z3dotDv2_DF16bDv2_S_(<2 x bfloat> %dataA, <2 x bfloat> %dataB)
   ret void
 }
 

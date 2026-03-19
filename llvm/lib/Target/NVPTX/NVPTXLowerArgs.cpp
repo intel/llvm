@@ -412,6 +412,22 @@ static void adjustByValArgAlignment(Argument *Arg, Value *ArgInParamAS,
   }
 }
 
+// Create a call to the nvvm_internal_addrspace_wrap intrinsic and set the
+// alignment of the return value based on the alignment of the argument.
+static CallInst *createNVVMInternalAddrspaceWrap(IRBuilder<> &IRB,
+                                                 Argument &Arg) {
+  CallInst *ArgInParam =
+      IRB.CreateIntrinsic(Intrinsic::nvvm_internal_addrspace_wrap,
+                          {IRB.getPtrTy(ADDRESS_SPACE_PARAM), Arg.getType()},
+                          &Arg, {}, Arg.getName() + ".param");
+
+  if (MaybeAlign ParamAlign = Arg.getParamAlign())
+    ArgInParam->addRetAttr(
+        Attribute::getWithAlignment(ArgInParam->getContext(), *ParamAlign));
+
+  return ArgInParam;
+}
+
 namespace {
 struct ArgUseChecker : PtrUseVisitor<ArgUseChecker> {
   using Base = PtrUseVisitor<ArgUseChecker>;
@@ -459,13 +475,18 @@ struct ArgUseChecker : PtrUseVisitor<ArgUseChecker> {
   }
 
   void visitStoreInst(StoreInst &SI) {
-    // Storing the pointer escapes it.
-    if (U->get() == SI.getValueOperand())
-      return PI.setEscapedAndAborted(&SI);
-    // Writes to the pointer are UB w/ __grid_constant__, but do not force a
-    // copy.
-    if (!IsGridConstant)
-      return PI.setAborted(&SI);
+    // Storing the pointer value (as opposed to storing through it) escapes it.
+    // For grid_constant params, this is allowed - we can pass the generic
+    // pointer. For non-grid-constant, this requires a copy.
+    if (U->get() == SI.getValueOperand()) {
+      if (IsGridConstant)
+        return PI.setEscaped(&SI);
+      else
+        return PI.setEscapedAndAborted(&SI);
+    }
+    // Writes through the pointer to param space are UB w/ __grid_constant__,
+    // and param space is read-only on CUDA, so we need to force a copy.
+    return PI.setAborted(&SI);
   }
 
   void visitAddrSpaceCastInst(AddrSpaceCastInst &ASC) {
@@ -513,12 +534,21 @@ void copyByValParam(Function &F, Argument &Arg) {
   // the use of the byval parameter with this alloca instruction.
   AllocA->setAlignment(
       Arg.getParamAlign().value_or(DL.getPrefTypeAlign(StructType)));
-  Arg.replaceAllUsesWith(AllocA);
 
-  Value *ArgInParam =
-      IRB.CreateIntrinsic(Intrinsic::nvvm_internal_addrspace_wrap,
-                          {IRB.getPtrTy(ADDRESS_SPACE_PARAM), Arg.getType()},
-                          &Arg, {}, Arg.getName());
+  // Must create ArgInParam before replacing uses of Arg.
+  // createNVVMInternalAddrspaceWrap needs to use Arg as an operand.
+  CallInst *ArgInParam = createNVVMInternalAddrspaceWrap(IRB, Arg);
+
+  // Replace all uses of Arg with AllocA, except the use in ArgInParam.
+  // Note: we can't use replaceAllUsesWith because it would replace ArgInParam's
+  // operand too, creating a circular dependency.
+  SmallVector<Use *, 8> UsesToReplace;
+  for (Use &U : Arg.uses()) {
+    if (U.getUser() != ArgInParam)
+      UsesToReplace.push_back(&U);
+  }
+  for (Use *U : UsesToReplace)
+    U->set(AllocA);
 
   // Be sure to propagate alignment to this load; LLVM doesn't know that NVPTX
   // addrspacecast preserves alignment.  Since params are constant, this load
@@ -549,9 +579,7 @@ static void handleByValParam(const NVPTXTargetMachine &TM, Argument *Arg) {
     SmallVector<Use *, 16> UsesToUpdate(llvm::make_pointer_range(Arg->uses()));
 
     IRBuilder<> IRB(&*FirstInst);
-    Value *ArgInParamAS = IRB.CreateIntrinsic(
-        Intrinsic::nvvm_internal_addrspace_wrap,
-        {IRB.getPtrTy(ADDRESS_SPACE_PARAM), Arg->getType()}, {Arg});
+    CallInst *ArgInParamAS = createNVVMInternalAddrspaceWrap(IRB, *Arg);
 
     for (Use *U : UsesToUpdate)
       convertToParamAS(U, ArgInParamAS, HasCvtaParam, IsGridConstant);
@@ -567,10 +595,12 @@ static void handleByValParam(const NVPTXTargetMachine &TM, Argument *Arg) {
 
   // We can't access byval arg directly and need a pointer. on sm_70+ we have
   // ability to take a pointer to the argument without making a local copy.
-  // However, we're still not allowed to write to it. If the user specified
-  // `__grid_constant__` for the argument, we'll consider escaped pointer as
-  // read-only.
-  if (IsGridConstant || (HasCvtaParam && ArgUseIsReadOnly)) {
+  // However, param space is read-only, so we can only use this optimization
+  // if the argument is not written to.
+  // Grid constant params can escape (pointer passed to functions) but cannot
+  // have stores. Non-grid-constant params must be fully read-only.
+  if ((IsGridConstant && !PI.isAborted()) ||
+      (HasCvtaParam && ArgUseIsReadOnly)) {
     LLVM_DEBUG(dbgs() << "Using non-copy pointer to " << *Arg << "\n");
     // Replace all argument pointer uses (which might include a device function
     // call) with a cast to the generic address space using cvta.param
@@ -581,10 +611,7 @@ static void handleByValParam(const NVPTXTargetMachine &TM, Argument *Arg) {
     // argument already in the param address space, we need to use the noop
     // intrinsic, this had the added benefit of preventing other optimizations
     // from folding away this pair of addrspacecasts.
-    auto *ParamSpaceArg =
-        IRB.CreateIntrinsic(Intrinsic::nvvm_internal_addrspace_wrap,
-                            {IRB.getPtrTy(ADDRESS_SPACE_PARAM), Arg->getType()},
-                            Arg, {}, Arg->getName() + ".param");
+    auto *ParamSpaceArg = createNVVMInternalAddrspaceWrap(IRB, *Arg);
 
     // Cast param address to generic address space.
     Value *GenericArg = IRB.CreateAddrSpaceCast(

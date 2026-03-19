@@ -54,13 +54,11 @@ int main() {
   CHECK_IS_PROPERTY(property::no_init);
   CHECK_IS_PROPERTY(ext::oneapi::property::no_offset);
   CHECK_IS_PROPERTY(ext::oneapi::property::no_alias);
-  CHECK_IS_PROPERTY(ext::intel::property::buffer_location);
 
   // Buffer is_property
   CHECK_IS_PROPERTY(property::buffer::use_host_ptr);
   CHECK_IS_PROPERTY(property::buffer::use_mutex);
   CHECK_IS_PROPERTY(property::buffer::context_bound);
-  CHECK_IS_PROPERTY(property::buffer::mem_channel);
   CHECK_IS_PROPERTY(ext::oneapi::property::buffer::use_pinned_host_memory);
 
   // Image is_property
@@ -111,10 +109,6 @@ int main() {
   CHECK_IS_PROPERTY_OF(ext::oneapi::property::no_alias,
                        accessor<bool, 1, access_mode::read, target::device,
                                 access::placeholder::true_t>);
-  CHECK_IS_PROPERTY_OF(
-      ext::intel::property::buffer_location,
-      accessor<sycl::half, 2, access_mode::write, target::host_buffer,
-               access::placeholder::false_t>);
 
   // Host-accessor is_property_of
   CHECK_IS_PROPERTY_OF(property::no_init,
@@ -124,7 +118,6 @@ int main() {
   CHECK_IS_PROPERTY_OF(property::buffer::use_host_ptr, buffer<int, 2>);
   CHECK_IS_PROPERTY_OF(property::buffer::use_mutex, buffer<char, 1>);
   CHECK_IS_PROPERTY_OF(property::buffer::context_bound, buffer<float, 1>);
-  CHECK_IS_PROPERTY_OF(property::buffer::mem_channel, buffer<double, 3>);
   CHECK_IS_PROPERTY_OF(ext::oneapi::property::buffer::use_pinned_host_memory,
                        buffer<unsigned int, 2>);
 
@@ -172,14 +165,11 @@ int main() {
   CHECK_IS_NOT_PROPERTY_OF(property::no_init, NotASYCLObject);
   CHECK_IS_NOT_PROPERTY_OF(ext::oneapi::property::no_offset, NotASYCLObject);
   CHECK_IS_NOT_PROPERTY_OF(ext::oneapi::property::no_alias, NotASYCLObject);
-  CHECK_IS_NOT_PROPERTY_OF(ext::intel::property::buffer_location,
-                           NotASYCLObject);
   CHECK_IS_NOT_PROPERTY_OF(property::no_init, NotASYCLObject);
   CHECK_IS_NOT_PROPERTY_OF(property::no_init, NotASYCLObject);
   CHECK_IS_NOT_PROPERTY_OF(property::buffer::use_host_ptr, NotASYCLObject);
   CHECK_IS_NOT_PROPERTY_OF(property::buffer::use_mutex, NotASYCLObject);
   CHECK_IS_NOT_PROPERTY_OF(property::buffer::context_bound, NotASYCLObject);
-  CHECK_IS_NOT_PROPERTY_OF(property::buffer::mem_channel, NotASYCLObject);
   CHECK_IS_NOT_PROPERTY_OF(
       ext::oneapi::property::buffer::use_pinned_host_memory, NotASYCLObject);
   CHECK_IS_NOT_PROPERTY_OF(property::image::use_host_ptr, NotASYCLObject);
@@ -233,13 +223,11 @@ int main() {
   CHECK_IS_PROPERTY_V(property::no_init);
   CHECK_IS_PROPERTY_V(ext::oneapi::property::no_offset);
   CHECK_IS_PROPERTY_V(ext::oneapi::property::no_alias);
-  CHECK_IS_PROPERTY_V(ext::intel::property::buffer_location);
 
   // Buffer is_property_v
   CHECK_IS_PROPERTY_V(property::buffer::use_host_ptr);
   CHECK_IS_PROPERTY_V(property::buffer::use_mutex);
   CHECK_IS_PROPERTY_V(property::buffer::context_bound);
-  CHECK_IS_PROPERTY_V(property::buffer::mem_channel);
   CHECK_IS_PROPERTY_V(ext::oneapi::property::buffer::use_pinned_host_memory);
 
   // Image is_property_v
@@ -291,10 +279,6 @@ int main() {
   CHECK_IS_PROPERTY_OF_V(ext::oneapi::property::no_alias,
                          accessor<bool, 1, access_mode::read, target::device,
                                   access::placeholder::true_t>);
-  CHECK_IS_PROPERTY_OF_V(
-      ext::intel::property::buffer_location,
-      accessor<sycl::half, 2, access_mode::write, target::host_buffer,
-               access::placeholder::false_t>);
 
   // Host-accessor is_property_of_v
   CHECK_IS_PROPERTY_OF_V(property::no_init,
@@ -316,7 +300,6 @@ int main() {
   CHECK_IS_PROPERTY_OF_V(property::buffer::use_host_ptr, buffer<int, 2>);
   CHECK_IS_PROPERTY_OF_V(property::buffer::use_mutex, buffer<char, 1>);
   CHECK_IS_PROPERTY_OF_V(property::buffer::context_bound, buffer<float, 1>);
-  CHECK_IS_PROPERTY_OF_V(property::buffer::mem_channel, buffer<double, 3>);
   CHECK_IS_PROPERTY_OF_V(ext::oneapi::property::buffer::use_pinned_host_memory,
                          buffer<unsigned int, 2>);
 
@@ -373,14 +356,11 @@ int main() {
   CHECK_IS_NOT_PROPERTY_OF_V(property::no_init, NotASYCLObject);
   CHECK_IS_NOT_PROPERTY_OF_V(ext::oneapi::property::no_offset, NotASYCLObject);
   CHECK_IS_NOT_PROPERTY_OF_V(ext::oneapi::property::no_alias, NotASYCLObject);
-  CHECK_IS_NOT_PROPERTY_OF_V(ext::intel::property::buffer_location,
-                             NotASYCLObject);
   CHECK_IS_NOT_PROPERTY_OF_V(property::no_init, NotASYCLObject);
   CHECK_IS_NOT_PROPERTY_OF_V(property::no_init, NotASYCLObject);
   CHECK_IS_NOT_PROPERTY_OF_V(property::buffer::use_host_ptr, NotASYCLObject);
   CHECK_IS_NOT_PROPERTY_OF_V(property::buffer::use_mutex, NotASYCLObject);
   CHECK_IS_NOT_PROPERTY_OF_V(property::buffer::context_bound, NotASYCLObject);
-  CHECK_IS_NOT_PROPERTY_OF_V(property::buffer::mem_channel, NotASYCLObject);
   CHECK_IS_NOT_PROPERTY_OF_V(
       ext::oneapi::property::buffer::use_pinned_host_memory, NotASYCLObject);
   CHECK_IS_NOT_PROPERTY_OF_V(property::image::use_host_ptr, NotASYCLObject);

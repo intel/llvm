@@ -33,6 +33,8 @@ class exec_graph_impl;
 // Templateless executable command-graph base class.
 class __SYCL_EXPORT executable_command_graph
     : public sycl::detail::OwnerLessBase<executable_command_graph> {
+  friend sycl::detail::ImplUtils;
+
 public:
   /// An executable command-graph is not user constructable.
   executable_command_graph() = delete;
@@ -73,10 +75,6 @@ protected:
   executable_command_graph(const std::shared_ptr<detail::graph_impl> &Graph,
                            const sycl::context &Ctx,
                            const property_list &PropList = {});
-
-  template <class Obj>
-  friend const decltype(Obj::impl) &
-  sycl::detail::getSyclObjImpl(const Obj &SyclObject);
 
   /// Creates a backend representation of the graph in \p impl member variable.
   void finalizeImpl();

@@ -221,13 +221,6 @@ namespace ext::intel::esimd::detail {
 class AccessorPrivateProxy;
 } // namespace ext::intel::esimd::detail
 
-template <typename DataT, int Dimensions = 1,
-          access::mode AccessMode = access::mode::read_write,
-          access::target AccessTarget = access::target::device,
-          access::placeholder IsPlaceholder = access::placeholder::false_t,
-          typename PropertyListT = ext::oneapi::accessor_property_list<>>
-class accessor;
-
 namespace ext::oneapi::experimental {
 template <typename, int> class dynamic_local_accessor;
 }
@@ -523,6 +516,7 @@ using AccessorImplPtr = std::shared_ptr<AccessorImplHost>;
 class __SYCL_EXPORT AccessorBaseHost {
 protected:
   AccessorBaseHost(const AccessorImplPtr &Impl) : impl{Impl} {}
+  friend sycl::detail::ImplUtils;
 
 public:
   AccessorBaseHost(id<3> Offset, range<3> AccessRange, range<3> MemoryRange,
@@ -557,16 +551,6 @@ public:
 
   void *getMemoryObject() const;
 
-  template <class Obj>
-  friend const decltype(Obj::impl) &getSyclObjImpl(const Obj &SyclObject);
-
-  template <class T>
-  friend T detail::createSyclObjFromImpl(
-      std::add_rvalue_reference_t<decltype(T::impl)> ImplObj);
-  template <class T>
-  friend T detail::createSyclObjFromImpl(
-      std::add_lvalue_reference_t<const decltype(T::impl)> ImplObj);
-
   template <typename, int, access::mode, access::target, access::placeholder,
             typename>
   friend class accessor;
@@ -581,6 +565,8 @@ class LocalAccessorImplHost;
 using LocalAccessorImplPtr = std::shared_ptr<LocalAccessorImplHost>;
 
 class __SYCL_EXPORT LocalAccessorBaseHost {
+  friend sycl::detail::ImplUtils;
+
 protected:
   LocalAccessorBaseHost(const LocalAccessorImplPtr &Impl) : impl{Impl} {}
 
@@ -596,17 +582,6 @@ public:
   const property_list &getPropList() const;
 
 protected:
-  template <class Obj>
-  friend const decltype(Obj::impl) &
-  detail::getSyclObjImpl(const Obj &SyclObject);
-
-  template <class T>
-  friend T detail::createSyclObjFromImpl(
-      std::add_rvalue_reference_t<decltype(T::impl)> ImplObj);
-  template <class T>
-  friend T detail::createSyclObjFromImpl(
-      std::add_lvalue_reference_t<const decltype(T::impl)> ImplObj);
-
   LocalAccessorImplPtr impl;
 };
 } // namespace detail
@@ -616,9 +591,11 @@ protected:
 /// \sa buffer
 ///
 /// \ingroup sycl_api_acc
-template <typename DataT, int Dimensions, access::mode AccessMode,
-          access::target AccessTarget, access::placeholder IsPlaceholder,
-          typename PropertyListT>
+template <typename DataT, int Dimensions = 1,
+          access::mode AccessMode = access::mode::read_write,
+          access::target AccessTarget = access::target::device,
+          access::placeholder IsPlaceholder = access::placeholder::false_t,
+          typename PropertyListT = ext::oneapi::accessor_property_list<>>
 class __SYCL_EBO __SYCL_SPECIAL_CLASS __SYCL_TYPE(accessor) accessor :
 #ifndef __SYCL_DEVICE_ONLY__
     public detail::AccessorBaseHost,
@@ -628,6 +605,8 @@ class __SYCL_EBO __SYCL_SPECIAL_CLASS __SYCL_TYPE(accessor) accessor :
     public detail::OwnerLessBase<
         accessor<DataT, Dimensions, AccessMode, AccessTarget, IsPlaceholder,
                  PropertyListT>> {
+  friend sycl::detail::ImplUtils;
+
 protected:
   static_assert((AccessTarget == access::target::global_buffer ||
                  AccessTarget == access::target::constant_buffer ||
@@ -858,17 +837,6 @@ public:
 private:
   friend class sycl::stream;
   friend class sycl::ext::intel::esimd::detail::AccessorPrivateProxy;
-
-  template <class Obj>
-  friend const decltype(Obj::impl) &
-  detail::getSyclObjImpl(const Obj &SyclObject);
-
-  template <class T>
-  friend T detail::createSyclObjFromImpl(
-      std::add_rvalue_reference_t<decltype(T::impl)> ImplObj);
-  template <class T>
-  friend T detail::createSyclObjFromImpl(
-      std::add_lvalue_reference_t<const decltype(T::impl)> ImplObj);
 
 public:
   // 4.7.6.9.1. Interface for buffer command accessors
@@ -1194,9 +1162,7 @@ public:
       buffer<T, Dims, AllocatorT> &BufferRef, TagT,
       const property_list &PropertyList = {},
       const detail::code_location CodeLoc = detail::code_location::current())
-      : accessor(BufferRef, PropertyList, CodeLoc) {
-    adjustAccPropsInBuf(BufferRef);
-  }
+      : accessor(BufferRef, PropertyList, CodeLoc) {}
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename TagT, typename... PropTypes,
@@ -1209,9 +1175,7 @@ public:
       const ext::oneapi::accessor_property_list<PropTypes...> &PropertyList =
           {},
       const detail::code_location CodeLoc = detail::code_location::current())
-      : accessor(BufferRef, PropertyList, CodeLoc) {
-    adjustAccPropsInBuf(BufferRef);
-  }
+      : accessor(BufferRef, PropertyList, CodeLoc) {}
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename = std::enable_if_t<
@@ -1293,9 +1257,7 @@ public:
       buffer<T, Dims, AllocatorT> &BufferRef, handler &CommandGroupHandler,
       TagT, const property_list &PropertyList = {},
       const detail::code_location CodeLoc = detail::code_location::current())
-      : accessor(BufferRef, CommandGroupHandler, PropertyList, CodeLoc) {
-    adjustAccPropsInBuf(BufferRef);
-  }
+      : accessor(BufferRef, CommandGroupHandler, PropertyList, CodeLoc) {}
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename TagT, typename... PropTypes,
@@ -1309,9 +1271,7 @@ public:
       const ext::oneapi::accessor_property_list<PropTypes...> &PropertyList =
           {},
       const detail::code_location CodeLoc = detail::code_location::current())
-      : accessor(BufferRef, CommandGroupHandler, PropertyList, CodeLoc) {
-    adjustAccPropsInBuf(BufferRef);
-  }
+      : accessor(BufferRef, CommandGroupHandler, PropertyList, CodeLoc) {}
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename = std::enable_if_t<
@@ -1347,9 +1307,7 @@ public:
       buffer<T, Dims, AllocatorT> &BufferRef, range<Dimensions> AccessRange,
       TagT, const property_list &PropertyList = {},
       const detail::code_location CodeLoc = detail::code_location::current())
-      : accessor(BufferRef, AccessRange, {}, PropertyList, CodeLoc) {
-    adjustAccPropsInBuf(BufferRef);
-  }
+      : accessor(BufferRef, AccessRange, {}, PropertyList, CodeLoc) {}
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename TagT, typename... PropTypes,
@@ -1363,9 +1321,7 @@ public:
       const ext::oneapi::accessor_property_list<PropTypes...> &PropertyList =
           {},
       const detail::code_location CodeLoc = detail::code_location::current())
-      : accessor(BufferRef, AccessRange, {}, PropertyList, CodeLoc) {
-    adjustAccPropsInBuf(BufferRef);
-  }
+      : accessor(BufferRef, AccessRange, {}, PropertyList, CodeLoc) {}
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename = std::enable_if_t<
@@ -1406,9 +1362,7 @@ public:
       const property_list &PropertyList = {},
       const detail::code_location CodeLoc = detail::code_location::current())
       : accessor(BufferRef, CommandGroupHandler, AccessRange, {}, PropertyList,
-                 CodeLoc) {
-    adjustAccPropsInBuf(BufferRef);
-  }
+                 CodeLoc) {}
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename TagT, typename... PropTypes,
@@ -1423,9 +1377,7 @@ public:
           {},
       const detail::code_location CodeLoc = detail::code_location::current())
       : accessor(BufferRef, CommandGroupHandler, AccessRange, {}, PropertyList,
-                 CodeLoc) {
-    adjustAccPropsInBuf(BufferRef);
-  }
+                 CodeLoc) {}
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename = std::enable_if_t<
@@ -1520,9 +1472,7 @@ public:
       buffer<T, Dims, AllocatorT> &BufferRef, range<Dimensions> AccessRange,
       id<Dimensions> AccessOffset, TagT, const property_list &PropertyList = {},
       const detail::code_location CodeLoc = detail::code_location::current())
-      : accessor(BufferRef, AccessRange, AccessOffset, PropertyList, CodeLoc) {
-    adjustAccPropsInBuf(BufferRef);
-  }
+      : accessor(BufferRef, AccessRange, AccessOffset, PropertyList, CodeLoc) {}
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename TagT, typename... PropTypes,
@@ -1536,9 +1486,7 @@ public:
       const ext::oneapi::accessor_property_list<PropTypes...> &PropertyList =
           {},
       const detail::code_location CodeLoc = detail::code_location::current())
-      : accessor(BufferRef, AccessRange, AccessOffset, PropertyList, CodeLoc) {
-    adjustAccPropsInBuf(BufferRef);
-  }
+      : accessor(BufferRef, AccessRange, AccessOffset, PropertyList, CodeLoc) {}
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename = std::enable_if_t<
@@ -1636,9 +1584,7 @@ public:
       const property_list &PropertyList = {},
       const detail::code_location CodeLoc = detail::code_location::current())
       : accessor(BufferRef, CommandGroupHandler, AccessRange, AccessOffset,
-                 PropertyList, CodeLoc) {
-    adjustAccPropsInBuf(BufferRef);
-  }
+                 PropertyList, CodeLoc) {}
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename TagT, typename... PropTypes,
@@ -1653,9 +1599,7 @@ public:
           {},
       const detail::code_location CodeLoc = detail::code_location::current())
       : accessor(BufferRef, CommandGroupHandler, AccessRange, AccessOffset,
-                 PropertyList, CodeLoc) {
-    adjustAccPropsInBuf(BufferRef);
-  }
+                 PropertyList, CodeLoc) {}
 
   template <typename... NewPropsT>
   accessor(
@@ -1757,13 +1701,8 @@ public:
 
   template <int Dims = Dimensions>
   operator typename std::enable_if_t<
-      Dims == 0 && AccessMode == access::mode::atomic,
-#ifdef __ENABLE_USM_ADDR_SPACE__
-      atomic<DataT, access::address_space::global_space>
-#else
-      atomic<DataT, AS>
-#endif
-      >() const {
+      Dims == 0 && AccessMode == access::mode::atomic, atomic<DataT, AS>>()
+      const {
     const size_t LinearIndex = getLinearIndex(id<AdjustedDim>());
     return atomic<DataT, AS>(multi_ptr<DataT, AS, access::decorated::yes>(
         getQualifiedPtr() + LinearIndex));
@@ -1966,26 +1905,6 @@ private:
       throw sycl::exception(make_error_code(errc::invalid),
           "accessor cannot be both read_only and no_init");
     }
-  }
-
-  template <typename BufT, typename... PropTypes>
-  void adjustAccPropsInBuf(BufT &Buffer) {
-    if constexpr (PropertyListT::template has_property<
-                      sycl::ext::intel::property::buffer_location>()) {
-      auto location = (PropertyListT::template get_property<
-                           sycl::ext::intel::property::buffer_location>())
-                          .get_location();
-      property_list PropList{
-          sycl::property::buffer::detail::buffer_location(location)};
-      Buffer.addOrReplaceAccessorProperties(PropList);
-    } else {
-      deleteAccPropsFromBuf(Buffer);
-    }
-  }
-
-  template <typename BufT> void deleteAccPropsFromBuf(BufT &Buffer) {
-    Buffer.deleteAccProps(
-        sycl::detail::PropWithDataKind::AccPropBufferLocation);
   }
 };
 
@@ -2254,17 +2173,6 @@ protected:
     return Result;
   }
 
-  template <class Obj>
-  friend const decltype(Obj::impl) &
-  detail::getSyclObjImpl(const Obj &SyclObject);
-
-  template <class T>
-  friend T detail::createSyclObjFromImpl(
-      std::add_rvalue_reference_t<decltype(T::impl)> ImplObj);
-  template <class T>
-  friend T detail::createSyclObjFromImpl(
-      std::add_lvalue_reference_t<const decltype(T::impl)> ImplObj);
-
   template <typename DataT_, int Dimensions_> friend class local_accessor;
 
 public:
@@ -2479,6 +2387,7 @@ class __SYCL_EBO __SYCL_SPECIAL_CLASS __SYCL_TYPE(local_accessor) local_accessor
                                  access::placeholder::false_t>,
       public detail::OwnerLessBase<local_accessor<DataT, Dimensions>> {
 
+  friend sycl::detail::ImplUtils;
   using local_acc =
       local_accessor_base<DataT, Dimensions,
                           detail::accessModeFromConstness<DataT>(),
@@ -2652,6 +2561,8 @@ template <typename DataT, int Dimensions = 1,
 class __SYCL_EBO host_accessor
     : public accessor<DataT, Dimensions, AccessMode, target::host_buffer,
                       access::placeholder::false_t> {
+  friend sycl::detail::ImplUtils;
+
 protected:
   using AccessorT = accessor<DataT, Dimensions, AccessMode, target::host_buffer,
                              access::placeholder::false_t>;
@@ -2676,16 +2587,6 @@ protected:
   host_accessor(const detail::AccessorImplPtr &Impl)
       : accessor<DataT, Dimensions, AccessMode, target::host_buffer,
                  access::placeholder::false_t>{Impl} {}
-
-  template <class Obj>
-  friend const decltype(Obj::impl) &getSyclObjImpl(const Obj &SyclObject);
-
-  template <class T>
-  friend T detail::createSyclObjFromImpl(
-      std::add_rvalue_reference_t<decltype(T::impl)> ImplObj);
-  template <class T>
-  friend T detail::createSyclObjFromImpl(
-      std::add_lvalue_reference_t<const decltype(T::impl)> ImplObj);
 #endif // __SYCL_DEVICE_ONLY__
 
 public:

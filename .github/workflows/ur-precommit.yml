@@ -43,13 +43,13 @@ jobs:
   source_checks:
     name: Source Checks
     needs: [detect_changes]
-    if: ${{ always() && !cancelled() && contains(needs.detect_changes.outputs.filters, 'ur') }}
+    if: ${{ !cancelled() && contains(needs.detect_changes.outputs.filters, 'ur') }}
     uses: ./.github/workflows/ur-source-checks.yml
 
   adapters:
     name: Adapters
     needs: [detect_changes, source_checks]
-    if: ${{ always() && !cancelled() && contains(needs.detect_changes.outputs.filters, 'ur') }}
+    if: ${{ !cancelled() && contains(needs.detect_changes.outputs.filters, 'ur') }}
     strategy:
       fail-fast: false
       matrix:
@@ -70,9 +70,6 @@ jobs:
             runner: UR_L0
             other_adapter: NATIVE_CPU
             image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
-          - name: HIP
-            runner: UR_HIP
-            image_options: -u 1001 --device=/dev/dri --device=/dev/kfd --cap-add=SYS_ADMIN 
           - name: CUDA
             runner: UR_CUDA
             image_options: -u 1001 --privileged --cap-add SYS_ADMIN --gpus all
@@ -96,30 +93,30 @@ jobs:
       static_loader: ${{ matrix.static || 'OFF' }}
       static_adapter: ${{ matrix.static || 'OFF' }}
       other_adapter_name: ${{ matrix.other_adapter || '' }}
-      docker_image: ${{ matrix.docker_image || 'ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps'}}
+      docker_image: ${{ matrix.docker_image || 'ghcr.io/intel/llvm/ubuntu2404_intel_drivers:latest'}}
       image_options: ${{ matrix.image_options || '' }}
+      install_igc_driver: ${{ contains(needs.detect_changes.outputs.filters, 'drivers') }}
 
-# TODO: Enable once the apt package at https://apt.llvm.org/noble/pool/main/l/llvm-toolchain-snapshot/ is updated
-#  offload_build:
-#    name: Adapters (Offload)
-#    needs: [detect_changes, source_checks]
-#    if: ${{ always() && !cancelled() && contains(needs.detect_changes.outputs.filters, 'ur_offload_adapter') }}
-#    uses: ./.github/workflows/ur-build-offload.yml
+  offload_build:
+    name: Adapters (Offload)
+    needs: [detect_changes, source_checks]
+    if: ${{ !cancelled() && contains(needs.detect_changes.outputs.filters, 'ur_offload_adapter') }}
+    uses: ./.github/workflows/ur-build-offload.yml
 
   macos:
     name: MacOS build only
     needs: [detect_changes, source_checks]
-    if: ${{ always() && !cancelled() && contains(needs.detect_changes.outputs.filters, 'ur') }}
+    if: ${{ !cancelled() && contains(needs.detect_changes.outputs.filters, 'ur') }}
     strategy:
       matrix:
-        os: ['macos-13']
+        os: ['macos-latest']
     runs-on: ${{matrix.os}}
 
     steps:
     - name: Checkout LLVM
-      uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-    - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.0.0
+    - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.1.0
       with:
         python-version: "3.10"
 

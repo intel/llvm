@@ -134,3 +134,18 @@ std::string getVal(const char *name) {
   return res;
 }
 } // namespace env
+
+namespace command_submit_wrappers {
+template <typename KernelName, typename KernelType, int Dims>
+sycl::event parallel_for_wrapper(bool UseShortcutFunction, sycl::queue &Q,
+                                 sycl::range<Dims> Range,
+                                 const KernelType &KernelFunc) {
+  if (UseShortcutFunction) {
+    return Q.parallel_for<KernelName>(Range, KernelFunc);
+  } else {
+    return Q.submit([&](sycl::handler &cgh) {
+      cgh.parallel_for<KernelName>(Range, KernelFunc);
+    });
+  }
+}
+} // namespace command_submit_wrappers
