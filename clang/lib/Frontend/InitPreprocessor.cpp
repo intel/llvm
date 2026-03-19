@@ -950,8 +950,8 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
 
   // Previously this macro was set to a string aiming to achieve compatibility
   // with GCC 4.2.1. Now, just return the full DPC++ version
-  Builder.defineMacro("__VERSION__", "\"" +
-                      Twine(getDPCPPFullCPPVersion()) + "\"");
+  Builder.defineMacro("__VERSION__",
+                      "\"" + Twine(getDPCPPFullCPPVersion()) + "\"");
 
   // Initialize language-specific preprocessor defines.
 

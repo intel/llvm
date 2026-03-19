@@ -66,7 +66,6 @@ namespace clang {
   /// for use in the CPP __VERSION__ macro, including repository information.
   std::string getDPCPPFullCPPVersion();
 
-
   /// Retrieves a string representing the SYCL standard version for use in
   /// the CL_SYCL_LANGUAGE_VERSION and SYCL_LANGUAGE_VERSION macros.
   llvm::SmallVector<std::pair<llvm::StringRef, llvm::StringRef>, 2>
