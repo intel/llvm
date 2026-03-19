@@ -25,7 +25,8 @@ TEST(FP8E4M3Test, VariadicConstructorHalf) {
 }
 
 TEST(FP8E4M3Test, VariadicConstructorBFloat16) {
-  fp8_e4m3_x2 a(sycl::ext::oneapi::bfloat16(1.0f), sycl::ext::oneapi::bfloat16(2.0f));
+  fp8_e4m3_x2 a(sycl::ext::oneapi::bfloat16(1.0f),
+                sycl::ext::oneapi::bfloat16(2.0f));
 
   EXPECT_EQ(sizeof(a.vals), 2u);
   EXPECT_EQ(a.vals[0], 0x38);
@@ -77,7 +78,7 @@ TEST(FP8E4M3Test, VariadicBoundaryEncodingsFloat) {
 TEST(FP8E4M3Test, VariadicNaNEncodingFloat) {
   // NaN is encoded as S.1111.111; sign is permitted.
   fp8_e4m3_x2 a(std::numeric_limits<float>::quiet_NaN(),
-               -std::numeric_limits<float>::quiet_NaN());
+                -std::numeric_limits<float>::quiet_NaN());
 
   EXPECT_EQ(a.vals[0], 0x7F); // +NaN -> 0b0_1111_111
   EXPECT_EQ(a.vals[1], 0xFF); // -NaN -> 0b1_1111_111
@@ -95,9 +96,9 @@ TEST(FP8E4M3Test, IntegerToEvenFiniteAndSize) {
   EXPECT_EQ(sizeof(a2.vals), 1u);
   EXPECT_EQ(sizeof(an1.vals), 1u);
 
-  EXPECT_EQ(a0.vals[0], 0x00); // +0
-  EXPECT_EQ(a1.vals[0], 0x38); // +1.0 -> 0b0_0111_000
-  EXPECT_EQ(a2.vals[0], 0x40); // +2.0 -> 0b0_1000_000
+  EXPECT_EQ(a0.vals[0], 0x00);  // +0
+  EXPECT_EQ(a1.vals[0], 0x38);  // +1.0 -> 0b0_0111_000
+  EXPECT_EQ(a2.vals[0], 0x40);  // +2.0 -> 0b0_1000_000
   EXPECT_EQ(an1.vals[0], 0xB8); // -1.0 -> sign set: 0b1_0111_000
 }
 
