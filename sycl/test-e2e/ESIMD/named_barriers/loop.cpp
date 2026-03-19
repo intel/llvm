@@ -5,8 +5,6 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// UNSUPPORTED: arch-intel_gpu_pvc
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/16598
 // REQUIRES: arch-intel_gpu_pvc
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
