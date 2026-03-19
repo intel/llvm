@@ -227,6 +227,7 @@ uint64_t calculateGlobalMemSize(ur_device_handle_t Device) {
 
 static bool
 supportsDeviceUsableMemSizeExtension(ur_platform_handle_t Platform) {
+#ifdef ZE_DEVICE_USABLEMEM_SIZE_PROPERTIES_EXT_NAME
   constexpr const char *ExtensionName =
       ZE_DEVICE_USABLEMEM_SIZE_PROPERTIES_EXT_NAME;
   constexpr uint32_t MinVersion = ZE_MAKE_VERSION(1, 0);
@@ -234,10 +235,15 @@ supportsDeviceUsableMemSizeExtension(ur_platform_handle_t Platform) {
   auto Extension = Platform->zeDriverExtensionMap.find(ExtensionName);
   return Extension != Platform->zeDriverExtensionMap.end() &&
          Extension->second >= MinVersion;
+#else
+  std::ignore = Platform;
+  return false;
+#endif
 }
 
 static std::optional<uint64_t>
 getDeviceUsableMemSizeFromCore(ur_device_handle_t Device) {
+#ifdef ZE_DEVICE_USABLEMEM_SIZE_PROPERTIES_EXT_NAME
   if (!supportsDeviceUsableMemSizeExtension(Device->Platform)) {
     return std::nullopt;
   }
@@ -253,6 +259,10 @@ getDeviceUsableMemSizeFromCore(ur_device_handle_t Device) {
   }
 
   return UsableMemProperties.currUsableMemSize;
+#else
+  std::ignore = Device;
+  return std::nullopt;
+#endif
 }
 
 // Return the Sysman device handle and correpsonding data for the given UR
