@@ -197,7 +197,7 @@ ProgramManager::createURProgram(const RTDeviceBinaryImage &Img,
 
   if (Format == SYCL_DEVICE_BINARY_TYPE_NONE)
     Format = ur::getBinaryImageFormat(RawImg.BinaryStart, ImgSize);
-  // sycl::detail::pi::PiDeviceBinaryType Format = Img->Format;
+  // ur::DeviceBinaryType Format = Img->Format;
   // assert(Format != SYCL_DEVICE_BINARY_TYPE_NONE && "Image format not set");
 
   if (!isDeviceBinaryTypeSupported(ContextImpl, Format))
