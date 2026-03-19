@@ -5,6 +5,11 @@
 #include <cstdint>
 #include <limits>
 
+/*
+Unit tests check only CPU versions. Most of the constraints related to device
+code thus unit tests check only API
+*/
+
 using namespace sycl::ext::oneapi::experimental;
 
 TEST(FP8E5M2Test, VariadicConstructorHalf) {
@@ -176,12 +181,12 @@ TEST(FP8E5M2Test, VariadicConstructorSaturatesFinite) {
   );
 
   fp8_e5m2_x2 a1(-100000.0f, // clamp to -57344
-                -0.0f);
+                 -0.0f);
 
   EXPECT_EQ(sizeof(a.vals), 2u);
   EXPECT_EQ(sizeof(a1.vals), 2u);
   EXPECT_EQ(a.vals[0], 0x3C);
-  EXPECT_EQ(a.vals[1], 0x7B); // +max normal
+  EXPECT_EQ(a.vals[1], 0x7B);  // +max normal
   EXPECT_EQ(a1.vals[0], 0xFB); // -max normal
   EXPECT_EQ(a1.vals[1], 0x80); // -0
 }
@@ -205,8 +210,8 @@ TEST(FP8E5M2Test, CArrayConstructorFloatHostToEvenFinite) {
 
   EXPECT_EQ(sizeof(a.vals), 2u);
   EXPECT_EQ(sizeof(a1.vals), 2u);
-  EXPECT_EQ(a.vals[0], 0x3C); // 1.0
-  EXPECT_EQ(a.vals[1], 0x3C); // 1.1 -> 1.0
+  EXPECT_EQ(a.vals[0], 0x3C);  // 1.0
+  EXPECT_EQ(a.vals[1], 0x3C);  // 1.1 -> 1.0
   EXPECT_EQ(a1.vals[0], 0x3C); // tie -> to_even => 1.0
   EXPECT_EQ(a1.vals[1], 0x7B); // finite saturation => +57344
 }
@@ -224,8 +229,8 @@ TEST(FP8E5M2Test, CArrayConstructorDoubleToEvenFinite) {
   EXPECT_EQ(sizeof(a.vals), 2u);
   EXPECT_EQ(sizeof(a1.vals), 2u);
   EXPECT_EQ(sizeof(a2.vals), 2u);
-  EXPECT_EQ(a.vals[0], 0x7B); // +57344
-  EXPECT_EQ(a.vals[1], 0x7B); // 60000 -> clamp to +57344
+  EXPECT_EQ(a.vals[0], 0x7B);  // +57344
+  EXPECT_EQ(a.vals[1], 0x7B);  // 60000 -> clamp to +57344
   EXPECT_EQ(a1.vals[0], 0x04); // min normal
   EXPECT_EQ(a1.vals[1], 0x03); // max subnormal
   EXPECT_EQ(a2.vals[0], 0x01); // min subnormal

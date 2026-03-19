@@ -5,6 +5,11 @@
 #include <cstdint>
 #include <limits>
 
+/*
+Unit tests check only CPU versions. Most of the constraints related to device
+code thus unit tests check only API
+*/
+
 using namespace sycl::ext::oneapi::experimental;
 
 TEST(FP8E4M3Test, VariadicConstructorHalf) {

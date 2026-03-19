@@ -1,6 +1,13 @@
+//==----------- types.hpp - sycl_ext_oneapi_fp8 ------------==//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+
 #pragma once
 
-#include <sycl/__spirv/spirv_types.hpp>
 #include <sycl/ext/oneapi/bfloat16.hpp>
 #include <sycl/marray.hpp>
 
@@ -8,13 +15,63 @@
 #include <cmath>
 #include <cstdint>
 #include <limits>
+#include <stdexcept>
 #include <type_traits>
+
+#ifdef __SYCL_DEVICE_ONLY__
+// New FP8 builtins
+extern __DPCPP_SYCL_EXTERNAL sycl::half
+__builtin_spirv_ClampConvertE4M3ToFP16INTEL(uint8_t) noexcept;
+extern __DPCPP_SYCL_EXTERNAL sycl::half
+__builtin_spirv_ConvertE4M3ToFP16INTEL(uint8_t) noexcept;
+extern __DPCPP_SYCL_EXTERNAL sycl::half
+__builtin_spirv_ConvertE5M2ToFP16INTEL(uint8_t) noexcept;
+extern __DPCPP_SYCL_EXTERNAL sycl::ext::oneapi::bfloat16
+__builtin_spirv_ConvertE4M3ToBF16INTEL(uint8_t) noexcept;
+extern __DPCPP_SYCL_EXTERNAL sycl::ext::oneapi::bfloat16
+__builtin_spirv_ConvertE5M2ToBF16INTEL(uint8_t) noexcept;
+extern __DPCPP_SYCL_EXTERNAL
+    uint8_t __builtin_spirv_ConvertFP16ToE4M3INTEL(sycl::half) noexcept;
+extern __DPCPP_SYCL_EXTERNAL uint8_t __builtin_spirv_ConvertBF16ToE5M2INTEL(
+    sycl::ext::oneapi::bfloat16) noexcept;
+extern __DPCPP_SYCL_EXTERNAL
+    uint8_t __builtin_spirv_ClampConvertFP16ToE4M3INTEL(sycl::half) noexcept;
+extern __DPCPP_SYCL_EXTERNAL
+    uint8_t __builtin_spirv_ClampConvertBF16ToE4M3INTEL(
+        sycl::ext::oneapi::bfloat16) noexcept;
+extern __DPCPP_SYCL_EXTERNAL
+    uint8_t __builtin_spirv_ClampConvertFP16ToE5M2INTEL(sycl::half) noexcept;
+extern __DPCPP_SYCL_EXTERNAL
+    uint8_t __builtin_spirv_ClampConvertBF16ToE5M2INTEL(
+        sycl::ext::oneapi::bfloat16) noexcept;
+extern __DPCPP_SYCL_EXTERNAL uint8_t
+__builtin_spirv_StochasticRoundFP16ToE5M2INTEL(sycl::half, uint32_t,
+                                               uint32_t *) noexcept;
+extern __DPCPP_SYCL_EXTERNAL
+    uint8_t __builtin_spirv_StochasticRoundFP16ToE4M3INTEL(sycl::half) noexcept;
+extern __DPCPP_SYCL_EXTERNAL uint8_t
+__builtin_spirv_StochasticRoundBF16ToE5M2INTEL(sycl::ext::oneapi::bfloat16,
+                                               uint32_t, uint32_t *) noexcept;
+extern __DPCPP_SYCL_EXTERNAL
+    uint8_t __builtin_spirv_StochasticRoundBF16ToE4M3INTEL(
+        sycl::ext::oneapi::bfloat16) noexcept;
+extern __DPCPP_SYCL_EXTERNAL uint8_t
+__builtin_spirv_ClampStochasticRoundFP16ToE5M2INTEL(sycl::half, uint32_t,
+                                                    uint32_t *) noexcept;
+extern __DPCPP_SYCL_EXTERNAL uint8_t
+    __builtin_spirv_ClampStochasticRoundFP16ToE4M3INTEL(sycl::half) noexcept;
+extern __DPCPP_SYCL_EXTERNAL uint8_t
+__builtin_spirv_ClampStochasticRoundBF16ToE5M2INTEL(sycl::ext::oneapi::bfloat16,
+                                                    uint32_t,
+                                                    uint32_t *) noexcept;
+extern __DPCPP_SYCL_EXTERNAL
+    uint8_t __builtin_spirv_ClampStochasticRoundBF16ToE4M3INTEL(
+        sycl::ext::oneapi::bfloat16) noexcept;
+#endif // __SYCL_DEVICE_ONLY__
 
 namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental {
-
-#ifdef __SYCL_TARGET_INTEL_GPU_CRI__
 
 enum class saturation { none, finite };
 
@@ -423,7 +480,7 @@ template <size_t N> class fp8_e4m3_x {
   static constexpr size_t NExpBits = 4;
   static constexpr size_t NFracBits = 3;
   static constexpr float MaxNormal = 448.0f;
-  static constexpr float MinSubnormal = 0.001953125f; // 2^-9
+  static constexpr float MinSubnormal = 0.00000762939453125f; // 2^-17
   static constexpr uint8_t NaNCode = 0xFF;
   static constexpr uint8_t MaxFiniteCode =
       0x7E; // 0.1111.110 (positive max normal)
@@ -433,7 +490,7 @@ template <size_t N> class fp8_e4m3_x {
 #ifdef __SYCL_DEVICE_ONLY__
     // TODO: optimize with vectorized builtin calls
     const uint8_t sign = std::signbit(hi) ? 0x80u : 0x00u;
-    const float ax = sycl::fabs(hi);
+    const float ax = std::fabs(hi);
 
     if (ax > MaxNormal)
       return static_cast<uint8_t>(sign | MaxFiniteCode);
@@ -441,11 +498,11 @@ template <size_t N> class fp8_e4m3_x {
     if (ax < MinSubnormal)
       return sign;
 
-    uint8_t b = __builtin_spirv_ConvertFP16ToE4M3EXT(h);
+    uint8_t b = __builtin_spirv_ClampConvertFP16ToE4M3INTEL(h);
     if (r == rounding::to_even)
       return b;
 
-    const sycl::half yi = __builtin_spirv_ConvertE4M3ToFP16EXT(b);
+    const sycl::half yi = __builtin_spirv_ConvertE4M3ToFP16INTEL(b);
     return round(r, b, yi, hi);
 
 #else
@@ -456,7 +513,7 @@ template <size_t N> class fp8_e4m3_x {
   uint8_t ConvertBF16ToFP8(bfloat16 h, rounding r) {
 #ifdef __SYCL_DEVICE_ONLY__
     const uint8_t sign = std::signbit(h) ? 0x80u : 0x00u;
-    const float ax = sycl::fabs(h);
+    const float ax = std::fabs(h);
 
     if (ax > MaxNormal)
       return static_cast<uint8_t>(sign | MaxFiniteCode);
@@ -464,11 +521,10 @@ template <size_t N> class fp8_e4m3_x {
     if (ax < MinSubnormal)
       return sign;
 
-    uint8_t b = __builtin_spirv_ConvertBF16ToE4M3EXT(h);
+    uint8_t b = __builtin_spirv_ClampConvertBF16ToE4M3INTEL(h);
     if (r == rounding::to_even)
       return b;
-
-    const half yi = __builtin_spirv_ConvertBF16ToE4M3EXT(b);
+    const half yi = __builtin_spirv_ConvertE4M3ToFP16INTEL(b);
     return round(r, b, yi, h);
 #else
     return ConvertToFP8_CPU<4, 3, bfloat16>(h, r);
@@ -477,7 +533,8 @@ template <size_t N> class fp8_e4m3_x {
 
   template <typename T> T ConvertFromFP8(uint8_t v) const {
 #ifdef __SYCL_DEVICE_ONLY__
-    sycl::half hi = __builtin_spirv_ConvertE4M3ToFP16EXT(v);
+    sycl::half hi = __builtin_spirv_ClampConvertE4M3ToFP16INTEL(
+        v); // sycl_fp8_ClampConvertE4M3ToFP16INTEL(v);
     return static_cast<T>(hi);
 #else
     return ConvertFromFP8_CPU<4, 3, T>(v);
@@ -486,7 +543,7 @@ template <size_t N> class fp8_e4m3_x {
 
   bfloat16 ConvertBF16FromFP8(uint8_t v) const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return __builtin_spirv_ConvertE4M3ToBF16EXT(v);
+    return __builtin_spirv_ConvertE4M3ToBF16INTEL(v);
 #else
     return ConvertFromFP8_CPU<4, 3, bfloat16>(v);
 #endif
@@ -587,48 +644,51 @@ public:
       vals[i] = ConvertToFP8(v[i], rounding::to_even);
   }
 
-
   // Construct from integer types.
   // Available only when N==1.
 
   explicit fp8_e4m3_x(short val) {
-    assert(N == 1 && "fp8_e4m3_x: N must be 1 for short constructor");
+    static_assert(N == 1 && "fp8_e4m3_x: N must be 1 for short constructor");
     vals[0] = ConvertToFP8(val, rounding::to_even);
   }
 
   explicit fp8_e4m3_x(int val) {
-    assert(N == 1 && "fp8_e4m3_x: N must be 1 for int constructor");
+    static_assert(N == 1 && "fp8_e4m3_x: N must be 1 for int constructor");
     vals[0] = ConvertToFP8(val, rounding::to_even);
   }
 
   explicit fp8_e4m3_x(long val) {
-    assert(N == 1 && "fp8_e4m3_x: N must be 1 for long constructor");
+    static_assert(N == 1 && "fp8_e4m3_x: N must be 1 for long constructor");
     vals[0] = ConvertToFP8(val, rounding::to_even);
   }
 
   explicit fp8_e4m3_x(long long val) {
-    assert(N == 1 && "fp8_e4m3_x: N must be 1 for long long constructor");
+    static_assert(N == 1 &&
+                  "fp8_e4m3_x: N must be 1 for long long constructor");
     vals[0] = ConvertToFP8(val, rounding::to_even);
   }
 
   explicit fp8_e4m3_x(unsigned short val) {
-    assert(N == 1 && "fp8_e4m3_x: N must be 1 for unsigned short constructor");
+    static_assert(N == 1 &&
+                  "fp8_e4m3_x: N must be 1 for unsigned short constructor");
     vals[0] = ConvertToFP8(val, rounding::to_even);
   }
 
   explicit fp8_e4m3_x(unsigned int val) {
-    assert(N == 1 && "fp8_e4m3_x: N must be 1 for unsigned int constructor");
+    static_assert(N == 1 &&
+                  "fp8_e4m3_x: N must be 1 for unsigned int constructor");
     vals[0] = ConvertToFP8(val, rounding::to_even);
   }
 
   explicit fp8_e4m3_x(unsigned long val) {
-    assert(N == 1 && "fp8_e4m3_x: N must be 1 for unsigned long constructor");
+    static_assert(N == 1 &&
+                  "fp8_e4m3_x: N must be 1 for unsigned long constructor");
     vals[0] = ConvertToFP8(val, rounding::to_even);
   }
 
   explicit fp8_e4m3_x(unsigned long long val) {
-    assert(N == 1 &&
-           "fp8_e4m3_x: N must be 1 for unsigned long long constructor");
+    static_assert(N == 1 &&
+                  "fp8_e4m3_x: N must be 1 for unsigned long long constructor");
     vals[0] = ConvertToFP8(val, rounding::to_even);
   }
 
@@ -636,78 +696,87 @@ public:
   // Available only when N==1.
 
   fp8_e4m3_x &operator=(sycl::half val) {
-    assert(N == 1 && "fp8_e4m3_x: N must be 1 for half assignment operator");
+    static_assert(N == 1 &&
+                  "fp8_e4m3_x: N must be 1 for half assignment operator");
     vals[0] = ConvertToFP8(val, rounding::to_even);
     return *this;
   }
 
   fp8_e4m3_x &operator=(bfloat16 val) {
-    assert(N == 1 &&
-           "fp8_e4m3_x: N must be 1 for bfloat16 assignment operator");
+    static_assert(N == 1 &&
+                  "fp8_e4m3_x: N must be 1 for bfloat16 assignment operator");
     vals[0] = ConvertToFP8(val, rounding::to_even);
     return *this;
   }
 
   fp8_e4m3_x &operator=(float val) {
-    assert(N == 1 && "fp8_e4m3_x: N must be 1 for float assignment operator");
+    static_assert(N == 1 &&
+                  "fp8_e4m3_x: N must be 1 for float assignment operator");
     vals[0] = ConvertToFP8(val, rounding::to_even);
     return *this;
   }
 
   fp8_e4m3_x &operator=(double val) {
-    assert(N == 1 && "fp8_e4m3_x: N must be 1 for double assignment operator");
+    static_assert(N == 1 &&
+                  "fp8_e4m3_x: N must be 1 for double assignment operator");
     vals[0] = ConvertBF16ToFP8(val, rounding::to_even);
     return *this;
   }
 
   fp8_e4m3_x &operator=(short val) {
-    assert(N == 1 && "fp8_e4m3_x: N must be 1 for short assignment operator");
+    static_assert(N == 1 &&
+                  "fp8_e4m3_x: N must be 1 for short assignment operator");
     vals[0] = ConvertToFP8(val, rounding::to_even);
     return *this;
   }
 
   fp8_e4m3_x &operator=(int val) {
-    assert(N == 1 && "fp8_e4m3_x: N must be 1 for int assignment operator");
+    static_assert(N == 1 &&
+                  "fp8_e4m3_x: N must be 1 for int assignment operator");
     vals[0] = ConvertToFP8(val, rounding::to_even);
     return *this;
   }
 
   fp8_e4m3_x &operator=(long val) {
-    assert(N == 1 && "fp8_e4m3_x: N must be 1 for long assignment operator");
+    static_assert(N == 1 &&
+                  "fp8_e4m3_x: N must be 1 for long assignment operator");
     vals[0] = ConvertToFP8(val, rounding::to_even);
     return *this;
   }
 
   fp8_e4m3_x &operator=(long long val) {
-    assert(N == 1 &&
-           "fp8_e4m3_x: N must be 1 for long long assignment operator");
+    static_assert(N == 1 &&
+                  "fp8_e4m3_x: N must be 1 for long long assignment operator");
     vals[0] = ConvertToFP8(val, rounding::to_even);
     return *this;
   }
 
   fp8_e4m3_x &operator=(unsigned short val) {
-    assert(N == 1 &&
-           "fp8_e4m3_x: N must be 1 for unsigned short assignment operator");
+    static_assert(
+        N == 1 &&
+        "fp8_e4m3_x: N must be 1 for unsigned short assignment operator");
     vals[0] = ConvertToFP8(val, rounding::to_even);
     return *this;
   }
 
   fp8_e4m3_x &operator=(unsigned int val) {
-    assert(N == 1 &&
-           "fp8_e4m3_x: N must be 1 for unsigned int assignment operator");
+    static_assert(
+        N == 1 &&
+        "fp8_e4m3_x: N must be 1 for unsigned int assignment operator");
     vals[0] = ConvertToFP8(val, rounding::to_even);
     return *this;
   }
 
   fp8_e4m3_x &operator=(unsigned long val) {
-    assert(N == 1 &&
-           "fp8_e4m3_x: N must be 1 for unsigned long assignment operator");
+    static_assert(
+        N == 1 &&
+        "fp8_e4m3_x: N must be 1 for unsigned long assignment operator");
     vals[0] = ConvertToFP8(val, rounding::to_even);
     return *this;
   }
 
   fp8_e4m3_x &operator=(unsigned long long val) {
-    assert(
+    static_assert(
         N == 1 &&
         "fp8_e4m3_x: N must be 1 for unsigned long long assignment operator");
     vals[0] = ConvertToFP8(val, rounding::to_even);
@@ -718,21 +787,24 @@ public:
   // Available only when N==1.
 
   explicit operator half() const {
-    assert(N == 1 && "fp8_e4m3_x: N must be 1 for half conversion operator");
+    static_assert(N == 1 &&
+                  "fp8_e4m3_x: N must be 1 for half conversion operator");
     return ConvertFromFP8<sycl::half>(vals[0]);
   }
 
   explicit operator bfloat16() const {
-    assert(N == 1 &&
-           "fp8_e4m3_x: N must be 1 for bfloat16 conversion operator");
+    static_assert(N == 1 &&
+                  "fp8_e4m3_x: N must be 1 for bfloat16 conversion operator");
     return ConvertBF16FromFP8(vals[0]);
   }
   explicit operator float() const {
-    assert(N == 1 && "fp8_e4m3_x: N must be 1 for float conversion operator");
+    static_assert(N == 1 &&
+                  "fp8_e4m3_x: N must be 1 for float conversion operator");
     return ConvertFromFP8<float>(vals[0]);
   }
   explicit operator double() const {
-    assert(N == 1 && "fp8_e4m3_x: N must be 1 for double conversion operator");
+    static_assert(N == 1 &&
+                  "fp8_e4m3_x: N must be 1 for double conversion operator");
     return ConvertFromFP8<double>(vals[0]);
   }
 
@@ -740,62 +812,71 @@ public:
   // Available only when N==1.
 
   explicit operator char() const {
-    assert(N == 1 && "fp8_e4m3_x: N must be 1 for char conversion operator");
+    static_assert(N == 1 &&
+                  "fp8_e4m3_x: N must be 1 for char conversion operator");
     return ConvertFromFP8<char>(vals[0]);
   }
 
   explicit operator signed char() const {
-    assert(N == 1 &&
-           "fp8_e4m3_x: N must be 1 for signed char conversion operator");
+    static_assert(
+        N == 1 &&
+        "fp8_e4m3_x: N must be 1 for signed char conversion operator");
     return ConvertFromFP8<signed char>(vals[0]);
   }
 
   explicit operator short() const {
-    assert(N == 1 && "fp8_e4m3_x: N must be 1 for short conversion operator");
+    static_assert(N == 1 &&
+                  "fp8_e4m3_x: N must be 1 for short conversion operator");
     return ConvertFromFP8<short>(vals[0]);
   }
 
   explicit operator int() const {
-    assert(N == 1 && "fp8_e4m3_x: N must be 1 for int conversion operator");
+    static_assert(N == 1 &&
+                  "fp8_e4m3_x: N must be 1 for int conversion operator");
     return ConvertFromFP8<int>(vals[0]);
   }
 
   explicit operator long() const {
-    assert(N == 1 && "fp8_e4m3_x: N must be 1 for long conversion operator");
+    static_assert(N == 1 &&
+                  "fp8_e4m3_x: N must be 1 for long conversion operator");
     return ConvertFromFP8<long>(vals[0]);
   }
 
   explicit operator long long() const {
-    assert(N == 1 &&
-           "fp8_e4m3_x: N must be 1 for long long conversion operator");
+    static_assert(N == 1 &&
+                  "fp8_e4m3_x: N must be 1 for long long conversion operator");
     return ConvertFromFP8<long long>(vals[0]);
   }
   explicit operator unsigned char() const {
-    assert(N == 1 &&
-           "fp8_e4m3_x: N must be 1 for unsigned char conversion operator");
+    static_assert(
+        N == 1 &&
+        "fp8_e4m3_x: N must be 1 for unsigned char conversion operator");
     return ConvertFromFP8<unsigned char>(vals[0]);
   }
 
   explicit operator unsigned short() const {
-    assert(N == 1 &&
-           "fp8_e4m3_x: N must be 1 for unsigned short conversion operator");
+    static_assert(
+        N == 1 &&
+        "fp8_e4m3_x: N must be 1 for unsigned short conversion operator");
     return ConvertFromFP8<unsigned short>(vals[0]);
   }
 
   explicit operator unsigned int() const {
-    assert(N == 1 &&
-           "fp8_e4m3_x: N must be 1 for unsigned int conversion operator");
+    static_assert(
+        N == 1 &&
+        "fp8_e4m3_x: N must be 1 for unsigned int conversion operator");
     return ConvertFromFP8<unsigned int>(vals[0]);
   }
 
   explicit operator unsigned long() const {
-    assert(N == 1 &&
-           "fp8_e4m3_x: N must be 1 for unsigned long conversion operator");
+    static_assert(
+        N == 1 &&
+        "fp8_e4m3_x: N must be 1 for unsigned long conversion operator");
     return ConvertFromFP8<unsigned long>(vals[0]);
   }
 
   explicit operator unsigned long long() const {
-    assert(
+    static_assert(
         N == 1 &&
         "fp8_e4m3_x: N must be 1 for unsigned long long conversion operator");
     return ConvertFromFP8<unsigned long long>(vals[0]);
@@ -808,7 +889,7 @@ public:
     static_assert(N == 1, "fp8_e4m3_x: operator() requires size N=1");
 #ifdef __SYCL_DEVICE_ONLY__
     // detect +0 / -0
-    sycl::half h = __builtin_spirv_ConvertE4M3ToFP16EXT(vals[0]);
+    sycl::half h = __builtin_spirv_ConvertE4M3ToFP16INTEL(vals[0]);
     return h != 0;
 #else
     // no need to convert, just check sign bit amd 0s
@@ -844,12 +925,17 @@ public:
 };
 
 template <size_t N> class fp8_e5m2_x {
+  static constexpr size_t NExpBits = 5;
+  static constexpr size_t NFracBits = 2;
+  static constexpr float MaxNormal = 114688.0f;              // 1.75 * 2^16
+  static constexpr float MinSubnormal = 0.0000152587890625f; // 2^-16
+  static constexpr uint8_t MaxFiniteCode = 0x7C;             // 0.11111.00
 
   uint8_t ConvertToFP8(sycl::half h, rounding r) {
 #ifdef __SYCL_DEVICE_ONLY__
     // TODO: optimize with vectorized builtin calls
     const uint8_t sign = std::signbit(h) ? 0x80u : 0x00u;
-    const float ax = sycl::fabs(h);
+    const float ax = std::fabs(h);
 
     if (ax > MaxNormal)
       return static_cast<uint8_t>(sign | MaxFiniteCode);
@@ -857,11 +943,10 @@ template <size_t N> class fp8_e5m2_x {
     if (ax < MinSubnormal)
       return sign;
 
-    uint8_t b = __builtin_spirv_ConvertFP16ToE5M2EXT(h);
+    uint8_t b = __builtin_spirv_ClampConvertFP16ToE5M2INTEL(h);
     if (r == rounding::to_even)
       return b;
-
-    const sycl::half yi = __builtin_spirv_ConvertFP16ToE5M2EXT(b);
+    const sycl::half yi = __builtin_spirv_ConvertE5M2ToFP16INTEL(b);
     return round(r, b, yi, h);
 
 #else
@@ -872,7 +957,7 @@ template <size_t N> class fp8_e5m2_x {
   uint8_t ConvertBF16ToFP8(bfloat16 h, rounding r) {
 #ifdef __SYCL_DEVICE_ONLY__
     const uint8_t sign = std::signbit(h) ? 0x80u : 0x00u;
-    const float ax = sycl::fabs(h);
+    const bfloat16 ax = std::fabs(h);
 
     if (ax > MaxNormal)
       return static_cast<uint8_t>(sign | MaxFiniteCode);
@@ -880,11 +965,10 @@ template <size_t N> class fp8_e5m2_x {
     if (ax < MinSubnormal)
       return sign;
 
-    uint8_t b = __builtin_spirv_ConvertBF16ToE5M2EXT(h);
+    uint8_t b = __builtin_spirv_ClampConvertBF16ToE5M2INTEL(h);
     if (r == rounding::to_even)
       return b;
-
-    const half yi = __builtin_spirv_ConvertBF16ToE5M2EXT(b);
+    const sycl::half yi = __builtin_spirv_ConvertE5M2ToFP16INTEL(b);
     return round(r, b, yi, h);
 #else
     return ConvertToFP8_CPU<5, 2, bfloat16>(h, r);
@@ -893,7 +977,7 @@ template <size_t N> class fp8_e5m2_x {
 
   template <typename T> T ConvertFromFP8(uint8_t v) const {
 #ifdef __SYCL_DEVICE_ONLY__
-    sycl::half hi = __builtin_spirv_ConvertE5M2ToFP16EXT(v);
+    sycl::half hi = __builtin_spirv_ConvertE5M2ToFP16INTEL(v);
     return static_cast<T>(hi);
 #else
     return ConvertFromFP8_CPU<5, 2, T>(v);
@@ -902,7 +986,7 @@ template <size_t N> class fp8_e5m2_x {
 
   bfloat16 ConvertFP16FromFP8(uint8_t v) const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return __builtin_spirv_ConvertE5M2ToBF16EXT(v);
+    return __builtin_spirv_ConvertE5M2ToBF16INTEL(v);
 #else
     return ConvertFromFP8_CPU<5, 2, bfloat16>(v);
 #endif
@@ -1016,8 +1100,9 @@ public:
   // Construct with stochastic rounding with user provided seed from an array of
   // half, bfloat16, float.
 
-  explicit fp8_e5m2_x(half const (&in)[N], const stochastic_seed &seed,
-                      saturation s = saturation::finite) {
+  explicit fp8_e5m2_x([[maybe_unused]] half const (&in)[N],
+                      [[maybe_unused]] const stochastic_seed &seed,
+                      [[maybe_unused]] saturation s = saturation::finite) {
     static_assert(N == 1 || N == 2,
                   "fp8_e5m2_x: Template argument N must be 1 or 2");
 #ifdef __SYCL_DEVICE_ONLY__
@@ -1025,18 +1110,19 @@ public:
     for (size_t i = 0; i < N; ++i) {
       if (s == saturation::finite) {
         vals[i] = __builtin_spirv_ClampStochasticRoundFP16ToE5M2INTEL(
-            in[i], static_cast<int>(current_seed), seed.pseed);
+            in[i], static_cast<uint32_t>(current_seed), seed.pseed);
       } else {
         vals[i] = __builtin_spirv_StochasticRoundFP16ToE5M2INTEL(
-            in[i], static_cast<int>(current_seed), seed.pseed);
+            in[i], static_cast<uint32_t>(current_seed), seed.pseed);
       }
       current_seed = *seed.pseed;
     }
 #endif
   }
 
-  explicit fp8_e5m2_x(bfloat16 const (&in)[N], const stochastic_seed &seed,
-                      saturation s = saturation::finite) {
+  explicit fp8_e5m2_x([[maybe_unused]] bfloat16 const (&in)[N],
+                      [[maybe_unused]] const stochastic_seed &seed,
+                      [[maybe_unused]] saturation s = saturation::finite) {
     static_assert(N == 1 || N == 2,
                   "fp8_e5m2_x: Template argument N must be 1 or 2");
 #ifdef __SYCL_DEVICE_ONLY__
@@ -1044,18 +1130,19 @@ public:
     for (size_t i = 0; i < N; ++i) {
       if (s == saturation::finite) {
         vals[i] = __builtin_spirv_ClampStochasticRoundBF16ToE5M2INTEL(
-            in[i], static_cast<int>(current_seed), seed.pseed);
+            in[i], static_cast<uint32_t>(current_seed), seed.pseed);
       } else {
         vals[i] = __builtin_spirv_StochasticRoundBF16ToE5M2INTEL(
-            in[i], static_cast<int>(current_seed), seed.pseed);
+            in[i], static_cast<uint32_t>(current_seed), seed.pseed);
       }
       current_seed = *seed.pseed;
     }
 #endif
   }
 
-  explicit fp8_e5m2_x(double const (&in)[N], const stochastic_seed &seed,
-                      saturation s = saturation::finite) {
+  explicit fp8_e5m2_x([[maybe_unused]] double const (&in)[N],
+                      [[maybe_unused]] const stochastic_seed &seed,
+                      [[maybe_unused]] saturation s = saturation::finite) {
     static_assert(N == 1 || N == 2,
                   "fp8_e5m2_x: Template argument N must be 1 or 2");
 #ifdef __SYCL_DEVICE_ONLY__
@@ -1064,10 +1151,10 @@ public:
       sycl::half h = static_cast<sycl::half>(in[i]);
       if (s == saturation::finite) {
         vals[i] = __builtin_spirv_ClampStochasticRoundFP16ToE5M2INTEL(
-            h, static_cast<int>(current_seed), seed.pseed);
+            h, static_cast<uint32_t>(current_seed), seed.pseed);
       } else {
         vals[i] = __builtin_spirv_StochasticRoundFP16ToE5M2INTEL(
-            h, static_cast<int>(current_seed), seed.pseed);
+            h, static_cast<uint32_t>(current_seed), seed.pseed);
       }
       current_seed = *seed.pseed;
     }
@@ -1077,9 +1164,9 @@ public:
   // Construct with stochastic rounding with user provided seed from an marray
   // of half, bfloat16, float.
 
-  explicit fp8_e5m2_x(const sycl::marray<half, N> &in,
-                      const stochastic_seed &seed,
-                      saturation s = saturation::finite) {
+  explicit fp8_e5m2_x([[maybe_unused]] const sycl::marray<half, N> &in,
+                      [[maybe_unused]] const stochastic_seed &seed,
+                      [[maybe_unused]] saturation s = saturation::finite) {
     static_assert(N == 1 || N == 2,
                   "fp8_e5m2_x: Template argument N must be 1 or 2");
 #ifdef __SYCL_DEVICE_ONLY__
@@ -1087,19 +1174,19 @@ public:
     for (size_t i = 0; i < N; ++i) {
       if (s == saturation::finite) {
         vals[i] = __builtin_spirv_ClampStochasticRoundFP16ToE5M2INTEL(
-            in[i], static_cast<int>(current_seed), seed.pseed);
+            in[i], static_cast<uint32_t>(current_seed), seed.pseed);
       } else {
         vals[i] = __builtin_spirv_StochasticRoundFP16ToE5M2INTEL(
-            in[i], static_cast<int>(current_seed), seed.pseed);
+            in[i], static_cast<uint32_t>(current_seed), seed.pseed);
       }
       current_seed = *seed.pseed;
     }
 #endif
   }
 
-  explicit fp8_e5m2_x(const sycl::marray<bfloat16, N> &in,
-                      const stochastic_seed &seed,
-                      saturation s = saturation::finite) {
+  explicit fp8_e5m2_x([[maybe_unused]] const sycl::marray<bfloat16, N> &in,
+                      [[maybe_unused]] const stochastic_seed &seed,
+                      [[maybe_unused]] saturation s = saturation::finite) {
     static_assert(N == 1 || N == 2,
                   "fp8_e5m2_x: Template argument N must be 1 or 2");
 #ifdef __SYCL_DEVICE_ONLY__
@@ -1107,19 +1194,19 @@ public:
     for (size_t i = 0; i < N; ++i) {
       if (s == saturation::finite) {
         vals[i] = __builtin_spirv_ClampStochasticRoundBF16ToE5M2INTEL(
-            in[i], static_cast<int>(current_seed), seed.pseed);
+            in[i], static_cast<uint32_t>(current_seed), seed.pseed);
       } else {
         vals[i] = __builtin_spirv_StochasticRoundBF16ToE5M2INTEL(
-            in[i], static_cast<int>(current_seed), seed.pseed);
+            in[i], static_cast<uint32_t>(current_seed), seed.pseed);
       }
       current_seed = *seed.pseed;
     }
 #endif
   }
 
-  explicit fp8_e5m2_x(const sycl::marray<double, N> &in,
-                      const stochastic_seed &seed,
-                      saturation s = saturation::finite) {
+  explicit fp8_e5m2_x([[maybe_unused]] const sycl::marray<double, N> &in,
+                      [[maybe_unused]] const stochastic_seed &seed,
+                      [[maybe_unused]] saturation s = saturation::finite) {
     static_assert(N == 1 || N == 2,
                   "fp8_e5m2_x: Template argument N must be 1 or 2");
 #ifdef __SYCL_DEVICE_ONLY__
@@ -1128,10 +1215,10 @@ public:
       sycl::half h = static_cast<sycl::half>(in[i]);
       if (s == saturation::finite) {
         vals[i] = __builtin_spirv_ClampStochasticRoundFP16ToE5M2INTEL(
-            h, static_cast<int>(current_seed), seed.pseed);
+            h, static_cast<uint32_t>(current_seed), seed.pseed);
       } else {
         vals[i] = __builtin_spirv_StochasticRoundFP16ToE5M2INTEL(
-            h, static_cast<int>(current_seed), seed.pseed);
+            h, static_cast<uint32_t>(current_seed), seed.pseed);
       }
       current_seed = *seed.pseed;
     }
@@ -1142,43 +1229,47 @@ public:
   // Available only when N==1.
 
   explicit fp8_e5m2_x(short val) {
-    assert(N == 1 && "fp8_e5m2_x: N must be 1 for short constructor");
+    static_assert(N == 1 && "fp8_e5m2_x: N must be 1 for short constructor");
     vals[0] = ConvertToFP8(val, rounding::to_even);
   }
 
   explicit fp8_e5m2_x(int val) {
-    assert(N == 1 && "fp8_e5m2_x: N must be 1 for int constructor");
+    static_assert(N == 1 && "fp8_e5m2_x: N must be 1 for int constructor");
     vals[0] = ConvertToFP8(val, rounding::to_even);
   }
 
   explicit fp8_e5m2_x(long val) {
-    assert(N == 1 && "fp8_e5m2_x: N must be 1 for long constructor");
+    static_assert(N == 1 && "fp8_e5m2_x: N must be 1 for long constructor");
     vals[0] = ConvertToFP8(val, rounding::to_even);
   }
 
   explicit fp8_e5m2_x(long long val) {
-    assert(N == 1 && "fp8_e5m2_x: N must be 1 for long long constructor");
+    static_assert(N == 1 &&
+                  "fp8_e5m2_x: N must be 1 for long long constructor");
     vals[0] = ConvertToFP8(val, rounding::to_even);
   }
 
   explicit fp8_e5m2_x(unsigned short val) {
-    assert(N == 1 && "fp8_e5m2_x: N must be 1 for unsigned short constructor");
+    static_assert(N == 1 &&
+                  "fp8_e5m2_x: N must be 1 for unsigned short constructor");
     vals[0] = ConvertToFP8(val, rounding::to_even);
   }
 
   explicit fp8_e5m2_x(unsigned int val) {
-    assert(N == 1 && "fp8_e5m2_x: N must be 1 for unsigned int constructor");
+    static_assert(N == 1 &&
+                  "fp8_e5m2_x: N must be 1 for unsigned int constructor");
     vals[0] = ConvertToFP8(val, rounding::to_even);
   }
 
   explicit fp8_e5m2_x(unsigned long val) {
-    assert(N == 1 && "fp8_e5m2_x: N must be 1 for unsigned long constructor");
+    static_assert(N == 1 &&
+                  "fp8_e5m2_x: N must be 1 for unsigned long constructor");
     vals[0] = ConvertToFP8(val, rounding::to_even);
   }
 
   explicit fp8_e5m2_x(unsigned long long val) {
-    assert(N == 1 &&
-           "fp8_e5m2_x: N must be 1 for unsigned long long constructor");
+    static_assert(N == 1 &&
+                  "fp8_e5m2_x: N must be 1 for unsigned long long constructor");
     vals[0] = ConvertToFP8(val, rounding::to_even);
   }
 
@@ -1186,77 +1277,87 @@ public:
   // Available only when N==1.
 
   fp8_e5m2_x &operator=(sycl::half val) {
-    assert(N == 1 && "fp8_e5m2_x: N must be 1 for half assignment operator");
+    static_assert(N == 1 &&
+                  "fp8_e5m2_x: N must be 1 for half assignment operator");
     vals[0] = ConvertToFP8(val, rounding::to_even);
     return *this;
   }
 
   fp8_e5m2_x &operator=(bfloat16 val) {
-    assert(N == 1 && "fp8_e5m2_x: N must be 1 for half bfloat16 operator");
+    static_assert(N == 1 &&
+                  "fp8_e5m2_x: N must be 1 for half bfloat16 operator");
     vals[0] = ConvertBF16ToFP8(val, rounding::to_even);
     return *this;
   }
 
   fp8_e5m2_x &operator=(float val) {
-    assert(N == 1 && "fp8_e5m2_x: N must be 1 for float assignment operator");
+    static_assert(N == 1 &&
+                  "fp8_e5m2_x: N must be 1 for float assignment operator");
     vals[0] = ConvertToFP8(val, rounding::to_even);
     return *this;
   }
 
   fp8_e5m2_x &operator=(double val) {
-    assert(N == 1 && "fp8_e5m2_x: N must be 1 for double assignment operator");
+    static_assert(N == 1 &&
+                  "fp8_e5m2_x: N must be 1 for double assignment operator");
     vals[0] = ConvertToFP8(val, rounding::to_even);
     return *this;
   }
 
   fp8_e5m2_x &operator=(short val) {
-    assert(N == 1 && "fp8_e5m2_x: N must be 1 for short assignment operator");
+    static_assert(N == 1 &&
+                  "fp8_e5m2_x: N must be 1 for short assignment operator");
     vals[0] = ConvertToFP8(val, rounding::to_even);
     return *this;
   }
 
   fp8_e5m2_x &operator=(int val) {
-    assert(N == 1 && "fp8_e5m2_x: N must be 1 for int assignment operator");
+    static_assert(N == 1 &&
+                  "fp8_e5m2_x: N must be 1 for int assignment operator");
     vals[0] = ConvertToFP8(val, rounding::to_even);
     return *this;
   }
 
   fp8_e5m2_x &operator=(long val) {
-    assert(N == 1 && "fp8_e5m2_x: N must be 1 for long assignment operator");
+    static_assert(N == 1 &&
+                  "fp8_e5m2_x: N must be 1 for long assignment operator");
     vals[0] = ConvertToFP8(val, rounding::to_even);
     return *this;
   }
 
   fp8_e5m2_x &operator=(long long val) {
-    assert(N == 1 &&
-           "fp8_e5m2_x: N must be 1 for long long assignment operator");
+    static_assert(N == 1 &&
+                  "fp8_e5m2_x: N must be 1 for long long assignment operator");
     vals[0] = ConvertToFP8(val, rounding::to_even);
     return *this;
   }
 
   fp8_e5m2_x &operator=(unsigned short val) {
-    assert(N == 1 &&
-           "fp8_e5m2_x: N must be 1 for unsigned short assignment operator");
+    static_assert(
+        N == 1 &&
+        "fp8_e5m2_x: N must be 1 for unsigned short assignment operator");
     vals[0] = ConvertToFP8(val, rounding::to_even);
     return *this;
   }
 
   fp8_e5m2_x &operator=(unsigned int val) {
-    assert(N == 1 &&
-           "fp8_e5m2_x: N must be 1 for unsigned int assignment operator");
+    static_assert(
+        N == 1 &&
+        "fp8_e5m2_x: N must be 1 for unsigned int assignment operator");
     vals[0] = ConvertToFP8(val, rounding::to_even);
     return *this;
   }
 
   fp8_e5m2_x &operator=(unsigned long val) {
-    assert(N == 1 &&
-           "fp8_e5m2_x: N must be 1 for unsigned long assignment operator");
+    static_assert(
+        N == 1 &&
+        "fp8_e5m2_x: N must be 1 for unsigned long assignment operator");
     vals[0] = ConvertToFP8(val, rounding::to_even);
     return *this;
   }
 
   fp8_e5m2_x &operator=(unsigned long long val) {
-    assert(
+    static_assert(
         N == 1 &&
         "fp8_e5m2_x: N must be 1 for unsigned long long assignment operator");
     vals[0] = ConvertToFP8(val, rounding::to_even);
@@ -1267,23 +1368,26 @@ public:
   // Available only when N==1.
 
   explicit operator half() const {
-    assert(N == 1 && "fp8_e5m2_x: N must be 1 for half conversion operator");
+    static_assert(N == 1 &&
+                  "fp8_e5m2_x: N must be 1 for half conversion operator");
     return ConvertFromFP8<sycl::half>(vals[0]);
   }
 
   explicit operator bfloat16() const {
-    assert(N == 1 &&
-           "fp8_e5m2_x: N must be 1 for bfloat16 conversion operator");
+    static_assert(N == 1 &&
+                  "fp8_e5m2_x: N must be 1 for bfloat16 conversion operator");
     return ConvertFP16FromFP8(vals[0]);
   }
 
   explicit operator float() const {
-    assert(N == 1 && "fp8_e5m2_x: N must be 1 for float conversion operator");
+    static_assert(N == 1 &&
+                  "fp8_e5m2_x: N must be 1 for float conversion operator");
     return ConvertFromFP8<float>(vals[0]);
   }
 
   explicit operator double() const {
-    assert(N == 1 && "fp8_e5m2_x: N must be 1 for double conversion operator");
+    static_assert(N == 1 &&
+                  "fp8_e5m2_x: N must be 1 for double conversion operator");
     return ConvertFromFP8<double>(vals[0]);
   }
 
@@ -1291,63 +1395,72 @@ public:
   // Available only when N==1.
 
   explicit operator char() const {
-    assert(N == 1 && "fp8_e5m2_x: N must be 1 for char conversion operator");
+    static_assert(N == 1 &&
+                  "fp8_e5m2_x: N must be 1 for char conversion operator");
     return ConvertFromFP8<char>(vals[0]);
   }
 
   explicit operator signed char() const {
-    assert(N == 1 &&
-           "fp8_e5m2_x: N must be 1 for signed char conversion operator");
+    static_assert(
+        N == 1 &&
+        "fp8_e5m2_x: N must be 1 for signed char conversion operator");
     return ConvertFromFP8<signed char>(vals[0]);
   }
 
   explicit operator short() const {
-    assert(N == 1 && "fp8_e5m2_x: N must be 1 for short conversion operator");
+    static_assert(N == 1 &&
+                  "fp8_e5m2_x: N must be 1 for short conversion operator");
     return ConvertFromFP8<short>(vals[0]);
   }
 
   explicit operator int() const {
-    assert(N == 1 && "fp8_e5m2_x: N must be 1 for int conversion operator");
+    static_assert(N == 1 &&
+                  "fp8_e5m2_x: N must be 1 for int conversion operator");
     return ConvertFromFP8<int>(vals[0]);
   }
 
   explicit operator long() const {
-    assert(N == 1 && "fp8_e5m2_x: N must be 1 for long conversion operator");
+    static_assert(N == 1 &&
+                  "fp8_e5m2_x: N must be 1 for long conversion operator");
     return ConvertFromFP8<long>(vals[0]);
   }
 
   explicit operator long long() const {
-    assert(N == 1 &&
-           "fp8_e5m2_x: N must be 1 for long long conversion operator");
+    static_assert(N == 1 &&
+                  "fp8_e5m2_x: N must be 1 for long long conversion operator");
     return ConvertFromFP8<long long>(vals[0]);
   }
 
   explicit operator unsigned char() const {
-    assert(N == 1 &&
-           "fp8_e5m2_x: N must be 1 for unsigned char conversion operator");
+    static_assert(
+        N == 1 &&
+        "fp8_e5m2_x: N must be 1 for unsigned char conversion operator");
     return ConvertFromFP8<unsigned char>(vals[0]);
   }
 
   explicit operator unsigned short() const {
-    assert(N == 1 &&
-           "fp8_e5m2_x: N must be 1 for unsigned short conversion operator");
+    static_assert(
+        N == 1 &&
+        "fp8_e5m2_x: N must be 1 for unsigned short conversion operator");
     return ConvertFromFP8<unsigned short>(vals[0]);
   }
 
   explicit operator unsigned int() const {
-    assert(N == 1 &&
-           "fp8_e5m2_x: N must be 1 for unsigned int conversion operator");
+    static_assert(
+        N == 1 &&
+        "fp8_e5m2_x: N must be 1 for unsigned int conversion operator");
     return ConvertFromFP8<unsigned int>(vals[0]);
   }
 
   explicit operator unsigned long() const {
-    assert(N == 1 &&
-           "fp8_e5m2_x: N must be 1 for unsigned long conversion operator");
+    static_assert(
+        N == 1 &&
+        "fp8_e5m2_x: N must be 1 for unsigned long conversion operator");
     return ConvertFromFP8<unsigned long>(vals[0]);
   }
 
   explicit operator unsigned long long() const {
-    assert(
+    static_assert(
         N == 1 &&
         "fp8_e5m2_x: N must be 1 for unsigned long long conversion operator");
     return ConvertFromFP8<unsigned long long>(vals[0]);
@@ -1479,7 +1592,6 @@ static inline ToT ConvertFromE8M0_CPU(uint8_t code) noexcept {
 }
 
 template <size_t N> class fp8_e8m0_x {
-
   void CheckConstraints(rounding r) const {
     static_assert(N == 1 || N == 2,
                   "fp8_e8m0_x: Template argument N must be 1 or 2");
@@ -1577,7 +1689,7 @@ public:
   // Available only when N==1.
 
   explicit fp8_e8m0_x(short val) {
-    assert(N == 1 && "fp8_e8m0_x: N must be 1 for short constructor");
+    static_assert(N == 1 && "fp8_e8m0_x: N must be 1 for short constructor");
     vals[0] = ConvertToE8M0_CPU(static_cast<float>(val), rounding::upward,
                                 saturation::finite);
   }
@@ -1718,8 +1830,6 @@ using fp8_e5m2 = fp8_e5m2_x<1>;
 using fp8_e5m2_x2 = fp8_e5m2_x<2>;
 using fp8_e8m0 = fp8_e8m0_x<1>;
 using fp8_e8m0_x2 = fp8_e8m0_x<2>;
-
-#endif // __SYCL_TARGET_INTEL_GPU_CRI__
 
 } // namespace ext::oneapi::experimental
 } // namespace _V1
