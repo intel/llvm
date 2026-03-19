@@ -1,6 +1,9 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
+// XFAIL: windows && gpu-intel-gen12
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/21533
+
 //==--------------- scan.cpp - SYCL sub_group scan test --------*- C++ -*---==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.

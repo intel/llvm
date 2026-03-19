@@ -58,6 +58,7 @@
 
 using namespace llvm;
 using namespace llvm::sycl;
+using namespace llvm::sycl_post_link;
 
 namespace {
 

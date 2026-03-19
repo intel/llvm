@@ -361,12 +361,9 @@ sub_group_mask operator ^(const sub_group_mask& lhs, const sub_group_mask& rhs);
 } // namespace sycl
 ----
 
-== Issues
 
-None.
+== Implementation notes
 
-//. asd
-//+
-//--
-//*RESOLUTION*: Not resolved.
-//--
+Implementations are responsible for defining `sub_group_mask::max_bits` to a
+value that is large enough to represent the widest possible sub-group of any
+device that the implementation supports.
