@@ -76,7 +76,8 @@
 
 // CHK-SPEC-CONST-MODE-EMULATION: sycl-post-link-library:{{.*}} SpecializationConstantMode: emulation
 
-// Check settings of sycl-post-link-library depending on the target.
+// Check how clang-linker-wrapper constructs the settings for SYCLPostLink step for
+// the following fsycl-targets: intel_gpu_pvc, spir64_x86_64, nvptx64-nvidia-cuda, amdgcn-amd-amdhsa, native_cpu.
 
 // RUN: clang-linker-wrapper %t_aot_gpu.o -sycl-device-libraries=%t.devicelib.o -no-use-sycl-post-link-tool -sycl-module-split-mode=auto -sycl-post-link-options="SYCL_POST_LINK_OPTIONS" -llvm-spirv-options="LLVM_SPIRV_OPTIONS" "--host-triple=x86_64-unknown-linux-gnu" "--linker-path=/usr/bin/ld" "--" HOST_LINKER_FLAGS "-dynamic-linker" HOST_DYN_LIB "-o" "a.out" HOST_LIB_PATH HOST_STAT_LIB --dry-run 2>&1 | FileCheck -check-prefix=CHK-SYCL-POST-LINK-SETTINGS-INTEL-GPU %s
 // CHK-SYCL-POST-LINK-SETTINGS-INTEL-GPU: sycl-post-link-library:{{.*}} SplitMode: auto, SpecializationConstantMode: emulation, GenerateModuleWithDefaultSpecConstValues: false, EmitOnlyKernelsAsEntryPoints: true, EmitParamInfo: true, EmitProgramMetadata: false, EmitKernelNames: false, EmitExportedSymbols: true, EmitImportedSymbols: true, esimd.split_mode: auto, esimd.EmitOnlyKernelsAsEntryPoints: false, esimd.AllowDeviceImageDependencies: false, esimd.LowerESIMD: true, esimd.SplitESIMD: true, esimd.OptLevel: 0, esimd.ForceDisableESIMDOpt: false
