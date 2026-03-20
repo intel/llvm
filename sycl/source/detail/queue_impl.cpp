@@ -382,7 +382,8 @@ queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
     }
   }
 
-  return EventImpl;
+  // TODO Avoid event creation in the first place if it's not needed
+  return CallerNeedsEvent ? EventImpl : nullptr;
 }
 
 EventImplPtr queue_impl::submit_kernel_scheduler_bypass(
@@ -797,7 +798,7 @@ EventImplPtr queue_impl::submitWithHandler(const std::vector<event> &DepEvents,
   EventImplPtr EventImpl =
       submit_impl(CGF, ReturnEvent, /*CodeLoc*/ {}, /*IsTopCodeLoc*/ true,
                   /*SubmissionInfo*/ {});
-  assert(ReturnEvent == !!EventImpl);
+  assert(!ReturnEvent || EventImpl);
   return EventImpl;
 }
 
