@@ -798,7 +798,7 @@ EventImplPtr queue_impl::submitWithHandler(const std::vector<event> &DepEvents,
   EventImplPtr EventImpl =
       submit_impl(CGF, ReturnEvent, /*CodeLoc*/ {}, /*IsTopCodeLoc*/ true,
                   /*SubmissionInfo*/ {});
-  assert(!ReturnEvent || EventImpl);
+  assert(ReturnEvent == !!EventImpl);
   return EventImpl;
 }
 
