@@ -20,7 +20,7 @@ opencl/ @intel/llvm-reviewers-runtime
 opencl/opencl-aot/ @intel/dpcpp-tools-reviewers
 
 # libclc library
-libclc/ @intel/llvm-reviewers-cuda
+libclc/ @intel/llvm-reviewers-cuda @wenju-he @Maetveis
 
 # Device library
 libdevice/ @intel/llvm-reviewers-runtime

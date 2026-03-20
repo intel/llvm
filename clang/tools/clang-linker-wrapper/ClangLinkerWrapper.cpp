@@ -695,6 +695,74 @@ static Expected<StringRef> convertSPIRVToIR(StringRef Filename,
   return *TempFileOrErr;
 }
 
+/// \brief Creates and configures PostLinkSettings for SYCL post-link
+/// processing.
+///
+/// This function analyzes command line arguments and target triple
+/// to determine the settings for the SYCL post-link phase.
+///
+/// \param Args The command line argument list containing SYCL-specific flags
+///             and options that influence post-link behavior.
+/// \param Triple The target triple specifying the target architecture
+///               (e.g., NVPTX, AMDGCN, SPIR, native CPU).
+///
+/// \return A configured PostLinkSettings object with target-specific and
+///         argument-driven settings applied.
+static sycl_post_link::PostLinkSettings
+getSYCLPostLinkSettings(const ArgList &Args, const llvm::Triple Triple) {
+  sycl_post_link::PostLinkSettings Settings;
+  bool SpecConstsSupported = (!Triple.isNVPTX() && !Triple.isAMDGCN() &&
+                              !Triple.isSPIRAOT() && !Triple.isNativeCPU());
+  if (SpecConstsSupported)
+    Settings.SpecConstMode = SpecConstantsPass::HandlingMode::native;
+  else
+    Settings.SpecConstMode = SpecConstantsPass::HandlingMode::emulation;
+
+  // On Intel targets we don't need non-kernel functions as entry points,
+  // because it only increases amount of code for device compiler to handle,
+  // without any actual benefits.
+  // TODO: Try to extend this feature for non-Intel GPUs.
+  if (!Args.hasFlag(OPT_no_sycl_remove_unused_external_funcs,
+                    OPT_sycl_remove_unused_external_funcs, false) &&
+      !Args.hasArg(OPT_sycl_allow_device_image_dependencies) &&
+      !Triple.isNVPTX() && !Triple.isAMDGPU())
+    Settings.EmitOnlyKernelsAsEntryPoints = true;
+
+  if (!Triple.isAMDGCN())
+    Settings.EmitParamInfo = true;
+  if (Triple.isNVPTX() || Triple.isAMDGCN() || Triple.isNativeCPU())
+    Settings.EmitProgramMetadata = true;
+
+  if (Args.hasArg(OPT_syclbin_EQ))
+    Settings.EmitKernelNames = true;
+  // Specialization constant info generation is mandatory -
+  // add options unconditionally.
+  Settings.EmitExportedSymbols = true;
+  Settings.EmitImportedSymbols = true;
+
+  bool SplitEsimdByDefault = Triple.isSPIROrSPIRV();
+  if (Args.hasFlag(OPT_sycl_device_code_split_esimd,
+                   OPT_no_sycl_device_code_split_esimd, SplitEsimdByDefault))
+    Settings.ESIMDOptions.SplitESIMD = true;
+
+  // If the code doesn't contain ESIMD intrinsics then lowering has no effect.
+  // Otherwise, it is mandatory to lower ESIMD intrinsics.
+  // Therefore, it is always set true.
+  Settings.ESIMDOptions.LowerESIMD = true;
+
+  bool IsAOT = Triple.isNVPTX() || Triple.isAMDGCN() || Triple.isSPIRAOT();
+  if (Args.hasFlag(OPT_sycl_add_default_spec_consts_image,
+                   OPT_no_sycl_add_default_spec_consts_image, false) &&
+      IsAOT)
+    Settings.GenerateModuleDescWithDefaultSpecConsts = true;
+
+  Settings.SplitMode = Settings.ESIMDOptions.SplitMode = *SYCLModuleSplitMode;
+  // TODO: fill AllowDeviceImageDependencies, ESIMDOptions.OptLevel and
+  // ESIMDOptions.ForceDisableESIMDOpt
+
+  return Settings;
+}
+
 /// Add any sycl-post-link options that rely on a specific Triple in addition
 /// to user supplied options.
 /// NOTE: Any changes made here should be reflected in the similarly named
@@ -844,20 +912,8 @@ runSYCLPostLinkLibrary(ArrayRef<StringRef> InputFiles, const ArgList &Args,
   std::vector<module_split::SplitModule> SplitModules;
   const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
 
-  sycl_post_link::PostLinkSettings Settings;
-  Settings.SplitMode = SplitMode;
-
-  bool IsAOTTarget =
-      Triple.isNVPTX() || Triple.isAMDGCN() || Triple.isSPIRAOT();
-  bool UseEmulationSpecConstMode = IsAOTTarget || Triple.isNativeCPU();
-  Settings.SpecConstMode = UseEmulationSpecConstMode
-                               ? SpecConstantsPass::HandlingMode::emulation
-                               : SpecConstantsPass::HandlingMode::native;
-
-  if (Args.hasFlag(OPT_sycl_add_default_spec_consts_image,
-                   OPT_no_sycl_add_default_spec_consts_image, false) &&
-      IsAOTTarget)
-    Settings.GenerateModuleDescWithDefaultSpecConsts = true;
+  sycl_post_link::PostLinkSettings Settings =
+      getSYCLPostLinkSettings(Args, Triple);
 
   if (DryRun) {
     auto OutputFileOrErr = createOutputFile(
@@ -964,7 +1020,8 @@ getTripleBasedSPIRVTransOpts(const ArgList &Args,
       ",+SPV_KHR_cooperative_matrix"
       ",+SPV_EXT_shader_atomic_float16_add"
       ",+SPV_INTEL_fp_max_error"
-      ",+SPV_INTEL_memory_access_aliasing";
+      ",+SPV_INTEL_memory_access_aliasing"
+      ",+SPV_INTEL_global_variable_host_access";
   TranslatorArgs.push_back(Args.MakeArgString(ExtArg));
 }
 

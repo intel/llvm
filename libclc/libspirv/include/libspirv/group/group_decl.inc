@@ -11,3 +11,6 @@ __CLC_FUNCTION(int Execution, int Operation, __CLC_GENTYPE X);
 
 _CLC_OVERLOAD _CLC_DEF _CLC_CONVERGENT __CLC_GENTYPE __CLC_NON_UNIFORM_FUNCTION(
     int Execution, int Operation, __CLC_GENTYPE Value, uint ClusterSize);
+
+_CLC_OVERLOAD _CLC_DEF _CLC_CONVERGENT __CLC_GENTYPE
+__CLC_NON_UNIFORM_FUNCTION(int Execution, int Operation, __CLC_GENTYPE Value);
