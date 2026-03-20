@@ -31,9 +31,8 @@ body: |
 name: test_inteldialect
 body: |
   bb.0:
-    ; TODO: Fix printing inteldialect.
     ; CHECK-LABEL: name: test_inteldialect
-    ; CHECK: INLINEASM &"", 4
+    ; CHECK: INLINEASM &"", 4 /* inteldialect */
     INLINEASM &"", 4
 ...
 
@@ -78,6 +77,6 @@ name: test_combined
 body: |
   bb.0:
     ; CHECK-LABEL: name: test_combined
-    ; CHECK: INLINEASM &"", 13 /* sideeffect mayload */
+    ; CHECK: INLINEASM &"", 13 /* sideeffect mayload inteldialect */
     INLINEASM &"", 13
 ...

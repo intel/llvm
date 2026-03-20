@@ -11,7 +11,7 @@ configure_lit_site_cfg(
 
 set(LIBCLC_TEST_DEPS
   FileCheck
-  llvm-dis
+  ${llvm-dis_target}
   not
   clang
   count
