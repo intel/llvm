@@ -1897,7 +1897,7 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
 
   case OpBranch: {
     auto *BR = static_cast<SPIRVBranch *>(BV);
-    auto *BI = BranchInst::Create(
+    auto *BI = UncondBrInst::Create(
         cast<BasicBlock>(transValue(BR->getTargetLabel(), F, BB)), BB);
     // Loop metadata will be translated in the end of function translation.
     return mapValue(BV, BI);
@@ -1905,10 +1905,10 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
 
   case OpBranchConditional: {
     auto *BR = static_cast<SPIRVBranchConditional *>(BV);
-    auto *BC = BranchInst::Create(
+    auto *BC = CondBrInst::Create(
+        transValue(BR->getCondition(), F, BB),
         cast<BasicBlock>(transValue(BR->getTrueLabel(), F, BB)),
-        cast<BasicBlock>(transValue(BR->getFalseLabel(), F, BB)),
-        transValue(BR->getCondition(), F, BB), BB);
+        cast<BasicBlock>(transValue(BR->getFalseLabel(), F, BB)), BB);
     // Loop metadata will be translated in the end of function translation.
     return mapValue(BV, BC);
   }
