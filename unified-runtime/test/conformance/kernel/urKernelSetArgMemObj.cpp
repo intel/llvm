@@ -37,6 +37,15 @@ TEST_P(urKernelSetArgMemObjTest, InvalidNullHandleKernel) {
 }
 
 TEST_P(urKernelSetArgMemObjTest, InvalidKernelArgumentIndex) {
+  // XFAIL rationale (CUDA/HIP):
+  // This test assumes UR_KERNEL_INFO_NUM_ARGS reflects the kernel's source-level
+  // parameter count and can be used to validate out-of-range argument indices.
+  // That assumption is not valid for CUDA/HIP adapters: the backend APIs do not
+  // provide a reliable direct query of declared kernel parameter count, so
+  // UR_KERNEL_INFO_NUM_ARGS is derived from adapter-maintained argument state.
+  // This value reflects currently tracked arguments (initially none), not the
+  // true kernel signature; therefore these invalid-index expectations are not
+  // meaningful on these backends, and no adapter-side fix is planned.
   UUR_KNOWN_FAILURE_ON(uur::CUDA{}, uur::HIP{});
 
   uint32_t num_kernel_args = 0;
