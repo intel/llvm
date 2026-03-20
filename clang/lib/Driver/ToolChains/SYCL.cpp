@@ -537,7 +537,7 @@ static void addSYCLDeviceSanitizerLibs(
 }
 #endif
 
-// Retuns the list of SYCL device library names for the given target.
+// Returns the list of SYCL device library names for the given target.
 SmallVector<ToolChain::BitCodeLibraryInfo, 8>
 SYCLToolChain::getDeviceLibNames(const Driver &D,
                                  const llvm::opt::ArgList &Args,
