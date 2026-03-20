@@ -48,7 +48,7 @@ Error saveModuleIRInFile(Module &M, StringRef FilePath, bool OutputAssembly) {
 Expected<module_split::SplitModule>
 llvm::sycl_post_link::saveModuleDesc(module_split::ModuleDesc &MD,
                                      std::string Prefix, bool OutputAssembly) {
-  module_split::SplitModule SM;
+  module_split::SplitModule SM{};
   Prefix += OutputAssembly ? ".ll" : ".bc";
   MD.saveSplitInformationAsMetadata();
   Error E = saveModuleIRInFile(MD.getModule(), Prefix, OutputAssembly);
@@ -180,7 +180,6 @@ llvm::sycl_post_link::performPostLinkProcessing(
       if (!SplitImageOrErr)
         return SplitImageOrErr.takeError();
 
-      MD.release();
       SplitModules.push_back(std::move(*SplitImageOrErr));
     }
 
