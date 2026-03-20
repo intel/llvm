@@ -1,4 +1,3 @@
-// I
 //===-- X86ISelLowering.cpp - X86 DAG Lowering Implementation -------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -28834,11 +28833,9 @@ Register X86TargetLowering::getRegisterByName(const char* RegName, LLT VT,
   if (Reg)
     return Reg;
 
-  if (Subtarget.is64Bit()) {
-    Reg = MatchRegisterName(RegName);
-    if (!Subtarget.isRegisterReservedByUser(Reg))
-      Reg = Register();
-  }
+  Reg = MatchRegisterName(RegName);
+  if (!Subtarget.isRegisterReservedByUser(Reg))
+    Reg = Register();
 
   return Reg;
 }
@@ -34524,6 +34521,16 @@ void X86TargetLowering::ReplaceNodeResults(SDNode *N,
         SDValue Elt = DAG.getNode(Opc, dl, MVT::i64, EltBit, AmtMod);
         Res = DAG.getSelect(dl, VecVT, LaneMask, DAG.getSplat(VecVT, dl, Elt),
                             Res);
+        Results.push_back(DAG.getBitcast(VT, Res));
+        return;
+      }
+      // SRA(MSB,Amt) --> SHL(-1,(BW-1)-Amt)
+      if (Opc == ISD::SRA && SrcVal.isSignMask()) {
+        Amt = DAG.getZExtOrTrunc(Amt, dl, MVT::i32);
+        Amt = DAG.getNode(ISD::SUB, dl, MVT::i32,
+                          DAG.getConstant(BW - 1, dl, MVT::i32), Amt);
+        SDValue Res =
+            DAG.getNode(ISD::SHL, dl, VT, DAG.getAllOnesConstant(dl, VT), Amt);
         Results.push_back(DAG.getBitcast(VT, Res));
         return;
       }
@@ -54240,12 +54247,34 @@ static SDValue narrowBitOpRMW(StoreSDNode *St, const SDLoc &DL,
 static SDValue combineStore(SDNode *N, SelectionDAG &DAG,
                             TargetLowering::DAGCombinerInfo &DCI,
                             const X86Subtarget &Subtarget) {
+  using namespace SDPatternMatch;
   StoreSDNode *St = cast<StoreSDNode>(N);
   EVT StVT = St->getMemoryVT();
   SDLoc dl(St);
   SDValue StoredVal = St->getValue();
   EVT VT = StoredVal.getValueType();
   const TargetLowering &TLI = DAG.getTargetLoweringInfo();
+
+  // Pattern: store(trunc(load vXiY) to vXiZ) optimization
+  SDValue Src;
+  if (!St->isTruncatingStore() && Subtarget.hasAVX512()) {
+    EVT SrcVT;
+    if (sd_match(StoredVal,
+                 m_OneUse(m_Trunc(m_OneUse(m_Value(Src, m_VT(SrcVT)))))) &&
+        ISD::isNormalLoad(Src.getNode())) {
+      if ((SrcVT == MVT::v4i16 && VT == MVT::v4i8) ||
+          (SrcVT == MVT::v2i32 && VT == MVT::v2i8) ||
+          (SrcVT == MVT::v2i32 && VT == MVT::v2i16) ||
+          (SrcVT == MVT::v2i16 && VT == MVT::v2i8)) {
+        MVT ExtVT = SrcVT == MVT::v4i16 ? MVT::v4i32 : MVT::v2i64;
+        if (TLI.isTruncStoreLegal(ExtVT, VT)) {
+          SDValue Ext = DAG.getNode(ISD::ANY_EXTEND, dl, ExtVT, Src);
+          return DAG.getTruncStore(St->getChain(), dl, Ext, St->getBasePtr(),
+                                   VT, St->getMemOperand());
+        }
+      }
+    }
+  }
 
   // Convert a store of vXi1 into a store of iX and a bitcast.
   if (!Subtarget.hasAVX512() && VT == StVT && VT.isVector() &&
@@ -61582,7 +61611,8 @@ static SDValue combineEXTEND_VECTOR_INREG(SDNode *N, SelectionDAG &DAG,
                                  ? ISD::SEXTLOAD
                                  : ISD::ZEXTLOAD;
       EVT MemVT = VT.changeVectorElementType(*DAG.getContext(), SVT);
-      if (TLI.isLoadExtLegal(Ext, VT, MemVT)) {
+      if (TLI.isLoadLegal(VT, MemVT, Ld->getAlign(), Ld->getAddressSpace(), Ext,
+                          false)) {
         SDValue Load = DAG.getExtLoad(
             Ext, DL, VT, Ld->getChain(), Ld->getBasePtr(), Ld->getPointerInfo(),
             MemVT, Ld->getBaseAlign(), Ld->getMemOperand()->getFlags());

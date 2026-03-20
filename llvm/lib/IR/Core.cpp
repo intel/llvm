@@ -1169,6 +1169,12 @@ LLVMInstructionGetAllMetadataOtherThanDebugLoc(LLVMValueRef Value,
 
 LLVM_FOR_EACH_VALUE_SUBCLASS(LLVM_DEFINE_VALUE_CAST)
 
+LLVMValueRef LLVMIsABranchInst(LLVMValueRef Val) {
+  if (Value *V = unwrap(Val))
+    return isa<UncondBrInst, CondBrInst>(V) ? Val : nullptr;
+  return nullptr;
+}
+
 LLVMValueRef LLVMIsAMDNode(LLVMValueRef Val) {
   if (auto *MD = dyn_cast_or_null<MetadataAsValue>(unwrap(Val)))
     if (isa<MDNode>(MD->getMetadata()) ||
@@ -4100,6 +4106,10 @@ static AtomicRMWInst::BinOp mapFromLLVMRMWBinOp(LLVMAtomicRMWBinOp BinOp) {
       return AtomicRMWInst::FMaximum;
     case LLVMAtomicRMWBinOpFMinimum:
       return AtomicRMWInst::FMinimum;
+    case LLVMAtomicRMWBinOpFMaximumNum:
+      return AtomicRMWInst::FMaximumNum;
+    case LLVMAtomicRMWBinOpFMinimumNum:
+      return AtomicRMWInst::FMinimumNum;
     case LLVMAtomicRMWBinOpUIncWrap:
       return AtomicRMWInst::UIncWrap;
     case LLVMAtomicRMWBinOpUDecWrap:
@@ -4134,6 +4144,10 @@ static LLVMAtomicRMWBinOp mapToLLVMRMWBinOp(AtomicRMWInst::BinOp BinOp) {
       return LLVMAtomicRMWBinOpFMaximum;
     case AtomicRMWInst::FMinimum:
       return LLVMAtomicRMWBinOpFMinimum;
+    case AtomicRMWInst::FMaximumNum:
+      return LLVMAtomicRMWBinOpFMaximumNum;
+    case AtomicRMWInst::FMinimumNum:
+      return LLVMAtomicRMWBinOpFMinimumNum;
     case AtomicRMWInst::UIncWrap:
       return LLVMAtomicRMWBinOpUIncWrap;
     case AtomicRMWInst::UDecWrap:

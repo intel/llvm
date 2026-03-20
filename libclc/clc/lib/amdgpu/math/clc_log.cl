@@ -6,25 +6,36 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <clc/internal/clc.h>
-#include <clc/math/clc_log.h>
+#include "clc/clc_convert.h"
+#include "clc/float/definitions.h"
+#include "clc/math/clc_ep.h"
+#include "clc/math/clc_frexp.h"
+#include "clc/math/clc_ldexp.h"
+#include "clc/math/clc_log.h"
+#include "clc/math/clc_mad.h"
+#include "clc/relational/clc_isinf.h"
 
 #define __CLC_FUNCTION __clc_log
-#define __CLC_BUILTIN __ocml_log
 
-float __ocml_log_f32(float);
-#define __CLC_BUILTIN_F __CLC_XCONCAT(__CLC_BUILTIN, _f32)
+#define __CLC_FLOAT_ONLY
+#define __CLC_IMPL_FUNCTION(x) __builtin_elementwise_log
+#define __CLC_BODY "clc/shared/unary_def.inc"
+#include "clc/math/gentype.inc"
+#undef __CLC_IMPL_FUNCTION
+#undef __CLC_FLOAT_ONLY
 
-#ifdef cl_khr_fp64
-#pragma OPENCL EXTENSION cl_khr_fp64 : enable
-double __ocml_log_f64(double);
-#define __CLC_BUILTIN_D __CLC_XCONCAT(__CLC_BUILTIN, _f64)
-#endif // cl_khr_fp64
+#define __CLC_HALF_ONLY
+#define __CLC_IMPL_FUNCTION(x) __builtin_elementwise_log
+#define __CLC_BODY "clc/shared/unary_def.inc"
+#include "clc/math/gentype.inc"
+#undef __CLC_IMPL_FUNCTION
+#undef __CLC_HALF_ONLY
 
-#ifdef cl_khr_fp16
-#pragma OPENCL EXTENSION cl_khr_fp16 : enable
-half __ocml_log_f16(half);
-#define __CLC_BUILTIN_H __CLC_XCONCAT(__CLC_BUILTIN, _f16)
-#endif // cl_khr_fp16
+#define COMPILING_LOG
+#define __CLC_DOUBLE_ONLY
+#define __CLC_BODY "clc_amdgpu_log.inc"
+#include "clc/math/gentype.inc"
 
-#include <clc/math/unary_builtin_scalarize.inc>
+#define __CLC_DOUBLE_ONLY
+#define __CLC_BODY "clc/shared/unary_def_scalarize_loop.inc"
+#include "clc/math/gentype.inc"
