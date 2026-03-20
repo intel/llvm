@@ -1845,12 +1845,6 @@ private:
   QualType getFunctionTypeInternal(QualType ResultTy, ArrayRef<QualType> Args,
                                    const FunctionProtoType::ExtProtoInfo &EPI,
                                    bool OnlyWantCanonical) const;
-  QualType
-  getAutoTypeInternal(QualType DeducedType, AutoTypeKeyword Keyword,
-                      bool IsDependent, bool IsPack = false,
-                      TemplateDecl *TypeConstraintConcept = nullptr,
-                      ArrayRef<TemplateArgument> TypeConstraintArgs = {},
-                      bool IsCanon = false) const;
 
 public:
   QualType getTypeDeclType(ElaboratedTypeKeyword Keyword,
@@ -2090,8 +2084,7 @@ public:
 
   /// C++11 deduced auto type.
   QualType
-  getAutoType(QualType DeducedType, AutoTypeKeyword Keyword, bool IsDependent,
-              bool IsPack = false,
+  getAutoType(DeducedKind DK, QualType DeducedAsType, AutoTypeKeyword Keyword,
               TemplateDecl *TypeConstraintConcept = nullptr,
               ArrayRef<TemplateArgument> TypeConstraintArgs = {}) const;
 
@@ -2106,17 +2099,11 @@ public:
   QualType getUnconstrainedType(QualType T) const;
 
   /// C++17 deduced class template specialization type.
-  QualType getDeducedTemplateSpecializationType(ElaboratedTypeKeyword Keyword,
-                                                TemplateName Template,
-                                                QualType DeducedType,
-                                                bool IsDependent) const;
+  QualType getDeducedTemplateSpecializationType(DeducedKind DK,
+                                                QualType DeducedAsType,
+                                                ElaboratedTypeKeyword Keyword,
+                                                TemplateName Template) const;
 
-private:
-  QualType getDeducedTemplateSpecializationTypeInternal(
-      ElaboratedTypeKeyword Keyword, TemplateName Template,
-      QualType DeducedType, bool IsDependent, QualType Canon) const;
-
-public:
   /// Return the unique type for "size_t" (C99 7.17), defined in
   /// <stddef.h>.
   ///

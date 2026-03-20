@@ -2631,7 +2631,7 @@ def fno_sanitize_coverage : CommaJoined<["-"], "fno-sanitize-coverage=">,
   Group<fsan_cov_Group>, Visibility<[ClangOption, CLOption]>,
   HelpText<"Disable features of coverage instrumentation for Sanitizers">,
   Values<"func,bb,edge,indirect-calls,trace-bb,trace-cmp,trace-div,trace-gep,"
-         "8bit-counters,trace-pc,trace-pc-guard,no-prune,inline-8bit-counters,"
+         "8bit-counters,trace-pc,trace-pc-entry-exit,trace-pc-guard,no-prune,inline-8bit-counters,"
          "inline-bool-flag">;
 def fsanitize_coverage_allowlist : Joined<["-"], "fsanitize-coverage-allowlist=">,
     Group<fsan_cov_Group>, Visibility<[ClangOption, CLOption]>,
@@ -8733,6 +8733,11 @@ def fsanitize_coverage_trace_pc
       Group<fsan_cov_Group>,
       HelpText<"Enable PC tracing in sanitizer coverage">,
       MarshallingInfoFlag<CodeGenOpts<"SanitizeCoverageTracePC">>;
+def fsanitize_coverage_trace_pc_entry_exit
+    : Flag<["-"], "fsanitize-coverage-trace-pc-entry-exit">,
+      Group<fsan_cov_Group>,
+      HelpText<"Enable function entry/exit tracing in sanitizer coverage">,
+      MarshallingInfoFlag<CodeGenOpts<"SanitizeCoverageTracePCEntryExit">>;
 def fsanitize_coverage_trace_pc_guard
     : Flag<["-"], "fsanitize-coverage-trace-pc-guard">,
       Group<fsan_cov_Group>,
@@ -8945,6 +8950,9 @@ def verify_ignore_unexpected : Flag<["-"], "verify-ignore-unexpected">,
   HelpText<"Ignore unexpected diagnostic messages">;
 def verify_ignore_unexpected_EQ : CommaJoined<["-"], "verify-ignore-unexpected=">,
   HelpText<"Ignore unexpected diagnostic messages">;
+def verify_directives
+    : Flag<["-"], "verify-directives">,
+      HelpText<"Enable additional checks on 'expected' directives themselves">;
 def Wno_rewrite_macros : Flag<["-"], "Wno-rewrite-macros">,
   HelpText<"Silence ObjC rewriting warnings">,
   MarshallingInfoFlag<DiagnosticOpts<"NoRewriteMacros">>;
