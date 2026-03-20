@@ -27,7 +27,7 @@ let isInitializing = true; // Flag for a proper handling of URLs
 // Helper function to get base URL for remote or local resources
 function getResourceBaseUrl() {
     return typeof remoteDataUrl !== 'undefined' && remoteDataUrl !== ''
-        ? 'https://raw.githubusercontent.com/intel/llvm-ci-perf-results/unify-ci'
+        ? 'https://raw.githubusercontent.com/intel/llvm/refs/heads/sycl-benchmark-ci-results'
         : '.';
 }
 
@@ -897,10 +897,6 @@ function generateExtraInfo(data, type = 'benchmark') {
         if (metadata && latestRun) {
             html += `<strong>${displayLabel}:</strong> ${formatCommand(latestRun.result)}<br>`;
 
-            if (metadata.description) {
-                html += `<em>Description:</em> ${metadata.description}`;
-            }
-
             if (metadata.notes) {
                 html += `<br><em>Notes:</em> <span class="note-text">${metadata.notes}</span>`;
             }
@@ -1322,6 +1318,18 @@ function addRunDataPoint(group, run, result, comparison, name = null) {
     return group;
 }
 
+function getRunSortPriority(name) {
+    if (name.startsWith('Baseline_BMG')) return 0;
+    if (name.startsWith('Baseline_PVC')) return 1;
+    return 2;
+}
+
+function compareRunNamesForSelector(a, b) {
+    const priorityDiff = getRunSortPriority(a) - getRunSortPriority(b);
+    if (priorityDiff !== 0) return priorityDiff;
+    return a.localeCompare(b);
+}
+
 // Setup functions
 function setupRunSelector() {
     runSelect = document.getElementById('run-select');
@@ -1329,6 +1337,9 @@ function setupRunSelector() {
 
     // Clear existing options first to prevent duplicates when reloading with archived data
     runSelect.innerHTML = '';
+
+    // Sort runs so Baseline_BMG and Baseline_PVC are first, then alphabetically
+    allRunNames = [...allRunNames].sort(compareRunNamesForSelector);
 
     allRunNames.forEach(name => {
         const option = document.createElement('option');
