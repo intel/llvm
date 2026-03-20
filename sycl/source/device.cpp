@@ -178,17 +178,17 @@ __SYCL_EXPORT bool device::get_info_impl<info::device::image_support>() const {
   return impl->template get_info<info::device::image_support>();
 }
 
-#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
+#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, UrCode)              \
   template __SYCL_EXPORT detail::ABINeutralT_t<ReturnT>                        \
   device::get_info_impl<info::device::Desc>() const;
 
-#define __SYCL_PARAM_TRAITS_SPEC_SPECIALIZED(DescType, Desc, ReturnT, PiCode)
+#define __SYCL_PARAM_TRAITS_SPEC_SPECIALIZED(DescType, Desc, ReturnT, UrCode)
 
 #include <sycl/info/device_traits.def>
 #undef __SYCL_PARAM_TRAITS_SPEC_SPECIALIZED
 #undef __SYCL_PARAM_TRAITS_SPEC
 
-#define __SYCL_PARAM_TRAITS_SPEC(Namespace, DescType, Desc, ReturnT, PiCode)   \
+#define __SYCL_PARAM_TRAITS_SPEC(Namespace, DescType, Desc, ReturnT, UrCode)   \
   template __SYCL_EXPORT detail::ABINeutralT_t<ReturnT>                        \
   device::get_info_impl<Namespace::info::DescType::Desc>() const;
 

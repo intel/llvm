@@ -52,7 +52,7 @@ declare spir_func void @__itt_offload_wi_finish_wrapper()
 
 attributes #0 = { mustprogress nocallback nofree nosync nounwind willreturn memory(inaccessiblemem: write) }
 attributes #1 = { mustprogress norecurse nounwind sanitize_address uwtable "frame-pointer"="all" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="parallel_for_int.cpp" "sycl-optlevel"="2" "uniform-work-group-size"="true" }
-attributes #2 = { "sycl-device-global-size"="16" "sycl-device-image-scope" "sycl-host-access"="0" "sycl-unique-id"="_Z20__AsanKernelMetadata" }
+attributes #2 = { "sycl-device-global-size"="16" "sycl-device-image-scope" "sycl-host-access"="1" "sycl-unique-id"="_Z20__AsanKernelMetadata" }
 
 !llvm.module.flags = !{!0, !1, !2}
 !opencl.spir.version = !{!3}
