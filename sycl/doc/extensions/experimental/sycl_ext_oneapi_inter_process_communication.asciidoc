@@ -491,6 +491,9 @@ This property controls whether the event can be shared across processes.
 _Effects_ (1): Creates a new `enable_ipc` property with a boolean value
 indicating whether the event can be shared across processes.
 
+_Throws:_ `make_event` throws an exception with the `errc::invalid` error code
+if the `enable_profiling` property is set.
+
 ==== Extension to `enum class aspect` for events
 
 [source]
@@ -575,12 +578,8 @@ transferred to another process on the same system, and the other process can
 use the handle to get an event object synchronized with event `evt` through a
 call to the `open` function.
 
-_Throws:_
-
- * An exception with the `errc::feature_not_supported` error code if event
-   `evt` was not created with the `enable_ipc` property.
- * An exception with the `errc::invalid` error code if event `evt` was created
-   with the enable_profiling property.
+_Throws:_ An exception with the `errc::feature_not_supported` error code if
+event `evt` was not created with the `enable_ipc` property.
 
 !====
 a!
@@ -606,7 +605,7 @@ function must have a matching call to the `close` function.
 _{endnote}_]
 
 [_Note:_ The event returned from a call to the `open` function is no longer
-valid if the associated event is deallocated.
+valid if the event associated with `handle_data` is deallocated.
 _{endnote}_]
 
 _Throws:_ An exception with the `errc::invalid` error code if the handle data
@@ -705,7 +704,7 @@ the following namespace:
 
 [source,c++,indent=2]
 ----
-namespace sycl::ext::oneapi::experimental::ipc_memory {
+namespace [[deprecated]] sycl::ext::oneapi::experimental::ipc_memory {
   using namespace ipc;
   using namespace ipc::memory;
 }
