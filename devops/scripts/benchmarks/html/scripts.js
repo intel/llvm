@@ -27,7 +27,7 @@ let isInitializing = true; // Flag for a proper handling of URLs
 // Helper function to get base URL for remote or local resources
 function getResourceBaseUrl() {
     return typeof remoteDataUrl !== 'undefined' && remoteDataUrl !== ''
-        ? 'https://raw.githubusercontent.com/intel/llvm-ci-perf-results/unify-ci'
+        ? 'https://raw.githubusercontent.com/intel/llvm/refs/heads/sycl-benchmark-ci-results'
         : '.';
 }
 
