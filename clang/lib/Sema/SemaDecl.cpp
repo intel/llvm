@@ -8026,7 +8026,7 @@ NamedDecl *Sema::ActOnVariableDeclarator(
 
     if (CurContext->isRecord()) {
       if (SC == SC_Static) {
-        if (const CXXRecordDecl *RD = dyn_cast<CXXRecordDecl>(DC)) {
+        if (CXXRecordDecl *RD = dyn_cast<CXXRecordDecl>(DC)) {
           // Walk up the enclosing DeclContexts to check for any that are
           // incompatible with static data members.
           const DeclContext *FunctionOrMethod = nullptr;
@@ -8048,6 +8048,8 @@ NamedDecl *Sema::ActOnVariableDeclarator(
             Diag(D.getIdentifierLoc(),
                  diag::err_static_data_member_not_allowed_in_local_class)
                 << Name << RD->getDeclName() << RD->getTagKind();
+            Invalid = true;
+            RD->setInvalidDecl();
           } else if (AnonStruct) {
             // C++ [class.static.data]p4: Unnamed classes and classes contained
             // directly or indirectly within unnamed classes shall not contain
@@ -15282,7 +15284,10 @@ void Sema::CheckCompleteVariableDeclaration(VarDecl *var) {
 
   // If this variable must be emitted, add it as an initializer for the current
   // module.
-  if (Context.DeclMustBeEmitted(var) && !ModuleScopes.empty())
+  if (Context.DeclMustBeEmitted(var) && !ModuleScopes.empty() &&
+      (ModuleScopes.back().Module->isHeaderLikeModule() ||
+       // For named modules, we may only emit non discardable variables.
+       !isDiscardableGVALinkage(Context.GetGVALinkageForVariable(var))))
     Context.addModuleInitializer(ModuleScopes.back().Module, var);
 
   // Build the bindings if this is a structured binding declaration.

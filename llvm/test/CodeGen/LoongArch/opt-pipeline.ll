@@ -71,6 +71,9 @@
 ; LAXX-NEXT:       FPBuiltin Function Selection
 ; LAXX-NEXT:       Natural Loop Information
 ; LAXX-NEXT:       Type Promotion
+; LAXX-NEXT:       Post-Dominator Tree Construction
+; LAXX-NEXT:       Branch Probability Analysis
+; LAXX-NEXT:       Block Frequency Analysis
 ; LAXX-NEXT:       CodeGen Prepare
 ; LAXX-NEXT:       Dominator Tree Construction
 ; LAXX-NEXT:       Exception handling preparation

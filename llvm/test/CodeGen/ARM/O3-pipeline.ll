@@ -52,6 +52,9 @@
 ; CHECK-NEXT:      Interleaved Access Pass
 ; CHECK-NEXT:      FPBuiltin Function Selection
 ; CHECK-NEXT:      Type Promotion
+; CHECK-NEXT:      Post-Dominator Tree Construction
+; CHECK-NEXT:      Branch Probability Analysis
+; CHECK-NEXT:      Block Frequency Analysis
 ; CHECK-NEXT:      CodeGen Prepare
 ; CHECK-NEXT:      Dominator Tree Construction
 ; CHECK-NEXT:      Exception handling preparation
