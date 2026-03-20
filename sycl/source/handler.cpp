@@ -1632,7 +1632,7 @@ void handler::registerDynamicParameter(
   impl->MKernelData.addDynamicParameter(DynamicParamImpl, ArgIndex);
 }
 
-2bool handler::eventNeeded() const { return impl->MEventNeeded; }
+bool handler::eventNeeded() const { return impl->MEventNeeded; }
 
 device handler::get_device() const {
   return detail::createSyclObjFromImpl<device>(impl->get_device());
