@@ -9,5 +9,5 @@ endif()
 if(NOT DEFINED DPCPP_VERSION_PATCH)
   set(DPCPP_VERSION_PATCH 0)
 endif()
-  set(PRE_RELEASE 1)
+set(PRE_RELEASE 1)
 
