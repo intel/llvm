@@ -432,7 +432,8 @@ runs:
       for attempt in 1 2 3; do
         echo "Attempt $attempt to push new results"
         git add .
-        git commit -m "[GHA] Upload compute-benchmarks results from https://github.com/intel/llvm/actions/runs/${{ github.run_id }}"
+        git commit -m "[GHA] Upload benchmarks results for ${SAVE_NAME}" \
+          -m "From CI job: https://github.com/intel/llvm/actions/runs/${{ github.run_id }}"
         results_file="$(git diff HEAD~1 --name-only -- results/ | head -n 1)"
 
         if git push; then

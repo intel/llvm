@@ -14,13 +14,13 @@ from history import BenchmarkHistory
 from benches.base import benchmark_tags_dict
 
 
-def _get_flamegraph_data(html_path: str) -> dict:
+def _get_flamegraph_data(out_path: str) -> dict:
     """
     Reconstruct flamegraph data by scanning the results directory for SVG files.
     This ensures data is available even in flamegraph-exclusive mode.
     """
     log.debug("Reconstructing flamegraph data from SVG files...")
-    results_dir = os.path.join(html_path, "results", "flamegraphs")
+    results_dir = os.path.join(out_path, "results", "flamegraphs")
     runs_data = {}
 
     if not os.path.exists(results_dir):
@@ -63,7 +63,7 @@ def _get_flamegraph_data(html_path: str) -> dict:
 
 
 def _write_output_to_file(
-    output: BenchmarkOutput, html_path: str, archive: bool = False
+    output: BenchmarkOutput, out_path: str, archive: bool = False
 ) -> None:
     """
     Helper function to write the BenchmarkOutput to a file in JSON format.
@@ -73,7 +73,7 @@ def _write_output_to_file(
     output_data = json.loads(output.to_json())  # type: ignore
 
     if options.flamegraph:
-        flamegraph_data = _get_flamegraph_data(html_path)
+        flamegraph_data = _get_flamegraph_data(out_path)
         if flamegraph_data and flamegraph_data.get("runs"):
             output_data["flamegraphData"] = flamegraph_data
             log.debug(
@@ -84,7 +84,7 @@ def _write_output_to_file(
 
     if options.output_html == "local":
         # Local JS: emit standalone globals (legacy-style) without wrapper object
-        data_path = os.path.join(html_path, f"{filename}.js")
+        data_path = os.path.join(out_path, f"{filename}.js")
         with open(data_path, "w") as f:
             f.write("benchmarkRuns = ")
             json.dump(runs_list, f, indent=2)
@@ -105,7 +105,7 @@ def _write_output_to_file(
             json.dump(output.default_compare_names, f)
             f.write(";\n")
         if not archive:
-            log.info(f"See {html_path}/index.html for the results.")
+            log.info(f"See {out_path}/index.html for the results.")
     else:
         # Remote JSON: emit flat schema aligning with local globals
         remote_obj = {
@@ -115,12 +115,10 @@ def _write_output_to_file(
             "flamegraphData": output_data.get("flamegraphData", {"runs": {}}),
             "defaultCompareNames": output.default_compare_names,
         }
-        data_path = os.path.join(html_path, f"{filename}.json")
+        data_path = os.path.join(out_path, f"{filename}.json")
         with open(data_path, "w") as f:
             json.dump(remote_obj, f, indent=2)
-        log.info(
-            f"Upload {data_path} to a location set in config.js remoteDataUrl argument."
-        )
+        log.info(f"Data file '{data_path}' has been saved.")
 
 
 def generate_html(
