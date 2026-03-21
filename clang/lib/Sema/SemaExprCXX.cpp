@@ -2633,7 +2633,8 @@ ExprResult Sema::BuildCXXNew(SourceRange Range, bool UseGlobal,
       return ExprError();
     MarkFunctionReferenced(StartLoc, OperatorNew);
     if (getLangOpts().SYCLIsDevice &&
-        OperatorNew->isReplaceableGlobalAllocationFunction())
+        OperatorNew->isReplaceableGlobalAllocationFunction() &&
+        !isUnevaluatedContext())
       SYCL().DiagIfDeviceCode(StartLoc, diag::err_sycl_restrict)
           << SemaSYCL::KernelAllocateStorage;
   }
