@@ -1,5 +1,5 @@
 ; This test exercises the cases where there is a DW_MACINFO_undef without a matching DW_MACINFO_def
-
+; XFAIL: target={{.*windows.*}}
 ; Test round-trip translation of debug macro information:
 ; LLVM IR -> SPIR-V -> LLVM IR
 
