@@ -1380,6 +1380,10 @@ if(NOT DEFINED CMAKE_DISABLE_PRECOMPILE_HEADERS)
     message(NOTICE "Precompiled headers are disabled by default with clang-cache. "
       "Pass -DCMAKE_DISABLE_PRECOMPILE_HEADERS=OFF to override.")
     set(CMAKE_DISABLE_PRECOMPILE_HEADERS ON)
+  elseif(CMAKE_CXX_COMPILER_LAUNCHER MATCHES "ccache")
+    message(NOTICE "Precompiled headers are disabled by default with ccache. "
+      "Pass -DCMAKE_DISABLE_PRECOMPILE_HEADERS=OFF to override.")
+    set(CMAKE_DISABLE_PRECOMPILE_HEADERS ON)
   elseif(CMAKE_CXX_COMPILER_LAUNCHER MATCHES "ccache" AND NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     # ccache with PCH can lead to false-positives when only a macro
     # definition changes with non-Clang compilers, because macro definitions
