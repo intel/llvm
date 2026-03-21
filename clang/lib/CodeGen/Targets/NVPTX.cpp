@@ -246,21 +246,21 @@ RValue NVPTXABIInfo::EmitVAArg(CodeGenFunction &CGF, Address VAListAddr,
 // Copied from CGOpenMPRuntimeGPU
 static OffloadArch getOffloadArch(CodeGenModule &CGM) {
   if (!CGM.getTarget().hasFeature("ptx"))
-    return OffloadArch::UNKNOWN;
+    return OffloadArch::Unknown;
   for (const auto &Feature : CGM.getTarget().getTargetOpts().FeatureMap) {
     if (Feature.getValue()) {
       OffloadArch Arch = StringToOffloadArch(Feature.getKey());
-      if (Arch != OffloadArch::UNKNOWN)
+      if (Arch != OffloadArch::Unknown)
         return Arch;
     }
   }
-  return OffloadArch::UNKNOWN;
+  return OffloadArch::Unknown;
 }
 
 static bool supportsGridConstant(OffloadArch Arch) {
-  assert((Arch == OffloadArch::UNKNOWN || IsNVIDIAOffloadArch(Arch)) &&
+  assert((Arch == OffloadArch::Unknown || IsNVIDIAOffloadArch(Arch)) &&
          "Unexpected architecture");
-  static_assert(OffloadArch::UNKNOWN < OffloadArch::SM_70);
+  static_assert(OffloadArch::Unknown < OffloadArch::SM_70);
   return Arch >= OffloadArch::SM_70;
 }
 

@@ -1128,7 +1128,7 @@ void SemaSYCL::addSYCLIntelMaxWorkGroupsPerMultiprocessorAttr(
 
     // Feature '.maxclusterrank' requires .target sm_90 or higher.
     auto SM = getOffloadArch(TI);
-    if (SM == OffloadArch::UNKNOWN || SM < OffloadArch::SM_90) {
+    if (SM == OffloadArch::Unknown || SM < OffloadArch::SM_90) {
       Diag(E->getBeginLoc(), diag::warn_cuda_maxclusterrank_sm_90)
           << OffloadArchToString(SM) << CI << E->getSourceRange();
       return;
