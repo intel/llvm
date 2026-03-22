@@ -373,7 +373,11 @@ static CallInst *createNVVMInternalAddrspaceWrap(IRBuilder<> &IRB,
     ArgInParam->addRetAttr(
         Attribute::getWithAlignment(ArgInParam->getContext(), *ParamAlign));
 
-  Arg.addAttr(Attribute::get(Arg.getContext(), "nvvm.grid_constant"));
+  // Don't add grid_constant for WriteOnly parameters since they need to be written to.
+  // This can happen when copyByValParam is called for writeonly parameters.
+  if (!Arg.hasAttribute(Attribute::WriteOnly)) {
+    Arg.addAttr(Attribute::get(Arg.getContext(), "nvvm.grid_constant"));
+  }
   // Only add ReadOnly if there's no conflicting WriteOnly attribute
   if (!Arg.hasAttribute(Attribute::WriteOnly))
     Arg.addAttr(Attribute::ReadOnly);
@@ -517,6 +521,13 @@ static void lowerKernelByValParam(Argument *Arg, Function &F,
     return;
 
   const Align NewArgAlign = setByValParamAlign(Arg);
+
+  // WriteOnly parameters need to be written to (e.g., for initialization), which violates
+  // grid_constant semantics. Force them to use a local copy.
+  if (Arg->hasAttribute(Attribute::WriteOnly)) {
+    copyByValParam(F, *Arg);
+    return;
+  }
 
   // (1) First check the easy case, if were able to trace through all the uses
   // and we can convert them all to param AS, then we'll do this.
