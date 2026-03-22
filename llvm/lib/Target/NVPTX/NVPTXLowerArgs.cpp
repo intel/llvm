@@ -374,7 +374,9 @@ static CallInst *createNVVMInternalAddrspaceWrap(IRBuilder<> &IRB,
         Attribute::getWithAlignment(ArgInParam->getContext(), *ParamAlign));
 
   Arg.addAttr(Attribute::get(Arg.getContext(), "nvvm.grid_constant"));
-  Arg.addAttr(Attribute::ReadOnly);
+  // Only add ReadOnly if there's no conflicting WriteOnly attribute
+  if (!Arg.hasAttribute(Attribute::WriteOnly))
+    Arg.addAttr(Attribute::ReadOnly);
 
   return ArgInParam;
 }
