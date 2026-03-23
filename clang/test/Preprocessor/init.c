@@ -2091,8 +2091,8 @@
 // WEBASSEMBLY-NEXT:#define __clang_patchlevel__ {{.*}}
 // WEBASSEMBLY-NEXT:#define __clang_version__ "{{.*}}"
 // WEBASSEMBLY-NEXT:#define __clang_wide_literal_encoding__ {{.*}}
-// WEBASSEMBLY-NEXT:#define __dpcpp_major__ 6
-// WEBASSEMBLY-NEXT:#define __dpcpp_minor__ 3
+// WEBASSEMBLY-NEXT:#define __dpcpp_major__ 7
+// WEBASSEMBLY-NEXT:#define __dpcpp_minor__ 0
 // WEBASSEMBLY-NEXT:#define __dpcpp_patchlevel__ 0
 // WEBASSEMBLY-NEXT:#define __llvm__ 1
 // WASI-NOT:#define __unix
