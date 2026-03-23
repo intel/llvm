@@ -61,11 +61,16 @@ function(add_xpti_library LIB_NAME)
   endif()
 
   target_compile_definitions(${LIB_NAME} PRIVATE -DXPTI_API_EXPORTS)
-  target_include_directories(${LIB_NAME} PUBLIC
+  target_include_directories(${LIB_NAME}
+    PUBLIC
     $<BUILD_INTERFACE:${XPTIFW_DIR}/include>
-    $<BUILD_INTERFACE:${XPTIFW_PARALLEL_HASHMAP_HEADERS}>
     $<BUILD_INTERFACE:${XPTI_DIR}/include>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+    PRIVATE
+    $<BUILD_INTERFACE:${XPTIFW_PARALLEL_HASHMAP_HEADERS}>
   )
+
+  add_dependencies(${LIB_NAME} xpti)
 
   target_link_libraries(${LIB_NAME} PUBLIC $<BUILD_INTERFACE:emhash::emhash>)
 
@@ -78,9 +83,15 @@ function(add_xpti_library LIB_NAME)
     target_link_libraries(${LIB_NAME} PUBLIC $<BUILD_INTERFACE:tbb>)
   endif()
 
+  # Set library version so the generated library is versioned.
+  set_target_properties(${LIB_NAME} PROPERTIES
+    VERSION ${XPTIFW_VERSION}
+  )
+
   # Set the location of the library installation
   include(GNUInstallDirs)
   install(TARGETS ${LIB_NAME}
+    EXPORT xptifwTargets
     RUNTIME DESTINATION bin COMPONENT xptifw
     LIBRARY DESTINATION lib${LLVM_LIBDIR_SUFFIX} COMPONENT xptifw
     ARCHIVE DESTINATION lib${LLVM_LIBDIR_SUFFIX} COMPONENT xptifw
