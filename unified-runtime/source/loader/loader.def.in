@@ -157,6 +157,7 @@ EXPORTS
 	urKernelGetNativeHandle
 	urKernelGetSubGroupInfo
 	urKernelGetSuggestedLocalWorkSize
+	urKernelGetSuggestedLocalWorkSizeWithArgs
 	urKernelRelease
 	urKernelRetain
 	urKernelSetArgLocal
@@ -417,6 +418,7 @@ EXPORTS
 	urPrintKernelGetNativeHandleParams
 	urPrintKernelGetSubGroupInfoParams
 	urPrintKernelGetSuggestedLocalWorkSizeParams
+	urPrintKernelGetSuggestedLocalWorkSizeWithArgsParams
 	urPrintKernelGroupInfo
 	urPrintKernelInfo
 	urPrintKernelLaunchClusterProperty

@@ -515,6 +515,8 @@ typedef enum ur_function_t {
   UR_FUNCTION_ENQUEUE_HOST_TASK_EXP = 309,
   /// Enumerator for ::urCommandBufferAppendKernelLaunchWithArgsExp
   UR_FUNCTION_COMMAND_BUFFER_APPEND_KERNEL_LAUNCH_WITH_ARGS_EXP = 310,
+  /// Enumerator for ::urKernelGetSuggestedLocalWorkSizeWithArgs
+  UR_FUNCTION_KERNEL_GET_SUGGESTED_LOCAL_WORK_SIZE_WITH_ARGS = 311,
   /// @cond
   UR_FUNCTION_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -9502,6 +9504,55 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
     size_t *pSuggestedLocalWorkSize);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Set kernel args and get the suggested local work size for a kernel.
+///
+/// @details
+///     - Query a suggested local work size for a kernel given a global size for
+///       each dimension.
+///     - The application may call this function from simultaneous threads for
+///       the same context.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hKernel`
+///         + `NULL == hQueue`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pGlobalWorkOffset`
+///         + `NULL == pGlobalWorkSize`
+///         + `NULL == pSuggestedLocalWorkSize`
+///         + `pArgs == NULL && numArgs > 0`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `NULL != pArgs && ::UR_EXP_KERNEL_ARG_TYPE_SAMPLER < pArgs->type`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+UR_APIEXPORT ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSizeWithArgs(
+    /// [in] handle of the kernel
+    ur_kernel_handle_t hKernel,
+    /// [in] handle of the queue object
+    ur_queue_handle_t hQueue,
+    /// [in] number of dimensions, from 1 to 3, to specify the global
+    /// and work-group work-items
+    uint32_t numWorkDim,
+    /// [in] pointer to an array of numWorkDim unsigned values that specify
+    /// the offset used to calculate the global ID of a work-item
+    const size_t *pGlobalWorkOffset,
+    /// [in] pointer to an array of numWorkDim unsigned values that specify
+    /// the number of global work-items in workDim that will execute the
+    /// kernel function
+    const size_t *pGlobalWorkSize,
+    /// [in] Number of entries in pArgs
+    uint32_t numArgs,
+    /// [in][optional][range(0, numArgs)] pointer to a list of kernel arg
+    /// properties.
+    const ur_exp_kernel_arg_properties_t *pArgs,
+    /// [out] pointer to an array of numWorkDim unsigned values that specify
+    /// suggested local work size that will contain the result of the query
+    size_t *pSuggestedLocalWorkSize);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Query the maximum number of work groups for a cooperative kernel
 ///
 /// @returns
@@ -14580,6 +14631,21 @@ typedef struct ur_kernel_get_suggested_local_work_size_params_t {
   const size_t **ppGlobalWorkSize;
   size_t **ppSuggestedLocalWorkSize;
 } ur_kernel_get_suggested_local_work_size_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urKernelGetSuggestedLocalWorkSizeWithArgs
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_kernel_get_suggested_local_work_size_with_args_params_t {
+  ur_kernel_handle_t *phKernel;
+  ur_queue_handle_t *phQueue;
+  uint32_t *pnumWorkDim;
+  const size_t **ppGlobalWorkOffset;
+  const size_t **ppGlobalWorkSize;
+  uint32_t *pnumArgs;
+  const ur_exp_kernel_arg_properties_t **ppArgs;
+  size_t **ppSuggestedLocalWorkSize;
+} ur_kernel_get_suggested_local_work_size_with_args_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urKernelSetArgValue
