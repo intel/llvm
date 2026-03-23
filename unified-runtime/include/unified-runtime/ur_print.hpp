@@ -708,9 +708,6 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
   case UR_FUNCTION_DEVICE_GET_GLOBAL_TIMESTAMPS:
     os << "UR_FUNCTION_DEVICE_GET_GLOBAL_TIMESTAMPS";
     break;
-  case UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH:
-    os << "UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH";
-    break;
   case UR_FUNCTION_ENQUEUE_EVENTS_WAIT:
     os << "UR_FUNCTION_ENQUEUE_EVENTS_WAIT";
     break;
@@ -798,12 +795,6 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
   case UR_FUNCTION_KERNEL_CREATE:
     os << "UR_FUNCTION_KERNEL_CREATE";
     break;
-  case UR_FUNCTION_KERNEL_SET_ARG_VALUE:
-    os << "UR_FUNCTION_KERNEL_SET_ARG_VALUE";
-    break;
-  case UR_FUNCTION_KERNEL_SET_ARG_LOCAL:
-    os << "UR_FUNCTION_KERNEL_SET_ARG_LOCAL";
-    break;
   case UR_FUNCTION_KERNEL_GET_INFO:
     os << "UR_FUNCTION_KERNEL_GET_INFO";
     break;
@@ -819,17 +810,8 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
   case UR_FUNCTION_KERNEL_RELEASE:
     os << "UR_FUNCTION_KERNEL_RELEASE";
     break;
-  case UR_FUNCTION_KERNEL_SET_ARG_POINTER:
-    os << "UR_FUNCTION_KERNEL_SET_ARG_POINTER";
-    break;
   case UR_FUNCTION_KERNEL_SET_EXEC_INFO:
     os << "UR_FUNCTION_KERNEL_SET_EXEC_INFO";
-    break;
-  case UR_FUNCTION_KERNEL_SET_ARG_SAMPLER:
-    os << "UR_FUNCTION_KERNEL_SET_ARG_SAMPLER";
-    break;
-  case UR_FUNCTION_KERNEL_SET_ARG_MEM_OBJ:
-    os << "UR_FUNCTION_KERNEL_SET_ARG_MEM_OBJ";
     break;
   case UR_FUNCTION_KERNEL_SET_SPECIALIZATION_CONSTANTS:
     os << "UR_FUNCTION_KERNEL_SET_SPECIALIZATION_CONSTANTS";
@@ -15107,101 +15089,6 @@ operator<<(std::ostream &os, [[maybe_unused]] const struct
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Print operator for the ur_kernel_set_arg_value_params_t type
-/// @returns
-///     std::ostream &
-inline std::ostream &operator<<(
-    std::ostream &os,
-    [[maybe_unused]] const struct ur_kernel_set_arg_value_params_t *params) {
-
-  os << ".hKernel = ";
-
-  ur::details::printPtr(os, *(params->phKernel));
-
-  os << ", ";
-  os << ".argIndex = ";
-
-  os << *(params->pargIndex);
-
-  os << ", ";
-  os << ".argSize = ";
-
-  os << *(params->pargSize);
-
-  os << ", ";
-  os << ".pProperties = ";
-
-  ur::details::printPtr(os, *(params->ppProperties));
-
-  os << ", ";
-  os << ".pArgValue = ";
-
-  ur::details::printPtr(os, *(params->ppArgValue));
-
-  return os;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Print operator for the ur_kernel_set_arg_local_params_t type
-/// @returns
-///     std::ostream &
-inline std::ostream &operator<<(
-    std::ostream &os,
-    [[maybe_unused]] const struct ur_kernel_set_arg_local_params_t *params) {
-
-  os << ".hKernel = ";
-
-  ur::details::printPtr(os, *(params->phKernel));
-
-  os << ", ";
-  os << ".argIndex = ";
-
-  os << *(params->pargIndex);
-
-  os << ", ";
-  os << ".argSize = ";
-
-  os << *(params->pargSize);
-
-  os << ", ";
-  os << ".pProperties = ";
-
-  ur::details::printPtr(os, *(params->ppProperties));
-
-  return os;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Print operator for the ur_kernel_set_arg_pointer_params_t type
-/// @returns
-///     std::ostream &
-inline std::ostream &operator<<(
-    std::ostream &os,
-    [[maybe_unused]] const struct ur_kernel_set_arg_pointer_params_t *params) {
-
-  os << ".hKernel = ";
-
-  ur::details::printPtr(os, *(params->phKernel));
-
-  os << ", ";
-  os << ".argIndex = ";
-
-  os << *(params->pargIndex);
-
-  os << ", ";
-  os << ".pProperties = ";
-
-  ur::details::printPtr(os, *(params->ppProperties));
-
-  os << ", ";
-  os << ".pArgValue = ";
-
-  ur::details::printPtr(os, *(params->ppArgValue));
-
-  return os;
-}
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_kernel_set_exec_info_params_t type
 /// @returns
 ///     std::ostream &
@@ -15232,66 +15119,6 @@ inline std::ostream &operator<<(
   os << ".pPropValue = ";
   ur::details::printTagged(os, *(params->ppPropValue), *(params->ppropName),
                            *(params->ppropSize));
-
-  return os;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Print operator for the ur_kernel_set_arg_sampler_params_t type
-/// @returns
-///     std::ostream &
-inline std::ostream &operator<<(
-    std::ostream &os,
-    [[maybe_unused]] const struct ur_kernel_set_arg_sampler_params_t *params) {
-
-  os << ".hKernel = ";
-
-  ur::details::printPtr(os, *(params->phKernel));
-
-  os << ", ";
-  os << ".argIndex = ";
-
-  os << *(params->pargIndex);
-
-  os << ", ";
-  os << ".pProperties = ";
-
-  ur::details::printPtr(os, *(params->ppProperties));
-
-  os << ", ";
-  os << ".hArgValue = ";
-
-  ur::details::printPtr(os, *(params->phArgValue));
-
-  return os;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Print operator for the ur_kernel_set_arg_mem_obj_params_t type
-/// @returns
-///     std::ostream &
-inline std::ostream &operator<<(
-    std::ostream &os,
-    [[maybe_unused]] const struct ur_kernel_set_arg_mem_obj_params_t *params) {
-
-  os << ".hKernel = ";
-
-  ur::details::printPtr(os, *(params->phKernel));
-
-  os << ", ";
-  os << ".argIndex = ";
-
-  os << *(params->pargIndex);
-
-  os << ", ";
-  os << ".pProperties = ";
-
-  ur::details::printPtr(os, *(params->ppProperties));
-
-  os << ", ";
-  os << ".hArgValue = ";
-
-  ur::details::printPtr(os, *(params->phArgValue));
 
   return os;
 }
@@ -16178,77 +16005,6 @@ inline std::ostream &operator<<(
   os << ".pPropSizeRet = ";
 
   ur::details::printPtr(os, *(params->ppPropSizeRet));
-
-  return os;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Print operator for the ur_enqueue_kernel_launch_params_t type
-/// @returns
-///     std::ostream &
-inline std::ostream &operator<<(
-    std::ostream &os,
-    [[maybe_unused]] const struct ur_enqueue_kernel_launch_params_t *params) {
-
-  os << ".hQueue = ";
-
-  ur::details::printPtr(os, *(params->phQueue));
-
-  os << ", ";
-  os << ".hKernel = ";
-
-  ur::details::printPtr(os, *(params->phKernel));
-
-  os << ", ";
-  os << ".workDim = ";
-
-  os << *(params->pworkDim);
-
-  os << ", ";
-  os << ".pGlobalWorkOffset = ";
-
-  ur::details::printPtr(os, *(params->ppGlobalWorkOffset));
-
-  os << ", ";
-  os << ".pGlobalWorkSize = ";
-
-  ur::details::printPtr(os, *(params->ppGlobalWorkSize));
-
-  os << ", ";
-  os << ".pLocalWorkSize = ";
-
-  ur::details::printPtr(os, *(params->ppLocalWorkSize));
-
-  os << ", ";
-  os << ".launchPropList = ";
-
-  ur::details::printPtr(os, *(params->plaunchPropList));
-
-  os << ", ";
-  os << ".numEventsInWaitList = ";
-
-  os << *(params->pnumEventsInWaitList);
-
-  os << ", ";
-  os << ".phEventWaitList = ";
-  ur::details::printPtr(
-      os, reinterpret_cast<const void *>(*(params->pphEventWaitList)));
-  if (*(params->pphEventWaitList) != NULL) {
-    os << " {";
-    for (size_t i = 0; i < *params->pnumEventsInWaitList; ++i) {
-      if (i != 0) {
-        os << ", ";
-      }
-
-      ur::details::printPtr(os, (*(params->pphEventWaitList))[i]);
-    }
-    os << "}";
-  }
-
-  os << ", ";
-  os << ".phEvent = ";
-
-  ur::details::printPtr(os, *(params->pphEvent));
 
   return os;
 }
@@ -22821,23 +22577,8 @@ inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os,
     os << (const struct
            ur_kernel_get_suggested_local_work_size_with_args_params_t *)params;
   } break;
-  case UR_FUNCTION_KERNEL_SET_ARG_VALUE: {
-    os << (const struct ur_kernel_set_arg_value_params_t *)params;
-  } break;
-  case UR_FUNCTION_KERNEL_SET_ARG_LOCAL: {
-    os << (const struct ur_kernel_set_arg_local_params_t *)params;
-  } break;
-  case UR_FUNCTION_KERNEL_SET_ARG_POINTER: {
-    os << (const struct ur_kernel_set_arg_pointer_params_t *)params;
-  } break;
   case UR_FUNCTION_KERNEL_SET_EXEC_INFO: {
     os << (const struct ur_kernel_set_exec_info_params_t *)params;
-  } break;
-  case UR_FUNCTION_KERNEL_SET_ARG_SAMPLER: {
-    os << (const struct ur_kernel_set_arg_sampler_params_t *)params;
-  } break;
-  case UR_FUNCTION_KERNEL_SET_ARG_MEM_OBJ: {
-    os << (const struct ur_kernel_set_arg_mem_obj_params_t *)params;
   } break;
   case UR_FUNCTION_KERNEL_SET_SPECIALIZATION_CONSTANTS: {
     os << (const struct ur_kernel_set_specialization_constants_params_t *)
@@ -22944,9 +22685,6 @@ inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os,
   } break;
   case UR_FUNCTION_PHYSICAL_MEM_GET_INFO: {
     os << (const struct ur_physical_mem_get_info_params_t *)params;
-  } break;
-  case UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH: {
-    os << (const struct ur_enqueue_kernel_launch_params_t *)params;
   } break;
   case UR_FUNCTION_ENQUEUE_EVENTS_WAIT: {
     os << (const struct ur_enqueue_events_wait_params_t *)params;
