@@ -680,12 +680,12 @@ Command *Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep,
   // 2. Some types of commands do not produce UR events after they are
   // enqueued (e.g. alloca). Note that we can't check the ur event to make that
   // distinction since the command might still be unenqueued at this point.
-  bool PiEventExpected =
+  bool UrEventExpected =
       (!DepEvent->isHost() && !DepEvent->isDefaultConstructed());
   if (auto *DepCmd = DepEvent->getCommand())
-    PiEventExpected &= DepCmd->producesPiEvent();
+    UrEventExpected &= DepCmd->producesUrEvent();
 
-  if (!PiEventExpected) {
+  if (!UrEventExpected) {
     // call to waitInternal() is in waitForPreparedHostEvents() as it's called
     // from enqueue process functions
     MPreparedHostDepsEvents.push_back(DepEvent);
@@ -712,7 +712,7 @@ context_impl *Command::getWorkerContext() const {
   return &MQueue->getContextImpl();
 }
 
-bool Command::producesPiEvent() const { return true; }
+bool Command::producesUrEvent() const { return true; }
 
 bool Command::supportsPostEnqueueCleanup() const { return true; }
 
@@ -985,7 +985,7 @@ void AllocaCommandBase::emitInstrumentationData() {
 #endif
 }
 
-bool AllocaCommandBase::producesPiEvent() const { return false; }
+bool AllocaCommandBase::producesUrEvent() const { return false; }
 
 bool AllocaCommandBase::supportsPostEnqueueCleanup() const { return false; }
 
@@ -1273,7 +1273,7 @@ void ReleaseCommand::printDot(std::ostream &Stream) const {
   }
 }
 
-bool ReleaseCommand::producesPiEvent() const { return false; }
+bool ReleaseCommand::producesUrEvent() const { return false; }
 
 bool ReleaseCommand::supportsPostEnqueueCleanup() const { return false; }
 
@@ -1369,7 +1369,7 @@ void UnMapMemObject::emitInstrumentationData() {
 #endif
 }
 
-bool UnMapMemObject::producesPiEvent() const {
+bool UnMapMemObject::producesUrEvent() const {
   // TODO remove this workaround once the batching issue is addressed in Level
   // Zero adapter.
   // Consider the following scenario on Level Zero:
@@ -1475,7 +1475,7 @@ context_impl *MemCpyCommand::getWorkerContext() const {
   return &MWorkerQueue->getContextImpl();
 }
 
-bool MemCpyCommand::producesPiEvent() const {
+bool MemCpyCommand::producesUrEvent() const {
   // TODO remove this workaround once the batching issue is addressed in Level
   // Zero adapter.
   // Consider the following scenario on Level Zero:
@@ -1751,7 +1751,7 @@ void EmptyCommand::printDot(std::ostream &Stream) const {
   }
 }
 
-bool EmptyCommand::producesPiEvent() const { return false; }
+bool EmptyCommand::producesUrEvent() const { return false; }
 
 void MemCpyCommandHost::printDot(std::ostream &Stream) const {
   Stream << "\"" << this << "\" [style=filled, fillcolor=\"#B6A2EB\", label=\"";
@@ -3666,7 +3666,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
   return UR_RESULT_ERROR_INVALID_OPERATION;
 }
 
-bool ExecCGCommand::producesPiEvent() const {
+bool ExecCGCommand::producesUrEvent() const {
   return !MCommandBuffer &&
          MCommandGroup->getType() != CGType::CodeplayHostTask;
 }
@@ -3764,7 +3764,7 @@ void UpdateCommandBufferCommand::printDot(std::ostream &Stream) const {
 }
 
 void UpdateCommandBufferCommand::emitInstrumentationData() {}
-bool UpdateCommandBufferCommand::producesPiEvent() const { return false; }
+bool UpdateCommandBufferCommand::producesUrEvent() const { return false; }
 
 CGHostTask::CGHostTask(std::shared_ptr<HostTask> HostTask,
                        detail::queue_impl *Queue, detail::context_impl *Context,

@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 // REQUIRES: target-nvidia
-// RUN: %{build} -Xsycl-target-backend --cuda-gpu-arch=sm_72 -o %t.out
+// RUN: %{build} -Xsycl-target-backend --cuda-gpu-arch=sm_75 -o %t.out
 // RUN: %{run} %t.out
 //
 // This tests the unified matrix extension interfaces for the cuda backend.
