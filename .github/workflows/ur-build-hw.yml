@@ -97,7 +97,7 @@ jobs:
         mkdir -p dpcpp_compiler
         tar -xvf dpcpp_compiler.tar.gz -C dpcpp_compiler
 
-    - name: Install OpenCL
+    - name: Install OpenCL CPU Runtime
       if: ${{ inputs.adapter_name == 'OPENCL' }}
       run: |
         wget -O- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB \

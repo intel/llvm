@@ -515,10 +515,6 @@ public:
     ur_queue_handle_t Queue{};
     ur_context_handle_t Context = MContext->getHandleRef();
     ur_device_handle_t Device = MDevice.getHandleRef();
-    /*
-        sycl::detail::pi::PiQueueProperties Properties[] = {
-            PI_QUEUE_FLAGS, createPiQueueProperties(MPropList, Order), 0, 0, 0};
-        */
     ur_queue_properties_t Properties = {UR_STRUCTURE_TYPE_QUEUE_PROPERTIES,
                                         nullptr, 0};
     Properties.flags = createUrQueueFlags(MPropList, Order);

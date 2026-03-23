@@ -1,4 +1,4 @@
-// Copyright (C) 2025 Intel Corporation
+// Copyright (C) 2025-2026 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
 //
@@ -18,6 +18,18 @@ TEST_P(urQueueEndGraphCaptureExpTest, SuccessSameGraph) {
   ur_exp_graph_handle_t sameGraph = nullptr;
   ASSERT_SUCCESS(urQueueEndGraphCaptureExp(queue, &sameGraph));
   ASSERT_EQ(graph, sameGraph);
+}
+
+// Regression test for out-of-order queue bug where begin/end capture
+// would use different command lists.
+TEST_P(urQueueEndGraphCaptureExpTest, SuccessAfterQueueOperations) {
+  ASSERT_SUCCESS(urEnqueueEventsWait(queue, 0, nullptr, nullptr));
+  ASSERT_SUCCESS(urQueueFinish(queue));
+
+  ASSERT_SUCCESS(urQueueBeginCaptureIntoGraphExp(queue, graph));
+  ur_exp_graph_handle_t capturedGraph = nullptr;
+  ASSERT_SUCCESS(urQueueEndGraphCaptureExp(queue, &capturedGraph));
+  ASSERT_EQ(graph, capturedGraph);
 }
 
 TEST_P(urQueueEndGraphCaptureExpTest, InvalidNullHandleQueue) {
