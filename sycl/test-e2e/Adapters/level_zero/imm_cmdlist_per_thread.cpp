@@ -1,11 +1,12 @@
 // REQUIRES: gpu, level_zero
 
-// Flaky failure on windows
-// UNSUPPORTED: windows
+// UNSUPPORTED: level_zero_v2_adapter
+// UNSUPPORTED-INTENDED: V1-only test, UR_L0_USE_IMMEDIATE_COMMANDLISTS=1 vs =2
+// mode split, checked by counting zeCommandListCreateImmediate calls.
 
 // RUN: %{build} %level_zero_options %threads_lib -o %t.out
-// RUN: env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE=0 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck --check-prefixes=CHECK-ONE-CMDLIST %s
-// RUN: env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=2 SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE=0 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck --check-prefixes=CHECK-PER-THREAD-CMDLIST %s
+// RUN: env UR_L0_USE_IMMEDIATE_COMMANDLISTS=1 UR_L0_USE_COPY_ENGINE=0 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck --check-prefixes=CHECK-ONE-CMDLIST %s
+// RUN: env UR_L0_USE_IMMEDIATE_COMMANDLISTS=2 UR_L0_USE_COPY_ENGINE=0 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck --check-prefixes=CHECK-PER-THREAD-CMDLIST %s
 
 // The test checks that immediate commandlists are created per-thread.
 // One immediate commandlist is created for device init, the rest for the queue.

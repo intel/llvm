@@ -2,57 +2,60 @@
 
 // RUN: %{build} -o %t.ooo.out
 // RUN: %{build} -DUSING_INORDER -o %t.ino.out
-// UNSUPPORTED: ze_debug
+// UNSUPPORTED: ze_debug, level_zero_v2_adapter
+// UNSUPPORTED-INTENDED: V1-only, regular-command-list batching trace under
+// UR_L0_BATCH_SIZE; V2 does not preserve these zeCommandListClose/
+// zeCommandQueueExecuteCommandLists flush points.
 
 // To test batching on out-of-order queue:
 // Set batching to 4 explicitly
-// RUN: env SYCL_PI_LEVEL_ZERO_BATCH_SIZE=4 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t.ooo.out 2>&1 | FileCheck --check-prefixes=CKALL,CKB4 %s
+// RUN: env UR_L0_BATCH_SIZE=4 UR_L0_DEVICE_SCOPE_EVENTS=2 UR_L0_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t.ooo.out 2>&1 | FileCheck --check-prefixes=CKALL,CKB4 %s
 
 // Set batching to 1 explicitly
-// RUN: env SYCL_PI_LEVEL_ZERO_BATCH_SIZE=1 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t.ooo.out 2>&1 | FileCheck --check-prefixes=CKALL,CKB1 %s
+// RUN: env UR_L0_BATCH_SIZE=1 UR_L0_DEVICE_SCOPE_EVENTS=2 UR_L0_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t.ooo.out 2>&1 | FileCheck --check-prefixes=CKALL,CKB1 %s
 
 // Set batching to 3 explicitly
-// RUN: env SYCL_PI_LEVEL_ZERO_BATCH_SIZE=3 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t.ooo.out 2>&1 | FileCheck --check-prefixes=CKALL,CKB3 %s
+// RUN: env UR_L0_BATCH_SIZE=3 UR_L0_DEVICE_SCOPE_EVENTS=2 UR_L0_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t.ooo.out 2>&1 | FileCheck --check-prefixes=CKALL,CKB3 %s
 
 // Set batching to 5 explicitly
-// RUN: env SYCL_PI_LEVEL_ZERO_BATCH_SIZE=5 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t.ooo.out 2>&1 | FileCheck --check-prefixes=CKALL,CKB5 %s
+// RUN: env UR_L0_BATCH_SIZE=5 UR_L0_DEVICE_SCOPE_EVENTS=2 UR_L0_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t.ooo.out 2>&1 | FileCheck --check-prefixes=CKALL,CKB5 %s
 
 // Set batching to 7 explicitly
-// RUN: env SYCL_PI_LEVEL_ZERO_BATCH_SIZE=7 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t.ooo.out 2>&1 | FileCheck --check-prefixes=CKALL,CKB7 %s
+// RUN: env UR_L0_BATCH_SIZE=7 UR_L0_DEVICE_SCOPE_EVENTS=2 UR_L0_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t.ooo.out 2>&1 | FileCheck --check-prefixes=CKALL,CKB7 %s
 
 // Set batching to 8 explicitly
-// RUN: env SYCL_PI_LEVEL_ZERO_BATCH_SIZE=8 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t.ooo.out 2>&1 | FileCheck --check-prefixes=CKALL,CKB8 %s
+// RUN: env UR_L0_BATCH_SIZE=8 UR_L0_DEVICE_SCOPE_EVENTS=2 UR_L0_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t.ooo.out 2>&1 | FileCheck --check-prefixes=CKALL,CKB8 %s
 
 // Set batching to 9 explicitly
-// RUN: env SYCL_PI_LEVEL_ZERO_BATCH_SIZE=9 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t.ooo.out 2>&1 | FileCheck --check-prefixes=CKALL,CKB9 %s
+// RUN: env UR_L0_BATCH_SIZE=9 UR_L0_DEVICE_SCOPE_EVENTS=2 UR_L0_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t.ooo.out 2>&1 | FileCheck --check-prefixes=CKALL,CKB9 %s
 
 // To test batching on in-order queue:
 // Set batching to 4 explicitly
-// RUN: env SYCL_PI_LEVEL_ZERO_BATCH_SIZE=4 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t.ino.out 2>&1 | FileCheck --check-prefixes=CKALL,CKB4 %s
+// RUN: env UR_L0_BATCH_SIZE=4 UR_L0_DEVICE_SCOPE_EVENTS=2 UR_L0_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t.ino.out 2>&1 | FileCheck --check-prefixes=CKALL,CKB4 %s
 
 // Set batching to 1 explicitly
-// RUN: env SYCL_PI_LEVEL_ZERO_BATCH_SIZE=1 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t.ino.out 2>&1 | FileCheck --check-prefixes=CKALL,CKB1 %s
+// RUN: env UR_L0_BATCH_SIZE=1 UR_L0_DEVICE_SCOPE_EVENTS=2 UR_L0_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t.ino.out 2>&1 | FileCheck --check-prefixes=CKALL,CKB1 %s
 
 // Set batching to 3 explicitly
-// RUN: env SYCL_PI_LEVEL_ZERO_BATCH_SIZE=3 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t.ino.out 2>&1 | FileCheck --check-prefixes=CKALL,CKB3 %s
+// RUN: env UR_L0_BATCH_SIZE=3 UR_L0_DEVICE_SCOPE_EVENTS=2 UR_L0_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t.ino.out 2>&1 | FileCheck --check-prefixes=CKALL,CKB3 %s
 
 // Set batching to 5 explicitly
-// RUN: env SYCL_PI_LEVEL_ZERO_BATCH_SIZE=5 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t.ino.out 2>&1 | FileCheck --check-prefixes=CKALL,CKB5 %s
+// RUN: env UR_L0_BATCH_SIZE=5 UR_L0_DEVICE_SCOPE_EVENTS=2 UR_L0_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t.ino.out 2>&1 | FileCheck --check-prefixes=CKALL,CKB5 %s
 
 // Set batching to 7 explicitly
-// RUN: env SYCL_PI_LEVEL_ZERO_BATCH_SIZE=7 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t.ino.out 2>&1 | FileCheck --check-prefixes=CKALL,CKB7 %s
+// RUN: env UR_L0_BATCH_SIZE=7 UR_L0_DEVICE_SCOPE_EVENTS=2 UR_L0_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t.ino.out 2>&1 | FileCheck --check-prefixes=CKALL,CKB7 %s
 
 // Set batching to 8 explicitly
-// RUN: env SYCL_PI_LEVEL_ZERO_BATCH_SIZE=8 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t.ino.out 2>&1 | FileCheck --check-prefixes=CKALL,CKB8 %s
+// RUN: env UR_L0_BATCH_SIZE=8 UR_L0_DEVICE_SCOPE_EVENTS=2 UR_L0_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t.ino.out 2>&1 | FileCheck --check-prefixes=CKALL,CKB8 %s
 
 // Set batching to 9 explicitly
-// RUN: env SYCL_PI_LEVEL_ZERO_BATCH_SIZE=9 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t.ino.out 2>&1 | FileCheck --check-prefixes=CKALL,CKB9 %s
+// RUN: env UR_L0_BATCH_SIZE=9 UR_L0_DEVICE_SCOPE_EVENTS=2 UR_L0_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t.ino.out 2>&1 | FileCheck --check-prefixes=CKALL,CKB9 %s
 
 // level_zero_batch_test.cpp
 //
 // This tests the level zero adapter's kernel batching code.  The default
 // batching is 4, and exact batch size can be controlled with environment
-// variable SYCL_PI_LEVEL_ZEOR+BATCH_SIZE=N.
+// variable UR_L0_BATCH_SIZE=N.
 // This test enqueues 8 kernels and then does a wait. And it does this 3 times.
 // Expected output is that for batching =1 you will see zeCommandListClose,
 // and zeCommandQueueExecuteCommandLists after every

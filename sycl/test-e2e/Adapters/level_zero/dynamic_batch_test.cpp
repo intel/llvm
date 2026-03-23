@@ -1,12 +1,14 @@
 // REQUIRES: gpu, level_zero
-// UNSUPPORTED: ze_debug
+// UNSUPPORTED: ze_debug, level_zero_v2_adapter
+// UNSUPPORTED-INTENDED: V1-only, regular-command-list autotuning trace
+// ("Raising/Lowering QueueBatchSize")
 
 // RUN: %{build} -o %t.ooo.out
 // RUN: %{build} -DUSING_INORDER -o %t.ino.out
 
 // Check that dynamic batching raises/lowers batch size
-// RUN: env SYCL_UR_TRACE=2 UR_L0_DEBUG=1 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 %{run} %t.ooo.out 2>&1 | FileCheck --check-prefixes=CKALL,CKDYN %s
-// RUN: env SYCL_UR_TRACE=2 UR_L0_DEBUG=1 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 %{run} %t.ino.out 2>&1 | FileCheck --check-prefixes=CKALL,CKDYN %s
+// RUN: env SYCL_UR_TRACE=2 UR_L0_DEBUG=1 UR_L0_DEVICE_SCOPE_EVENTS=2 UR_L0_USE_IMMEDIATE_COMMANDLISTS=0 %{run} %t.ooo.out 2>&1 | FileCheck --check-prefixes=CKALL,CKDYN %s
+// RUN: env SYCL_UR_TRACE=2 UR_L0_DEBUG=1 UR_L0_DEVICE_SCOPE_EVENTS=2 UR_L0_USE_IMMEDIATE_COMMANDLISTS=0 %{run} %t.ino.out 2>&1 | FileCheck --check-prefixes=CKALL,CKDYN %s
 
 // level_zero_dynamic_batch_test.cpp
 //
