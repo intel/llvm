@@ -8,6 +8,7 @@
 #include <chrono>
 #include <thread>
 #include <uur/known_failure.h>
+#include <vector>
 
 struct QueueBufferTest : uur::IntegrationQueueTest {
   void SetUp() override {
@@ -77,30 +78,51 @@ TEST_P(QueueBufferTest, QueueBufferTest) {
 
   uint32_t CurValueMem1 = InitialValue;
   uint32_t CurValueMem2 = InitialValue;
+  // Get the full args list (includes accessor offset args set by
+  // AddBuffer1DArg) so all kernel arguments are passed each launch.
+  auto numArgs = GetNumArgs();
+  const auto *baseArgs = GetArgs();
+
   for (uint32_t i = 0; i < NumIterations; ++i) {
 
     /* Copy from DeviceMem1 to DeviceMem2 and multiply by 2 */
-    ASSERT_SUCCESS(
-        urKernelSetArgMemObj(kernel, Buffer2Index, nullptr, Buffer2));
-    ASSERT_SUCCESS(
-        urKernelSetArgMemObj(kernel, Buffer1Index, nullptr, Buffer1));
-
-    ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, NDimensions,
-                                         &GlobalOffset, &ArraySize, nullptr,
-                                         nullptr, 0, nullptr, &Event));
+    {
+      std::vector<ur_exp_kernel_arg_properties_t> args(baseArgs,
+                                                       baseArgs + numArgs);
+      for (auto &arg : args) {
+        if (arg.type == UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ &&
+            arg.index == static_cast<uint32_t>(Buffer1Index)) {
+          arg.value.memObjTuple = {Buffer1, UR_MEM_FLAG_READ_WRITE};
+        } else if (arg.type == UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ &&
+                   arg.index == static_cast<uint32_t>(Buffer2Index)) {
+          arg.value.memObjTuple = {Buffer2, UR_MEM_FLAG_READ_WRITE};
+        }
+      }
+      ASSERT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
+          queue, kernel, NDimensions, &GlobalOffset, &ArraySize, nullptr,
+          numArgs, args.data(), nullptr, 0, nullptr, &Event));
+    }
     ASSERT_NO_FATAL_FAILURE(submitBarrierIfNeeded(Event));
 
     CurValueMem2 = CurValueMem1 * 2;
 
-    /* Copy from DeviceMem1 to DeviceMem2 and multiply by 2 */
-    ASSERT_SUCCESS(
-        urKernelSetArgMemObj(kernel, Buffer1Index, nullptr, Buffer2));
-    ASSERT_SUCCESS(
-        urKernelSetArgMemObj(kernel, Buffer2Index, nullptr, Buffer1));
-
-    ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, NDimensions,
-                                         &GlobalOffset, &ArraySize, nullptr,
-                                         nullptr, 0, nullptr, &Event));
+    /* Copy from DeviceMem2 to DeviceMem1 and multiply by 2 */
+    {
+      std::vector<ur_exp_kernel_arg_properties_t> args(baseArgs,
+                                                       baseArgs + numArgs);
+      for (auto &arg : args) {
+        if (arg.type == UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ &&
+            arg.index == static_cast<uint32_t>(Buffer1Index)) {
+          arg.value.memObjTuple = {Buffer2, UR_MEM_FLAG_READ_WRITE};
+        } else if (arg.type == UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ &&
+                   arg.index == static_cast<uint32_t>(Buffer2Index)) {
+          arg.value.memObjTuple = {Buffer1, UR_MEM_FLAG_READ_WRITE};
+        }
+      }
+      ASSERT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
+          queue, kernel, NDimensions, &GlobalOffset, &ArraySize, nullptr,
+          numArgs, args.data(), nullptr, 0, nullptr, &Event));
+    }
     ASSERT_NO_FATAL_FAILURE(submitBarrierIfNeeded(Event));
 
     CurValueMem1 = CurValueMem2 * 2;

@@ -480,8 +480,8 @@ urCommandBufferAppendKernelLaunchWithArgsExp(
         ur_kernel_arg_mem_obj_properties_t Props = {
             UR_STRUCTURE_TYPE_KERNEL_ARG_MEM_OBJ_PROPERTIES, nullptr,
             pArgs[i].value.memObjTuple.flags};
-        UR_CALL(urKernelSetArgMemObj(hKernel, pArgs[i].index, &Props,
-                                     pArgs[i].value.memObjTuple.hMem));
+        hKernel->setKernelArgMemObj(pArgs[i].index, &Props,
+                                    pArgs[i].value.memObjTuple.hMem);
         break;
       }
       case UR_EXP_KERNEL_ARG_TYPE_SAMPLER: {

@@ -188,14 +188,35 @@ struct urCommandBufferAppendKernelLaunchExpTest
       ptrY[i] = i * 2;
     }
 
+    // Build kernel args for saxpy_usm
     // Index 0 is output
-    ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, shared_ptrs[0]));
+    saxpy_args[0] = {UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+                     nullptr,
+                     UR_EXP_KERNEL_ARG_TYPE_POINTER,
+                     0,
+                     sizeof(void *),
+                     {shared_ptrs[0]}};
     // Index 1 is A
-    ASSERT_SUCCESS(urKernelSetArgValue(kernel, 1, sizeof(A), nullptr, &A));
+    saxpy_args[1] = {UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+                     nullptr,
+                     UR_EXP_KERNEL_ARG_TYPE_VALUE,
+                     1,
+                     sizeof(A),
+                     {&A}};
     // Index 2 is X
-    ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 2, nullptr, shared_ptrs[1]));
+    saxpy_args[2] = {UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+                     nullptr,
+                     UR_EXP_KERNEL_ARG_TYPE_POINTER,
+                     2,
+                     sizeof(void *),
+                     {shared_ptrs[1]}};
     // Index 3 is Y
-    ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 3, nullptr, shared_ptrs[2]));
+    saxpy_args[3] = {UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+                     nullptr,
+                     UR_EXP_KERNEL_ARG_TYPE_POINTER,
+                     3,
+                     sizeof(void *),
+                     {shared_ptrs[2]}};
   }
 
   virtual void TearDown() override {
@@ -215,16 +236,17 @@ struct urCommandBufferAppendKernelLaunchExpTest
   static constexpr size_t allocation_size = sizeof(uint32_t) * global_size;
   static constexpr uint32_t A = 42;
   std::array<void *, 3> shared_ptrs = {nullptr, nullptr, nullptr};
+  ur_exp_kernel_arg_properties_t saxpy_args[4] = {};
 };
 
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_MULTI_QUEUE(
     urCommandBufferAppendKernelLaunchExpTest);
 
 TEST_P(urCommandBufferAppendKernelLaunchExpTest, Basic) {
-  ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchExp(
+  ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchWithArgsExp(
       cmd_buf_handle, kernel, n_dimensions, &global_offset, &global_size,
-      &local_size, 0, nullptr, 0, nullptr, 0, nullptr, nullptr, nullptr,
-      nullptr));
+      &local_size, 4, saxpy_args, 0, nullptr, 0, nullptr, 0, nullptr, nullptr,
+      nullptr, nullptr));
 
   ASSERT_SUCCESS(urCommandBufferFinalizeExp(cmd_buf_handle));
 
@@ -240,10 +262,10 @@ TEST_P(urCommandBufferAppendKernelLaunchExpTest, Basic) {
 }
 
 TEST_P(urCommandBufferAppendKernelLaunchExpTest, FinalizeTwice) {
-  ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchExp(
+  ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchWithArgsExp(
       cmd_buf_handle, kernel, n_dimensions, &global_offset, &global_size,
-      &local_size, 0, nullptr, 0, nullptr, 0, nullptr, nullptr, nullptr,
-      nullptr));
+      &local_size, 4, saxpy_args, 0, nullptr, 0, nullptr, 0, nullptr, nullptr,
+      nullptr, nullptr));
 
   ASSERT_SUCCESS(urCommandBufferFinalizeExp(cmd_buf_handle));
   EXPECT_EQ_RESULT(urCommandBufferFinalizeExp(cmd_buf_handle),
@@ -252,17 +274,17 @@ TEST_P(urCommandBufferAppendKernelLaunchExpTest, FinalizeTwice) {
 
 TEST_P(urCommandBufferAppendKernelLaunchExpTest, DuplicateSyncPoint) {
   ur_exp_command_buffer_sync_point_t sync_point;
-  ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchExp(
+  ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchWithArgsExp(
       cmd_buf_handle, kernel, n_dimensions, &global_offset, &global_size,
-      &local_size, 0, nullptr, 0, nullptr, 0, nullptr, &sync_point, nullptr,
-      nullptr));
+      &local_size, 4, saxpy_args, 0, nullptr, 0, nullptr, 0, nullptr,
+      &sync_point, nullptr, nullptr));
 
   // Test passing redundant sync-points
   ur_exp_command_buffer_sync_point_t sync_points[2] = {sync_point, sync_point};
-  ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchExp(
+  ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchWithArgsExp(
       cmd_buf_handle, kernel, n_dimensions, &global_offset, &global_size,
-      &local_size, 0, nullptr, 2, sync_points, 0, nullptr, nullptr, nullptr,
-      nullptr));
+      &local_size, 4, saxpy_args, 0, nullptr, 2, sync_points, 0, nullptr,
+      nullptr, nullptr, nullptr));
 
   ASSERT_SUCCESS(urCommandBufferFinalizeExp(cmd_buf_handle));
 

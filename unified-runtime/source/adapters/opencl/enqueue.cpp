@@ -43,71 +43,6 @@ void MapUREventsToCL(uint32_t numEvents, const ur_event_handle_t *UREvents,
   }
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
-    ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel, uint32_t workDim,
-    const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
-    const size_t *pLocalWorkSize,
-    const ur_kernel_launch_ext_properties_t *launchPropList,
-    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-    ur_event_handle_t *phEvent) {
-
-  ur_kernel_launch_ext_properties_t *_launchPropList =
-      const_cast<ur_kernel_launch_ext_properties_t *>(launchPropList);
-  // Adapters that don't support cooperative kernels are currently expected
-  // to ignore COOPERATIVE launch properties. Ideally we should avoid passing
-  // these at the SYCL RT level instead, see
-  // https://github.com/intel/llvm/issues/18421
-  if (_launchPropList &&
-      _launchPropList->flags & ~UR_KERNEL_LAUNCH_FLAG_COOPERATIVE) {
-    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-  }
-
-  while (_launchPropList != nullptr) {
-    if (_launchPropList->stype !=
-        as_stype<ur_kernel_launch_ext_properties_t>()) {
-      return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-    }
-    _launchPropList = static_cast<ur_kernel_launch_ext_properties_t *>(
-        _launchPropList->pNext);
-  }
-
-  std::vector<size_t> compiledLocalWorksize;
-  if (!pLocalWorkSize) {
-    cl_device_id device = nullptr;
-    CL_RETURN_ON_FAILURE(clGetCommandQueueInfo(
-        hQueue->CLQueue, CL_QUEUE_DEVICE, sizeof(device), &device, nullptr));
-    // This query always returns size_t[3], if nothing was specified it returns
-    // all zeroes.
-    size_t queriedLocalWorkSize[3] = {0, 0, 0};
-    CL_RETURN_ON_FAILURE(clGetKernelWorkGroupInfo(
-        hKernel->CLKernel, device, CL_KERNEL_COMPILE_WORK_GROUP_SIZE,
-        sizeof(size_t[3]), queriedLocalWorkSize, nullptr));
-    if (queriedLocalWorkSize[0] != 0) {
-      for (uint32_t i = 0; i < workDim; i++) {
-        compiledLocalWorksize.push_back(queriedLocalWorkSize[i]);
-      }
-    }
-  }
-
-  cl_event Event;
-  std::vector<cl_event> CLWaitEvents(numEventsInWaitList);
-  MapUREventsToCL(numEventsInWaitList, phEventWaitList, CLWaitEvents);
-  auto Err = clEnqueueNDRangeKernel(
-      hQueue->CLQueue, hKernel->CLKernel, workDim, pGlobalWorkOffset,
-      pGlobalWorkSize,
-      compiledLocalWorksize.empty() ? pLocalWorkSize
-                                    : compiledLocalWorksize.data(),
-      numEventsInWaitList, CLWaitEvents.data(), ifUrEvent(phEvent, Event));
-  if (Err == CL_INVALID_KERNEL_ARGS) {
-    UR_LOG_L(ur::cl::getAdapter()->log, ERR,
-             "Kernel called with invalid arguments");
-  }
-  CL_RETURN_ON_FAILURE(Err);
-
-  UR_RETURN_ON_FAILURE(createUREvent(Event, hQueue->Context, hQueue, phEvent));
-  return UR_RESULT_SUCCESS;
-}
-
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWait(
     ur_queue_handle_t hQueue, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
@@ -542,12 +477,22 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunchWithArgsExp(
         _launchPropList->pNext);
   }
 
+  // Only look up USM function pointer if we have POINTER args
   clSetKernelArgMemPointerINTEL_fn SetKernelArgMemPointerPtr = nullptr;
-  UR_RETURN_ON_FAILURE(
-      cl_ext::getExtFuncFromContext<clSetKernelArgMemPointerINTEL_fn>(
-          hQueue->Context->CLContext,
-          ur::cl::getAdapter()->fnCache.clSetKernelArgMemPointerINTELCache,
-          cl_ext::SetKernelArgMemPointerName, &SetKernelArgMemPointerPtr));
+  bool hasPointerArgs = false;
+  for (uint32_t i = 0; i < numArgs; i++) {
+    if (pArgs[i].type == UR_EXP_KERNEL_ARG_TYPE_POINTER) {
+      hasPointerArgs = true;
+      break;
+    }
+  }
+  if (hasPointerArgs) {
+    UR_RETURN_ON_FAILURE(
+        cl_ext::getExtFuncFromContext<clSetKernelArgMemPointerINTEL_fn>(
+            hQueue->Context->CLContext,
+            ur::cl::getAdapter()->fnCache.clSetKernelArgMemPointerINTELCache,
+            cl_ext::SetKernelArgMemPointerName, &SetKernelArgMemPointerPtr));
+  }
 
   for (uint32_t i = 0; i < numArgs; i++) {
     switch (pArgs[i].type) {
@@ -612,7 +557,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunchWithArgsExp(
       pGlobalWorkSize,
       compiledLocalWorksize.empty() ? pLocalWorkSize
                                     : compiledLocalWorksize.data(),
-      numEventsInWaitList, CLWaitEvents.data(), ifUrEvent(phEvent, Event)));
+      numEventsInWaitList, numEventsInWaitList ? CLWaitEvents.data() : nullptr,
+      ifUrEvent(phEvent, Event)));
 
   UR_RETURN_ON_FAILURE(createUREvent(Event, hQueue->Context, hQueue, phEvent));
   return UR_RESULT_SUCCESS;

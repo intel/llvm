@@ -25,14 +25,31 @@ struct KernelCommandEventSyncUpdateTest
       ASSERT_NE(device_ptr, nullptr);
     }
 
-    // Index 0 is output
-    ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, device_ptrs[2]));
-    // Index 1 is A
-    ASSERT_SUCCESS(urKernelSetArgValue(kernel, 1, sizeof(A), nullptr, &A));
-    // Index 2 is X
-    ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 2, nullptr, device_ptrs[0]));
-    // Index 3 is Y
-    ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 3, nullptr, device_ptrs[1]));
+    // Build kernel args
+    saxpy_args[0] = {UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+                     nullptr,
+                     UR_EXP_KERNEL_ARG_TYPE_POINTER,
+                     0,
+                     sizeof(void *),
+                     {device_ptrs[2]}};
+    saxpy_args[1] = {UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+                     nullptr,
+                     UR_EXP_KERNEL_ARG_TYPE_VALUE,
+                     1,
+                     sizeof(A),
+                     {&A}};
+    saxpy_args[2] = {UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+                     nullptr,
+                     UR_EXP_KERNEL_ARG_TYPE_POINTER,
+                     2,
+                     sizeof(void *),
+                     {device_ptrs[0]}};
+    saxpy_args[3] = {UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+                     nullptr,
+                     UR_EXP_KERNEL_ARG_TYPE_POINTER,
+                     3,
+                     sizeof(void *),
+                     {device_ptrs[1]}};
   }
 
   virtual void TearDown() override {
@@ -59,6 +76,7 @@ struct KernelCommandEventSyncUpdateTest
                                                       nullptr};
   std::array<ur_exp_command_buffer_sync_point_t, 2> sync_points = {0, 0};
   ur_exp_command_buffer_command_handle_t command_handle = nullptr;
+  ur_exp_kernel_arg_properties_t saxpy_args[4] = {};
   static constexpr size_t elements = 64;
   static constexpr size_t global_offset = 0;
   static constexpr size_t allocation_size = sizeof(uint32_t) * elements;
@@ -84,10 +102,10 @@ TEST_P(KernelCommandEventSyncUpdateTest, Basic) {
       nullptr));
 
   // Kernel command for SAXPY waiting on command and signal event
-  ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchExp(
+  ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchWithArgsExp(
       updatable_cmd_buf_handle, kernel, 1, &global_offset, &elements, nullptr,
-      0, nullptr, 1, &sync_points[0], 1, &external_events[0], &sync_points[1],
-      &external_events[1], &command_handle));
+      4, saxpy_args, 0, nullptr, 1, &sync_points[0], 1, &external_events[0],
+      &sync_points[1], &external_events[1], &command_handle));
   ASSERT_NE(command_handle, nullptr);
 
   // command-buffer command that reads output to host
@@ -166,10 +184,10 @@ TEST_P(KernelCommandEventSyncUpdateTest, TwoWaitEvents) {
                                   &external_events[1]));
 
   // Kernel command for SAXPY waiting on command and signal event
-  ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchExp(
+  ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchWithArgsExp(
       updatable_cmd_buf_handle, kernel, 1, &global_offset, &elements, nullptr,
-      0, nullptr, 0, nullptr, 2, &external_events[0], &sync_points[0],
-      &external_events[2], &command_handle));
+      4, saxpy_args, 0, nullptr, 0, nullptr, 2, &external_events[0],
+      &sync_points[0], &external_events[2], &command_handle));
   ASSERT_NE(command_handle, nullptr);
 
   // command-buffer command that reads output to host
@@ -260,10 +278,10 @@ TEST_P(KernelCommandEventSyncUpdateTest, InvalidWaitUpdate) {
                                   &zero_pattern, allocation_size, 0, nullptr,
                                   &external_events[2]));
 
-  ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchExp(
+  ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchWithArgsExp(
       updatable_cmd_buf_handle, kernel, 1, &global_offset, &elements, nullptr,
-      0, nullptr, 0, nullptr, 1, &external_events[0], nullptr, nullptr,
-      &command_handle));
+      4, saxpy_args, 0, nullptr, 0, nullptr, 1, &external_events[0], nullptr,
+      nullptr, &command_handle));
 
   ASSERT_SUCCESS(urCommandBufferFinalizeExp(updatable_cmd_buf_handle));
 
@@ -281,9 +299,10 @@ TEST_P(KernelCommandEventSyncUpdateTest, InvalidWaitUpdate) {
 // Tests the correct error is returned when trying to update the
 // signal event from a command that was not created with one.
 TEST_P(KernelCommandEventSyncUpdateTest, InvalidSignalUpdate) {
-  ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchExp(
+  ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchWithArgsExp(
       updatable_cmd_buf_handle, kernel, 1, &global_offset, &elements, nullptr,
-      0, nullptr, 0, nullptr, 0, nullptr, nullptr, nullptr, &command_handle));
+      4, saxpy_args, 0, nullptr, 0, nullptr, 0, nullptr, nullptr, nullptr,
+      &command_handle));
 
   ASSERT_SUCCESS(urCommandBufferFinalizeExp(updatable_cmd_buf_handle));
 

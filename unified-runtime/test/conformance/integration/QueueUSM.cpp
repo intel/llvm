@@ -95,23 +95,63 @@ TEST_P(QueueUSMTest, QueueUSMTest) {
 
   for (uint32_t i = 0; i < NumIterations; ++i) {
     /* Copy from DeviceMem2 to DeviceMem1 and multiply by 2 */
-    ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, DeviceMem1));
-    ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 1, nullptr, DeviceMem2));
+    {
+      ur_exp_kernel_arg_value_t val0 = {};
+      val0.pointer = DeviceMem1;
+      ur_exp_kernel_arg_properties_t arg0 = {
+          UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+          nullptr,
+          UR_EXP_KERNEL_ARG_TYPE_POINTER,
+          0,
+          sizeof(void *),
+          val0};
 
-    ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, NDimensions,
-                                         &GlobalOffset, &ArraySize, nullptr,
-                                         nullptr, 0, nullptr, &Event));
+      ur_exp_kernel_arg_value_t val1 = {};
+      val1.pointer = DeviceMem2;
+      ur_exp_kernel_arg_properties_t arg1 = {
+          UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+          nullptr,
+          UR_EXP_KERNEL_ARG_TYPE_POINTER,
+          1,
+          sizeof(void *),
+          val1};
+
+      ur_exp_kernel_arg_properties_t args[] = {arg0, arg1};
+      ASSERT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
+          queue, kernel, NDimensions, &GlobalOffset, &ArraySize, nullptr, 2,
+          args, nullptr, 0, nullptr, &Event));
+    }
     ASSERT_NO_FATAL_FAILURE(submitBarrierIfNeeded(Event));
 
     CurValueMem2 = CurValueMem1 * 2;
 
     /* Copy from DeviceMem1 to DeviceMem2 and multiply by 2 */
-    ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, DeviceMem2));
-    ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 1, nullptr, DeviceMem1));
+    {
+      ur_exp_kernel_arg_value_t val0 = {};
+      val0.pointer = DeviceMem2;
+      ur_exp_kernel_arg_properties_t arg0 = {
+          UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+          nullptr,
+          UR_EXP_KERNEL_ARG_TYPE_POINTER,
+          0,
+          sizeof(void *),
+          val0};
 
-    ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, NDimensions,
-                                         &GlobalOffset, &ArraySize, nullptr,
-                                         nullptr, 0, nullptr, &Event));
+      ur_exp_kernel_arg_value_t val1 = {};
+      val1.pointer = DeviceMem1;
+      ur_exp_kernel_arg_properties_t arg1 = {
+          UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+          nullptr,
+          UR_EXP_KERNEL_ARG_TYPE_POINTER,
+          1,
+          sizeof(void *),
+          val1};
+
+      ur_exp_kernel_arg_properties_t args[] = {arg0, arg1};
+      ASSERT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
+          queue, kernel, NDimensions, &GlobalOffset, &ArraySize, nullptr, 2,
+          args, nullptr, 0, nullptr, &Event));
+    }
     ASSERT_NO_FATAL_FAILURE(submitBarrierIfNeeded(Event));
 
     CurValueMem1 = CurValueMem2 * 2;
