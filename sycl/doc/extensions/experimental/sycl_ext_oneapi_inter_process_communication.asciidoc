@@ -552,8 +552,6 @@ sycl::event open(const handle_data_view_t &handle_data, const sycl::context &ctx
 // Requires C++20
 sycl::event open(const handle_data_view_t &handle_data);
 
-void close(sycl::event &evt, const sycl::context &ctx);
-
 void close(sycl::event &evt);
 
 }
@@ -600,7 +598,7 @@ gets signaled, that state is automatically represented in the other event.
 
 [_Note:_ The `open` function can be called multiple times on the same handle
 within the same process. Each call to the `open` function may return a unique
-pointer value even for the same handle, therefore each call to the `open`
+event object even for the same handle, therefore each call to the `open`
 function must have a matching call to the `close` function.
 _{endnote}_]
 
@@ -665,35 +663,16 @@ return ipc::event::open(handle_data, ctx);
 a!
 [source]
 ----
-void close(sycl::event &evt, const sycl::context &ctx)
-----
-!====
-
-_Precondition:_ `evt` was previously returned from a call to the `open` function
-in this same process, where `ctx` was passed as the context. This `evt` value
-has not yet been closed by calling the `close` function.
-
-_Effects:_ Closes an event object previously returned by a call to the `open`
-function.
-
-!====
-a!
-[source]
-----
 void close(sycl::event &evt)
 ----
 !====
 
-_Effects_: Equivalent to:
+_Precondition:_ `evt` was previously returned from a call to the `open` function
+in this same process. This `evt` value has not yet been closed by calling the
+`close` function.
 
-[source,c++,indent=2]
-----
-sycl::device d;
-sycl::context ctxt = d.get_platform().khr_get_default_context();
-return ipc::event::close(evt, ctx);
-----
-
-
+_Effects:_ Closes an event object previously returned by a call to the `open`
+function.
 
 |====
 
