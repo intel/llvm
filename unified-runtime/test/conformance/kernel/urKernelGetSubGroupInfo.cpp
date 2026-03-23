@@ -10,9 +10,19 @@
 
 struct urKernelGetSubGroupInfoFixedSubGroupSizeTest : uur::urKernelTest {
   void SetUp() override {
+    // XFAIL rationale:
+    // This test expects COMPILE_NUM_SUB_GROUPS to reflect fixed_sg_size source
+    // metadata, but adapter behavior differs:
+    // - CUDA/HIP/NativeCPU return a trivial hard-coded 0.
+    // - Offload returns UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION.
+    // - OpenCL/LevelZero/LevelZeroV2 implement subgroup queries, but on some
+    // systems urProgramBuild fails first with "Unsupported required sub group size"
+    // (UR_RESULT_ERROR_PROGRAM_BUILD_FAILURE), so the runtime assertion regarding
+    // the urKernelGetSubGroupInfo query is not reached.
     // See https://github.com/oneapi-src/unified-runtime/issues/2514
-    UUR_KNOWN_FAILURE_ON(uur::CUDA{}, uur::HIP{}, uur::OpenCL{},
-                         uur::LevelZero{}, uur::LevelZeroV2{});
+    UUR_KNOWN_FAILURE_ON(uur::CUDA{}, uur::HIP{}, uur::OpenCL{}, uur::Offload{},
+                         uur::LevelZero{}, uur::LevelZeroV2{},
+                         uur::NativeCPU{});
     program_name = "fixed_sg_size";
     UUR_RETURN_ON_FATAL_FAILURE(urKernelTest::SetUp());
   }
