@@ -65,11 +65,25 @@ std::string getClangVendor() {
 #endif
 }
 
-std::string getSYCLBuildInfo() {
-#ifdef SYCL_BUILD_INFO
-  return SYCL_BUILD_INFO;
+std::string getDPCPPPreReleaseInfo() {
+#if PRE_RELEASE
+  std::string buf;
+  llvm::raw_string_ostream OS(buf);
+  OS << DPCPP_VERSION << " (pre-release)";
+  return buf;
 #else
-  return "development";
+  return DPCPP_VERSION;
+#endif
+}
+
+std::string getDPCPPVersion() {
+#ifdef SYCL_BUILD_INFO
+  std::string buf;
+  llvm::raw_string_ostream OS(buf);
+  OS << getDPCPPPreReleaseInfo() << " (" << SYCL_BUILD_INFO << ")";
+  return buf;
+#else
+  return getDPCPPPreReleaseInfo();
 #endif
 }
 
