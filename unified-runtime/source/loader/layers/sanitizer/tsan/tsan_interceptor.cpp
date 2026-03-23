@@ -399,9 +399,13 @@ ur_result_t TsanInterceptor::prepareLaunch(std::shared_ptr<ContextInfo> &,
   // Get suggested local work size if user doesn't determine it.
   if (LaunchInfo.LocalWorkSize.empty()) {
     LaunchInfo.LocalWorkSize.resize(LaunchInfo.WorkDim);
-    auto URes = getContext()->urDdiTable.Kernel.pfnGetSuggestedLocalWorkSize(
-        Kernel, Queue, LaunchInfo.WorkDim, LaunchInfo.GlobalWorkOffset.data(),
-        LaunchInfo.GlobalWorkSize, LaunchInfo.LocalWorkSize.data());
+    auto ArgNums = GetKernelNumArgs(Kernel);
+    auto URes =
+        getContext()->urDdiTable.Kernel.pfnGetSuggestedLocalWorkSizeWithArgs(
+            Kernel, Queue, LaunchInfo.WorkDim,
+            LaunchInfo.GlobalWorkOffset.data(), LaunchInfo.GlobalWorkSize,
+            ArgNums, KernelInfo.ArgProps.data(),
+            LaunchInfo.LocalWorkSize.data());
     if (URes != UR_RESULT_SUCCESS) {
       if (URes != UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
         return URes;

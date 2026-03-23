@@ -12,8 +12,8 @@
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142
 
 // Fails on CUDA 13, enable when fixed.
-// XFAIL: target-nvidia
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/21525
+// UNSUPPORTED: target-nvidia
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21525
 
 #include <cassert>
 #include <cstdlib>
