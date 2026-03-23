@@ -2142,8 +2142,11 @@ typedef enum ur_device_info_t {
   /// [uint32_t] max number of image objects arguments of a kernel declared
   /// with the write_only qualifier
   UR_DEVICE_INFO_MAX_WRITE_IMAGE_ARGS = 31,
-  /// [uint32_t] max number of image objects arguments of a kernel declared
-  /// with the read_write qualifier
+  /// [uint32_t][optional-query] max number of image objects arguments of a
+  /// kernel declared with the read_write qualifier. This query is optional
+  /// because not all adapters support read-write image arguments. For
+  /// example, CUDA has separate texture (read-only) and surface
+  /// (write-only) objects, but no combined read-write image type.
   UR_DEVICE_INFO_MAX_READ_WRITE_IMAGE_ARGS = 32,
   /// [size_t] max width of Image2D object
   UR_DEVICE_INFO_IMAGE2D_MAX_WIDTH = 33,

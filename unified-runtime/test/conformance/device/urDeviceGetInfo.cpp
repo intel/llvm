@@ -559,9 +559,10 @@ TEST_P(urDeviceGetInfoTest, SuccessMaxWriteImageArgs) {
                              property_value);
 }
 
+// Optional query: CUDA has separate texture (read-only) and surface
+// (write-only) objects but no combined read-write image type.
+// NativeCPU has no image support.
 TEST_P(urDeviceGetInfoTest, SuccessMaxReadWriteImageArgs) {
-  UUR_KNOWN_FAILURE_ON(uur::CUDA{}, uur::NativeCPU{});
-
   size_t property_size = 0;
   const ur_device_info_t property_name =
       UR_DEVICE_INFO_MAX_READ_WRITE_IMAGE_ARGS;

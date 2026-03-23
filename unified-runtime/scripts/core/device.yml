@@ -265,7 +265,7 @@ etors:
     - name: MAX_WRITE_IMAGE_ARGS
       desc: "[uint32_t] max number of image objects arguments of a kernel declared with the write_only qualifier"
     - name: MAX_READ_WRITE_IMAGE_ARGS
-      desc: "[uint32_t] max number of image objects arguments of a kernel declared with the read_write qualifier"
+      desc: "[uint32_t][optional-query] max number of image objects arguments of a kernel declared with the read_write qualifier. This query is optional because not all adapters support read-write image arguments. For example, CUDA has separate texture (read-only) and surface (write-only) objects, but no combined read-write image type."
     - name: IMAGE2D_MAX_WIDTH
       desc: "[size_t] max width of Image2D object"
     - name: IMAGE2D_MAX_HEIGHT

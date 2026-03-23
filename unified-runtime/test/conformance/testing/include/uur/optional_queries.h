@@ -27,6 +27,7 @@ template <class T> bool isQueryOptional(T) { return false; }
 constexpr std::array optional_ur_device_info_t = {
     UR_DEVICE_INFO_DEVICE_ID,
     UR_DEVICE_INFO_MEMORY_CLOCK_RATE,
+    UR_DEVICE_INFO_MAX_READ_WRITE_IMAGE_ARGS,
     UR_DEVICE_INFO_GLOBAL_MEM_FREE,
     UR_DEVICE_INFO_UUID,
     UR_DEVICE_INFO_PCI_ADDRESS,
