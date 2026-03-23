@@ -10030,6 +10030,9 @@ urCommandBufferAppendKernelLaunchWithArgsExp(
     if (NULL == pGlobalWorkSize)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
+    if (pArgs == NULL && numArgs > 0)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
     if (NULL == hCommandBuffer)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
