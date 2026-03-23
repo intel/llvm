@@ -271,7 +271,7 @@ endfunction()
 function(add_libclc_builtin_set)
   cmake_parse_arguments(ARG
     "CLC_INTERNAL"
-    "ARCH;DEVICE;TRIPLE;ARCH_SUFFIX;REMANGLE;OUTPUT_FILENAME;PARENT_TARGET"
+    "ARCH;DEVICE;TRIPLE;ARCH_SUFFIX;OUTPUT_FILENAME;PARENT_TARGET"
     "LIB_FILES;COMPILE_FLAGS;OPT_FLAGS;ALIASES;INTERNAL_LINK_DEPENDENCIES"
     ${ARGN}
   )
@@ -453,70 +453,6 @@ function(add_libclc_builtin_set)
   # SPIR-V targets can exit early here
   if( ARG_ARCH STREQUAL spirv OR ARG_ARCH STREQUAL spirv64 )
     return()
-  endif()
-
-  # Generate remangled variants if requested
-  if( ARG_REMANGLE )
-    set( dummy_in ${library_dir}/libclc_dummy_in.cc )
-    add_custom_command( OUTPUT ${dummy_in}
-      COMMAND ${CMAKE_COMMAND} -E touch ${dummy_in}
-    )
-    set(long_widths l32 l64)
-    set(char_signedness signed unsigned)
-
-    # All permutations of [l32, l64] and [signed, unsigned]
-    foreach(long_width ${long_widths})
-      foreach(signedness ${char_signedness})
-        # Remangle
-        set( remangled_filename remangled-${long_width}-${signedness}_char.${LIBCLC_OUTPUT_FILENAME}.bc )
-        set( builtins_remangle_path "${library_dir}/${remangled_filename}" )
-
-        add_custom_command( OUTPUT "${builtins_remangle_path}"
-          COMMAND ${libclc-remangler_exe}
-          -o "${builtins_remangle_path}"
-          --triple=${ARG_TRIPLE}
-          --long-width=${long_width}
-          --char-signedness=${signedness}
-          --input-ir=${libclc_builtins_lib}
-          ${dummy_in}
-          DEPENDS library-${ARG_ARCH_SUFFIX} ${libclc_builtins_lib} ${libclc-remangler_target} ${dummy_in})
-        set( remangled_target ${remangled_filename}.${ARG_TRIPLE} )
-        add_custom_target( ${remangled_target} ALL
-          DEPENDS "${builtins_remangle_path}" "${dummy_in}" )
-        set_target_properties( ${remangled_target}
-          PROPERTIES TARGET_FILE "${builtins_remangle_path}" )
-
-        # Add dependency to top-level pseudo target to ease making other
-        # targets dependent on libclc.
-        add_dependencies( ${ARG_PARENT_TARGET} ${remangled_target} )
-
-        # Keep remangled variants
-        install(
-          FILES ${builtins_remangle_path}
-          DESTINATION ${LIBCLC_INSTALL_DIR}/${ARG_TRIPLE}
-          COMPONENT ${ARG_PARENT_TARGET}
-        )
-      endforeach()
-    endforeach()
-
-    # For remangler tests we do not care about long_width, or signedness, as it
-    # performs no substitutions.
-    # Collect all remangler tests in libclc-remangler-tests to later add
-    # dependency against check-libclc.
-    set(libclc-remangler-tests)
-    set(libclc-remangler-test-no 0)
-    foreach(target-ir ${builtins_opt_lib} ${builtins_link_lib} ${libclc_builtins_lib})
-      math(EXPR libclc-remangler-test-no "${libclc-remangler-test-no}+1")
-      set(current-test "libclc-remangler-test-${ARG_ARCH_SUFFIX}-${libclc-remangler-test-no}")
-      add_custom_target(${current-test}
-        COMMAND ${libclc-remangler_exe}
-        --long-width=l32
-        --char-signedness=signed
-        --input-ir=${target-ir}
-        ${dummy_in} -t -o -
-        DEPENDS ${libclc_builtins_lib} "${dummy_in}" ${libclc-remangler_target})
-      list(APPEND libclc-remangler-tests ${current-test})
-    endforeach()
   endif()
 
   # Add a test for whether or not the libraries contain unresolved functions

@@ -1,6 +1,6 @@
 // REQUIRES: cuda
 
-// RUN: %clangxx -fsycl -fsycl-targets=nvptx64-nvidia-cuda -S -Xclang -emit-llvm %s -o -| FileCheck %s
+// RUN: %clangxx -fsycl -fsycl-targets=nvptx64-nvidia-cuda -S -Xclang -emit-llvm -Xclang -mno-link-builtin-bitcode-postopt %s -o -| FileCheck %s
 
 #include <sycl/sycl.hpp>
 

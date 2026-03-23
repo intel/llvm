@@ -566,12 +566,8 @@ passed to `-fsycl-targets`.
 Unlike other AOT targets, the bitcode module linked from intermediate compiled
 objects never goes through SPIR-V. Instead it is passed directly in bitcode form
 down to the NVPTX Back End. All produced bitcode depends on two libraries,
-`libdevice.bc` (provided by the CUDA SDK) and `libspirv.bc` variants
-(built by the libclc project). `libspirv.bc` is not used directly.
-Instead it is used to generate remangled variants
-`remangled-l64-signed_char.libspirv.bc` and
-`remangled-l32-signed_char.libspirv.bc` to handle primitive type
-differences between Linux and Windows.
+`libdevice.bc` (provided by the CUDA SDK) and `libspirv.bc` (built by the libclc
+project).
 
 ##### Device code post-link step for CUDA
 
@@ -604,17 +600,9 @@ Builtins are implemented in OpenCL C within libclc. OpenCL C treats `long`
 types as 64 bit and has no `long long` types while Windows DPC++ treats `long`
 types like 32-bit integers and `long long` types like 64-bit integers.
 Differences between the primitive types can cause applications to use
-incompatible libclc built-ins. A remangler creates multiple libspirv files
-with different remangled function names to support both Windows and Linux.
-When building a SYCL application targeting the CUDA backend the driver
-will link the device code with
-`remangled-l32-signed_char.libspirv.bc` if the host target is
-Windows or it will link the device code with
-`remangled-l64-signed_char.libspirv.bc` if the host target is
-Linux.
-
-When the SYCL compiler is in device mode and targeting the NVPTX backend, the
-compiler exposes NVPTX builtins supported by clang.
+incompatible libclc built-ins. When building a SYCL application targeting the
+CUDA backend, the SYCLBuiltinRemangle pass remangles SPIR-V builtins in device
+code to be compliant with OpenCL mangling before linking in `libspirv.bc`.
 
 *Note: this enable NVPTX specific features which cannot be supported by other
 targets or the host.*

@@ -42,7 +42,7 @@
 
 // CHECK: llvm-link
 // CHECK-SAME: -only-needed
-// CHECK-SAME: remangled-{{.*}}-signed_char.libspirv.bc
+// CHECK-SAME: libspirv.bc
 // LIBDEVICE10-SAME: libdevice.10.bc
 // LIBDEVICE30-SAME: libdevice.compute_30.10.bc
 // LIBDEVICE35-SAME: libdevice.compute_35.10.bc

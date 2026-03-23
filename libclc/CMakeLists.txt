@@ -135,7 +135,7 @@ if( EXISTS ${LIBCLC_CUSTOM_LLVM_TOOLS_BINARY_DIR} )
   # the variable name is used to cache the result of find_program. If we used
   # the same name, a user wouldn't be able to switch a build between default
   # and custom tools.
-  foreach( tool IN ITEMS clang llvm-as llvm-link opt llvm-spirv libclc-remangler )
+  foreach( tool IN ITEMS clang llvm-as llvm-link opt llvm-spirv )
     find_program( LLVM_CUSTOM_TOOL_${tool} ${tool}
       PATHS ${LIBCLC_CUSTOM_LLVM_TOOLS_BINARY_DIR} NO_DEFAULT_PATH )
     set( ${tool}_exe ${LLVM_CUSTOM_TOOL_${tool}} )
@@ -144,7 +144,7 @@ if( EXISTS ${LIBCLC_CUSTOM_LLVM_TOOLS_BINARY_DIR} )
 
   # If we've requested a custom binary directory, there are some otherwise
   # optional tools which we want to ensure are present.
-  foreach( tool IN ITEMS llvm-spirv libclc-remangler )
+  foreach( tool IN ITEMS llvm-spirv )
     if( NOT EXISTS "${${tool}_exe}" AND "${${tool}_target}" STREQUAL "" )
       message( FATAL_ERROR "libclc toolchain incomplete!" )
     endif()
@@ -197,9 +197,6 @@ if( LIBCLC_USE_SPIRV_BACKEND OR llvm-spirv_exe )
   list( APPEND LIBCLC_TARGETS_ALL spirv-mesa3d- spirv64-mesa3d- )
 endif()
 
-option( LIBCLC_GENERATE_REMANGLED_VARIANTS
-  "Generate remangled variants of enabled libclc targets." OFF )
-
 # Verify that the user hasn't requested mesa3d targets without an available
 # llvm-spirv tool.
 if( spirv-mesa3d- IN_LIST LIBCLC_TARGETS_TO_BUILD
@@ -244,9 +241,6 @@ endforeach(t)
 # llvm build directory, this includes $src/llvm/include which is where all the
 # headers are not $build/include/ which is what LLVM_INCLUDE_DIR is set to.
 include_directories( ${LLVM_INCLUDE_DIRS} )
-
-# Configure libclc-remangler tool
-add_subdirectory( utils )
 
 # Setup arch devices
 set( r600--_devices cedar cypress barts cayman )
@@ -565,7 +559,6 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
         ARCH ${ARCH}
         ARCH_SUFFIX libspirv-${arch_suffix}
         TRIPLE ${clang_triple}
-        REMANGLE ${LIBCLC_GENERATE_REMANGLED_VARIANTS}
         COMPILE_FLAGS ${spirv_build_flags}
         OPT_FLAGS ${opt_flags}
         LIB_FILES ${libspirv_lib_files}

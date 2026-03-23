@@ -34,14 +34,7 @@ SYCLInstallationDetector::SYCLInstallationDetector(
 
 static llvm::SmallString<64>
 getLibSpirvBasename(const llvm::Triple &HostTriple) {
-  // Select remangled libclc variant.
-  // Decide long size based on host triple, because offloading targets are going
-  // to match that.
-  // All known windows environments except Cygwin use 32-bit long.
-  llvm::SmallString<64> Result(HostTriple.isOSWindows() &&
-                                       !HostTriple.isWindowsCygwinEnvironment()
-                                   ? "remangled-l32-signed_char.libspirv.bc"
-                                   : "remangled-l64-signed_char.libspirv.bc");
+  llvm::SmallString<64> Result("libspirv.bc");
   return Result;
 }
 
@@ -80,6 +73,7 @@ void SYCLInstallationDetector::addLibspirvLinkArgs(
 
   if (const char *LibSpirvFile =
           findLibspirvPath(DeviceTriple, DriverArgs, HostTriple)) {
+    CC1Args.push_back("-mlink-builtin-bitcode-postopt");
     CC1Args.push_back("-mlink-builtin-bitcode");
     CC1Args.push_back(LibSpirvFile);
     return;

@@ -838,16 +838,8 @@ Error jit_compiler::linkDeviceLibraries(llvm::Module &Module,
   getDeviceLibraries(UserArgList, LibNames, Format);
   const bool IsCudaHIP =
       Format == BinaryFormat::PTX || Format == BinaryFormat::AMDGCN;
-  if (IsCudaHIP) {
-    // Based on the OS and the format decide on the version of libspirv.
-    // NOTE: this will be problematic if cross-compiling between OSes.
-#ifdef _WIN32
-    std::string Libclc = "remangled-l32-signed_char.libspirv.bc";
-#else
-    std::string Libclc = "remangled-l64-signed_char.libspirv.bc";
-#endif
-    LibNames.push_back(Libclc);
-  }
+  if (IsCudaHIP)
+    LibNames.push_back("libspirv.bc");
 
   LLVMContext &Context = Module.getContext();
   SYCLToolchain &TC = SYCLToolchain::instance();

@@ -1,12 +1,17 @@
-// RUN: %{build} -o %t1.out -Wno-deprecated-declarations
+// RUN: %{build} -o %t1.out -Wno-deprecated-declarations -Xclang -mno-link-builtin-bitcode-postopt
 // RUN: %{run} %t1.out
 //
-// RUN: %{build} -DUSE_DEPRECATED_LOCAL_ACC -o %t2.out -Wno-deprecated-declarations
+// RUN: %{build} -DUSE_DEPRECATED_LOCAL_ACC -o %t2.out -Wno-deprecated-declarations -Xclang -mno-link-builtin-bitcode-postopt
 // RUN: %{run} %t2.out
 
 // Depends on SPIR-V Backend & run-time drivers version.
 // XFAIL: spirv-backend && gpu
 // XFAIL-TRACKER: CMPLRLLVM-64705
+
+// Flag `-Xclang -mno-link-builtin-bitcode-postopt` is a workaround for
+// native-cpu device bug: __spirv_BuiltInGlobalInvocationId and
+// __spirv_BuiltInSubgroupSize are not inlined, but Packetizer fails to
+// handle these symbols unless they are inlined as __mux_get_sub_group_size.
 
 #include <sycl/detail/core.hpp>
 #include <sycl/sub_group.hpp>
