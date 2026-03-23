@@ -81,8 +81,6 @@ struct urUSMContextMemcpyExpTestDevice : urUSMContextMemcpyExpTest {
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_MULTI_QUEUE(urUSMContextMemcpyExpTestDevice);
 
 TEST_P(urUSMContextMemcpyExpTestDevice, Success) {
-  // https://github.com/intel/llvm/issues/19688
-  UUR_KNOWN_FAILURE_ON(uur::CUDA{});
   ASSERT_SUCCESS(
       urUSMContextMemcpyExp(context, dst_ptr, src_ptr, allocation_size));
   verifyData();

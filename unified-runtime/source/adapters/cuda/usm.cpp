@@ -574,10 +574,18 @@ urUSMPoolTrimToExp(ur_context_handle_t hContext, ur_device_handle_t hDevice,
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urUSMContextMemcpyExp(ur_context_handle_t,
-                                                          void *pDst,
-                                                          const void *pSrc,
-                                                          size_t Size) {
+UR_APIEXPORT ur_result_t UR_APICALL urUSMContextMemcpyExp(
+    ur_context_handle_t hContext, void *pDst, const void *pSrc, size_t Size) {
+  // cuMemcpy is synchronous with respect to the host, but it does not
+  // synchronize with any device streams. We need to synchronize all streams
+  // in the context before performing the copy to ensure all previous
+  // operations have completed.
+  //
+  // Set the context and synchronize all streams
+  ScopedContext Active(hContext->getDevices().front());
+  UR_CHECK_ERROR(cuCtxSynchronize());
+
+  // Now perform the synchronous copy
   UR_CHECK_ERROR(cuMemcpy((CUdeviceptr)pDst, (CUdeviceptr)pSrc, Size));
   return UR_RESULT_SUCCESS;
 }
