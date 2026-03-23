@@ -557,7 +557,8 @@ public:
   /// \param DepEvents is a vector of events that specifies the kernel
   /// dependencies.
   /// \param CallerNeedsEvent specifies if the caller expects a usable event.
-  /// \return an event representing fill operation.
+  /// \return an event representing the fill operation if requested, nullptr
+  /// otherwise.
   EventImplPtr memset(void *Ptr, int Value, size_t Count,
                       const std::vector<event> &DepEvents,
                       bool CallerNeedsEvent);
@@ -570,7 +571,8 @@ public:
   /// \param DepEvents is a vector of events that specifies the kernel
   /// dependencies.
   /// \param CallerNeedsEvent specifies if the caller expects a usable event.
-  /// \return an event representing copy operation.
+  /// \return an event representing the fill operation if requested, nullptr
+  /// otherwise.
   EventImplPtr memcpy(void *Dest, const void *Src, size_t Count,
                       const std::vector<event> &DepEvents,
                       bool CallerNeedsEvent, const code_location &CodeLoc);
@@ -583,7 +585,8 @@ public:
   /// \param DepEvents is a vector of events that specifies the kernel
   /// dependencies.
   /// \param CallerNeedsEvent specifies if the caller expects a usable event.
-  /// \return an event representing advise operation.
+  /// \return an event representing the advise operation if requested, nullptr
+  /// otherwise.
   EventImplPtr mem_advise(const void *Ptr, size_t Length,
                           ur_usm_advice_flags_t Advice,
                           const std::vector<event> &DepEvents,
@@ -959,6 +962,8 @@ protected:
   /// \param DepEvents is a vector of dependencies of the operation.
   /// \param HandlerFunc is a function that submits the operation with a
   ///        handler.
+  /// \return an event representing the submitted command group if requested,
+  /// nullptr otherwise.
   template <typename HandlerFuncT>
   EventImplPtr submitWithHandler(const std::vector<event> &DepEvents,
                                  bool CallerNeedsEvent,
@@ -977,7 +982,8 @@ protected:
   /// \param MemMngrArgs are all the arguments that need to be passed to memory
   ///        manager except the last three: dependencies, UR event and
   ///        EventImplPtr are filled out by this helper.
-  /// \return an event representing the submitted operation.
+  /// \return an event representing the submitted operation if requested,
+  /// nullptr otherwise.
   template <typename HandlerFuncT, typename MemMngrFuncT,
             typename... MemMngrArgTs>
   EventImplPtr
