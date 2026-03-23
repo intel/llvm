@@ -62,7 +62,6 @@
 // CHECK: Adapters/enqueue-arg-order-image.cpp
 // CHECK-NEXT: Adapters/level_zero/batch_event_status.cpp
 // CHECK-NEXT: Adapters/level_zero/interop-buffer-ownership.cpp
-// CHECK-NEXT: Adapters/level_zero/interop-buffer.cpp
 // CHECK-NEXT: Adapters/level_zero/interop-image-get-native-mem.cpp
 // CHECK-NEXT: Adapters/level_zero/interop-image-ownership.cpp
 // CHECK-NEXT: Adapters/level_zero/interop-image-ownership.cpp
