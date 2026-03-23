@@ -9,6 +9,9 @@
 // UNSUPPORTED: cuda
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/19533
 
+// UNSUPPORTED: windows && arch-intel_gpu_bmg_g21
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21592
+
 // RUN: %clangxx --offload-new-driver -fsyclbin=executable -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen "-device bmg-g21" %S/Inputs/dg_kernel.cpp -o %t.syclbin
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out %t.syclbin

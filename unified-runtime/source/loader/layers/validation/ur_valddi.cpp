@@ -6888,6 +6888,78 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urKernelGetSuggestedLocalWorkSizeWithArgs
+__urdlllocal ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSizeWithArgs(
+    /// [in] handle of the kernel
+    ur_kernel_handle_t hKernel,
+    /// [in] handle of the queue object
+    ur_queue_handle_t hQueue,
+    /// [in] number of dimensions, from 1 to 3, to specify the global
+    /// and work-group work-items
+    uint32_t numWorkDim,
+    /// [in] pointer to an array of numWorkDim unsigned values that specify
+    /// the offset used to calculate the global ID of a work-item
+    const size_t *pGlobalWorkOffset,
+    /// [in] pointer to an array of numWorkDim unsigned values that specify
+    /// the number of global work-items in workDim that will execute the
+    /// kernel function
+    const size_t *pGlobalWorkSize,
+    /// [in] Number of entries in pArgs
+    uint32_t numArgs,
+    /// [in][optional][range(0, numArgs)] pointer to a list of kernel arg
+    /// properties.
+    const ur_exp_kernel_arg_properties_t *pArgs,
+    /// [out] pointer to an array of numWorkDim unsigned values that specify
+    /// suggested local work size that will contain the result of the query
+    size_t *pSuggestedLocalWorkSize) {
+  auto pfnGetSuggestedLocalWorkSizeWithArgs =
+      getContext()->urDdiTable.Kernel.pfnGetSuggestedLocalWorkSizeWithArgs;
+
+  if (nullptr == pfnGetSuggestedLocalWorkSizeWithArgs) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == pGlobalWorkOffset)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == pGlobalWorkSize)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == pSuggestedLocalWorkSize)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (pArgs == NULL && numArgs > 0)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hKernel)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hQueue)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL != pArgs && UR_EXP_KERNEL_ARG_TYPE_SAMPLER < pArgs->type)
+      return UR_RESULT_ERROR_INVALID_ENUMERATION;
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hKernel)) {
+    URLOG_CTX_INVALID_REFERENCE(hKernel);
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hQueue)) {
+    URLOG_CTX_INVALID_REFERENCE(hQueue);
+  }
+
+  ur_result_t result = pfnGetSuggestedLocalWorkSizeWithArgs(
+      hKernel, hQueue, numWorkDim, pGlobalWorkOffset, pGlobalWorkSize, numArgs,
+      pArgs, pSuggestedLocalWorkSize);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urKernelSuggestMaxCooperativeGroupCount
 __urdlllocal ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCount(
     /// [in] handle of the kernel object
@@ -10030,6 +10102,9 @@ urCommandBufferAppendKernelLaunchWithArgsExp(
     if (NULL == pGlobalWorkSize)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
+    if (pArgs == NULL && numArgs > 0)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
     if (NULL == hCommandBuffer)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
@@ -12624,6 +12699,11 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetKernelProcAddrTable(
       pDdiTable->pfnGetSuggestedLocalWorkSize;
   pDdiTable->pfnGetSuggestedLocalWorkSize =
       ur_validation_layer::urKernelGetSuggestedLocalWorkSize;
+
+  dditable.pfnGetSuggestedLocalWorkSizeWithArgs =
+      pDdiTable->pfnGetSuggestedLocalWorkSizeWithArgs;
+  pDdiTable->pfnGetSuggestedLocalWorkSizeWithArgs =
+      ur_validation_layer::urKernelGetSuggestedLocalWorkSizeWithArgs;
 
   dditable.pfnSetArgValue = pDdiTable->pfnSetArgValue;
   pDdiTable->pfnSetArgValue = ur_validation_layer::urKernelSetArgValue;

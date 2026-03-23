@@ -4,6 +4,9 @@
 // UR_L0_BATCH_SIZE; V2 does not preserve these zeCommandListClose/
 // zeCommandQueueExecuteCommandLists flush points.
 
+// UNSUPPORTED: windows && gpu-intel-gen12
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21556
+
 // RUN: %{build} -o %t.out
 
 // Set batching to 4 explicitly

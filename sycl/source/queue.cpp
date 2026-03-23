@@ -98,84 +98,97 @@ queue::ext_oneapi_get_graph() const {
 
 void queue::throw_asynchronous() { impl->throw_asynchronous(); }
 
+namespace {
+event memOpHelper(detail::EventImplPtr &&EventImpl) {
+  assert(EventImpl);
+  return detail::createSyclObjFromImpl<event>(std::move(EventImpl));
+}
+} // namespace
+
 event queue::memset(void *Ptr, int Value, size_t Count,
                     const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-  return impl->memset(Ptr, Value, Count, {}, /*CallerNeedsEvent=*/true);
+  return memOpHelper(
+      impl->memset(Ptr, Value, Count, {}, /*CallerNeedsEvent=*/true));
 }
 
 event queue::memset(void *Ptr, int Value, size_t Count, event DepEvent,
                     const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-  return impl->memset(Ptr, Value, Count, {DepEvent},
-                      /*CallerNeedsEvent=*/true);
+  return memOpHelper(impl->memset(Ptr, Value, Count, {DepEvent},
+                                  /*CallerNeedsEvent=*/true));
 }
 
 event queue::memset(void *Ptr, int Value, size_t Count,
                     const std::vector<event> &DepEvents,
                     const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-  return impl->memset(Ptr, Value, Count, DepEvents,
-                      /*CallerNeedsEvent=*/true);
+  return memOpHelper(impl->memset(Ptr, Value, Count, DepEvents,
+                                  /*CallerNeedsEvent=*/true));
 }
 
 event queue::memcpy(void *Dest, const void *Src, size_t Count,
                     const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-  return impl->memcpy(Dest, Src, Count, {}, /*CallerNeedsEvent=*/true,
-                      TlsCodeLocCapture.query());
+  return memOpHelper(impl->memcpy(Dest, Src, Count, {},
+                                  /*CallerNeedsEvent=*/true,
+                                  TlsCodeLocCapture.query()));
 }
 
 event queue::memcpy(void *Dest, const void *Src, size_t Count, event DepEvent,
                     const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-  return impl->memcpy(Dest, Src, Count, {DepEvent},
-                      /*CallerNeedsEvent=*/true, TlsCodeLocCapture.query());
+  return memOpHelper(impl->memcpy(Dest, Src, Count, {DepEvent},
+                                  /*CallerNeedsEvent=*/true,
+                                  TlsCodeLocCapture.query()));
 }
 
 event queue::memcpy(void *Dest, const void *Src, size_t Count,
                     const std::vector<event> &DepEvents,
                     const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-  return impl->memcpy(Dest, Src, Count, DepEvents,
-                      /*CallerNeedsEvent=*/true, TlsCodeLocCapture.query());
+  return memOpHelper(impl->memcpy(Dest, Src, Count, DepEvents,
+                                  /*CallerNeedsEvent=*/true,
+                                  TlsCodeLocCapture.query()));
 }
 
 event queue::mem_advise(const void *Ptr, size_t Length, int Advice,
                         const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-  return impl->mem_advise(Ptr, Length, ur_usm_advice_flags_t(Advice), {},
-                          /*CallerNeedsEvent=*/true);
+  return memOpHelper(impl->mem_advise(Ptr, Length,
+                                      ur_usm_advice_flags_t(Advice), {},
+                                      /*CallerNeedsEvent=*/true));
 }
 
 event queue::mem_advise(const void *Ptr, size_t Length, int Advice,
                         event DepEvent, const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-  return impl->mem_advise(Ptr, Length, ur_usm_advice_flags_t(Advice),
-                          {DepEvent},
-                          /*CallerNeedsEvent=*/true);
+  return memOpHelper(impl->mem_advise(Ptr, Length,
+                                      ur_usm_advice_flags_t(Advice), {DepEvent},
+                                      /*CallerNeedsEvent=*/true));
 }
 
 event queue::mem_advise(const void *Ptr, size_t Length, int Advice,
                         const std::vector<event> &DepEvents,
                         const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-  return impl->mem_advise(Ptr, Length, ur_usm_advice_flags_t(Advice), DepEvents,
-                          /*CallerNeedsEvent=*/true);
+  return memOpHelper(impl->mem_advise(Ptr, Length,
+                                      ur_usm_advice_flags_t(Advice), DepEvents,
+                                      /*CallerNeedsEvent=*/true));
 }
 
-event queue::submit_with_event_impl(const detail::type_erased_cgfo_ty &CGH,
+event queue::submit_with_event_impl(const detail::type_erased_cgfo_ty &CGF,
                                     const detail::SubmissionInfo &SubmitInfo,
                                     const detail::code_location &CodeLoc,
                                     bool IsTopCodeLoc) const {
-  return impl->submit_with_event(CGH, SubmitInfo, CodeLoc, IsTopCodeLoc);
+  return impl->submit_with_event(CGF, SubmitInfo, CodeLoc, IsTopCodeLoc);
 }
 
-void queue::submit_without_event_impl(const detail::type_erased_cgfo_ty &CGH,
+void queue::submit_without_event_impl(const detail::type_erased_cgfo_ty &CGF,
                                       const detail::SubmissionInfo &SubmitInfo,
                                       const detail::code_location &CodeLoc,
                                       bool IsTopCodeLoc) const {
-  impl->submit_without_event(CGH, SubmitInfo, CodeLoc, IsTopCodeLoc);
+  impl->submit_without_event(CGF, SubmitInfo, CodeLoc, IsTopCodeLoc);
 }
 
 void queue::wait_proxy(const detail::code_location &CodeLoc) {
@@ -269,18 +282,18 @@ event queue::memcpyToDeviceGlobal(void *DeviceGlobalPtr, const void *Src,
                                   bool IsDeviceImageScope, size_t NumBytes,
                                   size_t Offset,
                                   const std::vector<event> &DepEvents) {
-  return impl->memcpyToDeviceGlobal(DeviceGlobalPtr, Src, IsDeviceImageScope,
-                                    NumBytes, Offset, DepEvents,
-                                    /*CallerNeedsEvent=*/true);
+  return memOpHelper(impl->memcpyToDeviceGlobal(
+      DeviceGlobalPtr, Src, IsDeviceImageScope, NumBytes, Offset, DepEvents,
+      /*CallerNeedsEvent=*/true));
 }
 
 event queue::memcpyFromDeviceGlobal(void *Dest, const void *DeviceGlobalPtr,
                                     bool IsDeviceImageScope, size_t NumBytes,
                                     size_t Offset,
                                     const std::vector<event> &DepEvents) {
-  return impl->memcpyFromDeviceGlobal(Dest, DeviceGlobalPtr, IsDeviceImageScope,
-                                      NumBytes, Offset, DepEvents,
-                                      /*CallerNeedsEvent=*/true);
+  return memOpHelper(impl->memcpyFromDeviceGlobal(
+      Dest, DeviceGlobalPtr, IsDeviceImageScope, NumBytes, Offset, DepEvents,
+      /*CallerNeedsEvent=*/true));
 }
 
 sycl::detail::optional<event> queue::ext_oneapi_get_last_event_impl() const {

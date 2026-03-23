@@ -7,6 +7,9 @@
 // UR_L0_BATCH_SIZE; V2 does not preserve these zeCommandListClose/
 // zeCommandQueueExecuteCommandLists flush points.
 
+// UNSUPPORTED: windows && gpu-intel-gen12
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21556
+
 // To test batching on out-of-order queue:
 // Set batching to 4 explicitly
 // RUN: env UR_L0_BATCH_SIZE=4 UR_L0_DEVICE_SCOPE_EVENTS=2 UR_L0_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t.ooo.out 2>&1 | FileCheck --check-prefixes=CKALL,CKB4 %s
