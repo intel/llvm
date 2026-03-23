@@ -10324,7 +10324,7 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
             TCArgs.MakeArgString(Twine("-mcmodel=") + A->getValue()));
 
       SmallString<128> ClangPath(C.getDriver().Dir);
-      llvm::sys::path::append(ClangPath, "clang");
+      llvm::sys::path::append(ClangPath, "dpclang");
       const char *Clang = C.getArgs().MakeArgString(ClangPath);
       auto PostWrapCompileCmd =
           std::make_unique<Command>(JA, *this, ResponseFileSupport::None(),

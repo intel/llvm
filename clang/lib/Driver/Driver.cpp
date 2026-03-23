@@ -10466,17 +10466,17 @@ Driver::getOptionVisibilityMask(bool UseDriverMode) const {
 const char *Driver::getExecutableForDriverMode(DriverMode Mode) {
   switch (Mode) {
   case GCCMode:
-    return "clang";
+    return "dpclang";
   case GXXMode:
-    return "clang++";
+    return "dpclang++";
   case CPPMode:
-    return "clang-cpp";
+    return "dpclang-cpp";
   case CLMode:
-    return "clang-cl";
+    return "dpclang-cl";
   case FlangMode:
     return "flang";
   case DXCMode:
-    return "clang-dxc";
+    return "dpclang-dxc";
   }
 
   llvm_unreachable("Unhandled Mode");

@@ -43,7 +43,7 @@
 [
 {
     "directory": "DIR",
-    "command": "clang -x c-header -c DIR/prebuild.h -isysroot DIR/MacOSX.sdk -IDIR/BuildDir -ivfsoverlay DIR/overlay.json -IDIR/MacOSX.sdk/usr/include -fmodules -fmodules-cache-path=DIR/module-cache -fimplicit-module-maps -o DIR/prebuild.pch",
+    "command": "dpclang -x c-header -c DIR/prebuild.h -isysroot DIR/MacOSX.sdk -IDIR/BuildDir -ivfsoverlay DIR/overlay.json -IDIR/MacOSX.sdk/usr/include -fmodules -fmodules-cache-path=DIR/module-cache -fimplicit-module-maps -o DIR/prebuild.pch",
     "file": "DIR/prebuild.h"
 }
 ]
@@ -52,7 +52,7 @@
 [
 {
     "directory": "DIR",
-    "command": "clang -c DIR/client.c -isysroot DIR/MacOSX.sdk -IDIR/BuildDir -ivfsoverlay DIR/overlay.json -IDIR/MacOSX.sdk/usr/include -fmodules -fmodules-cache-path=DIR/module-cache -fimplicit-module-maps -include-pch DIR/prebuild.pch",
+    "command": "dpclang -c DIR/client.c -isysroot DIR/MacOSX.sdk -IDIR/BuildDir -ivfsoverlay DIR/overlay.json -IDIR/MacOSX.sdk/usr/include -fmodules -fmodules-cache-path=DIR/module-cache -fimplicit-module-maps -include-pch DIR/prebuild.pch",
     "file": "DIR/client.c"
 }
 ]

@@ -41,7 +41,7 @@ if(SYCL_TEST_E2E_STANDALONE)
   set(SYCL_CXX_COMPILER ${CMAKE_CXX_COMPILER})
   set(SYCL_E2E_CLANG_CXX_FLAGS ${CMAKE_CXX_FLAGS})
 else()
-  set(SYCL_CXX_COMPILER "${LLVM_BINARY_DIR}/bin/clang++")
+  set(SYCL_CXX_COMPILER "${LLVM_BINARY_DIR}/bin/dpclang++")
   set(SYCL_E2E_CLANG_CXX_FLAGS "" CACHE STRING
       "Flags passed to clang++ when building SYCL end-to-end tests")
 endif() # Standalone.

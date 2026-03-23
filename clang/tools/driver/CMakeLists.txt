@@ -55,6 +55,8 @@ add_clang_tool(clang
   GENERATE_DRIVER
   )
 
+set_target_properties(clang PROPERTIES OUTPUT_NAME dpclang)
+
 setup_host_tool(clang CLANG clang_exe clang_target)
 
 clang_target_link_libraries(clang
@@ -82,7 +84,7 @@ endif()
 add_dependencies(clang clang-resource-headers)
 
 if(NOT CLANG_LINKS_TO_CREATE)
-  set(CLANG_LINKS_TO_CREATE clang++ clang-cl clang-cpp)
+  set(CLANG_LINKS_TO_CREATE dpclang++ dpclang-cl dpclang-cpp)
 endif()
 
 if (CLANG_ENABLE_HLSL)

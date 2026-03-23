@@ -429,14 +429,14 @@ static const DriverSuffix *FindDriverSuffix(StringRef ProgName, size_t &Pos) {
   // program name in order. If there is a match, the frontend type is updated as
   // necessary by applying the ModeFlag.
   static const DriverSuffix DriverSuffixes[] = {
-      {"clang", nullptr},
-      {"clang++", "--driver-mode=g++"},
-      {"clang-c++", "--driver-mode=g++"},
-      {"clang-cc", nullptr},
-      {"clang-cpp", "--driver-mode=cpp"},
-      {"clang-g++", "--driver-mode=g++"},
-      {"clang-gcc", nullptr},
-      {"clang-cl", "--driver-mode=cl"},
+      {"dpclang", nullptr},
+      {"dpclang++", "--driver-mode=g++"},
+      {"dpclang-c++", "--driver-mode=g++"},
+      {"dpclang-cc", nullptr},
+      {"dpclang-cpp", "--driver-mode=cpp"},
+      {"dpclang-g++", "--driver-mode=g++"},
+      {"dpclang-gcc", nullptr},
+      {"dpclang-cl", "--driver-mode=cl"},
       {"cc", nullptr},
       {"cpp", "--driver-mode=cpp"},
       {"cl", "--driver-mode=cl"},
@@ -445,7 +445,7 @@ static const DriverSuffix *FindDriverSuffix(StringRef ProgName, size_t &Pos) {
       // For backwards compatibility, we create a symlink for `flang` called
       // `flang-new`. This will be removed in the future.
       {"flang-new", "--driver-mode=flang"},
-      {"clang-dxc", "--driver-mode=dxc"},
+      {"dpclang-dxc", "--driver-mode=dxc"},
   };
 
   for (const auto &DS : DriverSuffixes) {

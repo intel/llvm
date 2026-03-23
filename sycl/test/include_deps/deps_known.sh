@@ -11,7 +11,7 @@ function deps() {
     # However, sometimes first header is on the same line with
     # "null.o: /dev/null <header>", so add an explicit line break there.
 
-    clang++ -fsycl -fsycl-device-only -include "$HEADER" -c -x c++ /dev/null -o /dev/null  -MD -MF - \
+    dpclang++ -fsycl -fsycl-device-only -include "$HEADER" -c -x c++ /dev/null -o /dev/null  -MD -MF - \
         | sed 's@: /dev/null@: /dev/null\n@' \
         | grep 'include/sycl\|/dev/null\|CL/\|ur_\|:' \
         | grep -v 'stl_wrappers' \
