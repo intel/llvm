@@ -221,8 +221,18 @@ Attribute Changes in Clang
   foreign language personality with a given function. Note that this does not
   perform any ABI validation for the personality routine.
 
+- The :doc:`ThreadSafetyAnalysis` attributes ``guarded_by`` and
+  ``pt_guarded_by`` now accept multiple capability arguments with refined
+  access semantics: *writing* requires all listed capabilities to be held
+  exclusively, while *reading* requires at least one to be held.  This is
+  sound because any writer must hold all capabilities, so holding any one
+  prevents concurrent writes.
+
 Improvements to Clang's diagnostics
 -----------------------------------
+- ``-Wunused-but-set-variable`` now diagnoses file-scope variables with
+  internal linkage (``static`` storage class) that are assigned but never used. (#GH148361)
+
 - Added ``-Wlifetime-safety`` to enable lifetime safety analysis,
   a CFG-based intra-procedural analysis that detects use-after-free and related
   temporal safety bugs. See the
@@ -308,6 +318,10 @@ Improvements to Clang's diagnostics
   directory in module maps found via implicit search
   (``-fimplicit-module-maps``). This does not affect module maps specified
   explicitly via ``-fmodule-map-file=``.
+
+- Honour ``[[maybe_unused]]`` attribute on private fields.
+  ``-Wunused-private-field`` no longer emits a warning for annotated private
+  fields.
 
 Improvements to Clang's time-trace
 ----------------------------------
@@ -545,6 +559,8 @@ Python Binding Changes
   ``CodeCompletionResults.results`` should be changed to directly use
   ``CodeCompletionResults``: it nows supports ``__len__`` and ``__getitem__``,
   so it can be used the same as ``CodeCompletionResults.results``.
+- Added a new helper method ``get_version`` to the class ``Config`` to read the
+  version string of the libclang in use.
 
 OpenMP Support
 --------------

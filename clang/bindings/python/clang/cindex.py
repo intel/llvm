@@ -2932,7 +2932,7 @@ class Type(Structure):
         """
         return conf.lib.clang_Type_getSizeOf(self)  # type: ignore [no-any-return]
 
-    def get_offset(self, fieldname: str) -> int:
+    def get_offset(self, fieldname: TUnion[str, bytes]) -> int:
         """
         Retrieve the offset of a field in the record.
         """
@@ -4352,6 +4352,7 @@ FUNCTION_LIST: list[LibFunc] = [
     ("clang_getCanonicalCursor", [Cursor], Cursor),
     ("clang_getCanonicalType", [Type], Type),
     ("clang_getChildDiagnostics", [Diagnostic], c_object_p),
+    ("clang_getClangVersion", [], _CXString),
     ("clang_getCompletionAvailability", [c_void_p], c_int),
     ("clang_getCompletionBriefComment", [c_void_p], _CXString),
     ("clang_getCompletionChunkCompletionString", [c_void_p, c_int], c_object_p),
@@ -4662,6 +4663,11 @@ class Config:
 
         return library
 
+    def get_version(self):
+        """
+        Returns the libclang version string used by the bindings
+        """
+        return _CXString.from_result(self.lib.clang_getClangVersion())
 
 conf = Config()
 
