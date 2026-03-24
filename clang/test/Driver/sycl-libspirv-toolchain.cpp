@@ -7,21 +7,21 @@
 // RUN: | FileCheck %s --check-prefixes=CHECK-WINDOWS
 // RUN: %clang -### -resource-dir %{resource_dir} -fsycl -fsycl-targets=nvptx64-nvidia-cuda -nocudalib -target x86_64-unknown-windows-gnu %s 2>&1 \
 // RUN: | FileCheck %s --check-prefixes=CHECK-WINDOWS
-// CHECK-WINDOWS: "-cc1"{{.*}} "-fsycl-is-device"{{.*}} "-mlink-builtin-bitcode" "{{.*[\\/]}}libspirv.bc" "-mlink-builtin-bitcode-postopt"
+// CHECK-WINDOWS: "-cc1"{{.*}} "-fsycl-is-device"{{.*}} "-mlink-builtin-bitcode-postopt" "-mlink-builtin-bitcode" "{{.*[\\/]}}libspirv.bc"
 //
 // RUN: %clang -### -resource-dir %{resource_dir} -fsycl -fsycl-targets=nvptx64-nvidia-cuda -nocudalib -target x86_64-unknown-linux-gnu %s 2>&1 \
 // RUN: | FileCheck %s --check-prefixes=CHECK-LINUX
 // RUN: %clang -### -resource-dir %{resource_dir} -fsycl -fsycl-targets=nvptx64-nvidia-cuda -nocudalib -target x86_64-unknown-windows-cygnus %s 2>&1 \
 // RUN: | FileCheck %s --check-prefixes=CHECK-LINUX
-// CHECK-LINUX: "-cc1"{{.*}} "-fsycl-is-device"{{.*}} "-mlink-builtin-bitcode" "{{.*[\\/]}}libspirv.bc" "-mlink-builtin-bitcode-postopt"
+// CHECK-LINUX: "-cc1"{{.*}} "-fsycl-is-device"{{.*}} "-mlink-builtin-bitcode-postopt" "-mlink-builtin-bitcode" "{{.*[\\/]}}libspirv.bc"
 //
 // RUN: %clang -### -resource-dir %{resource_dir} -fsycl -fsycl-targets=amdgcn-amd-amdhsa -Xsycl-target-backend --offload-arch=gfx908 -nogpulib -target x86_64-unknown-windows-msvc %s 2>&1 \
 // RUN: | FileCheck %s --check-prefixes=CHECK-AMDGCN-WINDOWS
-// CHECK-AMDGCN-WINDOWS: "-cc1"{{.*}} "-fsycl-is-device"{{.*}} "-mlink-builtin-bitcode" "{{.*[\\/]}}libspirv.bc" "-mlink-builtin-bitcode-postopt"
+// CHECK-AMDGCN-WINDOWS: "-cc1"{{.*}} "-fsycl-is-device"{{.*}} "-mlink-builtin-bitcode-postopt" "-mlink-builtin-bitcode" "{{.*[\\/]}}libspirv.bc"
 //
 // RUN: %clang -### -resource-dir %{resource_dir} -fsycl -fsycl-device-only -fsycl-targets=nvptx64-nvidia-cuda -nocudalib %s 2>&1 \
 // RUN: | FileCheck %s --check-prefixes=CHECK-DEVICE-ONLY
-// CHECK-DEVICE-ONLY: "-cc1"{{.*}} "-fsycl-is-device"{{.*}} "-mlink-builtin-bitcode" "{{.*[\\/]}}libspirv.bc" "-mlink-builtin-bitcode-postopt"
+// CHECK-DEVICE-ONLY: "-cc1"{{.*}} "-fsycl-is-device"{{.*}} "-mlink-builtin-bitcode-postopt" "-mlink-builtin-bitcode" "{{.*[\\/]}}libspirv.bc"
 //
 // Only link libspirv in SYCL language mode, `-fno-sycl-libspirv` should result in a warning
 // RUN: %clang -### -x cu -fno-sycl-libspirv -nocudainc -nocudalib %s 2>&1 | FileCheck %s --check-prefixes=CHECK-CUDA
@@ -32,7 +32,7 @@
 // The path to the libspirv bitcode file is determined by the resource directory
 // RUN: %clang -### -resource-dir %{resource_dir} -fsycl -fsycl-targets=nvptx64-nvidia-cuda -nocudalib %s 2>&1 \
 // RUN: | FileCheck %s -DRESOURCE_DIR=%{resource_dir} --check-prefixes=CHECK-DIR
-// CHECK-DIR: "-cc1"{{.*}} "-fsycl-is-device"{{.*}} "-mlink-builtin-bitcode" "[[RESOURCE_DIR]]{{.*[\\/]}}libspirv.bc" "-mlink-builtin-bitcode-postopt"
+// CHECK-DIR: "-cc1"{{.*}} "-fsycl-is-device"{{.*}} "-mlink-builtin-bitcode-postopt" "-mlink-builtin-bitcode" "[[RESOURCE_DIR]]{{.*[\\/]}}libspirv.bc"
 //
 // If libspirv path doesn't exist, error is reported.
 // DEFINE: %{nonexistent_dir} = %/S/Inputs/SYCL/does_not_exist/lib/clang/resource_dir
