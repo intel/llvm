@@ -267,13 +267,6 @@ unsigned getOptLevel() {
   return 2; // default value
 }
 
-static Error writeToFile(const StringRef Filename, const StringRef Content) {
-  return writeToOutput(Filename, [&](raw_ostream &OS) -> Error {
-    OS << Content;
-    return Error::success();
-  });
-}
-
 Error saveModuleIR(Module &M, const StringRef Filename) {
   std::error_code EC;
   raw_fd_ostream Out{Filename, EC, sys::fs::OF_None};
@@ -292,9 +285,8 @@ Error saveModuleIR(Module &M, const StringRef Filename) {
   return Error::success();
 }
 
-PropSetRegTy
-computeModuleProperties(const module_split::ModuleDesc &MD,
-                              const GlobalBinImageProps &GlobProps) {
+PropSetRegTy computeModuleProperties(const module_split::ModuleDesc &MD,
+                                     const GlobalBinImageProps &GlobProps) {
   PropSetRegTy PropSet;
   // For bf16 devicelib module, no kernel included and no specialization
   // constant used, skip regular Prop emit. However, we have fallback and
@@ -340,7 +332,10 @@ Error saveModuleProperties(const module_split::ModuleDesc &MD,
 // Saves specified collection of symbols to a file.
 Error saveModuleSymbolTable(const module_split::ModuleDesc &MD,
                             const StringRef Filename) {
-  return writeToFile(Filename, computeModuleSymbolTable(MD.getModule(), MD.entries()));
+  return writeToOutput(Filename, [&](raw_ostream &OS) -> Error {
+    OS << Table;
+    return Error::success();
+  });
 }
 
 bool isTargetCompatibleWithModule(const std::string &Target,
