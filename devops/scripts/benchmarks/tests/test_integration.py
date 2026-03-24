@@ -236,11 +236,6 @@ class TestE2E(unittest.TestCase):
 
     def test_torch_l0(self):
         self._checkCase(
-            "torch_benchmark_l0 KernelSubmitGraphVllmMock AllocCount 128, GraphScenario 3, KernelWGCount 512, KernelWGSize 256, Profiling 0, UseEvents 0",
-            "KernelSubmitGraphVllmMock large",
-            {"pytorch", "L0"},
-        )
-        self._checkCase(
             "torch_benchmark_l0 KernelSubmitEventRecordWait KernelWGCount 256, KernelWGSize 512, Profiling 0",
             "KernelSubmitEventRecordWait medium",
             {"pytorch", "L0"},
@@ -294,13 +289,13 @@ class TestE2E(unittest.TestCase):
                 "KernelSubmitGraphMultiQueue large, CPU count",
                 {"pytorch", "L0"},
             )
+            self._checkCase(
+                "torch_benchmark_l0 KernelSubmitGraphVllmMock AllocCount 128, GraphScenario 3",
+                "KernelSubmitGraphVllmMock large",
+                {"pytorch", "L0"},
+            )
 
     def test_torch_sycl(self):
-        self._checkCase(
-            "torch_benchmark_sycl KernelSubmitGraphVllmMock AllocCount 32, GraphScenario 2, KernelWGCount 512, KernelWGSize 256, Profiling 0, UseEvents 0",
-            "KernelSubmitGraphVllmMock small",
-            {"pytorch", "SYCL"},
-        )
         self._checkCase(
             "torch_benchmark_sycl KernelSubmitEventRecordWait KernelWGCount 256, KernelWGSize 512, Profiling 0 CPU count",
             "KernelSubmitEventRecordWait medium, CPU count",
@@ -348,13 +343,13 @@ class TestE2E(unittest.TestCase):
                 "KernelSubmitGraphMultiQueue medium, CPU count",
                 {"pytorch", "SYCL"},
             )
+            self._checkCase(
+                "torch_benchmark_sycl KernelSubmitGraphVllmMock AllocCount 32, GraphScenario 2",
+                "KernelSubmitGraphVllmMock small",
+                {"pytorch", "SYCL"},
+            )
 
     def test_torch_syclpreview(self):
-        self._checkCase(
-            "torch_benchmark_syclpreview KernelSubmitGraphVllmMock AllocCount 128, GraphScenario 1, KernelWGCount 512, KernelWGSize 256, Profiling 0, UseEvents 0 CPU count",
-            "KernelSubmitGraphVllmMock large, CPU count",
-            {"pytorch", "SYCL"},
-        )
         self._checkCase(
             "torch_benchmark_syclpreview KernelSubmitEventRecordWait KernelWGCount 256, KernelWGSize 512, Profiling 0",
             "KernelSubmitEventRecordWait medium",
@@ -405,6 +400,11 @@ class TestE2E(unittest.TestCase):
             self._checkCase(
                 "torch_benchmark_syclpreview KernelSubmitGraphMultiQueue KernelsPerQueue 10",
                 "KernelSubmitGraphMultiQueue small",
+                {"pytorch", "SYCL"},
+            )
+            self._checkCase(
+                "torch_benchmark_syclpreview KernelSubmitGraphVllmMock AllocCount 128, GraphScenario 1 CPU count",
+                "KernelSubmitGraphVllmMock large, CPU count",
                 {"pytorch", "SYCL"},
             )
 

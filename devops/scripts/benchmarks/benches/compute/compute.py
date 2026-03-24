@@ -36,7 +36,6 @@ class ComputeBench(Suite):
     def name(self) -> str:
         return "Compute Benchmarks"
 
-    # TODO: Change after merging benchmarks
     def git_url(self) -> str:
         return "https://github.com/intel/compute-benchmarks.git"
 
@@ -526,7 +525,24 @@ class ComputeBench(Suite):
                     ),
                 ]
 
-        # Graph benchmarks segfault on pvc
+        # Add TorchSubmitEventRecordWait benchmarks
+        for runtime in filter(lambda x: x != RUNTIMES.UR, RUNTIMES):
+            for profiler_type in list(PROFILERS):
+                benches.append(
+                    TorchSubmitEventRecordWait(
+                        self,
+                        runtime,
+                        "medium",
+                        profiler_type,
+                        Profiling=0,
+                        KernelWGCount=256,
+                        KernelWGSize=512,
+                    )
+                )
+
+        #
+        # Note: Graph benchmarks segfault on pvc
+        #
         device_arch = getattr(options, "device_architecture", "")
         if not ("pvc" in device_arch):
             # Add TorchGraphSingleQueue benchmarks
@@ -605,20 +621,29 @@ class ComputeBench(Suite):
                         ),
                     ]
 
-        # Add TorchSubmitEventRecordWait benchmarks
-        for runtime in filter(lambda x: x != RUNTIMES.UR, RUNTIMES):
-            for profiler_type in list(PROFILERS):
-                benches.append(
-                    TorchSubmitEventRecordWait(
-                        self,
-                        runtime,
-                        "medium",
-                        profiler_type,
-                        Profiling=0,
-                        KernelWGCount=256,
-                        KernelWGSize=512,
-                    )
-                )
+            # Add TorchGraphVllmMock benchmarks
+            for runtime in filter(lambda x: x != RUNTIMES.UR, RUNTIMES):
+                for profiler_type, graph_scenario in product(list(PROFILERS), [1, 2, 3]):
+
+                    def createTorchGraphVllmMock(variant_name: str, **kwargs):
+                        return TorchKernelSubmitGraphVllmMock(
+                            self,
+                            runtime,
+                            variant_name,
+                            profiler_type,
+                            fixed_args={
+                                "KernelWGCount": 512,
+                                "KernelWGSize": 256,
+                                "Profiling": 0,
+                                "UseEvents": 0,
+                            },
+                            **kwargs,
+                        )
+
+                    benches += [
+                        createTorchGraphVllmMock("small", AllocCount=32, GraphScenario=graph_scenario),
+                        createTorchGraphVllmMock("large", AllocCount=128, GraphScenario=graph_scenario),
+                    ]
 
         # Add UR-specific benchmarks
         benches += [
