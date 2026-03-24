@@ -24,8 +24,8 @@ int main() {
 
   QueueStateVerifier verifier(Queue1, Queue2);
 
-  exp_ext::command_graph Graph{Ctx, Dev,
-                               {exp_ext::property::graph::enable_native_recording{}}};
+  exp_ext::command_graph Graph{
+      Ctx, Dev, {exp_ext::property::graph::enable_native_recording{}}};
 
   const size_t N = 1024;
 

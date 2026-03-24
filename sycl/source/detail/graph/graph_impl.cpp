@@ -815,16 +815,15 @@ void graph_impl::beginRecordingImpl(sycl::detail::queue_impl &Queue,
 
   // Native recording limitation: single queue at a time
   if (MNativeGraphHandle && !MRecordingQueues.empty()) {
-    throw sycl::exception(
-        make_error_code(errc::feature_not_supported),
-        "Recording the same graph to multiple queues is not supported in native mode");
+    throw sycl::exception(make_error_code(errc::feature_not_supported),
+                          "Recording the same graph to multiple queues is not "
+                          "supported in native mode");
   }
 
   // Native recording limitation: in-order queues only
   if (MNativeGraphHandle && !Queue.isInOrder()) {
-    throw sycl::exception(
-        make_error_code(errc::feature_not_supported),
-        "Native recording only works with in-order queues");
+    throw sycl::exception(make_error_code(errc::feature_not_supported),
+                          "Native recording only works with in-order queues");
   }
 
   if (!Queue.hasCommandGraph()) {
@@ -1650,8 +1649,9 @@ void exec_graph_impl::duplicateNodes() {
 
 void exec_graph_impl::update(std::shared_ptr<graph_impl> GraphImpl) {
   if (MNativeExecutableGraphHandle) {
-    throw sycl::exception(sycl::make_error_code(errc::feature_not_supported),
-                          "Graph update is not supported in native recording mode");
+    throw sycl::exception(
+        sycl::make_error_code(errc::feature_not_supported),
+        "Graph update is not supported in native recording mode");
   }
 
   if (MDevice != GraphImpl->getDevice()) {
@@ -1726,8 +1726,9 @@ void exec_graph_impl::update(node_impl &Node) {
 
 void exec_graph_impl::update(nodes_range Nodes) {
   if (MNativeExecutableGraphHandle) {
-    throw sycl::exception(sycl::make_error_code(errc::feature_not_supported),
-                          "Graph update is not supported in native recording mode");
+    throw sycl::exception(
+        sycl::make_error_code(errc::feature_not_supported),
+        "Graph update is not supported in native recording mode");
   }
   if (!MIsUpdatable) {
     throw sycl::exception(sycl::make_error_code(errc::invalid),
@@ -2237,9 +2238,10 @@ void modifiable_command_graph::end_recording(queue &RecordingQueue) {
       context_impl &ContextImpl =
           *sycl::detail::getSyclObjImpl(impl->getContext());
       sycl::detail::adapter_impl &Adapter = ContextImpl.getAdapter();
-      ur_result_t Result = Adapter.call_nocheck<
-          sycl::detail::UrApiKind::urQueueEndGraphCaptureExp>(UrQueue,
-                                                              &CapturedGraph);
+      ur_result_t Result =
+          Adapter
+              .call_nocheck<sycl::detail::UrApiKind::urQueueEndGraphCaptureExp>(
+                  UrQueue, &CapturedGraph);
       if (Result != UR_RESULT_SUCCESS) {
         throw sycl::exception(sycl::make_error_code(errc::runtime),
                               "Failed to end native UR graph capture");

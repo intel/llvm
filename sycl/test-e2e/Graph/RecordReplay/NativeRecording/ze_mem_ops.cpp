@@ -33,8 +33,8 @@ int main() {
   bool success = getCommandListFromQueue(Queue, ZeCommandList);
   assert(success);
 
-  exp_ext::command_graph Graph{Context, Device,
-                               {exp_ext::property::graph::enable_native_recording{}}};
+  exp_ext::command_graph Graph{
+      Context, Device, {exp_ext::property::graph::enable_native_recording{}}};
 
   CommandListStateVerifier verifier(ZeCommandList);
   verifier.verify(EXECUTING);

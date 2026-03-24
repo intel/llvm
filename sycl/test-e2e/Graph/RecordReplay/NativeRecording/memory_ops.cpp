@@ -16,8 +16,10 @@
 int main() {
   queue Queue{property::queue::in_order{}};
 
-  exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device(),
-                               {exp_ext::property::graph::enable_native_recording{}}};
+  exp_ext::command_graph Graph{
+      Queue.get_context(),
+      Queue.get_device(),
+      {exp_ext::property::graph::enable_native_recording{}}};
 
   const size_t N = 128;
 

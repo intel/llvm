@@ -38,8 +38,8 @@ int main(int, char **argv) {
   ze_kernel_handle_t ZeKernel = KernelFactory.createKernel(
       ZeModule, "_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E5saxpy");
 
-  exp_ext::command_graph Graph{Context, Device,
-                               {exp_ext::property::graph::enable_native_recording{}}};
+  exp_ext::command_graph Graph{
+      Context, Device, {exp_ext::property::graph::enable_native_recording{}}};
 
   ze_command_list_handle_t ZeCommandList;
   bool result = getCommandListFromQueue(Queue, ZeCommandList);
