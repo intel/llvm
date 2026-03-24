@@ -525,11 +525,11 @@ class ComputeBench(Suite):
                     ),
                 ]
 
-        # Add TorchSubmitEventRecordWait benchmarks
+        # Add TorchEventRecordWait benchmarks
         for runtime in filter(lambda x: x != RUNTIMES.UR, RUNTIMES):
             for profiler_type in list(PROFILERS):
                 benches.append(
-                    TorchSubmitEventRecordWait(
+                    TorchEventRecordWait(
                         self,
                         runtime,
                         "medium",
@@ -623,10 +623,10 @@ class ComputeBench(Suite):
 
             # Add TorchGraphVllmMock benchmarks
             for runtime in filter(lambda x: x != RUNTIMES.UR, RUNTIMES):
-                for profiler_type, graph_scenario in product(list(PROFILERS), [1, 2, 3]):
+                for profiler_type in list(PROFILERS):
 
-                    def createTorchGraphVllmMock(variant_name: str, **kwargs):
-                        return TorchKernelSubmitGraphVllmMock(
+                    def createTorchGraphVllmMockBench(variant_name: str, **kwargs):
+                        return TorchGraphVllmMock(
                             self,
                             runtime,
                             variant_name,
@@ -641,8 +641,21 @@ class ComputeBench(Suite):
                         )
 
                     benches += [
-                        createTorchGraphVllmMock("small", AllocCount=32, GraphScenario=graph_scenario),
-                        createTorchGraphVllmMock("large", AllocCount=128, GraphScenario=graph_scenario),
+                        createTorchGraphVllmMockBench(
+                            "small", AllocCount=32, GraphScenario=0
+                        ),
+                        createTorchGraphVllmMockBench(
+                            "large", AllocCount=128, GraphScenario=0
+                        ),
+                        createTorchGraphVllmMockBench(
+                            "large", AllocCount=128, GraphScenario=1
+                        ),
+                        createTorchGraphVllmMockBench(
+                            "large", AllocCount=128, GraphScenario=2
+                        ),
+                        createTorchGraphVllmMockBench(
+                            "large", AllocCount=128, GraphScenario=3
+                        ),
                     ]
 
         # Add UR-specific benchmarks

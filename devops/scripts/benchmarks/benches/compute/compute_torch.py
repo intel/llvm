@@ -232,7 +232,7 @@ class TorchGraphMultiQueue(TorchBenchmark):
         )
 
 
-class TorchSubmitEventRecordWait(TorchBenchmark):
+class TorchEventRecordWait(TorchBenchmark):
     def __init__(
         self,
         suite,
@@ -251,7 +251,7 @@ class TorchSubmitEventRecordWait(TorchBenchmark):
         )
 
 
-class TorchKernelSubmitGraphVllmMock(TorchBenchmark):
+class TorchGraphVllmMock(TorchBenchmark):
     def __init__(
         self,
         suite,

@@ -344,7 +344,7 @@ class TestE2E(unittest.TestCase):
                 {"pytorch", "SYCL"},
             )
             self._checkCase(
-                "torch_benchmark_sycl KernelSubmitGraphVllmMock AllocCount 32, GraphScenario 2",
+                "torch_benchmark_sycl KernelSubmitGraphVllmMock AllocCount 32, GraphScenario 0",
                 "KernelSubmitGraphVllmMock small",
                 {"pytorch", "SYCL"},
             )
