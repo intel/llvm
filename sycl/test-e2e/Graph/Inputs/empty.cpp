@@ -8,8 +8,10 @@ int main() {
   queue Queue{{property::queue::in_order{}}};
 
 #ifdef GRAPH_E2E_NATIVE_RECORDING
-  exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device(),
-                               {exp_ext::property::graph::enable_native_recording{}}};
+  exp_ext::command_graph Graph{
+      Queue.get_context(),
+      Queue.get_device(),
+      {exp_ext::property::graph::enable_native_recording{}}};
 #else
   exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
 #endif

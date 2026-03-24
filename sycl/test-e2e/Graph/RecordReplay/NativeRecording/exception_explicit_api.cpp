@@ -12,8 +12,10 @@
 int main() {
   queue Queue{property::queue::in_order{}};
 
-  exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device(),
-                               {exp_ext::property::graph::enable_native_recording{}}};
+  exp_ext::command_graph Graph{
+      Queue.get_context(),
+      Queue.get_device(),
+      {exp_ext::property::graph::enable_native_recording{}}};
 
   const size_t N = 1024;
   int *Data = malloc_device<int>(N, Queue);
@@ -22,7 +24,8 @@ int main() {
   if (!expectException(
           [&]() {
             auto node = Graph.add([&](handler &CGH) {
-              CGH.parallel_for(range<1>{N}, [=](id<1> idx) { Data[idx] = idx; });
+              CGH.parallel_for(range<1>{N},
+                               [=](id<1> idx) { Data[idx] = idx; });
             });
           },
           "Graph.add() with native recording enabled")) {
@@ -34,7 +37,8 @@ int main() {
   if (!expectException(
           [&]() {
             auto node1 = Graph.add([&](handler &CGH) {
-              CGH.parallel_for(range<1>{N}, [=](id<1> idx) { Data[idx] = idx; });
+              CGH.parallel_for(range<1>{N},
+                               [=](id<1> idx) { Data[idx] = idx; });
             });
 
             auto node2 = Graph.add(

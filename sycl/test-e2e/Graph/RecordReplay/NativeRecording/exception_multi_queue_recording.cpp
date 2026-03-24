@@ -17,8 +17,8 @@ int main() {
   queue Queue1{Ctx, Dev, {property::queue::in_order{}}};
   queue Queue2{Ctx, Dev, {property::queue::in_order{}}};
 
-  exp_ext::command_graph Graph{Ctx, Dev,
-                               {exp_ext::property::graph::enable_native_recording{}}};
+  exp_ext::command_graph Graph{
+      Ctx, Dev, {exp_ext::property::graph::enable_native_recording{}}};
 
   constexpr size_t N = 1024;
   int *Data = malloc_device<int>(N, Dev, Ctx);
@@ -31,16 +31,17 @@ int main() {
 
   // Try to start recording on Queue2 while Queue1 is still recording
   const bool passed = expectException([&]() { Graph.begin_recording(Queue2); },
-                       "begin_recording on second queue");
+                                      "begin_recording on second queue");
 
   assert(Queue1.ext_oneapi_get_state() == exp_ext::queue_state::recording);
   assert(Queue2.ext_oneapi_get_state() == exp_ext::queue_state::executing);
-  
+
   Graph.end_recording(Queue1);
   free(Data, Ctx);
 
   if (!passed) {
-    std::cerr << "Expected a thrown exception when starting recording twice" << std::endl;
+    std::cerr << "Expected a thrown exception when starting recording twice"
+              << std::endl;
     return 1;
   }
 

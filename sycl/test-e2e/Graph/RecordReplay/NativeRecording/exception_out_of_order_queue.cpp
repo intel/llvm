@@ -13,16 +13,14 @@ int main() {
   device Dev;
   context Ctx{Dev};
   queue OutOfOrderQueue{Ctx, Dev};
-  exp_ext::command_graph Graph{Ctx, Dev,
-                               {exp_ext::property::graph::enable_native_recording{}}};
+  exp_ext::command_graph Graph{
+      Ctx, Dev, {exp_ext::property::graph::enable_native_recording{}}};
 
   if (!expectException([&]() { Graph.begin_recording(OutOfOrderQueue); },
-                         "begin_recording with out-of-order queue")) {
-    std::cerr << "Out-of-order queue should throw exception"
-              << std::endl;
+                       "begin_recording with out-of-order queue")) {
+    std::cerr << "Out-of-order queue should throw exception" << std::endl;
     return 1;
   }
-
 
   return 0;
 }
