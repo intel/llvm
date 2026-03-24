@@ -7,7 +7,12 @@
 int main() {
   queue Queue{{property::queue::in_order{}}};
 
+#ifdef GRAPH_E2E_NATIVE_RECORDING
+  exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device(),
+                               {exp_ext::property::graph::enable_native_recording{}}};
+#else
   exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
+#endif
 
   // Test that empty() returns true when graph has 0 nodes
   assert(Graph.empty() && "Graph should be empty with 0 nodes");

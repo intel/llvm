@@ -36,7 +36,13 @@ template <typename T> struct KernelFunctor {
 
 int main() {
   sycl::queue queue{sycl::property::queue::in_order()};
+#ifdef GRAPH_E2E_NATIVE_RECORDING
+  sycl::ext::oneapi::experimental::command_graph graph(
+      queue.get_device(),
+      {sycl_ext::property::graph::enable_native_recording{}});
+#else
   sycl::ext::oneapi::experimental::command_graph graph(queue.get_device());
+#endif
 
   auto size = std::min(
       queue.get_device().get_info<sycl::info::device::max_work_group_size>(),

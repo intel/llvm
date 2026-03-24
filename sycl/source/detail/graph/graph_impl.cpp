@@ -12,7 +12,6 @@
 #include "dynamic_impl.hpp" // for dynamic classes
 #include "node_impl.hpp"    // for node_impl
 #include <detail/cg.hpp> // for CG, CGExecKernel, CGHostTask, ArgDesc, NDRDescT
-#include <detail/config.hpp>                          // for SYCLConfig
 #include <detail/event_impl.hpp>                      // for event_impl
 #include <detail/handler_impl.hpp>                    // for handler_impl
 #include <detail/kernel_arg_mask.hpp>                 // for KernelArgMask
@@ -315,8 +314,7 @@ graph_impl::graph_impl(const sycl::context &SyclContext,
   if (PropList.has_property<property::graph::assume_buffer_outlives_graph>()) {
     MAllowBuffers = true;
   }
-  // Check environment variable for native recording mode
-  if (SYCLConfig<SYCL_GRAPH_ENABLE_NATIVE_RECORDING>::get()) {
+  if (PropList.has_property<property::graph::enable_native_recording>()) {
     // Create native UR graph when native recording is enabled
     // Note: Native recording only works with immediate command lists,
     // this is validated when recording begins

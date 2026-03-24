@@ -1,11 +1,11 @@
 // REQUIRES: level_zero_v2_adapter && arch-intel_gpu_bmg_g21
 
 // RUN: %{build} -o %t.out
-// RUN: env SYCL_GRAPH_ENABLE_NATIVE_RECORDING=1 %{run} %t.out
+// RUN: %{run} %t.out
 // Extra run to check for leaks in Level Zero using UR_L0_LEAKS_DEBUG
-// RUN: %if level_zero %{env SYCL_GRAPH_ENABLE_NATIVE_RECORDING=1 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
+// RUN: %if level_zero %{%{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
 
-// Test for SYCL_GRAPH_ENABLE_NATIVE_RECORDING with multi-queue dot product
+// Test for enable_native_recording property with multi-queue dot product
 // Assesses event dependencies to, from, and within a native recording graph
 
 #include "../../graph_common.hpp"
@@ -30,9 +30,8 @@ int main() {
 
   QueueStateVerifier verifier(Queue1, Queue2);
 
-  // Create a graph - native recording is enabled via
-  // SYCL_GRAPH_ENABLE_NATIVE_RECORDING environment variable
-  exp_ext::command_graph Graph{Ctx, Dev};
+  exp_ext::command_graph Graph{Ctx, Dev,
+                               {exp_ext::property::graph::enable_native_recording{}}};
 
   const size_t N = 1024;
 
