@@ -1379,9 +1379,19 @@ static void AddDotProductRequirements(const MachineInstr &MI,
 void addPrintfRequirements(const MachineInstr &MI,
                            SPIRV::RequirementHandler &Reqs,
                            const SPIRVSubtarget &ST) {
+  // OpExtInst printf has operands: 0=result, 1=type, 2=set, 3=number, 4=format, 5+=args
+  // If there are fewer than 5 operands, there's no format string to check
+  if (MI.getNumOperands() < 5)
+    return;
+
+  // Check if operand 4 is a register (not an immediate)
+  if (!MI.getOperand(4).isReg())
+    return;
+
   SPIRVGlobalRegistry *GR = ST.getSPIRVGlobalRegistry();
   SPIRVTypeInst PtrType = GR->getSPIRVTypeForVReg(MI.getOperand(4).getReg());
-  if (PtrType) {
+  if (PtrType && PtrType->getOpcode() == SPIRV::OpTypePointer &&
+      PtrType->getNumOperands() > 1) {
     MachineOperand ASOp = PtrType->getOperand(1);
     if (ASOp.isImm()) {
       unsigned AddrSpace = ASOp.getImm();
@@ -1517,12 +1527,17 @@ void addInstrRequirements(const MachineInstr &MI,
     break;
   }
   case SPIRV::OpExtInst: {
+    // OpExtInst operands: 0=result, 1=type, 2=set, 3=number, 4+=args
+    if (MI.getNumOperands() < 3)
+      break;
     if (MI.getOperand(2).getImm() ==
         static_cast<int64_t>(
             SPIRV::InstructionSet::NonSemantic_Shader_DebugInfo_100)) {
       Reqs.addExtension(SPIRV::Extension::SPV_KHR_non_semantic_info);
       break;
     }
+    if (MI.getNumOperands() < 4)
+      break;
     if (MI.getOperand(3).getImm() ==
         static_cast<int64_t>(SPIRV::OpenCLExtInst::printf)) {
       addPrintfRequirements(MI, Reqs, ST);
