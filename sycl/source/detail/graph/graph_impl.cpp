@@ -810,7 +810,7 @@ std::vector<sycl::detail::EventImplPtr> graph_impl::getExitNodesEvents(
 }
 
 void graph_impl::beginRecordingImpl(sycl::detail::queue_impl &Queue,
-                                    bool LockQueue) {
+                                    bool AcquireQueueLock) {
   graph_impl::WriteLock Lock(MMutex);
 
   // Native recording limitation: single queue at a time
@@ -831,23 +831,16 @@ void graph_impl::beginRecordingImpl(sycl::detail::queue_impl &Queue,
 
     // Use native UR graph recording if enabled
     if (MNativeGraphHandle) {
-      // Native recording only works with immediate command lists
-      // Check if the queue is actually using immediate command lists
-      ur_queue_flags_t queueFlags = 0;
-      size_t retSize = 0;
       auto UrQueue = Queue.getHandleRef();
       context_impl &ContextImpl = *sycl::detail::getSyclObjImpl(MContext);
       sycl::detail::adapter_impl &Adapter = ContextImpl.getAdapter();
-      ur_result_t Result =
-          Adapter.call_nocheck<sycl::detail::UrApiKind::urQueueGetInfo>(
-              UrQueue, UR_QUEUE_INFO_FLAGS, sizeof(queueFlags), &queueFlags,
-              &retSize);
-      if (Result != UR_RESULT_SUCCESS) {
-        throw sycl::exception(sycl::make_error_code(errc::runtime),
-                              "Failed to query queue flags");
+
+      if (Queue.isNativeRecording()) {
+        throw sycl::exception(sycl::make_error_code(errc::invalid),
+                              "Queue is already in native graph capture mode");
       }
 
-      Result = Adapter.call_nocheck<
+      ur_result_t Result = Adapter.call_nocheck<
           sycl::detail::UrApiKind::urQueueBeginCaptureIntoGraphExp>(
           UrQueue, MNativeGraphHandle);
       if (Result != UR_RESULT_SUCCESS) {
@@ -855,8 +848,8 @@ void graph_impl::beginRecordingImpl(sycl::detail::queue_impl &Queue,
                               "Failed to begin native UR graph capture");
       }
     } else {
-      // Only set command graph for non-native recording
-      if (LockQueue) {
+      // Non-native recording path
+      if (AcquireQueueLock) {
         Queue.setCommandGraph(shared_from_this());
       } else {
         Queue.setCommandGraphUnlocked(shared_from_this());
@@ -867,11 +860,11 @@ void graph_impl::beginRecordingImpl(sycl::detail::queue_impl &Queue,
 }
 
 void graph_impl::beginRecordingUnlockedQueue(sycl::detail::queue_impl &Queue) {
-  beginRecordingImpl(Queue, /*LockQueue=*/false);
+  beginRecordingImpl(Queue, /*AcquireQueueLock=*/false);
 }
 
 void graph_impl::beginRecording(sycl::detail::queue_impl &Queue) {
-  beginRecordingImpl(Queue, /*LockQueue=*/true);
+  beginRecordingImpl(Queue, /*AcquireQueueLock=*/true);
 }
 
 // Check if nodes do not require enqueueing and if so loop back through
@@ -2229,21 +2222,22 @@ void modifiable_command_graph::end_recording(queue &RecordingQueue) {
 
     if (IsRecordingToThisGraph) {
       // End native UR graph capture
-      if (impl->getNativeGraphHandle()) {
-        auto UrQueue = QueueImpl.getHandleRef();
-        ur_exp_graph_handle_t CapturedGraph = nullptr;
-        context_impl &ContextImpl =
-            *sycl::detail::getSyclObjImpl(impl->getContext());
-        sycl::detail::adapter_impl &Adapter = ContextImpl.getAdapter();
-        ur_result_t Result = Adapter.call_nocheck<
-            sycl::detail::UrApiKind::urQueueEndGraphCaptureExp>(UrQueue,
-                                                                &CapturedGraph);
-        if (Result != UR_RESULT_SUCCESS) {
-          throw sycl::exception(sycl::make_error_code(errc::runtime),
-                                "Failed to end native UR graph capture");
-        }
-        // CapturedGraph should be the same as MNativeGraphHandle
+      assert(impl->getNativeGraphHandle() &&
+             "Native graph handle must be valid when ending native recording");
+      auto UrQueue = QueueImpl.getHandleRef();
+      ur_exp_graph_handle_t CapturedGraph = nullptr;
+      context_impl &ContextImpl =
+          *sycl::detail::getSyclObjImpl(impl->getContext());
+      sycl::detail::adapter_impl &Adapter = ContextImpl.getAdapter();
+      ur_result_t Result = Adapter.call_nocheck<
+          sycl::detail::UrApiKind::urQueueEndGraphCaptureExp>(UrQueue,
+                                                              &CapturedGraph);
+      if (Result != UR_RESULT_SUCCESS) {
+        throw sycl::exception(sycl::make_error_code(errc::runtime),
+                              "Failed to end native UR graph capture");
       }
+      assert(CapturedGraph == impl->getNativeGraphHandle() &&
+             "Captured graph handle must match the graph's native handle");
       impl->removeQueue(QueueImpl);
     }
   } else {

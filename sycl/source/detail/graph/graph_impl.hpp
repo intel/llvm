@@ -553,8 +553,10 @@ public:
 private:
   /// Common implementation for beginRecording and beginRecordingUnlockedQueue.
   /// @param[in] Queue The queue to be recorded from.
-  /// @param[in] LockQueue Whether to lock the queue when setting command graph.
-  void beginRecordingImpl(sycl::detail::queue_impl &Queue, bool LockQueue);
+  /// @param[in] AcquireQueueLock Whether to acquire the queue lock when setting
+  /// command graph.
+  void beginRecordingImpl(sycl::detail::queue_impl &Queue,
+                          bool AcquireQueueLock);
 
   template <typename... Ts> node_impl &createNode(Ts &&...Args) {
     MNodeStorage.push_back(
@@ -623,9 +625,7 @@ private:
   /// This handle is non-null only when native recording is enabled via the
   /// enable_native_recording property.
   ///
-  /// @note Native recording requires immediate command lists. Queues must be
-  /// created with ext::intel::property::queue::immediate_command_list, or
-  /// SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 must be set globally.
+  /// @note Native recording requires immediate command lists.
   ur_exp_graph_handle_t MNativeGraphHandle = nullptr;
 
   /// Mapping from queues to barrier nodes. For each queue the last barrier
