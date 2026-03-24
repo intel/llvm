@@ -6894,6 +6894,67 @@ ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Set kernel args and get the suggested local work size for a kernel.
+///
+/// @details
+///     - Query a suggested local work size for a kernel given a global size for
+///       each dimension.
+///     - The application may call this function from simultaneous threads for
+///       the same context.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hKernel`
+///         + `NULL == hQueue`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pGlobalWorkOffset`
+///         + `NULL == pGlobalWorkSize`
+///         + `NULL == pSuggestedLocalWorkSize`
+///         + `pArgs == NULL && numArgs > 0`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `NULL != pArgs && ::UR_EXP_KERNEL_ARG_TYPE_SAMPLER < pArgs->type`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSizeWithArgs(
+    /// [in] handle of the kernel
+    ur_kernel_handle_t hKernel,
+    /// [in] handle of the queue object
+    ur_queue_handle_t hQueue,
+    /// [in] number of dimensions, from 1 to 3, to specify the global
+    /// and work-group work-items
+    uint32_t numWorkDim,
+    /// [in] pointer to an array of numWorkDim unsigned values that specify
+    /// the offset used to calculate the global ID of a work-item
+    const size_t *pGlobalWorkOffset,
+    /// [in] pointer to an array of numWorkDim unsigned values that specify
+    /// the number of global work-items in workDim that will execute the
+    /// kernel function
+    const size_t *pGlobalWorkSize,
+    /// [in] Number of entries in pArgs
+    uint32_t numArgs,
+    /// [in][optional][range(0, numArgs)] pointer to a list of kernel arg
+    /// properties.
+    const ur_exp_kernel_arg_properties_t *pArgs,
+    /// [out] pointer to an array of numWorkDim unsigned values that specify
+    /// suggested local work size that will contain the result of the query
+    size_t *pSuggestedLocalWorkSize) try {
+  auto pfnGetSuggestedLocalWorkSizeWithArgs =
+      ur_lib::getContext()
+          ->urDdiTable.Kernel.pfnGetSuggestedLocalWorkSizeWithArgs;
+  if (nullptr == pfnGetSuggestedLocalWorkSizeWithArgs)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  return pfnGetSuggestedLocalWorkSizeWithArgs(
+      hKernel, hQueue, numWorkDim, pGlobalWorkOffset, pGlobalWorkSize, numArgs,
+      pArgs, pSuggestedLocalWorkSize);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Query the maximum number of work groups for a cooperative kernel
 ///
 /// @returns
@@ -9202,6 +9263,74 @@ ur_result_t UR_APICALL urUSMContextMemcpyExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Maps a host memory range to make it recognizable by the underlying
+///        adapter. The host memory must remain valid throughout the
+///        registration lifetime.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pHostMem`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `NULL != pProperties &&
+///         ::UR_EXP_USM_HOST_ALLOC_REGISTER_FLAGS_MASK & pProperties->flags`
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///         + `size == 0`
+ur_result_t UR_APICALL urUSMHostAllocRegisterExp(
+    /// [in] Handle of the context.
+    ur_context_handle_t hContext,
+    /// [in] Pointer to the host memory range to register.
+    void *pHostMem,
+    /// [in] Size in bytes of the host memory range to register, must be
+    /// page-aligned.
+    size_t size,
+    /// [in][optional] Pointer to host memory registration properties.
+    const ur_exp_usm_host_alloc_register_properties_t *pProperties) try {
+  auto pfnHostAllocRegisterExp =
+      ur_lib::getContext()->urDdiTable.USMExp.pfnHostAllocRegisterExp;
+  if (nullptr == pfnHostAllocRegisterExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  return pfnHostAllocRegisterExp(hContext, pHostMem, size, pProperties);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Unregister a previously registered host memory range.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pHostMem`
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///         + Invalid host memory range.
+ur_result_t UR_APICALL urUSMHostAllocUnregisterExp(
+    /// [in] Handle of the context.
+    ur_context_handle_t hContext,
+    /// [in][release] Pointer to the registered host memory range.
+    void *pHostMem) try {
+  auto pfnHostAllocUnregisterExp =
+      ur_lib::getContext()->urDdiTable.USMExp.pfnHostAllocUnregisterExp;
+  if (nullptr == pfnHostAllocUnregisterExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  return pfnHostAllocUnregisterExp(hContext, pHostMem);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Import memory into USM
 ///
 /// @details
@@ -9667,6 +9796,7 @@ ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
 ///         + `NULL == hKernel`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pGlobalWorkSize`
+///         + `pArgs == NULL && numArgs > 0`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `NULL != pArgs && ::UR_EXP_KERNEL_ARG_TYPE_SAMPLER < pArgs->type`
 ///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP

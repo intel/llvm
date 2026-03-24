@@ -17,6 +17,7 @@ if(NOT LLVM_NO_INSTALL_NAME_DIR_FOR_BUILD_TREE)
 endif()
 
 include(${LLVM_COMMON_CMAKE_UTILS}/Modules/LLVMVersion.cmake)
+include(${LLVM_COMMON_CMAKE_UTILS}/Modules/DPCPPVersion.cmake)
 
 set_directory_properties(PROPERTIES LLVM_VERSION_MAJOR "${LLVM_VERSION_MAJOR}")
 

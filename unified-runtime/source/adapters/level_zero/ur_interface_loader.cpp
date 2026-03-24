@@ -315,6 +315,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetKernelProcAddrTable(
       ur::level_zero::urKernelCreateWithNativeHandle;
   pDdiTable->pfnGetSuggestedLocalWorkSize =
       ur::level_zero::urKernelGetSuggestedLocalWorkSize;
+  pDdiTable->pfnGetSuggestedLocalWorkSizeWithArgs =
+      ur::level_zero::urKernelGetSuggestedLocalWorkSizeWithArgs;
   pDdiTable->pfnSetArgValue = ur::level_zero::urKernelSetArgValue;
   pDdiTable->pfnSetArgLocal = ur::level_zero::urKernelSetArgLocal;
   pDdiTable->pfnSetArgPointer = ur::level_zero::urKernelSetArgPointer;
@@ -542,6 +544,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetUSMExpProcAddrTable(
   pDdiTable->pfnPoolTrimToExp = ur::level_zero::urUSMPoolTrimToExp;
   pDdiTable->pfnPitchedAllocExp = ur::level_zero::urUSMPitchedAllocExp;
   pDdiTable->pfnContextMemcpyExp = ur::level_zero::urUSMContextMemcpyExp;
+  pDdiTable->pfnHostAllocUnregisterExp =
+      ur::level_zero::urUSMHostAllocUnregisterExp;
+  pDdiTable->pfnHostAllocRegisterExp =
+      ur::level_zero::urUSMHostAllocRegisterExp;
   pDdiTable->pfnImportExp = ur::level_zero::urUSMImportExp;
   pDdiTable->pfnReleaseExp = ur::level_zero::urUSMReleaseExp;
 
