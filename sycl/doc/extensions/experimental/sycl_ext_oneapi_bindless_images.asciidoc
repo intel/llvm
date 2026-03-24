@@ -235,6 +235,7 @@ The `sycl::range<N>` constructors map dimensions in **X, Y, Z order** (width, he
 This ordering is consistent throughout the bindless images API, including coordinate parameters for read/write operations where `x`, `y`, `z` correspond to indices `0`, `1`, `2` respectively (as detailed in the copy API preconditions).
 ====
 
+
 ====
 Additional future `image_type` enumerators _may_ include combined image types
 like "mipmapped cubemap".
