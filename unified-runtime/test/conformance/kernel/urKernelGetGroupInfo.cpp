@@ -25,8 +25,6 @@ UUR_DEVICE_TEST_SUITE_WITH_DEFAULT_QUEUE(
 
 TEST_P(urKernelGetGroupInfoFixedWorkGroupSizeTest,
        SuccessCompileWorkGroupSize) {
-  UUR_KNOWN_FAILURE_ON(uur::CUDA{}, uur::HIP{});
-
   const ur_kernel_group_info_t property_name =
       UR_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE;
   size_t property_size = 0;
