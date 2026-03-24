@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#pragma once
+#pragma oce
 
 #include <sycl/access/access.hpp>                     // for target, mode
 #include <sycl/buffer.hpp>                            // for range
