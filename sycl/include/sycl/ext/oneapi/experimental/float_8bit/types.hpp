@@ -107,6 +107,11 @@ static inline uint8_t RoundClip(float x, uint8_t max, rounding R,
         return 1u;
       return 0u;
     }
+    if (R == rounding::toward_zero) {
+      if (std::isnan(x) || x <= 0.0f)
+        return 0u;
+      return static_cast<uint8_t>(std::floor(x));
+    }
     // Default / to_even
     if (std::isnan(x))
       return 0u;
@@ -132,6 +137,14 @@ static inline uint8_t RoundClip(float x, uint8_t max, rounding R,
         fi = max;
       return static_cast<uint8_t>(fi);
     }
+  }
+  if (R == rounding::toward_zero) {
+    if (std::isnan(x) || x <= 0.0f)
+      return 0u;
+    uint32_t truncated = static_cast<uint32_t>(std::floor(x));
+    if (truncated > max)
+      truncated = max;
+    return static_cast<uint8_t>(truncated);
   }
   // default: round-to-nearest-even
   return RneClip(x, max);
@@ -256,7 +269,8 @@ static inline ToT ConvertFromFP8_CPU(uint8_t b,
 /// Ebits bits mantissa, Mbits bits exponent.
 template <int Ebits, int Mbits, typename T>
 static inline uint8_t
-ConvertToFP8_CPU(T h, rounding R = rounding::to_even) noexcept {
+ConvertToFP8_CPU(T h, rounding R = rounding::to_even,
+                 saturation S = saturation::finite) noexcept {
   // Specialized implementation for fp8_e8m0_x (Ebits=8, Mbits=0)
   if constexpr (Ebits == 8 && Mbits == 0) {
     // Format characteristics (finite-only, no zero, no infinity):
@@ -288,17 +302,16 @@ ConvertToFP8_CPU(T h, rounding R = rounding::to_even) noexcept {
     if (std::isnan(x))
       return NaNCode;
 
-    uint8_t sign = std::signbit(x) ? 0x80 : 0x00;
     float ax = std::fabs(x);
 
-    // Handle underflow (|x| < min_normal) and x == 0: encode smallest normal
-    // with sign.
+    // Handle underflow (|x| < min_normal) and x == 0: encode smallest normal.
     if (ax == 0.0f || ax < min_normal)
-      return sign; // exp field = 0 -> E = -127
+      return 0x00; // exp field = 0 -> E = -127
 
-    // Handle overflow (|x| >= max_normal * (anything beyond representable)):
-    if (ax >= max_normal)
-      return static_cast<uint8_t>(sign | (MaxExpField)); // E = +127
+    // Handle overflow (|x| > max_normal): clamp or return NaN depending on
+    // saturation. E8M0 has no sign bit and no infinity representation.
+    if (ax > max_normal)
+      return (S == saturation::finite) ? MaxExpField : NaNCode;
 
     // Determine exponent E such that 2^E <= ax < 2^{E+1}
     int e2;
@@ -316,7 +329,7 @@ ConvertToFP8_CPU(T h, rounding R = rounding::to_even) noexcept {
     rounding effR = (R == rounding::upward) ? R : rounding::upward;
 
     if (effR == rounding::upward) {
-      if (sign == 0x00) {
+      if (x >= 0.0f) {
         if (!is_exact_power_of_two) {
           // Round up (increase exponent) if possible.
           if (E < Emax)
@@ -337,7 +350,7 @@ ConvertToFP8_CPU(T h, rounding R = rounding::to_even) noexcept {
 
     uint8_t ecode = static_cast<uint8_t>(E + Bias); // 0 .. 254
     // ecode must never be 255 here.
-    return static_cast<uint8_t>(sign | ecode);
+    return ecode;
   }
 
   constexpr int bias = (1 << (Ebits - 1)) - 1;
@@ -374,16 +387,17 @@ ConvertToFP8_CPU(T h, rounding R = rounding::to_even) noexcept {
   const float min_sub = std::ldexp(1.0f, emin - Mbits);
 
   if (ax > max_finite) {
-    return static_cast<uint8_t>(
-        sign | ((MaxExpForMaxNormal << Mbits) | MaxFracForMaxNormal));
-  }
-  if (ax >= max_finite) {
+    if (S == saturation::none) {
+      if constexpr (Ebits == 5 && Mbits == 2)
+        return static_cast<uint8_t>(sign | (ExpAllOnes << Mbits));
+      return static_cast<uint8_t>(sign | ((ExpAllOnes << Mbits) | MaxFracMask));
+    }
     return static_cast<uint8_t>(
         sign | ((MaxExpForMaxNormal << Mbits) | MaxFracForMaxNormal));
   }
 
-  if (ax < min_sub)
-    return sign; // underflow
+  if (ax == 0.0f)
+    return sign;
 
   int e2;
   float m = std::frexp(ax, &e2);
@@ -405,6 +419,11 @@ ConvertToFP8_CPU(T h, rounding R = rounding::to_even) noexcept {
     ++E;
   }
   if (E > emax) {
+    if (S == saturation::none) {
+      if constexpr (Ebits == 5 && Mbits == 2)
+        return static_cast<uint8_t>(sign | (ExpAllOnes << Mbits));
+      return static_cast<uint8_t>(sign | ((ExpAllOnes << Mbits) | MaxFracMask));
+    }
     auto ret = static_cast<uint8_t>(
         sign | ((MaxExpForMaxNormal << Mbits) | MaxFracForMaxNormal));
     return ret;
@@ -470,18 +489,20 @@ template <size_t N> class fp8_e4m3_x {
   static constexpr uint8_t MaxFiniteCode =
       0x7E; // 0.1111.110 (positive max normal)
 
-  template <typename T> uint8_t ConvertToFP8(T h, rounding r) {
+
+  template <typename T>
+  uint8_t ConvertToFP8(T h, rounding r, saturation s = saturation::finite) {
     sycl::half hi = static_cast<sycl::half>(h);
 #ifdef __SYCL_DEVICE_ONLY__
     // TODO: optimize with vectorized builtin calls
     const uint8_t sign = std::signbit(hi) ? 0x80u : 0x00u;
     const float ax = std::fabs(hi);
 
-    if (ax > MaxNormal)
-      return static_cast<uint8_t>(sign | MaxFiniteCode);
-
-    if (ax < MinSubnormal)
-      return sign;
+    if (ax > MaxNormal) {
+      if (s == saturation::finite)
+        return static_cast<uint8_t>(sign | MaxFiniteCode);
+      return static_cast<uint8_t>(sign | NaNCode);
+    }
 
     uint8_t b = __builtin_spirv_ClampConvertFP16ToE4M3INTEL(h);
     if (r == rounding::to_even)
@@ -491,7 +512,7 @@ template <size_t N> class fp8_e4m3_x {
     return round(r, b, yi, hi);
 
 #else
-    return ConvertToFP8_CPU<4, 3, sycl::half>(hi, r);
+  return ConvertToFP8_CPU<4, 3, sycl::half>(hi, r, s);
 #endif
   }
 
@@ -503,23 +524,19 @@ template <size_t N> class fp8_e4m3_x {
     if (ax > MaxNormal)
       return static_cast<uint8_t>(sign | MaxFiniteCode);
 
-    if (ax < MinSubnormal)
-      return sign;
-
     uint8_t b = __builtin_spirv_ClampConvertBF16ToE4M3INTEL(h);
     if (r == rounding::to_even)
       return b;
     const half yi = __builtin_spirv_ConvertE4M3ToFP16INTEL(b);
     return round(r, b, yi, h);
 #else
-    return ConvertToFP8_CPU<4, 3, bfloat16>(h, r);
+    return ConvertToFP8_CPU<4, 3, bfloat16>(h, r, saturation::finite);
 #endif
   }
 
   template <typename T> T ConvertFromFP8(uint8_t v) const {
 #ifdef __SYCL_DEVICE_ONLY__
-    sycl::half hi = __builtin_spirv_ClampConvertE4M3ToFP16INTEL(
-        v); // sycl_fp8_ClampConvertE4M3ToFP16INTEL(v);
+    sycl::half hi = __builtin_spirv_ClampConvertE4M3ToFP16INTEL(v);
     return static_cast<T>(hi);
 #else
     return ConvertFromFP8_CPU<4, 3, T>(v);
@@ -914,19 +931,20 @@ template <size_t N> class fp8_e5m2_x {
   static constexpr size_t NFracBits = 2;
   static constexpr float MaxNormal = 114688.0f;              // 1.75 * 2^16
   static constexpr float MinSubnormal = 0.0000152587890625f; // 2^-16
-  static constexpr uint8_t MaxFiniteCode = 0x7C;             // 0.11111.00
+  static constexpr uint8_t MaxFiniteCode = 0x7B;             // 0.11110.11
+  static constexpr uint8_t InfinityCode = 0x7C;              // 0.11111.00
 
-  uint8_t ConvertToFP8(sycl::half h, rounding r) {
+  uint8_t ConvertToFP8(sycl::half h, rounding r, saturation s) {
 #ifdef __SYCL_DEVICE_ONLY__
     // TODO: optimize with vectorized builtin calls
     const uint8_t sign = std::signbit(h) ? 0x80u : 0x00u;
     const float ax = std::fabs(h);
 
-    if (ax > MaxNormal)
-      return static_cast<uint8_t>(sign | MaxFiniteCode);
-
-    if (ax < MinSubnormal)
-      return sign;
+    if (ax > MaxNormal || std::isinf(ax)) {
+      if (s == saturation::finite)
+        return static_cast<uint8_t>(sign | MaxFiniteCode);
+      return static_cast<uint8_t>(sign | InfinityCode);
+    }
 
     uint8_t b = __builtin_spirv_ClampConvertFP16ToE5M2INTEL(h);
     if (r == rounding::to_even)
@@ -935,20 +953,20 @@ template <size_t N> class fp8_e5m2_x {
     return round(r, b, yi, h);
 
 #else
-    return ConvertToFP8_CPU<5, 2, sycl::half>(h, r);
+    return ConvertToFP8_CPU<5, 2, sycl::half>(h, r, s);
 #endif
   }
 
-  uint8_t ConvertBF16ToFP8(bfloat16 h, rounding r) {
+  uint8_t ConvertBF16ToFP8(bfloat16 h, rounding r, saturation s) {
 #ifdef __SYCL_DEVICE_ONLY__
     const uint8_t sign = std::signbit(h) ? 0x80u : 0x00u;
     const bfloat16 ax = std::fabs(h);
 
-    if (ax > MaxNormal)
-      return static_cast<uint8_t>(sign | MaxFiniteCode);
-
-    if (ax < MinSubnormal)
-      return sign;
+    if (ax > MaxNormal || std::isinf(ax)) {
+      if (s == saturation::finite)
+        return static_cast<uint8_t>(sign | MaxFiniteCode);
+      return static_cast<uint8_t>(sign | InfinityCode);
+    }
 
     uint8_t b = __builtin_spirv_ClampConvertBF16ToE5M2INTEL(h);
     if (r == rounding::to_even)
@@ -956,7 +974,7 @@ template <size_t N> class fp8_e5m2_x {
     const sycl::half yi = __builtin_spirv_ConvertE5M2ToFP16INTEL(b);
     return round(r, b, yi, h);
 #else
-    return ConvertToFP8_CPU<5, 2, bfloat16>(h, r);
+    return ConvertToFP8_CPU<5, 2, bfloat16>(h, r, s);
 #endif
   }
 
@@ -983,9 +1001,9 @@ template <size_t N> class fp8_e5m2_x {
     if (r != rounding::to_even)
       throw std::invalid_argument(
           "fp8_e5m2_x: only rounding::to_even is supported");
-    if (s != saturation::finite)
+      if (s != saturation::finite && s != saturation::none)
       throw std::invalid_argument(
-          "fp8_e5m2_x: only saturation::finite is supported");
+          "fp8_e5m2_x: unsupported saturation mode");
   }
 
 public:
@@ -1013,12 +1031,13 @@ public:
     if constexpr (((std::is_same_v<std::decay_t<Types>, bfloat16>) && ...)) {
       const bfloat16 in[N] = {static_cast<bfloat16>(v)...};
       for (size_t i = 0; i < N; ++i)
-        vals[i] = ConvertBF16ToFP8(in[i], rounding::to_even);
+        vals[i] = ConvertBF16ToFP8(in[i], rounding::to_even,
+                                   saturation::finite);
       return;
     }
     const sycl::half in[N] = {v...};
     for (size_t i = 0; i < N; ++i)
-      vals[i] = ConvertToFP8(in[i], rounding::to_even);
+      vals[i] = ConvertToFP8(in[i], rounding::to_even, saturation::finite);
   }
 
   // Construct from an array of half, bfloat16, float, double.
@@ -1028,7 +1047,7 @@ public:
     CheckConstraints(r, s);
     // TODO: optimize with vectorized builtin calls
     for (size_t i = 0; i < N; ++i)
-      vals[i] = ConvertToFP8(v[i], r);
+      vals[i] = ConvertToFP8(v[i], r, s);
   }
 
   explicit fp8_e5m2_x(bfloat16 const (&v)[N], rounding r = rounding::to_even,
@@ -1036,19 +1055,19 @@ public:
     CheckConstraints(r, s);
     // TODO: optimize with vectorized builtin calls
     for (size_t i = 0; i < N; ++i)
-      vals[i] = ConvertBF16ToFP8(v[i], r);
+      vals[i] = ConvertBF16ToFP8(v[i], r, s);
   }
 
   explicit fp8_e5m2_x(float const (&v)[N], rounding r = rounding::to_even,
                       saturation s = saturation::finite) {
     CheckConstraints(r, s);
     for (size_t i = 0; i < N; ++i)
-      vals[i] = ConvertToFP8(v[i], r);
+      vals[i] = ConvertToFP8(v[i], r, s);
   }
 
   explicit fp8_e5m2_x(double const (&v)[N]) {
     for (size_t i = 0; i < N; ++i)
-      vals[i] = ConvertToFP8(v[i], rounding::to_even);
+      vals[i] = ConvertToFP8(v[i], rounding::to_even, saturation::finite);
   }
 
   // Construct from an marray of half, bfloat16, float, double.
@@ -1058,7 +1077,7 @@ public:
                       saturation s = saturation::finite) {
     CheckConstraints(r, s);
     for (size_t i = 0; i < N; ++i)
-      vals[i] = ConvertToFP8(v[i], r);
+      vals[i] = ConvertToFP8(v[i], r, s);
   }
 
   explicit fp8_e5m2_x(const sycl::marray<bfloat16, N> &v,
@@ -1066,7 +1085,7 @@ public:
                       saturation s = saturation::finite) {
     CheckConstraints(r, s);
     for (size_t i = 0; i < N; ++i)
-      vals[i] = ConvertBF16ToFP8(v[i], r);
+      vals[i] = ConvertBF16ToFP8(v[i], r, s);
   }
 
   explicit fp8_e5m2_x(const sycl::marray<float, N> &v,
@@ -1074,12 +1093,12 @@ public:
                       saturation s = saturation::finite) {
     CheckConstraints(r, s);
     for (size_t i = 0; i < N; ++i)
-      vals[i] = ConvertToFP8(v[i], r);
+      vals[i] = ConvertToFP8(v[i], r, s);
   }
 
   explicit fp8_e5m2_x(const sycl::marray<double, N> &v) {
     for (size_t i = 0; i < N; ++i)
-      vals[i] = ConvertToFP8(v[i], rounding::to_even);
+      vals[i] = ConvertToFP8(v[i], rounding::to_even, saturation::finite);
   }
 
   // Construct with stochastic rounding with user provided seed from an array of
@@ -1215,47 +1234,47 @@ public:
 
   explicit fp8_e5m2_x(short val) {
     static_assert(N == 1 && "fp8_e5m2_x: N must be 1 for short constructor");
-    vals[0] = ConvertToFP8(val, rounding::to_even);
+    vals[0] = ConvertToFP8(val, rounding::to_even, saturation::finite);
   }
 
   explicit fp8_e5m2_x(int val) {
     static_assert(N == 1 && "fp8_e5m2_x: N must be 1 for int constructor");
-    vals[0] = ConvertToFP8(val, rounding::to_even);
+    vals[0] = ConvertToFP8(val, rounding::to_even, saturation::finite);
   }
 
   explicit fp8_e5m2_x(long val) {
     static_assert(N == 1 && "fp8_e5m2_x: N must be 1 for long constructor");
-    vals[0] = ConvertToFP8(val, rounding::to_even);
+    vals[0] = ConvertToFP8(val, rounding::to_even, saturation::finite);
   }
 
   explicit fp8_e5m2_x(long long val) {
     static_assert(N == 1 &&
                   "fp8_e5m2_x: N must be 1 for long long constructor");
-    vals[0] = ConvertToFP8(val, rounding::to_even);
+    vals[0] = ConvertToFP8(val, rounding::to_even, saturation::finite);
   }
 
   explicit fp8_e5m2_x(unsigned short val) {
     static_assert(N == 1 &&
                   "fp8_e5m2_x: N must be 1 for unsigned short constructor");
-    vals[0] = ConvertToFP8(val, rounding::to_even);
+    vals[0] = ConvertToFP8(val, rounding::to_even, saturation::finite);
   }
 
   explicit fp8_e5m2_x(unsigned int val) {
     static_assert(N == 1 &&
                   "fp8_e5m2_x: N must be 1 for unsigned int constructor");
-    vals[0] = ConvertToFP8(val, rounding::to_even);
+    vals[0] = ConvertToFP8(val, rounding::to_even, saturation::finite);
   }
 
   explicit fp8_e5m2_x(unsigned long val) {
     static_assert(N == 1 &&
                   "fp8_e5m2_x: N must be 1 for unsigned long constructor");
-    vals[0] = ConvertToFP8(val, rounding::to_even);
+    vals[0] = ConvertToFP8(val, rounding::to_even, saturation::finite);
   }
 
   explicit fp8_e5m2_x(unsigned long long val) {
     static_assert(N == 1 &&
                   "fp8_e5m2_x: N must be 1 for unsigned long long constructor");
-    vals[0] = ConvertToFP8(val, rounding::to_even);
+    vals[0] = ConvertToFP8(val, rounding::to_even, saturation::finite);
   }
 
   // Assign (operator) from half, bfloat16, float, double, and integer types.
@@ -1264,56 +1283,56 @@ public:
   fp8_e5m2_x &operator=(sycl::half val) {
     static_assert(N == 1 &&
                   "fp8_e5m2_x: N must be 1 for half assignment operator");
-    vals[0] = ConvertToFP8(val, rounding::to_even);
+    vals[0] = ConvertToFP8(val, rounding::to_even, saturation::finite);
     return *this;
   }
 
   fp8_e5m2_x &operator=(bfloat16 val) {
     static_assert(N == 1 &&
                   "fp8_e5m2_x: N must be 1 for half bfloat16 operator");
-    vals[0] = ConvertBF16ToFP8(val, rounding::to_even);
+    vals[0] = ConvertBF16ToFP8(val, rounding::to_even, saturation::finite);
     return *this;
   }
 
   fp8_e5m2_x &operator=(float val) {
     static_assert(N == 1 &&
                   "fp8_e5m2_x: N must be 1 for float assignment operator");
-    vals[0] = ConvertToFP8(val, rounding::to_even);
+    vals[0] = ConvertToFP8(val, rounding::to_even, saturation::finite);
     return *this;
   }
 
   fp8_e5m2_x &operator=(double val) {
     static_assert(N == 1 &&
                   "fp8_e5m2_x: N must be 1 for double assignment operator");
-    vals[0] = ConvertToFP8(val, rounding::to_even);
+    vals[0] = ConvertToFP8(val, rounding::to_even, saturation::finite);
     return *this;
   }
 
   fp8_e5m2_x &operator=(short val) {
     static_assert(N == 1 &&
                   "fp8_e5m2_x: N must be 1 for short assignment operator");
-    vals[0] = ConvertToFP8(val, rounding::to_even);
+    vals[0] = ConvertToFP8(val, rounding::to_even, saturation::finite);
     return *this;
   }
 
   fp8_e5m2_x &operator=(int val) {
     static_assert(N == 1 &&
                   "fp8_e5m2_x: N must be 1 for int assignment operator");
-    vals[0] = ConvertToFP8(val, rounding::to_even);
+    vals[0] = ConvertToFP8(val, rounding::to_even, saturation::finite);
     return *this;
   }
 
   fp8_e5m2_x &operator=(long val) {
     static_assert(N == 1 &&
                   "fp8_e5m2_x: N must be 1 for long assignment operator");
-    vals[0] = ConvertToFP8(val, rounding::to_even);
+    vals[0] = ConvertToFP8(val, rounding::to_even, saturation::finite);
     return *this;
   }
 
   fp8_e5m2_x &operator=(long long val) {
     static_assert(N == 1 &&
                   "fp8_e5m2_x: N must be 1 for long long assignment operator");
-    vals[0] = ConvertToFP8(val, rounding::to_even);
+    vals[0] = ConvertToFP8(val, rounding::to_even, saturation::finite);
     return *this;
   }
 
@@ -1321,7 +1340,7 @@ public:
     static_assert(
         N == 1 &&
         "fp8_e5m2_x: N must be 1 for unsigned short assignment operator");
-    vals[0] = ConvertToFP8(val, rounding::to_even);
+    vals[0] = ConvertToFP8(val, rounding::to_even, saturation::finite);
     return *this;
   }
 
@@ -1329,7 +1348,7 @@ public:
     static_assert(
         N == 1 &&
         "fp8_e5m2_x: N must be 1 for unsigned int assignment operator");
-    vals[0] = ConvertToFP8(val, rounding::to_even);
+    vals[0] = ConvertToFP8(val, rounding::to_even, saturation::finite);
     return *this;
   }
 
@@ -1337,7 +1356,7 @@ public:
     static_assert(
         N == 1 &&
         "fp8_e5m2_x: N must be 1 for unsigned long assignment operator");
-    vals[0] = ConvertToFP8(val, rounding::to_even);
+    vals[0] = ConvertToFP8(val, rounding::to_even, saturation::finite);
     return *this;
   }
 
@@ -1345,7 +1364,7 @@ public:
     static_assert(
         N == 1 &&
         "fp8_e5m2_x: N must be 1 for unsigned long long assignment operator");
-    vals[0] = ConvertToFP8(val, rounding::to_even);
+    vals[0] = ConvertToFP8(val, rounding::to_even, saturation::finite);
     return *this;
   }
 
