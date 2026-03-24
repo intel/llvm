@@ -1,7 +1,7 @@
 // REQUIRES: level_zero_v2_adapter && arch-intel_gpu_bmg_g21
 
 // RUN: %{build} -o %t.out
-// RUN: env SYCL_GRAPH_ENABLE_NATIVE_RECORDING=1 UR_L0_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s
+// RUN: env UR_L0_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s
 
 // Test for native recording with pipelined graph execution. This test verifies
 // that multiple graph executions can be batched with only a single host wait
@@ -17,7 +17,8 @@
 int main() {
   queue Queue{property::queue::in_order{}};
 
-  exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
+  exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device(),
+                               {exp_ext::property::graph::enable_native_recording{}}};
 
   const size_t N = 1024;
   int *Data = malloc_device<int>(N, Queue);

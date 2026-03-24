@@ -1,8 +1,8 @@
 // REQUIRES: level_zero_v2_adapter && arch-intel_gpu_bmg_g21
 
 // RUN: %{build} -lze_loader -o %t.out
-// RUN: env SYCL_GRAPH_ENABLE_NATIVE_RECORDING=1 %{run} %t.out
-// RUN: %if level_zero %{env SYCL_GRAPH_ENABLE_NATIVE_RECORDING=1 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
+// RUN: %{run} %t.out
+// RUN: %if level_zero %{%{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
 
 // Test native recording with Level Zero memory operations.
 // Records L0 memset, device-to-device copy, and device-to-host copy
@@ -33,7 +33,8 @@ int main() {
   bool success = getCommandListFromQueue(Queue, ZeCommandList);
   assert(success);
 
-  exp_ext::command_graph Graph{Context, Device};
+  exp_ext::command_graph Graph{Context, Device,
+                               {exp_ext::property::graph::enable_native_recording{}}};
 
   CommandListStateVerifier verifier(ZeCommandList);
   verifier.verify(EXECUTING);

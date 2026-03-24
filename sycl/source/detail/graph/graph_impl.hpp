@@ -621,7 +621,7 @@ private:
   /// Native UR graph handle used for native recording mode.
   ///
   /// This handle is non-null only when native recording is enabled via the
-  /// SYCL_GRAPH_ENABLE_NATIVE_RECORDING environment variable.
+  /// enable_native_recording property.
   ///
   /// @note Native recording requires immediate command lists. Queues must be
   /// created with ext::intel::property::queue::immediate_command_list, or

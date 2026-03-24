@@ -1,8 +1,8 @@
 // REQUIRES: level_zero_v2_adapter && arch-intel_gpu_bmg_g21
 
 // RUN: %{build} -lze_loader -o %t.out
-// RUN: env SYCL_GRAPH_ENABLE_NATIVE_RECORDING=1 %{run} %t.out %S/../../Inputs/Kernels/saxpy.spv
-// RUN: %if level_zero %{env SYCL_GRAPH_ENABLE_NATIVE_RECORDING=1 %{l0_leak_check} %{run} %t.out %S/../../Inputs/Kernels/saxpy.spv 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
+// RUN: %{run} %t.out %S/../../Inputs/Kernels/saxpy.spv
+// RUN: %if level_zero %{%{l0_leak_check} %{run} %t.out %S/../../Inputs/Kernels/saxpy.spv 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
 
 // Test native recording with intermixed SYCL and Level-Zero kernels.
 
@@ -38,8 +38,8 @@ int main(int, char **argv) {
   ze_kernel_handle_t ZeKernel = KernelFactory.createKernel(
       ZeModule, "_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E5saxpy");
 
-  // Create graph for native recording
-  exp_ext::command_graph Graph{Context, Device};
+  exp_ext::command_graph Graph{Context, Device,
+                               {exp_ext::property::graph::enable_native_recording{}}};
 
   ze_command_list_handle_t ZeCommandList;
   bool result = getCommandListFromQueue(Queue, ZeCommandList);
