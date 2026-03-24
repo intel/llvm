@@ -11,8 +11,7 @@
 #include <sycl/properties/all_properties.hpp>
 
 int main() {
-  queue Queue{{property::queue::in_order{},
-               ext::intel::property::queue::immediate_command_list{}}};
+  queue Queue{property::queue::in_order{}};
 
   exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device(),
                                {exp_ext::property::graph::enable_native_recording{}}};

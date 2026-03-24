@@ -19,14 +19,8 @@ int main() {
   context Ctx{Dev};
 
   // Create two in-order queues sharing the same device and context
-  queue Queue1{Ctx,
-               Dev,
-               {property::queue::in_order{},
-                ext::intel::property::queue::immediate_command_list{}}};
-  queue Queue2{Ctx,
-               Dev,
-               {property::queue::in_order{},
-                ext::intel::property::queue::immediate_command_list{}}};
+  queue Queue1{Ctx, Dev, {property::queue::in_order{}}};
+  queue Queue2{Ctx, Dev, {property::queue::in_order{}}};
 
   QueueStateVerifier verifier(Queue1, Queue2);
 
