@@ -40,8 +40,8 @@ class ComputeBench(Suite):
         return "https://github.com/intel/compute-benchmarks.git"
 
     def git_hash(self) -> str:
-        # Mar 13, 2026
-        return "0237dade20798127c6432635b47c6bdb2f9d59b0"
+        # Mar 23, 2026
+        return "86d86fd37d703db4f0f75779ccdfd50193e0ab3d"
 
     def setup(self) -> None:
         if options.sycl is None:
@@ -84,7 +84,7 @@ class ComputeBench(Suite):
         if options.ur is not None:
             extra_args += [
                 f"-DBUILD_UR=ON",
-                f"-Dunified-runtime_DIR={options.ur}/lib/cmake/unified-runtime",
+                f"-DCMAKE_PREFIX_PATH={options.ur}",
             ]
 
         self._project.configure(extra_args, add_sycl=True)
