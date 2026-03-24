@@ -43,8 +43,7 @@ inline void resetCounters() { getCounters() = Counters{}; }
 } // namespace fp8_builtin_mock
 
 // Builtin mocks (do not replace helpers.hpp; provide symbols here).
-inline sycl::half
-__builtin_spirv_ConvertE4M3ToFP16EXT(uint8_t) noexcept {
+inline sycl::half __builtin_spirv_ConvertE4M3ToFP16EXT(uint8_t) noexcept {
   ++fp8_builtin_mock::getCounters().ConvertE4M3ToFP16EXT;
   return static_cast<sycl::half>(2.0f);
 }
