@@ -152,7 +152,7 @@ std::string getDPCPPFullCPPVersion() {
   llvm::raw_string_ostream OS(buf);
   OS << "DPC++ " DPCPP_VERSION;
 #if PRE_RELEASE
-      OS << " (pre-release)";
+  OS << " (pre-release)";
 #endif
   std::string repo = getClangFullRepositoryVersion();
   if (!repo.empty()) {
