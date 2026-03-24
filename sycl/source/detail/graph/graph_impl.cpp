@@ -1649,6 +1649,10 @@ void exec_graph_impl::duplicateNodes() {
 }
 
 void exec_graph_impl::update(std::shared_ptr<graph_impl> GraphImpl) {
+  if (MNativeExecutableGraphHandle) {
+    throw sycl::exception(sycl::make_error_code(errc::feature_not_supported),
+                          "Graph update is not supported in native recording mode");
+  }
 
   if (MDevice != GraphImpl->getDevice()) {
     throw sycl::exception(
@@ -1721,6 +1725,10 @@ void exec_graph_impl::update(node_impl &Node) {
 }
 
 void exec_graph_impl::update(nodes_range Nodes) {
+  if (MNativeExecutableGraphHandle) {
+    throw sycl::exception(sycl::make_error_code(errc::feature_not_supported),
+                          "Graph update is not supported in native recording mode");
+  }
   if (!MIsUpdatable) {
     throw sycl::exception(sycl::make_error_code(errc::invalid),
                           "update() cannot be called on a executable graph "
