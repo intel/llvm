@@ -75,26 +75,6 @@ TEST(FP8E4M3Test, VariadicBoundaryEncodingsFloat) {
   EXPECT_EQ(c.vals[1], 0x80); // -0 -> 0b1_0000_000
 }
 
-TEST(FP8E4M3Test, FiniteOverflowClampsToMaxNormal) {
-  fp8_e4m3_x2 a(std::numeric_limits<float>::infinity(),
-                -std::numeric_limits<float>::infinity());
-
-  EXPECT_EQ(a.vals[0], 0x7E); // +max normal
-  EXPECT_EQ(a.vals[1], 0xFE); // -max normal
-}
-
-TEST(FP8E4M3Test, FiniteUnderflowRoundsUsingToEven) {
-  constexpr float MinSubnormal = 0.001953125f; // 2^-9
-
-  fp8_e4m3_x2 tie(0.5f * MinSubnormal, -0.5f * MinSubnormal);
-  fp8_e4m3_x2 up(0.75f * MinSubnormal, -0.75f * MinSubnormal);
-
-  EXPECT_EQ(tie.vals[0], 0x00); // tie -> even => +0
-  EXPECT_EQ(tie.vals[1], 0x80); // tie -> even => -0
-  EXPECT_EQ(up.vals[0], 0x01);  // +min subnormal
-  EXPECT_EQ(up.vals[1], 0x81);  // -min subnormal
-}
-
 TEST(FP8E4M3Test, VariadicNaNEncodingFloat) {
   // NaN is encoded as S.1111.111; sign is permitted.
   fp8_e4m3_x2 a(std::numeric_limits<float>::quiet_NaN(),

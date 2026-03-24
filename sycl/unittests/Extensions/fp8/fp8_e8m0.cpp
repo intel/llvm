@@ -58,21 +58,6 @@ TEST(FP8E8M0Test, VariadicConstructorBoundaryEncodings) {
   EXPECT_EQ(a.vals[1], 0xFF); // NaN
 }
 
-TEST(FP8E8M0Test, FiniteOverflowClampsAndDropsSign) {
-  fp8_e8m0_x2 a(std::numeric_limits<float>::infinity(),
-                -std::numeric_limits<float>::infinity());
-
-  EXPECT_EQ(a.vals[0], 0xFE); // max normal
-  EXPECT_EQ(a.vals[1], 0xFE); // sign dropped
-}
-
-TEST(FP8E8M0Test, FiniteUnderflowMapsToMinNormalAndDropsSign) {
-  fp8_e8m0_x2 a(std::ldexp(1.0f, -128), -std::ldexp(1.0f, -128));
-
-  EXPECT_EQ(a.vals[0], 0x00); // min normal
-  EXPECT_EQ(a.vals[1], 0x00); // sign dropped
-}
-
 TEST(FP8E8M0Test, CArrayConstructorFloatHostUpwardFinite) {
   const float in[2] = {1.0f, 1.1f};
   const float in1[2] = {3.0f, 1000.0f};

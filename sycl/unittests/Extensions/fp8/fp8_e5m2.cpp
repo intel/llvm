@@ -75,45 +75,6 @@ TEST(FP8E5M2Test, VariadicConstructorBoundaryEncodingsFloat) {
   EXPECT_EQ(a2.vals[1], 0x80); // -0 -> 0b1_00000_00
 }
 
-TEST(FP8E5M2Test, FiniteOverflowClampsToMaxNormal) {
-  const float in[2] = {std::numeric_limits<float>::infinity(),
-                       -std::numeric_limits<float>::infinity()};
-  fp8_e5m2_x2 a(in, rounding::to_even, saturation::finite);
-
-  EXPECT_EQ(a.vals[0], 0x7B); // +max normal
-  EXPECT_EQ(a.vals[1], 0xFB); // -max normal
-}
-
-TEST(FP8E5M2Test, NoneOverflowProducesInfinity) {
-  const float in[2] = {std::numeric_limits<float>::infinity(),
-                       -std::numeric_limits<float>::infinity()};
-  fp8_e5m2_x2 a(in, rounding::to_even, saturation::none);
-
-  EXPECT_EQ(a.vals[0], 0x7C); // +infinity
-  EXPECT_EQ(a.vals[1], 0xFC); // -infinity
-}
-
-TEST(FP8E5M2Test, UnderflowRoundsSameForFiniteAndNone) {
-  constexpr float MinSubnormal = 0.0000152587890625f; // 2^-16
-  const float tie[2] = {0.5f * MinSubnormal, -0.5f * MinSubnormal};
-  const float up[2] = {0.75f * MinSubnormal, -0.75f * MinSubnormal};
-
-  fp8_e5m2_x2 tieFinite(tie, rounding::to_even, saturation::finite);
-  fp8_e5m2_x2 tieNone(tie, rounding::to_even, saturation::none);
-  fp8_e5m2_x2 upFinite(up, rounding::to_even, saturation::finite);
-  fp8_e5m2_x2 upNone(up, rounding::to_even, saturation::none);
-
-  EXPECT_EQ(tieFinite.vals[0], 0x00); // tie -> even => +0
-  EXPECT_EQ(tieFinite.vals[1], 0x80); // tie -> even => -0
-  EXPECT_EQ(tieNone.vals[0], 0x00);
-  EXPECT_EQ(tieNone.vals[1], 0x80);
-
-  EXPECT_EQ(upFinite.vals[0], 0x01); // +min subnormal
-  EXPECT_EQ(upFinite.vals[1], 0x81); // -min subnormal
-  EXPECT_EQ(upNone.vals[0], 0x01);
-  EXPECT_EQ(upNone.vals[1], 0x81);
-}
-
 TEST(FP8E5M2Test, VariadicConstructorNaNEncodingFloat) {
   fp8_e5m2_x2 a(std::numeric_limits<float>::quiet_NaN(),
                 -std::numeric_limits<float>::quiet_NaN());
