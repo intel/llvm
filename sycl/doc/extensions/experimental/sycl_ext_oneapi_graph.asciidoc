@@ -1241,8 +1241,7 @@ visibility into the captured commands. As a result:
   `feature_not_supported`.
 * Host tasks and asynchronous memory allocations (`ext_oneapi_async_malloc`,
   `ext_oneapi_async_free`) cannot be recorded and will throw `invalid`.
-* Only a single queue may be in native recording state at a time for a given
-  graph; transitive recording is not supported.
+* `command_graph<graph_state::modifiable>::begin_recording` may be called at most once per graph and only with a single queue.
 
 This property is optional. If the backend does not support native graph
 capture the constructor will throw `feature_not_supported`.
@@ -2620,7 +2619,7 @@ exception if attempted:
 
 === Backend Requirements
 
-Native recording requires backend support for native command-list graph
+Native recording requires backend support for native graph
 capture. If the backend does not support this capability the
 `command_graph` constructor will throw `feature_not_supported`.
 
