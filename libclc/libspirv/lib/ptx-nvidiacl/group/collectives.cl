@@ -325,7 +325,8 @@ complex_double __muldc3(double a, double b, double c, double d) {
       result = IDENTITY;                                                       \
     }                                                                          \
   } else {                                                                     \
-    result = 0;                                                                \
+    /* TODO: Not implemented yet */                                            \
+    result = (TYPE){0};                                                        \
   }                                                                            \
   return result;
 
@@ -476,7 +477,8 @@ __CLC_SUBGROUP_COLLECTIVE(LogicalAndKHR, __CLC_LOGICAL_AND, bool, true)
       result = OP(sg_x, sg_prefix);                                            \
     }                                                                          \
   } else {                                                                     \
-    result = 0;                                                                \
+    /* TODO: Not implemented yet */                                            \
+    result = (TYPE){0};                                                        \
   }                                                                            \
   __spirv_ControlBarrier(Workgroup, 0, 0);                                     \
   return result;
