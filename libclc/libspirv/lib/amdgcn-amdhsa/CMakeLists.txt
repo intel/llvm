@@ -52,6 +52,8 @@ libclc_configure_source_list(LISPIRV_AMDGCN_SOURCES
   math/tan.cl
   math/tanh.cl
   workitem/get_global_size.cl
+  workitem/get_group_id.cl
+  workitem/get_local_id.cl
   workitem/get_local_linear_id.cl
   workitem/get_local_size.cl
   workitem/get_num_groups.cl
@@ -59,6 +61,7 @@ libclc_configure_source_list(LISPIRV_AMDGCN_SOURCES
   workitem/get_max_sub_group_size.cl
   workitem/get_sub_group_id.cl
   workitem/get_sub_group_local_id.cl
+  workitem/get_work_dim.cl
   misc/sub_group_shuffle.cl
   async/wait_group_events.cl
   assert/__assert_fail.cl
