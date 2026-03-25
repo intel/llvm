@@ -2592,7 +2592,7 @@ exception if attempted:
 | `invalid`
 
 | Host tasks
-| Host tasks execute on the host and cannot be captured by the backend.
+| Host tasks scheduled through the sycl::handler::host_task API cannot be captured by the backend.
 | `invalid`
 
 | `ext_oneapi_async_malloc` / `ext_oneapi_async_free`
