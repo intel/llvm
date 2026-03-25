@@ -1019,6 +1019,7 @@ ur_result_t ur_queue_batched_t::enqueueGraphExp(
 }
 
 ur_result_t ur_queue_batched_t::queueBeginGraphCapteExp() {
+  currentCmdLists.lock()->setGraphCapture(true);
   return currentCmdLists.lock()->getListManager().beginGraphCapture();
 }
 
