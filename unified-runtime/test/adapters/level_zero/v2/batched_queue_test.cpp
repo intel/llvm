@@ -564,10 +564,6 @@ TEST_P(urBatchedQueueTest, GraphCaptureActiveReturnsFalseByDefault) {
 }
 
 // After beginning graph capture, isGraphCaptureActive should return true.
-// This test is expected to FAIL until the bug is fixed:
-// batch_manager::graphCaptureActive is never set to true, so
-// getListManager() returns the regular batch instead of the immediate list,
-// and queryGraphCaptureActive is called on the wrong command list.
 TEST_P(urBatchedQueueTest, GraphCaptureActiveReturnsTrueAfterBeginCapture) {
   ASSERT_NO_FATAL_FAILURE(skipIfNoGraphSupport());
 
@@ -603,9 +599,6 @@ TEST_P(urBatchedQueueTest, GraphCaptureActiveReturnsFalseAfterEndCapture) {
 // During graph capture, operations should be enqueued on the immediate command
 // list (not the regular batch). Events created for operations on the immediate
 // list have no batch generation number (getBatch() == std::nullopt).
-// This test is expected to FAIL until the bug is fixed:
-// since graphCaptureActive is never set to true, getListManager() returns the
-// regular batch and getEvent() creates events with a batch generation number.
 TEST_P(urBatchedQueueTest, EnqueueDuringGraphCaptureUsesImmediateList) {
   ASSERT_NO_FATAL_FAILURE(skipIfNoGraphSupport());
 

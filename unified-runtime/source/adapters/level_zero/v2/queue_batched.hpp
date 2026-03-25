@@ -155,6 +155,8 @@ public:
   }
 
   bool isGraphCaptureActive() const { return graphCaptureActive; }
+
+  void setGraphCapture(bool active) { graphCaptureActive = active; }
 };
 
 struct ur_queue_batched_t : ur_object, ur_queue_t_ {
