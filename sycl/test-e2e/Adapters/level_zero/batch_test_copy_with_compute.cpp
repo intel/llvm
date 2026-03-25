@@ -1,7 +1,6 @@
 // REQUIRES: gpu, level_zero
 // UNSUPPORTED: ze_debug, level_zero_v2_adapter
-// UNSUPPORTED-INTENDED: V1-only, mixed kernel+memcpy batching trace under
-// UR_L0_BATCH_SIZE; V2 does not preserve these zeCommandListClose/
+// UNSUPPORTED-INTENDED: V1-only; V2 does not preserve zeCommandListClose/
 // zeCommandQueueExecuteCommandLists flush points.
 
 // UNSUPPORTED: windows && gpu-intel-gen12

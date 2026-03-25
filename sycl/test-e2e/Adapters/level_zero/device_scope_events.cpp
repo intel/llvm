@@ -1,8 +1,6 @@
 // REQUIRES: gpu, level_zero
 // UNSUPPORTED: ze_debug, level_zero_v2_adapter
-// UNSUPPORTED-INTENDED: V1-only, UR_L0_DEVICE_SCOPE_EVENTS trace distinction:
-// host-visible event at urEventWait vs before command-list submission; V2 does
-// not expose this MODE1/MODE2 placement pattern.
+// UNSUPPORTED-INTENDED: V1-only
 
 // RUN: %{build} -o %t.out
 // RUN: env UR_L0_USE_IMMEDIATE_COMMANDLISTS=0 UR_L0_DEVICE_SCOPE_EVENTS=1 SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t.out 2>&1 | FileCheck --check-prefixes=MODE1 %s

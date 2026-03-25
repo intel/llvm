@@ -1,8 +1,7 @@
 // REQUIRES: level_zero, level_zero_dev_kit
 // UNSUPPORTED: ze_debug, level_zero_v2_adapter
-// UNSUPPORTED-INTENDED: V1-only native L0 queue/command-list interop for
-// UR_L0_USE_IMMEDIATE_COMMANDLISTS=0/1; V2 does not support the same backend
-// queue/list interop model.
+// UNSUPPORTED-INTENDED: V1-only behavior for
+// UR_L0_USE_IMMEDIATE_COMMANDLISTS=0/1
 
 // RUN: %{build} %level_zero_options -o %t.out
 // RUN: env UR_L0_USE_IMMEDIATE_COMMANDLISTS=0 %{run} %t.out
