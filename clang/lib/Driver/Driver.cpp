@@ -8910,11 +8910,17 @@ static void handleTimeTrace(Compilation &C, const ArgList &Args,
   // For SYCL non-top-level jobs, derive trace path from -o or BaseInput.
   // Result.getFilename() is now correctly the job's temp output, not the
   // final -o path, so we need a separate trace path source.
+  bool AlreadyHasOffloadingPrefix = false;
   auto GetTracePathForSYCLNonTopLevel = [&]() -> SmallString<128> {
     const bool IsSYCLNonTopLevel =
         JA->isOffloading(Action::OFK_SYCL) && !AtTopLevel;
 
-    if (!IsSYCLNonTopLevel)
+    // For SYCL jobs with multiple inputs, always go through collision detection
+    // below, regardless of AtTopLevel status
+    const bool IsSYCLMultiInput = JA->isOffloading(Action::OFK_SYCL) &&
+                                  Args.hasMultipleArgs(options::OPT_INPUT);
+
+    if (!IsSYCLNonTopLevel && !IsSYCLMultiInput)
       return SmallString<128>(Result.getFilename());
 
     // When compiling with -c, -o specifies the object file for this specific
@@ -8927,9 +8933,59 @@ static void handleTimeTrace(Compilation &C, const ArgList &Args,
       if (Arg *FinalOutput = Args.getLastArg(options::OPT_o))
         return SmallString<128>(FinalOutput->getValue());
     }
-    // Multiple inputs: prevent basename collisions with unique temp names
-    if (Args.hasMultipleArgs(options::OPT_INPUT))
-      return SmallString<128>(llvm::sys::path::filename(Result.getFilename()));
+    // Multiple inputs: use clean basename from BaseInput.
+    // The offloading prefix will differentiate host vs device traces.
+    // Use parent directory name to disambiguate if basename collision is
+    // detected. Example: clang -fsycl -c -ftime-trace=traces/ dir1/test.cpp
+    // dir2/test.cpp
+    //   Generates: traces/dir1-test-host-x86_64-unknown-linux-gnu.json
+    //              traces/dir1-test-sycl-spir64-unknown-unknown.json
+    //              traces/dir2-test-host-x86_64-unknown-linux-gnu.json
+    //              traces/dir2-test-sycl-spir64-unknown-unknown.json
+    if (Args.hasMultipleArgs(options::OPT_INPUT)) {
+      StringRef CurrentBasename = llvm::sys::path::filename(BaseInput);
+      StringRef CurrentStem = llvm::sys::path::stem(CurrentBasename);
+
+      // Check if another input has the same basename stem
+      bool HasCollision = false;
+      for (const Arg *Input : Args.filtered(options::OPT_INPUT)) {
+        StringRef InputPath = Input->getValue();
+        if (InputPath == BaseInput)
+          continue; // Skip self
+        if (llvm::sys::path::stem(llvm::sys::path::filename(InputPath)) ==
+            CurrentStem) {
+          HasCollision = true;
+          break;
+        }
+      }
+
+      if (HasCollision) {
+        // Use parent directory name to differentiate trace filenames.
+        // This provides more user-friendly names and helps users correlate
+        // traces to source locations.
+        StringRef ParentDir = llvm::sys::path::parent_path(BaseInput);
+        StringRef DirName = llvm::sys::path::filename(ParentDir);
+        SmallString<128> DisambiguatedName;
+        if (!DirName.empty()) {
+          DisambiguatedName = DirName;
+          DisambiguatedName += "-";
+          DisambiguatedName += CurrentBasename;
+        } else {
+          // No parent directory (e.g : file in current dir), use full path hash
+          auto Hash = llvm::APInt(64, llvm::hash_value(BaseInput));
+          DisambiguatedName = CurrentBasename;
+          llvm::sys::path::replace_extension(DisambiguatedName, "");
+          DisambiguatedName += "-";
+          SmallString<32> HashStr;
+          Hash.toString(HashStr, 16, /*Signed=*/false);
+          DisambiguatedName += HashStr;
+        }
+        return DisambiguatedName;
+      }
+
+      // No collision: use clean basename
+      return SmallString<128>(CurrentBasename);
+    }
 
     // Single input: use predictable basename
     return SmallString<128>(llvm::sys::path::filename(BaseInput));
@@ -8942,7 +8998,8 @@ static void handleTimeTrace(Compilation &C, const ArgList &Args,
       // Derive a unique base trace path (handles SYCL non-top-level jobs)
       SmallString<128> TracePath = GetTracePathForSYCLNonTopLevel();
       SmallString<128> FileName(llvm::sys::path::filename(TracePath));
-      if (!OffloadingPrefix.empty() && JA->isOffloading(Action::OFK_SYCL)) {
+      if (!OffloadingPrefix.empty() && JA->isOffloading(Action::OFK_SYCL) &&
+          !AlreadyHasOffloadingPrefix) {
         FileName = addOffloadingPrefixToPath(FileName, OffloadingPrefix);
       }
       llvm::sys::path::replace_extension(FileName, "json");
@@ -8956,7 +9013,7 @@ static void handleTimeTrace(Compilation &C, const ArgList &Args,
       llvm::sys::path::remove_filename(Dir);
       SmallString<128> TracePath = GetTracePathForSYCLNonTopLevel();
       SmallString<128> FileName(llvm::sys::path::filename(TracePath));
-      if (!OffloadingPrefix.empty())
+      if (!OffloadingPrefix.empty() && !AlreadyHasOffloadingPrefix)
         FileName = addOffloadingPrefixToPath(FileName, OffloadingPrefix);
       llvm::sys::path::replace_extension(FileName, "json");
       if (!Dir.empty()) {
@@ -8973,9 +9030,10 @@ static void handleTimeTrace(Compilation &C, const ArgList &Args,
       Path = DumpDir->getValue();
       if (JA->isOffloading(Action::OFK_SYCL) && !AtTopLevel) {
         SmallString<128> TracePath = GetTracePathForSYCLNonTopLevel();
-        SmallString<128> FileWithPrefix = addOffloadingPrefixToPath(
-            llvm::sys::path::filename(TracePath), OffloadingPrefix);
-        Path += FileWithPrefix;
+        SmallString<128> FileName(llvm::sys::path::filename(TracePath));
+        if (!AlreadyHasOffloadingPrefix)
+          FileName = addOffloadingPrefixToPath(FileName, OffloadingPrefix);
+        Path += FileName;
       } else {
         SmallString<128> FileComponent(llvm::sys::path::filename(BaseInput));
         if (JA->isOffloading(Action::OFK_SYCL) && AtTopLevel &&
@@ -8995,7 +9053,9 @@ static void handleTimeTrace(Compilation &C, const ArgList &Args,
       // Object file: e/a.o,
       // SYCL host time-trace: e/a-host-x86_64-unknown-linux-gnu.json
       // SYCL device time-trace: e/a-sycl-spir64-unknown-unknown.json
-      if (!OffloadingPrefix.empty() && JA->isOffloading(Action::OFK_SYCL)) {
+      // Don't add prefix if it's already included (e.g., for multiple inputs)
+      if (!OffloadingPrefix.empty() && JA->isOffloading(Action::OFK_SYCL) &&
+          !AlreadyHasOffloadingPrefix) {
         Path = addOffloadingPrefixToPath(Path, OffloadingPrefix);
       }
     }
