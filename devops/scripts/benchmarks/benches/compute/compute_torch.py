@@ -258,6 +258,7 @@ class TorchGraphVllmMock(TorchBenchmark):
         runtime: RUNTIMES,
         variant_name: str,
         profiler_type: PROFILERS,
+        fixed_args: dict | None = None,
         **kwargs,
     ):
         super().__init__(
@@ -266,5 +267,6 @@ class TorchGraphVllmMock(TorchBenchmark):
             "KernelSubmitGraphVllmMock",
             variant_name,
             profiler_type,
+            fixed_args=fixed_args,
             **kwargs,
         )
