@@ -12,6 +12,10 @@
 #include "adapter.hpp"
 #include "ur_level_zero.hpp"
 
+// The default value of the driver versions skiplist
+// (SYCL_UR_L0_DRIVER_SKIPLIST)
+static const std::vector<std::string> DriverSkiplistDefault = {};
+
 namespace ur::level_zero {
 
 ur_result_t urPlatformGet(
@@ -321,6 +325,26 @@ ur_result_t ur_platform_handle_t_::initialize() {
     ZeDriverVersionString.getDriverVersionString(ZeDriverHandleExpTranslated,
                                                  ZeDriverVersion.data(),
                                                  &sizeOfDriverString);
+  }
+
+  auto DriverSkiplist = getenv_to_vec("SYCL_UR_L0_DRIVER_SKIPLIST");
+  if (!DriverSkiplist.has_value()) {
+    DriverSkiplist = DriverSkiplistDefault;
+  }
+
+  UR_LOG(DEBUG, "Level Zero Driver version: {}", ZeDriverVersion);
+  for (const auto &version : DriverSkiplist.value()) {
+    UR_LOG(DEBUG, "Checking driver version {} against skiplist entry {}",
+           ZeDriverVersion, version);
+    if (version == ZeDriverVersion) {
+      UR_LOG(WARN,
+             "Skipping Level Zero driver due to the driver version: {} "
+             "matches a skiplist entry (set SYCL_UR_L0_DRIVER_SKIPLIST to "
+             "override)",
+             version);
+      IsDriverVersionSkipListed = true;
+      return UR_RESULT_ERROR_UNINITIALIZED;
+    }
   }
 
   // Check if import user ptr into USM feature has been requested.
