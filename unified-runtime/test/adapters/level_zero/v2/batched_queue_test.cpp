@@ -117,6 +117,17 @@ struct urBatchedQueueTest : uur::urContextTest {
     }
   }
 
+  void skipIfNoGraphSupport() {
+    ur_bool_t graph_supported = false;
+    ASSERT_SUCCESS(urDeviceGetInfo(
+        device, UR_DEVICE_INFO_GRAPH_RECORD_AND_REPLAY_SUPPORT_EXP,
+        sizeof(graph_supported), &graph_supported, nullptr));
+
+    if (!graph_supported) {
+      GTEST_SKIP() << "EXP graph record and replay feature is not supported.";
+    }
+  }
+
   ur_queue_properties_t batched_queue_properties = {
       UR_STRUCTURE_TYPE_QUEUE_PROPERTIES, nullptr,
       UR_QUEUE_FLAG_SUBMISSION_BATCHED};
@@ -541,4 +552,80 @@ TEST_P(urBatchedQueueTest, FlushBatchAfterEnqueuedOperationsLimitIsReached) {
   for (uint64_t j = 0; j < v2::maxNumberOfEnqueuedOperations + 1; j++) {
     ASSERT_SUCCESS(urEventRelease(events[j]));
   }
+}
+
+// Graph capture is not active by default
+TEST_P(urBatchedQueueTest, GraphCaptureActiveReturnsFalseByDefault) {
+  ASSERT_NO_FATAL_FAILURE(skipIfNoGraphSupport());
+
+  bool isEnabled = false;
+  ASSERT_SUCCESS(urQueueIsGraphCaptureEnabledExp(queue1, &isEnabled));
+  ASSERT_FALSE(isEnabled);
+}
+
+// After beginning graph capture, isGraphCaptureActive should return true.
+// This test is expected to FAIL until the bug is fixed:
+// batch_manager::graphCaptureActive is never set to true, so
+// getListManager() returns the regular batch instead of the immediate list,
+// and queryGraphCaptureActive is called on the wrong command list.
+TEST_P(urBatchedQueueTest, GraphCaptureActiveReturnsTrueAfterBeginCapture) {
+  ASSERT_NO_FATAL_FAILURE(skipIfNoGraphSupport());
+
+  ASSERT_SUCCESS(urQueueBeginGraphCaptureExp(queue1));
+
+  bool isEnabled = false;
+  ASSERT_SUCCESS(urQueueIsGraphCaptureEnabledExp(queue1, &isEnabled));
+  ASSERT_TRUE(isEnabled);
+
+  ur_exp_graph_handle_t graph = nullptr;
+  ASSERT_SUCCESS(urQueueEndGraphCaptureExp(queue1, &graph));
+  ASSERT_NE(graph, nullptr);
+  ASSERT_SUCCESS(urGraphDestroyExp(graph));
+}
+
+// After ending graph capture, isGraphCaptureActive should return false again.
+TEST_P(urBatchedQueueTest, GraphCaptureActiveReturnsFalseAfterEndCapture) {
+  ASSERT_NO_FATAL_FAILURE(skipIfNoGraphSupport());
+
+  ASSERT_SUCCESS(urQueueBeginGraphCaptureExp(queue1));
+
+  ur_exp_graph_handle_t graph = nullptr;
+  ASSERT_SUCCESS(urQueueEndGraphCaptureExp(queue1, &graph));
+  ASSERT_NE(graph, nullptr);
+
+  bool isEnabled = true;
+  ASSERT_SUCCESS(urQueueIsGraphCaptureEnabledExp(queue1, &isEnabled));
+  ASSERT_FALSE(isEnabled);
+
+  ASSERT_SUCCESS(urGraphDestroyExp(graph));
+}
+
+// During graph capture, operations should be enqueued on the immediate command
+// list (not the regular batch). Events created for operations on the immediate
+// list have no batch generation number (getBatch() == std::nullopt).
+// This test is expected to FAIL until the bug is fixed:
+// since graphCaptureActive is never set to true, getListManager() returns the
+// regular batch and getEvent() creates events with a batch generation number.
+TEST_P(urBatchedQueueTest, EnqueueDuringGraphCaptureUsesImmediateList) {
+  ASSERT_NO_FATAL_FAILURE(skipIfNoGraphSupport());
+
+  ASSERT_SUCCESS(urQueueBeginGraphCaptureExp(queue1));
+
+  ur_event_handle_t event = nullptr;
+  std::vector<uint8_t> data(buffer_size, 42);
+  ASSERT_SUCCESS(urEnqueueMemBufferWrite(queue1, buffer, /* isBlocking */ false,
+                                         0, buffer_size, data.data(), 0,
+                                         nullptr, &event));
+
+  // During graph capture, the operation should go through the immediate command
+  // list path (like command buffer enqueue), so the event should have no batch
+  // generation number
+  ASSERT_EQ(event->getBatch(), std::nullopt);
+
+  ur_exp_graph_handle_t graph = nullptr;
+  ASSERT_SUCCESS(urQueueEndGraphCaptureExp(queue1, &graph));
+  ASSERT_NE(graph, nullptr);
+
+  ASSERT_SUCCESS(urEventRelease(event));
+  ASSERT_SUCCESS(urGraphDestroyExp(graph));
 }
