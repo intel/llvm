@@ -178,8 +178,8 @@ implementations that may support this extension.
 
 If a translation unit is compiled with the `-fsycl-id-queries-fit-in-int`
 option, all kernels and `SYCL_EXTERNAL` functions without an explicitly
-specified `range_type` property are compiled as-if `range_type<int>` was
-specified as a property of that kernel or function.
+specified `range_type` property are compiled as-if `range_type<unsigned int>`
+was specified as a property of that kernel or function.
 
 
 == Implementation notes

@@ -183,8 +183,8 @@ and not recommended to use in production environment.
 
 **`-f[no-]sycl-id-queries-fit-in-int`**
 
-    Assume/Do not assume that SYCL ID queries fit within MAX_INT. It assumes
-    that these values fit within MAX_INT:
+    Assume/Do not assume that SYCL ID queries fit within MAX_UINT. It assumes
+    that these values fit within MAX_UINT:
     * id class get() member function and operator[]
     * item class get_id() member function and operator[]
     * nd_item class get_global_id()/get_global_linear_id() member functions

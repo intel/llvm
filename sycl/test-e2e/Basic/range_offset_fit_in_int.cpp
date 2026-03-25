@@ -8,9 +8,9 @@
 
 namespace S = sycl;
 
-constexpr char Msg[] = "Provided range and/or offset does not fit in int. "
-                       "Pass `-fno-sycl-id-queries-fit-in-int' to "
-                       "remove this limit.";
+constexpr char Msg[] = "Provided range and/or offset does not fit in 32-bit "
+                       "unsigned int. Pass `-fno-sycl-id-queries-fit-in-int' "
+                       "to remove this limit.";
 
 void checkRangeException(S::exception &E) {
   std::cerr << E.what() << std::endl;
@@ -33,7 +33,7 @@ void test() {
 
   S::queue Queue(EH);
 
-  static constexpr size_t OutOfLimitsSize = static_cast<size_t>(INT_MAX) + 1;
+  static constexpr size_t OutOfLimitsSize = static_cast<size_t>(UINT_MAX) + 1;
 
   S::range<2> RangeOutOfLimits{OutOfLimitsSize, 1};
   S::range<2> RangeInLimits{1, 1};
