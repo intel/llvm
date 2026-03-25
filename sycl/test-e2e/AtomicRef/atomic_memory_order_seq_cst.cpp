@@ -37,7 +37,7 @@ void check(queue &q, buffer<int, 2> &res_buf, size_t N_iters) {
     auto checked =
         checked_buf.template get_access<access::mode::discard_write>(cgh);
     cgh.parallel_for(nd_range<1>(N_items, 32), [=](nd_item<1> it) {
-      for (int i = it.get_global_id(0); i < N_items / 2 * N_iters;
+      for (int i = it.get_global_id(0); i < N_items / 2 * N_iters + 1;
            i += N_items) {
         for (int j = 0; j < N_items / 2 * N_iters + 1; j++) {
           checked[i][j] = 0;

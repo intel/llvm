@@ -483,6 +483,11 @@ ur_result_t urKernelGetSuggestedLocalWorkSize(ur_kernel_handle_t hKernel,
                                               const size_t *pGlobalWorkOffset,
                                               const size_t *pGlobalWorkSize,
                                               size_t *pSuggestedLocalWorkSize);
+ur_result_t urKernelGetSuggestedLocalWorkSizeWithArgs(
+    ur_kernel_handle_t hKernel, ur_queue_handle_t hQueue, uint32_t numWorkDim,
+    const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
+    uint32_t numArgs, const ur_exp_kernel_arg_properties_t *pArgs,
+    size_t *pSuggestedLocalWorkSize);
 ur_result_t urKernelSuggestMaxCooperativeGroupCount(
     ur_kernel_handle_t hKernel, ur_device_handle_t hDevice, uint32_t workDim,
     const size_t *pLocalWorkSize, size_t dynamicSharedMemorySize,
@@ -678,6 +683,11 @@ ur_result_t urProgramLinkExp(ur_context_handle_t hContext, uint32_t numDevices,
                              ur_program_handle_t *phProgram);
 ur_result_t urUSMContextMemcpyExp(ur_context_handle_t hContext, void *pDst,
                                   const void *pSrc, size_t size);
+ur_result_t urUSMHostAllocRegisterExp(
+    ur_context_handle_t hContext, void *pHostMem, size_t size,
+    const ur_exp_usm_host_alloc_register_properties_t *pProperties);
+ur_result_t urUSMHostAllocUnregisterExp(ur_context_handle_t hContext,
+                                        void *pHostMem);
 ur_result_t urUSMImportExp(ur_context_handle_t hContext, void *pMem,
                            size_t size);
 ur_result_t urUSMReleaseExp(ur_context_handle_t hContext, void *pMem);

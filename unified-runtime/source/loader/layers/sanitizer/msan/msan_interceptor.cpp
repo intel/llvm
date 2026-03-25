@@ -472,19 +472,6 @@ ur_result_t MsanInterceptor::prepareLaunch(
 
   std::shared_lock<ur_shared_mutex> Guard(KernelInfo.Mutex);
 
-  for (const auto &[ArgIndex, MemBuffer] : KernelInfo.BufferArgs) {
-    char *ArgPointer = nullptr;
-    UR_CALL(MemBuffer->getHandle(DeviceInfo->Handle, ArgPointer));
-    ur_result_t URes = getContext()->urDdiTable.Kernel.pfnSetArgPointer(
-        Kernel, ArgIndex, nullptr, ArgPointer);
-    if (URes != UR_RESULT_SUCCESS) {
-      UR_LOG_L(getContext()->logger, ERR,
-               "Failed to set buffer {} as the {} arg to kernel {}: {}",
-               ur_cast<ur_mem_handle_t>(MemBuffer.get()), ArgIndex, Kernel,
-               URes);
-    }
-  }
-
   if (!KernelInfo.IsInstrumented) {
     return UR_RESULT_SUCCESS;
   }
@@ -509,9 +496,13 @@ ur_result_t MsanInterceptor::prepareLaunch(
 
   if (LaunchInfo.LocalWorkSize.empty()) {
     LaunchInfo.LocalWorkSize.resize(LaunchInfo.WorkDim);
-    auto URes = getContext()->urDdiTable.Kernel.pfnGetSuggestedLocalWorkSize(
-        Kernel, Queue, LaunchInfo.WorkDim, LaunchInfo.GlobalWorkOffset.data(),
-        LaunchInfo.GlobalWorkSize, LaunchInfo.LocalWorkSize.data());
+    auto ArgNums = GetKernelNumArgs(Kernel);
+    auto URes =
+        getContext()->urDdiTable.Kernel.pfnGetSuggestedLocalWorkSizeWithArgs(
+            Kernel, Queue, LaunchInfo.WorkDim,
+            LaunchInfo.GlobalWorkOffset.data(), LaunchInfo.GlobalWorkSize,
+            ArgNums, KernelInfo.ArgProps.data(),
+            LaunchInfo.LocalWorkSize.data());
     if (URes != UR_RESULT_SUCCESS) {
       if (URes != UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
         return URes;
