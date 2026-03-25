@@ -63,10 +63,11 @@
 
 #pragma once
 
+#include <sycl/detail/generic_type_traits.hpp>
 #include <sycl/detail/helpers.hpp>
 #include <sycl/detail/type_traits.hpp>
 #include <sycl/detail/type_traits/vec_marray_traits.hpp>
-#include <sycl/detail/vector_convert.hpp>
+#include <sycl/half_type.hpp>
 #include <sycl/marray.hpp>
 #include <sycl/multi_ptr.hpp>
 #include <sycl/vector.hpp>
@@ -215,6 +216,7 @@ auto builtin_marray_impl(FuncTy F, const Ts &...x) {
   return Res;
 }
 
+#ifndef __SYCL_DEVICE_ONLY__
 template <typename FuncTy, typename... Ts>
 auto builtin_default_host_impl(FuncTy F, const Ts &...x) {
   // We implement support for marray/swizzle in the headers and export symbols
@@ -250,6 +252,7 @@ auto builtin_delegate_to_scalar(FuncTy F, const Ts &...x) {
 
   return r;
 }
+#endif
 
 template <typename T>
 struct fp_elem_type
