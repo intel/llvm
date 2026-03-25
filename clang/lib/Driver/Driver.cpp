@@ -9812,7 +9812,6 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
     BaseName = ExternalPath;
   } else if (isa<DsymutilJobAction>(JA) || isa<VerifyJobAction>(JA))
     BaseName = BasePath;
-
   else
     BaseName = llvm::sys::path::filename(BasePath);
 
