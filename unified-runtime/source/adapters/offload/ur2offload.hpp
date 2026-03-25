@@ -10,7 +10,7 @@
 #pragma once
 
 #include <OffloadAPI.h>
-#include <ur_api.h>
+#include <unified-runtime/ur_api.h>
 
 inline ur_result_t offloadResultToUR(ol_result_t Result) {
   if (Result == OL_SUCCESS) {

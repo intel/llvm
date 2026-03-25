@@ -6888,6 +6888,78 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urKernelGetSuggestedLocalWorkSizeWithArgs
+__urdlllocal ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSizeWithArgs(
+    /// [in] handle of the kernel
+    ur_kernel_handle_t hKernel,
+    /// [in] handle of the queue object
+    ur_queue_handle_t hQueue,
+    /// [in] number of dimensions, from 1 to 3, to specify the global
+    /// and work-group work-items
+    uint32_t numWorkDim,
+    /// [in] pointer to an array of numWorkDim unsigned values that specify
+    /// the offset used to calculate the global ID of a work-item
+    const size_t *pGlobalWorkOffset,
+    /// [in] pointer to an array of numWorkDim unsigned values that specify
+    /// the number of global work-items in workDim that will execute the
+    /// kernel function
+    const size_t *pGlobalWorkSize,
+    /// [in] Number of entries in pArgs
+    uint32_t numArgs,
+    /// [in][optional][range(0, numArgs)] pointer to a list of kernel arg
+    /// properties.
+    const ur_exp_kernel_arg_properties_t *pArgs,
+    /// [out] pointer to an array of numWorkDim unsigned values that specify
+    /// suggested local work size that will contain the result of the query
+    size_t *pSuggestedLocalWorkSize) {
+  auto pfnGetSuggestedLocalWorkSizeWithArgs =
+      getContext()->urDdiTable.Kernel.pfnGetSuggestedLocalWorkSizeWithArgs;
+
+  if (nullptr == pfnGetSuggestedLocalWorkSizeWithArgs) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == pGlobalWorkOffset)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == pGlobalWorkSize)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == pSuggestedLocalWorkSize)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (pArgs == NULL && numArgs > 0)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hKernel)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hQueue)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL != pArgs && UR_EXP_KERNEL_ARG_TYPE_SAMPLER < pArgs->type)
+      return UR_RESULT_ERROR_INVALID_ENUMERATION;
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hKernel)) {
+    URLOG_CTX_INVALID_REFERENCE(hKernel);
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hQueue)) {
+    URLOG_CTX_INVALID_REFERENCE(hQueue);
+  }
+
+  ur_result_t result = pfnGetSuggestedLocalWorkSizeWithArgs(
+      hKernel, hQueue, numWorkDim, pGlobalWorkOffset, pGlobalWorkSize, numArgs,
+      pArgs, pSuggestedLocalWorkSize);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urKernelSuggestMaxCooperativeGroupCount
 __urdlllocal ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCount(
     /// [in] handle of the kernel object
@@ -9550,6 +9622,83 @@ __urdlllocal ur_result_t UR_APICALL urUSMContextMemcpyExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUSMHostAllocRegisterExp
+__urdlllocal ur_result_t UR_APICALL urUSMHostAllocRegisterExp(
+    /// [in] Handle of the context.
+    ur_context_handle_t hContext,
+    /// [in] Pointer to the host memory range to register.
+    void *pHostMem,
+    /// [in] Size in bytes of the host memory range to register, must be
+    /// page-aligned.
+    size_t size,
+    /// [in][optional] Pointer to host memory registration properties.
+    const ur_exp_usm_host_alloc_register_properties_t *pProperties) {
+  auto pfnHostAllocRegisterExp =
+      getContext()->urDdiTable.USMExp.pfnHostAllocRegisterExp;
+
+  if (nullptr == pfnHostAllocRegisterExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == pHostMem)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL != pProperties &&
+        UR_EXP_USM_HOST_ALLOC_REGISTER_FLAGS_MASK & pProperties->flags)
+      return UR_RESULT_ERROR_INVALID_ENUMERATION;
+
+    if (size == 0)
+      return UR_RESULT_ERROR_INVALID_VALUE;
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hContext)) {
+    URLOG_CTX_INVALID_REFERENCE(hContext);
+  }
+
+  ur_result_t result =
+      pfnHostAllocRegisterExp(hContext, pHostMem, size, pProperties);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUSMHostAllocUnregisterExp
+__urdlllocal ur_result_t UR_APICALL urUSMHostAllocUnregisterExp(
+    /// [in] Handle of the context.
+    ur_context_handle_t hContext,
+    /// [in][release] Pointer to the registered host memory range.
+    void *pHostMem) {
+  auto pfnHostAllocUnregisterExp =
+      getContext()->urDdiTable.USMExp.pfnHostAllocUnregisterExp;
+
+  if (nullptr == pfnHostAllocUnregisterExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == pHostMem)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hContext)) {
+    URLOG_CTX_INVALID_REFERENCE(hContext);
+  }
+
+  ur_result_t result = pfnHostAllocUnregisterExp(hContext, pHostMem);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urUSMImportExp
 __urdlllocal ur_result_t UR_APICALL urUSMImportExp(
     /// [in] handle of the context object
@@ -10028,6 +10177,9 @@ urCommandBufferAppendKernelLaunchWithArgsExp(
 
   if (getContext()->enableParameterValidation) {
     if (NULL == pGlobalWorkSize)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (pArgs == NULL && numArgs > 0)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (NULL == hCommandBuffer)
@@ -12625,6 +12777,11 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetKernelProcAddrTable(
   pDdiTable->pfnGetSuggestedLocalWorkSize =
       ur_validation_layer::urKernelGetSuggestedLocalWorkSize;
 
+  dditable.pfnGetSuggestedLocalWorkSizeWithArgs =
+      pDdiTable->pfnGetSuggestedLocalWorkSizeWithArgs;
+  pDdiTable->pfnGetSuggestedLocalWorkSizeWithArgs =
+      ur_validation_layer::urKernelGetSuggestedLocalWorkSizeWithArgs;
+
   dditable.pfnSetArgValue = pDdiTable->pfnSetArgValue;
   pDdiTable->pfnSetArgValue = ur_validation_layer::urKernelSetArgValue;
 
@@ -13232,6 +13389,14 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetUSMExpProcAddrTable(
 
   dditable.pfnContextMemcpyExp = pDdiTable->pfnContextMemcpyExp;
   pDdiTable->pfnContextMemcpyExp = ur_validation_layer::urUSMContextMemcpyExp;
+
+  dditable.pfnHostAllocUnregisterExp = pDdiTable->pfnHostAllocUnregisterExp;
+  pDdiTable->pfnHostAllocUnregisterExp =
+      ur_validation_layer::urUSMHostAllocUnregisterExp;
+
+  dditable.pfnHostAllocRegisterExp = pDdiTable->pfnHostAllocRegisterExp;
+  pDdiTable->pfnHostAllocRegisterExp =
+      ur_validation_layer::urUSMHostAllocRegisterExp;
 
   dditable.pfnImportExp = pDdiTable->pfnImportExp;
   pDdiTable->pfnImportExp = ur_validation_layer::urUSMImportExp;

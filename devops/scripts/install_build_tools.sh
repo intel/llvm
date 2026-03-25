@@ -1,5 +1,22 @@
 #!/bin/bash
 
+set -x
+set -e
+set -o pipefail
+
+. /etc/os-release
+
+apt-get update && \
+    apt-get install -yqq ca-certificates gpg wget
+
+# Install CMake PPA so all Ubuntu versions we use have recent CMake.
+# Steps from https://apt.kitware.com/
+wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | \
+    gpg --dearmor - | tee /usr/share/keyrings/kitware-archive-keyring.gpg >/dev/null
+
+echo "deb [signed-by=/usr/share/keyrings/kitware-archive-keyring.gpg] https://apt.kitware.com/ubuntu/ $VERSION_CODENAME main" | \
+    tee /etc/apt/sources.list.d/kitware.list >/dev/null
+
 apt update && apt install -yqq \
       build-essential \
       cmake \
@@ -16,7 +33,6 @@ apt update && apt install -yqq \
       libffi-dev \
       libva-dev \
       libtool \
-      wget \
       sudo \
       zstd \
       zip \
@@ -35,7 +51,6 @@ apt update && apt install -yqq \
 # Same as what's done in SPRIV-LLVM-TRANSLATOR:
 # https://github.com/KhronosGroup/SPIRV-LLVM-Translator/blob/cec12d6cf46306d0a015e883d5adb5a8200df1c0/.github/workflows/check-out-of-tree-build.yml#L59
 # pkg-config is required for llvm-spriv to detect spriv-tools installation.
-. /etc/os-release
 apt update && apt install -yqq pkg-config
 
 if [[ "$VERSION_CODENAME" == "jammy" ]]; then

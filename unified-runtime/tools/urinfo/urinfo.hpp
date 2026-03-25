@@ -17,7 +17,7 @@
 #include "utils.hpp"
 #include <cstdlib>
 #include <string_view>
-#include <ur_api.h>
+#include <unified-runtime/ur_api.h>
 
 namespace urinfo {
 inline void printLoaderConfigInfos(ur_loader_config_handle_t hLoaderConfig,
@@ -462,6 +462,9 @@ inline void printDeviceInfos(ur_device_handle_t hDevice,
   std::cout << prefix;
   printDeviceInfo<ur_bool_t>(
       hDevice, UR_DEVICE_INFO_GRAPH_RECORD_AND_REPLAY_SUPPORT_EXP);
+  std::cout << prefix;
+  printDeviceInfo<ur_bool_t>(
+      hDevice, UR_DEVICE_INFO_USM_HOST_ALLOC_REGISTER_SUPPORT_EXP);
   std::cout << prefix;
   printDeviceInfo<ur_bool_t>(hDevice, UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP);
   std::cout << prefix;

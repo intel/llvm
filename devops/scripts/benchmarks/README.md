@@ -56,12 +56,12 @@ $ cmake --install ~/ur_build
 
 There is a test which can execute benchmarking code and do some checks
 of internal data structures. In order to use it one should
-- prepare environment on its own (Level Zero, OneAPI or somehow SYCL
-`clang++` compiler)
-- have CMPLR_ROOT set and pointing to directory with `clang++`
-- have COMPUTE_BENCHMARKS_BUILD_PATH variable pointing to build directory of compute-benchmarks
-- set LLVM_BENCHMARKS_UNIT_TESTING=1
-- set GPU_TYPE variable to the type of GPU to be tested (i.e. `PVC` or `BMG`)
+- prepare environment on its own (Level Zero, OneAPI or somehow SYCL `clang++` compiler)
+- have `CMPLR_ROOT` env variable pointing to directory with `clang++`
+- have `COMPUTE_BENCHMARKS_BUILD_PATH` env variable pointing to build directory of compute-benchmarks
+- set `LLVM_BENCHMARKS_UNIT_TESTING=1`
+- set `GPU_TYPE` variable to the type of GPU to be tested (i.e. `PVC` or `BMG`)
+- *(optional)* have `LLVM_BENCH_UR_INSTALL_DIR` env variable pointing to directory with UR installation
 
 Then tests can be executed by
 ```

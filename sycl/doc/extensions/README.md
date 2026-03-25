@@ -1,11 +1,14 @@
 # SYCL Extensions in DPC++
 
-The DPC++ compiler supports the [SYCL language][1].  In addition to the core
-SYCL features, DPC++ also implements certain extensions, and this directory
-contains the specifications for those extensions.  These extensions are
-organized into subdirectories according to their state.
+The DPC++ compiler supports the core [SYCL 2020 specification][1], and the
+following Khronos-defined KHR extensions:
 
-[1]: <https://www.khronos.org/registry/SYCL/specs/sycl-2020/html/sycl-2020.html>
+* [sycl\_khr\_default\_context][khr1]
+* [sycl\_khr\_queue\_empty\_query][khr2]
+
+In addition, DPC++ supports a variety of vendor-defined extensions.
+The specifications for these extensions are organized into the following
+subdirectories according to their state.
 
 | Directory        | Description                                                   |
 |------------------|---------------------------------------------------------------|
@@ -15,8 +18,12 @@ organized into subdirectories according to their state.
 |[proposed][5]     | Extensions which proposed but not yet implemented             |
 |[removed][6]      | Extensions which used to be supported but are now removed     |
 
+[1]: <https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html>
 [2]: <supported>
 [3]: <experimental>
 [4]: <deprecated>
 [5]: <proposed>
 [6]: <removed>
+
+[khr1]: <https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#sec:khr-default-context>
+[khr2]: <https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#sec:khr-queue-empty-query>

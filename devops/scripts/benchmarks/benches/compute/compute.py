@@ -40,8 +40,8 @@ class ComputeBench(Suite):
         return "https://github.com/intel/compute-benchmarks.git"
 
     def git_hash(self) -> str:
-        # Mar 03, 2026
-        return "48504d2957a83ad32deff78563e855eeb6855dae"
+        # Mar 23, 2026
+        return "86d86fd37d703db4f0f75779ccdfd50193e0ab3d"
 
     def setup(self) -> None:
         if options.sycl is None:
@@ -84,7 +84,7 @@ class ComputeBench(Suite):
         if options.ur is not None:
             extra_args += [
                 f"-DBUILD_UR=ON",
-                f"-Dunified-runtime_DIR={options.ur}/lib/cmake/unified-runtime",
+                f"-DCMAKE_PREFIX_PATH={options.ur}",
             ]
 
         self._project.configure(extra_args, add_sycl=True)
@@ -317,8 +317,7 @@ class ComputeBench(Suite):
                         runtime,
                         variant_name,
                         profiler_type,
-                        **{
-                            **kwargs,
+                        fixed_args={
                             "KernelBatchSize": 512,
                             "KernelName": "Add",
                             "KernelParamsNum": 5,
@@ -326,6 +325,7 @@ class ComputeBench(Suite):
                             "Profiling": 0,
                             "UseEvents": 0,
                         },
+                        **kwargs,
                     )
 
                 benches += [
@@ -378,28 +378,30 @@ class ComputeBench(Suite):
                         variant_name,
                         profiler_type,
                         measure_completion,
-                        **{
-                            **kwargs,
+                        fixed_args={
                             "KernelWGCount": 512,
                             "KernelWGSize": 256,
-                            "MeasureCompletionTime": measure_completion,
                             "Profiling": 0,
                             "UseEvents": 0,
                         },
+                        **kwargs,
                     )
 
                 benches += [
                     createTorchMultiQueueBench(
                         "large",
                         KernelsPerQueue=20,
+                        MeasureCompletionTime=measure_completion,
                     ),
                     createTorchMultiQueueBench(
                         "medium",
                         KernelsPerQueue=10,
+                        MeasureCompletionTime=measure_completion,
                     ),
                     createTorchMultiQueueBench(
                         "small",
                         KernelsPerQueue=4,
+                        MeasureCompletionTime=measure_completion,
                     ),
                 ]
 
@@ -414,26 +416,28 @@ class ComputeBench(Suite):
                         variant_name,
                         profiler_type,
                         measure_completion,
-                        **{
-                            **kwargs,
+                        fixed_args={
                             "KernelBatchSize": 512,
-                            "MeasureCompletionTime": measure_completion,
                             "Profiling": 0,
                         },
+                        **kwargs,
                     )
 
                 benches += [
                     createTorchSlmSizeBench(
                         "small",
                         SlmNum=1,
+                        MeasureCompletionTime=measure_completion,
                     ),
                     createTorchSlmSizeBench(
                         "medium",
                         SlmNum=1024,
+                        MeasureCompletionTime=measure_completion,
                     ),
                     createTorchSlmSizeBench(
                         "large",
                         SlmNum=16384,
+                        MeasureCompletionTime=measure_completion,
                     ),
                 ]
 
@@ -491,11 +495,11 @@ class ComputeBench(Suite):
                         runtime,
                         variant_name,
                         profiler_type,
-                        **{
-                            **kwargs,
+                        fixed_args={
                             "KernelBatchSize": 512,
                             "Profiling": 0,
                         },
+                        **kwargs,
                     )
 
                 benches += [
@@ -536,29 +540,31 @@ class ComputeBench(Suite):
                             runtime,
                             variant_name,
                             profiler_type,
-                            **{
-                                **kwargs,
-                                "KernelName": kernel_name.value,
+                            fixed_args={
                                 "KernelWGCount": 512,
                                 "KernelWGSize": 256,
                                 "Profiling": 0,
                                 "UseEvents": 0,
                             },
+                            **kwargs,
                         )
 
                     benches += [
                         createTorchGraphSingleQueueBench(
                             "small",
+                            KernelName=kernel_name.value,
                             KernelsPerQueue=10,
                             KernelBatchSize=10,
                         ),
                         createTorchGraphSingleQueueBench(
                             "medium",
+                            KernelName=kernel_name.value,
                             KernelsPerQueue=32,
                             KernelBatchSize=32,
                         ),
                         createTorchGraphSingleQueueBench(
                             "large",
+                            KernelName=kernel_name.value,
                             KernelsPerQueue=64,
                             KernelBatchSize=64,
                         ),
@@ -574,29 +580,44 @@ class ComputeBench(Suite):
                             runtime,
                             variant_name,
                             profiler_type,
-                            **{
-                                **kwargs,
-                                "workgroupCount": 512,
-                                "workgroupSize": 256,
+                            fixed_args={
+                                "KernelWGCount": 512,
+                                "KernelWGSize": 256,
                                 "Profiling": 0,
                                 "UseEvents": 0,
                             },
+                            **kwargs,
                         )
 
                     benches += [
                         createTorchGraphMultiQueueBench(
                             "small",
-                            kernelsPerQueue=10,
+                            KernelsPerQueue=10,
                         ),
                         createTorchGraphMultiQueueBench(
                             "medium",
-                            kernelsPerQueue=32,
+                            KernelsPerQueue=32,
                         ),
                         createTorchGraphMultiQueueBench(
                             "large",
-                            kernelsPerQueue=64,
+                            KernelsPerQueue=64,
                         ),
                     ]
+
+        # Add TorchSubmitEventRecordWait benchmarks
+        for runtime in filter(lambda x: x != RUNTIMES.UR, RUNTIMES):
+            for profiler_type in list(PROFILERS):
+                benches.append(
+                    TorchSubmitEventRecordWait(
+                        self,
+                        runtime,
+                        "medium",
+                        profiler_type,
+                        Profiling=0,
+                        KernelWGCount=256,
+                        KernelWGSize=512,
+                    )
+                )
 
         # Add UR-specific benchmarks
         benches += [
@@ -649,23 +670,20 @@ class ComputeBenchCoreSuite(ComputeBench):
         submit_kernel_params = product(
             list(RUNTIMES),
             [0, 1],  # in_order_queue
-            [0, 1],  # measure_completion
-            [0, 1],  # use_events
+            list(PROFILERS),
         )
         for (
             runtime,
             in_order_queue,
-            measure_completion,
-            use_events,
+            profiler_type,
         ) in submit_kernel_params:
             core_benches.append(
                 SubmitKernel(
                     self,
                     runtime,
                     in_order_queue,
-                    measure_completion,
-                    use_events,
                     KernelExecTime=1,
+                    profiler_type=profiler_type,
                 )
             )
         return core_benches

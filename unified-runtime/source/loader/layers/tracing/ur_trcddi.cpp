@@ -6225,6 +6225,68 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urKernelGetSuggestedLocalWorkSizeWithArgs
+__urdlllocal ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSizeWithArgs(
+    /// [in] handle of the kernel
+    ur_kernel_handle_t hKernel,
+    /// [in] handle of the queue object
+    ur_queue_handle_t hQueue,
+    /// [in] number of dimensions, from 1 to 3, to specify the global
+    /// and work-group work-items
+    uint32_t numWorkDim,
+    /// [in] pointer to an array of numWorkDim unsigned values that specify
+    /// the offset used to calculate the global ID of a work-item
+    const size_t *pGlobalWorkOffset,
+    /// [in] pointer to an array of numWorkDim unsigned values that specify
+    /// the number of global work-items in workDim that will execute the
+    /// kernel function
+    const size_t *pGlobalWorkSize,
+    /// [in] Number of entries in pArgs
+    uint32_t numArgs,
+    /// [in][optional][range(0, numArgs)] pointer to a list of kernel arg
+    /// properties.
+    const ur_exp_kernel_arg_properties_t *pArgs,
+    /// [out] pointer to an array of numWorkDim unsigned values that specify
+    /// suggested local work size that will contain the result of the query
+    size_t *pSuggestedLocalWorkSize) {
+  auto pfnGetSuggestedLocalWorkSizeWithArgs =
+      getContext()->urDdiTable.Kernel.pfnGetSuggestedLocalWorkSizeWithArgs;
+
+  if (nullptr == pfnGetSuggestedLocalWorkSizeWithArgs)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_kernel_get_suggested_local_work_size_with_args_params_t params = {
+      &hKernel,         &hQueue,  &numWorkDim, &pGlobalWorkOffset,
+      &pGlobalWorkSize, &numArgs, &pArgs,      &pSuggestedLocalWorkSize};
+  uint64_t instance = getContext()->notify_begin(
+      UR_FUNCTION_KERNEL_GET_SUGGESTED_LOCAL_WORK_SIZE_WITH_ARGS,
+      "urKernelGetSuggestedLocalWorkSizeWithArgs", &params);
+
+  auto &logger = getContext()->logger;
+  UR_LOG_L(logger, INFO, "   ---> urKernelGetSuggestedLocalWorkSizeWithArgs\n");
+
+  ur_result_t result = pfnGetSuggestedLocalWorkSizeWithArgs(
+      hKernel, hQueue, numWorkDim, pGlobalWorkOffset, pGlobalWorkSize, numArgs,
+      pArgs, pSuggestedLocalWorkSize);
+
+  getContext()->notify_end(
+      UR_FUNCTION_KERNEL_GET_SUGGESTED_LOCAL_WORK_SIZE_WITH_ARGS,
+      "urKernelGetSuggestedLocalWorkSizeWithArgs", &params, &result, instance);
+
+  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_KERNEL_GET_SUGGESTED_LOCAL_WORK_SIZE_WITH_ARGS,
+        &params);
+    UR_LOG_L(logger, INFO,
+             "   <--- urKernelGetSuggestedLocalWorkSizeWithArgs({}) -> {};\n",
+             args_str.str(), result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urKernelSuggestMaxCooperativeGroupCount
 __urdlllocal ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCount(
     /// [in] handle of the kernel object
@@ -8693,6 +8755,89 @@ __urdlllocal ur_result_t UR_APICALL urUSMContextMemcpyExp(
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_USM_CONTEXT_MEMCPY_EXP, &params);
     UR_LOG_L(logger, INFO, "   <--- urUSMContextMemcpyExp({}) -> {};\n",
+             args_str.str(), result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUSMHostAllocRegisterExp
+__urdlllocal ur_result_t UR_APICALL urUSMHostAllocRegisterExp(
+    /// [in] Handle of the context.
+    ur_context_handle_t hContext,
+    /// [in] Pointer to the host memory range to register.
+    void *pHostMem,
+    /// [in] Size in bytes of the host memory range to register, must be
+    /// page-aligned.
+    size_t size,
+    /// [in][optional] Pointer to host memory registration properties.
+    const ur_exp_usm_host_alloc_register_properties_t *pProperties) {
+  auto pfnHostAllocRegisterExp =
+      getContext()->urDdiTable.USMExp.pfnHostAllocRegisterExp;
+
+  if (nullptr == pfnHostAllocRegisterExp)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_usm_host_alloc_register_exp_params_t params = {&hContext, &pHostMem, &size,
+                                                    &pProperties};
+  uint64_t instance =
+      getContext()->notify_begin(UR_FUNCTION_USM_HOST_ALLOC_REGISTER_EXP,
+                                 "urUSMHostAllocRegisterExp", &params);
+
+  auto &logger = getContext()->logger;
+  UR_LOG_L(logger, INFO, "   ---> urUSMHostAllocRegisterExp\n");
+
+  ur_result_t result =
+      pfnHostAllocRegisterExp(hContext, pHostMem, size, pProperties);
+
+  getContext()->notify_end(UR_FUNCTION_USM_HOST_ALLOC_REGISTER_EXP,
+                           "urUSMHostAllocRegisterExp", &params, &result,
+                           instance);
+
+  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_USM_HOST_ALLOC_REGISTER_EXP, &params);
+    UR_LOG_L(logger, INFO, "   <--- urUSMHostAllocRegisterExp({}) -> {};\n",
+             args_str.str(), result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUSMHostAllocUnregisterExp
+__urdlllocal ur_result_t UR_APICALL urUSMHostAllocUnregisterExp(
+    /// [in] Handle of the context.
+    ur_context_handle_t hContext,
+    /// [in][release] Pointer to the registered host memory range.
+    void *pHostMem) {
+  auto pfnHostAllocUnregisterExp =
+      getContext()->urDdiTable.USMExp.pfnHostAllocUnregisterExp;
+
+  if (nullptr == pfnHostAllocUnregisterExp)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_usm_host_alloc_unregister_exp_params_t params = {&hContext, &pHostMem};
+  uint64_t instance =
+      getContext()->notify_begin(UR_FUNCTION_USM_HOST_ALLOC_UNREGISTER_EXP,
+                                 "urUSMHostAllocUnregisterExp", &params);
+
+  auto &logger = getContext()->logger;
+  UR_LOG_L(logger, INFO, "   ---> urUSMHostAllocUnregisterExp\n");
+
+  ur_result_t result = pfnHostAllocUnregisterExp(hContext, pHostMem);
+
+  getContext()->notify_end(UR_FUNCTION_USM_HOST_ALLOC_UNREGISTER_EXP,
+                           "urUSMHostAllocUnregisterExp", &params, &result,
+                           instance);
+
+  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_USM_HOST_ALLOC_UNREGISTER_EXP, &params);
+    UR_LOG_L(logger, INFO, "   <--- urUSMHostAllocUnregisterExp({}) -> {};\n",
              args_str.str(), result);
   }
 
@@ -11841,6 +11986,11 @@ __urdlllocal ur_result_t UR_APICALL urGetKernelProcAddrTable(
   pDdiTable->pfnGetSuggestedLocalWorkSize =
       ur_tracing_layer::urKernelGetSuggestedLocalWorkSize;
 
+  dditable.pfnGetSuggestedLocalWorkSizeWithArgs =
+      pDdiTable->pfnGetSuggestedLocalWorkSizeWithArgs;
+  pDdiTable->pfnGetSuggestedLocalWorkSizeWithArgs =
+      ur_tracing_layer::urKernelGetSuggestedLocalWorkSizeWithArgs;
+
   dditable.pfnSetArgValue = pDdiTable->pfnSetArgValue;
   pDdiTable->pfnSetArgValue = ur_tracing_layer::urKernelSetArgValue;
 
@@ -12433,6 +12583,14 @@ __urdlllocal ur_result_t UR_APICALL urGetUSMExpProcAddrTable(
 
   dditable.pfnContextMemcpyExp = pDdiTable->pfnContextMemcpyExp;
   pDdiTable->pfnContextMemcpyExp = ur_tracing_layer::urUSMContextMemcpyExp;
+
+  dditable.pfnHostAllocUnregisterExp = pDdiTable->pfnHostAllocUnregisterExp;
+  pDdiTable->pfnHostAllocUnregisterExp =
+      ur_tracing_layer::urUSMHostAllocUnregisterExp;
+
+  dditable.pfnHostAllocRegisterExp = pDdiTable->pfnHostAllocRegisterExp;
+  pDdiTable->pfnHostAllocRegisterExp =
+      ur_tracing_layer::urUSMHostAllocRegisterExp;
 
   dditable.pfnImportExp = pDdiTable->pfnImportExp;
   pDdiTable->pfnImportExp = ur_tracing_layer::urUSMImportExp;

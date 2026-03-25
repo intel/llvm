@@ -106,6 +106,8 @@ struct KernelInfo {
   // Need preserve the order of local arguments
   std::map<uint32_t, LocalArgsInfo> LocalArgs;
 
+  std::vector<ur_exp_kernel_arg_properties_t> ArgProps;
+
   explicit KernelInfo(ur_kernel_handle_t Kernel) : Handle(Kernel) {
     [[maybe_unused]] auto Result =
         getContext()->urDdiTable.Kernel.pfnRetain(Kernel);

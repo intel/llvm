@@ -13,7 +13,7 @@
 
 #pragma once
 
-#include "ur_api.h"
+#include "unified-runtime/ur_api.h"
 
 #include <atomic>
 #include <cassert>

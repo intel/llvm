@@ -12,7 +12,7 @@
 #include "common.hpp"
 #include <cassert>
 #include <cuda.h>
-#include <ur_api.h>
+#include <unified-runtime/ur_api.h>
 
 ur_result_t enqueueEventsWait(ur_queue_handle_t CommandQueue, CUstream Stream,
                               uint32_t NumEventsInWaitList,

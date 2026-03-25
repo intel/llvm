@@ -784,6 +784,13 @@ ur_result_t AsanInterceptor::prepareLaunch(
 
     ur_result_t URes = getContext()->urDdiTable.Kernel.pfnSetArgPointer(
         Kernel, ArgNums - 1, nullptr, LaunchInfo.Data.getDevicePtr());
+    KernelInfo.ArgProps.push_back(ur_exp_kernel_arg_properties_t{
+        UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+        nullptr,
+        UR_EXP_KERNEL_ARG_TYPE_POINTER,
+        ArgNums - 1,
+        sizeof(void *),
+        {LaunchInfo.Data.getDevicePtr()}});
     if (URes != UR_RESULT_SUCCESS) {
       UR_LOG_L(getContext()->logger, ERR, "Failed to set launch info: {}",
                URes);
@@ -793,9 +800,12 @@ ur_result_t AsanInterceptor::prepareLaunch(
 
   if (LaunchInfo.LocalWorkSize.empty()) {
     LaunchInfo.LocalWorkSize.resize(LaunchInfo.WorkDim);
-    auto URes = getContext()->urDdiTable.Kernel.pfnGetSuggestedLocalWorkSize(
-        Kernel, Queue, LaunchInfo.WorkDim, LaunchInfo.GlobalWorkOffset.data(),
-        LaunchInfo.GlobalWorkSize, LaunchInfo.LocalWorkSize.data());
+    auto URes =
+        getContext()->urDdiTable.Kernel.pfnGetSuggestedLocalWorkSizeWithArgs(
+            Kernel, Queue, LaunchInfo.WorkDim,
+            LaunchInfo.GlobalWorkOffset.data(), LaunchInfo.GlobalWorkSize,
+            ArgNums, KernelInfo.ArgProps.data(),
+            LaunchInfo.LocalWorkSize.data());
     if (URes != UR_RESULT_SUCCESS) {
       if (URes != UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
         return URes;

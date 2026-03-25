@@ -687,17 +687,10 @@ PI interface.
 The CUDA API does not natively support the global offset parameter
 expected by the SYCL.
 
-In order to emulate this and make generated kernel compliant, an intrinsic
-`llvm.nvvm.implicit.offset` (clang builtin `__builtin_ptx_implicit_offset`) was
-introduced materializing the use of this implicit parameter for the NVPTX
-backend. AMDGCN uses the same approach with `llvm.amdgpu.implicit.offset` and
-`__builtin_amdgcn_implicit_offset`. The intrinsic returns a pointer to `i32`
-referring to a 3 elements array.
-
-Each non-kernel function reaching the implicit offset intrinsic in the
+Each function reaching the __spirv_BuiltInGlobalOffset builtin in the
 call graph is augmented with an extra implicit parameter of type
 pointer to `i32`. Kernels calling one of these functions using
-this intrinsic are cloned:
+the builtin are cloned:
 
 - the original kernel initializes an array of 3 `i32` to 0 and passes
   the pointer to this array to each function with the implicit
@@ -718,24 +711,16 @@ on the following logic:
 As an example, the following code:
 
 ```LLVM
-declare i32* @llvm.nvvm.implicit.offset()
+declare i64 @_Z27__spirv_BuiltInGlobalOffseti(i32)
 
-define weak_odr dso_local i64 @other_function() {
-  %1 = tail call i32* @llvm.nvvm.implicit.offset()
-  %2 = getelementptr inbounds i32, i32* %1, i64 2
-  %3 = load i32, i32* %2, align 4
-  %4 = zext i32 %3 to i64
-  ret i64 %4
+define i64 @_ZTS14other_function() {
+  %1 = tail call i64 @_Z27__spirv_BuiltInGlobalOffseti(i32 2)
+  ret i64 %1
 }
 
-define weak_odr dso_local void @other_function2() {
-  ret
-}
-
-define weak_odr dso_local void @example_kernel() {
+define ptx_kernel void @_ZTS14example_kernel() {
 entry:
-  %0 = call i64 @other_function()
-  call void @other_function2()
+  %0 = call i64 @_ZTS14other_function()
   ret void
 }
 ```
@@ -743,30 +728,26 @@ entry:
 Is transformed into this:
 
 ```LLVM
-define weak_odr dso_local i64 @other_function(i32* %0) {
-  %2 = getelementptr inbounds i32, i32* %0, i64 2
-  %3 = load i32, i32* %2, align 4
-  %4 = zext i32 %3 to i64
+define i64 @_ZTS14other_function() {
+  ret i64 0
+}
 
+define i64 @_ZTS14other_function_with_offset(ptr %0) {
+  %2 = getelementptr inbounds i32, ptr %0, i32 2
+  %3 = load i32, ptr %2, align 4
+  %4 = zext i32 %3 to i64
   ret i64 %4
 }
 
-define weak_odr dso_local void @example_kernel() {
+define ptx_kernel void @_ZTS14example_kernel() {
 entry:
-  %0 = alloca [3 x i32], align 4
-  %1 = bitcast [3 x i32]* %0 to i8*
-  call void @llvm.memset.p0i8.i64(i8* nonnull align 4 dereferenceable(12) %1, i8 0, i64 12, i1 false)
-  %2 = getelementptr inbounds [3 x i32], [3 x i32]* %0, i32 0, i32 0
-  %3 = call i64 @other_function(i32* %2)
-  call void @other_function2()
+  %0 = call i64 @_ZTS14other_function()
   ret void
 }
 
-define weak_odr dso_local void @example_kernel_with_offset([3 x i32]* byval([3 x i32]) %0) {
+define ptx_kernel void @_ZTS14example_kernel_with_offset(ptr byval([3 x i32]) %0) {
 entry:
-  %1 = bitcast [3 x i32]* %0 to i32*
-  %2 = call i64 @other_function(i32* %1)
-  call void @other_function2()
+  %1 = call i64 @_ZTS14other_function_with_offset(ptr %0)
   ret void
 }
 ```

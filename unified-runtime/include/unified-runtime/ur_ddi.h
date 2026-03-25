@@ -17,7 +17,7 @@
 #if defined(__cplusplus)
 #pragma once
 #endif
-#include "ur_api.h"
+#include "unified-runtime/ur_api.h"
 
 #if defined(__cplusplus)
 extern "C" {
@@ -522,6 +522,13 @@ typedef ur_result_t(UR_APICALL *ur_pfnKernelGetSuggestedLocalWorkSize_t)(
     const size_t *, size_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urKernelGetSuggestedLocalWorkSizeWithArgs
+typedef ur_result_t(
+    UR_APICALL *ur_pfnKernelGetSuggestedLocalWorkSizeWithArgs_t)(
+    ur_kernel_handle_t, ur_queue_handle_t, uint32_t, const size_t *,
+    const size_t *, uint32_t, const ur_exp_kernel_arg_properties_t *, size_t *);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urKernelSetArgValue
 typedef ur_result_t(UR_APICALL *ur_pfnKernelSetArgValue_t)(
     ur_kernel_handle_t, uint32_t, size_t,
@@ -580,6 +587,8 @@ typedef struct ur_kernel_dditable_t {
   ur_pfnKernelGetNativeHandle_t pfnGetNativeHandle;
   ur_pfnKernelCreateWithNativeHandle_t pfnCreateWithNativeHandle;
   ur_pfnKernelGetSuggestedLocalWorkSize_t pfnGetSuggestedLocalWorkSize;
+  ur_pfnKernelGetSuggestedLocalWorkSizeWithArgs_t
+      pfnGetSuggestedLocalWorkSizeWithArgs;
   ur_pfnKernelSetArgValue_t pfnSetArgValue;
   ur_pfnKernelSetArgLocal_t pfnSetArgLocal;
   ur_pfnKernelSetArgPointer_t pfnSetArgPointer;
@@ -1402,6 +1411,17 @@ typedef ur_result_t(UR_APICALL *ur_pfnUSMContextMemcpyExp_t)(
     ur_context_handle_t, void *, const void *, size_t);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urUSMHostAllocUnregisterExp
+typedef ur_result_t(UR_APICALL *ur_pfnUSMHostAllocUnregisterExp_t)(
+    ur_context_handle_t, void *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urUSMHostAllocRegisterExp
+typedef ur_result_t(UR_APICALL *ur_pfnUSMHostAllocRegisterExp_t)(
+    ur_context_handle_t, void *, size_t,
+    const ur_exp_usm_host_alloc_register_properties_t *);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urUSMImportExp
 typedef ur_result_t(UR_APICALL *ur_pfnUSMImportExp_t)(ur_context_handle_t,
                                                       void *, size_t);
@@ -1424,6 +1444,8 @@ typedef struct ur_usm_exp_dditable_t {
   ur_pfnUSMPoolTrimToExp_t pfnPoolTrimToExp;
   ur_pfnUSMPitchedAllocExp_t pfnPitchedAllocExp;
   ur_pfnUSMContextMemcpyExp_t pfnContextMemcpyExp;
+  ur_pfnUSMHostAllocUnregisterExp_t pfnHostAllocUnregisterExp;
+  ur_pfnUSMHostAllocRegisterExp_t pfnHostAllocRegisterExp;
   ur_pfnUSMImportExp_t pfnImportExp;
   ur_pfnUSMReleaseExp_t pfnReleaseExp;
 } ur_usm_exp_dditable_t;

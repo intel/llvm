@@ -515,10 +515,6 @@ public:
     ur_queue_handle_t Queue{};
     ur_context_handle_t Context = MContext->getHandleRef();
     ur_device_handle_t Device = MDevice.getHandleRef();
-    /*
-        sycl::detail::pi::PiQueueProperties Properties[] = {
-            PI_QUEUE_FLAGS, createPiQueueProperties(MPropList, Order), 0, 0, 0};
-        */
     ur_queue_properties_t Properties = {UR_STRUCTURE_TYPE_QUEUE_PROPERTIES,
                                         nullptr, 0};
     Properties.flags = createUrQueueFlags(MPropList, Order);
@@ -561,9 +557,11 @@ public:
   /// \param DepEvents is a vector of events that specifies the kernel
   /// dependencies.
   /// \param CallerNeedsEvent specifies if the caller expects a usable event.
-  /// \return an event representing fill operation.
-  event memset(void *Ptr, int Value, size_t Count,
-               const std::vector<event> &DepEvents, bool CallerNeedsEvent);
+  /// \return an event representing the fill operation if requested, nullptr
+  /// otherwise.
+  EventImplPtr memset(void *Ptr, int Value, size_t Count,
+                      const std::vector<event> &DepEvents,
+                      bool CallerNeedsEvent);
   /// Copies data from one memory region to another, both pointed by
   /// USM pointers.
   ///
@@ -573,10 +571,11 @@ public:
   /// \param DepEvents is a vector of events that specifies the kernel
   /// dependencies.
   /// \param CallerNeedsEvent specifies if the caller expects a usable event.
-  /// \return an event representing copy operation.
-  event memcpy(void *Dest, const void *Src, size_t Count,
-               const std::vector<event> &DepEvents, bool CallerNeedsEvent,
-               const code_location &CodeLoc);
+  /// \return an event representing the fill operation if requested, nullptr
+  /// otherwise.
+  EventImplPtr memcpy(void *Dest, const void *Src, size_t Count,
+                      const std::vector<event> &DepEvents,
+                      bool CallerNeedsEvent, const code_location &CodeLoc);
   /// Provides additional information to the underlying runtime about how
   /// different allocations are used.
   ///
@@ -586,9 +585,12 @@ public:
   /// \param DepEvents is a vector of events that specifies the kernel
   /// dependencies.
   /// \param CallerNeedsEvent specifies if the caller expects a usable event.
-  /// \return an event representing advise operation.
-  event mem_advise(const void *Ptr, size_t Length, ur_usm_advice_flags_t Advice,
-                   const std::vector<event> &DepEvents, bool CallerNeedsEvent);
+  /// \return an event representing the advise operation if requested, nullptr
+  /// otherwise.
+  EventImplPtr mem_advise(const void *Ptr, size_t Length,
+                          ur_usm_advice_flags_t Advice,
+                          const std::vector<event> &DepEvents,
+                          bool CallerNeedsEvent);
 
   static ThreadPool &getThreadPool() {
     return GlobalHandler::instance().getHostTaskThreadPool();
@@ -606,15 +608,16 @@ public:
 
   bool queue_empty() const;
 
-  event memcpyToDeviceGlobal(void *DeviceGlobalPtr, const void *Src,
-                             bool IsDeviceImageScope, size_t NumBytes,
-                             size_t Offset, const std::vector<event> &DepEvents,
-                             bool CallerNeedsEvent);
-  event memcpyFromDeviceGlobal(void *Dest, const void *DeviceGlobalPtr,
-                               bool IsDeviceImageScope, size_t NumBytes,
-                               size_t Offset,
-                               const std::vector<event> &DepEvents,
-                               bool CallerNeedsEvent);
+  EventImplPtr memcpyToDeviceGlobal(void *DeviceGlobalPtr, const void *Src,
+                                    bool IsDeviceImageScope, size_t NumBytes,
+                                    size_t Offset,
+                                    const std::vector<event> &DepEvents,
+                                    bool CallerNeedsEvent);
+  EventImplPtr memcpyFromDeviceGlobal(void *Dest, const void *DeviceGlobalPtr,
+                                      bool IsDeviceImageScope, size_t NumBytes,
+                                      size_t Offset,
+                                      const std::vector<event> &DepEvents,
+                                      bool CallerNeedsEvent);
 
   void setCommandGraphUnlocked(
       const std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
@@ -959,9 +962,12 @@ protected:
   /// \param DepEvents is a vector of dependencies of the operation.
   /// \param HandlerFunc is a function that submits the operation with a
   ///        handler.
+  /// \return an event representing the submitted command group if requested,
+  /// nullptr otherwise.
   template <typename HandlerFuncT>
-  event submitWithHandler(const std::vector<event> &DepEvents,
-                          bool CallerNeedsEvent, HandlerFuncT HandlerFunc);
+  EventImplPtr submitWithHandler(const std::vector<event> &DepEvents,
+                                 bool CallerNeedsEvent,
+                                 HandlerFuncT HandlerFunc);
 
   /// Performs submission of a memory operation directly if scheduler can be
   /// bypassed, or with a handler otherwise.
@@ -976,13 +982,14 @@ protected:
   /// \param MemMngrArgs are all the arguments that need to be passed to memory
   ///        manager except the last three: dependencies, UR event and
   ///        EventImplPtr are filled out by this helper.
-  /// \return an event representing the submitted operation.
+  /// \return an event representing the submitted operation if requested,
+  /// nullptr otherwise.
   template <typename HandlerFuncT, typename MemMngrFuncT,
             typename... MemMngrArgTs>
-  event submitMemOpHelper(const std::vector<event> &DepEvents,
-                          bool CallerNeedsEvent, HandlerFuncT HandlerFunc,
-                          MemMngrFuncT MemMngrFunc,
-                          MemMngrArgTs &&...MemOpArgs);
+  EventImplPtr
+  submitMemOpHelper(const std::vector<event> &DepEvents, bool CallerNeedsEvent,
+                    HandlerFuncT HandlerFunc, MemMngrFuncT MemMngrFunc,
+                    MemMngrArgTs &&...MemOpArgs);
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   // When instrumentation is enabled emits trace event for wait begin and
