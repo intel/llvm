@@ -11,9 +11,9 @@ set(LLVM_SPIRV_INCLUDE_DIRS "${LLVM_MAIN_SRC_DIR}/../llvm-spirv/include")
 
 if (NOT WIN32 AND NOT CYGWIN)
   # Set library-wide warning options.
-  set(SYCL_JIT_WARNING_FLAGS)
+  set(SYCL_JIT_WARNING_FLAGS -Wall -Wextra -Wconversion -Wimplicit-fallthrough)
 
-  option(SYCL_JIT_ENABLE_WERROR "Treat all warnings as errors in SYCL JIT library" OFF)
+  option(SYCL_JIT_ENABLE_WERROR "Treat all warnings as errors in SYCL JIT library" ON)
   if(SYCL_JIT_ENABLE_WERROR)
     list(APPEND SYCL_JIT_WARNING_FLAGS -Werror)
   endif(SYCL_JIT_ENABLE_WERROR)
