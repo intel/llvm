@@ -36,7 +36,7 @@ define void @MAIN__() local_unnamed_addr !dbg !24 {
 !6 = !{i32 7, !"PIC Level", i32 2}
 !7 = !{i32 2, !"Debug Info Version", i32 3}
 !8 = !{i32 2, !"Dwarf Version", i32 4}
-!9 = distinct !DICompileUnit(language: DW_LANG_Fortran95, file: !10, isOptimized: false, runtimeVersion: 0, emissionKind: FullDebug, enums: !0, globals: !0, imports: !22, splitDebugInlining: false, nameTableKind: None)
+!9 = distinct !DICompileUnit(language: DW_LANG_Fortran95, file: !10, isOptimized: false, runtimeVersion: 0, emissionKind: FullDebug, enums: !0, globals: !0, splitDebugInlining: false, nameTableKind: None)
 !10 = !DIFile(filename: "declare_target_subroutine.F90", directory: "/test")
 !19 = !DIBasicType(name: "INTEGER*4", size: 32, encoding: DW_ATE_signed)
 !22 = !{!23}
@@ -44,7 +44,7 @@ define void @MAIN__() local_unnamed_addr !dbg !24 {
 !24 = distinct !DISubprogram(name: "declare_target_subroutine", linkageName: "MAIN__", scope: !10, file: !10, line: 23, type: !25, scopeLine: 23, spFlags: DISPFlagDefinition | DISPFlagMainSubprogram, unit: !9, retainedNodes: !27)
 !25 = !DISubroutineType(types: !26)
 !26 = !{null}
-!27 = !{!30}
+!27 = !{!23, !30}
 !30 = !DILocalVariable(name: "a", scope: !24, file: !10, line: 28, type: !31)
 !31 = !DICompositeType(tag: DW_TAG_array_type, baseType: !19, elements: !32, dataLocation: !DIExpression(DW_OP_push_object_address, DW_OP_deref), associated: !DIExpression(DW_OP_push_object_address, DW_OP_deref, DW_OP_constu, 0, DW_OP_or))
 !32 = !{!33}
