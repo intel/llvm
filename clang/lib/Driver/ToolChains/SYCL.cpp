@@ -1757,7 +1757,6 @@ void SYCLToolChain::AddSPIRVImpliedTargetArgs(const llvm::Triple &Triple,
     // -foffload-fp32-prec-sqrt JIT
     Args.AddLastArg(BeArgs, options::OPT_foffload_fp32_prec_sqrt);
   }
-
   if (IsGen) {
     for (auto [DeviceName, BackendArgStr] : PerDeviceArgs) {
       CmdArgs.push_back("-device_options");
