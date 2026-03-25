@@ -1,0 +1,10 @@
+prefix=@CMAKE_INSTALL_PREFIX@
+includedir=${prefix}/@SYCL_INCLUDE_DIR@
+libdir=${prefix}/lib@LLVM_LIBDIR_SUFFIX@
+sycl_version=@SYCL_VERSION_STRING@
+
+Name: sycl-dpcpp-@DPCPP_VERSION_MAJOR@
+Description: DPC++ compiler SYCL runtime library
+Version: @DPCPP_VERSION_MAJOR@.@DPCPP_VERSION_MINOR@.@DPCPP_VERSION_PATCH@
+Libs: -L${libdir} -lsycl
+Cflags: -I${includedir}
