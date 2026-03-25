@@ -1764,7 +1764,6 @@ void SYCLToolChain::AddSPIRVImpliedTargetArgs(const llvm::Triple &Triple,
       CmdArgs.push_back(Args.MakeArgString(BackendArgStr));
     }
   }
-
   if (BeArgs.empty())
     return;
   if (Triple.getSubArch() == llvm::Triple::NoSubArch) {
