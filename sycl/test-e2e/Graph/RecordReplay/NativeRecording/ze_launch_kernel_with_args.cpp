@@ -1,7 +1,7 @@
 // REQUIRES: level_zero_v2_adapter && arch-intel_gpu_bmg_g21
 // REQUIRES: level_zero_dev_kit
 
-// RUN: %{build} -lze_loader -o %t.out
+// RUN: %{build} %level_zero_options -o %t.out
 // RUN: %{run} %t.out %S/../../Inputs/Kernels/saxpy.spv
 // RUN: %if level_zero %{%{l0_leak_check} %{run} %t.out %S/../../Inputs/Kernels/saxpy.spv 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
 
