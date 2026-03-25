@@ -1,4 +1,5 @@
 // REQUIRES: level_zero_v2_adapter && arch-intel_gpu_bmg_g21
+// REQUIRES: level_zero_dev_kit
 
 // RUN: %{build} -lze_loader -o %t.out
 // RUN: %{run} %t.out %S/../../Inputs/Kernels/saxpy.spv
