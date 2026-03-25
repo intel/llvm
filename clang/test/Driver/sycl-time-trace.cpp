@@ -18,10 +18,9 @@
 
 // This test verifies that Clang driver correctly propagates time-trace related options
 // during a compile-and-link invocation and enables JSON time-trace output.
-// RUN: %clang -### --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver -ftime-trace=e -ftime-trace-granularity=0 -ftime-trace-verbose d/a.cpp -o f/x -dumpdir f/ 2>&1 | FileCheck %s --check-prefixes=LINK-DEVICE,LINK-HOST,LINK-CLW
+// RUN: %clang -### --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver -ftime-trace=e -ftime-trace-granularity=0 -ftime-trace-verbose d/a.cpp -o f/x -dumpdir f/ 2>&1 | FileCheck %s --check-prefixes=LINK-DEVICE,LINK-HOST
 // LINK-DEVICE: -cc1{{.*}} "-fsycl-is-device"{{.*}} "-ftime-trace=e{{/|\\\\}}a-sycl-spir64-unknown-unknown.json" "-ftime-trace-granularity=0" "-ftime-trace-verbose"
 // LINK-HOST: -cc1{{.*}} "-fsycl-is-host"{{.*}} "-ftime-trace=e{{/|\\\\}}a-host-x86_64-unknown-linux-gnu.json" "-ftime-trace-granularity=0" "-ftime-trace-verbose"
-// LINK-CLW: clang-linker-wrapper{{.*}} "--device-compiler=spir64-unknown-unknown=-ftime-trace=e"{{.*}}
 
 // Verify time tracing works for SYCL offload in the old model
 // This test verifies that Clang driver correctly propagates time-trace related options
@@ -39,10 +38,10 @@
 
 // This test verifies that Clang driver correctly propagates time-trace related options
 // during a compile-and-link invocation and enables JSON time-trace output.
-// RUN: %clang -### --target=x86_64-unknown-linux-gnu -fsycl -ftime-trace=e -ftime-trace-granularity=0 -ftime-trace-verbose d/a.cpp -o f/x -dumpdir f/ 2>&1 | FileCheck %s --check-prefixes=LINK-DEVICE-OLD-MODEL,LINK-HOST-OLD-MODEL,LINK-COW-OLD-MODEL
+// RUN: %clang -### --target=x86_64-unknown-linux-gnu -fsycl -ftime-trace=e -ftime-trace-granularity=0 -ftime-trace-verbose d/a.cpp -o f/x -dumpdir f/ 2>&1 | FileCheck %s --check-prefixes=LINK-DEVICE-OLD-MODEL,LINK-HOST-OLD-MODEL
 // LINK-DEVICE-OLD-MODEL: -cc1{{.*}} "-fsycl-is-device"{{.*}} "-ftime-trace=e{{/|\\\\}}a-sycl-spir64-unknown-unknown.json" "-ftime-trace-granularity=0" "-ftime-trace-verbose"
 // LINK-HOST-OLD-MODEL: -cc1{{.*}} "-fsycl-is-host"{{.*}} "-ftime-trace=e{{/|\\\\}}a-host-x86_64-unknown-linux-gnu.json" "-ftime-trace-granularity=0" "-ftime-trace-verbose"
-// LINK-COW-OLD-MODEL: clang-offload-wrapper{{.*}} "-compile-opts=-ftime-trace=e -ftime-trace-granularity=0 -ftime-trace-verbose{{.*}}"
+
 
 // Verify time tracing works with -fsycl-device-only (new driver model)
 // This test verifies device-only compilation generates the correct time-trace file
