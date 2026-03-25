@@ -358,6 +358,16 @@ if (NOT WIN32)
       DESTINATION "lib${LLVM_LIBDIR_SUFFIX}/"
       COMPONENT sycl-headers-extras)
   endif()
+
+  configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/pkgconfig/sycl.pc.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/sycl-dpcpp-${DPCPP_VERSION_MAJOR}.pc"
+    @ONLY)
+
+  install(
+    FILES "${CMAKE_CURRENT_BINARY_DIR}/sycl-dpcpp-${DPCPP_VERSION_MAJOR}.pc"
+    DESTINATION "lib${LLVM_LIBDIR_SUFFIX}/pkgconfig"
+    COMPONENT sycl)
 endif()
 
 if(SYCL_ENABLE_XPTI_TRACING AND
