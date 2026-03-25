@@ -122,7 +122,6 @@ struct KernelInfo {
 
   // lock this mutex if following fields are accessed
   ur_shared_mutex Mutex;
-  std::unordered_map<uint32_t, std::shared_ptr<MemBuffer>> BufferArgs;
 
   // Need preserve the order of local arguments
   std::map<uint32_t, TsanLocalArgsInfo> LocalArgs;
