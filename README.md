@@ -1,14 +1,12 @@
 This is the Intel staging area for llvm.org contributions and the home for
 Intel LLVM-based projects:
 
-- [oneAPI DPC++ compiler](#oneapi-dpc-compiler)
+- [DPC++ compiler](#dpc-compiler)
 - [Late-outline OpenMP and OpenMP Offload](#late-outline-openmp-and-openmp-offload)
 
 For general contribution process see [CONTRIBUTING.md](./CONTRIBUTING.md)
 
-## oneAPI DPC++ compiler
-
-[![oneAPI logo](https://spec.oneapi.io/oneapi-logo-white-scaled.jpg)](https://www.oneapi.io/)
+## DPC++ compiler
 
 [![SYCL Post Commit](https://github.com/intel/llvm/actions/workflows/sycl-post-commit.yml/badge.svg?branch=sycl)](https://github.com/intel/llvm/actions/workflows/sycl-post-commit.yml)
 [![Generate Doxygen documentation](https://github.com/intel/llvm/actions/workflows/sycl-docs.yml/badge.svg?branch=sycl)](https://github.com/intel/llvm/actions/workflows/sycl-docs.yml)

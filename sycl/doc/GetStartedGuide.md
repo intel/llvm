@@ -1,4 +1,4 @@
-# Getting Started with oneAPI DPC++
+# Getting Started with DPC++
 
 The DPC++ Compiler compiles C++ and SYCL\* source files with code for both CPU
 and GPU.
@@ -685,7 +685,7 @@ More Native CPU build options can be found in [SYCLNativeCPU.md](design/SYCLNati
 The results are correct!
 ```
 
-**NOTE**: oneAPI DPC++/SYCL developers can specify SYCL device for execution
+**NOTE**: DPC++/SYCL developers can specify SYCL device for execution
 using device selectors (e.g. `sycl::cpu_selector_v`, `sycl::gpu_selector_v`)
 as explained in following section
 [Code the program for a specific GPU](#code-the-program-for-a-specific-gpu).
