@@ -61,6 +61,7 @@ runs:
       -DSYCL_CTS_EXCLUDE_TEST_CATEGORIES="$cts_exclude_filter" \
       -DSYCL_CTS_ENABLE_OPENCL_INTEROP_TESTS=OFF \
       -DDPCPP_INSTALL_DIR="$(dirname $(which clang++))/.." \
+      -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
       $CMAKE_EXTRA_ARGS
       # Ignore errors so that if one category build fails others still have a
       # chance to finish and be executed at the run stage. Note that

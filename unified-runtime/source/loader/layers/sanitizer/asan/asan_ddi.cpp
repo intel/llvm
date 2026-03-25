@@ -487,80 +487,6 @@ ur_result_t UR_APICALL urProgramRelease(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urEnqueueKernelLaunch
-__urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
-    /// [in] handle of the queue object
-    ur_queue_handle_t hQueue,
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] number of dimensions, from 1 to 3, to specify the global and
-    /// work-group work-items
-    uint32_t workDim,
-    /// [in] pointer to an array of workDim unsigned values that specify the
-    /// offset used to calculate the global ID of a work-item
-    const size_t *pGlobalWorkOffset,
-    /// [in] pointer to an array of workDim unsigned values that specify the
-    /// number of global work-items in workDim that will execute the kernel
-    /// function
-    const size_t *pGlobalWorkSize,
-    /// [in][optional] pointer to an array of workDim unsigned values that
-    /// specify the number of local work-items forming a work-group that will
-    /// execute the kernel function. If nullptr, the runtime implementation will
-    /// choose the work-group size.
-    const size_t *pLocalWorkSize,
-    /// [in][optional] pointer to a single linked list of launch properties
-    const ur_kernel_launch_ext_properties_t *launchPropList,
-    /// [in] size of the event wait list
-    uint32_t numEventsInWaitList,
-    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
-    /// events that must be complete before the kernel execution. If
-    /// nullptr, the numEventsInWaitList must be 0, indicating that no wait
-    /// event.
-    const ur_event_handle_t *phEventWaitList,
-    /// [out][optional] return an event object that identifies this
-    /// particular kernel execution instance.
-    ur_event_handle_t *phEvent) {
-
-  // This mutex is to prevent concurrent kernel launches across different queues
-  // as the DeviceASAN local/private shadow memory does not support concurrent
-  // kernel launches now.
-  std::scoped_lock<ur_shared_mutex> Guard(
-      getAsanInterceptor()->KernelLaunchMutex);
-
-  auto pfnKernelLaunch = getContext()->urDdiTable.Enqueue.pfnKernelLaunch;
-
-  if (nullptr == pfnKernelLaunch) {
-    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-  }
-
-  UR_LOG_L(getContext()->logger, DEBUG, "==== urEnqueueKernelLaunch");
-
-  LaunchInfo LaunchInfo(GetContext(hQueue), GetDevice(hQueue), pGlobalWorkSize,
-                        pLocalWorkSize, pGlobalWorkOffset, workDim);
-  UR_CALL(LaunchInfo.Data.syncToDevice(hQueue));
-
-  UR_CALL(getAsanInterceptor()->preLaunchKernel(hKernel, hQueue, LaunchInfo));
-
-  ur_result_t UrRes = getContext()->urDdiTable.Enqueue.pfnKernelLaunch(
-      hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
-      LaunchInfo.LocalWorkSize.data(), launchPropList, numEventsInWaitList,
-      phEventWaitList, phEvent);
-  if (UrRes != UR_RESULT_SUCCESS) {
-    if (UrRes == UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY) {
-      UR_LOG_L(
-          getContext()->logger, ERR,
-          "urEnqueueKernelLaunch failed due to out of device memory, maybe "
-          "SLM is fully used.");
-    }
-    return UrRes;
-  }
-
-  UR_CALL(getAsanInterceptor()->postLaunchKernel(hKernel, hQueue, LaunchInfo));
-
-  return UR_RESULT_SUCCESS;
-}
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urContextCreate
 __urdlllocal ur_result_t UR_APICALL urContextCreate(
     /// [in] the number of devices given in phDevices
@@ -1482,143 +1408,6 @@ __urdlllocal ur_result_t urKernelRelease(
   return UR_RESULT_SUCCESS;
 }
 
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urKernelSetArgValue
-__urdlllocal ur_result_t UR_APICALL urKernelSetArgValue(
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] argument index in range [0, num args - 1]
-    uint32_t argIndex,
-    /// [in] size of argument type
-    size_t argSize,
-    /// [in][optional] pointer to value properties.
-    const ur_kernel_arg_value_properties_t *pProperties,
-    /// [in] argument value represented as matching arg type.
-    const void *pArgValue) {
-  auto pfnSetArgValue = getContext()->urDdiTable.Kernel.pfnSetArgValue;
-
-  if (nullptr == pfnSetArgValue) {
-    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-  }
-
-  UR_LOG_L(getContext()->logger, DEBUG, "==== urKernelSetArgValue");
-
-  std::shared_ptr<MemBuffer> MemBuffer;
-  if (argSize == sizeof(ur_mem_handle_t) &&
-      (MemBuffer = getAsanInterceptor()->getMemBuffer(
-           *ur_cast<const ur_mem_handle_t *>(pArgValue)))) {
-    auto &KernelInfo = getAsanInterceptor()->getOrCreateKernelInfo(hKernel);
-    std::scoped_lock<ur_shared_mutex> Guard(KernelInfo.Mutex);
-    KernelInfo.BufferArgs[argIndex] = std::move(MemBuffer);
-  } else {
-    UR_CALL(pfnSetArgValue(hKernel, argIndex, argSize, pProperties, pArgValue));
-  }
-
-  return UR_RESULT_SUCCESS;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urKernelSetArgMemObj
-__urdlllocal ur_result_t UR_APICALL urKernelSetArgMemObj(
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] argument index in range [0, num args - 1]
-    uint32_t argIndex,
-    /// [in][optional] pointer to Memory object properties.
-    const ur_kernel_arg_mem_obj_properties_t *pProperties,
-    /// [in][optional] handle of Memory object.
-    ur_mem_handle_t hArgValue) {
-  auto pfnSetArgMemObj = getContext()->urDdiTable.Kernel.pfnSetArgMemObj;
-
-  if (nullptr == pfnSetArgMemObj) {
-    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-  }
-
-  UR_LOG_L(getContext()->logger, DEBUG, "==== urKernelSetArgMemObj");
-
-  std::shared_ptr<MemBuffer> MemBuffer;
-  if ((MemBuffer = getAsanInterceptor()->getMemBuffer(hArgValue))) {
-    auto &KernelInfo = getAsanInterceptor()->getOrCreateKernelInfo(hKernel);
-    std::scoped_lock<ur_shared_mutex> Guard(KernelInfo.Mutex);
-    KernelInfo.BufferArgs[argIndex] = std::move(MemBuffer);
-  } else {
-    UR_CALL(pfnSetArgMemObj(hKernel, argIndex, pProperties, hArgValue));
-  }
-
-  return UR_RESULT_SUCCESS;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urKernelSetArgLocal
-__urdlllocal ur_result_t UR_APICALL urKernelSetArgLocal(
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] argument index in range [0, num args - 1]
-    uint32_t argIndex,
-    /// [in] size of the local buffer to be allocated by the runtime
-    size_t argSize,
-    /// [in][optional] pointer to local buffer properties.
-    const ur_kernel_arg_local_properties_t *pProperties) {
-  auto pfnSetArgLocal = getContext()->urDdiTable.Kernel.pfnSetArgLocal;
-
-  if (nullptr == pfnSetArgLocal) {
-    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-  }
-
-  UR_LOG_L(getContext()->logger, DEBUG,
-           "==== urKernelSetArgLocal (argIndex={}, argSize={})", argIndex,
-           argSize);
-
-  {
-    auto &KI = getAsanInterceptor()->getOrCreateKernelInfo(hKernel);
-    std::scoped_lock<ur_shared_mutex> Guard(KI.Mutex);
-    // TODO: get local variable alignment
-    auto argSizeWithRZ = GetSizeAndRedzoneSizeForLocal(
-        argSize, ASAN_SHADOW_GRANULARITY, ASAN_SHADOW_GRANULARITY);
-    KI.LocalArgs[argIndex] = LocalArgsInfo{argSize, argSizeWithRZ};
-    argSize = argSizeWithRZ;
-  }
-
-  ur_result_t result = pfnSetArgLocal(hKernel, argIndex, argSize, pProperties);
-
-  return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urKernelSetArgPointer
-__urdlllocal ur_result_t UR_APICALL urKernelSetArgPointer(
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] argument index in range [0, num args - 1]
-    uint32_t argIndex,
-    /// [in][optional] pointer to USM pointer properties.
-    const ur_kernel_arg_pointer_properties_t *pProperties,
-    /// [in][optional] Pointer obtained by USM allocation or virtual memory
-    /// mapping operation. If null then argument value is considered null.
-    const void *pArgValue) {
-  auto pfnSetArgPointer = getContext()->urDdiTable.Kernel.pfnSetArgPointer;
-
-  if (nullptr == pfnSetArgPointer) {
-    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-  }
-
-  UR_LOG_L(getContext()->logger, DEBUG,
-           "==== urKernelSetArgPointer (argIndex={}, pArgValue={})", argIndex,
-           pArgValue);
-
-  std::shared_ptr<KernelInfo> KI;
-  if (getContext()->Options.DetectKernelArguments) {
-    auto &KI = getAsanInterceptor()->getOrCreateKernelInfo(hKernel);
-    std::scoped_lock<ur_shared_mutex> Guard(KI.Mutex);
-    KI.PointerArgs[argIndex] = {pArgValue, GetCurrentBacktrace()};
-  }
-
-  ur_result_t result =
-      pfnSetArgPointer(hKernel, argIndex, pProperties, pArgValue);
-
-  return result;
-}
-
 __urdlllocal ur_result_t UR_APICALL urKernelSetExecInfo(
     /// [in] handle of the kernel object
     ur_kernel_handle_t hKernel,
@@ -1744,39 +1533,37 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunchWithArgsExp(
   std::memcpy(KernelInfo.ArgProps.data(), pArgs,
               numArgs * sizeof(ur_exp_kernel_arg_properties_t));
 
-  // We need to set all the args now rather than letting LaunchWithArgs handle
-  // them. This is because some implementations of
-  // urKernelGetSuggestedLocalWorkSize, which is used in preLaunchKernel, rely
-  // on all the args being set.
   for (uint32_t ArgPropIndex = 0; ArgPropIndex < numArgs; ArgPropIndex++) {
     switch (pArgs[ArgPropIndex].type) {
     case UR_EXP_KERNEL_ARG_TYPE_LOCAL: {
-      UR_CALL(ur_sanitizer_layer::asan::urKernelSetArgLocal(
-          hKernel, pArgs[ArgPropIndex].index, pArgs[ArgPropIndex].size,
-          nullptr));
-      KernelInfo.ArgProps[ArgPropIndex].size =
-          KernelInfo.LocalArgs[ArgPropIndex].SizeWithRedZone;
+      auto argSizeWithRZ = GetSizeAndRedzoneSizeForLocal(
+          pArgs[ArgPropIndex].size, ASAN_SHADOW_GRANULARITY,
+          ASAN_SHADOW_GRANULARITY);
+      KernelInfo.LocalArgs[pArgs[ArgPropIndex].index] =
+          LocalArgsInfo{pArgs[ArgPropIndex].size, argSizeWithRZ};
+      KernelInfo.ArgProps[ArgPropIndex].size = argSizeWithRZ;
       break;
     }
     case UR_EXP_KERNEL_ARG_TYPE_POINTER: {
-      UR_CALL(ur_sanitizer_layer::asan::urKernelSetArgPointer(
-          hKernel, pArgs[ArgPropIndex].index, nullptr,
-          pArgs[ArgPropIndex].value.pointer));
+      KernelInfo.PointerArgs[pArgs[ArgPropIndex].index] = {
+          pArgs[ArgPropIndex].value.pointer, GetCurrentBacktrace()};
       break;
     }
     case UR_EXP_KERNEL_ARG_TYPE_VALUE: {
-      UR_CALL(ur_sanitizer_layer::asan::urKernelSetArgValue(
-          hKernel, pArgs[ArgPropIndex].index, pArgs[ArgPropIndex].size, nullptr,
-          pArgs[ArgPropIndex].value.value));
+      std::shared_ptr<MemBuffer> MemBuffer;
+      if (pArgs[ArgPropIndex].size == sizeof(ur_mem_handle_t) &&
+          (MemBuffer = getAsanInterceptor()->getMemBuffer(
+               *ur_cast<const ur_mem_handle_t *>(
+                   pArgs[ArgPropIndex].value.value)))) {
+        char *Handle = nullptr;
+        UR_CALL(MemBuffer->getHandle(GetDevice(hQueue), Handle));
+        KernelInfo.ArgProps[ArgPropIndex].type =
+            ur_exp_kernel_arg_type_t::UR_EXP_KERNEL_ARG_TYPE_POINTER;
+        KernelInfo.ArgProps[ArgPropIndex].value.pointer = Handle;
+      }
       break;
     }
     case UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ: {
-      ur_kernel_arg_mem_obj_properties_t Properties = {
-          UR_STRUCTURE_TYPE_KERNEL_ARG_MEM_OBJ_PROPERTIES, nullptr,
-          pArgs[ArgPropIndex].value.memObjTuple.flags};
-      UR_CALL(ur_sanitizer_layer::asan::urKernelSetArgMemObj(
-          hKernel, pArgs[ArgPropIndex].index, &Properties,
-          pArgs[ArgPropIndex].value.memObjTuple.hMem));
       if (std::shared_ptr<MemBuffer> MemBuffer =
               getAsanInterceptor()->getMemBuffer(
                   pArgs[ArgPropIndex].value.memObjTuple.hMem)) {
@@ -1788,14 +1575,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunchWithArgsExp(
       }
       break;
     }
-    case UR_EXP_KERNEL_ARG_TYPE_SAMPLER: {
-      auto pfnKernelSetArgSampler =
-          getContext()->urDdiTable.Kernel.pfnSetArgSampler;
-      UR_CALL(pfnKernelSetArgSampler(hKernel, pArgs[ArgPropIndex].index,
-                                     nullptr,
-                                     pArgs[ArgPropIndex].value.sampler));
+    case UR_EXP_KERNEL_ARG_TYPE_SAMPLER:
       break;
-    }
     default:
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
     }
@@ -1949,10 +1730,6 @@ __urdlllocal ur_result_t UR_APICALL urGetKernelProcAddrTable(
 
   pDdiTable->pfnRetain = ur_sanitizer_layer::asan::urKernelRetain;
   pDdiTable->pfnRelease = ur_sanitizer_layer::asan::urKernelRelease;
-  pDdiTable->pfnSetArgValue = ur_sanitizer_layer::asan::urKernelSetArgValue;
-  pDdiTable->pfnSetArgMemObj = ur_sanitizer_layer::asan::urKernelSetArgMemObj;
-  pDdiTable->pfnSetArgLocal = ur_sanitizer_layer::asan::urKernelSetArgLocal;
-  pDdiTable->pfnSetArgPointer = ur_sanitizer_layer::asan::urKernelSetArgPointer;
   pDdiTable->pfnSetExecInfo = ur_sanitizer_layer::asan::urKernelSetExecInfo;
 
   return result;
@@ -2068,7 +1845,6 @@ __urdlllocal ur_result_t UR_APICALL urGetEnqueueProcAddrTable(
       ur_sanitizer_layer::asan::urEnqueueMemBufferFill;
   pDdiTable->pfnMemBufferMap = ur_sanitizer_layer::asan::urEnqueueMemBufferMap;
   pDdiTable->pfnMemUnmap = ur_sanitizer_layer::asan::urEnqueueMemUnmap;
-  pDdiTable->pfnKernelLaunch = ur_sanitizer_layer::asan::urEnqueueKernelLaunch;
 
   return result;
 }
