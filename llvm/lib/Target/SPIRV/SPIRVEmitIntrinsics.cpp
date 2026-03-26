@@ -69,12 +69,10 @@ class GlobalVariableUsers {
   using OneToManyMapTy = DenseMap<T1, SmallPtrSet<T2, 4>>;
 
   OneToManyMapTy<const GlobalVariable *, const Function *> GlobalIsUsedByFun;
+  OneToManyMapTy<const GlobalVariable *, const GlobalVariable *> GlobalIsUsedByGlobal;
 
-  void collectGlobalUsers(
-      const GlobalVariable *GV,
-      OneToManyMapTy<const GlobalVariable *, const GlobalVariable *>
-          &GlobalIsUsedByGlobal) {
-    SmallVector<const Value *> Stack = {GV->user_begin(), GV->user_end()};
+  void collectGlobalUsers(const GlobalVariable *GV) {
+    SmallVector<const Value *> Stack(GV->user_begin(), GV->user_end());
     while (!Stack.empty()) {
       const Value *V = Stack.pop_back_val();
 
@@ -93,9 +91,7 @@ class GlobalVariableUsers {
     }
   }
 
-  bool propagateGlobalToGlobalUsers(
-      OneToManyMapTy<const GlobalVariable *, const GlobalVariable *>
-          &GlobalIsUsedByGlobal) {
+  bool propagateGlobalToGlobalUsers() {
     SmallVector<const GlobalVariable *> OldUsersGlobals;
     bool Changed = false;
     for (auto &[GV, UserGlobals] : GlobalIsUsedByGlobal) {
@@ -110,9 +106,7 @@ class GlobalVariableUsers {
     return Changed;
   }
 
-  void propagateGlobalToFunctionReferences(
-      OneToManyMapTy<const GlobalVariable *, const GlobalVariable *>
-          &GlobalIsUsedByGlobal) {
+  void propagateGlobalToFunctionReferences() {
     for (auto &[GV, UserGlobals] : GlobalIsUsedByGlobal) {
       auto &UserFunctions = GlobalIsUsedByFun[GV];
       for (const GlobalVariable *UserGV : UserGlobals) {
@@ -128,17 +122,16 @@ public:
   void init(Module &M) {
     // Collect which global variables are referenced by which global variables
     // and which functions reference each global variables.
-    OneToManyMapTy<const GlobalVariable *, const GlobalVariable *>
-        GlobalIsUsedByGlobal;
+    GlobalIsUsedByGlobal.clear();
     GlobalIsUsedByFun.clear();
     for (GlobalVariable &GV : M.globals())
-      collectGlobalUsers(&GV, GlobalIsUsedByGlobal);
+      collectGlobalUsers(&GV);
 
     // Compute indirect references by iterating until a fixed point is reached.
-    while (propagateGlobalToGlobalUsers(GlobalIsUsedByGlobal))
+    while (propagateGlobalToGlobalUsers())
       (void)0;
 
-    propagateGlobalToFunctionReferences(GlobalIsUsedByGlobal);
+    propagateGlobalToFunctionReferences();
   }
 
   using FunctionSetType = typename decltype(GlobalIsUsedByFun)::mapped_type;
@@ -150,6 +143,27 @@ public:
 
     static const FunctionSetType Empty{};
     return Empty;
+  }
+
+  bool isUsedByOtherGlobals(const GlobalVariable &GV) const {
+    auto It = GlobalIsUsedByGlobal.find(&GV);
+    return It != GlobalIsUsedByGlobal.end() && !It->second.empty();
+  }
+
+  // Check if this global is used by globals that have no function users
+  // (e.g., metadata globals). These need special handling as their
+  // OpSpecConstantOp is processed at module level.
+  bool isUsedByGlobalsWithNoFunctionUsers(const GlobalVariable &GV) const {
+    auto It = GlobalIsUsedByGlobal.find(&GV);
+    if (It == GlobalIsUsedByGlobal.end())
+      return false;
+
+    for (const GlobalVariable *UserGV : It->second) {
+      auto FunIt = GlobalIsUsedByFun.find(UserGV);
+      if (FunIt == GlobalIsUsedByFun.end() || FunIt->second.empty())
+        return true;
+    }
+    return false;
   }
 };
 
@@ -2258,19 +2272,30 @@ shouldEmitIntrinsicsForGlobalValue(const GlobalVariableUsers &GVUsers,
     return false;
 
   auto &UserFunctions = GVUsers.getTransitiveUserFunctions(GV);
+
+  // If this global is used by globals that have no function users (e.g.,
+  // metadata globals), emit it in the first function where module-level
+  // OpSpecConstantOp instructions will be processed.
+  if (GVUsers.isUsedByGlobalsWithNoFunctionUsers(GV)) {
+    const Module &M = *F->getParent();
+    const Function &FirstDefinition = *M.getFunctionDefs().begin();
+    if (F == &FirstDefinition)
+      return true;
+  }
+
+  // Emit in functions that reference this global
   if (UserFunctions.contains(F))
     return true;
 
-  // Do not emit the intrinsics in this function, it's going to be emitted on
-  // the functions that reference it.
-  if (!UserFunctions.empty())
-    return false;
-
-  // Emit definitions for globals that are not referenced by any function on the
+  // Emit definitions for globals not referenced by any function on the
   // first function definition.
-  const Module &M = *F->getParent();
-  const Function &FirstDefinition = *M.getFunctionDefs().begin();
-  return F == &FirstDefinition;
+  if (UserFunctions.empty()) {
+    const Module &M = *F->getParent();
+    const Function &FirstDefinition = *M.getFunctionDefs().begin();
+    return F == &FirstDefinition;
+  }
+
+  return false;
 }
 
 Value *SPIRVEmitIntrinsics::buildSpvUndefComposite(Type *AggrTy,
@@ -2305,7 +2330,6 @@ Value *SPIRVEmitIntrinsics::buildSpvUndefComposite(Type *AggrTy,
 
 void SPIRVEmitIntrinsics::processGlobalValue(GlobalVariable &GV,
                                              IRBuilder<> &B) {
-
   if (!shouldEmitIntrinsicsForGlobalValue(GVUsers, GV, CurrF))
     return;
 

@@ -122,10 +122,6 @@ void RocmInstallationDetector::scanLibDevicePath(llvm::StringRef Path) {
       FiniteOnly.Off = FilePath;
     } else if (BaseName == "oclc_finite_only_on") {
       FiniteOnly.On = FilePath;
-    } else if (BaseName == "oclc_daz_opt_on") {
-      DenormalsAreZero.On = FilePath;
-    } else if (BaseName == "oclc_daz_opt_off") {
-      DenormalsAreZero.Off = FilePath;
     } else if (BaseName == "oclc_unsafe_math_on") {
       UnsafeMath.On = FilePath;
     } else if (BaseName == "oclc_unsafe_math_off") {
@@ -1049,7 +1045,6 @@ RocmInstallationDetector::getCommonBitcodeLibs(
     AddBCLib(getOCKLPath());
   else if (Pref.GPUSan && Pref.IsOpenMP)
     AddBCLib(getOCKLPath());
-  AddBCLib(getDenormalsAreZeroPath(Pref.DAZ));
   AddBCLib(getUnsafeMathPath(Pref.UnsafeMathOpt || Pref.FastRelaxedMath));
   AddBCLib(getFiniteOnlyPath(Pref.FiniteOnly || Pref.FastRelaxedMath));
   AddBCLib(getWavefrontSize64Path(Pref.Wave64));

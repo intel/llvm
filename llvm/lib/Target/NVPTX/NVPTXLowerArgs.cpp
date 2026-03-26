@@ -300,8 +300,14 @@ static CallInst *createNVVMInternalAddrspaceWrap(IRBuilder<> &IRB,
     ArgInParam->addRetAttr(
         Attribute::getWithAlignment(ArgInParam->getContext(), *ParamAlign));
 
-  Arg.addAttr(Attribute::get(Arg.getContext(), NVVMAttr::GridConstant));
-  Arg.addAttr(Attribute::ReadOnly);
+  // Don't add grid_constant for WriteOnly parameters since they need to be written to.
+  // This can happen when copyByValParam is called for writeonly parameters.
+  if (!Arg.hasAttribute(Attribute::WriteOnly)) {
+    Arg.addAttr(Attribute::get(Arg.getContext(), "nvvm.grid_constant"));
+  }
+  // Only add ReadOnly if there's no conflicting WriteOnly attribute
+  if (!Arg.hasAttribute(Attribute::WriteOnly))
+    Arg.addAttr(Attribute::ReadOnly);
 
   return ArgInParam;
 }

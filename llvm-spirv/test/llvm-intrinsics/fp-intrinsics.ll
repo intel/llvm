@@ -482,3 +482,17 @@ entry:
 }
 
 declare {double, double} @llvm.modf.f64(double)
+
+; CHECK: Function
+; CHECK: FunctionParameter {{[0-9]+}} [[x:[0-9]+]]
+; CHECK: FunctionParameter {{[0-9]+}} [[exp:[0-9]+]]
+; CHECK: ExtInst [[var1]] {{[0-9]+}} [[extinst_id]] ldexp [[x]] [[exp]]
+; CHECK: FunctionEnd
+
+define spir_func float @TestLdexp(float %x, i32 %exp) {
+entry:
+  %t = tail call float @llvm.ldexp.f32.i32(float %x, i32 %exp)
+  ret float %t
+}
+
+declare float @llvm.ldexp.f32.i32(float, i32)

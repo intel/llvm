@@ -6166,11 +6166,12 @@ ur_result_t UR_APICALL urEnqueueWriteHostPipe(
 ///     - ::UR_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS
 ///         + An event in `phEventWaitList` has ::UR_EVENT_STATUS_ERROR.
 ///     - ::UR_RESULT_ERROR_INVALID_WORK_DIMENSION
-///         + `pGlobalWorkSize[0] == 0 || pGlobalWorkSize[1] == 0 ||
-///         pGlobalWorkSize[2] == 0`
+///         + `pGlobalWorkSize[0] == 0 || (workDim >= 2 && pGlobalWorkSize[1] ==
+///         0) || (workDim >= 3 && pGlobalWorkSize[2] == 0)`
 ///     - ::UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE
-///         + `pLocalWorkSize && (pLocalWorkSize[0] == 0 || pLocalWorkSize[1] ==
-///         0 || pLocalWorkSize[2] == 0)`
+///         + `pLocalWorkSize && (pLocalWorkSize[0] == 0 || (workDim >= 2 &&
+///         pLocalWorkSize[1] == 0) || (workDim >= 3 && pLocalWorkSize[2] ==
+///         0))`
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGS - "The kernel argument values
 ///     have not been specified."
