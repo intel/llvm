@@ -78,7 +78,7 @@ struct ur_kernel_handle_t_ : ur::hip::handle_base {
     args_size_t OriginalLocalMemSize;
 
     // A struct to keep track of memargs so that we can do dependency analysis
-    // at urEnqueueKernelLaunch
+    // at urEnqueueKernelLaunchWithArgsExp
     struct mem_obj_arg {
       ur_mem_handle_t_ *Mem;
       int Index;

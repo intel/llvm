@@ -83,7 +83,7 @@ struct ur_kernel_handle_t_ : ur::cuda::handle_base {
     size_t WorkGroupMemory = 0;
 
     // A struct to keep track of memargs so that we can do dependency analysis
-    // at urEnqueueKernelLaunch
+    // at urEnqueueKernelLaunchWithArgsExp
     struct mem_obj_arg {
       ur_mem_handle_t_ *Mem;
       int Index;

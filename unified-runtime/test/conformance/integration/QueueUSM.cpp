@@ -65,7 +65,7 @@ UUR_DEVICE_TEST_SUITE_WITH_QUEUE_TYPES_PRINTER(
 /* Submits multiple kernels that interact with each other by accessing and
  * writing to the same USM memory locations.
  * Checks that when using an IN_ORDER queue, no synchronization is needed
- * between calls to urEnqueueKernelLaunch.
+ * between calls to urEnqueueKernelLaunchWithArgsExp.
  * Checks that when using an OUT_OF_ORDER queue, synchronizing using only
  * event barriers is enough. */
 TEST_P(QueueUSMTest, QueueUSMTest) {
