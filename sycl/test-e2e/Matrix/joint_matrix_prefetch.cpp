@@ -10,6 +10,8 @@
 // REQUIRES: aspect-ext_intel_matrix
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
+// XFAIL: run-mode && (arch-intel_gpu_pvc || arch-intel_gpu_bmg_g21)
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/21612
 
 #include "common.hpp"
 

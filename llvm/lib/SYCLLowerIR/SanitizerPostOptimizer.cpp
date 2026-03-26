@@ -37,7 +37,7 @@ struct EliminateDeadCheck : public InstVisitor<EliminateDeadCheck> {
     if (!FuncName.contains("__msan_maybe_warning_"))
       return;
     auto *Shadow = CI.getArgOperand(0);
-    if (isa<ConstantInt>(Shadow) && cast<ConstantInt>(Shadow)->isZeroValue())
+    if (isa<ConstantInt>(Shadow) && cast<ConstantInt>(Shadow)->isNullValue())
       InstToErase.push_back(&CI);
   }
 
