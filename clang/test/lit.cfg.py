@@ -150,8 +150,7 @@ if config.clang_examples:
     config.available_features.add("examples")
 if config.llvm_examples:
     config.available_features.add("llvm-examples")
-if "libdevice" in config.enable_projects:
-    config.available_features.add("libdevice")
+
 
 def have_host_out_of_process_jit_feature_support():
     clang_repl_exe = lit.util.which("clang-repl", config.clang_tools_dir)
