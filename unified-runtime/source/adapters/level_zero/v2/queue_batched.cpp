@@ -427,12 +427,10 @@ ur_result_t ur_queue_batched_t::enqueueUSMFreeExp(
 
   markIssuedCommandInBatch(lockedBatch);
 
-  UR_CALL(lockedBatch->getActiveBatch().appendUSMFreeExp(
+  return lockedBatch->getActiveBatch().appendUSMFreeExp(
       this, pPool, pMem, waitListView,
       createEventIfRequestedRegular(phEvent,
-                                    lockedBatch->getCurrentGeneration())));
-
-  return queueFlushUnlocked(lockedBatch);
+                                    lockedBatch->getCurrentGeneration()));
 }
 
 ur_result_t ur_queue_batched_t::enqueueMemBufferMap(
@@ -812,13 +810,11 @@ ur_result_t ur_queue_batched_t::enqueueUSMDeviceAllocExp(
 
   markIssuedCommandInBatch(lockedBatch);
 
-  UR_CALL(lockedBatch->getActiveBatch().appendUSMAllocHelper(
+  return lockedBatch->getActiveBatch().appendUSMAllocHelper(
       this, pPool, size, pProperties, waitListView, ppMem,
       createEventIfRequestedRegular(phEvent,
                                     lockedBatch->getCurrentGeneration()),
-      UR_USM_TYPE_DEVICE));
-
-  return queueFlushUnlocked(lockedBatch);
+      UR_USM_TYPE_DEVICE);
 }
 
 ur_result_t ur_queue_batched_t::enqueueUSMSharedAllocExp(
@@ -834,13 +830,11 @@ ur_result_t ur_queue_batched_t::enqueueUSMSharedAllocExp(
 
   markIssuedCommandInBatch(lockedBatch);
 
-  UR_CALL(lockedBatch->getActiveBatch().appendUSMAllocHelper(
+  return lockedBatch->getActiveBatch().appendUSMAllocHelper(
       this, pPool, size, pProperties, waitListView, ppMem,
       createEventIfRequestedRegular(phEvent,
                                     lockedBatch->getCurrentGeneration()),
-      UR_USM_TYPE_SHARED));
-
-  return queueFlushUnlocked(lockedBatch);
+      UR_USM_TYPE_SHARED);
 }
 
 ur_result_t ur_queue_batched_t::enqueueUSMHostAllocExp(
@@ -855,13 +849,11 @@ ur_result_t ur_queue_batched_t::enqueueUSMHostAllocExp(
 
   markIssuedCommandInBatch(lockedBatch);
 
-  UR_CALL(lockedBatch->getActiveBatch().appendUSMAllocHelper(
+  return lockedBatch->getActiveBatch().appendUSMAllocHelper(
       this, pPool, size, pProperties, waitListView, ppMem,
       createEventIfRequestedRegular(phEvent,
                                     lockedBatch->getCurrentGeneration()),
-      UR_USM_TYPE_HOST));
-
-  return queueFlushUnlocked(lockedBatch);
+      UR_USM_TYPE_HOST);
 }
 
 ur_result_t ur_queue_batched_t::bindlessImagesImageCopyExp(
