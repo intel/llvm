@@ -25,6 +25,24 @@ TEST_F(CommandGraphTest, QueueState) {
   ASSERT_EQ(State, experimental::queue_state::executing);
 }
 
+TEST_F(CommandGraphTest, GraphEmpty) {
+  experimental::detail::graph_impl &GraphImpl = *getSyclObjImpl(Graph);
+
+  ASSERT_TRUE(Graph.empty());
+  ASSERT_TRUE(GraphImpl.empty());
+  ASSERT_TRUE(Graph.get_nodes().empty());
+
+  Graph.add([&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
+  ASSERT_FALSE(Graph.empty());
+  ASSERT_FALSE(GraphImpl.empty());
+  ASSERT_EQ(Graph.empty(), Graph.get_nodes().empty());
+
+  Graph.add();
+  ASSERT_FALSE(Graph.empty());
+  ASSERT_FALSE(GraphImpl.empty());
+  ASSERT_EQ(Graph.get_nodes().size(), 2lu);
+}
+
 TEST_F(CommandGraphTest, GetNodeQueries) {
   // Tests graph and node queries for correctness
 

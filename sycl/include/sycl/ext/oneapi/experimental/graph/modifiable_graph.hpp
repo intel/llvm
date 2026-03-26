@@ -159,6 +159,9 @@ public:
   /// Get a list of all root nodes (nodes without dependencies) in this graph.
   std::vector<node> get_root_nodes() const;
 
+  /// Query whether the graph contains no nodes.
+  bool empty() const;
+
   /// Common Reference Semantics
   friend bool operator==(const modifiable_command_graph &LHS,
                          const modifiable_command_graph &RHS) {
