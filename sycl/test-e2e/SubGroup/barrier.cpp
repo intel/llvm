@@ -1,6 +1,9 @@
 // RUN: %{build} -Wno-error=deprecated-declarations -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out
 
+// XFAIL: windows && gpu-intel-gen12
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/21533
+
 //==---------- barrier.cpp - SYCL sub_group barrier test -------*- C++ -*---==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.

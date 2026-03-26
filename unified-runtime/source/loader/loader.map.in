@@ -157,6 +157,7 @@
 		urKernelGetNativeHandle;
 		urKernelGetSubGroupInfo;
 		urKernelGetSuggestedLocalWorkSize;
+		urKernelGetSuggestedLocalWorkSizeWithArgs;
 		urKernelRelease;
 		urKernelRetain;
 		urKernelSetArgLocal;
@@ -384,6 +385,8 @@
 		urPrintExpSamplerCubemapFilterMode;
 		urPrintExpSamplerCubemapProperties;
 		urPrintExpSamplerMipProperties;
+		urPrintExpUsmHostAllocRegisterFlags;
+		urPrintExpUsmHostAllocRegisterProperties;
 		urPrintExpWin32Handle;
 		urPrintFunction;
 		urPrintFunctionParams;
@@ -417,6 +420,7 @@
 		urPrintKernelGetNativeHandleParams;
 		urPrintKernelGetSubGroupInfoParams;
 		urPrintKernelGetSuggestedLocalWorkSizeParams;
+		urPrintKernelGetSuggestedLocalWorkSizeWithArgsParams;
 		urPrintKernelGroupInfo;
 		urPrintKernelInfo;
 		urPrintKernelLaunchClusterProperty;
@@ -554,6 +558,8 @@
 		urPrintUsmFreeParams;
 		urPrintUsmGetMemAllocInfoParams;
 		urPrintUsmHostAllocParams;
+		urPrintUsmHostAllocRegisterExpParams;
+		urPrintUsmHostAllocUnregisterExpParams;
 		urPrintUsmHostDesc;
 		urPrintUsmHostMemFlags;
 		urPrintUsmImportExpParams;
@@ -633,6 +639,8 @@
 		urUSMFree;
 		urUSMGetMemAllocInfo;
 		urUSMHostAlloc;
+		urUSMHostAllocRegisterExp;
+		urUSMHostAllocUnregisterExp;
 		urUSMImportExp;
 		urUSMPitchedAllocExp;
 		urUSMPoolCreate;

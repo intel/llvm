@@ -10,7 +10,7 @@
 #include <sstream>
 #include <string>
 
-#include "ur_api.h"
+#include "unified-runtime/ur_api.h"
 #include "ur_filesystem_resolved.hpp"
 #include "uur/checks.h"
 #include "uur/known_failure.h"

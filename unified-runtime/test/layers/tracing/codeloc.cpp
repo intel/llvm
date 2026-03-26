@@ -13,7 +13,7 @@
 
 #include "uur/raii.h"
 #include <gtest/gtest.h>
-#include <ur_api.h>
+#include <unified-runtime/ur_api.h>
 
 struct ur_code_location_t test_callback(void *userdata) {
   (void)userdata;

@@ -26,8 +26,8 @@
 #endif
 
 #include <loader/ze_loader.h>
+#include <unified-runtime/ur_ddi.h>
 #include <ur/ur.hpp>
-#include <ur_ddi.h>
 #include <ze_api.h>
 #include <zes_api.h>
 

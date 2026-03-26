@@ -4,6 +4,9 @@
 // RUN: %{build} -DUSING_INORDER -o %t.ino.out
 // UNSUPPORTED: ze_debug, level_zero_v2_adapter
 
+// UNSUPPORTED: windows && gpu-intel-gen12
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21556
+
 // To test batching on out-of-order queue:
 // Set batching to 4 explicitly
 // RUN: env SYCL_PI_LEVEL_ZERO_BATCH_SIZE=4 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t.ooo.out 2>&1 | FileCheck --check-prefixes=CKALL,CKB4 %s

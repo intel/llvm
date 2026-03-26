@@ -1,6 +1,9 @@
 // REQUIRES: gpu, level_zero
 // UNSUPPORTED: ze_debug, level_zero_v2_adapter
 
+// UNSUPPORTED: windows && gpu-intel-gen12
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21556
+
 // RUN: %{build} -o %t.ooo.out
 // RUN: %{build} -DUSING_INORDER -o %t.ino.out
 

@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include <ur_api.h>
+#include <unified-runtime/ur_api.h>
 
 namespace sycl {
 inline namespace _V1 {

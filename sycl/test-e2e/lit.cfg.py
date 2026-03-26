@@ -120,6 +120,8 @@ llvm_config.with_system_environment(
         "CL_CONFIG_DEVICES",
         "SYCL_DEVICE_ALLOWLIST",
         "SYCL_CONFIG_FILE_NAME",
+        "VK_ADD_LAYER_PATH",
+        "XDG_CACHE_HOME",
     ]
 )
 

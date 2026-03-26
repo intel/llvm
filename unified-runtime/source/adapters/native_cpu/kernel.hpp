@@ -13,7 +13,7 @@
 #include "nativecpu_state.hpp"
 #include "program.hpp"
 #include <cstring>
-#include <ur_api.h>
+#include <unified-runtime/ur_api.h>
 #include <utility>
 
 using nativecpu_kernel_t = void(void *const *, native_cpu::state *);

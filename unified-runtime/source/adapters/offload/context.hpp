@@ -14,8 +14,8 @@
 #include "common.hpp"
 #include "device.hpp"
 #include <OffloadAPI.h>
+#include <unified-runtime/ur_api.h>
 #include <unordered_map>
-#include <ur_api.h>
 
 struct alloc_info_t {
   ol_alloc_type_t Type;

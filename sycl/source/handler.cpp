@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "sycl/detail/helpers.hpp"
-#include "ur_api.h"
+#include "unified-runtime/ur_api.h"
 #include <algorithm>
 
 #include <detail/buffer_impl.hpp>
@@ -159,15 +159,15 @@ fill_image_type(const ext::oneapi::experimental::image_descriptor &Desc,
 // Fill image format
 static ur_image_format_t
 fill_format(const ext::oneapi::experimental::image_descriptor &Desc) {
-  ur_image_format_t PiFormat;
+  ur_image_format_t UrFormat;
 
-  PiFormat.channelType =
+  UrFormat.channelType =
       sycl::_V1::detail::convertChannelType(Desc.channel_type);
-  PiFormat.channelOrder = sycl::detail::convertChannelOrder(
+  UrFormat.channelOrder = sycl::detail::convertChannelOrder(
       sycl::_V1::ext::oneapi::experimental::detail::
           get_image_default_channel_order(Desc.num_channels));
 
-  return PiFormat;
+  return UrFormat;
 }
 
 static void

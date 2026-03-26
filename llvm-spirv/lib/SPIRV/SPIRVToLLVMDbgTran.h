@@ -178,6 +178,13 @@ private:
 
   DINode *transModule(const SPIRVExtInst *DebugInst);
 
+  DIMacro *transMacroDef(const SPIRVExtInst *DebugInst);
+
+  DIMacro *transMacroUndef(const SPIRVExtInst *DebugInst);
+
+  DIMacroFile *getOrCreateMacroFile(DIFile *File,
+                                    const SPIRVExtInst *DebugInst);
+
   MDNode *transExpression(const SPIRVExtInst *DebugInst);
 
   SPIRVModule *BM;
@@ -188,6 +195,7 @@ private:
   std::unordered_map<std::string, DIFile *> FileMap;
   std::unordered_map<SPIRVId, DISubprogram *> FuncMap;
   std::unordered_map<const SPIRVExtInst *, MDNode *> DebugInstCache;
+  std::unordered_map<DIFile *, DIMacroFile *> MacroFileMap;
 
   struct SplitFileName {
     SplitFileName(const std::string &FileName);

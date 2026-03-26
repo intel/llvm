@@ -68,10 +68,6 @@ jobs:
       e2e_binaries_preview_artifact: e2e_bin_preview
       e2e_binaries_new_offload_model_artifact: e2e_bin_new_offload_model
 
-  clang-tidy:
-    if: ${{ !contains(github.event.pull_request.labels.*.name, 'disable-lint') }}
-    uses: ./.github/workflows/sycl-clang-tidy.yml
-
   # Build and run native cpu e2e tests separately as cannot currently
   # build all the e2e tests
   build_run_native_cpu_e2e_tests:
@@ -82,7 +78,7 @@ jobs:
       image: ghcr.io/intel/llvm/sycl_ubuntu2404_nightly:latest
       options: -u 1001:1001
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           sparse-checkout: |
             devops/
@@ -132,7 +128,7 @@ jobs:
       FILTER_6_2: ${{ steps.result.outputs.FILTER_6_2 }}
       FILTER_6_3: ${{ steps.result.outputs.FILTER_6_3 }}
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       with:
         sparse-checkout: |
           devops/

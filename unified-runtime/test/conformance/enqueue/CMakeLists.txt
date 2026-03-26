@@ -15,8 +15,10 @@ add_conformance_kernels_test(enqueue
     urEnqueueMemBufferCopy.cpp
     urEnqueueMemBufferFill.cpp
     urEnqueueMemBufferMap.cpp
-    urEnqueueMemBufferRead.cpp
-    urEnqueueMemBufferReadRect.cpp
+    # Enqueue memory buffer read tests ran simultenously lead to timeouts.
+    # Tracker: https://jira.devtools.intel.com/browse/URT-1026
+    # urEnqueueMemBufferRead.cpp
+    # urEnqueueMemBufferReadRect.cpp
     urEnqueueMemBufferWrite.cpp
     urEnqueueMemBufferWriteRect.cpp
     urEnqueueMemImageCopy.cpp
@@ -31,7 +33,5 @@ add_conformance_kernels_test(enqueue
     urEnqueueUSMPrefetch.cpp
     urEnqueueReadHostPipe.cpp
     urEnqueueWriteHostPipe.cpp
-    # Enqueue timestamp leads to timeouts
-    # Tracker: https://jira.devtools.intel.com/browse/URT-1026
-    #urEnqueueTimestampRecording.cpp
+    urEnqueueTimestampRecording.cpp
 )

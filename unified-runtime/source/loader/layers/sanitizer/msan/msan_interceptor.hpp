@@ -88,10 +88,11 @@ struct KernelInfo {
 
   // lock this mutex if following fields are accessed
   ur_shared_mutex Mutex;
-  std::unordered_map<uint32_t, std::shared_ptr<MemBuffer>> BufferArgs;
 
   // Need preserve the order of local arguments
   std::map<uint32_t, MsanLocalArgsInfo> LocalArgs;
+
+  std::vector<ur_exp_kernel_arg_properties_t> ArgProps;
 
   explicit KernelInfo(ur_kernel_handle_t Kernel) : Handle(Kernel) {
     [[maybe_unused]] auto Result =
@@ -219,7 +220,7 @@ struct MsanRuntimeDataWrapper {
   }
 };
 
-struct USMLaunchInfo {
+struct LaunchInfo {
   MsanRuntimeDataWrapper Data;
 
   ur_context_handle_t Context = nullptr;
@@ -229,11 +230,16 @@ struct USMLaunchInfo {
   std::vector<size_t> LocalWorkSize;
   uint32_t WorkDim = 0;
 
-  USMLaunchInfo(ur_context_handle_t Context, ur_device_handle_t Device,
-                const size_t *GlobalWorkSize, const size_t *LocalWorkSize,
-                const size_t *GlobalWorkOffset, uint32_t WorkDim)
+  LaunchInfo(ur_context_handle_t Context, ur_device_handle_t Device,
+             const size_t *GlobalWorkSize, const size_t *LocalWorkSize,
+             const size_t *GlobalWorkOffset, uint32_t WorkDim)
       : Data(Context, Device), Context(Context), Device(Device),
         GlobalWorkSize(GlobalWorkSize), WorkDim(WorkDim) {
+    [[maybe_unused]] auto Result =
+        getContext()->urDdiTable.Context.pfnRetain(Context);
+    assert(Result == UR_RESULT_SUCCESS);
+    Result = getContext()->urDdiTable.Device.pfnRetain(Device);
+    assert(Result == UR_RESULT_SUCCESS);
     if (LocalWorkSize) {
       this->LocalWorkSize =
           std::vector<size_t>(LocalWorkSize, LocalWorkSize + WorkDim);
@@ -247,9 +253,17 @@ struct USMLaunchInfo {
       this->GlobalWorkOffset = std::vector<size_t>(WorkDim, 0);
     }
   }
-  ~USMLaunchInfo();
+  ~LaunchInfo() {
+    [[maybe_unused]] ur_result_t Result;
+    Result = getContext()->urDdiTable.Context.pfnRelease(Context);
+    assert(Result == UR_RESULT_SUCCESS);
+    Result = getContext()->urDdiTable.Device.pfnRelease(Device);
+    assert(Result == UR_RESULT_SUCCESS);
+  }
 
-  ur_result_t initialize();
+  LaunchInfo(const LaunchInfo &) = delete;
+
+  LaunchInfo &operator=(const LaunchInfo &) = delete;
 };
 
 struct DeviceGlobalInfo {
@@ -280,11 +294,9 @@ public:
   ur_result_t unregisterProgram(ur_program_handle_t Program);
 
   ur_result_t preLaunchKernel(ur_kernel_handle_t Kernel,
-                              ur_queue_handle_t Queue,
-                              USMLaunchInfo &LaunchInfo);
+                              ur_queue_handle_t Queue, LaunchInfo &LaunchInfo);
   ur_result_t postLaunchKernel(ur_kernel_handle_t Kernel,
-                               ur_queue_handle_t Queue,
-                               USMLaunchInfo &LaunchInfo);
+                               ur_queue_handle_t Queue, LaunchInfo &LaunchInfo);
 
   ur_result_t insertContext(ur_context_handle_t Context,
                             std::shared_ptr<ContextInfo> &CI);
@@ -345,7 +357,7 @@ private:
   /// Initialize Global Variables & Kernel Name at first Launch
   ur_result_t prepareLaunch(std::shared_ptr<DeviceInfo> &DeviceInfo,
                             ur_queue_handle_t Queue, ur_kernel_handle_t Kernel,
-                            USMLaunchInfo &LaunchInfo);
+                            LaunchInfo &LaunchInfo);
 
   ur_result_t allocShadowMemory(ur_context_handle_t Context,
                                 std::shared_ptr<DeviceInfo> &DeviceInfo);

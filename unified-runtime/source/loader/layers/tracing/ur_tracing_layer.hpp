@@ -15,7 +15,7 @@
 #define UR_TRACING_LAYER_H 1
 
 #include "logger/ur_logger.hpp"
-#include "ur_ddi.h"
+#include "unified-runtime/ur_ddi.h"
 #include "ur_proxy_layer.hpp"
 #include "ur_util.hpp"
 

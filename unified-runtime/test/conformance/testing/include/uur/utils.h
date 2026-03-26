@@ -7,7 +7,7 @@
 #ifndef UR_CONFORMANCE_INCLUDE_UTILS_H_INCLUDED
 #define UR_CONFORMANCE_INCLUDE_UTILS_H_INCLUDED
 
-#include "ur_api.h"
+#include "unified-runtime/ur_api.h"
 #include <optional>
 #include <string>
 #include <uur/environment.h>

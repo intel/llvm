@@ -20,7 +20,7 @@
 #include <vector>
 
 #include "ur_util.hpp"
-#include <ur_api.h>
+#include <unified-runtime/ur_api.h>
 
 namespace ur_loader {
 struct ur_adapter_manifest {

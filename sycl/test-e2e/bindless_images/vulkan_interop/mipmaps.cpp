@@ -3,7 +3,7 @@
 // REQUIRES: aspect-ext_oneapi_mipmap
 // REQUIRES: vulkan
 
-// XFAIL: linux
+// XFAIL: linux && run-mode
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/21131
 
 // UNSUPPORTED: cuda

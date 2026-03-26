@@ -12,7 +12,7 @@
 
 #include "common.hpp"
 #include <OffloadAPI.h>
-#include <ur_api.h>
+#include <unified-runtime/ur_api.h>
 #include <vector>
 
 struct ur_platform_handle_t_ : ur::offload::handle_base {

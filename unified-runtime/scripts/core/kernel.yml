@@ -10,7 +10,7 @@
 --- #--------------------------------------------------------------------------
 type: header
 desc: "Intel $OneApi Unified Runtime APIs for Program"
-ordinal: "7"
+ordinal: "12"
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Create kernel object from a program."
@@ -599,6 +599,55 @@ params:
             [out] pointer to an array of numWorkDim unsigned values that specify
             suggested local work size that will contain the result of the query
 returns:
+    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Set kernel args and get the suggested local work size for a kernel."
+class: $xKernel
+name: GetSuggestedLocalWorkSizeWithArgs
+ordinal: "0"
+details:
+    - "Query a suggested local work size for a kernel given a global size for each dimension."
+    - "The application may call this function from simultaneous threads for the same context."
+params:
+    - type: $x_kernel_handle_t
+      name: hKernel
+      desc: |
+            [in] handle of the kernel
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: |
+            [in] handle of the queue object
+    - type: uint32_t
+      name: numWorkDim
+      desc: |
+            [in] number of dimensions, from 1 to 3, to specify the global
+            and work-group work-items
+    - type: const size_t*
+      name: pGlobalWorkOffset
+      desc: |
+            [in] pointer to an array of numWorkDim unsigned values that specify
+            the offset used to calculate the global ID of a work-item
+    - type: const size_t*
+      name: pGlobalWorkSize
+      desc: |
+            [in] pointer to an array of numWorkDim unsigned values that specify
+            the number of global work-items in workDim that will execute the
+            kernel function
+    - type: uint32_t
+      name: numArgs
+      desc: "[in] Number of entries in pArgs"
+    - type: "const $x_exp_kernel_arg_properties_t*"
+      name: pArgs
+      desc: "[in][optional][range(0, numArgs)] pointer to a list of kernel arg properties."
+    - type: size_t*
+      name: pSuggestedLocalWorkSize
+      desc: |
+            [out] pointer to an array of numWorkDim unsigned values that specify
+            suggested local work size that will contain the result of the query
+returns:
+    - $X_RESULT_ERROR_INVALID_NULL_POINTER:
+        - "`pArgs == NULL && numArgs > 0`"
     - $X_RESULT_ERROR_UNSUPPORTED_FEATURE
 --- #--------------------------------------------------------------------------
 type: function

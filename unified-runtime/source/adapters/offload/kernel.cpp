@@ -12,8 +12,8 @@
 #include "program.hpp"
 #include "ur2offload.hpp"
 #include <OffloadAPI.h>
+#include <unified-runtime/ur_api.h>
 #include <ur/ur.hpp>
-#include <ur_api.h>
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urKernelCreate(ur_program_handle_t hProgram, const char *pKernelName,
@@ -149,6 +149,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetSpecializationConstants(
 UR_APIEXPORT ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
     ur_kernel_handle_t, ur_queue_handle_t, uint32_t, const size_t *,
     const size_t *, size_t *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSizeWithArgs(
+    ur_kernel_handle_t, ur_queue_handle_t, uint32_t, const size_t *,
+    const size_t *, uint32_t, const ur_exp_kernel_arg_properties_t *,
+    size_t *) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
