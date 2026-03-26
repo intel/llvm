@@ -495,7 +495,7 @@ template <> inline void SPIRVMap<Decoration, SPIRVCapVec>::init() {
   ADD_VEC_INIT(internal::DecorationRuntimeAlignedINTEL,
                {CapabilityRuntimeAlignedAttributeINTEL});
   ADD_VEC_INIT(internal::DecorationHostAccessINTEL,
-               {internal::CapabilityGlobalVariableDecorationsINTEL});
+               {CapabilityGlobalVariableHostAccessINTEL});
   ADD_VEC_INIT(internal::DecorationInitModeINTEL,
                {internal::CapabilityGlobalVariableDecorationsINTEL});
   ADD_VEC_INIT(internal::DecorationImplementInCSRINTEL,
