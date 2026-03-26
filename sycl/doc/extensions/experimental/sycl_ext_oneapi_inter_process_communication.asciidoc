@@ -491,7 +491,7 @@ This property controls whether the event can be shared across processes.
 _Effects_ (1): Creates a new `enable_ipc` property with a boolean value
 indicating whether the event can be shared across processes.
 
-_Throws:_ `make_event` throws an exception with the `errc::invalid` error code
+_Remarks:_ `make_event` throws an exception with the `errc::invalid` error code
 if the `enable_profiling` and `enable_ipc` properties are both set.
 
 ==== Extension to `enum class aspect` for events
