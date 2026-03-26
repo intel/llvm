@@ -10,9 +10,12 @@
 
 #include <sycl/__spirv/spirv_ops.hpp>
 #include <sycl/builtins.hpp>
+#include <sycl/exception.hpp>
 #include <sycl/detail/builtins/builtins.hpp>
 #include <sycl/detail/generic_type_traits.hpp>
 #include <sycl/detail/type_traits.hpp>
+
+#include <cstdint>
 
 namespace sycl {
 inline namespace _V1 {
@@ -48,8 +51,8 @@ std::enable_if_t<detail::is_bf16_storage_type<T>::value, T> fabs(T x) {
   return __clc_fabs(x);
 #else
   (void)x;
-  throw exception(make_error_code(errc::runtime),
-                  "bf16 is not supported on host.");
+  throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
+                        "bf16 is not supported on host.");
 #endif
 }
 template <typename T>
@@ -59,8 +62,8 @@ std::enable_if_t<detail::is_bf16_storage_type<T>::value, T> fmin(T x, T y) {
 #else
   (void)x;
   (void)y;
-  throw exception(make_error_code(errc::runtime),
-                  "bf16 is not supported on host.");
+  throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
+                        "bf16 is not supported on host.");
 #endif
 }
 template <typename T>
@@ -70,8 +73,8 @@ std::enable_if_t<detail::is_bf16_storage_type<T>::value, T> fmax(T x, T y) {
 #else
   (void)x;
   (void)y;
-  throw exception(make_error_code(errc::runtime),
-                  "bf16 is not supported on host.");
+  throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
+                        "bf16 is not supported on host.");
 #endif
 }
 template <typename T>
@@ -82,8 +85,8 @@ std::enable_if_t<detail::is_bf16_storage_type<T>::value, T> fma(T x, T y, T z) {
   (void)x;
   (void)y;
   (void)z;
-  throw exception(make_error_code(errc::runtime),
-                  "bf16 is not supported on host.");
+  throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
+                        "bf16 is not supported on host.");
 #endif
 }
 
