@@ -1,5 +1,4 @@
 // Generate .o file as SYCL device library file.
-// REQUIRES: system-linux
 //
 // RUN: touch %t.devicelib.cpp
 // RUN: %clang %t.devicelib.cpp -fsycl -fsycl-targets=spir64-unknown-unknown -c --offload-new-driver -o %t_1.devicelib.o

@@ -1,15 +1,21 @@
 include(CheckCXXCompilerFlag)
 set(obj_binary_dir "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
+set(obj-new-offload_binary_dir "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
 if (MSVC)
   set(obj-suffix obj)
+  set(obj-new-offload-suffix new.obj)
   set(devicelib_host_static_obj sycl-devicelib-host.lib)
+  set(devicelib_host_static_obj-new-offload sycl-devicelib-host.new.lib)
 else()
   set(obj-suffix o)
+  set(obj-new-offload-suffix new.o)
   set(devicelib_host_static_obj libsycl-devicelib-host.a)
+  set(devicelib_host_static_obj-new-offload libsycl-devicelib-host.new.a)
 endif()
 set(bc-suffix bc)
 set(bc_binary_dir "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
 set(install_dest_obj lib${LLVM_LIBDIR_SUFFIX})
+set(install_dest_obj-new-offload lib${LLVM_LIBDIR_SUFFIX})
 set(install_dest_bc lib${LLVM_LIBDIR_SUFFIX})
 
 string(CONCAT sycl_targets_opt
@@ -69,7 +75,7 @@ endif()
 
 add_custom_target(libsycldevice)
 
-set(filetypes obj bc)
+set(filetypes obj obj-new-offload bc)
 
 foreach(filetype IN LISTS filetypes)
   add_custom_target(libsycldevice-${filetype})
@@ -97,6 +103,8 @@ endif()
 
 
 set(bc_device_compile_opts -fsycl-device-only -fsycl-device-obj=llvmir)
+set(obj-new-offload_device_compile_opts -fsycl -c --offload-new-driver
+  -foffload-lto=thin ${sycl_targets_opt})
 set(obj_device_compile_opts -fsycl -c ${sycl_targets_opt} --no-offload-new-driver)
 
 # Compiles and installs a single device library.
@@ -361,6 +369,24 @@ if (NOT MSVC AND UR_SANITIZER_INCLUDE_DIR)
                                 ${sanitizer_generic_compile_opts}
                                 -D__LIBDEVICE_DG2__)
 
+  set(sanitizer_pvc_compile_opts_obj-new-offload -fsycl -c --offload-new-driver
+                                            -foffload-lto=thin
+                                            ${sanitizer_generic_compile_opts}
+                                            ${sycl_pvc_target_opt}
+                                            -D__LIBDEVICE_PVC__)
+
+  set(sanitizer_cpu_compile_opts_obj-new-offload -fsycl -c --offload-new-driver
+                                            -foffload-lto=thin
+                                            ${sanitizer_generic_compile_opts}
+                                            ${sycl_cpu_target_opt}
+                                            -D__LIBDEVICE_CPU__)
+
+  set(sanitizer_dg2_compile_opts_obj-new-offload -fsycl -c --offload-new-driver
+                                            -foffload-lto=thin
+                                            ${sanitizer_generic_compile_opts}
+                                            ${sycl_dg2_target_opt}
+                                            -D__LIBDEVICE_DG2__)
+  
   set(msan_obj_deps
     device.h atomic.hpp spirv_vars.h
     ${UR_SANITIZER_INCLUDE_DIR}/msan/msan_libdevice.hpp
@@ -646,6 +672,8 @@ if (NOT WIN32)
   add_imf_host_cxx_flags_compile_flags_if_supported("-fcf-protection=full")
 endif()
 
+set(obj-new-offload_host_compile_opts ${imf_host_cxx_flags} --offload-new-driver
+  -foffload-lto=thin)
 set(obj_host_compile_opts ${imf_host_cxx_flags} --no-offload-new-driver)
 
 foreach(datatype IN ITEMS fp32 fp64 bf16)
@@ -773,54 +801,58 @@ endforeach()
 
 # Add host device imf libraries for obj and new offload objects.
 foreach(dtype IN ITEMS bf16 fp32 fp64)
-  set(tgt_name imf_fallback_${dtype}_host_obj)
+  foreach(ftype IN ITEMS obj obj-new-offload)
+    set(tgt_name imf_fallback_${dtype}_host_${ftype})
 
-  add_lib_imf(fallback-imf-${dtype}-host
-    DIR ${obj_binary_dir}
-    FTYPE obj
-    DTYPE ${dtype}
-    EXTRA_OPTS ${obj_host_compile_opts}
-    TGT_NAME ${tgt_name})
+    add_lib_imf(fallback-imf-${dtype}-host
+      DIR ${${ftype}_binary_dir}
+      FTYPE ${ftype}
+      DTYPE ${dtype}
+      EXTRA_OPTS ${${ftype}_host_compile_opts}
+      TGT_NAME ${tgt_name})
 
-  set(wrapper_name imf_wrapper.cpp)
-  if (NOT ("${dtype}" STREQUAL "fp32"))
-    set(wrapper_name imf_wrapper_${dtype}.cpp)
-  endif()
-  add_custom_command(
-    OUTPUT ${obj_binary_dir}/imf-${dtype}-host.${obj-suffix}
-    COMMAND ${clang_exe} ${obj_host_compile_opts}
-            ${CMAKE_CURRENT_SOURCE_DIR}/${wrapper_name}
-            -o ${obj_binary_dir}/imf-${dtype}-host.${obj-suffix}
-    MAIN_DEPENDENCY ${CMAKE_CURRENT_SOURCE_DIR}/${wrapper_name}
-    DEPENDS ${imf_obj_deps}
-    VERBATIM)
+    set(wrapper_name imf_wrapper.cpp)
+    if (NOT ("${dtype}" STREQUAL "fp32"))
+      set(wrapper_name imf_wrapper_${dtype}.cpp)
+    endif()
+    add_custom_command(
+      OUTPUT ${${ftype}_binary_dir}/imf-${dtype}-host.${${ftype}-suffix}
+      COMMAND ${clang_exe} ${${ftype}_host_compile_opts}
+              ${CMAKE_CURRENT_SOURCE_DIR}/${wrapper_name}
+              -o ${${ftype}_binary_dir}/imf-${dtype}-host.${${ftype}-suffix}
+      MAIN_DEPENDENCY ${CMAKE_CURRENT_SOURCE_DIR}/${wrapper_name}
+      DEPENDS ${imf_obj_deps}
+      VERBATIM)
 
-  add_custom_target(imf_${dtype}_host_obj DEPENDS
-    ${obj_binary_dir}/imf-${dtype}-host.${obj-suffix})
+    add_custom_target(imf_${dtype}_host_${ftype} DEPENDS
+      ${obj_binary_dir}/imf-${dtype}-host.${${ftype}-suffix})
+  endforeach()
 endforeach()
 
-add_custom_target(imf_host_obj
-  DEPENDS ${obj_binary_dir}/${devicelib_host_static_obj})
-add_custom_command(
-  OUTPUT ${obj_binary_dir}/${devicelib_host_static_obj}
-  COMMAND ${llvm-ar_exe} rcs
-          ${obj_binary_dir}/${devicelib_host_static_obj}
-          ${obj_binary_dir}/imf-fp32-host.${obj-suffix}
-          ${obj_binary_dir}/fallback-imf-fp32-host.${obj-suffix}
-          ${obj_binary_dir}/imf-fp64-host.${obj-suffix}
-          ${obj_binary_dir}/fallback-imf-fp64-host.${obj-suffix}
-          ${obj_binary_dir}/imf-bf16-host.${obj-suffix}
-          ${obj_binary_dir}/fallback-imf-bf16-host.${obj-suffix}
-  DEPENDS imf_fp32_host_obj imf_fallback_fp32_host_obj
-  DEPENDS imf_fp64_host_obj imf_fallback_fp64_host_obj
-  DEPENDS imf_bf16_host_obj imf_fallback_bf16_host_obj
-  DEPENDS ${llvm-ar_target}
-  VERBATIM)
-add_dependencies(libsycldevice-obj imf_host_obj)
+foreach(ftype IN ITEMS obj obj-new-offload)
+  add_custom_target(imf_host_${ftype}
+    DEPENDS ${${ftype}_binary_dir}/${devicelib_host_static_${ftype}})
+  add_custom_command(
+    OUTPUT ${${ftype}_binary_dir}/${devicelib_host_static_${ftype}}
+    COMMAND ${llvm-ar_exe} rcs
+            ${${ftype}_binary_dir}/${devicelib_host_static_${ftype}}
+            ${${ftype}_binary_dir}/imf-fp32-host.${${ftype}-suffix}
+            ${${ftype}_binary_dir}/fallback-imf-fp32-host.${${ftype}-suffix}
+            ${${ftype}_binary_dir}/imf-fp64-host.${${ftype}-suffix}
+            ${${ftype}_binary_dir}/fallback-imf-fp64-host.${${ftype}-suffix}
+            ${${ftype}_binary_dir}/imf-bf16-host.${${ftype}-suffix}
+            ${${ftype}_binary_dir}/fallback-imf-bf16-host.${${ftype}-suffix}
+    DEPENDS imf_fp32_host_${ftype} imf_fallback_fp32_host_${ftype}
+    DEPENDS imf_fp64_host_${ftype} imf_fallback_fp64_host_${ftype}
+    DEPENDS imf_bf16_host_${ftype} imf_fallback_bf16_host_${ftype}
+    DEPENDS ${llvm-ar_target}
+    VERBATIM)
+  add_dependencies(libsycldevice-obj imf_host_${ftype})
 
-install( FILES ${obj_binary_dir}/${devicelib_host_static_obj}
-         DESTINATION ${install_dest_obj}
-         COMPONENT libsycldevice)
+  install( FILES ${obj_binary_dir}/${devicelib_host_static_${ftype}}
+           DESTINATION ${install_dest_obj}
+           COMPONENT libsycldevice)
+endforeach()
 
 foreach(ftype IN LISTS filetypes)
   install(
