@@ -333,7 +333,7 @@ Error saveModuleProperties(const module_split::ModuleDesc &MD,
 Error saveModuleSymbolTable(const module_split::ModuleDesc &MD,
                             const StringRef Filename) {
   return writeToOutput(Filename, [&](raw_ostream &OS) -> Error {
-    OS << Table;
+    OS << computeModuleSymbolTable(MD.getModule(), MD.entries());
     return Error::success();
   });
 }
