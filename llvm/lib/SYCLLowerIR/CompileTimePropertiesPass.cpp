@@ -36,7 +36,7 @@ constexpr StringRef SpirvDecorCacheControlMdKind =
 constexpr StringRef SpirvParamDecorMdKind = "spirv.ParameterDecorations";
 
 constexpr uint32_t SpirvHostAccessDecor = 6147;
-constexpr uint32_t SpirvHostAccessDefaultValue = 3; // Read/Write
+constexpr uint32_t SpirvHostAccessDefaultValue = 2; // Read/Write
 
 constexpr uint32_t SpirvInitiationIntervalDecor = 5917;
 constexpr uint32_t SpirvPipelineEnableDecor = 5919;
