@@ -479,7 +479,7 @@ This extension adds the following property, which can be used with `make_event`
 namespace sycl::ext::oneapi::experimental {
 
 struct enable_ipc {
-  enable_ipc(bool enable = true);  (1)
+  enable_ipc(bool enable = true);
 };
 using enable_ipc_key = enable_ipc;
 
@@ -488,7 +488,7 @@ using enable_ipc_key = enable_ipc;
 
 This property controls whether the event can be shared across processes.
 
-_Effects_ (1): Creates a new `enable_ipc` property with a boolean value
+_Effects:_ Creates a new `enable_ipc` property with a boolean value
 indicating whether the event can be shared across processes.
 
 _Remarks:_ `make_event` throws an exception with the `errc::invalid` error code
@@ -617,7 +617,7 @@ sycl::event open(const handle_data_t &handle_data)
 ----
 !====
 
-_Effects_: Equivalent to:
+_Effects:_ Equivalent to:
 
 [source,c++,indent=2]
 ----
@@ -634,7 +634,7 @@ sycl::event open(const handle_data_view_t &handle_data, const sycl::context &ctx
 ----
 !====
 
-_Effects_: Equivalent to:
+_Effects:_ Equivalent to:
 
 [source,c++,indent=2]
 ----
@@ -650,7 +650,7 @@ sycl::event open(const handle_data_view_t &handle_data)
 ----
 !====
 
-_Effects_: Equivalent to:
+_Effects:_ Equivalent to:
 
 [source,c++,indent=2]
 ----
