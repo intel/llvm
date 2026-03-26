@@ -70,18 +70,18 @@ attributes #6 = { "sycl-unique-id"="6da74a122db9f35d____ZL7no_dg_int1" "sycl-dev
 ; CHECK-IR-DAG: ![[#MN0]] = !{![[#MN1:]], ![[#MN2:]], ![[#MN3:]]}
 ; CHECK-IR-DAG: ![[#MN1]] = !{i32 6149, i32 1}
 ; CHECK-IR-DAG: ![[#MN2]] = !{i32 6148, i32 0}
-; CHECK-IR-DAG: ![[#MN3]] = !{i32 6188, i32 2, !"6da74a122db9f35d____ZL7dg_int1"}
+; CHECK-IR-DAG: ![[#MN3]] = !{i32 6147, i32 2, !"6da74a122db9f35d____ZL7dg_int1"}
 
 ; CHECK-IR-DAG: ![[#MN4]] = !{![[#MN5:]], ![[#MN6:]], ![[#MN7:]]}
 ; CHECK-IR-DAG: ![[#MN5]] = !{i32 6149, i32 0}
 ; CHECK-IR-DAG: ![[#MN6]] = !{i32 6148, i32 1}
-; CHECK-IR-DAG: ![[#MN7]] = !{i32 6188, i32 3, !"7da74a1187b9f35d____ZL7dg_int2"}
+; CHECK-IR-DAG: ![[#MN7]] = !{i32 6147, i32 3, !"7da74a1187b9f35d____ZL7dg_int2"}
 
 ; CHECK-IR-DAG: ![[#MN8]] = !{![[#MN1]], ![[#MN2]], ![[#MN9:]]}
-; CHECK-IR-DAG: ![[#MN9]] = !{i32 6188, i32 1, !"9d329ad59055e972____ZL8dg_bool3"}
+; CHECK-IR-DAG: ![[#MN9]] = !{i32 6147, i32 1, !"9d329ad59055e972____ZL8dg_bool3"}
 
 ; CHECK-IR-DAG: ![[#MN10]] = !{![[#MN11:]]}
-; CHECK-IR-DAG: ![[#MN11]] = !{i32 6188, i32 3, !"dda2bad52c45c432____ZL8dg_bool4"}
+; CHECK-IR-DAG: ![[#MN11]] = !{i32 6147, i32 3, !"dda2bad52c45c432____ZL8dg_bool4"}
 
 ; For not a device global variable, only actually present compile-time
 ; properties are handled
