@@ -227,9 +227,11 @@ using clGetDeviceFunctionPointerINTEL_fn = CL_API_ENTRY
 cl_int(CL_API_CALL *)(cl_device_id device, cl_program program,
                       const char *FuncName, cl_ulong *ret_ptr);
 
-using clGetDeviceGlobalVariablePointerINTEL_fn = CL_API_ENTRY cl_int(CL_API_CALL *)(
-    cl_device_id device, cl_program program, const char *globalVariableName,
-    size_t *globalVariableSizeRet, void **globalVariablePointerRet);
+using clGetDeviceGlobalVariablePointerINTEL_fn = CL_API_ENTRY
+cl_int(CL_API_CALL *)(cl_device_id device, cl_program program,
+                      const char *globalVariableName,
+                      size_t *globalVariableSizeRet,
+                      void **globalVariablePointerRet);
 
 using clEnqueueWriteGlobalVariableINTEL_fn = CL_API_ENTRY
 cl_int(CL_API_CALL *)(cl_command_queue, cl_program, const char *, cl_bool,
