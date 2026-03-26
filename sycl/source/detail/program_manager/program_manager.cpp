@@ -924,6 +924,7 @@ ProgramManager::getBuiltURProgram(const BinImgWithDeps &ImgWithDeps,
 
     // Those extra programs won't be used anymore, just the final
     // linked result:
+    bool WasLinked = !ProgramsToLink.empty();
     ProgramsToLink.clear();
     emitBuiltProgramInfo(BuiltProgram, ContextImpl);
 
@@ -940,7 +941,30 @@ ProgramManager::getBuiltURProgram(const BinImgWithDeps &ImgWithDeps,
       }
     }
 
-    ContextImpl.addDeviceGlobalInitializer(BuiltProgram, Devs, &MainImg);
+    // If we linked multiple images, we need to register device_globals from
+    // all of them, not just the main image. Create a merged binary image.
+    if (WasLinked && ImgWithDeps.getAll().size() > 1) {
+      std::cerr << "Creating merged image for linked program with "
+                << ImgWithDeps.getAll().size() << " images\n";
+      auto MergedImg =
+          std::make_unique<DynRTDeviceBinaryImage>(ImgWithDeps.getAll());
+      const RTDeviceBinaryImage *MergedImgPtr = MergedImg.get();
+
+      // Store the merged image to keep it alive. Use a static map since we need
+      // it to persist for the lifetime of the program.
+      static std::mutex MergedImagesMutex;
+      static std::map<ur_program_handle_t,
+                      std::unique_ptr<DynRTDeviceBinaryImage>>
+          MergedImages;
+      {
+        std::lock_guard<std::mutex> Lock(MergedImagesMutex);
+        MergedImages[BuiltProgram] = std::move(MergedImg);
+      }
+
+      ContextImpl.addDeviceGlobalInitializer(BuiltProgram, Devs, MergedImgPtr);
+    } else {
+      ContextImpl.addDeviceGlobalInitializer(BuiltProgram, Devs, &MainImg);
+    }
 
     // Save program to persistent cache if it is not there
     if (!DeviceCodeWasInCache) {

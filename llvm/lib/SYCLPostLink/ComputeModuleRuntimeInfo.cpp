@@ -25,6 +25,9 @@
 constexpr int DebugModuleProps = 0;
 #endif
 
+// CP
+#include <iostream>
+
 namespace llvm::sycl {
 namespace {
 module_split::SyclEsimdSplitStatus
@@ -192,6 +195,22 @@ PropSetRegTy computeModuleProperties(const Module &M,
                     /*PropVal=*/true);
       }
     }
+
+    // Also export device_global variables
+    std::cout << "also exporting device_global variables" << std::endl;
+    for (auto &GV : M.globals()) {
+      if (!isDeviceGlobalVariable(GV))
+        continue;
+      if (GV.isDeclaration()) // Skip declarations
+        continue;
+      if (hasDeviceImageScopeProperty(GV)) // Skip per-image globals
+        continue;
+      if (GV.hasExternalLinkage()) {
+        std::cout << "exporting device_global variable: " << GV.getName().str()
+                  << std::endl;
+        PropSet.add(PropSetRegTy::SYCL_EXPORTED_SYMBOLS, GV.getName(), true);
+      }
+    }
   }
   if (GlobProps.EmitKernelNames) {
     for (const auto *F : EntryPoints) {
@@ -224,6 +243,29 @@ PropSetRegTy computeModuleProperties(const Module &M,
         assert(!F.use_empty() && "Function F has no uses");
         PropSet.add(PropSetRegTy::SYCL_IMPORTED_SYMBOLS, F.getName(),
                     /*PropVal=*/true);
+      }
+    }
+
+    // Also check for imported device_global variables
+    for (auto &GV : M.globals()) {
+      if (!GV.isDeclaration()) // Only declarations
+        continue;
+      if (!GV.hasExternalLinkage())
+        continue;
+
+      // Check if it's a device_global by type name (declarations don't have
+      // attributes)
+      Type *Ty = GV.getValueType();
+      std::string TypeName;
+      raw_string_ostream OS(TypeName);
+      Ty->print(OS);
+      OS.flush();
+
+      if (TypeName.find("device_global") == std::string::npos)
+        continue;
+
+      if (AllowDeviceImageDependencies) {
+        PropSet.add(PropSetRegTy::SYCL_IMPORTED_SYMBOLS, GV.getName(), true);
       }
     }
   }
