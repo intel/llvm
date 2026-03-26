@@ -89,6 +89,7 @@ struct USMSaxpyKernelTestBase
   static constexpr size_t n_dimensions = 1;
   static constexpr uint32_t A = 42;
   std::array<void *, 5> shared_ptrs = {nullptr, nullptr, nullptr, nullptr};
+  // SAXPY: Single-precision A * X Plus Y (y = a * x + y)
   ur_exp_kernel_arg_properties_t saxpy_args[4] = {};
 };
 

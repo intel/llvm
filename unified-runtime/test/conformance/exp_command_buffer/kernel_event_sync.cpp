@@ -96,6 +96,7 @@ struct KernelCommandEventSyncTest
   std::array<ur_event_handle_t, 2> external_events = {nullptr, nullptr};
   std::array<ur_exp_command_buffer_sync_point_t, 2> sync_points = {0, 0};
   ur_exp_command_buffer_handle_t second_cmd_buf_handle = nullptr;
+  // SAXPY: Single-precision A * X Plus Y (y = a * x + y)
   ur_exp_kernel_arg_properties_t saxpy_args[4] = {};
   static constexpr size_t elements = 64;
   static constexpr size_t global_offset = 0;

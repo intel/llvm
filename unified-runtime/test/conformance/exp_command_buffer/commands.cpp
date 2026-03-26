@@ -236,6 +236,7 @@ struct urCommandBufferAppendKernelLaunchExpTest
   static constexpr size_t allocation_size = sizeof(uint32_t) * global_size;
   static constexpr uint32_t A = 42;
   std::array<void *, 3> shared_ptrs = {nullptr, nullptr, nullptr};
+  // SAXPY: Single-precision A * X Plus Y (y = a * x + y)
   ur_exp_kernel_arg_properties_t saxpy_args[4] = {};
 };
 

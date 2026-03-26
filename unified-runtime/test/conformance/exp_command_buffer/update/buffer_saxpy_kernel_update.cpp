@@ -157,6 +157,7 @@ struct BufferSaxpyKernelTest
   static constexpr uint32_t A = 42;
   std::array<ur_mem_handle_t, 5> buffers = {nullptr, nullptr, nullptr, nullptr};
   ur_exp_command_buffer_command_handle_t command_handle = nullptr;
+  // SAXPY: Single-precision A * X Plus Y (y = a * x + y)
   std::vector<ur_exp_kernel_arg_properties_t> saxpy_buf_args;
   size_t hip_zero_val = 0;
   struct {
