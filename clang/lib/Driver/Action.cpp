@@ -95,7 +95,7 @@ void Action::propagateDeviceOffloadInfo(OffloadKind OKind, const char *OArch,
   // files, where the host side does not have any device info to propagate.
   bool hasPreprocessJob =
       std::any_of(Inputs.begin(), Inputs.end(), [](const Action *A) {
-        return A->getKind() == PreprocessJobClass;
+        return A->getKind() == PreprocessJobClass || A->getKind() == PrecompileJobClass;
       });
   if (Kind == OffloadPackagerJobClass && hasPreprocessJob)
     return;

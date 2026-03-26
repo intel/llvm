@@ -7892,7 +7892,8 @@ Driver::BuildOffloadingActions(Compilation &C, llvm::opt::DerivedArgList &Args,
   // preprocessing only ignore embedding.  When needing to do bundling for
   // SYCL, allow the building of offloading actions to add the device side to
   // the bundle.
-  if (!(isa<CompileJobAction>(HostAction) || SYCLBundleFile ||
+  if (!(isa<CompileJobAction>(HostAction) ||
+        isa<PrecompileJobAction>(HostAction) || SYCLBundleFile ||
         getFinalPhase(Args) == phases::Preprocess))
     return HostAction;
 
@@ -7928,8 +7929,14 @@ Driver::BuildOffloadingActions(Compilation &C, llvm::opt::DerivedArgList &Args,
         TCAndArchs.push_back(std::make_pair(TC, Arch));
         // Check if the InputArg is a preprocessed file that is created by the
         // llvm-offload-binary.
+	printf("%d %d\n", (int)InputType, (int)types::TY_PCH);
+        printf("%s\n", InputArg->getAsString(Args).c_str());
+	if (Args.hasArg(options::OPT_include_pch)) printf("Look into here\n");
+#if 1
         if (InputType == types::TY_PP_CXX &&
             isOffloadBinaryFile(InputArg->getAsString(Args))) {
+#else
+#endif
           // Extract the specific preprocessed file given the current arch
           // and triple.  Add to DeviceActions if one was extracted.
           ActionList PPActions;
@@ -7938,13 +7945,45 @@ Driver::BuildOffloadingActions(Compilation &C, llvm::opt::DerivedArgList &Args,
           PPActions.push_back(IA);
           Action *PackagerAction =
               C.MakeAction<OffloadPackagerExtractJobAction>(PPActions,
+#if 1
                                                             types::TY_PP_CXX);
+#else
+#endif
           DDep.add(*PackagerAction,
                    *C.getSingleOffloadToolChain<Action::OFK_Host>(), nullptr,
                    C.getActiveOffloadKinds());
           DeviceActions.push_back(PackagerAction);
           continue;
         }
+#if 1
+	SmallString<128> PCHArgValue;
+
+	if (Args.hasArg(options::OPT_include_pch)) {
+		printf("Here 1\n");
+        if (isOffloadBinaryFile(Args.getLastArg(options::OPT_include_pch)->getValue())) {
+		printf("Here 2\n");
+          // Extract the specific preprocessed file given the current arch
+          // and triple.  Add to DeviceActions if one was extracted.
+          ActionList PPActions;
+          OffloadAction::DeviceDependences DDep;
+    PCHArgValue = Args.getLastArg(options::OPT_include_pch)->getValue();
+    InputArg = MakeInputArg(Args, C.getDriver().getOpts(),
+                                 Args.MakeArgString(PCHArgValue));
+    InputType = types::TY_PCH;
+    Action *A = C.MakeAction<InputAction>(*InputArg, types::TY_PCH, CUID);
+//          Action *IA = C.MakeAction<InputAction>(*InputArg, InputType, CUID);
+          PPActions.push_back(A);
+          Action *PackagerAction =
+              C.MakeAction<OffloadPackagerExtractJobAction>(PPActions,
+                                                            types::TY_PCH);
+          DDep.add(*PackagerAction,
+                   *C.getSingleOffloadToolChain<Action::OFK_Host>(), nullptr,
+                   C.getActiveOffloadKinds());
+          DeviceActions.push_back(PackagerAction);
+          continue;
+        }
+	}
+#endif
         DeviceActions.push_back(
             C.MakeAction<InputAction>(*InputArg, InputType, CUID));
       }
@@ -8124,6 +8163,43 @@ Driver::BuildOffloadingActions(Compilation &C, llvm::opt::DerivedArgList &Args,
     DDep.add(*LinkAction, *C.getSingleOffloadToolChain<Action::OFK_Host>(),
              nullptr, C.getActiveOffloadKinds());
     return C.MakeAction<OffloadAction>(DDep, types::TY_Nothing);
+  } else if (C.isOffloadingHostKind(Action::OFK_SYCL) &&
+             isa<PrecompileJobAction>(HostAction) &&
+             Args.hasArg(options::OPT_o, options::OPT__SLASH_P,
+                         options::OPT__SLASH_o)) {
+    // Performing precompilation only. Take the host and device preprocessed
+    // files and package them together.
+    ActionList PackagerActions;
+    // Only add the preprocess actions from the device side.  When one is
+    // found, add an additional compilation to generate the integration
+    // header/footer that is used for the host compile.
+    for (auto OA : OffloadActions) {
+      if (const OffloadAction *CurOA = dyn_cast<OffloadAction>(OA)) {
+        CurOA->doOnEachDependence(
+            [&](Action *A, const ToolChain *TC, const char *BoundArch) {
+              assert(TC && "Unknown toolchain");
+              if (isa<PrecompileJobAction>(A)) {
+                PackagerActions.push_back(OA);
+                A->setCannotBeCollapsedWithNextDependentAction();
+                // The input to the compilation job is the preprocessed job.
+                // Take that input action (it should be one input) which is
+                // the source file and compile that file to generate the
+                // integration header/footer.
+                ActionList PreprocInputs = A->getInputs();
+                assert(PreprocInputs.size() == 1 &&
+                       "Single input size to preprocess action expected.");
+                Action *CompileAction = C.MakeAction<CompileJobAction>(
+                    PreprocInputs.front(), types::TY_Nothing);
+                DDeps.add(*CompileAction, *TC, BoundArch, Action::OFK_SYCL);
+              }
+            });
+      }
+    }
+    PackagerActions.push_back(HostAction);
+    Action *PackagerAction = C.MakeAction<OffloadPackagerJobAction>(
+        PackagerActions, types::TY_PCH);
+    DDeps.add(*PackagerAction, *C.getSingleOffloadToolChain<Action::OFK_Host>(),
+              nullptr, C.getActiveOffloadKinds());
   } else if (C.isOffloadingHostKind(Action::OFK_SYCL) &&
              isa<PreprocessJobAction>(HostAction) &&
              getFinalPhase(Args) == phases::Preprocess &&
@@ -8344,13 +8420,14 @@ Action *Driver::ConstructPhaseAction(
     // we will compile.
     if (getUseNewOffloadingDriver() &&
         TargetDeviceOffloadKind == Action::OFK_None &&
-        Input->getType() == types::TY_PP_CXX) {
+        Input->getType() == types::TY_PCH) {
+	    printf("Do we get here?\n");
       const InputAction *IA = dyn_cast<InputAction>(Input);
       if (IA && isOffloadBinaryFile(IA->getInputArg().getAsString(Args))) {
         ActionList PPActions;
         PPActions.push_back(Input);
         Action *PackagerAction = C.MakeAction<OffloadPackagerExtractJobAction>(
-            PPActions, types::TY_PP_CXX);
+            PPActions, types::TY_PCH);
         return C.MakeAction<CompileJobAction>(PackagerAction,
                                               types::TY_LLVM_BC);
       }
@@ -9898,11 +9975,14 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
 
   // When generating preprocessed files (-E) with offloading enabled, redirect
   // the output to a properly named output file.
-  if (JA.getType() == types::TY_PP_CXX && isa<OffloadPackagerJobAction>(JA)) {
+#if 1
+  if ((JA.getType() == types::TY_PP_CXX ||
+       JA.getType() == types::TY_PCH) && isa<OffloadPackagerJobAction>(JA)) {
     if (Arg *FinalOutput =
             C.getArgs().getLastArg(options::OPT_o, options::OPT__SLASH_o))
       return C.addResultFile(FinalOutput->getValue(), &JA);
   }
+#endif
 
   // Default to writing to stdout?
   if (AtTopLevel && !CCGenDiagnostics && HasPreprocessOutput(JA)) {
