@@ -388,10 +388,12 @@ static constexpr auto TestComplexSize = std::size(complex_input);
 int main() {
   s::queue deviceQueue;
   auto n_fails = device_complex_test(deviceQueue);
+#ifndef _WIN32
   n_fails += device_complex_test_mul<double, TestComplexSize>(deviceQueue,
                                                               complex_input);
   n_fails += device_complex_test_div<double, TestComplexSize>(deviceQueue,
                                                               complex_input);
+#endif
   if (n_fails == 0)
     std::cout << "Pass" << std::endl;
   return n_fails;

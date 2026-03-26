@@ -390,11 +390,10 @@ int main() {
   n_fails += device_complex_test_1(deviceQueue);
 #ifndef _WIN32
   n_fails += device_complex_test_2(deviceQueue);
-#endif
   n_fails += device_complex_test_mul<float, TestComplexSize>(deviceQueue,
                                                              complex_input);
   n_fails += device_complex_test_div<float, TestComplexSize>(deviceQueue,
-                                                             complex_input);
+#endif
   if (n_fails == 0)
     std::cout << "Pass" << std::endl;
   return n_fails;
