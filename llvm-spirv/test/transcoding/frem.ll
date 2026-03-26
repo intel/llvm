@@ -7,8 +7,10 @@
 ; RUN: spirv-val %t.fc2.spv
 ; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o - | FileCheck %s --check-prefixes=CHECK-LLVM,CHECK-LLVM-DEFAULT
 ; RUN: llvm-spirv -r %t.fc2.spv -o - | llvm-dis -o - | FileCheck %s --check-prefixes=CHECK-LLVM,CHECK-LLVM-FC2
-; FIXME: FILECHECK_FAIL during llvm-spirv -r in llc compilation flow
-; TODO: rewrite the test as currently DCE removes IR through llc compilation flow
+; RUN: %if spirv-backend %{ llc -O0 -mtriple=spirv32-unknown-unknown -filetype=obj %s -o %t.llc.spv %}
+; RUN: %if spirv-backend %{ llvm-spirv -r %t.llc.spv -o %t.llc.rev.bc %}
+; RUN: %if spirv-backend %{ llvm-dis %t.llc.rev.bc -o %t.llc.rev.ll %}
+; RUN: %if spirv-backend %{ FileCheck %s --check-prefix=CHECK-LLVM < %t.llc.rev.ll %}
 
 ; CHECK-SPIRV: 3 Name [[#r1:]] "r1"
 ; CHECK-SPIRV: 3 Name [[#r2:]] "r2"
@@ -42,18 +44,18 @@
 ; CHECK-SPIRV: 5 FRem [[float]] [[#r8]]
 ; CHECK-SPIRV: 5 FRem [[float]] [[#r9]]
 
-; CHECK-LLVM: %r1 = frem float %a, %b
-; CHECK-LLVM: %r2 = frem nnan float %a, %b
-; CHECK-LLVM: %r3 = frem ninf float %a, %b
-; CHECK-LLVM: %r4 = frem nsz float %a, %b
-; CHECK-LLVM: %r5 = frem arcp float %a, %b
-; CHECK-LLVM-DEFAULT: %r6 = frem fast float %a, %b
-; CHECK-LLVM-FC2: %r6 = frem reassoc nnan ninf nsz arcp contract float %a, %b
-; CHECK-LLVM: %r7 = frem nnan ninf float %a, %b
-; CHECK-LLVM-DEFAULT: %r8 = frem float %a, %b
-; CHECK-LLVM-FC2: %r8 = frem contract float %a, %b
-; CHECK-LLVM-DEFAULT: %r9 = frem float %a, %b
-; CHECK-LLVM-FC2: %r9 = frem reassoc contract float %a, %b
+; CHECK-LLVM: frem float %a, %b
+; CHECK-LLVM: frem nnan float %a, %b
+; CHECK-LLVM: frem ninf float %a, %b
+; CHECK-LLVM: frem nsz float %a, %b
+; CHECK-LLVM: frem arcp float %a, %b
+; CHECK-LLVM-DEFAULT: frem fast float %a, %b
+; CHECK-LLVM-FC2: frem reassoc nnan ninf nsz arcp contract float %a, %b
+; CHECK-LLVM: frem nnan ninf float %a, %b
+; CHECK-LLVM-DEFAULT: frem float %a, %b
+; CHECK-LLVM-FC2: frem contract float %a, %b
+; CHECK-LLVM-DEFAULT: frem float %a, %b
+; CHECK-LLVM-FC2: frem reassoc contract float %a, %b
 
 target datalayout = "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
 target triple = "spir-unknown-unknown"
@@ -61,15 +63,25 @@ target triple = "spir-unknown-unknown"
 ; Function Attrs: nounwind
 define spir_kernel void @testFRem(float %a, float %b) local_unnamed_addr #0 !kernel_arg_addr_space !2 !kernel_arg_access_qual !3 !kernel_arg_type !4 !kernel_arg_base_type !4 !kernel_arg_type_qual !5 {
 entry:
+  %tmp = alloca float, align 4
   %r1 = frem float %a, %b
+  store volatile float %r1, ptr %tmp, align 4
   %r2 = frem nnan float %a, %b
+  store volatile float %r2, ptr %tmp, align 4
   %r3 = frem ninf float %a, %b
+  store volatile float %r3, ptr %tmp, align 4
   %r4 = frem nsz float %a, %b
+  store volatile float %r4, ptr %tmp, align 4
   %r5 = frem arcp float %a, %b
+  store volatile float %r5, ptr %tmp, align 4
   %r6 = frem fast float %a, %b
+  store volatile float %r6, ptr %tmp, align 4
   %r7 = frem nnan ninf float %a, %b
+  store volatile float %r7, ptr %tmp, align 4
   %r8 = frem contract float %a, %b
+  store volatile float %r8, ptr %tmp, align 4
   %r9 = frem reassoc float %a, %b
+  store volatile float %r9, ptr %tmp, align 4
   ret void
 }
 
