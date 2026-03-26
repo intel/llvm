@@ -1463,6 +1463,9 @@ RegBankLegalizeRules::RegBankLegalizeRules(const GCNSubtarget &_ST,
       .Any({{S32}, {{Sgpr32}, {}}})
       .Any({{S64}, {{Sgpr64}, {}}});
 
+  addRulesForIOpcs({amdgcn_s_memrealtime}, Standard)
+      .Uni(S64, {{Sgpr64}, {IntrId}});
+
   addRulesForIOpcs({amdgcn_groupstaticsize, amdgcn_pops_exiting_wave_id,
                     amdgcn_reloc_constant},
                    Standard)
@@ -1675,6 +1678,10 @@ RegBankLegalizeRules::RegBankLegalizeRules(const GCNSubtarget &_ST,
       .Uni(S16, {{UniInVgprS16}, {IntrId, Vgpr16}})
       .Div(S32, {{Vgpr32}, {IntrId, Vgpr32}})
       .Uni(S32, {{UniInVgprS32}, {IntrId, Vgpr32}});
+
+  addRulesForIOpcs({amdgcn_trig_preop}, Standard)
+      .Div(S64, {{Vgpr64}, {IntrId, Vgpr64, Vgpr32}})
+      .Uni(S64, {{UniInVgprS64}, {IntrId, Vgpr64, Vgpr32}});
 
   addRulesForIOpcs({amdgcn_ds_add_gs_reg_rtn, amdgcn_ds_sub_gs_reg_rtn},
                    Standard)
