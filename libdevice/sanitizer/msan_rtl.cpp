@@ -9,7 +9,7 @@
 #include "include/msan_rtl.hpp"
 #include "msan/msan_libdevice.hpp"
 
-__attribute__((weak)) DeviceGlobal<void *> __MsanLaunchInfo;
+DeviceGlobal<void *> __MsanLaunchInfo;
 #define GetMsanLaunchInfo                                                      \
   ((__SYCL_GLOBAL__ MsanRuntimeData *)__MsanLaunchInfo.get())
 

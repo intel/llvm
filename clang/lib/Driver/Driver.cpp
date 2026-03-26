@@ -5595,7 +5595,7 @@ class OffloadingActionBuilder final {
         Action *NativeCPULib = nullptr;
         if (IsSPIR || IsNVPTX || IsAMDGCN || IsNativeCPU) {
           SYCLDeviceLibLinked = addSYCLDeviceLibs(
-              TC, SYCLDeviceLibs,
+              TC, SYCLDeviceLibs, IsSpirvAOT,
               C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment(),
               IsNativeCPU, NativeCPULib, BoundArch);
         }
@@ -5823,25 +5823,20 @@ class OffloadingActionBuilder final {
     }
 
     bool addSYCLDeviceLibs(const ToolChain *TC, ActionList &DeviceLinkObjects,
-                           bool isMSVCEnv, bool isNativeCPU,
+                           bool isSpirvAOT, bool isMSVCEnv, bool isNativeCPU,
                            Action *&NativeCPULib, const char *BoundArch) {
       int NumOfDeviceLibLinked = 0;
       SmallVector<SmallString<128>, 4> LibLocCandidates;
       SYCLInstallation.getSYCLDeviceLibPath(LibLocCandidates);
 
-      const toolchains::SYCLToolChain &SYCLTC =
-          static_cast<const toolchains::SYCLToolChain &>(*TC);
-      SmallVector<ToolChain::BitCodeLibraryInfo, 8> DeviceLibraries;
-      // TODO: Use the getDeviceLibs for each toolchain instead of using the
-      // specific libs and doing a separate directory search.  Each toolchain
-      // has their own getDeviceLibs that we can potentially use.
+      SmallVector<std::string, 8> DeviceLibraries;
       DeviceLibraries =
-          SYCLTC.getDeviceLibNames(C.getDriver(), Args, TC->getTriple());
+          tools::SYCL::getDeviceLibraries(C, TC->getTriple(), isSpirvAOT);
 
       for (const auto &DeviceLib : DeviceLibraries) {
         for (const auto &LLCandidate : LibLocCandidates) {
           SmallString<128> LibName(LLCandidate);
-          llvm::sys::path::append(LibName, DeviceLib.Path);
+          llvm::sys::path::append(LibName, DeviceLib);
           if (llvm::sys::fs::exists(LibName)) {
             ++NumOfDeviceLibLinked;
             Arg *InputArg = makeInputArg(Args, C.getDriver().getOpts(),
