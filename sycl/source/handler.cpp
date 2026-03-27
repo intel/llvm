@@ -772,7 +772,8 @@ detail::EventImplPtr handler::finalize() {
   // requested, the queue supports events discarding, and the scheduler
   // could have been bypassed (not supported yet), the event can be skipped.
   bool DiscardEvent =
-      (type != detail::CGType::Kernel && KernelSchedulerBypass &&
+      (type != detail::CGType::Kernel &&
+       type != detail::CGType::CodeplayHostTask && KernelSchedulerBypass &&
        !impl->MEventNeeded && Queue->isInOrder());
 
   detail::EventImplPtr Event = detail::Scheduler::getInstance().addCG(
