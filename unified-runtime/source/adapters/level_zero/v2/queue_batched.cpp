@@ -1019,18 +1019,26 @@ ur_result_t ur_queue_batched_t::enqueueGraphExp(
 }
 
 ur_result_t ur_queue_batched_t::queueBeginGraphCapteExp() {
-  currentCmdLists.lock()->setGraphCapture(true);
-  return currentCmdLists.lock()->getListManager().beginGraphCapture();
+  auto lockedBatch = currentCmdLists.lock();
+  lockedBatch->setGraphCapture(true);
+  return lockedBatch->getListManager().beginGraphCapture();
 }
 
 ur_result_t
 ur_queue_batched_t::queueBeginCapteIntoGraphExp(ur_exp_graph_handle_t hGraph) {
-  return currentCmdLists.lock()->getListManager().beginCaptureIntoGraph(hGraph);
+  auto lockedBatch = currentCmdLists.lock();
+  lockedBatch->setGraphCapture(true);
+  return lockedBatch->getListManager().beginCaptureIntoGraph(hGraph);
 }
 
 ur_result_t
 ur_queue_batched_t::queueEndGraphCapteExp(ur_exp_graph_handle_t *phGraph) {
-  return currentCmdLists.lock()->getListManager().endGraphCapture(phGraph);
+  auto lockedBatch = currentCmdLists.lock();
+  ur_result_t result = lockedBatch->getListManager().endGraphCapture(phGraph);
+  if (result == UR_RESULT_SUCCESS) {
+    lockedBatch->setGraphCapture(false);
+  }
+  return result;
 }
 
 ur_result_t ur_queue_batched_t::queueIsGraphCapteEnabledExp(bool *pResult) {
