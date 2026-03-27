@@ -1032,6 +1032,13 @@ ur_result_t ur_queue_batched_t::enqueueGraphExp(
 
 ur_result_t ur_queue_batched_t::queueBeginGraphCapteExp() {
   auto lockedBatch = currentCmdLists.lock();
+
+  // Firstly, enqueue the current batch (a regular list) to preserve the order
+  // of operations before switching to immediate list mode for graph capture
+  if (!lockedBatch->isActiveBatchEmpty()) {
+    UR_CALL(renewBatchUnlocked(lockedBatch));
+  }
+
   lockedBatch->setGraphCapture(true);
   return lockedBatch->getListManager().beginGraphCapture();
 }
@@ -1039,6 +1046,13 @@ ur_result_t ur_queue_batched_t::queueBeginGraphCapteExp() {
 ur_result_t
 ur_queue_batched_t::queueBeginCapteIntoGraphExp(ur_exp_graph_handle_t hGraph) {
   auto lockedBatch = currentCmdLists.lock();
+
+  // Firstly, enqueue the current batch (a regular list) to preserve the order
+  // of operations before switching to immediate list mode for graph capture
+  if (!lockedBatch->isActiveBatchEmpty()) {
+    UR_CALL(renewBatchUnlocked(lockedBatch));
+  }
+
   lockedBatch->setGraphCapture(true);
   return lockedBatch->getListManager().beginCaptureIntoGraph(hGraph);
 }
