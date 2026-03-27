@@ -81,6 +81,7 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/FileSystem.h"
+#include "llvm/Support/SaveAndRestore.h"
 
 #include <algorithm>
 #include <cstdlib>
@@ -5859,14 +5860,11 @@ bool llvm::readSpirv(LLVMContext &C, const SPIRV::TranslatorOpts &Opts,
 
     // Write out the specialized/targeted module
     if (!BM->getFnVarSpvOut().empty()) {
-      auto SaveOpt = SPIRVUseTextFormat;
+      llvm::SaveAndRestore<bool> SaveOpt(SPIRVUseTextFormat, false);
       auto OFSSpv = std::ofstream(BM->getFnVarSpvOut(), std::ios::binary);
-      SPIRVUseTextFormat = false;
       OFSSpv << *BM;
-      if (BM->getError(ErrMsg) != SPIRVEC_Success) {
+      if (BM->getError(ErrMsg) != SPIRVEC_Success)
         return false;
-      }
-      SPIRVUseTextFormat = SaveOpt;
     }
   }
 
