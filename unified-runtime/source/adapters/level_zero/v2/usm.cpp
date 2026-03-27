@@ -847,6 +847,10 @@ ur_result_t UR_APICALL urUSMContextMemcpyExp(ur_context_handle_t hContext,
 ur_result_t urUSMHostAllocRegisterExp(
     ur_context_handle_t hContext, void *pHostMem, size_t size,
     const ur_exp_usm_host_alloc_register_properties_t * /*pProperties*/) {
+  if (!hContext->getPlatform()->ZeExternalMemoryMappingExtensionSupported) {
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  }
+
   ze_external_memmap_sysmem_ext_desc_t sysMemDesc = {
       ZE_STRUCTURE_TYPE_EXTERNAL_MEMMAP_SYSMEM_EXT_DESC, nullptr, pHostMem,
       size};

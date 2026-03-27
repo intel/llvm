@@ -297,6 +297,12 @@ ur_result_t ur_platform_handle_t_::initialize() {
         ZeLUIDSupported = true;
       }
     }
+    if (strncmp(extension.name, ZE_EXTERNAL_MEMORY_MAPPING_EXT_NAME,
+                strlen(ZE_EXTERNAL_MEMORY_MAPPING_EXT_NAME) + 1) == 0) {
+      if (extension.version == ZE_EXTERNAL_MEMMAP_SYSMEM_EXT_VERSION_CURRENT) {
+        ZeExternalMemoryMappingExtensionSupported = true;
+      }
+    }
     zeDriverExtensionMap[extension.name] = extension.version;
   }
 
