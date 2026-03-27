@@ -21,7 +21,7 @@
 #include "event_provider_normal.hpp"
 #include "queue_batched.hpp"
 #include "queue_handle.hpp"
-#include "ur_api.h"
+#include "unified-runtime/ur_api.h"
 #include "uur/checks.h"
 #include "uur/fixtures.h"
 #include "ze_api.h"

@@ -8,7 +8,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <ur_api.h>
+#include <unified-runtime/ur_api.h>
 
 UR_APIEXPORT ur_result_t urEnqueueUSMDeviceAllocExp(
     ur_queue_handle_t, ur_usm_pool_handle_t, const size_t,

@@ -10,7 +10,7 @@
 #include <cstdint>
 #include <vector>
 
-#include "ur_api.h"
+#include "unified-runtime/ur_api.h"
 
 #include "common.hpp"
 #include "event.hpp"

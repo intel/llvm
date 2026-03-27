@@ -10,7 +10,7 @@
 
 #include "kernel.hpp"
 #include "logger/ur_logger.hpp"
-#include "ur_api.h"
+#include "unified-runtime/ur_api.h"
 #include "ur_interface_loader.hpp"
 
 #include "helpers/kernel_helpers.hpp"
@@ -54,6 +54,17 @@ ur_result_t urKernelGetSuggestedLocalWorkSize(
 
   std::copy(LocalWorkSize, LocalWorkSize + workDim, pSuggestedLocalWorkSize);
   return UR_RESULT_SUCCESS;
+}
+
+ur_result_t urKernelGetSuggestedLocalWorkSizeWithArgs(
+    ur_kernel_handle_t hKernel, ur_queue_handle_t hQueue, uint32_t workDim,
+    const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
+    [[maybe_unused]] uint32_t numArgs,
+    [[maybe_unused]] const ur_exp_kernel_arg_properties_t *pArgs,
+    size_t *pSuggestedLocalWorkSize) {
+  return ur::level_zero::urKernelGetSuggestedLocalWorkSize(
+      hKernel, hQueue, workDim, pGlobalWorkOffset, pGlobalWorkSize,
+      pSuggestedLocalWorkSize);
 }
 
 ur_result_t urKernelSetArgValueHelper(

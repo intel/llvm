@@ -65,11 +65,25 @@ std::string getClangVendor() {
 #endif
 }
 
-std::string getSYCLBuildInfo() {
-#ifdef SYCL_BUILD_INFO
-  return SYCL_BUILD_INFO;
+std::string getDPCPPPreReleaseInfo() {
+#if PRE_RELEASE
+  std::string buf;
+  llvm::raw_string_ostream OS(buf);
+  OS << DPCPP_VERSION << " (pre-release)";
+  return buf;
 #else
-  return "development";
+  return DPCPP_VERSION;
+#endif
+}
+
+std::string getDPCPPVersion() {
+#ifdef SYCL_BUILD_INFO
+  std::string buf;
+  llvm::raw_string_ostream OS(buf);
+  OS << getDPCPPPreReleaseInfo() << " (" << SYCL_BUILD_INFO << ")";
+  return buf;
+#else
+  return getDPCPPPreReleaseInfo();
 #endif
 }
 
@@ -125,6 +139,21 @@ std::string getClangFullCPPVersion() {
   llvm::raw_string_ostream OS(buf);
   OS << getClangVendor() << "Clang " CLANG_VERSION_STRING;
 
+  std::string repo = getClangFullRepositoryVersion();
+  if (!repo.empty()) {
+    OS << " " << repo;
+  }
+
+  return buf;
+}
+std::string getDPCPPFullCPPVersion() {
+  // Format: "DPC++ 6.3.0 git (https://github.com/intel/llvm.git ...)"
+  std::string buf;
+  llvm::raw_string_ostream OS(buf);
+  OS << "DPC++ " DPCPP_VERSION;
+#if PRE_RELEASE
+  OS << " (pre-release)";
+#endif
   std::string repo = getClangFullRepositoryVersion();
   if (!repo.empty()) {
     OS << " " << repo;

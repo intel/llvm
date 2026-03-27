@@ -67,6 +67,7 @@ set(UR_SYCL_LIBRARY_DIR "" CACHE PATH
 set(UR_CONFORMANCE_TARGET_TRIPLES "" CACHE STRING
     "List of sycl targets to build CTS device binaries for")
 set(UR_CONFORMANCE_AMD_ARCH "" CACHE STRING "AMD device target ID to build CTS binaries for")
+set(UR_CONFORMANCE_NVIDIA_ARCH "" CACHE STRING "NVIDIA shader model to build CTS binaries for")
 set(UR_CONFORMANCE_SELECTOR "" CACHE STRING "If nonempty, the device selector for conformance tests")
 option(UR_USE_DEBUG_POSTFIX "Enable debug postfix 'd' for libraries" OFF)
 set(UR_ADAPTER_LEVEL_ZERO_SOURCE_DIR "" CACHE PATH
@@ -379,32 +380,37 @@ if(UR_BUILD_TOOLS)
     add_subdirectory(tools)
 endif()
 
-# Add the list of installed targets to the install. This includes the namespace
-# which all installed targets will be prefixed with, e.g. for the headers
-# target users will depend on ${PROJECT_NAME}::headers.
-install(
-    EXPORT ${PROJECT_NAME}-targets
-    FILE ${PROJECT_NAME}-targets.cmake
-    NAMESPACE ${PROJECT_NAME}::
-    DESTINATION lib/cmake/${PROJECT_NAME})
+# The export set and package config files are only needed when UR is built as
+# a standalone project. When built in-tree (LLVM/SYCL), the
+# parent project provides its own install rules.
+if(UR_STANDALONE_BUILD)
+    # Add the list of installed targets to the install. This includes the
+    # namespace which all installed targets will be prefixed with, e.g. for
+    # the headers target users will depend on ${PROJECT_NAME}::headers.
+    install(
+        EXPORT ${PROJECT_NAME}-targets
+        FILE ${PROJECT_NAME}-targets.cmake
+        NAMESPACE ${PROJECT_NAME}::
+        DESTINATION lib/cmake/${PROJECT_NAME})
 
-# Configure the package versions file for use in find_package when installed.
-write_basic_package_version_file(
-    ${PROJECT_BINARY_DIR}/cmake/${PROJECT_NAME}-config-version.cmake
-    COMPATIBILITY SameMajorVersion)
-# Configure the package file that is searched for by find_package when
-# installed.
-configure_package_config_file(
-    ${PROJECT_SOURCE_DIR}/cmake/${PROJECT_NAME}-config.cmake.in
-    ${PROJECT_BINARY_DIR}/cmake/${PROJECT_NAME}-config.cmake
-    INSTALL_DESTINATION lib/cmake/${PROJECT_NAME})
-
-# Add the package files to the install.
-install(
-    FILES
-        ${PROJECT_BINARY_DIR}/cmake/${PROJECT_NAME}-config.cmake
+    # Configure the package versions file for use in find_package when installed.
+    write_basic_package_version_file(
         ${PROJECT_BINARY_DIR}/cmake/${PROJECT_NAME}-config-version.cmake
-    DESTINATION lib/cmake/${PROJECT_NAME})
+        COMPATIBILITY SameMajorVersion)
+    # Configure the package file that is searched for by find_package when
+    # installed.
+    configure_package_config_file(
+        ${PROJECT_SOURCE_DIR}/cmake/${PROJECT_NAME}-config.cmake.in
+        ${PROJECT_BINARY_DIR}/cmake/${PROJECT_NAME}-config.cmake
+        INSTALL_DESTINATION lib/cmake/${PROJECT_NAME})
+
+    # Add the package files to the install.
+    install(
+        FILES
+            ${PROJECT_BINARY_DIR}/cmake/${PROJECT_NAME}-config.cmake
+            ${PROJECT_BINARY_DIR}/cmake/${PROJECT_NAME}-config-version.cmake
+        DESTINATION lib/cmake/${PROJECT_NAME})
+endif()
 
 set(API_JSON_FILE ${PROJECT_BINARY_DIR}/unified_runtime.json)
 

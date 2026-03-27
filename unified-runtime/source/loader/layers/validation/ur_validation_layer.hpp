@@ -12,7 +12,7 @@
  */
 #pragma once
 #include "logger/ur_logger.hpp"
-#include "ur_ddi.h"
+#include "unified-runtime/ur_ddi.h"
 #include "ur_proxy_layer.hpp"
 #include "ur_util.hpp"
 
