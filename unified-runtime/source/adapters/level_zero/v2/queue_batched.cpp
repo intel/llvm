@@ -162,6 +162,12 @@ ur_queue_batched_t::onEventWaitListUse(ur_event_generation_t batch_generation) {
 
 ur_result_t ur_queue_batched_t::markIssuedCommandInBatch(
     locked<batch_manager> &batchLocked) {
+  // During graph capture, commands are appended to an immediate command list,
+  // not to the batch. Skip batch tracking in this case.
+  if (batchLocked->isGraphCaptureActive()) {
+    return UR_RESULT_SUCCESS;
+  }
+
   if (batchLocked->isLimitOfEnqueuedCommandsReached()) {
     UR_CALL(queueFinishUnlocked(batchLocked));
 
