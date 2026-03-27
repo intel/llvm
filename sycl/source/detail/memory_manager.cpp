@@ -286,6 +286,8 @@ void *MemoryManager::allocate(context_impl *TargetContext, SYCLMemObjI *MemObj,
   waitForEvents(DepEvents);
   OutEvent = nullptr;
 
+  MemObj->prepareForAllocation(TargetContext);
+
   return MemObj->allocateMem(TargetContext, InitFromUserData, HostPtr,
                              OutEvent);
 }
