@@ -9008,59 +9008,184 @@ InputInfoList Driver::BuildJobsForAction(
   return Result;
 }
 
+/// Add an offloading prefix to a file path.
+/// Given a path like "dir/file.ext" and prefix "-host-x86_64",
+/// returns "dir/file-host-x86_64.ext".
+static SmallString<128> addOffloadingPrefixToPath(StringRef Path,
+                                                  StringRef OffloadingPrefix) {
+  SmallString<128> Dir = llvm::sys::path::parent_path(Path);
+  StringRef Stem = llvm::sys::path::stem(Path);
+  StringRef Ext = llvm::sys::path::extension(Path);
+  SmallString<128> NewPath;
+  if (!Dir.empty()) {
+    NewPath = Dir;
+    llvm::sys::path::append(NewPath, (Stem + OffloadingPrefix + Ext).str());
+  } else {
+    NewPath = (Stem + OffloadingPrefix + Ext).str();
+  }
+  return NewPath;
+}
+
 static void handleTimeTrace(Compilation &C, const ArgList &Args,
                             const JobAction *JA, const char *BaseInput,
-                            const InputInfo &Result) {
+                            const InputInfo &Result, StringRef OffloadingPrefix,
+                            bool AtTopLevel) {
   Arg *A =
       Args.getLastArg(options::OPT_ftime_trace, options::OPT_ftime_trace_EQ);
   if (!A)
     return;
 
-  SmallString<64> OffloadingPrefix;
-  if (JA->getOffloadingDeviceKind() != Action::OFK_None) {
-    const ToolChain *TC = JA->getOffloadingToolChain();
-    OffloadingPrefix = Action::GetOffloadingFileNamePrefix(
-        JA->getOffloadingDeviceKind(), TC ? TC->getTriple().normalize() : "",
-        /*CreatePrefixForHost=*/false);
-    if (const char *Arch = JA->getOffloadingArch()) {
-      OffloadingPrefix += "-";
-      OffloadingPrefix += Arch;
+  // For SYCL non-top-level jobs, derive trace path from -o or BaseInput.
+  // Result.getFilename() is now correctly the job's temp output, not the
+  // final -o path, so we need a separate trace path source.
+  bool AlreadyHasOffloadingPrefix = false;
+  auto GetTracePathForSYCLNonTopLevel = [&]() -> SmallString<128> {
+    const bool IsSYCLNonTopLevel =
+        JA->isOffloading(Action::OFK_SYCL) && !AtTopLevel;
+
+    // For SYCL jobs with multiple inputs, always go through collision detection
+    // below, regardless of AtTopLevel status
+    const bool IsSYCLMultiInput = JA->isOffloading(Action::OFK_SYCL) &&
+                                  Args.hasMultipleArgs(options::OPT_INPUT);
+
+    if (!IsSYCLNonTopLevel && !IsSYCLMultiInput)
+      return SmallString<128>(Result.getFilename());
+
+    // When compiling with -c, -o specifies the object file for this specific
+    // source, so it's safe to use for the trace filename. But in compile+link
+    // mode, -o names the final executable and is shared across all sources,
+    // which would cause trace filename collisions. In that case, fall back to
+    // using the input filename to keep traces unique per source.
+    const bool IsCompileOnly = Args.hasArg(options::OPT_c);
+    if (IsCompileOnly) {
+      if (Arg *FinalOutput = Args.getLastArg(options::OPT_o))
+        return SmallString<128>(FinalOutput->getValue());
     }
-  } else if (JA->getOffloadingHostActiveKinds() != Action::OFK_None &&
-             C.getDriver().isSaveTempsEnabled()) {
-    OffloadingPrefix = Action::GetOffloadingFileNamePrefix(
-        Action::OFK_None, C.getDefaultToolChain().getTriple().normalize(),
-        /*CreatePrefixForHost=*/true);
-  }
+    // Multiple inputs: use clean basename from BaseInput.
+    // The offloading prefix will differentiate host vs device traces.
+    // Use parent directory name to disambiguate if basename collision is
+    // detected. Example: clang -fsycl -c -ftime-trace=traces/ dir1/test.cpp
+    // dir2/test.cpp
+    //   Generates: traces/dir1-test-host-x86_64-unknown-linux-gnu.json
+    //              traces/dir1-test-sycl-spir64-unknown-unknown.json
+    //              traces/dir2-test-host-x86_64-unknown-linux-gnu.json
+    //              traces/dir2-test-sycl-spir64-unknown-unknown.json
+    if (Args.hasMultipleArgs(options::OPT_INPUT)) {
+      StringRef CurrentBasename = llvm::sys::path::filename(BaseInput);
+      StringRef CurrentStem = llvm::sys::path::stem(CurrentBasename);
+
+      // Check if another input has the same basename stem
+      bool HasCollision = false;
+      for (const Arg *Input : Args.filtered(options::OPT_INPUT)) {
+        StringRef InputPath = Input->getValue();
+        if (InputPath == BaseInput)
+          continue; // Skip self
+        if (llvm::sys::path::stem(llvm::sys::path::filename(InputPath)) ==
+            CurrentStem) {
+          HasCollision = true;
+          break;
+        }
+      }
+
+      if (HasCollision) {
+        // Use parent directory name to differentiate trace filenames.
+        // This provides more user-friendly names and helps users correlate
+        // traces to source locations.
+        StringRef ParentDir = llvm::sys::path::parent_path(BaseInput);
+        StringRef DirName = llvm::sys::path::filename(ParentDir);
+        SmallString<128> DisambiguatedName;
+        if (!DirName.empty()) {
+          DisambiguatedName = DirName;
+          DisambiguatedName += "-";
+          DisambiguatedName += CurrentBasename;
+        } else {
+          // No parent directory (e.g : file in current dir), use full path hash
+          auto Hash = llvm::APInt(64, llvm::hash_value(BaseInput));
+          DisambiguatedName = CurrentBasename;
+          llvm::sys::path::replace_extension(DisambiguatedName, "");
+          DisambiguatedName += "-";
+          SmallString<32> HashStr;
+          Hash.toString(HashStr, 16, /*Signed=*/false);
+          DisambiguatedName += HashStr;
+        }
+        return DisambiguatedName;
+      }
+
+      // No collision: use clean basename
+      return SmallString<128>(CurrentBasename);
+    }
+
+    // Single input: use predictable basename
+    return SmallString<128>(llvm::sys::path::filename(BaseInput));
+  };
 
   SmallString<128> Path;
   if (A->getOption().matches(options::OPT_ftime_trace_EQ)) {
     Path = A->getValue();
     if (llvm::sys::fs::is_directory(Path)) {
-      SmallString<128> Tmp(OffloadingPrefix.empty()
-                               ? llvm::sys::path::stem(Result.getFilename())
-                               : llvm::sys::path::stem(BaseInput));
-      Tmp += OffloadingPrefix;
-      Tmp += ".json";
-      llvm::sys::path::append(Path, Tmp);
+      // Derive a unique base trace path (handles SYCL non-top-level jobs)
+      SmallString<128> TracePath = GetTracePathForSYCLNonTopLevel();
+      SmallString<128> FileName(llvm::sys::path::filename(TracePath));
+      if (!OffloadingPrefix.empty() && JA->isOffloading(Action::OFK_SYCL) &&
+          !AlreadyHasOffloadingPrefix) {
+        FileName = addOffloadingPrefixToPath(FileName, OffloadingPrefix);
+      }
+      llvm::sys::path::replace_extension(FileName, "json");
+      llvm::sys::path::append(Path, FileName);
+    } else if (JA->isOffloading(Action::OFK_SYCL)) {
+      // User specified a file path, but for SYCL we still need per-job
+      // disambiguation so host/device and multi-source compilations do not
+      // overwrite each other's traces. Preserve the user directory, but
+      // synthesize a unique filename based on the SYCL job characteristics.
+      SmallString<128> Dir(Path);
+      llvm::sys::path::remove_filename(Dir);
+      SmallString<128> TracePath = GetTracePathForSYCLNonTopLevel();
+      SmallString<128> FileName(llvm::sys::path::filename(TracePath));
+      if (!OffloadingPrefix.empty() && !AlreadyHasOffloadingPrefix)
+        FileName = addOffloadingPrefixToPath(FileName, OffloadingPrefix);
+      llvm::sys::path::replace_extension(FileName, "json");
+      if (!Dir.empty()) {
+        Path = Dir;
+        llvm::sys::path::append(Path, FileName);
+      } else {
+        Path = FileName;
+      }
     }
   } else {
     if (Arg *DumpDir = Args.getLastArgNoClaim(options::OPT_dumpdir)) {
       // The trace file is ${dumpdir}${basename}${offloadprefix}.json. Note
       // that dumpdir may not end with a path separator.
       Path = DumpDir->getValue();
-      Path += llvm::sys::path::stem(BaseInput);
-      Path += OffloadingPrefix;
-    } else if (!OffloadingPrefix.empty()) {
-      // For offloading, derive path from -o output directory combined with
-      // the input filename and offload prefix.
-      SmallString<128> TraceName(llvm::sys::path::stem(BaseInput));
-      TraceName += OffloadingPrefix;
-      if (Arg *FinalOutput = Args.getLastArg(options::OPT_o))
-        Path = llvm::sys::path::parent_path(FinalOutput->getValue());
-      llvm::sys::path::append(Path, TraceName);
+      if (JA->isOffloading(Action::OFK_SYCL) && !AtTopLevel) {
+        SmallString<128> TracePath = GetTracePathForSYCLNonTopLevel();
+        SmallString<128> FileName(llvm::sys::path::filename(TracePath));
+        if (!AlreadyHasOffloadingPrefix)
+          FileName = addOffloadingPrefixToPath(FileName, OffloadingPrefix);
+        Path += FileName;
+      } else {
+        SmallString<128> FileComponent(llvm::sys::path::filename(BaseInput));
+        if (JA->isOffloading(Action::OFK_SYCL) && AtTopLevel &&
+            !OffloadingPrefix.empty())
+          FileComponent =
+              addOffloadingPrefixToPath(FileComponent, OffloadingPrefix);
+        Path += FileComponent;
+      }
     } else {
-      Path = Result.getFilename();
+      Path = GetTracePathForSYCLNonTopLevel();
+
+      // For SYCL offloading, add offloading prefix to
+      // SYCL host and device time-trace filename to prevent collisions
+      // between host and device outputs.
+      // Example: clang++ --offload-new-driver -fsycl -c
+      // -ftime-trace mycode.cpp -o e/a.o
+      // Object file: e/a.o,
+      // SYCL host time-trace: e/a-host-x86_64-unknown-linux-gnu.json
+      // SYCL device time-trace: e/a-sycl-spir64-unknown-unknown.json
+      // Don't add prefix if it's already included (e.g., for multiple inputs)
+      if (!OffloadingPrefix.empty() && JA->isOffloading(Action::OFK_SYCL) &&
+          !AlreadyHasOffloadingPrefix) {
+        Path = addOffloadingPrefixToPath(Path, OffloadingPrefix);
+      }
     }
     llvm::sys::path::replace_extension(Path, "json");
   }
@@ -9444,13 +9569,23 @@ InputInfoList Driver::BuildJobsForActionNoCache(
       OffloadingPrefix = "-";
       OffloadingPrefix += TC->getTriple().getArchName();
     } else {
-      // We only have to generate a prefix for the host if this is not a
-      // top-level action.
+      // Generate an offloading filename prefix when:
+      // 1. Action packages offloaded code (OffloadPackagerJobAction)
+      // 2. Action is SYCL host compilation (needs prefix even at top level)
+      // 3. Action involves any offloading and is nested in the pipeline
+      const bool IsSYCLHost = JA->isHostOffloading(Action::OFK_SYCL);
+      const bool IsSYCLHostTimeTrace =
+          IsSYCLHost && AtTopLevel &&
+          Args.hasArg(options::OPT_ftime_trace, options::OPT_ftime_trace_EQ);
+
+      const bool CreatePrefixForHost =
+          isa<OffloadPackagerJobAction>(A) || IsSYCLHostTimeTrace ||
+          (A->getOffloadingHostActiveKinds() != Action::OFK_None &&
+           !AtTopLevel);
+
       OffloadingPrefix = Action::GetOffloadingFileNamePrefix(
-        A->getOffloadingDeviceKind(), EffectiveTriple.normalize(),
-        /*CreatePrefixForHost=*/isa<OffloadPackagerJobAction>(A) ||
-            !(A->getOffloadingHostActiveKinds() == Action::OFK_None ||
-              AtTopLevel));
+          A->getOffloadingDeviceKind(), EffectiveTriple.normalize(),
+          CreatePrefixForHost);
     }
     if (isa<OffloadWrapperJobAction>(JA)) {
       if (Arg *FinalOutput = C.getArgs().getLastArg(options::OPT_o))
@@ -9465,8 +9600,12 @@ InputInfoList Driver::BuildJobsForActionNoCache(
                                              AtTopLevel, MultipleArchs,
                                              OffloadingPrefix),
                        BaseInput);
-    if (T->canEmitIR())
-      handleTimeTrace(C, Args, JA, BaseInput, Result);
+    // Enable time tracing capability for SYCL host and device compilations
+    //  as well.
+    if (T->canEmitIR() &&
+        (OffloadingPrefix.empty() || A->isOffloading(Action::OFK_SYCL)))
+      handleTimeTrace(C, Args, JA, BaseInput, Result, OffloadingPrefix,
+                      AtTopLevel);
   }
 
   if (CCCPrintBindings && !CCGenDiagnostics) {
@@ -9757,16 +9896,17 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
     return GetModuleOutputPath(C, JA, BaseInput);
   }
 
+  const bool SaveTempsEnabled = isSaveTempsEnabled();
+  const bool HasFo = C.getArgs().hasArg(options::OPT__SLASH_Fo);
+  const bool IsHostOffloading = JA.isOffloading(Action::OFK_None);
+  // FIXME - The use of /Fo is limited when offloading is enabled. When
+  // compiling to exe use of /Fo does not produce the named obj. We also
+  // should not use the named output when performing unbundling.
+  const bool FoInvalidForOffload =
+      HasFo && (!IsHostOffloading || isa<OffloadUnbundlingJobAction>(JA) ||
+                JA.getOffloadingHostActiveKinds() > Action::OFK_Host);
   // Output to a temporary file?
-  if ((!AtTopLevel && !isSaveTempsEnabled() &&
-       (!C.getArgs().hasArg(options::OPT__SLASH_Fo) ||
-        // FIXME - The use of /Fo is limited when offloading is enabled.  When
-        // compiling to exe use of /Fo does not produce the named obj.  We also
-        // should not use the named output when performing unbundling.
-        (C.getArgs().hasArg(options::OPT__SLASH_Fo) &&
-         (!JA.isOffloading(Action::OFK_None) ||
-          isa<OffloadUnbundlingJobAction>(JA) ||
-          JA.getOffloadingHostActiveKinds() > Action::OFK_Host)))) ||
+  if ((!AtTopLevel && !SaveTempsEnabled && (!HasFo || FoInvalidForOffload)) ||
       CCGenDiagnostics) {
     StringRef Name = llvm::sys::path::filename(BaseInput);
     std::pair<StringRef, StringRef> Split = Name.split('.');
