@@ -12,7 +12,7 @@ int main() {
 
   syclex::parallel_for(q, sycl::range{1}, [=](size_t i) {});
 
-  syclex::host_task(q, [=]{});
+  syclex::host_task(q, [=] {});
 
   q.wait();
 }
