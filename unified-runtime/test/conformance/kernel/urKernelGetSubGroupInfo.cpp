@@ -10,6 +10,7 @@
 
 struct urKernelGetSubGroupInfoFixedSubGroupSizeTest : uur::urKernelTest {
   void SetUp() override {
+    // CUDA/HIP: The loaded device image does not carry the kernel metadata required for this query.
     // See https://github.com/oneapi-src/unified-runtime/issues/2514
     UUR_KNOWN_FAILURE_ON(uur::CUDA{}, uur::HIP{}, uur::OpenCL{},
                          uur::LevelZero{}, uur::LevelZeroV2{});
