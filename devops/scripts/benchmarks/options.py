@@ -51,7 +51,6 @@ class Options:
     TIMESTAMP_FORMAT: str = "%Y%m%d_%H%M%S"
     workdir: str = None
     sycl: str = None
-    ur: str = None
     ur_adapter: str = None
     umf: str = None
     offline: bool = False

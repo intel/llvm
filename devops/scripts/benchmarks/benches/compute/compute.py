@@ -67,6 +67,8 @@ class ComputeBench(Suite):
             f"-DUSE_SYSTEM_LEVEL_ZERO=OFF",
             f"-DCMAKE_CXX_COMPILER=clang++",
             f"-DCMAKE_C_COMPILER=clang",
+            f"-DBUILD_UR=ON",
+            f"-DCMAKE_PREFIX_PATH={options.sycl}",
         ]
 
         is_gdb_mode = os.environ.get("LLVM_BENCHMARKS_USE_GDB", "") == "1"
@@ -80,11 +82,6 @@ class ComputeBench(Suite):
                 "-DBUILD_SYCL_WITH_CUDA=ON",
                 "-DBUILD_L0=OFF",
                 "-DBUILD_OCL=OFF",
-            ]
-        if options.ur is not None:
-            extra_args += [
-                f"-DBUILD_UR=ON",
-                f"-DCMAKE_PREFIX_PATH={options.ur}",
             ]
 
         self._project.configure(extra_args, add_sycl=True)
