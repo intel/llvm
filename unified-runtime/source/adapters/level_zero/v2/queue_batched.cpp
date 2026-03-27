@@ -1014,8 +1014,14 @@ ur_result_t ur_queue_batched_t::enqueueGraphExp(
   }
 
   auto batchLocked = currentCmdLists.lock();
-  return batchLocked->getListManager().appendGraph(
+  ur_result_t appendResult = batchLocked->getListManager().appendGraph(
       hGraph, waitListView, getEvent(batchLocked, phEvent));
+
+  if (appendResult != UR_RESULT_SUCCESS) {
+    return appendResult;
+  }
+
+  return markIssuedCommandInBatch(batchLocked);
 }
 
 ur_result_t ur_queue_batched_t::queueBeginGraphCapteExp() {
