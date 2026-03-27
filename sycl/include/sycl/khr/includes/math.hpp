@@ -11,6 +11,6 @@
 
 #include "version.hpp"
 
-#include <sycl/builtins.hpp>
+#include <sycl/builtins/math.hpp>
 
 #endif // __SYCL_KHR_INCLUDES_MATH

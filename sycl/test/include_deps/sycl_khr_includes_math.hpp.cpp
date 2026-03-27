@@ -8,8 +8,9 @@
 // CHECK-NEXT: khr/includes/version.hpp
 // CHECK-NEXT: detail/defines_elementary.hpp
 // CHECK-NEXT: feature_test.hpp
-// CHECK-NEXT: builtins.hpp
-// CHECK-NEXT: detail/builtins/builtins.hpp
+// CHECK-NEXT: builtins/math.hpp
+// CHECK-NEXT: detail/builtins/families/math.hpp
+// CHECK-NEXT: detail/builtins/builtins_base.hpp
 // CHECK-NEXT: detail/generic_type_traits.hpp
 // CHECK-NEXT: access/access.hpp
 // CHECK-NEXT: aliases.hpp
@@ -37,12 +38,7 @@
 // CHECK-NEXT: detail/named_swizzles_mixin.hpp
 // CHECK-NEXT: detail/vector_arith.hpp
 // CHECK-NEXT: detail/memcpy.hpp
-// CHECK-NEXT: detail/builtins/common_functions.inc
-// CHECK-NEXT: detail/builtins/helper_macros.hpp
-// CHECK-NEXT: detail/builtins/geometric_functions.inc
-// CHECK-NEXT: detail/builtins/half_precision_math_functions.inc
-// CHECK-NEXT: detail/builtins/integer_functions.inc
 // CHECK-NEXT: detail/builtins/math_functions.inc
-// CHECK-NEXT: detail/builtins/native_math_functions.inc
-// CHECK-NEXT: detail/builtins/relational_functions.inc
+// CHECK-NEXT: detail/builtins/helper_macros.hpp
+// CHECK-NEXT: detail/builtins/libc_decls.hpp
 // CHECK-EMPTY:

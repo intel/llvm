@@ -7,7 +7,6 @@
 // ===--------------------------------------------------------------------=== //
 #pragma once
 
-#include <sycl/builtins.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/export.hpp>
 #include <sycl/device.hpp>
@@ -192,7 +191,7 @@ T *aligned_alloc_device(
   if (is_not_power_of_two(Alignment)) {
     return nullptr;
   }
-  return static_cast<T *>(aligned_alloc_device(max(Alignment, alignof(T)),
+  return static_cast<T *>(aligned_alloc_device(std::max(Alignment, alignof(T)),
                                                Count * sizeof(T), Dev, Ctxt,
                                                PropList, CodeLoc));
 }
@@ -274,7 +273,7 @@ T *aligned_alloc_shared(
   if (is_not_power_of_two(Alignment)) {
     return nullptr;
   }
-  return static_cast<T *>(aligned_alloc_shared(max(Alignment, alignof(T)),
+  return static_cast<T *>(aligned_alloc_shared(std::max(Alignment, alignof(T)),
                                                Count * sizeof(T), Dev, Ctxt,
                                                PropList, CodeLoc));
 }
@@ -317,7 +316,7 @@ T *aligned_alloc(
   if (is_not_power_of_two(Alignment)) {
     return nullptr;
   }
-  return static_cast<T *>(aligned_alloc(max(Alignment, alignof(T)),
+  return static_cast<T *>(aligned_alloc(std::max(Alignment, alignof(T)),
                                         Count * sizeof(T), Dev, Ctxt, Kind,
                                         PropList, CodeLoc));
 }

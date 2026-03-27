@@ -12,7 +12,6 @@
 #include <sycl/accessor.hpp>       // for accessor
 #include <sycl/aliases.hpp>        // for half
 #include <sycl/atomic.hpp>         // for atomic
-#include <sycl/builtins.hpp>       // for isinf, isnan, signbit
 #include <sycl/detail/array.hpp>   // for array
 #include <sycl/detail/defines.hpp> // for __SYCL_SPECIAL_CLASS, __S...
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
@@ -29,6 +28,7 @@
 #include <sycl/nd_range.hpp>            // for nd_range
 #include <sycl/property_list.hpp>       // for property_list
 #include <sycl/range.hpp>               // for range
+#include <sycl/builtins/relational.hpp> // for isinf, isnan, signbit
 
 #include <cstddef>     // for size_t, byte
 #include <memory>      // for hash, shared_ptr

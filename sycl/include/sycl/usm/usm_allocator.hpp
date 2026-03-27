@@ -7,7 +7,6 @@
 // ===--------------------------------------------------------------------=== //
 #pragma once
 
-#include <sycl/builtins.hpp>
 #include <sycl/context.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/device.hpp>
@@ -16,6 +15,7 @@
 #include <sycl/queue.hpp>
 #include <sycl/usm.hpp>
 
+#include <algorithm>   // for max
 #include <cstdlib>     // for size_t, aligned_alloc, free
 #include <type_traits> // for true_type
 
@@ -127,7 +127,9 @@ public:
   }
 
 private:
-  constexpr size_t getAlignment() const { return max(alignof(T), Alignment); }
+  constexpr size_t getAlignment() const {
+    return std::max(alignof(T), Alignment);
+  }
 
   template <class U, usm::alloc AllocKindU, size_t AlignmentU>
   friend class usm_allocator;

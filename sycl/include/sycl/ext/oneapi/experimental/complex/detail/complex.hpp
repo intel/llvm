@@ -10,6 +10,8 @@
 
 #include "common.hpp"
 
+#include <sycl/builtins/math.hpp>
+#include <sycl/builtins/relational.hpp>
 #include <sycl/stream.hpp>
 
 #include <complex>

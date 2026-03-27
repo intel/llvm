@@ -14,7 +14,7 @@
 
 #include <climits>
 
-#include <sycl/builtins.hpp>
+#include <sycl/builtins/integer.hpp>
 #include <sycl/detail/key_value_iterator.hpp>
 #include <sycl/group_algorithm.hpp>
 #include <sycl/group_barrier.hpp>

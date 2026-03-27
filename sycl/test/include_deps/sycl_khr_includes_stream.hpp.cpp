@@ -89,21 +89,6 @@
 // CHECK-NEXT: properties/buffer_properties.def
 // CHECK-NEXT: atomic.hpp
 // CHECK-NEXT: __spirv/spirv_ops.hpp
-// CHECK-NEXT: builtins.hpp
-// CHECK-NEXT: detail/builtins/builtins.hpp
-// CHECK-NEXT: marray.hpp
-// CHECK-NEXT: vector.hpp
-// CHECK-NEXT: detail/named_swizzles_mixin.hpp
-// CHECK-NEXT: detail/vector_arith.hpp
-// CHECK-NEXT: detail/memcpy.hpp
-// CHECK-NEXT: detail/builtins/common_functions.inc
-// CHECK-NEXT: detail/builtins/helper_macros.hpp
-// CHECK-NEXT: detail/builtins/geometric_functions.inc
-// CHECK-NEXT: detail/builtins/half_precision_math_functions.inc
-// CHECK-NEXT: detail/builtins/integer_functions.inc
-// CHECK-NEXT: detail/builtins/math_functions.inc
-// CHECK-NEXT: detail/builtins/native_math_functions.inc
-// CHECK-NEXT: detail/builtins/relational_functions.inc
 // CHECK-NEXT: group.hpp
 // CHECK-NEXT: device_event.hpp
 // CHECK-NEXT: item.hpp
@@ -168,4 +153,15 @@
 // CHECK-NEXT: ext/oneapi/experimental/raw_kernel_arg.hpp
 // CHECK-NEXT: kernel.hpp
 // CHECK-NEXT: sampler.hpp
+// CHECK-NEXT: builtins/relational.hpp
+// CHECK-NEXT: detail/builtins/families/relational.hpp
+// CHECK-NEXT: detail/builtins/builtins_base.hpp
+// CHECK-NEXT: marray.hpp
+// CHECK-NEXT: vector.hpp
+// CHECK-NEXT: detail/named_swizzles_mixin.hpp
+// CHECK-NEXT: detail/vector_arith.hpp
+// CHECK-NEXT: detail/memcpy.hpp
+// CHECK-NEXT: detail/builtins/relational_functions.inc
+// CHECK-NEXT: detail/builtins/helper_macros.hpp
+// CHECK-NEXT: detail/builtins/libc_decls.hpp
 // CHECK-EMPTY:

@@ -14,7 +14,9 @@
 #ifndef __SYCL_DEVICE_ONLY__
 
 #include <sycl/aliases.hpp>                    // for float4, int4, uint4
-#include <sycl/builtins.hpp>                   // for clamp, fmax, min
+#include <sycl/builtins/common.hpp>            // for clamp
+#include <sycl/builtins/integer.hpp>           // for min
+#include <sycl/builtins/math.hpp>              // for fmax
 #include <sycl/detail/array.hpp>               // for array
 #include <sycl/detail/export.hpp>              // for __SYCL_EXPORT
 #include <sycl/detail/generic_type_traits.hpp> // for max_v, min_v, TryToGe...
