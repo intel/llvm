@@ -196,10 +196,15 @@ public:
           std::memcpy(MUserPtr, HostPtr, MSizeInBytes);
         };
       } else {
-        setAlign(RequiredAlign);
-        MShadowCopy = allocateHostMem();
-        MUserPtr = MShadowCopy;
-        std::memcpy(MUserPtr, HostPtr, MSizeInBytes);
+        MUserPtr = HostPtr;
+        MHasPendingAlignedShadowCopy = true;
+        std::lock_guard<std::mutex> Lock(MCreateShadowCopyMtx);
+        MCreateShadowCopy = [this, RequiredAlign, HostPtr]() -> void {
+          setAlign(RequiredAlign);
+          MShadowCopy = allocateHostMem();
+          MUserPtr = MShadowCopy;
+          std::memcpy(MUserPtr, HostPtr, MSizeInBytes);
+        };
       }
     }
   }
@@ -230,10 +235,15 @@ public:
           std::memcpy(MUserPtr, HostPtr.get(), MSizeInBytes);
         };
       } else {
-        setAlign(RequiredAlign);
-        MShadowCopy = allocateHostMem();
-        MUserPtr = MShadowCopy;
-        std::memcpy(MUserPtr, HostPtr.get(), MSizeInBytes);
+        MUserPtr = HostPtr.get();
+        MHasPendingAlignedShadowCopy = true;
+        std::lock_guard<std::mutex> Lock(MCreateShadowCopyMtx);
+        MCreateShadowCopy = [this, RequiredAlign, HostPtr]() -> void {
+          setAlign(RequiredAlign);
+          MShadowCopy = allocateHostMem();
+          MUserPtr = MShadowCopy;
+          std::memcpy(MUserPtr, HostPtr.get(), MSizeInBytes);
+        };
       }
     }
   }
@@ -259,6 +269,8 @@ public:
   }
 
   void handleWriteAccessorCreation();
+
+  void prepareForAllocation(context_impl *Context) override;
 
   void *allocateMem(context_impl *Context, bool InitFromUserData, void *HostPtr,
                     ur_event_handle_t &InteropEvent) override {
@@ -369,6 +381,9 @@ protected:
   // accessor is created.
   std::function<void(void)> MCreateShadowCopy = []() -> void {};
   std::mutex MCreateShadowCopyMtx;
+  // Set when misaligned input data cannot be used directly and the shadow-copy
+  // decision is deferred until backend/platform is known.
+  bool MHasPendingAlignedShadowCopy = false;
   bool MOwnNativeHandle = true;
 };
 } // namespace detail

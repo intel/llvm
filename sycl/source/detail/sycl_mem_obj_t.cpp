@@ -176,6 +176,48 @@ adapter_impl &SYCLMemObjT::getAdapter() const {
 
 bool SYCLMemObjT::isInterop() const { return MOpenCLInterop; }
 
+void SYCLMemObjT::prepareForAllocation(context_impl *Context) {
+  if (!MHasPendingAlignedShadowCopy || MShadowCopy != nullptr)
+    return;
+
+  assert(Context != nullptr && "Context must not be nullptr");
+
+  bool SkipShadowCopy = false;
+  backend Backend = Context->getPlatformImpl().getBackend();
+  auto Devices = Context->getDevices();
+  if (Devices.size() != 0)
+    Backend = Devices.front().getBackend();
+
+  switch (Backend) {
+  case backend::ext_oneapi_level_zero:
+  case backend::ext_oneapi_cuda:
+  case backend::ext_oneapi_hip:
+  case backend::ext_oneapi_offload:
+    SkipShadowCopy = true;
+    break;
+  case backend::ext_oneapi_native_cpu:
+  case backend::opencl:
+    SkipShadowCopy = false;
+    break;
+  case backend::all:
+  default:
+    assert(false && "Unexpected SYCL backend");
+    break;
+  }
+
+  std::lock_guard<std::mutex> Lock(MCreateShadowCopyMtx);
+  if (SkipShadowCopy) {
+    MCreateShadowCopy = []() -> void {};
+    if (!MHostPtrReadOnly)
+      MUploadDataFunctor = nullptr;
+  } else {
+    MCreateShadowCopy();
+    MCreateShadowCopy = []() -> void {};
+  }
+
+  MHasPendingAlignedShadowCopy = false;
+}
+
 void SYCLMemObjT::determineHostPtr(context_impl *Context, bool InitFromUserData,
                                    void *&HostPtr, bool &HostPtrReadOnly) {
   // The data for the allocation can be provided via either the user pointer

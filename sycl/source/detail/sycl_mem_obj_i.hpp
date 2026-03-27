@@ -46,6 +46,12 @@ public:
   virtual void *allocateMem(context_impl *Context, bool InitFromUserData,
                             void *HostPtr, ur_event_handle_t &InteropEvent) = 0;
 
+  // Optional hook executed right before allocateMem(). Memory objects can use
+  // it to resolve context/backend-dependent allocation policy.
+  virtual void prepareForAllocation(context_impl *Context) {
+    (void)Context;
+  }
+
   // Should be used for memory object created without use_host_ptr property.
   virtual void *allocateHostMem() = 0;
 
