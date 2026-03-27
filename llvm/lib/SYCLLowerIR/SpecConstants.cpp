@@ -848,9 +848,9 @@ StringRef SpecConstantsPass::convertHandlingModeToString(HandlingMode Mode) {
     return "emulation";
   case SpecConstantsPass::HandlingMode::default_values:
     return "default_values";
-  default:
-    llvm_unreachable("unknown value");
   }
+
+  llvm_unreachable("uncovered input value");
 }
 
 PreservedAnalyses SpecConstantsPass::run(Module &M,
