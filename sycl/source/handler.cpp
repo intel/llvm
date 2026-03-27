@@ -762,11 +762,11 @@ detail::EventImplPtr handler::finalize() {
                                           type, impl->MUserFacingNodeType);
   }
 
-  // For kernel submission, regardless of whether an event has been requested,
-  // the scheduler needs to generate an event so the commands are properly
-  // ordered (for in-order queue) and synchronized with a barrier (for
-  // out-of-order queue). The event can only be skipped for the scheduler bypass
-  // path.
+  // For kernel and host task submission, regardless of whether an event has
+  // been requested, the scheduler needs to generate an event so the commands
+  // are properly ordered (for in-order queue) and synchronized with a barrier
+  // (for out-of-order queue). The event can only be skipped for the scheduler
+  // bypass path.
   //
   // For commands other than kernel submission, if an event has not been
   // requested, the queue supports events discarding, and the scheduler
