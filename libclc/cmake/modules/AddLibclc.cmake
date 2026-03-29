@@ -280,6 +280,9 @@ function(add_libclc_builtin_set)
     message( FATAL_ERROR "Must provide ARCH, ARCH_SUFFIX, and TRIPLE" )
   endif()
 
+  set( LIBCLC_ARCH_OBJFILE_DIR "${LIBCLC_OBJFILE_DIR}/${ARG_ARCH_SUFFIX}" )
+  file( MAKE_DIRECTORY ${LIBCLC_ARCH_OBJFILE_DIR} )
+
   set( bytecode_files )
   set( bytecode_ir_files )
   foreach( file IN LISTS ARG_LIB_FILES )

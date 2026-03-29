@@ -464,9 +464,6 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
       list( APPEND build_flags -mllvm --amdgpu-oclc-reflect-enable=false )
     endif()
 
-    set( LIBCLC_ARCH_OBJFILE_DIR "${LIBCLC_OBJFILE_DIR}/${arch_suffix}" )
-    file( MAKE_DIRECTORY ${LIBCLC_ARCH_OBJFILE_DIR} )
-
     # Build for OpenCL 3.0 independently of the target or device.
     list( APPEND build_flags -cl-std=CL3.0 )
 
@@ -546,11 +543,27 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
       LIB_FILES ${clc_lib_files}
     )
 
-    if( BUILD_LIBSPIRV_${t} )
-      set( spirv_build_flags ${build_flags} )
-      list( APPEND spirv_build_flags
-        # Enable SPIR-V builtin function declarations, so they don't have to be
-        # explicity declared in the soruce.
+    set(opencl_build_flags ${build_flags}
+      -Xclang -fdeclare-opencl-builtins
+      -I${CMAKE_CURRENT_SOURCE_DIR}/opencl/include)
+
+    add_libclc_builtin_set(
+      ARCH ${ARCH}
+      DEVICE ${d}
+      ARCH_SUFFIX ${arch_suffix}
+      TRIPLE ${clang_triple}
+      COMPILE_FLAGS ${opencl_build_flags}
+      OPT_FLAGS ${opt_flags}
+      LIB_FILES ${opencl_lib_files}
+      ALIASES ${${d}_aliases}
+      OUTPUT_FILENAME libclc
+      PARENT_TARGET libclc-opencl-builtins
+      # Link in the CLC builtins and internalize their symbols
+      INTERNAL_LINK_DEPENDENCIES builtins.link.clc-${arch_suffix}
+    )
+
+    if(BUILD_LIBSPIRV_${t})
+      set(spirv_build_flags ${build_flags}
         -Xclang -fdeclare-spirv-builtins
         -I${CMAKE_CURRENT_SOURCE_DIR}/libspirv/include/
       )
@@ -568,29 +581,31 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
         # Link in the CLC builtins and internalize their symbols
         INTERNAL_LINK_DEPENDENCIES builtins.link.clc-${arch_suffix}
       )
+
+      foreach(long_width 32 64)
+        foreach(char_signedness signed unsigned)
+          set(spirv_remangle_build_flags ${spirv_build_flags}
+              -Xclang -fsycl-remangle-libspirv
+              -mllvm -remangle-spirv-target
+              -mllvm -remangle-long-width=${long_width}
+              -mllvm -remangle-char-signedness=${char_signedness}
+          )
+          add_libclc_builtin_set(
+            ARCH ${ARCH}
+            ARCH_SUFFIX libspirv-${arch_suffix}-${long_width}-${char_signedness}
+            TRIPLE ${clang_triple}
+            COMPILE_FLAGS ${spirv_remangle_build_flags}
+            OPT_FLAGS ${opt_flags}
+            LIB_FILES ${libspirv_lib_files}
+            ALIASES ${${d}_aliases}
+            OUTPUT_FILENAME libspirv.l${long_width}.${char_signedness}_char
+            PARENT_TARGET libspirv-builtins
+            # Link in the CLC builtins and internalize their symbols
+            INTERNAL_LINK_DEPENDENCIES builtins.link.clc-${arch_suffix}
+          )
+        endforeach()
+      endforeach()
     endif()
-
-    list( APPEND build_flags
-      -Xclang -fdeclare-opencl-builtins
-      -I${CMAKE_CURRENT_SOURCE_DIR}/opencl/include
-    )  
-    set( opencl_build_flags ${build_flags} )
- 
-
-    add_libclc_builtin_set(
-      ARCH ${ARCH}
-      DEVICE ${d}
-      ARCH_SUFFIX ${arch_suffix}
-      TRIPLE ${clang_triple}
-      COMPILE_FLAGS ${opencl_build_flags}
-      OPT_FLAGS ${opt_flags}
-      LIB_FILES ${opencl_lib_files}
-      ALIASES ${${d}_aliases}
-      OUTPUT_FILENAME libclc
-      PARENT_TARGET libclc-opencl-builtins
-      # Link in the CLC builtins and internalize their symbols
-      INTERNAL_LINK_DEPENDENCIES builtins.link.clc-${arch_suffix}
-    )
   endforeach( d )
 endforeach( t )
 

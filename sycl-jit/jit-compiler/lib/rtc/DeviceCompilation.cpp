@@ -838,8 +838,16 @@ Error jit_compiler::linkDeviceLibraries(llvm::Module &Module,
   getDeviceLibraries(UserArgList, LibNames, Format);
   const bool IsCudaHIP =
       Format == BinaryFormat::PTX || Format == BinaryFormat::AMDGCN;
-  if (IsCudaHIP)
-    LibNames.push_back("libspirv.bc");
+  if (IsCudaHIP) {
+    // Based on the OS and the format decide on the version of libspirv.
+    // NOTE: this will be problematic if cross-compiling between OSes.
+#ifdef _WIN32
+    std::string Libclc = "libspirv.l32.signed_char.bc";
+#else
+    std::string Libclc = "libspirv.l64.signed_char.bc";
+#endif
+    LibNames.push_back(Libclc);
+  }
 
   LLVMContext &Context = Module.getContext();
   SYCLToolchain &TC = SYCLToolchain::instance();
@@ -857,7 +865,6 @@ Error jit_compiler::linkDeviceLibraries(llvm::Module &Module,
             TC.loadBitcodeLibrary(LibPath, Context).moveInto(LibModule)) {
       return Error;
     }
-
     if (Linker::linkModules(Module, std::move(LibModule),
                             Linker::LinkOnlyNeeded)) {
       return createStringError("Unable to link device library %s: %s",

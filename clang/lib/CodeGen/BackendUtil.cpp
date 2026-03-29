@@ -54,12 +54,12 @@
 #include "llvm/SYCLLowerIR/MutatePrintfAddrspace.h"
 #include "llvm/SYCLLowerIR/RecordSYCLAspectNames.h"
 #include "llvm/SYCLLowerIR/SYCLAddOptLevelAttribute.h"
-#include "llvm/SYCLLowerIR/SYCLBuiltinRemangle.h"
 #include "llvm/SYCLLowerIR/SYCLConditionalCallOnDevice.h"
 #include "llvm/SYCLLowerIR/SYCLCreateNVVMAnnotations.h"
 #include "llvm/SYCLLowerIR/SYCLOptimizeBarriers.h"
 #include "llvm/SYCLLowerIR/SYCLPropagateAspectsUsage.h"
 #include "llvm/SYCLLowerIR/SYCLPropagateJointMatrixUsage.h"
+#include "llvm/SYCLLowerIR/SYCLRemangleLibspirv.h"
 #include "llvm/SYCLLowerIR/SYCLVirtualFunctionsAnalysis.h"
 #include "llvm/SYCLLowerIR/UtilsSYCLNativeCPU.h"
 #include "llvm/Support/BuryPointer.h"
@@ -1068,8 +1068,6 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
         // Compile-time properties pass must create standard metadata as early
         // as possible to make them available for other passes.
         MPM.addPass(CompileTimePropertiesPass());
-        // Remangle built-in in user code to match with libspirv.
-        MPM.addPass(SYCLBuiltinRemanglePass(LangOpts.CharIsSigned));
       });
       PB.registerOptimizerEarlyEPCallback(
           [](ModulePassManager &MPM, OptimizationLevel, ThinOrFullLTOPhase) {
@@ -1103,6 +1101,13 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
             if (Level != OptimizationLevel::O0)
               MPM.addPass(createModuleToFunctionPassAdaptor(
                   SYCLOptimizeBarriersPass()));
+          });
+    }
+
+    if (CodeGenOpts.SYCLRemangleLibspirv) {
+      PB.registerOptimizerLastEPCallback(
+          [&](ModulePassManager &MPM, OptimizationLevel, ThinOrFullLTOPhase) {
+            MPM.addPass(SYCLRemangleLibspirvPass());
           });
     }
 

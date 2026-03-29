@@ -1,4 +1,4 @@
-//===-------- SYCLBuiltinRemangle.cpp - SYCL Builtin Remangler Pass ------===//
+//===- SYCLRemangleLibspirv.cpp - Remangle libspirv builtins for SYCL -----===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,151 +6,180 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file implements a pass that remangles SYCL user device code function
-// calls to match OpenCL C mangling conventions used in libclc/libspirv
-// builtins. This is the INVERSE operation of libclc-remangler: instead of
-// transforming library code to match SYCL types, we transform user code to
-// match OpenCL types.
+// This file implements a pass that remangles __spirv_* builtin functions to
+// provide multiple SYCL mangled variants for different type representations.
+// It ensures consistent mangling between libspirv and the target.
 //
-// The pass performs the following type transformations:
+// Three-Map Transformation:
+// For each function the pass applies three type maps in sequence:
 //
-// 1. long long -> long
-//    OpenCL C has no "long long" type; it only has "long" (always 64-bit).
-//    SYCL's "long long" (always 64-bit) maps to OpenCL's "long".
+// - Rename (ParameterTypeReplacements):
+//     Rename the function. char -> signed char (always), half -> _Float16,
+//     long -> long long, unsigned long -> unsigned long long.
 //
-//    Example: _Z17__spirv_ocl_s_absx -> _Z17__spirv_ocl_s_absl
-//             (long long)           -> (long)
+// - CloneOriginal (CloneTypeReplacements):
+//     After Rename, the original OpenCL-mangled name no longer exists.
+//     CloneOriginal recreates it so callers using OpenCL type names still link.
+//     Clone source is found by applying CloneOriginal's map to original name:
+//       char -> signed char (signed) / unsigned char (unsigned)
+//       _Float16 -> half, long -> int (L32) or long long (L64),
+//       unsigned long -> unsigned int (L32) or unsigned long long (L64).
 //
-// 2. signed char -> char
-//    In SYCL, 'signed char' is explicitly signed. In OpenCL C, 'char' is the
-//    standard signed 8-bit type. The pass maps 'signed char' to 'char'.
+// - CloneRemangled (RemangledCloneTypeReplacements):
+//     When Rename renames a function with multiple parameters, it may absorb
+//     valid permutations of the remangled name. For example,
+//     `f(long long, char, signed char)` (`_Z1fxca`) is absorbed by
+//     `_Z1fxaa` after Rename renames `f(long, char, signed char)`.
+//     CloneRemangled creates these missing permutations by cloning the
+//     Rename-renamed function. It covers entries where Rename and
+//     CloneOriginal differ:
+//         char -> signed char, half -> _Float16,
+//         long -> long long (L32 only),
+//         unsigned long -> unsigned long long (L32 only).
 //
-//    Example: _Z17__spirv_ocl_s_absa -> _Z17__spirv_ocl_s_absc
-//             (signed char)         -> (char)
+// Remangled Pointer Address Space Example:
+//   If libspirv defines a function `f(int *)`, the mangled name is
+//   `_Z1fPU3AS4i` for a target when generic address space is 4. It is renamed
+//   to `_Z1fPi`, to be consistent with SYCL mangling. If libspirv defines a
+//   function `f(private int *)`, the mangled name is `_Z1fPi` when default
+//   address space is private. The pass renames it to `_Z1fPU3AS0i`.
 //
-// 2a. char -> unsigned char
-//    In SYCL, signedness of 'char' is determined by host triple. In OpenCL C,
-//    'char' is always signed.
+// Type Remappings:
 //
-//    When char is signed on host (e.g. X86):
-//      SYCL's 'char' is signed -> OpenCL's 'char' (no transformation)
-//      Example: _Z15__spirv_ocl_clzc (char) -> _Z15__spirv_ocl_clzc (char)
+// 1. long <-> long long (64-bit platforms)
+//    OpenCL C defines only "long" (always 64-bit). SYCL has both "long" and
+//    "long long" (both 64-bit on 64-bit platforms). The pass creates both
+//    variants to support calls using either type.
 //
-//    When char is unsigned on host (e.g. ARM, PowerPC, RISCV):
-//      SYCL's 'char' is unsigned -> OpenCL's 'unsigned char'
-//      Example: _Z15__spirv_ocl_clzc (char) -> _Z15__spirv_ocl_clzh (uchar)
+//    Rename:
+//        _Z17__spirv_ocl_s_absl -> _Z17__spirv_ocl_s_absx
+//        (long)                 -> (long long)
 //
-//    Note: SPIR-V builtins containing `_s_` or `_Rchar` in the name are
-//    dedicated to signed char types and must not be used when the char type is
-//    unsigned. The restriction could be relaxed if SPV-IR support `_Rschar`
-//    name in the future.
+//    CloneTypeReplacements (clone, L64):
+//        _Z17__spirv_ocl_s_absx -> _Z17__spirv_ocl_s_absl
+//        (long long)            -> (long)
 //
-// 3. _Float16 -> half
+// 2. char <-> signed char (when char is signed on host)
+//    OpenCL C uses "char" for signed 8-bit. SYCL distinguishes "char" and
+//    "signed char". When host char is signed (e.g., x86), both variants are
+//    created with the same IR type but different mangling.
+//
+//    Rename:
+//        _Z17__spirv_ocl_s_absc -> _Z17__spirv_ocl_s_absa
+//        (char)                 -> (signed char)
+//
+//    CloneTypeReplacements (clone, signed):
+//        _Z17__spirv_ocl_s_absa -> _Z17__spirv_ocl_s_absc
+//        (signed char)          -> (char)
+//
+// 2a. char <-> unsigned char (when char is unsigned on host)
+//     When host char is unsigned (e.g., ARM, PowerPC, RISCV), the pass maps
+//     'char' to 'unsigned char' to match the host's char signedness.
+//
+//     Rename:
+//         _Z15__spirv_ocl_clzc -> _Z15__spirv_ocl_clza
+//         (char)               -> (signed char)
+//
+//     CloneTypeReplacements (clone, unsigned):
+//         _Z15__spirv_ocl_clzh -> _Z15__spirv_ocl_clzc
+//         (unsigned char)      -> (char)
+//
+// 3. half -> _Float16
 //    SYCL uses _Float16 vendor extension. OpenCL C uses the 'half' type.
+//    The pass renames 'half' functions to '_Float16'. No back-clone is created
+//    since there is no CloneOriginal entry for 'half'.
 //
-//    Example: _Z16__spirv_ocl_fabsDF16_ -> _Z16__spirv_ocl_fabsDh
-//             (_Float16)               -> (half)
+//    Rename:
+//        _Z16__spirv_ocl_fabsDh -> _Z16__spirv_ocl_fabsDF16_
+//        (half)                 -> (_Float16)
 //
-// 4. long -> int (Target-dependent: Windows and 32-bit platforms only)
-//    On 64-bit Linux, 'long' is 64-bit and maps to OpenCL's 'long'.
-//    On Windows (LLP64) and 32-bit platforms, 'long' is 32-bit and maps to
-//    OpenCL's 'int'.
+// 4. long <-> int (32-bit platforms only)
+//    On 32-bit platforms and Windows (LLP64), 'long' is 32-bit.
+//    Rename still maps long to long long (see section 1).
+//    CloneOriginal additionally clones from 'int' to recreate the 'long'
+//    variant.
 //
-//    Windows x64: _Z17__spirv_ocl_s_absl -> _Z17__spirv_ocl_s_absi
-//                 (long)                -> (int)
+//    Rename:
+//        _Z17__spirv_ocl_s_absl -> _Z17__spirv_ocl_s_absx
+//        (long)                 -> (long long)
 //
-//    Linux x64:   _Z17__spirv_ocl_s_absl (no change)
+//    CloneOriginal (clone, L32):
+//        _Z17__spirv_ocl_s_absi -> _Z17__spirv_ocl_s_absl
+//        (int)                  -> (long)
 //
-// 5. Address Space transform (only if target's default addrspace is private)
-//    The difference is in mangling conventions:
-//    - SYCL: implicit pointers (mangled as "Pf") are generic (AS4)
-//    - OpenCL C: implicit pointers (mangled as "Pf") are private (AS0)
+// 5. Vector Types
+//    Vector transformations apply element-type transformations recursively.
 //
-//    SYCL implicit generic: _Z17__spirv_ocl_fractfPf (implicit = AS4) ->
-//                  OpenCL: _Z17__spirv_ocl_fractfPU3AS4f (explicit AS4)
-//
-//    SYCL explicit private: _Z17__spirv_ocl_fractfPU3AS0f (explicit AS0) ->
-//                  OpenCL: _Z17__spirv_ocl_fractfPf (implicit = AS0)
-//
-//    Other address spaces: _Z16__spirv_ocl_vloadlPU3AS1l (no change)
-//
-// 6. Vector Types
-//    Vector transformations apply recursively to element types.
-//
-//    Example: _Z16__spirv_ocl_fabsDv16_DF16_ ->
-//             _Z16__spirv_ocl_fabsDv16_Dh
-//             (vector<_Float16, 16>)        -> (vector<half, 16>)
-//
-// Declaration Merging:
-// When multiple SYCL function declarations remangle to the same name (e.g.,
-// both signed char and char versions), the pass merges them into a single
-// declaration. This is safe because they have the same IR function type.
-//
-//    Before: _Z17__spirv_ocl_s_absa (signed char)
-//            _Z17__spirv_ocl_s_absc (char)
-//    After:  _Z17__spirv_ocl_s_absc (merged to single declaration)
+//    Example: _Z16__spirv_ocl_fabsDv16_Dh -> _Z16__spirv_ocl_fabsDv16_DF16_
+//             (vector<half, 16>)          -> (vector<_Float16, 16>)
 //
 // The implementation includes:
 // 1. SPIR type system
-// 2. SPIR name mangler for generating OpenCL C mangled names
+// 2. SPIR name mangler for generating mangled names with transformed types
 // 3. Bridge from itanium_demangle::Node to SPIR::ParamType
 // 4. Type transformation logic for target-specific mappings
-// 5. Address space remapping
-//
-// SAFETY NOTE - Why we transform ALL "__spirv_" functions:
-//
-// This pass transforms ALL functions containing "__spirv_" without validating
-// against a whitelist of known SPIRV builtins. This is safe because "__" is a
-// reserved namespace in C/C++. All legitimate "__spirv_*" functions come from
-// libclc/libspirv. There will be a linker error if this rule is violated.
+// 5. Function cloning with temporary suffix collision handling
 //
 //===----------------------------------------------------------------------===//
 
-#include "llvm/SYCLLowerIR/SYCLBuiltinRemangle.h"
+#include "llvm/SYCLLowerIR/SYCLRemangleLibspirv.h"
+#include "llvm/ADT/IntrusiveRefCntPtr.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/ADT/StringSwitch.h"
+#include "llvm/ADT/StringSet.h"
 #include "llvm/Demangle/ItaniumDemangle.h"
+#include "llvm/IR/Constants.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Support/Allocator.h"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/TargetParser/Triple.h"
+#include "llvm/Transforms/Utils/Cloning.h"
 
 using namespace llvm;
-using namespace llvm::itanium_demangle;
+
+#define DEBUG_TYPE "sycl-remangle-libspirv"
 
 static cl::opt<bool> RemangleSPIRVTarget(
-    "sycl-remangle-spirv-target",
+    "remangle-spirv-target",
     cl::desc(
         "Enable SYCL builtin remangling for SPIR/SPIRV targets "
         "(default: false, as these targets already have correct mangling)"),
     cl::init(false));
 
-static cl::opt<bool> RemangleCharIsSigned(
-    "sycl-remangle-char-is-signed",
-    cl::desc("Char is signed for SYCL builtin remangling (default: true)"),
-    cl::init(true));
+static cl::opt<unsigned>
+    LongWidth("remangle-long-width",
+              cl::desc("Width of long type in bits (default: 64)"),
+              cl::init(64));
+
+enum class Signedness { Signed, Unsigned };
+
+static cl::opt<Signedness> CharSignedness(
+    "remangle-char-signedness",
+    cl::values(clEnumValN(Signedness::Signed, "signed", "char is signed."),
+               clEnumValN(Signedness::Unsigned, "unsigned",
+                          "char is unsigned.")));
+
+static constexpr StringRef TmpSuffix = ".tmp";
 
 namespace {
 
 //===----------------------------------------------------------------------===//
-// SPIR Type System (adapted from SPIRV-LLVM-Translator Mangler)
+// SPIR Type System (adapted from SPIRV-LLVM-Translator Mangler).
 //===----------------------------------------------------------------------===//
 
 namespace SPIR {
 
-enum MangleError {
-  MANGLE_SUCCESS,
-  MANGLE_TYPE_NOT_SUPPORTED,
-  MANGLE_NULL_FUNC_DESCRIPTOR
-};
+enum MangleError { MANGLE_SUCCESS };
 
 enum TypePrimitiveEnum {
   PRIMITIVE_BOOL,
+  PRIMITIVE_SCHAR,
   PRIMITIVE_UCHAR,
   PRIMITIVE_CHAR,
   PRIMITIVE_USHORT,
@@ -159,6 +188,8 @@ enum TypePrimitiveEnum {
   PRIMITIVE_INT,
   PRIMITIVE_ULONG,
   PRIMITIVE_LONG,
+  PRIMITIVE_ULONGLONG,
+  PRIMITIVE_LONGLONG,
   PRIMITIVE_FLOAT16,
   PRIMITIVE_HALF,
   PRIMITIVE_FLOAT,
@@ -184,70 +215,18 @@ enum TypeAttributeEnum {
   ATTR_CONSTANT,
   ATTR_LOCAL,
   ATTR_GENERIC,
+  ATTR_GENERIC_EXPLICIT, // Explicit AS4 from input; always outputs "U3AS4".
   ATTR_NONE,
   ATTR_NUM = ATTR_NONE
 };
 
-// Reference counting template
-template <typename T> class RefCount {
-public:
-  RefCount() : Count(nullptr), Ptr(nullptr) {}
-  RefCount(T *Ptr) : Count(new int(1)), Ptr(Ptr) {}
-  RefCount(const RefCount<T> &Other) { cpy(Other); }
-  ~RefCount() {
-    if (Count)
-      dispose();
-  }
-
-  RefCount &operator=(const RefCount<T> &Other) {
-    if (this == &Other)
-      return *this;
-    if (Count)
-      dispose();
-    cpy(Other);
-    return *this;
-  }
-
-  bool isNull() const { return !Ptr; }
-  const T &operator*() const { return *Ptr; }
-  T &operator*() { return *Ptr; }
-  T *operator->() { return Ptr; }
-  const T *operator->() const { return Ptr; }
-  T *get() { return Ptr; }
-  const T *get() const { return Ptr; }
-
-private:
-  void cpy(const RefCount<T> &Other) {
-    Count = Other.Count;
-    Ptr = Other.Ptr;
-    if (Count)
-      ++*Count;
-  }
-
-  void dispose() {
-    if (0 == --*Count) {
-      delete Count;
-      delete Ptr;
-      Ptr = nullptr;
-      Count = nullptr;
-    }
-  }
-
-  int *Count;
-  T *Ptr;
-};
-
-// Forward declarations
-struct ParamType;
-typedef RefCount<ParamType> RefParamType;
 struct TypeVisitor;
 
-// Base type
-struct ParamType {
+// Base type.
+struct ParamType : public RefCountedBase<ParamType> {
   ParamType(TypeEnum TypeId) : TypeId(TypeId) {}
   virtual ~ParamType() {}
   virtual MangleError accept(TypeVisitor *) const = 0;
-  virtual std::string toString() const = 0;
   virtual bool equals(const ParamType *) const = 0;
   TypeEnum getTypeId() const { return TypeId; }
 
@@ -255,12 +234,13 @@ protected:
   TypeEnum TypeId;
 };
 
+typedef IntrusiveRefCntPtr<ParamType> RefParamType;
+
 struct PrimitiveType : public ParamType {
   static const TypeEnum EnumTy;
   PrimitiveType(TypePrimitiveEnum P)
       : ParamType(TYPE_ID_PRIMITIVE), Primitive(P) {}
   MangleError accept(TypeVisitor *) const override;
-  std::string toString() const override;
   bool equals(const ParamType *) const override;
   TypePrimitiveEnum getPrimitive() const { return Primitive; }
 
@@ -272,7 +252,6 @@ struct PointerType : public ParamType {
   static const TypeEnum EnumTy;
   PointerType(const RefParamType Type);
   MangleError accept(TypeVisitor *) const override;
-  std::string toString() const override;
   bool equals(const ParamType *) const override;
   const RefParamType &getPointee() const { return PType; }
   void setAddressSpace(TypeAttributeEnum Attr);
@@ -291,7 +270,6 @@ struct VectorType : public ParamType {
   VectorType(const RefParamType Type, int Len)
       : ParamType(TYPE_ID_VECTOR), PType(Type), Len(Len) {}
   MangleError accept(TypeVisitor *) const override;
-  std::string toString() const override;
   bool equals(const ParamType *) const override;
   const RefParamType &getScalarType() const { return PType; }
   int getLength() const { return Len; }
@@ -306,7 +284,6 @@ struct TemplateParameterType : public ParamType {
   TemplateParameterType(unsigned Index)
       : ParamType(TYPE_ID_TEMPLATE_PARAMETER), Index(Index) {}
   MangleError accept(TypeVisitor *) const override;
-  std::string toString() const override;
   bool equals(const ParamType *) const override;
   unsigned getIndex() const { return Index; }
 
@@ -316,15 +293,13 @@ private:
 
 struct UserDefinedType : public ParamType {
   static const TypeEnum EnumTy;
-  UserDefinedType(const std::string &Name)
-      : ParamType(TYPE_ID_STRUCTURE), Name(Name) {}
+  UserDefinedType(StringRef Name) : ParamType(TYPE_ID_STRUCTURE), Name(Name) {}
   MangleError accept(TypeVisitor *) const override;
-  std::string toString() const override;
   bool equals(const ParamType *) const override;
   StringRef getName() const { return Name; }
 
 private:
-  std::string Name;
+  SmallString<32> Name;
 };
 
 struct TypeVisitor {
@@ -336,7 +311,7 @@ struct TypeVisitor {
   virtual MangleError visit(const UserDefinedType *) = 0;
 };
 
-// Dynamic cast for SPIR types
+// Dynamic cast for SPIR types.
 template <typename T> const T *dynCast(const ParamType *PType) {
   return (T::EnumTy == PType->getTypeId()) ? static_cast<const T *>(PType)
                                            : nullptr;
@@ -346,28 +321,31 @@ template <typename T> T *dynCast(ParamType *PType) {
   return (T::EnumTy == PType->getTypeId()) ? static_cast<T *>(PType) : nullptr;
 }
 
-// Mangling utilities
+// Mangling utilities.
 // clang-format off
 #define PRIMITIVE_TYPES_MAP(X) \
-  X("bool",         "b",         PRIMITIVE_BOOL)                               \
-  X("uchar",        "h",         PRIMITIVE_UCHAR)                              \
-  X("char",         "c",         PRIMITIVE_CHAR)                               \
-  X("ushort",       "t",         PRIMITIVE_USHORT)                             \
-  X("short",        "s",         PRIMITIVE_SHORT)                              \
-  X("uint",         "j",         PRIMITIVE_UINT)                               \
-  X("int",          "i",         PRIMITIVE_INT)                                \
-  X("ulong",        "m",         PRIMITIVE_ULONG)                              \
-  X("long",         "l",         PRIMITIVE_LONG)                               \
-  X("_Float16",     "DF16_",     PRIMITIVE_FLOAT16)                            \
-  X("half",         "Dh",        PRIMITIVE_HALF)                               \
-  X("float",        "f",         PRIMITIVE_FLOAT)                              \
-  X("double",       "d",         PRIMITIVE_DOUBLE)                             \
-  X("void",         "v",         PRIMITIVE_VOID)
+  X(PRIMITIVE_BOOL,         "b")                                               \
+  X(PRIMITIVE_SCHAR,        "a")                                               \
+  X(PRIMITIVE_UCHAR,        "h")                                               \
+  X(PRIMITIVE_CHAR,         "c")                                               \
+  X(PRIMITIVE_USHORT,       "t")                                               \
+  X(PRIMITIVE_SHORT,        "s")                                               \
+  X(PRIMITIVE_UINT,         "j")                                               \
+  X(PRIMITIVE_INT,          "i")                                               \
+  X(PRIMITIVE_ULONG,        "m")                                               \
+  X(PRIMITIVE_LONG,         "l")                                               \
+  X(PRIMITIVE_ULONGLONG,    "y")                                               \
+  X(PRIMITIVE_LONGLONG,     "x")                                               \
+  X(PRIMITIVE_FLOAT16,      "DF16_")                                           \
+  X(PRIMITIVE_HALF,         "Dh")                                              \
+  X(PRIMITIVE_FLOAT,        "f")                                               \
+  X(PRIMITIVE_DOUBLE,       "d")                                               \
+  X(PRIMITIVE_VOID,         "v")
 // clang-format on
 
 StringRef mangledPrimitiveString(TypePrimitiveEnum T) {
   switch (T) {
-#define AS_ENUM_CASE(Name, Mangled, Enum)                                      \
+#define AS_ENUM_CASE(Enum, Mangled)                                            \
   case Enum:                                                                   \
     return Mangled;
     PRIMITIVE_TYPES_MAP(AS_ENUM_CASE)
@@ -384,29 +362,35 @@ void appendTemplateParameterMangling(unsigned Index, raw_ostream &Stream) {
   Stream << '_';
 }
 
-std::string getLeafTypeMangling(const ParamType *Type) {
-  if (const PrimitiveType *Prim = dynCast<PrimitiveType>(Type))
-    return mangledPrimitiveString(Prim->getPrimitive()).str();
+SmallString<8> getLeafTypeMangling(const ParamType *Type) {
+  if (const PrimitiveType *Prim = dynCast<PrimitiveType>(Type)) {
+    SmallString<8> Buffer;
+    Buffer += mangledPrimitiveString(Prim->getPrimitive());
+    return Buffer;
+  }
   if (const TemplateParameterType *TemplateParam =
           dynCast<TemplateParameterType>(Type)) {
     SmallString<8> Buffer;
     raw_svector_ostream Stream(Buffer);
     appendTemplateParameterMangling(TemplateParam->getIndex(), Stream);
-    return std::string(Buffer);
+    return Buffer;
   }
   return {};
 }
 
+// Address space mangling:
+// - Private (AS0) is explicit (U3AS0) - matches SYCL conventions.
 // clang-format off
 #define ATTRIBUTE_TYPES_MAP(X)                                                 \
-  X(ATTR_RESTRICT, "r")                                                        \
-  X(ATTR_VOLATILE, "V")                                                        \
-  X(ATTR_CONST,    "K")                                                        \
-  X(ATTR_PRIVATE,  "")                                                         \
-  X(ATTR_GLOBAL,   "U3AS1")                                                    \
-  X(ATTR_CONSTANT, "U3AS2")                                                    \
-  X(ATTR_LOCAL,    "U3AS3")                                                    \
-  X(ATTR_GENERIC,  "U3AS4")
+  X(ATTR_RESTRICT,          "r")                                               \
+  X(ATTR_VOLATILE,          "V")                                               \
+  X(ATTR_CONST,             "K")                                               \
+  X(ATTR_PRIVATE,           "U3AS0")                                           \
+  X(ATTR_GLOBAL,            "U3AS1")                                           \
+  X(ATTR_CONSTANT,          "U3AS2")                                           \
+  X(ATTR_LOCAL,             "U3AS3")                                           \
+  X(ATTR_GENERIC,           "")                                                \
+  X(ATTR_GENERIC_EXPLICIT,  "U3AS4")
 // clang-format on
 
 StringRef getMangledAttribute(TypeAttributeEnum Attribute) {
@@ -417,19 +401,8 @@ StringRef getMangledAttribute(TypeAttributeEnum Attribute) {
     ATTRIBUTE_TYPES_MAP(AS_ENUM_CASE)
 #undef AS_ENUM_CASE
   default:
-    return "";
+    return {};
   }
-}
-
-std::string getPointerAttributesMangling(const PointerType *P) {
-  SmallString<8> QualStr(getMangledAttribute(P->getAddressSpace()));
-  if (P->hasQualifier(ATTR_RESTRICT))
-    QualStr += 'r';
-  if (P->hasQualifier(ATTR_VOLATILE))
-    QualStr += 'V';
-  if (P->hasQualifier(ATTR_CONST))
-    QualStr += 'K';
-  return std::string(QualStr);
 }
 
 // Type implementations
@@ -441,18 +414,6 @@ const TypeEnum UserDefinedType::EnumTy = TYPE_ID_STRUCTURE;
 
 MangleError PrimitiveType::accept(TypeVisitor *Visitor) const {
   return Visitor->visit(this);
-}
-
-std::string PrimitiveType::toString() const {
-  switch (Primitive) {
-#define AS_CASE(Name, Mangled, Enum)                                           \
-  case Enum:                                                                   \
-    return Name;
-    PRIMITIVE_TYPES_MAP(AS_CASE)
-#undef AS_CASE
-  default:
-    return "";
-  }
 }
 
 bool PrimitiveType::equals(const ParamType *Type) const {
@@ -492,13 +453,6 @@ bool PointerType::hasQualifier(TypeAttributeEnum Qual) const {
   return false;
 }
 
-std::string PointerType::toString() const {
-  SmallString<16> Buffer;
-  raw_svector_ostream Stream(Buffer);
-  Stream << getPointee()->toString() << '*';
-  return std::string(Buffer);
-}
-
 bool PointerType::equals(const ParamType *Type) const {
   const PointerType *P = dynCast<PointerType>(Type);
   return P && getPointee()->equals(&*P->getPointee());
@@ -506,13 +460,6 @@ bool PointerType::equals(const ParamType *Type) const {
 
 MangleError VectorType::accept(TypeVisitor *Visitor) const {
   return Visitor->visit(this);
-}
-
-std::string VectorType::toString() const {
-  SmallString<16> Buffer;
-  raw_svector_ostream Stream(Buffer);
-  Stream << getScalarType()->toString() << Len;
-  return std::string(Buffer);
 }
 
 bool VectorType::equals(const ParamType *Type) const {
@@ -524,12 +471,6 @@ MangleError TemplateParameterType::accept(TypeVisitor *Visitor) const {
   return Visitor->visit(this);
 }
 
-std::string TemplateParameterType::toString() const {
-  if (Index == 0)
-    return "T_";
-  return "T" + std::to_string(Index - 1) + "_";
-}
-
 bool TemplateParameterType::equals(const ParamType *Type) const {
   const TemplateParameterType *TemplateParam =
       dynCast<TemplateParameterType>(Type);
@@ -539,8 +480,6 @@ bool TemplateParameterType::equals(const ParamType *Type) const {
 MangleError UserDefinedType::accept(TypeVisitor *Visitor) const {
   return Visitor->visit(this);
 }
-
-std::string UserDefinedType::toString() const { return Name; }
 
 bool UserDefinedType::equals(const ParamType *Type) const {
   const UserDefinedType *U = dynCast<UserDefinedType>(Type);
@@ -560,13 +499,15 @@ public:
 
   MangleError visit(const PointerType *P) override {
     size_t Pos = Buffer.size();
-    std::string AttrMangling = getPointerAttributesMangling(P);
-    if (!mangleSubstitution(P, "P" + AttrMangling)) {
-      Stream << "P" << AttrMangling;
+    SmallString<8> AttrMangling = getPointerAttributesManglingWithMode(P);
+    SmallString<8> PtrTypePrefix("P");
+    PtrTypePrefix += AttrMangling;
+    if (!mangleSubstitution(P, PtrTypePrefix)) {
+      Stream << PtrTypePrefix;
       MangleError Err = P->getPointee()->accept(this);
       if (!AttrMangling.empty())
-        recordSubstitution(currentBuffer().substr(Pos + 1).str());
-      recordSubstitution(currentBuffer().substr(Pos).str());
+        recordSubstitution(currentBuffer().substr(Pos + 1));
+      recordSubstitution(currentBuffer().substr(Pos));
       return Err;
     }
     return MANGLE_SUCCESS;
@@ -581,7 +522,7 @@ public:
     if (!mangleSubstitution(V, TypeStr)) {
       Stream << TypeStr;
       MangleError Err = V->getScalarType()->accept(this);
-      recordSubstitution(currentBuffer().substr(Index).str());
+      recordSubstitution(currentBuffer().substr(Index));
       return Err;
     }
     return MANGLE_SUCCESS;
@@ -597,7 +538,7 @@ public:
     StringRef Name = U->getName();
     if (!mangleSubstitution(U, Name)) {
       Stream << Name.size() << Name;
-      recordSubstitution(currentBuffer().substr(Index).str());
+      recordSubstitution(currentBuffer().substr(Index));
     }
     return MANGLE_SUCCESS;
   }
@@ -607,6 +548,22 @@ private:
     return StringRef(Buffer.data(), Buffer.size());
   }
 
+  SmallString<8> getPointerAttributesManglingWithMode(const PointerType *P) {
+    SmallString<8> QualStr;
+    // Handle address space.
+    TypeAttributeEnum AS = P->getAddressSpace();
+    // Normal mangling (generic is implicit).
+    QualStr += getMangledAttribute(AS);
+    // Handle qualifiers.
+    if (P->hasQualifier(ATTR_RESTRICT))
+      QualStr += 'r';
+    if (P->hasQualifier(ATTR_VOLATILE))
+      QualStr += 'V';
+    if (P->hasQualifier(ATTR_CONST))
+      QualStr += 'K';
+    return QualStr;
+  }
+
   void mangleSequenceID(unsigned SeqID) {
     if (SeqID == 1)
       Stream << '0';
@@ -614,11 +571,10 @@ private:
       SmallString<8> Bstr;
       constexpr StringRef Charset = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
       SeqID--;
-      Bstr.reserve(7);
       for (; SeqID != 0; SeqID /= 36)
         Bstr.push_back(Charset[SeqID % 36]);
-      std::reverse(Bstr.begin(), Bstr.end());
-      Stream << Bstr;
+      for (char C : llvm::reverse(Bstr))
+        Stream << C;
     }
     Stream << '_';
   }
@@ -628,11 +584,10 @@ private:
       return false;
 
     SmallString<32> ThisTypeStr(TypeStr);
-    std::string NType;
     if (const PointerType *P = dynCast<PointerType>(Type)) {
       ThisTypeStr += getPointeeMangling(P->getPointee());
     } else if (const VectorType *PVec = dynCast<VectorType>(Type)) {
-      NType = getLeafTypeMangling(PVec->getScalarType().get());
+      SmallString<8> NType = getLeafTypeMangling(PVec->getScalarType().get());
       if (!NType.empty())
         ThisTypeStr += NType;
     }
@@ -646,14 +601,14 @@ private:
     return true;
   }
 
-  std::string getPointeeMangling(RefParamType Pointee) {
+  SmallString<32> getPointeeMangling(RefParamType Pointee) {
     // Generates a simplified mangling of the pointee type for substitution
     // matching, without recursive substitutions.
     SmallString<32> Mangling;
     raw_svector_ostream ManglingStream(Mangling);
 
     while (const PointerType *P = SPIR::dynCast<PointerType>(Pointee.get())) {
-      ManglingStream << 'P' << getPointerAttributesMangling(P);
+      ManglingStream << 'P' << getPointerAttributesManglingWithMode(P);
       Pointee = P->getPointee();
     }
 
@@ -662,11 +617,11 @@ private:
       StringRef Name = U->getName();
       ManglingStream << Name.size() << Name;
     } else {
-      std::string LeafMangling = getLeafTypeMangling(Pointee.get());
+      SmallString<8> LeafMangling = getLeafTypeMangling(Pointee.get());
       if (!LeafMangling.empty())
         ManglingStream << LeafMangling;
     }
-    return std::string(Mangling);
+    return Mangling;
   }
   void recordSubstitution(StringRef Str) { Substitutions[Str] = SeqId++; }
 
@@ -676,18 +631,17 @@ private:
   StringMap<unsigned> Substitutions;
 };
 
-// Name mangler
 class NameMangler {
 public:
   MangleError mangleTemplateName(StringRef Name,
-                                 const std::vector<RefParamType> &TemplateArgs,
-                                 std::string &MangledName) {
-    SmallString<128> Buffer;
-    raw_svector_ostream Stream(Buffer);
+                                 ArrayRef<RefParamType> TemplateArgs,
+                                 SmallVectorImpl<char> &MangledName) {
+    MangledName.clear();
+    raw_svector_ostream Stream(MangledName);
     Stream << "_Z" << Name.size() << Name;
     if (!TemplateArgs.empty()) {
       Stream << 'I';
-      MangleVisitor Visitor(Buffer, Stream, 1);
+      MangleVisitor Visitor(MangledName, Stream, 1);
       for (const auto &TemplateArg : TemplateArgs) {
         MangleError Err = TemplateArg->accept(&Visitor);
         if (Err != MANGLE_SUCCESS)
@@ -695,23 +649,21 @@ public:
       }
       Stream << 'E';
     }
-    MangledName = std::string(Buffer);
     return MANGLE_SUCCESS;
   }
 
-  MangleError mangle(StringRef Name, const std::vector<RefParamType> &Params,
-                     std::string &MangledName) {
+  MangleError mangle(StringRef Name, ArrayRef<RefParamType> Params,
+                     SmallVectorImpl<char> &MangledName) {
     return mangle(Name, {}, Params, MangledName);
   }
 
-  MangleError mangle(StringRef Name,
-                     const std::vector<RefParamType> &TemplateArgs,
-                     const std::vector<RefParamType> &Params,
-                     std::string &MangledName) {
-    SmallString<128> Buffer;
-    raw_svector_ostream Stream(Buffer);
+  MangleError mangle(StringRef Name, ArrayRef<RefParamType> TemplateArgs,
+                     ArrayRef<RefParamType> Params,
+                     SmallVectorImpl<char> &MangledName) {
+    MangledName.clear();
+    raw_svector_ostream Stream(MangledName);
     Stream << "_Z" << Name.size() << Name;
-    MangleVisitor Visitor(Buffer, Stream);
+    MangleVisitor Visitor(MangledName, Stream, 0);
     if (!TemplateArgs.empty()) {
       Stream << 'I';
       for (const auto &TemplateArg : TemplateArgs) {
@@ -726,28 +678,44 @@ public:
       if (Err != MANGLE_SUCCESS)
         return Err;
     }
-    MangledName = std::string(Buffer);
     return MANGLE_SUCCESS;
   }
 };
 
 } // namespace SPIR
 
-// Bridge itanium_demangle::Node to SPIR::ParamType
+// Transformation mode for type replacements.
+enum class TransformMode {
+  // Rename (ParameterTypeReplacements): rename OpenCL C types to SYCL types.
+  // char -> signed char (always), half -> _Float16
+  // long -> long long, unsigned long -> unsigned long long
+  Rename,
+
+  // CloneTypeReplacements: find clonee source for creating back-clones.
+  // char -> signed char (signed target) or unsigned char (unsigned target)
+  // long -> int (L32) or long long (L64)
+  // unsigned long -> unsigned int (L32) or unsigned long long (L64)
+  // (half, _Float16, signed char, unsigned char: no transformation)
+  CloneOriginal,
+
+  // CloneRemangled (RemangledCloneTypeReplacements): find target for second
+  // clone. Derived from Rename entries where Rename[k] != CloneOriginal[k],
+  // plus char -> signed char.
+  // char -> signed char (always), half -> _Float16
+  // long -> long long (L32 only; L64: no entry, stays as long)
+  // unsigned long -> unsigned long long (L32 only; L64: no entry)
+  CloneRemangled,
+};
+
+using namespace llvm::itanium_demangle;
+
+// Bridge itanium_demangle::Node to SPIR::ParamType.
 class NodeToSPIRType {
-  bool CharIsSigned;
-  bool PreserveFloat16;
-  bool IsNativeCPU;
-  bool IsArch64;
-  bool IsWindows;
   unsigned TargetDefaultAddrSpace;
+  TransformMode Mode;
 
 public:
-  NodeToSPIRType(const Triple &TT, bool CharIsSigned, bool PreserveFloat16)
-      : CharIsSigned(CharIsSigned), PreserveFloat16(PreserveFloat16) {
-    IsNativeCPU = TT.isNativeCPU();
-    IsArch64 = TT.isArch64Bit() || IsNativeCPU;
-    IsWindows = TT.isOSWindows();
+  NodeToSPIRType(const Triple &TT, TransformMode Mode) : Mode(Mode) {
     TargetDefaultAddrSpace = (TT.isSPIR() || TT.isSPIRV()) ? 4 : 0;
   }
 
@@ -779,9 +747,8 @@ public:
       return convertVendorExtQualType(
           static_cast<const VendorExtQualType *>(N));
     case Node::KBinaryFPType:
-      // BinaryFPType represents _Float16 (DF16_ in mangling).
-      return SPIR::RefParamType(new SPIR::PrimitiveType(
-          PreserveFloat16 ? SPIR::PRIMITIVE_FLOAT16 : SPIR::PRIMITIVE_HALF));
+      return SPIR::RefParamType(
+          new SPIR::PrimitiveType(SPIR::PRIMITIVE_FLOAT16));
     default:
       return SPIR::RefParamType();
     }
@@ -816,29 +783,27 @@ private:
   }
 
   // Convert a demangled type name to SPIR type representation.
-  // Only C++ primitive types need explicit handling here. All other types
-  // (OpenCL image types, event types, sampler, pipe, and user-defined structs)
-  // automatically become UserDefinedType and pass through unchanged during
-  // remangling. This design eliminates the need for 90+ type enums that
-  // SPIRV-LLVM-Translator has - we only need the primitive types that can
-  // appear in basic builtin signatures and may need transformation
-  // (e.g., long long -> long, signed char -> char, _Float16 -> half).
-  //
-  // Examples of types handled as UserDefinedType:
-  //   - ocl_event, ocl_sampler
-  //   - ocl_image1d_ro, ocl_image2d_wo, ocl_image3d_rw, ...
-  //   - pipe_ro_t, pipe_wo_t
-  //   - Any user struct types
+  // Primitive types are handled explicitly for type transformation. All other
+  // types (images, events, samplers, pipes, user structs) become
+  // UserDefinedType and pass through unchanged.
   SPIR::RefParamType convertNameType(const NameType *NT) {
     StringRef Name(NT->getName());
     SPIR::TypePrimitiveEnum Prim = SPIR::PRIMITIVE_INT;
 
     if (Name == "bool")
       Prim = SPIR::PRIMITIVE_BOOL;
-    else if (Name == "char")
-      Prim = CharIsSigned ? SPIR::PRIMITIVE_CHAR : SPIR::PRIMITIVE_UCHAR;
-    else if (Name == "signed char")
-      Prim = SPIR::PRIMITIVE_CHAR;
+    else if (Name == "char") {
+      if (Mode == TransformMode::Rename ||
+          Mode == TransformMode::CloneRemangled) {
+        // Rename and CloneRemangled: always char -> signed char.
+        Prim = SPIR::PRIMITIVE_SCHAR;
+      } else {
+        // CloneOriginal.
+        Prim = (CharSignedness == Signedness::Signed) ? SPIR::PRIMITIVE_SCHAR
+                                                      : SPIR::PRIMITIVE_UCHAR;
+      }
+    } else if (Name == "signed char")
+      Prim = SPIR::PRIMITIVE_SCHAR;
     else if (Name == "unsigned char")
       Prim = SPIR::PRIMITIVE_UCHAR;
     else if (Name == "short")
@@ -849,28 +814,55 @@ private:
       Prim = SPIR::PRIMITIVE_INT;
     else if (Name == "unsigned int")
       Prim = SPIR::PRIMITIVE_UINT;
-    else if (Name == "long")
-      Prim =
-          (IsArch64 && !IsWindows) ? SPIR::PRIMITIVE_LONG : SPIR::PRIMITIVE_INT;
-    else if (Name == "unsigned long")
-      Prim = (IsArch64 && !IsWindows) ? SPIR::PRIMITIVE_ULONG
-                                      : SPIR::PRIMITIVE_UINT;
-    else if (Name == "long long")
-      Prim = SPIR::PRIMITIVE_LONG;
+    else if (Name == "long") {
+      if (Mode == TransformMode::Rename) {
+        // Rename: long -> long long (always).
+        Prim = SPIR::PRIMITIVE_LONGLONG;
+      } else if (Mode == TransformMode::CloneOriginal) {
+        // CloneOriginal: long -> int (L32) or long long (L64).
+        Prim =
+            (LongWidth == 32) ? SPIR::PRIMITIVE_INT : SPIR::PRIMITIVE_LONGLONG;
+      } else {
+        // CloneRemangled: long -> long long (L32); stays as long on L64.
+        Prim =
+            (LongWidth == 32) ? SPIR::PRIMITIVE_LONGLONG : SPIR::PRIMITIVE_LONG;
+      }
+    } else if (Name == "unsigned long") {
+      if (Mode == TransformMode::Rename) {
+        // Rename: unsigned long -> unsigned long long (always).
+        Prim = SPIR::PRIMITIVE_ULONGLONG;
+      } else if (Mode == TransformMode::CloneOriginal) {
+        // CloneOriginal: unsigned long -> unsigned int (L32) or ull (L64).
+        Prim = (LongWidth == 32) ? SPIR::PRIMITIVE_UINT
+                                 : SPIR::PRIMITIVE_ULONGLONG;
+      } else {
+        // CloneRemangled: unsigned long -> ull (L32); stays as ulong on L64.
+        Prim = (LongWidth == 32) ? SPIR::PRIMITIVE_ULONGLONG
+                                 : SPIR::PRIMITIVE_ULONG;
+      }
+    } else if (Name == "long long")
+      Prim = SPIR::PRIMITIVE_LONGLONG;
     else if (Name == "unsigned long long")
-      Prim = SPIR::PRIMITIVE_ULONG;
+      Prim = SPIR::PRIMITIVE_ULONGLONG;
     else if (Name == "_Float16")
-      Prim = PreserveFloat16 ? SPIR::PRIMITIVE_FLOAT16 : SPIR::PRIMITIVE_HALF;
-    else if (Name == "half")
-      Prim = SPIR::PRIMITIVE_HALF;
-    else if (Name == "float")
+      Prim = SPIR::PRIMITIVE_FLOAT16;
+    else if (Name == "half") {
+      if (Mode == TransformMode::Rename ||
+          Mode == TransformMode::CloneRemangled) {
+        // Rename and CloneRemangled: half -> _Float16.
+        Prim = SPIR::PRIMITIVE_FLOAT16;
+      } else {
+        // CloneOriginal: stays as half.
+        Prim = SPIR::PRIMITIVE_HALF;
+      }
+    } else if (Name == "float")
       Prim = SPIR::PRIMITIVE_FLOAT;
     else if (Name == "double")
       Prim = SPIR::PRIMITIVE_DOUBLE;
     else if (Name == "void")
       Prim = SPIR::PRIMITIVE_VOID;
     else
-      return SPIR::RefParamType(new SPIR::UserDefinedType(Name.str()));
+      return SPIR::RefParamType(new SPIR::UserDefinedType(Name));
 
     return SPIR::RefParamType(new SPIR::PrimitiveType(Prim));
   }
@@ -886,38 +878,30 @@ private:
     // the AS qualifier here and apply it to the pointer (which is how SPIR
     // represents it), then continue processing the unwrapped pointee type.
     //
-    // Note: We must extract address space BEFORE CV-qualifiers because the
-    // structure is: PointerType -> VendorExtQualType(AS) -> QualType(CV) ->
-    // BaseType
-    //
-    // Initialize AS for implicit pointers (no AS qualifier in mangled name).
-    // On SPIR targets: implicit pointers are generic (ATTR_GENERIC).
-    //   Transform: "Pf" (implicit) -> "PU3AS4f" (explicit AS4)
-    // On other targets: implicit pointers are private (ATTR_PRIVATE).
-    //   No transform: "Pf" (implicit) -> "Pf" (stays implicit)
+    // We must extract address space BEFORE CV-qualifiers because the structure
+    // is: PointerType -> VendorExtQualType(AS) -> QualType(CV) -> BaseType.
+
+    // Default value, e.g. for implicit pointers (no AS qualifier).
     SPIR::TypeAttributeEnum AS =
-        (TargetDefaultAddrSpace == 4) ? SPIR::ATTR_GENERIC : SPIR::ATTR_PRIVATE;
+        (TargetDefaultAddrSpace == 4) ? SPIR::ATTR_PRIVATE : SPIR::ATTR_GENERIC;
     if (PointeeNode->getKind() == Node::KVendorExtQualType) {
       const auto *VT = static_cast<const VendorExtQualType *>(PointeeNode);
       StringRef Ext(VT->getExt());
       if (Ext.starts_with("AS")) {
-        // Parse explicit AS qualifier from mangled name.
-        // On SPIR targets, explicit AS0 becomes implicit (no qualifier).
-        //   Transform: "PU3AS0f" (explicit AS0) -> "Pf" (implicit)
-        int ASNum;
-        if (!Ext.drop_front(2).getAsInteger(10, ASNum)) {
-          if (ASNum == 0)
-            AS = SPIR::ATTR_PRIVATE;
-          else if (ASNum == 1)
-            AS = SPIR::ATTR_GLOBAL;
-          else if (ASNum == 2)
-            AS = SPIR::ATTR_CONSTANT;
-          else if (ASNum == 3)
-            AS = SPIR::ATTR_LOCAL;
-          else if (ASNum == 4)
-            AS = SPIR::ATTR_GENERIC;
-        }
-        // Use the inner type, not the VendorExtQualType wrapper
+        int ASNum = 0;
+        [[maybe_unused]] bool Error = Ext.drop_front(2).getAsInteger(10, ASNum);
+        assert(!Error && "Unexpected non-integer address space");
+        if (ASNum == 1)
+          AS = SPIR::ATTR_GLOBAL;
+        else if (ASNum == 2)
+          AS = SPIR::ATTR_CONSTANT;
+        else if (ASNum == 3)
+          AS = SPIR::ATTR_LOCAL;
+        else if (ASNum == 4)
+          AS = SPIR::ATTR_GENERIC_EXPLICIT;
+        else
+          llvm_unreachable("Unexpected address space number in mangled name");
+        // Use the inner type, not the VendorExtQualType wrapper.
         PointeeNode = VT->getTy();
       }
     }
@@ -930,7 +914,7 @@ private:
     // Example: pointer to const int with address space is represented as:
     //   PointerType -> VendorExtQualType(AS1) -> QualType(const) ->
     //   NameType("int")
-    // And mangles as "PU3AS1Ki" where U3AS1=AS1, K=const, i=int
+    // And mangles as "PU3AS1Ki" where U3AS1=AS1, K=const, i=int.
     bool IsConst = false;
     bool IsVolatile = false;
     bool IsRestrict = false;
@@ -948,12 +932,12 @@ private:
     }
 
     SPIR::RefParamType Pointee = convert(PointeeNode);
-    if (Pointee.isNull())
+    if (!Pointee)
       return SPIR::RefParamType();
 
     auto *Ptr = new SPIR::PointerType(Pointee);
     Ptr->setAddressSpace(AS);
-    // Apply CV-qualifiers to the pointer
+    // Apply CV-qualifiers to the pointer.
     Ptr->setQualifier(SPIR::ATTR_CONST, IsConst);
     Ptr->setQualifier(SPIR::ATTR_VOLATILE, IsVolatile);
     Ptr->setQualifier(SPIR::ATTR_RESTRICT, IsRestrict);
@@ -963,10 +947,10 @@ private:
   SPIR::RefParamType convertVectorType(const itanium_demangle::VectorType *VT) {
     const Node *BaseNode = VT->getBaseType();
     SPIR::RefParamType Base = convert(BaseNode);
-    if (Base.isNull())
+    if (!Base)
       return SPIR::RefParamType();
 
-    // Extract vector length from dimension node
+    // Extract vector length from dimension node.
     const Node *DimNode = VT->getDimension();
     if (DimNode->getKind() == Node::KNameType) {
       StringRef DimStr(static_cast<const NameType *>(DimNode)->getName());
@@ -980,10 +964,10 @@ private:
   SPIR::RefParamType convertVendorExtQualType(const VendorExtQualType *VT) {
     StringRef Ext(VT->getExt());
     SPIR::RefParamType Base = convert(VT->getTy());
-    if (Base.isNull())
+    if (!Base)
       return Base;
 
-    // Handle address space qualifiers
+    // Handle address space qualifiers.
     if (Ext.starts_with("AS")) {
       int AS;
       if (!Ext.drop_front(2).getAsInteger(10, AS)) {
@@ -996,7 +980,7 @@ private:
           else if (AS == 3)
             Attr = SPIR::ATTR_LOCAL;
           else if (AS == 4)
-            Attr = SPIR::ATTR_GENERIC;
+            Attr = SPIR::ATTR_GENERIC_EXPLICIT;
           PT->setAddressSpace(Attr);
         }
       }
@@ -1008,11 +992,12 @@ private:
 class TypeTransformer {
 public:
   SPIR::RefParamType transform(SPIR::RefParamType Type) {
-    if (Type.isNull())
+    if (!Type)
       return Type;
 
     if (const auto *Prim = SPIR::dynCast<SPIR::PrimitiveType>(Type.get())) {
-      return transformPrimitive(Prim);
+      // All primitive type transformations are now handled in convertNameType.
+      return SPIR::RefParamType(new SPIR::PrimitiveType(Prim->getPrimitive()));
     } else if (const auto *Ptr = SPIR::dynCast<SPIR::PointerType>(Type.get())) {
       SPIR::RefParamType Pointee = transform(Ptr->getPointee());
       auto *NewPtr = new SPIR::PointerType(Pointee);
@@ -1029,14 +1014,6 @@ public:
       return SPIR::RefParamType(new SPIR::VectorType(Scalar, Vec->getLength()));
     }
     return Type;
-  }
-
-private:
-  SPIR::RefParamType transformPrimitive(const SPIR::PrimitiveType *Prim) {
-    // All primitive type transformations are now handled in convertNameType.
-    // This function just passes through the type unchanged.
-    // See file header for transformation examples.
-    return SPIR::RefParamType(new SPIR::PrimitiveType(Prim->getPrimitive()));
   }
 };
 
@@ -1092,34 +1069,17 @@ bool isValidRemangledBuiltinName(StringRef MangledName,
   return NameNode && StringRef(NameNode->getBaseName()) == ExpectedBaseName;
 }
 
-// NativeCPU libdevice implements a small set of subgroup and group builtins
-// with _Float16 manglings (DF16_). Keep DF16_ for them.
-// This workaround is not needed if they are moved to libspirv.
-bool PreserveFloat16ForNativeCPU(StringRef BaseName) {
-  return BaseName == "__spirv_GroupFMulKHR" ||
-         BaseName == "__spirv_GroupFAdd" || BaseName == "__spirv_GroupFMin" ||
-         BaseName == "__spirv_GroupFMax" ||
-         BaseName == "__spirv_SubgroupShuffleINTEL" ||
-         BaseName == "__spirv_SubgroupShuffleUpINTEL" ||
-         BaseName == "__spirv_SubgroupShuffleDownINTEL" ||
-         BaseName == "__spirv_SubgroupShuffleXorINTEL";
-}
+// Remangle a function name.
+// Returns true and writes the new mangled name if transformation is needed.
+bool tryRemangleFuncName(StringRef MangledName, const Triple &TT,
+                         TransformMode Mode,
+                         SmallVectorImpl<char> &RemangledName) {
+  RemangledName.clear();
 
-// Remangle a function if it's a SPIRV builtin.
-// Returns the new mangled name if transformation is needed, or empty string if
-// not. See SAFETY NOTE at the top of this file for why we transform all
-// "__spirv_" functions.
-std::string tryRemangleSPIRVBuiltin(StringRef MangledName, const Triple &TT,
-                                    bool CharIsSigned) {
-  // Check if it's a SPIRV builtin (simple string check)
-  if (!MangledName.contains("__spirv_"))
-    return "";
-
-  // Demangle once
   Demangler D(MangledName.data(), MangledName.data() + MangledName.size());
   const Node *Root = D.parse();
   if (!Root || Root->getKind() != Node::KFunctionEncoding)
-    return "";
+    return false;
 
   const auto *Encoding = static_cast<const FunctionEncoding *>(Root);
 
@@ -1133,36 +1093,28 @@ std::string tryRemangleSPIRVBuiltin(StringRef MangledName, const Triple &TT,
 
   // Validate no whitespace (would indicate malformed demangling).
   if (BaseName.contains(' '))
-    return "";
-
-  // Validate SPIRV builtin name.
-  constexpr StringRef Prefix = "__spirv_";
-  if (!BaseName.starts_with(Prefix) || BaseName.size() <= Prefix.size())
-    return "";
-
-  bool PreserveFloat16 =
-      TT.isNativeCPU() && PreserveFloat16ForNativeCPU(BaseName);
+    return false;
 
   // Convert template arguments and function parameter types.
-  NodeToSPIRType Converter(TT, CharIsSigned, PreserveFloat16);
+  NodeToSPIRType Converter(TT, Mode);
   TypeTransformer Transformer;
-  std::vector<SPIR::RefParamType> TemplateArgTypes;
-  std::vector<SPIR::RefParamType> Params;
+  SmallVector<SPIR::RefParamType, 2> TemplateArgTypes;
+  SmallVector<SPIR::RefParamType, 8> Params;
 
   if (HasTemplateArgs) {
     const auto *TemplatedName =
         static_cast<const NameWithTemplateArgs *>(NameNode);
     if (!TemplatedName->TemplateArgs ||
         TemplatedName->TemplateArgs->getKind() != Node::KTemplateArgs)
-      return "";
+      return false;
 
     const auto *TemplateArgList =
         static_cast<const itanium_demangle::TemplateArgs *>(
             TemplatedName->TemplateArgs);
     for (const Node *TemplateArgNode : TemplateArgList->getParams()) {
       SPIR::RefParamType TemplateArgType = Converter.convert(TemplateArgNode);
-      if (TemplateArgType.isNull())
-        return "";
+      if (!TemplateArgType)
+        return false;
       TemplateArgType = Transformer.transform(TemplateArgType);
       TemplateArgTypes.push_back(TemplateArgType);
     }
@@ -1170,14 +1122,14 @@ std::string tryRemangleSPIRVBuiltin(StringRef MangledName, const Triple &TT,
 
   NodeArray ParamNodes = Encoding->getParams();
   if (ParamNodes.empty() && TemplateArgTypes.empty())
-    return "";
+    return false;
 
   for (const Node *ParamNode : ParamNodes) {
     SPIR::RefParamType ParamType = Converter.convert(ParamNode);
-    if (ParamType.isNull()) {
-      // If any parameter fails to convert, this is likely a
-      // malformed/invalid mangling. Don't try to remangle it.
-      return "";
+    if (!ParamType) {
+      // If any parameter fails to convert, this is likely a malformed/invalid
+      // mangling. Don't try to remangle it.
+      return false;
     }
     ParamType = Transformer.transform(ParamType);
     Params.push_back(ParamType);
@@ -1186,85 +1138,198 @@ std::string tryRemangleSPIRVBuiltin(StringRef MangledName, const Triple &TT,
   // Remangle using SPIR mangler. Templated functions are only handled
   // structurally when all template arguments can be represented as supported
   // type nodes; otherwise we conservatively skip remangling.
-  std::string Result;
+  SmallString<128> Result;
+  // Always use implicit generic address space: TargetDefaultAddrSpace=0
+  // preserves AS qualifiers as-is.
   SPIR::NameMangler Mangler;
   if (HasTemplateArgs) {
     size_t TemplateSuffixStart = findTemplateSuffixStart(MangledName);
     if (TemplateSuffixStart == StringRef::npos)
-      return "";
+      return false;
 
-    std::string RemangledTemplatePrefix;
+    SmallString<128> RemangledTemplatePrefix;
     if (Mangler.mangleTemplateName(BaseName, TemplateArgTypes,
                                    RemangledTemplatePrefix) !=
         SPIR::MANGLE_SUCCESS)
-      return "";
+      return false;
 
-    Result =
-        RemangledTemplatePrefix + MangledName.substr(TemplateSuffixStart).str();
+    Result = RemangledTemplatePrefix;
+    Result += MangledName.substr(TemplateSuffixStart);
   } else if (Mangler.mangle(BaseName, Params, Result) != SPIR::MANGLE_SUCCESS) {
-    return "";
+    return false;
   }
 
   // Final validation: ensure the new mangled name is different from the
   // original. If they're the same or if Result is malformed, don't transform.
   if (Result == MangledName)
-    return "";
+    return false;
 
   assert(isValidRemangledBuiltinName(Result, BaseName) &&
          "invalid remangled builtin name");
 
-  return Result;
+  RemangledName = Result;
+  return true;
+}
+
+// Make a clone of a suitable function using the old name if there is a
+// type-mapping and the corresponding clonee function exists.
+// TransformMode::CloneOriginal: CloneName=OrigName, CloneeName=TypeResult.
+// TransformMode::CloneRemangled: CloneName=TypeResult, CloneeName=OrigName.
+void createCloneFromMap(const Triple &TT, Module &M, StringRef OrigName,
+                        StringRef MangledForRemap, TransformMode Mode) {
+  SmallString<128> RemangledName;
+  bool HasRemangledName =
+      tryRemangleFuncName(MangledForRemap, TT, Mode, RemangledName);
+
+  if (!HasRemangledName)
+    RemangledName = MangledForRemap;
+
+  if (StringRef(RemangledName) == OrigName)
+    return; // No transformation needed
+
+  SmallString<128> CloneName;
+  StringRef CloneeName;
+  if (Mode == TransformMode::CloneOriginal) {
+    CloneName = OrigName;
+    CloneeName = RemangledName;
+  } else {
+    CloneName = RemangledName;
+    CloneeName = OrigName;
+  }
+
+  // TmpSuffix: if CloneName already exists, append .tmp (will be resolved
+  // in postProcessRemoveTmpSuffix).
+  if (M.getFunction(CloneName)) {
+    CloneName += TmpSuffix;
+    if (M.getFunction(CloneName))
+      return; // Both base and .tmp exist, skip
+  }
+
+  if (Function *Clonee = M.getFunction(CloneeName)) {
+    ValueToValueMapTy VMap;
+    Function *Clone = CloneFunction(Clonee, VMap);
+    Clone->setName(CloneName);
+    LLVM_DEBUG(dbgs() << "clone " << Clone->getName() << " <- "
+                      << Clonee->getName() << "\n");
+  }
+}
+
+// Resolve .tmp collisions.
+void postProcessRemoveTmpSuffix(Module &M,
+                                const StringSet<> &RenamedFunctions) {
+  SmallVector<Function *, 16> TmpFunctions;
+  for (Function &F : M)
+    if (F.getName().ends_with(TmpSuffix))
+      TmpFunctions.push_back(&F);
+
+  SmallVector<Function *, 8> ToErase;
+  for (Function *F : TmpFunctions) {
+    StringRef FName = F->getName();
+    StringRef BaseName = FName.drop_back(TmpSuffix.size());
+    if (Function *Existing = M.getFunction(BaseName)) {
+      if (RenamedFunctions.count(BaseName)) {
+        // BaseName was an original function that got renamed by Rename. Replace
+        // it with this .tmp clone (which has more accurate typing).
+        Existing->replaceAllUsesWith(
+            ConstantPointerNull::get(Existing->getType()));
+        Existing->setName("");
+        ToErase.push_back(Existing);
+      } else {
+        // BaseName exists but was not renamed by Rename. This .tmp is
+        // redundant. Replace uses of .tmp with Existing and erase.
+        F->replaceAllUsesWith(Existing);
+        F->eraseFromParent();
+        continue;
+      }
+    }
+    // Rename .tmp function to its base name.
+    F->setName(BaseName);
+  }
+
+  for (Function *F : ToErase)
+    F->eraseFromParent();
 }
 
 } // anonymous namespace
 
-PreservedAnalyses SYCLBuiltinRemanglePass::run(Module &M,
-                                               ModuleAnalysisManager &MAM) {
+PreservedAnalyses SYCLRemangleLibspirvPass::run(Module &M,
+                                                ModuleAnalysisManager &MAM) {
+  // Require explicit configuration via command line options.
+  if (LongWidth.getNumOccurrences() == 0 ||
+      CharSignedness.getNumOccurrences() == 0)
+    return PreservedAnalyses::all();
+
   const Triple TT(M.getTargetTriple());
 
-  // Skip SPIR/SPIRV targets by default unless explicitly enabled for testing.
-  // Nevertheless, SPIR/SPIRV target that by-pass SPIR-V generation could enable
-  // this pass to transform address space mangling.
+  // Skip SPIR/SPIRV targets by default unless explicitly enabled.
   if ((TT.isSPIR() || TT.isSPIRV()) && !RemangleSPIRVTarget)
     return PreservedAnalyses::all();
 
-  bool IsCharSigned = RemangleCharIsSigned.getNumOccurrences() > 0
-                          ? RemangleCharIsSigned
-                          : CharIsSigned;
+  bool Changed = false;
+  // Track functions whose original names were renamed.
+  StringSet<> RenamedFunctions;
+  SmallVector<Function *, 16> Worklist;
 
-  SmallVector<std::pair<Function *, std::string>, 16> ToRename;
-
-  // Pass 1: Identify functions to rename and give them temporary names
-  // to avoid collisions when function A renames to name of function B,
-  // and function B also needs to be renamed.
   for (Function &F : M) {
+    // Skip intrinsics and non-mangled names.
     if (F.isIntrinsic() || !F.getName().starts_with("_Z"))
       continue;
 
-    if (!F.isDeclaration())
+    // Skip __clc_ functions. If we remangle them, it should be done in clc
+    // library and it requires creating multiple variants of clc libaries,
+    // with mangling scheme aligning with the corresponding libspirv remangling.
+    if (F.isDeclaration() && F.getName().contains("__clc_"))
       continue;
 
-    StringRef Name = F.getName();
-    std::string NewName = tryRemangleSPIRVBuiltin(Name, TT, IsCharSigned);
-    if (!NewName.empty() && NewName != Name) {
-      F.setName(Name + ".remangle");
-      ToRename.push_back({&F, std::move(NewName)});
-    }
+    // Skip internal/private linkage functions (won't be called externally).
+    if (F.hasLocalLinkage())
+      continue;
+
+    Worklist.push_back(&F);
   }
 
-  // Pass 2: Rename from temporary names to final names and handle merging
-  for (auto &[F, NewName] : ToRename) {
-    Function *Existing = M.getFunction(NewName);
-    if (Existing) {
-      assert(F->getFunctionType() == Existing->getFunctionType() &&
-             "Remangled function type mismatch with existing function");
-      F->replaceAllUsesWith(Existing);
-      F->eraseFromParent();
-    } else {
-      F->setName(NewName);
+  for (Function *F : Worklist) {
+    StringRef Name = F->getName();
+
+    SmallString<128> MangledName = Name;
+
+    // Try to change the parameter types in the function name.
+    SmallString<128> RemangledName;
+    if (!tryRemangleFuncName(MangledName, TT, TransformMode::Rename,
+                             RemangledName)) {
+      continue;
     }
+
+    RenamedFunctions.insert(MangledName);
+
+    // TmpSuffix: if target already exists, append .tmp.
+    if (M.getFunction(RemangledName))
+      RemangledName += TmpSuffix;
+    if (M.getFunction(RemangledName))
+      continue; // Both base and .tmp exist, skip
+
+    Changed = true;
+
+    F->setName(RemangledName);
+
+    LLVM_DEBUG(dbgs() << "remangle " << MangledName << " -> " << RemangledName
+                      << "\n");
+
+    // Declarations: rename only, no cloning (they are forward decls of
+    // builtins called from other builtins in a single .cl file).
+    if (F->isDeclaration())
+      continue;
+
+    // Create clone of original function.
+    createCloneFromMap(TT, M, MangledName, MangledName,
+                       TransformMode::CloneOriginal);
+
+    // Create clone of remangled function.
+    createCloneFromMap(TT, M, RemangledName, MangledName,
+                       TransformMode::CloneRemangled);
   }
 
-  return ToRename.empty() ? PreservedAnalyses::all()
-                          : PreservedAnalyses::none();
+  postProcessRemoveTmpSuffix(M, RenamedFunctions);
+
+  return Changed ? PreservedAnalyses::none() : PreservedAnalyses::all();
 }

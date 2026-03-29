@@ -6,10 +6,7 @@
 // We also check that the attribute mux-orig-fn is created as this is needed to
 // find the original function after this pass is run
 
-// CHECK: %localVarTypes = type { %class.anon }
-// CHECK: %class.anon = type { %"class.sycl::_V1::accessor" }
-// CHECK: %"class.sycl::_V1::accessor" = type { %"class.sycl::_V1::detail::AccessorImplDevice", %union.anon }
-// CHECK: %union.anon = type { ptr addrspace(1) }
+// CHECK: %localVarTypes = type { ptr addrspace(1) }
 // CHECK: define void @_ZTS4TestILi1ELi4EiE.NativeCPUKernel{{.*}} #[[ATTR:[0-9]*]]
 // CHECK: alloca %localVarTypes
 // CHECK: attributes #[[ATTR]] = {{.*}} "mux-orig-fn"="_ZTS4TestILi1ELi4EiE"

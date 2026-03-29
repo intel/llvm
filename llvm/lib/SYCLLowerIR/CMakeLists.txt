@@ -51,10 +51,10 @@ add_llvm_component_library(LLVMSYCLLowerIR
   SYCLDeviceRequirements.cpp
   SYCLKernelParamOptInfo.cpp
   SYCLJointMatrixTransform.cpp
-  SYCLBuiltinRemangle.cpp
   SYCLOptimizeBarriers.cpp
   SYCLPropagateAspectsUsage.cpp
   SYCLPropagateJointMatrixUsage.cpp
+  SYCLRemangleLibspirv.cpp
   SYCLVirtualFunctionsAnalysis.cpp
   SYCLUtils.cpp
 
