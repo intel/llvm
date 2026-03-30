@@ -768,8 +768,8 @@ detail::EventImplPtr handler::finalize() {
   // (for out-of-order queue). The event can only be skipped for the scheduler
   // bypass path.
   //
-  // For commands other than kernel submission, if an event has not been
-  // requested, the queue supports events discarding, and the scheduler
+  // For commands other than kernel and host task submission, if an event has
+  // not been requested, the queue supports events discarding, and the scheduler
   // could have been bypassed (not supported yet), the event can be skipped.
   bool DiscardEvent =
       (type != detail::CGType::Kernel &&
