@@ -1059,7 +1059,7 @@ static TripleSet inferOffloadToolchains(Compilation &C,
     if (TripleStr.empty())
       continue;
 
-    llvm::Triple Triple(TripleStr);
+    llvm::Triple Triple = ToolChain::normalizeOffloadTriple(TripleStr);
 
     // Make a new argument that dispatches this argument to the appropriate
     // toolchain. This is required when we infer it and create potentially
@@ -1388,10 +1388,9 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
                 << Target << TripleIt->second;
           continue;
         }
-        Triples.insert(
-            llvm::Triple(C.getInputArgs().MakeArgString(TargetTripleString)));
+        Triples.insert(ToolChain::normalizeOffloadTriple(TargetTripleString));
       } else {
-        Triples.insert(llvm::Triple(C.getInputArgs().MakeArgString(Target)));
+        Triples.insert(ToolChain::normalizeOffloadTriple(Target));
       }
     }
 
@@ -1400,7 +1399,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
           << C.getInputArgs()
                  .getLastArg(options::OPT_offload_targets_EQ)
                  ->getAsString(C.getInputArgs());
-  } else if (Kinds.size() > 0) {
+  } else {
     for (Action::OffloadKind Kind : Kinds)
       Triples = inferOffloadToolchains(C, Kind);
   }
@@ -1427,14 +1426,8 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
 
     // Create a device toolchain for every specified kind and triple.
     for (Action::OffloadKind Kind : Kinds) {
-      llvm::Triple TT;
-      if (Kind == Action::OFK_OpenMP)
-        TT = ToolChain::getOpenMPTriple(Target);
-      else if (Kind == Action::OFK_SYCL)
-        TT = getSYCLDeviceTriple(Target.str());
-      else
-        TT = llvm::Triple(Target);
-
+      llvm::Triple TT =
+          Kind == Action::OFK_SYCL ? getSYCLDeviceTriple(Target.str()) : Target;
       if (C.getInputArgs().hasArg(options::OPT_fsycl_fp64_conv_emu) &&
           !(TT.isSPIRAOT() &&
             TT.getSubArch() == llvm::Triple::SPIRSubArch_gen)) {
