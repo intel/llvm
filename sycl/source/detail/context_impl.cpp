@@ -262,6 +262,31 @@ void context_impl::addDeviceGlobalInitializer(
   }
 }
 
+void context_impl::removeDeviceGlobalInitializer(
+    ur_program_handle_t Program, const RTDeviceBinaryImage *BinImage) {
+  std::lock_guard<std::mutex> Lock(MDeviceGlobalInitializersMutex);
+
+  for (auto It = MDeviceGlobalInitializers.begin();
+       It != MDeviceGlobalInitializers.end();) {
+    const bool ProgramMatches = It->first.first == Program;
+    const bool ImageMatches = !BinImage || It->second.MBinImage == BinImage;
+
+    if (!ProgramMatches || !ImageMatches) {
+      ++It;
+      continue;
+    }
+
+    {
+      std::lock_guard<std::mutex> InitLock(It->second.MDeviceGlobalInitMutex);
+      It->second.ClearEvents(getAdapter());
+    }
+    if (!It->second.MDeviceGlobalsFullyInitialized)
+      --MDeviceGlobalNotInitializedCnt;
+
+    It = MDeviceGlobalInitializers.erase(It);
+  }
+}
+
 std::vector<ur_event_handle_t> context_impl::initializeDeviceGlobals(
     ur_program_handle_t NativePrg, queue_impl &QueueImpl,
     detail::kernel_bundle_impl *KernelBundleImplPtr) {

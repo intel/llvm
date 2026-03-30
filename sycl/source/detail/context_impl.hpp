@@ -194,6 +194,12 @@ public:
                                   devices_range Devs,
                                   const RTDeviceBinaryImage *BinImage);
 
+  /// Removes device global initializers for a program. If BinImage is not
+  /// null, only initializers associated with that image are removed.
+  void
+  removeDeviceGlobalInitializer(ur_program_handle_t Program,
+                                const RTDeviceBinaryImage *BinImage = nullptr);
+
   /// Initializes device globals for a program on the associated queue.
   std::vector<ur_event_handle_t>
   initializeDeviceGlobals(ur_program_handle_t NativePrg, queue_impl &QueueImpl,

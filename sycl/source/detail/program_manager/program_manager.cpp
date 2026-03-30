@@ -1826,6 +1826,7 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
         auto CurIt = It++;
         if (CurIt->second.second == Img) {
           if (auto ContextImpl = CurIt->second.first.lock()) {
+            ContextImpl->removeDeviceGlobalInitializer(CurIt->first, Img);
             ContextImpl->getKernelProgramCache().removeAllRelatedEntries(
                 Img->getImageID());
           }
