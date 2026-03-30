@@ -349,7 +349,7 @@ static OclocInfo PVCDevices[] = {
      "12.60.7",
      {0x0BD0, 0x0BD5, 0x0BD6, 0x0BD7, 0x0BD8, 0x0BD9, 0x0BDA, 0x0BDB}}};
 
-static std::string getDeviceArg(const ArgStringList &CmdArgs) {
+std::string SYCL::gen::getDeviceArg(const ArgStringList &CmdArgs) {
   bool DeviceSeen = false;
   std::string DeviceArg;
   for (StringRef Arg : CmdArgs) {
@@ -424,7 +424,7 @@ addSYCLDeviceSanitizerLibs(const Compilation &C, bool IsSpirvAOT,
   // corresponding libsycl-asan-* to improve device sanitizer performance,
   // otherwise stick to fallback device sanitizer library used in  JIT mode.
   auto getSpecificGPUTarget = [](const ArgStringList &CmdArgs) -> size_t {
-    std::string DeviceArg = getDeviceArg(CmdArgs);
+    std::string DeviceArg = SYCL::gen::getDeviceArg(CmdArgs);
     if ((DeviceArg.empty()) || (DeviceArg.find(",") != std::string::npos))
       return JIT;
 
@@ -1003,7 +1003,7 @@ static const char *makeExeName(Compilation &C, StringRef Name) {
 // Determine if any of the given arguments contain any PVC based values for
 // the -device option.
 static bool hasPVCDevice(const ArgStringList &CmdArgs, std::string &DevArg) {
-  std::string Res = getDeviceArg(CmdArgs);
+  std::string Res = SYCL::gen::getDeviceArg(CmdArgs);
   if (Res.empty())
     return false;
   // Go through all of the arguments to '-device' and determine if any of these
@@ -1075,18 +1075,6 @@ void SYCL::gen::BackendCompiler::ConstructJob(Compilation &C,
                                 this, "", "out", ParallelJobs);
   } else
     C.addCommand(std::move(Cmd));
-}
-
-// Extracts the device specified after "-device" from the backend
-// argument string provided via -Xsycl-target-backend.
-StringRef SYCL::gen::extractDeviceFromArg(llvm::StringRef Arg) {
-  llvm::SmallVector<StringRef, 8> Arglist;
-  Arg.split(Arglist, ' ');
-  for (size_t i = 0; i + 1 < Arglist.size(); ++i) {
-    if (Arglist[i] == "-device")
-      return Arglist[i + 1];
-  }
-  return "";
 }
 
 StringRef SYCL::gen::resolveGenDevice(StringRef DeviceName) {
@@ -1577,8 +1565,10 @@ void SYCLToolChain::TranslateTargetOpt(const llvm::Triple &Triple,
           getDriver().getSYCLDeviceTriple(A->getValue(), A);
       // Passing device args: -X<Opt>=<triple> -opt=val.
       StringRef GenDevice = SYCL::gen::resolveGenDevice(A->getValue());
-      if (GenDevice.empty())
-        GenDevice = SYCL::gen::extractDeviceFromArg(A->getValue(1));
+      if (GenDevice.empty()) {
+        ArgStringList DeviceBackendArgs{A->getValue(1)};
+        GenDevice = Args.MakeArgString(SYCL::gen::getDeviceArg(DeviceBackendArgs));
+      }
       bool IsGenTriple = Triple.isSPIR() &&
                          Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen;
       if (IsGenTriple) {
@@ -1587,9 +1577,6 @@ void SYCLToolChain::TranslateTargetOpt(const llvm::Triple &Triple,
         if (OptTargetTriple != Triple && GenDevice.empty())
           // Triples do not match, but only skip when we know we are not
           // comparing against intel_gpu_*
-          continue;
-        if (OptTargetTriple == Triple && !Device.empty())
-          // Triples match, but we are expecting a specific device to be set.
           continue;
       } else if (OptTargetTriple != Triple)
         continue;
