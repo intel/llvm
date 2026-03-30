@@ -37,10 +37,14 @@
 // clang-format off
 
 // build the shared library
-clang++ -fsycl -fsycl-targets=spir64 -fPIC -ftarget-export-symbols -fsycl-allow-device-image-dependencies -shared -o libdevice_global_test.so ./Inputs/device_global_device_image_lib.cpp
+clang++ -fsycl -fsycl-targets=spir64 -fPIC -ftarget-export-symbols
+-fsycl-allow-device-image-dependencies -shared -o libdevice_global_test.so
+./Inputs/device_global_device_image_lib.cpp
 
 // build the app
-clang++ -fsycl -fsycl-targets=spir64 -fPIC -ftarget-export-symbols -fsycl-allow-device-image-dependencies -o test.bin device_global_device_image_app.cpp -L. -ldevice_global_test -Wl,-rpath=.
+clang++ -fsycl -fsycl-targets=spir64 -fPIC -ftarget-export-symbols
+-fsycl-allow-device-image-dependencies -o test.bin
+device_global_device_image_app.cpp -L. -ldevice_global_test -Wl,-rpath=.
 
 // run
 ./test.bin
@@ -48,12 +52,13 @@ clang++ -fsycl -fsycl-targets=spir64 -fPIC -ftarget-export-symbols -fsycl-allow-
 // clang-format on
 */
 
+#include <iostream>
 #include <sycl/detail/core.hpp>
 #include <sycl/usm.hpp>
-#include <iostream>
 
 // Declare external symbols from library
-extern SYCL_EXTERNAL sycl::ext::oneapi::experimental::device_global<int> test_global;
+extern SYCL_EXTERNAL sycl::ext::oneapi::experimental::device_global<int>
+    test_global;
 extern "C" void set_test_global(int val);
 extern "C" int get_test_global();
 extern "C" int read_global_in_lib();
@@ -74,10 +79,11 @@ int main() {
   int *dev_result = sycl::malloc_device<int>(1, q);
 
   q.submit([&](sycl::handler &h) {
-      h.single_task([=]() {
-          dev_result[0] = test_global; // Read in main's kernel - this tests the fix
-        });
-    }).wait();
+     h.single_task([=]() {
+       dev_result[0] =
+           test_global; // Read in main's kernel - this tests the fix
+     });
+   }).wait();
 
   int main_read = 0;
   q.copy(dev_result, &main_read, 1).wait();
