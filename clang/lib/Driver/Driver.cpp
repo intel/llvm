@@ -989,7 +989,7 @@ getSystemOffloadArchs(Compilation &C, Action::OffloadKind Kind) {
 
 // Attempts to infer the correct offloading toolchain triple by looking at the
 // requested offloading kind and architectures.
-static llvm::DenseSet<llvm::StringRef>
+static std::multiset<llvm::StringRef>
 inferOffloadToolchains(Compilation &C, Action::OffloadKind Kind) {
   // SYCL offloading to AOT Targets with '--offload-arch'
   // is currently enabled only with '--offload-new-driver' option.
@@ -1000,7 +1000,7 @@ inferOffloadToolchains(Compilation &C, Action::OffloadKind Kind) {
       !C.getInputArgs().hasFlag(options::OPT_offload_new_driver,
                                 options::OPT_no_offload_new_driver, false)) {
     C.getDriver().Diag(clang::diag::err_drv_sycl_offload_arch_new_driver);
-    return llvm::DenseSet<llvm::StringRef>();
+    return {};
   }
   std::set<std::string> Archs;
   for (Arg *A : C.getInputArgs()) {
@@ -1021,7 +1021,7 @@ inferOffloadToolchains(Compilation &C, Action::OffloadKind Kind) {
     }
   }
 
-  llvm::DenseSet<llvm::StringRef> Triples;
+  std::multiset<llvm::StringRef> Triples;
   for (llvm::StringRef Arch : Archs) {
     OffloadArch ID = StringToOffloadArch(Arch);
     if (ID == OffloadArch::Unknown)
@@ -1031,24 +1031,24 @@ inferOffloadToolchains(Compilation &C, Action::OffloadKind Kind) {
     if (Kind == Action::OFK_HIP && !IsAMDOffloadArch(ID)) {
       C.getDriver().Diag(clang::diag::err_drv_offload_bad_gpu_arch)
           << "HIP" << Arch;
-      return llvm::DenseSet<llvm::StringRef>();
+      return {};
     }
     if (Kind == Action::OFK_Cuda && !IsNVIDIAOffloadArch(ID)) {
       C.getDriver().Diag(clang::diag::err_drv_offload_bad_gpu_arch)
           << "CUDA" << Arch;
-      return llvm::DenseSet<llvm::StringRef>();
+      return {};
     }
     if (Kind == Action::OFK_OpenMP &&
         (IsIntelCPUOffloadArch(ID) || IsIntelGPUOffloadArch(ID) ||
          ID == OffloadArch::Unknown || ID == OffloadArch::Unused)) {
       C.getDriver().Diag(clang::diag::err_drv_failed_to_deduce_target_from_arch)
           << Arch;
-      return llvm::DenseSet<llvm::StringRef>();
+      return {};
     }
     if (ID == OffloadArch::Unknown || ID == OffloadArch::Unused) {
       C.getDriver().Diag(clang::diag::err_drv_offload_bad_gpu_arch)
           << "offload" << Arch;
-      return llvm::DenseSet<llvm::StringRef>();
+      return {};
     }
 
     llvm::StringRef TripleStr =
@@ -1396,10 +1396,8 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
                  .getLastArg(options::OPT_offload_targets_EQ)
                  ->getAsString(C.getInputArgs());
   } else if (Kinds.size() > 0) {
-    for (Action::OffloadKind Kind : Kinds) {
-      llvm::DenseSet<llvm::StringRef> Derived = inferOffloadToolchains(C, Kind);
-      Triples.insert(Derived.begin(), Derived.end());
-    }
+    for (Action::OffloadKind Kind : Kinds)
+      Triples = inferOffloadToolchains(C, Kind);
   }
   FoundNormalizedTriples.clear();
   // Build an offloading toolchain for every requested target and kind.
