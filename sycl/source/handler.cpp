@@ -771,6 +771,7 @@ detail::EventImplPtr handler::finalize() {
   // For commands other than kernel and host task submission, if an event has
   // not been requested, the queue supports events discarding, and the scheduler
   // could have been bypassed (not supported yet), the event can be skipped.
+  // TODO: check if it's possible to discard an event for host task.
   bool DiscardEvent =
       (type != detail::CGType::Kernel &&
        type != detail::CGType::CodeplayHostTask && KernelSchedulerBypass &&
@@ -1650,6 +1651,15 @@ void handler::SetHostTask(std::function<void()> Func) {
   range<1> r(1);
   setNDRangeDescriptor(detail::nd_range_view(r));
   impl->MHostTask.reset(new detail::HostTask(std::move(Func)));
+  setType(detail::CGType::CodeplayHostTask);
+}
+
+void handler::SetHostTaskFromExtEnqueueFunctions(std::function<void()> Func) {
+  range<1> r(1);
+  setNDRangeDescriptor(detail::nd_range_view(r));
+  impl->MHostTask.reset(
+      new detail::HostTask(std::move(Func), /*IsFromExtEnqueueFunctionsAPI=*/
+                           true));
   setType(detail::CGType::CodeplayHostTask);
 }
 

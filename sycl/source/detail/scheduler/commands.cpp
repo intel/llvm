@@ -241,6 +241,11 @@ void InteropFreeFunc(ur_queue_handle_t, void *InteropData) {
   auto *Data = reinterpret_cast<EnqueueNativeCommandData *>(InteropData);
   return Data->func(Data->ih);
 }
+
+void NativeHostTask(void *funcPtr) {
+  auto *func = static_cast<std::function<void()> *>(funcPtr);
+  (*func)();
+}
 } // namespace
 
 class DispatchHostTask {
@@ -331,6 +336,7 @@ public:
     }
 
     try {
+      auto &Queue = HostTask.MQueue;
       // we're ready to call the user-defined lambda now
       if (HostTask.MHostTask->isInteropTask()) {
         assert(HostTask.MQueue &&
@@ -338,7 +344,6 @@ public:
         interop_handle IH{MReqToMem, HostTask.MQueue};
         // TODO: should all the backends that support this entry point use this
         // for host task?
-        auto &Queue = HostTask.MQueue;
         bool NativeCommandSupport = false;
         Queue->getAdapter().call<UrApiKind::urDeviceGetInfo>(
             detail::getSyclObjImpl(Queue->get_device())->getHandleRef(),
@@ -356,14 +361,29 @@ public:
           // This entry point is needed in order to migrate memory across
           // devices in the same context for CUDA and HIP backends
           Queue->getAdapter().call<UrApiKind::urEnqueueNativeCommandExp>(
-              HostTask.MQueue->getHandleRef(), InteropFreeFunc, &CustomOpData,
+              Queue->getHandleRef(), InteropFreeFunc, &CustomOpData,
               MReqUrMem.size(), MReqUrMem.data(), nullptr, 0, nullptr, nullptr);
         } else {
           HostTask.MHostTask->call(MThisCmd->MEvent->getHostProfilingInfo(),
                                    IH);
         }
-      } else
-        HostTask.MHostTask->call(MThisCmd->MEvent->getHostProfilingInfo());
+      } else {
+        if (HostTask.MHostTask->isCreatedFromEnqueueFunction()) {
+          bool NativeHostTaskSupport = false;
+          Queue->getAdapter().call<UrApiKind::urDeviceGetInfo>(
+              detail::getSyclObjImpl(Queue->get_device())->getHandleRef(),
+              UR_DEVICE_INFO_ENQUEUE_HOST_TASK_SUPPORT_EXP,
+              sizeof(NativeHostTaskSupport), &NativeHostTaskSupport, nullptr);
+          if (NativeHostTaskSupport)
+            Queue->getAdapter().call<UrApiKind::urEnqueueHostTaskExp>(
+                Queue->getHandleRef(), NativeHostTask,
+                &HostTask.MHostTask->MHostTask, nullptr, 0, nullptr, nullptr);
+          else
+            HostTask.MHostTask->call(MThisCmd->MEvent->getHostProfilingInfo());
+        } else {
+          HostTask.MHostTask->call(MThisCmd->MEvent->getHostProfilingInfo());
+        }
+      }
     } catch (...) {
       auto CurrentException = std::current_exception();
 #ifdef XPTI_ENABLE_INSTRUMENTATION
