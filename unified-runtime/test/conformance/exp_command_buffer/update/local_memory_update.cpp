@@ -39,104 +39,35 @@ struct LocalMemoryUpdateTestBase
       std::memcpy(shared_ptr, pattern.data(), allocation_size);
     }
     size_t current_index = 0;
-    // Index 0 is local_mem_a arg
-    local_mem_kernel_args.push_back(
-        {UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
-         nullptr,
-         UR_EXP_KERNEL_ARG_TYPE_LOCAL,
-         static_cast<uint32_t>(current_index++),
-         local_mem_a_size,
-         {nullptr}});
+    auto addArg = [&](ur_exp_kernel_arg_properties_t arg) {
+      local_mem_kernel_args.push_back(arg);
+    };
+    auto nextIdx = [&]() { return static_cast<uint32_t>(current_index++); };
+    auto addHipLocalOffsets = [&]() {
+      if (backend == UR_BACKEND_HIP) {
+        for (int i = 0; i < 3; i++) {
+          addArg(uur::MakeValueArgProp(nextIdx(), &hip_local_offset,
+                                       sizeof(hip_local_offset)));
+        }
+      }
+    };
 
-    // Hip has extra args for local mem at index 1-3
-    if (backend == UR_BACKEND_HIP) {
-      local_mem_kernel_args.push_back(
-          {UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
-           nullptr,
-           UR_EXP_KERNEL_ARG_TYPE_VALUE,
-           static_cast<uint32_t>(current_index++),
-           sizeof(hip_local_offset),
-           {&hip_local_offset}});
-      local_mem_kernel_args.push_back(
-          {UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
-           nullptr,
-           UR_EXP_KERNEL_ARG_TYPE_VALUE,
-           static_cast<uint32_t>(current_index++),
-           sizeof(hip_local_offset),
-           {&hip_local_offset}});
-      local_mem_kernel_args.push_back(
-          {UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
-           nullptr,
-           UR_EXP_KERNEL_ARG_TYPE_VALUE,
-           static_cast<uint32_t>(current_index++),
-           sizeof(hip_local_offset),
-           {&hip_local_offset}});
-    }
+    // Index 0 is local_mem_a arg
+    addArg(uur::MakeLocalArgProp(nextIdx(), local_mem_a_size));
+    addHipLocalOffsets();
 
     // Index 1 is local_mem_b arg
-    local_mem_kernel_args.push_back(
-        {UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
-         nullptr,
-         UR_EXP_KERNEL_ARG_TYPE_LOCAL,
-         static_cast<uint32_t>(current_index++),
-         local_mem_b_size,
-         {nullptr}});
-    if (backend == UR_BACKEND_HIP) {
-      local_mem_kernel_args.push_back(
-          {UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
-           nullptr,
-           UR_EXP_KERNEL_ARG_TYPE_VALUE,
-           static_cast<uint32_t>(current_index++),
-           sizeof(hip_local_offset),
-           {&hip_local_offset}});
-      local_mem_kernel_args.push_back(
-          {UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
-           nullptr,
-           UR_EXP_KERNEL_ARG_TYPE_VALUE,
-           static_cast<uint32_t>(current_index++),
-           sizeof(hip_local_offset),
-           {&hip_local_offset}});
-      local_mem_kernel_args.push_back(
-          {UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
-           nullptr,
-           UR_EXP_KERNEL_ARG_TYPE_VALUE,
-           static_cast<uint32_t>(current_index++),
-           sizeof(hip_local_offset),
-           {&hip_local_offset}});
-    }
+    addArg(uur::MakeLocalArgProp(nextIdx(), local_mem_b_size));
+    addHipLocalOffsets();
 
     // Index 2 is output
-    local_mem_kernel_args.push_back(
-        {UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
-         nullptr,
-         UR_EXP_KERNEL_ARG_TYPE_POINTER,
-         static_cast<uint32_t>(current_index++),
-         sizeof(void *),
-         {shared_ptrs[0]}});
+    addArg(uur::MakePointerArgProp(nextIdx(), shared_ptrs[0]));
     // Index 3 is A
-    local_mem_kernel_args.push_back(
-        {UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
-         nullptr,
-         UR_EXP_KERNEL_ARG_TYPE_VALUE,
-         static_cast<uint32_t>(current_index++),
-         sizeof(A),
-         {&A}});
+    addArg(uur::MakeValueArgProp(nextIdx(), &A, sizeof(A)));
     // Index 4 is X
-    local_mem_kernel_args.push_back(
-        {UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
-         nullptr,
-         UR_EXP_KERNEL_ARG_TYPE_POINTER,
-         static_cast<uint32_t>(current_index++),
-         sizeof(void *),
-         {shared_ptrs[1]}});
+    addArg(uur::MakePointerArgProp(nextIdx(), shared_ptrs[1]));
     // Index 5 is Y
-    local_mem_kernel_args.push_back(
-        {UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
-         nullptr,
-         UR_EXP_KERNEL_ARG_TYPE_POINTER,
-         static_cast<uint32_t>(current_index++),
-         sizeof(void *),
-         {shared_ptrs[2]}});
+    addArg(uur::MakePointerArgProp(nextIdx(), shared_ptrs[2]));
   }
 
   void Validate(uint32_t *output, uint32_t *X, uint32_t *Y, uint32_t A,
