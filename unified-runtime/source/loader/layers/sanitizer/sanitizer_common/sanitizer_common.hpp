@@ -142,7 +142,7 @@ uptr MmapNoReserve(uptr Addr, uptr Size);
 bool Munmap(uptr Addr, uptr Size);
 bool ProtectMemoryRange(uptr Addr, uptr Size);
 bool DontCoredumpRange(uptr Addr, uptr Size);
-void ReExec();
+void TryReExecWithoutASLR();
 
 void *GetMemFunctionPointer(const char *);
 

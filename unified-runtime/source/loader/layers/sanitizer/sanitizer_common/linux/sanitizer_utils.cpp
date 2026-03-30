@@ -15,6 +15,8 @@
 #include "ur_sanitizer_layer.hpp"
 
 #include <asm/param.h>
+#include <cerrno>
+#include <cstring>
 #include <cxxabi.h>
 #include <dlfcn.h>
 #include <elf.h>
@@ -22,6 +24,7 @@
 #include <string>
 #include <sys/auxv.h>
 #include <sys/mman.h>
+#include <sys/personality.h>
 #include <unistd.h>
 
 extern "C" __attribute__((weak)) void __asan_init(void);
@@ -81,13 +84,31 @@ static void GetArgsAndEnv(char ***Argv, char ***Envp) {
   }
 }
 
-void ReExec() {
+static void ReExec() {
   const char *PathName = reinterpret_cast<const char *>(getauxval(AT_EXECFN));
   char **Argv, **Envp;
   GetArgsAndEnv(&Argv, &Envp);
   execve(PathName, Argv, Envp);
   std::string Err = "ReExec failed: " + std::string(strerror(errno)) + ".\n";
   die(Err.c_str());
+}
+
+void TryReExecWithoutASLR() {
+  // If failed to reserve shadow memory, check if ASLR is on. If ASLR is on,
+  // re-exec with ASLR off.
+  int OldPersonality = personality(0xffffffff);
+  if ((OldPersonality != -1) && ((OldPersonality & ADDR_NO_RANDOMIZE) == 0)) {
+    UR_LOG_L(getContext()->logger, DEBUG,
+             "memory layout is incompatible, possibly due to high-entropy "
+             "ASLR. Re-execing with fixed virtual address space.");
+    if (personality(OldPersonality | ADDR_NO_RANDOMIZE) == -1) {
+      die("Unable to disable ASLR, Device ThreadSanitizer can't work "
+          "properly.");
+    }
+    ReExec();
+  }
+  die("Device ThreadSanitizer failed to reserve shadow memory since shadow "
+      "memory interleaves with an existing mapping.");
 }
 
 void *GetMemFunctionPointer(const char *FuncName) {

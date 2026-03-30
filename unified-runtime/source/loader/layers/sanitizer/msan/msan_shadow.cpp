@@ -16,7 +16,6 @@
 #include "sanitizer_common/sanitizer_utils.hpp"
 #include "unified-runtime/ur_api.h"
 #include "ur_sanitizer_layer.hpp"
-#include <sys/personality.h>
 
 namespace ur_sanitizer_layer {
 namespace msan {
@@ -83,52 +82,41 @@ GetMsanShadowMemory(ur_context_handle_t Context, ur_device_handle_t Device,
 }
 
 ur_result_t MsanShadowMemoryCPU::Setup() {
-  static bool Initialized = []() {
-    for (unsigned i = 0; i < kMemoryLayoutSize; ++i) {
-      uptr Start = kMemoryLayout[i].start;
-      uptr End = kMemoryLayout[i].end;
-      uptr Size = End - Start;
-      MappingDesc::Type Type = kMemoryLayout[i].type;
+  bool Initialized = true;
+  for (unsigned i = 0; i < kMemoryLayoutSize; ++i) {
+    uptr Start = kMemoryLayout[i].start;
+    uptr End = kMemoryLayout[i].end;
+    uptr Size = End - Start;
+    MappingDesc::Type Type = kMemoryLayout[i].type;
 
-      bool IsMap = Type == MappingDesc::SHADOW || Type == MappingDesc::ORIGIN;
-      bool IsProtect = Type == MappingDesc::INVALID;
+    bool IsMap = Type == MappingDesc::SHADOW || Type == MappingDesc::ORIGIN;
+    bool IsProtect = Type == MappingDesc::INVALID;
 
-      if (IsMap) {
-        if (!MmapFixedNoReserve(Start, Size)) {
-          UR_LOG_L(getContext()->logger, DEBUG,
-                   "Failed to mmap shadow memory: {} - {}", (void *)Start,
-                   (void *)End);
-          return false;
-        }
+    if (IsMap) {
+      if (!MmapFixedNoReserve(Start, Size)) {
         DontCoredumpRange(Start, Size);
-      }
-      if (IsProtect) {
-        if (!ProtectMemoryRange(Start, Size)) {
-          UR_LOG_L(getContext()->logger, DEBUG,
-                   "Failed to protect memory range: {} - {}", (void *)Start,
-                   (void *)End);
-          return false;
-        }
+        UR_LOG_L(getContext()->logger, DEBUG,
+                 "Failed to mmap shadow memory: {} - {}", (void *)Start,
+                 (void *)End);
+        Initialized = false;
+        break;
       }
     }
-    return true;
-  }();
+    if (IsProtect) {
+      if (!ProtectMemoryRange(Start, Size)) {
+        UR_LOG_L(getContext()->logger, DEBUG,
+                 "Failed to protect memory range: {} - {}", (void *)Start,
+                 (void *)End);
+        Initialized = false;
+        break;
+      }
+    }
+  }
 
   if (!Initialized) {
-    // If failed to reserve shadow memory, check if ASLR is on. If ASLR is on,
-    // re-exec with ASLR off.
-    int OldPersonality = personality(0xffffffff);
-    if ((OldPersonality != -1) && ((OldPersonality & ADDR_NO_RANDOMIZE) == 0)) {
-      UR_LOG_L(getContext()->logger, DEBUG,
-               "memory layout is incompatible, possibly due to high-entropy "
-               "ASLR. Re-execing with fixed virtual address space.");
-      if (personality(OldPersonality | ADDR_NO_RANDOMIZE) == -1) {
-        die("Unable to disable ASLR, Device MemorySanitizer can't work "
-            "properly.");
-      }
-      ReExec();
-    }
-    return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+    TryReExecWithoutASLR();
+    die("Device MemorySanitizer failed to reserve shadow memory since shadow "
+        "memory interleaves with an existing mapping.");
   }
 
   ShadowBegin = kMemoryLayout[1].start;
@@ -140,23 +128,21 @@ ur_result_t MsanShadowMemoryCPU::Destory() {
   if (ShadowBegin == 0 && ShadowEnd == 0) {
     return UR_RESULT_SUCCESS;
   }
-  static ur_result_t Result = [this]() {
-    for (unsigned i = 0; i < kMemoryLayoutSize; ++i) {
-      uptr Start = kMemoryLayout[i].start;
-      uptr End = kMemoryLayout[i].end;
-      uptr Size = End - Start;
-      MappingDesc::Type Type = kMemoryLayout[i].type;
-      bool IsMap = Type == MappingDesc::SHADOW || Type == MappingDesc::ORIGIN;
-      if (IsMap) {
-        if (Munmap(Start, Size)) {
-          return UR_RESULT_ERROR_UNKNOWN;
-        }
+
+  for (unsigned i = 0; i < kMemoryLayoutSize; ++i) {
+    uptr Start = kMemoryLayout[i].start;
+    uptr End = kMemoryLayout[i].end;
+    uptr Size = End - Start;
+    MappingDesc::Type Type = kMemoryLayout[i].type;
+    bool IsMap = Type == MappingDesc::SHADOW || Type == MappingDesc::ORIGIN;
+    if (IsMap) {
+      if (!Munmap(Start, Size)) {
+        return UR_RESULT_ERROR_UNKNOWN;
       }
     }
-    ShadowBegin = ShadowEnd = 0;
-    return UR_RESULT_SUCCESS;
-  }();
-  return Result;
+  }
+  ShadowBegin = ShadowEnd = 0;
+  return UR_RESULT_SUCCESS;
 }
 
 uptr MsanShadowMemoryCPU::MemToShadow(uptr Ptr) { return MEM_TO_SHADOW(Ptr); }
