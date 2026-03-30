@@ -4325,10 +4325,12 @@ void SPIRVToLLVM::transIntelFPGADecorations(SPIRVValue *BV, Value *V) {
     IRBuilder<> Builder(Inst->getParent());
 
     Type *Int8PtrTyPrivate = PointerType::get(*Context, SPIRAS_Private);
+    Type *PtrTyConstant = PointerType::get(*Context, SPIRAS_Constant);
     IntegerType *Int32Ty = IntegerType::get(*Context, 32);
 
     Value *UndefInt8Ptr = PoisonValue::get(Int8PtrTyPrivate);
     Value *UndefInt32 = PoisonValue::get(Int32Ty);
+    Constant *NullPtrConst = Constant::getNullValue(PtrTyConstant);
 
     if (AL && BV->getType()->getPointerElementType()->isTypeStruct()) {
       auto *ST = BV->getType()->getPointerElementType();
@@ -4339,7 +4341,7 @@ void SPIRVToLLVM::transIntelFPGADecorations(SPIRVValue *BV, Value *V) {
         generateIntelFPGAAnnotationForStructMember(ST, I, AnnotStrVec);
         CallInst *AnnotationCall = nullptr;
         for (const auto &AnnotStr : AnnotStrVec) {
-          auto *GS = Builder.CreateGlobalString(AnnotStr);
+          auto *GS = Builder.CreateGlobalString(AnnotStr, "", SPIRAS_Constant);
 
           Instruction *PtrAnnFirstArg = nullptr;
 
@@ -4365,13 +4367,11 @@ void SPIRVToLLVM::transIntelFPGADecorations(SPIRVValue *BV, Value *V) {
           }
 
           auto *AnnotationFn = llvm::Intrinsic::getOrInsertDeclaration(
-              M, Intrinsic::ptr_annotation, {IntTy, Int8PtrTyPrivate});
-
+              M, Intrinsic::ptr_annotation, {IntTy, PtrTyConstant});
           llvm::Value *Args[] = {
               Builder.CreateBitCast(PtrAnnFirstArg, IntTy,
                                     PtrAnnFirstArg->getName()),
-              Builder.CreateBitCast(GS, Int8PtrTyPrivate), UndefInt8Ptr,
-              UndefInt32, UndefInt8Ptr};
+              GS, NullPtrConst, UndefInt32, NullPtrConst};
           AnnotationCall = Builder.CreateCall(AnnotationFn, Args);
           GEPOrUseMap[AL][I] = AnnotationCall;
         }
