@@ -11677,7 +11677,8 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
             // extracted from the backend arguments. If the target is
             // spir64_x86_64, the Device value returned by extractDeviceFromArg
             // will be an empty string.
-            Device = SYCL::gen::extractDeviceFromArg(A->getValue(1));
+            ArgStringList DeviceBackendArgs{A->getValue(1)};
+            Device = Args.MakeArgString(SYCL::gen::getDeviceArg(DeviceBackendArgs));
           }
         }
         SYCLTC.TranslateBackendTargetArgs(TC->getTriple(), Args, BuildArgs,
