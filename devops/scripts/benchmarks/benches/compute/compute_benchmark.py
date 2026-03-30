@@ -144,10 +144,6 @@ class ComputeBenchmark(Benchmark):
         # Start with all supported runtimes and apply configuration filters
         runtimes = self._supported_runtimes()
 
-        # Remove UR if not available
-        if options.ur is None:
-            runtimes = [r for r in runtimes if r != RUNTIMES.UR]
-
         # Remove Level Zero if using CUDA backend
         if options.ur_adapter == "cuda":
             runtimes = [r for r in runtimes if r != RUNTIMES.LEVEL_ZERO]

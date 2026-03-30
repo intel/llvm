@@ -298,7 +298,6 @@ runs:
       numactl --cpunodebind "$NUMA_NODE" --membind "$NUMA_NODE" \
       ./devops/scripts/benchmarks/main.py "$BENCH_WORKDIR" \
         --sycl "$(realpath $CMPLR_ROOT)" \
-        --ur "$(realpath $CMPLR_ROOT)" \
         --adapter "$FORCELOAD_ADAPTER" \
         --save "$SAVE_NAME" \
         --output-html remote \
@@ -342,9 +341,6 @@ runs:
       COMPUTE_BENCHMARKS_BUILD_PATH: ${{ steps.establish_outputs.outputs.BENCH_WORKDIR }}/compute-benchmarks-build
     run: |
       # Run benchmarks' integration tests
-
-      # Enable testing UR benchmarks
-      export LLVM_BENCH_UR_INSTALL_DIR="$(realpath ./ur/install)"
 
       # NOTE: Each integration test prints its own group name as part of test script
       python3 ./devops/scripts/benchmarks/tests/test_integration.py
