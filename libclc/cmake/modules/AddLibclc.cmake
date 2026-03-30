@@ -304,7 +304,7 @@ function(add_libclc_builtin_set)
       TRIPLE ${ARG_TRIPLE}
       INPUT ${input_file}
       OUTPUT ${output_file}
-      EXTRA_OPTS -nostdlib "${ARG_COMPILE_FLAGS}"
+      EXTRA_OPTS -nostdlib -nostdlibinc "${ARG_COMPILE_FLAGS}"
         "${file_specific_compile_options}"
         -I${CMAKE_CURRENT_SOURCE_DIR}/${file_dir}
     )
@@ -380,6 +380,10 @@ function(add_libclc_builtin_set)
   # entry points once we've linked the CLC buitins into them
   if( ARG_CLC_INTERNAL )
     return()
+  endif()
+
+  if (NOT DEFINED ARG_PARENT_TARGET OR ARG_PARENT_TARGET STREQUAL "")
+    message(FATAL_ERROR "PARENT_TARGET parameter is required and must be non-empty.")
   endif()
 
   if (NOT DEFINED ARG_OUTPUT_FILENAME OR ARG_OUTPUT_FILENAME STREQUAL "")
@@ -531,9 +535,11 @@ function(add_libclc_builtin_set)
   endif()
 
   foreach( a IN LISTS ARG_ALIASES )
+    set(target_output_dir ${LIBCLC_OUTPUT_LIBRARY_DIR}/${ARG_TRIPLE}/${a})
+
     if(CMAKE_HOST_UNIX OR LLVM_USE_SYMLINKS)
       cmake_path(RELATIVE_PATH libclc_builtins_lib
-        BASE_DIRECTORY ${LIBCLC_OUTPUT_LIBRARY_DIR}
+        BASE_DIRECTORY ${target_output_dir}
         OUTPUT_VARIABLE LIBCLC_LINK_OR_COPY_SOURCE)
       set(LIBCLC_LINK_OR_COPY create_symlink)
     else()
@@ -541,8 +547,9 @@ function(add_libclc_builtin_set)
       set(LIBCLC_LINK_OR_COPY copy)
     endif()
 
-    file( MAKE_DIRECTORY ${LIBCLC_OUTPUT_LIBRARY_DIR}/${ARG_TRIPLE}/${a} )
-    set( libclc_alias_lib ${LIBCLC_OUTPUT_LIBRARY_DIR}/${ARG_TRIPLE}/${a}/${LIBCLC_OUTPUT_FILENAME}.bc )
+    file( MAKE_DIRECTORY ${target_output_dir} )
+    set( libclc_alias_lib ${target_output_dir}/${LIBCLC_OUTPUT_FILENAME}.bc )
+
     add_custom_command(
       OUTPUT ${libclc_alias_lib}
       COMMAND ${CMAKE_COMMAND} -E ${LIBCLC_LINK_OR_COPY} ${LIBCLC_LINK_OR_COPY_SOURCE} ${libclc_alias_lib}

@@ -13,7 +13,7 @@
 #include "common/ur_ref_count.hpp"
 #include "enqueued_pool.hpp"
 #include "event.hpp"
-#include "ur_api.h"
+#include "unified-runtime/ur_api.h"
 #include "ur_pool_manager.hpp"
 #include "usm.hpp"
 #include <umf_helpers.hpp>

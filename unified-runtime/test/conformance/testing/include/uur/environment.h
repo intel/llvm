@@ -11,8 +11,8 @@
 #include <gtest/gtest.h>
 #include <optional>
 #include <string>
+#include <unified-runtime/ur_api.h>
 #include <unordered_map>
-#include <ur_api.h>
 namespace uur {
 
 struct AdapterEnvironment : ::testing::Environment {

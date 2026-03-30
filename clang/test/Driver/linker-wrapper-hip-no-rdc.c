@@ -18,9 +18,9 @@ __attribute__((visibility("protected"), used)) int x;
 // Note: When called directly (not through the driver), the linker wrapper processes architectures
 // from the packaged binary. The test verifies it can process at least one architecture correctly.
 // RUN: %if system-windows %{ \
-// RUN:   clang-linker-wrapper --wrapper-verbose --device-linker=amdgcn-amd-amdhsa=-v --device-compiler=-v --emit-fatbin-only --linker-path=/usr/bin/ld %t.out -o %t.hipfb 2>&1 | FileCheck %s --check-prefix=CMD-WIN \
+// RUN:   clang-linker-wrapper --host-triple=x86_64-unknown-linux-gnu --wrapper-verbose --device-linker=amdgcn-amd-amdhsa=-v --device-compiler=-v --emit-fatbin-only --linker-path=/usr/bin/ld %t.out -o %t.hipfb 2>&1 | FileCheck %s --check-prefix=CMD-WIN \
 // RUN: %} %else %{ \
-// RUN:   clang-linker-wrapper --wrapper-verbose --device-linker=amdgcn-amd-amdhsa=-v --device-compiler=-v --emit-fatbin-only --linker-path=/usr/bin/ld %t.out -o %t.hipfb 2>&1 | FileCheck %s --check-prefix=CMD-LINUX \
+// RUN:   clang-linker-wrapper --host-triple=x86_64-unknown-linux-gnu --wrapper-verbose --device-linker=amdgcn-amd-amdhsa=-v --device-compiler=-v --emit-fatbin-only --linker-path=/usr/bin/ld %t.out -o %t.hipfb 2>&1 | FileCheck %s --check-prefix=CMD-LINUX \
 // RUN: %}
 
 // On Linux, ':' is preserved in file names

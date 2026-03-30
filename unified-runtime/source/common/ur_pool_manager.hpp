@@ -12,11 +12,11 @@
 #ifndef USM_POOL_MANAGER_HPP
 #define USM_POOL_MANAGER_HPP 1
 
-#include <ur_ddi.h>
+#include <unified-runtime/ur_ddi.h>
 
 #include "logger/ur_logger.hpp"
 #include "umf_helpers.hpp"
-#include "ur_api.h"
+#include "unified-runtime/ur_api.h"
 #include "ur_util.hpp"
 
 #include <umf/memory_pool.h>

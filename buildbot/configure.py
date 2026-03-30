@@ -52,7 +52,7 @@ def do_configure(args, passthrough_args):
     libclc_build_native = "OFF"
     libclc_targets_to_build = ""
     libclc_gen_remangled_variants = "OFF"
-    sycl_build_pi_hip_platform = "AMD"
+    sycl_build_ur_hip_platform = "AMD"
     sycl_clang_extra_flags = ""
     sycl_werror = "OFF"
     llvm_enable_assertions = "ON"
@@ -81,7 +81,7 @@ def do_configure(args, passthrough_args):
 
     libclc_enabled = args.cuda or args.hip or args.native_cpu
     if libclc_enabled:
-        llvm_enable_runtimes += ";libclc"
+        llvm_enable_projects += ";libclc"
 
     # DeviceRTL uses -fuse-ld=lld, so enable lld.
     if args.offload:
@@ -104,7 +104,7 @@ def do_configure(args, passthrough_args):
             libclc_targets_to_build += libclc_nvidia_target_names
         libclc_gen_remangled_variants = "ON"
 
-        sycl_build_pi_hip_platform = args.hip_platform
+        sycl_build_ur_hip_platform = args.hip_platform
         sycl_enabled_backends.append("hip")
 
     if args.native_cpu:
@@ -149,12 +149,12 @@ def do_configure(args, passthrough_args):
 
         # For clang-format, clang-tidy and code coverage
         llvm_enable_projects += ";clang-tools-extra"
-        llvm_enable_runtimes += ";compiler-rt"
+        llvm_enable_runtimes += "compiler-rt"
         if sys.platform != "darwin":
             # libclc is required for CI validation
             libclc_enabled = True
-            if "libclc" not in llvm_enable_runtimes:
-                llvm_enable_runtimes += ";libclc"
+            if "libclc" not in llvm_enable_projects:
+                llvm_enable_projects += ";libclc"
             # libclc passes `--nvvm-reflect-enable=false`, build NVPTX to enable it
             if "NVPTX" not in llvm_targets_to_build:
                 llvm_targets_to_build += ";NVPTX"
@@ -192,7 +192,7 @@ def do_configure(args, passthrough_args):
         "-DLLVM_EXTERNAL_LIBDEVICE_SOURCE_DIR={}".format(libdevice_dir),
         "-DLLVM_EXTERNAL_SYCL_JIT_SOURCE_DIR={}".format(jit_dir),
         "-DLLVM_ENABLE_PROJECTS={}".format(llvm_enable_projects),
-        "-DSYCL_BUILD_PI_HIP_PLATFORM={}".format(sycl_build_pi_hip_platform),
+        "-DSYCL_BUILD_UR_HIP_PLATFORM={}".format(sycl_build_ur_hip_platform),
         "-DLLVM_BUILD_TOOLS=ON",
         "-DLLVM_ENABLE_ZSTD={}".format(llvm_enable_zstd),
         "-DLLVM_USE_STATIC_ZSTD=ON",
@@ -216,7 +216,7 @@ def do_configure(args, passthrough_args):
     if llvm_enable_runtimes:
         cmake_cmd.extend(
             [
-                "-DLLVM_ENABLE_RUNTIMES={}".format(llvm_enable_runtimes.lstrip(";")),
+                "-DLLVM_ENABLE_RUNTIMES={}".format(llvm_enable_runtimes),
             ]
         )
 

@@ -249,6 +249,10 @@ install(FILES
 file(GLOB_RECURSE HEADERS_IN_SYCL_DIR CONFIGURE_DEPENDS "${sycl_inc_dir}/sycl/*")
 file(GLOB_RECURSE HEADERS_IN_CL_DIR CONFIGURE_DEPENDS "${sycl_inc_dir}/CL/*")
 file(GLOB_RECURSE HEADERS_IN_STD_DIR CONFIGURE_DEPENDS "${sycl_inc_dir}/std/*")
+file(GLOB_RECURSE HEADERS_IN_UR_DIR CONFIGURE_DEPENDS "${UNIFIED_RUNTIME_INCLUDE_DIR}/unified-runtime/*")
+list(REMOVE_ITEM HEADERS_IN_UR_DIR
+  "${UNIFIED_RUNTIME_INCLUDE_DIR}/unified-runtime/ur_ddi.h"
+  "${UNIFIED_RUNTIME_INCLUDE_DIR}/unified-runtime/ur_print.h")
 
 string(REPLACE "${sycl_inc_dir}" "${SYCL_INCLUDE_BUILD_DIR}"
   OUT_HEADERS_IN_SYCL_DIR "${HEADERS_IN_SYCL_DIR}")
@@ -258,15 +262,8 @@ string(REPLACE "${sycl_inc_dir}" "${SYCL_INCLUDE_BUILD_DIR}"
   OUT_HEADERS_IN_STD_DIR "${HEADERS_IN_STD_DIR}")
 string(REPLACE "${sycl_inc_dir}" "${SYCL_INCLUDE_BUILD_DIR}"
   OUT_HEADERS_IN_SYCLCOMPAT_DIR "${HEADERS_IN_SYCLCOMPAT_DIR}")
-
-set(OUT_UR_HEADERS
-  ${SYCL_INCLUDE_BUILD_DIR}/ur_api.h
-  ${SYCL_INCLUDE_BUILD_DIR}/ur_api_funcs.def
-  ${SYCL_INCLUDE_BUILD_DIR}/ur_print.hpp)
-set(UR_HEADERS_TO_COPY
-  ${UNIFIED_RUNTIME_INCLUDE_DIR}/ur_api.h
-  ${UNIFIED_RUNTIME_INCLUDE_DIR}/ur_api_funcs.def
-  ${UNIFIED_RUNTIME_INCLUDE_DIR}/ur_print.hpp)
+string(REPLACE "${UNIFIED_RUNTIME_INCLUDE_DIR}/unified-runtime" "${SYCL_INCLUDE_BUILD_DIR}/unified-runtime"
+  OUT_HEADERS_IN_UR_DIR "${HEADERS_IN_UR_DIR}")
 
 # Copy SYCL headers from sources to build directory
 add_custom_target(sycl-headers
@@ -274,7 +271,7 @@ add_custom_target(sycl-headers
           ${OUT_HEADERS_IN_CL_DIR}
           ${OUT_HEADERS_IN_STD_DIR}
           ${OUT_HEADERS_IN_SYCLCOMPAT_DIR}
-          ${OUT_UR_HEADERS}
+          ${OUT_HEADERS_IN_UR_DIR}
           sycl-device-aspect-macros-header
           )
 
@@ -283,28 +280,23 @@ add_custom_command(
           ${OUT_HEADERS_IN_CL_DIR}
           ${OUT_HEADERS_IN_STD_DIR}
           ${OUT_HEADERS_IN_SYCLCOMPAT_DIR}
-          ${OUT_UR_HEADERS}
+          ${OUT_HEADERS_IN_UR_DIR}
   DEPENDS ${HEADERS_IN_SYCL_DIR}
           ${HEADERS_IN_CL_DIR}
           ${HEADERS_IN_STD_DIR}
           ${HEADERS_IN_SYCLCOMPAT_DIR}
-          ${UR_HEADERS_TO_COPY}
+          ${HEADERS_IN_UR_DIR}
   COMMAND ${CMAKE_COMMAND} -E copy_directory ${sycl_inc_dir}/sycl ${SYCL_INCLUDE_BUILD_DIR}/sycl
   COMMAND ${CMAKE_COMMAND} -E copy_directory ${sycl_inc_dir}/CL ${SYCL_INCLUDE_BUILD_DIR}/CL
   COMMAND ${CMAKE_COMMAND} -E copy_directory ${sycl_inc_dir}/std ${SYCL_INCLUDE_BUILD_DIR}/std
-  COMMAND ${CMAKE_COMMAND} -E copy ${UR_HEADERS_TO_COPY} ${SYCL_INCLUDE_BUILD_DIR}
+  COMMAND ${CMAKE_COMMAND} -E copy_directory ${UNIFIED_RUNTIME_INCLUDE_DIR}/unified-runtime ${SYCL_INCLUDE_BUILD_DIR}/unified-runtime
   COMMENT "Copying SYCL headers ...")
 
 # Copy SYCL headers from source to install directory
 install(DIRECTORY "${sycl_inc_dir}/sycl" DESTINATION ${SYCL_INCLUDE_DIR} COMPONENT sycl-headers)
 install(DIRECTORY "${sycl_inc_dir}/CL" DESTINATION ${SYCL_INCLUDE_DIR}/ COMPONENT sycl-headers)
 install(DIRECTORY "${sycl_inc_dir}/std" DESTINATION ${SYCL_INCLUDE_DIR} COMPONENT sycl-headers)
-install(FILES "${UNIFIED_RUNTIME_INCLUDE_DIR}/ur_api.h" DESTINATION ${SYCL_INCLUDE_DIR}
-  COMPONENT sycl-headers)
-install(FILES "${UNIFIED_RUNTIME_INCLUDE_DIR}/ur_api_funcs.def" DESTINATION ${SYCL_INCLUDE_DIR}
-  COMPONENT sycl-headers)
-install(FILES "${UNIFIED_RUNTIME_INCLUDE_DIR}/ur_print.hpp" DESTINATION ${SYCL_INCLUDE_DIR}
-  COMPONENT sycl-headers)
+install(DIRECTORY "${UNIFIED_RUNTIME_INCLUDE_DIR}/unified-runtime" DESTINATION ${SYCL_INCLUDE_DIR} COMPONENT sycl-headers)
 
 if (WIN32)
   set(SYCL_RT_LIBS sycl${SYCL_MAJOR_VERSION})
@@ -366,6 +358,16 @@ if (NOT WIN32)
       DESTINATION "lib${LLVM_LIBDIR_SUFFIX}/"
       COMPONENT sycl-headers-extras)
   endif()
+
+  configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/pkgconfig/sycl.pc.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/sycl-dpcpp-${DPCPP_VERSION_MAJOR}.pc"
+    @ONLY)
+
+  install(
+    FILES "${CMAKE_CURRENT_BINARY_DIR}/sycl-dpcpp-${DPCPP_VERSION_MAJOR}.pc"
+    DESTINATION "lib${LLVM_LIBDIR_SUFFIX}/pkgconfig"
+    COMPONENT sycl)
 endif()
 
 if(SYCL_ENABLE_XPTI_TRACING AND
@@ -441,8 +443,8 @@ option(SYCL_INCLUDE_TESTS
   ${LLVM_INCLUDE_TESTS})
 
 # Ensure that HIP platform is uppercase, to match buildbot's output.
-if(NOT "${SYCL_BUILD_PI_HIP_PLATFORM}" STREQUAL "")
-  string(TOUPPER ${SYCL_BUILD_PI_HIP_PLATFORM} SYCL_BUILD_PI_HIP_PLATFORM)
+if(NOT "${SYCL_BUILD_UR_HIP_PLATFORM}" STREQUAL "")
+  string(TOUPPER ${SYCL_BUILD_UR_HIP_PLATFORM} SYCL_BUILD_UR_HIP_PLATFORM)
 endif()
 
 add_subdirectory(tools)
@@ -527,14 +529,14 @@ if("lld" IN_LIST LLVM_ENABLE_PROJECTS)
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS lld)
 endif()
 
-if("libclc" IN_LIST LLVM_ENABLE_RUNTIMES)
-  add_dependencies(sycl-toolchain libclc)
+if("libclc" IN_LIST LLVM_ENABLE_PROJECTS)
+  add_dependencies(sycl-toolchain libspirv-builtins)
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS libspirv-builtins)
 endif()
 
 if("cuda" IN_LIST SYCL_ENABLE_BACKENDS)
   # Ensure that libclc is enabled.
-  list(FIND LLVM_ENABLE_RUNTIMES libclc LIBCLC_FOUND)
+  list(FIND LLVM_ENABLE_PROJECTS libclc LIBCLC_FOUND)
   if( LIBCLC_FOUND EQUAL -1 )
     message(FATAL_ERROR
       "CUDA support requires adding \"libclc\" to the CMake argument \"LLVM_ENABLE_PROJECTS\"")
@@ -546,13 +548,13 @@ endif()
 
 if("hip" IN_LIST SYCL_ENABLE_BACKENDS)
   # Ensure that libclc is enabled.
-  list(FIND LLVM_ENABLE_RUNTIMES libclc LIBCLC_FOUND)
+  list(FIND LLVM_ENABLE_PROJECTS libclc LIBCLC_FOUND)
   if( LIBCLC_FOUND EQUAL -1 )
     message(FATAL_ERROR
       "HIP support requires adding \"libclc\" to the CMake argument \"LLVM_ENABLE_PROJECTS\"")
   endif()
 
-  if(NOT TARGET lld AND "${SYCL_BUILD_PI_HIP_PLATFORM}" STREQUAL "AMD")
+  if(NOT TARGET lld AND "${SYCL_BUILD_UR_HIP_PLATFORM}" STREQUAL "AMD")
     message(FATAL_ERROR
       "HIP support requires adding \"lld\" to the CMake argument \"LLVM_ENABLE_PROJECTS\"")
   endif()
@@ -578,22 +580,15 @@ add_custom_command(OUTPUT __force_it
 set(__chain_dep __force_it)
 
 set(manifest_list)
-set(RUNTIMES_INSTALL_SCRIPT "${CMAKE_BINARY_DIR}/runtimes/runtimes-bins/cmake_install.cmake")
 foreach( comp ${SYCL_TOOLCHAIN_DEPLOY_COMPONENTS} )
-  set(INSTALL_SCRIPT "${CMAKE_BINARY_DIR}/cmake_install.cmake")
-  set(RUNTIME_TARGET)
-  if("${comp}" STREQUAL "libspirv-builtins")
-    set(RUNTIME_TARGET libclc)
-    set(INSTALL_SCRIPT ${RUNTIMES_INSTALL_SCRIPT})
-  endif()
   message( STATUS "Adding component ${comp} to deploy")
 
   set (manifest_file ${CMAKE_CURRENT_BINARY_DIR}/install_manifest_${comp}.txt)
   add_custom_command(OUTPUT ${manifest_file}
     COMMAND "${CMAKE_COMMAND}"
     "-DCMAKE_INSTALL_COMPONENT=${comp}"
-    -P "${INSTALL_SCRIPT}"
-    DEPENDS  ${__chain_dep} ${RUNTIME_TARGET}
+    -P "${CMAKE_BINARY_DIR}/cmake_install.cmake"
+    DEPENDS  ${__chain_dep}
     COMMENT "Deploying component ${comp}"
     USES_TERMINAL
   )

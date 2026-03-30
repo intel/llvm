@@ -143,6 +143,15 @@ TEST_P(urKernelSetArgSamplerTest, InvalidNullHandleArgValue) {
 }
 
 TEST_P(urKernelSetArgSamplerTest, InvalidKernelArgumentIndex) {
+  // XFAIL rationale:
+  // This test assumes UR_KERNEL_INFO_NUM_ARGS reflects the kernel's source-level
+  // parameter count and can be used to validate out-of-range argument indices.
+  // That assumption is not valid for the CUDA adapter: the backend API does not
+  // provide a reliable direct query of declared kernel parameter count, so
+  // UR_KERNEL_INFO_NUM_ARGS is derived from adapter-maintained argument state.
+  // This value reflects currently tracked arguments (initially none), not the
+  // true kernel signature; therefore these invalid-index expectations are not
+  // meaningful on this backend, and no adapter-side fix is planned.
   UUR_KNOWN_FAILURE_ON(uur::CUDA{});
 
   uint32_t num_kernel_args = 0;

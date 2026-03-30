@@ -42,7 +42,6 @@ SPIRV::TranslatorOpts &SPIRVLLVMTranslator::translatorOpts() {
       SPIRV::ExtensionID::SPV_INTEL_arbitrary_precision_integers,
       SPIRV::ExtensionID::SPV_INTEL_float_controls2,
       SPIRV::ExtensionID::SPV_INTEL_vector_compute,
-      SPIRV::ExtensionID::SPV_INTEL_fast_composite,
       SPIRV::ExtensionID::SPV_INTEL_arbitrary_precision_fixed_point,
       SPIRV::ExtensionID::SPV_INTEL_arbitrary_precision_floating_point,
       SPIRV::ExtensionID::SPV_INTEL_variable_length_array,
@@ -68,7 +67,8 @@ SPIRV::TranslatorOpts &SPIRVLLVMTranslator::translatorOpts() {
       SPIRV::ExtensionID::SPV_KHR_non_semantic_info,
       SPIRV::ExtensionID::SPV_KHR_cooperative_matrix,
       SPIRV::ExtensionID::SPV_EXT_shader_atomic_float16_add,
-      SPIRV::ExtensionID::SPV_INTEL_fp_max_error};
+      SPIRV::ExtensionID::SPV_INTEL_fp_max_error,
+      SPIRV::ExtensionID::SPV_INTEL_global_variable_host_access};
 
   static auto Opts = [&]() -> SPIRV::TranslatorOpts {
     // Options for translation between SPIR-V and LLVM IR.

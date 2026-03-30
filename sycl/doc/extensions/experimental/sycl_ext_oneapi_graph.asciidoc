@@ -714,6 +714,8 @@ public:
 
   std::vector<node> get_nodes() const;
   std::vector<node> get_root_nodes() const;
+
+  bool empty() const;
 };
 
 template<>
@@ -1454,6 +1456,13 @@ std::vector<node> get_root_nodes() const;
 ----
 
 _Returns:_ A list of all nodes in the graph which have no dependencies.
+
+[source,c++]
+----
+bool empty() const;
+----
+
+_Returns:_ `true` if the graph contains no nodes, otherwise `false`.
 
 [source,c++]
 ----

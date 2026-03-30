@@ -11,7 +11,7 @@
 
 #include "common.hpp"
 #include "external/driver_experimental/zex_graph.h"
-#include "ur_api.h"
+#include "unified-runtime/ur_api.h"
 #include "ze_api.h"
 #include "ze_ddi.h"
 #include "zes_api.h"
@@ -58,6 +58,8 @@ struct ur_platform_handle_t_ : ur::handle_base<ur::level_zero::ddi_getter>,
   std::string ZeDriverVersion;
   std::string ZeDriverApiVersion;
   ze_api_version_t ZeApiVersion;
+
+  bool IsDriverVersionSkipListed{false};
 
   // Cache driver extensions
   std::unordered_map<std::string, uint32_t> zeDriverExtensionMap;

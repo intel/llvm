@@ -7,7 +7,7 @@
 #ifndef UUR_RAII_H_INCLUDED
 #define UUR_RAII_H_INCLUDED
 
-#include "ur_api.h"
+#include "unified-runtime/ur_api.h"
 #include <cstddef>
 #include <utility>
 

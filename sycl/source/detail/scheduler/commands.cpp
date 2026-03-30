@@ -5,7 +5,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "ur_api.h"
+#include "unified-runtime/ur_api.h"
 #include <detail/error_handling/error_handling.hpp>
 
 #include <detail/context_impl.hpp>
@@ -33,15 +33,6 @@
 #include <optional>
 #include <string>
 #include <vector>
-
-#ifdef __has_include
-#if __has_include(<cxxabi.h>)
-#define __SYCL_ENABLE_GNU_DEMANGLING
-#include <cstdlib>
-#include <cxxabi.h>
-#include <memory>
-#endif
-#endif
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 #include <detail/xpti_registry.hpp>
@@ -131,27 +122,6 @@ static context_impl *getContext(queue_impl *Queue) {
 static context_impl *getContext(const std::shared_ptr<queue_impl> &Queue) {
   return getContext(Queue.get());
 }
-
-#ifdef __SYCL_ENABLE_GNU_DEMANGLING
-struct DemangleHandle {
-  char *p;
-  DemangleHandle(char *ptr) : p(ptr) {}
-
-  DemangleHandle(const DemangleHandle &) = delete;
-  DemangleHandle &operator=(const DemangleHandle &) = delete;
-
-  ~DemangleHandle() { std::free(p); }
-};
-static std::string demangleKernelName(const std::string_view Name) {
-  int Status = -1; // some arbitrary value to eliminate the compiler warning
-  DemangleHandle result(abi::__cxa_demangle(Name.data(), NULL, NULL, &Status));
-  return (Status == 0) ? result.p : std::string(Name);
-}
-#else
-static std::string demangleKernelName(const std::string_view Name) {
-  return std::string(Name);
-}
-#endif
 
 static std::string accessModeToString(access::mode Mode) {
   switch (Mode) {
@@ -545,7 +515,7 @@ void Command::emitEdgeEventForCommandDependence(
     std::optional<access::mode> AccMode) {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   // Bail early if either the source or the target node for the given
-  // dependency is undefined or NULL
+  // dependency is undefined or NULL, or if no one is subscribed to edge_create
   constexpr uint16_t NotificationTraceType = xpti::trace_edge_create;
   if (!(xptiCheckTraceEnabled(MStreamID, NotificationTraceType) &&
         MTraceEvent && Cmd && Cmd->MTraceEvent))
@@ -628,6 +598,11 @@ void Command::emitEdgeEventForEventDependence(Command *Cmd,
                             detail::GSYCLGraphEvent, NodeEvent, VNodeInstanceNo,
                             nullptr);
     }
+    // Bail early if no one is subscribed to edge_create to avoid unnecessary
+    // work
+    if (!(xptiCheckTraceEnabled(MStreamID, xpti::trace_edge_create)))
+      return;
+
     // Create a new event for the edge
     std::string EdgeName = SH.nameWithAddressString("Event", AddressStr);
     xpti_tracepoint_t *EEvent =
@@ -705,12 +680,12 @@ Command *Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep,
   // 2. Some types of commands do not produce UR events after they are
   // enqueued (e.g. alloca). Note that we can't check the ur event to make that
   // distinction since the command might still be unenqueued at this point.
-  bool PiEventExpected =
+  bool UrEventExpected =
       (!DepEvent->isHost() && !DepEvent->isDefaultConstructed());
   if (auto *DepCmd = DepEvent->getCommand())
-    PiEventExpected &= DepCmd->producesPiEvent();
+    UrEventExpected &= DepCmd->producesUrEvent();
 
-  if (!PiEventExpected) {
+  if (!UrEventExpected) {
     // call to waitInternal() is in waitForPreparedHostEvents() as it's called
     // from enqueue process functions
     MPreparedHostDepsEvents.push_back(DepEvent);
@@ -737,7 +712,7 @@ context_impl *Command::getWorkerContext() const {
   return &MQueue->getContextImpl();
 }
 
-bool Command::producesPiEvent() const { return true; }
+bool Command::producesUrEvent() const { return true; }
 
 bool Command::supportsPostEnqueueCleanup() const { return true; }
 
@@ -901,7 +876,9 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
 void Command::resolveReleaseDependencies(std::set<Command *> &DepList) {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   assert(MType == CommandType::RELEASE && "Expected release command");
-  if (!MTraceEvent)
+  // Bail early if no one is subscribed to edge_create to avoid unnecessary work
+  if (!(xptiCheckTraceEnabled(MStreamID, xpti::trace_edge_create) &&
+        MTraceEvent))
     return;
   // The current command is the target node for all dependencies as the source
   // nodes have to be completed first before the current node can begin to
@@ -1008,7 +985,7 @@ void AllocaCommandBase::emitInstrumentationData() {
 #endif
 }
 
-bool AllocaCommandBase::producesPiEvent() const { return false; }
+bool AllocaCommandBase::producesUrEvent() const { return false; }
 
 bool AllocaCommandBase::supportsPostEnqueueCleanup() const { return false; }
 
@@ -1296,7 +1273,7 @@ void ReleaseCommand::printDot(std::ostream &Stream) const {
   }
 }
 
-bool ReleaseCommand::producesPiEvent() const { return false; }
+bool ReleaseCommand::producesUrEvent() const { return false; }
 
 bool ReleaseCommand::supportsPostEnqueueCleanup() const { return false; }
 
@@ -1392,7 +1369,7 @@ void UnMapMemObject::emitInstrumentationData() {
 #endif
 }
 
-bool UnMapMemObject::producesPiEvent() const {
+bool UnMapMemObject::producesUrEvent() const {
   // TODO remove this workaround once the batching issue is addressed in Level
   // Zero adapter.
   // Consider the following scenario on Level Zero:
@@ -1498,7 +1475,7 @@ context_impl *MemCpyCommand::getWorkerContext() const {
   return &MWorkerQueue->getContextImpl();
 }
 
-bool MemCpyCommand::producesPiEvent() const {
+bool MemCpyCommand::producesUrEvent() const {
   // TODO remove this workaround once the batching issue is addressed in Level
   // Zero adapter.
   // Consider the following scenario on Level Zero:
@@ -1774,7 +1751,7 @@ void EmptyCommand::printDot(std::ostream &Stream) const {
   }
 }
 
-bool EmptyCommand::producesPiEvent() const { return false; }
+bool EmptyCommand::producesUrEvent() const { return false; }
 
 void MemCpyCommandHost::printDot(std::ostream &Stream) const {
   Stream << "\"" << this << "\" [style=filled, fillcolor=\"#B6A2EB\", label=\"";
@@ -1915,7 +1892,7 @@ ExecCGCommand::ExecCGCommand(
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 std::string instrumentationGetKernelName(const kernel_impl *SyclKernel,
                                          const std::string_view FunctionName,
-                                         const std::string_view SyclKernelName,
+                                         DeviceKernelInfo &DeviceKernelInfo,
                                          void *&Address,
                                          std::optional<bool> &FromSource) {
   std::string KernelName;
@@ -1926,7 +1903,7 @@ std::string instrumentationGetKernelName(const kernel_impl *SyclKernel,
     KernelName = FunctionName;
   } else {
     FromSource = false;
-    KernelName = demangleKernelName(SyclKernelName);
+    KernelName = DeviceKernelInfo.getDemangledName();
   }
   return KernelName;
 }
@@ -2050,7 +2027,7 @@ std::pair<xpti_td *, uint64_t> emitKernelInstrumentationData(
   std::optional<bool> FromSource;
   std::string KernelName =
       instrumentationGetKernelName(SyclKernel, CodeLoc.functionName(),
-                                   DeviceKernelInfo.Name, Address, FromSource);
+                                   DeviceKernelInfo, Address, FromSource);
 
   auto &[CmdTraceEvent, InstanceID] = XptiObjects;
 
@@ -2107,7 +2084,7 @@ void ExecCGCommand::emitInstrumentationData() {
         reinterpret_cast<detail::CGExecKernel *>(MCommandGroup.get());
     KernelName = instrumentationGetKernelName(
         KernelCG->MSyclKernel.get(), MCommandGroup->MFunctionName,
-        KernelCG->getKernelName(), MAddress, FromSource);
+        KernelCG->MDeviceKernelInfo, MAddress, FromSource);
   } break;
   default:
     KernelName = getTypeString();
@@ -2163,7 +2140,7 @@ void ExecCGCommand::printDot(std::ostream &Stream) const {
     if (KernelCG->MSyclKernel && KernelCG->MSyclKernel->isCreatedFromSource())
       Stream << "created from source";
     else
-      Stream << demangleKernelName(KernelCG->getKernelName());
+      Stream << KernelCG->MDeviceKernelInfo.getDemangledName();
     Stream << "\\n";
     break;
   }
@@ -3689,7 +3666,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
   return UR_RESULT_ERROR_INVALID_OPERATION;
 }
 
-bool ExecCGCommand::producesPiEvent() const {
+bool ExecCGCommand::producesUrEvent() const {
   return !MCommandBuffer &&
          MCommandGroup->getType() != CGType::CodeplayHostTask;
 }
@@ -3787,7 +3764,7 @@ void UpdateCommandBufferCommand::printDot(std::ostream &Stream) const {
 }
 
 void UpdateCommandBufferCommand::emitInstrumentationData() {}
-bool UpdateCommandBufferCommand::producesPiEvent() const { return false; }
+bool UpdateCommandBufferCommand::producesUrEvent() const { return false; }
 
 CGHostTask::CGHostTask(std::shared_ptr<HostTask> HostTask,
                        detail::queue_impl *Queue, detail::context_impl *Context,
