@@ -987,10 +987,12 @@ getSystemOffloadArchs(Compilation &C, Action::OffloadKind Kind) {
   return GPUArchs;
 }
 
+using TripleSet = std::multiset<llvm::Triple>;
+
 // Attempts to infer the correct offloading toolchain triple by looking at the
 // requested offloading kind and architectures.
-static std::multiset<llvm::StringRef>
-inferOffloadToolchains(Compilation &C, Action::OffloadKind Kind) {
+static TripleSet inferOffloadToolchains(Compilation &C,
+                                        Action::OffloadKind Kind) {
   // SYCL offloading to AOT Targets with '--offload-arch'
   // is currently enabled only with '--offload-new-driver' option.
   // Emit a diagnostic if '--offload-arch' is invoked without
@@ -1021,7 +1023,7 @@ inferOffloadToolchains(Compilation &C, Action::OffloadKind Kind) {
     }
   }
 
-  std::multiset<llvm::StringRef> Triples;
+  TripleSet Triples;
   for (llvm::StringRef Arch : Archs) {
     OffloadArch ID = StringToOffloadArch(Arch);
     if (ID == OffloadArch::Unknown)
@@ -1070,20 +1072,22 @@ inferOffloadToolchains(Compilation &C, Action::OffloadKind Kind) {
     A->claim();
     C.getArgs().append(A);
     C.getArgs().AddSynthesizedArg(A);
-    Triples.insert(TripleStr);
+    Triples.insert(Triple);
   }
 
   // Infer the default target triple if no specific architectures are given.
   if (Archs.empty() && Kind == Action::OFK_HIP)
-    Triples.insert("amdgcn-amd-amdhsa");
+    Triples.insert(llvm::Triple("amdgcn-amd-amdhsa"));
   else if (Archs.empty() && Kind == Action::OFK_Cuda)
-    Triples.insert(C.getDefaultToolChain().getTriple().isArch64Bit()
-                       ? "nvptx64-nvidia-cuda"
-                       : "nvptx-nvidia-cuda");
+    Triples.insert(
+        llvm::Triple(C.getDefaultToolChain().getTriple().isArch64Bit()
+                         ? "nvptx64-nvidia-cuda"
+                         : "nvptx-nvidia-cuda"));
   else if (Archs.empty() && Kind == Action::OFK_SYCL)
-    Triples.insert(C.getDefaultToolChain().getTriple().isArch64Bit()
-                       ? "spir64-unknown-unknown"
-                       : "spir-unknown-unknown");
+    Triples.insert(
+        llvm::Triple(C.getDefaultToolChain().getTriple().isArch64Bit()
+                         ? "spir64-unknown-unknown"
+                         : "spir-unknown-unknown"));
 
   // We need to dispatch these to the appropriate toolchain now.
   C.getArgs().eraseArg(options::OPT_offload_arch_EQ);
@@ -1358,7 +1362,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
   // explicitly specified we will infer them based on the offloading language
   // and requested architectures.
 
-  std::multiset<llvm::StringRef> Triples;
+  TripleSet Triples;
   llvm::StringMap<StringRef> FoundNormalizedTriples;
   if (C.getInputArgs().hasArg(options::OPT_offload_targets_EQ)) {
     std::vector<std::string> ArgValues =
@@ -1384,9 +1388,10 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
                 << Target << TripleIt->second;
           continue;
         }
-        Triples.insert(C.getInputArgs().MakeArgString(TargetTripleString));
+        Triples.insert(
+            llvm::Triple(C.getInputArgs().MakeArgString(TargetTripleString)));
       } else {
-        Triples.insert(C.getInputArgs().MakeArgString(Target));
+        Triples.insert(llvm::Triple(C.getInputArgs().MakeArgString(Target)));
       }
     }
 
@@ -1401,7 +1406,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
   }
   FoundNormalizedTriples.clear();
   // Build an offloading toolchain for every requested target and kind.
-  for (StringRef Target : Triples) {
+  for (const llvm::Triple &Target : Triples) {
     // OpenMP offloading requires a compatible libomp.
     if (Kinds.contains(Action::OFK_OpenMP)) {
       OpenMPRuntimeKind RuntimeKind = getOpenMPRuntime(C.getInputArgs());
@@ -1426,7 +1431,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
       if (Kind == Action::OFK_OpenMP)
         TT = ToolChain::getOpenMPTriple(Target);
       else if (Kind == Action::OFK_SYCL)
-        TT = getSYCLDeviceTriple(Target);
+        TT = getSYCLDeviceTriple(Target.str());
       else
         TT = llvm::Triple(Target);
 
@@ -1446,10 +1451,10 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
       if (Kind == Action::OFK_OpenMP || Kind == Action::OFK_SYCL) {
         std::string NormalizedName = TT.normalize();
         auto [TripleIt, Inserted] =
-            FoundNormalizedTriples.try_emplace(NormalizedName, Target);
+            FoundNormalizedTriples.try_emplace(NormalizedName, Target.str());
         if (!Inserted) {
           Diag(clang::diag::warn_drv_offload_target_duplicate)
-              << Target << TripleIt->second;
+              << Target.str() << TripleIt->second;
           continue;
         }
       }
