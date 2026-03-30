@@ -11,7 +11,7 @@
 
 namespace llvm {
 class StringRef;
-template <typename T, typename R> class StringSwitch;
+class Triple;
 } // namespace llvm
 
 namespace clang {
@@ -228,6 +228,9 @@ const char *OffloadArchToVirtualArchString(OffloadArch A);
 // Convert a string to an OffloadArch enum value. Returns
 // OffloadArch::Unknown if the string is not recognized.
 OffloadArch StringToOffloadArch(llvm::StringRef S);
+
+llvm::StringRef OffloadArchToTriple(const llvm::Triple &DefaultToolchainTriple,
+                                    OffloadArch ID);
 
 } // namespace clang
 

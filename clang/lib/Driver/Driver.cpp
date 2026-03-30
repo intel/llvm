@@ -1051,21 +1051,13 @@ inferOffloadToolchains(Compilation &C, Action::OffloadKind Kind) {
       return llvm::DenseSet<llvm::StringRef>();
     }
 
-    StringRef Triple;
-    if (ID == OffloadArch::AMDGCNSPIRV)
-      Triple = "spirv64-amd-amdhsa";
-    else if (IsNVIDIAOffloadArch(ID))
-      Triple = C.getDefaultToolChain().getTriple().isArch64Bit()
-                   ? "nvptx64-nvidia-cuda"
-                   : "nvptx-nvidia-cuda";
-    else if (IsAMDOffloadArch(ID))
-      Triple = "amdgcn-amd-amdhsa";
-    else if (IsIntelCPUOffloadArch(ID))
-      Triple = "spir64_x86_64-unknown-unknown";
-    else if (IsIntelGPUOffloadArch(ID))
-      Triple = "spir64_gen-unknown-unknown";
-    else
+    llvm::StringRef TripleStr =
+        OffloadArchToTriple(C.getDefaultToolChain().getTriple(), ID);
+
+    if (TripleStr.empty())
       continue;
+
+    llvm::Triple Triple(TripleStr);
 
     // Make a new argument that dispatches this argument to the appropriate
     // toolchain. This is required when we infer it and create potentially
@@ -1073,12 +1065,12 @@ inferOffloadToolchains(Compilation &C, Action::OffloadKind Kind) {
     Option Opt = C.getDriver().getOpts().getOption(options::OPT_Xarch__);
     unsigned Index = C.getArgs().getBaseArgs().MakeIndex("-Xarch_");
     Arg *A = new Arg(Opt, C.getArgs().getArgString(Index), Index,
-                     C.getArgs().MakeArgString(Triple.split("-").first),
+                     C.getArgs().MakeArgString(Triple.getArchName()),
                      C.getArgs().MakeArgString("--offload-arch=" + Arch));
     A->claim();
     C.getArgs().append(A);
     C.getArgs().AddSynthesizedArg(A);
-    Triples.insert(Triple);
+    Triples.insert(TripleStr);
   }
 
   // Infer the default target triple if no specific architectures are given.
@@ -7097,7 +7089,7 @@ shouldBundleHIPAsmWithNewDriver(const Compilation &C,
     if (!TC)
       continue;
     const llvm::Triple &Tr = TC->getTriple();
-    if (Tr.isSPIRV() || Tr.getArch() != llvm::Triple::amdgcn)
+    if (!Tr.isAMDGPU())
       return false;
     HasAMDGCNHIPDevice = true;
   }
@@ -8383,6 +8375,8 @@ Action *Driver::ConstructPhaseAction(
            (Args.hasFlag(options::OPT_offload_new_driver,
                          options::OPT_no_offload_new_driver,
                          C.getActiveOffloadKinds() != Action::OFK_None) &&
+            !(Args.hasArg(options::OPT_S) &&
+              !Args.hasArg(options::OPT_emit_llvm)) &&
             (!offloadDeviceOnly() ||
              (Input->getOffloadingToolChain() &&
               TargetDeviceOffloadKind == Action::OFK_HIP &&

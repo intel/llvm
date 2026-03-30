@@ -1,4 +1,4 @@
-//===-- POSIX header resource.h -------------------------------------------===//
+//===-- Double-precision asinpi function ----------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,13 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_LIBC_SYS_RESOURCE_H
-#define LLVM_LIBC_SYS_RESOURCE_H
+#include "src/math/asinpi.h"
+#include "src/__support/math/asinpi.h"
 
-#include "__llvm-libc-common.h"
+namespace LIBC_NAMESPACE_DECL {
 
-#include "../llvm-libc-macros/sys-resource-macros.h"
+LLVM_LIBC_FUNCTION(double, asinpi, (double x)) { return math::asinpi(x); }
 
-%%public_api()
-
-#endif // LLVM_LIBC_SYS_RESOURCE_H
+} // namespace LIBC_NAMESPACE_DECL
