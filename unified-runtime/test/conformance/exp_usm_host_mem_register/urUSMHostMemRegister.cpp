@@ -43,6 +43,9 @@ struct urUSMHostMemRegisterTest : uur::urQueueTest {
 UUR_INSTANTIATE_DEVICE_TEST_SUITE(urUSMHostMemRegisterTest);
 
 TEST_P(urUSMHostMemRegisterTest, Success) {
+  // https://github.com/intel/llvm/issues/21633
+  UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
+
   ASSERT_SUCCESS(urUSMHostAllocRegisterExp(context, alloc, allocSize, nullptr));
 
   void *alloc2 = nullptr;
