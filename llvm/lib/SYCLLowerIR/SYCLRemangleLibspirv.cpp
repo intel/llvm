@@ -4,6 +4,11 @@
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
+// Portions of this code are derived from SPIRV-LLVM Translator
+// (https://github.com/KhronosGroup/SPIRV-LLVM-Translator).
+// Copyright (c) 2015 The Khronos Group Inc.
+// Licensed under the University of Illinois Open Source License.
+//
 //===----------------------------------------------------------------------===//
 //
 // This file implements a pass that remangles __spirv_* builtin functions to
