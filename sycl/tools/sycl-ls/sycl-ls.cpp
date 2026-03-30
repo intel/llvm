@@ -22,6 +22,7 @@
 #include <iomanip>
 #include <iostream>
 #include <map>
+#include <regex>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -54,6 +55,17 @@ bool DiscardFilters;
 
 // To store various filter environment variables.
 std::vector<std::string> FilterEnvVars;
+
+static bool checkZEAffinityMask(const char *Value) {
+  // valid mask: <device>[.<subdevice>](,<device>[.<subdevice>])*
+  // where device/subdevice are non-negative integers.
+  // examples: "0", "0.1", "0,1", "0.0,1.0"
+  if (!Value || *Value == '\0')
+    return false;
+
+  static const std::regex pattern(R"(^\d+(\.\d+)?(,\d+(\.\d+)?)*$)");
+  return std::regex_match(Value, pattern);
+}
 
 // Trivial custom selector that selects a device of the given type.
 class custom_selector : public device_selector {
@@ -393,6 +405,16 @@ int main(int argc, char **argv) {
 
   if (verbose)
     checkRenderGroupPermission();
+
+  // UR loader may crash if ZE_AFFINITY_MASK is set to an invalid value
+  const char *zeAffinityMask = std::getenv("ZE_AFFINITY_MASK");
+  if (zeAffinityMask && !checkZEAffinityMask(zeAffinityMask)) {
+    std::cerr << "WARNING: Ignoring invalid ZE_AFFINITY_MASK='"
+              << zeAffinityMask
+              << "'. Expected format like '0', '0.1', or '0.0,1.0'."
+              << std::endl;
+    unsetenv("ZE_AFFINITY_MASK");
+  }
 
   bool SuppressNumberPrinting = false;
   // Print warning and suppress printing device ids if any of
