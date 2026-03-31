@@ -8,10 +8,11 @@
 
 #include "llvm/SYCLLowerIR/MangleUtils.h"
 #include "llvm/ADT/StringMap.h"
+#include "llvm/Support/Casting.h"
 #include "llvm/Support/raw_ostream.h"
 
-namespace llvm {
-namespace SPIR {
+using namespace llvm;
+using namespace llvm::SPIR;
 
 // Mangling utilities.
 // clang-format off
@@ -57,13 +58,12 @@ void appendTemplateParameterMangling(unsigned Index, raw_ostream &Stream) {
 }
 
 SmallString<8> getLeafTypeMangling(const ParamType *Type) {
-  if (const PrimitiveType *Prim = dynCast<PrimitiveType>(Type)) {
+  if (const auto *Prim = dyn_cast<PrimitiveType>(Type)) {
     SmallString<8> Buffer;
     Buffer += mangledPrimitiveString(Prim->getPrimitive());
     return Buffer;
   }
-  if (const TemplateParameterType *TemplateParam =
-          dynCast<TemplateParameterType>(Type)) {
+  if (const auto *TemplateParam = dyn_cast<TemplateParameterType>(Type)) {
     SmallString<8> Buffer;
     raw_svector_ostream Stream(Buffer);
     appendTemplateParameterMangling(TemplateParam->getIndex(), Stream);
@@ -100,13 +100,6 @@ StringRef getMangledAttribute(TypeAttributeEnum Attribute) {
 }
 
 #undef ATTRIBUTE_TYPES_MAP
-
-// Type implementations
-const TypeEnum PrimitiveType::EnumTy = TYPE_ID_PRIMITIVE;
-const TypeEnum PointerType::EnumTy = TYPE_ID_POINTER;
-const TypeEnum VectorType::EnumTy = TYPE_ID_VECTOR;
-const TypeEnum TemplateParameterType::EnumTy = TYPE_ID_TEMPLATE_PARAMETER;
-const TypeEnum UserDefinedType::EnumTy = TYPE_ID_STRUCTURE;
 
 MangleError PrimitiveType::accept(TypeVisitor *Visitor) const {
   return Visitor->visit(this);
@@ -246,9 +239,9 @@ private:
       return false;
 
     SmallString<32> ThisTypeStr(TypeStr);
-    if (const PointerType *P = dynCast<PointerType>(Type)) {
+    if (const auto *P = dyn_cast<PointerType>(Type)) {
       ThisTypeStr += getPointeeMangling(P->getPointee());
-    } else if (const VectorType *PVec = dynCast<VectorType>(Type)) {
+    } else if (const VectorType *PVec = dyn_cast<VectorType>(Type)) {
       SmallString<8> NType = getLeafTypeMangling(PVec->getScalarType().get());
       if (!NType.empty())
         ThisTypeStr += NType;
@@ -269,13 +262,12 @@ private:
     SmallString<32> Mangling;
     raw_svector_ostream ManglingStream(Mangling);
 
-    while (const PointerType *P = SPIR::dynCast<PointerType>(Pointee.get())) {
+    while (const auto *P = dyn_cast<PointerType>(Pointee.get())) {
       ManglingStream << 'P' << getPointerAttributesManglingWithMode(P);
       Pointee = P->getPointee();
     }
 
-    if (const UserDefinedType *U =
-            SPIR::dynCast<UserDefinedType>(Pointee.get())) {
+    if (const auto *U = dyn_cast<UserDefinedType>(Pointee.get())) {
       StringRef Name = U->getName();
       ManglingStream << Name.size() << Name;
     } else {
@@ -342,6 +334,3 @@ MangleError NameMangler::mangle(StringRef Name,
   }
   return MANGLE_SUCCESS;
 }
-
-} // namespace SPIR
-} // namespace llvm

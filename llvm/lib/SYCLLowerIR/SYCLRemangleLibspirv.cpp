@@ -465,7 +465,7 @@ private:
     if (Ext.starts_with("AS")) {
       int AS;
       if (!Ext.drop_front(2).getAsInteger(10, AS)) {
-        if (auto *PT = SPIR::dynCast<SPIR::PointerType>(Base.get())) {
+        if (auto *PT = dyn_cast<SPIR::PointerType>(Base.get())) {
           SPIR::TypeAttributeEnum Attr = SPIR::ATTR_PRIVATE;
           if (AS == 1)
             Attr = SPIR::ATTR_GLOBAL;
@@ -487,10 +487,10 @@ SPIR::RefParamType cloneType(SPIR::RefParamType Type) {
   if (!Type)
     return Type;
 
-  if (const auto *Prim = SPIR::dynCast<SPIR::PrimitiveType>(Type.get())) {
+  if (const auto *Prim = dyn_cast<SPIR::PrimitiveType>(Type.get())) {
     // Primitive remapping happens in NodeToSPIRType; this only deep-copies.
     return SPIR::RefParamType(new SPIR::PrimitiveType(Prim->getPrimitive()));
-  } else if (const auto *Ptr = SPIR::dynCast<SPIR::PointerType>(Type.get())) {
+  } else if (const auto *Ptr = dyn_cast<SPIR::PointerType>(Type.get())) {
     SPIR::RefParamType Pointee = cloneType(Ptr->getPointee());
     auto *NewPtr = new SPIR::PointerType(Pointee);
     NewPtr->setAddressSpace(Ptr->getAddressSpace());
@@ -501,7 +501,7 @@ SPIR::RefParamType cloneType(SPIR::RefParamType Type) {
     NewPtr->setQualifier(SPIR::ATTR_RESTRICT,
                          Ptr->hasQualifier(SPIR::ATTR_RESTRICT));
     return SPIR::RefParamType(NewPtr);
-  } else if (const auto *Vec = SPIR::dynCast<SPIR::VectorType>(Type.get())) {
+  } else if (const auto *Vec = dyn_cast<SPIR::VectorType>(Type.get())) {
     SPIR::RefParamType Scalar = cloneType(Vec->getScalarType());
     return SPIR::RefParamType(new SPIR::VectorType(Scalar, Vec->getLength()));
   }

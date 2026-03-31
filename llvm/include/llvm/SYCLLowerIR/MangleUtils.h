@@ -83,10 +83,15 @@ protected:
 
 typedef IntrusiveRefCntPtr<ParamType> RefParamType;
 
-struct PrimitiveType : public ParamType {
-  static const TypeEnum EnumTy;
-  PrimitiveType(TypePrimitiveEnum P)
-      : ParamType(TYPE_ID_PRIMITIVE), Primitive(P) {}
+template <typename Derived, TypeEnum EnumVal>
+struct ParamTypeBase : public ParamType {
+  ParamTypeBase() : ParamType(EnumVal) {}
+
+  static bool classof(const ParamType *P) { return P->getTypeId() == EnumVal; }
+};
+
+struct PrimitiveType : public ParamTypeBase<PrimitiveType, TYPE_ID_PRIMITIVE> {
+  PrimitiveType(TypePrimitiveEnum P) : Primitive(P) {}
   MangleError accept(TypeVisitor *Visitor) const override;
   TypePrimitiveEnum getPrimitive() const { return Primitive; }
 
@@ -94,10 +99,10 @@ private:
   TypePrimitiveEnum Primitive;
 };
 
-struct PointerType : public ParamType {
+struct PointerType : public ParamTypeBase<PointerType, TYPE_ID_POINTER> {
   static const TypeEnum EnumTy;
   PointerType(const RefParamType Type)
-      : ParamType(TYPE_ID_POINTER), PType(Type), AddressSpace(ATTR_PRIVATE) {
+      : PType(Type), AddressSpace(ATTR_PRIVATE) {
     Qualifiers[0] = Qualifiers[1] = Qualifiers[2] = false;
   }
   MangleError accept(TypeVisitor *Visitor) const override;
@@ -113,10 +118,9 @@ private:
   TypeAttributeEnum AddressSpace;
 };
 
-struct VectorType : public ParamType {
+struct VectorType : public ParamTypeBase<PointerType, TYPE_ID_VECTOR> {
   static const TypeEnum EnumTy;
-  VectorType(const RefParamType Type, int Len)
-      : ParamType(TYPE_ID_VECTOR), PType(Type), Len(Len) {}
+  VectorType(const RefParamType Type, int Len) : PType(Type), Len(Len) {}
   MangleError accept(TypeVisitor *Visitor) const override;
   const RefParamType &getScalarType() const { return PType; }
   int getLength() const { return Len; }
@@ -126,10 +130,10 @@ private:
   int Len;
 };
 
-struct TemplateParameterType : public ParamType {
+struct TemplateParameterType
+    : public ParamTypeBase<PointerType, TYPE_ID_TEMPLATE_PARAMETER> {
   static const TypeEnum EnumTy;
-  TemplateParameterType(unsigned Index)
-      : ParamType(TYPE_ID_TEMPLATE_PARAMETER), Index(Index) {}
+  TemplateParameterType(unsigned Index) : Index(Index) {}
   MangleError accept(TypeVisitor *Visitor) const override;
   unsigned getIndex() const { return Index; }
 
@@ -137,9 +141,9 @@ private:
   unsigned Index;
 };
 
-struct UserDefinedType : public ParamType {
+struct UserDefinedType : public ParamTypeBase<PointerType, TYPE_ID_STRUCTURE> {
   static const TypeEnum EnumTy;
-  UserDefinedType(StringRef Name) : ParamType(TYPE_ID_STRUCTURE), Name(Name) {}
+  UserDefinedType(StringRef Name) : Name(Name) {}
   MangleError accept(TypeVisitor *Visitor) const override;
   StringRef getName() const { return Name; }
 
@@ -155,15 +159,6 @@ struct TypeVisitor {
   virtual MangleError visit(const TemplateParameterType *) = 0;
   virtual MangleError visit(const UserDefinedType *) = 0;
 };
-
-template <typename T> const T *dynCast(const ParamType *PType) {
-  return (T::EnumTy == PType->getTypeId()) ? static_cast<const T *>(PType)
-                                           : nullptr;
-}
-
-template <typename T> T *dynCast(ParamType *PType) {
-  return (T::EnumTy == PType->getTypeId()) ? static_cast<T *>(PType) : nullptr;
-}
 
 class NameMangler {
 public:
