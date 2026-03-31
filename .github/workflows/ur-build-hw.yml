@@ -146,7 +146,7 @@ jobs:
       continue-on-error: true
       env:
         ZE_ENABLE_LOADER_DEBUG_TRACE: 1
-        LIT_OPTS: "-v --no-progress-bar --show-unsupported --show-pass --show-xfail --timeout 120 -j 50"
+        LIT_OPTS: "-v -a --no-progress-bar --timeout 120 -j 50"
         # These tests cause timeouts on CI
         LIT_FILTER_OUT: "(adapters/level_zero/memcheck.test|adapters/level_zero/v2/deferred_kernel_memcheck.test)"
       run: |
@@ -159,7 +159,7 @@ jobs:
       continue-on-error: true
       env:
         ZE_ENABLE_LOADER_DEBUG_TRACE: 1
-        LIT_OPTS: "-v --no-progress-bar --show-unsupported --show-pass --show-xfail --timeout 120 -j 50"
+        LIT_OPTS: "-v -a --no-progress-bar --timeout 120 -j 50"
       run: |
         cmake --build build -j $(($(nproc)/3)) -- check-unified-runtime-conformance > conformance_tests.log 2>&1
 
@@ -180,156 +180,12 @@ jobs:
     - name: Report Adapter Tests Summary
       if: ${{ always() && matrix.adapter.other_name == '' }}
       run: |
-        echo "## Adapter Tests Summary" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        
-        # Extract test lists from LIT output
-        PASSED_TESTS=$(grep "^PASS: " adapter_tests.log | sed 's/^PASS: //' || echo "")
-        FAILED_TESTS=$(grep "^FAIL: " adapter_tests.log | sed 's/^FAIL: //' || echo "")
-        UNSUPPORTED_TESTS=$(grep "^UNSUPPORTED: " adapter_tests.log | sed 's/^UNSUPPORTED: //' || echo "")
-        XFAIL_TESTS=$(grep "^XFAIL: " adapter_tests.log | sed 's/^XFAIL: //' || echo "")
-        
-        PASS_COUNT=$(echo "$PASSED_TESTS" | grep -c "." || echo "0")
-        FAIL_COUNT=$(echo "$FAILED_TESTS" | grep -c "." || echo "0")
-        UNSUPPORTED_COUNT=$(echo "$UNSUPPORTED_TESTS" | grep -c "." || echo "0")
-        XFAIL_COUNT=$(echo "$XFAIL_TESTS" | grep -c "." || echo "0")
-        
-        # Summary stats
-        echo "**Statistics:**" >> $GITHUB_STEP_SUMMARY
-        echo "- ✅ Passed: $PASS_COUNT" >> $GITHUB_STEP_SUMMARY
-        echo "- ❌ Failed: $FAIL_COUNT" >> $GITHUB_STEP_SUMMARY
-        echo "- ⊘ Unsupported: $UNSUPPORTED_COUNT" >> $GITHUB_STEP_SUMMARY
-        echo "- ⚠️ Expected Failures: $XFAIL_COUNT" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        
-        # Passed tests list
-        if [ "$PASS_COUNT" -gt 0 ]; then
-          echo "<details>" >> $GITHUB_STEP_SUMMARY
-          echo "<summary>Passed Tests ($PASS_COUNT)</summary>" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          echo "$PASSED_TESTS" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          echo "</details>" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-        fi
-        
-        # Failed tests list
-        if [ "$FAIL_COUNT" -gt 0 ]; then
-          echo "<details open>" >> $GITHUB_STEP_SUMMARY
-          echo "<summary>Failed Tests ($FAIL_COUNT)</summary>" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          echo "$FAILED_TESTS" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          echo "</details>" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-        fi
-        
-        # Unsupported tests list
-        if [ "$UNSUPPORTED_COUNT" -gt 0 ]; then
-          echo "<details>" >> $GITHUB_STEP_SUMMARY
-          echo "<summary>Unsupported Tests ($UNSUPPORTED_COUNT)</summary>" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          echo "$UNSUPPORTED_TESTS" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          echo "</details>" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-        fi
-        
-        # Expectedly failed tests list
-        if [ "$XFAIL_COUNT" -gt 0 ]; then
-          echo "<details>" >> $GITHUB_STEP_SUMMARY
-          echo "<summary>Expected Failures ($XFAIL_COUNT)</summary>" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          echo "$XFAIL_TESTS" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          echo "</details>" >> $GITHUB_STEP_SUMMARY
-        fi
-        
-        # Fail if there are failed tests
-        if [ "$FAIL_COUNT" -gt 0 ]; then
-          exit 1
-        fi
+        devops/scripts/generate_test_summary.sh adapter_tests.log "Adapter Tests" >> $GITHUB_STEP_SUMMARY
 
     - name: Report Conformance Tests Summary
       if: ${{ always() }}
       run: |
-        echo "## Conformance Tests Summary" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        
-        # Extract test lists from LIT output
-        PASSED_TESTS=$(grep "^PASS: " conformance_tests.log | sed 's/^PASS: //' || echo "")
-        FAILED_TESTS=$(grep "^FAIL: " conformance_tests.log | sed 's/^FAIL: //' || echo "")
-        UNSUPPORTED_TESTS=$(grep "^UNSUPPORTED: " conformance_tests.log | sed 's/^UNSUPPORTED: //' || echo "")
-        XFAIL_TESTS=$(grep "^XFAIL: " conformance_tests.log | sed 's/^XFAIL: //' || echo "")
-        
-        PASS_COUNT=$(echo "$PASSED_TESTS" | grep -c "." || echo "0")
-        FAIL_COUNT=$(echo "$FAILED_TESTS" | grep -c "." || echo "0")
-        UNSUPPORTED_COUNT=$(echo "$UNSUPPORTED_TESTS" | grep -c "." || echo "0")
-        XFAIL_COUNT=$(echo "$XFAIL_TESTS" | grep -c "." || echo "0")
-        
-        # Summary stats
-        echo "**Statistics:**" >> $GITHUB_STEP_SUMMARY
-        echo "- ✅ Passed: $PASS_COUNT" >> $GITHUB_STEP_SUMMARY
-        echo "- ❌ Failed: $FAIL_COUNT" >> $GITHUB_STEP_SUMMARY
-        echo "- ⊘ Unsupported: $UNSUPPORTED_COUNT" >> $GITHUB_STEP_SUMMARY
-        echo "- ⚠️ Expected Failures: $XFAIL_COUNT" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        
-        # Passed tests list
-        if [ "$PASS_COUNT" -gt 0 ]; then
-          echo "<details>" >> $GITHUB_STEP_SUMMARY
-          echo "<summary>Passed Tests ($PASS_COUNT)</summary>" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          echo "$PASSED_TESTS" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          echo "</details>" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-        fi
-        
-        # Failed tests list
-        if [ "$FAIL_COUNT" -gt 0 ]; then
-          echo "<details open>" >> $GITHUB_STEP_SUMMARY
-          echo "<summary>Failed Tests ($FAIL_COUNT)</summary>" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          echo "$FAILED_TESTS" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          echo "</details>" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-        fi
-        
-        # Unsupported tests list
-        if [ "$UNSUPPORTED_COUNT" -gt 0 ]; then
-          echo "<details>" >> $GITHUB_STEP_SUMMARY
-          echo "<summary>Unsupported Tests ($UNSUPPORTED_COUNT)</summary>" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          echo "$UNSUPPORTED_TESTS" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          echo "</details>" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-        fi
-        
-        # Expectedly failed tests list
-        if [ "$XFAIL_COUNT" -gt 0 ]; then
-          echo "<details>" >> $GITHUB_STEP_SUMMARY
-          echo "<summary>Expected Failures ($XFAIL_COUNT)</summary>" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          echo "$XFAIL_TESTS" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          echo "</details>" >> $GITHUB_STEP_SUMMARY
-        fi
-        
-        # Fail if there are failed tests
-        if [ "$FAIL_COUNT" -gt 0 ]; then
-          exit 1
-        fi
+        devops/scripts/generate_test_summary.sh conformance_tests.log "Conformance Tests" >> $GITHUB_STEP_SUMMARY
 
     - name: Debug CI platform information
       if: ${{ always() }}
