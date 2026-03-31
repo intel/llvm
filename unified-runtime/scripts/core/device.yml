@@ -334,7 +334,7 @@ etors:
             The reference count returned should be considered immediately stale.
             It is unsuitable for general use in applications. This feature is provided for identifying memory leaks.
     - name: IL_VERSION
-      desc: "[char[]] null-terminated IL version"
+      desc: "[char[]][optional-query] null-terminated IL version. Optional as not all adapters support IL (e.g., NativeCPU)."
     - name: NAME
       desc: "[char[]] null-terminated device name"
     - name: VENDOR
