@@ -365,8 +365,8 @@ DefineShuffleVec2to16(float, f32, float);
   static_assert(true)
 
 #define DefGroupNonUniformShuffleXor(Type, Sfx, MuxType)                       \
-  DEVICE_EXTERN_C MuxType __mux_sub_group_shuffle_xor_##Sfx(                   \
-      MuxType val, int32_t xor_val) noexcept;                                  \
+  DEVICE_EXTERN_C MuxType __mux_sub_group_shuffle_xor_##Sfx(MuxType val,       \
+                                                            int32_t xor_val);  \
   DEVICE_EXTERNAL Type __spirv_GroupNonUniformShuffleXor(                      \
       int32_t scope, Type data, unsigned value) noexcept {                     \
     if (__spv::Scope::Flag::Subgroup == scope)                                 \
