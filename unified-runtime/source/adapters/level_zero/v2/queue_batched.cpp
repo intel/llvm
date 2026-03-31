@@ -1013,21 +1013,19 @@ ur_result_t ur_queue_batched_t::enqueueGraphExp(
   wait_list_view waitListView =
       wait_list_view(phEventWaitList, numEventsInWaitList, this);
 
-  bool isGraphCaptureActive = false;
-  ur_result_t result = queueIsGraphCapteEnabledExp(&isGraphCaptureActive);
-  if (result == UR_RESULT_SUCCESS && !isGraphCaptureActive) {
-    return UR_RESULT_ERROR_INVALID_OPERATION;
+  auto lockedBatch = currentCmdLists.lock();
+
+  // Flush the current batch to preserve order of operations
+  if (!lockedBatch->isActiveBatchEmpty()) {
+    UR_CALL(renewBatchUnlocked(lockedBatch));
   }
 
-  auto batchLocked = currentCmdLists.lock();
-  ur_result_t appendResult = batchLocked->getListManager().appendGraph(
-      hGraph, waitListView, getEvent(batchLocked, phEvent));
-
-  if (appendResult != UR_RESULT_SUCCESS) {
-    return appendResult;
-  }
-
-  return markIssuedCommandInBatch(batchLocked);
+  // Graph execution must use immediate command list, similar to command buffer
+  // execution. Level Zero requires graphs to be executed on the same type of
+  // list used during capture.
+  return lockedBatch->getImmediateManager().appendGraph(
+      hGraph, waitListView,
+      createEventAndRetain(eventPoolImmediate.get(), phEvent, this));
 }
 
 ur_result_t ur_queue_batched_t::queueBeginGraphCapteExp() {
