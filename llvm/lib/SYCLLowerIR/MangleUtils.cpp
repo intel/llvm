@@ -307,26 +307,10 @@ NameMangler::mangleTemplateName(StringRef Name,
 
 MangleError NameMangler::mangle(StringRef Name, ArrayRef<RefParamType> Params,
                                 SmallVectorImpl<char> &MangledName) {
-  return mangle(Name, {}, Params, MangledName);
-}
-
-MangleError NameMangler::mangle(StringRef Name,
-                                ArrayRef<RefParamType> TemplateArgs,
-                                ArrayRef<RefParamType> Params,
-                                SmallVectorImpl<char> &MangledName) {
   MangledName.clear();
   raw_svector_ostream Stream(MangledName);
   Stream << "_Z" << Name.size() << Name;
   MangleVisitor Visitor(MangledName, Stream, 0);
-  if (!TemplateArgs.empty()) {
-    Stream << 'I';
-    for (const auto &TemplateArg : TemplateArgs) {
-      MangleError Err = TemplateArg->accept(&Visitor);
-      if (Err != MANGLE_SUCCESS)
-        return Err;
-    }
-    Stream << 'E';
-  }
   for (const auto &P : Params) {
     MangleError Err = P->accept(&Visitor);
     if (Err != MANGLE_SUCCESS)

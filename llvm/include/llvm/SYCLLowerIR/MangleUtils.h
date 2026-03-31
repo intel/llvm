@@ -168,10 +168,6 @@ public:
 
   MangleError mangle(StringRef Name, ArrayRef<RefParamType> Params,
                      SmallVectorImpl<char> &MangledName);
-
-  MangleError mangle(StringRef Name, ArrayRef<RefParamType> TemplateArgs,
-                     ArrayRef<RefParamType> Params,
-                     SmallVectorImpl<char> &MangledName);
 };
 
 } // namespace SPIR
