@@ -1425,6 +1425,9 @@ struct urProgramTest : urMultiQueueTypeTest {
     UUR_RETURN_ON_FATAL_FAILURE(uur::KernelsEnvironment::instance->LoadSource(
         program_name, platform, il_binary));
 
+    // Add known metadata for specific test kernels
+    addKnownKernelMetadata();
+
     const ur_program_properties_t properties = {
         UR_STRUCTURE_TYPE_PROGRAM_PROPERTIES, nullptr,
         static_cast<uint32_t>(metadatas.size()),
@@ -1432,6 +1435,59 @@ struct urProgramTest : urMultiQueueTypeTest {
     UUR_RETURN_ON_FATAL_FAILURE(
         uur::KernelsEnvironment::instance->CreateProgram(
             platform, context, device, *il_binary, &properties, &program));
+  }
+
+  void addKnownKernelMetadata() {
+    // Add reqd_work_group_size metadata for fixed_wg_size kernel
+    if (program_name == "fixed_wg_size") {
+      addReqdWorkGroupSize("FixedWgSize", 8, 4, 2);
+    }
+    // Add reqd_sub_group_size metadata for fixed_sg_size kernel  
+    else if (program_name == "fixed_sg_size") {
+      addReqdSubGroupSize("FixedSgSize", 8);
+      // Also add reqd_work_group_size since the kernel uses it
+      addReqdWorkGroupSize("FixedSgSize", 8, 8, 8);
+    }
+  }
+
+  void addReqdWorkGroupSize(const char *kernelName, uint32_t x, uint32_t y, uint32_t z) {
+    // Format: [size_header, reserved, x, y, z]
+    metadata_storage.wg_size_data.push_back({});
+    auto &data = metadata_storage.wg_size_data.back();
+    data.push_back(96);  // 3 * 32-bit values
+    data.push_back(0);   // reserved
+    data.push_back(x);
+    data.push_back(y);
+    data.push_back(z);
+
+    // Create metadata name: "KernelName@reqd_work_group_size"
+    metadata_storage.names.push_back(std::string(kernelName) + "@reqd_work_group_size");
+    
+    ur_program_metadata_value_t value;
+    value.pData = data.data();
+
+    ur_program_metadata_t metadata = {
+        metadata_storage.names.back().c_str(),
+        UR_PROGRAM_METADATA_TYPE_BYTE_ARRAY,
+        data.size() * sizeof(uint32_t),
+        value
+    };
+    metadatas.push_back(metadata);
+  }
+
+  void addReqdSubGroupSize(const char *kernelName, uint32_t size) {
+    metadata_storage.names.push_back(std::string(kernelName) + "@reqd_sub_group_size");
+    
+    ur_program_metadata_value_t value;
+    value.data32 = size;
+
+    ur_program_metadata_t metadata = {
+        metadata_storage.names.back().c_str(),
+        UR_PROGRAM_METADATA_TYPE_UINT32,
+        sizeof(uint32_t),
+        value
+    };
+    metadatas.push_back(metadata);
   }
 
   void TearDown() override {
@@ -1445,6 +1501,12 @@ struct urProgramTest : urMultiQueueTypeTest {
   std::string program_name = "foo";
   ur_program_handle_t program = nullptr;
   std::vector<ur_program_metadata_t> metadatas{};
+
+  // Storage for metadata that needs to persist for the test lifetime
+  struct MetadataStorage {
+    std::vector<std::string> names;
+    std::vector<std::vector<uint32_t>> wg_size_data;
+  } metadata_storage;
 };
 
 template <class T>

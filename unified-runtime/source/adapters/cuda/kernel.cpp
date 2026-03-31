@@ -271,8 +271,30 @@ urKernelGetSubGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
     return ReturnValue(static_cast<uint32_t>(MaxWarps));
   }
   case UR_KERNEL_SUB_GROUP_INFO_COMPILE_NUM_SUB_GROUPS: {
-    // Return value of 0 => not specified
-    // TODO: Revisit if PTX is generated for compile-time work-group sizes
+    // Calculate number of sub-groups if both reqd_work_group_size and
+    // reqd_sub_group_size metadata are available
+    const auto &ReqdSubGroupSizeMap =
+        hKernel->getProgram()->KernelReqdSubGroupSizeMD;
+    auto ReqdSubGroupSizeIt = ReqdSubGroupSizeMap.find(hKernel->getName());
+    
+    // Check if both required work group size and required sub-group size are specified
+    if (ReqdSubGroupSizeIt != ReqdSubGroupSizeMap.end() &&
+        ReqdSubGroupSizeIt->second > 0 &&
+        (hKernel->ReqdThreadsPerBlock[0] > 0 ||
+         hKernel->ReqdThreadsPerBlock[1] > 0 ||
+         hKernel->ReqdThreadsPerBlock[2] > 0)) {
+      // Calculate total number of threads in work group
+      size_t totalThreads = 
+          (hKernel->ReqdThreadsPerBlock[0] ? hKernel->ReqdThreadsPerBlock[0] : 1) *
+          (hKernel->ReqdThreadsPerBlock[1] ? hKernel->ReqdThreadsPerBlock[1] : 1) *
+          (hKernel->ReqdThreadsPerBlock[2] ? hKernel->ReqdThreadsPerBlock[2] : 1);
+      
+      uint32_t subGroupSize = ReqdSubGroupSizeIt->second;
+      uint32_t numSubGroups = (totalThreads + subGroupSize - 1) / subGroupSize;
+      return ReturnValue(numSubGroups);
+    }
+    
+    // Return 0 => not specified
     return ReturnValue(0);
   }
   case UR_KERNEL_SUB_GROUP_INFO_SUB_GROUP_SIZE_INTEL: {
