@@ -4,10 +4,8 @@
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-// Portions of this code are derived from SPIRV-LLVM Translator
-// (https://github.com/KhronosGroup/SPIRV-LLVM-Translator).
-// Copyright (c) 2015 The Khronos Group Inc.
-// Licensed under the University of Illinois Open Source License.
+// Contains code derived from SPIRV-LLVM Translator. License available at:
+// https://github.com/KhronosGroup/SPIRV-LLVM-Translator/blob/main/LICENSE.TXT
 //
 //===----------------------------------------------------------------------===//
 //
@@ -175,7 +173,7 @@ static constexpr StringRef TmpSuffix = ".tmp";
 namespace {
 
 //===----------------------------------------------------------------------===//
-// SPIR Type System (adapted from SPIRV-LLVM-Translator Mangler).
+// Extended from SPIR Type System (adapted from SPIRV-LLVM-Translator Mangler).
 //===----------------------------------------------------------------------===//
 
 namespace SPIR {
@@ -232,7 +230,6 @@ struct ParamType : public RefCountedBase<ParamType> {
   ParamType(TypeEnum TypeId) : TypeId(TypeId) {}
   virtual ~ParamType() {}
   virtual MangleError accept(TypeVisitor *) const = 0;
-  virtual bool equals(const ParamType *) const = 0;
   TypeEnum getTypeId() const { return TypeId; }
 
 protected:
@@ -246,7 +243,6 @@ struct PrimitiveType : public ParamType {
   PrimitiveType(TypePrimitiveEnum P)
       : ParamType(TYPE_ID_PRIMITIVE), Primitive(P) {}
   MangleError accept(TypeVisitor *) const override;
-  bool equals(const ParamType *) const override;
   TypePrimitiveEnum getPrimitive() const { return Primitive; }
 
 private:
@@ -257,7 +253,6 @@ struct PointerType : public ParamType {
   static const TypeEnum EnumTy;
   PointerType(const RefParamType Type);
   MangleError accept(TypeVisitor *) const override;
-  bool equals(const ParamType *) const override;
   const RefParamType &getPointee() const { return PType; }
   void setAddressSpace(TypeAttributeEnum Attr);
   TypeAttributeEnum getAddressSpace() const { return AddressSpace; }
@@ -275,7 +270,6 @@ struct VectorType : public ParamType {
   VectorType(const RefParamType Type, int Len)
       : ParamType(TYPE_ID_VECTOR), PType(Type), Len(Len) {}
   MangleError accept(TypeVisitor *) const override;
-  bool equals(const ParamType *) const override;
   const RefParamType &getScalarType() const { return PType; }
   int getLength() const { return Len; }
 
@@ -289,7 +283,6 @@ struct TemplateParameterType : public ParamType {
   TemplateParameterType(unsigned Index)
       : ParamType(TYPE_ID_TEMPLATE_PARAMETER), Index(Index) {}
   MangleError accept(TypeVisitor *) const override;
-  bool equals(const ParamType *) const override;
   unsigned getIndex() const { return Index; }
 
 private:
@@ -300,7 +293,6 @@ struct UserDefinedType : public ParamType {
   static const TypeEnum EnumTy;
   UserDefinedType(StringRef Name) : ParamType(TYPE_ID_STRUCTURE), Name(Name) {}
   MangleError accept(TypeVisitor *) const override;
-  bool equals(const ParamType *) const override;
   StringRef getName() const { return Name; }
 
 private:
@@ -421,11 +413,6 @@ MangleError PrimitiveType::accept(TypeVisitor *Visitor) const {
   return Visitor->visit(this);
 }
 
-bool PrimitiveType::equals(const ParamType *Type) const {
-  const PrimitiveType *P = dynCast<PrimitiveType>(Type);
-  return P && (Primitive == P->Primitive);
-}
-
 PointerType::PointerType(const RefParamType Type)
     : ParamType(TYPE_ID_POINTER), PType(Type), AddressSpace(ATTR_PRIVATE) {
   Qualifiers[0] = Qualifiers[1] = Qualifiers[2] = false;
@@ -458,37 +445,16 @@ bool PointerType::hasQualifier(TypeAttributeEnum Qual) const {
   return false;
 }
 
-bool PointerType::equals(const ParamType *Type) const {
-  const PointerType *P = dynCast<PointerType>(Type);
-  return P && getPointee()->equals(&*P->getPointee());
-}
-
 MangleError VectorType::accept(TypeVisitor *Visitor) const {
   return Visitor->visit(this);
-}
-
-bool VectorType::equals(const ParamType *Type) const {
-  const VectorType *V = dynCast<VectorType>(Type);
-  return V && (Len == V->Len) && getScalarType()->equals(&*V->getScalarType());
 }
 
 MangleError TemplateParameterType::accept(TypeVisitor *Visitor) const {
   return Visitor->visit(this);
 }
 
-bool TemplateParameterType::equals(const ParamType *Type) const {
-  const TemplateParameterType *TemplateParam =
-      dynCast<TemplateParameterType>(Type);
-  return TemplateParam && (Index == TemplateParam->Index);
-}
-
 MangleError UserDefinedType::accept(TypeVisitor *Visitor) const {
   return Visitor->visit(this);
-}
-
-bool UserDefinedType::equals(const ParamType *Type) const {
-  const UserDefinedType *U = dynCast<UserDefinedType>(Type);
-  return U && (Name == U->Name);
 }
 
 class MangleVisitor : public TypeVisitor {
@@ -896,7 +862,9 @@ private:
         int ASNum = 0;
         [[maybe_unused]] bool Error = Ext.drop_front(2).getAsInteger(10, ASNum);
         assert(!Error && "Unexpected non-integer address space");
-        if (ASNum == 1)
+        if (ASNum == 0)
+            AS = SPIR::ATTR_PRIVATE;
+        else if (ASNum == 1)
           AS = SPIR::ATTR_GLOBAL;
         else if (ASNum == 2)
           AS = SPIR::ATTR_CONSTANT;
@@ -994,33 +962,30 @@ private:
   }
 };
 
-class TypeTransformer {
-public:
-  SPIR::RefParamType transform(SPIR::RefParamType Type) {
-    if (!Type)
-      return Type;
-
-    if (const auto *Prim = SPIR::dynCast<SPIR::PrimitiveType>(Type.get())) {
-      // All primitive type transformations are now handled in convertNameType.
-      return SPIR::RefParamType(new SPIR::PrimitiveType(Prim->getPrimitive()));
-    } else if (const auto *Ptr = SPIR::dynCast<SPIR::PointerType>(Type.get())) {
-      SPIR::RefParamType Pointee = transform(Ptr->getPointee());
-      auto *NewPtr = new SPIR::PointerType(Pointee);
-      NewPtr->setAddressSpace(Ptr->getAddressSpace());
-      NewPtr->setQualifier(SPIR::ATTR_CONST,
-                           Ptr->hasQualifier(SPIR::ATTR_CONST));
-      NewPtr->setQualifier(SPIR::ATTR_VOLATILE,
-                           Ptr->hasQualifier(SPIR::ATTR_VOLATILE));
-      NewPtr->setQualifier(SPIR::ATTR_RESTRICT,
-                           Ptr->hasQualifier(SPIR::ATTR_RESTRICT));
-      return SPIR::RefParamType(NewPtr);
-    } else if (const auto *Vec = SPIR::dynCast<SPIR::VectorType>(Type.get())) {
-      SPIR::RefParamType Scalar = transform(Vec->getScalarType());
-      return SPIR::RefParamType(new SPIR::VectorType(Scalar, Vec->getLength()));
-    }
+SPIR::RefParamType cloneType(SPIR::RefParamType Type) {
+  if (!Type)
     return Type;
+
+  if (const auto *Prim = SPIR::dynCast<SPIR::PrimitiveType>(Type.get())) {
+    // Primitive remapping happens in NodeToSPIRType; this only deep-copies.
+    return SPIR::RefParamType(new SPIR::PrimitiveType(Prim->getPrimitive()));
+  } else if (const auto *Ptr = SPIR::dynCast<SPIR::PointerType>(Type.get())) {
+    SPIR::RefParamType Pointee = cloneType(Ptr->getPointee());
+    auto *NewPtr = new SPIR::PointerType(Pointee);
+    NewPtr->setAddressSpace(Ptr->getAddressSpace());
+    NewPtr->setQualifier(SPIR::ATTR_CONST,
+                         Ptr->hasQualifier(SPIR::ATTR_CONST));
+    NewPtr->setQualifier(SPIR::ATTR_VOLATILE,
+                         Ptr->hasQualifier(SPIR::ATTR_VOLATILE));
+    NewPtr->setQualifier(SPIR::ATTR_RESTRICT,
+                         Ptr->hasQualifier(SPIR::ATTR_RESTRICT));
+    return SPIR::RefParamType(NewPtr);
+  } else if (const auto *Vec = SPIR::dynCast<SPIR::VectorType>(Type.get())) {
+    SPIR::RefParamType Scalar = cloneType(Vec->getScalarType());
+    return SPIR::RefParamType(new SPIR::VectorType(Scalar, Vec->getLength()));
   }
-};
+  return Type;
+}
 
 // Simple allocator for demangling.
 class SimpleAllocator {
@@ -1044,9 +1009,12 @@ using Demangler = ManglingParser<SimpleAllocator>;
 struct NameBoundaryParser : ManglingParser<SimpleAllocator> {
   using ManglingParser<SimpleAllocator>::ManglingParser;
 
+  NameBoundaryParser(const char *First, const char *Last, const char *InputBegin)
+      : ManglingParser<SimpleAllocator>(First, Last), InputBegin(InputBegin) {}
+
   size_t getTemplateSuffixStart() const { return First - InputBegin; }
 
-  const char *InputBegin = nullptr;
+  const char *InputBegin;
 };
 
 size_t findTemplateSuffixStart(StringRef MangledName) {
@@ -1054,8 +1022,8 @@ size_t findTemplateSuffixStart(StringRef MangledName) {
     return StringRef::npos;
 
   NameBoundaryParser Parser(MangledName.data() + 2,
-                            MangledName.data() + MangledName.size());
-  Parser.InputBegin = MangledName.data();
+                            MangledName.data() + MangledName.size(),
+                            MangledName.data());
   const Node *ParsedName = Parser.parseName();
   if (!ParsedName || ParsedName->getKind() != Node::KNameWithTemplateArgs)
     return StringRef::npos;
@@ -1102,7 +1070,7 @@ bool tryRemangleFuncName(StringRef MangledName, const Triple &TT,
 
   // Convert template arguments and function parameter types.
   NodeToSPIRType Converter(TT, Mode);
-  TypeTransformer Transformer;
+
   SmallVector<SPIR::RefParamType, 2> TemplateArgTypes;
   SmallVector<SPIR::RefParamType, 8> Params;
 
@@ -1120,7 +1088,7 @@ bool tryRemangleFuncName(StringRef MangledName, const Triple &TT,
       SPIR::RefParamType TemplateArgType = Converter.convert(TemplateArgNode);
       if (!TemplateArgType)
         return false;
-      TemplateArgType = Transformer.transform(TemplateArgType);
+      TemplateArgType = cloneType(TemplateArgType);
       TemplateArgTypes.push_back(TemplateArgType);
     }
   }
@@ -1136,7 +1104,7 @@ bool tryRemangleFuncName(StringRef MangledName, const Triple &TT,
       // mangling. Don't try to remangle it.
       return false;
     }
-    ParamType = Transformer.transform(ParamType);
+    ParamType = cloneType(ParamType);
     Params.push_back(ParamType);
   }
 
