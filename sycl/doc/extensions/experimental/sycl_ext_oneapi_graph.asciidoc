@@ -1232,16 +1232,9 @@ node model. When this property is set, calls to `begin_recording` and
 mechanism.
 
 Because capture happens at the backend level, the SYCL runtime has no
-visibility into the captured commands. As a result:
-
-* `get_nodes()` and `get_root_nodes()` return empty vectors.
-* The explicit graph-building API (`graph.add(...)`, `graph.make_edge(...)`)
-  cannot be used while native recording is active.
-* Graph update (`update()`) is not supported and will throw
-  `feature_not_supported`.
-* Host tasks and asynchronous memory allocations (`ext_oneapi_async_malloc`,
-  `ext_oneapi_async_free`) cannot be recorded and will throw `invalid`.
-* `command_graph<graph_state::modifiable>::begin_recording` may be called at most once per graph and only with a single queue.
+visibility into the captured commands.
+See <<native-recording-limitations, Limitations of Native Recording>> for the
+full list of constraints.
 
 This property is optional. If the backend does not support native graph
 capture the constructor will throw `feature_not_supported`.
@@ -1658,7 +1651,8 @@ is already in the `queue_state::recording` state.
 When `property::graph::enable_native_recording` was set on the graph,
 this call delegates to the backend's native graph-capture mechanism
 rather than transitioning the queue through the SYCL runtime recording state model.
-In this mode only a single queue may be recording at a time for a given graph.
+In this mode `begin_recording` may only be called once per graph, and only a
+single queue may be passed.
 
 _Preconditions:_
 `propList` is an optional parameter for passing properties.
@@ -2578,7 +2572,7 @@ sycl::free(data, queue);
 ----
 
 
-=== Limitations of Native Recording
+=== Limitations of Native Recording [[native-recording-limitations]]
 
 The following features cannot be used with native recording and will throw an
 exception if attempted:
@@ -2591,13 +2585,17 @@ exception if attempted:
 | Backend performs capture; SYCL runtime cannot inject explicit nodes.
 | `invalid`
 
-| Host tasks
-| Host tasks scheduled through the sycl::handler::host_task API cannot be captured by the backend.
+| `sycl::handler::host_task`
+| Host tasks execute on the host and cannot be captured by the backend.
 | `invalid`
 
 | `ext_oneapi_async_malloc` / `ext_oneapi_async_free`
 | Async memory allocation is not representable in native backend graphs.
 | `invalid`
+
+| `sycl::buffer` accessors
+| SYCL buffers are not supported with native recording.
+| `feature_not_supported`
 
 | `update()` on the executable graph
 | Backend graphs do not expose a node model suitable for parameter updates.
@@ -2607,9 +2605,13 @@ exception if attempted:
 | Implies update support which is unavailable for native recording.
 | `feature_not_supported`
 
-| Multiple queues recording to the same graph simultaneously
-| Backend capture is tied to a single command list at a time.
+| Calling `begin_recording` with a vector of queues, or calling it more than once per graph
+| Only a single call to `begin_recording` with a single queue is supported per graph.
 | `invalid`
+
+| Events from submissions within a graph used outside that graph
+| Events signaled during native capture are scoped to the graph and may not be used for synchronization outside it.
+| _(behavior undefined)_
 
 | `get_nodes()` / `get_root_nodes()`
 | No SYCL node model is built during native capture; returns empty vectors.
@@ -2623,11 +2625,13 @@ Native recording requires backend support for native graph
 capture. If the backend does not support this capability the
 `command_graph` constructor will throw `feature_not_supported`.
 
-Additionally, native recording requires the queue to be backed by an
-immediate command list (i.e. `property::queue::in_order` with an underlying
-immediate command list). Using native recording with an out-of-order queue
-may result in `invalid` being thrown at `begin_recording` time if the backend
-cannot satisfy this requirement.
+The following requirements apply specifically to the Level Zero V2 (L0v2)
+adapter. Other backend implementations may have different requirements.
+
+Native recording requires the queue to be backed by an immediate command list
+(i.e. `property::queue::in_order` with an underlying immediate command list).
+On compatible devices, immediate command lists are used by default with the
+L0v2 adapter and no explicit user configuration is required.
 
 == Non-implemented features and known issues
 
@@ -2636,7 +2640,7 @@ if used in application code.
 
 . Using reductions in a graph node.
 . Using sycl streams in a graph node.
-. Using host tasks in a graph node when `property::graph::enable_native_recording` is set.
+. Using host tasks via `sycl::handler::host_task` in a graph node when `property::graph::enable_native_recording` is set.
 . Calling `update()` on an executable graph created from a graph with
   `property::graph::enable_native_recording`.
 
