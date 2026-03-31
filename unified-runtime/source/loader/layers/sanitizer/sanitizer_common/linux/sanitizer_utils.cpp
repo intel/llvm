@@ -107,8 +107,6 @@ void TryReExecWithoutASLR() {
     }
     ReExec();
   }
-  die("Device ThreadSanitizer failed to reserve shadow memory since shadow "
-      "memory interleaves with an existing mapping.");
 }
 
 void *GetMemFunctionPointer(const char *FuncName) {

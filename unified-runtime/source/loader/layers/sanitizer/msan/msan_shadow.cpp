@@ -94,13 +94,13 @@ ur_result_t MsanShadowMemoryCPU::Setup() {
 
     if (IsMap) {
       if (!MmapFixedNoReserve(Start, Size)) {
-        DontCoredumpRange(Start, Size);
         UR_LOG_L(getContext()->logger, DEBUG,
                  "Failed to mmap shadow memory: {} - {}", (void *)Start,
                  (void *)End);
         Initialized = false;
         break;
       }
+      DontCoredumpRange(Start, Size);
     }
     if (IsProtect) {
       if (!ProtectMemoryRange(Start, Size)) {
