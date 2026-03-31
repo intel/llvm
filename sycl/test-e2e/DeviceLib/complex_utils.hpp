@@ -1,5 +1,6 @@
 #pragma once
 #include <array>
+#include <cmath>
 #include <complex>
 #include <sycl/detail/core.hpp>
 enum { zero, non_zero, inf, NaN, non_zero_nan };
