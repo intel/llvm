@@ -586,7 +586,6 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
         foreach(char_signedness signed unsigned)
           set(spirv_remangle_build_flags ${spirv_build_flags}
               -Xclang -fsycl-remangle-libspirv
-              -mllvm -remangle-spirv-target
               -mllvm -remangle-long-width=${long_width}
               -mllvm -remangle-char-signedness=${char_signedness}
           )
