@@ -4,6 +4,9 @@
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
+// Contains code derived from SPIRV-LLVM Translator. License available at:
+// https://github.com/KhronosGroup/SPIRV-LLVM-Translator/blob/main/LICENSE.TXT
+//
 //===----------------------------------------------------------------------===//
 
 #ifndef LLVM_SYCLLOWERIR_MANGLEUTILS_H
