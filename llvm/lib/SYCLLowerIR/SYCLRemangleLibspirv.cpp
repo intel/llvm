@@ -380,7 +380,7 @@ private:
         [[maybe_unused]] bool Error = Ext.drop_front(2).getAsInteger(10, ASNum);
         assert(!Error && "Unexpected non-integer address space");
         if (ASNum == 0)
-            AS = SPIR::ATTR_PRIVATE;
+          AS = SPIR::ATTR_PRIVATE;
         else if (ASNum == 1)
           AS = SPIR::ATTR_GLOBAL;
         else if (ASNum == 2)
@@ -490,8 +490,7 @@ SPIR::RefParamType cloneType(SPIR::RefParamType Type) {
     SPIR::RefParamType Pointee = cloneType(Ptr->getPointee());
     auto *NewPtr = new SPIR::PointerType(Pointee);
     NewPtr->setAddressSpace(Ptr->getAddressSpace());
-    NewPtr->setQualifier(SPIR::ATTR_CONST,
-                         Ptr->hasQualifier(SPIR::ATTR_CONST));
+    NewPtr->setQualifier(SPIR::ATTR_CONST, Ptr->hasQualifier(SPIR::ATTR_CONST));
     NewPtr->setQualifier(SPIR::ATTR_VOLATILE,
                          Ptr->hasQualifier(SPIR::ATTR_VOLATILE));
     NewPtr->setQualifier(SPIR::ATTR_RESTRICT,
@@ -526,7 +525,8 @@ using Demangler = ManglingParser<SimpleAllocator>;
 struct NameBoundaryParser : ManglingParser<SimpleAllocator> {
   using ManglingParser<SimpleAllocator>::ManglingParser;
 
-  NameBoundaryParser(const char *First, const char *Last, const char *InputBegin)
+  NameBoundaryParser(const char *First, const char *Last,
+                     const char *InputBegin)
       : ManglingParser<SimpleAllocator>(First, Last), InputBegin(InputBegin) {}
 
   size_t getTemplateSuffixStart() const { return First - InputBegin; }
