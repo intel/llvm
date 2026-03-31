@@ -242,11 +242,6 @@ public:
         F->hasFnAttribute(Attribute::Naked))
       return false;
 
-    // Skip SPIRV printf functions - they expect native variadic calling convention
-    StringRef Name = F->getName();
-    if (Name.contains("__spirv_ocl_printf"))
-      return false;
-
     if (!isValidCallingConv(F))
       return false;
 
