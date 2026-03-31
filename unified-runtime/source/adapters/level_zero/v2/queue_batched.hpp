@@ -199,8 +199,6 @@ private:
 
   ur_result_t queueFinishUnlocked(locked<batch_manager> &batchLocked);
 
-  ur_result_t queueFlushUnlocked(locked<batch_manager> &batchLocked);
-
   ur_result_t markIssuedCommandInBatch(locked<batch_manager> &batchLocked);
 
 public:
