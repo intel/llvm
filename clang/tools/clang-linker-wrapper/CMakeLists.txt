@@ -15,6 +15,7 @@ set(LLVM_LINK_COMPONENTS
   Support
   TargetParser
   CodeGen
+  Linker
   LTO
   FrontendOffloading
   SYCLLowerIR

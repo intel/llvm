@@ -28,6 +28,7 @@
 #include "llvm/IR/DiagnosticPrinter.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IRReader/IRReader.h"
+#include "llvm/Linker/Linker.h"
 #include "llvm/LTO/LTO.h"
 #include "llvm/MC/TargetRegistry.h"
 #include "llvm/Object/Archive.h"
@@ -1435,23 +1436,30 @@ static Expected<StringRef> linkDeviceInputFiles(ArrayRef<StringRef> InputFiles,
   return *OutFileOrErr;
 }
 
-/// Link all device library files and input file into one LLVM IR file. This
-/// linking is performed using llvm-link tool.
-/// 'InputFiles' is the list of all LLVM IR device input files.
-/// 'Args' encompasses all arguments required for linking and wrapping device
-/// code and will be parsed to generate options required to be passed into the
-/// llvm-link tool.
+/// Link all device library files and input file into one LLVM IR file.
 static Expected<StringRef>
 linkDeviceLibFiles(SmallVectorImpl<StringRef> &InputFiles,
                    const ArgList &Args) {
   llvm::TimeTraceScope TimeScope("LinkDeviceLibraryFiles");
 
-  const char *LinkerExecutable = "llvm-link";
-
-  Expected<std::string> Linker =
-      findProgram(LinkerExecutable, {getMainExecutable(LinkerExecutable)});
-  if (!Linker)
-    return Linker.takeError();
+  llvm::LLVMContext Context;
+  llvm::SMDiagnostic Err;
+  auto DestModule =
+      std::make_unique<llvm::Module>("DeviceLibLinkedModule", Context);
+  auto MainModule = llvm::parseIRFile(InputFiles[0], Err, Context);
+  llvm::Linker::linkModules(*DestModule, std::move(MainModule), 0);
+  unsigned Flags = llvm::Linker::Flags::LinkOnlyNeeded;
+  for (size_t Idx = 1; Idx < InputFiles.size(); ++Idx) {
+    auto ModuleToLink = llvm::parseIRFile(InputFiles[Idx], Err, Context);
+    if (ModuleToLink) {
+      bool LinkFail = llvm::Linker::linkModules(*DestModule,
+                                                std::move(ModuleToLink), Flags);
+      if (LinkFail) {
+        return createStringError(inconvertibleErrorCode(),
+                                 "Link Device Library Failed!");
+      }
+    }
+  }
 
   // Create a new file to write the linked device file to.
   auto OutFileOrErr =
@@ -1459,23 +1467,15 @@ linkDeviceLibFiles(SmallVectorImpl<StringRef> &InputFiles,
   if (!OutFileOrErr)
     return OutFileOrErr.takeError();
 
-  // Build the command line.
-  SmallVector<StringRef, 8> CmdArgs;
-  CmdArgs.push_back(*Linker);
-  // Fill linker command line arguments.
-  CmdArgs.push_back("-only-needed");
-  CmdArgs.push_back("--suppress-warnings");
-  // Add input files.
-  for (auto &File : InputFiles)
-    CmdArgs.push_back(File);
-  // Specify output file.
-  CmdArgs.push_back("-o");
-  CmdArgs.push_back(*OutFileOrErr);
-  // Execute the linker command.
-  if (Error Err = executeCommands(*Linker, CmdArgs))
-    return std::move(Err);
+  std::error_code EC;
+  llvm::raw_fd_ostream OutModule(*OutFileOrErr, EC);
+  if (EC)
+    return createStringError(inconvertibleErrorCode(),
+                             "Fail to create Linked Module File!");
+  llvm::WriteBitcodeToFile(*DestModule, OutModule);
   return *OutFileOrErr;
 }
+
 
 /// This function is used to link all SYCL device input files into a single
 /// LLVM IR file. This file is in turn linked with all SYCL device library
