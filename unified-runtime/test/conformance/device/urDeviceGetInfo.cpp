@@ -2560,8 +2560,7 @@ TEST_P(urDeviceGetInfoTest, SuccessBfloat16ConversionsNative) {
                              property_value);
 }
 
-// If this test fails with NVML driver/library version mismatch,
-// update NVIDIA driver on CI host to match container's NVML version.
+// This test uses NVML which requires driver/library version match.
 TEST_P(urDeviceGetInfoTest, SuccessThrottleReasons) {
   size_t property_size = 0;
   const ur_device_info_t property_name =
@@ -2579,8 +2578,7 @@ TEST_P(urDeviceGetInfoTest, SuccessThrottleReasons) {
   ASSERT_EQ(property_value & UR_DEVICE_THROTTLE_REASONS_FLAGS_MASK, 0);
 }
 
-// If this test fails with NVML driver/library version mismatch,
-// update NVIDIA driver on CI host to match container's NVML version.
+// This test uses NVML which requires driver/library version match.
 TEST_P(urDeviceGetInfoTest, SuccessFanSpeed) {
   size_t property_size = 0;
   const ur_device_info_t property_name = UR_DEVICE_INFO_FAN_SPEED;
@@ -2598,8 +2596,7 @@ TEST_P(urDeviceGetInfoTest, SuccessFanSpeed) {
                              property_value);
 }
 
-// If this test fails with NVML driver/library version mismatch,
-// update NVIDIA driver on CI host to match container's NVML version.
+// This test uses NVML which requires driver/library version match.
 TEST_P(urDeviceGetInfoTest, SuccessMaxPowerLimit) {
   size_t property_size = 0;
   const ur_device_info_t property_name = UR_DEVICE_INFO_MAX_POWER_LIMIT;
@@ -2617,8 +2614,7 @@ TEST_P(urDeviceGetInfoTest, SuccessMaxPowerLimit) {
                              property_value);
 }
 
-// If this test fails with NVML driver/library version mismatch,
-// update NVIDIA driver on CI host to match container's NVML version.
+// This test uses NVML which requires driver/library version match.
 TEST_P(urDeviceGetInfoTest, SuccessMinPowerLimit) {
   size_t property_size = 0;
   const ur_device_info_t property_name = UR_DEVICE_INFO_MIN_POWER_LIMIT;

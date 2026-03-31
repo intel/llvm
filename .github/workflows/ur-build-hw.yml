@@ -113,6 +113,43 @@ jobs:
       run: |
         sudo -E bash devops/scripts/install_drivers.sh devops/dependencies.json --igfx
 
+    - name: Check NVML version compatibility
+      if: ${{ inputs.adapter_name == 'CUDA' }}
+      run: |
+        DRIVER_VERSION=$(nvidia-smi --query-gpu=driver_version --format=csv,noheader | head -n1 | tr -d '[:space:]')
+        if [ -z "$DRIVER_VERSION" ]; then
+          echo "::error::Failed to get NVIDIA driver version"
+          echo "ERROR: nvidia-smi command failed or returned empty version"
+          exit 1
+        fi
+        
+        NVML_LIB=$(find /usr -name "libnvidia-ml.so.1" 2>/dev/null | head -n1)
+        NVML_VERSION=$(readlink -f "$NVML_LIB" | grep -oE '[0-9]+\.[0-9]+(\.[0-9]+)?' || echo "unknown")
+        
+        if [ -z "$NVML_LIB" ] || [ "$NVML_VERSION" = "unknown" ]; then
+          echo "::error::NVML library not found in container"
+          echo "ERROR: libnvidia-ml.so.1 not found or version could not be determined"
+          exit 1
+        fi
+        
+        DRIVER_MAJOR=$(echo "$DRIVER_VERSION" | cut -d. -f1)
+        NVML_MAJOR=$(echo "$NVML_VERSION" | cut -d. -f1)
+        
+        if [ "$DRIVER_MAJOR" != "$NVML_MAJOR" ]; then
+          echo "::error::NVML version mismatch - Driver: ${DRIVER_VERSION}, Library: ${NVML_VERSION}"
+          echo "ERROR: Major versions differ (${DRIVER_MAJOR} vs ${NVML_MAJOR})"
+          exit 1
+        fi
+        
+        # Check if library version > driver version (library must be <= driver)
+        if [ "$(printf '%s\n' "$NVML_VERSION" "$DRIVER_VERSION" | sort -V | head -n1)" != "$NVML_VERSION" ]; then
+          echo "::error::NVML version mismatch - Driver: ${DRIVER_VERSION}, Library: ${NVML_VERSION}"
+          echo "ERROR: Library version ($NVML_VERSION) is newer than driver ($DRIVER_VERSION)"
+          exit 1
+        fi
+        
+        echo "NVML version check passed: Driver ${DRIVER_VERSION}, Library ${NVML_VERSION}"
+
     - name: Configure Unified Runtime project
       # ">" is used to avoid adding "\" at the end of each line; this command is quite long
       run: >
