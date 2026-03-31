@@ -102,8 +102,7 @@ void TryReExecWithoutASLR() {
              "memory layout is incompatible, possibly due to high-entropy "
              "ASLR. Re-execing with fixed virtual address space.");
     if (personality(OldPersonality | ADDR_NO_RANDOMIZE) == -1) {
-      die("Unable to disable ASLR, Device ThreadSanitizer can't work "
-          "properly.");
+      die("Unable to disable ASLR, Device Sanitizer can't work properly.");
     }
     ReExec();
   }
