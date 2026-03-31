@@ -67,6 +67,8 @@ class ComputeBench(Suite):
             f"-DUSE_SYSTEM_LEVEL_ZERO=OFF",
             f"-DCMAKE_CXX_COMPILER=clang++",
             f"-DCMAKE_C_COMPILER=clang",
+            f"-DBUILD_UR=ON",
+            f"-DCMAKE_PREFIX_PATH={options.sycl}",
         ]
 
         is_gdb_mode = os.environ.get("LLVM_BENCHMARKS_USE_GDB", "") == "1"
@@ -80,11 +82,6 @@ class ComputeBench(Suite):
                 "-DBUILD_SYCL_WITH_CUDA=ON",
                 "-DBUILD_L0=OFF",
                 "-DBUILD_OCL=OFF",
-            ]
-        if options.ur is not None:
-            extra_args += [
-                f"-DBUILD_UR=ON",
-                f"-DCMAKE_PREFIX_PATH={options.ur}",
             ]
 
         self._project.configure(extra_args, add_sycl=True)
@@ -525,90 +522,11 @@ class ComputeBench(Suite):
                     ),
                 ]
 
-        # Graph benchmarks segfault on pvc
-        device_arch = getattr(options, "device_architecture", "")
-        if not ("pvc" in device_arch):
-            # Add TorchGraphSingleQueue benchmarks
-            for runtime in filter(lambda x: x != RUNTIMES.UR, RUNTIMES):
-                for profiler_type, kernel_name in product(
-                    list(PROFILERS), list(KERNEL_NAME)
-                ):
-
-                    def createTorchGraphSingleQueueBench(variant_name: str, **kwargs):
-                        return TorchGraphSingleQueue(
-                            self,
-                            runtime,
-                            variant_name,
-                            profiler_type,
-                            fixed_args={
-                                "KernelWGCount": 512,
-                                "KernelWGSize": 256,
-                                "Profiling": 0,
-                                "UseEvents": 0,
-                            },
-                            **kwargs,
-                        )
-
-                    benches += [
-                        createTorchGraphSingleQueueBench(
-                            "small",
-                            KernelName=kernel_name.value,
-                            KernelsPerQueue=10,
-                            KernelBatchSize=10,
-                        ),
-                        createTorchGraphSingleQueueBench(
-                            "medium",
-                            KernelName=kernel_name.value,
-                            KernelsPerQueue=32,
-                            KernelBatchSize=32,
-                        ),
-                        createTorchGraphSingleQueueBench(
-                            "large",
-                            KernelName=kernel_name.value,
-                            KernelsPerQueue=64,
-                            KernelBatchSize=64,
-                        ),
-                    ]
-
-            # Add TorchGraphMultiQueue benchmarks
-            for runtime in filter(lambda x: x != RUNTIMES.UR, RUNTIMES):
-                for profiler_type in list(PROFILERS):
-
-                    def createTorchGraphMultiQueueBench(variant_name: str, **kwargs):
-                        return TorchGraphMultiQueue(
-                            self,
-                            runtime,
-                            variant_name,
-                            profiler_type,
-                            fixed_args={
-                                "KernelWGCount": 512,
-                                "KernelWGSize": 256,
-                                "Profiling": 0,
-                                "UseEvents": 0,
-                            },
-                            **kwargs,
-                        )
-
-                    benches += [
-                        createTorchGraphMultiQueueBench(
-                            "small",
-                            KernelsPerQueue=10,
-                        ),
-                        createTorchGraphMultiQueueBench(
-                            "medium",
-                            KernelsPerQueue=32,
-                        ),
-                        createTorchGraphMultiQueueBench(
-                            "large",
-                            KernelsPerQueue=64,
-                        ),
-                    ]
-
-        # Add TorchSubmitEventRecordWait benchmarks
+        # Add TorchEventRecordWait benchmarks
         for runtime in filter(lambda x: x != RUNTIMES.UR, RUNTIMES):
             for profiler_type in list(PROFILERS):
                 benches.append(
-                    TorchSubmitEventRecordWait(
+                    TorchEventRecordWait(
                         self,
                         runtime,
                         "medium",
@@ -618,6 +536,133 @@ class ComputeBench(Suite):
                         KernelWGSize=512,
                     )
                 )
+
+        #
+        # Note: Graph benchmarks segfault on pvc on L0
+        #
+        device_arch = getattr(options, "device_architecture", "")
+
+        # Add TorchGraphSingleQueue benchmarks
+        for runtime in filter(lambda x: x != RUNTIMES.UR, RUNTIMES):
+            if "pvc" in device_arch and runtime == RUNTIMES.LEVEL_ZERO:
+                continue
+
+            for profiler_type, kernel_name in product(
+                list(PROFILERS), list(KERNEL_NAME)
+            ):
+
+                def createTorchGraphSingleQueueBench(variant_name: str, **kwargs):
+                    return TorchGraphSingleQueue(
+                        self,
+                        runtime,
+                        variant_name,
+                        profiler_type,
+                        fixed_args={
+                            "KernelWGCount": 512,
+                            "KernelWGSize": 256,
+                            "Profiling": 0,
+                            "UseEvents": 0,
+                        },
+                        **kwargs,
+                    )
+
+                benches += [
+                    createTorchGraphSingleQueueBench(
+                        "small",
+                        KernelName=kernel_name.value,
+                        KernelsPerQueue=10,
+                        KernelBatchSize=10,
+                    ),
+                    createTorchGraphSingleQueueBench(
+                        "medium",
+                        KernelName=kernel_name.value,
+                        KernelsPerQueue=32,
+                        KernelBatchSize=32,
+                    ),
+                    createTorchGraphSingleQueueBench(
+                        "large",
+                        KernelName=kernel_name.value,
+                        KernelsPerQueue=64,
+                        KernelBatchSize=64,
+                    ),
+                ]
+
+        # Add TorchGraphMultiQueue benchmarks
+        for runtime in filter(lambda x: x != RUNTIMES.UR, RUNTIMES):
+            if "pvc" in device_arch and runtime == RUNTIMES.LEVEL_ZERO:
+                continue
+
+            for profiler_type in list(PROFILERS):
+
+                def createTorchGraphMultiQueueBench(variant_name: str, **kwargs):
+                    return TorchGraphMultiQueue(
+                        self,
+                        runtime,
+                        variant_name,
+                        profiler_type,
+                        fixed_args={
+                            "KernelWGCount": 512,
+                            "KernelWGSize": 256,
+                            "Profiling": 0,
+                            "UseEvents": 0,
+                        },
+                        **kwargs,
+                    )
+
+                benches += [
+                    createTorchGraphMultiQueueBench(
+                        "small",
+                        KernelsPerQueue=10,
+                    ),
+                    createTorchGraphMultiQueueBench(
+                        "medium",
+                        KernelsPerQueue=32,
+                    ),
+                    createTorchGraphMultiQueueBench(
+                        "large",
+                        KernelsPerQueue=64,
+                    ),
+                ]
+
+        # Add TorchGraphVllmMock benchmarks
+        for runtime in filter(lambda x: x != RUNTIMES.UR, RUNTIMES):
+            if "pvc" in device_arch and runtime == RUNTIMES.LEVEL_ZERO:
+                continue
+
+            for profiler_type in list(PROFILERS):
+
+                def createTorchGraphVllmMockBench(variant_name: str, **kwargs):
+                    return TorchGraphVllmMock(
+                        self,
+                        runtime,
+                        variant_name,
+                        profiler_type,
+                        fixed_args={
+                            "KernelWGCount": 512,
+                            "KernelWGSize": 256,
+                            "Profiling": 0,
+                            "UseEvents": 0,
+                        },
+                        **kwargs,
+                    )
+
+                benches += [
+                    createTorchGraphVllmMockBench(
+                        "small", AllocCount=32, GraphScenario=0
+                    ),
+                    createTorchGraphVllmMockBench(
+                        "large", AllocCount=128, GraphScenario=0
+                    ),
+                    createTorchGraphVllmMockBench(
+                        "large", AllocCount=128, GraphScenario=1
+                    ),
+                    createTorchGraphVllmMockBench(
+                        "large", AllocCount=128, GraphScenario=2
+                    ),
+                    createTorchGraphVllmMockBench(
+                        "large", AllocCount=128, GraphScenario=3
+                    ),
+                ]
 
         # Add UR-specific benchmarks
         benches += [

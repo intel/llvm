@@ -128,6 +128,7 @@ class VelocityBase(Benchmark):
             f"-S {self.src_dir}",
             f"-B {self.build_dir}",
             "-DCMAKE_BUILD_TYPE=Release",
+            "-DCMAKE_POLICY_VERSION_MINIMUM=3.5",
         ]
         cmd += self.extra_cmake_args()
         run(cmd, {"CC": "clang", "CXX": "clang++"}, add_sycl=True)
