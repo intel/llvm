@@ -1,8 +1,8 @@
 // REQUIRES: aspect-fp64
-// RUN: %{build} -o %t1.out
+// DEFINE: %{mathflags} = %if cl_options %{/clang:-fno-fast-math%} %else %{-fno-fast-math%}
+// RUN: %{build} %{mathflags} -o %t1.out
 // RUN: %{run} %t1.out
 
-#include <array>
 #include <cassert>
 #include <iostream>
 
