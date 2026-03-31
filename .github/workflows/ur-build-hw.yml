@@ -177,21 +177,159 @@ jobs:
         cat conformance_tests.log
         echo "::endgroup::"
 
-    - name: Report Adapter Tests Failures
-      if: ${{ steps.run_adapter_tests.outcome != 'success' && matrix.adapter.other_name == '' }}
+    - name: Report Adapter Tests Summary
+      if: ${{ always() && matrix.adapter.other_name == '' }}
       run: |
-        # Report Adapter Tests Failures
-        awk '/^Failed Tests|Unexpectedly Passed Tests|Unresolved tests|Timed Out Tests|Testing Time/{flag=1}/FAILED: CMakeFiles/{flag=0}flag' adapter_tests.log >> $GITHUB_STEP_SUMMARY
-        awk '/^Failed Tests|Unexpectedly Passed Tests|Unresolved tests|Timed Out Tests|Testing Time/{flag=1}/FAILED: CMakeFiles/{flag=0}flag' adapter_tests.log
-        exit 1
+        echo "## Adapter Tests Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        # Extract test lists from LIT output
+        PASSED_TESTS=$(grep "^PASS: " adapter_tests.log | sed 's/^PASS: //' || echo "")
+        FAILED_TESTS=$(grep "^FAIL: " adapter_tests.log | sed 's/^FAIL: //' || echo "")
+        UNSUPPORTED_TESTS=$(grep "^UNSUPPORTED: " adapter_tests.log | sed 's/^UNSUPPORTED: //' || echo "")
+        XFAIL_TESTS=$(grep "^XFAIL: " adapter_tests.log | sed 's/^XFAIL: //' || echo "")
+        
+        PASS_COUNT=$(echo "$PASSED_TESTS" | grep -c "." || echo "0")
+        FAIL_COUNT=$(echo "$FAILED_TESTS" | grep -c "." || echo "0")
+        UNSUPPORTED_COUNT=$(echo "$UNSUPPORTED_TESTS" | grep -c "." || echo "0")
+        XFAIL_COUNT=$(echo "$XFAIL_TESTS" | grep -c "." || echo "0")
+        
+        # Summary stats
+        echo "**Statistics:**" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ Passed: $PASS_COUNT" >> $GITHUB_STEP_SUMMARY
+        echo "- ❌ Failed: $FAIL_COUNT" >> $GITHUB_STEP_SUMMARY
+        echo "- ⊘ Unsupported: $UNSUPPORTED_COUNT" >> $GITHUB_STEP_SUMMARY
+        echo "- ⚠️ Expected Failures: $XFAIL_COUNT" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        # Passed tests list
+        if [ "$PASS_COUNT" -gt 0 ]; then
+          echo "<details>" >> $GITHUB_STEP_SUMMARY
+          echo "<summary>Passed Tests ($PASS_COUNT)</summary>" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "$PASSED_TESTS" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "</details>" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        # Failed tests list
+        if [ "$FAIL_COUNT" -gt 0 ]; then
+          echo "<details open>" >> $GITHUB_STEP_SUMMARY
+          echo "<summary>Failed Tests ($FAIL_COUNT)</summary>" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "$FAILED_TESTS" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "</details>" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        # Unsupported tests list
+        if [ "$UNSUPPORTED_COUNT" -gt 0 ]; then
+          echo "<details>" >> $GITHUB_STEP_SUMMARY
+          echo "<summary>Unsupported Tests ($UNSUPPORTED_COUNT)</summary>" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "$UNSUPPORTED_TESTS" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "</details>" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        # Expectedly failed tests list
+        if [ "$XFAIL_COUNT" -gt 0 ]; then
+          echo "<details>" >> $GITHUB_STEP_SUMMARY
+          echo "<summary>Expected Failures ($XFAIL_COUNT)</summary>" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "$XFAIL_TESTS" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "</details>" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        # Fail if there are failed tests
+        if [ "$FAIL_COUNT" -gt 0 ]; then
+          exit 1
+        fi
 
-    - name: Report Conformance Tests Failures
-      if: steps.run_conformance_tests.outcome != 'success'
+    - name: Report Conformance Tests Summary
+      if: ${{ always() }}
       run: |
-        # Report Conformance Tests Failures
-        awk '/^Failed Tests|Unexpectedly Passed Tests|Unresolved tests|Timed Out Tests|Testing Time/{flag=1}/FAILED: CMakeFiles/{flag=0}flag' conformance_tests.log >> $GITHUB_STEP_SUMMARY
-        awk '/^Failed Tests|Unexpectedly Passed Tests|Unresolved tests|Timed Out Tests|Testing Time/{flag=1}/FAILED: CMakeFiles/{flag=0}flag' conformance_tests.log
-        exit 1
+        echo "## Conformance Tests Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        # Extract test lists from LIT output
+        PASSED_TESTS=$(grep "^PASS: " conformance_tests.log | sed 's/^PASS: //' || echo "")
+        FAILED_TESTS=$(grep "^FAIL: " conformance_tests.log | sed 's/^FAIL: //' || echo "")
+        UNSUPPORTED_TESTS=$(grep "^UNSUPPORTED: " conformance_tests.log | sed 's/^UNSUPPORTED: //' || echo "")
+        XFAIL_TESTS=$(grep "^XFAIL: " conformance_tests.log | sed 's/^XFAIL: //' || echo "")
+        
+        PASS_COUNT=$(echo "$PASSED_TESTS" | grep -c "." || echo "0")
+        FAIL_COUNT=$(echo "$FAILED_TESTS" | grep -c "." || echo "0")
+        UNSUPPORTED_COUNT=$(echo "$UNSUPPORTED_TESTS" | grep -c "." || echo "0")
+        XFAIL_COUNT=$(echo "$XFAIL_TESTS" | grep -c "." || echo "0")
+        
+        # Summary stats
+        echo "**Statistics:**" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ Passed: $PASS_COUNT" >> $GITHUB_STEP_SUMMARY
+        echo "- ❌ Failed: $FAIL_COUNT" >> $GITHUB_STEP_SUMMARY
+        echo "- ⊘ Unsupported: $UNSUPPORTED_COUNT" >> $GITHUB_STEP_SUMMARY
+        echo "- ⚠️ Expected Failures: $XFAIL_COUNT" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        # Passed tests list
+        if [ "$PASS_COUNT" -gt 0 ]; then
+          echo "<details>" >> $GITHUB_STEP_SUMMARY
+          echo "<summary>Passed Tests ($PASS_COUNT)</summary>" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "$PASSED_TESTS" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "</details>" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        # Failed tests list
+        if [ "$FAIL_COUNT" -gt 0 ]; then
+          echo "<details open>" >> $GITHUB_STEP_SUMMARY
+          echo "<summary>Failed Tests ($FAIL_COUNT)</summary>" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "$FAILED_TESTS" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "</details>" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        # Unsupported tests list
+        if [ "$UNSUPPORTED_COUNT" -gt 0 ]; then
+          echo "<details>" >> $GITHUB_STEP_SUMMARY
+          echo "<summary>Unsupported Tests ($UNSUPPORTED_COUNT)</summary>" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "$UNSUPPORTED_TESTS" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "</details>" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        # Expectedly failed tests list
+        if [ "$XFAIL_COUNT" -gt 0 ]; then
+          echo "<details>" >> $GITHUB_STEP_SUMMARY
+          echo "<summary>Expected Failures ($XFAIL_COUNT)</summary>" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "$XFAIL_TESTS" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "</details>" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        # Fail if there are failed tests
+        if [ "$FAIL_COUNT" -gt 0 ]; then
+          exit 1
+        fi
 
     - name: Debug CI platform information
       if: ${{ always() }}
