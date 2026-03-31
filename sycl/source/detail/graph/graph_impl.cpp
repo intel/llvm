@@ -331,7 +331,7 @@ graph_impl::graph_impl(const sycl::context &SyclContext,
             DeviceImpl.getHandleRef(),
             UR_DEVICE_INFO_GRAPH_RECORD_AND_REPLAY_SUPPORT_EXP,
             sizeof(ur_bool_t), &SupportsGraphRecordReplay, nullptr);
-    if (Result == UR_RESULT_SUCCESS && !SupportsGraphRecordReplay) {
+    if (Result != UR_RESULT_SUCCESS || !SupportsGraphRecordReplay) {
       throw sycl::exception(
           sycl::make_error_code(errc::invalid),
           "Device does not support graph record and replay feature "

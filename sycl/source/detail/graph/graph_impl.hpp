@@ -647,6 +647,7 @@ private:
 };
 
 /// Get whether native recording is enabled for this graph.
+/// @param graph The graph_impl to check.
 /// @return True if native recording is enabled, false otherwise.
 inline bool isNativeRecordingEnabledForGraph(graph_impl const &graph) {
   return graph.getNativeGraphHandle() != nullptr;
