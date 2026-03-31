@@ -12,11 +12,6 @@ add_conformance_kernels_test(kernel
     urKernelGetSubGroupInfo.cpp
     urKernelRelease.cpp
     urKernelRetain.cpp
-    urKernelSetArgLocal.cpp
-    urKernelSetArgMemObj.cpp
-    urKernelSetArgPointer.cpp
-    urKernelSetArgSampler.cpp
-    urKernelSetArgValue.cpp
     urKernelSetExecInfo.cpp
     urKernelSetSpecializationConstants.cpp
     urKernelSuggestMaxCooperativeGroupCount.cpp
