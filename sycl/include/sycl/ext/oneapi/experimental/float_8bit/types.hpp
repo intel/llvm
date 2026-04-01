@@ -94,13 +94,14 @@ static inline uint8_t RoundClip(float x, uint8_t max, rounding R,
   if (max == 0) {
     // No fraction bits (E8M0 path)
     if (R == rounding::upward) {
-      // Any positive residual causes a carry; NaN / non-positive → 0
-      if (!std::isnan(x) && x > 0.0f)
+      // For sign-preserving formats, roundTowardPositive increments only for
+      // positive values with a non-zero residual. Negative values stay at the
+      // lower-magnitude encoding.
+      if (!std::isnan(x) && sign_bit == 0u && x > 0.0f)
         return 1u;
       return 0u;
     }
-    // Default / to_even
-    if (std::isnan(x))
+    if (R == rounding::toward_zero || std::isnan(x))
       return 0u;
     if (x > 0.5f)
       return 1u;
@@ -305,20 +306,16 @@ ConvertToFP8_CPU(T h, rounding R = rounding::to_even) noexcept {
     // Exact power-of-two: m == 0.5  (since frexp gives m in [0.5,1))
     bool is_exact_power_of_two = (m == 0.5f);
 
-    rounding effR = (R == rounding::upward) ? R : rounding::upward;
+    //rounding effR = (R == rounding::upward) ? R : rounding::upward;
 
-    if (effR == rounding::upward) {
+    if (R == rounding::upward) {
       if (sign == 0x00) {
-        if (!is_exact_power_of_two) {
           // Round up (increase exponent) if possible.
           if (E < Emax)
             ++E;
           else
             E = Emax;
-        }
-      } else {
-        // Negative: leave E as-is (toward +inf reduces magnitude).
-      }
+      } 
     }
 
     // Clamp exponent just in case.

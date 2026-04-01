@@ -12,6 +12,16 @@ code thus unit tests check only API
 
 using namespace sycl::ext::oneapi::experimental;
 
+namespace {
+
+bool checkCode(float Input, rounding Mode, uint8_t Expected) {
+  const float Values[1] = {Input};
+  const fp8_e8m0 Encoded(Values, Mode);
+  return Encoded.vals[0] == Expected;
+}
+
+} // namespace
+
 TEST(FP8E8M0Test, VariadicConstructorFloat) {
   fp8_e8m0_x2 a(1.0f, 2.0f);
   fp8_e8m0_x2 a1(1.1f, 0.0f);
@@ -70,6 +80,34 @@ TEST(FP8E8M0Test, CArrayConstructorFloatHostUpwardFinite) {
   EXPECT_EQ(a.vals[1], 0x80);  // upward to 2.0
   EXPECT_EQ(a1.vals[0], 0x81); // upward to 4.0
   EXPECT_EQ(a1.vals[1], 0x89); // upward to 2^10 = 1024
+}
+
+TEST(FP8E8M0Test, CArrayConstructorFloatRoundingModes) {
+  EXPECT_TRUE(checkCode(3.0f, rounding::upward, 0x81));
+  EXPECT_TRUE(checkCode(3.0f, rounding::toward_zero, 0x80));
+
+  // E8M0 drops sign per the extension specification, so negative inputs are
+  // rounded using their magnitude.
+  EXPECT_TRUE(checkCode(-3.0f, rounding::upward, 0x81));
+  EXPECT_TRUE(checkCode(-3.0f, rounding::toward_zero, 0x80));
+  EXPECT_TRUE(checkCode(-1.5f, rounding::upward, 0x80));
+  EXPECT_TRUE(checkCode(-1.5f, rounding::toward_zero, 0x7F));
+  EXPECT_TRUE(checkCode(-0.5f, rounding::upward, 0x7E));
+  EXPECT_TRUE(checkCode(-0.5f, rounding::toward_zero, 0x7E));
+
+  EXPECT_TRUE(checkCode(1.0f, rounding::upward, 0x7F));
+  EXPECT_TRUE(checkCode(0.5f, rounding::upward, 0x7E));
+  EXPECT_TRUE(checkCode(0.5f, rounding::toward_zero, 0x7E));
+  EXPECT_TRUE(checkCode(0.0f, rounding::toward_zero, 0x00));
+  EXPECT_TRUE(checkCode(std::numeric_limits<float>::quiet_NaN(),
+                        rounding::upward, 0xFF));
+}
+
+TEST(FP8E8M0Test, RoundClipZeroFractionNegativeAndTieCases) {
+  EXPECT_EQ(RoundClip(0.25f, 0, rounding::upward, 0u), 1u);
+  EXPECT_EQ(RoundClip(0.25f, 0, rounding::upward, 1u), 0u);
+  EXPECT_EQ(RoundClip(0.5f, 0, rounding::to_even, 0u), 0u);
+  EXPECT_EQ(RoundClip(0.75f, 0, rounding::to_even, 0u), 1u);
 }
 
 TEST(FP8E8M0Test, CArrayConstructorHalfHostUpwardFinite) {
