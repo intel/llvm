@@ -27,22 +27,19 @@ int main() {
 
   // Submitting a kernel that uses a buffer accessor should throw
   // errc::feature_not_supported in native recording mode.
-  std::error_code ExceptionCode;
-  try {
-    Queue.submit([&](handler &CGH) {
-      auto Acc = Buf.get_access<sycl::access::mode::write>(CGH);
-      CGH.parallel_for(sycl::range<1>{N},
-                       [=](sycl::id<1> Idx) { Acc[Idx] = 0; });
-    });
-    std::cerr << "ERROR: Expected exception was not thrown for buffer accessor "
-                 "in native recording mode"
-              << std::endl;
+  if (!expectException(
+          [&]() {
+            Queue.submit([&](handler &CGH) {
+              auto Acc = Buf.get_access<sycl::access::mode::write>(CGH);
+              CGH.parallel_for(sycl::range<1>{N},
+                               [=](sycl::id<1> Idx) { Acc[Idx] = 0; });
+            });
+          },
+          "buffer accessor in native recording mode",
+          sycl::errc::feature_not_supported)) {
     Graph.end_recording();
     return 1;
-  } catch (const sycl::exception &e) {
-    ExceptionCode = e.code();
   }
-  assert(ExceptionCode == sycl::errc::feature_not_supported);
 
   Graph.end_recording();
 

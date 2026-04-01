@@ -18,32 +18,17 @@ int main() {
       {exp_ext::property::graph::enable_native_recording{}}};
 
   // get_nodes() should throw errc::invalid for native recording graphs
-  {
-    std::error_code ExceptionCode;
-    try {
-      auto Nodes = Graph.get_nodes();
-      std::cerr << "ERROR: Expected exception was not thrown for get_nodes()"
-                << std::endl;
-      return 1;
-    } catch (const sycl::exception &e) {
-      ExceptionCode = e.code();
-    }
-    assert(ExceptionCode == sycl::errc::invalid);
+  if (!expectException([&]() { Graph.get_nodes(); },
+                       "get_nodes() with enable_native_recording",
+                       sycl::errc::invalid)) {
+    return 1;
   }
 
   // get_root_nodes() should throw errc::invalid for native recording graphs
-  {
-    std::error_code ExceptionCode;
-    try {
-      auto Nodes = Graph.get_root_nodes();
-      std::cerr
-          << "ERROR: Expected exception was not thrown for get_root_nodes()"
-          << std::endl;
-      return 1;
-    } catch (const sycl::exception &e) {
-      ExceptionCode = e.code();
-    }
-    assert(ExceptionCode == sycl::errc::invalid);
+  if (!expectException([&]() { Graph.get_root_nodes(); },
+                       "get_root_nodes() with enable_native_recording",
+                       sycl::errc::invalid)) {
+    return 1;
   }
 
   return 0;

@@ -17,7 +17,8 @@ int main() {
       Ctx, Dev, {exp_ext::property::graph::enable_native_recording{}}};
 
   if (!expectException([&]() { Graph.begin_recording(OutOfOrderQueue); },
-                       "begin_recording with out-of-order queue")) {
+                       "begin_recording with out-of-order queue",
+                       sycl::errc::feature_not_supported)) {
     std::cerr << "Out-of-order queue should throw exception" << std::endl;
     return 1;
   }

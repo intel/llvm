@@ -31,14 +31,16 @@ int main() {
   auto ExecGraph = Graph.finalize({exp_ext::property::graph::updatable{}});
 
   if (!expectException([&]() { ExecGraph.update(Graph); },
-                       "update(graph) with native recording enabled")) {
+                       "update(graph) with native recording enabled",
+                       sycl::errc::feature_not_supported)) {
     free(Data, Queue);
     return 1;
   }
 
   if (!expectException(
           [&]() { ExecGraph.update(std::vector<exp_ext::node>{}); },
-          "update(nodes) with native recording enabled")) {
+          "update(nodes) with native recording enabled",
+          sycl::errc::feature_not_supported)) {
     free(Data, Queue);
     return 1;
   }

@@ -31,7 +31,8 @@ int main() {
 
   // Try to start recording on Queue2 while Queue1 is still recording
   const bool passed = expectException([&]() { Graph.begin_recording(Queue2); },
-                                      "begin_recording on second queue");
+                                      "begin_recording on second queue",
+                                      sycl::errc::feature_not_supported);
 
   assert(Queue1.ext_oneapi_get_state() == exp_ext::queue_state::recording);
   assert(Queue2.ext_oneapi_get_state() == exp_ext::queue_state::executing);

@@ -31,7 +31,7 @@ int main() {
                                                N * sizeof(int));
             });
           },
-          "async_malloc during native recording")) {
+          "async_malloc during native recording", sycl::errc::invalid)) {
     Graph.end_recording();
     return 1;
   }
@@ -48,7 +48,7 @@ int main() {
               exp_ext::async_free(CGH, PreAllocatedPtr);
             });
           },
-          "async_free during native recording")) {
+          "async_free during native recording", sycl::errc::invalid)) {
     Graph.end_recording();
     free(PreAllocatedPtr, Queue);
     return 1;

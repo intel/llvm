@@ -590,16 +590,24 @@ bool compareProfiling(event Event1, event Event2) {
   return (Pass1 && Pass2);
 }
 
-/// Helper to test that a callable throws a sycl::exception.
-/// Returns true if exception was thrown, false otherwise.
+/// Helper to test that a callable throws a sycl::exception with the given
+/// error code. Returns true if the exception was thrown with the expected
+/// code, false otherwise.
 template <typename Func>
-bool expectException(Func &&Operation, const char *OperationName) {
+bool expectException(Func &&Operation, const char *OperationName,
+                     sycl::errc ExpectedCode) {
   try {
     Operation();
     std::cerr << "ERROR: Expected exception was not thrown for "
               << OperationName << std::endl;
     return false;
   } catch (const sycl::exception &e) {
+    if (e.code() != sycl::make_error_code(ExpectedCode)) {
+      std::cerr << "ERROR: Wrong exception error code for " << OperationName
+                << ": expected " << sycl::make_error_code(ExpectedCode).message()
+                << ", got " << e.code().message() << std::endl;
+      return false;
+    }
     return true;
   }
 }

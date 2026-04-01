@@ -28,7 +28,8 @@ int main() {
                                [=](id<1> idx) { Data[idx] = idx; });
             });
           },
-          "Graph.add() with native recording enabled")) {
+          "Graph.add() with native recording enabled",
+          sycl::errc::feature_not_supported)) {
     free(Data, Queue);
     return 1;
   }
@@ -48,7 +49,8 @@ int main() {
                 },
                 {exp_ext::property::node::depends_on{node1}});
           },
-          "Graph.add() with dependencies")) {
+          "Graph.add() with dependencies",
+          sycl::errc::feature_not_supported)) {
     free(Data, Queue);
     return 1;
   }
