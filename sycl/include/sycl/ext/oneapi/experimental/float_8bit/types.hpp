@@ -245,7 +245,7 @@ static inline ToT ConvertFromFP8_CPU(uint8_t b,
 /// \param h The input value to be converted.
 /// \param R The rounding mode to be used during conversion.
 /// \return uint8_t The converted 8-bit floating point value, MSB is sign bit,
-/// Ebits bits mantissa, Mbits bits exponent.
+/// Ebits bits exponent, Mbits bits mantissa.
 template <int Ebits, int Mbits, typename T>
 static inline uint8_t
 ConvertToFP8_CPU(T h, rounding R = rounding::to_even) noexcept {
@@ -366,10 +366,6 @@ ConvertToFP8_CPU(T h, rounding R = rounding::to_even) noexcept {
   const float min_sub = std::ldexp(1.0f, emin - Mbits);
 
   if (ax > max_finite) {
-    return static_cast<uint8_t>(
-        sign | ((MaxExpForMaxNormal << Mbits) | MaxFracForMaxNormal));
-  }
-  if (ax >= max_finite) {
     return static_cast<uint8_t>(
         sign | ((MaxExpForMaxNormal << Mbits) | MaxFracForMaxNormal));
   }
@@ -671,7 +667,7 @@ public:
   fp8_e4m3_x &operator=(bfloat16 val) {
     static_assert(N == 1 &&
                   "fp8_e4m3_x: N must be 1 for bfloat16 assignment operator");
-    vals[0] = ConvertToFP8(val, rounding::to_even, saturation::finite);
+    vals[0] = ConvertBF16ToFP8(val, rounding::to_even, saturation::finite);
     return *this;
   }
 
@@ -685,7 +681,7 @@ public:
   fp8_e4m3_x &operator=(double val) {
     static_assert(N == 1 &&
                   "fp8_e4m3_x: N must be 1 for double assignment operator");
-    vals[0] = ConvertBF16ToFP8(val, rounding::to_even, saturation::finite);
+    vals[0] = ConvertToFP8(val, rounding::to_even, saturation::finite);
     return *this;
   }
 
@@ -858,7 +854,7 @@ public:
     sycl::half h = __builtin_spirv_ConvertE4M3ToFP16EXT(vals[0]);
     return h != 0;
 #else
-    // no need to convert, just check sign bit amd 0s
+    // no need to convert, just check sign bit and 0s
     return vals[0] != 0 && vals[0] != 0x80;
 #endif
   }
@@ -923,7 +919,7 @@ template <size_t N> class fp8_e5m2_x {
       b = __builtin_spirv_ConvertBF16ToE5M2EXT(h);
     if (r == rounding::to_even)
       return b;
-    const sycl::half yi = __builtin_spirv_ConvertE5M2ToBF16EXT(b);
+    const bfloat16 yi = __builtin_spirv_ConvertE5M2ToBF16EXT(b);
     return round(r, b, yi, h);
 #else
     return ConvertToFP8_CPU<5, 2, bfloat16>(h, r);
@@ -939,7 +935,7 @@ template <size_t N> class fp8_e5m2_x {
 #endif
   }
 
-  bfloat16 ConvertFP16FromFP8(uint8_t v) const {
+  bfloat16 ConvertBF16FromFP8(uint8_t v) const {
 #ifdef __SYCL_DEVICE_ONLY__
     return __builtin_spirv_ConvertE5M2ToBF16EXT(v);
 #else
@@ -1329,7 +1325,7 @@ public:
   explicit operator bfloat16() const {
     static_assert(N == 1 &&
                   "fp8_e5m2_x: N must be 1 for bfloat16 conversion operator");
-    return ConvertFP16FromFP8(vals[0]);
+    return ConvertBF16FromFP8(vals[0]);
   }
 
   explicit operator float() const {
@@ -1437,7 +1433,7 @@ public:
   explicit operator sycl::marray<bfloat16, N>() const {
     sycl::marray<bfloat16, N> out;
     for (size_t i = 0; i < N; ++i)
-      out[i] = ConvertFP16FromFP8(vals[i]);
+      out[i] = ConvertBF16FromFP8(vals[i]);
     return out;
   }
   explicit operator sycl::marray<float, N>() const {
