@@ -1469,7 +1469,8 @@ void SYCLToolChain::addClangTargetOptions(
   // middle-end passes. This makes sure the device libraries are added after
   // the user code has been instrumented with the dependent calls to the
   // added device libraries.
-  CC1Args.push_back("-mlink-builtin-bitcode-postopt");
+  if (!BCLibs.empty())
+    CC1Args.push_back("-mlink-builtin-bitcode-postopt");
 
   // FIXME: Turn off potential linker warnings when linking in device library
   // files that are built for spir64, but we are compiling for AOT.
