@@ -1,0 +1,102 @@
+name: 'Build Blender'
+description: 'Clone and build Blender with Intel GPU/SYCL support'
+
+inputs:
+  oidn_dir:
+    description: 'OIDN installation directory'
+    required: true
+  embree_dir:
+    description: 'Embree installation directory'
+    required: true
+  level_zero_dir:
+    description: 'Level Zero installation directory'
+    required: true
+  sycl_dir:
+    description: 'SYCL compiler installation directory'
+    required: true
+  ccache_dir:
+    description: 'ccache directory'
+    required: true
+  cmake_install_prefix:
+    description: 'CMAKE_INSTALL_PREFIX for Blender build'
+    required: false
+    default: '${{ github.workspace }}/blender-install'
+
+runs:
+  using: "composite"
+  steps:
+    - uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756
+      with:
+        arch: amd64
+
+    - name: Setup environment
+      shell: powershell
+      if: runner.os == 'Windows'
+      env:
+        CCACHE_DIR_INPUT: ${{ inputs.ccache_dir }}
+        SYCL_DIR_INPUT: ${{ inputs.sycl_dir }}
+      run: |
+        echo "SCCACHE_DIR=$env:CCACHE_DIR_INPUT" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+        echo "SCCACHE_MAXSIZE=10G" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+        # Wthout this we get a linking error about not being able to find sycl-devicelib-host.lib
+        echo "LIB=$env:LIB;$env:SYCL_DIR_INPUT\lib" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+        echo "CMAKE_EXTRA_ARGS=-DWITH_WINDOWS_SCCACHE=ON" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+    - name: Checkout Blender
+      shell: bash
+      env:
+        EMBREE_DIR_INPUT: ${{ inputs.embree_dir }}
+        OIDN_DIR_INPUT: ${{ inputs.oidn_dir }}
+        SYCL_DIR_INPUT: ${{ inputs.sycl_dir }}
+      run: |
+       unzip -q D:\\github\\blender_5_1_0_source.zip -d .
+       mv blender blender-src
+       # Work around CMake issue using preinstalled Embree/OIDN.
+       cp -RT "$EMBREE_DIR_INPUT" "blender-src/lib/windows_x64/embree"
+       cp -RT "$OIDN_DIR_INPUT" "blender-src/lib/windows_x64/OpenImageDenoise"
+
+       # CMake seems to override PATH leading to this file not being found by llvm-spirv.
+       cp "$(which SPIRV-Tools-shared.dll)" "$SYCL_DIR_INPUT/bin/"
+
+       # Apply source patches.
+       patch -p1 -d blender-src -i "${{ github.action_path }}/patches/Fix-build.patch"
+
+    - name: Configure Blender
+      shell: bash
+      env:
+        INSTALL_PREFIX_INPUT: ${{ inputs.cmake_install_prefix }}
+        SYCL_DIR_INPUT: ${{ inputs.sycl_dir }}
+        OIDN_DIR_INPUT: ${{ inputs.oidn_dir }}
+        EMBREE_DIR_INPUT: ${{ inputs.embree_dir }}
+        LEVEL_ZERO_DIR_INPUT: ${{ inputs.level_zero_dir }}
+      run: |
+        # Unify the path style to avoid CMake issues.
+        INSTALL_PREFIX=$(cygpath -m "$INSTALL_PREFIX_INPUT")
+        SYCL_DIR=$(cygpath -m "$SYCL_DIR_INPUT")
+        OIDN_DIR=$(cygpath -m "$OIDN_DIR_INPUT")
+        EMBREE_DIR=$(cygpath -m "$EMBREE_DIR_INPUT")
+        LEVEL_ZERO_DIR=$(cygpath -m "$LEVEL_ZERO_DIR_INPUT")
+
+        cmake -GNinja -B blender-build -S blender-src \
+          $CMAKE_EXTRA_ARGS \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
+          -DSYCL_ROOT_DIR="$SYCL_DIR" \
+          -DWITH_CYCLES_DEVICE_ONEAPI=ON \
+          -DOPENIMAGEDENOISE_ROOT_DIR="$OIDN_DIR" \
+          -DEMBREE_ROOT_DIR="$EMBREE_DIR" \
+          -DLEVEL_ZERO_ROOT_DIR="$LEVEL_ZERO_DIR" \
+          -DWITH_CYCLES_EMBREE=ON \
+          -DEMBREE_SYCL_SUPPORT=ON \
+          -DWITH_OPENIMAGEDENOISE=ON \
+          -DWITH_CYCLES_DEVICE_HIP=OFF \
+          -DWITH_CYCLES_DEVICE_CUDA=OFF \
+          -DWITH_CYCLES_DEVICE_OPTIX=OFF
+
+    - name: Build Blender
+      shell: bash
+      run: cmake --build blender-build --config Release
+
+    - name: Install Blender
+      shell: bash
+      run: cmake --install blender-build --config Release

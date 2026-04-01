@@ -1,0 +1,84 @@
+name: Build and Test Blender
+
+on:
+  workflow_call:
+    inputs:
+      runner:
+        type: string
+        required: True
+      level_zero_dir:
+        description: 'Root directory of Level Zero SDK installation'
+        required: false
+        type: string
+        default: ''
+      ccache_dir:
+        description: 'ccache directory'
+        required: true
+        type: string
+      blender_classroom_dir:
+        description: 'Blender classroom demo directory'
+        required: true
+        type: string
+      toolchain_artifact:
+        description: 'Artifact name for toolchain download'
+        required: true
+        type: string
+      toolchain_artifact_filename:
+        description: 'Toolchain artifact downloaded filename'
+        required: true
+        type: string
+
+jobs:
+  blender:
+    runs-on: ${{ fromJSON(inputs.runner) }}
+    name: Build and Test Blender on ${{ contains(inputs.runner, 'Windows') && 'Windows' || 'Linux' }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          sparse-checkout: |
+            devops/
+          persist-credentials: false
+      - name: Download Toolchain
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ${{ inputs.toolchain_artifact }}
+
+      - name: Extract Toolchain
+        shell: bash
+        env:
+          TOOLCHAIN_ARTIFACT_FILENAME: ${{ inputs.toolchain_artifact_filename }}
+        run: |
+          rm -rf install
+          mkdir install
+          tar -xf $TOOLCHAIN_ARTIFACT_FILENAME -C install
+          rm $TOOLCHAIN_ARTIFACT_FILENAME
+
+      - name: Build OIDN
+        uses: ./devops/actions/blender/oidn
+        with:
+          cmake_install_prefix: ${{ github.workspace }}/oidn-install
+          c_compiler: ${{ github.workspace }}/install/bin/clang${{ runner.os == 'Windows' && '.exe' }}
+          cxx_compiler: ${{ github.workspace }}/install/bin/clang++${{ runner.os == 'Windows' && '.exe' }}
+
+      - name: Build Embree
+        uses: ./devops/actions/blender/embree
+        with:
+          cmake_install_prefix: ${{ github.workspace }}/embree-install
+          c_compiler: ${{ github.workspace }}/install/bin/clang${{ runner.os == 'Windows' && '.exe' }}
+          cxx_compiler: ${{ github.workspace }}/install/bin/clang++${{ runner.os == 'Windows' && '.exe' }}
+
+      - name: Build Blender
+        uses: ./devops/actions/blender/blender-build
+        with:
+          oidn_dir: ${{ github.workspace }}/oidn-install
+          embree_dir: ${{ github.workspace }}/embree-install
+          level_zero_dir: ${{ inputs.level_zero_dir }}
+          cmake_install_prefix: ${{ github.workspace }}/blender-install
+          sycl_dir: ${{ github.workspace }}/install
+          ccache_dir: ${{ inputs.ccache_dir }}
+
+      - name: Run Blender Classroom Demo
+        uses: ./devops/actions/blender/blender-demo
+        with:
+          blender_dir: ${{ github.workspace }}/blender-install
+          blender_classroom_dir: ${{ inputs.blender_classroom_dir }}

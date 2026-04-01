@@ -403,6 +403,21 @@ jobs:
       toolchain_artifact_filename: ${{ needs.build-win.outputs.toolchain_artifact_filename }}
       binaries_artifact: sycl_cts_bin_win
 
+  build_and_test_blender_win:
+    name: Build and Test Blender on Windows
+    needs: build-win
+    if: |
+      !cancelled()
+      && needs.build-win.outputs.build_conclusion == 'success'
+    uses: ./.github/workflows/sycl-blender-build-and-test.yml
+    with:
+      runner: '["Windows","blender"]'
+      level_zero_dir: "D:\\github\\level-zero_win-sdk"
+      ccache_dir: "D:\\github\\_work\\cache\\blender"
+      blender_classroom_dir: "D:\\github\\classroom-demo"
+      toolchain_artifact: sycl_windows_default
+      toolchain_artifact_filename: ${{ needs.build-win.outputs.toolchain_artifact_filename }}
+
   # Verification example:
   # cosign-windows-amd64.exe verify-blob sycl_linux.tar.gz \
   # --bundle sycl_linux.tar.gz.sigstore.json \

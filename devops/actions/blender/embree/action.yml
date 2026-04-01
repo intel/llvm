@@ -1,0 +1,59 @@
+name: 'Build Intel Embree'
+description: 'Clone and build Embree for Intel GPU with SYCL support'
+
+inputs:
+  cmake_install_prefix:
+    description: 'CMAKE_INSTALL_PREFIX for Embree build'
+    required: false
+    default: '${{ github.workspace }}/embree-install'
+  c_compiler:
+    description: 'Path to C compiler'
+    required: true
+  cxx_compiler:
+    description: 'Path to C++ compiler'
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756
+      with:
+        arch: amd64
+
+    - name: Checkout Embree
+      uses: ./devops/actions/cached_checkout
+      with:
+        repository: 'RenderKit/embree'
+        ref: 'v4.4.0'
+        path: 'embree-src'
+        cache_path: "D:\\\\github\\\\_work\\\\repo_cache\\\\"
+
+    - name: Update Embree Submodules
+      shell: bash
+      run: |
+        cd embree-src
+        git submodule update --init --recursive
+
+    - name: Configure Embree
+      shell: bash
+      env:
+        INSTALL_PREFIX_INPUT: ${{ inputs.cmake_install_prefix }}
+        C_COMPILER_INPUT: ${{ inputs.c_compiler }}
+        CXX_COMPILER_INPUT: ${{ inputs.cxx_compiler }}
+      run: |
+        cmake -GNinja -B embree-build -S embree-src \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX_INPUT" \
+          -DCMAKE_C_COMPILER="$C_COMPILER_INPUT" \
+          -DCMAKE_CXX_COMPILER="$CXX_COMPILER_INPUT" \
+          -DEMBREE_SYCL_SUPPORT=ON \
+          -DEMBREE_ISPC_SUPPORT=OFF \
+          -DEMBREE_TUTORIALS=OFF
+
+    - name: Build Embree
+      shell: bash
+      run: cmake --build embree-build --config Release
+
+    - name: Install Embree
+      shell: bash
+      run: cmake --install embree-build --config Release

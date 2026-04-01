@@ -1,0 +1,59 @@
+name: 'Build Intel Open Image Denoise (OIDN)'
+description: 'Clone and build OIDN for Intel GPU with SYCL support'
+
+inputs:
+  cmake_install_prefix:
+    description: 'CMAKE_INSTALL_PREFIX for OIDN build'
+    required: false
+    default: '${{ github.workspace }}/oidn-install'
+  c_compiler:
+    description: 'Path to C compiler'
+    required: true
+  cxx_compiler:
+    description: 'Path to C++ compiler'
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756
+      with:
+        arch: amd64
+
+    - name: Checkout OIDN
+      uses: ./devops/actions/cached_checkout
+      with:
+        repository: 'RenderKit/oidn'
+        ref: 'v2.4.1'
+        path: 'oidn-src'
+        cache_path: "D:\\\\github\\\\_work\\\\repo_cache\\\\"
+
+    - name: Update OIDN Submodules
+      shell: bash
+      run: |
+        cd oidn-src
+        git submodule update --init --recursive
+
+    - name: Configure OIDN
+      shell: bash
+      env:
+        INSTALL_PREFIX_INPUT: ${{ inputs.cmake_install_prefix }}
+        C_COMPILER_INPUT: ${{ inputs.c_compiler }}
+        CXX_COMPILER_INPUT: ${{ inputs.cxx_compiler }}
+      run: |
+        cmake -GNinja -B oidn-build -S oidn-src \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX_INPUT" \
+          -DCMAKE_C_COMPILER="$C_COMPILER_INPUT" \
+          -DCMAKE_CXX_COMPILER="$CXX_COMPILER_INPUT" \
+          -DOIDN_DEVICE_SYCL=ON \
+          -DOIDN_DEVICE_CUDA=OFF \
+          -DOIDN_DEVICE_HIP=OFF
+
+    - name: Build OIDN
+      shell: bash
+      run: cmake --build oidn-build --config Release
+
+    - name: Install OIDN
+      shell: bash
+      run: cmake --install oidn-build --config Release
