@@ -15,10 +15,8 @@ add_conformance_kernels_test(enqueue
     urEnqueueMemBufferCopy.cpp
     urEnqueueMemBufferFill.cpp
     urEnqueueMemBufferMap.cpp
-    # Enqueue memory buffer read tests ran simultenously lead to timeouts.
-    # Tracker: https://jira.devtools.intel.com/browse/URT-1026
-    # urEnqueueMemBufferRead.cpp
-    # urEnqueueMemBufferReadRect.cpp
+    urEnqueueMemBufferRead.cpp
+    urEnqueueMemBufferReadRect.cpp
     urEnqueueMemBufferWrite.cpp
     urEnqueueMemBufferWriteRect.cpp
     urEnqueueMemImageCopy.cpp
