@@ -2288,10 +2288,22 @@ void modifiable_command_graph::print_graph(sycl::detail::string_view pathstr,
 
 std::vector<node> modifiable_command_graph::get_nodes() const {
   graph_impl::ReadLock Lock(impl->MMutex);
+  if (impl->getNativeGraphHandle()) {
+    throw sycl::exception(
+        sycl::make_error_code(errc::invalid),
+        "get_nodes() is not supported for graphs created with the "
+        "enable_native_recording property.");
+  }
   return impl->nodes().to<std::vector<node>>();
 }
 std::vector<node> modifiable_command_graph::get_root_nodes() const {
   graph_impl::ReadLock Lock(impl->MMutex);
+  if (impl->getNativeGraphHandle()) {
+    throw sycl::exception(
+        sycl::make_error_code(errc::invalid),
+        "get_root_nodes() is not supported for graphs created with the "
+        "enable_native_recording property.");
+  }
   return impl->roots().to<std::vector<node>>();
 }
 

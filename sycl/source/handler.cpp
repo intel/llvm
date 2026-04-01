@@ -763,6 +763,11 @@ detail::EventImplPtr handler::finalize() {
           "SYCL host_task is not supported in native recording mode. Use "
           "zeCommandListAppendHostFunction as a workaround.");
     }
+    if (!CommandGroup->getRequirements().empty()) {
+      throw sycl::exception(
+          make_error_code(errc::feature_not_supported),
+          "sycl::buffer accessors are not supported in native recording mode.");
+    }
   }
 
   // If the queue has an associated graph then we need to take the CG and pass
