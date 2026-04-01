@@ -192,7 +192,7 @@ execution, they are added to the graph object instead, with edges captured from
 the dependencies of the command group.
 
 3. **Native recording** - An optional variant of the queue recording API in
-which graph capture is performed directly at the backend level  rather than
+which graph capture is performed directly at the backend level rather than
 through the SYCL runtime node model. Enabled by passing
 `property::graph::enable_native_recording` to the `command_graph`
 constructor. See <<native-recording, Native Recording>> for details.
@@ -1709,9 +1709,9 @@ is a no-op for any queue in the graph that is already in the
 `queue_state::executing` state.
 
 When `property::graph::enable_native_recording` was set on the graph, this
-call ends the backend-level capture. Because the capture was performed at the backend level,
-`get_nodes()` and `get_root_nodes()` will return empty vectors after recording
-ends.
+call ends the backend-level capture. Because no SYCL node model is built
+during native capture, calling `get_nodes()` or `get_root_nodes()` on the
+graph will throw `invalid`.
 
 [source, c++]
 ----
@@ -1804,9 +1804,8 @@ graph LR
 ....
 
 NOTE: When a graph is created with `property::graph::enable_native_recording`,
-recording happens at the backend level and transitive recording is not
-supported. See <<native-recording, Native Recording>> for constraints and
-behavior differences compared to standard queue recording.
+recording happens at the backend level. See <<native-recording, Native Recording>>
+for constraints and behavior differences compared to standard queue recording.
 
 ==== Transitive Queue Recording
 
@@ -2529,20 +2528,17 @@ rather than being managed by the SYCL runtime. When enabled, the SYCL runtime
 calls the backend's dedicated graph-capture APIs.
 Because the capture occurs at the backend level, the SYCL runtime has no
 visibility into the individual nodes or edges of the captured graph.
+Any implementation of native recording must strongly interoperate with command
+submission directly through the native backend API, so that commands submitted
+via both SYCL and the native API (e.g., Level Zero) are captured together into
+the same graph.
 
 === Enabling Native Recording
 
 Native recording is enabled by passing
-`property::graph::enable_native_recording` to the `command_graph` constructor:
-
-[source,c++]
-----
-namespace sycl::ext::oneapi::experimental {
-namespace property::graph {
-  class enable_native_recording {};
-} // namespace property::graph
-} // namespace sycl::ext::oneapi::experimental
-----
+`property::graph::enable_native_recording` (see
+<<enable-native-recording-property, Enable-Native-Recording Property>>) to
+the `command_graph` constructor:
 
 [source,c++]
 ----
@@ -2607,15 +2603,19 @@ exception if attempted:
 
 | Calling `begin_recording` with a vector of queues, or calling it more than once per graph
 | Only a single call to `begin_recording` with a single queue is supported per graph.
-| `invalid`
+| `feature_not_supported`
 
 | Events from submissions within a graph used outside that graph
 | Events signaled during native capture are scoped to the graph and may not be used for synchronization outside it.
 | _(behavior undefined)_
 
 | `get_nodes()` / `get_root_nodes()`
-| No SYCL node model is built during native capture; returns empty vectors.
-| _(no exception — returns empty)_
+| No SYCL node model is built during native capture.
+| `invalid`
+
+| Out-of-order queue
+| Native recording requires an in-order queue backed by an immediate command list.
+| `invalid`
 
 |===
 
@@ -2643,6 +2643,7 @@ if used in application code.
 . Using host tasks via `sycl::handler::host_task` in a graph node when `property::graph::enable_native_recording` is set.
 . Calling `update()` on an executable graph created from a graph with
   `property::graph::enable_native_recording`.
+. Using an out-of-order queue with `property::graph::enable_native_recording`.
 
 == Revision History
 
