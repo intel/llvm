@@ -102,7 +102,7 @@ jobs:
           target_devices: native_cpu:cpu
           sycl_compiler: $GITHUB_WORKSPACE/toolchain/bin/clang++
           extra_lit_opts: --param sycl_build_targets="native_cpu"
-          extra_cmake_args: -DSYCL_TEST_E2E_TARGETS="native_cpu:cpu" -DSYCL_TEST_E2E_STANDALONE=ON
+          extra_cmake_args: -DSYCL_TEST_E2E_TARGETS="native_cpu:cpu" -DSYCL_TEST_E2E_STANDALONE=ON -DCMAKE_BUILD_TYPE="Debug"
 
   # If a PR changes CUDA adapter, run the build on Ubuntu 22.04 as well.
   # Ubuntu 22.04 container has CUDA 12.1 installed while Ubuntu 24.0 image

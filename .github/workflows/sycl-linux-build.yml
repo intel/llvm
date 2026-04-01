@@ -203,7 +203,7 @@ jobs:
         python3 $GITHUB_WORKSPACE/src/buildbot/configure.py -w $GITHUB_WORKSPACE \
           -s $GITHUB_WORKSPACE/src -o $GITHUB_WORKSPACE/build \
           -DCMAKE_INSTALL_PREFIX=$GITHUB_WORKSPACE/toolchain \
-          -t Release \
+          -t Debug \
           --ci-defaults --use-zstd ${{ inputs.build_configure_extra_args }} \
           -DCMAKE_C_COMPILER_LAUNCHER=ccache \
           -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
