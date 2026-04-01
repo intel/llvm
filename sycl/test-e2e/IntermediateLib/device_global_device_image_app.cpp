@@ -6,6 +6,10 @@
 // UNSUPPORTED: opencl && gpu
 // UNSUPPORTED-TRACKER: coming-soon
 
+// UNSUPPORTED: cuda, hip
+// UNSUPPORTED-INTENDED: CUDA and HIP targets support AoT compilation only and cannot do runtime linking. 
+
+
 // DEFINE: %{fPIC_flag} = %if windows %{%} %else %{-fPIC%}
 // DEFINE: %{shared_lib_ext} = %if windows %{dll%} %else %{so%}
 // DEFINE: %{cuda_target} = %if target-nvidia %{-fsycl-targets=nvptx64-nvidia-cuda%}
