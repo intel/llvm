@@ -351,6 +351,10 @@ class SYCLEndToEndTest(lit.formats.ShTest):
             if "cuda:gpu" in sycl_devices:
                 extra_env.append("SYCL_UR_CUDA_ENABLE_IMAGE_SUPPORT=1")
 
+            # At this point, liboffload does not work with multiple GPUs
+            if "offload:gpu" in sycl_devices:
+                extra_env.append("ZE_AFFINITY_MASK=1")
+
             return extra_env
 
         extra_env = get_extra_env(remove_level_zero_suffix(devices_for_test))
