@@ -868,6 +868,10 @@ ur_result_t urUSMHostAllocRegisterExp(
 
 ur_result_t urUSMHostAllocUnregisterExp(ur_context_handle_t hContext,
                                         void *pHostMem) {
+  if (!hContext->getPlatform()->ZeExternalMemoryMappingExtensionSupported) {
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  }
+
   ZE2UR_CALL(zeMemFree, (hContext->getZeHandle(), pHostMem));
 
   return UR_RESULT_SUCCESS;
