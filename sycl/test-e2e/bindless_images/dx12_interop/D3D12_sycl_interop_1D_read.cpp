@@ -183,14 +183,20 @@ int runTest(
 
   // SYCL Import and Verification
   try {
+    std::cout << "Creating SYCL queue..." << std::endl;
     sycl::queue q;
+    std::cout << "Queue created successfully" << std::endl;
 
+    std::cout << "Setting up external memory descriptor..." << std::endl;
     syclexp::external_mem_descriptor<syclexp::resource_win32_handle> extMemDesc{
         imgRes.sharedHandle, syclexp::external_mem_handle_type::win32_nt_handle,
         imgRes.allocationSize};
 
+    std::cout << "About to import external memory (handle="
+              << imgRes.sharedHandle << ")" << std::endl;
     syclexp::external_mem extMem = syclexp::import_external_memory(
         extMemDesc, q.get_device(), q.get_context());
+    std::cout << "External memory imported!" << std::endl;
 
     sycl::image_channel_type syclType = syclOverride.has_value()
                                             ? syclOverride.value()
