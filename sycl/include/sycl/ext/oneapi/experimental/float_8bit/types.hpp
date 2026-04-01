@@ -306,16 +306,16 @@ ConvertToFP8_CPU(T h, rounding R = rounding::to_even) noexcept {
     // Exact power-of-two: m == 0.5  (since frexp gives m in [0.5,1))
     bool is_exact_power_of_two = (m == 0.5f);
 
-    //rounding effR = (R == rounding::upward) ? R : rounding::upward;
+    // rounding effR = (R == rounding::upward) ? R : rounding::upward;
 
     if (R == rounding::upward) {
       if (sign == 0x00) {
-          // Round up (increase exponent) if possible.
-          if (E < Emax)
-            ++E;
-          else
-            E = Emax;
-      } 
+        // Round up (increase exponent) if possible.
+        if (E < Emax)
+          ++E;
+        else
+          E = Emax;
+      }
     }
 
     // Clamp exponent just in case.
