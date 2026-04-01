@@ -674,7 +674,6 @@ void graph_impl::clearQueues(bool NeedsLock) {
         // Only call setCommandGraph for traditional recording
         ValidQueue->setCommandGraph(nullptr);
       }
-      // AnyQueuesCleared = true;
     }
   }
 }
