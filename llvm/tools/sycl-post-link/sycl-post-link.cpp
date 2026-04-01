@@ -429,8 +429,7 @@ Error saveDeviceLibModule(
   // is included. The module only includes a bunch of exported functions
   // intended to be invoked by user's device modules.
   prepareModuleBeforeSave(DeviceLibMD, /*Cleanup*/ false);
-  saveModule(OutTables, DeviceLibMD, OutputPrefix, "");
-  return Error::success();
+  return saveModule(OutTables, DeviceLibMD, OutputPrefix, "");
 }
 
 void addTableRow(util::SimpleTable &Table,
