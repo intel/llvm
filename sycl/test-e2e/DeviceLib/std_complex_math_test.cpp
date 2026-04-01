@@ -217,7 +217,7 @@ int device_complex_test_2(s::queue &deviceQueue) {
 }
 #endif
 
-complex<float> complex_input[] = {{1.e-6, 1.e-6},
+static complex<float> complex_input[] = {{1.e-6, 1.e-6},
                                   {-1.e-6, 1.e-6},
                                   {-1.e-6, -1.e-6},
                                   {1.e-6, -1.e-6},
