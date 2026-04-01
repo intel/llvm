@@ -1229,10 +1229,7 @@ The `property::graph::enable_native_recording` property requests that graph
 capture be performed at the backend level rather than through the SYCL runtime
 node model. When this property is set, calls to `begin_recording` and
 `end_recording` delegate directly to the underlying backend's graph-capture
-mechanism.
-
-Because capture happens at the backend level, the SYCL runtime has no
-visibility into the captured commands.
+mechanism, and the SYCL runtime has no visibility into the captured commands.
 See <<native-recording-limitations, Limitations of Native Recording>> for the
 full list of constraints.
 
@@ -1804,8 +1801,8 @@ graph LR
 ....
 
 NOTE: When a graph is created with `property::graph::enable_native_recording`,
-recording happens at the backend level. See <<native-recording, Native Recording>>
-for constraints and behavior differences compared to standard queue recording.
+recording behavior differs from standard queue recording. See
+<<native-recording, Native Recording>> for details.
 
 ==== Transitive Queue Recording
 
