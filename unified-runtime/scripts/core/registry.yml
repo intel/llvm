@@ -55,9 +55,6 @@ etors:
 - name: DEVICE_GET_GLOBAL_TIMESTAMPS
   desc: Enumerator for $xDeviceGetGlobalTimestamps
   value: '16'
-- name: ENQUEUE_KERNEL_LAUNCH
-  desc: Enumerator for $xEnqueueKernelLaunch
-  value: '17'
 - name: ENQUEUE_EVENTS_WAIT
   desc: Enumerator for $xEnqueueEventsWait
   value: '18'
@@ -145,12 +142,6 @@ etors:
 - name: KERNEL_CREATE
   desc: Enumerator for $xKernelCreate
   value: '48'
-- name: KERNEL_SET_ARG_VALUE
-  desc: Enumerator for $xKernelSetArgValue
-  value: '49'
-- name: KERNEL_SET_ARG_LOCAL
-  desc: Enumerator for $xKernelSetArgLocal
-  value: '50'
 - name: KERNEL_GET_INFO
   desc: Enumerator for $xKernelGetInfo
   value: '51'
@@ -166,18 +157,9 @@ etors:
 - name: KERNEL_RELEASE
   desc: Enumerator for $xKernelRelease
   value: '55'
-- name: KERNEL_SET_ARG_POINTER
-  desc: Enumerator for $xKernelSetArgPointer
-  value: '56'
 - name: KERNEL_SET_EXEC_INFO
   desc: Enumerator for $xKernelSetExecInfo
   value: '57'
-- name: KERNEL_SET_ARG_SAMPLER
-  desc: Enumerator for $xKernelSetArgSampler
-  value: '58'
-- name: KERNEL_SET_ARG_MEM_OBJ
-  desc: Enumerator for $xKernelSetArgMemObj
-  value: '59'
 - name: KERNEL_SET_SPECIALIZATION_CONSTANTS
   desc: Enumerator for $xKernelSetSpecializationConstants
   value: '60'

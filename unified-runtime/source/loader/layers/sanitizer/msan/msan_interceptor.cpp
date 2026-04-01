@@ -30,7 +30,9 @@ MsanInterceptor::~MsanInterceptor() {
   // We must release these objects before releasing adapters, since
   // they may use the adapter in their destructor
   for (const auto &[_, DeviceInfo] : m_DeviceMap) {
-    DeviceInfo->Shadow->Destory();
+    [[maybe_unused]] ur_result_t Result = DeviceInfo->Shadow->Destory();
+    assert(Result == UR_RESULT_SUCCESS && "Failed to destroy shadow memory");
+    DeviceInfo->Shadow = nullptr;
   }
 
   m_MemBufferMap.clear();

@@ -56,10 +56,16 @@ struct urEnqueueCommandBufferExpTest
     ASSERT_SUCCESS(urQueueFinish(queue));
 
     // Create command-buffer with a single kernel that does "Ptr[i] += 1;"
-    ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, device_ptr));
-    ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchExp(
+    ur_exp_kernel_arg_properties_t arg0 = {
+        UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+        nullptr,
+        UR_EXP_KERNEL_ARG_TYPE_POINTER,
+        0,
+        sizeof(device_ptr),
+        {/*.pointer =*/device_ptr}};
+    ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchWithArgsExp(
         cmd_buf_handle, kernel, n_dimensions, &global_offset, &global_size,
-        nullptr, 0, nullptr, 0, nullptr, 0, nullptr, nullptr, nullptr,
+        nullptr, 1, &arg0, 0, nullptr, 0, nullptr, 0, nullptr, nullptr, nullptr,
         nullptr));
 
     // Schedule memory copying in order to prolong the buffer execution
