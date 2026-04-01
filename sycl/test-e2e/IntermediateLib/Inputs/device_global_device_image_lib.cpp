@@ -8,7 +8,8 @@
 #endif
 
 // Define and export the device_global
-API_EXPORT SYCL_EXTERNAL sycl::ext::oneapi::experimental::device_global<int> test_global;
+namespace syclex = sycl::ext::oneapi::experimental;
+API_EXPORT SYCL_EXTERNAL syclex::device_global<int> test_global;
 
 // Host function to set the device_global value
 extern "C" API_EXPORT void set_test_global(int val) {

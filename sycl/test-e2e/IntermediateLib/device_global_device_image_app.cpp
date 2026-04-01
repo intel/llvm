@@ -7,8 +7,8 @@
 // UNSUPPORTED-TRACKER: coming-soon
 
 // UNSUPPORTED: cuda, hip
-// UNSUPPORTED-INTENDED: CUDA and HIP targets support AoT compilation only and cannot do runtime linking. 
-
+// UNSUPPORTED-INTENDED: CUDA and HIP targets support AoT compilation only and
+// cannot do runtime linking.
 
 // DEFINE: %{fPIC_flag} = %if windows %{%} %else %{-fPIC%}
 // DEFINE: %{shared_lib_ext} = %if windows %{dll%} %else %{so%}
