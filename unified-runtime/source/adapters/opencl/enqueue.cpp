@@ -356,9 +356,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableWrite(
   cl_event Event;
   std::vector<cl_event> CLWaitEvents(numEventsInWaitList);
   MapUREventsToCL(numEventsInWaitList, phEventWaitList, CLWaitEvents);
-  cl_ext::clEnqueueWriteGlobalVariable_fn F = nullptr;
+  cl_ext::clEnqueueWriteGlobalVariableINTEL_fn F = nullptr;
   UR_RETURN_ON_FAILURE(cl_ext::getExtFuncFromContext<decltype(F)>(
-      Ctx, ur::cl::getAdapter()->fnCache.clEnqueueWriteGlobalVariableCache,
+      Ctx, ur::cl::getAdapter()->fnCache.clEnqueueWriteGlobalVariableINTELCache,
       cl_ext::EnqueueWriteGlobalVariableName, &F));
 
   cl_int Res = F(hQueue->CLQueue, hProgram->CLProgram, name, blockingWrite,
@@ -378,9 +378,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableRead(
   cl_event Event;
   std::vector<cl_event> CLWaitEvents(numEventsInWaitList);
   MapUREventsToCL(numEventsInWaitList, phEventWaitList, CLWaitEvents);
-  cl_ext::clEnqueueReadGlobalVariable_fn F = nullptr;
+  cl_ext::clEnqueueReadGlobalVariableINTEL_fn F = nullptr;
   UR_RETURN_ON_FAILURE(cl_ext::getExtFuncFromContext<decltype(F)>(
-      Ctx, ur::cl::getAdapter()->fnCache.clEnqueueReadGlobalVariableCache,
+      Ctx, ur::cl::getAdapter()->fnCache.clEnqueueReadGlobalVariableINTELCache,
       cl_ext::EnqueueReadGlobalVariableName, &F));
 
   cl_int Res = F(hQueue->CLQueue, hProgram->CLProgram, name, blockingRead,
