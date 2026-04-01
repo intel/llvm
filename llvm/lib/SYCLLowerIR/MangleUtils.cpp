@@ -104,11 +104,11 @@ StringRef getMangledAttribute(TypeAttributeEnum Attribute) {
 
 #undef ATTRIBUTE_TYPES_MAP
 
-MangleError PrimitiveType::accept(TypeVisitor *Visitor) const {
+void PrimitiveType::accept(TypeVisitor *Visitor) const {
   return Visitor->visit(this);
 }
 
-MangleError PointerType::accept(TypeVisitor *Visitor) const {
+void PointerType::accept(TypeVisitor *Visitor) const {
   return Visitor->visit(this);
 }
 
@@ -131,15 +131,15 @@ bool PointerType::hasQualifier(TypeAttributeEnum Qual) const {
   return false;
 }
 
-MangleError VectorType::accept(TypeVisitor *Visitor) const {
+void VectorType::accept(TypeVisitor *Visitor) const {
   return Visitor->visit(this);
 }
 
-MangleError TemplateParameterType::accept(TypeVisitor *Visitor) const {
+void TemplateParameterType::accept(TypeVisitor *Visitor) const {
   return Visitor->visit(this);
 }
 
-MangleError UserDefinedType::accept(TypeVisitor *Visitor) const {
+void UserDefinedType::accept(TypeVisitor *Visitor) const {
   return Visitor->visit(this);
 }
 
@@ -149,29 +149,25 @@ public:
                 unsigned InitialSeqId = 0)
       : Buffer(Buffer), Stream(Stream), SeqId(InitialSeqId) {}
 
-  MangleError visit(const PrimitiveType *T) override {
+  void visit(const PrimitiveType *T) override {
     Stream << mangledPrimitiveString(T->getPrimitive());
-    return MANGLE_SUCCESS;
   }
 
-  MangleError visit(const PointerType *P) override {
+  void visit(const PointerType *P) override {
     size_t Pos = Buffer.size();
     SmallString<8> AttrMangling = getPointerAttributesManglingWithMode(P);
     SmallString<8> PtrTypePrefix("P");
     PtrTypePrefix += AttrMangling;
     if (!mangleSubstitution(P, PtrTypePrefix)) {
       Stream << PtrTypePrefix;
-      MangleError Err =
-          P->getPointee()->accept(static_cast<TypeVisitor *>(this));
+      P->getPointee()->accept(static_cast<TypeVisitor *>(this));
       if (!AttrMangling.empty())
         recordSubstitution(currentBuffer().substr(Pos + 1));
       recordSubstitution(currentBuffer().substr(Pos));
-      return Err;
     }
-    return MANGLE_SUCCESS;
   }
 
-  MangleError visit(const VectorType *V) override {
+  void visit(const VectorType *V) override {
     size_t Index = Buffer.size();
     SmallString<16> TypeStorage;
     raw_svector_ostream TypeStream(TypeStorage);
@@ -179,26 +175,22 @@ public:
     StringRef TypeStr(TypeStorage);
     if (!mangleSubstitution(V, TypeStr)) {
       Stream << TypeStr;
-      MangleError Err = V->getScalarType()->accept(this);
+      V->getScalarType()->accept(this);
       recordSubstitution(currentBuffer().substr(Index));
-      return Err;
     }
-    return MANGLE_SUCCESS;
   }
 
-  MangleError visit(const TemplateParameterType *T) override {
+  void visit(const TemplateParameterType *T) override {
     appendTemplateParameterMangling(T->getIndex(), Stream);
-    return MANGLE_SUCCESS;
   }
 
-  MangleError visit(const UserDefinedType *U) override {
+  void visit(const UserDefinedType *U) override {
     size_t Index = Buffer.size();
     StringRef Name = U->getName();
     if (!mangleSubstitution(U, Name)) {
       Stream << Name.size() << Name;
       recordSubstitution(currentBuffer().substr(Index));
     }
-    return MANGLE_SUCCESS;
   }
 
 private:
@@ -288,36 +280,27 @@ private:
   StringMap<unsigned> Substitutions;
 };
 
-MangleError
-NameMangler::mangleTemplateName(StringRef Name,
-                                ArrayRef<RefParamType> TemplateArgs,
-                                SmallVectorImpl<char> &MangledName) {
+void NameMangler::mangleTemplateName(StringRef Name,
+                                     ArrayRef<RefParamType> TemplateArgs,
+                                     SmallVectorImpl<char> &MangledName) {
   MangledName.clear();
   raw_svector_ostream Stream(MangledName);
   Stream << "_Z" << Name.size() << Name;
   if (!TemplateArgs.empty()) {
     Stream << 'I';
     MangleVisitor Visitor(MangledName, Stream, 1);
-    for (const auto &TemplateArg : TemplateArgs) {
-      MangleError Err = TemplateArg->accept(&Visitor);
-      if (Err != MANGLE_SUCCESS)
-        return Err;
-    }
+    for (const auto &TemplateArg : TemplateArgs)
+      TemplateArg->accept(&Visitor);
     Stream << 'E';
   }
-  return MANGLE_SUCCESS;
 }
 
-MangleError NameMangler::mangle(StringRef Name, ArrayRef<RefParamType> Params,
-                                SmallVectorImpl<char> &MangledName) {
+void NameMangler::mangle(StringRef Name, ArrayRef<RefParamType> Params,
+                         SmallVectorImpl<char> &MangledName) {
   MangledName.clear();
   raw_svector_ostream Stream(MangledName);
   Stream << "_Z" << Name.size() << Name;
   MangleVisitor Visitor(MangledName, Stream, 0);
-  for (const auto &P : Params) {
-    MangleError Err = P->accept(&Visitor);
-    if (Err != MANGLE_SUCCESS)
-      return Err;
-  }
-  return MANGLE_SUCCESS;
+  for (const auto &P : Params)
+    P->accept(&Visitor);
 }

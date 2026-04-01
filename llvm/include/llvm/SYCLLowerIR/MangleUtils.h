@@ -22,8 +22,6 @@ namespace llvm {
 
 namespace SPIR {
 
-enum MangleError { MANGLE_SUCCESS };
-
 enum TypePrimitiveEnum {
   PRIMITIVE_BOOL,
   PRIMITIVE_SCHAR,
@@ -77,7 +75,7 @@ struct UserDefinedType;
 struct ParamType : public RefCountedBase<ParamType> {
   ParamType(TypeEnum TypeId) : TypeId(TypeId) {}
   virtual ~ParamType() {}
-  virtual MangleError accept(TypeVisitor *) const = 0;
+  virtual void accept(TypeVisitor *) const = 0;
   TypeEnum getTypeId() const { return TypeId; }
 
 protected:
@@ -95,7 +93,7 @@ struct ParamTypeBase : public ParamType {
 
 struct PrimitiveType : public ParamTypeBase<PrimitiveType, TYPE_ID_PRIMITIVE> {
   PrimitiveType(TypePrimitiveEnum P) : Primitive(P) {}
-  MangleError accept(TypeVisitor *Visitor) const override;
+  void accept(TypeVisitor *Visitor) const override;
   TypePrimitiveEnum getPrimitive() const { return Primitive; }
 
 private:
@@ -108,7 +106,7 @@ struct PointerType : public ParamTypeBase<PointerType, TYPE_ID_POINTER> {
       : PType(Type), AddressSpace(ATTR_PRIVATE) {
     Qualifiers[0] = Qualifiers[1] = Qualifiers[2] = false;
   }
-  MangleError accept(TypeVisitor *Visitor) const override;
+  void accept(TypeVisitor *Visitor) const override;
   const RefParamType &getPointee() const { return PType; }
   void setAddressSpace(TypeAttributeEnum Attr) { AddressSpace = Attr; }
   TypeAttributeEnum getAddressSpace() const { return AddressSpace; }
@@ -124,7 +122,7 @@ private:
 struct VectorType : public ParamTypeBase<PointerType, TYPE_ID_VECTOR> {
   static const TypeEnum EnumTy;
   VectorType(const RefParamType Type, int Len) : PType(Type), Len(Len) {}
-  MangleError accept(TypeVisitor *Visitor) const override;
+  void accept(TypeVisitor *Visitor) const override;
   const RefParamType &getScalarType() const { return PType; }
   int getLength() const { return Len; }
 
@@ -137,7 +135,7 @@ struct TemplateParameterType
     : public ParamTypeBase<PointerType, TYPE_ID_TEMPLATE_PARAMETER> {
   static const TypeEnum EnumTy;
   TemplateParameterType(unsigned Index) : Index(Index) {}
-  MangleError accept(TypeVisitor *Visitor) const override;
+  void accept(TypeVisitor *Visitor) const override;
   unsigned getIndex() const { return Index; }
 
 private:
@@ -147,7 +145,7 @@ private:
 struct UserDefinedType : public ParamTypeBase<PointerType, TYPE_ID_STRUCTURE> {
   static const TypeEnum EnumTy;
   UserDefinedType(StringRef Name) : Name(Name) {}
-  MangleError accept(TypeVisitor *Visitor) const override;
+  void accept(TypeVisitor *Visitor) const override;
   StringRef getName() const { return Name; }
 
 private:
@@ -156,21 +154,20 @@ private:
 
 struct TypeVisitor {
   virtual ~TypeVisitor() {}
-  virtual MangleError visit(const PrimitiveType *) = 0;
-  virtual MangleError visit(const VectorType *) = 0;
-  virtual MangleError visit(const PointerType *) = 0;
-  virtual MangleError visit(const TemplateParameterType *) = 0;
-  virtual MangleError visit(const UserDefinedType *) = 0;
+  virtual void visit(const PrimitiveType *) = 0;
+  virtual void visit(const VectorType *) = 0;
+  virtual void visit(const PointerType *) = 0;
+  virtual void visit(const TemplateParameterType *) = 0;
+  virtual void visit(const UserDefinedType *) = 0;
 };
 
 class NameMangler {
 public:
-  MangleError mangleTemplateName(StringRef Name,
-                                 ArrayRef<RefParamType> TemplateArgs,
-                                 SmallVectorImpl<char> &MangledName);
+  void mangleTemplateName(StringRef Name, ArrayRef<RefParamType> TemplateArgs,
+                          SmallVectorImpl<char> &MangledName);
 
-  MangleError mangle(StringRef Name, ArrayRef<RefParamType> Params,
-                     SmallVectorImpl<char> &MangledName);
+  void mangle(StringRef Name, ArrayRef<RefParamType> Params,
+              SmallVectorImpl<char> &MangledName);
 };
 
 } // namespace SPIR

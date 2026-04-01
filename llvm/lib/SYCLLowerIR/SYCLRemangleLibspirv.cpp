@@ -13,19 +13,19 @@
 // Three-Map Transformation:
 // For each function the pass applies three type maps in sequence:
 //
-// - Rename (ParameterTypeReplacements):
+// - Rename (Parameter type replacements):
 //     Rename the function. char -> signed char (always), half -> _Float16,
 //     long -> long long, unsigned long -> unsigned long long.
 //
-// - CloneOriginal (CloneTypeReplacements):
+// - CloneOriginal (Clone type replacements):
 //     After Rename, the original OpenCL-mangled name no longer exists.
 //     CloneOriginal recreates it so callers using OpenCL type names still link.
 //     Clone source is found by applying CloneOriginal's map to original name:
-//       char -> signed char (signed) / unsigned char (unsigned)
-//       _Float16 -> half, long -> int (L32) or long long (L64),
+//       char -> signed char (signed) / unsigned char (unsigned),
+//       long -> int (L32) or long long (L64),
 //       unsigned long -> unsigned int (L32) or unsigned long long (L64).
 //
-// - CloneRemangled (RemangledCloneTypeReplacements):
+// - CloneRemangled (Remangled clone type replacements):
 //     When Rename renames a function with multiple parameters, it may absorb
 //     valid permutations of the remangled name. For example,
 //     `f(long long, char, signed char)` (`_Z1fxca`) is absorbed by
@@ -55,7 +55,7 @@
 //        _Z17__spirv_ocl_s_absl -> _Z17__spirv_ocl_s_absx
 //        (long)                 -> (long long)
 //
-//    CloneTypeReplacements (clone, L64):
+//    CloneOriginal (clone, L64):
 //        _Z17__spirv_ocl_s_absx -> _Z17__spirv_ocl_s_absl
 //        (long long)            -> (long)
 //
@@ -68,7 +68,7 @@
 //        _Z17__spirv_ocl_s_absc -> _Z17__spirv_ocl_s_absa
 //        (char)                 -> (signed char)
 //
-//    CloneTypeReplacements (clone, signed):
+//    CloneOriginal (clone, signed):
 //        _Z17__spirv_ocl_s_absa -> _Z17__spirv_ocl_s_absc
 //        (signed char)          -> (char)
 //
@@ -80,7 +80,7 @@
 //         _Z15__spirv_ocl_clzc -> _Z15__spirv_ocl_clza
 //         (char)               -> (signed char)
 //
-//     CloneTypeReplacements (clone, unsigned):
+//     CloneOriginal (clone, unsigned):
 //         _Z15__spirv_ocl_clzh -> _Z15__spirv_ocl_clzc
 //         (unsigned char)      -> (char)
 //
@@ -174,24 +174,24 @@ namespace {
 
 // Transformation mode for type replacements.
 enum class TransformMode {
-  // Rename (ParameterTypeReplacements): rename OpenCL C types to SYCL types.
+  // Rename: rename OpenCL C types to SYCL types.
   // char -> signed char (always), half -> _Float16
   // long -> long long, unsigned long -> unsigned long long
   Rename,
 
-  // CloneTypeReplacements: find clonee source for creating back-clones.
+  // CloneOriginal: find clonee source for creating back-clones.
   // char -> signed char (signed target) or unsigned char (unsigned target)
   // long -> int (L32) or long long (L64)
   // unsigned long -> unsigned int (L32) or unsigned long long (L64)
   // (half, _Float16, signed char, unsigned char: no transformation)
   CloneOriginal,
 
-  // CloneRemangled (RemangledCloneTypeReplacements): find target for second
-  // clone. Derived from Rename entries where Rename[k] != CloneOriginal[k],
-  // plus char -> signed char.
-  // char -> signed char (always), half -> _Float16
-  // long -> long long (L32 only; L64: no entry, stays as long)
-  // unsigned long -> unsigned long long (L32 only; L64: no entry)
+  // CloneRemangled: find target for second clone. Derived from Rename entries
+  // where Rename[k] != CloneOriginal[k], plus
+  //   char -> signed char.
+  //   char -> signed char (always), half -> _Float16
+  //   long -> long long (L32 only; L64: no entry, stays as long)
+  //   unsigned long -> unsigned long long (L32 only; L64: no entry)
   CloneRemangled,
 };
 
@@ -390,6 +390,7 @@ private:
         else if (ASNum == 4)
           AS = SPIR::ATTR_GENERIC_EXPLICIT;
         else
+          // FIXME https://github.com/intel/llvm/issues/21664
           llvm_unreachable("Unexpected address space number in mangled name");
         // Use the inner type, not the VendorExtQualType wrapper.
         PointeeNode = VT->getTy();
@@ -638,15 +639,13 @@ bool tryRemangleFuncName(StringRef MangledName, const Triple &TT,
       return false;
 
     SmallString<128> RemangledTemplatePrefix;
-    if (Mangler.mangleTemplateName(BaseName, TemplateArgTypes,
-                                   RemangledTemplatePrefix) !=
-        SPIR::MANGLE_SUCCESS)
-      return false;
+    Mangler.mangleTemplateName(BaseName, TemplateArgTypes,
+                               RemangledTemplatePrefix);
 
     Result = RemangledTemplatePrefix;
     Result += MangledName.substr(TemplateSuffixStart);
-  } else if (Mangler.mangle(BaseName, Params, Result) != SPIR::MANGLE_SUCCESS) {
-    return false;
+  } else {
+    Mangler.mangle(BaseName, Params, Result);
   }
 
   // Final validation: ensure the new mangled name is different from the
@@ -795,8 +794,9 @@ PreservedAnalyses SYCLRemangleLibspirvPass::run(Module &M,
     // TmpSuffix: if target already exists, append .tmp.
     if (M.getFunction(RemangledName))
       RemangledName += TmpSuffix;
-    if (M.getFunction(RemangledName))
-      continue; // Both base and .tmp exist, skip
+    assert(!M.getFunction(RemangledName) &&
+           "Remangling collision: third function attempted to use an existing "
+           "target name");
 
     Changed = true;
 
