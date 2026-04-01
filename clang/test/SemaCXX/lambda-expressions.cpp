@@ -808,3 +808,16 @@ void f1() {
   };
 }
 }
+
+namespace GH180460 {
+// Trailing return type incorrectly treated 'x' as mutable.
+void test_lambda_return_type() {
+  float x = 0.0f;
+
+  [=]() -> decltype((x)) {
+    decltype(x) y1 = x;
+    decltype((x)) y2 = y1;       // expected-note{{binding reference variable 'y2' here}}
+    return y2;                   // expected-warning{{reference to stack memory associated with local variable 'y1' returned}}
+  };
+}
+}

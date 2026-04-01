@@ -534,19 +534,25 @@ ur_result_t ur_platform_handle_t_::initialize() {
             .zeCommandListImmediateAppendCommandListsExp != nullptr;
   }
 
-  ZE_CALL_NOCHECK(zeDriverGetExtensionFunctionAddress,
-                  (ZeDriver, "zeImageGetDeviceOffsetExp",
-                   reinterpret_cast<void **>(
-                       &ZeImageGetDeviceOffsetExt.zeImageGetDeviceOffsetExp)));
+  if (ZeApiVersion >= ZE_API_VERSION_1_15) {
+    ZeImageGetDeviceOffsetExt.zeImageGetDeviceOffsetExp =
+        zeImageGetDeviceOffsetExp;
+    ZeMemGetPitchFor2dImageExt.zeMemGetPitchFor2dImage =
+        zeMemGetPitchFor2dImage;
+  } else {
+    ZE_CALL_NOCHECK(
+        zeDriverGetExtensionFunctionAddress,
+        (ZeDriver, "zeImageGetDeviceOffsetExp",
+         reinterpret_cast<void **>(
+             &ZeImageGetDeviceOffsetExt.zeImageGetDeviceOffsetExp)));
+    ZE_CALL_NOCHECK(zeDriverGetExtensionFunctionAddress,
+                    (ZeDriver, "zeMemGetPitchFor2dImage",
+                     reinterpret_cast<void **>(
+                         &ZeMemGetPitchFor2dImageExt.zeMemGetPitchFor2dImage)));
+  }
 
   ZeImageGetDeviceOffsetExt.Supported =
       ZeImageGetDeviceOffsetExt.zeImageGetDeviceOffsetExp != nullptr;
-
-  ZE_CALL_NOCHECK(zeDriverGetExtensionFunctionAddress,
-                  (ZeDriver, "zeMemGetPitchFor2dImage",
-                   reinterpret_cast<void **>(
-                       &ZeMemGetPitchFor2dImageExt.zeMemGetPitchFor2dImage)));
-
   ZeMemGetPitchFor2dImageExt.Supported =
       ZeMemGetPitchFor2dImageExt.zeMemGetPitchFor2dImage != nullptr;
 

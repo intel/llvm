@@ -18,6 +18,7 @@
 #include <numeric>
 
 #include "common/ur_ref_count.hpp"
+#include "memory.hpp"
 #include "program.hpp"
 
 /// Implementation of a UR Kernel for CUDA
@@ -82,7 +83,7 @@ struct ur_kernel_handle_t_ : ur::cuda::handle_base {
     size_t WorkGroupMemory = 0;
 
     // A struct to keep track of memargs so that we can do dependency analysis
-    // at urEnqueueKernelLaunch
+    // at urEnqueueKernelLaunchWithArgsExp
     struct mem_obj_arg {
       ur_mem_handle_t_ *Mem;
       int Index;
@@ -353,4 +354,48 @@ struct ur_kernel_handle_t_ : ur::cuda::handle_base {
   uint32_t getLocalSize() const noexcept { return Args.getLocalSize(); }
 
   size_t getRegsPerThread() const noexcept { return RegsPerThread; };
+
+  ur_result_t
+  setKernelArgMemObj(uint32_t argIndex,
+                     const ur_kernel_arg_mem_obj_properties_t *Properties,
+                     ur_mem_handle_t hArgValue) {
+    try {
+      // Below sets kernel arg when zero-sized buffers are handled.
+      // In such case the corresponding memory is null.
+      if (hArgValue == nullptr) {
+        setKernelArg(argIndex, 0, nullptr);
+        return UR_RESULT_SUCCESS;
+      }
+
+      auto Device = getProgram()->getDevice();
+      ur_mem_flags_t MemAccess =
+          Properties ? Properties->memoryAccess
+                     : static_cast<ur_mem_flags_t>(UR_MEM_FLAG_READ_WRITE);
+      Args.addMemObjArg(argIndex, hArgValue, MemAccess);
+      if (hArgValue->isImage()) {
+        CUDA_ARRAY3D_DESCRIPTOR arrayDesc;
+        UR_CHECK_ERROR(cuArray3DGetDescriptor(
+            &arrayDesc, std::get<SurfaceMem>(hArgValue->Mem).getArray(Device)));
+        if (arrayDesc.Format != CU_AD_FORMAT_UNSIGNED_INT32 &&
+            arrayDesc.Format != CU_AD_FORMAT_SIGNED_INT32 &&
+            arrayDesc.Format != CU_AD_FORMAT_HALF &&
+            arrayDesc.Format != CU_AD_FORMAT_FLOAT) {
+          setErrorMessage("UR CUDA kernels only support images with channel "
+                          "types int32, uint32, float, and half.",
+                          UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT);
+          return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
+        }
+        CUsurfObject CuSurf =
+            std::get<SurfaceMem>(hArgValue->Mem).getSurface(Device);
+        setKernelArg(argIndex, sizeof(CuSurf), (void *)&CuSurf);
+      } else {
+        CUdeviceptr CuPtr = std::get<BufferMem>(hArgValue->Mem).getPtr(Device);
+        setKernelArg(argIndex, sizeof(CUdeviceptr), (void *)&CuPtr);
+      }
+    } catch (ur_result_t Err) {
+      return Err;
+    }
+
+    return UR_RESULT_SUCCESS;
+  }
 };

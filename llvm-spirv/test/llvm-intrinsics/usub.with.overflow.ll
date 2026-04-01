@@ -4,6 +4,7 @@
 ; RUN: spirv-val %t.spv
 ; RUN: llvm-spirv -r -o %t.rev.bc %t.spv
 ; RUN: llvm-dis -o - %t.rev.bc | FileCheck --check-prefix CHECK-LLVM %s
+; FIXME: FILECHECK_FAIL during llvm-spirv -r in llc compilation flow
 
 target triple = "spir64-unknown-unknown"
 

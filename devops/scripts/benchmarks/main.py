@@ -516,14 +516,13 @@ def validate_and_parse_env_args(env_args):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Unified Runtime Benchmark Runner")
+    parser = argparse.ArgumentParser(description="SYCL and UR Benchmark Runner")
     parser.add_argument(
         "benchmark_directory", type=str, help="Working directory to setup benchmarks."
     )
     parser.add_argument(
         "--sycl", type=str, help="Root directory of the SYCL compiler.", default=None
     )
-    parser.add_argument("--ur", type=str, help="UR install prefix path", default=None)
     parser.add_argument("--umf", type=str, help="UMF install prefix path", default=None)
     parser.add_argument(
         "--adapter",
@@ -814,7 +813,6 @@ if __name__ == "__main__":
     options.sycl = args.sycl
     options.iterations = args.iterations
     options.timeout = args.timeout
-    options.ur = args.ur
     options.ur_adapter = args.adapter
     options.exit_on_failure = args.exit_on_failure
     options.save_name = args.save

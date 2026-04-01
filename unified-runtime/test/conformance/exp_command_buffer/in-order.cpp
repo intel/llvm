@@ -68,14 +68,35 @@ struct urInOrderUSMCommandBufferExpTest : urInOrderCommandBufferExpTest {
       ASSERT_NE(device_ptr, nullptr);
     }
 
+    // Build kernel args for saxpy_usm
     // Index 0 is output
-    ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, device_ptrs[0]));
+    usm_args[0] = {UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+                   nullptr,
+                   UR_EXP_KERNEL_ARG_TYPE_POINTER,
+                   0,
+                   sizeof(void *),
+                   {device_ptrs[0]}};
     // Index 1 is A
-    ASSERT_SUCCESS(urKernelSetArgValue(kernel, 1, sizeof(A), nullptr, &A));
+    usm_args[1] = {UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+                   nullptr,
+                   UR_EXP_KERNEL_ARG_TYPE_VALUE,
+                   1,
+                   sizeof(A),
+                   {&A}};
     // Index 2 is X
-    ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 2, nullptr, device_ptrs[1]));
+    usm_args[2] = {UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+                   nullptr,
+                   UR_EXP_KERNEL_ARG_TYPE_POINTER,
+                   2,
+                   sizeof(void *),
+                   {device_ptrs[1]}};
     // Index 3 is Y
-    ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 3, nullptr, device_ptrs[2]));
+    usm_args[3] = {UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+                   nullptr,
+                   UR_EXP_KERNEL_ARG_TYPE_POINTER,
+                   3,
+                   sizeof(void *),
+                   {device_ptrs[2]}};
   }
 
   // Appends commands to in-order command-buffer without sync-points
@@ -117,10 +138,10 @@ struct urInOrderUSMCommandBufferExpTest : urInOrderCommandBufferExpTest {
           nullptr));
     }
 
-    ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchExp(
+    ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchWithArgsExp(
         in_order_cb, kernel, n_dimensions, &global_offset, &global_size,
-        nullptr, 0, nullptr, 0, nullptr, 0, nullptr, nullptr, nullptr,
-        nullptr));
+        nullptr, 4, usm_args, 0, nullptr, 0, nullptr, 0, nullptr, nullptr,
+        nullptr, nullptr));
 
     if (hints) {
       ASSERT_SUCCESS(urCommandBufferAppendUSMPrefetchExp(
@@ -145,6 +166,7 @@ struct urInOrderUSMCommandBufferExpTest : urInOrderCommandBufferExpTest {
     UUR_RETURN_ON_FATAL_FAILURE(urInOrderCommandBufferExpTest::TearDown());
   }
   std::array<void *, 3> device_ptrs = {nullptr, nullptr, nullptr};
+  ur_exp_kernel_arg_properties_t usm_args[4] = {};
 };
 
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_MULTI_QUEUE(urInOrderUSMCommandBufferExpTest);
@@ -194,47 +216,76 @@ struct urInOrderBufferCommandBufferExpTest : urInOrderCommandBufferExpTest {
 
     // Variable that is incremented as arguments are added to the kernel
     size_t current_arg_index = 0;
-    // Index 0 is output buffer for HIP/Non-HIP
-    ASSERT_SUCCESS(
-        urKernelSetArgMemObj(kernel, current_arg_index++, nullptr, buffers[0]));
 
     // Lambda to add accessor arguments depending on backend.
     // HIP has 3 offset parameters and other backends only have 1.
     auto addAccessorArgs = [&]() {
       if (backend == UR_BACKEND_HIP) {
-        size_t val = 0;
-        ASSERT_SUCCESS(urKernelSetArgValue(kernel, current_arg_index++,
-                                           sizeof(size_t), nullptr, &val));
-        ASSERT_SUCCESS(urKernelSetArgValue(kernel, current_arg_index++,
-                                           sizeof(size_t), nullptr, &val));
-        ASSERT_SUCCESS(urKernelSetArgValue(kernel, current_arg_index++,
-                                           sizeof(size_t), nullptr, &val));
+        buf_args.push_back({UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+                            nullptr,
+                            UR_EXP_KERNEL_ARG_TYPE_VALUE,
+                            static_cast<uint32_t>(current_arg_index++),
+                            sizeof(size_t),
+                            {&hip_zero_val}});
+        buf_args.push_back({UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+                            nullptr,
+                            UR_EXP_KERNEL_ARG_TYPE_VALUE,
+                            static_cast<uint32_t>(current_arg_index++),
+                            sizeof(size_t),
+                            {&hip_zero_val}});
+        buf_args.push_back({UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+                            nullptr,
+                            UR_EXP_KERNEL_ARG_TYPE_VALUE,
+                            static_cast<uint32_t>(current_arg_index++),
+                            sizeof(size_t),
+                            {&hip_zero_val}});
       } else {
-        struct {
-          size_t offsets[1] = {0};
-        } accessor;
-        ASSERT_SUCCESS(urKernelSetArgValue(
-            kernel, current_arg_index++, sizeof(accessor), nullptr, &accessor));
+        buf_args.push_back({UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+                            nullptr,
+                            UR_EXP_KERNEL_ARG_TYPE_VALUE,
+                            static_cast<uint32_t>(current_arg_index++),
+                            sizeof(accessor),
+                            {&accessor}});
       }
     };
+
+    // Index 0 is output buffer for HIP/Non-HIP
+    ur_exp_kernel_arg_value_t mem0_val = {};
+    mem0_val.memObjTuple = {buffers[0], UR_MEM_FLAG_READ_WRITE};
+    buf_args.push_back({UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES, nullptr,
+                        UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ,
+                        static_cast<uint32_t>(current_arg_index++),
+                        sizeof(ur_mem_handle_t), mem0_val});
 
     // Index 3 on HIP and 1 on non-HIP are accessors
     addAccessorArgs();
 
     // Index 4 on HIP and 2 on non-HIP is A
-    ASSERT_SUCCESS(urKernelSetArgValue(kernel, current_arg_index++, sizeof(A),
-                                       nullptr, &A));
+    buf_args.push_back({UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+                        nullptr,
+                        UR_EXP_KERNEL_ARG_TYPE_VALUE,
+                        static_cast<uint32_t>(current_arg_index++),
+                        sizeof(A),
+                        {&A}});
 
     // Index 5 on HIP and 3 on non-HIP is X buffer
-    ASSERT_SUCCESS(
-        urKernelSetArgMemObj(kernel, current_arg_index++, nullptr, buffers[1]));
+    ur_exp_kernel_arg_value_t mem1_val = {};
+    mem1_val.memObjTuple = {buffers[1], UR_MEM_FLAG_READ_WRITE};
+    buf_args.push_back({UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES, nullptr,
+                        UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ,
+                        static_cast<uint32_t>(current_arg_index++),
+                        sizeof(ur_mem_handle_t), mem1_val});
 
     // Index 8 on HIP and 4 on non-HIP is X buffer accessor
     addAccessorArgs();
 
     // Index 9 on HIP and 5 on non-HIP is Y buffer
-    ASSERT_SUCCESS(
-        urKernelSetArgMemObj(kernel, current_arg_index++, nullptr, buffers[2]));
+    ur_exp_kernel_arg_value_t mem2_val = {};
+    mem2_val.memObjTuple = {buffers[2], UR_MEM_FLAG_READ_WRITE};
+    buf_args.push_back({UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES, nullptr,
+                        UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ,
+                        static_cast<uint32_t>(current_arg_index++),
+                        sizeof(ur_mem_handle_t), mem2_val});
 
     // Index 12 on HIP and 6 on non-HIP is Y buffer accessor
     addAccessorArgs();
@@ -252,6 +303,11 @@ struct urInOrderBufferCommandBufferExpTest : urInOrderCommandBufferExpTest {
 
   ur_backend_t backend{};
   std::array<ur_mem_handle_t, 3> buffers = {nullptr, nullptr, nullptr};
+  std::vector<ur_exp_kernel_arg_properties_t> buf_args;
+  size_t hip_zero_val = 0;
+  struct {
+    size_t offsets[1] = {0};
+  } accessor;
 };
 
 UUR_INSTANTIATE_DEVICE_TEST_SUITE(urInOrderBufferCommandBufferExpTest);
@@ -278,9 +334,10 @@ TEST_P(urInOrderBufferCommandBufferExpTest, 1D) {
       nullptr, nullptr, nullptr, nullptr));
 
   // Run kernel
-  ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchExp(
+  ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchWithArgsExp(
       in_order_cb, kernel, n_dimensions, &global_offset, &global_size, nullptr,
-      0, nullptr, 0, nullptr, 0, nullptr, nullptr, nullptr, nullptr));
+      static_cast<uint32_t>(buf_args.size()), buf_args.data(), 0, nullptr, 0,
+      nullptr, 0, nullptr, nullptr, nullptr, nullptr));
 
   // Copy Z -> X
   ASSERT_SUCCESS(urCommandBufferAppendMemBufferCopyExp(
@@ -327,9 +384,10 @@ TEST_P(urInOrderBufferCommandBufferExpTest, Rect) {
       nullptr, nullptr));
 
   // Run kernel
-  ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchExp(
+  ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchWithArgsExp(
       in_order_cb, kernel, n_dimensions, &global_offset, &global_size, nullptr,
-      0, nullptr, 0, nullptr, 0, nullptr, nullptr, nullptr, nullptr));
+      static_cast<uint32_t>(buf_args.size()), buf_args.data(), 0, nullptr, 0,
+      nullptr, 0, nullptr, nullptr, nullptr, nullptr));
 
   // Copy Z -> X
   ASSERT_SUCCESS(urCommandBufferAppendMemBufferCopyRectExp(
