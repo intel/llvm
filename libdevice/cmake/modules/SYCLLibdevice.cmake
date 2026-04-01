@@ -771,7 +771,7 @@ foreach(arch IN LISTS full_build_archs)
            COMPONENT libsycldevice)
 endforeach()
 
-# Add host device imf libraries for obj and new offload objects.
+# Add host objects for host device imf libraries.
 foreach(dtype IN ITEMS bf16 fp32 fp64)
   set(tgt_name imf_fallback_${dtype}_host_obj)
 
