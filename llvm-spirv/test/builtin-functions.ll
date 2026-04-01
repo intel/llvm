@@ -13,6 +13,8 @@
 ; RUN: spirv-val %t2.spv
 ; RUN: llvm-spirv %t.bc --spirv-builtin-format=global -o %t3.spv
 ; RUN: spirv-val %t3.spv
+; RUN: %if spirv-backend %{ llc -O0 -mtriple=spirv64-unknown-unknown -filetype=obj %s -o %t.llc.spv %}
+; RUN: %if spirv-backend %{ llvm-spirv -r --spirv-target-env=SPV-IR %t.llc.spv -o %t.llc.rev.bc %}
 
 ; CHECK-FUNCTION-FORMAT-REV: declare spir_func i64 @_Z26__spirv_BuiltInWorkgroupIdi(i32)
 ; CHECK-FUNCTION-FORMAT-OCL-REV: declare spir_func i64 @_Z12get_group_idj(i32)

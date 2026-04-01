@@ -293,6 +293,7 @@ public:
 
   nodes_range roots() const { return MRoots; }
   nodes_range nodes() const { return MNodeStorage; }
+  bool empty() const;
 
   /// Find the last node added to this graph from an in-order queue.
   /// @param Queue In-order queue to find the last node added to the graph from.

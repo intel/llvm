@@ -358,6 +358,16 @@ if (NOT WIN32)
       DESTINATION "lib${LLVM_LIBDIR_SUFFIX}/"
       COMPONENT sycl-headers-extras)
   endif()
+
+  configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/pkgconfig/sycl.pc.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/sycl-dpcpp-${DPCPP_VERSION_MAJOR}.pc"
+    @ONLY)
+
+  install(
+    FILES "${CMAKE_CURRENT_BINARY_DIR}/sycl-dpcpp-${DPCPP_VERSION_MAJOR}.pc"
+    DESTINATION "lib${LLVM_LIBDIR_SUFFIX}/pkgconfig"
+    COMPONENT sycl)
 endif()
 
 if(SYCL_ENABLE_XPTI_TRACING AND
@@ -433,8 +443,8 @@ option(SYCL_INCLUDE_TESTS
   ${LLVM_INCLUDE_TESTS})
 
 # Ensure that HIP platform is uppercase, to match buildbot's output.
-if(NOT "${SYCL_BUILD_PI_HIP_PLATFORM}" STREQUAL "")
-  string(TOUPPER ${SYCL_BUILD_PI_HIP_PLATFORM} SYCL_BUILD_PI_HIP_PLATFORM)
+if(NOT "${SYCL_BUILD_UR_HIP_PLATFORM}" STREQUAL "")
+  string(TOUPPER ${SYCL_BUILD_UR_HIP_PLATFORM} SYCL_BUILD_UR_HIP_PLATFORM)
 endif()
 
 add_subdirectory(tools)
@@ -544,7 +554,7 @@ if("hip" IN_LIST SYCL_ENABLE_BACKENDS)
       "HIP support requires adding \"libclc\" to the CMake argument \"LLVM_ENABLE_PROJECTS\"")
   endif()
 
-  if(NOT TARGET lld AND "${SYCL_BUILD_PI_HIP_PLATFORM}" STREQUAL "AMD")
+  if(NOT TARGET lld AND "${SYCL_BUILD_UR_HIP_PLATFORM}" STREQUAL "AMD")
     message(FATAL_ERROR
       "HIP support requires adding \"lld\" to the CMake argument \"LLVM_ENABLE_PROJECTS\"")
   endif()

@@ -201,53 +201,6 @@ runs:
       ref: ${{ steps.establish_outputs.outputs.BENCHMARK_RESULTS_BRANCH }}
       path: ${{ steps.establish_outputs.outputs.BENCHMARK_RESULTS_REPO_PATH }}
       persist-credentials: true
-  # Compute-benchmarks relies on UR static libraries, cmake config files, etc.
-  # DPC++ doesn't ship with these files. The easiest way of obtaining these
-  # files is to build from scratch.
-  #
-  # TODO This is not the best place for this. We should come up with
-  # alternatives. A suggestion: Output UR builds as artifacts in ur_build_hw.yml
-  # and unpack it here instead.
-  #
-  # If we insist on not building the UR again, sycl_linux_build.yml can be
-  # modified output the entire sycl build dir as an artifact, in which the
-  # intermediate files required can be stitched together from the build files.
-  # However, this is not exactly "clean" or "fun to maintain"...
-  - name: Clone and build Unified Runtime
-    shell: bash
-    run: |
-      # Clone and build Unified Runtime
-      echo "::group::checkout_llvm_ur"
-
-      # Sparse-checkout UR at build ref:
-      git clone --depth 1 --no-checkout https://github.com/intel/llvm ur
-      cd ur
-      git sparse-checkout init
-      git sparse-checkout set unified-runtime
-      git fetch origin ${{ inputs.build_ref }}
-      git checkout FETCH_HEAD
-
-      echo "::endgroup::"
-      echo "::group::configure_llvm_ur"
-
-      mkdir build install
-      cmake -DCMAKE_BUILD_TYPE=Release \
-        -Sunified-runtime \
-        -Bbuild \
-        -DCMAKE_INSTALL_PREFIX=install \
-        -DUR_BUILD_TESTS=OFF \
-        -DUR_BUILD_ADAPTER_L0=ON \
-        -DUR_BUILD_ADAPTER_L0_V2=ON
-
-      echo "::endgroup::"
-      echo "::group::build_and_install_llvm_ur"
-
-      cmake --build build -j "$(nproc)" 
-      cmake --install build
-
-      cd -
-
-      echo "::endgroup::"
   - name: Install dependencies
     shell: bash
     env:
@@ -345,7 +298,6 @@ runs:
       numactl --cpunodebind "$NUMA_NODE" --membind "$NUMA_NODE" \
       ./devops/scripts/benchmarks/main.py "$BENCH_WORKDIR" \
         --sycl "$(realpath $CMPLR_ROOT)" \
-        --ur "$(realpath ./ur/install)" \
         --adapter "$FORCELOAD_ADAPTER" \
         --save "$SAVE_NAME" \
         --output-html remote \
@@ -390,9 +342,6 @@ runs:
     run: |
       # Run benchmarks' integration tests
 
-      # Enable testing UR benchmarks
-      export LLVM_BENCH_UR_INSTALL_DIR="$(realpath ./ur/install)"
-
       # NOTE: Each integration test prints its own group name as part of test script
       python3 ./devops/scripts/benchmarks/tests/test_integration.py
   - name: Upload github summaries and cache changes
@@ -432,7 +381,8 @@ runs:
       for attempt in 1 2 3; do
         echo "Attempt $attempt to push new results"
         git add .
-        git commit -m "[GHA] Upload compute-benchmarks results from https://github.com/intel/llvm/actions/runs/${{ github.run_id }}"
+        git commit -m "[GHA] Upload benchmarks results for ${SAVE_NAME}" \
+          -m "From CI job: https://github.com/intel/llvm/actions/runs/${{ github.run_id }}"
         results_file="$(git diff HEAD~1 --name-only -- results/ | head -n 1)"
 
         if git push; then

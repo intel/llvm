@@ -82,56 +82,67 @@ GetMsanShadowMemory(ur_context_handle_t Context, ur_device_handle_t Device,
 }
 
 ur_result_t MsanShadowMemoryCPU::Setup() {
-  static ur_result_t Result = [this]() {
-    for (unsigned i = 0; i < kMemoryLayoutSize; ++i) {
-      uptr Start = kMemoryLayout[i].start;
-      uptr End = kMemoryLayout[i].end;
-      uptr Size = End - Start;
-      MappingDesc::Type Type = kMemoryLayout[i].type;
+  bool Initialized = true;
+  for (unsigned i = 0; i < kMemoryLayoutSize; ++i) {
+    uptr Start = kMemoryLayout[i].start;
+    uptr End = kMemoryLayout[i].end;
+    uptr Size = End - Start;
+    MappingDesc::Type Type = kMemoryLayout[i].type;
 
-      bool IsMap = Type == MappingDesc::SHADOW || Type == MappingDesc::ORIGIN;
-      bool IsProtect = Type == MappingDesc::INVALID;
+    bool IsMap = Type == MappingDesc::SHADOW || Type == MappingDesc::ORIGIN;
+    bool IsProtect = Type == MappingDesc::INVALID;
 
-      if (IsMap) {
-        if (MmapFixedNoReserve(Start, Size) == 0) {
-          return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
-        }
-        DontCoredumpRange(Start, Size);
+    if (IsMap) {
+      if (!MmapFixedNoReserve(Start, Size)) {
+        UR_LOG_L(getContext()->logger, DEBUG,
+                 "Failed to mmap shadow memory: {} - {}", (void *)Start,
+                 (void *)End);
+        Initialized = false;
+        break;
       }
-      if (IsProtect) {
-        if (ProtectMemoryRange(Start, Size) == 0) {
-          return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
-        }
+      DontCoredumpRange(Start, Size);
+    }
+    if (IsProtect) {
+      if (!ProtectMemoryRange(Start, Size)) {
+        UR_LOG_L(getContext()->logger, DEBUG,
+                 "Failed to protect memory range: {} - {}", (void *)Start,
+                 (void *)End);
+        Initialized = false;
+        break;
       }
     }
-    ShadowBegin = kMemoryLayout[1].start;
-    ShadowEnd = kMemoryLayout[9].end;
-    return UR_RESULT_SUCCESS;
-  }();
-  return Result;
+  }
+
+  if (!Initialized) {
+    TryReExecWithoutASLR();
+    die("Device MemorySanitizer failed to reserve shadow memory since shadow "
+        "memory interleaves with an existing mapping.");
+  }
+
+  ShadowBegin = kMemoryLayout[1].start;
+  ShadowEnd = kMemoryLayout[9].end;
+  return UR_RESULT_SUCCESS;
 }
 
 ur_result_t MsanShadowMemoryCPU::Destory() {
   if (ShadowBegin == 0 && ShadowEnd == 0) {
     return UR_RESULT_SUCCESS;
   }
-  static ur_result_t Result = [this]() {
-    for (unsigned i = 0; i < kMemoryLayoutSize; ++i) {
-      uptr Start = kMemoryLayout[i].start;
-      uptr End = kMemoryLayout[i].end;
-      uptr Size = End - Start;
-      MappingDesc::Type Type = kMemoryLayout[i].type;
-      bool IsMap = Type == MappingDesc::SHADOW || Type == MappingDesc::ORIGIN;
-      if (IsMap) {
-        if (Munmap(Start, Size)) {
-          return UR_RESULT_ERROR_UNKNOWN;
-        }
+
+  for (unsigned i = 0; i < kMemoryLayoutSize; ++i) {
+    uptr Start = kMemoryLayout[i].start;
+    uptr End = kMemoryLayout[i].end;
+    uptr Size = End - Start;
+    MappingDesc::Type Type = kMemoryLayout[i].type;
+    bool IsMap = Type == MappingDesc::SHADOW || Type == MappingDesc::ORIGIN;
+    if (IsMap) {
+      if (!Munmap(Start, Size)) {
+        return UR_RESULT_ERROR_UNKNOWN;
       }
     }
-    ShadowBegin = ShadowEnd = 0;
-    return UR_RESULT_SUCCESS;
-  }();
-  return Result;
+  }
+  ShadowBegin = ShadowEnd = 0;
+  return UR_RESULT_SUCCESS;
 }
 
 uptr MsanShadowMemoryCPU::MemToShadow(uptr Ptr) { return MEM_TO_SHADOW(Ptr); }

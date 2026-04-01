@@ -1394,6 +1394,26 @@ urPrintExpProgramFlags(enum ur_exp_program_flag_t value, char *buffer,
                        const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_exp_usm_host_alloc_register_flag_t enum
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL urPrintExpUsmHostAllocRegisterFlags(
+    enum ur_exp_usm_host_alloc_register_flag_t value, char *buffer,
+    const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_exp_usm_host_alloc_register_properties_t struct
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL urPrintExpUsmHostAllocRegisterProperties(
+    const struct ur_exp_usm_host_alloc_register_properties_t params,
+    char *buffer, const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_exp_peer_info_t enum
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -2170,34 +2190,17 @@ urPrintKernelGetSuggestedLocalWorkSizeParams(
     char *buffer, const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Print ur_kernel_set_arg_value_params_t struct
+/// @brief Print ur_kernel_get_suggested_local_work_size_with_args_params_t
+/// struct
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
 ///         - `buff_size < out_size`
-UR_APIEXPORT ur_result_t UR_APICALL urPrintKernelSetArgValueParams(
-    const struct ur_kernel_set_arg_value_params_t *params, char *buffer,
-    const size_t buff_size, size_t *out_size);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Print ur_kernel_set_arg_local_params_t struct
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_INVALID_SIZE
-///         - `buff_size < out_size`
-UR_APIEXPORT ur_result_t UR_APICALL urPrintKernelSetArgLocalParams(
-    const struct ur_kernel_set_arg_local_params_t *params, char *buffer,
-    const size_t buff_size, size_t *out_size);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Print ur_kernel_set_arg_pointer_params_t struct
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_INVALID_SIZE
-///         - `buff_size < out_size`
-UR_APIEXPORT ur_result_t UR_APICALL urPrintKernelSetArgPointerParams(
-    const struct ur_kernel_set_arg_pointer_params_t *params, char *buffer,
-    const size_t buff_size, size_t *out_size);
+UR_APIEXPORT ur_result_t UR_APICALL
+urPrintKernelGetSuggestedLocalWorkSizeWithArgsParams(
+    const struct ur_kernel_get_suggested_local_work_size_with_args_params_t
+        *params,
+    char *buffer, const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_kernel_set_exec_info_params_t struct
@@ -2207,26 +2210,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urPrintKernelSetArgPointerParams(
 ///         - `buff_size < out_size`
 UR_APIEXPORT ur_result_t UR_APICALL urPrintKernelSetExecInfoParams(
     const struct ur_kernel_set_exec_info_params_t *params, char *buffer,
-    const size_t buff_size, size_t *out_size);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Print ur_kernel_set_arg_sampler_params_t struct
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_INVALID_SIZE
-///         - `buff_size < out_size`
-UR_APIEXPORT ur_result_t UR_APICALL urPrintKernelSetArgSamplerParams(
-    const struct ur_kernel_set_arg_sampler_params_t *params, char *buffer,
-    const size_t buff_size, size_t *out_size);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Print ur_kernel_set_arg_mem_obj_params_t struct
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_INVALID_SIZE
-///         - `buff_size < out_size`
-UR_APIEXPORT ur_result_t UR_APICALL urPrintKernelSetArgMemObjParams(
-    const struct ur_kernel_set_arg_mem_obj_params_t *params, char *buffer,
     const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2570,16 +2553,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urPrintPhysicalMemReleaseParams(
 ///         - `buff_size < out_size`
 UR_APIEXPORT ur_result_t UR_APICALL urPrintPhysicalMemGetInfoParams(
     const struct ur_physical_mem_get_info_params_t *params, char *buffer,
-    const size_t buff_size, size_t *out_size);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Print ur_enqueue_kernel_launch_params_t struct
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_INVALID_SIZE
-///         - `buff_size < out_size`
-UR_APIEXPORT ur_result_t UR_APICALL urPrintEnqueueKernelLaunchParams(
-    const struct ur_enqueue_kernel_launch_params_t *params, char *buffer,
     const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3123,6 +3096,26 @@ UR_APIEXPORT ur_result_t UR_APICALL urPrintUsmPitchedAllocExpParams(
 ///         - `buff_size < out_size`
 UR_APIEXPORT ur_result_t UR_APICALL urPrintUsmContextMemcpyExpParams(
     const struct ur_usm_context_memcpy_exp_params_t *params, char *buffer,
+    const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_usm_host_alloc_unregister_exp_params_t struct
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL urPrintUsmHostAllocUnregisterExpParams(
+    const struct ur_usm_host_alloc_unregister_exp_params_t *params,
+    char *buffer, const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_usm_host_alloc_register_exp_params_t struct
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL urPrintUsmHostAllocRegisterExpParams(
+    const struct ur_usm_host_alloc_register_exp_params_t *params, char *buffer,
     const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
