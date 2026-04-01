@@ -344,41 +344,43 @@ bool isTargetCompatibleWithModule(const std::string &Target,
 void addTableRow(util::SimpleTable &Table,
                  const IrPropSymFilenameTriple &RowData);
 
+void prepareModuleBeforeSave(module_split::ModuleDesc &MD, bool Cleanup,
+                             bool AllowDeviceImageDependencies = false) {
+  MD.saveSplitInformationAsMetadata();
+  if (Cleanup)
+    MD.cleanup(AllowDeviceImageDependencies);
+}
+
 /// \param OutTables List of tables (one for each target) to output results
 /// \param MD Module descriptor to save
-/// \param OutputPrefix Prefix for all generated outputs.
+/// \param OutputPrefix Prefix for all generated outputs. Output files use
+///   dot-separated suffixes: OutputPrefix.esimd.ext for ESIMD modules or
+///   OutputPrefix.target.ext for target-specific property files (e.g.,
+///   prefix_0.esimd.ll, prefix_0.intel_gpu_pvc.prop).
 /// \param IRFilename Filename of IR component. If filename is not empty, it
 ///   is recorded in the OutTable. Otherwise, a new file is created to save
 ///   the IR component, and the new name is recorded in the OutTable.
-void saveModule(
+Error saveModule(
     const std::vector<std::unique_ptr<util::SimpleTable>> &OutTables,
-    module_split::ModuleDesc &MD, const int I, const Twine &OutputPrefix,
+    module_split::ModuleDesc &MD, const Twine &OutputPrefix,
     const StringRef IRFilename) {
   IrPropSymFilenameTriple BaseTriple;
-  StringRef Suffix = MD.isESIMD() ? "_esimd" : "";
-  MD.saveSplitInformationAsMetadata();
+  StringRef Suffix = MD.isESIMD() ? ".esimd" : "";
 
   if (!IRFilename.empty()) {
     // Don't save IR, just record the filename.
     BaseTriple.Ir = IRFilename.str();
   } else {
-    if (!MD.isSYCLDeviceLib()) {
-      // For deviceLib Modules, we don't need to do clean up and no entry-point
-      // is included. The module only includes a bunch of exported functions
-      // intended to be invoked by user's device modules.
-      MD.cleanup(AllowDeviceImageDependencies);
-    }
-
     StringRef IRExtension = OutputAssembly ? ".ll" : ".bc";
-    BaseTriple.Ir =
-        (OutputPrefix + Suffix + "_" + Twine(I) + IRExtension).str();
+    BaseTriple.Ir = (OutputPrefix + Suffix + IRExtension).str();
     ExitOnErr(saveModuleIR(MD.getModule(), BaseTriple.Ir));
   }
 
   if (DoSymGen) {
     // Save the names of the entry points - the symbol table.
-    BaseTriple.Sym = (OutputPrefix + Suffix + "_" + Twine(I) + ".sym").str();
-    ExitOnErr(saveModuleSymbolTable(MD, BaseTriple.Sym));
+    BaseTriple.Sym = (OutputPrefix + Suffix + ".sym").str();
+    if (Error E = saveModuleSymbolTable(MD, BaseTriple.Sym))
+      return E;
   }
 
   for (const auto &[Table, OutputFile] : zip_equal(OutTables, OutputFiles)) {
@@ -392,20 +394,21 @@ void saveModule(
       StringRef Target = OutputFile.Target;
       std::string NewSuff = Suffix.str();
       if (!Target.empty())
-        NewSuff = (Twine("_") + Target).str();
+        NewSuff = (Twine(".") + Target).str();
 
-      CopyTriple.Prop =
-          (OutputPrefix + NewSuff + "_" + Twine(I) + ".prop").str();
-      ExitOnErr(saveModuleProperties(MD, Props, CopyTriple.Prop, Target));
+      CopyTriple.Prop = (OutputPrefix + NewSuff + ".prop").str();
+      if (Error E = saveModuleProperties(MD, Props, CopyTriple.Prop, Target))
+        return E;
     }
     addTableRow(*Table, CopyTriple);
   }
+
+  return Error::success();
 }
 
 Error saveDeviceLibModule(
     const std::vector<std::unique_ptr<util::SimpleTable>> &OutTables,
-    const Twine &OutputPrefix, const int I,
-    const std::string &DeviceLibFileName) {
+    const Twine &OutputPrefix, const std::string &DeviceLibFileName) {
   assert(!DeviceLibFileName.empty() &&
          "DeviceLibFileName is expected to be non-empty.");
   SMDiagnostic Err;
@@ -422,7 +425,11 @@ Error saveDeviceLibModule(
 
   llvm::module_split::ModuleDesc DeviceLibMD(std::move(DeviceLibIR),
                                              DeviceLibFileName);
-  saveModule(OutTables, DeviceLibMD, I, OutputPrefix, "");
+  // For deviceLib Modules, we don't need to do clean up and no entry-point
+  // is included. The module only includes a bunch of exported functions
+  // intended to be invoked by user's device modules.
+  prepareModuleBeforeSave(DeviceLibMD, /*Cleanup*/ false);
+  saveModule(OutTables, DeviceLibMD, OutputPrefix, "");
   return Error::success();
 }
 
@@ -600,7 +607,10 @@ processInputModule(std::unique_ptr<Module> M, const StringRef OutputPrefix) {
     }
     for (const std::unique_ptr<module_split::ModuleDesc> &IrMD : MMs) {
       IsBF16DeviceLibUsed |= isSYCLDeviceLibBF16Used(IrMD->getModule());
-      saveModule(Tables, *IrMD, ID, OutputPrefix, OutIRFileName);
+      prepareModuleBeforeSave(*IrMD, /*Cleanup*/ OutIRFileName.empty(),
+                              AllowDeviceImageDependencies);
+      ExitOnErr(saveModule(Tables, *IrMD, OutputPrefix + "_" + Twine(ID),
+                           OutIRFileName));
     }
 
     ++ID;
@@ -610,7 +620,10 @@ processInputModule(std::unique_ptr<Module> M, const StringRef OutputPrefix) {
         const std::unique_ptr<module_split::ModuleDesc> &IrMD =
             MMsWithDefaultSpecConsts[i];
         IsBF16DeviceLibUsed |= isSYCLDeviceLibBF16Used(IrMD->getModule());
-        saveModule(Tables, *IrMD, ID, OutputPrefix, OutIRFileName);
+        prepareModuleBeforeSave(*IrMD, /*Cleanup*/ OutIRFileName.empty(),
+                                AllowDeviceImageDependencies);
+        ExitOnErr(saveModule(Tables, *IrMD, OutputPrefix + "_" + Twine(ID),
+                             OutIRFileName));
       }
 
       ++ID;
@@ -618,9 +631,9 @@ processInputModule(std::unique_ptr<Module> M, const StringRef OutputPrefix) {
   }
 
   if (IsBF16DeviceLibUsed && (DeviceLibDir.getNumOccurrences() > 0)) {
-    ExitOnErr(saveDeviceLibModule(Tables, OutputPrefix, ID,
+    ExitOnErr(saveDeviceLibModule(Tables, OutputPrefix + "_" + Twine(ID),
                                   "libsycl-fallback-bfloat16.bc"));
-    ExitOnErr(saveDeviceLibModule(Tables, OutputPrefix, ID + 1,
+    ExitOnErr(saveDeviceLibModule(Tables, OutputPrefix + "_" + Twine(ID + 1),
                                   "libsycl-native-bfloat16.bc"));
   }
   return Tables;
