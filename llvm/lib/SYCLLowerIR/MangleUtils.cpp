@@ -12,10 +12,13 @@
 #include "llvm/SYCLLowerIR/MangleUtils.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/Support/Casting.h"
+#include "llvm/Support/MathExtras.h"
 #include "llvm/Support/raw_ostream.h"
 
 using namespace llvm;
 using namespace llvm::SPIR;
+
+namespace {
 
 // Mangling utilities.
 // clang-format off
@@ -75,34 +78,20 @@ SmallString<8> getLeafTypeMangling(const ParamType *Type) {
   return {};
 }
 
-// Address space mangling:
-// - Private (AS0) is explicit (U3AS0) - matches SYCL conventions.
-// clang-format off
-#define ATTRIBUTE_TYPES_MAP(X)                                                 \
-  X(ATTR_RESTRICT,          "r")                                               \
-  X(ATTR_VOLATILE,          "V")                                               \
-  X(ATTR_CONST,             "K")                                               \
-  X(ATTR_PRIVATE,           "U3AS0")                                           \
-  X(ATTR_GLOBAL,            "U3AS1")                                           \
-  X(ATTR_CONSTANT,          "U3AS2")                                           \
-  X(ATTR_LOCAL,             "U3AS3")                                           \
-  X(ATTR_GENERIC,           "")                                                \
-  X(ATTR_GENERIC_EXPLICIT,  "U3AS4")
-// clang-format on
-
-StringRef getMangledAttribute(TypeAttributeEnum Attribute) {
-  switch (Attribute) {
-#define ATTR_ENUM_CASE(Enum, Mangled)                                          \
-  case Enum:                                                                   \
-    return Mangled;
-    ATTRIBUTE_TYPES_MAP(ATTR_ENUM_CASE)
-#undef ATTR_ENUM_CASE
-  default:
+SmallString<5> getMangledAddressSpace(unsigned AS) {
+  if (AS == ADDRESS_SPACE_GENERIC)
     return {};
-  }
+  SmallString<5> ASStr{"U"};
+  raw_svector_ostream ASStrStream(ASStr);
+  if (AS < 10)
+    ASStrStream << "3";
+  else
+    ASStrStream << (StringRef("AS").size() + NumDigitsBase10(AS));
+  ASStrStream << "AS" << AS;
+  return ASStr;
 }
 
-#undef ATTRIBUTE_TYPES_MAP
+} // anonymous namespace
 
 void PrimitiveType::accept(TypeVisitor *Visitor) const {
   return Visitor->visit(this);
@@ -201,9 +190,7 @@ private:
   SmallString<8> getPointerAttributesManglingWithMode(const PointerType *P) {
     SmallString<8> QualStr;
     // Handle address space.
-    TypeAttributeEnum AS = P->getAddressSpace();
-    // Normal mangling (generic is implicit).
-    QualStr += getMangledAttribute(AS);
+    QualStr += getMangledAddressSpace(P->getAddressSpace());
     // Handle qualifiers.
     if (P->hasQualifier(ATTR_RESTRICT))
       QualStr += 'r';

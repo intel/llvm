@@ -123,9 +123,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/SYCLLowerIR/SYCLRemangleLibspirv.h"
-#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringSet.h"
 #include "llvm/Demangle/ItaniumDemangle.h"
@@ -199,12 +199,12 @@ using namespace llvm::itanium_demangle;
 
 // Bridge itanium_demangle::Node to SPIR::ParamType.
 class NodeToSPIRType {
-  unsigned TargetDefaultAddrSpace;
+  bool IsSPIRV = false;
   TransformMode Mode;
 
 public:
   NodeToSPIRType(const Triple &TT, TransformMode Mode) : Mode(Mode) {
-    TargetDefaultAddrSpace = (TT.isSPIR() || TT.isSPIRV()) ? 4 : 0;
+    IsSPIRV = TT.isSPIR() || TT.isSPIRV();
   }
 
   SPIR::RefParamType convert(const Node *N) {
@@ -370,28 +370,13 @@ private:
     // is: PointerType -> VendorExtQualType(AS) -> QualType(CV) -> BaseType.
 
     // Default value, e.g. for implicit pointers (no AS qualifier).
-    SPIR::TypeAttributeEnum AS =
-        (TargetDefaultAddrSpace == 4) ? SPIR::ATTR_PRIVATE : SPIR::ATTR_GENERIC;
+    unsigned AS = IsSPIRV ? 0 : SPIR::ADDRESS_SPACE_GENERIC;
     if (PointeeNode->getKind() == Node::KVendorExtQualType) {
       const auto *VT = static_cast<const VendorExtQualType *>(PointeeNode);
       StringRef Ext(VT->getExt());
       if (Ext.starts_with("AS")) {
-        int ASNum = 0;
-        [[maybe_unused]] bool Error = Ext.drop_front(2).getAsInteger(10, ASNum);
-        assert(!Error && "Unexpected non-integer address space");
-        if (ASNum == 0)
-          AS = SPIR::ATTR_PRIVATE;
-        else if (ASNum == 1)
-          AS = SPIR::ATTR_GLOBAL;
-        else if (ASNum == 2)
-          AS = SPIR::ATTR_CONSTANT;
-        else if (ASNum == 3)
-          AS = SPIR::ATTR_LOCAL;
-        else if (ASNum == 4)
-          AS = SPIR::ATTR_GENERIC_EXPLICIT;
-        else
-          // FIXME https://github.com/intel/llvm/issues/21664
-          llvm_unreachable("Unexpected address space number in mangled name");
+        [[maybe_unused]] bool Success = to_integer(Ext.drop_front(2), AS, 10);
+        assert(Success && "Unexpected non-integer address space");
         // Use the inner type, not the VendorExtQualType wrapper.
         PointeeNode = VT->getTy();
       }
@@ -445,8 +430,8 @@ private:
     const Node *DimNode = VT->getDimension();
     if (DimNode->getKind() == Node::KNameType) {
       StringRef DimStr(static_cast<const NameType *>(DimNode)->getName());
-      int Len;
-      if (!DimStr.getAsInteger(10, Len))
+      int Len = 0;
+      if (to_integer(DimStr, Len, 10))
         return SPIR::RefParamType(new SPIR::VectorType(Base, Len));
     }
     return SPIR::RefParamType();
@@ -460,21 +445,10 @@ private:
 
     // Handle address space qualifiers.
     if (Ext.starts_with("AS")) {
-      int AS;
-      if (!Ext.drop_front(2).getAsInteger(10, AS)) {
-        if (auto *PT = dyn_cast<SPIR::PointerType>(Base.get())) {
-          SPIR::TypeAttributeEnum Attr = SPIR::ATTR_PRIVATE;
-          if (AS == 1)
-            Attr = SPIR::ATTR_GLOBAL;
-          else if (AS == 2)
-            Attr = SPIR::ATTR_CONSTANT;
-          else if (AS == 3)
-            Attr = SPIR::ATTR_LOCAL;
-          else if (AS == 4)
-            Attr = SPIR::ATTR_GENERIC_EXPLICIT;
-          PT->setAddressSpace(Attr);
-        }
-      }
+      unsigned AS = 0;
+      if (to_integer(Ext.drop_front(2), AS, 10))
+        if (auto *PT = dyn_cast<SPIR::PointerType>(Base.get()))
+          PT->setAddressSpace(AS);
     }
     return Base;
   }
@@ -630,8 +604,6 @@ bool tryRemangleFuncName(StringRef MangledName, const Triple &TT,
   // structurally when all template arguments can be represented as supported
   // type nodes; otherwise we conservatively skip remangling.
   SmallString<128> Result;
-  // Always use implicit generic address space: TargetDefaultAddrSpace=0
-  // preserves AS qualifiers as-is.
   SPIR::NameMangler Mangler;
   if (HasTemplateArgs) {
     size_t TemplateSuffixStart = findTemplateSuffixStart(MangledName);

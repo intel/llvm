@@ -22,6 +22,8 @@ namespace llvm {
 
 namespace SPIR {
 
+static constexpr unsigned ADDRESS_SPACE_GENERIC = ~0u;
+
 enum TypePrimitiveEnum {
   PRIMITIVE_BOOL,
   PRIMITIVE_SCHAR,
@@ -51,19 +53,7 @@ enum TypeEnum {
   TYPE_ID_STRUCTURE
 };
 
-enum TypeAttributeEnum {
-  ATTR_RESTRICT,
-  ATTR_VOLATILE,
-  ATTR_CONST,
-  ATTR_PRIVATE,
-  ATTR_GLOBAL,
-  ATTR_CONSTANT,
-  ATTR_LOCAL,
-  ATTR_GENERIC,
-  ATTR_GENERIC_EXPLICIT,
-  ATTR_NONE,
-  ATTR_NUM = ATTR_NONE
-};
+enum TypeAttributeEnum { ATTR_RESTRICT, ATTR_VOLATILE, ATTR_CONST };
 
 struct TypeVisitor;
 struct PrimitiveType;
@@ -102,21 +92,20 @@ private:
 
 struct PointerType : public ParamTypeBase<PointerType, TYPE_ID_POINTER> {
   static const TypeEnum EnumTy;
-  PointerType(const RefParamType Type)
-      : PType(Type), AddressSpace(ATTR_PRIVATE) {
+  PointerType(const RefParamType Type) : PType(Type) {
     Qualifiers[0] = Qualifiers[1] = Qualifiers[2] = false;
   }
   void accept(TypeVisitor *Visitor) const override;
   const RefParamType &getPointee() const { return PType; }
-  void setAddressSpace(TypeAttributeEnum Attr) { AddressSpace = Attr; }
-  TypeAttributeEnum getAddressSpace() const { return AddressSpace; }
+  void setAddressSpace(unsigned AS) { AddressSpace = AS; }
+  unsigned getAddressSpace() const { return AddressSpace; }
   void setQualifier(TypeAttributeEnum Qual, bool Enabled);
   bool hasQualifier(TypeAttributeEnum Qual) const;
 
 private:
   RefParamType PType;
   bool Qualifiers[3];
-  TypeAttributeEnum AddressSpace;
+  unsigned AddressSpace = ADDRESS_SPACE_GENERIC;
 };
 
 struct VectorType : public ParamTypeBase<PointerType, TYPE_ID_VECTOR> {
