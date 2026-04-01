@@ -303,10 +303,6 @@ ConvertToFP8_CPU(T h, rounding R = rounding::to_even) noexcept {
     //  power (E+1) if within range.
     //  - For negative numbers: rounding toward +inf moves value toward zero, so
     //  keep current E.
-    // Exact power-of-two: m == 0.5  (since frexp gives m in [0.5,1))
-    bool is_exact_power_of_two = (m == 0.5f);
-
-    // rounding effR = (R == rounding::upward) ? R : rounding::upward;
 
     if (R == rounding::upward) {
       if (sign == 0x00) {
