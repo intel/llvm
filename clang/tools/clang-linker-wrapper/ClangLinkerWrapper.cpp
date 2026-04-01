@@ -1503,7 +1503,6 @@ linkDeviceLibFiles(SmallVectorImpl<StringRef> &InputFiles,
   return *OutFileOrErr;
 }
 
-
 /// This function is used to link all SYCL device input files into a single
 /// LLVM IR file. This file is in turn linked with all SYCL device library
 /// files.
