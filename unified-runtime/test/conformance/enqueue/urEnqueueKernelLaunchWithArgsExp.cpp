@@ -8,6 +8,7 @@
 #include <memory>
 #include <uur/fixtures.h>
 #include <uur/known_failure.h>
+#include <uur/raii.h>
 
 struct urEnqueueKernelLaunchNoArgs3DTest : uur::urKernelExecutionTest {
   void SetUp() override {
@@ -187,13 +188,14 @@ TEST_P(urEnqueueKernelLaunchTest, InvalidNullPtrEventWaitList) {
                                        nullptr, nullptr, 1, nullptr, nullptr),
       UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 
-  ur_event_handle_t validEvent;
-  ASSERT_SUCCESS(urEnqueueEventsWait(queue, 0, nullptr, &validEvent));
+  uur::raii::Event eventDummy = nullptr;
+  ASSERT_SUCCESS(
+      urEventCreateWithNativeHandle(0, context, nullptr, eventDummy.ptr()));
 
   ASSERT_EQ_RESULT(urEnqueueKernelLaunchWithArgsExp(
                        queue, kernel, n_dimensions, &global_offset,
                        &global_size, nullptr, 0, nullptr, nullptr, 0,
-                       &validEvent, nullptr),
+                       eventDummy.ptr(), nullptr),
                    UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 
   ur_event_handle_t inv_evt = nullptr;
@@ -202,7 +204,6 @@ TEST_P(urEnqueueKernelLaunchTest, InvalidNullPtrEventWaitList) {
                                        &global_offset, &global_size, nullptr, 0,
                                        nullptr, nullptr, 1, &inv_evt, nullptr),
       UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
-  ASSERT_SUCCESS(urEventRelease(validEvent));
 }
 
 TEST_P(urEnqueueKernelLaunchTest, InvalidWorkDimension) {

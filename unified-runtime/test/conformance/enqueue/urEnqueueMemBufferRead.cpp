@@ -6,6 +6,7 @@
 #include "helpers.h"
 #include <uur/fixtures.h>
 #include <uur/known_failure.h>
+#include <uur/raii.h>
 
 using urEnqueueMemBufferReadTestWithParam =
     uur::urMemBufferQueueTestWithParam<uur::mem_buffer_test_parameters_t>;
@@ -50,11 +51,12 @@ TEST_P(urEnqueueMemBufferReadTestWithParam, InvalidNullPtrEventWaitList) {
                                           output.data(), 1, nullptr, nullptr),
                    UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 
-  ur_event_handle_t validEvent;
-  ASSERT_SUCCESS(urEnqueueEventsWait(queue, 0, nullptr, &validEvent));
+  uur::raii::Event eventDummy = nullptr;
+  ASSERT_SUCCESS(
+      urEventCreateWithNativeHandle(0, context, nullptr, eventDummy.ptr()));
 
   ASSERT_EQ_RESULT(urEnqueueMemBufferRead(queue, buffer, true, 0, size,
-                                          output.data(), 0, &validEvent,
+                                          output.data(), 0, eventDummy.ptr(),
                                           nullptr),
                    UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 
@@ -62,8 +64,6 @@ TEST_P(urEnqueueMemBufferReadTestWithParam, InvalidNullPtrEventWaitList) {
   ASSERT_EQ_RESULT(urEnqueueMemBufferRead(queue, buffer, true, 0, size,
                                           output.data(), 1, &inv_evt, nullptr),
                    UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
-
-  ASSERT_SUCCESS(urEventRelease(validEvent));
 }
 
 TEST_P(urEnqueueMemBufferReadTestWithParam, InvalidSize) {

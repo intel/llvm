@@ -5,6 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #include <uur/fixtures.h>
 #include <uur/known_failure.h>
+#include <uur/raii.h>
 
 enum class BarrierType {
   Normal,
@@ -150,17 +151,16 @@ TEST_P(urEnqueueEventsWaitWithBarrierTest, InvalidNullPtrEventWaitList) {
   ASSERT_EQ_RESULT(EnqueueBarrier(queue1, 1, nullptr, nullptr),
                    UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 
-  ur_event_handle_t validEvent;
-  ASSERT_SUCCESS(urEnqueueEventsWait(queue1, 0, nullptr, &validEvent));
+  uur::raii::Event eventDummy = nullptr;
+  ASSERT_SUCCESS(
+      urEventCreateWithNativeHandle(0, context, nullptr, eventDummy.ptr()));
 
-  ASSERT_EQ_RESULT(EnqueueBarrier(queue1, 0, &validEvent, nullptr),
+  ASSERT_EQ_RESULT(EnqueueBarrier(queue1, 0, eventDummy.ptr(), nullptr),
                    UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 
   ur_event_handle_t inv_evt = nullptr;
   ASSERT_EQ_RESULT(EnqueueBarrier(queue1, 1, &inv_evt, nullptr),
                    UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
-
-  ASSERT_SUCCESS(urEventRelease(validEvent));
 }
 
 TEST_P(urEnqueueEventsWaitWithBarrierOrderingTest,

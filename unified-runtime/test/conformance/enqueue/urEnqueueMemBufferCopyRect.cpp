@@ -7,6 +7,7 @@
 #include "uur/fixtures.h"
 #include "uur/known_failure.h"
 #include <numeric>
+#include <uur/raii.h>
 
 static std::vector<uur::test_parameters_t> generateParameterizations() {
   std::vector<uur::test_parameters_t> parameterizations;
@@ -214,14 +215,15 @@ TEST_P(urEnqueueMemBufferCopyRectTest, InvalidNullPtrEventWaitList) {
                        src_region, size, size, size, size, 1, nullptr, nullptr),
                    UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 
-  ur_event_handle_t validEvent;
-  ASSERT_SUCCESS(urEnqueueEventsWait(queue, 0, nullptr, &validEvent));
+  uur::raii::Event eventDummy = nullptr;
+  ASSERT_SUCCESS(
+      urEventCreateWithNativeHandle(0, context, nullptr, eventDummy.ptr()));
 
-  ASSERT_EQ_RESULT(urEnqueueMemBufferCopyRect(queue, src_buffer, dst_buffer,
-                                              src_origin, dst_origin,
-                                              src_region, size, size, size,
-                                              size, 0, &validEvent, nullptr),
-                   UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
+  ASSERT_EQ_RESULT(
+      urEnqueueMemBufferCopyRect(queue, src_buffer, dst_buffer, src_origin,
+                                 dst_origin, src_region, size, size, size, size,
+                                 0, eventDummy.ptr(), nullptr),
+      UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 
   ur_event_handle_t inv_evt = nullptr;
   ASSERT_EQ_RESULT(urEnqueueMemBufferCopyRect(queue, src_buffer, dst_buffer,
@@ -229,8 +231,6 @@ TEST_P(urEnqueueMemBufferCopyRectTest, InvalidNullPtrEventWaitList) {
                                               src_region, size, size, size,
                                               size, 1, &inv_evt, nullptr),
                    UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
-
-  ASSERT_SUCCESS(urEventRelease(validEvent));
 }
 TEST_P(urEnqueueMemBufferCopyRectTest, InvalidSize) {
   UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});

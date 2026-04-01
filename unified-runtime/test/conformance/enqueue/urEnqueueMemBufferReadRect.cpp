@@ -7,6 +7,7 @@
 #include "uur/fixtures.h"
 #include <numeric>
 #include <uur/known_failure.h>
+#include <uur/raii.h>
 
 // Choose parameters so that we get good coverage and catch some edge cases.
 static std::vector<uur::test_parameters_t> generateParameterizations() {
@@ -175,13 +176,15 @@ TEST_P(urEnqueueMemBufferReadRectTest, InvalidNullPtrEventWaitList) {
                        host_slice_pitch, dst.data(), 1, nullptr, nullptr),
                    UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 
-  ur_event_handle_t validEvent;
-  ASSERT_SUCCESS(urEnqueueEventsWait(queue, 0, nullptr, &validEvent));
+  uur::raii::Event eventDummy = nullptr;
+  ASSERT_SUCCESS(
+      urEventCreateWithNativeHandle(0, context, nullptr, eventDummy.ptr()));
 
   ASSERT_EQ_RESULT(urEnqueueMemBufferReadRect(
                        queue, buffer, true, buffer_offset, host_offset, region,
                        buffer_row_pitch, buffer_slice_pitch, host_row_pitch,
-                       host_slice_pitch, dst.data(), 0, &validEvent, nullptr),
+                       host_slice_pitch, dst.data(), 0, eventDummy.ptr(),
+                       nullptr),
                    UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 
   ur_event_handle_t invalidEvent = nullptr;
@@ -190,8 +193,6 @@ TEST_P(urEnqueueMemBufferReadRectTest, InvalidNullPtrEventWaitList) {
                        buffer_row_pitch, buffer_slice_pitch, host_row_pitch,
                        host_slice_pitch, dst.data(), 1, &invalidEvent, nullptr),
                    UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
-
-  ASSERT_SUCCESS(urEventRelease(validEvent));
 }
 
 TEST_P(urEnqueueMemBufferReadRectTest, InvalidSize) {

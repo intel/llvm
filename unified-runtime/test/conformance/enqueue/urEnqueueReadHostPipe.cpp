@@ -4,6 +4,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #include <uur/fixtures.h>
+#include <uur/raii.h>
 
 using urEnqueueReadHostPipeTest = uur::urHostPipeTest;
 
@@ -70,19 +71,18 @@ TEST_P(urEnqueueReadHostPipeTest, InvalidEventWaitList) {
                                          /*blocking*/ true, &buffer, size, 0,
                                          &phEventWaitList, phEvent));
 
-  ur_event_handle_t validEvent;
-  ASSERT_SUCCESS(urEnqueueEventsWait(queue, 0, nullptr, &validEvent));
+  uur::raii::Event eventDummy = nullptr;
+  ASSERT_SUCCESS(
+      urEventCreateWithNativeHandle(0, context, nullptr, eventDummy.ptr()));
 
   ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST,
                    urEnqueueReadHostPipe(queue, program, pipe_symbol,
                                          /*blocking*/ true, &buffer, size, 0,
-                                         &validEvent, nullptr));
+                                         eventDummy.ptr(), nullptr));
 
   ur_event_handle_t inv_evt = nullptr;
   ASSERT_EQ_RESULT(urEnqueueReadHostPipe(queue, program, pipe_symbol,
                                          /*blocking*/ true, &buffer, size, 1,
                                          &inv_evt, nullptr),
                    UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
-
-  ASSERT_SUCCESS(urEventRelease(validEvent));
 }

@@ -8,6 +8,7 @@
 
 #include <uur/fixtures.h>
 #include <uur/known_failure.h>
+#include <uur/raii.h>
 
 struct testParametersFill2D {
   size_t pitch;
@@ -288,12 +289,13 @@ TEST_P(urEnqueueUSMFill2DNegativeTest, InvalidNullPtrEventWaitList) {
                                       nullptr),
                    UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 
-  ur_event_handle_t validEvent;
-  ASSERT_SUCCESS(urEnqueueEventsWait(queue, 0, nullptr, &validEvent));
+  uur::raii::Event eventDummy = nullptr;
+  ASSERT_SUCCESS(
+      urEventCreateWithNativeHandle(0, context, nullptr, eventDummy.ptr()));
 
   ASSERT_EQ_RESULT(urEnqueueUSMFill2D(queue, ptr, pitch, pattern_size,
-                                      pattern.data(), width, 1, 0, &validEvent,
-                                      nullptr),
+                                      pattern.data(), width, 1, 0,
+                                      eventDummy.ptr(), nullptr),
                    UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 
   ur_event_handle_t inv_evt = nullptr;
@@ -301,5 +303,4 @@ TEST_P(urEnqueueUSMFill2DNegativeTest, InvalidNullPtrEventWaitList) {
                                       pattern.data(), width, 1, 1, &inv_evt,
                                       nullptr),
                    UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
-  ASSERT_SUCCESS(urEventRelease(validEvent));
 }

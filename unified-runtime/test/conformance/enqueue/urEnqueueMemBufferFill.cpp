@@ -5,6 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #include "helpers.h"
 #include <uur/fixtures.h>
+#include <uur/raii.h>
 
 struct testParametersFill {
   size_t size;
@@ -184,12 +185,13 @@ TEST_P(urEnqueueMemBufferFillNegativeTest, InvalidNullPtrEventWaitList) {
                                           nullptr),
                    UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 
-  ur_event_handle_t validEvent;
-  ASSERT_SUCCESS(urEnqueueEventsWait(queue, 0, nullptr, &validEvent));
+  uur::raii::Event eventDummy = nullptr;
+  ASSERT_SUCCESS(
+      urEventCreateWithNativeHandle(0, context, nullptr, eventDummy.ptr()));
 
   ASSERT_EQ_RESULT(urEnqueueMemBufferFill(queue, buffer, &pattern,
                                           sizeof(uint32_t), 0, size, 0,
-                                          &validEvent, nullptr),
+                                          eventDummy.ptr(), nullptr),
                    UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 
   ur_event_handle_t inv_evt = nullptr;
@@ -197,8 +199,6 @@ TEST_P(urEnqueueMemBufferFillNegativeTest, InvalidNullPtrEventWaitList) {
                                           sizeof(uint32_t), 0, size, 1,
                                           &inv_evt, nullptr),
                    UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
-
-  ASSERT_SUCCESS(urEventRelease(validEvent));
 }
 
 TEST_P(urEnqueueMemBufferFillNegativeTest, InvalidSize) {

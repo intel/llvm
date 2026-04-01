@@ -5,6 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #include <uur/fixtures.h>
 #include <uur/known_failure.h>
+#include <uur/raii.h>
 
 struct urEnqueueMemImageWriteTest : uur::urMemImageQueueTest {
   void SetUp() override {
@@ -65,12 +66,13 @@ TEST_P(urEnqueueMemImageWriteTest, InvalidNullPtrEventWaitList) {
                                           nullptr, nullptr),
                    UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 
-  ur_event_handle_t validEvent;
-  ASSERT_SUCCESS(urEnqueueEventsWait(queue, 0, nullptr, &validEvent));
+  uur::raii::Event eventDummy = nullptr;
+  ASSERT_SUCCESS(
+      urEventCreateWithNativeHandle(0, context, nullptr, eventDummy.ptr()));
 
   ASSERT_EQ_RESULT(urEnqueueMemImageWrite(queue, image1D, true, origin,
                                           region1D, 0, 0, input.data(), 0,
-                                          &validEvent, nullptr),
+                                          eventDummy.ptr(), nullptr),
                    UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 
   ur_event_handle_t inv_evt = nullptr;
@@ -78,8 +80,6 @@ TEST_P(urEnqueueMemImageWriteTest, InvalidNullPtrEventWaitList) {
                                           region1D, 0, 0, input.data(), 1,
                                           &inv_evt, nullptr),
                    UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
-
-  ASSERT_SUCCESS(urEventRelease(validEvent));
 }
 
 TEST_P(urEnqueueMemImageWriteTest, InvalidOrigin1D) {

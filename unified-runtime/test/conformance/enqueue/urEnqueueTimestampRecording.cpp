@@ -9,6 +9,7 @@
 #include <gtest/gtest.h>
 #include <uur/fixtures.h>
 #include <uur/known_failure.h>
+#include <uur/raii.h>
 
 struct urEnqueueTimestampRecordingExpTest : uur::urMultiQueueTypeTest {
   void SetUp() override {
@@ -152,12 +153,12 @@ TEST_P(urEnqueueTimestampRecordingExpTest, InvalidNullPtrEventWaitList) {
       urEnqueueTimestampRecordingExp(queue, true, 1, nullptr, &event),
       UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 
-  ur_event_handle_t validEvent;
-  ASSERT_SUCCESS(urEnqueueEventsWait(queue, 0, nullptr, &validEvent));
+  uur::raii::Event eventDummy = nullptr;
+  ASSERT_SUCCESS(
+      urEventCreateWithNativeHandle(0, context, nullptr, eventDummy.ptr()));
   ASSERT_EQ_RESULT(
-      urEnqueueTimestampRecordingExp(queue, true, 0, &validEvent, &event),
+      urEnqueueTimestampRecordingExp(queue, true, 0, eventDummy.ptr(), &event),
       UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
-  ASSERT_SUCCESS(urEventRelease(validEvent));
 
   ur_event_handle_t invalidEvent = nullptr;
   ASSERT_EQ_RESULT(

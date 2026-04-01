@@ -5,6 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #include "helpers.h"
 #include <uur/fixtures.h>
+#include <uur/raii.h>
 
 struct urEnqueueMemUnmapTestWithParam
     : uur::urMemBufferQueueTestWithParam<uur::mem_buffer_test_parameters_t> {
@@ -56,16 +57,15 @@ TEST_P(urEnqueueMemUnmapTestWithParam, InvalidNullPtrEventWaitList) {
   ASSERT_EQ_RESULT(urEnqueueMemUnmap(queue, buffer, map, 1, nullptr, nullptr),
                    UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 
-  ur_event_handle_t validEvent;
-  ASSERT_SUCCESS(urEnqueueEventsWait(queue, 0, nullptr, &validEvent));
+  uur::raii::Event eventDummy = nullptr;
+  ASSERT_SUCCESS(
+      urEventCreateWithNativeHandle(0, context, nullptr, eventDummy.ptr()));
 
   ASSERT_EQ_RESULT(
-      urEnqueueMemUnmap(queue, buffer, map, 0, &validEvent, nullptr),
+      urEnqueueMemUnmap(queue, buffer, map, 0, eventDummy.ptr(), nullptr),
       UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 
   ur_event_handle_t inv_evt = nullptr;
   ASSERT_EQ_RESULT(urEnqueueMemUnmap(queue, buffer, map, 1, &inv_evt, nullptr),
                    UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
-
-  ASSERT_SUCCESS(urEventRelease(validEvent));
 }
