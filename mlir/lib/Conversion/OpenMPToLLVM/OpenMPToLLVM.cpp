@@ -66,6 +66,9 @@ struct OpenMPOpConversion : public ConvertOpToLLVMPattern<T> {
     for (NamedAttribute attr : op->getAttrs()) {
       if (auto typeAttr = dyn_cast<TypeAttr>(attr.getValue())) {
         Type convertedType = converter->convertType(typeAttr.getValue());
+        if (!convertedType)
+          return rewriter.notifyMatchFailure(
+              op, "failed to convert type in attribute");
         convertedAttrs.emplace_back(attr.getName(),
                                     TypeAttr::get(convertedType));
       } else {
@@ -95,8 +98,8 @@ struct OpenMPOpConversion : public ConvertOpToLLVMPattern<T> {
     }
 
     // Create new operation.
-    auto newOp = rewriter.create<T>(op.getLoc(), resTypes, convertedOperands,
-                                    convertedAttrs);
+    auto newOp = T::create(rewriter, op.getLoc(), resTypes, convertedOperands,
+                           convertedAttrs);
 
     // Translate regions.
     for (auto [originalRegion, convertedRegion] :

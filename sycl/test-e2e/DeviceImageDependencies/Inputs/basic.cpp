@@ -37,6 +37,7 @@ int main() {
       cgh.single_task<Kernel<2>>([=]() { acc[0] = levelA(acc[0]); });
     });
   });
+#ifndef USE_AOT
   runTest(q, [](queue &q, buffer<int, 1> &buf) {
     kernel_bundle KBInput = get_kernel_bundle<sycl::bundle_state::input>(
         q.get_context(), {get_kernel_id<Kernel<3>>()});
@@ -48,4 +49,5 @@ int main() {
       cgh.single_task<Kernel<3>>([=]() { acc[0] = levelA(acc[0]); });
     });
   });
+#endif
 }

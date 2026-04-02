@@ -9,7 +9,12 @@ if (WIN32 AND "${build_type_lower}" MATCHES "debug")
 endif()
 
 # Disable aspect::image & deprecation warnings.
-target_compile_definitions(sycl-ls PRIVATE SYCL_DISABLE_IMAGE_ASPECT_WARNING SYCL2020_DISABLE_DEPRECATION_WARNINGS SYCL_DISABLE_FSYCL_SYCLHPP_WARNING)
+target_compile_definitions(sycl-ls
+  PRIVATE
+  __SYCL_DISABLE_DEPRECATION_WARNINGS
+  SYCL_DISABLE_IMAGE_ASPECT_WARNING
+  SYCL2020_DISABLE_DEPRECATION_WARNINGS
+  SYCL_DISABLE_FSYCL_SYCLHPP_WARNING)
 
 target_link_libraries(sycl-ls
   PRIVATE

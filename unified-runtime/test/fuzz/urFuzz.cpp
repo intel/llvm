@@ -12,7 +12,7 @@ tests.
 */
 
 #include "kernel_entry_points.h"
-#include "ur_api.h"
+#include "unified-runtime/ur_api.h"
 #include "utils.hpp"
 #include <cassert>
 
@@ -387,7 +387,6 @@ int ur_program_create_with_il(TestState &state) {
   urMemBufferCreate(context, UR_MEM_FLAG_READ_WRITE, vec_size * sizeof(int),
                     nullptr, &memory_buffer);
   urKernelCreate(program, kernel_name.data(), &kernel);
-  urKernelSetArgMemObj(kernel, 0, nullptr, memory_buffer);
 
   urQueueCreate(context, device, nullptr, &queue);
 
@@ -401,8 +400,19 @@ int ur_program_create_with_il(TestState &state) {
   const size_t gWorkSize[] = {vec_size * 4, 1, 1};
   const size_t lWorkSize[] = {1, 1, 1};
 
-  urEnqueueKernelLaunch(queue, kernel, nDim, gWorkOffset, gWorkSize, lWorkSize,
-                        0, nullptr, &event);
+  ur_exp_kernel_arg_value_t arg_val = {};
+  arg_val.memObjTuple = {memory_buffer, UR_MEM_FLAG_READ_WRITE};
+  ur_exp_kernel_arg_properties_t arg = {
+      UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+      nullptr,
+      UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ,
+      0,
+      sizeof(ur_mem_handle_t),
+      arg_val};
+
+  urEnqueueKernelLaunchWithArgsExp(queue, kernel, nDim, gWorkOffset, gWorkSize,
+                                   lWorkSize, 1, &arg, nullptr, 1, &event,
+                                   nullptr);
   urEventWait(1, &event);
   urEventRelease(event);
 

@@ -12,11 +12,3 @@
 // RUN: %clangxx -fsycl -fsycl-fp32-prec-sqrt %s -### 2>&1 | FileCheck %s --check-prefix=CHECK_REPLACE -DOPTION=-fsycl-fp32-prec-sqrt -DOPTION_REPLACE=-foffload-fp32-prec-sqrt
 // RUN: %clangxx -fsycl -fsycl-dump-device-code=/path/to/spv/ %s -### 2>&1 | FileCheck %s --check-prefix=CHECK_REPLACE -DOPTION=-fsycl-dump-device-code=/path/to/spv/ -DOPTION_REPLACE=-save-offload-code=/path/to/spv/
 // CHECK_REPLACE: option '[[OPTION]]' is deprecated and will be removed in a future release, use '[[OPTION_REPLACE]]' instead
-
-// RUN: %clangxx -fsycl -fsycl-device-lib-jit-link %s -### 2>&1 \
-// RUN: | FileCheck %s --check-prefix=CHECK -DOPTION=-fsycl-device-lib-jit-link
-// RUN: %clangxx -fsycl -fsycl-device-lib=libc %s -### 2>&1 \
-// RUN: | FileCheck %s --check-prefix=CHECK -DOPTION=-fsycl-device-lib=libc
-// RUN: %clangxx -fsycl -fno-sycl-device-lib=libc %s -### 2>&1 \
-// RUN: | FileCheck %s --check-prefix=CHECK -DOPTION=-fno-sycl-device-lib=libc
-

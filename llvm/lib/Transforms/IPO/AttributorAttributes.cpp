@@ -1044,15 +1044,13 @@ struct AAPointerInfoImpl
     return AAPointerInfo::manifest(A);
   }
 
-  virtual const_bin_iterator begin() const override { return State::begin(); }
-  virtual const_bin_iterator end() const override { return State::end(); }
-  virtual int64_t numOffsetBins() const override {
-    return State::numOffsetBins();
-  }
-  virtual bool reachesReturn() const override {
+  const_bin_iterator begin() const override { return State::begin(); }
+  const_bin_iterator end() const override { return State::end(); }
+  int64_t numOffsetBins() const override { return State::numOffsetBins(); }
+  bool reachesReturn() const override {
     return !ReturnedOffsets.isUnassigned();
   }
-  virtual void addReturnedOffsetsTo(OffsetInfo &OI) const override {
+  void addReturnedOffsetsTo(OffsetInfo &OI) const override {
     if (ReturnedOffsets.isUnknown()) {
       OI.setUnknown();
       return;
@@ -1776,7 +1774,7 @@ ChangeStatus AAPointerInfoFloating::updateImpl(Attributor &A) {
         do {
           if (FromI->mayWriteToMemory() && !IsAssumption(*FromI))
             return true;
-          FromI = FromI->getNextNonDebugInstruction();
+          FromI = FromI->getNextNode();
         } while (FromI && FromI != ToI);
         return false;
       };
@@ -1787,7 +1785,7 @@ ChangeStatus AAPointerInfoFloating::updateImpl(Attributor &A) {
           return false;
         BasicBlock *IntrBB = IntrI.getParent();
         if (IntrI.getParent() == BB) {
-          if (IsImpactedInRange(LoadI->getNextNonDebugInstruction(), &IntrI))
+          if (IsImpactedInRange(LoadI->getNextNode(), &IntrI))
             return false;
         } else {
           auto PredIt = pred_begin(IntrBB);
@@ -1804,8 +1802,7 @@ ChangeStatus AAPointerInfoFloating::updateImpl(Attributor &A) {
               continue;
             return false;
           }
-          if (IsImpactedInRange(LoadI->getNextNonDebugInstruction(),
-                                BB->getTerminator()))
+          if (IsImpactedInRange(LoadI->getNextNode(), BB->getTerminator()))
             return false;
           if (IsImpactedInRange(&IntrBB->front(), &IntrI))
             return false;
@@ -2009,9 +2006,8 @@ struct AAPointerInfoCallSiteArgument final : AAPointerInfoFloating {
     // destination) and second (=source) arguments as we know how they are
     // accessed.
     if (auto *MI = dyn_cast_or_null<MemIntrinsic>(getCtxI())) {
-      ConstantInt *Length = dyn_cast<ConstantInt>(MI->getLength());
       int64_t LengthVal = AA::RangeTy::Unknown;
-      if (Length)
+      if (auto Length = MI->getLengthInBytes())
         LengthVal = Length->getSExtValue();
       unsigned ArgNo = getIRPosition().getCallSiteArgNo();
       ChangeStatus Changed = ChangeStatus::UNCHANGED;
@@ -2153,9 +2149,12 @@ bool AANoSync::isAlignedBarrier(const CallBase &CB, bool ExecutedAligned) {
   switch (CB.getIntrinsicID()) {
   case Intrinsic::nvvm_barrier_cta_sync_aligned_all:
   case Intrinsic::nvvm_barrier_cta_sync_aligned_count:
-  case Intrinsic::nvvm_barrier0_and:
-  case Intrinsic::nvvm_barrier0_or:
-  case Intrinsic::nvvm_barrier0_popc:
+  case Intrinsic::nvvm_barrier_cta_red_and_aligned_all:
+  case Intrinsic::nvvm_barrier_cta_red_and_aligned_count:
+  case Intrinsic::nvvm_barrier_cta_red_or_aligned_all:
+  case Intrinsic::nvvm_barrier_cta_red_or_aligned_count:
+  case Intrinsic::nvvm_barrier_cta_red_popc_aligned_all:
+  case Intrinsic::nvvm_barrier_cta_red_popc_aligned_count:
     return true;
   case Intrinsic::amdgcn_s_barrier:
     if (ExecutedAligned)
@@ -3623,7 +3622,7 @@ struct AAIntraFnReachabilityFunction final
       return true;
 
     RQITy StackRQI(A, From, To, ExclusionSet, false);
-    typename RQITy::Reachable Result;
+    RQITy::Reachable Result;
     if (!NonConstThis->checkQueryCache(A, StackRQI, Result))
       return NonConstThis->isReachableImpl(A, StackRQI,
                                            /*IsTemporaryRQI=*/true);
@@ -5189,6 +5188,7 @@ struct AADereferenceableCallSiteReturned final
 // ------------------------ Align Argument Attribute ------------------------
 
 namespace {
+
 static unsigned getKnownAlignForUse(Attributor &A, AAAlign &QueryingAA,
                                     Value &AssociatedValue, const Use *U,
                                     const Instruction *I, bool &TrackUse) {
@@ -5204,6 +5204,35 @@ static unsigned getKnownAlignForUse(Attributor &A, AAAlign &QueryingAA,
       TrackUse = true;
     return 0;
   }
+  if (const IntrinsicInst *II = dyn_cast<IntrinsicInst>(I))
+    switch (II->getIntrinsicID()) {
+    case Intrinsic::ptrmask: {
+      // Is it appropriate to pull attribute in initialization?
+      const auto *ConstVals = A.getAAFor<AAPotentialConstantValues>(
+          QueryingAA, IRPosition::value(*II->getOperand(1)), DepClassTy::NONE);
+      const auto *AlignAA = A.getAAFor<AAAlign>(
+          QueryingAA, IRPosition::value(*II), DepClassTy::NONE);
+      if (ConstVals && ConstVals->isValidState() && ConstVals->isAtFixpoint()) {
+        unsigned ShiftValue = std::min(ConstVals->getAssumedMinTrailingZeros(),
+                                       Value::MaxAlignmentExponent);
+        Align ConstAlign(UINT64_C(1) << ShiftValue);
+        if (ConstAlign >= AlignAA->getKnownAlign())
+          return Align(1).value();
+      }
+      if (AlignAA)
+        return AlignAA->getKnownAlign().value();
+      break;
+    }
+    case Intrinsic::amdgcn_make_buffer_rsrc: {
+      const auto *AlignAA = A.getAAFor<AAAlign>(
+          QueryingAA, IRPosition::value(*II), DepClassTy::NONE);
+      if (AlignAA)
+        return AlignAA->getKnownAlign().value();
+      break;
+    }
+    default:
+      break;
+    }
 
   MaybeAlign MA;
   if (const auto *CB = dyn_cast<CallBase>(I)) {
@@ -5503,6 +5532,56 @@ struct AAAlignCallSiteReturned final
   AAAlignCallSiteReturned(const IRPosition &IRP, Attributor &A)
       : Base(IRP, A) {}
 
+  ChangeStatus updateImpl(Attributor &A) override {
+    Instruction *I = getIRPosition().getCtxI();
+    if (const IntrinsicInst *II = dyn_cast<IntrinsicInst>(I)) {
+      switch (II->getIntrinsicID()) {
+      case Intrinsic::ptrmask: {
+        Align Alignment;
+        bool Valid = false;
+
+        const auto *ConstVals = A.getAAFor<AAPotentialConstantValues>(
+            *this, IRPosition::value(*II->getOperand(1)), DepClassTy::REQUIRED);
+        if (ConstVals && ConstVals->isValidState()) {
+          unsigned ShiftValue =
+              std::min(ConstVals->getAssumedMinTrailingZeros(),
+                       Value::MaxAlignmentExponent);
+          Alignment = Align(UINT64_C(1) << ShiftValue);
+          Valid = true;
+        }
+
+        const auto *AlignAA =
+            A.getAAFor<AAAlign>(*this, IRPosition::value(*(II->getOperand(0))),
+                                DepClassTy::REQUIRED);
+        if (AlignAA) {
+          Alignment = std::max(AlignAA->getAssumedAlign(), Alignment);
+          Valid = true;
+        }
+
+        if (Valid)
+          return clampStateAndIndicateChange<StateType>(
+              this->getState(),
+              std::min(this->getAssumedAlign(), Alignment).value());
+        break;
+      }
+      // FIXME: Should introduce target specific sub-attributes and letting
+      // getAAfor<AAAlign> lead to create sub-attribute to handle target
+      // specific intrinsics.
+      case Intrinsic::amdgcn_make_buffer_rsrc: {
+        const auto *AlignAA =
+            A.getAAFor<AAAlign>(*this, IRPosition::value(*(II->getOperand(0))),
+                                DepClassTy::REQUIRED);
+        if (AlignAA)
+          return clampStateAndIndicateChange<StateType>(
+              this->getState(), AlignAA->getAssumedAlign().value());
+        break;
+      }
+      default:
+        break;
+      }
+    }
+    return Base::updateImpl(A);
+  };
   /// See AbstractAttribute::trackStatistics()
   void trackStatistics() const override { STATS_DECLTRACK_CS_ATTR(align); }
 };
@@ -6655,7 +6734,7 @@ struct AAHeapToStackFunction final : public AAHeapToStack {
   AAHeapToStackFunction(const IRPosition &IRP, Attributor &A)
       : AAHeapToStack(IRP, A) {}
 
-  ~AAHeapToStackFunction() {
+  ~AAHeapToStackFunction() override {
     // Ensure we call the destructor so we release any memory allocated in the
     // sets.
     for (auto &It : AllocationInfos)
@@ -8376,7 +8455,7 @@ struct AAMemoryLocationImpl : public AAMemoryLocation {
     AccessKind2Accesses.fill(nullptr);
   }
 
-  ~AAMemoryLocationImpl() {
+  ~AAMemoryLocationImpl() override {
     // The AccessSets are allocated via a BumpPtrAllocator, we call
     // the destructor manually.
     for (AccessSet *AS : AccessKind2Accesses)
@@ -8563,7 +8642,8 @@ protected:
   /// Mapping from *single* memory location kinds, e.g., LOCAL_MEM with the
   /// value of NO_LOCAL_MEM, to the accesses encountered for this memory kind.
   using AccessSet = SmallSet<AccessInfo, 2, AccessInfo>;
-  std::array<AccessSet *, llvm::CTLog2<VALID_STATE>()> AccessKind2Accesses;
+  std::array<AccessSet *, llvm::ConstantLog2<VALID_STATE>()>
+      AccessKind2Accesses;
 
   /// Categorize the pointer arguments of CB that might access memory in
   /// AccessedLoc and update the state and access map accordingly.
@@ -8936,15 +9016,9 @@ struct AADenormalFPMathFunction final : AADenormalFPMathImpl {
 
   void initialize(Attributor &A) override {
     const Function *F = getAnchorScope();
-    DenormalMode Mode = F->getDenormalModeRaw();
-    DenormalMode ModeF32 = F->getDenormalModeF32Raw();
+    DenormalFPEnv DenormEnv = F->getDenormalFPEnv();
 
-    // TODO: Handling this here prevents handling the case where a callee has a
-    // fixed denormal-fp-math with dynamic denormal-fp-math-f32, but called from
-    // a function with a fully fixed mode.
-    if (ModeF32 == DenormalMode::getInvalid())
-      ModeF32 = Mode;
-    Known = DenormalState{Mode, ModeF32};
+    Known = DenormalState{DenormEnv.DefaultMode, DenormEnv.F32Mode};
     if (isModeFixed())
       indicateFixpoint();
   }
@@ -8980,19 +9054,17 @@ struct AADenormalFPMathFunction final : AADenormalFPMathImpl {
     LLVMContext &Ctx = getAssociatedFunction()->getContext();
 
     SmallVector<Attribute, 2> AttrToAdd;
-    SmallVector<StringRef, 2> AttrToRemove;
-    if (Known.Mode == DenormalMode::getDefault()) {
-      AttrToRemove.push_back("denormal-fp-math");
-    } else {
-      AttrToAdd.push_back(
-          Attribute::get(Ctx, "denormal-fp-math", Known.Mode.str()));
-    }
+    SmallVector<Attribute::AttrKind, 2> AttrToRemove;
 
-    if (Known.ModeF32 != Known.Mode) {
-      AttrToAdd.push_back(
-          Attribute::get(Ctx, "denormal-fp-math-f32", Known.ModeF32.str()));
+    // TODO: Change to use DenormalFPEnv everywhere.
+    DenormalFPEnv KnownEnv(Known.Mode, Known.ModeF32);
+
+    if (KnownEnv == DenormalFPEnv::getDefault()) {
+      AttrToRemove.push_back(Attribute::DenormalFPEnv);
     } else {
-      AttrToRemove.push_back("denormal-fp-math-f32");
+      AttrToAdd.push_back(Attribute::get(
+          Ctx, Attribute::DenormalFPEnv,
+          DenormalFPEnv(Known.Mode, Known.ModeF32).toIntValue()));
     }
 
     auto &IRP = getIRPosition();
@@ -9003,7 +9075,7 @@ struct AADenormalFPMathFunction final : AADenormalFPMathImpl {
   }
 
   void trackStatistics() const override {
-    STATS_DECLTRACK_FN_ATTR(denormal_fp_math)
+    STATS_DECLTRACK_FN_ATTR(denormal_fpenv)
   }
 };
 } // namespace
@@ -9978,7 +10050,7 @@ struct AAPotentialConstantValuesFloating : AAPotentialConstantValuesImpl {
     bool OnlyLeft = false, OnlyRight = false;
     if (C && *C && (*C)->isOneValue())
       OnlyLeft = true;
-    else if (C && *C && (*C)->isZeroValue())
+    else if (C && *C && (*C)->isNullValue())
       OnlyRight = true;
 
     bool LHSContainsUndef = false, RHSContainsUndef = false;
@@ -10406,13 +10478,32 @@ struct AANoFPClassImpl : AANoFPClass {
       addKnownBits(Attr.getNoFPClass());
     }
 
-    const DataLayout &DL = A.getDataLayout();
+    Instruction *CtxI = getCtxI();
+
     if (getPositionKind() != IRPosition::IRP_RETURNED) {
-      KnownFPClass KnownFPClass = computeKnownFPClass(&V, DL);
+      const DataLayout &DL = A.getDataLayout();
+      InformationCache &InfoCache = A.getInfoCache();
+
+      const DominatorTree *DT = nullptr;
+      AssumptionCache *AC = nullptr;
+      const TargetLibraryInfo *TLI = nullptr;
+      Function *F = getAnchorScope();
+      if (F) {
+        TLI = InfoCache.getTargetLibraryInfoForFunction(*F);
+        if (!F->isDeclaration()) {
+          DT =
+              InfoCache.getAnalysisResultForFunction<DominatorTreeAnalysis>(*F);
+          AC = InfoCache.getAnalysisResultForFunction<AssumptionAnalysis>(*F);
+        }
+      }
+
+      SimplifyQuery Q(DL, TLI, DT, AC, CtxI);
+
+      KnownFPClass KnownFPClass = computeKnownFPClass(&V, fcAllFlags, Q);
       addKnownBits(~KnownFPClass.KnownFPClasses);
     }
 
-    if (Instruction *CtxI = getCtxI())
+    if (CtxI)
       followUsesInMBEC(*this, A, getState(), *CtxI);
   }
 
@@ -10704,7 +10795,7 @@ struct AAInterFnReachabilityFunction
     auto *NonConstThis = const_cast<AAInterFnReachabilityFunction *>(this);
 
     RQITy StackRQI(A, From, To, ExclusionSet, false);
-    typename RQITy::Reachable Result;
+    RQITy::Reachable Result;
     if (!NonConstThis->checkQueryCache(A, StackRQI, Result))
       return NonConstThis->isReachableImpl(A, StackRQI,
                                            /*IsTemporaryRQI=*/true);
@@ -13152,7 +13243,7 @@ struct AAAddressSpaceCallSiteArgument final : AAAddressSpaceImpl {
 
 // TODO: this is similar to AAAddressSpace, most of the code should be merged.
 // But merging it created failing cased on gateway test that cannot be
-// reproduced locally. So should open a seperated PR to hande the merge of
+// reproduced locally. So should open a separated PR to handle the merge of
 // AANoAliasAddrSpace and AAAddressSpace attribute
 
 namespace {
@@ -13405,7 +13496,7 @@ struct AAAllocationInfoImpl : public AAAllocationInfo {
       return indicatePessimisticFixpoint();
 
     if (BinSize == 0) {
-      auto NewAllocationSize = std::optional<TypeSize>(TypeSize(0, false));
+      auto NewAllocationSize = std::make_optional<TypeSize>(0, false);
       if (!changeAllocationSize(NewAllocationSize))
         return ChangeStatus::UNCHANGED;
       return ChangeStatus::CHANGED;
@@ -13423,8 +13514,7 @@ struct AAAllocationInfoImpl : public AAAllocationInfo {
     if (SizeOfBin >= *AllocationSize)
       return indicatePessimisticFixpoint();
 
-    auto NewAllocationSize =
-        std::optional<TypeSize>(TypeSize(SizeOfBin * 8, false));
+    auto NewAllocationSize = std::make_optional<TypeSize>(SizeOfBin * 8, false);
 
     if (!changeAllocationSize(NewAllocationSize))
       return ChangeStatus::UNCHANGED;

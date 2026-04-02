@@ -1,10 +1,10 @@
-// Copyright (C) 2023 Intel Corporation
+// Copyright (C) 2023-2026 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-#include "ur_api.h"
+#include "unified-runtime/ur_api.h"
 #include <array>
 #include <uur/fixtures.h>
 #include <uur/known_failure.h>
@@ -20,10 +20,12 @@ struct urKernelGetGroupInfoFixedWorkGroupSizeTest : uur::urKernelTest {
   // In UR, this is on the left, so we reverse the order of these values.
   std::array<size_t, 3> work_group_size{2, 4, 8};
 };
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(urKernelGetGroupInfoFixedWorkGroupSizeTest);
+UUR_DEVICE_TEST_SUITE_WITH_DEFAULT_QUEUE(
+    urKernelGetGroupInfoFixedWorkGroupSizeTest);
 
 TEST_P(urKernelGetGroupInfoFixedWorkGroupSizeTest,
        SuccessCompileWorkGroupSize) {
+  // CUDA/HIP: The loaded device image does not carry the kernel metadata required for this query.
   UUR_KNOWN_FAILURE_ON(uur::CUDA{}, uur::HIP{});
 
   const ur_kernel_group_info_t property_name =
@@ -46,6 +48,7 @@ TEST_P(urKernelGetGroupInfoFixedWorkGroupSizeTest,
 
 struct urKernelGetGroupInfoMaxWorkGroupSizeTest : uur::urKernelTest {
   void SetUp() override {
+    // CUDA/HIP: The loaded device image does not carry the kernel metadata required for this query.
     UUR_KNOWN_FAILURE_ON(uur::CUDA{}, uur::HIP{});
     // see https://github.com/oneapi-src/unified-runtime/issues/2644
     UUR_KNOWN_FAILURE_ON(uur::OpenCL{"Intel(R) Core(TM)", "Intel(R) Xeon"});
@@ -60,7 +63,8 @@ struct urKernelGetGroupInfoMaxWorkGroupSizeTest : uur::urKernelTest {
   std::array<size_t, 3> max_work_group_size{2, 4, 8};
   size_t max_linear_work_group_size{64};
 };
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(urKernelGetGroupInfoMaxWorkGroupSizeTest);
+UUR_DEVICE_TEST_SUITE_WITH_DEFAULT_QUEUE(
+    urKernelGetGroupInfoMaxWorkGroupSizeTest);
 
 TEST_P(urKernelGetGroupInfoMaxWorkGroupSizeTest,
        SuccessCompileMaxWorkGroupSize) {
@@ -102,7 +106,7 @@ TEST_P(urKernelGetGroupInfoMaxWorkGroupSizeTest,
 }
 
 using urKernelGetGroupInfoTest = uur::urKernelTest;
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(urKernelGetGroupInfoTest);
+UUR_DEVICE_TEST_SUITE_WITH_DEFAULT_QUEUE(urKernelGetGroupInfoTest);
 
 TEST_P(urKernelGetGroupInfoTest, SuccessGlobalWorkSize) {
   const ur_kernel_group_info_t property_name =

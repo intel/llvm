@@ -12,13 +12,14 @@
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/os_util.hpp>
 #include <sycl/detail/ur.hpp>
-#include <ur_api.h>
+#include <unified-runtime/ur_api.h>
 
 #include <sycl/detail/iostream_proxy.hpp>
 
 #include <atomic>
 #include <cstring>
 #include <memory>
+#include <mutex>
 
 namespace sycl {
 inline namespace _V1 {
@@ -215,14 +216,12 @@ public:
   const PropertyRange &getSpecConstantsDefaultValues() const {
     return SpecConstDefaultValuesMap;
   }
-  const PropertyRange &getDeviceLibReqMask() const { return DeviceLibReqMask; }
   const PropertyRange &getDeviceLibMetadata() const {
     return DeviceLibMetadata;
   }
   const PropertyRange &getKernelParamOptInfo() const {
     return KernelParamOptInfo;
   }
-  const PropertyRange &getAssertUsed() const { return AssertUsed; }
   const PropertyRange &getProgramMetadata() const { return ProgramMetadata; }
   const std::vector<ur_program_metadata_t> &getProgramMetadataUR() const {
     return ProgramMetadataUR;
@@ -234,7 +233,6 @@ public:
   const PropertyRange &getDeviceRequirements() const {
     return DeviceRequirements;
   }
-  const PropertyRange &getHostPipes() const { return HostPipes; }
   const PropertyRange &getVirtualFunctions() const { return VirtualFunctions; }
   const PropertyRange &getImplicitLocalArg() const { return ImplicitLocalArg; }
   const PropertyRange &getRegisteredKernels() const {
@@ -255,17 +253,14 @@ protected:
   ur::DeviceBinaryType Format = SYCL_DEVICE_BINARY_TYPE_NONE;
   RTDeviceBinaryImage::PropertyRange SpecConstIDMap;
   RTDeviceBinaryImage::PropertyRange SpecConstDefaultValuesMap;
-  RTDeviceBinaryImage::PropertyRange DeviceLibReqMask;
   RTDeviceBinaryImage::PropertyRange DeviceLibMetadata;
   RTDeviceBinaryImage::PropertyRange KernelParamOptInfo;
-  RTDeviceBinaryImage::PropertyRange AssertUsed;
   RTDeviceBinaryImage::PropertyRange ProgramMetadata;
   RTDeviceBinaryImage::PropertyRange KernelNames;
   RTDeviceBinaryImage::PropertyRange ExportedSymbols;
   RTDeviceBinaryImage::PropertyRange ImportedSymbols;
   RTDeviceBinaryImage::PropertyRange DeviceGlobals;
   RTDeviceBinaryImage::PropertyRange DeviceRequirements;
-  RTDeviceBinaryImage::PropertyRange HostPipes;
   RTDeviceBinaryImage::PropertyRange VirtualFunctions;
   RTDeviceBinaryImage::PropertyRange ImplicitLocalArg;
   RTDeviceBinaryImage::PropertyRange RegisteredKernels;
@@ -321,7 +316,8 @@ public:
     return m_ImageSize;
   }
 
-  bool IsCompressed() const { return m_DecompressedData.get() == nullptr; }
+  bool IsCompressed() const { return m_IsCompressed.load(); }
+
   void print() const override {
     RTDeviceBinaryImage::print();
     std::cerr << "    COMPRESSED\n";
@@ -330,6 +326,10 @@ public:
 private:
   std::unique_ptr<char[]> m_DecompressedData;
   size_t m_ImageSize = 0;
+
+  // Flag to ensure decompression happens only once.
+  std::once_flag m_InitFlag;
+  std::atomic<bool> m_IsCompressed{true};
 };
 #endif // SYCL_RT_ZSTD_AVAILABLE
 

@@ -20,7 +20,7 @@ struct ESIMDKernel {
 
 int main(void) {
   queue q;
-  // expected-error-re@sycl/handler.hpp:* {{static assertion failed due to requirement {{.+}}: Floating point control property is supported for ESIMD kernels only.}}
+  // expected-error-re@sycl/detail/kernel_launch_helper.hpp:* {{static assertion failed due to requirement {{.+}}: Floating point control property is supported for ESIMD kernels only.}}
   syclex::properties properties7{
       intelex::fp_control<intelex::fp_mode::round_toward_zero |
                           intelex::fp_mode::denorm_ftz>};
@@ -28,7 +28,7 @@ int main(void) {
     cgh.single_task<class TestKernel7>(properties7, [=]() {});
   });
 
-  // expected-error-re@sycl/handler.hpp:* {{static assertion failed due to requirement {{.+}}: Floating point control property is supported for ESIMD kernels only.}}
+  // expected-error-re@sycl/detail/kernel_launch_helper.hpp:* {{static assertion failed due to requirement {{.+}}: Floating point control property is supported for ESIMD kernels only.}}
   ESIMDKernel Kern;
   q.submit([&](handler &cgh) { cgh.parallel_for(range<1>(1), Kern); });
 

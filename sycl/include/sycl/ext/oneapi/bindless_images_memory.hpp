@@ -58,6 +58,7 @@ private:
 
 /// A class that represents image memory
 class __SYCL_EXPORT image_mem {
+  friend sycl::detail::ImplUtils;
   using raw_handle_type = image_mem_handle;
 
 public:
@@ -93,10 +94,6 @@ public:
 
 protected:
   std::shared_ptr<detail::image_mem_impl> impl;
-
-  template <class Obj>
-  friend const decltype(Obj::impl) &
-  sycl::detail::getSyclObjImpl(const Obj &SyclObject);
 };
 
 /// Direction to copy data from bindless image handle
@@ -117,13 +114,7 @@ enum class image_memory_handle_type : unsigned int {
 } // namespace _V1
 } // namespace sycl
 
-namespace std {
-template <> struct hash<sycl::ext::oneapi::experimental::image_mem> {
-  size_t operator()(
-      const sycl::ext::oneapi::experimental::image_mem &image_mem) const {
-    return hash<std::shared_ptr<
-        sycl::ext::oneapi::experimental::detail::image_mem_impl>>()(
-        sycl::detail::getSyclObjImpl(image_mem));
-  }
-};
-} // namespace std
+template <>
+struct std::hash<sycl::ext::oneapi::experimental::image_mem>
+    : public sycl::detail::sycl_obj_hash<
+          sycl::ext::oneapi::experimental::image_mem> {};

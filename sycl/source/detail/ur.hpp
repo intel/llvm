@@ -14,7 +14,9 @@
 
 #pragma once
 
-#include <ur_api.h>
+#include <unified-runtime/ur_api.h>
+
+#include <sycl/detail/export.hpp>
 
 #include <memory>
 #include <string>
@@ -25,6 +27,13 @@ inline namespace _V1 {
 enum class backend : char;
 namespace detail {
 class adapter_impl;
+
+const char *stringifyErrorCode(int32_t error);
+
+inline std::string codeToString(int32_t code) {
+  return std::to_string(code) + " (" + std::string(stringifyErrorCode(code)) +
+         ")";
+}
 
 namespace ur {
 void *getURLoaderLibrary();

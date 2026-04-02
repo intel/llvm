@@ -213,12 +213,12 @@ LLVM_ABI StringRef remove_leading_dotslash(StringRef path LLVM_LIFETIME_BOUND,
 /// @result The cleaned-up \a path.
 StringRef remove_leading_dotbackslash_only(StringRef path);
 
-/// In-place remove any './' and optionally '../' components from a path.
+/// Remove './' and optionally '../' components, and canonicalize separators.
 ///
-/// @param path processed path
+/// @param path processed path.
 /// @param remove_dot_dot specify if '../' (except for leading "../") should be
-/// removed
-/// @result True if path was changed
+/// removed.
+/// @result True if path was changed.
 LLVM_ABI bool remove_dots(SmallVectorImpl<char> &path,
                           bool remove_dot_dot = false,
                           Style style = Style::native);
@@ -571,6 +571,18 @@ LLVM_ABI bool is_absolute_gnu(const Twine &path, Style style = Style::native);
 /// @param path Input path.
 /// @result True if the path is relative, false if it is not.
 LLVM_ABI bool is_relative(const Twine &path, Style style = Style::native);
+
+/// Make \a path an absolute path.
+///
+/// Makes \a path absolute using the \a current_directory if it is not already.
+/// An empty \a path will result in the \a current_directory.
+///
+/// /absolute/path   => /absolute/path
+/// relative/../path => <current-directory>/relative/../path
+///
+/// @param path A path that is modified to be an absolute path.
+LLVM_ABI void make_absolute(const Twine &current_directory,
+                            SmallVectorImpl<char> &path);
 
 } // end namespace path
 } // end namespace sys

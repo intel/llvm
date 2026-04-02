@@ -42,6 +42,53 @@ def parse_min_intel_driver_req(line_number, line, output):
         # Return "win" version as (101, 4502) to ease later comparison.
         output["win"] = tuple(map(int, win.group(1).split(".")))
 
+    cpu = re.search(r"cpu:\s*([^\s]+)", line)
+    if cpu:
+        if "cpu" in output:
+            raise ValueError('Multiple entries for "cpu" version')
+        output["cpu"] = cpu.group(1)
+
+    return output
+
+
+def parse_run_if(line_number, line, output):
+    """
+    Parse RUN-IF directive in the format:
+    // RUN-IF: condition, command
+    where condition is a boolean expression and command is the command to execute.
+    Returns a CommandDirective with the condition embedded in the command as %if.
+    """
+    if not output:
+        output = []
+
+    # Split on first comma to separate condition from command
+    parts = line.split(",", 1)
+    if len(parts) != 2:
+        raise ValueError(
+            f"Line {line_number}: RUN-IF directive must have format: condition, command"
+        )
+
+    condition = parts[0].strip()
+    command = parts[1].strip()
+
+    if not condition or not command:
+        raise ValueError(
+            f"Line {line_number}: RUN-IF directive has empty condition or command"
+        )
+
+    # Strip outer %{ %} if present to avoid nested braces
+    if command.startswith("%{") and command.endswith("%}"):
+        command = command[2:-2].strip()
+
+    # Convert RUN-IF to a RUN command with %if condition
+    # This leverages lit's built-in conditional support
+    conditional_command = f"%if {condition} %{{ {command} %}}"
+
+    output.append(
+        lit.TestRunner.CommandDirective(
+            line_number, line_number, "RUN:", conditional_command
+        )
+    )
     return output
 
 
@@ -60,9 +107,12 @@ class SYCLEndToEndTest(lit.formats.ShTest):
                         "REQUIRES-INTEL-DRIVER:",
                         ParserKind.CUSTOM,
                         parse_min_intel_driver_req,
-                    )
+                    ),
+                    IntegratedTestKeywordParser(
+                        "RUN-IF:", ParserKind.CUSTOM, parse_run_if
+                    ),
                 ],
-                require_script=True,
+                require_script=False,
             )
         except ValueError as e:
             return lit.Test.Result(lit.Test.UNRESOLVED, str(e))
@@ -70,6 +120,17 @@ class SYCLEndToEndTest(lit.formats.ShTest):
         assert parsed["DEFINE:"] == script
         assert parsed["REDEFINE:"] == script
 
+        # Add RUN-IF commands to the script
+        if parsed["RUN-IF:"]:
+            script.extend(parsed["RUN-IF:"])
+
+        # Ensure we have at least one command (RUN or RUN-IF)
+        if not script:
+            return lit.Test.Result(
+                lit.Test.UNRESOLVED, "Test has no 'RUN:' or 'RUN-IF:' line"
+            )
+
+        test.xfails += test.config.xfail_features
         test.xfails += parsed["XFAIL:"] or []
         test.requires += test.config.required_features
         test.requires += parsed["REQUIRES:"] or []
@@ -165,7 +226,7 @@ class SYCLEndToEndTest(lit.formats.ShTest):
 
             driver_ok = True
             if test.intel_driver_req:
-                for fmt in ["lin", "win"]:
+                for fmt in ["lin", "win", "cpu"]:
                     if (
                         fmt in test.intel_driver_req
                         and fmt in test.config.intel_driver_ver[full_name]
@@ -290,6 +351,10 @@ class SYCLEndToEndTest(lit.formats.ShTest):
             if "cuda:gpu" in sycl_devices:
                 extra_env.append("SYCL_UR_CUDA_ENABLE_IMAGE_SUPPORT=1")
 
+            # At this point, liboffload does not work with multiple GPUs
+            if "offload:gpu" in sycl_devices:
+                extra_env.append("ZE_AFFINITY_MASK=1")
+
             return extra_env
 
         extra_env = get_extra_env(remove_level_zero_suffix(devices_for_test))
@@ -347,6 +412,7 @@ class SYCLEndToEndTest(lit.formats.ShTest):
                     "linux",
                     "windows",
                     "preview-breaking-changes-supported",
+                    "gpu",
                 ]:
                     if cond_features in test.config.available_features:
                         conditions[cond_features] = True

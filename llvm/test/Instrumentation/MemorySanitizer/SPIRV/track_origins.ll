@@ -3,9 +3,9 @@
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64-G1"
 target triple = "spir64-unknown-unknown"
 
+; CHECK: __msan_track_origins
 ; CHECK: @__MsanKernelMetadata{{.*}}i64 8, i64 36
 ; CHECK-SAME: [[ATTR0:#[0-9]+]]
-; CHECK-NOT: __msan_track_origins
 ; CHECK-NOT: _tls
 
 define spir_kernel void @MyKernel(ptr addrspace(1) noundef align 4 %_arg_array) sanitize_memory {
@@ -34,4 +34,4 @@ entry:
 }
 
 ; CHECK: attributes [[ATTR0]]
-; CHECK-SAME: "sycl-device-global-size"="24" "sycl-device-image-scope" "sycl-host-access"="0" "sycl-unique-id"="__MsanKernelMetadata3ff767e9a7a43f1f3968062dbb4ee3b4"
+; CHECK-SAME: "sycl-device-global-size"="24" "sycl-device-image-scope" "sycl-host-access"="1" "sycl-unique-id"="__MsanKernelMetadata3ff767e9a7a43f1f3968062dbb4ee3b4"

@@ -71,9 +71,7 @@ protected:
 public:
   static char ID; // Pass identification, replacement for typeid
 
-  DAE() : ModulePass(ID) {
-    initializeDAEPass(*PassRegistry::getPassRegistry());
-  }
+  DAE() : ModulePass(ID) {}
 
   bool runOnModule(Module &M) override {
     if (skipModule(M))
@@ -571,6 +569,17 @@ void DeadArgumentEliminationPass::surveyFunction(const Function &F) {
       (F.getCallingConv() == CallingConv::SPIR_KERNEL || IsNVPTXKernel(&F));
   bool FuncIsLive = !F.hasLocalLinkage() && !FuncIsSyclKernel;
   if (FuncIsLive && (!ShouldHackArguments || F.isIntrinsic())) {
+    markFrozen(F);
+    return;
+  }
+
+  // Do not modify arguments when the SYCL kernel is a free function kernel.
+  // In this case, the user sets the arguments of the kernel by themselves
+  // and dead argument elimination may interfere with their expectations.
+  const bool FuncIsSyclFreeFunctionKernel =
+      F.hasFnAttribute("sycl-single-task-kernel") ||
+      F.hasFnAttribute("sycl-nd-range-kernel");
+  if (FuncIsSyclFreeFunctionKernel) {
     markFrozen(F);
     return;
   }

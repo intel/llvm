@@ -22,12 +22,37 @@ endif()
 add_ur_library(ur_common STATIC
     ur_util.cpp
     ur_util.hpp
+    logger/ur_logger.cpp
+    logger/ur_logger.hpp
     latency_tracker.hpp
     offload_bundle_parser.cpp
     offload_bundle_parser.hpp
     $<$<PLATFORM_ID:Windows>:windows/ur_lib_loader.cpp>
     $<$<PLATFORM_ID:Linux,Darwin>:linux/ur_lib_loader.cpp>
 )
+
+# link validation backtrace dependencies
+if(UNIX)
+    find_package(Libbacktrace)
+endif()
+if (VAL_USE_LIBBACKTRACE_BACKTRACE AND LIBBACKTRACE_FOUND)
+    message(STATUS "Using libbacktrace backtrace")
+
+    target_sources(ur_common PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/backtrace_libbacktrace.cpp)
+    target_link_libraries(ur_common PRIVATE Libbacktrace)
+else()
+    message(STATUS "Using default backtrace")
+
+    if(WIN32)
+        target_sources(ur_common PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/backtrace_win.cpp)
+        target_link_libraries(ur_common PRIVATE dbghelp)
+    else()
+        target_sources(ur_common PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/backtrace_lin.cpp)
+    endif()
+endif()
 
 add_library(${PROJECT_NAME}::common ALIAS ur_common)
 
@@ -47,7 +72,7 @@ endif()
 set(UR_USE_EXTERNAL_UMF ON CACHE BOOL "Use a pre-built UMF if available")
 
 if(UR_USE_EXTERNAL_UMF)
-  find_package(umf 1.0.0 QUIET)
+  find_package(umf 1.1.0 QUIET)
 endif()
 if(umf_FOUND)
   message(STATUS "Using preinstalled UMF at ${umf_DIR}, ignoring UMF build related options")
@@ -55,12 +80,12 @@ if(umf_FOUND)
   add_library(umf::headers ALIAS umf::umf_headers)
 else()
   set(UMF_REPO "https://github.com/oneapi-src/unified-memory-framework.git")
-
-  # commit 1de269c00e46b7cbdbafa2247812c8c4bb4ed4a5
+  
+  # commit 6c97f3de424fa5d852f2e1c0d8f0dfbbc9b419b6 
   # Author: Łukasz Stolarczuk <lukasz.stolarczuk@intel.com>
-  # Date:   Mon Jul 21 15:42:59 2025 +0200
-  # 1.0.0 release
-  set(UMF_TAG v1.0.0)
+  # Date:   Tue Feb 3 14:28:16 2026 +0100
+  # 1.1.0 release
+  set(UMF_TAG v1.1.0)
 
   if(NOT FETCHCONTENT_SOURCE_DIR_UNIFIED-MEMORY-FRAMEWORK)
     message(STATUS "Will fetch Unified Memory Framework from ${UMF_REPO}")

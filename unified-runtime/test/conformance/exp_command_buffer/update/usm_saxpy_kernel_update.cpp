@@ -1,10 +1,11 @@
-// Copyright (C) 2024 Intel Corporation
+// Copyright (C) 2024-2026 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include "../fixtures.h"
+#include "uur/fixtures.h"
 #include <array>
 #include <cstring>
 
@@ -36,14 +37,31 @@ struct USMSaxpyKernelTestBase
       std::memcpy(shared_ptr, pattern.data(), allocation_size);
     }
 
-    // Index 0 is output
-    ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, shared_ptrs[0]));
-    // Index 1 is A
-    ASSERT_SUCCESS(urKernelSetArgValue(kernel, 1, sizeof(A), nullptr, &A));
-    // Index 2 is X
-    ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 2, nullptr, shared_ptrs[1]));
-    // Index 3 is Y
-    ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 3, nullptr, shared_ptrs[2]));
+    // Build kernel args
+    saxpy_args[0] = {UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+                     nullptr,
+                     UR_EXP_KERNEL_ARG_TYPE_POINTER,
+                     0,
+                     sizeof(void *),
+                     {shared_ptrs[0]}};
+    saxpy_args[1] = {UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+                     nullptr,
+                     UR_EXP_KERNEL_ARG_TYPE_VALUE,
+                     1,
+                     sizeof(A),
+                     {&A}};
+    saxpy_args[2] = {UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+                     nullptr,
+                     UR_EXP_KERNEL_ARG_TYPE_POINTER,
+                     2,
+                     sizeof(void *),
+                     {shared_ptrs[1]}};
+    saxpy_args[3] = {UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+                     nullptr,
+                     UR_EXP_KERNEL_ARG_TYPE_POINTER,
+                     3,
+                     sizeof(void *),
+                     {shared_ptrs[2]}};
   }
 
   void Validate(uint32_t *output, uint32_t *X, uint32_t *Y, uint32_t A,
@@ -71,6 +89,8 @@ struct USMSaxpyKernelTestBase
   static constexpr size_t n_dimensions = 1;
   static constexpr uint32_t A = 42;
   std::array<void *, 5> shared_ptrs = {nullptr, nullptr, nullptr, nullptr};
+  // SAXPY: Single-precision A * X Plus Y (y = a * x + y)
+  ur_exp_kernel_arg_properties_t saxpy_args[4] = {};
 };
 
 struct USMSaxpyKernelTest : USMSaxpyKernelTestBase {
@@ -78,10 +98,10 @@ struct USMSaxpyKernelTest : USMSaxpyKernelTestBase {
     UUR_RETURN_ON_FATAL_FAILURE(USMSaxpyKernelTestBase::SetUp());
 
     // Append kernel command to command-buffer and close command-buffer
-    ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchExp(
+    ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchWithArgsExp(
         updatable_cmd_buf_handle, kernel, n_dimensions, &global_offset,
-        &global_size, &local_size, 0, nullptr, 0, nullptr, 0, nullptr, nullptr,
-        nullptr, &command_handle));
+        &global_size, &local_size, 4, saxpy_args, 0, nullptr, 0, nullptr, 0,
+        nullptr, nullptr, nullptr, &command_handle));
     ASSERT_NE(command_handle, nullptr);
 
     ASSERT_SUCCESS(urCommandBufferFinalizeExp(updatable_cmd_buf_handle));
@@ -90,7 +110,7 @@ struct USMSaxpyKernelTest : USMSaxpyKernelTestBase {
   ur_exp_command_buffer_command_handle_t command_handle = nullptr;
 };
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(USMSaxpyKernelTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_MULTI_QUEUE(USMSaxpyKernelTest);
 
 TEST_P(USMSaxpyKernelTest, UpdateParameters) {
   // Run command-buffer prior to update an verify output
@@ -173,10 +193,10 @@ struct USMMultiSaxpyKernelTest : USMSaxpyKernelTestBase {
 
     // Append kernel command to command-buffer and close command-buffer
     for (unsigned node = 0; node < nodes; node++) {
-      ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchExp(
+      ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchWithArgsExp(
           updatable_cmd_buf_handle, kernel, n_dimensions, &global_offset,
-          &global_size, &local_size, 0, nullptr, 0, nullptr, 0, nullptr,
-          nullptr, nullptr, &command_handles[node]));
+          &global_size, &local_size, 4, saxpy_args, 0, nullptr, 0, nullptr, 0,
+          nullptr, nullptr, nullptr, &command_handles[node]));
       ASSERT_NE(command_handles[node], nullptr);
     }
 
@@ -188,7 +208,7 @@ struct USMMultiSaxpyKernelTest : USMSaxpyKernelTestBase {
   std::array<ur_exp_command_buffer_command_handle_t, nodes> command_handles{};
 };
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(USMMultiSaxpyKernelTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_MULTI_QUEUE(USMMultiSaxpyKernelTest);
 
 TEST_P(USMMultiSaxpyKernelTest, UpdateParameters) {
   // Run command-buffer prior to update an verify output

@@ -92,15 +92,6 @@ buffer_plain::get_allocator_internal() const {
   return impl->get_allocator_internal();
 }
 
-void buffer_plain::deleteAccProps(const sycl::detail::PropWithDataKind &Kind) {
-  impl->deleteAccessorProperty(Kind);
-}
-
-void buffer_plain::addOrReplaceAccessorProperties(
-    const property_list &PropertyList) {
-  impl->addOrReplaceAccessorProperties(PropertyList);
-}
-
 size_t buffer_plain::getSize() const { return impl->getSizeInBytes(); }
 
 void buffer_plain::handleRelease() const {

@@ -5,6 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+#include <helpers/TestKernel.hpp>
 
 #include "Common.hpp"
 
@@ -346,7 +347,7 @@ TEST_F(CommandGraphTest, Reductions) {
       {
         try {
           Graph.add([&](handler &CGH) {
-            CGH.parallel_for<class CustomTestKernel>(
+            CGH.parallel_for<TestKernel>(
                 range<1>{1}, reduction(&ReduVar, int{0}, sycl::plus<>()),
                 [=](item<1> idx, auto &Sum) {});
           });
@@ -366,7 +367,7 @@ TEST_F(CommandGraphTest, Streams) {
         try {
           Graph.add([&](handler &CGH) {
             sycl::stream Out(WorkItems * 16, 16, CGH);
-            CGH.parallel_for<class CustomTestKernel>(
+            CGH.parallel_for<TestKernelWithStream>(
                 range<1>(WorkItems),
                 [=](item<1> id) { Out << id.get_linear_id() << sycl::endl; });
           });
@@ -414,27 +415,6 @@ TEST_F(CommandGraphTest, BindlessExceptionCheck) {
                                            ImgMemUSM, Pitch, Desc);
 
   sycl::free(ImgMemUSM, Ctxt);
-}
-
-// sycl_ext_oneapi_work_group_scratch_memory isn't supported with SYCL graphs
-TEST_F(CommandGraphTest, WorkGroupScratchMemoryCheck) {
-  ASSERT_THROW(
-      {
-        try {
-          Graph.add([&](handler &CGH) {
-            CGH.parallel_for(
-                range<1>{1},
-                ext::oneapi::experimental::properties{
-                    ext::oneapi::experimental::work_group_scratch_size(
-                        sizeof(int))},
-                [=](item<1> idx) {});
-          });
-        } catch (const sycl::exception &e) {
-          ASSERT_EQ(e.code(), make_error_code(sycl::errc::invalid));
-          throw;
-        }
-      },
-      sycl::exception);
 }
 
 TEST_F(CommandGraphTest, MakeEdgeErrors) {
@@ -679,11 +659,11 @@ TEST_F(CommandGraphTest, TransitiveRecordingWrongContext) {
   Graph.begin_recording(Q1);
 
   auto GraphEvent1 =
-      Q1.submit([&](handler &CGH) { CGH.single_task<class Kernel1>([=] {}); });
+      Q1.submit([&](handler &CGH) { CGH.single_task<TestKernel>([=] {}); });
 
   ASSERT_THROW(Q2.submit([&](handler &CGH) {
     CGH.depends_on(GraphEvent1);
-    CGH.single_task<class Kernel2>([=] {});
+    CGH.single_task<TestKernel>([=] {});
   }),
                sycl::exception);
 }
@@ -710,11 +690,11 @@ TEST_F(CommandGraphTest, TransitiveRecordingWrongDevice) {
   Graph.begin_recording(Q1);
 
   auto GraphEvent1 =
-      Q1.submit([&](handler &CGH) { CGH.single_task<class Kernel1>([=] {}); });
+      Q1.submit([&](handler &CGH) { CGH.single_task<TestKernel>([=] {}); });
 
   ASSERT_THROW(Q2.submit([&](handler &CGH) {
     CGH.depends_on(GraphEvent1);
-    CGH.single_task<class Kernel2>([=] {});
+    CGH.single_task<TestKernel>([=] {});
   }),
                sycl::exception);
 }
@@ -736,11 +716,11 @@ TEST_F(CommandGraphTest, RecordingWrongGraphDep) {
   Graph2.begin_recording(Q2);
 
   auto GraphEvent1 =
-      Q1.submit([&](handler &CGH) { CGH.single_task<class Kernel1>([=] {}); });
+      Q1.submit([&](handler &CGH) { CGH.single_task<TestKernel>([=] {}); });
 
   ASSERT_THROW(Q2.submit([&](handler &CGH) {
     CGH.depends_on(GraphEvent1);
-    CGH.single_task<class Kernel2>([=] {});
+    CGH.single_task<TestKernel>([=] {});
   }),
                sycl::exception);
 }
@@ -779,23 +759,27 @@ TEST_F(CommandGraphTest, DynamicCommandGroupMismatchEventEdges) {
   Graph.begin_recording(Queue);
 
   auto EventA = Queue.submit([&](handler &CGH) {
-    CGH.parallel_for(N, [=](item<1> Item) { PtrA[Item.get_id()] = 1; });
+    CGH.parallel_for<TestKernelWithPtr>(
+        N, [=](item<1> Item) { PtrA[Item.get_id()] = 1; });
   });
 
   auto EventB = Queue.submit([&](handler &CGH) {
-    CGH.parallel_for(N, [=](item<1> Item) { PtrB[Item.get_id()] = 4; });
+    CGH.parallel_for<TestKernelWithPtr>(
+        N, [=](item<1> Item) { PtrB[Item.get_id()] = 4; });
   });
 
   Graph.end_recording();
 
   auto CGFA = [&](handler &CGH) {
     CGH.depends_on(EventA);
-    CGH.parallel_for(N, [=](item<1> Item) { PtrA[Item.get_id()] += 2; });
+    CGH.parallel_for<TestKernelWithPtr>(
+        N, [=](item<1> Item) { PtrA[Item.get_id()] += 2; });
   };
 
   auto CGFB = [&](handler &CGH) {
     CGH.depends_on(EventB);
-    CGH.parallel_for(N, [=](item<1> Item) { PtrB[Item.get_id()] += 0xA; });
+    CGH.parallel_for<TestKernelWithPtr>(
+        N, [=](item<1> Item) { PtrB[Item.get_id()] += 0xA; });
   };
 
   experimental::dynamic_command_group DynCG(Graph, {CGFA, CGFB});
@@ -817,12 +801,14 @@ TEST_F(CommandGraphTest, DynamicCommandGroupBufferThrows) {
 
   auto CGFA = [&](handler &CGH) {
     auto Acc = Buf.get_access<access::mode::write>(CGH);
-    CGH.parallel_for(N, [=](item<1> Item) { Acc[Item.get_id()] = 2; });
+    CGH.parallel_for<TestKernelWithAcc>(
+        N, [=](item<1> Item) { Acc[Item.get_id()] = 2; });
   };
 
   auto CGFB = [&](handler &CGH) {
     auto Acc = Buf.get_access<access::mode::write>(CGH);
-    CGH.parallel_for(N, [=](item<1> Item) { Acc[Item.get_id()] = 0xA; });
+    CGH.parallel_for<TestKernelWithAcc>(
+        N, [=](item<1> Item) { Acc[Item.get_id()] = 0xA; });
   };
 
   experimental::dynamic_command_group DynCG(Graph, {CGFA, CGFB});
@@ -846,12 +832,14 @@ TEST_F(CommandGraphTest, DynamicCommandGroupBufferHostAccThrows) {
         {experimental::property::graph::assume_buffer_outlives_graph{}}};
 
     auto CGFA = [&](handler &CGH) {
-      CGH.parallel_for(N, [=](item<1> Item) { Ptr[Item.get_id()] = 2; });
+      CGH.parallel_for<TestKernelWithPtr>(
+          N, [=](item<1> Item) { Ptr[Item.get_id()] = 2; });
     };
 
     auto CGFB = [&](handler &CGH) {
       auto Acc = Buf.get_access<access::mode::write>(CGH);
-      CGH.parallel_for(N, [=](item<1> Item) { Acc[Item.get_id()] = 0xA; });
+      CGH.parallel_for<TestKernelWithAcc>(
+          N, [=](item<1> Item) { Acc[Item.get_id()] = 0xA; });
     };
 
     experimental::dynamic_command_group DynCG(Graph, {CGFA, CGFB});
@@ -882,24 +870,28 @@ TEST_F(CommandGraphTest, DynamicCommandGroupMismatchAccessorEdges) {
 
   Queue.submit([&](handler &CGH) {
     auto AccA = BufA.get_access<access::mode::write>(CGH);
-    CGH.parallel_for(N, [=](item<1> Item) { AccA[Item.get_id()] = 1; });
+    CGH.parallel_for<TestKernelWithAcc>(
+        N, [=](item<1> Item) { AccA[Item.get_id()] = 1; });
   });
 
   Queue.submit([&](handler &CGH) {
     auto AccB = BufB.get_access<access::mode::write>(CGH);
-    CGH.parallel_for(N, [=](item<1> Item) { AccB[Item.get_id()] = 4; });
+    CGH.parallel_for<TestKernelWithAcc>(
+        N, [=](item<1> Item) { AccB[Item.get_id()] = 4; });
   });
 
   Graph.end_recording();
 
   auto CGFA = [&](handler &CGH) {
     auto AccA = BufA.get_access<access::mode::read_write>(CGH);
-    CGH.parallel_for(N, [=](item<1> Item) { AccA[Item.get_id()] += 2; });
+    CGH.parallel_for<TestKernelWithAcc>(
+        N, [=](item<1> Item) { AccA[Item.get_id()] += 2; });
   };
 
   auto CGFB = [&](handler &CGH) {
     auto AccB = BufB.get_access<access::mode::read_write>(CGH);
-    CGH.parallel_for(N, [=](item<1> Item) { AccB[Item.get_id()] += 0xA; });
+    CGH.parallel_for<TestKernelWithAcc>(
+        N, [=](item<1> Item) { AccB[Item.get_id()] += 0xA; });
   };
 
   experimental::dynamic_command_group DynCG(Graph, {CGFA, CGFB});
@@ -910,7 +902,6 @@ TEST_F(CommandGraphTest, DynamicCommandGroupMismatchAccessorEdges) {
 // correct exception behaviour.
 TEST_F(CommandGraphTest, AsyncAllocKindExceptionCheck) {
   auto Context = Queue.get_context();
-  auto Device = Queue.get_device();
 
   void *Ptr1 = nullptr;
   void *Ptr2 = nullptr;

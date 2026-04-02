@@ -2,11 +2,11 @@
 // RUN: %{build} %device_asan_flags -g -O0 -o %t1.out
 // OCL CPU has subgroup alignment issue with -O0, skip it for
 // now.(CMPLRLLVM-61493)
-// RUN: %{run} %if !cpu %{ not %t1.out 2>&1 | FileCheck %s %}
+// RUN: %{run} %if !cpu %{ not --crash %t1.out 2>&1 | FileCheck %s %}
 // RUN: %{build} %device_asan_flags -g -O1 -o %t2.out
-// RUN: %{run} not %t2.out 2>&1 | FileCheck %s
+// RUN: %{run} not --crash %t2.out 2>&1 | FileCheck %s
 // RUN: %{build} %device_asan_flags -g -O2 -o %t3.out
-// RUN: %{run} not %t3.out 2>&1 | FileCheck %s
+// RUN: %{run} not --crash %t3.out 2>&1 | FileCheck %s
 
 #include <sycl/detail/core.hpp>
 

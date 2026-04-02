@@ -10,7 +10,7 @@
 
 #include "memory.hpp"
 #include "common.hpp"
-#include "ur_api.h"
+#include "unified-runtime/ur_api.h"
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urMemImageCreate(ur_context_handle_t /*hContext*/, ur_mem_flags_t /*flags*/,
@@ -137,4 +137,27 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemImageGetInfo(
     size_t /*propSize*/, void * /*pPropValue*/, size_t * /*pPropSizeRet*/) {
 
   DIE_NO_IMPLEMENTATION;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urIPCGetMemHandleExp(ur_context_handle_t,
+                                                         void *, void **,
+                                                         size_t *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urIPCPutMemHandleExp(ur_context_handle_t,
+                                                         void *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urIPCOpenMemHandleExp(ur_context_handle_t,
+                                                          ur_device_handle_t,
+                                                          void *, size_t,
+                                                          void **) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urIPCCloseMemHandleExp(ur_context_handle_t,
+                                                           void *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }

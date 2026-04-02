@@ -11,6 +11,9 @@
 // RUN: %{build} -o %t.out
 // RUN: %if hip %{ env SYCL_JIT_AMDGCN_PTX_TARGET_CPU=%{amd_arch} %} %{run} %t.out | FileCheck %s
 
+// XFAIL: target-native_cpu
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142
+
 #include <sycl/detail/core.hpp>
 #include <sycl/kernel_bundle.hpp>
 
@@ -47,11 +50,13 @@ int test_tracing() {
       syclex::build_options{std::vector<std::string>{
           "-ftime-trace=-", "-ftime-trace-granularity=invalid_int"}},
       syclex::save_log{&log}};
-  syclex::build(kbSrc, props2);
-  std::cout << log << std::endl;
-  // CHECK: {"traceEvents":
-  // CHECK: warning: ignoring malformed argument: '-ftime-trace-granularity=invalid_int'
-
+  try {
+    syclex::build(kbSrc, props2);
+  } catch (const sycl::exception &e) {
+    std::cout << e.what() << std::endl;
+    // CHECK: Invalid time trace granularity
+    // CHECK: invalid integral value 'invalid_int' in '-ftime-trace-granularity=invalid_int'
+  }
   return 0;
 }
 

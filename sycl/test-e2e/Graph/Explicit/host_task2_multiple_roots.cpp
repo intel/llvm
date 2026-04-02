@@ -5,17 +5,13 @@
 
 // REQUIRES: aspect-usm_shared_allocations
 
-// Intended - Concurrent access to shared USM allocations is not supported by
-// CUDA on Windows
 // UNSUPPORTED: cuda && windows
+// UNSUPPORTED-INTENDED: Concurrent access to shared USM allocations is not
+// supported by CUDA on Windows
 
 // Test is flaky on Windows for all targets, disable until it can be fixed
 // UNSUPPORTED: windows
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/11852
-
-// Failed in Nightly on Linux
-// UNSUPPORTED: linux
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/14852
 
 #define GRAPH_E2E_EXPLICIT
 

@@ -35,6 +35,9 @@ config.backend_to_triple = {
     k: config.target_to_triple.get(v) for k, v in config.backend_to_target.items()
 }
 
+# The backend set by the user has precedence over backends set during the parsing of the sycl-ls output
+is_offload_preferred_backend_set = config.backend_to_target["offload"] != ""
+
 # name: The name of this test suite.
 config.name = "SYCL"
 
@@ -55,6 +58,7 @@ config.recursiveExpansionLimit = 10
 # To be filled by lit.local.cfg files.
 config.required_features = []
 config.unsupported_features = []
+config.xfail_features = []
 
 # test-mode: Set if tests should run normally or only build/run
 config.test_mode = lit_config.params.get("test-mode", "full")
@@ -69,7 +73,7 @@ elif config.test_mode == "build-only":
     lit_config.note("build-only test mode enabled, only compiling tests")
     config.available_features.add("build-mode")
     config.sycl_devices = []
-    if not config.amd_arch:
+    if not getattr(config, "amd_arch", None):
         config.amd_arch = "gfx1030"
 else:
     lit_config.error("Invalid argument for test-mode")
@@ -119,6 +123,8 @@ llvm_config.with_system_environment(
         "CL_CONFIG_DEVICES",
         "SYCL_DEVICE_ALLOWLIST",
         "SYCL_CONFIG_FILE_NAME",
+        "VK_ADD_LAYER_PATH",
+        "XDG_CACHE_HOME",
     ]
 )
 
@@ -234,9 +240,6 @@ if lit_config.params.get("gpu-intel-dg2", False):
 if lit_config.params.get("gpu-intel-pvc-vg", False):
     config.available_features.add("gpu-intel-pvc-vg")
 
-if lit_config.params.get("igc-dev", False):
-    config.available_features.add("igc-dev")
-
 # Map between device family and architecture types.
 device_family_arch_map = {
     # <Family name> : Set of architectures types (and aliases)
@@ -250,7 +253,15 @@ device_family_arch_map = {
         "intel_gpu_dg2_g10",
     },
     # Gen12
-    "gpu-intel-gen12": {"intel_gpu_tgllp", "intel_gpu_tgl"},
+    "gpu-intel-gen12": {
+        "intel_gpu_tgllp",
+        "intel_gpu_tgl",
+        "intel_gpu_rkl",
+        "intel_gpu_adl_s",
+        "intel_gpu_rpl_s",
+        "intel_gpu_adl_p",
+        "intel_gpu_adl_n",
+    },
     # Gen11
     "gpu-intel-gen11": {"intel_gpu_icllp", "intel_gpu_icl"},
 }
@@ -267,8 +278,6 @@ def check_igc_tag_and_add_feature():
     if os.path.isfile(config.igc_tag_file):
         with open(config.igc_tag_file, "r") as tag_file:
             contents = tag_file.read()
-            if "igc-dev" in contents:
-                config.available_features.add("igc-dev")
 
 
 def quote_path(path):
@@ -568,7 +577,7 @@ if cl_options:
         (
             "%sycl_options",
             " "
-            + os.path.normpath(os.path.join(config.sycl_libs_dir + "/../lib/sycl8.lib"))
+            + os.path.normpath(os.path.join(config.sycl_libs_dir + "/../lib/sycl9.lib"))
             + " -Xclang -isystem -Xclang "
             + config.sycl_include
             + " -Xclang -isystem -Xclang "
@@ -586,7 +595,7 @@ else:
     config.substitutions.append(
         (
             "%sycl_options",
-            (" -lsycl8" if platform.system() == "Windows" else " -lsycl")
+            (" -lsycl9" if platform.system() == "Windows" else " -lsycl")
             + " -isystem "
             + config.sycl_include
             + " -isystem "
@@ -696,7 +705,7 @@ def remove_level_zero_suffix(devices):
 
 
 available_devices = {
-    "opencl": ("cpu", "gpu", "fpga"),
+    "opencl": ("cpu", "gpu"),
     "cuda": "gpu",
     "level_zero": "gpu",
     "hip": "gpu",
@@ -821,7 +830,6 @@ if os.path.exists(xptifw_lib_dir) and os.path.exists(
 # Tools for which we add a corresponding feature when available.
 feature_tools = [
     ToolSubst("llvm-spirv", unresolved="ignore"),
-    ToolSubst("llvm-link", unresolved="ignore"),
     ToolSubst("opencl-aot", unresolved="ignore"),
     ToolSubst("ocloc", unresolved="ignore"),
 ]
@@ -834,6 +842,7 @@ tools = [
         r"\| \bnot\b", command=FindTool("not"), verbatim=True, unresolved="ignore"
     ),
     ToolSubst("sycl-ls", command=sycl_ls, unresolved="fatal"),
+    ToolSubst("llvm-link", unresolved="fatal"),
     ToolSubst("syclbin-dump", unresolved="fatal"),
     ToolSubst("llvm-ar", unresolved="fatal"),
     ToolSubst("clang-offload-bundler", unresolved="fatal"),
@@ -841,6 +850,8 @@ tools = [
     ToolSubst("sycl-post-link", unresolved="fatal"),
     ToolSubst("file-table-tform", unresolved="fatal"),
     ToolSubst("llvm-foreach", unresolved="fatal"),
+    ToolSubst("llvm-profdata", unresolved="ignore"),
+    ToolSubst("llvm-cov", unresolved="ignore"),
 ] + feature_tools
 
 # Try and find each of these tools in the DPC++ bin directory, in the llvm tools directory
@@ -909,12 +920,14 @@ for sycl_device in config.sycl_devices:
 
     env = copy.copy(llvm_config.config.environment)
 
+    backend_for_selector = backend.replace("_v2", "").replace("_v1", "")
+
     # Find all available devices under the backend
-    env["ONEAPI_DEVICE_SELECTOR"] = backend + ":*"
+    env["ONEAPI_DEVICE_SELECTOR"] = backend_for_selector + ":*"
 
     detected_architectures = []
 
-    platform_devices = remove_level_zero_suffix(backend + ":*")
+    platform_devices = backend_for_selector + ":*"
 
     for line in get_sycl_ls_verbose(platform_devices, env).stdout.splitlines():
         if re.match(r" *Architecture:", line):
@@ -976,6 +989,11 @@ if config.test_mode != "build-only":
             "sycl-jit was not found. Tests requiring sycl-jit will be skipped."
         )
 
+# Check for enabled NewOffloadModel
+if lit_config.params.get("enable_new_offload_model", "False") != "False":
+    config.available_features.add("new-offload-model")
+    config.cxx_flags += " --offload-new-driver "
+
 # That has to be executed last so that all device-independent features have been
 # discovered already.
 config.sycl_dev_features = {}
@@ -999,20 +1017,24 @@ for full_name, sycl_device in zip(
     is_intel_driver = False
     intel_driver_ver = {}
     sycl_ls_sp = get_sycl_ls_verbose(sycl_device, env)
+    offload_assigned_backend = ""
     for line in sycl_ls_sp.stdout.splitlines():
         if re.match(r" *Vendor *: Intel\(R\) Corporation", line):
             is_intel_driver = True
         if re.match(r" *Driver *:", line):
             _, driver_str = line.split(":", 1)
             driver_str = driver_str.strip()
-            lin = re.match(r"[0-9]{1,2}\.[0-9]{1,2}\.([0-9]{5})", driver_str)
-            if lin:
-                intel_driver_ver["lin"] = int(lin.group(1))
-            win = re.match(
-                r"[0-9]{1,2}\.[0-9]{1,2}\.([0-9]{3})\.([0-9]{4})", driver_str
-            )
-            if win:
-                intel_driver_ver["win"] = (int(win.group(1)), int(win.group(2)))
+            if sycl_device.endswith("gpu"):
+                lin = re.match(r"[0-9]{1,2}\.[0-9]{1,2}\.([0-9]{5})", driver_str)
+                if lin:
+                    intel_driver_ver["lin"] = int(lin.group(1))
+                win = re.match(
+                    r"[0-9]{1,2}\.[0-9]{1,2}\.([0-9]{3})\.([0-9]{4})", driver_str
+                )
+                if win:
+                    intel_driver_ver["win"] = (int(win.group(1)), int(win.group(2)))
+            elif sycl_device.endswith("cpu"):
+                intel_driver_ver["cpu"] = driver_str
         if re.match(r" *Aspects *:", line):
             _, aspects_str = line.split(":", 1)
             dev_aspects.append(aspects_str.strip().split(" "))
@@ -1034,6 +1056,17 @@ for full_name, sycl_device in zip(
             architectures.add(architecture.strip())
         if re.match(r" *Name *:", line) and "Level-Zero V2" in line:
             features.add("level_zero_v2_adapter")
+
+        # TODO change to the set of backends
+        if re.match(r"\[offload:.*", line) and not is_offload_preferred_backend_set:
+            if re.match(".*Level[ _]Zero.*", line, re.IGNORECASE):
+                offload_assigned_backend = config.backend_to_target["level_zero"]
+                is_offload_preferred_backend_set = True
+            elif re.match(".*nvidia.*", line, re.IGNORECASE):
+                offload_assigned_backend = config.backend_to_target["cuda"]
+
+    if offload_assigned_backend != "":
+        config.backend_to_target["offload"] = offload_assigned_backend
 
     if dev_aspects == []:
         lit_config.error(
@@ -1059,24 +1092,17 @@ for full_name, sycl_device in zip(
     sg_sizes = set(dev_sg_sizes[0]).intersection(*dev_sg_sizes)
     lit_config.note("SG sizes for {}: {}".format(sycl_device, ", ".join(sg_sizes)))
 
-    # Currently, for fpga, the architecture reported by sycl-ls will always
-    # be unknown, as there are currently no architectures specified for fpga
-    # in sycl_ext_oneapi_device_architecture. Skip adding architecture features
-    # in this case.
-    if sycl_device == "opencl:fpga":
-        architectures = set()
-    else:
-        lit_config.note(
-            "Architectures for {}: {}".format(sycl_device, ", ".join(architectures))
-        )
-        if len(architectures) != 1 or "unknown" in architectures:
-            if not config.allow_unknown_arch:
-                lit_config.error(
-                    "Cannot detect architecture for {}\nstdout:\n{}\nstderr:\n{}".format(
-                        sycl_device, sycl_ls_sp.stdout, sycl_ls_sp.stderr
-                    )
+    lit_config.note(
+        "Architectures for {}: {}".format(sycl_device, ", ".join(architectures))
+    )
+    if len(architectures) != 1 or "unknown" in architectures:
+        if not config.allow_unknown_arch:
+            lit_config.error(
+                "Cannot detect architecture for {}\nstdout:\n{}\nstderr:\n{}".format(
+                    sycl_device, sycl_ls_sp.stdout, sycl_ls_sp.stderr
                 )
-            architectures = set()
+            )
+        architectures = set()
 
     aspect_features = set("aspect-" + a for a in aspects)
     sg_size_features = set("sg-" + s for s in sg_sizes)
@@ -1103,7 +1129,14 @@ for full_name, sycl_device in zip(
     features.update(device_family)
 
     be, dev = sycl_device.split(":")
-    features.add(dev.replace("fpga", "accelerator"))
+    if dev.isdigit():
+        backend_devices = available_devices.get(be, "gpu")
+        if isinstance(backend_devices, tuple):
+            # arch-selection is typically used to select gpu device
+            dev = "gpu"
+        else:
+            dev = backend_devices
+    features.add(dev)
     if "level_zero_v2" in full_name:
         features.add("level_zero_v2_adapter")
     elif "level_zero_v1" in full_name:
@@ -1135,11 +1168,21 @@ for full_name, sycl_device in zip(
     else:
         config.intel_driver_ver[full_name] = {}
 
+# Add AMD architecture flags for HIP backend compilation.
+# Uses detected GPU architecture or defaults to gfx1030 in build-only mode.
+amd_arch_flags = ""
+amd_arch = getattr(config, "amd_arch", None)
+if amd_arch:
+    amd_arch_flags = (
+        f"-Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch={amd_arch}"
+    )
+config.substitutions.append(("%amd_arch_options", amd_arch_flags))
+
 if lit_config.params.get("compatibility_testing", "False") != "False":
     config.substitutions.append(("%clangxx", " true "))
     config.substitutions.append(("%clang", " true "))
 else:
-    clangxx = " " + config.dpcpp_compiler + " "
+    clangxx = " " + config.dpcpp_compiler + " -Werror "
     if "preview-mode" in config.available_features:
         # Technically, `-fpreview-breaking-changes` is reported as unused option
         # if used without `-fsycl`. However, we have far less tests compiling

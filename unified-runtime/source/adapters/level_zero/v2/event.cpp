@@ -8,6 +8,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <optional>
 #include <ze_api.h>
 
 #include "context.hpp"
@@ -22,7 +23,7 @@
 static uint64_t adjustEndEventTimestamp(uint64_t adjustedStartTimestamp,
                                         uint64_t endTimestamp,
                                         uint64_t timestampMaxValue,
-                                        uint64_t timerResolution) {
+                                        double timerResolution) {
   // End time needs to be adjusted for resolution and valid bits.
   uint64_t adjustedTimestamp =
       (endTimestamp & timestampMaxValue) * timerResolution;
@@ -73,10 +74,11 @@ void event_profiling_data_t::reset() {
   // possible.
   adjustedEventStartTimestamp = 0;
   adjustedEventEndTimestamp = 0;
+  timestampRecorded = false;
 }
 
 void event_profiling_data_t::recordStartTimestamp(ur_device_handle_t hDevice) {
-  zeTimerResolution = hDevice->ZeDeviceProperties->timerResolution;
+  zeTimerResolution = hDevice->getTimerResolution();
   timestampMaxValue = hDevice->getTimestampMask();
 
   uint64_t deviceStartTimestamp = 0;
@@ -85,18 +87,15 @@ void event_profiling_data_t::recordStartTimestamp(ur_device_handle_t hDevice) {
 
   assert(adjustedEventStartTimestamp == 0);
   adjustedEventStartTimestamp = deviceStartTimestamp;
+  timestampRecorded = true;
 }
 
 uint64_t event_profiling_data_t::getEventStartTimestmap() const {
   return adjustedEventStartTimestamp;
 }
 
-bool event_profiling_data_t::recordingEnded() const {
-  return adjustedEventEndTimestamp != 0;
-}
-
 bool event_profiling_data_t::recordingStarted() const {
-  return adjustedEventStartTimestamp != 0;
+  return timestampRecorded;
 }
 
 uint64_t *event_profiling_data_t::eventEndTimestampAddr() {
@@ -123,8 +122,20 @@ void ur_event_handle_t_::setQueue(ur_queue_t_ *hQueue) {
   profilingData.reset();
 }
 
+void ur_event_handle_t_::setBatch(ur_event_generation_t batch_generation) {
+  this->batchGeneration = batch_generation;
+}
+
 void ur_event_handle_t_::setCommandType(ur_command_t commandType) {
   this->commandType = commandType;
+}
+
+// Enqueue batch execution if the event is created by the batched queue as part
+// of its current batch
+void ur_event_handle_t_::onWaitListUse() {
+  if (batchGeneration) {
+    hQueue->onEventWaitListUse(batchGeneration.value());
+  }
 }
 
 void ur_event_handle_t_::recordStartTimestamp() {
@@ -149,6 +160,8 @@ void ur_event_handle_t_::reset() {
   if (!(flags & v2::EVENT_FLAGS_COUNTER)) {
     zeEventHostReset(getZeEvent());
   }
+
+  batchGeneration = std::nullopt;
 }
 
 ze_event_handle_t ur_event_handle_t_::getZeEvent() const {
@@ -192,6 +205,10 @@ ur_event_handle_t_::getEventEndTimestampAndHandle() {
 
 ur_queue_t_ *ur_event_handle_t_::getQueue() const { return hQueue; }
 
+std::optional<ur_event_generation_t> ur_event_handle_t_::getBatch() const {
+  return batchGeneration;
+}
+
 ur_context_handle_t ur_event_handle_t_::getContext() const { return hContext; }
 
 ur_command_t ur_event_handle_t_::getCommandType() const { return commandType; }
@@ -234,6 +251,7 @@ ur_result_t urEventRelease(ur_event_handle_t hEvent) try {
 ur_result_t urEventWait(uint32_t numEvents,
                         const ur_event_handle_t *phEventWaitList) try {
   for (uint32_t i = 0; i < numEvents; ++i) {
+    phEventWaitList[i]->onWaitListUse();
     ZE2UR_CALL(zeEventHostSynchronize,
                (phEventWaitList[i]->getZeEvent(), UINT64_MAX));
   }
@@ -331,7 +349,7 @@ ur_result_t urEventGetProfilingInfo(
 
   ze_kernel_timestamp_result_t tsResult;
 
-  auto zeTimerResolution = hDevice->ZeDeviceProperties->timerResolution;
+  auto zeTimerResolution = hDevice->getTimerResolution();
   auto timestampMaxValue = hDevice->getTimestampMask();
 
   switch (propName) {

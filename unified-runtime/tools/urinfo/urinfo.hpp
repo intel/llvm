@@ -17,7 +17,7 @@
 #include "utils.hpp"
 #include <cstdlib>
 #include <string_view>
-#include <ur_api.h>
+#include <unified-runtime/ur_api.h>
 
 namespace urinfo {
 inline void printLoaderConfigInfos(ur_loader_config_handle_t hLoaderConfig,
@@ -445,18 +445,43 @@ inline void printDeviceInfos(ur_device_handle_t hDevice,
   printDeviceInfo<ur_exp_device_2d_block_array_capability_flags_t>(
       hDevice, UR_DEVICE_INFO_2D_BLOCK_ARRAY_CAPABILITIES_EXP);
   std::cout << prefix;
+  printDeviceInfo<ur_bool_t>(hDevice, UR_DEVICE_INFO_IPC_MEMORY_SUPPORT_EXP);
+  std::cout << prefix;
   printDeviceInfo<ur_bool_t>(hDevice,
                              UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_SUPPORT_EXP);
+  std::cout << prefix;
+  printDeviceInfo<ur_bool_t>(hDevice,
+                             UR_DEVICE_INFO_CLOCK_SUB_GROUP_SUPPORT_EXP);
+  std::cout << prefix;
+  printDeviceInfo<ur_bool_t>(hDevice,
+                             UR_DEVICE_INFO_CLOCK_WORK_GROUP_SUPPORT_EXP);
+  std::cout << prefix;
+  printDeviceInfo<ur_bool_t>(hDevice, UR_DEVICE_INFO_CLOCK_DEVICE_SUPPORT_EXP);
+  std::cout << prefix;
+  printDeviceInfo<ur_bool_t>(hDevice, UR_DEVICE_INFO_IS_INTEGRATED_GPU);
+  std::cout << prefix;
+  printDeviceInfo<ur_bool_t>(
+      hDevice, UR_DEVICE_INFO_GRAPH_RECORD_AND_REPLAY_SUPPORT_EXP);
+  std::cout << prefix;
+  printDeviceInfo<ur_bool_t>(
+      hDevice, UR_DEVICE_INFO_USM_HOST_ALLOC_REGISTER_SUPPORT_EXP);
   std::cout << prefix;
   printDeviceInfo<ur_bool_t>(hDevice, UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP);
   std::cout << prefix;
   printDeviceInfo<ur_bool_t>(hDevice,
                              UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP);
   std::cout << prefix;
+  printDeviceInfo<ur_bool_t>(hDevice, UR_DEVICE_INFO_DEVICE_WAIT_SUPPORT_EXP);
+  std::cout << prefix;
+  printDeviceInfo<ur_bool_t>(hDevice, UR_DEVICE_INFO_DYNAMIC_LINK_SUPPORT_EXP);
+  std::cout << prefix;
   printDeviceInfo<ur_bool_t>(hDevice,
                              UR_DEVICE_INFO_USM_CONTEXT_MEMCPY_SUPPORT_EXP);
   std::cout << prefix;
   printDeviceInfo<ur_bool_t>(
       hDevice, UR_DEVICE_INFO_MEMORY_EXPORT_EXPORTABLE_DEVICE_MEM_EXP);
+  std::cout << prefix;
+  printDeviceInfo<ur_bool_t>(hDevice,
+                             UR_DEVICE_INFO_ENQUEUE_HOST_TASK_SUPPORT_EXP);
 }
 } // namespace urinfo

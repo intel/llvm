@@ -1,7 +1,10 @@
-; RUN: llvm-as %s -o %t.bc
-; RUN: llvm-spirv %t.bc -o %t.spv
+; RUN: llvm-spirv %s -o %t.spv
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s
+; RUN: %if spirv-backend %{ llc -O0 -mtriple=spirv64-unknown-unknown -filetype=obj %s -o %t.llc.spv %}
+; RUN: %if spirv-backend %{ llvm-spirv -r %t.llc.spv -o %t.llc.rev.bc %}
+; RUN: %if spirv-backend %{ llvm-dis %t.llc.rev.bc -o %t.llc.rev.ll %}
+; RUN: %if spirv-backend %{ FileCheck %s --check-prefix=CHECK-LLC < %t.llc.rev.ll %}
 
 ; This test checks following relational builtins with scalar type
 
@@ -39,6 +42,34 @@ declare spir_func <4 x i32> @_Z5isinfDv4_f(<4 x float> noundef) local_unnamed_ad
 declare spir_func <4 x i32> @_Z7signbitDv4_f(<4 x float> noundef) local_unnamed_addr #1
 
 ; Function Attrs: convergent mustprogress nofree norecurse nounwind willreturn memory(argmem: readwrite)
+; CHECK-LLC-LABEL: @math_kernel_scalar
+; CHECK-LLC: call spir_func i32 @_Z8isfinitef(float
+; CHECK-LLC: trunc i32 {{.*}} to i1
+; CHECK-LLC: call spir_func i32 @_Z5isinff(float
+; CHECK-LLC: trunc i32 {{.*}} to i1
+; CHECK-LLC: call spir_func i32 @_Z5isnanf(float
+; CHECK-LLC: trunc i32 {{.*}} to i1
+; CHECK-LLC: call spir_func i32 @_Z8isnormalf(float
+; CHECK-LLC: trunc i32 {{.*}} to i1
+; CHECK-LLC: call spir_func i32 @_Z7signbitf(float
+; CHECK-LLC: trunc i32 {{.*}} to i1
+; CHECK-LLC: call spir_func <4 x i32> @_Z8isnormalDv4_f(
+; CHECK-LLC: trunc <4 x i32> {{.*}} to <4 x i8>
+; CHECK-LLC: trunc <4 x i8> {{.*}} to <4 x i1>
+; CHECK-LLC: call spir_func <4 x i32> @_Z8isfiniteDv4_f(
+; CHECK-LLC: trunc <4 x i32> {{.*}} to <4 x i8>
+; CHECK-LLC: trunc <4 x i8> {{.*}} to <4 x i1>
+; CHECK-LLC: call spir_func <4 x i32> @_Z5isnanDv4_f(
+; CHECK-LLC: trunc <4 x i32> {{.*}} to <4 x i8>
+; CHECK-LLC: trunc <4 x i8> {{.*}} to <4 x i1>
+; CHECK-LLC: call spir_func <4 x i32> @_Z5isinfDv4_f(
+; CHECK-LLC: trunc <4 x i32> {{.*}} to <4 x i8>
+; CHECK-LLC: trunc <4 x i8> {{.*}} to <4 x i1>
+; CHECK-LLC: call spir_func <4 x i32> @_Z7signbitDv4_f(
+; CHECK-LLC: trunc <4 x i32> {{.*}} to <4 x i8>
+; CHECK-LLC: trunc <4 x i8> {{.*}} to <4 x i1>
+; CHECK-LLC: ret void
+
 define dso_local spir_kernel void @math_kernel_scalar(ptr addrspace(4) captures(none) writeonly %out, float %f) local_unnamed_addr #0 {
 entry:
 ; CHECK: [[DATA0:%.*]] = call spir_func i32 @_Z8isfinitef(float [[ARG0:%.*]])

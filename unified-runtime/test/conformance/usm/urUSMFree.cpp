@@ -1,14 +1,16 @@
-// Copyright (C) 2023 Intel Corporation
+// Copyright (C) 2023-2026 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+#include "unified-runtime/ur_api.h"
+#include "gtest/gtest.h"
 #include <uur/fixtures.h>
 #include <uur/known_failure.h>
 
-using urUSMFreeTest = uur::urQueueTest;
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(urUSMFreeTest);
+using urUSMFreeTest = uur::urMultiQueueTypeTest;
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_MULTI_QUEUE(urUSMFreeTest);
 
 TEST_P(urUSMFreeTest, SuccessDeviceAlloc) {
   UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
@@ -118,7 +120,8 @@ struct urUSMFreeDuringExecutionTest : uur::urKernelExecutionTest {
   uint32_t data = 42;
   size_t wg_offset = 0;
 };
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(urUSMFreeDuringExecutionTest);
+
+UUR_DEVICE_TEST_SUITE_WITH_DEFAULT_QUEUE(urUSMFreeDuringExecutionTest);
 
 TEST_P(urUSMFreeDuringExecutionTest, SuccessHost) {
   // Causes an abort in liboffload
@@ -134,11 +137,32 @@ TEST_P(urUSMFreeDuringExecutionTest, SuccessHost) {
       urUSMHostAlloc(context, nullptr, nullptr, allocation_size, &allocation));
   ASSERT_NE(allocation, nullptr);
 
-  ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, allocation));
-  ASSERT_SUCCESS(urKernelSetArgValue(kernel, 1, sizeof(data), nullptr, &data));
-  ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, 1, &wg_offset,
-                                       &array_size, nullptr, 0, nullptr, 0,
-                                       nullptr, nullptr));
+  {
+    ur_exp_kernel_arg_value_t val0 = {};
+    val0.pointer = allocation;
+    ur_exp_kernel_arg_properties_t arg0 = {
+        UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+        nullptr,
+        UR_EXP_KERNEL_ARG_TYPE_POINTER,
+        0,
+        sizeof(void *),
+        val0};
+
+    ur_exp_kernel_arg_value_t val1 = {};
+    val1.value = &data;
+    ur_exp_kernel_arg_properties_t arg1 = {
+        UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+        nullptr,
+        UR_EXP_KERNEL_ARG_TYPE_VALUE,
+        1,
+        sizeof(data),
+        val1};
+
+    ur_exp_kernel_arg_properties_t args[] = {arg0, arg1};
+    ASSERT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
+        queue, kernel, 1, &wg_offset, &array_size, nullptr, 2, args, nullptr, 0,
+        nullptr, nullptr));
+  }
   ASSERT_SUCCESS(urUSMFree(context, allocation));
   ASSERT_SUCCESS(urQueueFinish(queue));
 }
@@ -157,12 +181,32 @@ TEST_P(urUSMFreeDuringExecutionTest, SuccessDevice) {
                                   allocation_size, &allocation));
   ASSERT_NE(allocation, nullptr);
 
-  ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, allocation));
-  ASSERT_SUCCESS(urKernelSetArgValue(kernel, 1, sizeof(data), nullptr, &data));
+  {
+    ur_exp_kernel_arg_value_t val0 = {};
+    val0.pointer = allocation;
+    ur_exp_kernel_arg_properties_t arg0 = {
+        UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+        nullptr,
+        UR_EXP_KERNEL_ARG_TYPE_POINTER,
+        0,
+        sizeof(void *),
+        val0};
 
-  ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, 1, &wg_offset,
-                                       &array_size, nullptr, 0, nullptr, 0,
-                                       nullptr, nullptr));
+    ur_exp_kernel_arg_value_t val1 = {};
+    val1.value = &data;
+    ur_exp_kernel_arg_properties_t arg1 = {
+        UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+        nullptr,
+        UR_EXP_KERNEL_ARG_TYPE_VALUE,
+        1,
+        sizeof(data),
+        val1};
+
+    ur_exp_kernel_arg_properties_t args[] = {arg0, arg1};
+    ASSERT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
+        queue, kernel, 1, &wg_offset, &array_size, nullptr, 2, args, nullptr, 0,
+        nullptr, nullptr));
+  }
   ASSERT_SUCCESS(urUSMFree(context, allocation));
   ASSERT_SUCCESS(urQueueFinish(queue));
 }
@@ -182,11 +226,32 @@ TEST_P(urUSMFreeDuringExecutionTest, SuccessShared) {
                                   allocation_size, &allocation));
   ASSERT_NE(allocation, nullptr);
 
-  ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, allocation));
-  ASSERT_SUCCESS(urKernelSetArgValue(kernel, 1, sizeof(data), nullptr, &data));
-  ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, 1, &wg_offset,
-                                       &array_size, nullptr, 0, nullptr, 0,
-                                       nullptr, nullptr));
+  {
+    ur_exp_kernel_arg_value_t val0 = {};
+    val0.pointer = allocation;
+    ur_exp_kernel_arg_properties_t arg0 = {
+        UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+        nullptr,
+        UR_EXP_KERNEL_ARG_TYPE_POINTER,
+        0,
+        sizeof(void *),
+        val0};
+
+    ur_exp_kernel_arg_value_t val1 = {};
+    val1.value = &data;
+    ur_exp_kernel_arg_properties_t arg1 = {
+        UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+        nullptr,
+        UR_EXP_KERNEL_ARG_TYPE_VALUE,
+        1,
+        sizeof(data),
+        val1};
+
+    ur_exp_kernel_arg_properties_t args[] = {arg0, arg1};
+    ASSERT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
+        queue, kernel, 1, &wg_offset, &array_size, nullptr, 2, args, nullptr, 0,
+        nullptr, nullptr));
+  }
   ASSERT_SUCCESS(urUSMFree(context, allocation));
   ASSERT_SUCCESS(urQueueFinish(queue));
 }

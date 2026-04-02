@@ -13,6 +13,8 @@ DeviceGlobal<void *> __MsanLaunchInfo;
 #define GetMsanLaunchInfo                                                      \
   ((__SYCL_GLOBAL__ MsanRuntimeData *)__MsanLaunchInfo.get())
 
+extern "C" __attribute__((weak)) const int __msan_track_origins;
+
 namespace {
 
 constexpr int MSAN_REPORT_NONE = 0;
@@ -63,6 +65,8 @@ const __SYCL_CONSTANT__ char __msan_print_unknown[] = "unknown";
   } while (false)
 
 namespace {
+
+inline bool IsTrackOriginsEnabled() { return __msan_track_origins; }
 
 inline void ConvertGenericPointer(uptr &addr, uint32_t &as) {
   auto old = addr;
@@ -337,7 +341,8 @@ inline void CopyShadowAndOrigin(uptr dst, uint32_t dst_as, uptr src,
   }
   auto *shadow_src = (__SYCL_GLOBAL__ char *)MemToShadow(src, src_as);
   Memcpy(shadow_dst, shadow_src, size);
-  CopyOrigin(dst, dst_as, src, src_as, size);
+  if (IsTrackOriginsEnabled())
+    CopyOrigin(dst, dst_as, src, src_as, size);
 
   MSAN_DEBUG(__spirv_ocl_printf(__msan_print_copy_shadow, dst, dst_as, src,
                                 src_as, shadow_dst, shadow_src, size));
@@ -365,7 +370,8 @@ inline void MoveShadowAndOrigin(uptr dst, uint32_t dst_as, uptr src,
   auto *shadow_dst = (__SYCL_GLOBAL__ char *)MemToShadow(dst, dst_as);
   auto *shadow_src = (__SYCL_GLOBAL__ char *)MemToShadow(src, src_as);
   // MoveOrigin transfers origins by refering to their shadows
-  MoveOrigin(dst, dst_as, src, src_as, size);
+  if (IsTrackOriginsEnabled())
+    MoveOrigin(dst, dst_as, src, src_as, size);
   Memmove(shadow_dst, shadow_src, size);
 
   MSAN_DEBUG(__spirv_ocl_printf(__msan_print_move_shadow, dst, dst_as, src,
@@ -794,6 +800,44 @@ __msan_unpoison_strided_copy(uptr dest, uint32_t dest_as, uptr src,
 
   MSAN_DEBUG(__spirv_ocl_printf(__msan_print_func_end,
                                 "__msan_unpoison_strided_copy"));
+}
+
+static __SYCL_CONSTANT__ const char __msan_print_copy_unsupport_type[] =
+    "[kernel] __msan_unpoison_copy: unsupported type(%d <- %d)\n";
+
+DEVICE_EXTERN_C_NOINLINE void __msan_unpoison_copy(uptr dst, uint32_t dst_as,
+                                                   uptr src, uint32_t src_as,
+                                                   uint32_t dst_element_size,
+                                                   uint32_t src_element_size,
+                                                   uptr counts) {
+  if (!GetMsanLaunchInfo)
+    return;
+
+  MSAN_DEBUG(__spirv_ocl_printf(__msan_print_func_beg, "__msan_unpoison_copy"));
+
+  uptr shadow_dst = MemToShadow(dst, dst_as);
+  if (shadow_dst != GetMsanLaunchInfo->CleanShadow) {
+    uptr shadow_src = MemToShadow(src, src_as);
+
+    if (dst_element_size == 1 && src_element_size == 1) {
+      Memcpy<__SYCL_GLOBAL__ int8_t *, __SYCL_GLOBAL__ int8_t *>(
+          (__SYCL_GLOBAL__ int8_t *)shadow_dst,
+          (__SYCL_GLOBAL__ int8_t *)shadow_src, counts);
+    } else if (dst_element_size == 4 && src_element_size == 2) {
+      Memcpy<__SYCL_GLOBAL__ int32_t *, __SYCL_GLOBAL__ int16_t *>(
+          (__SYCL_GLOBAL__ int32_t *)shadow_dst,
+          (__SYCL_GLOBAL__ int16_t *)shadow_src, counts);
+    } else if (dst_element_size == 2 && src_element_size == 4) {
+      Memcpy<__SYCL_GLOBAL__ int16_t *, __SYCL_GLOBAL__ int32_t *>(
+          (__SYCL_GLOBAL__ int16_t *)shadow_dst,
+          (__SYCL_GLOBAL__ int32_t *)shadow_src, counts);
+    } else {
+      __spirv_ocl_printf(__msan_print_copy_unsupport_type, dst_element_size,
+                         src_element_size);
+    }
+  }
+
+  MSAN_DEBUG(__spirv_ocl_printf(__msan_print_func_end, "__msan_unpoison_copy"));
 }
 
 #endif // __SPIR__ || __SPIRV__

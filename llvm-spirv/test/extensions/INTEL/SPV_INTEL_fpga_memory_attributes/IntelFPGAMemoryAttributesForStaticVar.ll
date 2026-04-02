@@ -39,8 +39,7 @@
 ; LLVM IR compilation command:
 ; clang -cc1 -triple spir -disable-llvm-passes -fsycl-is-device -emit-llvm intel-fpga-local-var.cpp
 
-; RUN: llvm-as %s -o %t.bc
-; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_fpga_memory_attributes -o %t.spv
+; RUN: llvm-spirv %s --spirv-ext=+SPV_INTEL_fpga_memory_attributes -o %t.spv
 ; RUN: llvm-spirv %t.spv -to-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
 
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc

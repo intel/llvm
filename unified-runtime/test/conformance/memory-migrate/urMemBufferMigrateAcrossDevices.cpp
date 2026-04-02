@@ -7,6 +7,8 @@
 // Some tests to ensure implicit memory migration of buffers across devices
 // in the same context.
 
+#include <cstring>
+
 #include "uur/fixtures.h"
 
 using T = uint32_t;
@@ -85,41 +87,68 @@ struct urMultiDeviceContextMemBufferTest : urMultiDeviceContextTest {
   }
 
   // Adds a kernel arg representing a sycl buffer constructed with a 1D range.
-  void AddBuffer1DArg(ur_kernel_handle_t kernel, size_t current_arg_index,
+  void AddBuffer1DArg(size_t kernel_index, size_t current_arg_index,
                       ur_mem_handle_t buffer) {
-    ASSERT_SUCCESS(
-        urKernelSetArgMemObj(kernel, current_arg_index, nullptr, buffer));
-
     // SYCL device kernels have different interfaces depending on the
     // backend being used. Typically a kernel which takes a buffer argument
     // will take a pointer to the start of the buffer and a sycl::id param
     // which is a struct that encodes the accessor to the buffer. However
     // the AMD backend handles this differently and uses three separate
     // arguments for each of the three dimensions of the accessor.
+    if (kernel_args.size() <= kernel_index) {
+      kernel_args.resize(kernel_index + 1);
+    }
+    auto &args = kernel_args[kernel_index];
+
+    ur_exp_kernel_arg_value_t mem_val = {};
+    mem_val.memObjTuple = {buffer, UR_MEM_FLAG_READ_WRITE};
+    ur_exp_kernel_arg_properties_t mem_arg = {
+        UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+        nullptr,
+        UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ,
+        static_cast<uint32_t>(current_arg_index),
+        sizeof(ur_mem_handle_t),
+        mem_val};
+    args.push_back(mem_arg);
 
     ur_backend_t backend;
     ASSERT_SUCCESS(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND,
                                      sizeof(backend), &backend, nullptr));
     if (backend == UR_BACKEND_HIP) {
-      // this emulates the three offset params for buffer accessor on AMD.
-      size_t val = 0;
-      ASSERT_SUCCESS(urKernelSetArgValue(kernel, current_arg_index + 1,
-                                         sizeof(size_t), nullptr, &val));
-      ASSERT_SUCCESS(urKernelSetArgValue(kernel, current_arg_index + 2,
-                                         sizeof(size_t), nullptr, &val));
-      ASSERT_SUCCESS(urKernelSetArgValue(kernel, current_arg_index + 3,
-                                         sizeof(size_t), nullptr, &val));
-      current_arg_index += 4;
+      for (uint32_t j = 1; j <= 3; ++j) {
+        auto &stored = arg_value_storage.emplace_back(sizeof(size_t), 0);
+        ur_exp_kernel_arg_value_t v = {};
+        v.value = stored.data();
+        ur_exp_kernel_arg_properties_t a = {
+            UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+            nullptr,
+            UR_EXP_KERNEL_ARG_TYPE_VALUE,
+            static_cast<uint32_t>(current_arg_index + j),
+            sizeof(size_t),
+            v};
+        args.push_back(a);
+      }
     } else {
-      // This emulates the offset struct sycl adds for a 1D buffer accessor.
       struct {
         size_t offsets[1] = {0};
       } accessor;
-      ASSERT_SUCCESS(urKernelSetArgValue(kernel, current_arg_index + 1,
-                                         sizeof(accessor), nullptr, &accessor));
-      current_arg_index += 2;
+      auto &stored = arg_value_storage.emplace_back(sizeof(accessor), 0);
+      std::memcpy(stored.data(), &accessor, sizeof(accessor));
+      ur_exp_kernel_arg_value_t v = {};
+      v.value = stored.data();
+      ur_exp_kernel_arg_properties_t a = {
+          UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+          nullptr,
+          UR_EXP_KERNEL_ARG_TYPE_VALUE,
+          static_cast<uint32_t>(current_arg_index + 1),
+          sizeof(accessor),
+          v};
+      args.push_back(a);
     }
   }
+
+  std::vector<std::vector<ur_exp_kernel_arg_properties_t>> kernel_args;
+  std::vector<std::vector<uint8_t>> arg_value_storage;
 
   void TearDown() override {
     if (num_devices > 1) {
@@ -200,7 +229,7 @@ TEST_P(urMultiDeviceContextMemBufferTest, WriteKernelRead) {
   }
 
   // Kernel to run on queues[1]
-  AddBuffer1DArg(kernels[1], 0, buffer);
+  AddBuffer1DArg(1, 0, buffer);
 
   T fill_val = 42;
   std::vector<T> in_vec(buffer_size, fill_val);
@@ -215,9 +244,10 @@ TEST_P(urMultiDeviceContextMemBufferTest, WriteKernelRead) {
   size_t offset[3] = {0, 0, 0};
 
   // Kernel increments the fill val by 1
-  ASSERT_SUCCESS(urEnqueueKernelLaunch(queues[1], kernels[1], 1 /*workDim=*/,
-                                       offset, work_dims, nullptr, 0, nullptr,
-                                       1, &e1, &e2));
+  ASSERT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
+      queues[1], kernels[1], 1 /*workDim=*/, offset, work_dims, nullptr,
+      static_cast<uint32_t>(kernel_args[1].size()), kernel_args[1].data(),
+      nullptr, 1, &e1, &e2));
 
   ASSERT_SUCCESS(urEnqueueMemBufferRead(queues[0], buffer, false, 0,
                                         buffer_size_bytes, out_vec.data(), 1,
@@ -235,8 +265,8 @@ TEST_P(urMultiDeviceContextMemBufferTest, WriteKernelKernelRead) {
     GTEST_SKIP();
   }
 
-  AddBuffer1DArg(kernels[0], 0, buffer);
-  AddBuffer1DArg(kernels[1], 0, buffer);
+  AddBuffer1DArg(0, 0, buffer);
+  AddBuffer1DArg(1, 0, buffer);
 
   T fill_val = 42;
   std::vector<T> in_vec(buffer_size, fill_val);
@@ -251,14 +281,16 @@ TEST_P(urMultiDeviceContextMemBufferTest, WriteKernelKernelRead) {
   size_t offset[3] = {0, 0, 0};
 
   // Kernel increments the fill val by 1
-  ASSERT_SUCCESS(urEnqueueKernelLaunch(queues[1], kernels[1], 1 /*workDim=*/,
-                                       offset, work_dims, nullptr, 0, nullptr,
-                                       1, &e1, &e2));
+  ASSERT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
+      queues[1], kernels[1], 1 /*workDim=*/, offset, work_dims, nullptr,
+      static_cast<uint32_t>(kernel_args[1].size()), kernel_args[1].data(),
+      nullptr, 1, &e1, &e2));
 
   // Kernel increments the fill val by 1
-  ASSERT_SUCCESS(urEnqueueKernelLaunch(queues[0], kernels[0], 1 /*workDim=*/,
-                                       offset, work_dims, nullptr, 0, nullptr,
-                                       1, &e2, &e3));
+  ASSERT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
+      queues[0], kernels[0], 1 /*workDim=*/, offset, work_dims, nullptr,
+      static_cast<uint32_t>(kernel_args[0].size()), kernel_args[0].data(),
+      nullptr, 1, &e2, &e3));
 
   ASSERT_SUCCESS(urEnqueueMemBufferRead(queues[1], buffer, false, 0,
                                         buffer_size_bytes, out_vec.data(), 1,

@@ -173,7 +173,10 @@ int main() {
   test_func_custom_type<A::B::C::TestClass>();
   test_func<F<float>, float>();
   test_func<F<uint32_t>, uint32_t>();
-  test_func<variadic_templated<double>, double>();
+  // Variadic template functions do not work with free function kernels. See
+  // CMPLRLLVM-69528.
+  // TODO: Uncomment the following line once the tracker is resolved.
+  //  test_func<variadic_templated<double>, double>();
   test_func<sum1<3, float>, float>();
   test_accessor();
   test_shared();

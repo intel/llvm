@@ -21,14 +21,14 @@ set(ENV{TERM} "dumb")
 function(append_info name revision repository)
   if(revision)
     file(APPEND "${HEADER_FILE}.tmp"
-      "#define ${name}_REVISION \"${revision}\"\n")
+      "#define ${name}_REVISION R\"(${revision})\"\n")
   else()
     file(APPEND "${HEADER_FILE}.tmp"
       "#undef ${name}_REVISION\n")
   endif()
   if(repository)
     file(APPEND "${HEADER_FILE}.tmp"
-      "#define ${name}_REPOSITORY \"${repository}\"\n")
+      "#define ${name}_REPOSITORY R\"(${repository})\"\n")
   else()
     file(APPEND "${HEADER_FILE}.tmp"
       "#undef ${name}_REPOSITORY\n")
@@ -55,6 +55,11 @@ foreach(name IN LISTS NAMES)
   endif()
   append_info(${name} "${revision}" "${repository}")
 endforeach()
+
+if(SYCL_BUILD_INFO)
+  file(APPEND "${HEADER_FILE}.tmp"
+      "#define SYCL_BUILD_INFO \"${SYCL_BUILD_INFO}\"\n")
+endif()
 
 # Copy the file only if it has changed.
 execute_process(COMMAND ${CMAKE_COMMAND} -E copy_if_different

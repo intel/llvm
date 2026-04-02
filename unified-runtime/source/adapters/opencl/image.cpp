@@ -9,7 +9,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "common.hpp"
-#include "ur_api.h"
+#include "unified-runtime/ur_api.h"
 
 UR_APIEXPORT ur_result_t UR_APICALL urUSMPitchedAllocExp(
     [[maybe_unused]] ur_context_handle_t hContext,
@@ -84,6 +84,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
     [[maybe_unused]] const ur_image_format_t *pDstImageFormat,
     [[maybe_unused]] ur_exp_image_copy_region_t *pCopyRegion,
     [[maybe_unused]] ur_exp_image_copy_flags_t imageCopyFlags,
+    ur_exp_image_copy_input_types_t,
     [[maybe_unused]] uint32_t numEventsInWaitList,
     [[maybe_unused]] const ur_event_handle_t *phEventWaitList,
     [[maybe_unused]] ur_event_handle_t *phEvent) {

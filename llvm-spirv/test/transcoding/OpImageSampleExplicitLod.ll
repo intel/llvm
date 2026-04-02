@@ -5,8 +5,12 @@
 ; RUN: spirv-val %t.spv
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
+; RUN: %if spirv-backend %{ llc -O0 -mtriple=spirv64-unknown-unknown -filetype=obj %s -o %t.llc.spv %}
+; RUN: %if spirv-backend %{ llvm-spirv -r %t.llc.spv -o %t.llc.rev.bc %}
+; RUN: %if spirv-backend %{ llvm-dis %t.llc.rev.bc -o %t.llc.rev.ll %}
+; RUN: %if spirv-backend %{ FileCheck %s --check-prefix=CHECK-LLVM < %t.llc.rev.ll %}
 
-; CHECK-LLVM: call spir_func float @_Z11read_imagef20ocl_image2d_depth_ro11ocl_samplerDv2_i(ptr
+; CHECK-LLVM: call spir_func float @_Z11read_imagef20ocl_image2d_depth_ro11ocl_samplerDv2_i(target("spirv.Image", void, 1, 1, 0, 0, 0, 0, 0)
 
 ; CHECK-SPIRV-DAG: 7 ImageSampleExplicitLod [[RetType:[0-9]+]] [[RetID:[0-9]+]] {{[0-9]+}} {{[0-9]+}} 2 {{[0-9]+}}
 ; CHECK-SPIRV-DAG: 4 TypeVector [[RetType]] {{[0-9]+}} 4

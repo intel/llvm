@@ -23,6 +23,7 @@ add_ur_adapter(${TARGET_NAME}
     ${CMAKE_CURRENT_SOURCE_DIR}/enqueue_native.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/event.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/event.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/graph.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/image.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/image.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/kernel.hpp
@@ -62,13 +63,13 @@ add_library(cudadrv SHARED IMPORTED GLOBAL)
 
 if (WIN32)
   set_target_properties(
-    cudadrv PROPERTIES 
+    cudadrv PROPERTIES
       IMPORTED_IMPLIB               "${CUDA_cuda_driver_LIBRARY}"
       INTERFACE_INCLUDE_DIRECTORIES "${CUDAToolkit_INCLUDE_DIRS}"
   )
 else()
   set_target_properties(
-    cudadrv PROPERTIES 
+    cudadrv PROPERTIES
       IMPORTED_LOCATION             "${CUDA_cuda_driver_LIBRARY}"
       INTERFACE_INCLUDE_DIRECTORIES "${CUDAToolkit_INCLUDE_DIRS}"
   )

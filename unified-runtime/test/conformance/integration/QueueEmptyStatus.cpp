@@ -1,4 +1,4 @@
-// Copyright (C) 2024 Intel Corporation
+// Copyright (C) 2024-2026 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
 //
@@ -9,14 +9,14 @@
 #include <thread>
 #include <uur/known_failure.h>
 
-struct QueueEmptyStatusTestWithParam : uur::IntegrationQueueTestWithParam {
+struct QueueEmptyStatusTest : uur::IntegrationQueueTest {
 
   void SetUp() override {
     UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{},
                          uur::NativeCPU{});
 
     program_name = "multiply";
-    UUR_RETURN_ON_FATAL_FAILURE(uur::IntegrationQueueTestWithParam::SetUp());
+    UUR_RETURN_ON_FATAL_FAILURE(uur::IntegrationQueueTest::SetUp());
 
     ur_device_usm_access_capability_flags_t shared_usm_flags = 0;
     ASSERT_SUCCESS(
@@ -42,29 +42,37 @@ struct QueueEmptyStatusTestWithParam : uur::IntegrationQueueTestWithParam {
     if (SharedMem) {
       ASSERT_SUCCESS(urUSMFree(context, SharedMem));
     }
-    uur::IntegrationQueueTestWithParam::TearDown();
+    uur::IntegrationQueueTest::TearDown();
   }
 
   void submitWorkToQueue() {
     ur_event_handle_t Event;
-    ASSERT_SUCCESS(urEnqueueUSMFill(Queue, SharedMem, sizeof(uint32_t),
+    ASSERT_SUCCESS(urEnqueueUSMFill(queue, SharedMem, sizeof(uint32_t),
                                     &InitialValue, ArraySize * sizeof(uint32_t),
                                     0, nullptr, &Event));
     ASSERT_NO_FATAL_FAILURE(submitBarrierIfNeeded(Event));
 
-    ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, SharedMem));
+    ur_exp_kernel_arg_value_t arg_val = {};
+    arg_val.pointer = SharedMem;
+    ur_exp_kernel_arg_properties_t arg = {
+        UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+        nullptr,
+        UR_EXP_KERNEL_ARG_TYPE_POINTER,
+        0,
+        sizeof(void *),
+        arg_val};
 
     constexpr size_t global_offset = 0;
     constexpr size_t n_dimensions = 1;
     constexpr uint32_t num_iterations = 5;
     for (uint32_t i = 0; i < num_iterations; ++i) {
-      ASSERT_SUCCESS(urEnqueueKernelLaunch(Queue, kernel, n_dimensions,
-                                           &global_offset, &ArraySize, nullptr,
-                                           0, nullptr, 0, nullptr, &Event));
+      ASSERT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
+          queue, kernel, n_dimensions, &global_offset, &ArraySize, nullptr, 1,
+          &arg, nullptr, 0, nullptr, &Event));
       ASSERT_NO_FATAL_FAILURE(submitBarrierIfNeeded(Event));
     }
 
-    ASSERT_SUCCESS(urQueueFlush(Queue));
+    ASSERT_SUCCESS(urQueueFlush(queue));
   }
 
   void waitUntilQueueEmpty() const {
@@ -81,7 +89,7 @@ struct QueueEmptyStatusTestWithParam : uur::IntegrationQueueTestWithParam {
       std::this_thread::sleep_for(step);
 
       ur_bool_t is_queue_empty;
-      ASSERT_SUCCESS(urQueueGetInfo(Queue, UR_QUEUE_INFO_EMPTY,
+      ASSERT_SUCCESS(urQueueGetInfo(queue, UR_QUEUE_INFO_EMPTY,
                                     sizeof(ur_bool_t), &is_queue_empty,
                                     nullptr));
       if (is_queue_empty) {
@@ -91,25 +99,25 @@ struct QueueEmptyStatusTestWithParam : uur::IntegrationQueueTestWithParam {
 
     /* If we are here, the test failed. Let's call queue finish to avoid
      * issues when freeing memory */
-    ASSERT_SUCCESS(urQueueFinish(Queue));
+    ASSERT_SUCCESS(urQueueFinish(queue));
     GTEST_FAIL();
   }
 
   void *SharedMem = nullptr;
 };
 
-UUR_DEVICE_TEST_SUITE_WITH_PARAM(
-    QueueEmptyStatusTestWithParam,
+UUR_DEVICE_TEST_SUITE_WITH_QUEUE_TYPES_PRINTER(
+    QueueEmptyStatusTest,
     testing::Values(0, /* In-Order */
                     UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE),
-    uur::IntegrationQueueTestWithParam::paramPrinter);
+    uur::IntegrationQueueTest::paramPrinter);
 
 /* Submits kernels that have a dependency on each other and checks that the
  * queue submits all the work in the correct order to the device.
  * Explicit synchronization (except for barriers) is avoided in these tests to
  * check that the properties of In-Order and OutOfOrder queues are working as
  * expected */
-TEST_P(QueueEmptyStatusTestWithParam, QueueEmptyStatusTest) {
+TEST_P(QueueEmptyStatusTest, QueueEmptyStatusTest) {
   ASSERT_NO_FATAL_FAILURE(submitWorkToQueue());
   ASSERT_NO_FATAL_FAILURE(waitUntilQueueEmpty());
 

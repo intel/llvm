@@ -105,7 +105,7 @@ int main(int argc, const char **argv) {
 A utility to extract all the target images from a
 linked fat binary, and store them in separate files.
 )",
-                              nullptr, nullptr, true);
+                              nullptr, nullptr, nullptr, true);
 
   // Read input file. It should have one of the supported object file
   // formats:

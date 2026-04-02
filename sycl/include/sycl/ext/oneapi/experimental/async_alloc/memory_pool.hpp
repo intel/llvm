@@ -24,6 +24,8 @@ class memory_pool_impl;
 
 /// Memory pool
 class __SYCL_EXPORT memory_pool {
+  friend sycl::detail::ImplUtils;
+
 public:
   template <typename Properties = empty_properties_t,
             typename = std::enable_if_t<
@@ -76,17 +78,6 @@ protected:
   memory_pool(const sycl::context &ctx, const sycl::device &dev,
               sycl::usm::alloc kind, pool_properties props);
 
-  template <class Obj>
-  friend const decltype(Obj::impl) &
-  sycl::detail::getSyclObjImpl(const Obj &SyclObject);
-
-  template <class T>
-  friend T sycl::detail::createSyclObjFromImpl(
-      std::add_rvalue_reference_t<decltype(T::impl)> ImplObj);
-  template <class T>
-  friend T sycl::detail::createSyclObjFromImpl(
-      std::add_lvalue_reference_t<const decltype(T::impl)> ImplObj);
-
   template <typename Properties> pool_properties stripProps(Properties props) {
     pool_properties poolProps{};
     if constexpr (decltype(props)::template has_property<initial_threshold>()) {
@@ -110,13 +101,7 @@ protected:
 } // namespace _V1
 } // namespace sycl
 
-namespace std {
-template <> struct hash<sycl::ext::oneapi::experimental::memory_pool> {
-  size_t operator()(
-      const sycl::ext::oneapi::experimental::memory_pool &mem_pool) const {
-    return hash<std::shared_ptr<
-        sycl::ext::oneapi::experimental::detail::memory_pool_impl>>()(
-        sycl::detail::getSyclObjImpl(mem_pool));
-  }
-};
-} // namespace std
+template <>
+struct std::hash<sycl::ext::oneapi::experimental::memory_pool>
+    : public sycl::detail::sycl_obj_hash<
+          sycl::ext::oneapi::experimental::memory_pool> {};

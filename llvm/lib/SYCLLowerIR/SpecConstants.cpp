@@ -122,7 +122,7 @@ StringRef getStringLiteralArg(const CallInst *CI, unsigned ArgNo,
         V = ASC->getPointerOperand()->stripPointerCasts();
       using namespace PatternMatch;
       Value *X;
-      if (match(V, m_IntToPtr(m_Add(m_PtrToInt(m_Value(X)), m_ConstantInt()))))
+      if (match(V, m_PtrAdd(m_Value(X), m_Constant())))
         V = X;
       return isa<AllocaInst>(V);
     };
@@ -348,7 +348,7 @@ void collectCompositeElementsDefaultValuesRecursive(
 
   if (auto *ArrayC = dyn_cast<ConstantArray>(C)) {
     // This branch handles arrays of composite types (structs, arrays, etc.)
-    assert(!C->isZeroValue() && "C must not be a zeroinitializer");
+    assert(!C->isNullValue() && "C must not be a zeroinitializer");
     for (size_t I = 0; I < ArrayC->getType()->getNumElements(); ++I) {
       collectCompositeElementsDefaultValuesRecursive(M, ArrayC->getOperand(I),
                                                      Offset, DefaultValues);
@@ -357,7 +357,7 @@ void collectCompositeElementsDefaultValuesRecursive(
   }
 
   if (auto *StructC = dyn_cast<ConstantStruct>(C)) {
-    assert(!C->isZeroValue() && "C must not be a zeroinitializer");
+    assert(!C->isNullValue() && "C must not be a zeroinitializer");
     auto *StructTy = StructC->getType();
     const StructLayout *SL = M.getDataLayout().getStructLayout(StructTy);
     const size_t BaseDefaultValueOffset = DefaultValues.size();
@@ -541,7 +541,8 @@ Instruction *emitCall(Type *RetTy, StringRef BaseFunctionName,
   // types? Is it necessary?
 
   FunctionCallee FC = M->getOrInsertFunction(FunctionName, FT);
-  auto *Call = CallInst::Create(FT, FC.getCallee(), Args, "", InsertBefore);
+  auto *Call = CallInst::Create(FT, FC.getCallee(), Args, "",
+                                InsertBefore->getIterator());
   if (IsSPIROrSPIRV) {
     cast<Function>(FC.getCallee())->setCallingConv(CallingConv::SPIR_FUNC);
     Call->setCallingConv(CallingConv::SPIR_FUNC);
@@ -724,9 +725,8 @@ Value *createLoadFromBuffer(CallInst *InsertBefore, Value *Buffer,
   if (SCType->isIntegerTy(1)) // No bitcast to i1 before load
     BitCast = GEP;
   else
-    BitCast =
-        new BitCastInst(GEP, PointerType::get(SCType, GEP->getAddressSpace()),
-                        "bc", InsertBefore->getIterator());
+    BitCast = new BitCastInst(GEP, PointerType::get(C, GEP->getAddressSpace()),
+                              "bc", InsertBefore->getIterator());
 
   // When we encounter i1 spec constant, we still load the whole byte
   Value *Load = new LoadInst(SCType->isIntegerTy(1) ? Int8Ty : SCType, BitCast,
@@ -760,7 +760,7 @@ Constant *getSpecConstInitializerFromCI(CallInst *CI, unsigned ArgIndex) {
   // Go through global variable if the argument was not null.
   assert(GV->hasInitializer() && "GV is expected to have initializer");
   Constant *Initializer = GV->getInitializer();
-  assert((isa<ConstantAggregate>(Initializer) || Initializer->isZeroValue()) &&
+  assert((isa<ConstantAggregate>(Initializer) || Initializer->isNullValue()) &&
          "expected specialization_id instance");
   // specialization_id structure contains a single field which is the
   // default value of corresponding specialization constant.
@@ -831,14 +831,27 @@ void updatePaddingInLastMDNode(LLVMContext &Ctx,
 /// type.
 void createStoreInstructionIntoSpecConstValue(Value *Dst, Value *V,
                                               CallInst *InsertBefore) {
-  Type *PointerType =
-      PointerType::get(V->getType(), Dst->getType()->getPointerAddressSpace());
+  Type *PointerType = PointerType::get(
+      V->getContext(), Dst->getType()->getPointerAddressSpace());
   IRBuilder B(InsertBefore);
   Value *Bitcast = B.CreateBitCast(Dst, PointerType);
   B.CreateStore(V, Bitcast);
 }
 
 } // namespace
+
+StringRef SpecConstantsPass::convertHandlingModeToString(HandlingMode Mode) {
+  switch (Mode) {
+  case SpecConstantsPass::HandlingMode::native:
+    return "native";
+  case SpecConstantsPass::HandlingMode::emulation:
+    return "emulation";
+  case SpecConstantsPass::HandlingMode::default_values:
+    return "default_values";
+  }
+
+  llvm_unreachable("uncovered input value");
+}
 
 PreservedAnalyses SpecConstantsPass::run(Module &M,
                                          ModuleAnalysisManager &MAM) {

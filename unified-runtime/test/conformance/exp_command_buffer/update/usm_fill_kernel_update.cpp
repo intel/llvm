@@ -1,10 +1,11 @@
-// Copyright (C) 2024 Intel Corporation
+// Copyright (C) 2024-2026 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include "../fixtures.h"
+#include "uur/fixtures.h"
 #include <array>
 #include <cstring>
 
@@ -30,16 +31,25 @@ struct USMFillCommandTest
     ASSERT_NE(shared_ptr, nullptr);
     std::memset(shared_ptr, 0, allocation_size);
 
-    // Index 0 is output
-    ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, shared_ptr));
-    // Index 1 is input scalar
-    ASSERT_SUCCESS(urKernelSetArgValue(kernel, 1, sizeof(val), nullptr, &val));
+    // Build kernel args
+    fill_args[0] = {UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+                    nullptr,
+                    UR_EXP_KERNEL_ARG_TYPE_POINTER,
+                    0,
+                    sizeof(void *),
+                    {shared_ptr}};
+    fill_args[1] = {UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+                    nullptr,
+                    UR_EXP_KERNEL_ARG_TYPE_VALUE,
+                    1,
+                    sizeof(val),
+                    {&val}};
 
     // Append kernel command to command-buffer and close command-buffer
-    ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchExp(
+    ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchWithArgsExp(
         updatable_cmd_buf_handle, kernel, n_dimensions, &global_offset,
-        &global_size, &local_size, 0, nullptr, 0, nullptr, 0, nullptr, nullptr,
-        nullptr, &command_handle));
+        &global_size, &local_size, 2, fill_args, 0, nullptr, 0, nullptr, 0,
+        nullptr, nullptr, nullptr, &command_handle));
     ASSERT_NE(command_handle, nullptr);
 
     ASSERT_SUCCESS(urCommandBufferFinalizeExp(updatable_cmd_buf_handle));
@@ -73,9 +83,10 @@ struct USMFillCommandTest
   void *shared_ptr = nullptr;
   void *new_shared_ptr = nullptr;
   ur_exp_command_buffer_command_handle_t command_handle = nullptr;
+  ur_exp_kernel_arg_properties_t fill_args[2] = {};
 };
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(USMFillCommandTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_MULTI_QUEUE(USMFillCommandTest);
 
 // Test using a different global size to fill and larger USM output buffer
 TEST_P(USMFillCommandTest, UpdateParameters) {
@@ -265,18 +276,29 @@ struct USMMultipleFillCommandTest
       // Calculate offset into output allocation, and set as
       // kernel output.
       void *offset_ptr = (uint32_t *)shared_ptr + (k * elements);
-      ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, offset_ptr));
 
       // Each kernel has a unique fill value
       uint32_t fill_val = val + k;
-      ASSERT_SUCCESS(
-          urKernelSetArgValue(kernel, 1, sizeof(fill_val), nullptr, &fill_val));
+
+      ur_exp_kernel_arg_properties_t k_args[2];
+      k_args[0] = {UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+                   nullptr,
+                   UR_EXP_KERNEL_ARG_TYPE_POINTER,
+                   0,
+                   sizeof(void *),
+                   {offset_ptr}};
+      k_args[1] = {UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+                   nullptr,
+                   UR_EXP_KERNEL_ARG_TYPE_VALUE,
+                   1,
+                   sizeof(fill_val),
+                   {&fill_val}};
 
       // Append kernel and store returned handle
-      ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchExp(
+      ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchWithArgsExp(
           updatable_cmd_buf_handle, kernel, n_dimensions, &global_offset,
-          &elements, &local_size, 0, nullptr, 0, nullptr, 0, nullptr, nullptr,
-          nullptr, &command_handles[k]));
+          &elements, &local_size, 2, k_args, 0, nullptr, 0, nullptr, 0, nullptr,
+          nullptr, nullptr, &command_handles[k]));
       ASSERT_NE(command_handles[k], nullptr);
     }
 
@@ -317,7 +339,7 @@ struct USMMultipleFillCommandTest
       command_handles;
 };
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(USMMultipleFillCommandTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_MULTI_QUEUE(USMMultipleFillCommandTest);
 
 // Test updating all the kernels commands in the command-buffer
 TEST_P(USMMultipleFillCommandTest, UpdateAllKernels) {

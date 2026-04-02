@@ -1,10 +1,11 @@
-// Copyright (C) 2025 Intel Corporation
+// Copyright (C) 2025-2026 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include "../fixtures.h"
+#include "uur/fixtures.h"
 
 // UR reproducer for SYCL-Graph E2E test "RecordReplay/usm_copy_in_order.cpp"
 // Note that the kernel code is different, in that this test uses the
@@ -44,14 +45,35 @@ struct urCommandBufferUSMCopyInOrderTest
     }
     ASSERT_SUCCESS(urQueueFinish(queue));
 
+    // Build kernel args for saxpy_usm: output, A, X, Y
     // Index 0 is output
-    ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, device_ptrs[0]));
+    saxpy_args[0] = {UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+                     nullptr,
+                     UR_EXP_KERNEL_ARG_TYPE_POINTER,
+                     0,
+                     sizeof(void *),
+                     {device_ptrs[0]}};
     // Index 1 is A
-    ASSERT_SUCCESS(urKernelSetArgValue(kernel, 1, sizeof(A), nullptr, &A));
+    saxpy_args[1] = {UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+                     nullptr,
+                     UR_EXP_KERNEL_ARG_TYPE_VALUE,
+                     1,
+                     sizeof(A),
+                     {&A}};
     // Index 2 is X
-    ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 2, nullptr, device_ptrs[1]));
+    saxpy_args[2] = {UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+                     nullptr,
+                     UR_EXP_KERNEL_ARG_TYPE_POINTER,
+                     2,
+                     sizeof(void *),
+                     {device_ptrs[1]}};
     // Index 3 is Y
-    ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 3, nullptr, device_ptrs[2]));
+    saxpy_args[3] = {UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+                     nullptr,
+                     UR_EXP_KERNEL_ARG_TYPE_POINTER,
+                     3,
+                     sizeof(void *),
+                     {device_ptrs[2]}};
   }
 
   virtual void TearDown() override {
@@ -74,9 +96,13 @@ struct urCommandBufferUSMCopyInOrderTest
   static constexpr size_t allocation_size = sizeof(uint32_t) * global_size;
   static constexpr uint32_t A = 42;
   std::array<void *, 4> device_ptrs = {nullptr, nullptr, nullptr, nullptr};
+  // SAXPY: Single-precision A * X Plus Y (y = a * x + y)
+  ur_exp_kernel_arg_properties_t saxpy_args[4] = {};
 };
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(urCommandBufferUSMCopyInOrderTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_MULTI_QUEUE(
+    urCommandBufferUSMCopyInOrderTest);
+
 TEST_P(urCommandBufferUSMCopyInOrderTest, Success) {
   // https://github.com/intel/llvm/issues/19604
   UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
@@ -85,9 +111,9 @@ TEST_P(urCommandBufferUSMCopyInOrderTest, Success) {
   // D[0] = A * D[1] + D[2]
   // D[0] = 42 * 1 + 2
   // D[0] = 44
-  ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, n_dimensions,
-                                       &global_offset, &global_size, nullptr, 0,
-                                       nullptr, 0, nullptr, nullptr));
+  ASSERT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
+      queue, kernel, n_dimensions, &global_offset, &global_size, nullptr, 4,
+      saxpy_args, nullptr, 0, nullptr, nullptr));
 
   // command-buffer sync point used to enforce linear dependencies when
   // appending commands to the command-buffer.
@@ -97,12 +123,35 @@ TEST_P(urCommandBufferUSMCopyInOrderTest, Success) {
   // D[3] = A * D[1] + D[0]
   // D[3] = 42 * 1 + 44
   // D[3] = 86
-  ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 3, nullptr, device_ptrs[0]));
-  ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, device_ptrs[3]));
-  ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchExp(
+  ur_exp_kernel_arg_properties_t cb_args1[4];
+  cb_args1[0] = {UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+                 nullptr,
+                 UR_EXP_KERNEL_ARG_TYPE_POINTER,
+                 0,
+                 sizeof(void *),
+                 {device_ptrs[3]}};
+  cb_args1[1] = {UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+                 nullptr,
+                 UR_EXP_KERNEL_ARG_TYPE_VALUE,
+                 1,
+                 sizeof(A),
+                 {&A}};
+  cb_args1[2] = {UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+                 nullptr,
+                 UR_EXP_KERNEL_ARG_TYPE_POINTER,
+                 2,
+                 sizeof(void *),
+                 {device_ptrs[1]}};
+  cb_args1[3] = {UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+                 nullptr,
+                 UR_EXP_KERNEL_ARG_TYPE_POINTER,
+                 3,
+                 sizeof(void *),
+                 {device_ptrs[0]}};
+  ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchWithArgsExp(
       in_order_cmd_buf, kernel, n_dimensions, &global_offset, &global_size,
-      nullptr, 0, nullptr, 0, nullptr, 0, nullptr, &sync_point, nullptr,
-      nullptr));
+      nullptr, 4, cb_args1, 0, nullptr, 0, nullptr, 0, nullptr, &sync_point,
+      nullptr, nullptr));
 
   // Add device-to-device memcpy node from output of previous command to
   // the X component of the expression.
@@ -115,10 +164,10 @@ TEST_P(urCommandBufferUSMCopyInOrderTest, Success) {
   // D[3] = A * [1] + [0]
   // D[3] = 42 * 86 + 44
   // D[3] = 3656
-  ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchExp(
+  ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchWithArgsExp(
       in_order_cmd_buf, kernel, n_dimensions, &global_offset, &global_size,
-      nullptr, 0, nullptr, 1, &sync_point, 0, nullptr, &sync_point, nullptr,
-      nullptr));
+      nullptr, 4, cb_args1, 0, nullptr, 1, &sync_point, 0, nullptr, &sync_point,
+      nullptr, nullptr));
 
   // Add device-to-device memcpy node from output of previous command to
   // currently unused USM allocation.

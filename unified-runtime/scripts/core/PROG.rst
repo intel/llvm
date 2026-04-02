@@ -264,16 +264,13 @@ explicit and implicit kernel arguments along with data needed for launch.
     // Create kernel object from program
     ${x}_kernel_handle_t hKernel;
     ${x}KernelCreate(hProgram, "addVectors", &hKernel);
-    ${x}KernelSetArgMemObj(hKernel, 0, nullptr, A);
-    ${x}KernelSetArgMemObj(hKernel, 1, nullptr, B);
-    ${x}KernelSetArgMemObj(hKernel, 2, nullptr, C);
 
 Queue and Enqueue
 =================
 
 Queue objects are used to submit work to a given device. Kernels
 and commands are submitted to queue for execution using Enqueue commands:
-such as ${x}EnqueueKernelLaunch, ${x}EnqueueMemBufferWrite. Enqueued kernels
+such as ${x}EnqueueKernelLaunchWithArgsExp, ${x}EnqueueMemBufferWrite. Enqueued kernels
 and commands can be executed in order or out of order depending on the
 queue's property ${X}_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE when the
 queue is created. If a queue is out of order, the queue may internally do some
@@ -292,8 +289,8 @@ event dependencies that are passed to each Enqueue command.
     const size_t gWorkOffset = {0, 0, 0};
     const size_t gWorkSize = {128, 128, 128};
     const size_t lWorkSize = {1, 8, 8}; 
-    ${x}EnqueueKernelLaunch(hQueue, hKernel, nDim, gWorkOffset, gWorkSize, 
-                            lWorkSize, 0, nullptr, 0, nullptr, nullptr);
+    ${x}EnqueueKernelLaunchWithArgsExp(hQueue, hKernel, nDim, gWorkOffset, gWorkSize,
+                                       lWorkSize, 0, nullptr, nullptr, 0, nullptr, nullptr);
 
 Queue object lifetime
 ---------------------

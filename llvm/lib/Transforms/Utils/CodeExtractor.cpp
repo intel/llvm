@@ -63,7 +63,6 @@
 #include <cstdint>
 #include <iterator>
 #include <map>
-#include <utility>
 #include <vector>
 
 using namespace llvm;
@@ -750,13 +749,13 @@ void CodeExtractor::severSplitPHINodesOfEntry(BasicBlock *&Header) {
 
       // Loop over all of the incoming value in PN, moving them to NewPN if they
       // are from the extracted region.
-      for (unsigned i = 0; i != PN->getNumIncomingValues(); ++i) {
+      PN->removeIncomingValueIf([&](unsigned i) {
         if (Blocks.count(PN->getIncomingBlock(i))) {
           NewPN->addIncoming(PN->getIncomingValue(i), PN->getIncomingBlock(i));
-          PN->removeIncomingValue(i);
-          --i;
+          return true;
         }
-      }
+        return false;
+      });
     }
   }
 }
@@ -933,6 +932,7 @@ Function *CodeExtractor::constructFunctionDeclaration(
       case Attribute::CoroDestroyOnlyWhenComplete:
       case Attribute::CoroElideSafe:
       case Attribute::NoDivergenceSource:
+      case Attribute::NoCreateUndefOrPoison:
         continue;
       // Those attributes should be safe to propagate to the extracted function.
       case Attribute::AlwaysInline:
@@ -949,6 +949,7 @@ Function *CodeExtractor::constructFunctionDeclaration(
       case Attribute::NoFree:
       case Attribute::NoImplicitFloat:
       case Attribute::NoInline:
+      case Attribute::NoOutline:
       case Attribute::NonLazyBind:
       case Attribute::NoRedZone:
       case Attribute::NoUnwind:
@@ -970,6 +971,7 @@ Function *CodeExtractor::constructFunctionDeclaration(
       case Attribute::SanitizeMemTag:
       case Attribute::SanitizeRealtime:
       case Attribute::SanitizeRealtimeBlocking:
+      case Attribute::SanitizeAllocToken:
       case Attribute::SpeculativeLoadHardening:
       case Attribute::StackProtect:
       case Attribute::StackProtectReq:
@@ -981,6 +983,7 @@ Function *CodeExtractor::constructFunctionDeclaration(
       case Attribute::MustProgress:
       case Attribute::NoProfile:
       case Attribute::SkipProfile:
+      case Attribute::DenormalFPEnv:
         break;
       // These attributes cannot be applied to functions.
       case Attribute::Alignment:
@@ -1099,7 +1102,7 @@ static void eraseLifetimeMarkersOnInputs(const SetVector<BasicBlock *> &Blocks,
       // Get the memory operand of the lifetime marker. If the underlying
       // object is a sunk alloca, or is otherwise defined in the extraction
       // region, the lifetime marker must not be erased.
-      Value *Mem = II->getOperand(1)->stripInBoundsOffsets();
+      Value *Mem = II->getOperand(0);
       if (SunkAllocas.count(Mem) || definedInRegion(Blocks, Mem))
         continue;
 
@@ -1115,8 +1118,6 @@ static void eraseLifetimeMarkersOnInputs(const SetVector<BasicBlock *> &Blocks,
 static void insertLifetimeMarkersSurroundingCall(
     Module *M, ArrayRef<Value *> LifetimesStart, ArrayRef<Value *> LifetimesEnd,
     CallInst *TheCall) {
-  LLVMContext &Ctx = M->getContext();
-  auto NegativeOne = ConstantInt::getSigned(Type::getInt64Ty(Ctx), -1);
   Instruction *Term = TheCall->getParent()->getTerminator();
 
   // Emit lifetime markers for the pointers given in \p Objects. Insert the
@@ -1130,7 +1131,7 @@ static void insertLifetimeMarkersSurroundingCall(
 
       Function *Func =
           Intrinsic::getOrInsertDeclaration(M, MarkerFunc, Mem->getType());
-      auto Marker = CallInst::Create(Func, {NegativeOne, Mem});
+      auto Marker = CallInst::Create(Func, Mem);
       if (InsertBefore)
         Marker->insertBefore(TheCall->getIterator());
       else
@@ -1219,12 +1220,8 @@ void CodeExtractor::calculateNewCallTerminatorWeights(
 /// \p F.
 static void eraseDebugIntrinsicsWithNonLocalRefs(Function &F) {
   for (Instruction &I : instructions(F)) {
-    SmallVector<DbgVariableIntrinsic *, 4> DbgUsers;
     SmallVector<DbgVariableRecord *, 4> DbgVariableRecords;
-    findDbgUsers(DbgUsers, &I, &DbgVariableRecords);
-    for (DbgVariableIntrinsic *DVI : DbgUsers)
-      if (DVI->getFunction() != &F)
-        DVI->eraseFromParent();
+    findDbgUsers(&I, DbgVariableRecords);
     for (DbgVariableRecord *DVR : DbgVariableRecords)
       if (DVR->getFunction() != &F)
         DVR->eraseFromParent();
@@ -1286,17 +1283,13 @@ static void fixupDebugInfoPostExtraction(Function &OldFunc, Function &NewFunc,
         NewFunc.getEntryBlock().getTerminator()->getIterator());
   };
   for (auto [Input, NewVal] : zip_equal(Inputs, NewValues)) {
-    SmallVector<DbgVariableIntrinsic *, 1> DbgUsers;
     SmallVector<DbgVariableRecord *, 1> DPUsers;
-    findDbgUsers(DbgUsers, Input, &DPUsers);
+    findDbgUsers(Input, DPUsers);
     DIExpression *Expr = DIB.createExpression();
 
     // Iterate the debud users of the Input values. If they are in the extracted
     // function then update their location with the new value. If they are in
     // the parent function then create a similar debug record.
-    for (auto *DVI : DbgUsers)
-      UpdateOrInsertDebugRecord(DVI, Input, NewVal, Expr,
-                                isa<DbgDeclareInst>(DVI));
     for (auto *DVR : DPUsers)
       UpdateOrInsertDebugRecord(DVR, Input, NewVal, Expr, DVR->isDbgDeclare());
   }

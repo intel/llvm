@@ -1,6 +1,6 @@
 //===--------- device.cpp - HIP Adapter -----------------------------------===//
 //
-// Copyright (C) 2023 Intel Corporation
+// Copyright (C) 2023-2026 Intel Corporation
 //
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
@@ -999,6 +999,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_2D_BLOCK_ARRAY_CAPABILITIES_EXP:
     return ReturnValue(
         static_cast<ur_exp_device_2d_block_array_capability_flags_t>(0));
+  case UR_DEVICE_INFO_IPC_MEMORY_SUPPORT_EXP:
+    return ReturnValue(false);
   case UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP: {
     int RuntimeVersion = 0;
     UR_CHECK_ERROR(hipRuntimeGetVersion(&RuntimeVersion));
@@ -1041,13 +1043,25 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(true);
   case UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP:
     return ReturnValue(false);
+  case UR_DEVICE_INFO_DEVICE_WAIT_SUPPORT_EXP:
+    return ReturnValue(false);
+  case UR_DEVICE_INFO_DYNAMIC_LINK_SUPPORT_EXP:
+    return ReturnValue(false);
   case UR_DEVICE_INFO_KERNEL_LAUNCH_CAPABILITIES:
     return ReturnValue(0);
   case UR_DEVICE_INFO_MEMORY_EXPORT_EXPORTABLE_DEVICE_MEM_EXP:
     return ReturnValue(false);
+  case UR_DEVICE_INFO_ENQUEUE_HOST_TASK_SUPPORT_EXP:
+    return ReturnValue(false);
+  case UR_DEVICE_INFO_GRAPH_RECORD_AND_REPLAY_SUPPORT_EXP:
+    return ReturnValue(false);
   default:
-    break;
+    UR_LOG(ERR, "Unsupported ParamName in urDeviceGetInfo");
+    UR_LOG(ERR, "ParamName={}(0x{})", propName, logger::toHex(propName));
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   }
+
+  // Unreachable - all cases return, but compiler needs this
   return UR_RESULT_ERROR_INVALID_ENUMERATION;
 }
 
@@ -1238,4 +1252,8 @@ ur_result_t UR_APICALL urDeviceGetGlobalTimestamps(ur_device_handle_t hDevice,
             .count();
   }
   return UR_RESULT_SUCCESS;
+}
+
+ur_result_t UR_APICALL urDeviceWaitExp(ur_device_handle_t) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }

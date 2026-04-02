@@ -26,15 +26,15 @@ runs:
   using: "composite"
   steps:
   - name: Login to GitHub Container Registry
-    uses: docker/login-action@v2
+    uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
     with:
       registry: ghcr.io
       username: ${{ inputs.username }}
       password: ${{ inputs.password }}
   - name: Set up Docker Buildx
-    uses: docker/setup-buildx-action@v3.11.1
+    uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
   - name: Build and Push Container
-    uses: docker/build-push-action@v6.18.0
+    uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
     with:
       push: ${{ inputs.push }}
       tags: ${{ inputs.tags }}

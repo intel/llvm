@@ -9,13 +9,11 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
-#include <set>
-
 #include "common.hpp"
 #include "common/ur_ref_count.hpp"
 #include "enqueued_pool.hpp"
 #include "event.hpp"
-#include "ur_api.h"
+#include "unified-runtime/ur_api.h"
 #include "ur_pool_manager.hpp"
 #include "usm.hpp"
 #include <umf_helpers.hpp>
@@ -73,8 +71,7 @@ struct ur_usm_pool_handle_t_ : ur_object {
 
   std::optional<std::pair<void *, ur_event_handle_t>>
   allocateEnqueued(ur_queue_handle_t Queue, ur_device_handle_t Device,
-                   const ur_usm_desc_t *USMDesc, ur_usm_type_t Type,
-                   size_t Size);
+                   ur_usm_type_t Type, size_t Size);
 
   bool hasPool(const umf_memory_pool_handle_t Pool);
   UsmPool *getPoolByHandle(const umf_memory_pool_handle_t Pool);
@@ -84,12 +81,12 @@ struct ur_usm_pool_handle_t_ : ur_object {
   size_t getPeakReservedSize();
   size_t getTotalUsedSize();
   size_t getPeakUsedSize();
+  UsmPool *getPool(const usm::pool_descriptor &Desc);
 
   ur_context_handle_t Context;
   ur::RefCount RefCount;
 
 private:
-  UsmPool *getPool(const usm::pool_descriptor &Desc);
   usm::pool_manager<usm::pool_descriptor, UsmPool> PoolManager;
   AllocationStats AllocStats;
 };

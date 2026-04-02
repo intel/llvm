@@ -137,14 +137,14 @@ static ::jit_compiler::BinaryFormat getTargetFormat(queue_impl &Queue) {
   default:
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
-        "Backend unsupported by kernel fusion");
+        "Backend unsupported by JIT compiler");
   }
 }
 #endif // _WIN32
 
 ur_kernel_handle_t jit_compiler::materializeSpecConstants(
     queue_impl &Queue, const RTDeviceBinaryImage *BinImage,
-    KernelNameStrRefT KernelName,
+    std::string_view KernelName,
     const std::vector<unsigned char> &SpecConstBlob) {
 #ifndef _WIN32
   if (!BinImage) {

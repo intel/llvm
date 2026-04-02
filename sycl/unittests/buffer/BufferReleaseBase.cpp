@@ -256,7 +256,7 @@ TEST_F(BufferDestructionCheck, ReadyToReleaseLogic) {
   ExpectedEventStatus[WriteCmd->getEvent()->getHandle()] =
       UR_EVENT_STATUS_COMPLETE;
   EXPECT_TRUE(MockSchedulerPtr->checkLeavesCompletion(Rec));
-  // previous expect_call is still valid and will generate failure if we recieve
+  // previous expect_call is still valid and will generate failure if we receive
   // call here, no need for extra limitation
   EXPECT_CALL(*ReadCmd, Release).Times(1);
   EXPECT_CALL(*WriteCmd, Release).Times(1);

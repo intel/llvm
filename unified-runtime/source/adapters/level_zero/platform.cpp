@@ -1,6 +1,6 @@
 //===--------- platform.cpp - Level Zero Adapter --------------------------===//
 //
-// Copyright (C) 2023 Intel Corporation
+// Copyright (C) 2023-2026 Intel Corporation
 //
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
@@ -11,6 +11,10 @@
 #include "platform.hpp"
 #include "adapter.hpp"
 #include "ur_level_zero.hpp"
+
+// The default value of the driver versions skiplist
+// (SYCL_UR_L0_DRIVER_SKIPLIST)
+static const std::vector<std::string> DriverSkiplistDefault = {};
 
 namespace ur::level_zero {
 
@@ -218,7 +222,6 @@ ur_result_t ur_platform_handle_t_::initialize() {
              (ZeDriver, &Count, ZeExtensions.data()));
 
   bool MutableCommandListSpecExtensionSupported = false;
-  bool ZeIntelExternalSemaphoreExtensionSupported = false;
   bool ZeExternalSemaphoreExtensionSupported = false;
   bool ZeImmediateCommandListAppendExtensionFound = false;
   for (auto &extension : ZeExtensions) {
@@ -258,13 +261,6 @@ ur_result_t ur_platform_handle_t_::initialize() {
                 strlen(ZE_MUTABLE_COMMAND_LIST_EXP_NAME) + 1) == 0) {
       if (extension.version == ZE_MUTABLE_COMMAND_LIST_EXP_VERSION_1_1) {
         MutableCommandListSpecExtensionSupported = true;
-      }
-    }
-    // Check if extension is available for Exp External Sempahores
-    if (strncmp(extension.name, ZE_INTEL_EXTERNAL_SEMAPHORE_EXP_NAME,
-                strlen(ZE_INTEL_EXTERNAL_SEMAPHORE_EXP_NAME) + 1) == 0) {
-      if (extension.version == ZE_EXTERNAL_SEMAPHORE_EXP_VERSION_1_0) {
-        ZeIntelExternalSemaphoreExtensionSupported = true;
       }
     }
     // Check if extension is available for Spec External Sempahores
@@ -331,6 +327,26 @@ ur_result_t ur_platform_handle_t_::initialize() {
                                                  &sizeOfDriverString);
   }
 
+  auto DriverSkiplist = getenv_to_vec("SYCL_UR_L0_DRIVER_SKIPLIST");
+  if (!DriverSkiplist.has_value()) {
+    DriverSkiplist = DriverSkiplistDefault;
+  }
+
+  UR_LOG(DEBUG, "Level Zero Driver version: {}", ZeDriverVersion);
+  for (const auto &version : DriverSkiplist.value()) {
+    UR_LOG(DEBUG, "Checking driver version {} against skiplist entry {}",
+           ZeDriverVersion, version);
+    if (version == ZeDriverVersion) {
+      UR_LOG(WARN,
+             "Skipping Level Zero driver due to the driver version: {} "
+             "matches a skiplist entry (set SYCL_UR_L0_DRIVER_SKIPLIST to "
+             "override)",
+             version);
+      IsDriverVersionSkipListed = true;
+      return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+  }
+
   // Check if import user ptr into USM feature has been requested.
   // If yes, then set up L0 API pointers if the platform supports it.
   ZeUSMImport.setZeUSMImport(this);
@@ -380,38 +396,6 @@ ur_result_t ur_platform_handle_t_::initialize() {
             .zexCommandListAppendSignalExternalSemaphoresExp != nullptr;
     ZeExternalSemaphoreExt.Supported |=
         ZeExternalSemaphoreExt.zexDeviceReleaseExternalSemaphoreExp != nullptr;
-    ZeExternalSemaphoreExt.LoaderExtension = true;
-  } else if (ZeIntelExternalSemaphoreExtensionSupported) {
-    ZeExternalSemaphoreExt.Supported |=
-        (ZE_CALL_NOCHECK(
-             zeDriverGetExtensionFunctionAddress,
-             (ZeDriver, "zeIntelDeviceImportExternalSemaphoreExp",
-              reinterpret_cast<void **>(
-                  &ZeExternalSemaphoreExt.zexExpImportExternalSemaphoreExp))) ==
-         0);
-    ZeExternalSemaphoreExt.Supported |=
-        (ZE_CALL_NOCHECK(
-             zeDriverGetExtensionFunctionAddress,
-             (ZeDriver, "zeIntelCommandListAppendWaitExternalSemaphoresExp",
-              reinterpret_cast<void **>(
-                  &ZeExternalSemaphoreExt
-                       .zexExpCommandListAppendWaitExternalSemaphoresExp))) ==
-         0);
-    ZeExternalSemaphoreExt.Supported |=
-        (ZE_CALL_NOCHECK(
-             zeDriverGetExtensionFunctionAddress,
-             (ZeDriver, "zeIntelCommandListAppendSignalExternalSemaphoresExp",
-              reinterpret_cast<void **>(
-                  &ZeExternalSemaphoreExt
-                       .zexExpCommandListAppendSignalExternalSemaphoresExp))) ==
-         0);
-    ZeExternalSemaphoreExt.Supported |=
-        (ZE_CALL_NOCHECK(
-             zeDriverGetExtensionFunctionAddress,
-             (ZeDriver, "zeIntelDeviceReleaseExternalSemaphoreExp",
-              reinterpret_cast<void **>(
-                  &ZeExternalSemaphoreExt
-                       .zexExpDeviceReleaseExternalSemaphoreExp))) == 0);
   }
 
   // Check if mutable command list extension is supported and initialize
@@ -550,21 +534,95 @@ ur_result_t ur_platform_handle_t_::initialize() {
             .zeCommandListImmediateAppendCommandListsExp != nullptr;
   }
 
-  ZE_CALL_NOCHECK(zeDriverGetExtensionFunctionAddress,
-                  (ZeDriver, "zeImageGetDeviceOffsetExp",
-                   reinterpret_cast<void **>(
-                       &ZeImageGetDeviceOffsetExt.zeImageGetDeviceOffsetExp)));
+  if (ZeApiVersion >= ZE_API_VERSION_1_15) {
+    ZeImageGetDeviceOffsetExt.zeImageGetDeviceOffsetExp =
+        zeImageGetDeviceOffsetExp;
+    ZeMemGetPitchFor2dImageExt.zeMemGetPitchFor2dImage =
+        zeMemGetPitchFor2dImage;
+  } else {
+    ZE_CALL_NOCHECK(
+        zeDriverGetExtensionFunctionAddress,
+        (ZeDriver, "zeImageGetDeviceOffsetExp",
+         reinterpret_cast<void **>(
+             &ZeImageGetDeviceOffsetExt.zeImageGetDeviceOffsetExp)));
+    ZE_CALL_NOCHECK(zeDriverGetExtensionFunctionAddress,
+                    (ZeDriver, "zeMemGetPitchFor2dImage",
+                     reinterpret_cast<void **>(
+                         &ZeMemGetPitchFor2dImageExt.zeMemGetPitchFor2dImage)));
+  }
 
   ZeImageGetDeviceOffsetExt.Supported =
       ZeImageGetDeviceOffsetExt.zeImageGetDeviceOffsetExp != nullptr;
-
-  ZE_CALL_NOCHECK(zeDriverGetExtensionFunctionAddress,
-                  (ZeDriver, "zeMemGetPitchFor2dImage",
-                   reinterpret_cast<void **>(
-                       &ZeMemGetPitchFor2dImageExt.zeMemGetPitchFor2dImage)));
-
   ZeMemGetPitchFor2dImageExt.Supported =
       ZeMemGetPitchFor2dImageExt.zeMemGetPitchFor2dImage != nullptr;
+
+  // Populate Graph Extension structure.
+  std::unordered_map<std::string, void **> ZeGraphFuncNameToAddrMap = {
+      {"zeGraphCreateExp",
+       reinterpret_cast<void **>(&ZeGraphExt.zeGraphCreateExp)},
+      {"zeCommandListBeginGraphCaptureExp",
+       reinterpret_cast<void **>(
+           &ZeGraphExt.zeCommandListBeginGraphCaptureExp)},
+      {"zeCommandListBeginCaptureIntoGraphExp",
+       reinterpret_cast<void **>(
+           &ZeGraphExt.zeCommandListBeginCaptureIntoGraphExp)},
+      {"zeCommandListEndGraphCaptureExp",
+       reinterpret_cast<void **>(&ZeGraphExt.zeCommandListEndGraphCaptureExp)},
+      {"zeCommandListInstantiateGraphExp",
+       reinterpret_cast<void **>(&ZeGraphExt.zeCommandListInstantiateGraphExp)},
+      {"zeCommandListAppendGraphExp",
+       reinterpret_cast<void **>(&ZeGraphExt.zeCommandListAppendGraphExp)},
+      {"zeGraphDestroyExp",
+       reinterpret_cast<void **>(&ZeGraphExt.zeGraphDestroyExp)},
+      {"zeExecutableGraphDestroyExp",
+       reinterpret_cast<void **>(&ZeGraphExt.zeExecutableGraphDestroyExp)},
+      {"zeCommandListIsGraphCaptureEnabledExp",
+       reinterpret_cast<void **>(
+           &ZeGraphExt.zeCommandListIsGraphCaptureEnabledExp)},
+      {"zeGraphIsEmptyExp",
+       reinterpret_cast<void **>(&ZeGraphExt.zeGraphIsEmptyExp)},
+      {"zeGraphDumpContentsExp",
+       reinterpret_cast<void **>(&ZeGraphExt.zeGraphDumpContentsExp)},
+  };
+
+  ZeGraphExt.Supported = true;
+  for (auto &[funcName, funcAddr] : ZeGraphFuncNameToAddrMap) {
+    ZE_CALL_NOCHECK(zeDriverGetExtensionFunctionAddress,
+                    (ZeDriver, funcName.c_str(), funcAddr));
+    ZeGraphExt.Supported &= (*funcAddr != nullptr);
+  }
+
+  if (this->isDriverVersionNewerOrSimilar(1, 14, 36035)) {
+    ZeCommandListAppendLaunchKernelWithArgumentsExt.Supported = true;
+  } else {
+    ZeCommandListAppendLaunchKernelWithArgumentsExt.Supported = false;
+  }
+
+  // Check if the driver supports zeCommandListAppendLaunchKernelWithArguments()
+  // with cooperative mode (version >= 1.6.35005)
+  ZeCommandListAppendLaunchKernelWithArgumentsExt
+      .DriverSupportsCooperativeKernelLaunchWithArgs =
+      this->isDriverVersionNewerOrSimilar(1, 6, 35005);
+
+  ZeCommandListAppendLaunchKernelWithArgumentsExt
+      .DisableZeLaunchKernelWithArgs =
+      getenv_tobool("UR_L0_V2_DISABLE_ZE_LAUNCH_KERNEL_WITH_ARGS", false);
+
+  ZE_CALL_NOCHECK(zeDriverGetExtensionFunctionAddress,
+                  (ZeDriver, "zeCommandListAppendHostFunction",
+                   reinterpret_cast<void **>(
+                       &ZeHostTaskExt.zeCommandListAppendHostFunction)));
+
+  ZeHostTaskExt.Supported =
+      ZeHostTaskExt.zeCommandListAppendHostFunction != nullptr;
+
+  // ZE_COMMAND_QUEUE_FLAG_COPY_OFFLOAD_HINT flag is support since L0 v1.14.0
+  ZeCopyOffloadQueueFlagSupported =
+      this->isDriverVersionNewerOrSimilar(1, 14, 0);
+
+  // ZE_COMMAND_LIST_FLAG_COPY_OFFLOAD_HINT flag is support since L0 v1.15.0
+  ZeCopyOffloadListFlagSupported =
+      this->isDriverVersionNewerOrSimilar(1, 15, 0);
 
   return UR_RESULT_SUCCESS;
 }
@@ -823,6 +881,19 @@ ur_result_t ur_platform_handle_t_::populateDeviceCacheIfNeeded() {
   size_t id = 0;
   for (auto &dev : URDevicesCache) {
     dev->Id = id++;
+  }
+
+  // Check if platform supports device synchronization by calling
+  // zeDeviceSynchronize on the first device.
+  // Don't call zeDeviceSynchronize if driver version is older than 1.13.36015,
+  // it may cause a crash on older drivers.
+  if (this->isDriverVersionNewerOrSimilar(1, 13, 36015) &&
+      !URDevicesCache.empty()) {
+    auto ZeDevice = URDevicesCache[0]->ZeDevice;
+    auto ZeResult = ZE_CALL_NOCHECK(zeDeviceSynchronize, (ZeDevice));
+    bool Supported = (ZeResult != ZE_RESULT_ERROR_UNSUPPORTED_FEATURE &&
+                      ZeResult != ZE_RESULT_ERROR_UNSUPPORTED_VERSION);
+    ZeDeviceSynchronizeSupported = Supported;
   }
 
   return UR_RESULT_SUCCESS;

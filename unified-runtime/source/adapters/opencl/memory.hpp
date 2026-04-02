@@ -22,6 +22,9 @@ struct ur_mem_handle_t_ : ur::opencl::handle_base {
   bool IsNativeHandleOwned = true;
   ur::RefCount RefCount;
 
+  ur_mem_handle_t_(const ur_mem_handle_t_ &) = delete;
+  ur_mem_handle_t_ &operator=(const ur_mem_handle_t_ &) = delete;
+
   ur_mem_handle_t_(native_type Mem, ur_context_handle_t Ctx)
       : handle_base(), CLMemory(Mem), Context(Ctx) {
     urContextRetain(Context);

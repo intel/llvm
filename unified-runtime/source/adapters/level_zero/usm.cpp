@@ -18,7 +18,7 @@
 #include "event.hpp"
 #include "logger/ur_logger.hpp"
 #include "queue.hpp"
-#include "ur_api.h"
+#include "unified-runtime/ur_api.h"
 #include "ur_interface_loader.hpp"
 #include "ur_level_zero.hpp"
 #include "ur_util.hpp"
@@ -45,23 +45,23 @@ usm::DisjointPoolAllConfigs DisjointPoolConfigInstance =
     InitializeDisjointPoolConfig();
 
 usm::DisjointPoolAllConfigs InitializeDisjointPoolConfig() {
-  const char *PoolUrTraceVal = std::getenv("UR_L0_USM_ALLOCATOR_TRACE");
-  const char *PoolPiTraceVal =
-      std::getenv("SYCL_PI_LEVEL_ZERO_USM_ALLOCATOR_TRACE");
-  const char *PoolTraceVal = PoolUrTraceVal
-                                 ? PoolUrTraceVal
-                                 : (PoolPiTraceVal ? PoolPiTraceVal : nullptr);
+  // Prefer the UR-specific env var, fall back to the PI-specific one.
+  const char *PoolTraceVal = std::getenv("UR_L0_USM_ALLOCATOR_TRACE");
+  if (!PoolTraceVal) {
+    PoolTraceVal = std::getenv("SYCL_PI_LEVEL_ZERO_USM_ALLOCATOR_TRACE");
+  }
 
+  // Parse integer value, defaulting to 0 on missing/invalid input.
   int PoolTrace = 0;
-  if (PoolTraceVal != nullptr) {
+  if (PoolTraceVal) {
     PoolTrace = std::atoi(PoolTraceVal);
   }
 
-  const char *PoolUrConfigVal = std::getenv("SYCL_PI_LEVEL_ZERO_USM_ALLOCATOR");
-  const char *PoolPiConfigVal = std::getenv("UR_L0_USM_ALLOCATOR");
-  const char *PoolConfigVal =
-      PoolUrConfigVal ? PoolUrConfigVal : PoolPiConfigVal;
-  if (PoolConfigVal == nullptr) {
+  const char *PoolConfigVal = std::getenv("UR_L0_USM_ALLOCATOR");
+  if (!PoolConfigVal) {
+    PoolConfigVal = std::getenv("SYCL_PI_LEVEL_ZERO_USM_ALLOCATOR");
+  }
+  if (!PoolConfigVal) {
     return usm::DisjointPoolAllConfigs(PoolTrace);
   }
 
@@ -707,6 +707,18 @@ ur_result_t UR_APICALL urUSMContextMemcpyExp(ur_context_handle_t Context,
                                              pSrc, Size, nullptr, 0, nullptr));
   return UR_RESULT_SUCCESS;
 }
+
+ur_result_t UR_APICALL urUSMHostAllocRegisterExp(
+    ur_context_handle_t /*hContext*/, void * /*pHostMem*/, size_t /*size*/,
+    const ur_exp_usm_host_alloc_register_properties_t * /*pProperties*/) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+ur_result_t UR_APICALL urUSMHostAllocUnregisterExp(
+    ur_context_handle_t /*hContext*/, void * /*pHostMem*/) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
 } // namespace ur::level_zero
 
 static ur_result_t USMFreeImpl(ur_context_handle_t Context, void *Ptr) {
@@ -1056,7 +1068,8 @@ ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
     }
   }
 
-  auto DevicesAndSubDevices = CollectDevicesAndSubDevices(Context->Devices);
+  auto DevicesAndSubDevices =
+      CollectDevicesForUsmPoolCreation(Context->Devices);
   auto Descriptors = usm::pool_descriptor::createFromDevices(
       this, Context, DevicesAndSubDevices);
   for (auto &Desc : Descriptors) {
@@ -1153,20 +1166,8 @@ UsmPool *ur_usm_pool_handle_t_::getPool(const usm::pool_descriptor &Desc) {
 std::optional<std::pair<void *, ur_event_handle_t>>
 ur_usm_pool_handle_t_::allocateEnqueued(ur_queue_handle_t Queue,
                                         ur_device_handle_t Device,
-                                        const ur_usm_desc_t *USMDesc,
                                         ur_usm_type_t Type, size_t Size) {
-  uint32_t Alignment = USMDesc ? USMDesc->align : 0;
-  if (Alignment > 0) {
-    if (Alignment > 65536 || (Alignment & (Alignment - 1)) != 0)
-      return std::nullopt;
-  }
-
   bool DeviceReadOnly = false;
-  if (auto UsmDeviceDesc = find_stype_node<ur_usm_device_desc_t>(USMDesc)) {
-    DeviceReadOnly =
-        (Type == UR_USM_TYPE_SHARED) &&
-        (UsmDeviceDesc->flags & UR_USM_DEVICE_MEM_FLAG_DEVICE_READ_ONLY);
-  }
 
   auto *Pool = getPool(
       usm::pool_descriptor{this, Queue->Context, Device, Type, DeviceReadOnly});
@@ -1174,7 +1175,7 @@ ur_usm_pool_handle_t_::allocateEnqueued(ur_queue_handle_t Queue,
     return std::nullopt;
   }
 
-  auto Allocation = Pool->AsyncPool.getBestFit(Size, Alignment, Queue);
+  auto Allocation = Pool->AsyncPool.getBestFit(Size, Queue);
 
   if (!Allocation) {
     return std::nullopt;

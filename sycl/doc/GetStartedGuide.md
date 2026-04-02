@@ -1,7 +1,7 @@
 # Getting Started with oneAPI DPC++
 
 The DPC++ Compiler compiles C++ and SYCL\* source files with code for both CPU
-and a wide range of compute accelerators such as GPU and FPGA.
+and GPU.
 
 ## Table of contents
 
@@ -12,9 +12,9 @@ and a wide range of compute accelerators such as GPU and FPGA.
     * [Build DPC++ toolchain with support for NVIDIA CUDA](#build-dpc-toolchain-with-support-for-nvidia-cuda)
     * [Build DPC++ toolchain with support for HIP AMD](#build-dpc-toolchain-with-support-for-hip-amd)
     * [Build DPC++ toolchain with support for HIP NVIDIA](#build-dpc-toolchain-with-support-for-hip-nvidia)
+    * [Build DPC++ toolchain with support for Native CPU](#build-dpc-toolchain-with-support-for-native-cpu)
     * [Build DPC++ toolchain with support for ARM processors](#build-dpc-toolchain-with-support-for-arm-processors)
     * [Build DPC++ toolchain with additional features enabled that require runtime/JIT compilation](#build-dpc-toolchain-with-additional-features-enabled-that-require-runtimejit-compilation)
-    * [Build DPC++ toolchain with a custom Unified Runtime](#build-dpc-toolchain-with-a-custom-unified-runtime)
     * [Build DPC++ toolchain with device image compression support](#build-dpc-toolchain-with-device-image-compression-support)
     * [Build Doxygen documentation](#build-doxygen-documentation)
     * [Deployment](#deployment)
@@ -23,7 +23,6 @@ and a wide range of compute accelerators such as GPU and FPGA.
     * [Obtain prerequisites for ahead of time (AOT) compilation](#obtain-prerequisites-for-ahead-of-time-aot-compilation)
       * [GPU](#gpu)
       * [CPU](#cpu)
-      * [Accelerator](#accelerator)
     * [Test DPC++ toolchain](#test-dpc-toolchain)
       * [Run in-tree LIT tests](#run-in-tree-lit-tests)
       * [Run DPC++ E2E tests](#run-dpc-e2e-tests)
@@ -124,6 +123,7 @@ flags can be found by launching the script with `--help`):
 * `--hip-platform` -> select the platform used by the hip backend, `AMD` or
   `NVIDIA` (see [HIP AMD](#build-dpc-toolchain-with-support-for-hip-amd) or see
   [HIP NVIDIA](#build-dpc-toolchain-with-support-for-hip-nvidia))
+* `--native_cpu` -> use the Native CPU backend (see [Native CPU](#build-dpc-toolchain-with-support-for-native-cpu))
 * `--enable-all-llvm-targets` -> build compiler (but not a runtime) with all
   supported targets
 * `--shared-libs` -> Build shared libraries
@@ -197,8 +197,8 @@ extensions that require sm_80 and later architectures also require at least CUDA
 11.0.
 
 The CUDA backend should work on Windows or Linux operating systems with any GPU
-with compute capability (SM version) sm_50 or above. The default SM version for
-the NVIDIA CUDA backend is sm_50. Users of sm_3X devices can attempt to specify
+with compute capability (SM version) sm_75 or above. The default SM version for
+the NVIDIA CUDA backend is sm_75. Users of sm_3X devices can attempt to specify
 the target architecture [ahead of time](#aot-target-architectures), provided
 that they use a 11.X  or earlier CUDA toolkit version, but some features may not be
 supported. The CUDA backend has been tested with different Ubuntu Linux
@@ -298,6 +298,13 @@ as well as the CUDA Runtime API to be installed, see [NVIDIA CUDA Installation
 Guide for
 Linux](https://docs.nvidia.com/cuda/cuda-installation-guide-linux/index.html).
 
+### Build DPC++ toolchain with support for Native CPU
+
+Native CPU is a cpu device which by default has no other dependency than DPC++. This device works with all cpu targets supported by the DPC++ runtime.
+Supported targets include x86, Aarch64 and riscv_64.
+
+To enable Native CPU in a DPC++ build just add `--native_cpu` to the set of flags passed to `configure.py`.
+
 ### Build DPC++ toolchain with support for ARM processors
 
 There is no continuous integration for this, and there are no guarantees for supported platforms or configurations.
@@ -343,7 +350,7 @@ You can install zstd using the package manager of your distribution. For example
 ```sh
 sudo apt-get install libzstd-dev
 ```
-Note that the libzstd-dev package provided on Ubuntu 24.04 has a bug ([link](https://bugs.launchpad.net/ubuntu/+source/libzstd/+bug/2086543)) and the zstd static library is not built with the `-fPIC` flag. Linking to this library will result in a build failure. For example: [Issue#15935](https://github.com/intel/llvm/issues/15935). As an alternative, zstd can be built from source either manually or by using the [build_zstd_1_5_6_ub24.sh](https://github.com/intel/llvm/blob/sycl/devops/scripts/build_zstd_1_5_6_ub24.sh) script.
+Note that the libzstd-dev package provided on Ubuntu 24.04 has a bug ([link](https://bugs.launchpad.net/ubuntu/+source/libzstd/+bug/2086543)) and the zstd static library is not built with the `-fPIC` flag. Linking to this library will result in a build failure. For example: [Issue#15935](https://github.com/intel/llvm/issues/15935). As an alternative, zstd can be built from source either manually or by using the [build_zstd.sh](https://github.com/intel/llvm/blob/sycl/devops/scripts/build_zstd.sh) script (it works on Rocky Linux 8.10 / RHEL 8.10 as well).
 
 **Windows**
 
@@ -368,36 +375,6 @@ command:
 After CMake cache is generated, build the documentation with `doxygen-sycl`
 target. It will be put to `$DPCPP_HOME/llvm/build/tools/sycl/doc/html`
 directory.
-
-### Build DPC++ toolchain with a custom Unified Runtime
-
-DPC++ uses the [Unified Runtime](https://github.com/oneapi-src/unified-runtime)
-under the hood to provide implementations of various SYCL backends. By default
-the source code for the Unified Runtime will be acquired using CMake's
-[FetchCotent](https://cmake.org/cmake/help/latest/module/FetchContent.html). The
-specific repository URL and revision tag used can be found in the file
-`sycl/cmake/modules/FetchUnifiedRuntime.cmake` searching for the variables
-`UNIFIED_RUNTIME_REPO` and `UNIFIED_RUNTIME_TAG`.
-
-In order to enable developers, a number of CMake variables are available to
-control which revision of Unified Runtime should be used when building DPC++:
-
-* `SYCL_UR_OVERRIDE_FETCH_CONTENT_REPO` is a variable which can be used to
-  override the `UNIFIED_RUNTIME_REPO` variable used by `FetchContent` to attain
-  the Unified Runtime source code.
-* `SYCL_UR_OVERRIDE_FETCH_CONTENT_TAG` is a variable which can be used to
-  override the `UNIFIED_RUNTIME_TAG` variable used by `FetchContent` to attain
-  the Unified Runtime source code.
-* `SYCL_UR_USE_FETCH_CONTENT` is an option to control if CMake should use
-  `FetchContent` to pull in the Unified Runtime repository, it defaults to `ON`.
-  When set to `OFF`, `FetchContent` will not be used, instead:
-  * The path specified by variable `SYCL_UR_SOURCE_DIR` will be used with
-    `add_directory()`. This can be used to point at an adjacent directory
-    containing a clone of the Unified Runtime repository.
-  * The path `sycl/unified-runtime` will be used, if it
-    exists. This can be used as-if an in-tree build.
-* `SYCL_UR_SOURCE_DIR` is a variable used to specify the path to the Unified
-  Runtime repository when `SYCL_UR_USE_FETCH_CONTENT` is set of `OFF`.
 
 ### Build DPC++ libclc with a custom toolchain
 
@@ -429,8 +406,8 @@ To run DPC++ applications on Level Zero devices, Level Zero implementation(s)
 must be present in the system. You can find the link to the Level Zero spec in
 the following section [Find More](#find-more).
 
-The Level Zero RT for `GPU`, OpenCL RT for `GPU`, OpenCL RT for `CPU`, FPGA
-emulation RT and TBB runtime which are needed to run DPC++ application
+The Level Zero RT for `GPU`, OpenCL RT for `GPU`, OpenCL RT for `CPU` 
+and TBB runtime which are needed to run DPC++ application
 on Intel `GPU` or Intel `CPU` devices can be downloaded using links in
 [the dependency configuration file](../../devops/dependencies.json)
 and installed following the instructions below. The same versions are used in
@@ -438,15 +415,10 @@ PR testing.
 
 **Linux**:
 
-1) Extract the archive. For example, for the archives
-`oclcpuexp_<cpu_version>.tar.gz` and `fpgaemu_<fpga_version>.tar.gz` you would
-run the following commands
+1) Extract the archive. For example, for the archive
+`oclcpuexp_<cpu_version>.tar.gz` you would run the following commands
 
     ```bash
-    # Extract OpenCL FPGA emulation RT
-    mkdir -p /opt/intel/oclfpgaemu_<fpga_version>
-    cd /opt/intel/oclfpgaemu_<fpga_version>
-    tar zxvf fpgaemu_<fpga_version>.tar.gz
     # Extract OpenCL CPU RT
     mkdir -p /opt/intel/oclcpuexp_<cpu_version>
     cd /opt/intel/oclcpuexp_<cpu_version>
@@ -456,9 +428,6 @@ run the following commands
 2) Create ICD file pointing to the new runtime (requires sudo access)
 
     ```bash
-    # OpenCL FPGA emulation RT
-    echo  /opt/intel/oclfpgaemu_<fpga_version>/x64/libintelocl_emu.so | sudo tee
-      /etc/OpenCL/vendors/intel_fpgaemu.icd
     # OpenCL CPU RT
     echo /opt/intel/oclcpuexp_<cpu_version>/x64/libintelocl.so | sudo tee
       /etc/OpenCL/vendors/intel_expcpu.icd
@@ -478,15 +447,6 @@ for the archive oneapi-tbb-<tbb_version>-lin.tgz:
 folder:
 
     ```bash
-    # OpenCL FPGA emulation RT
-    ln -s /opt/intel/oneapi-tbb-<tbb_version>/lib/intel64/gcc4.8/libtbb.so
-      /opt/intel/oclfpgaemu_<fpga_version>/x64/libtbb.so
-    ln -s /opt/intel/oneapi-tbb-<tbb_version>/lib/intel64/gcc4.8/libtbbmalloc.so
-      /opt/intel/oclfpgaemu_<fpga_version>/x64/libtbbmalloc.so
-    ln -s /opt/intel/oneapi-tbb-<tbb_version>/lib/intel64/gcc4.8/libtbb.so.12
-      /opt/intel/oclfpgaemu_<fpga_version>/x64/libtbb.so.12
-    ln -s /opt/intel/oneapi-tbb-<tbb_version>/lib/intel64/gcc4.8/libtbbmalloc.so.2
-      /opt/intel/oclfpgaemu_<fpga_version>/x64/libtbbmalloc.so.2
     # OpenCL CPU RT
     ln -s /opt/intel/oneapi-tbb-<tbb_version>/lib/intel64/gcc4.8/libtbb.so
       /opt/intel/oclcpuexp_<cpu_version>/x64/libtbb.so
@@ -501,8 +461,6 @@ folder:
 5) Configure library paths (requires sudo access)
 
     ```bash
-    echo /opt/intel/oclfpgaemu_<fpga_version>/x64 | sudo tee
-      /etc/ld.so.conf.d/libintelopenclexp.conf
     echo /opt/intel/oclcpuexp_<cpu_version>/x64 | sudo tee -a
       /etc/ld.so.conf.d/libintelopenclexp.conf
     sudo ldconfig -f /etc/ld.so.conf.d/libintelopenclexp.conf
@@ -516,8 +474,7 @@ OpenCL runtime for Intel `GPU` installer may re-write some important
 files or settings and make existing OpenCL runtime for Intel `CPU` runtime
 not working properly.
 
-2) Extract the archive with OpenCL runtime for Intel `CPU` and/or for Intel
-`FPGA` emulation using links in
+2) Extract the archive with OpenCL runtime for Intel `CPU` using links in
 [the dependency configuration file](../../devops/dependencies.json).  For
 example, to `c:\oclcpu_rt_<cpu_version>`.
 
@@ -535,9 +492,6 @@ extracted files are in `c:\oclcpu_rt_<cpu_version>\` folder, then type the
 command:
 
     ```bash
-    # Install OpenCL FPGA emulation RT
-    # Answer Y to clean previous OCL_ICD_FILENAMES configuration and ICD records cleanup
-    c:\oclfpga_rt_<fpga_version>\install.bat c:\oneapi-tbb-<tbb_version>\redist\intel64\vc14
     # Install OpenCL CPU RT
     # Answer N for ICD records cleanup
     c:\oclcpu_rt_<cpu_version>\install.bat c:\oneapi-tbb-<tbb_version>\redist\intel64\vc14
@@ -551,7 +505,6 @@ AOT compiler for each device type:
 
 * `GPU`, Level Zero and OpenCL runtimes are supported,
 * `CPU`, OpenCL runtime is supported,
-* `Accelerator` (FPGA or FPGA emulation), OpenCL runtime is supported.
 
 #### GPU
 
@@ -580,15 +533,6 @@ AOT compiler for each device type:
 * CPU AOT compiler `opencl-aot` is enabled by default. For more, see
 [opencl-aot documentation](https://github.com/intel/llvm/blob/sycl/opencl/opencl-aot/README.md).
 
-#### Accelerator
-
-* Accelerator AOT compiler `aoc` is a part of
-[Intel&reg; oneAPI Base Toolkit](https://software.intel.com/content/www/us/en/develop/tools/oneapi/base-toolkit.html)
-(Intel&reg; oneAPI DPC++/C++ Compiler component).  
-Make sure that these binaries are available in `PATH` environment variable:
-
-  * `aoc` from `<oneAPI installation location>/compiler/<version>/<OS>/lib/oclfpga/bin`
-  * `aocl-ioc64` from `<oneAPI installation location>/compiler/<version>/<OS>/bin`
 
 ### Test DPC++ toolchain
 
@@ -727,6 +671,13 @@ clang++ -fsycl -fsycl-targets=nvptx64-nvidia-cuda \
   simple-sycl-app.cpp -o simple-sycl-app-cuda.exe
 ```
 
+When building for Native CPU use the SYCL target native_cpu:
+
+```bash
+clang++ -fsycl -fsycl-targets=native_cpu simple-sycl-app.cpp -o simple-sycl-app.exe
+```
+More Native CPU build options can be found in [SYCLNativeCPU.md](design/SYCLNativeCPU.md).
+
 **Linux & Windows (64-bit)**:
 
 ```bash
@@ -735,8 +686,7 @@ The results are correct!
 ```
 
 **NOTE**: oneAPI DPC++/SYCL developers can specify SYCL device for execution
-using device selectors (e.g. `sycl::cpu_selector_v`, `sycl::gpu_selector_v`,
-[Intel FPGA selector(s)](extensions/supported/sycl_ext_intel_fpga_device_selector.asciidoc))
+using device selectors (e.g. `sycl::cpu_selector_v`, `sycl::gpu_selector_v`)
 as explained in following section
 [Code the program for a specific GPU](#code-the-program-for-a-specific-gpu).
 
@@ -775,14 +725,13 @@ simplify passing the specific architectures, for example
  [Users Manual](UsersManual.md#generic-options), for the `-fsycl-targets`
  option.
 
-To build simple-sycl-app ahead of time for GPU, CPU or Accelerator devices,
+To build simple-sycl-app ahead of time for GPU or CPU devices,
 specify the target architecture.  The examples provided use a supported
 alias for the target, representing a full triple.  Additional details can
 be found in the [Users Manual](UsersManual.md#generic-options).
 
 ```-fsycl-targets=spir64_gen``` for GPU,
-```-fsycl-targets=spir64_x86_64``` for CPU,
-```-fsycl-targets=spir64_fpga``` for Accelerator.
+```-fsycl-targets=spir64_x86_64``` for CPU.
 
 Multiple target architectures are supported.
 
@@ -800,7 +749,6 @@ more. To find available options, execute:
 
 ```ocloc compile --help``` for GPU,
 ```opencl-aot --help``` for CPU,
-```aoc -help -sycl``` for Accelerator.
 
 The `simple-sycl-app.exe` application doesn't specify SYCL device for
 execution, so SYCL runtime will use `default_selector` logic to select one
@@ -853,8 +801,8 @@ available, a "device selector" may be used. A "device selector" is a ranking
 function (C++ Callable) that will give an integer ranking value to all the
 devices on the system. It can be passed to `sycl::queue`, `sycl::device` and
 `sycl::platform` constructors. The highest ranking device is then selected. SYCL
-has built-in device selectors for selecting a generic GPU, CPU, or accelerator
-device, as well as one for a default device. Additionally, a user can define
+has built-in device selectors for selecting a generic GPU, CPU, as well as one
+for a default device. Additionally, a user can define
 their own as function, lambda, or functor class. Device selectors returning
 negative values will "reject" a device ensuring it is not selected, but values 0
 or higher will be selected by the highest score with ties resolved by an

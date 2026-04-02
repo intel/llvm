@@ -1,7 +1,10 @@
-; RUN: llvm-as %s -o %t.bc
-; RUN: llvm-spirv %t.bc -o %t.spv
+; RUN: llvm-spirv %s -o %t.spv
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s
+; RUN: %if spirv-backend %{ llc -O0 -mtriple=spirv64-unknown-unknown -filetype=obj %s -o %t.llc.spv %}
+; RUN: %if spirv-backend %{ llvm-spirv -r %t.llc.spv -o %t.llc.rev.bc %}
+; RUN: %if spirv-backend %{ llvm-dis %t.llc.rev.bc -o %t.llc.rev.ll %}
+; RUN: %if spirv-backend %{ FileCheck %s --check-prefix=CHECK-LLC < %t.llc.rev.ll %}
 
 source_filename = "the_file.ll"
 target triple = "spir64-unknown-unknown"
@@ -16,6 +19,11 @@ define spir_func i1 @trunc_to_i1(i32 %iarg) #0 !dbg !7 {
   ret i1 %res, !dbg !10
 }
 
+; CHECK-LLC-LABEL: define spir_func i1 @trunc_to_i1(i32 %iarg)
+; CHECK-LLC: and i32 %iarg, 1
+; CHECK-LLC: icmp ne i32 {{.*}}, 0
+; CHECK-LLC: ret i1
+
 ; Function Attrs: nounwind
 define spir_func i32 @sext_from_i1(i1 %barg) #0 !dbg !11 {
 ; CHECK: @sext_from_i1(i1 %barg) #[[#]] !dbg ![[#]] {
@@ -25,6 +33,10 @@ define spir_func i32 @sext_from_i1(i1 %barg) #0 !dbg !11 {
   ret i32 %res, !dbg !13
 }
 
+; CHECK-LLC-LABEL: define spir_func i32 @sext_from_i1(i1 %barg)
+; CHECK-LLC: select i1 %barg, i32 -1, i32 0
+; CHECK-LLC: ret i32
+
 ; Function Attrs: nounwind
 define spir_func i32 @zext_from_i1(i1 %barg) #0 !dbg !14 {
 ; CHECK: @zext_from_i1(i1 %barg) #[[#]] !dbg ![[#]] {
@@ -33,6 +45,10 @@ define spir_func i32 @zext_from_i1(i1 %barg) #0 !dbg !14 {
   %res = zext i1 %barg to i32, !dbg !15
   ret i32 %res, !dbg !16
 }
+
+; CHECK-LLC-LABEL: define spir_func i32 @zext_from_i1(i1 %barg)
+; CHECK-LLC: select i1 %barg, i32 1, i32 0
+; CHECK-LLC: ret i32
 
 ; Function Attrs: nounwind
 define spir_func float @sitofp_b(i1 %barg) #0 !dbg !17 {
@@ -44,6 +60,11 @@ define spir_func float @sitofp_b(i1 %barg) #0 !dbg !17 {
   ret float %res, !dbg !19
 }
 
+; CHECK-LLC-LABEL: define spir_func float @sitofp_b(i1 %barg)
+; CHECK-LLC: select i1 %barg, i32 1, i32 0
+; CHECK-LLC: sitofp i32 {{.*}} to float
+; CHECK-LLC: ret float
+
 ; Function Attrs: nounwind
 define spir_func float @uitofp_b(i1 %barg) #0 !dbg !20 {
 ; CHECK: @uitofp_b(i1 %barg) #[[#]] !dbg ![[#]] {
@@ -53,6 +74,11 @@ define spir_func float @uitofp_b(i1 %barg) #0 !dbg !20 {
   %res = uitofp i1 %barg to float, !dbg !21
   ret float %res, !dbg !22
 }
+
+; CHECK-LLC-LABEL: define spir_func float @uitofp_b(i1 %barg)
+; CHECK-LLC: select i1 %barg, i32 1, i32 0
+; CHECK-LLC: uitofp i32 {{.*}} to float
+; CHECK-LLC: ret float
 
 ; CHECK-DAG: ![[#TRUNC_LINE]] = !DILocation(line: 1, column: 1
 ; CHECK-DAG: ![[#TRUNC_RET_LINE]] = !DILocation(line: 2, column: 1

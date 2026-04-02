@@ -87,11 +87,6 @@ public:
     return std::make_shared<event_impl>(queue, private_tag{});
   }
 
-  static std::shared_ptr<event_impl> create_discarded_event() {
-    return std::make_shared<event_impl>(HostEventState::HES_Discarded,
-                                        private_tag{});
-  }
-
   static std::shared_ptr<event_impl> create_completed_host_event() {
     return std::make_shared<event_impl>(HostEventState::HES_Complete,
                                         private_tag{});
@@ -163,10 +158,10 @@ public:
   void setComplete();
 
   /// Returns raw interoperability event handle.
-  ur_event_handle_t getHandle() const;
+  ur_event_handle_t getHandle() const { return MEvent.load(); }
 
   /// Set event handle for this event object.
-  void setHandle(const ur_event_handle_t &UREvent);
+  void setHandle(const ur_event_handle_t &UREvent) { MEvent.store(UREvent); }
 
   /// Returns context that is associated with this event.
   context_impl &getContextImpl();
@@ -264,10 +259,10 @@ public:
     MWorkerQueue = std::move(WorkerQueue);
   };
 
-  /// Sets original queue used for submission.
+  /// Sets original queue and device used for submission.
   ///
   /// @return
-  void setSubmittedQueue(std::weak_ptr<queue_impl> SubmittedQueue);
+  void setSubmittedQueue(queue_impl *SubmittedQueue);
 
   /// Indicates if this event is not associated with any command and doesn't
   /// have native handle.
@@ -318,7 +313,8 @@ public:
   ur_exp_command_buffer_sync_point_t getSyncPoint() const { return MSyncPoint; }
 
   void setCommandGraph(
-      std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> Graph) {
+      const std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
+          &Graph) {
     MGraph = Graph;
   }
 
@@ -394,6 +390,7 @@ protected:
 
   std::weak_ptr<queue_impl> MWorkerQueue;
   std::weak_ptr<queue_impl> MSubmittedQueue;
+  device_impl *MSubmittedDevice = nullptr;
 
   /// Dependency events prepared for waiting by backend.
   std::vector<EventImplPtr> MPreparedDepsEvents;

@@ -11,9 +11,6 @@
 using cudaKernelTest = uur::urQueueTest;
 UUR_INSTANTIATE_DEVICE_TEST_SUITE(cudaKernelTest);
 
-// The first argument stores the implicit global offset
-inline constexpr size_t NumberOfImplicitArgsCUDA = 1;
-
 const char *ptxSource = "\n\
 .version 3.2\n\
 .target sm_20\n\
@@ -138,78 +135,6 @@ TEST_P(cudaKernelTest, CreateProgramAndKernelWithMetadata) {
   }
 }
 
-TEST_P(cudaKernelTest, URKernelArgumentSimple) {
-  uur::raii::Program program = nullptr;
-  auto Length = std::strlen(ptxSource);
-  ASSERT_SUCCESS(urProgramCreateWithBinary(context, 1, &device, &Length,
-                                           (const uint8_t **)(&ptxSource),
-                                           nullptr, program.ptr()));
-  ASSERT_NE(program, nullptr);
-  ASSERT_SUCCESS(urProgramBuild(context, program, nullptr));
-
-  uur::raii::Kernel kernel = nullptr;
-  ASSERT_SUCCESS(urKernelCreate(program, "_Z8myKernelPi", kernel.ptr()));
-  ASSERT_NE(kernel, nullptr);
-
-  int number = 10;
-  ASSERT_SUCCESS(urKernelSetArgValue(kernel, 0, sizeof(int), nullptr, &number));
-  const auto &kernelArgs = kernel->getArgPointers();
-  ASSERT_EQ(kernelArgs.size(), 1 + NumberOfImplicitArgsCUDA);
-
-  int storedValue = *static_cast<const int *>(kernelArgs[0]);
-  ASSERT_EQ(storedValue, number);
-}
-
-TEST_P(cudaKernelTest, URKernelArgumentLarge) {
-  uur::raii::Program program = nullptr;
-  auto Length = std::strlen(ptxSource);
-  ASSERT_SUCCESS(urProgramCreateWithBinary(context, 1, &device, &Length,
-                                           (const uint8_t **)(&ptxSource),
-                                           nullptr, program.ptr()));
-  ASSERT_NE(program, nullptr);
-  ASSERT_SUCCESS(urProgramBuild(context, program, nullptr));
-
-  uur::raii::Kernel kernel = nullptr;
-  ASSERT_SUCCESS(urKernelCreate(program, "_Z8myKernelPi", kernel.ptr()));
-  ASSERT_NE(kernel, nullptr);
-
-  // The CUDA adapter can't do proper argument validation so any kernel will
-  // work for this test.
-  std::array<uint8_t, 4004> data;
-  data.fill(0);
-  ASSERT_EQ_RESULT(urKernelSetArgValue(kernel, 0, 4004, nullptr, data.data()),
-                   UR_RESULT_ERROR_OUT_OF_RESOURCES);
-}
-
-TEST_P(cudaKernelTest, URKernelArgumentSetTwice) {
-  uur::raii::Program program = nullptr;
-  auto Length = std::strlen(ptxSource);
-  ASSERT_SUCCESS(urProgramCreateWithBinary(context, 1, &device, &Length,
-                                           (const uint8_t **)(&ptxSource),
-                                           nullptr, program.ptr()));
-  ASSERT_NE(program, nullptr);
-  ASSERT_SUCCESS(urProgramBuild(context, program, nullptr));
-
-  uur::raii::Kernel kernel = nullptr;
-  ASSERT_SUCCESS(urKernelCreate(program, "_Z8myKernelPi", kernel.ptr()));
-  ASSERT_NE(kernel, nullptr);
-
-  int number = 10;
-  ASSERT_SUCCESS(urKernelSetArgValue(kernel, 0, sizeof(int), nullptr, &number));
-  const auto &kernelArgs = kernel->getArgPointers();
-  ASSERT_EQ(kernelArgs.size(), 1 + NumberOfImplicitArgsCUDA);
-  int storedValue = *static_cast<const int *>(kernelArgs[0]);
-  ASSERT_EQ(storedValue, number);
-
-  int otherNumber = 934;
-  ASSERT_SUCCESS(
-      urKernelSetArgValue(kernel, 0, sizeof(int), nullptr, &otherNumber));
-  const auto kernelArgs2 = kernel->getArgPointers();
-  ASSERT_EQ(kernelArgs2.size(), 1 + NumberOfImplicitArgsCUDA);
-  storedValue = *static_cast<const int *>(kernelArgs2[0]);
-  ASSERT_EQ(storedValue, otherNumber);
-}
-
 TEST_P(cudaKernelTest, URKernelDispatch) {
   uur::raii::Program program = nullptr;
   auto Length = std::strlen(ptxSource);
@@ -228,15 +153,23 @@ TEST_P(cudaKernelTest, URKernelDispatch) {
   ASSERT_SUCCESS(urMemBufferCreate(context, UR_MEM_FLAG_READ_WRITE, memSize,
                                    nullptr, buffer.ptr()));
   ASSERT_NE(buffer, nullptr);
-  ASSERT_SUCCESS(urKernelSetArgMemObj(kernel, 0, nullptr, buffer));
+  ur_exp_kernel_arg_value_t arg_val0 = {};
+  arg_val0.memObjTuple = {buffer, UR_MEM_FLAG_READ_WRITE};
+  ur_exp_kernel_arg_properties_t arg0 = {
+      UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+      nullptr,
+      UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ,
+      0,
+      sizeof(ur_mem_handle_t),
+      arg_val0};
 
   const size_t workDim = 1;
   const size_t globalWorkOffset[] = {0};
   const size_t globalWorkSize[] = {1};
   const size_t localWorkSize[] = {1};
-  ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, workDim, globalWorkOffset,
-                                       globalWorkSize, localWorkSize, 0,
-                                       nullptr, 0, nullptr, nullptr));
+  ASSERT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
+      queue, kernel, workDim, globalWorkOffset, globalWorkSize, localWorkSize,
+      1, &arg0, nullptr, 0, nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 }
 
@@ -262,15 +195,34 @@ TEST_P(cudaKernelTest, URKernelDispatchTwo) {
   ASSERT_SUCCESS(urMemBufferCreate(context, UR_MEM_FLAG_READ_WRITE, memSize,
                                    nullptr, buffer2.ptr()));
   ASSERT_NE(buffer1, nullptr);
-  ASSERT_SUCCESS(urKernelSetArgMemObj(kernel, 0, nullptr, buffer1));
-  ASSERT_SUCCESS(urKernelSetArgMemObj(kernel, 1, nullptr, buffer2));
+  ur_exp_kernel_arg_value_t arg_val0 = {};
+  arg_val0.memObjTuple = {buffer1, UR_MEM_FLAG_READ_WRITE};
+  ur_exp_kernel_arg_properties_t arg0 = {
+      UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+      nullptr,
+      UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ,
+      0,
+      sizeof(ur_mem_handle_t),
+      arg_val0};
+
+  ur_exp_kernel_arg_value_t arg_val1 = {};
+  arg_val1.memObjTuple = {buffer2, UR_MEM_FLAG_READ_WRITE};
+  ur_exp_kernel_arg_properties_t arg1 = {
+      UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+      nullptr,
+      UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ,
+      1,
+      sizeof(ur_mem_handle_t),
+      arg_val1};
+
+  ur_exp_kernel_arg_properties_t args[] = {arg0, arg1};
 
   const size_t workDim = 1;
   const size_t globalWorkOffset[] = {0};
   const size_t globalWorkSize[] = {1};
   const size_t localWorkSize[] = {1};
-  ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, workDim, globalWorkOffset,
-                                       globalWorkSize, localWorkSize, 0,
-                                       nullptr, 0, nullptr, nullptr));
+  ASSERT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
+      queue, kernel, workDim, globalWorkOffset, globalWorkSize, localWorkSize,
+      2, args, nullptr, 0, nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 }

@@ -64,8 +64,8 @@ __declspec(align(sizeof(void*) * 2))
 const void* padding[2] = {0, 0};
 
 #ifdef _WIN32
-char __start_omp_offloading_entries = 1;
-char __stop_omp_offloading_entries = 1;
+char __start_llvm_offload_entries = 1;
+char __stop_llvm_offload_entries = 1;
 #endif
 
 void __tgt_register_lib(void *desc) {}

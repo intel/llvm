@@ -11,19 +11,14 @@
 #include <sycl/id.hpp>
 #include <sycl/range.hpp>
 
-#ifdef __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
 #define SYCL_KHR_GROUP_INTERFACE 1
-#endif
 
-#if __cplusplus >= 202302L && defined(__has_include)
-#if __has_include(<mdspan>)
+#if __cplusplus >= 202302L && __has_include(<mdspan>)
 #include <mdspan>
-#endif
 #endif
 
 namespace sycl {
 inline namespace _V1 {
-#ifdef __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
 namespace khr {
 
 // Forward declarations for traits.
@@ -265,6 +260,5 @@ template <typename Group> bool leader_of(Group g) {
 }
 
 } // namespace khr
-#endif
 } // namespace _V1
 } // namespace sycl

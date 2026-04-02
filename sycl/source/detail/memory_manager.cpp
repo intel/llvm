@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "ur_api.h"
+#include "unified-runtime/ur_api.h"
 #include <detail/context_impl.hpp>
 #include <detail/device_image_impl.hpp>
 #include <detail/event_impl.hpp>
@@ -34,11 +34,6 @@
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
-
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-uint8_t GMemAllocStreamID;
-xpti::trace_event_data_t *GMemAllocEvent;
-#endif
 
 uint64_t emitMemAllocBeginTrace(uintptr_t ObjHandle, size_t AllocSize,
                                 size_t GuardZone) {
@@ -369,26 +364,6 @@ MemoryManager::allocateBufferObject(context_impl *TargetContext, void *UserPtr,
   ur_buffer_properties_t AllocProps = {UR_STRUCTURE_TYPE_BUFFER_PROPERTIES,
                                        nullptr, UserPtr};
 
-  void **Next = &AllocProps.pNext;
-  ur_buffer_alloc_location_properties_t LocationProperties = {
-      UR_STRUCTURE_TYPE_BUFFER_ALLOC_LOCATION_PROPERTIES, nullptr, 0};
-  if (PropsList.has_property<property::buffer::detail::buffer_location>() &&
-      TargetContext->isBufferLocationSupported()) {
-    LocationProperties.location =
-        PropsList.get_property<property::buffer::detail::buffer_location>()
-            .get_buffer_location();
-    *Next = &LocationProperties;
-    Next = &LocationProperties.pNext;
-  }
-
-  ur_buffer_channel_properties_t ChannelProperties = {
-      UR_STRUCTURE_TYPE_BUFFER_CHANNEL_PROPERTIES, nullptr, 0};
-  if (PropsList.has_property<property::buffer::mem_channel>()) {
-    ChannelProperties.channel =
-        PropsList.get_property<property::buffer::mem_channel>().get_channel();
-    *Next = &ChannelProperties;
-  }
-
   memBufferCreateHelper(Adapter, TargetContext->getHandleRef(), CreationFlags,
                         Size, &NewMem, &AllocProps);
   return NewMem;
@@ -450,7 +425,7 @@ void *MemoryManager::allocateMemSubBuffer(context_impl *TargetContext,
   ur_result_t Error = UR_RESULT_SUCCESS;
   ur_buffer_region_t Region = {UR_STRUCTURE_TYPE_BUFFER_REGION, nullptr, Offset,
                                SizeInBytes};
-  ur_mem_handle_t NewMem;
+  ur_mem_handle_t NewMem = nullptr;
   adapter_impl &Adapter = TargetContext->getAdapter();
   Error = Adapter.call_nocheck<UrApiKind::urMemBufferPartition>(
       ur::cast<ur_mem_handle_t>(ParentMemObj), UR_MEM_FLAG_READ_WRITE,
@@ -1073,7 +1048,7 @@ memcpyToDeviceGlobalUSM(queue_impl &Queue,
       DeviceGlobalEntry->getOrAllocateDeviceGlobalUSM(Queue);
   void *Dest = DeviceGlobalUSM.getPtr();
 
-  // OwnedPiEvent will keep the initialization event alive for the duration
+  // OwnedUrEvent will keep the initialization event alive for the duration
   // of this function call.
   OwnedUrEvent ZIEvent = DeviceGlobalUSM.getInitEvent(Queue.getAdapter());
 
@@ -1105,7 +1080,7 @@ static void memcpyFromDeviceGlobalUSM(
       DeviceGlobalEntry->getOrAllocateDeviceGlobalUSM(Queue);
   void *Src = DeviceGlobalUSM.getPtr();
 
-  // OwnedPiEvent will keep the initialization event alive for the duration
+  // OwnedUrEvent will keep the initialization event alive for the duration
   // of this function call.
   OwnedUrEvent ZIEvent = DeviceGlobalUSM.getInitEvent(Queue.getAdapter());
 
@@ -1575,8 +1550,10 @@ void MemoryManager::copy_image_bindless(
     queue_impl &Queue, const void *Src, void *Dst,
     const ur_image_desc_t &SrcDesc, const ur_image_desc_t &DstDesc,
     const ur_image_format_t &SrcFormat, const ur_image_format_t &DstFormat,
-    const ur_exp_image_copy_flags_t Flags, ur_rect_offset_t SrcOffset,
-    ur_rect_offset_t DstOffset, ur_rect_region_t CopyExtent,
+    const ur_exp_image_copy_flags_t Flags,
+    const ur_exp_image_copy_input_types_t InputTypes,
+    ur_rect_offset_t SrcOffset, ur_rect_offset_t DstOffset,
+    ur_rect_region_t CopyExtent,
     const std::vector<ur_event_handle_t> &DepEvents,
     ur_event_handle_t *OutEvent) {
   assert((Flags == UR_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE ||
@@ -1599,8 +1576,8 @@ void MemoryManager::copy_image_bindless(
 
   Adapter.call<UrApiKind::urBindlessImagesImageCopyExp>(
       Queue.getHandleRef(), Src, Dst, &SrcDesc, &DstDesc, &SrcFormat,
-      &DstFormat, &CopyRegion, Flags, DepEvents.size(), DepEvents.data(),
-      OutEvent);
+      &DstFormat, &CopyRegion, Flags, InputTypes, DepEvents.size(),
+      DepEvents.data(), OutEvent);
 }
 
 } // namespace detail

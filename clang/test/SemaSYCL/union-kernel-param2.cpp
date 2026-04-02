@@ -60,20 +60,20 @@ int main() {
 
 // Check kernel_A parameters
 // CHECK: FunctionDecl {{.*}}kernel_A{{.*}} 'void (union MyUnion) __attribute__((device_kernel))'
-// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_union_mem 'union MyUnion':'MyUnion'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_union_mem 'union MyUnion'
 
 // Check kernel_A inits
 // CHECK-NEXT: CompoundStmt
 // CHECK-NEXT: DeclStmt
 // CHECK-NEXT: VarDecl {{.*}} cinit
 // CHECK-NEXT: InitListExpr
-// CHECK-NEXT: CXXConstructExpr {{.*}} 'union MyUnion':'MyUnion' 'void (const MyUnion &) noexcept'
+// CHECK-NEXT: CXXConstructExpr {{.*}} 'union MyUnion' 'void (const MyUnion &) noexcept'
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'const MyUnion'
-// CHECK-NEXT: DeclRefExpr {{.*}} 'union MyUnion':'MyUnion' lvalue ParmVar {{.*}} '_arg_union_mem' 'union MyUnion':'MyUnion'
+// CHECK-NEXT: DeclRefExpr {{.*}} 'union MyUnion' lvalue ParmVar {{.*}} '_arg_union_mem' 'union MyUnion'
 
 // Check kernel_B parameters
 // CHECK: FunctionDecl {{.*}}kernel_B{{.*}} 'void (union MyUnion, __global char *, sycl::range<1>, sycl::range<1>, sycl::id<1>) __attribute__((device_kernel))'
-// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_union_mem 'union MyUnion':'MyStruct::MyUnion'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_union_mem 'union MyUnion'
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_AccField '__global char *'
 // CHECK: ParmVarDecl {{.*}} used _arg_AccField 'sycl::range<1>'
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_AccField 'sycl::range<1>'
@@ -85,9 +85,9 @@ int main() {
 // CHECK-NEXT: VarDecl {{.*}} cinit
 // CHECK-NEXT: InitListExpr
 // CHECK-NEXT: InitListExpr {{.*}} 'MyStruct'
-// CHECK-NEXT: CXXConstructExpr {{.*}} 'union MyUnion':'MyStruct::MyUnion' 'void (const MyUnion &) noexcept'
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'const MyUnion':'const MyStruct::MyUnion'
-// CHECK-NEXT: DeclRefExpr {{.*}} 'union MyUnion':'MyStruct::MyUnion' lvalue ParmVar {{.*}} '_arg_union_mem' 'union MyUnion':'MyStruct::MyUnion'
+// CHECK-NEXT: CXXConstructExpr {{.*}} 'union MyUnion' 'void (const MyUnion &) noexcept'
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'const MyUnion' lvalue <NoOp>
+// CHECK-NEXT: DeclRefExpr {{.*}} 'union MyUnion' lvalue ParmVar {{.*}} '_arg_union_mem' 'union MyUnion'
 // CHECK-NEXT: CXXConstructExpr {{.*}} 'sycl::accessor<char, 1, sycl::access::mode::read>'
 
 // Check call to __init to initialize AccField
@@ -106,9 +106,9 @@ int main() {
 // CHECK-NEXT: DeclStmt
 // CHECK-NEXT: VarDecl {{.*}} cinit
 // CHECK-NEXT: InitListExpr
-// CHECK-NEXT: CXXConstructExpr {{.*}} 'struct MyStructWithPtr':'MyStructWithPtr' 'void (const MyStructWithPtr &) noexcept'
+// CHECK-NEXT: CXXConstructExpr {{.*}} 'struct MyStructWithPtr' 'void (const MyStructWithPtr &) noexcept'
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'const MyStructWithPtr' lvalue <NoOp>
-// CHECK-NEXT: UnaryOperator {{.*}} 'struct MyStructWithPtr':'MyStructWithPtr' lvalue prefix '*' cannot overflow
+// CHECK-NEXT: UnaryOperator {{.*}} 'struct MyStructWithPtr' lvalue prefix '*' cannot overflow
 // CHECK-NEXT: CXXReinterpretCastExpr {{.*}} 'struct MyStructWithPtr *' reinterpret_cast<struct MyStructWithPtr *> <BitCast>
 // CHECK-NEXT: UnaryOperator {{.*}} '__generated_MyStructWithPtr *' prefix '&' cannot overflow
 // CHECK-NEXT: DeclRefExpr {{.*}} '__generated_MyStructWithPtr' lvalue ParmVar {{.*}} '_arg_structWithPtr_mem' '__generated_MyStructWithPtr'

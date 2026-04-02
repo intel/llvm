@@ -42,13 +42,13 @@ TEST_F(CommandGraphTest, DynamicObjRegister) {
 
   // TODO: Update test when deprecated constructors that take a graph have been
   // removed.
-  experimental::dynamic_parameter DynamicParam{Graph, int{}};
+  experimental::dynamic_parameter DynamicParam{int{}};
   ASSERT_NO_FATAL_FAILURE(CheckRegisterWrongGraph(DynamicParam));
 
-  experimental::dynamic_work_group_memory<int[]> DynamicWorkGroupMem{Graph, 1};
+  experimental::dynamic_work_group_memory<int[]> DynamicWorkGroupMem{1};
   ASSERT_NO_FATAL_FAILURE(CheckRegisterWrongGraph(DynamicWorkGroupMem));
 
-  experimental::dynamic_local_accessor<int, 1> DynamicLocalAcc{Graph, 1};
+  experimental::dynamic_local_accessor<int, 1> DynamicLocalAcc{1};
   ASSERT_NO_FATAL_FAILURE(CheckRegisterWrongGraph(DynamicLocalAcc));
 }
 
@@ -146,13 +146,13 @@ TEST_F(CommandGraphTest, UpdateNodeTypeExceptions) {
     }));
   };
 
-  experimental::dynamic_parameter DynamicParam{Graph, int{}};
+  experimental::dynamic_parameter DynamicParam{int{}};
   ASSERT_NO_FATAL_FAILURE(CheckNodeCompatibility(DynamicParam));
 
-  experimental::dynamic_work_group_memory<int[]> DynamicWorkGroupMem{Graph, 1};
+  experimental::dynamic_work_group_memory<int[]> DynamicWorkGroupMem{1};
   ASSERT_NO_FATAL_FAILURE(CheckNodeCompatibility(DynamicWorkGroupMem));
 
-  experimental::dynamic_local_accessor<int, 1> DynamicLocalAcc{Graph, 1};
+  experimental::dynamic_local_accessor<int, 1> DynamicLocalAcc{1};
   ASSERT_NO_FATAL_FAILURE(CheckNodeCompatibility(DynamicLocalAcc));
 }
 
@@ -426,14 +426,14 @@ TEST_F(WholeGraphUpdateTest, EmptyNode) {
 
 // Vars and callbacks for tracking how many times mocked functions are called
 static int GetInfoCount = 0;
-static int AppendKernelLaunchCount = 0;
+static int AppendKernelLaunchWithArgsCount = 0;
 static ur_result_t redefinedCommandBufferGetInfoExpAfter(void *pParams) {
   GetInfoCount++;
   return UR_RESULT_SUCCESS;
 }
 static ur_result_t
-redefinedCommandBufferAppendKernelLaunchExpAfter(void *pParams) {
-  AppendKernelLaunchCount++;
+redefinedCommandBufferAppendKernelLaunchWithArgsExpAfter(void *pParams) {
+  AppendKernelLaunchWithArgsCount++;
   return UR_RESULT_SUCCESS;
 }
 
@@ -445,16 +445,16 @@ TEST_F(CommandGraphTest, CheckFinalizeBehavior) {
   mock::getCallbacks().set_after_callback(
       "urCommandBufferGetInfoExp", &redefinedCommandBufferGetInfoExpAfter);
   mock::getCallbacks().set_after_callback(
-      "urCommandBufferAppendKernelLaunchExp",
-      &redefinedCommandBufferAppendKernelLaunchExpAfter);
+      "urCommandBufferAppendKernelLaunchWithArgsExp",
+      &redefinedCommandBufferAppendKernelLaunchWithArgsExpAfter);
 
   ASSERT_NO_THROW(Graph.finalize(experimental::property::graph::updatable{}));
-  // GetInfo and AppendKernelLaunch should be called once each time a node is
-  // added to a command buffer during finalization
+  // GetInfo and AppendKernelLaunchWithArgs should be called once each time a
+  // node is added to a command buffer during finalization
   ASSERT_EQ(GetInfoCount, 1);
-  ASSERT_EQ(AppendKernelLaunchCount, 1);
+  ASSERT_EQ(AppendKernelLaunchWithArgsCount, 1);
 
   ASSERT_NO_THROW(Graph.finalize());
   ASSERT_EQ(GetInfoCount, 2);
-  ASSERT_EQ(AppendKernelLaunchCount, 2);
+  ASSERT_EQ(AppendKernelLaunchWithArgsCount, 2);
 }

@@ -1,5 +1,3 @@
-// XFAIL: run-mode && linux && arch-intel_gpu_bmg_g21 && spirv-backend
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/19586
 // RUN: %{build} -Wno-error=deprecated-declarations -o %t.out
 // RUN: %{run} %t.out
 // Extra run to check for leaks in Level Zero using UR_L0_LEAKS_DEBUG
@@ -33,9 +31,9 @@ int main() {
   Queue.memcpy(PtrB, HostDataB.data(), Size * sizeof(int)).wait();
   Queue.memset(PtrC, 0, Size * sizeof(int)).wait();
 
-  exp_ext::dynamic_parameter ParamA(Graph, PtrA);
-  exp_ext::dynamic_parameter ParamB(Graph, PtrB);
-  exp_ext::dynamic_parameter ParamOut(Graph, PtrC);
+  exp_ext::dynamic_parameter ParamA(PtrA);
+  exp_ext::dynamic_parameter ParamB(PtrB);
+  exp_ext::dynamic_parameter ParamOut(PtrC);
 
   nd_range<1> NDRange{Size, 32};
 

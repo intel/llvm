@@ -1,18 +1,20 @@
-// Copyright (C) 2023 Intel Corporation
+// Copyright (C) 2023-2026 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-#include "ur_api.h"
+#include "unified-runtime/ur_api.h"
 #include "uur/known_failure.h"
 #include <uur/fixtures.h>
 
 struct urKernelGetSubGroupInfoFixedSubGroupSizeTest : uur::urKernelTest {
   void SetUp() override {
+    // CUDA/HIP: The loaded device image does not carry the kernel metadata required for this query.
+    UUR_KNOWN_FAILURE_ON(uur::CUDA{}, uur::HIP{});
+
     // See https://github.com/oneapi-src/unified-runtime/issues/2514
-    UUR_KNOWN_FAILURE_ON(uur::CUDA{}, uur::HIP{}, uur::OpenCL{},
-                         uur::LevelZero{}, uur::LevelZeroV2{});
+    UUR_KNOWN_FAILURE_ON(uur::OpenCL{}, uur::LevelZero{}, uur::LevelZeroV2{});
     program_name = "fixed_sg_size";
     UUR_RETURN_ON_FATAL_FAILURE(urKernelTest::SetUp());
   }
@@ -20,7 +22,8 @@ struct urKernelGetSubGroupInfoFixedSubGroupSizeTest : uur::urKernelTest {
   // This value correlates to sub_group_size<8> in fixed_sg_size.cpp.
   uint32_t num_sub_groups{8};
 };
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(urKernelGetSubGroupInfoFixedSubGroupSizeTest);
+UUR_DEVICE_TEST_SUITE_WITH_DEFAULT_QUEUE(
+    urKernelGetSubGroupInfoFixedSubGroupSizeTest);
 
 TEST_P(urKernelGetSubGroupInfoFixedSubGroupSizeTest,
        SuccessCompileNumSubGroups) {
@@ -46,7 +49,7 @@ TEST_P(urKernelGetSubGroupInfoFixedSubGroupSizeTest,
 struct urKernelGetSubGroupInfoTest : uur::urKernelTest {
   void SetUp() override { UUR_RETURN_ON_FATAL_FAILURE(urKernelTest::SetUp()); }
 };
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(urKernelGetSubGroupInfoTest);
+UUR_DEVICE_TEST_SUITE_WITH_DEFAULT_QUEUE(urKernelGetSubGroupInfoTest);
 
 TEST_P(urKernelGetSubGroupInfoTest, SuccessMaxSubGroupSize) {
   const ur_kernel_sub_group_info_t property_name =

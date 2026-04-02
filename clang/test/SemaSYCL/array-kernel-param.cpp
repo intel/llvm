@@ -232,7 +232,7 @@ int main() {
 // CHECK-NEXT: OpaqueValueExpr {{.*}} 'int[2][3]' lvalue
 // CHECK-NEXT: MemberExpr {{.*}} 'int[2][3]' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_array_2D' '__wrapper_class'
-// CHECK-NEXT: ArrayInitIndexExpr {{.*}} 'unsigned
+// CHECK-NEXT: ArrayInitIndexExpr {{.*}} '__size_t'
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'int' <LValueToRValue>
 // CHECK-NEXT: ArraySubscriptExpr {{.*}} 'int' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <ArrayToPointerDecay>
@@ -242,8 +242,8 @@ int main() {
 // CHECK-NEXT: OpaqueValueExpr {{.*}} 'int[2][3]' lvalue
 // CHECK-NEXT: MemberExpr {{.*}} 'int[2][3]' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_array_2D' '__wrapper_class'
-// CHECK-NEXT: ArrayInitIndexExpr {{.*}} 'unsigned
-// CHECK-NEXT: ArrayInitIndexExpr {{.*}} 'unsigned
+// CHECK-NEXT: ArrayInitIndexExpr {{.*}} '__size_t'
+// CHECK-NEXT: ArrayInitIndexExpr {{.*}} '__size_t'
 
 // Check Kernel_NonDecomposedStruct parameters.
 // CHECK: FunctionDecl {{.*}}Kernel_NonDecomposedStruct{{.*}} 'void (__wrapper_class) __attribute__((device_kernel))'
@@ -264,7 +264,7 @@ int main() {
 // CHECK-NEXT: OpaqueValueExpr {{.*}} 'NonDecomposedStruct[2]' lvalue
 // CHECK-NEXT: MemberExpr {{.*}} 'NonDecomposedStruct[2]' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_NonDecompStructArray' '__wrapper_class'
-// CHECK-NEXT: ArrayInitIndexExpr {{.*}} 'unsigned
+// CHECK-NEXT: ArrayInitIndexExpr {{.*}} '__size_t'
 
 // Check Kernel_StructWithPointers parameters.
 // CHECK: FunctionDecl {{.*}}Kernel_StructWithPointers{{.*}} 'void (__wrapper_class) __attribute__((device_kernel))'

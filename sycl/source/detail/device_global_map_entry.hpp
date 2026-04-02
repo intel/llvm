@@ -46,6 +46,7 @@ private:
   std::mutex MInitEventMutex;
   ur_event_handle_t MInitEvent = nullptr;
 
+  std::weak_ptr<context_impl> MAllocatingContext;
   friend struct DeviceGlobalMapEntry;
 };
 
@@ -67,14 +68,14 @@ struct DeviceGlobalMapEntry {
   // Constructor for only initializing ID and pointer. The other members will
   // be initialized later.
   DeviceGlobalMapEntry(std::string UniqueId, const void *DeviceGlobalPtr)
-      : MUniqueId(UniqueId), MDeviceGlobalPtr(DeviceGlobalPtr) {}
+      : MUniqueId(std::move(UniqueId)), MDeviceGlobalPtr(DeviceGlobalPtr) {}
 
   // Constructor for only initializing ID, type size, and device image scope
   // flag. The pointer to the device global will be initialized later.
   DeviceGlobalMapEntry(std::string UniqueId, const RTDeviceBinaryImage *Img,
                        std::uint32_t DeviceGlobalTSize,
                        bool IsDeviceImageScopeDecorated)
-      : MUniqueId(UniqueId), MImages{Img},
+      : MUniqueId(std::move(UniqueId)), MImages{Img},
         MImageIdentifiers{reinterpret_cast<uintptr_t>(Img)},
         MDeviceGlobalTSize(DeviceGlobalTSize),
         MIsDeviceImageScopeDecorated(IsDeviceImageScopeDecorated) {}
@@ -109,6 +110,15 @@ struct DeviceGlobalMapEntry {
     MIsDeviceImageScopeDecorated = IsDeviceImageScopeDecorated;
   }
 
+  // Checks if the device_global is available in the given context.
+  bool isAvailableInContext(const context_impl *CtxImpl) const;
+
+  // Returns true if the device_global is a profile counter.
+  bool isProfileCounter() const;
+
+  // Cleans up a profile counter device global.
+  void cleanupProfileCounter(context_impl *CtxImpl);
+
   // Gets or allocates USM memory for a device_global.
   DeviceGlobalUSMMem &getOrAllocateDeviceGlobalUSM(queue_impl &QueueImpl);
 
@@ -134,7 +144,7 @@ private:
   std::map<std::pair<const device_impl *, const context_impl *>,
            DeviceGlobalUSMMem>
       MDeviceToUSMPtrMap;
-  std::mutex MDeviceToUSMPtrMapMutex;
+  mutable std::mutex MDeviceToUSMPtrMapMutex;
 };
 
 } // namespace detail

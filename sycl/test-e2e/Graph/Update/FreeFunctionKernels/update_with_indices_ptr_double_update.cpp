@@ -1,5 +1,3 @@
-// XFAIL: run-mode && linux && arch-intel_gpu_bmg_g21 && spirv-backend
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/19586
 // RUN: %{build} -Wno-error=deprecated-declarations -o %t.out
 // RUN: %{run} %t.out
 // Extra run to check for leaks in Level Zero using UR_L0_LEAKS_DEBUG
@@ -28,7 +26,7 @@ int main() {
   Queue.memset(PtrB, 0, Size * sizeof(int)).wait();
   Queue.memset(PtrUnused, 0, Size * sizeof(int)).wait();
 
-  exp_ext::dynamic_parameter InputParam(Graph, PtrA);
+  exp_ext::dynamic_parameter InputParam(PtrA);
 
   kernel_bundle Bundle = get_kernel_bundle<bundle_state::executable>(Ctxt);
   kernel_id Kernel_id = exp_ext::get_kernel_id<ff_0>();

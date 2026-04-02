@@ -10,7 +10,7 @@
 --- #--------------------------------------------------------------------------
 type: header
 desc: "Intel $OneApi Unified Runtime APIs for Program"
-ordinal: "7"
+ordinal: "12"
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Create kernel object from a program."
@@ -36,71 +36,18 @@ returns:
         - "If `pKernelName` wasn't found in `hProgram`."
 --- #--------------------------------------------------------------------------
 type: struct
-desc: "Properties for for $xKernelSetArgValue."
+desc: "Properties for kernel argument of a value type."
 class: $xKernel
 name: $x_kernel_arg_value_properties_t
 base: $x_base_properties_t
 members: []
 --- #--------------------------------------------------------------------------
-type: function
-desc: "Set kernel argument to a value."
-class: $xKernel
-name: SetArgValue
-details:
-    - "The application may call this function from simultaneous threads with the same kernel handle."
-    - "The implementation of this function should be lock-free."
-params:
-    - type: "$x_kernel_handle_t"
-      name: hKernel
-      desc: "[in] handle of the kernel object"
-    - type: "uint32_t"
-      name: argIndex
-      desc: "[in] argument index in range [0, num args - 1]"
-    - type: "size_t"
-      name: argSize
-      desc: "[in] size of argument type"
-    - type: "const $x_kernel_arg_value_properties_t*"
-      name: pProperties
-      desc: "[in][optional] pointer to value properties."
-    - type: "const void*"
-      name: pArgValue
-      desc: |
-         [in] argument value represented as matching arg type.
-         The data pointed to will be copied and therefore can be reused on return.
-returns:
-    - $X_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX
-    - $X_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE
---- #--------------------------------------------------------------------------
 type: struct
-desc: "Properties for for $xKernelSetArgLocal."
+desc: "Properties for kernel argument of a local type."
 class: $xKernel
 name: $x_kernel_arg_local_properties_t
 base: $x_base_properties_t
 members: []
---- #--------------------------------------------------------------------------
-type: function
-desc: "Set kernel argument to a local buffer."
-class: $xKernel
-name: SetArgLocal
-details:
-    - "The application may call this function from simultaneous threads with the same kernel handle."
-    - "The implementation of this function should be lock-free."
-params:
-    - type: "$x_kernel_handle_t"
-      name: hKernel
-      desc: "[in] handle of the kernel object"
-    - type: "uint32_t"
-      name: argIndex
-      desc: "[in] argument index in range [0, num args - 1]"
-    - type: "size_t"
-      name: argSize
-      desc: "[in] size of the local buffer to be allocated by the runtime"
-    - type: "const $x_kernel_arg_local_properties_t*"
-      name: pProperties
-      desc: "[in][optional] pointer to local buffer properties."
-returns:
-    - $X_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX
-    - $X_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE
 --- #--------------------------------------------------------------------------
 type: enum
 desc: "Get Kernel object information"
@@ -328,36 +275,11 @@ params:
       desc: "[in][release] handle for the Kernel to release"
 --- #--------------------------------------------------------------------------
 type: struct
-desc: "Properties for for $xKernelSetArgPointer."
+desc: "Properties for kernel argument of a pointer type."
 class: $xKernel
 name: $x_kernel_arg_pointer_properties_t
 base: $x_base_properties_t
 members: []
---- #--------------------------------------------------------------------------
-type: function
-desc: "Set a USM pointer as the argument value of a Kernel."
-class: $xKernel
-name: SetArgPointer
-analogue:
-    - "**clSetKernelArgSVMPointer**"
-details:
-    - "The application may call this function from simultaneous threads with the same kernel handle."
-    - "The implementation of this function should be lock-free."
-params:
-    - type: "$x_kernel_handle_t"
-      name: hKernel
-      desc: "[in] handle of the kernel object"
-    - type: "uint32_t"
-      name: argIndex
-      desc: "[in] argument index in range [0, num args - 1]"
-    - type: "const $x_kernel_arg_pointer_properties_t*"
-      name: pProperties
-      desc: "[in][optional] pointer to USM pointer properties."
-    - type: "const void*"
-      name: pArgValue
-      desc: "[in][optional] Pointer obtained by USM allocation or virtual memory mapping operation. If null then argument value is considered null."
-returns:
-    - $X_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX
 --- #--------------------------------------------------------------------------
 type: struct
 desc: "Properties for for $xKernelSetExecInfo."
@@ -393,37 +315,14 @@ params:
       desc: "[in][typename(propName, propSize)] pointer to memory location holding the property value."
 --- #--------------------------------------------------------------------------
 type: struct
-desc: "Properties for for $xKernelSetArgSampler."
+desc: "Properties for kernel argument of a sampler type."
 class: $xKernel
 name: $x_kernel_arg_sampler_properties_t
 base: $x_base_properties_t
 members: []
 --- #--------------------------------------------------------------------------
-type: function
-desc: "Set a Sampler object as the argument value of a Kernel."
-class: $xKernel
-name: SetArgSampler
-details:
-    - "The application may call this function from simultaneous threads with the same kernel handle."
-    - "The implementation of this function should be lock-free."
-params:
-    - type: "$x_kernel_handle_t"
-      name: hKernel
-      desc: "[in] handle of the kernel object"
-    - type: "uint32_t"
-      name: argIndex
-      desc: "[in] argument index in range [0, num args - 1]"
-    - type: "const $x_kernel_arg_sampler_properties_t*"
-      name: pProperties
-      desc: "[in][optional] pointer to sampler properties."
-    - type: "$x_sampler_handle_t"
-      name: hArgValue
-      desc: "[in] handle of Sampler object."
-returns:
-    - $X_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX
---- #--------------------------------------------------------------------------
 type: struct
-desc: "Properties for for $xKernelSetArgMemObj."
+desc: "Properties for kernel argument of a memory object type."
 class: $xKernel
 name: $x_kernel_arg_mem_obj_properties_t
 base: $x_base_properties_t
@@ -433,35 +332,12 @@ members:
       desc: "[in] Memory access flag. Allowed values are: $X_MEM_FLAG_READ_WRITE, $X_MEM_FLAG_WRITE_ONLY, $X_MEM_FLAG_READ_ONLY."
 --- #--------------------------------------------------------------------------
 type: function
-desc: "Set a Memory object as the argument value of a Kernel."
-class: $xKernel
-name: SetArgMemObj
-details:
-    - "The application may call this function from simultaneous threads with the same kernel handle."
-    - "The implementation of this function should be lock-free."
-params:
-    - type: "$x_kernel_handle_t"
-      name: hKernel
-      desc: "[in] handle of the kernel object"
-    - type: "uint32_t"
-      name: argIndex
-      desc: "[in] argument index in range [0, num args - 1]"
-    - type: "const $x_kernel_arg_mem_obj_properties_t*"
-      name: pProperties
-      desc: "[in][optional] pointer to Memory object properties."
-    - type: "$x_mem_handle_t"
-      name: hArgValue
-      desc: "[in][optional] handle of Memory object."
-returns:
-    - $X_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX
---- #--------------------------------------------------------------------------
-type: function
 desc: "Set an array of specialization constants on a Kernel."
 class: $xKernel
 name: SetSpecializationConstants
 details:
     - "This entry point is optional, the application should query for support with device query $X_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS passed to $xDeviceGetInfo."
-    - "Adapters which are capable of setting specialization constants immediately prior to $xEnqueueKernelLaunch with low overhead should implement this entry point."
+    - "Adapters which are capable of setting specialization constants immediately prior to $xEnqueueKernelLaunchWithArgsExp with low overhead should implement this entry point."
     - "Otherwise, if setting specialization constants late requires recompiling or linking a program, adapters should not implement this entry point."
     - "The application may call this function from simultaneous threads for the same device."
     - "The implementation of this function should be thread-safe."
@@ -597,6 +473,55 @@ params:
             [out] pointer to an array of numWorkDim unsigned values that specify
             suggested local work size that will contain the result of the query
 returns:
+    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Set kernel args and get the suggested local work size for a kernel."
+class: $xKernel
+name: GetSuggestedLocalWorkSizeWithArgs
+ordinal: "0"
+details:
+    - "Query a suggested local work size for a kernel given a global size for each dimension."
+    - "The application may call this function from simultaneous threads for the same context."
+params:
+    - type: $x_kernel_handle_t
+      name: hKernel
+      desc: |
+            [in] handle of the kernel
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: |
+            [in] handle of the queue object
+    - type: uint32_t
+      name: numWorkDim
+      desc: |
+            [in] number of dimensions, from 1 to 3, to specify the global
+            and work-group work-items
+    - type: const size_t*
+      name: pGlobalWorkOffset
+      desc: |
+            [in] pointer to an array of numWorkDim unsigned values that specify
+            the offset used to calculate the global ID of a work-item
+    - type: const size_t*
+      name: pGlobalWorkSize
+      desc: |
+            [in] pointer to an array of numWorkDim unsigned values that specify
+            the number of global work-items in workDim that will execute the
+            kernel function
+    - type: uint32_t
+      name: numArgs
+      desc: "[in] Number of entries in pArgs"
+    - type: "const $x_exp_kernel_arg_properties_t*"
+      name: pArgs
+      desc: "[in][optional][range(0, numArgs)] pointer to a list of kernel arg properties."
+    - type: size_t*
+      name: pSuggestedLocalWorkSize
+      desc: |
+            [out] pointer to an array of numWorkDim unsigned values that specify
+            suggested local work size that will contain the result of the query
+returns:
+    - $X_RESULT_ERROR_INVALID_NULL_POINTER:
+        - "`pArgs == NULL && numArgs > 0`"
     - $X_RESULT_ERROR_UNSUPPORTED_FEATURE
 --- #--------------------------------------------------------------------------
 type: function

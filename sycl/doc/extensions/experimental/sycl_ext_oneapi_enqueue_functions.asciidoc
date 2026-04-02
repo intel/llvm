@@ -386,11 +386,11 @@ a!
 ----
 namespace sycl::ext::oneapi::experimental {
 
-template <typename KernelName, int Dimensions, typename... Args>
+template <int Dimensions, typename... Args>
 void parallel_for(sycl::queue q, sycl::range<Dimensions> r,
                   const sycl::kernel& k, Args&&... args);
 
-template <typename KernelName, int Dimensions, typename... Args>
+template <int Dimensions, typename... Args>
 void parallel_for(sycl::handler &h, sycl::range<Dimensions> r,
                   const sycl::kernel& k, Args&&... args);
 
@@ -409,14 +409,12 @@ a!
 ----
 namespace sycl::ext::oneapi::experimental {
 
-template <typename KernelName, int Dimensions,
-          typename Properties, typename... Args>
+template <int Dimensions, typename Properties, typename... Args>
 void parallel_for(sycl::queue q,
                   launch_config<sycl::range<Dimensions>, Properties> c,
                   const sycl::kernel& k, Args&& args...);
 
-template <typename KernelName, int Dimensions,
-          typename Properties, typename... Args>
+template <int Dimensions, typename Properties, typename... Args>
 void parallel_for(sycl::handler &h,
                   launch_config<sycl::range<Dimensions>, Properties> c,
                   const sycl::kernel& k, Args&& args...);
@@ -503,11 +501,11 @@ a!
 ----
 namespace sycl::ext::oneapi::experimental {
 
-template <typename KernelName, int Dimensions, typename... Args>
+template <int Dimensions, typename... Args>
 void nd_launch(sycl::queue q, sycl::nd_range<Dimensions> r,
                const sycl::kernel& k, Args&&... args);
 
-template <typename KernelName, int Dimensions, typename... Args>
+template <int Dimensions, typename... Args>
 void nd_launch(sycl::handler &h, sycl::nd_range<Dimensions> r,
                const sycl::kernel& k, Args&&... args);
 
@@ -527,14 +525,12 @@ a!
 ----
 namespace sycl::ext::oneapi::experimental {
 
-template <typename KernelName, int Dimensions,
-          typename Properties, typename... Args>
+template <int Dimensions, typename Properties, typename... Args>
 void nd_launch(sycl::queue q,
                launch_config<sycl::nd_range<Dimensions>, Properties> c,
                const sycl::kernel& k, Args&& args...);
 
-template <typename KernelName, int Dimensions,
-          typename Properties, typename... Args>
+template <int Dimensions, typename Properties, typename... Args>
 void nd_launch(sycl::handler &h,
                launch_config<sycl::nd_range<Dimensions>, Properties> c,
                const sycl::kernel& k, Args&& args...);
@@ -546,6 +542,35 @@ _Effects_: Enqueues a kernel object to the `sycl::queue` or `sycl::handler`
 as a basic kernel, using the launch configuration specified by a
 `launch_config`. The arguments in `args` are passed to the kernel in the same
 order.
+
+|====
+
+
+==== Host tasks
+
+|====
+a|
+[frame=all,grid=none]
+!====
+a!
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+template <typename T>
+void host_task(sycl::queue q, T&& hostTaskCallable);
+
+template <typename T>
+void host_task(sycl::handler &h, T&& hostTaskCallable);
+
+}
+----
+!====
+_Preconditions_: The callable function `hostTaskCallable` does not call any
+function in the `sycl` namespace.
+
+_Effects_: Enqueues a command to the `sycl::queue` or `sycl::handler` that
+executes `hostTaskCallable` exactly once on an unspecified host thread.
 
 |====
 
@@ -686,8 +711,9 @@ void barrier(sycl::handler &h);
 !====
 _Effects_: Enqueues a command barrier to the `sycl::queue` or `sycl::handler`.
 Any commands submitted after this barrier cannot begin execution until all
-previously submitted commands (and any commands associated with dependendent
-events) have completed.
+commands previously submitted to the `sycl::queue`
+have completed and all commands associated with other dependent events of
+the `sycl::handler` have completed.
 
 a|
 [frame=all,grid=none]

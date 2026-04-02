@@ -30,6 +30,7 @@
 
 #include <sycl/access/access.hpp>
 #include <sycl/detail/generic_type_traits.hpp>
+#include <sycl/detail/memcpy.hpp>
 
 #include <sycl/__spirv/spirv_ops.hpp>
 
@@ -39,6 +40,25 @@ namespace detail {
 
 // Type trait to get the associated sampled image type for a given image type.
 template <typename ImageType> struct sampled_opencl_image_type;
+
+// The SPIR-V spec requires the result of OpImageSampleExplicitLod to be a
+// vector type of four components. To satisfy this requirement, we need to use
+// a temporary vector type to hold the result of the SPIR-V call, and then
+// copy the result back to the original return type. The following type trait is
+// used to get the temporary vector type based on the original return type.
+
+template <typename RetType> struct image_sample_explicit_lod_result {
+  using type = sycl::vec<RetType, 4>;
+};
+
+template <typename ElemT, int N>
+struct image_sample_explicit_lod_result<sycl::vec<ElemT, N>> {
+  using type = sycl::vec<ElemT, 4>;
+};
+
+template <typename RetType>
+using image_sample_explicit_lod_result_t =
+    typename image_sample_explicit_lod_result<RetType>::type;
 
 } // namespace detail
 } // namespace _V1
@@ -185,9 +205,17 @@ static RetType __invoke__ImageReadCubemap(SmpImageT SmpImg, DirVecT DirVec) {
 template <typename RetType, typename SmpImageT, typename CoordT>
 static RetType __invoke__ImageReadLod(SmpImageT SmpImg, CoordT Coords,
                                       float Level) {
+  // The result type of the SPIR-V instruction OpImageSampleExplicitLod must be
+  // a vector of four components. Use the type trait to get the appropriate
+  // temporary vector type based on the original return type.
+  using NoRefT = std::remove_reference_t<RetType>;
+  using RetVecType = sycl::detail::image_sample_explicit_lod_result_t<NoRefT>;
+  static_assert(sizeof(RetVecType) >= sizeof(RetType),
+                "RetVecType should be at least as big as RetType to hold the "
+                "result of the SPIR-V call.");
 
   // Convert from sycl types to builtin types to get correct function mangling.
-  using TempRetT = sycl::detail::ConvertToOpenCLType_t<RetType>;
+  using TempRetT = sycl::detail::ConvertToOpenCLType_t<RetVecType>;
   auto TmpCoords = sycl::detail::convertToOpenCLType(Coords);
 
   enum ImageOperands { Lod = 0x2 };
@@ -198,9 +226,14 @@ static RetType __invoke__ImageReadLod(SmpImageT SmpImg, CoordT Coords,
   // Sampled Image must be an object whose type is OpTypeSampledImage
   // Image Operands encodes what operands follow. Either Lod
   // or Grad image operands must be present
-  return sycl::detail::convertFromOpenCLTypeFor<RetType>(
+  auto ResultVec = sycl::detail::convertFromOpenCLTypeFor<RetVecType>(
       __spirv_ImageSampleExplicitLod<SmpImageT, TempRetT, decltype(TmpCoords)>(
           SmpImg, TmpCoords, ImageOperands::Lod, Level));
+
+  // Copy the result back to the original return type the user expects.
+  RetType Result;
+  sycl::detail::memcpy_no_adl(&Result, &ResultVec, sizeof(Result));
+  return Result;
 }
 
 template <typename RetType, typename SmpImageT, typename CoordT>

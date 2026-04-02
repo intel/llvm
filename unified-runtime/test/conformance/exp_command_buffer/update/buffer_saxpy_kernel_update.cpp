@@ -1,10 +1,11 @@
-// Copyright (C) 2024 Intel Corporation
+// Copyright (C) 2024-2026 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include "../fixtures.h"
+#include "uur/fixtures.h"
 #include <array>
 
 // Test that updating a command-buffer with a single kernel command
@@ -32,55 +33,84 @@ struct BufferSaxpyKernelTest
 
     // Variable that is incremented as arguments are added to the kernel
     size_t current_arg_index = 0;
-    // Index 0 is output buffer for HIP/Non-HIP
-    ASSERT_SUCCESS(
-        urKernelSetArgMemObj(kernel, current_arg_index++, nullptr, buffers[0]));
 
     // Lambda to add accessor arguments depending on backend.
-    // HIP has 3 offset parameters and other backends only have 1.
     auto addAccessorArgs = [&]() {
       if (backend == UR_BACKEND_HIP) {
-        size_t val = 0;
-        ASSERT_SUCCESS(urKernelSetArgValue(kernel, current_arg_index++,
-                                           sizeof(size_t), nullptr, &val));
-        ASSERT_SUCCESS(urKernelSetArgValue(kernel, current_arg_index++,
-                                           sizeof(size_t), nullptr, &val));
-        ASSERT_SUCCESS(urKernelSetArgValue(kernel, current_arg_index++,
-                                           sizeof(size_t), nullptr, &val));
+        saxpy_buf_args.push_back({UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+                                  nullptr,
+                                  UR_EXP_KERNEL_ARG_TYPE_VALUE,
+                                  static_cast<uint32_t>(current_arg_index++),
+                                  sizeof(size_t),
+                                  {&hip_zero_val}});
+        saxpy_buf_args.push_back({UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+                                  nullptr,
+                                  UR_EXP_KERNEL_ARG_TYPE_VALUE,
+                                  static_cast<uint32_t>(current_arg_index++),
+                                  sizeof(size_t),
+                                  {&hip_zero_val}});
+        saxpy_buf_args.push_back({UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+                                  nullptr,
+                                  UR_EXP_KERNEL_ARG_TYPE_VALUE,
+                                  static_cast<uint32_t>(current_arg_index++),
+                                  sizeof(size_t),
+                                  {&hip_zero_val}});
       } else {
-        struct {
-          size_t offsets[1] = {0};
-        } accessor;
-        ASSERT_SUCCESS(urKernelSetArgValue(
-            kernel, current_arg_index++, sizeof(accessor), nullptr, &accessor));
+        saxpy_buf_args.push_back({UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+                                  nullptr,
+                                  UR_EXP_KERNEL_ARG_TYPE_VALUE,
+                                  static_cast<uint32_t>(current_arg_index++),
+                                  sizeof(accessor),
+                                  {&accessor}});
       }
     };
+
+    // Index 0 is output buffer for HIP/Non-HIP
+    ur_exp_kernel_arg_value_t mem0_val = {};
+    mem0_val.memObjTuple = {buffers[0], UR_MEM_FLAG_READ_WRITE};
+    saxpy_buf_args.push_back({UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+                              nullptr, UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ,
+                              static_cast<uint32_t>(current_arg_index++),
+                              sizeof(ur_mem_handle_t), mem0_val});
 
     // Index 3 on HIP and 1 on non-HIP are accessors
     addAccessorArgs();
 
     // Index 4 on HIP and 2 on non-HIP is A
-    ASSERT_SUCCESS(urKernelSetArgValue(kernel, current_arg_index++, sizeof(A),
-                                       nullptr, &A));
+    saxpy_buf_args.push_back({UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+                              nullptr,
+                              UR_EXP_KERNEL_ARG_TYPE_VALUE,
+                              static_cast<uint32_t>(current_arg_index++),
+                              sizeof(A),
+                              {&A}});
 
     // Index 5 on HIP and 3 on non-HIP is X buffer
-    ASSERT_SUCCESS(
-        urKernelSetArgMemObj(kernel, current_arg_index++, nullptr, buffers[1]));
+    ur_exp_kernel_arg_value_t mem1_val = {};
+    mem1_val.memObjTuple = {buffers[1], UR_MEM_FLAG_READ_WRITE};
+    saxpy_buf_args.push_back({UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+                              nullptr, UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ,
+                              static_cast<uint32_t>(current_arg_index++),
+                              sizeof(ur_mem_handle_t), mem1_val});
 
     // Index 8 on HIP and 4 on non-HIP is X buffer accessor
     addAccessorArgs();
 
     // Index 9 on HIP and 5 on non-HIP is Y buffer
-    ASSERT_SUCCESS(
-        urKernelSetArgMemObj(kernel, current_arg_index++, nullptr, buffers[2]));
+    ur_exp_kernel_arg_value_t mem2_val = {};
+    mem2_val.memObjTuple = {buffers[2], UR_MEM_FLAG_READ_WRITE};
+    saxpy_buf_args.push_back({UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+                              nullptr, UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ,
+                              static_cast<uint32_t>(current_arg_index++),
+                              sizeof(ur_mem_handle_t), mem2_val});
 
     // Index 12 on HIP and 6 on non-HIP is Y buffer accessor
     addAccessorArgs();
 
     // Append kernel command to command-buffer and close command-buffer
-    ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchExp(
+    ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchWithArgsExp(
         updatable_cmd_buf_handle, kernel, n_dimensions, &global_offset,
-        &global_size, &local_size, 0, nullptr, 0, nullptr, 0, nullptr, nullptr,
+        &global_size, &local_size, static_cast<uint32_t>(saxpy_buf_args.size()),
+        saxpy_buf_args.data(), 0, nullptr, 0, nullptr, 0, nullptr, nullptr,
         nullptr, &command_handle));
     ASSERT_NE(command_handle, nullptr);
 
@@ -127,9 +157,15 @@ struct BufferSaxpyKernelTest
   static constexpr uint32_t A = 42;
   std::array<ur_mem_handle_t, 5> buffers = {nullptr, nullptr, nullptr, nullptr};
   ur_exp_command_buffer_command_handle_t command_handle = nullptr;
+  // SAXPY: Single-precision A * X Plus Y (y = a * x + y)
+  std::vector<ur_exp_kernel_arg_properties_t> saxpy_buf_args;
+  size_t hip_zero_val = 0;
+  struct {
+    size_t offsets[1] = {0};
+  } accessor;
 };
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(BufferSaxpyKernelTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_MULTI_QUEUE(BufferSaxpyKernelTest);
 
 TEST_P(BufferSaxpyKernelTest, UpdateParameters) {
   // Run command-buffer prior to update an verify output

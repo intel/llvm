@@ -1,4 +1,4 @@
-// Copyright (C) 2024 Intel Corporation
+// Copyright (C) 2024-2026 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
 //
@@ -29,7 +29,7 @@ struct urEnqueueKernelLaunchTest : uur::urKernelExecutionTest {
   size_t global_offset = 0;
   size_t n_dimensions = 1;
 };
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEnqueueKernelLaunchTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_MULTI_QUEUE(urEnqueueKernelLaunchTest);
 
 TEST_P(urEnqueueKernelLaunchTest, DeferredKernelRelease) {
   ur_mem_handle_t buffer = nullptr;
@@ -44,9 +44,9 @@ TEST_P(urEnqueueKernelLaunchTest, DeferredKernelRelease) {
       &event));
 
   ASSERT_SUCCESS(urEnqueueEventsWait(queue, 1, &event, nullptr));
-  ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, n_dimensions,
-                                       &global_offset, &global_size, nullptr, 0,
-                                       nullptr, 0, nullptr, nullptr));
+  ASSERT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
+      queue, kernel, n_dimensions, &global_offset, &global_size, nullptr,
+      GetNumArgs(), GetArgs(), nullptr, 0, nullptr, nullptr));
   ASSERT_SUCCESS(urKernelRelease(kernel));
 
   // Kernel should still be alive since kernel launch is pending
@@ -137,14 +137,14 @@ TEST_P(urMultiQueueLaunchKernelDeferFreeTest, Success) {
   size_t global_size = 1;
 
   ASSERT_SUCCESS(urEnqueueEventsWait(queues[0], 1, &event1, nullptr));
-  ASSERT_SUCCESS(urEnqueueKernelLaunch(queues[0], kernel, 1, &global_offset,
-                                       &global_size, nullptr, 0, nullptr, 0,
-                                       nullptr, nullptr));
+  ASSERT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
+      queues[0], kernel, 1, &global_offset, &global_size, nullptr, 0, nullptr,
+      nullptr, 0, nullptr, nullptr));
 
   ASSERT_SUCCESS(urEnqueueEventsWait(queues[1], 1, &event2, nullptr));
-  ASSERT_SUCCESS(urEnqueueKernelLaunch(queues[1], kernel, 1, &global_offset,
-                                       &global_size, nullptr, 0, nullptr, 0,
-                                       nullptr, nullptr));
+  ASSERT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
+      queues[1], kernel, 1, &global_offset, &global_size, nullptr, 0, nullptr,
+      nullptr, 0, nullptr, nullptr));
 
   ASSERT_SUCCESS(urKernelRelease(kernel));
 

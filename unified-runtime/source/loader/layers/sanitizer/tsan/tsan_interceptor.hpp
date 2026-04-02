@@ -122,10 +122,11 @@ struct KernelInfo {
 
   // lock this mutex if following fields are accessed
   ur_shared_mutex Mutex;
-  std::unordered_map<uint32_t, std::shared_ptr<MemBuffer>> BufferArgs;
 
   // Need preserve the order of local arguments
   std::map<uint32_t, TsanLocalArgsInfo> LocalArgs;
+
+  std::vector<ur_exp_kernel_arg_properties_t> ArgProps;
 
   KernelInfo() = default;
 
@@ -181,7 +182,7 @@ struct LaunchInfo {
   ur_context_handle_t Context = nullptr;
   ur_device_handle_t Device = nullptr;
   const size_t *GlobalWorkSize = nullptr;
-  const size_t *GlobalWorkOffset = nullptr;
+  std::vector<size_t> GlobalWorkOffset;
   std::vector<size_t> LocalWorkSize;
   uint32_t WorkDim = 0;
   TsanRuntimeDataWrapper Data;
@@ -190,8 +191,7 @@ struct LaunchInfo {
              const size_t *GlobalWorkSize, const size_t *LocalWorkSize,
              const size_t *GlobalWorkOffset, uint32_t WorkDim)
       : Context(Context), Device(Device), GlobalWorkSize(GlobalWorkSize),
-        GlobalWorkOffset(GlobalWorkOffset), WorkDim(WorkDim),
-        Data(Context, Device) {
+        WorkDim(WorkDim), Data(Context, Device) {
     [[maybe_unused]] auto Result =
         getContext()->urDdiTable.Context.pfnRetain(Context);
     assert(Result == UR_RESULT_SUCCESS);
@@ -200,6 +200,14 @@ struct LaunchInfo {
     if (LocalWorkSize) {
       this->LocalWorkSize =
           std::vector<size_t>(LocalWorkSize, LocalWorkSize + WorkDim);
+    }
+    // UR doesn't allow GlobalWorkOffset is null, we need to construct a zero
+    // value array if user doesn't specify its value.
+    if (GlobalWorkOffset) {
+      this->GlobalWorkOffset =
+          std::vector<size_t>(GlobalWorkOffset, GlobalWorkOffset + WorkDim);
+    } else {
+      this->GlobalWorkOffset = std::vector<size_t>(WorkDim, 0);
     }
   }
 

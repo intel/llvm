@@ -2,7 +2,7 @@
 
 ## Architecture
 
-The suite is structured around three main components: Suites, Benchmarks, and Results.
+The suite is structured around four main components: Suites, Benchmarks, Results, and BenchmarkMetadata.
 
 1. **Suites:**
     * Collections of related benchmarks (e.g., `ComputeBench`, `LlamaCppBench`).
@@ -18,11 +18,10 @@ The suite is structured around three main components: Suites, Benchmarks, and Re
     * Represent a single benchmark, usually mapping to a binary execution.
     * Must implement the `Benchmark` base class (`benches/base.py`).
     * **Required Methods:**
-        * `setup()`: Initializes the benchmark (e.g., build, download data). Use `self.download()` for data dependencies. **Do not** perform setup in `__init__`.
         * `run(env_vars)`: Executes the benchmark binary (use `self.run_bench()`) and returns a list of `Result` objects. Can be called multiple times, must produce consistent results.
-        * `teardown()`: Cleans up resources. Can be empty. No need to remove build artifacts or downloaded datasets.
         * `name()`: Returns a unique identifier string for the benchmark across *all* suites. If a benchmark class is instantiated multiple times with different parameters (e.g., "Submit In Order", "Submit Out Of Order"), the `name()` must reflect this uniqueness.
     * **Optional Methods:**
+        * `setup()`: Initializes the benchmark (e.g., build, download data). Use `self.download()` for data dependencies. **Do not** perform setup in `__init__`.
         * `lower_is_better()`: Returns `True` if lower result values are better (default: `True`).
         * `description()`: Provides a short description about the benchmark.
         * `notes()`: Provides additional commentary about the benchmark results (string).
@@ -163,14 +162,54 @@ The benchmark suite generates an interactive HTML dashboard that visualizes `Res
 **Stability:**
 * Mark unstable benchmarks with `metadata.unstable` to hide them by default.
 
+## Code Style Guidelines
+
+### Benchmark Class Structure
+
+When creating benchmark classes, follow this consistent structure pattern:
+
+**1. Constructor (`__init__`):**
+* Assign all parameters to protected (prefixed with `_`) or private (prefixed with `__`) instance variables.
+* Set `self._iterations_regular` and `self._iterations_trace` BEFORE calling `super().__init__()` (required for subclasses of `ComputeBenchmark`).
+
+**2. Method Order:**
+* Align with methods order as in the abstract base class `Benchmark`. Not all of them are required, but follow the order for consistency.
+* Public methods first, then protected, then private.
+
+### Naming Conventions
+
+**Method Return Values:**
+* `name()`: Unique identifier with underscores, lowercase, includes all distinguishing parameters
+  * Example: `"api_overhead_benchmark_sycl SubmitKernel in order with measure completion"`
+* `display_name()`: User-friendly, uses proper capitalization, commas for readability, used for charts titles
+  * Example: `"SYCL SubmitKernel in order, with measure completion, NumKernels 10"`
+
+**Class method names and variables should follow PEP 8 guidelines.**
+* Use lowercase with underscores for method names and variables.
+* Use single underscores prefixes for protected variables/methods and double underscores for private variables/methods.
+
+### Description Writing
+
+Descriptions should:
+* Clearly state what is being measured
+* Include key parameters and their values
+* Explain the purpose or what the benchmark tests
+* Be 1-3 sentences, clear and concise
+* If not needed, can be omitted
+
+### Tag Selection
+
+* Use predefined tags from `benches/base.py` when available
+* Tags should be lowercase, descriptive, single words
+
 ## Adding New Benchmarks
 
-1. **Create Benchmark Class:** Implement a new class inheriting from `benches.base.Benchmark`. Implement required methods (`setup`, `run`, `teardown`, `name`) and optional ones (`description`, `get_tags`, etc.) as needed.
+1. **Create Benchmark Class:** Implement a new class inheriting from `benches.base.Benchmark`. Implement required methods (`run`, `name`) and optional ones (`description`, `get_tags`, etc.) as needed. Follow the code style guidelines above.
 2. **Add to Suite:**
     * If adding to an existing category, modify the corresponding `Suite` class (e.g., `benches/compute.py`) to instantiate and return your new benchmark in its `benchmarks()` method.
     * If creating a new category, create a new `Suite` class inheriting from `benches.base.Suite`. Implement `name()` and `benchmarks()`. Add necessary `setup()` if the suite requires shared setup. Add group metadata via `additional_metadata()` if needed.
 3. **Register Suite:** Import and add your new `Suite` instance to the `suites` list in `main.py`.
-4. **Add to Presets:** If adding a new suite, add its `name()` to the relevant lists in `presets.py` (e.g., "Full", "Normal") so it runs with those presets.
+4. **Add to Presets:** If adding a new suite, add its `name()` to the relevant lists in `presets.py` (e.g., "Full", "Normal") so it runs with those presets. Update `README.md` and benchmarking workflow to include the new suite in presets' description/choices.
 
 ## Recommendations
 
@@ -191,12 +230,17 @@ The benchmark suite generates an interactive HTML dashboard that visualizes `Res
 
 ## Utilities
 
+* **`git_project.GitProject`:** Manages git repository cloning, building, and installation for benchmark suites:
+    * Automatically clones repositories to a specified directory and checks out specific commits/refs.
+    * Provides standardized directory structure with `src_dir`, `build_dir`, and `install_dir` properties.
+    * Handles incremental updates - only re-clones if the target commit has changed.
+    * Supports force rebuilds and custom directory naming via constructor options.
+    * Provides `configure()`, `build()`, and `install()` methods for CMake-based projects.
+    * Use this for benchmark suites that need to build from external git repositories (e.g., `ComputeBench`, `VelocityBench`).
 * **`utils.utils`:** Provides common helper functions:
     * `run()`: Executes shell commands with environment setup (SYCL paths, LD_LIBRARY_PATH).
-    * `git_clone()`: Clones/updates Git repositories.
     * `download()`: Downloads files via HTTP, checks checksums, optionally extracts tar/gz archives.
     * `prepare_workdir()`: Sets up the main working directory.
-    * `create_build_path()`: Creates a clean build directory.
 * **`utils.oneapi`:** Provides the `OneAPI` singleton class (`get_oneapi()`). Downloads and installs specified oneAPI components (oneDNN, oneMKL) into the working directory if needed, providing access to their paths (libs, includes, CMake configs). Use this if your benchmark depends on these components instead of requiring a system-wide install.
 * **`options.py`:** Defines and holds global configuration options, populated by `argparse` in `main.py`. Use options instead of defining your own global variables.
 * **`presets.py`:** Defines named sets of suites (`enabled_suites()`) used by the `--preset` argument.

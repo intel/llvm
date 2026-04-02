@@ -32,7 +32,7 @@ static ur_result_t redefinedUrEventGetProfilingInfo(void *) {
 
 static ur_result_t redefinedUrDeviceGet(void *pParams) {
   auto params = *static_cast<ur_device_get_params_t *>(pParams);
-  // Host/Device timer syncronization isn't done all the time (cached), so we
+  // Host/Device timer synchronization isn't done all the time (cached), so we
   // need brand new device for some of the testcases.
   static std::intptr_t device_id = 10;
   if (*params.ppNumDevices)

@@ -1,11 +1,11 @@
 ; REQUIRES: spirv-link
 ;
-; RUN: llvm-as %s -o %t.bc
-; RUN: llvm-spirv %t.bc -o %t.spv
+; RUN: llvm-spirv %s -o %t.spv
 ; RUN: spirv-val %t.spv
 ; RUN: spirv-link %t.spv -o %t.linked.spv
 ; RUN: llvm-spirv -r %t.linked.spv -o %t.rev.bc
 ; RUN: llvm-dis %t.rev.bc -o - | FileCheck %s
+; FIXME: FILECHECK_FAIL during llvm-spirv -r in llc compilation flow
 ;
 ; This checks that SPIR-V programs with global variables are still consumable
 ; after spirv-link.

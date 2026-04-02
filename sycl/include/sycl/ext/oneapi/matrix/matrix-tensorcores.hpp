@@ -52,7 +52,7 @@ struct joint_matrix_cuda;
               sycl::ext::oneapi::experimental::matrix::layout::row_major ||    \
           Layout ==                                                            \
               sycl::ext::oneapi::experimental::matrix::layout::col_major>> {   \
-    marray<TYPE, SIZE> wi_marray;                                              \
+    marray<TYPE, SIZE> wi_marray{};                                            \
   };
 
 // m8n32k16
@@ -96,7 +96,7 @@ __SYCL_JOINT_MATRIX_OVERLOAD_ARR(double, b, 4, 8, 1)
   struct joint_matrix_cuda<                                                    \
       TYPE, sycl::ext::oneapi::experimental::matrix::use::accumulator, M, N,   \
       sycl::ext::oneapi::experimental::matrix::layout::dynamic> {              \
-    marray<TYPE, SIZE> wi_marray;                                              \
+    marray<TYPE, SIZE> wi_marray{};                                            \
   };
 
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR_ACC(half, 8, 32, 8)
@@ -123,7 +123,7 @@ __SYCL_JOINT_MATRIX_OVERLOAD_ARR_ACC(double, 8, 8, 2)
               sycl::ext::oneapi::experimental::matrix::layout::row_major ||    \
           Layout ==                                                            \
               sycl::ext::oneapi::experimental::matrix::layout::col_major>> {   \
-    marray<TYPE, SIZE> wi_marray;                                              \
+    marray<TYPE, SIZE> wi_marray{};                                            \
   };
 // m16n16k8 tf32 only
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR_PRECISION(

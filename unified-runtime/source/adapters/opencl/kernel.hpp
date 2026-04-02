@@ -26,6 +26,9 @@ struct ur_kernel_handle_t_ : ur::opencl::handle_base {
   clSetKernelArgMemPointerINTEL_fn clSetKernelArgMemPointerINTEL = nullptr;
   ur::RefCount RefCount;
 
+  ur_kernel_handle_t_(const ur_kernel_handle_t_ &) = delete;
+  ur_kernel_handle_t_ &operator=(const ur_kernel_handle_t_ &) = delete;
+
   ur_kernel_handle_t_(native_type Kernel, ur_program_handle_t Program,
                       ur_context_handle_t Context)
       : handle_base(), CLKernel(Kernel), Program(Program), Context(Context) {

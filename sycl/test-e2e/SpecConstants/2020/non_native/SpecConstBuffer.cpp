@@ -5,6 +5,9 @@
 // RUN:          -fsycl-dead-args-optimization
 // RUN: env SYCL_UR_TRACE=2 %{run} %t.out | FileCheck %s
 
+// UNSUPPORTED: target-native_cpu
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20142
+
 #include <sycl/detail/core.hpp>
 
 #include <sycl/kernel_bundle.hpp>

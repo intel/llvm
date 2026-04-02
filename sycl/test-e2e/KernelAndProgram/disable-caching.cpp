@@ -19,6 +19,7 @@ constexpr specialization_id<int> spec_id;
 
 int main() {
   queue q;
+  // iteration 0:
   // CHECK: <--- urProgramCreate
   // CHECK-NOT: <--- urProgramRetain
   // CHECK: <--- urKernelCreate
@@ -27,22 +28,38 @@ int main() {
   // CHECK: <--- urProgramRelease
   // CHECK: <--- urKernelRelease
   // CHECK: <--- urEventWait
+  // iteration 1:
+  // CHECK: <--- urProgramCreate
+  // CHECK-NOT: <--- urProgramRetain
+  // CHECK: <--- urKernelCreate
+  // CHECK-NOT: <--- urKernelRetain
+  // CHECK: <--- urEnqueueKernelLaunchWithArgsExp
+  // CHECK: <--- urProgramRelease
+  // CHECK: <--- urKernelRelease
+  // CHECK: <--- urEventWait
 
+  // iteration 0:
   // CHECK-CACHE: <--- urProgramCreate
   // CHECK-CACHE: <--- urProgramRetain
   // CHECK-CACHE-NOT: <--- urProgramRetain
   // CHECK-CACHE: <--- urKernelCreate
   // CHECK-CACHE: <--- urKernelRetain
   // CHECK-CACHE-NOT: <--- urKernelCreate
-  // CHECK-CACHE: <--- urEnqueueKernelLaunch
+  // CHECK-CACHE: <--- urEnqueueKernelLaunchWithArgsExp
+  // CHECK-CACHE-NOT: <--- urProgramRelease
   // CHECK-CACHE: <--- urEventWait
-  q.single_task([] {}).wait();
+  // iteration 1:
+  // CHECK-CACHE: <--- urEnqueueKernelLaunch
+  // CHECK-CACHE-NOT: <--- urProgramRelease
+  // CHECK-CACHE: <--- urEventWait
+  for (int i = 0; i < 2; ++i)
+    q.single_task([] {}).wait();
 
   // CHECK: <--- urProgramCreate
   // CHECK-NOT: <--- urProgramRetain
   // CHECK: <--- urKernelCreate
   // CHECK-NOT: <--- urKernelRetain
-  // CHECK: <--- urEnqueueKernelLaunch
+  // CHECK: <--- urEnqueueKernelLaunchWithArgsExp
   // CHECK: <--- urKernelRelease
   // CHECK: <--- urProgramRelease
   // CHECK: <--- urEventWait
@@ -53,7 +70,7 @@ int main() {
   // CHECK-CACHE: <--- urKernelCreate
   // CHECK-CACHE: <--- urKernelRetain
   // CHECK-CACHE-NOT: <--- urKernelCreate
-  // CHECK-CACHE: <--- urEnqueueKernelLaunch
+  // CHECK-CACHE: <--- urEnqueueKernelLaunchWithArgsExp
   // CHECK-CACHE: <--- urKernelRelease
   // CHECK-CACHE: <--- urProgramRelease
   // CHECK-CACHE: <--- urEventWait
@@ -62,7 +79,7 @@ int main() {
   // CHECK-NOT: <--- urProgramRetain
   // CHECK: <--- urKernelCreate
   // CHECK-NOT: <--- urKernelRetain
-  // CHECK: <--- urEnqueueKernelLaunch
+  // CHECK: <--- urEnqueueKernelLaunchWithArgsExp
   // CHECK: <--- urKernelRelease
   // CHECK: <--- urProgramRelease
   // CHECK: <--- urEventWait
@@ -73,7 +90,7 @@ int main() {
   // CHECK-CACHE: <--- urKernelCreate
   // CHECK-CACHE: <--- urKernelRetain
   // CHECK-CACHE-NOT: <--- urKernelCreate
-  // CHECK-CACHE: <--- urEnqueueKernelLaunch
+  // CHECK-CACHE: <--- urEnqueueKernelLaunchWithArgsExp
   // CHECK-CACHE: <--- urKernelRelease
   // CHECK-CACHE: <--- urProgramRelease
   // CHECK-CACHE: <--- urEventWait
@@ -95,12 +112,13 @@ int main() {
 // of these UR objects. So, we currently shutdown without releasing them and
 // windows should handle the memory cleanup.
 
-// (Program cache releases)
+// (Program cache releases during early shutdown)
+// CHECK-RELEASE: <--- urQueueRelease
+// CHECK-RELEASE: <--- urProgramRelease
+// CHECK-RELEASE: <--- urProgramRelease
 // CHECK-RELEASE: <--- urProgramRelease
 // CHECK-RELEASE: <--- urKernelRelease
 // CHECK-RELEASE: <--- urKernelRelease
 // CHECK-RELEASE: <--- urKernelRelease
+// CHECK-RELEASE: <--- urProgramRelease
 // CHECK-RELEASE: <--- urKernelRelease
-// CHECK-RELEASE: <--- urProgramRelease
-// CHECK-RELEASE: <--- urProgramRelease
-// CHECK-RELEASE: <--- urProgramRelease

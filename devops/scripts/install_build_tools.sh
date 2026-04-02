@@ -1,5 +1,22 @@
 #!/bin/bash
 
+set -x
+set -e
+set -o pipefail
+
+. /etc/os-release
+
+apt-get update && \
+    apt-get install -yqq ca-certificates gpg wget
+
+# Install CMake PPA so all Ubuntu versions we use have recent CMake.
+# Steps from https://apt.kitware.com/
+wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | \
+    gpg --dearmor - | tee /usr/share/keyrings/kitware-archive-keyring.gpg >/dev/null
+
+echo "deb [signed-by=/usr/share/keyrings/kitware-archive-keyring.gpg] https://apt.kitware.com/ubuntu/ $VERSION_CODENAME main" | \
+    tee /etc/apt/sources.list.d/kitware.list >/dev/null
+
 apt update && apt install -yqq \
       build-essential \
       cmake \
@@ -16,7 +33,6 @@ apt update && apt install -yqq \
       libffi-dev \
       libva-dev \
       libtool \
-      wget \
       sudo \
       zstd \
       zip \
@@ -26,19 +42,19 @@ apt update && apt install -yqq \
       curl \
       libhwloc-dev \
       libzstd-dev \
-      time 
+      linux-tools-generic \
+      linux-tools-common \
+      time \
+      numactl
 
 # To obtain latest release of spriv-tool.
 # Same as what's done in SPRIV-LLVM-TRANSLATOR:
 # https://github.com/KhronosGroup/SPIRV-LLVM-Translator/blob/cec12d6cf46306d0a015e883d5adb5a8200df1c0/.github/workflows/check-out-of-tree-build.yml#L59
 # pkg-config is required for llvm-spriv to detect spriv-tools installation.
-. /etc/os-release
-curl -L "https://packages.lunarg.com/lunarg-signing-key-pub.asc" | apt-key add -
-echo "deb https://packages.lunarg.com/vulkan $VERSION_CODENAME main" | tee -a /etc/apt/sources.list
-apt update && apt install -yqq spirv-tools pkg-config
+apt update && apt install -yqq pkg-config
 
 if [[ "$VERSION_CODENAME" == "jammy" ]]; then
     apt-get install -yqq clang-14 libc++-14-dev
 else
-    apt-get install -yqq clang-18 libc++-18-dev
+    apt-get install -yqq clang-18 libc++-18-dev gcc-14 g++-14
 fi

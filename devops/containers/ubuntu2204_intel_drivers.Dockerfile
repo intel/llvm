@@ -1,5 +1,5 @@
 ARG base_tag=latest
-ARG base_image=ghcr.io/intel/llvm/ubuntu2204_base
+ARG base_image=ghcr.io/intel/llvm/ubuntu2204_build
 
 FROM $base_image:$base_tag
 
@@ -9,7 +9,6 @@ USER root
 
 RUN apt update && apt install -yqq wget
 
-COPY scripts/get_release.py /
 COPY scripts/install_drivers.sh /
 COPY dependencies.json /
 

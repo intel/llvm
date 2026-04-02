@@ -1928,27 +1928,27 @@ _CLC_DEFINE_IMAGE_BINDLESS_FETCH_BUILTIN(ushort4, 3, Dv4_t, v4t16, Dv3_i,
                                          coord.y, coord.z)
 
 // Char
-_CLC_DEFINE_IMAGE_BINDLESS_FETCH_BUILTIN(char, 1, a, i8, i, int x,
+_CLC_DEFINE_IMAGE_BINDLESS_FETCH_BUILTIN(char, 1, c, i8, i, int x,
                                          x * sizeof(char))
-_CLC_DEFINE_IMAGE_BINDLESS_FETCH_BUILTIN(char, 2, a, i8, Dv2_i, int2 coord,
+_CLC_DEFINE_IMAGE_BINDLESS_FETCH_BUILTIN(char, 2, c, i8, Dv2_i, int2 coord,
                                          coord.x * sizeof(char), coord.y)
-_CLC_DEFINE_IMAGE_BINDLESS_FETCH_BUILTIN(char, 3, a, i8, Dv3_i, int3 coord,
+_CLC_DEFINE_IMAGE_BINDLESS_FETCH_BUILTIN(char, 3, c, i8, Dv3_i, int3 coord,
                                          coord.x * sizeof(char), coord.y,
                                          coord.z)
-_CLC_DEFINE_IMAGE_BINDLESS_FETCH_BUILTIN(char2, 1, Dv2_a, v2i8, i, int x,
+_CLC_DEFINE_IMAGE_BINDLESS_FETCH_BUILTIN(char2, 1, Dv2_c, v2i8, i, int x,
                                          x * sizeof(char2))
-_CLC_DEFINE_IMAGE_BINDLESS_FETCH_BUILTIN(char2, 2, Dv2_a, v2i8, Dv2_i,
+_CLC_DEFINE_IMAGE_BINDLESS_FETCH_BUILTIN(char2, 2, Dv2_c, v2i8, Dv2_i,
                                          int2 coord, coord.x * sizeof(char2),
                                          coord.y)
-_CLC_DEFINE_IMAGE_BINDLESS_FETCH_BUILTIN(char2, 3, Dv2_a, v2i8, Dv3_i,
+_CLC_DEFINE_IMAGE_BINDLESS_FETCH_BUILTIN(char2, 3, Dv2_c, v2i8, Dv3_i,
                                          int3 coord, coord.x * sizeof(char2),
                                          coord.y, coord.z)
-_CLC_DEFINE_IMAGE_BINDLESS_FETCH_BUILTIN(char4, 1, Dv4_a, v4i8, i, int x,
+_CLC_DEFINE_IMAGE_BINDLESS_FETCH_BUILTIN(char4, 1, Dv4_c, v4i8, i, int x,
                                          x * sizeof(char4))
-_CLC_DEFINE_IMAGE_BINDLESS_FETCH_BUILTIN(char4, 2, Dv4_a, v4i8, Dv2_i,
+_CLC_DEFINE_IMAGE_BINDLESS_FETCH_BUILTIN(char4, 2, Dv4_c, v4i8, Dv2_i,
                                          int2 coord, coord.x * sizeof(char4),
                                          coord.y)
-_CLC_DEFINE_IMAGE_BINDLESS_FETCH_BUILTIN(char4, 3, Dv4_a, v4i8, Dv3_i,
+_CLC_DEFINE_IMAGE_BINDLESS_FETCH_BUILTIN(char4, 3, Dv4_c, v4i8, Dv3_i,
                                          int3 coord, coord.x * sizeof(char4),
                                          coord.y, coord.z)
 
@@ -2133,27 +2133,27 @@ _CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(ushort4, 3, Dv3_i, Dv4_t, v4t16,
                                          coord.y, coord.z, c.x, c.y, c.z, c.w)
 
 // Char
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(char, 1, i, a, i8, int x,
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(char, 1, i, c, i8, int x,
                                          x * sizeof(char), c)
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(char, 2, Dv2_i, a, i8, int2 coord,
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(char, 2, Dv2_i, c, i8, int2 coord,
                                          coord.x * sizeof(char), coord.y, c)
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(char, 3, Dv3_i, a, i8, int3 coord,
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(char, 3, Dv3_i, c, i8, int3 coord,
                                          coord.x * sizeof(char), coord.y,
                                          coord.z, c)
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(char2, 1, i, Dv2_a, v2i8, int x,
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(char2, 1, i, Dv2_c, v2i8, int x,
                                          x * sizeof(char2), c.x, c.y)
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(char2, 2, Dv2_i, Dv2_a, v2i8,
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(char2, 2, Dv2_i, Dv2_c, v2i8,
                                          int2 coord, coord.x * sizeof(char2),
                                          coord.y, c.x, c.y)
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(char2, 3, Dv3_i, Dv2_a, v2i8,
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(char2, 3, Dv3_i, Dv2_c, v2i8,
                                          int3 coord, coord.x * sizeof(char2),
                                          coord.y, coord.z, c.x, c.y)
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(char4, 1, i, Dv4_a, v4i8, int x,
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(char4, 1, i, Dv4_c, v4i8, int x,
                                          x * sizeof(char4), c.x, c.y, c.z, c.w)
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(char4, 2, Dv2_i, Dv4_a, v4i8,
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(char4, 2, Dv2_i, Dv4_c, v4i8,
                                          int2 coord, coord.x * sizeof(char4),
                                          coord.y, c.x, c.y, c.z, c.w)
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(char4, 3, Dv3_i, Dv4_a, v4i8,
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(char4, 3, Dv3_i, Dv4_c, v4i8,
                                          int3 coord, coord.x * sizeof(char4),
                                          coord.y, coord.z, c.x, c.y, c.z, c.w)
 
@@ -2712,24 +2712,24 @@ _CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(ushort4, 3, Dv4_t, v4t16, Dv3_f,
                                                coord.z)
 
 // Char
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(char, 1, a, i8, f, float x, x)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(char, 2, a, i8, Dv2_f,
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(char, 1, c, i8, f, float x, x)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(char, 2, c, i8, Dv2_f,
                                                float2 coord, coord.x, coord.y)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(char, 3, a, i8, Dv3_f,
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(char, 3, c, i8, Dv3_f,
                                                float3 coord, coord.x, coord.y,
                                                coord.z)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(char2, 1, Dv2_a, v2i8, f,
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(char2, 1, Dv2_c, v2i8, f,
                                                float x, x)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(char2, 2, Dv2_a, v2i8, Dv2_f,
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(char2, 2, Dv2_c, v2i8, Dv2_f,
                                                float2 coord, coord.x, coord.y)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(char2, 3, Dv2_a, v2i8, Dv3_f,
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(char2, 3, Dv2_c, v2i8, Dv3_f,
                                                float3 coord, coord.x, coord.y,
                                                coord.z)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(char4, 1, Dv4_a, v4i8, f,
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(char4, 1, Dv4_c, v4i8, f,
                                                float x, x)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(char4, 2, Dv4_a, v4i8, Dv2_f,
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(char4, 2, Dv4_c, v4i8, Dv2_f,
                                                float2 coord, coord.x, coord.y)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(char4, 3, Dv4_a, v4i8, Dv3_f,
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(char4, 3, Dv4_c, v4i8, Dv3_f,
                                                float3 coord, coord.x, coord.y,
                                                coord.z)
 
@@ -3062,24 +3062,24 @@ _CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(ushort4, 3, Dv4_t, v4t16, Dv3_i,
                                                 coord.z)
 
 // Char
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(char, 1, a, i8, i, int x, x)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(char, 2, a, i8, Dv2_i,
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(char, 1, c, i8, i, int x, x)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(char, 2, c, i8, Dv2_i,
                                                 int2 coord, coord.x, coord.y)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(char, 3, a, i8, Dv3_i,
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(char, 3, c, i8, Dv3_i,
                                                 int4 coord, coord.x, coord.y,
                                                 coord.z)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(char2, 1, Dv2_a, v2i8, i, int x,
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(char2, 1, Dv2_c, v2i8, i, int x,
                                                 x)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(char2, 2, Dv2_a, v2i8, Dv2_i,
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(char2, 2, Dv2_c, v2i8, Dv2_i,
                                                 int2 coord, coord.x, coord.y)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(char2, 3, Dv2_a, v2i8, Dv3_i,
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(char2, 3, Dv2_c, v2i8, Dv3_i,
                                                 int4 coord, coord.x, coord.y,
                                                 coord.z)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(char4, 1, Dv4_a, v4i8, i, int x,
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(char4, 1, Dv4_c, v4i8, i, int x,
                                                 x)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(char4, 2, Dv4_a, v4i8, Dv2_i,
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(char4, 2, Dv4_c, v4i8, Dv2_i,
                                                 int2 coord, coord.x, coord.y)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(char4, 3, Dv4_a, v4i8, Dv3_i,
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(char4, 3, Dv4_c, v4i8, Dv3_i,
                                                 int4 coord, coord.x, coord.y,
                                                 coord.z)
 
@@ -4326,13 +4326,35 @@ _CLC_DEFINE_TEXTURE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(half, float, f16,
 #define MANGLE_FUNC_IMG_HANDLE_HELPER(size, name, prefix, postfix)             \
   MANGLE_FUNC_IMG_HANDLE(size, name, prefix, postfix)
 
+// Per spec: coords are always int (1D) or vec2<int> (2D) for fetch/write.
+// Coord type depends ONLY on dimension, not on return element type.
+#define FETCH_COORD_1 iET_T0_T1_i
+#define FETCH_COORD_2 Dv2_iET_T0_T1_i
+// Parametric macros for most cases: coord type depends only on dimension.
+#define FETCH_COORD_1_1_(e) FETCH_COORD_1
+#define FETCH_COORD_1_2_(e) FETCH_COORD_2
+#define FETCH_COORD_2_1_(e) FETCH_COORD_1
+#define FETCH_COORD_4_1_(e) FETCH_COORD_1
+#define FETCH_COORD_4_2_(e) FETCH_COORD_2
+// Special case: vec_size=2, dimension=2, uses indirection for Itanium ABI S0_.
+// S0_ substitution when return type also vec2<int>.
+#define FETCH_COORD_2_2_(e) FETCH_COORD_2_2_##e
+#define FETCH_COORD_2_2_i S0_ET_T0_T1_i
+#define FETCH_COORD_2_2_j FETCH_COORD_2
+#define FETCH_COORD_2_2_s FETCH_COORD_2
+#define FETCH_COORD_2_2_t FETCH_COORD_2
+#define FETCH_COORD_2_2_c FETCH_COORD_2
+#define FETCH_COORD_2_2_h FETCH_COORD_2
+#define FETCH_COORD_2_2_f FETCH_COORD_2
+#define FETCH_COORD_2_2_Dh FETCH_COORD_2
+
 #define _CLC_DEFINE_IMAGE_ARRAY_BINDLESS_READ_BUILTIN(                         \
     elem_t, vec_size, dimension, ocl_elem_t_mangled, nvvm_elem_t_mangled,      \
     elem_t_size)                                                               \
   _CLC_DEF ELEM_VEC_##vec_size(elem_t) MANGLE_FUNC_IMG_HANDLE_HELPER(          \
       23, __spirv_ImageArrayFetch,                                             \
       DVEC_SIZE_##vec_size(I, ocl_elem_t_mangled, ),                           \
-      DVEC_SIZE_##dimension(, i, ET_T0_T1_i))(                                 \
+      CONCAT(FETCH_COORD_##vec_size##_##dimension, _(ocl_elem_t_mangled)))(    \
       ulong imageHandle, COORD_INPUT_##dimension##D(int), int idx) {           \
     return NVVM_FUNC(suld, dimension,                                          \
                      VEC_SIZE_##vec_size(nvvm_elem_t_mangled, elem_t_size))(   \
@@ -4340,12 +4362,32 @@ _CLC_DEFINE_TEXTURE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(half, float, f16,
         COORD_PARAMS_##dimension##D(ELEM_VEC_##vec_size(elem_t)));             \
   }
 
+// Itanium C++ ABI: vec2 coord with vec2 color -> S0_ (only when types match!).
+// All cases use DVEC_SIZE_, except special case: dim=2, vec_size=2, mangled=i.
+#define WRITE_COLOR(vec_size, mangled)                                         \
+  DVEC_SIZE_##vec_size(, mangled, EvT_T0_iT1_)
+#define WRITE_COLOR_1_1_(e) WRITE_COLOR(1, e)
+#define WRITE_COLOR_1_2_(e) WRITE_COLOR(2, e)
+#define WRITE_COLOR_1_4_(e) WRITE_COLOR(4, e)
+#define WRITE_COLOR_2_1_(e) WRITE_COLOR(1, e)
+#define WRITE_COLOR_2_4_(e) WRITE_COLOR(4, e)
+// Special case: vec_size=2, dim=2, uses indirection to handle 'i' differently.
+#define WRITE_COLOR_2_2_(e) WRITE_COLOR_2_2_##e
+#define WRITE_COLOR_2_2_i S0_EvT_T0_iT1_
+#define WRITE_COLOR_2_2_j WRITE_COLOR(2, j)
+#define WRITE_COLOR_2_2_s WRITE_COLOR(2, s)
+#define WRITE_COLOR_2_2_t WRITE_COLOR(2, t)
+#define WRITE_COLOR_2_2_c WRITE_COLOR(2, c)
+#define WRITE_COLOR_2_2_h WRITE_COLOR(2, h)
+#define WRITE_COLOR_2_2_f WRITE_COLOR(2, f)
+#define WRITE_COLOR_2_2_Dh WRITE_COLOR(2, Dh)
+
 #define _CLC_DEFINE_IMAGE_ARRAY_BINDLESS_WRITE_BUILTIN(                        \
     elem_t, vec_size, dimension, elem_t_mangled, write_mangled, elem_t_size)   \
   _CLC_DEF void MANGLE_FUNC_IMG_HANDLE_HELPER(                                 \
       23, __spirv_ImageArrayWrite, I,                                          \
       CONCAT(DVEC_SIZE_##dimension(, i, ),                                     \
-             DVEC_SIZE_##vec_size(, elem_t_mangled, EvT_T0_iT1_)))(            \
+             WRITE_COLOR_##dimension##_##vec_size##_(elem_t_mangled)))(        \
       ulong imageHandle, COORD_INPUT_##dimension##D(int), int idx,             \
       ELEM_VEC_##vec_size(elem_t) c) {                                         \
     NVVM_FUNC(sust, dimension,                                                 \
@@ -4387,7 +4429,7 @@ _CLC_DEFINE_IMAGE_ARRAY_BINDLESS_BUILTIN_ALL(int, i, i, 32)
 _CLC_DEFINE_IMAGE_ARRAY_BINDLESS_BUILTIN_ALL(uint, j, j, 32)
 _CLC_DEFINE_IMAGE_ARRAY_BINDLESS_BUILTIN_ALL(short, s, i, 16)
 _CLC_DEFINE_IMAGE_ARRAY_BINDLESS_BUILTIN_ALL(ushort, t, t, 16)
-_CLC_DEFINE_IMAGE_ARRAY_BINDLESS_BUILTIN_ALL(char, a, i, 8)
+_CLC_DEFINE_IMAGE_ARRAY_BINDLESS_BUILTIN_ALL(char, c, i, 8)
 _CLC_DEFINE_IMAGE_ARRAY_BINDLESS_BUILTIN_ALL(uchar, h, h, 8)
 _CLC_DEFINE_IMAGE_ARRAY_BINDLESS_BUILTIN_ALL(float, f, f, 32)
 _CLC_DEFINE_IMAGE_ARRAY_BINDLESS_BUILTIN_ALL(half, Dh, f, 16)
@@ -4407,13 +4449,35 @@ _CLC_DEFINE_IMAGE_ARRAY_BINDLESS_BUILTIN_ALL(half, Dh, f, 16)
 #define _NVVM_FUNC(name, dimension, vec_size_mangled)                          \
   __nvvm_##name##_##dimension##d_array_##vec_size_mangled
 
+// Per spec: sampled read coords are always float (1D) or vec2<float> (2D).
+// Coord type depends ONLY on dimension, not on return element type.
+#define READ_COORD_1 fET_T0_T1_i
+#define READ_COORD_2 Dv2_fET_T0_T1_i
+// Parametric macros for most cases: coord type depends only on dimension.
+#define READ_COORD_1_1_(e) READ_COORD_1
+#define READ_COORD_1_2_(e) READ_COORD_2
+#define READ_COORD_2_1_(e) READ_COORD_1
+#define READ_COORD_4_1_(e) READ_COORD_1
+#define READ_COORD_4_2_(e) READ_COORD_2
+// Special case: vec_size=2, dimension=2, uses indirection for Itanium ABI S0_.
+// S0_ substitution when return type also vec2<float>.
+#define READ_COORD_2_2_(e) READ_COORD_2_2_##e
+#define READ_COORD_2_2_i READ_COORD_2
+#define READ_COORD_2_2_j READ_COORD_2
+#define READ_COORD_2_2_s READ_COORD_2
+#define READ_COORD_2_2_t READ_COORD_2
+#define READ_COORD_2_2_c READ_COORD_2
+#define READ_COORD_2_2_h READ_COORD_2
+#define READ_COORD_2_2_f S0_ET_T0_T1_i
+#define READ_COORD_2_2_Dh READ_COORD_2
+
 #define _CLC_DEFINE_SAMPLED_IMAGE_ARRAY_BINDLESS_READ_BUILTIN(                 \
     elem_t, vec_size, dimension, ocl_elem_t_mangled, nvvm_elem_t_mangled,      \
     elem_t_size)                                                               \
   _CLC_DEF ELEM_VEC_##vec_size(elem_t) MANGLE_FUNC_IMG_HANDLE_HELPER(          \
       22, __spirv_ImageArrayRead,                                              \
       DVEC_SIZE_##vec_size(I, ocl_elem_t_mangled, ),                           \
-      DVEC_SIZE_##dimension(, f, ET_T0_T1_i))(                                 \
+      CONCAT(READ_COORD_##vec_size##_##dimension, _(ocl_elem_t_mangled)))(     \
       ulong imageHandle, COORD_INPUT_##dimension##D(float), int idx) {         \
     return NVVM_FUNC(                                                          \
         tex_unified, dimension,                                                \
@@ -4422,13 +4486,14 @@ _CLC_DEFINE_IMAGE_ARRAY_BINDLESS_BUILTIN_ALL(half, Dh, f, 16)
         COORD_PARAMS_##dimension##D(ELEM_VEC_##vec_size(elem_t)));             \
   }
 
+// SampledImageArrayFetch uses same (int) coord mangling as ImageArrayFetch.
 #define _CLC_DEFINE_SAMPLED_IMAGE_ARRAY_BINDLESS_FETCH_BUILTIN(                \
     elem_t, vec_size, dimension, ocl_elem_t_mangled, nvvm_elem_t_mangled,      \
     elem_t_size)                                                               \
   _CLC_DEF ELEM_VEC_##vec_size(elem_t) MANGLE_FUNC_IMG_HANDLE_HELPER(          \
       30, __spirv_SampledImageArrayFetch,                                      \
       DVEC_SIZE_##vec_size(I, ocl_elem_t_mangled, ),                           \
-      DVEC_SIZE_##dimension(, i, ET_T0_T1_i))(                                 \
+      CONCAT(FETCH_COORD_##vec_size##_##dimension, _(ocl_elem_t_mangled)))(    \
       ulong imageHandle, COORD_INPUT_##dimension##D(int), int idx) {           \
     return NVVM_FUNC(                                                          \
         tex_unified, dimension,                                                \
@@ -4451,7 +4516,7 @@ _CLC_DEFINE_IMAGE_ARRAY_BINDLESS_BUILTIN_ALL(int, i, i, 32)
 _CLC_DEFINE_IMAGE_ARRAY_BINDLESS_BUILTIN_ALL(uint, j, j, 32)
 _CLC_DEFINE_IMAGE_ARRAY_BINDLESS_BUILTIN_ALL(short, s, i, 16)
 _CLC_DEFINE_IMAGE_ARRAY_BINDLESS_BUILTIN_ALL(ushort, t, t, 16)
-_CLC_DEFINE_IMAGE_ARRAY_BINDLESS_BUILTIN_ALL(char, a, i, 8)
+_CLC_DEFINE_IMAGE_ARRAY_BINDLESS_BUILTIN_ALL(char, c, i, 8)
 _CLC_DEFINE_IMAGE_ARRAY_BINDLESS_BUILTIN_ALL(uchar, h, h, 8)
 _CLC_DEFINE_IMAGE_ARRAY_BINDLESS_BUILTIN_ALL(float, f, f, 32)
 _CLC_DEFINE_IMAGE_ARRAY_BINDLESS_BUILTIN_ALL(half, Dh, f, 16)

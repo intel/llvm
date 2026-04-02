@@ -1,6 +1,12 @@
 // RUN: %{build} -o %t2.out
 // RUN: %{run} %t2.out
 
+// clang-format off
+// TODO: Enable force batched submission test for Windows too.
+// https://github.com/intel/llvm/issues/21520
+// RUN-IF: level_zero && linux, env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 UR_L0_V2_FORCE_BATCHED=1 %{run} %t2.out
+// clang-format on
+
 //==------------------- buffer.cpp - SYCL buffer basic test ----------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -515,9 +521,9 @@ int main() {
     std::vector<bool> bool_vector;
     std::vector<int> int_vector;
     std::vector<float> float_vector;
-    bool_vector.reserve(size);
-    int_vector.reserve(size);
-    float_vector.reserve(size);
+    bool_vector.resize(size);
+    int_vector.resize(size);
+    float_vector.resize(size);
 
     sycl::queue Queue;
     std::mutex m;

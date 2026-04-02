@@ -1,10 +1,11 @@
-// Copyright (C) 2024 Intel Corporation
+// Copyright (C) 2024-2026 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include "fixtures.h"
+#include "uur/fixtures.h"
 #include <cstring>
 
 // Tests kernel commands using ur events for command level synchronization work
@@ -30,14 +31,35 @@ struct KernelCommandEventSyncTest
       ASSERT_NE(device_ptr, nullptr);
     }
 
+    // Build kernel args for saxpy_usm
     // Index 0 is output
-    ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, device_ptrs[2]));
+    saxpy_args[0] = {UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+                     nullptr,
+                     UR_EXP_KERNEL_ARG_TYPE_POINTER,
+                     0,
+                     sizeof(void *),
+                     {device_ptrs[2]}};
     // Index 1 is A
-    ASSERT_SUCCESS(urKernelSetArgValue(kernel, 1, sizeof(A), nullptr, &A));
+    saxpy_args[1] = {UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+                     nullptr,
+                     UR_EXP_KERNEL_ARG_TYPE_VALUE,
+                     1,
+                     sizeof(A),
+                     {&A}};
     // Index 2 is X
-    ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 2, nullptr, device_ptrs[0]));
+    saxpy_args[2] = {UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+                     nullptr,
+                     UR_EXP_KERNEL_ARG_TYPE_POINTER,
+                     2,
+                     sizeof(void *),
+                     {device_ptrs[0]}};
     // Index 3 is Y
-    ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 3, nullptr, device_ptrs[1]));
+    saxpy_args[3] = {UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+                     nullptr,
+                     UR_EXP_KERNEL_ARG_TYPE_POINTER,
+                     3,
+                     sizeof(void *),
+                     {device_ptrs[1]}};
 
     // Create second command-buffer
     ur_exp_command_buffer_desc_t desc{
@@ -74,13 +96,15 @@ struct KernelCommandEventSyncTest
   std::array<ur_event_handle_t, 2> external_events = {nullptr, nullptr};
   std::array<ur_exp_command_buffer_sync_point_t, 2> sync_points = {0, 0};
   ur_exp_command_buffer_handle_t second_cmd_buf_handle = nullptr;
+  // SAXPY: Single-precision A * X Plus Y (y = a * x + y)
+  ur_exp_kernel_arg_properties_t saxpy_args[4] = {};
   static constexpr size_t elements = 64;
   static constexpr size_t global_offset = 0;
   static constexpr size_t allocation_size = sizeof(uint32_t) * elements;
   static constexpr size_t A = 2;
 };
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(KernelCommandEventSyncTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_MULTI_QUEUE(KernelCommandEventSyncTest);
 
 // Tests using a regular enqueue event as a dependency of a command-buffer
 // command, and having the signal event of that command-buffer command being
@@ -100,10 +124,10 @@ TEST_P(KernelCommandEventSyncTest, Basic) {
       nullptr));
 
   // Kernel command for SAXPY waiting on command and signal event
-  ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchExp(
-      cmd_buf_handle, kernel, 1, &global_offset, &elements, nullptr, 0, nullptr,
-      1, &sync_points[0], 1, &external_events[0], &sync_points[1],
-      &external_events[1], nullptr));
+  ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchWithArgsExp(
+      cmd_buf_handle, kernel, 1, &global_offset, &elements, nullptr, 4,
+      saxpy_args, 0, nullptr, 1, &sync_points[0], 1, &external_events[0],
+      &sync_points[1], &external_events[1], nullptr));
 
   // command-buffer command that reads output to host
   std::array<uint32_t, elements> host_command_ptr{};
@@ -148,10 +172,10 @@ TEST_P(KernelCommandEventSyncTest, InterCommandBuffer) {
       &external_events[0], nullptr));
 
   // Run SAXPY kernel with command-buffer B command, waiting on an event.
-  ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchExp(
-      second_cmd_buf_handle, kernel, 1, &global_offset, &elements, nullptr, 0,
-      nullptr, 0, nullptr, 1, &external_events[0], &sync_points[1], nullptr,
-      nullptr));
+  ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchWithArgsExp(
+      second_cmd_buf_handle, kernel, 1, &global_offset, &elements, nullptr, 4,
+      saxpy_args, 0, nullptr, 0, nullptr, 1, &external_events[0],
+      &sync_points[1], nullptr, nullptr));
 
   // Command-buffer A command that reads output to host, waiting on an event
   std::array<uint32_t, elements> host_command_ptr{};
@@ -211,10 +235,10 @@ TEST_P(KernelCommandEventSyncTest, SignalWaitBeforeEnqueue) {
       nullptr));
 
   // Kernel command for SAXPY waiting on command and signal event
-  ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchExp(
-      cmd_buf_handle, kernel, 1, &global_offset, &elements, nullptr, 0, nullptr,
-      1, &sync_points[0], 1, &external_events[0], &sync_points[1],
-      &external_events[1], nullptr));
+  ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchWithArgsExp(
+      cmd_buf_handle, kernel, 1, &global_offset, &elements, nullptr, 4,
+      saxpy_args, 0, nullptr, 1, &sync_points[0], 1, &external_events[0],
+      &sync_points[1], &external_events[1], nullptr));
   ASSERT_SUCCESS(urCommandBufferFinalizeExp(cmd_buf_handle));
 
   // Event will be considered complete before first execution

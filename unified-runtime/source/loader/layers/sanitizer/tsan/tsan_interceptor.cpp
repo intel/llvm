@@ -78,9 +78,9 @@ ur_result_t TsanRuntimeDataWrapper::importLocalArgsInfo(
   Host.NumLocalArgs = LocalArgs.size();
   const size_t LocalArgsInfoSize =
       sizeof(TsanLocalArgsInfo) * Host.NumLocalArgs;
-  UR_CALL(getContext()->urDdiTable.USM.pfnDeviceAlloc(
-      Context, Device, nullptr, nullptr, LocalArgsInfoSize,
-      ur_cast<void **>(&Host.LocalArgs)));
+  UR_CALL(SafeAllocate(Context, Device, LocalArgsInfoSize, nullptr, nullptr,
+                       AllocType::DEVICE_USM,
+                       ur_cast<void **>(&Host.LocalArgs)));
 
   UR_CALL(getContext()->urDdiTable.Enqueue.pfnUSMMemcpy(
       Queue, true, Host.LocalArgs, &LocalArgs[0], LocalArgsInfoSize, 0, nullptr,
@@ -117,7 +117,8 @@ TsanInterceptor::~TsanInterceptor() {
   // We must release these objects before releasing adapters, since
   // they may use the adapter in their destructor
   for (const auto &[_, DeviceInfo] : m_DeviceMap) {
-    DeviceInfo->Shadow->Destroy();
+    [[maybe_unused]] ur_result_t Result = DeviceInfo->Shadow->Destroy();
+    assert(Result == UR_RESULT_SUCCESS && "Failed to destroy shadow memory");
     DeviceInfo->Shadow = nullptr;
   }
 
@@ -140,16 +141,8 @@ ur_result_t TsanInterceptor::allocateMemory(ur_context_handle_t Context,
 
   void *Allocated = nullptr;
 
-  if (Type == AllocType::DEVICE_USM) {
-    UR_CALL(getContext()->urDdiTable.USM.pfnDeviceAlloc(
-        Context, Device, Properties, Pool, Size, &Allocated));
-  } else if (Type == AllocType::HOST_USM) {
-    UR_CALL(getContext()->urDdiTable.USM.pfnHostAlloc(Context, Properties, Pool,
-                                                      Size, &Allocated));
-  } else if (Type == AllocType::SHARED_USM) {
-    UR_CALL(getContext()->urDdiTable.USM.pfnSharedAlloc(
-        Context, Device, Properties, Pool, Size, &Allocated));
-  }
+  UR_CALL(
+      SafeAllocate(Context, Device, Size, Properties, Pool, Type, &Allocated));
 
   auto AI = TsanAllocInfo{reinterpret_cast<uptr>(Allocated), Size};
   // For updating shadow memory
@@ -386,30 +379,18 @@ ur_result_t TsanInterceptor::prepareLaunch(std::shared_ptr<ContextInfo> &,
                                            ur_queue_handle_t Queue,
                                            ur_kernel_handle_t Kernel,
                                            LaunchInfo &LaunchInfo) {
-  // Set membuffer arguments
   auto &KernelInfo = getKernelInfo(Kernel);
-  {
-    std::shared_lock<ur_shared_mutex> Guard(KernelInfo.Mutex);
-    for (const auto &[ArgIndex, MemBuffer] : KernelInfo.BufferArgs) {
-      char *ArgPointer = nullptr;
-      UR_CALL(MemBuffer->getHandle(DI->Handle, ArgPointer));
-      ur_result_t URes = getContext()->urDdiTable.Kernel.pfnSetArgPointer(
-          Kernel, ArgIndex, nullptr, ArgPointer);
-      if (URes != UR_RESULT_SUCCESS) {
-        UR_LOG_L(getContext()->logger, ERR,
-                 "Failed to set buffer {} as the {} arg to kernel {}: {}",
-                 ur_cast<ur_mem_handle_t>(MemBuffer.get()), ArgIndex, Kernel,
-                 URes);
-      }
-    }
-  }
 
   // Get suggested local work size if user doesn't determine it.
   if (LaunchInfo.LocalWorkSize.empty()) {
     LaunchInfo.LocalWorkSize.resize(LaunchInfo.WorkDim);
-    auto URes = getContext()->urDdiTable.Kernel.pfnGetSuggestedLocalWorkSize(
-        Kernel, Queue, LaunchInfo.WorkDim, LaunchInfo.GlobalWorkOffset,
-        LaunchInfo.GlobalWorkSize, LaunchInfo.LocalWorkSize.data());
+    auto ArgNums = GetKernelNumArgs(Kernel);
+    auto URes =
+        getContext()->urDdiTable.Kernel.pfnGetSuggestedLocalWorkSizeWithArgs(
+            Kernel, Queue, LaunchInfo.WorkDim,
+            LaunchInfo.GlobalWorkOffset.data(), LaunchInfo.GlobalWorkSize,
+            ArgNums, KernelInfo.ArgProps.data(),
+            LaunchInfo.LocalWorkSize.data());
     if (URes != UR_RESULT_SUCCESS) {
       if (URes != UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
         return URes;

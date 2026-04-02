@@ -1,10 +1,11 @@
-// Copyright (C) 2024 Intel Corporation
+// Copyright (C) 2024-2026 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include "../fixtures.h"
+#include "uur/fixtures.h"
 #include <array>
 #include <cstring>
 #include <uur/known_failure.h>
@@ -30,16 +31,25 @@ struct InvalidUpdateTest
     ASSERT_NE(shared_ptr, nullptr);
     std::memset(shared_ptr, 0, allocation_size);
 
-    // Index 0 is output
-    ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, shared_ptr));
-    // Index 1 is input scalar
-    ASSERT_SUCCESS(urKernelSetArgValue(kernel, 1, sizeof(val), nullptr, &val));
+    // Build kernel args
+    fill_args[0] = {UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+                    nullptr,
+                    UR_EXP_KERNEL_ARG_TYPE_POINTER,
+                    0,
+                    sizeof(void *),
+                    {shared_ptr}};
+    fill_args[1] = {UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+                    nullptr,
+                    UR_EXP_KERNEL_ARG_TYPE_VALUE,
+                    1,
+                    sizeof(val),
+                    {&val}};
 
     // Append kernel command to command-buffer
-    ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchExp(
+    ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchWithArgsExp(
         updatable_cmd_buf_handle, kernel, n_dimensions, &global_offset,
-        &global_size, &local_size, 0, nullptr, 0, nullptr, 0, nullptr, nullptr,
-        nullptr, &command_handle));
+        &global_size, &local_size, 2, fill_args, 0, nullptr, 0, nullptr, 0,
+        nullptr, nullptr, nullptr, &command_handle));
     ASSERT_NE(command_handle, nullptr);
   }
 
@@ -66,10 +76,11 @@ struct InvalidUpdateTest
   static constexpr size_t allocation_size = sizeof(val) * global_size;
   void *shared_ptr = nullptr;
   ur_exp_command_buffer_command_handle_t command_handle = nullptr;
+  ur_exp_kernel_arg_properties_t fill_args[2] = {};
   bool finalized = false;
 };
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(InvalidUpdateTest);
+UUR_DEVICE_TEST_SUITE_WITH_DEFAULT_QUEUE(InvalidUpdateTest);
 
 // Test error code is returned if command-buffer not finalized
 TEST_P(InvalidUpdateTest, NotFinalizedCommandBuffer) {
@@ -122,10 +133,10 @@ TEST_P(InvalidUpdateTest, NotUpdatableCommandBuffer) {
   // Should be an error because we are trying to get command handle but
   // command-buffer is not updatable.
   ur_exp_command_buffer_command_handle_t test_command_handle = nullptr;
-  ASSERT_EQ_RESULT(urCommandBufferAppendKernelLaunchExp(
+  ASSERT_EQ_RESULT(urCommandBufferAppendKernelLaunchWithArgsExp(
                        test_cmd_buf_handle, kernel, n_dimensions,
-                       &global_offset, &global_size, &local_size, 0, nullptr, 0,
-                       nullptr, 0, nullptr, nullptr, nullptr,
+                       &global_offset, &global_size, &local_size, 2, fill_args,
+                       0, nullptr, 0, nullptr, 0, nullptr, nullptr, nullptr,
                        &test_command_handle),
                    UR_RESULT_ERROR_INVALID_OPERATION);
   ASSERT_EQ(test_command_handle, nullptr);
@@ -337,10 +348,19 @@ struct InvalidUpdateCommandBufferExpExecutionTest : uur::urKernelExecutionTest {
     ASSERT_NE(shared_ptr, nullptr);
     std::memset(shared_ptr, 0, allocation_size);
 
-    // Index 0 is output
-    ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, shared_ptr));
-    // Index 1 is input scalar
-    ASSERT_SUCCESS(urKernelSetArgValue(kernel, 1, sizeof(val), nullptr, &val));
+    // Build kernel args
+    fill_args2[0] = {UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+                     nullptr,
+                     UR_EXP_KERNEL_ARG_TYPE_POINTER,
+                     0,
+                     sizeof(void *),
+                     {shared_ptr}};
+    fill_args2[1] = {UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+                     nullptr,
+                     UR_EXP_KERNEL_ARG_TYPE_VALUE,
+                     1,
+                     sizeof(val),
+                     {&val}};
 
     // Create a command-buffer with update enabled.
     ur_exp_command_buffer_desc_t desc{UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC,
@@ -351,10 +371,10 @@ struct InvalidUpdateCommandBufferExpExecutionTest : uur::urKernelExecutionTest {
     ASSERT_NE(updatable_cmd_buf_handle, nullptr);
 
     // Append kernel command to command-buffer
-    ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchExp(
+    ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchWithArgsExp(
         updatable_cmd_buf_handle, kernel, n_dimensions, &global_offset,
-        &global_size, &local_size, 0, nullptr, 0, nullptr, 0, nullptr, nullptr,
-        nullptr, &command_handle));
+        &global_size, &local_size, 2, fill_args2, 0, nullptr, 0, nullptr, 0,
+        nullptr, nullptr, nullptr, &command_handle));
     ASSERT_NE(command_handle, nullptr);
 
     ASSERT_SUCCESS(urCommandBufferFinalizeExp(updatable_cmd_buf_handle));
@@ -388,11 +408,13 @@ struct InvalidUpdateCommandBufferExpExecutionTest : uur::urKernelExecutionTest {
   static constexpr uint32_t n_dimensions = 1;
   static constexpr size_t allocation_size = sizeof(val) * global_size;
   void *shared_ptr = nullptr;
+  ur_exp_kernel_arg_properties_t fill_args2[2] = {};
   ur_device_command_buffer_update_capability_flags_t update_capability_flags =
       0;
 };
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(InvalidUpdateCommandBufferExpExecutionTest);
+UUR_DEVICE_TEST_SUITE_WITH_DEFAULT_QUEUE(
+    InvalidUpdateCommandBufferExpExecutionTest);
 
 // Test error reported if device doesn't support updating kernel args
 TEST_P(InvalidUpdateCommandBufferExpExecutionTest, KernelArg) {

@@ -50,11 +50,20 @@ ur_result_t SafeAllocate(ur_context_handle_t Context, ur_device_handle_t Device,
       Device ? GetDeviceType(Context, Device) : DeviceType::UNKNOWN;
   switch (Type) {
   case AllocType::DEVICE_USM:
-  case AllocType::MEM_BUFFER:
-    UR_CALL(getContext()->urDdiTable.USM.pfnDeviceAlloc(
-        Context, Device, Properties, Pool, Size, Allocated));
+  case AllocType::MEM_BUFFER: {
+    auto UrRes = getContext()->urDdiTable.USM.pfnDeviceAlloc(
+        Context, Device, Properties, Pool, Size, Allocated);
+    if (UrRes != UR_RESULT_SUCCESS) {
+      if (UrRes == UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY)
+        UR_LOG_L(getContext()->logger, WARN,
+                 "Out of device memory. Please consider reducing the "
+                 "application or running the application with MPI on multi "
+                 "devices.");
+      return UrRes;
+    }
     validateDeviceUSM((uptr)*Allocated, DevieType);
     break;
+  }
   case AllocType::HOST_USM:
     UR_CALL(getContext()->urDdiTable.USM.pfnHostAlloc(Context, Properties, Pool,
                                                       Size, Allocated));

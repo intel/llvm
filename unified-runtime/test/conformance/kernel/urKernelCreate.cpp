@@ -1,4 +1,4 @@
-// Copyright (C) 2023 Intel Corporation
+// Copyright (C) 2023-2026 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
 //
@@ -26,7 +26,8 @@ struct urKernelCreateTest : uur::urProgramTest {
   std::string kernel_name;
   ur_kernel_handle_t kernel = nullptr;
 };
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(urKernelCreateTest);
+
+UUR_DEVICE_TEST_SUITE_WITH_DEFAULT_QUEUE(urKernelCreateTest);
 
 TEST_P(urKernelCreateTest, Success) {
   ASSERT_SUCCESS(urKernelCreate(program, kernel_name.data(), &kernel));
@@ -84,9 +85,9 @@ TEST_P(urMultiDeviceKernelCreateTest, WithProgramBuild) {
     ASSERT_SUCCESS(
         urKernelCreate(program.get(), kernelName.data(), kernel.ptr()));
 
-    ASSERT_SUCCESS(urEnqueueKernelLaunch(
-        queues[i], kernel.get(), n_dimensions, &global_offset, &local_size,
-        &global_size, 0, nullptr, 0, nullptr, nullptr));
+    ASSERT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
+        queues[i], kernel.get(), n_dimensions, &global_offset, &global_size,
+        &local_size, 0, nullptr, nullptr, 0, nullptr, nullptr));
 
     ASSERT_SUCCESS(urQueueFinish(queues[i]));
   }
@@ -126,9 +127,9 @@ TEST_P(urMultiDeviceKernelCreateTest, WithProgramCompileAndLink) {
     ASSERT_SUCCESS(
         urKernelCreate(linked_program.get(), kernelName.data(), kernel.ptr()));
 
-    ASSERT_SUCCESS(urEnqueueKernelLaunch(
-        queues[i], kernel.get(), n_dimensions, &global_offset, &local_size,
-        &global_size, 0, nullptr, 0, nullptr, nullptr));
+    ASSERT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
+        queues[i], kernel.get(), n_dimensions, &global_offset, &global_size,
+        &local_size, 0, nullptr, nullptr, 0, nullptr, nullptr));
 
     ASSERT_SUCCESS(urQueueFinish(queues[i]));
   }

@@ -1,10 +1,10 @@
 ; REQUIRES: spirv-dis
-; RUN: llvm-as %s -o %t.bc
-; RUN: llvm-spirv %t.bc -o %t.spv
+; RUN: llvm-spirv %s -o %t.spv
 ; RUN: spirv-dis --raw-id %t.spv | FileCheck --check-prefix CHECK-SPIRV %s
 ; RUN: spirv-val %t.spv
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis %t.rev.bc -o - | FileCheck --check-prefix CHECK-LLVM %s
+; FIXME: FILECHECK_FAIL during llvm-spirv -r in llc compilation flow
 
 target triple = "spir64-unknown-unknown"
 

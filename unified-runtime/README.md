@@ -128,6 +128,7 @@ List of options provided by CMake:
 | UR_ENABLE_SANITIZER | Enable device sanitizer layer | ON/OFF | ON |
 | UR_CONFORMANCE_TARGET_TRIPLES | SYCL triples to build CTS device binaries for | Comma-separated list | spir64 |
 | UR_CONFORMANCE_AMD_ARCH | AMD device target ID to build CTS binaries for | string | `""` |
+| UR_CONFORMANCE_NVIDIA_ARCH | NVIDIA shader model to build CTS binaries for | string | `""` |
 | UR_CONFORMANCE_SELECTOR | `ONEAPI_DEVICE_SELECTOR` for conformance testing | string | All enabled adapters |
 | UR_BUILD_ADAPTER_L0     | Build the Level-Zero adapter            | ON/OFF     | OFF     |
 | UR_BUILD_ADAPTER_OPENCL | Build the OpenCL adapter                | ON/OFF     | OFF     |
@@ -206,9 +207,9 @@ to use the following naming convention:
 
 ### Source code generation
 
-Code is generated using included [Python scripts](/scripts/README.md).
+Code is generated using included [Python scripts](/unified-runtime/scripts/).
 
 ### Documentation
 
 Documentation is generated from source code using Sphinx -
-see [scripts dir](/scripts/README.md) for details.
+see [scripts dir](/unified-runtime/scripts/README.md) for details.

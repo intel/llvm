@@ -8,8 +8,9 @@
 
 #pragma once
 
+#ifndef __SYCL_DEVICE_ONLY__
 #include <atomic> // for memory_order
-#include <vector> // for vector
+#endif
 
 namespace sycl {
 inline namespace _V1 {

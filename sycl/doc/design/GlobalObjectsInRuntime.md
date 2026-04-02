@@ -5,7 +5,7 @@
 C++ standard does not specify the order in which global objects are constructed
 or destroyed. If global objects somehow interact with each other, there's a
 chance, that one of the objects has not been initialized or has been destroyed
-by the time of interaction. This problem is also refered to as 
+by the time of interaction. This problem is also referred to as
 [static initialization order fiasco].
 
 The only two things C++ guarantees is that global objects are constructed before

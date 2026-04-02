@@ -9,7 +9,7 @@
 #pragma once
 
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
-#include <ur_api.h>
+#include <unified-runtime/ur_api.h>
 
 // FIXME: .def files included to this file use all sorts of SYCL objects like
 // id, range, traits, etc. We have to include some headers before including .def
@@ -22,6 +22,9 @@
 
 #include <sycl/range.hpp>
 
+#include <string>
+#include <vector>
+
 // This is used in trait .def files when there isn't a corresponding backend
 // query but we still need a value to instantiate the template.
 #define __SYCL_TRAIT_HANDLED_IN_RT 0
@@ -29,6 +32,7 @@
 namespace sycl {
 inline namespace _V1 {
 
+class context;
 class device;
 class platform;
 class kernel_id;
@@ -58,11 +62,11 @@ namespace context {
 enum class device_type : uint32_t {
   cpu = UR_DEVICE_TYPE_CPU,
   gpu = UR_DEVICE_TYPE_GPU,
-  accelerator = UR_DEVICE_TYPE_FPGA,
+  accelerator = 0x10000,
   // TODO: evaluate the need for equivalent UR enums for these types
-  custom,
-  automatic,
-  host,
+  custom = 0x10001,
+  automatic = 0x10002,
+  host = 0x10003,
   all = UR_DEVICE_TYPE_ALL
 };
 

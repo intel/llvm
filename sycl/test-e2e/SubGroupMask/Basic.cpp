@@ -1,5 +1,8 @@
 // RUN: %{build} -o %t.out
 
+// XFAIL: target-native_cpu
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142
+
 // REQUIRES: gpu
 // REQUIRES: sg-32
 

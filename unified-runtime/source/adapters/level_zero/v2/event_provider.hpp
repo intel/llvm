@@ -13,9 +13,9 @@
 #include <mutex>
 #include <stack>
 
+#include <unified-runtime/ur_api.h>
 #include <unordered_map>
 #include <ur/ur.hpp>
-#include <ur_api.h>
 #include <vector>
 #include <ze_api.h>
 
@@ -27,6 +27,11 @@ enum event_flag_t {
   EVENT_FLAGS_PROFILING_ENABLED = UR_BIT(1),
 };
 static constexpr size_t EVENT_FLAGS_USED_BITS = 2;
+
+enum queue_type {
+  QUEUE_REGULAR,
+  QUEUE_IMMEDIATE,
+};
 
 class event_provider;
 

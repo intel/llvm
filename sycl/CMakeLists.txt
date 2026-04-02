@@ -11,6 +11,7 @@ option(SYCL_ADD_DEV_VERSION_POSTFIX "Adds -V postfix to version string" ON)
 option(SYCL_ENABLE_COVERAGE "Enables code coverage for runtime and unit tests" OFF)
 option(SYCL_ENABLE_STACK_PRINTING "Enables stack printing on crashes of SYCL applications" OFF)
 option(SYCL_LIB_WITH_DEBUG_SYMBOLS "Builds SYCL runtime libraries with debug symbols" OFF)
+option(SYCL_ENABLE_IPO "Builds SYCL runtime libraries with interprocedural optimization" OFF)
 
 if (NOT SYCL_COVERAGE_PATH)
   set(SYCL_COVERAGE_PATH "${CMAKE_CURRENT_BINARY_DIR}/profiles")
@@ -27,8 +28,7 @@ if (NOT DEFINED SYCL_ENABLE_BACKENDS)
   set(SYCL_ENABLE_BACKENDS "opencl;level_zero;level_zero_v2")
 endif()
 
-# Option to enable JIT, this in turn makes kernel fusion and spec constant
-# materialization possible.
+# Option to enable JIT, this in turn makes spec constant materialization possible.
 option(SYCL_ENABLE_EXTENSION_JIT "Enable extension to JIT kernels" ON)
 
 if (NOT XPTI_INCLUDES)
@@ -55,8 +55,9 @@ if(MSVC)
   include(CheckLinkerFlag)
   check_linker_flag(CXX "LINKER:/DEBUG" LINKER_SUPPORTS_DEBUG)
   if(LINKER_SUPPORTS_DEBUG)
-    # sccache is not compatible with /Zi flag
-    if (CMAKE_CXX_COMPILER_LAUNCHER STREQUAL "sccache")
+    # (s)ccache is not compatible with /Zi flag
+    if (CMAKE_CXX_COMPILER_LAUNCHER STREQUAL "ccache" OR
+	CMAKE_CXX_COMPILER_LAUNCHER STREQUAL "sccache")
       # CMake may put /Zi by default
       if(CMAKE_BUILD_TYPE STREQUAL "Debug")
         string(REPLACE "/Zi" "/Z7" CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG}")
@@ -83,14 +84,14 @@ if(MSVC)
 endif()
 
 include(FetchEmhash)
-include(FetchUnifiedRuntime)
+include(BuildUnifiedRuntime)
 
 # The change in SYCL_MAJOR_VERSION must be accompanied with the same update in
 # llvm/clang/lib/Driver/CMakeLists.txt.
 #
 # See doc/developer/ABIPolicyGuide.md for the meaning when in the middle of
 # development cycle.
-set(SYCL_MAJOR_VERSION 8)
+set(SYCL_MAJOR_VERSION 9)
 set(SYCL_MINOR_VERSION 0)
 set(SYCL_PATCH_VERSION 0)
 
@@ -190,7 +191,33 @@ set(SYCL_EXT_ONEAPI_BACKEND_HIP ${LLVM_HAS_AMDGPU_TARGET})
 # Configure SYCL version macro
 set(sycl_inc_dir ${CMAKE_CURRENT_SOURCE_DIR}/include)
 set(sycl_src_dir ${CMAKE_CURRENT_SOURCE_DIR}/source)
-string(TIMESTAMP __SYCL_COMPILER_VERSION "%Y%m%d")
+
+if(NOT DEFINED SYCL_COMPILER_VERSION)
+  find_package(Git QUIET)
+  if(GIT_FOUND)
+    # Get the date of the latest commit
+    execute_process(
+      COMMAND ${GIT_EXECUTABLE} log -1 --format=%cd --date=format:%Y%m%d
+      WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+      RESULT_VARIABLE GIT_RESULT
+      OUTPUT_VARIABLE GIT_DATE
+      OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
+
+    if(GIT_RESULT EQUAL 0 AND GIT_DATE)
+      set(SYCL_COMPILER_VERSION "${GIT_DATE}")
+    endif()
+  endif()
+
+  if(NOT DEFINED SYCL_COMPILER_VERSION)
+    message(WARNING "No value for SYCL_COMPILER_VERSION passed and couldn't determine timestamp of last commit, falling back to current timestamp.")
+    string(TIMESTAMP SYCL_COMPILER_VERSION "%Y%m%d")
+  endif()
+endif()
+
+set(__SYCL_COMPILER_VERSION "${SYCL_COMPILER_VERSION}")
+message(STATUS "SYCL Compiler Version: ${__SYCL_COMPILER_VERSION}")
+
 configure_file("source/version.hpp.in" "${SYCL_INCLUDE_BUILD_DIR}/sycl/version.hpp")
 configure_file("source/feature_test.hpp.in" "${SYCL_INCLUDE_BUILD_DIR}/sycl/feature_test.hpp")
 
@@ -222,7 +249,10 @@ install(FILES
 file(GLOB_RECURSE HEADERS_IN_SYCL_DIR CONFIGURE_DEPENDS "${sycl_inc_dir}/sycl/*")
 file(GLOB_RECURSE HEADERS_IN_CL_DIR CONFIGURE_DEPENDS "${sycl_inc_dir}/CL/*")
 file(GLOB_RECURSE HEADERS_IN_STD_DIR CONFIGURE_DEPENDS "${sycl_inc_dir}/std/*")
-file(GLOB_RECURSE HEADERS_IN_SYCLCOMPAT_DIR CONFIGURE_DEPENDS "${sycl_inc_dir}/syclcompat/*" "${sycl_inc_dir}/syclcompat.hpp")
+file(GLOB_RECURSE HEADERS_IN_UR_DIR CONFIGURE_DEPENDS "${UNIFIED_RUNTIME_INCLUDE_DIR}/unified-runtime/*")
+list(REMOVE_ITEM HEADERS_IN_UR_DIR
+  "${UNIFIED_RUNTIME_INCLUDE_DIR}/unified-runtime/ur_ddi.h"
+  "${UNIFIED_RUNTIME_INCLUDE_DIR}/unified-runtime/ur_print.h")
 
 string(REPLACE "${sycl_inc_dir}" "${SYCL_INCLUDE_BUILD_DIR}"
   OUT_HEADERS_IN_SYCL_DIR "${HEADERS_IN_SYCL_DIR}")
@@ -232,15 +262,8 @@ string(REPLACE "${sycl_inc_dir}" "${SYCL_INCLUDE_BUILD_DIR}"
   OUT_HEADERS_IN_STD_DIR "${HEADERS_IN_STD_DIR}")
 string(REPLACE "${sycl_inc_dir}" "${SYCL_INCLUDE_BUILD_DIR}"
   OUT_HEADERS_IN_SYCLCOMPAT_DIR "${HEADERS_IN_SYCLCOMPAT_DIR}")
-
-set(OUT_UR_HEADERS
-  ${SYCL_INCLUDE_BUILD_DIR}/ur_api.h
-  ${SYCL_INCLUDE_BUILD_DIR}/ur_api_funcs.def
-  ${SYCL_INCLUDE_BUILD_DIR}/ur_print.hpp)
-set(UR_HEADERS_TO_COPY
-  ${UNIFIED_RUNTIME_INCLUDE_DIR}/ur_api.h
-  ${UNIFIED_RUNTIME_INCLUDE_DIR}/ur_api_funcs.def
-  ${UNIFIED_RUNTIME_INCLUDE_DIR}/ur_print.hpp)
+string(REPLACE "${UNIFIED_RUNTIME_INCLUDE_DIR}/unified-runtime" "${SYCL_INCLUDE_BUILD_DIR}/unified-runtime"
+  OUT_HEADERS_IN_UR_DIR "${HEADERS_IN_UR_DIR}")
 
 # Copy SYCL headers from sources to build directory
 add_custom_target(sycl-headers
@@ -248,7 +271,7 @@ add_custom_target(sycl-headers
           ${OUT_HEADERS_IN_CL_DIR}
           ${OUT_HEADERS_IN_STD_DIR}
           ${OUT_HEADERS_IN_SYCLCOMPAT_DIR}
-          ${OUT_UR_HEADERS}
+          ${OUT_HEADERS_IN_UR_DIR}
           sycl-device-aspect-macros-header
           )
 
@@ -257,32 +280,23 @@ add_custom_command(
           ${OUT_HEADERS_IN_CL_DIR}
           ${OUT_HEADERS_IN_STD_DIR}
           ${OUT_HEADERS_IN_SYCLCOMPAT_DIR}
-          ${OUT_UR_HEADERS}
+          ${OUT_HEADERS_IN_UR_DIR}
   DEPENDS ${HEADERS_IN_SYCL_DIR}
           ${HEADERS_IN_CL_DIR}
           ${HEADERS_IN_STD_DIR}
           ${HEADERS_IN_SYCLCOMPAT_DIR}
-          ${UR_HEADERS_TO_COPY}
+          ${HEADERS_IN_UR_DIR}
   COMMAND ${CMAKE_COMMAND} -E copy_directory ${sycl_inc_dir}/sycl ${SYCL_INCLUDE_BUILD_DIR}/sycl
   COMMAND ${CMAKE_COMMAND} -E copy_directory ${sycl_inc_dir}/CL ${SYCL_INCLUDE_BUILD_DIR}/CL
   COMMAND ${CMAKE_COMMAND} -E copy_directory ${sycl_inc_dir}/std ${SYCL_INCLUDE_BUILD_DIR}/std
-  COMMAND ${CMAKE_COMMAND} -E copy_directory ${sycl_inc_dir}/syclcompat ${SYCL_INCLUDE_BUILD_DIR}/syclcompat
-  COMMAND ${CMAKE_COMMAND} -E copy ${sycl_inc_dir}/syclcompat.hpp ${SYCL_INCLUDE_BUILD_DIR}/syclcompat.hpp
-  COMMAND ${CMAKE_COMMAND} -E copy ${UR_HEADERS_TO_COPY} ${SYCL_INCLUDE_BUILD_DIR}
+  COMMAND ${CMAKE_COMMAND} -E copy_directory ${UNIFIED_RUNTIME_INCLUDE_DIR}/unified-runtime ${SYCL_INCLUDE_BUILD_DIR}/unified-runtime
   COMMENT "Copying SYCL headers ...")
 
 # Copy SYCL headers from source to install directory
 install(DIRECTORY "${sycl_inc_dir}/sycl" DESTINATION ${SYCL_INCLUDE_DIR} COMPONENT sycl-headers)
 install(DIRECTORY "${sycl_inc_dir}/CL" DESTINATION ${SYCL_INCLUDE_DIR}/ COMPONENT sycl-headers)
 install(DIRECTORY "${sycl_inc_dir}/std" DESTINATION ${SYCL_INCLUDE_DIR} COMPONENT sycl-headers)
-install(DIRECTORY "${sycl_inc_dir}/syclcompat" DESTINATION ${SYCL_INCLUDE_DIR} COMPONENT sycl-headers)
-install(FILES "${sycl_inc_dir}/syclcompat.hpp" DESTINATION ${SYCL_INCLUDE_DIR} COMPONENT sycl-headers)
-install(FILES "${UNIFIED_RUNTIME_INCLUDE_DIR}/ur_api.h" DESTINATION ${SYCL_INCLUDE_DIR}
-  COMPONENT sycl-headers)
-install(FILES "${UNIFIED_RUNTIME_INCLUDE_DIR}/ur_api_funcs.def" DESTINATION ${SYCL_INCLUDE_DIR}
-  COMPONENT sycl-headers)
-install(FILES "${UNIFIED_RUNTIME_INCLUDE_DIR}/ur_print.hpp" DESTINATION ${SYCL_INCLUDE_DIR}
-  COMPONENT sycl-headers)
+install(DIRECTORY "${UNIFIED_RUNTIME_INCLUDE_DIR}/unified-runtime" DESTINATION ${SYCL_INCLUDE_DIR} COMPONENT sycl-headers)
 
 if (WIN32)
   set(SYCL_RT_LIBS sycl${SYCL_MAJOR_VERSION})
@@ -337,6 +351,23 @@ if (NOT WIN32)
     RENAME "libsycl.so.${SYCL_VERSION_STRING}-gdb.py"
     DESTINATION "lib${LLVM_LIBDIR_SUFFIX}/"
     COMPONENT sycl-headers-extras)
+  if (SYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB)
+    install(FILES
+      "${CMAKE_CURRENT_SOURCE_DIR}/gdb/libsycl.so-gdb.py"
+      RENAME "libsycl-preview.so.${SYCL_VERSION_STRING}-gdb.py"
+      DESTINATION "lib${LLVM_LIBDIR_SUFFIX}/"
+      COMPONENT sycl-headers-extras)
+  endif()
+
+  configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/pkgconfig/sycl.pc.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/sycl-dpcpp-${DPCPP_VERSION_MAJOR}.pc"
+    @ONLY)
+
+  install(
+    FILES "${CMAKE_CURRENT_BINARY_DIR}/sycl-dpcpp-${DPCPP_VERSION_MAJOR}.pc"
+    DESTINATION "lib${LLVM_LIBDIR_SUFFIX}/pkgconfig"
+    COMPONENT sycl)
 endif()
 
 if(SYCL_ENABLE_XPTI_TRACING AND
@@ -361,7 +392,7 @@ add_custom_target(sycl-compiler
           clang-offload-bundler
           clang-offload-deps
           clang-offload-extract
-          clang-offload-packager
+          llvm-offload-binary
           clang-linker-wrapper
           file-table-tform
           llc
@@ -412,8 +443,8 @@ option(SYCL_INCLUDE_TESTS
   ${LLVM_INCLUDE_TESTS})
 
 # Ensure that HIP platform is uppercase, to match buildbot's output.
-if(NOT "${SYCL_BUILD_PI_HIP_PLATFORM}" STREQUAL "")
-  string(TOUPPER ${SYCL_BUILD_PI_HIP_PLATFORM} SYCL_BUILD_PI_HIP_PLATFORM)
+if(NOT "${SYCL_BUILD_UR_HIP_PLATFORM}" STREQUAL "")
+  string(TOUPPER ${SYCL_BUILD_UR_HIP_PLATFORM} SYCL_BUILD_UR_HIP_PLATFORM)
 endif()
 
 add_subdirectory(tools)
@@ -444,7 +475,7 @@ set( SYCL_TOOLCHAIN_DEPLOY_COMPONENTS
      clang-offload-bundler
      clang-offload-deps
      clang-offload-extract
-     clang-offload-packager
+     llvm-offload-binary
      clang-linker-wrapper
      file-table-tform
      llc
@@ -523,13 +554,22 @@ if("hip" IN_LIST SYCL_ENABLE_BACKENDS)
       "HIP support requires adding \"libclc\" to the CMake argument \"LLVM_ENABLE_PROJECTS\"")
   endif()
 
-  if(NOT TARGET lld AND "${SYCL_BUILD_PI_HIP_PLATFORM}" STREQUAL "AMD")
+  if(NOT TARGET lld AND "${SYCL_BUILD_UR_HIP_PLATFORM}" STREQUAL "AMD")
     message(FATAL_ERROR
       "HIP support requires adding \"lld\" to the CMake argument \"LLVM_ENABLE_PROJECTS\"")
   endif()
 
   add_dependencies(sycl-toolchain ur_adapter_hip)
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS ur_adapter_hip)
+endif()
+
+if("offload" IN_LIST SYCL_ENABLE_BACKENDS)
+  if(NOT TARGET lld)
+    message(FATAL_ERROR
+      "Offload support requires adding \"lld\" to the CMake argument \"LLVM_ENABLE_PROJECTS\"")
+  endif()
+  add_dependencies(sycl-toolchain ur_adapter_offload)
+  list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS ur_adapter_offload)
 endif()
 
 # Use it as fake dependency in order to force another command(s) to execute.
@@ -564,3 +604,19 @@ add_custom_target(deploy-sycl-toolchain
 add_subdirectory(doc)
 # SYCL End-to-End tests
 add_subdirectory(test-e2e)
+
+add_custom_target(install-sycl-test-utilities
+  COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target
+    utils/FileCheck/install
+    utils/count/install
+    utils/not/install
+    utils/lit/install
+    utils/llvm-lit/install
+    install-llvm-size
+    install-llvm-cov
+    install-llvm-profdata
+    install-compiler-rt
+  # This is required to perform the DeviceConfigFile consistency test, see
+  # sycl/test-e2e/Basic/device_config_file_consistency.cpp.
+  COMMAND ${CMAKE_COMMAND} --install ${CMAKE_BINARY_DIR} --component DeviceConfigFile
+)

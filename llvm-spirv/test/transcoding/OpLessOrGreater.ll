@@ -1,5 +1,4 @@
-; RUN: llvm-as %s -o %t.bc
-; RUN: llvm-spirv %t.bc -o %t.spv
+; RUN: llvm-spirv %s -o %t.spv
 ; RUN: llvm-spirv %t.spv -to-text -o %t.spt
 ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
 ; RUN: spirv-val %t.spv
@@ -7,6 +6,10 @@
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis %t.rev.bc
 ; RUN: FileCheck < %t.rev.ll %s --check-prefix=CHECK-LLVM
+; RUN: %if spirv-backend %{ llc -O0 -mtriple=spirv64-unknown-unknown -filetype=obj %s -o %t.llc.spv %}
+; RUN: %if spirv-backend %{ llvm-spirv -r %t.llc.spv -o %t.llc.rev.bc %}
+; RUN: %if spirv-backend %{ llvm-dis %t.llc.rev.bc -o %t.llc.rev.ll %}
+; RUN: %if spirv-backend %{ FileCheck %s --check-prefix=CHECK-LLC < %t.llc.rev.ll %}
 
 ; SPIR-V 1.5
 ; CHECK-SPIRV: 66816
@@ -21,6 +24,7 @@ target triple = "spir64-unknown-unknown"
 define spir_kernel void @test(float %a) local_unnamed_addr #0 {
 entry:
 ; CHECK-LLVM: fcmp one float %a, %a
+; CHECK-LLC: call spir_func i1 @_Z21__spirv_LessOrGreater(float %a, float %a)
   %call = tail call spir_func i1 @_Z21__spirv_LessOrGreater(float %a, float %a)
   ret void
 }

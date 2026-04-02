@@ -1,8 +1,9 @@
 // This test ensures that a program that has a kernel
 // using fp16 can be compiled AOT.
 
-// REQUIRES: ocloc, opencl-aot, any-device-is-cpu
-// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_tgllp -o %t.tgllp.out %s
+// Don't run on Gen12 Windows as we don't use a driver that can AOT compile.
+// REQUIRES: ocloc, opencl-aot, any-device-is-cpu, (!gpu-intel-gen12 || linux)
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_acm_g10 -o %t.dg2.out %s
 
 // CPU AOT targets host isa, so we compile on the run system instead.
 // RUN: %{run-aux} %clangxx -fsycl -fsycl-targets=spir64_x86_64 -o %t.x86.out %s
@@ -12,6 +13,9 @@
 // result in an error when on windows. (In general, there is no support
 // for pvc on windows.)
 // RUN: %if !windows %{ %clangxx -fsycl -fsycl-targets=intel_gpu_pvc -o %t.pvc.out %s %}
+
+// UNSUPPORTED: target-native_cpu
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20142
 
 #include <sycl/detail/core.hpp>
 

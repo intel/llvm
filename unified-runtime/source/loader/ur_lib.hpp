@@ -14,9 +14,9 @@
 #ifndef UR_LOADER_LIB_H
 #define UR_LOADER_LIB_H 1
 
-#include "ur_api.h"
+#include "unified-runtime/ur_api.h"
+#include "unified-runtime/ur_ddi.h"
 #include "ur_codeloc.hpp"
-#include "ur_ddi.h"
 #include "ur_proxy_layer.hpp"
 #include "ur_util.hpp"
 
@@ -61,7 +61,6 @@ public:
 #endif
 
   context_t();
-  ~context_t();
 
   std::once_flag initOnce;
 
@@ -117,7 +116,7 @@ public:
   void tearDownLayers() const;
 };
 
-context_t *getContext();
+inline context_t *getContext() { return context_t::get_direct(); }
 
 ur_result_t urLoaderConfigCreate(ur_loader_config_handle_t *phLoaderConfig);
 ur_result_t urLoaderConfigRetain(ur_loader_config_handle_t hLoaderConfig);

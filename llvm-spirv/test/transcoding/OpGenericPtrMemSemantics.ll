@@ -7,17 +7,36 @@
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-SPV-IR
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
+; RUN: %if spirv-backend %{ llc -O0 -mtriple=spirv32-unknown-unknown -filetype=obj %s -o %t.llc.spv %}
+; RUN: %if spirv-backend %{ llvm-spirv -r %t.llc.spv -o %t.llc.rev.bc %}
+; RUN: %if spirv-backend %{ llvm-dis %t.llc.rev.bc -o %t.llc.rev.ll %}
+; RUN: %if spirv-backend %{ FileCheck %s --check-prefix=CHECK-LLC < %t.llc.rev.ll %}
 
 ; CHECK-SPIRV: 4 GenericPtrMemSemantics {{[0-9]+}} [[ResID:[0-9]+]] {{[0-9]+}}
 ; CHECK-SPIRV-NEXT: 5 ShiftRightLogical {{[0-9]+}} {{[0-9]+}} [[ResID]] {{[0-9]+}}
 
-; CHECK-SPV-IR: call spir_func i32 @_Z30__spirv_GenericPtrMemSemanticsPU3AS4c(ptr addrspace(4) {{.*}})
+; CHECK-SPV-IR: call spir_func i32 @_Z30__spirv_GenericPtrMemSemanticsPU3AS4Kc(ptr addrspace(4) {{.*}})
 ; CHECK-SPV-IR: lshr
 
 ; Note that round-trip conversion replaces 'get_fence (gentype *ptr)' built-in function with 'get_fence (const gentype *ptr)'.
 ; CHECK-LLVM: call spir_func i32 @_Z9get_fencePU3AS4Kv(ptr
 ; CHECK-LLVM-NEXT: shl
 ; CHECK-LLVM-NEXT: lshr
+
+; In the llc roundtrip, get_fence is used (without const qualifier) and select replaces zext
+; CHECK-LLC-LABEL: define spir_func i32 @isFenceValid(
+; CHECK-LLC: icmp ult i32 %fence, 4
+; CHECK-LLC-NEXT: select i1 %{{.*}}, i32 1, i32 0
+;
+; CHECK-LLC-LABEL: define spir_func i32 @f4(
+; CHECK-LLC: call spir_func i32 @_Z9get_fencePU3AS4v(ptr addrspace(4)
+; CHECK-LLC: select i1 %{{.*}}, i32 1, i32 0
+; CHECK-LLC: xor i32 %{{.*}}, 1
+;
+; CHECK-LLC-LABEL: define spir_kernel void @testKernel(
+; CHECK-LLC: call spir_func i32 @_Z9get_fencePU3AS4v(ptr addrspace(4)
+; CHECK-LLC: select i1 %{{.*}}, i32 1, i32 0
+; CHECK-LLC: store i32 %{{.*}}, ptr addrspace(1) %{{.*}}, align 4
 
 target datalayout = "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
 target triple = "spir-unknown-unknown"

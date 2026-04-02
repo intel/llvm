@@ -40,6 +40,7 @@
 
 // This file needs to be included before anything that declares
 // llvm::PointerType to avoid a compilation bug on MSVC.
+#include "llvm/Demangle/Demangle.h"
 #include "llvm/Demangle/ItaniumDemangle.h"
 
 #include "FunctionDescriptor.h"
@@ -49,6 +50,7 @@
 #include "ParameterType.h"
 #include "SPIRVInternal.h"
 #include "SPIRVMDWalker.h"
+#include "SPIRVToOCL.h"
 #include "libSPIRV/SPIRVDecorate.h"
 #include "libSPIRV/SPIRVValue.h"
 
@@ -266,6 +268,12 @@ bool isSYCLBfloat16Type(llvm::Type *Ty) {
   return false;
 }
 
+bool isLLVMCooperativeMatrixType(llvm::Type *Ty) {
+  if (auto *TargetTy = dyn_cast<TargetExtType>(Ty))
+    return TargetTy->getName() == "spirv.CooperativeMatrixKHR";
+  return false;
+}
+
 Function *getOrCreateFunction(Module *M, Type *RetTy, ArrayRef<Type *> ArgTypes,
                               StringRef Name, BuiltinFuncMangleInfo *Mangle,
                               AttributeList *Attrs, bool TakeName) {
@@ -438,7 +446,7 @@ bool getSPIRVBuiltin(const std::string &OrigName, spv::BuiltIn &B) {
   return getByName(R.str(), B);
 }
 
-// Demangled name is a substring of the name. The DemangledName is updated only
+// DemangledName is a substring of Name. The DemangledName is updated only
 // if true is returned
 bool oclIsBuiltin(StringRef Name, StringRef &DemangledName, bool IsCpp) {
   if (Name == "printf") {
@@ -485,6 +493,21 @@ bool oclIsBuiltin(StringRef Name, StringRef &DemangledName, bool IsCpp) {
   return false;
 }
 
+// DemangledName is a substring of Name. The DemangledName is updated only
+// if true is returned.
+bool isInternalSPIRVBuiltin(StringRef Name, StringRef &DemangledName) {
+  if (!Name.starts_with("_Z"))
+    return false;
+  constexpr unsigned DemangledNameLenStart = 2;
+  size_t Start = Name.find_first_not_of("0123456789", DemangledNameLenStart);
+  if (!Name.substr(Start, Name.size() - 1)
+           .starts_with(kSPIRVName::InternalBuiltinPrefix))
+    return false;
+  DemangledName = llvm::itaniumDemangle(Name.data(), false);
+  DemangledName.consume_front(kSPIRVName::InternalBuiltinPrefix);
+  return true;
+}
+
 // Check if a mangled type Name is unsigned
 bool isMangledTypeUnsigned(char Mangled) {
   return Mangled == 'h'    /* uchar */
@@ -526,6 +549,11 @@ ParamType lastFuncParamType(StringRef MangledName) {
   eraseSubstitutionFromMangledName(Copy);
   char Mangled = Copy.back();
   std::string Mangled2 = Copy.substr(Copy.size() - 2);
+
+  std::string Mangled5 = Copy.substr(Copy.size() - 5);
+  if (Mangled5 == "DF16b") {
+    return ParamType::FLOAT;
+  }
 
   if (isMangledTypeFP(Mangled) || isMangledTypeHalf(Mangled2)) {
     return ParamType::FLOAT;
@@ -594,12 +622,13 @@ static std::string demangleBuiltinOpenCLTypeName(StringRef MangledStructName) {
 /// floating point type.
 static Type *parsePrimitiveType(LLVMContext &Ctx, StringRef Name) {
   return StringSwitch<Type *>(Name)
-      .Cases("char", "signed char", "unsigned char", Type::getInt8Ty(Ctx))
-      .Cases("short", "unsigned short", Type::getInt16Ty(Ctx))
-      .Cases("int", "unsigned int", Type::getInt32Ty(Ctx))
-      .Cases("long", "unsigned long", Type::getInt64Ty(Ctx))
-      .Cases("long long", "unsigned long long", Type::getInt64Ty(Ctx))
+      .Cases({"char", "signed char", "unsigned char"}, Type::getInt8Ty(Ctx))
+      .Cases({"short", "unsigned short"}, Type::getInt16Ty(Ctx))
+      .Cases({"int", "unsigned int"}, Type::getInt32Ty(Ctx))
+      .Cases({"long", "unsigned long"}, Type::getInt64Ty(Ctx))
+      .Cases({"long long", "unsigned long long"}, Type::getInt64Ty(Ctx))
       .Case("half", Type::getHalfTy(Ctx))
+      .Case("std::bfloat16_t", Type::getBFloatTy(Ctx))
       .Case("float", Type::getFloatTy(Ctx))
       .Case("double", Type::getDoubleTy(Ctx))
       .Case("void", Type::getInt8Ty(Ctx))
@@ -779,6 +808,10 @@ parseNode(Module *M, const llvm::itanium_demangle::Node *ParamType,
       // struct types were are looking for here.
     }
   } else if (auto *VendorTy = dyn_cast<VendorExtQualType>(ParamType)) {
+    if (auto *NameTy = dyn_cast<NameType>(VendorTy->getTy())) {
+      if (NameTy->getName() == "std::bfloat16_t")
+        PointeeTy = llvm::Type::getBFloatTy(M->getContext());
+    }
     // This is a block parameter. Decode the pointee type as if it were a
     // void (*)(void) function pointer type.
     if (VendorTy->getExt() == "block_pointer") {
@@ -1290,11 +1323,44 @@ SPIR::TypePrimitiveEnum getOCLTypePrimitiveEnum(StringRef TyName) {
             SPIR::PRIMITIVE_SUB_GROUP_AVC_IME_DUAL_REF_STREAMIN_T)
       .Default(SPIR::PRIMITIVE_NONE);
 }
+
+/// Get TypePrimitiveEnum for special OpenCL type from TargetExtType.
+static SPIR::TypePrimitiveEnum getOCLTypePrimitiveEnum(TargetExtType *Ty) {
+  if (Ty->getName() == "spirv.Image") {
+    std::string SPIRVName;
+    {
+      Type *InnerType = Ty->getTypeParameter(0);
+      raw_string_ostream OS(SPIRVName);
+      OS << kSPIRVTypeName::PrefixAndDelim
+         << SPIRVOpaqueTypeOpCodeMap::rmap(OpTypeImage) << "._"
+         << (InnerType ? convertTypeToPostfix(InnerType) : "void");
+      for (unsigned IntParam : Ty->int_params())
+        OS << kSPIRVTypeName::PostfixDelim << IntParam;
+    }
+    std::string OpenCLName = SPIRVToOCLBase::translateOpaqueType(SPIRVName);
+    return getOCLTypePrimitiveEnum(OpenCLName);
+  }
+  if (Ty->getName() == "spirv.Pipe")
+    return Ty->getIntParameter(0) ? SPIR::PRIMITIVE_PIPE_WO_T
+                                  : SPIR::PRIMITIVE_PIPE_RO_T;
+  if (Ty->getName() == "spirv.DeviceEvent")
+    return SPIR::PRIMITIVE_CLK_EVENT_T;
+  if (Ty->getName() == "spirv.Event")
+    return SPIR::PRIMITIVE_EVENT_T;
+  if (Ty->getName() == "spirv.ReserveId")
+    return SPIR::PRIMITIVE_RESERVE_ID_T;
+  if (Ty->getName() == "spirv.Queue")
+    return SPIR::PRIMITIVE_QUEUE_T;
+
+  return SPIR::PRIMITIVE_NONE;
+}
+
 /// Translates LLVM type to descriptor for mangler.
 /// \param Signed indicates integer type should be translated as signed.
 /// \param VoidPtr indicates i8* should be translated as void*.
 static SPIR::RefParamType transTypeDesc(Type *Ty,
                                         const BuiltinArgTypeMangleInfo &Info,
+                                        bool IsOpenCL,
                                         StringRef InstName = "") {
   bool Signed = Info.IsSigned;
   unsigned Attr = Info.Attr;
@@ -1310,7 +1376,8 @@ static SPIR::RefParamType transTypeDesc(Type *Ty,
   if (Info.IsAtomic && !isa<TypedPointerType>(Ty)) {
     BuiltinArgTypeMangleInfo DTInfo = Info;
     DTInfo.IsAtomic = false;
-    return SPIR::RefParamType(new SPIR::AtomicType(transTypeDesc(Ty, DTInfo)));
+    return SPIR::RefParamType(
+        new SPIR::AtomicType(transTypeDesc(Ty, DTInfo, IsOpenCL)));
   }
   if (auto *IntTy = dyn_cast<IntegerType>(Ty)) {
     switch (IntTy->getBitWidth()) {
@@ -1344,11 +1411,12 @@ static SPIR::RefParamType transTypeDesc(Type *Ty,
     return SPIR::RefParamType(new SPIR::PrimitiveType(SPIR::PRIMITIVE_BFLOAT));
   if (auto *VecTy = dyn_cast<FixedVectorType>(Ty)) {
     return SPIR::RefParamType(new SPIR::VectorType(
-        transTypeDesc(VecTy->getElementType(), Info), VecTy->getNumElements()));
+        transTypeDesc(VecTy->getElementType(), Info, IsOpenCL),
+        VecTy->getNumElements()));
   }
   if (Ty->isArrayTy()) {
     return transTypeDesc(TypedPointerType::get(Ty->getArrayElementType(), 0),
-                         Info);
+                         Info, IsOpenCL);
   }
   if (Ty->isStructTy()) {
     auto Name = Ty->getStructName();
@@ -1375,6 +1443,13 @@ static SPIR::RefParamType transTypeDesc(Type *Ty,
     return SPIR::RefParamType(new SPIR::UserDefinedType(Name.str()));
   }
   if (auto *TargetTy = dyn_cast<TargetExtType>(Ty)) {
+    if (IsOpenCL) {
+      SPIR::TypePrimitiveEnum TPE = getOCLTypePrimitiveEnum(TargetTy);
+      if (TPE != SPIR::PRIMITIVE_NONE) {
+        return SPIR::RefParamType(
+            new SPIR::PrimitiveType(getOCLTypePrimitiveEnum(TargetTy)));
+      }
+    }
     std::string FullName;
     unsigned AS = 0;
     {
@@ -1409,7 +1484,8 @@ static SPIR::RefParamType transTypeDesc(Type *Ty,
       FunctionType *FT = cast<FunctionType>(ET);
       if (InstName.consume_front(kSPIRVName::Prefix) &&
           InstName.starts_with("TaskSequence")) {
-        EPT = new SPIR::PointerType(transTypeDesc(FT->getReturnType(), Info));
+        EPT = new SPIR::PointerType(
+            transTypeDesc(FT->getReturnType(), Info, IsOpenCL));
       } else {
         assert((isVoidFuncTy(FT)) && "Not supported");
         EPT = new SPIR::BlockType;
@@ -1463,7 +1539,7 @@ static SPIR::RefParamType transTypeDesc(Type *Ty,
 
     if (VoidPtr && ET->isIntegerTy(8))
       ET = Type::getVoidTy(ET->getContext());
-    auto *PT = new SPIR::PointerType(transTypeDesc(ET, Info));
+    auto *PT = new SPIR::PointerType(transTypeDesc(ET, Info, IsOpenCL));
     PT->setAddressSpace(static_cast<SPIR::TypeAttributeEnum>(
         TPT->getAddressSpace() + (unsigned)SPIR::ATTR_ADDR_SPACE_FIRST));
     for (unsigned I = SPIR::ATTR_QUALIFIER_FIRST, E = SPIR::ATTR_QUALIFIER_LAST;
@@ -1504,7 +1580,7 @@ Value *getScalarOrArray(Value *V, unsigned Size, BasicBlock::iterator Pos) {
 
 Constant *getScalarOrVectorConstantInt(Type *T, uint64_t V, bool IsSigned) {
   if (auto *IT = dyn_cast<IntegerType>(T))
-    return ConstantInt::get(IT, V);
+    return ConstantInt::get(IT, V, IsSigned);
   if (auto *VT = dyn_cast<FixedVectorType>(T)) {
     std::vector<Constant *> EV(
         VT->getNumElements(),
@@ -1745,8 +1821,8 @@ std::string mangleBuiltin(StringRef UniqName, ArrayRef<Type *> ArgTypes,
       if (MangleInfo.PointerTy && T->isPointerTy()) {
         T = MangleInfo.PointerTy;
       }
-      FD.Parameters.emplace_back(
-          transTypeDesc(T, BtnInfo->getTypeMangleInfo(I), UniqName));
+      FD.Parameters.emplace_back(transTypeDesc(T, BtnInfo->getTypeMangleInfo(I),
+                                               BtnInfo->isOpenCL(), UniqName));
     }
   }
   // Ellipsis must be the last argument of any function
@@ -1884,6 +1960,7 @@ bool checkTypeForSPIRVExtendedInstLowering(IntrinsicInst *II, SPIRVModule *BM) {
   case Intrinsic::fabs:
   case Intrinsic::floor:
   case Intrinsic::fma:
+  case Intrinsic::ldexp:
   case Intrinsic::log:
   case Intrinsic::log10:
   case Intrinsic::log2:
@@ -1917,6 +1994,9 @@ bool checkTypeForSPIRVExtendedInstLowering(IntrinsicInst *II, SPIRVModule *BM) {
       NumElems = VecTy->getNumElements();
       Ty = VecTy->getElementType();
     }
+    if (Ty->isBFloatTy() &&
+        BM->hasCapability(internal::CapabilityBFloat16ArithmeticINTEL))
+      return true;
     if ((!Ty->isFloatTy() && !Ty->isDoubleTy() && !Ty->isHalfTy()) ||
         (!BM->hasCapability(CapabilityVectorAnyINTEL) &&
          ((NumElems > 4) && (NumElems != 8) && (NumElems != 16)))) {
@@ -1933,6 +2013,9 @@ bool checkTypeForSPIRVExtendedInstLowering(IntrinsicInst *II, SPIRVModule *BM) {
       NumElems = VecTy->getNumElements();
       Ty = VecTy->getElementType();
     }
+    if (Ty->isBFloatTy() &&
+        BM->hasCapability(internal::CapabilityBFloat16ArithmeticINTEL))
+      return true;
     if ((!Ty->isIntegerTy()) ||
         (!BM->hasCapability(CapabilityVectorAnyINTEL) &&
          ((NumElems > 4) && (NumElems != 8) && (NumElems != 16)))) {
@@ -2030,13 +2113,15 @@ static void replaceUsesOfBuiltinVar(Value *V, const APInt &AccumulatedOffset,
     } else if (auto *Load = dyn_cast<LoadInst>(U)) {
       // Figure out which index the accumulated offset corresponds to. If we
       // have a weird offset (e.g., trying to load byte 7), bail out.
-      Type *ScalarTy = ReplacementFunc->getReturnType();
       APInt Index;
-      uint64_t Remainder;
-      APInt::udivrem(AccumulatedOffset, ScalarTy->getScalarSizeInBits() / 8,
-                     Index, Remainder);
-      if (Remainder != 0)
-        llvm_unreachable("Illegal GEP of a SPIR-V builtin variable");
+      Type *ScalarTy = ReplacementFunc->getReturnType();
+      if (!ScalarTy->isIntegerTy(1)) {
+        uint64_t Remainder;
+        APInt::udivrem(AccumulatedOffset, ScalarTy->getScalarSizeInBits() / 8,
+                       Index, Remainder);
+        if (Remainder != 0)
+          llvm_unreachable("Illegal GEP of a SPIR-V builtin variable");
+      }
 
       IRBuilder<> Builder(Load);
       Value *Replacement;
@@ -2417,6 +2502,7 @@ public:
       addUnsignedArg(3);
       break;
     case OpGroupAsyncCopy:
+      setArgAttr(2, SPIR::ATTR_CONST);
       addUnsignedArg(3);
       addUnsignedArg(4);
       break;
@@ -2560,6 +2646,9 @@ public:
     case internal::OpConvertHandleToSampledImageINTEL:
       addUnsignedArg(0);
       break;
+    case OpGenericPtrMemSemantics:
+      setArgAttr(0, SPIR::ATTR_CONST);
+      break;
     default:;
       // No special handling is needed
     }
@@ -2574,7 +2663,7 @@ class OpenCLStdToSPIRVFriendlyIRMangleInfo : public BuiltinFuncMangleInfo {
 public:
   OpenCLStdToSPIRVFriendlyIRMangleInfo(OCLExtOpKind ExtOpId,
                                        ArrayRef<Type *> ArgTys, Type *RetTy)
-      : ExtOpId(ExtOpId), ArgTys(ArgTys) {
+      : ExtOpId(ExtOpId), ArgTys(ArgTys), RetTy(RetTy) {
 
     std::string Postfix = "";
     if (needRetTypePostfix())
@@ -2590,6 +2679,11 @@ public:
     case OpenCLLIB::Vloada_halfn:
     case OpenCLLIB::Vloadn:
       return true;
+    case OpenCLLIB::Nan:
+      // Only add return type mangling for bfloat16 to disambiguate from half
+      // (both are represented as i16 in LLVM). Float and half use traditional
+      // naming for backward compatibility.
+      return RetTy->getScalarType()->isBFloatTy();
     default:
       return false;
     }
@@ -2631,6 +2725,22 @@ public:
     case OpenCLLIB::Shuffle2:
       addUnsignedArg(2);
       break;
+    case OpenCLLIB::Vloadn:
+    case OpenCLLIB::Vload_half:
+    case OpenCLLIB::Vload_halfn:
+    case OpenCLLIB::Vloada_halfn:
+      addUnsignedArg(0);
+      setArgAttr(1, SPIR::ATTR_CONST);
+      break;
+    case OpenCLLIB::Vstoren:
+    case OpenCLLIB::Vstore_half:
+    case OpenCLLIB::Vstore_half_r:
+    case OpenCLLIB::Vstore_halfn:
+    case OpenCLLIB::Vstore_halfn_r:
+    case OpenCLLIB::Vstorea_halfn:
+    case OpenCLLIB::Vstorea_halfn_r:
+      addUnsignedArg(1);
+      break;
     default:;
       // No special handling is needed
     }
@@ -2639,6 +2749,7 @@ public:
 private:
   OCLExtOpKind ExtOpId;
   ArrayRef<Type *> ArgTys;
+  Type *RetTy;
 };
 } // namespace
 

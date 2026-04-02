@@ -502,7 +502,7 @@ See *Specialization*.
 1+|Capability: +
 *{fnvar_capability_name}*
 
-| 4 + variable | {spec_const_capabilities_token}
+| 3 + variable | {spec_const_capabilities_token}
 | '<id>' +
 'Result Type'
 | 'Result <id>'
@@ -520,7 +520,7 @@ Add to Section 3.3.9, Function Instructions:
  +
  Make a copy of 'Operand X' if 'Condition X' is *true*.
 
- From all 'Condition X'-'Operand X' pairs, 'exactly' one 'Condition X' must be *true*. Consequently, at least one 'Condition X'-'Operand X' pair must be present.
+ From all 'Condition X'-'Operand X' pairs, exactly one 'Condition X' must be *true*. Consequently, at least one 'Condition X'-'Operand X' pair must be present.
 
  Each 'Condition X' must be the result of a specialization constant of scalar 'Boolean' type.
 
@@ -531,7 +531,7 @@ Add to Section 3.3.9, Function Instructions:
 1+|Capability: +
 *{spec_capability_name}*
 
-| 5 + variable | {conditional_copy_token}
+| 3 + variable | {conditional_copy_token}
 | '<id>' +
 'Result Type'
 | 'Result <id>'
@@ -555,7 +555,7 @@ If the *{spec_capability_name}* capability is declared:
 . For *{conditional_entry_point_name}* and *{conditional_capability_name}*, the same validation rules apply as to their unconditional counterparts, with the exception that a module can contain multiple *{conditional_entry_point_name}* instructions with the same name and 'Execution Model'.
 
 . *{conditional_copy_name}*:
-.. Exactly one 'Condition' must be *true*.
+.. Exactly one 'Condition X' operand must be *true*.
 .. The types of 'Operand' operands must not be *OpTypeVoid* and must match the 'Result Type'.
 .. All 'Condition X' operands must be results of specialization constant of a scalar 'Boolean type'.
 

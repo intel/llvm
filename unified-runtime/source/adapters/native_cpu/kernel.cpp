@@ -8,7 +8,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "ur_api.h"
+#include "unified-runtime/ur_api.h"
 #include "ur_util.hpp"
 
 #include "common.hpp"
@@ -51,30 +51,6 @@ urKernelCreate(ur_program_handle_t hProgram, const char *pKernelName,
 
   *phKernel = kernel;
 
-  return UR_RESULT_SUCCESS;
-}
-
-UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgValue(
-    ur_kernel_handle_t hKernel, uint32_t argIndex, size_t argSize,
-    const ur_kernel_arg_value_properties_t * /*pProperties*/,
-    const void *pArgValue) {
-  // TODO: error checking
-
-  UR_ASSERT(hKernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(argSize, UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE);
-
-  hKernel->addArg(pArgValue, argIndex, argSize);
-
-  return UR_RESULT_SUCCESS;
-}
-
-UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgLocal(
-    ur_kernel_handle_t hKernel, uint32_t argIndex, size_t argSize,
-    const ur_kernel_arg_local_properties_t * /*pProperties*/) {
-  // emplace a placeholder kernel arg, gets replaced with a pointer to the
-  // memory pool before enqueueing the kernel.
-  hKernel->addPtrArg(nullptr, argIndex);
-  hKernel->_localArgInfo.emplace_back(argIndex, argSize);
   return UR_RESULT_SUCCESS;
 }
 
@@ -205,52 +181,12 @@ urKernelRelease(ur_kernel_handle_t hKernel) {
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgPointer(
-    ur_kernel_handle_t hKernel, uint32_t argIndex,
-    const ur_kernel_arg_pointer_properties_t * /*pProperties*/,
-    const void *pArgValue) {
-
-  UR_ASSERT(hKernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(pArgValue, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-
-  hKernel->addPtrArg(const_cast<void *>(pArgValue), argIndex);
-
-  return UR_RESULT_SUCCESS;
-}
-
 UR_APIEXPORT ur_result_t UR_APICALL
 urKernelSetExecInfo(ur_kernel_handle_t /*hKernel*/,
                     ur_kernel_exec_info_t /*propName*/, size_t /*propSize*/,
                     const ur_kernel_exec_info_properties_t * /*pProperties*/,
                     const void * /*pPropValue*/) {
 
-  return UR_RESULT_SUCCESS;
-}
-
-UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgSampler(
-    ur_kernel_handle_t /*hKernel*/, uint32_t /*argIndex*/,
-    const ur_kernel_arg_sampler_properties_t * /*pProperties*/,
-    ur_sampler_handle_t /*hArgValue*/) {
-
-  DIE_NO_IMPLEMENTATION;
-}
-
-UR_APIEXPORT ur_result_t UR_APICALL
-urKernelSetArgMemObj(ur_kernel_handle_t hKernel, uint32_t argIndex,
-                     const ur_kernel_arg_mem_obj_properties_t * /*pProperties*/,
-                     ur_mem_handle_t hArgValue) {
-
-  UR_ASSERT(hKernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-
-  // Taken from ur/adapters/cuda/kernel.cpp
-  // zero-sized buffers are expected to be null.
-  if (hArgValue == nullptr) {
-    hKernel->addPtrArg(nullptr, argIndex);
-    return UR_RESULT_SUCCESS;
-  }
-
-  hKernel->addArgReference(hArgValue);
-  hKernel->addPtrArg(hArgValue->_mem, argIndex);
   return UR_RESULT_SUCCESS;
 }
 
@@ -282,6 +218,18 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
     [[maybe_unused]] uint32_t workDim,
     [[maybe_unused]] const size_t *pGlobalWorkOffset,
     [[maybe_unused]] const size_t *pGlobalWorkSize,
+    [[maybe_unused]] size_t *pSuggestedLocalWorkSize) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSizeWithArgs(
+    [[maybe_unused]] ur_kernel_handle_t hKernel,
+    [[maybe_unused]] ur_queue_handle_t hQueue,
+    [[maybe_unused]] uint32_t workDim,
+    [[maybe_unused]] const size_t *pGlobalWorkOffset,
+    [[maybe_unused]] const size_t *pGlobalWorkSize,
+    [[maybe_unused]] uint32_t numArgs,
+    [[maybe_unused]] const ur_exp_kernel_arg_properties_t *pArgs,
     [[maybe_unused]] size_t *pSuggestedLocalWorkSize) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }

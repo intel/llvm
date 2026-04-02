@@ -1,6 +1,6 @@
 //===--------- device.cpp - NATIVE CPU Adapter ----------------------------===//
 //
-// Copyright (C) 2023 Intel Corporation
+// Copyright (C) 2023-2026 Intel Corporation
 //
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
@@ -8,7 +8,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <ur_api.h>
+#include <unified-runtime/ur_api.h>
 
 #include "common.hpp"
 #include "platform.hpp"
@@ -376,6 +376,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_2D_BLOCK_ARRAY_CAPABILITIES_EXP:
     return ReturnValue(
         static_cast<ur_exp_device_2d_block_array_capability_flags_t>(0));
+  case UR_DEVICE_INFO_IPC_MEMORY_SUPPORT_EXP:
+    return ReturnValue(false);
   case UR_DEVICE_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES: {
     // Currently for Native CPU fences are implemented using OCK
     // builtins, so we have different capabilities than atomic operations
@@ -446,6 +448,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP:
     return ReturnValue(true);
 
+  case UR_DEVICE_INFO_DEVICE_WAIT_SUPPORT_EXP:
+    return ReturnValue(false);
+
+  case UR_DEVICE_INFO_DYNAMIC_LINK_SUPPORT_EXP:
+    return ReturnValue(true);
+
   case UR_DEVICE_INFO_GLOBAL_VARIABLE_SUPPORT:
     return ReturnValue(false);
 
@@ -453,6 +461,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(0);
 
   case UR_DEVICE_INFO_USM_CONTEXT_MEMCPY_SUPPORT_EXP:
+    return ReturnValue(false);
+
+  case UR_DEVICE_INFO_ENQUEUE_HOST_TASK_SUPPORT_EXP:
+    return ReturnValue(false);
+
+  case UR_DEVICE_INFO_GRAPH_RECORD_AND_REPLAY_SUPPORT_EXP:
     return ReturnValue(false);
 
   default:
@@ -527,6 +541,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceSelectBinary(
 
   // No image can be loaded for the given device
   return UR_RESULT_ERROR_INVALID_BINARY;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urDeviceWaitExp(ur_device_handle_t) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
 ur_device_handle_t_::ur_device_handle_t_(ur_platform_handle_t ArgPlt)

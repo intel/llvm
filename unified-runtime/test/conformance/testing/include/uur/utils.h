@@ -7,7 +7,7 @@
 #ifndef UR_CONFORMANCE_INCLUDE_UTILS_H_INCLUDED
 #define UR_CONFORMANCE_INCLUDE_UTILS_H_INCLUDED
 
-#include "ur_api.h"
+#include "unified-runtime/ur_api.h"
 #include <optional>
 #include <string>
 #include <uur/environment.h>
@@ -416,6 +416,8 @@ ur_result_t GetTimestampRecordingSupport(ur_device_handle_t device,
                                          bool &support);
 ur_result_t GetUSMContextMemcpyExpSupport(ur_device_handle_t device,
                                           bool &support);
+ur_result_t GetPlatformTriple(ur_platform_handle_t platform,
+                              std::string &Triple);
 
 ur_device_partition_property_t makePartitionByCountsDesc(uint32_t count);
 
@@ -487,6 +489,30 @@ getDriverVersion(ur_device_handle_t hDevice) {
     }                                                                          \
   } while (0)
 
+#define SKIP_IF_BATCHED_QUEUE(queue)                                           \
+  do {                                                                         \
+    ur_queue_flags_t queueFlags{};                                             \
+    ASSERT_EQ(urQueueGetInfo(queue, UR_QUEUE_INFO_FLAGS,                       \
+                             sizeof(ur_queue_flags_t), &queueFlags, nullptr),  \
+              UR_RESULT_SUCCESS);                                              \
+                                                                               \
+    if (queueFlags & UR_QUEUE_FLAG_SUBMISSION_BATCHED) {                       \
+      UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});                                \
+    }                                                                          \
+  } while (0)
+
+inline void isQueueBatched(ur_queue_handle_t queue, bool *info) {
+  ur_queue_flags_t queueFlags{};
+  ASSERT_EQ(urQueueGetInfo(queue, UR_QUEUE_INFO_FLAGS, sizeof(ur_queue_flags_t),
+                           &queueFlags, nullptr),
+            UR_RESULT_SUCCESS);
+  if (queueFlags & UR_QUEUE_FLAG_SUBMISSION_BATCHED) {
+    *info = true;
+  } else {
+    *info = false;
+  }
+}
+
 // Is this a Data Center GPU Max series (aka PVC)?
 // TODO: change to use
 // https://spec.oneapi.io/level-zero/latest/core/api.html#ze-device-ip-version-ext-t
@@ -497,6 +523,41 @@ static inline bool isPVC(ur_device_handle_t hDevice) {
                             &deviceId, nullptr),
             UR_RESULT_SUCCESS);
   return (deviceId & 0xff0) == 0xbd0 || (deviceId & 0xff0) == 0xb60;
+}
+
+// Helpers to construct ur_exp_kernel_arg_properties_t for kernel launch args.
+inline ur_exp_kernel_arg_properties_t MakeLocalArgProp(uint32_t index,
+                                                       size_t size) {
+  return {UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+          nullptr,
+          UR_EXP_KERNEL_ARG_TYPE_LOCAL,
+          index,
+          size,
+          {nullptr}};
+}
+
+inline ur_exp_kernel_arg_properties_t MakePointerArgProp(uint32_t index,
+                                                         const void *ptr) {
+  ur_exp_kernel_arg_value_t val = {};
+  val.pointer = ptr;
+  return {UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+          nullptr,
+          UR_EXP_KERNEL_ARG_TYPE_POINTER,
+          index,
+          sizeof(void *),
+          val};
+}
+
+inline ur_exp_kernel_arg_properties_t
+MakeValueArgProp(uint32_t index, const void *data, size_t size) {
+  ur_exp_kernel_arg_value_t val = {};
+  val.value = data;
+  return {UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+          nullptr,
+          UR_EXP_KERNEL_ARG_TYPE_VALUE,
+          index,
+          size,
+          val};
 }
 
 } // namespace uur

@@ -30,13 +30,16 @@
 ; CHECK-SPIRV: FunctionParameter [[#I8GLOBAL_PTR]] [[#ARG_IN:]]
 ; CHECK-SPIRV: FunctionParameter [[#I8GLOBAL_PTR]] [[#ARG_OUT:]]
 ;
+; INTEL_CUSTOMIZATION begin
 ; CHECK-SPIRV: Variable [[#]] [[#MEM:]]
 ; CHECK-SPIRV: Bitcast [[#]] [[#I8_ARG_IN:]] [[#ARG_IN]]
 ; CHECK-SPIRV: Bitcast [[#]] [[#I8_ARG_OUT:]] [[#ARG_OUT]]
-; CHECK-SPIRV: LifetimeStart [[#MEM]]
+; CHECK-SPIRV: Bitcast [[#]] [[#MEM_CAST_1:]] [[#MEM]]
+; CHECK-SPIRV: LifetimeStart [[#MEM_CAST_1]]
 ; CHECK-SPIRV: CopyMemorySized [[#MEM]] [[#I8_ARG_IN]] [[#C128]] 2 64
 ; CHECK-SPIRV: CopyMemorySized [[#I8_ARG_OUT]] [[#MEM]] [[#C128]] 2 64
-; CHECK-SPIRV: LifetimeStop [[#MEM]]
+; CHECK-SPIRV: Bitcast [[#]] [[#MEM_CAST_2:]] [[#MEM]]
+; CHECK-SPIRV: LifetimeStop [[#MEM_CAST_2]]
 
 ; CHECK-SPIRV-LABEL: [[#]] Function [[#]]
 ; CHECK-SPIRV: FunctionParameter [[#I8GLOBAL_PTR]] [[#ARG_IN:]]
@@ -46,20 +49,25 @@
 ; CHECK-SPIRV: Bitcast [[#]] [[#I8_ARG_IN:]] [[#ARG_IN]]
 ; CHECK-SPIRV: Bitcast [[#]] [[#I8_ARG_OUT_GENERIC:]] [[#ARG_OUT]]
 ; CHECK-SPIRV: GenericCastToPtr [[#]] [[#I8_ARG_OUT:]] [[#I8_ARG_OUT_GENERIC]]
-; CHECK-SPIRV: LifetimeStart [[#MEM]]
+; CHECK-SPIRV: Bitcast [[#]] [[#MEM_CAST_1:]] [[#MEM]]
+; CHECK-SPIRV: LifetimeStart [[#MEM_CAST_1]]
 ; CHECK-SPIRV: CopyMemorySized [[#MEM]] [[#I8_ARG_IN]] [[#C68]] 2 64
 ; CHECK-SPIRV: CopyMemorySized [[#I8_ARG_OUT]] [[#MEM]] [[#C68]] 2 64
-; CHECK-SPIRV: LifetimeStop [[#MEM]]
+; CHECK-SPIRV: Bitcast [[#]] [[#MEM_CAST_2:]] [[#MEM]]
+; CHECK-SPIRV: LifetimeStop [[#MEM_CAST_2]]
 
 ; CHECK-SPIRV-LABEL: [[#]] Function [[#]]
 ; CHECK-SPIRV: FunctionParameter [[#]] [[#ARG_IN:]]
 ; CHECK-SPIRV: FunctionParameter [[#]] [[#ARG_OUT:]]
 ;
 ; CHECK-SPIRV: Variable [[#]] [[#MEM:]]
-; CHECK-SPIRV: LifetimeStart [[#MEM]]
+; CHECK-SPIRV: Bitcast [[#]] [[#MEM_CAST_1:]] [[#MEM]]
+; CHECK-SPIRV: LifetimeStart [[#MEM_CAST_1]]
 ; CHECK-SPIRV: CopyMemorySized [[#MEM]] [[#ARG_IN]] [[#C72]] 0
 ; CHECK-SPIRV: CopyMemorySized [[#ARG_OUT]] [[#MEM]] [[#C72]] 0
-; CHECK-SPIRV: LifetimeStop [[#MEM]]
+; CHECK-SPIRV: Bitcast [[#]] [[#MEM_CAST_2:]] [[#MEM]]
+; CHECK-SPIRV: LifetimeStop [[#MEM_CAST_2]]
+; INTEL_CUSTOMIZATION end
 
 ; xCHECK-SPIRV-LABEL: [[#]] Function [[#]]
 ;
@@ -83,38 +91,38 @@
 ; CHECK-LLVM: %[[local:.*]] = alloca [128 x i8]
 ; CHECK-LLVM: %[[i8_in:.*]] = bitcast ptr addrspace(1) %in to ptr addrspace(1)
 ; CHECK-LLVM: %[[i8_out:.*]] = bitcast ptr addrspace(1) %out to ptr addrspace(1)
-; CHECK-LLVM: call void @llvm.lifetime.start.p0({{.*}}, ptr %[[local]])
+; CHECK-LLVM: call void @llvm.lifetime.start.p0(ptr %[[local]])
 ; CHECK-LLVM: call void @llvm.memcpy.p0.p1.i32(ptr align 64 %[[local]],
 ; CHECK-LLVM-SAME: ptr addrspace(1) align 64 %[[i8_in]], i32 128, i1 false)
 ; CHECK-LLVM: call void @llvm.memcpy.p1.p0.i32(ptr addrspace(1) align 64 %[[i8_out]],
 ; CHECK-LLVM-SAME: ptr align 64 %[[local]], i32 128, i1 false)
-; CHECK-LLVM: call void @llvm.lifetime.end.p0({{.*}}, ptr %[[local]])
+; CHECK-LLVM: call void @llvm.lifetime.end.p0(ptr %[[local]])
 
 ; CHECK-LLVM-LABEL: @test_partial_move
 ; CHECK-LLVM: %[[local:.*]] = alloca [68 x i8]
 ; CHECK-LLVM: %[[i8_in:.*]] = bitcast ptr addrspace(1) %in to ptr addrspace(1)
 ; CHECK-LLVM: %[[i8_out_generic:.*]] = bitcast ptr addrspace(4) %out to ptr addrspace(4)
 ; CHECK-LLVM: %[[i8_out:.*]] = addrspacecast ptr addrspace(4) %[[i8_out_generic]] to ptr addrspace(1)
-; CHECK-LLVM: call void @llvm.lifetime.start.p0({{.*}}, ptr %[[local]])
+; CHECK-LLVM: call void @llvm.lifetime.start.p0(ptr %[[local]])
 ; CHECK-LLVM: call void @llvm.memcpy.p0.p1.i32(ptr align 64 %[[local]],
 ; CHECK-LLVM-SAME: ptr addrspace(1) align 64 %[[i8_in]], i32 68, i1 false)
 ; CHECK-LLVM: call void @llvm.memcpy.p1.p0.i32(ptr addrspace(1) align 64 %[[i8_out]],
 ; CHECK-LLVM-SAME: ptr align 64 %[[local]], i32 68, i1 false)
-; CHECK-LLVM: call void @llvm.lifetime.end.p0({{.*}}, ptr %[[local]])
+; CHECK-LLVM: call void @llvm.lifetime.end.p0(ptr %[[local]])
 
 ; CHECK-LLVM-LABEL: @test_array
 ; CHECK-LLVM: %[[#ALLOCA:]] = alloca [72 x i8]
-; CHECK-LLVM: call void @llvm.lifetime.start.p0({{.*}}, ptr %[[#ALLOCA]])
+; CHECK-LLVM: call void @llvm.lifetime.start.p0(ptr %[[#ALLOCA]])
 ; CHECK-LLVM: call void @llvm.memcpy.p0.p1.i32(ptr %[[#ALLOCA]], ptr addrspace(1) %in, i32 72, i1 false)
 ; CHECK-LLVM: call void @llvm.memcpy.p1.p0.i32(ptr addrspace(1) %out, ptr %[[#ALLOCA]], i32 72, i1 false)
-; CHECK-LLVM: call void @llvm.lifetime.end.p0({{.*}}, ptr %[[#ALLOCA]])
+; CHECK-LLVM: call void @llvm.lifetime.end.p0(ptr %[[#ALLOCA]])
 
 ; CHECK-LLVM-LABEL: @test_phi
 ; CHECK-LLVM: %[[#ALLOCA:]] = alloca [32 x i8]
-; CHECK-LLVM: call void @llvm.lifetime.start.p0({{.*}}, ptr %[[#ALLOCA]])
+; CHECK-LLVM: call void @llvm.lifetime.start.p0(ptr %[[#ALLOCA]])
 ; CHECK-LLVM: call void @llvm.memcpy.p0.p4.i64(ptr align 8 %[[#ALLOCA]], ptr addrspace(4) align 8 %phi, i64 32, i1 false)
 ; CHECK-LLVM: call void @llvm.memcpy.p4.p0.i64(ptr addrspace(4) align 8 %[[#]], ptr align 8 %[[#ALLOCA]], i64 32, i1 false)
-; CHECK-LLVM: call void @llvm.lifetime.end.p0({{.*}}, ptr %[[#ALLOCA]])
+; CHECK-LLVM: call void @llvm.lifetime.end.p0(ptr %[[#ALLOCA]])
 
 
 target datalayout = "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"

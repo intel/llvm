@@ -12,7 +12,7 @@
 #include "context.hpp"
 #include "device.hpp"
 #include "queue.hpp"
-#include "ur_api.h"
+#include "unified-runtime/ur_api.h"
 #include "ur_util.hpp"
 
 #include <cassert>

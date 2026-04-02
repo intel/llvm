@@ -1,5 +1,3 @@
-// XFAIL: run-mode && linux && arch-intel_gpu_bmg_g21 && spirv-backend
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/19586
 // RUN: %{build} -Wno-error=deprecated-declarations -o %t.out
 // RUN: %{run} %t.out
 // Extra run to check for leaks in Level Zero using UR_L0_LEAKS_DEBUG
@@ -22,8 +20,8 @@ int main() {
   int *PtrA = malloc_device<T>(Size, Queue);
   std::vector<T> HostDataA(Size);
 
-  exp_ext::dynamic_work_group_memory<T[]> DynLocalMemA{Graph, LocalSize};
-  exp_ext::dynamic_work_group_memory<T[]> DynLocalMemB{Graph, LocalSize};
+  exp_ext::dynamic_work_group_memory<T[]> DynLocalMemA{LocalSize};
+  exp_ext::dynamic_work_group_memory<T[]> DynLocalMemB{LocalSize};
 
   Queue.memset(PtrA, 0, Size * sizeof(T)).wait();
 

@@ -65,7 +65,8 @@ public:
     kind_work_group_memory,
     kind_dynamic_work_group_memory,
     kind_dynamic_accessor,
-    kind_last = kind_dynamic_accessor
+    kind_struct_with_special_type, // structs that contain special types
+    kind_last = kind_struct_with_special_type
   };
 
 public:
@@ -117,6 +118,9 @@ public:
   /// declaration of variable __sycl_host_pipe_registrar of this type in
   /// integration header is required.
   void addHostPipeRegistration() { NeedToEmitHostPipeRegistration = true; }
+
+  /// Set the ParentStruct field
+  void setParentStruct(ParmVarDecl *parent);
 
 private:
   // Kernel actual parameter descriptor.
@@ -205,6 +209,20 @@ private:
   /// Keeps track of whether declaration of __sycl_host_pipe_registration
   /// type and __sycl_host_pipe_registrar variable are required to emit.
   bool NeedToEmitHostPipeRegistration = false;
+
+  // For free function kernels, keeps track of the parameter that is currently
+  // being analyzed if it is a struct that contains special types.
+  ParmVarDecl *ParentStruct = nullptr;
+
+  // For every struct that contains a special type which is given by
+  // the ParentStruct field above, record the offset and size of its fields
+  // at any nesting level. Store the information in the variable below.
+  llvm::DenseMap<ParmVarDecl *, llvm::SmallVector<std::pair<size_t, size_t>>>
+      OffsetSizeInfo;
+  // Likewise for the kind of a field i.e accessor, std_layout etc...
+  llvm::DenseMap<ParmVarDecl *,
+                 llvm::SmallVector<SYCLIntegrationHeader::kernel_param_kind_t>>
+      KindInfo;
 };
 
 class SYCLIntegrationFooter {
@@ -267,6 +285,10 @@ private:
 
   llvm::DenseSet<const FunctionDecl *> FreeFunctionDeclarations;
 
+  // A map that keeps track of all structs encountered with
+  // special types inside. Relevant for free function kernels only.
+  llvm::DenseSet<const RecordDecl *> StructsWithSpecialTypes;
+
 public:
   SemaSYCL(Sema &S);
 
@@ -316,6 +338,13 @@ public:
   void addSYCLKernelFunction(const FunctionDecl *FD) {
     SYCLKernelFunctions.insert(FD);
   }
+
+  /// Add ParentStruct to StructsWithSpecialTypes.
+  void addStructWithSpecialType(const RecordDecl *ParentStruct) {
+    StructsWithSpecialTypes.insert(ParentStruct);
+  }
+
+  auto &getStructsWithSpecialType() const { return StructsWithSpecialTypes; }
 
   /// Lazily creates and returns SYCL integration header instance.
   SYCLIntegrationHeader &getSyclIntegrationHeader() {
@@ -668,12 +697,42 @@ public:
                                     Expr *E);
   void handleKernelEntryPointAttr(Decl *D, const ParsedAttr &AL);
 
+  /// Issues a deferred diagnostic if use of the declaration designated
+  /// by 'ND' is invalid in a device context.
+  void CheckDeviceUseOfDecl(NamedDecl *ND, SourceLocation Loc);
+
+  void CheckSYCLExternalFunctionDecl(FunctionDecl *FD);
   void CheckSYCLEntryPointFunctionDecl(FunctionDecl *FD);
+
+  /// Builds an expression for the lookup of a 'sycl_kernel_launch' template
+  /// with 'KernelName' as an explicit template argument. Lookup is performed
+  /// as if from the first statement of the body of 'FD' and thus requires
+  /// searching the scopes that exist at parse time. This function therefore
+  /// requires the current semantic context to be the definition of 'FD'. In a
+  /// dependent context, the returned expression will be an UnresolvedLookupExpr
+  /// or an UnresolvedMemberExpr. In a non-dependent context, the returned
+  /// expression will be a DeclRefExpr or MemberExpr. If lookup fails, a null
+  /// error result is returned. The resulting expression is intended to be
+  /// passed as the 'LaunchIdExpr' argument in a call to either
+  /// BuildSYCLKernelCallStmt() or BuildUnresolvedSYCLKernelCallStmt() after
+  /// the function body has been parsed.
+  ExprResult BuildSYCLKernelLaunchIdExpr(FunctionDecl *FD, QualType KernelName);
+
+  /// Builds a SYCLKernelCallStmt to wrap 'Body' and to be used as the body of
+  /// 'FD'. 'LaunchIdExpr' specifies the lookup result returned by a previous
+  /// call to BuildSYCLKernelLaunchIdExpr().
+  StmtResult BuildSYCLKernelCallStmt(FunctionDecl *FD, CompoundStmt *Body,
+                                     Expr *LaunchIdExpr);
+
+  /// Builds an UnresolvedSYCLKernelCallStmt to wrap 'Body'. 'LaunchIdExpr'
+  /// specifies the lookup result returned by a previous call to
+  /// BuildSYCLKernelLaunchIdExpr().
+  StmtResult BuildUnresolvedSYCLKernelCallStmt(CompoundStmt *Body,
+                                               Expr *LaunchIdExpr);
+
   // Used to check whether the function represented by FD is a SYCL
   // free function kernel or not.
   bool isFreeFunction(const FunctionDecl *FD);
-  
-  StmtResult BuildSYCLKernelCallStmt(FunctionDecl *FD, CompoundStmt *Body);
 };
 
 } // namespace clang

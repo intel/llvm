@@ -11,8 +11,8 @@
 #include <gtest/gtest.h>
 #include <optional>
 #include <string>
+#include <unified-runtime/ur_api.h>
 #include <unordered_map>
-#include <ur_api.h>
 namespace uur {
 
 struct AdapterEnvironment : ::testing::Environment {
@@ -90,7 +90,6 @@ private:
                                    const std::string &kernels_default_dir);
   std::string getKernelSourcePath(const std::string &kernel_name,
                                   const std::string &target_name);
-  std::string getDefaultTargetName(ur_platform_handle_t platform);
 
   KernelOptions kernel_options;
   // mapping between kernels (full_path + kernel_name) and their saved source.

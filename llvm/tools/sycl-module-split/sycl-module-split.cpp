@@ -14,6 +14,7 @@
 #include "llvm/IR/Module.h"
 #include "llvm/IRReader/IRReader.h"
 #include "llvm/SYCLPostLink/ModuleSplitter.h"
+#include "llvm/SYCLPostLink/SYCLPostLink.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/PropertySetIO.h"
@@ -123,14 +124,29 @@ int main(int argc, char *argv[]) {
 
   ModuleSplitterSettings Settings;
   Settings.Mode = SplitMode;
-  Settings.OutputAssembly = OutputAssembly;
-  Settings.OutputPrefix = OutputFilenamePrefix;
+  bool OutputAssemblyAfterSplit = OutputAssembly;
+  StringRef OutputPrefix = OutputFilenamePrefix;
   Settings.AllowDeviceImageDependencies = AllowDeviceImageDependencies;
-  auto SplitModulesOrErr = splitSYCLModule(std::move(M), Settings);
-  if (!SplitModulesOrErr) {
+  std::vector<SplitModule> SplitModules;
+  auto PostSplitCallback =
+      [&SplitModules, Settings, OutputAssemblyAfterSplit,
+       OutputPrefix](std::unique_ptr<ModuleDesc> MD) -> Error {
+    size_t ID = SplitModules.size();
+    std::string OutIRFileName = (OutputPrefix + "_" + Twine(ID)).str();
+    Expected<SplitModule> SplitImageOrErr = sycl_post_link::saveModuleDesc(
+        *MD, OutIRFileName, OutputAssemblyAfterSplit);
+    if (!SplitImageOrErr)
+      return SplitImageOrErr.takeError();
+
+    SplitModules.emplace_back(std::move(*SplitImageOrErr));
+    return Error::success();
+  };
+
+  Error E = splitSYCLModule(std::move(M), Settings, PostSplitCallback);
+  if (E) {
     Err.print(argv[0], errs());
     return 1;
   }
 
-  dumpModulesAsTable(*SplitModulesOrErr, OutputFilenamePrefix);
+  dumpModulesAsTable(SplitModules, OutputFilenamePrefix);
 }

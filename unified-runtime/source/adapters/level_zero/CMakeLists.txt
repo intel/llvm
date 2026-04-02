@@ -52,6 +52,7 @@ if(UR_BUILD_ADAPTER_L0)
         ${CMAKE_CURRENT_SOURCE_DIR}/sampler.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/image.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/image_common.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/graph.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/helpers/kernel_helpers.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/helpers/memory_helpers.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/helpers/mutable_helpers.cpp
@@ -70,6 +71,9 @@ if(UR_BUILD_ADAPTER_L0)
         if(TARGET level_zero_utils)
           set_target_properties(level_zero_utils PROPERTIES INTERFACE_INCLUDE_DIRECTORIES "")
           list(APPEND ADAPTER_L0_TARGETS_TO_INSTALL level_zero_utils)
+        endif()
+        if(TARGET ze_loader)
+          list(APPEND ADAPTER_L0_TARGETS_TO_INSTALL ze_loader)
         endif()
         install(TARGETS ${ADAPTER_L0_TARGETS_TO_INSTALL}
             EXPORT ${PROJECT_NAME}-targets
@@ -164,10 +168,12 @@ if(UR_BUILD_ADAPTER_L0_V2)
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/event_provider_normal.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/event_provider.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/event.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/v2/graph.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/kernel.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/memory.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/lockable.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/queue_api.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/v2/queue_batched.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/queue_immediate_in_order.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/queue_immediate_out_of_order.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/usm.hpp
@@ -184,6 +190,7 @@ if(UR_BUILD_ADAPTER_L0_V2)
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/kernel.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/memory.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/queue_api.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/v2/queue_batched.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/queue_create.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/queue_immediate_in_order.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/queue_immediate_out_of_order.cpp

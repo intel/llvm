@@ -8,8 +8,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "unified-runtime/ur_api.h"
 #include "ur/ur.hpp"
-#include "ur_api.h"
 
 #include "common.hpp"
 #include "context.hpp"
@@ -186,5 +186,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolTrimToExp(ur_context_handle_t,
 UR_APIEXPORT ur_result_t UR_APICALL urUSMContextMemcpyExp(ur_context_handle_t,
                                                           void *, const void *,
                                                           size_t) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urUSMHostAllocRegisterExp(
+    ur_context_handle_t /*hContext*/, void * /*pHostMem*/, size_t /*size*/,
+    const ur_exp_usm_host_alloc_register_properties_t * /*pProperties*/) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urUSMHostAllocUnregisterExp(
+    ur_context_handle_t /*hContext*/, void * /*pHostMem*/) {
   DIE_NO_IMPLEMENTATION;
 }

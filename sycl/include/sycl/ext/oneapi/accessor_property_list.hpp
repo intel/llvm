@@ -8,12 +8,13 @@
 
 #pragma once
 
-#include <sycl/access/access.hpp>             // for mode, placeholder, target
-#include <sycl/detail/defines.hpp>            // for __SYCL_TYPE
+#include <sycl/access/access.hpp>  // for mode, placeholder, target
+#include <sycl/detail/defines.hpp> // for __SYCL_TYPE
+#include <sycl/detail/fwd/accessor.hpp>
 #include <sycl/detail/property_helper.hpp>    // for DataLessPropKind, Prop...
 #include <sycl/detail/property_list_base.hpp> // for PropertyListBase
 #include <sycl/exception.hpp>
-#include <sycl/property_list.hpp>             // for property_list
+#include <sycl/property_list.hpp> // for property_list
 
 #include <bitset>      // for bitset
 #include <memory>      // for shared_ptr
@@ -22,11 +23,6 @@
 
 namespace sycl {
 inline namespace _V1 {
-// Forward declaration
-template <typename DataT, int Dimensions, access::mode AccessMode,
-          access::target AccessTarget, access::placeholder IsPlaceholder,
-          typename PropertyListT>
-class accessor;
 namespace detail {
 // This helper template must be specialized for nested instance template
 // of each compile-time-constant property.

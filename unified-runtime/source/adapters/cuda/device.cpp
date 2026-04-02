@@ -1,6 +1,6 @@
 //===--------- device.cpp - CUDA Adapter ----------------------------------===//
 //
-// Copyright (C) 2023 Intel Corporation
+// Copyright (C) 2023-2026 Intel Corporation
 //
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
@@ -1027,7 +1027,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
 
-    return ReturnValue(ILVersion.data(), ILVersion.size());
+    return ReturnValue(ILVersion.c_str());
   }
   case UR_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP: {
     // Maximum number of 32-bit registers available to a thread block.
@@ -1146,6 +1146,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_2D_BLOCK_ARRAY_CAPABILITIES_EXP:
     return ReturnValue(
         static_cast<ur_exp_device_2d_block_array_capability_flags_t>(0));
+  case UR_DEVICE_INFO_IPC_MEMORY_SUPPORT_EXP: {
+    int IPCSupported = 0;
+    UR_CHECK_ERROR(cuDeviceGetAttribute(&IPCSupported,
+                                        CU_DEVICE_ATTRIBUTE_IPC_EVENT_SUPPORTED,
+                                        hDevice->get()));
+    return ReturnValue(static_cast<ur_bool_t>(IPCSupported));
+  }
   case UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP:
   case UR_DEVICE_INFO_COMMAND_BUFFER_EVENT_SUPPORT_EXP:
     return ReturnValue(true);
@@ -1171,10 +1178,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(true);
   case UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP:
     return ReturnValue(false);
+  case UR_DEVICE_INFO_DEVICE_WAIT_SUPPORT_EXP:
+    return ReturnValue(true);
+  case UR_DEVICE_INFO_DYNAMIC_LINK_SUPPORT_EXP:
+    return ReturnValue(false);
   case UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_SUPPORT_EXP:
     return ReturnValue(true);
   case UR_DEVICE_INFO_KERNEL_LAUNCH_CAPABILITIES: {
-    auto LaunchPropsSupport =
+    ur_kernel_launch_properties_flags_t LaunchPropsSupport =
         UR_KERNEL_LAUNCH_PROPERTIES_FLAG_COOPERATIVE |
         UR_KERNEL_LAUNCH_PROPERTIES_FLAG_WORK_GROUP_MEMORY;
     if (getAttribute(hDevice, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR) >=
@@ -1184,7 +1195,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
           UR_KERNEL_LAUNCH_PROPERTIES_FLAG_OPPORTUNISTIC_QUEUE_SERIALIZE;
     }
 
-    return ReturnValue(0);
+    return ReturnValue(LaunchPropsSupport);
   }
   case UR_DEVICE_INFO_MEMORY_EXPORT_EXPORTABLE_DEVICE_MEM_EXP:
     return ReturnValue(false);
@@ -1226,9 +1237,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
 
     return ReturnValue(nodeMask);
   }
+  case UR_DEVICE_INFO_ENQUEUE_HOST_TASK_SUPPORT_EXP:
+    return ReturnValue(static_cast<ur_bool_t>(false));
+  case UR_DEVICE_INFO_GRAPH_RECORD_AND_REPLAY_SUPPORT_EXP:
+    return ReturnValue(static_cast<ur_bool_t>(false));
   default:
-    break;
+    UR_LOG(ERR, "Unsupported ParamName in urDeviceGetInfo");
+    UR_LOG(ERR, "ParamName={}(0x{})", propName, logger::toHex(propName));
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   }
+
+  // Unreachable - all cases return, but compiler needs this
   return UR_RESULT_ERROR_INVALID_ENUMERATION;
 } catch (...) {
   return exceptionToResult(std::current_exception());
@@ -1394,4 +1413,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceSelectBinary(
 
   // No image can be loaded for the given device
   return UR_RESULT_ERROR_INVALID_BINARY;
+}
+
+/// Synchronizes with all queues on the device.
+UR_APIEXPORT ur_result_t UR_APICALL
+urDeviceWaitExp(ur_device_handle_t hDevice) {
+  ScopedContext Active(hDevice);
+  UR_CHECK_ERROR(cuCtxSynchronize());
+  return UR_RESULT_SUCCESS;
 }

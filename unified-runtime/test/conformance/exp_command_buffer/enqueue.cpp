@@ -1,4 +1,4 @@
-// Copyright (C) 2025 Intel Corporation
+// Copyright (C) 2025-2026 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
 //
@@ -25,7 +25,7 @@ struct urEnqueueCommandBufferExpTest
         urCommandBufferExpExecutionTestWithParam::SetUp());
 
     // Create an in-order or out-of-order queue, depending on the passed parameter
-    ur_queue_flags_t queue_type = std::get<1>(GetParam());
+    ur_queue_flags_t queue_type = getParam();
     ur_queue_properties_t queue_properties = {
         UR_STRUCTURE_TYPE_QUEUE_PROPERTIES, nullptr, queue_type};
     ASSERT_SUCCESS(urQueueCreate(context, device, &queue_properties,
@@ -56,10 +56,16 @@ struct urEnqueueCommandBufferExpTest
     ASSERT_SUCCESS(urQueueFinish(queue));
 
     // Create command-buffer with a single kernel that does "Ptr[i] += 1;"
-    ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, device_ptr));
-    ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchExp(
+    ur_exp_kernel_arg_properties_t arg0 = {
+        UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+        nullptr,
+        UR_EXP_KERNEL_ARG_TYPE_POINTER,
+        0,
+        sizeof(device_ptr),
+        {/*.pointer =*/device_ptr}};
+    ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchWithArgsExp(
         cmd_buf_handle, kernel, n_dimensions, &global_offset, &global_size,
-        nullptr, 0, nullptr, 0, nullptr, 0, nullptr, nullptr, nullptr,
+        nullptr, 1, &arg0, 0, nullptr, 0, nullptr, 0, nullptr, nullptr, nullptr,
         nullptr));
 
     // Schedule memory copying in order to prolong the buffer execution
@@ -112,9 +118,12 @@ struct urEnqueueCommandBufferExpTest
 
 std::string deviceTestWithQueueTypePrinter(
     const ::testing::TestParamInfo<
-        std::tuple<uur::DeviceTuple, ur_queue_flags_t>> &info) {
+        std::tuple<uur::DeviceTuple, uur::MultiQueueParam<ur_queue_flags_t>>>
+        &info) {
   auto device = std::get<0>(info.param).device;
-  auto queue_type = std::get<1>(info.param);
+
+  auto paramTuple = std::get<1>(info.param);
+  auto queue_type = std::get<0>(paramTuple);
 
   std::stringstream ss;
 
@@ -131,11 +140,13 @@ std::string deviceTestWithQueueTypePrinter(
     ss << "UnspecifiedQueueType" << queue_type;
   }
 
+  ss << "__basic_queue_mode__" << std::get<1>(paramTuple);
+
   return uur::GetPlatformAndDeviceName(device) + "__" +
          uur::GTestSanitizeString(ss.str());
 }
 
-UUR_DEVICE_TEST_SUITE_WITH_PARAM(
+UUR_MULTI_QUEUE_TYPE_TEST_SUITE_WITH_PARAM(
     urEnqueueCommandBufferExpTest,
     testing::Values(0, UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE),
     deviceTestWithQueueTypePrinter);

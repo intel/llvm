@@ -19,9 +19,8 @@ __CLC_NVVM_ATOMIC(float, float, f, add, __spirv_AtomicFAddEXT)
 #ifdef cl_khr_int64_base_atomics
 
 #define __CLC_NVVM_ATOMIC_ADD_DOUBLE_IMPL(ADDR_SPACE, ADDR_SPACE_NV)           \
-  __attribute__((always_inline)) _CLC_OVERLOAD _CLC_DECL double                \
-  __spirv_AtomicFAddEXT(ADDR_SPACE double *pointer, int scope, int semantics,  \
-                        double value) {                                        \
+  _CLC_OVERLOAD _CLC_DEF double __spirv_AtomicFAddEXT(                         \
+      ADDR_SPACE double *pointer, int scope, int semantics, double value) {    \
     /* Semantics mask may include memory order, storage class and other info   \
 Memory order is stored in the lowest 5 bits */                                 \
     unsigned int order = semantics & 0x1F;                                     \

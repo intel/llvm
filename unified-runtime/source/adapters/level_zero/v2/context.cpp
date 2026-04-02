@@ -75,28 +75,33 @@ ur_context_handle_t_::ur_context_handle_t_(ze_context_handle_t hContext,
                                            bool ownZeContext)
     : hContext(hContext, ownZeContext),
       hDevices(uniqueDevices(numDevices, phDevices)),
-      commandListCache(hContext,
-                       {phDevices[0]->Platform->ZeCopyOffloadExtensionSupported,
-                        phDevices[0]->Platform->ZeMutableCmdListExt.Supported}),
+      commandListCache(
+          hContext, {phDevices[0]->Platform->ZeCopyOffloadExtensionSupported,
+                     phDevices[0]->Platform->ZeMutableCmdListExt.Supported,
+                     phDevices[0]->Platform->ZeCopyOffloadQueueFlagSupported,
+                     phDevices[0]->Platform->ZeCopyOffloadListFlagSupported}),
       eventPoolCacheImmediate(
           this, phDevices[0]->Platform->getNumDevices(),
-          [context = this](DeviceId /* deviceId*/, v2::event_flags_t flags)
-              -> std::unique_ptr<v2::event_provider> {
-            // TODO: just use per-context id?
-            return std::make_unique<v2::provider_normal>(
-                context, v2::QUEUE_IMMEDIATE, flags);
-          }),
-      eventPoolCacheRegular(this, phDevices[0]->Platform->getNumDevices(),
-                            [context = this, platform = phDevices[0]->Platform](
-                                DeviceId deviceId, v2::event_flags_t flags)
-                                -> std::unique_ptr<v2::event_provider> {
-                              std::ignore = deviceId;
-                              std::ignore = platform;
+          [context = this, platform = phDevices[0]->Platform](
+              DeviceId deviceId,
+              v2::event_flags_t flags) -> std::unique_ptr<v2::event_provider> {
+            auto device = platform->getDeviceById(deviceId);
 
-                              // TODO: just use per-context id?
-                              return std::make_unique<v2::provider_normal>(
-                                  context, v2::QUEUE_REGULAR, flags);
-                            }),
+            // TODO: just use per-context id?
+            return v2::createProvider(platform, context, v2::QUEUE_IMMEDIATE,
+                                      device, flags);
+          }),
+      eventPoolCacheRegular(
+          this, phDevices[0]->Platform->getNumDevices(),
+          [context = this, platform = phDevices[0]->Platform](
+              DeviceId deviceId,
+              v2::event_flags_t flags) -> std::unique_ptr<v2::event_provider> {
+            auto device = platform->getDeviceById(deviceId);
+
+            // TODO: just use per-context id?
+            return v2::createProvider(platform, context, v2::QUEUE_REGULAR,
+                                      device, flags);
+          }),
       nativeEventsPool(this, std::make_unique<v2::provider_normal>(
                                  this, v2::QUEUE_IMMEDIATE,
                                  v2::EVENT_FLAGS_PROFILING_ENABLED)),

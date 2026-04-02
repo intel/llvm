@@ -13,6 +13,10 @@
 #include "ur_level_zero.hpp"
 #include <iomanip>
 
+// The default value of the loader versions skiplist
+// (SYCL_UR_L0_LOADER_SKIPLIST)
+static const std::vector<std::string> LoaderSkiplistDefault = {};
+
 // As windows order of unloading dlls is reversed from linux, windows will call
 // umfTearDown before it could release umf objects in level_zero, so we call
 // umfInit on urAdapterGet and umfAdapterTearDown to enforce the teardown of umf
@@ -22,14 +26,8 @@
 #endif
 
 ZeUSMImportExtension ZeUSMImport;
-
-// Due to multiple DLLMain definitions with SYCL, Global Adapter is init at
-// variable creation.
-#if defined(_WIN32)
-ur_adapter_handle_t_ *GlobalAdapter = new ur_adapter_handle_t_();
-#else
 ur_adapter_handle_t_ *GlobalAdapter;
-#endif
+
 // This is a temporary workaround on windows, where UR adapter is teardowned
 // before the UR loader, which will result in access violation when we use print
 // function as the overrided print function was already released with the UR
@@ -47,12 +45,6 @@ public:
                      const std::string &msg) override {
     fprintf(stderr, "%s", msg.c_str());
   }
-
-  ~ur_legacy_sink() {
-#if defined(_WIN32)
-    logger::isTearDowned = true;
-#endif
-  };
 };
 
 // Find the corresponding ZesDevice Handle for a given ZeDevice
@@ -178,24 +170,40 @@ ur_result_t initPlatforms(ur_adapter_handle_t_ *adapter, PlatformVec &platforms,
     ZeDrivers.assign(ZeInitDriversHandles.begin(), ZeInitDriversHandles.end());
     if (ZeDriverGetCount > 0 && adapter->ZeInitDriversCount > 0) {
       for (uint32_t X = 0; X < adapter->ZeInitDriversCount; ++X) {
+        // zeDriverGet and zeInitDrivers can return the driver handles in
+        // reverse order based on driver ordering causing an issue if the
+        // drivers are expected to be in the same order. To resolve, this loop
+        // checks if the driver from zeDriverGet already exists in zeInitDrivers
+        // and only adds it if it is not found.
+        bool unMatchedDriverHandle = false;
+        ze_driver_handle_t driverGetHandle = nullptr;
         for (uint32_t Y = 0; Y < ZeDriverGetCount; ++Y) {
+          unMatchedDriverHandle = true;
           ZeStruct<ze_driver_properties_t> ZeDriverGetProperties;
           ZeStruct<ze_driver_properties_t> ZeInitDriverProperties;
           ZE2UR_CALL(zeDriverGetProperties,
                      (ZeDriverGetHandles[Y], &ZeDriverGetProperties));
           ZE2UR_CALL(zeDriverGetProperties,
                      (ZeInitDriversHandles[X], &ZeInitDriverProperties));
-          // If zeDriverGet driver is different from zeInitDriver driver, add it
-          // to the list. This allows for older drivers to be used alongside
-          // newer drivers.
-          if (ZeDriverGetProperties.driverVersion !=
+          driverGetHandle = ZeDriverGetHandles[Y];
+          // If zeDriverGet driver is the same version as zeInitDriver driver,
+          // then do not add it again.
+          if (ZeDriverGetProperties.driverVersion ==
               ZeInitDriverProperties.driverVersion) {
             UR_LOG(DEBUG,
-                   "\nzeDriverHandle {} added to the zeInitDrivers list "
-                   "of possible handles.\n",
+                   "zeDriverHandle {} matched between zeDriverGet and "
+                   "zeInitDrivers. Not adding duplicate driver to list",
                    ZeDriverGetHandles[Y]);
-            ZeDrivers.push_back(ZeDriverGetHandles[Y]);
+            unMatchedDriverHandle = false;
+            break;
           }
+        }
+        if (unMatchedDriverHandle) {
+          UR_LOG(DEBUG,
+                 "zeDriverHandle {} not found in zeInitDrivers. Adding to "
+                 "driver list.",
+                 driverGetHandle);
+          ZeDrivers.push_back(driverGetHandle);
         }
       }
     }
@@ -204,7 +212,7 @@ ur_result_t initPlatforms(ur_adapter_handle_t_ *adapter, PlatformVec &platforms,
     ZeDrivers.assign(ZeDriverGetHandles.begin(), ZeDriverGetHandles.end());
   }
   ZeDriverCount = ZeDrivers.size();
-  UR_LOG(DEBUG, "\n{} L0 Drivers found.\n", ZeDriverCount);
+  UR_LOG(DEBUG, "{} L0 Drivers found.", ZeDriverCount);
   for (uint32_t I = 0; I < ZeDriverCount; ++I) {
     // Keep track of the first platform init for this Driver
     bool DriverPlatformInit = false;
@@ -222,7 +230,17 @@ ur_result_t initPlatforms(ur_adapter_handle_t_ *adapter, PlatformVec &platforms,
         // Check if this driver's platform has already been init.
         if (!DriverPlatformInit) {
           // If this Driver is a GPU, save it as a usable platform.
-          UR_CALL(platform->initialize());
+          ur_result_t Result;
+          UR_CALL_NOCHECK(Result = platform->initialize());
+
+          // Forget platform with L0 driver version listed in the skiplist
+          if (platform->IsDriverVersionSkipListed) {
+            break;
+          }
+
+          if (Result != UR_RESULT_SUCCESS) {
+            return Result;
+          }
 
           // Save a copy in the cache for future uses.
           platforms.push_back(std::move(platform));
@@ -270,6 +288,14 @@ static bool isBMGorNewer() {
   }
 
   return urResult == UR_RESULT_SUCCESS;
+}
+
+static void releaseStaticLoaderResourcesIfNeeded() {
+#ifdef UR_STATIC_LEVEL_ZERO
+  // Given static linking of the L0 Loader, we must release the static loader
+  // resources if the adapter is not used.
+  zelLoaderContextTeardown();
+#endif
 }
 
 // returns a pair indicating whether to use the V1 adapter and a string
@@ -424,13 +450,12 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
   if (UrL0InitAllDrivers) {
     L0InitFlags |= ZE_INIT_FLAG_VPU_ONLY;
   }
-  UR_LOG(DEBUG, "\nzeInit with flags value of {}\n",
-         static_cast<int>(L0InitFlags));
+  UR_LOG(DEBUG, "zeInit with flags value of {}", static_cast<int>(L0InitFlags));
   ZeInitResult = ZE_CALL_NOCHECK(zeInit, (L0InitFlags));
   if (ZeInitResult != ZE_RESULT_SUCCESS) {
     const char *ErrorString = "Unknown";
     zeParseError(ZeInitResult, ErrorString);
-    UR_LOG(ERR, "\nzeInit failed with {}\n", ErrorString);
+    UR_LOG(ERR, "zeInit failed with {}", ErrorString);
   }
 
   bool useInitDrivers = false;
@@ -446,7 +471,7 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
         if (strncmp(versions[i].component_name, "loader", strlen("loader")) ==
             0) {
           loader_version = versions[i].component_lib_version;
-          UR_LOG(DEBUG, "\nLevel Zero Loader Version: {}.{}.{}\n",
+          UR_LOG(DEBUG, "Level Zero Loader version: {}.{}.{}",
                  loader_version.major, loader_version.minor,
                  loader_version.patch);
           break;
@@ -454,6 +479,40 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
       }
     }
     delete[] versions;
+
+    auto LoaderSkiplist = getenv_to_vec("SYCL_UR_L0_LOADER_SKIPLIST");
+    if (!LoaderSkiplist.has_value()) {
+      LoaderSkiplist = LoaderSkiplistDefault;
+
+      if ((loader_version.major == 1 && loader_version.minor < 8)) {
+        UR_LOG(ERR,
+               "ERROR: Level Zero Loader version older than 1.8.0 is not "
+               "supported (current version: {}.{}.{}). Please update Intel GPU "
+               "compute drivers.",
+               loader_version.major, loader_version.minor,
+               loader_version.patch);
+        // Return 0 platforms as the loader is too old to be supported.
+        return;
+      }
+    }
+
+    auto LoaderVersionString = std::to_string(loader_version.major) + "." +
+                               std::to_string(loader_version.minor) + "." +
+                               std::to_string(loader_version.patch);
+    for (const auto &version : LoaderSkiplist.value()) {
+      UR_LOG(DEBUG, "Checking loader version {} against skiplist entry {}",
+             LoaderVersionString, version);
+      if (version == LoaderVersionString) {
+        UR_LOG(WARN,
+               "Skipping Level Zero adapter due to the loader version: {} "
+               "matches a skiplist entry (set SYCL_UR_L0_LOADER_SKIPLIST to "
+               "override)",
+               version);
+        // Return 0 platforms
+        return;
+      }
+    }
+
     if (loader_version.major > 1 ||
         (loader_version.major == 1 && loader_version.minor > 19) ||
         (loader_version.major == 1 && loader_version.minor == 19 &&
@@ -466,7 +525,7 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
          loader_version.patch < 2)) {
       UR_LOG(WARN,
              "WARNING: Level Zero Loader version is older than 1.21.2. "
-             "Please update to the latest version for API logging support.\n");
+             "Please update to the latest version for API logging support.");
     }
   }
 
@@ -479,7 +538,7 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
             processHandle, "zeInitDrivers");
 #endif
     if (initDriversFunctionPtr) {
-      UR_LOG(DEBUG, "\nzeInitDrivers with flags value of {}\n",
+      UR_LOG(DEBUG, "zeInitDrivers with flags value of {}",
              static_cast<int>(InitDriversDesc.flags));
       ZeInitDriversResult =
           ZE_CALL_NOCHECK(initDriversFunctionPtr,
@@ -489,7 +548,7 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
       } else {
         const char *ErrorString = "Unknown";
         zeParseError(ZeInitDriversResult, ErrorString);
-        UR_LOG(ERR, "\nzeInitDrivers failed with {}\n", ErrorString);
+        UR_LOG(ERR, "zeInitDrivers failed with {}", ErrorString);
       }
     }
   }
@@ -497,7 +556,7 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
   if (ZeInitResult != ZE_RESULT_SUCCESS &&
       ZeInitDriversResult != ZE_RESULT_SUCCESS) {
     // Absorb the ZE_RESULT_ERROR_UNINITIALIZED and just return 0 Platforms.
-    UR_LOG(ERR, "Level Zero Uninitialized\n");
+    UR_LOG(ERR, "Level Zero Uninitialized");
     return;
   }
 
@@ -509,12 +568,14 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
     auto [useV2, reason] = shouldUseV2Adapter();
     if (!useV2) {
       UR_LOG(INFO, "Skipping L0 V2 adapter: {}", reason);
+      releaseStaticLoaderResourcesIfNeeded();
       return;
     }
 #else
     auto [useV1, reason] = shouldUseV1Adapter();
     if (!useV1) {
       UR_LOG(INFO, "Skipping L0 V1 adapter: {}", reason);
+      releaseStaticLoaderResourcesIfNeeded();
       return;
     }
 #endif
@@ -567,8 +628,10 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
 
   ur_result_t err = initPlatforms(this, platforms, ZesResult);
   if (err == UR_RESULT_SUCCESS) {
+    UR_LOG(DEBUG, "Initialized {} platforms", platforms.size());
     Platforms = std::move(platforms);
   } else {
+    UR_LOG(ERR, "Failed to initialize Platforms");
     throw err;
   }
 }

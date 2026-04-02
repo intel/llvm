@@ -19,15 +19,15 @@
 #include <unordered_map>
 #include <vector>
 
+#include <unified-runtime/ur_ddi.h>
 #include <ur/ur.hpp>
-#include <ur_ddi.h>
 #include <ze_api.h>
 #include <zes_api.h>
 
 #include "common.hpp"
 #include "common/ur_ref_count.hpp"
 #include "queue.hpp"
-#include "ur_api.h"
+#include "unified-runtime/ur_api.h"
 
 extern "C" {
 ur_result_t urEventReleaseInternal(ur_event_handle_t Event,
@@ -37,7 +37,8 @@ ur_result_t EventCreate(ur_context_handle_t Context, ur_queue_handle_t Queue,
                         ur_event_handle_t *RetEvent,
                         bool CounterBasedEventEnabled,
                         bool ForceDisableProfiling,
-                        bool InterruptBasedEventEnabled);
+                        bool InterruptBasedEventEnabled,
+                        std::optional<bool> IsInternal = std::nullopt);
 } // extern "C"
 
 // This is an experimental option that allows to disable caching of events in
@@ -199,6 +200,9 @@ struct ur_event_handle_t_ : ur_object {
   // plugin.
   bool IsDiscarded = {false};
 
+  // Indicates that this is a timestamped event.
+  bool IsTimestamped = {false};
+
   // Indicates that this event is needed to be visible by multiple devices.
   // When possible, allocate Event from single device pool for optimal
   // performance
@@ -244,10 +248,6 @@ struct ur_event_handle_t_ : ur_object {
 
   // Tells if this event is with profiling capabilities.
   bool isProfilingEnabled() const;
-
-  // Tells if this event was created as a timestamp event, allowing profiling
-  // info even if profiling is not enabled.
-  bool isTimestamped() const;
 
   // Get the host-visible event or create one and enqueue its signal.
   ur_result_t getOrCreateHostVisibleEvent(ze_event_handle_t &HostVisibleEvent);

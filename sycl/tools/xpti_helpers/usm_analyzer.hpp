@@ -8,7 +8,7 @@
 
 #include "xpti/xpti_trace_framework.h"
 
-#include <ur_api.h>
+#include <unified-runtime/ur_api.h>
 
 #include <iostream>
 #include <map>
@@ -250,9 +250,10 @@ public:
       handleUSMEnqueueMemcpy2D(
           static_cast<ur_enqueue_usm_memcpy_2d_params_t *>(Data->args_data));
       return;
-    case UR_FUNCTION_KERNEL_SET_ARG_POINTER:
-      handleKernelSetArgPointer(
-          static_cast<ur_kernel_set_arg_pointer_params_t *>(Data->args_data));
+    case UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH_WITH_ARGS_EXP:
+      handleEnqueueKernelLaunchWithArgsExp(
+          static_cast<ur_enqueue_kernel_launch_with_args_exp_params_t *>(
+              Data->args_data));
       return;
     default:
       return;
@@ -414,11 +415,17 @@ public:
                           "ext_oneapi_copy2d/ext_oneapi_memcpy2d");
   }
 
-  static void
-  handleKernelSetArgPointer(const ur_kernel_set_arg_pointer_params_t *Params) {
-    void *Ptr = (const_cast<void *>(*Params->ppArgValue));
-    CheckPointerValidness(
-        "kernel parameter with index = " + std::to_string(*Params->pargIndex),
-        Ptr, 0 /*no data how it will be used in kernel*/, "kernel");
+  static void handleEnqueueKernelLaunchWithArgsExp(
+      const ur_enqueue_kernel_launch_with_args_exp_params_t *Params) {
+    // Search for pointer args and validate the pointers
+    for (uint32_t i = 0; i < *Params->pnumArgs; i++) {
+      if ((*Params->ppArgs)[i].type == UR_EXP_KERNEL_ARG_TYPE_POINTER) {
+        void *Ptr = (const_cast<void *>((*Params->ppArgs)[i].value.pointer));
+        CheckPointerValidness("kernel parameter with index = " +
+                                  std::to_string((*Params->ppArgs)[i].index),
+                              Ptr, 0 /*no data how it will be used in kernel*/,
+                              "kernel");
+      }
+    }
   }
 };

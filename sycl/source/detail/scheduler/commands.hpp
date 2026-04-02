@@ -228,7 +228,7 @@ public:
   virtual context_impl *getWorkerContext() const;
 
   /// Returns true iff the command produces a UR event on non-host devices.
-  virtual bool producesPiEvent() const;
+  virtual bool producesUrEvent() const;
 
   /// Returns true iff this command can be freed by post enqueue cleanup.
   virtual bool supportsPostEnqueueCleanup() const;
@@ -244,19 +244,7 @@ public:
                                                     queue_impl *CommandQueue,
                                                     bool IsHostTaskCommand);
 
-  /// Collect UR events from EventImpls and filter out some of them in case of
-  /// in order queue. Does blocking enqueue if event is expected to produce ur
-  /// event but has empty native handle.
-  std::vector<ur_event_handle_t> getUrEventsBlocking(events_range Events,
-                                                     bool HasEventMode) const;
-
   bool isHostTask() const;
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  // This function is unused and should be removed in the next ABI-breaking
-  // window.
-  bool isFusable() const;
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 protected:
   std::shared_ptr<queue_impl> MQueue;
@@ -425,7 +413,7 @@ public:
 
   void emitInstrumentationData() override;
 
-  bool producesPiEvent() const final;
+  bool producesUrEvent() const final;
 
 private:
   ur_result_t enqueueImp() final;
@@ -444,7 +432,7 @@ public:
 
   void printDot(std::ostream &Stream) const final;
   void emitInstrumentationData() override;
-  bool producesPiEvent() const final;
+  bool producesUrEvent() const final;
   bool supportsPostEnqueueCleanup() const final;
   bool readyForCleanup() const final;
 
@@ -471,7 +459,7 @@ public:
 
   void emitInstrumentationData() override;
 
-  bool producesPiEvent() const final;
+  bool producesUrEvent() const final;
 
   bool supportsPostEnqueueCleanup() const final;
 
@@ -567,7 +555,7 @@ public:
   void printDot(std::ostream &Stream) const final;
   const Requirement *getRequirement() const final { return &MDstReq; }
   void emitInstrumentationData() override;
-  bool producesPiEvent() const final;
+  bool producesUrEvent() const final;
 
 private:
   ur_result_t enqueueImp() final;
@@ -589,7 +577,7 @@ public:
   const Requirement *getRequirement() const final { return &MDstReq; }
   void emitInstrumentationData() final;
   context_impl *getWorkerContext() const final;
-  bool producesPiEvent() const final;
+  bool producesUrEvent() const final;
 
 private:
   ur_result_t enqueueImp() final;
@@ -627,16 +615,13 @@ private:
 void enqueueImpKernel(
     queue_impl &Queue, NDRDescT &NDRDesc, std::vector<ArgDesc> &Args,
     detail::kernel_bundle_impl *KernelBundleImplPtr,
-    const detail::kernel_impl *MSyclKernel, KernelNameStrRefT KernelName,
-    KernelNameBasedCacheT *KernelNameBasedCachePtr,
+    const detail::kernel_impl *MSyclKernel, DeviceKernelInfo &DeviceKernelInfo,
     std::vector<ur_event_handle_t> &RawEvents, detail::event_impl *OutEventImpl,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
     ur_kernel_cache_config_t KernelCacheConfig, bool KernelIsCooperative,
     const bool KernelUsesClusterLaunch, const size_t WorkGroupMemorySize,
     const RTDeviceBinaryImage *BinImage = nullptr,
-    void *KernelFuncPtr = nullptr, int KernelNumArgs = 0,
-    detail::kernel_param_desc_t (*KernelParamDescGetter)(int) = nullptr,
-    bool KernelHasSpecialCaptures = true);
+    void *KernelFuncPtr = nullptr);
 
 /// The exec CG command enqueues execution of kernel or explicit memory
 /// operation.
@@ -668,7 +653,7 @@ public:
   // is false.
   bool MEventNeeded = true;
 
-  bool producesPiEvent() const final;
+  bool producesUrEvent() const final;
 
   bool supportsPostEnqueueCleanup() const final;
 
@@ -691,11 +676,9 @@ private:
 // Very close to ExecCGCommand::emitInstrumentationData content.
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 std::pair<xpti_td *, uint64_t> emitKernelInstrumentationData(
-    xpti::stream_id_t StreamID,
-    const std::shared_ptr<detail::kernel_impl> &SyclKernel,
+    xpti::stream_id_t StreamID, const kernel_impl *SyclKernel,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc,
-    std::string_view SyclKernelName,
-    KernelNameBasedCacheT *KernelNameBasedCachePtr, queue_impl *Queue,
+    DeviceKernelInfo &DeviceKernelInfo, queue_impl *Queue,
     const NDRDescT &NDRDesc, detail::kernel_bundle_impl *KernelBundleImplPtr,
     std::vector<ArgDesc> &CGArgs);
 #endif
@@ -726,7 +709,7 @@ public:
 
   void printDot(std::ostream &Stream) const final;
   void emitInstrumentationData() final;
-  bool producesPiEvent() const final;
+  bool producesUrEvent() const final;
 
 private:
   ur_result_t enqueueImp() final;
@@ -801,7 +784,22 @@ void applyFuncOnFilteredArgs(
   }
 }
 
-void ReverseRangeDimensionsForKernel(NDRDescT &NDR);
+// We have the following mapping between dimensions with SPIR-V builtins:
+// 1D: id[0] -> x
+// 2D: id[0] -> y, id[1] -> x
+// 3D: id[0] -> z, id[1] -> y, id[2] -> x
+// So in order to ensure the correctness we update all the kernel
+// parameters accordingly.
+// Initially we keep the order of NDRDescT as it provided by the user, this
+// simplifies overall handling and do the reverse only when
+// the kernel is enqueued.
+inline void ReverseRangeDimensionsForKernel(NDRDescT &NDR) {
+  if (NDR.Dims > 1) {
+    std::swap(NDR.GlobalSize[0], NDR.GlobalSize[NDR.Dims - 1]);
+    std::swap(NDR.LocalSize[0], NDR.LocalSize[NDR.Dims - 1]);
+    std::swap(NDR.GlobalOffset[0], NDR.GlobalOffset[NDR.Dims - 1]);
+  }
+}
 
 } // namespace detail
 } // namespace _V1

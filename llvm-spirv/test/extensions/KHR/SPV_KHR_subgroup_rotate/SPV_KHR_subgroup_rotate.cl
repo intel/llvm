@@ -14,17 +14,17 @@
 // CHECK-SPIRV-DAG: {{[0-9]*}} Capability GroupNonUniformRotateKHR
 // CHECK-SPIRV-DAG: Extension "SPV_KHR_subgroup_rotate"
 
-// CHECK-SPIRV-DAG: Name [[#testRotateCharFn:]] "testRotateChar"
-// CHECK-SPIRV-DAG: Name [[#testRotateUCharFn:]] "testRotateUChar"
-// CHECK-SPIRV-DAG: Name [[#testRotateShortFn:]] "testRotateShort"
-// CHECK-SPIRV-DAG: Name [[#testRotateUShortFn:]] "testRotateUShort"
-// CHECK-SPIRV-DAG: Name [[#testRotateIntFn:]] "testRotateInt"
-// CHECK-SPIRV-DAG: Name [[#testRotateUIntFn:]] "testRotateUInt"
-// CHECK-SPIRV-DAG: Name [[#testRotateLongFn:]] "testRotateLong"
-// CHECK-SPIRV-DAG: Name [[#testRotateULongFn:]] "testRotateULong"
-// CHECK-SPIRV-DAG: Name [[#testRotateFloatFn:]] "testRotateFloat"
-// CHECK-SPIRV-DAG: Name [[#testRotateHalfFn:]] "testRotateHalf"
-// CHECK-SPIRV-DAG: Name [[#testRotateDoubleFn:]] "testRotateDouble"
+// CHECK-SPIRV-DAG: EntryPoint [[#]] [[#testRotateCharFn:]] "testRotateChar"
+// CHECK-SPIRV-DAG: EntryPoint [[#]] [[#testRotateUCharFn:]] "testRotateUChar"
+// CHECK-SPIRV-DAG: EntryPoint [[#]] [[#testRotateShortFn:]] "testRotateShort"
+// CHECK-SPIRV-DAG: EntryPoint [[#]] [[#testRotateUShortFn:]] "testRotateUShort"
+// CHECK-SPIRV-DAG: EntryPoint [[#]] [[#testRotateIntFn:]] "testRotateInt"
+// CHECK-SPIRV-DAG: EntryPoint [[#]] [[#testRotateUIntFn:]] "testRotateUInt"
+// CHECK-SPIRV-DAG: EntryPoint [[#]] [[#testRotateLongFn:]] "testRotateLong"
+// CHECK-SPIRV-DAG: EntryPoint [[#]] [[#testRotateULongFn:]] "testRotateULong"
+// CHECK-SPIRV-DAG: EntryPoint [[#]] [[#testRotateFloatFn:]] "testRotateFloat"
+// CHECK-SPIRV-DAG: EntryPoint [[#]] [[#testRotateHalfFn:]] "testRotateHalf"
+// CHECK-SPIRV-DAG: EntryPoint [[#]] [[#testRotateDoubleFn:]] "testRotateDouble"
 
 // CHECK-SPIRV-DAG: TypeInt   [[char:[0-9]+]]   8  0
 // CHECK-SPIRV-DAG: TypeInt   [[short:[0-9]+]]  16 0

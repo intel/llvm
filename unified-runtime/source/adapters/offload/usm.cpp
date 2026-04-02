@@ -9,8 +9,8 @@
 //===----------------------------------------------------------------------===//
 
 #include <OffloadAPI.h>
+#include <unified-runtime/ur_api.h>
 #include <ur/ur.hpp>
-#include <ur_api.h>
 
 #include "context.hpp"
 #include "device.hpp"
@@ -23,7 +23,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMHostAlloc(ur_context_handle_t hContext,
   OL_RETURN_ON_ERR(olMemAlloc(hContext->Device->OffloadDevice,
                               OL_ALLOC_TYPE_HOST, size, ppMem));
 
-  hContext->AllocTypeMap.insert_or_assign(*ppMem, OL_ALLOC_TYPE_HOST);
+  hContext->AllocTypeMap.insert_or_assign(
+      *ppMem, alloc_info_t{OL_ALLOC_TYPE_HOST, size});
   return UR_RESULT_SUCCESS;
 }
 
@@ -33,7 +34,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMDeviceAlloc(
   OL_RETURN_ON_ERR(olMemAlloc(hContext->Device->OffloadDevice,
                               OL_ALLOC_TYPE_DEVICE, size, ppMem));
 
-  hContext->AllocTypeMap.insert_or_assign(*ppMem, OL_ALLOC_TYPE_DEVICE);
+  hContext->AllocTypeMap.insert_or_assign(
+      *ppMem, alloc_info_t{OL_ALLOC_TYPE_DEVICE, size});
   return UR_RESULT_SUCCESS;
 }
 
@@ -43,10 +45,33 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMSharedAlloc(
   OL_RETURN_ON_ERR(olMemAlloc(hContext->Device->OffloadDevice,
                               OL_ALLOC_TYPE_MANAGED, size, ppMem));
 
-  hContext->AllocTypeMap.insert_or_assign(*ppMem, OL_ALLOC_TYPE_MANAGED);
+  hContext->AllocTypeMap.insert_or_assign(
+      *ppMem, alloc_info_t{OL_ALLOC_TYPE_MANAGED, size});
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urUSMFree(ur_context_handle_t, void *pMem) {
+UR_APIEXPORT ur_result_t UR_APICALL urUSMFree(ur_context_handle_t hContext,
+                                              void *pMem) {
+  hContext->AllocTypeMap.erase(pMem);
   return offloadResultToUR(olMemFree(pMem));
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urUSMGetMemAllocInfo(
+    [[maybe_unused]] ur_context_handle_t hContext,
+    [[maybe_unused]] const void *pMem,
+    [[maybe_unused]] ur_usm_alloc_info_t propName,
+    [[maybe_unused]] size_t propSize, [[maybe_unused]] void *pPropValue,
+    [[maybe_unused]] size_t *pPropSizeRet) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urUSMHostAllocRegisterExp(
+    ur_context_handle_t /*hContext*/, void * /*pHostMem*/, size_t /*size*/,
+    const ur_exp_usm_host_alloc_register_properties_t * /*pProperties*/) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urUSMHostAllocUnregisterExp(
+    ur_context_handle_t /*hContext*/, void * /*pHostMem*/) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }

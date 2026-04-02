@@ -13,8 +13,8 @@
 
 #pragma once
 
+#include "unified-runtime/ur_ddi.h"
 #include "ur/ur.hpp"
-#include "ur_ddi.h"
 
 #include <cassert>
 #include <cmath>
@@ -137,11 +137,12 @@ struct SourceInfo {
 
 bool IsInASanContext();
 
-uptr MmapFixedNoReserve(uptr Addr, uptr Size);
+bool MmapFixedNoReserve(uptr Addr, uptr Size);
 uptr MmapNoReserve(uptr Addr, uptr Size);
 bool Munmap(uptr Addr, uptr Size);
-uptr ProtectMemoryRange(uptr Addr, uptr Size);
+bool ProtectMemoryRange(uptr Addr, uptr Size);
 bool DontCoredumpRange(uptr Addr, uptr Size);
+void TryReExecWithoutASLR();
 
 void *GetMemFunctionPointer(const char *);
 
@@ -157,6 +158,7 @@ enum SanitizedKernelFlags : uint32_t {
   CHECK_PRIVATES = 1U << 3,
   CHECK_GENERICS = 1U << 4,
   MSAN_TRACK_ORIGINS = 1U << 5,
+  ASAN_CHECK_SHADOW_BOUNDS = 1U << 6,
 };
 
 } // namespace ur_sanitizer_layer
