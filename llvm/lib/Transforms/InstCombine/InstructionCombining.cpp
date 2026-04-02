@@ -3497,7 +3497,20 @@ Instruction *InstCombinerImpl::visitGetElementPtrInst(GetElementPtrInst &GEP) {
       Ty = AT->getElementType();
     return Ty->isIntegerTy(8);
   };
-  if (Indices.size() == 1 && !IsCanonicalType(GEPEltType)) {
+  // Skip canonicalization for JointMatrix type. DL.getTypeAllocSize() will not
+  // return the true allocation size, so the canonicalized [N x i8] stride would
+  // be incorrect.
+  auto IsMatrixType = [](Type *Ty) -> bool {
+    if (auto *AT = dyn_cast<ArrayType>(Ty))
+      Ty = AT->getElementType();
+    if (auto *ST = dyn_cast<StructType>(Ty))
+      if (ST->getNumElements() == 1)
+        Ty = ST->getElementType(0);
+    return isa<TargetExtType>(Ty) &&
+           cast<TargetExtType>(Ty)->getName() == "spirv.CooperativeMatrixKHR";
+  };
+  if (Indices.size() == 1 && !IsCanonicalType(GEPEltType) &&
+      !IsMatrixType(GEPEltType)) {
     TypeSize Scale = DL.getTypeAllocSize(GEPEltType);
     assert(!Scale.isScalable() && "Should have been handled earlier");
     Type *NewElemTy = Builder.getInt8Ty();
