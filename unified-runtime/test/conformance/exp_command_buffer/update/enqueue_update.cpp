@@ -61,16 +61,25 @@ struct urUpdatableEnqueueCommandBufferExpTest
       ptrZ[i] = 0; // Output to second command-buffer enqueue
     }
 
-    // Index 0 is input ptr
-    ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, shared_ptrs[0]));
-    // Index 1 is output ptr
-    ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 1, nullptr, shared_ptrs[1]));
+    // Build kernel args
+    cpy_mult_args[0] = {UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+                        nullptr,
+                        UR_EXP_KERNEL_ARG_TYPE_POINTER,
+                        0,
+                        sizeof(void *),
+                        {shared_ptrs[0]}};
+    cpy_mult_args[1] = {UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+                        nullptr,
+                        UR_EXP_KERNEL_ARG_TYPE_POINTER,
+                        1,
+                        sizeof(void *),
+                        {shared_ptrs[1]}};
 
     // Create command-buffer with a single kernel that does "Out[i] = In[i] * 2"
-    ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchExp(
+    ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchWithArgsExp(
         updatable_cmd_buf_handle, kernel, n_dimensions, &global_offset,
-        &global_size, nullptr, 0, nullptr, 0, nullptr, 0, nullptr, nullptr,
-        nullptr, &command_handle));
+        &global_size, nullptr, 2, cpy_mult_args, 0, nullptr, 0, nullptr, 0,
+        nullptr, nullptr, nullptr, &command_handle));
     ASSERT_NE(nullptr, command_handle);
 
     ASSERT_SUCCESS(urCommandBufferFinalizeExp(updatable_cmd_buf_handle));
@@ -152,6 +161,7 @@ struct urUpdatableEnqueueCommandBufferExpTest
   ur_queue_handle_t in_order_queue = nullptr;
   ur_queue_handle_t out_of_order_queue = nullptr;
   ur_exp_command_buffer_command_handle_t command_handle = nullptr;
+  ur_exp_kernel_arg_properties_t cpy_mult_args[2] = {};
 
   static constexpr size_t global_size = 16;
   static constexpr size_t global_offset = 0;

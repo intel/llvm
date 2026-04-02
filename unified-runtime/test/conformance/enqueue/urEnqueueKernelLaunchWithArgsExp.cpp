@@ -84,9 +84,9 @@ UUR_INSTANTIATE_DEVICE_TEST_SUITE_MULTI_QUEUE(
     urEnqueueKernelLaunchKernelStandardTest);
 
 TEST_P(urEnqueueKernelLaunchNoArgs3DTest, Success) {
-  ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, n_dimensions,
-                                       global_offset, global_size, nullptr,
-                                       nullptr, 0, nullptr, nullptr));
+  ASSERT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
+      queue, kernel, n_dimensions, global_offset, global_size, nullptr, 0,
+      nullptr, nullptr, 0, nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 }
 
@@ -95,9 +95,9 @@ TEST_P(urEnqueueKernelLaunchTest, Success) {
   UUR_RETURN_ON_FATAL_FAILURE(
       AddBuffer1DArg(sizeof(val) * global_size, &buffer));
   UUR_RETURN_ON_FATAL_FAILURE(AddPodArg(val));
-  ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, n_dimensions,
-                                       &global_offset, &global_size, nullptr,
-                                       nullptr, 0, nullptr, nullptr));
+  ASSERT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
+      queue, kernel, n_dimensions, &global_offset, &global_size, nullptr,
+      GetNumArgs(), GetArgs(), nullptr, 0, nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
   ValidateBuffer(buffer, sizeof(val) * global_size, val);
 }
@@ -136,9 +136,9 @@ TEST_P(urEnqueueKernelLaunchTest, SuccessWithLaunchProperties) {
       AddBuffer1DArg(sizeof(val) * global_size, &buffer));
   UUR_RETURN_ON_FATAL_FAILURE(AddPodArg(val));
 
-  ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, n_dimensions,
-                                       &global_offset, &global_size, nullptr,
-                                       &props, 0, nullptr, nullptr));
+  ASSERT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
+      queue, kernel, n_dimensions, &global_offset, &global_size, nullptr,
+      GetNumArgs(), GetArgs(), &props, 0, nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 
   ValidateBuffer(buffer, sizeof(val) * global_size, val);
@@ -149,54 +149,59 @@ TEST_P(urEnqueueKernelLaunchTest, SuccessNoOffset) {
   UUR_RETURN_ON_FATAL_FAILURE(
       AddBuffer1DArg(sizeof(val) * global_size, &buffer));
   UUR_RETURN_ON_FATAL_FAILURE(AddPodArg(val));
-  ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, n_dimensions, nullptr,
-                                       &global_size, nullptr, nullptr, 0,
-                                       nullptr, nullptr));
+  ASSERT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
+      queue, kernel, n_dimensions, nullptr, &global_size, nullptr, GetNumArgs(),
+      GetArgs(), nullptr, 0, nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 
   ValidateBuffer(buffer, sizeof(val) * global_size, val);
 }
 
 TEST_P(urEnqueueKernelLaunchTest, InvalidNullHandleQueue) {
-  ASSERT_EQ_RESULT(urEnqueueKernelLaunch(nullptr, kernel, n_dimensions,
-                                         &global_offset, &global_size, nullptr,
-                                         nullptr, 0, nullptr, nullptr),
-                   UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  ASSERT_EQ_RESULT(
+      urEnqueueKernelLaunchWithArgsExp(nullptr, kernel, n_dimensions,
+                                       &global_offset, &global_size, nullptr, 0,
+                                       nullptr, nullptr, 0, nullptr, nullptr),
+      UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 }
 
 TEST_P(urEnqueueKernelLaunchTest, InvalidNullPointer) {
-  ASSERT_EQ_RESULT(urEnqueueKernelLaunch(queue, kernel, n_dimensions,
-                                         &global_offset, nullptr, nullptr,
-                                         nullptr, 0, nullptr, nullptr),
+  ASSERT_EQ_RESULT(urEnqueueKernelLaunchWithArgsExp(
+                       queue, kernel, n_dimensions, &global_offset, nullptr,
+                       nullptr, 0, nullptr, nullptr, 0, nullptr, nullptr),
                    UR_RESULT_ERROR_INVALID_NULL_POINTER);
 }
 
 TEST_P(urEnqueueKernelLaunchTest, InvalidNullHandleKernel) {
-  ASSERT_EQ_RESULT(urEnqueueKernelLaunch(queue, nullptr, n_dimensions,
-                                         &global_offset, &global_size, nullptr,
-                                         nullptr, 0, nullptr, nullptr),
-                   UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  ASSERT_EQ_RESULT(
+      urEnqueueKernelLaunchWithArgsExp(queue, nullptr, n_dimensions,
+                                       &global_offset, &global_size, nullptr, 0,
+                                       nullptr, nullptr, 0, nullptr, nullptr),
+      UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 }
 
 TEST_P(urEnqueueKernelLaunchTest, InvalidNullPtrEventWaitList) {
-  ASSERT_EQ_RESULT(urEnqueueKernelLaunch(queue, kernel, n_dimensions,
-                                         &global_offset, &global_size, nullptr,
-                                         nullptr, 1, nullptr, nullptr),
-                   UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
+  ASSERT_EQ_RESULT(
+      urEnqueueKernelLaunchWithArgsExp(queue, kernel, n_dimensions,
+                                       &global_offset, &global_size, nullptr, 0,
+                                       nullptr, nullptr, 1, nullptr, nullptr),
+      UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 
   ur_event_handle_t validEvent;
   ASSERT_SUCCESS(urEnqueueEventsWait(queue, 0, nullptr, &validEvent));
 
-  ASSERT_EQ_RESULT(urEnqueueKernelLaunch(queue, kernel, n_dimensions,
-                                         &global_offset, &global_size, nullptr,
-                                         nullptr, 0, &validEvent, nullptr),
+  ASSERT_EQ_RESULT(urEnqueueKernelLaunchWithArgsExp(
+                       queue, kernel, n_dimensions, &global_offset,
+                       &global_size, nullptr, 0, nullptr, nullptr, 0,
+                       &validEvent, nullptr),
                    UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 
   ur_event_handle_t inv_evt = nullptr;
-  ASSERT_EQ_RESULT(urEnqueueKernelLaunch(queue, kernel, n_dimensions,
-                                         &global_offset, &global_size, nullptr,
-                                         nullptr, 1, &inv_evt, nullptr),
-                   UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
+  ASSERT_EQ_RESULT(
+      urEnqueueKernelLaunchWithArgsExp(queue, kernel, n_dimensions,
+                                       &global_offset, &global_size, nullptr, 0,
+                                       nullptr, nullptr, 1, &inv_evt, nullptr),
+      UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
   ASSERT_SUCCESS(urEventRelease(validEvent));
 }
 
@@ -205,10 +210,10 @@ TEST_P(urEnqueueKernelLaunchTest, InvalidWorkDimension) {
   ASSERT_SUCCESS(urDeviceGetInfo(
       device, UR_DEVICE_INFO_MAX_WORK_ITEM_DIMENSIONS,
       sizeof(max_work_item_dimensions), &max_work_item_dimensions, nullptr));
-  ASSERT_EQ_RESULT(urEnqueueKernelLaunch(queue, kernel,
-                                         max_work_item_dimensions + 1,
-                                         &global_offset, &global_size, nullptr,
-                                         nullptr, 0, nullptr, nullptr),
+  ASSERT_EQ_RESULT(urEnqueueKernelLaunchWithArgsExp(
+                       queue, kernel, max_work_item_dimensions + 1,
+                       &global_offset, &global_size, nullptr, 0, nullptr,
+                       nullptr, 0, nullptr, nullptr),
                    UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
 }
 
@@ -221,9 +226,9 @@ TEST_P(urEnqueueKernelLaunchTest, InvalidWorkGroupSize) {
   UUR_RETURN_ON_FATAL_FAILURE(
       AddBuffer1DArg(sizeof(val) * global_size, &buffer));
   UUR_RETURN_ON_FATAL_FAILURE(AddPodArg(val));
-  auto result = urEnqueueKernelLaunch(queue, kernel, n_dimensions,
-                                      &global_offset, &global_size, &local_size,
-                                      nullptr, 0, nullptr, nullptr);
+  auto result = urEnqueueKernelLaunchWithArgsExp(
+      queue, kernel, n_dimensions, &global_offset, &global_size, &local_size,
+      GetNumArgs(), GetArgs(), nullptr, 0, nullptr, nullptr);
   ASSERT_TRUE(result == UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE ||
               result == UR_RESULT_SUCCESS);
 }
@@ -233,9 +238,9 @@ TEST_P(urEnqueueKernelLaunchKernelWgSizeTest, Success) {
   // https://github.com/intel/llvm/issues/21527
   UUR_KNOWN_FAILURE_ON(uur::CUDA{"13."});
 
-  ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, n_dimensions,
-                                       global_offset.data(), global_size.data(),
-                                       nullptr, nullptr, 0, nullptr, nullptr));
+  ASSERT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
+      queue, kernel, n_dimensions, global_offset.data(), global_size.data(),
+      nullptr, 0, nullptr, nullptr, 0, nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 }
 
@@ -243,9 +248,9 @@ TEST_P(urEnqueueKernelLaunchKernelWgSizeTest, SuccessWithExplicitLocalSize) {
   // https://github.com/intel/llvm/issues/21527
   UUR_KNOWN_FAILURE_ON(uur::CUDA{"13."});
 
-  ASSERT_SUCCESS(urEnqueueKernelLaunch(
+  ASSERT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
       queue, kernel, n_dimensions, global_offset.data(), global_size.data(),
-      wg_size.data(), nullptr, 0, nullptr, nullptr));
+      wg_size.data(), 0, nullptr, nullptr, 0, nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 }
 
@@ -253,11 +258,11 @@ TEST_P(urEnqueueKernelLaunchKernelWgSizeTest, NonMatchingLocalSize) {
   UUR_KNOWN_FAILURE_ON(uur::CUDA{}, uur::HIP{});
 
   std::array<size_t, 3> wrong_wg_size{8, 8, 8};
-  ASSERT_EQ_RESULT(
-      urEnqueueKernelLaunch(queue, kernel, n_dimensions, global_offset.data(),
-                            global_size.data(), wrong_wg_size.data(), nullptr,
-                            0, nullptr, nullptr),
-      UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE);
+  ASSERT_EQ_RESULT(urEnqueueKernelLaunchWithArgsExp(
+                       queue, kernel, n_dimensions, global_offset.data(),
+                       global_size.data(), wrong_wg_size.data(), 0, nullptr,
+                       nullptr, 0, nullptr, nullptr),
+                   UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE);
 }
 
 TEST_P(urEnqueueKernelLaunchKernelSubGroupTest, Success) {
@@ -265,9 +270,9 @@ TEST_P(urEnqueueKernelLaunchKernelSubGroupTest, Success) {
 
   ur_mem_handle_t buffer = nullptr;
   UUR_RETURN_ON_FATAL_FAILURE(AddBuffer1DArg(sizeof(size_t), &buffer));
-  ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, n_dimensions,
-                                       global_offset.data(), global_size.data(),
-                                       nullptr, nullptr, 0, nullptr, nullptr));
+  ASSERT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
+      queue, kernel, n_dimensions, global_offset.data(), global_size.data(),
+      nullptr, GetNumArgs(), GetArgs(), nullptr, 0, nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
   // We specify this subgroup size in the kernel source, and then the kernel
   // queries for its subgroup size at runtime and writes it to the buffer.
@@ -289,9 +294,9 @@ TEST_P(urEnqueueKernelLaunchKernelStandardTest, Success) {
   UUR_RETURN_ON_FATAL_FAILURE(AddPodArg<Pair>({7, 5}));
   UUR_RETURN_ON_FATAL_FAILURE(AddPodArg<float>(11.0));
 
-  ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, n_dimensions, &offset,
-                                       &global_size, nullptr, nullptr, 0,
-                                       nullptr, nullptr));
+  ASSERT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
+      queue, kernel, n_dimensions, &offset, &global_size, nullptr, GetNumArgs(),
+      GetArgs(), nullptr, 0, nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
   ValidateBuffer<uint32_t>(output, sizeof(uint32_t), expected_result);
 }
@@ -385,9 +390,9 @@ TEST_P(urEnqueueKernelLaunchTestWithParam, Success) {
   ur_mem_handle_t buffer = nullptr;
   UUR_RETURN_ON_FATAL_FAILURE(AddBuffer1DArg(buffer_size, &buffer));
   UUR_RETURN_ON_FATAL_FAILURE(AddPodArg(val));
-  ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, n_dimensions,
-                                       global_offset, global_range, nullptr, 0,
-                                       0, nullptr, nullptr));
+  ASSERT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
+      queue, kernel, n_dimensions, global_offset, global_range, nullptr,
+      GetNumArgs(), GetArgs(), nullptr, 0, nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
   ValidateBuffer(buffer, buffer_size, val);
 }
@@ -432,9 +437,16 @@ TEST_P(urEnqueueKernelLaunchWithUSM, Success) {
   size_t global_size = alloc_size / sizeof(uint32_t);
   uint32_t fill_val = 42;
 
-  ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, usmPtr));
-  ASSERT_SUCCESS(
-      urKernelSetArgValue(kernel, 1, sizeof(fill_val), nullptr, &fill_val));
+  ur_exp_kernel_arg_value_t ptr_val = {};
+  ptr_val.pointer = usmPtr;
+  ur_exp_kernel_arg_value_t fill_arg_val = {};
+  fill_arg_val.value = &fill_val;
+  ur_exp_kernel_arg_properties_t args[] = {
+      {UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES, nullptr,
+       UR_EXP_KERNEL_ARG_TYPE_POINTER, 0, sizeof(usmPtr), ptr_val},
+      {UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES, nullptr,
+       UR_EXP_KERNEL_ARG_TYPE_VALUE, 1, sizeof(fill_val), fill_arg_val},
+  };
 
   auto *ptr = static_cast<uint32_t *>(usmPtr);
   for (size_t i = 0; i < global_size; i++) {
@@ -442,9 +454,9 @@ TEST_P(urEnqueueKernelLaunchWithUSM, Success) {
   }
 
   ur_event_handle_t kernel_evt;
-  ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, work_dim, &global_offset,
-                                       &global_size, nullptr, nullptr, 0,
-                                       nullptr, &kernel_evt));
+  ASSERT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
+      queue, kernel, work_dim, &global_offset, &global_size, nullptr, 2, args,
+      nullptr, 0, nullptr, &kernel_evt));
 
   ASSERT_SUCCESS(urQueueFinish(queue));
 
@@ -462,9 +474,16 @@ TEST_P(urEnqueueKernelLaunchWithUSM, WithMemcpy) {
   size_t global_size = alloc_size / sizeof(uint32_t);
   uint32_t fill_val = 42;
 
-  ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, usmPtr));
-  ASSERT_SUCCESS(
-      urKernelSetArgValue(kernel, 1, sizeof(fill_val), nullptr, &fill_val));
+  ur_exp_kernel_arg_value_t ptr_val = {};
+  ptr_val.pointer = usmPtr;
+  ur_exp_kernel_arg_value_t fill_arg_val = {};
+  fill_arg_val.value = &fill_val;
+  ur_exp_kernel_arg_properties_t args[] = {
+      {UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES, nullptr,
+       UR_EXP_KERNEL_ARG_TYPE_POINTER, 0, sizeof(usmPtr), ptr_val},
+      {UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES, nullptr,
+       UR_EXP_KERNEL_ARG_TYPE_VALUE, 1, sizeof(fill_val), fill_arg_val},
+  };
 
   std::vector<uint32_t> input(global_size, 0);
   std::vector<uint32_t> data(global_size);
@@ -473,9 +492,9 @@ TEST_P(urEnqueueKernelLaunchWithUSM, WithMemcpy) {
                                     alloc_size, 0, nullptr, nullptr));
 
   ur_event_handle_t kernel_evt;
-  ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, work_dim, &global_offset,
-                                       &global_size, nullptr, nullptr, 0,
-                                       nullptr, &kernel_evt));
+  ASSERT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
+      queue, kernel, work_dim, &global_offset, &global_size, nullptr, 2, args,
+      nullptr, 0, nullptr, &kernel_evt));
 
   ur_event_handle_t memcpy_event;
   ASSERT_SUCCESS(urEnqueueUSMMemcpy(queue, false, data.data(), usmPtr,
@@ -557,14 +576,21 @@ TEST_P(urEnqueueKernelLaunchWithVirtualMemory, Success) {
   size_t global_size = alloc_size / sizeof(uint32_t);
   uint32_t fill_val = 42;
 
-  ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, virtual_ptr));
-  ASSERT_SUCCESS(
-      urKernelSetArgValue(kernel, 1, sizeof(fill_val), nullptr, &fill_val));
+  ur_exp_kernel_arg_value_t ptr_val = {};
+  ptr_val.pointer = virtual_ptr;
+  ur_exp_kernel_arg_value_t fill_arg_val = {};
+  fill_arg_val.value = &fill_val;
+  ur_exp_kernel_arg_properties_t args[] = {
+      {UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES, nullptr,
+       UR_EXP_KERNEL_ARG_TYPE_POINTER, 0, sizeof(virtual_ptr), ptr_val},
+      {UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES, nullptr,
+       UR_EXP_KERNEL_ARG_TYPE_VALUE, 1, sizeof(fill_val), fill_arg_val},
+  };
 
   ur_event_handle_t kernel_evt;
-  ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, work_dim, &global_offset,
-                                       &global_size, nullptr, nullptr, 0,
-                                       nullptr, &kernel_evt));
+  ASSERT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
+      queue, kernel, work_dim, &global_offset, &global_size, nullptr, 2, args,
+      nullptr, 0, nullptr, &kernel_evt));
 
   std::vector<uint32_t> data(global_size);
   ASSERT_SUCCESS(urEnqueueUSMMemcpy(queue, true, data.data(), virtual_ptr,
@@ -640,9 +666,9 @@ TEST_P(urEnqueueKernelLaunchMultiDeviceTest, KernelLaunchReadDifferentQueues) {
   UUR_RETURN_ON_FATAL_FAILURE(
       helper.AddBuffer1DArg(sizeof(val) * global_size, &buffer, nullptr));
   UUR_RETURN_ON_FATAL_FAILURE(helper.AddPodArg(val));
-  ASSERT_SUCCESS(urEnqueueKernelLaunch(queues[0], kernel, n_dimensions,
-                                       &global_offset, &global_size, nullptr,
-                                       nullptr, 0, nullptr, nullptr));
+  ASSERT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
+      queues[0], kernel, n_dimensions, &global_offset, &global_size, nullptr,
+      helper.GetNumArgs(), helper.GetArgs(), nullptr, 0, nullptr, nullptr));
 
   // Wait for the queue to finish executing.
   ASSERT_SUCCESS(urQueueFinish(queues[0]));
@@ -753,10 +779,15 @@ TEST_P(urEnqueueKernelLaunchUSMLinkedList, Success) {
                                      sizeof(indirect), nullptr, &indirect));
 
   // Run kernel which will iterate the list and modify the values
-  ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, list_head));
-  ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, 1, &global_offset,
-                                       &global_size, nullptr, nullptr, 0,
-                                       nullptr, nullptr));
+  ur_exp_kernel_arg_value_t ptr_val = {};
+  ptr_val.pointer = list_head;
+  ur_exp_kernel_arg_properties_t args[] = {
+      {UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES, nullptr,
+       UR_EXP_KERNEL_ARG_TYPE_POINTER, 0, sizeof(list_head), ptr_val},
+  };
+  ASSERT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
+      queue, kernel, 1, &global_offset, &global_size, nullptr, 1, args, nullptr,
+      0, nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 
   // Verify values
