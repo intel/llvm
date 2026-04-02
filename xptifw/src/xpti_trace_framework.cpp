@@ -544,6 +544,10 @@ public:
     //  with the new stream information.
     if (MHandleLUT.size()) {
       for (auto &Handle : MHandleLUT) {
+        // Set default stream detail level for this subscriber
+        xptiSetSubscriberStreamDetailLevel(Handle.second.subscriber_id,
+                                         xptiRegisterStream(Stream),
+                                         xpti::stream_detail_level_t::XPTI_STREAM_DETAIL_LEVEL_NORMAL);
         Handle.second.init(major_revision, minor_revision, version_string,
                            Stream);
       }
@@ -1947,7 +1951,7 @@ public:
 
     // Recalculate the effective level for this stream (max across all subscribers)
     uint8_t max_level = static_cast<uint8_t>(
-        xpti::stream_detail_level_t::XPTI_STREAM_DETAIL_LEVEL_NORMAL);
+        xpti::stream_detail_level_t::XPTI_STREAM_DETAIL_LEVEL_NONE);
 
     for (const auto &subscriber_entry : MStreamDetailLevels) {
       const auto &stream_levels = subscriber_entry.second;
@@ -1962,7 +1966,6 @@ public:
 
     // Update the cached effective level atomically
     MEffectiveStreamDetailLevels[stream].store(max_level, std::memory_order_release);
-
     return xpti::result_t::XPTI_RESULT_SUCCESS;
   }
 
