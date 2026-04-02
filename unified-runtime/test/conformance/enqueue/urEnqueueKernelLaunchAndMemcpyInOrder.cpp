@@ -80,9 +80,6 @@ struct urMultiQueueLaunchMemcpyTest
           queues[i], SharedMem[i], sizeof(uint32_t), &InitialValue,
           ArraySize * sizeof(uint32_t), 0, nullptr, nullptr /* &Event */));
       ASSERT_SUCCESS(urQueueFinish(queues[i]));
-
-      ASSERT_SUCCESS(
-          urKernelSetArgPointer(kernels[i], 0, nullptr, SharedMem[i]));
     }
   }
 
@@ -98,6 +95,19 @@ struct urMultiQueueLaunchMemcpyTest
     }
     UUR_RETURN_ON_FATAL_FAILURE(
         uur::urMultiQueueMultiDeviceTestWithParam<minDevices, T>::TearDown());
+  }
+
+  ur_exp_kernel_arg_properties_t makePointerArg(const void *ptr) {
+    ur_exp_kernel_arg_value_t arg_val = {};
+    arg_val.pointer = ptr;
+    ur_exp_kernel_arg_properties_t prop = {};
+    prop.stype = UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES;
+    prop.pNext = nullptr;
+    prop.type = UR_EXP_KERNEL_ARG_TYPE_POINTER;
+    prop.index = 0;
+    prop.size = sizeof(void *);
+    prop.value = arg_val;
+    return prop;
   }
 
   void runBackgroundCheck(std::vector<uur::raii::Event> &Events) {
@@ -202,9 +212,10 @@ TEST_P(urEnqueueKernelLaunchIncrementTest, Success) {
     }
 
     // execute kernel that increments each element by 1
-    ASSERT_SUCCESS(urEnqueueKernelLaunch(
-        queue, kernels[i], n_dimensions, &global_offset, &ArraySize, nullptr,
-        nullptr, bool(lastMemcpyEvent), lastMemcpyEvent, kernelEvent));
+    auto arg_i = makePointerArg(SharedMem[i]);
+    ASSERT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
+        queue, kernels[i], n_dimensions, &global_offset, &ArraySize, nullptr, 1,
+        &arg_i, nullptr, bool(lastMemcpyEvent), lastMemcpyEvent, kernelEvent));
 
     // copy the memory (input for the next kernel)
     if (i < numOps - 1) {
@@ -298,9 +309,11 @@ TEST_P(urEnqueueKernelLaunchIncrementMultiDeviceTest, Success) {
     memcpyEvent = i < devices.size() - 1 ? memcpyEvents[i].ptr() : nullptr;
 
     // execute kernel that increments each element by 1
-    ASSERT_SUCCESS(urEnqueueKernelLaunch(
+    auto arg_i = makePointerArg(SharedMem[i]);
+    ASSERT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
         queues[i], kernels[i], n_dimensions, &global_offset, &ArraySize,
-        nullptr, nullptr, bool(lastMemcpyEvent), lastMemcpyEvent, kernelEvent));
+        nullptr, 1, &arg_i, nullptr, bool(lastMemcpyEvent), lastMemcpyEvent,
+        kernelEvent));
 
     // copy the memory to next device
     if (i < devices.size() - 1) {
@@ -400,9 +413,10 @@ TEST_P(urEnqueueKernelLaunchIncrementMultiDeviceMultiThreadTest, Success) {
         }
 
         // execute kernel that increments each element by 1
-        ASSERT_SUCCESS(urEnqueueKernelLaunch(
-            queue, kernel, n_dimensions, &global_offset, &ArraySize, nullptr,
-            nullptr, waitNum, lastEvent, signalEvent));
+        auto arg = this->makePointerArg(sharedPtr);
+        ASSERT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
+            queue, kernel, n_dimensions, &global_offset, &ArraySize, nullptr, 1,
+            &arg, nullptr, waitNum, lastEvent, signalEvent));
       }
 
       std::vector<uint32_t> data(ArraySize);
