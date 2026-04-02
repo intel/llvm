@@ -64,12 +64,16 @@ inline context make_context<backend::ext_oneapi_level_zero>(
 }
 
 namespace detail {
-inline std::optional<sycl::device> find_matching_descendent_device(
-    sycl::device d,
+inline bool find_matching_descendent_device(
+    const sycl::device &d,
     const backend_input_t<backend::ext_oneapi_level_zero, device>
-        &BackendObject) {
-  if (get_native<backend::ext_oneapi_level_zero>(d) == BackendObject)
-    return d;
+        &BackendObject,
+    sycl::device &Out) {
+  if (get_native<backend::ext_oneapi_level_zero>(d) == BackendObject) {
+    Out = d;
+    return true;
+  }
+
   std::vector<info::partition_property> partition_props =
       d.get_info<info::device::partition_properties>();
 
@@ -79,14 +83,13 @@ inline std::optional<sycl::device> find_matching_descendent_device(
           info::partition_property::partition_by_affinity_domain>(
           info::partition_affinity_domain::next_partitionable);
       for (auto &sub_dev : sub_devices) {
-        if (auto maybe_device =
-                find_matching_descendent_device(sub_dev, BackendObject))
-          return maybe_device;
+        if (find_matching_descendent_device(sub_dev, BackendObject, Out))
+          return true;
       }
     }
   }
 
-  return {};
+  return false;
 }
 } // namespace detail
 
@@ -113,9 +116,10 @@ inline device make_device<backend::ext_oneapi_level_zero>(
       continue;
 
     for (auto &d : p.get_devices()) {
-      if (auto maybe_device =
-              detail::find_matching_descendent_device(d, BackendObject))
-        return *maybe_device;
+      sycl::device FoundDevice;
+      if (detail::find_matching_descendent_device(d, BackendObject,
+                                                  FoundDevice))
+        return FoundDevice;
     }
   }
 
