@@ -380,9 +380,9 @@ the range is mapped to.
 |`void unmap(const void *ptr, size_t numBytes, const device &syclDevice, const context &syclContext)` |
 Unmaps the range specified by `ptr` and `numBytes`. The range must have been
 mapped through a call to `physical_mem::map()` prior to calling this. The range
-must be a proper sub-range of a previously mapped range. `syclContext` must
-be the same as the context returned by the `get_context()` member function on
-the `physical_mem` the address range is currently mapped to.
+must be the full range that was previously mapped (i.e. not a sub-range).
+`syclContext` must be the same as the context returned by the `get_context()`
+member function on the `physical_mem` the address range is currently mapped to.
 
 After this call, the full range will again be ready to be mapped through a call
 to `physical_mem::map()`.
