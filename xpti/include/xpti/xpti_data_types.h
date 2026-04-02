@@ -352,6 +352,39 @@ enum class payload_flag_t {
 
 using stream_id_t = uint8_t;
 
+/// @enum stream_detail_level_t
+/// @brief Defines the detail level for stream data emission.
+///
+/// This enum specifies the level of detail that should be emitted on a stream.
+/// Subscribers can request a specific detail level for each stream they
+/// subscribe to, and the framework will compute the effective detail level as
+/// the maximum across all subscribers for that stream.
+///
+/// The values are ordered to allow threshold checks:
+/// producers can use comparisons like `if (level >= XPTI_STREAM_DETAIL_LEVEL_NORMAL)`
+/// to determine what data to emit.
+///
+/// @var stream_detail_level_t::XPTI_STREAM_DETAIL_LEVEL_NONE
+/// No optional data should be emitted. Only essential trace points are reported.
+///
+/// @var stream_detail_level_t::XPTI_STREAM_DETAIL_LEVEL_BASIC
+/// Emit basic optional data. Suitable for lightweight profiling with minimal overhead.
+///
+/// @var stream_detail_level_t::XPTI_STREAM_DETAIL_LEVEL_NORMAL
+/// Emit normal level of optional data. This is the default level providing a
+/// balance between detail and overhead.
+///
+/// @var stream_detail_level_t::XPTI_STREAM_DETAIL_LEVEL_VERBOSE
+/// Emit verbose optional data. Provides maximum detail for deep analysis,
+/// potentially with higher overhead.
+///
+enum class stream_detail_level_t : uint8_t {
+  XPTI_STREAM_DETAIL_LEVEL_NONE = 0,
+  XPTI_STREAM_DETAIL_LEVEL_BASIC = 1,
+  XPTI_STREAM_DETAIL_LEVEL_NORMAL = 2,
+  XPTI_STREAM_DETAIL_LEVEL_VERBOSE = 3
+};
+
 //
 //  Helper macros for creating new tracepoint and
 //  event types

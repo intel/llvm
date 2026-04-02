@@ -1559,7 +1559,15 @@ public:
   using stream_flags_t = emhash7::HashMap<xpti::stream_id_t, trace_flags_t>;
 
   Notifications(size_t size = 512)
-      : MCallbacksByStream(size), MStreamFlags(size) {}
+      : MCallbacksByStream(size), MStreamFlags(size) {
+    // Initialize all effective stream detail levels to default (NORMAL)
+    for (size_t i = 0; i < 256; ++i) {
+      MEffectiveStreamDetailLevels[i].store(
+          static_cast<uint8_t>(
+              xpti::stream_detail_level_t::XPTI_STREAM_DETAIL_LEVEL_NORMAL),
+          std::memory_order_relaxed);
+    }
+  }
 
   /// @brief Registers a callback function for a specific trace type and stream
   /// ID.
@@ -1904,7 +1912,78 @@ public:
 #endif
   }
 
-  void clear() { MCallbacksByStream.clear(); }
+  void clear() {
+    MCallbacksByStream.clear();
+    std::lock_guard<std::mutex> Lock(MDetailLevelLock);
+    MStreamDetailLevels.clear();
+    // Reset all effective levels to default
+    for (size_t i = 0; i < 256; ++i) {
+      MEffectiveStreamDetailLevels[i].store(
+          static_cast<uint8_t>(
+              xpti::stream_detail_level_t::XPTI_STREAM_DETAIL_LEVEL_NORMAL),
+          std::memory_order_relaxed);
+    }
+  }
+
+  /// @brief Sets the stream detail level for a specific subscriber on a stream.
+  ///
+  /// This function allows a subscriber to request a specific detail level for
+  /// data emission on a given stream. The effective detail level for the stream
+  /// will be the maximum across all subscribers.
+  ///
+  /// @param subscriber The subscriber handle requesting the detail level.
+  /// @param stream The stream ID for which the detail level is being set.
+  /// @param level The requested detail level.
+  ///
+  /// @return Returns `xpti::result_t::XPTI_RESULT_SUCCESS` if the detail level
+  ///         was successfully set.
+  xpti::result_t setSubscriberStreamDetailLevel(
+      xpti::subscriber_handle_t subscriber, xpti::stream_id_t stream,
+      xpti::stream_detail_level_t level) {
+    std::lock_guard<std::mutex> Lock(MDetailLevelLock);
+
+    // Update the subscriber's requested level for this stream
+    MStreamDetailLevels[subscriber][stream] = level;
+
+    // Recalculate the effective level for this stream (max across all subscribers)
+    uint8_t max_level = static_cast<uint8_t>(
+        xpti::stream_detail_level_t::XPTI_STREAM_DETAIL_LEVEL_NORMAL);
+
+    for (const auto &subscriber_entry : MStreamDetailLevels) {
+      const auto &stream_levels = subscriber_entry.second;
+      auto it = stream_levels.find(stream);
+      if (it != stream_levels.end()) {
+        uint8_t requested_level = static_cast<uint8_t>(it->second);
+        if (requested_level > max_level) {
+          max_level = requested_level;
+        }
+      }
+    }
+
+    // Update the cached effective level atomically
+    MEffectiveStreamDetailLevels[stream].store(max_level, std::memory_order_release);
+
+    return xpti::result_t::XPTI_RESULT_SUCCESS;
+  }
+
+  /// @brief Gets the effective stream detail level for a stream.
+  ///
+  /// The effective detail level is the maximum requested level across all
+  /// subscribers for the given stream. If no subscriber has set a level for
+  /// the stream, the default (NORMAL) is returned.
+  ///
+  /// This is a fast lock-free operation using atomics.
+  ///
+  /// @param stream The stream ID for which the effective detail level is
+  ///               requested.
+  ///
+  /// @return The effective detail level for the stream.
+  xpti::stream_detail_level_t
+  getEffectiveStreamDetailLevel(xpti::stream_id_t stream) {
+    // Fast lock-free read from the cached effective level array
+    uint8_t level = MEffectiveStreamDetailLevels[stream].load(std::memory_order_acquire);
+    return static_cast<xpti::stream_detail_level_t>(level);
+  }
 
 private:
 #ifdef XPTI_STATISTICS
@@ -1962,6 +2041,28 @@ private:
   mutable xpti::SharedSpinLock MFlagsLock;
   statistics_t MStats;
   stream_flags_t MStreamFlags;
+
+  /// @typedef stream_detail_levels_t
+  /// @brief Maps stream IDs to their requested detail levels.
+  using stream_detail_levels_t =
+      phmap::flat_hash_map<xpti::stream_id_t, xpti::stream_detail_level_t>;
+
+  /// @typedef subscriber_detail_levels_t
+  /// @brief Maps subscriber handles to their per-stream detail level requests.
+  using subscriber_detail_levels_t =
+      phmap::flat_hash_map<xpti::subscriber_handle_t, stream_detail_levels_t>;
+
+  /// Map tracking detail level requests per subscriber per stream
+  /// Used only during setSubscriberStreamDetailLevel to recalculate effective levels
+  subscriber_detail_levels_t MStreamDetailLevels;
+
+  /// Cached effective detail levels per stream (indexed by stream_id)
+  /// This is a lock-free array of atomics for fast reads by producers
+  /// stream_id is uint8_t, so we need 256 entries
+  std::array<std::atomic<uint8_t>, 256> MEffectiveStreamDetailLevels;
+
+  /// Mutex protecting access to detail level data structures during updates
+  std::mutex MDetailLevelLock;
 };
 
 /// @class Framework
@@ -2512,6 +2613,44 @@ public:
   }
 
   bool hasSubscribers() { return MSubscribers.hasValidSubscribers(); }
+
+  /// @brief Sets the stream detail level for a specific subscriber.
+  ///
+  /// Allows a subscriber to request a specific detail level for data emission
+  /// on a given stream. The effective detail level for the stream will be the
+  /// maximum across all subscribers.
+  ///
+  /// @param subscriber The subscriber handle requesting the detail level.
+  /// @param stream The stream ID for which the detail level is being set.
+  /// @param level The requested detail level.
+  ///
+  /// @return Returns `xpti::result_t::XPTI_RESULT_SUCCESS` if the detail level
+  ///         was successfully set, `xpti::result_t::XPTI_RESULT_INVALIDARG` if
+  ///         the subscriber ID is invalid.
+  xpti::result_t setSubscriberStreamDetailLevel(
+      xpti::subscriber_handle_t subscriber, xpti::stream_id_t stream,
+      xpti::stream_detail_level_t level) {
+    // Validate subscriber ID
+    if (!MSubscribers.isValidSubscriberID(subscriber)) {
+      return xpti::result_t::XPTI_RESULT_INVALIDARG;
+    }
+    return MNotifier.setSubscriberStreamDetailLevel(subscriber, stream, level);
+  }
+
+  /// @brief Gets the effective stream detail level for a stream.
+  ///
+  /// The effective detail level is the maximum requested level across all
+  /// subscribers for the given stream. If no subscriber has set a level for
+  /// the stream, the default (NORMAL) is returned.
+  ///
+  /// @param stream The stream ID for which the effective detail level is
+  ///               requested.
+  ///
+  /// @return The effective detail level for the stream.
+  xpti::stream_detail_level_t
+  getEffectiveStreamDetailLevel(xpti::stream_id_t stream) {
+    return MNotifier.getEffectiveStreamDetailLevel(stream);
+  }
 
   xpti::result_t finalizeStream(const char *Stream) {
     if (!Stream)
@@ -3769,6 +3908,66 @@ xptiSetDefaultTraceType(xpti::trace_point_type_t DefaultTraceType) {
 
 XPTI_EXPORT_API void xptiReleaseEvent(xpti::trace_event_data_t *Event) {
   return xpti::Framework::instance().releaseEvent(Event);
+}
+
+/// @brief Sets the stream detail level for a specific subscriber.
+///
+/// This function allows a subscriber to request a specific detail level for
+/// data emission on a given stream. The effective detail level for the stream
+/// will be the maximum across all subscribers for that stream. This enables
+/// subscribers to control the amount of optional data emitted by producers
+/// without affecting other subscribers' needs.
+///
+/// @param subscriber The opaque subscriber handle for the subscriber requesting
+///                   the detail level. This handle is provided to the subscriber
+///                   during its initialization via xptiSubscriberInit().
+/// @param stream The stream ID for which the detail level is being set.
+/// @param level The requested detail level from xpti::stream_detail_level_t.
+///
+/// @return Returns `xpti::result_t::XPTI_RESULT_SUCCESS` if the detail level
+///         was successfully set. Returns `xpti::result_t::XPTI_RESULT_INVALIDARG`
+///         if the subscriber ID is invalid.
+///
+/// @note The effective detail level for a stream is the maximum across all
+///       subscribers. One subscriber cannot reduce the detail level if another
+///       subscriber still needs more detail.
+///
+XPTI_EXPORT_API xpti::result_t xptiSetSubscriberStreamDetailLevel(
+    xpti::subscriber_handle_t subscriber, xpti::stream_id_t stream,
+    xpti::stream_detail_level_t level) {
+  return xpti::Framework::instance().setSubscriberStreamDetailLevel(
+      subscriber, stream, level);
+}
+
+/// @brief Gets the effective stream detail level for a stream.
+///
+/// This function returns the effective detail level for a given stream, which
+/// is computed as the maximum requested detail level across all subscribers
+/// for that stream. Producers can use this API to determine what level of
+/// optional data they should emit on the stream.
+///
+/// The effective level implements an aggregation rule: if any subscriber needs
+/// a higher detail level, that level becomes effective for the entire stream.
+/// This ensures that all subscribers receive the data they need, though it may
+/// mean some subscribers receive more data than they requested.
+///
+/// @param stream The stream ID for which the effective detail level is requested.
+///
+/// @return The effective detail level for the stream. If no subscriber has
+///         explicitly set a level for the stream, returns
+///         `xpti::stream_detail_level_t::XPTI_STREAM_DETAIL_LEVEL_NORMAL` as
+///         the default.
+///
+/// @note This is a lock-free operation optimized for frequent calls in hot
+///       paths. The effective level is cached per stream using atomics and only
+///       recalculated when subscribers update their detail level requests.
+///       Producers should call this function to determine what optional data
+///       to emit. They can use threshold checks like:
+///       `if (level >= XPTI_STREAM_DETAIL_LEVEL_NORMAL)`
+///
+XPTI_EXPORT_API xpti::stream_detail_level_t
+xptiGetEffectiveStreamDetailLevel(xpti::stream_id_t stream) {
+  return xpti::Framework::instance().getEffectiveStreamDetailLevel(stream);
 }
 
 } // extern "C"
