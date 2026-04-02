@@ -639,7 +639,9 @@ void SPIRVEntryPoint::encode(spv_ostream &O) const {
 
 void SPIRVEntryPoint::decode(std::istream &I) {
   getDecoder(I) >> ExecModel >> Target >> Name;
-  Variables.resize(WordCount - FixedWC - getSizeInWords(Name) + 1);
+  SPIRVWord NameWC = getSizeInWords(Name);
+  SPIRVCK(WordCount >= FixedWC + NameWC - 1, InvalidWordCount, "");
+  Variables.resize(WordCount - FixedWC - NameWC + 1);
   getDecoder(I) >> Variables;
   Module->setName(getOrCreateTarget(), Name);
   Module->addEntryPoint(ExecModel, Target, Name, Variables);

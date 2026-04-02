@@ -1,0 +1,13 @@
+; OpConstantComposite minimum = 3 (header + result-type + result-id);
+; WordCount=2 is malformed.
+; Test that malformed input is rejected early rather than silently causing
+; integer underflow and potential process hang.
+
+; RUN: not llvm-spirv %s -to-binary -o %t.spv 2>&1 | FileCheck %s
+; CHECK: InvalidWordCount:
+
+119734787 65536 0 6 0
+2 Capability Kernel
+3 MemoryModel 1 2
+4 TypeInt 3 32 0
+2 ConstantComposite 3 5
