@@ -1320,7 +1320,7 @@ ur_result_t ur_command_list_manager::appendKernelLaunchWithArgsExp(
   } else {
     // We cannot pass cooperativeKernelLaunchRequested to
     // appendKernelLaunchWithArgsExpOld() because appendKernelLaunch() must
-    // check it on its own since it is called also from enqueueKernelLaunch().
+    // check it on its own since it is called from other kernel launch paths.
     return appendKernelLaunchWithArgsExpOld(
         hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize, pLocalWorkSize,
         numArgs, pArgs, launchPropList, waitListView, phEvent);
