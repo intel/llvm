@@ -45,7 +45,7 @@ public:
         util::SimpleTable::read(SymPropBCFiles);
 
     if (!TPtr) {
-      logAllUnhandledErrors(std::move(TPtr.takeError()),
+      logAllUnhandledErrors(TPtr.takeError(),
                             WithColor::error(errs(), ToolName));
       exit(1);
     }
