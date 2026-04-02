@@ -309,7 +309,6 @@ int runTest(
        });
      }).wait();
 
-
     // Verify results
     sycl::host_accessor hostAcc(checkBuf, sycl::read_only);
     bool passed = true;
