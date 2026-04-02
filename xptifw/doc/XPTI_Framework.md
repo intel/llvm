@@ -114,12 +114,17 @@ ownership of the subscriber is controlled by tools or applications that consume
 the generated event streams and **must** follow the protocol or handshake
 defined for an event stream.
 
-There are three important things that a subscriber must implement to be
-functional: (1) `xptiTraceInit`, (2) `xptiTraceFinish` and (3) callback
-handlers. The `xptiTraceInit` and `xptiTraceFinish` API calls are used by the
-dispatcher loading the subscriber dynamically to determine if the subscriber
-is a valid subscriber. If these entry points are not present, then the
-subscriber is not loaded.
+A subscriber must implement at minimum two required entry points to be
+considered valid: (1) `xptiTraceInit` and (2) `xptiTraceFinish`. The
+dispatcher uses these API calls to validate the subscriber. If these entry
+points are not present, then the subscriber is not loaded.
+
+Additionally, subscribers may optionally implement two lifecycle callbacks:
+(3) `xptiSubscriberInit` and (4) `xptiSubscriberFinish`. These callbacks
+provide subscriber-level initialization and finalization, as opposed to the
+per-stream initialization provided by `xptiTraceInit` and `xptiTraceFinish`.
+Finally, subscribers must implement (5) callback handlers for the trace
+events they wish to receive.
 
 The `xptiTraceInit` callback is called by the dispatcher when the generator of
 a new stream of data makes a call to `xptiInitialize` for the new stream. The
@@ -173,6 +178,31 @@ allocated to handle the stream. The `xptiTraceFinish` call is made by the
 dispatcher when the instrumented code is winding down a data stream by calling
  `xptiFinalize` for the stream.
 
+In addition to the per-stream callbacks, subscribers may optionally implement
+subscriber-level lifecycle callbacks:
+
+```cpp
+XPTI_CALLBACK_API void xptiSubscriberInit(xpti::subscriber_handle_t self) {
+  // Called once when the subscriber is loaded and initialized
+  // Perform one-time initialization here (e.g., allocate global resources)
+  // The 'self' handle can be used for subscriber-specific XPTI API calls
+}
+
+XPTI_CALLBACK_API void xptiSubscriberFinish(xpti::subscriber_handle_t self) {
+  // Called once when the subscriber is being unloaded
+  // This is called after all xptiTraceFinish callbacks
+  // Perform final cleanup here (e.g., free global resources, flush buffers)
+}
+```
+
+The `xptiSubscriberInit` callback is invoked once when the subscriber is
+loaded, before any `xptiTraceInit` calls. It provides the subscriber with an
+opaque handle that can be used in subsequent XPTI API calls requiring
+subscriber-specific context. The `xptiSubscriberFinish` callback is invoked
+once when the subscriber is being unloaded, after all `xptiTraceFinish` calls
+have completed. These callbacks are optional; if not implemented, the framework
+will continue loading/unloading the subscriber normally.
+
 The implementation of the callbacks is where attention needs to be given to the
 handshake protocol or specification for a given stream the subscriber wants to
 attach to and consume the data. The instrumented library may send additional
@@ -217,6 +247,8 @@ invariant across all instances of that tracepoint.
 
 > **NOTE:** A subscriber **must** implement the `xptiTraceInit` and
 > `xptiTraceFinish` APIs for the dispatcher to successfully load the subscriber.
+> Optionally, a subscriber may implement `xptiSubscriberInit` and
+> `xptiSubscriberFinish` for subscriber-level lifecycle management.
 
 > **NOTE:** The specification for a given event stream **must** be consulted
 > before implementing the callback handlers for various trace types.

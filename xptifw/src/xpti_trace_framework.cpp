@@ -388,10 +388,16 @@ public:
   struct plugin_data_t {
     /// The handle of the loaded shared object
     xpti_plugin_handle_t handle = nullptr;
+    /// Unique subscriber ID for this plugin
+    xpti::subscriber_handle_t subscriber_id = 0;
     /// The initialization entry point
     xpti::plugin_init_t init = nullptr;
     /// The finalization entry point
     xpti::plugin_fini_t fini = nullptr;
+    /// The subscriber initialization entry point (optional)
+    xpti::subscriber_init_t subscriber_init = nullptr;
+    /// The subscriber finalization entry point (optional)
+    xpti::subscriber_fini_t subscriber_fini = nullptr;
     /// The name of the shared object (in UTF8?))
     std::string name;
     /// indicates whether the data structure is valid
@@ -399,9 +405,10 @@ public:
   };
 
   // Data structures defined to hold the plugin data that can be looked up by
-  // plugin name or the handle
+  // plugin name, library handle, or subscriber ID
   using plugin_handle_lut_t = std::map<xpti_plugin_handle_t, plugin_data_t>;
   using plugin_name_lut_t = std::map<std::string, plugin_data_t>;
+  using subscriber_id_lut_t = std::map<xpti::subscriber_handle_t, plugin_data_t>;
 
   // We unload all loaded shared objects in the destructor; Must not be invoked
   // in the DLLMain() function and possibly the __fini() function in Linux
@@ -463,17 +470,32 @@ public:
           g_helper.findFunction(Handle, "xptiTraceFinish"));
       if (InitFunc && FiniFunc) {
         //  We appear to have loaded a valid plugin, so we will insert the
-        //  plugin information into the two maps guarded by a lock
+        //  plugin information into the three maps guarded by a lock
         plugin_data_t Data;
         Data.valid = true;
         Data.handle = Handle;
         Data.name = Path;
         Data.init = InitFunc;
         Data.fini = FiniFunc;
+        // Generate unique subscriber ID
+        Data.subscriber_id = MNextSubscriberID.fetch_add(1, std::memory_order_relaxed);
+
+        // Look for optional subscriber lifecycle callbacks
+        Data.subscriber_init = reinterpret_cast<xpti::subscriber_init_t>(
+            g_helper.findFunction(Handle, "xptiSubscriberInit"));
+        Data.subscriber_fini = reinterpret_cast<xpti::subscriber_fini_t>(
+            g_helper.findFunction(Handle, "xptiSubscriberFinish"));
+
         {
           std::lock_guard<std::mutex> Lock(MMutex);
           MNameLUT[Path] = Data;
           MHandleLUT[Handle] = Data;
+          MSubscriberIDLUT[Data.subscriber_id] = Data;
+        }
+
+        // Call subscriber initialization callback if present
+        if (Data.subscriber_init) {
+          Data.subscriber_init(Data.subscriber_id);
         }
       } else {
         // We may have loaded another shared object that is not a tool plugin
@@ -578,13 +600,26 @@ public:
     }
   }
 
+  /// Checks if a subscriber ID is valid.
+  /// @param subscriber_id The subscriber ID to validate.
+  /// @return true if the subscriber ID exists, false otherwise.
+  bool isValidSubscriberID(xpti::subscriber_handle_t subscriber_id) {
+    std::lock_guard<std::mutex> Lock(MMutex);
+    return MSubscriberIDLUT.find(subscriber_id) != MSubscriberIDLUT.end();
+  }
+
   /// Unloads all loaded plugins.
   void unloadAllPlugins() {
     for (auto &Item : MNameLUT) {
+      // Call subscriber finalization callback if present
+      if (Item.second.subscriber_fini) {
+        Item.second.subscriber_fini(Item.second.subscriber_id);
+      }
       unloadPlugin(Item.second.handle);
     }
     MHandleLUT.clear();
     MNameLUT.clear();
+    MSubscriberIDLUT.clear();
   }
 
 private:
@@ -592,6 +627,10 @@ private:
   plugin_name_lut_t MNameLUT;
   /// Hash map that maps shared object handle to the plugin data
   plugin_handle_lut_t MHandleLUT;
+  /// Hash map that maps subscriber ID to the plugin data
+  subscriber_id_lut_t MSubscriberIDLUT;
+  /// Counter for generating unique subscriber IDs
+  std::atomic<xpti::subscriber_handle_t> MNextSubscriberID{1};
   /// Lock to ensure the operation on these maps are safe
   std::mutex MMutex;
   /// Mutex to ensure that plugin loading is thread-safe.

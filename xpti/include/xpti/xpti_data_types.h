@@ -864,6 +864,19 @@ enum class metadata_type_t {
   boolean = 5
 };
 
+/// @typedef subscriber_handle_t
+/// @brief Opaque handle type for identifying a subscriber instance.
+///
+/// Each subscriber loaded by the XPTI framework is assigned a unique handle
+/// that remains valid throughout the subscriber's lifetime (from
+/// xptiSubscriberInit to xptiSubscriberFinish). The handle is used to identify
+/// the subscriber in XPTI API calls that require subscriber-specific context.
+///
+/// This is an opaque type implemented as a unique 64-bit identifier. Subscribers
+/// should treat this as an opaque value and not make assumptions about its
+/// internal representation.
+using subscriber_handle_t = uint64_t;
+
 /// @struct reserved_data_t
 /// @brief Holds additional data associated with a trace event.
 ///
@@ -1246,6 +1259,27 @@ typedef void (*plugin_init_t)(unsigned int, unsigned int, const char *,
                               const char *);
 typedef void (*plugin_fini_t)(const char *);
 
+/// @typedef subscriber_init_t
+/// @brief Function pointer type for subscriber initialization callback.
+///
+/// This callback is invoked once when a subscriber is loaded and initialized
+/// by the XPTI framework. The subscriber receives an opaque handle that must
+/// be used in subsequent XPTI API calls requiring subscriber context.
+///
+/// @param self The opaque subscriber handle for this subscriber instance.
+typedef void (*subscriber_init_t)(xpti::subscriber_handle_t self);
+
+/// @typedef subscriber_fini_t
+/// @brief Function pointer type for subscriber finalization callback.
+///
+/// This callback is invoked once when a subscriber is being unloaded by the
+/// XPTI framework. It is called after all xptiTraceFinish callbacks and marks
+/// the end of the subscriber's lifetime. Subscribers should perform final
+/// cleanup operations here.
+///
+/// @param self The opaque subscriber handle for this subscriber instance.
+typedef void (*subscriber_fini_t)(xpti::subscriber_handle_t self);
+
 constexpr uint16_t trace_task_begin =
     static_cast<uint16_t>(xpti::trace_point_type_t::task_begin);
 constexpr uint16_t trace_task_end =
@@ -1445,4 +1479,40 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int major_version,
 /// subscribed to this stream can now free up all internal data structures and
 /// memory that has been allocated to manage the stream data.
 XPTI_CALLBACK_API void xptiTraceFinish(const char *stream_name);
+
+/// @brief Subscriber initialization callback
+/// @details This function is called by the XPTI framework once when a subscriber
+/// is loaded and initialized. This provides the subscriber with its opaque handle,
+/// which must be used in subsequent XPTI API calls that require subscriber-specific
+/// context.
+///
+/// This callback is invoked before any xptiTraceInit() callbacks for streams.
+/// Subscribers should perform one-time initialization operations here, such as
+/// allocating global data structures or initializing logging systems.
+///
+/// @param [in] self The opaque subscriber handle for this subscriber instance.
+///                  This handle remains valid throughout the subscriber's lifetime
+///                  (from xptiSubscriberInit to xptiSubscriberFinish) and must be
+///                  used in XPTI API calls that require subscriber context.
+///
+/// @note Subscribers are not required to implement this callback. If not implemented,
+///       the framework will continue loading the subscriber normally.
+XPTI_CALLBACK_API void xptiSubscriberInit(xpti::subscriber_handle_t self);
+
+/// @brief Subscriber finalization callback
+/// @details This function is called by the XPTI framework once when a subscriber
+/// is being unloaded. This callback is invoked after all xptiTraceFinish() callbacks
+/// for all streams have been called, marking the end of the subscriber's lifetime.
+///
+/// Subscribers should perform final cleanup operations here, such as:
+/// - Freeing global data structures allocated in xptiSubscriberInit
+/// - Flushing buffered output
+/// - Closing files or network connections
+/// - Releasing any other resources held by the subscriber
+///
+/// @param [in] self The opaque subscriber handle for this subscriber instance.
+///
+/// @note Subscribers are not required to implement this callback. If not implemented,
+///       the framework will continue unloading the subscriber normally.
+XPTI_CALLBACK_API void xptiSubscriberFinish(xpti::subscriber_handle_t self);
 }

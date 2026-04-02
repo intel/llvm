@@ -18,6 +18,7 @@
 #include <unordered_map>
 
 static uint8_t GStreamID = 0;
+static xpti::subscriber_handle_t GSubscriberHandle = 0;
 std::mutex GIOMutex;
 
 // The lone callback function we are going to use to demonstrate how to attach
@@ -109,6 +110,21 @@ std::string truncate(std::string Name) {
 
 XPTI_CALLBACK_API void xptiTraceFinish(const char *stream_name) {
   // We do nothing here
+}
+
+XPTI_CALLBACK_API void xptiSubscriberInit(xpti::subscriber_handle_t self) {
+  // Called once when the subscriber is loaded
+  // This is where you would initialize global resources, logging, etc.
+  printf("Subscriber initialized with handle: %lu\n", self);
+
+  // Store the subscriber handle for use in xptiTraceInit
+  GSubscriberHandle = self;
+}
+
+XPTI_CALLBACK_API void xptiSubscriberFinish(xpti::subscriber_handle_t self) {
+  // Called once when the subscriber is being unloaded
+  // This is where you would clean up global resources
+  printf("Subscriber finalized with handle: %lu\n", self);
 }
 
 XPTI_CALLBACK_API void tpCallback(uint16_t TraceType,
