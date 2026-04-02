@@ -139,6 +139,12 @@ int runTest(
     signalExportableFence(ctx, extFence);
     std::cout << "D3D12 Fence Signaled (Value: " << extFence.fenceValue << ")"
               << std::endl;
+  } else {
+    // When NOT using interop semaphores, still need to ensure
+    // D3D12 GPU work completes before SYCL import
+    ctx.cmdQueue->Signal(ctx.fence.Get(), ++ctx.fenceValue);
+    ctx.fence->SetEventOnCompletion(ctx.fenceValue, ctx.fenceEvent);
+    WaitForSingleObject(ctx.fenceEvent, INFINITE);
   }
 
   try {
