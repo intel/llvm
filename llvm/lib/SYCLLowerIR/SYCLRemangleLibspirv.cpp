@@ -736,9 +736,8 @@ PreservedAnalyses SYCLRemangleLibspirvPass::run(Module &M,
     if (F.isIntrinsic() || !F.getName().starts_with("_Z"))
       continue;
 
-    // Skip __clc_ functions. If we remangle them, it should be done in clc
-    // library and it requires creating multiple variants of clc libaries,
-    // with mangling scheme aligning with the corresponding libspirv remangling.
+    // Skip __clc_ function declarations. Remangling them requires multiple clc
+    // library variants to match libspirv mangling.
     if (F.isDeclaration() && F.getName().contains("__clc_"))
       continue;
 
