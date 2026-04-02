@@ -162,6 +162,44 @@ int test_error() {
   return 0;
 }
 
+int test_device_global_min() {
+  namespace syclex = sycl::ext::oneapi::experimental;
+  using source_kb = sycl::kernel_bundle<sycl::bundle_state::ext_oneapi_source>;
+  using exe_kb = sycl::kernel_bundle<sycl::bundle_state::executable>;
+
+  sycl::queue q;
+  sycl::context ctx = q.get_context();
+  sycl::device d = q.get_device();
+
+  source_kb kbSrc = syclex::create_kernel_bundle_from_source(
+      ctx, syclex::source_language::sycl, DGSource);
+
+  exe_kb kbExe1 = syclex::build(kbSrc);
+  auto addK = kbExe1.ext_oneapi_get_kernel("ff_dg_adder");
+
+  void *dgAddr = kbExe1.ext_oneapi_get_device_global_address("DG", d);
+  size_t dgSize = kbExe1.ext_oneapi_get_device_global_size("DG");
+  assert(dgSize == 4);
+
+  int32_t val;
+  auto checkVal = [&](int32_t expected) {
+    val = -1;
+    q.memcpy(&val, dgAddr, dgSize).wait();
+    std::cout << "val: " << val << " == " << expected << std::endl;
+    assert(val == expected);
+  };
+
+  // Device globals are zero-initialized.
+  checkVal(0);
+
+  // Set the DG.
+  val = 123;
+  q.memcpy(dgAddr, &val, dgSize).wait();
+  checkVal(123);
+
+  return 0;
+}
+
 #ifndef MCR_TEST_COUNT
 #define MCR_TEST_COUNT 25
 #endif
@@ -176,7 +214,7 @@ int main() {
     std::cout << "Test iteration: " << testIteration << " / " << testCount;
     std::cout << ", Failed iterations: " << failCount << std::endl;
 
-    if (test_device_global() != OK) {
+    if (test_device_global_min() != OK) {
       ++failCount;
       std::cout << "FAILED" << std::endl;
     }
