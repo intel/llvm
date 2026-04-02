@@ -16,9 +16,6 @@ void *operator new(std::size_t) {
   return reinterpret_cast<void *>(1);
 }
 
-// ===========================================================================
-// Test C++20 concepts - should NOT emit diagnostic
-// ===========================================================================
 
 template <typename T>
 concept Allocatable = requires {
@@ -35,9 +32,6 @@ concept AllocatableArray = requires {
 static_assert(Allocatable<int>);
 static_assert(AllocatableArray<int>);
 
-// ===========================================================================
-// Test requires clauses - should NOT emit diagnostic
-// ===========================================================================
 
 template <typename T>
   requires requires { ::new T; }
@@ -47,9 +41,6 @@ template <typename T>
   requires requires { ::new T[5]; }
 void test_requires_clause_array() {}
 
-// ===========================================================================
-// Test decltype - should NOT emit diagnostic
-// ===========================================================================
 
 void test_decltype() {
   // No error expected - inside decltype
@@ -57,9 +48,6 @@ void test_decltype() {
   decltype(new int[10]) ptr2;
 }
 
-// ===========================================================================
-// Test sizeof - should NOT emit diagnostic
-// ===========================================================================
 
 void test_sizeof() {
   // No error expected - inside sizeof
@@ -67,9 +55,6 @@ void test_sizeof() {
   constexpr std::size_t s2 = sizeof(new int[10]);
 }
 
-// ===========================================================================
-// Test alignof with new expression types - should NOT emit diagnostic
-// ===========================================================================
 
 void test_alignof() {
   // No error expected - inside alignof of the result type
@@ -78,16 +63,11 @@ void test_alignof() {
   constexpr std::size_t a2 = alignof(PtrType);
 }
 
-// ===========================================================================
-// Test noexcept specification - should NOT emit diagnostic
-// ===========================================================================
 
 void test_noexcept() noexcept(noexcept(new int)) {}
 
-// ===========================================================================
-// Test actual usage in kernel - SHOULD emit diagnostic
-// ===========================================================================
 
+// Usage in kernel should emit diagnostic
 void actual_allocation() {
   // expected-error@+1 {{SYCL kernel cannot allocate storage}}
   int *ptr = new int;
@@ -98,9 +78,6 @@ void actual_array_allocation() {
   int *ptr = new int[10];
 }
 
-// ===========================================================================
-// Main test function
-// ===========================================================================
 
 int main() {
   sycl::queue q;
