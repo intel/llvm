@@ -40,10 +40,11 @@ constexpr const char *GVerStr = SYCL_VERSION_STR;
 
 /// We define all the streams used the instrumentation framework here
 inline constexpr const char *SYCL_STREAM_NAME = "sycl";
-// We will use "sycl.debug" stream name as an indicator of needing debugging
-// information; in this case, the tool will have to subscribe to the sycl.debug
-// stream to get additional debug metadata, but the metadata will still be sent
-// through the regular streams.
+// The "sycl.debug" stream is maintained for full backward compatibility.
+// However, new tools should use xptiSetSubscriberStreamDetailLevel() on the
+// "sycl" stream to control metadata detail (BASIC, NORMAL, or VERBOSE) instead
+// of subscribing to "sycl.debug". When a subscriber registers for "sycl.debug",
+// verbose metadata will be emitted to that stream for backward compatibility.
 inline constexpr const char *SYCL_DEBUG_STREAM_NAME = "sycl.debug";
 inline constexpr auto SYCL_MEM_ALLOC_STREAM_NAME =
     "sycl.experimental.mem_alloc";
@@ -75,6 +76,10 @@ inline bool isDebugStream(xpti::stream_id_t StreamID) {
 }
 
 inline uint8_t getActiveXPTIStreamID() {
+  // Return sycl.debug stream if subscribers are listening to it (backward compatibility),
+  // otherwise return regular sycl stream.
+  // New subscribers should use xptiSetSubscriberStreamDetailLevel() on the sycl stream
+  // for detail level control instead of subscribing to sycl.debug.
   return xptiCheckTraceEnabled(detail::GSYCLDebugStreamID)
              ? detail::GSYCLDebugStreamID
              : detail::GSYCLStreamID;
