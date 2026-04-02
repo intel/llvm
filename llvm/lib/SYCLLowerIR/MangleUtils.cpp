@@ -84,9 +84,9 @@ SmallString<5> getMangledAddressSpace(unsigned AS) {
   SmallString<5> ASStr{"U"};
   raw_svector_ostream ASStrStream(ASStr);
   if (AS < 10)
-    ASStrStream << "3";
+    ASStrStream << "3"; // size of "ASx"
   else
-    ASStrStream << (StringRef("AS").size() + NumDigitsBase10(AS));
+    ASStrStream << (2 + NumDigitsBase10(AS)); // size of "ASxx...."
   ASStrStream << "AS" << AS;
   return ASStr;
 }
