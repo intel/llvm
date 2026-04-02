@@ -8,7 +8,7 @@
 
 // Intentionally insufficient set of includes and no "#pragma once".
 
-#include <sycl/detail/builtins/helper_macros.hpp>
+#include <sycl/detail/builtins/helper_macros_gentype.hpp>
 
 namespace sycl {
 inline namespace _V1 {

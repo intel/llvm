@@ -63,103 +63,15 @@
 
 #pragma once
 
-#include <sycl/detail/helpers.hpp>
-#include <sycl/detail/type_traits.hpp>
-#include <sycl/detail/type_traits/vec_marray_traits.hpp>
-#include <sycl/detail/vector_convert.hpp>
-#include <sycl/marray.hpp>
-#include <sycl/multi_ptr.hpp>
-#include <sycl/vector.hpp>
+#include <sycl/detail/builtins/gentype_utilities.hpp>
+#include <sycl/detail/builtins/scalar_infrastructure.hpp>
+#include <sycl/detail/memcpy.hpp>
+
+#include <algorithm>
 
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
-#ifdef __FAST_MATH__
-template <typename T>
-struct use_fast_math
-    : std::is_same<std::remove_cv_t<get_elem_type_t<T>>, float> {};
-#else
-template <typename> struct use_fast_math : std::false_type {};
-#endif
-template <typename T> constexpr bool use_fast_math_v = use_fast_math<T>::value;
-
-// Utility trait for getting the decoration of a multi_ptr.
-template <typename T> struct get_multi_ptr_decoration;
-template <typename ElementType, access::address_space Space,
-          access::decorated DecorateAddress>
-struct get_multi_ptr_decoration<
-    multi_ptr<ElementType, Space, DecorateAddress>> {
-  static constexpr access::decorated value = DecorateAddress;
-};
-
-template <typename T>
-constexpr access::decorated get_multi_ptr_decoration_v =
-    get_multi_ptr_decoration<T>::value;
-
-// Utility trait for checking if a multi_ptr has a "writable" address space,
-// i.e. global, local, private or generic.
-template <typename T> struct has_writeable_addr_space : std::false_type {};
-template <typename ElementType, access::address_space Space,
-          access::decorated DecorateAddress>
-struct has_writeable_addr_space<multi_ptr<ElementType, Space, DecorateAddress>>
-    : std::bool_constant<Space == access::address_space::global_space ||
-                         Space == access::address_space::local_space ||
-                         Space == access::address_space::private_space ||
-                         Space == access::address_space::generic_space> {};
-
-template <typename T>
-constexpr bool has_writeable_addr_space_v = has_writeable_addr_space<T>::value;
-
-// Utility trait for changing the element type of a type T. If T is a scalar,
-// the new type replaces T completely.
-template <typename NewElemT, typename T, typename = void>
-struct change_elements {
-  using type = NewElemT;
-};
-template <typename NewElemT, typename T>
-struct change_elements<NewElemT, T, std::enable_if_t<is_marray_v<T>>> {
-  using type =
-      marray<typename change_elements<NewElemT, typename T::value_type>::type,
-             T::size()>;
-};
-template <typename NewElemT, typename T>
-struct change_elements<NewElemT, T, std::enable_if_t<is_vec_or_swizzle_v<T>>> {
-  using type =
-      vec<typename change_elements<NewElemT, typename T::element_type>::type,
-          T::size()>;
-};
-
-template <typename NewElemT, typename T>
-using change_elements_t = typename change_elements<NewElemT, T>::type;
-
-template <typename... Ts>
-inline constexpr bool builtin_same_shape_v =
-    ((... && is_scalar_arithmetic_v<Ts>) || (... && is_marray_v<Ts>) ||
-     (... && is_vec_or_swizzle_v<Ts>)) &&
-    (... && (num_elements<Ts>::value ==
-             num_elements<typename first_type<Ts...>::type>::value));
-
-template <typename... Ts>
-inline constexpr bool builtin_same_or_swizzle_v =
-    // Use builtin_same_shape_v to filter out types unrelated to builtins.
-    builtin_same_shape_v<Ts...> && all_same_v<simplify_if_swizzle_t<Ts>...>;
-
-// Utility functions for converting to/from vec/marray.
-template <class T, size_t N> vec<T, 2> to_vec2(marray<T, N> X, size_t Start) {
-  return {X[Start], X[Start + 1]};
-}
-template <class T, size_t N> vec<T, N> to_vec(marray<T, N> X) {
-  vec<T, N> Vec;
-  for (size_t I = 0; I < N; I++)
-    Vec[I] = X[I];
-  return Vec;
-}
-template <class T, int N> marray<T, N> to_marray(vec<T, N> X) {
-  marray<T, N> Marray;
-  for (size_t I = 0; I < N; I++)
-    Marray[I] = X[I];
-  return Marray;
-}
 
 namespace builtins {
 #ifdef __SYCL_DEVICE_ONLY__
@@ -188,34 +100,6 @@ template <typename T> auto convert_arg(T &&x) {
 } // namespace builtins
 
 template <typename FuncTy, typename... Ts>
-auto builtin_marray_impl(FuncTy F, const Ts &...x) {
-  using ret_elem_type = decltype(F(x[0]...));
-  using T = typename first_type<Ts...>::type;
-  marray<ret_elem_type, T::size()> Res;
-  constexpr auto N = T::size();
-  for (size_t I = 0; I < N / 2; ++I) {
-    auto PartialRes = [&]() {
-      using elem_ty = get_elem_type_t<T>;
-      if constexpr (std::is_integral_v<elem_ty>)
-        return F(
-            to_vec2(x, I * 2)
-                .template as<vec<
-                    std::conditional_t<std::is_signed_v<elem_ty>,
-                                       fixed_width_signed<sizeof(elem_ty)>,
-                                       fixed_width_unsigned<sizeof(elem_ty)>>,
-                    2>>()...);
-      else
-        return F(to_vec2(x, I * 2)...);
-    }();
-    sycl::detail::memcpy_no_adl(&Res[I * 2], &PartialRes,
-                                sizeof(decltype(PartialRes)));
-  }
-  if (N % 2)
-    Res[N - 1] = F(x[N - 1]...);
-  return Res;
-}
-
-template <typename FuncTy, typename... Ts>
 auto builtin_default_host_impl(FuncTy F, const Ts &...x) {
   // We implement support for marray/swizzle in the headers and export symbols
   // for scalars/vector from the library binary. The reason is that scalar
@@ -229,80 +113,6 @@ auto builtin_default_host_impl(FuncTy F, const Ts &...x) {
     return F(simplify_if_swizzle_t<Ts>{x}...);
   }
 }
-
-template <typename FuncTy, typename... Ts>
-auto builtin_delegate_to_scalar(FuncTy F, const Ts &...x) {
-  using T = typename first_type<Ts...>::type;
-  static_assert(is_vec_or_swizzle_v<T> || is_marray_v<T>);
-
-  constexpr auto Size = T::size();
-  using ret_elem_type = decltype(F(x[0]...));
-  std::conditional_t<is_marray_v<T>, marray<ret_elem_type, Size>,
-                     vec<ret_elem_type, Size>>
-      r{};
-
-  if constexpr (is_marray_v<T>) {
-    for (size_t i = 0; i < Size; ++i)
-      r[i] = F(x[i]...);
-  } else {
-    loop<Size>([&](auto idx) { r[idx] = F(x[idx]...); });
-  }
-
-  return r;
-}
-
-template <typename T>
-struct fp_elem_type
-    : std::bool_constant<
-          check_type_in_v<get_elem_type_t<T>, float, double, half>> {};
-template <typename T>
-struct float_elem_type
-    : std::bool_constant<check_type_in_v<get_elem_type_t<T>, float>> {};
-
-template <typename... Ts>
-struct same_basic_shape : std::bool_constant<builtin_same_shape_v<Ts...>> {};
-
-template <typename... Ts>
-struct same_elem_type : std::bool_constant<same_basic_shape<Ts...>::value &&
-                                           all_same_v<get_elem_type_t<Ts>...>> {
-};
-
-template <typename> struct any_shape : std::true_type {};
-
-template <typename T>
-struct scalar_only : std::bool_constant<is_scalar_arithmetic_v<T>> {};
-
-template <typename T>
-struct non_scalar_only : std::bool_constant<!is_scalar_arithmetic_v<T>> {};
-
-template <typename T> struct default_ret_type {
-  using type = T;
-};
-
-template <typename T> struct scalar_ret_type {
-  using type = get_elem_type_t<T>;
-};
-
-template <template <typename> typename RetTypeTrait,
-          template <typename> typename ElemTypeChecker,
-          template <typename> typename ShapeChecker,
-          template <typename...> typename ExtraConditions, typename... Ts>
-struct builtin_enable
-    : std::enable_if<
-          ElemTypeChecker<typename first_type<Ts...>::type>::value &&
-              ShapeChecker<typename first_type<Ts...>::type>::value &&
-              ExtraConditions<Ts...>::value,
-          typename RetTypeTrait<
-              simplify_if_swizzle_t<typename first_type<Ts...>::type>>::type> {
-};
-#define BUILTIN_CREATE_ENABLER(NAME, RET_TYPE_TRAIT, ELEM_TYPE_CHECKER,        \
-                               SHAPE_CHECKER, EXTRA_CONDITIONS)                \
-  namespace detail {                                                           \
-  template <typename... Ts>                                                    \
-  using NAME##_t =                                                             \
-      typename builtin_enable<RET_TYPE_TRAIT, ELEM_TYPE_CHECKER,               \
-                              SHAPE_CHECKER, EXTRA_CONDITIONS, Ts...>::type;   \
-  }
 } // namespace detail
 } // namespace _V1
 } // namespace sycl
