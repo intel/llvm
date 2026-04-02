@@ -177,6 +177,12 @@ int runTest(
   if (useSemaphores) {
     extFence = createExportableFence(ctx);
     signalExportableFence(ctx, extFence);
+  } else {
+    // When NOT using interop semaphores, still need to ensure
+    // D3D12 GPU work completes before SYCL import
+    ctx.commandQueue->Signal(ctx.fence.Get(), ++ctx.fenceValue);
+    ctx.fence->SetEventOnCompletion(ctx.fenceValue, ctx.fenceEvent);
+    WaitForSingleObject(ctx.fenceEvent, INFINITE);
   }
 
   // SYCL Import and Verification
