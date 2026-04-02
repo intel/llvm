@@ -897,12 +897,19 @@ void *queue_impl::instrumentationProlog(const detail::code_location &CodeLoc,
 
   IId = xptiGetUniqueId();
   auto WaitEvent = Event->event_ref();
-  // We will allow the device type to be set
-  xpti::addMetadata(WaitEvent, "sycl_device_type", queueDeviceToString(this));
-  // We limit the amount of metadata that is added to the regular stream.
-  // Only "sycl.debug" stream will have the full information. This improves the
-  // performance when this data is not required by the tool or the collector.
-  if (isDebugStream(StreamID)) {
+
+  // Get the effective detail level for this stream
+  auto Level = xptiGetEffectiveStreamDetailLevel(StreamID);
+
+  // Device type is added at NORMAL level and above
+  if (Level >= xpti::stream_detail_level_t::XPTI_STREAM_DETAIL_LEVEL_NORMAL) {
+    xpti::addMetadata(WaitEvent, "sycl_device_type", queueDeviceToString(this));
+  }
+
+  // Debug metadata (sym_*) is added at VERBOSE level or if subscribing to
+  // sycl.debug stream (for backward compatibility)
+  if (Level >= xpti::stream_detail_level_t::XPTI_STREAM_DETAIL_LEVEL_VERBOSE ||
+      isDebugStream(StreamID)) {
     if (HasSourceInfo) {
       xpti::addMetadata(WaitEvent, "sym_function_name", CodeLoc.functionName());
       xpti::addMetadata(WaitEvent, "sym_source_file_name", CodeLoc.fileName());

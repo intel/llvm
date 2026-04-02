@@ -91,7 +91,13 @@ static size_t deviceToID(const device &Device) {
   return reinterpret_cast<size_t>(getSyclObjImpl(Device)->getHandleRef());
 }
 
-static void addDeviceMetadata(xpti_td *TraceEvent, queue_impl *Queue) {
+static void addDeviceMetadata(xpti_td *TraceEvent, queue_impl *Queue,
+                              xpti::stream_id_t StreamID) {
+  // Device metadata is only added at NORMAL level and above
+  auto Level = xptiGetEffectiveStreamDetailLevel(StreamID);
+  if (Level < xpti::stream_detail_level_t::XPTI_STREAM_DETAIL_LEVEL_NORMAL)
+    return;
+
   xpti::addMetadata(TraceEvent, "sycl_device_type", queueDeviceToString(Queue));
   if (Queue) {
     xpti::addMetadata(TraceEvent, "sycl_device",
@@ -102,8 +108,9 @@ static void addDeviceMetadata(xpti_td *TraceEvent, queue_impl *Queue) {
   }
 }
 static void addDeviceMetadata(xpti_td *TraceEvent,
-                              const std::shared_ptr<queue_impl> &Queue) {
-  addDeviceMetadata(TraceEvent, Queue.get());
+                              const std::shared_ptr<queue_impl> &Queue,
+                              xpti::stream_id_t StreamID) {
+  addDeviceMetadata(TraceEvent, Queue.get(), StreamID);
 }
 
 static unsigned long long getQueueID(queue_impl *Queue) {
@@ -539,11 +546,16 @@ void Command::emitEdgeEventForCommandDependence(
     EdgeEvent->source_id = SrcEvent->unique_id;
     EdgeEvent->target_id = TgtEvent->unique_id;
     // We allow this metadata to be set as it describes the edge.
+    auto Level = xptiGetEffectiveStreamDetailLevel(MStreamID);
     if (IsCommand) {
-      xpti::addMetadata(EdgeEvent, "access_mode",
-                        static_cast<int>(AccMode.value()));
+      // memory_object is always added at BASIC level and above
       xpti::addMetadata(EdgeEvent, "memory_object",
                         reinterpret_cast<size_t>(ObjAddr));
+      // access_mode is added at NORMAL level and above
+      if (Level >= xpti::stream_detail_level_t::XPTI_STREAM_DETAIL_LEVEL_NORMAL) {
+        xpti::addMetadata(EdgeEvent, "access_mode",
+                          static_cast<int>(AccMode.value()));
+      }
     } else {
       xpti::addMetadata(EdgeEvent, "event", reinterpret_cast<size_t>(ObjAddr));
     }
@@ -615,10 +627,12 @@ void Command::emitEdgeEventForEventDependence(Command *Cmd,
       xpti_td *TgtEvent = static_cast<xpti_td *>(MTraceEvent);
       EdgeEvent->source_id = NodeEvent->unique_id;
       EdgeEvent->target_id = TgtEvent->unique_id;
-      // We allow this metadata to be set as an edge without the event address
-      // will be less useful.
-      xpti::addMetadata(EdgeEvent, "event",
-                        reinterpret_cast<size_t>(UrEventAddr));
+      // event metadata is added at NORMAL level and above
+      auto Level = xptiGetEffectiveStreamDetailLevel(MStreamID);
+      if (Level >= xpti::stream_detail_level_t::XPTI_STREAM_DETAIL_LEVEL_NORMAL) {
+        xpti::addMetadata(EdgeEvent, "event",
+                          reinterpret_cast<size_t>(UrEventAddr));
+      }
       xptiNotifySubscribers(MStreamID, xpti::trace_edge_create,
                             detail::GSYCLGraphEvent, EdgeEvent, EdgeInstanceNo,
                             nullptr);
@@ -974,8 +988,8 @@ void AllocaCommandBase::emitInstrumentationData() {
   // internal infrastructure to guarantee collision free universal IDs.
   if (MTraceEvent) {
     xpti_td *TE = static_cast<xpti_td *>(MTraceEvent);
-    addDeviceMetadata(TE, MQueue);
-    // Memory-object is used frequently, so it is always added.
+    addDeviceMetadata(TE, MQueue, MStreamID);
+    // Memory-object is used frequently, so it is always added at BASIC level and above.
     xpti::addMetadata(TE, "memory_object", reinterpret_cast<size_t>(MAddress));
     // Since we do NOT add queue_id value to metadata, we are stashing it to TLS
     // as this data is mutable and the metadata is supposed to be invariant
@@ -1093,10 +1107,14 @@ void AllocaSubBufCommand::emitInstrumentationData() {
     return;
 
   xpti_td *TE = static_cast<xpti_td *>(MTraceEvent);
-  xpti::addMetadata(TE, "offset", this->MRequirement.MOffsetInBytes);
-  xpti::addMetadata(TE, "access_range_start",
-                    this->MRequirement.MAccessRange[0]);
-  xpti::addMetadata(TE, "access_range_end", this->MRequirement.MAccessRange[1]);
+  // Offset and access range metadata are added at NORMAL level and above
+  auto Level = xptiGetEffectiveStreamDetailLevel(MStreamID);
+  if (Level >= xpti::stream_detail_level_t::XPTI_STREAM_DETAIL_LEVEL_NORMAL) {
+    xpti::addMetadata(TE, "offset", this->MRequirement.MOffsetInBytes);
+    xpti::addMetadata(TE, "access_range_start",
+                      this->MRequirement.MAccessRange[0]);
+    xpti::addMetadata(TE, "access_range_end", this->MRequirement.MAccessRange[1]);
+  }
   xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY, getQueueID(MQueue));
   makeTraceEventEpilog();
 #endif
@@ -1170,9 +1188,13 @@ void ReleaseCommand::emitInstrumentationData() {
   makeTraceEventProlog(MAddress);
 
   xpti_td *TE = static_cast<xpti_td *>(MTraceEvent);
-  addDeviceMetadata(TE, MQueue);
-  xpti::addMetadata(TE, "allocation_type",
-                    commandToName(MAllocaCmd->getType()));
+  addDeviceMetadata(TE, MQueue, MStreamID);
+  // allocation_type is added at NORMAL level and above
+  auto Level = xptiGetEffectiveStreamDetailLevel(MStreamID);
+  if (Level >= xpti::stream_detail_level_t::XPTI_STREAM_DETAIL_LEVEL_NORMAL) {
+    xpti::addMetadata(TE, "allocation_type",
+                      commandToName(MAllocaCmd->getType()));
+  }
   // Since we do NOT add queue_id value to metadata, we are stashing it to TLS
   // as this data is mutable and the metadata is supposed to be invariant
   xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY, getQueueID(MQueue));
@@ -1297,7 +1319,8 @@ void MapMemObject::emitInstrumentationData() {
   makeTraceEventProlog(MAddress);
 
   xpti_td *TE = static_cast<xpti_td *>(MTraceEvent);
-  addDeviceMetadata(TE, MQueue);
+  addDeviceMetadata(TE, MQueue, MStreamID);
+  // memory_object is always added at BASIC level and above
   xpti::addMetadata(TE, "memory_object", reinterpret_cast<size_t>(MAddress));
   // Since we do NOT add queue_id value to metadata, we are stashing it to TLS
   // as this data is mutable and the metadata is supposed to be invariant
@@ -1360,7 +1383,8 @@ void UnMapMemObject::emitInstrumentationData() {
   makeTraceEventProlog(MAddress);
 
   xpti_td *TE = static_cast<xpti_td *>(MTraceEvent);
-  addDeviceMetadata(TE, MQueue);
+  addDeviceMetadata(TE, MQueue, MStreamID);
+  // memory_object is always added at BASIC level and above
   xpti::addMetadata(TE, "memory_object", reinterpret_cast<size_t>(MAddress));
   // Since we do NOT add queue_id value to metadata, we are stashing it to TLS
   // as this data is mutable and the metadata is supposed to be invariant
@@ -1455,13 +1479,18 @@ void MemCpyCommand::emitInstrumentationData() {
   makeTraceEventProlog(MAddress);
 
   xpti_td *CmdTraceEvent = static_cast<xpti_td *>(MTraceEvent);
-  addDeviceMetadata(CmdTraceEvent, MQueue);
+  addDeviceMetadata(CmdTraceEvent, MQueue, MStreamID);
+  // memory_object is always added at BASIC level and above
   xpti::addMetadata(CmdTraceEvent, "memory_object",
                     reinterpret_cast<size_t>(MAddress));
-  xpti::addMetadata(CmdTraceEvent, "copy_from",
-                    MSrcQueue ? deviceToID(MSrcQueue->get_device()) : 0);
-  xpti::addMetadata(CmdTraceEvent, "copy_to",
-                    MQueue ? deviceToID(MQueue->get_device()) : 0);
+  // copy_from and copy_to are added at NORMAL level and above
+  auto Level = xptiGetEffectiveStreamDetailLevel(MStreamID);
+  if (Level >= xpti::stream_detail_level_t::XPTI_STREAM_DETAIL_LEVEL_NORMAL) {
+    xpti::addMetadata(CmdTraceEvent, "copy_from",
+                      MSrcQueue ? deviceToID(MSrcQueue->get_device()) : 0);
+    xpti::addMetadata(CmdTraceEvent, "copy_to",
+                      MQueue ? deviceToID(MQueue->get_device()) : 0);
+  }
   // Since we do NOT add queue_id value to metadata, we are stashing it to TLS
   // as this data is mutable and the metadata is supposed to be invariant
   xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY, getQueueID(MQueue));
@@ -1628,13 +1657,18 @@ void MemCpyCommandHost::emitInstrumentationData() {
   makeTraceEventProlog(MAddress);
 
   xpti_td *CmdTraceEvent = static_cast<xpti_td *>(MTraceEvent);
-  addDeviceMetadata(CmdTraceEvent, MQueue);
+  addDeviceMetadata(CmdTraceEvent, MQueue, MStreamID);
+  // memory_object is always added at BASIC level and above
   xpti::addMetadata(CmdTraceEvent, "memory_object",
                     reinterpret_cast<size_t>(MAddress));
-  xpti::addMetadata(CmdTraceEvent, "copy_from",
-                    MSrcQueue ? deviceToID(MSrcQueue->get_device()) : 0);
-  xpti::addMetadata(CmdTraceEvent, "copy_to",
-                    MQueue ? deviceToID(MQueue->get_device()) : 0);
+  // copy_from and copy_to are added at NORMAL level and above
+  auto Level = xptiGetEffectiveStreamDetailLevel(MStreamID);
+  if (Level >= xpti::stream_detail_level_t::XPTI_STREAM_DETAIL_LEVEL_NORMAL) {
+    xpti::addMetadata(CmdTraceEvent, "copy_from",
+                      MSrcQueue ? deviceToID(MSrcQueue->get_device()) : 0);
+    xpti::addMetadata(CmdTraceEvent, "copy_to",
+                      MQueue ? deviceToID(MQueue->get_device()) : 0);
+  }
   // Since we do NOT add queue_id value to metadata, we are stashing it to TLS
   // as this data is mutable and the metadata is supposed to be invariant
   xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY, getQueueID(MQueue));
@@ -1724,7 +1758,8 @@ void EmptyCommand::emitInstrumentationData() {
   makeTraceEventProlog(MAddress);
 
   xpti_td *CmdTraceEvent = static_cast<xpti_td *>(MTraceEvent);
-  addDeviceMetadata(CmdTraceEvent, MQueue);
+  addDeviceMetadata(CmdTraceEvent, MQueue, MStreamID);
+  // memory_object is always added at BASIC level and above
   xpti::addMetadata(CmdTraceEvent, "memory_object",
                     reinterpret_cast<size_t>(MAddress));
   // Since we do NOT add queue_id value to metadata, we are stashing it to TLS
@@ -1789,7 +1824,8 @@ void UpdateHostRequirementCommand::emitInstrumentationData() {
   makeTraceEventProlog(MAddress);
 
   xpti_td *CmdTraceEvent = static_cast<xpti_td *>(MTraceEvent);
-  addDeviceMetadata(CmdTraceEvent, MQueue);
+  addDeviceMetadata(CmdTraceEvent, MQueue, MStreamID);
+  // memory_object is always added at BASIC level and above
   xpti::addMetadata(CmdTraceEvent, "memory_object",
                     reinterpret_cast<size_t>(MAddress));
   // Since we do NOT add queue_id value to metadata, we are stashing it to TLS
@@ -1985,13 +2021,21 @@ void instrumentationFillCommonData(
     OutInstanceID = CGKernelInstanceNo;
     OutTraceEvent = CmdTraceEvent;
 
-    addDeviceMetadata(CmdTraceEvent, Queue);
+    // Get the effective detail level for this stream
+    auto Level = xptiGetEffectiveStreamDetailLevel(StreamID);
+
+    // Device metadata is added at NORMAL level and above
+    addDeviceMetadata(CmdTraceEvent, Queue, StreamID);
+
+    // kernel_name is always added at BASIC level and above
     if (!KernelName.empty()) {
       xpti::addMetadata(CmdTraceEvent, "kernel_name", KernelName);
     }
-    // We limit the metadata to only include the kernel name and device
-    // information by default.
-    if (detail::isDebugStream(StreamID)) {
+
+    // Debug metadata (from_source, sym_*) is added at VERBOSE level or
+    // if subscribing to sycl.debug stream (for backward compatibility)
+    if (Level >= xpti::stream_detail_level_t::XPTI_STREAM_DETAIL_LEVEL_VERBOSE ||
+        detail::isDebugStream(StreamID)) {
       if (FromSource.has_value()) {
         xpti::addMetadata(CmdTraceEvent, "from_source", FromSource.value());
       }
@@ -2052,9 +2096,12 @@ std::pair<xpti_td *, uint64_t> emitKernelInstrumentationData(
     if (Queue)
       xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY,
                                    getQueueID(Queue));
-    // Add the additional metadata only if the debug information is subscribed
-    // to; in this case, it is the kernel and its parameters.
-    if (detail::isDebugStream(StreamID)) {
+    // Add the additional metadata only if VERBOSE level is enabled or
+    // subscribing to sycl.debug stream (for backward compatibility);
+    // in this case, it is the kernel and its parameters.
+    auto Level = xptiGetEffectiveStreamDetailLevel(StreamID);
+    if (Level >= xpti::stream_detail_level_t::XPTI_STREAM_DETAIL_LEVEL_VERBOSE ||
+        detail::isDebugStream(StreamID)) {
       instrumentationAddExtraKernelMetadata(
           CmdTraceEvent, NDRDesc, KernelBundleImplPtr, DeviceKernelInfo,
           SyclKernel, Queue, CGArgs);
@@ -2108,7 +2155,9 @@ void ExecCGCommand::emitInstrumentationData() {
                                  getQueueID(MQueue));
     MTraceEvent = static_cast<void *>(CmdTraceEvent);
     if (MCommandGroup->getType() == detail::CGType::Kernel) {
-      if (detail::isDebugStream(MStreamID)) {
+      auto Level = xptiGetEffectiveStreamDetailLevel(MStreamID);
+      if (Level >= xpti::stream_detail_level_t::XPTI_STREAM_DETAIL_LEVEL_VERBOSE ||
+          detail::isDebugStream(MStreamID)) {
         auto KernelCG =
             reinterpret_cast<detail::CGExecKernel *>(MCommandGroup.get());
         instrumentationAddExtraKernelMetadata(
