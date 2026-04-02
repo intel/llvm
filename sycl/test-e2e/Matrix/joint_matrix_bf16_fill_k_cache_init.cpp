@@ -7,9 +7,6 @@
 //===----------------------------------------------------------------------===//
 // REQUIRES: target-spir
 // REQUIRES: aspect-ext_intel_matrix, gpu
-// XFAIL: run-mode
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/21612
-
 
 // RUN: %{build} -o %t.out -DINIT_LIST -DVNNI %fp-model-precise
 // RUN: %{run} %t.out

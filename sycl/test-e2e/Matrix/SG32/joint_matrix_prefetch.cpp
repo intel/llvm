@@ -6,8 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: target-spir
-// XFAIL: run-mode
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/21612
 
 // REQUIRES-INTEL-DRIVER: lin: 27501, win: 101.4943
 // REQUIRES: aspect-ext_intel_matrix
