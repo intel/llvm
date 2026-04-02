@@ -177,23 +177,24 @@ int runTest(
   if (useSemaphores) {
     extFence = createExportableFence(ctx);
     signalExportableFence(ctx, extFence);
-    std::cout << "D3D12 Fence Signaled (Value: " << extFence.fenceValue << ")"
-              << std::endl;
+    // std::cout << "D3D12 Fence Signaled (Value: " << extFence.fenceValue <<
+    // ")"
+    //           << std::endl;
   }
 
   // SYCL Import and Verification
   try {
-    std::cout << "Creating SYCL queue..." << std::endl;
+    // std::cout << "Creating SYCL queue..." << std::endl;
     sycl::queue q;
-    std::cout << "Queue created successfully" << std::endl;
+    // std::cout << "Queue created successfully" << std::endl;
 
-    std::cout << "Setting up external memory descriptor..." << std::endl;
+    // std::cout << "Setting up external memory descriptor..." << std::endl;
     syclexp::external_mem_descriptor<syclexp::resource_win32_handle> extMemDesc{
         imgRes.sharedHandle, syclexp::external_mem_handle_type::win32_nt_handle,
         imgRes.allocationSize};
 
-    std::cout << "About to import external memory (handle="
-              << imgRes.sharedHandle << ")" << std::endl;
+    // std::cout << "About to import external memory (handle="
+    //           << imgRes.sharedHandle << ")" << std::endl;
     syclexp::external_mem extMem = syclexp::import_external_memory(
         extMemDesc, q.get_device(), q.get_context());
     std::cout << "External memory imported!" << std::endl;
@@ -203,16 +204,17 @@ int runTest(
                                             : getSyclChannelType<T>();
 
     // 1D Image Descriptor
-    std::cout << "Creating image descriptor (width=" << width
-              << ", channels=" << channels << ", type=" << (int)syclType << ")"
-              << std::endl;
+    // std::cout << "Creating image descriptor (width=" << width
+    //           << ", channels=" << channels << ", type=" << (int)syclType <<
+    //           ")"
+    //           << std::endl;
     syclexp::image_descriptor imgDesc(sycl::range<1>(width), channels,
                                       syclType);
 
-    std::cout << "About to map external image memory..." << std::endl;
+    // std::cout << "About to map external image memory..." << std::endl;
     syclexp::image_mem_handle devHandle = syclexp::map_external_image_memory(
         extMem, imgDesc, q.get_device(), q.get_context());
-    std::cout << "External image memory mapped!" << std::endl;
+    // std::cout << "External image memory mapped!" << std::endl;
 
     syclexp::sampled_image_handle sampledHandle;
     syclexp::unsampled_image_handle unsampledHandle;
@@ -228,7 +230,7 @@ int runTest(
       unsampledHandle = syclexp::create_image(devHandle, imgDesc,
                                               q.get_device(), q.get_context());
     }
-    std::cout << "Image handle created!" << std::endl;
+    // std::cout << "Image handle created!" << std::endl;
 
     // Import the D3D12 Fence into SYCL
     syclexp::external_semaphore extSem;
@@ -252,7 +254,7 @@ int runTest(
       });
     }
 
-    std::cout << "Submitting SYCL kernel to read image data..." << std::endl;
+    // std::cout << "Submitting SYCL kernel to read image data..." << std::endl;
     q.submit([&](sycl::handler &h) {
        if (useSemaphores)
          h.depends_on(dependencyEvent);
@@ -324,8 +326,8 @@ int runTest(
        });
      }).wait();
 
-    std::cout << "Kernel execution completed. Verifying results..."
-              << std::endl;
+    // std::cout << "Kernel execution completed. Verifying results..."
+    //           << std::endl;
 
     // Verify results
     sycl::host_accessor hostAcc(checkBuf, sycl::read_only);
