@@ -180,7 +180,7 @@ int runTest(
   } else {
     // When NOT using interop semaphores, still need to ensure
     // D3D12 GPU work completes before SYCL import
-    ctx.commandQueue->Signal(ctx.fence.Get(), ++ctx.fenceValue);
+    ctx.cmdQueue->Signal(ctx.fence.Get(), ++ctx.fenceValue);
     ctx.fence->SetEventOnCompletion(ctx.fenceValue, ctx.fenceEvent);
     WaitForSingleObject(ctx.fenceEvent, INFINITE);
   }
