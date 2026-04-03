@@ -4095,7 +4095,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     InitializationKind InitKind = InitializationKind::CreateDirect({}, {}, {});
 
     InitializedEntity Entity = InitializedEntity::InitializeMember(
-        FD, &VarEntity.value(), /*Implicit*/ true);
+        FD, &VarEntity.value());
 
     addFieldInit(FD, FieldTy, ArrayRef, InitKind, Entity);
   }
