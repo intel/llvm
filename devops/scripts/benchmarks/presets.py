@@ -17,6 +17,7 @@ presets: dict[str, list[str]] = {
         "SYCL-Bench",
         "Velocity Bench",
         "UMF",
+        "PTI XPTI Overhead",
     ],
     "SYCL": [
         "Compute Benchmarks",
@@ -45,6 +46,9 @@ presets: dict[str, list[str]] = {
     ],
     "LLama": [
         "llama.cpp bench",
+    ],
+    "PTI_XPTI": [
+        "PTI XPTI Overhead",
     ],
 }
 
