@@ -295,7 +295,6 @@ ConvertToFP8_CPU(T h, rounding R = rounding::to_even) noexcept {
 
     // Determine exponent E such that 2^E <= ax < 2^{E+1}
     int e2;
-    float m = std::frexp(ax, &e2); // ax = m * 2^{e2}, m in [0.5,1)
     int E = e2 - 1;                // Now 2^E <= ax < 2^{E+1}
 
     // Upward rounding semantics:
