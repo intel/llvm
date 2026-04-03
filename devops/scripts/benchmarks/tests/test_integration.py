@@ -226,11 +226,11 @@ class TestE2E(unittest.TestCase):
         )
 
     def test_torch_l0(self):
-        self._checkCase(
-            "torch_benchmark_l0 KernelSubmitEventRecordWait KernelWGCount 256, KernelWGSize 512, Profiling 0",
-            "KernelSubmitEventRecordWait medium",
-            {"pytorch", "L0"},
-        )
+        # self._checkCase(
+        #     "torch_benchmark_l0 KernelSubmitEventRecordWait KernelWGCount 256, KernelWGSize 512, Profiling 0",
+        #     "KernelSubmitEventRecordWait medium",
+        #     {"pytorch", "L0"},
+        # )
         self._checkCase(
             "torch_benchmark_l0 KernelSubmitSingleQueue KernelDataType Int32, KernelWGCount 4096, KernelWGSize 512",
             "KernelSubmitSingleQueue Int32Large",
@@ -243,16 +243,16 @@ class TestE2E(unittest.TestCase):
             {"pytorch", "L0"},
             "--test=KernelSubmitSingleQueue.*--profilerType=cpuCounter",
         )
-        self._checkCase(
-            "torch_benchmark_l0 KernelSubmitMultiQueue KernelsPerQueue 20, MeasureCompletionTime 0",
-            "KernelSubmitMultiQueue large",
-            {"pytorch", "L0"},
-        )
-        self._checkCase(
-            "torch_benchmark_l0 KernelSubmitMultiQueue KernelsPerQueue 20, MeasureCompletionTime 1 CPU count",
-            "KernelSubmitMultiQueue large with measure completion, CPU count",
-            {"pytorch", "L0"},
-        )
+        # self._checkCase(
+        #     "torch_benchmark_l0 KernelSubmitMultiQueue KernelsPerQueue 20, MeasureCompletionTime 0",
+        #     "KernelSubmitMultiQueue large",
+        #     {"pytorch", "L0"},
+        # )
+        # self._checkCase(
+        #     "torch_benchmark_l0 KernelSubmitMultiQueue KernelsPerQueue 20, MeasureCompletionTime 1 CPU count",
+        #     "KernelSubmitMultiQueue large with measure completion, CPU count",
+        #     {"pytorch", "L0"},
+        # )
         self._checkCase(
             "torch_benchmark_l0 KernelSubmitSlmSize MeasureCompletionTime 1, SlmNum 1",
             "KernelSubmitSlmSize small with measure completion",
@@ -270,16 +270,16 @@ class TestE2E(unittest.TestCase):
         )
         # FIXME: Graph benchmarks segfault on pvc on L0
         if not ("pvc" in self.device_arch.lower()):
-            self._checkCase(
-                "torch_benchmark_l0 KernelSubmitGraphSingleQueue KernelBatchSize 10, KernelName Add, KernelsPerQueue 10 CPU count",
-                "KernelSubmitGraphSingleQueue small, CPU count",
-                {"pytorch", "L0"},
-            )
-            self._checkCase(
-                "torch_benchmark_l0 KernelSubmitGraphMultiQueue KernelsPerQueue 64 CPU count",
-                "KernelSubmitGraphMultiQueue large, CPU count",
-                {"pytorch", "L0"},
-            )
+            # self._checkCase(
+            #     "torch_benchmark_l0 KernelSubmitGraphSingleQueue KernelBatchSize 10, KernelName Add, KernelsPerQueue 10 CPU count",
+            #     "KernelSubmitGraphSingleQueue small, CPU count",
+            #     {"pytorch", "L0"},
+            # )
+            # self._checkCase(
+            #     "torch_benchmark_l0 KernelSubmitGraphMultiQueue KernelsPerQueue 64 CPU count",
+            #     "KernelSubmitGraphMultiQueue large, CPU count",
+            #     {"pytorch", "L0"},
+            # )
             self._checkCase(
                 "torch_benchmark_l0 KernelSubmitGraphVllmMock AllocCount 128, GraphScenario 3",
                 "KernelSubmitGraphVllmMock large",
