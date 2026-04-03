@@ -525,6 +525,41 @@ static inline bool isPVC(ur_device_handle_t hDevice) {
   return (deviceId & 0xff0) == 0xbd0 || (deviceId & 0xff0) == 0xb60;
 }
 
+// Helpers to construct ur_exp_kernel_arg_properties_t for kernel launch args.
+inline ur_exp_kernel_arg_properties_t MakeLocalArgProp(uint32_t index,
+                                                       size_t size) {
+  return {UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+          nullptr,
+          UR_EXP_KERNEL_ARG_TYPE_LOCAL,
+          index,
+          size,
+          {nullptr}};
+}
+
+inline ur_exp_kernel_arg_properties_t MakePointerArgProp(uint32_t index,
+                                                         const void *ptr) {
+  ur_exp_kernel_arg_value_t val = {};
+  val.pointer = ptr;
+  return {UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+          nullptr,
+          UR_EXP_KERNEL_ARG_TYPE_POINTER,
+          index,
+          sizeof(void *),
+          val};
+}
+
+inline ur_exp_kernel_arg_properties_t
+MakeValueArgProp(uint32_t index, const void *data, size_t size) {
+  ur_exp_kernel_arg_value_t val = {};
+  val.value = data;
+  return {UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+          nullptr,
+          UR_EXP_KERNEL_ARG_TYPE_VALUE,
+          index,
+          size,
+          val};
+}
+
 } // namespace uur
 
 #endif // UR_CONFORMANCE_INCLUDE_UTILS_H_INCLUDED

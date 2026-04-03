@@ -151,7 +151,7 @@ UR_APIEXPORT ur_result_t urEnqueueEventsWaitWithBarrierExt(
                                         phEventWaitList, phEvent);
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
+static ur_result_t urEnqueueKernelLaunch(
     ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel, uint32_t workDim,
     const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
     const size_t *pLocalWorkSize, const ur_kernel_launch_ext_properties_t *,

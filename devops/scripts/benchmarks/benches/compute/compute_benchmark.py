@@ -175,6 +175,7 @@ class ComputeBenchmark(Benchmark):
 
                 results.append((median, stddev))
             except (ValueError, IndexError) as e:
+                log.info(f"Raw benchmark output:\n{output}")
                 raise ValueError(f"Error parsing output: {e}")
         if len(results) == 0:
             raise ValueError("Benchmark output does not contain data.")

@@ -2156,55 +2156,6 @@ __urdlllocal ur_result_t UR_APICALL urEventSetCallback(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urEnqueueKernelLaunch
-__urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
-    /// [in] handle of the queue object
-    ur_queue_handle_t hQueue,
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] number of dimensions, from 1 to 3, to specify the global and
-    /// work-group work-items
-    uint32_t workDim,
-    /// [in][optional] pointer to an array of workDim unsigned values that
-    /// specify the offset used to calculate the global ID of a work-item
-    const size_t *pGlobalWorkOffset,
-    /// [in] pointer to an array of workDim unsigned values that specify the
-    /// number of global work-items in workDim that will execute the kernel
-    /// function
-    const size_t *pGlobalWorkSize,
-    /// [in][optional] pointer to an array of workDim unsigned values that
-    /// specify the number of local work-items forming a work-group that will
-    /// execute the kernel function.
-    /// If nullptr, the runtime implementation will choose the work-group size.
-    const size_t *pLocalWorkSize,
-    /// [in][optional] pointer to a single linked list of launch properties
-    const ur_kernel_launch_ext_properties_t *launchPropList,
-    /// [in] size of the event wait list
-    uint32_t numEventsInWaitList,
-    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
-    /// events that must be complete before the kernel execution.
-    /// If nullptr, the numEventsInWaitList must be 0, indicating that no wait
-    /// event.
-    const ur_event_handle_t *phEventWaitList,
-    /// [out][optional][alloc] return an event object that identifies this
-    /// particular kernel execution instance. If phEventWaitList and phEvent
-    /// are not NULL, phEvent must not refer to an element of the
-    /// phEventWaitList array.
-    ur_event_handle_t *phEvent) {
-
-  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hQueue);
-
-  auto *pfnKernelLaunch = dditable->Enqueue.pfnKernelLaunch;
-  if (nullptr == pfnKernelLaunch)
-    return UR_RESULT_ERROR_UNINITIALIZED;
-
-  // forward to device-platform
-  return pfnKernelLaunch(hQueue, hKernel, workDim, pGlobalWorkOffset,
-                         pGlobalWorkSize, pLocalWorkSize, launchPropList,
-                         numEventsInWaitList, phEventWaitList, phEvent);
-}
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urEnqueueEventsWait
 __urdlllocal ur_result_t UR_APICALL urEnqueueEventsWait(
     /// [in] handle of the queue object
@@ -3238,54 +3189,6 @@ __urdlllocal ur_result_t UR_APICALL urKernelCreate(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urKernelSetArgValue
-__urdlllocal ur_result_t UR_APICALL urKernelSetArgValue(
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] argument index in range [0, num args - 1]
-    uint32_t argIndex,
-    /// [in] size of argument type
-    size_t argSize,
-    /// [in][optional] pointer to value properties.
-    const ur_kernel_arg_value_properties_t *pProperties,
-    /// [in] argument value represented as matching arg type.
-    /// The data pointed to will be copied and therefore can be reused on
-    /// return.
-    const void *pArgValue) {
-
-  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hKernel);
-
-  auto *pfnSetArgValue = dditable->Kernel.pfnSetArgValue;
-  if (nullptr == pfnSetArgValue)
-    return UR_RESULT_ERROR_UNINITIALIZED;
-
-  // forward to device-platform
-  return pfnSetArgValue(hKernel, argIndex, argSize, pProperties, pArgValue);
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urKernelSetArgLocal
-__urdlllocal ur_result_t UR_APICALL urKernelSetArgLocal(
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] argument index in range [0, num args - 1]
-    uint32_t argIndex,
-    /// [in] size of the local buffer to be allocated by the runtime
-    size_t argSize,
-    /// [in][optional] pointer to local buffer properties.
-    const ur_kernel_arg_local_properties_t *pProperties) {
-
-  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hKernel);
-
-  auto *pfnSetArgLocal = dditable->Kernel.pfnSetArgLocal;
-  if (nullptr == pfnSetArgLocal)
-    return UR_RESULT_ERROR_UNINITIALIZED;
-
-  // forward to device-platform
-  return pfnSetArgLocal(hKernel, argIndex, argSize, pProperties);
-}
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urKernelGetInfo
 __urdlllocal ur_result_t UR_APICALL urKernelGetInfo(
     /// [in] handle of the Kernel object
@@ -3406,29 +3309,6 @@ __urdlllocal ur_result_t UR_APICALL urKernelRelease(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urKernelSetArgPointer
-__urdlllocal ur_result_t UR_APICALL urKernelSetArgPointer(
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] argument index in range [0, num args - 1]
-    uint32_t argIndex,
-    /// [in][optional] pointer to USM pointer properties.
-    const ur_kernel_arg_pointer_properties_t *pProperties,
-    /// [in][optional] Pointer obtained by USM allocation or virtual memory
-    /// mapping operation. If null then argument value is considered null.
-    const void *pArgValue) {
-
-  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hKernel);
-
-  auto *pfnSetArgPointer = dditable->Kernel.pfnSetArgPointer;
-  if (nullptr == pfnSetArgPointer)
-    return UR_RESULT_ERROR_UNINITIALIZED;
-
-  // forward to device-platform
-  return pfnSetArgPointer(hKernel, argIndex, pProperties, pArgValue);
-}
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urKernelSetExecInfo
 __urdlllocal ur_result_t UR_APICALL urKernelSetExecInfo(
     /// [in] handle of the kernel object
@@ -3451,50 +3331,6 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetExecInfo(
 
   // forward to device-platform
   return pfnSetExecInfo(hKernel, propName, propSize, pProperties, pPropValue);
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urKernelSetArgSampler
-__urdlllocal ur_result_t UR_APICALL urKernelSetArgSampler(
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] argument index in range [0, num args - 1]
-    uint32_t argIndex,
-    /// [in][optional] pointer to sampler properties.
-    const ur_kernel_arg_sampler_properties_t *pProperties,
-    /// [in] handle of Sampler object.
-    ur_sampler_handle_t hArgValue) {
-
-  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hKernel);
-
-  auto *pfnSetArgSampler = dditable->Kernel.pfnSetArgSampler;
-  if (nullptr == pfnSetArgSampler)
-    return UR_RESULT_ERROR_UNINITIALIZED;
-
-  // forward to device-platform
-  return pfnSetArgSampler(hKernel, argIndex, pProperties, hArgValue);
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urKernelSetArgMemObj
-__urdlllocal ur_result_t UR_APICALL urKernelSetArgMemObj(
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] argument index in range [0, num args - 1]
-    uint32_t argIndex,
-    /// [in][optional] pointer to Memory object properties.
-    const ur_kernel_arg_mem_obj_properties_t *pProperties,
-    /// [in][optional] handle of Memory object.
-    ur_mem_handle_t hArgValue) {
-
-  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hKernel);
-
-  auto *pfnSetArgMemObj = dditable->Kernel.pfnSetArgMemObj;
-  if (nullptr == pfnSetArgMemObj)
-    return UR_RESULT_ERROR_UNINITIALIZED;
-
-  // forward to device-platform
-  return pfnSetArgMemObj(hKernel, argIndex, pProperties, hArgValue);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -6750,7 +6586,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueProcAddrTable(
     if (ur_loader::getContext()->platforms.size() != 1 ||
         ur_loader::getContext()->forceIntercept) {
       // return pointers to loader's DDIs
-      pDdiTable->pfnKernelLaunch = ur_loader::urEnqueueKernelLaunch;
       pDdiTable->pfnEventsWait = ur_loader::urEnqueueEventsWait;
       pDdiTable->pfnEventsWaitWithBarrier =
           ur_loader::urEnqueueEventsWaitWithBarrier;
@@ -7086,12 +6921,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetKernelProcAddrTable(
           ur_loader::urKernelGetSuggestedLocalWorkSize;
       pDdiTable->pfnGetSuggestedLocalWorkSizeWithArgs =
           ur_loader::urKernelGetSuggestedLocalWorkSizeWithArgs;
-      pDdiTable->pfnSetArgValue = ur_loader::urKernelSetArgValue;
-      pDdiTable->pfnSetArgLocal = ur_loader::urKernelSetArgLocal;
-      pDdiTable->pfnSetArgPointer = ur_loader::urKernelSetArgPointer;
       pDdiTable->pfnSetExecInfo = ur_loader::urKernelSetExecInfo;
-      pDdiTable->pfnSetArgSampler = ur_loader::urKernelSetArgSampler;
-      pDdiTable->pfnSetArgMemObj = ur_loader::urKernelSetArgMemObj;
       pDdiTable->pfnSetSpecializationConstants =
           ur_loader::urKernelSetSpecializationConstants;
       pDdiTable->pfnSuggestMaxCooperativeGroupCount =
