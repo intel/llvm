@@ -4,7 +4,7 @@
 // registered, not just those from the main image.
 
 // UNSUPPORTED: opencl && gpu
-// UNSUPPORTED-TRACKER: coming-soon
+// UNSUPPORTED-TRACKER: GSD-12574
 
 // UNSUPPORTED: cuda, hip
 // UNSUPPORTED-INTENDED: CUDA and HIP targets support AoT compilation only and

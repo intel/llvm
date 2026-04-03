@@ -25,9 +25,6 @@
 constexpr int DebugModuleProps = 0;
 #endif
 
-// CP
-#include <iostream>
-
 namespace llvm::sycl {
 namespace {
 module_split::SyclEsimdSplitStatus
@@ -197,7 +194,6 @@ PropSetRegTy computeModuleProperties(const Module &M,
     }
 
     // Also export device_global variables
-    std::cout << "also exporting device_global variables" << std::endl;
     for (auto &GV : M.globals()) {
       if (!isDeviceGlobalVariable(GV))
         continue;
@@ -206,8 +202,6 @@ PropSetRegTy computeModuleProperties(const Module &M,
       if (hasDeviceImageScopeProperty(GV)) // Skip per-image globals
         continue;
       if (GV.hasExternalLinkage()) {
-        std::cout << "exporting device_global variable: " << GV.getName().str()
-                  << std::endl;
         PropSet.add(PropSetRegTy::SYCL_EXPORTED_SYMBOLS, GV.getName(), true);
       }
     }

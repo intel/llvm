@@ -251,18 +251,12 @@ void context_impl::removeAssociatedDeviceGlobal(const void *DeviceGlobalPtr) {
 void context_impl::addDeviceGlobalInitializer(
     ur_program_handle_t Program, devices_range Devs,
     const RTDeviceBinaryImage *BinImage) {
-  std::cerr << "addDeviceGlobalInitializer called for program " << Program
-            << " with " << BinImage->getDeviceGlobals().size()
-            << " device globals\n";
   if (BinImage->getDeviceGlobals().empty())
     return;
   std::lock_guard<std::mutex> Lock(MDeviceGlobalInitializersMutex);
   for (device_impl &Dev : Devs) {
     auto Key = std::make_pair(Program, Dev.getHandleRef());
     auto [Iter, Inserted] = MDeviceGlobalInitializers.emplace(Key, BinImage);
-    std::cerr << "  Added program " << Program << " device "
-              << Dev.getHandleRef()
-              << (Inserted ? " (new entry)" : " (already exists)") << "\n";
     if (Inserted && !Iter->second.MDeviceGlobalsFullyInitialized)
       ++MDeviceGlobalNotInitializedCnt;
   }
@@ -271,35 +265,22 @@ void context_impl::addDeviceGlobalInitializer(
 std::vector<ur_event_handle_t> context_impl::initializeDeviceGlobals(
     ur_program_handle_t NativePrg, queue_impl &QueueImpl,
     detail::kernel_bundle_impl *KernelBundleImplPtr) {
-  std::cerr << "initializeDeviceGlobals called with program: " << NativePrg
-            << "\n";
+
   if (!MDeviceGlobalNotInitializedCnt.load(std::memory_order_acquire))
     return {};
 
   detail::adapter_impl &Adapter = getAdapter();
   device_impl &DeviceImpl = QueueImpl.getDeviceImpl();
   std::lock_guard<std::mutex> NativeProgramLock(MDeviceGlobalInitializersMutex);
-  std::cerr << "Looking for program " << NativePrg
-            << " in MDeviceGlobalInitializers (size="
-            << MDeviceGlobalInitializers.size() << ")\n";
-  for (const auto &Entry : MDeviceGlobalInitializers) {
-    std::cerr << "  Available: program=" << Entry.first.first
-              << " device=" << Entry.first.second << "\n";
-  }
+
   auto ImgIt = MDeviceGlobalInitializers.find(
       std::make_pair(NativePrg, DeviceImpl.getHandleRef()));
   if (ImgIt == MDeviceGlobalInitializers.end()) {
-    std::cerr << "Program " << NativePrg
-              << " NOT FOUND in MDeviceGlobalInitializers - returning early!\n";
     return {};
   }
   if (ImgIt->second.MDeviceGlobalsFullyInitialized) {
-    std::cerr << "Program " << NativePrg
-              << " found but already fully initialized - returning early!\n";
     return {};
   }
-  std::cerr << "Program " << NativePrg
-            << " found, proceeding with initialization\n";
 
   DeviceGlobalInitializer &InitRef = ImgIt->second;
   {

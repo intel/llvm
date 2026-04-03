@@ -944,8 +944,6 @@ ProgramManager::getBuiltURProgram(const BinImgWithDeps &ImgWithDeps,
     // If we linked multiple images, we need to register device_globals from
     // all of them, not just the main image. Create a merged binary image.
     if (WasLinked && ImgWithDeps.getAll().size() > 1) {
-      std::cerr << "Creating merged image for linked program with "
-                << ImgWithDeps.getAll().size() << " images\n";
       auto MergedImg =
           std::make_unique<DynRTDeviceBinaryImage>(ImgWithDeps.getAll());
       const RTDeviceBinaryImage *MergedImgPtr = MergedImg.get();
