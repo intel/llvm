@@ -303,7 +303,9 @@ public:
   void markAsInternal() { MIsInternal = true; }
 
   /// Returns true if this memory object requires a write_back on destruction.
-  bool needsWriteBack() const { return MNeedWriteBack && MUploadDataFunctor; }
+  bool needsWriteBack() const {
+    return MNeedWriteBack && MUploadDataFunctor && !MBackendOwnsWriteBack;
+  }
 
   /// Increment an internal counter for how many graphs are currently using this
   /// memory object.
@@ -384,6 +386,8 @@ protected:
   // Set when misaligned input data cannot be used directly and the shadow-copy
   // decision is deferred until backend/platform is known.
   bool MHasPendingAlignedShadowCopy = false;
+  // True when backend/adapter is responsible for final host copy-back.
+  bool MBackendOwnsWriteBack = false;
   bool MOwnNativeHandle = true;
 };
 } // namespace detail
