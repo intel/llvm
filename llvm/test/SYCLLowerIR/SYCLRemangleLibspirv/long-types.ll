@@ -1,6 +1,6 @@
-; RUN: opt -passes=sycl-remangle-libspirv --remangle-spirv-target --remangle-long-width=64 --remangle-char-signedness=signed -mtriple=nvptx64-nvidia-cuda -S < %s | FileCheck %s --check-prefix=CHECK-NVPTX64
-; RUN: opt -passes=sycl-remangle-libspirv --remangle-spirv-target --remangle-long-width=32 --remangle-char-signedness=signed -mtriple=x86_64-pc-windows-msvc -S < %s | FileCheck %s --check-prefix=CHECK-WIN64
-; RUN: opt -passes=sycl-remangle-libspirv --remangle-spirv-target --remangle-long-width=32 --remangle-char-signedness=signed -mtriple=i386-pc-linux-gnu -S < %s | FileCheck %s --check-prefix=CHECK-I386
+; RUN: opt -passes=sycl-remangle-libspirv --remangle-long-width=64 --remangle-char-signedness=signed -mtriple=nvptx64-nvidia-cuda -S < %s | FileCheck %s --check-prefix=CHECK-NVPTX64
+; RUN: opt -passes=sycl-remangle-libspirv --remangle-long-width=32 --remangle-char-signedness=signed -mtriple=x86_64-pc-windows-msvc -S < %s | FileCheck %s --check-prefix=CHECK-WIN64
+; RUN: opt -passes=sycl-remangle-libspirv --remangle-long-width=32 --remangle-char-signedness=signed -mtriple=i386-pc-linux-gnu -S < %s | FileCheck %s --check-prefix=CHECK-I386
 
 ; Test long/long long type (signed and unsigned) remangling.
 

@@ -1,4 +1,4 @@
-; RUN: opt --remangle-spirv-target --remangle-long-width=64 --remangle-char-signedness=signed -mtriple=nvptx64-nvidia-cuda -S < %s | FileCheck %s
+; RUN: opt -passes=sycl-remangle-libspirv --remangle-long-width=64 --remangle-char-signedness=signed -mtriple=nvptx64-nvidia-cuda -S < %s | FileCheck %s
 
 ; Test checks remangling when char is signed.
 
