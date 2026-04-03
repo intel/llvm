@@ -25,6 +25,7 @@ UUR_DEVICE_TEST_SUITE_WITH_DEFAULT_QUEUE(
 
 TEST_P(urKernelGetGroupInfoFixedWorkGroupSizeTest,
        SuccessCompileWorkGroupSize) {
+  // CUDA/HIP: The loaded device image does not carry the kernel metadata required for this query.
   UUR_KNOWN_FAILURE_ON(uur::CUDA{}, uur::HIP{});
 
   const ur_kernel_group_info_t property_name =
@@ -47,6 +48,7 @@ TEST_P(urKernelGetGroupInfoFixedWorkGroupSizeTest,
 
 struct urKernelGetGroupInfoMaxWorkGroupSizeTest : uur::urKernelTest {
   void SetUp() override {
+    // CUDA/HIP: The loaded device image does not carry the kernel metadata required for this query.
     UUR_KNOWN_FAILURE_ON(uur::CUDA{}, uur::HIP{});
     // see https://github.com/oneapi-src/unified-runtime/issues/2644
     UUR_KNOWN_FAILURE_ON(uur::OpenCL{"Intel(R) Core(TM)", "Intel(R) Xeon"});

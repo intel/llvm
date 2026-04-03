@@ -238,7 +238,8 @@ static bool selectBfloatLibs(const llvm::opt::ArgList &Args,
       "intel_gpu_pvc",     "intel_gpu_acm_g10", "intel_gpu_acm_g11",
       "intel_gpu_acm_g12", "intel_gpu_dg2_g10", "intel_gpu_dg2_g11",
       "intel_dg2_g12",     "intel_gpu_bmg_g21", "intel_gpu_lnl_m",
-      "intel_gpu_ptl_h",   "intel_gpu_ptl_u",   "intel_gpu_wcl"};
+      "intel_gpu_ptl_h",   "intel_gpu_ptl_u",   "intel_gpu_wcl",
+      "intel_gpu_cri"};
   bool NeedLibs = false;
 
   // spir64 target is actually JIT compilation, so we defer selection of
@@ -270,7 +271,7 @@ static bool selectBfloatLibs(const llvm::opt::ArgList &Args,
       return Device.starts_with("pvc") || Device.starts_with("ats") ||
              Device.starts_with("dg2") || Device.starts_with("bmg") ||
              Device.starts_with("lnl") || Device.starts_with("ptl") ||
-             Device.starts_with("wcl");
+             Device.starts_with("wcl") || Device.starts_with("cri");
     };
 
     auto checkSpirvJIT = [](StringRef Target) {
