@@ -193,13 +193,13 @@ PropSetRegTy computeModuleProperties(const Module &M,
       }
     }
 
-    // Also export device_global variables
+    // Export device_global variables.
     for (auto &GV : M.globals()) {
       if (!isDeviceGlobalVariable(GV))
         continue;
-      if (GV.isDeclaration()) // Skip declarations
+      if (GV.isDeclaration()) // Skip declarations.
         continue;
-      if (hasDeviceImageScopeProperty(GV)) // Skip per-image globals
+      if (hasDeviceImageScopeProperty(GV)) // Skip per-image globals.
         continue;
       if (GV.hasExternalLinkage()) {
         PropSet.add(PropSetRegTy::SYCL_EXPORTED_SYMBOLS, GV.getName(), true);
@@ -240,20 +240,17 @@ PropSetRegTy computeModuleProperties(const Module &M,
       }
     }
 
-    // Also check for imported device_global variables
+    // Check for imported device_global variables.
     for (auto &GV : M.globals()) {
-      if (!GV.isDeclaration()) // Only declarations
+      if (!GV.isDeclaration())
         continue;
       if (!GV.hasExternalLinkage())
         continue;
 
       // Check if it's a device_global by type name (declarations don't have
-      // attributes)
-      Type *Ty = GV.getValueType();
+      // attributes).
       std::string TypeName;
-      raw_string_ostream OS(TypeName);
-      Ty->print(OS);
-      OS.flush();
+      raw_string_ostream(TypeName) << *GV.getValueType();
 
       if (TypeName.find("device_global") == std::string::npos)
         continue;
