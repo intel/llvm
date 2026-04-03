@@ -50,7 +50,7 @@ env:
 jobs:
   host_memory_check:
     name: Host memory (pre-container)
-    if: github.repository == 'intel/llvm'
+    # if: github.repository == 'intel/llvm'
     uses: ./.github/workflows/ur-host-memory-check.yml
     with:
       runs_on: ${{ inputs.runner_name }}
