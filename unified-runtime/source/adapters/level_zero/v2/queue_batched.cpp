@@ -1068,7 +1068,7 @@ ur_result_t ur_queue_batched_t::enqueueHostTaskExp(
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
   wait_list_view waitListView =
-      wait_list_view(phEventWaitList, numEventsInWaitList);
+      wait_list_view(phEventWaitList, numEventsInWaitList, this);
 
   auto batchLocked = currentCmdLists.lock();
 
