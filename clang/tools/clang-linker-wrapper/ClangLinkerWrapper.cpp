@@ -889,9 +889,9 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args,
       Args.MakeArgString("--target=" + TargetTriple),
   };
 
-  if (!Arch.empty())
-    Triple.isAMDGPU() ? CmdArgs.push_back(Args.MakeArgString("-mcpu=" + Arch))
-                      : CmdArgs.push_back(Args.MakeArgString("-march=" + Arch));
+  // if (!Arch.empty())
+  //   Triple.isAMDGPU() ? CmdArgs.push_back(Args.MakeArgString("-mcpu=" + Arch))
+  //                     : CmdArgs.push_back(Args.MakeArgString("-march=" + Arch));
 
   // AMDGPU is always in LTO mode currently.
   CmdArgs.push_back("-fsycl");
@@ -918,39 +918,40 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args,
   }
 
   for (StringRef InputFile : InputFiles)
-    CmdArgs.push_back(InputFile);
+      CmdArgs.append({"-Xlinker",
+          Args.MakeArgString("-input-file=" + InputFile)});
 
-  // If this is CPU offloading we copy the input libraries.
-  if (!Triple.isGPU() && !Triple.isNativeCPU()) {
-    CmdArgs.push_back("-Wl,-Bsymbolic");
-    CmdArgs.push_back("-shared");
-    ArgStringList LinkerArgs;
-    for (const opt::Arg *Arg :
-         Args.filtered(OPT_INPUT, OPT_library, OPT_library_path, OPT_rpath,
-                       OPT_whole_archive, OPT_no_whole_archive)) {
-      // Sometimes needed libraries are passed by name, such as when using
-      // sanitizers. We need to check the file magic for any libraries.
-      if (Arg->getOption().matches(OPT_INPUT)) {
-        if (!sys::fs::exists(Arg->getValue()) ||
-            sys::fs::is_directory(Arg->getValue()))
-          continue;
+  // // If this is CPU offloading we copy the input libraries.
+  // if (!Triple.isGPU() && !Triple.isNativeCPU()) {
+  //   CmdArgs.push_back("-Wl,-Bsymbolic");
+  //   CmdArgs.push_back("-shared");
+  //   ArgStringList LinkerArgs;
+  //   for (const opt::Arg *Arg :
+  //        Args.filtered(OPT_INPUT, OPT_library, OPT_library_path, OPT_rpath,
+  //                      OPT_whole_archive, OPT_no_whole_archive)) {
+  //     // Sometimes needed libraries are passed by name, such as when using
+  //     // sanitizers. We need to check the file magic for any libraries.
+  //     if (Arg->getOption().matches(OPT_INPUT)) {
+  //       if (!sys::fs::exists(Arg->getValue()) ||
+  //           sys::fs::is_directory(Arg->getValue()))
+  //         continue;
 
-        file_magic Magic;
-        if (auto EC = identify_magic(Arg->getValue(), Magic))
-          return createStringError("Failed to open %s", Arg->getValue());
-        if (Magic != file_magic::archive &&
-            Magic != file_magic::elf_shared_object)
-          continue;
-      }
-      if (Arg->getOption().matches(OPT_whole_archive))
-        LinkerArgs.push_back(Args.MakeArgString("-Wl,--whole-archive"));
-      else if (Arg->getOption().matches(OPT_no_whole_archive))
-        LinkerArgs.push_back(Args.MakeArgString("-Wl,--no-whole-archive"));
-      else
-        Arg->render(Args, LinkerArgs);
-    }
-    llvm::append_range(CmdArgs, LinkerArgs);
-  }
+  //       file_magic Magic;
+  //       if (auto EC = identify_magic(Arg->getValue(), Magic))
+  //         return createStringError("Failed to open %s", Arg->getValue());
+  //       if (Magic != file_magic::archive &&
+  //           Magic != file_magic::elf_shared_object)
+  //         continue;
+  //     }
+  //     if (Arg->getOption().matches(OPT_whole_archive))
+  //       LinkerArgs.push_back(Args.MakeArgString("-Wl,--whole-archive"));
+  //     else if (Arg->getOption().matches(OPT_no_whole_archive))
+  //       LinkerArgs.push_back(Args.MakeArgString("-Wl,--no-whole-archive"));
+  //     else
+  //       Arg->render(Args, LinkerArgs);
+  //   }
+  //   llvm::append_range(CmdArgs, LinkerArgs);
+  // }
 
   // Pass on -mllvm options to the linker invocation.
   for (const opt::Arg *Arg : Args.filtered(OPT_mllvm))
@@ -968,7 +969,7 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args,
   // clang-sycl-linker. Additional linker flags required by clang-sycl-linker
   // will be communicated via the -Xlinker option.
   if (ActiveOffloadKindMask & OFK_SYCL) {
-    llvm::errs() << "[DEBUG] add the sycl-link";
+    llvm::errs() << "[DEBUG] add the sycl-link \n";
     CmdArgs.push_back("--sycl-link");
     // These become -Xlinker values that AddLinkerInputs
     // will collect in SPIRV::Linker::ConstructJob.

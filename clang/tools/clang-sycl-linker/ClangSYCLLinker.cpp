@@ -20,22 +20,14 @@
 
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/BinaryFormat/Magic.h"
-#include "llvm/Bitcode/BitcodeWriter.h"
-#include "llvm/CodeGen/CommandFlags.h"
-#include "llvm/IR/DiagnosticPrinter.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IRReader/IRReader.h"
-#include "llvm/LTO/LTO.h"
-#include "llvm/Linker/Linker.h"
-#include "llvm/MC/TargetRegistry.h"
 #include "llvm/SYCLPostLink/ModuleSplitter.h"
 #include "llvm/Object/Binary.h"
-#include "llvm/Object/IRObjectFile.h"
 #include "llvm/Object/OffloadBinary.h"
 #include "llvm/Option/ArgList.h"
 #include "llvm/Option/OptTable.h"
 #include "llvm/Option/Option.h"
-#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/InitLLVM.h"
@@ -47,7 +39,7 @@
 #include "llvm/Support/TimeProfiler.h"
 #include "llvm/Support/WithColor.h"
 #include "llvm/SYCLPostLink/SYCLPostLink.h"
-#include "llvm/Target/TargetMachine.h"
+#include "llvm/Support/SourceMgr.h"
 
 using namespace llvm;
 using namespace llvm::opt;
@@ -135,18 +127,17 @@ std::string getMainExecutable(const char *Name) {
 
 Expected<StringRef> createTempFile(const ArgList &Args, const Twine &Prefix,
                                    StringRef Extension) {
-  SmallString<128> OutputFile;
+  SmallString<128> TempOutput;
   if (Args.hasArg(OPT_save_temps)) {
-    // Generate a unique path name without creating a file
-    sys::fs::createUniquePath(Prefix + "-%%%%%%." + Extension, OutputFile,
+    sys::fs::createUniquePath(Prefix + "-%%%%%%." + Extension, TempOutput,
                               /*MakeAbsolute=*/false);
   } else {
     if (std::error_code EC =
-            sys::fs::createTemporaryFile(Prefix, Extension, OutputFile))
-      return createFileError(OutputFile, EC);
+            sys::fs::createTemporaryFile(Prefix, Extension, TempOutput))
+      return createFileError(TempOutput, EC);
   }
 
-  TempFiles.emplace_back(std::move(OutputFile));
+  TempFiles.emplace_back(std::move(TempOutput));
   return TempFiles.back();
 }
 
@@ -187,7 +178,7 @@ Error executeCommands(StringRef ExecutablePath, ArrayRef<StringRef> Args) {
 Expected<SmallVector<std::string>> getInput(const ArgList &Args) {
   // Collect all input bitcode files to be passed to the device linking stage.
   SmallVector<std::string> BitcodeFiles;
-  for (const opt::Arg *Arg : Args.filtered(OPT_INPUT)) {
+  for (const opt::Arg *Arg : Args.filtered(OPT_input_file_EQ)) {
     std::optional<std::string> Filename = std::string(Arg->getValue());
     if (!Filename || !sys::fs::exists(*Filename) ||
         sys::fs::is_directory(*Filename))
@@ -195,101 +186,12 @@ Expected<SmallVector<std::string>> getInput(const ArgList &Args) {
     file_magic Magic;
     if (auto EC = identify_magic(*Filename, Magic))
       return createStringError("Failed to open file " + *Filename);
-    // TODO: Current use case involves LLVM IR bitcode files as input.
-    // This will be extended to support SPIR-V IR files.
-    switch (Magic) {
-    case file_magic::unknown: 
-      llvm::errs() << "[DEBUG] unknown file: " << *Filename << "\n"; break;
-    case file_magic::bitcode: 
-      llvm::errs() << "[DEBUG] bitcode file: " << *Filename << "\n"; break;
-    case file_magic::clang_ast: 
-      llvm::errs() << "[DEBUG] clang AST (PCH/PCM) file: " << *Filename << "\n"; break;
-    case file_magic::archive: 
-      llvm::errs() << "[DEBUG] archive file: " << *Filename << "\n"; break;
-    case file_magic::elf: 
-      llvm::errs() << "[DEBUG] ELF unknown type: " << *Filename << "\n"; break;
-    case file_magic::elf_relocatable: 
-      llvm::errs() << "[DEBUG] ELF relocatable object: " << *Filename << "\n"; break;
-    case file_magic::elf_executable: 
-      llvm::errs() << "[DEBUG] ELF executable: " << *Filename << "\n"; break;
-    case file_magic::elf_shared_object: 
-      llvm::errs() << "[DEBUG] ELF shared object: " << *Filename << "\n"; break;
-    case file_magic::elf_core: 
-      llvm::errs() << "[DEBUG] ELF core file: " << *Filename << "\n"; break;
-    case file_magic::goff_object: 
-      llvm::errs() << "[DEBUG] GOFF object file: " << *Filename << "\n"; break;
-    case file_magic::macho_object: 
-      llvm::errs() << "[DEBUG] Mach-O object: " << *Filename << "\n"; break;
-    case file_magic::macho_executable: 
-      llvm::errs() << "[DEBUG] Mach-O executable: " << *Filename << "\n"; break;
-    case file_magic::macho_fixed_virtual_memory_shared_lib: 
-      llvm::errs() << "[DEBUG] Mach-O shared lib (FVM): " << *Filename << "\n"; break;
-    case file_magic::macho_core: 
-      llvm::errs() << "[DEBUG] Mach-O core: " << *Filename << "\n"; break;
-    case file_magic::macho_preload_executable: 
-      llvm::errs() << "[DEBUG] Mach-O preload executable: " << *Filename << "\n"; break;
-    case file_magic::macho_dynamically_linked_shared_lib: 
-      llvm::errs() << "[DEBUG] Mach-O dynamically linked shared lib: " << *Filename << "\n"; break;
-    case file_magic::macho_dynamic_linker: 
-      llvm::errs() << "[DEBUG] Mach-O dynamic linker: " << *Filename << "\n"; break;
-    case file_magic::macho_bundle: 
-      llvm::errs() << "[DEBUG] Mach-O bundle: " << *Filename << "\n"; break;
-    case file_magic::macho_dynamically_linked_shared_lib_stub: 
-      llvm::errs() << "[DEBUG] Mach-O shared lib stub: " << *Filename << "\n"; break;
-    case file_magic::macho_dsym_companion: 
-      llvm::errs() << "[DEBUG] Mach-O dSYM companion: " << *Filename << "\n"; break;
-    case file_magic::macho_kext_bundle: 
-      llvm::errs() << "[DEBUG] Mach-O kext bundle: " << *Filename << "\n"; break;
-    case file_magic::macho_universal_binary: 
-      llvm::errs() << "[DEBUG] Mach-O universal binary: " << *Filename << "\n"; break;
-    case file_magic::macho_file_set: 
-      llvm::errs() << "[DEBUG] Mach-O file set: " << *Filename << "\n"; break;
-    case file_magic::minidump: 
-      llvm::errs() << "[DEBUG] Windows minidump: " << *Filename << "\n"; break;
-    case file_magic::coff_cl_gl_object: 
-      llvm::errs() << "[DEBUG] COFF cl.exe intermediate: " << *Filename << "\n"; break;
-    case file_magic::coff_object: 
-      llvm::errs() << "[DEBUG] COFF object: " << *Filename << "\n"; break;
-    case file_magic::coff_import_library: 
-      llvm::errs() << "[DEBUG] COFF import library: " << *Filename << "\n"; break;
-    case file_magic::pecoff_executable: 
-      llvm::errs() << "[DEBUG] PECOFF executable: " << *Filename << "\n"; break;
-    case file_magic::windows_resource: 
-      llvm::errs() << "[DEBUG] Windows resource file (.res): " << *Filename << "\n"; break;
-    case file_magic::xcoff_object_32: 
-      llvm::errs() << "[DEBUG] XCOFF 32-bit object: " << *Filename << "\n"; break;
-    case file_magic::xcoff_object_64: 
-      llvm::errs() << "[DEBUG] XCOFF 64-bit object: " << *Filename << "\n"; break;
-    case file_magic::wasm_object: 
-      llvm::errs() << "[DEBUG] WebAssembly object: " << *Filename << "\n"; break;
-    case file_magic::pdb: 
-      llvm::errs() << "[DEBUG] Windows PDB debug info: " << *Filename << "\n"; break;
-    case file_magic::tapi_file: 
-      llvm::errs() << "[DEBUG] TAPI stub file: " << *Filename << "\n"; break;
-    case file_magic::cuda_fatbinary: 
-      llvm::errs() << "[DEBUG] CUDA fatbinary: " << *Filename << "\n"; break;
-    case file_magic::offload_binary: 
-      llvm::errs() << "[DEBUG] LLVM offload object: " << *Filename << "\n"; break;
-    case file_magic::dxcontainer_object: 
-      llvm::errs() << "[DEBUG] DirectX container object: " << *Filename << "\n"; break;
-    case file_magic::offload_bundle: 
-      llvm::errs() << "[DEBUG] Clang offload bundle: " << *Filename << "\n"; break;
-    case file_magic::offload_bundle_compressed: 
-      llvm::errs() << "[DEBUG] Compressed Clang offload bundle: " << *Filename << "\n"; break;
-    case file_magic::spirv_object: 
-      llvm::errs() << "[DEBUG] SPIR-V object: " << *Filename << "\n"; break;
-    default: 
-      llvm::errs() << "[DEBUG] unhandled file type: " << *Filename << "\n"; break;
-    }
-    if (Magic == file_magic::elf_shared_object  ||
-        Magic == file_magic::elf_relocatable    ||
-        Magic == file_magic::elf_executable     ||
-        Magic == file_magic::spirv_object       ||
+    if (Magic == file_magic::elf_shared_object ||
+        Magic == file_magic::elf_relocatable  ||
+        Magic == file_magic::elf_executable   ||
+        Magic == file_magic::spirv_object     ||
         Magic == file_magic::archive)
       continue;
-    if(Magic == file_magic::spirv_object) {
-      continue;
-    }
     if (Magic != file_magic::bitcode)
       return createStringError("Unsupported file type");
     BitcodeFiles.push_back(*Filename);
@@ -298,13 +200,9 @@ Expected<SmallVector<std::string>> getInput(const ArgList &Args) {
 }
 
 /// Handle cases where input file is a LLVM IR bitcode file.
-/// When clang-sycl-linker is called via clang-linker-wrapper tool, input files
-/// are LLVM IR bitcode files.
-// TODO: Support SPIR-V IR files.
 Expected<std::unique_ptr<Module>> getBitcodeModule(StringRef File,
                                                    LLVMContext &C) {
   SMDiagnostic Err;
-
   auto M = getLazyIRFileModule(File, Err, C);
   if (M)
     return std::move(M);
@@ -312,8 +210,7 @@ Expected<std::unique_ptr<Module>> getBitcodeModule(StringRef File,
 }
 
 /// Gather all SYCL device library files that will be linked with input device
-/// files.
-/// The list of files and its location are passed from driver.
+/// files. The list of files and its location are passed from driver.
 Expected<SmallVector<std::string>> getSYCLDeviceLibs(const ArgList &Args) {
   SmallVector<std::string> DeviceLibFiles;
   StringRef LibraryPath;
@@ -321,9 +218,8 @@ Expected<SmallVector<std::string>> getSYCLDeviceLibs(const ArgList &Args) {
     LibraryPath = A->getValue();
   if (Arg *A = Args.getLastArg(OPT_device_libs_EQ)) {
     if (A->getValues().size() == 0)
-      return createStringError(
-          inconvertibleErrorCode(),
-          "Number of device library files cannot be zero.");
+      return createStringError(inconvertibleErrorCode(),
+                               "Number of device library files cannot be zero.");
     for (StringRef Val : A->getValues()) {
       SmallString<128> LibName(LibraryPath);
       llvm::sys::path::append(LibName, Val);
@@ -338,84 +234,134 @@ Expected<SmallVector<std::string>> getSYCLDeviceLibs(const ArgList &Args) {
   return DeviceLibFiles;
 }
 
-/// Following tasks are performed:
-/// 1. Link all SYCL device bitcode images into one image. Device linking is
-/// performed using the linkInModule API.
-/// 2. Gather all SYCL device library bitcode images.
-/// 3. Link all the images gathered in Step 2 with the output of Step 1 using
-/// linkInModule API. LinkOnlyNeeded flag is used.
-Expected<StringRef> linkDeviceCode(ArrayRef<std::string> InputFiles,
-                                   const ArgList &Args, LLVMContext &C) {
-  llvm::TimeTraceScope TimeScope("SYCL link device code");
+/// Link all SYCL device input files into one using llvm-link.
+static Expected<StringRef>
+linkDeviceInputFiles(ArrayRef<std::string> InputFiles, const ArgList &Args) {
+  llvm::TimeTraceScope TimeScope("SYCL LinkDeviceInputFiles");
 
+  Expected<std::string> Linker =
+      findProgram(Args, "llvm-link", {getMainExecutable("llvm-link")});
+  if (!Linker)
+    return Linker.takeError();
+
+  auto OutFileOrErr =
+      createTempFile(Args, sys::path::filename(OutputFile), "bc");
+  if (!OutFileOrErr)
+    return OutFileOrErr.takeError();
+
+  SmallVector<StringRef, 8> CmdArgs;
+  CmdArgs.push_back(*Linker);
+  CmdArgs.push_back("--suppress-warnings");
+  for (auto &File : InputFiles)
+    CmdArgs.push_back(File);
+  CmdArgs.push_back("-o");
+  CmdArgs.push_back(*OutFileOrErr);
+
+  if (Error Err = executeCommands(*Linker, CmdArgs))
+    return std::move(Err);
+  return *OutFileOrErr;
+}
+
+/// Link device library files with the linked input using llvm-link -only-needed.
+static Expected<StringRef>
+linkDeviceLibFiles(SmallVectorImpl<StringRef> &InputFiles,
+                   const ArgList &Args) {
+  llvm::TimeTraceScope TimeScope("LinkDeviceLibraryFiles");
+
+  Expected<std::string> Linker =
+      findProgram(Args, "llvm-link", {getMainExecutable("llvm-link")});
+  if (!Linker)
+    return Linker.takeError();
+
+  auto OutFileOrErr =
+      createTempFile(Args, sys::path::filename(OutputFile), "bc");
+  if (!OutFileOrErr)
+    return OutFileOrErr.takeError();
+
+  SmallVector<StringRef, 8> CmdArgs;
+  CmdArgs.push_back(*Linker);
+  CmdArgs.push_back("-only-needed");
+  CmdArgs.push_back("--suppress-warnings");
+  for (auto &File : InputFiles)
+    CmdArgs.push_back(File);
+  CmdArgs.push_back("-o");
+  CmdArgs.push_back(*OutFileOrErr);
+
+  if (Error Err = executeCommands(*Linker, CmdArgs))
+    return std::move(Err);
+  return *OutFileOrErr;
+}
+
+/// Following tasks are performed:
+/// 1. Link all SYCL device bitcode images into one image using llvm-link.
+/// 2. Gather all SYCL device library bitcode images, matching by triple.
+/// 3. Link Step 2 results with Step 1 output using llvm-link -only-needed.
+static Expected<StringRef> linkDeviceCode(ArrayRef<std::string> InputFiles,
+                                          const ArgList &Args) {
+  llvm::TimeTraceScope TimeScope("SYCL link device code");
   assert(InputFiles.size() && "No inputs to link");
 
-  auto LinkerOutput = std::make_unique<Module>("sycl-device-link", C);
-  Linker L(*LinkerOutput);
-  // Link SYCL device input files.
-  for (auto &File : InputFiles) {
-    auto ModOrErr = getBitcodeModule(File, C);
-    if (!ModOrErr)
-      return ModOrErr.takeError();
-    if (L.linkInModule(std::move(*ModOrErr)))
-      return createStringError("Could not link IR");
-  }
+  // Step 1: link all input bitcode files together.
+  auto LinkedFile = linkDeviceInputFiles(InputFiles, Args);
+  if (!LinkedFile)
+    return LinkedFile.takeError();
 
-  // Get all SYCL device library files, if any.
+  if (Verbose)
+    errs() << "sycl-device-link: step1 output: " << *LinkedFile << "\n";
+
+  // Step 2: gather device library files and match by triple.
+  const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
   auto SYCLDeviceLibFiles = getSYCLDeviceLibs(Args);
   if (!SYCLDeviceLibFiles)
     return SYCLDeviceLibFiles.takeError();
 
-  // Link in SYCL device library files.
-  const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
+  // Device libs are plain bitcode — match triple by loading lazily.
+  SmallVector<std::string> MatchedLibFiles;
   for (auto &File : *SYCLDeviceLibFiles) {
-    auto LibMod = getBitcodeModule(File, C);
-    if (!LibMod)
-      return LibMod.takeError();
-    if ((*LibMod)->getTargetTriple() == Triple) {
-      unsigned Flags = Linker::Flags::LinkOnlyNeeded;
-      if (L.linkInModule(std::move(*LibMod), Flags))
-        return createStringError("Could not link IR");
+    LLVMContext C;
+    SMDiagnostic Err;
+    auto M = getLazyIRFileModule(File, Err, C);
+    if (!M) {
+      WithColor::warning(errs(), Executable)
+          << "Could not load device lib " << File << ": "
+          << Err.getMessage() << "\n";
+      continue;
     }
+    if ((*M).getTargetTriple() == Triple)
+      MatchedLibFiles.push_back(File);
   }
 
-  // Dump linked output for testing.
-  if (Args.hasArg(OPT_print_linked_module))
-    outs() << *LinkerOutput;
+  // If no device libs found, return step 1 output directly.
+  if (MatchedLibFiles.empty()) {
+    if (Triple.isSPIROrSPIRV())
+      WithColor::warning(errs(), Executable)
+          << "SYCL device library file list is empty\n";
+    return *LinkedFile;
+  }
 
-  // Create a new file to write the linked device file to.
-  auto BitcodeOutput =
-      createTempFile(Args, sys::path::filename(OutputFile), "bc");
-  if (!BitcodeOutput)
-    return BitcodeOutput.takeError();
+  // Step 3: link device libs with -only-needed.
+  SmallVector<StringRef, 16> Step2Inputs;
+  Step2Inputs.push_back(*LinkedFile);
+  for (auto &File : MatchedLibFiles)
+    Step2Inputs.push_back(File);
 
-  // Write the final output into 'BitcodeOutput' file.
-  int FD = -1;
-  if (std::error_code EC = sys::fs::openFileForWrite(*BitcodeOutput, FD))
-    return errorCodeToError(EC);
-  llvm::raw_fd_ostream OS(FD, true);
-  WriteBitcodeToFile(*LinkerOutput, OS);
+  auto DeviceLinkedFile = linkDeviceLibFiles(Step2Inputs, Args);
+  if (!DeviceLinkedFile)
+    return DeviceLinkedFile.takeError();
 
   if (Verbose) {
     std::string Inputs = llvm::join(InputFiles.begin(), InputFiles.end(), ", ");
-    std::string LibInputs = llvm::join((*SYCLDeviceLibFiles).begin(),
-                                       (*SYCLDeviceLibFiles).end(), ", ");
+    std::string LibInputs =
+        llvm::join(MatchedLibFiles.begin(), MatchedLibFiles.end(), ", ");
     errs() << formatv(
-        "sycl-device-link: inputs: {0} libfiles: {1} output: {2}\n", Inputs,
-        LibInputs, *BitcodeOutput);
+        "sycl-device-link: inputs: {0} libfiles: {1} output: {2}\n",
+        Inputs, LibInputs, *DeviceLinkedFile);
   }
 
-  return *BitcodeOutput;
+  return *DeviceLinkedFile;
 }
 
 /// Run AOT compilation for Intel CPU.
-/// Calls opencl-aot tool to generate device code for the Intel OpenCL CPU
-/// Runtime.
-/// \param InputFile The input SPIR-V file.
-/// \param OutputFile The output file name.
-/// \param Args Encompasses all arguments required for linking and wrapping
-/// device code and will be parsed to generate options required to be passed
-/// into the SYCL AOT compilation step.
 static Error runAOTCompileIntelCPU(StringRef InputFile, StringRef OutputFile,
                                    const ArgList &Args) {
   SmallVector<StringRef, 8> CmdArgs;
@@ -437,13 +383,6 @@ static Error runAOTCompileIntelCPU(StringRef InputFile, StringRef OutputFile,
 }
 
 /// Run AOT compilation for Intel GPU.
-/// Calls ocloc tool to generate device code for the Intel Graphics Compute
-/// Runtime.
-/// \param InputFile The input SPIR-V file.
-/// \param OutputFile The output file name.
-/// \param Args Encompasses all arguments required for linking and wrapping
-/// device code and will be parsed to generate options required to be passed
-/// into the SYCL AOT compilation step.
 static Error runAOTCompileIntelGPU(StringRef InputFile, StringRef OutputFile,
                                    const ArgList &Args) {
   SmallVector<StringRef, 8> CmdArgs;
@@ -453,7 +392,6 @@ static Error runAOTCompileIntelGPU(StringRef InputFile, StringRef OutputFile,
     return OclocPath.takeError();
 
   CmdArgs.push_back(*OclocPath);
-  // The next line prevents ocloc from modifying the image name
   CmdArgs.push_back("-output_no_suffix");
   CmdArgs.push_back("-spirv_input");
 
@@ -477,20 +415,14 @@ static Error runAOTCompileIntelGPU(StringRef InputFile, StringRef OutputFile,
 }
 
 /// Run AOT compilation for Intel CPU/GPU.
-/// \param InputFile The input SPIR-V file.
-/// \param OutputFile The output file name.
-/// \param Args Encompasses all arguments required for linking and wrapping
-/// device code and will be parsed to generate options required to be passed
-/// into the SYCL AOT compilation step.
 static Error runAOTCompile(StringRef InputFile, StringRef OutputFile,
                            const ArgList &Args) {
   StringRef Arch = Args.getLastArgValue(OPT_arch_EQ);
-  OffloadArch OffloadArch = StringToOffloadArch(Arch);
-  if (IsIntelGPUOffloadArch(OffloadArch))
+  OffloadArch OA = StringToOffloadArch(Arch);
+  if (IsIntelGPUOffloadArch(OA))
     return runAOTCompileIntelGPU(InputFile, OutputFile, Args);
-  if (IsIntelCPUOffloadArch(OffloadArch))
+  if (IsIntelCPUOffloadArch(OA))
     return runAOTCompileIntelCPU(InputFile, OutputFile, Args);
-
   return createStringError(inconvertibleErrorCode(), "Unsupported arch");
 }
 
@@ -504,18 +436,14 @@ bool isKernel(const Function &F) {
 
 /// Add any llvm-spirv option that relies on a specific Triple in addition
 /// to user supplied options.
-/// NOTE: Any changes made here should be reflected in the similarly named
-/// function in clang/lib/Driver/ToolChains/Clang.cpp.
 static void
 getTripleBasedSPIRVTransOpts(const ArgList &Args,
                              SmallVector<StringRef, 8> &TranslatorArgs,
                              const llvm::Triple Triple) {
   bool IsCPU = Triple.isSPIR() &&
                Triple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64;
-  TranslatorArgs.push_back(
-      "-spirv-debug-info-version=nonsemantic-shader-200");
-  std::string UnknownIntrinsics(
-      "-spirv-allow-unknown-intrinsics=llvm.genx.");
+  TranslatorArgs.push_back("-spirv-debug-info-version=nonsemantic-shader-200");
+  std::string UnknownIntrinsics("-spirv-allow-unknown-intrinsics=llvm.genx.");
   if (IsCPU)
     UnknownIntrinsics += ",llvm.fpbuiltin";
   TranslatorArgs.push_back(Args.MakeArgString(UnknownIntrinsics));
@@ -572,17 +500,11 @@ getTripleBasedSPIRVTransOpts(const ArgList &Args,
   TranslatorArgs.push_back(Args.MakeArgString(ExtArg));
 }
 
-
 /// Run LLVM to SPIR-V translation.
-/// Converts 'File' from LLVM bitcode to SPIR-V format using llvm-spirv tool.
-/// 'Args' encompasses all arguments required for linking and wrapping device
-/// code and will be parsed to generate options required to be passed into the
-/// llvm-spirv tool.
 static Expected<StringRef> runLLVMToSPIRVTranslation(StringRef File,
                                                       const ArgList &Args) {
   Expected<std::string> LLVMToSPIRVPath =
-      findProgram(Args, "llvm-spirv",
-                  {getMainExecutable("llvm-spirv")});
+      findProgram(Args, "llvm-spirv", {getMainExecutable("llvm-spirv")});
   if (!LLVMToSPIRVPath)
     return LLVMToSPIRVPath.takeError();
 
@@ -590,16 +512,11 @@ static Expected<StringRef> runLLVMToSPIRVTranslation(StringRef File,
   SmallVector<StringRef, 8> CmdArgs;
   CmdArgs.push_back(*LLVMToSPIRVPath);
 
-  // Add triple-based translation options.
   getTripleBasedSPIRVTransOpts(Args, CmdArgs, Triple);
 
-  // Forward any user-supplied llvm-spirv options.
-  StringRef LLVMToSPIRVOptions =
-      Args.getLastArgValue(OPT_llvm_spirv_options_EQ);
-  LLVMToSPIRVOptions.split(CmdArgs, " ", /*MaxSplit=*/-1,
-                            /*KeepEmpty=*/false);
+  StringRef LLVMToSPIRVOptions = Args.getLastArgValue(OPT_llvm_spirv_options_EQ);
+  LLVMToSPIRVOptions.split(CmdArgs, " ", /*MaxSplit=*/-1, /*KeepEmpty=*/false);
 
-  // Create output file.
   auto TempFileOrErr =
       createTempFile(Args, sys::path::filename(OutputFile), "spv");
   if (!TempFileOrErr)
@@ -611,27 +528,17 @@ static Expected<StringRef> runLLVMToSPIRVTranslation(StringRef File,
 
   if (Error Err = executeCommands(*LLVMToSPIRVPath, CmdArgs))
     return std::move(Err);
-
   return *TempFileOrErr;
 }
 
 /// Run sycl-post-link tool for SYCL offloading.
-/// 'InputFiles' is the list of input LLVM IR files.
-/// 'Args' encompasses all arguments required for linking and wrapping device
-/// code and will be parsed to generate options required to be passed into the
-/// sycl-post-link tool.
-/// 'IsDevicePassedWithSyclTargetBackend' indicates whether the device
-/// architecture is already specified through -Xsycl-target-backend=spir64_gen
-/// "-device <arch>" format.
 static Expected<std::vector<module_split::SplitModule>>
 runSYCLPostLinkTool(StringRef LinkedFile, const ArgList &Args) {
   Expected<std::string> SYCLPostLinkPath =
-      findProgram(Args, "sycl-post-link",
-                  {getMainExecutable("sycl-post-link")});
+      findProgram(Args, "sycl-post-link", {getMainExecutable("sycl-post-link")});
   if (!SYCLPostLinkPath)
     return SYCLPostLinkPath.takeError();
 
-  // Create output table file.
   auto TempFileOrErr =
       createTempFile(Args, sys::path::filename(OutputFile), "table");
   if (!TempFileOrErr)
@@ -641,7 +548,6 @@ runSYCLPostLinkTool(StringRef LinkedFile, const ArgList &Args) {
   SmallVector<StringRef, 8> CmdArgs;
   CmdArgs.push_back(*SYCLPostLinkPath);
 
-  // Add specialization constant mode based on triple.
   bool SpecConstsSupported =
       !Triple.isNVPTX() && !Triple.isAMDGCN() &&
       !Triple.isSPIRAOT() && !Triple.isNativeCPU();
@@ -663,14 +569,11 @@ runSYCLPostLinkTool(StringRef LinkedFile, const ArgList &Args) {
   CmdArgs.push_back("-emit-exported-symbols");
   CmdArgs.push_back("-emit-imported-symbols");
 
-  if (Triple.isSPIROrSPIRV()) {
+  if (Triple.isSPIROrSPIRV())
     CmdArgs.push_back("-split-esimd");
-  }
   CmdArgs.push_back("-lower-esimd");
 
-  // Forward any user-supplied post-link options.
-  StringRef UserOpts =
-      Args.getLastArgValue(OPT_sycl_post_link_options_EQ);
+  StringRef UserOpts = Args.getLastArgValue(OPT_sycl_post_link_options_EQ);
   UserOpts.split(CmdArgs, " ", /*MaxSplit=*/-1, /*KeepEmpty=*/false);
 
   CmdArgs.push_back("-o");
@@ -685,49 +588,44 @@ runSYCLPostLinkTool(StringRef LinkedFile, const ArgList &Args) {
 
 /// Performs the following steps:
 /// 1. Link input device code (user code and SYCL device library code).
-/// 2. Run SPIR-V code generation.
+/// 2. Run sycl-post-link.
+/// 3. Translate LLVM IR -> SPIR-V.
+/// 4. AOT compile if needed.
+/// 5. Pack into OffloadBinary and write to output.
 Error runSYCLLink(ArrayRef<std::string> Files, const ArgList &Args) {
   llvm::TimeTraceScope TimeScope("SYCL device linking");
 
-  LLVMContext C;
-
   // Link all input bitcode files and SYCL device library files, if any.
-  auto LinkedFile = linkDeviceCode(Files, Args, C);
+  auto LinkedFile = linkDeviceCode(Files, Args);
   if (!LinkedFile)
     return LinkedFile.takeError();
 
-  // TODO: SYCL post link functionality involves device code splitting and will
-  // result in multiple bitcode codes.
-  // The following lines are placeholders to represent multiple files and will
-  // be refactored once SYCL post link support is available.
   auto SplitModulesOrErr = runSYCLPostLinkTool(*LinkedFile, Args);
   if (!SplitModulesOrErr)
     return SplitModulesOrErr.takeError();
   auto &SplitModules = *SplitModulesOrErr;
 
-  // Determine if AOT compilation is needed.
   const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
   llvm::Triple::SubArchType SubArch = Triple.getSubArch();
   bool NeedAOTCompile =
       (SubArch == llvm::Triple::SPIRSubArch_gen) ||
       (SubArch == llvm::Triple::SPIRSubArch_x86_64);
 
-  // Open the final output file.
   int FD = -1;
-  if (std::error_code EC =
-          sys::fs::openFileForWrite(OutputFile, FD))
+  if (std::error_code EC = sys::fs::openFileForWrite(OutputFile, FD))
     return errorCodeToError(EC);
   llvm::raw_fd_ostream FS(FD, /*shouldClose=*/true);
 
+  // LLVMContext needed only for symbol table extraction.
+  LLVMContext C;
+
   for (size_t I = 0, E = SplitModules.size(); I != E; ++I) {
-    // Step 4: Translate LLVM IR -> SPIR-V.
     auto SPVFileOrErr =
         runLLVMToSPIRVTranslation(SplitModules[I].ModuleFilePath, Args);
     if (!SPVFileOrErr)
       return SPVFileOrErr.takeError();
     StringRef ImageFile = *SPVFileOrErr;
 
-    // Step 5: AOT compile if needed (Intel GPU or CPU).
     std::string AOTFile;
     if (NeedAOTCompile) {
       StringRef Stem = OutputFile.rsplit('.').first;
@@ -738,8 +636,7 @@ Error runSYCLLink(ArrayRef<std::string> Files, const ArgList &Args) {
     }
 
     // Build symbol table from the bitcode module.
-    auto ModOrErr =
-        getBitcodeModule(SplitModules[I].ModuleFilePath, C);
+    auto ModOrErr = getBitcodeModule(SplitModules[I].ModuleFilePath, C);
     if (!ModOrErr)
       return ModOrErr.takeError();
     SmallString<0> SymbolData;
@@ -750,13 +647,11 @@ Error runSYCLLink(ArrayRef<std::string> Files, const ArgList &Args) {
       }
     }
 
-    // Read the final image (SPIR-V or AOT binary).
     llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> FileOrErr =
         llvm::MemoryBuffer::getFileOrSTDIN(ImageFile);
     if (std::error_code EC = FileOrErr.getError())
       return createFileError(ImageFile, EC);
 
-    // Pack into OffloadBinary.
     OffloadingImage TheImage{};
     TheImage.TheImageKind = IMG_None;
     TheImage.TheOffloadKind = OFK_SYCL;
@@ -766,7 +661,6 @@ Error runSYCLLink(ArrayRef<std::string> Files, const ArgList &Args) {
         Args.MakeArgString(Args.getLastArgValue(OPT_arch_EQ));
     TheImage.StringData["symbols"] = SymbolData;
 
-    // For JIT path, carry compile/link options.
     if (!NeedAOTCompile) {
       TheImage.StringData["compile-opts"] =
           Args.MakeArgString(SplitModules[I].CompileOptions);
@@ -777,8 +671,7 @@ Error runSYCLLink(ArrayRef<std::string> Files, const ArgList &Args) {
 
     llvm::SmallString<0> Buffer = OffloadBinary::write(TheImage);
     if (Buffer.size() % OffloadBinary::getAlignment() != 0)
-      return createStringError(
-          "Offload binary has invalid size alignment");
+      return createStringError("Offload binary has invalid size alignment");
     FS << Buffer;
   }
   return Error::success();
@@ -787,6 +680,8 @@ Error runSYCLLink(ArrayRef<std::string> Files, const ArgList &Args) {
 } // namespace
 
 int main(int argc, char **argv) {
+  llvm::errs() << "[DEBUG] clang-sycl-linker called with args: "
+               << llvm::join(argv, argv + argc, " ") << "\n";
   InitLLVM X(argc, argv);
   InitializeAllTargetInfos();
   InitializeAllTargets();
@@ -836,7 +731,6 @@ int main(int argc, char **argv) {
       llvm::sys::path::native(Dir = "./");
     else
       Dir.append(llvm::sys::path::get_separator());
-
     SPIRVDumpDir = Dir;
   }
 

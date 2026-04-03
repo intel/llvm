@@ -148,12 +148,12 @@ void SPIRV::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   std::string Linker = ToolChain.GetProgramPath(getShortName());
   ArgStringList CmdArgs;
   for (const Arg *A : Args) {
-      if (A->getOption().matches(options::OPT_Xlinker)) {
-        // Each -Xlinker val becomes a direct argument to clang-sycl-linker.
-        CmdArgs.push_back(A->getValue());
-        A->claim();
-      }
+    if (A->getOption().matches(options::OPT_Xlinker)) {
+      // Each -Xlinker val becomes a direct argument to clang-sycl-linker.
+      CmdArgs.push_back(A->getValue());
+      A->claim();
     }
+  }
 
   CmdArgs.push_back("-o");
   CmdArgs.push_back(Output.getFilename());

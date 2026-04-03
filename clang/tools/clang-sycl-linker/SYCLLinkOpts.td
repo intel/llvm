@@ -62,3 +62,7 @@ def llvm_spirv_options_EQ : Joined<["--", "-"], "llvm-spirv-options=">,
 def sycl_post_link_options_EQ : Joined<["--", "-"], "sycl-post-link-options=">,
   Flags<[LinkerOnlyOption]>,
   HelpText<"Options passed to sycl-post-link tool">;
+
+def input_file_EQ : Joined<["--", "-"], "input-file=">,
+  Flags<[LinkerOnlyOption]>,
+  HelpText<"Input bitcode file for SYCL device linking">;
