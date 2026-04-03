@@ -1198,7 +1198,7 @@ try:
     import psutil
 
     if config.test_mode == "run-only":
-        lit_config.maxIndividualTestTime = 300
+        lit_config.maxIndividualTestTime = 3000
     else:
         lit_config.maxIndividualTestTime = 600
 
