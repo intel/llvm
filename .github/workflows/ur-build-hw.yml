@@ -33,7 +33,8 @@ on:
         required: false
         type: string
         default: ""
-      min_free_memory_mb:
+      min_free_disk_mb:
+        description: Minimum free disk space on / (MiB) before starting the job container
         required: false
         type: number
         default: 20480
@@ -49,12 +50,12 @@ env:
 
 jobs:
   host_memory_check:
-    name: Host memory (pre-container)
+    name: Host disk (pre-container)
     # if: github.repository == 'intel/llvm'
     uses: ./.github/workflows/ur-host-memory-check.yml
     with:
       runs_on: ${{ inputs.runner_name }}
-      min_free_memory_mb: ${{ inputs.min_free_memory_mb }}
+      min_free_disk_mb: ${{ inputs.min_free_disk_mb }}
 
   adapter_build_hw:
     name: Build & CTS

@@ -5,24 +5,26 @@ permissions: read-all
 on:
   workflow_call:
     inputs:
-      min_free_memory_mb:
+      min_free_disk_mb:
+        description: Minimum free disk space on / (MiB) before starting the job container
         required: false
         type: number
         default: 20480
   workflow_dispatch:
     inputs:
-      min_free_memory_mb:
+      min_free_disk_mb:
+        description: Minimum free disk space on / (MiB) before starting the job container
         required: false
         type: number
         default: 20480
 
 jobs:
   host_memory_check:
-    name: Host memory (pre-container)
+    name: Host disk (pre-container)
     uses: ./.github/workflows/ur-host-memory-check.yml
     with:
       runs_on: '["Linux", "build"]'
-      min_free_memory_mb: ${{ inputs.min_free_memory_mb }}
+      min_free_disk_mb: ${{ inputs.min_free_disk_mb }}
 
   offload_build:
     name: Build
