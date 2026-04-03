@@ -91,7 +91,6 @@ private:
 };
 
 struct PointerType : public ParamTypeBase<PointerType, TYPE_ID_POINTER> {
-  static const TypeEnum EnumTy;
   PointerType(const RefParamType Type) : PType(Type) {
     Qualifiers[0] = Qualifiers[1] = Qualifiers[2] = false;
   }
@@ -108,8 +107,7 @@ private:
   unsigned AddressSpace = ADDRESS_SPACE_GENERIC;
 };
 
-struct VectorType : public ParamTypeBase<PointerType, TYPE_ID_VECTOR> {
-  static const TypeEnum EnumTy;
+struct VectorType : public ParamTypeBase<VectorType, TYPE_ID_VECTOR> {
   VectorType(const RefParamType Type, int Len) : PType(Type), Len(Len) {}
   void accept(TypeVisitor *Visitor) const override;
   const RefParamType &getScalarType() const { return PType; }
@@ -121,8 +119,7 @@ private:
 };
 
 struct TemplateParameterType
-    : public ParamTypeBase<PointerType, TYPE_ID_TEMPLATE_PARAMETER> {
-  static const TypeEnum EnumTy;
+    : public ParamTypeBase<TemplateParameterType, TYPE_ID_TEMPLATE_PARAMETER> {
   TemplateParameterType(unsigned Index) : Index(Index) {}
   void accept(TypeVisitor *Visitor) const override;
   unsigned getIndex() const { return Index; }
@@ -131,8 +128,8 @@ private:
   unsigned Index;
 };
 
-struct UserDefinedType : public ParamTypeBase<PointerType, TYPE_ID_STRUCTURE> {
-  static const TypeEnum EnumTy;
+struct UserDefinedType
+    : public ParamTypeBase<UserDefinedType, TYPE_ID_STRUCTURE> {
   UserDefinedType(StringRef Name) : Name(Name) {}
   void accept(TypeVisitor *Visitor) const override;
   StringRef getName() const { return Name; }
