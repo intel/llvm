@@ -223,6 +223,12 @@ ur_result_t batch_manager::batchFinish() {
 
 ur_result_t
 ur_queue_batched_t::queueFinishUnlocked(locked<batch_manager> &batchLocked) {
+  // During graph capture, operations are recorded to the immediate list.
+  // Synchronization doesn't apply to graph recording - return early.
+  if (batchLocked->isGraphCaptureActive()) {
+    return UR_RESULT_SUCCESS;
+  }
+
   if (!batchLocked->isActiveBatchEmpty()) {
     UR_CALL(batchLocked->enqueueCurrentBatchUnlocked());
   }
@@ -978,6 +984,12 @@ ur_queue_batched_t::queueGetNativeHandle(ur_queue_native_desc_t * /*pDesc*/,
 ur_result_t ur_queue_batched_t::queueFlush() {
   auto batchLocked = currentCmdLists.lock();
 
+  // During graph capture, operations are recorded to the immediate list.
+  // Flushing doesn't apply to graph recording - return early.
+  if (batchLocked->isGraphCaptureActive()) {
+    return UR_RESULT_SUCCESS;
+  }
+
   if (batchLocked->isActiveBatchEmpty()) {
     return UR_RESULT_SUCCESS;
   } else {
@@ -1044,6 +1056,8 @@ ur_queue_batched_t::queueEndGraphCapteExp(ur_exp_graph_handle_t *phGraph) {
 }
 
 ur_result_t ur_queue_batched_t::queueIsGraphCapteEnabledExp(bool *pResult) {
+  // The returned command list doesn't matter, because they share the same
+  // context which is retrieved and checked in the queryGraphCaptureActive.
   return currentCmdLists.lock()->getListManager().queryGraphCaptureActive(
       pResult);
 }
