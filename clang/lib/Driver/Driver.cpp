@@ -9173,7 +9173,7 @@ InputInfoList Driver::BuildJobsForActionNoCache(
       // cause a overwrite.
       InputInfo CurI;
       if (C.getDriver().getOffloadStaticLibSeen() &&
-           (JA->getType() == types::TY_Archive ||
+          (JA->getType() == types::TY_Archive ||
            JA->getType() == types::TY_Tempfilelist)) {
         // Host part of the unbundled static archive is not used.
         if (UI.DependentOffloadKind == Action::OFK_Host)
