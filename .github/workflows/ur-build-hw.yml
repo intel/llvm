@@ -36,7 +36,7 @@ on:
       min_free_memory_mb:
         required: false
         type: number
-        default: 8192
+        default: 20480
 
 permissions: read-all
 
