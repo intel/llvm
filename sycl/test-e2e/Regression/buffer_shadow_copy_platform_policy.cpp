@@ -1,9 +1,13 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// Checks that misaligned host-pointer buffers do not allocate a SYCL shadow
-// copy on backends where prepareForAllocation() disables it.
+// Checks two things:
+// 1) policy check (read-only path): whether misaligned host pointers trigger
+//    an extra SYCL shadow-copy allocation depending on backend;
+// 2) correctness check (writable path): data is correctly copied back to host
+//    when buffer goes out of scope.
 //
+// The test does not check the lower layers allocations.
 // The test is portable: expected allocation count is derived from the runtime
 // backend, so a single test works across all platforms.
 
@@ -63,6 +67,7 @@ static bool shouldSkipAlignedShadowCopy(sycl::backend B) {
   }
 }
 
+// Read-only kernel path used for allocation-policy assertions.
 static int runReadOnlySumKernel(sycl::queue &Q, const int *HostPtr, size_t N) {
   sycl::buffer<int, 1, CountingAllocator<int>> Buf(HostPtr, sycl::range<1>(N));
   sycl::buffer<int, 1> SumBuf(1);
@@ -83,6 +88,34 @@ static int runReadOnlySumKernel(sycl::queue &Q, const int *HostPtr, size_t N) {
   return SumHostAcc[0];
 }
 
+// Writable kernel path; buffer destruction happens at scope exit.
+static void runWriteKernel(sycl::queue &Q, int *HostPtr, size_t N) {
+  {
+    sycl::buffer<int, 1, CountingAllocator<int>> Buf(HostPtr,
+                                                      sycl::range<1>(N));
+
+    Q.submit([&](sycl::handler &CGH) {
+      auto OutAcc = Buf.get_access<sycl::access::mode::write>(CGH);
+      CGH.single_task([=]() {
+        for (size_t I = 0; I < N; ++I)
+          OutAcc[I] = static_cast<int>(I * 3 + 7);
+      });
+    });
+    Q.wait_and_throw();
+  }
+}
+
+// Verifies host-side result after writable-buffer destruction.
+static bool checkExpectedPattern(const int *Ptr, size_t N) {
+  std::vector<int> Tmp(N);
+  std::memcpy(Tmp.data(), Ptr, sizeof(int) * N);
+  for (size_t I = 0; I < N; ++I) {
+    if (Tmp[I] != static_cast<int>(I * 3 + 7))
+      return false;
+  }
+  return true;
+}
+
 int main() {
   constexpr size_t N = 32;
   sycl::queue Q;
@@ -98,6 +131,8 @@ int main() {
 
   const int ExpectedSum = static_cast<int>((N - 1) * N / 2);
 
+  // Compare aligned vs misaligned read-only input. Allocation count is used as
+  // a proxy for SYCL shadow-copy creation.
   CountingAllocator<int>::Allocations.store(0, std::memory_order_relaxed);
   const int AlignedSum = runReadOnlySumKernel(Q, AlignedInput.data(), N);
   const size_t AlignedAllocations =
@@ -135,6 +170,40 @@ int main() {
       return 1;
     }
   }
+
+  // Validate writable path including final copy-back at buffer destruction.
+  // This checks correctness only; writable allocation counts are intentionally
+  // not asserted (write accessor can conservatively materialize shadow copy).
+  std::vector<int> AlignedWritable(N, 0);
+  std::vector<unsigned char> WritableStorage(sizeof(int) * N + 1, 0);
+  int *UnalignedWritablePtr =
+      reinterpret_cast<int *>(WritableStorage.data() + 1);
+
+  CountingAllocator<int>::Allocations.store(0, std::memory_order_relaxed);
+  runWriteKernel(Q, AlignedWritable.data(), N);
+  const size_t AlignedWriteAllocs =
+      CountingAllocator<int>::Allocations.load(std::memory_order_relaxed);
+
+  CountingAllocator<int>::Allocations.store(0, std::memory_order_relaxed);
+  runWriteKernel(Q, UnalignedWritablePtr, N);
+  const size_t MisalignedWriteAllocs =
+      CountingAllocator<int>::Allocations.load(std::memory_order_relaxed);
+
+  if (!checkExpectedPattern(AlignedWritable.data(), N)) {
+    std::cerr << "Unexpected data in aligned writable buffer\n";
+    return 1;
+  }
+  if (!checkExpectedPattern(UnalignedWritablePtr, N)) {
+    std::cerr << "Unexpected data in misaligned writable buffer\n";
+    return 1;
+  }
+
+  // For writable access, SYCL may conservatively materialize shadow copy
+  // before backend-specific skip policy is resolved (write accessor creation
+  // can trigger this). Keep this test focused on data correctness for writable
+  // path and use read-only path for strict allocation-policy assertions.
+  (void)AlignedWriteAllocs;
+  (void)MisalignedWriteAllocs;
 
   return 0;
 }

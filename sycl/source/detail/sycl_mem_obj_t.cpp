@@ -143,7 +143,7 @@ void SYCLMemObjT::updateHostMemory(void *const Ptr) {
 void SYCLMemObjT::updateHostMemory() {
   // Don't try updating host memory when shutting down.
   if ((MUploadDataFunctor != nullptr) && MNeedWriteBack &&
-      GlobalHandler::instance().isOkToDefer())
+      !MBackendOwnsWriteBack && GlobalHandler::instance().isOkToDefer())
     MUploadDataFunctor();
 
   // If we're attached to a memory record, process the deletion of the memory
@@ -208,11 +208,13 @@ void SYCLMemObjT::prepareForAllocation(context_impl *Context) {
   std::lock_guard<std::mutex> Lock(MCreateShadowCopyMtx);
   if (SkipShadowCopy) {
     MCreateShadowCopy = []() -> void {};
+    MBackendOwnsWriteBack = true;
     if (!MHostPtrReadOnly)
       MUploadDataFunctor = nullptr;
   } else {
     MCreateShadowCopy();
     MCreateShadowCopy = []() -> void {};
+    MBackendOwnsWriteBack = false;
   }
 
   MHasPendingAlignedShadowCopy = false;
