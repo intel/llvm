@@ -33,6 +33,10 @@ on:
         required: false
         type: string
         default: ""
+      min_free_memory_mb:
+        required: false
+        type: number
+        default: 8192
 
 permissions: read-all
 
@@ -44,8 +48,17 @@ env:
   UR_LOG_OPENCL: "level:error;flush:error"
 
 jobs:
+  host_memory_check:
+    name: Host memory (pre-container)
+    if: github.repository == 'intel/llvm'
+    uses: ./.github/workflows/ur-host-memory-check.yml
+    with:
+      runs_on: ${{ inputs.runner_name }}
+      min_free_memory_mb: ${{ inputs.min_free_memory_mb }}
+
   adapter_build_hw:
     name: Build & CTS
+    needs: [host_memory_check]
     # run only on upstream; forks won't have the HW
     if: github.repository == 'intel/llvm'
     strategy:

@@ -2,11 +2,31 @@ name: UR - Build offload adapter
 
 permissions: read-all
 
-on: [ workflow_call, workflow_dispatch ]
+on:
+  workflow_call:
+    inputs:
+      min_free_memory_mb:
+        required: false
+        type: number
+        default: 8192
+  workflow_dispatch:
+    inputs:
+      min_free_memory_mb:
+        required: false
+        type: number
+        default: 8192
 
 jobs:
+  host_memory_check:
+    name: Host memory (pre-container)
+    uses: ./.github/workflows/ur-host-memory-check.yml
+    with:
+      runs_on: '["Linux", "build"]'
+      min_free_memory_mb: ${{ inputs.min_free_memory_mb }}
+
   offload_build:
     name: Build
+    needs: [host_memory_check]
     strategy:
       fail-fast: false
       matrix:

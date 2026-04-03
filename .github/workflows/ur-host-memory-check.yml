@@ -1,0 +1,36 @@
+name: UR - Host memory check (pre-container)
+
+on:
+  workflow_call:
+    inputs:
+      runs_on:
+        required: true
+        type: string
+      min_free_memory_mb:
+        required: false
+        type: number
+        default: 8192
+
+permissions: read-all
+
+jobs:
+  check:
+    name: Host memory
+    runs-on: ${{ startsWith(inputs.runs_on, '[') && fromJSON(inputs.runs_on) || inputs.runs_on }}
+    steps:
+      - name: Check available memory
+        env:
+          MIN_FREE_MEMORY_MB: ${{ inputs.min_free_memory_mb }}
+        run: |
+          set -euo pipefail
+          if ! [ -r /proc/meminfo ]; then
+            echo "::warning::Cannot read /proc/meminfo; skipping memory check"
+            exit 0
+          fi
+          avail_kb=$(awk '/^MemAvailable:/ {print $2; exit}' /proc/meminfo)
+          avail_mb=$((avail_kb / 1024))
+          echo "MemAvailable: ${avail_mb} MiB (minimum: ${MIN_FREE_MEMORY_MB} MiB)"
+          if [ "$avail_mb" -lt "$MIN_FREE_MEMORY_MB" ]; then
+            echo "::error::Insufficient host memory before container start (${avail_mb} MiB available, need at least ${MIN_FREE_MEMORY_MB} MiB)."
+            exit 1
+          fi
