@@ -775,6 +775,11 @@ void USRGenerator::VisitType(QualType T) {
         Out << 'n';
         break;
 #define IMAGE_TYPE(ImgType, Id, SingletonId, Access, Suffix)                   \
+  case BuiltinType::Id:                                                        \
+    Out << "@BT@" << #Suffix << "_" << #ImgType;                               \
+    break;
+#include "clang/Basic/OpenCLImageTypes.def"
+#define IMAGE_TYPE(ImgType, Id, SingletonId, Access, Suffix)                   \
   case BuiltinType::Sampled##Id:
 #define IMAGE_WRITE_TYPE(Type, Id, Ext)
 #define IMAGE_READ_WRITE_TYPE(Type, Id, Ext)
