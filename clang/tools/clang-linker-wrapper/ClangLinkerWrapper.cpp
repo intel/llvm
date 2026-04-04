@@ -987,9 +987,12 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args,
                                + A->getValue())});
 
     // Device library files
-    for (StringRef Lib : Args.getAllArgValues(OPT_sycl_device_lib_EQ))
+    if (Arg *A = Args.getLastArg(OPT_sycl_device_lib_EQ)) {
+        // Join all device library values with commas
+        std::string DeviceLibsStr = llvm::join(A->getValues(), ",");
         CmdArgs.append({"-Xlinker",
-            Args.MakeArgString("-device-libs=" + Lib)});
+            Args.MakeArgString("-device-libs=" + DeviceLibsStr)});
+    }
 
     // sycl-post-link options
     if (Arg *A = Args.getLastArg(OPT_sycl_post_link_options_EQ))

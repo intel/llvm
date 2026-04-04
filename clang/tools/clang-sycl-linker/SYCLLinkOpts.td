@@ -66,3 +66,7 @@ def sycl_post_link_options_EQ : Joined<["--", "-"], "sycl-post-link-options=">,
 def input_file_EQ : Joined<["--", "-"], "input-file=">,
   Flags<[LinkerOnlyOption]>,
   HelpText<"Input bitcode file for SYCL device linking">;
+
+def bitcode_library_EQ : Joined<["--"], "bitcode-library=">,
+  Flags<[LinkerOnlyOption]>, MetaVarName<"<kind>-<triple>-<arch>=<path>">,
+  HelpText<"Extra bitcode library to link">;
