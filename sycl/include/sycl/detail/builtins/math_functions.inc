@@ -223,13 +223,7 @@ auto builtin_delegate_ptr_impl(FuncTy F, PtrTy p, Ts... xs) {
 
   // TODO: Optimize for sizes. Make not to violate ANSI-aliasing rules for the
   // pointer argument.
-  auto p0 = [&]() {
-    if constexpr (is_multi_ptr_v<PtrTy>)
-      return address_space_cast<PtrTy::address_space,
-                                get_multi_ptr_decoration_v<PtrTy>>(&(*p)[0]);
-    else
-      return &(*p)[0];
-  }();
+  auto p0 = builtin_element_ptr(p);
 
   constexpr auto N = T0::size();
   if constexpr (N <= 16)
@@ -314,7 +308,8 @@ using builtin_last_raw_intptr_t =
                    PtrTy p) {                                                  \
     if constexpr (is_multi_ptr_v<PtrTy>) {                                     \
       /* TODO: Can't really create multi_ptr on host... */                     \
-      return NAME##_impl(SYCL_CONCAT(LESS_ONE(NUM_ARGS), _ARG), p.get_raw());  \
+      return NAME##_impl(SYCL_CONCAT(LESS_ONE(NUM_ARGS), _ARG),                \
+                         builtin_raw_ptr(p));                                  \
     } else {                                                                   \
       return builtin_delegate_ptr_impl(                                        \
           [](auto... xs) { return NAME##_impl(xs...); }, p,                    \
@@ -355,7 +350,7 @@ template <typename T0, typename T1> auto modf_impl(T0 &x, T1 &&y) {
   if constexpr (is_multi_ptr_v<std::remove_reference_t<T1>>) {
     // TODO: Spec needs to be clarified, multi_ptr shouldn't be possible on
     // host.
-    return modf_impl(x, y.get_raw());
+    return modf_impl(x, builtin_raw_ptr(std::forward<T1>(y)));
   } else {
     return builtin_delegate_ptr_impl(
         [](auto x, auto y) { return modf_impl(x, y); }, y,
@@ -433,7 +428,7 @@ template <typename T0, typename T1> auto sincos_impl(T0 &x, T1 &&y) {
   if constexpr (is_multi_ptr_v<std::remove_reference_t<T1>>) {
     // TODO: Spec needs to be clarified, multi_ptr shouldn't be possible on
     // host.
-    return sincos_impl(x, y.get_raw());
+    return sincos_impl(x, builtin_raw_ptr(std::forward<T1>(y)));
   } else {
     return builtin_delegate_ptr_impl(
         [](auto... xs) { return sincos_impl(xs...); }, y,
