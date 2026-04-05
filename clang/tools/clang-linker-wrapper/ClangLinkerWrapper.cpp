@@ -850,7 +850,7 @@ Error extractBundledObjects(StringRef Filename, const ArgList &Args,
 
 namespace generic {
 Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args,
-                          uint16_t ActiveOffloadKindMask, bool IsSYCLKind = false) {
+                          uint16_t ActiveOffloadKindMask, bool IsSYCLKind = false, StringRef SYCLBackendOptions = StringRef()) {
   llvm::TimeTraceScope TimeScope("Clang");
   // Use `clang` to invoke the appropriate device tools.
   Expected<std::string> ClangPath =
@@ -888,10 +888,6 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args,
       Args.MakeArgString(ExecutableName + OutputFileBase + ".img."),
       Args.MakeArgString("--target=" + TargetTriple),
   };
-
-  // if (!Arch.empty())
-  //   Triple.isAMDGPU() ? CmdArgs.push_back(Args.MakeArgString("-mcpu=" + Arch))
-  //                     : CmdArgs.push_back(Args.MakeArgString("-march=" + Arch));
 
   // AMDGPU is always in LTO mode currently.
   CmdArgs.push_back("-fsycl");
@@ -1007,10 +1003,10 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args,
                                + A->getValue())});
 
     // AOT backend options (ocloc for Intel GPU)
-    if (Arg *A = Args.getLastArg(OPT_compiler_arg_EQ))
-        CmdArgs.append({"-Xlinker",
-            Args.MakeArgString(StringRef("-ocloc-options=")
-                               + A->getValue())});
+    if (!SYCLBackendOptions.empty())
+      CmdArgs.append({"-Xlinker",
+          Args.MakeArgString(StringRef("-ocloc-options=")
+                             + SYCLBackendOptions)});
 
     // verbose and save-temps
     if (Args.hasArg(OPT_verbose))
@@ -1018,11 +1014,6 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args,
     if (Args.hasArg(OPT_save_temps))
         CmdArgs.append({"-Xlinker", "-save-temps"});
   }
-
-  for (StringRef Arg : Args.getAllArgValues(OPT_linker_arg_EQ))
-    CmdArgs.append({"-Xlinker", Args.MakeArgString(Arg)});
-  for (StringRef Arg : Args.getAllArgValues(OPT_compiler_arg_EQ))
-    CmdArgs.push_back(Args.MakeArgString(Arg));
 
   for (StringRef Arg : Args.getAllArgValues(OPT_builtin_bitcode_EQ)) {
     if (llvm::Triple(Arg.split('=').first) == Triple)
@@ -1091,16 +1082,16 @@ Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
   case Triple::ppc64:
   case Triple::ppc64le:
   case Triple::systemz:
-    return generic::clang(InputFiles, Args, ActiveOffloadKindMask, IsSYCLKind);
+    return generic::clang(InputFiles, Args, ActiveOffloadKindMask, IsSYCLKind, SYCLBackendOptions);
   case Triple::spirv32:
   case Triple::spirv64:
   case Triple::spir:
   case Triple::spir64:
   case Triple::loongarch64:
-    return generic::clang(InputFiles, Args, ActiveOffloadKindMask, IsSYCLKind);
+    return generic::clang(InputFiles, Args, ActiveOffloadKindMask, IsSYCLKind, SYCLBackendOptions);
   case Triple::native_cpu:
     if (IsSYCLKind)
-      return generic::clang(InputFiles, Args, ActiveOffloadKindMask, IsSYCLKind);
+      return generic::clang(InputFiles, Args, ActiveOffloadKindMask, IsSYCLKind, SYCLBackendOptions);
     return createStringError(Triple.getArchName() +
                              " linking is not supported other than for SYCL");
   default:
@@ -1421,6 +1412,36 @@ Error handleOverrideImages(
   return Error::success();
 }
 
+/// Function looks for compile/link options encoded in SYCL images. If they are
+/// found, then they are returned. If it is found that images have different
+/// compile options or different link options, then an error is returned.
+Expected<std::pair<std::string, std::string>>
+extractSYCLCompileLinkOptions(ArrayRef<OffloadFile> OffloadFiles) {
+  if (OffloadFiles.size() == 0)
+    return std::pair<std::string, std::string>{};
+
+  const OffloadBinary *OB = OffloadFiles[0].getBinary();
+  StringRef RefCompileOpts = OB->getString("compile-opts");
+  StringRef RefLinkOpts = OB->getString("link-opts");
+
+  for (size_t I = 1, E = OffloadFiles.size(); I != E; ++I) {
+    OB = OffloadFiles[I].getBinary();
+    StringRef CompileOptions = OB->getString("compile-opts");
+    StringRef LinkOptions = OB->getString("link-opts");
+
+    if (CompileOptions != RefCompileOpts || LinkOptions != RefLinkOpts)
+      return createStringError(
+          formatv("compile and link options passed to the backend of the "
+                  "target device compiler must be identical for device images "
+                  "of the same target. Mismatched options:\n"
+                  "Input[0]: compile_options: {0}, link_options: {1}\n"
+                  "Input[{2}]: compile_options: {3}, link_options: {4}\n",
+                  RefCompileOpts, RefLinkOpts, I, CompileOptions, LinkOptions));
+  }
+
+  return std::make_pair(std::string(RefCompileOpts), std::string(RefLinkOpts));
+}
+
 /// Transforms all the extracted offloading input files into an image that can
 /// be registered by the runtime. If NeedsWrapping is false, writes bundled
 /// output directly without wrapping or host linking.
@@ -1478,27 +1499,17 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
       return createStringError("Linking images of SYCL offload kind with "
                                "images of any other kind is not supported");
     
-    // not sure if this part is needed, to be decided later
-    // Expected<std::pair<std::string, std::string>> CompileLinkOptionsOrErr =
-    //       extractSYCLCompileLinkOptions(Input);
-    // if (!CompileLinkOptionsOrErr)
-    //   return CompileLinkOptionsOrErr.takeError();
+      Expected<std::pair<std::string, std::string>> CompileLinkOptionsOrErr =
+            extractSYCLCompileLinkOptions(Input);
+      if (!CompileLinkOptionsOrErr)
+        return CompileLinkOptionsOrErr.takeError();
 
-    // Append device compiler and linker options passed via
-    // -device-compiler= and -device-linker= to clang-linker-warpper,
-    // together with options extracted from the image.
-    // StringRef DeviceCompilerArgs =
-    //     LinkerArgs.getLastArgValue(OPT_compiler_arg_EQ);
-    // if (!DeviceCompilerArgs.empty()) {
-    //   CompileLinkOptionsOrErr->first += " ";
-    //   CompileLinkOptionsOrErr->first += DeviceCompilerArgs;
-    // }
-    // StringRef DeviceLinkerArgs =
-    //     LinkerArgs.getLastArgValue(OPT_linker_arg_EQ);
-    // if (!DeviceLinkerArgs.empty()) {
-    //   CompileLinkOptionsOrErr->second += " ";
-    //   CompileLinkOptionsOrErr->second += DeviceLinkerArgs;
-    // }
+      StringRef DeviceCompilerArgs =
+        LinkerArgs.getLastArgValue(OPT_compiler_arg_EQ);
+      if (!DeviceCompilerArgs.empty()) {
+        CompileLinkOptionsOrErr->first += " ";
+        CompileLinkOptionsOrErr->first += DeviceCompilerArgs;
+      }
 
     SmallVector<StringRef> InputFiles;
     for (const OffloadFile &File : Input) {
@@ -1513,7 +1524,7 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
 
     // Link the input device files using the device linker for SYCL
     // offload.
-    auto TmpOutputOrErr = linkDevice(InputFiles, LinkerArgs, ActiveOffloadKindMask);
+    auto TmpOutputOrErr = linkDevice(InputFiles, LinkerArgs, ActiveOffloadKindMask, true, CompileLinkOptionsOrErr->first);
     if (!TmpOutputOrErr)
       return TmpOutputOrErr.takeError();
 
