@@ -116,7 +116,9 @@
 // CHECK-NEXT: event.hpp
 // CHECK-NEXT: sampler.hpp
 // CHECK-NEXT: vector.hpp
-// CHECK-NEXT: detail/named_swizzles_mixin.hpp
 // CHECK-NEXT: detail/vector_arith.hpp
+// CHECK-NEXT: detail/vector_traits.hpp
+// CHECK-NEXT: detail/vector_core.hpp
+// CHECK-NEXT: detail/named_swizzles_mixin.hpp
 // CHECK-NEXT: detail/memcpy.hpp
 // CHECK-EMPTY:
