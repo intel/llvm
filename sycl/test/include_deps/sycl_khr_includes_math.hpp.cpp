@@ -17,9 +17,9 @@
 // CHECK-NEXT: detail/export.hpp
 // CHECK-NEXT: memory_enums.hpp
 // CHECK-NEXT: __spirv/spirv_vars.hpp
+// CHECK-NEXT: detail/fwd/multi_ptr.hpp
 // CHECK-NEXT: detail/type_traits.hpp
 // CHECK-NEXT: detail/type_traits/vec_marray_traits.hpp
-// CHECK-NEXT: detail/fwd/multi_ptr.hpp
 // CHECK-NEXT: detail/vector_convert.hpp
 // CHECK-NEXT: detail/generic_type_traits.hpp
 // CHECK-NEXT: aliases.hpp
@@ -37,8 +37,6 @@
 // CHECK-NEXT: detail/common.hpp
 // CHECK-NEXT: detail/fwd/accessor.hpp
 // CHECK-NEXT: marray.hpp
-// CHECK-NEXT: multi_ptr.hpp
-// CHECK-NEXT: detail/address_space_cast.hpp
 // CHECK-NEXT: detail/builtins/common_functions.inc
 // CHECK-NEXT: detail/builtins/helper_macros.hpp
 // CHECK-NEXT: detail/builtins/geometric_functions.inc
