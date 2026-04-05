@@ -11,8 +11,8 @@
 // RUN: %{run} %t2.out
 
 #include <sycl/detail/core.hpp>
-#include <sycl/detail/vector_convert.hpp>
 #include <sycl/vector.hpp>
+#include <sycl/vector_convert.hpp>
 
 #include <cstdint>
 #include <iostream>

@@ -12,9 +12,9 @@
 #include <sycl/bit_cast.hpp>      // for sycl::bit_cast
 #include <sycl/builtins.hpp>      // for ceil, cos, exp, exp10, exp2
 #include <sycl/detail/memcpy.hpp> // sycl::detail::memcpy
-#include <sycl/detail/vector_convert.hpp>
 #include <sycl/ext/oneapi/bfloat16.hpp> // for bfloat16
 #include <sycl/marray.hpp>              // for marray
+#include <sycl/vector_convert.hpp>
 
 #include <cstring>     // for size_t
 #include <stdint.h>    // for uint32_t

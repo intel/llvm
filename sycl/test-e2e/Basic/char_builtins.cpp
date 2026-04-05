@@ -4,6 +4,7 @@
 #include <array>
 #include <sycl/builtins.hpp>
 #include <sycl/detail/core.hpp>
+#include <sycl/vector_convert.hpp>
 
 using namespace sycl;
 

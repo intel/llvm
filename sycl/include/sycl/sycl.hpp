@@ -52,7 +52,6 @@ can be disabled by setting SYCL_DISABLE_FSYCL_SYCLHPP_WARNING macro.")
 #include <sycl/builtins.hpp>
 #include <sycl/context.hpp>
 #include <sycl/define_vendors.hpp>
-#include <sycl/detail/vector_convert.hpp>
 #include <sycl/device.hpp>
 #include <sycl/device_aspect_traits.hpp>
 #include <sycl/device_selector.hpp>
@@ -87,6 +86,7 @@ can be disabled by setting SYCL_DISABLE_FSYCL_SYCLHPP_WARNING macro.")
 #include <sycl/usm/usm_allocator.hpp>
 #include <sycl/usm/usm_pointer_info.hpp>
 #include <sycl/vector.hpp>
+#include <sycl/vector_convert.hpp>
 #include <sycl/version.hpp>
 
 #include <sycl/ext/intel/experimental/fp_control_kernel_properties.hpp>

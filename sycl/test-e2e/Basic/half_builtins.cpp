@@ -5,6 +5,7 @@
 #include <sycl/detail/core.hpp>
 
 #include <sycl/builtins.hpp>
+#include <sycl/vector_convert.hpp>
 
 #include <cmath>
 #include <limits>

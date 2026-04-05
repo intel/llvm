@@ -69,7 +69,7 @@ SYCL_EXTERNAL auto TestFMin(vec<bfloat16, 2> a, vec<bfloat16, 2> b) {
 }
 
 // CHECK-LABEL: define dso_local spir_func void @_Z8TestFMaxN4sycl3_V13vecINS0_3ext6oneapi8bfloat16ELi3EEES5_(
-// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias writable writeonly sret(%"class.sycl::_V1::vec.70") align 8 captures(none) initializes((0, 8)) [[AGG_RESULT:%.*]], ptr noundef readonly byval(%"class.sycl::_V1::vec.70") align 8 captures(none) [[A:%.*]], ptr noundef readonly byval(%"class.sycl::_V1::vec.70") align 8 captures(none) [[B:%.*]]) local_unnamed_addr #[[ATTR0]] {{.*}}{
+// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias writable writeonly sret({{.*}}) align 8 captures(none) initializes((0, 8)) [[AGG_RESULT:%.*]], ptr noundef readonly byval({{.*}}) align 8 captures(none) [[A:%.*]], ptr noundef readonly byval({{.*}}) align 8 captures(none) [[B:%.*]]) local_unnamed_addr #[[ATTR0]] {{.*}}{
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[VEC_ADDR_I_I_I_I14_I:%.*]] = alloca <3 x float>, align 16
 // CHECK-NEXT:    [[DST_I_I_I_I15_I:%.*]] = alloca [4 x %"class.sycl::_V1::ext::oneapi::bfloat16"], align 2
@@ -126,7 +126,7 @@ SYCL_EXTERNAL auto TestFMax(vec<bfloat16, 3> a, vec<bfloat16, 3> b) {
 }
 
 // CHECK-LABEL: define dso_local spir_func void @_Z9TestIsNanN4sycl3_V13vecINS0_3ext6oneapi8bfloat16ELi4EEE(
-// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias writable writeonly sret(%"class.sycl::_V1::vec.146") align 8 captures(none) initializes((0, 8)) [[AGG_RESULT:%.*]], ptr noundef readonly byval(%"class.sycl::_V1::vec.183") align 8 captures(none) [[A:%.*]]) local_unnamed_addr #[[ATTR0]] {{.*}}{
+// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias writable writeonly sret({{.*}}) align 8 captures(none) initializes((0, 8)) [[AGG_RESULT:%.*]], ptr noundef readonly byval({{.*}}) align 8 captures(none) [[A:%.*]]) local_unnamed_addr #[[ATTR0]] {{.*}}{
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[VEC_ADDR_I_I_I_I_I:%.*]] = alloca <4 x i16>, align 8
 // CHECK-NEXT:    [[DST_I_I_I_I_I:%.*]] = alloca [4 x float], align 4
@@ -142,8 +142,8 @@ SYCL_EXTERNAL auto TestFMax(vec<bfloat16, 3> a, vec<bfloat16, 3> b) {
 // CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[VEC_ADDR_I_I_I_I_I]]), !noalias [[META41]]
 // CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[DST_I_I_I_I_I]]), !noalias [[META41]]
 // CHECK-NEXT:    [[CALL_I_I_I_I:%.*]] = call spir_func noundef <4 x i8> @_Z13__spirv_IsNanDv4_f(<4 x float> noundef [[TMP1]]) #[[ATTR6]]
-// CHECK-NEXT:    [[CALL_I_I_I_I_I_I:%.*]] = call spir_func noundef <4 x i32> @_Z22__spirv_SConvert_Rint4Dv4_a(<4 x i8> noundef [[CALL_I_I_I_I]]) #[[ATTR6]]
-// CHECK-NEXT:    [[CALL_I_I_I2_I:%.*]] = call spir_func noundef <4 x i16> @_Z24__spirv_SConvert_Rshort4Dv4_i(<4 x i32> noundef [[CALL_I_I_I_I_I_I]]) #[[ATTR6]]
+// CHECK-NEXT:    [[MASK_I32:%.*]] = sext <4 x i8> [[CALL_I_I_I_I]] to <4 x i32>
+// CHECK-NEXT:    [[CALL_I_I_I2_I:%.*]] = call spir_func noundef <4 x i16> @_Z24__spirv_SConvert_Rshort4Dv4_i(<4 x i32> noundef [[MASK_I32]]) #[[ATTR6]]
 // CHECK-NEXT:    store <4 x i16> [[CALL_I_I_I2_I]], ptr addrspace(4) [[AGG_RESULT]], align 8, !alias.scope [[META44:![0-9]+]]
 // CHECK-NEXT:    ret void
 //
@@ -152,7 +152,7 @@ SYCL_EXTERNAL auto TestIsNan(vec<bfloat16, 4> a) {
 }
 
 // CHECK-LABEL: define dso_local spir_func void @_Z8TestFabsN4sycl3_V13vecINS0_3ext6oneapi8bfloat16ELi8EEE(
-// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias writable writeonly sret(%"class.sycl::_V1::vec.335") align 16 captures(none) initializes((0, 16)) [[AGG_RESULT:%.*]], ptr noundef readonly byval(%"class.sycl::_V1::vec.335") align 16 captures(none) [[A:%.*]]) local_unnamed_addr #[[ATTR0]] {{.*}}{
+// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias writable writeonly sret({{.*}}) align 16 captures(none) initializes((0, 16)) [[AGG_RESULT:%.*]], ptr noundef readonly byval({{.*}}) align 16 captures(none) [[A:%.*]]) local_unnamed_addr #[[ATTR0]] {{.*}}{
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[VEC_ADDR_I_I_I_I2_I:%.*]] = alloca <8 x float>, align 32
 // CHECK-NEXT:    [[DST_I_I_I_I3_I:%.*]] = alloca [8 x %"class.sycl::_V1::ext::oneapi::bfloat16"], align 2
@@ -188,7 +188,7 @@ SYCL_EXTERNAL auto TestFabs(vec<bfloat16, 8> a) {
 }
 
 // CHECK-LABEL: define dso_local spir_func void @_Z8TestCeilN4sycl3_V13vecINS0_3ext6oneapi8bfloat16ELi8EEE(
-// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias writable writeonly sret(%"class.sycl::_V1::vec.335") align 16 captures(none) initializes((0, 16)) [[AGG_RESULT:%.*]], ptr noundef readonly byval(%"class.sycl::_V1::vec.335") align 16 captures(none) [[A:%.*]]) local_unnamed_addr #[[ATTR0]] {{.*}}{
+// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias writable writeonly sret({{.*}}) align 16 captures(none) initializes((0, 16)) [[AGG_RESULT:%.*]], ptr noundef readonly byval({{.*}}) align 16 captures(none) [[A:%.*]]) local_unnamed_addr #[[ATTR0]] {{.*}}{
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[VEC_ADDR_I_I_I_I2_I:%.*]] = alloca <8 x float>, align 32
 // CHECK-NEXT:    [[DST_I_I_I_I3_I:%.*]] = alloca [8 x %"class.sycl::_V1::ext::oneapi::bfloat16"], align 2
@@ -224,7 +224,7 @@ SYCL_EXTERNAL auto TestCeil(vec<bfloat16, 8> a) {
 }
 
 // CHECK-LABEL: define dso_local spir_func void @_Z7TestFMAN4sycl3_V13vecINS0_3ext6oneapi8bfloat16ELi16EEES5_S5_(
-// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias writable writeonly sret(%"class.sycl::_V1::vec.411") align 32 captures(none) initializes((0, 32)) [[AGG_RESULT:%.*]], ptr noundef readonly byval(%"class.sycl::_V1::vec.411") align 32 captures(none) [[A:%.*]], ptr noundef readonly byval(%"class.sycl::_V1::vec.411") align 32 captures(none) [[B:%.*]], ptr noundef readonly byval(%"class.sycl::_V1::vec.411") align 32 captures(none) [[C:%.*]]) local_unnamed_addr #[[ATTR0]] {{.*}}{
+// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias writable writeonly sret({{.*}}) align 32 captures(none) initializes((0, 32)) [[AGG_RESULT:%.*]], ptr noundef readonly byval({{.*}}) align 32 captures(none) [[A:%.*]], ptr noundef readonly byval({{.*}}) align 32 captures(none) [[B:%.*]], ptr noundef readonly byval({{.*}}) align 32 captures(none) [[C:%.*]]) local_unnamed_addr #[[ATTR0]] {{.*}}{
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[VEC_ADDR_I_I_I_I14_I:%.*]] = alloca <16 x float>, align 64
 // CHECK-NEXT:    [[DST_I_I_I_I15_I:%.*]] = alloca [16 x %"class.sycl::_V1::ext::oneapi::bfloat16"], align 2

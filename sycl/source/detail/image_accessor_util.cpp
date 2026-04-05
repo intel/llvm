@@ -9,8 +9,8 @@
 #include <sycl/accessor.hpp>
 #include <sycl/accessor_image.hpp>
 #include <sycl/builtins.hpp>
-#include <sycl/detail/vector_convert.hpp>
 #include <sycl/image.hpp>
+#include <sycl/vector_convert.hpp>
 
 namespace sycl {
 inline namespace _V1 {
