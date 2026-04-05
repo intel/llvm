@@ -122,14 +122,12 @@
 #define THREE_ARGS_ARG x, y, z
 
 #define ONE_ARG_SIMPLIFIED_ARG                                                 \
-  simplify_if_swizzle_t<T0> { x }
+  detail::materialize_if_swizzle(x)
 #define TWO_ARGS_SIMPLIFIED_ARG                                                \
-  simplify_if_swizzle_t<T0>{x}, simplify_if_swizzle_t<T1> { y }
+  detail::materialize_if_swizzle(x), detail::materialize_if_swizzle(y)
 #define THREE_ARGS_SIMPLIFIED_ARG                                              \
-  simplify_if_swizzle_t<T0>{x}, simplify_if_swizzle_t<T1>{y},                  \
-      simplify_if_swizzle_t<T2> {                                              \
-    z                                                                          \
-  }
+  detail::materialize_if_swizzle(x), detail::materialize_if_swizzle(y),        \
+      detail::materialize_if_swizzle(z)
 
 #define TWO_ARGS_ARG_ROTATED y, x
 #define THREE_ARGS_ARG_ROTATED z, x, y

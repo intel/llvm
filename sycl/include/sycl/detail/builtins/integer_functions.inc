@@ -105,7 +105,7 @@ BUILTIN_GENINT_SU(TWO_ARGS, max)
 template <typename T>
 detail::builtin_enable_integer_non_scalar_t<T>(max)(
     T x, detail::get_elem_type_t<T> y) {
-  return (max)(detail::simplify_if_swizzle_t<T>{x},
+  return (max)(detail::materialize_if_swizzle(x),
                detail::simplify_if_swizzle_t<T>{y});
 }
 
@@ -113,7 +113,7 @@ BUILTIN_GENINT_SU(TWO_ARGS, min)
 template <typename T>
 detail::builtin_enable_integer_non_scalar_t<T>(min)(
     T x, detail::get_elem_type_t<T> y) {
-  return (min)(detail::simplify_if_swizzle_t<T>{x},
+  return (min)(detail::materialize_if_swizzle(x),
                detail::simplify_if_swizzle_t<T>{y});
 }
 
@@ -121,7 +121,7 @@ BUILTIN_GENINT_SU(THREE_ARGS, clamp)
 template <typename T>
 detail::builtin_enable_integer_non_scalar_t<T>
 clamp(T x, detail::get_elem_type_t<T> y, detail::get_elem_type_t<T> z) {
-  return clamp(detail::simplify_if_swizzle_t<T>{x},
+  return clamp(detail::materialize_if_swizzle(x),
                detail::simplify_if_swizzle_t<T>{y},
                detail::simplify_if_swizzle_t<T>{z});
 }

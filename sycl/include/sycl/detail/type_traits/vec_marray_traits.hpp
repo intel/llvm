@@ -10,6 +10,7 @@
 
 #include <cstddef>
 #include <type_traits>
+#include <utility>
 
 #include <sycl/detail/defines_elementary.hpp>
 
@@ -58,6 +59,26 @@ struct simplify_if_swizzle<detail::hide_swizzle_from_adl::Swizzle<
 
 template <typename T>
 using simplify_if_swizzle_t = typename simplify_if_swizzle<T>::type;
+
+template <typename T> constexpr decltype(auto) materialize_if_swizzle(T &&X) {
+  return std::forward<T>(X);
+}
+
+#if __SYCL_USE_LIBSYCL8_VEC_IMPL
+template <typename VecT, typename OperationLeftT, typename OperationRightT,
+          template <typename> class OperationCurrentT, int... Indexes>
+simplify_if_swizzle_t<SwizzleOp<VecT, OperationLeftT, OperationRightT,
+                                OperationCurrentT, Indexes...>>
+materialize_if_swizzle(
+    const SwizzleOp<VecT, OperationLeftT, OperationRightT, OperationCurrentT,
+                    Indexes...> &X);
+#else
+template <bool IsConstVec, typename DataT, int VecSize, int... Indexes>
+simplify_if_swizzle_t<detail::hide_swizzle_from_adl::Swizzle<
+    IsConstVec, DataT, VecSize, Indexes...>>
+materialize_if_swizzle(const detail::hide_swizzle_from_adl::Swizzle<
+                      IsConstVec, DataT, VecSize, Indexes...> &X);
+#endif
 
 // --------- is_* traits ------------------ //
 template <typename> struct is_vec : std::false_type {};

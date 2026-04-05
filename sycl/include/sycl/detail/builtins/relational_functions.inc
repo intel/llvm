@@ -66,7 +66,7 @@ auto builtin_device_rel_impl(FuncTy F, const Ts &...xs) {
     auto tmp = bit_cast<vec<signed char, num_elements<T>::value>>(ret);
     using res_elem_type = fixed_width_signed<sizeof(get_elem_type_t<T>)>;
     static_assert(is_scalar_arithmetic_v<res_elem_type>);
-    return tmp.template convert<res_elem_type>();
+    return relational_mask_widen<res_elem_type>(tmp);
   } else if constexpr (std::is_same_v<T, half>) {
     return bool{F(builtins::convert_arg(xs)...)};
   } else {
@@ -80,7 +80,7 @@ template <typename FuncTy, typename... Ts>
 auto builtin_delegate_rel_impl(FuncTy F, const Ts &...x) {
   using T = typename first_type<Ts...>::type;
   if constexpr ((... || is_swizzle_v<Ts>)) {
-    return F(simplify_if_swizzle_t<T>{x}...);
+    return F(materialize_if_swizzle(x)...);
   } else if constexpr (is_vec_v<T>) {
     // TODO: using Res{} to avoid Werror. Not sure if ok.
     vec<fixed_width_signed<sizeof(typename T::element_type)>, T::size()> Res{};

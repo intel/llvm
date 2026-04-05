@@ -10,6 +10,11 @@
 // CHECK-NEXT: feature_test.hpp
 // CHECK-NEXT: vector.hpp
 // CHECK-NEXT: detail/named_swizzles_mixin.hpp
+// CHECK-NEXT: detail/vector_base.hpp
+// CHECK-NEXT: detail/common.hpp
+// CHECK-NEXT: detail/export.hpp
+// CHECK-NEXT: __spirv/spirv_vars.hpp
+// CHECK-NEXT: detail/type_traits/vec_marray_traits.hpp
 // CHECK-NEXT: detail/vector_arith.hpp
 // CHECK-NEXT: aliases.hpp
 // CHECK-NEXT: detail/generic_type_traits.hpp
@@ -17,12 +22,11 @@
 // CHECK-NEXT: bit_cast.hpp
 // CHECK-NEXT: detail/fwd/half.hpp
 // CHECK-NEXT: detail/type_traits.hpp
-// CHECK-NEXT: detail/type_traits/vec_marray_traits.hpp
 // CHECK-NEXT: detail/fwd/multi_ptr.hpp
-// CHECK-NEXT: detail/common.hpp
-// CHECK-NEXT: detail/export.hpp
-// CHECK-NEXT: __spirv/spirv_vars.hpp
 // CHECK-NEXT: detail/fwd/accessor.hpp
 // CHECK-NEXT: detail/defines.hpp
 // CHECK-NEXT: detail/memcpy.hpp
+// CHECK-NEXT: detail/vector_swizzle.hpp
+// CHECK-NEXT: detail/vector_core.hpp
+// CHECK-NEXT: detail/vector_swizzle_op.hpp
 // CHECK-EMPTY:

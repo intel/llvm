@@ -44,7 +44,7 @@ auto builtin_delegate_geo_impl(FuncTy F, const Ts &...x) {
     else
       return ret;
   } else {
-    return F(simplify_if_swizzle_t<T>{x}...);
+    return F(materialize_if_swizzle(x)...);
   }
 }
 } // namespace detail

@@ -43,9 +43,13 @@
 // CHECK-NEXT: marray.hpp
 // CHECK-NEXT: vector.hpp
 // CHECK-NEXT: detail/named_swizzles_mixin.hpp
+// CHECK-NEXT: detail/vector_base.hpp
 // CHECK-NEXT: detail/vector_arith.hpp
 // CHECK-NEXT: detail/fwd/accessor.hpp
 // CHECK-NEXT: detail/memcpy.hpp
+// CHECK-NEXT: detail/vector_swizzle.hpp
+// CHECK-NEXT: detail/vector_core.hpp
+// CHECK-NEXT: detail/vector_swizzle_op.hpp
 // CHECK-NEXT: nd_item.hpp
 // CHECK-NEXT: nd_range.hpp
 // CHECK-NEXT: ext/oneapi/functional.hpp

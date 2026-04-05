@@ -65,11 +65,14 @@
 
 #include <sycl/detail/helpers.hpp>
 #include <sycl/detail/fwd/multi_ptr.hpp>
+#include <sycl/detail/generic_type_traits.hpp>
+#include <sycl/detail/memcpy.hpp>
 #include <sycl/detail/type_traits.hpp>
 #include <sycl/detail/type_traits/vec_marray_traits.hpp>
-#include <sycl/detail/vector_convert.hpp>
+#include <sycl/half_type.hpp>
 #include <sycl/marray.hpp>
-#include <sycl/vector.hpp>
+
+#include <algorithm>
 
 namespace sycl {
 inline namespace _V1 {
@@ -82,6 +85,19 @@ struct use_fast_math
 template <typename> struct use_fast_math : std::false_type {};
 #endif
 template <typename T> constexpr bool use_fast_math_v = use_fast_math<T>::value;
+
+// Utility trait for getting the decoration of a multi_ptr.
+template <typename T> struct get_multi_ptr_decoration;
+template <typename ElementType, access::address_space Space,
+          access::decorated DecorateAddress>
+struct get_multi_ptr_decoration<
+    multi_ptr<ElementType, Space, DecorateAddress>> {
+  static constexpr access::decorated value = DecorateAddress;
+};
+
+template <typename T>
+constexpr access::decorated get_multi_ptr_decoration_v =
+    get_multi_ptr_decoration<T>::value;
 
 // Utility trait for checking if a multi_ptr has a "writable" address space,
 // i.e. global, local, private or generic.
@@ -197,6 +213,28 @@ template <class T, int N> marray<T, N> to_marray(vec<T, N> X) {
   return Marray;
 }
 
+// Relation builtins widen signed-char masks to the required integer element
+// type. Keep that conversion local here so builtins.hpp does not need to pull
+// in vector_convert.hpp just for vec::convert.
+template <typename NewElemT, int N>
+vec<NewElemT, N> relational_mask_widen(vec<signed char, N> X) {
+  static_assert(is_scalar_arithmetic_v<NewElemT>);
+
+#ifdef __SYCL_DEVICE_ONLY__
+  if constexpr (N > 1) {
+    using src_vector_t = signed char __attribute__((ext_vector_type(N)));
+    using dst_vector_t = NewElemT __attribute__((ext_vector_type(N)));
+    auto OpenCLVec = bit_cast<src_vector_t>(X);
+    return bit_cast<vec<NewElemT, N>>(
+        __builtin_convertvector(OpenCLVec, dst_vector_t));
+  }
+#endif
+
+  vec<NewElemT, N> Result{};
+  loop<N>([&](auto idx) { Result[idx] = static_cast<NewElemT>(X[idx]); });
+  return Result;
+}
+
 namespace builtins {
 #ifdef __SYCL_DEVICE_ONLY__
 template <typename T> auto convert_arg(T &&x) {
@@ -212,7 +250,7 @@ template <typename T> auto convert_arg(T &&x) {
                                            __attribute__((ext_vector_type(N)))>;
     return bit_cast<result_type>(x);
   } else if constexpr (is_swizzle_v<no_cv_ref>) {
-    return convert_arg(simplify_if_swizzle_t<no_cv_ref>{x});
+    return convert_arg(materialize_if_swizzle(std::forward<T>(x)));
   } else {
     static_assert(is_scalar_arithmetic_v<no_cv_ref> ||
                   is_multi_ptr_v<no_cv_ref> || std::is_pointer_v<no_cv_ref> ||
@@ -262,7 +300,7 @@ auto builtin_default_host_impl(FuncTy F, const Ts &...x) {
   if constexpr ((... || is_marray_v<Ts>)) {
     return builtin_marray_impl(F, x...);
   } else {
-    return F(simplify_if_swizzle_t<Ts>{x}...);
+    return F(materialize_if_swizzle(x)...);
   }
 }
 

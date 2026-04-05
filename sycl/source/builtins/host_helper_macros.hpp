@@ -8,6 +8,8 @@
 
 #pragma once
 
+#include <sycl/vector.hpp>
+
 #define FOR_VEC_1_16(MACRO, ...)                                               \
   MACRO(__VA_ARGS__, 1)                                                        \
   MACRO(__VA_ARGS__, 2)                                                        \

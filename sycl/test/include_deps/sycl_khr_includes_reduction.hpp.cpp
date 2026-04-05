@@ -97,10 +97,6 @@
 // CHECK-NEXT: detail/memcpy.hpp
 // CHECK-NEXT: builtins.hpp
 // CHECK-NEXT: detail/builtins/builtins.hpp
-// CHECK-NEXT: detail/vector_convert.hpp
-// CHECK-NEXT: vector.hpp
-// CHECK-NEXT: detail/named_swizzles_mixin.hpp
-// CHECK-NEXT: detail/vector_arith.hpp
 // CHECK-NEXT: marray.hpp
 // CHECK-NEXT: detail/builtins/common_functions.inc
 // CHECK-NEXT: detail/builtins/helper_macros.hpp
@@ -127,6 +123,13 @@
 // CHECK-NEXT: group_algorithm.hpp
 // CHECK-NEXT: functional.hpp
 // CHECK-NEXT: known_identity.hpp
+// CHECK-NEXT: vector.hpp
+// CHECK-NEXT: detail/named_swizzles_mixin.hpp
+// CHECK-NEXT: detail/vector_base.hpp
+// CHECK-NEXT: detail/vector_arith.hpp
+// CHECK-NEXT: detail/vector_swizzle.hpp
+// CHECK-NEXT: detail/vector_core.hpp
+// CHECK-NEXT: detail/vector_swizzle_op.hpp
 // CHECK-NEXT: nd_item.hpp
 // CHECK-NEXT: ext/oneapi/functional.hpp
 // CHECK-NEXT: handler.hpp

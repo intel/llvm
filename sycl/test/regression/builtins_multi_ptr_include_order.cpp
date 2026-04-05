@@ -23,6 +23,7 @@ int main() {
 #elif defined(TEST_BUILTINS_FIRST)
 #include <sycl/builtins.hpp>
 #include <sycl/multi_ptr.hpp>
+#include <sycl/vector.hpp>
 
 SYCL_EXTERNAL void testScalar(
     sycl::multi_ptr<float, sycl::access::address_space::global_space,
@@ -46,6 +47,7 @@ int main() { return 0; }
 #elif defined(TEST_MULTI_PTR_FIRST)
 #include <sycl/multi_ptr.hpp>
 #include <sycl/builtins.hpp>
+#include <sycl/vector.hpp>
 
 SYCL_EXTERNAL void testScalar(
     sycl::multi_ptr<float, sycl::access::address_space::global_space,

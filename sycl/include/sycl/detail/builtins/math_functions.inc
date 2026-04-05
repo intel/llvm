@@ -167,7 +167,7 @@ BUILTIN_GENF(THREE_ARGS, mad)
   BUILTIN_GENF(TWO_ARGS, NAME)                                                 \
   template <typename T>                                                        \
   detail::builtin_enable_math_t<T> NAME(T x, detail::get_elem_type_t<T> y) {   \
-    return NAME(detail::simplify_if_swizzle_t<T>{x},                           \
+    return NAME(detail::materialize_if_swizzle(x),                             \
                 detail::simplify_if_swizzle_t<T>{y});                          \
   }
 
@@ -331,7 +331,7 @@ BUILTIN_LAST_INTPTR(THREE_ARGS, remquo)
 #ifndef __SYCL_DEVICE_ONLY__
 namespace detail {
 template <typename T0, typename T1> auto fract_impl(T0 &x, T1 &y) {
-  auto flr = floor(simplify_if_swizzle_t<T0>{x});
+  auto flr = floor(materialize_if_swizzle(x));
   *y = flr;
   return fmin(x - flr, nextafter(simplify_if_swizzle_t<T0>{1.0},
                                  simplify_if_swizzle_t<T0>{0.0}));
@@ -354,7 +354,7 @@ template <typename T0, typename T1> auto modf_impl(T0 &x, T1 &&y) {
   } else {
     return builtin_delegate_ptr_impl(
         [](auto x, auto y) { return modf_impl(x, y); }, y,
-        simplify_if_swizzle_t<T0>{x});
+        materialize_if_swizzle(x));
   }
 }
 } // namespace detail
@@ -390,7 +390,7 @@ BUILTIN_MATH_LAST_INT(rootn)
 BUILTIN_MATH_LAST_INT(ldexp)
 template <typename T> detail::builtin_enable_math_t<T> ldexp(T x, int y) {
   return ldexp(
-      detail::simplify_if_swizzle_t<T>{x},
+  detail::materialize_if_swizzle(x),
       detail::change_elements_t<int, detail::simplify_if_swizzle_t<T>>{y});
 }
 
@@ -432,7 +432,7 @@ template <typename T0, typename T1> auto sincos_impl(T0 &x, T1 &&y) {
   } else {
     return builtin_delegate_ptr_impl(
         [](auto... xs) { return sincos_impl(xs...); }, y,
-        simplify_if_swizzle_t<T0>{x});
+        materialize_if_swizzle(x));
   }
 }
 #endif
