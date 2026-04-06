@@ -169,6 +169,13 @@ void SPIRV::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   } else if (Args.hasArg(options::OPT_sycl_link)) {
     // Use of --sycl-link will call the clang-sycl-linker instead of
     // the default linker (spirv-link).
+    for (const Arg *A : Args) {
+      if (A->getOption().matches(options::OPT_Xlinker)) {
+        // Each -Xlinker val becomes a direct argument to clang-sycl-linker.
+        CmdArgs.push_back(A->getValue());
+        A->claim();
+      }
+    }
     Linker = ToolChain.GetProgramPath("clang-sycl-linker");
   } else if (!llvm::sys::fs::can_execute(Linker) &&
              !C.getArgs().hasArg(clang::options::OPT__HASH_HASH_HASH)) {

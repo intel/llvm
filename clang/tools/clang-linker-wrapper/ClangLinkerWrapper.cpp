@@ -159,6 +159,9 @@ static SmallString<128> OffloadImageDumpDir;
 static bool CanonicalPrefixes = true;
 
 using OffloadingImage = OffloadBinary::OffloadingImage;
+    
+// TODO: Remove this once the linking and backend compilation have been fully migrated to clang-sycl-linker.
+bool UseClangSYCLLinker = false;
 
 namespace llvm {
 // Provide DenseMapInfo so that OffloadKind can be used in a DenseMap.
@@ -1751,6 +1754,14 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args,
           "--target=" +
           (Triple.isNativeCPU() ? HostTriple : Triple).getTriple()),
   };
+
+  if (UseClangSYCLLinker) {
+    CmdArgs.push_back("--sycl-link");
+    appendClangSYCLLinkerArgs(Args, CmdArgs, Triple, Arch);
+  } else {
+
+  }
+
 
   if (!Arch.empty())
     Triple.isAMDGPU() ? CmdArgs.push_back(Args.MakeArgString("-mcpu=" + Arch))
