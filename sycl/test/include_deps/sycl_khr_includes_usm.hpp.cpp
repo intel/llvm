@@ -11,14 +11,14 @@
 // CHECK-NEXT: usm.hpp
 // CHECK-NEXT: builtins.hpp
 // CHECK-NEXT: detail/builtins/builtins.hpp
+// CHECK-NEXT: detail/fwd/multi_ptr.hpp
+// CHECK-NEXT: access/access.hpp
 // CHECK-NEXT: detail/helpers.hpp
 // CHECK-NEXT: __spirv/spirv_types.hpp
 // CHECK-NEXT: detail/defines.hpp
-// CHECK-NEXT: access/access.hpp
 // CHECK-NEXT: detail/export.hpp
 // CHECK-NEXT: memory_enums.hpp
 // CHECK-NEXT: __spirv/spirv_vars.hpp
-// CHECK-NEXT: detail/fwd/multi_ptr.hpp
 // CHECK-NEXT: detail/type_traits.hpp
 // CHECK-NEXT: detail/type_traits/vec_marray_traits.hpp
 // CHECK-NEXT: detail/vector_convert.hpp
