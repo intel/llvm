@@ -1,0 +1,634 @@
+Intel SYCL compiler development build based on:
+clang version 23.0.0git (https://github.com/YixingZhang007/llvm.git 6764d9b5a7958d0c67349f001109901235800e29)
+Target: x86_64-unknown-linux-gnu
+Thread model: posix
+InstalledDir: /localdisk2/yixingzh/move_to_clang_sycl_linker/llvm/build/bin
+Build config: +assertions
+Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/12
+Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/13
+Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/14
+Selected GCC installation: /usr/lib/gcc/x86_64-linux-gnu/14
+Candidate multilib: .;@m64
+Candidate multilib: 32;@m32
+Candidate multilib: x32;@mx32
+Selected multilib: .;@m64
+ "/localdisk2/yixingzh/move_to_clang_sycl_linker/llvm/build/bin/clang-23" -cc1 -triple spir64_gen-unknown-unknown -aux-triple x86_64-unknown-linux-gnu -fsycl-is-device -fdeclare-spirv-builtins -fprofile-update=atomic -O2 -mllvm -sycl-opt -fenable-sycl-dae -Wno-sycl-strict -fsycl-int-header=/tmp/multiple-devices-header-5f22ac.h -fsycl-int-footer=/tmp/multiple-devices-footer-4c14bc.h -D__SYCL_TARGET_INTEL_GPU_PVC__ -sycl-std=2020 -ffine-grained-bitfield-accesses -fsycl-unique-prefix=uid58a9c373f1ac87e8 -D__SYCL_ANY_DEVICE_HAS_atomic64__=1 -D__SYCL_ANY_DEVICE_HAS_ext_intel_esimd__=1 -D__SYCL_ANY_DEVICE_HAS_ext_oneapi_chunk__=1 -D__SYCL_ANY_DEVICE_HAS_ext_oneapi_fragment__=1 -D__SYCL_ANY_DEVICE_HAS_ext_oneapi_tangle__=1 -D__SYCL_ANY_DEVICE_HAS_fp16__=1 -D__SYCL_ANY_DEVICE_HAS_fp64__=1 -D__SYCL_ALL_DEVICES_HAVE_atomic64__=1 -D__SYCL_ALL_DEVICES_HAVE_ext_intel_esimd__=1 -D__SYCL_ALL_DEVICES_HAVE_ext_oneapi_chunk__=1 -D__SYCL_ALL_DEVICES_HAVE_ext_oneapi_fragment__=1 -D__SYCL_ALL_DEVICES_HAVE_ext_oneapi_tangle__=1 -D__SYCL_ALL_DEVICES_HAVE_fp16__=1 -D__SYCL_ALL_DEVICES_HAVE_fp64__=1 -Wspir-compat -fno-offload-use-alloca-addrspace-for-srets -emit-llvm-bc -emit-llvm-uselists -dumpdir a- -disable-free -clear-ast-before-backend -main-file-name multiple-devices.cpp -mrelocation-model static -mframe-pointer=all -fmath-errno -ffp-contract=on -fno-rounding-math -mconstructor-aliases -aux-target-cpu x86-64 -debugger-tuning=gdb -fdebug-compilation-dir=/iusers/yixingzh/move_to_clang_sycl_linker/llvm/test_debug -v -fcoverage-compilation-dir=/iusers/yixingzh/move_to_clang_sycl_linker/llvm/test_debug -resource-dir /localdisk2/yixingzh/move_to_clang_sycl_linker/llvm/build/lib/clang/23 -internal-isystem /localdisk2/yixingzh/move_to_clang_sycl_linker/llvm/build/bin/../include/sycl/stl_wrappers -internal-isystem /localdisk2/yixingzh/move_to_clang_sycl_linker/llvm/build/bin/../include -internal-isystem /localdisk2/yixingzh/move_to_clang_sycl_linker/llvm/build/bin/../include/sycl/stl_wrappers -internal-isystem /localdisk2/yixingzh/move_to_clang_sycl_linker/llvm/build/bin/../include -I/nfs/site/proj/icl/archive/comp/onednnl/lin/2026.0.0.454/include -I/nfs/site/proj/icl/archive/comp/onemkl/lin/20260329_cev_nightly/include -I/rdrive/ref/mpi/lin/2021.18.0.426/intel64/include -I/rdrive/ref/opencl/runtime/linux/oclgpu/Kobuk-26.05.37020.3/include -I/rdrive/ref/tbb/lin/2023.0.0.508/tbb/2023.0/include -I/rdrive/ref/umf/lin/1.1.0.125/intel64/include -I/rdrive/ref/ipp/lin/2026.0/include -c-isystem /nfs/site/proj/icl/archive/deploy_xmain/xmainefi2linux/20260405_160000/build/linux_qa_release/include/sycl -c-isystem /nfs/site/proj/icl/archive/deploy_xmain/xmainefi2linux/20260405_160000/build/linux_qa_release/include -cxx-isystem /nfs/site/proj/icl/archive/deploy_xmain/xmainefi2linux/20260405_160000/build/linux_qa_release/include/sycl -cxx-isystem /nfs/site/proj/icl/archive/deploy_xmain/xmainefi2linux/20260405_160000/build/linux_qa_release/include -internal-isystem /usr/lib/gcc/x86_64-linux-gnu/14/../../../../include/c++/14 -internal-isystem /usr/lib/gcc/x86_64-linux-gnu/14/../../../../include/x86_64-linux-gnu/c++/14 -internal-isystem /usr/lib/gcc/x86_64-linux-gnu/14/../../../../include/c++/14/backward -internal-isystem /usr/lib/gcc/x86_64-linux-gnu/14/../../../../include/c++/14 -internal-isystem /usr/lib/gcc/x86_64-linux-gnu/14/../../../../include/x86_64-linux-gnu/c++/14 -internal-isystem /usr/lib/gcc/x86_64-linux-gnu/14/../../../../include/c++/14/backward -internal-isystem /localdisk2/yixingzh/move_to_clang_sycl_linker/llvm/build/lib/clang/23/include -internal-isystem /usr/local/include -internal-isystem /usr/lib/gcc/x86_64-linux-gnu/14/../../../../x86_64-linux-gnu/include -internal-externc-isystem /usr/include/x86_64-linux-gnu -internal-externc-isystem /include -internal-externc-isystem /usr/include -internal-isystem /localdisk2/yixingzh/move_to_clang_sycl_linker/llvm/build/lib/clang/23/include -internal-isystem /usr/local/include -internal-isystem /usr/lib/gcc/x86_64-linux-gnu/14/../../../../x86_64-linux-gnu/include -internal-externc-isystem /usr/include/x86_64-linux-gnu -internal-externc-isystem /include -internal-externc-isystem /usr/include -std=c++17 -fdeprecated-macro -ferror-limit 19 --offload-new-driver -fgpu-rdc -fgnuc-version=4.2.1 -fskip-odr-check-in-gmf -fcxx-exceptions -fexceptions -faddrsig -fdwarf2-cfi-asm -o /tmp/multiple-devices-pvc-cffba1.bc -x c++ ../sycl/test-e2e/AOT/multiple-devices.cpp
+clang -cc1 version 23.0.0git based upon LLVM 23.0.0git default target x86_64-unknown-linux-gnu
+ignoring nonexistent directory "/usr/lib/gcc/x86_64-linux-gnu/14/../../../../x86_64-linux-gnu/include"
+ignoring nonexistent directory "/include"
+ignoring nonexistent directory "/usr/lib/gcc/x86_64-linux-gnu/14/../../../../x86_64-linux-gnu/include"
+ignoring nonexistent directory "/include"
+ignoring duplicate directory "/localdisk2/yixingzh/move_to_clang_sycl_linker/llvm/build/bin/../include/sycl/stl_wrappers"
+ignoring duplicate directory "/localdisk2/yixingzh/move_to_clang_sycl_linker/llvm/build/bin/../include"
+ignoring duplicate directory "/usr/lib/gcc/x86_64-linux-gnu/14/../../../../include/c++/14"
+ignoring duplicate directory "/usr/lib/gcc/x86_64-linux-gnu/14/../../../../include/x86_64-linux-gnu/c++/14"
+ignoring duplicate directory "/usr/lib/gcc/x86_64-linux-gnu/14/../../../../include/c++/14/backward"
+ignoring duplicate directory "/localdisk2/yixingzh/move_to_clang_sycl_linker/llvm/build/lib/clang/23/include"
+ignoring duplicate directory "/usr/local/include"
+ignoring duplicate directory "/usr/include/x86_64-linux-gnu"
+ignoring duplicate directory "/usr/include"
+ignoring duplicate directory "/usr/local/include"
+ignoring duplicate directory "/localdisk2/yixingzh/move_to_clang_sycl_linker/llvm/build/lib/clang/23/include"
+ignoring duplicate directory "/usr/include"
+#include "..." search starts here:
+#include <...> search starts here:
+ /nfs/site/proj/icl/archive/comp/onednnl/lin/2026.0.0.454/include
+ /nfs/site/proj/icl/archive/comp/onemkl/lin/20260329_cev_nightly/include
+ /rdrive/ref/mpi/lin/2021.18.0.426/intel64/include
+ /rdrive/ref/opencl/runtime/linux/oclgpu/Kobuk-26.05.37020.3/include
+ /rdrive/ref/tbb/lin/2023.0.0.508/tbb/2023.0/include
+ /rdrive/ref/umf/lin/1.1.0.125/intel64/include
+ /rdrive/ref/ipp/lin/2026.0/include
+ /nfs/site/proj/icl/archive/deploy_xmain/xmainefi2linux/20260405_160000/build/linux_qa_release/include/sycl
+ /nfs/site/proj/icl/archive/deploy_xmain/xmainefi2linux/20260405_160000/build/linux_qa_release/include
+ /localdisk2/yixingzh/move_to_clang_sycl_linker/llvm/build/bin/../include/sycl/stl_wrappers
+ /localdisk2/yixingzh/move_to_clang_sycl_linker/llvm/build/bin/../include
+ /usr/lib/gcc/x86_64-linux-gnu/14/../../../../include/c++/14
+ /usr/lib/gcc/x86_64-linux-gnu/14/../../../../include/x86_64-linux-gnu/c++/14
+ /usr/lib/gcc/x86_64-linux-gnu/14/../../../../include/c++/14/backward
+ /localdisk2/yixingzh/move_to_clang_sycl_linker/llvm/build/lib/clang/23/include
+ /usr/local/include
+ /usr/include/x86_64-linux-gnu
+ /usr/include
+End of search list.
+ "/localdisk2/yixingzh/move_to_clang_sycl_linker/llvm/build/bin/llvm-offload-binary" -o /tmp/multiple-devices-3968a6.out "--image=file=/tmp/multiple-devices-pvc-cffba1.bc,triple=spir64_gen-unknown-unknown,arch=pvc,kind=sycl,compile-opts=-device_options pvc -ze-intel-enable-auto-large-GRF-mode -device pvc -options -extraopt_pvc"
+ "/localdisk2/yixingzh/move_to_clang_sycl_linker/llvm/build/bin/clang-23" -cc1 -triple x86_64-unknown-linux-gnu -fsycl-is-host -include-internal-header /tmp/multiple-devices-header-5f22ac.h -dependency-filter /tmp/multiple-devices-header-5f22ac.h -fsycl-enable-int-header-diags -include-internal-footer /tmp/multiple-devices-footer-4c14bc.h -dependency-filter /tmp/multiple-devices-footer-4c14bc.h -D__SYCL_TARGET_INTEL_GPU_PVC__ -sycl-std=2020 -fsycl-unique-prefix=uid58a9c373f1ac87e8 -D__SYCL_ANY_DEVICE_HAS_atomic64__=1 -D__SYCL_ANY_DEVICE_HAS_ext_intel_esimd__=1 -D__SYCL_ANY_DEVICE_HAS_ext_oneapi_chunk__=1 -D__SYCL_ANY_DEVICE_HAS_ext_oneapi_fragment__=1 -D__SYCL_ANY_DEVICE_HAS_ext_oneapi_tangle__=1 -D__SYCL_ANY_DEVICE_HAS_fp16__=1 -D__SYCL_ANY_DEVICE_HAS_fp64__=1 -D__SYCL_ALL_DEVICES_HAVE_atomic64__=1 -D__SYCL_ALL_DEVICES_HAVE_ext_intel_esimd__=1 -D__SYCL_ALL_DEVICES_HAVE_ext_oneapi_chunk__=1 -D__SYCL_ALL_DEVICES_HAVE_ext_oneapi_fragment__=1 -D__SYCL_ALL_DEVICES_HAVE_ext_oneapi_tangle__=1 -D__SYCL_ALL_DEVICES_HAVE_fp16__=1 -D__SYCL_ALL_DEVICES_HAVE_fp64__=1 -emit-obj -dumpdir a- -disable-free -clear-ast-before-backend -main-file-name multiple-devices.cpp -mrelocation-model static -mframe-pointer=all -fmath-errno -ffp-contract=on -fno-rounding-math -mconstructor-aliases -funwind-tables=2 -target-cpu x86-64 -tune-cpu generic --dependent-lib=sycl-devicelib-host -debugger-tuning=gdb -fdebug-compilation-dir=/iusers/yixingzh/move_to_clang_sycl_linker/llvm/test_debug -v -fcoverage-compilation-dir=/iusers/yixingzh/move_to_clang_sycl_linker/llvm/test_debug -resource-dir /localdisk2/yixingzh/move_to_clang_sycl_linker/llvm/build/lib/clang/23 -internal-isystem /localdisk2/yixingzh/move_to_clang_sycl_linker/llvm/build/bin/../include/sycl/stl_wrappers -internal-isystem /localdisk2/yixingzh/move_to_clang_sycl_linker/llvm/build/bin/../include -internal-isystem /localdisk2/yixingzh/move_to_clang_sycl_linker/llvm/build/bin/../include/sycl/stl_wrappers -internal-isystem /localdisk2/yixingzh/move_to_clang_sycl_linker/llvm/build/bin/../include -I/nfs/site/proj/icl/archive/comp/onednnl/lin/2026.0.0.454/include -I/nfs/site/proj/icl/archive/comp/onemkl/lin/20260329_cev_nightly/include -I/rdrive/ref/mpi/lin/2021.18.0.426/intel64/include -I/rdrive/ref/opencl/runtime/linux/oclgpu/Kobuk-26.05.37020.3/include -I/rdrive/ref/tbb/lin/2023.0.0.508/tbb/2023.0/include -I/rdrive/ref/umf/lin/1.1.0.125/intel64/include -I/rdrive/ref/ipp/lin/2026.0/include -c-isystem /nfs/site/proj/icl/archive/deploy_xmain/xmainefi2linux/20260405_160000/build/linux_qa_release/include/sycl -c-isystem /nfs/site/proj/icl/archive/deploy_xmain/xmainefi2linux/20260405_160000/build/linux_qa_release/include -cxx-isystem /nfs/site/proj/icl/archive/deploy_xmain/xmainefi2linux/20260405_160000/build/linux_qa_release/include/sycl -cxx-isystem /nfs/site/proj/icl/archive/deploy_xmain/xmainefi2linux/20260405_160000/build/linux_qa_release/include -internal-isystem /usr/lib/gcc/x86_64-linux-gnu/14/../../../../include/c++/14 -internal-isystem /usr/lib/gcc/x86_64-linux-gnu/14/../../../../include/x86_64-linux-gnu/c++/14 -internal-isystem /usr/lib/gcc/x86_64-linux-gnu/14/../../../../include/c++/14/backward -internal-isystem /usr/lib/gcc/x86_64-linux-gnu/14/../../../../include/c++/14 -internal-isystem /usr/lib/gcc/x86_64-linux-gnu/14/../../../../include/x86_64-linux-gnu/c++/14 -internal-isystem /usr/lib/gcc/x86_64-linux-gnu/14/../../../../include/c++/14/backward -internal-isystem /localdisk2/yixingzh/move_to_clang_sycl_linker/llvm/build/lib/clang/23/include -internal-isystem /usr/local/include -internal-isystem /usr/lib/gcc/x86_64-linux-gnu/14/../../../../x86_64-linux-gnu/include -internal-externc-isystem /usr/include/x86_64-linux-gnu -internal-externc-isystem /include -internal-externc-isystem /usr/include -internal-isystem /localdisk2/yixingzh/move_to_clang_sycl_linker/llvm/build/lib/clang/23/include -internal-isystem /usr/local/include -internal-isystem /usr/lib/gcc/x86_64-linux-gnu/14/../../../../x86_64-linux-gnu/include -internal-externc-isystem /usr/include/x86_64-linux-gnu -internal-externc-isystem /include -internal-externc-isystem /usr/include -std=c++17 -fdeprecated-macro -ferror-limit 19 --offload-new-driver -fgpu-rdc -fgnuc-version=4.2.1 -fskip-odr-check-in-gmf -fcxx-exceptions -fexceptions -fembed-offload-object=/tmp/multiple-devices-3968a6.out -faddrsig -fdwarf2-cfi-asm -o /tmp/multiple-devices-f1d47d.o -x c++ ../sycl/test-e2e/AOT/multiple-devices.cpp
+clang -cc1 version 23.0.0git based upon LLVM 23.0.0git default target x86_64-unknown-linux-gnu
+ignoring nonexistent directory "/usr/lib/gcc/x86_64-linux-gnu/14/../../../../x86_64-linux-gnu/include"
+ignoring nonexistent directory "/include"
+ignoring nonexistent directory "/usr/lib/gcc/x86_64-linux-gnu/14/../../../../x86_64-linux-gnu/include"
+ignoring nonexistent directory "/include"
+ignoring duplicate directory "/localdisk2/yixingzh/move_to_clang_sycl_linker/llvm/build/bin/../include/sycl/stl_wrappers"
+ignoring duplicate directory "/localdisk2/yixingzh/move_to_clang_sycl_linker/llvm/build/bin/../include"
+ignoring duplicate directory "/usr/lib/gcc/x86_64-linux-gnu/14/../../../../include/c++/14"
+ignoring duplicate directory "/usr/lib/gcc/x86_64-linux-gnu/14/../../../../include/x86_64-linux-gnu/c++/14"
+ignoring duplicate directory "/usr/lib/gcc/x86_64-linux-gnu/14/../../../../include/c++/14/backward"
+ignoring duplicate directory "/localdisk2/yixingzh/move_to_clang_sycl_linker/llvm/build/lib/clang/23/include"
+ignoring duplicate directory "/usr/local/include"
+ignoring duplicate directory "/usr/include/x86_64-linux-gnu"
+ignoring duplicate directory "/usr/include"
+#include "..." search starts here:
+#include <...> search starts here:
+ /nfs/site/proj/icl/archive/comp/onednnl/lin/2026.0.0.454/include
+ /nfs/site/proj/icl/archive/comp/onemkl/lin/20260329_cev_nightly/include
+ /rdrive/ref/mpi/lin/2021.18.0.426/intel64/include
+ /rdrive/ref/opencl/runtime/linux/oclgpu/Kobuk-26.05.37020.3/include
+ /rdrive/ref/tbb/lin/2023.0.0.508/tbb/2023.0/include
+ /rdrive/ref/umf/lin/1.1.0.125/intel64/include
+ /rdrive/ref/ipp/lin/2026.0/include
+ /nfs/site/proj/icl/archive/deploy_xmain/xmainefi2linux/20260405_160000/build/linux_qa_release/include/sycl
+ /nfs/site/proj/icl/archive/deploy_xmain/xmainefi2linux/20260405_160000/build/linux_qa_release/include
+ /localdisk2/yixingzh/move_to_clang_sycl_linker/llvm/build/bin/../include/sycl/stl_wrappers
+ /localdisk2/yixingzh/move_to_clang_sycl_linker/llvm/build/bin/../include
+ /usr/lib/gcc/x86_64-linux-gnu/14/../../../../include/c++/14
+ /usr/lib/gcc/x86_64-linux-gnu/14/../../../../include/x86_64-linux-gnu/c++/14
+ /usr/lib/gcc/x86_64-linux-gnu/14/../../../../include/c++/14/backward
+ /localdisk2/yixingzh/move_to_clang_sycl_linker/llvm/build/lib/clang/23/include
+ /usr/local/include
+ /usr/include/x86_64-linux-gnu
+ /usr/include
+End of search list.
+ "/localdisk2/yixingzh/move_to_clang_sycl_linker/llvm/build/bin/clang-linker-wrapper" --host-triple=x86_64-unknown-linux-gnu --wrapper-verbose -sycl-device-libraries=libsycl-crt.new.o,libsycl-complex.new.o,libsycl-complex-fp64.new.o,libsycl-cmath.new.o,libsycl-cmath-fp64.new.o,libsycl-imf.new.o,libsycl-imf-fp64.new.o,libsycl-imf-bf16.new.o,libsycl-fallback-cstring.new.o,libsycl-fallback-complex.new.o,libsycl-fallback-complex-fp64.new.o,libsycl-fallback-cmath.new.o,libsycl-fallback-cmath-fp64.new.o,libsycl-fallback-imf.new.o,libsycl-fallback-imf-fp64.new.o,libsycl-fallback-imf-bf16.new.o,libsycl-itt-user-wrappers.new.o,libsycl-itt-compiler-wrappers.new.o,libsycl-itt-stubs.new.o,libsycl-native-bfloat16.new.o -sycl-device-library-location=/localdisk2/yixingzh/move_to_clang_sycl_linker/llvm/build/bin/../lib "--sycl-post-link-options=-O2 -device-globals" --llvm-spirv-options=-spirv-max-version=1.5 "--device-compiler=sycl:spir64_gen-unknown-unknown=-device pvc -options -extraopt_pvc" --linker-path=/usr/bin/ld -z relro --hash-style=gnu --eh-frame-hdr -m elf_x86_64 -dynamic-linker /lib64/ld-linux-x86-64.so.2 -o a.out /lib/x86_64-linux-gnu/crt1.o /lib/x86_64-linux-gnu/crti.o /usr/lib/gcc/x86_64-linux-gnu/14/crtbegin.o -L/usr/lib/gcc/x86_64-linux-gnu/14 -L/usr/lib/gcc/x86_64-linux-gnu/14/../../../../lib64 -L/lib/x86_64-linux-gnu -L/lib/../lib64 -L/usr/lib/x86_64-linux-gnu -L/usr/lib64 -L/localdisk2/yixingzh/move_to_clang_sycl_linker/llvm/build/bin/../lib -L/lib -L/usr/lib -L/nfs/site/proj/icl/archive/comp/onednnl/lin/2026.0.0.454/lib -L/nfs/site/proj/icl/archive/comp/onemkl/lin/20260329_cev_nightly/lib -L/rdrive/ref/tbb/lin/2023.0.0.508/tcm/1.5/lib -L/rdrive/ref/ipp/lin/2026.0/lib -L/rdrive/ref/umf/lin/1.1.0.125/intel64/lib -L/rdrive/ref/mpi/lin/2021.18.0.426/intel64/lib -L/nfs/site/proj/icl/archive/deploy_xmain/xmainefi2linux/20260405_160000/build/linux_qa_release/lib -L/rdrive/ref/tbb/lin/2023.0.0.508/tbb/2023.0/lib -L/rdrive/ref/opencl/runtime/linux/oclgpu/Kobuk-26.05.37020.3 /tmp/multiple-devices-f1d47d.o -lstdc++ -lm -lgcc_s -lgcc -lsycl -lsycl-devicelib-host -lc -lgcc_s -lgcc /usr/lib/gcc/x86_64-linux-gnu/14/crtend.o /lib/x86_64-linux-gnu/crtn.o --verbose
+[DEBUG] Converting SPIR-V file /tmp/multiple-devices-f1d47d-spir64_gen-unknown-unknown-pvc-246543.bc to LLVM IR
+ "/localdisk2/yixingzh/move_to_clang_sycl_linker/llvm/build/bin/spirv-to-ir-wrapper" /tmp/multiple-devices-f1d47d-spir64_gen-unknown-unknown-pvc-246543.bc -o /tmp/a.out-5152cc.bc --llvm-spirv-opts --spirv-preserve-auxdata --spirv-target-env=SPV-IR --spirv-builtin-format=global
+[DEBUG] add the sycl-link 
+ "/localdisk2/yixingzh/move_to_clang_sycl_linker/llvm/build/bin/clang" --no-default-config -o /tmp/a.out.spir64_gen.pvc-de6836.img -dumpdir a.out.spir64_gen.pvc.img. --target=spirv64-unknown-unknown -fsycl -Wl,--no-undefined -Xlinker -input-file=/tmp/a.out-5152cc.bc --sycl-link -Xlinker -triple=spir64_gen-unknown-unknown -Xlinker -arch=pvc -Xlinker -library-path=/localdisk2/yixingzh/move_to_clang_sycl_linker/llvm/build/bin/../lib -Xlinker -device-libs=libsycl-crt.new.o,libsycl-complex.new.o,libsycl-complex-fp64.new.o,libsycl-cmath.new.o,libsycl-cmath-fp64.new.o,libsycl-imf.new.o,libsycl-imf-fp64.new.o,libsycl-imf-bf16.new.o,libsycl-fallback-cstring.new.o,libsycl-fallback-complex.new.o,libsycl-fallback-complex-fp64.new.o,libsycl-fallback-cmath.new.o,libsycl-fallback-cmath-fp64.new.o,libsycl-fallback-imf.new.o,libsycl-fallback-imf-fp64.new.o,libsycl-fallback-imf-bf16.new.o,libsycl-itt-user-wrappers.new.o,libsycl-itt-compiler-wrappers.new.o,libsycl-itt-stubs.new.o,libsycl-native-bfloat16.new.o -Xlinker -sycl-post-link-options=-O2 -device-globals -Xlinker -llvm-spirv-options=-spirv-max-version=1.5 -Xlinker -ocloc-options=-device_options pvc -ze-intel-enable-auto-large-GRF-mode -device pvc -options -extraopt_pvc -device pvc -options -extraopt_pvc -Xlinker -opencl-aot-options=-device_options pvc -ze-intel-enable-auto-large-GRF-mode -device pvc -options -extraopt_pvc -device pvc -options -extraopt_pvc -Xlinker -v
+[DEBUG] calling the command /localdisk2/yixingzh/move_to_clang_sycl_linker/llvm/build/bin/clang-sycl-linker
+[DEBUG] with arguments: -input-file=/tmp/a.out-5152cc.bc -triple=spir64_gen-unknown-unknown -arch=pvc -library-path=/localdisk2/yixingzh/move_to_clang_sycl_linker/llvm/build/bin/../lib -device-libs=libsycl-crt.new.o,libsycl-complex.new.o,libsycl-complex-fp64.new.o,libsycl-cmath.new.o,libsycl-cmath-fp64.new.o,libsycl-imf.new.o,libsycl-imf-fp64.new.o,libsycl-imf-bf16.new.o,libsycl-fallback-cstring.new.o,libsycl-fallback-complex.new.o,libsycl-fallback-complex-fp64.new.o,libsycl-fallback-cmath.new.o,libsycl-fallback-cmath-fp64.new.o,libsycl-fallback-imf.new.o,libsycl-fallback-imf-fp64.new.o,libsycl-fallback-imf-bf16.new.o,libsycl-itt-user-wrappers.new.o,libsycl-itt-compiler-wrappers.new.o,libsycl-itt-stubs.new.o,libsycl-native-bfloat16.new.o -sycl-post-link-options=-O2 -device-globals -llvm-spirv-options=-spirv-max-version=1.5 -ocloc-options=-device_options pvc -ze-intel-enable-auto-large-GRF-mode -device pvc -options -extraopt_pvc -device pvc -options -extraopt_pvc -opencl-aot-options=-device_options pvc -ze-intel-enable-auto-large-GRF-mode -device pvc -options -extraopt_pvc -device pvc -options -extraopt_pvc -v -o /tmp/a.out.spir64_gen.pvc-de6836.img
+[DEBUG] output file: /tmp/a.out.spir64_gen.pvc-de6836.img
+[DEBUG] clang-sycl-linker called with args: /localdisk2/yixingzh/move_to_clang_sycl_linker/llvm/build/bin/clang-sycl-linker -input-file=/tmp/a.out-5152cc.bc -triple=spir64_gen-unknown-unknown -arch=pvc -library-path=/localdisk2/yixingzh/move_to_clang_sycl_linker/llvm/build/bin/../lib -device-libs=libsycl-crt.new.o,libsycl-complex.new.o,libsycl-complex-fp64.new.o,libsycl-cmath.new.o,libsycl-cmath-fp64.new.o,libsycl-imf.new.o,libsycl-imf-fp64.new.o,libsycl-imf-bf16.new.o,libsycl-fallback-cstring.new.o,libsycl-fallback-complex.new.o,libsycl-fallback-complex-fp64.new.o,libsycl-fallback-cmath.new.o,libsycl-fallback-cmath-fp64.new.o,libsycl-fallback-imf.new.o,libsycl-fallback-imf-fp64.new.o,libsycl-fallback-imf-bf16.new.o,libsycl-itt-user-wrappers.new.o,libsycl-itt-compiler-wrappers.new.o,libsycl-itt-stubs.new.o,libsycl-native-bfloat16.new.o -sycl-post-link-options=-O2 -device-globals -llvm-spirv-options=-spirv-max-version=1.5 -ocloc-options=-device_options pvc -ze-intel-enable-auto-large-GRF-mode -device pvc -options -extraopt_pvc -device pvc -options -extraopt_pvc -opencl-aot-options=-device_options pvc -ze-intel-enable-auto-large-GRF-mode -device pvc -options -extraopt_pvc -device pvc -options -extraopt_pvc -v -o /tmp/a.out.spir64_gen.pvc-de6836.img
+ "/localdisk2/yixingzh/move_to_clang_sycl_linker/llvm/build/bin/llvm-link" --suppress-warnings /tmp/a.out-5152cc.bc -o /tmp/a.out.spir64_gen.pvc-de6836.img-a9013a.bc
+[DEBUG] SYCL device library location: /localdisk2/yixingzh/move_to_clang_sycl_linker/llvm/build/bin/../lib
+[DEBUG] SYCL device libraries to link: libsycl-crt.new.o, libsycl-complex.new.o, libsycl-complex-fp64.new.o, libsycl-cmath.new.o, libsycl-cmath-fp64.new.o, libsycl-imf.new.o, libsycl-imf-fp64.new.o, libsycl-imf-bf16.new.o, libsycl-fallback-cstring.new.o, libsycl-fallback-complex.new.o, libsycl-fallback-complex-fp64.new.o, libsycl-fallback-cmath.new.o, libsycl-fallback-cmath-fp64.new.o, libsycl-fallback-imf.new.o, libsycl-fallback-imf-fp64.new.o, libsycl-fallback-imf-bf16.new.o, libsycl-itt-user-wrappers.new.o, libsycl-itt-compiler-wrappers.new.o, libsycl-itt-stubs.new.o, libsycl-native-bfloat16.new.o
+ "/localdisk2/yixingzh/move_to_clang_sycl_linker/llvm/build/bin/llvm-link" -only-needed --suppress-warnings /tmp/a.out.spir64_gen.pvc-de6836.img-a9013a.bc /tmp/libsycl-crt.new-spir64_gen-unknown-unknown-generic-4e7f57.bc /tmp/libsycl-complex.new-spir64_gen-unknown-unknown-generic-5a1393.bc /tmp/libsycl-complex-fp64.new-spir64_gen-unknown-unknown-generic-d7681b.bc /tmp/libsycl-cmath.new-spir64_gen-unknown-unknown-generic-850e49.bc /tmp/libsycl-cmath-fp64.new-spir64_gen-unknown-unknown-generic-fb37eb.bc /tmp/libsycl-imf.new-spir64_gen-unknown-unknown-generic-34812f.bc /tmp/libsycl-imf-fp64.new-spir64_gen-unknown-unknown-generic-7f5cda.bc /tmp/libsycl-imf-bf16.new-spir64_gen-unknown-unknown-generic-692d9b.bc /tmp/libsycl-fallback-cstring.new-spir64_gen-unknown-unknown-generic-440588.bc /tmp/libsycl-fallback-complex.new-spir64_gen-unknown-unknown-generic-da67d3.bc /tmp/libsycl-fallback-complex-fp64.new-spir64_gen-unknown-unknown-generic-f607c4.bc /tmp/libsycl-fallback-cmath.new-spir64_gen-unknown-unknown-generic-64dad5.bc /tmp/libsycl-fallback-cmath-fp64.new-spir64_gen-unknown-unknown-generic-eed75c.bc /tmp/libsycl-fallback-imf.new-spir64_gen-unknown-unknown-generic-35f925.bc /tmp/libsycl-fallback-imf-fp64.new-spir64_gen-unknown-unknown-generic-518991.bc /tmp/libsycl-fallback-imf-bf16.new-spir64_gen-unknown-unknown-generic-98fe07.bc /tmp/libsycl-itt-user-wrappers.new-spir64_gen-unknown-unknown-generic-bf608b.bc /tmp/libsycl-itt-compiler-wrappers.new-spir64_gen-unknown-unknown-generic-51dd20.bc /tmp/libsycl-itt-stubs.new-spir64_gen-unknown-unknown-generic-2279b6.bc /tmp/libsycl-native-bfloat16.new-spir64_gen-unknown-unknown-generic-3b0470.bc -o /tmp/a.out.spir64_gen.pvc-de6836.img-e01511.bc
+ "/localdisk2/yixingzh/move_to_clang_sycl_linker/llvm/build/bin/sycl-post-link" -spec-const=emulation -properties -emit-only-kernels-as-entry-points -emit-param-info -symbols -emit-exported-symbols -emit-imported-symbols -split-esimd -lower-esimd -O2 -device-globals -o /tmp/a.out.spir64_gen.pvc-de6836.img-38bd24.table /tmp/a.out.spir64_gen.pvc-de6836.img-e01511.bc
+ "/localdisk2/yixingzh/move_to_clang_sycl_linker/llvm/build/bin/llvm-spirv" -spirv-debug-info-version=nonsemantic-shader-200 -spirv-allow-unknown-intrinsics=llvm.genx. -spirv-ext=-all,+SPV_EXT_shader_atomic_float_add,+SPV_EXT_shader_atomic_float_min_max,+SPV_KHR_no_integer_wrap_decoration,+SPV_KHR_float_controls,+SPV_KHR_expect_assume,+SPV_KHR_linkonce_odr,+SPV_INTEL_subgroups,+SPV_INTEL_media_block_io,+SPV_INTEL_device_side_avc_motion_estimation,+SPV_INTEL_fpga_loop_controls,+SPV_INTEL_unstructured_loop_controls,+SPV_INTEL_fpga_reg,+SPV_INTEL_blocking_pipes,+SPV_INTEL_function_pointers,+SPV_INTEL_kernel_attributes,+SPV_INTEL_io_pipes,+SPV_INTEL_inline_assembly,+SPV_INTEL_arbitrary_precision_integers,+SPV_INTEL_float_controls2,+SPV_INTEL_vector_compute,+SPV_INTEL_arbitrary_precision_fixed_point,+SPV_INTEL_arbitrary_precision_floating_point,+SPV_INTEL_variable_length_array,+SPV_INTEL_fp_fast_math_mode,+SPV_INTEL_long_composites,+SPV_INTEL_arithmetic_fence,+SPV_INTEL_global_variable_decorations,+SPV_INTEL_cache_controls,+SPV_INTEL_fpga_buffer_location,+SPV_INTEL_fpga_argument_interfaces,+SPV_INTEL_fpga_invocation_pipelining_attributes,+SPV_INTEL_fpga_latency_control,+SPV_KHR_shader_clock,+SPV_INTEL_bindless_images,+SPV_INTEL_task_sequence,+SPV_INTEL_bfloat16_conversion,+SPV_INTEL_joint_matrix,+SPV_INTEL_hw_thread_queries,+SPV_KHR_uniform_group_instructions,+SPV_INTEL_masked_gather_scatter,+SPV_INTEL_tensor_float32_conversion,+SPV_INTEL_optnone,+SPV_KHR_non_semantic_info,+SPV_KHR_cooperative_matrix,+SPV_EXT_shader_atomic_float16_add,+SPV_INTEL_fp_max_error,+SPV_INTEL_memory_access_aliasing -spirv-max-version=1.5 -o /tmp/a.out.spir64_gen.pvc-de6836.img-248036.spv /tmp/a.out.spir64_gen.pvc-de6836.img-38bd24_0.bc
+ "/rdrive/ref/opencl/runtime/linux/oclgpu/Kobuk-26.05.37020.3/ocloc" -output_no_suffix -spirv_input -device pvc -device_options pvc -ze-intel-enable-auto-large-GRF-mode -device pvc -options -extraopt_pvc -device pvc -options -extraopt_pvc -output /tmp/a.out.spir64_gen.pvc-de6836_0.out -file /tmp/a.out.spir64_gen.pvc-de6836.img-248036.spv
+Compilation from IR - skipping loading of FCL
+Build succeeded.
+ offload-wrapper: output: /tmp/a.out.sycl.image.wrapper-9e39b1.bc,  input: /tmp/a.out.spir64_gen.pvc-de6836.img, compile-opts: , link-opts: 
+ "/localdisk2/yixingzh/move_to_clang_sycl_linker/llvm/build/bin/clang" --target=x86_64-unknown-linux-gnu -c -o /tmp/a.out-b8ceaa.o /tmp/a.out.sycl.image.wrapper-9e39b1.bc
+ "/usr/bin/ld" -z relro --hash-style=gnu --eh-frame-hdr -m elf_x86_64 -dynamic-linker /lib64/ld-linux-x86-64.so.2 -o a.out /tmp/a.out-b8ceaa.o /lib/x86_64-linux-gnu/crt1.o /lib/x86_64-linux-gnu/crti.o /usr/lib/gcc/x86_64-linux-gnu/14/crtbegin.o -L /usr/lib/gcc/x86_64-linux-gnu/14 -L /usr/lib/gcc/x86_64-linux-gnu/14/../../../../lib64 -L /lib/x86_64-linux-gnu -L /lib/../lib64 -L /usr/lib/x86_64-linux-gnu -L /usr/lib64 -L /localdisk2/yixingzh/move_to_clang_sycl_linker/llvm/build/bin/../lib -L /lib -L /usr/lib -L /nfs/site/proj/icl/archive/comp/onednnl/lin/2026.0.0.454/lib -L /nfs/site/proj/icl/archive/comp/onemkl/lin/20260329_cev_nightly/lib -L /rdrive/ref/tbb/lin/2023.0.0.508/tcm/1.5/lib -L /rdrive/ref/ipp/lin/2026.0/lib -L /rdrive/ref/umf/lin/1.1.0.125/intel64/lib -L /rdrive/ref/mpi/lin/2021.18.0.426/intel64/lib -L /nfs/site/proj/icl/archive/deploy_xmain/xmainefi2linux/20260405_160000/build/linux_qa_release/lib -L /rdrive/ref/tbb/lin/2023.0.0.508/tbb/2023.0/lib -L /rdrive/ref/opencl/runtime/linux/oclgpu/Kobuk-26.05.37020.3 /tmp/multiple-devices-f1d47d.o -l stdc++ -l m -l gcc_s -l gcc -l sycl -l sycl-devicelib-host -l c -l gcc_s -l gcc /usr/lib/gcc/x86_64-linux-gnu/14/crtend.o /lib/x86_64-linux-gnu/crtn.o --verbose
+GNU ld (GNU Binutils for Ubuntu) 2.42
+  Supported emulations:
+   elf_x86_64
+   elf32_x86_64
+   elf_i386
+   elf_iamcu
+   i386pep
+   i386pe
+using internal linker script:
+==================================================
+/* Script for -z combreloc -z separate-code */
+/* Copyright (C) 2014-2024 Free Software Foundation, Inc.
+   Copying and distribution of this script, with or without modification,
+   are permitted in any medium without royalty provided the copyright
+   notice and this notice are preserved.  */
+OUTPUT_FORMAT("elf64-x86-64", "elf64-x86-64",
+	      "elf64-x86-64")
+OUTPUT_ARCH(i386:x86-64)
+ENTRY(_start)
+SEARCH_DIR("=/usr/local/lib/x86_64-linux-gnu"); SEARCH_DIR("=/lib/x86_64-linux-gnu"); SEARCH_DIR("=/usr/lib/x86_64-linux-gnu"); SEARCH_DIR("=/usr/lib/x86_64-linux-gnu64"); SEARCH_DIR("=/usr/local/lib64"); SEARCH_DIR("=/lib64"); SEARCH_DIR("=/usr/lib64"); SEARCH_DIR("=/usr/local/lib"); SEARCH_DIR("=/lib"); SEARCH_DIR("=/usr/lib"); SEARCH_DIR("=/usr/x86_64-linux-gnu/lib64"); SEARCH_DIR("=/usr/x86_64-linux-gnu/lib");
+SECTIONS
+{
+  PROVIDE (__executable_start = SEGMENT_START("text-segment", 0x400000)); . = SEGMENT_START("text-segment", 0x400000) + SIZEOF_HEADERS;
+  .interp         : { *(.interp) }
+  .note.gnu.build-id  : { *(.note.gnu.build-id) }
+  .hash           : { *(.hash) }
+  .gnu.hash       : { *(.gnu.hash) }
+  .dynsym         : { *(.dynsym) }
+  .dynstr         : { *(.dynstr) }
+  .gnu.version    : { *(.gnu.version) }
+  .gnu.version_d  : { *(.gnu.version_d) }
+  .gnu.version_r  : { *(.gnu.version_r) }
+  .rela.dyn       :
+    {
+      *(.rela.init)
+      *(.rela.text .rela.text.* .rela.gnu.linkonce.t.*)
+      *(.rela.fini)
+      *(.rela.rodata .rela.rodata.* .rela.gnu.linkonce.r.*)
+      *(.rela.data .rela.data.* .rela.gnu.linkonce.d.*)
+      *(.rela.tdata .rela.tdata.* .rela.gnu.linkonce.td.*)
+      *(.rela.tbss .rela.tbss.* .rela.gnu.linkonce.tb.*)
+      *(.rela.ctors)
+      *(.rela.dtors)
+      *(.rela.got)
+      *(.rela.bss .rela.bss.* .rela.gnu.linkonce.b.*)
+      *(.rela.ldata .rela.ldata.* .rela.gnu.linkonce.l.*)
+      *(.rela.lbss .rela.lbss.* .rela.gnu.linkonce.lb.*)
+      *(.rela.lrodata .rela.lrodata.* .rela.gnu.linkonce.lr.*)
+      *(.rela.ifunc)
+    }
+  .rela.plt       :
+    {
+      *(.rela.plt)
+      PROVIDE_HIDDEN (__rela_iplt_start = .);
+      *(.rela.iplt)
+      PROVIDE_HIDDEN (__rela_iplt_end = .);
+    }
+  .relr.dyn : { *(.relr.dyn) }
+  . = ALIGN(CONSTANT (MAXPAGESIZE));
+  .init           :
+  {
+    KEEP (*(SORT_NONE(.init)))
+  }
+  .plt            : { *(.plt) *(.iplt) }
+.plt.got        : { *(.plt.got) }
+.plt.sec        : { *(.plt.sec) }
+  .text           :
+  {
+    *(.text.unlikely .text.*_unlikely .text.unlikely.*)
+    *(.text.exit .text.exit.*)
+    *(.text.startup .text.startup.*)
+    *(.text.hot .text.hot.*)
+    *(SORT(.text.sorted.*))
+    *(.text .stub .text.* .gnu.linkonce.t.*)
+    /* .gnu.warning sections are handled specially by elf.em.  */
+    *(.gnu.warning)
+  }
+  .fini           :
+  {
+    KEEP (*(SORT_NONE(.fini)))
+  }
+  PROVIDE (__etext = .);
+  PROVIDE (_etext = .);
+  PROVIDE (etext = .);
+  . = ALIGN(CONSTANT (MAXPAGESIZE));
+  /* Adjust the address for the rodata segment.  We want to adjust up to
+     the same address within the page on the next page up.  */
+  . = SEGMENT_START("rodata-segment", ALIGN(CONSTANT (MAXPAGESIZE)) + (. & (CONSTANT (MAXPAGESIZE) - 1)));
+  .rodata         : { *(.rodata .rodata.* .gnu.linkonce.r.*) }
+  .rodata1        : { *(.rodata1) }
+  .eh_frame_hdr   : { *(.eh_frame_hdr) *(.eh_frame_entry .eh_frame_entry.*) }
+  .eh_frame       : ONLY_IF_RO { KEEP (*(.eh_frame)) *(.eh_frame.*) }
+  .sframe         : ONLY_IF_RO { *(.sframe) *(.sframe.*) }
+  .gcc_except_table   : ONLY_IF_RO { *(.gcc_except_table .gcc_except_table.*) }
+  .gnu_extab   : ONLY_IF_RO { *(.gnu_extab*) }
+  /* These sections are generated by the Sun/Oracle C++ compiler.  */
+  .exception_ranges   : ONLY_IF_RO { *(.exception_ranges*) }
+  /* Adjust the address for the data segment.  We want to adjust up to
+     the same address within the page on the next page up.  */
+  . = DATA_SEGMENT_ALIGN (CONSTANT (MAXPAGESIZE), CONSTANT (COMMONPAGESIZE));
+  /* Exception handling  */
+  .eh_frame       : ONLY_IF_RW { KEEP (*(.eh_frame)) *(.eh_frame.*) }
+  .sframe         : ONLY_IF_RW { *(.sframe) *(.sframe.*) }
+  .gnu_extab      : ONLY_IF_RW { *(.gnu_extab) }
+  .gcc_except_table   : ONLY_IF_RW { *(.gcc_except_table .gcc_except_table.*) }
+  .exception_ranges   : ONLY_IF_RW { *(.exception_ranges*) }
+  /* Thread Local Storage sections  */
+  .tdata	  :
+   {
+     PROVIDE_HIDDEN (__tdata_start = .);
+     *(.tdata .tdata.* .gnu.linkonce.td.*)
+   }
+  .tbss		  : { *(.tbss .tbss.* .gnu.linkonce.tb.*) *(.tcommon) }
+  .preinit_array    :
+  {
+    PROVIDE_HIDDEN (__preinit_array_start = .);
+    KEEP (*(.preinit_array))
+    PROVIDE_HIDDEN (__preinit_array_end = .);
+  }
+  .init_array    :
+  {
+    PROVIDE_HIDDEN (__init_array_start = .);
+    KEEP (*(SORT_BY_INIT_PRIORITY(.init_array.*) SORT_BY_INIT_PRIORITY(.ctors.*)))
+    KEEP (*(.init_array EXCLUDE_FILE (*crtbegin.o *crtbegin?.o *crtend.o *crtend?.o ) .ctors))
+    PROVIDE_HIDDEN (__init_array_end = .);
+  }
+  .fini_array    :
+  {
+    PROVIDE_HIDDEN (__fini_array_start = .);
+    KEEP (*(SORT_BY_INIT_PRIORITY(.fini_array.*) SORT_BY_INIT_PRIORITY(.dtors.*)))
+    KEEP (*(.fini_array EXCLUDE_FILE (*crtbegin.o *crtbegin?.o *crtend.o *crtend?.o ) .dtors))
+    PROVIDE_HIDDEN (__fini_array_end = .);
+  }
+  .ctors          :
+  {
+    /* gcc uses crtbegin.o to find the start of
+       the constructors, so we make sure it is
+       first.  Because this is a wildcard, it
+       doesn't matter if the user does not
+       actually link against crtbegin.o; the
+       linker won't look for a file to match a
+       wildcard.  The wildcard also means that it
+       doesn't matter which directory crtbegin.o
+       is in.  */
+    KEEP (*crtbegin.o(.ctors))
+    KEEP (*crtbegin?.o(.ctors))
+    /* We don't want to include the .ctor section from
+       the crtend.o file until after the sorted ctors.
+       The .ctor section from the crtend file contains the
+       end of ctors marker and it must be last */
+    KEEP (*(EXCLUDE_FILE (*crtend.o *crtend?.o ) .ctors))
+    KEEP (*(SORT(.ctors.*)))
+    KEEP (*(.ctors))
+  }
+  .dtors          :
+  {
+    KEEP (*crtbegin.o(.dtors))
+    KEEP (*crtbegin?.o(.dtors))
+    KEEP (*(EXCLUDE_FILE (*crtend.o *crtend?.o ) .dtors))
+    KEEP (*(SORT(.dtors.*)))
+    KEEP (*(.dtors))
+  }
+  .jcr            : { KEEP (*(.jcr)) }
+  .data.rel.ro : { *(.data.rel.ro.local* .gnu.linkonce.d.rel.ro.local.*) *(.data.rel.ro .data.rel.ro.* .gnu.linkonce.d.rel.ro.*) }
+  .dynamic        : { *(.dynamic) }
+  .got            : { *(.got) *(.igot) }
+  . = DATA_SEGMENT_RELRO_END (SIZEOF (.got.plt) >= 24 ? 24 : 0, .);
+  .got.plt        : { *(.got.plt) *(.igot.plt) }
+  .data           :
+  {
+    *(.data .data.* .gnu.linkonce.d.*)
+    SORT(CONSTRUCTORS)
+  }
+  .data1          : { *(.data1) }
+  _edata = .; PROVIDE (edata = .);
+  . = ALIGN(ALIGNOF(NEXT_SECTION));
+  __bss_start = .;
+  .bss            :
+  {
+   *(.dynbss)
+   *(.bss .bss.* .gnu.linkonce.b.*)
+   *(COMMON)
+   /* Align here to ensure that the .bss section occupies space up to
+      _end.  Align after .bss to ensure correct alignment even if the
+      .bss section disappears because there are no input sections.
+      FIXME: Why do we need it? When there is no .bss section, we do not
+      pad the .data section.  */
+   . = ALIGN(. != 0 ? 64 / 8 : 1);
+  }
+  .lbss   :
+  {
+    *(.dynlbss)
+    *(.lbss .lbss.* .gnu.linkonce.lb.*)
+    *(LARGE_COMMON)
+  }
+  . = ALIGN(64 / 8);
+  . = SEGMENT_START("ldata-segment", .);
+  .lrodata   ALIGN(CONSTANT (MAXPAGESIZE)) + (. & (CONSTANT (MAXPAGESIZE) - 1)) :
+  {
+    *(.lrodata .lrodata.* .gnu.linkonce.lr.*)
+  }
+  .ldata   ALIGN(CONSTANT (MAXPAGESIZE)) + (. & (CONSTANT (MAXPAGESIZE) - 1)) :
+  {
+    *(.ldata .ldata.* .gnu.linkonce.l.*)
+    . = ALIGN(. != 0 ? 64 / 8 : 1);
+  }
+  . = ALIGN(64 / 8);
+  _end = .; PROVIDE (end = .);
+  . = DATA_SEGMENT_END (.);
+  /* Stabs debugging sections.  */
+  .stab          0 : { *(.stab) }
+  .stabstr       0 : { *(.stabstr) }
+  .stab.excl     0 : { *(.stab.excl) }
+  .stab.exclstr  0 : { *(.stab.exclstr) }
+  .stab.index    0 : { *(.stab.index) }
+  .stab.indexstr 0 : { *(.stab.indexstr) }
+  .comment 0 (INFO) : { *(.comment); LINKER_VERSION; }
+  .gnu.build.attributes : { *(.gnu.build.attributes .gnu.build.attributes.*) }
+  /* DWARF debug sections.
+     Symbols in the DWARF debugging sections are relative to the beginning
+     of the section so we begin them at 0.  */
+  /* DWARF 1.  */
+  .debug          0 : { *(.debug) }
+  .line           0 : { *(.line) }
+  /* GNU DWARF 1 extensions.  */
+  .debug_srcinfo  0 : { *(.debug_srcinfo) }
+  .debug_sfnames  0 : { *(.debug_sfnames) }
+  /* DWARF 1.1 and DWARF 2.  */
+  .debug_aranges  0 : { *(.debug_aranges) }
+  .debug_pubnames 0 : { *(.debug_pubnames) }
+  /* DWARF 2.  */
+  .debug_info     0 : { *(.debug_info .gnu.linkonce.wi.*) }
+  .debug_abbrev   0 : { *(.debug_abbrev) }
+  .debug_line     0 : { *(.debug_line .debug_line.* .debug_line_end) }
+  .debug_frame    0 : { *(.debug_frame) }
+  .debug_str      0 : { *(.debug_str) }
+  .debug_loc      0 : { *(.debug_loc) }
+  .debug_macinfo  0 : { *(.debug_macinfo) }
+  /* SGI/MIPS DWARF 2 extensions.  */
+  .debug_weaknames 0 : { *(.debug_weaknames) }
+  .debug_funcnames 0 : { *(.debug_funcnames) }
+  .debug_typenames 0 : { *(.debug_typenames) }
+  .debug_varnames  0 : { *(.debug_varnames) }
+  /* DWARF 3.  */
+  .debug_pubtypes 0 : { *(.debug_pubtypes) }
+  .debug_ranges   0 : { *(.debug_ranges) }
+  /* DWARF 5.  */
+  .debug_addr     0 : { *(.debug_addr) }
+  .debug_line_str 0 : { *(.debug_line_str) }
+  .debug_loclists 0 : { *(.debug_loclists) }
+  .debug_macro    0 : { *(.debug_macro) }
+  .debug_names    0 : { *(.debug_names) }
+  .debug_rnglists 0 : { *(.debug_rnglists) }
+  .debug_str_offsets 0 : { *(.debug_str_offsets) }
+  .debug_sup      0 : { *(.debug_sup) }
+  .gnu.attributes 0 : { KEEP (*(.gnu.attributes)) }
+  /DISCARD/ : { *(.note.GNU-stack) *(.gnu_debuglink) *(.gnu.lto_*) }
+}
+
+
+==================================================
+/usr/bin/ld: mode elf_x86_64
+attempt to open /tmp/a.out-b8ceaa.o succeeded
+/tmp/a.out-b8ceaa.o
+attempt to open /lib/x86_64-linux-gnu/crt1.o succeeded
+/lib/x86_64-linux-gnu/crt1.o
+attempt to open /lib/x86_64-linux-gnu/crti.o succeeded
+/lib/x86_64-linux-gnu/crti.o
+attempt to open /usr/lib/gcc/x86_64-linux-gnu/14/crtbegin.o succeeded
+/usr/lib/gcc/x86_64-linux-gnu/14/crtbegin.o
+attempt to open /tmp/multiple-devices-f1d47d.o succeeded
+/tmp/multiple-devices-f1d47d.o
+attempt to open /usr/lib/gcc/x86_64-linux-gnu/14/libstdc++.so succeeded
+/usr/lib/gcc/x86_64-linux-gnu/14/libstdc++.so
+attempt to open /usr/lib/gcc/x86_64-linux-gnu/14/libm.so failed
+attempt to open /usr/lib/gcc/x86_64-linux-gnu/14/libm.a failed
+attempt to open /usr/lib/gcc/x86_64-linux-gnu/14/../../../../lib64/libm.so failed
+attempt to open /usr/lib/gcc/x86_64-linux-gnu/14/../../../../lib64/libm.a failed
+attempt to open /lib/x86_64-linux-gnu/libm.so succeeded
+opened script file /lib/x86_64-linux-gnu/libm.so
+/lib/x86_64-linux-gnu/libm.so
+opened script file /lib/x86_64-linux-gnu/libm.so
+attempt to open /lib/x86_64-linux-gnu/libm.so.6 succeeded
+/lib/x86_64-linux-gnu/libm.so.6
+attempt to open /lib/x86_64-linux-gnu/libmvec.so.1 succeeded
+/lib/x86_64-linux-gnu/libmvec.so.1
+/lib/x86_64-linux-gnu/libmvec.so.1
+attempt to open /usr/lib/gcc/x86_64-linux-gnu/14/libgcc_s.so succeeded
+opened script file /usr/lib/gcc/x86_64-linux-gnu/14/libgcc_s.so
+/usr/lib/gcc/x86_64-linux-gnu/14/libgcc_s.so
+opened script file /usr/lib/gcc/x86_64-linux-gnu/14/libgcc_s.so
+attempt to open /usr/lib/gcc/x86_64-linux-gnu/14/libgcc_s.so.1 failed
+attempt to open libgcc_s.so.1 failed
+attempt to open /usr/lib/gcc/x86_64-linux-gnu/14/libgcc_s.so.1 failed
+attempt to open /usr/lib/gcc/x86_64-linux-gnu/14/../../../../lib64/libgcc_s.so.1 failed
+attempt to open /lib/x86_64-linux-gnu/libgcc_s.so.1 succeeded
+/lib/x86_64-linux-gnu/libgcc_s.so.1
+attempt to open /usr/lib/gcc/x86_64-linux-gnu/14/libgcc.so failed
+attempt to open /usr/lib/gcc/x86_64-linux-gnu/14/libgcc.a succeeded
+/usr/lib/gcc/x86_64-linux-gnu/14/libgcc.a
+/usr/lib/gcc/x86_64-linux-gnu/14/libgcc.a
+attempt to open /usr/lib/gcc/x86_64-linux-gnu/14/libgcc.so failed
+attempt to open /usr/lib/gcc/x86_64-linux-gnu/14/libgcc.a succeeded
+/usr/lib/gcc/x86_64-linux-gnu/14/libgcc.a
+attempt to open /usr/lib/gcc/x86_64-linux-gnu/14/libsycl.so failed
+attempt to open /usr/lib/gcc/x86_64-linux-gnu/14/libsycl.a failed
+attempt to open /usr/lib/gcc/x86_64-linux-gnu/14/../../../../lib64/libsycl.so failed
+attempt to open /usr/lib/gcc/x86_64-linux-gnu/14/../../../../lib64/libsycl.a failed
+attempt to open /lib/x86_64-linux-gnu/libsycl.so failed
+attempt to open /lib/x86_64-linux-gnu/libsycl.a failed
+attempt to open /lib/../lib64/libsycl.so failed
+attempt to open /lib/../lib64/libsycl.a failed
+attempt to open /usr/lib/x86_64-linux-gnu/libsycl.so failed
+attempt to open /usr/lib/x86_64-linux-gnu/libsycl.a failed
+attempt to open /usr/lib64/libsycl.so failed
+attempt to open /usr/lib64/libsycl.a failed
+attempt to open /localdisk2/yixingzh/move_to_clang_sycl_linker/llvm/build/bin/../lib/libsycl.so succeeded
+/localdisk2/yixingzh/move_to_clang_sycl_linker/llvm/build/bin/../lib/libsycl.so
+attempt to open /usr/lib/gcc/x86_64-linux-gnu/14/libsycl-devicelib-host.so failed
+attempt to open /usr/lib/gcc/x86_64-linux-gnu/14/libsycl-devicelib-host.a failed
+attempt to open /usr/lib/gcc/x86_64-linux-gnu/14/../../../../lib64/libsycl-devicelib-host.so failed
+attempt to open /usr/lib/gcc/x86_64-linux-gnu/14/../../../../lib64/libsycl-devicelib-host.a failed
+attempt to open /lib/x86_64-linux-gnu/libsycl-devicelib-host.so failed
+attempt to open /lib/x86_64-linux-gnu/libsycl-devicelib-host.a failed
+attempt to open /lib/../lib64/libsycl-devicelib-host.so failed
+attempt to open /lib/../lib64/libsycl-devicelib-host.a failed
+attempt to open /usr/lib/x86_64-linux-gnu/libsycl-devicelib-host.so failed
+attempt to open /usr/lib/x86_64-linux-gnu/libsycl-devicelib-host.a failed
+attempt to open /usr/lib64/libsycl-devicelib-host.so failed
+attempt to open /usr/lib64/libsycl-devicelib-host.a failed
+attempt to open /localdisk2/yixingzh/move_to_clang_sycl_linker/llvm/build/bin/../lib/libsycl-devicelib-host.so failed
+attempt to open /localdisk2/yixingzh/move_to_clang_sycl_linker/llvm/build/bin/../lib/libsycl-devicelib-host.a succeeded
+/localdisk2/yixingzh/move_to_clang_sycl_linker/llvm/build/bin/../lib/libsycl-devicelib-host.a
+attempt to open /usr/lib/gcc/x86_64-linux-gnu/14/libc.so failed
+attempt to open /usr/lib/gcc/x86_64-linux-gnu/14/libc.a failed
+attempt to open /usr/lib/gcc/x86_64-linux-gnu/14/../../../../lib64/libc.so failed
+attempt to open /usr/lib/gcc/x86_64-linux-gnu/14/../../../../lib64/libc.a failed
+attempt to open /lib/x86_64-linux-gnu/libc.so succeeded
+opened script file /lib/x86_64-linux-gnu/libc.so
+/lib/x86_64-linux-gnu/libc.so
+opened script file /lib/x86_64-linux-gnu/libc.so
+attempt to open /lib/x86_64-linux-gnu/libc.so.6 succeeded
+/lib/x86_64-linux-gnu/libc.so.6
+attempt to open /usr/lib/x86_64-linux-gnu/libc_nonshared.a succeeded
+/usr/lib/x86_64-linux-gnu/libc_nonshared.a
+attempt to open /lib64/ld-linux-x86-64.so.2 succeeded
+/lib64/ld-linux-x86-64.so.2
+/usr/lib/x86_64-linux-gnu/libc_nonshared.a
+/lib64/ld-linux-x86-64.so.2
+attempt to open /usr/lib/gcc/x86_64-linux-gnu/14/libgcc_s.so succeeded
+opened script file /usr/lib/gcc/x86_64-linux-gnu/14/libgcc_s.so
+/usr/lib/gcc/x86_64-linux-gnu/14/libgcc_s.so
+opened script file /usr/lib/gcc/x86_64-linux-gnu/14/libgcc_s.so
+attempt to open /usr/lib/gcc/x86_64-linux-gnu/14/libgcc_s.so.1 failed
+attempt to open libgcc_s.so.1 failed
+attempt to open /usr/lib/gcc/x86_64-linux-gnu/14/libgcc_s.so.1 failed
+attempt to open /usr/lib/gcc/x86_64-linux-gnu/14/../../../../lib64/libgcc_s.so.1 failed
+attempt to open /lib/x86_64-linux-gnu/libgcc_s.so.1 succeeded
+/lib/x86_64-linux-gnu/libgcc_s.so.1
+attempt to open /usr/lib/gcc/x86_64-linux-gnu/14/libgcc.so failed
+attempt to open /usr/lib/gcc/x86_64-linux-gnu/14/libgcc.a succeeded
+/usr/lib/gcc/x86_64-linux-gnu/14/libgcc.a
+attempt to open /usr/lib/gcc/x86_64-linux-gnu/14/libgcc.so failed
+attempt to open /usr/lib/gcc/x86_64-linux-gnu/14/libgcc.a succeeded
+/usr/lib/gcc/x86_64-linux-gnu/14/libgcc.a
+attempt to open /usr/lib/gcc/x86_64-linux-gnu/14/crtend.o succeeded
+/usr/lib/gcc/x86_64-linux-gnu/14/crtend.o
+attempt to open /lib/x86_64-linux-gnu/crtn.o succeeded
+/lib/x86_64-linux-gnu/crtn.o
+ld-linux-x86-64.so.2 needed by /usr/lib/gcc/x86_64-linux-gnu/14/libstdc++.so
+found ld-linux-x86-64.so.2 at /lib64/ld-linux-x86-64.so.2
+libur_loader.so.0 needed by /localdisk2/yixingzh/move_to_clang_sycl_linker/llvm/build/bin/../lib/libsycl.so
+attempt to open /nfs/site/proj/icl/archive/comp/onednnl/lin/2026.0.0.454/lib/libur_loader.so.0 failed
+attempt to open /nfs/site/proj/icl/archive/comp/onemkl/lin/20260329_cev_nightly/lib/libur_loader.so.0 failed
+attempt to open /rdrive/ref/tbb/lin/2023.0.0.508/tcm/1.5/lib/libur_loader.so.0 failed
+attempt to open /rdrive/ref/ipp/lin/2026.0/lib/libur_loader.so.0 failed
+attempt to open /rdrive/ref/umf/lin/1.1.0.125/intel64/lib/libur_loader.so.0 failed
+attempt to open /rdrive/ref/mpi/lin/2021.18.0.426/intel64/opt/mpi/libfabric/lib/libur_loader.so.0 failed
+attempt to open /rdrive/ref/mpi/lin/2021.18.0.426/intel64/lib/libur_loader.so.0 failed
+attempt to open /nfs/site/proj/icl/archive/deploy_xmain/xmainefi2linux/20260405_160000/build/linux_qa_release/lib/x86_64-unknown-linux-gnu/libur_loader.so.0 failed
+attempt to open /nfs/site/proj/icl/archive/deploy_xmain/xmainefi2linux/20260405_160000/build/linux_qa_release/opt/compiler/lib/libur_loader.so.0 failed
+found libur_loader.so.0 at /nfs/site/proj/icl/archive/deploy_xmain/xmainefi2linux/20260405_160000/build/linux_qa_release/lib/libur_loader.so.0
+libpthread.so.0 needed by /nfs/site/proj/icl/archive/deploy_xmain/xmainefi2linux/20260405_160000/build/linux_qa_release/lib/libur_loader.so.0
+attempt to open /nfs/site/proj/icl/archive/comp/onednnl/lin/2026.0.0.454/lib/libpthread.so.0 failed
+attempt to open /nfs/site/proj/icl/archive/comp/onemkl/lin/20260329_cev_nightly/lib/libpthread.so.0 failed
+attempt to open /rdrive/ref/tbb/lin/2023.0.0.508/tcm/1.5/lib/libpthread.so.0 failed
+attempt to open /rdrive/ref/ipp/lin/2026.0/lib/libpthread.so.0 failed
+attempt to open /rdrive/ref/umf/lin/1.1.0.125/intel64/lib/libpthread.so.0 failed
+attempt to open /rdrive/ref/mpi/lin/2021.18.0.426/intel64/opt/mpi/libfabric/lib/libpthread.so.0 failed
+attempt to open /rdrive/ref/mpi/lin/2021.18.0.426/intel64/lib/libpthread.so.0 failed
+attempt to open /nfs/site/proj/icl/archive/deploy_xmain/xmainefi2linux/20260405_160000/build/linux_qa_release/lib/x86_64-unknown-linux-gnu/libpthread.so.0 failed
+attempt to open /nfs/site/proj/icl/archive/deploy_xmain/xmainefi2linux/20260405_160000/build/linux_qa_release/opt/compiler/lib/libpthread.so.0 failed
+attempt to open /nfs/site/proj/icl/archive/deploy_xmain/xmainefi2linux/20260405_160000/build/linux_qa_release/lib/libpthread.so.0 failed
+attempt to open /nfs/site/proj/icl/archive/comp/onednnl/lin/2026.0.0.454/lib/libpthread.so.0 failed
+attempt to open /nfs/site/proj/icl/archive/comp/onemkl/lin/20260329_cev_nightly/lib/libpthread.so.0 failed
+attempt to open /rdrive/ref/umf/lin/1.1.0.125/intel64/lib/libpthread.so.0 failed
+attempt to open /rdrive/ref/tbb/lin/2023.0.0.508/tbb/2023.0/lib/libpthread.so.0 failed
+attempt to open /rdrive/ref/opencl/runtime/linux/oclgpu/Kobuk-26.05.37020.3/libpthread.so.0 failed
+attempt to open /rdrive/ref/opencl/runtime/linux/oclgpu/Kobuk-26.05.37020.3/intel-opencl/libpthread.so.0 failed
+attempt to open /rdrive/ref/opencl/runtime/linux/oclgpu/Kobuk-26.05.37020.3/libpthread.so.0 failed
+attempt to open /nfs/site/proj/icl/archive/deploy_xmain/xmainefi2linux/20260405_160000/build/linux_qa_release/lib/../lib/libpthread.so.0 failed
+attempt to open /usr/lib/x86_64-linux-gnu/libfakeroot/libpthread.so.0 failed
+attempt to open /usr/local/lib/libpthread.so.0 failed
+attempt to open /usr/local/lib/x86_64-linux-gnu/libpthread.so.0 failed
+found libpthread.so.0 at /lib/x86_64-linux-gnu/libpthread.so.0
+librt.so.1 needed by /nfs/site/proj/icl/archive/deploy_xmain/xmainefi2linux/20260405_160000/build/linux_qa_release/lib/libur_loader.so.0
+attempt to open /nfs/site/proj/icl/archive/comp/onednnl/lin/2026.0.0.454/lib/librt.so.1 failed
+attempt to open /nfs/site/proj/icl/archive/comp/onemkl/lin/20260329_cev_nightly/lib/librt.so.1 failed
+attempt to open /rdrive/ref/tbb/lin/2023.0.0.508/tcm/1.5/lib/librt.so.1 failed
+attempt to open /rdrive/ref/ipp/lin/2026.0/lib/librt.so.1 failed
+attempt to open /rdrive/ref/umf/lin/1.1.0.125/intel64/lib/librt.so.1 failed
+attempt to open /rdrive/ref/mpi/lin/2021.18.0.426/intel64/opt/mpi/libfabric/lib/librt.so.1 failed
+attempt to open /rdrive/ref/mpi/lin/2021.18.0.426/intel64/lib/librt.so.1 failed
+attempt to open /nfs/site/proj/icl/archive/deploy_xmain/xmainefi2linux/20260405_160000/build/linux_qa_release/lib/x86_64-unknown-linux-gnu/librt.so.1 failed
+attempt to open /nfs/site/proj/icl/archive/deploy_xmain/xmainefi2linux/20260405_160000/build/linux_qa_release/opt/compiler/lib/librt.so.1 failed
+attempt to open /nfs/site/proj/icl/archive/deploy_xmain/xmainefi2linux/20260405_160000/build/linux_qa_release/lib/librt.so.1 failed
+attempt to open /nfs/site/proj/icl/archive/comp/onednnl/lin/2026.0.0.454/lib/librt.so.1 failed
+attempt to open /nfs/site/proj/icl/archive/comp/onemkl/lin/20260329_cev_nightly/lib/librt.so.1 failed
+attempt to open /rdrive/ref/umf/lin/1.1.0.125/intel64/lib/librt.so.1 failed
+attempt to open /rdrive/ref/tbb/lin/2023.0.0.508/tbb/2023.0/lib/librt.so.1 failed
+attempt to open /rdrive/ref/opencl/runtime/linux/oclgpu/Kobuk-26.05.37020.3/librt.so.1 failed
+attempt to open /rdrive/ref/opencl/runtime/linux/oclgpu/Kobuk-26.05.37020.3/intel-opencl/librt.so.1 failed
+attempt to open /rdrive/ref/opencl/runtime/linux/oclgpu/Kobuk-26.05.37020.3/librt.so.1 failed
+attempt to open /nfs/site/proj/icl/archive/deploy_xmain/xmainefi2linux/20260405_160000/build/linux_qa_release/lib/../lib/librt.so.1 failed
+attempt to open /usr/lib/x86_64-linux-gnu/libfakeroot/librt.so.1 failed
+attempt to open /usr/local/lib/librt.so.1 failed
+attempt to open /usr/local/lib/x86_64-linux-gnu/librt.so.1 failed
+found librt.so.1 at /lib/x86_64-linux-gnu/librt.so.1
+libdl.so.2 needed by /nfs/site/proj/icl/archive/deploy_xmain/xmainefi2linux/20260405_160000/build/linux_qa_release/lib/libur_loader.so.0
+attempt to open /nfs/site/proj/icl/archive/comp/onednnl/lin/2026.0.0.454/lib/libdl.so.2 failed
+attempt to open /nfs/site/proj/icl/archive/comp/onemkl/lin/20260329_cev_nightly/lib/libdl.so.2 failed
+attempt to open /rdrive/ref/tbb/lin/2023.0.0.508/tcm/1.5/lib/libdl.so.2 failed
+attempt to open /rdrive/ref/ipp/lin/2026.0/lib/libdl.so.2 failed
+attempt to open /rdrive/ref/umf/lin/1.1.0.125/intel64/lib/libdl.so.2 failed
+attempt to open /rdrive/ref/mpi/lin/2021.18.0.426/intel64/opt/mpi/libfabric/lib/libdl.so.2 failed
+attempt to open /rdrive/ref/mpi/lin/2021.18.0.426/intel64/lib/libdl.so.2 failed
+attempt to open /nfs/site/proj/icl/archive/deploy_xmain/xmainefi2linux/20260405_160000/build/linux_qa_release/lib/x86_64-unknown-linux-gnu/libdl.so.2 failed
+attempt to open /nfs/site/proj/icl/archive/deploy_xmain/xmainefi2linux/20260405_160000/build/linux_qa_release/opt/compiler/lib/libdl.so.2 failed
+attempt to open /nfs/site/proj/icl/archive/deploy_xmain/xmainefi2linux/20260405_160000/build/linux_qa_release/lib/libdl.so.2 failed
+attempt to open /nfs/site/proj/icl/archive/comp/onednnl/lin/2026.0.0.454/lib/libdl.so.2 failed
+attempt to open /nfs/site/proj/icl/archive/comp/onemkl/lin/20260329_cev_nightly/lib/libdl.so.2 failed
+attempt to open /rdrive/ref/umf/lin/1.1.0.125/intel64/lib/libdl.so.2 failed
+attempt to open /rdrive/ref/tbb/lin/2023.0.0.508/tbb/2023.0/lib/libdl.so.2 failed
+attempt to open /rdrive/ref/opencl/runtime/linux/oclgpu/Kobuk-26.05.37020.3/libdl.so.2 failed
+attempt to open /rdrive/ref/opencl/runtime/linux/oclgpu/Kobuk-26.05.37020.3/intel-opencl/libdl.so.2 failed
+attempt to open /rdrive/ref/opencl/runtime/linux/oclgpu/Kobuk-26.05.37020.3/libdl.so.2 failed
+attempt to open /nfs/site/proj/icl/archive/deploy_xmain/xmainefi2linux/20260405_160000/build/linux_qa_release/lib/../lib/libdl.so.2 failed
+attempt to open /usr/lib/x86_64-linux-gnu/libfakeroot/libdl.so.2 failed
+attempt to open /usr/local/lib/libdl.so.2 failed
+attempt to open /usr/local/lib/x86_64-linux-gnu/libdl.so.2 failed
+found libdl.so.2 at /lib/x86_64-linux-gnu/libdl.so.2
+libimf.so needed by /nfs/site/proj/icl/archive/deploy_xmain/xmainefi2linux/20260405_160000/build/linux_qa_release/lib/libur_loader.so.0
+attempt to open /nfs/site/proj/icl/archive/comp/onednnl/lin/2026.0.0.454/lib/libimf.so failed
+attempt to open /nfs/site/proj/icl/archive/comp/onemkl/lin/20260329_cev_nightly/lib/libimf.so failed
+attempt to open /rdrive/ref/tbb/lin/2023.0.0.508/tcm/1.5/lib/libimf.so failed
+attempt to open /rdrive/ref/ipp/lin/2026.0/lib/libimf.so failed
+attempt to open /rdrive/ref/umf/lin/1.1.0.125/intel64/lib/libimf.so failed
+attempt to open /rdrive/ref/mpi/lin/2021.18.0.426/intel64/opt/mpi/libfabric/lib/libimf.so failed
+attempt to open /rdrive/ref/mpi/lin/2021.18.0.426/intel64/lib/libimf.so failed
+attempt to open /nfs/site/proj/icl/archive/deploy_xmain/xmainefi2linux/20260405_160000/build/linux_qa_release/lib/x86_64-unknown-linux-gnu/libimf.so failed
+attempt to open /nfs/site/proj/icl/archive/deploy_xmain/xmainefi2linux/20260405_160000/build/linux_qa_release/opt/compiler/lib/libimf.so failed
+found libimf.so at /nfs/site/proj/icl/archive/deploy_xmain/xmainefi2linux/20260405_160000/build/linux_qa_release/lib/libimf.so
+libz.so.1 needed by /nfs/site/proj/icl/archive/deploy_xmain/xmainefi2linux/20260405_160000/build/linux_qa_release/lib/libur_loader.so.0
+attempt to open /nfs/site/proj/icl/archive/comp/onednnl/lin/2026.0.0.454/lib/libz.so.1 failed
+attempt to open /nfs/site/proj/icl/archive/comp/onemkl/lin/20260329_cev_nightly/lib/libz.so.1 failed
+attempt to open /rdrive/ref/tbb/lin/2023.0.0.508/tcm/1.5/lib/libz.so.1 failed
+attempt to open /rdrive/ref/ipp/lin/2026.0/lib/libz.so.1 failed
+attempt to open /rdrive/ref/umf/lin/1.1.0.125/intel64/lib/libz.so.1 failed
+attempt to open /rdrive/ref/mpi/lin/2021.18.0.426/intel64/opt/mpi/libfabric/lib/libz.so.1 failed
+attempt to open /rdrive/ref/mpi/lin/2021.18.0.426/intel64/lib/libz.so.1 failed
+attempt to open /nfs/site/proj/icl/archive/deploy_xmain/xmainefi2linux/20260405_160000/build/linux_qa_release/lib/x86_64-unknown-linux-gnu/libz.so.1 failed
+attempt to open /nfs/site/proj/icl/archive/deploy_xmain/xmainefi2linux/20260405_160000/build/linux_qa_release/opt/compiler/lib/libz.so.1 failed
+attempt to open /nfs/site/proj/icl/archive/deploy_xmain/xmainefi2linux/20260405_160000/build/linux_qa_release/lib/libz.so.1 failed
+attempt to open /nfs/site/proj/icl/archive/comp/onednnl/lin/2026.0.0.454/lib/libz.so.1 failed
+attempt to open /nfs/site/proj/icl/archive/comp/onemkl/lin/20260329_cev_nightly/lib/libz.so.1 failed
+attempt to open /rdrive/ref/umf/lin/1.1.0.125/intel64/lib/libz.so.1 failed
+attempt to open /rdrive/ref/tbb/lin/2023.0.0.508/tbb/2023.0/lib/libz.so.1 failed
+attempt to open /rdrive/ref/opencl/runtime/linux/oclgpu/Kobuk-26.05.37020.3/libz.so.1 failed
+attempt to open /rdrive/ref/opencl/runtime/linux/oclgpu/Kobuk-26.05.37020.3/intel-opencl/libz.so.1 failed
+attempt to open /rdrive/ref/opencl/runtime/linux/oclgpu/Kobuk-26.05.37020.3/libz.so.1 failed
+attempt to open /nfs/site/proj/icl/archive/deploy_xmain/xmainefi2linux/20260405_160000/build/linux_qa_release/lib/../lib/libz.so.1 failed
+attempt to open /usr/lib/x86_64-linux-gnu/libfakeroot/libz.so.1 failed
+attempt to open /usr/local/lib/libz.so.1 failed
+attempt to open /usr/local/lib/x86_64-linux-gnu/libz.so.1 failed
+found libz.so.1 at /lib/x86_64-linux-gnu/libz.so.1
+libsvml.so needed by /nfs/site/proj/icl/archive/deploy_xmain/xmainefi2linux/20260405_160000/build/linux_qa_release/lib/libur_loader.so.0
+attempt to open /nfs/site/proj/icl/archive/comp/onednnl/lin/2026.0.0.454/lib/libsvml.so failed
+attempt to open /nfs/site/proj/icl/archive/comp/onemkl/lin/20260329_cev_nightly/lib/libsvml.so failed
+attempt to open /rdrive/ref/tbb/lin/2023.0.0.508/tcm/1.5/lib/libsvml.so failed
+attempt to open /rdrive/ref/ipp/lin/2026.0/lib/libsvml.so failed
+attempt to open /rdrive/ref/umf/lin/1.1.0.125/intel64/lib/libsvml.so failed
+attempt to open /rdrive/ref/mpi/lin/2021.18.0.426/intel64/opt/mpi/libfabric/lib/libsvml.so failed
+attempt to open /rdrive/ref/mpi/lin/2021.18.0.426/intel64/lib/libsvml.so failed
+attempt to open /nfs/site/proj/icl/archive/deploy_xmain/xmainefi2linux/20260405_160000/build/linux_qa_release/lib/x86_64-unknown-linux-gnu/libsvml.so failed
+attempt to open /nfs/site/proj/icl/archive/deploy_xmain/xmainefi2linux/20260405_160000/build/linux_qa_release/opt/compiler/lib/libsvml.so failed
+found libsvml.so at /nfs/site/proj/icl/archive/deploy_xmain/xmainefi2linux/20260405_160000/build/linux_qa_release/lib/libsvml.so
+libirng.so needed by /nfs/site/proj/icl/archive/deploy_xmain/xmainefi2linux/20260405_160000/build/linux_qa_release/lib/libur_loader.so.0
+attempt to open /nfs/site/proj/icl/archive/comp/onednnl/lin/2026.0.0.454/lib/libirng.so failed
+attempt to open /nfs/site/proj/icl/archive/comp/onemkl/lin/20260329_cev_nightly/lib/libirng.so failed
+attempt to open /rdrive/ref/tbb/lin/2023.0.0.508/tcm/1.5/lib/libirng.so failed
+attempt to open /rdrive/ref/ipp/lin/2026.0/lib/libirng.so failed
+attempt to open /rdrive/ref/umf/lin/1.1.0.125/intel64/lib/libirng.so failed
+attempt to open /rdrive/ref/mpi/lin/2021.18.0.426/intel64/opt/mpi/libfabric/lib/libirng.so failed
+attempt to open /rdrive/ref/mpi/lin/2021.18.0.426/intel64/lib/libirng.so failed
+attempt to open /nfs/site/proj/icl/archive/deploy_xmain/xmainefi2linux/20260405_160000/build/linux_qa_release/lib/x86_64-unknown-linux-gnu/libirng.so failed
+attempt to open /nfs/site/proj/icl/archive/deploy_xmain/xmainefi2linux/20260405_160000/build/linux_qa_release/opt/compiler/lib/libirng.so failed
+found libirng.so at /nfs/site/proj/icl/archive/deploy_xmain/xmainefi2linux/20260405_160000/build/linux_qa_release/lib/libirng.so
+libintlc.so.5 needed by /nfs/site/proj/icl/archive/deploy_xmain/xmainefi2linux/20260405_160000/build/linux_qa_release/lib/libur_loader.so.0
+attempt to open /nfs/site/proj/icl/archive/comp/onednnl/lin/2026.0.0.454/lib/libintlc.so.5 failed
+attempt to open /nfs/site/proj/icl/archive/comp/onemkl/lin/20260329_cev_nightly/lib/libintlc.so.5 failed
+attempt to open /rdrive/ref/tbb/lin/2023.0.0.508/tcm/1.5/lib/libintlc.so.5 failed
+attempt to open /rdrive/ref/ipp/lin/2026.0/lib/libintlc.so.5 failed
+attempt to open /rdrive/ref/umf/lin/1.1.0.125/intel64/lib/libintlc.so.5 failed
+attempt to open /rdrive/ref/mpi/lin/2021.18.0.426/intel64/opt/mpi/libfabric/lib/libintlc.so.5 failed
+attempt to open /rdrive/ref/mpi/lin/2021.18.0.426/intel64/lib/libintlc.so.5 failed
+attempt to open /nfs/site/proj/icl/archive/deploy_xmain/xmainefi2linux/20260405_160000/build/linux_qa_release/lib/x86_64-unknown-linux-gnu/libintlc.so.5 failed
+attempt to open /nfs/site/proj/icl/archive/deploy_xmain/xmainefi2linux/20260405_160000/build/linux_qa_release/opt/compiler/lib/libintlc.so.5 failed
+found libintlc.so.5 at /nfs/site/proj/icl/archive/deploy_xmain/xmainefi2linux/20260405_160000/build/linux_qa_release/lib/libintlc.so.5
+/usr/bin/ld: /lib/x86_64-linux-gnu/crt1.o: in function `_start':
+(.text+0x1b): undefined reference to `main'
+/usr/bin/ld: link errors found, deleting executable `a.out'
+/localdisk2/yixingzh/move_to_clang_sycl_linker/llvm/build/bin/clang-linker-wrapper: error: 'ld' failed
+clang++: error: linker command failed with exit code 1 (use -v to see invocation)
