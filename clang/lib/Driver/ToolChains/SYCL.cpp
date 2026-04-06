@@ -25,13 +25,8 @@ using namespace llvm::opt;
 SYCLInstallationDetector::SYCLInstallationDetector(
     const Driver &D, const llvm::Triple &HostTriple,
     const llvm::opt::ArgList &Args)
-<<<<<<< HEAD
-    : D(D) {
-  // Detect the presence of the SYCL runtime library (libLLVMSYCL.so) in the
-=======
     : D(D), InstallationCandidates() {
   // Detect the presence of the SYCL runtime library (libsycl.so) in the
->>>>>>> 64c349be698edd4e28c9dc48b3c5b2cedad85792
   // filesystem. This is used to determine whether a usable SYCL installation
   // is available for the current driver invocation.
   StringRef SysRoot = D.SysRoot;
