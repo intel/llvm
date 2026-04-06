@@ -3916,76 +3916,6 @@ __urdlllocal ur_result_t UR_APICALL urEventSetCallback(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urEnqueueKernelLaunch
-__urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
-    /// [in] handle of the queue object
-    ur_queue_handle_t hQueue,
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] number of dimensions, from 1 to 3, to specify the global and
-    /// work-group work-items
-    uint32_t workDim,
-    /// [in][optional] pointer to an array of workDim unsigned values that
-    /// specify the offset used to calculate the global ID of a work-item
-    const size_t *pGlobalWorkOffset,
-    /// [in] pointer to an array of workDim unsigned values that specify the
-    /// number of global work-items in workDim that will execute the kernel
-    /// function
-    const size_t *pGlobalWorkSize,
-    /// [in][optional] pointer to an array of workDim unsigned values that
-    /// specify the number of local work-items forming a work-group that will
-    /// execute the kernel function.
-    /// If nullptr, the runtime implementation will choose the work-group size.
-    const size_t *pLocalWorkSize,
-    /// [in][optional] pointer to a single linked list of launch properties
-    const ur_kernel_launch_ext_properties_t *launchPropList,
-    /// [in] size of the event wait list
-    uint32_t numEventsInWaitList,
-    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
-    /// events that must be complete before the kernel execution.
-    /// If nullptr, the numEventsInWaitList must be 0, indicating that no wait
-    /// event.
-    const ur_event_handle_t *phEventWaitList,
-    /// [out][optional][alloc] return an event object that identifies this
-    /// particular kernel execution instance. If phEventWaitList and phEvent
-    /// are not NULL, phEvent must not refer to an element of the
-    /// phEventWaitList array.
-    ur_event_handle_t *phEvent) {
-  auto pfnKernelLaunch = getContext()->urDdiTable.Enqueue.pfnKernelLaunch;
-
-  if (nullptr == pfnKernelLaunch)
-    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-
-  ur_enqueue_kernel_launch_params_t params = {
-      &hQueue,          &hKernel,        &workDim,        &pGlobalWorkOffset,
-      &pGlobalWorkSize, &pLocalWorkSize, &launchPropList, &numEventsInWaitList,
-      &phEventWaitList, &phEvent};
-  uint64_t instance = getContext()->notify_begin(
-      UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH, "urEnqueueKernelLaunch", &params);
-
-  auto &logger = getContext()->logger;
-  UR_LOG_L(logger, INFO, "   ---> urEnqueueKernelLaunch\n");
-
-  ur_result_t result =
-      pfnKernelLaunch(hQueue, hKernel, workDim, pGlobalWorkOffset,
-                      pGlobalWorkSize, pLocalWorkSize, launchPropList,
-                      numEventsInWaitList, phEventWaitList, phEvent);
-
-  getContext()->notify_end(UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH,
-                           "urEnqueueKernelLaunch", &params, &result, instance);
-
-  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
-    std::ostringstream args_str;
-    ur::extras::printFunctionParams(args_str, UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH,
-                                    &params);
-    UR_LOG_L(logger, INFO, "   <--- urEnqueueKernelLaunch({}) -> {};\n",
-             args_str.str(), result);
-  }
-
-  return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urEnqueueEventsWait
 __urdlllocal ur_result_t UR_APICALL urEnqueueEventsWait(
     /// [in] handle of the queue object
@@ -5579,91 +5509,6 @@ __urdlllocal ur_result_t UR_APICALL urKernelCreate(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urKernelSetArgValue
-__urdlllocal ur_result_t UR_APICALL urKernelSetArgValue(
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] argument index in range [0, num args - 1]
-    uint32_t argIndex,
-    /// [in] size of argument type
-    size_t argSize,
-    /// [in][optional] pointer to value properties.
-    const ur_kernel_arg_value_properties_t *pProperties,
-    /// [in] argument value represented as matching arg type.
-    /// The data pointed to will be copied and therefore can be reused on
-    /// return.
-    const void *pArgValue) {
-  auto pfnSetArgValue = getContext()->urDdiTable.Kernel.pfnSetArgValue;
-
-  if (nullptr == pfnSetArgValue)
-    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-
-  ur_kernel_set_arg_value_params_t params = {&hKernel, &argIndex, &argSize,
-                                             &pProperties, &pArgValue};
-  uint64_t instance = getContext()->notify_begin(
-      UR_FUNCTION_KERNEL_SET_ARG_VALUE, "urKernelSetArgValue", &params);
-
-  auto &logger = getContext()->logger;
-  UR_LOG_L(logger, INFO, "   ---> urKernelSetArgValue\n");
-
-  ur_result_t result =
-      pfnSetArgValue(hKernel, argIndex, argSize, pProperties, pArgValue);
-
-  getContext()->notify_end(UR_FUNCTION_KERNEL_SET_ARG_VALUE,
-                           "urKernelSetArgValue", &params, &result, instance);
-
-  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
-    std::ostringstream args_str;
-    ur::extras::printFunctionParams(args_str, UR_FUNCTION_KERNEL_SET_ARG_VALUE,
-                                    &params);
-    UR_LOG_L(logger, INFO, "   <--- urKernelSetArgValue({}) -> {};\n",
-             args_str.str(), result);
-  }
-
-  return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urKernelSetArgLocal
-__urdlllocal ur_result_t UR_APICALL urKernelSetArgLocal(
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] argument index in range [0, num args - 1]
-    uint32_t argIndex,
-    /// [in] size of the local buffer to be allocated by the runtime
-    size_t argSize,
-    /// [in][optional] pointer to local buffer properties.
-    const ur_kernel_arg_local_properties_t *pProperties) {
-  auto pfnSetArgLocal = getContext()->urDdiTable.Kernel.pfnSetArgLocal;
-
-  if (nullptr == pfnSetArgLocal)
-    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-
-  ur_kernel_set_arg_local_params_t params = {&hKernel, &argIndex, &argSize,
-                                             &pProperties};
-  uint64_t instance = getContext()->notify_begin(
-      UR_FUNCTION_KERNEL_SET_ARG_LOCAL, "urKernelSetArgLocal", &params);
-
-  auto &logger = getContext()->logger;
-  UR_LOG_L(logger, INFO, "   ---> urKernelSetArgLocal\n");
-
-  ur_result_t result = pfnSetArgLocal(hKernel, argIndex, argSize, pProperties);
-
-  getContext()->notify_end(UR_FUNCTION_KERNEL_SET_ARG_LOCAL,
-                           "urKernelSetArgLocal", &params, &result, instance);
-
-  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
-    std::ostringstream args_str;
-    ur::extras::printFunctionParams(args_str, UR_FUNCTION_KERNEL_SET_ARG_LOCAL,
-                                    &params);
-    UR_LOG_L(logger, INFO, "   <--- urKernelSetArgLocal({}) -> {};\n",
-             args_str.str(), result);
-  }
-
-  return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urKernelGetInfo
 __urdlllocal ur_result_t UR_APICALL urKernelGetInfo(
     /// [in] handle of the Kernel object
@@ -5875,48 +5720,6 @@ __urdlllocal ur_result_t UR_APICALL urKernelRelease(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urKernelSetArgPointer
-__urdlllocal ur_result_t UR_APICALL urKernelSetArgPointer(
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] argument index in range [0, num args - 1]
-    uint32_t argIndex,
-    /// [in][optional] pointer to USM pointer properties.
-    const ur_kernel_arg_pointer_properties_t *pProperties,
-    /// [in][optional] Pointer obtained by USM allocation or virtual memory
-    /// mapping operation. If null then argument value is considered null.
-    const void *pArgValue) {
-  auto pfnSetArgPointer = getContext()->urDdiTable.Kernel.pfnSetArgPointer;
-
-  if (nullptr == pfnSetArgPointer)
-    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-
-  ur_kernel_set_arg_pointer_params_t params = {&hKernel, &argIndex,
-                                               &pProperties, &pArgValue};
-  uint64_t instance = getContext()->notify_begin(
-      UR_FUNCTION_KERNEL_SET_ARG_POINTER, "urKernelSetArgPointer", &params);
-
-  auto &logger = getContext()->logger;
-  UR_LOG_L(logger, INFO, "   ---> urKernelSetArgPointer\n");
-
-  ur_result_t result =
-      pfnSetArgPointer(hKernel, argIndex, pProperties, pArgValue);
-
-  getContext()->notify_end(UR_FUNCTION_KERNEL_SET_ARG_POINTER,
-                           "urKernelSetArgPointer", &params, &result, instance);
-
-  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
-    std::ostringstream args_str;
-    ur::extras::printFunctionParams(
-        args_str, UR_FUNCTION_KERNEL_SET_ARG_POINTER, &params);
-    UR_LOG_L(logger, INFO, "   <--- urKernelSetArgPointer({}) -> {};\n",
-             args_str.str(), result);
-  }
-
-  return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urKernelSetExecInfo
 __urdlllocal ur_result_t UR_APICALL urKernelSetExecInfo(
     /// [in] handle of the kernel object
@@ -5954,88 +5757,6 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetExecInfo(
     ur::extras::printFunctionParams(args_str, UR_FUNCTION_KERNEL_SET_EXEC_INFO,
                                     &params);
     UR_LOG_L(logger, INFO, "   <--- urKernelSetExecInfo({}) -> {};\n",
-             args_str.str(), result);
-  }
-
-  return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urKernelSetArgSampler
-__urdlllocal ur_result_t UR_APICALL urKernelSetArgSampler(
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] argument index in range [0, num args - 1]
-    uint32_t argIndex,
-    /// [in][optional] pointer to sampler properties.
-    const ur_kernel_arg_sampler_properties_t *pProperties,
-    /// [in] handle of Sampler object.
-    ur_sampler_handle_t hArgValue) {
-  auto pfnSetArgSampler = getContext()->urDdiTable.Kernel.pfnSetArgSampler;
-
-  if (nullptr == pfnSetArgSampler)
-    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-
-  ur_kernel_set_arg_sampler_params_t params = {&hKernel, &argIndex,
-                                               &pProperties, &hArgValue};
-  uint64_t instance = getContext()->notify_begin(
-      UR_FUNCTION_KERNEL_SET_ARG_SAMPLER, "urKernelSetArgSampler", &params);
-
-  auto &logger = getContext()->logger;
-  UR_LOG_L(logger, INFO, "   ---> urKernelSetArgSampler\n");
-
-  ur_result_t result =
-      pfnSetArgSampler(hKernel, argIndex, pProperties, hArgValue);
-
-  getContext()->notify_end(UR_FUNCTION_KERNEL_SET_ARG_SAMPLER,
-                           "urKernelSetArgSampler", &params, &result, instance);
-
-  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
-    std::ostringstream args_str;
-    ur::extras::printFunctionParams(
-        args_str, UR_FUNCTION_KERNEL_SET_ARG_SAMPLER, &params);
-    UR_LOG_L(logger, INFO, "   <--- urKernelSetArgSampler({}) -> {};\n",
-             args_str.str(), result);
-  }
-
-  return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urKernelSetArgMemObj
-__urdlllocal ur_result_t UR_APICALL urKernelSetArgMemObj(
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] argument index in range [0, num args - 1]
-    uint32_t argIndex,
-    /// [in][optional] pointer to Memory object properties.
-    const ur_kernel_arg_mem_obj_properties_t *pProperties,
-    /// [in][optional] handle of Memory object.
-    ur_mem_handle_t hArgValue) {
-  auto pfnSetArgMemObj = getContext()->urDdiTable.Kernel.pfnSetArgMemObj;
-
-  if (nullptr == pfnSetArgMemObj)
-    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-
-  ur_kernel_set_arg_mem_obj_params_t params = {&hKernel, &argIndex,
-                                               &pProperties, &hArgValue};
-  uint64_t instance = getContext()->notify_begin(
-      UR_FUNCTION_KERNEL_SET_ARG_MEM_OBJ, "urKernelSetArgMemObj", &params);
-
-  auto &logger = getContext()->logger;
-  UR_LOG_L(logger, INFO, "   ---> urKernelSetArgMemObj\n");
-
-  ur_result_t result =
-      pfnSetArgMemObj(hKernel, argIndex, pProperties, hArgValue);
-
-  getContext()->notify_end(UR_FUNCTION_KERNEL_SET_ARG_MEM_OBJ,
-                           "urKernelSetArgMemObj", &params, &result, instance);
-
-  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
-    std::ostringstream args_str;
-    ur::extras::printFunctionParams(
-        args_str, UR_FUNCTION_KERNEL_SET_ARG_MEM_OBJ, &params);
-    UR_LOG_L(logger, INFO, "   <--- urKernelSetArgMemObj({}) -> {};\n",
              args_str.str(), result);
   }
 
@@ -6218,6 +5939,68 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
         args_str, UR_FUNCTION_KERNEL_GET_SUGGESTED_LOCAL_WORK_SIZE, &params);
     UR_LOG_L(logger, INFO,
              "   <--- urKernelGetSuggestedLocalWorkSize({}) -> {};\n",
+             args_str.str(), result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urKernelGetSuggestedLocalWorkSizeWithArgs
+__urdlllocal ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSizeWithArgs(
+    /// [in] handle of the kernel
+    ur_kernel_handle_t hKernel,
+    /// [in] handle of the queue object
+    ur_queue_handle_t hQueue,
+    /// [in] number of dimensions, from 1 to 3, to specify the global
+    /// and work-group work-items
+    uint32_t numWorkDim,
+    /// [in] pointer to an array of numWorkDim unsigned values that specify
+    /// the offset used to calculate the global ID of a work-item
+    const size_t *pGlobalWorkOffset,
+    /// [in] pointer to an array of numWorkDim unsigned values that specify
+    /// the number of global work-items in workDim that will execute the
+    /// kernel function
+    const size_t *pGlobalWorkSize,
+    /// [in] Number of entries in pArgs
+    uint32_t numArgs,
+    /// [in][optional][range(0, numArgs)] pointer to a list of kernel arg
+    /// properties.
+    const ur_exp_kernel_arg_properties_t *pArgs,
+    /// [out] pointer to an array of numWorkDim unsigned values that specify
+    /// suggested local work size that will contain the result of the query
+    size_t *pSuggestedLocalWorkSize) {
+  auto pfnGetSuggestedLocalWorkSizeWithArgs =
+      getContext()->urDdiTable.Kernel.pfnGetSuggestedLocalWorkSizeWithArgs;
+
+  if (nullptr == pfnGetSuggestedLocalWorkSizeWithArgs)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_kernel_get_suggested_local_work_size_with_args_params_t params = {
+      &hKernel,         &hQueue,  &numWorkDim, &pGlobalWorkOffset,
+      &pGlobalWorkSize, &numArgs, &pArgs,      &pSuggestedLocalWorkSize};
+  uint64_t instance = getContext()->notify_begin(
+      UR_FUNCTION_KERNEL_GET_SUGGESTED_LOCAL_WORK_SIZE_WITH_ARGS,
+      "urKernelGetSuggestedLocalWorkSizeWithArgs", &params);
+
+  auto &logger = getContext()->logger;
+  UR_LOG_L(logger, INFO, "   ---> urKernelGetSuggestedLocalWorkSizeWithArgs\n");
+
+  ur_result_t result = pfnGetSuggestedLocalWorkSizeWithArgs(
+      hKernel, hQueue, numWorkDim, pGlobalWorkOffset, pGlobalWorkSize, numArgs,
+      pArgs, pSuggestedLocalWorkSize);
+
+  getContext()->notify_end(
+      UR_FUNCTION_KERNEL_GET_SUGGESTED_LOCAL_WORK_SIZE_WITH_ARGS,
+      "urKernelGetSuggestedLocalWorkSizeWithArgs", &params, &result, instance);
+
+  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_KERNEL_GET_SUGGESTED_LOCAL_WORK_SIZE_WITH_ARGS,
+        &params);
+    UR_LOG_L(logger, INFO,
+             "   <--- urKernelGetSuggestedLocalWorkSizeWithArgs({}) -> {};\n",
              args_str.str(), result);
   }
 
@@ -8693,6 +8476,89 @@ __urdlllocal ur_result_t UR_APICALL urUSMContextMemcpyExp(
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_USM_CONTEXT_MEMCPY_EXP, &params);
     UR_LOG_L(logger, INFO, "   <--- urUSMContextMemcpyExp({}) -> {};\n",
+             args_str.str(), result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUSMHostAllocRegisterExp
+__urdlllocal ur_result_t UR_APICALL urUSMHostAllocRegisterExp(
+    /// [in] Handle of the context.
+    ur_context_handle_t hContext,
+    /// [in] Pointer to the host memory range to register.
+    void *pHostMem,
+    /// [in] Size in bytes of the host memory range to register, must be
+    /// page-aligned.
+    size_t size,
+    /// [in][optional] Pointer to host memory registration properties.
+    const ur_exp_usm_host_alloc_register_properties_t *pProperties) {
+  auto pfnHostAllocRegisterExp =
+      getContext()->urDdiTable.USMExp.pfnHostAllocRegisterExp;
+
+  if (nullptr == pfnHostAllocRegisterExp)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_usm_host_alloc_register_exp_params_t params = {&hContext, &pHostMem, &size,
+                                                    &pProperties};
+  uint64_t instance =
+      getContext()->notify_begin(UR_FUNCTION_USM_HOST_ALLOC_REGISTER_EXP,
+                                 "urUSMHostAllocRegisterExp", &params);
+
+  auto &logger = getContext()->logger;
+  UR_LOG_L(logger, INFO, "   ---> urUSMHostAllocRegisterExp\n");
+
+  ur_result_t result =
+      pfnHostAllocRegisterExp(hContext, pHostMem, size, pProperties);
+
+  getContext()->notify_end(UR_FUNCTION_USM_HOST_ALLOC_REGISTER_EXP,
+                           "urUSMHostAllocRegisterExp", &params, &result,
+                           instance);
+
+  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_USM_HOST_ALLOC_REGISTER_EXP, &params);
+    UR_LOG_L(logger, INFO, "   <--- urUSMHostAllocRegisterExp({}) -> {};\n",
+             args_str.str(), result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUSMHostAllocUnregisterExp
+__urdlllocal ur_result_t UR_APICALL urUSMHostAllocUnregisterExp(
+    /// [in] Handle of the context.
+    ur_context_handle_t hContext,
+    /// [in][release] Pointer to the registered host memory range.
+    void *pHostMem) {
+  auto pfnHostAllocUnregisterExp =
+      getContext()->urDdiTable.USMExp.pfnHostAllocUnregisterExp;
+
+  if (nullptr == pfnHostAllocUnregisterExp)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_usm_host_alloc_unregister_exp_params_t params = {&hContext, &pHostMem};
+  uint64_t instance =
+      getContext()->notify_begin(UR_FUNCTION_USM_HOST_ALLOC_UNREGISTER_EXP,
+                                 "urUSMHostAllocUnregisterExp", &params);
+
+  auto &logger = getContext()->logger;
+  UR_LOG_L(logger, INFO, "   ---> urUSMHostAllocUnregisterExp\n");
+
+  ur_result_t result = pfnHostAllocUnregisterExp(hContext, pHostMem);
+
+  getContext()->notify_end(UR_FUNCTION_USM_HOST_ALLOC_UNREGISTER_EXP,
+                           "urUSMHostAllocUnregisterExp", &params, &result,
+                           instance);
+
+  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_USM_HOST_ALLOC_UNREGISTER_EXP, &params);
+    UR_LOG_L(logger, INFO, "   <--- urUSMHostAllocUnregisterExp({}) -> {};\n",
              args_str.str(), result);
   }
 
@@ -11493,9 +11359,6 @@ __urdlllocal ur_result_t UR_APICALL urGetEnqueueProcAddrTable(
 
   ur_result_t result = UR_RESULT_SUCCESS;
 
-  dditable.pfnKernelLaunch = pDdiTable->pfnKernelLaunch;
-  pDdiTable->pfnKernelLaunch = ur_tracing_layer::urEnqueueKernelLaunch;
-
   dditable.pfnEventsWait = pDdiTable->pfnEventsWait;
   pDdiTable->pfnEventsWait = ur_tracing_layer::urEnqueueEventsWait;
 
@@ -11841,23 +11704,13 @@ __urdlllocal ur_result_t UR_APICALL urGetKernelProcAddrTable(
   pDdiTable->pfnGetSuggestedLocalWorkSize =
       ur_tracing_layer::urKernelGetSuggestedLocalWorkSize;
 
-  dditable.pfnSetArgValue = pDdiTable->pfnSetArgValue;
-  pDdiTable->pfnSetArgValue = ur_tracing_layer::urKernelSetArgValue;
-
-  dditable.pfnSetArgLocal = pDdiTable->pfnSetArgLocal;
-  pDdiTable->pfnSetArgLocal = ur_tracing_layer::urKernelSetArgLocal;
-
-  dditable.pfnSetArgPointer = pDdiTable->pfnSetArgPointer;
-  pDdiTable->pfnSetArgPointer = ur_tracing_layer::urKernelSetArgPointer;
+  dditable.pfnGetSuggestedLocalWorkSizeWithArgs =
+      pDdiTable->pfnGetSuggestedLocalWorkSizeWithArgs;
+  pDdiTable->pfnGetSuggestedLocalWorkSizeWithArgs =
+      ur_tracing_layer::urKernelGetSuggestedLocalWorkSizeWithArgs;
 
   dditable.pfnSetExecInfo = pDdiTable->pfnSetExecInfo;
   pDdiTable->pfnSetExecInfo = ur_tracing_layer::urKernelSetExecInfo;
-
-  dditable.pfnSetArgSampler = pDdiTable->pfnSetArgSampler;
-  pDdiTable->pfnSetArgSampler = ur_tracing_layer::urKernelSetArgSampler;
-
-  dditable.pfnSetArgMemObj = pDdiTable->pfnSetArgMemObj;
-  pDdiTable->pfnSetArgMemObj = ur_tracing_layer::urKernelSetArgMemObj;
 
   dditable.pfnSetSpecializationConstants =
       pDdiTable->pfnSetSpecializationConstants;
@@ -12433,6 +12286,14 @@ __urdlllocal ur_result_t UR_APICALL urGetUSMExpProcAddrTable(
 
   dditable.pfnContextMemcpyExp = pDdiTable->pfnContextMemcpyExp;
   pDdiTable->pfnContextMemcpyExp = ur_tracing_layer::urUSMContextMemcpyExp;
+
+  dditable.pfnHostAllocUnregisterExp = pDdiTable->pfnHostAllocUnregisterExp;
+  pDdiTable->pfnHostAllocUnregisterExp =
+      ur_tracing_layer::urUSMHostAllocUnregisterExp;
+
+  dditable.pfnHostAllocRegisterExp = pDdiTable->pfnHostAllocRegisterExp;
+  pDdiTable->pfnHostAllocRegisterExp =
+      ur_tracing_layer::urUSMHostAllocRegisterExp;
 
   dditable.pfnImportExp = pDdiTable->pfnImportExp;
   pDdiTable->pfnImportExp = ur_tracing_layer::urUSMImportExp;

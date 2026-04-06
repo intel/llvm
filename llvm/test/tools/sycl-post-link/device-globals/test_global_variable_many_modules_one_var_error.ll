@@ -4,7 +4,7 @@
 ; single device global variable with the 'device_image_scope' property from
 ; multiple device images.
 
-; CHECK: sycl-post-link: device_global variable 'dg_int2' with property "device_image_scope" is used in more than one device image.
+; CHECK: sycl-post-link{{(\.exe)?}}: error: device_global variable 'dg_int2' with property "device_image_scope" is used in more than one device image.
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
 target triple = "spir64-unknown-unknown"
@@ -112,7 +112,7 @@ entry:
   ret i32 addrspace(4)* %val
 }
 
-attributes #0 = { "sycl-unique-id"="dg_int2" "sycl-device-image-scope"="true" "sycl-host-access"="1" "sycl-implement-in-csr"="true" "sycl-init-mode"="0" "sycl-device-global-size"="4" }
+attributes #0 = { "sycl-unique-id"="dg_int2" "sycl-device-image-scope"="true" "sycl-host-access"="2" "sycl-implement-in-csr"="true" "sycl-init-mode"="0" "sycl-device-global-size"="4" }
 attributes #1 = { convergent mustprogress noinline norecurse nounwind optnone "frame-pointer"="all" "min-legal-vector-width"="0" "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
 attributes #2 = { convergent mustprogress noinline norecurse optnone "frame-pointer"="all" "min-legal-vector-width"="0" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="test_global_variable_1.cpp" "uniform-work-group-size"="true" }
 attributes #3 = { convergent mustprogress noinline norecurse optnone "frame-pointer"="all" "min-legal-vector-width"="0" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="test_global_variable_2.cpp" "uniform-work-group-size"="true" }

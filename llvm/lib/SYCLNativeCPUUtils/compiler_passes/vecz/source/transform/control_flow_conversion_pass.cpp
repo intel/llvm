@@ -1265,7 +1265,7 @@ bool ControlFlowConversionState::Impl::tryApplyMaskToBinOp(
       auto *divisor = binOp->getOperand(1);
       // no need to mask divides by a constant..
       if (auto *C = dyn_cast<Constant>(divisor)) {
-        if (C->isZeroValue()) {
+        if (C->isNullValue()) {
           // Divides by constant zero can be a NOP since there is no
           // division by zero exception in OpenCL.
           auto *nop = binOp->getOperand(0);

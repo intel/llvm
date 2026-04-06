@@ -5,15 +5,12 @@ target triple = "nvptx64-nvidia-cuda"
 
 ; This test checks that the transformation is applied to kernels found 
 
-declare ptr @llvm.nvvm.implicit.offset()
-; CHECK-NOT: llvm.nvvm.implicit.offset
+declare i64 @_Z27__spirv_BuiltInGlobalOffseti(i32)
+; CHECK-NOT: _Z27__spirv_BuiltInGlobalOffseti
 
 define i64 @_ZTS14other_function() {
-  %1 = tail call ptr @llvm.nvvm.implicit.offset()
-  %2 = getelementptr inbounds i32, ptr %1, i64 2
-  %3 = load i32, ptr %2, align 4
-  %4 = zext i32 %3 to i64
-  ret i64 %4
+  %1 = tail call i64 @_Z27__spirv_BuiltInGlobalOffseti(i32 2)
+  ret i64 %1
 }
 
 define ptx_kernel void @_ZTS14example_kernel() {

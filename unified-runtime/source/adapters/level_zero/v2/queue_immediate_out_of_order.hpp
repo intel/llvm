@@ -77,22 +77,6 @@ public:
                                    ur_native_handle_t *phNativeQueue) override;
   ur_result_t queueFinish() override;
   ur_result_t queueFlush() override;
-  ur_result_t enqueueKernelLaunch(
-      ur_kernel_handle_t hKernel, uint32_t workDim,
-      const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
-      const size_t *pLocalWorkSize,
-      const ur_kernel_launch_ext_properties_t *launchPropList,
-      uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-      ur_event_handle_t *phEvent) override {
-    wait_list_view waitListView =
-        wait_list_view(phEventWaitList, numEventsInWaitList);
-
-    auto commandListId = getNextCommandListId();
-    return commandListManagers.lock()[commandListId].appendKernelLaunch(
-        hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize, pLocalWorkSize,
-        launchPropList, waitListView,
-        createEventIfRequested(eventPool.get(), phEvent, this));
-  }
   ur_result_t
   enqueueEventsWaitWithBarrier(uint32_t numEventsInWaitList,
                                const ur_event_handle_t *phEventWaitList,
@@ -615,20 +599,19 @@ public:
   }
 
   ur_result_t queueBeginGraphCapteExp() override {
-    auto commandListId = getNextCommandListId();
-    return commandListManagers.lock()[commandListId].beginGraphCapture();
+    return commandListManagers.lock()[captureCmdListManagerIdx]
+        .beginGraphCapture();
   }
 
   ur_result_t
   queueBeginCapteIntoGraphExp(ur_exp_graph_handle_t hGraph) override {
-    auto commandListId = getNextCommandListId();
-    return commandListManagers.lock()[commandListId].beginCaptureIntoGraph(
-        hGraph);
+    return commandListManagers.lock()[captureCmdListManagerIdx]
+        .beginCaptureIntoGraph(hGraph);
   }
 
   ur_result_t queueEndGraphCapteExp(ur_exp_graph_handle_t *phGraph) override {
-    auto commandListId = getNextCommandListId();
-    return commandListManagers.lock()[commandListId].endGraphCapture(phGraph);
+    return commandListManagers.lock()[captureCmdListManagerIdx].endGraphCapture(
+        phGraph);
   }
 
   ur_result_t enqueueGraphExp(ur_exp_executable_graph_handle_t hGraph,
@@ -645,9 +628,8 @@ public:
   }
 
   ur_result_t queueIsGraphCapteEnabledExp(bool *pResult) override {
-    auto commandListId = getNextCommandListId();
-    return commandListManagers.lock()[commandListId].isGraphCaptureActive(
-        pResult);
+    return commandListManagers.lock()[captureCmdListManagerIdx]
+        .isGraphCaptureActive(pResult);
   }
 
   ur_result_t

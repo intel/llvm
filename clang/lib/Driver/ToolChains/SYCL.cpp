@@ -30,7 +30,19 @@ SYCLInstallationDetector::SYCLInstallationDetector(const Driver &D)
 SYCLInstallationDetector::SYCLInstallationDetector(
     const Driver &D, const llvm::Triple &HostTriple,
     const llvm::opt::ArgList &Args)
-    : SYCLInstallationDetector(D) {}
+    : D(D) {
+  // Detect the presence of the SYCL runtime library (libsycl.so) in the
+  // filesystem. This is used to determine whether a usable SYCL installation
+  // is available for the current driver invocation.
+  StringRef SysRoot = D.SysRoot;
+  SmallString<128> DriverDir(D.Dir);
+  if (DriverDir.starts_with(SysRoot) &&
+      (Args.hasArg(options::OPT_fsycl) ||
+       D.getVFS().exists(DriverDir + "/../lib/libsycl.so"))) {
+    llvm::sys::path::append(DriverDir, "..", "lib");
+    SYCLRTLibPath = DriverDir;
+  }
+}
 
 static llvm::SmallString<64>
 getLibSpirvBasename(const llvm::Triple &HostTriple) {
@@ -230,7 +242,8 @@ static bool selectBfloatLibs(const llvm::Triple &Triple, const Compilation &C,
       "intel_gpu_pvc",     "intel_gpu_acm_g10", "intel_gpu_acm_g11",
       "intel_gpu_acm_g12", "intel_gpu_dg2_g10", "intel_gpu_dg2_g11",
       "intel_dg2_g12",     "intel_gpu_bmg_g21", "intel_gpu_lnl_m",
-      "intel_gpu_ptl_h",   "intel_gpu_ptl_u",   "intel_gpu_wcl"};
+      "intel_gpu_ptl_h",   "intel_gpu_ptl_u",   "intel_gpu_wcl",
+      "intel_gpu_cri"};
   const llvm::opt::ArgList &Args = C.getArgs();
   bool NeedLibs = false;
 
@@ -273,7 +286,7 @@ static bool selectBfloatLibs(const llvm::Triple &Triple, const Compilation &C,
       return Device.starts_with("pvc") || Device.starts_with("ats") ||
              Device.starts_with("dg2") || Device.starts_with("bmg") ||
              Device.starts_with("lnl") || Device.starts_with("ptl") ||
-             Device.starts_with("wcl");
+             Device.starts_with("wcl") || Device.starts_with("cri");
     };
 
     auto checkSpirvJIT = [](StringRef Target) {

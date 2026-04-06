@@ -125,7 +125,7 @@ class Benchmark(ABC):
         force_trace: bool = False,
     ):
         env_vars = dict(env_vars) if env_vars else {}
-        if options.ur is not None:
+        if options.sycl is not None:
             env_vars.update(
                 {"UR_ADAPTERS_FORCE_LOAD": Benchmark.get_adapter_full_path()}
             )
@@ -272,7 +272,7 @@ class Benchmark(ABC):
     def get_adapter_full_path():
         for libs_dir_name in ["lib", "lib64"]:
             adapter_path = os.path.join(
-                options.ur, libs_dir_name, f"libur_adapter_{options.ur_adapter}.so"
+                options.sycl, libs_dir_name, f"libur_adapter_{options.ur_adapter}.so"
             )
             if os.path.isfile(adapter_path):
                 return adapter_path

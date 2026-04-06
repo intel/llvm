@@ -51,7 +51,6 @@ math/native_rsqrt.cl
 math/native_sin.cl
 math/native_sqrt.cl
 math/native_tan.cl
-math/native_tanh.cl
 math/nextafter.cl
 math/pow.cl
 math/remainder.cl
@@ -71,7 +70,6 @@ synchronization/aw_barrier.cl
 async/async_work_group_strided_copy.cl
 async/wait_group_events.cl
 workitem/get_global_id.cl
-workitem/get_global_offset.cl
 workitem/get_global_size.cl
 workitem/get_group_id.cl
 workitem/get_local_id.cl
@@ -79,7 +77,7 @@ workitem/get_local_size.cl
 workitem/get_max_sub_group_size.cl
 workitem/get_num_groups.cl
 workitem/get_sub_group_local_id.cl
-images/image_helpers.ll
+images/image_helpers.cl
 images/image.cl
 group/collectives_helpers.ll
 group/collectives.cl

@@ -79,7 +79,6 @@
 		urEnqueueEventsWaitWithBarrierExt;
 		urEnqueueGraphExp;
 		urEnqueueHostTaskExp;
-		urEnqueueKernelLaunch;
 		urEnqueueKernelLaunchWithArgsExp;
 		urEnqueueMemBufferCopy;
 		urEnqueueMemBufferCopyRect;
@@ -157,13 +156,9 @@
 		urKernelGetNativeHandle;
 		urKernelGetSubGroupInfo;
 		urKernelGetSuggestedLocalWorkSize;
+		urKernelGetSuggestedLocalWorkSizeWithArgs;
 		urKernelRelease;
 		urKernelRetain;
-		urKernelSetArgLocal;
-		urKernelSetArgMemObj;
-		urKernelSetArgPointer;
-		urKernelSetArgSampler;
-		urKernelSetArgValue;
 		urKernelSetExecInfo;
 		urKernelSetSpecializationConstants;
 		urKernelSuggestMaxCooperativeGroupCount;
@@ -310,7 +305,6 @@
 		urPrintEnqueueEventsWaitWithBarrierParams;
 		urPrintEnqueueGraphExpParams;
 		urPrintEnqueueHostTaskExpParams;
-		urPrintEnqueueKernelLaunchParams;
 		urPrintEnqueueKernelLaunchWithArgsExpParams;
 		urPrintEnqueueMemBufferCopyParams;
 		urPrintEnqueueMemBufferCopyRectParams;
@@ -384,6 +378,8 @@
 		urPrintExpSamplerCubemapFilterMode;
 		urPrintExpSamplerCubemapProperties;
 		urPrintExpSamplerMipProperties;
+		urPrintExpUsmHostAllocRegisterFlags;
+		urPrintExpUsmHostAllocRegisterProperties;
 		urPrintExpWin32Handle;
 		urPrintFunction;
 		urPrintFunctionParams;
@@ -417,6 +413,7 @@
 		urPrintKernelGetNativeHandleParams;
 		urPrintKernelGetSubGroupInfoParams;
 		urPrintKernelGetSuggestedLocalWorkSizeParams;
+		urPrintKernelGetSuggestedLocalWorkSizeWithArgsParams;
 		urPrintKernelGroupInfo;
 		urPrintKernelInfo;
 		urPrintKernelLaunchClusterProperty;
@@ -427,11 +424,6 @@
 		urPrintKernelNativeProperties;
 		urPrintKernelReleaseParams;
 		urPrintKernelRetainParams;
-		urPrintKernelSetArgLocalParams;
-		urPrintKernelSetArgMemObjParams;
-		urPrintKernelSetArgPointerParams;
-		urPrintKernelSetArgSamplerParams;
-		urPrintKernelSetArgValueParams;
 		urPrintKernelSetExecInfoParams;
 		urPrintKernelSetSpecializationConstantsParams;
 		urPrintKernelSubGroupInfo;
@@ -554,6 +546,8 @@
 		urPrintUsmFreeParams;
 		urPrintUsmGetMemAllocInfoParams;
 		urPrintUsmHostAllocParams;
+		urPrintUsmHostAllocRegisterExpParams;
+		urPrintUsmHostAllocUnregisterExpParams;
 		urPrintUsmHostDesc;
 		urPrintUsmHostMemFlags;
 		urPrintUsmImportExpParams;
@@ -633,6 +627,8 @@
 		urUSMFree;
 		urUSMGetMemAllocInfo;
 		urUSMHostAlloc;
+		urUSMHostAllocRegisterExp;
+		urUSMHostAllocUnregisterExp;
 		urUSMImportExp;
 		urUSMPitchedAllocExp;
 		urUSMPoolCreate;
