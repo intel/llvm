@@ -97,8 +97,10 @@ struct has_writeable_addr_space<multi_ptr<ElementType, Space, DecorateAddress>>
 template <typename T>
 constexpr bool has_writeable_addr_space_v = has_writeable_addr_space<T>::value;
 
+// Classification of pointer-like types used by builtin pointer helpers.
 enum class builtin_ptr_kind { raw, multi_ptr };
 
+// Maps a pointer-like type to the corresponding builtin_ptr_kind tag.
 template <typename T>
 using builtin_ptr_kind_tag_t = std::integral_constant<
     builtin_ptr_kind,
@@ -106,6 +108,7 @@ using builtin_ptr_kind_tag_t = std::integral_constant<
         ? builtin_ptr_kind::multi_ptr
         : builtin_ptr_kind::raw>;
 
+// Returns Ptr unchanged for raw pointer-like types.
 template <typename PtrTy>
 decltype(auto)
 builtin_raw_ptr(PtrTy &&Ptr,
@@ -114,6 +117,7 @@ builtin_raw_ptr(PtrTy &&Ptr,
   return std::forward<PtrTy>(Ptr);
 }
 
+// Extracts the underlying raw pointer from a multi_ptr.
 template <typename PtrTy>
 auto builtin_raw_ptr(PtrTy &&Ptr,
                      std::integral_constant<builtin_ptr_kind,
@@ -121,11 +125,13 @@ auto builtin_raw_ptr(PtrTy &&Ptr,
   return get_raw_pointer(std::forward<PtrTy>(Ptr));
 }
 
+// Returns a raw pointer representation for raw pointers and multi_ptrs.
 template <typename PtrTy> auto builtin_raw_ptr(PtrTy &&Ptr) {
   return builtin_raw_ptr(std::forward<PtrTy>(Ptr),
                          builtin_ptr_kind_tag_t<PtrTy>{});
 }
 
+// Returns a pointer to the first element for raw pointer-like types.
 template <typename PtrTy>
 decltype(auto)
 builtin_element_ptr(PtrTy &&Ptr,
@@ -134,6 +140,7 @@ builtin_element_ptr(PtrTy &&Ptr,
   return &(*std::forward<PtrTy>(Ptr))[0];
 }
 
+// Returns a pointer to the first element while preserving multi_ptr semantics.
 template <typename PtrTy>
 auto builtin_element_ptr(PtrTy &&Ptr,
                          std::integral_constant<builtin_ptr_kind,
@@ -141,6 +148,7 @@ auto builtin_element_ptr(PtrTy &&Ptr,
   return detail::builtin_element_ptr(std::forward<PtrTy>(Ptr));
 }
 
+// Returns an element pointer for raw pointers and multi_ptrs.
 template <typename PtrTy> auto builtin_element_ptr(PtrTy &&Ptr) {
   return builtin_element_ptr(std::forward<PtrTy>(Ptr),
                              builtin_ptr_kind_tag_t<PtrTy>{});
