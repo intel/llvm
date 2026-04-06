@@ -31,8 +31,7 @@ get_raw_pointer(multi_ptr<ElementType, Space, DecorateAddress> Ptr);
 
 template <typename ElementType, access::address_space Space,
           access::decorated DecorateAddress>
-auto builtin_element_ptr(
-    multi_ptr<ElementType, Space, DecorateAddress> Ptr);
+auto builtin_element_ptr(multi_ptr<ElementType, Space, DecorateAddress> Ptr);
 } // namespace detail
 } // namespace _V1
 } // namespace sycl

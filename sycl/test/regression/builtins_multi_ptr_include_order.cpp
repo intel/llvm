@@ -24,19 +24,19 @@ int main() {
 #include <sycl/builtins.hpp>
 #include <sycl/multi_ptr.hpp>
 
-SYCL_EXTERNAL void testScalar(
-    sycl::multi_ptr<float, sycl::access::address_space::global_space,
-                    sycl::access::decorated::no>
-        Ptr) {
+SYCL_EXTERNAL void
+testScalar(sycl::multi_ptr<float, sycl::access::address_space::global_space,
+                           sycl::access::decorated::no>
+               Ptr) {
   (void)sycl::modf(1.0f, Ptr);
   (void)sycl::sincos(1.0f, Ptr);
 }
 
-SYCL_EXTERNAL void testVector(
-    sycl::multi_ptr<sycl::vec<float, 2>,
-                    sycl::access::address_space::global_space,
-                    sycl::access::decorated::no>
-        Ptr) {
+SYCL_EXTERNAL void
+testVector(sycl::multi_ptr<sycl::vec<float, 2>,
+                           sycl::access::address_space::global_space,
+                           sycl::access::decorated::no>
+               Ptr) {
   sycl::vec<float, 2> Value{1.0f, 2.0f};
   (void)sycl::fract(Value, Ptr);
 }
@@ -44,22 +44,24 @@ SYCL_EXTERNAL void testVector(
 int main() { return 0; }
 
 #elif defined(TEST_MULTI_PTR_FIRST)
+// clang-format off
 #include <sycl/multi_ptr.hpp>
 #include <sycl/builtins.hpp>
+// clang-format on
 
-SYCL_EXTERNAL void testScalar(
-    sycl::multi_ptr<float, sycl::access::address_space::global_space,
-                    sycl::access::decorated::no>
-        Ptr) {
+SYCL_EXTERNAL void
+testScalar(sycl::multi_ptr<float, sycl::access::address_space::global_space,
+                           sycl::access::decorated::no>
+               Ptr) {
   (void)sycl::modf(1.0f, Ptr);
   (void)sycl::sincos(1.0f, Ptr);
 }
 
-SYCL_EXTERNAL void testVector(
-    sycl::multi_ptr<sycl::vec<float, 2>,
-                    sycl::access::address_space::global_space,
-                    sycl::access::decorated::no>
-        Ptr) {
+SYCL_EXTERNAL void
+testVector(sycl::multi_ptr<sycl::vec<float, 2>,
+                           sycl::access::address_space::global_space,
+                           sycl::access::decorated::no>
+               Ptr) {
   sycl::vec<float, 2> Value{1.0f, 2.0f};
   (void)sycl::fract(Value, Ptr);
 }

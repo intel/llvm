@@ -63,8 +63,8 @@
 
 #pragma once
 
-#include <sycl/detail/helpers.hpp>
 #include <sycl/detail/fwd/multi_ptr.hpp>
+#include <sycl/detail/helpers.hpp>
 #include <sycl/detail/type_traits.hpp>
 #include <sycl/detail/type_traits/vec_marray_traits.hpp>
 #include <sycl/detail/vector_convert.hpp>
@@ -110,18 +110,17 @@ using builtin_ptr_kind_tag_t = std::integral_constant<
 
 // Returns Ptr unchanged for raw pointer-like types.
 template <typename PtrTy>
-decltype(auto)
-builtin_raw_ptr(PtrTy &&Ptr,
-                std::integral_constant<builtin_ptr_kind,
-                                       builtin_ptr_kind::raw>) {
+decltype(auto) builtin_raw_ptr(
+    PtrTy &&Ptr,
+    std::integral_constant<builtin_ptr_kind, builtin_ptr_kind::raw>) {
   return std::forward<PtrTy>(Ptr);
 }
 
 // Extracts the underlying raw pointer from a multi_ptr.
 template <typename PtrTy>
-auto builtin_raw_ptr(PtrTy &&Ptr,
-                     std::integral_constant<builtin_ptr_kind,
-                                            builtin_ptr_kind::multi_ptr>) {
+auto builtin_raw_ptr(
+    PtrTy &&Ptr,
+    std::integral_constant<builtin_ptr_kind, builtin_ptr_kind::multi_ptr>) {
   return get_raw_pointer(std::forward<PtrTy>(Ptr));
 }
 
@@ -133,18 +132,17 @@ template <typename PtrTy> auto builtin_raw_ptr(PtrTy &&Ptr) {
 
 // Returns a pointer to the first element for raw pointer-like types.
 template <typename PtrTy>
-decltype(auto)
-builtin_element_ptr(PtrTy &&Ptr,
-                    std::integral_constant<builtin_ptr_kind,
-                                           builtin_ptr_kind::raw>) {
+decltype(auto) builtin_element_ptr(
+    PtrTy &&Ptr,
+    std::integral_constant<builtin_ptr_kind, builtin_ptr_kind::raw>) {
   return &(*std::forward<PtrTy>(Ptr))[0];
 }
 
 // Returns a pointer to the first element while preserving multi_ptr semantics.
 template <typename PtrTy>
-auto builtin_element_ptr(PtrTy &&Ptr,
-                         std::integral_constant<builtin_ptr_kind,
-                                                builtin_ptr_kind::multi_ptr>) {
+auto builtin_element_ptr(
+    PtrTy &&Ptr,
+    std::integral_constant<builtin_ptr_kind, builtin_ptr_kind::multi_ptr>) {
   return detail::builtin_element_ptr(std::forward<PtrTy>(Ptr));
 }
 
