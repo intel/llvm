@@ -11127,7 +11127,8 @@ static void getNonTripleBasedSYCLPostLinkOpts(const ToolChain &TC,
   // For bfloat16 conversions LLVM IR devicelib, we only need to embed it
   // when non-AOT compilation is used.
   if (TC.getTriple().isSPIROrSPIRV() && !TC.getTriple().isSPIRAOT()) {
-    SYCLInstallationDetector SYCLInstall(TC.getDriver());
+    SYCLInstallationDetector SYCLInstall(TC.getDriver(), TC.getTriple(),
+                                         TCArgs);
     SmallVector<SmallString<128>, 4> DeviceLibLocCandidates;
     SmallString<128> NativeBfloat16Name("libsycl-native-bfloat16.bc");
     SYCLInstall.getSYCLDeviceLibPath(DeviceLibLocCandidates);
@@ -11688,7 +11689,8 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     // and use that location.  Base the location on relative to driver if this
     // is not resolved.
     SmallVector<SmallString<128>, 4> LibLocCandidates;
-    SYCLInstallationDetector SYCLInstallation(D);
+    SYCLInstallationDetector SYCLInstallation(D, getToolChain().getTriple(),
+                                              Args);
     SYCLInstallation.getSYCLDeviceLibPath(LibLocCandidates);
     SmallString<128> LibName("libsycl-crt");
     bool IsNewOffload = D.getUseNewOffloadingDriver();
@@ -11716,7 +11718,6 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     // one bitcode library to link in for a specific triple. Additionally, the
     // path is *not* relative to the -sycl-device-library-location - the full
     // path must be provided.
-    SmallString<256> LibList;
     SmallVector<std::string, 4> BCLibList;
 
     auto appendToList = [](SmallString<256> &List, const Twine &Arg) {
@@ -11729,19 +11730,21 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     for (const auto &[Kind, TC] :
          llvm::make_range(ToolChainRange.first, ToolChainRange.second)) {
       llvm::Triple TargetTriple = TC->getTriple();
-      bool IsSpirAOT = TargetTriple.isSPIRAOT();
-      SmallVector<std::string, 8> SYCLDeviceLibs =
-          SYCL::getDeviceLibraries(C, TargetTriple, IsSpirAOT);
+      const toolchains::SYCLToolChain &SYCLTC =
+          static_cast<const toolchains::SYCLToolChain &>(*TC);
+      SmallVector<ToolChain::BitCodeLibraryInfo, 8> SYCLDeviceLibs;
+      // SPIR or SPIR-V device libraries are compiled into the device compile
+      // step.
+      if (!TargetTriple.isSPIROrSPIRV())
+        SYCLDeviceLibs.append(SYCLTC.getDeviceLibNames(D, Args, TargetTriple));
       for (const auto &AddLib : SYCLDeviceLibs) {
-        if (llvm::sys::path::extension(AddLib) == ".bc") {
+        if (llvm::sys::path::extension(AddLib.Path) == ".bc") {
           SmallString<256> LibPath(DeviceLibDir);
-          llvm::sys::path::append(LibPath, AddLib);
+          llvm::sys::path::append(LibPath, AddLib.Path);
           BCLibList.push_back(
               (Twine(TC->getTriple().str()) + "=" + LibPath).str());
           continue;
         }
-
-        appendToList(LibList, AddLib);
       }
 
       if (TC->getTriple().isNVPTX())
@@ -11750,10 +11753,6 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
           BCLibList.push_back(
               (Twine(TC->getTriple().str()) + "=" + LibSpirvFile).str());
     }
-
-    if (LibList.size())
-      CmdArgs.push_back(
-          Args.MakeArgString(Twine("-sycl-device-libraries=") + LibList));
 
     if (BCLibList.size())
       for (const std::string &Lib : BCLibList)
