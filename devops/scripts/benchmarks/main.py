@@ -389,6 +389,7 @@ def main(directory, additional_env_vars, compare_names, filter, execution_stats)
             if options.unitrace and (
                 benchmark.traceable(TracingType.UNITRACE) or args.unitrace == "force"
             ):
+                log.debug(f"Running unitrace for {benchmark.name()}...")
                 iterations_rc = run_iterations(
                     benchmark,
                     merged_env_vars,

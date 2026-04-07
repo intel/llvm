@@ -309,9 +309,10 @@ runs:
         --timestamp-override "$SAVE_TIMESTAMP" \
         --detect-version sycl,compute_runtime \
         --produce-github-summary \
+        --verbose \
         $([[ -n "${CR_BUILD_REF}" ]] && echo "--compute-runtime ${CR_BUILD_REF}" || echo '') \
         ${{ inputs.exit_on_failure == 'true' && '--exit-on-failure --iterations 1' || '' }} \
-        ${{ inputs.debug_mode == '1' && '--unitrace inclusive' || '' }}
+        ${{ inputs.debug_mode == '2' && '--unitrace inclusive' || '' }}
       # TODO: add back: "--flamegraph inclusive" once works properly
 
       echo "::endgroup::"
