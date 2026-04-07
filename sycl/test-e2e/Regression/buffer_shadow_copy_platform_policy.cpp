@@ -7,9 +7,24 @@
 // 2) correctness check (writable path): data is correctly copied back to host
 //    when buffer goes out of scope.
 //
-// The test does not check the lower layers allocations.
-// The test is portable: expected allocation count is derived from the runtime
-// backend, so a single test works across all platforms.
+// The SYCL runtime and the UR adapter layer use different strategies for
+// non-importable or misaligned host pointers:
+//
+//  * Backends with UR buffer allocation (e.g. Level Zero v2):
+//    SYCL skips its own shadow copy (prepareForAllocation sets SkipShadowCopy).
+//    The UR adapter owns staging and final copy-back:
+//      - integrated device: allocates internal USM host memory, copies data in,
+//        and copies it back to the original pointer on buffer release;
+//      - discrete device: allocates device memory, migrates data from source.
+//    These UR-internal allocations go through the USM pool and are NOT seen by
+//    CountingAllocator, so the SYCL-layer allocation count stays zero.
+//
+//  * Backends without UR buffer allocation (e.g. NativeCPU, OpenCL):
+//    SYCL creates the shadow copy itself via the buffer's allocator
+//    (CountingAllocator records it) and drives copy-back on destruction.
+//
+// The test measures only SYCL-layer (CountingAllocator) allocations, so it is
+// portable across all supported backends without runtime-specific conditionals.
 
 #include <sycl/detail/core.hpp>
 
@@ -153,26 +168,24 @@ int main() {
   }
 
   const bool ExpectNoShadowCopy = shouldSkipAlignedShadowCopy(Q.get_backend());
-  const bool IsIntegratedL0 =
-      Q.get_backend() == sycl::backend::ext_oneapi_level_zero &&
-      Q.get_device().has(sycl::aspect::ext_oneapi_is_integrated_gpu);
 
   if (ExpectNoShadowCopy) {
-    // Integrated L0 may still conservatively materialize one host allocation
-    // for misaligned read-only source. Keep strict no-extra-allocation
-    // expectation for other backends in this group.
-    const size_t AllowedExtraAllocs = IsIntegratedL0 ? 1 : 0;
-    if (MisalignedAllocations > AlignedAllocations + AllowedExtraAllocs) {
-      std::cerr << "Unexpected extra allocation on misaligned pointer: aligned="
+    // SYCL skips its own shadow copy; UR is responsible for staging and
+    // copy-back. No SYCL-layer extra allocation is expected regardless of
+    // whether the device is integrated or discrete.
+    if (MisalignedAllocations != AlignedAllocations) {
+      std::cerr << "Unexpected extra SYCL allocation on misaligned pointer: "
+                   "aligned="
                 << AlignedAllocations
-                << ", misaligned=" << MisalignedAllocations
-                << ", allowed_extra=" << AllowedExtraAllocs << "\n";
+                << ", misaligned=" << MisalignedAllocations << "\n";
       return 1;
     }
   } else {
+    // SYCL creates the shadow copy itself; expect exactly one extra allocation.
     if (MisalignedAllocations != AlignedAllocations + 1) {
       std::cerr
-          << "Expected one extra allocation for misaligned pointer: aligned="
+          << "Expected one extra SYCL allocation for misaligned pointer: "
+             "aligned="
           << AlignedAllocations << ", misaligned=" << MisalignedAllocations
           << "\n";
       return 1;
@@ -206,10 +219,13 @@ int main() {
     return 1;
   }
 
-  // For writable access, SYCL may conservatively materialize shadow copy
-  // before backend-specific skip policy is resolved (write accessor creation
-  // can trigger this). Keep this test focused on data correctness for writable
-  // path and use read-only path for strict allocation-policy assertions.
+  // Writable allocation counts are intentionally not asserted here because the
+  // expected delta is platform-dependent:
+  //  * NativeCPU/OpenCL: SYCL creates a shadow copy for misaligned writable
+  //    buffers (MisalignedWriteAllocs == AlignedWriteAllocs + 1).
+  //  * L0/CUDA/HIP/offload: SYCL skips the shadow copy; UR stages internally
+  //    (MisalignedWriteAllocs == AlignedWriteAllocs).
+  // The correctness checks above are sufficient to validate copy-back behavior.
   (void)AlignedWriteAllocs;
   (void)MisalignedWriteAllocs;
 
