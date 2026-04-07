@@ -1816,7 +1816,7 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args,
   if (Triple.isAMDGPU())
     CmdArgs.push_back("-flto");
 
-  // Forward all of the `--offload-opt` and similar options to the device.
+  // Forward all of the `--offload-opt` and `-mllvm` options to the device.
   for (auto &Arg : Args.filtered(OPT_offload_opt_eq_minus, OPT_mllvm))
     CmdArgs.append(
         {"-Xlinker",
