@@ -1734,7 +1734,6 @@ static void appendClangSYCLLinkerArgs(const ArgList &Args,
   if (const opt::Arg *A = Args.getLastArg(OPT_sycl_device_lib_EQ))
     XLinker("--device-libs=" + llvm::join(A->getValues(), ","));
 
-  // Simple flags forwarded verbatims.
   static const std::pair<OptSpecifier, StringRef> SimpleFlags[] = {
       {OPT_save_temps,                               "--save-temps"},
       {OPT_dry_run,                                  "--dry-run"},
@@ -1752,7 +1751,6 @@ static void appendClangSYCLLinkerArgs(const ArgList &Args,
     if (Args.hasArg(Opt))
       XLinker(Flag);
 
-  // Value flags: single value forwarded as --flag=value.
   static const std::pair<OptSpecifier, StringRef> ValueFlags[] = {
       {OPT_sycl_dump_device_code_EQ,  "--spirv-dump-device-code="},
       {OPT_llvm_spirv_options_EQ,     "--llvm-spirv-options="},

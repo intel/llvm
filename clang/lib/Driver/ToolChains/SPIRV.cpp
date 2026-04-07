@@ -170,10 +170,9 @@ void SPIRV::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     // Use of --sycl-link will call the clang-sycl-linker instead of
     // the default linker (spirv-link).
     for (const Arg *A : Args) {
+      // Each -Xlinker val becomes a direct argument to clang-sycl-linker.
       if (A->getOption().matches(options::OPT_Xlinker)) {
-        // Each -Xlinker val becomes a direct argument to clang-sycl-linker.
         CmdArgs.push_back(A->getValue());
-        A->claim();
       }
     }
     Linker = ToolChain.GetProgramPath("clang-sycl-linker");
