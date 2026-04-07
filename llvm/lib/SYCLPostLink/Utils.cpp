@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// See comments in the header.
+// Low-level utility functions for SYCL post-link processing.
 //===----------------------------------------------------------------------===//
 
 #include "llvm/SYCLPostLink/Utils.h"
