@@ -196,31 +196,17 @@ void ur_integrated_buffer_handle_t::unmapHostPtr(
 }
 
 void ur_integrated_buffer_handle_t::copyBackToHostIfNeeded() {
-  if (writeBackPtr) {
-    // Validate that the pointer is still valid before copy-back.
-    // SYCL might already do its own copy-back and free it.
-    ZeStruct<ze_memory_allocation_properties_t> memProps;
-    ze_device_handle_t device;
-    auto result = ZE_CALL_NOCHECK(
-        zeMemGetAllocProperties,
-        (hContext->getZeHandle(), writeBackPtr, &memProps, &device));
+  if (!writeBackPtr) {
+    return;
+  }
 
-    // If pointer is not a valid allocation (SYCL freed it), skip copy-back
-    if (result != ZE_RESULT_SUCCESS ||
-        memProps.type == ZE_MEMORY_TYPE_UNKNOWN) {
-      writeBackPtr = nullptr;
-      return;
-    }
-
-    // Pointer is valid, perform copy-back
-    auto hDevice = hContext->getDevices()[0];
-    auto result2 = synchronousZeCopy(hContext, hDevice, writeBackPtr,
-                                     this->ptr.get(), size);
-    if (result2 == UR_RESULT_SUCCESS) {
-      writeBackPtr = nullptr;
-    } else {
-      UR_LOG_SAFE(ERR, "Failed to copy-back buffer data: {}", result2);
-    }
+  auto hDevice = hContext->getDevices()[0];
+  auto result =
+      synchronousZeCopy(hContext, hDevice, writeBackPtr, this->ptr.get(), size);
+  if (result == UR_RESULT_SUCCESS) {
+    writeBackPtr = nullptr;
+  } else {
+    UR_LOG_SAFE(ERR, "Failed to copy-back buffer data: {}", result);
   }
 }
 

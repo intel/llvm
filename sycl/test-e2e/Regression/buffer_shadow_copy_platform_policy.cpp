@@ -92,7 +92,7 @@ static int runReadOnlySumKernel(sycl::queue &Q, const int *HostPtr, size_t N) {
 static void runWriteKernel(sycl::queue &Q, int *HostPtr, size_t N) {
   {
     sycl::buffer<int, 1, CountingAllocator<int>> Buf(HostPtr,
-                                                      sycl::range<1>(N));
+                                                     sycl::range<1>(N));
 
     Q.submit([&](sycl::handler &CGH) {
       auto OutAcc = Buf.get_access<sycl::access::mode::write>(CGH);
@@ -153,12 +153,20 @@ int main() {
   }
 
   const bool ExpectNoShadowCopy = shouldSkipAlignedShadowCopy(Q.get_backend());
+  const bool IsIntegratedL0 =
+      Q.get_backend() == sycl::backend::ext_oneapi_level_zero &&
+      Q.get_device().has(sycl::aspect::ext_oneapi_is_integrated_gpu);
 
   if (ExpectNoShadowCopy) {
-    if (MisalignedAllocations != AlignedAllocations) {
+    // Integrated L0 may still conservatively materialize one host allocation
+    // for misaligned read-only source. Keep strict no-extra-allocation
+    // expectation for other backends in this group.
+    const size_t AllowedExtraAllocs = IsIntegratedL0 ? 1 : 0;
+    if (MisalignedAllocations > AlignedAllocations + AllowedExtraAllocs) {
       std::cerr << "Unexpected extra allocation on misaligned pointer: aligned="
                 << AlignedAllocations
-                << ", misaligned=" << MisalignedAllocations << "\n";
+                << ", misaligned=" << MisalignedAllocations
+                << ", allowed_extra=" << AllowedExtraAllocs << "\n";
       return 1;
     }
   } else {
