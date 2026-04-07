@@ -1805,128 +1805,131 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args,
   if (UseClangSYCLLinker) {
     CmdArgs.push_back("--sycl-link");
     appendClangSYCLLinkerArgs(Args, CmdArgs, Triple, Arch);
-  } else {
-    if (!Arch.empty())
-      Triple.isAMDGPU() ? CmdArgs.push_back(Args.MakeArgString("-mcpu=" + Arch))
-                        : CmdArgs.push_back(Args.MakeArgString("-march=" + Arch));
-
-    // AMDGPU is always in LTO mode currently.
-    if (Triple.isAMDGPU())
-      CmdArgs.push_back("-flto");
-
-    // Forward all of the `--offload-opt` and similar options to the device.
-    for (auto &Arg : Args.filtered(OPT_offload_opt_eq_minus, OPT_mllvm))
-      CmdArgs.append(
-          {"-Xlinker",
-          Args.MakeArgString("--plugin-opt=" + StringRef(Arg->getValue()))});
-
-    if (!Triple.isNVPTX() && !Triple.isSPIRV() && !Triple.isNativeCPU())
-      CmdArgs.push_back("-Wl,--no-undefined");
-
-    if (IsSYCLKind && Triple.isNVPTX())
-      CmdArgs.push_back("-S");
-
-    if (IsSYCLKind && Triple.isNativeCPU()) {
-      CmdArgs.push_back("-Wno-override-module");
-      CmdArgs.push_back("-mllvm");
-      CmdArgs.push_back("-sycl-native-cpu-backend");
-      CmdArgs.push_back("-c");
-    }
-
-    for (StringRef InputFile : InputFiles)
-      CmdArgs.push_back(InputFile);
-
-    // If this is CPU offloading we copy the input libraries.
-    if (!Triple.isGPU() && !Triple.isNativeCPU()) {
-      CmdArgs.push_back("-Wl,-Bsymbolic");
-      CmdArgs.push_back("-shared");
-      ArgStringList LinkerArgs;
-      for (const opt::Arg *Arg :
-          Args.filtered(OPT_INPUT, OPT_library, OPT_library_path, OPT_rpath,
-                        OPT_whole_archive, OPT_no_whole_archive)) {
-        // Sometimes needed libraries are passed by name, such as when using
-        // sanitizers. We need to check the file magic for any libraries.
-        if (Arg->getOption().matches(OPT_INPUT)) {
-          if (!sys::fs::exists(Arg->getValue()) ||
-              sys::fs::is_directory(Arg->getValue()))
-            continue;
-
-          file_magic Magic;
-          if (auto EC = identify_magic(Arg->getValue(), Magic))
-            return createStringError("Failed to open %s", Arg->getValue());
-          if (Magic != file_magic::archive &&
-              Magic != file_magic::elf_shared_object)
-            continue;
-        }
-        if (Arg->getOption().matches(OPT_whole_archive))
-          LinkerArgs.push_back(Args.MakeArgString("-Wl,--whole-archive"));
-        else if (Arg->getOption().matches(OPT_no_whole_archive))
-          LinkerArgs.push_back(Args.MakeArgString("-Wl,--no-whole-archive"));
-        else
-          Arg->render(Args, LinkerArgs);
-      }
-      llvm::append_range(CmdArgs, LinkerArgs);
-    }
-
-    // Pass on -mllvm options to the linker invocation.
-    for (const opt::Arg *Arg : Args.filtered(OPT_mllvm))
-      CmdArgs.append({"-Xlinker", Args.MakeArgString(
-                                      "-mllvm=" + StringRef(Arg->getValue()))});
-
-    if (SaveTemps && linkerSupportsLTO(Args))
-      CmdArgs.push_back("-Wl,--save-temps");
-
-    if (Args.hasArg(OPT_embed_bitcode))
-      CmdArgs.push_back("-Wl,--lto-emit-llvm");
-
-    for (StringRef Arg : Args.getAllArgValues(OPT_linker_arg_EQ))
-      CmdArgs.append({"-Xlinker", Args.MakeArgString(Arg)});
-    for (StringRef Arg : Args.getAllArgValues(OPT_compiler_arg_EQ))
-      CmdArgs.push_back(Args.MakeArgString(Arg));
-
-    for (StringRef Arg : Args.getAllArgValues(OPT_builtin_bitcode_EQ)) {
-      if (llvm::Triple(Arg.split('=').first) == Triple)
-        CmdArgs.append({"-Xclang", "-mlink-builtin-bitcode", "-Xclang",
-                        Args.MakeArgString(Arg.split('=').second)});
-    }
-
-    // link NativeCPU utils lib if needed
-    if (Triple.isNativeCPU()) {
-      if (auto *A = Args.getLastArg(OPT_sycl_device_library_location_EQ)) {
-        std::string NativeCPUUtilsLib = "";
-
-        SmallVector<std::string, 8> LibraryPaths;
-        for (const auto &Path : A->getValues()) {
-          SmallString<128> LPath(Path);
-          if (llvm::sys::fs::exists(LPath)) {
-            LibraryPaths.emplace_back(LPath);
-          }
-        }
-
-        for (auto &LPath : LibraryPaths) {
-          // Call llvm-link without --only-needed to link to the nativecpu_utils
-          // lib
-          const char LibNativeCPUUtilsName[] = "libsycl-nativecpu_utils.bc";
-          SmallString<128> LibNativeCPUUtilsPath(LPath);
-          llvm::sys::path::append(LibNativeCPUUtilsPath, LibNativeCPUUtilsName);
-          if (llvm::sys::fs::exists(LibNativeCPUUtilsPath)) {
-            NativeCPUUtilsLib = LibNativeCPUUtilsPath.str();
-            break;
-          }
-        }
-
-        if (NativeCPUUtilsLib != "") {
-          CmdArgs.append({"-Xclang", "-mlink-bitcode-file", "-Xclang",
-                          Args.MakeArgString(NativeCPUUtilsLib)});
-        }
-      }
-    }
-
-    // The OpenMPOpt pass can introduce new calls and is expensive, we do
-    // not want this when running CodeGen through clang.
-    if (Args.hasArg(OPT_clang_backend) || Args.hasArg(OPT_builtin_bitcode_EQ))
-      CmdArgs.append({"-mllvm", "-openmp-opt-disable"});
+    if (Error Err = executeCommands(*ClangPath, CmdArgs))
+      return std::move(Err);
+    return *TempFileOrErr;
   }
+
+  if (!Arch.empty())
+    Triple.isAMDGPU() ? CmdArgs.push_back(Args.MakeArgString("-mcpu=" + Arch))
+                      : CmdArgs.push_back(Args.MakeArgString("-march=" + Arch));
+
+  // AMDGPU is always in LTO mode currently.
+  if (Triple.isAMDGPU())
+    CmdArgs.push_back("-flto");
+
+  // Forward all of the `--offload-opt` and similar options to the device.
+  for (auto &Arg : Args.filtered(OPT_offload_opt_eq_minus, OPT_mllvm))
+    CmdArgs.append(
+        {"-Xlinker",
+         Args.MakeArgString("--plugin-opt=" + StringRef(Arg->getValue()))});
+
+  if (!Triple.isNVPTX() && !Triple.isSPIRV() && !Triple.isNativeCPU())
+    CmdArgs.push_back("-Wl,--no-undefined");
+
+  if (IsSYCLKind && Triple.isNVPTX())
+    CmdArgs.push_back("-S");
+
+  if (IsSYCLKind && Triple.isNativeCPU()) {
+    CmdArgs.push_back("-Wno-override-module");
+    CmdArgs.push_back("-mllvm");
+    CmdArgs.push_back("-sycl-native-cpu-backend");
+    CmdArgs.push_back("-c");
+  }
+
+  for (StringRef InputFile : InputFiles)
+    CmdArgs.push_back(InputFile);
+
+  // If this is CPU offloading we copy the input libraries.
+  if (!Triple.isGPU() && !Triple.isNativeCPU()) {
+    CmdArgs.push_back("-Wl,-Bsymbolic");
+    CmdArgs.push_back("-shared");
+    ArgStringList LinkerArgs;
+    for (const opt::Arg *Arg :
+         Args.filtered(OPT_INPUT, OPT_library, OPT_library_path, OPT_rpath,
+                       OPT_whole_archive, OPT_no_whole_archive)) {
+      // Sometimes needed libraries are passed by name, such as when using
+      // sanitizers. We need to check the file magic for any libraries.
+      if (Arg->getOption().matches(OPT_INPUT)) {
+        if (!sys::fs::exists(Arg->getValue()) ||
+            sys::fs::is_directory(Arg->getValue()))
+          continue;
+
+        file_magic Magic;
+        if (auto EC = identify_magic(Arg->getValue(), Magic))
+          return createStringError("Failed to open %s", Arg->getValue());
+        if (Magic != file_magic::archive &&
+            Magic != file_magic::elf_shared_object)
+          continue;
+      }
+      if (Arg->getOption().matches(OPT_whole_archive))
+        LinkerArgs.push_back(Args.MakeArgString("-Wl,--whole-archive"));
+      else if (Arg->getOption().matches(OPT_no_whole_archive))
+        LinkerArgs.push_back(Args.MakeArgString("-Wl,--no-whole-archive"));
+      else
+        Arg->render(Args, LinkerArgs);
+    }
+    llvm::append_range(CmdArgs, LinkerArgs);
+  }
+
+  // Pass on -mllvm options to the linker invocation.
+  for (const opt::Arg *Arg : Args.filtered(OPT_mllvm))
+    CmdArgs.append({"-Xlinker", Args.MakeArgString(
+                                    "-mllvm=" + StringRef(Arg->getValue()))});
+
+  if (SaveTemps && linkerSupportsLTO(Args))
+    CmdArgs.push_back("-Wl,--save-temps");
+
+  if (Args.hasArg(OPT_embed_bitcode))
+    CmdArgs.push_back("-Wl,--lto-emit-llvm");
+
+  for (StringRef Arg : Args.getAllArgValues(OPT_linker_arg_EQ))
+    CmdArgs.append({"-Xlinker", Args.MakeArgString(Arg)});
+  for (StringRef Arg : Args.getAllArgValues(OPT_compiler_arg_EQ))
+    CmdArgs.push_back(Args.MakeArgString(Arg));
+
+  for (StringRef Arg : Args.getAllArgValues(OPT_builtin_bitcode_EQ)) {
+    if (llvm::Triple(Arg.split('=').first) == Triple)
+      CmdArgs.append({"-Xclang", "-mlink-builtin-bitcode", "-Xclang",
+                      Args.MakeArgString(Arg.split('=').second)});
+  }
+
+  // link NativeCPU utils lib if needed
+  if (Triple.isNativeCPU()) {
+    if (auto *A = Args.getLastArg(OPT_sycl_device_library_location_EQ)) {
+      std::string NativeCPUUtilsLib = "";
+
+      SmallVector<std::string, 8> LibraryPaths;
+      for (const auto &Path : A->getValues()) {
+        SmallString<128> LPath(Path);
+        if (llvm::sys::fs::exists(LPath)) {
+          LibraryPaths.emplace_back(LPath);
+        }
+      }
+
+      for (auto &LPath : LibraryPaths) {
+        // Call llvm-link without --only-needed to link to the nativecpu_utils
+        // lib
+        const char LibNativeCPUUtilsName[] = "libsycl-nativecpu_utils.bc";
+        SmallString<128> LibNativeCPUUtilsPath(LPath);
+        llvm::sys::path::append(LibNativeCPUUtilsPath, LibNativeCPUUtilsName);
+        if (llvm::sys::fs::exists(LibNativeCPUUtilsPath)) {
+          NativeCPUUtilsLib = LibNativeCPUUtilsPath.str();
+          break;
+        }
+      }
+
+      if (NativeCPUUtilsLib != "") {
+        CmdArgs.append({"-Xclang", "-mlink-bitcode-file", "-Xclang",
+                        Args.MakeArgString(NativeCPUUtilsLib)});
+      }
+    }
+  }
+
+  // The OpenMPOpt pass can introduce new calls and is expensive, we do
+  // not want this when running CodeGen through clang.
+  if (Args.hasArg(OPT_clang_backend) || Args.hasArg(OPT_builtin_bitcode_EQ))
+    CmdArgs.append({"-mllvm", "-openmp-opt-disable"});
 
   if (Error Err = executeCommands(*ClangPath, CmdArgs))
     return std::move(Err);
