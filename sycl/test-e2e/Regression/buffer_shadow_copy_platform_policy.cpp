@@ -72,10 +72,10 @@ static bool shouldSkipAlignedShadowCopy(sycl::backend B) {
   case sycl::backend::ext_oneapi_level_zero:
   case sycl::backend::ext_oneapi_cuda:
   case sycl::backend::ext_oneapi_hip:
-  case sycl::backend::ext_oneapi_offload:
     return true;
-  case sycl::backend::ext_oneapi_native_cpu:
   case sycl::backend::opencl:
+  case sycl::backend::ext_oneapi_native_cpu:
+  case sycl::backend::ext_oneapi_offload:
     return false;
   default:
     return false;
