@@ -419,12 +419,12 @@ runs:
     if: inputs.debug_mode == '2' && always()
     uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
     with:
-      name: "Unitrace ${{ env.SAVE_NAME }} (run id: ${{ github.run_id }})"
+      name: "Unitrace ${{ env.SAVE_NAME }} (run id ${{ github.run_id }})"
       path: ./llvm-ci-perf-results/traces
       retention-days: 30
   - name: Archive benchmark results
     if: always()
     uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
     with:
-      name: "Benchmark ${{ env.SAVE_NAME }} (run id: ${{ github.run_id }})"
+      name: "Benchmark ${{ env.SAVE_NAME }} (run id ${{ github.run_id }})"
       path: ./cached_changes

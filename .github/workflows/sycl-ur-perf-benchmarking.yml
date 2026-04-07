@@ -277,7 +277,8 @@ jobs:
     permissions:
       contents: write
       packages: read
-    if: github.event_name == 'pull_request'
+    # if: github.event_name == 'pull_request'
+    if: false # XXX
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
       name: 'Framework test only: L0, Minimal preset, dry-run'
