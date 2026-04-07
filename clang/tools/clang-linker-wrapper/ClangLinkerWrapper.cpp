@@ -1722,7 +1722,7 @@ static void appendClangSYCLLinkerArgs(const ArgList &Args,
                                       SmallVectorImpl<StringRef> &CmdArgs,
                                       const llvm::Triple &Triple,
                                       StringRef Arch) {
-  auto XLinker = [&](StringRef Arg) {
+  auto XLinker = [&](const Twine &Arg) {
     CmdArgs.append({"-Xlinker", Args.MakeArgString(Arg)});
   };
 

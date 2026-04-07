@@ -68,33 +68,33 @@ def bitcode_library_EQ : Joined<["--"], "bitcode-library=">,
   HelpText<"Extra bitcode library to link">;
 
 def no_canonical_prefixes : Flag<["--"], "no-canonical-prefixes">,
-  Flags<[WrapperOnlyOption]>,
+  Flags<[LinkerOnlyOption]>,
   HelpText<"Do not resolve symbolic links, turn relative paths into absolute ones, or do anything else to identify the executable">;
 
 // Extra SYCL options to help generate sycl-post-link options that also depend
 // on the target triple.
 def sycl_remove_unused_external_funcs : Flag<["--", "-"], "sycl-remove-unused-external-funcs">,
-  Flags<[WrapperOnlyOption, HelpHidden]>;
+  Flags<[LinkerOnlyOption, HelpHidden]>;
 def no_sycl_remove_unused_external_funcs : Flag<["--", "-"], "no-sycl-remove-unused-external-funcs">,
-  Flags<[WrapperOnlyOption, HelpHidden]>;
+  Flags<[LinkerOnlyOption, HelpHidden]>;
 def sycl_device_code_split_esimd : Flag<["--", "-"], "sycl-device-code-split-esimd">,
-  Flags<[WrapperOnlyOption, HelpHidden]>;
+  Flags<[LinkerOnlyOption, HelpHidden]>;
 def no_sycl_device_code_split_esimd : Flag<["--", "-"], "no-sycl-device-code-split-esimd">,
-  Flags<[WrapperOnlyOption, HelpHidden]>;
+  Flags<[LinkerOnlyOption, HelpHidden]>;
 def sycl_add_default_spec_consts_image : Flag<["--", "-"], "sycl-add-default-spec-consts-image">,
-  Flags<[WrapperOnlyOption, HelpHidden]>;
+  Flags<[LinkerOnlyOption, HelpHidden]>;
 def no_sycl_add_default_spec_consts_image : Flag<["--", "-"], "no-sycl-add-default-spec-consts-image">,
-  Flags<[WrapperOnlyOption, HelpHidden]>;
+  Flags<[LinkerOnlyOption, HelpHidden]>;
 
 def sycl_thin_lto : Flag<["--", "-"], "sycl-thin-lto">,
-Flags<[WrapperOnlyOption]>,  HelpText<"Link SYCL device code using thinLTO">;
+Flags<[LinkerOnlyOption]>,  HelpText<"Link SYCL device code using thinLTO">;
 
 // Options to enable/disable device dynamic linking.
 def sycl_allow_device_image_dependencies : Flag<["--", "-"], "sycl-allow-device-image-dependencies">,
-  Flags<[WrapperOnlyOption, HelpHidden]>,
+  Flags<[LinkerOnlyOption, HelpHidden]>,
   HelpText<"Allow dependencies between device code images">;
 
 // Options to force the output to be of the SYCLBIN format.
 def syclbin_EQ : Joined<["--", "-"], "syclbin=">,
-  Flags<[WrapperOnlyOption]>,
+  Flags<[LinkerOnlyOption]>,
   HelpText<"Output in the SYCLBIN binary format in the state specified by <arg> (input, object or executable)">;
