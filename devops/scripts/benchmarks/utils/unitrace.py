@@ -23,6 +23,10 @@ from git_project import GitProject
 class Unitrace:
     """Unitrace wrapper for managing Unitrace tool execution and results."""
 
+    def git_hash(self) -> str:
+        # Mar 16, 2026
+        return "6a0a8beeb1e4147f4bd3cac3b32f02758dfda754"
+
     def __init__(self):
         self.timestamp = (
             datetime.now(tz=timezone.utc).strftime(options.TIMESTAMP_FORMAT)
@@ -30,10 +34,11 @@ class Unitrace:
             else options.timestamp_override
         )
 
+
         log.info("Downloading and building Unitrace...")
         self.project = GitProject(
             "https://github.com/intel/pti-gpu.git",
-            "pti-0.12.4",
+            self.git_hash(),
             Path(options.workdir),
             "pti-gpu",
         )
@@ -56,6 +61,7 @@ class Unitrace:
                     "-DBUILD_WITH_ITT=1",
                     "-DBUILD_WITH_XPTI=1",
                     "-DBUILD_WITH_MPI=0",
+                    "-DCMAKE_POLICY_VERSION_MINIMUM=3.5",
                 ],
                 add_sycl=True,
             )
