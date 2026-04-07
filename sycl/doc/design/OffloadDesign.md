@@ -299,7 +299,7 @@ individually wrapped and linked into the final executable.
 
 Additionally, the syntax can be expanded to enable the ability to pass specific
 options to a specific device GPU target for spir64_gen.  The syntax will
-resemble `--device-compiler=sycl:spir64_gen-unknown-unknown==-device <arch> <arg>`.  This corresponds to the existing
+resemble `--device-compiler=sycl:spir64_gen-unknown-unknown=<arch> <arg>`.  This corresponds to the existing
 option syntax of `-fsycl-targets=intel_gpu_arch` where `arch` can be a fixed
 set of targets.
 
