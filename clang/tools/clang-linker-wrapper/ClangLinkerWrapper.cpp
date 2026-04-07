@@ -159,8 +159,9 @@ static SmallString<128> OffloadImageDumpDir;
 static bool CanonicalPrefixes = true;
 
 using OffloadingImage = OffloadBinary::OffloadingImage;
-    
-// TODO: Remove this once the linking and backend compilation have been fully migrated to clang-sycl-linker.
+
+// TODO: Remove this once the linking and backend compilation have been fully
+// migrated to clang-sycl-linker.
 bool UseClangSYCLLinker = false;
 
 namespace llvm {
@@ -1731,29 +1732,35 @@ static void appendClangSYCLLinkerArgs(const ArgList &Args,
     XLinker("--arch=" + Arch);
 
   static const std::pair<OptSpecifier, StringRef> SimpleFlags[] = {
-      {OPT_save_temps,                               "--save-temps"},
-      {OPT_dry_run,                                  "--dry-run"},
-      {OPT_print_wrapped_module,                     "--print-linked-module"},
-      {OPT_sycl_thin_lto,                            "--sycl-thin-lto"},
-      {OPT_sycl_allow_device_image_dependencies,     "--sycl-allow-device-image-dependencies"},
-      {OPT_sycl_remove_unused_external_funcs,        "--sycl-remove-unused-external-funcs"},
-      {OPT_no_sycl_remove_unused_external_funcs,     "--no-sycl-remove-unused-external-funcs"},
-      {OPT_sycl_device_code_split_esimd,             "--sycl-device-code-split-esimd"},
-      {OPT_no_sycl_device_code_split_esimd,          "--no-sycl-device-code-split-esimd"},
-      {OPT_sycl_add_default_spec_consts_image,       "--sycl-add-default-spec-consts-image"},
-      {OPT_no_sycl_add_default_spec_consts_image,    "--no-sycl-add-default-spec-consts-image"},
+      {OPT_save_temps, "--save-temps"},
+      {OPT_dry_run, "--dry-run"},
+      {OPT_print_wrapped_module, "--print-linked-module"},
+      {OPT_sycl_thin_lto, "--sycl-thin-lto"},
+      {OPT_sycl_allow_device_image_dependencies,
+       "--sycl-allow-device-image-dependencies"},
+      {OPT_sycl_remove_unused_external_funcs,
+       "--sycl-remove-unused-external-funcs"},
+      {OPT_no_sycl_remove_unused_external_funcs,
+       "--no-sycl-remove-unused-external-funcs"},
+      {OPT_sycl_device_code_split_esimd, "--sycl-device-code-split-esimd"},
+      {OPT_no_sycl_device_code_split_esimd,
+       "--no-sycl-device-code-split-esimd"},
+      {OPT_sycl_add_default_spec_consts_image,
+       "--sycl-add-default-spec-consts-image"},
+      {OPT_no_sycl_add_default_spec_consts_image,
+       "--no-sycl-add-default-spec-consts-image"},
   };
   for (auto [Opt, Flag] : SimpleFlags)
     if (Args.hasArg(Opt))
       XLinker(Flag);
 
   static const std::pair<OptSpecifier, StringRef> ValueFlags[] = {
-      {OPT_sycl_dump_device_code_EQ,  "--spirv-dump-device-code="},
-      {OPT_llvm_spirv_options_EQ,     "--llvm-spirv-options="},
+      {OPT_sycl_dump_device_code_EQ, "--spirv-dump-device-code="},
+      {OPT_llvm_spirv_options_EQ, "--llvm-spirv-options="},
       {OPT_sycl_post_link_options_EQ, "--sycl-post-link-options="},
-      {OPT_syclbin_EQ,                "--syclbin="},
-      {OPT_bitcode_library_EQ,        "--bitcode-library="},
-      {OPT_sycl_device_lib_EQ,        "--device-libs="},
+      {OPT_syclbin_EQ, "--syclbin="},
+      {OPT_bitcode_library_EQ, "--bitcode-library="},
+      {OPT_sycl_device_lib_EQ, "--device-libs="},
   };
   for (auto [Opt, Flag] : ValueFlags)
     if (const opt::Arg *A = Args.getLastArg(Opt))
