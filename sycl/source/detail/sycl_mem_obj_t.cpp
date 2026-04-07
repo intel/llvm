@@ -177,10 +177,12 @@ adapter_impl &SYCLMemObjT::getAdapter() const {
 bool SYCLMemObjT::isInterop() const { return MOpenCLInterop; }
 
 void SYCLMemObjT::prepareForAllocation(context_impl *Context) {
-  if (!MHasPendingAlignedShadowCopy || MShadowCopy != nullptr)
+  // Context may be null for host allocations; nothing backend-specific to do.
+  if (!Context)
     return;
 
-  assert(Context != nullptr && "Context must not be nullptr");
+  if (!MHasPendingAlignedShadowCopy || MShadowCopy != nullptr)
+    return;
 
   bool SkipShadowCopy = false;
   backend Backend = Context->getPlatformImpl().getBackend();
@@ -207,6 +209,8 @@ void SYCLMemObjT::prepareForAllocation(context_impl *Context) {
 
   std::lock_guard<std::mutex> Lock(MCreateShadowCopyMtx);
   if (SkipShadowCopy) {
+    // Backend (UR) will manage the misaligned host pointer through its own
+    // internal staging buffer and owns the final copy-back to the original ptr.
     MCreateShadowCopy = []() -> void {};
     MBackendOwnsWriteBack = true;
     if (!MHostPtrReadOnly)
