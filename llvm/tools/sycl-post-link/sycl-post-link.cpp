@@ -344,10 +344,10 @@ bool isTargetCompatibleWithModule(const std::string &Target,
 void addTableRow(util::SimpleTable &Table,
                  const IrPropSymFilenameTriple &RowData);
 
-void prepareModuleBeforeSave(module_split::ModuleDesc &MD, bool Cleanup,
-                             bool AllowDeviceImageDependencies = false) {
+void prepareModuleBeforeSave(module_split::ModuleDesc &MD, bool RunCleanup,
+                             bool AllowDeviceImageDependencies) {
   MD.saveSplitInformationAsMetadata();
-  if (Cleanup)
+  if (RunCleanup)
     MD.cleanup(AllowDeviceImageDependencies);
 }
 
@@ -373,7 +373,8 @@ Error saveModule(
   } else {
     StringRef IRExtension = OutputAssembly ? ".ll" : ".bc";
     BaseTriple.Ir = (OutputPrefix + Suffix + IRExtension).str();
-    ExitOnErr(saveModuleIR(MD.getModule(), BaseTriple.Ir));
+    if (Error E = saveModuleIR(MD.getModule(), BaseTriple.Ir))
+      return E;
   }
 
   if (DoSymGen) {
@@ -428,7 +429,8 @@ Error saveDeviceLibModule(
   // For deviceLib Modules, we don't need to do clean up and no entry-point
   // is included. The module only includes a bunch of exported functions
   // intended to be invoked by user's device modules.
-  prepareModuleBeforeSave(DeviceLibMD, /*Cleanup*/ false);
+  prepareModuleBeforeSave(DeviceLibMD, /*RunCleanup*/ false,
+                          /*AllowDeviceImageDependencies*/ false);
   return saveModule(OutTables, DeviceLibMD, OutputPrefix, "");
 }
 
@@ -606,7 +608,7 @@ processInputModule(std::unique_ptr<Module> M, const StringRef OutputPrefix) {
     }
     for (const std::unique_ptr<module_split::ModuleDesc> &IrMD : MMs) {
       IsBF16DeviceLibUsed |= isSYCLDeviceLibBF16Used(IrMD->getModule());
-      prepareModuleBeforeSave(*IrMD, /*Cleanup*/ OutIRFileName.empty(),
+      prepareModuleBeforeSave(*IrMD, /*RunCleanup*/ OutIRFileName.empty(),
                               AllowDeviceImageDependencies);
       ExitOnErr(saveModule(Tables, *IrMD, OutputPrefix + "_" + Twine(ID),
                            OutIRFileName));
@@ -619,7 +621,7 @@ processInputModule(std::unique_ptr<Module> M, const StringRef OutputPrefix) {
         const std::unique_ptr<module_split::ModuleDesc> &IrMD =
             MMsWithDefaultSpecConsts[i];
         IsBF16DeviceLibUsed |= isSYCLDeviceLibBF16Used(IrMD->getModule());
-        prepareModuleBeforeSave(*IrMD, /*Cleanup*/ OutIRFileName.empty(),
+        prepareModuleBeforeSave(*IrMD, /*RunCleanup*/ OutIRFileName.empty(),
                                 AllowDeviceImageDependencies);
         ExitOnErr(saveModule(Tables, *IrMD, OutputPrefix + "_" + Twine(ID),
                              OutIRFileName));
