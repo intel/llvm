@@ -78,6 +78,9 @@ template <> inline sycl::image_channel_type getSyclChannelType<uint8_t>() {
 template <> inline sycl::image_channel_type getSyclChannelType<int8_t>() {
   return sycl::image_channel_type::signed_int8;
 }
+template <> inline sycl::image_channel_type getSyclChannelType<sycl::half>() {
+  return sycl::image_channel_type::fp16;
+}
 
 template <> inline VkFormat getVulkanFormat<sycl::half>(int channels) {
   switch (channels) {
@@ -90,9 +93,6 @@ template <> inline VkFormat getVulkanFormat<sycl::half>(int channels) {
   default:
     throw std::runtime_error("Unsupported channels for half");
   }
-}
-template <> inline sycl::image_channel_type getSyclChannelType<sycl::half>() {
-  return sycl::image_channel_type::fp16;
 }
 
 template <typename T> T generateValue(size_t x, int channel) {
