@@ -83,32 +83,6 @@ urKernelSetExecInfo(ur_kernel_handle_t, ur_kernel_exec_info_t, size_t,
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgPointer(
-    ur_kernel_handle_t hKernel, uint32_t argIndex,
-    const ur_kernel_arg_pointer_properties_t *, const void *pArgValue) {
-  hKernel->Args.addArg(argIndex, sizeof(pArgValue), &pArgValue);
-  return UR_RESULT_SUCCESS;
-}
-
-UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgValue(
-    ur_kernel_handle_t hKernel, uint32_t argIndex, size_t argSize,
-    const ur_kernel_arg_value_properties_t *, const void *pArgValue) {
-  hKernel->Args.addArg(argIndex, argSize, pArgValue);
-  return UR_RESULT_SUCCESS;
-}
-
-UR_APIEXPORT ur_result_t UR_APICALL
-urKernelSetArgMemObj(ur_kernel_handle_t hKernel, uint32_t argIndex,
-                     const ur_kernel_arg_mem_obj_properties_t *Properties,
-                     ur_mem_handle_t hArgValue) {
-  ur_mem_flags_t MemAccess =
-      Properties ? Properties->memoryAccess
-                 : static_cast<ur_mem_flags_t>(UR_MEM_FLAG_READ_WRITE);
-  hKernel->Args.addMemObjArg(argIndex, hArgValue, MemAccess);
-
-  return UR_RESULT_SUCCESS;
-}
-
 UR_APIEXPORT ur_result_t UR_APICALL urKernelGetGroupInfo(
     ur_kernel_handle_t, ur_device_handle_t, ur_kernel_group_info_t propName,
     size_t propSize, void *pPropValue, size_t *pPropSizeRet) {
@@ -156,11 +130,5 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSizeWithArgs(
     ur_kernel_handle_t, ur_queue_handle_t, uint32_t, const size_t *,
     const size_t *, uint32_t, const ur_exp_kernel_arg_properties_t *,
     size_t *) {
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgSampler(
-    ur_kernel_handle_t, uint32_t, const ur_kernel_arg_sampler_properties_t *,
-    ur_sampler_handle_t) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }

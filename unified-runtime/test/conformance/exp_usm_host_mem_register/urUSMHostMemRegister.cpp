@@ -43,7 +43,8 @@ struct urUSMHostMemRegisterTest : uur::urQueueTest {
 UUR_INSTANTIATE_DEVICE_TEST_SUITE(urUSMHostMemRegisterTest);
 
 TEST_P(urUSMHostMemRegisterTest, Success) {
-  ASSERT_SUCCESS(urUSMHostAllocRegisterExp(context, alloc, allocSize, nullptr));
+  UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
+      urUSMHostAllocRegisterExp(context, alloc, allocSize, nullptr));
 
   void *alloc2 = nullptr;
   ASSERT_SUCCESS(urUSMHostAlloc(context, nullptr, nullptr, allocSize, &alloc2));

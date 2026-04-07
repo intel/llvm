@@ -280,8 +280,8 @@ TEST_P(urL0EnqueueAllocTest, SuccessWithKernel) {
                                      nullptr, &ptr, nullptr));
   ASSERT_NE(ptr, nullptr);
 
-  ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, ptr));
-  ASSERT_SUCCESS(urKernelSetArgValue(kernel, 1, sizeof(DATA), nullptr, &DATA));
+  AddPointerArg(ptr);
+  AddPodArg(DATA);
   Launch1DRange(ARRAY_SIZE);
 
   ValidateEnqueueFree(ptr);
@@ -303,8 +303,8 @@ TEST_P(urL0EnqueueAllocTest, SuccessWithKernelRepeat) {
                                      nullptr, &ptr, nullptr));
   ASSERT_NE(ptr, nullptr);
 
-  ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, ptr));
-  ASSERT_SUCCESS(urKernelSetArgValue(kernel, 1, sizeof(DATA), nullptr, &DATA));
+  AddPointerArg(ptr);
+  AddPodArg(DATA);
   Launch1DRange(ARRAY_SIZE);
 
   ASSERT_SUCCESS(urEnqueueUSMFreeExp(queue, nullptr, ptr, 0, nullptr, nullptr));
@@ -315,9 +315,35 @@ TEST_P(urL0EnqueueAllocTest, SuccessWithKernelRepeat) {
                                      nullptr, &ptr2, nullptr));
   ASSERT_NE(ptr2, nullptr);
 
-  ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, ptr2));
-  ASSERT_SUCCESS(urKernelSetArgValue(kernel, 1, sizeof(DATA), nullptr, &DATA));
-  Launch1DRange(ARRAY_SIZE);
+  // Build args inline for second launch with different pointer
+  ur_exp_kernel_arg_value_t arg_val0 = {};
+  arg_val0.pointer = ptr2;
+  ur_exp_kernel_arg_properties_t arg0 = {
+      UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+      nullptr,
+      UR_EXP_KERNEL_ARG_TYPE_POINTER,
+      0,
+      sizeof(void *),
+      arg_val0};
+
+  ur_exp_kernel_arg_value_t arg_val1 = {};
+  arg_val1.value = &DATA;
+  ur_exp_kernel_arg_properties_t arg1 = {
+      UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+      nullptr,
+      UR_EXP_KERNEL_ARG_TYPE_VALUE,
+      1,
+      sizeof(DATA),
+      arg_val1};
+
+  ur_exp_kernel_arg_properties_t args[] = {arg0, arg1};
+  size_t offset = 0;
+  size_t globalSize = ARRAY_SIZE;
+  size_t localSize = 1;
+  ASSERT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
+      queue, kernel, 1, &offset, &globalSize, &localSize, 2, args, nullptr, 0,
+      nullptr, nullptr));
+  ASSERT_SUCCESS(urQueueFinish(queue));
 
   ValidateEnqueueFree(ptr2);
 }

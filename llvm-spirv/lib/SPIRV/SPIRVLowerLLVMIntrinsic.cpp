@@ -139,9 +139,19 @@ void SPIRVLowerLLVMIntrinsicBase::visitIntrinsicInst(CallInst &I) {
   auto It = LLVMIntrinsicMapEntries.find(IntrinsicName);
   if (It != LLVMIntrinsicMapEntries.end())
     MapEntry = &It->second;
+  auto IsRequiredExtAllowed = [&](ExtensionID Ext) {
+    if (Opts.isAllowedToUseExtension(Ext))
+      return true;
+    // SPV_ALTERA_arbitrary_precision_integers is equivalent to
+    // SPV_INTEL_arbitrary_precision_integers.
+    if (Ext == ExtensionID::SPV_INTEL_arbitrary_precision_integers)
+      return Opts.isAllowedToUseExtension(
+          ExtensionID::SPV_ALTERA_arbitrary_precision_integers);
+    return false;
+  };
   if (!MapEntry ||
       !(MapEntry->RequiredExtension == NO_REQUIRED_EXTENSION ||
-        Opts.isAllowedToUseExtension(MapEntry->RequiredExtension)) ||
+        IsRequiredExtAllowed(MapEntry->RequiredExtension)) ||
       Opts.isAllowedToUseExtension(MapEntry->ForbiddenExtension))
     return;
 
