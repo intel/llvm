@@ -79,7 +79,6 @@
 		urEnqueueEventsWaitWithBarrierExt;
 		urEnqueueGraphExp;
 		urEnqueueHostTaskExp;
-		urEnqueueKernelLaunch;
 		urEnqueueKernelLaunchWithArgsExp;
 		urEnqueueMemBufferCopy;
 		urEnqueueMemBufferCopyRect;
@@ -160,11 +159,6 @@
 		urKernelGetSuggestedLocalWorkSizeWithArgs;
 		urKernelRelease;
 		urKernelRetain;
-		urKernelSetArgLocal;
-		urKernelSetArgMemObj;
-		urKernelSetArgPointer;
-		urKernelSetArgSampler;
-		urKernelSetArgValue;
 		urKernelSetExecInfo;
 		urKernelSetSpecializationConstants;
 		urKernelSuggestMaxCooperativeGroupCount;
@@ -311,7 +305,6 @@
 		urPrintEnqueueEventsWaitWithBarrierParams;
 		urPrintEnqueueGraphExpParams;
 		urPrintEnqueueHostTaskExpParams;
-		urPrintEnqueueKernelLaunchParams;
 		urPrintEnqueueKernelLaunchWithArgsExpParams;
 		urPrintEnqueueMemBufferCopyParams;
 		urPrintEnqueueMemBufferCopyRectParams;
@@ -431,11 +424,6 @@
 		urPrintKernelNativeProperties;
 		urPrintKernelReleaseParams;
 		urPrintKernelRetainParams;
-		urPrintKernelSetArgLocalParams;
-		urPrintKernelSetArgMemObjParams;
-		urPrintKernelSetArgPointerParams;
-		urPrintKernelSetArgSamplerParams;
-		urPrintKernelSetArgValueParams;
 		urPrintKernelSetExecInfoParams;
 		urPrintKernelSetSpecializationConstantsParams;
 		urPrintKernelSubGroupInfo;

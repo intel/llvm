@@ -145,6 +145,11 @@ add_llvm_library(sycl-jit
    SPIRVLib
    ${LLVM_TARGETS_TO_BUILD}
 
+# INTEL_CUSTOMIZATION
+# Reusing PCH for Core would cause extra warnings in ADT
+  DISABLE_PCH_REUSE
+#end INTEL_CUSTOMIZATION
+
    LINK_LIBS
    clangBasic
    clangDriver

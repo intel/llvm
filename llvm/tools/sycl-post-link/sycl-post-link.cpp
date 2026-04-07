@@ -13,35 +13,24 @@
 // - specialization constant intrinsic transformation
 //===----------------------------------------------------------------------===//
 
-#include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/Analysis/AssumptionCache.h"
-#include "llvm/Analysis/ProfileSummaryInfo.h"
-#include "llvm/Analysis/TargetLibraryInfo.h"
-#include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/Bitcode/BitcodeWriterPass.h"
-#include "llvm/Demangle/Demangle.h"
-#include "llvm/IR/Dominators.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IRPrinter/IRPrintingPasses.h"
 #include "llvm/IRReader/IRReader.h"
-#include "llvm/Linker/Linker.h"
 #include "llvm/Passes/PassBuilder.h"
-#include "llvm/SYCLLowerIR/CompileTimePropertiesPass.h"
 #include "llvm/SYCLLowerIR/DeviceConfigFile.hpp"
 #include "llvm/SYCLLowerIR/ESIMD/ESIMDUtils.h"
-#include "llvm/SYCLLowerIR/LowerInvokeSimd.h"
 #include "llvm/SYCLLowerIR/SYCLDeviceLibBF16.h"
-#include "llvm/SYCLLowerIR/SYCLJointMatrixTransform.h"
 #include "llvm/SYCLLowerIR/SYCLUtils.h"
-#include "llvm/SYCLLowerIR/SpecConstants.h"
 #include "llvm/SYCLLowerIR/Support.h"
 #include "llvm/SYCLPostLink/ComputeModuleRuntimeInfo.h"
 #include "llvm/SYCLPostLink/ESIMDPostSplitProcessing.h"
 #include "llvm/SYCLPostLink/ModuleSplitter.h"
 #include "llvm/SYCLPostLink/SpecializationConstants.h"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Support/Error.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/Path.h"
@@ -263,6 +252,8 @@ struct IrPropSymFilenameTriple {
   std::string Sym;
 };
 
+ExitOnError ExitOnErr;
+
 unsigned getOptLevel() {
   if (OptLevelO3)
     return 3;
@@ -276,18 +267,11 @@ unsigned getOptLevel() {
   return 2; // default value
 }
 
-static void writeToFile(const StringRef Filename, const StringRef Content) {
-  std::error_code EC;
-  raw_fd_ostream OS{Filename, EC, sys::fs::OpenFlags::OF_None};
-  checkError(EC, "error opening the file '" + Filename + "'");
-  OS.write(Content.data(), Content.size());
-  OS.close();
-}
-
-void saveModuleIR(Module &M, const StringRef Filename) {
+Error saveModuleIR(Module &M, const StringRef Filename) {
   std::error_code EC;
   raw_fd_ostream Out{Filename, EC, sys::fs::OF_None};
-  checkError(EC, "error opening the file '" + Filename + "'");
+  if (EC)
+    return createStringError(EC, "error opening the file '" + Filename + "'");
 
   ModulePassManager MPM;
   ModuleAnalysisManager MAM;
@@ -298,14 +282,12 @@ void saveModuleIR(Module &M, const StringRef Filename) {
   else if (Force || !CheckBitcodeOutputToConsole(Out))
     MPM.addPass(BitcodeWriterPass(Out));
   MPM.run(M, MAM);
+  return Error::success();
 }
 
-void saveModuleProperties(const module_split::ModuleDesc &MD,
-                          const GlobalBinImageProps &GlobProps,
-                          const StringRef Filename, StringRef Target = "") {
-
+PropSetRegTy computeModuleProperties(const module_split::ModuleDesc &MD,
+                                     const GlobalBinImageProps &GlobProps) {
   PropSetRegTy PropSet;
-
   // For bf16 devicelib module, no kernel included and no specialization
   // constant used, skip regular Prop emit. However, we have fallback and
   // native version of bf16 devicelib and we need new property values to
@@ -324,22 +306,36 @@ void saveModuleProperties(const module_split::ModuleDesc &MD,
   if (SplitMode == module_split::SPLIT_NONE)
     PropSet.remove(PropSetRegTy::SYCL_DEVICE_REQUIREMENTS,
                    PropSetRegTy::PROPERTY_REQD_WORK_GROUP_SIZE);
+  return PropSet;
+}
+
+Error writePropertiesToFile(const StringRef Filename,
+                            const util::PropertySetRegistry &PropSet) {
+  return writeToOutput(Filename, [&](raw_ostream &OS) -> Error {
+    PropSet.write(OS);
+    return Error::success();
+  });
+}
+
+Error saveModuleProperties(const module_split::ModuleDesc &MD,
+                           const GlobalBinImageProps &GlobProps,
+                           const StringRef Filename, StringRef Target = "") {
+  PropSetRegTy PropSet = computeModuleProperties(MD, GlobProps);
 
   if (!Target.empty())
     PropSet.add(PropSetRegTy::SYCL_DEVICE_REQUIREMENTS, "compile_target",
                 Target);
 
-  std::error_code EC;
-  raw_fd_ostream SCOut(Filename, EC);
-  checkError(EC, "error opening file '" + Filename + "'");
-  PropSet.write(SCOut);
+  return writePropertiesToFile(Filename, PropSet);
 }
 
 // Saves specified collection of symbols to a file.
-void saveModuleSymbolTable(const module_split::ModuleDesc &MD,
-                           const StringRef Filename) {
-  std::string SymT = computeModuleSymbolTable(MD.getModule(), MD.entries());
-  writeToFile(Filename, SymT);
+Error saveModuleSymbolTable(const module_split::ModuleDesc &MD,
+                            const StringRef Filename) {
+  return writeToOutput(Filename, [&](raw_ostream &OS) -> Error {
+    OS << computeModuleSymbolTable(MD.getModule(), MD.entries());
+    return Error::success();
+  });
 }
 
 bool isTargetCompatibleWithModule(const std::string &Target,
@@ -376,13 +372,13 @@ void saveModule(
     StringRef IRExtension = OutputAssembly ? ".ll" : ".bc";
     BaseTriple.Ir =
         (OutputPrefix + Suffix + "_" + Twine(I) + IRExtension).str();
-    saveModuleIR(MD.getModule(), BaseTriple.Ir);
+    ExitOnErr(saveModuleIR(MD.getModule(), BaseTriple.Ir));
   }
 
   if (DoSymGen) {
     // Save the names of the entry points - the symbol table.
     BaseTriple.Sym = (OutputPrefix + Suffix + "_" + Twine(I) + ".sym").str();
-    saveModuleSymbolTable(MD, BaseTriple.Sym);
+    ExitOnErr(saveModuleSymbolTable(MD, BaseTriple.Sym));
   }
 
   for (const auto &[Table, OutputFile] : zip_equal(OutTables, OutputFiles)) {
@@ -400,13 +396,13 @@ void saveModule(
 
       CopyTriple.Prop =
           (OutputPrefix + NewSuff + "_" + Twine(I) + ".prop").str();
-      saveModuleProperties(MD, Props, CopyTriple.Prop, Target);
+      ExitOnErr(saveModuleProperties(MD, Props, CopyTriple.Prop, Target));
     }
     addTableRow(*Table, CopyTriple);
   }
 }
 
-void saveDeviceLibModule(
+Error saveDeviceLibModule(
     const std::vector<std::unique_ptr<util::SimpleTable>> &OutTables,
     const Twine &OutputPrefix, const int I,
     const std::string &DeviceLibFileName) {
@@ -421,21 +417,18 @@ void saveDeviceLibModule(
   std::unique_ptr<Module> DeviceLibIR =
       parseIRFile(DeviceLibPath, Err, Context);
   Module *DeviceLibMPtr = DeviceLibIR.get();
-  if (!DeviceLibMPtr) {
-    errs() << "sycl-post-link NOTE: fail to load bfloat16 device library "
-              "modules\n";
-    return;
-  }
+  if (!DeviceLibMPtr)
+    return createStringError("failed to load bfloat16 device library modules");
+
   llvm::module_split::ModuleDesc DeviceLibMD(std::move(DeviceLibIR),
                                              DeviceLibFileName);
   saveModule(OutTables, DeviceLibMD, I, OutputPrefix, "");
+  return Error::success();
 }
-
-constexpr int MAX_COLUMNS_IN_FILE_TABLE = 3;
 
 void addTableRow(util::SimpleTable &Table,
                  const IrPropSymFilenameTriple &RowData) {
-  SmallVector<StringRef, MAX_COLUMNS_IN_FILE_TABLE> Row;
+  SmallVector<StringRef> Row;
 
   for (const std::string *S : {&RowData.Ir, &RowData.Prop, &RowData.Sym}) {
     if (!S->empty()) {
@@ -497,8 +490,7 @@ bool isTargetCompatibleWithModule(const std::string &Target,
 std::vector<std::unique_ptr<util::SimpleTable>>
 processInputModule(std::unique_ptr<Module> M, const StringRef OutputPrefix) {
   // Construct the resulting table which will accumulate all the outputs.
-  SmallVector<StringRef, MAX_COLUMNS_IN_FILE_TABLE> ColumnTitles{
-      StringRef(COL_CODE)};
+  SmallVector<StringRef> ColumnTitles{StringRef(COL_CODE)};
 
   if (DoPropGen)
     ColumnTitles.push_back(COL_PROPS);
@@ -549,11 +541,8 @@ processInputModule(std::unique_ptr<Module> M, const StringRef OutputPrefix) {
   Modified |= SplitOccurred;
 
   // FIXME: this check is not performed for ESIMD splits
-  if (DeviceGlobals) {
-    auto E = Splitter->verifyNoCrossModuleDeviceGlobalUsage();
-    if (E)
-      error(toString(std::move(E)));
-  }
+  if (DeviceGlobals)
+    ExitOnErr(Splitter->verifyNoCrossModuleDeviceGlobalUsage());
 
   std::optional<SpecConstantsPass::HandlingMode> SCMode;
   if (SpecConstLower.getNumOccurrences() > 0)
@@ -595,7 +584,8 @@ processInputModule(std::unique_ptr<Module> M, const StringRef OutputPrefix) {
               "' can't be used");
       }
       MMs.front()->cleanup(AllowDeviceImageDependencies);
-      saveModuleIR(MMs.front()->getModule(), OutputFiles[0].Filename);
+      ExitOnErr(
+          saveModuleIR(MMs.front()->getModule(), OutputFiles[0].Filename));
       return Tables;
     }
     // Empty IR file name directs saveModule to generate one and save IR to
@@ -628,10 +618,10 @@ processInputModule(std::unique_ptr<Module> M, const StringRef OutputPrefix) {
   }
 
   if (IsBF16DeviceLibUsed && (DeviceLibDir.getNumOccurrences() > 0)) {
-    saveDeviceLibModule(Tables, OutputPrefix, ID,
-                        "libsycl-fallback-bfloat16.bc");
-    saveDeviceLibModule(Tables, OutputPrefix, ID + 1,
-                        "libsycl-native-bfloat16.bc");
+    ExitOnErr(saveDeviceLibModule(Tables, OutputPrefix, ID,
+                                  "libsycl-fallback-bfloat16.bc"));
+    ExitOnErr(saveDeviceLibModule(Tables, OutputPrefix, ID + 1,
+                                  "libsycl-native-bfloat16.bc"));
   }
   return Tables;
 }
@@ -777,6 +767,8 @@ int main(int argc, char **argv) {
            << " can't be used with -" << IROutputOnly.ArgStr << "\n";
     return 1;
   }
+
+  ExitOnErr.setBanner(std::string(argv[0]) + ": error: ");
 
   SMDiagnostic Err;
   std::unique_ptr<Module> M = parseIRFile(InputFilename, Err, Context);

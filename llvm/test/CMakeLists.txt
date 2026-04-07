@@ -70,10 +70,8 @@ set(LLVM_TEST_DEPENDS_COMMON
 
 set(LLVM_TEST_DEPENDS
   ${LLVM_TEST_DEPENDS_COMMON}
-  BugpointPasses
   LLVMWindowsDriver
   append-file
-  bugpoint
   file-table-tform
   llc
   lli

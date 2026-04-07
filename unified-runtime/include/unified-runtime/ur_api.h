@@ -65,8 +65,6 @@ typedef enum ur_function_t {
   UR_FUNCTION_DEVICE_CREATE_WITH_NATIVE_HANDLE = 15,
   /// Enumerator for ::urDeviceGetGlobalTimestamps
   UR_FUNCTION_DEVICE_GET_GLOBAL_TIMESTAMPS = 16,
-  /// Enumerator for ::urEnqueueKernelLaunch
-  UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH = 17,
   /// Enumerator for ::urEnqueueEventsWait
   UR_FUNCTION_ENQUEUE_EVENTS_WAIT = 18,
   /// Enumerator for ::urEnqueueEventsWaitWithBarrier
@@ -125,10 +123,6 @@ typedef enum ur_function_t {
   UR_FUNCTION_EVENT_SET_CALLBACK = 47,
   /// Enumerator for ::urKernelCreate
   UR_FUNCTION_KERNEL_CREATE = 48,
-  /// Enumerator for ::urKernelSetArgValue
-  UR_FUNCTION_KERNEL_SET_ARG_VALUE = 49,
-  /// Enumerator for ::urKernelSetArgLocal
-  UR_FUNCTION_KERNEL_SET_ARG_LOCAL = 50,
   /// Enumerator for ::urKernelGetInfo
   UR_FUNCTION_KERNEL_GET_INFO = 51,
   /// Enumerator for ::urKernelGetGroupInfo
@@ -139,14 +133,8 @@ typedef enum ur_function_t {
   UR_FUNCTION_KERNEL_RETAIN = 54,
   /// Enumerator for ::urKernelRelease
   UR_FUNCTION_KERNEL_RELEASE = 55,
-  /// Enumerator for ::urKernelSetArgPointer
-  UR_FUNCTION_KERNEL_SET_ARG_POINTER = 56,
   /// Enumerator for ::urKernelSetExecInfo
   UR_FUNCTION_KERNEL_SET_EXEC_INFO = 57,
-  /// Enumerator for ::urKernelSetArgSampler
-  UR_FUNCTION_KERNEL_SET_ARG_SAMPLER = 58,
-  /// Enumerator for ::urKernelSetArgMemObj
-  UR_FUNCTION_KERNEL_SET_ARG_MEM_OBJ = 59,
   /// Enumerator for ::urKernelSetSpecializationConstants
   UR_FUNCTION_KERNEL_SET_SPECIALIZATION_CONSTANTS = 60,
   /// Enumerator for ::urKernelGetNativeHandle
@@ -6597,7 +6585,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueFlush(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Command type
 typedef enum ur_command_t {
-  /// Event created by ::urEnqueueKernelLaunch
+  /// Event created by ::urEnqueueKernelLaunchWithArgsExp
   UR_COMMAND_KERNEL_LAUNCH = 0,
   /// Event created by ::urEnqueueEventsWait
   UR_COMMAND_EVENTS_WAIT = 1,
@@ -7114,80 +7102,6 @@ typedef struct ur_kernel_launch_workgroup_property_t {
   size_t workgroup_mem_size;
 
 } ur_kernel_launch_workgroup_property_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Enqueue a command to execute a kernel
-///
-/// @details
-///     - Providing invalid kernel arguments is Undefined Behavior.
-///
-/// @remarks
-///   _Analogues_
-///     - **clEnqueueNDRangeKernel**
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hQueue`
-///         + `NULL == hKernel`
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == pGlobalWorkSize`
-///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `NULL != launchPropList && ::UR_KERNEL_LAUNCH_FLAGS_MASK &
-///         launchPropList->flags`
-///     - ::UR_RESULT_ERROR_INVALID_QUEUE
-///     - ::UR_RESULT_ERROR_INVALID_KERNEL
-///     - ::UR_RESULT_ERROR_INVALID_EVENT
-///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
-///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
-///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
-///         + If event objects in phEventWaitList are not valid events.
-///     - ::UR_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS
-///         + An event in `phEventWaitList` has ::UR_EVENT_STATUS_ERROR.
-///     - ::UR_RESULT_ERROR_INVALID_WORK_DIMENSION
-///     - ::UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE
-///     - ::UR_RESULT_ERROR_INVALID_VALUE
-///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
-///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
-///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
-///         + If any property in `launchPropList` isn't supported by the device.
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
-    /// [in] handle of the queue object
-    ur_queue_handle_t hQueue,
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] number of dimensions, from 1 to 3, to specify the global and
-    /// work-group work-items
-    uint32_t workDim,
-    /// [in][optional] pointer to an array of workDim unsigned values that
-    /// specify the offset used to calculate the global ID of a work-item
-    const size_t *pGlobalWorkOffset,
-    /// [in] pointer to an array of workDim unsigned values that specify the
-    /// number of global work-items in workDim that will execute the kernel
-    /// function
-    const size_t *pGlobalWorkSize,
-    /// [in][optional] pointer to an array of workDim unsigned values that
-    /// specify the number of local work-items forming a work-group that will
-    /// execute the kernel function.
-    /// If nullptr, the runtime implementation will choose the work-group size.
-    const size_t *pLocalWorkSize,
-    /// [in][optional] pointer to a single linked list of launch properties
-    const ur_kernel_launch_ext_properties_t *launchPropList,
-    /// [in] size of the event wait list
-    uint32_t numEventsInWaitList,
-    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
-    /// events that must be complete before the kernel execution.
-    /// If nullptr, the numEventsInWaitList must be 0, indicating that no wait
-    /// event.
-    const ur_event_handle_t *phEventWaitList,
-    /// [out][optional][alloc] return an event object that identifies this
-    /// particular kernel execution instance. If phEventWaitList and phEvent
-    /// are not NULL, phEvent must not refer to an element of the
-    /// phEventWaitList array.
-    ur_event_handle_t *phEvent);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Enqueue a command which waits a list of events to complete before it
@@ -8735,11 +8649,12 @@ typedef struct ur_exp_kernel_arg_properties_t {
 ///     - ::UR_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS
 ///         + An event in `phEventWaitList` has ::UR_EVENT_STATUS_ERROR.
 ///     - ::UR_RESULT_ERROR_INVALID_WORK_DIMENSION
-///         + `pGlobalWorkSize[0] == 0 || pGlobalWorkSize[1] == 0 ||
-///         pGlobalWorkSize[2] == 0`
+///         + `pGlobalWorkSize[0] == 0 || (workDim >= 2 && pGlobalWorkSize[1] ==
+///         0) || (workDim >= 3 && pGlobalWorkSize[2] == 0)`
 ///     - ::UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE
-///         + `pLocalWorkSize && (pLocalWorkSize[0] == 0 || pLocalWorkSize[1] ==
-///         0 || pLocalWorkSize[2] == 0)`
+///         + `pLocalWorkSize && (pLocalWorkSize[0] == 0 || (workDim >= 2 &&
+///         pLocalWorkSize[1] == 0) || (workDim >= 3 && pLocalWorkSize[2] ==
+///         0))`
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGS - "The kernel argument values
 ///     have not been specified."
@@ -8822,7 +8737,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelCreate(
     ur_kernel_handle_t *phKernel);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Properties for for ::urKernelSetArgValue.
+/// @brief Properties for kernel argument of a value type.
 typedef struct ur_kernel_arg_value_properties_t {
   /// [in] type of this structure, must be
   /// ::UR_STRUCTURE_TYPE_KERNEL_ARG_VALUE_PROPERTIES
@@ -8833,40 +8748,7 @@ typedef struct ur_kernel_arg_value_properties_t {
 } ur_kernel_arg_value_properties_t;
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Set kernel argument to a value.
-///
-/// @details
-///     - The application may call this function from simultaneous threads with
-///       the same kernel handle.
-///     - The implementation of this function should be lock-free.
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hKernel`
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == pArgValue`
-///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX
-///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE
-UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgValue(
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] argument index in range [0, num args - 1]
-    uint32_t argIndex,
-    /// [in] size of argument type
-    size_t argSize,
-    /// [in][optional] pointer to value properties.
-    const ur_kernel_arg_value_properties_t *pProperties,
-    /// [in] argument value represented as matching arg type.
-    /// The data pointed to will be copied and therefore can be reused on
-    /// return.
-    const void *pArgValue);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Properties for for ::urKernelSetArgLocal.
+/// @brief Properties for kernel argument of a local type.
 typedef struct ur_kernel_arg_local_properties_t {
   /// [in] type of this structure, must be
   /// ::UR_STRUCTURE_TYPE_KERNEL_ARG_LOCAL_PROPERTIES
@@ -8875,33 +8757,6 @@ typedef struct ur_kernel_arg_local_properties_t {
   void *pNext;
 
 } ur_kernel_arg_local_properties_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Set kernel argument to a local buffer.
-///
-/// @details
-///     - The application may call this function from simultaneous threads with
-///       the same kernel handle.
-///     - The implementation of this function should be lock-free.
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hKernel`
-///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX
-///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE
-UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgLocal(
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] argument index in range [0, num args - 1]
-    uint32_t argIndex,
-    /// [in] size of the local buffer to be allocated by the runtime
-    size_t argSize,
-    /// [in][optional] pointer to local buffer properties.
-    const ur_kernel_arg_local_properties_t *pProperties);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Get Kernel object information
@@ -9174,7 +9029,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelRelease(
     ur_kernel_handle_t hKernel);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Properties for for ::urKernelSetArgPointer.
+/// @brief Properties for kernel argument of a pointer type.
 typedef struct ur_kernel_arg_pointer_properties_t {
   /// [in] type of this structure, must be
   /// ::UR_STRUCTURE_TYPE_KERNEL_ARG_POINTER_PROPERTIES
@@ -9183,37 +9038,6 @@ typedef struct ur_kernel_arg_pointer_properties_t {
   void *pNext;
 
 } ur_kernel_arg_pointer_properties_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Set a USM pointer as the argument value of a Kernel.
-///
-/// @details
-///     - The application may call this function from simultaneous threads with
-///       the same kernel handle.
-///     - The implementation of this function should be lock-free.
-///
-/// @remarks
-///   _Analogues_
-///     - **clSetKernelArgSVMPointer**
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hKernel`
-///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX
-UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgPointer(
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] argument index in range [0, num args - 1]
-    uint32_t argIndex,
-    /// [in][optional] pointer to USM pointer properties.
-    const ur_kernel_arg_pointer_properties_t *pProperties,
-    /// [in][optional] Pointer obtained by USM allocation or virtual memory
-    /// mapping operation. If null then argument value is considered null.
-    const void *pArgValue);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Properties for for ::urKernelSetExecInfo.
@@ -9263,7 +9087,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetExecInfo(
     const void *pPropValue);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Properties for for ::urKernelSetArgSampler.
+/// @brief Properties for kernel argument of a sampler type.
 typedef struct ur_kernel_arg_sampler_properties_t {
   /// [in] type of this structure, must be
   /// ::UR_STRUCTURE_TYPE_KERNEL_ARG_SAMPLER_PROPERTIES
@@ -9274,36 +9098,7 @@ typedef struct ur_kernel_arg_sampler_properties_t {
 } ur_kernel_arg_sampler_properties_t;
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Set a Sampler object as the argument value of a Kernel.
-///
-/// @details
-///     - The application may call this function from simultaneous threads with
-///       the same kernel handle.
-///     - The implementation of this function should be lock-free.
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hKernel`
-///         + `NULL == hArgValue`
-///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX
-///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
-///         + Device `::UR_DEVICE_INFO_IMAGE_SUPPORT` is false
-UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgSampler(
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] argument index in range [0, num args - 1]
-    uint32_t argIndex,
-    /// [in][optional] pointer to sampler properties.
-    const ur_kernel_arg_sampler_properties_t *pProperties,
-    /// [in] handle of Sampler object.
-    ur_sampler_handle_t hArgValue);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Properties for for ::urKernelSetArgMemObj.
+/// @brief Properties for kernel argument of a memory object type.
 typedef struct ur_kernel_arg_mem_obj_properties_t {
   /// [in] type of this structure, must be
   /// ::UR_STRUCTURE_TYPE_KERNEL_ARG_MEM_OBJ_PROPERTIES
@@ -9317,35 +9112,6 @@ typedef struct ur_kernel_arg_mem_obj_properties_t {
 } ur_kernel_arg_mem_obj_properties_t;
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Set a Memory object as the argument value of a Kernel.
-///
-/// @details
-///     - The application may call this function from simultaneous threads with
-///       the same kernel handle.
-///     - The implementation of this function should be lock-free.
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hKernel`
-///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `NULL != pProperties && ::UR_MEM_FLAGS_MASK &
-///         pProperties->memoryAccess`
-///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX
-UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgMemObj(
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] argument index in range [0, num args - 1]
-    uint32_t argIndex,
-    /// [in][optional] pointer to Memory object properties.
-    const ur_kernel_arg_mem_obj_properties_t *pProperties,
-    /// [in][optional] handle of Memory object.
-    ur_mem_handle_t hArgValue);
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Set an array of specialization constants on a Kernel.
 ///
 /// @details
@@ -9353,8 +9119,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgMemObj(
 ///       with device query ::UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS
 ///       passed to ::urDeviceGetInfo.
 ///     - Adapters which are capable of setting specialization constants
-///       immediately prior to ::urEnqueueKernelLaunch with low overhead should
-///       implement this entry point.
+///       immediately prior to ::urEnqueueKernelLaunchWithArgsExp with low
+///       overhead should implement this entry point.
 ///     - Otherwise, if setting specialization constants late requires
 ///       recompiling or linking a program, adapters should not implement this
 ///       entry point.
@@ -14741,40 +14507,6 @@ typedef struct ur_kernel_get_suggested_local_work_size_with_args_params_t {
 } ur_kernel_get_suggested_local_work_size_with_args_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function parameters for urKernelSetArgValue
-/// @details Each entry is a pointer to the parameter passed to the function;
-///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_kernel_set_arg_value_params_t {
-  ur_kernel_handle_t *phKernel;
-  uint32_t *pargIndex;
-  size_t *pargSize;
-  const ur_kernel_arg_value_properties_t **ppProperties;
-  const void **ppArgValue;
-} ur_kernel_set_arg_value_params_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function parameters for urKernelSetArgLocal
-/// @details Each entry is a pointer to the parameter passed to the function;
-///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_kernel_set_arg_local_params_t {
-  ur_kernel_handle_t *phKernel;
-  uint32_t *pargIndex;
-  size_t *pargSize;
-  const ur_kernel_arg_local_properties_t **ppProperties;
-} ur_kernel_set_arg_local_params_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function parameters for urKernelSetArgPointer
-/// @details Each entry is a pointer to the parameter passed to the function;
-///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_kernel_set_arg_pointer_params_t {
-  ur_kernel_handle_t *phKernel;
-  uint32_t *pargIndex;
-  const ur_kernel_arg_pointer_properties_t **ppProperties;
-  const void **ppArgValue;
-} ur_kernel_set_arg_pointer_params_t;
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urKernelSetExecInfo
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
@@ -14785,28 +14517,6 @@ typedef struct ur_kernel_set_exec_info_params_t {
   const ur_kernel_exec_info_properties_t **ppProperties;
   const void **ppPropValue;
 } ur_kernel_set_exec_info_params_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function parameters for urKernelSetArgSampler
-/// @details Each entry is a pointer to the parameter passed to the function;
-///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_kernel_set_arg_sampler_params_t {
-  ur_kernel_handle_t *phKernel;
-  uint32_t *pargIndex;
-  const ur_kernel_arg_sampler_properties_t **ppProperties;
-  ur_sampler_handle_t *phArgValue;
-} ur_kernel_set_arg_sampler_params_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function parameters for urKernelSetArgMemObj
-/// @details Each entry is a pointer to the parameter passed to the function;
-///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_kernel_set_arg_mem_obj_params_t {
-  ur_kernel_handle_t *phKernel;
-  uint32_t *pargIndex;
-  const ur_kernel_arg_mem_obj_properties_t **ppProperties;
-  ur_mem_handle_t *phArgValue;
-} ur_kernel_set_arg_mem_obj_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urKernelSetSpecializationConstants
@@ -15151,23 +14861,6 @@ typedef struct ur_physical_mem_get_info_params_t {
   void **ppPropValue;
   size_t **ppPropSizeRet;
 } ur_physical_mem_get_info_params_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function parameters for urEnqueueKernelLaunch
-/// @details Each entry is a pointer to the parameter passed to the function;
-///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_enqueue_kernel_launch_params_t {
-  ur_queue_handle_t *phQueue;
-  ur_kernel_handle_t *phKernel;
-  uint32_t *pworkDim;
-  const size_t **ppGlobalWorkOffset;
-  const size_t **ppGlobalWorkSize;
-  const size_t **ppLocalWorkSize;
-  const ur_kernel_launch_ext_properties_t **plaunchPropList;
-  uint32_t *pnumEventsInWaitList;
-  const ur_event_handle_t **pphEventWaitList;
-  ur_event_handle_t **pphEvent;
-} ur_enqueue_kernel_launch_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urEnqueueEventsWait

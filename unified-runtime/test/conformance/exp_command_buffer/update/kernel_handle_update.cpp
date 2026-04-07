@@ -32,14 +32,31 @@ struct TestSaxpyKernel : public uur::command_buffer::TestKernel {
       std::memcpy(SharedPtr, pattern.data(), AllocationSize);
     }
 
-    // Index 0 is the output
-    ASSERT_SUCCESS(urKernelSetArgPointer(Kernel, 0, nullptr, Allocations[0]));
-    // Index 1 is A
-    ASSERT_SUCCESS(urKernelSetArgValue(Kernel, 1, sizeof(A), nullptr, &A));
-    // Index 2 is X
-    ASSERT_SUCCESS(urKernelSetArgPointer(Kernel, 2, nullptr, Allocations[1]));
-    // Index 3 is Y
-    ASSERT_SUCCESS(urKernelSetArgPointer(Kernel, 3, nullptr, Allocations[2]));
+    // Build kernel args for saxpy_usm
+    KernelArgs[0] = {UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+                     nullptr,
+                     UR_EXP_KERNEL_ARG_TYPE_POINTER,
+                     0,
+                     sizeof(void *),
+                     {Allocations[0]}};
+    KernelArgs[1] = {UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+                     nullptr,
+                     UR_EXP_KERNEL_ARG_TYPE_VALUE,
+                     1,
+                     sizeof(A),
+                     {&A}};
+    KernelArgs[2] = {UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+                     nullptr,
+                     UR_EXP_KERNEL_ARG_TYPE_POINTER,
+                     2,
+                     sizeof(void *),
+                     {Allocations[1]}};
+    KernelArgs[3] = {UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+                     nullptr,
+                     UR_EXP_KERNEL_ARG_TYPE_POINTER,
+                     3,
+                     sizeof(void *),
+                     {Allocations[2]}};
 
     UpdatePointerDesc[0] = {
         UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_POINTER_ARG_DESC, // stype
@@ -112,6 +129,7 @@ struct TestSaxpyKernel : public uur::command_buffer::TestKernel {
     }
   }
 
+  ur_exp_kernel_arg_properties_t KernelArgs[4] = {};
   std::array<ur_exp_command_buffer_update_pointer_arg_desc_t, 3>
       UpdatePointerDesc;
   ur_exp_command_buffer_update_value_arg_desc_t UpdateValDesc;
@@ -141,10 +159,19 @@ struct TestFill2DKernel : public uur::command_buffer::TestKernel {
     ASSERT_SUCCESS(urUSMSharedAlloc(Context, Device, nullptr, nullptr,
                                     allocation_size, &Memory));
 
-    // Index 0 is the output
-    ASSERT_SUCCESS(urKernelSetArgPointer(Kernel, 0, nullptr, Memory));
-    // Index 1 is the fill value
-    ASSERT_SUCCESS(urKernelSetArgValue(Kernel, 1, sizeof(Val), nullptr, &Val));
+    // Build kernel args for fill_usm_2d
+    KernelArgs[0] = {UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+                     nullptr,
+                     UR_EXP_KERNEL_ARG_TYPE_POINTER,
+                     0,
+                     sizeof(void *),
+                     {Memory}};
+    KernelArgs[1] = {UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+                     nullptr,
+                     UR_EXP_KERNEL_ARG_TYPE_VALUE,
+                     1,
+                     sizeof(Val),
+                     {&Val}};
 
     ASSERT_NE(Memory, nullptr);
 
@@ -200,6 +227,7 @@ struct TestFill2DKernel : public uur::command_buffer::TestKernel {
     }
   }
 
+  ur_exp_kernel_arg_properties_t KernelArgs[2] = {};
   ur_exp_command_buffer_update_pointer_arg_desc_t UpdatePointerDesc;
   ur_exp_command_buffer_update_value_arg_desc_t UpdateValDesc;
   ur_exp_command_buffer_update_kernel_launch_desc_t UpdateDesc;
@@ -265,12 +293,12 @@ TEST_P(urCommandBufferKernelHandleUpdateTest, Success) {
       FillUSM2DKernel->Kernel};
 
   ur_exp_command_buffer_command_handle_t CommandHandle;
-  ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchExp(
+  ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchWithArgsExp(
       updatable_cmd_buf_handle, SaxpyKernel->Kernel, SaxpyKernel->NDimensions,
       &(SaxpyKernel->GlobalOffset), &(SaxpyKernel->GlobalSize),
-      &(SaxpyKernel->LocalSize), KernelAlternatives.size(),
-      KernelAlternatives.data(), 0, nullptr, 0, nullptr, nullptr, nullptr,
-      &CommandHandle));
+      &(SaxpyKernel->LocalSize), 4, SaxpyKernel->KernelArgs,
+      KernelAlternatives.size(), KernelAlternatives.data(), 0, nullptr, 0,
+      nullptr, nullptr, nullptr, &CommandHandle));
   ASSERT_NE(CommandHandle, nullptr);
 
   ASSERT_SUCCESS(urCommandBufferFinalizeExp(updatable_cmd_buf_handle));
@@ -296,12 +324,12 @@ TEST_P(urCommandBufferKernelHandleUpdateTest, UpdateAgain) {
       FillUSM2DKernel->Kernel};
 
   ur_exp_command_buffer_command_handle_t CommandHandle;
-  ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchExp(
+  ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchWithArgsExp(
       updatable_cmd_buf_handle, SaxpyKernel->Kernel, SaxpyKernel->NDimensions,
       &(SaxpyKernel->GlobalOffset), &(SaxpyKernel->GlobalSize),
-      &(SaxpyKernel->LocalSize), KernelAlternatives.size(),
-      KernelAlternatives.data(), 0, nullptr, 0, nullptr, nullptr, nullptr,
-      &CommandHandle));
+      &(SaxpyKernel->LocalSize), 4, SaxpyKernel->KernelArgs,
+      KernelAlternatives.size(), KernelAlternatives.data(), 0, nullptr, 0,
+      nullptr, nullptr, nullptr, &CommandHandle));
   ASSERT_NE(CommandHandle, nullptr);
 
   ASSERT_SUCCESS(urCommandBufferFinalizeExp(updatable_cmd_buf_handle));
@@ -339,12 +367,12 @@ TEST_P(urCommandBufferKernelHandleUpdateTest, RestoreOriginalKernel) {
       FillUSM2DKernel->Kernel};
 
   ur_exp_command_buffer_command_handle_t CommandHandle;
-  ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchExp(
+  ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchWithArgsExp(
       updatable_cmd_buf_handle, SaxpyKernel->Kernel, SaxpyKernel->NDimensions,
       &(SaxpyKernel->GlobalOffset), &(SaxpyKernel->GlobalSize),
-      &(SaxpyKernel->LocalSize), KernelAlternatives.size(),
-      KernelAlternatives.data(), 0, nullptr, 0, nullptr, nullptr, nullptr,
-      &CommandHandle));
+      &(SaxpyKernel->LocalSize), 4, SaxpyKernel->KernelArgs,
+      KernelAlternatives.size(), KernelAlternatives.data(), 0, nullptr, 0,
+      nullptr, nullptr, nullptr, &CommandHandle));
   ASSERT_NE(CommandHandle, nullptr);
 
   ASSERT_SUCCESS(urCommandBufferFinalizeExp(updatable_cmd_buf_handle));
@@ -374,11 +402,11 @@ TEST_P(urCommandBufferKernelHandleUpdateTest, RestoreOriginalKernel) {
 
 TEST_P(urCommandBufferKernelHandleUpdateTest, KernelAlternativeNotRegistered) {
   ur_exp_command_buffer_command_handle_t CommandHandle;
-  ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchExp(
+  ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchWithArgsExp(
       updatable_cmd_buf_handle, SaxpyKernel->Kernel, SaxpyKernel->NDimensions,
       &(SaxpyKernel->GlobalOffset), &(SaxpyKernel->GlobalSize),
-      &(SaxpyKernel->LocalSize), 0, nullptr, 0, nullptr, 0, nullptr, nullptr,
-      nullptr, &CommandHandle));
+      &(SaxpyKernel->LocalSize), 4, SaxpyKernel->KernelArgs, 0, nullptr, 0,
+      nullptr, 0, nullptr, nullptr, nullptr, &CommandHandle));
   ASSERT_NE(CommandHandle, nullptr);
 
   ASSERT_SUCCESS(urCommandBufferFinalizeExp(updatable_cmd_buf_handle));
@@ -400,12 +428,13 @@ TEST_P(urCommandBufferKernelHandleUpdateTest,
 
   ur_exp_command_buffer_command_handle_t CommandHandle;
   ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_VALUE,
-                   urCommandBufferAppendKernelLaunchExp(
+                   urCommandBufferAppendKernelLaunchWithArgsExp(
                        updatable_cmd_buf_handle, SaxpyKernel->Kernel,
                        SaxpyKernel->NDimensions, &(SaxpyKernel->GlobalOffset),
-                       &(SaxpyKernel->GlobalSize), &(SaxpyKernel->LocalSize),
-                       KernelAlternatives.size(), KernelAlternatives.data(), 0,
-                       nullptr, 0, nullptr, nullptr, nullptr, &CommandHandle));
+                       &(SaxpyKernel->GlobalSize), &(SaxpyKernel->LocalSize), 4,
+                       SaxpyKernel->KernelArgs, KernelAlternatives.size(),
+                       KernelAlternatives.data(), 0, nullptr, 0, nullptr,
+                       nullptr, nullptr, &CommandHandle));
 }
 
 using urCommandBufferValidUpdateParametersTest =
@@ -418,11 +447,12 @@ TEST_P(urCommandBufferValidUpdateParametersTest,
        UpdateDimensionsWithoutUpdatingKernel) {
 
   ur_exp_command_buffer_command_handle_t CommandHandle;
-  ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchExp(
+  ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchWithArgsExp(
       updatable_cmd_buf_handle, FillUSM2DKernel->Kernel,
       FillUSM2DKernel->NDimensions, FillUSM2DKernel->GlobalOffset.data(),
-      FillUSM2DKernel->GlobalSize.data(), FillUSM2DKernel->LocalSize.data(), 0,
-      nullptr, 0, nullptr, 0, nullptr, nullptr, nullptr, &CommandHandle));
+      FillUSM2DKernel->GlobalSize.data(), FillUSM2DKernel->LocalSize.data(), 2,
+      FillUSM2DKernel->KernelArgs, 0, nullptr, 0, nullptr, 0, nullptr, nullptr,
+      nullptr, &CommandHandle));
   ASSERT_NE(CommandHandle, nullptr);
 
   ASSERT_SUCCESS(urCommandBufferFinalizeExp(updatable_cmd_buf_handle));
@@ -458,12 +488,12 @@ TEST_P(urCommandBufferValidUpdateParametersTest, UpdateOnlyLocalWorkSize) {
       FillUSM2DKernel->Kernel};
 
   ur_exp_command_buffer_command_handle_t CommandHandle;
-  ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchExp(
+  ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchWithArgsExp(
       updatable_cmd_buf_handle, SaxpyKernel->Kernel, SaxpyKernel->NDimensions,
       &(SaxpyKernel->GlobalOffset), &(SaxpyKernel->GlobalSize),
-      &(SaxpyKernel->LocalSize), KernelAlternatives.size(),
-      KernelAlternatives.data(), 0, nullptr, 0, nullptr, nullptr, nullptr,
-      &CommandHandle));
+      &(SaxpyKernel->LocalSize), 4, SaxpyKernel->KernelArgs,
+      KernelAlternatives.size(), KernelAlternatives.data(), 0, nullptr, 0,
+      nullptr, nullptr, nullptr, &CommandHandle));
   ASSERT_NE(CommandHandle, nullptr);
 
   ASSERT_SUCCESS(urCommandBufferFinalizeExp(updatable_cmd_buf_handle));
@@ -492,12 +522,12 @@ TEST_P(urCommandBufferValidUpdateParametersTest, SuccessNullptrHandle) {
       FillUSM2DKernel->Kernel};
 
   ur_exp_command_buffer_command_handle_t CommandHandle;
-  ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchExp(
+  ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchWithArgsExp(
       updatable_cmd_buf_handle, SaxpyKernel->Kernel, SaxpyKernel->NDimensions,
       &(SaxpyKernel->GlobalOffset), &(SaxpyKernel->GlobalSize),
-      &(SaxpyKernel->LocalSize), KernelAlternatives.size(),
-      KernelAlternatives.data(), 0, nullptr, 0, nullptr, nullptr, nullptr,
-      &CommandHandle));
+      &(SaxpyKernel->LocalSize), 4, SaxpyKernel->KernelArgs,
+      KernelAlternatives.size(), KernelAlternatives.data(), 0, nullptr, 0,
+      nullptr, nullptr, nullptr, &CommandHandle));
   ASSERT_NE(CommandHandle, nullptr);
 
   ASSERT_SUCCESS(urCommandBufferFinalizeExp(updatable_cmd_buf_handle));

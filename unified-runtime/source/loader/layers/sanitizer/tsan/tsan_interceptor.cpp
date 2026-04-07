@@ -117,7 +117,8 @@ TsanInterceptor::~TsanInterceptor() {
   // We must release these objects before releasing adapters, since
   // they may use the adapter in their destructor
   for (const auto &[_, DeviceInfo] : m_DeviceMap) {
-    DeviceInfo->Shadow->Destroy();
+    [[maybe_unused]] ur_result_t Result = DeviceInfo->Shadow->Destroy();
+    assert(Result == UR_RESULT_SUCCESS && "Failed to destroy shadow memory");
     DeviceInfo->Shadow = nullptr;
   }
 
@@ -378,23 +379,7 @@ ur_result_t TsanInterceptor::prepareLaunch(std::shared_ptr<ContextInfo> &,
                                            ur_queue_handle_t Queue,
                                            ur_kernel_handle_t Kernel,
                                            LaunchInfo &LaunchInfo) {
-  // Set membuffer arguments
   auto &KernelInfo = getKernelInfo(Kernel);
-  {
-    std::shared_lock<ur_shared_mutex> Guard(KernelInfo.Mutex);
-    for (const auto &[ArgIndex, MemBuffer] : KernelInfo.BufferArgs) {
-      char *ArgPointer = nullptr;
-      UR_CALL(MemBuffer->getHandle(DI->Handle, ArgPointer));
-      ur_result_t URes = getContext()->urDdiTable.Kernel.pfnSetArgPointer(
-          Kernel, ArgIndex, nullptr, ArgPointer);
-      if (URes != UR_RESULT_SUCCESS) {
-        UR_LOG_L(getContext()->logger, ERR,
-                 "Failed to set buffer {} as the {} arg to kernel {}: {}",
-                 ur_cast<ur_mem_handle_t>(MemBuffer.get()), ArgIndex, Kernel,
-                 URes);
-      }
-    }
-  }
 
   // Get suggested local work size if user doesn't determine it.
   if (LaunchInfo.LocalWorkSize.empty()) {

@@ -35,9 +35,12 @@ constexpr sycl::specialization_id<int> intSize(1);
 // CHECK-NEXT:    [[PTR1_ASCAST:%.*]] = addrspacecast ptr [[PTR1]] to ptr addrspace(4)
 // CHECK-NEXT:    [[PTR2_ASCAST:%.*]] = addrspacecast ptr [[PTR2]] to ptr addrspace(4)
 // CHECK-NEXT:    store ptr addrspace(4) [[KH]], ptr addrspace(4) [[KH_ADDR_ASCAST]], align 8
-// CHECK-NEXT:    store ptr [[TMP0]], ptr addrspace(4) [[PTR0_ASCAST]], align 8
-// CHECK-NEXT:    store ptr [[TMP2]], ptr addrspace(4) [[PTR1_ASCAST]], align 8
-// CHECK-NEXT:    store ptr [[TMP4]], ptr addrspace(4) [[PTR2_ASCAST]], align 8
+// CHECK-NEXT:    [[PTR0_ASCAST_ASCAST:%.*]] = addrspacecast ptr addrspace(4) [[PTR0_ASCAST]] to ptr
+// CHECK-NEXT:    store ptr [[TMP0]], ptr [[PTR0_ASCAST_ASCAST]], align 8
+// CHECK-NEXT:    [[PTR1_ASCAST_ASCAST:%.*]] = addrspacecast ptr addrspace(4) [[PTR1_ASCAST]] to ptr
+// CHECK-NEXT:    store ptr [[TMP2]], ptr [[PTR1_ASCAST_ASCAST]], align 8
+// CHECK-NEXT:    [[PTR2_ASCAST_ASCAST:%.*]] = addrspacecast ptr addrspace(4) [[PTR2_ASCAST]] to ptr
+// CHECK-NEXT:    store ptr [[TMP4]], ptr [[PTR2_ASCAST_ASCAST]], align 8
 // CHECK-NEXT:    ret void
 SYCL_EXTERNAL void test(sycl::kernel_handler &kh) {
   auto ptr0 = sycl::ext::oneapi::experimental::private_alloca<double, size, sycl::access::decorated::yes>(kh);
@@ -66,9 +69,12 @@ SYCL_EXTERNAL void test(sycl::kernel_handler &kh) {
 // CHECK-NEXT:    [[PTR1_ASCAST:%.*]] = addrspacecast ptr [[PTR1]] to ptr addrspace(4)
 // CHECK-NEXT:    [[PTR2_ASCAST:%.*]] = addrspacecast ptr [[PTR2]] to ptr addrspace(4)
 // CHECK-NEXT:    store ptr addrspace(4) [[KH]], ptr addrspace(4) [[KH_ADDR_ASCAST]], align 8
-// CHECK-NEXT:    store ptr [[TMP0]], ptr addrspace(4) [[PTR0_ASCAST]], align 8
-// CHECK-NEXT:    store ptr [[TMP2]], ptr addrspace(4) [[PTR1_ASCAST]], align 8
-// CHECK-NEXT:    store ptr [[TMP4]], ptr addrspace(4) [[PTR2_ASCAST]], align 8
+// CHECK-NEXT:    [[PTR0_ASCAST_ASCAST:%.*]] = addrspacecast ptr addrspace(4) [[PTR0_ASCAST]] to ptr
+// CHECK-NEXT:    store ptr [[TMP0]], ptr [[PTR0_ASCAST_ASCAST]], align 8
+// CHECK-NEXT:    [[PTR1_ASCAST_ASCAST:%.*]] = addrspacecast ptr addrspace(4) [[PTR1_ASCAST]] to ptr
+// CHECK-NEXT:    store ptr [[TMP2]], ptr [[PTR1_ASCAST_ASCAST]], align 8
+// CHECK-NEXT:    [[PTR2_ASCAST_ASCAST:%.*]] = addrspacecast ptr addrspace(4) [[PTR2_ASCAST]] to ptr
+// CHECK-NEXT:    store ptr [[TMP4]], ptr [[PTR2_ASCAST_ASCAST]], align 8
 // CHECK-NEXT:    ret void
 SYCL_EXTERNAL void test_aligned(sycl::kernel_handler &kh) {
   auto ptr0 = sycl::ext::oneapi::experimental::aligned_private_alloca<double, alignof(double) * 2, size, sycl::access::decorated::yes>(kh);
