@@ -6,7 +6,7 @@
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20384
 // also: GSD-12429
 
-// RUN: %{build} -o %t.exe -ld3d12 -ldxgi -ld3dcompiler
+// RUN: %{build} -o %t.exe %link-directx
 // RUN: %{run} %t.exe --type float --channels 4 32x33
 
 // clang-format off
