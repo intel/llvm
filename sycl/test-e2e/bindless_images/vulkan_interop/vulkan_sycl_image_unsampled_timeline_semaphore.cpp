@@ -95,14 +95,6 @@ template <> inline VkFormat getVulkanFormat<sycl::half>(int channels) {
   }
 }
 
-template <typename T> T generateValue(size_t x, int channel) {
-  float val = static_cast<float>(x) / 100.0f;
-  if constexpr (std::is_floating_point_v<T>)
-    return static_cast<T>(val + channel * 0.1f);
-  else
-    return static_cast<T>((x + channel));
-}
-
 template <typename T>
 int runTest(
     int channels, VkFormat fmtOverride = VK_FORMAT_UNDEFINED,
@@ -222,7 +214,7 @@ int runTest(
     T *pixelData = static_cast<T *>(data);
     for (size_t i = 0; i < totalPixels; ++i) {
       for (int c = 0; c < channels; ++c) {
-        auto testValue = generateValue<T>(i % imageWidth, c);
+        auto testValue = generateTestValue<T>(i, c, totalPixels);
         pixelData[i * channels + c] = testValue;
       }
     }
@@ -317,7 +309,7 @@ int runTest(
           };
           oldValue = fetchT(unsampledHandle);
         }
-        newValue = oldValue * (T)2;
+        newValue = oldValue / (T)2;
         if (isUnorm) {
           newValue = sycl::clamp(newValue, 0.0f, 1.0f);
           if (channels == 1)
@@ -409,17 +401,14 @@ int runTest(
     T *readbackPixelData = static_cast<T *>(data);
     bool passed = true;
     for (size_t i = 0; i < totalPixels; ++i) {
-      for (int c = 0; c < channels; ++c) {
-        T actual = readbackPixelData[i * channels + c];
-        T expected = generateValue<T>(i % imageWidth, c) * (T)2;
-        bool match = false;
-        match = (actual == expected);
-        if (!match) {
-          passed = false;
-          std::cout << "Mismatch at " << i << " ch:" << c
-                    << " Got: " << (double)actual
-                    << " Exp: " << (double)expected << std::endl;
-        }
+      size_t pixelIdx = i / channels;
+      int ch = i % channels;
+      T expected = generateTestValue<T>(pixelIdx, ch, totalPixels) / T(2);
+      if (!checkValue(readbackPixelData[i], expected)) {
+        passed = false;
+        std::cout << "Mismatch at " << i << " ch:" << ch
+                  << " Got: " << (double)readbackPixelData[i]
+                  << " Exp: " << (double)expected << std::endl;
       }
     }
     vkUnmapMemory(vkCtx.device, stagingBuf.memory);
