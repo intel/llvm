@@ -111,7 +111,7 @@ PreservedAnalyses SimplifyMaskedMemOpsPass::run(Function &F,
       }
 
       // Handle special constants.
-      if (CMask->isZeroValue()) {
+      if (CMask->isNullValue()) {
         // A null mask means no lane executes the memory operation.
         if (BuiltinDesc->isLoad()) {
           CI->replaceAllUsesWith(PoisonValue::get(BuiltinDesc->getDataType()));

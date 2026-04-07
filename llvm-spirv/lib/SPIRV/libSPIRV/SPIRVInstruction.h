@@ -4442,6 +4442,66 @@ public:
   std::optional<ExtensionID> getRequiredExtension() const override {
     return ExtensionID::SPV_INTEL_subgroup_matrix_multiply_accumulate;
   }
+
+protected:
+  void validate() const override {
+    SPIRVInstTemplateBase::validate();
+
+    // Check if FP4 or FP8 matrix operands are used
+    // Operands parameter is the last operand (index 4)
+    auto *NonConstThis =
+        const_cast<SPIRVSubgroupMatrixMultiplyAccumulateINTELInst *>(this);
+    if (NonConstThis->getOperands().size() > 4) {
+      const SPIRVConstant *OperandsConst =
+          static_cast<const SPIRVConstant *>(NonConstThis->getOperand(4));
+      uint64_t OperandsMask = OperandsConst->getZExtIntValue();
+
+      // FP4 operand bits
+      constexpr uint64_t FP4Mask =
+          spv::internal::
+              IMatrixMultiplyAccumulateOperandsMatrixAPackedFloat4E2M1INTELMask |
+          spv::internal::
+              IMatrixMultiplyAccumulateOperandsMatrixBPackedFloat4E2M1INTELMask;
+
+      // FP8 operand bits
+      constexpr uint64_t FP8Mask =
+          spv::internal::
+              IMatrixMultiplyAccumulateOperandsMatrixAPackedFloat8E4M3INTELMask |
+          spv::internal::
+              IMatrixMultiplyAccumulateOperandsMatrixBPackedFloat8E4M3INTELMask |
+          spv::internal::
+              IMatrixMultiplyAccumulateOperandsMatrixAPackedFloat8E5M2INTELMask |
+          spv::internal::
+              IMatrixMultiplyAccumulateOperandsMatrixBPackedFloat8E5M2INTELMask;
+
+      if ((OperandsMask & FP4Mask) != 0) {
+        getModule()->getErrorLog().checkError(
+            getModule()->isAllowedToUseExtension(
+                ExtensionID::
+                    SPV_INTEL_subgroup_matrix_multiply_accumulate_float4),
+            SPIRVEC_RequiresExtension,
+            "SPV_INTEL_subgroup_matrix_multiply_accumulate_float4\n"
+            "SubgroupMatrixMultiplyAccumulateINTEL with FP4 operand flags "
+            "requires this extension");
+        getModule()->addExtension(
+            ExtensionID::SPV_INTEL_subgroup_matrix_multiply_accumulate_float4);
+      }
+
+      if ((OperandsMask & FP8Mask) != 0) {
+        getModule()->getErrorLog().checkError(
+            getModule()->isAllowedToUseExtension(
+                ExtensionID::
+                    SPV_INTEL_subgroup_matrix_multiply_accumulate_float8),
+            SPIRVEC_RequiresExtension,
+            "SPV_INTEL_subgroup_matrix_multiply_accumulate_float8\n"
+            "SubgroupMatrixMultiplyAccumulateINTEL with FP8 operand flags "
+            "requires this extension");
+        getModule()->addExtension(
+            ExtensionID::SPV_INTEL_subgroup_matrix_multiply_accumulate_float8);
+      }
+    }
+  }
+
   SPIRVCapVec getRequiredCapability() const override {
     return getVec(CapabilitySubgroupMatrixMultiplyAccumulateINTEL);
   }

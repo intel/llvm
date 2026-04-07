@@ -87,16 +87,6 @@ urKernelCreate(ur_program_handle_t hProgram, const char *pKernelName,
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgValue(
-    ur_kernel_handle_t hKernel, uint32_t argIndex, size_t argSize,
-    const ur_kernel_arg_value_properties_t *, const void *pArgValue) {
-
-  CL_RETURN_ON_FAILURE(clSetKernelArg(
-      hKernel->CLKernel, static_cast<cl_uint>(argIndex), argSize, pArgValue));
-
-  return UR_RESULT_SUCCESS;
-}
-
 UR_APIEXPORT ur_result_t UR_APICALL
 urKernelSetArgLocal(ur_kernel_handle_t hKernel, uint32_t argIndex,
                     size_t argSize, const ur_kernel_arg_local_properties_t *) {
@@ -433,20 +423,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetExecInfo(
   }
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgPointer(
-    ur_kernel_handle_t hKernel, uint32_t argIndex,
-    const ur_kernel_arg_pointer_properties_t *, const void *pArgValue) {
-
-  if (hKernel->clSetKernelArgMemPointerINTEL == nullptr) {
-    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-  }
-
-  CL_RETURN_ON_FAILURE(hKernel->clSetKernelArgMemPointerINTEL(
-      hKernel->CLKernel, static_cast<cl_uint>(argIndex), pArgValue));
-
-  return UR_RESULT_SUCCESS;
-}
-
 UR_APIEXPORT ur_result_t UR_APICALL urKernelGetNativeHandle(
     ur_kernel_handle_t hKernel, ur_native_handle_t *phNativeKernel) {
 
@@ -476,29 +452,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
 
   (*phKernel)->IsNativeHandleOwned =
       pProperties ? pProperties->isNativeHandleOwned : false;
-  return UR_RESULT_SUCCESS;
-}
-
-UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgMemObj(
-    ur_kernel_handle_t hKernel, uint32_t argIndex,
-    const ur_kernel_arg_mem_obj_properties_t *, ur_mem_handle_t hArgValue) {
-
-  cl_mem CLArgValue = hArgValue ? hArgValue->CLMemory : nullptr;
-  CL_RETURN_ON_FAILURE(clSetKernelArg(hKernel->CLKernel,
-                                      static_cast<cl_uint>(argIndex),
-                                      sizeof(CLArgValue), &CLArgValue));
-  return UR_RESULT_SUCCESS;
-}
-
-UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgSampler(
-    ur_kernel_handle_t hKernel, uint32_t argIndex,
-    const ur_kernel_arg_sampler_properties_t *, ur_sampler_handle_t hArgValue) {
-
-  cl_sampler CLArgSampler = hArgValue->CLSampler;
-  cl_int RetErr =
-      clSetKernelArg(hKernel->CLKernel, static_cast<cl_uint>(argIndex),
-                     sizeof(CLArgSampler), &CLArgSampler);
-  CL_RETURN_ON_FAILURE(RetErr);
   return UR_RESULT_SUCCESS;
 }
 
@@ -532,9 +485,51 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
 UR_APIEXPORT ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSizeWithArgs(
     ur_kernel_handle_t hKernel, ur_queue_handle_t hQueue, uint32_t workDim,
     const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
-    [[maybe_unused]] uint32_t numArgs,
-    [[maybe_unused]] const ur_exp_kernel_arg_properties_t *pArgs,
+    uint32_t numArgs, const ur_exp_kernel_arg_properties_t *pArgs,
     size_t *pSuggestedLocalWorkSize) {
+  clSetKernelArgMemPointerINTEL_fn SetKernelArgMemPointerPtr = nullptr;
+  UR_RETURN_ON_FAILURE(
+      cl_ext::getExtFuncFromContext<clSetKernelArgMemPointerINTEL_fn>(
+          hQueue->Context->CLContext,
+          ur::cl::getAdapter()->fnCache.clSetKernelArgMemPointerINTELCache,
+          cl_ext::SetKernelArgMemPointerName, &SetKernelArgMemPointerPtr));
+
+  for (uint32_t i = 0; i < numArgs; i++) {
+    switch (pArgs[i].type) {
+    case UR_EXP_KERNEL_ARG_TYPE_LOCAL:
+      CL_RETURN_ON_FAILURE(clSetKernelArg(hKernel->CLKernel,
+                                          static_cast<cl_uint>(pArgs[i].index),
+                                          pArgs[i].size, nullptr));
+      break;
+    case UR_EXP_KERNEL_ARG_TYPE_VALUE:
+      CL_RETURN_ON_FAILURE(clSetKernelArg(hKernel->CLKernel,
+                                          static_cast<cl_uint>(pArgs[i].index),
+                                          pArgs[i].size, pArgs[i].value.value));
+      break;
+    case UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ: {
+      cl_mem mem = pArgs[i].value.memObjTuple.hMem
+                       ? pArgs[i].value.memObjTuple.hMem->CLMemory
+                       : nullptr;
+      CL_RETURN_ON_FAILURE(clSetKernelArg(hKernel->CLKernel,
+                                          static_cast<cl_uint>(pArgs[i].index),
+                                          pArgs[i].size, &mem));
+      break;
+    }
+    case UR_EXP_KERNEL_ARG_TYPE_POINTER:
+      CL_RETURN_ON_FAILURE(SetKernelArgMemPointerPtr(
+          hKernel->CLKernel, static_cast<cl_uint>(pArgs[i].index),
+          pArgs[i].value.pointer));
+      break;
+    case UR_EXP_KERNEL_ARG_TYPE_SAMPLER: {
+      CL_RETURN_ON_FAILURE(clSetKernelArg(
+          hKernel->CLKernel, static_cast<cl_uint>(pArgs[i].index),
+          pArgs[i].size, &pArgs[i].value.sampler->CLSampler));
+      break;
+    }
+    default:
+      return UR_RESULT_ERROR_INVALID_ENUMERATION;
+    }
+  }
   return urKernelGetSuggestedLocalWorkSize(hKernel, hQueue, workDim,
                                            pGlobalWorkOffset, pGlobalWorkSize,
                                            pSuggestedLocalWorkSize);

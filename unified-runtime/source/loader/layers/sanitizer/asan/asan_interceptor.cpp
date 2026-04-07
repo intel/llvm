@@ -256,18 +256,6 @@ ur_result_t AsanInterceptor::preLaunchKernel(ur_kernel_handle_t Kernel,
 
   ur_queue_handle_t InternalQueue = ContextInfo->getInternalQueue(Device);
 
-  // To get right shadow boundary, shadow memory should be updated before
-  // prepareLaunch
-  {
-    // Force to allocate membuffer before prepareLaunch
-    auto &KernelInfo = getOrCreateKernelInfo(Kernel);
-    std::shared_lock<ur_shared_mutex> Guard(KernelInfo.Mutex);
-    for (const auto &[ArgIndex, MemBuffer] : KernelInfo.BufferArgs) {
-      char *ArgPointer = nullptr;
-      UR_CALL(MemBuffer->getHandle(DeviceInfo->Handle, ArgPointer));
-      (void)ArgPointer;
-    }
-  }
   UR_CALL(updateShadowMemory(DeviceInfo, InternalQueue));
 
   UR_CALL(prepareLaunch(ContextInfo, DeviceInfo, InternalQueue, Kernel,
@@ -757,20 +745,6 @@ ur_result_t AsanInterceptor::prepareLaunch(
     }
   }
 
-  // Set membuffer arguments
-  for (const auto &[ArgIndex, MemBuffer] : KernelInfo.BufferArgs) {
-    char *ArgPointer = nullptr;
-    UR_CALL(MemBuffer->getHandle(DeviceInfo->Handle, ArgPointer));
-    ur_result_t URes = getContext()->urDdiTable.Kernel.pfnSetArgPointer(
-        Kernel, ArgIndex, nullptr, ArgPointer);
-    if (URes != UR_RESULT_SUCCESS) {
-      UR_LOG_L(getContext()->logger, ERR,
-               "Failed to set buffer {} as the {} arg to kernel {}: {}",
-               ur_cast<ur_mem_handle_t>(MemBuffer.get()), ArgIndex, Kernel,
-               URes);
-    }
-  }
-
   if (!KernelInfo.IsInstrumented) {
     return UR_RESULT_SUCCESS;
   }
@@ -782,8 +756,6 @@ ur_result_t AsanInterceptor::prepareLaunch(
     assert(ArgNums >= 1 &&
            "Sanitized Kernel should have at least one argument");
 
-    ur_result_t URes = getContext()->urDdiTable.Kernel.pfnSetArgPointer(
-        Kernel, ArgNums - 1, nullptr, LaunchInfo.Data.getDevicePtr());
     KernelInfo.ArgProps.push_back(ur_exp_kernel_arg_properties_t{
         UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
         nullptr,
@@ -791,11 +763,6 @@ ur_result_t AsanInterceptor::prepareLaunch(
         ArgNums - 1,
         sizeof(void *),
         {LaunchInfo.Data.getDevicePtr()}});
-    if (URes != UR_RESULT_SUCCESS) {
-      UR_LOG_L(getContext()->logger, ERR, "Failed to set launch info: {}",
-               URes);
-      return URes;
-    }
   }
 
   if (LaunchInfo.LocalWorkSize.empty()) {

@@ -66,6 +66,8 @@ void LLVMToSPIRVDbgTran::transDebugMetadata() {
       transDbgEntry(IE);
   }
 
+  transDbgMacros();
+
   for (const DIType *T : DIF.types())
     transDbgEntry(T);
 
@@ -1680,4 +1682,91 @@ SPIRVEntry *LLVMToSPIRVDbgTran::transDbgModule(const DIModule *Module) {
   BM->addExtension(ExtensionID::SPV_INTEL_debug_module);
   BM->addCapability(spv::CapabilityDebugInfoModuleINTEL);
   return BM->addDebugInfo(SPIRVDebug::ModuleINTEL, getVoidTy(), Ops);
+}
+
+void LLVMToSPIRVDbgTran::transDbgMacros() {
+  auto ProcessMacros = [&](unsigned MacroType, auto &&Handler) {
+    for (const auto &[Macro, MacroFile] : DIF.macros()) {
+      if (Macro->getMacinfoType() != MacroType)
+        continue;
+
+      SPIRVString *FileName = BM->getString("");
+      if (MacroFile && MacroFile->getFile())
+        FileName = BM->getString(getFullPath(MacroFile->getFile()));
+
+      Handler(Macro, FileName);
+    }
+  };
+
+  // Process DW_MACINFO_define macros and populate MacroDefMap
+  ProcessMacros(dwarf::DW_MACINFO_define,
+                [&](const DIMacro *Macro, SPIRVString *FileName) {
+                  transDbgMacroDefine(Macro, FileName);
+                });
+
+  // Process DW_MACINFO_undef macros (after DW_MACINFO_define populates
+  // MacroDefMap). DebugMacroUndef in SPIR-V requires a reference to the
+  // DebugMacroDef (not just the macro name as in LLVM IR)
+  ProcessMacros(dwarf::DW_MACINFO_undef,
+                [&](const DIMacro *Macro, SPIRVString *FileName) {
+                  transDbgMacroUndef(Macro, FileName);
+                });
+}
+
+SPIRVEntry *LLVMToSPIRVDbgTran::transDbgMacroDefine(const DIMacro *Macro,
+                                                    SPIRVString *FileName) {
+  SPIRVWordVec Ops;
+  using namespace SPIRVDebug::Operand::MacroDef;
+  Ops.resize(MinOperandCount);
+  Ops[SourceIdx] = FileName->getId();
+  Ops[LineIdx] = Macro->getLine();
+
+  if (isNonSemanticDebugInfo()) {
+    transformToConstant(Ops, {LineIdx});
+  }
+
+  Ops[NameIdx] = BM->getString(Macro->getName().str())->getId();
+
+  // ValueIdx is optional, add it if the value operand exists.
+  // Once the MacroDef is parsed, it is not possible to distinguish between a
+  // macro with an empty value and a macro without a value. The implementation
+  // encodes the empty value case as one without macro value.
+  if (!Macro->getValue().empty()) {
+    StringRef Value = Macro->getValue();
+    Ops.push_back(BM->getString(Value.str())->getId());
+  }
+
+  SPIRVEntry *MacroEntry =
+      BM->addDebugInfo(SPIRVDebug::MacroDef, getVoidTy(), Ops);
+  MDMap[Macro] = MacroEntry;
+  MacroDefMap[Macro->getName().str()] = static_cast<SPIRVExtInst *>(MacroEntry);
+  return MacroEntry;
+}
+
+SPIRVEntry *LLVMToSPIRVDbgTran::transDbgMacroUndef(const DIMacro *Macro,
+                                                   SPIRVString *FileName) {
+  SPIRVWordVec Ops;
+  using namespace SPIRVDebug::Operand::MacroUndef;
+  Ops.resize(OperandCount);
+  Ops[SourceIdx] = FileName->getId();
+  Ops[LineIdx] = Macro->getLine();
+
+  if (isNonSemanticDebugInfo()) {
+    transformToConstant(Ops, {LineIdx});
+  }
+
+  SPIRVId MacroDefId = getDebugInfoNoneId();
+
+  // transDbgMacroDefine is processed first so MacroDefMap is already populated
+  // at this point.
+  auto It = MacroDefMap.find(Macro->getName().str());
+  if (It != MacroDefMap.end()) {
+    MacroDefId = It->second->getId();
+  }
+
+  Ops[MacroIdx] = MacroDefId;
+  SPIRVEntry *MacroEntry =
+      BM->addDebugInfo(SPIRVDebug::MacroUndef, getVoidTy(), Ops);
+  MDMap[Macro] = MacroEntry;
+  return MacroEntry;
 }

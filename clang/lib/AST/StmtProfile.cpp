@@ -1415,6 +1415,11 @@ void StmtProfiler::VisitSYCLUniqueStableIdExpr(
   VisitExpr(S);
 }
 
+void StmtProfiler::VisitUnresolvedSYCLKernelCallStmt(
+    const UnresolvedSYCLKernelCallStmt *S) {
+  VisitStmt(S);
+}
+
 void StmtProfiler::VisitPredefinedExpr(const PredefinedExpr *S) {
   VisitExpr(S);
   ID.AddInteger(llvm::to_underlying(S->getIdentKind()));
