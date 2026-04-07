@@ -1729,10 +1729,6 @@ static void appendClangSYCLLinkerArgs(const ArgList &Args,
   XLinker("--triple=" + Triple.getTriple());
   if (!Arch.empty())
     XLinker("--arch=" + Arch);
-  for (const opt::Arg *A : Args.filtered(OPT_bitcode_library_EQ))
-    XLinker("--bitcode-library=" + StringRef(A->getValue()));
-  if (const opt::Arg *A = Args.getLastArg(OPT_sycl_device_lib_EQ))
-    XLinker("--device-libs=" + llvm::join(A->getValues(), ","));
 
   static const std::pair<OptSpecifier, StringRef> SimpleFlags[] = {
       {OPT_save_temps,                               "--save-temps"},
@@ -1756,6 +1752,8 @@ static void appendClangSYCLLinkerArgs(const ArgList &Args,
       {OPT_llvm_spirv_options_EQ,     "--llvm-spirv-options="},
       {OPT_sycl_post_link_options_EQ, "--sycl-post-link-options="},
       {OPT_syclbin_EQ,                "--syclbin="},
+      {OPT_bitcode_library_EQ,        "--bitcode-library="},
+      {OPT_sycl_device_lib_EQ,        "--device-libs="},
   };
   for (auto [Opt, Flag] : ValueFlags)
     if (const opt::Arg *A = Args.getLastArg(Opt))
