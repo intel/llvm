@@ -194,11 +194,11 @@ void SYCLMemObjT::prepareForAllocation(context_impl *Context) {
   case backend::ext_oneapi_level_zero:
   case backend::ext_oneapi_cuda:
   case backend::ext_oneapi_hip:
-  case backend::ext_oneapi_offload:
     SkipShadowCopy = true;
     break;
-  case backend::ext_oneapi_native_cpu:
   case backend::opencl:
+  case backend::ext_oneapi_native_cpu:
+  case backend::ext_oneapi_offload:
     SkipShadowCopy = false;
     break;
   case backend::all:
