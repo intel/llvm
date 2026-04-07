@@ -104,10 +104,10 @@ TEST(FP8E8M0Test, CArrayConstructorFloatRoundingModes) {
 }
 
 TEST(FP8E8M0Test, RoundClipZeroFractionNegativeAndTieCases) {
-  EXPECT_EQ(RoundClip(0.25f, 0, rounding::upward, 0u), 1u);
-  EXPECT_EQ(RoundClip(0.25f, 0, rounding::upward, 1u), 0u);
-  EXPECT_EQ(RoundClip(0.5f, 0, rounding::to_even, 0u), 0u);
-  EXPECT_EQ(RoundClip(0.75f, 0, rounding::to_even, 0u), 1u);
+  EXPECT_EQ(detail::RoundClip(0.25f, 0, rounding::upward, 0u), 1u);
+  EXPECT_EQ(detail::RoundClip(0.25f, 0, rounding::upward, 1u), 0u);
+  EXPECT_EQ(detail::RoundClip(0.5f, 0, rounding::to_even, 0u), 0u);
+  EXPECT_EQ(detail::RoundClip(0.75f, 0, rounding::to_even, 0u), 1u);
 }
 
 TEST(FP8E8M0Test, CArrayConstructorHalfHostUpwardFinite) {
@@ -310,4 +310,10 @@ TEST(FP8E8M0Test, MarrayConversionOperators) {
 
   EXPECT_EQ(fo[0], 1.0f);
   EXPECT_EQ(fo[1], 4.0f);
+}
+
+TEST(FP8E8M0Test, VariadicRejectsMixedTypes) {
+  EXPECT_FALSE((std::is_constructible_v<fp8_e8m0_x2, float, sycl::half>));
+  EXPECT_FALSE((std::is_constructible_v<fp8_e8m0_x2,
+                                        sycl::ext::oneapi::bfloat16, double>));
 }

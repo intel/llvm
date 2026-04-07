@@ -405,3 +405,8 @@ TEST(FP8E4M3Test, MarrayDoubleToEven) {
   EXPECT_EQ(a.vals[0], 0x06);
   EXPECT_EQ(a.vals[1], 0x38);
 }
+
+TEST(FP8E4M3Test, VariadicRejectsMixedTypes) {
+  EXPECT_FALSE((std::is_constructible_v<fp8_e4m3_x2, float, sycl::half>));
+  EXPECT_FALSE((std::is_constructible_v<fp8_e4m3_x2, sycl::half, float>));
+}

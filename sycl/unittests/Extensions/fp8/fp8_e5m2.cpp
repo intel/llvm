@@ -446,3 +446,9 @@ TEST(FP8E5M2Test, BoolOperatorWithNaN) {
   EXPECT_TRUE(static_cast<bool>(nanv)); // not +0 or -0
   EXPECT_EQ(nanv.vals[0], 0x7F);        // NaN encoding remains S.11111.11
 }
+
+TEST(FP8E5M2Test, VariadicRejectsMixedTypes) {
+  EXPECT_FALSE((std::is_constructible_v<fp8_e5m2, float, sycl::half>));
+  EXPECT_FALSE(
+      (std::is_constructible_v<fp8_e5m2, sycl::ext::oneapi::bfloat16, double>));
+}

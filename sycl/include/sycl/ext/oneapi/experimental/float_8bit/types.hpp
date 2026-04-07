@@ -78,6 +78,7 @@ struct stochastic_seed {
   uint32_t *const pseed;
 };
 
+namespace detail {
 static inline uint8_t RneClip(float x, uint8_t max) noexcept {
   float f = std::floor(x);
   float frac = x - f;
@@ -441,6 +442,99 @@ uint8_t round(rounding r, uint8_t b, sycl::half yi, T vi) {
   return b;
 }
 
+static inline uint8_t ConvertToE8M0_CPU(float x, rounding R,
+                                        saturation S) noexcept {
+  // E8M0: unsigned 8-bit exponent code, bias 127.
+  // Code 0xFF reserved for NaN. No Inf, no subnormals, no signed zero.
+  constexpr int Bias = 127;
+  constexpr int Emin = -127;
+  constexpr int Emax = 127;
+  constexpr uint8_t NaNCode = 0xFF;
+  constexpr uint8_t MaxFiniteCode = 0xFE;
+
+  if (std::isnan(x))
+    return NaNCode;
+
+  // No sign bit: negative inputs are treated as their magnitude.
+  float ax = std::fabs(x);
+
+  // Infinity handling: depends on saturation.
+  if (std::isinf(ax))
+    return (S == saturation::finite) ? MaxFiniteCode : NaNCode;
+
+  // Zero and underflow: map to min normal (code 0).
+  // Min normal = 2^-127.
+  const float min_normal = std::ldexp(1.0f, Emin);
+  if (ax == 0.0f || ax < min_normal)
+    return 0x00;
+
+  // Overflow and "too large": clamp or NaN depending on saturation.
+  const float max_normal = std::ldexp(1.0f, Emax); // 2^127
+  if (ax >= max_normal)
+    return (S == saturation::finite) ? MaxFiniteCode : NaNCode;
+
+  // Determine E such that 2^E <= ax < 2^(E+1).
+  int e2 = 0;
+  float m = std::frexp(ax, &e2); // ax = m * 2^e2, m in [0.5, 1)
+  int E = e2 - 1;
+
+  // With no mantissa, representables are exact powers of two.
+  // Choose between 2^E and 2^(E+1) based on rounding mode.
+  const bool is_exact_power_of_two = (m == 0.5f);
+
+  switch (R) {
+  case rounding::upward:
+    // toward +inf; with no sign, this is "ceil in magnitude".
+    if (!is_exact_power_of_two && E < Emax)
+      ++E;
+    break;
+  case rounding::toward_zero:
+    // toward -inf / toward 0: both pick the lower power for non-exact.
+    break;
+  case rounding::to_even:
+  default: {
+    if (!is_exact_power_of_two) {
+      // Nearest of {2^E, 2^(E+1)} w/ ties-to-even (even exponent on tie).
+      float lo = std::ldexp(1.0f, E);
+      float hi = std::ldexp(1.0f, E + 1);
+      float dlo = ax - lo;
+      float dhi = hi - ax;
+      if (dhi < dlo) {
+        if (E < Emax)
+          ++E;
+      } else if (dhi == dlo) {
+        // tie -> even exponent
+        if ((E & 1) != 0 && E < Emax)
+          ++E;
+      }
+    }
+    break;
+  }
+  }
+
+  if (E < Emin)
+    E = Emin;
+  if (E > Emax)
+    E = Emax;
+
+  uint8_t code = static_cast<uint8_t>(E + Bias); // 0..254
+  return code;
+}
+
+template <typename ToT>
+static inline ToT ConvertFromE8M0_CPU(uint8_t code) noexcept {
+  constexpr int Bias = 127;
+  if (code == 0xFF) {
+    float qn = std::numeric_limits<float>::quiet_NaN();
+    return static_cast<ToT>(qn);
+  }
+  int E = static_cast<int>(code) - Bias; // includes code==0 -> -127
+  float v = std::ldexp(1.0f, E);
+  return ConvertFloatToTarget<ToT>(v, rounding::to_even);
+}
+
+} // namespace detail
+
 template <size_t N> class fp8_e4m3_x {
   static constexpr size_t NExpBits = 4;
   static constexpr size_t NFracBits = 3;
@@ -463,10 +557,10 @@ template <size_t N> class fp8_e4m3_x {
       return b;
 
     const sycl::half yi = __builtin_spirv_ConvertE4M3ToFP16EXT(b);
-    return round(r, b, yi, hi);
+    return detail::round(r, b, yi, hi);
 
 #else
-    return ConvertToFP8_CPU<4, 3, sycl::half>(hi, r);
+    return detail::ConvertToFP8_CPU<4, 3, sycl::half>(hi, r);
 #endif
   }
 
@@ -480,9 +574,9 @@ template <size_t N> class fp8_e4m3_x {
     if (r == rounding::to_even)
       return b;
     const half yi = __builtin_spirv_ConvertE4M3ToFP16EXT(b);
-    return round(r, b, yi, h);
+    return detail::round(r, b, yi, h);
 #else
-    return ConvertToFP8_CPU<4, 3, bfloat16>(h, r);
+    return detail::ConvertToFP8_CPU<4, 3, bfloat16>(h, r);
 #endif
   }
 
@@ -491,7 +585,7 @@ template <size_t N> class fp8_e4m3_x {
     sycl::half hi = __builtin_spirv_ConvertE4M3ToFP16EXT(v);
     return static_cast<T>(hi);
 #else
-    return ConvertFromFP8_CPU<4, 3, T>(v);
+    return detail::ConvertFromFP8_CPU<4, 3, T>(v);
 #endif
   }
 
@@ -499,7 +593,7 @@ template <size_t N> class fp8_e4m3_x {
 #ifdef __SYCL_DEVICE_ONLY__
     return __builtin_spirv_ConvertE4M3ToBF16EXT(v);
 #else
-    return ConvertFromFP8_CPU<4, 3, bfloat16>(v);
+    return detail::ConvertFromFP8_CPU<4, 3, bfloat16>(v);
 #endif
   }
 
@@ -524,11 +618,10 @@ public:
   template <typename... Types,
             typename = std::enable_if_t<
                 (sizeof...(Types) == N) &&
-                (((std::is_same_v<std::decay_t<Types>, half> ||
-                   std::is_same_v<std::decay_t<Types>, bfloat16> ||
-                   std::is_same_v<std::decay_t<Types>, float> ||
-                   std::is_same_v<std::decay_t<Types>, double>) &&
-                  ...))>>
+                (((std::is_same_v<std::decay_t<Types>, half>) && ...) ||
+                 ((std::is_same_v<std::decay_t<Types>, bfloat16>) && ...) ||
+                 ((std::is_same_v<std::decay_t<Types>, float>) && ...) ||
+                 ((std::is_same_v<std::decay_t<Types>, double>) && ...))>>
   explicit fp8_e4m3_x(Types... v) {
     static_assert(N == 1 || N == 2,
                   "fp8_e4m3_x: Template argument N must be 1 or 2");
@@ -895,10 +988,10 @@ template <size_t N> class fp8_e5m2_x {
     if (r == rounding::to_even)
       return b;
     const sycl::half yi = __builtin_spirv_ConvertE5M2ToFP16EXT(b);
-    return round(r, b, yi, h);
+    return detail::round(r, b, yi, h);
 
 #else
-    return ConvertToFP8_CPU<5, 2, sycl::half>(h, r);
+    return detail::ConvertToFP8_CPU<5, 2, sycl::half>(h, r);
 #endif
   }
 
@@ -912,9 +1005,9 @@ template <size_t N> class fp8_e5m2_x {
     if (r == rounding::to_even)
       return b;
     const bfloat16 yi = __builtin_spirv_ConvertE5M2ToBF16EXT(b);
-    return round(r, b, yi, h);
+    return detail::round(r, b, yi, h);
 #else
-    return ConvertToFP8_CPU<5, 2, bfloat16>(h, r);
+    return detail::ConvertToFP8_CPU<5, 2, bfloat16>(h, r);
 #endif
   }
 
@@ -923,7 +1016,7 @@ template <size_t N> class fp8_e5m2_x {
     sycl::half hi = __builtin_spirv_ConvertE5M2ToFP16EXT(v);
     return static_cast<T>(hi);
 #else
-    return ConvertFromFP8_CPU<5, 2, T>(v);
+    return detail::ConvertFromFP8_CPU<5, 2, T>(v);
 #endif
   }
 
@@ -931,7 +1024,7 @@ template <size_t N> class fp8_e5m2_x {
 #ifdef __SYCL_DEVICE_ONLY__
     return __builtin_spirv_ConvertE5M2ToBF16EXT(v);
 #else
-    return ConvertFromFP8_CPU<5, 2, bfloat16>(v);
+    return detail::ConvertFromFP8_CPU<5, 2, bfloat16>(v);
 #endif
   }
 
@@ -957,11 +1050,10 @@ public:
   template <typename... Types,
             typename = std::enable_if_t<
                 (sizeof...(Types) == N) &&
-                (((std::is_same_v<std::decay_t<Types>, half> ||
-                   std::is_same_v<std::decay_t<Types>, bfloat16> ||
-                   std::is_same_v<std::decay_t<Types>, float> ||
-                   std::is_same_v<std::decay_t<Types>, double>) &&
-                  ...))>>
+                (((std::is_same_v<std::decay_t<Types>, half>) && ...) ||
+                 ((std::is_same_v<std::decay_t<Types>, bfloat16>) && ...) ||
+                 ((std::is_same_v<std::decay_t<Types>, float>) && ...) ||
+                 ((std::is_same_v<std::decay_t<Types>, double>) && ...))>>
   explicit fp8_e5m2_x(Types... v) {
     static_assert(N == 1 || N == 2,
                   "fp8_e5m2_x: Template argument N must be 1 or 2");
@@ -1440,97 +1532,6 @@ public:
   uint8_t vals[N];
 };
 
-static inline uint8_t ConvertToE8M0_CPU(float x, rounding R,
-                                        saturation S) noexcept {
-  // E8M0: unsigned 8-bit exponent code, bias 127.
-  // Code 0xFF reserved for NaN. No Inf, no subnormals, no signed zero.
-  constexpr int Bias = 127;
-  constexpr int Emin = -127;
-  constexpr int Emax = 127;
-  constexpr uint8_t NaNCode = 0xFF;
-  constexpr uint8_t MaxFiniteCode = 0xFE;
-
-  if (std::isnan(x))
-    return NaNCode;
-
-  // No sign bit: negative inputs are treated as their magnitude.
-  float ax = std::fabs(x);
-
-  // Infinity handling: depends on saturation.
-  if (std::isinf(ax))
-    return (S == saturation::finite) ? MaxFiniteCode : NaNCode;
-
-  // Zero and underflow: map to min normal (code 0).
-  // Min normal = 2^-127.
-  const float min_normal = std::ldexp(1.0f, Emin);
-  if (ax == 0.0f || ax < min_normal)
-    return 0x00;
-
-  // Overflow and "too large": clamp or NaN depending on saturation.
-  const float max_normal = std::ldexp(1.0f, Emax); // 2^127
-  if (ax >= max_normal)
-    return (S == saturation::finite) ? MaxFiniteCode : NaNCode;
-
-  // Determine E such that 2^E <= ax < 2^(E+1).
-  int e2 = 0;
-  float m = std::frexp(ax, &e2); // ax = m * 2^e2, m in [0.5, 1)
-  int E = e2 - 1;
-
-  // With no mantissa, representables are exact powers of two.
-  // Choose between 2^E and 2^(E+1) based on rounding mode.
-  const bool is_exact_power_of_two = (m == 0.5f);
-
-  switch (R) {
-  case rounding::upward:
-    // toward +inf; with no sign, this is "ceil in magnitude".
-    if (!is_exact_power_of_two && E < Emax)
-      ++E;
-    break;
-  case rounding::toward_zero:
-    // toward -inf / toward 0: both pick the lower power for non-exact.
-    break;
-  case rounding::to_even:
-  default: {
-    if (!is_exact_power_of_two) {
-      // Nearest of {2^E, 2^(E+1)} w/ ties-to-even (even exponent on tie).
-      float lo = std::ldexp(1.0f, E);
-      float hi = std::ldexp(1.0f, E + 1);
-      float dlo = ax - lo;
-      float dhi = hi - ax;
-      if (dhi < dlo) {
-        if (E < Emax)
-          ++E;
-      } else if (dhi == dlo) {
-        // tie -> even exponent
-        if ((E & 1) != 0 && E < Emax)
-          ++E;
-      }
-    }
-    break;
-  }
-  }
-
-  if (E < Emin)
-    E = Emin;
-  if (E > Emax)
-    E = Emax;
-
-  uint8_t code = static_cast<uint8_t>(E + Bias); // 0..254
-  return code;
-}
-
-template <typename ToT>
-static inline ToT ConvertFromE8M0_CPU(uint8_t code) noexcept {
-  constexpr int Bias = 127;
-  if (code == 0xFF) {
-    float qn = std::numeric_limits<float>::quiet_NaN();
-    return static_cast<ToT>(qn);
-  }
-  int E = static_cast<int>(code) - Bias; // includes code==0 -> -127
-  float v = std::ldexp(1.0f, E);
-  return ConvertFloatToTarget<ToT>(v, rounding::to_even);
-}
-
 template <size_t N> class fp8_e8m0_x {
   void CheckConstraints(rounding r) const {
     static_assert(N == 1 || N == 2,
@@ -1549,11 +1550,10 @@ public:
   template <typename... Types,
             typename = std::enable_if_t<
                 (sizeof...(Types) == N) &&
-                (((std::is_same_v<std::decay_t<Types>, half> ||
-                   std::is_same_v<std::decay_t<Types>, bfloat16> ||
-                   std::is_same_v<std::decay_t<Types>, float> ||
-                   std::is_same_v<std::decay_t<Types>, double>) &&
-                  ...))>>
+                (((std::is_same_v<std::decay_t<Types>, half>) && ...) ||
+                 ((std::is_same_v<std::decay_t<Types>, bfloat16>) && ...) ||
+                 ((std::is_same_v<std::decay_t<Types>, float>) && ...) ||
+                 ((std::is_same_v<std::decay_t<Types>, double>) && ...))>>
   explicit fp8_e8m0_x(Types... v) {
 #ifdef __SYCL_DEVICE_ONLY__
     static_assert(N == 1 || N == 2,
@@ -1562,7 +1562,7 @@ public:
     using InT = std::common_type_t<std::decay_t<Types>...>;
     const InT in[N] = {v...};
     for (size_t i = 0; i < N; ++i)
-      vals[i] = ConvertToE8M0_CPU(static_cast<float>(in[i]), rounding::upward,
+      vals[i] = detail::ConvertToE8M0_CPU(static_cast<float>(in[i]), rounding::upward,
                                   saturation::finite);
   }
 
@@ -1570,27 +1570,27 @@ public:
     CheckConstraints(r);
     for (size_t i = 0; i < N; ++i)
       vals[i] =
-          ConvertToE8M0_CPU(static_cast<float>(in[i]), r, saturation::finite);
+          detail::ConvertToE8M0_CPU(static_cast<float>(in[i]), r, saturation::finite);
   }
 
   explicit fp8_e8m0_x(bfloat16 const (&in)[N], rounding r = rounding::upward) {
     CheckConstraints(r);
     for (size_t i = 0; i < N; ++i)
       vals[i] =
-          ConvertToE8M0_CPU(static_cast<float>(in[i]), r, saturation::finite);
+          detail::ConvertToE8M0_CPU(static_cast<float>(in[i]), r, saturation::finite);
   }
 
   explicit fp8_e8m0_x(float const (&in)[N], rounding r = rounding::upward) {
     CheckConstraints(r);
     for (size_t i = 0; i < N; ++i)
-      vals[i] = ConvertToE8M0_CPU(in[i], r, saturation::finite);
+      vals[i] = detail::ConvertToE8M0_CPU(in[i], r, saturation::finite);
   }
 
   explicit fp8_e8m0_x(double const (&in)[N]) {
     static_assert(N == 1 || N == 2,
                   "fp8_e8m0_x: Template argument N must be 1 or 2 on device");
     for (size_t i = 0; i < N; ++i)
-      vals[i] = ConvertToE8M0_CPU(static_cast<float>(in[i]), rounding::upward,
+      vals[i] = detail::ConvertToE8M0_CPU(static_cast<float>(in[i]), rounding::upward,
                                   saturation::finite);
   }
 
@@ -1599,7 +1599,7 @@ public:
     CheckConstraints(r);
     for (size_t i = 0; i < N; ++i)
       vals[i] =
-          ConvertToE8M0_CPU(static_cast<float>(in[i]), r, saturation::finite);
+          detail::ConvertToE8M0_CPU(static_cast<float>(in[i]), r, saturation::finite);
   }
 
   explicit fp8_e8m0_x(const marray<bfloat16, N> &in,
@@ -1607,21 +1607,21 @@ public:
     CheckConstraints(r);
     for (size_t i = 0; i < N; ++i)
       vals[i] =
-          ConvertToE8M0_CPU(static_cast<float>(in[i]), r, saturation::finite);
+          detail::ConvertToE8M0_CPU(static_cast<float>(in[i]), r, saturation::finite);
   }
 
   explicit fp8_e8m0_x(const marray<float, N> &in,
                       rounding r = rounding::upward) {
     CheckConstraints(r);
     for (size_t i = 0; i < N; ++i)
-      vals[i] = ConvertToE8M0_CPU(in[i], r, saturation::finite);
+      vals[i] = detail::ConvertToE8M0_CPU(in[i], r, saturation::finite);
   }
 
   explicit fp8_e8m0_x(const marray<double, N> &in) {
     static_assert(N == 1 || N == 2,
                   "fp8_e8m0_x: Template argument N must be 1 or 2 on device");
     for (size_t i = 0; i < N; ++i)
-      vals[i] = ConvertToE8M0_CPU(static_cast<float>(in[i]), rounding::upward,
+      vals[i] = detail::ConvertToE8M0_CPU(static_cast<float>(in[i]), rounding::upward,
                                   saturation::finite);
   }
 
@@ -1630,7 +1630,7 @@ public:
 
   explicit fp8_e8m0_x(short val) {
     static_assert(N == 1 && "fp8_e8m0_x: N must be 1 for short constructor");
-    vals[0] = ConvertToE8M0_CPU(static_cast<float>(val), rounding::upward,
+    vals[0] = detail::ConvertToE8M0_CPU(static_cast<float>(val), rounding::upward,
                                 saturation::finite);
   }
   explicit fp8_e8m0_x(int val) : fp8_e8m0_x(static_cast<float>(val)) {}
@@ -1646,19 +1646,19 @@ public:
 
   fp8_e8m0_x &operator=(half val) {
     static_assert(N == 1, "fp8_e8m0_x: N must be 1 for scalar assignment");
-    vals[0] = ConvertToE8M0_CPU(static_cast<float>(val), rounding::upward,
+    vals[0] = detail::ConvertToE8M0_CPU(static_cast<float>(val), rounding::upward,
                                 saturation::finite);
     return *this;
   }
   fp8_e8m0_x &operator=(bfloat16 val) {
     static_assert(N == 1, "fp8_e8m0_x: N must be 1 for scalar assignment");
-    vals[0] = ConvertToE8M0_CPU(static_cast<float>(val), rounding::upward,
+    vals[0] = detail::ConvertToE8M0_CPU(static_cast<float>(val), rounding::upward,
                                 saturation::finite);
     return *this;
   }
   fp8_e8m0_x &operator=(float val) {
     static_assert(N == 1, "fp8_e8m0_x: N must be 1 for scalar assignment");
-    vals[0] = ConvertToE8M0_CPU(val, rounding::upward, saturation::finite);
+    vals[0] = detail::ConvertToE8M0_CPU(val, rounding::upward, saturation::finite);
     return *this;
   }
   fp8_e8m0_x &operator=(double val) {
@@ -1685,19 +1685,19 @@ public:
 
   explicit operator half() const {
     static_assert(N == 1, "fp8_e8m0_x: N must be 1 for scalar conversion");
-    return ConvertFromE8M0_CPU<half>(vals[0]);
+    return detail::ConvertFromE8M0_CPU<half>(vals[0]);
   }
   explicit operator bfloat16() const {
     static_assert(N == 1, "fp8_e8m0_x: N must be 1 for scalar conversion");
-    return ConvertFromE8M0_CPU<bfloat16>(vals[0]);
+    return detail::ConvertFromE8M0_CPU<bfloat16>(vals[0]);
   }
   explicit operator float() const {
     static_assert(N == 1, "fp8_e8m0_x: N must be 1 for scalar conversion");
-    return ConvertFromE8M0_CPU<float>(vals[0]);
+    return detail::ConvertFromE8M0_CPU<float>(vals[0]);
   }
   explicit operator double() const {
     static_assert(N == 1, "fp8_e8m0_x: N must be 1 for scalar conversion");
-    return ConvertFromE8M0_CPU<double>(vals[0]);
+    return detail::ConvertFromE8M0_CPU<double>(vals[0]);
   }
 
   explicit operator char() const {
@@ -1743,19 +1743,19 @@ public:
   explicit operator sycl::marray<half, N>() const {
     sycl::marray<half, N> out;
     for (size_t i = 0; i < N; ++i)
-      out[i] = ConvertFromE8M0_CPU<half>(vals[i]);
+      out[i] = detail::ConvertFromE8M0_CPU<half>(vals[i]);
     return out;
   }
   explicit operator sycl::marray<bfloat16, N>() const {
     sycl::marray<bfloat16, N> out;
     for (size_t i = 0; i < N; ++i)
-      out[i] = ConvertFromE8M0_CPU<bfloat16>(vals[i]);
+      out[i] = detail::ConvertFromE8M0_CPU<bfloat16>(vals[i]);
     return out;
   }
   explicit operator sycl::marray<float, N>() const {
     sycl::marray<float, N> out;
     for (size_t i = 0; i < N; ++i)
-      out[i] = ConvertFromE8M0_CPU<float>(vals[i]);
+      out[i] = detail::ConvertFromE8M0_CPU<float>(vals[i]);
     return out;
   }
 
