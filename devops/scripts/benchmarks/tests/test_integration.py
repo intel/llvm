@@ -231,6 +231,11 @@ class TestE2E(unittest.TestCase):
         #     "KernelSubmitEventRecordWait medium",
         #     {"pytorch", "L0"},
         # )
+        # self._checkCase(
+        #     "torch_benchmark_l0 KernelSubmitEventRecordQuery EventQueryIterations 1000, KernelWGCount 256, KernelWGSize 512, Profiling 0 CPU count",
+        #     "KernelSubmitEventRecordQuery medium, CPU count",
+        #     {"pytorch", "L0"},
+        # )
         self._checkCase(
             "torch_benchmark_l0 KernelSubmitSingleQueue KernelDataType Int32, KernelWGCount 4096, KernelWGSize 512",
             "KernelSubmitSingleQueue Int32Large",
@@ -290,6 +295,11 @@ class TestE2E(unittest.TestCase):
         self._checkCase(
             "torch_benchmark_sycl KernelSubmitEventRecordWait KernelWGCount 256, KernelWGSize 512, Profiling 0 CPU count",
             "KernelSubmitEventRecordWait medium, CPU count",
+            {"pytorch", "SYCL"},
+        )
+        self._checkCase(
+            "torch_benchmark_sycl KernelSubmitEventRecordQuery EventQueryIterations 1000, KernelWGCount 256, KernelWGSize 512, Profiling 0",
+            "KernelSubmitEventRecordQuery medium",
             {"pytorch", "SYCL"},
         )
         self._checkCase(

@@ -558,6 +558,25 @@ class ComputeBench(Suite):
                     )
                 )
 
+        # Add TorchEventRecordQuery benchmarks
+        for runtime in filter(lambda x: x != RUNTIMES.UR, RUNTIMES):
+            if runtime == RUNTIMES.LEVEL_ZERO:
+                # XXX: verify why L0 benchmarks with counter based events cause issues
+                continue
+            for profiler_type in list(PROFILERS):
+                benches.append(
+                    TorchEventRecordQuery(
+                        self,
+                        runtime,
+                        "medium",
+                        profiler_type,
+                        Profiling=0,
+                        KernelWGCount=256,
+                        KernelWGSize=512,
+                        EventQueryIterations=1000,
+                    )
+                )
+
         #
         # Note: Graph benchmarks segfault on pvc on L0
         #

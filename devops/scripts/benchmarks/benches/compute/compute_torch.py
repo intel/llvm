@@ -251,6 +251,25 @@ class TorchEventRecordWait(TorchBenchmark):
         )
 
 
+class TorchEventRecordQuery(TorchBenchmark):
+    def __init__(
+        self,
+        suite,
+        runtime: RUNTIMES,
+        variant_name: str,
+        profiler_type: PROFILERS,
+        **kwargs,
+    ):
+        super().__init__(
+            suite,
+            runtime,
+            "KernelSubmitEventRecordQuery",
+            variant_name,
+            profiler_type,
+            **kwargs,
+        )
+
+
 class TorchGraphVllmMock(TorchBenchmark):
     def __init__(
         self,
