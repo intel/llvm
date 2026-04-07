@@ -78,6 +78,18 @@ void actual_array_allocation() {
   int *ptr = new int[10];
 }
 
+template <typename T>
+void actual_allocation() {
+  // expected-error@+1 {{SYCL kernel cannot allocate storage}}
+  T *ptr = new T;
+}
+
+template <typename T>
+void actual_array_allocation() {
+  // expected-error@+1 {{SYCL kernel cannot allocate storage}}
+  T *ptr = new T[10];
+}
+
 
 int main() {
   sycl::queue q;
@@ -109,6 +121,20 @@ int main() {
     h.single_task<class TestActualArrayAlloc>([&]() {
       // expected-note@Inputs/sycl.hpp:322 {{called by 'kernel_single_task<TestActualArrayAlloc}}
       actual_array_allocation(); // expected-note {{called by 'operator()'}}
+    });
+  });
+
+  q.submit([&](sycl::handler &h) {
+    h.single_task<class TestTemplatedAlloc>([&]() {
+      // expected-note@Inputs/sycl.hpp:* {{called by 'kernel_single_task}}
+      actual_allocation<int>(); // expected-note {{called by 'operator()'}}
+    });
+  });
+
+  q.submit([&](sycl::handler &h) {
+    h.single_task<class TestTemplatedArrayAlloc>([&]() {
+      // expected-note@Inputs/sycl.hpp:* {{called by 'kernel_single_task}}
+      actual_array_allocation<float>(); // expected-note {{called by 'operator()'}}
     });
   });
 
