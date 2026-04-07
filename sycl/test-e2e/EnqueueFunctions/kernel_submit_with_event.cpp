@@ -236,9 +236,10 @@ int main() {
           for (size_t I = 0; I < N; ++I)
             MemAcc[I] = 55;
         });
-      }).wait();
+      });
     }
   }
+  Q.wait();
   for (size_t I = 0; I < N; ++I)
     Failed += Check(Memory, 55, I, "host_task");
 

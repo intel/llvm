@@ -242,9 +242,19 @@ void InteropFreeFunc(ur_queue_handle_t, void *InteropData) {
   return Data->func(Data->ih);
 }
 
-void NativeHostTask(void *funcPtr) {
-  auto *func = static_cast<std::function<void()> *>(funcPtr);
-  (*func)();
+struct EnqueueHostTaskData {
+  explicit EnqueueHostTaskData(std::function<void()> HostTask)
+      : Func(std::move(HostTask)) {}
+
+  std::function<void()> Func;
+};
+
+void NativeHostTask(void *Data) {
+  // Callback data is heap-allocated at enqueue time and released here once
+  // the backend invokes the host task callback.
+  auto HostTaskData = std::unique_ptr<EnqueueHostTaskData>(
+      static_cast<EnqueueHostTaskData *>(Data));
+  HostTaskData->Func();
 }
 } // namespace
 
@@ -374,12 +384,17 @@ public:
               detail::getSyclObjImpl(Queue->get_device())->getHandleRef(),
               UR_DEVICE_INFO_ENQUEUE_HOST_TASK_SUPPORT_EXP,
               sizeof(NativeHostTaskSupport), &NativeHostTaskSupport, nullptr);
-          if (NativeHostTaskSupport)
+          if (NativeHostTaskSupport) {
+            auto NativeHostTaskData = std::make_unique<EnqueueHostTaskData>(
+                std::move(HostTask.MHostTask->MHostTask));
             Queue->getAdapter().call<UrApiKind::urEnqueueHostTaskExp>(
-                Queue->getHandleRef(), NativeHostTask,
-                &HostTask.MHostTask->MHostTask, nullptr, 0, nullptr, nullptr);
-          else
+                Queue->getHandleRef(), NativeHostTask, NativeHostTaskData.get(),
+                nullptr, 0, nullptr, nullptr);
+            // Ownership is transferred to NativeHostTask callback on success.
+            (void)NativeHostTaskData.release();
+          } else {
             HostTask.MHostTask->call(MThisCmd->MEvent->getHostProfilingInfo());
+          }
         } else {
           HostTask.MHostTask->call(MThisCmd->MEvent->getHostProfilingInfo());
         }
