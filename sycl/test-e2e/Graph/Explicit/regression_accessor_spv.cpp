@@ -38,8 +38,10 @@ int main(int, char **argv) {
 
     Graph.add([&](handler &cgh) {
       auto Acc = BufA.get_access(cgh);
-
+      // the kernel requires two arguments, the second one is an offset which is
+      // set to 0 here
       cgh.set_arg(0, Acc);
+      cgh.set_arg(1, 0); // offset
       cgh.single_task(kernel);
     });
 

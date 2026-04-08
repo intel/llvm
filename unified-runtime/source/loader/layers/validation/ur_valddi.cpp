@@ -7948,6 +7948,12 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
     if (pDstImageDesc && UR_MEM_TYPE_IMAGE_CUBEMAP_EXP < pDstImageDesc->type)
       return UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR;
 
+    if (phEventWaitList == NULL && numEventsInWaitList > 0)
+      return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+
+    if (phEventWaitList != NULL && numEventsInWaitList == 0)
+      return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+
     if (phEventWaitList != NULL && numEventsInWaitList > 0) {
       for (uint32_t i = 0; i < numEventsInWaitList; ++i) {
         if (phEventWaitList[i] == NULL) {

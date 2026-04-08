@@ -9,7 +9,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <mutex>
-#include <ur_api.h>
+#include <unified-runtime/ur_api.h>
 #include <ze_api.h>
 
 #include "../common.hpp"

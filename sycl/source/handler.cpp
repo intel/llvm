@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "sycl/detail/helpers.hpp"
-#include "ur_api.h"
+#include "unified-runtime/ur_api.h"
 #include <algorithm>
 
 #include <detail/buffer_impl.hpp>

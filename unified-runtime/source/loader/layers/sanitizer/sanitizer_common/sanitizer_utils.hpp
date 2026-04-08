@@ -14,7 +14,7 @@
 #pragma once
 
 #include "sanitizer_libdevice.hpp"
-#include "ur_api.h"
+#include "unified-runtime/ur_api.h"
 #include "ur_sanitizer_layer.hpp"
 
 #include <string>

@@ -617,8 +617,8 @@ EventImplPtr queue_impl::submit_graph_direct_impl(
       // Here we are using the CommandGroup without passing a CommandBuffer to
       // pass the exec_graph_impl and event dependencies. Since this subgraph
       // CG will not be executed this is fine.
-      CommandGroup.reset(
-          new sycl::detail::CGExecCommandBuffer(nullptr, ExecGraph, CGData));
+      CommandGroup.reset(new sycl::detail::CGExecCommandBuffer(
+          nullptr, ExecGraph, std::move(CGData)));
       CommandGroup->MIsTopCodeLoc = IsTopCodeLoc;
       return {submit_command_to_graph(*ParentGraph, std::move(CommandGroup),
                                       detail::CGType::ExecCommandBuffer),
@@ -1036,36 +1036,25 @@ bool queue_impl::queue_empty() const {
       return MDefaultGraphDeps.LastEventPtr
                  ->get_info<info::event::command_execution_status>() ==
              info::event_command_status::complete;
+  } else {
+    // Check events that haven't been submitted to the backend (host
+    // tasks and blocked commands).
+    std::lock_guard<std::mutex> Lock(MMutex);
+    for (auto EventImplWeakPtrIt = MEventsWeak.begin();
+         EventImplWeakPtrIt != MEventsWeak.end(); ++EventImplWeakPtrIt)
+      if (std::shared_ptr<event_impl> EventImplSharedPtr =
+              EventImplWeakPtrIt->lock())
+        if (nullptr == EventImplSharedPtr->getHandle() &&
+            EventImplSharedPtr
+                    ->get_info<info::event::command_execution_status>() !=
+                info::event_command_status::complete)
+          return false;
   }
 
-  // Check the status of the backend queue if this is not a host queue.
   ur_bool_t IsReady = false;
   getAdapter().call<UrApiKind::urQueueGetInfo>(
       MQueue, UR_QUEUE_INFO_EMPTY, sizeof(IsReady), &IsReady, nullptr);
-  if (!IsReady)
-    return false;
-
-  // If got here, it means that LastEventPtr is nullptr (so no possible Host
-  // Tasks) and there is nothing executing on the device.
-  if (isInOrder())
-    return true;
-
-  // We may have events like host tasks which are not submitted to the backend
-  // queue so we need to get their status separately.
-  std::lock_guard<std::mutex> Lock(MMutex);
-  for (auto EventImplWeakPtrIt = MEventsWeak.begin();
-       EventImplWeakPtrIt != MEventsWeak.end(); ++EventImplWeakPtrIt)
-    if (std::shared_ptr<event_impl> EventImplSharedPtr =
-            EventImplWeakPtrIt->lock())
-      if (EventImplSharedPtr->isHost() &&
-          EventImplSharedPtr
-                  ->get_info<info::event::command_execution_status>() !=
-              info::event_command_status::complete)
-        return false;
-
-  // If we didn't exit early above then it means that all events in the queue
-  // are completed.
-  return true;
+  return IsReady;
 }
 
 void queue_impl::revisitUnenqueuedCommandsState(

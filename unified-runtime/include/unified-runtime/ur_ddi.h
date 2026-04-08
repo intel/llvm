@@ -17,7 +17,7 @@
 #if defined(__cplusplus)
 #pragma once
 #endif
-#include "ur_api.h"
+#include "unified-runtime/ur_api.h"
 
 #if defined(__cplusplus)
 extern "C" {

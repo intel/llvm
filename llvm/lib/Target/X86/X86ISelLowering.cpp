@@ -33994,6 +33994,24 @@ void X86TargetLowering::ReplaceNodeResults(SDNode *N,
     Results.push_back(Res);
     return;
   }
+  case X86ISD::VPMADD52L: {
+    SDLoc dl(N);
+    EVT VT = N->getValueType(0);
+
+    SDValue Op0Lo, Op0Hi, Op1Lo, Op1Hi, Op2Lo, Op2Hi;
+    std::tie(Op0Lo, Op0Hi) = DAG.SplitVectorOperand(N, 0);
+    std::tie(Op1Lo, Op1Hi) = DAG.SplitVectorOperand(N, 1);
+    std::tie(Op2Lo, Op2Hi) = DAG.SplitVectorOperand(N, 2);
+
+    EVT HalfVT = Op0Lo.getValueType();
+    SDValue ResLo =
+        DAG.getNode(N->getOpcode(), dl, HalfVT, Op0Lo, Op1Lo, Op2Lo);
+    SDValue ResHi =
+        DAG.getNode(N->getOpcode(), dl, HalfVT, Op0Hi, Op1Hi, Op2Hi);
+
+    Results.push_back(DAG.getNode(ISD::CONCAT_VECTORS, dl, VT, ResLo, ResHi));
+    return;
+  }
   case X86ISD::STRICT_CVTPH2PS: {
     EVT VT = N->getValueType(0);
     SDValue Lo, Hi;
@@ -53687,8 +53705,8 @@ static SDValue combineMaskedLoad(SDNode *N, SelectionDAG &DAG,
   return SDValue();
 }
 
-/// If exactly one element of the mask is set for a non-truncating masked store,
-/// it is a vector extract and scalar store.
+/// If exactly one element of the mask is set for a masked store, it is a vector
+/// extract, truncate (iff truncating store) and scalar store.
 /// Note: It is expected that the degenerate cases of an all-zeros or all-ones
 /// mask have already been optimized in IR, so we don't bother with those here.
 static SDValue reduceMaskedStoreToScalarStore(MaskedStoreSDNode *MS,
@@ -53716,6 +53734,14 @@ static SDValue reduceMaskedStoreToScalarStore(MaskedStoreSDNode *MS,
   }
   SDValue Extract =
       DAG.getNode(ISD::EXTRACT_VECTOR_ELT, DL, EltVT, Value, VecIndex);
+
+  if (MS->isTruncatingStore()) {
+    if (EltVT.isFloatingPoint())
+      return SDValue();
+
+    Extract = DAG.getNode(ISD::TRUNCATE, DL,
+                          MS->getMemoryVT().getVectorElementType(), Extract);
+  }
 
   // Store that element at the appropriate offset from the base pointer.
   return DAG.getStore(MS->getChain(), DL, Extract, Addr,

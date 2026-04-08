@@ -13,7 +13,7 @@
 #include <stdlib.h>
 #include <vector>
 
-#include "ur_api.h"
+#include "unified-runtime/ur_api.h"
 
 //////////////////////////////////////////////////////////////////////////
 int main(int, char *[]) {

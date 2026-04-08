@@ -12,8 +12,8 @@
  *
  */
 
-#include "ur_print.h"
-#include "ur_print.hpp"
+#include "unified-runtime/ur_print.h"
+#include "unified-runtime/ur_print.hpp"
 
 #include <algorithm>
 #include <sstream>
