@@ -1,8 +1,12 @@
 // Only L0V2 supports urEnqueueHostTaskExp.
-// REQUIRES: level_zero
+// REQUIRES: level_zero_v2_adapter
+
+// UNSUPPORTED: windows && gpu-intel-gen12
+// UNSUPPORTED-INTENDED: UR_DEVICE_INFO_ENQUEUE_HOST_TASK_SUPPORT_EXP is not
+// supported on win&gen12.
 
 // RUN: %{build} -o %t.out
-// RUN: %{run} SYCL_UR_USE_LEVEL_ZERO_V2=1 SYCL_UR_TRACE=2 %t.out | FileCheck %s
+// RUN: env SYCL_UR_TRACE=2 %{run} %t.out | FileCheck %s
 
 // CHECK: UR_DEVICE_INFO_ENQUEUE_HOST_TASK_SUPPORT_EXP
 // CHECK: ---> urEnqueueHostTaskExp

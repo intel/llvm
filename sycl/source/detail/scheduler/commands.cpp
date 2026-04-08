@@ -387,11 +387,29 @@ public:
           if (NativeHostTaskSupport) {
             auto NativeHostTaskData = std::make_unique<EnqueueHostTaskData>(
                 std::move(HostTask.MHostTask->MHostTask));
+            ur_event_handle_t HostTaskEvent{};
             Queue->getAdapter().call<UrApiKind::urEnqueueHostTaskExp>(
                 Queue->getHandleRef(), NativeHostTask, NativeHostTaskData.get(),
-                nullptr, 0, nullptr, nullptr);
+                nullptr, 0, nullptr, &HostTaskEvent);
             // Ownership is transferred to NativeHostTask callback on success.
             (void)NativeHostTaskData.release();
+
+            // Wait for the host task to complete asynchronously. Since
+            // urEnqueueHostTaskExp executes the callback asynchronously when
+            // UR host task support is available, we must wait for the returned
+            // event before notifying completion. This ensures proper dependency
+            // ordering and allows profiling/async-exception handlers to see the
+            // actual task completion rather than the enqueue time.
+            if (HostTaskEvent) {
+              try {
+                Queue->getAdapter().call<UrApiKind::urEventWait>(1, &HostTaskEvent);
+              } catch (...) {
+                auto CurrentException = std::current_exception();
+                Queue->getAdapter().call<UrApiKind::urEventRelease>(HostTaskEvent);
+                throw;
+              }
+              Queue->getAdapter().call<UrApiKind::urEventRelease>(HostTaskEvent);
+            }
           } else {
             HostTask.MHostTask->call(MThisCmd->MEvent->getHostProfilingInfo());
           }
