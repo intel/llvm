@@ -16,7 +16,6 @@ from options import options
 from utils.flamegraph import get_flamegraph
 from utils.logger import log
 from utils.result import BenchmarkMetadata, BenchmarkTag, Result
-from utils.unitrace import get_unitrace
 from utils.utils import download, run
 
 
@@ -24,7 +23,6 @@ class TracingType(Enum):
     """Enumeration of available tracing types."""
 
     NONE = ""
-    UNITRACE = "unitrace"
     FLAMEGRAPH = "flamegraph"
 
 
@@ -71,7 +69,7 @@ class Benchmark(ABC):
 
         Args:
             env_vars: Environment variables to use when running the benchmark.
-            run_trace: The type of tracing to run (NONE, UNITRACE, or FLAMEGRAPH).
+            run_trace: The type of tracing to run.
             force_trace: If True, ignore the traceable() method and force tracing.
 
         Returns:
@@ -135,18 +133,7 @@ class Benchmark(ABC):
         ld_libraries = options.extra_ld_libraries.copy()
         ld_libraries.extend(ld_library)
 
-        unitrace_output = None
-        if self.tracing_enabled(run_trace, force_trace, TracingType.UNITRACE):
-            if extra_trace_opt is None:
-                extra_trace_opt = []
-            unitrace_output, command = get_unitrace().setup(
-                self.name(), command, extra_trace_opt
-            )
-            log.debug(f"Unitrace output: {unitrace_output}")
-            log.debug(f"Unitrace command: {' '.join(command)}")
-
         # flamegraph run
-
         perf_data_file = None
         if self.tracing_enabled(run_trace, force_trace, TracingType.FLAMEGRAPH):
             perf_data_file, command = get_flamegraph().setup(
@@ -166,17 +153,9 @@ class Benchmark(ABC):
                 ld_library=ld_libraries,
             )
         except subprocess.CalledProcessError:
-            if run_trace == TracingType.UNITRACE and unitrace_output:
-                get_unitrace().cleanup(options.benchmark_cwd, unitrace_output)
             if run_trace == TracingType.FLAMEGRAPH and perf_data_file:
                 get_flamegraph().cleanup(perf_data_file)
             raise
-
-        if (
-            self.tracing_enabled(run_trace, force_trace, TracingType.UNITRACE)
-            and unitrace_output
-        ):
-            get_unitrace().handle_output(unitrace_output)
 
         if (
             self.tracing_enabled(run_trace, force_trace, TracingType.FLAMEGRAPH)

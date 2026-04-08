@@ -267,13 +267,6 @@ def main(directory, additional_env_vars, compare_names, filter, execution_stats)
     if options.dry_run:
         log.info("Dry run mode enabled. No benchmarks will be executed.")
 
-    options.unitrace = args.unitrace is not None
-
-    if options.unitrace and options.save_name is None:
-        raise ValueError(
-            "Unitrace requires a save name to be specified via --save option."
-        )
-
     if options.flamegraph and options.save_name is None:
         raise ValueError(
             "FlameGraph requires a save name to be specified via --save option."
@@ -356,14 +349,11 @@ def main(directory, additional_env_vars, compare_names, filter, execution_stats)
             processed: list[Result] = []
             iterations_rc = False
 
-            # Determine if we should run regular benchmarks
-            # Run regular benchmarks if:
+            # Run regular benchmarks only if:
             # - No tracing options specified, OR
             # - Any tracing option is set to "inclusive"
             should_run_regular = (
-                not options.unitrace
-                and not options.flamegraph  # No tracing options
-                or args.unitrace == "inclusive"  # Unitrace inclusive
+                not options.flamegraph  # No tracing options
                 or args.flamegraph == "inclusive"  # Flamegraph inclusive
             )
 
@@ -385,19 +375,6 @@ def main(directory, additional_env_vars, compare_names, filter, execution_stats)
                     if valid:
                         break
 
-            # single unitrace run independent of benchmark iterations (if unitrace enabled)
-            if options.unitrace and (
-                benchmark.traceable(TracingType.UNITRACE) or args.unitrace == "force"
-            ):
-                iterations_rc = run_iterations(
-                    benchmark,
-                    merged_env_vars,
-                    1,
-                    intermediate_results,
-                    failures,
-                    run_trace=TracingType.UNITRACE,
-                    force_trace=(args.unitrace == "force"),
-                )
             # single flamegraph run independent of benchmark iterations (if flamegraph enabled)
             if options.flamegraph and (
                 benchmark.traceable(TracingType.FLAMEGRAPH)
@@ -697,14 +674,6 @@ if __name__ == "__main__":
         type=str,
         help="HIP device architecture",
         default=None,
-    )
-    parser.add_argument(
-        "--unitrace",
-        nargs="?",
-        const="exclusive",
-        default=None,
-        help='Unitrace logs generation. "exclusive" omits regular benchmarks doing only trace generation - this is default and can be omitted. "inclusive" generation is done along regular benchmarks. "force" is same as exclusive but ignores traceable() method.',
-        choices=["exclusive", "inclusive", "force"],
     )
     parser.add_argument(
         "--flamegraph",

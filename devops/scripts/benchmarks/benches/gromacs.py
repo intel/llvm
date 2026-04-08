@@ -84,9 +84,6 @@ class GromacsBench(Suite):
             "-DGMX_OPENMP=OFF",
         ]
 
-        if options.unitrace:
-            extra_args.append("-DGMX_USE_ITT=ON")
-
         if self.project.needs_rebuild():
             self.project.configure(extra_args, add_sycl=True)
             self.project.build(add_sycl=True, ld_library=self.oneapi.ld_libraries())

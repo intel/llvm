@@ -139,10 +139,7 @@ class OneDnnBenchmark(Benchmark):
         force_trace: bool = False,
     ) -> list[Result]:
         # Determine extra trace options based on tracing type
-        if run_trace == TracingType.UNITRACE:
-            extra_trace_opt = ["--chrome-dnn-logging"]
-        else:
-            extra_trace_opt = None
+        extra_trace_opt = None
 
         command = [
             str(self.benchmark_bin),
