@@ -25,7 +25,7 @@ class Unitrace:
 
     def git_hash(self) -> str:
         # Mar 16, 2026
-        return "pti-0.15.0"
+        return "pti-0.12.4"
 
     def __init__(self):
         self.timestamp = (
