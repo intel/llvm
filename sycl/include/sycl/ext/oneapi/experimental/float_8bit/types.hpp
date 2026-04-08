@@ -537,7 +537,8 @@ static inline uint8_t ConvertToE8M0_CPU(T x, rounding R,
 }
 
 template <typename ToT>
-static inline ToT ConvertFromE8M0_CPU(uint8_t code) noexcept {
+static inline ToT ConvertFromE8M0_CPU(uint8_t code,
+                                      rounding R) noexcept {
   constexpr int Bias = 127;
   if (code == 0xFF) {
     float qn = std::numeric_limits<float>::quiet_NaN();
@@ -545,7 +546,7 @@ static inline ToT ConvertFromE8M0_CPU(uint8_t code) noexcept {
   }
   int E = static_cast<int>(code) - Bias; // includes code==0 -> -127
   float v = std::ldexp(1.0f, E);
-  return ConvertFloatToTarget<ToT>(v, rounding::to_even);
+  return ConvertFloatToTarget<ToT>(v, R);
 }
 
 } // namespace detail
@@ -1596,56 +1597,74 @@ public:
   }
   template <size_t M = N, typename = std::enable_if_t<M == 1>>
   fp8_e8m0_x &operator=(double val) {
-    return (*this = static_cast<float>(val));
+    vals[0] =
+        detail::ConvertToE8M0_CPU(val, rounding::upward, saturation::finite);
+    return *this;
   }
   template <size_t M = N, typename = std::enable_if_t<M == 1>>
   fp8_e8m0_x &operator=(short val) {
-    return (*this = static_cast<float>(val));
+    vals[0] =
+        detail::ConvertToE8M0_CPU(val, rounding::upward, saturation::finite);
+    return *this;
   }
   template <size_t M = N, typename = std::enable_if_t<M == 1>>
   fp8_e8m0_x &operator=(int val) {
-    return (*this = static_cast<float>(val));
+    vals[0] =
+        detail::ConvertToE8M0_CPU(val, rounding::upward, saturation::finite);
+    return *this;
   }
   template <size_t M = N, typename = std::enable_if_t<M == 1>>
   fp8_e8m0_x &operator=(long val) {
-    return (*this = static_cast<float>(val));
+    vals[0] =
+        detail::ConvertToE8M0_CPU(val, rounding::upward, saturation::finite);
+    return *this;
   }
   template <size_t M = N, typename = std::enable_if_t<M == 1>>
   fp8_e8m0_x &operator=(long long val) {
-    return (*this = static_cast<float>(val));
+    vals[0] =
+        detail::ConvertToE8M0_CPU(val, rounding::upward, saturation::finite);
+    return *this;
   }
   template <size_t M = N, typename = std::enable_if_t<M == 1>>
   fp8_e8m0_x &operator=(unsigned short val) {
-    return (*this = static_cast<float>(val));
+    vals[0] =
+        detail::ConvertToE8M0_CPU(val, rounding::upward, saturation::finite);
+    return *this;
   }
   template <size_t M = N, typename = std::enable_if_t<M == 1>>
   fp8_e8m0_x &operator=(unsigned int val) {
-    return (*this = static_cast<float>(val));
+    vals[0] =
+        detail::ConvertToE8M0_CPU(val, rounding::upward, saturation::finite);
+    return *this;
   }
   template <size_t M = N, typename = std::enable_if_t<M == 1>>
   fp8_e8m0_x &operator=(unsigned long val) {
-    return (*this = static_cast<float>(val));
+    vals[0] =
+        detail::ConvertToE8M0_CPU(val, rounding::upward, saturation::finite);
+    return *this;
   }
   template <size_t M = N, typename = std::enable_if_t<M == 1>>
   fp8_e8m0_x &operator=(unsigned long long val) {
-    return (*this = static_cast<float>(val));
+    vals[0] =
+        detail::ConvertToE8M0_CPU(val, rounding::upward, saturation::finite);
+    return *this;
   }
 
   template <size_t M = N, typename = std::enable_if_t<M == 1>>
   explicit operator half() const {
-    return detail::ConvertFromE8M0_CPU<half>(vals[0]);
+    return detail::ConvertFromE8M0_CPU<half>(vals[0], rounding::to_even);
   }
   template <size_t M = N, typename = std::enable_if_t<M == 1>>
   explicit operator bfloat16() const {
-    return detail::ConvertFromE8M0_CPU<bfloat16>(vals[0]);
+    return detail::ConvertFromE8M0_CPU<bfloat16>(vals[0], rounding::to_even);
   }
   template <size_t M = N, typename = std::enable_if_t<M == 1>>
   explicit operator float() const {
-    return detail::ConvertFromE8M0_CPU<float>(vals[0]);
+    return detail::ConvertFromE8M0_CPU<float>(vals[0], rounding::to_even);
   }
   template <size_t M = N, typename = std::enable_if_t<M == 1>>
   explicit operator double() const {
-    return detail::ConvertFromE8M0_CPU<double>(vals[0]);
+    return detail::ConvertFromE8M0_CPU<double>(vals[0], rounding::to_even);
   }
 
   template <size_t M = N, typename = std::enable_if_t<M == 1>>
@@ -1701,19 +1720,20 @@ public:
   explicit operator sycl::marray<half, N>() const {
     sycl::marray<half, N> out;
     for (size_t i = 0; i < N; ++i)
-      out[i] = detail::ConvertFromE8M0_CPU<half>(vals[i]);
+      out[i] = detail::ConvertFromE8M0_CPU<half>(vals[i], rounding::to_even);
     return out;
   }
   explicit operator sycl::marray<bfloat16, N>() const {
     sycl::marray<bfloat16, N> out;
     for (size_t i = 0; i < N; ++i)
-      out[i] = detail::ConvertFromE8M0_CPU<bfloat16>(vals[i]);
+      out[i] =
+          detail::ConvertFromE8M0_CPU<bfloat16>(vals[i], rounding::to_even);
     return out;
   }
   explicit operator sycl::marray<float, N>() const {
     sycl::marray<float, N> out;
     for (size_t i = 0; i < N; ++i)
-      out[i] = detail::ConvertFromE8M0_CPU<float>(vals[i]);
+      out[i] = detail::ConvertFromE8M0_CPU<float>(vals[i], rounding::to_even);
     return out;
   }
 
