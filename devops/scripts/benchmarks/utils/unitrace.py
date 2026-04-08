@@ -25,7 +25,7 @@ class Unitrace:
 
     def git_hash(self) -> str:
         # Mar 16, 2026
-        return "6a0a8beeb1e4147f4bd3cac3b32f02758dfda754"
+        return "pti-0.15.0"
 
     def __init__(self):
         self.timestamp = (
@@ -128,7 +128,6 @@ class Unitrace:
             + extra_unitrace_opt
             + command
         )
-        log.debug(f"Unitrace cmd: {' '.join(unitrace_command)}")
 
         return unitrace_output, unitrace_command
 
