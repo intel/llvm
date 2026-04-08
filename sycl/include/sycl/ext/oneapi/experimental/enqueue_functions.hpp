@@ -202,13 +202,15 @@ void host_task(sycl::queue Q, T &&hostTaskCallable,
   submit(
       std::move(Q),
       [&](sycl::handler &cgh) {
-        cgh.host_task(std::forward<T>(hostTaskCallable));
+        sycl::detail::HandlerAccess::hostTaskFromEnqueueFunction(
+            cgh, std::forward<T>(hostTaskCallable));
       },
       CodeLoc);
 }
 
 template <typename T> void host_task(handler &CGH, T &&hostTaskCallable) {
-  CGH.host_task(std::forward<T>(hostTaskCallable));
+  sycl::detail::HandlerAccess::hostTaskFromEnqueueFunction(
+      CGH, std::forward<T>(hostTaskCallable));
 }
 
 // TODO: Make overloads for scalar arguments for range.
