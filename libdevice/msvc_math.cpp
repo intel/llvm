@@ -34,10 +34,7 @@ union _Dconst2 {           // pun float types as integer array
 #define _FXbig (float)((F_NBITS + 1) * 347L / 1000)
 
 DEVICE_EXTERN_C_INLINE
-float __devicelib_hypotf(float, float);
-
-DEVICE_EXTERN_C_INLINE
-float _hypotf(float x, float y) { return __devicelib_hypotf(x, y); }
+float _hypotf(float x, float y) { return __spirv_ocl_hypot(x, y); }
 
 DEVICE_EXTERN_C_INLINE
 short _FDtest(float *px) { // categorize *px
