@@ -1019,6 +1019,7 @@ private:
   void setHandlerKernelBundle(SharedPtrT &&NewKernelBundleImpPtr);
 
   void SetHostTask(std::function<void()> Func);
+  void SetHostTaskFromExtEnqueueFunctions(std::function<void()> Func);
   void SetHostTask(std::function<void(interop_handle)> Func);
 
   template <typename FuncT>
@@ -1034,6 +1035,19 @@ private:
     setArgsToAssociatedAccessors();
 
     SetHostTask(std::forward<FuncT>(Func));
+  }
+
+  template <typename FuncT>
+  std::enable_if_t<
+      detail::check_fn_signature<std::remove_reference_t<FuncT>, void()>::value>
+  host_task_from_enqueue_function_impl(FuncT &&Func) {
+    throwIfActionIsCreated();
+
+    // Need to copy these rather than move so that we can check associated
+    // accessors during finalize
+    setArgsToAssociatedAccessors();
+
+    SetHostTaskFromExtEnqueueFunctions(std::forward<FuncT>(Func));
   }
 
   template <typename FuncT>
@@ -3002,6 +3016,13 @@ class HandlerAccess {
 public:
   static void internalProfilingTagImpl(handler &Handler) {
     Handler.internalProfilingTagImpl();
+  }
+
+  template <typename FuncT>
+  static std::enable_if_t<
+      detail::check_fn_signature<std::remove_reference_t<FuncT>, void()>::value>
+  hostTaskFromEnqueueFunction(handler &Handler, FuncT &&Func) {
+    Handler.host_task_from_enqueue_function_impl(std::forward<FuncT>(Func));
   }
 
   template <typename RangeT, typename PropertiesT>
