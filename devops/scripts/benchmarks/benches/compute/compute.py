@@ -12,6 +12,7 @@ from options import options
 from utils.result import BenchmarkMetadata
 from utils.logger import log
 
+from ..base import Benchmark, Suite
 from .compute_benchmark import ComputeBenchmark
 from .compute_enums import RUNTIMES, PROFILERS, KERNEL_NAME, runtime_to_tag_name
 from .compute_metadata import ComputeMetadataGenerator

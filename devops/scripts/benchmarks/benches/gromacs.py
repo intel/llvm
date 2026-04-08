@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import re
 
+from .base import Suite, Benchmark
 from options import options
 from utils.utils import download, run
 from utils.result import Result

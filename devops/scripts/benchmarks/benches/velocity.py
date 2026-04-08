@@ -8,6 +8,7 @@ import shutil
 import os
 from pathlib import Path
 
+from .base import Benchmark, Suite
 from utils.result import Result
 from utils.utils import run
 from options import options

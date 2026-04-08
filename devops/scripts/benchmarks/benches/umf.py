@@ -8,6 +8,7 @@ import csv
 import io
 import re
 
+from .base import Benchmark, Suite
 from utils.result import Result
 from options import options
 from utils.oneapi import get_oneapi

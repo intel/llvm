@@ -7,6 +7,7 @@ import os
 import csv
 from pathlib import Path
 
+from .base import Benchmark, Suite
 from utils.logger import log
 from utils.result import Result
 from options import options

@@ -8,6 +8,7 @@ import io
 from pathlib import Path
 
 from utils.utils import download
+from .base import Benchmark, Suite
 from utils.result import Result
 from options import options
 from utils.oneapi import get_oneapi

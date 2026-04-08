@@ -6,6 +6,7 @@
 
 from pathlib import Path
 
+from .base import Benchmark, Suite
 from options import options
 from utils.result import Result
 from utils.oneapi import get_oneapi
