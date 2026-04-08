@@ -483,8 +483,8 @@ inline uint8_t nextE4M3(uint8_t b, bool up) {
                       : static_cast<uint8_t>(~ord);
 }
 
-template <typename T>
-uint8_t round(rounding r, uint8_t b, sycl::half yi, T vi) {
+template <typename YiT, typename T>
+uint8_t round(rounding r, uint8_t b, YiT yi, T vi) {
   switch (r) {
   case rounding::upward: {
     if (yi < vi)
@@ -623,7 +623,6 @@ template <size_t N> class fp8_e4m3_x {
                 "fp8_e4m3_x: Template argument N must be 1 or 2");
 
   template <typename T> uint8_t ConvertToFP8(T h, rounding r, saturation s) {
-    sycl::half hi = static_cast<sycl::half>(h);
 #ifdef __SYCL_DEVICE_ONLY__
     // TODO: optimize with vectorized builtin calls
     uint8_t b = 0;
@@ -635,10 +634,10 @@ template <size_t N> class fp8_e4m3_x {
       return b;
 
     const sycl::half yi = __builtin_spirv_ConvertE4M3ToFP16EXT(b);
-    return detail::round(r, b, yi, hi);
+    return detail::round(r, b, yi, h);
 
 #else
-    return detail::ConvertToFP8_CPU<4, 3, sycl::half>(hi, r);
+    return detail::ConvertToFP8_CPU<4, 3, sycl::half>(h, r);
 #endif
   }
 
