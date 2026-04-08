@@ -13595,6 +13595,10 @@ bool Sema::DeduceVariableDeclarationType(VarDecl *VDecl, bool DirectInit,
   }
 
   VDecl->setType(DeducedType);
+  // After deducing the type, the linkage may have changed (e.g., if the type
+  // involves a lambda that was initialized in stages). Invalidate any cached
+  // linkage to ensure it's recomputed with the final, complete type.
+  VDecl->invalidateCachedLinkage();
   assert(VDecl->isLinkageValid());
 
   // In ARC, infer lifetime.
