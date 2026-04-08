@@ -452,6 +452,12 @@ protected:
   std::unordered_map<sycl_device_binary, RTDeviceBinaryImageUPtr>
       m_DeviceImages;
 
+  /// Keeps merged device binary images alive for linked programs with multiple
+  /// images. The merged image combines device_globals from all linked images.
+  /// Access must be guarded by the MNativeProgramsMutex mutex.
+  std::unordered_map<ur_program_handle_t, DynRTDeviceBinaryImageUPtr>
+      m_MergedImages;
+
   /// Maps names of built-in kernels to their unique kernel IDs.
   /// Access must be guarded by the m_BuiltInKernelIDsMutex mutex.
   std::unordered_map<std::string_view, kernel_id> m_BuiltInKernelIDs;

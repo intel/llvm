@@ -948,15 +948,13 @@ ProgramManager::getBuiltURProgram(const BinImgWithDeps &ImgWithDeps,
           std::make_unique<DynRTDeviceBinaryImage>(ImgWithDeps.getAll());
       const RTDeviceBinaryImage *MergedImgPtr = MergedImg.get();
 
-      // Store the merged image to keep it alive. Use a static map since we need
-      // it to persist for the lifetime of the program.
-      static std::mutex MergedImagesMutex;
-      static std::map<ur_program_handle_t,
-                      std::unique_ptr<DynRTDeviceBinaryImage>>
-          MergedImages;
+      // Store the merged image to keep it alive and add to NativePrograms for
+      // lookup consistency.
       {
-        std::lock_guard<std::mutex> Lock(MergedImagesMutex);
-        MergedImages[BuiltProgram] = std::move(MergedImg);
+        std::lock_guard<std::mutex> Lock(MNativeProgramsMutex);
+        m_MergedImages[BuiltProgram] = std::move(MergedImg);
+        NativePrograms.insert(
+            {BuiltProgram, {ContextImpl.shared_from_this(), MergedImgPtr}});
       }
 
       ContextImpl.addDeviceGlobalInitializer(BuiltProgram, Devs, MergedImgPtr);
@@ -1851,6 +1849,8 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
             ContextImpl->getKernelProgramCache().removeAllRelatedEntries(
                 Img->getImageID());
           }
+          // Also clean up any merged image associated with this program
+          m_MergedImages.erase(CurIt->first);
           NativePrograms.erase(CurIt);
         }
       }
