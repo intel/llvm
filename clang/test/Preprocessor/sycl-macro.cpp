@@ -5,13 +5,8 @@
 // RUN: %clang_cc1 %s -fsycl-id-queries-range=int -fsycl-is-device -E -dM | FileCheck --check-prefix=CHECK-SYCL-STD-2020 %s
 // RUN: %clang_cc1 %s -fsycl-id-queries-range=int -fsycl-is-device -E -dM | FileCheck --check-prefix=CHECK-SYCL-STD-DEVICE %s
 // RUN: %clang_cc1 %s -fsycl-id-queries-range=uint -fsycl-is-device -E -dM | FileCheck --check-prefix=CHECK-SYCL-UINT %s
-// RUN: %clang_cc1 %s -fsycl-id-queries-range=size_t -fsycl-is-device -E -dM | FileCheck --check-prefix=CHECK-SYCL-NONE %s
-// Test legacy compatibility flags (kept for backward compatibility)
-// RUN: %clang_cc1 %s -fsycl-id-queries-fit-in-int -fsycl-is-host -E -dM | FileCheck --check-prefix=CHECK-SYCL-STD-2020 %s
-// RUN: %clang_cc1 %s -fsycl-id-queries-fit-in-int -fsycl-is-device -E -dM | FileCheck --check-prefix=CHECK-SYCL-STD-2020 %s
+// RUN: %clang_cc1 %s -fsycl-id-queries-range=size_t -fsycl-is-device -E -dM | FileCheck --check-prefix=CHECK-SYCL-SIZET %s
 // RUNx: %clang_cc1 %s -fsycl-id-queries-range=int -fsycl-is-device -E -dM -fms-compatibility | FileCheck --check-prefix=CHECK-MSVC %s
-// RUN: %clang_cc1 -fno-sycl-id-queries-fit-in-int %s -E -dM | FileCheck \
-// RUN: --check-prefix=CHECK-NO-SYCL_FIT_IN_INT %s
 // RUN: %clang_cc1 -fsycl-id-queries-range=size_t %s -E -dM | FileCheck \
 // RUN: --check-prefix=CHECK-NO-SYCL_FIT_IN_INT %s
 // RUN: %clang_cc1 %s  -triple nvptx64-nvidia-cuda -target-cpu sm_80 -fsycl-is-device -E -dM | FileCheck \
@@ -45,8 +40,8 @@
 // CHECK-SYCL-UINT:#define __SYCL_ID_QUERIES_FIT_IN_UINT__ 1
 // CHECK-SYCL-UINT-NOT:#define __SYCL_ID_QUERIES_FIT_IN_INT__
 
-// CHECK-SYCL-NONE-NOT:#define __SYCL_ID_QUERIES_FIT_IN_INT__
-// CHECK-SYCL-NONE-NOT:#define __SYCL_ID_QUERIES_FIT_IN_UINT__
+// CHECK-SYCL-SIZET-NOT:#define __SYCL_ID_QUERIES_FIT_IN_INT__
+// CHECK-SYCL-SIZET-NOT:#define __SYCL_ID_QUERIES_FIT_IN_UINT__
 
 // CHECK-CUDA:#define __SYCL_CUDA_ARCH__ [[ARCH_CODE]]
 // CHECK-CUDA-NOT:#define __CUDA_ARCH__ {{[0-9]+}}
