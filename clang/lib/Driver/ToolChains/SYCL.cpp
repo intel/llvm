@@ -583,20 +583,13 @@ SYCLToolChain::getDeviceLibNames(const Driver &D,
   using SYCLDeviceLibsList = SmallVector<StringRef>;
   const SYCLDeviceLibsList SYCLDeviceLibs = {"libsycl-crt",
                                              "libsycl-complex",
-                                             "libsycl-complex-fp64",
                                              "libsycl-cmath",
-                                             "libsycl-cmath-fp64",
 #if defined(_WIN32)
                                              "libsycl-msvc-math",
 #endif
                                              "libsycl-imf",
                                              "libsycl-imf-fp64",
                                              "libsycl-imf-bf16",
-                                             "libsycl-fallback-cstring",
-                                             "libsycl-fallback-complex",
-                                             "libsycl-fallback-complex-fp64",
-                                             "libsycl-fallback-cmath",
-                                             "libsycl-fallback-cmath-fp64",
                                              "libsycl-fallback-imf",
                                              "libsycl-fallback-imf-fp64",
                                              "libsycl-fallback-imf-bf16"};
@@ -743,9 +736,7 @@ static llvm::SmallVector<StringRef, 16> SYCLDeviceLibList{
     "bfloat16",
     "crt",
     "cmath",
-    "cmath-fp64",
     "complex",
-    "complex-fp64",
 #if defined(_WIN32)
     "msvc-math",
 #else
@@ -766,11 +757,6 @@ static llvm::SmallVector<StringRef, 16> SYCLDeviceLibList{
     "itt-compiler-wrappers",
     "itt-stubs",
     "itt-user-wrappers",
-    "fallback-cstring",
-    "fallback-cmath",
-    "fallback-cmath-fp64",
-    "fallback-complex",
-    "fallback-complex-fp64",
     "fallback-imf",
     "fallback-imf-fp64",
     "fallback-imf-bf16",

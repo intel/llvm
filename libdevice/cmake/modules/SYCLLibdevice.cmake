@@ -313,9 +313,9 @@ set(sycl-compiler_deps
   ${clang-offload-bundler_target} ${llvm-offload-binary_target}
   ${file-table-tform_target} ${llvm-foreach_target} ${llvm-spirv_target}
   ${sycl-post-link_target})
-set(crt_obj_deps wrapper.h device.h spirv_vars.h ${sycl-compiler_deps})
-set(complex_obj_deps device_complex.h device.h ${sycl-compiler_deps})
-set(cmath_obj_deps device_math.h device.h ${sycl-compiler_deps})
+set(crt_obj_deps wrapper.h device.h spirv_vars.h fallback-cstring.hpp ${sycl-compiler_deps})
+set(complex_obj_deps device_complex.h device.h fallback-complex.hpp fallback-complex-fp64.hpp ${sycl-compiler_deps})
+set(cmath_obj_deps device_math.h device.h fallback-cmath.hpp fallback-cmath-fp64.hpp ${sycl-compiler_deps})
 set(imf_obj_deps device_imf.hpp imf_half.hpp imf_bf16.hpp imf_rounding_op.hpp imf_impl_utils.hpp device.h ${sycl-compiler_deps})
 set(itt_obj_deps device_itt.h spirv_vars.h device.h ${sycl-compiler_deps})
 set(bfloat16_obj_deps sycl-headers ${sycl-compiler_deps})
@@ -433,18 +433,10 @@ add_devicelibs(libsycl-complex
   SRC complex_wrapper.cpp
   BUILD_ARCHS ${full_build_archs}
   DEPENDENCIES ${complex_obj_deps})
-add_devicelibs(libsycl-complex-fp64
-  SRC complex_wrapper_fp64.cpp
-  BUILD_ARCHS ${full_build_archs}
-  DEPENDENCIES ${complex_obj_deps} )
 add_devicelibs(libsycl-cmath
   SRC cmath_wrapper.cpp
   BUILD_ARCHS ${full_build_archs}
   DEPENDENCIES ${cmath_obj_deps})
-add_devicelibs(libsycl-cmath-fp64
-  SRC cmath_wrapper_fp64.cpp
-  BUILD_ARCHS ${full_build_archs}
-  DEPENDENCIES ${cmath_obj_deps} )
 add_devicelibs(libsycl-imf
   SRC imf_wrapper.cpp
   DEPENDENCIES ${imf_obj_deps}
@@ -457,10 +449,6 @@ add_devicelibs(libsycl-imf-bf16
   SRC imf_wrapper_bf16.cpp
   DEPENDENCIES ${imf_obj_deps}
   BUILD_ARCHS ${imf_build_archs})
-add_devicelibs(libsycl-bfloat16
-  SRC bfloat16_wrapper.cpp
-  BUILD_ARCHS ${full_build_archs}
-  DEPENDENCIES ${cmath_obj_deps})
 if(MSVC)
   add_devicelibs(libsycl-msvc-math
     SRC msvc_math.cpp
@@ -537,26 +525,6 @@ else()
   endif()
 endif()
 
-add_devicelibs(libsycl-fallback-cstring
-  SRC fallback-cstring.cpp
-  BUILD_ARCHS ${full_build_archs}
-  DEPENDENCIES ${crt_obj_deps})
-add_devicelibs(libsycl-fallback-complex
-  SRC fallback-complex.cpp
-  BUILD_ARCHS ${full_build_archs}
-  DEPENDENCIES ${complex_obj_deps})
-add_devicelibs(libsycl-fallback-complex-fp64
-  SRC fallback-complex-fp64.cpp
-  BUILD_ARCHS ${full_build_archs}
-  DEPENDENCIES ${complex_obj_deps})
-add_devicelibs(libsycl-fallback-cmath
-  SRC fallback-cmath.cpp
-  BUILD_ARCHS ${full_build_archs}
-  DEPENDENCIES ${cmath_obj_deps})
-add_devicelibs(libsycl-fallback-cmath-fp64
-  SRC fallback-cmath-fp64.cpp
-  BUILD_ARCHS ${full_build_archs}
-  DEPENDENCIES ${cmath_obj_deps})
 add_devicelibs(libsycl-fallback-bfloat16
   SRC fallback-bfloat16.cpp
   BUILD_ARCHS ${full_build_archs}

@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "include/spir_global_var.hpp"
+#include "fallback-cstring.hpp"
 #include "spirv_vars.h"
 #include "wrapper.h"
 
