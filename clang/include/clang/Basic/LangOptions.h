@@ -206,7 +206,7 @@ public:
   enum class SYCLIdQueriesRangeKind {
     Int,
     UInt,
-    None,
+    SizeT,
   };
 
   enum HLSLLangStd {

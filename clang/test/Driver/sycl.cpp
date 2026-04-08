@@ -122,23 +122,23 @@
 // Test new normalized option
 // RUN: %clang -### -fsycl -fsycl-id-queries-range=int  %s 2>&1 | FileCheck %s --check-prefix=ID_QUERIES_INT
 // RUN: %clang -### -fsycl -fsycl-id-queries-range=uint  %s 2>&1 | FileCheck %s --check-prefix=ID_QUERIES_UINT
-// RUN: %clang -### -fsycl -fsycl-id-queries-range=none  %s 2>&1 | FileCheck %s --check-prefix=ID_QUERIES_NONE
+// RUN: %clang -### -fsycl -fsycl-id-queries-range=size_t  %s 2>&1 | FileCheck %s --check-prefix=ID_QUERIES_SIZET
 // Test legacy compatibility flags (should be rewritten to new option)
 // RUN: %clang -### -fsycl -fsycl-id-queries-fit-in-int  %s 2>&1 | FileCheck %s --check-prefix=ID_QUERIES_INT
 // RUN: %clang_cl -### -fsycl -fsycl-id-queries-fit-in-int  %s 2>&1 | FileCheck %s --check-prefix=ID_QUERIES_INT
 // RUN: %clang -### -fsycl-device-only -fsycl-id-queries-fit-in-int  %s 2>&1 | FileCheck %s --check-prefix=ID_QUERIES_INT
 // RUN: %clang_cl -### -fsycl-device-only -fsycl-id-queries-fit-in-int  %s 2>&1 | FileCheck %s --check-prefix=ID_QUERIES_INT
-// RUN: %clang -### -fsycl -fno-sycl-id-queries-fit-in-int  %s 2>&1 | FileCheck %s --check-prefix=ID_QUERIES_NONE
-// RUN: %clang_cl -### -fsycl -fno-sycl-id-queries-fit-in-int  %s 2>&1 | FileCheck %s --check-prefix=ID_QUERIES_NONE
-// RUN: %clang -### -fsycl-device-only -fno-sycl-id-queries-fit-in-int  %s 2>&1 | FileCheck %s --check-prefix=ID_QUERIES_NONE
-// RUN: %clang_cl -### -fsycl-device-only -fno-sycl-id-queries-fit-in-int  %s 2>&1 | FileCheck %s --check-prefix=ID_QUERIES_NONE
+// RUN: %clang -### -fsycl -fno-sycl-id-queries-fit-in-int  %s 2>&1 | FileCheck %s --check-prefix=ID_QUERIES_SIZET
+// RUN: %clang_cl -### -fsycl -fno-sycl-id-queries-fit-in-int  %s 2>&1 | FileCheck %s --check-prefix=ID_QUERIES_SIZET
+// RUN: %clang -### -fsycl-device-only -fno-sycl-id-queries-fit-in-int  %s 2>&1 | FileCheck %s --check-prefix=ID_QUERIES_SIZET
+// RUN: %clang_cl -### -fsycl-device-only -fno-sycl-id-queries-fit-in-int  %s 2>&1 | FileCheck %s --check-prefix=ID_QUERIES_SIZET
 // Test precedence: last one wins
 // RUN: %clang -### -fsycl -fsycl-id-queries-fit-in-int -fsycl-id-queries-range=uint  %s 2>&1 | FileCheck %s --check-prefix=ID_QUERIES_UINT
-// RUN: %clang -### -fsycl -fsycl-id-queries-range=uint -fno-sycl-id-queries-fit-in-int  %s 2>&1 | FileCheck %s --check-prefix=ID_QUERIES_NONE
-// RUN: %clang -### -fsycl -fsycl-id-queries-range=none -fsycl-id-queries-fit-in-int  %s 2>&1 | FileCheck %s --check-prefix=ID_QUERIES_INT
+// RUN: %clang -### -fsycl -fsycl-id-queries-range=uint -fno-sycl-id-queries-fit-in-int  %s 2>&1 | FileCheck %s --check-prefix=ID_QUERIES_SIZET
+// RUN: %clang -### -fsycl -fsycl-id-queries-range=size_t -fsycl-id-queries-fit-in-int  %s 2>&1 | FileCheck %s --check-prefix=ID_QUERIES_INT
 // ID_QUERIES_INT: "-fsycl-id-queries-range=int"
 // ID_QUERIES_UINT: "-fsycl-id-queries-range=uint"
-// ID_QUERIES_NONE: "-fsycl-id-queries-range=none"
+// ID_QUERIES_SIZET: "-fsycl-id-queries-range=size_t"
 
 // RUN: %clang -### -fsycl  %s 2>&1 | FileCheck %s --check-prefix=DEFAULT_STD
 // RUN: %clangxx -### -fsycl %s 2>&1 | FileCheck %s --check-prefix=DEFAULT_STD

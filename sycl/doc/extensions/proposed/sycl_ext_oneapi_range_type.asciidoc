@@ -177,19 +177,20 @@ and that option is non-normative and does not apply to other SYCL
 implementations that may support this extension.
 
 The `-fsycl-id-queries-range=` option accepts three values: `int`, `uint`, or
-`none`.
+`size_t`.
 If a translation unit is compiled with `-fsycl-id-queries-range=int` (the
 default) or `-fsycl-id-queries-range=uint`, all kernels and `SYCL_EXTERNAL`
 functions without an explicitly specified `range_type` property are compiled
 as-if `range_type<int>` or `range_type<unsigned int>` (respectively) was
 specified as a property of that kernel or function.
 
-If a translation unit is compiled with `-fsycl-id-queries-range=none`, no
-default `range_type` is applied.
+If a translation unit is compiled with `-fsycl-id-queries-range=size_t`, no
+default `range_type` is applied, adhering to the SYCL spec requirement that
+the total number of work-items must be representable as a `size_t`.
 
 The `-fsycl-id-queries-fit-in-int` flag is equivalent to
 `-fsycl-id-queries-range=int`, and `-fno-sycl-id-queries-fit-in-int` is
-equivalent to `-fsycl-id-queries-range=none`.
+equivalent to `-fsycl-id-queries-range=size_t`.
 
 
 == Implementation notes

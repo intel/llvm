@@ -15,7 +15,7 @@
 // RUN: | FileCheck --check-prefix=CHECK-UINT %s
 
 // RUN: %clang -### -fno-sycl-libspirv -nocudalib \
-// RUN:   -fsycl -fsycl-targets=nvptx64-nvidia-cuda -fsycl-id-queries-range=none %s 2>&1 \
+// RUN:   -fsycl -fsycl-targets=nvptx64-nvidia-cuda -fsycl-id-queries-range=size_t %s 2>&1 \
 // RUN: | FileCheck --check-prefix=CHECK-DEFAULT %s
 
 // Test legacy compatibility flags
@@ -33,7 +33,7 @@
 // RUN: | FileCheck --check-prefix=CHECK-INT %s
 
 // RUN: %clang -### -fno-sycl-libspirv -nocudalib \
-// RUN:   -fsycl -fsycl-targets=nvptx64-nvidia-cuda -fsycl-id-queries-fit-in-int -fsycl-id-queries-range=none %s 2>&1 \
+// RUN:   -fsycl -fsycl-targets=nvptx64-nvidia-cuda -fsycl-id-queries-fit-in-int -fsycl-id-queries-range=size_t %s 2>&1 \
 // RUN: | FileCheck --check-prefix=CHECK-DEFAULT %s
 
 // CHECK-INT: "-mllvm" "-nvvm-reflect-add=__CUDA_ID_QUERIES_FIT_IN_INT=1"

@@ -576,8 +576,8 @@ static void InitializeStandardPredefinedMacros(const TargetInfo &TI,
     case LangOptions::SYCLIdQueriesRangeKind::UInt:
       Builder.defineMacro("__SYCL_ID_QUERIES_FIT_IN_UINT__");
       break;
-    case LangOptions::SYCLIdQueriesRangeKind::None:
-      // No macro defined
+    case LangOptions::SYCLIdQueriesRangeKind::SizeT:
+      // No macro defined - queries fit in size_t per SYCL spec
       break;
     }
 

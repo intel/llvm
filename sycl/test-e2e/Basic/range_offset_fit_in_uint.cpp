@@ -9,7 +9,7 @@ namespace S = sycl;
 
 constexpr char Msg[] =
     "Provided range and/or offset does not fit in unsigned int. "
-    "Pass `-fsycl-id-queries-range=none' to "
+    "Pass `-fsycl-id-queries-range=size_t' to "
     "remove this limit.";
 
 void checkRangeException(S::exception &E) {

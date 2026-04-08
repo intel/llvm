@@ -1,5 +1,5 @@
 // REQUIRES: cpu
-// RUN: %{build} -Wno-error=deprecated-declarations -fsycl-id-queries-range=none -o %t.out
+// RUN: %{build} -Wno-error=deprecated-declarations -fsycl-id-queries-range=size_t -o %t.out
 // RUN: %{run} %t.out
 // Test legacy compatibility flag
 // RUN: %{build} -Wno-error=deprecated-declarations -fno-sycl-id-queries-fit-in-int -o %t_legacy.out

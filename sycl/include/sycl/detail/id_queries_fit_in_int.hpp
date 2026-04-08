@@ -37,11 +37,11 @@ namespace detail {
 #if __SYCL_ID_QUERIES_FIT_IN_INT__
 constexpr static const char *Msg =
     "Provided range and/or offset does not fit in int. Pass "
-    "`-fsycl-id-queries-range=none' to remove this limit.";
+    "`-fsycl-id-queries-range=size_t' to remove this limit.";
 #else // __SYCL_ID_QUERIES_FIT_IN_UINT__
 constexpr static const char *Msg =
     "Provided range and/or offset does not fit in unsigned int. Pass "
-    "`-fsycl-id-queries-range=none' to remove this limit.";
+    "`-fsycl-id-queries-range=size_t' to remove this limit.";
 #endif
 
 template <typename ValT>

@@ -181,7 +181,7 @@ and not recommended to use in production environment.
     Currently has effect only on spir64\* targets.
     Enabled by default.
 
-**`-fsycl-id-queries-range={int,uint,none}`**
+**`-fsycl-id-queries-range={int,uint,size_t}`**
 
     Specify the assumption about SYCL ID query value ranges. This affects the
     following member functions:
@@ -192,7 +192,7 @@ and not recommended to use in production environment.
     Valid values:
     * int - assume that ID queries fit within INT_MAX (default)
     * uint - assume that ID queries fit within UINT_MAX
-    * none - do not make any assumption about the range
+    * size_t - queries fit within SIZE_MAX per SYCL spec (no additional assumption)
 
     The compiler uses these assumptions to optimize code generation. When an
     assumption is specified, the runtime validates kernel launch parameters and
@@ -208,7 +208,7 @@ and not recommended to use in production environment.
     Enabled by default.
 
     Note: This option is equivalent to `-fsycl-id-queries-range=int` (when
-    enabled) or `-fsycl-id-queries-range=none` (when disabled). The normalized
+    enabled) or `-fsycl-id-queries-range=size_t` (when disabled). The normalized
     `-fsycl-id-queries-range=` option provides additional control with support
     for unsigned int range.
 
