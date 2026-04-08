@@ -43,7 +43,7 @@ int main() {
 // CHECK: attributes #[[ATTR1]] = { convergent nounwind }
 //.
 // CHECK: !{{[0-9]+}} = !{i32 1, i32 2}
-// CHECK: !{{[0-9]+}} = !{i32 4, i32 100000}
+// CHECK: !{{[0-9]+}} = !{i32 7, i32 100000}
 // CHECK: !{{[0-9]+}} = !{i32 {{.*}}}
 // CHECK: ![[MD1]] = !{i32 {{.*}}}
 // CHECK: ![[MD2]] = !{i32 {{.*}}}
