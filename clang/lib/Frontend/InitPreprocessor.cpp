@@ -568,8 +568,18 @@ static void InitializeStandardPredefinedMacros(const TargetInfo &TI,
          getSYCLVersionMacros(LangOpts))
       Builder.defineMacro(Macro.first, Macro.second);
 
-    if (LangOpts.SYCLValueFitInMaxInt)
+    // Define macros based on SYCL ID queries range assumption
+    switch (LangOpts.getSYCLIdQueriesRange()) {
+    case LangOptions::SYCLIdQueriesRangeKind::Int:
       Builder.defineMacro("__SYCL_ID_QUERIES_FIT_IN_INT__");
+      break;
+    case LangOptions::SYCLIdQueriesRangeKind::UInt:
+      Builder.defineMacro("__SYCL_ID_QUERIES_FIT_IN_UINT__");
+      break;
+    case LangOptions::SYCLIdQueriesRangeKind::None:
+      // No macro defined
+      break;
+    }
 
     // Set __SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__ macro for
     // both host and device compilations if -fsycl-disable-range-rounding

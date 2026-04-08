@@ -1,6 +1,9 @@
 // REQUIRES: cpu
-// RUN: %{build} -Wno-error=deprecated-declarations -fsycl-id-queries-fit-in-int -o %t.out
+// RUN: %{build} -Wno-error=deprecated-declarations -fsycl-id-queries-range=int -o %t.out
 // RUN: %{run} %t.out
+// Test legacy compatibility flag
+// RUN: %{build} -Wno-error=deprecated-declarations -fsycl-id-queries-fit-in-int -o %t_legacy.out
+// RUN: %{run} %t_legacy.out
 
 #include <climits>
 #include <iostream>
@@ -9,7 +12,7 @@
 namespace S = sycl;
 
 constexpr char Msg[] = "Provided range and/or offset does not fit in int. "
-                       "Pass `-fno-sycl-id-queries-fit-in-int' to "
+                       "Pass `-fsycl-id-queries-range=none' to "
                        "remove this limit.";
 
 void checkRangeException(S::exception &E) {

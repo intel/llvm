@@ -168,18 +168,28 @@ struct SmallKernel
 q.parallel_for(2147483648, SmallKernel());
 ```
 
-== Interaction with the {dpcpp} "-fsycl-id-queries-fit-in-int" option
+== Interaction with the {dpcpp} "-fsycl-id-queries-range" option
 
-The `-fsycl-id-queries-fit-in-int` option is specific to the {dpcpp}
+The `-fsycl-id-queries-range=` option is specific to the {dpcpp}
 implementation.
 Therefore, this section that describes the interaction between this extension
 and that option is non-normative and does not apply to other SYCL
 implementations that may support this extension.
 
-If a translation unit is compiled with the `-fsycl-id-queries-fit-in-int`
-option, all kernels and `SYCL_EXTERNAL` functions without an explicitly
-specified `range_type` property are compiled as-if `range_type<int>` was
+The `-fsycl-id-queries-range=` option accepts three values: `int`, `uint`, or
+`none`.
+If a translation unit is compiled with `-fsycl-id-queries-range=int` (the
+default) or `-fsycl-id-queries-range=uint`, all kernels and `SYCL_EXTERNAL`
+functions without an explicitly specified `range_type` property are compiled
+as-if `range_type<int>` or `range_type<unsigned int>` (respectively) was
 specified as a property of that kernel or function.
+
+If a translation unit is compiled with `-fsycl-id-queries-range=none`, no
+default `range_type` is applied.
+
+The `-fsycl-id-queries-fit-in-int` flag is equivalent to
+`-fsycl-id-queries-range=int`, and `-fno-sycl-id-queries-fit-in-int` is
+equivalent to `-fsycl-id-queries-range=none`.
 
 
 == Implementation notes

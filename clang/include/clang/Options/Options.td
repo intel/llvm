@@ -7701,12 +7701,24 @@ def flink_huge_device_code : Flag<["-"], "flink-huge-device-code">,
 def fno_link_huge_device_code : Flag<["-"], "fno-link-huge-device-code">,
   HelpText<"Do not generate or use a custom linker script for huge device "
            "code sections (default)">;
-defm sycl_id_queries_fit_in_int: BoolFOption<"sycl-id-queries-fit-in-int",
-  LangOpts<"SYCLValueFitInMaxInt">, DefaultTrue,
-  PosFlag<SetTrue, [], [ClangOption, CLOption], "Assume">,
-  NegFlag<SetFalse, [], [ClangOption, CLOption], "Do not assume">,
-  BothFlags<[], [ClangOption, CLOption, CC1Option], " that SYCL ID queries fit "
-            "within MAX_INT.">>;
+def fsycl_id_queries_range_EQ : Joined<["-"], "fsycl-id-queries-range=">,
+  Visibility<[ClangOption, CLOption, CC1Option]>,
+  Values<"int,uint,none">,
+  NormalizedValuesScope<"LangOptions::SYCLIdQueriesRangeKind">,
+  NormalizedValues<["Int", "UInt", "None"]>,
+  MarshallingInfoEnum<LangOpts<"SYCLIdQueriesRange">, "Int">,
+  HelpText<"Specify the assumption about SYCL ID query value ranges. "
+           "Valid values: int (queries fit in signed int, default), "
+           "uint (queries fit in unsigned int), "
+           "none (no assumption about range)">;
+def fsycl_id_queries_fit_in_int : Flag<["-"], "fsycl-id-queries-fit-in-int">,
+  Alias<fsycl_id_queries_range_EQ>, AliasArgs<["int"]>,
+  HelpText<"Assume that SYCL ID queries fit within MAX_INT "
+           "(compatibility alias for -fsycl-id-queries-range=int)">;
+def fno_sycl_id_queries_fit_in_int : Flag<["-"], "fno-sycl-id-queries-fit-in-int">,
+  Alias<fsycl_id_queries_range_EQ>, AliasArgs<["none"]>,
+  HelpText<"Do not assume SYCL ID queries fit within MAX_INT "
+           "(compatibility alias for -fsycl-id-queries-range=none)">;
 def fsycl_device_obj_EQ : Joined<["-"], "fsycl-device-obj=">,
   Values<"spirv,llvmir,asm">, HelpText<"Specify format of device code stored "
   "in the resulting object. Valid values are: spirv, asm, llvmir (default)">;

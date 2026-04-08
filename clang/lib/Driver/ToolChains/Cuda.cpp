@@ -973,10 +973,17 @@ void CudaToolChain::addClangTargetOptions(
 
     CC1Args.append({"-mllvm", "-enable-memcpyopt-without-libcalls"});
 
-    if (DriverArgs.hasFlag(options::OPT_fsycl_id_queries_fit_in_int,
-                           options::OPT_fno_sycl_id_queries_fit_in_int, false))
-      CC1Args.append(
-          {"-mllvm", "-nvvm-reflect-add=__CUDA_ID_QUERIES_FIT_IN_INT=1"});
+    // Add NVVM reflect flags based on SYCL ID queries range assumption.
+    if (DriverArgs.hasArg(options::OPT_fsycl_id_queries_range_EQ)) {
+      StringRef RangeValue =
+          DriverArgs.getLastArgValue(options::OPT_fsycl_id_queries_range_EQ);
+      if (RangeValue == "int")
+        CC1Args.append(
+            {"-mllvm", "-nvvm-reflect-add=__CUDA_ID_QUERIES_FIT_IN_INT=1"});
+      else if (RangeValue == "uint")
+        CC1Args.append(
+            {"-mllvm", "-nvvm-reflect-add=__CUDA_ID_QUERIES_FIT_IN_UINT=1"});
+    }
 
     SYCLInstallation.addLibspirvLinkArgs(getEffectiveTriple(), DriverArgs,
                                          HostTC.getTriple(), CC1Args);

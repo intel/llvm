@@ -277,12 +277,13 @@ LANGOPT(DeclareSPIRVBuiltins, 1, 0, NotCompatible, "Declare SPIR-V builtin funct
 LANGOPT(SYCLExplicitSIMD  , 1, 0, NotCompatible, "SYCL compilation with explicit SIMD extension")
 LANGOPT(EnableDAEInSpirKernels , 1, 0, NotCompatible, "Enable Dead Argument Elimination in SPIR kernels")
 LANGOPT(SYCLDecomposeStruct, 1, 1, NotCompatible, "Force top level decomposition of SYCL functor")
-LANGOPT(
-    SYCLValueFitInMaxInt, 1, 1,
+ENUM_LANGOPT(
+    SYCLIdQueriesRange, SYCLIdQueriesRangeKind, 2,
+    SYCLIdQueriesRangeKind::Int,
     NotCompatible,
-    "SYCL compiler assumes value fits within MAX_INT for member function of "
-    "get/operator[], get_id/operator[] and get_global_id/get_global_linear_id "
-    "in SYCL class id, iterm and nd_iterm")
+    "SYCL compiler assumption about the range of values returned by ID query "
+    "member functions (get/operator[], get_id/operator[], "
+    "get_global_id/get_global_linear_id) in SYCL class id, item and nd_item")
 LANGOPT(SYCLCUDACompat, 1, 0,
         NotCompatible,
         "Enable CUDA definitions and implicit includes when building for the "

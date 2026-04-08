@@ -4064,7 +4064,7 @@ auto submit_kernel_direct_parallel_for(const queue &Queue, range<Dims> Range,
     // We are executing over the rounded range, but there are still
     // items/ids that are constructed in the range rounded
     // kernel, use items/ids in the user range, which means that
-    // __SYCL_ASSUME_INT can still be violated. So check the bounds
+    // ID range assumptions can still be violated. So check the bounds
     // of the user range, instead of the rounded range.
     detail::checkValueRange<Dims>(Range);
 #endif

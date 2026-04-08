@@ -33,24 +33,39 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
+#if __SYCL_ID_QUERIES_FIT_IN_INT__ || __SYCL_ID_QUERIES_FIT_IN_UINT__
 #if __SYCL_ID_QUERIES_FIT_IN_INT__
 constexpr static const char *Msg =
     "Provided range and/or offset does not fit in int. Pass "
-    "`-fno-sycl-id-queries-fit-in-int' to remove this limit.";
+    "`-fsycl-id-queries-range=none' to remove this limit.";
+#else // __SYCL_ID_QUERIES_FIT_IN_UINT__
+constexpr static const char *Msg =
+    "Provided range and/or offset does not fit in unsigned int. Pass "
+    "`-fsycl-id-queries-range=none' to remove this limit.";
+#endif
 
 template <typename ValT>
 typename std::enable_if_t<std::is_same<ValT, size_t>::value ||
                           std::is_same<ValT, unsigned long long>::value>
 checkValueRangeImpl(ValT V) {
+#if __SYCL_ID_QUERIES_FIT_IN_INT__
   static constexpr size_t Limit =
       static_cast<size_t>((std::numeric_limits<int>::max)());
+#else // __SYCL_ID_QUERIES_FIT_IN_UINT__
+  static constexpr size_t Limit =
+      static_cast<size_t>((std::numeric_limits<unsigned int>::max)());
+#endif
   if (V > Limit)
     throw sycl::exception(make_error_code(errc::nd_range), Msg);
 }
 
 inline void checkMulOverflow(size_t a, size_t b) {
 #ifndef _MSC_VER
+#if __SYCL_ID_QUERIES_FIT_IN_INT__
   int Product;
+#elif __SYCL_ID_QUERIES_FIT_IN_UINT__
+  unsigned int Product;
+#endif
   if (__builtin_mul_overflow(a, b, &Product)) {
     throw sycl::exception(make_error_code(errc::nd_range), Msg);
   }
@@ -64,7 +79,11 @@ inline void checkMulOverflow(size_t a, size_t b) {
 
 inline void checkMulOverflow(size_t a, size_t b, size_t c) {
 #ifndef _MSC_VER
+#if __SYCL_ID_QUERIES_FIT_IN_INT__
   int Product;
+#elif __SYCL_ID_QUERIES_FIT_IN_UINT__
+  unsigned int Product;
+#endif
   if (__builtin_mul_overflow(a, b, &Product) ||
       __builtin_mul_overflow(Product, c, &Product)) {
     throw sycl::exception(make_error_code(errc::nd_range), Msg);
@@ -90,11 +109,11 @@ inline bool hasNonZeroOffset(const sycl::nd_range<Dims> &V) {
   }
   return (Product != 0);
 }
-#endif //__SYCL_ID_QUERIES_FIT_IN_INT__
+#endif // __SYCL_ID_QUERIES_FIT_IN_INT__ || __SYCL_ID_QUERIES_FIT_IN_UINT__
 
 template <int Dims>
 void checkValueRange([[maybe_unused]] const sycl::range<Dims> &V) {
-#if __SYCL_ID_QUERIES_FIT_IN_INT__
+#if __SYCL_ID_QUERIES_FIT_IN_INT__ || __SYCL_ID_QUERIES_FIT_IN_UINT__
   if constexpr (Dims == 1) {
     // For 1D range, just check the value against MAX_INT.
     checkValueRangeImpl(V[0]);
@@ -110,7 +129,7 @@ void checkValueRange([[maybe_unused]] const sycl::range<Dims> &V) {
 
 template <int Dims>
 void checkValueRange([[maybe_unused]] const sycl::id<Dims> &V) {
-#if __SYCL_ID_QUERIES_FIT_IN_INT__
+#if __SYCL_ID_QUERIES_FIT_IN_INT__ || __SYCL_ID_QUERIES_FIT_IN_UINT__
   // An id cannot be linearized without a range, so check each component.
   for (int Dim = 0; Dim < Dims; ++Dim) {
     checkValueRangeImpl(V[Dim]);
@@ -121,7 +140,7 @@ void checkValueRange([[maybe_unused]] const sycl::id<Dims> &V) {
 template <int Dims>
 void checkValueRange([[maybe_unused]] const range<Dims> &R,
                      [[maybe_unused]] const id<Dims> &O) {
-#if __SYCL_ID_QUERIES_FIT_IN_INT__
+#if __SYCL_ID_QUERIES_FIT_IN_INT__ || __SYCL_ID_QUERIES_FIT_IN_UINT__
   checkValueRange<Dims>(R);
   checkValueRange<Dims>(O);
 
@@ -134,7 +153,7 @@ void checkValueRange([[maybe_unused]] const range<Dims> &R,
 
 template <int Dims>
 void checkValueRange([[maybe_unused]] const sycl::nd_range<Dims> &V) {
-#if __SYCL_ID_QUERIES_FIT_IN_INT__
+#if __SYCL_ID_QUERIES_FIT_IN_INT__ || __SYCL_ID_QUERIES_FIT_IN_UINT__
   // In an ND-range, we only need to check the global linear size, because:
   // - The linear size must be greater than any of the dimensions.
   // - Each dimension of the global range is larger than the local range.

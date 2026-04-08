@@ -1,10 +1,18 @@
 // RUN: %clang_cc1 %s -E -dM | FileCheck %s
 // RUN: %clang_cc1 %s -fsycl-is-device -E -dM | FileCheck --check-prefix=CHECK-SYCL-ID %s
+// Test new option syntax
+// RUN: %clang_cc1 %s -fsycl-id-queries-range=int -fsycl-is-host -E -dM | FileCheck --check-prefix=CHECK-SYCL-STD-2020 %s
+// RUN: %clang_cc1 %s -fsycl-id-queries-range=int -fsycl-is-device -E -dM | FileCheck --check-prefix=CHECK-SYCL-STD-2020 %s
+// RUN: %clang_cc1 %s -fsycl-id-queries-range=int -fsycl-is-device -E -dM | FileCheck --check-prefix=CHECK-SYCL-STD-DEVICE %s
+// RUN: %clang_cc1 %s -fsycl-id-queries-range=uint -fsycl-is-device -E -dM | FileCheck --check-prefix=CHECK-SYCL-UINT %s
+// RUN: %clang_cc1 %s -fsycl-id-queries-range=none -fsycl-is-device -E -dM | FileCheck --check-prefix=CHECK-SYCL-NONE %s
+// Test legacy compatibility flags (kept for backward compatibility)
 // RUN: %clang_cc1 %s -fsycl-id-queries-fit-in-int -fsycl-is-host -E -dM | FileCheck --check-prefix=CHECK-SYCL-STD-2020 %s
 // RUN: %clang_cc1 %s -fsycl-id-queries-fit-in-int -fsycl-is-device -E -dM | FileCheck --check-prefix=CHECK-SYCL-STD-2020 %s
-// RUN: %clang_cc1 %s -fsycl-id-queries-fit-in-int -fsycl-is-device -E -dM | FileCheck --check-prefix=CHECK-SYCL-STD-DEVICE %s
-// RUNx: %clang_cc1 %s -fsycl-id-queries-fit-in-int -fsycl-is-device -E -dM -fms-compatibility | FileCheck --check-prefix=CHECK-MSVC %s
+// RUNx: %clang_cc1 %s -fsycl-id-queries-range=int -fsycl-is-device -E -dM -fms-compatibility | FileCheck --check-prefix=CHECK-MSVC %s
 // RUN: %clang_cc1 -fno-sycl-id-queries-fit-in-int %s -E -dM | FileCheck \
+// RUN: --check-prefix=CHECK-NO-SYCL_FIT_IN_INT %s
+// RUN: %clang_cc1 -fsycl-id-queries-range=none %s -E -dM | FileCheck \
 // RUN: --check-prefix=CHECK-NO-SYCL_FIT_IN_INT %s
 // RUN: %clang_cc1 %s  -triple nvptx64-nvidia-cuda -target-cpu sm_80 -fsycl-is-device -E -dM | FileCheck \
 // RUN: --check-prefix=CHECK-CUDA %s -DARCH_CODE=800
@@ -33,6 +41,12 @@
 
 // CHECK-NO-SYCL_FIT_IN_INT-NOT:#define __SYCL_ID_QUERIES_FIT_IN_INT__ 1
 // CHECK-SYCL-ID:#define __SYCL_ID_QUERIES_FIT_IN_INT__ 1
+
+// CHECK-SYCL-UINT:#define __SYCL_ID_QUERIES_FIT_IN_UINT__ 1
+// CHECK-SYCL-UINT-NOT:#define __SYCL_ID_QUERIES_FIT_IN_INT__
+
+// CHECK-SYCL-NONE-NOT:#define __SYCL_ID_QUERIES_FIT_IN_INT__
+// CHECK-SYCL-NONE-NOT:#define __SYCL_ID_QUERIES_FIT_IN_UINT__
 
 // CHECK-CUDA:#define __SYCL_CUDA_ARCH__ [[ARCH_CODE]]
 // CHECK-CUDA-NOT:#define __CUDA_ARCH__ {{[0-9]+}}

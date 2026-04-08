@@ -87,6 +87,10 @@
 // RUN:   %clang_cl -### -fsycl-id-queries-fit-in-int  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=WARNING-UNUSED-ARG -DOPT=-fsycl-id-queries-fit-in-int %s
 
+// Warning should be emitted when using -fsycl-id-queries-range= without -fsycl
+// RUN:   %clang -### -fsycl-id-queries-range=int  %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=WARNING-UNUSED-ARG -DOPT=-fsycl-id-queries-range=int %s
+
 // Warning should be emitted when using -fsycl-instrument-device-code without -fsycl
 // RUN:   %clang -### -fsycl-instrument-device-code  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=WARNING-UNUSED-ARG -DOPT=-fsycl-instrument-device-code %s
