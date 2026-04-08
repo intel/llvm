@@ -245,7 +245,7 @@ template <int Ebits, int Mbits, typename ToT>
 static inline ToT ConvertFromFP8_CPU(uint8_t b,
                                      rounding R = rounding::to_even) noexcept {
   static_assert((Ebits == 4 && Mbits == 3) || (Ebits == 5 && Mbits == 2) ||
-                    (Ebits == 5 && Mbits == 3) || (Ebits == 8 && Mbits == 0),
+                    (Ebits == 8 && Mbits == 0),
                 "Unsupported FP8 (Ebits,Mbits) combination");
 
   constexpr int Bias = (1 << (Ebits - 1)) - 1;
