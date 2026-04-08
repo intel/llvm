@@ -656,9 +656,8 @@ template <size_t N> class fp8_e4m3_x {
   }
 
   void CheckConstraints(rounding r) const {
-    if (r != rounding::to_even)
-      throw std::invalid_argument(
-          "fp8_e4m3_x: only rounding::to_even is supported");
+    assert(r == rounding::to_even &&
+           "fp8_e4m3_x: only rounding::to_even is supported");
   }
 
 public:
@@ -1027,10 +1026,9 @@ template <size_t N> class fp8_e5m2_x {
 #endif
   }
 
-  void CheckConstraints(rounding r, saturation s) const {
-    if (r != rounding::to_even)
-      throw std::invalid_argument(
-          "fp8_e5m2_x: only rounding::to_even is supported");
+  void CheckConstraints(rounding r) const {
+    assert(r == rounding::to_even &&
+           "fp8_e5m2_x: only rounding::to_even is supported");
   }
 
 public:
@@ -1067,7 +1065,7 @@ public:
 
   explicit fp8_e5m2_x(half const (&v)[N], rounding r = rounding::to_even,
                       saturation s = saturation::finite) {
-    CheckConstraints(r, s);
+    CheckConstraints(r);
     // TODO: optimize with vectorized builtin calls
     for (size_t i = 0; i < N; ++i)
       vals[i] = ConvertToFP8(v[i], s);
@@ -1075,7 +1073,7 @@ public:
 
   explicit fp8_e5m2_x(bfloat16 const (&v)[N], rounding r = rounding::to_even,
                       saturation s = saturation::finite) {
-    CheckConstraints(r, s);
+    CheckConstraints(r);
     // TODO: optimize with vectorized builtin calls
     for (size_t i = 0; i < N; ++i)
       vals[i] = ConvertBF16ToFP8(v[i], s);
@@ -1083,7 +1081,7 @@ public:
 
   explicit fp8_e5m2_x(float const (&v)[N], rounding r = rounding::to_even,
                       saturation s = saturation::finite) {
-    CheckConstraints(r, s);
+    CheckConstraints(r);
     for (size_t i = 0; i < N; ++i)
       vals[i] = ConvertToFP8(v[i], s);
   }
@@ -1098,7 +1096,7 @@ public:
   explicit fp8_e5m2_x(const sycl::marray<sycl::half, N> &v,
                       rounding r = rounding::to_even,
                       saturation s = saturation::finite) {
-    CheckConstraints(r, s);
+    CheckConstraints(r);
     for (size_t i = 0; i < N; ++i)
       vals[i] = ConvertToFP8(v[i], s);
   }
@@ -1106,7 +1104,7 @@ public:
   explicit fp8_e5m2_x(const sycl::marray<bfloat16, N> &v,
                       rounding r = rounding::to_even,
                       saturation s = saturation::finite) {
-    CheckConstraints(r, s);
+    CheckConstraints(r);
     for (size_t i = 0; i < N; ++i)
       vals[i] = ConvertBF16ToFP8(v[i], s);
   }
@@ -1114,7 +1112,7 @@ public:
   explicit fp8_e5m2_x(const sycl::marray<float, N> &v,
                       rounding r = rounding::to_even,
                       saturation s = saturation::finite) {
-    CheckConstraints(r, s);
+    CheckConstraints(r);
     for (size_t i = 0; i < N; ++i)
       vals[i] = ConvertToFP8(v[i], s);
   }
@@ -1477,10 +1475,11 @@ template <size_t N> class fp8_e8m0_x {
                 "fp8_e8m0_x: Template argument N must be 1 or 2");
 
   void CheckConstraints(rounding r) const {
-
-    if (r != rounding::upward && r != rounding::toward_zero)
-      throw std::invalid_argument("fp8_e8m0_x: only rounding::upward and "
-                                  "rounding::toward_zero are supported");
+    assert(
+        r == rounding::upward ||
+        r == rounding::toward_zero &&
+            "fp8_e8m0_x: only rounding::upward and rounding::toward_zero are "
+            "supported");
   }
 
 public:
