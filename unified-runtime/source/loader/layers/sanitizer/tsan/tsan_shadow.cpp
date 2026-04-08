@@ -36,6 +36,9 @@ std::shared_ptr<ShadowMemory> GetShadowMemory(ur_context_handle_t Context,
 }
 
 ur_result_t ShadowMemoryCPU::Setup() {
+  if (ShadowBegin != 0)
+    return UR_RESULT_SUCCESS;
+
   bool Initialized;
 
   ShadowBegin = 0x100000000000ULL;

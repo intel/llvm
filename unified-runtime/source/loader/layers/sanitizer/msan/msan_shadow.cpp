@@ -82,6 +82,9 @@ GetMsanShadowMemory(ur_context_handle_t Context, ur_device_handle_t Device,
 }
 
 ur_result_t MsanShadowMemoryCPU::Setup() {
+  if (ShadowBegin != 0)
+    return UR_RESULT_SUCCESS;
+
   bool Initialized = true;
   for (unsigned i = 0; i < kMemoryLayoutSize; ++i) {
     uptr Start = kMemoryLayout[i].start;
