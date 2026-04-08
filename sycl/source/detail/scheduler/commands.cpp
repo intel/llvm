@@ -402,13 +402,16 @@ public:
             // actual task completion rather than the enqueue time.
             if (HostTaskEvent) {
               try {
-                Queue->getAdapter().call<UrApiKind::urEventWait>(1, &HostTaskEvent);
+                Queue->getAdapter().call<UrApiKind::urEventWait>(
+                    1, &HostTaskEvent);
               } catch (...) {
                 auto CurrentException = std::current_exception();
-                Queue->getAdapter().call<UrApiKind::urEventRelease>(HostTaskEvent);
+                Queue->getAdapter().call<UrApiKind::urEventRelease>(
+                    HostTaskEvent);
                 throw;
               }
-              Queue->getAdapter().call<UrApiKind::urEventRelease>(HostTaskEvent);
+              Queue->getAdapter().call<UrApiKind::urEventRelease>(
+                  HostTaskEvent);
             }
           } else {
             HostTask.MHostTask->call(MThisCmd->MEvent->getHostProfilingInfo());
