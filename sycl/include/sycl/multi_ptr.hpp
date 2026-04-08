@@ -1387,7 +1387,7 @@ get_raw_pointer(multi_ptr<ElementType, Space, DecorateAddress> Ptr) {
 
 template <typename ElementType, access::address_space Space,
           access::decorated DecorateAddress>
-auto builtin_element_ptr(multi_ptr<ElementType, Space, DecorateAddress> Ptr) {
+auto get_element_pointer(multi_ptr<ElementType, Space, DecorateAddress> Ptr) {
   return address_space_cast<Space, DecorateAddress>(&(*Ptr)[0]);
 }
 } // namespace detail
