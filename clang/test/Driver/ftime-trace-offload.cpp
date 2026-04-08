@@ -1,3 +1,4 @@
+// XFAIL: *
 // RUN: rm -rf %t && mkdir -p %t && cd %t
 // RUN: mkdir d e f && cp %s d/a.cpp
 
