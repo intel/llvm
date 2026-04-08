@@ -122,6 +122,7 @@ def get_explicit_group_name(result: Result, metadata: dict[str, BenchmarkMetadat
         log.debug(f"No explicit group found for {result.label}, using 'Other'")
         return "Other"
 
+
 # Function to generate the markdown collapsible sections for each variant
 def generate_markdown_details(
     results: list[Result], current_markdown_size: int, markdown_size: MarkdownSize

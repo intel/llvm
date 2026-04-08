@@ -16,7 +16,6 @@ from utils.utils import run
 from utils.validate import Validate
 from utils.logger import log
 from utils.detect_versions import DetectVersion
-from utils.unitrace import get_unitrace
 
 
 class BenchmarkHistory:
@@ -212,9 +211,7 @@ class BenchmarkHistory:
         results_dir = Path(os.path.join(self.dir, "results"))
         os.makedirs(results_dir, exist_ok=True)
 
-        if options.unitrace:
-            timestamp = get_unitrace().timestamp  # type: ignore
-        elif options.timestamp_override is not None:
+        if options.timestamp_override is not None:
             timestamp = options.timestamp_override
         else:
             timestamp = (

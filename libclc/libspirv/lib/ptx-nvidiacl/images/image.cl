@@ -149,6 +149,7 @@ void __nvvm_sust_3d_v4i32_clamp(write_only image3d_t, int, int, int, int, int,
 int __nvvm_suq_width(long) __asm("llvm.nvvm.suq.width");
 int __nvvm_suq_height(long) __asm("llvm.nvvm.suq.height");
 __attribute__((always_inline)) int __nvvm_suq_depth(long arg) {
+  (void)arg;
   // suq.depth generates runtime errors in CUDA
   return -1;
 }
@@ -158,7 +159,10 @@ int __nvvm_suq_width_2i(read_only image2d_t) __asm("llvm.nvvm.suq.width");
 int __nvvm_suq_width_3i(read_only image3d_t) __asm("llvm.nvvm.suq.width");
 int __nvvm_suq_height_2i(read_only image2d_t) __asm("llvm.nvvm.suq.height");
 int __nvvm_suq_height_3i(read_only image3d_t) __asm("llvm.nvvm.suq.height");
-int __nvvm_suq_depth_3i(read_only image3d_t arg) { return -1; }
+int __nvvm_suq_depth_3i(read_only image3d_t arg) {
+  (void)arg;
+  return -1;
+}
 
 // Helpers
 
@@ -960,6 +964,8 @@ _DEFINE_SAMPLED_LOADS(half, 16)
   elem_t##4 _Z30__spirv_ImageSampleExplicitLodI32__spirv_SampledImage__image##dims##d_roDv4_##elem_t_mangled##input_coord_t_mangled##ET0_T_T1_if( \
       __ocl_sampled_image##dims##d_ro_t sampled_image,                                                                                            \
       input_coord_t input_coord, int operands, float lod) {                                                                                       \
+    (void)operands;                                                                                                                               \
+    (void)lod;                                                                                                                                    \
     long image = __clc__sampled_image##dims##d_unpack_image(sampled_image);                                                                       \
     int sampler = __clc__sampled_image##dims##d_unpack_sampler(sampled_image);                                                                    \
     /* Sampling algorithms are implemented assu__spirv_ocl_s_ming an                                                                              \
@@ -2576,7 +2582,7 @@ __nvvm_tex_2d_v4f16_f32(unsigned long imageHandle, float x, float y) {
 
 __attribute__((always_inline)) half4
 __nvvm_tex_3d_v4f16_f32(unsigned long imageHandle, float x, float y, float z) {
-  float4 a = __nvvm_tex_1d_v4f32_f32(imageHandle, x);
+  float4 a = __nvvm_tex_3d_v4f32_f32(imageHandle, x, y, z);
   return cast_float4_to_half4(a);
 }
 
@@ -3633,6 +3639,7 @@ _CLC_DEFINE_MIPMAP_BINDLESS_THUNK_READS_BUILTIN(half, 3, f16, v4f32,
       30, __spirv_ImageSampleExplicitLod, I,                                   \
       elem_t_mangled##coord_mangled##ET0_T_T1_if)(                             \
       ulong imageHandle, coord_input, int type, float level) {                 \
+    (void)type;                                                                \
     return __nvvm_tex_##dimension##d_level_##vec_size##_f32(                   \
         imageHandle, coord_parameter, level);                                  \
   }                                                                            \
@@ -3641,6 +3648,7 @@ _CLC_DEFINE_MIPMAP_BINDLESS_THUNK_READS_BUILTIN(half, 3, f16, v4f32,
       elem_t_mangled##coord_mangled##ET0_T_T1_i##grad_mangled)(                \
       ulong imageHandle, coord_input, int type, float##grad_input dX,          \
       float##grad_input dY) {                                                  \
+    (void)type;                                                                \
     return __nvvm_tex_##dimension##d_grad_##vec_size##_f32(                    \
         imageHandle, coord_parameter, __VA_ARGS__);                            \
   }
@@ -3875,6 +3883,7 @@ _CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(half4, 3, Dv4_Dh, v4f16, Dv3_f,
 _CLC_DEF half4
 _Z30__spirv_ImageSampleExplicitLodImDv4_DF16_Dv3_fET0_T_T1_iS4_S4_(
     ulong imageHandle, float3 coord, int type, float3 dX, float3 dY) {
+  (void)type;
   return __nvvm_tex_3d_grad_v4f16_f32(imageHandle, COORD_PARAMS_3D, dX.x, dX.y,
                                       dX.z, dY.x, dY.y, dY.z);
 }
