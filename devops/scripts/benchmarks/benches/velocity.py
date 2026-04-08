@@ -8,7 +8,6 @@ import shutil
 import os
 from pathlib import Path
 
-from .base import Benchmark, Suite, TracingType
 from utils.result import Result
 from utils.utils import run
 from options import options
@@ -158,7 +157,7 @@ class VelocityBase(Benchmark):
     def run(
         self,
         env_vars,
-        run_trace: TracingType = TracingType.NONE,
+        flamegraph_enabled: bool = False,
         force_trace: bool = False,
     ) -> list[Result]:
         env_vars = dict(env_vars) if env_vars else {}
@@ -173,7 +172,7 @@ class VelocityBase(Benchmark):
             command,
             env_vars,
             ld_library=self.ld_libraries(),
-            run_trace=run_trace,
+            flamegraph_enabled=flamegraph_enabled,
             force_trace=force_trace,
         )
 
@@ -258,7 +257,7 @@ class Bitcracker(VelocityBase):
             return float(match.group(1))
         else:
             raise ValueError(
-                "{self.__class__.__name__}: Failed to parse benchmark output."
+                f"{self.__class__.__name__}: Failed to parse benchmark output."
             )
 
     def get_tags(self):
@@ -307,7 +306,7 @@ class SobelFilter(VelocityBase):
             return round(float(match.group(1)) * 1000, 3)
         else:
             raise ValueError(
-                "{self.__class__.__name__}: Failed to parse benchmark output."
+                f"{self.__class__.__name__}: Failed to parse benchmark output."
             )
 
     def get_tags(self):
@@ -321,7 +320,7 @@ class QuickSilver(VelocityBase):
     def run(
         self,
         env_vars,
-        run_trace: TracingType = TracingType.NONE,
+        flamegraph_enabled: bool = False,
         force_trace: bool = False,
     ) -> list[Result]:
         # TODO: fix the crash in QuickSilver when UR_L0_USE_IMMEDIATE_COMMANDLISTS=0
@@ -331,7 +330,7 @@ class QuickSilver(VelocityBase):
         ):
             return None
 
-        return super().run(env_vars, run_trace, force_trace)
+        return super().run(env_vars, flamegraph_enabled, force_trace)
 
     def name(self):
         return "Velocity-Bench QuickSilver"
@@ -362,7 +361,7 @@ class QuickSilver(VelocityBase):
             return float(match.group(1))
         else:
             raise ValueError(
-                "{self.__class__.__name__}: Failed to parse benchmark output."
+                f"{self.__class__.__name__}: Failed to parse benchmark output."
             )
 
     def get_tags(self):

@@ -7,7 +7,6 @@ import os
 from pathlib import Path
 import re
 
-from .base import Suite, Benchmark, TracingType
 from options import options
 from utils.utils import download, run
 from utils.result import Result
@@ -170,7 +169,7 @@ class GromacsBenchmark(Benchmark):
     def run(
         self,
         env_vars,
-        run_trace: TracingType = TracingType.NONE,
+        flamegraph_enabled: bool = False,
         force_trace: bool = False,
     ) -> list[Result]:
         model_dir = self.grappa_dir / self.model

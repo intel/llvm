@@ -12,7 +12,6 @@ from options import options
 from utils.result import BenchmarkMetadata
 from utils.logger import log
 
-from ..base import Benchmark, Suite, TracingType
 from .compute_benchmark import ComputeBenchmark
 from .compute_enums import RUNTIMES, PROFILERS, KERNEL_NAME, runtime_to_tag_name
 from .compute_metadata import ComputeMetadataGenerator
@@ -876,8 +875,8 @@ class SubmitKernel(ComputeBenchmark):
     def _supported_runtimes(self) -> list[RUNTIMES]:
         return super()._supported_runtimes() + [RUNTIMES.SYCL_PREVIEW]
 
-    def _bin_args(self, run_trace: TracingType = TracingType.NONE) -> list[str]:
-        iters = self._get_iters(run_trace)
+    def _bin_args(self, flamegraph_enabled: bool = False) -> list[str]:
+        iters = self._get_iters(flamegraph_enabled)
         return [
             f"--iterations={iters}",
             f"--Ioq={self._ioq}",
@@ -928,8 +927,8 @@ class ExecImmCopy(ComputeBenchmark):
     def get_tags(self):
         return ["memory", "submit", "latency", "SYCL", "micro"]
 
-    def _bin_args(self, run_trace: TracingType = TracingType.NONE) -> list[str]:
-        iters = self._get_iters(run_trace)
+    def _bin_args(self, flamegraph_enabled: bool = False) -> list[str]:
+        iters = self._get_iters(flamegraph_enabled)
         return [
             f"--iterations={iters}",
             f"--ioq={self._ioq}",
@@ -982,7 +981,7 @@ class RecordAndReplay(ComputeBenchmark):
     def get_tags(self):
         return ["L0"]
 
-    def _bin_args(self, run_trace: TracingType = TracingType.NONE) -> list[str]:
+    def _bin_args(self, flamegraph_enabled: bool = False) -> list[str]:
         return [f"--{k}={v}" for k, v in self._rr_params.items()]
 
 
@@ -1018,8 +1017,8 @@ class QueueInOrderMemcpy(ComputeBenchmark):
     def get_tags(self):
         return ["memory", "latency", "SYCL", "micro"]
 
-    def _bin_args(self, run_trace: TracingType = TracingType.NONE) -> list[str]:
-        iters = self._get_iters(run_trace)
+    def _bin_args(self, flamegraph_enabled: bool = False) -> list[str]:
+        iters = self._get_iters(flamegraph_enabled)
         return [
             f"--iterations={iters}",
             f"--IsCopyOnly={self._is_copy_only}",
@@ -1059,8 +1058,8 @@ class QueueMemcpy(ComputeBenchmark):
     def get_tags(self):
         return ["memory", "latency", "SYCL", "micro"]
 
-    def _bin_args(self, run_trace: TracingType = TracingType.NONE) -> list[str]:
-        iters = self._get_iters(run_trace)
+    def _bin_args(self, flamegraph_enabled: bool = False) -> list[str]:
+        iters = self._get_iters(flamegraph_enabled)
         return [
             f"--iterations={iters}",
             f"--sourcePlacement={self._source}",
@@ -1099,8 +1098,8 @@ class StreamMemory(ComputeBenchmark):
     def get_tags(self):
         return ["memory", "throughput", "SYCL", "micro"]
 
-    def _bin_args(self, run_trace: TracingType = TracingType.NONE) -> list[str]:
-        iters = self._get_iters(run_trace)
+    def _bin_args(self, flamegraph_enabled: bool = False) -> list[str]:
+        iters = self._get_iters(flamegraph_enabled)
         return [
             f"--iterations={iters}",
             f"--type={self._type}",
@@ -1136,8 +1135,8 @@ class VectorSum(ComputeBenchmark):
     def get_tags(self):
         return ["math", "throughput", "SYCL", "micro"]
 
-    def _bin_args(self, run_trace: TracingType = TracingType.NONE) -> list[str]:
-        iters = self._get_iters(run_trace)
+    def _bin_args(self, flamegraph_enabled: bool = False) -> list[str]:
+        iters = self._get_iters(flamegraph_enabled)
         return [
             f"--iterations={iters}",
             "--numberOfElementsX=512",
@@ -1230,8 +1229,8 @@ class MemcpyExecute(ComputeBenchmark):
         else:
             return {}
 
-    def _bin_args(self, run_trace: TracingType = TracingType.NONE) -> list[str]:
-        iters = self._get_iters(run_trace)
+    def _bin_args(self, flamegraph_enabled: bool = False) -> list[str]:
+        iters = self._get_iters(flamegraph_enabled)
         return [
             f"--iterations={iters}",
             "--Ioq=1",
@@ -1287,8 +1286,8 @@ class GraphApiSinKernelGraph(ComputeBenchmark):
             "latency",
         ]
 
-    def _bin_args(self, run_trace: TracingType = TracingType.NONE) -> list[str]:
-        iters = self._get_iters(run_trace)
+    def _bin_args(self, flamegraph_enabled: bool = False) -> list[str]:
+        iters = self._get_iters(flamegraph_enabled)
         return [
             f"--iterations={iters}",
             f"--numKernels={self._num_kernels}",
@@ -1367,8 +1366,8 @@ class GraphApiSubmitGraph(ComputeBenchmark):
     def _supported_runtimes(self) -> list[RUNTIMES]:
         return super()._supported_runtimes() + [RUNTIMES.SYCL_PREVIEW]
 
-    def _bin_args(self, run_trace: TracingType = TracingType.NONE) -> list[str]:
-        iters = self._get_iters(run_trace)
+    def _bin_args(self, flamegraph_enabled: bool = False) -> list[str]:
+        iters = self._get_iters(flamegraph_enabled)
         return [
             f"--iterations={iters}",
             f"--NumKernels={self._num_kernels}",
@@ -1419,8 +1418,8 @@ class UllsEmptyKernel(ComputeBenchmark):
     def _supported_runtimes(self) -> list[RUNTIMES]:
         return [RUNTIMES.SYCL, RUNTIMES.LEVEL_ZERO]
 
-    def _bin_args(self, run_trace: TracingType = TracingType.NONE) -> list[str]:
-        iters = self._get_iters(run_trace)
+    def _bin_args(self, flamegraph_enabled: bool = False) -> list[str]:
+        iters = self._get_iters(flamegraph_enabled)
         return [
             f"--iterations={iters}",
             f"--wgs={self._wgs}",
@@ -1472,8 +1471,8 @@ class UllsKernelSwitch(ComputeBenchmark):
     def _supported_runtimes(self):
         return [RUNTIMES.SYCL, RUNTIMES.LEVEL_ZERO]
 
-    def _bin_args(self, run_trace: TracingType = TracingType.NONE) -> list[str]:
-        iters = self._get_iters(run_trace)
+    def _bin_args(self, flamegraph_enabled: bool = False) -> list[str]:
+        iters = self._get_iters(flamegraph_enabled)
         return [
             f"--iterations={iters}",
             f"--count={self._count}",
@@ -1532,8 +1531,8 @@ class UsmMemoryAllocation(ComputeBenchmark):
     def get_tags(self):
         return [runtime_to_tag_name(self._runtime), "micro", "latency", "memory"]
 
-    def _bin_args(self, run_trace: TracingType = TracingType.NONE) -> list[str]:
-        iters = self._get_iters(run_trace)
+    def _bin_args(self, flamegraph_enabled: bool = False) -> list[str]:
+        iters = self._get_iters(flamegraph_enabled)
         return [
             f"--iterations={iters}",
             f"--type={self._usm_memory_placement}",
@@ -1596,8 +1595,8 @@ class UsmBatchMemoryAllocation(ComputeBenchmark):
     def get_tags(self):
         return [runtime_to_tag_name(self._runtime), "micro", "latency", "memory"]
 
-    def _bin_args(self, run_trace: TracingType = TracingType.NONE) -> list[str]:
-        iters = self._get_iters(run_trace)
+    def _bin_args(self, flamegraph_enabled: bool = False) -> list[str]:
+        iters = self._get_iters(flamegraph_enabled)
         return [
             f"--iterations={iters}",
             f"--type={self._usm_memory_placement}",
@@ -1668,8 +1667,8 @@ class GraphApiFinalizeGraph(ComputeBenchmark):
             "latency",
         ]
 
-    def _bin_args(self, run_trace: TracingType = TracingType.NONE) -> list[str]:
-        iters = self._get_iters(run_trace)
+    def _bin_args(self, flamegraph_enabled: bool = False) -> list[str]:
+        iters = self._get_iters(flamegraph_enabled)
         return [
             f"--iterations={iters}",
             f"--rebuildGraphEveryIter={self._rebuild_graph_every_iteration}",

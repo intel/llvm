@@ -14,7 +14,6 @@ from options import options
 from utils.logger import log
 from utils.result import Result
 
-from ..base import Benchmark, Suite, TracingType
 from .compute_enums import RUNTIMES, PROFILERS
 
 
@@ -48,7 +47,7 @@ class ComputeBenchmark(Benchmark):
     def run(
         self,
         env_vars,
-        run_trace: TracingType = TracingType.NONE,
+        flamegraph_enabled: bool = False,
         force_trace: bool = False,
     ) -> list[Result]:
         command = [
@@ -57,15 +56,18 @@ class ComputeBenchmark(Benchmark):
             "--csv",
             "--noHeaders",
         ]
-        # Let subclass provide remaining args; bin_args(run_trace) must
+        # Let subclass provide remaining args; bin_args(flamegraph_enabled) must
         # include the proper --iterations token computed from this class's
         # iteration fields.
-        command += self._bin_args(run_trace)
+        command += self._bin_args(flamegraph_enabled)
         env_vars = dict(env_vars) if env_vars else {}
         env_vars.update(self._extra_env_vars())
 
         result = self.run_bench(
-            command, env_vars, run_trace=run_trace, force_trace=force_trace
+            command,
+            env_vars,
+            flamegraph_enabled=flamegraph_enabled,
+            force_trace=force_trace,
         )
         parsed_results = self.__parse_output(result)
         ret = []
@@ -111,12 +113,12 @@ class ComputeBenchmark(Benchmark):
             else ""
         )
 
-    def _get_iters(self, run_trace: TracingType):
-        """Returns the number of iterations to run for the given tracing type."""
+    def _get_iters(self, flamegraph_enabled: bool):
+        """Returns the number of iterations to run."""
         if options.exit_on_failure:
             # we are just testing that the benchmark runs successfully
             return 3
-        if run_trace == TracingType.NONE:
+        if not flamegraph_enabled:
             return self._iterations_regular
         return self._iterations_trace
 
@@ -128,10 +130,10 @@ class ComputeBenchmark(Benchmark):
     def _extra_env_vars(self) -> dict:
         return {}
 
-    def _bin_args(self, run_trace: TracingType = TracingType.NONE) -> list[str]:
+    def _bin_args(self, flamegraph_enabled: bool = False) -> list[str]:
         # Subclasses must implement this and include all flags except --iterations;
         # the base `run()` will prepend the proper --iterations value based on
-        # `run_trace` and the subclass's `iterations_regular`/`iterations_trace`.
+        # `flamegraph_enabled` and the subclass's `iterations_regular`/`iterations_trace`.
         return []
 
     @property

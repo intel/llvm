@@ -17,7 +17,6 @@ from benches.syclbench import *
 from benches.llamacpp import *
 from benches.umf import *
 from benches.benchdnn import OneDnnBench
-from benches.base import TracingType
 from options import Compare, options
 from output_markdown import generate_markdown
 from output_html import generate_html
@@ -98,7 +97,7 @@ def run_iterations(
     iters: int,
     results: dict[str, list[Result]],
     failures: dict[str, str],
-    run_trace: TracingType = TracingType.NONE,
+    flamegraph_enabled: bool = False,
     force_trace: bool = False,
 ) -> bool:
     """
@@ -110,7 +109,7 @@ def run_iterations(
     for iter in range(iters):
         try:
             bench_results = benchmark.run(
-                env_vars, run_trace=run_trace, force_trace=force_trace
+                env_vars, flamegraph_enabled=flamegraph_enabled, force_trace=force_trace
             )
             if bench_results is None:
                 if options.exit_on_failure:
@@ -365,7 +364,7 @@ def main(directory, additional_env_vars, compare_names, filter, execution_stats)
                         options.iterations,
                         intermediate_results,
                         failures,
-                        run_trace=TracingType.NONE,
+                        flamegraph_enabled=False,
                     )
                     valid, processed = process_results(
                         intermediate_results,
@@ -377,8 +376,7 @@ def main(directory, additional_env_vars, compare_names, filter, execution_stats)
 
             # single flamegraph run independent of benchmark iterations (if flamegraph enabled)
             if options.flamegraph and (
-                benchmark.traceable(TracingType.FLAMEGRAPH)
-                or args.flamegraph == "force"
+                benchmark.traceable() or args.flamegraph == "force"
             ):
                 iterations_rc = run_iterations(
                     benchmark,
@@ -386,7 +384,7 @@ def main(directory, additional_env_vars, compare_names, filter, execution_stats)
                     1,
                     intermediate_results,
                     failures,
-                    run_trace=TracingType.FLAMEGRAPH,
+                    flamegraph_enabled=True,
                     force_trace=(args.flamegraph == "force"),
                 )
 
