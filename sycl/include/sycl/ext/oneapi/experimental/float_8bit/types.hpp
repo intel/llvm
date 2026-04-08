@@ -442,7 +442,8 @@ uint8_t round(rounding r, uint8_t b, sycl::half yi, T vi) {
   return b;
 }
 
-static inline uint8_t ConvertToE8M0_CPU(float x, rounding R,
+template <typename T>
+static inline uint8_t ConvertToE8M0_CPU(T x, rounding R,
                                         saturation S) noexcept {
   // E8M0: unsigned 8-bit exponent code, bias 127.
   // Code 0xFF reserved for NaN. No Inf, no subnormals, no signed zero.
@@ -452,30 +453,44 @@ static inline uint8_t ConvertToE8M0_CPU(float x, rounding R,
   constexpr uint8_t NaNCode = 0xFF;
   constexpr uint8_t MaxFiniteCode = 0xFE;
 
-  if (std::isnan(x))
-    return NaNCode;
+  // NaN and Inf checks only apply to non-integral types.
+  if constexpr (!std::is_integral_v<T>) {
+    if (std::isnan(static_cast<float>(x)))
+      return NaNCode;
+    if (std::isinf(static_cast<float>(x)))
+      return (S == saturation::finite) ? MaxFiniteCode : NaNCode;
+  }
 
-  // No sign bit: negative inputs are treated as their magnitude.
-  float ax = std::fabs(x);
+  // Compute absolute value in the natural type T.
+  T ax;
+  if constexpr (std::is_unsigned_v<T>)
+    ax = x;
+  else if constexpr (std::is_signed_v<T> && std::is_integral_v<T>)
+    ax = x < T(0) ? static_cast<T>(-x) : x;
+  else
+    ax = static_cast<T>(std::fabs(static_cast<float>(x)));
 
-  // Infinity handling: depends on saturation.
-  if (std::isinf(ax))
-    return (S == saturation::finite) ? MaxFiniteCode : NaNCode;
+  // Zero check in natural type.
+  if (ax == T(0))
+    return 0x00;
 
-  // Zero and underflow: map to min normal (code 0).
+  // Convert to float for frexp/ldexp-based exponent extraction.
+  float fax = static_cast<float>(ax);
+
+  // Underflow: map to min normal (code 0).
   // Min normal = 2^-127.
   const float min_normal = std::ldexp(1.0f, Emin);
-  if (ax == 0.0f || ax < min_normal)
+  if (fax < min_normal)
     return 0x00;
 
   // Overflow and "too large": clamp or NaN depending on saturation.
   const float max_normal = std::ldexp(1.0f, Emax); // 2^127
-  if (ax >= max_normal)
+  if (fax >= max_normal)
     return (S == saturation::finite) ? MaxFiniteCode : NaNCode;
 
-  // Determine E such that 2^E <= ax < 2^(E+1).
+  // Determine E such that 2^E <= fax < 2^(E+1).
   int e2 = 0;
-  float m = std::frexp(ax, &e2); // ax = m * 2^e2, m in [0.5, 1)
+  float m = std::frexp(fax, &e2); // fax = m * 2^e2, m in [0.5, 1)
   int E = e2 - 1;
 
   // With no mantissa, representables are exact powers of two.
@@ -497,8 +512,8 @@ static inline uint8_t ConvertToE8M0_CPU(float x, rounding R,
       // Nearest of {2^E, 2^(E+1)} w/ ties-to-even (even exponent on tie).
       float lo = std::ldexp(1.0f, E);
       float hi = std::ldexp(1.0f, E + 1);
-      float dlo = ax - lo;
-      float dhi = hi - ax;
+      float dlo = fax - lo;
+      float dhi = hi - fax;
       if (dhi < dlo) {
         if (E < Emax)
           ++E;
@@ -543,6 +558,9 @@ template <size_t N> class fp8_e4m3_x {
   static constexpr uint8_t NaNCode = 0xFF;
   static constexpr uint8_t MaxFiniteCode =
       0x7E; // 0.1111.110 (positive max normal)
+
+  static_assert(N == 1 || N == 2,
+                "fp8_e4m3_x: Template argument N must be 1 or 2");
 
   template <typename T> uint8_t ConvertToFP8(T h, rounding r, saturation s) {
     sycl::half hi = static_cast<sycl::half>(h);
@@ -598,8 +616,6 @@ template <size_t N> class fp8_e4m3_x {
   }
 
   void CheckConstraints(rounding r) const {
-    static_assert(N == 1 || N == 2,
-                  "fp8_e4m3_x: Template argument N must be 1 or 2");
     if (r != rounding::to_even)
       throw std::invalid_argument(
           "fp8_e4m3_x: only rounding::to_even is supported");
@@ -623,8 +639,6 @@ public:
                  ((std::is_same_v<std::decay_t<Types>, float>) && ...) ||
                  ((std::is_same_v<std::decay_t<Types>, double>) && ...))>>
   explicit fp8_e4m3_x(Types... v) {
-    static_assert(N == 1 || N == 2,
-                  "fp8_e4m3_x: Template argument N must be 1 or 2");
     if constexpr (((std::is_same_v<std::decay_t<Types>, bfloat16>) && ...)) {
       const bfloat16 in[N] = {static_cast<bfloat16>(v)...};
       for (size_t i = 0; i < N; ++i)
@@ -658,8 +672,6 @@ public:
   }
 
   explicit fp8_e4m3_x(double const (&v)[N]) {
-    static_assert(N == 1 || N == 2,
-                  "fp8_e4m3_x: Template argument N must be 1 or 2");
     for (size_t i = 0; i < N; ++i)
       vals[i] = ConvertToFP8(v[i], rounding::to_even, saturation::finite);
   }
@@ -694,138 +706,117 @@ public:
   // Construct from integer types.
   // Available only when N==1.
 
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   explicit fp8_e4m3_x(short val) {
-    static_assert(N == 1 && "fp8_e4m3_x: N must be 1 for short constructor");
     vals[0] = ConvertToFP8(val, rounding::to_even, saturation::finite);
   }
 
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   explicit fp8_e4m3_x(int val) {
-    static_assert(N == 1 && "fp8_e4m3_x: N must be 1 for int constructor");
     vals[0] = ConvertToFP8(val, rounding::to_even, saturation::finite);
   }
 
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   explicit fp8_e4m3_x(long val) {
-    static_assert(N == 1 && "fp8_e4m3_x: N must be 1 for long constructor");
     vals[0] = ConvertToFP8(val, rounding::to_even, saturation::finite);
   }
 
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   explicit fp8_e4m3_x(long long val) {
-    static_assert(N == 1 &&
-                  "fp8_e4m3_x: N must be 1 for long long constructor");
     vals[0] = ConvertToFP8(val, rounding::to_even, saturation::finite);
   }
 
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   explicit fp8_e4m3_x(unsigned short val) {
-    static_assert(N == 1 &&
-                  "fp8_e4m3_x: N must be 1 for unsigned short constructor");
     vals[0] = ConvertToFP8(val, rounding::to_even, saturation::finite);
   }
 
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   explicit fp8_e4m3_x(unsigned int val) {
-    static_assert(N == 1 &&
-                  "fp8_e4m3_x: N must be 1 for unsigned int constructor");
     vals[0] = ConvertToFP8(val, rounding::to_even, saturation::finite);
   }
 
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   explicit fp8_e4m3_x(unsigned long val) {
-    static_assert(N == 1 &&
-                  "fp8_e4m3_x: N must be 1 for unsigned long constructor");
     vals[0] = ConvertToFP8(val, rounding::to_even, saturation::finite);
   }
 
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   explicit fp8_e4m3_x(unsigned long long val) {
-    static_assert(N == 1 &&
-                  "fp8_e4m3_x: N must be 1 for unsigned long long constructor");
     vals[0] = ConvertToFP8(val, rounding::to_even, saturation::finite);
   }
 
   // Assign (operator) from half, bfloat16, float, double, and integer types.
   // Available only when N==1.
 
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   fp8_e4m3_x &operator=(sycl::half val) {
-    static_assert(N == 1 &&
-                  "fp8_e4m3_x: N must be 1 for half assignment operator");
     vals[0] = ConvertToFP8(val, rounding::to_even, saturation::finite);
     return *this;
   }
 
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   fp8_e4m3_x &operator=(bfloat16 val) {
-    static_assert(N == 1 &&
-                  "fp8_e4m3_x: N must be 1 for bfloat16 assignment operator");
     vals[0] = ConvertBF16ToFP8(val, rounding::to_even, saturation::finite);
     return *this;
   }
 
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   fp8_e4m3_x &operator=(float val) {
-    static_assert(N == 1 &&
-                  "fp8_e4m3_x: N must be 1 for float assignment operator");
     vals[0] = ConvertToFP8(val, rounding::to_even, saturation::finite);
     return *this;
   }
 
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   fp8_e4m3_x &operator=(double val) {
-    static_assert(N == 1 &&
-                  "fp8_e4m3_x: N must be 1 for double assignment operator");
     vals[0] = ConvertToFP8(val, rounding::to_even, saturation::finite);
     return *this;
   }
 
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   fp8_e4m3_x &operator=(short val) {
-    static_assert(N == 1 &&
-                  "fp8_e4m3_x: N must be 1 for short assignment operator");
     vals[0] = ConvertToFP8(val, rounding::to_even, saturation::finite);
     return *this;
   }
 
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   fp8_e4m3_x &operator=(int val) {
-    static_assert(N == 1 &&
-                  "fp8_e4m3_x: N must be 1 for int assignment operator");
     vals[0] = ConvertToFP8(val, rounding::to_even, saturation::finite);
     return *this;
   }
 
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   fp8_e4m3_x &operator=(long val) {
-    static_assert(N == 1 &&
-                  "fp8_e4m3_x: N must be 1 for long assignment operator");
     vals[0] = ConvertToFP8(val, rounding::to_even, saturation::finite);
     return *this;
   }
 
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   fp8_e4m3_x &operator=(long long val) {
-    static_assert(N == 1 &&
-                  "fp8_e4m3_x: N must be 1 for long long assignment operator");
     vals[0] = ConvertToFP8(val, rounding::to_even, saturation::finite);
     return *this;
   }
 
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   fp8_e4m3_x &operator=(unsigned short val) {
-    static_assert(
-        N == 1 &&
-        "fp8_e4m3_x: N must be 1 for unsigned short assignment operator");
     vals[0] = ConvertToFP8(val, rounding::to_even, saturation::finite);
     return *this;
   }
 
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   fp8_e4m3_x &operator=(unsigned int val) {
-    static_assert(
-        N == 1 &&
-        "fp8_e4m3_x: N must be 1 for unsigned int assignment operator");
     vals[0] = ConvertToFP8(val, rounding::to_even, saturation::finite);
     return *this;
   }
 
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   fp8_e4m3_x &operator=(unsigned long val) {
-    static_assert(
-        N == 1 &&
-        "fp8_e4m3_x: N must be 1 for unsigned long assignment operator");
     vals[0] = ConvertToFP8(val, rounding::to_even, saturation::finite);
     return *this;
   }
 
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   fp8_e4m3_x &operator=(unsigned long long val) {
-    static_assert(
-        N == 1 &&
-        "fp8_e4m3_x: N must be 1 for unsigned long long assignment operator");
     vals[0] = ConvertToFP8(val, rounding::to_even, saturation::finite);
     return *this;
   }
@@ -833,107 +824,86 @@ public:
   // Convert to half, bfloat16, float, double.
   // Available only when N==1.
 
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   explicit operator half() const {
-    static_assert(N == 1 &&
-                  "fp8_e4m3_x: N must be 1 for half conversion operator");
     return ConvertFromFP8<sycl::half>(vals[0]);
   }
 
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   explicit operator bfloat16() const {
-    static_assert(N == 1 &&
-                  "fp8_e4m3_x: N must be 1 for bfloat16 conversion operator");
     return ConvertBF16FromFP8(vals[0]);
   }
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   explicit operator float() const {
-    static_assert(N == 1 &&
-                  "fp8_e4m3_x: N must be 1 for float conversion operator");
     return ConvertFromFP8<float>(vals[0]);
   }
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   explicit operator double() const {
-    static_assert(N == 1 &&
-                  "fp8_e4m3_x: N must be 1 for double conversion operator");
     return ConvertFromFP8<double>(vals[0]);
   }
 
   // Convert to integer types.
   // Available only when N==1.
 
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   explicit operator char() const {
-    static_assert(N == 1 &&
-                  "fp8_e4m3_x: N must be 1 for char conversion operator");
     return ConvertFromFP8<char>(vals[0]);
   }
 
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   explicit operator signed char() const {
-    static_assert(
-        N == 1 &&
-        "fp8_e4m3_x: N must be 1 for signed char conversion operator");
     return ConvertFromFP8<signed char>(vals[0]);
   }
 
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   explicit operator short() const {
-    static_assert(N == 1 &&
-                  "fp8_e4m3_x: N must be 1 for short conversion operator");
     return ConvertFromFP8<short>(vals[0]);
   }
 
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   explicit operator int() const {
-    static_assert(N == 1 &&
-                  "fp8_e4m3_x: N must be 1 for int conversion operator");
     return ConvertFromFP8<int>(vals[0]);
   }
 
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   explicit operator long() const {
-    static_assert(N == 1 &&
-                  "fp8_e4m3_x: N must be 1 for long conversion operator");
     return ConvertFromFP8<long>(vals[0]);
   }
 
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   explicit operator long long() const {
-    static_assert(N == 1 &&
-                  "fp8_e4m3_x: N must be 1 for long long conversion operator");
     return ConvertFromFP8<long long>(vals[0]);
   }
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   explicit operator unsigned char() const {
-    static_assert(
-        N == 1 &&
-        "fp8_e4m3_x: N must be 1 for unsigned char conversion operator");
     return ConvertFromFP8<unsigned char>(vals[0]);
   }
 
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   explicit operator unsigned short() const {
-    static_assert(
-        N == 1 &&
-        "fp8_e4m3_x: N must be 1 for unsigned short conversion operator");
     return ConvertFromFP8<unsigned short>(vals[0]);
   }
 
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   explicit operator unsigned int() const {
-    static_assert(
-        N == 1 &&
-        "fp8_e4m3_x: N must be 1 for unsigned int conversion operator");
     return ConvertFromFP8<unsigned int>(vals[0]);
   }
 
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   explicit operator unsigned long() const {
-    static_assert(
-        N == 1 &&
-        "fp8_e4m3_x: N must be 1 for unsigned long conversion operator");
     return ConvertFromFP8<unsigned long>(vals[0]);
   }
 
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   explicit operator unsigned long long() const {
-    static_assert(
-        N == 1 &&
-        "fp8_e4m3_x: N must be 1 for unsigned long long conversion operator");
     return ConvertFromFP8<unsigned long long>(vals[0]);
   }
 
   // Convert to bool
   // Available only when N==1.
 
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   explicit operator bool() const {
-    static_assert(N == 1, "fp8_e4m3_x: operator() requires size N=1");
 #ifdef __SYCL_DEVICE_ONLY__
     // detect +0 / -0
     sycl::half h = __builtin_spirv_ConvertE4M3ToFP16EXT(vals[0]);
@@ -977,6 +947,9 @@ template <size_t N> class fp8_e5m2_x {
   static constexpr float MaxNormal = 114688.0f;              // 1.75 * 2^16
   static constexpr float MinSubnormal = 0.0000152587890625f; // 2^-16
   static constexpr uint8_t MaxFiniteCode = 0x7C;             // 0.11111.00
+
+  static_assert(N == 1 || N == 2,
+                "fp8_e5m2_x: Template argument N must be 1 or 2");
 
   uint8_t ConvertToFP8(sycl::half h, rounding r, saturation s) {
 #ifdef __SYCL_DEVICE_ONLY__
@@ -1029,8 +1002,6 @@ template <size_t N> class fp8_e5m2_x {
   }
 
   void CheckConstraints(rounding r, saturation s) const {
-    static_assert(N == 1 || N == 2,
-                  "fp8_e5m2_x: Template argument N must be 1 or 2");
     if (r != rounding::to_even)
       throw std::invalid_argument(
           "fp8_e5m2_x: only rounding::to_even is supported");
@@ -1055,8 +1026,6 @@ public:
                  ((std::is_same_v<std::decay_t<Types>, float>) && ...) ||
                  ((std::is_same_v<std::decay_t<Types>, double>) && ...))>>
   explicit fp8_e5m2_x(Types... v) {
-    static_assert(N == 1 || N == 2,
-                  "fp8_e5m2_x: Template argument N must be 1 or 2");
     if constexpr (((std::is_same_v<std::decay_t<Types>, bfloat16>) && ...)) {
       const bfloat16 in[N] = {static_cast<bfloat16>(v)...};
       for (size_t i = 0; i < N; ++i)
@@ -1136,8 +1105,6 @@ public:
   explicit fp8_e5m2_x([[maybe_unused]] half const (&in)[N],
                       [[maybe_unused]] const stochastic_seed &seed,
                       [[maybe_unused]] saturation s = saturation::finite) {
-    static_assert(N == 1 || N == 2,
-                  "fp8_e5m2_x: Template argument N must be 1 or 2");
 #ifdef __SYCL_DEVICE_ONLY__
     uint32_t current_seed = *seed.pseed;
     for (size_t i = 0; i < N; ++i) {
@@ -1156,8 +1123,6 @@ public:
   explicit fp8_e5m2_x([[maybe_unused]] bfloat16 const (&in)[N],
                       [[maybe_unused]] const stochastic_seed &seed,
                       [[maybe_unused]] saturation s = saturation::finite) {
-    static_assert(N == 1 || N == 2,
-                  "fp8_e5m2_x: Template argument N must be 1 or 2");
 #ifdef __SYCL_DEVICE_ONLY__
     uint32_t current_seed = *seed.pseed;
     for (size_t i = 0; i < N; ++i) {
@@ -1176,8 +1141,6 @@ public:
   explicit fp8_e5m2_x([[maybe_unused]] float const (&in)[N],
                       [[maybe_unused]] const stochastic_seed &seed,
                       [[maybe_unused]] saturation s = saturation::finite) {
-    static_assert(N == 1 || N == 2,
-                  "fp8_e5m2_x: Template argument N must be 1 or 2");
 #ifdef __SYCL_DEVICE_ONLY__
     uint32_t current_seed = *seed.pseed;
     for (size_t i = 0; i < N; ++i) {
@@ -1200,8 +1163,6 @@ public:
   explicit fp8_e5m2_x([[maybe_unused]] const sycl::marray<half, N> &in,
                       [[maybe_unused]] const stochastic_seed &seed,
                       [[maybe_unused]] saturation s = saturation::finite) {
-    static_assert(N == 1 || N == 2,
-                  "fp8_e5m2_x: Template argument N must be 1 or 2");
 #ifdef __SYCL_DEVICE_ONLY__
     uint32_t current_seed = *seed.pseed;
     for (size_t i = 0; i < N; ++i) {
@@ -1220,8 +1181,6 @@ public:
   explicit fp8_e5m2_x([[maybe_unused]] const sycl::marray<bfloat16, N> &in,
                       [[maybe_unused]] const stochastic_seed &seed,
                       [[maybe_unused]] saturation s = saturation::finite) {
-    static_assert(N == 1 || N == 2,
-                  "fp8_e5m2_x: Template argument N must be 1 or 2");
 #ifdef __SYCL_DEVICE_ONLY__
     uint32_t current_seed = *seed.pseed;
     for (size_t i = 0; i < N; ++i) {
@@ -1240,8 +1199,6 @@ public:
   explicit fp8_e5m2_x([[maybe_unused]] const sycl::marray<float, N> &in,
                       [[maybe_unused]] const stochastic_seed &seed,
                       [[maybe_unused]] saturation s = saturation::finite) {
-    static_assert(N == 1 || N == 2,
-                  "fp8_e5m2_x: Template argument N must be 1 or 2");
 #ifdef __SYCL_DEVICE_ONLY__
     uint32_t current_seed = *seed.pseed;
     for (size_t i = 0; i < N; ++i) {
@@ -1261,138 +1218,117 @@ public:
   // Construct from integer types.
   // Available only when N==1.
 
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   explicit fp8_e5m2_x(short val) {
-    static_assert(N == 1 && "fp8_e5m2_x: N must be 1 for short constructor");
     vals[0] = ConvertToFP8(val, rounding::to_even, saturation::finite);
   }
 
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   explicit fp8_e5m2_x(int val) {
-    static_assert(N == 1 && "fp8_e5m2_x: N must be 1 for int constructor");
     vals[0] = ConvertToFP8(val, rounding::to_even, saturation::finite);
   }
 
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   explicit fp8_e5m2_x(long val) {
-    static_assert(N == 1 && "fp8_e5m2_x: N must be 1 for long constructor");
     vals[0] = ConvertToFP8(val, rounding::to_even, saturation::finite);
   }
 
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   explicit fp8_e5m2_x(long long val) {
-    static_assert(N == 1 &&
-                  "fp8_e5m2_x: N must be 1 for long long constructor");
     vals[0] = ConvertToFP8(val, rounding::to_even, saturation::finite);
   }
 
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   explicit fp8_e5m2_x(unsigned short val) {
-    static_assert(N == 1 &&
-                  "fp8_e5m2_x: N must be 1 for unsigned short constructor");
     vals[0] = ConvertToFP8(val, rounding::to_even, saturation::finite);
   }
 
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   explicit fp8_e5m2_x(unsigned int val) {
-    static_assert(N == 1 &&
-                  "fp8_e5m2_x: N must be 1 for unsigned int constructor");
     vals[0] = ConvertToFP8(val, rounding::to_even, saturation::finite);
   }
 
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   explicit fp8_e5m2_x(unsigned long val) {
-    static_assert(N == 1 &&
-                  "fp8_e5m2_x: N must be 1 for unsigned long constructor");
     vals[0] = ConvertToFP8(val, rounding::to_even, saturation::finite);
   }
 
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   explicit fp8_e5m2_x(unsigned long long val) {
-    static_assert(N == 1 &&
-                  "fp8_e5m2_x: N must be 1 for unsigned long long constructor");
     vals[0] = ConvertToFP8(val, rounding::to_even, saturation::finite);
   }
 
   // Assign (operator) from half, bfloat16, float, double, and integer types.
   // Available only when N==1.
 
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   fp8_e5m2_x &operator=(sycl::half val) {
-    static_assert(N == 1 &&
-                  "fp8_e5m2_x: N must be 1 for half assignment operator");
     vals[0] = ConvertToFP8(val, rounding::to_even, saturation::finite);
     return *this;
   }
 
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   fp8_e5m2_x &operator=(bfloat16 val) {
-    static_assert(N == 1 &&
-                  "fp8_e5m2_x: N must be 1 for half bfloat16 operator");
     vals[0] = ConvertBF16ToFP8(val, rounding::to_even, saturation::finite);
     return *this;
   }
 
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   fp8_e5m2_x &operator=(float val) {
-    static_assert(N == 1 &&
-                  "fp8_e5m2_x: N must be 1 for float assignment operator");
     vals[0] = ConvertToFP8(val, rounding::to_even, saturation::finite);
     return *this;
   }
 
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   fp8_e5m2_x &operator=(double val) {
-    static_assert(N == 1 &&
-                  "fp8_e5m2_x: N must be 1 for double assignment operator");
     vals[0] = ConvertToFP8(val, rounding::to_even, saturation::finite);
     return *this;
   }
 
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   fp8_e5m2_x &operator=(short val) {
-    static_assert(N == 1 &&
-                  "fp8_e5m2_x: N must be 1 for short assignment operator");
     vals[0] = ConvertToFP8(val, rounding::to_even, saturation::finite);
     return *this;
   }
 
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   fp8_e5m2_x &operator=(int val) {
-    static_assert(N == 1 &&
-                  "fp8_e5m2_x: N must be 1 for int assignment operator");
     vals[0] = ConvertToFP8(val, rounding::to_even, saturation::finite);
     return *this;
   }
 
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   fp8_e5m2_x &operator=(long val) {
-    static_assert(N == 1 &&
-                  "fp8_e5m2_x: N must be 1 for long assignment operator");
     vals[0] = ConvertToFP8(val, rounding::to_even, saturation::finite);
     return *this;
   }
 
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   fp8_e5m2_x &operator=(long long val) {
-    static_assert(N == 1 &&
-                  "fp8_e5m2_x: N must be 1 for long long assignment operator");
     vals[0] = ConvertToFP8(val, rounding::to_even, saturation::finite);
     return *this;
   }
 
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   fp8_e5m2_x &operator=(unsigned short val) {
-    static_assert(
-        N == 1 &&
-        "fp8_e5m2_x: N must be 1 for unsigned short assignment operator");
     vals[0] = ConvertToFP8(val, rounding::to_even, saturation::finite);
     return *this;
   }
 
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   fp8_e5m2_x &operator=(unsigned int val) {
-    static_assert(
-        N == 1 &&
-        "fp8_e5m2_x: N must be 1 for unsigned int assignment operator");
     vals[0] = ConvertToFP8(val, rounding::to_even, saturation::finite);
     return *this;
   }
 
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   fp8_e5m2_x &operator=(unsigned long val) {
-    static_assert(
-        N == 1 &&
-        "fp8_e5m2_x: N must be 1 for unsigned long assignment operator");
     vals[0] = ConvertToFP8(val, rounding::to_even, saturation::finite);
     return *this;
   }
 
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   fp8_e5m2_x &operator=(unsigned long long val) {
-    static_assert(
-        N == 1 &&
-        "fp8_e5m2_x: N must be 1 for unsigned long long assignment operator");
     vals[0] = ConvertToFP8(val, rounding::to_even, saturation::finite);
     return *this;
   }
@@ -1400,110 +1336,89 @@ public:
   // Convert to half, bfloat16, float, double.
   // Available only when N==1.
 
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   explicit operator half() const {
-    static_assert(N == 1 &&
-                  "fp8_e5m2_x: N must be 1 for half conversion operator");
     return ConvertFromFP8<sycl::half>(vals[0]);
   }
 
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   explicit operator bfloat16() const {
-    static_assert(N == 1 &&
-                  "fp8_e5m2_x: N must be 1 for bfloat16 conversion operator");
     return ConvertBF16FromFP8(vals[0]);
   }
 
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   explicit operator float() const {
-    static_assert(N == 1 &&
-                  "fp8_e5m2_x: N must be 1 for float conversion operator");
     return ConvertFromFP8<float>(vals[0]);
   }
 
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   explicit operator double() const {
-    static_assert(N == 1 &&
-                  "fp8_e5m2_x: N must be 1 for double conversion operator");
     return ConvertFromFP8<double>(vals[0]);
   }
 
   // Convert to integer types.
   // Available only when N==1.
 
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   explicit operator char() const {
-    static_assert(N == 1 &&
-                  "fp8_e5m2_x: N must be 1 for char conversion operator");
     return ConvertFromFP8<char>(vals[0]);
   }
 
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   explicit operator signed char() const {
-    static_assert(
-        N == 1 &&
-        "fp8_e5m2_x: N must be 1 for signed char conversion operator");
     return ConvertFromFP8<signed char>(vals[0]);
   }
 
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   explicit operator short() const {
-    static_assert(N == 1 &&
-                  "fp8_e5m2_x: N must be 1 for short conversion operator");
     return ConvertFromFP8<short>(vals[0]);
   }
 
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   explicit operator int() const {
-    static_assert(N == 1 &&
-                  "fp8_e5m2_x: N must be 1 for int conversion operator");
     return ConvertFromFP8<int>(vals[0]);
   }
 
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   explicit operator long() const {
-    static_assert(N == 1 &&
-                  "fp8_e5m2_x: N must be 1 for long conversion operator");
     return ConvertFromFP8<long>(vals[0]);
   }
 
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   explicit operator long long() const {
-    static_assert(N == 1 &&
-                  "fp8_e5m2_x: N must be 1 for long long conversion operator");
     return ConvertFromFP8<long long>(vals[0]);
   }
 
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   explicit operator unsigned char() const {
-    static_assert(
-        N == 1 &&
-        "fp8_e5m2_x: N must be 1 for unsigned char conversion operator");
     return ConvertFromFP8<unsigned char>(vals[0]);
   }
 
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   explicit operator unsigned short() const {
-    static_assert(
-        N == 1 &&
-        "fp8_e5m2_x: N must be 1 for unsigned short conversion operator");
     return ConvertFromFP8<unsigned short>(vals[0]);
   }
 
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   explicit operator unsigned int() const {
-    static_assert(
-        N == 1 &&
-        "fp8_e5m2_x: N must be 1 for unsigned int conversion operator");
     return ConvertFromFP8<unsigned int>(vals[0]);
   }
 
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   explicit operator unsigned long() const {
-    static_assert(
-        N == 1 &&
-        "fp8_e5m2_x: N must be 1 for unsigned long conversion operator");
     return ConvertFromFP8<unsigned long>(vals[0]);
   }
 
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   explicit operator unsigned long long() const {
-    static_assert(
-        N == 1 &&
-        "fp8_e5m2_x: N must be 1 for unsigned long long conversion operator");
     return ConvertFromFP8<unsigned long long>(vals[0]);
   }
 
   // Convert to bool
   // Available only when N==1.
 
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   explicit operator bool() const {
-    static_assert(N == 1, "fp8_e5m2_x: operator() requires size N=1");
     // false iff +0 or -0; otherwise true.
     return vals[0] != 0x00 && vals[0] != 0x80;
   }
@@ -1533,9 +1448,11 @@ public:
 };
 
 template <size_t N> class fp8_e8m0_x {
+  static_assert(N == 1 || N == 2,
+                "fp8_e8m0_x: Template argument N must be 1 or 2");
+
   void CheckConstraints(rounding r) const {
-    static_assert(N == 1 || N == 2,
-                  "fp8_e8m0_x: Template argument N must be 1 or 2");
+
     if (r != rounding::upward && r != rounding::toward_zero)
       throw std::invalid_argument("fp8_e8m0_x: only rounding::upward and "
                                   "rounding::toward_zero are supported");
@@ -1555,29 +1472,23 @@ public:
                  ((std::is_same_v<std::decay_t<Types>, float>) && ...) ||
                  ((std::is_same_v<std::decay_t<Types>, double>) && ...))>>
   explicit fp8_e8m0_x(Types... v) {
-#ifdef __SYCL_DEVICE_ONLY__
-    static_assert(N == 1 || N == 2,
-                  "fp8_e8m0_x: Template argument N must be 1 or 2 on device");
-#endif
     using InT = std::common_type_t<std::decay_t<Types>...>;
     const InT in[N] = {v...};
     for (size_t i = 0; i < N; ++i)
-      vals[i] = detail::ConvertToE8M0_CPU(static_cast<float>(in[i]), rounding::upward,
-                                  saturation::finite);
+      vals[i] = detail::ConvertToE8M0_CPU(in[i], rounding::upward,
+                                          saturation::finite);
   }
 
   explicit fp8_e8m0_x(half const (&in)[N], rounding r = rounding::upward) {
     CheckConstraints(r);
     for (size_t i = 0; i < N; ++i)
-      vals[i] =
-          detail::ConvertToE8M0_CPU(static_cast<float>(in[i]), r, saturation::finite);
+      vals[i] = detail::ConvertToE8M0_CPU(in[i], r, saturation::finite);
   }
 
   explicit fp8_e8m0_x(bfloat16 const (&in)[N], rounding r = rounding::upward) {
     CheckConstraints(r);
     for (size_t i = 0; i < N; ++i)
-      vals[i] =
-          detail::ConvertToE8M0_CPU(static_cast<float>(in[i]), r, saturation::finite);
+      vals[i] = detail::ConvertToE8M0_CPU(in[i], r, saturation::finite);
   }
 
   explicit fp8_e8m0_x(float const (&in)[N], rounding r = rounding::upward) {
@@ -1587,27 +1498,23 @@ public:
   }
 
   explicit fp8_e8m0_x(double const (&in)[N]) {
-    static_assert(N == 1 || N == 2,
-                  "fp8_e8m0_x: Template argument N must be 1 or 2 on device");
     for (size_t i = 0; i < N; ++i)
-      vals[i] = detail::ConvertToE8M0_CPU(static_cast<float>(in[i]), rounding::upward,
-                                  saturation::finite);
+      vals[i] = detail::ConvertToE8M0_CPU(in[i], rounding::upward,
+                                          saturation::finite);
   }
 
   explicit fp8_e8m0_x(const marray<half, N> &in,
                       rounding r = rounding::upward) {
     CheckConstraints(r);
     for (size_t i = 0; i < N; ++i)
-      vals[i] =
-          detail::ConvertToE8M0_CPU(static_cast<float>(in[i]), r, saturation::finite);
+      vals[i] = detail::ConvertToE8M0_CPU(in[i], r, saturation::finite);
   }
 
   explicit fp8_e8m0_x(const marray<bfloat16, N> &in,
                       rounding r = rounding::upward) {
     CheckConstraints(r);
     for (size_t i = 0; i < N; ++i)
-      vals[i] =
-          detail::ConvertToE8M0_CPU(static_cast<float>(in[i]), r, saturation::finite);
+      vals[i] = detail::ConvertToE8M0_CPU(in[i], r, saturation::finite);
   }
 
   explicit fp8_e8m0_x(const marray<float, N> &in,
@@ -1618,125 +1525,176 @@ public:
   }
 
   explicit fp8_e8m0_x(const marray<double, N> &in) {
-    static_assert(N == 1 || N == 2,
-                  "fp8_e8m0_x: Template argument N must be 1 or 2 on device");
     for (size_t i = 0; i < N; ++i)
-      vals[i] = detail::ConvertToE8M0_CPU(static_cast<float>(in[i]), rounding::upward,
-                                  saturation::finite);
+      vals[i] = detail::ConvertToE8M0_CPU(in[i], rounding::upward,
+                                          saturation::finite);
   }
 
   // Construct from integer types.
   // Available only when N==1.
 
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   explicit fp8_e8m0_x(short val) {
-    static_assert(N == 1 && "fp8_e8m0_x: N must be 1 for short constructor");
-    vals[0] = detail::ConvertToE8M0_CPU(static_cast<float>(val), rounding::upward,
-                                saturation::finite);
+    vals[0] =
+        detail::ConvertToE8M0_CPU(val, rounding::upward, saturation::finite);
   }
-  explicit fp8_e8m0_x(int val) : fp8_e8m0_x(static_cast<float>(val)) {}
-  explicit fp8_e8m0_x(long val) : fp8_e8m0_x(static_cast<float>(val)) {}
-  explicit fp8_e8m0_x(long long val) : fp8_e8m0_x(static_cast<float>(val)) {}
-  explicit fp8_e8m0_x(unsigned short val)
-      : fp8_e8m0_x(static_cast<float>(val)) {}
-  explicit fp8_e8m0_x(unsigned int val) : fp8_e8m0_x(static_cast<float>(val)) {}
-  explicit fp8_e8m0_x(unsigned long val)
-      : fp8_e8m0_x(static_cast<float>(val)) {}
-  explicit fp8_e8m0_x(unsigned long long val)
-      : fp8_e8m0_x(static_cast<float>(val)) {}
 
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  explicit fp8_e8m0_x(int val) {
+    vals[0] =
+        detail::ConvertToE8M0_CPU(val, rounding::upward, saturation::finite);
+  }
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  explicit fp8_e8m0_x(long val) {
+    vals[0] =
+        detail::ConvertToE8M0_CPU(val, rounding::upward, saturation::finite);
+  }
+
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  explicit fp8_e8m0_x(long long val) {
+    vals[0] =
+        detail::ConvertToE8M0_CPU(val, rounding::upward, saturation::finite);
+  }
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  explicit fp8_e8m0_x(unsigned short val) {
+    vals[0] =
+        detail::ConvertToE8M0_CPU(val, rounding::upward, saturation::finite);
+  }
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  explicit fp8_e8m0_x(unsigned int val) {
+    vals[0] =
+        detail::ConvertToE8M0_CPU(val, rounding::upward, saturation::finite);
+  }
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  explicit fp8_e8m0_x(unsigned long val) {
+    vals[0] =
+        detail::ConvertToE8M0_CPU(val, rounding::upward, saturation::finite);
+  }
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  explicit fp8_e8m0_x(unsigned long long val) {
+    vals[0] =
+        detail::ConvertToE8M0_CPU(val, rounding::upward, saturation::finite);
+  }
+
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   fp8_e8m0_x &operator=(half val) {
-    static_assert(N == 1, "fp8_e8m0_x: N must be 1 for scalar assignment");
-    vals[0] = detail::ConvertToE8M0_CPU(static_cast<float>(val), rounding::upward,
-                                saturation::finite);
+    vals[0] =
+        detail::ConvertToE8M0_CPU(val, rounding::upward, saturation::finite);
     return *this;
   }
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   fp8_e8m0_x &operator=(bfloat16 val) {
-    static_assert(N == 1, "fp8_e8m0_x: N must be 1 for scalar assignment");
-    vals[0] = detail::ConvertToE8M0_CPU(static_cast<float>(val), rounding::upward,
-                                saturation::finite);
+    vals[0] =
+        detail::ConvertToE8M0_CPU(val, rounding::upward, saturation::finite);
     return *this;
   }
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   fp8_e8m0_x &operator=(float val) {
-    static_assert(N == 1, "fp8_e8m0_x: N must be 1 for scalar assignment");
-    vals[0] = detail::ConvertToE8M0_CPU(val, rounding::upward, saturation::finite);
+    vals[0] =
+        detail::ConvertToE8M0_CPU(val, rounding::upward, saturation::finite);
     return *this;
   }
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   fp8_e8m0_x &operator=(double val) {
     return (*this = static_cast<float>(val));
   }
-  fp8_e8m0_x &operator=(short val) { return (*this = static_cast<float>(val)); }
-  fp8_e8m0_x &operator=(int val) { return (*this = static_cast<float>(val)); }
-  fp8_e8m0_x &operator=(long val) { return (*this = static_cast<float>(val)); }
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  fp8_e8m0_x &operator=(short val) {
+    return (*this = static_cast<float>(val));
+  }
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  fp8_e8m0_x &operator=(int val) {
+    return (*this = static_cast<float>(val));
+  }
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  fp8_e8m0_x &operator=(long val) {
+    return (*this = static_cast<float>(val));
+  }
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   fp8_e8m0_x &operator=(long long val) {
     return (*this = static_cast<float>(val));
   }
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   fp8_e8m0_x &operator=(unsigned short val) {
     return (*this = static_cast<float>(val));
   }
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   fp8_e8m0_x &operator=(unsigned int val) {
     return (*this = static_cast<float>(val));
   }
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   fp8_e8m0_x &operator=(unsigned long val) {
     return (*this = static_cast<float>(val));
   }
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   fp8_e8m0_x &operator=(unsigned long long val) {
     return (*this = static_cast<float>(val));
   }
 
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   explicit operator half() const {
-    static_assert(N == 1, "fp8_e8m0_x: N must be 1 for scalar conversion");
     return detail::ConvertFromE8M0_CPU<half>(vals[0]);
   }
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   explicit operator bfloat16() const {
-    static_assert(N == 1, "fp8_e8m0_x: N must be 1 for scalar conversion");
     return detail::ConvertFromE8M0_CPU<bfloat16>(vals[0]);
   }
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   explicit operator float() const {
-    static_assert(N == 1, "fp8_e8m0_x: N must be 1 for scalar conversion");
     return detail::ConvertFromE8M0_CPU<float>(vals[0]);
   }
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   explicit operator double() const {
-    static_assert(N == 1, "fp8_e8m0_x: N must be 1 for scalar conversion");
     return detail::ConvertFromE8M0_CPU<double>(vals[0]);
   }
 
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   explicit operator char() const {
-    static_assert(N == 1, "fp8_e8m0_x: N must be 1 for scalar conversion");
     return static_cast<char>(static_cast<float>(*this));
   }
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   explicit operator signed char() const {
     return static_cast<signed char>(static_cast<float>(*this));
   }
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   explicit operator short() const {
     return static_cast<short>(static_cast<float>(*this));
   }
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   explicit operator int() const {
     return static_cast<int>(static_cast<float>(*this));
   }
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   explicit operator long() const {
     return static_cast<long>(static_cast<float>(*this));
   }
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   explicit operator long long() const {
     return static_cast<long long>(static_cast<float>(*this));
   }
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   explicit operator unsigned char() const {
     return static_cast<unsigned char>(static_cast<float>(*this));
   }
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   explicit operator unsigned short() const {
     return static_cast<unsigned short>(static_cast<float>(*this));
   }
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   explicit operator unsigned int() const {
     return static_cast<unsigned int>(static_cast<float>(*this));
   }
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   explicit operator unsigned long() const {
     return static_cast<unsigned long>(static_cast<float>(*this));
   }
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   explicit operator unsigned long long() const {
     return static_cast<unsigned long long>(static_cast<float>(*this));
   }
 
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   explicit operator bool() const {
-    static_assert(N == 1, "fp8_e8m0_x: operator bool requires size N=1");
     return true;
   }
 
