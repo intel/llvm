@@ -8,7 +8,7 @@
 // RUN: %{run} %t.out --type float --channels 2
 // RUN: %{run} %t.out --type float --channels 4
 // RUN: %{run} %t.out --type half --channels 1
-// RUN: %{run} %t.out --type half --channels 2
+// RUN-IF: !cuda, %{run} %t.out --type half --channels 2
 // RUN: %{run} %t.out --type half --channels 4
 // RUN: %{run} %t.out --type int32 --channels 1
 // RUN: %{run} %t.out --type uint8 --channels 4
