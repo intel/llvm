@@ -9962,12 +9962,8 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
   const char *NamedOutput;
 
   if ((JA.getType() == types::TY_Object || JA.getType() == types::TY_LTO_BC ||
-<<<<<<< HEAD
-       JA.getType() == types::TY_Archive) &&
-=======
        JA.getType() == types::TY_LLVM_BC ||
        JA.getType() == types::TY_LLVM_IR) &&
->>>>>>> 47c919a8b56db94a0897e55c242343e889d02eb8
       C.getArgs().hasArg(options::OPT__SLASH_Fo, options::OPT__SLASH_o)) {
     // The /Fo or /o flag decides the object filename.
     StringRef Val =
