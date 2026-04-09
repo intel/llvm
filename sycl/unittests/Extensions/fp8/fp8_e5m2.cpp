@@ -4,6 +4,7 @@
 #include <cmath>
 #include <cstdint>
 #include <limits>
+#include <type_traits>
 
 /*
 Unit tests check only CPU versions. Most of the constraints related to device
@@ -12,7 +13,7 @@ code thus unit tests check only API
 
 using namespace sycl::ext::oneapi::experimental;
 
-TEST(FP8E5M2Test, VariadicConstructorHalf) {
+TEST(FP8E5M2Test, VariadicHalf) {
   fp8_e5m2_x2 a(sycl::half(1.0f), sycl::half(2.0f));
 
   EXPECT_EQ(sizeof(a.vals), 2u);
@@ -24,7 +25,7 @@ TEST(FP8E5M2Test, VariadicConstructorHalf) {
   EXPECT_EQ(b.vals[0], 0x3C); // 1.1 rounds to 1.0
 }
 
-TEST(FP8E5M2Test, VariadicConstructorBFloat16) {
+TEST(FP8E5M2Test, VariadicBFloat16) {
   fp8_e5m2_x2 a(sycl::ext::oneapi::bfloat16(1.0f),
                 sycl::ext::oneapi::bfloat16(2.0f));
 
@@ -37,7 +38,7 @@ TEST(FP8E5M2Test, VariadicConstructorBFloat16) {
   EXPECT_EQ(b.vals[0], 0x3C);
 }
 
-TEST(FP8E5M2Test, VariadicConstructorFloat) {
+TEST(FP8E5M2Test, VariadicFloat) {
   fp8_e5m2_x2 a(1.0f, 2.0f);
 
   EXPECT_EQ(sizeof(a.vals), 2u);
@@ -49,7 +50,7 @@ TEST(FP8E5M2Test, VariadicConstructorFloat) {
   EXPECT_EQ(b.vals[0], 0x3C);
 }
 
-TEST(FP8E5M2Test, VariadicConstructorBoundaryEncodingsFloat) {
+TEST(FP8E5M2Test, VariadicBoundaryEncodingsFloat) {
   fp8_e5m2_x2 a(57344.0f,         // max normal  -> S.11110.11
                 0.00006103515625f // min normal  -> S.00001.00  (2^-14)
   );
@@ -75,7 +76,7 @@ TEST(FP8E5M2Test, VariadicConstructorBoundaryEncodingsFloat) {
   EXPECT_EQ(a2.vals[1], 0x80); // -0 -> 0b1_00000_00
 }
 
-TEST(FP8E5M2Test, VariadicConstructorNaNEncodingFloat) {
+TEST(FP8E5M2Test, VariadicNaNEncodingFloat) {
   fp8_e5m2_x2 a(std::numeric_limits<float>::quiet_NaN(),
                 -std::numeric_limits<float>::quiet_NaN());
 
@@ -174,7 +175,7 @@ TEST(FP8E5M2Test, BoolOperatorZeroRules) {
   EXPECT_TRUE(static_cast<bool>(sub));
 }
 
-TEST(FP8E5M2Test, VariadicConstructorSaturatesFinite) {
+TEST(FP8E5M2Test, VariadicSaturatesFinite) {
   // Variadic constructors: to_even + finite saturation (CPU).
   fp8_e5m2_x2 a(1.0f,
                 100000.0f // above max normal: clamp to +57344
@@ -191,7 +192,7 @@ TEST(FP8E5M2Test, VariadicConstructorSaturatesFinite) {
   EXPECT_EQ(a1.vals[1], 0x80); // -0
 }
 
-TEST(FP8E5M2Test, VariadicConstructorToEvenTie) {
+TEST(FP8E5M2Test, VariadicToEvenTie) {
   // Tie case: between 1.0 (0x3C) and 1.25 (0x3D) is 1.125 exactly.
   // to_even => choose 1.0 because its LSB (fraction) is even (0).
   // Tie between 1.25 (0x3D) and 1.5 (0x3E) is 1.375 exactly => choose 1.5.
@@ -201,7 +202,7 @@ TEST(FP8E5M2Test, VariadicConstructorToEvenTie) {
   EXPECT_EQ(a.vals[1], 0xBE);
 }
 
-TEST(FP8E5M2Test, CArrayConstructorFloatHostToEvenFinite) {
+TEST(FP8E5M2Test, CArrayFloatHostToEvenFinite) {
   // Host code supports only rounding::to_even and saturation::finite.
   const float in[2] = {1.0f, 1.1f};
   const float in1[2] = {1.125f, 100000.0f};
@@ -216,7 +217,7 @@ TEST(FP8E5M2Test, CArrayConstructorFloatHostToEvenFinite) {
   EXPECT_EQ(a1.vals[1], 0x7B); // finite saturation => +57344
 }
 
-TEST(FP8E5M2Test, CArrayConstructorDoubleToEvenFinite) {
+TEST(FP8E5M2Test, CArrayDoubleToEvenFinite) {
   // Double c-array: to_even + finite saturation.
   const double in[2] = {57344.0, 60000.0};
   const double in1[2] = {0.00006103515625, 0.0000457763671875};
@@ -237,7 +238,7 @@ TEST(FP8E5M2Test, CArrayConstructorDoubleToEvenFinite) {
   EXPECT_EQ(a2.vals[1], 0x7F); // NaN
 }
 
-TEST(FP8E5M2Test, CArrayConstructorHalfHostToEvenFinite) {
+TEST(FP8E5M2Test, CArrayHalfHostToEvenFinite) {
   const sycl::half in[2] = {sycl::half(1.0f), sycl::half(2.0f)};
   const sycl::half in1[2] = {sycl::half(1.125f), sycl::half(-0.0f)};
   fp8_e5m2_x2 a(in);
@@ -250,7 +251,7 @@ TEST(FP8E5M2Test, CArrayConstructorHalfHostToEvenFinite) {
   EXPECT_EQ(a1.vals[1], 0x80);
 }
 
-TEST(FP8E5M2Test, CArrayConstructorBFloat16HostToEvenFinite) {
+TEST(FP8E5M2Test, CArrayBFloat16HostToEvenFinite) {
   const sycl::ext::oneapi::bfloat16 in[2] = {sycl::ext::oneapi::bfloat16(1.0f),
                                              sycl::ext::oneapi::bfloat16(2.0f)};
   const sycl::ext::oneapi::bfloat16 in1[2] = {
@@ -266,7 +267,7 @@ TEST(FP8E5M2Test, CArrayConstructorBFloat16HostToEvenFinite) {
   EXPECT_EQ(a1.vals[1], 0x80);
 }
 
-TEST(FP8E5M2Test, MarrayConstructorAndOperators) {
+TEST(FP8E5M2Test, MarrayAndOperators) {
   sycl::marray<float, 2> in = {1.0f, 2.0f};
   sycl::marray<float, 2> in1 = {0.0f, -0.0f};
   sycl::marray<float, 2> in2 = {57344.0f, 100000.0f};
@@ -305,7 +306,7 @@ TEST(FP8E5M2Test, MarrayConstructorAndOperators) {
   EXPECT_EQ(out3[1], -1.5f);
 }
 
-TEST(FP8E5M2Test, MarrayConstructorDouble) {
+TEST(FP8E5M2Test, MarrayDouble) {
   sycl::marray<double, 2> dvals = {1.0, 2.0};
   sycl::marray<double, 2> dvals1 = {57344.0, -0.0};
 
@@ -447,8 +448,250 @@ TEST(FP8E5M2Test, BoolOperatorWithNaN) {
   EXPECT_EQ(nanv.vals[0], 0x7F);        // NaN encoding remains S.11111.11
 }
 
-TEST(FP8E5M2Test, VariadicRejectsMixedTypes) {
+TEST(FP8E5M2Test, VariadicMixedScalarTypes) {
   EXPECT_FALSE((std::is_constructible_v<fp8_e5m2, float, sycl::half>));
   EXPECT_FALSE(
       (std::is_constructible_v<fp8_e5m2, sycl::ext::oneapi::bfloat16, double>));
+}
+
+TEST(FP8E5M2Test, X2NotConstructibleFromSingleShort) {
+  EXPECT_FALSE((std::is_constructible_v<fp8_e5m2_x2, short>));
+}
+
+TEST(FP8E5M2Test, X2NotConstructibleFromSingleInt) {
+  EXPECT_FALSE((std::is_constructible_v<fp8_e5m2_x2, int>));
+}
+
+TEST(FP8E5M2Test, X2NotConstructibleFromSingleLong) {
+  EXPECT_FALSE((std::is_constructible_v<fp8_e5m2_x2, long>));
+}
+
+TEST(FP8E5M2Test, X2NotConstructibleFromSingleLL) {
+  EXPECT_FALSE((std::is_constructible_v<fp8_e5m2_x2, long long>));
+}
+
+TEST(FP8E5M2Test, X2NotConstructibleFromSingleUShort) {
+  EXPECT_FALSE((std::is_constructible_v<fp8_e5m2_x2, unsigned short>));
+}
+
+TEST(FP8E5M2Test, X2NotConstructibleFromSingleUInt) {
+  EXPECT_FALSE((std::is_constructible_v<fp8_e5m2_x2, unsigned int>));
+}
+
+TEST(FP8E5M2Test, X2NotConstructibleFromSingleUL) {
+  EXPECT_FALSE((std::is_constructible_v<fp8_e5m2_x2, unsigned long>));
+}
+
+TEST(FP8E5M2Test, X2NotConstructibleFromSingleULL) {
+  EXPECT_FALSE((std::is_constructible_v<fp8_e5m2_x2, unsigned long long>));
+}
+
+TEST(FP8E5M2Test, X2NotConstructibleFromSingleFloat) {
+  EXPECT_FALSE((std::is_constructible_v<fp8_e5m2_x2, float>));
+}
+
+TEST(FP8E5M2Test, X2NotConstructibleFromSingleDouble) {
+  EXPECT_FALSE((std::is_constructible_v<fp8_e5m2_x2, double>));
+}
+
+TEST(FP8E5M2Test, X2NotConstructibleFromSingleBFloat16) {
+  EXPECT_FALSE(
+      (std::is_constructible_v<fp8_e5m2_x2, sycl::ext::oneapi::bfloat16>));
+}
+
+TEST(FP8E5M2Test, X2NotConstructibleFromSingleHalf) {
+  EXPECT_FALSE((std::is_constructible_v<fp8_e5m2_x2, sycl::half>));
+}
+
+TEST(FP8E5M2Test, X2NotConstructibleFromSingleChar) {
+  EXPECT_FALSE((std::is_constructible_v<fp8_e5m2_x2, char>));
+}
+
+TEST(FP8E5M2Test, X2NotConstructibleFromSingleUChar) {
+  EXPECT_FALSE((std::is_constructible_v<fp8_e5m2_x2, unsigned char>));
+}
+
+TEST(FP8E5M2Test, X2NotAssignableFromSingleHalf) {
+  EXPECT_FALSE((std::is_assignable_v<fp8_e5m2_x2 &, sycl::half>));
+}
+
+TEST(FP8E5M2Test, X2NotAssignableFromSingleBFloat16) {
+  EXPECT_FALSE(
+      (std::is_assignable_v<fp8_e5m2_x2 &, sycl::ext::oneapi::bfloat16>));
+}
+
+TEST(FP8E5M2Test, X2NotAssignableFromSingleFloat) {
+  EXPECT_FALSE((std::is_assignable_v<fp8_e5m2_x2 &, float>));
+}
+
+TEST(FP8E5M2Test, X2NotAssignableFromSingleDouble) {
+  EXPECT_FALSE((std::is_assignable_v<fp8_e5m2_x2 &, double>));
+}
+
+TEST(FP8E5M2Test, X2NotAssignableFromSingleChar) {
+  EXPECT_FALSE((std::is_assignable_v<fp8_e5m2_x2 &, char>));
+}
+
+TEST(FP8E5M2Test, X2NotAssignableFromSingleSignedChar) {
+  EXPECT_FALSE((std::is_assignable_v<fp8_e5m2_x2 &, signed char>));
+}
+
+TEST(FP8E5M2Test, X2NotAssignableFromSingleUChar) {
+  EXPECT_FALSE((std::is_assignable_v<fp8_e5m2_x2 &, unsigned char>));
+}
+
+TEST(FP8E5M2Test, X2NotAssignableFromSingleShort) {
+  EXPECT_FALSE((std::is_assignable_v<fp8_e5m2_x2 &, short>));
+}
+
+TEST(FP8E5M2Test, X2NotAssignableFromSingleInt) {
+  EXPECT_FALSE((std::is_assignable_v<fp8_e5m2_x2 &, int>));
+}
+
+TEST(FP8E5M2Test, X2NotAssignableFromSingleLong) {
+  EXPECT_FALSE((std::is_assignable_v<fp8_e5m2_x2 &, long>));
+}
+
+TEST(FP8E5M2Test, X2NotAssignableFromSingleLL) {
+  EXPECT_FALSE((std::is_assignable_v<fp8_e5m2_x2 &, long long>));
+}
+
+TEST(FP8E5M2Test, X2NotAssignableFromSingleUShort) {
+  EXPECT_FALSE((std::is_assignable_v<fp8_e5m2_x2 &, unsigned short>));
+}
+
+TEST(FP8E5M2Test, X2NotAssignableFromSingleUInt) {
+  EXPECT_FALSE((std::is_assignable_v<fp8_e5m2_x2 &, unsigned int>));
+}
+
+TEST(FP8E5M2Test, X2NotAssignableFromSingleUL) {
+  EXPECT_FALSE((std::is_assignable_v<fp8_e5m2_x2 &, unsigned long>));
+}
+
+TEST(FP8E5M2Test, X2NotAssignableFromSingleULL) {
+  EXPECT_FALSE((std::is_assignable_v<fp8_e5m2_x2 &, unsigned long long>));
+}
+
+TEST(FP8E5M2Test, CArrayHalfUpwardRounding) {
+  const sycl::half in[2] = {sycl::half(1.0f), sycl::half(2.0f)};
+  EXPECT_DEATH(
+      {
+        fp8_e5m2_x2 value(in, rounding::upward);
+        (void)value;
+      },
+      "fp8_e5m2_x: only rounding::to_even is supported");
+}
+
+TEST(FP8E5M2Test, CArrayHalfTowardZeroRounding) {
+  const sycl::half in[2] = {sycl::half(1.0f), sycl::half(2.0f)};
+  EXPECT_DEATH(
+      {
+        fp8_e5m2_x2 value(in, rounding::toward_zero);
+        (void)value;
+      },
+      "fp8_e5m2_x: only rounding::to_even is supported");
+}
+
+TEST(FP8E5M2Test, CArrayBFloat16UpwardRounding) {
+  const sycl::ext::oneapi::bfloat16 in[2] = {sycl::ext::oneapi::bfloat16(1.0f),
+                                             sycl::ext::oneapi::bfloat16(2.0f)};
+  EXPECT_DEATH(
+      {
+        fp8_e5m2_x2 value(in, rounding::upward);
+        (void)value;
+      },
+      "fp8_e5m2_x: only rounding::to_even is supported");
+}
+
+TEST(FP8E5M2Test, CArrayBFloat16TowardZeroRounding) {
+  const sycl::ext::oneapi::bfloat16 in[2] = {sycl::ext::oneapi::bfloat16(1.0f),
+                                             sycl::ext::oneapi::bfloat16(2.0f)};
+  EXPECT_DEATH(
+      {
+        fp8_e5m2_x2 value(in, rounding::toward_zero);
+        (void)value;
+      },
+      "fp8_e5m2_x: only rounding::to_even is supported");
+}
+
+TEST(FP8E5M2Test, CArrayFloatUpwardRounding) {
+  const float in[2] = {1.0f, 2.0f};
+  EXPECT_DEATH(
+      {
+        fp8_e5m2_x2 value(in, rounding::upward);
+        (void)value;
+      },
+      "fp8_e5m2_x: only rounding::to_even is supported");
+}
+
+TEST(FP8E5M2Test, CArrayFloatTowardZeroRounding) {
+  const float in[2] = {1.0f, 2.0f};
+  EXPECT_DEATH(
+      {
+        fp8_e5m2_x2 value(in, rounding::toward_zero);
+        (void)value;
+      },
+      "fp8_e5m2_x: only rounding::to_even is supported");
+}
+
+TEST(FP8E5M2Test, MarrayHalfUpwardRounding) {
+  const sycl::marray<sycl::half, 2> in = {sycl::half(1.0f), sycl::half(2.0f)};
+  EXPECT_DEATH(
+      {
+        fp8_e5m2_x2 value(in, rounding::upward);
+        (void)value;
+      },
+      "fp8_e5m2_x: only rounding::to_even is supported");
+}
+
+TEST(FP8E5M2Test, MarrayHalfTowardZeroRounding) {
+  const sycl::marray<sycl::half, 2> in = {sycl::half(1.0f), sycl::half(2.0f)};
+  EXPECT_DEATH(
+      {
+        fp8_e5m2_x2 value(in, rounding::toward_zero);
+        (void)value;
+      },
+      "fp8_e5m2_x: only rounding::to_even is supported");
+}
+
+TEST(FP8E5M2Test, MarrayBFloat16UpwardRounding) {
+  const sycl::marray<sycl::ext::oneapi::bfloat16, 2> in = {
+      sycl::ext::oneapi::bfloat16(1.0f), sycl::ext::oneapi::bfloat16(2.0f)};
+  EXPECT_DEATH(
+      {
+        fp8_e5m2_x2 value(in, rounding::upward);
+        (void)value;
+      },
+      "fp8_e5m2_x: only rounding::to_even is supported");
+}
+
+TEST(FP8E5M2Test, MarrayBFloat16TowardZeroRounding) {
+  const sycl::marray<sycl::ext::oneapi::bfloat16, 2> in = {
+      sycl::ext::oneapi::bfloat16(1.0f), sycl::ext::oneapi::bfloat16(2.0f)};
+  EXPECT_DEATH(
+      {
+        fp8_e5m2_x2 value(in, rounding::toward_zero);
+        (void)value;
+      },
+      "fp8_e5m2_x: only rounding::to_even is supported");
+}
+
+TEST(FP8E5M2Test, MarrayFloatUpwardRounding) {
+  const sycl::marray<float, 2> in = {1.0f, 2.0f};
+  EXPECT_DEATH(
+      {
+        fp8_e5m2_x2 value(in, rounding::upward);
+        (void)value;
+      },
+      "fp8_e5m2_x: only rounding::to_even is supported");
+}
+
+TEST(FP8E5M2Test, MarrayFloatTowardZeroRounding) {
+  const sycl::marray<float, 2> in = {1.0f, 2.0f};
+  EXPECT_DEATH(
+      {
+        fp8_e5m2_x2 value(in, rounding::toward_zero);
+        (void)value;
+      },
+      "fp8_e5m2_x: only rounding::to_even is supported");
 }

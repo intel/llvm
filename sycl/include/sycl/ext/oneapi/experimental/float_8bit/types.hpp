@@ -1429,11 +1429,9 @@ template <size_t N> class fp8_e8m0_x {
                 "fp8_e8m0_x: Template argument N must be 1 or 2");
 
   void CheckConstraints(rounding r) const {
-    assert(
-        (r == rounding::upward ||
-        r == rounding::toward_zero) &&
-            "fp8_e8m0_x: only rounding::upward and rounding::toward_zero are "
-            "supported");
+    assert((r == rounding::upward || r == rounding::toward_zero) &&
+           "fp8_e8m0_x: only rounding::upward and rounding::toward_zero are "
+           "supported");
   }
 
 public:
