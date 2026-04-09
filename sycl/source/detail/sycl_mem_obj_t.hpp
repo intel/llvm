@@ -307,6 +307,8 @@ public:
     return MNeedWriteBack && MUploadDataFunctor && !MBackendOwnsWriteBack;
   }
 
+  bool backendOwnsWriteBack() const { return MBackendOwnsWriteBack; }
+
   /// Increment an internal counter for how many graphs are currently using this
   /// memory object.
   void markBeingUsedInGraph() { MGraphUseCount += 1; }

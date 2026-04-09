@@ -62,7 +62,8 @@ public:
   // one(not host).
   static void *allocateMemBuffer(context_impl *TargetContext,
                                  SYCLMemObjI *MemObj, void *UserPtr,
-                                 bool HostPtrReadOnly, size_t Size,
+                                 bool HostPtrReadOnly,
+                                 bool BackendOwnedWriteBack, size_t Size,
                                  const EventImplPtr &InteropEvent,
                                  context_impl *InteropContext,
                                  const sycl::property_list &PropsList,
@@ -101,7 +102,9 @@ public:
                                    const sycl::property_list &PropsList);
 
   static void *allocateBufferObject(context_impl *TargetContext, void *UserPtr,
-                                    bool HostPtrReadOnly, const size_t Size,
+                                    bool HostPtrReadOnly,
+                                    bool BackendOwnedWriteBack,
+                                    const size_t Size,
                                     const sycl::property_list &PropsList);
 
   // Copies memory between: host and device, host and host,

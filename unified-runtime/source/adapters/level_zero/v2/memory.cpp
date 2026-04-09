@@ -82,6 +82,19 @@ static ur_result_t synchronousZeCopy(ur_context_handle_t hContext,
   return exceptionToResult(std::current_exception());
 }
 
+static ur_result_t
+initializeBufferFromHost(ur_context_handle_t hContext, ur_mem_handle_t hBuffer,
+                         ur_mem_buffer_t::device_access_mode_t accessMode,
+                         const void *hostPtr, size_t size) try {
+  wait_list_view waitList(nullptr, 0);
+  void *dst = hBuffer->getBuffer()->getDevicePtr(nullptr, accessMode, 0, size,
+                                                 nullptr, waitList);
+  auto hDevice = hContext->getDevices()[0];
+  return synchronousZeCopy(hContext, hDevice, dst, hostPtr, size);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
 ur_integrated_buffer_handle_t::ur_integrated_buffer_handle_t(
     ur_context_handle_t hContext, void *hostPtr, size_t size,
     device_access_mode_t accessMode)
@@ -113,9 +126,7 @@ ur_integrated_buffer_handle_t::ur_integrated_buffer_handle_t(
       auto hDevice = hContext->getDevices()[0];
       UR_CALL_THROWS(
           synchronousZeCopy(hContext, hDevice, this->ptr.get(), hostPtr, size));
-      // Store writeBackPtr for copy-back - needed when original pointer
-      // cannot be imported (e.g., misaligned, wrong allocation type)
-      writeBackPtr = hostPtr;
+      mapToPtr = hostPtr;
     }
   }
 }
@@ -142,9 +153,9 @@ void *ur_integrated_buffer_handle_t::getDevicePtr(
 void *ur_integrated_buffer_handle_t::mapHostPtr(
     ur_map_flags_t flags, size_t offset, size_t mapSize,
     ze_command_list_handle_t cmdList, wait_list_view & /*waitListView*/) {
-  if (writeBackPtr) {
-    // Copy-back path: user gets back their original pointer
-    void *mappedPtr = ur_cast<char *>(writeBackPtr) + offset;
+  if (mapToPtr) {
+    // Staging path: map through the host pointer associated with this buffer.
+    void *mappedPtr = ur_cast<char *>(mapToPtr) + offset;
 
     if (flags & UR_MAP_FLAG_READ) {
       // Use Level Zero copy for USM HOST memory to ensure GPU visibility
@@ -167,7 +178,7 @@ void *ur_integrated_buffer_handle_t::mapHostPtr(
 void ur_integrated_buffer_handle_t::unmapHostPtr(
     void *pMappedPtr, ze_command_list_handle_t cmdList,
     wait_list_view & /*waitListView*/) {
-  if (writeBackPtr) {
+  if (mapToPtr) {
     // Copy-back path: find the mapped region and copy data back if needed
     auto mappedRegion =
         std::find_if(mappedRegions.begin(), mappedRegions.end(),
@@ -623,6 +634,8 @@ ur_result_t urMemBufferCreate(ur_context_handle_t hContext,
   }
 
   void *hostPtr = pProperties ? pProperties->pHost : nullptr;
+  const bool useHostPtr = (flags & UR_MEM_FLAG_USE_HOST_POINTER) != 0;
+  const bool copyHostPtr = (flags & UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER) != 0;
   auto accessMode = ur_mem_buffer_t::getDeviceAccessMode(flags);
 
   // For integrated devices, use zero-copy host buffers. The integrated buffer
@@ -632,11 +645,44 @@ ur_result_t urMemBufferCreate(ur_context_handle_t hContext,
   // 3. Host pointer can be imported - import it
   // 4. Otherwise - allocate USM and copy-back through map/unmap operations
   if (useHostBuffer(hContext)) {
-    *phBuffer = ur_mem_handle_t_::create<ur_integrated_buffer_handle_t>(
-        hContext, hostPtr, size, accessMode);
+    if (useHostPtr) {
+      auto buffer = std::unique_ptr<ur_mem_handle_t_>(
+          ur_mem_handle_t_::create<ur_integrated_buffer_handle_t>(
+              hContext, hostPtr, size, accessMode));
+      if (copyHostPtr && hostPtr) {
+        static_cast<ur_integrated_buffer_handle_t *>(buffer->getBuffer())
+            ->setWriteBackPtr(hostPtr);
+      }
+      *phBuffer = buffer.release();
+    } else if (copyHostPtr && hostPtr) {
+      auto buffer = std::unique_ptr<ur_mem_handle_t_>(
+          ur_mem_handle_t_::create<ur_integrated_buffer_handle_t>(
+              hContext, nullptr, size, accessMode));
+      UR_CALL(initializeBufferFromHost(hContext, buffer.get(), accessMode,
+                                       hostPtr, size));
+      *phBuffer = buffer.release();
+    } else {
+      *phBuffer = ur_mem_handle_t_::create<ur_integrated_buffer_handle_t>(
+          hContext, hostPtr, size, accessMode);
+    }
   } else {
-    *phBuffer = ur_mem_handle_t_::create<ur_discrete_buffer_handle_t>(
-        hContext, hostPtr, size, accessMode);
+    if (useHostPtr && copyHostPtr && hostPtr) {
+      *phBuffer = ur_mem_handle_t_::create<ur_discrete_buffer_handle_t>(
+          hContext, nullptr, nullptr, size, accessMode, hostPtr, false);
+    } else if (useHostPtr) {
+      *phBuffer = ur_mem_handle_t_::create<ur_discrete_buffer_handle_t>(
+          hContext, hostPtr, size, accessMode);
+    } else if (copyHostPtr && hostPtr) {
+      auto buffer = std::unique_ptr<ur_mem_handle_t_>(
+          ur_mem_handle_t_::create<ur_discrete_buffer_handle_t>(
+              hContext, nullptr, size, accessMode));
+      UR_CALL(initializeBufferFromHost(hContext, buffer.get(), accessMode,
+                                       hostPtr, size));
+      *phBuffer = buffer.release();
+    } else {
+      *phBuffer = ur_mem_handle_t_::create<ur_discrete_buffer_handle_t>(
+          hContext, hostPtr, size, accessMode);
+    }
   }
 
   return UR_RESULT_SUCCESS;
