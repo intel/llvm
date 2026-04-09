@@ -4,6 +4,8 @@
 
 // RUN: %{build} %link-vulkan -o %t.out %if target-spir %{ -Wno-ignored-attributes %}
 
+// UNSUPPORTED: linux
+// UNSUPPORTED-TRACKER: GSD-12357
 
 /*
     Run ALL the vulkan formats through the gauntlet. sampled and unsampled.
