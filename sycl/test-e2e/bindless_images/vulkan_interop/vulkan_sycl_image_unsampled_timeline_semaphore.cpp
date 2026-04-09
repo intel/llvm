@@ -444,6 +444,7 @@ int main(int argc, char **argv) {
 
   std::string type = "float";
   std::vector<int> dims;
+  int Failed = 0;
 
   for (int i = 1; i < argc; ++i) {
     std::string arg = argv[i];
@@ -463,25 +464,25 @@ int main(int argc, char **argv) {
             << " | Channels: " << channels << std::endl;
 
   if (type == "float")
-    return runTest<float>(width, height, channels);
+    Failed |= runTest<float>(width, height, channels);
   if (type == "half")
-    return runTest<sycl::half>(width, height, channels);
+    Failed |= runTest<sycl::half>(width, height, channels);
   if (type == "int32")
-    return runTest<int32_t>(width, height, channels);
+    Failed |= runTest<int32_t>(width, height, channels);
   if (type == "uint32")
-    return runTest<uint32_t>(width, height, channels);
+    Failed |= runTest<uint32_t>(width, height, channels);
   if (type == "int16")
-    return runTest<int16_t>(width, height, channels);
+    Failed |= runTest<int16_t>(width, height, channels);
   if (type == "uint16")
-    return runTest<uint16_t>(width, height, channels);
+    Failed |= runTest<uint16_t>(width, height, channels);
   if (type == "uint8")
-    return runTest<uint8_t>(width, height, channels);
+    Failed |= runTest<uint8_t>(width, height, channels);
   if (type == "int8")
-    return runTest<int8_t>(width, height, channels);
+    Failed |= runTest<int8_t>(width, height, channels);
   if (type == "unorm8") {
-    return runTest<uint8_t>(width, height, channels, getUnorm8Format(channels),
+    Failed |= runTest<uint8_t>(width, height, channels, getUnorm8Format(channels),
                             sycl::image_channel_type::unorm_int8);
   }
   std::cerr << "Unknown type: " << type << std::endl;
-  return 1;
+  return Failed;
 }
