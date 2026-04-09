@@ -1,0 +1,24 @@
+### After building llvm with the following invocation:
+
+llvm_src_dir="${HOME}/src/llvm"
+
+dpbld_dir="${llvm_src_dir}/build-dpc++"
+
+cmake -G Ninja -S ${llvm_src_dir}/llvm -B ${dpbld_dir} -DCMAKE_BUILD_TYPE=Debug -DLLVM_TARGETS_TO_BUILD='host;SPIRV;NVPTX;AMDGPU' -DLLVM_EXTERNAL_PROJECTS='sycl;llvm-spirv;opencl;xpti;xptifw;libdevice;sycl-jit' -DLLVM_ENABLE_PROJECTS='clang;sycl;llvm-spirv;opencl;xpti;xptifw;libdevice;sycl-jit;libclc;clang-tools-extra;lld' -DLLVM_EXTERNAL_SYCL_SOURCE_DIR=${llvm_src_dir}/sycl -DLLVM_EXTERNAL_SYCL_SOURCE_DIR=${llvm_src_dir}/sycl -DLLVM_EXTERNAL_LLVM_SPIRV_SOURCE_DIR=${llvm_src_dir}/llvm-spirv -DLLVM_EXTERNAL_XPTI_SOURCE_DIR=${llvm_src_dir}/xpti -DLLVM_EXTERNAL_XPTIFW_SOURCE_DIR=${llvm_src_dir}/xptifw -DLLVM_EXTERNAL_LIBDEVICE_SOURCE_DIR=${llvm_src_dir}/libdevice -DLLVM_EXTERNAL_SYCL_JIT_SOURCE_DIR=${llvm_src_dir}/sycl-jit -DSYCL_BUILD_PI_HIP_PLATFORM=AMD -DLLVM_BUILD_TOOLS=ON -DLLVM_ENABLE_ZSTD=ON -DLLVM_USE_STATIC_ZSTD=ON -DSYCL_INCLUDE_TESTS=ON -DSYCL_ENABLE_XPTI_TRACING=ON -DLLVM_SPIRV_ENABLE_LIBSPIRV_DIS=ON -DSYCL_ENABLE_BACKENDS='level_zero;level_zero_v2;cuda;opencl;hip;native_cpu' -DSYCL_ENABLE_EXTENSION_JIT=ON -DSYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB=ON -DLLVM_ENABLE_RUNTIMES=compiler-rt -DLIBCLC_TARGETS_TO_BUILD='all' -DLIBCLC_GENERATE_REMANGLED_VARIANTS=ON -DLLVM_INSTALL_UTILS=ON -DUR_BUILD_ADAPTER_ALL=ON –DLIBCLC_TOOL_LIBCLC_REMANGLER_BUILD=ON -DLIBOMP_USE_HWLOC=ON -DUMF_LINK_HWLOC_STATICALLY=ON
+
+### attempting to build unified-runtime may fail:
+
+ln ${dpbld_dir}/bin/llvm-lit ${dpbld_dir}/bin/lit
+
+export PATH="${dpbld_dir}/bin:${PATH}"
+
+cmake -G Ninja -S ${llvm_src_dir}/unified-runtime -B build-ur -DCMAKE_BUILD_TYPE=Debug -DUR_ENABLE_TRACING=1 -DUR_DEVELOPER_MODE=1 -DUR_BUILD_TESTS=1 -DUR_DPCXX=${dpbld_dir}/bin/clang++ -DUR_SYCL_LIBRARY_DIR=${dpbld_dir}/lib -DUR_BUILD_ADAPTER_CUDA=1 -DUR_BUILD_ADAPTER_HIP=1 -DUR_CONFORMANCE_AMD_ARCH=gfx1011
+
+cmake –build ./build-ur
+
+### with the following error:
+
+clang++: error: cannot find 'remangled-l64-signed_char.libspirv.bc'; provide path to libspirv library via '-fsycl-libspirv-path', or pass '-fno-sycl-libspirv' to build without linking with libspirv
+clang++: error: cannot find 'remangled-l64-signed_char.libspirv.bc'; provide path to libspirv library via '-fsycl-libspirv-path', or pass '-fno-sycl-libspirv' to build without linking with libspirv
+
+### If that happens, then simply apply this commit. It should fix the issue by renaming the directory by removing the -llvm postfix.

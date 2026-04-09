@@ -223,6 +223,11 @@ function(get_libclc_device_info)
     set( ARG_TRIPLE "spir--" )
   elseif( ARCH STREQUAL spirv64 OR ARCH STREQUAL clspv64 )
     set( ARG_TRIPLE "spir64--" )
+  elseif( ARG_TRIPLE STREQUAL "amdgcn-amd-amdhsa-llvm" )
+    # amdgcn-amd-amdhsa-llvm is a libclc-internal name; the real clang triple
+    # (and the directory under ResourceDir/lib/ that clang probes for libspirv)
+    # is amdgcn-amd-amdhsa.
+    set( ARG_TRIPLE "amdgcn-amd-amdhsa" )
   endif()
 
   if( ARG_CLANG_TRIPLE )
