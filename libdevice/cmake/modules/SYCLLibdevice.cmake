@@ -95,7 +95,6 @@ endif()
 
 
 set(bc_device_compile_opts -fsycl-device-only -fsycl-device-obj=llvmir)
-set(obj_device_compile_opts -fsycl -c ${sycl_targets_opt} --no-offload-new-driver)
 
 # Compiles and installs a single device library.
 #
