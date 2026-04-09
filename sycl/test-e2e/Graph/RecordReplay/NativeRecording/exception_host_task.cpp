@@ -34,8 +34,7 @@ int main() {
               });
             });
           },
-          "host_task in native recording",
-          sycl::errc::feature_not_supported)) {
+          "host_task in native recording", sycl::errc::feature_not_supported)) {
     Graph.end_recording();
     free(Data, Queue);
     return 1;

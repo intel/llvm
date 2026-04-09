@@ -49,8 +49,7 @@ int main() {
                 },
                 {exp_ext::property::node::depends_on{node1}});
           },
-          "Graph.add() with dependencies",
-          sycl::errc::feature_not_supported)) {
+          "Graph.add() with dependencies", sycl::errc::feature_not_supported)) {
     free(Data, Queue);
     return 1;
   }

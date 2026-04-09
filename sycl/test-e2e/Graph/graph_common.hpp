@@ -604,8 +604,9 @@ bool expectException(Func &&Operation, const char *OperationName,
   } catch (const sycl::exception &e) {
     if (e.code() != sycl::make_error_code(ExpectedCode)) {
       std::cerr << "ERROR: Wrong exception error code for " << OperationName
-                << ": expected " << sycl::make_error_code(ExpectedCode).message()
-                << ", got " << e.code().message() << std::endl;
+                << ": expected "
+                << sycl::make_error_code(ExpectedCode).message() << ", got "
+                << e.code().message() << std::endl;
       return false;
     }
     return true;
