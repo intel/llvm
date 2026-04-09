@@ -785,7 +785,6 @@ static void getDeviceLibraries(const ArgList &Args,
 
   using SYCLDeviceLibsList = SmallVector<StringRef>;
   const SYCLDeviceLibsList SYCLDeviceLibs = {"libsycl-crt",
-                                             "libsycl-complex",
                                              "libsycl-cmath",
 #if defined(_WIN32)
                                              "libsycl-msvc-math",
