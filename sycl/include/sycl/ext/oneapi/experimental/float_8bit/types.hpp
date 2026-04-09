@@ -1087,10 +1087,10 @@ public:
     for (size_t i = 0; i < N; ++i) {
       if (s == saturation::finite) {
         vals[i] = __builtin_spirv_ClampStochasticRoundFP16ToE5M2INTEL(
-            in[i], static_cast<uint32_t>(current_seed), seed.pseed);
+            in[i], current_seed, seed.pseed);
       } else {
         vals[i] = __builtin_spirv_StochasticRoundFP16ToE5M2INTEL(
-            in[i], static_cast<uint32_t>(current_seed), seed.pseed);
+            in[i], current_seed, seed.pseed);
       }
       current_seed = *seed.pseed;
     }
@@ -1105,10 +1105,10 @@ public:
     for (size_t i = 0; i < N; ++i) {
       if (s == saturation::finite) {
         vals[i] = __builtin_spirv_ClampStochasticRoundBF16ToE5M2INTEL(
-            in[i], static_cast<uint32_t>(current_seed), seed.pseed);
+            in[i], current_seed, seed.pseed);
       } else {
         vals[i] = __builtin_spirv_StochasticRoundBF16ToE5M2INTEL(
-            in[i], static_cast<uint32_t>(current_seed), seed.pseed);
+            in[i], current_seed, seed.pseed);
       }
       current_seed = *seed.pseed;
     }
@@ -1124,10 +1124,10 @@ public:
       sycl::half h = static_cast<sycl::half>(in[i]);
       if (s == saturation::finite) {
         vals[i] = __builtin_spirv_ClampStochasticRoundFP16ToE5M2INTEL(
-            h, static_cast<uint32_t>(current_seed), seed.pseed);
+            h, current_seed, seed.pseed);
       } else {
         vals[i] = __builtin_spirv_StochasticRoundFP16ToE5M2INTEL(
-            h, static_cast<uint32_t>(current_seed), seed.pseed);
+            h, current_seed, seed.pseed);
       }
       current_seed = *seed.pseed;
     }
@@ -1145,10 +1145,10 @@ public:
     for (size_t i = 0; i < N; ++i) {
       if (s == saturation::finite) {
         vals[i] = __builtin_spirv_ClampStochasticRoundFP16ToE5M2INTEL(
-            in[i], static_cast<uint32_t>(current_seed), seed.pseed);
+            in[i], current_seed, seed.pseed);
       } else {
         vals[i] = __builtin_spirv_StochasticRoundFP16ToE5M2INTEL(
-            in[i], static_cast<uint32_t>(current_seed), seed.pseed);
+            in[i], current_seed, seed.pseed);
       }
       current_seed = *seed.pseed;
     }
@@ -1163,10 +1163,10 @@ public:
     for (size_t i = 0; i < N; ++i) {
       if (s == saturation::finite) {
         vals[i] = __builtin_spirv_ClampStochasticRoundBF16ToE5M2INTEL(
-            in[i], static_cast<uint32_t>(current_seed), seed.pseed);
+            in[i], current_seed, seed.pseed);
       } else {
         vals[i] = __builtin_spirv_StochasticRoundBF16ToE5M2INTEL(
-            in[i], static_cast<uint32_t>(current_seed), seed.pseed);
+            in[i], current_seed, seed.pseed);
       }
       current_seed = *seed.pseed;
     }
@@ -1182,10 +1182,10 @@ public:
       sycl::half h = static_cast<sycl::half>(in[i]);
       if (s == saturation::finite) {
         vals[i] = __builtin_spirv_ClampStochasticRoundFP16ToE5M2INTEL(
-            h, static_cast<uint32_t>(current_seed), seed.pseed);
+            h, current_seed, seed.pseed);
       } else {
         vals[i] = __builtin_spirv_StochasticRoundFP16ToE5M2INTEL(
-            h, static_cast<uint32_t>(current_seed), seed.pseed);
+            h, current_seed, seed.pseed);
       }
       current_seed = *seed.pseed;
     }
