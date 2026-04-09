@@ -23,13 +23,16 @@ void *buffer_impl::allocateMem(context_impl *Context, bool InitFromUserData,
                                ur_event_handle_t &OutEventToWait) {
   bool HostPtrReadOnly = false;
   BaseT::determineHostPtr(Context, InitFromUserData, HostPtr, HostPtrReadOnly);
+  const bool BackendOwnedWriteBack = HostPtr != nullptr &&
+                                     HostPtr == BaseT::getUserPtr() &&
+                                     BaseT::backendOwnsWriteBack();
   assert(!(nullptr == HostPtr && BaseT::useHostPtr() && !Context) &&
          "Internal error. Allocating memory on the host "
          "while having use_host_ptr property");
   return MemoryManager::allocateMemBuffer(
-      Context, this, HostPtr, HostPtrReadOnly, BaseT::getSizeInBytes(),
-      BaseT::MInteropEvent, BaseT::MInteropContext.get(), MProps,
-      OutEventToWait);
+      Context, this, HostPtr, HostPtrReadOnly, BackendOwnedWriteBack,
+      BaseT::getSizeInBytes(), BaseT::MInteropEvent,
+      BaseT::MInteropContext.get(), MProps, OutEventToWait);
 }
 void buffer_impl::constructorNotification(const detail::code_location &CodeLoc,
                                           void *UserObj, const void *HostObj,
