@@ -458,52 +458,6 @@ ConvertToFP8_CPU(T h, rounding R = rounding::to_even) noexcept {
   return ret;
 }
 
-// Map E4M3 byte to integer
-// then "nextUp" in that order, and map back.
-// E4M3 finite-only: exp=0xF & frac!=0 => NaN (no Inf).
-inline uint8_t nextE4M3(uint8_t b, bool up) {
-  uint8_t exp = (b >> 3) & 0x0F;
-  uint8_t frac = b & 0x07;
-  // NaN -> NaN
-  if (exp == 0x0F && frac)
-    return b;
-  uint8_t ord =
-      (b & 0x80) ? static_cast<uint8_t>(~b) : static_cast<uint8_t>(b ^ 0x80);
-
-  if (up) {
-    if (ord == 0xFF)
-      return b;
-    ++ord;
-  } else {
-    if (ord == 0x00)
-      return b;
-    --ord;
-  }
-  return (ord & 0x80) ? static_cast<uint8_t>(ord ^ 0x80)
-                      : static_cast<uint8_t>(~ord);
-}
-
-template <typename YiT, typename T>
-uint8_t round(rounding r, uint8_t b, YiT yi, T vi) {
-  switch (r) {
-  case rounding::upward: {
-    if (yi < vi)
-      return nextE4M3(b, /*up=*/true);
-    break;
-  }
-  case rounding::toward_zero:
-    if (vi > 0.0f && yi > vi) {
-      return nextE4M3(b, /*up=*/false);
-    } else if (vi < 0.0f && yi < vi) {
-      return nextE4M3(b, /*up=*/true);
-    }
-    break;
-  default:
-    break;
-  }
-  return b;
-}
-
 template <typename T>
 static inline uint8_t ConvertToE8M0_CPU(T x, rounding R,
                                         saturation S) noexcept {
@@ -1476,8 +1430,8 @@ template <size_t N> class fp8_e8m0_x {
 
   void CheckConstraints(rounding r) const {
     assert(
-        r == rounding::upward ||
-        r == rounding::toward_zero &&
+        (r == rounding::upward ||
+        r == rounding::toward_zero) &&
             "fp8_e8m0_x: only rounding::upward and rounding::toward_zero are "
             "supported");
   }
