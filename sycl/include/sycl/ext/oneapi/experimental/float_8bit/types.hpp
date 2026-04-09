@@ -356,8 +356,8 @@ ConvertToFP8_CPU(T h, rounding R = rounding::to_even) noexcept {
       return static_cast<uint8_t>(sign | (MaxExpField)); // E = +127
 
     // Determine exponent E such that 2^E <= ax < 2^{E+1}
-    int e2;
-    float m = std::frexp(ax, &e2);
+    int e2 = 0;
+    std::frexp(ax, &e2);
     int E = e2 - 1;
 
     // Upward rounding semantics:
@@ -428,7 +428,7 @@ ConvertToFP8_CPU(T h, rounding R = rounding::to_even) noexcept {
   if (ax < min_sub)
     return sign; // underflow
 
-  int e2;
+  int e2 = 0;
   float m = std::frexp(ax, &e2);
   int E = e2 - 1;
 
