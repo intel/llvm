@@ -582,7 +582,6 @@ SYCLToolChain::getDeviceLibNames(const Driver &D,
 
   using SYCLDeviceLibsList = SmallVector<StringRef>;
   const SYCLDeviceLibsList SYCLDeviceLibs = {"libsycl-crt",
-                                             "libsycl-complex",
                                              "libsycl-cmath",
 #if defined(_WIN32)
                                              "libsycl-msvc-math",
@@ -736,7 +735,6 @@ static llvm::SmallVector<StringRef, 16> SYCLDeviceLibList{
     "bfloat16",
     "crt",
     "cmath",
-    "complex",
 #if defined(_WIN32)
     "msvc-math",
 #else

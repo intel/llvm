@@ -1,4 +1,4 @@
-//==-- fallback-cstring.cpp - fallback implementation of C string functions--=//
+//==-- fallback-cstring.hpp - fallback implementation of C string functions--=//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.

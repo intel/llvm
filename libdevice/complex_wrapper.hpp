@@ -1,4 +1,4 @@
-//==--- complex_wrapper.cpp - wrappers for C99 complex math functions ------==//
+//==--- complex_wrapper.hpp - wrappers for C99 complex math functions ------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.

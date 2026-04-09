@@ -314,8 +314,9 @@ set(sycl-compiler_deps
   ${file-table-tform_target} ${llvm-foreach_target} ${llvm-spirv_target}
   ${sycl-post-link_target})
 set(crt_obj_deps wrapper.h device.h spirv_vars.h fallback-cstring.hpp ${sycl-compiler_deps})
-set(complex_obj_deps device_complex.h device.h fallback-complex.hpp fallback-complex-fp64.hpp ${sycl-compiler_deps})
-set(cmath_obj_deps device_math.h device.h fallback-cmath.hpp fallback-cmath-fp64.hpp ${sycl-compiler_deps})
+set(cmath_obj_deps
+  device_math.h device.h fallback-cmath.hpp fallback-cmath-fp64.hpp
+  device_complex.h fallback-complex.hpp fallback-complex-fp64.hpp complex_wrapper.hpp ${sycl-compiler_deps})
 set(imf_obj_deps device_imf.hpp imf_half.hpp imf_bf16.hpp imf_rounding_op.hpp imf_impl_utils.hpp device.h ${sycl-compiler_deps})
 set(itt_obj_deps device_itt.h spirv_vars.h device.h ${sycl-compiler_deps})
 set(bfloat16_obj_deps sycl-headers ${sycl-compiler_deps})
@@ -429,10 +430,6 @@ add_devicelibs(libsycl-crt
   DEPENDENCIES ${crt_obj_deps}
   EXTRA_OPTS $<$<BOOL:${HAS_NO_INVALID_NORETURN_WARN_FLAG}>:-Wno-invalid-noreturn>)
 
-add_devicelibs(libsycl-complex
-  SRC complex_wrapper.cpp
-  BUILD_ARCHS ${full_build_archs}
-  DEPENDENCIES ${complex_obj_deps})
 add_devicelibs(libsycl-cmath
   SRC cmath_wrapper.cpp
   BUILD_ARCHS ${full_build_archs}

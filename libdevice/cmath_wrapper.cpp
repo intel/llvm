@@ -9,6 +9,7 @@
 #include "device.h"
 #include "fallback-cmath-fp64.hpp"
 #include "fallback-cmath.hpp"
+#include "complex_wrapper.hpp"
 
 #if defined(__SPIR__) || defined(__SPIRV__)
 

@@ -1,4 +1,4 @@
-//==----- fallback-complex-fp64.cpp - double precision complex math functions
+//==----- fallback-complex-fp64.hpp - double precision complex math functions
 // for SPIR-V device --==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
