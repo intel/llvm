@@ -453,8 +453,8 @@ TEST(FP8E4M3Test, X2NotConstructibleFromSingleDouble) {
 }
 
 TEST(FP8E4M3Test, X2NotConstructibleFromSingleBFloat16) {
-  EXPECT_FALSE((std::is_constructible_v<fp8_e4m3_x2,
-                                        sycl::ext::oneapi::bfloat16>));
+  EXPECT_FALSE(
+      (std::is_constructible_v<fp8_e4m3_x2, sycl::ext::oneapi::bfloat16>));
 }
 
 TEST(FP8E4M3Test, X2NotConstructibleFromSingleHalf) {
@@ -551,9 +551,8 @@ TEST(FP8E4M3Test, CArrayHalfRejectsTowardZeroRounding) {
 }
 
 TEST(FP8E4M3Test, CArrayBFloat16RejectsUpwardRounding) {
-  const sycl::ext::oneapi::bfloat16 in[2] = {
-      sycl::ext::oneapi::bfloat16(1.0f),
-      sycl::ext::oneapi::bfloat16(2.0f)};
+  const sycl::ext::oneapi::bfloat16 in[2] = {sycl::ext::oneapi::bfloat16(1.0f),
+                                             sycl::ext::oneapi::bfloat16(2.0f)};
   EXPECT_DEATH(
       {
         fp8_e4m3_x2 value(in, rounding::upward);
@@ -563,9 +562,8 @@ TEST(FP8E4M3Test, CArrayBFloat16RejectsUpwardRounding) {
 }
 
 TEST(FP8E4M3Test, CArrayBFloat16RejectsTowardZeroRounding) {
-  const sycl::ext::oneapi::bfloat16 in[2] = {
-      sycl::ext::oneapi::bfloat16(1.0f),
-      sycl::ext::oneapi::bfloat16(2.0f)};
+  const sycl::ext::oneapi::bfloat16 in[2] = {sycl::ext::oneapi::bfloat16(1.0f),
+                                             sycl::ext::oneapi::bfloat16(2.0f)};
   EXPECT_DEATH(
       {
         fp8_e4m3_x2 value(in, rounding::toward_zero);
@@ -616,8 +614,7 @@ TEST(FP8E4M3Test, MarrayHalfRejectsTowardZeroRounding) {
 
 TEST(FP8E4M3Test, MarrayBFloat16RejectsUpwardRounding) {
   const sycl::marray<sycl::ext::oneapi::bfloat16, 2> in = {
-      sycl::ext::oneapi::bfloat16(1.0f),
-      sycl::ext::oneapi::bfloat16(2.0f)};
+      sycl::ext::oneapi::bfloat16(1.0f), sycl::ext::oneapi::bfloat16(2.0f)};
   EXPECT_DEATH(
       {
         fp8_e4m3_x2 value(in, rounding::upward);
@@ -628,8 +625,7 @@ TEST(FP8E4M3Test, MarrayBFloat16RejectsUpwardRounding) {
 
 TEST(FP8E4M3Test, MarrayBFloat16RejectsTowardZeroRounding) {
   const sycl::marray<sycl::ext::oneapi::bfloat16, 2> in = {
-      sycl::ext::oneapi::bfloat16(1.0f),
-      sycl::ext::oneapi::bfloat16(2.0f)};
+      sycl::ext::oneapi::bfloat16(1.0f), sycl::ext::oneapi::bfloat16(2.0f)};
   EXPECT_DEATH(
       {
         fp8_e4m3_x2 value(in, rounding::toward_zero);
