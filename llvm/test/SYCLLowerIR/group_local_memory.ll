@@ -1,4 +1,3 @@
-; RUN: opt -S -sycllowerwglocalmemory -bugpoint-enable-legacy-pm < %s | FileCheck %s
 ; RUN: opt -S -passes=sycllowerwglocalmemory < %s | FileCheck %s
 
 ; CHECK-DAG: [[WGLOCALMEM_1:@WGLocalMem.*]] = internal addrspace(3) global [128 x i8] poison, align 4

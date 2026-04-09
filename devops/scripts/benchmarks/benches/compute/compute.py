@@ -12,7 +12,7 @@ from options import options
 from utils.result import BenchmarkMetadata
 from utils.logger import log
 
-from ..base import Benchmark, Suite, TracingType
+from ..base import Benchmark, Suite
 from .compute_benchmark import ComputeBenchmark
 from .compute_enums import RUNTIMES, PROFILERS, KERNEL_NAME, runtime_to_tag_name
 from .compute_metadata import ComputeMetadataGenerator
@@ -40,8 +40,8 @@ class ComputeBench(Suite):
         return "https://github.com/intel/compute-benchmarks.git"
 
     def git_hash(self) -> str:
-        # Mar 23, 2026
-        return "86d86fd37d703db4f0f75779ccdfd50193e0ab3d"
+        # Apr 03, 2026
+        return "6216e3a570054064f6610823e6a38d1878a9f932"
 
     def setup(self) -> None:
         if options.sycl is None:
@@ -67,6 +67,8 @@ class ComputeBench(Suite):
             f"-DUSE_SYSTEM_LEVEL_ZERO=OFF",
             f"-DCMAKE_CXX_COMPILER=clang++",
             f"-DCMAKE_C_COMPILER=clang",
+            f"-DBUILD_UR=ON",
+            f"-DCMAKE_PREFIX_PATH={options.sycl}",
         ]
 
         is_gdb_mode = os.environ.get("LLVM_BENCHMARKS_USE_GDB", "") == "1"
@@ -80,11 +82,6 @@ class ComputeBench(Suite):
                 "-DBUILD_SYCL_WITH_CUDA=ON",
                 "-DBUILD_L0=OFF",
                 "-DBUILD_OCL=OFF",
-            ]
-        if options.ur is not None:
-            extra_args += [
-                f"-DBUILD_UR=ON",
-                f"-DCMAKE_PREFIX_PATH={options.ur}",
             ]
 
         self._project.configure(extra_args, add_sycl=True)
@@ -132,6 +129,13 @@ class ComputeBench(Suite):
                 if in_order_queue
                 else long_kernel_exec_time_ooo
             )
+            if (
+                runtime == RUNTIMES.LEVEL_ZERO
+                and in_order_queue == 1
+                and use_events == 1
+            ):
+                # XXX: verify why IOQ + events + L0 causes issues
+                continue
             for kernel_exec_time in [1, *long_kernel_exec_time]:
                 benches.append(
                     SubmitKernel(
@@ -175,8 +179,9 @@ class ComputeBench(Suite):
                         self, runtime, 1000, 256, profiler_type=PROFILERS.CPU_COUNTER
                     )
                 )
+                # XXX: IOQ + events + L0 causes issues
+                benches.append(UllsKernelSwitch(self, runtime, 8, 200, 0, 0, 1, 1))
             benches.append(UllsEmptyKernel(self, runtime, 1000, 256))
-            benches.append(UllsKernelSwitch(self, runtime, 8, 200, 0, 0, 1, 1))
 
         # Add GraphApiSubmitGraph benchmarks
         submit_graph_params = product(
@@ -193,6 +198,13 @@ class ComputeBench(Suite):
             measure_completion_time,
             use_events,
         ) in submit_graph_params:
+            if (
+                runtime == RUNTIMES.LEVEL_ZERO
+                and in_order_queue == 1
+                and use_events == 1
+            ):
+                # XXX: verify why IOQ + events + L0 causes issues
+                continue
             # SYCL only supports graph mode, UR & L0 support both emulated
             # and non-emulated graph APIs.
             if runtime == RUNTIMES.SYCL or runtime == RUNTIMES.SYCL_PREVIEW:
@@ -369,6 +381,9 @@ class ComputeBench(Suite):
 
         # Add TorchMultiQueue benchmarks
         for runtime in filter(lambda x: x != RUNTIMES.UR, RUNTIMES):
+            if runtime == RUNTIMES.LEVEL_ZERO:
+                # XXX: verify why L0 benchmarks with counter based events cause issues
+                continue
             for profiler_type, measure_completion in product(list(PROFILERS), [0, 1]):
 
                 def createTorchMultiQueueBench(variant_name: str, **kwargs):
@@ -527,6 +542,9 @@ class ComputeBench(Suite):
 
         # Add TorchEventRecordWait benchmarks
         for runtime in filter(lambda x: x != RUNTIMES.UR, RUNTIMES):
+            if runtime == RUNTIMES.LEVEL_ZERO:
+                # XXX: verify why L0 benchmarks with counter based events cause issues
+                continue
             for profiler_type in list(PROFILERS):
                 benches.append(
                     TorchEventRecordWait(
@@ -537,6 +555,25 @@ class ComputeBench(Suite):
                         Profiling=0,
                         KernelWGCount=256,
                         KernelWGSize=512,
+                    )
+                )
+
+        # Add TorchEventRecordQuery benchmarks
+        for runtime in filter(lambda x: x != RUNTIMES.UR, RUNTIMES):
+            if runtime == RUNTIMES.LEVEL_ZERO:
+                # XXX: verify why L0 benchmarks with counter based events cause issues
+                continue
+            for profiler_type in list(PROFILERS):
+                benches.append(
+                    TorchEventRecordQuery(
+                        self,
+                        runtime,
+                        "medium",
+                        profiler_type,
+                        Profiling=0,
+                        KernelWGCount=256,
+                        KernelWGSize=512,
+                        EventQueryIterations=1000,
                     )
                 )
 
@@ -593,6 +630,9 @@ class ComputeBench(Suite):
         # Add TorchGraphMultiQueue benchmarks
         for runtime in filter(lambda x: x != RUNTIMES.UR, RUNTIMES):
             if "pvc" in device_arch and runtime == RUNTIMES.LEVEL_ZERO:
+                continue
+            if runtime == RUNTIMES.LEVEL_ZERO:
+                # XXX: verify why L0 benchmarks with counter based events cause issues
                 continue
 
             for profiler_type in list(PROFILERS):
@@ -836,8 +876,8 @@ class SubmitKernel(ComputeBenchmark):
     def _supported_runtimes(self) -> list[RUNTIMES]:
         return super()._supported_runtimes() + [RUNTIMES.SYCL_PREVIEW]
 
-    def _bin_args(self, run_trace: TracingType = TracingType.NONE) -> list[str]:
-        iters = self._get_iters(run_trace)
+    def _bin_args(self, flamegraph_enabled: bool = False) -> list[str]:
+        iters = self._get_iters(flamegraph_enabled)
         return [
             f"--iterations={iters}",
             f"--Ioq={self._ioq}",
@@ -888,8 +928,8 @@ class ExecImmCopy(ComputeBenchmark):
     def get_tags(self):
         return ["memory", "submit", "latency", "SYCL", "micro"]
 
-    def _bin_args(self, run_trace: TracingType = TracingType.NONE) -> list[str]:
-        iters = self._get_iters(run_trace)
+    def _bin_args(self, flamegraph_enabled: bool = False) -> list[str]:
+        iters = self._get_iters(flamegraph_enabled)
         return [
             f"--iterations={iters}",
             f"--ioq={self._ioq}",
@@ -942,7 +982,7 @@ class RecordAndReplay(ComputeBenchmark):
     def get_tags(self):
         return ["L0"]
 
-    def _bin_args(self, run_trace: TracingType = TracingType.NONE) -> list[str]:
+    def _bin_args(self, flamegraph_enabled: bool = False) -> list[str]:
         return [f"--{k}={v}" for k, v in self._rr_params.items()]
 
 
@@ -978,8 +1018,8 @@ class QueueInOrderMemcpy(ComputeBenchmark):
     def get_tags(self):
         return ["memory", "latency", "SYCL", "micro"]
 
-    def _bin_args(self, run_trace: TracingType = TracingType.NONE) -> list[str]:
-        iters = self._get_iters(run_trace)
+    def _bin_args(self, flamegraph_enabled: bool = False) -> list[str]:
+        iters = self._get_iters(flamegraph_enabled)
         return [
             f"--iterations={iters}",
             f"--IsCopyOnly={self._is_copy_only}",
@@ -1019,8 +1059,8 @@ class QueueMemcpy(ComputeBenchmark):
     def get_tags(self):
         return ["memory", "latency", "SYCL", "micro"]
 
-    def _bin_args(self, run_trace: TracingType = TracingType.NONE) -> list[str]:
-        iters = self._get_iters(run_trace)
+    def _bin_args(self, flamegraph_enabled: bool = False) -> list[str]:
+        iters = self._get_iters(flamegraph_enabled)
         return [
             f"--iterations={iters}",
             f"--sourcePlacement={self._source}",
@@ -1059,8 +1099,8 @@ class StreamMemory(ComputeBenchmark):
     def get_tags(self):
         return ["memory", "throughput", "SYCL", "micro"]
 
-    def _bin_args(self, run_trace: TracingType = TracingType.NONE) -> list[str]:
-        iters = self._get_iters(run_trace)
+    def _bin_args(self, flamegraph_enabled: bool = False) -> list[str]:
+        iters = self._get_iters(flamegraph_enabled)
         return [
             f"--iterations={iters}",
             f"--type={self._type}",
@@ -1096,8 +1136,8 @@ class VectorSum(ComputeBenchmark):
     def get_tags(self):
         return ["math", "throughput", "SYCL", "micro"]
 
-    def _bin_args(self, run_trace: TracingType = TracingType.NONE) -> list[str]:
-        iters = self._get_iters(run_trace)
+    def _bin_args(self, flamegraph_enabled: bool = False) -> list[str]:
+        iters = self._get_iters(flamegraph_enabled)
         return [
             f"--iterations={iters}",
             "--numberOfElementsX=512",
@@ -1190,8 +1230,8 @@ class MemcpyExecute(ComputeBenchmark):
         else:
             return {}
 
-    def _bin_args(self, run_trace: TracingType = TracingType.NONE) -> list[str]:
-        iters = self._get_iters(run_trace)
+    def _bin_args(self, flamegraph_enabled: bool = False) -> list[str]:
+        iters = self._get_iters(flamegraph_enabled)
         return [
             f"--iterations={iters}",
             "--Ioq=1",
@@ -1247,8 +1287,8 @@ class GraphApiSinKernelGraph(ComputeBenchmark):
             "latency",
         ]
 
-    def _bin_args(self, run_trace: TracingType = TracingType.NONE) -> list[str]:
-        iters = self._get_iters(run_trace)
+    def _bin_args(self, flamegraph_enabled: bool = False) -> list[str]:
+        iters = self._get_iters(flamegraph_enabled)
         return [
             f"--iterations={iters}",
             f"--numKernels={self._num_kernels}",
@@ -1327,8 +1367,8 @@ class GraphApiSubmitGraph(ComputeBenchmark):
     def _supported_runtimes(self) -> list[RUNTIMES]:
         return super()._supported_runtimes() + [RUNTIMES.SYCL_PREVIEW]
 
-    def _bin_args(self, run_trace: TracingType = TracingType.NONE) -> list[str]:
-        iters = self._get_iters(run_trace)
+    def _bin_args(self, flamegraph_enabled: bool = False) -> list[str]:
+        iters = self._get_iters(flamegraph_enabled)
         return [
             f"--iterations={iters}",
             f"--NumKernels={self._num_kernels}",
@@ -1379,8 +1419,8 @@ class UllsEmptyKernel(ComputeBenchmark):
     def _supported_runtimes(self) -> list[RUNTIMES]:
         return [RUNTIMES.SYCL, RUNTIMES.LEVEL_ZERO]
 
-    def _bin_args(self, run_trace: TracingType = TracingType.NONE) -> list[str]:
-        iters = self._get_iters(run_trace)
+    def _bin_args(self, flamegraph_enabled: bool = False) -> list[str]:
+        iters = self._get_iters(flamegraph_enabled)
         return [
             f"--iterations={iters}",
             f"--wgs={self._wgs}",
@@ -1432,8 +1472,8 @@ class UllsKernelSwitch(ComputeBenchmark):
     def _supported_runtimes(self):
         return [RUNTIMES.SYCL, RUNTIMES.LEVEL_ZERO]
 
-    def _bin_args(self, run_trace: TracingType = TracingType.NONE) -> list[str]:
-        iters = self._get_iters(run_trace)
+    def _bin_args(self, flamegraph_enabled: bool = False) -> list[str]:
+        iters = self._get_iters(flamegraph_enabled)
         return [
             f"--iterations={iters}",
             f"--count={self._count}",
@@ -1492,8 +1532,8 @@ class UsmMemoryAllocation(ComputeBenchmark):
     def get_tags(self):
         return [runtime_to_tag_name(self._runtime), "micro", "latency", "memory"]
 
-    def _bin_args(self, run_trace: TracingType = TracingType.NONE) -> list[str]:
-        iters = self._get_iters(run_trace)
+    def _bin_args(self, flamegraph_enabled: bool = False) -> list[str]:
+        iters = self._get_iters(flamegraph_enabled)
         return [
             f"--iterations={iters}",
             f"--type={self._usm_memory_placement}",
@@ -1556,8 +1596,8 @@ class UsmBatchMemoryAllocation(ComputeBenchmark):
     def get_tags(self):
         return [runtime_to_tag_name(self._runtime), "micro", "latency", "memory"]
 
-    def _bin_args(self, run_trace: TracingType = TracingType.NONE) -> list[str]:
-        iters = self._get_iters(run_trace)
+    def _bin_args(self, flamegraph_enabled: bool = False) -> list[str]:
+        iters = self._get_iters(flamegraph_enabled)
         return [
             f"--iterations={iters}",
             f"--type={self._usm_memory_placement}",
@@ -1628,8 +1668,8 @@ class GraphApiFinalizeGraph(ComputeBenchmark):
             "latency",
         ]
 
-    def _bin_args(self, run_trace: TracingType = TracingType.NONE) -> list[str]:
-        iters = self._get_iters(run_trace)
+    def _bin_args(self, flamegraph_enabled: bool = False) -> list[str]:
+        iters = self._get_iters(flamegraph_enabled)
         return [
             f"--iterations={iters}",
             f"--rebuildGraphEveryIter={self._rebuild_graph_every_iteration}",

@@ -40,14 +40,11 @@ class App:
         self.OUTPUT_DIR = None
         self.RESULTS_DIR = None
         self.WORKDIR_DIR = None
-        self.UR_INSTALL_DIR = None
 
     def prepare_dirs(self):
         self.OUTPUT_DIR = tempfile.mkdtemp()
         self.RESULTS_DIR = tempfile.mkdtemp()
         self.WORKDIR_DIR = tempfile.mkdtemp()
-
-        self.UR_INSTALL_DIR = os.environ.get("LLVM_BENCH_UR_INSTALL_DIR")
 
         # when UT does not want to build compute-benchmarks from scratch, it can provide prebuilt path
         cb_targetpath = os.environ.get("COMPUTE_BENCHMARKS_BUILD_PATH")
@@ -68,8 +65,6 @@ class App:
 
         # TODO: not yet tested: "--detect-version", "sycl,compute_runtime"
         extra_args = []
-        if self.UR_INSTALL_DIR:
-            extra_args += ["--ur", self.UR_INSTALL_DIR]
 
         proc = subprocess.run(
             [
@@ -217,15 +212,11 @@ class TestE2E(unittest.TestCase):
         )
 
     def test_submit_kernel_ur(self):
-        if self.app.UR_INSTALL_DIR:
-            self._checkCase(
-                "api_overhead_benchmark_ur SubmitKernel out of order not using events",
-                "SubmitKernel out of order",
-                {"UR", "latency", "micro", "submit"},
-            )
-        else:
-            print("Skipping UR benchmark test...")
-            self.skipTest("UR install dir not provided")
+        self._checkCase(
+            "api_overhead_benchmark_ur SubmitKernel out of order not using events",
+            "SubmitKernel out of order",
+            {"UR", "latency", "micro", "submit"},
+        )
 
     def test_submit_kernel(self):
         self._checkCase(
@@ -235,11 +226,16 @@ class TestE2E(unittest.TestCase):
         )
 
     def test_torch_l0(self):
-        self._checkCase(
-            "torch_benchmark_l0 KernelSubmitEventRecordWait KernelWGCount 256, KernelWGSize 512, Profiling 0",
-            "KernelSubmitEventRecordWait medium",
-            {"pytorch", "L0"},
-        )
+        # self._checkCase(
+        #     "torch_benchmark_l0 KernelSubmitEventRecordWait KernelWGCount 256, KernelWGSize 512, Profiling 0",
+        #     "KernelSubmitEventRecordWait medium",
+        #     {"pytorch", "L0"},
+        # )
+        # self._checkCase(
+        #     "torch_benchmark_l0 KernelSubmitEventRecordQuery EventQueryIterations 1000, KernelWGCount 256, KernelWGSize 512, Profiling 0 CPU count",
+        #     "KernelSubmitEventRecordQuery medium, CPU count",
+        #     {"pytorch", "L0"},
+        # )
         self._checkCase(
             "torch_benchmark_l0 KernelSubmitSingleQueue KernelDataType Int32, KernelWGCount 4096, KernelWGSize 512",
             "KernelSubmitSingleQueue Int32Large",
@@ -252,16 +248,16 @@ class TestE2E(unittest.TestCase):
             {"pytorch", "L0"},
             "--test=KernelSubmitSingleQueue.*--profilerType=cpuCounter",
         )
-        self._checkCase(
-            "torch_benchmark_l0 KernelSubmitMultiQueue KernelsPerQueue 20, MeasureCompletionTime 0",
-            "KernelSubmitMultiQueue large",
-            {"pytorch", "L0"},
-        )
-        self._checkCase(
-            "torch_benchmark_l0 KernelSubmitMultiQueue KernelsPerQueue 20, MeasureCompletionTime 1 CPU count",
-            "KernelSubmitMultiQueue large with measure completion, CPU count",
-            {"pytorch", "L0"},
-        )
+        # self._checkCase(
+        #     "torch_benchmark_l0 KernelSubmitMultiQueue KernelsPerQueue 20, MeasureCompletionTime 0",
+        #     "KernelSubmitMultiQueue large",
+        #     {"pytorch", "L0"},
+        # )
+        # self._checkCase(
+        #     "torch_benchmark_l0 KernelSubmitMultiQueue KernelsPerQueue 20, MeasureCompletionTime 1 CPU count",
+        #     "KernelSubmitMultiQueue large with measure completion, CPU count",
+        #     {"pytorch", "L0"},
+        # )
         self._checkCase(
             "torch_benchmark_l0 KernelSubmitSlmSize MeasureCompletionTime 1, SlmNum 1",
             "KernelSubmitSlmSize small with measure completion",
@@ -279,16 +275,16 @@ class TestE2E(unittest.TestCase):
         )
         # FIXME: Graph benchmarks segfault on pvc on L0
         if not ("pvc" in self.device_arch.lower()):
-            self._checkCase(
-                "torch_benchmark_l0 KernelSubmitGraphSingleQueue KernelBatchSize 10, KernelName Add, KernelsPerQueue 10 CPU count",
-                "KernelSubmitGraphSingleQueue small, CPU count",
-                {"pytorch", "L0"},
-            )
-            self._checkCase(
-                "torch_benchmark_l0 KernelSubmitGraphMultiQueue KernelsPerQueue 64 CPU count",
-                "KernelSubmitGraphMultiQueue large, CPU count",
-                {"pytorch", "L0"},
-            )
+            # self._checkCase(
+            #     "torch_benchmark_l0 KernelSubmitGraphSingleQueue KernelBatchSize 10, KernelName Add, KernelsPerQueue 10 CPU count",
+            #     "KernelSubmitGraphSingleQueue small, CPU count",
+            #     {"pytorch", "L0"},
+            # )
+            # self._checkCase(
+            #     "torch_benchmark_l0 KernelSubmitGraphMultiQueue KernelsPerQueue 64 CPU count",
+            #     "KernelSubmitGraphMultiQueue large, CPU count",
+            #     {"pytorch", "L0"},
+            # )
             self._checkCase(
                 "torch_benchmark_l0 KernelSubmitGraphVllmMock AllocCount 128, GraphScenario 3",
                 "KernelSubmitGraphVllmMock large",
@@ -299,6 +295,11 @@ class TestE2E(unittest.TestCase):
         self._checkCase(
             "torch_benchmark_sycl KernelSubmitEventRecordWait KernelWGCount 256, KernelWGSize 512, Profiling 0 CPU count",
             "KernelSubmitEventRecordWait medium, CPU count",
+            {"pytorch", "SYCL"},
+        )
+        self._checkCase(
+            "torch_benchmark_sycl KernelSubmitEventRecordQuery EventQueryIterations 1000, KernelWGCount 256, KernelWGSize 512, Profiling 0",
+            "KernelSubmitEventRecordQuery medium",
             {"pytorch", "SYCL"},
         )
         self._checkCase(

@@ -51,7 +51,6 @@ class Options:
     TIMESTAMP_FORMAT: str = "%Y%m%d_%H%M%S"
     workdir: str = None
     sycl: str = None
-    ur: str = None
     ur_adapter: str = None
     umf: str = None
     offline: bool = False
@@ -79,7 +78,6 @@ class Options:
     build_jobs: int = len(os.sched_getaffinity(0))  # Cores available for the process.
     exit_on_failure: bool = False
     flamegraph: bool = False
-    unitrace: bool = False
 
     # Options intended for CI:
 
