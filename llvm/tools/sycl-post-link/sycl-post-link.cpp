@@ -14,13 +14,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/ADT/StringRef.h"
-#include "llvm/Bitcode/BitcodeWriterPass.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
-#include "llvm/IRPrinter/IRPrintingPasses.h"
 #include "llvm/IRReader/IRReader.h"
-#include "llvm/Passes/PassBuilder.h"
-#include "llvm/SYCLLowerIR/DeviceConfigFile.hpp"
 #include "llvm/SYCLLowerIR/ESIMD/ESIMDUtils.h"
 #include "llvm/SYCLLowerIR/SYCLDeviceLibBF16.h"
 #include "llvm/SYCLLowerIR/SYCLUtils.h"
@@ -29,8 +25,8 @@
 #include "llvm/SYCLPostLink/ESIMDPostSplitProcessing.h"
 #include "llvm/SYCLPostLink/ModuleSplitter.h"
 #include "llvm/SYCLPostLink/SpecializationConstants.h"
+#include "llvm/SYCLPostLink/Utils.h"
 #include "llvm/Support/CommandLine.h"
-#include "llvm/Support/Error.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/Path.h"
@@ -47,7 +43,6 @@
 
 using namespace llvm;
 using namespace llvm::sycl;
-using namespace llvm::sycl_post_link;
 
 namespace {
 
@@ -267,122 +262,52 @@ unsigned getOptLevel() {
   return 2; // default value
 }
 
-Error saveModuleIR(Module &M, const StringRef Filename) {
-  std::error_code EC;
-  raw_fd_ostream Out{Filename, EC, sys::fs::OF_None};
-  if (EC)
-    return createStringError(EC, "error opening the file '" + Filename + "'");
-
-  ModulePassManager MPM;
-  ModuleAnalysisManager MAM;
-  PassBuilder PB;
-  PB.registerModuleAnalyses(MAM);
-  if (OutputAssembly)
-    MPM.addPass(PrintModulePass(Out));
-  else if (Force || !CheckBitcodeOutputToConsole(Out))
-    MPM.addPass(BitcodeWriterPass(Out));
-  MPM.run(M, MAM);
-  return Error::success();
-}
-
-PropSetRegTy computeModuleProperties(const module_split::ModuleDesc &MD,
-                                     const GlobalBinImageProps &GlobProps) {
-  PropSetRegTy PropSet;
-  // For bf16 devicelib module, no kernel included and no specialization
-  // constant used, skip regular Prop emit. However, we have fallback and
-  // native version of bf16 devicelib and we need new property values to
-  // indicate all exported function.
-  if (!MD.isSYCLDeviceLib())
-    PropSet = computeModuleProperties(MD.getModule(), MD.entries(), GlobProps,
-                                      AllowDeviceImageDependencies);
-  else
-    PropSet = computeDeviceLibProperties(MD.getModule(), MD.Name);
-
-  // When the split mode is none, the required work group size will be added
-  // to the whole module, which will make the runtime unable to
-  // launch the other kernels in the module that have different
-  // required work group sizes or no required work group sizes. So we need to
-  // remove the required work group size metadata in this case.
-  if (SplitMode == module_split::SPLIT_NONE)
-    PropSet.remove(PropSetRegTy::SYCL_DEVICE_REQUIREMENTS,
-                   PropSetRegTy::PROPERTY_REQD_WORK_GROUP_SIZE);
-  return PropSet;
-}
-
-Error writePropertiesToFile(const StringRef Filename,
-                            const util::PropertySetRegistry &PropSet) {
-  return writeToOutput(Filename, [&](raw_ostream &OS) -> Error {
-    PropSet.write(OS);
-    return Error::success();
-  });
-}
-
-Error saveModuleProperties(const module_split::ModuleDesc &MD,
-                           const GlobalBinImageProps &GlobProps,
-                           const StringRef Filename, StringRef Target = "") {
-  PropSetRegTy PropSet = computeModuleProperties(MD, GlobProps);
-
-  if (!Target.empty())
-    PropSet.add(PropSetRegTy::SYCL_DEVICE_REQUIREMENTS, "compile_target",
-                Target);
-
-  return writePropertiesToFile(Filename, PropSet);
-}
-
-// Saves specified collection of symbols to a file.
-Error saveModuleSymbolTable(const module_split::ModuleDesc &MD,
-                            const StringRef Filename) {
-  return writeToOutput(Filename, [&](raw_ostream &OS) -> Error {
-    OS << computeModuleSymbolTable(MD.getModule(), MD.entries());
-    return Error::success();
-  });
-}
-
-bool isTargetCompatibleWithModule(const std::string &Target,
-                                  module_split::ModuleDesc &IrMD);
-
 void addTableRow(util::SimpleTable &Table,
                  const IrPropSymFilenameTriple &RowData);
 
+void prepareModuleBeforeSave(module_split::ModuleDesc &MD, bool RunCleanup,
+                             bool AllowDeviceImageDependencies) {
+  MD.saveSplitInformationAsMetadata();
+  if (RunCleanup)
+    MD.cleanup(AllowDeviceImageDependencies);
+}
+
 /// \param OutTables List of tables (one for each target) to output results
 /// \param MD Module descriptor to save
-/// \param OutputPrefix Prefix for all generated outputs.
+/// \param OutputPrefix Prefix for all generated outputs. Output files use
+///   dot-separated suffixes: OutputPrefix.esimd.ext for ESIMD modules or
+///   OutputPrefix.target.ext for target-specific property files (e.g.,
+///   prefix_0.esimd.ll, prefix_0.intel_gpu_pvc.prop).
 /// \param IRFilename Filename of IR component. If filename is not empty, it
 ///   is recorded in the OutTable. Otherwise, a new file is created to save
 ///   the IR component, and the new name is recorded in the OutTable.
-void saveModule(
+Error saveModule(
     const std::vector<std::unique_ptr<util::SimpleTable>> &OutTables,
-    module_split::ModuleDesc &MD, const int I, const Twine &OutputPrefix,
+    module_split::ModuleDesc &MD, const Twine &OutputPrefix,
     const StringRef IRFilename) {
   IrPropSymFilenameTriple BaseTriple;
-  StringRef Suffix = MD.isESIMD() ? "_esimd" : "";
-  MD.saveSplitInformationAsMetadata();
+  StringRef Suffix = MD.isESIMD() ? ".esimd" : "";
 
   if (!IRFilename.empty()) {
     // Don't save IR, just record the filename.
     BaseTriple.Ir = IRFilename.str();
   } else {
-    if (!MD.isSYCLDeviceLib()) {
-      // For deviceLib Modules, we don't need to do clean up and no entry-point
-      // is included. The module only includes a bunch of exported functions
-      // intended to be invoked by user's device modules.
-      MD.cleanup(AllowDeviceImageDependencies);
-    }
-
     StringRef IRExtension = OutputAssembly ? ".ll" : ".bc";
-    BaseTriple.Ir =
-        (OutputPrefix + Suffix + "_" + Twine(I) + IRExtension).str();
-    ExitOnErr(saveModuleIR(MD.getModule(), BaseTriple.Ir));
+    BaseTriple.Ir = (OutputPrefix + Suffix + IRExtension).str();
+    if (Error E = sycl_post_link::saveModuleIR(MD.getModule(), BaseTriple.Ir,
+                                               OutputAssembly))
+      return E;
   }
 
   if (DoSymGen) {
     // Save the names of the entry points - the symbol table.
-    BaseTriple.Sym = (OutputPrefix + Suffix + "_" + Twine(I) + ".sym").str();
-    ExitOnErr(saveModuleSymbolTable(MD, BaseTriple.Sym));
+    BaseTriple.Sym = (OutputPrefix + Suffix + ".sym").str();
+    if (Error E = sycl_post_link::saveModuleSymbolTable(MD, BaseTriple.Sym))
+      return E;
   }
 
   for (const auto &[Table, OutputFile] : zip_equal(OutTables, OutputFiles)) {
-    if (!isTargetCompatibleWithModule(OutputFile.Target, MD))
+    if (!sycl_post_link::isTargetCompatibleWithModule(OutputFile.Target, MD))
       continue;
     auto CopyTriple = BaseTriple;
     if (DoPropGen) {
@@ -392,20 +317,23 @@ void saveModule(
       StringRef Target = OutputFile.Target;
       std::string NewSuff = Suffix.str();
       if (!Target.empty())
-        NewSuff = (Twine("_") + Target).str();
+        NewSuff = (Twine(".") + Target).str();
 
-      CopyTriple.Prop =
-          (OutputPrefix + NewSuff + "_" + Twine(I) + ".prop").str();
-      ExitOnErr(saveModuleProperties(MD, Props, CopyTriple.Prop, Target));
+      CopyTriple.Prop = (OutputPrefix + NewSuff + ".prop").str();
+      if (Error E = sycl_post_link::saveModuleProperties(
+              MD, Props, CopyTriple.Prop, Target, AllowDeviceImageDependencies,
+              SplitMode))
+        return E;
     }
     addTableRow(*Table, CopyTriple);
   }
+
+  return Error::success();
 }
 
 Error saveDeviceLibModule(
     const std::vector<std::unique_ptr<util::SimpleTable>> &OutTables,
-    const Twine &OutputPrefix, const int I,
-    const std::string &DeviceLibFileName) {
+    const Twine &OutputPrefix, const std::string &DeviceLibFileName) {
   assert(!DeviceLibFileName.empty() &&
          "DeviceLibFileName is expected to be non-empty.");
   SMDiagnostic Err;
@@ -422,8 +350,12 @@ Error saveDeviceLibModule(
 
   llvm::module_split::ModuleDesc DeviceLibMD(std::move(DeviceLibIR),
                                              DeviceLibFileName);
-  saveModule(OutTables, DeviceLibMD, I, OutputPrefix, "");
-  return Error::success();
+  // For deviceLib Modules, we don't need to do clean up and no entry-point
+  // is included. The module only includes a bunch of exported functions
+  // intended to be invoked by user's device modules.
+  prepareModuleBeforeSave(DeviceLibMD, /*RunCleanup*/ false,
+                          /*AllowDeviceImageDependencies*/ false);
+  return saveModule(OutTables, DeviceLibMD, OutputPrefix, "");
 }
 
 void addTableRow(util::SimpleTable &Table,
@@ -437,54 +369,6 @@ void addTableRow(util::SimpleTable &Table,
   }
   assert(static_cast<size_t>(Table.getNumColumns()) == Row.size());
   Table.addRow(Row);
-}
-
-// Checks if the given target and module are compatible.
-// A target and module are compatible if all the optional kernel features
-// the module uses are supported by that target (i.e. that module can be
-// compiled for that target and then be executed on that target). This
-// information comes from the device config file (DeviceConfigFile.td).
-// For example, the intel_gpu_tgllp target does not support fp64 - therefore,
-// a module using fp64 would *not* be compatible with intel_gpu_tgllp.
-bool isTargetCompatibleWithModule(const std::string &Target,
-                                  module_split::ModuleDesc &IrMD) {
-  // When the user does not specify a target,
-  // (e.g. -o out.table compared to -o intel_gpu_pvc,out-pvc.table)
-  // Target will be empty and we will not want to perform any filtering, so
-  // we return true here.
-  if (Target.empty())
-    return true;
-
-  // TODO: If a target not found in the device config file is passed,
-  // to sycl-post-link, then we should probably throw an error. However,
-  // since not all the information for all the targets is filled out
-  // right now, we return true, having the affect that unrecognized
-  // targets have no filtering applied to them.
-  if (!is_contained(DeviceConfigFile::TargetTable, Target))
-    return true;
-
-  const DeviceConfigFile::TargetInfo &TargetInfo =
-      DeviceConfigFile::TargetTable[Target];
-  const SYCLDeviceRequirements &ModuleReqs =
-      IrMD.getOrComputeDeviceRequirements();
-
-  // Check to see if all the requirements of the input module
-  // are compatbile with the target.
-  for (const auto &Aspect : ModuleReqs.Aspects) {
-    if (!is_contained(TargetInfo.aspects, Aspect.Name))
-      return false;
-  }
-
-  // Check if module sub group size is compatible with the target.
-  // For ESIMD, the reqd_sub_group_size will be 1; this is not
-  // a supported by any backend (e.g. no backend can support a kernel
-  // with sycl::reqd_sub_group_size(1)), but for ESIMD, this is
-  // a special case.
-  if (!IrMD.isESIMD() && ModuleReqs.SubGroupSize.has_value() &&
-      !is_contained(TargetInfo.subGroupSizes, *ModuleReqs.SubGroupSize))
-    return false;
-
-  return true;
 }
 
 std::vector<std::unique_ptr<util::SimpleTable>>
@@ -559,15 +443,16 @@ processInputModule(std::unique_ptr<Module> M, const StringRef OutputPrefix) {
 
     MDesc->fixupLinkageOfDirectInvokeSimdTargets();
 
-    ESIMDProcessingOptions Options = {SplitMode,
-                                      EmitOnlyKernelsAsEntryPoints,
-                                      AllowDeviceImageDependencies,
-                                      LowerEsimd,
-                                      SplitEsimd,
-                                      getOptLevel(),
-                                      ForceDisableESIMDOpt};
-    auto ModulesOrErr =
-        handleESIMD(std::move(MDesc), Options, Modified, SplitOccurred);
+    llvm::sycl_post_link::ESIMDProcessingOptions Options = {
+        SplitMode,
+        EmitOnlyKernelsAsEntryPoints,
+        AllowDeviceImageDependencies,
+        LowerEsimd,
+        SplitEsimd,
+        getOptLevel(),
+        ForceDisableESIMDOpt};
+    auto ModulesOrErr = llvm::sycl_post_link::handleESIMD(
+        std::move(MDesc), Options, Modified, SplitOccurred);
     CHECK_AND_EXIT(ModulesOrErr.takeError());
     SmallVector<std::unique_ptr<module_split::ModuleDesc>, 2> &MMs =
         *ModulesOrErr;
@@ -584,8 +469,8 @@ processInputModule(std::unique_ptr<Module> M, const StringRef OutputPrefix) {
               "' can't be used");
       }
       MMs.front()->cleanup(AllowDeviceImageDependencies);
-      ExitOnErr(
-          saveModuleIR(MMs.front()->getModule(), OutputFiles[0].Filename));
+      ExitOnErr(sycl_post_link::saveModuleIR(
+          MMs.front()->getModule(), OutputFiles[0].Filename, OutputAssembly));
       return Tables;
     }
     // Empty IR file name directs saveModule to generate one and save IR to
@@ -600,7 +485,10 @@ processInputModule(std::unique_ptr<Module> M, const StringRef OutputPrefix) {
     }
     for (const std::unique_ptr<module_split::ModuleDesc> &IrMD : MMs) {
       IsBF16DeviceLibUsed |= isSYCLDeviceLibBF16Used(IrMD->getModule());
-      saveModule(Tables, *IrMD, ID, OutputPrefix, OutIRFileName);
+      prepareModuleBeforeSave(*IrMD, /*RunCleanup*/ OutIRFileName.empty(),
+                              AllowDeviceImageDependencies);
+      ExitOnErr(saveModule(Tables, *IrMD, OutputPrefix + "_" + Twine(ID),
+                           OutIRFileName));
     }
 
     ++ID;
@@ -610,7 +498,10 @@ processInputModule(std::unique_ptr<Module> M, const StringRef OutputPrefix) {
         const std::unique_ptr<module_split::ModuleDesc> &IrMD =
             MMsWithDefaultSpecConsts[i];
         IsBF16DeviceLibUsed |= isSYCLDeviceLibBF16Used(IrMD->getModule());
-        saveModule(Tables, *IrMD, ID, OutputPrefix, OutIRFileName);
+        prepareModuleBeforeSave(*IrMD, /*RunCleanup*/ OutIRFileName.empty(),
+                                AllowDeviceImageDependencies);
+        ExitOnErr(saveModule(Tables, *IrMD, OutputPrefix + "_" + Twine(ID),
+                             OutIRFileName));
       }
 
       ++ID;
@@ -618,9 +509,9 @@ processInputModule(std::unique_ptr<Module> M, const StringRef OutputPrefix) {
   }
 
   if (IsBF16DeviceLibUsed && (DeviceLibDir.getNumOccurrences() > 0)) {
-    ExitOnErr(saveDeviceLibModule(Tables, OutputPrefix, ID,
+    ExitOnErr(saveDeviceLibModule(Tables, OutputPrefix + "_" + Twine(ID),
                                   "libsycl-fallback-bfloat16.bc"));
-    ExitOnErr(saveDeviceLibModule(Tables, OutputPrefix, ID + 1,
+    ExitOnErr(saveDeviceLibModule(Tables, OutputPrefix + "_" + Twine(ID + 1),
                                   "libsycl-native-bfloat16.bc"));
   }
   return Tables;

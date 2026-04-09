@@ -1,7 +1,7 @@
 ; RUN: sycl-post-link -properties -split-esimd -symbols -S < %s -o %t.table
 ; RUN: FileCheck %s -input-file=%t.table
 ; RUN: FileCheck %s -input-file=%t_0.sym --check-prefixes CHECK-SYCL-SYM
-; RUN: FileCheck %s -input-file=%t_esimd_0.sym --check-prefixes CHECK-ESIMD-SYM
+; RUN: FileCheck %s -input-file=%t_0.esimd.sym --check-prefixes CHECK-ESIMD-SYM
 
 ; This test checks symbols generation when we split SYCL and ESIMD kernels into
 ; separate modules.
@@ -49,7 +49,7 @@ attributes #1 = { "sycl-module-id"="b.cpp" }
 
 ; CHECK: [Code|Properties|Symbols]
 ; CHECK-DAG: {{.*}}tmp_0.ll|{{.*}}_0.prop|{{.*}}_0.sym
-; CHECK-DAG: {{.*}}tmp_esimd_0.ll|{{.*}}_esimd_0.prop|{{.*}}_esimd_0.sym
+; CHECK-DAG: {{.*}}tmp_0.esimd.ll|{{.*}}_0.esimd.prop|{{.*}}_0.esimd.sym
 
 ; CHECK-SYCL-SYM: SYCL_kernel1
 ; CHECK-SYCL-SYM: SYCL_kernel2
