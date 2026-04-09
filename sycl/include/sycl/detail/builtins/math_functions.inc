@@ -223,7 +223,7 @@ auto builtin_delegate_ptr_impl(FuncTy F, PtrTy p, Ts... xs) {
 
   // TODO: Optimize for sizes. Make not to violate ANSI-aliasing rules for the
   // pointer argument.
-  auto p0 = get_element_pointer(p);
+  auto p0 = builtin_element_pointer(p);
 
   constexpr auto N = T0::size();
   if constexpr (N <= 16)

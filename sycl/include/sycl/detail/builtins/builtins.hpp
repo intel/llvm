@@ -132,7 +132,7 @@ template <typename PtrTy> auto builtin_raw_ptr(PtrTy &&Ptr) {
 
 // Returns a pointer to the first element for raw pointer-like types.
 template <typename PtrTy>
-decltype(auto) get_element_pointer(
+decltype(auto) builtin_element_pointer(
     PtrTy &&Ptr,
     std::integral_constant<builtin_ptr_kind, builtin_ptr_kind::raw>) {
   return &(*std::forward<PtrTy>(Ptr))[0];
@@ -140,16 +140,16 @@ decltype(auto) get_element_pointer(
 
 // Returns a pointer to the first element while preserving multi_ptr semantics.
 template <typename PtrTy>
-auto get_element_pointer(
+auto builtin_element_pointer(
     PtrTy &&Ptr,
     std::integral_constant<builtin_ptr_kind, builtin_ptr_kind::multi_ptr>) {
   return detail::get_element_pointer(std::forward<PtrTy>(Ptr));
 }
 
 // Returns an element pointer for raw pointers and multi_ptrs.
-template <typename PtrTy> auto get_element_pointer(PtrTy &&Ptr) {
-  return get_element_pointer(std::forward<PtrTy>(Ptr),
-                             builtin_ptr_kind_tag_t<PtrTy>{});
+template <typename PtrTy> auto builtin_element_pointer(PtrTy &&Ptr) {
+  return builtin_element_pointer(std::forward<PtrTy>(Ptr),
+                                 builtin_ptr_kind_tag_t<PtrTy>{});
 }
 
 // Utility trait for changing the element type of a type T. If T is a scalar,
