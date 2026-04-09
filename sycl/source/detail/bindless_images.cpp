@@ -672,6 +672,9 @@ __SYCL_EXPORT external_semaphore import_external_semaphore(
   case external_semaphore_handle_type::win32_nt_dx12_fence:
     urHandleType = UR_EXP_EXTERNAL_SEMAPHORE_TYPE_WIN32_NT_DX12_FENCE;
     break;
+  case external_semaphore_handle_type::win32_nt_dx11_fence:
+    urHandleType = UR_EXP_EXTERNAL_SEMAPHORE_TYPE_WIN32_NT_DX11_FENCE;
+    break;
   case external_semaphore_handle_type::timeline_win32_nt_handle:
     urHandleType = UR_EXP_EXTERNAL_SEMAPHORE_TYPE_TIMELINE_WIN32_NT;
     break;

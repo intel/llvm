@@ -1561,6 +1561,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImportExternalSemaphoreExp(
         case UR_EXP_EXTERNAL_SEMAPHORE_TYPE_WIN32_NT_DX12_FENCE:
           extSemDesc.type = hipExternalSemaphoreHandleTypeD3D12Fence;
           break;
+        case UR_EXP_EXTERNAL_SEMAPHORE_TYPE_WIN32_NT_DX11_FENCE:
+          extSemDesc.type = hipExternalSemaphoreHandleTypeD3D11Fence;
+          break;
         case UR_EXP_EXTERNAL_SEMAPHORE_TYPE_OPAQUE_FD:
           [[fallthrough]];
         default:

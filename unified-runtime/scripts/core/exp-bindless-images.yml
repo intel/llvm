@@ -246,6 +246,8 @@ etors:
     desc: "Timeline semaphore opaque file descriptor"
   - name: TIMELINE_WIN32_NT
     desc: "Timeline semaphore Win32 NT handle"
+  - name: WIN32_NT_DX11_FENCE
+    desc: "Fence semaphore Win32 NT DirectX 11 handle"
 --- #--------------------------------------------------------------------------
 type: enum
 desc: "Indicates the type of image backing memory handle."

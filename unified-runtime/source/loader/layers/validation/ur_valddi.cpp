@@ -8527,7 +8527,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImportExternalSemaphoreExp(
     if (NULL == hDevice)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
-    if (UR_EXP_EXTERNAL_SEMAPHORE_TYPE_TIMELINE_WIN32_NT < semHandleType)
+    if (UR_EXP_EXTERNAL_SEMAPHORE_TYPE_WIN32_NT_DX11_FENCE < semHandleType)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
   }
 

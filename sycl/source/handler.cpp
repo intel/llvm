@@ -1359,6 +1359,8 @@ void handler::ext_oneapi_wait_external_semaphore(
   case sycl::ext::oneapi::experimental::external_semaphore_handle_type::
       win32_nt_dx12_fence:
   case sycl::ext::oneapi::experimental::external_semaphore_handle_type::
+      win32_nt_dx11_fence:
+  case sycl::ext::oneapi::experimental::external_semaphore_handle_type::
       timeline_fd:
   case sycl::ext::oneapi::experimental::external_semaphore_handle_type::
       timeline_win32_nt_handle:
@@ -1413,6 +1415,8 @@ void handler::ext_oneapi_signal_external_semaphore(
   switch (ExtSemaphore.handle_type) {
   case sycl::ext::oneapi::experimental::external_semaphore_handle_type::
       win32_nt_dx12_fence:
+  case sycl::ext::oneapi::experimental::external_semaphore_handle_type::
+      win32_nt_dx11_fence:
   case sycl::ext::oneapi::experimental::external_semaphore_handle_type::
       timeline_fd:
   case sycl::ext::oneapi::experimental::external_semaphore_handle_type::

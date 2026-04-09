@@ -11951,6 +11951,9 @@ inline std::ostream &operator<<(std::ostream &os,
   case UR_EXP_EXTERNAL_SEMAPHORE_TYPE_TIMELINE_WIN32_NT:
     os << "UR_EXP_EXTERNAL_SEMAPHORE_TYPE_TIMELINE_WIN32_NT";
     break;
+  case UR_EXP_EXTERNAL_SEMAPHORE_TYPE_WIN32_NT_DX11_FENCE:
+    os << "UR_EXP_EXTERNAL_SEMAPHORE_TYPE_WIN32_NT_DX11_FENCE";
+    break;
   default:
     os << "unknown enumerator";
     break;
