@@ -2,16 +2,22 @@
 // REQUIRES: aspect-ext_oneapi_external_memory_import || (windows && level_zero && aspect-ext_oneapi_bindless_images)
 // REQUIRES: vulkan
 
+// UNSUPPORTED: cuda
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21716
+
 // RUN: %{build} %link-vulkan -o %t.out %if target-spir %{ -Wno-ignored-attributes %}
 
 // RUN: %{run} %t.out --type float --channels 1
 // RUN: %{run} %t.out --type float --channels 2
 // RUN: %{run} %t.out --type float --channels 4
 // RUN: %{run} %t.out --type half --channels 1
+// RUN: %{run} %t.out --type half --channels 2
 // RUN: %{run} %t.out --type half --channels 4
 // RUN: %{run} %t.out --type int32 --channels 1
+// RUN: %{run} %t.out --type int32 --channels 2
 // RUN: %{run} %t.out --type int32 --channels 4
 // RUN: %{run} %t.out --type uint32 --channels 1
+// RUN: %{run} %t.out --type uint32 --channels 2
 // RUN: %{run} %t.out --type uint32 --channels 4
 // RUN: %{run} %t.out --type int16 --channels 1
 // RUN: %{run} %t.out --type int16 --channels 2
@@ -28,10 +34,6 @@
 // RUN: %{run} %t.out --type unorm8 --channels 1
 // RUN: %{run} %t.out --type unorm8 --channels 2
 // RUN: %{run} %t.out --type unorm8 --channels 4
-
-// RUN-IF: !cuda, %{run} %t.out --type half --channels 2
-// RUN-IF: !cuda, %{run} %t.out --type int32 --channels 2
-// RUN-IF: !cuda, %{run} %t.out --type uint32 --channels 2
 
 // clang-format off
 /*
