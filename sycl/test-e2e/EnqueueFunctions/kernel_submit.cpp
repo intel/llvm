@@ -239,7 +239,6 @@ int main() {
       });
     }
   }
-  Q.wait();
   for (size_t I = 0; I < N; ++I)
     Failed += Check(Memory, 55, I, "host_task");
 
