@@ -55,8 +55,7 @@ private:
 namespace detail {
 // Default implementation of async_handler used by queue and context when no
 // user-defined async_handler is specified.
-inline void defaultAsyncHandler(exception_list Exceptions) {
-  std::cerr << "Default async_handler caught exceptions:";
+inline void defaultAsyncHandler(exception_list Exceptions) { std::cerr << "Default async_handler caught exceptions:";
   for (auto &EIt : Exceptions) {
     try {
       if (EIt) {
