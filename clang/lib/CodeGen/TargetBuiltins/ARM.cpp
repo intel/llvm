@@ -3711,17 +3711,9 @@ Value *CodeGenFunction::EmitSVEMaskedLoad(const CallExpr *E,
   if (Ops.size() > 2)
     BasePtr = Builder.CreateGEP(MemoryTy, BasePtr, Ops[2]);
 
-<<<<<<< HEAD
-  // BasePtr = Builder.CreateBitCast(BasePtr, MemEltTy->getPointerTo()); //
-  // INTEL
-  Function *F = CGM.getIntrinsic(IntrinsicID, IsQuadLoad ? VectorTy : MemoryTy);
-  auto *Load =
-      cast<llvm::Instruction>(Builder.CreateCall(F, {Predicate, BasePtr}));
-=======
   llvm::Type *Tys[2] = {IsQuadLoad ? VectorTy : MemoryTy, BasePtr->getType()};
   Function *F = CGM.getIntrinsic(IntrinsicID, Tys);
   auto *Load = Builder.CreateCall(F, {Predicate, BasePtr});
->>>>>>> e77ac8049afab1ed6dcd048a65c0e5c030293c84
   auto TBAAInfo = CGM.getTBAAAccessInfo(LangPTy->getPointeeType());
   CGM.DecorateInstructionWithTBAA(Load, TBAAInfo);
 
