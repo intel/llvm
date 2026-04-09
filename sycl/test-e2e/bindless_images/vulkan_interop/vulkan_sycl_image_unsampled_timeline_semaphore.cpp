@@ -34,7 +34,7 @@
 
 // clang-format off
 /*
-  Vulkan/SYCL 2D Image with Timeline Semaphore Interop 
+  Vulkan/SYCL 2D Image with Timeline Semaphore Interop with image size 32x32
 
   FLAGS
     --channels  X  Set number of channels (1, 2, or 4). Default is 4 (RGBA)
@@ -97,16 +97,18 @@ template <> inline VkFormat getVulkanFormat<sycl::half>(int channels) {
 
 template <typename T>
 int runTest(
-    int channels, VkFormat fmtOverride = VK_FORMAT_UNDEFINED,
+    const int imageWidth, const int imageHeight, int channels,
+    VkFormat fmtOverride = VK_FORMAT_UNDEFINED,
     std::optional<sycl::image_channel_type> syclOverride = std::nullopt) {
 
-  constexpr int imageWidth = 32;
-  constexpr int imageHeight = 32;
   VkImageTiling tiling = VK_IMAGE_TILING_OPTIMAL;
 
   VkFormat vkFormat = (fmtOverride != VK_FORMAT_UNDEFINED)
                           ? fmtOverride
                           : getVulkanFormat<T>(channels);
+
+  std::cout << "  VK Format: " << getFormatString(vkFormat) << std::endl;
+
   VulkanContext vkCtx = createVulkanContext();
   VkExtent3D extent = {(uint32_t)imageWidth, (uint32_t)imageHeight, 1};
 
@@ -434,8 +436,9 @@ int runTest(
 }
 int main(int argc, char **argv) {
 
-  int width = 16;
-  int height = 16;
+  int width = 32;
+  int height = 32;
+
   int channels = 4;
   bool useLinear = false;
 
@@ -460,23 +463,23 @@ int main(int argc, char **argv) {
             << " | Channels: " << channels << std::endl;
 
   if (type == "float")
-    return runTest<float>(channels);
+    return runTest<float>(width, height, channels);
   if (type == "half")
-    return runTest<sycl::half>(channels);
+    return runTest<sycl::half>(width, height, channels);
   if (type == "int32")
-    return runTest<int32_t>(channels);
+    return runTest<int32_t>(width, height, channels);
   if (type == "uint32")
-    return runTest<uint32_t>(channels);
+    return runTest<uint32_t>(width, height, channels);
   if (type == "int16")
-    return runTest<int16_t>(channels);
+    return runTest<int16_t>(width, height, channels);
   if (type == "uint16")
-    return runTest<uint16_t>(channels);
+    return runTest<uint16_t>(width, height, channels);
   if (type == "uint8")
-    return runTest<uint8_t>(channels);
+    return runTest<uint8_t>(width, height, channels);
   if (type == "int8")
-    return runTest<int8_t>(channels);
+    return runTest<int8_t>(width, height, channels);
   if (type == "unorm8") {
-    return runTest<uint8_t>(channels, getUnorm8Format(channels),
+    return runTest<uint8_t>(width, height, channels, getUnorm8Format(channels),
                             sycl::image_channel_type::unorm_int8);
   }
   std::cerr << "Unknown type: " << type << std::endl;
