@@ -205,12 +205,14 @@ __clc__SubgroupShuffleUp(complex_double x, uint delta) {
 //       Currently only Reduce is required (for GroupAny and GroupAll)
 _CLC_DEF _CLC_OVERLOAD _CLC_CONVERGENT bool
 __clc__SubgroupBitwiseOr(int op, bool predicate, bool *carry) {
+  (void)op;
   bool result = __nvvm_vote_any_sync(__clc__membermask(), predicate);
   *carry = result;
   return result;
 }
 _CLC_DEF _CLC_OVERLOAD _CLC_CONVERGENT bool
 __clc__SubgroupBitwiseAny(int op, bool predicate, bool *carry) {
+  (void)op;
   bool result = __nvvm_vote_all_sync(__clc__membermask(), predicate);
   *carry = result;
   return result;
@@ -300,7 +302,7 @@ complex_double __muldc3(double a, double b, double c, double d) {
 #define __CLC_SUBGROUP_COLLECTIVE_BODY(OP, TYPE, IDENTITY)                     \
   uint sg_lid = __spirv_BuiltInSubgroupLocalInvocationId();                    \
   /* Can't use XOR/butterfly shuffles; some lanes may be inactive */           \
-  for (int o = 1; o < __spirv_BuiltInSubgroupMaxSize(); o *= 2) {              \
+  for (uint o = 1; o < __spirv_BuiltInSubgroupMaxSize(); o *= 2) {             \
     TYPE contribution = __clc__SubgroupShuffleUp(x, o);                        \
     bool inactive = (sg_lid < o);                                              \
     contribution = (inactive) ? IDENTITY : contribution;                       \
@@ -322,6 +324,9 @@ complex_double __muldc3(double a, double b, double c, double d) {
     if (sg_lid == 0) {                                                         \
       result = IDENTITY;                                                       \
     }                                                                          \
+  } else {                                                                     \
+    /* TODO: Not implemented yet */                                            \
+    result = (TYPE){0};                                                        \
   }                                                                            \
   return result;
 
@@ -453,7 +458,7 @@ __CLC_SUBGROUP_COLLECTIVE(LogicalAndKHR, __CLC_LOGICAL_AND, bool, true)
   /* Perform InclusiveScan over sub-group results */                           \
   TYPE sg_prefix;                                                              \
   TYPE sg_aggregate = scratch[0];                                              \
-  for (int s = 1; s < num_sg; ++s) {                                           \
+  for (uint s = 1; s < num_sg; ++s) {                                          \
     if (sg_id == s) {                                                          \
       sg_prefix = sg_aggregate;                                                \
     }                                                                          \
@@ -471,6 +476,9 @@ __CLC_SUBGROUP_COLLECTIVE(LogicalAndKHR, __CLC_LOGICAL_AND, bool, true)
     } else {                                                                   \
       result = OP(sg_x, sg_prefix);                                            \
     }                                                                          \
+  } else {                                                                     \
+    /* TODO: Not implemented yet */                                            \
+    result = (TYPE){0};                                                        \
   }                                                                            \
   __spirv_ControlBarrier(Workgroup, 0, 0);                                     \
   return result;
@@ -614,14 +622,12 @@ __CLC_GROUP_COLLECTIVE(LogicalAndKHR, __CLC_LOGICAL_AND, bool, true)
 
 long __clc__2d_to_linear_local_id(ulong2 id) {
   size_t size_x = __spirv_BuiltInWorkgroupSize(0);
-  size_t size_y = __spirv_BuiltInWorkgroupSize(1);
   return (id.y * size_x + id.x);
 }
 
 long __clc__3d_to_linear_local_id(ulong3 id) {
   size_t size_x = __spirv_BuiltInWorkgroupSize(0);
   size_t size_y = __spirv_BuiltInWorkgroupSize(1);
-  size_t size_z = __spirv_BuiltInWorkgroupSize(2);
   return (id.z * size_y * size_x + id.y * size_x + id.x);
 }
 

@@ -924,6 +924,7 @@ ProgramManager::getBuiltURProgram(const BinImgWithDeps &ImgWithDeps,
 
     // Those extra programs won't be used anymore, just the final
     // linked result:
+    bool WasLinked = !ProgramsToLink.empty();
     ProgramsToLink.clear();
     emitBuiltProgramInfo(BuiltProgram, ContextImpl);
 
@@ -940,7 +941,26 @@ ProgramManager::getBuiltURProgram(const BinImgWithDeps &ImgWithDeps,
       }
     }
 
-    ContextImpl.addDeviceGlobalInitializer(BuiltProgram, Devs, &MainImg);
+    // If we linked multiple images, we need to register device_globals from
+    // all of them, not just the main image. Create a merged binary image.
+    if (WasLinked && ImgWithDeps.getAll().size() > 1) {
+      auto MergedImg =
+          std::make_unique<DynRTDeviceBinaryImage>(ImgWithDeps.getAll());
+      const RTDeviceBinaryImage *MergedImgPtr = MergedImg.get();
+
+      // Store the merged image to keep it alive and add to NativePrograms for
+      // lookup consistency.
+      {
+        std::lock_guard<std::mutex> Lock(MNativeProgramsMutex);
+        m_MergedImages[BuiltProgram] = std::move(MergedImg);
+        NativePrograms.insert(
+            {BuiltProgram, {ContextImpl.shared_from_this(), MergedImgPtr}});
+      }
+
+      ContextImpl.addDeviceGlobalInitializer(BuiltProgram, Devs, MergedImgPtr);
+    } else {
+      ContextImpl.addDeviceGlobalInitializer(BuiltProgram, Devs, &MainImg);
+    }
 
     // Save program to persistent cache if it is not there
     if (!DeviceCodeWasInCache) {
@@ -1829,6 +1849,8 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
             ContextImpl->getKernelProgramCache().removeAllRelatedEntries(
                 Img->getImageID());
           }
+          // Also clean up any merged image associated with this program
+          m_MergedImages.erase(CurIt->first);
           NativePrograms.erase(CurIt);
         }
       }

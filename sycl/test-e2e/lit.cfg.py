@@ -261,6 +261,7 @@ device_family_arch_map = {
         "intel_gpu_rpl_s",
         "intel_gpu_adl_p",
         "intel_gpu_adl_n",
+        "intel_gpu_mtl_h",
     },
     # Gen11
     "gpu-intel-gen11": {"intel_gpu_icllp", "intel_gpu_icl"},
@@ -642,7 +643,7 @@ config.substitutions.append(("%link-vulkan", link_vulkan))
 
 # Add DirectX 12 libraries to the configuration for substitution.
 if platform.system() == "Windows":
-    directx_libs = ["-ld3d11", "-ld3d12", "-ldxgi", "-ldxguid"]
+    directx_libs = ["-ld3d11", "-ld3d12", "-ldxgi", "-ldxguid", "-ld3dcompiler"]
     if cl_options:
         directx_libs = ["/clang:" + l for l in directx_libs]
     config.substitutions.append(("%link-directx", " ".join(directx_libs)))
