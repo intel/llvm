@@ -183,11 +183,10 @@ int main() {
   } else {
     // SYCL creates the shadow copy itself; expect exactly one extra allocation.
     if (MisalignedAllocations != AlignedAllocations + 1) {
-      std::cerr
-          << "Expected one extra SYCL allocation for misaligned pointer: "
-             "aligned="
-          << AlignedAllocations << ", misaligned=" << MisalignedAllocations
-          << "\n";
+      std::cerr << "Expected one extra SYCL allocation for misaligned pointer: "
+                   "aligned="
+                << AlignedAllocations
+                << ", misaligned=" << MisalignedAllocations << "\n";
       return 1;
     }
   }
