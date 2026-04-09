@@ -8,13 +8,10 @@
 // RUN: %{run} %t.out --type float --channels 2
 // RUN: %{run} %t.out --type float --channels 4
 // RUN: %{run} %t.out --type half --channels 1
-// RUN-IF: !cuda, %{run} %t.out --type half --channels 2
 // RUN: %{run} %t.out --type half --channels 4
 // RUN: %{run} %t.out --type int32 --channels 1
-// RUN-IF: !cuda, %{run} %t.out --type int32 --channels 2
 // RUN: %{run} %t.out --type int32 --channels 4
 // RUN: %{run} %t.out --type uint32 --channels 1
-// RUN: %{run} %t.out --type uint32 --channels 2
 // RUN: %{run} %t.out --type uint32 --channels 4
 // RUN: %{run} %t.out --type int16 --channels 1
 // RUN: %{run} %t.out --type int16 --channels 2
@@ -31,6 +28,10 @@
 // RUN: %{run} %t.out --type unorm8 --channels 1
 // RUN: %{run} %t.out --type unorm8 --channels 2
 // RUN: %{run} %t.out --type unorm8 --channels 4
+
+// RUN-IF: !cuda, %{run} %t.out --type half --channels 2
+// RUN-IF: !cuda, %{run} %t.out --type int32 --channels 2
+// RUN-IF: !cuda, %{run} %t.out --type uint32 --channels 2
 
 // clang-format off
 /*
@@ -444,7 +445,6 @@ int main(int argc, char **argv) {
 
   std::string type = "float";
   std::vector<int> dims;
-  int Failed = 0;
 
   for (int i = 1; i < argc; ++i) {
     std::string arg = argv[i];
@@ -464,25 +464,25 @@ int main(int argc, char **argv) {
             << " | Channels: " << channels << std::endl;
 
   if (type == "float")
-    Failed |= runTest<float>(width, height, channels);
+    return runTest<float>(width, height, channels);
   if (type == "half")
-    Failed |= runTest<sycl::half>(width, height, channels);
+    return runTest<sycl::half>(width, height, channels);
   if (type == "int32")
-    Failed |= runTest<int32_t>(width, height, channels);
+    return runTest<int32_t>(width, height, channels);
   if (type == "uint32")
-    Failed |= runTest<uint32_t>(width, height, channels);
+    return runTest<uint32_t>(width, height, channels);
   if (type == "int16")
-    Failed |= runTest<int16_t>(width, height, channels);
+    return runTest<int16_t>(width, height, channels);
   if (type == "uint16")
-    Failed |= runTest<uint16_t>(width, height, channels);
+    return runTest<uint16_t>(width, height, channels);
   if (type == "uint8")
-    Failed |= runTest<uint8_t>(width, height, channels);
+    return runTest<uint8_t>(width, height, channels);
   if (type == "int8")
-    Failed |= runTest<int8_t>(width, height, channels);
+    return runTest<int8_t>(width, height, channels);
   if (type == "unorm8") {
-    Failed |= runTest<uint8_t>(width, height, channels, getUnorm8Format(channels),
+    return runTest<uint8_t>(width, height, channels, getUnorm8Format(channels),
                             sycl::image_channel_type::unorm_int8);
   }
   std::cerr << "Unknown type: " << type << std::endl;
-  return Failed;
+  return 1;
 }
