@@ -39,6 +39,7 @@ __spirv_GroupNonUniformBallot(int flag, bool predicate) {
 _CLC_OVERLOAD _CLC_DEF _CLC_CONVERGENT uint
 __spirv_GroupNonUniformBallotBitCount(
     int scope, int flag, __clc_vec4_uint32_t mask) {
+  (void)scope;
   // here we assume scope == __spv::Scope::Subgroup
   // flag == InclusiveScan is not yet implemented
   if (flag == Reduce) {
