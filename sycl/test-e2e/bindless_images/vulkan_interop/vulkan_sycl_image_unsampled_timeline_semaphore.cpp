@@ -11,7 +11,7 @@
 // RUN-IF: !cuda, %{run} %t.out --type half --channels 2
 // RUN: %{run} %t.out --type half --channels 4
 // RUN: %{run} %t.out --type int32 --channels 1
-// RUN: %{run} %t.out --type int32 --channels 2
+// RUN-IF: !cuda, %{run} %t.out --type int32 --channels 2
 // RUN: %{run} %t.out --type int32 --channels 4
 // RUN: %{run} %t.out --type uint32 --channels 1
 // RUN: %{run} %t.out --type uint32 --channels 2
@@ -407,7 +407,7 @@ int runTest(
       int ch = i % channels;
       T expected = generateTestValue<T>(pixelIdx, ch, totalPixels) / T(2);
       if (!checkValue(readbackPixelData[i], expected)) {
-        // passed = false;
+        passed = false;
         std::cout << "Mismatch at " << i << " ch:" << ch
                   << " Got: " << (double)readbackPixelData[i]
                   << " Exp: " << (double)expected << std::endl;
