@@ -218,6 +218,11 @@ event queue::ext_oneapi_submit_barrier(const std::vector<event> &WaitList,
       WaitList, detail::CGType::BarrierWaitlist, CodeLoc);
 }
 
+void queue::ext_oneapi_enqueue_signal_event(event& Event,
+                                            const detail::code_location &CodeLoc) {
+
+}
+
 template <typename Param>
 typename detail::is_queue_info_desc<Param>::return_type
 queue::get_info() const {

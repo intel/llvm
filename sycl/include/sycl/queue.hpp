@@ -471,6 +471,10 @@ public:
       const std::vector<event> &WaitList,
       const detail::code_location &CodeLoc = detail::code_location::current());
 
+  void ext_oneapi_enqueue_signal_event(
+      event& Event,
+      const detail::code_location &CodeLoc = detail::code_location::current());
+
   /// Performs a blocking wait for the completion of all enqueued tasks in the
   /// queue.
   ///

@@ -344,6 +344,7 @@ set(SYCL_COMMON_SOURCES
     "physical_mem.cpp"
     "platform.cpp"
     "queue.cpp"
+    "reusable_events.cpp"
     "sampler.cpp"
     "stream.cpp"
     "virtual_mem.cpp"
