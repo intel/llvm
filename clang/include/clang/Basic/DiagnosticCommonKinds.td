@@ -389,6 +389,8 @@ def err_mips_impossible_musttail: Error<
   >;
 def err_aix_musttail_unsupported: Error<
   "'musttail' attribute is not supported on AIX">;
+def err_musttail_noexcept_mismatch: Error<
+  "'musttail' in a noexcept function requires a noexcept callee">;
 
 def warn_acuracy_conflicts_with_explicit_offload_fp32_prec_option : Warning<
   "floating point accuracy control '%0' conflicts with explicit target "

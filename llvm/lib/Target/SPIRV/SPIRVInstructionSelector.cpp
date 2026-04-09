@@ -6167,6 +6167,9 @@ bool SPIRVInstructionSelector::selectGlobalValue(
   const std::optional<SPIRV::LinkageType::LinkageType> LnkType =
       getSpirvLinkageTypeFor(STI, *GV);
 
+  if (LnkType && *LnkType == SPIRV::LinkageType::Import)
+    Init = nullptr;
+
   const unsigned AddrSpace = GV->getAddressSpace();
   SPIRV::StorageClass::StorageClass StorageClass =
       addressSpaceToStorageClass(AddrSpace, STI);
