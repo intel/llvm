@@ -30,53 +30,53 @@ void check_work_group_size() {
   // expected-error@+1 {{too few template arguments for variable template 'work_group_size'}}
   auto WGSize0 = sycl::ext::oneapi::experimental::work_group_size<>;
 
-  // expected-error-re@sycl/ext/oneapi/kernel_properties/properties.hpp:* {{static assertion failed due to requirement {{.+}}: work_group_size property must only contain non-zero values.}}
-  // expected-error@sycl/ext/oneapi/kernel_properties/properties.hpp:* {{constexpr variable 'work_group_size<0>' must be initialized by a constant expression}}
+  // expected-error-re@sycl/ext/oneapi/kernel_properties/function_launch_properties.hpp:* {{static assertion failed due to requirement {{.+}}: work_group_size property must only contain non-zero values.}}
+  // expected-error@sycl/ext/oneapi/kernel_properties/function_launch_properties.hpp:* {{constexpr variable 'work_group_size<0>' must be initialized by a constant expression}}
   // expected-note@+1 {{in instantiation of variable template specialization 'sycl::ext::oneapi::experimental::work_group_size<0>' requested here}}
   auto WGSize1 = sycl::ext::oneapi::experimental::work_group_size<0>;
-  // expected-error-re@sycl/ext/oneapi/kernel_properties/properties.hpp:* {{static assertion failed due to requirement {{.+}}: work_group_size property must only contain non-zero values.}}
-  // expected-error@sycl/ext/oneapi/kernel_properties/properties.hpp:* {{constexpr variable 'work_group_size<0, 0>' must be initialized by a constant expression}}
+  // expected-error-re@sycl/ext/oneapi/kernel_properties/function_launch_properties.hpp:* {{static assertion failed due to requirement {{.+}}: work_group_size property must only contain non-zero values.}}
+  // expected-error@sycl/ext/oneapi/kernel_properties/function_launch_properties.hpp:* {{constexpr variable 'work_group_size<0, 0>' must be initialized by a constant expression}}
   // expected-note@+1 {{in instantiation of variable template specialization 'sycl::ext::oneapi::experimental::work_group_size<0, 0>' requested here}}
   auto WGSize2 = sycl::ext::oneapi::experimental::work_group_size<0, 0>;
-  // expected-error-re@sycl/ext/oneapi/kernel_properties/properties.hpp:* {{static assertion failed due to requirement {{.+}}: work_group_size property must only contain non-zero values.}}
-  // expected-error@sycl/ext/oneapi/kernel_properties/properties.hpp:* {{constexpr variable 'work_group_size<1, 0>' must be initialized by a constant expression}}
+  // expected-error-re@sycl/ext/oneapi/kernel_properties/function_launch_properties.hpp:* {{static assertion failed due to requirement {{.+}}: work_group_size property must only contain non-zero values.}}
+  // expected-error@sycl/ext/oneapi/kernel_properties/function_launch_properties.hpp:* {{constexpr variable 'work_group_size<1, 0>' must be initialized by a constant expression}}
   // expected-note@+1 {{in instantiation of variable template specialization 'sycl::ext::oneapi::experimental::work_group_size<1, 0>' requested here}}
   auto WGSize3 = sycl::ext::oneapi::experimental::work_group_size<1, 0>;
-  // expected-error-re@sycl/ext/oneapi/kernel_properties/properties.hpp:* {{static assertion failed due to requirement {{.+}}: work_group_size property must only contain non-zero values.}}
-  // expected-error@sycl/ext/oneapi/kernel_properties/properties.hpp:* {{constexpr variable 'work_group_size<0, 1>' must be initialized by a constant expression}}
+  // expected-error-re@sycl/ext/oneapi/kernel_properties/function_launch_properties.hpp:* {{static assertion failed due to requirement {{.+}}: work_group_size property must only contain non-zero values.}}
+  // expected-error@sycl/ext/oneapi/kernel_properties/function_launch_properties.hpp:* {{constexpr variable 'work_group_size<0, 1>' must be initialized by a constant expression}}
   // expected-note@+1 {{in instantiation of variable template specialization 'sycl::ext::oneapi::experimental::work_group_size<0, 1>' requested here}}
   auto WGSize4 = sycl::ext::oneapi::experimental::work_group_size<0, 1>;
-  // expected-error-re@sycl/ext/oneapi/kernel_properties/properties.hpp:* {{static assertion failed due to requirement {{.+}}: work_group_size property must only contain non-zero values.}}
-  // expected-error@sycl/ext/oneapi/kernel_properties/properties.hpp:* {{constexpr variable 'work_group_size<0, 0, 0>' must be initialized by a constant expression}}
+  // expected-error-re@sycl/ext/oneapi/kernel_properties/function_launch_properties.hpp:* {{static assertion failed due to requirement {{.+}}: work_group_size property must only contain non-zero values.}}
+  // expected-error@sycl/ext/oneapi/kernel_properties/function_launch_properties.hpp:* {{constexpr variable 'work_group_size<0, 0, 0>' must be initialized by a constant expression}}
   // expected-note@+1 {{in instantiation of variable template specialization 'sycl::ext::oneapi::experimental::work_group_size<0, 0, 0>' requested here}}
   auto WGSize5 = sycl::ext::oneapi::experimental::work_group_size<0, 0, 0>;
-  // expected-error-re@sycl/ext/oneapi/kernel_properties/properties.hpp:* {{static assertion failed due to requirement {{.+}}: work_group_size property must only contain non-zero values.}}
-  // expected-error@sycl/ext/oneapi/kernel_properties/properties.hpp:* {{constexpr variable 'work_group_size<1, 0, 0>' must be initialized by a constant expression}}
+  // expected-error-re@sycl/ext/oneapi/kernel_properties/function_launch_properties.hpp:* {{static assertion failed due to requirement {{.+}}: work_group_size property must only contain non-zero values.}}
+  // expected-error@sycl/ext/oneapi/kernel_properties/function_launch_properties.hpp:* {{constexpr variable 'work_group_size<1, 0, 0>' must be initialized by a constant expression}}
   // expected-note@+1 {{in instantiation of variable template specialization 'sycl::ext::oneapi::experimental::work_group_size<1, 0, 0>' requested here}}
   auto WGSize6 = sycl::ext::oneapi::experimental::work_group_size<1, 0, 0>;
-  // expected-error-re@sycl/ext/oneapi/kernel_properties/properties.hpp:* {{static assertion failed due to requirement {{.+}}: work_group_size property must only contain non-zero values.}}
-  // expected-error@sycl/ext/oneapi/kernel_properties/properties.hpp:* {{constexpr variable 'work_group_size<0, 1, 0>' must be initialized by a constant expression}}
+  // expected-error-re@sycl/ext/oneapi/kernel_properties/function_launch_properties.hpp:* {{static assertion failed due to requirement {{.+}}: work_group_size property must only contain non-zero values.}}
+  // expected-error@sycl/ext/oneapi/kernel_properties/function_launch_properties.hpp:* {{constexpr variable 'work_group_size<0, 1, 0>' must be initialized by a constant expression}}
   // expected-note@+1 {{in instantiation of variable template specialization 'sycl::ext::oneapi::experimental::work_group_size<0, 1, 0>' requested here}}
   auto WGSize7 = sycl::ext::oneapi::experimental::work_group_size<0, 1, 0>;
-  // expected-error-re@sycl/ext/oneapi/kernel_properties/properties.hpp:* {{static assertion failed due to requirement {{.+}}: work_group_size property must only contain non-zero values.}}
-  // expected-error@sycl/ext/oneapi/kernel_properties/properties.hpp:* {{constexpr variable 'work_group_size<0, 0, 1>' must be initialized by a constant expression}}
+  // expected-error-re@sycl/ext/oneapi/kernel_properties/function_launch_properties.hpp:* {{static assertion failed due to requirement {{.+}}: work_group_size property must only contain non-zero values.}}
+  // expected-error@sycl/ext/oneapi/kernel_properties/function_launch_properties.hpp:* {{constexpr variable 'work_group_size<0, 0, 1>' must be initialized by a constant expression}}
   // expected-note@+1 {{in instantiation of variable template specialization 'sycl::ext::oneapi::experimental::work_group_size<0, 0, 1>' requested here}}
   auto WGSize8 = sycl::ext::oneapi::experimental::work_group_size<0, 0, 1>;
-  // expected-error-re@sycl/ext/oneapi/kernel_properties/properties.hpp:* {{static assertion failed due to requirement {{.+}}: work_group_size property must only contain non-zero values.}}
-  // expected-error@sycl/ext/oneapi/kernel_properties/properties.hpp:* {{constexpr variable 'work_group_size<1, 1, 0>' must be initialized by a constant expression}}
+  // expected-error-re@sycl/ext/oneapi/kernel_properties/function_launch_properties.hpp:* {{static assertion failed due to requirement {{.+}}: work_group_size property must only contain non-zero values.}}
+  // expected-error@sycl/ext/oneapi/kernel_properties/function_launch_properties.hpp:* {{constexpr variable 'work_group_size<1, 1, 0>' must be initialized by a constant expression}}
   // expected-note@+1 {{in instantiation of variable template specialization 'sycl::ext::oneapi::experimental::work_group_size<1, 1, 0>' requested here}}
   auto WGSize9 = sycl::ext::oneapi::experimental::work_group_size<1, 1, 0>;
-  // expected-error-re@sycl/ext/oneapi/kernel_properties/properties.hpp:* {{static assertion failed due to requirement {{.+}}: work_group_size property must only contain non-zero values.}}
-  // expected-error@sycl/ext/oneapi/kernel_properties/properties.hpp:* {{constexpr variable 'work_group_size<0, 1, 1>' must be initialized by a constant expression}}
+  // expected-error-re@sycl/ext/oneapi/kernel_properties/function_launch_properties.hpp:* {{static assertion failed due to requirement {{.+}}: work_group_size property must only contain non-zero values.}}
+  // expected-error@sycl/ext/oneapi/kernel_properties/function_launch_properties.hpp:* {{constexpr variable 'work_group_size<0, 1, 1>' must be initialized by a constant expression}}
   // expected-note@+1 {{in instantiation of variable template specialization 'sycl::ext::oneapi::experimental::work_group_size<0, 1, 1>' requested here}}
   auto WGSize10 = sycl::ext::oneapi::experimental::work_group_size<0, 1, 1>;
-  // expected-error-re@sycl/ext/oneapi/kernel_properties/properties.hpp:* {{static assertion failed due to requirement {{.+}}: work_group_size property must only contain non-zero values.}}
-  // expected-error@sycl/ext/oneapi/kernel_properties/properties.hpp:* {{constexpr variable 'work_group_size<1, 0, 1>' must be initialized by a constant expression}}
+  // expected-error-re@sycl/ext/oneapi/kernel_properties/function_launch_properties.hpp:* {{static assertion failed due to requirement {{.+}}: work_group_size property must only contain non-zero values.}}
+  // expected-error@sycl/ext/oneapi/kernel_properties/function_launch_properties.hpp:* {{constexpr variable 'work_group_size<1, 0, 1>' must be initialized by a constant expression}}
   // expected-note@+1 {{in instantiation of variable template specialization 'sycl::ext::oneapi::experimental::work_group_size<1, 0, 1>' requested here}}
   auto WGSize11 = sycl::ext::oneapi::experimental::work_group_size<1, 0, 1>;
 
-  // expected-error-re@sycl/ext/oneapi/kernel_properties/properties.hpp:* {{static assertion failed due to requirement {{.+}}: work_group_size property currently only supports up to three values.}}
-  // expected-error@sycl/ext/oneapi/kernel_properties/properties.hpp:* {{constexpr variable 'work_group_size<1, 1, 1, 1>' must be initialized by a constant expression}}
+  // expected-error-re@sycl/ext/oneapi/kernel_properties/function_launch_properties.hpp:* {{static assertion failed due to requirement {{.+}}: work_group_size property currently only supports up to three values.}}
+  // expected-error@sycl/ext/oneapi/kernel_properties/function_launch_properties.hpp:* {{constexpr variable 'work_group_size<1, 1, 1, 1>' must be initialized by a constant expression}}
   // expected-note@+1 {{in instantiation of variable template specialization 'sycl::ext::oneapi::experimental::work_group_size<1, 1, 1, 1>' requested here}}
   auto WGSize12 = sycl::ext::oneapi::experimental::work_group_size<1, 1, 1, 1>;
 
@@ -164,55 +164,55 @@ void check_work_group_size_hint() {
   // expected-error@+1 {{too few template arguments for variable template 'work_group_size_hint'}}
   auto WGSize0 = sycl::ext::oneapi::experimental::work_group_size_hint<>;
 
-  // expected-error-re@sycl/ext/oneapi/kernel_properties/properties.hpp:* {{static assertion failed due to requirement {{.+}}: work_group_size_hint property must only contain non-zero values.}}
-  // expected-error@sycl/ext/oneapi/kernel_properties/properties.hpp:* {{constexpr variable 'work_group_size_hint<0>' must be initialized by a constant expression}}
+  // expected-error-re@sycl/ext/oneapi/kernel_properties/function_launch_properties.hpp:* {{static assertion failed due to requirement {{.+}}: work_group_size_hint property must only contain non-zero values.}}
+  // expected-error@sycl/ext/oneapi/kernel_properties/function_launch_properties.hpp:* {{constexpr variable 'work_group_size_hint<0>' must be initialized by a constant expression}}
   // expected-note@+1 {{in instantiation of variable template specialization 'sycl::ext::oneapi::experimental::work_group_size_hint<0>' requested here}}
   auto WGSize1 = sycl::ext::oneapi::experimental::work_group_size_hint<0>;
-  // expected-error-re@sycl/ext/oneapi/kernel_properties/properties.hpp:* {{static assertion failed due to requirement {{.+}}: work_group_size_hint property must only contain non-zero values.}}
-  // expected-error@sycl/ext/oneapi/kernel_properties/properties.hpp:* {{constexpr variable 'work_group_size_hint<0, 0>' must be initialized by a constant expression}}
+  // expected-error-re@sycl/ext/oneapi/kernel_properties/function_launch_properties.hpp:* {{static assertion failed due to requirement {{.+}}: work_group_size_hint property must only contain non-zero values.}}
+  // expected-error@sycl/ext/oneapi/kernel_properties/function_launch_properties.hpp:* {{constexpr variable 'work_group_size_hint<0, 0>' must be initialized by a constant expression}}
   // expected-note@+1 {{in instantiation of variable template specialization 'sycl::ext::oneapi::experimental::work_group_size_hint<0, 0>' requested here}}
   auto WGSize2 = sycl::ext::oneapi::experimental::work_group_size_hint<0, 0>;
-  // expected-error-re@sycl/ext/oneapi/kernel_properties/properties.hpp:* {{static assertion failed due to requirement {{.+}}: work_group_size_hint property must only contain non-zero values.}}
-  // expected-error@sycl/ext/oneapi/kernel_properties/properties.hpp:* {{constexpr variable 'work_group_size_hint<1, 0>' must be initialized by a constant expression}}
+  // expected-error-re@sycl/ext/oneapi/kernel_properties/function_launch_properties.hpp:* {{static assertion failed due to requirement {{.+}}: work_group_size_hint property must only contain non-zero values.}}
+  // expected-error@sycl/ext/oneapi/kernel_properties/function_launch_properties.hpp:* {{constexpr variable 'work_group_size_hint<1, 0>' must be initialized by a constant expression}}
   // expected-note@+1 {{in instantiation of variable template specialization 'sycl::ext::oneapi::experimental::work_group_size_hint<1, 0>' requested here}}
   auto WGSize3 = sycl::ext::oneapi::experimental::work_group_size_hint<1, 0>;
-  // expected-error-re@sycl/ext/oneapi/kernel_properties/properties.hpp:* {{static assertion failed due to requirement {{.+}}: work_group_size_hint property must only contain non-zero values.}}
-  // expected-error@sycl/ext/oneapi/kernel_properties/properties.hpp:* {{constexpr variable 'work_group_size_hint<0, 1>' must be initialized by a constant expression}}
+  // expected-error-re@sycl/ext/oneapi/kernel_properties/function_launch_properties.hpp:* {{static assertion failed due to requirement {{.+}}: work_group_size_hint property must only contain non-zero values.}}
+  // expected-error@sycl/ext/oneapi/kernel_properties/function_launch_properties.hpp:* {{constexpr variable 'work_group_size_hint<0, 1>' must be initialized by a constant expression}}
   // expected-note@+1 {{in instantiation of variable template specialization 'sycl::ext::oneapi::experimental::work_group_size_hint<0, 1>' requested here}}
   auto WGSize4 = sycl::ext::oneapi::experimental::work_group_size_hint<0, 1>;
-  // expected-error-re@sycl/ext/oneapi/kernel_properties/properties.hpp:* {{static assertion failed due to requirement {{.+}}: work_group_size_hint property must only contain non-zero values.}}
-  // expected-error@sycl/ext/oneapi/kernel_properties/properties.hpp:* {{constexpr variable 'work_group_size_hint<0, 0, 0>' must be initialized by a constant expression}}
+  // expected-error-re@sycl/ext/oneapi/kernel_properties/function_launch_properties.hpp:* {{static assertion failed due to requirement {{.+}}: work_group_size_hint property must only contain non-zero values.}}
+  // expected-error@sycl/ext/oneapi/kernel_properties/function_launch_properties.hpp:* {{constexpr variable 'work_group_size_hint<0, 0, 0>' must be initialized by a constant expression}}
   // expected-note@+1 {{in instantiation of variable template specialization 'sycl::ext::oneapi::experimental::work_group_size_hint<0, 0, 0>' requested here}}
   auto WGSize5 = sycl::ext::oneapi::experimental::work_group_size_hint<0, 0, 0>;
-  // expected-error-re@sycl/ext/oneapi/kernel_properties/properties.hpp:* {{static assertion failed due to requirement {{.+}}: work_group_size_hint property must only contain non-zero values.}}
-  // expected-error@sycl/ext/oneapi/kernel_properties/properties.hpp:* {{constexpr variable 'work_group_size_hint<1, 0, 0>' must be initialized by a constant expression}}
+  // expected-error-re@sycl/ext/oneapi/kernel_properties/function_launch_properties.hpp:* {{static assertion failed due to requirement {{.+}}: work_group_size_hint property must only contain non-zero values.}}
+  // expected-error@sycl/ext/oneapi/kernel_properties/function_launch_properties.hpp:* {{constexpr variable 'work_group_size_hint<1, 0, 0>' must be initialized by a constant expression}}
   // expected-note@+1 {{in instantiation of variable template specialization 'sycl::ext::oneapi::experimental::work_group_size_hint<1, 0, 0>' requested here}}
   auto WGSize6 = sycl::ext::oneapi::experimental::work_group_size_hint<1, 0, 0>;
-  // expected-error-re@sycl/ext/oneapi/kernel_properties/properties.hpp:* {{static assertion failed due to requirement {{.+}}: work_group_size_hint property must only contain non-zero values.}}
-  // expected-error@sycl/ext/oneapi/kernel_properties/properties.hpp:* {{constexpr variable 'work_group_size_hint<0, 1, 0>' must be initialized by a constant expression}}
+  // expected-error-re@sycl/ext/oneapi/kernel_properties/function_launch_properties.hpp:* {{static assertion failed due to requirement {{.+}}: work_group_size_hint property must only contain non-zero values.}}
+  // expected-error@sycl/ext/oneapi/kernel_properties/function_launch_properties.hpp:* {{constexpr variable 'work_group_size_hint<0, 1, 0>' must be initialized by a constant expression}}
   // expected-note@+1 {{in instantiation of variable template specialization 'sycl::ext::oneapi::experimental::work_group_size_hint<0, 1, 0>' requested here}}
   auto WGSize7 = sycl::ext::oneapi::experimental::work_group_size_hint<0, 1, 0>;
-  // expected-error-re@sycl/ext/oneapi/kernel_properties/properties.hpp:* {{static assertion failed due to requirement {{.+}}: work_group_size_hint property must only contain non-zero values.}}
-  // expected-error@sycl/ext/oneapi/kernel_properties/properties.hpp:* {{constexpr variable 'work_group_size_hint<0, 0, 1>' must be initialized by a constant expression}}
+  // expected-error-re@sycl/ext/oneapi/kernel_properties/function_launch_properties.hpp:* {{static assertion failed due to requirement {{.+}}: work_group_size_hint property must only contain non-zero values.}}
+  // expected-error@sycl/ext/oneapi/kernel_properties/function_launch_properties.hpp:* {{constexpr variable 'work_group_size_hint<0, 0, 1>' must be initialized by a constant expression}}
   // expected-note@+1 {{in instantiation of variable template specialization 'sycl::ext::oneapi::experimental::work_group_size_hint<0, 0, 1>' requested here}}
   auto WGSize8 = sycl::ext::oneapi::experimental::work_group_size_hint<0, 0, 1>;
-  // expected-error-re@sycl/ext/oneapi/kernel_properties/properties.hpp:* {{static assertion failed due to requirement {{.+}}: work_group_size_hint property must only contain non-zero values.}}
-  // expected-error@sycl/ext/oneapi/kernel_properties/properties.hpp:* {{constexpr variable 'work_group_size_hint<1, 1, 0>' must be initialized by a constant expression}}
+  // expected-error-re@sycl/ext/oneapi/kernel_properties/function_launch_properties.hpp:* {{static assertion failed due to requirement {{.+}}: work_group_size_hint property must only contain non-zero values.}}
+  // expected-error@sycl/ext/oneapi/kernel_properties/function_launch_properties.hpp:* {{constexpr variable 'work_group_size_hint<1, 1, 0>' must be initialized by a constant expression}}
   // expected-note@+1 {{in instantiation of variable template specialization 'sycl::ext::oneapi::experimental::work_group_size_hint<1, 1, 0>' requested here}}
   auto WGSize9 = sycl::ext::oneapi::experimental::work_group_size_hint<1, 1, 0>;
-  // expected-error-re@sycl/ext/oneapi/kernel_properties/properties.hpp:* {{static assertion failed due to requirement {{.+}}: work_group_size_hint property must only contain non-zero values.}}
-  // expected-error@sycl/ext/oneapi/kernel_properties/properties.hpp:* {{constexpr variable 'work_group_size_hint<0, 1, 1>' must be initialized by a constant expression}}
+  // expected-error-re@sycl/ext/oneapi/kernel_properties/function_launch_properties.hpp:* {{static assertion failed due to requirement {{.+}}: work_group_size_hint property must only contain non-zero values.}}
+  // expected-error@sycl/ext/oneapi/kernel_properties/function_launch_properties.hpp:* {{constexpr variable 'work_group_size_hint<0, 1, 1>' must be initialized by a constant expression}}
   // expected-note@+2 {{in instantiation of variable template specialization 'sycl::ext::oneapi::experimental::work_group_size_hint<0, 1, 1>' requested here}}
   auto WGSize10 =
       sycl::ext::oneapi::experimental::work_group_size_hint<0, 1, 1>;
-  // expected-error-re@sycl/ext/oneapi/kernel_properties/properties.hpp:* {{static assertion failed due to requirement {{.+}}: work_group_size_hint property must only contain non-zero values.}}
-  // expected-error@sycl/ext/oneapi/kernel_properties/properties.hpp:* {{constexpr variable 'work_group_size_hint<1, 0, 1>' must be initialized by a constant expression}}
+  // expected-error-re@sycl/ext/oneapi/kernel_properties/function_launch_properties.hpp:* {{static assertion failed due to requirement {{.+}}: work_group_size_hint property must only contain non-zero values.}}
+  // expected-error@sycl/ext/oneapi/kernel_properties/function_launch_properties.hpp:* {{constexpr variable 'work_group_size_hint<1, 0, 1>' must be initialized by a constant expression}}
   // expected-note@+2 {{in instantiation of variable template specialization 'sycl::ext::oneapi::experimental::work_group_size_hint<1, 0, 1>' requested here}}
   auto WGSize11 =
       sycl::ext::oneapi::experimental::work_group_size_hint<1, 0, 1>;
 
-  // expected-error-re@sycl/ext/oneapi/kernel_properties/properties.hpp:* {{static assertion failed due to requirement {{.+}}: work_group_size_hint property currently only supports up to three values.}}
-  // expected-error@sycl/ext/oneapi/kernel_properties/properties.hpp:* {{constexpr variable 'work_group_size_hint<1, 1, 1, 1>' must be initialized by a constant expression}}
+  // expected-error-re@sycl/ext/oneapi/kernel_properties/function_launch_properties.hpp:* {{static assertion failed due to requirement {{.+}}: work_group_size_hint property currently only supports up to three values.}}
+  // expected-error@sycl/ext/oneapi/kernel_properties/function_launch_properties.hpp:* {{constexpr variable 'work_group_size_hint<1, 1, 1, 1>' must be initialized by a constant expression}}
   // expected-note@+2 {{in instantiation of variable template specialization 'sycl::ext::oneapi::experimental::work_group_size_hint<1, 1, 1, 1>' requested here}}
   auto WGSize12 =
       sycl::ext::oneapi::experimental::work_group_size_hint<1, 1, 1, 1>;
@@ -301,8 +301,8 @@ void check_sub_group_size() {
   // expected-error@+1 {{too few template arguments for variable template 'sub_group_size'}}
   auto WGSize0 = sycl::ext::oneapi::experimental::sub_group_size<>;
 
-  // expected-error-re@sycl/ext/oneapi/kernel_properties/properties.hpp:* {{static assertion failed due to requirement {{.+}}: sub_group_size_key property must contain a non-zero value.}}
-  // expected-error@sycl/ext/oneapi/kernel_properties/properties.hpp:* {{constexpr variable 'sub_group_size<0>' must be initialized by a constant expression}}
+  // expected-error-re@sycl/ext/oneapi/kernel_properties/function_launch_properties.hpp:* {{static assertion failed due to requirement {{.+}}: sub_group_size property must contain a non-zero value.}}
+  // expected-error@sycl/ext/oneapi/kernel_properties/function_launch_properties.hpp:* {{constexpr variable 'sub_group_size<0>' must be initialized by a constant expression}}
   // expected-note@+1 {{in instantiation of variable template specialization 'sycl::ext::oneapi::experimental::sub_group_size<0>' requested here}}
   auto WGSize1 = sycl::ext::oneapi::experimental::sub_group_size<0>;
 

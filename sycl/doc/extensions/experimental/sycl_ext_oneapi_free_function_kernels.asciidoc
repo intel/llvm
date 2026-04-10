@@ -112,6 +112,36 @@ supports.
  feature-test macro always has this value.
 |===
 
+=== Headers
+
+In the {dpcpp} implementation, applications that use this extension have a
+choice of headers depending on which properties they need:
+
+* `#include <sycl/ext/oneapi/kernel_properties/function_properties.hpp>` is
+  sufficient for `SYCL_EXT_ONEAPI_FUNCTION_PROPERTY`,
+  `nd_range_kernel<Dims>`, and `single_task_kernel`.
+
+* `#include <sycl/ext/oneapi/kernel_properties/function_launch_properties.hpp>`
+  additionally provides the launch-configuration properties that may be applied
+  directly to a free function kernel declaration, such as
+  `work_group_size`, `work_group_size_hint`, `sub_group_size`,
+  `max_work_group_size`, and `max_linear_work_group_size`.
+
+* `#include <sycl/ext/oneapi/kernel_properties/properties.hpp>` provides the
+  full kernel properties interface, including property lists such as
+  `properties{...}` and embedded kernel properties via `properties_tag`.
+
+Applications may include the umbrella header in all cases. The lighter-weight
+headers are intended for code that only needs function annotations on free
+function kernels and where reducing compile time is a priority.
+
+The lighter-weight headers retain validation of each individual property, such
+as arity and non-zero size requirements, but they do not provide the
+cross-property validation that is performed when properties are combined via
+the full property-list machinery. For example, checks for conflicting
+combinations such as `work_group_size` together with `max_work_group_size` are
+available only through the umbrella header.
+
 === Defining a free function kernel
 
 A free function kernel is a normal C++ function definition, where the function
@@ -802,6 +832,13 @@ A free function kernel may also be decorated with any of the properties defined
 in link:../experimental/sycl_ext_oneapi_kernel_properties.asciidoc[
 sycl_ext_oneapi_kernel_properties] by applying the properties to the function
 declaration as illustrated below.
+
+In the {dpcpp} implementation, code that uses only function annotations may
+include either `function_properties.hpp` or
+`function_launch_properties.hpp` instead of the full
+`kernel_properties/properties.hpp` header. Applications that need property-list
+semantics, including cross-property validation, should include the umbrella
+header.
 
 ```
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))

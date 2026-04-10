@@ -117,10 +117,12 @@
 // CHECK-NEXT: device_selector.hpp
 // CHECK-NEXT: kernel_bundle_enums.hpp
 // CHECK-NEXT: ext/oneapi/kernel_properties/properties.hpp
+// CHECK-NEXT: ext/oneapi/kernel_properties/function_launch_properties.hpp
+// CHECK-NEXT: ext/oneapi/kernel_properties/function_properties.hpp
+// CHECK-NEXT: ext/oneapi/properties/property_value.hpp
+// CHECK-NEXT: ext/oneapi/properties/property.hpp
 // CHECK-NEXT: ext/oneapi/properties/properties.hpp
 // CHECK-NEXT: ext/oneapi/properties/property_utils.hpp
-// CHECK-NEXT: ext/oneapi/properties/property.hpp
-// CHECK-NEXT: ext/oneapi/properties/property_value.hpp
 // CHECK-NEXT: event.hpp
 // CHECK-NEXT: exception_list.hpp
 // CHECK-NEXT: ext/oneapi/device_global/device_global.hpp
