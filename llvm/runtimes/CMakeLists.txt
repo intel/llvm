@@ -141,6 +141,7 @@ function(builtin_register_target compiler_rt_path name)
                                       -DLLVM_RUNTIME_OUTPUT_INTDIR=${LLVM_TOOLS_BINARY_DIR}
                                       -DLLVM_ENABLE_PER_TARGET_RUNTIME_DIR=ON
                                       -DLLVM_CMAKE_DIR=${CMAKE_BINARY_DIR}
+                                      -DLLVM_BUILTINS_TARGET=${name}
                                       -DCMAKE_C_COMPILER_WORKS=ON
                                       -DCMAKE_CXX_COMPILER_WORKS=ON
                                       -DCMAKE_ASM_COMPILER_WORKS=ON

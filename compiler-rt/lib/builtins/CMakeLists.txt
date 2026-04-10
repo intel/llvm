@@ -1055,16 +1055,28 @@ else ()
         list(APPEND BUILTIN_CFLAGS_${arch} -fforce-enable-int128)
       endif()
 
-      add_compiler_rt_runtime(clang_rt.builtins
-                              STATIC
-                              ARCHS ${arch}
-                              DEPS ${deps_${arch}}
-                              SOURCES ${${arch}_SOURCES}
-                              DEFS ${BUILTIN_DEFS}
-                              CFLAGS ${BUILTIN_CFLAGS_${arch}}
-			      # C_STANDARD 11
-                              CXX_STANDARD 17
-                              PARENT_TARGET builtins)
+      if("${LLVM_BUILTINS_TARGET}" MATCHES "sycl")
+        add_compiler_rt_runtime(clang_rt.builtins
+                                STATIC
+                                ARCHS ${arch}
+                                DEPS ${deps_${arch}}
+                                SOURCES ${${arch}_SOURCES}
+                                DEFS ${BUILTIN_DEFS}
+                                CFLAGS ${BUILTIN_CFLAGS_${arch}}
+                                CXX_STANDARD 17
+                                PARENT_TARGET builtins)
+      else()
+        add_compiler_rt_runtime(clang_rt.builtins
+                                STATIC
+                                ARCHS ${arch}
+                                DEPS ${deps_${arch}}
+                                SOURCES ${${arch}_SOURCES}
+                                DEFS ${BUILTIN_DEFS}
+                                CFLAGS ${BUILTIN_CFLAGS_${arch}}
+			        C_STANDARD 11
+                                CXX_STANDARD 17
+                                PARENT_TARGET builtins)
+      endif()
 
       # Write out the sources that were used to compile the builtins so that tests can be run in
       # an independent compiler-rt build (see: compiler-rt/test/builtins/CMakeLists.txt)
