@@ -846,7 +846,7 @@ bool ControlFlowConversionState::Impl::createExitMasks(BasicBlock &BB,
   auto *T = BB.getTerminator();
   IRBuilder<> B(T);
 
-  if (BranchInst *BI = dyn_cast<BranchInst>(T)) {
+  if (CondBrInst *BI = dyn_cast<CondBrInst>(T)) {
     BasicBlock *trueBB = BI->getSuccessor(0);
     BasicBlock *falseBB = BI->getSuccessor(1);
     assert(trueBB && "Could not get successor 0 of branch");
@@ -1194,20 +1194,18 @@ Error ControlFlowConversionState::Impl::applyMask(BasicBlock &BB, Value *mask) {
       if (!applyMaskToAtomic(I, mask, toDelete)) {
         return makeStringError("Could not apply mask to atomic instruction", I);
       }
-    } else if (auto *branch = dyn_cast<BranchInst>(&I)) {
+    } else if (auto *branch = dyn_cast<CondBrInst>(&I)) {
       // We have to be careful with infinite loops, because if they exist on a
       // divergent code path, they will always be entered and will hang the
       // kernel. Therefore, we replace the branch condition with the mask of
       // the preheader, to ensure they only loop if at least one lane is
       // actually executed.
-      if (branch->isConditional()) {
-        auto *const cond = dyn_cast<Constant>(branch->getCondition());
-        if (cond && cond->isOneValue()) {
-          auto *const loop = DR->getTag(&BB).loop;
-          if (loop && loop->latch == &BB) {
-            auto *const loopMask = MaskInfos[loop->preheader].entryMask;
-            branch->setCondition(loopMask);
-          }
+      auto *const cond = dyn_cast<Constant>(branch->getCondition());
+      if (cond && cond->isOneValue()) {
+        auto *const loop = DR->getTag(&BB).loop;
+        if (loop && loop->latch == &BB) {
+          auto *const loopMask = MaskInfos[loop->preheader].entryMask;
+          branch->setCondition(loopMask);
         }
       }
     }
@@ -1565,45 +1563,43 @@ bool ControlFlowConversionState::Impl::createBranchReductions() {
     }
 
     auto *TI = BB.getTerminator();
-    if (BranchInst *Branch = dyn_cast<BranchInst>(TI)) {
-      if (Branch->isConditional()) {
-        auto *cond = Branch->getCondition();
-        if (isa<Constant>(cond)) {
-          continue;
-        }
-
-        // On divergent paths, ensure that only active lanes contribute to a
-        // branch condition; merge the branch condition with the active lane
-        // mask. This ensures that disabled lanes don't spuriously contribute a
-        // 'true' value into the reduced branch condition.
-        // Note that the distinction between 'uniform' and 'divergent' isn't
-        // 100% sufficient for our purposes here, because even uniform values
-        // may read undefined/poison values when masked out.
-        // Don't perform this on uniform loops as those may be unconditionally
-        // entered even when no work-items are active. Masking the loop exit
-        // with the entry mask would mean that the loop never exits.
-        // FIXME: Is this missing incorrect branches in uniform blocks/loops?
-        if (auto *LTag = DR->getTag(&BB).loop;
-            DR->isDivergent(BB) && (!LTag || LTag->isLoopDivergent())) {
-          if (!isBranchCondTrulyUniform(cond, *UVR)) {
-            auto *newcond = SelectInst::Create(MaskInfos[&BB].entryMask, cond,
-                                               getDefaultValue(cond->getType()),
-                                               cond->getName() + "_active");
-            newcond->insertBefore(Branch->getIterator());
-            cond = newcond;
-          }
-        }
-
-        const auto &name = needsAllOfMask ? nameAll : nameAny;
-        Function *const F = Ctx.getOrCreateInternalBuiltin(
-            Twine(baseName).concat(name).str(), FT);
-        VECZ_FAIL_IF(!F);
-
-        auto *const newCall =
-            CallInst::Create(F, {cond}, Twine(cond->getName()).concat(name));
-        newCall->insertBefore(Branch->getIterator());
-        Branch->setCondition(newCall);
+    if (CondBrInst *Branch = dyn_cast<CondBrInst>(TI)) {
+      auto *cond = Branch->getCondition();
+      if (isa<Constant>(cond)) {
+        continue;
       }
+
+      // On divergent paths, ensure that only active lanes contribute to a
+      // branch condition; merge the branch condition with the active lane
+      // mask. This ensures that disabled lanes don't spuriously contribute a
+      // 'true' value into the reduced branch condition.
+      // Note that the distinction between 'uniform' and 'divergent' isn't
+      // 100% sufficient for our purposes here, because even uniform values
+      // may read undefined/poison values when masked out.
+      // Don't perform this on uniform loops as those may be unconditionally
+      // entered even when no work-items are active. Masking the loop exit
+      // with the entry mask would mean that the loop never exits.
+      // FIXME: Is this missing incorrect branches in uniform blocks/loops?
+      if (auto *LTag = DR->getTag(&BB).loop;
+          DR->isDivergent(BB) && (!LTag || LTag->isLoopDivergent())) {
+        if (!isBranchCondTrulyUniform(cond, *UVR)) {
+          auto *newcond = SelectInst::Create(MaskInfos[&BB].entryMask, cond,
+                                             getDefaultValue(cond->getType()),
+                                             cond->getName() + "_active");
+          newcond->insertBefore(Branch->getIterator());
+          cond = newcond;
+        }
+      }
+
+      const auto &name = needsAllOfMask ? nameAll : nameAny;
+      Function *const F = Ctx.getOrCreateInternalBuiltin(
+          Twine(baseName).concat(name).str(), FT);
+      VECZ_FAIL_IF(!F);
+
+      auto *const newCall =
+          CallInst::Create(F, {cond}, Twine(cond->getName()).concat(name));
+      newCall->insertBefore(Branch->getIterator());
+      Branch->setCondition(newCall);
     } else if (isa<SwitchInst>(TI) &&
                DR->hasFlag(BB, eBlockHasDivergentBranch)) {
       // Not sure what to actually do with switch instructions..
@@ -1873,14 +1869,14 @@ bool ControlFlowConversionState::Impl::computeDivergentLoopPureExit(
   auto *latchT = latchBB->getTerminator();
 #ifndef ALL_OF_DIVERGENT_LOOP_LATCH
   Value *cond = MaskInfos[latchBB].exitMasks[LTag.header];
-  auto *newT = BranchInst::Create(LTag.header, pureExit, cond, latchBB);
+  auto *newT = CondBrInst::Create(cond, LTag.header, pureExit, latchBB);
 #else
   // Exit the loop through the single divergent loop exit only if all instances
   // that entered the loop left it.
   ICmpInst *cond = new ICmpInst(
       latchT, CmpInst::ICMP_EQ, LMask.persistedCombinedDivergentExitMask,
       MaskInfos[LTag.preheader].exitMasks[LTag.header]);
-  auto *newT = BranchInst::Create(pureExit, LTag.header, cond, latchBB);
+  auto *newT = CondBrInst::Create(cond, pureExit, LTag.header, latchBB);
   DR->setFlag(*latchBB, eBlockNeedsAllOfMask);
 #endif
 
@@ -1905,9 +1901,10 @@ bool ControlFlowConversionState::Impl::rewireDivergentLoopExitBlocks(
       // Any other kind of Terminator cannot be handled and until
       // proven otherwise, should not.
       break;
-    case Instruction::Br: {
+    case Instruction::UncondBr:
+    case Instruction::CondBr: {
       const unsigned keepIdx = succIdx == 0 ? 1 : 0;
-      auto *newT = BranchInst::Create(T->getSuccessor(keepIdx));
+      auto *newT = UncondBrInst::Create(T->getSuccessor(keepIdx));
       newT->insertBefore(T->getIterator());
 
       updateMaps(T, newT);
@@ -2047,7 +2044,7 @@ bool ControlFlowConversionState::Impl::rewireDivergentLoopExitBlocks(
     // there is no optional exit loop it can branch to, so create an
     // unconditional branch.
     if ((idx + 1 == exitBlocks.size()) && DR->isDivergent(*target)) {
-      BranchInst::Create(target, divergentLE);
+      UncondBrInst::Create(target, divergentLE);
       auto &maskInfo = MaskInfos[divergentLE];
       maskInfo.exitMasks[target] = maskInfo.entryMask;
 
@@ -2096,7 +2093,7 @@ bool ControlFlowConversionState::Impl::rewireDivergentLoopExitBlocks(
                                                 divergentLE);
       BasicBlock *newDivergentLE = BasicBlock::Create(
           F.getContext(), EB->getName() + ".else", &F, EB->getNextNode());
-      BranchInst::Create(newDivergentLE, target, negCond, divergentLE);
+      CondBrInst::Create(negCond, newDivergentLE, target, divergentLE);
 
       // The divergentLE block "ought" to exist in the masks map already, but
       // it is safer to take a local copy and retire `targetMasks`.
@@ -2549,7 +2546,7 @@ bool ControlFlowConversionState::Impl::computeNewTargets(Linearization &lin) {
       if (DR->hasFlag(*BB,
                       BlockDivergenceFlag::eBlockIsVirtualDivergentLoopExit) &&
           !BB->getTerminator()) {
-        BranchInst::Create(next, BB);
+        UncondBrInst::Create(next, BB);
       }
 
       LLVM_DEBUG(dbgs() << "\tsuccessor 0: " << next->getName() << "\n");
@@ -2686,7 +2683,7 @@ bool ControlFlowConversionState::Impl::linearizeCFG() {
         LLVM_DEBUG(dbgs() << "\tRemove successor: " << succ->getName() << "\n");
       }
 
-      auto *newT = BranchInst::Create(T->getSuccessor(0));
+      auto *newT = UncondBrInst::Create(T->getSuccessor(0));
       newT->insertBefore(T->getIterator());
 
       updateMaps(T, newT);

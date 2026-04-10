@@ -703,10 +703,8 @@ DivergenceResult DivergenceAnalysis::run(llvm::Function &F,
   std::vector<std::pair<BasicBlock *, Value *>> uniformBranches;
   uniformBranches.reserve(F.size() - 1u);
   for (BasicBlock &BB : F) {
-    if (BranchInst *B = dyn_cast<BranchInst>(BB.getTerminator())) {
-      if (B->isConditional()) {
-        uniformBranches.push_back({&BB, B->getCondition()});
-      }
+    if (CondBrInst *B = dyn_cast<CondBrInst>(BB.getTerminator())) {
+      uniformBranches.push_back({&BB, B->getCondition()});
     } else if (SwitchInst *SI = dyn_cast<SwitchInst>(BB.getTerminator())) {
       uniformBranches.push_back({&BB, SI->getCondition()});
     }

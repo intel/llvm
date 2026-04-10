@@ -65,11 +65,11 @@ vecz::SimplifyInfiniteLoopPass::run(Loop &L, LoopAnalysisManager &,
     BasicBlock *virtualExit =
         BasicBlock::Create(F->getContext(), L.getName() + ".virtual_exit", F);
     AR.DT.addNewBlock(virtualExit, latch);
-    BranchInst::Create(L.getHeader(), virtualExit,
-                       ConstantInt::getTrue(F->getContext()), latch);
+    CondBrInst::Create(ConstantInt::getTrue(F->getContext()), L.getHeader(),
+                       virtualExit, latch);
     AR.DT.insertEdge(latch, L.getHeader());
     AR.DT.insertEdge(latch, virtualExit);
-    BranchInst::Create(target, virtualExit);
+    UncondBrInst::Create(target, virtualExit);
     AR.DT.insertEdge(virtualExit, target);
 
     assert(AR.DT.verify() &&
@@ -90,17 +90,15 @@ vecz::SimplifyInfiniteLoopPass::run(Loop &L, LoopAnalysisManager &,
     auto *const latch = L.getLoopLatch();
     auto *const header = L.getHeader();
     auto *const T = latch->getTerminator();
-    if (auto *const branch = dyn_cast<BranchInst>(T)) {
-      if (branch->isConditional()) {
-        if (auto *const cond = dyn_cast<Constant>(branch->getCondition())) {
-          if (branch->getSuccessor(1) == header) {
-            modified = true;
-            auto &ctx = latch->getParent()->getContext();
-            branch->setCondition(cond->isOneValue()
-                                     ? ConstantInt::getFalse(ctx)
-                                     : ConstantInt::getTrue(ctx));
-            branch->swapSuccessors();
-          }
+    if (auto *const branch = dyn_cast<CondBrInst>(T)) {
+      if (auto *const cond = dyn_cast<Constant>(branch->getCondition())) {
+        if (branch->getSuccessor(1) == header) {
+          modified = true;
+          auto &ctx = latch->getParent()->getContext();
+          branch->setCondition(cond->isOneValue()
+                                   ? ConstantInt::getFalse(ctx)
+                                   : ConstantInt::getTrue(ctx));
+          branch->swapSuccessors();
         }
       }
     }
