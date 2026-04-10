@@ -351,6 +351,8 @@ set(CLANG_VERSION "${CLANG_VERSION_MAJOR}.${CLANG_VERSION_MINOR}.${CLANG_VERSION
 set(MAX_CLANG_ABI_COMPAT_VERSION "${LLVM_VERSION_MAJOR}")
 message(STATUS "Clang version: ${CLANG_VERSION}")
 
+set(DPCPP_VERSION "${DPCPP_VERSION_MAJOR}.${DPCPP_VERSION_MINOR}.${DPCPP_VERSION_PATCH}")
+
 # Configure the Version.inc file.
 configure_file(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/clang/Basic/Version.inc.in
@@ -650,6 +652,7 @@ if (CLANG_ENABLE_BOOTSTRAP)
       # variable, and have LLVM's CMake append the envar to the archiver calls.
       set(LTO_LIBRARY -DDARWIN_LTO_LIBRARY=${LLVM_SHLIB_OUTPUT_INTDIR}/libLTO.dylib
         -DDYLD_LIBRARY_PATH=${LLVM_LIBRARY_OUTPUT_INTDIR})
+      set(${CLANG_STAGE}_LIBTOOL -DCMAKE_LIBTOOL=${LLVM_RUNTIME_OUTPUT_INTDIR}/llvm-libtool-darwin)
     elseif(MSVC)
       add_dependencies(clang-bootstrap-deps llvm-lib)
       set(${CLANG_STAGE}_AR -DCMAKE_AR=${LLVM_RUNTIME_OUTPUT_INTDIR}/llvm-lib)
@@ -850,6 +853,7 @@ if (CLANG_ENABLE_BOOTSTRAP)
                 ${${CLANG_STAGE}_RANLIB}
                 ${${CLANG_STAGE}_OBJCOPY}
                 ${${CLANG_STAGE}_STRIP}
+                ${${CLANG_STAGE}_LIBTOOL}
     BUILD_COMMAND ${CMAKE_COMMAND} --build ${BINARY_DIR}
                                    --config ${build_configuration}
                                    ${build_tool_args}

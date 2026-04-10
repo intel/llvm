@@ -14,7 +14,7 @@
 #include "msan_shadow.hpp"
 #include "msan_interceptor.hpp"
 #include "sanitizer_common/sanitizer_utils.hpp"
-#include "ur_api.h"
+#include "unified-runtime/ur_api.h"
 #include "ur_sanitizer_layer.hpp"
 
 namespace ur_sanitizer_layer {
@@ -82,56 +82,67 @@ GetMsanShadowMemory(ur_context_handle_t Context, ur_device_handle_t Device,
 }
 
 ur_result_t MsanShadowMemoryCPU::Setup() {
-  static ur_result_t Result = [this]() {
-    for (unsigned i = 0; i < kMemoryLayoutSize; ++i) {
-      uptr Start = kMemoryLayout[i].start;
-      uptr End = kMemoryLayout[i].end;
-      uptr Size = End - Start;
-      MappingDesc::Type Type = kMemoryLayout[i].type;
+  bool Initialized = true;
+  for (unsigned i = 0; i < kMemoryLayoutSize; ++i) {
+    uptr Start = kMemoryLayout[i].start;
+    uptr End = kMemoryLayout[i].end;
+    uptr Size = End - Start;
+    MappingDesc::Type Type = kMemoryLayout[i].type;
 
-      bool IsMap = Type == MappingDesc::SHADOW || Type == MappingDesc::ORIGIN;
-      bool IsProtect = Type == MappingDesc::INVALID;
+    bool IsMap = Type == MappingDesc::SHADOW || Type == MappingDesc::ORIGIN;
+    bool IsProtect = Type == MappingDesc::INVALID;
 
-      if (IsMap) {
-        if (MmapFixedNoReserve(Start, Size) == 0) {
-          return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
-        }
-        DontCoredumpRange(Start, Size);
+    if (IsMap) {
+      if (!MmapFixedNoReserve(Start, Size)) {
+        UR_LOG_L(getContext()->logger, DEBUG,
+                 "Failed to mmap shadow memory: {} - {}", (void *)Start,
+                 (void *)End);
+        Initialized = false;
+        break;
       }
-      if (IsProtect) {
-        if (ProtectMemoryRange(Start, Size) == 0) {
-          return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
-        }
+      DontCoredumpRange(Start, Size);
+    }
+    if (IsProtect) {
+      if (!ProtectMemoryRange(Start, Size)) {
+        UR_LOG_L(getContext()->logger, DEBUG,
+                 "Failed to protect memory range: {} - {}", (void *)Start,
+                 (void *)End);
+        Initialized = false;
+        break;
       }
     }
-    ShadowBegin = kMemoryLayout[1].start;
-    ShadowEnd = kMemoryLayout[9].end;
-    return UR_RESULT_SUCCESS;
-  }();
-  return Result;
+  }
+
+  if (!Initialized) {
+    TryReExecWithoutASLR();
+    die("Device MemorySanitizer failed to reserve shadow memory since shadow "
+        "memory interleaves with an existing mapping.");
+  }
+
+  ShadowBegin = kMemoryLayout[1].start;
+  ShadowEnd = kMemoryLayout[9].end;
+  return UR_RESULT_SUCCESS;
 }
 
 ur_result_t MsanShadowMemoryCPU::Destory() {
   if (ShadowBegin == 0 && ShadowEnd == 0) {
     return UR_RESULT_SUCCESS;
   }
-  static ur_result_t Result = [this]() {
-    for (unsigned i = 0; i < kMemoryLayoutSize; ++i) {
-      uptr Start = kMemoryLayout[i].start;
-      uptr End = kMemoryLayout[i].end;
-      uptr Size = End - Start;
-      MappingDesc::Type Type = kMemoryLayout[i].type;
-      bool IsMap = Type == MappingDesc::SHADOW || Type == MappingDesc::ORIGIN;
-      if (IsMap) {
-        if (Munmap(Start, Size)) {
-          return UR_RESULT_ERROR_UNKNOWN;
-        }
+
+  for (unsigned i = 0; i < kMemoryLayoutSize; ++i) {
+    uptr Start = kMemoryLayout[i].start;
+    uptr End = kMemoryLayout[i].end;
+    uptr Size = End - Start;
+    MappingDesc::Type Type = kMemoryLayout[i].type;
+    bool IsMap = Type == MappingDesc::SHADOW || Type == MappingDesc::ORIGIN;
+    if (IsMap) {
+      if (!Munmap(Start, Size)) {
+        return UR_RESULT_ERROR_UNKNOWN;
       }
     }
-    ShadowBegin = ShadowEnd = 0;
-    return UR_RESULT_SUCCESS;
-  }();
-  return Result;
+  }
+  ShadowBegin = ShadowEnd = 0;
+  return UR_RESULT_SUCCESS;
 }
 
 uptr MsanShadowMemoryCPU::MemToShadow(uptr Ptr) { return MEM_TO_SHADOW(Ptr); }
@@ -142,16 +153,17 @@ uptr MsanShadowMemoryCPU::MemToOrigin(uptr Ptr) {
 }
 
 ur_result_t MsanShadowMemoryCPU::EnqueuePoisonShadow(
-    ur_queue_handle_t Queue, uptr Ptr, uptr Size, u8 Value, uint32_t NumEvents,
-    const ur_event_handle_t *EventWaitList, ur_event_handle_t *OutEvent) {
-  return EnqueuePoisonShadowWithOrigin(Queue, Ptr, Size, Value, 0, NumEvents,
-                                       EventWaitList, OutEvent);
+    ur_queue_handle_t Queue, uptr Ptr, uptr Size, const u8 *Value,
+    uint32_t NumEvents, const ur_event_handle_t *EventWaitList,
+    ur_event_handle_t *OutEvent) {
+  return EnqueuePoisonShadowWithOrigin(Queue, Ptr, Size, Value, nullptr,
+                                       NumEvents, EventWaitList, OutEvent);
 }
 
 ur_result_t MsanShadowMemoryCPU::EnqueuePoisonShadowWithOrigin(
-    ur_queue_handle_t Queue, uptr Ptr, uptr Size, u8 Value, uint32_t Origin,
-    uint32_t NumEvents, const ur_event_handle_t *EventWaitList,
-    ur_event_handle_t *OutEvent) {
+    ur_queue_handle_t Queue, uptr Ptr, uptr Size, const u8 *Value,
+    const uint32_t *Origin, uint32_t NumEvents,
+    const ur_event_handle_t *EventWaitList, ur_event_handle_t *OutEvent) {
   if (Size) {
     {
       const uptr ShadowBegin = MemToShadow(Ptr);
@@ -160,10 +172,10 @@ ur_result_t MsanShadowMemoryCPU::EnqueuePoisonShadowWithOrigin(
       UR_LOG_L(getContext()->logger, DEBUG,
                "EnqueuePoisonShadow(addr={}, count={}, value={})",
                (void *)ShadowBegin, ShadowEnd - ShadowBegin + 1,
-               (void *)(uptr)Value);
-      memset((void *)ShadowBegin, Value, ShadowEnd - ShadowBegin + 1);
+               (void *)(uptr)*Value);
+      memset((void *)ShadowBegin, *Value, ShadowEnd - ShadowBegin + 1);
     }
-    if (Origin) {
+    if (Origin && *Origin != 0) {
       const uptr OriginBegin = MemToOrigin(Ptr);
       const uptr OriginEnd =
           MemToOrigin(Ptr + Size - 1) + MSAN_ORIGIN_GRANULARITY;
@@ -171,9 +183,9 @@ ur_result_t MsanShadowMemoryCPU::EnqueuePoisonShadowWithOrigin(
       UR_LOG_L(getContext()->logger, DEBUG,
                "EnqueuePoisonOrigin(addr={}, count={}, value={})",
                (void *)OriginBegin, OriginEnd - OriginBegin + 1,
-               (void *)(uptr)Origin);
+               (void *)(uptr)*Origin);
       // memset((void *)OriginBegin, Value, OriginEnd - OriginBegin + 1);
-      std::fill((uint32_t *)OriginBegin, (uint32_t *)OriginEnd, Origin);
+      std::fill((uint32_t *)OriginBegin, (uint32_t *)OriginEnd, *Origin);
     }
   }
 
@@ -286,16 +298,17 @@ ur_result_t MsanShadowMemoryGPU::EnqueueVirtualMemMap(
 }
 
 ur_result_t MsanShadowMemoryGPU::EnqueuePoisonShadow(
-    ur_queue_handle_t Queue, uptr Ptr, uptr Size, u8 Value, uint32_t NumEvents,
-    const ur_event_handle_t *EventWaitList, ur_event_handle_t *OutEvent) {
-  return EnqueuePoisonShadowWithOrigin(Queue, Ptr, Size, Value, 0, NumEvents,
-                                       EventWaitList, OutEvent);
+    ur_queue_handle_t Queue, uptr Ptr, uptr Size, const u8 *Value,
+    uint32_t NumEvents, const ur_event_handle_t *EventWaitList,
+    ur_event_handle_t *OutEvent) {
+  return EnqueuePoisonShadowWithOrigin(Queue, Ptr, Size, Value, nullptr,
+                                       NumEvents, EventWaitList, OutEvent);
 }
 
 ur_result_t MsanShadowMemoryGPU::EnqueuePoisonShadowWithOrigin(
-    ur_queue_handle_t Queue, uptr Ptr, uptr Size, u8 Value, uint32_t Origin,
-    uint32_t NumEvents, const ur_event_handle_t *EventWaitList,
-    ur_event_handle_t *OutEvent) {
+    ur_queue_handle_t Queue, uptr Ptr, uptr Size, const u8 *Value,
+    const uint32_t *Origin, uint32_t NumEvents,
+    const ur_event_handle_t *EventWaitList, ur_event_handle_t *OutEvent) {
   if (Size == 0) {
     if (OutEvent) {
       UR_CALL(getContext()->urDdiTable.Enqueue.pfnEventsWait(
@@ -316,7 +329,7 @@ ur_result_t MsanShadowMemoryGPU::EnqueuePoisonShadowWithOrigin(
     UR_LOG_L(getContext()->logger, DEBUG,
              "EnqueuePoisonShadow(addr={}, size={}, value={})",
              (void *)ShadowBegin, ShadowEnd - ShadowBegin + 1,
-             (void *)(size_t)Value);
+             (void *)(size_t)*Value);
 
     UR_CALL(EnqueueUSMSet(Queue, (void *)ShadowBegin, Value,
                           ShadowEnd - ShadowBegin + 1, Events.size(),
@@ -325,17 +338,17 @@ ur_result_t MsanShadowMemoryGPU::EnqueuePoisonShadowWithOrigin(
 
   {
     uptr OriginBegin = MemToOrigin(Ptr);
-    uptr OriginEnd = MemToOrigin(Ptr + Size - 1) + sizeof(Origin) - 1;
+    uptr OriginEnd = MemToOrigin(Ptr + Size - 1) + sizeof(*Origin) - 1;
     UR_CALL(EnqueueVirtualMemMap(OriginBegin, OriginEnd, Events, OutEvent));
 
-    if (Origin) {
+    if (Origin && *Origin != 0) {
       UR_LOG_L(getContext()->logger, DEBUG,
                "EnqueuePoisonOrigin(addr={}, size={}, value={})",
                (void *)OriginBegin, OriginEnd - OriginBegin + 1,
-               (void *)(uptr)Origin);
+               (void *)(uptr)*Origin);
 
       UR_CALL(getContext()->urDdiTable.Enqueue.pfnUSMFill(
-          Queue, (void *)OriginBegin, sizeof(Origin), &Origin,
+          Queue, (void *)OriginBegin, sizeof(*Origin), Origin,
           OriginEnd - OriginBegin + 1, NumEvents, EventWaitList, OutEvent));
     }
   }
@@ -391,8 +404,8 @@ ur_result_t MsanShadowMemoryGPU::AllocLocalShadow(ur_queue_handle_t Queue,
                          AllocType::DEVICE_USM, (void **)&LocalShadowOffset));
 
     // Initialize shadow memory
-    ur_result_t URes = EnqueueUSMSet(Queue, (void *)LocalShadowOffset, (char)0,
-                                     RequiredShadowSize);
+    ur_result_t URes =
+        EnqueueUSMSetZero(Queue, (void *)LocalShadowOffset, RequiredShadowSize);
     if (URes != UR_RESULT_SUCCESS) {
       UR_CALL(getContext()->urDdiTable.USM.pfnFree(Context,
                                                    (void *)LocalShadowOffset));
@@ -457,8 +470,8 @@ ur_result_t MsanShadowMemoryGPU::AllocPrivateShadow(ur_queue_handle_t Queue,
                                   nullptr, nullptr, AllocType::DEVICE_USM,
                                   (void **)&PrivateShadowOffset));
       LastPrivateShadowAllocedSize = NewPrivateShadowSize;
-      UR_CALL_THROWS(EnqueueUSMSet(Queue, (void *)PrivateShadowOffset, (char)0,
-                                   NewPrivateShadowSize));
+      UR_CALL_THROWS(EnqueueUSMSetZero(Queue, (void *)PrivateShadowOffset,
+                                       NewPrivateShadowSize));
     }
 
     Base = (uptr *)PrivateBasePtr;

@@ -438,12 +438,6 @@ protected:
                      std::shared_ptr<std::vector<kernel_id>>>
       m_BinImg2KernelIDs;
 
-  /// Keeps track of binary image to kernel name reference count.
-  /// Used for checking if the last image referencing the kernel name
-  /// is removed in order to trigger cleanup of kernel specific information.
-  /// Access must be guarded by the m_ImgMapsMutex mutex.
-  std::unordered_map<std::string_view, int> m_KernelNameRefCount;
-
   /// Caches all exported symbols to allow faster lookup when excluding these
   /// from kernel bundles.
   /// Access must be guarded by the m_ImgMapsMutex mutex.
@@ -457,6 +451,12 @@ protected:
   /// Access must be guarded by the m_ImgMapsMutex mutex.
   std::unordered_map<sycl_device_binary, RTDeviceBinaryImageUPtr>
       m_DeviceImages;
+
+  /// Keeps merged device binary images alive for linked programs with multiple
+  /// images. The merged image combines device_globals from all linked images.
+  /// Access must be guarded by the MNativeProgramsMutex mutex.
+  std::unordered_map<ur_program_handle_t, DynRTDeviceBinaryImageUPtr>
+      m_MergedImages;
 
   /// Maps names of built-in kernels to their unique kernel IDs.
   /// Access must be guarded by the m_BuiltInKernelIDsMutex mutex.

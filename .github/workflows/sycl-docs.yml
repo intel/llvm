@@ -10,7 +10,7 @@ on:
     - '.github/workflows/sycl-docs.yml'
     - 'clang/docs/**'
     - 'sycl/doc/**'
-    - 'devops/benchmarks/scripts/html/**'
+    - 'devops/scripts/benchmarks/html/**'
   push:
     branches:
     - sycl
@@ -18,7 +18,7 @@ on:
     - '.github/workflows/sycl-docs.yml'
     - 'clang/docs/**'
     - 'sycl/doc/**'
-    - 'devops/benchmarks/scripts/html/**'
+    - 'devops/scripts/benchmarks/html/**'
   workflow_dispatch:
     inputs:
       update_gh_pages:
@@ -39,7 +39,7 @@ jobs:
     runs-on: ubuntu-latest
     if: github.repository == 'intel/llvm'
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       with:
         path: repo
     - name: Install deps
@@ -65,7 +65,7 @@ jobs:
         # Update benchmarking dashboard configuration
         cat << EOF > benchmarks/config.js
         remoteDataUrl = 'https://raw.githubusercontent.com/intel/llvm/refs/heads/sycl-benchmark-ci-results/';
-        defaultCompareNames = ["Baseline_PVC_L0"];
+        defaultCompareNames = ["Baseline_BMG_L0v2"];
         EOF
     # Upload the generated docs as an artifact and deploy to GitHub Pages.
     - name: Upload artifact

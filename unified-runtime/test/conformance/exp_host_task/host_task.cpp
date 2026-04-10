@@ -4,7 +4,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-#include "ur_api.h"
+#include "unified-runtime/ur_api.h"
 #include <gtest/gtest.h>
 #include <thread>
 #include <uur/fixtures.h>
@@ -45,9 +45,9 @@ TEST_P(urEnqueueHostTaskTest, SuccessWithEvents) {
   AddBuffer1DArg(sizeof(val) * global_size, &buffer);
   AddPodArg(val);
   ur_event_handle_t KernelEvent;
-  ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, n_dimensions,
-                                       &global_offset, &global_size, nullptr,
-                                       nullptr, 0, nullptr, &KernelEvent));
+  ASSERT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
+      queue, kernel, n_dimensions, &global_offset, &global_size, nullptr,
+      GetNumArgs(), GetArgs(), nullptr, 0, nullptr, &KernelEvent));
   int userdata = 1;
   ur_event_handle_t HostTaskEvent;
   urEnqueueHostTaskExp(queue, IncHostTask, &userdata, nullptr, 1, &KernelEvent,

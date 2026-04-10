@@ -28,6 +28,7 @@
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/Expr.h"
+#include "clang/AST/IgnoreExpr.h"
 #include "clang/AST/StmtCXX.h"
 #include "clang/AST/StmtObjC.h"
 #include "clang/Basic/Builtins.h"
@@ -48,6 +49,7 @@
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/MDBuilder.h"
 #include "llvm/Support/CRC.h"
+#include "llvm/Support/SipHash.h"
 #include "llvm/Support/xxhash.h"
 #include "llvm/Transforms/Scalar/LowerExpectIntrinsic.h"
 #include "llvm/Transforms/Utils/PromoteMemToReg.h"
@@ -55,10 +57,6 @@
 
 using namespace clang;
 using namespace CodeGen;
-
-namespace llvm {
-extern cl::opt<bool> EnableSingleByteCoverage;
-} // namespace llvm
 
 /// shouldEmitLifetimeMarkers - Decide whether we need emit the life-time
 /// markers.
@@ -70,7 +68,8 @@ static bool shouldEmitLifetimeMarkers(const CodeGenOptions &CGOpts,
   // Sanitizers may use markers.
   if (CGOpts.SanitizeAddressUseAfterScope ||
       LangOpts.Sanitize.has(SanitizerKind::HWAddress) ||
-      LangOpts.Sanitize.has(SanitizerKind::Memory))
+      LangOpts.Sanitize.has(SanitizerKind::Memory) ||
+      LangOpts.Sanitize.has(SanitizerKind::MemtagStack))
     return true;
 
   // For now, only in optimized builds.
@@ -79,8 +78,7 @@ static bool shouldEmitLifetimeMarkers(const CodeGenOptions &CGOpts,
 
 CodeGenFunction::CodeGenFunction(CodeGenModule &cgm, bool suppressNewContext)
     : CodeGenTypeCache(cgm), CGM(cgm), Target(cgm.getTarget()),
-      Builder(cgm, cgm.getModule().getContext(), llvm::ConstantFolder(),
-              CGBuilderInserterTy(this)),
+      Builder(cgm, cgm.getModule().getContext(), CGBuilderInserterTy(this)),
       SanOpts(CGM.getLangOpts().Sanitize), CurFPFeatures(CGM.getLangOpts()),
       DebugInfo(CGM.getModuleDebugInfo()),
       PGO(std::make_unique<CodeGenPGO>(cgm)),
@@ -211,7 +209,6 @@ void CodeGenFunction::CGFPOptionsRAII::ConstructorHelper(FPOptions FPFeatures) {
     if (OldValue != NewValue)
       CGF.CurFn->addFnAttr(Name, llvm::toStringRef(NewValue));
   };
-  mergeFnAttrValue("no-infs-fp-math", FPFeatures.getNoHonorInfs());
   mergeFnAttrValue("no-nans-fp-math", FPFeatures.getNoHonorNaNs());
   mergeFnAttrValue("no-signed-zeros-fp-math", FPFeatures.getNoSignedZero());
 }
@@ -311,6 +308,7 @@ TypeEvaluationKind CodeGenFunction::getEvaluationKind(QualType type) {
     case Type::BitInt:
     case Type::HLSLAttributedResource:
     case Type::HLSLInlineSpirv:
+    case Type::OverflowBehavior:
       return TEK_Scalar;
 
     // Complexes.
@@ -496,7 +494,7 @@ void CodeGenFunction::FinishFunction(SourceLocation EndLoc) {
       EscapeArgs[Pair.second] = Pair.first;
     llvm::Function *FrameEscapeFn = llvm::Intrinsic::getOrInsertDeclaration(
         &CGM.getModule(), llvm::Intrinsic::localescape);
-    CGBuilderTy(*this, AllocaInsertPt).CreateCall(FrameEscapeFn, EscapeArgs);
+    CGBuilderTy(CGM, AllocaInsertPt).CreateCall(FrameEscapeFn, EscapeArgs);
   }
 
   // Remove the AllocaInsertPt instruction, which is just a convenience for us.
@@ -1320,7 +1318,8 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
 
   // If we are checking function types, emit a function type signature as
   // prologue data.
-  if (FD && SanOpts.has(SanitizerKind::Function)) {
+  if (FD && SanOpts.has(SanitizerKind::Function) &&
+      !FD->getType()->isCFIUncheckedCalleeFunctionType()) {
     if (llvm::Constant *PrologueSig = getPrologueSignature(CGM, FD)) {
       llvm::LLVMContext &Ctx = Fn->getContext();
       llvm::MDBuilder MDB(Ctx);
@@ -1533,7 +1532,23 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
     ReturnValue = Address(Addr, ConvertType(RetTy),
                           CGM.getNaturalTypeAlignment(RetTy), KnownNonNull);
   } else {
-    ReturnValue = CreateIRTemp(RetTy, "retval");
+    // On SPIR targets, regcall functions may call spir_func functions that use
+    // sret with generic address space (ptr addrspace(4)). In this case, we need
+    // the ReturnValue temporary to have the correct address space to be passed
+    // as an sret argument. Check if we need address space cast.
+    bool NeedsAddrSpaceCast =
+        (CGM.getTarget().getTriple().isSPIR() ||
+         CGM.getTarget().getTriple().isSPIRV()) &&
+        CurFnInfo->getCallingConvention() == llvm::CallingConv::X86_RegCall;
+
+    if (NeedsAddrSpaceCast) {
+      // Create temp with address space cast (inline CreateIRTemp
+      // implementation)
+      CharUnits Align = getContext().getTypeAlignInChars(RetTy);
+      ReturnValue = CreateTempAlloca(ConvertType(RetTy), Align, "retval");
+    } else {
+      ReturnValue = CreateIRTempWithoutCast(RetTy, "retval");
+    }
 
     // Tell the epilog emitter to autorelease the result.  We do this
     // now so that various specialized functions can suppress it
@@ -1670,10 +1685,7 @@ void CodeGenFunction::EmitFunctionBody(const Stmt *Body) {
 void CodeGenFunction::EmitBlockWithFallThrough(llvm::BasicBlock *BB,
                                                const Stmt *S) {
   llvm::BasicBlock *SkipCountBB = nullptr;
-  // Do not skip over the instrumentation when single byte coverage mode is
-  // enabled.
-  if (HaveInsertPoint() && CGM.getCodeGenOpts().hasProfileClangInstr() &&
-      !llvm::EnableSingleByteCoverage) {
+  if (HaveInsertPoint() && CGM.getCodeGenOpts().hasProfileClangInstr()) {
     // When instrumenting for profiling, the fallthrough to certain
     // statements needs to skip over the instrumentation code so that we
     // get an accurate count.
@@ -1682,7 +1694,7 @@ void CodeGenFunction::EmitBlockWithFallThrough(llvm::BasicBlock *BB,
   }
   EmitBlock(BB);
   uint64_t CurrentCount = getCurrentProfileCount();
-  incrementProfileCounter(S);
+  incrementProfileCounter(UseExecPath, S);
   setCurrentProfileCount(getCurrentProfileCount() + CurrentCount);
   if (SkipCountBB)
     EmitBlock(SkipCountBB);
@@ -1802,7 +1814,7 @@ void CodeGenFunction::GenerateCode(GlobalDecl GD, llvm::Function *Fn,
     DebugInfo = nullptr;
   }
   // Finalize function debug info on exit.
-  auto Cleanup = llvm::make_scope_exit([this] {
+  llvm::scope_exit Cleanup([this] {
     if (CGDebugInfo *DI = getDebugInfo())
       DI->completeFunction();
   });
@@ -2119,18 +2131,20 @@ bool CodeGenFunction::ConstantFoldsToSimpleInteger(const Expr *Cond,
     return false;  // Contains a label.
 
   PGO->markStmtMaybeUsed(Cond);
-  ResultInt = Int;
+  ResultInt = std::move(Int);
   return true;
 }
 
 /// Strip parentheses and simplistic logical-NOT operators.
 const Expr *CodeGenFunction::stripCond(const Expr *C) {
-  while (const UnaryOperator *Op = dyn_cast<UnaryOperator>(C->IgnoreParens())) {
-    if (Op->getOpcode() != UO_LNot)
-      break;
-    C = Op->getSubExpr();
+  while (true) {
+    const Expr *SC = IgnoreExprNodes(
+        C, IgnoreParensSingleStep, IgnoreUOpLNotSingleStep,
+        IgnoreBuiltinExpectSingleStep, IgnoreImplicitCastsSingleStep);
+    if (C == SC)
+      return SC;
+    C = SC;
   }
-  return C->IgnoreParens();
 }
 
 /// Determine whether the given condition is an instrumentable condition
@@ -2162,6 +2176,10 @@ void CodeGenFunction::EmitBranchToCounterBlock(
   // Create the block we'll use to increment the appropriate counter.
   llvm::BasicBlock *CounterIncrBlock = createBasicBlock("lop.rhscnt");
 
+  llvm::BasicBlock *SkipIncrBlock =
+      (hasSkipCounter(CntrStmt) ? createBasicBlock("lop.rhsskip") : nullptr);
+  llvm::BasicBlock *SkipNextBlock = nullptr;
+
   // Set block pointers according to Logical-AND (BO_LAnd) semantics. This
   // means we need to evaluate the condition and increment the counter on TRUE:
   //
@@ -2175,8 +2193,9 @@ void CodeGenFunction::EmitBranchToCounterBlock(
   //   goto TrueBlock;
 
   if (LOp == BO_LAnd) {
+    SkipNextBlock = FalseBlock;
     ThenBlock = CounterIncrBlock;
-    ElseBlock = FalseBlock;
+    ElseBlock = (SkipIncrBlock ? SkipIncrBlock : SkipNextBlock);
     NextBlock = TrueBlock;
   }
 
@@ -2193,7 +2212,8 @@ void CodeGenFunction::EmitBranchToCounterBlock(
   //   goto FalseBlock;
 
   else if (LOp == BO_LOr) {
-    ThenBlock = TrueBlock;
+    SkipNextBlock = TrueBlock;
+    ThenBlock = (SkipIncrBlock ? SkipIncrBlock : SkipNextBlock);
     ElseBlock = CounterIncrBlock;
     NextBlock = FalseBlock;
   } else {
@@ -2203,11 +2223,17 @@ void CodeGenFunction::EmitBranchToCounterBlock(
   // Emit Branch based on condition.
   EmitBranchOnBoolExpr(Cond, ThenBlock, ElseBlock, TrueCount, LH);
 
+  if (SkipIncrBlock) {
+    EmitBlock(SkipIncrBlock);
+    incrementProfileCounter(UseSkipPath, CntrStmt);
+    EmitBranch(SkipNextBlock);
+  }
+
   // Emit the block containing the counter increment(s).
   EmitBlock(CounterIncrBlock);
 
   // Increment corresponding counter; if index not provided, use Cond as index.
-  incrementProfileCounter(CntrStmt);
+  incrementProfileCounter(UseExecPath, CntrStmt);
 
   // Go to the next block.
   EmitBranch(NextBlock);
@@ -2227,10 +2253,10 @@ void CodeGenFunction::EmitBranchOnBoolExpr(
   Cond = Cond->IgnoreParens();
 
   if (const BinaryOperator *CondBOp = dyn_cast<BinaryOperator>(Cond)) {
+    bool HasSkip = hasSkipCounter(CondBOp);
+
     // Handle X && Y in a condition.
     if (CondBOp->getOpcode() == BO_LAnd) {
-      MCDCLogOpStack.push_back(CondBOp);
-
       // If we have "1 && X", simplify the code.  "0 && X" would have constant
       // folded if the case was simple enough.
       bool ConstantBool = false;
@@ -2240,7 +2266,6 @@ void CodeGenFunction::EmitBranchOnBoolExpr(
         incrementProfileCounter(CondBOp);
         EmitBranchToCounterBlock(CondBOp->getRHS(), BO_LAnd, TrueBlock,
                                  FalseBlock, TrueCount, LH);
-        MCDCLogOpStack.pop_back();
         return;
       }
 
@@ -2251,13 +2276,14 @@ void CodeGenFunction::EmitBranchOnBoolExpr(
         // br(X && 1) -> br(X).
         EmitBranchToCounterBlock(CondBOp->getLHS(), BO_LAnd, TrueBlock,
                                  FalseBlock, TrueCount, LH, CondBOp);
-        MCDCLogOpStack.pop_back();
         return;
       }
 
       // Emit the LHS as a conditional.  If the LHS conditional is false, we
       // want to jump to the FalseBlock.
       llvm::BasicBlock *LHSTrue = createBasicBlock("land.lhs.true");
+      llvm::BasicBlock *LHSFalse =
+          (HasSkip ? createBasicBlock("land.lhsskip") : FalseBlock);
       // The counter tells us how often we evaluate RHS, and all of TrueCount
       // can be propagated to that branch.
       uint64_t RHSCount = getProfileCount(CondBOp->getRHS());
@@ -2268,12 +2294,17 @@ void CodeGenFunction::EmitBranchOnBoolExpr(
         // Propagate the likelihood attribute like __builtin_expect
         // __builtin_expect(X && Y, 1) -> X and Y are likely
         // __builtin_expect(X && Y, 0) -> only Y is unlikely
-        EmitBranchOnBoolExpr(CondBOp->getLHS(), LHSTrue, FalseBlock, RHSCount,
+        EmitBranchOnBoolExpr(CondBOp->getLHS(), LHSTrue, LHSFalse, RHSCount,
                              LH == Stmt::LH_Unlikely ? Stmt::LH_None : LH);
+        if (HasSkip) {
+          EmitBlock(LHSFalse);
+          incrementProfileCounter(UseSkipPath, CondBOp);
+          EmitBranch(FalseBlock);
+        }
         EmitBlock(LHSTrue);
       }
 
-      incrementProfileCounter(CondBOp);
+      incrementProfileCounter(UseExecPath, CondBOp);
       setCurrentProfileCount(getProfileCount(CondBOp->getRHS()));
 
       // Any temporaries created here are conditional.
@@ -2281,13 +2312,10 @@ void CodeGenFunction::EmitBranchOnBoolExpr(
       EmitBranchToCounterBlock(CondBOp->getRHS(), BO_LAnd, TrueBlock,
                                FalseBlock, TrueCount, LH);
       eval.end(*this);
-      MCDCLogOpStack.pop_back();
       return;
     }
 
     if (CondBOp->getOpcode() == BO_LOr) {
-      MCDCLogOpStack.push_back(CondBOp);
-
       // If we have "0 || X", simplify the code.  "1 || X" would have constant
       // folded if the case was simple enough.
       bool ConstantBool = false;
@@ -2297,7 +2325,6 @@ void CodeGenFunction::EmitBranchOnBoolExpr(
         incrementProfileCounter(CondBOp);
         EmitBranchToCounterBlock(CondBOp->getRHS(), BO_LOr, TrueBlock,
                                  FalseBlock, TrueCount, LH);
-        MCDCLogOpStack.pop_back();
         return;
       }
 
@@ -2308,11 +2335,12 @@ void CodeGenFunction::EmitBranchOnBoolExpr(
         // br(X || 0) -> br(X).
         EmitBranchToCounterBlock(CondBOp->getLHS(), BO_LOr, TrueBlock,
                                  FalseBlock, TrueCount, LH, CondBOp);
-        MCDCLogOpStack.pop_back();
         return;
       }
       // Emit the LHS as a conditional.  If the LHS conditional is true, we
       // want to jump to the TrueBlock.
+      llvm::BasicBlock *LHSTrue =
+          (HasSkip ? createBasicBlock("lor.lhsskip") : TrueBlock);
       llvm::BasicBlock *LHSFalse = createBasicBlock("lor.lhs.false");
       // We have the count for entry to the RHS and for the whole expression
       // being true, so we can divy up True count between the short circuit and
@@ -2327,12 +2355,17 @@ void CodeGenFunction::EmitBranchOnBoolExpr(
         // __builtin_expect(X || Y, 1) -> only Y is likely
         // __builtin_expect(X || Y, 0) -> both X and Y are unlikely
         ApplyDebugLocation DL(*this, Cond);
-        EmitBranchOnBoolExpr(CondBOp->getLHS(), TrueBlock, LHSFalse, LHSCount,
+        EmitBranchOnBoolExpr(CondBOp->getLHS(), LHSTrue, LHSFalse, LHSCount,
                              LH == Stmt::LH_Likely ? Stmt::LH_None : LH);
+        if (HasSkip) {
+          EmitBlock(LHSTrue);
+          incrementProfileCounter(UseSkipPath, CondBOp);
+          EmitBranch(TrueBlock);
+        }
         EmitBlock(LHSFalse);
       }
 
-      incrementProfileCounter(CondBOp);
+      incrementProfileCounter(UseExecPath, CondBOp);
       setCurrentProfileCount(getProfileCount(CondBOp->getRHS()));
 
       // Any temporaries created here are conditional.
@@ -2341,7 +2374,6 @@ void CodeGenFunction::EmitBranchOnBoolExpr(
                                RHSCount, LH);
 
       eval.end(*this);
-      MCDCLogOpStack.pop_back();
       return;
     }
   }
@@ -2390,7 +2422,7 @@ void CodeGenFunction::EmitBranchOnBoolExpr(
 
     cond.begin(*this);
     EmitBlock(LHSBlock);
-    incrementProfileCounter(CondOp);
+    incrementProfileCounter(UseExecPath, CondOp);
     {
       ApplyDebugLocation DL(*this, Cond);
       EmitBranchOnBoolExpr(CondOp->getLHS(), TrueBlock, FalseBlock,
@@ -2400,6 +2432,7 @@ void CodeGenFunction::EmitBranchOnBoolExpr(
 
     cond.begin(*this);
     EmitBlock(RHSBlock);
+    incrementProfileCounter(UseSkipPath, CondOp);
     EmitBranchOnBoolExpr(CondOp->getRHS(), TrueBlock, FalseBlock,
                          TrueCount - LHSScaledTrueCount, LH, CondOp);
     cond.end(*this);
@@ -2428,7 +2461,7 @@ void CodeGenFunction::EmitBranchOnBoolExpr(
 
   // If not at the top of the logical operator nest, update MCDC temp with the
   // boolean result of the evaluated condition.
-  if (!MCDCLogOpStack.empty()) {
+  {
     const Expr *MCDCBaseExpr = Cond;
     // When a nested ConditionalOperator (ternary) is encountered in a boolean
     // expression, MC/DC tracks the result of the ternary, and this is tied to
@@ -2438,7 +2471,9 @@ void CodeGenFunction::EmitBranchOnBoolExpr(
     if (ConditionalOp)
       MCDCBaseExpr = ConditionalOp;
 
-    maybeUpdateMCDCCondBitmap(MCDCBaseExpr, CondV);
+    if (isMCDCBranchExpr(stripCond(MCDCBaseExpr)) &&
+        !isMCDCDecisionExpr(stripCond(Cond)))
+      maybeUpdateMCDCCondBitmap(MCDCBaseExpr, CondV);
   }
 
   llvm::MDNode *Weights = nullptr;
@@ -2569,6 +2604,36 @@ static void emitNonZeroVLAInit(CodeGenFunction &CGF, QualType baseType,
   CGF.EmitBlock(contBB);
 }
 
+Address CodeGenFunction::EmitAddressOfPFPField(Address RecordPtr,
+                                               const PFPField &Field) {
+  return EmitAddressOfPFPField(
+      RecordPtr,
+      Builder.CreateConstInBoundsByteGEP(RecordPtr.withElementType(Int8Ty),
+                                         Field.Offset),
+      Field.Field);
+}
+
+Address CodeGenFunction::EmitAddressOfPFPField(Address RecordPtr,
+                                               Address PtrPtr,
+                                               const FieldDecl *Field) {
+  llvm::Value *Disc;
+  if (CGM.getContext().arePFPFieldsTriviallyCopyable(Field->getParent())) {
+    uint64_t FieldSignature =
+        llvm::getPointerAuthStableSipHash(CGM.getPFPFieldName(Field));
+    Disc = llvm::ConstantInt::get(CGM.Int64Ty, FieldSignature);
+  } else
+    Disc = Builder.CreatePtrToInt(RecordPtr.getBasePointer(), CGM.Int64Ty);
+
+  llvm::GlobalValue *DS = CGM.getPFPDeactivationSymbol(Field);
+  llvm::OperandBundleDef DSBundle("deactivation-symbol", DS);
+  llvm::Value *Args[] = {PtrPtr.getBasePointer(), Disc, Builder.getTrue()};
+  return Address(
+      Builder.CreateCall(CGM.getIntrinsic(llvm::Intrinsic::protected_field_ptr,
+                                          PtrPtr.getType()),
+                         Args, DSBundle),
+      VoidPtrTy, PtrPtr.getAlignment());
+}
+
 void
 CodeGenFunction::EmitNullInitialization(Address DestPtr, QualType Ty) {
   // Ignore empty classes in C++.
@@ -2628,13 +2693,20 @@ CodeGenFunction::EmitNullInitialization(Address DestPtr, QualType Ty) {
 
     // Get and call the appropriate llvm.memcpy overload.
     Builder.CreateMemCpy(DestPtr, SrcPtr, SizeVal, false);
-    return;
+  } else {
+    // Otherwise, just memset the whole thing to zero.  This is legal
+    // because in LLVM, all default initializers (other than the ones we just
+    // handled above, and the case handled below) are guaranteed to have a bit
+    // pattern of all zeros.
+    Builder.CreateMemSet(DestPtr, Builder.getInt8(0), SizeVal, false);
   }
 
-  // Otherwise, just memset the whole thing to zero.  This is legal
-  // because in LLVM, all default initializers (other than the ones we just
-  // handled above) are guaranteed to have a bit pattern of all zeros.
-  Builder.CreateMemSet(DestPtr, Builder.getInt8(0), SizeVal, false);
+  // With the pointer field protection feature, null pointers do not have a bit
+  // pattern of zero in memory, so we must initialize them separately.
+  for (auto &Field : getContext().findPFPFields(Ty)) {
+    auto addr = EmitAddressOfPFPField(DestPtr, Field);
+    Builder.CreateStore(llvm::ConstantPointerNull::get(VoidPtrTy), addr);
+  }
 }
 
 llvm::BlockAddress *CodeGenFunction::GetAddrOfLabel(const LabelDecl *L) {
@@ -2653,7 +2725,7 @@ llvm::BasicBlock *CodeGenFunction::GetIndirectGotoBlock() {
   // If we already made the indirect branch for indirect goto, return its block.
   if (IndirectBranch) return IndirectBranch->getParent();
 
-  CGBuilderTy TmpBuilder(*this, createBasicBlock("indirectgoto"));
+  CGBuilderTy TmpBuilder(CGM, createBasicBlock("indirectgoto"));
 
   // Create the PHI node that indirect gotos will add entries to.
   llvm::Value *DestVal = TmpBuilder.CreatePHI(Int8PtrTy, 0,
@@ -2928,6 +3000,7 @@ void CodeGenFunction::EmitVariablyModifiedType(QualType type) {
     case Type::UnaryTransform:
     case Type::Attributed:
     case Type::BTFTagAttributed:
+    case Type::OverflowBehavior:
     case Type::HLSLAttributedResource:
     case Type::SubstTemplateTypeParm:
     case Type::MacroQualified:
@@ -3437,6 +3510,8 @@ void CodeGenFunction::EmitMultiVersionResolver(
     return;
   case llvm::Triple::riscv32:
   case llvm::Triple::riscv64:
+  case llvm::Triple::riscv32be:
+  case llvm::Triple::riscv64be:
     EmitRISCVMultiVersionResolver(Resolver, Options);
     return;
 
@@ -3518,7 +3593,7 @@ void CodeGenFunction::EmitRISCVMultiVersionResolver(
     llvm::Value *FeatsCondition = EmitRISCVCpuSupports(CurrTargetAttrFeats);
 
     llvm::BasicBlock *RetBlock = createBasicBlock("resolver_return", Resolver);
-    CGBuilderTy RetBuilder(*this, RetBlock);
+    CGBuilderTy RetBuilder(CGM, RetBlock);
     CreateMultiVersionResolverReturn(CGM, Resolver, RetBuilder,
                                      Options[Index].Function, SupportsIFunc);
     llvm::BasicBlock *ElseBlock = createBasicBlock("resolver_else", Resolver);
@@ -3574,8 +3649,12 @@ void CodeGenFunction::EmitAArch64MultiVersionResolver(
       Builder.SetInsertPoint(CurBlock);
     }
 
+    // Skip unreachable versions.
+    if (RO.Function == nullptr)
+      continue;
+
     llvm::BasicBlock *RetBlock = createBasicBlock("resolver_return", Resolver);
-    CGBuilderTy RetBuilder(*this, RetBlock);
+    CGBuilderTy RetBuilder(CGM, RetBlock);
     CreateMultiVersionResolverReturn(CGM, Resolver, RetBuilder, RO.Function,
                                      SupportsIFunc);
     CurBlock = createBasicBlock("resolver_else", Resolver);
@@ -3615,7 +3694,7 @@ void CodeGenFunction::EmitX86MultiVersionResolver(
     }
 
     llvm::BasicBlock *RetBlock = createBasicBlock("resolver_return", Resolver);
-    CGBuilderTy RetBuilder(*this, RetBlock);
+    CGBuilderTy RetBuilder(CGM, RetBlock);
     CreateMultiVersionResolverReturn(CGM, Resolver, RetBuilder, RO.Function,
                                      SupportsIFunc);
     CurBlock = createBasicBlock("resolver_else", Resolver);
@@ -3829,5 +3908,16 @@ void CodeGenFunction::addInstToNewSourceAtom(llvm::Instruction *KeyInstruction,
   if (CGDebugInfo *DI = getDebugInfo()) {
     ApplyAtomGroup Grp(getDebugInfo());
     DI->addInstToCurrentSourceAtom(KeyInstruction, Backup);
+  }
+}
+
+void CodeGenFunction::emitPFPPostCopyUpdates(Address DestPtr, Address SrcPtr,
+                                             QualType Ty) {
+  for (auto &Field : getContext().findPFPFields(Ty)) {
+    if (getContext().arePFPFieldsTriviallyCopyable(Field.Field->getParent()))
+      continue;
+    auto DestFieldPtr = EmitAddressOfPFPField(DestPtr, Field);
+    auto SrcFieldPtr = EmitAddressOfPFPField(SrcPtr, Field);
+    Builder.CreateStore(Builder.CreateLoad(SrcFieldPtr), DestFieldPtr);
   }
 }

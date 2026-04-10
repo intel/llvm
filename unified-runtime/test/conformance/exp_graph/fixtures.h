@@ -1,4 +1,4 @@
-// Copyright (C) 2025 Intel Corporation
+// Copyright (C) 2025-2026 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
 //
@@ -13,9 +13,34 @@
 
 namespace uur {
 
-struct urGraphSupportedExpTest : uur::urQueueTest {
+struct urGraphSupportedExpTest : uur::urMultiQueueTypeTest {
   void SetUp() override {
-    UUR_RETURN_ON_FATAL_FAILURE(urQueueTest::SetUp());
+    UUR_RETURN_ON_FATAL_FAILURE(urMultiQueueTypeTest::SetUp());
+
+    ur_bool_t graph_supported = false;
+    ASSERT_SUCCESS(urDeviceGetInfo(
+        device, UR_DEVICE_INFO_GRAPH_RECORD_AND_REPLAY_SUPPORT_EXP,
+        sizeof(graph_supported), &graph_supported, nullptr));
+    if (!graph_supported) {
+      GTEST_SKIP();
+    }
+
+    UUR_KNOWN_FAILURE_ON(uur::CUDA{}, uur::HIP{}, uur::NativeCPU{},
+                         uur::OpenCL{}, uur::LevelZero{});
+  }
+};
+
+struct urGraphSupportedExpMultiQueueTest : uur::urMultiQueueTest {
+  void SetUp() override {
+    UUR_RETURN_ON_FATAL_FAILURE(urMultiQueueTest::SetUp());
+
+    ur_bool_t graph_supported = false;
+    ur_result_t result = urDeviceGetInfo(
+        device, UR_DEVICE_INFO_GRAPH_RECORD_AND_REPLAY_SUPPORT_EXP,
+        sizeof(graph_supported), &graph_supported, nullptr);
+    if (result == UR_RESULT_SUCCESS && !graph_supported) {
+      GTEST_SKIP();
+    }
 
     UUR_KNOWN_FAILURE_ON(uur::CUDA{}, uur::HIP{}, uur::NativeCPU{},
                          uur::OpenCL{}, uur::LevelZero{});

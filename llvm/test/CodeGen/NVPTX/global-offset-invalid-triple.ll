@@ -1,20 +1,20 @@
-; RUN: not --crash llc -march=nvptx64 -mcpu=sm_20 %s -o - 2>&1 | FileCheck %s
+; RUN: llc -march=nvptx64 -mcpu=sm_20 %s -o - 2>&1 | FileCheck %s
 ; ModuleID = 'invalid-triple.bc'
-; CHECK: LLVM ERROR: Cannot select: intrinsic %llvm.nvvm.implicit.offset
+
 source_filename = "invalid-triple.ll"
 target datalayout = "e-i64:64-i128:128-v16:16-v32:32-n16:32:64"
 target triple = "nvptx64-nvidia-nvcl"
 
-; This test checks that the pass does not run on nvcl triples.
+; This test checks that the pass does not run on nvcl triples and symbol is not
+; resolved.
 
-declare ptr @llvm.nvvm.implicit.offset()
+; CHECK: _Z27__spirv_BuiltInGlobalOffseti
+
+declare i64 @_Z27__spirv_BuiltInGlobalOffseti(i32)
 
 define i64 @_ZTS14other_function() {
-  %1 = tail call ptr @llvm.nvvm.implicit.offset()
-  %2 = getelementptr inbounds i32, ptr %1, i64 2
-  %3 = load i32, ptr %2, align 4
-  %4 = zext i32 %3 to i64
-  ret i64 %4
+  %1 = tail call i64 @_Z27__spirv_BuiltInGlobalOffseti(i32 2)
+  ret i64 %1
 }
 
 define void @_ZTS14example_kernel() {

@@ -1,4 +1,4 @@
-# Copyright (C) 2025 Intel Corporation
+# Copyright (C) 2025-2026 Intel Corporation
 # Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -6,7 +6,7 @@
 
 from pathlib import Path
 
-from .base import Suite, Benchmark, TracingType
+from .base import Benchmark, Suite
 from options import options
 from utils.result import Result
 from utils.oneapi import get_oneapi
@@ -135,14 +135,9 @@ class OneDnnBenchmark(Benchmark):
     def run(
         self,
         env_vars,
-        run_trace: TracingType = TracingType.NONE,
+        flamegraph_enabled: bool = False,
         force_trace: bool = False,
     ) -> list[Result]:
-        # Determine extra trace options based on tracing type
-        if run_trace == TracingType.UNITRACE:
-            extra_trace_opt = ["--chrome-dnn-logging"]
-        else:
-            extra_trace_opt = None
 
         command = [
             str(self.benchmark_bin),
@@ -162,8 +157,7 @@ class OneDnnBenchmark(Benchmark):
             add_sycl=True,
             ld_library=ld_library,
             use_stdout=True,
-            run_trace=run_trace,
-            extra_trace_opt=extra_trace_opt,
+            flamegraph_enabled=flamegraph_enabled,
             force_trace=force_trace,
         )
         result_value = self._extract_time(output)

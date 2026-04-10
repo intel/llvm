@@ -1,15 +1,14 @@
-# Copyright (C) 2024-2025 Intel Corporation
+# Copyright (C) 2024-2026 Intel Corporation
 # Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import csv
 import io
-import os
 from pathlib import Path
 
 from utils.utils import download
-from .base import Benchmark, Suite, TracingType
+from .base import Benchmark, Suite
 from utils.result import Result
 from options import options
 from utils.oneapi import get_oneapi
@@ -28,8 +27,8 @@ class LlamaCppBench(Suite):
         return "https://github.com/ggerganov/llama.cpp"
 
     def git_hash(self) -> str:
-        # 12 Nov, 2025
-        return "78010a0d52ad03cd469448df89101579b225582c"
+        # 28 Jan, 2026
+        return "0cd7032ca4f1f2ac0c9527a62a76ed4dc6ad26fe"
 
     def setup(self) -> None:
         if options.sycl is None:
@@ -120,7 +119,7 @@ class LlamaBench(Benchmark):
     def run(
         self,
         env_vars,
-        run_trace: TracingType = TracingType.NONE,
+        flamegraph_enabled: bool = False,
         force_trace: bool = False,
     ) -> list[Result]:
         command = [

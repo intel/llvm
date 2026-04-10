@@ -225,6 +225,46 @@ uint64_t calculateGlobalMemSize(ur_device_handle_t Device) {
   return Device->ZeGlobalMemSize.get().value;
 }
 
+static bool
+supportsDeviceUsableMemSizeExtension(ur_platform_handle_t Platform) {
+#ifdef ZE_DEVICE_USABLEMEM_SIZE_PROPERTIES_EXT_NAME
+  constexpr const char *ExtensionName =
+      ZE_DEVICE_USABLEMEM_SIZE_PROPERTIES_EXT_NAME;
+  constexpr uint32_t MinVersion = ZE_MAKE_VERSION(1, 0);
+
+  auto Extension = Platform->zeDriverExtensionMap.find(ExtensionName);
+  return Extension != Platform->zeDriverExtensionMap.end() &&
+         Extension->second >= MinVersion;
+#else
+  std::ignore = Platform;
+  return false;
+#endif
+}
+
+static std::optional<uint64_t>
+getDeviceUsableMemSizeFromCore(ur_device_handle_t Device) {
+#ifdef ZE_DEVICE_USABLEMEM_SIZE_PROPERTIES_EXT_NAME
+  if (!supportsDeviceUsableMemSizeExtension(Device->Platform)) {
+    return std::nullopt;
+  }
+
+  ZeStruct<ze_device_properties_t> DeviceProperties;
+  ZeStruct<ze_device_usablemem_size_ext_properties_t> UsableMemProperties;
+  DeviceProperties.pNext = &UsableMemProperties;
+
+  auto ZeResult = ZE_CALL_NOCHECK(zeDeviceGetProperties,
+                                  (Device->ZeDevice, &DeviceProperties));
+  if (ZeResult != ZE_RESULT_SUCCESS) {
+    return std::nullopt;
+  }
+
+  return UsableMemProperties.currUsableMemSize;
+#else
+  std::ignore = Device;
+  return std::nullopt;
+#endif
+}
+
 // Return the Sysman device handle and correpsonding data for the given UR
 // device.
 static std::tuple<zes_device_handle_t, ur_zes_device_handle_data_t, ur_result_t>
@@ -586,8 +626,7 @@ ur_result_t urDeviceGetInfo(
     return ReturnValue(static_cast<ur_bool_t>(
         Device->ZeDeviceProperties->flags & ZE_DEVICE_PROPERTY_FLAG_ECC));
   case UR_DEVICE_INFO_PROFILING_TIMER_RESOLUTION:
-    return ReturnValue(
-        static_cast<size_t>(Device->ZeDeviceProperties->timerResolution));
+    return ReturnValue(static_cast<size_t>(Device->getTimerResolution()));
   case UR_DEVICE_INFO_LOCAL_MEM_TYPE:
     return ReturnValue(UR_DEVICE_LOCAL_MEM_TYPE_LOCAL);
   case UR_DEVICE_INFO_MAX_CONSTANT_ARGS:
@@ -864,6 +903,21 @@ ur_result_t urDeviceGetInfo(
   }
 
   case UR_DEVICE_INFO_GLOBAL_MEM_FREE: {
+    if (!ParamValue && pSize) {
+      if (supportsDeviceUsableMemSizeExtension(Device->Platform)) {
+        return ReturnValue(uint64_t{0});
+      }
+
+      auto [ZesDevice, ZesDeviceData, Result] = getZesDeviceData(Device);
+      (void)ZesDevice;
+      (void)ZesDeviceData;
+      if (Result != UR_RESULT_SUCCESS) {
+        return Result;
+      }
+
+      return ReturnValue(uint64_t{0});
+    }
+
     // Calculate the global memory size as the max limit that can be reported as
     // "free" memory for the user to allocate.
     uint64_t GlobalMemSize = calculateGlobalMemSize(Device);
@@ -871,6 +925,10 @@ ur_result_t urDeviceGetInfo(
     // Currently this is only the one enumerated with ordinal 0.
     uint64_t FreeMemory = 0;
     uint32_t MemCount = 0;
+
+    if (auto CoreUsableMemSize = getDeviceUsableMemSizeFromCore(Device)) {
+      return ReturnValue(std::min(GlobalMemSize, *CoreUsableMemSize));
+    }
 
     auto [ZesDevice, ZesDeviceData, Result] = getZesDeviceData(Device);
     if (Result != UR_RESULT_SUCCESS)
@@ -1325,8 +1383,10 @@ ur_result_t urDeviceGetInfo(
     return ReturnValue(true);
   case UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP:
     return ReturnValue(true);
-  case UR_DEVICE_INFO_DEVICE_WAIT_SUPPORT_EXP:
-    return ReturnValue(true);
+  case UR_DEVICE_INFO_DEVICE_WAIT_SUPPORT_EXP: {
+    auto Supported = Device->Platform->ZeDeviceSynchronizeSupported;
+    return ReturnValue(Supported);
+  }
   case UR_DEVICE_INFO_DYNAMIC_LINK_SUPPORT_EXP:
     return ReturnValue(true);
   case UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_SUPPORT_EXP:
@@ -1772,8 +1832,7 @@ ur_result_t urDeviceGetGlobalTimestamps(
 #endif
   }
 
-  const uint64_t &ZeTimerResolution =
-      Device->ZeDeviceProperties->timerResolution;
+  const double ZeTimerResolution = Device->getTimerResolution();
   const uint64_t TimestampMaxCount = Device->getTimestampMask();
   uint64_t DeviceClockCount, Dummy;
 

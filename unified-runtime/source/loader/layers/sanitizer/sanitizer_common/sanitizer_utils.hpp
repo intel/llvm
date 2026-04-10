@@ -14,7 +14,7 @@
 #pragma once
 
 #include "sanitizer_libdevice.hpp"
-#include "ur_api.h"
+#include "unified-runtime/ur_api.h"
 #include "ur_sanitizer_layer.hpp"
 
 #include <string>
@@ -70,18 +70,19 @@ size_t GetVirtualMemGranularity(ur_context_handle_t Context,
                                 ur_device_handle_t Device);
 
 template <class T>
-ur_result_t EnqueueUSMSet(ur_queue_handle_t Queue, void *Ptr, T Value,
+ur_result_t EnqueueUSMSet(ur_queue_handle_t Queue, void *Ptr, T *Value,
                           size_t Size, uint32_t NumEvents = 0,
                           const ur_event_handle_t *EventWaitList = nullptr,
                           ur_event_handle_t *OutEvent = nullptr) {
   assert(Size % sizeof(T) == 0);
-  thread_local static T StaticValue;
-
-  StaticValue = Value;
   return getContext()->urDdiTable.Enqueue.pfnUSMFill(
-      Queue, Ptr, sizeof(T), &StaticValue, Size, NumEvents, EventWaitList,
-      OutEvent);
+      Queue, Ptr, sizeof(T), Value, Size, NumEvents, EventWaitList, OutEvent);
 }
+
+ur_result_t EnqueueUSMSetZero(ur_queue_handle_t Queue, void *Ptr, size_t Size,
+                              uint32_t NumEvents = 0,
+                              const ur_event_handle_t *EventWaitList = nullptr,
+                              ur_event_handle_t *OutEvent = nullptr);
 
 void PrintUrBuildLogIfError(ur_result_t Result, ur_program_handle_t Program,
                             ur_device_handle_t *Devices, size_t NumDevices);

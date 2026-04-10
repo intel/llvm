@@ -154,10 +154,10 @@ class Compare:
                     }
 
                 # Add every benchmark run to average_aggregate:
-                if test_run.name not in average_aggregate:
-                    average_aggregate[test_run.name] = reset_aggregate()
+                if test_run.label not in average_aggregate:
+                    average_aggregate[test_run.label] = reset_aggregate()
                 else:
-                    average_aggregate[test_run.name]["aggregate"].add(test_run.value)
+                    average_aggregate[test_run.label]["aggregate"].add(test_run.value)
 
         return {
             name: BenchmarkHistoricAverage(
@@ -199,23 +199,23 @@ class Compare:
         regression = []
 
         for test in target.results:
-            if test.name not in hist_avg:
+            if test.label not in hist_avg:
                 continue
             # TODO compare command args which have an impact on performance
             # (i.e. ignore --save-name): if command results are incomparable,
             # skip the result.
 
             delta = 1 - (
-                test.value / hist_avg[test.name].value
+                test.value / hist_avg[test.label].value
                 if test.lower_is_better
-                else hist_avg[test.name].value / test.value
+                else hist_avg[test.label].value / test.value
             )
 
             def perf_diff_entry() -> dict:
                 res = asdict(test)
                 res["delta"] = delta
-                res["hist_avg"] = hist_avg[test.name].value
-                res["avg_type"] = hist_avg[test.name].average_type
+                res["hist_avg"] = hist_avg[test.label].value
+                res["avg_type"] = hist_avg[test.label].average_type
                 return res
 
             # Round to 2 decimal places: not going to fail a test on 0.001% over
@@ -226,7 +226,7 @@ class Compare:
                 regression.append(perf_diff_entry())
 
             log.debug(
-                f"{test.name}: expect {hist_avg[test.name].value}, got {test.value}"
+                f"{test.label}: expect {hist_avg[test.label].value}, got {test.value}"
             )
 
         return improvement, regression
@@ -389,7 +389,7 @@ if __name__ == "__main__":
         if args.regression_filter is not None:
             filter_pattern = re.compile(args.regression_filter)
             for test in regressions:
-                if filter_pattern.search(test["name"]):
+                if filter_pattern.search(test["label"]):
                     regressions_of_concern.append(test)
                 else:
                     regressions_ignored.append(test)
@@ -402,13 +402,13 @@ if __name__ == "__main__":
                 is_warning (bool): If True, use log.warning instead of log.info
             """
             log_func = log.warning if is_warning else log.info
-            log_func(f"Test: {entry['name']}")
+            log_func(f"Test: {entry['label']}")
             log_func(f"-- Historic {entry['avg_type']}: {entry['hist_avg']}")
             log_func(f"-- Run result: {entry['value']}")
             log_func(f"-- Delta: {entry['delta']}")
             log_func("")
             if args.produce_github_summary:
-                gh_summary.append(f"##### {entry['name']}:")
+                gh_summary.append(f"##### {entry['label']}:")
                 gh_summary.append(
                     f"- Historic {entry['avg_type']}: {entry['hist_avg']}"
                 )

@@ -1027,7 +1027,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
 
-    return ReturnValue(ILVersion.data(), ILVersion.size());
+    return ReturnValue(ILVersion.c_str());
   }
   case UR_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP: {
     // Maximum number of 32-bit registers available to a thread block.
@@ -1185,7 +1185,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_SUPPORT_EXP:
     return ReturnValue(true);
   case UR_DEVICE_INFO_KERNEL_LAUNCH_CAPABILITIES: {
-    auto LaunchPropsSupport =
+    ur_kernel_launch_properties_flags_t LaunchPropsSupport =
         UR_KERNEL_LAUNCH_PROPERTIES_FLAG_COOPERATIVE |
         UR_KERNEL_LAUNCH_PROPERTIES_FLAG_WORK_GROUP_MEMORY;
     if (getAttribute(hDevice, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR) >=
@@ -1195,7 +1195,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
           UR_KERNEL_LAUNCH_PROPERTIES_FLAG_OPPORTUNISTIC_QUEUE_SERIALIZE;
     }
 
-    return ReturnValue(0);
+    return ReturnValue(LaunchPropsSupport);
   }
   case UR_DEVICE_INFO_MEMORY_EXPORT_EXPORTABLE_DEVICE_MEM_EXP:
     return ReturnValue(false);
@@ -1239,9 +1239,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   }
   case UR_DEVICE_INFO_ENQUEUE_HOST_TASK_SUPPORT_EXP:
     return ReturnValue(static_cast<ur_bool_t>(false));
+  case UR_DEVICE_INFO_GRAPH_RECORD_AND_REPLAY_SUPPORT_EXP:
+    return ReturnValue(static_cast<ur_bool_t>(false));
   default:
-    break;
+    UR_LOG(ERR, "Unsupported ParamName in urDeviceGetInfo");
+    UR_LOG(ERR, "ParamName={}(0x{})", propName, logger::toHex(propName));
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   }
+
+  // Unreachable - all cases return, but compiler needs this
   return UR_RESULT_ERROR_INVALID_ENUMERATION;
 } catch (...) {
   return exceptionToResult(std::current_exception());

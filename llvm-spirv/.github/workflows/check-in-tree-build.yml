@@ -50,7 +50,7 @@ on:
     - cron: 0 0 * * *
 
 env:
-  LLVM_VERSION: 22
+  LLVM_VERSION: 23
 
 jobs:
   build_and_test_linux:
@@ -63,14 +63,14 @@ jobs:
           - build_type: Release
             shared_libs: EnableSharedLibs
       fail-fast: false
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     steps:
       - name: Install dependencies
         run: |
           curl -L "https://apt.llvm.org/llvm-snapshot.gpg.key" | sudo apt-key add -
           curl -L "https://packages.lunarg.com/lunarg-signing-key-pub.asc" | sudo apt-key add -
-          echo "deb https://apt.llvm.org/jammy/ llvm-toolchain-jammy main" | sudo tee -a /etc/apt/sources.list
-          echo "deb https://packages.lunarg.com/vulkan jammy main" | sudo tee -a /etc/apt/sources.list
+          echo "deb https://apt.llvm.org/noble/ llvm-toolchain-noble main" | sudo tee -a /etc/apt/sources.list
+          echo "deb https://packages.lunarg.com/vulkan noble main" | sudo tee -a /etc/apt/sources.list
           sudo apt-get update
           sudo apt-get -yq --no-install-suggests --no-install-recommends install \
             clang-${{ env.LLVM_VERSION }} \
@@ -111,7 +111,7 @@ jobs:
           cmake ${{ github.workspace }}/llvm-project/llvm \
             -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
             -DBUILD_SHARED_LIBS=${SHARED_LIBS} \
-            -DLLVM_TARGETS_TO_BUILD="X86" \
+            -DLLVM_TARGETS_TO_BUILD="X86;SPIRV" \
             -DSPIRV_SKIP_CLANG_BUILD=ON \
             -DSPIRV_SKIP_DEBUG_INFO_TESTS=ON \
             -DLLVM_LIT_ARGS="-sv --no-progress-bar" \
@@ -119,11 +119,11 @@ jobs:
       - name: Build
         run: |
           cd build
-          make llvm-spirv -j2
+          make llvm-spirv -j$(nproc)
       - name: Build tests & test
         run: |
           cd build
-          make check-llvm-spirv -j2
+          make check-llvm-spirv -j$(nproc)
 
   build_windows:
     name: Windows
@@ -160,7 +160,7 @@ jobs:
           cmake ..\\llvm-project\\llvm \
             -Thost=x64 \
             -DCMAKE_BUILD_TYPE=Release \
-            -DLLVM_TARGETS_TO_BUILD="X86" \
+            -DLLVM_TARGETS_TO_BUILD="X86;SPIRV" \
             -DSPIRV_SKIP_CLANG_BUILD=ON \
             -DSPIRV_SKIP_DEBUG_INFO_TESTS=ON \
             -DLLVM_LIT_ARGS="-sv --no-progress-bar"
@@ -210,7 +210,7 @@ jobs:
           mkdir build && cd build
           cmake ${{ github.workspace }}/llvm-project/llvm \
             -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
-            -DLLVM_TARGETS_TO_BUILD="X86" \
+            -DLLVM_TARGETS_TO_BUILD="X86;SPIRV" \
             -DSPIRV_SKIP_CLANG_BUILD=ON \
             -DSPIRV_SKIP_DEBUG_INFO_TESTS=ON \
             -DLLVM_LIT_ARGS="-sv --no-progress-bar" \
@@ -218,7 +218,7 @@ jobs:
       - name: Build
         run: |
           cd build
-          make llvm-spirv -j2
+          make llvm-spirv -j$(sysctl -n hw.logicalcpu)
           # FIXME: Testing is disabled at the moment as it requires clang to be present
           # - name: Build tests & test
           #   run: |

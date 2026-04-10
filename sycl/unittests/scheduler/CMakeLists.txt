@@ -1,7 +1,3 @@
-if(WIN32)
-  # https://github.com/intel/llvm/issues/15049
-  return()
-endif()
 add_sycl_unittest(SchedulerTests OBJECT
     BlockedCommands.cpp
     Commands.cpp

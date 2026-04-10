@@ -17,7 +17,7 @@
 #pragma once
 
 #include "queue_extensions.hpp"
-#include <ur_api.h>
+#include <unified-runtime/ur_api.h>
 
 struct ur_queue_t_ : ur_queue_extensions {
   virtual ~ur_queue_t_();
@@ -28,11 +28,6 @@ struct ur_queue_t_ : ur_queue_extensions {
                                            ur_native_handle_t *) = 0;
   virtual ur_result_t queueFinish() = 0;
   virtual ur_result_t queueFlush() = 0;
-  virtual ur_result_t
-  enqueueKernelLaunch(ur_kernel_handle_t, uint32_t, const size_t *,
-                      const size_t *, const size_t *,
-                      const ur_kernel_launch_ext_properties_t *, uint32_t,
-                      const ur_event_handle_t *, ur_event_handle_t *) = 0;
   virtual ur_result_t enqueueEventsWait(uint32_t, const ur_event_handle_t *,
                                         ur_event_handle_t *) = 0;
   virtual ur_result_t enqueueEventsWaitWithBarrier(uint32_t,
@@ -126,6 +121,11 @@ struct ur_queue_t_ : ur_queue_extensions {
                                            bool, void *, size_t, uint32_t,
                                            const ur_event_handle_t *,
                                            ur_event_handle_t *) = 0;
+  virtual ur_result_t enqueueKernelLaunchWithArgsExp(
+      ur_kernel_handle_t, uint32_t, const size_t *, const size_t *,
+      const size_t *, uint32_t, const ur_exp_kernel_arg_properties_t *,
+      const ur_kernel_launch_ext_properties_t *, uint32_t,
+      const ur_event_handle_t *, ur_event_handle_t *) = 0;
   virtual ur_result_t
   enqueueUSMDeviceAllocExp(ur_usm_pool_handle_t, const size_t,
                            const ur_exp_async_usm_alloc_properties_t *,
@@ -156,18 +156,13 @@ struct ur_queue_t_ : ur_queue_extensions {
   virtual ur_result_t bindlessImagesSignalExternalSemaphoreExp(
       ur_exp_external_semaphore_handle_t, bool, uint64_t, uint32_t,
       const ur_event_handle_t *, ur_event_handle_t *) = 0;
+  virtual ur_result_t enqueueTimestampRecordingExp(bool, uint32_t,
+                                                   const ur_event_handle_t *,
+                                                   ur_event_handle_t *) = 0;
   virtual ur_result_t enqueueCommandBufferExp(ur_exp_command_buffer_handle_t,
                                               uint32_t,
                                               const ur_event_handle_t *,
                                               ur_event_handle_t *) = 0;
-  virtual ur_result_t enqueueTimestampRecordingExp(bool, uint32_t,
-                                                   const ur_event_handle_t *,
-                                                   ur_event_handle_t *) = 0;
-  virtual ur_result_t enqueueKernelLaunchWithArgsExp(
-      ur_kernel_handle_t, uint32_t, const size_t *, const size_t *,
-      const size_t *, uint32_t, const ur_exp_kernel_arg_properties_t *,
-      const ur_kernel_launch_ext_properties_t *, uint32_t,
-      const ur_event_handle_t *, ur_event_handle_t *) = 0;
   virtual ur_result_t enqueueHostTaskExp(ur_exp_host_task_function_t, void *,
                                          const ur_exp_host_task_properties_t *,
                                          uint32_t, const ur_event_handle_t *,

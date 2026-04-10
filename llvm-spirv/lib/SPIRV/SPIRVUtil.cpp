@@ -628,6 +628,7 @@ static Type *parsePrimitiveType(LLVMContext &Ctx, StringRef Name) {
       .Cases({"long", "unsigned long"}, Type::getInt64Ty(Ctx))
       .Cases({"long long", "unsigned long long"}, Type::getInt64Ty(Ctx))
       .Case("half", Type::getHalfTy(Ctx))
+      .Case("std::bfloat16_t", Type::getBFloatTy(Ctx))
       .Case("float", Type::getFloatTy(Ctx))
       .Case("double", Type::getDoubleTy(Ctx))
       .Case("void", Type::getInt8Ty(Ctx))
@@ -807,6 +808,10 @@ parseNode(Module *M, const llvm::itanium_demangle::Node *ParamType,
       // struct types were are looking for here.
     }
   } else if (auto *VendorTy = dyn_cast<VendorExtQualType>(ParamType)) {
+    if (auto *NameTy = dyn_cast<NameType>(VendorTy->getTy())) {
+      if (NameTy->getName() == "std::bfloat16_t")
+        PointeeTy = llvm::Type::getBFloatTy(M->getContext());
+    }
     // This is a block parameter. Decode the pointee type as if it were a
     // void (*)(void) function pointer type.
     if (VendorTy->getExt() == "block_pointer") {
@@ -1575,7 +1580,7 @@ Value *getScalarOrArray(Value *V, unsigned Size, BasicBlock::iterator Pos) {
 
 Constant *getScalarOrVectorConstantInt(Type *T, uint64_t V, bool IsSigned) {
   if (auto *IT = dyn_cast<IntegerType>(T))
-    return ConstantInt::get(IT, V);
+    return ConstantInt::get(IT, V, IsSigned);
   if (auto *VT = dyn_cast<FixedVectorType>(T)) {
     std::vector<Constant *> EV(
         VT->getNumElements(),
@@ -1955,6 +1960,7 @@ bool checkTypeForSPIRVExtendedInstLowering(IntrinsicInst *II, SPIRVModule *BM) {
   case Intrinsic::fabs:
   case Intrinsic::floor:
   case Intrinsic::fma:
+  case Intrinsic::ldexp:
   case Intrinsic::log:
   case Intrinsic::log10:
   case Intrinsic::log2:
@@ -2496,6 +2502,7 @@ public:
       addUnsignedArg(3);
       break;
     case OpGroupAsyncCopy:
+      setArgAttr(2, SPIR::ATTR_CONST);
       addUnsignedArg(3);
       addUnsignedArg(4);
       break;
@@ -2639,6 +2646,9 @@ public:
     case internal::OpConvertHandleToSampledImageINTEL:
       addUnsignedArg(0);
       break;
+    case OpGenericPtrMemSemantics:
+      setArgAttr(0, SPIR::ATTR_CONST);
+      break;
     default:;
       // No special handling is needed
     }
@@ -2653,7 +2663,7 @@ class OpenCLStdToSPIRVFriendlyIRMangleInfo : public BuiltinFuncMangleInfo {
 public:
   OpenCLStdToSPIRVFriendlyIRMangleInfo(OCLExtOpKind ExtOpId,
                                        ArrayRef<Type *> ArgTys, Type *RetTy)
-      : ExtOpId(ExtOpId), ArgTys(ArgTys) {
+      : ExtOpId(ExtOpId), ArgTys(ArgTys), RetTy(RetTy) {
 
     std::string Postfix = "";
     if (needRetTypePostfix())
@@ -2669,6 +2679,11 @@ public:
     case OpenCLLIB::Vloada_halfn:
     case OpenCLLIB::Vloadn:
       return true;
+    case OpenCLLIB::Nan:
+      // Only add return type mangling for bfloat16 to disambiguate from half
+      // (both are represented as i16 in LLVM). Float and half use traditional
+      // naming for backward compatibility.
+      return RetTy->getScalarType()->isBFloatTy();
     default:
       return false;
     }
@@ -2710,6 +2725,22 @@ public:
     case OpenCLLIB::Shuffle2:
       addUnsignedArg(2);
       break;
+    case OpenCLLIB::Vloadn:
+    case OpenCLLIB::Vload_half:
+    case OpenCLLIB::Vload_halfn:
+    case OpenCLLIB::Vloada_halfn:
+      addUnsignedArg(0);
+      setArgAttr(1, SPIR::ATTR_CONST);
+      break;
+    case OpenCLLIB::Vstoren:
+    case OpenCLLIB::Vstore_half:
+    case OpenCLLIB::Vstore_half_r:
+    case OpenCLLIB::Vstore_halfn:
+    case OpenCLLIB::Vstore_halfn_r:
+    case OpenCLLIB::Vstorea_halfn:
+    case OpenCLLIB::Vstorea_halfn_r:
+      addUnsignedArg(1);
+      break;
     default:;
       // No special handling is needed
     }
@@ -2718,6 +2749,7 @@ public:
 private:
   OCLExtOpKind ExtOpId;
   ArrayRef<Type *> ArgTys;
+  Type *RetTy;
 };
 } // namespace
 

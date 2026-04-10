@@ -10,7 +10,7 @@
 #include <cstdint>
 #include <vector>
 
-#include "ur_api.h"
+#include "unified-runtime/ur_api.h"
 
 #include "common.hpp"
 #include "event.hpp"
@@ -96,7 +96,7 @@ static inline native_cpu::state getState(const native_cpu::NDRDescT &ndr) {
   return resized_state;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
+static ur_result_t urEnqueueKernelLaunch(
     ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel, uint32_t workDim,
     const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
     const size_t *pLocalWorkSize,

@@ -43,7 +43,7 @@ enum {
   DIAG_SIZE_AST = 300,
   DIAG_SIZE_COMMENT = 100,
   DIAG_SIZE_CROSSTU = 100,
-  DIAG_SIZE_SEMA = 5000,
+  DIAG_SIZE_SEMA = 8100,
   DIAG_SIZE_ANALYSIS = 100,
   DIAG_SIZE_REFACTORING = 1000,
   DIAG_SIZE_INSTALLAPI = 100,
@@ -331,6 +331,12 @@ public:
 
   /// Given a diagnostic ID, return a description of the issue.
   StringRef getDescription(unsigned DiagID) const;
+
+  /// Given a diagnostic ID, return the stable ID of the diagnostic.
+  std::string getStableID(unsigned DiagID) const;
+
+  /// Given a diagnostic ID, return the previous stable IDs of the diagnostic.
+  llvm::SmallVector<StringRef, 4> getLegacyStableIDs(unsigned DiagID) const;
 
   /// Return true if the unmapped diagnostic levelof the specified
   /// diagnostic ID is a Warning or Extension.

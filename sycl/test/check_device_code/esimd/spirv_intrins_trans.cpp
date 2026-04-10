@@ -1,8 +1,8 @@
 // RUN: %clangxx -fsycl -fsycl-device-only -S -emit-llvm -x c++ %s -o %t
 // -O0 lowering, requires `-force-disable-esimd-opt` to disable all
 // optimizations.
-// RUN: sycl-post-link -split-esimd -lower-esimd -O0 -force-disable-esimd-opt -S %t -o %t.table
-// RUN: FileCheck %s -input-file=%t_esimd_0.ll
+// RUN: sycl-post-link -split=none -split-esimd -lower-esimd -O0 -force-disable-esimd-opt -S %t -o %t.table
+// RUN: FileCheck %s -input-file=%t_0.esimd.ll
 
 // This test checks that all LLVM-IR instructions that work with SPIR-V builtins
 // are correctly translated into GenX counterparts (implemented in

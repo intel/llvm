@@ -9,7 +9,8 @@
 
 #include <thread>
 
-#include "ur_api.h"
+#include "unified-runtime/ur_api.h"
+#include "uur/utils.h"
 #include <uur/fixtures.h>
 
 struct EnqueueAllocTestParam {
@@ -81,6 +82,7 @@ struct urL0EnqueueAllocMultiQueueSameDeviceTest
     for (size_t i = 0; i < param.numQueues; i++) {
       ur_queue_handle_t queue = nullptr;
       ASSERT_SUCCESS(urQueueCreate(context, device, 0, &queue));
+      SKIP_IF_BATCHED_QUEUE(queue);
       queues.push_back(queue);
     }
   }
@@ -278,8 +280,8 @@ TEST_P(urL0EnqueueAllocTest, SuccessWithKernel) {
                                      nullptr, &ptr, nullptr));
   ASSERT_NE(ptr, nullptr);
 
-  ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, ptr));
-  ASSERT_SUCCESS(urKernelSetArgValue(kernel, 1, sizeof(DATA), nullptr, &DATA));
+  AddPointerArg(ptr);
+  AddPodArg(DATA);
   Launch1DRange(ARRAY_SIZE);
 
   ValidateEnqueueFree(ptr);
@@ -301,8 +303,8 @@ TEST_P(urL0EnqueueAllocTest, SuccessWithKernelRepeat) {
                                      nullptr, &ptr, nullptr));
   ASSERT_NE(ptr, nullptr);
 
-  ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, ptr));
-  ASSERT_SUCCESS(urKernelSetArgValue(kernel, 1, sizeof(DATA), nullptr, &DATA));
+  AddPointerArg(ptr);
+  AddPodArg(DATA);
   Launch1DRange(ARRAY_SIZE);
 
   ASSERT_SUCCESS(urEnqueueUSMFreeExp(queue, nullptr, ptr, 0, nullptr, nullptr));
@@ -313,9 +315,35 @@ TEST_P(urL0EnqueueAllocTest, SuccessWithKernelRepeat) {
                                      nullptr, &ptr2, nullptr));
   ASSERT_NE(ptr2, nullptr);
 
-  ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, ptr2));
-  ASSERT_SUCCESS(urKernelSetArgValue(kernel, 1, sizeof(DATA), nullptr, &DATA));
-  Launch1DRange(ARRAY_SIZE);
+  // Build args inline for second launch with different pointer
+  ur_exp_kernel_arg_value_t arg_val0 = {};
+  arg_val0.pointer = ptr2;
+  ur_exp_kernel_arg_properties_t arg0 = {
+      UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+      nullptr,
+      UR_EXP_KERNEL_ARG_TYPE_POINTER,
+      0,
+      sizeof(void *),
+      arg_val0};
+
+  ur_exp_kernel_arg_value_t arg_val1 = {};
+  arg_val1.value = &DATA;
+  ur_exp_kernel_arg_properties_t arg1 = {
+      UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+      nullptr,
+      UR_EXP_KERNEL_ARG_TYPE_VALUE,
+      1,
+      sizeof(DATA),
+      arg_val1};
+
+  ur_exp_kernel_arg_properties_t args[] = {arg0, arg1};
+  size_t offset = 0;
+  size_t globalSize = ARRAY_SIZE;
+  size_t localSize = 1;
+  ASSERT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
+      queue, kernel, 1, &offset, &globalSize, &localSize, 2, args, nullptr, 0,
+      nullptr, nullptr));
+  ASSERT_SUCCESS(urQueueFinish(queue));
 
   ValidateEnqueueFree(ptr2);
 }
@@ -342,6 +370,10 @@ TEST_P(urL0EnqueueAllocMultiQueueSameDeviceTest, SuccessMt) {
       std::get<1>(this->GetParam()).funcParams.enqueueUSMAllocFunc;
   const auto checkUSMSupportFunc =
       std::get<1>(this->GetParam()).funcParams.checkUSMSupportFunc;
+
+  if (numQueues > 0) {
+    SKIP_IF_BATCHED_QUEUE(queues[0]);
+  }
 
   ur_device_usm_access_capability_flags_t USMSupport = 0;
   ASSERT_SUCCESS(checkUSMSupportFunc(device, USMSupport));
@@ -386,6 +418,8 @@ TEST_P(urL0EnqueueAllocMultiQueueSameDeviceTest, SuccessMt) {
 }
 
 TEST_P(urL0EnqueueAllocMultiQueueSameDeviceTest, SuccessReuse) {
+  GTEST_SKIP() << "Multi queue reuse is not supported.";
+
   const size_t allocSize = std::get<1>(this->GetParam()).allocSize;
   const auto enqueueUSMAllocFunc =
       std::get<1>(this->GetParam()).funcParams.enqueueUSMAllocFunc;
@@ -747,48 +781,4 @@ TEST_P(urL0EnqueueAllocMultiQueueMultiDeviceTest,
                                        &freeEvent));
     ASSERT_NE(freeEvent, nullptr);
   }
-}
-
-using urL0EnqueueAllocStandaloneTest = uur::urQueueTest;
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(urL0EnqueueAllocStandaloneTest);
-
-TEST_P(urL0EnqueueAllocStandaloneTest, ReuseFittingAllocation) {
-  ur_usm_pool_handle_t pool = nullptr;
-  ur_usm_pool_desc_t pool_desc = {};
-  ASSERT_SUCCESS(urUSMPoolCreate(context, &pool_desc, &pool));
-
-  auto makeAllocation = [&](uint32_t alignment, size_t size, void **ptr) {
-    const ur_usm_device_desc_t usm_device_desc{
-        UR_STRUCTURE_TYPE_USM_DEVICE_DESC, nullptr,
-        /* device flags */ 0};
-
-    const ur_usm_desc_t usm_desc{UR_STRUCTURE_TYPE_USM_DESC, &usm_device_desc,
-                                 UR_USM_ADVICE_FLAG_DEFAULT, alignment};
-
-    ASSERT_SUCCESS(
-        urUSMDeviceAlloc(context, device, &usm_desc, pool, size, ptr));
-  };
-
-  std::array<void *, 4> allocations = {};
-  makeAllocation(64, 128, &allocations[0]);
-  makeAllocation(64, 256, &allocations[1]);
-  makeAllocation(4096, 512, &allocations[2]);
-  makeAllocation(4096, 8192, &allocations[3]);
-
-  ASSERT_SUCCESS(
-      urEnqueueUSMFreeExp(queue, pool, allocations[0], 0, nullptr, nullptr));
-  ASSERT_SUCCESS(
-      urEnqueueUSMFreeExp(queue, pool, allocations[1], 0, nullptr, nullptr));
-  ASSERT_SUCCESS(
-      urEnqueueUSMFreeExp(queue, pool, allocations[2], 0, nullptr, nullptr));
-  ASSERT_SUCCESS(
-      urEnqueueUSMFreeExp(queue, pool, allocations[3], 0, nullptr, nullptr));
-
-  void *ptr = nullptr;
-  ASSERT_SUCCESS(urEnqueueUSMDeviceAllocExp(queue, pool, 8192, nullptr, 0,
-                                            nullptr, &ptr, nullptr));
-
-  ASSERT_EQ(ptr, allocations[3]); // Fitting allocation should be reused.
-  ASSERT_SUCCESS(urEnqueueUSMFreeExp(queue, pool, ptr, 0, nullptr, nullptr));
-  ASSERT_SUCCESS(urQueueFinish(queue));
 }

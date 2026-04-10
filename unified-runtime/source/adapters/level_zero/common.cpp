@@ -239,7 +239,7 @@ template <> ze_structure_type_t getZeStructureType<ze_driver_properties_t>() {
   return ZE_STRUCTURE_TYPE_DRIVER_PROPERTIES;
 }
 template <> ze_structure_type_t getZeStructureType<ze_device_properties_t>() {
-  return ZE_STRUCTURE_TYPE_DEVICE_PROPERTIES;
+  return ZE_STRUCTURE_TYPE_DEVICE_PROPERTIES_1_2;
 }
 template <>
 ze_structure_type_t getZeStructureType<ze_device_p2p_properties_t>() {
@@ -273,6 +273,13 @@ template <>
 ze_structure_type_t getZeStructureType<ze_device_memory_ext_properties_t>() {
   return ZE_STRUCTURE_TYPE_DEVICE_MEMORY_EXT_PROPERTIES;
 }
+#ifdef ZE_DEVICE_USABLEMEM_SIZE_PROPERTIES_EXT_NAME
+template <>
+ze_structure_type_t
+getZeStructureType<ze_device_usablemem_size_ext_properties_t>() {
+  return ZE_STRUCTURE_TYPE_DEVICE_USABLEMEM_SIZE_EXT_PROPERTIES;
+}
+#endif
 template <>
 ze_structure_type_t getZeStructureType<ze_device_ip_version_ext_t>() {
   return ZE_STRUCTURE_TYPE_DEVICE_IP_VERSION_EXT;

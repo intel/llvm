@@ -366,9 +366,10 @@ its enabled sub-projects. Nearly all of these variable names begin with
   ``LLVM_ENABLE_SPHINX`` and ``LLVM_ENABLE_DOXYGEN``.
 
 **LLVM_BUILD_EXAMPLES**:BOOL
-  Build LLVM examples. Defaults to OFF. Targets for building each example are
-  generated in any case. See documentation for *LLVM_BUILD_TOOLS* above for more
-  details.
+  Include LLVM examples in the 'all' build target and install them as part of
+  the ``install`` target. Defaults to OFF. Targets for building examples are
+  still generated, this is controlled by *LLVM_INCLUDE_EXAMPLES*. Note that some
+  examples might still be built as dependencies for tests.
 
 **LLVM_BUILD_INSTRUMENTED_COVERAGE**:BOOL
   If enabled, `source-based code coverage
@@ -642,6 +643,11 @@ its enabled sub-projects. Nearly all of these variable names begin with
 
 **LLVM_ENABLE_WARNINGS**:BOOL
   Enable all compiler warnings. Defaults to ON.
+
+**LLVM_ENABLE_WARNING_SUPPRESSIONS**:BOOL
+  Suppress specific compiler warnings. When disabled, this
+  prevents suppressing warnings with flags such as MSVC's ``-wd`` or GCC/Clang's ``-Wno-...``.
+  Defaults to ON.
 
 **LLVM_ENABLE_WERROR**:BOOL
   Stop and fail the build, if a compiler warning is triggered. Defaults to OFF.

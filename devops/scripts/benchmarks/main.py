@@ -10,14 +10,13 @@ import re
 import statistics
 import os
 
-from benches.compute import *
+from benches.compute.compute import *
 from benches.gromacs import GromacsBench
 from benches.velocity import VelocityBench
 from benches.syclbench import *
 from benches.llamacpp import *
 from benches.umf import *
 from benches.benchdnn import OneDnnBench
-from benches.base import TracingType
 from options import Compare, options
 from output_markdown import generate_markdown
 from output_html import generate_html
@@ -98,7 +97,7 @@ def run_iterations(
     iters: int,
     results: dict[str, list[Result]],
     failures: dict[str, str],
-    run_trace: TracingType = TracingType.NONE,
+    flamegraph_enabled: bool = False,
     force_trace: bool = False,
 ) -> bool:
     """
@@ -110,7 +109,7 @@ def run_iterations(
     for iter in range(iters):
         try:
             bench_results = benchmark.run(
-                env_vars, run_trace=run_trace, force_trace=force_trace
+                env_vars, flamegraph_enabled=flamegraph_enabled, force_trace=force_trace
             )
             if bench_results is None:
                 if options.exit_on_failure:
@@ -121,9 +120,8 @@ def run_iterations(
 
             for bench_result in bench_results:
                 log.info(
-                    f"{benchmark.name()} complete ({bench_result.label}: {bench_result.value:.3f} {bench_result.unit})."
+                    f"{benchmark.name()} complete: {bench_result.value:.3f} {bench_result.unit}."
                 )
-                bench_result.name = bench_result.label
                 bench_result.lower_is_better = benchmark.lower_is_better()
                 bench_result.suite = benchmark.get_suite_name()
 
@@ -241,18 +239,32 @@ def collect_metadata(suites):
     return metadata
 
 
+def filter_benchmarks(
+    suites: list[Suite], filter: re.Pattern | None = None
+) -> list[Benchmark]:
+    filtered_benchmarks = []
+    for suite in suites:
+        if suite.name() not in enabled_suites(options.preset):
+            continue
+        suite_benchmarks = [
+            benchmark for benchmark in suite.benchmarks() if benchmark.enabled()
+        ]
+        if filter:
+            suite_benchmarks = [
+                benchmark
+                for benchmark in suite_benchmarks
+                if filter.search(benchmark.name())
+            ]
+        filtered_benchmarks.extend(suite_benchmarks)
+
+    return filtered_benchmarks
+
+
 def main(directory, additional_env_vars, compare_names, filter, execution_stats):
     prepare_workdir(directory, INTERNAL_WORKDIR_VERSION)
 
     if options.dry_run:
         log.info("Dry run mode enabled. No benchmarks will be executed.")
-
-    options.unitrace = args.unitrace is not None
-
-    if options.unitrace and options.save_name is None:
-        raise ValueError(
-            "Unitrace requires a save name to be specified via --save option."
-        )
 
     if options.flamegraph and options.save_name is None:
         raise ValueError(
@@ -280,7 +292,10 @@ def main(directory, additional_env_vars, compare_names, filter, execution_stats)
     # Collect metadata from all benchmarks without setting them up
     metadata = collect_metadata(suites)
 
-    # If dry run, we're done
+    if options.list_benchmarks:
+        log.info("List of filtered benchmarks:")
+        for benchmark in filter_benchmarks(suites, filter):
+            log.info(benchmark.name())
     if options.dry_run:
         suites = []
 
@@ -288,25 +303,7 @@ def main(directory, additional_env_vars, compare_names, filter, execution_stats)
     failures = {}
 
     for suite in suites:
-        if suite.name() not in enabled_suites(options.preset):
-            continue
-
-        # Filter out benchmarks with filter given by user
-        suite_benchmarks = [
-            benchmark for benchmark in suite.benchmarks() if benchmark.enabled()
-        ]
-        if filter:
-            log.debug(
-                f"All benchmarks in suite '{suite.name()}' ({len(suite_benchmarks)}):\n"
-                + "\n".join([b.name() for b in suite_benchmarks])
-            )
-            log.debug(f"Filtering '{suite.name()}' suite for: '{filter.pattern}'")
-            suite_benchmarks = [
-                benchmark
-                for benchmark in suite_benchmarks
-                if filter.search(benchmark.name())
-            ]
-
+        suite_benchmarks = filter_benchmarks([suite], filter)
         if suite_benchmarks:
             log.info(f"Setting up {type(suite).__name__}")
             try:
@@ -351,14 +348,11 @@ def main(directory, additional_env_vars, compare_names, filter, execution_stats)
             processed: list[Result] = []
             iterations_rc = False
 
-            # Determine if we should run regular benchmarks
-            # Run regular benchmarks if:
+            # Run regular benchmarks only if:
             # - No tracing options specified, OR
             # - Any tracing option is set to "inclusive"
             should_run_regular = (
-                not options.unitrace
-                and not options.flamegraph  # No tracing options
-                or args.unitrace == "inclusive"  # Unitrace inclusive
+                not options.flamegraph  # No tracing options
                 or args.flamegraph == "inclusive"  # Flamegraph inclusive
             )
 
@@ -370,7 +364,7 @@ def main(directory, additional_env_vars, compare_names, filter, execution_stats)
                         options.iterations,
                         intermediate_results,
                         failures,
-                        run_trace=TracingType.NONE,
+                        flamegraph_enabled=False,
                     )
                     valid, processed = process_results(
                         intermediate_results,
@@ -380,23 +374,9 @@ def main(directory, additional_env_vars, compare_names, filter, execution_stats)
                     if valid:
                         break
 
-            # single unitrace run independent of benchmark iterations (if unitrace enabled)
-            if options.unitrace and (
-                benchmark.traceable(TracingType.UNITRACE) or args.unitrace == "force"
-            ):
-                iterations_rc = run_iterations(
-                    benchmark,
-                    merged_env_vars,
-                    1,
-                    intermediate_results,
-                    failures,
-                    run_trace=TracingType.UNITRACE,
-                    force_trace=(args.unitrace == "force"),
-                )
             # single flamegraph run independent of benchmark iterations (if flamegraph enabled)
             if options.flamegraph and (
-                benchmark.traceable(TracingType.FLAMEGRAPH)
-                or args.flamegraph == "force"
+                benchmark.traceable() or args.flamegraph == "force"
             ):
                 iterations_rc = run_iterations(
                     benchmark,
@@ -404,7 +384,7 @@ def main(directory, additional_env_vars, compare_names, filter, execution_stats)
                     1,
                     intermediate_results,
                     failures,
-                    run_trace=TracingType.FLAMEGRAPH,
+                    flamegraph_enabled=True,
                     force_trace=(args.flamegraph == "force"),
                 )
 
@@ -511,20 +491,25 @@ def validate_and_parse_env_args(env_args):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Unified Runtime Benchmark Runner")
+    parser = argparse.ArgumentParser(description="SYCL and UR Benchmark Runner")
     parser.add_argument(
         "benchmark_directory", type=str, help="Working directory to setup benchmarks."
     )
     parser.add_argument(
         "--sycl", type=str, help="Root directory of the SYCL compiler.", default=None
     )
-    parser.add_argument("--ur", type=str, help="UR install prefix path", default=None)
     parser.add_argument("--umf", type=str, help="UMF install prefix path", default=None)
     parser.add_argument(
         "--adapter",
         type=str,
         help="Unified Runtime adapter to use.",
         default="level_zero",
+    )
+    parser.add_argument(
+        "--offline",
+        help="Skip rebuilding projects, oneAPI updates, and benchmark data downloads.",
+        action="store_true",
+        default=False,
     )
     parser.add_argument(
         "--redownload",
@@ -540,7 +525,12 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--save",
-        type=str,
+        type=lambda save: Validate.clean_name(
+            save,
+            throw=argparse.ArgumentTypeError(
+                "Specified save name is not within characters [a-zA-Z0-9_-]."
+            ),
+        ),
         help="Save the results for comparison under a specified name.",
     )
     parser.add_argument(
@@ -623,6 +613,12 @@ if __name__ == "__main__":
         default=False,
     )
     parser.add_argument(
+        "--list",
+        help="List all benchmark names with respect to --filter and --preset",
+        action="store_true",
+        default=False,
+    )
+    parser.add_argument(
         "--compute-runtime",
         nargs="?",
         const=options.compute_runtime_tag,
@@ -676,14 +672,6 @@ if __name__ == "__main__":
         type=str,
         help="HIP device architecture",
         default=None,
-    )
-    parser.add_argument(
-        "--unitrace",
-        nargs="?",
-        const="exclusive",
-        default=None,
-        help='Unitrace logs generation. "exclusive" omits regular benchmarks doing only trace generation - this is default and can be omitted. "inclusive" generation is done along regular benchmarks. "force" is same as exclusive but ignores traceable() method.',
-        choices=["exclusive", "inclusive", "force"],
     )
     parser.add_argument(
         "--flamegraph",
@@ -787,11 +775,11 @@ if __name__ == "__main__":
     additional_env_vars = validate_and_parse_env_args(args.env)
 
     options.workdir = args.benchmark_directory
+    options.offline = args.offline
     options.redownload = args.redownload
     options.sycl = args.sycl
     options.iterations = args.iterations
     options.timeout = args.timeout
-    options.ur = args.ur
     options.ur_adapter = args.adapter
     options.exit_on_failure = args.exit_on_failure
     options.save_name = args.save
@@ -801,6 +789,7 @@ if __name__ == "__main__":
     if args.output_html is not None:
         options.output_html = args.output_html
     options.dry_run = args.dry_run
+    options.list_benchmarks = args.list
     options.umf = args.umf
     options.iterations_stddev = args.iterations_stddev
     options.stddev_threshold = args.stddev_threshold

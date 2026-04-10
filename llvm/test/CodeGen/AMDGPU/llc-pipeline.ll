@@ -21,15 +21,13 @@
 ; GCN-O0-NEXT:Library Function Lowering Analysis
 ; GCN-O0-NEXT:Assumption Cache Tracker
 ; GCN-O0-NEXT:Profile summary info
-; GCN-O0-NEXT:Argument Register Usage Information Storage
 ; GCN-O0-NEXT:Create Garbage Collector Module Metadata
 ; GCN-O0-NEXT:Register Usage Information Storage
 ; GCN-O0-NEXT:Machine Branch Probability Analysis
 ; GCN-O0-NEXT:  ModulePass Manager
 ; GCN-O0-NEXT:    Pre-ISel Intrinsic Lowering
 ; GCN-O0-NEXT:    FunctionPass Manager
-; GCN-O0-NEXT:      Expand large div/rem
-; GCN-O0-NEXT:      Expand fp
+; GCN-O0-NEXT:      Expand IR instructions
 ; GCN-O0-NEXT:    AMDGPU Remove Incompatible Functions
 ; GCN-O0-NEXT:    AMDGPU Printf lowering
 ; GCN-O0-NEXT:    Lower ctors and dtors for AMDGPU
@@ -59,6 +57,7 @@
 ; GCN-O0-NEXT:    SYCL Add Implicit Global Offset
 ; GCN-O0-NEXT:    FunctionPass Manager
 ; GCN-O0-NEXT:      FPBuiltin Function Selection
+; GCN-O0-NEXT:      Dominator Tree Construction
 ; GCN-O0-NEXT:      AMDGPU Lower Kernel Arguments
 ; GCN-O0-NEXT:    Lower buffer fat pointer operations to buffer resources
 ; GCN-O0-NEXT:    AMDGPU lower intrinsics
@@ -99,7 +98,7 @@
 ; GCN-O0-NEXT:    Call Graph SCC Pass Manager
 ; GCN-O0-NEXT:      DummyCGSCCPass
 ; GCN-O0-NEXT:      FunctionPass Manager
-; GCN-O0-NEXT:        Prepare callbr
+; GCN-O0-NEXT:        Prepare inline asm insts
 ; GCN-O0-NEXT:        Safe Stack instrumentation pass
 ; GCN-O0-NEXT:        Insert stack protectors
 ; GCN-O0-NEXT:        Dominator Tree Construction
@@ -178,7 +177,6 @@
 ; GCN-O1-NEXT:External Alias Analysis
 ; GCN-O1-NEXT:Type-Based Alias Analysis
 ; GCN-O1-NEXT:Scoped NoAlias Alias Analysis
-; GCN-O1-NEXT:Argument Register Usage Information Storage
 ; GCN-O1-NEXT:Create Garbage Collector Module Metadata
 ; GCN-O1-NEXT:Machine Branch Probability Analysis
 ; GCN-O1-NEXT:Register Usage Information Storage
@@ -187,8 +185,7 @@
 ; GCN-O1-NEXT:  ModulePass Manager
 ; GCN-O1-NEXT:    Pre-ISel Intrinsic Lowering
 ; GCN-O1-NEXT:    FunctionPass Manager
-; GCN-O1-NEXT:      Expand large div/rem
-; GCN-O1-NEXT:      Expand fp
+; GCN-O1-NEXT:      Expand IR instructions
 ; GCN-O1-NEXT:    AMDGPU Remove Incompatible Functions
 ; GCN-O1-NEXT:    AMDGPU Printf lowering
 ; GCN-O1-NEXT:    Lower ctors and dtors for AMDGPU
@@ -254,8 +251,8 @@
 ; GCN-O1-NEXT:      FPBuiltin Function Selection
 ; GCN-O1-NEXT:    AMDGPU Preload Kernel Arguments
 ; GCN-O1-NEXT:    FunctionPass Manager
-; GCN-O1-NEXT:      AMDGPU Lower Kernel Arguments
 ; GCN-O1-NEXT:      Dominator Tree Construction
+; GCN-O1-NEXT:      AMDGPU Lower Kernel Arguments
 ; GCN-O1-NEXT:      Natural Loop Information
 ; GCN-O1-NEXT:      CodeGen Prepare
 ; GCN-O1-NEXT:    Lower buffer fat pointer operations to buffer resources
@@ -311,7 +308,7 @@
 ; GCN-O1-NEXT:        Basic Alias Analysis (stateless AA impl)
 ; GCN-O1-NEXT:        Function Alias Analysis Results
 ; GCN-O1-NEXT:        ObjC ARC contraction
-; GCN-O1-NEXT:        Prepare callbr
+; GCN-O1-NEXT:        Prepare inline asm insts
 ; GCN-O1-NEXT:        Safe Stack instrumentation pass
 ; GCN-O1-NEXT:        Insert stack protectors
 ; GCN-O1-NEXT:        Cycle Info Analysis
@@ -476,7 +473,6 @@
 ; GCN-O1-OPTS-NEXT:External Alias Analysis
 ; GCN-O1-OPTS-NEXT:Type-Based Alias Analysis
 ; GCN-O1-OPTS-NEXT:Scoped NoAlias Alias Analysis
-; GCN-O1-OPTS-NEXT:Argument Register Usage Information Storage
 ; GCN-O1-OPTS-NEXT:Create Garbage Collector Module Metadata
 ; GCN-O1-OPTS-NEXT:Machine Branch Probability Analysis
 ; GCN-O1-OPTS-NEXT:Register Usage Information Storage
@@ -485,8 +481,7 @@
 ; GCN-O1-OPTS-NEXT:  ModulePass Manager
 ; GCN-O1-OPTS-NEXT:    Pre-ISel Intrinsic Lowering
 ; GCN-O1-OPTS-NEXT:    FunctionPass Manager
-; GCN-O1-OPTS-NEXT:      Expand large div/rem
-; GCN-O1-OPTS-NEXT:      Expand fp
+; GCN-O1-OPTS-NEXT:      Expand IR instructions
 ; GCN-O1-OPTS-NEXT:    AMDGPU Remove Incompatible Functions
 ; GCN-O1-OPTS-NEXT:    AMDGPU Printf lowering
 ; GCN-O1-OPTS-NEXT:    Lower ctors and dtors for AMDGPU
@@ -566,8 +561,8 @@
 ; GCN-O1-OPTS-NEXT:      FPBuiltin Function Selection
 ; GCN-O1-OPTS-NEXT:    AMDGPU Preload Kernel Arguments
 ; GCN-O1-OPTS-NEXT:    FunctionPass Manager
-; GCN-O1-OPTS-NEXT:      AMDGPU Lower Kernel Arguments
 ; GCN-O1-OPTS-NEXT:      Dominator Tree Construction
+; GCN-O1-OPTS-NEXT:      AMDGPU Lower Kernel Arguments
 ; GCN-O1-OPTS-NEXT:      Natural Loop Information
 ; GCN-O1-OPTS-NEXT:      CodeGen Prepare
 ; GCN-O1-OPTS-NEXT:      Dominator Tree Construction
@@ -629,7 +624,7 @@
 ; GCN-O1-OPTS-NEXT:        Basic Alias Analysis (stateless AA impl)
 ; GCN-O1-OPTS-NEXT:        Function Alias Analysis Results
 ; GCN-O1-OPTS-NEXT:        ObjC ARC contraction
-; GCN-O1-OPTS-NEXT:        Prepare callbr
+; GCN-O1-OPTS-NEXT:        Prepare inline asm insts
 ; GCN-O1-OPTS-NEXT:        Safe Stack instrumentation pass
 ; GCN-O1-OPTS-NEXT:        Insert stack protectors
 ; GCN-O1-OPTS-NEXT:        Cycle Info Analysis
@@ -671,7 +666,6 @@
 ; GCN-O1-OPTS-NEXT:        GCN DPP Combine
 ; GCN-O1-OPTS-NEXT:        SI Load Store Optimizer
 ; GCN-O1-OPTS-NEXT:        SI Peephole SDWA
-; GCN-O1-OPTS-NEXT:        Machine Block Frequency Analysis
 ; GCN-O1-OPTS-NEXT:        MachineDominator Tree Construction
 ; GCN-O1-OPTS-NEXT:        Early Machine Loop Invariant Code Motion
 ; GCN-O1-OPTS-NEXT:        MachineDominator Tree Construction
@@ -802,7 +796,6 @@
 ; GCN-O2-NEXT:External Alias Analysis
 ; GCN-O2-NEXT:Type-Based Alias Analysis
 ; GCN-O2-NEXT:Scoped NoAlias Alias Analysis
-; GCN-O2-NEXT:Argument Register Usage Information Storage
 ; GCN-O2-NEXT:Create Garbage Collector Module Metadata
 ; GCN-O2-NEXT:Machine Branch Probability Analysis
 ; GCN-O2-NEXT:Register Usage Information Storage
@@ -811,8 +804,7 @@
 ; GCN-O2-NEXT:  ModulePass Manager
 ; GCN-O2-NEXT:    Pre-ISel Intrinsic Lowering
 ; GCN-O2-NEXT:    FunctionPass Manager
-; GCN-O2-NEXT:      Expand large div/rem
-; GCN-O2-NEXT:      Expand fp
+; GCN-O2-NEXT:      Expand IR instructions
 ; GCN-O2-NEXT:    AMDGPU Remove Incompatible Functions
 ; GCN-O2-NEXT:    AMDGPU Printf lowering
 ; GCN-O2-NEXT:    Lower ctors and dtors for AMDGPU
@@ -895,8 +887,8 @@
 ; GCN-O2-NEXT:      FPBuiltin Function Selection
 ; GCN-O2-NEXT:    AMDGPU Preload Kernel Arguments
 ; GCN-O2-NEXT:    FunctionPass Manager
-; GCN-O2-NEXT:      AMDGPU Lower Kernel Arguments
 ; GCN-O2-NEXT:      Dominator Tree Construction
+; GCN-O2-NEXT:      AMDGPU Lower Kernel Arguments
 ; GCN-O2-NEXT:      Natural Loop Information
 ; GCN-O2-NEXT:      CodeGen Prepare
 ; GCN-O2-NEXT:      Dominator Tree Construction
@@ -959,7 +951,7 @@
 ; GCN-O2-NEXT:        Basic Alias Analysis (stateless AA impl)
 ; GCN-O2-NEXT:        Function Alias Analysis Results
 ; GCN-O2-NEXT:        ObjC ARC contraction
-; GCN-O2-NEXT:        Prepare callbr
+; GCN-O2-NEXT:        Prepare inline asm insts
 ; GCN-O2-NEXT:        Safe Stack instrumentation pass
 ; GCN-O2-NEXT:        Insert stack protectors
 ; GCN-O2-NEXT:        Cycle Info Analysis
@@ -1001,7 +993,6 @@
 ; GCN-O2-NEXT:        GCN DPP Combine
 ; GCN-O2-NEXT:        SI Load Store Optimizer
 ; GCN-O2-NEXT:        SI Peephole SDWA
-; GCN-O2-NEXT:        Machine Block Frequency Analysis
 ; GCN-O2-NEXT:        MachineDominator Tree Construction
 ; GCN-O2-NEXT:        Early Machine Loop Invariant Code Motion
 ; GCN-O2-NEXT:        MachineDominator Tree Construction
@@ -1133,7 +1124,6 @@
 ; GCN-O3-NEXT:External Alias Analysis
 ; GCN-O3-NEXT:Type-Based Alias Analysis
 ; GCN-O3-NEXT:Scoped NoAlias Alias Analysis
-; GCN-O3-NEXT:Argument Register Usage Information Storage
 ; GCN-O3-NEXT:Create Garbage Collector Module Metadata
 ; GCN-O3-NEXT:Machine Branch Probability Analysis
 ; GCN-O3-NEXT:Register Usage Information Storage
@@ -1142,8 +1132,7 @@
 ; GCN-O3-NEXT:  ModulePass Manager
 ; GCN-O3-NEXT:    Pre-ISel Intrinsic Lowering
 ; GCN-O3-NEXT:    FunctionPass Manager
-; GCN-O3-NEXT:      Expand large div/rem
-; GCN-O3-NEXT:      Expand fp
+; GCN-O3-NEXT:      Expand IR instructions
 ; GCN-O3-NEXT:    AMDGPU Remove Incompatible Functions
 ; GCN-O3-NEXT:    AMDGPU Printf lowering
 ; GCN-O3-NEXT:    Lower ctors and dtors for AMDGPU
@@ -1239,8 +1228,8 @@
 ; GCN-O3-NEXT:      FPBuiltin Function Selection
 ; GCN-O3-NEXT:    AMDGPU Preload Kernel Arguments
 ; GCN-O3-NEXT:    FunctionPass Manager
-; GCN-O3-NEXT:      AMDGPU Lower Kernel Arguments
 ; GCN-O3-NEXT:      Dominator Tree Construction
+; GCN-O3-NEXT:      AMDGPU Lower Kernel Arguments
 ; GCN-O3-NEXT:      Natural Loop Information
 ; GCN-O3-NEXT:      CodeGen Prepare
 ; GCN-O3-NEXT:      Dominator Tree Construction
@@ -1303,7 +1292,7 @@
 ; GCN-O3-NEXT:        Basic Alias Analysis (stateless AA impl)
 ; GCN-O3-NEXT:        Function Alias Analysis Results
 ; GCN-O3-NEXT:        ObjC ARC contraction
-; GCN-O3-NEXT:        Prepare callbr
+; GCN-O3-NEXT:        Prepare inline asm insts
 ; GCN-O3-NEXT:        Safe Stack instrumentation pass
 ; GCN-O3-NEXT:        Insert stack protectors
 ; GCN-O3-NEXT:        Cycle Info Analysis
@@ -1345,7 +1334,6 @@
 ; GCN-O3-NEXT:        GCN DPP Combine
 ; GCN-O3-NEXT:        SI Load Store Optimizer
 ; GCN-O3-NEXT:        SI Peephole SDWA
-; GCN-O3-NEXT:        Machine Block Frequency Analysis
 ; GCN-O3-NEXT:        MachineDominator Tree Construction
 ; GCN-O3-NEXT:        Early Machine Loop Invariant Code Motion
 ; GCN-O3-NEXT:        MachineDominator Tree Construction

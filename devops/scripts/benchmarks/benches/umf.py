@@ -1,4 +1,4 @@
-# Copyright (C) 2024-2025 Intel Corporation
+# Copyright (C) 2024-2026 Intel Corporation
 # Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -8,7 +8,7 @@ import csv
 import io
 import re
 
-from .base import Benchmark, Suite, TracingType
+from .base import Benchmark, Suite
 from utils.result import Result
 from options import options
 from utils.oneapi import get_oneapi
@@ -136,7 +136,7 @@ class GBench(Benchmark):
     def run(
         self,
         env_vars,
-        run_trace: TracingType = TracingType.NONE,
+        flamegraph_enabled: bool = False,
         force_trace: bool = False,
     ) -> list[Result]:
         command = [f"{self.benchmark_bin}"]
@@ -144,6 +144,7 @@ class GBench(Benchmark):
         all_names = self.get_names_of_benchmarks_to_be_run(command, env_vars)
 
         command += self.bin_args()
+        env_vars = dict(env_vars) if env_vars else {}
         env_vars.update(self.extra_env_vars())
 
         results = []

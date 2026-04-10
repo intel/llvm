@@ -1,4 +1,4 @@
-# Copyright (C) 2025 Intel Corporation
+# Copyright (C) 2025-2026 Intel Corporation
 # Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -7,7 +7,7 @@ import os
 from pathlib import Path
 import re
 
-from .base import Suite, Benchmark, TracingType
+from .base import Suite, Benchmark
 from options import options
 from utils.utils import download, run
 from utils.result import Result
@@ -64,6 +64,9 @@ class GromacsBench(Suite):
         # TODO: Detect the GPU architecture and set the appropriate flags
 
         # Build GROMACS
+        if options.offline:
+            log.info(f"Rebuilding {self.project.name} skipped")
+            return
 
         self.oneapi = get_oneapi()
 
@@ -80,9 +83,6 @@ class GromacsBench(Suite):
             "-DGMX_GPU_NB_NUM_CLUSTER_PER_CELL_X=1",
             "-DGMX_OPENMP=OFF",
         ]
-
-        if options.unitrace:
-            extra_args.append("-DGMX_USE_ITT=ON")
 
         if self.project.needs_rebuild():
             self.project.configure(extra_args, add_sycl=True)
@@ -170,11 +170,12 @@ class GromacsBenchmark(Benchmark):
     def run(
         self,
         env_vars,
-        run_trace: TracingType = TracingType.NONE,
+        flamegraph_enabled: bool = False,
         force_trace: bool = False,
     ) -> list[Result]:
         model_dir = self.grappa_dir / self.model
 
+        env_vars = dict(env_vars) if env_vars else {}
         env_vars.update({"SYCL_CACHE_PERSISTENT": "1"})
 
         if self.option == "graphs":

@@ -21,15 +21,16 @@ def do_configure(args, passthrough_args):
     if not os.path.isdir(abs_obj_dir):
         os.makedirs(abs_obj_dir)
 
-    llvm_external_projects = "sycl;llvm-spirv;opencl;xpti;xptifw;compiler-rt"
+    llvm_enable_runtimes = ""
+    llvm_external_projects = "sycl;llvm-spirv;opencl;xpti;xptifw;"
 
     # libdevice build requires a working SYCL toolchain, which is not the case
     # with macOS target right now.
     if sys.platform != "darwin":
         llvm_external_projects += ";libdevice"
 
-    libclc_amd_target_names = ";amdgcn--amdhsa"
-    libclc_nvidia_target_names = ";nvptx64--nvidiacl"
+    libclc_amd_target_names = ";amdgcn-amd-amdhsa"
+    libclc_nvidia_target_names = ";nvptx64-nvidia-cuda"
 
     sycl_enable_jit = "OFF"
     if not args.disable_jit and sys.platform != "darwin":
@@ -50,8 +51,7 @@ def do_configure(args, passthrough_args):
     llvm_enable_projects = "clang;" + llvm_external_projects
     libclc_build_native = "OFF"
     libclc_targets_to_build = ""
-    libclc_gen_remangled_variants = "OFF"
-    sycl_build_pi_hip_platform = "AMD"
+    sycl_build_ur_hip_platform = "AMD"
     sycl_clang_extra_flags = ""
     sycl_werror = "OFF"
     llvm_enable_assertions = "ON"
@@ -90,7 +90,6 @@ def do_configure(args, passthrough_args):
     if args.cuda:
         llvm_targets_to_build += ";NVPTX"
         libclc_targets_to_build = libclc_nvidia_target_names
-        libclc_gen_remangled_variants = "ON"
         sycl_enabled_backends.append("cuda")
 
     if args.hip:
@@ -101,9 +100,8 @@ def do_configure(args, passthrough_args):
         elif args.hip_platform == "NVIDIA" and not args.cuda:
             llvm_targets_to_build += ";NVPTX"
             libclc_targets_to_build += libclc_nvidia_target_names
-        libclc_gen_remangled_variants = "ON"
 
-        sycl_build_pi_hip_platform = args.hip_platform
+        sycl_build_ur_hip_platform = args.hip_platform
         sycl_enabled_backends.append("hip")
 
     if args.native_cpu:
@@ -111,7 +109,6 @@ def do_configure(args, passthrough_args):
             libclc_targets_to_build += ";" + args.native_cpu_libclc_targets
         else:
             libclc_build_native = "ON"
-        libclc_gen_remangled_variants = "ON"
         sycl_enabled_backends.append("native_cpu")
 
     # all llvm compiler targets don't require 3rd party dependencies, so can be
@@ -147,7 +144,8 @@ def do_configure(args, passthrough_args):
             print("#############################################")
 
         # For clang-format, clang-tidy and code coverage
-        llvm_enable_projects += ";clang-tools-extra;compiler-rt"
+        llvm_enable_projects += ";clang-tools-extra"
+        llvm_enable_runtimes += "compiler-rt"
         if sys.platform != "darwin":
             # libclc is required for CI validation
             libclc_enabled = True
@@ -156,15 +154,9 @@ def do_configure(args, passthrough_args):
             # libclc passes `--nvvm-reflect-enable=false`, build NVPTX to enable it
             if "NVPTX" not in llvm_targets_to_build:
                 llvm_targets_to_build += ";NVPTX"
-            # since we are building AMD libclc target we must have AMDGPU target
-            if "AMDGPU" not in llvm_targets_to_build:
-                llvm_targets_to_build += ";AMDGPU"
-            # Add both NVIDIA and AMD libclc targets
-            if libclc_amd_target_names not in libclc_targets_to_build:
-                libclc_targets_to_build += libclc_amd_target_names
+            # Add NVIDIA libclc targets
             if libclc_nvidia_target_names not in libclc_targets_to_build:
                 libclc_targets_to_build += libclc_nvidia_target_names
-            libclc_gen_remangled_variants = "ON"
             spirv_enable_dis = "ON"
 
     if args.enable_backends:
@@ -195,7 +187,7 @@ def do_configure(args, passthrough_args):
         "-DLLVM_EXTERNAL_LIBDEVICE_SOURCE_DIR={}".format(libdevice_dir),
         "-DLLVM_EXTERNAL_SYCL_JIT_SOURCE_DIR={}".format(jit_dir),
         "-DLLVM_ENABLE_PROJECTS={}".format(llvm_enable_projects),
-        "-DSYCL_BUILD_PI_HIP_PLATFORM={}".format(sycl_build_pi_hip_platform),
+        "-DSYCL_BUILD_UR_HIP_PLATFORM={}".format(sycl_build_ur_hip_platform),
         "-DLLVM_BUILD_TOOLS=ON",
         "-DLLVM_ENABLE_ZSTD={}".format(llvm_enable_zstd),
         "-DLLVM_USE_STATIC_ZSTD=ON",
@@ -215,6 +207,14 @@ def do_configure(args, passthrough_args):
         "-DSYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB={}".format(sycl_preview_lib),
         "-DBUG_REPORT_URL=https://github.com/intel/llvm/issues",
     ]
+
+    if llvm_enable_runtimes:
+        cmake_cmd.extend(
+            [
+                "-DLLVM_ENABLE_RUNTIMES={}".format(llvm_enable_runtimes),
+            ]
+        )
+
     if args.offload:
         cmake_cmd.extend(
             [
@@ -222,13 +222,19 @@ def do_configure(args, passthrough_args):
             ]
         )
 
+        if args.liboffload_path:
+            liboffload_path = os.path.abspath(args.liboffload_path)
+            cmake_cmd.extend(
+                [
+                    f"-DUR_OFFLOAD_INSTALL_DIR={liboffload_path}",
+                    f"-DUR_OFFLOAD_INCLUDE_DIR={os.path.join(liboffload_path, 'include')}",
+                ]
+            )
+
     if libclc_enabled:
         cmake_cmd.extend(
             [
                 "-DLIBCLC_TARGETS_TO_BUILD={}".format(libclc_targets_to_build),
-                "-DLIBCLC_GENERATE_REMANGLED_VARIANTS={}".format(
-                    libclc_gen_remangled_variants
-                ),
                 "-DLIBCLC_NATIVECPU_HOST_TARGET={}".format(libclc_build_native),
             ]
         )
@@ -355,6 +361,11 @@ def main():
         "--offload",
         action="store_true",
         help="Enable UR liboffload adapter (experimental)",
+    )
+    parser.add_argument(
+        "--liboffload-path",
+        metavar="PATH",
+        help="Optional path to user provided liboffload installation",
     )
     parser.add_argument(
         "--level_zero_adapter_version",

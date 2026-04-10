@@ -205,7 +205,8 @@ bool AMDGPURewriteAGPRCopyMFMAImpl::recomputeRegClassExceptRewritable(
       if (!NewRC || NewRC == OldRC) {
         LLVM_DEBUG(dbgs() << "User of " << printReg(Reg, &TRI)
                           << " cannot be reassigned to "
-                          << TRI.getRegClassName(NewRC) << ": " << *MI);
+                          << (NewRC ? TRI.getRegClassName(NewRC) : "NULL")
+                          << ": " << *MI);
         return false;
       }
     }
@@ -595,10 +596,7 @@ public:
   static char ID;
   RegisterClassInfo RegClassInfo;
 
-  AMDGPURewriteAGPRCopyMFMALegacy() : MachineFunctionPass(ID) {
-    initializeAMDGPURewriteAGPRCopyMFMALegacyPass(
-        *PassRegistry::getPassRegistry());
-  }
+  AMDGPURewriteAGPRCopyMFMALegacy() : MachineFunctionPass(ID) {}
 
   bool runOnMachineFunction(MachineFunction &MF) override;
 

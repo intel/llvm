@@ -4,6 +4,9 @@
 // UNSUPPORTED: arch-intel_gpu_pvc
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20361
 
+// XFAIL: windows && gpu-intel-gen12
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/21533
+
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 

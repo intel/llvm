@@ -21,6 +21,7 @@
 #include "sanitizer_common/sanitizer_options.hpp"
 #include "sanitizer_common/sanitizer_stacktrace.hpp"
 #include "sanitizer_common/sanitizer_utils.hpp"
+#include <numeric>
 
 namespace ur_sanitizer_layer {
 namespace asan {
@@ -255,18 +256,6 @@ ur_result_t AsanInterceptor::preLaunchKernel(ur_kernel_handle_t Kernel,
 
   ur_queue_handle_t InternalQueue = ContextInfo->getInternalQueue(Device);
 
-  // To get right shadow boundary, shadow memory should be updated before
-  // prepareLaunch
-  {
-    // Force to allocate membuffer before prepareLaunch
-    auto &KernelInfo = getOrCreateKernelInfo(Kernel);
-    std::shared_lock<ur_shared_mutex> Guard(KernelInfo.Mutex);
-    for (const auto &[ArgIndex, MemBuffer] : KernelInfo.BufferArgs) {
-      char *ArgPointer = nullptr;
-      UR_CALL(MemBuffer->getHandle(DeviceInfo->Handle, ArgPointer));
-      (void)ArgPointer;
-    }
-  }
   UR_CALL(updateShadowMemory(DeviceInfo, InternalQueue));
 
   UR_CALL(prepareLaunch(ContextInfo, DeviceInfo, InternalQueue, Kernel,
@@ -339,22 +328,22 @@ AsanInterceptor::enqueueAllocInfo(std::shared_ptr<DeviceInfo> &DeviceInfo,
                                   ur_queue_handle_t Queue,
                                   std::shared_ptr<AllocInfo> &AI) {
   if (AI->IsReleased) {
-    int ShadowByte;
+    const int8_t *ShadowByte;
     switch (AI->Type) {
     case AllocType::HOST_USM:
-      ShadowByte = kUsmHostDeallocatedMagic;
+      ShadowByte = &kUsmHostDeallocatedMagic;
       break;
     case AllocType::DEVICE_USM:
-      ShadowByte = kUsmDeviceDeallocatedMagic;
+      ShadowByte = &kUsmDeviceDeallocatedMagic;
       break;
     case AllocType::SHARED_USM:
-      ShadowByte = kUsmSharedDeallocatedMagic;
+      ShadowByte = &kUsmSharedDeallocatedMagic;
       break;
     case AllocType::MEM_BUFFER:
-      ShadowByte = kMemBufferDeallocatedMagic;
+      ShadowByte = &kMemBufferDeallocatedMagic;
       break;
     default:
-      ShadowByte = 0xff;
+      ShadowByte = &kUnknownMagic;
       assert(false && "Unknow AllocInfo Type");
     }
     UR_CALL(DeviceInfo->Shadow->EnqueuePoisonShadow(Queue, AI->AllocBegin,
@@ -363,39 +352,45 @@ AsanInterceptor::enqueueAllocInfo(std::shared_ptr<DeviceInfo> &DeviceInfo,
   }
 
   // Init zero
+  static const int8_t Zero = 0;
   UR_CALL(DeviceInfo->Shadow->EnqueuePoisonShadow(Queue, AI->AllocBegin,
-                                                  AI->AllocSize, 0));
+                                                  AI->AllocSize, &Zero));
 
   uptr TailBegin = RoundUpTo(AI->UserEnd, ASAN_SHADOW_GRANULARITY);
   uptr TailEnd = AI->AllocBegin + AI->AllocSize;
 
   // User tail
   if (TailBegin != AI->UserEnd) {
+    static const std::array<int8_t, 16> TailMagic = [] {
+      std::array<int8_t, 16> a{};
+      std::iota(a.begin(), a.end(), 0);
+      return a;
+    }();
     auto Value =
         AI->UserEnd - RoundDownTo(AI->UserEnd, ASAN_SHADOW_GRANULARITY);
     UR_CALL(DeviceInfo->Shadow->EnqueuePoisonShadow(Queue, AI->UserEnd, 1,
-                                                    static_cast<u8>(Value)));
+                                                    &TailMagic[Value]));
   }
 
-  int ShadowByte;
+  const int8_t *ShadowByte;
   switch (AI->Type) {
   case AllocType::HOST_USM:
-    ShadowByte = kUsmHostRedzoneMagic;
+    ShadowByte = &kUsmHostRedzoneMagic;
     break;
   case AllocType::DEVICE_USM:
-    ShadowByte = kUsmDeviceRedzoneMagic;
+    ShadowByte = &kUsmDeviceRedzoneMagic;
     break;
   case AllocType::SHARED_USM:
-    ShadowByte = kUsmSharedRedzoneMagic;
+    ShadowByte = &kUsmSharedRedzoneMagic;
     break;
   case AllocType::MEM_BUFFER:
-    ShadowByte = kMemBufferRedzoneMagic;
+    ShadowByte = &kMemBufferRedzoneMagic;
     break;
   case AllocType::DEVICE_GLOBAL:
-    ShadowByte = kDeviceGlobalRedzoneMagic;
+    ShadowByte = &kDeviceGlobalRedzoneMagic;
     break;
   default:
-    ShadowByte = 0xff;
+    ShadowByte = &kUnknownMagic;
     assert(false && "Unknow AllocInfo Type");
   }
 
@@ -750,20 +745,6 @@ ur_result_t AsanInterceptor::prepareLaunch(
     }
   }
 
-  // Set membuffer arguments
-  for (const auto &[ArgIndex, MemBuffer] : KernelInfo.BufferArgs) {
-    char *ArgPointer = nullptr;
-    UR_CALL(MemBuffer->getHandle(DeviceInfo->Handle, ArgPointer));
-    ur_result_t URes = getContext()->urDdiTable.Kernel.pfnSetArgPointer(
-        Kernel, ArgIndex, nullptr, ArgPointer);
-    if (URes != UR_RESULT_SUCCESS) {
-      UR_LOG_L(getContext()->logger, ERR,
-               "Failed to set buffer {} as the {} arg to kernel {}: {}",
-               ur_cast<ur_mem_handle_t>(MemBuffer.get()), ArgIndex, Kernel,
-               URes);
-    }
-  }
-
   if (!KernelInfo.IsInstrumented) {
     return UR_RESULT_SUCCESS;
   }
@@ -775,20 +756,23 @@ ur_result_t AsanInterceptor::prepareLaunch(
     assert(ArgNums >= 1 &&
            "Sanitized Kernel should have at least one argument");
 
-    ur_result_t URes = getContext()->urDdiTable.Kernel.pfnSetArgPointer(
-        Kernel, ArgNums - 1, nullptr, LaunchInfo.Data.getDevicePtr());
-    if (URes != UR_RESULT_SUCCESS) {
-      UR_LOG_L(getContext()->logger, ERR, "Failed to set launch info: {}",
-               URes);
-      return URes;
-    }
+    KernelInfo.ArgProps.push_back(ur_exp_kernel_arg_properties_t{
+        UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+        nullptr,
+        UR_EXP_KERNEL_ARG_TYPE_POINTER,
+        ArgNums - 1,
+        sizeof(void *),
+        {LaunchInfo.Data.getDevicePtr()}});
   }
 
   if (LaunchInfo.LocalWorkSize.empty()) {
     LaunchInfo.LocalWorkSize.resize(LaunchInfo.WorkDim);
-    auto URes = getContext()->urDdiTable.Kernel.pfnGetSuggestedLocalWorkSize(
-        Kernel, Queue, LaunchInfo.WorkDim, LaunchInfo.GlobalWorkOffset.data(),
-        LaunchInfo.GlobalWorkSize, LaunchInfo.LocalWorkSize.data());
+    auto URes =
+        getContext()->urDdiTable.Kernel.pfnGetSuggestedLocalWorkSizeWithArgs(
+            Kernel, Queue, LaunchInfo.WorkDim,
+            LaunchInfo.GlobalWorkOffset.data(), LaunchInfo.GlobalWorkSize,
+            ArgNums, KernelInfo.ArgProps.data(),
+            LaunchInfo.LocalWorkSize.data());
     if (URes != UR_RESULT_SUCCESS) {
       if (URes != UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
         return URes;

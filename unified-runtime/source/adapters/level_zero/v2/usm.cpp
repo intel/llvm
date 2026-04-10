@@ -8,7 +8,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "ur_api.h"
+#include "unified-runtime/ur_api.h"
 
 #include "../device.hpp"
 #include "context.hpp"
@@ -343,29 +343,21 @@ std::optional<std::pair<void *, ur_event_handle_t>>
 ur_usm_pool_handle_t_::allocateEnqueued(ur_context_handle_t hContext,
                                         void *hQueue, bool isInOrderQueue,
                                         ur_device_handle_t hDevice,
-                                        const ur_usm_desc_t *pUSMDesc,
                                         ur_usm_type_t type, size_t size) {
-  uint32_t alignment = pUSMDesc ? pUSMDesc->align : 0;
-  if ((alignment & (alignment - 1)) != 0) {
-    return std::nullopt;
-  }
-
-  auto deviceFlags = getDeviceFlags(pUSMDesc);
-
-  auto umfPool = getPool(usm::pool_descriptor{
-      this, hContext, hDevice, type,
-      bool(deviceFlags & UR_USM_DEVICE_MEM_FLAG_DEVICE_READ_ONLY)});
+  auto umfPool =
+      getPool(usm::pool_descriptor{this, hContext, hDevice, type, false});
   if (!umfPool) {
     return std::nullopt;
   }
 
-  auto allocation = umfPool->asyncPool.getBestFit(size, alignment, hQueue);
+  auto allocation = umfPool->asyncPool.getBestFit(size, hQueue);
   if (!allocation) {
     return std::nullopt;
   }
 
-  if (allocation->Queue == hQueue && isInOrderQueue && allocation->Event) {
-    allocation->Event->release();
+  if (allocation->Queue == hQueue && isInOrderQueue) {
+    if (allocation->Event)
+      allocation->Event->release();
     return std::make_pair(allocation->Ptr, nullptr);
   } else {
     return std::make_pair(allocation->Ptr, allocation->Event);
@@ -849,6 +841,39 @@ ur_result_t UR_APICALL urUSMContextMemcpyExp(ur_context_handle_t hContext,
       std::nullopt);
   ZE2UR_CALL(zeCommandListAppendMemoryCopy,
              (commandList.get(), pDst, pSrc, size, nullptr, 0, nullptr));
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t urUSMHostAllocRegisterExp(
+    ur_context_handle_t hContext, void *pHostMem, size_t size,
+    const ur_exp_usm_host_alloc_register_properties_t * /*pProperties*/) {
+  if (!hContext->getPlatform()->ZeExternalMemoryMappingExtensionSupported) {
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  }
+
+  ze_external_memmap_sysmem_ext_desc_t sysMemDesc = {
+      ZE_STRUCTURE_TYPE_EXTERNAL_MEMMAP_SYSMEM_EXT_DESC, nullptr, pHostMem,
+      size};
+
+  ze_host_mem_alloc_desc_t hostDesc = {ZE_STRUCTURE_TYPE_HOST_MEM_ALLOC_DESC,
+                                       &sysMemDesc, 0};
+
+  void *mappedMem = nullptr;
+  ZE2UR_CALL(zeMemAllocHost,
+             (hContext->getZeHandle(), &hostDesc, size, 1, &mappedMem));
+  assert(mappedMem == pHostMem);
+
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t urUSMHostAllocUnregisterExp(ur_context_handle_t hContext,
+                                        void *pHostMem) {
+  if (!hContext->getPlatform()->ZeExternalMemoryMappingExtensionSupported) {
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  }
+
+  ZE2UR_CALL(zeMemFree, (hContext->getZeHandle(), pHostMem));
+
   return UR_RESULT_SUCCESS;
 }
 

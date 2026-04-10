@@ -11,7 +11,7 @@
 
 #include "common.hpp"
 #include "external/driver_experimental/zex_graph.h"
-#include "ur_api.h"
+#include "unified-runtime/ur_api.h"
 #include "ze_api.h"
 #include "ze_ddi.h"
 #include "zes_api.h"
@@ -59,6 +59,8 @@ struct ur_platform_handle_t_ : ur::handle_base<ur::level_zero::ddi_getter>,
   std::string ZeDriverApiVersion;
   ze_api_version_t ZeApiVersion;
 
+  bool IsDriverVersionSkipListed{false};
+
   // Cache driver extensions
   std::unordered_map<std::string, uint32_t> zeDriverExtensionMap;
 
@@ -69,8 +71,10 @@ struct ur_platform_handle_t_ : ur::handle_base<ur::level_zero::ddi_getter>,
   bool zeDriverImmediateCommandListAppendFound{false};
   bool ZeDriverEuCountExtensionFound{false};
   bool ZeCopyOffloadExtensionSupported{false};
-  bool ZeCopyOffloadFlagSupported{false};
+  bool ZeCopyOffloadQueueFlagSupported{false};
+  bool ZeCopyOffloadListFlagSupported{false};
   bool ZeBindlessImagesExtensionSupported{false};
+  bool ZeExternalMemoryMappingExtensionSupported{false};
   bool ZeLUIDSupported{false};
 
   // Cache UR devices for reuse
@@ -208,4 +212,9 @@ struct ur_platform_handle_t_ : ur::handle_base<ur::level_zero::ddi_getter>,
         void *pUserData, void *pNext, ze_event_handle_t hSignalEvent,
         uint32_t numWaitEvents, ze_event_handle_t *phWaitEvents);
   } ZeHostTaskExt;
+
+  // Flag to indicate whether zeDeviceSynchronize is supported.
+  // Some platforms may not support this API due to frozen driver, eg. gen12 on
+  // Windows. For details, see https://github.com/intel/llvm/issues/20927.
+  bool ZeDeviceSynchronizeSupported{false};
 };

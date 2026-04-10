@@ -9,8 +9,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "common.hpp"
-#include <ur_api.h>
-#include <ur_ddi.h>
+#include <unified-runtime/ur_api.h>
+#include <unified-runtime/ur_ddi.h>
 
 namespace {
 
@@ -134,14 +134,11 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetKernelProcAddrTable(
   pDdiTable->pfnGetSubGroupInfo = urKernelGetSubGroupInfo;
   pDdiTable->pfnRelease = urKernelRelease;
   pDdiTable->pfnRetain = urKernelRetain;
-  pDdiTable->pfnSetArgLocal = urKernelSetArgLocal;
-  pDdiTable->pfnSetArgMemObj = urKernelSetArgMemObj;
-  pDdiTable->pfnSetArgPointer = urKernelSetArgPointer;
-  pDdiTable->pfnSetArgSampler = urKernelSetArgSampler;
-  pDdiTable->pfnSetArgValue = urKernelSetArgValue;
   pDdiTable->pfnSetExecInfo = urKernelSetExecInfo;
   pDdiTable->pfnSetSpecializationConstants = urKernelSetSpecializationConstants;
   pDdiTable->pfnGetSuggestedLocalWorkSize = urKernelGetSuggestedLocalWorkSize;
+  pDdiTable->pfnGetSuggestedLocalWorkSizeWithArgs =
+      urKernelGetSuggestedLocalWorkSizeWithArgs;
   pDdiTable->pfnSuggestMaxCooperativeGroupCount =
       urKernelSuggestMaxCooperativeGroupCount;
   return UR_RESULT_SUCCESS;
@@ -194,7 +191,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueProcAddrTable(
   pDdiTable->pfnEventsWait = urEnqueueEventsWait;
   pDdiTable->pfnEventsWaitWithBarrier = urEnqueueEventsWaitWithBarrier;
   pDdiTable->pfnEventsWaitWithBarrierExt = urEnqueueEventsWaitWithBarrierExt;
-  pDdiTable->pfnKernelLaunch = urEnqueueKernelLaunch;
   pDdiTable->pfnMemBufferCopy = urEnqueueMemBufferCopy;
   pDdiTable->pfnMemBufferCopyRect = urEnqueueMemBufferCopyRect;
   pDdiTable->pfnMemBufferFill = urEnqueueMemBufferFill;
@@ -305,6 +301,8 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetCommandBufferExpProcAddrTable(
   pDdiTable->pfnReleaseExp = urCommandBufferReleaseExp;
   pDdiTable->pfnFinalizeExp = urCommandBufferFinalizeExp;
   pDdiTable->pfnAppendKernelLaunchExp = urCommandBufferAppendKernelLaunchExp;
+  pDdiTable->pfnAppendKernelLaunchWithArgsExp =
+      urCommandBufferAppendKernelLaunchWithArgsExp;
   pDdiTable->pfnAppendUSMMemcpyExp = urCommandBufferAppendUSMMemcpyExp;
   pDdiTable->pfnAppendUSMFillExp = urCommandBufferAppendUSMFillExp;
   pDdiTable->pfnAppendMemBufferCopyExp = urCommandBufferAppendMemBufferCopyExp;

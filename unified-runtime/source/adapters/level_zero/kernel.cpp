@@ -10,7 +10,7 @@
 
 #include "kernel.hpp"
 #include "logger/ur_logger.hpp"
-#include "ur_api.h"
+#include "unified-runtime/ur_api.h"
 #include "ur_interface_loader.hpp"
 
 #include "helpers/kernel_helpers.hpp"
@@ -56,7 +56,18 @@ ur_result_t urKernelGetSuggestedLocalWorkSize(
   return UR_RESULT_SUCCESS;
 }
 
-inline ur_result_t KernelSetArgValueHelper(
+ur_result_t urKernelGetSuggestedLocalWorkSizeWithArgs(
+    ur_kernel_handle_t hKernel, ur_queue_handle_t hQueue, uint32_t workDim,
+    const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
+    [[maybe_unused]] uint32_t numArgs,
+    [[maybe_unused]] const ur_exp_kernel_arg_properties_t *pArgs,
+    size_t *pSuggestedLocalWorkSize) {
+  return ur::level_zero::urKernelGetSuggestedLocalWorkSize(
+      hKernel, hQueue, workDim, pGlobalWorkOffset, pGlobalWorkSize,
+      pSuggestedLocalWorkSize);
+}
+
+ur_result_t urKernelSetArgValueHelper(
     ur_kernel_handle_t Kernel,
     /// [in] argument index in range [0, num args - 1]
     uint32_t ArgIndex,
@@ -100,7 +111,7 @@ inline ur_result_t KernelSetArgValueHelper(
   return ze2urResult(ZeResult);
 }
 
-inline ur_result_t KernelSetArgMemObjHelper(
+ur_result_t urKernelSetArgMemObjHelper(
     /// [in] handle of the kernel object
     ur_kernel_handle_t Kernel,
     /// [in] argument index in range [0, num args - 1]
@@ -143,6 +154,17 @@ inline ur_result_t KernelSetArgMemObjHelper(
   return UR_RESULT_SUCCESS;
 }
 
+// forward declaration of the old enqueue function to call after setting all the
+// arguments
+static ur_result_t
+urEnqueueKernelLaunch(ur_queue_handle_t Queue, ur_kernel_handle_t Kernel,
+                      uint32_t WorkDim, const size_t *GlobalWorkOffset,
+                      const size_t *GlobalWorkSize, const size_t *LocalWorkSize,
+                      const ur_kernel_launch_ext_properties_t *LaunchPropList,
+                      uint32_t NumEventsInWaitList,
+                      const ur_event_handle_t *EventWaitList,
+                      ur_event_handle_t *OutEvent);
+
 ur_result_t urEnqueueKernelLaunchWithArgsExp(
     /// [in] handle of the queue object
     ur_queue_handle_t Queue,
@@ -184,28 +206,28 @@ ur_result_t urEnqueueKernelLaunchWithArgsExp(
     for (uint32_t i = 0; i < NumArgs; i++) {
       switch (Args[i].type) {
       case UR_EXP_KERNEL_ARG_TYPE_LOCAL:
-        UR_CALL(KernelSetArgValueHelper(Kernel, Args[i].index, Args[i].size,
-                                        nullptr));
+        UR_CALL(urKernelSetArgValueHelper(Kernel, Args[i].index, Args[i].size,
+                                          nullptr));
         break;
       case UR_EXP_KERNEL_ARG_TYPE_VALUE:
-        UR_CALL(KernelSetArgValueHelper(Kernel, Args[i].index, Args[i].size,
-                                        Args[i].value.value));
+        UR_CALL(urKernelSetArgValueHelper(Kernel, Args[i].index, Args[i].size,
+                                          Args[i].value.value));
         break;
       case UR_EXP_KERNEL_ARG_TYPE_POINTER:
-        UR_CALL(KernelSetArgValueHelper(Kernel, Args[i].index, Args[i].size,
-                                        &Args[i].value.pointer));
+        UR_CALL(urKernelSetArgValueHelper(Kernel, Args[i].index, Args[i].size,
+                                          &Args[i].value.pointer));
         break;
       case UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ: {
         ur_kernel_arg_mem_obj_properties_t Properties = {
             UR_STRUCTURE_TYPE_KERNEL_ARG_MEM_OBJ_PROPERTIES, nullptr,
             Args[i].value.memObjTuple.flags};
-        UR_CALL(KernelSetArgMemObjHelper(Kernel, Args[i].index, &Properties,
-                                         Args[i].value.memObjTuple.hMem));
+        UR_CALL(urKernelSetArgMemObjHelper(Kernel, Args[i].index, &Properties,
+                                           Args[i].value.memObjTuple.hMem));
         break;
       }
       case UR_EXP_KERNEL_ARG_TYPE_SAMPLER: {
-        UR_CALL(KernelSetArgValueHelper(Kernel, Args[i].index, Args[i].size,
-                                        &Args[i].value.sampler->ZeSampler));
+        UR_CALL(urKernelSetArgValueHelper(Kernel, Args[i].index, Args[i].size,
+                                          &Args[i].value.sampler->ZeSampler));
         break;
       }
       default:
@@ -214,12 +236,12 @@ ur_result_t urEnqueueKernelLaunchWithArgsExp(
     }
   }
   // Normalize so each dimension has at least one work item
-  return level_zero::urEnqueueKernelLaunch(
-      Queue, Kernel, workDim, GlobalWorkOffset, GlobalWorkSize, LocalWorkSize,
-      LaunchPropList, NumEventsInWaitList, EventWaitList, OutEvent);
+  return urEnqueueKernelLaunch(Queue, Kernel, workDim, GlobalWorkOffset,
+                               GlobalWorkSize, LocalWorkSize, LaunchPropList,
+                               NumEventsInWaitList, EventWaitList, OutEvent);
 }
 
-ur_result_t urEnqueueKernelLaunch(
+static ur_result_t urEnqueueKernelLaunch(
     /// [in] handle of the queue object
     ur_queue_handle_t Queue,
     /// [in] handle of the kernel object

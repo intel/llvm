@@ -190,7 +190,7 @@ static void addBufferLocationMetadata(
       ValueVec.push_back(ForeachFnArg(Arg));
     } else {
       llvm::Metadata *DefaultNode = ConstantAsMetadata::get(
-          ConstantInt::get(Type::getInt32Ty(*Context), -1));
+          ConstantInt::get(Type::getInt32Ty(*Context), -1, true));
       ValueVec.push_back(DefaultNode);
     }
   });
@@ -1220,26 +1220,24 @@ static void applyNoIntegerWrapDecorations(const SPIRVValue *BV,
   }
 }
 
-static void applyFPFastMathModeDecorations(const SPIRVValue *BV,
-                                           Instruction *Inst) {
-  SPIRVWord V;
-  FastMathFlags FMF;
+void SPIRVToLLVM::applyFPFastMathModeDecorations(const SPIRVValue *BV,
+                                                 Instruction *Inst) {
+  if (!isa<FPMathOperator>(Inst))
+    return;
+
+  SPIRVWord V{0};
   if (BV->hasDecorate(DecorationFPFastMathMode, 0, &V)) {
-    if (V & FPFastMathModeNotNaNMask)
-      FMF.setNoNaNs();
-    if (V & FPFastMathModeNotInfMask)
-      FMF.setNoInfs();
-    if (V & FPFastMathModeNSZMask)
-      FMF.setNoSignedZeros();
-    if (V & FPFastMathModeAllowRecipMask)
-      FMF.setAllowReciprocal();
-    if (V & FPFastMathModeAllowContractFastINTELMask)
-      FMF.setAllowContract();
-    if (V & FPFastMathModeAllowReassocINTELMask)
-      FMF.setAllowReassoc();
-    if (V & FPFastMathModeFastMask)
-      FMF.setFast();
+    FastMathFlags FMF = translateFastMathFlags(V);
     Inst->setFastMathFlags(FMF);
+    return;
+  }
+
+  // Get the scalar type to handle vector operands. And get the first operand
+  // type (instead of the result) due to fcmp instructions.
+  Type *FloatType = Inst->getOperand(0)->getType()->getScalarType();
+  auto Func2FMF = FuncToFastMathFlags.find({Inst->getFunction(), FloatType});
+  if (Func2FMF != FuncToFastMathFlags.end()) {
+    Inst->setFastMathFlags(Func2FMF->second);
   }
 }
 
@@ -3019,8 +3017,13 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
         BV, Builder.CreateIntrinsic(Intrinsic::arithmetic_fence, RetTy, Val));
   }
   case OpFmaKHR: {
+    IRBuilder<> Builder(BB);
     auto *BC = static_cast<SPIRVFmaKHR *>(BV);
-    return mapValue(BV, transBuiltinFromInst("fma", BC, BB));
+    return mapValue(
+        BV, Builder.CreateIntrinsic(Intrinsic::fma, transType(BC->getType()),
+                                    {transValue(BC->getOperand(0), F, BB),
+                                     transValue(BC->getOperand(1), F, BB),
+                                     transValue(BC->getOperand(2), F, BB)}));
   }
   case internal::OpMaskedGatherINTEL: {
     IRBuilder<> Builder(BB);
@@ -3446,12 +3449,86 @@ static void validatePhiPredecessors(Function *F) {
 }
 } // namespace
 
+FastMathFlags SPIRVToLLVM::translateFastMathFlags(SPIRVWord V) const {
+  FastMathFlags FMF;
+  if (V & FPFastMathModeNotNaNMask)
+    FMF.setNoNaNs();
+  if (V & FPFastMathModeNotInfMask)
+    FMF.setNoInfs();
+  if (V & FPFastMathModeNSZMask)
+    FMF.setNoSignedZeros();
+  if (V & FPFastMathModeAllowRecipMask)
+    FMF.setAllowReciprocal();
+  static_assert(FPFastMathModeAllowContractFastINTELMask ==
+                FPFastMathModeAllowContractMask);
+  if (V & FPFastMathModeAllowContractFastINTELMask)
+    FMF.setAllowContract();
+  static_assert(FPFastMathModeAllowReassocINTELMask ==
+                FPFastMathModeAllowReassocMask);
+  if (V & FPFastMathModeAllowReassocINTELMask)
+    FMF.setAllowReassoc();
+  if (V & FPFastMathModeFastMask) {
+    // There is no FPFastMathMode flag that represents LLVM approximate
+    // functions flag `afn`. Even the FPFastMathMode Fast flag should not imply
+    // it, but to avoid changing the previous behaviour we make it equivalent to
+    // LLVM's.
+    assert(!BM->hasCapability(CapabilityFloatControls2) &&
+           "FloatControls2 deprecates FPFastMathModeFast.");
+    FMF.setFast();
+  }
+  if (V & FPFastMathModeAllowTransformMask) {
+    // AllowTransform requires the AllowContract and AllowReassoc bits to be
+    // set.
+    assert(FMF.allowContract() && FMF.allowReassoc() &&
+           "The FPFastMathMode AllowTransform requires AllowContract and "
+           "AllowReassoc to be set");
+  }
+
+  return FMF;
+}
+
+void SPIRVToLLVM::parseFloatControls2ExecutionModeId(SPIRVFunction *BF,
+                                                     Function *F) {
+
+  auto [Begin, End] =
+      BF->getExecutionModeRange(spv::ExecutionModeFPFastMathDefault);
+  if (Begin == End)
+    return;
+
+  LLVMContext &C = F->getContext();
+  NamedMDNode *ExecModeMD =
+      M->getOrInsertNamedMetadata(kSPIRVMD::ExecutionMode);
+
+  Metadata *FPFastMathMode[4] = {ConstantAsMetadata::get(F),
+                                 ConstantAsMetadata::get(getUInt32(
+                                     M, spv::ExecutionModeFPFastMathDefault)),
+                                 nullptr, nullptr};
+
+  for (auto [_, EM] : make_range(Begin, End)) {
+    const auto &Literals = EM->getLiterals();
+    assert(Literals.size() == 2);
+    SPIRVWord FloatTyId = Literals[0];
+    SPIRVType *FloatSPIRVType = BM->get<SPIRVType>(FloatTyId);
+    Type *FloatType = transFPType(FloatSPIRVType);
+    SPIRVWord Flags = *transIdAsConstant(Literals[1]);
+    FuncToFastMathFlags.try_emplace({F, FloatType},
+                                    translateFastMathFlags(Flags));
+
+    FPFastMathMode[2] = ConstantAsMetadata::get(PoisonValue::get(FloatType));
+    FPFastMathMode[3] = ConstantAsMetadata::get(getUInt32(M, Flags));
+    ExecModeMD->addOperand(MDNode::get(C, FPFastMathMode));
+  }
+}
+
 Function *SPIRVToLLVM::transFunction(SPIRVFunction *BF, unsigned AS) {
   auto Loc = FuncMap.find(BF);
   if (Loc != FuncMap.end())
     return Loc->second;
 
   auto IsKernel = isKernel(BF);
+
+  // Backward compatibility: need to correctly translate entry point wrapper
+  // produced by an older writer.
   if (IsKernel) {
     // search for a previous function with the same name
     // upgrade it to a kernel and drop this if it's found
@@ -3486,6 +3563,20 @@ Function *SPIRVToLLVM::transFunction(SPIRVFunction *BF, unsigned AS) {
             M, Intrinsic::memset, {FT->getParamType(0), FT->getParamType(2)})
             ->getName();
   }
+
+  // Special handling for spirv.llvm_umul_with_overflow_* functions
+  // These were created during forward translation by lowering intrinsics.
+  // During reverse translation, we replace them with intrinsic calls.
+  if (FuncNameRef.starts_with("spirv.llvm_umul_with_overflow_")) {
+    Type *OverloadTy = FT->getParamType(0);
+    Function *F = Intrinsic::getOrInsertDeclaration(
+        M, Intrinsic::umul_with_overflow, {OverloadTy});
+    F = cast<Function>(mapValue(BF, F));
+    mapFunction(BF, F);
+    return F; // Skip body translation - intrinsic will be used instead
+  }
+
+  // Normal function handling.
   if (FuncNameRef.consume_front("spirv.")) {
     FuncNameRef.consume_back(".volatile");
     FuncName = FuncNameRef.str();
@@ -3494,26 +3585,19 @@ Function *SPIRVToLLVM::transFunction(SPIRVFunction *BF, unsigned AS) {
   Function *F = M->getFunction(FuncName);
   if (!F)
     F = Function::Create(FT, Linkage, AS, FuncName, M);
+
   F = cast<Function>(mapValue(BF, F));
   mapFunction(BF, F);
 
   if (F->isIntrinsic()) {
-    if (F->getIntrinsicID() != Intrinsic::umul_with_overflow)
-      return F;
-    std::string Name = F->getName().str();
-    auto *ST = cast<StructType>(F->getReturnType());
-    auto *FT = F->getFunctionType();
-    auto *NewST = StructType::get(ST->getContext(), ST->elements());
-    auto *NewFT = FunctionType::get(NewST, FT->params(), FT->isVarArg());
-    F->setName("old_" + Name);
-    auto *NewFn = Function::Create(NewFT, F->getLinkage(), F->getAddressSpace(),
-                                   Name, F->getParent());
-    return NewFn;
+    return F;
   }
 
   F->setCallingConv(IsKernel ? CallingConv::SPIR_KERNEL
                              : CallingConv::SPIR_FUNC);
   transFunctionAttrs(BF, F);
+
+  parseFloatControls2ExecutionModeId(BF, F);
 
   // Creating all basic blocks before creating instructions.
   for (size_t I = 0, E = BF->getNumBasicBlock(); I != E; ++I) {
@@ -5294,6 +5378,26 @@ Instruction *SPIRVToLLVM::transOCLBuiltinFromExtInst(SPIRVExtInst *BC,
 
   assert(BM->getBuiltinSet(BC->getExtSetId()) == SPIRVEIS_OpenCL &&
          "Not OpenCL extended instruction");
+
+  if (ExtOp == OpenCLLIB::FMin_common || ExtOp == OpenCLLIB::FMax_common) {
+    if (BM->getDesiredBIsRepresentation() !=
+        BIsRepresentation::SPIRVFriendlyIR) {
+      // If the target environment is not SPIRVFriendlyIR, we need to lower the
+      // fmin_common/fmax_common to llvm.minnum/llvm.maxnum with the fast-math
+      // flags set appropiately.
+      IRBuilder<> IRB(BB);
+      Intrinsic::ID IntrinsicID = ExtOp == OpenCLLIB::FMin_common
+                                      ? Intrinsic::minnum
+                                      : Intrinsic::maxnum;
+      auto Args = transValue(BC->getArgValues(), BB->getParent(), BB);
+      FastMathFlags FMF;
+      FMF.setNoInfs();
+      FMF.setNoNaNs();
+      CallInst *MinMax = IRB.CreateIntrinsic(
+          IntrinsicID, {Args.front()->getType()}, Args, FMF);
+      return MinMax;
+    }
+  }
 
   Type *RetTy = transType(BC->getType());
   std::vector<Type *> ArgTypes = transTypeVector(BC->getArgTypes(), true);

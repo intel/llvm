@@ -19,6 +19,13 @@
 
 #include <cmath>
 #include <cuda.h>
+
+// CUDA 13 headers expose cuMemAdvise as the v2 entrypoint; for older CUDA
+// versions, alias cuMemAdvise to cuMemAdvise_v2 explicitly.
+#if CUDA_VERSION < 13000
+#define cuMemAdvise cuMemAdvise_v2
+#endif
+
 #include <ur/ur.hpp>
 
 ur_result_t enqueueEventsWait(ur_queue_handle_t CommandQueue, CUstream Stream,
@@ -47,14 +54,9 @@ ur_result_t enqueueEventsWait(ur_queue_handle_t CommandQueue, CUstream Stream,
   }
 }
 
-#if CUDA_VERSION >= 13000
-using CuLocationType = CUmemLocation;
-#else
-using CuLocationType = CUdevice;
-#endif
 void setCuMemAdvise(CUdeviceptr DevPtr, size_t Size,
                     ur_usm_advice_flags_t URAdviceFlags,
-                    CuLocationType Location) {
+                    CUmemLocation Location) {
   std::unordered_map<ur_usm_advice_flags_t, CUmem_advise>
       URToCUMemAdviseDeviceFlagsMap = {
           {UR_USM_ADVICE_FLAG_SET_READ_MOSTLY, CU_MEM_ADVISE_SET_READ_MOSTLY},
@@ -89,13 +91,9 @@ void setCuMemAdvise(CUdeviceptr DevPtr, size_t Size,
 
   for (auto &FlagPair : URToCUMemAdviseHostFlagsMap) {
     if (URAdviceFlags & FlagPair.first) {
-#if CUDA_VERSION >= 13000
       CUmemLocation LocationHost;
-      LocationHost.id = 0; // ignored with HOST_NUMA_CURRENT
-      LocationHost.type = CU_MEM_LOCATION_TYPE_HOST_NUMA_CURRENT;
-#else
-      int LocationHost = CU_DEVICE_CPU;
-#endif
+      LocationHost.type = CU_MEM_LOCATION_TYPE_HOST;
+      LocationHost.id = 0;
       UR_CHECK_ERROR(cuMemAdvise(DevPtr, Size, FlagPair.second, LocationHost));
     }
   }
@@ -451,7 +449,7 @@ enqueueKernelLaunch(ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel,
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
+static ur_result_t urEnqueueKernelLaunch(
     ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel, uint32_t workDim,
     const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
     const size_t *pLocalWorkSize,
@@ -662,8 +660,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
 #endif // CUDA_VERSION >= 11080
 }
 
-// const ur_kernel_launch_ext_properties_t *launchPropList,
-
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunchWithArgsExp(
     ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel, uint32_t workDim,
     const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
@@ -694,8 +690,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunchWithArgsExp(
         ur_kernel_arg_mem_obj_properties_t Props = {
             UR_STRUCTURE_TYPE_KERNEL_ARG_MEM_OBJ_PROPERTIES, nullptr,
             pArgs[i].value.memObjTuple.flags};
-        UR_CALL(urKernelSetArgMemObj(hKernel, pArgs[i].index, &Props,
-                                     pArgs[i].value.memObjTuple.hMem));
+        UR_CALL(hKernel->setKernelArgMemObj(pArgs[i].index, &Props,
+                                            pArgs[i].value.memObjTuple.hMem));
         break;
       }
       case UR_EXP_KERNEL_ARG_TYPE_SAMPLER: {
@@ -1748,13 +1744,9 @@ urEnqueueUSMAdvise(ur_queue_handle_t hQueue, const void *pMem, size_t size,
       return UR_RESULT_SUCCESS;
     }
 
-#if CUDA_VERSION >= 13000
     CUmemLocation Location;
     Location.id = hQueue->getDevice()->get();
     Location.type = CU_MEM_LOCATION_TYPE_DEVICE;
-#else
-    int Location = hQueue->getDevice()->get();
-#endif
 
     if (advice & UR_USM_ADVICE_FLAG_DEFAULT) {
       UR_CHECK_ERROR(cuMemAdvise((CUdeviceptr)pMem, size,

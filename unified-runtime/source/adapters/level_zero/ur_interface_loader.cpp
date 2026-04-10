@@ -9,8 +9,8 @@
 //
 //===----------------------------------------------------------------------===//
 #include <mutex>
-#include <ur_api.h>
-#include <ur_ddi.h>
+#include <unified-runtime/ur_api.h>
+#include <unified-runtime/ur_ddi.h>
 
 #include "ur_interface_loader.hpp"
 
@@ -119,6 +119,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetCommandBufferExpProcAddrTable(
   pDdiTable->pfnFinalizeExp = ur::level_zero::urCommandBufferFinalizeExp;
   pDdiTable->pfnAppendKernelLaunchExp =
       ur::level_zero::urCommandBufferAppendKernelLaunchExp;
+  pDdiTable->pfnAppendKernelLaunchWithArgsExp =
+      ur::level_zero::urCommandBufferAppendKernelLaunchWithArgsExp;
   pDdiTable->pfnAppendUSMMemcpyExp =
       ur::level_zero::urCommandBufferAppendUSMMemcpyExp;
   pDdiTable->pfnAppendUSMFillExp =
@@ -183,7 +185,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetEnqueueProcAddrTable(
     return result;
   }
 
-  pDdiTable->pfnKernelLaunch = ur::level_zero::urEnqueueKernelLaunch;
   pDdiTable->pfnEventsWait = ur::level_zero::urEnqueueEventsWait;
   pDdiTable->pfnEventsWaitWithBarrier =
       ur::level_zero::urEnqueueEventsWaitWithBarrier;
@@ -231,9 +232,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
   pDdiTable->pfnUSMSharedAllocExp = ur::level_zero::urEnqueueUSMSharedAllocExp;
   pDdiTable->pfnUSMHostAllocExp = ur::level_zero::urEnqueueUSMHostAllocExp;
   pDdiTable->pfnUSMFreeExp = ur::level_zero::urEnqueueUSMFreeExp;
-  pDdiTable->pfnCommandBufferExp = ur::level_zero::urEnqueueCommandBufferExp;
   pDdiTable->pfnTimestampRecordingExp =
       ur::level_zero::urEnqueueTimestampRecordingExp;
+  pDdiTable->pfnCommandBufferExp = ur::level_zero::urEnqueueCommandBufferExp;
   pDdiTable->pfnHostTaskExp = ur::level_zero::urEnqueueHostTaskExp;
   pDdiTable->pfnNativeCommandExp = ur::level_zero::urEnqueueNativeCommandExp;
   pDdiTable->pfnGraphExp = ur::level_zero::urEnqueueGraphExp;
@@ -313,12 +314,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetKernelProcAddrTable(
       ur::level_zero::urKernelCreateWithNativeHandle;
   pDdiTable->pfnGetSuggestedLocalWorkSize =
       ur::level_zero::urKernelGetSuggestedLocalWorkSize;
-  pDdiTable->pfnSetArgValue = ur::level_zero::urKernelSetArgValue;
-  pDdiTable->pfnSetArgLocal = ur::level_zero::urKernelSetArgLocal;
-  pDdiTable->pfnSetArgPointer = ur::level_zero::urKernelSetArgPointer;
+  pDdiTable->pfnGetSuggestedLocalWorkSizeWithArgs =
+      ur::level_zero::urKernelGetSuggestedLocalWorkSizeWithArgs;
   pDdiTable->pfnSetExecInfo = ur::level_zero::urKernelSetExecInfo;
-  pDdiTable->pfnSetArgSampler = ur::level_zero::urKernelSetArgSampler;
-  pDdiTable->pfnSetArgMemObj = ur::level_zero::urKernelSetArgMemObj;
   pDdiTable->pfnSetSpecializationConstants =
       ur::level_zero::urKernelSetSpecializationConstants;
   pDdiTable->pfnSuggestMaxCooperativeGroupCount =
@@ -540,6 +538,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetUSMExpProcAddrTable(
   pDdiTable->pfnPoolTrimToExp = ur::level_zero::urUSMPoolTrimToExp;
   pDdiTable->pfnPitchedAllocExp = ur::level_zero::urUSMPitchedAllocExp;
   pDdiTable->pfnContextMemcpyExp = ur::level_zero::urUSMContextMemcpyExp;
+  pDdiTable->pfnHostAllocUnregisterExp =
+      ur::level_zero::urUSMHostAllocUnregisterExp;
+  pDdiTable->pfnHostAllocRegisterExp =
+      ur::level_zero::urUSMHostAllocRegisterExp;
   pDdiTable->pfnImportExp = ur::level_zero::urUSMImportExp;
   pDdiTable->pfnReleaseExp = ur::level_zero::urUSMReleaseExp;
 

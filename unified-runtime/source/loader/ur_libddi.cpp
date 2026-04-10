@@ -13,7 +13,7 @@
  */
 #include "ur_lib.hpp"
 #ifndef DYNAMIC_LOAD_LOADER
-#include "ur_ddi.h"
+#include "unified-runtime/ur_ddi.h"
 #endif
 
 namespace ur_lib {

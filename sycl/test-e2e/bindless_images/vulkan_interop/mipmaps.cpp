@@ -3,7 +3,7 @@
 // REQUIRES: aspect-ext_oneapi_mipmap
 // REQUIRES: vulkan
 
-// RUN: %{build} %link-vulkan -o %t.out
+// RUN: %{build} %link-vulkan -o %t.out %if target-spir %{ -Wno-ignored-attributes %}
 // RUN: %{run} %t.out
 
 // Uncomment to print additional test information

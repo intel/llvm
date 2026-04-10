@@ -25,6 +25,9 @@
 // UNSUPPORTED: hip
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/17077
 //
+// UNSUPPORTED: arch-intel_gpu_bmg_g21
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20827
+
 #include <sycl/atomic_ref.hpp>
 #include <sycl/detail/core.hpp>
 #include <sycl/usm.hpp>

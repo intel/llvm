@@ -32,6 +32,10 @@ private:
   // This might need to be changed for future hardware.
   static constexpr size_t numCommandLists = 4;
 
+  // The out of order queue always uses just the first command list manager
+  // to capture commands when the graph capture is active.
+  static constexpr uint32_t captureCmdListManagerIdx = 0;
+
   ur_context_handle_t hContext;
   ur_device_handle_t hDevice;
 
@@ -46,8 +50,15 @@ private:
   std::array<ur_event_handle_t, numCommandLists> barrierEvents;
 
   uint32_t getNextCommandListId() {
-    return commandListIndex.fetch_add(1, std::memory_order_relaxed) %
-           numCommandLists;
+    bool isGraphCaptureActive;
+    auto &cmdListManager =
+        (*commandListManagers.get_no_lock())[captureCmdListManagerIdx];
+    cmdListManager.isGraphCaptureActive(&isGraphCaptureActive);
+
+    return isGraphCaptureActive
+               ? captureCmdListManagerIdx
+               : commandListIndex.fetch_add(1, std::memory_order_relaxed) %
+                     numCommandLists;
   }
 
 public:
@@ -66,22 +77,6 @@ public:
                                    ur_native_handle_t *phNativeQueue) override;
   ur_result_t queueFinish() override;
   ur_result_t queueFlush() override;
-  ur_result_t enqueueKernelLaunch(
-      ur_kernel_handle_t hKernel, uint32_t workDim,
-      const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
-      const size_t *pLocalWorkSize,
-      const ur_kernel_launch_ext_properties_t *launchPropList,
-      uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-      ur_event_handle_t *phEvent) override {
-    wait_list_view waitListView =
-        wait_list_view(phEventWaitList, numEventsInWaitList);
-
-    auto commandListId = getNextCommandListId();
-    return commandListManagers.lock()[commandListId].appendKernelLaunch(
-        hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize, pLocalWorkSize,
-        launchPropList, waitListView,
-        createEventIfRequested(eventPool.get(), phEvent, this));
-  }
   ur_result_t
   enqueueEventsWaitWithBarrier(uint32_t numEventsInWaitList,
                                const ur_event_handle_t *phEventWaitList,
@@ -488,7 +483,7 @@ public:
     auto commandListId = getNextCommandListId();
     return commandListManagers.lock()[commandListId].appendUSMFreeExp(
         this, pPool, pMem, waitListView,
-        createEventAndRetain(eventPool.get(), phEvent, this));
+        createEvent(eventPool.get(), phEvent, this));
   }
 
   ur_result_t bindlessImagesImageCopyExp(
@@ -604,28 +599,37 @@ public:
   }
 
   ur_result_t queueBeginGraphCapteExp() override {
-    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    return commandListManagers.lock()[captureCmdListManagerIdx]
+        .beginGraphCapture();
   }
 
   ur_result_t
-  queueBeginCapteIntoGraphExp(ur_exp_graph_handle_t /* hGraph */) override {
-    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  queueBeginCapteIntoGraphExp(ur_exp_graph_handle_t hGraph) override {
+    return commandListManagers.lock()[captureCmdListManagerIdx]
+        .beginCaptureIntoGraph(hGraph);
   }
 
-  ur_result_t
-  queueEndGraphCapteExp(ur_exp_graph_handle_t * /* phGraph */) override {
-    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  ur_result_t queueEndGraphCapteExp(ur_exp_graph_handle_t *phGraph) override {
+    return commandListManagers.lock()[captureCmdListManagerIdx].endGraphCapture(
+        phGraph);
   }
 
-  ur_result_t enqueueGraphExp(ur_exp_executable_graph_handle_t /* hGraph */,
-                              uint32_t /* numEventsInWaitList */,
-                              const ur_event_handle_t * /* phEventWaitList */,
-                              ur_event_handle_t * /* phEvent */) override {
-    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  ur_result_t enqueueGraphExp(ur_exp_executable_graph_handle_t hGraph,
+                              uint32_t numEventsInWaitList,
+                              const ur_event_handle_t *phEventWaitList,
+                              ur_event_handle_t *phEvent) override {
+    wait_list_view waitListView =
+        wait_list_view(phEventWaitList, numEventsInWaitList);
+
+    auto commandListId = getNextCommandListId();
+    return commandListManagers.lock()[commandListId].appendGraph(
+        hGraph, waitListView,
+        createEventIfRequested(eventPool.get(), phEvent, this));
   }
 
-  ur_result_t queueIsGraphCapteEnabledExp(bool * /* pResult */) override {
-    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  ur_result_t queueIsGraphCapteEnabledExp(bool *pResult) override {
+    return commandListManagers.lock()[captureCmdListManagerIdx]
+        .isGraphCaptureActive(pResult);
   }
 
   ur_result_t
@@ -642,6 +646,8 @@ public:
         pfnHostTask, data, pProperties, waitListView,
         createEventIfRequested(eventPool.get(), phEvent, this));
   }
+
+  bool isInOrder() override { return false; }
 
   ur::RefCount RefCount;
 };

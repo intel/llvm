@@ -5,6 +5,9 @@
 // UNSUPPORTED-INTENDED: Unknown issue with integrated GPU failing
 //                       when importing memory
 
+// UNSUPPORTED: gpu-intel-dg2
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21159
+
 // XFAIL: windows && arch-intel_gpu_bmg_g21
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/20384
 
@@ -15,8 +18,7 @@
 
 #include <sycl/ext/oneapi/bindless_images.hpp>
 
-// Used primarily for ID3D11Device1
-#include <d3d11_1.h>
+#include <d3d11_3.h>
 
 #include <limits>
 
@@ -93,12 +95,22 @@ void callSyclKernel(sycl::queue syclQueue,
                   size_t dim0 = it.get_global_id(0);
                   size_t dim1 = it.get_global_id(1);
                   size_t dim2 = it.get_global_id(2);
+                  // We simulate 3d textures through very tall 2D textures where
+                  // the depth dimension has been collapsed onto the height
+                  // dimension.
+                  // So, logically speaking, the texture has
+                  // dimensions Width x Height x Depth but practically speaking,
+                  // it is a 2D texture with dimensions Width x (Height *
+                  // Depth). So the calculation below globalSize[1] * dim2 +
+                  // dim1 simply does this conversion from a 3D index to a 2D
+                  // index.
                   auto px = syclexp::fetch_image<
                       std::conditional_t<NChannels == 1, DType, VecType>>(
-                      imgHandle, sycl::int3(dim0, dim1, dim2));
+                      imgHandle, sycl::int2(dim0, globalSize[1] * dim2 + dim1));
                   px *= static_cast<DType>(2);
-                  syclexp::write_image(imgHandle, sycl::int3(dim0, dim1, dim2),
-                                       px);
+                  syclexp::write_image(
+                      imgHandle, sycl::int2(dim0, globalSize[1] * dim2 + dim1),
+                      px);
                 } else if constexpr (NDims == 2) {
                   size_t dim0 = it.get_global_id(0);
                   size_t dim1 = it.get_global_id(1);
@@ -133,24 +145,27 @@ void callSyclKernel(sycl::queue syclQueue,
 template <typename DType, int NChannels>
 bool verifyResult(D3D11ProgramState &d3d11ProgramState,
                   ID3D11Resource *pResource,
-                  const D3D11_TEXTURE2D_DESC &texDesc, const DType *inputData,
+                  const D3D11_TEXTURE2D_DESC1 &texDesc, const DType *inputData,
                   IDXGIKeyedMutex *keyedMutex) {
   assert(d3d11ProgramState.device && d3d11ProgramState.deviceContext);
   auto *pDevice = d3d11ProgramState.device;
   auto *pDeviceContext = d3d11ProgramState.deviceContext;
 
+  ComPtr<ID3D11Device3> device3;
+  ThrowIfFailed(pDevice->QueryInterface(IID_PPV_ARGS(&device3)));
+
   static constexpr UINT bindFlags = 0;
   static constexpr UINT miscFlags = 0;
 
   // Create the staging texture
-  D3D11_TEXTURE2D_DESC stagingDesc = texDesc;
+  D3D11_TEXTURE2D_DESC1 stagingDesc = texDesc;
   stagingDesc.Usage = D3D11_USAGE_STAGING;
   stagingDesc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
   stagingDesc.BindFlags = bindFlags;
   stagingDesc.MiscFlags = miscFlags;
-  ComPtr<ID3D11Texture2D> stagingTexture;
+  ComPtr<ID3D11Texture2D1> stagingTexture;
   ThrowIfFailed(
-      pDevice->CreateTexture2D(&stagingDesc, nullptr, &stagingTexture));
+      device3->CreateTexture2D1(&stagingDesc, nullptr, &stagingTexture));
 
   // Copy the texture subresource
   ThrowIfFailed(keyedMutex->AcquireSync(d3d11ProgramState.key++, INFINITE));
@@ -235,14 +250,22 @@ int runTest(D3D11ProgramState &d3d11ProgramState, sycl::queue syclQueue,
 
   DXGI_FORMAT texFormat = toDXGIFormat(NChannels, channelType);
 
+  // DirectX 11 does not allow us to specify a row major layout for 2D textures
+  // that have ArraySize > 1 and we would like to specify it in order to
+  // accurately calculate the allocation size for the texture so that we can
+  // import it from SYCL side. Hence, in light of this restriction, instead of
+  // using ArraySize > 1 to simulate 3D textures, we simulate them by simply
+  // collapsing the depth dimension onto the height dimension and set ArraySize
+  // to 1.
   // Create a shared texture
-  ComPtr<ID3D11Texture2D> texture;
+  ComPtr<ID3D11Texture2D1> texture;
   // Initialize the texture description.
-  D3D11_TEXTURE2D_DESC texDesc{};
+  D3D11_TEXTURE2D_DESC1 texDesc{};
   texDesc.Width = texWidth;
-  texDesc.Height = texHeight;   // if height is 1, we can mimic sharing 1D mem
-  texDesc.MipLevels = 1;        // one mip level, so no sub-textures
-  texDesc.ArraySize = texDepth; // array slices used for sharing 3D memory
+  texDesc.Height =
+      texHeight * texDepth; // if height is 1, we can mimic sharing 1D mem
+  texDesc.MipLevels = 1;    // one mip level, so no sub-textures
+  texDesc.ArraySize = 1;
   texDesc.Format = texFormat;
   texDesc.SampleDesc = {.Count = 1, .Quality = 0};
   texDesc.Usage = D3D11_USAGE_DEFAULT;
@@ -254,7 +277,11 @@ int runTest(D3D11ProgramState &d3d11ProgramState, sycl::queue syclQueue,
   // it is only applicable to 2D textures.
   texDesc.MiscFlags = D3D11_RESOURCE_MISC_SHARED_NTHANDLE |
                       D3D11_RESOURCE_MISC_SHARED_KEYEDMUTEX;
-  ThrowIfFailed(pDevice->CreateTexture2D(&texDesc, nullptr, &texture));
+  texDesc.TextureLayout = D3D11_TEXTURE_LAYOUT_ROW_MAJOR;
+
+  ComPtr<ID3D11Device3> device3;
+  pDevice->QueryInterface(IID_PPV_ARGS(&device3));
+  device3->CreateTexture2D1(&texDesc, NULL, &texture);
 
   // Create the keyed mutex for synchronising the shared resource.
   ComPtr<IDXGIKeyedMutex> keyedMutex;
@@ -271,9 +298,7 @@ int runTest(D3D11ProgramState &d3d11ProgramState, sycl::queue syclQueue,
       &sharedHandle));
 
   // Obtain a pointer to the shared resource for use in subsequent operations.
-  ComPtr<ID3D11Device1> device1;
-  ThrowIfFailed(pDevice->QueryInterface(IID_PPV_ARGS(&device1)));
-  ThrowIfFailed(device1->OpenSharedResource1(
+  ThrowIfFailed(device3->OpenSharedResource1(
       sharedHandle, IID_PPV_ARGS(sharedResource.GetAddressOf())));
 
   // Populate the texture on the CPU
@@ -291,12 +316,14 @@ int runTest(D3D11ProgramState &d3d11ProgramState, sycl::queue syclQueue,
       inputData[i] = getInputValue(i);
     }
     populateD3D11Texture<DType, NChannels>(
-        d3d11ProgramState, resource.Get(), texWidth, texHeight, texDepth,
+        d3d11ProgramState, resource.Get(), texWidth, texHeight * texDepth, 1,
         texFormat, inputData.data(), keyedMutex.Get());
   }
 
   // Unfortunately, DX11 does not expose the texture allocation information
   // like DX12, so we have to calculate it manually the best we can (no mips).
+  // The fact that the texture has been requested to have a row major layout
+  // should support this speculative calculation.
   const size_t allocationSize =
       texWidth * texHeight * texDepth * NChannels * sizeof(DType);
   syclexp::unsampled_image_handle syclImageHandle = syclImportTextureMem(
@@ -405,9 +432,9 @@ int main() {
       sycl::range{64, 64, 4}, sycl::range{64, 64, 4}};
 #else
   const sycl::range<3> globalSize3D[] = {
-      sycl::range{1024, 1024, 16}, sycl::range{1920, 1080, 8},
-      sycl::range{1920, 1080, 8}, sycl::range{1280, 720, 4},
-      sycl::range{1280, 720, 4}};
+      sycl::range{256, 256, 32}, sycl::range{1920, 1080, 8},
+      sycl::range{512, 256, 8}, sycl::range{1280, 720, 2},
+      sycl::range{1280, 720, 2}};
 #endif
   errors += runTest<3, uint32_t, 1>(d3d11ProgramState, syclQueue,
                                     sycl::image_channel_type::unsigned_int32,

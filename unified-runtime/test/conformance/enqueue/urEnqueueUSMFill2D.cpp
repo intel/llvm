@@ -153,11 +153,11 @@ TEST_P(urEnqueueUSMFill2DTestWithParam, Success) {
   ASSERT_NO_FATAL_FAILURE(verifyData());
 }
 
-struct urEnqueueUSMFill2DNegativeTest : uur::urQueueTest {
+struct urEnqueueUSMFill2DNegativeTest : uur::urMultiQueueTypeTest {
   void SetUp() override {
     UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
 
-    UUR_RETURN_ON_FATAL_FAILURE(uur::urQueueTest::SetUp());
+    UUR_RETURN_ON_FATAL_FAILURE(uur::urMultiQueueTypeTest::SetUp());
 
     ur_device_usm_access_capability_flags_t device_usm = 0;
     ASSERT_SUCCESS(uur::GetDeviceUSMDeviceSupport(device, device_usm));
@@ -179,7 +179,7 @@ struct urEnqueueUSMFill2DNegativeTest : uur::urQueueTest {
       EXPECT_SUCCESS(urUSMFree(context, ptr));
     }
 
-    UUR_RETURN_ON_FATAL_FAILURE(uur::urQueueTest::TearDown());
+    UUR_RETURN_ON_FATAL_FAILURE(uur::urMultiQueueTypeTest::TearDown());
   }
 
   static constexpr size_t pitch = 16;
@@ -191,7 +191,7 @@ struct urEnqueueUSMFill2DNegativeTest : uur::urQueueTest {
   void *ptr{nullptr};
 };
 
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEnqueueUSMFill2DNegativeTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_MULTI_QUEUE(urEnqueueUSMFill2DNegativeTest);
 
 TEST_P(urEnqueueUSMFill2DNegativeTest, InvalidNullQueueHandle) {
   ASSERT_EQ_RESULT(urEnqueueUSMFill2D(nullptr, ptr, pitch, pattern_size,

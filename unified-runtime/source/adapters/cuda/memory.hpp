@@ -12,7 +12,7 @@
 #include <cassert>
 #include <cuda.h>
 #include <memory>
-#include <ur_api.h>
+#include <unified-runtime/ur_api.h>
 #include <variant>
 
 #include "common.hpp"
@@ -305,7 +305,7 @@ public:
 /// Memory migration between native allocations for devices in the same
 /// ur_context_handle_t will occur at:
 ///
-///   1. urEnqueueKernelLaunch
+///   1. urEnqueueKernelLaunchWithArgsExp
 ///   2. urEnqueueMem(Buffer|Image)Read(Rect)
 ///
 /// Migrations will occur in both cases if the most recent version of data

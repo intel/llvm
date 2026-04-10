@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "sycl/detail/helpers.hpp"
-#include "ur_api.h"
+#include "unified-runtime/ur_api.h"
 #include <algorithm>
 
 #include <detail/buffer_impl.hpp>
@@ -159,15 +159,15 @@ fill_image_type(const ext::oneapi::experimental::image_descriptor &Desc,
 // Fill image format
 static ur_image_format_t
 fill_format(const ext::oneapi::experimental::image_descriptor &Desc) {
-  ur_image_format_t PiFormat;
+  ur_image_format_t UrFormat;
 
-  PiFormat.channelType =
+  UrFormat.channelType =
       sycl::_V1::detail::convertChannelType(Desc.channel_type);
-  PiFormat.channelOrder = sycl::detail::convertChannelOrder(
+  UrFormat.channelOrder = sycl::detail::convertChannelOrder(
       sycl::_V1::ext::oneapi::experimental::detail::
           get_image_default_channel_order(Desc.num_channels));
 
-  return PiFormat;
+  return UrFormat;
 }
 
 static void
@@ -204,10 +204,14 @@ verify_sub_copy(const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
             static_cast<bool>(result[2]));
   };
 
-  sycl::range<3> SrcImageSize = {SrcImgDesc.width, SrcImgDesc.height,
-                                 SrcImgDesc.depth};
-  sycl::range<3> DestImageSize = {DestImgDesc.width, DestImgDesc.height,
-                                  DestImgDesc.depth};
+  // If this is a multi-layer array image, use the layer count; otherwise, use
+  // the depth dimension (following the logic in fill_image_type() ).
+  sycl::range<3> SrcImageSize = {
+      SrcImgDesc.width, SrcImgDesc.height,
+      SrcImgDesc.array_size > 1 ? SrcImgDesc.array_size : SrcImgDesc.depth};
+  sycl::range<3> DestImageSize = {
+      DestImgDesc.width, DestImgDesc.height,
+      DestImgDesc.array_size > 1 ? DestImgDesc.array_size : DestImgDesc.depth};
 
   if (isOutOfRange(SrcImageSize, SrcOffset, CopyExtent) ||
       isOutOfRange(DestImageSize, DestOffset, CopyExtent)) {
@@ -758,17 +762,19 @@ detail::EventImplPtr handler::finalize() {
                                           type, impl->MUserFacingNodeType);
   }
 
-  // For kernel submission, regardless of whether an event has been requested,
-  // the scheduler needs to generate an event so the commands are properly
-  // ordered (for in-order queue) and synchronized with a barrier (for
-  // out-of-order queue). The event can only be skipped for the scheduler bypass
-  // path.
+  // For kernel and host task submission, regardless of whether an event has
+  // been requested, the scheduler needs to generate an event so the commands
+  // are properly ordered (for in-order queue) and synchronized with a barrier
+  // (for out-of-order queue). The event can only be skipped for the scheduler
+  // bypass path.
   //
-  // For commands other than kernel submission, if an event has not been
-  // requested, the queue supports events discarding, and the scheduler
+  // For commands other than kernel and host task submission, if an event has
+  // not been requested, the queue supports events discarding, and the scheduler
   // could have been bypassed (not supported yet), the event can be skipped.
+  // TODO: check if it's possible to discard an event for host task.
   bool DiscardEvent =
-      (type != detail::CGType::Kernel && KernelSchedulerBypass &&
+      (type != detail::CGType::Kernel &&
+       type != detail::CGType::CodeplayHostTask && KernelSchedulerBypass &&
        !impl->MEventNeeded && Queue->isInOrder());
 
   detail::EventImplPtr Event = detail::Scheduler::getInstance().addCG(
@@ -1645,6 +1651,15 @@ void handler::SetHostTask(std::function<void()> Func) {
   range<1> r(1);
   setNDRangeDescriptor(detail::nd_range_view(r));
   impl->MHostTask.reset(new detail::HostTask(std::move(Func)));
+  setType(detail::CGType::CodeplayHostTask);
+}
+
+void handler::SetHostTaskFromExtEnqueueFunctions(std::function<void()> Func) {
+  range<1> r(1);
+  setNDRangeDescriptor(detail::nd_range_view(r));
+  impl->MHostTask.reset(
+      new detail::HostTask(std::move(Func), /*IsFromExtEnqueueFunctionsAPI=*/
+                           true));
   setType(detail::CGType::CodeplayHostTask);
 }
 

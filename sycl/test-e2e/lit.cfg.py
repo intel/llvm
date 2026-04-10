@@ -35,6 +35,9 @@ config.backend_to_triple = {
     k: config.target_to_triple.get(v) for k, v in config.backend_to_target.items()
 }
 
+# The backend set by the user has precedence over backends set during the parsing of the sycl-ls output
+is_offload_preferred_backend_set = config.backend_to_target["offload"] != ""
+
 # name: The name of this test suite.
 config.name = "SYCL"
 
@@ -120,6 +123,8 @@ llvm_config.with_system_environment(
         "CL_CONFIG_DEVICES",
         "SYCL_DEVICE_ALLOWLIST",
         "SYCL_CONFIG_FILE_NAME",
+        "VK_ADD_LAYER_PATH",
+        "XDG_CACHE_HOME",
     ]
 )
 
@@ -256,6 +261,7 @@ device_family_arch_map = {
         "intel_gpu_rpl_s",
         "intel_gpu_adl_p",
         "intel_gpu_adl_n",
+        "intel_gpu_mtl_h",
     },
     # Gen11
     "gpu-intel-gen11": {"intel_gpu_icllp", "intel_gpu_icl"},
@@ -637,7 +643,7 @@ config.substitutions.append(("%link-vulkan", link_vulkan))
 
 # Add DirectX 12 libraries to the configuration for substitution.
 if platform.system() == "Windows":
-    directx_libs = ["-ld3d11", "-ld3d12", "-ldxgi", "-ldxguid"]
+    directx_libs = ["-ld3d11", "-ld3d12", "-ldxgi", "-ldxguid", "-ld3dcompiler"]
     if cl_options:
         directx_libs = ["/clang:" + l for l in directx_libs]
     config.substitutions.append(("%link-directx", " ".join(directx_libs)))
@@ -1012,6 +1018,7 @@ for full_name, sycl_device in zip(
     is_intel_driver = False
     intel_driver_ver = {}
     sycl_ls_sp = get_sycl_ls_verbose(sycl_device, env)
+    offload_assigned_backend = ""
     for line in sycl_ls_sp.stdout.splitlines():
         if re.match(r" *Vendor *: Intel\(R\) Corporation", line):
             is_intel_driver = True
@@ -1050,6 +1057,17 @@ for full_name, sycl_device in zip(
             architectures.add(architecture.strip())
         if re.match(r" *Name *:", line) and "Level-Zero V2" in line:
             features.add("level_zero_v2_adapter")
+
+        # TODO change to the set of backends
+        if re.match(r"\[offload:.*", line) and not is_offload_preferred_backend_set:
+            if re.match(".*Level[ _]Zero.*", line, re.IGNORECASE):
+                offload_assigned_backend = config.backend_to_target["level_zero"]
+                is_offload_preferred_backend_set = True
+            elif re.match(".*nvidia.*", line, re.IGNORECASE):
+                offload_assigned_backend = config.backend_to_target["cuda"]
+
+    if offload_assigned_backend != "":
+        config.backend_to_target["offload"] = offload_assigned_backend
 
     if dev_aspects == []:
         lit_config.error(

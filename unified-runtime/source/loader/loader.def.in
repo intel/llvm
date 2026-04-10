@@ -31,6 +31,7 @@ EXPORTS
 	urBindlessImagesUnsampledImageHandleDestroyExp
 	urBindlessImagesWaitExternalSemaphoreExp
 	urCommandBufferAppendKernelLaunchExp
+	urCommandBufferAppendKernelLaunchWithArgsExp
 	urCommandBufferAppendMemBufferCopyExp
 	urCommandBufferAppendMemBufferCopyRectExp
 	urCommandBufferAppendMemBufferFillExp
@@ -78,7 +79,6 @@ EXPORTS
 	urEnqueueEventsWaitWithBarrierExt
 	urEnqueueGraphExp
 	urEnqueueHostTaskExp
-	urEnqueueKernelLaunch
 	urEnqueueKernelLaunchWithArgsExp
 	urEnqueueMemBufferCopy
 	urEnqueueMemBufferCopyRect
@@ -156,13 +156,9 @@ EXPORTS
 	urKernelGetNativeHandle
 	urKernelGetSubGroupInfo
 	urKernelGetSuggestedLocalWorkSize
+	urKernelGetSuggestedLocalWorkSizeWithArgs
 	urKernelRelease
 	urKernelRetain
-	urKernelSetArgLocal
-	urKernelSetArgMemObj
-	urKernelSetArgPointer
-	urKernelSetArgSampler
-	urKernelSetArgValue
 	urKernelSetExecInfo
 	urKernelSetSpecializationConstants
 	urKernelSuggestMaxCooperativeGroupCount
@@ -241,6 +237,7 @@ EXPORTS
 	urPrintCodeLocation
 	urPrintCommand
 	urPrintCommandBufferAppendKernelLaunchExpParams
+	urPrintCommandBufferAppendKernelLaunchWithArgsExpParams
 	urPrintCommandBufferAppendMemBufferCopyExpParams
 	urPrintCommandBufferAppendMemBufferCopyRectExpParams
 	urPrintCommandBufferAppendMemBufferFillExpParams
@@ -308,7 +305,6 @@ EXPORTS
 	urPrintEnqueueEventsWaitWithBarrierParams
 	urPrintEnqueueGraphExpParams
 	urPrintEnqueueHostTaskExpParams
-	urPrintEnqueueKernelLaunchParams
 	urPrintEnqueueKernelLaunchWithArgsExpParams
 	urPrintEnqueueMemBufferCopyParams
 	urPrintEnqueueMemBufferCopyRectParams
@@ -382,6 +378,8 @@ EXPORTS
 	urPrintExpSamplerCubemapFilterMode
 	urPrintExpSamplerCubemapProperties
 	urPrintExpSamplerMipProperties
+	urPrintExpUsmHostAllocRegisterFlags
+	urPrintExpUsmHostAllocRegisterProperties
 	urPrintExpWin32Handle
 	urPrintFunction
 	urPrintFunctionParams
@@ -415,6 +413,7 @@ EXPORTS
 	urPrintKernelGetNativeHandleParams
 	urPrintKernelGetSubGroupInfoParams
 	urPrintKernelGetSuggestedLocalWorkSizeParams
+	urPrintKernelGetSuggestedLocalWorkSizeWithArgsParams
 	urPrintKernelGroupInfo
 	urPrintKernelInfo
 	urPrintKernelLaunchClusterProperty
@@ -425,11 +424,6 @@ EXPORTS
 	urPrintKernelNativeProperties
 	urPrintKernelReleaseParams
 	urPrintKernelRetainParams
-	urPrintKernelSetArgLocalParams
-	urPrintKernelSetArgMemObjParams
-	urPrintKernelSetArgPointerParams
-	urPrintKernelSetArgSamplerParams
-	urPrintKernelSetArgValueParams
 	urPrintKernelSetExecInfoParams
 	urPrintKernelSetSpecializationConstantsParams
 	urPrintKernelSubGroupInfo
@@ -552,6 +546,8 @@ EXPORTS
 	urPrintUsmFreeParams
 	urPrintUsmGetMemAllocInfoParams
 	urPrintUsmHostAllocParams
+	urPrintUsmHostAllocRegisterExpParams
+	urPrintUsmHostAllocUnregisterExpParams
 	urPrintUsmHostDesc
 	urPrintUsmHostMemFlags
 	urPrintUsmImportExpParams
@@ -631,6 +627,8 @@ EXPORTS
 	urUSMFree
 	urUSMGetMemAllocInfo
 	urUSMHostAlloc
+	urUSMHostAllocRegisterExp
+	urUSMHostAllocUnregisterExp
 	urUSMImportExp
 	urUSMPitchedAllocExp
 	urUSMPoolCreate

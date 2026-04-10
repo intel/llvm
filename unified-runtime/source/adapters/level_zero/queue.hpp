@@ -19,8 +19,8 @@
 #include <unordered_map>
 #include <vector>
 
+#include <unified-runtime/ur_ddi.h>
 #include <ur/ur.hpp>
-#include <ur_ddi.h>
 #include <ze_api.h>
 #include <zes_api.h>
 
@@ -595,11 +595,11 @@ struct ur_queue_handle_t_ : ur_object {
   void CaptureIndirectAccesses();
 
   // Kernel is not necessarily submitted for execution during
-  // urEnqueueKernelLaunch, it may be batched. That's why we need to save the
-  // list of kernels which is going to be submitted but have not been submitted
-  // yet. This is needed to capture memory allocations for each kernel with
-  // indirect access in the list at the moment when kernel is really submitted
-  // for execution.
+  // urEnqueueKernelLaunchWithArgsExp, it may be batched. That's why we need to
+  // save the list of kernels which is going to be submitted but have not been
+  // submitted yet. This is needed to capture memory allocations for each kernel
+  // with indirect access in the list at the moment when kernel is really
+  // submitted for execution.
   std::vector<ur_kernel_handle_t> KernelsToBeSubmitted;
 
   // Append command to the command list to signal new event if the last event in

@@ -9,14 +9,16 @@ add_conformance_kernels_test(enqueue
     urEnqueueEventsWait.cpp
     urEnqueueEventsWaitMultiDevice.cpp
     urEnqueueEventsWaitWithBarrier.cpp
-    urEnqueueKernelLaunch.cpp
+    urEnqueueKernelLaunchWithArgsExp.cpp
     urEnqueueKernelLaunchAndMemcpyInOrder.cpp
     urEnqueueMemBufferCopyRect.cpp
     urEnqueueMemBufferCopy.cpp
     urEnqueueMemBufferFill.cpp
     urEnqueueMemBufferMap.cpp
-    urEnqueueMemBufferRead.cpp
-    urEnqueueMemBufferReadRect.cpp
+    # Enqueue memory buffer read tests ran simultenously lead to timeouts.
+    # Tracker: https://jira.devtools.intel.com/browse/URT-1026
+    # urEnqueueMemBufferRead.cpp
+    # urEnqueueMemBufferReadRect.cpp
     urEnqueueMemBufferWrite.cpp
     urEnqueueMemBufferWriteRect.cpp
     urEnqueueMemImageCopy.cpp
@@ -32,4 +34,4 @@ add_conformance_kernels_test(enqueue
     urEnqueueReadHostPipe.cpp
     urEnqueueWriteHostPipe.cpp
     urEnqueueTimestampRecording.cpp
-    )
+)

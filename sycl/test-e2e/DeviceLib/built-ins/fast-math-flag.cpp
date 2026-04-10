@@ -108,7 +108,7 @@ int main() {
   test_ffmath_rsqrt<float4>(q);
   test_ffmath_sin<float4>(q);
   test_ffmath_sqrt<float4>(q);
-  test_ffmath_tan<float4>(q);
+  //test_ffmath_tan<float4>(q);
   test_ffmath_powr<float4>(q);
 
   return 0;

@@ -187,6 +187,8 @@ MODULE_PASS("SYCLMutatePrintfAddrspace", SYCLMutatePrintfAddrspacePass())
 MODULE_PASS("SPIRITTAnnotations", SPIRITTAnnotationsPass())
 MODULE_PASS("deadargelim-sycl", DeadArgumentEliminationSYCLPass())
 MODULE_PASS("sycllowerwglocalmemory", SYCLLowerWGLocalMemoryPass())
+MODULE_PASS("globaloffset", GlobalOffsetPass())
+MODULE_PASS("local-accessor-to-shared-memory", LocalAccessorToSharedMemoryPass())
 MODULE_PASS("lower-esimd-kernel-attrs", SYCLFixupESIMDKernelWrapperMDPass())
 MODULE_PASS("esimd-remove-host-code", ESIMDRemoveHostCodePass());
 MODULE_PASS("esimd-remove-optnone-noinline", ESIMDRemoveOptnoneNoinlinePass());
@@ -196,6 +198,7 @@ MODULE_PASS("sycl-propagate-aspects-usage", SYCLPropagateAspectsUsagePass())
 MODULE_PASS("sycl-propagate-joint-matrix-usage", SYCLPropagateJointMatrixUsagePass())
 MODULE_PASS("sycl-add-opt-level-attribute", SYCLAddOptLevelAttributePass())
 MODULE_PASS("compile-time-properties", CompileTimePropertiesPass())
+MODULE_PASS("sycl-remangle-libspirv", SYCLRemangleLibspirvPass())
 MODULE_PASS("cleanup-sycl-metadata", CleanupSYCLMetadataPass())
 MODULE_PASS("sycl-create-nvvm-annotations", SYCLCreateNVVMAnnotationsPass())
 MODULE_PASS("lower-slm-reservation-calls", ESIMDLowerSLMReservationCalls())
@@ -435,7 +438,6 @@ FUNCTION_PASS("assume-simplify", AssumeSimplifyPass())
 FUNCTION_PASS("atomic-expand", AtomicExpandPass(*TM))
 FUNCTION_PASS("bdce", BDCEPass())
 FUNCTION_PASS("break-crit-edges", BreakCriticalEdgesPass())
-FUNCTION_PASS("callbr-prepare", CallBrPreparePass())
 FUNCTION_PASS("callsite-splitting", CallSiteSplittingPass())
 FUNCTION_PASS("chr", ControlHeightReductionPass())
 FUNCTION_PASS("codegenprepare", CodeGenPreparePass(*TM))
@@ -457,7 +459,6 @@ FUNCTION_PASS("dot-post-dom", PostDomPrinter())
 FUNCTION_PASS("dot-post-dom-only", PostDomOnlyPrinter())
 FUNCTION_PASS("dse", DSEPass())
 FUNCTION_PASS("dwarf-eh-prepare", DwarfEHPreparePass(*TM))
-FUNCTION_PASS("expand-large-div-rem", ExpandLargeDivRemPass(*TM))
 FUNCTION_PASS("expand-memcmp", ExpandMemCmpPass(*TM))
 FUNCTION_PASS("expand-reductions", ExpandReductionsPass())
 FUNCTION_PASS("extra-vector-passes",
@@ -466,6 +467,7 @@ FUNCTION_PASS("fix-irreducible", FixIrreduciblePass())
 FUNCTION_PASS("flatten-cfg", FlattenCFGPass())
 FUNCTION_PASS("float2int", Float2IntPass())
 FUNCTION_PASS("free-machine-function", FreeMachineFunctionPass())
+FUNCTION_PASS("func-properties-stats", FunctionPropertiesStatisticsPass())
 FUNCTION_PASS("gc-lowering", GCLoweringPass())
 FUNCTION_PASS("guard-widening", GuardWideningPass())
 FUNCTION_PASS("gvn-hoist", GVNHoistPass())
@@ -475,6 +477,7 @@ FUNCTION_PASS("indirectbr-expand", IndirectBrExpandPass(*TM))
 FUNCTION_PASS("infer-address-spaces", InferAddressSpacesPass())
 FUNCTION_PASS("infer-alignment", InferAlignmentPass())
 FUNCTION_PASS("inject-tli-mappings", InjectTLIMappings())
+FUNCTION_PASS("inline-asm-prepare", InlineAsmPreparePass())
 FUNCTION_PASS("instcount", InstCountPass())
 FUNCTION_PASS("instnamer", InstructionNamerPass())
 FUNCTION_PASS("instsimplify", InstSimplifyPass())
@@ -757,11 +760,11 @@ FUNCTION_PASS_WITH_PARAMS(
     parseBoundsCheckingOptions,
     "trap;rt;rt-abort;min-rt;min-rt-abort;merge;guard=N")
 FUNCTION_PASS_WITH_PARAMS(
-    "expand-fp", "ExpandFpPass",
+    "expand-ir-insts", "ExpandIRInstsPass",
     [TM = TM](CodeGenOptLevel OL) {
-      return ExpandFpPass(*TM, OL);
+      return ExpandIRInstsPass(*TM, OL);
     },
-    parseExpandFpOptions, "O0;O1;O2;O3")
+    parseExpandIRInstsOptions, "O0;O1;O2;O3")
 
 #undef FUNCTION_PASS_WITH_PARAMS
 

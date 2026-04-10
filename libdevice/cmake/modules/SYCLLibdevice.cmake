@@ -1,21 +1,15 @@
 include(CheckCXXCompilerFlag)
 set(obj_binary_dir "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
-set(obj-new-offload_binary_dir "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
 if (MSVC)
   set(obj-suffix obj)
-  set(obj-new-offload-suffix new.obj)
   set(devicelib_host_static_obj sycl-devicelib-host.lib)
-  set(devicelib_host_static_obj-new-offload sycl-devicelib-host.new.lib)
 else()
   set(obj-suffix o)
-  set(obj-new-offload-suffix new.o)
   set(devicelib_host_static_obj libsycl-devicelib-host.a)
-  set(devicelib_host_static_obj-new-offload libsycl-devicelib-host.new.a)
 endif()
 set(bc-suffix bc)
 set(bc_binary_dir "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
 set(install_dest_obj lib${LLVM_LIBDIR_SUFFIX})
-set(install_dest_obj-new-offload lib${LLVM_LIBDIR_SUFFIX})
 set(install_dest_bc lib${LLVM_LIBDIR_SUFFIX})
 
 string(CONCAT sycl_targets_opt
@@ -75,7 +69,7 @@ endif()
 
 add_custom_target(libsycldevice)
 
-set(filetypes obj obj-new-offload bc)
+set(filetypes obj bc)
 
 foreach(filetype IN LISTS filetypes)
   add_custom_target(libsycldevice-${filetype})
@@ -103,8 +97,6 @@ endif()
 
 
 set(bc_device_compile_opts -fsycl-device-only -fsycl-device-obj=llvmir)
-set(obj-new-offload_device_compile_opts -fsycl -c --offload-new-driver
-  -foffload-lto=thin ${sycl_targets_opt})
 set(obj_device_compile_opts -fsycl -c ${sycl_targets_opt} --no-offload-new-driver)
 
 # Compiles and installs a single device library.
@@ -222,7 +214,7 @@ function(link_bc)
   )
 endfunction()
 
-# Runs opt and prepare-builtins on a bitcode file specified by lib_tgt
+# Runs opt on a bitcode file specified by lib_tgt
 #
 # ARGUMENTS:
 # * LIB_TGT string
@@ -236,34 +228,18 @@ endfunction()
 function(process_bc out_file)
   cmake_parse_arguments(ARG
     ""
-    "LIB_TGT;IN_FILE;OUT_DIR"
+    "IN_FILE;OUT_DIR"
     "OPT_FLAGS;DEPENDENCIES"
     ${ARGN})
-  add_custom_command( OUTPUT ${ARG_LIB_TGT}.bc
-    COMMAND ${opt_exe} ${ARG_OPT_FLAGS} -o ${ARG_LIB_TGT}.bc
+  add_custom_command( OUTPUT ${ARG_OUT_DIR}/${out_file}
+    COMMAND ${opt_exe} ${ARG_OPT_FLAGS} -o ${ARG_OUT_DIR}/${out_file}
     ${ARG_IN_FILE}
     DEPENDS ${opt_target} ${ARG_IN_FILE} ${ARG_DEPENDENCIES}
   )
-  add_custom_target( ${ARG_LIB_TGT}
-    ALL DEPENDS ${ARG_LIB_TGT}.bc
-  )
-  set_target_properties( ${ARG_LIB_TGT}
-    PROPERTIES TARGET_FILE ${ARG_LIB_TGT}.bc
-  )
-
-  set( builtins_opt_lib $<TARGET_PROPERTY:${ARG_LIB_TGT},TARGET_FILE> )
-
-  # Add prepare target
-  # FIXME: prepare_builtins_exe comes from having included libclc before this.
-  # This is brittle.
-  add_custom_command( OUTPUT ${ARG_OUT_DIR}/${out_file}
-    COMMAND ${prepare_builtins_exe} -o ${ARG_OUT_DIR}/${out_file}
-      ${builtins_opt_lib}
-      DEPENDS ${builtins_opt_lib} ${ARG_LIB_TGT} ${prepare_builtins_target} )
-  add_custom_target( prepare-${out_file} ALL
+  add_custom_target( opt-${out_file} ALL
     DEPENDS ${ARG_OUT_DIR}/${out_file}
   )
-  set_target_properties( prepare-${out_file}
+  set_target_properties( opt-${out_file}
     PROPERTIES TARGET_FILE ${ARG_OUT_DIR}/${out_file}
   )
 endfunction()
@@ -385,24 +361,6 @@ if (NOT MSVC AND UR_SANITIZER_INCLUDE_DIR)
                                 ${sanitizer_generic_compile_opts}
                                 -D__LIBDEVICE_DG2__)
 
-  set(sanitizer_pvc_compile_opts_obj-new-offload -fsycl -c --offload-new-driver
-                                            -foffload-lto=thin
-                                            ${sanitizer_generic_compile_opts}
-                                            ${sycl_pvc_target_opt}
-                                            -D__LIBDEVICE_PVC__)
-
-  set(sanitizer_cpu_compile_opts_obj-new-offload -fsycl -c --offload-new-driver
-                                            -foffload-lto=thin
-                                            ${sanitizer_generic_compile_opts}
-                                            ${sycl_cpu_target_opt}
-                                            -D__LIBDEVICE_CPU__)
-
-  set(sanitizer_dg2_compile_opts_obj-new-offload -fsycl -c --offload-new-driver
-                                            -foffload-lto=thin
-                                            ${sanitizer_generic_compile_opts}
-                                            ${sycl_dg2_target_opt}
-                                            -D__LIBDEVICE_DG2__)
-  
   set(msan_obj_deps
     device.h atomic.hpp spirv_vars.h
     ${UR_SANITIZER_INCLUDE_DIR}/msan/msan_libdevice.hpp
@@ -440,7 +398,6 @@ if("native_cpu" IN_LIST SYCL_ENABLE_BACKENDS)
     VERBATIM)
   add_custom_target(nativecpu_utils-bc DEPENDS ${bc_binary_dir}/nativecpu_utils.bc)
   process_bc(libsycl-nativecpu_utils.bc
-    LIB_TGT libsycl-nativecpu_utils
     IN_FILE ${bc_binary_dir}/nativecpu_utils.bc
     OUT_DIR ${bc_binary_dir})
   add_custom_target(libsycl-nativecpu_utils-bc DEPENDS ${bc_binary_dir}/libsycl-nativecpu_utils.bc)
@@ -689,8 +646,6 @@ if (NOT WIN32)
   add_imf_host_cxx_flags_compile_flags_if_supported("-fcf-protection=full")
 endif()
 
-set(obj-new-offload_host_compile_opts ${imf_host_cxx_flags} --offload-new-driver
-  -foffload-lto=thin)
 set(obj_host_compile_opts ${imf_host_cxx_flags} --no-offload-new-driver)
 
 foreach(datatype IN ITEMS fp32 fp64 bf16)
@@ -801,78 +756,71 @@ foreach(arch IN LISTS full_build_archs)
   set( builtins_link_lib_${arch}
     $<TARGET_PROPERTY:device_lib_device_${arch},TARGET_FILE>)
   add_dependencies(libsycldevice-bc device_lib_device_${arch})
-  set( builtins_opt_lib_tgt_${arch} builtins_${arch}.opt)
 
-  # Run the optimizer on the resulting bitcode file and call prepare_builtins
-  # on it, which strips away debug and arch information.
+  # Run the optimizer on the resulting bitcode file.
   process_bc(devicelib-${arch}.bc
-    LIB_TGT builtins_${arch}.opt
     IN_FILE ${builtins_link_lib_${arch}}
     OUT_DIR ${bc_binary_dir}
     OPT_FLAGS ${opt_flags_${arch}}
     DEPENDENCIES device_lib_device_${arch})
-  add_dependencies(libsycldevice-bc prepare-devicelib-${arch}.bc)
+  add_dependencies(libsycldevice-bc opt-devicelib-${arch}.bc)
   set(complete_${arch}_libdev
-    $<TARGET_PROPERTY:prepare-devicelib-${arch}.bc,TARGET_FILE>)
+    $<TARGET_PROPERTY:opt-devicelib-${arch}.bc,TARGET_FILE>)
   install( FILES ${complete_${arch}_libdev}
            DESTINATION ${install_dest_bc}
            COMPONENT libsycldevice)
 endforeach()
 
-# Add host device imf libraries for obj and new offload objects.
+# Add host objects for host device imf libraries.
 foreach(dtype IN ITEMS bf16 fp32 fp64)
-  foreach(ftype IN ITEMS obj obj-new-offload)
-    set(tgt_name imf_fallback_${dtype}_host_${ftype})
+  set(tgt_name imf_fallback_${dtype}_host_obj)
 
-    add_lib_imf(fallback-imf-${dtype}-host
-      DIR ${${ftype}_binary_dir}
-      FTYPE ${ftype}
-      DTYPE ${dtype}
-      EXTRA_OPTS ${${ftype}_host_compile_opts}
-      TGT_NAME ${tgt_name})
+  add_lib_imf(fallback-imf-${dtype}-host
+    DIR ${obj_binary_dir}
+    FTYPE obj
+    DTYPE ${dtype}
+    EXTRA_OPTS ${obj_host_compile_opts}
+    TGT_NAME ${tgt_name})
 
-    set(wrapper_name imf_wrapper.cpp)
-    if (NOT ("${dtype}" STREQUAL "fp32"))
-      set(wrapper_name imf_wrapper_${dtype}.cpp)
-    endif()
-    add_custom_command(
-      OUTPUT ${${ftype}_binary_dir}/imf-${dtype}-host.${${ftype}-suffix}
-      COMMAND ${clang_exe} ${${ftype}_host_compile_opts}
-              ${CMAKE_CURRENT_SOURCE_DIR}/${wrapper_name}
-              -o ${${ftype}_binary_dir}/imf-${dtype}-host.${${ftype}-suffix}
-      MAIN_DEPENDENCY ${CMAKE_CURRENT_SOURCE_DIR}/${wrapper_name}
-      DEPENDS ${imf_obj_deps}
-      VERBATIM)
-
-    add_custom_target(imf_${dtype}_host_${ftype} DEPENDS
-      ${obj_binary_dir}/imf-${dtype}-host.${${ftype}-suffix})
-  endforeach()
-endforeach()
-
-foreach(ftype IN ITEMS obj obj-new-offload)
-  add_custom_target(imf_host_${ftype}
-    DEPENDS ${${ftype}_binary_dir}/${devicelib_host_static_${ftype}})
+  set(wrapper_name imf_wrapper.cpp)
+  if (NOT ("${dtype}" STREQUAL "fp32"))
+    set(wrapper_name imf_wrapper_${dtype}.cpp)
+  endif()
   add_custom_command(
-    OUTPUT ${${ftype}_binary_dir}/${devicelib_host_static_${ftype}}
-    COMMAND ${llvm-ar_exe} rcs
-            ${${ftype}_binary_dir}/${devicelib_host_static_${ftype}}
-            ${${ftype}_binary_dir}/imf-fp32-host.${${ftype}-suffix}
-            ${${ftype}_binary_dir}/fallback-imf-fp32-host.${${ftype}-suffix}
-            ${${ftype}_binary_dir}/imf-fp64-host.${${ftype}-suffix}
-            ${${ftype}_binary_dir}/fallback-imf-fp64-host.${${ftype}-suffix}
-            ${${ftype}_binary_dir}/imf-bf16-host.${${ftype}-suffix}
-            ${${ftype}_binary_dir}/fallback-imf-bf16-host.${${ftype}-suffix}
-    DEPENDS imf_fp32_host_${ftype} imf_fallback_fp32_host_${ftype}
-    DEPENDS imf_fp64_host_${ftype} imf_fallback_fp64_host_${ftype}
-    DEPENDS imf_bf16_host_${ftype} imf_fallback_bf16_host_${ftype}
-    DEPENDS ${llvm-ar_target}
+    OUTPUT ${obj_binary_dir}/imf-${dtype}-host.${obj-suffix}
+    COMMAND ${clang_exe} ${obj_host_compile_opts}
+            ${CMAKE_CURRENT_SOURCE_DIR}/${wrapper_name}
+            -o ${obj_binary_dir}/imf-${dtype}-host.${obj-suffix}
+    MAIN_DEPENDENCY ${CMAKE_CURRENT_SOURCE_DIR}/${wrapper_name}
+    DEPENDS ${imf_obj_deps}
     VERBATIM)
-  add_dependencies(libsycldevice-obj imf_host_${ftype})
 
-  install( FILES ${obj_binary_dir}/${devicelib_host_static_${ftype}}
-           DESTINATION ${install_dest_obj}
-           COMPONENT libsycldevice)
+  add_custom_target(imf_${dtype}_host_obj DEPENDS
+    ${obj_binary_dir}/imf-${dtype}-host.${obj-suffix})
 endforeach()
+
+add_custom_target(imf_host_obj
+  DEPENDS ${obj_binary_dir}/${devicelib_host_static_obj})
+add_custom_command(
+  OUTPUT ${obj_binary_dir}/${devicelib_host_static_obj}
+  COMMAND ${llvm-ar_exe} rcs
+          ${obj_binary_dir}/${devicelib_host_static_obj}
+          ${obj_binary_dir}/imf-fp32-host.${obj-suffix}
+          ${obj_binary_dir}/fallback-imf-fp32-host.${obj-suffix}
+          ${obj_binary_dir}/imf-fp64-host.${obj-suffix}
+          ${obj_binary_dir}/fallback-imf-fp64-host.${obj-suffix}
+          ${obj_binary_dir}/imf-bf16-host.${obj-suffix}
+          ${obj_binary_dir}/fallback-imf-bf16-host.${obj-suffix}
+  DEPENDS imf_fp32_host_obj imf_fallback_fp32_host_obj
+  DEPENDS imf_fp64_host_obj imf_fallback_fp64_host_obj
+  DEPENDS imf_bf16_host_obj imf_fallback_bf16_host_obj
+  DEPENDS ${llvm-ar_target}
+  VERBATIM)
+add_dependencies(libsycldevice-obj imf_host_obj)
+
+install( FILES ${obj_binary_dir}/${devicelib_host_static_obj}
+         DESTINATION ${install_dest_obj}
+         COMPONENT libsycldevice)
 
 foreach(ftype IN LISTS filetypes)
   install(
