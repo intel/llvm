@@ -3766,6 +3766,7 @@
 ?end_recording@modifiable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@QEAAXAEBV?$vector@Vqueue@_V1@sycl@@V?$allocator@Vqueue@_V1@sycl@@@std@@@std@@@Z
 ?end_recording@modifiable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@QEAAXXZ
 ?eventNeeded@handler@_V1@sycl@@AEBA_NXZ
+?export_device_mem_dma_buf@detail@experimental@oneapi@ext@_V1@sycl@@YAHPEAXAEBVdevice@56@AEBVcontext@56@@Z
 ?export_device_mem_opaque_fd@detail@experimental@oneapi@ext@_V1@sycl@@YAHPEAXAEBVdevice@56@AEBVcontext@56@@Z
 ?export_device_mem_win32_nt_handle@detail@experimental@oneapi@ext@_V1@sycl@@YAPEAXPEAXAEBVdevice@56@AEBVcontext@56@@Z
 ?ext_codeplay_has_graph@interop_handle@_V1@sycl@@QEBA_NXZ
