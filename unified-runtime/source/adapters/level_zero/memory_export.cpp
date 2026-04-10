@@ -23,7 +23,8 @@ ur_result_t urMemoryExportAllocExportableMemoryExp(
     size_t size, ur_exp_external_mem_type_t handleTypeToExport, void **ppMem) {
 
   UR_ASSERT(handleTypeToExport == UR_EXP_EXTERNAL_MEM_TYPE_OPAQUE_FD ||
-                handleTypeToExport == UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT,
+                handleTypeToExport == UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT ||
+                handleTypeToExport == UR_EXP_EXTERNAL_MEM_TYPE_DMA_BUF,
             UR_RESULT_ERROR_INVALID_ENUMERATION);
 
   ze_external_memory_export_desc_t MemExportDesc{};
