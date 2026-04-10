@@ -71,7 +71,8 @@ jobs:
       run: |
         cd yarpgen
         # A system hits OOM when using all available threads.
-        python3 scripts/run_gen.py --target dpcpp --std sycl -t 60 -j 2
+        python3 scripts/run_gen.py --target dpcpp --std sycl -t 60 -j 2 | tee yarpgen_run.log
+        awk '/^YARPGEN runs stat:/{found=1} found {print}' yarpgen_run.log >> $GITHUB_STEP_SUMMARY
 
     - name: Pack results
       run: tar -czf yarpgen_results.tar.gz yarpgen/testing
