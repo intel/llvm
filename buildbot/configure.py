@@ -215,18 +215,20 @@ def do_configure(args, passthrough_args):
 
     if sys.platform == "linux":
         if args.ci_defaults:
-            llvm_builtin_targets="default;spirv64-intel-sycl"
+            llvm_builtin_targets = "default;spirv64-intel-sycl"
             cmake_cmd.extend(
                 [
                     "-DLLVM_BUILTIN_TARGETS={}".format(llvm_builtin_targets),
                 ]
             )
         else:
-            llvm_runtime_targets="spirv64-intel-sycl"
+            llvm_runtime_targets = "spirv64-intel-sycl"
             llvm_spirv64_runtimes = "compiler-rt"
             cmake_cmd.extend(
                 [
-                    "-DRUNTIMES_spirv64-intel-sycl_LLVM_ENABLE_RUNTIMES={}".format(llvm_spirv64_runtimes),
+                    "-DRUNTIMES_spirv64-intel-sycl_LLVM_ENABLE_RUNTIMES={}".format(
+                        llvm_spirv64_runtimes
+                    ),
                     "-DLLVM_RUNTIME_TARGETS={}".format(llvm_runtime_targets),
                 ]
             )
