@@ -272,3 +272,54 @@ TEST_F(SchedulerTest, InOrderQueueCrossDepsEnqueueFunctions) {
   EXPECT_EQ(std::get<1>(ExecutedCommands[2]) /*EventsCount*/, 0u);
   EXPECT_EQ(std::get<2>(ExecutedCommands[2]) /*GlobalWorkSize*/, 64u);
 }
+
+unsigned int NumOfEnqueueEventsWaitWithBarrier = 0;
+
+inline ur_result_t after_urEnqueueEventsWaitWithBarrierExt(void *pParams) {
+  (void)pParams;
+  ++NumOfEnqueueEventsWaitWithBarrier;
+  return UR_RESULT_SUCCESS;
+}
+
+TEST_F(SchedulerTest, InOrderQueueHostTaskAndBarrierOrder) {
+  sycl::unittest::UrMock<> Mock;
+  mock::getCallbacks().set_after_callback(
+    "urEnqueueEventsWaitWithBarrierExt",
+    &after_urEnqueueEventsWaitWithBarrierExt);
+  std::mutex CvMutex;
+  std::condition_variable Cv;
+  bool ready = false;
+
+  sycl::platform Plt = sycl::platform();
+
+  context Ctx{Plt};
+  queue InOrderQueue{Ctx, default_selector_v, property::queue::in_order()};
+
+  InOrderQueue.submit([&](sycl::handler &CGH) {
+    CGH.host_task([&] {
+      std::unique_lock<std::mutex> lk(CvMutex);
+      Cv.wait(lk, [&ready] { return ready; });
+    });
+  });
+  sycl::event BarrierEvent = InOrderQueue.ext_oneapi_submit_barrier();
+
+  // Host task blocks the execution of a barrier
+  //
+  // TODO This test is specific to the implementation of host tasks
+  // in the SYCL RT. The barrier will not be enqueued until the host task
+  // is complete. In a different implementation (e.g., host tasks backend
+  // implementation), the barrier might be enqueued before the host task
+  // is complete, but the barrier event might be signaled after the host
+  // task is complete.
+  ASSERT_EQ(NumOfEnqueueEventsWaitWithBarrier, 0u);
+
+  {
+    std::unique_lock<std::mutex> lk(CvMutex);
+    ready = true;
+  }
+  Cv.notify_one();
+
+  InOrderQueue.wait();
+
+  ASSERT_EQ(NumOfEnqueueEventsWaitWithBarrier, 1u);
+}
