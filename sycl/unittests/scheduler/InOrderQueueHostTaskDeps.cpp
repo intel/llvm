@@ -284,8 +284,8 @@ inline ur_result_t after_urEnqueueEventsWaitWithBarrierExt(void *pParams) {
 TEST_F(SchedulerTest, InOrderQueueHostTaskAndBarrierOrder) {
   sycl::unittest::UrMock<> Mock;
   mock::getCallbacks().set_after_callback(
-    "urEnqueueEventsWaitWithBarrierExt",
-    &after_urEnqueueEventsWaitWithBarrierExt);
+      "urEnqueueEventsWaitWithBarrierExt",
+      &after_urEnqueueEventsWaitWithBarrierExt);
   std::mutex CvMutex;
   std::condition_variable Cv;
   bool ready = false;

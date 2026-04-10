@@ -472,12 +472,11 @@ EventImplPtr queue_impl::submit_barrier_direct_impl(
     sycl::span<const event> DepEvents,
     [[maybe_unused]] const detail::code_location &CodeLoc) {
 
-  detail::CGType BarrierType = DepEvents.empty() ? detail::CGType::Barrier
-      : CGType::BarrierWaitlist;
+  detail::CGType BarrierType =
+      DepEvents.empty() ? detail::CGType::Barrier : CGType::BarrierWaitlist;
 
   auto SubmitBarrierFunc = [&](detail::CG::StorageInitHelper &&CGData)
       -> std::pair<EventImplPtr, bool> {
-
     std::vector<detail::EventImplPtr> DepEventImpls;
     std::unique_ptr<detail::CG> CommandGroup;
 
@@ -488,24 +487,25 @@ EventImplPtr queue_impl::submit_barrier_direct_impl(
 
         // Register HostEvents.
         if (EventPtr->isHost()) {
-          detail::registerEventDependency(
-              EventPtr, CGData.MEvents, this, getContextImpl(), getDeviceImpl(),
-              getCommandGraph().get(), BarrierType);
+          detail::registerEventDependency(EventPtr, CGData.MEvents, this,
+                                          getContextImpl(), getDeviceImpl(),
+                                          getCommandGraph().get(), BarrierType);
         }
       }
     }
 
     CommandGroup.reset(new detail::CGBarrier(
-      std::move(DepEventImpls), ext::oneapi::experimental::event_mode_enum::none /* TODO */,
-      std::move(CGData), BarrierType, CodeLoc));
+        std::move(DepEventImpls),
+        ext::oneapi::experimental::event_mode_enum::none /* TODO */,
+        std::move(CGData), BarrierType, CodeLoc));
 
     return {detail::Scheduler::getInstance().addCG(std::move(CommandGroup),
                                                    *this, true),
             /*SchedulerBypass*/ false};
   };
 
-  return submit_direct(true, {}, SubmitBarrierFunc,
-                       BarrierType, /*InsertBarrierForInOrderCommand*/ false);
+  return submit_direct(true, {}, SubmitBarrierFunc, BarrierType,
+                       /*InsertBarrierForInOrderCommand*/ false);
 }
 
 EventImplPtr queue_impl::submit_command_to_graph(
