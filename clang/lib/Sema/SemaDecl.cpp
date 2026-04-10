@@ -2957,8 +2957,6 @@ static bool mergeDeclAttribute(Sema &S, NamedDecl *D,
     NewAttr = S.Wasm().mergeImportModuleAttr(D, *IMA);
   else if (const auto *INA = dyn_cast<WebAssemblyImportNameAttr>(Attr))
     NewAttr = S.Wasm().mergeImportNameAttr(D, *INA);
-  else if (const auto *A = dyn_cast<SYCLIntelLoopFuseAttr>(Attr))
-    NewAttr = S.SYCL().mergeSYCLIntelLoopFuseAttr(D, *A);
   else if (const auto *TCBA = dyn_cast<EnforceTCBAttr>(Attr))
     NewAttr = S.mergeEnforceTCBAttr(D, *TCBA);
   else if (const auto *TCBLA = dyn_cast<EnforceTCBLeafAttr>(Attr))

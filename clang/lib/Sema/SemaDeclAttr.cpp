@@ -7860,9 +7860,6 @@ ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D, const ParsedAttr &AL,
   case ParsedAttr::AT_SYCLIntelUseStallEnableClusters:
     S.SYCL().handleSYCLIntelUseStallEnableClustersAttr(D, AL);
     break;
-  case ParsedAttr::AT_SYCLIntelLoopFuse:
-    S.SYCL().handleSYCLIntelLoopFuseAttr(D, AL);
-    break;
   case ParsedAttr::AT_SYCLIntelInitiationInterval:
     S.SYCL().handleSYCLIntelInitiationIntervalAttr(D, AL);
     break;

@@ -667,7 +667,7 @@ static void collectSYCLAttributes(FunctionDecl *FD,
                  SYCLIntelMinWorkGroupsPerComputeUnitAttr,
                  SYCLIntelMaxWorkGroupsPerMultiprocessorAttr,
                  SYCLIntelNoGlobalWorkOffsetAttr, SYCLSimdAttr,
-                 SYCLIntelLoopFuseAttr, SYCLIntelMaxConcurrencyAttr,
+                 SYCLIntelMaxConcurrencyAttr,
                  SYCLIntelDisableLoopPipeliningAttr,
                  SYCLIntelInitiationIntervalAttr,
                  SYCLIntelUseStallEnableClustersAttr, SYCLDeviceHasAttr,
@@ -5804,7 +5804,6 @@ static void PropagateAndDiagnoseDeviceAttr(SemaSYCL &S, Attr *A,
   case attr::Kind::SYCLIntelMinWorkGroupsPerComputeUnit:
   case attr::Kind::SYCLIntelMaxWorkGroupsPerMultiprocessor:
   case attr::Kind::SYCLIntelNoGlobalWorkOffset:
-  case attr::Kind::SYCLIntelLoopFuse:
   case attr::Kind::SYCLIntelMaxConcurrency:
   case attr::Kind::SYCLIntelDisableLoopPipelining:
   case attr::Kind::SYCLIntelInitiationInterval:
