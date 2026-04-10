@@ -36,6 +36,9 @@ ur_result_t urMemoryExportAllocExportableMemoryExp(
   case UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT:
     MemExportDesc.flags = ZE_EXTERNAL_MEMORY_TYPE_FLAG_OPAQUE_WIN32;
     break;
+  case UR_EXP_EXTERNAL_MEM_TYPE_DMA_BUF:
+    MemExportDesc.flags = ZE_EXTERNAL_MEMORY_TYPE_FLAG_DMA_BUF;
+    break;
   default:
     return UR_RESULT_ERROR_INVALID_ENUMERATION;
   }
@@ -87,6 +90,18 @@ ur_result_t urMemoryExportExportMemoryHandleExp(
                (hContext->getZeHandle(), pMem, &MemAllocProps, nullptr));
     void **ppMemHandleRet = static_cast<void **>(&pMemHandleRet);
     *ppMemHandleRet = MemExportWin32.handle;
+    break;
+  }
+  case UR_EXP_EXTERNAL_MEM_TYPE_DMA_BUF: {
+    MemExportFD.stype = ZE_STRUCTURE_TYPE_EXTERNAL_MEMORY_EXPORT_FD;
+    MemExportFD.flags = ZE_EXTERNAL_MEMORY_TYPE_FLAG_DMA_BUF;
+    MemAllocProps.pNext = &MemExportFD;
+
+    ZE2UR_CALL(zeMemGetAllocProperties,
+               (hContext->getZeHandle(), pMem, &MemAllocProps, nullptr));
+
+    int *pMemHandleRetIntPtr = static_cast<int *>(pMemHandleRet);
+    *pMemHandleRetIntPtr = MemExportFD.fd;
     break;
   }
   default: {
