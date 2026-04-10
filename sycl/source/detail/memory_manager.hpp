@@ -60,14 +60,11 @@ public:
   // Allocates buffer in specified context taking into account situations such
   // as host ptr or cl_mem provided by user. TargetContext should be device
   // one(not host).
-  static void *allocateMemBuffer(context_impl *TargetContext,
-                                 SYCLMemObjI *MemObj, void *UserPtr,
-                                 bool HostPtrReadOnly,
-                                 bool BackendOwnedWriteBack, size_t Size,
-                                 const EventImplPtr &InteropEvent,
-                                 context_impl *InteropContext,
-                                 const sycl::property_list &PropsList,
-                                 ur_event_handle_t &OutEventToWait);
+  static void *allocateMemBuffer(
+      context_impl *TargetContext, SYCLMemObjI *MemObj, void *UserPtr,
+      bool HostPtrReadOnly, bool BackendOwnedWriteBack, size_t Size,
+      const EventImplPtr &InteropEvent, context_impl *InteropContext,
+      const sycl::property_list &PropsList, ur_event_handle_t &OutEventToWait);
 
   // Allocates images in specified context taking into account situations such
   // as host ptr or cl_mem provided by user. TargetContext should be device
