@@ -6,7 +6,8 @@
 // RUN: %clang_cc1 %s -fsycl-id-queries-range=int -fsycl-is-device -E -dM | FileCheck --check-prefix=CHECK-SYCL-STD-DEVICE %s
 // RUN: %clang_cc1 %s -fsycl-id-queries-range=uint -fsycl-is-device -E -dM | FileCheck --check-prefix=CHECK-SYCL-UINT %s
 // RUN: %clang_cc1 %s -fsycl-id-queries-range=size_t -fsycl-is-device -E -dM | FileCheck --check-prefix=CHECK-SYCL-SIZET %s
-// RUNx: %clang_cc1 %s -fsycl-id-queries-range=int -fsycl-is-device -E -dM -fms-compatibility | FileCheck --check-prefix=CHECK-MSVC %s
+// RUN: %clang_cc1 %s -fsycl-id-queries-range=int -fsycl-is-device -E -dM -fms-compatibility | FileCheck --check-prefix=CHECK-MSVC %s
+// RUN: %clang_cc1 %s -fsycl-id-queries-range=uint -fsycl-is-device -E -dM -fms-compatibility | FileCheck --check-prefix=CHECK-MSVC-UINT %s
 // RUN: %clang_cc1 -fsycl-id-queries-range=size_t %s -E -dM | FileCheck \
 // RUN: --check-prefix=CHECK-NO-SYCL_FIT_IN_INT %s
 // RUN: %clang_cc1 %s  -triple nvptx64-nvidia-cuda -target-cpu sm_80 -fsycl-is-device -E -dM | FileCheck \
@@ -33,6 +34,12 @@
 // CHECK-MSVC-NOT: __GNUC__
 // CHECK-MSVC-NOT: __STDC__
 // CHECK-MSVC: #define __SYCL_ID_QUERIES_FIT_IN_INT__ 1
+// CHECK-MSVC-NOT: #define __SYCL_ID_QUERIES_FIT_IN_UINT__
+
+// CHECK-MSVC-UINT-NOT: __GNUC__
+// CHECK-MSVC-UINT-NOT: __STDC__
+// CHECK-MSVC-UINT: #define __SYCL_ID_QUERIES_FIT_IN_UINT__ 1
+// CHECK-MSVC-UINT-NOT: #define __SYCL_ID_QUERIES_FIT_IN_INT__
 
 // CHECK-NO-SYCL_FIT_IN_INT-NOT:#define __SYCL_ID_QUERIES_FIT_IN_INT__ 1
 // CHECK-SYCL-ID:#define __SYCL_ID_QUERIES_FIT_IN_INT__ 1
