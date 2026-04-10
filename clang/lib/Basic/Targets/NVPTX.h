@@ -183,7 +183,6 @@ public:
     Opts["cl_khr_int64_base_atomics"] = true;
     Opts["cl_khr_int64_extended_atomics"] = true;
     Opts["cl_khr_fp16"] = true;
-    Opts["cl_khr_3d_image_writes"] = true;
 
     Opts["__opencl_c_images"] = true;
     Opts["__opencl_c_3d_image_writes"] = true;
