@@ -8,7 +8,7 @@ import io
 from pathlib import Path
 
 from utils.utils import download
-from .base import Benchmark, Suite, TracingType
+from .base import Benchmark, Suite
 from utils.result import Result
 from options import options
 from utils.oneapi import get_oneapi
@@ -119,7 +119,7 @@ class LlamaBench(Benchmark):
     def run(
         self,
         env_vars,
-        run_trace: TracingType = TracingType.NONE,
+        flamegraph_enabled: bool = False,
         force_trace: bool = False,
     ) -> list[Result]:
         command = [

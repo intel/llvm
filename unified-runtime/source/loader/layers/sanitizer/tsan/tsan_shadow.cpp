@@ -36,27 +36,34 @@ std::shared_ptr<ShadowMemory> GetShadowMemory(ur_context_handle_t Context,
 }
 
 ur_result_t ShadowMemoryCPU::Setup() {
-  static ur_result_t URes = [this]() {
-    ShadowBegin = 0x100000000000ULL;
-    ShadowEnd = 0x300000000000ULL;
-    if (MmapFixedNoReserve(ShadowBegin, ShadowEnd - ShadowBegin) == 0)
-      return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+  bool Initialized;
+
+  ShadowBegin = 0x100000000000ULL;
+  ShadowEnd = ShadowBegin + GetShadowSize();
+  if (MmapFixedNoReserve(ShadowBegin, ShadowEnd - ShadowBegin)) {
     DontCoredumpRange(ShadowBegin, ShadowEnd - ShadowBegin);
-    return UR_RESULT_SUCCESS;
-  }();
-  return URes;
+    Initialized = true;
+  } else {
+    ShadowBegin = ShadowEnd = 0;
+    Initialized = false;
+  }
+
+  if (!Initialized) {
+    TryReExecWithoutASLR();
+    die("Device ThreadSanitizer failed to reserve shadow memory since shadow "
+        "memory interleaves with an existing mapping.");
+  }
+  return UR_RESULT_SUCCESS;
 }
 
 ur_result_t ShadowMemoryCPU::Destroy() {
   if (ShadowBegin == 0 && ShadowEnd == 0)
     return UR_RESULT_SUCCESS;
-  static ur_result_t URes = [this]() {
-    if (!Munmap(ShadowBegin, ShadowEnd - ShadowBegin))
-      return UR_RESULT_ERROR_UNKNOWN;
-    ShadowBegin = ShadowEnd = 0;
-    return UR_RESULT_SUCCESS;
-  }();
-  return URes;
+
+  if (!Munmap(ShadowBegin, ShadowEnd - ShadowBegin))
+    return UR_RESULT_ERROR_UNKNOWN;
+  ShadowBegin = ShadowEnd = 0;
+  return UR_RESULT_SUCCESS;
 }
 
 RawShadow *ShadowMemoryCPU::MemToShadow(uptr Addr) {
