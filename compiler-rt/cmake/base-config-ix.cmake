@@ -227,6 +227,9 @@ macro(test_targets)
       test_target_arch(amdgcn "" "--target=amdgcn-amd-amdhsa" "-nogpulib"
                        "-flto" "-fconvergent-functions"
                        "-Xclang -mcode-object-version=none")
+
+    elseif("${COMPILER_RT_DEFAULT_TARGET_ARCH}" MATCHES "spirv")
+      test_target_arch(spirv64 "" "-fsycl" "-fsycl-device-only")
     elseif("${COMPILER_RT_DEFAULT_TARGET_ARCH}" MATCHES "hexagon")
       test_target_arch(hexagon "" "")
     elseif("${COMPILER_RT_DEFAULT_TARGET_ARCH}" MATCHES "loongarch64")

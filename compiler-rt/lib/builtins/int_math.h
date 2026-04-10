@@ -31,13 +31,21 @@
 #if defined(_MSC_VER) && !defined(__clang__)
 #define CRT_INFINITY INFINITY
 #else
+#if defined(DOUBLE_PRECISION)
+#define CRT_INFINITY __builtin_huge_val()
+#else
 #define CRT_INFINITY __builtin_huge_valf()
+#endif
 #endif
 
 #if defined(_MSC_VER) && !defined(__clang__)
 #define crt_isfinite(x) _finite((x))
 #define crt_isinf(x) !_finite((x))
 #define crt_isnan(x) _isnan((x))
+#elif defined(__SPIRV__)
+#define crt_isinf(x) __spirv_IsInf((x))
+#define crt_isnan(x) __spirv_IsNan((x))
+#define crt_isfinite(x) __spirv_IsFinite((x))
 #else
 // Define crt_isfinite in terms of the builtin if available, otherwise provide
 // an alternate version in terms of our other functions. This supports some
@@ -61,6 +69,9 @@
 #define crt_copysign(x, y) copysign((x), (y))
 #define crt_copysignf(x, y) copysignf((x), (y))
 #define crt_copysignl(x, y) copysignl((x), (y))
+#elif defined(__SPIRV__)
+#define crt_copysign(x, y) __spirv_ocl_copysign((x), (y))
+#define crt_copysignf(x, y) __spirv_ocl_copysign((x), (y))
 #else
 #define crt_copysign(x, y) __builtin_copysign((x), (y))
 #define crt_copysignf(x, y) __builtin_copysignf((x), (y))

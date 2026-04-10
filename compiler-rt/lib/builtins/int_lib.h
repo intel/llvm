@@ -26,6 +26,8 @@
 #else
 #define COMPILER_RT_ABI __attribute__((__pcs__("aapcs")))
 #endif
+#elif defined(__SPIRV__)
+#define COMPILER_RT_ABI SYCL_EXTERNAL extern "C"
 #else
 #define COMPILER_RT_ABI
 #endif

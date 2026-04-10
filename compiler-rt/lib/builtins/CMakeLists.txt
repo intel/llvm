@@ -192,6 +192,14 @@ set(GENERIC_SOURCES
   umodti3.c
 )
 
+set(SPIRV64_SOURCES
+  divdc3.c
+  divsc3.c
+  mulsc3.c
+  muldc3.c
+)
+
+
 # We only build BF16 files when "__bf16" is available.
 set(BF16_SOURCES
     extendbfsf2.c
@@ -739,6 +747,7 @@ if (APPLE)
 endif()
 
 set(amdgcn_SOURCES ${GENERIC_SOURCES})
+set(spirv64_SOURCES ${SPIRV64_SOURCES})
 
 set(armv4t_SOURCES ${arm_min_SOURCES})
 set(armv5te_SOURCES ${arm_min_SOURCES})
@@ -965,6 +974,12 @@ else ()
     endif()
   endif()
 
+  if("${COMPILER_RT_DEFAULT_TARGET_ARCH}" MATCHES "spirv64")
+    append_list_if(COMPILER_RT_HAS_FFREESTANDING_FLAG -ffreestanding BUILTIN_CFLAGS)
+    append_list_if(COMPILER_RT_HAS_SYCL_FLAG -fsycl BUILTIN_CFLAGS)
+    append_list_if(COMPILER_RT_HAS_SYCL_DEVICE_ONLY_FLAG -fsycl-device-only BUILTIN_CFLAGS)
+  endif()
+
   set(BUILTIN_DEFS "")
 
   if(COMPILER_RT_BUILTINS_HIDE_SYMBOLS)
@@ -1019,7 +1034,8 @@ else ()
                                int main(void) { return 0; }"
                               COMPILER_RT_HAS_${arch}_BFLOAT16)
       # Build BF16 files only when "__bf16" is available.
-      if(COMPILER_RT_HAS_${arch}_BFLOAT16)
+
+      if(COMPILER_RT_HAS_${arch}_BFLOAT16 AND NOT COMPILER_RT_HAS_SYCL_FLAG)
         list(APPEND ${arch}_SOURCES ${BF16_SOURCES})
       endif()
 
@@ -1046,7 +1062,7 @@ else ()
                               SOURCES ${${arch}_SOURCES}
                               DEFS ${BUILTIN_DEFS}
                               CFLAGS ${BUILTIN_CFLAGS_${arch}}
-                              C_STANDARD 11
+			      # C_STANDARD 11
                               CXX_STANDARD 17
                               PARENT_TARGET builtins)
 

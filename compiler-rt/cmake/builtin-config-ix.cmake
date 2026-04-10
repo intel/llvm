@@ -24,6 +24,8 @@ builtin_check_c_compiler_flag(-nogpulib             COMPILER_RT_HAS_NOGPULIB_FLA
 builtin_check_c_compiler_flag(-flto                 COMPILER_RT_HAS_FLTO_FLAG)
 builtin_check_c_compiler_flag(-fconvergent-functions COMPILER_RT_HAS_FCONVERGENT_FUNCTIONS_FLAG)
 builtin_check_c_compiler_flag("-Xclang -mcode-object-version=none" COMPILER_RT_HAS_CODE_OBJECT_VERSION_FLAG)
+builtin_check_c_compiler_flag(-fsycl                 COMPILER_RT_HAS_SYCL_FLAG)
+builtin_check_c_compiler_flag(-fsycl-device-only     COMPILER_RT_HAS_SYCL_DEVICE_ONLY_FLAG)
 builtin_check_c_compiler_flag(-Wbuiltin-declaration-mismatch COMPILER_RT_HAS_WBUILTIN_DECLARATION_MISMATCH_FLAG)
 builtin_check_c_compiler_flag(/Zl COMPILER_RT_HAS_ZL_FLAG)
 builtin_check_c_compiler_flag(-fcf-protection=full COMPILER_RT_HAS_FCF_PROTECTION_FLAG)
@@ -79,6 +81,7 @@ else()
 endif()
 
 set(AMDGPU amdgcn)
+set(SPIRV spirv64)
 set(ARM64 aarch64 arm64ec aarch64_lfi)
 set(ARM32 arm armhf armv4t armv5te armv6 armv6m armv7m armv7em armv7 armv7s armv7k armv8m.base armv8m.main armv8.1m.main)
 set(AVR avr)
@@ -110,7 +113,7 @@ endif()
 set(ALL_BUILTIN_SUPPORTED_ARCH
   ${X86} ${X86_64} ${AMDGPU} ${ARM32} ${ARM64} ${AVR}
   ${HEXAGON} ${MIPS32} ${MIPS64} ${NVPTX} ${PPC32} ${PPC64}
-  ${RISCV32} ${RISCV64} ${S390X} ${SPARC} ${SPARCV9}
+  ${RISCV32} ${RISCV64} ${S390X} ${SPARC} ${SPARCV9} ${SPIRV}
   ${WASM32} ${WASM64} ${VE} ${LOONGARCH64} ${M68K})
 
 include(CompilerRTUtils)

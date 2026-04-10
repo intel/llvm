@@ -344,19 +344,35 @@ static __inline fp_t __compiler_rt_fmaxX(fp_t x, fp_t y) {
 #if defined(SINGLE_PRECISION)
 
 static __inline fp_t __compiler_rt_logbf(fp_t x) {
+#ifdef __SPIRV__
+  return __spirv_ocl_logb(x);
+#else
   return __compiler_rt_logbX(x);
+#endif
 }
 static __inline fp_t __compiler_rt_scalbnf(fp_t x, int y) {
+#ifdef __SPIRV__
+  return __spirv_ocl_ldexp(x, y);
+#else
   return __compiler_rt_scalbnX(x, y);
+#endif
 }
 
 #elif defined(DOUBLE_PRECISION)
 
 static __inline fp_t __compiler_rt_logb(fp_t x) {
+#ifdef __SPIRV__
+  return __spirv_ocl_logb(x);
+#else
   return __compiler_rt_logbX(x);
+#endif
 }
 static __inline fp_t __compiler_rt_scalbn(fp_t x, int y) {
+#ifdef __SPIRV__
+  return __spirv_ocl_ldexp(x, y);
+#else
   return __compiler_rt_scalbnX(x, y);
+#endif
 }
 static __inline fp_t __compiler_rt_fmax(fp_t x, fp_t y) {
 #if defined(__aarch64__) || defined(__arm64ec__)
