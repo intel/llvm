@@ -876,6 +876,11 @@ private:
   mutable llvm::StringMap<const std::pair<StringRef, StringRef>>
       IntegrationFileList;
 
+  /// A list of triples and their corresponding unbundled precompiled header
+  /// file names.  This is generated when unbundling the fat precompiled
+  /// header file, and consumed by the host and the device compilations.
+  mutable llvm::StringMap<StringRef> SYCLPrecompiledHeaderFileList;
+
   /// Unique ID used for SYCL compilations.  Each file will use a different
   /// unique ID, but the same ID will be used for different compilation
   /// targets.
@@ -925,6 +930,19 @@ public:
   /// isSYCLDefaultTripleImplied - The default SYCL triple (spir64) has been
   /// added or should be added given proper criteria.
   bool isSYCLDefaultTripleImplied() const { return SYCLDefaultTripleImplied; };
+
+  /// addSYCLPrecompiledHeaderFiles - Add the precompiled header files
+  /// that were unbundled for each triple.
+  void addSYCLPrecompiledHeaderFiles(StringRef Triple,
+                                     StringRef FileName) const {
+    SYCLPrecompiledHeaderFileList.insert({Triple, FileName});
+  }
+
+  /// getSYCLPrecompiledHeaderFile - Get the precompiled header file
+  /// for a specific triple.
+  StringRef getSYCLPrecompiledHeaderFile(StringRef Triple) const {
+    return SYCLPrecompiledHeaderFileList[Triple];
+  }
 
   /// addIntegrationFiles - Add the integration files that will be populated
   /// by the device compilation and used by the host compile.

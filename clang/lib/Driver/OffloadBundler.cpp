@@ -1507,6 +1507,8 @@ CreateFileHandler(MemoryBuffer &FirstInput,
     return CreateObjectFileHandler(FirstInput, BundlerConfig);
   if (FilesType == "gch")
     return std::make_unique<BinaryFileHandler>(BundlerConfig);
+  if (FilesType == "pch")
+    return std::make_unique<BinaryFileHandler>(BundlerConfig);
   if (FilesType == "ast")
     return std::make_unique<BinaryFileHandler>(BundlerConfig);
   if (FilesTypeIsArchive(FilesType))

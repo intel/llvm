@@ -875,8 +875,6 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
                                     const InputInfo &Output,
                                     const InputInfoList &Inputs) const {
   const bool IsIAMCU = getToolChain().getTriple().isOSIAMCU();
-  bool SYCLDeviceCompilation = JA.isOffloading(Action::OFK_SYCL) &&
-                               JA.isDeviceOffloading(Action::OFK_SYCL);
 
   CheckPreprocessingOptions(D, Args);
 
@@ -1056,15 +1054,17 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
 
     if (YcArg || YuArg) {
       StringRef ThroughHeader = YcArg ? YcArg->getValue() : YuArg->getValue();
-      // If PCH file is available, include it while performing
-      // host compilation (-fsycl-is-host) in SYCL mode (-fsycl).
-      // as well as in non-sycl mode.
-
-      if (!isa<PrecompileJobAction>(JA) && !SYCLDeviceCompilation) {
+      StringRef PCHHeader = ThroughHeader;
+      // If a PCH file is being used, use the unbundled versions for SYCL.
+      if (YuArg && JA.isOffloading(Action::OFK_SYCL))
+        PCHHeader = D.getSYCLPrecompiledHeaderFile(
+            getToolChain().getTriple().getTriple());
+      // If a PCH file is available, include it.
+      if (!isa<PrecompileJobAction>(JA)) {
         CmdArgs.push_back("-include-pch");
         CmdArgs.push_back(Args.MakeArgString(D.GetClPchPath(
-            C, !ThroughHeader.empty()
-                   ? ThroughHeader
+            C, !PCHHeader.empty()
+                   ? PCHHeader
                    : llvm::sys::path::filename(Inputs[0].getBaseInput()))));
       }
 
@@ -1095,7 +1095,17 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
       // so that replace_extension does the right thing.
       P += ".dummy";
       llvm::sys::path::replace_extension(P, "pch");
-      if (D.getVFS().exists(P))
+      // If this is a SYCL compilation, we would have unbundled the PCH
+      // files from the fat binary, so use that instead.
+      if (JA.isOffloading(Action::OFK_SYCL)) {
+        SmallString<128> SYCLPCHFile = D.getSYCLPrecompiledHeaderFile(
+            getToolChain().getTriple().getTriple());
+        if (D.getVFS().exists(SYCLPCHFile)) {
+          P = SYCLPCHFile;
+          FoundPCH = true;
+        }
+      }
+      if (!FoundPCH && D.getVFS().exists(P))
         FoundPCH = true;
 
       if (!FoundPCH) {
@@ -1103,11 +1113,8 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
         llvm::sys::path::replace_extension(P, "gch");
         FoundPCH = gchProbe(D, P.str());
       }
-      // If PCH file is available, include it while performing
-      // host compilation (-fsycl-is-host) in SYCL mode (-fsycl).
-      // as well as in non-sycl mode.
-
-      if (FoundPCH && !SYCLDeviceCompilation) {
+      // If a PCH file is available, include it.
+      if (FoundPCH) {
         if (IsFirstImplicitInclude) {
           A->claim();
           CmdArgs.push_back("-include-pch");
@@ -5580,12 +5587,14 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
         CmdArgs.push_back("-Wno-sycl-strict");
       }
 
-      // Add the integration header option to generate the header.
-      StringRef Header(D.getIntegrationHeader(Input.getBaseInput()));
-      if (!Header.empty()) {
-        SmallString<128> HeaderOpt("-fsycl-int-header=");
-        HeaderOpt.append(Header);
-        CmdArgs.push_back(Args.MakeArgString(HeaderOpt));
+      if (!Args.hasArg(options::OPT_fno_sycl_use_header)) {
+        // Add the integration header option to generate the header.
+        StringRef Header(D.getIntegrationHeader(Input.getBaseInput()));
+        if (!Header.empty()) {
+          SmallString<128> HeaderOpt("-fsycl-int-header=");
+          HeaderOpt.append(Header);
+          CmdArgs.push_back(Args.MakeArgString(HeaderOpt));
+        }
       }
 
       if (!Args.hasArg(options::OPT_fno_sycl_use_footer)) {
@@ -5653,24 +5662,24 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       // integration footer has been applied.  Check for the append job
       // action to determine this.
       if (types::getPreprocessedType(Input.getType()) != types::TY_INVALID &&
-          !Header.empty()) {
-        // Add the -include-internal-header option to add the integration header
+          !Args.hasArg(options::OPT_fno_sycl_use_header) && !Header.empty()) {
+        // Add the -include-internal-header option to add the integration
+        // header.
         CmdArgs.push_back("-include-internal-header");
         CmdArgs.push_back(Args.MakeArgString(Header));
         // When creating dependency information, filter out the generated
         // header file.
         CmdArgs.push_back("-dependency-filter");
         CmdArgs.push_back(Args.MakeArgString(Header));
-
         // Since this is a host compilation and the integration header is
         // included, enable the integration header based diagnostics.
         CmdArgs.push_back("-fsycl-enable-int-header-diags");
       }
-
       StringRef Footer = D.getIntegrationFooter(Input.getBaseInput());
       if (types::getPreprocessedType(Input.getType()) != types::TY_INVALID &&
           !Args.hasArg(options::OPT_fno_sycl_use_footer) && !Footer.empty()) {
-        // Add the -include-internal-footer option to add the integration footer
+        // Add the -include-internal-footer option to add the integration
+        // footer.
         CmdArgs.push_back("-include-internal-footer");
         CmdArgs.push_back(Args.MakeArgString(Footer));
         // When creating dependency information, filter out the generated
@@ -10188,11 +10197,14 @@ void OffloadBundler::ConstructJobMultipleOutputs(
     }
   }
   std::string TargetString(UA.getTargetString());
+  StringRef TargetTriples = Triples;
+  SmallVector<StringRef> Archs;
   if (!TargetString.empty()) {
     // The target string was provided, we will override the defaults and use
     // the string provided.
     SmallString<128> TSTriple("-targets=");
     TSTriple += TargetString;
+    TargetTriples = TargetString;
     CmdArgs.push_back(TCArgs.MakeArgString(TSTriple));
   } else {
     CmdArgs.push_back(TCArgs.MakeArgString(Triples));
@@ -10202,12 +10214,28 @@ void OffloadBundler::ConstructJobMultipleOutputs(
   CmdArgs.push_back(
       TCArgs.MakeArgString(Twine("-input=") + InputFileName));
 
+  /* Save the individual arch triples for PCH. */
+  if (InputType == types::TY_PCH) {
+    auto TripleString = TargetTriples.split('=').second;
+    TripleString.split(Archs, ',');
+    assert(Archs.size() == Outputs.size() &&
+           "expected same number of triples as outputs");
+  }
+
   // Get unbundled files command.
   for (unsigned I = 0; I < Outputs.size(); ++I) {
     SmallString<128> UB;
     UB += "-output=";
-    UB += DepInfo[I].DependentToolChain->getInputFilename(Outputs[I]);
+    std::string IFName =
+        DepInfo[I].DependentToolChain->getInputFilename(Outputs[I]);
+    UB += IFName;
     CmdArgs.push_back(TCArgs.MakeArgString(UB));
+    /* If this is a bundled PCH file, save the triple-filename pair. */
+    if (InputType == types::TY_PCH) {
+      StringRef ArchName = Archs[I].split('-').second;
+      C.getDriver().addSYCLPrecompiledHeaderFiles(
+          TCArgs.MakeArgString(ArchName), TCArgs.MakeArgString(IFName));
+    }
   }
   CmdArgs.push_back("-unbundle");
   CmdArgs.push_back("-allow-missing-bundles");
