@@ -11,6 +11,7 @@
 #include <detail/sycl_mem_obj_i.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/export.hpp>
+#include <sycl/detail/os_util.hpp>
 #include <sycl/detail/sycl_mem_obj_allocator.hpp>
 #include <sycl/detail/type_traits.hpp>
 #include <sycl/detail/ur.hpp>
@@ -151,6 +152,8 @@ public:
 
 protected:
   void updateHostMemory(void *const Ptr);
+  void materializeShadowCopy(const void *SourcePtr, size_t RequiredAlign);
+  void updateRecordedMemAllocation(void *OldPtr, void *NewPtr);
 
   // Update host with the latest data + notify scheduler that the memory object
   // is going to die. After this method is finished no further operations with
@@ -190,20 +193,16 @@ public:
         MUserPtr = HostPtr;
         std::lock_guard<std::mutex> Lock(MCreateShadowCopyMtx);
         MCreateShadowCopy = [this, RequiredAlign, HostPtr]() -> void {
-          setAlign(RequiredAlign);
-          MShadowCopy = allocateHostMem();
-          MUserPtr = MShadowCopy;
-          std::memcpy(MUserPtr, HostPtr, MSizeInBytes);
+          materializeShadowCopy(HostPtr, RequiredAlign);
         };
       } else {
         MUserPtr = HostPtr;
+        if (RequiredAlign > MPendingShadowCopyAlignment)
+          MPendingShadowCopyAlignment = RequiredAlign;
         MHasPendingAlignedShadowCopy = true;
         std::lock_guard<std::mutex> Lock(MCreateShadowCopyMtx);
         MCreateShadowCopy = [this, RequiredAlign, HostPtr]() -> void {
-          setAlign(RequiredAlign);
-          MShadowCopy = allocateHostMem();
-          MUserPtr = MShadowCopy;
-          std::memcpy(MUserPtr, HostPtr, MSizeInBytes);
+          materializeShadowCopy(HostPtr, RequiredAlign);
         };
       }
     }
@@ -229,20 +228,16 @@ public:
         MUserPtr = HostPtr.get();
         std::lock_guard<std::mutex> Lock(MCreateShadowCopyMtx);
         MCreateShadowCopy = [this, RequiredAlign, HostPtr]() -> void {
-          setAlign(RequiredAlign);
-          MShadowCopy = allocateHostMem();
-          MUserPtr = MShadowCopy;
-          std::memcpy(MUserPtr, HostPtr.get(), MSizeInBytes);
+          materializeShadowCopy(HostPtr.get(), RequiredAlign);
         };
       } else {
         MUserPtr = HostPtr.get();
+        if (RequiredAlign > MPendingShadowCopyAlignment)
+          MPendingShadowCopyAlignment = RequiredAlign;
         MHasPendingAlignedShadowCopy = true;
         std::lock_guard<std::mutex> Lock(MCreateShadowCopyMtx);
         MCreateShadowCopy = [this, RequiredAlign, HostPtr]() -> void {
-          setAlign(RequiredAlign);
-          MShadowCopy = allocateHostMem();
-          MUserPtr = MShadowCopy;
-          std::memcpy(MUserPtr, HostPtr.get(), MSizeInBytes);
+          materializeShadowCopy(HostPtr.get(), RequiredAlign);
         };
       }
     }
@@ -257,8 +252,13 @@ public:
                       "Buffer constructor from a pair of iterator values does "
                       "not support use_host_ptr property.");
 
-    setAlign(RequiredAlign);
-    MShadowCopy = allocateHostMem();
+    // Shadow copies are an internal runtime detail; always allocate via the
+    // platform-aligned allocator so all MShadowCopy frees are uniform.
+    MShadowCopy = detail::OSUtil::alignedAlloc(
+        RequiredAlign, std::max(MSizeInBytes, RequiredAlign));
+    if (!MShadowCopy)
+      throw exception(make_error_code(errc::runtime),
+                      "Failed to allocate shadow copy");
     MUserPtr = MShadowCopy;
 
     CopyFromInput(MUserPtr);
@@ -331,9 +331,9 @@ public:
 
   /// Returns true if any graphs are currently using this memory object.
   bool isUsedInGraph() const { return MGraphUseCount > 0; }
- 
+
   const property_list &getPropList() const { return MProps; }
- 
+
 protected:
   // An allocateMem helper that determines which host ptr to use
   void determineHostPtr(context_impl *Context, bool InitFromUserData,
@@ -362,7 +362,8 @@ protected:
   size_t MSizeInBytes = 0;
   // User's pointer passed to constructor.
   void *MUserPtr;
-  // Copy of memory passed by user to constructor.
+  // Copy of memory passed by user to constructor. Always allocated via
+  // OSUtil::alignedAlloc (never via MAllocator) so teardown is uniform.
   void *MShadowCopy;
   // Function which update host with final data on memory object destruction.
   std::function<void(void)> MUploadDataFunctor;
@@ -385,6 +386,10 @@ protected:
   // accessor is created.
   std::function<void(void)> MCreateShadowCopy = []() -> void {};
   std::mutex MCreateShadowCopyMtx;
+  // The strongest backend alignment requirement observed so far. Deferred
+  // shadow-copy materialization uses this to upgrade from frontend alignment
+  // (e.g. alignof(T)) to the backend host-pointer requirement.
+  size_t MPendingShadowCopyAlignment = 0;
   // Set when misaligned input data cannot be used directly and the shadow-copy
   // decision is deferred until backend/platform is known.
   bool MHasPendingAlignedShadowCopy = false;

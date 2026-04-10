@@ -48,9 +48,7 @@ public:
 
   // Optional hook executed right before allocateMem(). Memory objects can use
   // it to resolve context/backend-dependent allocation policy.
-  virtual void prepareForAllocation(context_impl *Context) {
-    (void)Context;
-  }
+  virtual void prepareForAllocation(context_impl *Context) { (void)Context; }
 
   // Should be used for memory object created without use_host_ptr property.
   virtual void *allocateHostMem() = 0;

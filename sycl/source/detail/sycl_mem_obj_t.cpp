@@ -13,9 +13,31 @@
 #include <detail/scheduler/scheduler.hpp>
 #include <detail/sycl_mem_obj_t.hpp>
 
+#include <cstdint>
+
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
+
+namespace {
+
+size_t getBackendShadowCopyAlignment(context_impl *Context) {
+  size_t RequiredAlign = 1;
+  for (const auto &Device : Context->getDevices()) {
+    const uint32_t AlignBits =
+        Device.get_info<info::device::mem_base_addr_align>();
+    if (AlignBits == 0)
+      continue;
+
+    // UR reports MEM_BASE_ADDR_ALIGN in bits.
+    const size_t AlignBytes = (static_cast<size_t>(AlignBits) + 7) / 8;
+    if (AlignBytes > RequiredAlign)
+      RequiredAlign = AlignBytes;
+  }
+  return RequiredAlign;
+}
+
+} // namespace
 
 SYCLMemObjT::SYCLMemObjT(ur_native_handle_t MemObject,
                          const context &SyclContext, const size_t,
@@ -162,12 +184,69 @@ void SYCLMemObjT::updateHostMemory() {
         (Result || !GlobalHandler::instance().isOkToDefer()) &&
         "removeMemoryObject should not return false in mem object destructor");
   }
-  releaseHostMem(MShadowCopy);
+  detail::OSUtil::alignedFree(MShadowCopy);
 
   if (MOpenCLInterop) {
     getAdapter().call<UrApiKind::urMemRelease>(MInteropMemObject);
   }
 }
+
+void SYCLMemObjT::materializeShadowCopy(const void *SourcePtr,
+                                        size_t RequiredAlign) {
+  if (MPendingShadowCopyAlignment > RequiredAlign)
+    RequiredAlign = MPendingShadowCopyAlignment;
+
+  if (RequiredAlign == 0)
+    RequiredAlign = 1;
+
+  MPendingShadowCopyAlignment = RequiredAlign;
+
+  void *OldUserPtr = MUserPtr;
+  void *OldShadowCopy = MShadowCopy;
+  const void *CopySource = SourcePtr;
+  if (OldShadowCopy) {
+    if ((reinterpret_cast<std::uintptr_t>(OldShadowCopy) % RequiredAlign) ==
+        0) {
+      MUserPtr = OldShadowCopy;
+      return;
+    }
+    CopySource = OldShadowCopy;
+  }
+
+  assert(CopySource != nullptr &&
+         "Cannot materialize a shadow copy without source data");
+
+  // Allocate the shadow copy via the platform-aligned allocator directly,
+  // bypassing the user-provided allocator. Shadow copies are an internal
+  // runtime detail; the user allocator cannot be relied upon to satisfy
+  // backend alignment requirements (e.g. CL_DEVICE_MEM_BASE_ADDR_ALIGN).
+  const size_t AllocBytes =
+      MSizeInBytes == 0 ? RequiredAlign
+                        : ((MSizeInBytes + RequiredAlign - 1) / RequiredAlign) *
+                              RequiredAlign;
+  void *NewShadowCopy = detail::OSUtil::alignedAlloc(RequiredAlign, AllocBytes);
+  if (!NewShadowCopy)
+    throw std::bad_alloc();
+  if (MSizeInBytes != 0)
+    std::memcpy(NewShadowCopy, CopySource, MSizeInBytes);
+
+  MShadowCopy = NewShadowCopy;
+  MUserPtr = NewShadowCopy;
+  updateRecordedMemAllocation(OldUserPtr, NewShadowCopy);
+
+  detail::OSUtil::alignedFree(OldShadowCopy);
+}
+
+void SYCLMemObjT::updateRecordedMemAllocation(void *OldPtr, void *NewPtr) {
+  if (MRecord == nullptr || OldPtr == nullptr || OldPtr == NewPtr)
+    return;
+
+  for (auto *AllocaCmd : MRecord->MAllocaCommands) {
+    if (AllocaCmd->MMemAllocation == OldPtr)
+      AllocaCmd->MMemAllocation = NewPtr;
+  }
+}
+
 adapter_impl &SYCLMemObjT::getAdapter() const {
   assert((MInteropContext != nullptr) &&
          "Trying to get Adapter from SYCLMemObjT with nullptr ContextImpl.");
@@ -181,7 +260,7 @@ void SYCLMemObjT::prepareForAllocation(context_impl *Context) {
   if (!Context)
     return;
 
-  if (!MHasPendingAlignedShadowCopy || MShadowCopy != nullptr)
+  if (!MHasPendingAlignedShadowCopy)
     return;
 
   bool SkipShadowCopy = false;
@@ -189,6 +268,10 @@ void SYCLMemObjT::prepareForAllocation(context_impl *Context) {
   auto Devices = Context->getDevices();
   if (Devices.size() != 0)
     Backend = Devices.front().getBackend();
+
+  const size_t BackendRequiredAlign = getBackendShadowCopyAlignment(Context);
+  if (BackendRequiredAlign > MPendingShadowCopyAlignment)
+    MPendingShadowCopyAlignment = BackendRequiredAlign;
 
   switch (Backend) {
   case backend::ext_oneapi_level_zero:
@@ -209,18 +292,25 @@ void SYCLMemObjT::prepareForAllocation(context_impl *Context) {
 
   std::lock_guard<std::mutex> Lock(MCreateShadowCopyMtx);
   if (SkipShadowCopy) {
+    if (MShadowCopy != nullptr) {
+      // A writable host accessor already forced a SYCL shadow copy. Keep using
+      // that path so the final copy-back still targets the original user ptr.
+      return;
+    }
+
     // Backend (UR) will manage the misaligned host pointer through its own
     // internal staging buffer and owns the final copy-back to the original ptr.
     MCreateShadowCopy = []() -> void {};
     MBackendOwnsWriteBack = true;
     if (!MHostPtrReadOnly)
       MUploadDataFunctor = nullptr;
-  } else {
-    MCreateShadowCopy();
-    MCreateShadowCopy = []() -> void {};
-    MBackendOwnsWriteBack = false;
+    MHasPendingAlignedShadowCopy = false;
+    return;
   }
 
+  materializeShadowCopy(MUserPtr, BackendRequiredAlign);
+  MCreateShadowCopy = []() -> void {};
+  MBackendOwnsWriteBack = false;
   MHasPendingAlignedShadowCopy = false;
 }
 
@@ -280,13 +370,7 @@ void SYCLMemObjT::handleWriteAccessorCreation() {
     MCreateShadowCopy();
     MCreateShadowCopy = []() -> void {};
   }
-  if (MRecord != nullptr && MUserPtr != InitialUserPtr) {
-    for (auto &it : MRecord->MAllocaCommands) {
-      if (it->MMemAllocation == InitialUserPtr) {
-        it->MMemAllocation = MUserPtr;
-      }
-    }
-  }
+  updateRecordedMemAllocation(InitialUserPtr, MUserPtr);
 }
 
 } // namespace detail
