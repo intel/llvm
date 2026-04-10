@@ -487,11 +487,22 @@ EventImplPtr queue_impl::submit_barrier_direct_impl(
 
         // Register HostEvents.
         if (EventPtr->isHost()) {
-          detail::registerEventDependency(EventPtr, CGData.MEvents, this,
-                                          getContextImpl(), getDeviceImpl(),
-                                          getCommandGraph().get(), BarrierType);
+          detail::registerEventDependency</*LockQueue*/ false>(
+              EventPtr, CGData.MEvents, this, getContextImpl(), getDeviceImpl(),
+              getCommandGraph().get(), BarrierType);
         }
       }
+    }
+
+    // TODO graph support
+    // This logic is here only for transitive recording support
+    if (!CGData.MEvents.empty() && getCommandGraph()) {
+      CommandGroup.reset(
+          new detail::CG(detail::CGType::Barrier, std::move(CGData), CodeLoc));
+
+      return {this->submit_command_to_graph(
+                  *getCommandGraph(), std::move(CommandGroup), CGType::Barrier),
+              false};
     }
 
     CommandGroup.reset(new detail::CGBarrier(
