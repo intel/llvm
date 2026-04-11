@@ -2,6 +2,8 @@
 // RUN: %{run} %t.out
 // Extra run to check for leaks in Level Zero using UR_L0_LEAKS_DEBUG
 // RUN: %if level_zero %{%{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
+// XFAIL: windows && level_zero && arch-intel_gpu_bmg_g21
+// XFAIL-TRACKER: CMPLRLLVM-74630
 
 // REQUIRES: aspect-usm_shared_allocations
 

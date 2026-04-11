@@ -11,16 +11,16 @@
 // CHECK-NEXT: usm.hpp
 // CHECK-NEXT: builtins.hpp
 // CHECK-NEXT: detail/builtins/builtins.hpp
+// CHECK-NEXT: detail/fwd/multi_ptr.hpp
+// CHECK-NEXT: access/access.hpp
 // CHECK-NEXT: detail/helpers.hpp
 // CHECK-NEXT: __spirv/spirv_types.hpp
 // CHECK-NEXT: detail/defines.hpp
-// CHECK-NEXT: access/access.hpp
 // CHECK-NEXT: detail/export.hpp
 // CHECK-NEXT: memory_enums.hpp
 // CHECK-NEXT: __spirv/spirv_vars.hpp
 // CHECK-NEXT: detail/type_traits.hpp
 // CHECK-NEXT: detail/type_traits/vec_marray_traits.hpp
-// CHECK-NEXT: detail/fwd/multi_ptr.hpp
 // CHECK-NEXT: detail/vector_convert.hpp
 // CHECK-NEXT: detail/generic_type_traits.hpp
 // CHECK-NEXT: aliases.hpp
@@ -38,8 +38,6 @@
 // CHECK-NEXT: detail/common.hpp
 // CHECK-NEXT: detail/fwd/accessor.hpp
 // CHECK-NEXT: marray.hpp
-// CHECK-NEXT: multi_ptr.hpp
-// CHECK-NEXT: detail/address_space_cast.hpp
 // CHECK-NEXT: detail/builtins/common_functions.inc
 // CHECK-NEXT: detail/builtins/helper_macros.hpp
 // CHECK-NEXT: detail/builtins/geometric_functions.inc
@@ -102,6 +100,8 @@
 // CHECK-NEXT: ext/oneapi/accessor_property_list.hpp
 // CHECK-NEXT: detail/accessor_iterator.hpp
 // CHECK-NEXT: detail/handler_proxy.hpp
+// CHECK-NEXT: multi_ptr.hpp
+// CHECK-NEXT: detail/address_space_cast.hpp
 // CHECK-NEXT: pointers.hpp
 // CHECK-NEXT: properties/accessor_properties.hpp
 // CHECK-NEXT: properties/runtime_accessor_properties.def

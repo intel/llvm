@@ -265,17 +265,22 @@ void context_impl::addDeviceGlobalInitializer(
 std::vector<ur_event_handle_t> context_impl::initializeDeviceGlobals(
     ur_program_handle_t NativePrg, queue_impl &QueueImpl,
     detail::kernel_bundle_impl *KernelBundleImplPtr) {
+
   if (!MDeviceGlobalNotInitializedCnt.load(std::memory_order_acquire))
     return {};
 
   detail::adapter_impl &Adapter = getAdapter();
   device_impl &DeviceImpl = QueueImpl.getDeviceImpl();
   std::lock_guard<std::mutex> NativeProgramLock(MDeviceGlobalInitializersMutex);
+
   auto ImgIt = MDeviceGlobalInitializers.find(
       std::make_pair(NativePrg, DeviceImpl.getHandleRef()));
-  if (ImgIt == MDeviceGlobalInitializers.end() ||
-      ImgIt->second.MDeviceGlobalsFullyInitialized)
+  if (ImgIt == MDeviceGlobalInitializers.end()) {
     return {};
+  }
+  if (ImgIt->second.MDeviceGlobalsFullyInitialized) {
+    return {};
+  }
 
   DeviceGlobalInitializer &InitRef = ImgIt->second;
   {
