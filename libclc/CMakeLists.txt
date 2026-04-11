@@ -33,12 +33,6 @@ option(
 option( LIBCLC_GENERATE_REMANGLED_VARIANTS
   "Generate remangled variants of enabled libclc targets." OFF )
 
-option( LIBCLC_NATIVECPU_HOST_TARGET "Build libclc for Native CPU." Off)
-
-if( LIBCLC_NATIVECPU_HOST_TARGET )
-  list(APPEND LIBCLC_TARGETS_TO_BUILD native_cpu)
-endif()
-
 # List of all supported targets.
 set( LIBCLC_TARGETS_ALL
   amdgcn-amd-amdhsa-llvm
@@ -122,6 +116,8 @@ else()
   endforeach()
 endif()
 
+option( LIBCLC_NATIVECPU_HOST_TARGET "Build libclc for Native CPU." Off)
+
 if( LIBCLC_NATIVECPU_HOST_TARGET )
   list(APPEND LIBCLC_TARGETS_TO_BUILD native_cpu)
 endif()
@@ -139,6 +135,7 @@ add_subdirectory( utils )
 
 add_subdirectory(clc/lib/generic)
 add_subdirectory(clc/lib/amdgpu)
+add_subdirectory(clc/lib/native_cpu)
 add_subdirectory(clc/lib/ptx-nvidiacl)
 add_subdirectory(clc/lib/spirv)
 add_subdirectory(clc/lib/clspv)
@@ -249,6 +246,8 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
     list(APPEND _clc_overrides ${CLC_SPIRV_SOURCES})
   elseif(ARCH STREQUAL clspv OR ARCH STREQUAL clspv64)
     list(APPEND _clc_overrides ${CLC_CLSPV_SOURCES})
+  elseif(t STREQUAL native_cpu)
+    list(APPEND _clc_overrides ${CLC_NATIVE_CPU_SOURCES})
   endif()
   libclc_merge_sources(clc_sources ${CLC_GENERIC_SOURCES} ${_clc_overrides})
 

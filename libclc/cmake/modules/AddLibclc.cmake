@@ -167,6 +167,9 @@ function(add_libclc_library target_name)
     message(FATAL_ERROR "SOURCES is required for add_libclc_library")
   endif()
 
+  # Compute ARCH_SUFFIX for test target names, using TARGET_TRIPLE as the unique identifier
+  set(ARG_ARCH_SUFFIX ${ARG_TARGET_TRIPLE})
+
   set(builtins_target ${target_name}_clc_builtins)
   add_libclc_builtin_library(${builtins_target}
     SOURCES ${ARG_SOURCES}
