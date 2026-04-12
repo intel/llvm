@@ -152,7 +152,7 @@ endfunction()
 function(add_libclc_library target_name)
   cmake_parse_arguments(ARG
     ""
-    "ARCH;TRIPLE;TARGET_TRIPLE;OUTPUT_FILENAME;PARENT_TARGET;REMANGLE"
+    "ARCH;TRIPLE;TARGET_TRIPLE;OUTPUT_FILENAME;PARENT_TARGET"
     "SOURCES;COMPILE_OPTIONS;INCLUDE_DIRS;COMPILE_DEFINITIONS;INTERNALIZE_LIBRARIES;OPT_FLAGS"
     ${ARGN}
   )
@@ -166,9 +166,6 @@ function(add_libclc_library target_name)
   if(NOT ARG_SOURCES)
     message(FATAL_ERROR "SOURCES is required for add_libclc_library")
   endif()
-
-  # Compute ARCH_SUFFIX for test target names, using TARGET_TRIPLE as the unique identifier
-  set(ARG_ARCH_SUFFIX ${ARG_TARGET_TRIPLE})
 
   set(builtins_target ${target_name}_clc_builtins)
   add_libclc_builtin_library(${builtins_target}
@@ -208,9 +205,9 @@ function(add_libclc_library target_name)
   # * nvptx64-- targets don't include workitem builtins
   # * clspv targets don't include all OpenCL builtins
   if( NOT ARG_ARCH MATCHES "^(nvptx|clspv)(64)?$" )
-    add_test( NAME external-funcs-${ARG_ARCH_SUFFIX}
-      COMMAND ./check_external_funcs.sh ${libclc_builtins_lib} ${LLVM_TOOLS_BINARY_DIR}
-      WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} )
+    add_test( NAME external-funcs-${target_name}
+      COMMAND ./check_external_funcs.sh ${builtins_file} ${LLVM_TOOLS_BINARY_DIR}
+      WORKING_DIRECTORY ${LIBCLC_SOURCE_DIR} )
   endif()
 
 endfunction()

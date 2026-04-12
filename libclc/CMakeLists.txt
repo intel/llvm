@@ -333,6 +333,7 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
   )
 
   if( BUILD_LIBSPIRV_${t} )
+    # Build base libspirv library (without remangling)
     add_libclc_library(libspirv-${t}
       ARCH ${ARCH}
       TRIPLE ${clang_triple}
@@ -347,8 +348,28 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
       OPT_FLAGS ${opt_flags}
       OUTPUT_FILENAME libspirv
       PARENT_TARGET libspirv-builtins
-      REMANGLE ${LIBCLC_GENERATE_REMANGLED_VARIANTS}
     )
+
+    # Build remangled libspirv variants for different long widths and char signedness
+    foreach(long_width 32 64)
+      foreach(char_signedness signed unsigned)
+        add_libclc_library(libspirv-${t}-l${long_width}-${char_signedness}
+          ARCH ${ARCH}
+          TRIPLE ${clang_triple}
+          TARGET_TRIPLE ${t}
+          SOURCES ${libspirv_sources}
+          COMPILE_OPTIONS ${compile_flags} "SHELL:-Xclang -fdeclare-spirv-builtins" "SHELL:-Xclang -fsycl-remangle-libspirv" "SHELL:-mllvm -remangle-long-width=${long_width}" "SHELL:-mllvm -remangle-char-signedness=${char_signedness}"
+          INCLUDE_DIRS
+            ${CMAKE_CURRENT_SOURCE_DIR}/clc/include
+            ${CMAKE_CURRENT_SOURCE_DIR}/libspirv/include
+          COMPILE_DEFINITIONS ${_common_defs}
+          INTERNALIZE_LIBRARIES ${clc_lib}
+          OPT_FLAGS ${opt_flags}
+          OUTPUT_FILENAME libspirv.l${long_width}.${char_signedness}_char
+          PARENT_TARGET libspirv-builtins
+        )
+      endforeach()
+    endforeach()
   endif()
 endforeach()
 
