@@ -389,65 +389,6 @@ static Attr *handleIntelIVDepAttr(Sema &S, Stmt *St, const ParsedAttr &A) {
       NumArgs == 2 ? A.getArgAsExpr(1) : nullptr);
 }
 
-static void
-CheckForDuplicateSYCLIntelLoopCountAttrs(Sema &S,
-                                         ArrayRef<const Attr *> Attrs) {
-  // Create a list of SYCLIntelLoopCount attributes only.
-  SmallVector<const SYCLIntelLoopCountAttr *, 8> OnlyLoopCountAttrs;
-  llvm::transform(
-      Attrs, std::back_inserter(OnlyLoopCountAttrs), [](const Attr *A) {
-        return dyn_cast_or_null<const SYCLIntelLoopCountAttr>(A);
-      });
-  OnlyLoopCountAttrs.erase(
-      std::remove(OnlyLoopCountAttrs.begin(), OnlyLoopCountAttrs.end(),
-                  static_cast<const SYCLIntelLoopCountAttr *>(nullptr)),
-      OnlyLoopCountAttrs.end());
-  if (OnlyLoopCountAttrs.empty())
-    return;
-
-  unsigned int MinCount = 0;
-  unsigned int MaxCount = 0;
-  unsigned int AvgCount = 0;
-  unsigned int Count = 0;
-  for (const auto *A : OnlyLoopCountAttrs) {
-    const auto *At = dyn_cast<SYCLIntelLoopCountAttr>(A);
-    At->isMin()   ? MinCount++
-    : At->isMax() ? MaxCount++
-    : At->isAvg() ? AvgCount++
-                  : Count++;
-    if (MinCount > 1 || MaxCount > 1 || AvgCount > 1 || Count > 1)
-      S.Diag(A->getLocation(), diag::err_sycl_loop_attr_duplication) << 1 << A;
-  }
-}
-
-SYCLIntelLoopCountAttr *
-Sema::BuildSYCLIntelLoopCountAttr(const AttributeCommonInfo &CI, Expr *E) {
-  if (!E->isValueDependent()) {
-    llvm::APSInt ArgVal;
-    ExprResult Res = VerifyIntegerConstantExpression(E, &ArgVal);
-    if (Res.isInvalid())
-      return nullptr;
-    E = Res.get();
-
-    // This attribute requires a non-negative value.
-    if (ArgVal < 0) {
-      Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
-          << CI << /*non-negative*/ 1;
-      return nullptr;
-    }
-  }
-
-  return new (Context) SYCLIntelLoopCountAttr(Context, CI, E);
-}
-
-static Attr *handleSYCLIntelLoopCountAttr(Sema &S, Stmt *St,
-                                          const ParsedAttr &A) {
-  S.SYCL().checkDeprecatedSYCLAttributeSpelling(A);
-
-  Expr *E = A.getArgAsExpr(0);
-  return S.BuildSYCLIntelLoopCountAttr(A, E);
-}
-
 static Attr *handleIntelNofusionAttr(Sema &S, Stmt *St,
                                      const ParsedAttr &A) {
   return new (S.Context) SYCLIntelNofusionAttr(S.Context, A);
@@ -1060,7 +1001,6 @@ static void CheckForIncompatibleSYCLLoopAttributes(
       S, Attrs);
   CheckForDuplicateAttrs<SYCLIntelMaxInterleavingAttr>(S, Attrs);
   CheckForDuplicateAttrs<SYCLIntelSpeculatedIterationsAttr>(S, Attrs);
-  CheckForDuplicateSYCLIntelLoopCountAttrs(S, Attrs);
   CheckForDuplicationSYCLLoopAttribute<LoopUnrollHintAttr>(S, Attrs, false);
   CheckRedundantSYCLIntelIVDepAttrs(S, Attrs);
   CheckForDuplicationSYCLLoopAttribute<SYCLIntelNofusionAttr>(S, Attrs);
@@ -1264,8 +1204,6 @@ static Attr *ProcessStmtAttribute(Sema &S, Stmt *St, const ParsedAttr &A,
     return handleSYCLIntelMaxInterleavingAttr(S, St, A);
   case ParsedAttr::AT_SYCLIntelSpeculatedIterations:
     return handleSYCLIntelSpeculatedIterationsAttr(S, St, A);
-  case ParsedAttr::AT_SYCLIntelLoopCount:
-    return handleSYCLIntelLoopCountAttr(S, St, A);
   case ParsedAttr::AT_HLSLLoopHint:
     return handleHLSLLoopHintAttr(S, St, A, Range);
   case ParsedAttr::AT_HLSLControlFlowHint:

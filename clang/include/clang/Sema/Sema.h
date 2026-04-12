@@ -11437,8 +11437,6 @@ public:
   OpenCLUnrollHintAttr *
   BuildOpenCLLoopUnrollHintAttr(const AttributeCommonInfo &A, Expr *E);
 
-  SYCLIntelLoopCountAttr *
-  BuildSYCLIntelLoopCountAttr(const AttributeCommonInfo &CI, Expr *E);
   SYCLIntelInitiationIntervalAttr *
   BuildSYCLIntelInitiationIntervalAttr(const AttributeCommonInfo &CI, Expr *E);
   SYCLIntelMaxConcurrencyAttr *

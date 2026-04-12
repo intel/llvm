@@ -207,6 +207,7 @@
 #include "llvm/SYCLLowerIR/SYCLOptimizeBarriers.h"
 #include "llvm/SYCLLowerIR/SYCLPropagateAspectsUsage.h"
 #include "llvm/SYCLLowerIR/SYCLPropagateJointMatrixUsage.h"
+#include "llvm/SYCLLowerIR/SYCLRemangleLibspirv.h"
 #include "llvm/SYCLLowerIR/SYCLVirtualFunctionsAnalysis.h"
 #include "llvm/SYCLLowerIR/SpecConstants.h"
 #include "llvm/Support/CodeGen.h"

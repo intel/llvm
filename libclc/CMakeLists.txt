@@ -30,9 +30,6 @@ option(
   LIBCLC_USE_SPIRV_BACKEND "Build SPIR-V targets with the SPIR-V backend." OFF
 )
 
-option( LIBCLC_GENERATE_REMANGLED_VARIANTS
-  "Generate remangled variants of enabled libclc targets." OFF )
-
 # List of all supported targets.
 set( LIBCLC_TARGETS_ALL
   amdgcn-amd-amdhsa-llvm
@@ -129,9 +126,6 @@ foreach( tool IN ITEMS opt llvm-link )
     message( FATAL_ERROR "libclc toolchain incomplete - missing tool ${tool}!" )
   endif()
 endforeach()
-
-# Configure libclc-remangler tool
-add_subdirectory( utils )
 
 add_subdirectory(clc/lib/generic)
 add_subdirectory(clc/lib/amdgpu)
