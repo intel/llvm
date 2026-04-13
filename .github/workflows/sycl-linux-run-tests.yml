@@ -269,13 +269,13 @@ jobs:
       uses: ./devops/actions/setup-vulkan/linux
     - name: Download SYCL toolchain
       if: inputs.toolchain_artifact != '' && github.event_name != 'workflow_run'
-      uses: actions/download-artifact@v7
+      uses: actions/download-artifact@v8
       with:
         name: ${{ inputs.toolchain_artifact }}
     - name: Download SYCL toolchain [workflow_run]
       # NOTE: This is for `sycl-linux-precommit-aws.yml`.
       if: inputs.toolchain_artifact != '' && github.event_name == 'workflow_run'
-      uses: actions/github-script@v8
+      uses: actions/github-script@v9
       with:
         script: |
           const name = '${{ inputs.toolchain_artifact }}'
