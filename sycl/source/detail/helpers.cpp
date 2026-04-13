@@ -86,9 +86,9 @@ getUrEventsBlocking(std::vector<EventImplPtr> &Events, bool HasEventMode,
     if (!Event->isInterop() && !Event->isEnqueued()) {
       if (!Event->getCommand() || !Event->getCommand()->producesUrEvent())
         continue;
-      std::vector<Command *> AuxCmds;
-      assert(false);
-      Scheduler::getInstance().enqueueCommandForCG(*Event, AuxCmds, BLOCKING);
+      //std::vector<Command *> AuxCmds;
+      //assert(false);
+      //Scheduler::getInstance().enqueueCommandForCG(*Event, AuxCmds, BLOCKING);
     }
     // Do not add redundant event dependencies for in-order queues.
     // At this stage dependency is definitely ur task and need to check if
