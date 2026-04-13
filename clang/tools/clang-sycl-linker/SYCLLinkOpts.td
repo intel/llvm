@@ -63,6 +63,7 @@ def sycl_post_link_options_EQ : Joined<["--", "-"], "sycl-post-link-options=">,
   Flags<[LinkerOnlyOption]>,
   HelpText<"Options passed to sycl-post-link tool">;
 
+// Options to specify additional bitcode libraries linked with -only-needed.
 def bitcode_library_EQ : Joined<["--"], "bitcode-library=">,
   Flags<[LinkerOnlyOption]>, MetaVarName<"<kind>-<triple>-<arch>=<path>">,
   HelpText<"Extra bitcode library to link">;
@@ -99,6 +100,7 @@ def syclbin_EQ : Joined<["--", "-"], "syclbin=">,
   Flags<[LinkerOnlyOption]>,
   HelpText<"Output in the SYCLBIN binary format in the state specified by <arg> (input, object or executable)">;
 
-def input_file_EQ : Joined<["--", "-"], "input-file=">,
+// Options to specify SYCL device kernel bitcode input files, extracted from offload binaries.
+def input_bitcode_file_EQ : Joined<["--", "-"], "input-bitcode-file=">,
   Flags<[LinkerOnlyOption]>,
-  HelpText<"Input bitcode file for SYCL device linking">;
+  HelpText<"LLVM bitcode file containing compiled SYCL device kernels to be linked">;
