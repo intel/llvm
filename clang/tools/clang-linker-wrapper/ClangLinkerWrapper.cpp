@@ -1718,7 +1718,7 @@ Error extractBundledObjects(StringRef Filename, const ArgList &Args,
 } // namespace sycl
 
 namespace generic {
-/// Forwards all required flags to the clang-sycl-linker via -Xlinker.
+// Forwards all required flags to the clang-sycl-linker via -Xlinker.
 static void appendClangSYCLLinkerArgs(const ArgList &Args,
                                       SmallVectorImpl<StringRef> &CmdArgs,
                                       const llvm::Triple &Triple,
@@ -1730,6 +1730,13 @@ static void appendClangSYCLLinkerArgs(const ArgList &Args,
   XLinker("--triple=" + Triple.getTriple());
   if (!Arch.empty())
     XLinker("--arch=" + Arch);
+
+  // Collect all device library file values and pass them to the linker as a single comma-separated list.
+  if (Arg *A = Args.getLastArg(OPT_sycl_device_lib_EQ)) {
+    std::string DeviceLibsStr = llvm::join(A->getValues(), ",");
+    CmdArgs.append({"-Xlinker",
+                    Args.MakeArgString("--device-libs=" + DeviceLibsStr)});
+  }
 
   static const std::pair<OptSpecifier, StringRef> SimpleFlags[] = {
       {OPT_save_temps, "--save-temps"},
@@ -1760,7 +1767,7 @@ static void appendClangSYCLLinkerArgs(const ArgList &Args,
       {OPT_sycl_post_link_options_EQ, "--sycl-post-link-options="},
       {OPT_syclbin_EQ, "--syclbin="},
       {OPT_bitcode_library_EQ, "--bitcode-library="},
-      {OPT_sycl_device_lib_EQ, "--device-libs="},
+      {OPT_sycl_device_library_location_EQ, "-library-path="},
   };
   for (auto [Opt, Flag] : ValueFlags)
     if (const opt::Arg *A = Args.getLastArg(Opt))
@@ -1806,8 +1813,12 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args,
   };
 
   if (UseClangSYCLLinker) {
+    CmdArgs.push_back("-fsycl");
     CmdArgs.push_back("--sycl-link");
     appendClangSYCLLinkerArgs(Args, CmdArgs, Triple, Arch);
+    for (StringRef InputFile : InputFiles)
+      CmdArgs.append({"-Xlinker",
+          Args.MakeArgString("-input-file=" + InputFile)});
     if (Error Err = executeCommands(*ClangPath, CmdArgs))
       return std::move(Err);
     return *TempFileOrErr;

@@ -98,3 +98,7 @@ def sycl_allow_device_image_dependencies : Flag<["--", "-"], "sycl-allow-device-
 def syclbin_EQ : Joined<["--", "-"], "syclbin=">,
   Flags<[LinkerOnlyOption]>,
   HelpText<"Output in the SYCLBIN binary format in the state specified by <arg> (input, object or executable)">;
+
+def input_file_EQ : Joined<["--", "-"], "input-file=">,
+  Flags<[LinkerOnlyOption]>,
+  HelpText<"Input bitcode file for SYCL device linking">;
