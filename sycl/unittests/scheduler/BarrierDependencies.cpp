@@ -144,3 +144,21 @@ TEST_F(SchedulerTest, BarrierWaitListWithDependsOn) {
   QueueA.wait();
   QueueB.wait();
 }
+
+TEST_F(SchedulerTest, BarrierWaitListEmpty) {
+  sycl::unittest::UrMock<> Mock;
+
+  sycl::platform Plt = sycl::platform();
+
+  context Ctx{Plt};
+  queue InOrderQueue{Ctx, default_selector_v, property::queue::in_order()};
+
+  std::vector<event> DepEvents;
+
+  sycl::event BarrierEvent = InOrderQueue.ext_oneapi_submit_barrier(DepEvents);
+
+  InOrderQueue.wait();
+
+  auto Info = BarrierEvent.get_info<info::event::command_execution_status>();
+  ASSERT_EQ(Info, sycl::info::event_command_status::complete);
+}
