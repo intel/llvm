@@ -4,7 +4,6 @@
 // Test checks that queue::khr_empty() returns status of the out-of-order
 // queue.
 
-
 #include <sycl/detail/core.hpp>
 #include <sycl/usm.hpp>
 

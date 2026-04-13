@@ -3,7 +3,6 @@
 
 // Test checks that queue::khr_empty() returns status of the in-order queue.
 
-
 #include <sycl/detail/core.hpp>
 #include <sycl/properties/all_properties.hpp>
 #include <sycl/usm.hpp>
