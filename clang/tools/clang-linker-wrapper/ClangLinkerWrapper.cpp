@@ -162,6 +162,10 @@ static SmallString<128> OffloadImageDumpDir;
 
 using OffloadingImage = OffloadBinary::OffloadingImage;
 
+// TODO: Remove this once the linking and backend compilation have been fully
+// migrated to clang-sycl-linker.
+bool UseClangSYCLLinker = true;
+
 namespace llvm {
 // Provide DenseMapInfo so that OffloadKind can be used in a DenseMap.
 template <> struct DenseMapInfo<OffloadKind> {
@@ -849,6 +853,62 @@ Error extractBundledObjects(StringRef Filename, const ArgList &Args,
 } // namespace sycl
 
 namespace generic {
+/// Forwards all required flags to the clang-sycl-linker via -Xlinker.
+static void appendClangSYCLLinkerArgs(const ArgList &Args,
+                                      SmallVectorImpl<StringRef> &CmdArgs,
+                                      const llvm::Triple &Triple,
+                                      StringRef Arch) {
+  auto XLinker = [&](const Twine &Arg) {
+    CmdArgs.append({"-Xlinker", Args.MakeArgString(Arg)});
+  };
+
+  XLinker("--triple=" + Triple.getTriple());
+  if (!Arch.empty())
+    XLinker("--arch=" + Arch);
+
+  // Collect all device library file values and pass them to the linker as a single comma-separated list.
+  if (Arg *A = Args.getLastArg(OPT_sycl_device_lib_EQ)) {
+    std::string DeviceLibsStr = llvm::join(A->getValues(), ",");
+    CmdArgs.append({"-Xlinker",
+                    Args.MakeArgString("--device-libs=" + DeviceLibsStr)});
+  }
+
+  static const std::pair<OptSpecifier, StringRef> SimpleFlags[] = {
+      {OPT_save_temps, "--save-temps"},
+      {OPT_dry_run, "--dry-run"},
+      {OPT_print_wrapped_module, "--print-linked-module"},
+      {OPT_sycl_thin_lto, "--sycl-thin-lto"},
+      {OPT_sycl_allow_device_image_dependencies,
+       "--sycl-allow-device-image-dependencies"},
+      {OPT_sycl_remove_unused_external_funcs,
+       "--sycl-remove-unused-external-funcs"},
+      {OPT_no_sycl_remove_unused_external_funcs,
+       "--no-sycl-remove-unused-external-funcs"},
+      {OPT_sycl_device_code_split_esimd, "--sycl-device-code-split-esimd"},
+      {OPT_no_sycl_device_code_split_esimd,
+       "--no-sycl-device-code-split-esimd"},
+      {OPT_sycl_add_default_spec_consts_image,
+       "--sycl-add-default-spec-consts-image"},
+      {OPT_no_sycl_add_default_spec_consts_image,
+       "--no-sycl-add-default-spec-consts-image"},
+  };
+  for (auto [Opt, Flag] : SimpleFlags)
+    if (Args.hasArg(Opt))
+      XLinker(Flag);
+
+  static const std::pair<OptSpecifier, StringRef> ValueFlags[] = {
+      {OPT_sycl_dump_device_code_EQ, "--spirv-dump-device-code="},
+      {OPT_llvm_spirv_options_EQ, "--llvm-spirv-options="},
+      {OPT_sycl_post_link_options_EQ, "--sycl-post-link-options="},
+      {OPT_syclbin_EQ, "--syclbin="},
+      {OPT_bitcode_library_EQ, "--bitcode-library="},
+      {OPT_sycl_device_library_location_EQ, "-library-path="},
+  };
+  for (auto [Opt, Flag] : ValueFlags)
+    if (const opt::Arg *A = Args.getLastArg(Opt))
+      XLinker(Flag + StringRef(A->getValue()));
+}
+
 Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args,
                           uint16_t ActiveOffloadKindMask, bool IsSYCLKind = false, StringRef SYCLBackendOptions = StringRef()) {
   llvm::TimeTraceScope TimeScope("Clang");
@@ -890,9 +950,20 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args,
   };
 
   // AMDGPU is always in LTO mode currently.
-  CmdArgs.push_back("-fsycl");
   if (Triple.isAMDGPU())
     CmdArgs.push_back("-flto");
+
+  if (UseClangSYCLLinker) {
+    CmdArgs.push_back("-fsycl");
+    CmdArgs.push_back("--sycl-link");
+    appendClangSYCLLinkerArgs(Args, CmdArgs, Triple, Arch);
+    for (StringRef InputFile : InputFiles)
+      CmdArgs.append({"-Xlinker",
+          Args.MakeArgString("-input-file=" + InputFile)});
+    if (Error Err = executeCommands(*ClangPath, CmdArgs))
+      return std::move(Err);
+    return *TempFileOrErr;
+  }
 
   // Forward all of the `--offload-opt` and similar options to the device.
   for (auto &Arg : Args.filtered(OPT_offload_opt_eq_minus, OPT_mllvm))
@@ -912,10 +983,6 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args,
     CmdArgs.push_back("-sycl-native-cpu-backend");
     CmdArgs.push_back("-c");
   }
-
-  for (StringRef InputFile : InputFiles)
-      CmdArgs.append({"-Xlinker",
-          Args.MakeArgString("-input-file=" + InputFile)});
 
   // // If this is CPU offloading we copy the input libraries.
   // if (!Triple.isGPU() && !Triple.isNativeCPU()) {
@@ -959,61 +1026,6 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args,
 
   if (Args.hasArg(OPT_embed_bitcode))
     CmdArgs.push_back("-Wl,--lto-emit-llvm");
-
-  // For linking device code with the SYCL offload kind, special handling is
-  // required. Passing --sycl-link to clang results in a call to
-  // clang-sycl-linker. Additional linker flags required by clang-sycl-linker
-  // will be communicated via the -Xlinker option.
-  if (ActiveOffloadKindMask & OFK_SYCL) {
-    llvm::errs() << "[DEBUG] add the sycl-link \n";
-    CmdArgs.push_back("--sycl-link");
-    // These become -Xlinker values that AddLinkerInputs
-    // will collect in SPIRV::Linker::ConstructJob.
-    CmdArgs.append({"-Xlinker",
-        Args.MakeArgString("-triple=" + Triple.getTriple())});
-
-    StringRef Arch = Args.getLastArgValue(OPT_arch_EQ);
-    CmdArgs.append({"-Xlinker",
-        Args.MakeArgString("-arch=" + Arch)});
-
-    // Device library location
-    if (Arg *A = Args.getLastArg(OPT_sycl_device_library_location_EQ))
-        CmdArgs.append({"-Xlinker",
-            Args.MakeArgString(StringRef("-library-path=")
-                               + A->getValue())});
-
-    // Device library files
-    if (Arg *A = Args.getLastArg(OPT_sycl_device_lib_EQ)) {
-        // Join all device library values with commas
-        std::string DeviceLibsStr = llvm::join(A->getValues(), ",");
-        CmdArgs.append({"-Xlinker",
-            Args.MakeArgString("-device-libs=" + DeviceLibsStr)});
-    }
-
-    // sycl-post-link options
-    if (Arg *A = Args.getLastArg(OPT_sycl_post_link_options_EQ))
-        CmdArgs.append({"-Xlinker",
-            Args.MakeArgString(StringRef("-sycl-post-link-options=")
-                               + A->getValue())});
-
-    // llvm-spirv options
-    if (Arg *A = Args.getLastArg(OPT_llvm_spirv_options_EQ))
-        CmdArgs.append({"-Xlinker",
-            Args.MakeArgString(StringRef("-llvm-spirv-options=")
-                               + A->getValue())});
-
-    // AOT backend options (ocloc for Intel GPU)
-    if (!SYCLBackendOptions.empty())
-      CmdArgs.append({"-Xlinker",
-          Args.MakeArgString(StringRef("-ocloc-options=")
-                             + SYCLBackendOptions)});
-
-    // verbose and save-temps
-    if (Args.hasArg(OPT_verbose))
-        CmdArgs.append({"-Xlinker", "-v"});
-    if (Args.hasArg(OPT_save_temps))
-        CmdArgs.append({"-Xlinker", "-save-temps"});
-  }
 
   for (StringRef Arg : Args.getAllArgValues(OPT_builtin_bitcode_EQ)) {
     if (llvm::Triple(Arg.split('=').first) == Triple)

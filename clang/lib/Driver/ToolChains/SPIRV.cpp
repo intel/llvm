@@ -147,13 +147,7 @@ void SPIRV::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   const ToolChain &ToolChain = getToolChain();
   std::string Linker = ToolChain.GetProgramPath(getShortName());
   ArgStringList CmdArgs;
-  for (const Arg *A : Args) {
-    if (A->getOption().matches(options::OPT_Xlinker)) {
-      // Each -Xlinker val becomes a direct argument to clang-sycl-linker.
-      CmdArgs.push_back(A->getValue());
-      A->claim();
-    }
-  }
+  AddLinkerInputs(getToolChain(), Inputs, Args, CmdArgs, JA);
 
   CmdArgs.push_back("-o");
   CmdArgs.push_back(Output.getFilename());
@@ -163,7 +157,7 @@ void SPIRV::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     // the default linker (spirv-link).
     Linker = ToolChain.GetProgramPath("clang-sycl-linker");
   } else if (!llvm::sys::fs::can_execute(Linker) &&
-             !C.getArgs().hasArg(clang::options::OPT__HASH_HASH_HASH)) {
+           !C.getArgs().hasArg(clang::options::OPT__HASH_HASH_HASH)) {
     C.getDriver().Diag(clang::diag::err_drv_no_spv_tools) << getShortName();
     return;
   }
