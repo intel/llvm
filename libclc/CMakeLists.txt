@@ -358,7 +358,11 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
           TRIPLE ${clang_triple}
           TARGET_TRIPLE ${t}
           SOURCES ${libspirv_sources}
-          COMPILE_OPTIONS ${compile_flags} "SHELL:-Xclang -fdeclare-spirv-builtins" "SHELL:-Xclang -fsycl-remangle-libspirv" "SHELL:-mllvm -remangle-long-width=${long_width}" "SHELL:-mllvm -remangle-char-signedness=${char_signedness}"
+          COMPILE_OPTIONS ${compile_flags}
+            "SHELL:-Xclang -fdeclare-spirv-builtins"
+            "SHELL:-Xclang -fsycl-remangle-libspirv"
+            "SHELL:-mllvm -remangle-long-width=${long_width}"
+            "SHELL:-mllvm -remangle-char-signedness=${char_signedness}"
           INCLUDE_DIRS
             ${CMAKE_CURRENT_SOURCE_DIR}/clc/include
             ${CMAKE_CURRENT_SOURCE_DIR}/libspirv/include
