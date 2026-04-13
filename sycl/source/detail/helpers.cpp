@@ -87,6 +87,7 @@ getUrEventsBlocking(std::vector<EventImplPtr> &Events, bool HasEventMode,
       if (!Event->getCommand() || !Event->getCommand()->producesUrEvent())
         continue;
       std::vector<Command *> AuxCmds;
+      assert(false);
       Scheduler::getInstance().enqueueCommandForCG(*Event, AuxCmds, BLOCKING);
     }
     // Do not add redundant event dependencies for in-order queues.
