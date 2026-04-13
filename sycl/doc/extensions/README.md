@@ -34,4 +34,4 @@ subdirectories according to their state.
 [khr3]: <https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#sec:khr-group-interface>
 [khr4]: <https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#sec:khr-work-item-queries>
 [khr5]: <https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#sec:khr-static-addrspace-cast>
-[khr5]: <https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#sec:khr-dynamic-addrspace-cast>
+[khr6]: <https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#sec:khr-dynamic-addrspace-cast>
