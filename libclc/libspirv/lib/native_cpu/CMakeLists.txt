@@ -12,12 +12,9 @@ libclc_configure_source_list(LISPIRV_NATIVE_CPU_SOURCES
   math/native_sin.cl
   math/native_sqrt.cl
   math/round.cl
-  synchronization/barrier.cl
   workitem/get_global_id.cl
   workitem/get_global_size.cl
-  workitem/get_local_id.cl
   workitem/get_local_linear_id.cl
-  workitem/get_local_size.cl
   workitem/get_num_sub_groups.cl
   workitem/get_sub_group_id.cl
   workitem/get_sub_group_size.cl
