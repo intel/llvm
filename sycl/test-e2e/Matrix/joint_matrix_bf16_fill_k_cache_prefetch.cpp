@@ -6,6 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: target-spir
+// XFAIL: run-mode
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/21612
 
 // REQUIRES: aspect-ext_intel_matrix
 // UNSUPPORTED: gpu-intel-dg2
