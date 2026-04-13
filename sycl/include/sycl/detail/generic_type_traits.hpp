@@ -13,11 +13,13 @@
 #include <sycl/bit_cast.hpp>
 #include <sycl/detail/fwd/half.hpp>
 #include <sycl/detail/type_traits.hpp>
+#include <sycl/detail/type_traits/integer_traits.hpp> // for fixed_width_signed/unsigned
 
 #include <cstddef>     // for byte
 #include <cstdint>     // for uint8_t
 #include <limits>      // for numeric_limits
 #include <type_traits> // for enable_if_t, condition...
+#include <utility>     // for forward
 
 namespace sycl {
 inline namespace _V1 {
@@ -86,20 +88,6 @@ inline constexpr bool is_genbool_v =
     std::is_same_v<T, bool> ||
     (is_marray_v<T> && std::is_same_v<element_type_t<T>, bool> &&
      is_allowed_vec_size_v<num_elements_v<T>>);
-
-template <int Size>
-using fixed_width_unsigned = std::conditional_t<
-    Size == 1, uint8_t,
-    std::conditional_t<
-        Size == 2, uint16_t,
-        std::conditional_t<Size == 4, uint32_t, uint64_t>>>;
-
-template <int Size>
-using fixed_width_signed = std::conditional_t<
-    Size == 1, int8_t,
-    std::conditional_t<
-        Size == 2, int16_t,
-        std::conditional_t<Size == 4, int32_t, int64_t>>>;
 
 // Use SFINAE so that std::complex specialization could be implemented in
 // include/sycl/stl_wrappers/complex that would only be available if STL's
