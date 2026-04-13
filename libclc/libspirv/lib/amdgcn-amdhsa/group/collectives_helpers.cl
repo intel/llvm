@@ -19,9 +19,17 @@ __attribute__((always_inline)) local bool* __clc__get_group_scratch_bool() {
   return (local bool*)__clc__get_group_scratch_char();
 }
 
+__attribute__((always_inline)) local uchar* __clc__get_group_scratch_uchar() {
+  return (local uchar*)__clc__get_group_scratch_char();
+}
+
 __attribute__((always_inline)) local short* __clc__get_group_scratch_short() {
   local short a[32];
   return a;
+}
+
+__attribute__((always_inline)) local ushort* __clc__get_group_scratch_ushort() {
+  return (local ushort*)__clc__get_group_scratch_short();
 }
 
 __attribute__((always_inline)) local int* __clc__get_group_scratch_int() {
@@ -29,9 +37,17 @@ __attribute__((always_inline)) local int* __clc__get_group_scratch_int() {
   return a;
 }
 
+__attribute__((always_inline)) local uint* __clc__get_group_scratch_uint() {
+  return (local uint*)__clc__get_group_scratch_int();
+}
+
 __attribute__((always_inline)) local long* __clc__get_group_scratch_long() {
   local long a[32];
   return a;
+}
+
+__attribute__((always_inline)) local ulong* __clc__get_group_scratch_ulong() {
+  return (local ulong*)__clc__get_group_scratch_long();
 }
 
 #ifdef cl_khr_fp16
