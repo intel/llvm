@@ -51,6 +51,7 @@ file(GLOB SOURCES *.cpp)
 function(add_xpti_library LIB_NAME)
   remove_definitions(-DXPTI_STATIC_LIBRARY)
   add_library(${LIB_NAME} SHARED ${SOURCES})
+  add_library(xptifw::${LIB_NAME} ALIAS ${LIB_NAME})
 
   if (${LIB_NAME} MATCHES "xptifwd")
     set_property(TARGET ${LIB_NAME} PROPERTY

@@ -2,6 +2,7 @@ include(GNUInstallDirs)
 
 macro(add_xpti_lib target_name)
   add_library(${target_name} STATIC ${ARGN})
+  add_library(xpti::${target_name} ALIAS ${target_name})
   target_compile_definitions(${target_name} PUBLIC XPTI_STATIC_LIBRARY)
   target_include_directories(${target_name}
     PUBLIC
