@@ -2688,6 +2688,11 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
         return convertShadowToScalar(IRB.CreateOrReduce(V), IRB);
       unsigned BitWidth =
           V->getType()->getPrimitiveSizeInBits().getFixedValue();
+      if (SpirOrSpirv && BitWidth > 64) {
+        // SPIR-V does not support integers wider than 64 bits, so we need to
+        // reduce the vector to a single i64 before converting to bool.
+        return convertShadowToScalar(IRB.CreateOrReduce(V), IRB);
+      }
       return IRB.CreateBitCast(V, IntegerType::get(*MS.C, BitWidth));
     }
     return V;
