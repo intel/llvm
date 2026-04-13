@@ -410,7 +410,7 @@ static constexpr size_t N = 1024;
 
 int main() {
   sycl::device d;
-  sycl::context ctxt = d.ext_oneapi_get_default_context();
+  sycl::context ctxt = d.get_platform().khr_get_default_context();
   sycl::queue q1{ctxt, d, sycl::property::queue::in_order{}};
   sycl::queue q2{ctxt, d, sycl::property::queue::in_order{}};
   sycl::event e = syclex::make_event(d, ctxt);
@@ -481,7 +481,7 @@ using counter-based events:
 
 * The `make_event` function maps to `zeEventCounterBasedCreate`.
   If the `enable_profiling` property is specified to `make_event`, the event
-  should be have the corresponding Level Zero flag set.
+  should have the corresponding Level Zero flag set.
 * Platforms on the Level Zero backend can return `true` for the
   `event_profiling` information descriptor.
 * The `enqueue_wait_event` function maps to `zeCommandListAppendWaitOnEvents`.
