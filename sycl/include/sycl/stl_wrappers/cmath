@@ -216,8 +216,10 @@ extern __DPCPP_SYCL_EXTERNAL_LIBC double __complex__ __muldc3(double a,
                                                               double d);
 extern __DPCPP_SYCL_EXTERNAL_LIBC float __complex__ __divsc3(float a, float b,
                                                              float c, float d);
-extern __DPCPP_SYCL_EXTERNAL_LIBC double __complex__ __divdc3(float a, float b,
-                                                              float c, float d);
+extern __DPCPP_SYCL_EXTERNAL_LIBC double __complex__ __divdc3(double a,
+                                                              double b,
+                                                              double c,
+                                                              double d);
 }
 #elif defined(_WIN32)
 extern "C" {
