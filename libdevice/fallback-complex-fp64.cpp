@@ -81,9 +81,8 @@ DEVICE_EXTERN_C_INLINE
 double __complex__ __devicelib_cpow(double __complex__ x,
                                     double __complex__ y) {
   double __complex__ t = __devicelib_clog(x);
-  double __complex__ w =
-      __muldc3(__devicelib_creal(y), __devicelib_cimag(y),
-                           __devicelib_creal(t), __devicelib_cimag(t));
+  double __complex__ w = __muldc3(__devicelib_creal(y), __devicelib_cimag(y),
+                                  __devicelib_creal(t), __devicelib_cimag(t));
   return __devicelib_cexp(w);
 }
 
@@ -330,9 +329,9 @@ double __complex__ __devicelib_catanh(double __complex__ z) {
                  __spirv_ocl_copysign(0.0, z_imag));
   double __complex__ t1 = 1.0 + z;
   double __complex__ t2 = 1.0 - z;
-  double __complex__ t3 = 
+  double __complex__ t3 =
       __divdc3(__devicelib_creal(t1), __devicelib_cimag(t1),
-                           __devicelib_creal(t2), __devicelib_cimag(t2));
+               __devicelib_creal(t2), __devicelib_cimag(t2));
   double __complex__ w = __devicelib_clog(t3) / 2.0;
   return CMPLX(__spirv_ocl_copysign(__devicelib_creal(w), z_real),
                __spirv_ocl_copysign(__devicelib_cimag(w), z_imag));
