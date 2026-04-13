@@ -1731,11 +1731,12 @@ static void appendClangSYCLLinkerArgs(const ArgList &Args,
   if (!Arch.empty())
     XLinker("--arch=" + Arch);
 
-  // Collect all device library file values and pass them to the linker as a single comma-separated list.
+  // Collect all device library file values and pass them to the linker as a
+  // single comma-separated list.
   if (Arg *A = Args.getLastArg(OPT_sycl_device_lib_EQ)) {
     std::string DeviceLibsStr = llvm::join(A->getValues(), ",");
-    CmdArgs.append({"-Xlinker",
-                    Args.MakeArgString("--device-libs=" + DeviceLibsStr)});
+    CmdArgs.append(
+        {"-Xlinker", Args.MakeArgString("--device-libs=" + DeviceLibsStr)});
   }
 
   static const std::pair<OptSpecifier, StringRef> SimpleFlags[] = {
@@ -1817,8 +1818,8 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args,
     CmdArgs.push_back("--sycl-link");
     appendClangSYCLLinkerArgs(Args, CmdArgs, Triple, Arch);
     for (StringRef InputFile : InputFiles)
-      CmdArgs.append({"-Xlinker",
-          Args.MakeArgString("-input-file=" + InputFile)});
+      CmdArgs.append(
+          {"-Xlinker", Args.MakeArgString("--input-bitcode-file=" + InputFile)});
     if (Error Err = executeCommands(*ClangPath, CmdArgs))
       return std::move(Err);
     return *TempFileOrErr;
