@@ -1,8 +1,6 @@
 // RUN: %{build} %cxx_std_optionc++23 -o %t.out
 // RUN: %{run} %t.out
 
-#define __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
-
 #include <sycl/detail/core.hpp>
 #include <sycl/khr/group_interface.hpp>
 

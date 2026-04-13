@@ -3610,9 +3610,7 @@ public:
   ///
   /// \return returns true if all enqueued commands in the queue have been
   /// completed, otherwise returns false.
-#ifdef __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
   bool khr_empty() const;
-#endif
 
   std::optional<event> ext_oneapi_get_last_event() const {
     return static_cast<std::optional<event>>(ext_oneapi_get_last_event_impl());
