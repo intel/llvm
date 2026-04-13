@@ -5,7 +5,7 @@ on:
     inputs:
       runner:
         type: string
-        required: True
+        required: true
       level_zero_dir:
         description: 'Root directory of Level Zero SDK installation'
         required: false
@@ -27,6 +27,11 @@ on:
         description: 'Toolchain artifact downloaded filename'
         required: true
         type: string
+
+env:
+  OIDN_INSTALL_DIR: "${{ github.workspace }}/oidn-install"
+  EMBREE_INSTALL_DIR: "${{ github.workspace }}/embree-install"
+  BLENDER_INSTALL_DIR: "${{ github.workspace }}/blender-install"
 
 jobs:
   blender:
@@ -56,24 +61,24 @@ jobs:
       - name: Build OIDN
         uses: ./devops/actions/blender/oidn
         with:
-          cmake_install_prefix: ${{ github.workspace }}/oidn-install
+          cmake_install_prefix: ${{ env.OIDN_INSTALL_DIR }}
           c_compiler: ${{ github.workspace }}/install/bin/clang${{ runner.os == 'Windows' && '.exe' }}
           cxx_compiler: ${{ github.workspace }}/install/bin/clang++${{ runner.os == 'Windows' && '.exe' }}
 
       - name: Build Embree
         uses: ./devops/actions/blender/embree
         with:
-          cmake_install_prefix: ${{ github.workspace }}/embree-install
+          cmake_install_prefix: ${{ env.EMBREE_INSTALL_DIR }}
           c_compiler: ${{ github.workspace }}/install/bin/clang${{ runner.os == 'Windows' && '.exe' }}
           cxx_compiler: ${{ github.workspace }}/install/bin/clang++${{ runner.os == 'Windows' && '.exe' }}
 
       - name: Build Blender
         uses: ./devops/actions/blender/blender-build
         with:
-          oidn_dir: ${{ github.workspace }}/oidn-install
-          embree_dir: ${{ github.workspace }}/embree-install
+          oidn_dir: ${{ env.OIDN_INSTALL_DIR }}
+          embree_dir: ${{ env.EMBREE_INSTALL_DIR }}
           level_zero_dir: ${{ inputs.level_zero_dir }}
-          cmake_install_prefix: ${{ github.workspace }}/blender-install
+          cmake_install_prefix: ${{ env.BLENDER_INSTALL_DIR }}
           sycl_dir: ${{ github.workspace }}/install
           ccache_dir: ${{ inputs.ccache_dir }}
 
@@ -82,3 +87,10 @@ jobs:
         with:
           blender_dir: ${{ github.workspace }}/blender-install
           blender_classroom_dir: ${{ inputs.blender_classroom_dir }}
+
+      - name: Cleanup
+        shell: cmd
+        if: always()
+        run: |
+         rmdir /q /s "${{ env.OIDN_INSTALL_DIR }}" "${{ env.EMBREE_INSTALL_DIR }}" "${{ env.BLENDER_INSTALL_DIR }}"
+  

@@ -57,3 +57,9 @@ runs:
     - name: Install OIDN
       shell: bash
       run: cmake --install oidn-build --config Release
+
+    - name: Cleanup
+      shell: cmd
+      if: always()
+      run: |
+        rmdir /q /s oidn-build oidn-src

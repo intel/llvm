@@ -38,7 +38,7 @@ runs:
       run: |
         echo "SCCACHE_DIR=$env:CCACHE_DIR_INPUT" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
         echo "SCCACHE_MAXSIZE=10G" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-        # Wthout this we get a linking error about not being able to find sycl-devicelib-host.lib
+        # Without this we get a linking error about not being able to find sycl-devicelib-host.lib
         echo "LIB=$env:LIB;$env:SYCL_DIR_INPUT\lib" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
         echo "CMAKE_EXTRA_ARGS=-DWITH_WINDOWS_SCCACHE=ON" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
@@ -100,3 +100,9 @@ runs:
     - name: Install Blender
       shell: bash
       run: cmake --install blender-build --config Release
+
+    - name: Cleanup
+      shell: cmd
+      if: always()
+      run: |
+        rmdir /q /s blender-build blender-src

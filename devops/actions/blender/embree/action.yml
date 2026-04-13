@@ -57,3 +57,9 @@ runs:
     - name: Install Embree
       shell: bash
       run: cmake --install embree-build --config Release
+
+    - name: Cleanup
+      shell: cmd
+      if: always()
+      run: |
+        rmdir /q /s embree-build embree-src
