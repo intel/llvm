@@ -4176,50 +4176,6 @@ same loop or function, or in conjunction with ``speculated_iterations``,
   }];
 }
 
-def SYCLIntelLoopCountAttrDocs : Documentation {
-  let Category = DocCatVariable;
-  let Heading = "intel::loop_count_min, intel::loop_count_max, intel::loop_count_avg, intel::loop_count";
-  let Content = [{
-The loop count attributes specify the minimum, maximum, or average number of
-iterations for a ``for`` loop. These are hints that the user specify that can be
-used by some of the loop optimization to make decisions such as if the loop
-should be unrolled. It is a way for the user to provide some information without
-using PGO.
-
-.. code-block:: c++
-
-  void foo(int *array, size_t n) {
-    [[intel::loop_count_min(4)]] for (int i = 0; i < n; ++i) array[i] = 0;
-  }
-
-  void zoo(int *array, size_t n) {
-    [[intel::loop_count_max(10)]] for (int i = 0; i < n; ++i) array[i] = 0;
-  }
-
-  void count(int *array, size_t n) {
-    [[intel::loop_count(20)]] for (int i = 0; i < n; ++i) array[i] = 0;
-  }
-
-  void goo(int *array, size_t n) {
-    [[intel::loop_count_min(3)]]
-    [[intel::loop_count_max(10)]]
-    [[intel::loop_count_avg(5)]]
-    [[intel::loop_count(20)]]
-    for (int i = 0; i < n; ++i) array[i] = 0;
-  }
-
-  template<int N>
-  void bar() {
-    [[intel::loop_count_avg(N)]] for(;;) { }
-  }
-
-  template<int A>
-  void func() {
-    [[intel::loop_count(A)]] for(;;) { }
-  }
-  }];
-}
-
 def SYCLIntelMaxInterleavingAttrDocs : Documentation {
   let Category = DocCatVariable;
   let Heading = "intel::max_interleaving";

@@ -1074,19 +1074,6 @@ void LoopInfoStack::push(BasicBlock *Header, clang::ASTContext &Ctx,
       setSYCLMaxConcurrencyNThreads(ArgVal.getSExtValue());
     }
 
-    if (const auto *SYCLIntelLoopCountAvg =
-            dyn_cast<SYCLIntelLoopCountAttr>(A)) {
-      const auto *CE =
-          cast<ConstantExpr>(SYCLIntelLoopCountAvg->getNTripCount());
-      llvm::APSInt ArgVal = CE->getResultAsAPSInt();
-      const char *Var =
-          SYCLIntelLoopCountAvg->isMax()   ? "llvm.loop.intel.loopcount_max"
-          : SYCLIntelLoopCountAvg->isMin() ? "llvm.loop.intel.loopcount_min"
-          : SYCLIntelLoopCountAvg->isAvg() ? "llvm.loop.intel.loopcount_avg"
-                                           : "llvm.loop.intel.loopcount";
-      setSYCLIntelFPGAVariantCount(Var, ArgVal.getSExtValue());
-    }
-
     if (const auto *SYCLIntelLoopCoalesce =
             dyn_cast<SYCLIntelLoopCoalesceAttr>(A)) {
       if (const auto *LCE = SYCLIntelLoopCoalesce->getNExpr()) {
