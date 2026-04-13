@@ -22,6 +22,10 @@ set(LIBCLC_TEST_DEPS
 umbrella_lit_testsuite_begin(check-libclc)
 
 foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
+    if (t STREQUAL native_cpu)
+      continue()
+    endif()
+
     # Each target gets own lit testsuite directory.
     # This is done because all suites passed to add_lit_testsuite
     # are collected into a single invocation of lit, for example:
