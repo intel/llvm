@@ -531,7 +531,7 @@ endif()
 
 if ("compiler-rt" IN_LIST RUNTIMES_spirv64-intel-sycl_LLVM_ENABLE_RUNTIMES OR
     ("compiler-rt" IN_LIST LLVM_ENABLE_RUNTIMES AND
-     "spirv64-intel-unknwon" IN_LIST LLVM_BUILTIN_TARGETS))
+     "spirv64-intel-unknown" IN_LIST LLVM_BUILTIN_TARGETS))
   add_dependencies(sycl-toolchain builtins-spirv64-intel-unknown)
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS builtins-spirv64-intel-unknown)
 endif()
