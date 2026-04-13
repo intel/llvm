@@ -475,6 +475,11 @@ bool DivergenceResult::isReachable(BasicBlock *src, BasicBlock *dst,
       return true;
     }
 
+    // Skip blocks without terminators (can happen during CFG transformation)
+    if (!BB->hasTerminator()) {
+      continue;
+    }
+
     const auto &BBTag = getTag(BB);
     for (BasicBlock *succ : successors(BB)) {
       if (!allowLatch && BBTag.isLoopBackEdge(succ)) {

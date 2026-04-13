@@ -2044,6 +2044,10 @@ bool ControlFlowConversionState::Impl::rewireDivergentLoopExitBlocks(
     // there is no optional exit loop it can branch to, so create an
     // unconditional branch.
     if ((idx + 1 == exitBlocks.size()) && DR->isDivergent(*target)) {
+      // Remove any temporary terminator before adding the real one
+      if (auto *T = divergentLE->getTerminatorOrNull()) {
+        T->eraseFromParent();
+      }
       UncondBrInst::Create(target, divergentLE);
       auto &maskInfo = MaskInfos[divergentLE];
       maskInfo.exitMasks[target] = maskInfo.entryMask;
@@ -2089,10 +2093,16 @@ bool ControlFlowConversionState::Impl::rewireDivergentLoopExitBlocks(
         }
       }
 
+      // Remove any temporary terminator before adding the real one
+      if (auto *T = divergentLE->getTerminatorOrNull()) {
+        T->eraseFromParent();
+      }
       auto *negCond = BinaryOperator::CreateNot(cond, cond->getName() + ".not",
                                                 divergentLE);
       BasicBlock *newDivergentLE = BasicBlock::Create(
           F.getContext(), EB->getName() + ".else", &F, EB->getNextNode());
+      // Add temporary unreachable terminator - will be replaced in computeNewTargets
+      new UnreachableInst(F.getContext(), newDivergentLE);
       CondBrInst::Create(negCond, newDivergentLE, target, divergentLE);
 
       // The divergentLE block "ought" to exist in the masks map already, but
@@ -2542,10 +2552,12 @@ bool ControlFlowConversionState::Impl::computeNewTargets(Linearization &lin) {
       lin.push(next);
 
       // The last eBlockIsVirtualDivergentLoopExit introduced from an optional
-      // loop exit wasn't given a block to branch to, it is thus empty.
+      // loop exit wasn't given a block to branch to, or has a placeholder terminator.
+      auto *T = BB->getTerminatorOrNull();
       if (DR->hasFlag(*BB,
                       BlockDivergenceFlag::eBlockIsVirtualDivergentLoopExit) &&
-          !BB->getTerminator()) {
+          (!T || isa<UnreachableInst>(T))) {
+        if (T) T->eraseFromParent();
         UncondBrInst::Create(next, BB);
       }
 
