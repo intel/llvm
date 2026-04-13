@@ -5,6 +5,10 @@ following Khronos-defined KHR extensions:
 
 * [sycl\_khr\_default\_context][khr1]
 * [sycl\_khr\_queue\_empty\_query][khr2]
+* [sycl\_khr\_group\_interface][khr3]
+* [sycl\_khr\_work\_item\_queries][khr4]
+* [sycl\_khr\_static\_addrspace\_cast][khr5]
+* [sycl\_khr\_dynamic\_addrspace\_cast][khr6]
 
 In addition, DPC++ supports a variety of vendor-defined extensions.
 The specifications for these extensions are organized into the following
@@ -27,3 +31,7 @@ subdirectories according to their state.
 
 [khr1]: <https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#sec:khr-default-context>
 [khr2]: <https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#sec:khr-queue-empty-query>
+[khr3]: <https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#sec:khr-group-interface>
+[khr4]: <https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#sec:khr-work-item-queries>
+[khr5]: <https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#sec:khr-static-addrspace-cast>
+[khr5]: <https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#sec:khr-dynamic-addrspace-cast>
