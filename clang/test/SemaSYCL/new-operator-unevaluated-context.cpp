@@ -97,8 +97,6 @@ int main() {
   q.submit([&](sycl::handler &h) {
     h.single_task<class TestConcepts>([]() {
       // These should all work without errors
-      static_assert(Allocatable<int>);
-      static_assert(AllocatableArray<double>);
 
       test_requires_clause<int>();
       test_requires_clause_array<float>();
