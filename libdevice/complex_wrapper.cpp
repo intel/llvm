@@ -86,17 +86,4 @@ float __complex__ catanhf(float __complex__ z) {
 DEVICE_EXTERN_C_INLINE
 float __complex__ catanf(float __complex__ z) { return __devicelib_catanf(z); }
 
-// __mulsc3
-// Returns: the product of a + ib and c + id
-DEVICE_EXTERN_C_INLINE
-float __complex__ __mulsc3(float __a, float __b, float __c, float __d) {
-  return __devicelib___mulsc3(__a, __b, __c, __d);
-}
-
-// __divsc3
-// Returns: the quotient of (a + ib) / (c + id)
-DEVICE_EXTERN_C_INLINE
-float __complex__ __divsc3(float __a, float __b, float __c, float __d) {
-  return __devicelib___divsc3(__a, __b, __c, __d);
-}
 #endif // __SPIR__ || __SPIRV__

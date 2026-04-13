@@ -5826,6 +5826,13 @@ class OffloadingActionBuilder final {
       int NumOfDeviceLibLinked = 0;
       SmallVector<SmallString<128>, 4> LibLocCandidates;
       SYCLInstallation.getSYCLDeviceLibPath(LibLocCandidates);
+      if (TC->getTriple().isSPIROrSPIRV()) {
+        std::string CompilerRTPath = TC->getCompilerRTPath();
+        SmallString<128> SPIRVCompilerRTPath(CompilerRTPath);
+        llvm::sys::path::append(SPIRVCompilerRTPath, "spirv64-intel-unknown");
+        if (llvm::sys::fs::exists(SPIRVCompilerRTPath))
+          LibLocCandidates.emplace_back(SPIRVCompilerRTPath);
+      }
 
       const toolchains::SYCLToolChain &SYCLTC =
           static_cast<const toolchains::SYCLToolChain &>(*TC);

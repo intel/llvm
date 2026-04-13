@@ -597,6 +597,9 @@ SYCLToolChain::getDeviceLibNames(const Driver &D,
                                              "libsycl-fallback-complex-fp64",
                                              "libsycl-fallback-cmath",
                                              "libsycl-fallback-cmath-fp64",
+#if !defined(_WIN32)
+                                             "libclang_rt.builtins",
+#endif
                                              "libsycl-fallback-imf",
                                              "libsycl-fallback-imf-fp64",
                                              "libsycl-fallback-imf-bf16"};
@@ -832,6 +835,8 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
       if (IsNVPTX && (InputFilename.starts_with("devicelib-") ||
                       InputFilename.contains("libspirv") ||
                       InputFilename.contains("libdevice")))
+        return true;
+      if (InputFilename.starts_with("libclang_rt.builtins"))
         return true;
       StringRef LibSyclPrefix("libsycl-");
       if (!InputFilename.starts_with(LibSyclPrefix) ||
@@ -1920,7 +1925,13 @@ SYCLToolChain::getDeviceLibs(
 
   SmallVector<SmallString<128>, 4> LibraryPaths;
   SYCLInstallation.getSYCLDeviceLibPath(LibraryPaths);
-
+  if (getTriple().isSPIROrSPIRV()) {
+    std::string CompilerRTPath = getCompilerRTPath();
+    SmallString<128> SPIRVCompilerRTPath(CompilerRTPath);
+    llvm::sys::path::append(SPIRVCompilerRTPath, "spirv64-intel-unknown");
+    if (llvm::sys::fs::exists(SPIRVCompilerRTPath))
+      LibraryPaths.emplace_back(SPIRVCompilerRTPath);
+  }
   // Formulate all of the device libraries needed for this compilation.
   SmallVector<BitCodeLibraryInfo, 8> DeviceLibs =
       getDeviceLibNames(getDriver(), DriverArgs, getTriple());

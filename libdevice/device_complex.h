@@ -153,17 +153,5 @@ double __complex__ __devicelib_catan(double __complex__ z);
 
 DEVICE_EXTERN_C
 float __complex__ __devicelib_catanf(float __complex__ z);
-
-DEVICE_EXTERN_C
-double __complex__ __devicelib___muldc3(double a, double b, double c, double d);
-
-DEVICE_EXTERN_C
-float __complex__ __devicelib___mulsc3(float a, float b, float c, float d);
-
-DEVICE_EXTERN_C
-double __complex__ __devicelib___divdc3(double a, double b, double c, double d);
-
-DEVICE_EXTERN_C
-float __complex__ __devicelib___divsc3(float a, float b, float c, float d);
 #endif // __SPIR__ || __SPIRV__
 #endif // __LIBDEVICE_DEVICE_COMPLEX_H_

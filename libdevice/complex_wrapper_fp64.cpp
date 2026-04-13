@@ -87,17 +87,4 @@ double __complex__ catanh(double __complex__ z) {
 DEVICE_EXTERN_C_INLINE
 double __complex__ catan(double __complex__ z) { return __devicelib_catan(z); }
 
-// __muldc3
-// Returns: the product of a + ib and c + id
-DEVICE_EXTERN_C_INLINE
-double __complex__ __muldc3(double __a, double __b, double __c, double __d) {
-  return __devicelib___muldc3(__a, __b, __c, __d);
-}
-
-// __divdc3
-// Returns: the quotient of (a + ib) / (c + id)
-DEVICE_EXTERN_C_INLINE
-double __complex__ __divdc3(double __a, double __b, double __c, double __d) {
-  return __devicelib___divdc3(__a, __b, __c, __d);
-}
 #endif // __SPIR__ || __SPIRV__

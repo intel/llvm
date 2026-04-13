@@ -1055,7 +1055,7 @@ else ()
         list(APPEND BUILTIN_CFLAGS_${arch} -fforce-enable-int128)
       endif()
 
-      if("${LLVM_BUILTINS_TARGET}" MATCHES "sycl")
+      if("${LLVM_BUILTINS_TARGET}" MATCHES "spirv64")
         add_compiler_rt_runtime(clang_rt.builtins
                                 STATIC
                                 ARCHS ${arch}
