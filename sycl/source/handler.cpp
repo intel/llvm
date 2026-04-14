@@ -869,6 +869,11 @@ void handler::verifyUsedKernelBundleInternal(detail::string_view KernelName) {
 
 void handler::ext_oneapi_barrier(const std::vector<event> &WaitList) {
   throwIfActionIsCreated();
+
+  if (WaitList.empty()) {
+    return;
+  }
+
   setType(detail::CGType::BarrierWaitlist);
   impl->MEventsWaitWithBarrier.reserve(WaitList.size());
   for (auto &Event : WaitList) {
