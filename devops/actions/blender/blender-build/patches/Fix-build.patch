@@ -1,0 +1,84 @@
+diff --git a/intern/cycles/util/atomic.h b/intern/cycles/util/atomic.h
+index 1a41f0d9..3d173703 100644
+--- a/intern/cycles/util/atomic.h
++++ b/intern/cycles/util/atomic.h
+@@ -178,8 +178,7 @@ ccl_device_inline float atomic_add_and_fetch_float(ccl_global float *p, const fl
+ {
+   sycl::atomic_ref<float,
+                    sycl::memory_order::relaxed,
+-                   sycl::memory_scope::device,
+-                   sycl::access::address_space::ext_intel_global_device_space>
++                   sycl::memory_scope::device>
+       atomic(*p);
+   return atomic.fetch_add(x);
+ }
+@@ -190,8 +189,7 @@ ccl_device_inline float atomic_compare_and_swap_float(ccl_global float *source,
+ {
+   sycl::atomic_ref<float,
+                    sycl::memory_order::relaxed,
+-                   sycl::memory_scope::device,
+-                   sycl::access::address_space::ext_intel_global_device_space>
++                   sycl::memory_scope::device>
+       atomic(*source);
+   atomic.compare_exchange_weak(old_val, new_val);
+   return old_val;
+@@ -202,8 +200,7 @@ ccl_device_inline unsigned int atomic_fetch_and_add_uint32(ccl_global unsigned i
+ {
+   sycl::atomic_ref<unsigned int,
+                    sycl::memory_order::relaxed,
+-                   sycl::memory_scope::device,
+-                   sycl::access::address_space::ext_intel_global_device_space>
++                   sycl::memory_scope::device>
+       atomic(*p);
+   return atomic.fetch_add(x);
+ }
+@@ -212,8 +209,7 @@ ccl_device_inline int atomic_fetch_and_add_uint32(ccl_global int *p, const int x
+ {
+   sycl::atomic_ref<int,
+                    sycl::memory_order::relaxed,
+-                   sycl::memory_scope::device,
+-                   sycl::access::address_space::ext_intel_global_device_space>
++                   sycl::memory_scope::device>
+       atomic(*p);
+   return atomic.fetch_add(x);
+ }
+@@ -233,8 +229,7 @@ ccl_device_inline unsigned int atomic_fetch_and_sub_uint32(ccl_global unsigned i
+ {
+   sycl::atomic_ref<unsigned int,
+                    sycl::memory_order::relaxed,
+-                   sycl::memory_scope::device,
+-                   sycl::access::address_space::ext_intel_global_device_space>
++                   sycl::memory_scope::device>
+       atomic(*p);
+   return atomic.fetch_sub(x);
+ }
+@@ -243,8 +238,7 @@ ccl_device_inline int atomic_fetch_and_sub_uint32(ccl_global int *p, const int x
+ {
+   sycl::atomic_ref<int,
+                    sycl::memory_order::relaxed,
+-                   sycl::memory_scope::device,
+-                   sycl::access::address_space::ext_intel_global_device_space>
++                   sycl::memory_scope::device>
+       atomic(*p);
+   return atomic.fetch_sub(x);
+ }
+@@ -274,8 +268,7 @@ ccl_device_inline unsigned int atomic_fetch_and_or_uint32(ccl_global unsigned in
+ {
+   sycl::atomic_ref<unsigned int,
+                    sycl::memory_order::relaxed,
+-                   sycl::memory_scope::device,
+-                   sycl::access::address_space::ext_intel_global_device_space>
++                   sycl::memory_scope::device>
+       atomic(*p);
+   return atomic.fetch_or(x);
+ }
+@@ -284,8 +277,7 @@ ccl_device_inline int atomic_fetch_and_or_uint32(ccl_global int *p, const int x)
+ {
+   sycl::atomic_ref<int,
+                    sycl::memory_order::relaxed,
+-                   sycl::memory_scope::device,
+-                   sycl::access::address_space::ext_intel_global_device_space>
++                   sycl::memory_scope::device>
+       atomic(*p);
+   return atomic.fetch_or(x);
+ }
