@@ -24,6 +24,7 @@ apt update && apt install -yqq \
       ccache \
       gh \
       git \
+      git-lfs \
       python3 \
       python3-psutil \
       python-is-python3 \
