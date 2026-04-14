@@ -1062,25 +1062,19 @@ static Expected<StringRef> runLLVMToSPIRVTranslation(StringRef File,
 }
 
 /// Adds ocloc options required for SYCL AOT compilation step to \p CmdArgs.
+/// ocloc -options takes arguments in the form of '-options "-g
+/// -cl-opt-disable"' where each argument is separated with spaces. split
+/// function here returns a pair with everything before the separator
+/// ("-options") in the first member of the pair, and everything after the
+/// separator in the second part of the pair. The separator is not included in
+/// any of them.
 /// \p BackendOptions is a string containing backend compilation options. For
 /// example, "-options -cl-opt-disable".
 static void addOclocOptions(StringRef BackendOptions,
                             SmallVector<StringRef, 8> &CmdArgs) {
-  // ocloc -options takes arguments in the form of '-options "-g
-  // -cl-opt-disable"' where each argument is separated with spaces.
-  // split function here returns a pair with everything before the separator
-  // ("-options") in the first member of the pair, and everything after the
-  // separator in the second part of the pair. The separator is not included
-  // in any of them.
   auto [BeforeOptions, AfterOptions] = BackendOptions.split("-options ");
+  BeforeOptions.split(CmdArgs, " ", /*MaxSplit=*/-1, /*KeepEmpty=*/false);
   // Only add if not empty, an empty arg can lead to ocloc errors.
-  if (!BeforeOptions.empty()) {
-    SmallVector<StringRef, 8> BeforeArgs;
-    BeforeOptions.split(BeforeArgs, " ", /*MaxSplit=*/-1,
-                        /*KeepEmpty=*/false);
-    for (const auto &string : BeforeArgs)
-      CmdArgs.push_back(string);
-  }
   if (!AfterOptions.empty()) {
     CmdArgs.push_back("-options");
     CmdArgs.push_back(AfterOptions);
