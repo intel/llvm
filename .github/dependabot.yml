@@ -5,7 +5,9 @@ updates:
       - "/"
       # Required to update composite actions.
       # See: https://github.com/dependabot/dependabot-core/issues/6704
-      - "/devops/actions/**"
+      - "/devops/actions/*"
+      - "/devops/actions/*/*"
+      - "/devops/actions/*/*/*"
     schedule:
       interval: "monthly"
     groups:
