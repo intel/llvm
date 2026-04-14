@@ -1,4 +1,5 @@
-// RUN: %clang_cc1 -fsycl-is-device -ast-dump %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -ast-dump %s | FileCheck %s --check-prefixes=CHECK,GEN-AS
+// RUN: %clang_cc1 -fsycl-is-device -ast-dump -fsycl-force-glob-as-in-kernel-args %s | FileCheck %s --check-prefixes=CHECK,GLOB-AS
 
 #include "Inputs/sycl.hpp"
 
@@ -47,12 +48,14 @@ int main() {
 }
 
 // Check declaration of the kernel
-// CHECK: derived{{.*}} 'void (base, __generated_second_base, __wrapper_class,
+// GEN-AS: derived{{.*}} 'void (base, second_base, __wrapper_class,
+// GLOB-AS: derived{{.*}} 'void (base, __generated_second_base, __wrapper_class,
 // CHECK-SAME: __global char *, sycl::range<1>, sycl::range<1>, sycl::id<1>, int)
 
 // Check parameters of the kernel
 // CHECK: ParmVarDecl {{.*}} used _arg__base 'base'
-// CHECK: ParmVarDecl {{.*}} used _arg__base '__generated_second_base'
+// GEN-AS: ParmVarDecl {{.*}} used _arg__base 'second_base'
+// GLOB-AS: ParmVarDecl {{.*}} used _arg__base '__generated_second_base'
 // CHECK: ParmVarDecl {{.*}} used _arg_d '__wrapper_class'
 // CHECK: ParmVarDecl {{.*}} used _arg_AccField '__global char *'
 // CHECK: ParmVarDecl {{.*}} used _arg_AccField 'sycl::range<1>'
@@ -72,15 +75,15 @@ int main() {
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'const base' lvalue <NoOp>
 // CHECK-NEXT: DeclRefExpr {{.*}} lvalue ParmVar {{.*}} '_arg__base' 'base'
 
-// second_base contains pointers and therefore the ParamVar is a new generated
-// type. Perform a copy of the corresponding kernel parameter via
-// reinterpret_cast.
+// second_base contains pointers. With GLOB-AS, the ParamVar is a new generated
+// type and a reinterpret_cast is used. With GEN-AS, it is passed directly.
 // CHECK-NEXT: CXXConstructExpr {{.*}} 'second_base' 'void (const second_base &) noexcept'
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'const second_base' lvalue <NoOp>
-// CHECK-NEXT: UnaryOperator {{.*}} 'second_base' lvalue prefix '*' cannot overflow
-// CHECK-NEXT: CXXReinterpretCastExpr {{.*}} 'second_base *' reinterpret_cast<second_base *> <BitCast>
-// CHECK-NEXT: UnaryOperator {{.*}} '__generated_second_base *' prefix '&' cannot overflow
-// CHECK-NEXT: DeclRefExpr {{.*}} '__generated_second_base' lvalue ParmVar {{.*}} '_arg__base' '__generated_second_base'
+// GEN-AS-NEXT: DeclRefExpr {{.*}} 'second_base' lvalue ParmVar {{.*}} '_arg__base' 'second_base'
+// GLOB-AS-NEXT: UnaryOperator {{.*}} 'second_base' lvalue prefix '*' cannot overflow
+// GLOB-AS-NEXT: CXXReinterpretCastExpr {{.*}} 'second_base *' reinterpret_cast<second_base *> <BitCast>
+// GLOB-AS-NEXT: UnaryOperator {{.*}} '__generated_second_base *' prefix '&' cannot overflow
+// GLOB-AS-NEXT: DeclRefExpr {{.*}} '__generated_second_base' lvalue ParmVar {{.*}} '_arg__base' '__generated_second_base'
 
 // third_base contains special type accessor. Therefore it is decomposed and it's
 // data members are copied from corresponding ParamVar

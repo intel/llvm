@@ -9633,6 +9633,9 @@ defm offload_use_alloca_addrspace_for_srets : BoolFOption<"offload-use-alloca-ad
   DefaultTrue,
   PosFlag<SetTrue, [], [CC1Option], "Use alloca address space for sret arguments for offloading targets">,
   NegFlag<SetFalse>>;
+def fsycl_force_glob_as_in_kernel_args : Flag<["-"], "fsycl-force-glob-as-in-kernel-args">,
+  HelpText<"Force global address space for USM pointers within SYCL kernel arguments">,
+  MarshallingInfoFlag<LangOpts<"SYCLForceGlobASInKernelArgs">>;
 
 def fsycl_remangle_libspirv
     : Flag<["-"], "fsycl-remangle-libspirv">,

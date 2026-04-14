@@ -1,5 +1,7 @@
 // RUN: %clang_cc1 -internal-isystem %S/Inputs -fsycl-is-device -ast-dump \
-// RUN: %s -o - | FileCheck %s
+// RUN: %s -o - | FileCheck --check-prefixes=GEN-AS,CHECK %s
+// RUN: %clang_cc1 -internal-isystem %S/Inputs -fsycl-is-device -ast-dump \
+// RUN: -fsycl-force-glob-as-in-kernel-args %s -o - | FileCheck --check-prefixes=GLOB-AS,CHECK %s
 
 // This test checks parameter rewriting for free functions with parameters
 // of type struct with array and array of pointers.
@@ -26,15 +28,18 @@ void ff_6(KArgWithPtrArray<ArrSize> KArg) {
 
 template void ff_6(KArgWithPtrArray<TestArrSize> KArg);
 
-// CHECK: FunctionDecl {{.*}}__sycl_kernel{{.*}}'void (__generated_KArgWithPtrArray) __attribute__((device_kernel))'
-// CHECK-NEXT: ParmVarDecl {{.*}} used __arg_KArg '__generated_KArgWithPtrArray'
+// GLOB-AS: FunctionDecl {{.*}}__sycl_kernel{{.*}}'void (__generated_KArgWithPtrArray) __attribute__((device_kernel))'
+// GEN-AS: FunctionDecl {{.*}}__sycl_kernel{{.*}}'void (KArgWithPtrArray<3>) __attribute__((device_kernel))'
+// GLOB-AS-NEXT: ParmVarDecl {{.*}} used __arg_KArg '__generated_KArgWithPtrArray'
+// GEN-AS-NEXT: ParmVarDecl {{.*}} used __arg_KArg 'KArgWithPtrArray<3>'
 // CHECK-NEXT: CompoundStmt
 // CHECK-NEXT: CallExpr
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'void (*)(KArgWithPtrArray<3>)' <FunctionToPointerDecay>
 // CHECK-NEXT: DeclRefExpr {{.*}} 'void (KArgWithPtrArray<3>)' lvalue Function {{.*}} 'ff_6' 'void (KArgWithPtrArray<3>)'
 // CHECK-NEXT: CXXConstructExpr {{.*}} 'KArgWithPtrArray<3>' 'void (const KArgWithPtrArray<3> &) noexcept'
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'const KArgWithPtrArray<3>' lvalue <NoOp>
-// CHECK-NEXT: UnaryOperator {{.*}} 'KArgWithPtrArray<3>' lvalue prefix '*' cannot overflow
-// CHECK-NEXT: CXXReinterpretCastExpr {{.*}} 'KArgWithPtrArray<3> *' reinterpret_cast<KArgWithPtrArray<3> *> <BitCast>
-// CHECK-NEXT: UnaryOperator {{.*}} '__generated_KArgWithPtrArray *' prefix '&' cannot overflow
-// CHECK-NEXT: DeclRefExpr {{.*}} '__generated_KArgWithPtrArray' lvalue ParmVar {{.*}} '__arg_KArg' '__generated_KArgWithPtrArray'
+// GLOB-AS-NEXT: UnaryOperator {{.*}} 'KArgWithPtrArray<3>' lvalue prefix '*' cannot overflow
+// GLOB-AS-NEXT: CXXReinterpretCastExpr {{.*}} 'KArgWithPtrArray<3> *' reinterpret_cast<KArgWithPtrArray<3> *> <BitCast>
+// GLOB-AS-NEXT: UnaryOperator {{.*}} '__generated_KArgWithPtrArray *' prefix '&' cannot overflow
+// GLOB-AS-NEXT: DeclRefExpr {{.*}} '__generated_KArgWithPtrArray' lvalue ParmVar {{.*}} '__arg_KArg' '__generated_KArgWithPtrArray'
+// GEN-AS-NEXT: DeclRefExpr {{.*}} 'KArgWithPtrArray<3>' lvalue ParmVar {{.*}} '__arg_KArg'
