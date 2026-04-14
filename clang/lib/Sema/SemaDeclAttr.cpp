@@ -7860,9 +7860,6 @@ ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D, const ParsedAttr &AL,
   case ParsedAttr::AT_SYCLIntelUseStallEnableClusters:
     S.SYCL().handleSYCLIntelUseStallEnableClustersAttr(D, AL);
     break;
-  case ParsedAttr::AT_SYCLIntelInitiationInterval:
-    S.SYCL().handleSYCLIntelInitiationIntervalAttr(D, AL);
-    break;
   case ParsedAttr::AT_VecTypeHint:
     handleVecTypeHint(S, D, AL);
     break;
@@ -8247,9 +8244,6 @@ ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D, const ParsedAttr &AL,
     break;
   case ParsedAttr::AT_SYCLIntelPipeIO:
     S.SYCL().handleSYCLIntelPipeIOAttr(D, AL);
-    break;
-  case ParsedAttr::AT_SYCLIntelMaxConcurrency:
-    S.SYCL().handleSYCLIntelMaxConcurrencyAttr(D, AL);
     break;
   case ParsedAttr::AT_SYCLAddIRAttributesFunction:
     S.SYCL().handleSYCLAddIRAttributesFunctionAttr(D, AL);

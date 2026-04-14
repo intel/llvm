@@ -2975,12 +2975,8 @@ static bool mergeDeclAttribute(Sema &S, NamedDecl *D,
     NewAttr = S.SYCL().mergeSYCLIntelNoGlobalWorkOffsetAttr(D, *A);
   else if (const auto *A = dyn_cast<SYCLIntelMaxReplicatesAttr>(Attr))
     NewAttr = S.SYCL().mergeSYCLIntelMaxReplicatesAttr(D, *A);
-  else if (const auto *A = dyn_cast<SYCLIntelMaxConcurrencyAttr>(Attr))
-    NewAttr = S.SYCL().mergeSYCLIntelMaxConcurrencyAttr(D, *A);
   else if (const auto *A = dyn_cast<SYCLIntelForcePow2DepthAttr>(Attr))
     NewAttr = S.SYCL().mergeSYCLIntelForcePow2DepthAttr(D, *A);
-  else if (const auto *A = dyn_cast<SYCLIntelInitiationIntervalAttr>(Attr))
-    NewAttr = S.SYCL().mergeSYCLIntelInitiationIntervalAttr(D, *A);
   else if (const auto *A = dyn_cast<SYCLWorkGroupSizeHintAttr>(Attr))
     NewAttr = S.SYCL().mergeSYCLWorkGroupSizeHintAttr(D, *A);
   else if (const auto *A =

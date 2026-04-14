@@ -1561,14 +1561,6 @@ namespace {
     const AnnotateAttr *TransformAnnotateAttr(const AnnotateAttr *AA);
     const CXXAssumeAttr *TransformCXXAssumeAttr(const CXXAssumeAttr *AA);
     const LoopHintAttr *TransformLoopHintAttr(const LoopHintAttr *LH);
-    const SYCLIntelIVDepAttr *
-    TransformSYCLIntelIVDepAttr(const SYCLIntelIVDepAttr *IV);
-    const SYCLIntelInitiationIntervalAttr *
-    TransformSYCLIntelInitiationIntervalAttr(
-        const SYCLIntelInitiationIntervalAttr *II);
-    const SYCLIntelMaxConcurrencyAttr *
-    TransformSYCLIntelMaxConcurrencyAttr(
-        const SYCLIntelMaxConcurrencyAttr *MC);
     const LoopUnrollHintAttr *
     TransformLoopUnrollHintAttr(const LoopUnrollHintAttr *LU);
     const SYCLIntelLoopCoalesceAttr *TransformSYCLIntelLoopCoalesceAttr(
@@ -1576,12 +1568,6 @@ namespace {
     const SYCLIntelMaxInterleavingAttr *
     TransformSYCLIntelMaxInterleavingAttr(
         const SYCLIntelMaxInterleavingAttr *MI);
-    const SYCLIntelSpeculatedIterationsAttr *
-    TransformSYCLIntelSpeculatedIterationsAttr(
-        const SYCLIntelSpeculatedIterationsAttr *SI);
-    const SYCLIntelMaxReinvocationDelayAttr *
-    TransformSYCLIntelMaxReinvocationDelayAttr(
-        const SYCLIntelMaxReinvocationDelayAttr *MRD);
     const NoInlineAttr *TransformStmtNoInlineAttr(const Stmt *OrigS,
                                                   const Stmt *InstS,
                                                   const NoInlineAttr *A);
@@ -2287,35 +2273,6 @@ const AlwaysInlineAttr *TemplateInstantiator::TransformStmtAlwaysInlineAttr(
   return A;
 }
 
-const SYCLIntelIVDepAttr *
-TemplateInstantiator::TransformSYCLIntelIVDepAttr(
-    const SYCLIntelIVDepAttr *IVDep) {
-
-  Expr *Expr1 = IVDep->getSafelenExpr()
-                    ? getDerived().TransformExpr(IVDep->getSafelenExpr()).get()
-                    : nullptr;
-  Expr *Expr2 = IVDep->getArrayExpr()
-                    ? getDerived().TransformExpr(IVDep->getArrayExpr()).get()
-                    : nullptr;
-
-  return getSema().BuildSYCLIntelIVDepAttr(*IVDep, Expr1, Expr2);
-}
-
-const SYCLIntelInitiationIntervalAttr *
-TemplateInstantiator::TransformSYCLIntelInitiationIntervalAttr(
-    const SYCLIntelInitiationIntervalAttr *II) {
-  Expr *TransformedExpr = getDerived().TransformExpr(II->getNExpr()).get();
-  return getSema().BuildSYCLIntelInitiationIntervalAttr(*II,
-                                                            TransformedExpr);
-}
-
-const SYCLIntelMaxConcurrencyAttr *
-TemplateInstantiator::TransformSYCLIntelMaxConcurrencyAttr(
-    const SYCLIntelMaxConcurrencyAttr *MC) {
-  Expr *TransformedExpr = getDerived().TransformExpr(MC->getNExpr()).get();
-  return getSema().BuildSYCLIntelMaxConcurrencyAttr(*MC, TransformedExpr);
-}
-
 const SYCLIntelLoopCoalesceAttr *
 TemplateInstantiator::TransformSYCLIntelLoopCoalesceAttr(
     const SYCLIntelLoopCoalesceAttr *LC) {
@@ -2330,27 +2287,11 @@ TemplateInstantiator::TransformSYCLIntelMaxInterleavingAttr(
   return getSema().BuildSYCLIntelMaxInterleavingAttr(*MI, TransformedExpr);
 }
 
-const SYCLIntelSpeculatedIterationsAttr *
-TemplateInstantiator::TransformSYCLIntelSpeculatedIterationsAttr(
-    const SYCLIntelSpeculatedIterationsAttr *SI) {
-  Expr *TransformedExpr = getDerived().TransformExpr(SI->getNExpr()).get();
-  return getSema().BuildSYCLIntelSpeculatedIterationsAttr(*SI,
-                                                              TransformedExpr);
-}
-
 const LoopUnrollHintAttr *TemplateInstantiator::TransformLoopUnrollHintAttr(
     const LoopUnrollHintAttr *LU) {
   Expr *TransformedExpr =
       getDerived().TransformExpr(LU->getUnrollHintExpr()).get();
   return getSema().BuildLoopUnrollHintAttr(*LU, TransformedExpr);
-}
-
-const SYCLIntelMaxReinvocationDelayAttr *
-TemplateInstantiator::TransformSYCLIntelMaxReinvocationDelayAttr(
-    const SYCLIntelMaxReinvocationDelayAttr *MRD) {
-  Expr *TransformedExpr = getDerived().TransformExpr(MRD->getNExpr()).get();
-  return getSema().BuildSYCLIntelMaxReinvocationDelayAttr(*MRD,
-                                                              TransformedExpr);
 }
 
 const CodeAlignAttr *

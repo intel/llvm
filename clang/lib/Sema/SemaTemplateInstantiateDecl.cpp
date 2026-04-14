@@ -868,16 +868,6 @@ static void instantiateSYCLIntelMaxWorkGroupsPerMultiprocessorAttr(
         New, *A, Result.getAs<Expr>());
 }
 
-static void instantiateSYCLIntelMaxConcurrencyAttr(
-    Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
-    const SYCLIntelMaxConcurrencyAttr *A, Decl *New) {
-  EnterExpressionEvaluationContext Unevaluated(
-      S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
-  ExprResult Result = S.SubstExpr(A->getNExpr(), TemplateArgs);
-  if (!Result.isInvalid())
-    S.SYCL().addSYCLIntelMaxConcurrencyAttr(New, *A, Result.getAs<Expr>());
-}
-
 static void instantiateSYCLIntelPrivateCopiesAttr(
     Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
     const SYCLIntelPrivateCopiesAttr *A, Decl *New) {
@@ -896,16 +886,6 @@ static void instantiateSYCLIntelMaxReplicatesAttr(
   ExprResult Result = S.SubstExpr(A->getValue(), TemplateArgs);
   if (!Result.isInvalid())
     S.SYCL().addSYCLIntelMaxReplicatesAttr(New, *A, Result.getAs<Expr>());
-}
-
-static void instantiateSYCLIntelInitiationIntervalAttr(
-    Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
-    const SYCLIntelInitiationIntervalAttr *A, Decl *New) {
-  EnterExpressionEvaluationContext Unevaluated(
-      S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
-  ExprResult Result = S.SubstExpr(A->getNExpr(), TemplateArgs);
-  if (!Result.isInvalid())
-    S.SYCL().addSYCLIntelInitiationIntervalAttr(New, *A, Result.getAs<Expr>());
 }
 
 static void instantiateSYCLIntelESimdVectorizeAttr(
@@ -1351,17 +1331,6 @@ void Sema::InstantiateAttrs(const MultiLevelTemplateArgumentList &TemplateArgs,
             dyn_cast<SYCLIntelMaxWorkGroupSizeAttr>(TmplAttr)) {
       instantiateSYCLIntelMaxWorkGroupSizeAttr(*this, TemplateArgs,
                                                SYCLIntelMaxWorkGroupSize, New);
-      continue;
-    }
-    if (const auto *SYCLIntelMaxConcurrency =
-            dyn_cast<SYCLIntelMaxConcurrencyAttr>(TmplAttr)) {
-      instantiateSYCLIntelMaxConcurrencyAttr(*this, TemplateArgs,
-                                                 SYCLIntelMaxConcurrency, New);
-    }
-    if (const auto *SYCLIntelInitiationInterval =
-            dyn_cast<SYCLIntelInitiationIntervalAttr>(TmplAttr)) {
-      instantiateSYCLIntelInitiationIntervalAttr(
-          *this, TemplateArgs, SYCLIntelInitiationInterval, New);
       continue;
     }
     if (const auto *SYCLIntelESimdVectorize =

@@ -668,8 +668,7 @@ static void collectSYCLAttributes(FunctionDecl *FD,
           SYCLIntelMinWorkGroupsPerComputeUnitAttr,
           SYCLIntelMaxWorkGroupsPerMultiprocessorAttr,
           SYCLIntelNoGlobalWorkOffsetAttr, SYCLSimdAttr,
-          SYCLIntelMaxConcurrencyAttr, SYCLIntelDisableLoopPipeliningAttr,
-          SYCLIntelInitiationIntervalAttr, SYCLIntelUseStallEnableClustersAttr,
+          SYCLIntelUseStallEnableClustersAttr,
           SYCLDeviceHasAttr, SYCLAddIRAttributesFunctionAttr>(A);
     });
   }
@@ -5803,9 +5802,6 @@ static void PropagateAndDiagnoseDeviceAttr(SemaSYCL &S, Attr *A,
   case attr::Kind::SYCLIntelMinWorkGroupsPerComputeUnit:
   case attr::Kind::SYCLIntelMaxWorkGroupsPerMultiprocessor:
   case attr::Kind::SYCLIntelNoGlobalWorkOffset:
-  case attr::Kind::SYCLIntelMaxConcurrency:
-  case attr::Kind::SYCLIntelDisableLoopPipelining:
-  case attr::Kind::SYCLIntelInitiationInterval:
   case attr::Kind::SYCLIntelUseStallEnableClusters:
   case attr::Kind::SYCLDeviceHas:
   case attr::Kind::SYCLAddIRAttributesFunction:
