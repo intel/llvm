@@ -340,7 +340,7 @@ jobs:
       toolchain_artifact_filename: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact_filename }}
       toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.toolchain_decompress_command }}
       binaries_artifact: sycl_cts_bin_linux_${{ matrix.enable_new_offload_model == 'True' && 'new_offload' || 'old_offload' }}
-      extra_cmake_args: ${{ matrix.enable_new_offload_model == 'True' && '-DDPCPP_FLAGS="--offload-new-driver"' || '' }}
+      extra_cmake_args: ${{ matrix.enable_new_offload_model == 'True' && '-DDPCPP_FLAGS=--offload-new-driver' || '' }}
 
   run-sycl-cts-linux:
     needs: [ubuntu2204_build, build-sycl-cts-linux]
@@ -393,7 +393,7 @@ jobs:
       repo_ref: ${{ github.sha }}
       toolchain_artifact_filename: ${{ needs.build-win.outputs.toolchain_artifact_filename }}
       binaries_artifact: sycl_cts_bin_win_${{ matrix.enable_new_offload_model == 'True' && 'new_offload' || 'old_offload' }}
-      extra_cmake_args: ${{ matrix.enable_new_offload_model == 'True' && '-DDPCPP_FLAGS="--offload-new-driver"' || '' }}
+      extra_cmake_args: ${{ matrix.enable_new_offload_model == 'True' && '-DDPCPP_FLAGS=--offload-new-driver' || '' }}
 
   run-sycl-cts-win:
     needs: [build-win, build-sycl-cts-win]
