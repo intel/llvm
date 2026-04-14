@@ -1565,8 +1565,7 @@ namespace {
     TransformLoopUnrollHintAttr(const LoopUnrollHintAttr *LU);
     const SYCLIntelLoopCoalesceAttr *TransformSYCLIntelLoopCoalesceAttr(
         const SYCLIntelLoopCoalesceAttr *LC);
-    const SYCLIntelMaxInterleavingAttr *
-    TransformSYCLIntelMaxInterleavingAttr(
+    const SYCLIntelMaxInterleavingAttr *TransformSYCLIntelMaxInterleavingAttr(
         const SYCLIntelMaxInterleavingAttr *MI);
     const NoInlineAttr *TransformStmtNoInlineAttr(const Stmt *OrigS,
                                                   const Stmt *InstS,
