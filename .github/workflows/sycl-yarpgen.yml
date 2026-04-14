@@ -1,0 +1,88 @@
+name: SYCL Yarpgen
+
+on:
+  workflow_dispatch:
+    inputs:
+      toolchain_run_id:
+        description: |
+          Run ID of a workflow run to download the toolchain artifact from.
+          If not set, the toolchain pre-installed in the container image is used.
+        type: string
+        default: ''
+      toolchain_artifact:
+        description: Name of the artifact to download.
+        type: string
+        default: 'sycl_linux_default'
+  schedule:
+    # At 00:00 on Sunday.
+    - cron: '0 0 * * 0'
+
+permissions: read-all
+
+jobs:
+  yarpgen:
+    runs-on: ["Linux", "gen12"]
+    container:
+      # This workflow runs on Sundays, so in almost all cases there are no new
+      # commits on Saturday, and therefore the latest nightly can be used.
+      image: ghcr.io/intel/llvm/sycl_ubuntu2404_nightly:latest
+      options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
+    steps:
+    - name: Checkout actions/source-tbb
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      with:
+        sparse-checkout: |
+          devops/actions/source-tbb
+        sparse-checkout-cone-mode: false
+        persist-credentials: false
+
+    - name: Source OneAPI TBB vars.sh
+      uses: ./devops/actions/source-tbb
+
+    - name: Download SYCL toolchain
+      if: inputs.toolchain_run_id != ''
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        gh run download ${{ inputs.toolchain_run_id }} \
+          -n ${{ inputs.toolchain_artifact }} \
+          -R ${{ github.repository }}
+
+    - name: Extract/Setup SYCL toolchain
+      if: inputs.toolchain_run_id != ''
+      run: |
+        mkdir toolchain
+        tar -xf ${{ inputs.toolchain_artifact }}/sycl_linux.tar.gz \
+          -C toolchain
+        echo PATH=$PWD/toolchain/bin/:$PATH >> $GITHUB_ENV
+        echo LD_LIBRARY_PATH=$PWD/toolchain/lib/:$LD_LIBRARY_PATH >> $GITHUB_ENV
+
+    - run: clang++ --version
+
+    - run: sycl-ls
+
+    - name: Set up yarpgen
+      run: |
+        git clone https://github.com/intel/yarpgen.git
+        cmake -B yarpgen/build -G Ninja yarpgen/
+        ninja -C yarpgen/build
+
+    - name: Run yarpgen
+      run: |
+        cd yarpgen
+        # A system hits OOM when using all available threads.
+        python3 scripts/run_gen.py --target dpcpp --std sycl -t 60 -j 2 | tee yarpgen_run.log
+        awk '/^YARPGEN runs stat:/{found=1} found {print}' yarpgen_run.log >> $GITHUB_STEP_SUMMARY
+
+    - name: Pack results
+      run: tar -czf yarpgen_results.tar.gz yarpgen/testing
+
+    - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+      with:
+        name: yarpgen_results
+        path: yarpgen_results.tar.gz
+        retention-days: 7
+
+    - name: Clean up
+      if: always()
+      run: rm -rf devops yarpgen yarpgen_results.tar.gz

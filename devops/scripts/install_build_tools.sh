@@ -22,6 +22,7 @@ apt update && apt install -yqq \
       cmake \
       ninja-build \
       ccache \
+      gh \
       git \
       python3 \
       python3-psutil \

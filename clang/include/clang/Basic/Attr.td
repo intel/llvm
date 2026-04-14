@@ -2051,18 +2051,6 @@ def SYCLIntelNoGlobalWorkOffset : InheritableAttr {
   let SupportsNonconformingLambdaSyntax = 1;
 }
 
-def SYCLIntelLoopFuse : InheritableAttr {
-  let Spellings = [CXX11<"intel", "loop_fuse">,
-                   CXX11<"intel", "loop_fuse_independent">];
-  let Args = [ExprArgument<"Value", /*optional=*/ 1>];
-  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
-  let Subjects = SubjectList<[Function], ErrorDiag>;
-  let Accessors = [Accessor<"isIndependent",
-                  [CXX11<"intel", "loop_fuse_independent">]>];
-  let Documentation = [SYCLIntelLoopFuseDocs];
-  let SupportsNonconformingLambdaSyntax = 1;
-}
-
 class SYCLAddIRAttrMemberCodeHolder<code Code> {
   code MemberCode = Code;
 }
@@ -3055,14 +3043,6 @@ def SYCLIntelSpeculatedIterations : StmtAttr {
 }
 def : MutualExclusions<[SYCLIntelDisableLoopPipelining,
                         SYCLIntelSpeculatedIterations]>;
-
-def SYCLIntelNofusion : StmtAttr {
-  let Spellings = [CXX11<"intel","nofusion">];
-  let Subjects = SubjectList<[ForStmt, CXXForRangeStmt, WhileStmt, DoStmt],
-                             ErrorDiag, "'for', 'while', and 'do' statements">;
-  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
-  let Documentation = [SYCLIntelNofusionAttrDocs];
-}
 
 def SYCLIntelMaxReinvocationDelay : StmtAttr {
   let Spellings = [CXX11<"intel", "max_reinvocation_delay">];
