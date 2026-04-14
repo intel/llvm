@@ -8,6 +8,10 @@ updates:
       - "/devops/actions/*"
       - "/devops/actions/*/*"
       - "/devops/actions/*/*/*"
+      # 3 asterisks are enough at the moment, adding more just in case:
+      - "/devops/actions/*/*/*/*"
+      - "/devops/actions/*/*/*/*/*"
+      
     schedule:
       interval: "monthly"
     groups:
