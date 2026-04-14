@@ -478,7 +478,7 @@ EventImplPtr queue_impl::submit_barrier_scheduler_bypass(
 
   if (BarrierDepEvents.size() > 0) {
     RawBarrierDepEvents =
-        detail::getUrEventsBlocking(BarrierDepEvents, false, *this, false);
+        detail::Command::getUrEvents(BarrierDepEvents, this, false);
   }
 
   if (DepEvents.size() > 0) {
