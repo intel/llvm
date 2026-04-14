@@ -35,9 +35,9 @@ template <typename PropKey, typename Properties> struct ConflictingProperties;
 template <size_t... Xs> struct FunctionPropertyAllNonZero {
   static constexpr bool value = true;
 };
-template <size_t X, size_t... Xs>
-struct FunctionPropertyAllNonZero<X, Xs...> {
-  static constexpr bool value = X > 0 && FunctionPropertyAllNonZero<Xs...>::value;
+template <size_t X, size_t... Xs> struct FunctionPropertyAllNonZero<X, Xs...> {
+  static constexpr bool value =
+      X > 0 && FunctionPropertyAllNonZero<Xs...>::value;
 };
 
 inline constexpr size_t FunctionPropertyDecimalBase = 10;
@@ -71,21 +71,21 @@ struct FunctionPropertySizeListToStrHelper<
           FunctionPropertyCharList<ParsedChars..., Chars..., ','>> {};
 
 template <size_t... Values, char... ParsedChars>
-struct FunctionPropertySizeListToStrHelper<FunctionPropertySizeList<0, Values...>,
-                                           FunctionPropertyCharList<ParsedChars...>>
+struct FunctionPropertySizeListToStrHelper<
+    FunctionPropertySizeList<0, Values...>,
+    FunctionPropertyCharList<ParsedChars...>>
     : FunctionPropertySizeListToStrHelper<
           FunctionPropertySizeList<Values...>,
           FunctionPropertyCharList<ParsedChars..., '0', ','>> {};
 
 template <char... ParsedChars, char... Chars>
-struct FunctionPropertySizeListToStrHelper<FunctionPropertySizeList<0>,
-                                           FunctionPropertyCharList<ParsedChars...>,
-                                           Chars...>
-    : FunctionPropertyCharsToStr<ParsedChars..., Chars...> {};
+struct FunctionPropertySizeListToStrHelper<
+    FunctionPropertySizeList<0>, FunctionPropertyCharList<ParsedChars...>,
+    Chars...> : FunctionPropertyCharsToStr<ParsedChars..., Chars...> {};
 
 template <char... ParsedChars>
-struct FunctionPropertySizeListToStrHelper<FunctionPropertySizeList<0>,
-                                           FunctionPropertyCharList<ParsedChars...>>
+struct FunctionPropertySizeListToStrHelper<
+    FunctionPropertySizeList<0>, FunctionPropertyCharList<ParsedChars...>>
     : FunctionPropertyCharsToStr<ParsedChars..., '0'> {};
 
 template <>
