@@ -8,37 +8,16 @@
 
 #pragma once
 
-#include <sycl/__spirv/spirv_types.hpp> // for MemorySemanticsMask
-#include <sycl/access/access.hpp>     // for fence_space
-#include <sycl/detail/export.hpp>     // for __SYCL_EXPORT
-#include <sycl/memory_enums.hpp>      // for memory_order
-
-#ifdef __SYCL_DEVICE_ONLY__
-#include <sycl/__spirv/spirv_vars.hpp>
-#endif
-
-#include <cstddef>     // for size_t
-#include <stdint.h>    // for uint32_t
-#include <type_traits> // for enable_if_t
+#include <sycl/detail/builder.hpp>
+#include <sycl/detail/spirv_memory_semantics.hpp>
 
 namespace sycl {
 inline namespace _V1 {
-class context;
-class event;
-template <int Dims, bool WithOffset> class item;
-template <int Dims> class group;
-template <int Dims> class range;
-template <int Dims> class id;
-template <int Dims> class nd_item;
-template <int Dims> class h_item;
-template <typename Type, std::size_t NumElements> class marray;
-enum class memory_order;
-
 namespace detail {
-template <typename T> T *declptr() { return static_cast<T *>(nullptr); }
 
-// Function to get or store id, item, nd_item, group for the host implementation
-// Pass nullptr to get stored object. Pass valid address to store object
+// Function to get or store id, item, nd_item, group for the host
+// implementation. Pass nullptr to get stored object. Pass valid address to
+// store object.
 template <typename T> T get_or_store(const T *obj) {
   static thread_local auto stored = *obj;
   if (obj != nullptr) {
@@ -47,191 +26,8 @@ template <typename T> T get_or_store(const T *obj) {
   return stored;
 }
 
-class Builder {
-public:
-  Builder() = delete;
-
-  template <int Dims>
-  static group<Dims>
-  createGroup(const range<Dims> &Global, const range<Dims> &Local,
-              const range<Dims> &Group, const id<Dims> &Index) {
-    return group<Dims>(Global, Local, Group, Index);
-  }
-
-  template <int Dims>
-  static group<Dims> createGroup(const range<Dims> &Global,
-                                 const range<Dims> &Local,
-                                 const id<Dims> &Index) {
-    return group<Dims>(Global, Local, Global / Local, Index);
-  }
-
-  template <class ResType, typename BitsType>
-  static ResType createSubGroupMask(BitsType Bits, size_t BitsNum) {
-    return ResType(Bits, BitsNum);
-  }
-
-  template <int Dims, bool WithOffset>
-  static std::enable_if_t<WithOffset, item<Dims, WithOffset>>
-  createItem(const range<Dims> &Extent, const id<Dims> &Index,
-             const id<Dims> &Offset) {
-    return item<Dims, WithOffset>(Extent, Index, Offset);
-  }
-
-  template <int Dims, bool WithOffset>
-  static std::enable_if_t<!WithOffset, item<Dims, WithOffset>>
-  createItem(const range<Dims> &Extent, const id<Dims> &Index) {
-    return item<Dims, WithOffset>(Extent, Index);
-  }
-
-  template <int Dims>
-  static nd_item<Dims> createNDItem(const item<Dims, true> &Global,
-                                    const item<Dims, false> &Local,
-                                    const group<Dims> &Group) {
-    return nd_item<Dims>(Global, Local, Group);
-  }
-
-  template <int Dims>
-  static h_item<Dims> createHItem(const item<Dims, false> &Global,
-                                  const item<Dims, false> &Local) {
-    return h_item<Dims>(Global, Local);
-  }
-
-  template <int Dims>
-  static h_item<Dims> createHItem(const item<Dims, false> &Global,
-                                  const item<Dims, false> &Local,
-                                  const range<Dims> &Flex) {
-    return h_item<Dims>(Global, Local, Flex);
-  }
-
-  template <int Dims, bool WithOffset>
-  static void updateItemIndex(sycl::item<Dims, WithOffset> &Item,
-                              const id<Dims> &NextIndex) {
-    Item.MImpl.MIndex = NextIndex;
-  }
-
-#ifdef __SYCL_DEVICE_ONLY__
-
-  template <int N>
-  static inline constexpr bool is_valid_dimensions = (N > 0) && (N < 4);
-
-  template <int Dims> static const id<Dims> getElement(id<Dims> *) {
-    static_assert(is_valid_dimensions<Dims>, "invalid dimensions");
-    return __spirv::initBuiltInGlobalInvocationId<Dims, id<Dims>>();
-  }
-
-  template <int Dims> static const group<Dims> getElement(group<Dims> *) {
-    static_assert(is_valid_dimensions<Dims>, "invalid dimensions");
-    range<Dims> GlobalSize{__spirv::initBuiltInGlobalSize<Dims, range<Dims>>()};
-    range<Dims> LocalSize{
-        __spirv::initBuiltInWorkgroupSize<Dims, range<Dims>>()};
-    range<Dims> GroupRange{
-        __spirv::initBuiltInNumWorkgroups<Dims, range<Dims>>()};
-    id<Dims> GroupId{__spirv::initBuiltInWorkgroupId<Dims, id<Dims>>()};
-    return createGroup<Dims>(GlobalSize, LocalSize, GroupRange, GroupId);
-  }
-
-  template <int Dims, bool WithOffset>
-  static std::enable_if_t<WithOffset, const item<Dims, WithOffset>> getItem() {
-    static_assert(is_valid_dimensions<Dims>, "invalid dimensions");
-    id<Dims> GlobalId{__spirv::initBuiltInGlobalInvocationId<Dims, id<Dims>>()};
-    range<Dims> GlobalSize{__spirv::initBuiltInGlobalSize<Dims, range<Dims>>()};
-    id<Dims> GlobalOffset{__spirv::initBuiltInGlobalOffset<Dims, id<Dims>>()};
-    return createItem<Dims, true>(GlobalSize, GlobalId, GlobalOffset);
-  }
-
-  template <int Dims, bool WithOffset>
-  static std::enable_if_t<!WithOffset, const item<Dims, WithOffset>> getItem() {
-    static_assert(is_valid_dimensions<Dims>, "invalid dimensions");
-    id<Dims> GlobalId{__spirv::initBuiltInGlobalInvocationId<Dims, id<Dims>>()};
-    range<Dims> GlobalSize{__spirv::initBuiltInGlobalSize<Dims, range<Dims>>()};
-    return createItem<Dims, false>(GlobalSize, GlobalId);
-  }
-
-  template <int Dims> static const nd_item<Dims> getElement(nd_item<Dims> *) {
-    static_assert(is_valid_dimensions<Dims>, "invalid dimensions");
-    range<Dims> GlobalSize{__spirv::initBuiltInGlobalSize<Dims, range<Dims>>()};
-    range<Dims> LocalSize{
-        __spirv::initBuiltInWorkgroupSize<Dims, range<Dims>>()};
-    range<Dims> GroupRange{
-        __spirv::initBuiltInNumWorkgroups<Dims, range<Dims>>()};
-    id<Dims> GroupId{__spirv::initBuiltInWorkgroupId<Dims, id<Dims>>()};
-    id<Dims> GlobalId{__spirv::initBuiltInGlobalInvocationId<Dims, id<Dims>>()};
-    id<Dims> LocalId{__spirv::initBuiltInLocalInvocationId<Dims, id<Dims>>()};
-    id<Dims> GlobalOffset{__spirv::initBuiltInGlobalOffset<Dims, id<Dims>>()};
-    group<Dims> Group =
-        createGroup<Dims>(GlobalSize, LocalSize, GroupRange, GroupId);
-    item<Dims, true> GlobalItem =
-        createItem<Dims, true>(GlobalSize, GlobalId, GlobalOffset);
-    item<Dims, false> LocalItem = createItem<Dims, false>(LocalSize, LocalId);
-    return createNDItem<Dims>(GlobalItem, LocalItem, Group);
-  }
-
-  template <int Dims, bool WithOffset>
-  static auto getElement(item<Dims, WithOffset> *)
-      -> decltype(getItem<Dims, WithOffset>()) {
-    return getItem<Dims, WithOffset>();
-  }
-
-  template <int Dims>
-  static auto getNDItem() -> decltype(getElement(declptr<nd_item<Dims>>())) {
-    return getElement(declptr<nd_item<Dims>>());
-  }
-
-#endif // __SYCL_DEVICE_ONLY__
-};
-
-inline constexpr __spv::MemorySemanticsMask::Flag
-getSPIRVMemorySemanticsMask(memory_order) {
-  return __spv::MemorySemanticsMask::None;
-}
-
-inline constexpr uint32_t
-getSPIRVMemorySemanticsMask(const access::fence_space AccessSpace,
-                            const __spv::MemorySemanticsMask LocalScopeMask =
-                                __spv::MemorySemanticsMask::WorkgroupMemory) {
-  // Huge ternary operator below is a workaround for constexpr function
-  // requirement that such function can only contain return statement and
-  // nothing more
-  //
-  // It is equivalent to the following code:
-  //
-  // uint32_t Flags =
-  //     static_cast<uint32_t>(__spv::MemorySemanticsMask::SequentiallyConsistent);
-  // switch (AccessSpace) {
-  // case access::fence_space::global_space:
-  //   Flags |=
-  //       static_cast<uint32_t>(__spv::MemorySemanticsMask::CrossWorkgroupMemory);
-  //   break;
-  // case access::fence_space::local_space:
-  //   Flags |= static_cast<uint32_t>(LocalScopeMask);
-  //   break;
-  // case access::fence_space::global_and_local:
-  // default:
-  //   Flags |= static_cast<uint32_t>(
-  //                __spv::MemorySemanticsMask::CrossWorkgroupMemory) |
-  //            static_cast<uint32_t>(LocalScopeMask);
-  //   break;
-  // }
-  // return Flags;
-
-  return (AccessSpace == access::fence_space::global_space)
-             ? static_cast<uint32_t>(
-                   __spv::MemorySemanticsMask::SequentiallyConsistent |
-                   __spv::MemorySemanticsMask::CrossWorkgroupMemory)
-         : (AccessSpace == access::fence_space::local_space)
-             ? static_cast<uint32_t>(
-                   __spv::MemorySemanticsMask::SequentiallyConsistent |
-                   LocalScopeMask)
-             : /* default: (AccessSpace ==
-                  access::fence_space::global_and_local) */
-             static_cast<uint32_t>(
-                 __spv::MemorySemanticsMask::SequentiallyConsistent |
-                 __spv::MemorySemanticsMask::CrossWorkgroupMemory |
-                 LocalScopeMask);
-}
-
 inline constexpr bool is_power_of_two(int x) { return (x & (x - 1)) == 0; }
-} // namespace detail
 
+} // namespace detail
 } // namespace _V1
 } // namespace sycl

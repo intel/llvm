@@ -19,7 +19,8 @@
 // CHECK-NEXT: detail/fwd/multi_ptr.hpp
 // CHECK-NEXT: detail/type_traits/integer_traits.hpp
 // CHECK-NEXT: detail/helpers.hpp
-// CHECK-NEXT: detail/export.hpp
+// CHECK-NEXT: detail/builder.hpp
+// CHECK-NEXT: detail/spirv_memory_semantics.hpp
 // CHECK-NEXT: memory_enums.hpp
 // CHECK-NEXT: detail/nd_loop.hpp
 // CHECK-NEXT: detail/type_traits/bool_traits.hpp

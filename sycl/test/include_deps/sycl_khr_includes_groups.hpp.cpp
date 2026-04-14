@@ -19,7 +19,8 @@
 // CHECK-NEXT: detail/fwd/multi_ptr.hpp
 // CHECK-NEXT: detail/type_traits/integer_traits.hpp
 // CHECK-NEXT: detail/helpers.hpp
-// CHECK-NEXT: detail/export.hpp
+// CHECK-NEXT: detail/builder.hpp
+// CHECK-NEXT: detail/spirv_memory_semantics.hpp
 // CHECK-NEXT: memory_enums.hpp
 // CHECK-NEXT: detail/nd_loop.hpp
 // CHECK-NEXT: detail/type_traits/bool_traits.hpp
@@ -34,6 +35,7 @@
 // CHECK-NEXT: detail/loop.hpp
 // CHECK-NEXT: detail/type_traits.hpp
 // CHECK-NEXT: exception.hpp
+// CHECK-NEXT: detail/export.hpp
 // CHECK-NEXT: detail/string.hpp
 // CHECK-NEXT: functional.hpp
 // CHECK-NEXT: half_type.hpp
@@ -54,6 +56,7 @@
 // CHECK-NEXT: nd_item.hpp
 // CHECK-NEXT: item.hpp
 // CHECK-NEXT: nd_range.hpp
+// CHECK-NEXT: detail/sub_group_core.hpp
 // CHECK-NEXT: ext/oneapi/functional.hpp
 // CHECK-NEXT: detail/spirv.hpp
 // CHECK-NEXT: __spirv/spirv_ops.hpp
@@ -61,4 +64,6 @@
 // CHECK-NEXT: detail/address_space_cast.hpp
 // CHECK-NEXT: group_barrier.hpp
 // CHECK-NEXT: sub_group.hpp
+// CHECK-NEXT: detail/sub_group_extra.hpp
+// CHECK-NEXT: detail/sub_group_load_store.hpp
 // CHECK-EMPTY:

@@ -15,14 +15,15 @@
 #include <sycl/detail/defines.hpp>                   // for __SYCL_ASSUME_INT
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED, __SY...
 #include <sycl/detail/helpers.hpp>            // for getSPIRVMemorySemanticsMask
-#include <sycl/detail/type_traits.hpp>        // for is_bool, change_base_...
-#include <sycl/device_event.hpp>              // for device_event
-#include <sycl/group.hpp>                     // for group
-#include <sycl/id.hpp>                        // for id
-#include <sycl/item.hpp>                      // for item
-#include <sycl/nd_range.hpp>                  // for nd_range
-#include <sycl/pointers.hpp> // for decorated_global_ptr, decor...
-#include <sycl/range.hpp>    // for range
+#include <sycl/detail/sub_group_core.hpp> // for sub_group (inline get_sub_group def)
+#include <sycl/detail/type_traits.hpp> // for is_bool, change_base_...
+#include <sycl/device_event.hpp>       // for device_event
+#include <sycl/group.hpp>              // for group
+#include <sycl/id.hpp>                 // for id
+#include <sycl/item.hpp>               // for item
+#include <sycl/nd_range.hpp>           // for nd_range
+#include <sycl/pointers.hpp>           // for decorated_global_ptr, decor...
+#include <sycl/range.hpp>              // for range
 
 #include <cstddef>     // for size_t
 #include <stdint.h>    // for uint32_t
@@ -30,7 +31,6 @@
 
 namespace sycl {
 inline namespace _V1 {
-struct sub_group;
 namespace detail {
 class Builder;
 }
@@ -116,7 +116,7 @@ public:
   }
 
   // Out-of-class definition in sub_group.hpp
-  sub_group get_sub_group() const;
+  sub_group get_sub_group() const { return sub_group(); }
 
   size_t __SYCL_ALWAYS_INLINE get_group(int Dimension) const {
     size_t Id = get_group_id()[Dimension];

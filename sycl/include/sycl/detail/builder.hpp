@@ -1,0 +1,165 @@
+//==---------------- builder.hpp - SYCL builder helpers -------------------==//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+
+#pragma once
+
+#ifdef __SYCL_DEVICE_ONLY__
+#include <sycl/__spirv/spirv_vars.hpp>
+#endif
+
+#include <cstddef>
+#include <type_traits>
+
+namespace sycl {
+inline namespace _V1 {
+template <int Dims, bool WithOffset> class item;
+template <int Dims> class group;
+template <int Dims> class h_item;
+template <int Dims> class id;
+template <int Dims> class nd_item;
+template <int Dims> class range;
+
+namespace detail {
+template <typename T> T *declptr() { return static_cast<T *>(nullptr); }
+
+class Builder {
+public:
+  Builder() = delete;
+
+  template <int Dims>
+  static group<Dims>
+  createGroup(const range<Dims> &Global, const range<Dims> &Local,
+              const range<Dims> &Group, const id<Dims> &Index) {
+    return group<Dims>(Global, Local, Group, Index);
+  }
+
+  template <int Dims>
+  static group<Dims> createGroup(const range<Dims> &Global,
+                                 const range<Dims> &Local,
+                                 const id<Dims> &Index) {
+    return group<Dims>(Global, Local, Global / Local, Index);
+  }
+
+  template <class ResType, typename BitsType>
+  static ResType createSubGroupMask(BitsType Bits, size_t BitsNum) {
+    return ResType(Bits, BitsNum);
+  }
+
+  template <int Dims, bool WithOffset>
+  static std::enable_if_t<WithOffset, item<Dims, WithOffset>>
+  createItem(const range<Dims> &Extent, const id<Dims> &Index,
+             const id<Dims> &Offset) {
+    return item<Dims, WithOffset>(Extent, Index, Offset);
+  }
+
+  template <int Dims, bool WithOffset>
+  static std::enable_if_t<!WithOffset, item<Dims, WithOffset>>
+  createItem(const range<Dims> &Extent, const id<Dims> &Index) {
+    return item<Dims, WithOffset>(Extent, Index);
+  }
+
+  template <int Dims>
+  static nd_item<Dims> createNDItem(const item<Dims, true> &Global,
+                                    const item<Dims, false> &Local,
+                                    const group<Dims> &Group) {
+    return nd_item<Dims>(Global, Local, Group);
+  }
+
+  template <int Dims>
+  static h_item<Dims> createHItem(const item<Dims, false> &Global,
+                                  const item<Dims, false> &Local) {
+    return h_item<Dims>(Global, Local);
+  }
+
+  template <int Dims>
+  static h_item<Dims> createHItem(const item<Dims, false> &Global,
+                                  const item<Dims, false> &Local,
+                                  const range<Dims> &Flex) {
+    return h_item<Dims>(Global, Local, Flex);
+  }
+
+  template <int Dims, bool WithOffset>
+  static void updateItemIndex(sycl::item<Dims, WithOffset> &Item,
+                              const id<Dims> &NextIndex) {
+    Item.MImpl.MIndex = NextIndex;
+  }
+
+#ifdef __SYCL_DEVICE_ONLY__
+
+  template <int N>
+  static inline constexpr bool is_valid_dimensions = (N > 0) && (N < 4);
+
+  template <int Dims> static const id<Dims> getElement(id<Dims> *) {
+    static_assert(is_valid_dimensions<Dims>, "invalid dimensions");
+    return __spirv::initBuiltInGlobalInvocationId<Dims, id<Dims>>();
+  }
+
+  template <int Dims> static const group<Dims> getElement(group<Dims> *) {
+    static_assert(is_valid_dimensions<Dims>, "invalid dimensions");
+    range<Dims> GlobalSize{__spirv::initBuiltInGlobalSize<Dims, range<Dims>>()};
+    range<Dims> LocalSize{
+        __spirv::initBuiltInWorkgroupSize<Dims, range<Dims>>()};
+    range<Dims> GroupRange{
+        __spirv::initBuiltInNumWorkgroups<Dims, range<Dims>>()};
+    id<Dims> GroupId{__spirv::initBuiltInWorkgroupId<Dims, id<Dims>>()};
+    return createGroup<Dims>(GlobalSize, LocalSize, GroupRange, GroupId);
+  }
+
+  template <int Dims, bool WithOffset>
+  static std::enable_if_t<WithOffset, const item<Dims, WithOffset>> getItem() {
+    static_assert(is_valid_dimensions<Dims>, "invalid dimensions");
+    id<Dims> GlobalId{__spirv::initBuiltInGlobalInvocationId<Dims, id<Dims>>()};
+    range<Dims> GlobalSize{__spirv::initBuiltInGlobalSize<Dims, range<Dims>>()};
+    id<Dims> GlobalOffset{__spirv::initBuiltInGlobalOffset<Dims, id<Dims>>()};
+    return createItem<Dims, true>(GlobalSize, GlobalId, GlobalOffset);
+  }
+
+  template <int Dims, bool WithOffset>
+  static std::enable_if_t<!WithOffset, const item<Dims, WithOffset>> getItem() {
+    static_assert(is_valid_dimensions<Dims>, "invalid dimensions");
+    id<Dims> GlobalId{__spirv::initBuiltInGlobalInvocationId<Dims, id<Dims>>()};
+    range<Dims> GlobalSize{__spirv::initBuiltInGlobalSize<Dims, range<Dims>>()};
+    return createItem<Dims, false>(GlobalSize, GlobalId);
+  }
+
+  template <int Dims> static const nd_item<Dims> getElement(nd_item<Dims> *) {
+    static_assert(is_valid_dimensions<Dims>, "invalid dimensions");
+    range<Dims> GlobalSize{__spirv::initBuiltInGlobalSize<Dims, range<Dims>>()};
+    range<Dims> LocalSize{
+        __spirv::initBuiltInWorkgroupSize<Dims, range<Dims>>()};
+    range<Dims> GroupRange{
+        __spirv::initBuiltInNumWorkgroups<Dims, range<Dims>>()};
+    id<Dims> GroupId{__spirv::initBuiltInWorkgroupId<Dims, id<Dims>>()};
+    id<Dims> GlobalId{__spirv::initBuiltInGlobalInvocationId<Dims, id<Dims>>()};
+    id<Dims> LocalId{__spirv::initBuiltInLocalInvocationId<Dims, id<Dims>>()};
+    id<Dims> GlobalOffset{__spirv::initBuiltInGlobalOffset<Dims, id<Dims>>()};
+    group<Dims> Group =
+        createGroup<Dims>(GlobalSize, LocalSize, GroupRange, GroupId);
+    item<Dims, true> GlobalItem =
+        createItem<Dims, true>(GlobalSize, GlobalId, GlobalOffset);
+    item<Dims, false> LocalItem = createItem<Dims, false>(LocalSize, LocalId);
+    return createNDItem<Dims>(GlobalItem, LocalItem, Group);
+  }
+
+  template <int Dims, bool WithOffset>
+  static auto getElement(item<Dims, WithOffset> *)
+      -> decltype(getItem<Dims, WithOffset>()) {
+    return getItem<Dims, WithOffset>();
+  }
+
+  template <int Dims>
+  static auto getNDItem() -> decltype(getElement(declptr<nd_item<Dims>>())) {
+    return getElement(declptr<nd_item<Dims>>());
+  }
+
+#endif // __SYCL_DEVICE_ONLY__
+};
+
+} // namespace detail
+} // namespace _V1
+} // namespace sycl

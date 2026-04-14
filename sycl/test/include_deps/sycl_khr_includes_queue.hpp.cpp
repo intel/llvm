@@ -26,6 +26,8 @@
 // CHECK-NEXT: detail/fwd/accessor.hpp
 // CHECK-NEXT: detail/defines.hpp
 // CHECK-NEXT: detail/helpers.hpp
+// CHECK-NEXT: detail/builder.hpp
+// CHECK-NEXT: detail/spirv_memory_semantics.hpp
 // CHECK-NEXT: __spirv/spirv_types.hpp
 // CHECK-NEXT: memory_enums.hpp
 // CHECK-NEXT: detail/iostream_proxy.hpp
@@ -107,6 +109,7 @@
 // CHECK-NEXT: kernel_handler.hpp
 // CHECK-NEXT: nd_item.hpp
 // CHECK-NEXT: nd_range.hpp
+// CHECK-NEXT: detail/sub_group_core.hpp
 // CHECK-NEXT: detail/id_queries_fit_in_int.hpp
 // CHECK-NEXT: detail/nd_range_view.hpp
 // CHECK-NEXT: detail/optional.hpp

@@ -8,9 +8,9 @@
 
 #pragma once
 
-#include <sycl/group.hpp>
+#include <sycl/detail/builder.hpp>
+#include <sycl/detail/sub_group_core.hpp>
 #include <sycl/nd_item.hpp>
-#include <sycl/sub_group.hpp>
 
 // For deprecated queries:
 #include <sycl/id.hpp>

@@ -11,12 +11,13 @@
 // CHECK-NEXT: group_algorithm.hpp
 // CHECK-NEXT: detail/array.hpp
 // CHECK-NEXT: detail/helpers.hpp
+// CHECK-NEXT: detail/builder.hpp
+// CHECK-NEXT: __spirv/spirv_vars.hpp
+// CHECK-NEXT: detail/spirv_memory_semantics.hpp
 // CHECK-NEXT: __spirv/spirv_types.hpp
 // CHECK-NEXT: detail/defines.hpp
 // CHECK-NEXT: access/access.hpp
-// CHECK-NEXT: detail/export.hpp
 // CHECK-NEXT: memory_enums.hpp
-// CHECK-NEXT: __spirv/spirv_vars.hpp
 // CHECK-NEXT: detail/item_base.hpp
 // CHECK-NEXT: id.hpp
 // CHECK-NEXT: range.hpp
@@ -26,6 +27,7 @@
 // CHECK-NEXT: detail/type_traits/vec_marray_traits.hpp
 // CHECK-NEXT: detail/fwd/multi_ptr.hpp
 // CHECK-NEXT: exception.hpp
+// CHECK-NEXT: detail/export.hpp
 // CHECK-NEXT: detail/string.hpp
 // CHECK-NEXT: functional.hpp
 // CHECK-NEXT: group.hpp
@@ -54,6 +56,7 @@
 // CHECK-NEXT: nd_item.hpp
 // CHECK-NEXT: item.hpp
 // CHECK-NEXT: nd_range.hpp
+// CHECK-NEXT: detail/sub_group_core.hpp
 // CHECK-NEXT: ext/oneapi/functional.hpp
 // CHECK-NEXT: detail/spirv.hpp
 // CHECK-NEXT: __spirv/spirv_ops.hpp
