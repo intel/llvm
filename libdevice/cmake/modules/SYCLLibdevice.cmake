@@ -1,10 +1,8 @@
 include(CheckCXXCompilerFlag)
 set(obj_binary_dir "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
 if (MSVC)
-  set(obj-suffix obj)
   set(devicelib_host_static_obj sycl-devicelib-host.lib)
 else()
-  set(obj-suffix o)
   set(devicelib_host_static_obj libsycl-devicelib-host.a)
 endif()
 set(bc-suffix bc)
@@ -69,7 +67,7 @@ endif()
 
 add_custom_target(libsycldevice)
 
-set(filetypes obj bc)
+set(filetypes bc)
 
 foreach(filetype IN LISTS filetypes)
   add_custom_target(libsycldevice-${filetype})
@@ -97,7 +95,6 @@ endif()
 
 
 set(bc_device_compile_opts -fsycl-device-only -fsycl-device-obj=llvmir)
-set(obj_device_compile_opts -fsycl -c ${sycl_targets_opt} --no-offload-new-driver)
 
 # Compiles and installs a single device library.
 #
@@ -664,6 +661,8 @@ foreach(datatype IN ITEMS fp32 fp64 bf16)
      DEPENDS ${imf_${datatype}_fallback_src})
 endforeach()
 
+add_custom_target(libsycldevice-obj)
+add_dependencies(libsycldevice libsycldevice-obj)
 # Adds Intel math functions libraries.
 #
 # Arguments:
