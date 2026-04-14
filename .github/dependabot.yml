@@ -1,7 +1,24 @@
 version: 2
 updates:
   - package-ecosystem: "github-actions"
-    directory: "/"
+    directories:
+      - "/"
+      # Required to update composite actions.
+      # See: https://github.com/dependabot/dependabot-core/issues/6704
+      - "/devops/actions/aws-ec2"
+      - "/devops/actions/build_container"
+      - "/devops/actions/cached_checkout"
+      - "/devops/actions/cleanup"
+      - "/devops/actions/reset_gpu"
+      - "/devops/actions/run-tests/benchmark"
+      - "/devops/actions/run-tests/linux/cts"
+      - "/devops/actions/run-tests/linux/e2e"
+      - "/devops/actions/run-tests/windows/cts"
+      - "/devops/actions/run-tests/windows/e2e"
+      - "/devops/actions/setup-vulkan/linux"
+      - "/devops/actions/setup_linux_oneapi_env"
+      - "/devops/actions/setup_windows_oneapi_env"
+      - "/devops/actions/source-tbb"
     schedule:
       interval: "monthly"
     groups:
