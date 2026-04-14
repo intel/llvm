@@ -14,13 +14,13 @@
 // CHECK-NEXT: access/access.hpp
 // CHECK-NEXT: detail/assert.hpp
 // CHECK-NEXT: __spirv/spirv_vars.hpp
+// CHECK-NEXT: detail/async_work_group_copy_ptr.hpp
+// CHECK-NEXT: detail/fwd/half.hpp
 // CHECK-NEXT: detail/fwd/multi_ptr.hpp
+// CHECK-NEXT: detail/type_traits/integer_traits.hpp
 // CHECK-NEXT: detail/helpers.hpp
 // CHECK-NEXT: detail/export.hpp
 // CHECK-NEXT: memory_enums.hpp
-// CHECK-NEXT: detail/async_work_group_copy_ptr.hpp
-// CHECK-NEXT: detail/fwd/half.hpp
-// CHECK-NEXT: detail/type_traits/integer_traits.hpp
 // CHECK-NEXT: detail/nd_loop.hpp
 // CHECK-NEXT: detail/type_traits/bool_traits.hpp
 // CHECK-NEXT: detail/type_traits/vec_marray_traits.hpp
