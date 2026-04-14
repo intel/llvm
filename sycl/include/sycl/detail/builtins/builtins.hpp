@@ -64,6 +64,7 @@
 #pragma once
 
 #include <sycl/detail/fwd/multi_ptr.hpp>
+#include <sycl/detail/generic_type_traits.hpp>
 #include <sycl/detail/helpers.hpp>
 #include <sycl/detail/type_traits.hpp>
 #include <sycl/detail/type_traits/vec_marray_traits.hpp>
@@ -208,9 +209,13 @@ template <class T, int N> marray<T, N> to_marray(vec<T, N> X) {
 // in vector_convert.hpp just for vec::convert.
 template <typename NewElemT, int N>
 vec<NewElemT, N> relational_mask_widen(vec<signed char, N> X) {
-  static_assert(is_scalar_arithmetic_v<NewElemT>);
+  static_assert(std::is_integral_v<NewElemT> &&
+                !std::is_same_v<NewElemT, bool>);
 
-#ifdef __SYCL_DEVICE_ONLY__
+#if defined(__SYCL_DEVICE_ONLY__) && !defined(__NVPTX__)
+  // Keep NVPTX on the scalar fallback for consistency with vec::convert.
+  // TODO: Likely unnecessary as https://github.com/intel/llvm/issues/11840
+  // has been closed already.
   if constexpr (N > 1) {
     using src_vector_t = signed char __attribute__((ext_vector_type(N)));
     using dst_vector_t = NewElemT __attribute__((ext_vector_type(N)));
@@ -218,7 +223,7 @@ vec<NewElemT, N> relational_mask_widen(vec<signed char, N> X) {
     return bit_cast<vec<NewElemT, N>>(
         __builtin_convertvector(OpenCLVec, dst_vector_t));
   }
-#endif
+#endif // defined(__SYCL_DEVICE_ONLY__) && !defined(__NVPTX__)
 
   vec<NewElemT, N> Result{};
   loop<N>([&](auto idx) { Result[idx] = static_cast<NewElemT>(X[idx]); });
