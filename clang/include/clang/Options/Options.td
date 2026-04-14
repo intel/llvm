@@ -9746,6 +9746,11 @@ defm offload_use_alloca_addrspace_for_srets : BoolFOption<"offload-use-alloca-ad
   PosFlag<SetTrue, [], [CC1Option], "Use alloca address space for sret arguments for offloading targets">,
   NegFlag<SetFalse>>;
 
+def fsycl_remangle_libspirv
+    : Flag<["-"], "fsycl-remangle-libspirv">,
+      HelpText<"Remangle SPIR-V built-ins in libspirv for SYCL">,
+      MarshallingInfoFlag<CodeGenOpts<"SYCLRemangleLibspirv">>;
+
 } // let Visibility = [CC1Option]
 
 def sycl_std_EQ : Joined<["-"], "sycl-std=">, Group<sycl_Group>,

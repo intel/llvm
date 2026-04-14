@@ -48,15 +48,6 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
       )
 endforeach( t )
 
-if(LIBCLC_GENERATE_REMANGLED_VARIANTS)
-  # Now that check-libclc is defined make sure that all remangler targets depend
-  # on it.
-  foreach(remangler-test ${libclc-remangler-tests})
-    set_property(GLOBAL APPEND PROPERTY LLVM_LIBCLC_ADDITIONAL_TEST_TARGETS ${remangler-test})
-    set_property(GLOBAL APPEND PROPERTY LLVM_ALL_ADDITIONAL_TEST_TARGETS ${remangler-test})
-  endforeach()
-endif()
-
 # Testing unresolved symbols.
 foreach(t ${LIBCLC_TARGETS_TO_BUILD})
   string(REPLACE "-" ";" TRIPLE ${t})

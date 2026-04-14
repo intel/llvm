@@ -842,9 +842,9 @@ Error jit_compiler::linkDeviceLibraries(llvm::Module &Module,
     // Based on the OS and the format decide on the version of libspirv.
     // NOTE: this will be problematic if cross-compiling between OSes.
 #ifdef _WIN32
-    std::string Libclc = "remangled-l32-signed_char.libspirv.bc";
+    std::string Libclc = "libspirv.l32.signed_char.bc";
 #else
-    std::string Libclc = "remangled-l64-signed_char.libspirv.bc";
+    std::string Libclc = "libspirv.l64.signed_char.bc";
 #endif
     LibNames.push_back(Libclc);
   }
@@ -865,7 +865,6 @@ Error jit_compiler::linkDeviceLibraries(llvm::Module &Module,
             TC.loadBitcodeLibrary(LibPath, Context).moveInto(LibModule)) {
       return Error;
     }
-
     if (Linker::linkModules(Module, std::move(LibModule),
                             Linker::LinkOnlyNeeded)) {
       return createStringError("Unable to link device library %s: %s",

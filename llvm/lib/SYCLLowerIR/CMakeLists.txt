@@ -42,6 +42,7 @@ add_llvm_component_library(LLVMSYCLLowerIR
   LowerInvokeSimd.cpp
   LowerWGLocalMemory.cpp
   LowerWGScope.cpp
+  MangleUtils.cpp
   MutatePrintfAddrspace.cpp
   SpecConstants.cpp
   SYCLAddOptLevelAttribute.cpp
@@ -54,6 +55,7 @@ add_llvm_component_library(LLVMSYCLLowerIR
   SYCLOptimizeBarriers.cpp
   SYCLPropagateAspectsUsage.cpp
   SYCLPropagateJointMatrixUsage.cpp
+  SYCLRemangleLibspirv.cpp
   SYCLVirtualFunctionsAnalysis.cpp
   SYCLUtils.cpp
 

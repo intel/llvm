@@ -30,9 +30,6 @@ option(
   LIBCLC_USE_SPIRV_BACKEND "Build SPIR-V targets with the SPIR-V backend." OFF
 )
 
-option( LIBCLC_GENERATE_REMANGLED_VARIANTS
-  "Generate remangled variants of enabled libclc targets." OFF )
-
 option( LIBCLC_NATIVECPU_HOST_TARGET "Build libclc for Native CPU." Off)
 
 if( LIBCLC_NATIVECPU_HOST_TARGET )
@@ -133,9 +130,6 @@ foreach( tool IN ITEMS opt llvm-link )
     message( FATAL_ERROR "libclc toolchain incomplete - missing tool ${tool}!" )
   endif()
 endforeach()
-
-# Configure libclc-remangler tool
-add_subdirectory( utils )
 
 add_subdirectory(clc/lib/generic)
 add_subdirectory(clc/lib/amdgpu)
@@ -354,8 +348,31 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
       OPT_FLAGS ${opt_flags}
       OUTPUT_FILENAME libspirv
       PARENT_TARGET libspirv-builtins
-      REMANGLE ${LIBCLC_GENERATE_REMANGLED_VARIANTS}
     )
+
+    foreach(long_width 32 64)
+      foreach(char_signedness signed unsigned)
+        add_libclc_library(libspirv-${t}-${long_width}-${char_signedness}
+          ARCH ${ARCH}
+          TRIPLE ${clang_triple}
+          TARGET_TRIPLE ${t}
+          SOURCES ${libspirv_sources}
+          COMPILE_OPTIONS ${compile_flags}
+            "SHELL:-Xclang -fdeclare-spirv-builtins"
+            "SHELL:-Xclang -fsycl-remangle-libspirv"
+            "SHELL:-mllvm -remangle-long-width=${long_width}"
+            "SHELL:-mllvm -remangle-char-signedness=${char_signedness}"
+          INCLUDE_DIRS
+            ${CMAKE_CURRENT_SOURCE_DIR}/clc/include
+            ${CMAKE_CURRENT_SOURCE_DIR}/libspirv/include
+          COMPILE_DEFINITIONS ${_common_defs}
+          INTERNALIZE_LIBRARIES ${clc_lib}
+          OPT_FLAGS ${opt_flags}
+          OUTPUT_FILENAME libspirv.l${long_width}.${char_signedness}_char
+          PARENT_TARGET libspirv-builtins
+        )
+      endforeach()
+    endforeach()
   endif()
 endforeach()
 
