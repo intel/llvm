@@ -492,7 +492,6 @@ public:
   void handleSYCLIntelMaxGlobalWorkDimAttr(Decl *D, const ParsedAttr &AL);
   void handleSYCLIntelNoGlobalWorkOffsetAttr(Decl *D, const ParsedAttr &AL);
   void handleSYCLIntelUseStallEnableClustersAttr(Decl *D, const ParsedAttr &AL);
-  void handleSYCLIntelLoopFuseAttr(Decl *D, const ParsedAttr &AL);
   void handleSYCLIntelInitiationIntervalAttr(Decl *D, const ParsedAttr &AL);
   void handleSYCLIntelDoublePumpAttr(Decl *D, const ParsedAttr &AL);
   void handleSYCLIntelSinglePumpAttr(Decl *D, const ParsedAttr &AL);
@@ -542,8 +541,6 @@ public:
   SYCLIntelMaxWorkGroupsPerMultiprocessorAttr *
   mergeSYCLIntelMaxWorkGroupsPerMultiprocessorAttr(
       Decl *D, const SYCLIntelMaxWorkGroupsPerMultiprocessorAttr &A);
-  SYCLIntelLoopFuseAttr *
-  mergeSYCLIntelLoopFuseAttr(Decl *D, const SYCLIntelLoopFuseAttr &A);
   SYCLIntelESimdVectorizeAttr *
   mergeSYCLIntelESimdVectorizeAttr(Decl *D,
                                    const SYCLIntelESimdVectorizeAttr &A);
@@ -641,8 +638,6 @@ public:
                             Expr **Exprs, unsigned Size);
   void addSYCLUsesAspectsAttr(Decl *D, const AttributeCommonInfo &CI,
                               Expr **Exprs, unsigned Size);
-  void addSYCLIntelLoopFuseAttr(Decl *D, const AttributeCommonInfo &CI,
-                                Expr *E);
   void addSYCLIntelNumSimdWorkItemsAttr(Decl *D, const AttributeCommonInfo &CI,
                                         Expr *E);
   void addSYCLIntelSchedulerTargetFmaxMhzAttr(Decl *D,

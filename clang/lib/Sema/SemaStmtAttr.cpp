@@ -389,11 +389,6 @@ static Attr *handleIntelIVDepAttr(Sema &S, Stmt *St, const ParsedAttr &A) {
       NumArgs == 2 ? A.getArgAsExpr(1) : nullptr);
 }
 
-static Attr *handleIntelNofusionAttr(Sema &S, Stmt *St,
-                                     const ParsedAttr &A) {
-  return new (S.Context) SYCLIntelNofusionAttr(S.Context, A);
-}
-
 SYCLIntelMaxReinvocationDelayAttr *
 Sema::BuildSYCLIntelMaxReinvocationDelayAttr(const AttributeCommonInfo &CI,
                                              Expr *E) {
@@ -1013,7 +1008,6 @@ static void CheckForIncompatibleSYCLLoopAttributes(
   CheckForDuplicateAttrs<SYCLIntelSpeculatedIterationsAttr>(S, Attrs);
   CheckForDuplicationSYCLLoopAttribute<LoopUnrollHintAttr>(S, Attrs, false);
   CheckRedundantSYCLIntelIVDepAttrs(S, Attrs);
-  CheckForDuplicationSYCLLoopAttribute<SYCLIntelNofusionAttr>(S, Attrs);
   CheckForDuplicateAttrs<SYCLIntelMaxReinvocationDelayAttr>(S, Attrs);
   CheckForDuplicationSYCLLoopAttribute<SYCLIntelEnableLoopPipeliningAttr>(
       S, Attrs);
@@ -1233,8 +1227,6 @@ static Attr *ProcessStmtAttribute(Sema &S, Stmt *St, const ParsedAttr &A,
     return handleLikely(S, St, A, Range);
   case ParsedAttr::AT_Unlikely:
     return handleUnlikely(S, St, A, Range);
-  case ParsedAttr::AT_SYCLIntelNofusion:
-    return handleIntelNofusionAttr(S, St, A);
   case ParsedAttr::AT_SYCLIntelMaxReinvocationDelay:
     return handleSYCLIntelMaxReinvocationDelayAttr(S, St, A);
   case ParsedAttr::AT_SYCLIntelEnableLoopPipelining:

@@ -20,8 +20,6 @@ void foo() {
   [[intel::max_interleaving(4)]] int i[10];
   // expected-error@+1 {{'intel::speculated_iterations' attribute cannot be applied to a declaration}}
   [[intel::speculated_iterations(6)]] int j[10];
-  // expected-error@+1 {{'intel::nofusion' attribute cannot be applied to a declaration}}
-  [[intel::nofusion]] int k[10];
   // expected-error@+1 {{'intel::max_reinvocation_delay' attribute cannot be applied to a declaration}}
   [[intel::max_reinvocation_delay(1)]] int n[10];
   // expected-error@+1{{'intel::enable_loop_pipelining' attribute cannot be applied to a declaration}}
@@ -113,9 +111,6 @@ void boo() {
   // expected-error@+1 {{'intel::speculated_iterations' attribute takes one argument}}
   [[intel::speculated_iterations(1, 2)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
-  // expected-error@+1 {{'intel::nofusion' attribute takes no arguments}}
-  [[intel::nofusion(0)]] for (int i = 0; i != 10; ++i)
-      a[i] = 0;
   // expected-error@+1 {{'intel::max_reinvocation_delay' attribute takes one argument}}
   [[intel::max_reinvocation_delay(5, 2)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
@@ -198,10 +193,6 @@ void goo() {
   // no diagnostics are expected
   [[intel::ivdep(2, s.ptr)]] for (int i = 0; i != 10; ++i)
       s.ptr[i] = 0;
-
-  // no diagnostics are expected
-  [[intel::nofusion]] for (int i = 0; i != 10; ++i)
-      a[i] = 0;
 
   // expected-error@+1 {{'intel::max_reinvocation_delay' attribute requires a positive integral compile time constant expression}}
   [[intel::max_reinvocation_delay(0)]] for (int i = 0; i != 10; ++i)
@@ -356,11 +347,6 @@ void zoo() {
   [[intel::ivdep(a, 3)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
 
-  [[intel::nofusion]]
-  // expected-error@+1 {{duplicate Intel FPGA loop attribute 'intel::nofusion'}}
-  [[intel::nofusion]] for (int i = 0; i != 10; ++i)
-      a[i] = 0;
-
   [[intel::max_reinvocation_delay(1)]]
   [[intel::max_reinvocation_delay(1)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
@@ -410,12 +396,6 @@ void loop_attrs_compatibility() {
   // expected-error@+2 {{'intel::ivdep' and 'intel::disable_loop_pipelining' attributes are not compatible}}
   // expected-note@+1 {{conflicting attribute is here}}
   [[intel::disable_loop_pipelining]] [[intel::ivdep]] for (int i = 0; i != 10; ++i)
-    a[i] = 0;
-  // no diagnostics are expected
-  [[intel::disable_loop_pipelining]] [[intel::nofusion]] for (int i = 0; i != 10; ++i)
-    a[i] = 0;
-  // no diagnostics are expected
-  [[intel::disable_loop_pipelining]] for (int i = 0; i != 10; ++i)
     a[i] = 0;
   // expected-error@+2 {{'intel::disable_loop_pipelining' and 'intel::max_reinvocation_delay' attributes are not compatible}}
   // expected-note@+1 {{conflicting attribute is here}}
