@@ -597,9 +597,7 @@ SYCLToolChain::getDeviceLibNames(const Driver &D,
                                              "libsycl-fallback-complex-fp64",
                                              "libsycl-fallback-cmath",
                                              "libsycl-fallback-cmath-fp64",
-#if !defined(_WIN32)
                                              "libclang_rt.builtins",
-#endif
                                              "libsycl-fallback-imf",
                                              "libsycl-fallback-imf-fp64",
                                              "libsycl-fallback-imf-bf16"};

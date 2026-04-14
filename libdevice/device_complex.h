@@ -22,6 +22,20 @@
 #define CMPLXF(r, i) ((float __complex__){(float)(r), (float)(i)})
 #endif
 
+#if defined(_WIN32)
+DEVICE_EXTERN_C
+float __complex__ __mulsc3(float a, float b, float c, float d);
+
+DEVICE_EXTERN_C
+double __complex__ __muldc3(double a, double b, double c, double d);
+
+DEVICE_EXTERN_C
+float __complex__ __divsc3(float a, float b, float c, float d);
+
+DEVICE_EXTERN_C
+double __complex__ __divdc3(double a, double b, double c, double d);
+#endif
+
 DEVICE_EXTERN_C
 double __devicelib_cimag(double __complex__ z);
 
