@@ -5829,7 +5829,7 @@ class OffloadingActionBuilder final {
       if (TC->getTriple().isSPIROrSPIRV()) {
         std::string CompilerRTPath = TC->getCompilerRTPath();
         SmallString<128> SPIRVCompilerRTPath(CompilerRTPath);
-        llvm::sys::path::append(SPIRVCompilerRTPath, "spirv64-intel-unknown");
+        llvm::sys::path::append(SPIRVCompilerRTPath, "spirv64-unknown-unknown");
         if (llvm::sys::fs::exists(SPIRVCompilerRTPath))
           LibLocCandidates.emplace_back(SPIRVCompilerRTPath);
       }

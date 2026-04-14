@@ -228,7 +228,7 @@ macro(test_targets)
                        "-flto" "-fconvergent-functions"
                        "-Xclang -mcode-object-version=none")
 
-    elseif("${COMPILER_RT_DEFAULT_TARGET_ARCH}" MATCHES "spirv")
+    elseif("${COMPILER_RT_DEFAULT_TARGET_ARCH}" MATCHES "spirv64")
       test_target_arch(spirv64 "" "-fsycl" "-fsycl-device-only")
     elseif("${COMPILER_RT_DEFAULT_TARGET_ARCH}" MATCHES "hexagon")
       test_target_arch(hexagon "" "")
