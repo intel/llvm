@@ -579,12 +579,6 @@ SmallVector<Metadata *, 4> LoopInfo::createMetadata(
     LoopProperties.push_back(MDNode::get(Ctx, Vals));
   }
 
-  // nofusion attribute corresponds to 'llvm.loop.fusion.disable' metadata
-  if (Attrs.SYCLNofusionEnable) {
-    Metadata *Vals[] = {MDString::get(Ctx, "llvm.loop.fusion.disable")};
-    LoopProperties.push_back(MDNode::get(Ctx, Vals));
-  }
-
   if (Attrs.SYCLSpeculatedIterationsNIterations) {
     Metadata *Vals[] = {
         MDString::get(Ctx, "llvm.loop.intel.speculated.iterations.count"),
@@ -641,8 +635,7 @@ LoopAttributes::LoopAttributes(bool IsParallel)
       SYCLLoopCoalesceNLevels(0), SYCLLoopPipeliningDisable(false),
       SYCLLoopPipeliningEnable(false), UnrollCount(0), UnrollAndJamCount(0),
       DistributeEnable(LoopAttributes::Unspecified), PipelineDisabled(false),
-      PipelineInitiationInterval(0), SYCLNofusionEnable(false), CodeAlign(0),
-      MustProgress(false) {}
+      PipelineInitiationInterval(0), CodeAlign(0), MustProgress(false) {}
 
 void LoopAttributes::clear() {
   IsParallel = false;
@@ -670,7 +663,6 @@ void LoopAttributes::clear() {
   DistributeEnable = LoopAttributes::Unspecified;
   PipelineDisabled = false;
   PipelineInitiationInterval = 0;
-  SYCLNofusionEnable = false;
   CodeAlign = 0;
   MustProgress = false;
 }
@@ -706,8 +698,7 @@ LoopInfo::LoopInfo(BasicBlock *Header, const LoopAttributes &Attrs,
       Attrs.UnrollEnable == LoopAttributes::Unspecified &&
       Attrs.UnrollAndJamEnable == LoopAttributes::Unspecified &&
       Attrs.DistributeEnable == LoopAttributes::Unspecified &&
-      Attrs.CodeAlign == 0 && !StartLoc && Attrs.SYCLNofusionEnable == false &&
-      !EndLoc && !Attrs.MustProgress)
+      Attrs.CodeAlign == 0 && !StartLoc && !EndLoc && !Attrs.MustProgress)
     return;
 
   TempLoopID = MDNode::getTemporary(Header->getContext(), {});
@@ -1102,9 +1093,6 @@ void LoopInfoStack::push(BasicBlock *Header, clang::ASTContext &Ctx,
       llvm::APSInt ArgVal = CE->getResultAsAPSInt();
       setSYCLSpeculatedIterationsNIterations(ArgVal.getSExtValue());
     }
-
-    if (isa<SYCLIntelNofusionAttr>(A))
-      setSYCLNofusionEnable();
 
     if (const auto *SYCLIntelMaxReinvocationDelay =
             dyn_cast<SYCLIntelMaxReinvocationDelayAttr>(A)) {
