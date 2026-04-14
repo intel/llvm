@@ -194,11 +194,9 @@ public:
                                   devices_range Devs,
                                   const RTDeviceBinaryImage *BinImage);
 
-  /// Removes device global initializers for a program. If BinImage is not
-  /// null, only initializers associated with that image are removed.
-  void
-  removeDeviceGlobalInitializer(ur_program_handle_t Program,
-                                const RTDeviceBinaryImage *BinImage = nullptr);
+  /// Removes device global initializers for a program.
+  void removeDeviceGlobalInitializer(ur_program_handle_t Program,
+                                     const RTDeviceBinaryImage *BinImage);
 
   /// Returns the number of programs with device globals not yet initialized.
   size_t getDeviceGlobalNotInitializedCnt() const {

@@ -269,7 +269,7 @@ void context_impl::removeDeviceGlobalInitializer(
   for (auto It = MDeviceGlobalInitializers.begin();
        It != MDeviceGlobalInitializers.end();) {
     const bool ProgramMatches = It->first.first == Program;
-    const bool ImageMatches = !BinImage || It->second.MBinImage == BinImage;
+    const bool ImageMatches = It->second.MBinImage == BinImage;
 
     if (!ProgramMatches || !ImageMatches) {
       ++It;
