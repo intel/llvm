@@ -33,11 +33,6 @@ on:
         required: false
         type: string
         default: ""
-      min_free_disk_mb:
-        description: Minimum free disk space on / (MiB) before starting the job container
-        required: false
-        type: number
-        default: 20480
 
 permissions: read-all
 
@@ -48,18 +43,13 @@ env:
   UR_LOG_NATIVE_CPU: "level:error;flush:error"
   UR_LOG_OPENCL: "level:error;flush:error"
 
+# Free disk on the runner host before Docker must be enforced with a self-hosted
+# job-started hook (same machine as the job). A separate workflow job with the
+# same runs-on labels can land on a different host. See:
+# devops/scripts/gha_runner_job_started_hook.sh
 jobs:
-  host_memory_check:
-    name: Host disk (pre-container)
-    # if: github.repository == 'intel/llvm'
-    uses: ./.github/workflows/ur-host-memory-check.yml
-    with:
-      runs_on: ${{ inputs.runner_name }}
-      min_free_disk_mb: ${{ inputs.min_free_disk_mb }}
-
   adapter_build_hw:
     name: Build & CTS
-    needs: [host_memory_check]
     # run only on upstream; forks won't have the HW
     if: github.repository == 'intel/llvm'
     strategy:

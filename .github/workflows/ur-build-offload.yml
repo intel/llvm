@@ -2,33 +2,13 @@ name: UR - Build offload adapter
 
 permissions: read-all
 
-on:
-  workflow_call:
-    inputs:
-      min_free_disk_mb:
-        description: Minimum free disk space on / (MiB) before starting the job container
-        required: false
-        type: number
-        default: 20480
-  workflow_dispatch:
-    inputs:
-      min_free_disk_mb:
-        description: Minimum free disk space on / (MiB) before starting the job container
-        required: false
-        type: number
-        default: 20480
+# Pre-container disk check: use ACTIONS_RUNNER_HOOK_JOB_STARTED on self-hosted
+# runners — see devops/scripts/gha_runner_job_started_hook.sh
+on: [ workflow_call, workflow_dispatch ]
 
 jobs:
-  host_memory_check:
-    name: Host disk (pre-container)
-    uses: ./.github/workflows/ur-host-memory-check.yml
-    with:
-      runs_on: '["Linux", "build"]'
-      min_free_disk_mb: ${{ inputs.min_free_disk_mb }}
-
   offload_build:
     name: Build
-    needs: [host_memory_check]
     strategy:
       fail-fast: false
       matrix:
