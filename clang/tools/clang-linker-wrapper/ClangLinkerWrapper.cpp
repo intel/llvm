@@ -1818,8 +1818,8 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args,
     CmdArgs.push_back("--sycl-link");
     appendClangSYCLLinkerArgs(Args, CmdArgs, Triple, Arch);
     for (StringRef InputFile : InputFiles)
-      CmdArgs.append(
-          {"-Xlinker", Args.MakeArgString("--input-bitcode-file=" + InputFile)});
+      CmdArgs.append({"-Xlinker",
+                      Args.MakeArgString("--input-bitcode-file=" + InputFile)});
     if (Error Err = executeCommands(*ClangPath, CmdArgs))
       return std::move(Err);
     return *TempFileOrErr;
