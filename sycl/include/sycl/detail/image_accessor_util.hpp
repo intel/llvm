@@ -18,12 +18,12 @@
 #include <sycl/detail/array.hpp>               // for array
 #include <sycl/detail/export.hpp>              // for __SYCL_EXPORT
 #include <sycl/detail/generic_type_traits.hpp> // for max_v, min_v, TryToGe...
+#include <sycl/detail/vector_convert.hpp> // for vec, vec::convert, operator*, round...
 #include <sycl/exception.hpp>
-#include <sycl/id.hpp>             // for id
-#include <sycl/image.hpp>          // for image_channel_type
-#include <sycl/range.hpp>          // for range
-#include <sycl/sampler.hpp>        // for addressing_mode, coor...
-#include <sycl/vector_convert.hpp> // for vec, vec::convert, operator*, round...
+#include <sycl/id.hpp>      // for id
+#include <sycl/image.hpp>   // for image_channel_type
+#include <sycl/range.hpp>   // for range
+#include <sycl/sampler.hpp> // for addressing_mode, coor...
 
 #include <cstdint>     // for int32_t, uint16_t
 #include <stddef.h>    // for size_t
