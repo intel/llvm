@@ -553,8 +553,8 @@ queue_impl::submit_barrier_direct_impl(sycl::span<const event> DepEvents,
 
         if (EventPtr->isHost()) {
           detail::registerEventDependency</*LockQueue*/ false>(
-            EventPtr, CGData.MEvents, this, getContextImpl(), getDeviceImpl(),
-            getCommandGraph().get(), CGType::BarrierWaitlist);
+              EventPtr, CGData.MEvents, this, getContextImpl(), getDeviceImpl(),
+              getCommandGraph().get(), CGType::BarrierWaitlist);
         }
 
         DepEventImpls.emplace_back(EventPtr);
