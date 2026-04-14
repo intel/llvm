@@ -550,6 +550,13 @@ queue_impl::submit_barrier_direct_impl(sycl::span<const event> DepEvents,
     if (!DepEvents.empty()) {
       for (const event &Event : DepEvents) {
         const auto &EventPtr = detail::getSyclObjImpl(Event);
+
+        if (EventPtr->isHost()) {
+          detail::registerEventDependency</*LockQueue*/ false>(
+            EventPtr, CGData.MEvents, this, getContextImpl(), getDeviceImpl(),
+            getCommandGraph().get(), CGType::BarrierWaitlist);
+        }
+
         DepEventImpls.emplace_back(EventPtr);
       }
     }
@@ -571,14 +578,6 @@ queue_impl::submit_barrier_direct_impl(sycl::span<const event> DepEvents,
     }
 
     std::unique_ptr<detail::CG> CommandGroup;
-
-    for (detail::EventImplPtr &DepEvent : DepEventImpls) {
-      if (DepEvent->isHost()) {
-        detail::registerEventDependency(
-            DepEvent, CGData.MEvents, this, getContextImpl(), getDeviceImpl(),
-            getCommandGraph().get(), CGType::BarrierWaitlist);
-      }
-    }
 
     if (auto GraphImpl = getCommandGraph(); GraphImpl) {
       CGData.MEvents.insert(std::end(CGData.MEvents), std::begin(DepEventImpls),
