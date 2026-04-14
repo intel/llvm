@@ -468,9 +468,77 @@ EventImplPtr queue_impl::submit_kernel_scheduler_bypass(
   return ResultEvent;
 }
 
-EventImplPtr queue_impl::submit_barrier_direct_impl(
-    sycl::span<const event> DepEvents,
-    [[maybe_unused]] const detail::code_location &CodeLoc) {
+EventImplPtr queue_impl::submit_barrier_scheduler_bypass(
+    std::vector<detail::EventImplPtr> &BarrierDepEvents,
+    std::vector<detail::EventImplPtr> &DepEvents, detail::CGType BarrierType) {
+
+  ur_event_handle_t UREvent = nullptr;
+  std::vector<ur_event_handle_t> RawBarrierDepEvents;
+  std::vector<ur_event_handle_t> RawDepEvents;
+
+  if (BarrierDepEvents.size() > 0) {
+    RawBarrierDepEvents =
+        detail::getUrEventsBlocking(BarrierDepEvents, false, *this, false);
+  }
+
+  if (DepEvents.size() > 0) {
+    RawDepEvents = detail::Command::getUrEvents(DepEvents, this, false);
+  }
+
+  auto ResEvent = detail::event_impl::create_device_event(*this);
+  ResEvent->setWorkerQueue(weak_from_this());
+  ResEvent->setSubmissionTime();
+  ResEvent->setEnqueued();
+  ResEvent->setStateIncomplete();
+
+  // TODO Do we have to honor the "depends_on" dependencies here?
+  // For compatibility with the scheduler logic, this check is
+  // added here, until the code is changed in both places if needed.
+  if (BarrierType == CGType::BarrierWaitlist && RawBarrierDepEvents.empty()) {
+    ResEvent->setComplete();
+    return ResEvent;
+  }
+
+  if (BarrierType == CGType::Barrier) {
+    if (RawDepEvents.size()) {
+      getAdapter().call<UrApiKind::urEnqueueEventsWait>(
+          getHandleRef(), RawDepEvents.size(), &RawDepEvents[0], nullptr);
+    }
+
+    getAdapter().call<UrApiKind::urEnqueueEventsWaitWithBarrierExt>(
+        getHandleRef(), nullptr, 0, nullptr, &UREvent);
+  } else {
+
+    RawDepEvents.insert(RawDepEvents.end(), RawBarrierDepEvents.begin(),
+                        RawBarrierDepEvents.end());
+
+    getAdapter().call<UrApiKind::urEnqueueEventsWaitWithBarrierExt>(
+        getHandleRef(), nullptr, RawDepEvents.size(), RawDepEvents.data(),
+        &UREvent);
+  }
+
+  ResEvent->setHandle(UREvent);
+
+  // connect returned event with dependent events
+  if (!isInOrder()) {
+
+    if (BarrierType == CGType::BarrierWaitlist) {
+      DepEvents.insert(DepEvents.end(), BarrierDepEvents.begin(),
+                       BarrierDepEvents.end());
+    }
+
+    // DepEvents is not used anymore, so can move.
+    ResEvent->getPreparedDepsEvents() = std::move(DepEvents);
+    // ResultEvent is local for current thread, no need to lock.
+    ResEvent->cleanDepEventsThroughOneLevelUnlocked();
+  }
+
+  return ResEvent;
+}
+
+EventImplPtr
+queue_impl::submit_barrier_direct_impl(sycl::span<const event> DepEvents,
+                                       const detail::code_location &CodeLoc) {
 
   detail::CGType BarrierType =
       DepEvents.empty() ? detail::CGType::Barrier : CGType::BarrierWaitlist;
@@ -478,25 +546,43 @@ EventImplPtr queue_impl::submit_barrier_direct_impl(
   auto SubmitBarrierFunc = [&](detail::CG::StorageInitHelper &&CGData)
       -> std::pair<EventImplPtr, bool> {
     std::vector<detail::EventImplPtr> DepEventImpls;
-    std::unique_ptr<detail::CG> CommandGroup;
 
     if (!DepEvents.empty()) {
       for (const event &Event : DepEvents) {
         const auto &EventPtr = detail::getSyclObjImpl(Event);
         DepEventImpls.emplace_back(EventPtr);
-
-        // Register HostEvents.
-        if (EventPtr->isHost()) {
-          detail::registerEventDependency</*LockQueue*/ false>(
-              EventPtr, CGData.MEvents, this, getContextImpl(), getDeviceImpl(),
-              getCommandGraph().get(), BarrierType);
-        }
       }
     }
 
-    // TODO graph support
-    // This logic is here only for transitive recording support
-    if (!CGData.MEvents.empty() && getCommandGraph()) {
+    bool SchedulerBypass = !getCommandGraph();
+
+    if (DepEventImpls.size() > 0) {
+      SchedulerBypass &= detail::Scheduler::areEventsSafeForSchedulerBypass(
+          DepEventImpls, getContextImpl());
+    }
+
+    SchedulerBypass &= detail::Scheduler::areEventsSafeForSchedulerBypass(
+        CGData.MEvents, getContextImpl());
+
+    if (SchedulerBypass) {
+      return {submit_barrier_scheduler_bypass(DepEventImpls, CGData.MEvents,
+                                              BarrierType),
+              /*SchedulerBypass*/ true};
+    }
+
+    std::unique_ptr<detail::CG> CommandGroup;
+
+    for (detail::EventImplPtr &DepEvent : DepEventImpls) {
+      if (DepEvent->isHost()) {
+        detail::registerEventDependency(
+            DepEvent, CGData.MEvents, this, getContextImpl(), getDeviceImpl(),
+            getCommandGraph().get(), CGType::BarrierWaitlist);
+      }
+    }
+
+    if (auto GraphImpl = getCommandGraph(); GraphImpl) {
+      CGData.MEvents.insert(std::end(CGData.MEvents), std::begin(DepEventImpls),
+                            std::end(DepEventImpls));
       CommandGroup.reset(
           new detail::CG(detail::CGType::Barrier, std::move(CGData), CodeLoc));
 

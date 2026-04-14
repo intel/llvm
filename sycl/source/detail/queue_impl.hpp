@@ -425,6 +425,10 @@ public:
       detail::kernel_bundle_impl *KernelBundleImpPtr,
       const detail::code_location &CodeLoc, bool IsTopCodeLoc);
 
+  EventImplPtr submit_barrier_scheduler_bypass(
+      std::vector<detail::EventImplPtr> &BarrierDepEvents,
+      std::vector<detail::EventImplPtr> &DepEvents, detail::CGType BarrierType);
+
   /// Performs a blocking wait for the completion of all enqueued tasks in the
   /// queue.
   ///
