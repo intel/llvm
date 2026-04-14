@@ -1588,8 +1588,6 @@ namespace {
     const SYCLIntelSpeculatedIterationsAttr *
     TransformSYCLIntelSpeculatedIterationsAttr(
         const SYCLIntelSpeculatedIterationsAttr *SI);
-    const SYCLIntelLoopCountAttr *
-    TransformSYCLIntelLoopCountAttr(const SYCLIntelLoopCountAttr *SI);
     const SYCLIntelMaxReinvocationDelayAttr *
     TransformSYCLIntelMaxReinvocationDelayAttr(
         const SYCLIntelMaxReinvocationDelayAttr *MRD);
@@ -2371,14 +2369,6 @@ TemplateInstantiator::TransformSYCLIntelSpeculatedIterationsAttr(
   Expr *TransformedExpr = getDerived().TransformExpr(SI->getNExpr()).get();
   return getSema().BuildSYCLIntelSpeculatedIterationsAttr(*SI,
                                                               TransformedExpr);
-}
-
-const SYCLIntelLoopCountAttr *
-TemplateInstantiator::TransformSYCLIntelLoopCountAttr(
-    const SYCLIntelLoopCountAttr *LCA) {
-  Expr *TransformedExpr =
-      getDerived().TransformExpr(LCA->getNTripCount()).get();
-  return getSema().BuildSYCLIntelLoopCountAttr(*LCA, TransformedExpr);
 }
 
 const LoopUnrollHintAttr *TemplateInstantiator::TransformLoopUnrollHintAttr(

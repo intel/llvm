@@ -3039,22 +3039,6 @@ def : MutualExclusions<[SYCLIntelIVDep,
 def : MutualExclusions<[SYCLIntelMaxConcurrency,
                         SYCLIntelDisableLoopPipelining]>;
 
-def SYCLIntelLoopCount : StmtAttr {
-  let Spellings = [CXX11<"intel", "loop_count_min">,
-                   CXX11<"intel", "loop_count_max">,
-                   CXX11<"intel", "loop_count_avg">,
-                   CXX11<"intel", "loop_count">];
-  let Subjects = SubjectList<[ForStmt, CXXForRangeStmt, WhileStmt, DoStmt],
-                             ErrorDiag, "'for', 'while', and 'do' statements">;
-  let Accessors = [Accessor<"isMin", [CXX11<"intel", "loop_count_min">]>,
-                   Accessor<"isMax", [CXX11<"intel", "loop_count_max">]>,
-                   Accessor<"isAvg", [CXX11<"intel", "loop_count_avg">]>,
-                   Accessor<"isCount", [CXX11<"intel", "loop_count">]>];
-  let Args = [ExprArgument<"NTripCount">];
-  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
-  let Documentation = [SYCLIntelLoopCountAttrDocs];
-}
-
 def : MutualExclusions<[SYCLIntelMaxConcurrency,
                         SYCLIntelDisableLoopPipelining]>;
 
