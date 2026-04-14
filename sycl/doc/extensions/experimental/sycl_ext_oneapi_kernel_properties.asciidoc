@@ -130,24 +130,19 @@ The implementation also provides lighter-weight headers for code that only
 needs free-function annotations:
 
 * `#include <sycl/ext/oneapi/kernel_properties/function_properties.hpp>` for
-  `nd_range_kernel<Dims>`, `single_task_kernel`, and
-  `SYCL_EXT_ONEAPI_FUNCTION_PROPERTY`.
-
-* `#include <sycl/ext/oneapi/kernel_properties/function_launch_properties.hpp>`
-  for the launch-configuration properties that can be applied directly to free
-  function declarations, including `work_group_size`,
-  `work_group_size_hint`, `sub_group_size`, `max_work_group_size`, and
-  `max_linear_work_group_size`.
+  `nd_range_kernel<Dims>`, `single_task_kernel`,
+  `SYCL_EXT_ONEAPI_FUNCTION_PROPERTY`, and the standalone compile-time kernel
+  properties that may be applied directly to a free function declaration, such
+  as `work_group_size`, `work_group_size_hint`, `sub_group_size`,
+  `max_work_group_size`, and `max_linear_work_group_size`.
 
 These lighter-weight headers are primarily intended for code paths where
 reduced compile time is a high priority and the application only needs
 function-level annotations.
-
-They retain validation of each individual property, but they do not provide
-the cross-property validation that depends on forming a full property list.
-For example, checks for conflicting combinations such as `work_group_size`
-together with `max_work_group_size` or `max_linear_work_group_size` are
-performed only when using the umbrella header.
+The `function_properties.hpp` header is intended for the free-function kernel
+definition path. Code that forms property lists, uses `properties_tag`, or
+depends on the umbrella property's property-list conflict checks should include
+`kernel_properties/properties.hpp`.
 
 === Kernel Properties
 

@@ -132,7 +132,6 @@
 // CHECK-NEXT: detail/optional.hpp
 // CHECK-NEXT: detail/range_rounding.hpp
 // CHECK-NEXT: ext/oneapi/kernel_properties/properties.hpp
-// CHECK-NEXT: ext/oneapi/kernel_properties/function_launch_properties.hpp
 // CHECK-NEXT: ext/oneapi/kernel_properties/function_properties.hpp
 // CHECK-NEXT: ext/oneapi/properties/property_value.hpp
 // CHECK-NEXT: ext/oneapi/properties/property.hpp

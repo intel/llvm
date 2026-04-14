@@ -13,7 +13,7 @@
 #include <stdint.h>                                          // for uint32_t
 #include <sycl/aspects.hpp>                                  // for aspect
 #include <sycl/ext/oneapi/experimental/forward_progress.hpp> // for forward_progress_guarantee enum
-#include <sycl/ext/oneapi/kernel_properties/function_launch_properties.hpp>
+#include <sycl/ext/oneapi/kernel_properties/function_properties.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
 #include <type_traits>                                   // for true_type
 #include <utility>                                       // for declval
