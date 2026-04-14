@@ -63,12 +63,12 @@ jobs:
           tar -I 'zstd -9' -cf devops/e2e_sources.tar.zst -C ./llvm .
 
       - name: Download toolchain
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: toolchain
           path: devops/
       - name: Download E2E binaries
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: e2e_bin
           path: devops/
