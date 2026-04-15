@@ -895,7 +895,7 @@ private:
       if constexpr (ext::oneapi::experimental::detail::
                         HasKernelPropertiesGetMethod<
                             const KernelType &>::value) {
-        SetKernelLaunchpropertiesIf(
+        SetKernelLaunchproperties(
             detail::extractKernelProperties<Info.IsESIMD>(
                 KernelFunc.get(ext::oneapi::experimental::properties_tag{})));
       }
@@ -2838,7 +2838,7 @@ private:
                                       bool IsDeviceImageScoped, size_t NumBytes,
                                       size_t Offset);
 
-  inline void SetKernelLaunchproperties(
+  void SetKernelLaunchproperties(
       const detail::KernelPropertyHolderStructTy &KernelLaunchProperties);
 
   // Various checks that are only meaningful for host compilation, because they
