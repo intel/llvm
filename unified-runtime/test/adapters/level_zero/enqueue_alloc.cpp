@@ -73,16 +73,19 @@ std::ostream &operator<<(std::ostream &os,
 }
 
 struct urL0EnqueueAllocMultiQueueSameDeviceTest
-    : uur::urContextTestWithParam<EnqueueAllocMultiQueueTestParam> {
+    : uur::urContextTestWithParam<
+          uur::MultiQueueParam<EnqueueAllocMultiQueueTestParam>> {
   void SetUp() override {
     UUR_RETURN_ON_FATAL_FAILURE(urContextTestWithParam::SetUp());
-    auto param = std::get<1>(this->GetParam());
 
+    const auto &param = getAllocParam();
+
+    ur_queue_properties_t props = {UR_STRUCTURE_TYPE_QUEUE_PROPERTIES, nullptr,
+                                   getQueueFlags()};
     queues.reserve(param.numQueues);
     for (size_t i = 0; i < param.numQueues; i++) {
       ur_queue_handle_t queue = nullptr;
-      ASSERT_SUCCESS(urQueueCreate(context, device, 0, &queue));
-      SKIP_IF_BATCHED_QUEUE(queue);
+      ASSERT_SUCCESS(urQueueCreate(context, device, &props, &queue));
       queues.push_back(queue);
     }
   }
@@ -93,6 +96,14 @@ struct urL0EnqueueAllocMultiQueueSameDeviceTest
     }
 
     UUR_RETURN_ON_FATAL_FAILURE(urContextTestWithParam::TearDown());
+  }
+
+  const EnqueueAllocMultiQueueTestParam &getAllocParam() const {
+    return std::get<0>(this->getParam());
+  }
+
+  ur_queue_flag_t getQueueFlags() const {
+    return std::get<1>(this->getParam());
   }
 
   std::vector<ur_queue_handle_t> queues;
@@ -322,7 +333,7 @@ TEST_P(urL0EnqueueAllocTest, SuccessWithKernelRepeat) {
   ValidateEnqueueFree(ptr2);
 }
 
-UUR_DEVICE_TEST_SUITE_WITH_PARAM(
+UUR_MULTI_QUEUE_TYPE_TEST_SUITE_WITH_PARAM(
     urL0EnqueueAllocMultiQueueSameDeviceTest,
     ::testing::ValuesIn({
         EnqueueAllocMultiQueueTestParam{1024, 256, 8, urEnqueueUSMHostAllocExp,
@@ -334,20 +345,16 @@ UUR_DEVICE_TEST_SUITE_WITH_PARAM(
                                         urEnqueueUSMDeviceAllocExp,
                                         uur::GetDeviceUSMDeviceSupport},
     }),
-    uur::deviceTestWithParamPrinter<EnqueueAllocMultiQueueTestParam>);
+    uur::deviceTestWithParamPrinterMulti<EnqueueAllocMultiQueueTestParam>);
 
 TEST_P(urL0EnqueueAllocMultiQueueSameDeviceTest, SuccessMt) {
-  const size_t allocSize = std::get<1>(this->GetParam()).allocSize;
-  const size_t numQueues = std::get<1>(this->GetParam()).numQueues;
-  const size_t iterations = std::get<1>(this->GetParam()).iterations;
+  const size_t allocSize = getAllocParam().allocSize;
+  const size_t numQueues = getAllocParam().numQueues;
+  const size_t iterations = getAllocParam().iterations;
   const auto enqueueUSMAllocFunc =
-      std::get<1>(this->GetParam()).funcParams.enqueueUSMAllocFunc;
+      getAllocParam().funcParams.enqueueUSMAllocFunc;
   const auto checkUSMSupportFunc =
-      std::get<1>(this->GetParam()).funcParams.checkUSMSupportFunc;
-
-  if (numQueues > 0) {
-    SKIP_IF_BATCHED_QUEUE(queues[0]);
-  }
+      getAllocParam().funcParams.checkUSMSupportFunc;
 
   ur_device_usm_access_capability_flags_t USMSupport = 0;
   ASSERT_SUCCESS(checkUSMSupportFunc(device, USMSupport));
@@ -394,11 +401,11 @@ TEST_P(urL0EnqueueAllocMultiQueueSameDeviceTest, SuccessMt) {
 TEST_P(urL0EnqueueAllocMultiQueueSameDeviceTest, SuccessReuse) {
   GTEST_SKIP() << "Multi queue reuse is not supported.";
 
-  const size_t allocSize = std::get<1>(this->GetParam()).allocSize;
+  const size_t allocSize = getAllocParam().allocSize;
   const auto enqueueUSMAllocFunc =
-      std::get<1>(this->GetParam()).funcParams.enqueueUSMAllocFunc;
+      getAllocParam().funcParams.enqueueUSMAllocFunc;
   const auto checkUSMSupportFunc =
-      std::get<1>(this->GetParam()).funcParams.checkUSMSupportFunc;
+      getAllocParam().funcParams.checkUSMSupportFunc;
 
   ur_device_usm_access_capability_flags_t USMSupport = 0;
   ASSERT_SUCCESS(checkUSMSupportFunc(device, USMSupport));
@@ -457,12 +464,12 @@ TEST_P(urL0EnqueueAllocMultiQueueSameDeviceTest, SuccessReuse) {
 }
 
 TEST_P(urL0EnqueueAllocMultiQueueSameDeviceTest, SuccessDependantMt) {
-  const size_t allocSize = std::get<1>(this->GetParam()).allocSize;
-  const size_t iterations = std::get<1>(this->GetParam()).iterations;
+  const size_t allocSize = getAllocParam().allocSize;
+  const size_t iterations = getAllocParam().iterations;
   const auto enqueueUSMAllocFunc =
-      std::get<1>(this->GetParam()).funcParams.enqueueUSMAllocFunc;
+      getAllocParam().funcParams.enqueueUSMAllocFunc;
   const auto checkUSMSupportFunc =
-      std::get<1>(this->GetParam()).funcParams.checkUSMSupportFunc;
+      getAllocParam().funcParams.checkUSMSupportFunc;
 
   ur_device_usm_access_capability_flags_t USMSupport = 0;
   ASSERT_SUCCESS(checkUSMSupportFunc(device, USMSupport));
