@@ -6,10 +6,12 @@
 
 #include <sycl/ext/oneapi/experimental/graph.hpp>
 
+#include <array>
 #include <condition_variable> // std::conditional_variable
 #include <fstream>
 #include <mutex> // std::mutex, std::unique_lock
 #include <numeric>
+#include <utility>
 
 #if GRAPH_TESTS_VERBOSE_PRINT
 #include <chrono>
@@ -24,6 +26,12 @@ constexpr size_t Offset = 100; // Number of offset elements for Buffer accessors
 namespace exp_ext = sycl::ext::oneapi::experimental;
 // Make tests less verbose by using sycl namespace.
 using namespace sycl;
+
+// Queue state constants for recording tests
+inline constexpr exp_ext::queue_state RECORDING =
+    exp_ext::queue_state::recording;
+inline constexpr exp_ext::queue_state EXECUTING =
+    exp_ext::queue_state::executing;
 
 // Helper functions for wrapping depends_on calls when add_node is used so they
 // are not used in the explicit API
@@ -442,6 +450,42 @@ private:
   std::size_t threadNum;
 };
 
+// Verify recording states of one or more queues
+template <size_t N> class QueueStateVerifier {
+  std::array<queue, N> queues;
+
+public:
+  template <typename... Queues>
+  QueueStateVerifier(Queues... qs) : queues{qs...} {}
+
+  template <typename... States> void verify(States... expected_states) {
+    verifyImpl(std::index_sequence_for<States...>{}, expected_states...);
+  }
+
+private:
+  template <size_t... Is, typename... States>
+  void verifyImpl(std::index_sequence<Is...>, States... expected_states) {
+    (checkQueue(Is, queues[Is], expected_states), ...);
+  }
+
+  void checkQueue(size_t index, queue q, exp_ext::queue_state expected) {
+    auto actual = q.ext_oneapi_get_state();
+    if (actual != expected) {
+      std::cerr << "Queue " << index << " SYCL state mismatch: expected "
+                << stateToString(expected) << " but got "
+                << stateToString(actual) << std::endl;
+      assert(false);
+    }
+  }
+
+  const char *stateToString(exp_ext::queue_state state) {
+    return state == exp_ext::queue_state::recording ? "recording" : "executing";
+  }
+};
+
+template <typename... Queues>
+QueueStateVerifier(Queues...) -> QueueStateVerifier<sizeof...(Queues)>;
+
 template <typename T>
 bool inline check_value(const T &Ref, const T &Got,
                         const std::string &VariableName) {
@@ -544,4 +588,27 @@ bool compareProfiling(event Event1, event Event2) {
                Event2.get_info<sycl::info::event::command_execution_status>();
 
   return (Pass1 && Pass2);
+}
+
+/// Helper to test that a callable throws a sycl::exception with the given
+/// error code. Returns true if the exception was thrown with the expected
+/// code, false otherwise.
+template <typename Func>
+bool expectException(Func &&Operation, const char *OperationName,
+                     sycl::errc ExpectedCode) {
+  try {
+    Operation();
+    std::cerr << "ERROR: Expected exception was not thrown for "
+              << OperationName << std::endl;
+    return false;
+  } catch (const sycl::exception &e) {
+    if (e.code() != sycl::make_error_code(ExpectedCode)) {
+      std::cerr << "ERROR: Wrong exception error code for " << OperationName
+                << ": expected "
+                << sycl::make_error_code(ExpectedCode).message() << ", got "
+                << e.code().message() << std::endl;
+      return false;
+    }
+    return true;
+  }
 }
