@@ -756,10 +756,6 @@ protected:
 
   ConcreteASPtrType getQualifiedPtr() const noexcept { return MData; }
 
-#ifndef __SYCL_DEVICE_ONLY__
-  using AccessorBaseHost::impl;
-#endif
-
 public:
   // Default constructor for objects later initialized with __init member.
   accessor()
