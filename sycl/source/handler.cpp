@@ -1577,7 +1577,7 @@ void handler::memcpyFromHostOnlyDeviceGlobal(void *Dest,
   });
 }
 
-void handler::SetKernelLaunchproperties(
+void handler::setKernelLaunchproperties(
     const detail::KernelPropertyHolderStructTy &Kprop) {
   impl->MHasWorkGroupScratchSizeProperty = static_cast<bool>(
       Kprop.get<sycl::ext::oneapi::experimental::work_group_scratch_size>()
