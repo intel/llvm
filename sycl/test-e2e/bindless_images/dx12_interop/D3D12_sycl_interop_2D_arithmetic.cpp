@@ -461,7 +461,10 @@ int runTest(
     sycl::image_channel_type syclType = syclOverride.has_value()
                                             ? syclOverride.value()
                                             : getSyclChannelType<T>();
-    syclexp::image_descriptor imgDesc(sycl::range<2>(width, height), channels,
+    // Bindless images use X,Y,Z order where X is dimension 0, Y is dimension 1.
+    // This differs from SYCL 2020 "fastest-incrementing" convention.
+    // See sycl_ext_oneapi_bindless_images.asciidoc for details.
+    syclexp::image_descriptor imgDesc(sycl::range<2>(height, width), channels,
                                       syclType);
 
     auto imgMemA = syclexp::map_external_image_memory(
@@ -498,9 +501,12 @@ int runTest(
 
       kernelEvent = q.submit([&](sycl::handler &h) {
         h.depends_on(waitEvents);
-        h.parallel_for(sycl::range<2>(width, height), [=](sycl::item<2> item) {
-          int x = item.get_id(0);
-          int y = item.get_id(1);
+        // Range order matches image descriptor: (height, width)
+        h.parallel_for(sycl::range<2>(height, width), [=](sycl::item<2> item) {
+          // Extract x from dimension 1, y from dimension 0 to match bindless
+          // coordinate order
+          int x = item.get_id(1);
+          int y = item.get_id(0);
 
           bool isUnorm = (syclType == sycl::image_channel_type::unorm_int8);
           using Vec4 = sycl::vec<float, 4>;
@@ -561,9 +567,12 @@ int runTest(
 
       kernelEvent = q.submit([&](sycl::handler &h) {
         h.depends_on(waitEvents);
-        h.parallel_for(sycl::range<2>(width, height), [=](sycl::item<2> item) {
-          int x = item.get_id(0);
-          int y = item.get_id(1);
+        // Range order matches image descriptor: (height, width)
+        h.parallel_for(sycl::range<2>(height, width), [=](sycl::item<2> item) {
+          // Extract x from dimension 1, y from dimension 0 to match bindless
+          // coordinate order
+          int x = item.get_id(1);
+          int y = item.get_id(0);
 
           bool isUnorm = (syclType == sycl::image_channel_type::unorm_int8);
           using Vec4 = sycl::vec<float, 4>;
