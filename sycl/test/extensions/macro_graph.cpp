@@ -3,7 +3,7 @@
 
 #include <sycl/sycl.hpp>
 
-#if SYCL_EXT_ONEAPI_GRAPH == 1
+#if SYCL_EXT_ONEAPI_GRAPH == 2
 constexpr bool macro_defined = true;
 #else
 constexpr bool macro_defined = false;

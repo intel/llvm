@@ -468,6 +468,90 @@ EventImplPtr queue_impl::submit_kernel_scheduler_bypass(
   return ResultEvent;
 }
 
+<<<<<<< HEAD
+=======
+// TODO: Not sure what to do with CodeLoc here?
+EventImplPtr queue_impl::submit_barrier_direct_impl(
+    sycl::span<const event> DepEvents,
+    [[maybe_unused]] const detail::code_location &CodeLoc) {
+
+  detail::CG::StorageInitHelper CGData;
+  std::vector<ur_event_handle_t> UrDepEvents;
+
+  if (!DepEvents.empty()) {
+    std::vector<EventImplPtr> DepEventImpls;
+    for (const event &Event : DepEvents) {
+      const auto &EventPtr = detail::getSyclObjImpl(Event);
+      DepEventImpls.emplace_back(EventPtr);
+
+      // Register HostEvents.
+      if (EventPtr->isHost()) {
+        detail::registerEventDependency(
+            EventPtr, CGData.MEvents, this, getContextImpl(), getDeviceImpl(),
+            getCommandGraph().get(), CGType::BarrierWaitlist);
+      }
+    }
+
+    UrDepEvents = getUrEventsBlocking(DepEventImpls, false, *this, false);
+  }
+
+  auto ResEvent = detail::event_impl::create_device_event(*this);
+  ResEvent->setWorkerQueue(weak_from_this());
+  ResEvent->setSubmissionTime();
+
+  // Add dependency to the command graph if there are host events.
+  if (!CGData.MEvents.empty() && getCommandGraph()) {
+    std::unique_ptr<detail::CG> CommandGroup;
+    // Submit a barrier node to the command graph for host event dependencies.
+    CommandGroup.reset(new detail::CGBarrier(
+        CGData.MEvents, ext::oneapi::experimental::event_mode_enum::none,
+        CGData, CGType::BarrierWaitlist, CodeLoc));
+
+    this->submit_command_to_graph(*getCommandGraph(), std::move(CommandGroup),
+                                  CGType::BarrierWaitlist);
+  }
+
+  // Spec says that call to ext_oneapi_submit_barrier(Events) should
+  // insert a barrier that waits for all events in 'Events' to complete.
+  // But, if all events in 'Events' can be skipped (NOP or host events),
+  // then the barrier itself can be skipped as well.
+  if (!DepEvents.empty() && UrDepEvents.empty()) {
+    return ResEvent;
+  }
+
+  ur_event_handle_t UREvent = nullptr;
+  ur_exp_enqueue_ext_properties_t Properties{
+      UR_STRUCTURE_TYPE_EXP_ENQUEUE_EXT_PROPERTIES, nullptr, 0};
+  ResEvent->setStateIncomplete();
+
+  getAdapter().call<UrApiKind::urEnqueueEventsWaitWithBarrierExt>(
+      getHandleRef(), &Properties, UrDepEvents.size(),
+      UrDepEvents.size() ? UrDepEvents.data() : nullptr, &UREvent);
+
+  ResEvent->setHandle(UREvent);
+  ResEvent->setEnqueued();
+  return ResEvent;
+}
+
+bool queue_impl::isNativeRecording() const {
+  bool IsGraphCaptureEnabled = false;
+  ur_result_t Result =
+      getAdapter().call_nocheck<UrApiKind::urQueueIsGraphCaptureEnabledExp>(
+          MQueue, &IsGraphCaptureEnabled);
+  return Result == UR_RESULT_SUCCESS && IsGraphCaptureEnabled;
+}
+
+ext::oneapi::experimental::queue_state
+queue_impl::ext_oneapi_get_state_impl() const {
+  // A graph may either be recording at the SYCL level or recording at a lower
+  // level API (e.g. UR)
+  if (hasCommandGraph() || isNativeRecording()) {
+    return ext::oneapi::experimental::queue_state::recording;
+  }
+  return ext::oneapi::experimental::queue_state::executing;
+}
+
+>>>>>>> 843e6da0fd33 ([SYCL][Graph] Introduce native recording mode feature (#21626))
 EventImplPtr queue_impl::submit_command_to_graph(
     ext::oneapi::experimental::detail::graph_impl &GraphImpl,
     std::unique_ptr<detail::CG> CommandGroup, sycl::detail::CGType CGType,
