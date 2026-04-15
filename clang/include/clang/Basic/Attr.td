@@ -2933,92 +2933,6 @@ def SYCLIntelMaxInterleaving : StmtAttr {
   let Documentation = [SYCLIntelMaxInterleavingAttrDocs];
 }
 
-def SYCLIntelDoublePump : Attr {
-  let Spellings = [CXX11<"intel", "doublepump">];
-  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
-  let Documentation = [SYCLIntelDoublePumpAttrDocs];
-}
-
-def SYCLIntelSinglePump : Attr {
-  let Spellings = [CXX11<"intel", "singlepump">];
-  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
-  let Documentation = [SYCLIntelSinglePumpAttrDocs];
-}
-
-def SYCLIntelMemory : Attr {
-  let Spellings = [CXX11<"intel", "fpga_memory">];
-  let Args = [EnumArgument<"Kind", "MemoryKind", /*is_string=*/false,
-                           ["MLAB", "BLOCK_RAM", ""],
-                           ["MLAB", "BlockRAM", "Default"], 1>];
-  let AdditionalMembers = [{
-    static void generateValidStrings(SmallString<256> &Str) {
-      auto Last = BlockRAM;
-      for (int I = 0; I <= Last; ++I) {
-        Str += ConvertMemoryKindToStr(static_cast<MemoryKind>(I));
-        if (I != Last) Str += " ";
-      }
-    }
-  }];
-  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
-  let Documentation = [SYCLIntelMemoryAttrDocs];
-}
-
-def SYCLIntelRegister : Attr {
-  let Spellings = [CXX11<"intel", "fpga_register">];
-  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
-  let Documentation = [SYCLIntelRegisterAttrDocs];
-}
-def : MutualExclusions<[SYCLIntelDoublePump, SYCLIntelSinglePump,
-                        SYCLIntelRegister]>;
-
-// One integral argument.
-def SYCLIntelBankWidth : InheritableAttr {
-  let Spellings = [CXX11<"intel", "bankwidth">];
-  let Args = [ExprArgument<"Value">];
-  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
-  let Documentation = [SYCLIntelBankWidthAttrDocs];
-}
-def : MutualExclusions<[SYCLIntelRegister, SYCLIntelBankWidth]>;
-
-def SYCLIntelNumBanks : InheritableAttr {
-  let Spellings = [CXX11<"intel", "numbanks">];
-  let Args = [ExprArgument<"Value">];
-  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
-  let Documentation = [SYCLIntelNumBanksAttrDocs];
-}
-
-def SYCLIntelPrivateCopies : InheritableAttr {
-  let Spellings = [CXX11<"intel", "private_copies">];
-  let Args = [ExprArgument<"Value">];
-  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
-  let Documentation = [SYCLIntelPrivateCopiesAttrDocs];
-}
-def : MutualExclusions<[SYCLIntelRegister, SYCLIntelPrivateCopies]>;
-
-// Two string arguments.
-def SYCLIntelMerge : Attr {
-  let Spellings = [CXX11<"intel", "merge">];
-  let Args = [StringArgument<"Name">, StringArgument<"Direction">];
-  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
-  let Documentation = [SYCLIntelMergeAttrDocs];
-}
-def : MutualExclusions<[SYCLIntelRegister, SYCLIntelMerge]>;
-
-def SYCLIntelMaxReplicates : InheritableAttr {
-  let Spellings = [CXX11<"intel", "max_replicates">];
-  let Args = [ExprArgument<"Value">];
-  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
-  let Documentation = [SYCLIntelMaxReplicatesAttrDocs];
-}
-def : MutualExclusions<[SYCLIntelRegister, SYCLIntelMaxReplicates]>;
-
-def SYCLIntelSimpleDualPort : Attr {
-  let Spellings = [CXX11<"intel", "simple_dual_port">];
-  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
-  let Documentation = [SYCLIntelSimpleDualPortAttrDocs];
-}
-def : MutualExclusions<[SYCLIntelRegister, SYCLIntelSimpleDualPort]>;
-
 def SYCLIntelPipe : TypeAttr {
   let Spellings = [GNU<"pipe">];
   let Args = [StringArgument<"Mode">];
@@ -3033,25 +2947,6 @@ def SYCLIntelPipeIO : InheritableAttr {
   let Subjects = SubjectList<[Var]>;
   let Documentation = [SYCLIntelPipeIOAttrDocs];
 }
-
-// Variadic integral arguments.
-def SYCLIntelBankBits : Attr {
-  let Spellings = [CXX11<"intel", "bank_bits">];
-  let Args = [VariadicExprArgument<"Args">];
-  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
-  let Documentation = [SYCLIntelBankBitsDocs];
-}
-def : MutualExclusions<[SYCLIntelRegister, SYCLIntelBankBits]>;
-def : MutualExclusions<[SYCLIntelRegister, SYCLIntelNumBanks]>;
-
-def SYCLIntelForcePow2Depth : InheritableAttr {
-  let Spellings = [CXX11<"intel", "force_pow2_depth">];
-  let Args = [ExprArgument<"Value">];
-  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
-  let Documentation = [SYCLIntelForcePow2DepthAttrDocs];
-}
-def : MutualExclusions<[SYCLIntelRegister, SYCLIntelForcePow2Depth]>;
-def : MutualExclusions<[SYCLIntelRegister, SYCLIntelMemory]>;
 
 def Naked : InheritableAttr {
   let Spellings = [GCC<"naked">, Declspec<"naked">];
