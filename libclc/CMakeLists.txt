@@ -35,7 +35,19 @@ set( LIBCLC_TARGETS_ALL
   spirv64-mesa3d-
 )
 
-set(LIBCLC_TARGET ${LLVM_RUNTIMES_TARGET})
+# Handle both LLVM_RUNTIMES_TARGET (per-target builds) and LIBCLC_TARGETS_TO_BUILD (multi-target builds)
+if(LLVM_RUNTIMES_TARGET)
+  set(LIBCLC_TARGET ${LLVM_RUNTIMES_TARGET})
+elseif(LIBCLC_TARGETS_TO_BUILD)
+  # For multi-target builds, use the first target from the list
+  list(GET LIBCLC_TARGETS_TO_BUILD 0 LIBCLC_TARGET)
+  # Handle empty first element (from leading semicolon)
+  if(NOT LIBCLC_TARGET AND LIBCLC_TARGETS_TO_BUILD)
+    list(GET LIBCLC_TARGETS_TO_BUILD 1 LIBCLC_TARGET)
+  endif()
+else()
+  message(FATAL_ERROR "Neither LLVM_RUNTIMES_TARGET nor LIBCLC_TARGETS_TO_BUILD is set\n")
+endif()
 
 if(NOT LIBCLC_TARGET)
   message(FATAL_ERROR "libclc target is empty\n")
