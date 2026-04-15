@@ -194,6 +194,15 @@ public:
                                   devices_range Devs,
                                   const RTDeviceBinaryImage *BinImage);
 
+  /// Removes device global initializers for a program.
+  void removeDeviceGlobalInitializer(ur_program_handle_t Program,
+                                     const RTDeviceBinaryImage *BinImage);
+
+  /// Returns the number of programs with device globals not yet initialized.
+  size_t getDeviceGlobalNotInitializedCnt() const {
+    return MDeviceGlobalNotInitializedCnt.load(std::memory_order_relaxed);
+  }
+
   /// Initializes device globals for a program on the associated queue.
   std::vector<ur_event_handle_t>
   initializeDeviceGlobals(ur_program_handle_t NativePrg, queue_impl &QueueImpl,
