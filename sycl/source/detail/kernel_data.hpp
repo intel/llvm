@@ -234,7 +234,7 @@ public:
     using namespace sycl::ext::intel::experimental;
 
     validateProperties(Kprop, HasGraph, dev);
-   
+
     // If we are here, the device supports the guarantee required but
     // there is a caveat in that if the guarantee required is a concurrent
     // guarantee, then we most likely also need to enable cooperative
