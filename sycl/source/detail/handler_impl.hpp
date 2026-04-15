@@ -199,6 +199,9 @@ public:
   std::vector<std::shared_ptr<detail::work_group_memory_impl>>
       MWorkGroupMemoryObjects;
 
+  /// True if the work group scratch size is specified for the kernel
+  bool MHasWorkGroupScratchSizeProperty = false;
+
   /// Potential event mode for the result event of the command.
   ext::oneapi::experimental::event_mode_enum MEventMode =
       ext::oneapi::experimental::event_mode_enum::none;
