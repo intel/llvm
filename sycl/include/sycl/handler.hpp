@@ -864,7 +864,7 @@ private:
       if constexpr (ext::oneapi::experimental::detail::
                         HasKernelPropertiesGetMethod<
                             decltype(Wrapper)>::value) {
-        setKernelLaunchproperties(detail::extractKernelProperties(
+        setKernelLaunchProperties(detail::extractKernelProperties(
             Wrapper.get(ext::oneapi::experimental::properties_tag{})));
       }
 
@@ -895,14 +895,14 @@ private:
       if constexpr (ext::oneapi::experimental::detail::
                         HasKernelPropertiesGetMethod<
                             const KernelType &>::value) {
-        setKernelLaunchproperties(
+        setKernelLaunchProperties(
             detail::extractKernelProperties<Info.IsESIMD>(
                 KernelFunc.get(ext::oneapi::experimental::properties_tag{})));
       }
 
 #ifndef __SYCL_DEVICE_ONLY__
       verifyUsedKernelBundleInternal(Info.Name);
-      setKernelLaunchproperties(
+      setKernelLaunchProperties(
           detail::extractKernelProperties<Info.IsESIMD>(Props));
       detail::checkValueRange<Dims>(UserRange);
       convertToRangeViewAndSetDescriptor(std::move(UserRange));
@@ -932,7 +932,7 @@ private:
     setDeviceKernelInfo(std::move(Kernel));
     detail::checkValueRange<Dims>(NumWorkItems);
     convertToRangeViewAndSetDescriptor(std::move(NumWorkItems));
-    setKernelLaunchproperties(detail::extractKernelProperties(Props));
+    setKernelLaunchProperties(detail::extractKernelProperties(Props));
     extractArgsAndReqs();
 #endif
   }
@@ -955,7 +955,7 @@ private:
     setDeviceKernelInfo(std::move(Kernel));
     detail::checkValueRange<Dims>(NDRange);
     convertToRangeViewAndSetDescriptor(std::move(NDRange));
-    setKernelLaunchproperties(detail::extractKernelProperties(Props));
+    setKernelLaunchProperties(detail::extractKernelProperties(Props));
     extractArgsAndReqs();
 #endif
   }
@@ -978,7 +978,7 @@ private:
 
     if constexpr (ext::oneapi::experimental::detail::
                       HasKernelPropertiesGetMethod<const KernelType &>::value) {
-      setKernelLaunchproperties(detail::extractKernelProperties<Info.IsESIMD>(
+      setKernelLaunchProperties(detail::extractKernelProperties<Info.IsESIMD>(
           KernelFunc.get(ext::oneapi::experimental::properties_tag{})));
     }
 
@@ -998,7 +998,7 @@ private:
     }
 
     StoreLambda<NameT, KernelType, Dims, ElementType>(std::move(KernelFunc));
-    setKernelLaunchproperties(
+    setKernelLaunchProperties(
         detail::extractKernelProperties<Info.IsESIMD>(Props));
 #endif
   }
@@ -2838,7 +2838,7 @@ private:
                                       bool IsDeviceImageScoped, size_t NumBytes,
                                       size_t Offset);
 
-  void setKernelLaunchproperties(
+  void setKernelLaunchProperties(
       const detail::KernelPropertyHolderStructTy &KernelLaunchProperties);
 
   // Various checks that are only meaningful for host compilation, because they
