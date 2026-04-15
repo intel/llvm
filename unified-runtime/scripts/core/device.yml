@@ -230,6 +230,8 @@ etors:
       desc: "[uint32_t] preferred vector width for int"
     - name: PREFERRED_VECTOR_WIDTH_LONG
       desc: "[uint32_t] preferred vector width for long"
+    - name: PREFERRED_VECTOR_WIDTH_LONG_LONG
+      desc: "[uint32_t] preferred vector width for long long"
     - name: PREFERRED_VECTOR_WIDTH_FLOAT
       desc: "[uint32_t] preferred vector width for float"
     - name: PREFERRED_VECTOR_WIDTH_DOUBLE
@@ -244,6 +246,8 @@ etors:
       desc: "[uint32_t] native vector width for int"
     - name: NATIVE_VECTOR_WIDTH_LONG
       desc: "[uint32_t] native vector width for long"
+    - name: NATIVE_VECTOR_WIDTH_LONG_LONG
+      desc: "[uint32_t] native vector width for long long"
     - name: NATIVE_VECTOR_WIDTH_FLOAT
       desc: "[uint32_t] native vector width for float"
     - name: NATIVE_VECTOR_WIDTH_DOUBLE

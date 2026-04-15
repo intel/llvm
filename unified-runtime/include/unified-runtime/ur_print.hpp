@@ -2827,6 +2827,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
   case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_LONG:
     os << "UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_LONG";
     break;
+  case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_LONG_LONG:
+    os << "UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_LONG_LONG";
+    break;
   case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_FLOAT:
     os << "UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_FLOAT";
     break;
@@ -2847,6 +2850,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
     break;
   case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG:
     os << "UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG";
+    break;
+  case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG_LONG:
+    os << "UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG_LONG";
     break;
   case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_FLOAT:
     os << "UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_FLOAT";
@@ -3522,7 +3528,8 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
 
     os << ")";
   } break;
-  case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_LONG: {
+  case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_LONG:
+  case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_LONG_LONG: {
     const uint32_t *tptr = (const uint32_t *)ptr;
     if (sizeof(uint32_t) > size) {
       os << "invalid size (is: " << size << ", expected: >=" << sizeof(uint32_t)
@@ -3613,7 +3620,8 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
 
     os << ")";
   } break;
-  case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG: {
+  case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG:
+  case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG_LONG: {
     const uint32_t *tptr = (const uint32_t *)ptr;
     if (sizeof(uint32_t) > size) {
       os << "invalid size (is: " << size << ", expected: >=" << sizeof(uint32_t)
