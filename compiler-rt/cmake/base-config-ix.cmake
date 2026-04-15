@@ -229,7 +229,8 @@ macro(test_targets)
                        "-Xclang -mcode-object-version=none")
 
     elseif("${COMPILER_RT_DEFAULT_TARGET_ARCH}" MATCHES "spirv64")
-      test_target_arch(spirv64 "" "-fsycl" "-fsycl-device-only")
+      test_target_arch(spirv64 "--target=spirv64-unknwon-unknown" "-flto"
+                       "-Xclang -fdeclare-spirv-builtins")
     elseif("${COMPILER_RT_DEFAULT_TARGET_ARCH}" MATCHES "hexagon")
       test_target_arch(hexagon "" "")
     elseif("${COMPILER_RT_DEFAULT_TARGET_ARCH}" MATCHES "loongarch64")

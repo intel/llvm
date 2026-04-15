@@ -426,7 +426,7 @@ macro(construct_compiler_rt_default_triple)
       set(CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS} -flto -c")
     elseif("${COMPILER_RT_DEFAULT_TARGET_ARCH}" MATCHES "spirv64")
       set(COMPILER_RT_GPU_BUILD ON)
-      set(CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS} -fsycl -fsycl-device-only -c -emit-llvm")
+      set(CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS} -flto -c")
     endif()
   endif()
 

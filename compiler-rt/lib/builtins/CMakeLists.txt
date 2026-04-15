@@ -976,8 +976,9 @@ else ()
 
   if("${COMPILER_RT_DEFAULT_TARGET_ARCH}" MATCHES "spirv64")
     append_list_if(COMPILER_RT_HAS_FFREESTANDING_FLAG -ffreestanding BUILTIN_CFLAGS)
-    append_list_if(COMPILER_RT_HAS_SYCL_FLAG -fsycl BUILTIN_CFLAGS)
-    append_list_if(COMPILER_RT_HAS_SYCL_DEVICE_ONLY_FLAG -fsycl-device-only BUILTIN_CFLAGS)
+    append_list_if(COMPILER_RT_HAS_FLTO_FLAG -flto BUILTIN_CFLAGS)
+    append_list_if(COMPILER_RT_HAS_DECLARE_SPIRV_BUILTINS_FLAG
+                   "SHELL:-Xclang -fdeclare-spirv-builtins" BUILTIN_CFLAGS)
   endif()
 
   set(BUILTIN_DEFS "")
@@ -1035,7 +1036,7 @@ else ()
                               COMPILER_RT_HAS_${arch}_BFLOAT16)
       # Build BF16 files only when "__bf16" is available.
 
-      if(COMPILER_RT_HAS_${arch}_BFLOAT16 AND NOT COMPILER_RT_HAS_SYCL_FLAG)
+      if(COMPILER_RT_HAS_${arch}_BFLOAT16 AND NOT COMPILER_RT_HAS_DECLARE_SPIRV_BUILTINS_FLAG)
         list(APPEND ${arch}_SOURCES ${BF16_SOURCES})
       endif()
 
@@ -1055,28 +1056,17 @@ else ()
         list(APPEND BUILTIN_CFLAGS_${arch} -fforce-enable-int128)
       endif()
 
-      if("${LLVM_BUILTINS_TARGET}" MATCHES "spirv64")
-        add_compiler_rt_runtime(clang_rt.builtins
-                                STATIC
-                                ARCHS ${arch}
-                                DEPS ${deps_${arch}}
-                                SOURCES ${${arch}_SOURCES}
-                                DEFS ${BUILTIN_DEFS}
-                                CFLAGS ${BUILTIN_CFLAGS_${arch}}
-                                CXX_STANDARD 17
-                                PARENT_TARGET builtins)
-      else()
-        add_compiler_rt_runtime(clang_rt.builtins
-                                STATIC
-                                ARCHS ${arch}
-                                DEPS ${deps_${arch}}
-                                SOURCES ${${arch}_SOURCES}
-                                DEFS ${BUILTIN_DEFS}
-                                CFLAGS ${BUILTIN_CFLAGS_${arch}}
-			        C_STANDARD 11
-                                CXX_STANDARD 17
-                                PARENT_TARGET builtins)
-      endif()
+
+      add_compiler_rt_runtime(clang_rt.builtins
+                              STATIC
+                              ARCHS ${arch}
+                              DEPS ${deps_${arch}}
+                              SOURCES ${${arch}_SOURCES}
+                              DEFS ${BUILTIN_DEFS}
+                              CFLAGS ${BUILTIN_CFLAGS_${arch}}
+                              C_STANDARD 11
+                              CXX_STANDARD 17
+                              PARENT_TARGET builtins)
 
       # Write out the sources that were used to compile the builtins so that tests can be run in
       # an independent compiler-rt build (see: compiler-rt/test/builtins/CMakeLists.txt)
