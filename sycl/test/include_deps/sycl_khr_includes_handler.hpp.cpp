@@ -116,8 +116,8 @@
 // CHECK-NEXT: item.hpp
 // CHECK-NEXT: kernel_handler.hpp
 // CHECK-NEXT: nd_item.hpp
-// CHECK-NEXT: nd_range.hpp
 // CHECK-NEXT: detail/sub_group_core.hpp
+// CHECK-NEXT: nd_range.hpp
 // CHECK-NEXT: ext/intel/experimental/fp_control_kernel_properties.hpp
 // CHECK-NEXT: ext/oneapi/properties/property.hpp
 // CHECK-NEXT: ext/oneapi/properties/property_value.hpp

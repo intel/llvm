@@ -54,9 +54,9 @@
 // CHECK-NEXT: detail/fwd/accessor.hpp
 // CHECK-NEXT: detail/memcpy.hpp
 // CHECK-NEXT: nd_item.hpp
+// CHECK-NEXT: detail/sub_group_core.hpp
 // CHECK-NEXT: item.hpp
 // CHECK-NEXT: nd_range.hpp
-// CHECK-NEXT: detail/sub_group_core.hpp
 // CHECK-NEXT: ext/oneapi/functional.hpp
 // CHECK-NEXT: detail/spirv.hpp
 // CHECK-NEXT: __spirv/spirv_ops.hpp

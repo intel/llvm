@@ -26,6 +26,7 @@
 // CHECK-NEXT: detail/builder.hpp
 // CHECK-NEXT: detail/spirv_memory_semantics.hpp
 // CHECK-NEXT: memory_enums.hpp
+// CHECK-NEXT: detail/sub_group_core.hpp
 // CHECK-NEXT: detail/type_traits.hpp
 // CHECK-NEXT: detail/type_traits/bool_traits.hpp
 // CHECK-NEXT: detail/type_traits/vec_marray_traits.hpp
@@ -35,5 +36,4 @@
 // CHECK-NEXT: detail/nd_loop.hpp
 // CHECK-NEXT: pointers.hpp
 // CHECK-NEXT: nd_range.hpp
-// CHECK-NEXT: detail/sub_group_core.hpp
 // CHECK-EMPTY:

@@ -129,8 +129,8 @@
 // CHECK-NEXT: item.hpp
 // CHECK-NEXT: kernel_handler.hpp
 // CHECK-NEXT: nd_item.hpp
-// CHECK-NEXT: nd_range.hpp
 // CHECK-NEXT: detail/sub_group_core.hpp
+// CHECK-NEXT: nd_range.hpp
 // CHECK-NEXT: detail/id_queries_fit_in_int.hpp
 // CHECK-NEXT: detail/nd_range_view.hpp
 // CHECK-NEXT: detail/optional.hpp
