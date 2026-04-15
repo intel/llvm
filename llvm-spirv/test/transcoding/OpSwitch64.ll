@@ -24,6 +24,10 @@
 ; RUN: spirv-val %t.spv
 ; RUN: llvm-spirv -r %t.spv -o %t.bc
 ; RUN: llvm-dis < %t.bc | FileCheck %s --check-prefix=CHECK-LLVM
+; RUN: %if spirv-backend %{ llc -O0 -mtriple=spirv64-unknown-unknown -filetype=obj %s -o %t.llc.spv %}
+; RUN: %if spirv-backend %{ llvm-spirv -r %t.llc.spv -o %t.llc.rev.bc %}
+; RUN: %if spirv-backend %{ llvm-dis %t.llc.rev.bc -o %t.llc.rev.ll %}
+; RUN: %if spirv-backend %{ FileCheck %s --check-prefix=CHECK-LLC < %t.llc.rev.ll %}
 
 ; CHECK-SPIRV: 12 Switch {{[0-9]+}} {{[0-9]+}} 0 0 {{[0-9]+}} 1 0 {{[0-9]+}} 1 5 {{[0-9]+}}
 
@@ -37,6 +41,13 @@ target triple = "spir64-unknown-unknown"
 ;CHECK-LLVM: i64 0, label %sw.bb
 ;CHECK-LLVM: i64 1, label %sw.bb1
 ;CHECK-LLVM: i64 21474836481, label %sw.bb3
+
+; CHECK-LLC-LABEL: define spir_kernel void @test_64(
+; CHECK-LLC: entry:
+; CHECK-LLC: switch i64 %{{.*}}, label %sw.epilog [
+; CHECK-LLC-NEXT: i64 0, label %sw.bb
+; CHECK-LLC-NEXT: i64 1, label %sw.bb1
+; CHECK-LLC-NEXT: i64 21474836481, label %sw.bb3
 
 ; Function Attrs: nounwind
 define spir_kernel void @test_64(ptr addrspace(1) %res) #0 !kernel_arg_addr_space !1 !kernel_arg_access_qual !2  !kernel_arg_type !3 !kernel_arg_base_type !4 !kernel_arg_type_qual !5 {
@@ -85,6 +96,22 @@ sw.bb3:                                           ; preds = %entry
 sw.epilog:                                        ; preds = %entry, %sw.bb3, %sw.bb1, %sw.bb
   ret void
 }
+
+; In the llc roundtrip, blocks are reordered: sw.bb3, sw.bb1, sw.bb
+; CHECK-LLC-LABEL: sw.bb3:
+; CHECK-LLC: store i32 3, ptr addrspace(1) %{{.*}}, align 4
+; CHECK-LLC: br label %sw.epilog
+
+; CHECK-LLC-LABEL: sw.bb1:
+; CHECK-LLC: store i32 2, ptr addrspace(1) %{{.*}}, align 4
+; CHECK-LLC: br label %sw.epilog
+
+; CHECK-LLC-LABEL: sw.bb:
+; CHECK-LLC: store i32 1, ptr addrspace(1) %{{.*}}, align 4
+; CHECK-LLC: br label %sw.epilog
+
+; CHECK-LLC-LABEL: sw.epilog:
+; CHECK-LLC: ret void
 
 ; Function Attrs: nounwind
 declare spir_func i64 @_Z13get_global_idj(i32) #1

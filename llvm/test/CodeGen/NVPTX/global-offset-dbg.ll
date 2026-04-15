@@ -6,14 +6,11 @@ target triple = "nvptx64-nvidia-cuda"
 
 ; This test checks that debug information on functions and callsites are preserved
 
-declare ptr @llvm.nvvm.implicit.offset()
+declare i64 @_Z27__spirv_BuiltInGlobalOffseti(i32)
 
 define i64 @_ZTS14other_function() !dbg !10 {
-  %1 = tail call ptr @llvm.nvvm.implicit.offset()
-  %2 = getelementptr inbounds i32, ptr %1, i64 2
-  %3 = load i32, ptr %2, align 4
-  %4 = zext i32 %3 to i64
-  ret i64 %4
+  %1 = tail call i64 @_Z27__spirv_BuiltInGlobalOffseti(i32 2)
+  ret i64 %1
 }
 
 define ptx_kernel void @_ZTS14example_kernel() !dbg !13 {
@@ -44,13 +41,12 @@ entry:
 !14 = !DILocation(line: 1, column: 2, scope: !13)
 ; CHECK-LABEL: define i64 @_ZTS14other_function(
 ; CHECK-SAME: ) !dbg [[DBG7:![0-9]+]] {
-; CHECK-NEXT:    [[TMP1:%.*]] = zext i32 0 to i64
-; CHECK-NEXT:    ret i64 [[TMP1]]
+; CHECK-NEXT:    ret i64 0
 ;
 ;
 ; CHECK-LABEL: define i64 @_ZTS14other_function_with_offset(
 ; CHECK-SAME: ptr [[TMP0:%.*]]) !dbg [[DBG10:![0-9]+]] {
-; CHECK-NEXT:    [[TMP2:%.*]] = getelementptr inbounds i32, ptr [[TMP0]], i64 2
+; CHECK-NEXT:    [[TMP2:%.*]] = getelementptr inbounds i32, ptr [[TMP0]], i32 2
 ; CHECK-NEXT:    [[TMP3:%.*]] = load i32, ptr [[TMP2]], align 4
 ; CHECK-NEXT:    [[TMP4:%.*]] = zext i32 [[TMP3]] to i64
 ; CHECK-NEXT:    ret i64 [[TMP4]]

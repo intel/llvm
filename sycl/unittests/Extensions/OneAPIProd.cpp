@@ -21,7 +21,7 @@ static ur_result_t redefinedQueueFlush(void *) {
   return UR_RESULT_SUCCESS;
 }
 
-TEST(OneAPIProdTest, PiQueueFlush) {
+TEST(OneAPIProdTest, UrQueueFlush) {
   sycl::unittest::UrMock<backend::ext_oneapi_level_zero> Mock;
   sycl::platform Plt = sycl::platform();
   mock::getCallbacks().set_replace_callback("urQueueFlush",

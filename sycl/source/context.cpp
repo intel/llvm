@@ -90,7 +90,7 @@ context::get_info() const {
   return impl->template get_info<Param>();
 }
 
-#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
+#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, UrCode)              \
   template __SYCL_EXPORT ReturnT context::get_info<info::DescType::Desc>()     \
       const;
 

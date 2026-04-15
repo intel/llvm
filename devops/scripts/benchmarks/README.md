@@ -16,9 +16,6 @@ Scripts for running benchmarks on SYCL and Unified Runtime.
 * Built compiler to be used for benchmarks.  
 Instructions on where to find releases or how to build from sources can be found [here](https://github.com/intel/llvm).
 
-* [Unified Runtime](https://github.com/intel/llvm/tree/sycl/unified-runtime) installed.  
-Path to the UR install directory will be required in case of using UR for benchmarking.
-
 * `Python3` is required to install and run benchmarks.
 
 ## Building & Running
@@ -28,12 +25,11 @@ $ git clone https://github.com/intel/llvm.git
 $ cd llvm/devops/scripts/benchmarks/
 $ pip install -r requirements.txt
 
-$ ./main.py ~/benchmarks_workdir/ --sycl ~/llvm/build/ --ur ~/ur_install --adapter adapter_name
+$ ./main.py ~/benchmarks_workdir/ --sycl ~/llvm/build/ --adapter adapter_name
 ```
 
-This last command will **download and build** everything in `~/benchmarks_workdir/`
-using the built compiler located in `~/llvm/build/` and
-installed Unified Runtime in directory `~/ur_install`,
+This last command will **download and build** everything in `~/benchmarks_workdir/` using
+the built compiler located in `~/llvm/build/` (which should also contain Unified Runtime libraries),
 and then **run** the benchmarks for `adapter_name` adapter.
 
 The scripts will try to reuse the files stored in `~/benchmarks_workdir/`. 
@@ -41,16 +37,6 @@ If any dependant projects binaries are already built, they will not be rebuilt
 again if their tags match tags specified by benchmarks source code.
 
 >NOTE: By default `level_zero` adapter is used.
-
->NOTE: Pay attention to the `--ur` parameter. It points directly to the directory where UR is installed.  
-To install Unified Runtime in the predefined location, use the `-DCMAKE_INSTALL_PREFIX`.
-
-UR build and install example:
-```
-$ cmake -DCMAKE_BUILD_TYPE=Release -S~/llvm/unified-runtime -B~/ur_build -DCMAKE_INSTALL_PREFIX=~/ur_install -DUR_BUILD_ADAPTER_L0=ON -DUR_BUILD_ADAPTER_L0_V2=ON
-$ cmake --build ~/ur_build -j $(nproc)
-$ cmake --install ~/ur_build
-```
 
 ## Testing
 
@@ -61,7 +47,6 @@ of internal data structures. In order to use it one should
 - have `COMPUTE_BENCHMARKS_BUILD_PATH` env variable pointing to build directory of compute-benchmarks
 - set `LLVM_BENCHMARKS_UNIT_TESTING=1`
 - set `GPU_TYPE` variable to the type of GPU to be tested (i.e. `PVC` or `BMG`)
-- *(optional)* have `LLVM_BENCH_UR_INSTALL_DIR` env variable pointing to directory with UR installation
 
 Then tests can be executed by
 ```

@@ -84,7 +84,7 @@ getUrEventsBlocking(std::vector<EventImplPtr> &Events, bool HasEventMode,
     // Interoperability events are special cases and they are not enqueued, as
     // they don't have an associated queue and command.
     if (!Event->isInterop() && !Event->isEnqueued()) {
-      if (!Event->getCommand() || !Event->getCommand()->producesPiEvent())
+      if (!Event->getCommand() || !Event->getCommand()->producesUrEvent())
         continue;
       std::vector<Command *> AuxCmds;
       Scheduler::getInstance().enqueueCommandForCG(*Event, AuxCmds, BLOCKING);

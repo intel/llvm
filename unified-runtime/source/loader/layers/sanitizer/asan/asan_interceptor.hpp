@@ -100,7 +100,6 @@ struct KernelInfo {
 
   // lock this mutex if following fields are accessed
   ur_shared_mutex Mutex;
-  std::unordered_map<uint32_t, std::shared_ptr<MemBuffer>> BufferArgs;
   std::unordered_map<uint32_t, std::pair<const void *, StackTrace>> PointerArgs;
 
   // Need preserve the order of local arguments

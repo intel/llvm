@@ -29,6 +29,8 @@ CODEGENOPT(Name, Bits, Default, Compatibility)
 
 CODEGENOPT(DisableIntegratedAS, 1, 0, Benign) ///< -no-integrated-as
 CODEGENOPT(Crel, 1, 0, Benign) ///< -Wa,--crel
+ENUM_CODEGENOPT(RelocSectionSym, RelocSectionSymType, 2,
+                RelocSectionSymType::All, Benign) ///< -Wa,--reloc-section-sym=
 CODEGENOPT(ImplicitMapSyms, 1, 0, Benign) ///< -Wa,-mmapsyms=implicit
 CODEGENOPT(AsmVerbose        , 1, 0, Benign) ///< -dA, -fverbose-asm.
 CODEGENOPT(PreserveAsmComments, 1, 1, Benign) ///< -dA, -fno-preserve-as-comments.
@@ -502,6 +504,9 @@ CODEGENOPT(DisableSYCLEarlyOpts, 1, 0, Benign)
 /// which do not contain "user" code.
 CODEGENOPT(OptimizeSYCLFramework, 1, 0, Benign)
 
+/// Whether to remangle SPIR-V built-ins in libspirv for SYCL.
+CODEGENOPT(SYCLRemangleLibspirv, 1, 0, Benign)
+
 /// Whether to use alloca address space for `sret` arguments.
 /// TODO: This option can be removed once a fix goes in that can
 /// work with the community changes for using the alloca address space.
@@ -530,6 +535,9 @@ CODEGENOPT(AllResourcesBound, 1, 0, Benign)
 /// Windows.
 ENUM_CODEGENOPT(WinX64EHUnwindV2, WinX64EHUnwindV2Mode,
                 2, WinX64EHUnwindV2Mode::Disabled, Benign)
+
+/// Adds attributes that prevent outlining (`-mno-outline`)
+CODEGENOPT(DisableOutlining, 1, 0, Benign)
 
 /// FIXME: Make DebugOptions its own top-level .def file.
 #include "DebugOptions.def"

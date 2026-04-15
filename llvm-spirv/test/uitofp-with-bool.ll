@@ -6,6 +6,7 @@
 ; RUN: FileCheck %s --input-file %t.spt -check-prefix=SPV
 ; RUN: FileCheck %s --input-file %t.ll  -check-prefix=LLVM
 ; RUN: spirv-val %t.spv
+; FIXME: FILECHECK_FAIL during llvm-spirv -r in llc compilation flow
 
 ; The IR was generated from the following source:
 ; void __kernel K(global float* A, int B) {

@@ -390,6 +390,8 @@ public:
 
     std::vector<fs::path> loadPaths;
     auto adapterNamePath = fs::path{mockAdapterName};
+    loadPaths.emplace_back(adapterNamePath);
+
     auto loaderLibPathOpt = getLoaderLibPath();
     if (loaderLibPathOpt.has_value()) {
       const auto &loaderLibPath = loaderLibPathOpt.value();

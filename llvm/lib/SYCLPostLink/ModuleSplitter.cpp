@@ -492,9 +492,9 @@ StringRef convertSplitModeToString(IRSplitMode Mode) {
     return "auto";
   case IRSplitMode::SPLIT_NONE:
     return "none";
-  default:
-    llvm_unreachable("unknown value");
   }
+
+  llvm_unreachable("uncovered input value");
 }
 
 bool isESIMDFunction(const Function &F) {

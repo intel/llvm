@@ -84,9 +84,10 @@
 // DEVICE-32: clang{{.*}} "-triple" "spir-unknown-unknown" "-aux-triple" "i386-unknown-linux-gnu"
 
 /// Verify that the sycl header directory is before /usr/include
-// RUN: %clangxx -### -fsycl-device-only %s 2>&1 | FileCheck %s --check-prefix=HEADER_ORDER
-// RUN: %clangxx -### -fsycl %s 2>&1 | FileCheck %s --check-prefix=HEADER_ORDER
-// HEADER_ORDER-NOT: clang{{.*}} "/usr/include"{{.*}} "-internal-isystem" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}
+// RUN: %clangxx -### -fsycl-device-only %s 2>&1 | FileCheck %s --check-prefix=HEADER-ORDER
+// RUN: %clangxx -### -fsycl %s 2>&1 | FileCheck %s --check-prefix=HEADER-ORDER
+// HEADER-ORDER-NOT: clang{{.*}} "/usr/include"
+// HEADER-ORDER: "-internal-isystem" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include"
 
 /// Verify -fsycl-device-only phases
 // RUN: %clang -### -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl-device-only %s 2>&1 | FileCheck %s --check-prefix=DEFAULT-PHASES

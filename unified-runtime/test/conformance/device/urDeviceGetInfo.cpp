@@ -1113,7 +1113,7 @@ TEST_P(urDeviceGetInfoTest, SuccessReferenceCount) {
 }
 
 TEST_P(urDeviceGetInfoTest, SuccessILVersion) {
-  UUR_KNOWN_FAILURE_ON(uur::CUDA{}, uur::NativeCPU{});
+  UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
 
   size_t property_size = 0;
   const ur_device_info_t property_name = UR_DEVICE_INFO_IL_VERSION;

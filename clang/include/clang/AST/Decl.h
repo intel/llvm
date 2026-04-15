@@ -3775,6 +3775,9 @@ protected:
   void printAnonymousTagDecl(llvm::raw_ostream &OS,
                              const PrintingPolicy &Policy) const;
 
+  void printAnonymousTagDeclLocation(llvm::raw_ostream &OS,
+                                     const PrintingPolicy &Policy) const;
+
 public:
   friend class ASTDeclReader;
   friend class ASTDeclWriter;

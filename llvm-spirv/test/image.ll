@@ -7,6 +7,10 @@
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-SPV-IR
 ; RUN: llvm-spirv %t.rev.bc -o %t.rev.spv
 ; RUN: spirv-val %t.rev.spv
+; RUN: %if spirv-backend %{ llc -O0 -mtriple=spirv64-unknown-unknown -filetype=obj %s -o %t.llc.spv %}
+; RUN: %if spirv-backend %{ llvm-spirv -r %t.llc.spv -o %t.llc.rev.bc %}
+; RUN: %if spirv-backend %{ llvm-dis %t.llc.rev.bc -o %t.llc.rev.ll %}
+; RUN: %if spirv-backend %{ FileCheck %s --check-prefix=CHECK-LLC < %t.llc.rev.ll %}
 
 ; CHECK-SPIRV: 2 TypeVoid [[VOID_TY:[0-9]+]]
 ; CHECK-SPIRV-DAG: 10 TypeImage {{[0-9]*}} [[VOID_TY]] 1 0 0 0 0 0 0
@@ -33,6 +37,7 @@ entry:
   %call4 = tail call spir_func <4 x float> @_Z11read_imagef11ocl_image2d11ocl_samplerDv2_i(ptr addrspace(1) %image1, i32 20, <2 x i32> %vecinit3) #3
   tail call spir_func void @_Z12write_imagef11ocl_image2dDv2_iDv4_f(ptr addrspace(1) %image2, <2 x i32> %vecinit3, <4 x float> %call4) #4
 ; CHECK-LLVM: call spir_func void @_Z12write_imagef14ocl_image2d_woDv2_iDv4_f(target("spirv.Image", void, 1, 0, 0, 0, 0, 0, 1) %image2, <2 x i32> %vecinit3, <4 x float> %call4) #0
+; CHECK-LLC: call spir_func void @_Z12write_imagef14ocl_image2d_woDv2_iDv4_f(target("spirv.Image", void, 1, 0, 0, 0, 0, 0, 1) %image2, <2 x i32> {{%.*}}, <4 x float> {{%.*}}) #0
 ; CHECK-SPV-IR: call spir_func void @_Z18__spirv_ImageWritePU3AS133__spirv_Image__void_1_0_0_0_0_0_1Dv2_iDv4_f(target("spirv.Image", void, 1, 0, 0, 0, 0, 0, 1) %image2, <2 x i32> %vecinit3, <4 x float> %call4) #0
   ret void
 }
@@ -45,6 +50,7 @@ declare spir_func <4 x float> @_Z11read_imagef11ocl_image2d11ocl_samplerDv2_i(pt
 
 declare spir_func void @_Z12write_imagef11ocl_image2dDv2_iDv4_f(ptr addrspace(1), <2 x i32>, <4 x float>) #2
 ; CHECK-LLVM: declare spir_func void @_Z12write_imagef14ocl_image2d_woDv2_iDv4_f(target("spirv.Image", void, 1, 0, 0, 0, 0, 0, 1), <2 x i32>, <4 x float>)
+; CHECK-LLC: declare spir_func void @_Z12write_imagef14ocl_image2d_woDv2_iDv4_f(target("spirv.Image", void, 1, 0, 0, 0, 0, 0, 1), <2 x i32>, <4 x float>)
 ; CHECK-SPV-IR: declare spir_func void @_Z18__spirv_ImageWritePU3AS133__spirv_Image__void_1_0_0_0_0_0_1Dv2_iDv4_f(target("spirv.Image", void, 1, 0, 0, 0, 0, 0, 1), <2 x i32>, <4 x float>)
 
 attributes #0 = { nounwind "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-realign-stack" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }

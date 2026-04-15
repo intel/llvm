@@ -1292,8 +1292,6 @@ public:
 
   void setAspectsEnumDecl(const EnumDecl *ED);
 
-  void generateIntelFPGAAnnotation(const Decl *D,
-                                     llvm::SmallString<256> &AnnotStr);
   void addGlobalIntelFPGAAnnotation(const VarDecl *VD, llvm::GlobalValue *GV);
 
   /// Given a builtin id for a function like "__builtin_fabsf", return a
@@ -1933,6 +1931,9 @@ public:
   std::optional<llvm::Attribute::AttrKind>
   StackProtectorAttribute(const Decl *D) const;
 
+  std::string getPFPFieldName(const FieldDecl *FD);
+  llvm::GlobalValue *getPFPDeactivationSymbol(const FieldDecl *FD);
+
 private:
   bool shouldDropDLLAttribute(const Decl *D, const llvm::GlobalValue *GV) const;
 
@@ -2141,6 +2142,10 @@ private:
 
   llvm::Metadata *CreateMetadataIdentifierImpl(QualType T, MetadataTypeMap &Map,
                                                StringRef Suffix);
+
+  /// Emit deactivation symbols for any PFP fields whose offset is taken with
+  /// offsetof.
+  void emitPFPFieldsWithEvaluatedOffset();
 };
 
 }  // end namespace CodeGen

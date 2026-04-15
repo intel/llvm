@@ -41,6 +41,17 @@
 // RUN:   "-device wcl" /clang:--sysroot=%S/Inputs/SYCL -- %s 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=BFLOAT16-NATIVE
 
+// Test that a cri AOT compilation uses the native library.
+// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend \
+// RUN:   "-device cri" %s --sysroot=%S/Inputs/SYCL -### 2>&1 \
+// RUN:   | FileCheck %s -check-prefix=BFLOAT16-NATIVE
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_cri %s \
+// RUN:   --sysroot=%S/Inputs/SYCL -### 2>&1 \
+// RUN:   | FileCheck %s -check-prefix=BFLOAT16-NATIVE
+// RUN: %clang_cl -### -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend \
+// RUN:   "-device cri" /clang:--sysroot=%S/Inputs/SYCL -- %s 2>&1 \
+// RUN:   | FileCheck %s -check-prefix=BFLOAT16-NATIVE
+
 // Test that unless all targets support bfloat16, AOT compilation uses the
 // fallback library.
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend \

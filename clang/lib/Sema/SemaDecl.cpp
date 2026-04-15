@@ -2957,8 +2957,6 @@ static bool mergeDeclAttribute(Sema &S, NamedDecl *D,
     NewAttr = S.Wasm().mergeImportModuleAttr(D, *IMA);
   else if (const auto *INA = dyn_cast<WebAssemblyImportNameAttr>(Attr))
     NewAttr = S.Wasm().mergeImportNameAttr(D, *INA);
-  else if (const auto *A = dyn_cast<SYCLIntelLoopFuseAttr>(Attr))
-    NewAttr = S.SYCL().mergeSYCLIntelLoopFuseAttr(D, *A);
   else if (const auto *TCBA = dyn_cast<EnforceTCBAttr>(Attr))
     NewAttr = S.mergeEnforceTCBAttr(D, *TCBA);
   else if (const auto *TCBLA = dyn_cast<EnforceTCBLeafAttr>(Attr))
@@ -2975,14 +2973,6 @@ static bool mergeDeclAttribute(Sema &S, NamedDecl *D,
     NewAttr = S.SYCL().mergeSYCLIntelSchedulerTargetFmaxMhzAttr(D, *A);
   else if (const auto *A = dyn_cast<SYCLIntelNoGlobalWorkOffsetAttr>(Attr))
     NewAttr = S.SYCL().mergeSYCLIntelNoGlobalWorkOffsetAttr(D, *A);
-  else if (const auto *A = dyn_cast<SYCLIntelMaxReplicatesAttr>(Attr))
-    NewAttr = S.SYCL().mergeSYCLIntelMaxReplicatesAttr(D, *A);
-  else if (const auto *A = dyn_cast<SYCLIntelMaxConcurrencyAttr>(Attr))
-    NewAttr = S.SYCL().mergeSYCLIntelMaxConcurrencyAttr(D, *A);
-  else if (const auto *A = dyn_cast<SYCLIntelForcePow2DepthAttr>(Attr))
-    NewAttr = S.SYCL().mergeSYCLIntelForcePow2DepthAttr(D, *A);
-  else if (const auto *A = dyn_cast<SYCLIntelInitiationIntervalAttr>(Attr))
-    NewAttr = S.SYCL().mergeSYCLIntelInitiationIntervalAttr(D, *A);
   else if (const auto *A = dyn_cast<SYCLWorkGroupSizeHintAttr>(Attr))
     NewAttr = S.SYCL().mergeSYCLWorkGroupSizeHintAttr(D, *A);
   else if (const auto *A =
@@ -2995,10 +2985,6 @@ static bool mergeDeclAttribute(Sema &S, NamedDecl *D,
     NewAttr = S.SYCL().mergeSYCLIntelMaxGlobalWorkDimAttr(D, *A);
   else if (const auto *BTFA = dyn_cast<BTFDeclTagAttr>(Attr))
     NewAttr = S.mergeBTFDeclTagAttr(D, *BTFA);
-  else if (const auto *A = dyn_cast<SYCLIntelBankWidthAttr>(Attr))
-    NewAttr = S.SYCL().mergeSYCLIntelBankWidthAttr(D, *A);
-  else if (const auto *A = dyn_cast<SYCLIntelNumBanksAttr>(Attr))
-    NewAttr = S.SYCL().mergeSYCLIntelNumBanksAttr(D, *A);
   else if (const auto *A = dyn_cast<SYCLDeviceHasAttr>(Attr))
     NewAttr = S.SYCL().mergeSYCLDeviceHasAttr(D, *A);
   else if (const auto *A = dyn_cast<SYCLUsesAspectsAttr>(Attr))
@@ -6801,7 +6787,7 @@ static QualType TryToFixInvalidVariablyModifiedType(QualType T,
           ? ConstantArrayType::getNumAddressingBits(Context, ElemTy, Res)
           : Res.getActiveBits();
   if (ActiveSizeBits > ConstantArrayType::getMaxSizeBits(Context)) {
-    Oversized = Res;
+    Oversized = std::move(Res);
     return QualType();
   }
 
@@ -7124,45 +7110,43 @@ static void SetNestedNameSpecifier(Sema &S, DeclaratorDecl *DD, Declarator &D) {
   DD->setQualifierInfo(SS.getWithLocInContext(S.Context));
 }
 
-void Sema::deduceOpenCLAddressSpace(ValueDecl *Decl) {
-  if (Decl->getType().hasAddressSpace())
+void Sema::deduceOpenCLAddressSpace(VarDecl *Var) {
+  QualType Type = Var->getType();
+  if (Type.hasAddressSpace())
     return;
-  if (Decl->getType()->isDependentType())
+  if (Type->isDependentType())
     return;
-  if (VarDecl *Var = dyn_cast<VarDecl>(Decl)) {
-    QualType Type = Var->getType();
-    if (Type->isSamplerT() || Type->isVoidType())
-      return;
-    LangAS ImplAS = LangAS::opencl_private;
-    // OpenCL C v3.0 s6.7.8 - For OpenCL C 2.0 or with the
-    // __opencl_c_program_scope_global_variables feature, the address space
-    // for a variable at program scope or a static or extern variable inside
-    // a function are inferred to be __global.
-    if (getOpenCLOptions().areProgramScopeVariablesSupported(getLangOpts()) &&
-        Var->hasGlobalStorage())
-      ImplAS = LangAS::opencl_global;
-    // If the original type from a decayed type is an array type and that array
-    // type has no address space yet, deduce it now.
-    if (auto DT = dyn_cast<DecayedType>(Type)) {
-      auto OrigTy = DT->getOriginalType();
-      if (!OrigTy.hasAddressSpace() && OrigTy->isArrayType()) {
-        // Add the address space to the original array type and then propagate
-        // that to the element type through `getAsArrayType`.
-        OrigTy = Context.getAddrSpaceQualType(OrigTy, ImplAS);
-        OrigTy = QualType(Context.getAsArrayType(OrigTy), 0);
-        // Re-generate the decayed type.
-        Type = Context.getDecayedType(OrigTy);
-      }
+  if (Type->isSamplerT() || Type->isVoidType())
+    return;
+  LangAS ImplAS = LangAS::opencl_private;
+  // OpenCL C v3.0 s6.7.8 - For OpenCL C 2.0 or with the
+  // __opencl_c_program_scope_global_variables feature, the address space
+  // for a variable at program scope or a static or extern variable inside
+  // a function are inferred to be __global.
+  if (getOpenCLOptions().areProgramScopeVariablesSupported(getLangOpts()) &&
+      Var->hasGlobalStorage())
+    ImplAS = LangAS::opencl_global;
+  // If the original type from a decayed type is an array type and that array
+  // type has no address space yet, deduce it now.
+  if (auto DT = dyn_cast<DecayedType>(Type)) {
+    auto OrigTy = DT->getOriginalType();
+    if (!OrigTy.hasAddressSpace() && OrigTy->isArrayType()) {
+      // Add the address space to the original array type and then propagate
+      // that to the element type through `getAsArrayType`.
+      OrigTy = Context.getAddrSpaceQualType(OrigTy, ImplAS);
+      OrigTy = QualType(Context.getAsArrayType(OrigTy), 0);
+      // Re-generate the decayed type.
+      Type = Context.getDecayedType(OrigTy);
     }
-    Type = Context.getAddrSpaceQualType(Type, ImplAS);
-    // Apply any qualifiers (including address space) from the array type to
-    // the element type. This implements C99 6.7.3p8: "If the specification of
-    // an array type includes any type qualifiers, the element type is so
-    // qualified, not the array type."
-    if (Type->isArrayType())
-      Type = QualType(Context.getAsArrayType(Type), 0);
-    Decl->setType(Type);
   }
+  Type = Context.getAddrSpaceQualType(Type, ImplAS);
+  // Apply any qualifiers (including address space) from the array type to
+  // the element type. This implements C99 6.7.3p8: "If the specification of
+  // an array type includes any type qualifiers, the element type is so
+  // qualified, not the array type."
+  if (Type->isArrayType())
+    Type = QualType(Context.getAsArrayType(Type), 0);
+  Var->setType(Type);
 }
 
 static void checkWeakAttr(Sema &S, NamedDecl &ND) {
@@ -14026,6 +14010,12 @@ void Sema::AddInitializerToDecl(Decl *RealDecl, Expr *Init, bool DirectInit) {
 
   this->CheckAttributesOnDeducedType(RealDecl);
 
+  // we don't initialize groupshared variables so warn and return
+  if (VDecl->hasAttr<HLSLGroupSharedAddressSpaceAttr>()) {
+    Diag(VDecl->getLocation(), diag::warn_hlsl_groupshared_init);
+    return;
+  }
+
   // dllimport cannot be used on variable definitions.
   if (VDecl->hasAttr<DLLImportAttr>() && !VDecl->isStaticDataMember()) {
     Diag(VDecl->getLocation(), diag::err_attribute_dllimport_data_definition);
@@ -14273,6 +14263,10 @@ void Sema::AddInitializerToDecl(Decl *RealDecl, Expr *Init, bool DirectInit) {
   //   struct T { S a, b; } t = { Temp(), Temp() }
   //
   // we should destroy the first Temp before constructing the second.
+
+  // Set context flag for OverflowBehaviorType initialization analysis
+  llvm::SaveAndRestore OBTAssignmentContext(InOverflowBehaviorAssignmentContext,
+                                            true);
   ExprResult Result =
       ActOnFinishFullExpr(Init, VDecl->getLocation(),
                           /*DiscardedValue*/ false, VDecl->isConstexpr());
@@ -16496,6 +16490,32 @@ Decl *Sema::ActOnStartOfFunctionDef(Scope *FnBodyScope, Decl *D,
 
   maybeAddDeclWithEffects(FD);
 
+  if (FD && !FD->isInvalidDecl() && FD->hasAttr<SYCLKernelEntryPointAttr>() &&
+      FnBodyScope) {
+    // An implicit call expression is synthesized for functions declared with
+    // the sycl_kernel_entry_point attribute. The call may resolve to a
+    // function template, a member function template, or a call operator
+    // of a variable template depending on the results of unqualified lookup
+    // for 'sycl_kernel_launch' from the beginning of the function body.
+    // Performing that lookup requires the stack of parsing scopes active
+    // when the definition is parsed and is thus done here; the result is
+    // cached in FunctionScopeInfo and used to synthesize the (possibly
+    // unresolved) call expression after the function body has been parsed.
+    const auto *SKEPAttr = FD->getAttr<SYCLKernelEntryPointAttr>();
+    if (!SKEPAttr->isInvalidAttr()) {
+      ExprResult LaunchIdExpr =
+          SYCL().BuildSYCLKernelLaunchIdExpr(FD, SKEPAttr->getKernelName());
+      // Do not mark 'FD' as invalid if construction of `LaunchIDExpr` produces
+      // an invalid result. Name lookup failure for 'sycl_kernel_launch' is
+      // treated as an error in the definition of 'FD'; treating it as an error
+      // of the declaration would affect overload resolution which would
+      // potentially result in additional errors. If construction of
+      // 'LaunchIDExpr' failed, then 'SYCLKernelLaunchIdExpr' will be assigned
+      // a null pointer value below; that is expected.
+      getCurFunction()->SYCLKernelLaunchIdExpr = LaunchIdExpr.get();
+    }
+  }
+
   return D;
 }
 
@@ -16697,12 +16717,37 @@ Decl *Sema::ActOnFinishFunctionBody(Decl *dcl, Stmt *Body, bool IsInstantiation,
       SKEPAttr->setInvalidAttr();
     }
 
-    if (Body && !FD->isTemplated() && !SKEPAttr->isInvalidAttr()) {
-      StmtResult SR =
-          SYCL().BuildSYCLKernelCallStmt(FD, cast<CompoundStmt>(Body));
-      if (SR.isInvalid())
-        return nullptr;
-      Body = SR.get();
+    // Build an unresolved SYCL kernel call statement for a function template,
+    // validate that a SYCL kernel call statement was instantiated for an
+    // (implicit or explicit) instantiation of a function template, or otherwise
+    // build a (resolved) SYCL kernel call statement for a non-templated
+    // function or an explicit specialization.
+    if (Body && !SKEPAttr->isInvalidAttr()) {
+      StmtResult SR;
+      if (FD->isTemplateInstantiation()) {
+        // The function body should already be a SYCLKernelCallStmt in this
+        // case, but might not be if there were previous errors.
+        SR = Body;
+      } else if (!getCurFunction()->SYCLKernelLaunchIdExpr) {
+        // If name lookup for a template named sycl_kernel_launch failed
+        // earlier, don't try to build a SYCL kernel call statement as that
+        // would cause additional errors to be issued; just proceed with the
+        // original function body.
+        SR = Body;
+      } else if (FD->isTemplated()) {
+        SR = SYCL().BuildUnresolvedSYCLKernelCallStmt(
+            cast<CompoundStmt>(Body), getCurFunction()->SYCLKernelLaunchIdExpr);
+      } else {
+        SR = SYCL().BuildSYCLKernelCallStmt(
+            FD, cast<CompoundStmt>(Body),
+            getCurFunction()->SYCLKernelLaunchIdExpr);
+      }
+      // If construction of the replacement body fails, just continue with the
+      // original function body. An early error return here is not valid; the
+      // current declaration context and function scopes must be popped before
+      // returning.
+      if (SR.isUsable())
+        Body = SR.get();
     }
   }
 
@@ -21189,7 +21234,8 @@ Sema::DeviceDiagnosticReason Sema::getEmissionReason(const FunctionDecl *FD) {
   // FIXME: This should really be a bitwise-or of the language modes.
   if (FD->hasAttr<SYCLSimdAttr>())
     return Sema::DeviceDiagnosticReason::Esimd;
-  if (FD->hasAttr<SYCLDeviceAttr>() || FD->hasAttr<SYCLKernelAttr>())
+  if (FD->hasAttr<SYCLDeviceAttr>() || FD->hasAttr<SYCLExternalAttr>() ||
+      FD->hasAttr<SYCLKernelAttr>() || FD->hasAttr<SYCLKernelEntryPointAttr>())
     return getLangOpts().SYCLCUDACompat
                ? Sema::DeviceDiagnosticReason::SyclCudaCompat
                : Sema::DeviceDiagnosticReason::Sycl;
@@ -21214,9 +21260,11 @@ Sema::FunctionEmissionStatus Sema::getEmissionStatus(const FunctionDecl *FD,
   if (FD->isDependentContext())
     return FunctionEmissionStatus::TemplateDiscarded;
 
-  if (LangOpts.SYCLIsDevice &&
-      (FD->hasAttr<SYCLDeviceAttr>() || FD->hasAttr<SYCLKernelAttr>()) &&
-      !FD->hasAttr<ArtificialAttr>())
+  if (LangOpts.SYCLIsDevice && (FD->hasAttr<SYCLDeviceAttr>() ||
+                                FD->hasAttr<SYCLExternalAttr>() ||
+                                FD->hasAttr<SYCLKernelAttr>() ||
+                                FD->hasAttr<SYCLKernelEntryPointAttr>()) &&
+                               !FD->hasAttr<ArtificialAttr>())
     return FunctionEmissionStatus::Emitted;
 
   // Check whether this function is an externally visible definition.

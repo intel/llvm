@@ -67,6 +67,7 @@ set(UR_SYCL_LIBRARY_DIR "" CACHE PATH
 set(UR_CONFORMANCE_TARGET_TRIPLES "" CACHE STRING
     "List of sycl targets to build CTS device binaries for")
 set(UR_CONFORMANCE_AMD_ARCH "" CACHE STRING "AMD device target ID to build CTS binaries for")
+set(UR_CONFORMANCE_NVIDIA_ARCH "" CACHE STRING "NVIDIA shader model to build CTS binaries for")
 set(UR_CONFORMANCE_SELECTOR "" CACHE STRING "If nonempty, the device selector for conformance tests")
 option(UR_USE_DEBUG_POSTFIX "Enable debug postfix 'd' for libraries" OFF)
 set(UR_ADAPTER_LEVEL_ZERO_SOURCE_DIR "" CACHE PATH

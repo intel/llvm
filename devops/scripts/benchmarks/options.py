@@ -51,7 +51,6 @@ class Options:
     TIMESTAMP_FORMAT: str = "%Y%m%d_%H%M%S"
     workdir: str = None
     sycl: str = None
-    ur: str = None
     ur_adapter: str = None
     umf: str = None
     offline: bool = False
@@ -66,6 +65,7 @@ class Options:
     output_html: str = "local"
     output_directory: str = None
     dry_run: bool = False
+    list_benchmarks: bool = False
     stddev_threshold: float = 0.02
     iterations_stddev: int = 5
     extra_ld_libraries: list[str] = field(default_factory=list)
@@ -78,7 +78,6 @@ class Options:
     build_jobs: int = len(os.sched_getaffinity(0))  # Cores available for the process.
     exit_on_failure: bool = False
     flamegraph: bool = False
-    unitrace: bool = False
 
     # Options intended for CI:
 

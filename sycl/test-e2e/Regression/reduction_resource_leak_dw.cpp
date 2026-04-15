@@ -5,7 +5,7 @@
 
 // REQUIRES: level_zero
 //
-// UNSUPPORTED: windows && level_zero_v2_adapter
+// UNSUPPORTED: windows
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20852
 //
 // RUN: %{build} -o %t.out
@@ -31,13 +31,13 @@ int main() {
   buffer<int, 1> OutBuf(1);
   buffer<int, 1> InBuf(49 * 5);
   Q.submit([&](handler &CGH) {
-    auto In = InBuf.get_access<access::mode::read>(CGH);
-    auto Redu = reduction(OutBuf, CGH, 0, BOp,
-                          {property::reduction::initialize_to_identity{}});
-    CGH.parallel_for<class DiscardSum>(
-        NDRange, Redu, [=](nd_item<1> NDIt, auto &Sum) {
-          Sum.combine(In[NDIt.get_global_linear_id()]);
-        });
-  });
+     auto In = InBuf.get_access<access::mode::read>(CGH);
+     auto Redu = reduction(OutBuf, CGH, 0, BOp,
+                           {property::reduction::initialize_to_identity{}});
+     CGH.parallel_for<class DiscardSum>(
+         NDRange, Redu, [=](nd_item<1> NDIt, auto &Sum) {
+           Sum.combine(In[NDIt.get_global_linear_id()]);
+         });
+   }).wait_and_throw();
   return 0;
 }

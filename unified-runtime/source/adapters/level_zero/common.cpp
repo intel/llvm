@@ -273,6 +273,13 @@ template <>
 ze_structure_type_t getZeStructureType<ze_device_memory_ext_properties_t>() {
   return ZE_STRUCTURE_TYPE_DEVICE_MEMORY_EXT_PROPERTIES;
 }
+#ifdef ZE_DEVICE_USABLEMEM_SIZE_PROPERTIES_EXT_NAME
+template <>
+ze_structure_type_t
+getZeStructureType<ze_device_usablemem_size_ext_properties_t>() {
+  return ZE_STRUCTURE_TYPE_DEVICE_USABLEMEM_SIZE_EXT_PROPERTIES;
+}
+#endif
 template <>
 ze_structure_type_t getZeStructureType<ze_device_ip_version_ext_t>() {
   return ZE_STRUCTURE_TYPE_DEVICE_IP_VERSION_EXT;

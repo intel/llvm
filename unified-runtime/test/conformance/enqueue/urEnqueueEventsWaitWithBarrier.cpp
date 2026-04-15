@@ -182,11 +182,13 @@ TEST_P(urEnqueueEventsWaitWithBarrierOrderingTest,
     ASSERT_SUCCESS(urEnqueueMemBufferWrite(
         queue, buffer, true, 0, sizeof(uint32_t), &ONE, 0, nullptr, &event));
     ASSERT_SUCCESS(urEnqueueEventsWaitWithBarrier(queue, 1, &event, nullptr));
-    ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, add_kernel, 1, &offset, &count,
-                                         nullptr, nullptr, 0, nullptr, &event));
+    ASSERT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
+        queue, add_kernel, 1, &offset, &count, nullptr, addHelper.GetNumArgs(),
+        addHelper.GetArgs(), nullptr, 0, nullptr, &event));
     ASSERT_SUCCESS(urEnqueueEventsWaitWithBarrier(queue, 1, &event, nullptr));
-    ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, mul_kernel, 1, &offset, &count,
-                                         nullptr, nullptr, 0, nullptr, &event));
+    ASSERT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
+        queue, mul_kernel, 1, &offset, &count, nullptr, mulHelper.GetNumArgs(),
+        mulHelper.GetArgs(), nullptr, 0, nullptr, &event));
     ASSERT_SUCCESS(urEnqueueEventsWaitWithBarrier(queue, 1, &event, nullptr));
     addHelper.ValidateBuffer(buffer, sizeof(uint32_t), 4004);
   }
@@ -211,11 +213,13 @@ TEST_P(urEnqueueEventsWaitWithBarrierOrderingTest,
     ASSERT_SUCCESS(urEnqueueMemBufferWrite(
         queue, buffer, true, 0, sizeof(uint32_t), &ONE, 0, nullptr, nullptr));
     ASSERT_SUCCESS(urEnqueueEventsWaitWithBarrier(queue, 0, nullptr, &event));
-    ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, add_kernel, 1, &offset, &count,
-                                         nullptr, nullptr, 1, &event, nullptr));
+    ASSERT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
+        queue, add_kernel, 1, &offset, &count, nullptr, addHelper.GetNumArgs(),
+        addHelper.GetArgs(), nullptr, 1, &event, nullptr));
     ASSERT_SUCCESS(urEnqueueEventsWaitWithBarrier(queue, 0, nullptr, &event));
-    ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, mul_kernel, 1, &offset, &count,
-                                         nullptr, nullptr, 1, &event, nullptr));
+    ASSERT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
+        queue, mul_kernel, 1, &offset, &count, nullptr, mulHelper.GetNumArgs(),
+        mulHelper.GetArgs(), nullptr, 1, &event, nullptr));
     ASSERT_SUCCESS(urEnqueueEventsWaitWithBarrier(queue, 0, nullptr, &event));
     addHelper.ValidateBuffer(buffer, sizeof(uint32_t), 4004);
   }
@@ -240,14 +244,14 @@ TEST_P(urEnqueueEventsWaitWithBarrierOrderingTest, SuccessEventDependencies) {
         queue, buffer, true, 0, sizeof(uint32_t), &ONE, 0, nullptr, &event[0]));
     ASSERT_SUCCESS(
         urEnqueueEventsWaitWithBarrier(queue, 1, &event[0], &event[1]));
-    ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, add_kernel, 1, &offset, &count,
-                                         nullptr, nullptr, 1, &event[1],
-                                         &event[2]));
+    ASSERT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
+        queue, add_kernel, 1, &offset, &count, nullptr, addHelper.GetNumArgs(),
+        addHelper.GetArgs(), nullptr, 1, &event[1], &event[2]));
     ASSERT_SUCCESS(
         urEnqueueEventsWaitWithBarrier(queue, 1, &event[2], &event[3]));
-    ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, mul_kernel, 1, &offset, &count,
-                                         nullptr, nullptr, 1, &event[3],
-                                         &event[4]));
+    ASSERT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
+        queue, mul_kernel, 1, &offset, &count, nullptr, mulHelper.GetNumArgs(),
+        mulHelper.GetArgs(), nullptr, 1, &event[3], &event[4]));
     ASSERT_SUCCESS(
         urEnqueueEventsWaitWithBarrier(queue, 1, &event[4], &event[5]));
     addHelper.ValidateBuffer(buffer, sizeof(uint32_t), 4004);
@@ -272,13 +276,13 @@ TEST_P(urEnqueueEventsWaitWithBarrierOrderingTest,
     ASSERT_SUCCESS(urEnqueueMemBufferWrite(
         queue, buffer, true, 0, sizeof(uint32_t), &ONE, 0, nullptr, nullptr));
     ASSERT_SUCCESS(urEnqueueEventsWaitWithBarrier(queue, 0, nullptr, nullptr));
-    ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, add_kernel, 1, &offset, &count,
-                                         nullptr, nullptr, 0, nullptr,
-                                         nullptr));
+    ASSERT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
+        queue, add_kernel, 1, &offset, &count, nullptr, addHelper.GetNumArgs(),
+        addHelper.GetArgs(), nullptr, 0, nullptr, nullptr));
     ASSERT_SUCCESS(urEnqueueEventsWaitWithBarrier(queue, 0, nullptr, nullptr));
-    ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, mul_kernel, 1, &offset, &count,
-                                         nullptr, nullptr, 0, nullptr,
-                                         nullptr));
+    ASSERT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
+        queue, mul_kernel, 1, &offset, &count, nullptr, mulHelper.GetNumArgs(),
+        mulHelper.GetArgs(), nullptr, 0, nullptr, nullptr));
     ASSERT_SUCCESS(urEnqueueEventsWaitWithBarrier(queue, 0, nullptr, nullptr));
     addHelper.ValidateBuffer(buffer, sizeof(uint32_t), 4004);
   }

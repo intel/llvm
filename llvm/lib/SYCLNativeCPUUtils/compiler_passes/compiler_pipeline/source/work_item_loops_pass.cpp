@@ -324,7 +324,7 @@ struct ScheduleGenerator {
         Constant::getNullValue(compiler::utils::getSizeType(module));
 
     if (auto *const loopLimitConst = dyn_cast<Constant>(totalSize)) {
-      if (loopLimitConst->isZeroValue()) {
+      if (loopLimitConst->isNullValue()) {
         // No iterations at all!
         return {block, accumulator};
       }
@@ -463,7 +463,7 @@ struct ScheduleGenerator {
       if (auto *const loopLimitConst = dyn_cast<Constant>(totalSize)) {
         // If we know for a fact that the main struct has at least one item,
         // we can just use that. Otherwise, we need to use the tail struct.
-        if (loopLimitConst->isZeroValue()) {
+        if (loopLimitConst->isNullValue()) {
           mainUniformBlock = nullptr;
           if (barrierTail) {
             tailUniformBlock = block;
@@ -609,7 +609,7 @@ struct ScheduleGenerator {
     // the local size is less than the vector width).
     if (emitTail) {
       if (auto *const loopLimitConst = dyn_cast<Constant>(mainLoopLimit)) {
-        if (loopLimitConst->isZeroValue()) {
+        if (loopLimitConst->isNullValue()) {
           // No vector iterations at all!
           mainPreheaderBB = nullptr;
           mainExitBB = block;
@@ -740,7 +740,7 @@ struct ScheduleGenerator {
     if (emitTail && peel) {
       // We might need to bypass the tail loop.
       if (auto *const peelConst = dyn_cast<Constant>(peel)) {
-        if (peelConst->isZeroValue()) {
+        if (peelConst->isNullValue()) {
           // No tail iterations at all!
           tailPreheaderBB = nullptr;
           tailExitBB = mainExitBB;
@@ -932,7 +932,7 @@ struct ScheduleGenerator {
                 if (emitTail) {
                   if (auto *const loopLimitConst =
                           dyn_cast<Constant>(mainLoopLimit)) {
-                    if (loopLimitConst->isZeroValue()) {
+                    if (loopLimitConst->isNullValue()) {
                       // No main iterations at all!
                       mainPreheaderBB = nullptr;
                       mainExitBB = block;
@@ -1065,7 +1065,7 @@ struct ScheduleGenerator {
                 if (emitTail && peel) {
                   // We might need to bypass the tail loop.
                   if (auto *const peelConst = dyn_cast<Constant>(peel)) {
-                    if (peelConst->isZeroValue()) {
+                    if (peelConst->isNullValue()) {
                       // No tail iterations at all!
                       tailPreheaderBB = nullptr;
                       tailExitBB = mainExitBB;

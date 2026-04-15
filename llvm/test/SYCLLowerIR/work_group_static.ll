@@ -1,4 +1,3 @@
-; RUN: opt -S -sycllowerwglocalmemory -bugpoint-enable-legacy-pm < %s | FileCheck %s
 ; RUN: opt -S -passes=sycllowerwglocalmemory < %s | FileCheck %s
 
 ; CHECK-NOT: __sycl_dynamicLocalMemoryPlaceholder

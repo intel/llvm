@@ -7,6 +7,7 @@
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM-WORKAROUND-NEGATIVE
+; FIXME: FILECHECK_FAIL during llvm-spirv -r in llc compilation flow
 
 ; ModuleID = 'test.cl'
 source_filename = "test.cl"

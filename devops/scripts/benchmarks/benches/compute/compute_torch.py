@@ -3,7 +3,6 @@
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from ..base import TracingType
 from .compute_benchmark import ComputeBenchmark
 from .compute_enums import RUNTIMES, PROFILERS, runtime_to_tag_name
 
@@ -63,8 +62,8 @@ class TorchBenchmark(ComputeBenchmark):
     def _supported_runtimes(self) -> list[RUNTIMES]:
         return super()._supported_runtimes() + [RUNTIMES.SYCL_PREVIEW]
 
-    def _bin_args(self, run_trace: TracingType = TracingType.NONE) -> list[str]:
-        iters = self._get_iters(run_trace)
+    def _bin_args(self, flamegraph_enabled: bool = False) -> list[str]:
+        iters = self._get_iters(flamegraph_enabled)
         if self._fixed_args is not None:
             params = dict(self._fixed_args | self._torch_params)
         else:
@@ -232,7 +231,7 @@ class TorchGraphMultiQueue(TorchBenchmark):
         )
 
 
-class TorchSubmitEventRecordWait(TorchBenchmark):
+class TorchEventRecordWait(TorchBenchmark):
     def __init__(
         self,
         suite,
@@ -247,5 +246,45 @@ class TorchSubmitEventRecordWait(TorchBenchmark):
             "KernelSubmitEventRecordWait",
             variant_name,
             profiler_type,
+            **kwargs,
+        )
+
+
+class TorchEventRecordQuery(TorchBenchmark):
+    def __init__(
+        self,
+        suite,
+        runtime: RUNTIMES,
+        variant_name: str,
+        profiler_type: PROFILERS,
+        **kwargs,
+    ):
+        super().__init__(
+            suite,
+            runtime,
+            "KernelSubmitEventRecordQuery",
+            variant_name,
+            profiler_type,
+            **kwargs,
+        )
+
+
+class TorchGraphVllmMock(TorchBenchmark):
+    def __init__(
+        self,
+        suite,
+        runtime: RUNTIMES,
+        variant_name: str,
+        profiler_type: PROFILERS,
+        fixed_args: dict | None = None,
+        **kwargs,
+    ):
+        super().__init__(
+            suite,
+            runtime,
+            "KernelSubmitGraphVllmMock",
+            variant_name,
+            profiler_type,
+            fixed_args=fixed_args,
             **kwargs,
         )

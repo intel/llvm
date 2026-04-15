@@ -45,12 +45,4 @@ foreach( t ${LIBCLC_TARGET_TO_TEST} )
       )
 endforeach( t )
 
-if(LIBCLC_GENERATE_REMANGLED_VARIANTS)
-  # Now that check-libclc is defined make sure that all remangler targets depend
-  # on it.
-  foreach(remangler-test ${libclc-remangler-tests})
-    set_property(GLOBAL APPEND PROPERTY LLVM_LIBCLC_ADDITIONAL_TEST_TARGETS ${remangler-test})
-    set_property(GLOBAL APPEND PROPERTY LLVM_ALL_ADDITIONAL_TEST_TARGETS ${remangler-test})
-  endforeach()
-endif()
 umbrella_lit_testsuite_end(check-libclc)

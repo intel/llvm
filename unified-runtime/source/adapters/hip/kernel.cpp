@@ -163,31 +163,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCount(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgValue(
-    ur_kernel_handle_t hKernel, uint32_t argIndex, size_t argSize,
-    const ur_kernel_arg_value_properties_t *, const void *pArgValue) {
-  UR_ASSERT(argSize, UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE);
-
-  try {
-    hKernel->setKernelArg(argIndex, argSize, pArgValue);
-  } catch (ur_result_t Err) {
-    return Err;
-  }
-  return UR_RESULT_SUCCESS;
-}
-
-UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgLocal(
-    ur_kernel_handle_t hKernel, uint32_t argIndex, size_t argSize,
-    const ur_kernel_arg_local_properties_t * /*pProperties*/) {
-  UR_ASSERT(argSize, UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE);
-  try {
-    hKernel->setKernelLocalArg(argIndex, argSize);
-  } catch (ur_result_t Err) {
-    return Err;
-  }
-  return UR_RESULT_SUCCESS;
-}
-
 UR_APIEXPORT ur_result_t UR_APICALL urKernelGetInfo(ur_kernel_handle_t hKernel,
                                                     ur_kernel_info_t propName,
                                                     size_t propSize,
@@ -272,69 +247,6 @@ urKernelGetSubGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
   return UR_RESULT_ERROR_INVALID_ENUMERATION;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgPointer(
-    ur_kernel_handle_t hKernel, uint32_t argIndex,
-    const ur_kernel_arg_pointer_properties_t *, const void *pArgValue) {
-  try {
-    // setKernelArg is expecting a pointer to our argument
-    hKernel->setKernelArg(argIndex, sizeof(pArgValue), &pArgValue);
-  } catch (ur_result_t Err) {
-    return Err;
-  }
-  return UR_RESULT_SUCCESS;
-}
-
-UR_APIEXPORT ur_result_t UR_APICALL
-urKernelSetArgMemObj(ur_kernel_handle_t hKernel, uint32_t argIndex,
-                     const ur_kernel_arg_mem_obj_properties_t *Properties,
-                     ur_mem_handle_t hArgValue) {
-  try {
-    // Below sets kernel arg when zero-sized buffers are handled.
-    // In such case the corresponding memory is null.
-    if (hArgValue == nullptr) {
-      hKernel->setKernelArg(argIndex, 0, nullptr);
-      return UR_RESULT_SUCCESS;
-    }
-
-    auto Device = hKernel->getProgram()->getDevice();
-    hKernel->Args.addMemObjArg(argIndex, hArgValue,
-                               Properties ? Properties->memoryAccess : 0);
-    if (hArgValue->isImage()) {
-      auto array = std::get<SurfaceMem>(hArgValue->Mem).getArray(Device);
-      hipArray_Format Format{};
-      size_t NumChannels;
-      UR_CHECK_ERROR(getArrayDesc(array, Format, NumChannels));
-      if (Format != HIP_AD_FORMAT_UNSIGNED_INT32 &&
-          Format != HIP_AD_FORMAT_SIGNED_INT32 &&
-          Format != HIP_AD_FORMAT_HALF && Format != HIP_AD_FORMAT_FLOAT) {
-        return UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT;
-      }
-      hipSurfaceObject_t hipSurf =
-          std::get<SurfaceMem>(hArgValue->Mem).getSurface(Device);
-      hKernel->setKernelArg(argIndex, sizeof(hipSurf), (void *)&hipSurf);
-    } else {
-      void *HIPPtr = std::get<BufferMem>(hArgValue->Mem).getVoid(Device);
-      hKernel->setKernelArg(argIndex, sizeof(void *), (void *)&HIPPtr);
-    }
-  } catch (ur_result_t Err) {
-    return Err;
-  }
-
-  return UR_RESULT_SUCCESS;
-}
-
-UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgSampler(
-    ur_kernel_handle_t hKernel, uint32_t argIndex,
-    const ur_kernel_arg_sampler_properties_t *, ur_sampler_handle_t hArgValue) {
-  try {
-    uint32_t SamplerProps = hArgValue->Props;
-    hKernel->setKernelArg(argIndex, sizeof(uint32_t), (void *)&SamplerProps);
-  } catch (ur_result_t Err) {
-    return Err;
-  }
-  return UR_RESULT_SUCCESS;
-}
-
 // A NOP for the HIP backend
 UR_APIEXPORT ur_result_t UR_APICALL
 urKernelSetExecInfo(ur_kernel_handle_t, ur_kernel_exec_info_t, size_t,
@@ -372,4 +284,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
   std::copy(ThreadsPerBlock, ThreadsPerBlock + workDim,
             pSuggestedLocalWorkSize);
   return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSizeWithArgs(
+    ur_kernel_handle_t hKernel, ur_queue_handle_t hQueue, uint32_t workDim,
+    const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
+    [[maybe_unused]] uint32_t numArgs,
+    [[maybe_unused]] const ur_exp_kernel_arg_properties_t *pArgs,
+    size_t *pSuggestedLocalWorkSize) {
+  return urKernelGetSuggestedLocalWorkSize(hKernel, hQueue, workDim,
+                                           pGlobalWorkOffset, pGlobalWorkSize,
+                                           pSuggestedLocalWorkSize);
 }

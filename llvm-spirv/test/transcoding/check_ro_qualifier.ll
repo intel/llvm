@@ -6,6 +6,10 @@
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-SPV-LLVM
 ; RUN: llvm-spirv %t.rev.bc -o %t.back.spv
 ; RUN: llvm-spirv %t.back.spv --to-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
+; RUN: %if spirv-backend %{ llc -O0 -mtriple=spirv64-unknown-unknown -filetype=obj %s -o %t.llc.spv %}
+; RUN: %if spirv-backend %{ llvm-spirv -r %t.llc.spv -o %t.llc.rev.bc %}
+; RUN: %if spirv-backend %{ llvm-dis %t.llc.rev.bc -o %t.llc.rev.ll %}
+; RUN: %if spirv-backend %{ FileCheck %s --check-prefix=CHECK-LLVM < %t.llc.rev.ll %}
 
 ; CHECK-LLVM: define spir_kernel void @sample_kernel(target("spirv.Image", void, 1, 0, 1, 0, 0, 0, 0)
 ; CHECK-LLVM-SAME: !kernel_arg_access_qual [[AQ:![0-9]+]]

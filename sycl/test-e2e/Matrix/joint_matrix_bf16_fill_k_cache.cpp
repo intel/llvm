@@ -7,6 +7,8 @@
 //===----------------------------------------------------------------------===//
 // REQUIRES: target-spir
 // REQUIRES: aspect-ext_intel_matrix
+// XFAIL: run-mode
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/21612
 
 // RUN: %{build} -o %t_vnni.out -DVNNI %fp-model-precise
 // RUN: %{run} %t_vnni.out

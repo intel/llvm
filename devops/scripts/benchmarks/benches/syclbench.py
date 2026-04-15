@@ -7,7 +7,7 @@ import os
 import csv
 from pathlib import Path
 
-from .base import Benchmark, Suite, TracingType
+from .base import Benchmark, Suite
 from utils.logger import log
 from utils.result import Result
 from options import options
@@ -138,7 +138,7 @@ class SyclBenchmark(Benchmark):
     def run(
         self,
         env_vars,
-        run_trace: TracingType = TracingType.NONE,
+        flamegraph_enabled: bool = False,
         force_trace: bool = False,
     ) -> list[Result]:
         self.outputfile = os.path.join(options.workdir, self.test + ".csv")

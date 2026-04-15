@@ -88,7 +88,11 @@ int main() {
   // Create new context
   CUcontext curr_ctx, cu_ctx;
   CUDA_CHECK(cuCtxGetCurrent(&curr_ctx));
+#if CUDA_VERSION >= 13000
+  CUDA_CHECK(cuCtxCreate(&cu_ctx, nullptr, CU_CTX_MAP_HOST, cu_dev));
+#else
   CUDA_CHECK(cuCtxCreate(&cu_ctx, CU_CTX_MAP_HOST, cu_dev));
+#endif
   CUDA_CHECK(cuCtxSetCurrent(curr_ctx));
 
   auto sycl_ctx = sycl::make_context<sycl::backend::ext_oneapi_cuda>(cu_ctx);
