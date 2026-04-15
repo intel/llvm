@@ -17,6 +17,7 @@
 #include <limits>
 #include <stdexcept>
 #include <type_traits>
+#include <cstring>
 
 #ifdef __SYCL_DEVICE_ONLY__
 // FP8 builtins
@@ -132,6 +133,15 @@ static inline uint8_t RoundClip(float x, uint8_t max, rounding R,
 }
 
 static inline int BitWidth(uint32_t x) noexcept {
+  int width = 0;
+  while (x != 0u) {
+    ++width;
+    x >>= 1;
+  }
+  return width;
+}
+
+static inline int BitWidth(uint64_t x) noexcept {
   int width = 0;
   while (x != 0u) {
     ++width;
@@ -303,6 +313,290 @@ static inline ToT ConvertFromFP8_CPU(uint8_t b,
   return ConvertFloatToTarget<ToT>(sign_bit != 0u, significand, E, Mbits, R);
 }
 
+template <typename T> struct E8M0SourceTraits;
+
+template <> struct E8M0SourceTraits<float> {
+  using UInt = uint32_t;
+  static constexpr size_t ExpBits = 8;
+  static constexpr size_t FracBits = 23;
+  static constexpr int Bias = 127;
+};
+
+template <> struct E8M0SourceTraits<sycl::half> {
+  using UInt = uint16_t;
+  static constexpr size_t ExpBits = 5;
+  static constexpr size_t FracBits = 10;
+  static constexpr int Bias = 15;
+};
+
+template <> struct E8M0SourceTraits<sycl::ext::oneapi::bfloat16> {
+  using UInt = uint16_t;
+  static constexpr size_t ExpBits = 8;
+  static constexpr size_t FracBits = 7;
+  static constexpr int Bias = 127;
+};
+
+template <> struct E8M0SourceTraits<double> {
+  using UInt = uint64_t;
+  static constexpr size_t ExpBits = 11;
+  static constexpr size_t FracBits = 52;
+  static constexpr int Bias = 1023;
+};
+
+template <> struct E8M0SourceTraits<short> {
+  using UInt = uint16_t;
+  using UnsignedT = std::make_unsigned_t<short>;
+
+  static constexpr bool IsIntegral = true;
+  static constexpr bool IsSigned = true;
+  static constexpr int ValueBits = std::numeric_limits<UnsignedT>::digits;
+};
+
+template <> struct E8M0SourceTraits<int> {
+  using UInt = uint32_t;
+  using UnsignedT = std::make_unsigned_t<int>;
+
+  static constexpr bool IsIntegral = true;
+  static constexpr bool IsSigned = true;
+  static constexpr int ValueBits = std::numeric_limits<UnsignedT>::digits;
+};
+
+template <> struct E8M0SourceTraits<long> {
+  using UInt = std::make_unsigned_t<long>;
+  using UnsignedT = std::make_unsigned_t<long>;
+
+  static constexpr bool IsIntegral = true;
+  static constexpr bool IsSigned = true;
+  static constexpr int ValueBits = std::numeric_limits<UnsignedT>::digits;
+};
+
+template <> struct E8M0SourceTraits<long long> {
+  using UInt = uint64_t;
+  using UnsignedT = std::make_unsigned_t<long long>;
+
+  static constexpr bool IsIntegral = true;
+  static constexpr bool IsSigned = true;
+  static constexpr int ValueBits = std::numeric_limits<UnsignedT>::digits;
+};
+
+template <> struct E8M0SourceTraits<unsigned short> {
+  using UInt = uint16_t;
+  using UnsignedT = std::make_unsigned_t<unsigned short>;
+
+  static constexpr bool IsIntegral = true;
+  static constexpr bool IsSigned = false;
+  static constexpr int ValueBits = std::numeric_limits<UnsignedT>::digits;
+};
+
+template <> struct E8M0SourceTraits<unsigned int> {
+  using UInt = uint32_t;
+  using UnsignedT = std::make_unsigned_t<unsigned int>;
+
+  static constexpr bool IsIntegral = true;
+  static constexpr bool IsSigned = false;
+  static constexpr int ValueBits = std::numeric_limits<UnsignedT>::digits;
+};
+
+template <> struct E8M0SourceTraits<unsigned long> {
+  using UInt = std::make_unsigned_t<unsigned long>;
+  using UnsignedT = std::make_unsigned_t<unsigned long>;
+
+  static constexpr bool IsIntegral = true;
+  static constexpr bool IsSigned = false;
+  static constexpr int ValueBits = std::numeric_limits<UnsignedT>::digits;
+};
+
+template <> struct E8M0SourceTraits<unsigned long long> {
+  using UInt = uint64_t;
+  using UnsignedT = std::make_unsigned_t<unsigned long long>;
+
+  static constexpr bool IsIntegral = true;
+  static constexpr bool IsSigned = false;
+  static constexpr int ValueBits = std::numeric_limits<UnsignedT>::digits;
+};
+
+template <typename T, typename Traits = E8M0SourceTraits<T>>
+static inline uint8_t ConvertIntToE8M0_CPU(T f, rounding R,
+                                           saturation S) noexcept {
+  using UnsignedT = typename Traits::UnsignedT;
+  UnsignedT magnitude = f < 0 ? -f : f;
+
+  if (magnitude == 0)
+    return 0x00u;
+
+  int lowerExp = BitWidth(static_cast<uint64_t>(magnitude)) - 1;
+  bool isExactPowerOfTwo = (magnitude & (magnitude - 1)) == 0;
+
+  bool roundUp = false;
+  switch (R) {
+  case rounding::toward_zero:
+    break;
+  case rounding::upward:
+    roundUp = !isExactPowerOfTwo;
+    break;
+  case rounding::to_even: {
+    if (!isExactPowerOfTwo) {
+      const uint64_t leading = uint64_t{1} << lowerExp;
+      const uint64_t twice = 2ull * static_cast<uint64_t>(magnitude);
+      const uint64_t midpoint = 3ull * leading;
+      if (twice > midpoint || (twice == midpoint && (lowerExp & 1) != 0))
+        roundUp = true;
+    }
+    break;
+  }
+  }
+  return static_cast<uint8_t>(127 + lowerExp + (roundUp ? 1 : 0));
+}
+
+template <typename T, typename Traits = E8M0SourceTraits<T>>
+static inline uint8_t ConvertFloatToE8M0_CPU(T f, rounding R,
+                                             saturation S) noexcept {
+  using UInt = typename Traits::UInt;
+  constexpr UInt SignMask = UInt{1} << (Traits::ExpBits + Traits::FracBits);
+  constexpr UInt FracMask = (UInt{1} << Traits::FracBits) - 1;
+  constexpr UInt ExpMask = ((UInt{1} << Traits::ExpBits) - 1)
+                           << Traits::FracBits;
+  constexpr UInt ExpAllOnes = (UInt{1} << Traits::ExpBits) - 1;
+  constexpr uint8_t NaNCode = 0xFF;
+  constexpr uint8_t MaxFiniteCode = 0xFE;
+  constexpr int TargetBias = 127;
+  constexpr int TargetEmin = -127;
+  constexpr int TargetEmax = 127;
+
+  UInt h;
+  __builtin_memcpy(&h, &f, sizeof(h));
+  h &= ~SignMask;
+
+  UInt exp = (h & ExpMask) >> Traits::FracBits;
+  UInt frac = h & FracMask;
+
+  if (exp == ExpAllOnes) {
+    if (frac != 0u)
+      return NaNCode;
+    return (S == saturation::finite) ? MaxFiniteCode : NaNCode;
+  }
+
+  if (exp == 0u && frac == 0u)
+    return 0x00u;
+
+  uint64_t significand = 0u;
+  int leadingBit = 0;
+  int lowerExp = 0;
+  bool isExactPowerOfTwo = false;
+
+  if (exp != 0u) {
+    significand = (uint64_t{1} << Traits::FracBits) | static_cast<uint64_t>(frac);
+    leadingBit = static_cast<int>(Traits::FracBits);
+    lowerExp = static_cast<int>(exp) - Traits::Bias;
+    isExactPowerOfTwo = frac == 0u;
+  } else {
+    significand = static_cast<uint64_t>(frac);
+    leadingBit = BitWidth(significand) - 1;
+    lowerExp = 1 - Traits::Bias - static_cast<int>(Traits::FracBits) + leadingBit;
+    isExactPowerOfTwo = (significand & (significand - 1u)) == 0u;
+  }
+
+  if (lowerExp < TargetEmin)
+    return 0x00u;
+
+  bool roundUp = false;
+
+  switch (R) {
+  case rounding::toward_zero:
+    break;
+  case rounding::upward:
+    roundUp = !isExactPowerOfTwo;
+    break;
+  case rounding::to_even: {
+    if (!isExactPowerOfTwo) {
+      const uint64_t twiceSignificand = 2ull * significand;
+      const uint64_t midpoint = 3ull * (uint64_t{1} << leadingBit);
+      if (twiceSignificand > midpoint) {
+        roundUp = true;
+      } else if (twiceSignificand == midpoint && (lowerExp & 1) != 0) {
+        roundUp = true;
+      }
+    }
+    break;
+  }
+  }
+
+  int encodedExp = lowerExp + (roundUp ? 1 : 0);
+  if (encodedExp > TargetEmax)
+    return (S == saturation::finite) ? MaxFiniteCode : NaNCode;
+
+  return static_cast<uint8_t>(encodedExp + TargetBias);
+}
+
+template <typename Traits, typename = void>
+struct HasE8M0FloatTraits : std::false_type {};
+
+template <typename Traits>
+struct HasE8M0FloatTraits<
+    Traits,
+    std::void_t<decltype(Traits::ExpBits), decltype(Traits::FracBits),
+                decltype(Traits::Bias)>> : std::true_type {};
+
+template <typename Traits, typename = void>
+struct HasE8M0IntegralTraits : std::false_type {};
+
+template <typename Traits>
+struct HasE8M0IntegralTraits<
+    Traits, std::void_t<typename Traits::UnsignedT, decltype(Traits::IsIntegral),
+                        decltype(Traits::IsSigned),
+                        decltype(Traits::ValueBits)>> : std::true_type {};
+
+template <typename ToT, typename Traits = E8M0SourceTraits<ToT>>
+static inline ToT ConvertFromE8M0ToBinaryFloat_CPU(uint8_t code) noexcept {
+  if constexpr (HasE8M0FloatTraits<Traits>::value) {
+    using UInt = typename Traits::UInt;
+
+    constexpr UInt ExpAllOnes =
+        ((UInt{1} << Traits::ExpBits) - UInt{1}) << Traits::FracBits;
+    constexpr UInt QuietNaNBit = UInt{1} << (Traits::FracBits - 1);
+    constexpr int MinNormalExp = 1 - Traits::Bias;
+    constexpr int MinSubnormalExp =
+        MinNormalExp - static_cast<int>(Traits::FracBits);
+    constexpr int MaxNormalExp =
+        static_cast<int>((UInt{1} << Traits::ExpBits) - UInt{2}) -
+        Traits::Bias;
+
+    UInt bits = 0;
+    if (code == 0xFFu) {
+      bits = ExpAllOnes | QuietNaNBit;
+    } else {
+      const int unbiasedExp = static_cast<int>(code) - 127;
+      if (unbiasedExp > MaxNormalExp) {
+        bits = ExpAllOnes;
+      } else if (unbiasedExp >= MinNormalExp) {
+        bits = static_cast<UInt>(unbiasedExp + Traits::Bias)
+               << Traits::FracBits;
+      } else if (unbiasedExp >= MinSubnormalExp) {
+        const int fracBit =
+            unbiasedExp - MinNormalExp + static_cast<int>(Traits::FracBits);
+        bits = UInt{1} << fracBit;
+      }
+    }
+
+    return __builtin_bit_cast(ToT, bits);
+  } else if constexpr (HasE8M0IntegralTraits<Traits>::value &&
+                       Traits::IsIntegral) {
+    using UnsignedT = typename Traits::UnsignedT;
+
+    if (code == 0xFFu)
+      return ToT{};
+
+    const int shift = static_cast<int>(code) - 127;
+    if (shift < 0 || shift >= Traits::ValueBits)
+      return ToT{};
+
+    const UnsignedT magnitude = UnsignedT{1} << shift;
+    return static_cast<ToT>(magnitude);
+  } else {
+    return ToT{};
+  }
+}
+
 /// \brief Converts a given value to fp8 floating point with a rounding
 /// mode to_even by default and saturation finite for host code.
 /// \param h The input value to be converted.
@@ -330,7 +624,7 @@ ConvertToFP8_CPU(T h, rounding R = rounding::to_even) noexcept {
     //       to the smallest magnitude normal with the input sign preserved
     //       (consistent with prior sign-preserving underflow behavior).
     //
-    constexpr int Bias = 127;
+    constexpr uint32_t Bias = 127;
     constexpr int Emin = -127;
     constexpr int Emax = 127;
     constexpr uint8_t NaNCode = 0xFF;                // 11111111
@@ -458,108 +752,22 @@ ConvertToFP8_CPU(T h, rounding R = rounding::to_even) noexcept {
   return ret;
 }
 
-template <typename T>
-static inline uint8_t ConvertToE8M0_CPU(T x, rounding R,
-                                        saturation S) noexcept {
-  // E8M0: unsigned 8-bit exponent code, bias 127.
-  // Code 0xFF reserved for NaN. No Inf, no subnormals, no signed zero.
-  constexpr int Bias = 127;
-  constexpr int Emin = -127;
-  constexpr int Emax = 127;
-  constexpr uint8_t NaNCode = 0xFF;
-  constexpr uint8_t MaxFiniteCode = 0xFE;
-
-  // NaN and Inf checks only apply to non-integral types.
-  if constexpr (!std::is_integral_v<T>) {
-    if (std::isnan(static_cast<float>(x)))
-      return NaNCode;
-    if (std::isinf(static_cast<float>(x)))
-      return (S == saturation::finite) ? MaxFiniteCode : NaNCode;
-  }
-
-  // Compute absolute value in the natural type T.
-  T ax;
-  if constexpr (std::is_unsigned_v<T>)
-    ax = x;
-  else if constexpr (std::is_signed_v<T> && std::is_integral_v<T>)
-    ax = x < T(0) ? static_cast<T>(-x) : x;
-  else
-    ax = static_cast<T>(std::fabs(static_cast<float>(x)));
-
-  // Zero check in natural type.
-  if (ax == T(0))
-    return 0x00;
-
-  // Convert to float for frexp/ldexp-based exponent extraction.
-  float fax = static_cast<float>(ax);
-
-  // Underflow: map to min normal (code 0).
-  // Min normal = 2^-127.
-  const float min_normal = std::ldexp(1.0f, Emin);
-  if (fax < min_normal)
-    return 0x00;
-
-  // Overflow and "too large": clamp or NaN depending on saturation.
-  const float max_normal = std::ldexp(1.0f, Emax); // 2^127
-  if (fax >= max_normal)
-    return (S == saturation::finite) ? MaxFiniteCode : NaNCode;
-
-  // Determine E such that 2^E <= fax < 2^(E+1).
-  int e2 = 0;
-  float m = std::frexp(fax, &e2); // fax = m * 2^e2, m in [0.5, 1)
-  int E = e2 - 1;
-
-  // With no mantissa, representables are exact powers of two.
-  // Choose between 2^E and 2^(E+1) based on rounding mode.
-  const bool is_exact_power_of_two = (m == 0.5f);
-
-  switch (R) {
-  case rounding::upward:
-    // toward +inf; with no sign, this is "ceil in magnitude".
-    if (!is_exact_power_of_two && E < Emax)
-      ++E;
-    break;
-  case rounding::toward_zero:
-    // toward -inf / toward 0: both pick the lower power for non-exact.
-    break;
-  case rounding::to_even:
-  default: {
-    if (!is_exact_power_of_two) {
-      // Nearest of {2^E, 2^(E+1)} w/ ties-to-even (even exponent on tie).
-      float lo = std::ldexp(1.0f, E);
-      float hi = std::ldexp(1.0f, E + 1);
-      float dlo = fax - lo;
-      float dhi = hi - fax;
-      if (dhi < dlo) {
-        if (E < Emax)
-          ++E;
-      } else if (dhi == dlo) {
-        // tie -> even exponent
-        if ((E & 1) != 0 && E < Emax)
-          ++E;
-      }
-    }
-    break;
-  }
-  }
-
-  if (E < Emin)
-    E = Emin;
-  if (E > Emax)
-    E = Emax;
-
-  uint8_t code = static_cast<uint8_t>(E + Bias); // 0..254
-  return code;
-}
-
 template <typename ToT>
 static inline ToT ConvertFromE8M0_CPU(uint8_t code, rounding R) noexcept {
-  constexpr int Bias = 127;
+  using Traits = E8M0SourceTraits<ToT>;
+
+  if constexpr (HasE8M0FloatTraits<Traits>::value ||
+                HasE8M0IntegralTraits<Traits>::value) {
+    (void)R;
+    return ConvertFromE8M0ToBinaryFloat_CPU<ToT>(code);
+  }
+
+ /* constexpr int Bias = 127;
   if (code == 0xFF) {
     return MakeDirectNaN<ToT>();
   }
   return ConvertFloatToTarget<ToT>(false, 1u, static_cast<int>(code) - Bias, 0,
-                                   R);
+                                   R);*/
 }
 
 } // namespace detail
@@ -1451,59 +1659,59 @@ public:
     using InT = std::common_type_t<std::decay_t<Types>...>;
     const InT in[N] = {v...};
     for (size_t i = 0; i < N; ++i)
-      vals[i] = detail::ConvertToE8M0_CPU(in[i], rounding::upward,
-                                          saturation::finite);
+      vals[i] = detail::ConvertFloatToE8M0_CPU(in[i], rounding::upward,
+                                               saturation::finite);
   }
 
   explicit fp8_e8m0_x(half const (&in)[N], rounding r = rounding::upward) {
     CheckConstraints(r);
     for (size_t i = 0; i < N; ++i)
-      vals[i] = detail::ConvertToE8M0_CPU(in[i], r, saturation::finite);
+      vals[i] = detail::ConvertFloatToE8M0_CPU(in[i], r, saturation::finite);
   }
 
   explicit fp8_e8m0_x(bfloat16 const (&in)[N], rounding r = rounding::upward) {
     CheckConstraints(r);
     for (size_t i = 0; i < N; ++i)
-      vals[i] = detail::ConvertToE8M0_CPU(in[i], r, saturation::finite);
+      vals[i] = detail::ConvertFloatToE8M0_CPU(in[i], r, saturation::finite);
   }
 
   explicit fp8_e8m0_x(float const (&in)[N], rounding r = rounding::upward) {
     CheckConstraints(r);
     for (size_t i = 0; i < N; ++i)
-      vals[i] = detail::ConvertToE8M0_CPU(in[i], r, saturation::finite);
+      vals[i] = detail::ConvertFloatToE8M0_CPU(in[i], r, saturation::finite);
   }
 
   explicit fp8_e8m0_x(double const (&in)[N]) {
     for (size_t i = 0; i < N; ++i)
-      vals[i] = detail::ConvertToE8M0_CPU(in[i], rounding::upward,
-                                          saturation::finite);
+      vals[i] = detail::ConvertFloatToE8M0_CPU(in[i], rounding::upward,
+                                               saturation::finite);
   }
 
   explicit fp8_e8m0_x(const marray<half, N> &in,
                       rounding r = rounding::upward) {
     CheckConstraints(r);
     for (size_t i = 0; i < N; ++i)
-      vals[i] = detail::ConvertToE8M0_CPU(in[i], r, saturation::finite);
+      vals[i] = detail::ConvertFloatToE8M0_CPU(in[i], r, saturation::finite);
   }
 
   explicit fp8_e8m0_x(const marray<bfloat16, N> &in,
                       rounding r = rounding::upward) {
     CheckConstraints(r);
     for (size_t i = 0; i < N; ++i)
-      vals[i] = detail::ConvertToE8M0_CPU(in[i], r, saturation::finite);
+      vals[i] = detail::ConvertFloatToE8M0_CPU(in[i], r, saturation::finite);
   }
 
   explicit fp8_e8m0_x(const marray<float, N> &in,
                       rounding r = rounding::upward) {
     CheckConstraints(r);
     for (size_t i = 0; i < N; ++i)
-      vals[i] = detail::ConvertToE8M0_CPU(in[i], r, saturation::finite);
+      vals[i] = detail::ConvertFloatToE8M0_CPU(in[i], r, saturation::finite);
   }
 
   explicit fp8_e8m0_x(const marray<double, N> &in) {
     for (size_t i = 0; i < N; ++i)
-      vals[i] = detail::ConvertToE8M0_CPU(in[i], rounding::upward,
-                                          saturation::finite);
+      vals[i] = detail::ConvertFloatToE8M0_CPU(in[i], rounding::upward,
+                                               saturation::finite);
   }
 
   // Construct from integer types.
@@ -1512,116 +1720,120 @@ public:
   template <size_t M = N, typename = std::enable_if_t<M == 1>>
   explicit fp8_e8m0_x(short val) {
     vals[0] =
-        detail::ConvertToE8M0_CPU(val, rounding::upward, saturation::finite);
+        detail::ConvertIntToE8M0_CPU(val, rounding::upward, saturation::finite);
   }
 
   template <size_t M = N, typename = std::enable_if_t<M == 1>>
   explicit fp8_e8m0_x(int val) {
     vals[0] =
-        detail::ConvertToE8M0_CPU(val, rounding::upward, saturation::finite);
+      detail::ConvertIntToE8M0_CPU(val, rounding::upward, saturation::finite);
   }
+
   template <size_t M = N, typename = std::enable_if_t<M == 1>>
   explicit fp8_e8m0_x(long val) {
     vals[0] =
-        detail::ConvertToE8M0_CPU(val, rounding::upward, saturation::finite);
+      detail::ConvertIntToE8M0_CPU(val, rounding::upward, saturation::finite);
   }
 
   template <size_t M = N, typename = std::enable_if_t<M == 1>>
   explicit fp8_e8m0_x(long long val) {
     vals[0] =
-        detail::ConvertToE8M0_CPU(val, rounding::upward, saturation::finite);
+      detail::ConvertIntToE8M0_CPU(val, rounding::upward, saturation::finite);
   }
   template <size_t M = N, typename = std::enable_if_t<M == 1>>
   explicit fp8_e8m0_x(unsigned short val) {
     vals[0] =
-        detail::ConvertToE8M0_CPU(val, rounding::upward, saturation::finite);
+      detail::ConvertIntToE8M0_CPU(val, rounding::upward, saturation::finite);
   }
   template <size_t M = N, typename = std::enable_if_t<M == 1>>
   explicit fp8_e8m0_x(unsigned int val) {
     vals[0] =
-        detail::ConvertToE8M0_CPU(val, rounding::upward, saturation::finite);
+      detail::ConvertIntToE8M0_CPU(val, rounding::upward, saturation::finite);
   }
   template <size_t M = N, typename = std::enable_if_t<M == 1>>
   explicit fp8_e8m0_x(unsigned long val) {
     vals[0] =
-        detail::ConvertToE8M0_CPU(val, rounding::upward, saturation::finite);
+      detail::ConvertIntToE8M0_CPU(val, rounding::upward, saturation::finite);
   }
   template <size_t M = N, typename = std::enable_if_t<M == 1>>
   explicit fp8_e8m0_x(unsigned long long val) {
     vals[0] =
-        detail::ConvertToE8M0_CPU(val, rounding::upward, saturation::finite);
+      detail::ConvertIntToE8M0_CPU(val, rounding::upward, saturation::finite);
   }
 
   template <size_t M = N, typename = std::enable_if_t<M == 1>>
   fp8_e8m0_x &operator=(half val) {
     vals[0] =
-        detail::ConvertToE8M0_CPU(val, rounding::upward, saturation::finite);
+        detail::ConvertFloatToE8M0_CPU(val, rounding::upward, saturation::finite);
     return *this;
   }
   template <size_t M = N, typename = std::enable_if_t<M == 1>>
   fp8_e8m0_x &operator=(bfloat16 val) {
     vals[0] =
-        detail::ConvertToE8M0_CPU(val, rounding::upward, saturation::finite);
+        detail::ConvertFloatToE8M0_CPU(val, rounding::upward,
+                                       saturation::finite);
     return *this;
   }
   template <size_t M = N, typename = std::enable_if_t<M == 1>>
   fp8_e8m0_x &operator=(float val) {
     vals[0] =
-        detail::ConvertToE8M0_CPU(val, rounding::upward, saturation::finite);
+        detail::ConvertFloatToE8M0_CPU(val, rounding::upward, saturation::finite);
     return *this;
   }
+
   template <size_t M = N, typename = std::enable_if_t<M == 1>>
   fp8_e8m0_x &operator=(double val) {
     vals[0] =
-        detail::ConvertToE8M0_CPU(val, rounding::upward, saturation::finite);
+        detail::ConvertFloatToE8M0_CPU(val, rounding::upward, saturation::finite);
     return *this;
   }
+
   template <size_t M = N, typename = std::enable_if_t<M == 1>>
   fp8_e8m0_x &operator=(short val) {
     vals[0] =
-        detail::ConvertToE8M0_CPU(val, rounding::upward, saturation::finite);
+        detail::ConvertIntToE8M0_CPU(val, rounding::upward, saturation::finite);
     return *this;
   }
   template <size_t M = N, typename = std::enable_if_t<M == 1>>
   fp8_e8m0_x &operator=(int val) {
     vals[0] =
-        detail::ConvertToE8M0_CPU(val, rounding::upward, saturation::finite);
+        detail::ConvertIntToE8M0_CPU(val, rounding::upward, saturation::finite);
     return *this;
   }
   template <size_t M = N, typename = std::enable_if_t<M == 1>>
   fp8_e8m0_x &operator=(long val) {
     vals[0] =
-        detail::ConvertToE8M0_CPU(val, rounding::upward, saturation::finite);
+        detail::ConvertIntToE8M0_CPU(val, rounding::upward, saturation::finite);
     return *this;
   }
   template <size_t M = N, typename = std::enable_if_t<M == 1>>
   fp8_e8m0_x &operator=(long long val) {
     vals[0] =
-        detail::ConvertToE8M0_CPU(val, rounding::upward, saturation::finite);
+        detail::ConvertIntToE8M0_CPU(val, rounding::upward, saturation::finite);
     return *this;
   }
   template <size_t M = N, typename = std::enable_if_t<M == 1>>
   fp8_e8m0_x &operator=(unsigned short val) {
     vals[0] =
-        detail::ConvertToE8M0_CPU(val, rounding::upward, saturation::finite);
+        detail::ConvertIntToE8M0_CPU(val, rounding::upward, saturation::finite);
     return *this;
   }
   template <size_t M = N, typename = std::enable_if_t<M == 1>>
   fp8_e8m0_x &operator=(unsigned int val) {
     vals[0] =
-        detail::ConvertToE8M0_CPU(val, rounding::upward, saturation::finite);
+        detail::ConvertIntToE8M0_CPU(val, rounding::upward, saturation::finite);
     return *this;
   }
   template <size_t M = N, typename = std::enable_if_t<M == 1>>
   fp8_e8m0_x &operator=(unsigned long val) {
     vals[0] =
-        detail::ConvertToE8M0_CPU(val, rounding::upward, saturation::finite);
+        detail::ConvertIntToE8M0_CPU(val, rounding::upward, saturation::finite);
     return *this;
   }
   template <size_t M = N, typename = std::enable_if_t<M == 1>>
   fp8_e8m0_x &operator=(unsigned long long val) {
     vals[0] =
-        detail::ConvertToE8M0_CPU(val, rounding::upward, saturation::finite);
+        detail::ConvertIntToE8M0_CPU(val, rounding::upward, saturation::finite);
     return *this;
   }
 
