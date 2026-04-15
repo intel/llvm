@@ -5208,7 +5208,6 @@ public:
   void ProcessDeclAttributes(Scope *S, Decl *D, const Declarator &PD);
 
 public:
-
   void PopParsingDeclaration(ParsingDeclState state, Decl *decl);
 
   /// Given a set of delayed diagnostics, re-emit them as if they had
