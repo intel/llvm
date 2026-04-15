@@ -26,7 +26,7 @@
 // CHECK-NEXT: detail/type_traits/bool_traits.hpp
 // CHECK-NEXT: detail/type_traits/vec_marray_traits.hpp
 // CHECK-NEXT: detail/fwd/multi_ptr.hpp
-// CHECK-NEXT: access/access.hpp
+// CHECK-NEXT: access/access_base.hpp
 // CHECK-NEXT: ext/oneapi/experimental/device_architecture.hpp
 // CHECK-NEXT: ext/oneapi/experimental/device_architecture.def
 // CHECK-NEXT: ext/oneapi/experimental/forward_progress.hpp

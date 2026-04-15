@@ -31,6 +31,9 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
+template <typename ElementType, access::address_space addressSpace>
+struct DecoratedType;
+
 using memory_order = sycl::memory_order;
 
 template <typename T> struct IsValidAtomicType {

@@ -6,6 +6,7 @@
 // CHECK-NEXT: /dev/null: /dev/null
 // CHECK-NEXT: accessor.hpp
 // CHECK-NEXT: access/access.hpp
+// CHECK-NEXT: access/access_base.hpp
 // CHECK-NEXT: detail/defines_elementary.hpp
 // CHECK-NEXT: buffer.hpp
 // CHECK-NEXT: backend_types.hpp

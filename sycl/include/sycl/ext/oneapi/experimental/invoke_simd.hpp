@@ -11,10 +11,10 @@
 
 #pragma once
 
+#include <sycl/detail/loop.hpp>
 #include <sycl/ext/oneapi/experimental/detail/invoke_simd_types.hpp>
 #include <sycl/ext/oneapi/experimental/uniform.hpp>
 
-#include <sycl/detail/loop.hpp>
 #include <sycl/sub_group.hpp>
 
 #include <functional>
@@ -148,6 +148,15 @@ template <class T, int N>
 struct is_simd_or_mask_type<simd<T, N>> : std::true_type {};
 template <class T, int N>
 struct is_simd_or_mask_type<simd_mask<T, N>> : std::true_type {};
+
+#ifndef __INVOKE_SIMD_ENABLE_STRUCTS
+template <class T>
+struct simd2spmd<
+    T, std::enable_if_t<std::is_class_v<T> && !is_simd_or_mask_type<T>::value &&
+                        !is_uniform_type<T>::value>> {
+  using type = T;
+};
+#endif
 
 // Checks if all the types in the parameter pack are uniform<T>.
 template <class... SpmdArgs> struct all_uniform_types {

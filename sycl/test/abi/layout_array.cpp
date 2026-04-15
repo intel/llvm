@@ -32,8 +32,8 @@ SYCL_EXTERNAL void range(sycl::range<2>) {}
 
 SYCL_EXTERNAL void nd_item(sycl::nd_item<2>) {}
 // CHECK:      0 | class sycl::nd_item<2> (empty)
-// CHECK-NEXT:   | [sizeof=1, dsize=0, align=1,
-// CHECK-NEXT:   |  nvsize=0, nvalign=1]
+// CHECK-NEXT:   | [sizeof=1, dsize=1, align=1,
+// CHECK-NEXT:   |  nvsize=1, nvalign=1]
 
 //----------------------------
 

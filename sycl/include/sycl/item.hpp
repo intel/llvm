@@ -22,6 +22,7 @@ inline namespace _V1 {
 
 namespace detail {
 class Builder;
+template <int Dimensions> item<Dimensions, true> getFreeFunctionQueryItem();
 template <typename TransformedArgType, int Dims, typename KernelType>
 class RoundedRangeKernel;
 template <typename TransformedArgType, int Dims, typename KernelType>
@@ -124,6 +125,8 @@ protected:
       : MImpl{extent, index} {}
 
   friend class detail::Builder;
+  template <int Dims>
+  friend item<Dims, true> detail::getFreeFunctionQueryItem();
 
   template <int, bool> friend class item;
 

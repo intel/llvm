@@ -10,6 +10,7 @@
 // CHECK-NEXT: feature_test.hpp
 // CHECK-NEXT: multi_ptr.hpp
 // CHECK-NEXT: access/access.hpp
+// CHECK-NEXT: access/access_base.hpp
 // CHECK-NEXT: detail/address_space_cast.hpp
 // CHECK-NEXT: __spirv/spirv_types.hpp
 // CHECK-NEXT: detail/defines.hpp

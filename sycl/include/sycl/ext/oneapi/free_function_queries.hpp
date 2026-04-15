@@ -9,20 +9,33 @@
 #pragma once
 
 #include <sycl/detail/builder.hpp>
+#include <sycl/detail/nd_item_core.hpp>
 #include <sycl/detail/sub_group_core.hpp>
-#include <sycl/nd_item.hpp>
-
-// For deprecated queries:
-#include <sycl/id.hpp>
-#include <sycl/item.hpp>
 
 namespace sycl {
 inline namespace _V1 {
+namespace detail {
+template <int Dimensions> item<Dimensions, true> getFreeFunctionQueryItem() {
+  static_assert(Dimensions > 0 && Dimensions < 4, "invalid dimensions");
+#ifdef __SYCL_DEVICE_ONLY__
+  id<Dimensions> GlobalId{
+      __spirv::initBuiltInGlobalInvocationId<Dimensions, id<Dimensions>>()};
+  range<Dimensions> GlobalSize{
+      __spirv::initBuiltInGlobalSize<Dimensions, range<Dimensions>>()};
+  id<Dimensions> GlobalOffset{
+      __spirv::initBuiltInGlobalOffset<Dimensions, id<Dimensions>>()};
+  return item<Dimensions, true>(GlobalSize, GlobalId, GlobalOffset);
+#else
+  return item<Dimensions, true>(range<Dimensions>{}, id<Dimensions>{},
+                                id<Dimensions>{});
+#endif
+}
+} // namespace detail
+
 namespace ext::oneapi::this_work_item {
 template <int Dimensions> nd_item<Dimensions> get_nd_item() {
 #ifdef __SYCL_DEVICE_ONLY__
-  return sycl::detail::Builder::getElement(
-      sycl::detail::declptr<nd_item<Dimensions>>());
+  return sycl::detail::Builder::getNDItem<Dimensions>();
 #else
   throw sycl::exception(
       sycl::make_error_code(sycl::errc::feature_not_supported),
@@ -69,9 +82,9 @@ inline sycl::sub_group this_sub_group() {
 template <int Dims>
 __SYCL_DEPRECATED("use nd_range kernel and "
                   "sycl::ext::oneapi::this_work_item::get_nd_item() instead")
-item<Dims> this_item() {
+item<Dims, true> this_item() {
 #ifdef __SYCL_DEVICE_ONLY__
-  return sycl::detail::Builder::getElement(sycl::detail::declptr<item<Dims>>());
+  return sycl::detail::getFreeFunctionQueryItem<Dims>();
 #else
   throw sycl::exception(
       sycl::make_error_code(sycl::errc::feature_not_supported),
@@ -83,7 +96,14 @@ template <int Dims>
 __SYCL_DEPRECATED("use nd_range kernel and "
                   "sycl::ext::oneapi::this_work_item::get_nd_item() instead")
 id<Dims> this_id() {
-  return this_item<Dims>().get_id();
+#ifdef __SYCL_DEVICE_ONLY__
+  static_assert(Dims > 0 && Dims < 4, "invalid dimensions");
+  return __spirv::initBuiltInGlobalInvocationId<Dims, id<Dims>>();
+#else
+  throw sycl::exception(
+      sycl::make_error_code(sycl::errc::feature_not_supported),
+      "Free function calls are not supported on host");
+#endif
 }
 } // namespace ext::oneapi::experimental
 } // namespace _V1

@@ -12,3 +12,12 @@
 #include <sycl/detail/sub_group_extra.hpp>
 #include <sycl/detail/sub_group_load_store.hpp>
 #include <sycl/nd_item.hpp>
+
+namespace sycl {
+inline namespace _V1 {
+template <int Dimensions> sub_group nd_item<Dimensions>::get_sub_group() const {
+  return sub_group();
+}
+
+} // namespace _V1
+} // namespace sycl

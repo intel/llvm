@@ -17,6 +17,12 @@
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
+template <typename ElementType, access::address_space addressSpace>
+struct DecoratedType;
+
+#ifdef __SYCL_DEVICE_ONLY__
+template <class T> struct deduce_AS;
+#endif
 
 namespace sub_group {
 
@@ -116,6 +122,7 @@ template <typename T, access::address_space Space,
 T load(const multi_ptr<T, Space, DecorateAddress> src) {
   using BlockT = SelectBlockT<T>;
   BlockT Ret = __spirv_SubgroupBlockReadINTEL<BlockT>(convertToBlockPtr(src));
+
   return sycl::bit_cast<T>(Ret);
 }
 
@@ -125,6 +132,7 @@ vec<T, N> load(const multi_ptr<T, Space, DecorateAddress> src) {
   using BlockT = SelectBlockT<T>;
   using VecT = typename subgroup_block_vec_type<BlockT, N>::type;
   VecT Ret = __spirv_SubgroupBlockReadINTEL<VecT>(convertToBlockPtr(src));
+
   return sycl::bit_cast<vec<T, N>>(Ret);
 }
 
@@ -132,6 +140,7 @@ template <typename T, access::address_space Space,
           access::decorated DecorateAddress>
 void store(multi_ptr<T, Space, DecorateAddress> dst, const T &x) {
   using BlockT = SelectBlockT<T>;
+
   __spirv_SubgroupBlockWriteINTEL(convertToBlockPtr(dst),
                                   sycl::bit_cast<BlockT>(x));
 }
@@ -141,10 +150,11 @@ template <int N, typename T, access::address_space Space,
 void store(multi_ptr<T, Space, DecorateAddress> dst, const vec<T, N> &x) {
   using BlockT = SelectBlockT<T>;
   using VecT = typename subgroup_block_vec_type<BlockT, N>::type;
+
   __spirv_SubgroupBlockWriteINTEL(convertToBlockPtr(dst),
                                   sycl::bit_cast<VecT>(x));
 }
-#endif // __SYCL_DEVICE_ONLY__
+#endif
 
 } // namespace sub_group
 
@@ -165,11 +175,9 @@ GetUnqualMultiPtr(const multi_ptr<CVT, Space, IsDecorated> &Mptr) {
 
 } // namespace detail
 
-// Out-of-line definitions for the deprecated sub_group load/store members
-// declared in detail/sub_group_core.hpp.
-
 template <typename CVT, typename T> T sub_group::load(CVT *cv_src) const {
   T *src = const_cast<T *>(cv_src);
+
 #ifdef __SYCL_DEVICE_ONLY__
   if constexpr (!std::is_same_v<remove_decoration_t<T>, T>) {
     return load(sycl::multi_ptr<remove_decoration_t<T>,
@@ -201,7 +209,7 @@ template <typename CVT, typename T> T sub_group::load(CVT *cv_src) const {
 
 template <typename CVT, access::address_space Space,
           access::decorated IsDecorated, typename T>
-T sub_group::load(multi_ptr<CVT, Space, IsDecorated> cv_src) const {
+T sub_group::load(const multi_ptr<CVT, Space, IsDecorated> cv_src) const {
   static_assert(
       sycl::detail::sub_group::AcceptableForLoadStore<T, Space>::value,
       "Sub-group block load requires global or local address space.");
@@ -226,7 +234,8 @@ T sub_group::load(multi_ptr<CVT, Space, IsDecorated> cv_src) const {
 
 template <int N, typename CVT, access::address_space Space,
           access::decorated IsDecorated, typename T>
-vec<T, N> sub_group::load(multi_ptr<CVT, Space, IsDecorated> cv_src) const {
+vec<T, N>
+sub_group::load(const multi_ptr<CVT, Space, IsDecorated> cv_src) const {
   static_assert(
       sycl::detail::sub_group::AcceptableForLoadStore<T, Space>::value,
       "Sub-group block load requires global or local address space.");

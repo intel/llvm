@@ -14,6 +14,7 @@
 // CHECK-NEXT: aliases.hpp
 // CHECK-NEXT: detail/generic_type_traits.hpp
 // CHECK-NEXT: access/access.hpp
+// CHECK-NEXT: access/access_base.hpp
 // CHECK-NEXT: bit_cast.hpp
 // CHECK-NEXT: detail/fwd/half.hpp
 // CHECK-NEXT: detail/type_traits.hpp

@@ -10,4 +10,3 @@
 
 #include <sycl/detail/sub_group_core.hpp>
 #include <sycl/detail/sub_group_extra.hpp>
-#include <sycl/detail/sub_group_load_store.hpp>

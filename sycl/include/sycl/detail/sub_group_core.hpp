@@ -9,7 +9,7 @@
 #pragma once
 
 #include <sycl/__spirv/spirv_vars.hpp>
-#include <sycl/access/access.hpp> // for fence_space, remove_decoration_t
+#include <sycl/access/access_base.hpp>
 #include <sycl/detail/defines_elementary.hpp>
 #include <sycl/detail/fwd/multi_ptr.hpp>
 #include <sycl/id.hpp>
@@ -40,8 +40,6 @@ struct sub_group {
   static constexpr int dimensions = 1;
   static constexpr sycl::memory_scope fence_scope =
       sycl::memory_scope::sub_group;
-
-  /* --- common interface members --- */
 
   id_type get_local_id() const {
 #ifdef __SYCL_DEVICE_ONLY__
@@ -106,6 +104,45 @@ struct sub_group {
 #endif
   }
 
+  template <typename CVT, typename T = std::remove_cv_t<CVT>>
+  __SYCL_DEPRECATED("Use sycl::ext::oneapi::experimental::group_load instead.")
+  T load(CVT *cv_src) const;
+
+  template <typename CVT, access::address_space Space,
+            access::decorated IsDecorated, typename T = std::remove_cv_t<CVT>>
+  __SYCL_DEPRECATED("Use sycl::ext::oneapi::experimental::group_load instead.")
+  T load(multi_ptr<CVT, Space, IsDecorated> cv_src) const;
+
+  template <int N, typename CVT, access::address_space Space,
+            access::decorated IsDecorated, typename T = std::remove_cv_t<CVT>>
+  __SYCL_DEPRECATED("Use sycl::ext::oneapi::experimental::group_load instead.")
+  vec<T, N> load(multi_ptr<CVT, Space, IsDecorated> cv_src) const;
+
+  template <typename T>
+  __SYCL_DEPRECATED("Use sycl::ext::oneapi::experimental::group_store instead.")
+  void store(T *dst, const remove_decoration_t<T> &x) const;
+
+  template <typename T, access::address_space Space,
+            access::decorated DecorateAddress>
+  __SYCL_DEPRECATED("Use sycl::ext::oneapi::experimental::group_store instead.")
+  void store(multi_ptr<T, Space, DecorateAddress> dst, const T &x) const;
+
+  template <int N, typename T, access::address_space Space,
+            access::decorated DecorateAddress>
+  __SYCL_DEPRECATED("Use sycl::ext::oneapi::experimental::group_store instead.")
+  void store(multi_ptr<T, Space, DecorateAddress> dst,
+             const vec<T, N> &x) const;
+
+  __SYCL_DEPRECATED(
+      "Sub-group barrier with no arguments is deprecated."
+      "Use sycl::group_barrier with the sub-group as the argument instead.")
+  void barrier() const;
+
+  __SYCL_DEPRECATED(
+      "Sub-group barrier accepting fence_space is deprecated."
+      "Use sycl::group_barrier with the sub-group as the argument instead.")
+  void barrier(access::fence_space accessSpace) const;
+
   linear_id_type get_group_linear_range() const {
 #ifdef __SYCL_DEVICE_ONLY__
     return static_cast<linear_id_type>(get_group_range()[0]);
@@ -154,51 +191,6 @@ struct sub_group {
                           "Sub-groups are not supported on host.");
 #endif
   }
-
-  /* --- deprecated sub_group load/stores --- */
-  /* definitions are in detail/sub_group_load_store.hpp */
-
-  template <typename CVT, typename T = std::remove_cv_t<CVT>>
-  __SYCL_DEPRECATED("Use sycl::ext::oneapi::experimental::group_load instead.")
-  T load(CVT *cv_src) const;
-
-  template <typename CVT, access::address_space Space,
-            access::decorated IsDecorated, typename T = std::remove_cv_t<CVT>>
-  __SYCL_DEPRECATED("Use sycl::ext::oneapi::experimental::group_load instead.")
-  T load(multi_ptr<CVT, Space, IsDecorated> cv_src) const;
-
-  template <int N, typename CVT, access::address_space Space,
-            access::decorated IsDecorated, typename T = std::remove_cv_t<CVT>>
-  __SYCL_DEPRECATED("Use sycl::ext::oneapi::experimental::group_load instead.")
-  vec<T, N> load(multi_ptr<CVT, Space, IsDecorated> cv_src) const;
-
-  template <typename T>
-  __SYCL_DEPRECATED("Use sycl::ext::oneapi::experimental::group_store instead.")
-  void store(T *dst, const remove_decoration_t<T> &x) const;
-
-  template <typename T, access::address_space Space,
-            access::decorated DecorateAddress>
-  __SYCL_DEPRECATED("Use sycl::ext::oneapi::experimental::group_store instead.")
-  void store(multi_ptr<T, Space, DecorateAddress> dst, const T &x) const;
-
-  template <int N, typename T, access::address_space Space,
-            access::decorated DecorateAddress>
-  __SYCL_DEPRECATED("Use sycl::ext::oneapi::experimental::group_store instead.")
-  void store(multi_ptr<T, Space, DecorateAddress> dst,
-             const vec<T, N> &x) const;
-
-  /* --- deprecated synchronization --- */
-  /* definitions are in detail/sub_group_extra.hpp */
-
-  __SYCL_DEPRECATED(
-      "Sub-group barrier with no arguments is deprecated."
-      "Use sycl::group_barrier with the sub-group as the argument instead.")
-  void barrier() const;
-
-  __SYCL_DEPRECATED(
-      "Sub-group barrier accepting fence_space is deprecated."
-      "Use sycl::group_barrier with the sub-group as the argument instead.")
-  void barrier(access::fence_space accessSpace) const;
 
 protected:
   template <int dimensions> friend class sycl::nd_item;

@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include <sycl/access/access.hpp>
+#include <sycl/access/access_base.hpp>
 
 #include <type_traits>
 
