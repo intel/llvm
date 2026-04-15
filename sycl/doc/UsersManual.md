@@ -183,16 +183,15 @@ and not recommended to use in production environment.
 
 **`-fsycl-id-queries-range={int,uint,size_t}`**
 
-    Specify the assumption about SYCL ID query value ranges. This affects the
-    following member functions:
+    Asserts that the kernels and SYCL_EXTERNAL functions defined in this source
+    file will always be launched with a global range that is less than or equal
+    to INT_MAX, UINT_MAX, or SIZE_MAX. The application is responsible for ensuring
+    that it never invokes these kernels with a larger global range. Application
+    code may assume that the return values from the following functions fit within
+    int, unsinged int, or size_t:
     * id class get() member function and operator[]
     * item class get_id() member function and operator[]
     * nd_item class get_global_id()/get_global_linear_id() member functions
-
-    Valid values:
-    * int - assume that ID queries fit within INT_MAX (default)
-    * uint - assume that ID queries fit within UINT_MAX
-    * size_t - queries fit within SIZE_MAX per SYCL spec (no additional assumption)
 
     The compiler uses these assumptions to optimize code generation. When an
     assumption is specified, the runtime validates kernel launch parameters and
@@ -207,10 +206,9 @@ and not recommended to use in production environment.
     * nd_item class get_global_id()/get_global_linear_id() member functions
     Enabled by default.
 
-    Note: This option is equivalent to `-fsycl-id-queries-range=int` (when
-    enabled) or `-fsycl-id-queries-range=size_t` (when disabled). The normalized
-    `-fsycl-id-queries-range=` option provides additional control with support
-    for unsigned int range.
+    Note:
+    * -fsycl-id-queries-fit-in-int is equivalent to -fsycl-id-queries-range=int.
+    * -fno-sycl-id-queries-fit-in-int is equivalent to -fsycl-id-queries-range=size_t.
 
 **`-f[no-]sycl-force-inline-kernel-lambda`**
 
