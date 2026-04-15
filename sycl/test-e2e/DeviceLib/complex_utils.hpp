@@ -3,6 +3,18 @@
 #include <cmath>
 #include <complex>
 #include <sycl/detail/core.hpp>
+
+#if defined(__GLIBC__)
+// Add explict declarations for complex arithmetic builtins to
+// test corresponding declarations in sycl stl_wrapper headers.
+extern "C" {
+float __complex__ __mulsc3(float a, float b, float c, float d);
+double __complex__ __muldc3(double a, double b, double c, double d);
+float __complex__ __divsc3(float a, float b, float c, float d);
+double __complex__ __divdc3(double a, double b, double c, double d);
+}
+#endif
+
 enum { zero, non_zero, inf, NaN, non_zero_nan };
 template <typename T> int complex_classify(std::complex<T> x) {
   if (x == std::complex<T>(0, 0))
