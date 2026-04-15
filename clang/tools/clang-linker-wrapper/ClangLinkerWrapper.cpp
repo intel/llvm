@@ -1761,15 +1761,13 @@ static void appendClangSYCLLinkerArgs(const ArgList &Args,
   }
 
   static const OptSpecifier ValueOpts[] = {
-      OPT_sycl_dump_device_code_EQ,
-      OPT_llvm_spirv_options_EQ,
-      OPT_sycl_post_link_options_EQ,
-      OPT_syclbin_EQ,
+      OPT_sycl_dump_device_code_EQ,  OPT_llvm_spirv_options_EQ,
+      OPT_sycl_post_link_options_EQ, OPT_syclbin_EQ,
       OPT_bitcode_library_EQ,
   };
   for (OptSpecifier Opt : ValueOpts) {
     if (const opt::Arg *A = Args.getLastArg(Opt)) {
-      XLinker("--" + A->getOption().getName().str() + "=" + A->getValue());
+      XLinker("--" + A->getOption().getName().str() + A->getValue());
     }
   }
 }
