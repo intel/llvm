@@ -42,7 +42,8 @@ enum class node_type {
   host_task = 9,
   native_command = 10,
   async_malloc = 11,
-  async_free = 12
+  async_free = 12,
+  host_sync = 13
 };
 
 /// Class representing a node in the graph, returned by command_graph::add().

@@ -22,5 +22,9 @@ __SYCL_DATA_LESS_PROP(property::graph, updatable, GraphUpdatable)
 /// events returned by submissions of the executable graph
 __SYCL_DATA_LESS_PROP(property::graph, enable_profiling, GraphEnableProfiling)
 
+/// Property passed to command_graph constructor to allow queue::wait() and
+/// event::wait() calls during recording to be captured as partition boundaries.
+__SYCL_DATA_LESS_PROP(property::graph, allow_wait_recording, GraphAllowWaitRecording)
+
 #undef __SYCL_DATA_LESS_PROP
 #undef __SYCL_MANUALLY_DEFINED_PROP

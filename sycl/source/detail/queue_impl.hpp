@@ -786,7 +786,7 @@ protected:
     assert(isInOrder());
     assert(Handler.getType() == CGType::CodeplayHostTask ||
            (Handler.getType() == CGType::ExecCommandBuffer &&
-            getSyclObjImpl(Handler)->MExecGraph->containsHostTask()));
+            getSyclObjImpl(Handler)->MExecGraph->containsPartitionBoundary()));
 
     auto &EventToBuildDeps = MGraph.expired() ? MDefaultGraphDeps.LastEventPtr
                                               : MExtGraphDeps.LastEventPtr;
@@ -821,7 +821,7 @@ protected:
     // this is handled by finalizeHandlerInOrderHostTask
     assert(Handler.getType() != CGType::CodeplayHostTask);
     assert(!(Handler.getType() == CGType::ExecCommandBuffer &&
-             getSyclObjImpl(Handler)->MExecGraph->containsHostTask()));
+             getSyclObjImpl(Handler)->MExecGraph->containsPartitionBoundary()));
 
     auto &EventToBuildDeps = MGraph.expired() ? MDefaultGraphDeps.LastEventPtr
                                               : MExtGraphDeps.LastEventPtr;

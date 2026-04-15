@@ -68,6 +68,8 @@ inline const char *nodeTypeToString(node_type NodeType) {
     return "async_malloc";
   case node_type::async_free:
     return "async_free";
+  case node_type::host_sync:
+    return "host_sync";
   }
   assert(false && "Unhandled node type");
   return {};
@@ -126,7 +128,8 @@ void sortTopological(nodes_range Roots, std::list<node_impl *> &SortedNodes,
 /// @param PartitionNum Number to propagate.
 void propagatePartitionUp(node_impl &Node, int PartitionNum) {
   if (((Node.MPartitionNum != -1) && (Node.MPartitionNum <= PartitionNum)) ||
-      (Node.MCGType == sycl::detail::CGType::CodeplayHostTask)) {
+      (Node.MCGType == sycl::detail::CGType::CodeplayHostTask) ||
+      (Node.MNodeType == node_type::host_sync)) {
     return;
   }
   Node.MPartitionNum = PartitionNum;
@@ -144,7 +147,8 @@ void propagatePartitionUp(node_impl &Node, int PartitionNum) {
 /// are encountered as successors to the node Node.
 void propagatePartitionDown(node_impl &Node, int PartitionNum,
                             std::list<node_impl *> &HostTaskList) {
-  if (Node.MCGType == sycl::detail::CGType::CodeplayHostTask) {
+  if (Node.MCGType == sycl::detail::CGType::CodeplayHostTask ||
+      Node.MNodeType == node_type::host_sync) {
     if (Node.MPartitionNum != -1) {
       HostTaskList.push_front(&Node);
     }
@@ -181,14 +185,18 @@ void partition::updateSchedule() {
 void exec_graph_impl::makePartitions() {
   int CurrentPartition = -1;
   std::list<node_impl *> HostTaskList;
-  // find all the host-tasks in the graph
+  // Find all partition boundary nodes (host tasks and host_sync nodes)
   for (node_impl &Node : nodes()) {
-    if (Node.MCGType == sycl::detail::CGType::CodeplayHostTask) {
+    if (Node.MCGType == sycl::detail::CGType::CodeplayHostTask ||
+        Node.MNodeType == node_type::host_sync) {
       HostTaskList.push_back(&Node);
+    }
+    if (Node.MCGType == sycl::detail::CGType::CodeplayHostTask) {
+      MContainsHostTask = true;
     }
   }
 
-  MContainsHostTask = HostTaskList.size() > 0;
+  MContainsPartitionBoundary = HostTaskList.size() > 0;
   // Annotate nodes
   // The first step in graph partitioning is to annotate all nodes of the graph
   // with a temporary partition or group number. This step allows us to group
@@ -312,6 +320,9 @@ graph_impl::graph_impl(const sycl::context &SyclContext,
   }
   if (PropList.has_property<property::graph::assume_buffer_outlives_graph>()) {
     MAllowBuffers = true;
+  }
+  if (PropList.has_property<property::graph::allow_wait_recording>()) {
+    MAllowWaitRecording = true;
   }
 
   if (!SyclDevice.has(aspect::ext_oneapi_limited_graph) &&
@@ -1218,12 +1229,13 @@ exec_graph_impl::enqueue(sycl::detail::queue_impl &Queue,
       detail::Scheduler::areEventsSafeForSchedulerBypass(
           CGData.MEvents, Queue.getContextImpl()) &&
       CGData.MRequirements.empty();
-  bool SkipScheduler = IsCGDataSafeForSchedulerBypass && !MContainsHostTask;
+  bool SkipScheduler =
+      IsCGDataSafeForSchedulerBypass && !MContainsPartitionBoundary;
 
   // This variable represents the returned event. It will always be nullptr if
   // EventNeeded is false.
   EventImplPtr SignalEvent;
-  if (!MContainsHostTask) {
+  if (!MContainsPartitionBoundary) {
     SkipScheduler = SkipScheduler && MPartitions[0]->MRequirements.empty();
     if (SkipScheduler) {
       SignalEvent = enqueuePartitionDirectly(MPartitions[0], Queue,

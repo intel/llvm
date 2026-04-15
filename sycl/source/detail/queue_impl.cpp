@@ -329,7 +329,7 @@ queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
 
   auto isHostTask = Type == CGType::CodeplayHostTask ||
                     (Type == CGType::ExecCommandBuffer &&
-                     HandlerImpl.MExecGraph->containsHostTask());
+                     HandlerImpl.MExecGraph->containsPartitionBoundary());
 
   auto noLastEventPath = !isHostTask &&
                          MNoLastEventMode.load(std::memory_order_acquire) &&
@@ -667,7 +667,8 @@ EventImplPtr queue_impl::submit_graph_direct_impl(
     bool CallerNeedsEvent, sycl::span<const event> DepEvents,
     [[maybe_unused]] const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
   bool EventNeeded =
-      CallerNeedsEvent || ExecGraph->containsHostTask() || !isInOrder();
+      CallerNeedsEvent || ExecGraph->containsPartitionBoundary() ||
+      !isInOrder();
   auto SubmitGraphFunc = [&](detail::CG::StorageInitHelper &&CGData)
       -> std::pair<EventImplPtr, bool> {
     if (auto ParentGraph = getCommandGraph(); ParentGraph) {
@@ -694,7 +695,7 @@ EventImplPtr queue_impl::submit_graph_direct_impl(
   // to submission to ensure correct ordering with in-order queues.
   return submit_direct(CallerNeedsEvent, DepEvents, SubmitGraphFunc,
                        detail::CGType::ExecCommandBuffer,
-                       ExecGraph->containsHostTask());
+                       ExecGraph->containsPartitionBoundary());
 }
 
 template <typename SubmitCommandFuncType>
@@ -951,6 +952,15 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
 #endif
 
   if (!MGraph.expired()) {
+    auto GraphImpl = MGraph.lock();
+    if (GraphImpl && GraphImpl->allowWaitRecording()) {
+      auto EmptyCG = std::make_shared<detail::CG>(
+          detail::CGType::None, detail::CG::StorageInitHelper{}, CodeLoc);
+      std::vector<ext::oneapi::experimental::detail::node_impl *> EmptyDeps;
+      GraphImpl->add(ext::oneapi::experimental::node_type::host_sync, EmptyCG,
+                     EmptyDeps);
+      return;
+    }
     throw sycl::exception(make_error_code(errc::invalid),
                           "wait cannot be called for a queue which is "
                           "recording to a command graph.");

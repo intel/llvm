@@ -697,7 +697,7 @@ detail::EventImplPtr handler::finalize() {
     } else {
       detail::queue_impl &Queue = impl->get_queue();
       bool DiscardEvent = !impl->MEventNeeded && Queue.isInOrder() &&
-                          !impl->MExecGraph->containsHostTask();
+                          !impl->MExecGraph->containsPartitionBoundary();
       auto [GraphCompletionEvent, Unused] = impl->MExecGraph->enqueue(
           Queue, std::move(impl->CGData), !DiscardEvent);
       (void)Unused;

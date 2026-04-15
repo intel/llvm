@@ -273,6 +273,20 @@ void event_impl::wait(bool *Success) {
                           "wait method cannot be used for a discarded event.");
 
   if (!MGraph.expired()) {
+    auto GraphImpl = MGraph.lock();
+    if (GraphImpl && GraphImpl->allowWaitRecording()) {
+      auto EmptyCG = std::make_shared<sycl::detail::CG>(
+          sycl::detail::CGType::None,
+          sycl::detail::CG::StorageInitHelper{},
+          sycl::detail::code_location{});
+      std::vector<
+          sycl::ext::oneapi::experimental::detail::node_impl *>
+          EmptyDeps;
+      GraphImpl->add(
+          sycl::ext::oneapi::experimental::node_type::host_sync,
+          EmptyCG, EmptyDeps);
+      return;
+    }
     throw sycl::exception(make_error_code(errc::invalid),
                           "wait method cannot be used for an event associated "
                           "with a command graph.");

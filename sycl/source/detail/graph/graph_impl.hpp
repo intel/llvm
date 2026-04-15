@@ -486,6 +486,10 @@ public:
 
   unsigned long long getID() const { return MID; }
 
+  /// Query whether wait() calls during recording should be captured as
+  /// partition boundaries.
+  bool allowWaitRecording() const { return MAllowWaitRecording; }
+
   /// Get the memory pool used for graph-owned allocations.
   graph_mem_pool &getMemPool() { return MGraphMemPool; }
 
@@ -581,6 +585,11 @@ private:
   /// Controls whether we allow buffers to be used in the graph. Set by the
   /// presence of the assume_buffer_outlives_graph property.
   bool MAllowBuffers = false;
+
+  /// Controls whether wait() calls during recording are captured as
+  /// partition boundaries instead of throwing. Set by the presence of the
+  /// allow_wait_recording property.
+  bool MAllowWaitRecording = false;
 
   /// Mapping from queues to barrier nodes. For each queue the last barrier
   /// node recorded to the graph from the queue is stored.
@@ -686,6 +695,11 @@ public:
   /// Query whether the graph contains any host-task nodes.
   /// @return True if the graph contains any host-task nodes. False otherwise.
   bool containsHostTask() const { return MContainsHostTask; }
+
+  /// Query whether the graph contains any partition boundaries (host tasks
+  /// or host_sync nodes).
+  /// @return True if partition boundaries exist. False otherwise.
+  bool containsPartitionBoundary() const { return MContainsPartitionBoundary; }
 
   /// Checks if the previous submissions of this graph have been completed
   /// This function checks the status of events associated to the previous graph
@@ -958,6 +972,9 @@ private:
   // True if this graph contains any host-tasks, indicates we need special
   // handling for them during update().
   bool MContainsHostTask = false;
+  // True if this graph contains any partition boundaries (host tasks or
+  // host_sync nodes), indicates the graph needs runtime partition handling.
+  bool MContainsPartitionBoundary = false;
 };
 } // namespace detail
 } // namespace experimental
