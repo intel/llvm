@@ -5886,7 +5886,6 @@ LValue CodeGenFunction::EmitLValueForField(LValue base, const FieldDecl *field,
       addr = EmitFieldSYCLAnnotations(field, addr);
 
     SmallString<256> AnnotStr;
-    CGM.generateIntelFPGAAnnotation(field, AnnotStr);
     if (!AnnotStr.empty())
       addr = EmitIntelFPGAFieldAnnotations(field, addr, AnnotStr);
   }

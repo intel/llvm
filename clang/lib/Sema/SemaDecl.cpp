@@ -2973,10 +2973,6 @@ static bool mergeDeclAttribute(Sema &S, NamedDecl *D,
     NewAttr = S.SYCL().mergeSYCLIntelSchedulerTargetFmaxMhzAttr(D, *A);
   else if (const auto *A = dyn_cast<SYCLIntelNoGlobalWorkOffsetAttr>(Attr))
     NewAttr = S.SYCL().mergeSYCLIntelNoGlobalWorkOffsetAttr(D, *A);
-  else if (const auto *A = dyn_cast<SYCLIntelMaxReplicatesAttr>(Attr))
-    NewAttr = S.SYCL().mergeSYCLIntelMaxReplicatesAttr(D, *A);
-  else if (const auto *A = dyn_cast<SYCLIntelForcePow2DepthAttr>(Attr))
-    NewAttr = S.SYCL().mergeSYCLIntelForcePow2DepthAttr(D, *A);
   else if (const auto *A = dyn_cast<SYCLWorkGroupSizeHintAttr>(Attr))
     NewAttr = S.SYCL().mergeSYCLWorkGroupSizeHintAttr(D, *A);
   else if (const auto *A =
@@ -2989,10 +2985,6 @@ static bool mergeDeclAttribute(Sema &S, NamedDecl *D,
     NewAttr = S.SYCL().mergeSYCLIntelMaxGlobalWorkDimAttr(D, *A);
   else if (const auto *BTFA = dyn_cast<BTFDeclTagAttr>(Attr))
     NewAttr = S.mergeBTFDeclTagAttr(D, *BTFA);
-  else if (const auto *A = dyn_cast<SYCLIntelBankWidthAttr>(Attr))
-    NewAttr = S.SYCL().mergeSYCLIntelBankWidthAttr(D, *A);
-  else if (const auto *A = dyn_cast<SYCLIntelNumBanksAttr>(Attr))
-    NewAttr = S.SYCL().mergeSYCLIntelNumBanksAttr(D, *A);
   else if (const auto *A = dyn_cast<SYCLDeviceHasAttr>(Attr))
     NewAttr = S.SYCL().mergeSYCLDeviceHasAttr(D, *A);
   else if (const auto *A = dyn_cast<SYCLUsesAspectsAttr>(Attr))

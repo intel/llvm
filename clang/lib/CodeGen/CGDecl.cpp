@@ -1775,7 +1775,6 @@ CodeGenFunction::EmitAutoVarAlloca(const VarDecl &D) {
   // Emit Intel FPGA attribute annotation for a local variable.
   if (getLangOpts().SYCLIsDevice) {
     SmallString<256> AnnotStr;
-    CGM.generateIntelFPGAAnnotation(&D, AnnotStr);
     if (!AnnotStr.empty()) {
       llvm::Value *V = address.emitRawPointer(*this);
       llvm::Type *DestPtrTy = llvm::PointerType::get(

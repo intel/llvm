@@ -8206,42 +8206,6 @@ ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D, const ParsedAttr &AL,
     break;
 
   // Intel FPGA specific attributes
-  case ParsedAttr::AT_SYCLIntelDoublePump:
-    S.SYCL().handleSYCLIntelDoublePumpAttr(D, AL);
-    break;
-  case ParsedAttr::AT_SYCLIntelSinglePump:
-    S.SYCL().handleSYCLIntelSinglePumpAttr(D, AL);
-    break;
-  case ParsedAttr::AT_SYCLIntelMemory:
-    S.SYCL().handleSYCLIntelMemoryAttr(D, AL);
-    break;
-  case ParsedAttr::AT_SYCLIntelRegister:
-    S.SYCL().handleSYCLIntelRegisterAttr(D, AL);
-    break;
-  case ParsedAttr::AT_SYCLIntelBankWidth:
-    S.SYCL().handleSYCLIntelBankWidthAttr(D, AL);
-    break;
-  case ParsedAttr::AT_SYCLIntelNumBanks:
-    S.SYCL().handleSYCLIntelNumBanksAttr(D, AL);
-    break;
-  case ParsedAttr::AT_SYCLIntelPrivateCopies:
-    S.SYCL().handleSYCLIntelPrivateCopiesAttr(D, AL);
-    break;
-  case ParsedAttr::AT_SYCLIntelMaxReplicates:
-    S.SYCL().handleSYCLIntelMaxReplicatesAttr(D, AL);
-    break;
-  case ParsedAttr::AT_SYCLIntelSimpleDualPort:
-    S.SYCL().handleIntelSimpleDualPortAttr(D, AL);
-    break;
-  case ParsedAttr::AT_SYCLIntelMerge:
-    S.SYCL().handleSYCLIntelMergeAttr(D, AL);
-    break;
-  case ParsedAttr::AT_SYCLIntelBankBits:
-    S.SYCL().handleSYCLIntelBankBitsAttr(D, AL);
-    break;
-  case ParsedAttr::AT_SYCLIntelForcePow2Depth:
-    S.SYCL().handleSYCLIntelForcePow2DepthAttr(D, AL);
-    break;
   case ParsedAttr::AT_SYCLIntelPipeIO:
     S.SYCL().handleSYCLIntelPipeIOAttr(D, AL);
     break;
