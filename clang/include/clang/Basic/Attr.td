@@ -2915,73 +2915,6 @@ def Mode : Attr {
   let PragmaAttributeSupport = 0;
 }
 
-def SYCLIntelIVDep : StmtAttr {
-  let Spellings = [CXX11<"intel", "ivdep">];
-  let Subjects = SubjectList<[ForStmt, CXXForRangeStmt, WhileStmt, DoStmt],
-                             ErrorDiag, "'for', 'while', and 'do' statements">;
-  let Args = [
-    ExprArgument<"SafelenExpr", /*opt*/1>, ExprArgument<"ArrayExpr", /*opt*/1>,
-    UnsignedArgument<"SafelenValue", /*opt*/1>
-  ];
-  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
-  let AdditionalMembers = [{
-    bool isDependent() const {
-      return (getSafelenExpr() &&
-              getSafelenExpr()->isInstantiationDependent()) ||
-             (getArrayExpr() && getArrayExpr()->isInstantiationDependent());
-    }
-
-    const ValueDecl *getArrayDecl() const {
-      const Expr* E = getArrayExpr();
-      if (!E) return nullptr;
-
-      if (const auto *DRE = dyn_cast<DeclRefExpr>(E))
-        return cast<ValueDecl>(DRE->getDecl()->getCanonicalDecl());
-
-      return cast<ValueDecl>(
-          cast<MemberExpr>(E)->getMemberDecl()->getCanonicalDecl());
-    }
-
-    bool isInf() const {
-      return !getSafelenExpr();
-    }
-
-    static bool SafelenCompare(const SYCLIntelIVDepAttr *LHS,
-                               const SYCLIntelIVDepAttr *RHS) {
-      // INF < INF is false, !INF < INF is true.
-      if (!RHS->getSafelenExpr())
-        return false;
-      if (!LHS->getSafelenExpr())
-        return true;
-      return LHS->getSafelenValue() > RHS->getSafelenValue();
-    }
-  }];
-  let Documentation = [SYCLIntelIVDepAttrDocs];
-}
-
-def SYCLIntelInitiationInterval : DeclOrStmtAttr {
-  let Spellings = [CXX11<"intel", "ii">,
-                   CXX11<"intel", "initiation_interval">];
-  let Subjects = SubjectList<[ForStmt, CXXForRangeStmt, WhileStmt, DoStmt, Function],
-                              ErrorDiag,
-                              "'for', 'while', 'do' statements, and functions">;
-  let Args = [ExprArgument<"NExpr">];
-  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
-  let Documentation = [SYCLIntelInitiationIntervalAttrDocs];
-  let SupportsNonconformingLambdaSyntax = 1;
-}
-
-def SYCLIntelMaxConcurrency : DeclOrStmtAttr {
-  let Spellings = [CXX11<"intel", "max_concurrency">];
-  let Subjects = SubjectList<[ForStmt, CXXForRangeStmt, WhileStmt, DoStmt, Function],
-                             ErrorDiag,
-                             "'for', 'while', 'do' statements, and functions">;
-  let Args = [ExprArgument<"NExpr">];
-  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
-  let Documentation = [SYCLIntelMaxConcurrencyAttrDocs];
-  let SupportsNonconformingLambdaSyntax = 1;
-}
-
 def SYCLIntelLoopCoalesce : StmtAttr {
   let Spellings = [CXX11<"intel", "loop_coalesce">];
   let Subjects = SubjectList<[ForStmt, CXXForRangeStmt, WhileStmt, DoStmt],
@@ -2991,26 +2924,6 @@ def SYCLIntelLoopCoalesce : StmtAttr {
   let Documentation = [SYCLIntelLoopCoalesceAttrDocs];
 }
 
-def SYCLIntelDisableLoopPipelining : DeclOrStmtAttr {
-  let Spellings = [CXX11<"intel", "disable_loop_pipelining">];
-  let Subjects = SubjectList<[ForStmt, CXXForRangeStmt, WhileStmt, DoStmt, Function],
-                              ErrorDiag,
-                              "'for', 'while', 'do' statements, and functions">;
-  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
-  let Documentation = [SYCLIntelDisableLoopPipeliningAttrDocs];
-  let SupportsNonconformingLambdaSyntax = 1;
-  let SimpleHandler = 1;
-}
-def : MutualExclusions<[SYCLIntelInitiationInterval,
-                        SYCLIntelDisableLoopPipelining]>;
-def : MutualExclusions<[SYCLIntelIVDep,
-                        SYCLIntelDisableLoopPipelining]>;
-def : MutualExclusions<[SYCLIntelMaxConcurrency,
-                        SYCLIntelDisableLoopPipelining]>;
-
-def : MutualExclusions<[SYCLIntelMaxConcurrency,
-                        SYCLIntelDisableLoopPipelining]>;
-
 def SYCLIntelMaxInterleaving : StmtAttr {
   let Spellings = [CXX11<"intel", "max_interleaving">];
   let Subjects = SubjectList<[ForStmt, CXXForRangeStmt, WhileStmt, DoStmt],
@@ -3019,39 +2932,6 @@ def SYCLIntelMaxInterleaving : StmtAttr {
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Documentation = [SYCLIntelMaxInterleavingAttrDocs];
 }
-
-def SYCLIntelSpeculatedIterations : StmtAttr {
-  let Spellings = [CXX11<"intel", "speculated_iterations">];
-  let Subjects = SubjectList<[ForStmt, CXXForRangeStmt, WhileStmt, DoStmt],
-                             ErrorDiag, "'for', 'while', and 'do' statements">;
-  let Args = [ExprArgument<"NExpr">];
-  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
-  let Documentation = [SYCLIntelSpeculatedIterationsAttrDocs];
-}
-def : MutualExclusions<[SYCLIntelDisableLoopPipelining,
-                        SYCLIntelSpeculatedIterations]>;
-
-def SYCLIntelMaxReinvocationDelay : StmtAttr {
-  let Spellings = [CXX11<"intel", "max_reinvocation_delay">];
-  let Subjects = SubjectList<[ForStmt, CXXForRangeStmt, WhileStmt, DoStmt],
-                             ErrorDiag, "'for', 'while', and 'do' statements">;
-  let Args = [ExprArgument<"NExpr">];
-  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
-  let Documentation = [SYCLIntelMaxReinvocationDelayAttrDocs];
-}
-def : MutualExclusions<[SYCLIntelDisableLoopPipelining,
-                        SYCLIntelMaxReinvocationDelay]>;
-
-def SYCLIntelEnableLoopPipelining : StmtAttr {
-  let Spellings = [CXX11<"intel", "enable_loop_pipelining">];
-  let Subjects = SubjectList<[ForStmt, CXXForRangeStmt, WhileStmt, DoStmt],
-                              ErrorDiag, "'for', 'while', and 'do' statements">;
-  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
-  let Documentation = [SYCLIntelEnableLoopPipeliningAttrDocs];
-}
-
-def : MutualExclusions<[SYCLIntelDisableLoopPipelining,
-                        SYCLIntelEnableLoopPipelining]>;
 
 def SYCLIntelDoublePump : Attr {
   let Spellings = [CXX11<"intel", "doublepump">];

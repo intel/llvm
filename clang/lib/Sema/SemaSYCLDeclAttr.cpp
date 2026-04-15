@@ -125,13 +125,6 @@ bool SemaSYCL::hasDependentExpr(Expr **Exprs, const size_t ExprsSize) {
 
 void SemaSYCL::checkDeprecatedSYCLAttributeSpelling(const ParsedAttr &A,
                                                     StringRef NewName) {
-  // Additionally, diagnose the old [[intel::ii]] spelling.
-  if (A.getKind() == ParsedAttr::AT_SYCLIntelInitiationInterval &&
-      A.getAttrName()->isStr("ii")) {
-    diagnoseDeprecatedAttribute(A, "intel", "initiation_interval");
-    return;
-  }
-
   // Additionally, diagnose deprecated [[intel::reqd_sub_group_size]] spelling
   if (A.getKind() == ParsedAttr::AT_IntelReqdSubGroupSize && A.getScopeName() &&
       A.getScopeName()->isStr("intel")) {
@@ -1123,44 +1116,6 @@ void SemaSYCL::addSYCLIntelMaxWorkGroupsPerMultiprocessorAttr(
                  SYCLIntelMaxWorkGroupsPerMultiprocessorAttr(Context, CI, E));
 }
 
-void SemaSYCL::addSYCLIntelMaxConcurrencyAttr(Decl *D,
-                                              const AttributeCommonInfo &CI,
-                                              Expr *E) {
-  if (!E->isValueDependent()) {
-    llvm::APSInt ArgVal;
-    ExprResult Res = SemaRef.VerifyIntegerConstantExpression(E, &ArgVal);
-    if (Res.isInvalid())
-      return;
-    E = Res.get();
-
-    // This attribute requires a non-negative value.
-    if (ArgVal < 0) {
-      Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
-          << CI << /*non-negative*/ 1;
-      return;
-    }
-
-    // Check to see if there's a duplicate attribute with different values
-    // already applied to the declaration.
-    if (const auto *DeclAttr = D->getAttr<SYCLIntelMaxConcurrencyAttr>()) {
-      // If the other attribute argument is instantiation dependent, we won't
-      // have converted it to a constant expression yet and thus we test
-      // whether this is a null pointer.
-      if (const auto *DeclExpr = dyn_cast<ConstantExpr>(DeclAttr->getNExpr())) {
-        if (ArgVal != DeclExpr->getResultAsAPSInt()) {
-          Diag(CI.getLoc(), diag::warn_duplicate_attribute) << CI;
-          Diag(DeclAttr->getLoc(), diag::note_previous_attribute);
-        }
-        // Drop the duplicate attribute.
-        return;
-      }
-    }
-  }
-
-  ASTContext &Context = getASTContext();
-  D->addAttr(::new (Context) SYCLIntelMaxConcurrencyAttr(Context, CI, E));
-}
-
 void SemaSYCL::addSYCLIntelPrivateCopiesAttr(Decl *D,
                                              const AttributeCommonInfo &CI,
                                              Expr *E) {
@@ -1277,46 +1232,6 @@ void SemaSYCL::addSYCLIntelMaxReplicatesAttr(Decl *D,
         Context, SYCLIntelMemoryAttr::Default));
 
   D->addAttr(::new (Context) SYCLIntelMaxReplicatesAttr(Context, CI, E));
-}
-
-// Handles initiation_interval attribute.
-void SemaSYCL::addSYCLIntelInitiationIntervalAttr(Decl *D,
-                                                  const AttributeCommonInfo &CI,
-                                                  Expr *E) {
-  if (!E->isValueDependent()) {
-    // Validate that we have an integer constant expression and then store the
-    // converted constant expression into the semantic attribute so that we
-    // don't have to evaluate it again later.
-    llvm::APSInt ArgVal;
-    ExprResult Res = SemaRef.VerifyIntegerConstantExpression(E, &ArgVal);
-    if (Res.isInvalid())
-      return;
-    E = Res.get();
-    // This attribute requires a strictly positive value.
-    if (ArgVal <= 0) {
-      Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
-          << CI << /*positive*/ 0;
-      return;
-    }
-    // Check to see if there's a duplicate attribute with different values
-    // already applied to the declaration.
-    if (const auto *DeclAttr = D->getAttr<SYCLIntelInitiationIntervalAttr>()) {
-      // If the other attribute argument is instantiation dependent, we won't
-      // have converted it to a constant expression yet and thus we test
-      // whether this is a null pointer.
-      if (const auto *DeclExpr = dyn_cast<ConstantExpr>(DeclAttr->getNExpr())) {
-        if (ArgVal != DeclExpr->getResultAsAPSInt()) {
-          Diag(CI.getLoc(), diag::warn_duplicate_attribute) << CI;
-          Diag(DeclAttr->getLoc(), diag::note_previous_attribute);
-        }
-        // Drop the duplicate attribute.
-        return;
-      }
-    }
-  }
-
-  ASTContext &Context = getASTContext();
-  D->addAttr(::new (Context) SYCLIntelInitiationIntervalAttr(Context, CI, E));
 }
 
 void SemaSYCL::addSYCLIntelESimdVectorizeAttr(Decl *D,
@@ -2156,35 +2071,6 @@ SYCLIntelNumSimdWorkItemsAttr *SemaSYCL::mergeSYCLIntelNumSimdWorkItemsAttr(
       SYCLIntelNumSimdWorkItemsAttr(Context, A, A.getValue());
 }
 
-void SemaSYCL::handleSYCLIntelInitiationIntervalAttr(Decl *D,
-                                                     const ParsedAttr &A) {
-  checkDeprecatedSYCLAttributeSpelling(A);
-
-  addSYCLIntelInitiationIntervalAttr(D, A, A.getArgAsExpr(0));
-}
-
-SYCLIntelInitiationIntervalAttr *SemaSYCL::mergeSYCLIntelInitiationIntervalAttr(
-    Decl *D, const SYCLIntelInitiationIntervalAttr &A) {
-  // Check to see if there's a duplicate attribute with different values
-  // already applied to the declaration.
-  if (const auto *DeclAttr = D->getAttr<SYCLIntelInitiationIntervalAttr>()) {
-    if (const auto *DeclExpr = dyn_cast<ConstantExpr>(DeclAttr->getNExpr())) {
-      if (const auto *MergeExpr = dyn_cast<ConstantExpr>(A.getNExpr())) {
-        if (DeclExpr->getResultAsAPSInt() != MergeExpr->getResultAsAPSInt()) {
-          Diag(DeclAttr->getLoc(), diag::warn_duplicate_attribute) << &A;
-          Diag(A.getLoc(), diag::note_previous_attribute);
-        }
-        // Do not add a duplicate attribute.
-        return nullptr;
-      }
-    }
-  }
-
-  ASTContext &Context = getASTContext();
-  return ::new (Context)
-      SYCLIntelInitiationIntervalAttr(Context, A, A.getNExpr());
-}
-
 void SemaSYCL::handleSYCLIntelSchedulerTargetFmaxMhzAttr(Decl *D,
                                                          const ParsedAttr &AL) {
   Expr *E = AL.getArgAsExpr(0);
@@ -2484,32 +2370,6 @@ SemaSYCL::mergeSYCLIntelPipeIOAttr(Decl *D, const SYCLIntelPipeIOAttr &A) {
 
   ASTContext &Context = getASTContext();
   return ::new (Context) SYCLIntelPipeIOAttr(Context, A, A.getID());
-}
-
-void SemaSYCL::handleSYCLIntelMaxConcurrencyAttr(Decl *D, const ParsedAttr &A) {
-  Expr *E = A.getArgAsExpr(0);
-  addSYCLIntelMaxConcurrencyAttr(D, A, E);
-}
-
-SYCLIntelMaxConcurrencyAttr *SemaSYCL::mergeSYCLIntelMaxConcurrencyAttr(
-    Decl *D, const SYCLIntelMaxConcurrencyAttr &A) {
-  // Check to see if there's a duplicate attribute with different values
-  // already applied to the declaration.
-  if (const auto *DeclAttr = D->getAttr<SYCLIntelMaxConcurrencyAttr>()) {
-    if (const auto *DeclExpr = dyn_cast<ConstantExpr>(DeclAttr->getNExpr())) {
-      if (const auto *MergeExpr = dyn_cast<ConstantExpr>(A.getNExpr())) {
-        if (DeclExpr->getResultAsAPSInt() != MergeExpr->getResultAsAPSInt()) {
-          Diag(DeclAttr->getLoc(), diag::warn_duplicate_attribute) << &A;
-          Diag(A.getLoc(), diag::note_previous_attribute);
-        }
-        // Do not add a duplicate attribute.
-        return nullptr;
-      }
-    }
-  }
-
-  ASTContext &Context = getASTContext();
-  return ::new (Context) SYCLIntelMaxConcurrencyAttr(Context, A, A.getNExpr());
 }
 
 void SemaSYCL::handleSYCLAddIRAttributesFunctionAttr(Decl *D,
