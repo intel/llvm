@@ -352,7 +352,8 @@ enum class node_type {
   ext_oneapi_barrier,
   host_task,
   async_malloc,
-  async_free
+  async_free,
+  host_sync
 };
 
 class node {
@@ -1216,6 +1217,45 @@ implies disabling certain optimizations. As a result, the execution time of a
 graph finalized with profiling enabled is longer than that of a graph without
 profiling capability. An error will be thrown when attempting to profile an
 event from a graph submission that was created without this property.
+
+===== Allow-Wait-Recording Property [[allow-wait-recording-property]]
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental::property::graph {
+class allow_wait_recording {
+  public:
+    allow_wait_recording() = default;
+};
+}
+----
+
+The `property::graph::allow_wait_recording` property enables recording of
+`queue::wait()` and `event::wait()` calls during graph recording. When this
+property is set on a modifiable `command_graph`, calling `queue::wait()` or
+`event::wait()` while the queue is in the recording state will insert a
+`node_type::host_sync` node into the graph instead of throwing an exception.
+
+At finalization, `host_sync` nodes act as partition boundaries that split the
+graph into separately-submitted sub-graphs. During execution, the runtime
+submits each partition to the device independently, waiting for the previous
+partition to complete before submitting the next one.
+
+When this property is *not* set, the existing behavior is preserved:
+`queue::wait()` and `event::wait()` during recording throw a synchronous
+`exception` with error code `invalid`.
+
+NOTE: Recording a wait silently changes semantics. Users calling
+`queue::wait()` in handwritten SYCL code often have host code after the wait
+that reads device data. Silently converting the wait to a partition boundary
+would produce incorrect results that are difficult to debug. The opt-in
+property makes the behavior change explicit.
+
+NOTE: This property is not compatible with
+<<enable-native-recording-property, `property::graph::enable_native_recording`>>.
+Native recording delegates graph capture to the backend, which does not support
+synchronization calls during capture. Passing both properties results in
+undefined behavior.
 
 ==== Enable-Native-Recording Property [[enable-native-recording-property]]
 
@@ -2119,6 +2159,42 @@ auto node = graph.add([&](sycl::handler& cgh){
 
 Host-tasks can be updated using <<executable-graph-update, Executable Graph Update>>.
 
+=== Host Sync Nodes and Graph Partitioning [[host-sync-nodes]]
+
+When a `command_graph` is constructed with the
+<<allow-wait-recording-property, `property::graph::allow_wait_recording`>>
+property, calls to `queue::wait()` or `event::wait()` during recording insert a
+node of type `node_type::host_sync` into the graph. These nodes are not
+enqueued to the device; instead, they act as partition boundaries.
+
+At finalization, the runtime splits the graph into partitions at each
+`host_sync` node (and each `host_task` node). During execution of the
+executable graph, the runtime submits each partition to the device independently,
+waiting for the previous partition to complete before submitting the next one.
+
+[source,c++]
+----
+// Construct a graph with allow_wait_recording
+exp_ext::command_graph graph{
+    queue.get_context(), queue.get_device(),
+    {exp_ext::property::graph::allow_wait_recording{}}};
+
+graph.begin_recording(queue);
+
+queue.submit([&](handler& h) { h.parallel_for(N, kernel_A); });
+queue.submit([&](handler& h) { h.parallel_for(N, kernel_B); });
+
+queue.wait();  // Inserts a host_sync node (partition boundary)
+
+queue.submit([&](handler& h) { h.parallel_for(N, kernel_C); });
+
+graph.end_recording();
+auto exec = graph.finalize();
+
+// Execution submits [kernel_A, kernel_B], waits, then submits [kernel_C]
+queue.ext_oneapi_graph(exec).wait();
+----
+
 
 === Queue Behavior In Recording Mode
 
@@ -2145,7 +2221,9 @@ recording state are:
 `event::get_profiling_info()` will throw synchronously with error code `invalid`.
 
 - A host-side wait on the event will throw synchronously with error
-code `invalid`.
+code `invalid`, unless the graph was constructed with the
+<<allow-wait-recording-property, `property::graph::allow_wait_recording`>>
+property.
 
 - Using the event outside of the recording scope will throw synchronously with error code
 `invalid`.
@@ -2153,7 +2231,10 @@ code `invalid`.
 ==== Queue Limitations
 
 A host-side wait on a queue in the recording state is an error and will
-throw synchronously with error code `invalid`.
+throw synchronously with error code `invalid`, unless the graph was
+constructed with the
+<<allow-wait-recording-property, `property::graph::allow_wait_recording`>>
+property.
 
 ==== Buffer Limitations
 
@@ -2596,6 +2677,10 @@ exception if attempted:
 | `ext_oneapi_async_malloc` / `ext_oneapi_async_free`
 | Async memory allocation is not representable in native backend graphs.
 | `invalid`
+
+| `property::graph::allow_wait_recording`
+| Backend capture does not support synchronization during recording.
+| _(behavior undefined)_
 
 | `sycl::buffer` accessors
 | SYCL buffers are not supported with native recording.
