@@ -199,7 +199,8 @@ public:
   std::vector<std::shared_ptr<detail::work_group_memory_impl>>
       MWorkGroupMemoryObjects;
 
-  /// True if the work group scratch size is specified for the kernel
+  /// True if the work_group_scratch_size launch property is present for the
+  /// kernel
   bool MHasWorkGroupScratchSizeProperty = false;
 
   /// Potential event mode for the result event of the command.
