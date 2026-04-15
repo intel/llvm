@@ -18,33 +18,32 @@ include( GNUInstallDirs )
 
 set( LIBCLC_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR} )
 
-# A runtimes cross-build should only use the requested target.
-set( LIBCLC_DEFAULT_TARGET "all" )
-if( LLVM_RUNTIMES_BUILD AND LLVM_DEFAULT_TARGET_TRIPLE MATCHES "^nvptx|^amdgcn" )
-  set( LIBCLC_DEFAULT_TARGET ${LLVM_DEFAULT_TARGET_TRIPLE} )
-endif()
-set( LIBCLC_TARGETS_TO_BUILD ${LIBCLC_DEFAULT_TARGET}
-    CACHE STRING "Semicolon-separated list of libclc targets to build, or 'all'." )
-
 option(
   LIBCLC_USE_SPIRV_BACKEND "Build SPIR-V targets with the SPIR-V backend." OFF
 )
-
-option( LIBCLC_NATIVECPU_HOST_TARGET "Build libclc for Native CPU." Off)
-
-if( LIBCLC_NATIVECPU_HOST_TARGET )
-  list(APPEND LIBCLC_TARGETS_TO_BUILD native_cpu)
-endif()
 
 # List of all supported targets.
 set( LIBCLC_TARGETS_ALL
   amdgcn-amd-amdhsa-llvm
   clspv--
   clspv64--
+  native_cpu
   nvptx64--
   nvptx64--nvidiacl
   nvptx64-nvidia-cuda
+  spirv-mesa3d-
+  spirv64-mesa3d-
 )
+
+set(LIBCLC_TARGET ${LLVM_RUNTIMES_TARGET})
+
+if(NOT LIBCLC_TARGET)
+  message(FATAL_ERROR "libclc target is empty\n")
+endif()
+if(NOT "${LIBCLC_TARGET}" IN_LIST LIBCLC_TARGETS_ALL)
+  message(FATAL_ERROR "Unknown libclc target: ${LIBCLC_TARGET}\n"
+    "Valid targets are: ${LIBCLC_TARGETS_ALL}\n")
+endif()
 
 if( LIBCLC_STANDALONE_BUILD OR CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
   set( LIBCLC_STANDALONE_BUILD TRUE )
@@ -103,27 +102,23 @@ if( NOT LIBCLC_USE_SPIRV_BACKEND )
   endif()
 endif()
 
-if( LIBCLC_USE_SPIRV_BACKEND OR llvm-spirv_exe )
-  list( APPEND LIBCLC_TARGETS_ALL spirv-mesa3d- spirv64-mesa3d- )
-endif()
+message(STATUS "libclc target '${LIBCLC_TARGET}' is enabled")
 
-if( LIBCLC_TARGETS_TO_BUILD STREQUAL "all" )
-  set( LIBCLC_TARGETS_TO_BUILD ${LIBCLC_TARGETS_ALL} )
+# Special handling for native_cpu target (doesn't follow standard triple format)
+if(LIBCLC_TARGET STREQUAL "native_cpu")
+  set(ARCH "native_cpu")
+  set(OS "")
 else()
-  foreach(TARGET_TO_BUILD ${LIBCLC_TARGETS_TO_BUILD})
-    if (NOT ${TARGET_TO_BUILD} IN_LIST LIBCLC_TARGETS_ALL)
-      message( FATAL_ERROR
-        "Unknown target in LIBCLC_TARGETS_TO_BUILD: \"${TARGET_TO_BUILD}\"\n"
-        "Valid targets are: ${LIBCLC_TARGETS_ALL}\n")
-    endif()
-  endforeach()
+  string( REPLACE "-" ";" TRIPLE  ${LIBCLC_TARGET} )
+  list(GET TRIPLE 0 ARCH)
+  list(GET TRIPLE 2 OS)
 endif()
 
-if( LIBCLC_NATIVECPU_HOST_TARGET )
-  list(APPEND LIBCLC_TARGETS_TO_BUILD native_cpu)
+if(ARCH STREQUAL spirv OR ARCH STREQUAL spirv64)
+  if(NOT LIBCLC_USE_SPIRV_BACKEND AND NOT llvm-spirv_exe)
+    message(FATAL_ERROR "SPIR-V backend or llvm-spirv is required for libclc ${LIBCLC_TARGET}")
+  endif()
 endif()
-
-list( SORT LIBCLC_TARGETS_TO_BUILD )
 
 foreach( tool IN ITEMS opt llvm-link )
   if( NOT EXISTS "${${tool}_exe}" AND "${${tool}_target}" STREQUAL "" )
@@ -132,20 +127,33 @@ foreach( tool IN ITEMS opt llvm-link )
 endforeach()
 
 add_subdirectory(clc/lib/generic)
-add_subdirectory(clc/lib/amdgpu)
-add_subdirectory(clc/lib/ptx-nvidiacl)
-add_subdirectory(clc/lib/spirv)
-add_subdirectory(clc/lib/clspv)
-
 add_subdirectory(opencl/lib/generic)
-add_subdirectory(opencl/lib/amdgpu)
-add_subdirectory(opencl/lib/clspv)
-add_subdirectory(opencl/lib/spirv)
 
+if(ARCH STREQUAL amdgcn)
+  add_subdirectory(clc/lib/amdgpu)
+  add_subdirectory(opencl/lib/amdgpu)
+elseif(ARCH STREQUAL nvptx64)
+  add_subdirectory(clc/lib/ptx-nvidiacl)
+elseif(ARCH STREQUAL spirv OR ARCH STREQUAL spirv64)
+  add_subdirectory(clc/lib/spirv)
+  add_subdirectory(opencl/lib/spirv)
+elseif(ARCH STREQUAL clspv OR ARCH STREQUAL clspv64)
+  add_subdirectory(clc/lib/clspv)
+  add_subdirectory(opencl/lib/clspv)
+elseif(ARCH STREQUAL native_cpu)
+  # native_cpu doesn't have target-specific CLC or OpenCL sources
+  # It uses generic sources only
+endif()
+
+# Add libspirv subdirectories - these provide SOURCES lists used later
 add_subdirectory(libspirv/lib/generic)
-add_subdirectory(libspirv/lib/amdgcn-amdhsa)
-add_subdirectory(libspirv/lib/ptx-nvidiacl)
-add_subdirectory(libspirv/lib/native_cpu)
+if(ARCH STREQUAL amdgcn)
+  add_subdirectory(libspirv/lib/amdgcn-amdhsa)
+elseif(ARCH STREQUAL nvptx64)
+  add_subdirectory(libspirv/lib/ptx-nvidiacl)
+elseif(ARCH STREQUAL native_cpu)
+  add_subdirectory(libspirv/lib/native_cpu)
+endif()
 
 add_custom_target( libclc ALL )
 
@@ -155,225 +163,217 @@ add_dependencies( libclc libclc-opencl-builtins )
 add_custom_target( libspirv-builtins COMMENT "Build libspirv builtins" )
 add_dependencies( libclc libspirv-builtins )
 
-foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
-  message( STATUS "libclc target '${t}' is enabled" )
-  string( REPLACE "-" ";" TRIPLE  ${t}-- )
-  list( GET TRIPLE 0 ARCH )
-  list( GET TRIPLE 1 VENDOR )
-  list( GET TRIPLE 2 OS )
-
-  # Determine the clang target triple.
-  set(clang_triple ${t})
-  if(ARCH STREQUAL spirv AND LIBCLC_USE_SPIRV_BACKEND)
-    set(clang_triple spirv32--)
-  elseif(ARCH STREQUAL spirv64 AND LIBCLC_USE_SPIRV_BACKEND)
-    set(clang_triple spirv64--)
-  elseif(ARCH STREQUAL spirv OR ARCH STREQUAL clspv)
-    set(clang_triple spir--)
-  elseif(ARCH STREQUAL spirv64 OR ARCH STREQUAL clspv64)
-    set(clang_triple spir64--)
+# Determine the clang target triple.
+set(clang_triple ${LIBCLC_TARGET})
+if(ARCH STREQUAL native_cpu)
+  # native_cpu uses the host triple
+  set(clang_triple ${CMAKE_CXX_COMPILER_TARGET})
+  if(NOT clang_triple)
+    # If not cross-compiling, get the default target triple
+    set(clang_triple ${CMAKE_HOST_SYSTEM_PROCESSOR})
   endif()
+elseif(ARCH STREQUAL spirv AND LIBCLC_USE_SPIRV_BACKEND)
+  set(clang_triple spirv32--)
+elseif(ARCH STREQUAL spirv64 AND LIBCLC_USE_SPIRV_BACKEND)
+  set(clang_triple spirv64--)
+elseif(ARCH STREQUAL spirv OR ARCH STREQUAL clspv)
+  set(clang_triple spir--)
+elseif(ARCH STREQUAL spirv64 OR ARCH STREQUAL clspv64)
+  set(clang_triple spir64--)
+endif()
 
-  # Determine the preprocessor identifier for this target.
-  set(MACRO_ARCH ${ARCH})
-  if(ARCH STREQUAL spirv)
-    set(MACRO_ARCH SPIRV32)
-  elseif(ARCH STREQUAL spirv64)
-    set(MACRO_ARCH SPIRV64)
-  elseif(ARCH STREQUAL clspv)
-    set(MACRO_ARCH CLSPV32)
-  elseif(ARCH STREQUAL clspv64)
-    set(MACRO_ARCH CLSPV64)
-  endif()
-  string(TOUPPER "CLC_${MACRO_ARCH}" target_define)
+# Determine the preprocessor identifier for this target.
+set(MACRO_ARCH ${ARCH})
+if(ARCH STREQUAL native_cpu)
+  set(MACRO_ARCH NATIVE_CPU)
+elseif(ARCH STREQUAL spirv)
+  set(MACRO_ARCH SPIRV32)
+elseif(ARCH STREQUAL spirv64)
+  set(MACRO_ARCH SPIRV64)
+elseif(ARCH STREQUAL clspv)
+  set(MACRO_ARCH CLSPV32)
+elseif(ARCH STREQUAL clspv64)
+  set(MACRO_ARCH CLSPV64)
+endif()
+string(TOUPPER "CLC_${MACRO_ARCH}" target_define)
 
-  # Address space values.
-  set(private_addrspace_val 0)
-  set(generic_addrspace_val 0)
+# Address space values.
+set(private_addrspace_val 0)
+set(generic_addrspace_val 0)
+if(ARCH STREQUAL amdgcn)
+  set(private_addrspace_val 5)
+endif()
+if(ARCH STREQUAL spirv OR ARCH STREQUAL spirv64)
+  set(generic_addrspace_val 4)
+endif()
+
+# Target-specific compile flags and defines.
+set(target_compile_flags)
+set(target_extra_defines)
+set(opt_flags -O3)
+
+if(ARCH STREQUAL spirv OR ARCH STREQUAL spirv64)
+  list(APPEND target_compile_flags -O0 -finline-hint-functions)
+  list(APPEND target_extra_defines CLC_SPIRV)
+  set(opt_flags)
+elseif(ARCH STREQUAL clspv OR ARCH STREQUAL clspv64)
+  list(APPEND target_compile_flags -Wno-unknown-assumption -U__opencl_c_int64)
+  list(APPEND target_extra_defines CLC_CLSPV)
+elseif(ARCH STREQUAL amdgcn)
+  list(APPEND target_compile_flags "SHELL:-Xclang -mcode-object-version=none")
+  # SYCL-specific: Disable AMDGPU reflection, deferring to after linking
+  list(APPEND target_compile_flags -mllvm --amdgpu-oclc-reflect-enable=false)
+elseif(ARCH STREQUAL nvptx64)
+  # SYCL-specific: Some targets don't have a specific GPU to target
+  # Disable NVVM reflection, deferring to after linking
+  list(APPEND target_compile_flags "SHELL:-Xclang -target-feature"
+        "SHELL:-Xclang +ptx72" -march=sm_86
+        "SHELL:-mllvm --nvvm-reflect-enable=false")
+endif()
+
+# Collect CLC sources; target-specific sources override generic ones by basename.
+set(_clc_overrides)
+if(ARCH STREQUAL amdgcn)
+  list(APPEND _clc_overrides ${CLC_AMDGPU_SOURCES})
+elseif(ARCH STREQUAL nvptx64 AND (OS STREQUAL nvidiacl OR OS STREQUAL cuda))
+  list(APPEND _clc_overrides ${CLC_PTX_NVIDIACL_SOURCES})
+elseif(ARCH STREQUAL spirv OR ARCH STREQUAL spirv64)
+  list(APPEND _clc_overrides ${CLC_SPIRV_SOURCES})
+elseif(ARCH STREQUAL clspv OR ARCH STREQUAL clspv64)
+  list(APPEND _clc_overrides ${CLC_CLSPV_SOURCES})
+endif()
+libclc_merge_sources(clc_sources ${CLC_GENERIC_SOURCES} ${_clc_overrides})
+
+# Collect OpenCL sources. SPIR-V and Clspv targets use self-contained
+# subsets while others merge with target-specific overrides.
+if(ARCH STREQUAL spirv OR ARCH STREQUAL spirv64)
+  set(opencl_sources ${OPENCL_SPIRV_SOURCES})
+elseif(ARCH STREQUAL clspv OR ARCH STREQUAL clspv64)
+  set(opencl_sources ${OPENCL_CLSPV_SOURCES})
+else()
+  set(_opencl_overrides)
   if(ARCH STREQUAL amdgcn)
-    set(private_addrspace_val 5)
+    list(APPEND _opencl_overrides ${OPENCL_AMDGCN_SOURCES})
   endif()
-  if(ARCH STREQUAL spirv OR ARCH STREQUAL spirv64)
-    set(generic_addrspace_val 4)
-  endif()
+  libclc_merge_sources(opencl_sources
+    ${OPENCL_GENERIC_SOURCES} ${_opencl_overrides})
+endif()
 
-  # Target-specific compile flags and defines.
-  set(target_compile_flags)
-  set(target_extra_defines)
-  set(opt_flags -O3)
+# Common compile options shared by CLC and OpenCL libraries.
+set(compile_flags
+  -flto
+  --target=${clang_triple}
+  -nostdlib
+  -nostdlibinc
+  -cl-no-stdinc
+  -cl-std=CL3.0
+  -include opencl-c-base.h
+  -Werror=undef
+  -Wall
+  -Wextra
+  -fdiscard-value-names
+  -ffp-contract=fast-honor-pragmas
+  -fdenormal-fp-math=dynamic
+  ${target_compile_flags}
+)
 
-  if(ARCH STREQUAL spirv OR ARCH STREQUAL spirv64)
-    list(APPEND target_compile_flags -O0 -finline-hint-functions)
-    list(APPEND target_extra_defines CLC_SPIRV)
-    set(opt_flags)
-  elseif(ARCH STREQUAL clspv OR ARCH STREQUAL clspv64)
-    list(APPEND target_compile_flags -Wno-unknown-assumption
-                                     -U__opencl_c_int64)
-    list(APPEND target_extra_defines CLC_CLSPV)
-  elseif(ARCH STREQUAL amdgcn)
-    list(APPEND target_compile_flags "SHELL:-Xclang -mcode-object-version=none")
-  endif()
+set(_common_defs
+  ${target_define}
+  ${target_extra_defines}
+  __CLC_PRIVATE_ADDRSPACE_VAL=${private_addrspace_val}
+  __CLC_GENERIC_ADDRSPACE_VAL=${generic_addrspace_val}
+)
 
-  # OpenCL 3.0 extensions
-  string(CONCAT CL_3_0_EXTENSIONS
-    "-cl-ext="
-    "+__opencl_c_3d_image_writes,"
-    "+__opencl_c_images,"
-    "+cl_khr_3d_image_writes")
-  list(APPEND target_compile_flags "-Xclang" ${CL_3_0_EXTENSIONS})
+# Build the CLC internal builtins library.
+string(REPLACE "-" "_" lib_suffix ${LIBCLC_TARGET})
+set(clc_lib clc_builtins_${lib_suffix})
+add_libclc_builtin_library(${clc_lib}
+  SOURCES ${clc_sources}
+  COMPILE_OPTIONS ${compile_flags}
+  INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/clc/include
+  COMPILE_DEFINITIONS ${_common_defs}
+  FOLDER "libclc/Device IR/CLC"
+)
 
-  # Some targets don't have a specific GPU to target
-  if( ARCH STREQUAL nvptx OR ARCH STREQUAL nvptx64 )
-    # Disable NVVM reflection to deferring to after linking
-    list(APPEND target_compile_flags "SHELL:-Xclang -target-feature"
-          "SHELL:-Xclang +ptx72" -march=sm_86
-          "SHELL:-mllvm --nvvm-reflect-enable=false")
-  elseif(ARCH STREQUAL amdgcn)
-    # Disable AMDGPU reflection, deferring to after linking
-    list(APPEND target_compile_flags -mllvm --amdgpu-oclc-reflect-enable=false)
-  endif()
+# Build, link, and install the final OpenCL builtins library.
+add_libclc_library(libclc-${LIBCLC_TARGET}
+  ARCH ${ARCH}
+  TRIPLE ${clang_triple}
+  TARGET_TRIPLE ${LIBCLC_TARGET}
+  SOURCES ${opencl_sources}
+  COMPILE_OPTIONS ${compile_flags} "SHELL:-Xclang -fdeclare-opencl-builtins"
+  INCLUDE_DIRS
+    ${CMAKE_CURRENT_SOURCE_DIR}/clc/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/opencl/include
+  COMPILE_DEFINITIONS ${_common_defs}
+  INTERNALIZE_LIBRARIES ${clc_lib}
+  OPT_FLAGS ${opt_flags}
+  OUTPUT_FILENAME libclc
+  PARENT_TARGET libclc-opencl-builtins
+)
 
-  # Collect CLC sources; target-specific sources override generic ones by basename.
-  set(_clc_overrides)
-  if(ARCH STREQUAL amdgcn)
-    list(APPEND _clc_overrides ${CLC_AMDGPU_SOURCES})
-  elseif(ARCH STREQUAL nvptx64 AND (OS STREQUAL nvidiacl OR OS STREQUAL cuda))
-    list(APPEND _clc_overrides ${CLC_PTX_NVIDIACL_SOURCES})
-  elseif(ARCH STREQUAL spirv OR ARCH STREQUAL spirv64)
-    list(APPEND _clc_overrides ${CLC_SPIRV_SOURCES})
-  elseif(ARCH STREQUAL clspv OR ARCH STREQUAL clspv64)
-    list(APPEND _clc_overrides ${CLC_CLSPV_SOURCES})
-  endif()
-  libclc_merge_sources(clc_sources ${CLC_GENERIC_SOURCES} ${_clc_overrides})
-
-  # Collect OpenCL sources. SPIR-V and Clspv targets use self-contained
-  # subsets while others merge with target-specific overrides.
-  if(ARCH STREQUAL spirv OR ARCH STREQUAL spirv64)
-    set(opencl_sources ${OPENCL_SPIRV_SOURCES})
-  elseif(ARCH STREQUAL clspv OR ARCH STREQUAL clspv64)
-    set(opencl_sources ${OPENCL_CLSPV_SOURCES})
-  else()
-    set(_opencl_overrides)
-    if(ARCH STREQUAL amdgcn)
-      list(APPEND _opencl_overrides ${OPENCL_AMDGCN_SOURCES})
-    endif()
-    libclc_merge_sources(opencl_sources
-      ${OPENCL_GENERIC_SOURCES} ${_opencl_overrides})
-  endif()
-
-  set( libspirv_dirs ${opencl_dirs} )
+# Build libspirv for SYCL-specific targets (amdgcn-amd-amdhsa-llvm, nvptx64-nvidia-cuda, native_cpu)
+set(BUILD_LIBSPIRV FALSE)
+if(LIBCLC_TARGET STREQUAL "amdgcn-amd-amdhsa-llvm" OR
+   LIBCLC_TARGET STREQUAL "nvptx64-nvidia-cuda" OR
+   LIBCLC_TARGET STREQUAL "native_cpu")
+  set(BUILD_LIBSPIRV TRUE)
 
   # Collect libspirv sources.
-  set(BUILD_LIBSPIRV_${t} FALSE)
-  if (t STREQUAL amdgcn-amd-amdhsa-llvm OR t STREQUAL nvptx64-nvidia-cuda OR t STREQUAL native_cpu)
-    set(BUILD_LIBSPIRV_${t} TRUE)
-
-    set(_libspirv_overrides)
-    if(ARCH STREQUAL amdgcn)
-      list(APPEND _libspirv_overrides ${LISPIRV_AMDGCN_SOURCES})
-    elseif(ARCH STREQUAL nvptx64)
-      list(APPEND _libspirv_overrides ${LISPIRV_PTX_NVIDIACL_SOURCES})
-    elseif(t STREQUAL native_cpu)
-      list(APPEND _libspirv_overrides ${LISPIRV_NATIVE_CPU_SOURCES})
-    endif()
-    libclc_merge_sources(libspirv_sources
-      ${LISPIRV_GENERIC_SOURCES} ${_libspirv_overrides})
+  set(_libspirv_overrides)
+  if(ARCH STREQUAL amdgcn)
+    list(APPEND _libspirv_overrides ${LISPIRV_AMDGCN_SOURCES})
+  elseif(ARCH STREQUAL nvptx64)
+    list(APPEND _libspirv_overrides ${LISPIRV_PTX_NVIDIACL_SOURCES})
+  elseif(LIBCLC_TARGET STREQUAL "native_cpu")
+    list(APPEND _libspirv_overrides ${LISPIRV_NATIVE_CPU_SOURCES})
   endif()
+  libclc_merge_sources(libspirv_sources
+    ${LISPIRV_GENERIC_SOURCES} ${_libspirv_overrides})
+endif()
 
-  # Common compile options shared by CLC and OpenCL libraries.
-  set(compile_flags
-    -flto
-    --target=${clang_triple}
-    -nostdlib
-    -nostdlibinc
-    -cl-no-stdinc
-    -cl-std=CL3.0
-    -include opencl-c-base.h
-    -Werror=undef
-    -Wall
-    -Wextra
-    -fdiscard-value-names
-    -ffp-contract=fast-honor-pragmas
-    -fdenormal-fp-math=dynamic
-    ${target_compile_flags}
-  )
-
-  set(_common_defs
-    ${target_define}
-    ${target_extra_defines}
-    __CLC_PRIVATE_ADDRSPACE_VAL=${private_addrspace_val}
-    __CLC_GENERIC_ADDRSPACE_VAL=${generic_addrspace_val}
-  )
-
-  # Build the CLC internal builtins library.
-  string(REPLACE "-" "_" lib_suffix ${t})
-  set(clc_lib clc_builtins_${lib_suffix})
-  add_libclc_builtin_library(${clc_lib}
-    SOURCES ${clc_sources}
-    COMPILE_OPTIONS ${compile_flags}
-    INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/clc/include
-    COMPILE_DEFINITIONS ${_common_defs}
-    FOLDER "libclc/Device IR/CLC"
-  )
-
-  # Build, link, and install the final OpenCL builtins library.
-  add_libclc_library(libclc-${t}
+if(BUILD_LIBSPIRV)
+  # Build base libspirv library
+  add_libclc_library(libspirv-${LIBCLC_TARGET}
     ARCH ${ARCH}
     TRIPLE ${clang_triple}
-    TARGET_TRIPLE ${t}
-    SOURCES ${opencl_sources}
-    COMPILE_OPTIONS ${compile_flags} "SHELL:-Xclang -fdeclare-opencl-builtins"
+    TARGET_TRIPLE ${LIBCLC_TARGET}
+    SOURCES ${libspirv_sources}
+    COMPILE_OPTIONS ${compile_flags} "SHELL:-Xclang -fdeclare-spirv-builtins"
     INCLUDE_DIRS
       ${CMAKE_CURRENT_SOURCE_DIR}/clc/include
-      ${CMAKE_CURRENT_SOURCE_DIR}/opencl/include
+      ${CMAKE_CURRENT_SOURCE_DIR}/libspirv/include
     COMPILE_DEFINITIONS ${_common_defs}
     INTERNALIZE_LIBRARIES ${clc_lib}
     OPT_FLAGS ${opt_flags}
-    OUTPUT_FILENAME libclc
-    PARENT_TARGET libclc-opencl-builtins
+    OUTPUT_FILENAME libspirv
+    PARENT_TARGET libspirv-builtins
   )
 
-  if( BUILD_LIBSPIRV_${t} )
-    add_libclc_library(libspirv-${t}
-      ARCH ${ARCH}
-      TRIPLE ${clang_triple}
-      TARGET_TRIPLE ${t}
-      SOURCES ${libspirv_sources}
-      COMPILE_OPTIONS ${compile_flags} "SHELL:-Xclang -fdeclare-spirv-builtins"
-      INCLUDE_DIRS
-        ${CMAKE_CURRENT_SOURCE_DIR}/clc/include
-        ${CMAKE_CURRENT_SOURCE_DIR}/libspirv/include
-      COMPILE_DEFINITIONS ${_common_defs}
-      INTERNALIZE_LIBRARIES ${clc_lib}
-      OPT_FLAGS ${opt_flags}
-      OUTPUT_FILENAME libspirv
-      PARENT_TARGET libspirv-builtins
-    )
-
-    foreach(long_width 32 64)
-      foreach(char_signedness signed unsigned)
-        add_libclc_library(libspirv-${t}-${long_width}-${char_signedness}
-          ARCH ${ARCH}
-          TRIPLE ${clang_triple}
-          TARGET_TRIPLE ${t}
-          SOURCES ${libspirv_sources}
-          COMPILE_OPTIONS ${compile_flags}
-            "SHELL:-Xclang -fdeclare-spirv-builtins"
-            "SHELL:-Xclang -fsycl-remangle-libspirv"
-            "SHELL:-mllvm -remangle-long-width=${long_width}"
-            "SHELL:-mllvm -remangle-char-signedness=${char_signedness}"
-          INCLUDE_DIRS
-            ${CMAKE_CURRENT_SOURCE_DIR}/clc/include
-            ${CMAKE_CURRENT_SOURCE_DIR}/libspirv/include
-          COMPILE_DEFINITIONS ${_common_defs}
-          INTERNALIZE_LIBRARIES ${clc_lib}
-          OPT_FLAGS ${opt_flags}
-          OUTPUT_FILENAME libspirv.l${long_width}.${char_signedness}_char
-          PARENT_TARGET libspirv-builtins
-        )
-      endforeach()
+  # Build remangled variants for SYCL with different long widths and char signedness
+  foreach(long_width 32 64)
+    foreach(char_signedness signed unsigned)
+      add_libclc_library(libspirv-${LIBCLC_TARGET}-${long_width}-${char_signedness}
+        ARCH ${ARCH}
+        TRIPLE ${clang_triple}
+        TARGET_TRIPLE ${LIBCLC_TARGET}
+        SOURCES ${libspirv_sources}
+        COMPILE_OPTIONS ${compile_flags}
+          "SHELL:-Xclang -fdeclare-spirv-builtins"
+          "SHELL:-Xclang -fsycl-remangle-libspirv"
+          "SHELL:-mllvm -remangle-long-width=${long_width}"
+          "SHELL:-mllvm -remangle-char-signedness=${char_signedness}"
+        INCLUDE_DIRS
+          ${CMAKE_CURRENT_SOURCE_DIR}/clc/include
+          ${CMAKE_CURRENT_SOURCE_DIR}/libspirv/include
+        COMPILE_DEFINITIONS ${_common_defs}
+        INTERNALIZE_LIBRARIES ${clc_lib}
+        OPT_FLAGS ${opt_flags}
+        OUTPUT_FILENAME libspirv.l${long_width}.${char_signedness}_char
+        PARENT_TARGET libspirv-builtins
+      )
     endforeach()
-  endif()
-endforeach()
+  endforeach()
+endif()
 
 add_subdirectory(test)
