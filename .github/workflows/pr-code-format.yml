@@ -59,7 +59,7 @@ jobs:
           clangformat: 20.1.8
 
       - name: Setup Python env
-        uses: actions/setup-python@v6.2.0
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: '3.11'
           cache: 'pip'
@@ -83,7 +83,7 @@ jobs:
             --end-rev HEAD \
             --changed-files "$CHANGED_FILES"
 
-      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f #v6.0.0
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         if: always()
         with:
           name: workflow-args

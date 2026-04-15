@@ -659,18 +659,16 @@ static void collectSYCLAttributes(FunctionDecl *FD,
   if (DirectlyCalled) {
     llvm::copy_if(FD->getAttrs(), std::back_inserter(Attrs), [](Attr *A) {
       // FIXME: Make this list self-adapt as new SYCL attributes are added.
-      return isa<
-          IntelReqdSubGroupSizeAttr, IntelNamedSubGroupSizeAttr,
-          SYCLReqdWorkGroupSizeAttr, SYCLWorkGroupSizeHintAttr,
-          SYCLIntelKernelArgsRestrictAttr, SYCLIntelNumSimdWorkItemsAttr,
-          SYCLIntelSchedulerTargetFmaxMhzAttr, SYCLIntelMaxWorkGroupSizeAttr,
-          SYCLIntelMaxGlobalWorkDimAttr,
-          SYCLIntelMinWorkGroupsPerComputeUnitAttr,
-          SYCLIntelMaxWorkGroupsPerMultiprocessorAttr,
-          SYCLIntelNoGlobalWorkOffsetAttr, SYCLSimdAttr,
-          SYCLIntelMaxConcurrencyAttr, SYCLIntelDisableLoopPipeliningAttr,
-          SYCLIntelInitiationIntervalAttr, SYCLIntelUseStallEnableClustersAttr,
-          SYCLDeviceHasAttr, SYCLAddIRAttributesFunctionAttr>(A);
+      return isa<IntelReqdSubGroupSizeAttr, IntelNamedSubGroupSizeAttr,
+                 SYCLReqdWorkGroupSizeAttr, SYCLWorkGroupSizeHintAttr,
+                 SYCLIntelKernelArgsRestrictAttr, SYCLIntelNumSimdWorkItemsAttr,
+                 SYCLIntelSchedulerTargetFmaxMhzAttr,
+                 SYCLIntelMaxWorkGroupSizeAttr, SYCLIntelMaxGlobalWorkDimAttr,
+                 SYCLIntelMinWorkGroupsPerComputeUnitAttr,
+                 SYCLIntelMaxWorkGroupsPerMultiprocessorAttr,
+                 SYCLIntelNoGlobalWorkOffsetAttr, SYCLSimdAttr,
+                 SYCLIntelUseStallEnableClustersAttr, SYCLDeviceHasAttr,
+                 SYCLAddIRAttributesFunctionAttr>(A);
     });
   }
 }
@@ -5803,9 +5801,6 @@ static void PropagateAndDiagnoseDeviceAttr(SemaSYCL &S, Attr *A,
   case attr::Kind::SYCLIntelMinWorkGroupsPerComputeUnit:
   case attr::Kind::SYCLIntelMaxWorkGroupsPerMultiprocessor:
   case attr::Kind::SYCLIntelNoGlobalWorkOffset:
-  case attr::Kind::SYCLIntelMaxConcurrency:
-  case attr::Kind::SYCLIntelDisableLoopPipelining:
-  case attr::Kind::SYCLIntelInitiationInterval:
   case attr::Kind::SYCLIntelUseStallEnableClusters:
   case attr::Kind::SYCLDeviceHas:
   case attr::Kind::SYCLAddIRAttributesFunction:

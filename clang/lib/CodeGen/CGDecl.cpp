@@ -1772,24 +1772,6 @@ CodeGenFunction::EmitAutoVarAlloca(const VarDecl &D) {
                                         UsePointerValue);
   }
 
-  // Emit Intel FPGA attribute annotation for a local variable.
-  if (getLangOpts().SYCLIsDevice) {
-    SmallString<256> AnnotStr;
-    CGM.generateIntelFPGAAnnotation(&D, AnnotStr);
-    if (!AnnotStr.empty()) {
-      llvm::Value *V = address.emitRawPointer(*this);
-      llvm::Type *DestPtrTy = llvm::PointerType::get(
-          CGM.getLLVMContext(), address.getAddressSpace());
-      llvm::Value *Arg = Builder.CreateBitCast(V, DestPtrTy, V->getName());
-      if (address.getAddressSpace() != 0)
-        Arg = Builder.CreateAddrSpaceCast(Arg, CGM.Int8PtrTy, V->getName());
-      EmitAnnotationCall(
-          CGM.getIntrinsic(llvm::Intrinsic::var_annotation,
-                           {CGM.Int8PtrTy, CGM.ConstGlobalsPtrTy}),
-          Arg, AnnotStr, D.getLocation());
-    }
-  }
-
   if (D.hasAttr<AnnotateAttr>() && HaveInsertPoint())
     EmitVarAnnotations(&D, address.emitRawPointer(*this));
 
