@@ -12,9 +12,7 @@
 #include <detail/graph/dynamic_impl.hpp>
 #include <detail/kernel_arg_desc.hpp>
 #include <detail/ndrange_desc.hpp>
-#include <iostream>
 
-#include <iostream>
 #include <sycl/detail/kernel_desc.hpp>
 #include <sycl/detail/kernel_launch_helper.hpp>
 #include <vector>
@@ -234,7 +232,6 @@ public:
     using namespace sycl::ext::intel::experimental;
 
     validateProperties(Kprop, HasGraph, dev);
-    std::cout << "A" << std::endl;
     // If we are here, the device supports the guarantee required but
     // there is a caveat in that if the guarantee required is a concurrent
     // guarantee, then we most likely also need to enable cooperative
@@ -266,7 +263,6 @@ public:
       setKernelWorkGroupMemorySize(prop->size);
     else if (MDeviceKernelInfoPtr &&
              MDeviceKernelInfoPtr->getImplicitLocalArgPos()) {
-      std::cout << "B" << std::endl;
       throw sycl::exception(
           sycl::make_error_code(sycl::errc::memory_allocation),
           "Kernel allocates work group scratch memory but an allocation size "
