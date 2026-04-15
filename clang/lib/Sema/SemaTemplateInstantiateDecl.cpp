@@ -795,16 +795,6 @@ static void instantiateSYCLIntelPipeIOAttr(
     S.SYCL().addSYCLIntelPipeIOAttr(New, *Attr, Result.getAs<Expr>());
 }
 
-static void instantiateSYCLIntelLoopFuseAttr(
-    Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
-    const SYCLIntelLoopFuseAttr *Attr, Decl *New) {
-  EnterExpressionEvaluationContext Unevaluated(
-      S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
-  ExprResult Result = S.SubstExpr(Attr->getValue(), TemplateArgs);
-  if (!Result.isInvalid())
-    S.SYCL().addSYCLIntelLoopFuseAttr(New, *Attr, Result.getAs<Expr>());
-}
-
 static void instantiateIntelReqdSubGroupSize(
     Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
     const IntelReqdSubGroupSizeAttr *A, Decl *New) {
@@ -1343,12 +1333,6 @@ void Sema::InstantiateAttrs(const MultiLevelTemplateArgumentList &TemplateArgs,
             dyn_cast<SYCLIntelMaxWorkGroupsPerMultiprocessorAttr>(TmplAttr)) {
       instantiateSYCLIntelMaxWorkGroupsPerMultiprocessorAttr(
           *this, TemplateArgs, SYCLIntelMaxWorkGroupsPerMultiprocessor, New);
-      continue;
-    }
-    if (const auto *SYCLIntelLoopFuse =
-            dyn_cast<SYCLIntelLoopFuseAttr>(TmplAttr)) {
-      instantiateSYCLIntelLoopFuseAttr(*this, TemplateArgs, SYCLIntelLoopFuse,
-                                       New);
       continue;
     }
     if (const auto *SYCLIntelNoGlobalWorkOffset =

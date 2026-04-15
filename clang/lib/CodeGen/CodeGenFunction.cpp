@@ -1258,18 +1258,6 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
   }
 
   if (getLangOpts().SYCLIsDevice && D) {
-    if (const auto *A = D->getAttr<SYCLIntelLoopFuseAttr>()) {
-      const auto *CE = cast<ConstantExpr>(A->getValue());
-      std::optional<llvm::APSInt> ArgVal = CE->getResultAsAPSInt();
-      llvm::Metadata *AttrMDArgs[] = {
-          llvm::ConstantAsMetadata::get(
-              Builder.getInt32(ArgVal->getZExtValue())),
-          llvm::ConstantAsMetadata::get(
-              A->isIndependent() ? Builder.getInt32(1) : Builder.getInt32(0))};
-      Fn->setMetadata("loop_fuse",
-                      llvm::MDNode::get(getLLVMContext(), AttrMDArgs));
-    }
-
     // Source location of functions is required to emit required diagnostics in
     // SYCLPropagateAspectsUsagePass. Save the token in a srcloc metadata node.
     llvm::ConstantInt *Line =

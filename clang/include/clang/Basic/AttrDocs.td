@@ -4226,30 +4226,6 @@ used on the same loop in conjunction with disable_loop_pipelining.
   }];
 }
 
-def SYCLIntelNofusionAttrDocs : Documentation {
-  let Category = DocCatVariable;
-  let Heading = "intel::nofusion";
-  let Content = [{
-This attribute applies to a loop. Indicates that the annotated
-loop should not be fused with any adjacent loop.
-
-.. code-block:: c++
-
-  void foo() {
-    [[intel::nofusion]] for (int i=0; i<10;++i) { }
-  }
-
-  void nofusion() {
-    int a1[10];
-    for (int i = 0; i < 10; ++i) {
-    [[intel::nofusion]] for (int j = 0; j < 10; ++j) {
-      a1[i] += a1[j];
-    }
-  }
-
-  }];
-}
-
 def SYCLIntelMaxReinvocationDelayAttrDocs : Documentation {
   let Category = DocCatVariable;
   let Heading = "intel::max_reinvocation_delay";
@@ -4308,34 +4284,6 @@ used on the same loop in conjunction with ``disable_loop_pipelining`` attribute.
       a = a + 1;
     } while (a < 20);
   }
-
-  }];
-}
-
-def SYCLIntelLoopFuseDocs : Documentation {
-  let Category = DocCatFunction;
-  let Heading = "loop_fuse, loop_fuse_independent";
-  let Content = [{
-``[[intel::loop_fuse(N)]]`` and ``[[intel::loop_fuse_independent(N)]]`` attributes apply
-to a function/lambda function. It is a strong request, to the extent possible, to fuse
-the loops within the function, that are contained in at most N-1 other loops within the
-function. If the optional parameter N is omitted, it is a strong request, to the extent
-possible, to fuse loops within the function that are not contained in any other loop
-within the function. ``[[intel::loop_fuse_independent(N)]]`` also guarantees that fusion
-safety analysis can ignore negative-distance dependences between these loops.
-
-.. code-block:: c++
-
-  [[intel::loop_fuse(N)]]
-  int foo() {}
-
-  [[intel::loop_fuse_independent(N)]]
-  int foo() {}
-
-
-``[[intel::loop_fuse(N)]]`` and ``[[intel::loop_fuse_independent(N)]]`` takes one optional
-parameter that is a constant unsigned integer expression. The parameter N may be a template
-parameter.
 
   }];
 }
