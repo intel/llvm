@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
+
 #include <detail/device_impl.hpp>
 #include <detail/device_kernel_info.hpp>
 #include <detail/graph/dynamic_impl.hpp>
@@ -15,6 +16,7 @@
 
 #include <sycl/detail/kernel_desc.hpp>
 #include <sycl/detail/kernel_launch_helper.hpp>
+
 #include <vector>
 
 namespace sycl {
@@ -232,6 +234,7 @@ public:
     using namespace sycl::ext::intel::experimental;
 
     validateProperties(Kprop, HasGraph, dev);
+   
     // If we are here, the device supports the guarantee required but
     // there is a caveat in that if the guarantee required is a concurrent
     // guarantee, then we most likely also need to enable cooperative
