@@ -145,11 +145,10 @@ TEST_F(SchedulerTest, BarrierWaitListWithDependsOn) {
   QueueB.wait();
 }
 
-TEST_F(SchedulerTest, BarrierWaitListEmpty) {
+TEST_F(SchedulerTest, BarrierWaitListEmptyQueueShortcut) {
   sycl::unittest::UrMock<> Mock;
 
   sycl::platform Plt = sycl::platform();
-
   context Ctx{Plt};
   queue InOrderQueue{Ctx, default_selector_v, property::queue::in_order()};
 

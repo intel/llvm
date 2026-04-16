@@ -538,11 +538,8 @@ EventImplPtr queue_impl::submit_barrier_scheduler_bypass(
 
 EventImplPtr
 queue_impl::submit_barrier_direct_impl(sycl::span<const event> DepEvents,
+                                       detail::CGType BarrierType,
                                        const detail::code_location &CodeLoc) {
-
-  detail::CGType BarrierType =
-      DepEvents.empty() ? detail::CGType::Barrier : CGType::BarrierWaitlist;
-
   auto SubmitBarrierFunc = [&](detail::CG::StorageInitHelper &&CGData)
       -> std::pair<EventImplPtr, bool> {
     std::vector<detail::EventImplPtr> DepEventImpls;
