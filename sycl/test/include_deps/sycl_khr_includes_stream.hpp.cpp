@@ -91,12 +91,11 @@
 // CHECK-NEXT: __spirv/spirv_ops.hpp
 // CHECK-NEXT: builtins.hpp
 // CHECK-NEXT: detail/builtins/builtins.hpp
-// CHECK-NEXT: detail/vector_convert.hpp
-// CHECK-NEXT: detail/memcpy.hpp
+// CHECK-NEXT: marray.hpp
 // CHECK-NEXT: vector.hpp
 // CHECK-NEXT: detail/named_swizzles_mixin.hpp
 // CHECK-NEXT: detail/vector_arith.hpp
-// CHECK-NEXT: marray.hpp
+// CHECK-NEXT: detail/memcpy.hpp
 // CHECK-NEXT: detail/builtins/common_functions.inc
 // CHECK-NEXT: detail/builtins/helper_macros.hpp
 // CHECK-NEXT: detail/builtins/geometric_functions.inc
