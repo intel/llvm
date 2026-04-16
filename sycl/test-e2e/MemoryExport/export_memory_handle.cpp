@@ -6,7 +6,7 @@
 /*
 This test verifies the basic functionality of memory export APIs in SYCL. 
 It allocates exportable device memory, exports the handle, 
-and performs a simple validation on the exported handle  to ensure it is valid.
+and performs a simple validation on the exported handle to ensure it is valid.
 */
 // clang-format on
 
