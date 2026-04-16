@@ -183,6 +183,12 @@ public:
     Force,
   };
 
+  enum class SYCLIdQueriesRangeKind {
+    Int,
+    UInt,
+    SizeT,
+  };
+
   enum HLSLLangStd {
     HLSL_Unset = 0,
     HLSL_2015 = 2015,
