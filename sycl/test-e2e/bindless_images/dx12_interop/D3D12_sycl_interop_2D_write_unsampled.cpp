@@ -235,10 +235,10 @@ int runTest(
         h.depends_on(dependencyEvent);
 
       // ranges for parallel_for use "fastest incrementing" order (z,y,x),
-       // but bindless images ranges use (x,y,z) order.
-       h.parallel_for(sycl::range<2>(height, width), [=](sycl::item<2> item) {
-         int x = item.get_id(1);
-         int y = item.get_id(0);
+      // but bindless images ranges use (x,y,z) order.
+      h.parallel_for(sycl::range<2>(height, width), [=](sycl::item<2> item) {
+        int x = item.get_id(1);
+        int y = item.get_id(0);
 
         size_t index = y * width + x;
         size_t totalPixels = width * height;

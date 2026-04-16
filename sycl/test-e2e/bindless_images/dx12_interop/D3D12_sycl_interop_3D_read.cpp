@@ -215,8 +215,8 @@ int runTest(
                                             : getSyclChannelType<T>();
     // bindless image use (x,y,z) order,
     // differening from SYCL 2020 "fastest incrementing" convention.
-    syclexp::image_descriptor imgDesc(sycl::range<2>(width, heigh, depth), channels,
-                                      syclType);
+    syclexp::image_descriptor imgDesc(sycl::range<2>(width, heigh, depth),
+                                      channels, syclType);
 
     syclexp::image_mem_handle devHandle = syclexp::map_external_image_memory(
         extMem, imgDesc, q.get_device(), q.get_context());
