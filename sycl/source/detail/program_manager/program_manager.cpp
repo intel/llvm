@@ -2185,8 +2185,7 @@ ProgramManager::getSYCLDeviceImagesWithCompatibleState(
     // Track the highest image state for each requested kernel.
     using StateImagesPairT =
         std::pair<bundle_state, std::vector<const RTDeviceBinaryImage *>>;
-    using KernelImageMapT =
-        std::unordered_map<kernel_id, StateImagesPairT>;
+    using KernelImageMapT = std::unordered_map<kernel_id, StateImagesPairT>;
     KernelImageMapT KernelImageMap;
     if (!KernelIDs.empty())
       for (const kernel_id &KernelID : KernelIDs)
