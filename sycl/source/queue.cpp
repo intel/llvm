@@ -207,7 +207,8 @@ void queue::wait_and_throw_proxy(const detail::code_location &CodeLoc) {
 /// \return a SYCL event object, which corresponds to the queue the command
 /// group is being enqueued on.
 event queue::ext_oneapi_submit_barrier(const detail::code_location &CodeLoc) {
-  return impl->submit_barrier_direct_with_event({}, detail::CGType::Barrier, CodeLoc);
+  return impl->submit_barrier_direct_with_event({}, detail::CGType::Barrier,
+                                                CodeLoc);
 }
 
 /// Prevents any commands submitted afterward to this queue from executing
@@ -221,7 +222,8 @@ event queue::ext_oneapi_submit_barrier(const detail::code_location &CodeLoc) {
 /// group is being enqueued on.
 event queue::ext_oneapi_submit_barrier(const std::vector<event> &WaitList,
                                        const detail::code_location &CodeLoc) {
-  return impl->submit_barrier_direct_with_event(WaitList, detail::CGType::BarrierWaitlist, CodeLoc);
+  return impl->submit_barrier_direct_with_event(
+      WaitList, detail::CGType::BarrierWaitlist, CodeLoc);
 }
 
 template <typename Param>
