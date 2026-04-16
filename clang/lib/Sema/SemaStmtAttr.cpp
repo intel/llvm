@@ -72,64 +72,6 @@ static Attr *handleSuppressAttr(Sema &S, Stmt *St, const ParsedAttr &A,
       S.Context, A, DiagnosticIdentifiers.data(), DiagnosticIdentifiers.size());
 }
 
-SYCLIntelMaxConcurrencyAttr *
-Sema::BuildSYCLIntelMaxConcurrencyAttr(const AttributeCommonInfo &CI,
-                                       Expr *E) {
-  if (!E->isValueDependent()) {
-    llvm::APSInt ArgVal;
-    ExprResult Res = VerifyIntegerConstantExpression(E, &ArgVal);
-    if (Res.isInvalid())
-      return nullptr;
-    E = Res.get();
-
-    // This attribute requires a non-negative value.
-    if (ArgVal < 0) {
-      Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
-          << CI << /*non-negative*/ 1;
-      return nullptr;
-    }
-  }
-
-  return new (Context) SYCLIntelMaxConcurrencyAttr(Context, CI, E);
-}
-
-static Attr *handleSYCLIntelMaxConcurrencyAttr(Sema &S, Stmt *St,
-                                               const ParsedAttr &A) {
-  S.SYCL().checkDeprecatedSYCLAttributeSpelling(A);
-
-  Expr *E = A.getArgAsExpr(0);
-  return S.BuildSYCLIntelMaxConcurrencyAttr(A, E);
-}
-
-SYCLIntelInitiationIntervalAttr *
-Sema::BuildSYCLIntelInitiationIntervalAttr(const AttributeCommonInfo &CI,
-                                           Expr *E) {
-  if (!E->isValueDependent()) {
-    llvm::APSInt ArgVal;
-    ExprResult Res = VerifyIntegerConstantExpression(E, &ArgVal);
-    if (Res.isInvalid())
-      return nullptr;
-    E = Res.get();
-
-    // This attribute requires a strictly positive value.
-    if (ArgVal <= 0) {
-      Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
-          << CI << /*positive*/ 0;
-      return nullptr;
-    }
-  }
-
-  return new (Context) SYCLIntelInitiationIntervalAttr(Context, CI, E);
-}
-
-static Attr *handleSYCLIntelInitiationIntervalAttr(Sema &S, Stmt *St,
-                                                   const ParsedAttr &A) {
-  S.SYCL().checkDeprecatedSYCLAttributeSpelling(A);
-
-  Expr *E = A.getArgAsExpr(0);
-  return S.BuildSYCLIntelInitiationIntervalAttr(A, E);
-}
-
 SYCLIntelMaxInterleavingAttr *
 Sema::BuildSYCLIntelMaxInterleavingAttr(const AttributeCommonInfo &CI,
                        		        Expr *E) {
@@ -187,51 +129,6 @@ static Attr *handleSYCLIntelLoopCoalesceAttr(Sema &S, Stmt *St,
   return S.BuildSYCLIntelLoopCoalesceAttr(A, E);
 }
 
-SYCLIntelSpeculatedIterationsAttr *
-Sema::BuildSYCLIntelSpeculatedIterationsAttr(const AttributeCommonInfo &CI,
-                                             Expr *E) {
-  if (!E->isValueDependent()) {
-    llvm::APSInt ArgVal;
-    ExprResult Res = VerifyIntegerConstantExpression(E, &ArgVal);
-    if (Res.isInvalid())
-      return nullptr;
-    E = Res.get();
-
-    // This attribute requires a non-negative value.
-    if (ArgVal < 0) {
-      Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
-          << CI << /*non-negative*/ 1;
-      return nullptr;
-    }
-  }
-
-  return new (Context) SYCLIntelSpeculatedIterationsAttr(Context, CI, E);
-}
-
-static Attr *handleSYCLIntelSpeculatedIterationsAttr(Sema &S, Stmt *St,
-                                                     const ParsedAttr &A) {
-  S.SYCL().checkDeprecatedSYCLAttributeSpelling(A);
-
-  Expr *E = A.getArgAsExpr(0);
-  return S.BuildSYCLIntelSpeculatedIterationsAttr(A, E);
-}
-
-static Attr *handleSYCLIntelDisableLoopPipeliningAttr(Sema &S, Stmt *,
-                                                      const ParsedAttr &A) {
-  S.SYCL().checkDeprecatedSYCLAttributeSpelling(A);
-  return new (S.Context) SYCLIntelDisableLoopPipeliningAttr(S.Context, A);
-}
-
-static bool checkSYCLIntelIVDepSafeLen(Sema &S, llvm::APSInt &Value,
-                                           Expr *E) {
-  // This attribute requires a non-negative value.
-  if (!Value.isNonNegative())
-    return S.Diag(E->getExprLoc(),
-                  diag::err_attribute_requires_positive_integer)
-           << "'ivdep'" << /*non-negative*/ 1;
-  return false;
-}
-
 enum class IVDepExprResult {
   Invalid,
   Null,
@@ -239,72 +136,6 @@ enum class IVDepExprResult {
   Array,
   SafeLen,
 };
-
-static IVDepExprResult HandleIVDepAttrExpr(Sema &S, Expr *E,
-                                           unsigned &SafelenValue) {
-  if (!E)
-    return IVDepExprResult::Null;
-
-  if (E->isInstantiationDependent())
-    return IVDepExprResult::Dependent;
-
-  std::optional<llvm::APSInt> ArgVal = E->getIntegerConstantExpr(S.getASTContext());
-  if (ArgVal) {
-    if (checkSYCLIntelIVDepSafeLen(S, *ArgVal, E))
-      return IVDepExprResult::Invalid;
-    SafelenValue = ArgVal->getZExtValue();
-    // ivdep attribute allows both safelen = 0 and safelen = 1 with a warning.
-    if (SafelenValue == 0 || SafelenValue == 1) {
-      S.Diag(E->getExprLoc(), diag::warn_ivdep_attribute_argument)
-          << SafelenValue;
-      return IVDepExprResult::Invalid;
-    }
-    return IVDepExprResult::SafeLen;
-  }
-
-  if (isa<DeclRefExpr>(E) || isa<MemberExpr>(E)) {
-    if (!E->getType()->isArrayType() && !E->getType()->isPointerType()) {
-      S.Diag(E->getExprLoc(), diag::err_ivdep_declrefexpr_arg);
-      return IVDepExprResult::Invalid;
-    }
-    return IVDepExprResult::Array;
-  }
-
-  S.Diag(E->getExprLoc(), diag::err_ivdep_unknown_arg);
-  return IVDepExprResult::Invalid;
-}
-
-// Note: At the time of this call, we don't know the order of the expressions,
-// so we name them vaguely until we can figure it out.
-SYCLIntelIVDepAttr *
-Sema::BuildSYCLIntelIVDepAttr(const AttributeCommonInfo &CI, Expr *Expr1,
-                                  Expr *Expr2) {
-  unsigned SafelenValue = 0;
-  IVDepExprResult E1 = HandleIVDepAttrExpr(*this, Expr1, SafelenValue);
-  IVDepExprResult E2 = HandleIVDepAttrExpr(*this, Expr2, SafelenValue);
-
-  if (E1 == IVDepExprResult::Invalid || E2 == IVDepExprResult::Invalid)
-    return nullptr;
-
-  if (E1 == E2 && E1 != IVDepExprResult::Dependent &&
-      E1 != IVDepExprResult::Null) {
-    Diag(Expr2->getExprLoc(), diag::err_ivdep_duplicate_arg);
-    return nullptr;
-  }
-
-  // Try to put Safelen in the 1st one so codegen can count on the ordering.
-  Expr *SafeLenExpr = Expr1;
-  Expr *ArrayExpr = Expr2;
-
-  // Both can be null or dependent, so swap if we're really sure.
-  if (E2 == IVDepExprResult::SafeLen || E1 == IVDepExprResult::Array) {
-    SafeLenExpr = Expr2;
-    ArrayExpr = Expr1;
-  }
-
-  return new (Context)
-      SYCLIntelIVDepAttr(Context, CI, SafeLenExpr, ArrayExpr, SafelenValue);
-}
 
 // Filters out any attributes from the list that are either not the specified
 // type, or whose function isDependent returns true.
@@ -321,170 +152,6 @@ static void FilterAttributeList(ArrayRef<const Attr *> Attrs,
   FilteredAttrs.erase(
       std::remove(FilteredAttrs.begin(), FilteredAttrs.end(), nullptr),
       FilteredAttrs.end());
-}
-
-static void
-CheckRedundantSYCLIntelIVDepAttrs(Sema &S, ArrayRef<const Attr *> Attrs) {
-  // Skip SEMA if we're in a template, this will be diagnosed later.
-  if (S.getCurLexicalContext()->isDependentContext())
-    return;
-
-  SmallVector<const SYCLIntelIVDepAttr *, 8> FilteredAttrs;
-  // Filter down to just non-dependent ivdeps.
-  FilterAttributeList(Attrs, FilteredAttrs);
-  if (FilteredAttrs.empty())
-    return;
-
-  SmallVector<const SYCLIntelIVDepAttr *, 8> SortedAttrs(FilteredAttrs);
-  llvm::stable_sort(SortedAttrs, SYCLIntelIVDepAttr::SafelenCompare);
-
-  // Find the maximum without an array expression, which ends up in the 2nd
-  // expr.
-  const auto *GlobalMaxItr =
-      llvm::find_if(SortedAttrs, [](const SYCLIntelIVDepAttr *A) {
-        return !A->getArrayExpr();
-      });
-  const SYCLIntelIVDepAttr *GlobalMax =
-      GlobalMaxItr == SortedAttrs.end() ? nullptr : *GlobalMaxItr;
-
-  for (const auto *A : FilteredAttrs) {
-    if (A == GlobalMax)
-      continue;
-
-    if (GlobalMax && !SYCLIntelIVDepAttr::SafelenCompare(A, GlobalMax)) {
-      S.Diag(A->getLocation(), diag::warn_ivdep_redundant)
-          << !GlobalMax->isInf() << GlobalMax->getSafelenValue() << !A->isInf()
-          << A->getSafelenValue();
-      S.Diag(GlobalMax->getLocation(), diag::note_previous_attribute);
-      continue;
-    }
-
-    if (!A->getArrayExpr())
-      continue;
-
-    const ValueDecl *ArrayDecl = A->getArrayDecl();
-    auto Other = llvm::find_if(SortedAttrs,
-                               [ArrayDecl](const SYCLIntelIVDepAttr *A) {
-                                 return ArrayDecl == A->getArrayDecl();
-                               });
-    assert(Other != SortedAttrs.end() && "Should find at least itself");
-
-    // Diagnose if lower/equal to the lowest with this array.
-    if (*Other != A && !SYCLIntelIVDepAttr::SafelenCompare(A, *Other)) {
-      S.Diag(A->getLocation(), diag::warn_ivdep_redundant)
-          << !(*Other)->isInf() << (*Other)->getSafelenValue() << !A->isInf()
-          << A->getSafelenValue();
-      S.Diag((*Other)->getLocation(), diag::note_previous_attribute);
-    }
-  }
-}
-
-static Attr *handleIntelIVDepAttr(Sema &S, Stmt *St, const ParsedAttr &A) {
-  unsigned NumArgs = A.getNumArgs();
-
-  S.SYCL().checkDeprecatedSYCLAttributeSpelling(A);
-
-  return S.BuildSYCLIntelIVDepAttr(
-      A, NumArgs >= 1 ? A.getArgAsExpr(0) : nullptr,
-      NumArgs == 2 ? A.getArgAsExpr(1) : nullptr);
-}
-
-static void
-CheckForDuplicateSYCLIntelLoopCountAttrs(Sema &S,
-                                         ArrayRef<const Attr *> Attrs) {
-  // Create a list of SYCLIntelLoopCount attributes only.
-  SmallVector<const SYCLIntelLoopCountAttr *, 8> OnlyLoopCountAttrs;
-  llvm::transform(
-      Attrs, std::back_inserter(OnlyLoopCountAttrs), [](const Attr *A) {
-        return dyn_cast_or_null<const SYCLIntelLoopCountAttr>(A);
-      });
-  OnlyLoopCountAttrs.erase(
-      std::remove(OnlyLoopCountAttrs.begin(), OnlyLoopCountAttrs.end(),
-                  static_cast<const SYCLIntelLoopCountAttr *>(nullptr)),
-      OnlyLoopCountAttrs.end());
-  if (OnlyLoopCountAttrs.empty())
-    return;
-
-  unsigned int MinCount = 0;
-  unsigned int MaxCount = 0;
-  unsigned int AvgCount = 0;
-  unsigned int Count = 0;
-  for (const auto *A : OnlyLoopCountAttrs) {
-    const auto *At = dyn_cast<SYCLIntelLoopCountAttr>(A);
-    At->isMin()   ? MinCount++
-    : At->isMax() ? MaxCount++
-    : At->isAvg() ? AvgCount++
-                  : Count++;
-    if (MinCount > 1 || MaxCount > 1 || AvgCount > 1 || Count > 1)
-      S.Diag(A->getLocation(), diag::err_sycl_loop_attr_duplication) << 1 << A;
-  }
-}
-
-SYCLIntelLoopCountAttr *
-Sema::BuildSYCLIntelLoopCountAttr(const AttributeCommonInfo &CI, Expr *E) {
-  if (!E->isValueDependent()) {
-    llvm::APSInt ArgVal;
-    ExprResult Res = VerifyIntegerConstantExpression(E, &ArgVal);
-    if (Res.isInvalid())
-      return nullptr;
-    E = Res.get();
-
-    // This attribute requires a non-negative value.
-    if (ArgVal < 0) {
-      Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
-          << CI << /*non-negative*/ 1;
-      return nullptr;
-    }
-  }
-
-  return new (Context) SYCLIntelLoopCountAttr(Context, CI, E);
-}
-
-static Attr *handleSYCLIntelLoopCountAttr(Sema &S, Stmt *St,
-                                          const ParsedAttr &A) {
-  S.SYCL().checkDeprecatedSYCLAttributeSpelling(A);
-
-  Expr *E = A.getArgAsExpr(0);
-  return S.BuildSYCLIntelLoopCountAttr(A, E);
-}
-
-static Attr *handleIntelNofusionAttr(Sema &S, Stmt *St,
-                                     const ParsedAttr &A) {
-  return new (S.Context) SYCLIntelNofusionAttr(S.Context, A);
-}
-
-SYCLIntelMaxReinvocationDelayAttr *
-Sema::BuildSYCLIntelMaxReinvocationDelayAttr(const AttributeCommonInfo &CI,
-                                             Expr *E) {
-  if (!E->isValueDependent()) {
-    llvm::APSInt ArgVal;
-    ExprResult Res = VerifyIntegerConstantExpression(E, &ArgVal);
-    if (Res.isInvalid())
-      return nullptr;
-    E = Res.get();
-
-    // This attribute requires a strictly positive value.
-    if (ArgVal <= 0) {
-      Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
-          << CI << /*positive*/ 0;
-      return nullptr;
-    }
-  }
-
-  return new (Context) SYCLIntelMaxReinvocationDelayAttr(Context, CI, E);
-}
-
-static Attr * handleSYCLIntelMaxReinvocationDelayAttr(Sema &S, Stmt *St,
-                                                      const ParsedAttr &A) {
-  S.SYCL().checkDeprecatedSYCLAttributeSpelling(A);
-
-  Expr *E = A.getArgAsExpr(0);
-  return S.BuildSYCLIntelMaxReinvocationDelayAttr(A, E);
-}
-
-static Attr *handleSYCLIntelEnableLoopPipeliningAttr(Sema &S, Stmt *,
-                                                     const ParsedAttr &A) {
-  return new (S.Context) SYCLIntelEnableLoopPipeliningAttr(S.Context, A);
 }
 
 static Attr *handleLoopHintAttr(Sema &S, Stmt *St, const ParsedAttr &A,
@@ -1000,9 +667,7 @@ CheckForDuplicationSYCLLoopAttribute(Sema &S,
 
 // Diagnose non-identical duplicates as a 'conflicting' loop attributes
 // and suppress duplicate errors in cases where the two match for
-// FPGA attributes: 'SYCLIntelMaxInterleavingAttr',
-// 'SYCLIntelSpeculatedIterationsAttr', 'SYCLIntelMaxReinvocationDelayAttr',
-// 'SYCLIntelInitiationIntervalAttr', and 'SYCLIntelMaxConcurrencyAttr'
+// FPGA attributes: 'SYCLIntelMaxInterleavingAttr'
 template <typename LoopAttrT>
 static void CheckForDuplicateAttrs(Sema &S, ArrayRef<const Attr *> Attrs) {
   auto FindFunc = [](const Attr *A) { return isa<const LoopAttrT>(A); };
@@ -1043,20 +708,9 @@ static void CheckForDuplicateAttrs(Sema &S, ArrayRef<const Attr *> Attrs) {
 
 static void CheckForIncompatibleSYCLLoopAttributes(
     Sema &S, const SmallVectorImpl<const Attr *> &Attrs) {
-  CheckForDuplicateAttrs<SYCLIntelInitiationIntervalAttr>(S, Attrs);
-  CheckForDuplicateAttrs<SYCLIntelMaxConcurrencyAttr>(S, Attrs);
   CheckForDuplicationSYCLLoopAttribute<SYCLIntelLoopCoalesceAttr>(S, Attrs);
-  CheckForDuplicationSYCLLoopAttribute<SYCLIntelDisableLoopPipeliningAttr>(
-      S, Attrs);
   CheckForDuplicateAttrs<SYCLIntelMaxInterleavingAttr>(S, Attrs);
-  CheckForDuplicateAttrs<SYCLIntelSpeculatedIterationsAttr>(S, Attrs);
-  CheckForDuplicateSYCLIntelLoopCountAttrs(S, Attrs);
   CheckForDuplicationSYCLLoopAttribute<LoopUnrollHintAttr>(S, Attrs, false);
-  CheckRedundantSYCLIntelIVDepAttrs(S, Attrs);
-  CheckForDuplicationSYCLLoopAttribute<SYCLIntelNofusionAttr>(S, Attrs);
-  CheckForDuplicateAttrs<SYCLIntelMaxReinvocationDelayAttr>(S, Attrs);
-  CheckForDuplicationSYCLLoopAttribute<SYCLIntelEnableLoopPipeliningAttr>(
-      S, Attrs);
 }
 
 void CheckForIncompatibleUnrollHintAttributes(
@@ -1240,22 +894,10 @@ static Attr *ProcessStmtAttribute(Sema &S, Stmt *St, const ParsedAttr &A,
     return handleFallThroughAttr(S, St, A, Range);
   case ParsedAttr::AT_LoopHint:
     return handleLoopHintAttr(S, St, A, Range);
-  case ParsedAttr::AT_SYCLIntelIVDep:
-    return handleIntelIVDepAttr(S, St, A);
-  case ParsedAttr::AT_SYCLIntelInitiationInterval:
-    return handleSYCLIntelInitiationIntervalAttr(S, St, A);
-  case ParsedAttr::AT_SYCLIntelMaxConcurrency:
-    return handleSYCLIntelMaxConcurrencyAttr(S, St, A);
   case ParsedAttr::AT_SYCLIntelLoopCoalesce:
     return handleSYCLIntelLoopCoalesceAttr(S, St, A);
-  case ParsedAttr::AT_SYCLIntelDisableLoopPipelining:
-    return handleSYCLIntelDisableLoopPipeliningAttr(S, St, A);
   case ParsedAttr::AT_SYCLIntelMaxInterleaving:
     return handleSYCLIntelMaxInterleavingAttr(S, St, A);
-  case ParsedAttr::AT_SYCLIntelSpeculatedIterations:
-    return handleSYCLIntelSpeculatedIterationsAttr(S, St, A);
-  case ParsedAttr::AT_SYCLIntelLoopCount:
-    return handleSYCLIntelLoopCountAttr(S, St, A);
   case ParsedAttr::AT_HLSLLoopHint:
     return handleHLSLLoopHintAttr(S, St, A, Range);
   case ParsedAttr::AT_HLSLControlFlowHint:
@@ -1275,12 +917,6 @@ static Attr *ProcessStmtAttribute(Sema &S, Stmt *St, const ParsedAttr &A,
     return handleLikely(S, St, A, Range);
   case ParsedAttr::AT_Unlikely:
     return handleUnlikely(S, St, A, Range);
-  case ParsedAttr::AT_SYCLIntelNofusion:
-    return handleIntelNofusionAttr(S, St, A);
-  case ParsedAttr::AT_SYCLIntelMaxReinvocationDelay:
-    return handleSYCLIntelMaxReinvocationDelayAttr(S, St, A);
-  case ParsedAttr::AT_SYCLIntelEnableLoopPipelining:
-    return handleSYCLIntelEnableLoopPipeliningAttr(S, St, A);
   case ParsedAttr::AT_CodeAlign:
     return handleCodeAlignAttr(S, St, A);
   case ParsedAttr::AT_MSConstexpr:
@@ -1319,12 +955,7 @@ void Sema::ProcessStmtAttributes(Stmt *S, const ParsedAttributes &InAttrs,
 }
 
 bool Sema::CheckRebuiltAttributedStmtAttributes(ArrayRef<const Attr *> Attrs) {
-  CheckRedundantSYCLIntelIVDepAttrs(*this, Attrs);
-  CheckForDuplicateAttrs<SYCLIntelSpeculatedIterationsAttr>(*this, Attrs);
   CheckForDuplicateAttrs<SYCLIntelMaxInterleavingAttr>(*this, Attrs);
-  CheckForDuplicateAttrs<SYCLIntelMaxReinvocationDelayAttr>(*this, Attrs);
-  CheckForDuplicateAttrs<SYCLIntelInitiationIntervalAttr>(*this, Attrs);
-  CheckForDuplicateAttrs<SYCLIntelMaxConcurrencyAttr>(*this, Attrs);
   return false;
 }
 

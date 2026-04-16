@@ -16,7 +16,7 @@ inline namespace _V1 {
 namespace khr {
 
 template <int Dimensions> nd_item<Dimensions> this_nd_item() {
-  return ext::oneapi::experimental::this_nd_item<Dimensions>();
+  return ext::oneapi::this_work_item::get_nd_item<Dimensions>();
 }
 
 template <int Dimensions> group<Dimensions> this_group() {

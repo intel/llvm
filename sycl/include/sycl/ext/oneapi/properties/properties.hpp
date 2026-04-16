@@ -8,17 +8,40 @@
 
 #pragma once
 
-#include <sycl/detail/type_traits.hpp>
 #include <sycl/ext/oneapi/properties/property_utils.hpp>
+
+#include <array>
+#include <cstddef>
+#include <type_traits>
+#include <utility>
 
 namespace sycl {
 inline namespace _V1 {
+namespace detail {}
 namespace ext::oneapi::experimental {
 
 template <typename properties_type_list_ty> class __SYCL_EBO properties;
 
 namespace detail {
 using namespace sycl::detail;
+
+// Keep a distinct name for the local helper to avoid colliding with the
+// imported sycl::detail::nth_type_t alias.
+#if __has_builtin(__type_pack_element)
+template <int N, typename... Ts>
+using properties_nth_type_t = __type_pack_element<N, Ts...>;
+#else
+template <int N, typename T, typename... Ts> struct nth_type {
+  using type = typename nth_type<N - 1, Ts...>::type;
+};
+
+template <typename T, typename... Ts> struct nth_type<0, T, Ts...> {
+  using type = T;
+};
+
+template <int N, typename... Ts>
+using properties_nth_type_t = typename nth_type<N, Ts...>::type;
+#endif
 
 // NOTE: Meta-function to implement CTAD rules isn't allowed to return
 // `properties<something>` and it's impossible to return a pack as well. As
@@ -119,7 +142,7 @@ template <typename... property_tys> struct properties_sorter {
   template <int... IdxSeq>
   struct helper<std::integer_sequence<int, IdxSeq...>> {
     using type = properties_type_list<
-        nth_type_t<sorted_indices[IdxSeq], property_tys...>...>;
+        properties_nth_type_t<sorted_indices[IdxSeq], property_tys...>...>;
   };
 
   using type = typename helper<
@@ -174,8 +197,10 @@ public:
             if (kinds[i] == kinds[j])
               return std::pair{i, j};
       }();
-      using first_type = detail::nth_type_t<conflict.first, property_tys...>;
-      using second_type = detail::nth_type_t<conflict.second, property_tys...>;
+      using first_type =
+          detail::properties_nth_type_t<conflict.first, property_tys...>;
+      using second_type =
+          detail::properties_nth_type_t<conflict.second, property_tys...>;
       if constexpr (std::is_same_v<typename first_type::key_t,
                                    typename second_type::key_t>) {
         static_assert(!std::is_same_v<typename first_type::key_t,
@@ -324,7 +349,7 @@ struct filter_properties_impl {
   static constexpr auto apply_impl(const prop_list_ty &props,
                                    std::integer_sequence<int, Idxs...>) {
     return properties{props.template get_property<
-        typename nth_type_t<Idxs, property_tys...>::key_t>()...};
+        typename properties_nth_type_t<Idxs, property_tys...>::key_t>()...};
   }
 
   template <typename prop_list_ty>

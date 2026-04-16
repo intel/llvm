@@ -889,29 +889,6 @@ void CodeGenFunction::EmitKernelMetadata(const FunctionDecl *FD,
     if (ArgVal->getBoolValue())
       Fn->setMetadata("no_global_work_offset", llvm::MDNode::get(Context, {}));
   }
-
-  if (const auto *A = FD->getAttr<SYCLIntelMaxConcurrencyAttr>()) {
-    const auto *CE = cast<ConstantExpr>(A->getNExpr());
-    llvm::APSInt ArgVal = CE->getResultAsAPSInt();
-    llvm::Metadata *AttrMDArgs[] = {
-        llvm::ConstantAsMetadata::get(Builder.getInt32(ArgVal.getSExtValue()))};
-    Fn->setMetadata("max_concurrency", llvm::MDNode::get(Context, AttrMDArgs));
-  }
-
-  if (FD->hasAttr<SYCLIntelDisableLoopPipeliningAttr>()) {
-    llvm::Metadata *AttrMDArgs[] = {
-        llvm::ConstantAsMetadata::get(Builder.getInt32(0))};
-    Fn->setMetadata("pipeline_kernel", llvm::MDNode::get(Context, AttrMDArgs));
-  }
-
-  if (const auto *A = FD->getAttr<SYCLIntelInitiationIntervalAttr>()) {
-    const auto *CE = cast<ConstantExpr>(A->getNExpr());
-    llvm::APSInt ArgVal = CE->getResultAsAPSInt();
-    llvm::Metadata *AttrMDArgs[] = {
-        llvm::ConstantAsMetadata::get(Builder.getInt32(ArgVal.getSExtValue()))};
-    Fn->setMetadata("initiation_interval",
-                    llvm::MDNode::get(Context, AttrMDArgs));
-  }
 }
 
 /// Determine whether the function F ends with a return stmt.
@@ -1258,18 +1235,6 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
   }
 
   if (getLangOpts().SYCLIsDevice && D) {
-    if (const auto *A = D->getAttr<SYCLIntelLoopFuseAttr>()) {
-      const auto *CE = cast<ConstantExpr>(A->getValue());
-      std::optional<llvm::APSInt> ArgVal = CE->getResultAsAPSInt();
-      llvm::Metadata *AttrMDArgs[] = {
-          llvm::ConstantAsMetadata::get(
-              Builder.getInt32(ArgVal->getZExtValue())),
-          llvm::ConstantAsMetadata::get(
-              A->isIndependent() ? Builder.getInt32(1) : Builder.getInt32(0))};
-      Fn->setMetadata("loop_fuse",
-                      llvm::MDNode::get(getLLVMContext(), AttrMDArgs));
-    }
-
     // Source location of functions is required to emit required diagnostics in
     // SYCLPropagateAspectsUsagePass. Save the token in a srcloc metadata node.
     llvm::ConstantInt *Line =

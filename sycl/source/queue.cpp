@@ -76,9 +76,7 @@ context queue::get_context() const { return impl->get_context(); }
 device queue::get_device() const { return impl->get_device(); }
 
 ext::oneapi::experimental::queue_state queue::ext_oneapi_get_state() const {
-  return impl->hasCommandGraph()
-             ? ext::oneapi::experimental::queue_state::recording
-             : ext::oneapi::experimental::queue_state::executing;
+  return impl->ext_oneapi_get_state_impl();
 }
 
 ext::oneapi::experimental::command_graph<

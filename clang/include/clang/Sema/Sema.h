@@ -11405,29 +11405,15 @@ public:
                                 const IdentifierInfo *AttrName,
                                 SourceRange Range);
 
-  SYCLIntelIVDepAttr *BuildSYCLIntelIVDepAttr(const AttributeCommonInfo &CI,
-                                              Expr *Expr1, Expr *Expr2);
   LoopUnrollHintAttr *BuildLoopUnrollHintAttr(const AttributeCommonInfo &A,
                                               Expr *E);
   OpenCLUnrollHintAttr *
   BuildOpenCLLoopUnrollHintAttr(const AttributeCommonInfo &A, Expr *E);
 
-  SYCLIntelLoopCountAttr *
-  BuildSYCLIntelLoopCountAttr(const AttributeCommonInfo &CI, Expr *E);
-  SYCLIntelInitiationIntervalAttr *
-  BuildSYCLIntelInitiationIntervalAttr(const AttributeCommonInfo &CI, Expr *E);
-  SYCLIntelMaxConcurrencyAttr *
-  BuildSYCLIntelMaxConcurrencyAttr(const AttributeCommonInfo &CI, Expr *E);
   SYCLIntelMaxInterleavingAttr *
   BuildSYCLIntelMaxInterleavingAttr(const AttributeCommonInfo &CI, Expr *E);
-  SYCLIntelSpeculatedIterationsAttr *
-  BuildSYCLIntelSpeculatedIterationsAttr(const AttributeCommonInfo &CI,
-                                         Expr *E);
   SYCLIntelLoopCoalesceAttr *
   BuildSYCLIntelLoopCoalesceAttr(const AttributeCommonInfo &CI, Expr *E);
-  SYCLIntelMaxReinvocationDelayAttr *
-  BuildSYCLIntelMaxReinvocationDelayAttr(const AttributeCommonInfo &CI,
-                                         Expr *E);
 
   ///@}
 
