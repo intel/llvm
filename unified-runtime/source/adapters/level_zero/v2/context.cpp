@@ -69,6 +69,85 @@ uniqueDevices(uint32_t numDevices, const ur_device_handle_t *phDevices) {
   return devices;
 }
 
+static bool isDriverRootDevice(ze_device_handle_t zeDevice) {
+  ze_device_handle_t zeRootDevice = nullptr;
+  ze_result_t zeResult =
+      ZE_CALL_NOCHECK(zeDeviceGetRootDevice, (zeDevice, &zeRootDevice));
+
+  if (zeResult == ZE_RESULT_SUCCESS) {
+    return zeRootDevice == nullptr || zeRootDevice == zeDevice;
+  }
+
+  // If unsupported, keep behavior compatible with older loaders/drivers.
+  if (zeResult == ZE_RESULT_ERROR_UNSUPPORTED_FEATURE) {
+    return true;
+  }
+
+  return false;
+}
+
+static bool isFullPlatformRootDeviceList(uint32_t deviceCount,
+                                         const ur_device_handle_t *phDevices) {
+  if (deviceCount == 0 || !phDevices) {
+    return false;
+  }
+
+  ur_platform_handle_t hPlatform = phDevices[0]->Platform;
+
+  std::vector<ze_device_handle_t> requestedDevices;
+  requestedDevices.reserve(deviceCount);
+  for (uint32_t i = 0; i < deviceCount; ++i) {
+    if (!phDevices[i] || phDevices[i]->Platform != hPlatform ||
+        phDevices[i]->RootDevice) {
+      return false;
+    }
+
+    if (!isDriverRootDevice(phDevices[i]->ZeDevice)) {
+      return false;
+    }
+
+    requestedDevices.push_back(phDevices[i]->ZeDevice);
+  }
+
+  std::sort(requestedDevices.begin(), requestedDevices.end());
+  requestedDevices.erase(
+      std::unique(requestedDevices.begin(), requestedDevices.end()),
+      requestedDevices.end());
+
+  uint32_t zeDeviceCount = 0;
+  ze_result_t zeResult =
+      ZE_CALL_NOCHECK(zeDeviceGet, (hPlatform->ZeDriver, &zeDeviceCount, nullptr));
+  if (zeResult != ZE_RESULT_SUCCESS || zeDeviceCount == 0) {
+    return false;
+  }
+
+  std::vector<ze_device_handle_t> platformDevices(zeDeviceCount);
+  zeResult = ZE_CALL_NOCHECK(
+      zeDeviceGet, (hPlatform->ZeDriver, &zeDeviceCount, platformDevices.data()));
+  if (zeResult != ZE_RESULT_SUCCESS) {
+    return false;
+  }
+
+  platformDevices.resize(zeDeviceCount);
+  platformDevices.erase(
+      std::remove_if(platformDevices.begin(), platformDevices.end(),
+                     [](ze_device_handle_t zeDevice) {
+                       return !isDriverRootDevice(zeDevice);
+                     }),
+      platformDevices.end());
+
+  if (platformDevices.empty()) {
+    return false;
+  }
+
+  std::sort(platformDevices.begin(), platformDevices.end());
+  platformDevices.erase(
+      std::unique(platformDevices.begin(), platformDevices.end()),
+      platformDevices.end());
+
+  return requestedDevices == platformDevices;
+}
+
 ur_context_handle_t_::ur_context_handle_t_(ze_context_handle_t hContext,
                                            uint32_t numDevices,
                                            const ur_device_handle_t *phDevices,
@@ -163,17 +242,30 @@ ur_context_handle_t_::getP2PDevices(ur_device_handle_t hDevice) const {
 namespace ur::level_zero {
 ur_result_t urContextCreate(uint32_t deviceCount,
                             const ur_device_handle_t *phDevices,
-                            const ur_context_properties_t * /*pProperties*/,
+                            const ur_context_properties_t *pProperties,
                             ur_context_handle_t *phContext) try {
 
   ur_platform_handle_t hPlatform = phDevices[0]->Platform;
   ZeStruct<ze_context_desc_t> contextDesc{};
 
   ze_context_handle_t zeContext{};
-  ZE2UR_CALL(zeContextCreate, (hPlatform->ZeDriver, &contextDesc, &zeContext));
+  bool ownZeContext = true;
+
+  if (!pProperties && isFullPlatformRootDeviceList(deviceCount, phDevices)) {
+    ze_context_handle_t zeDefaultContext =
+        zeDriverGetDefaultContext(hPlatform->ZeDriver);
+    if (zeDefaultContext) {
+      zeContext = zeDefaultContext;
+      ownZeContext = false;
+    }
+  }
+
+  if (!zeContext) {
+    ZE2UR_CALL(zeContextCreate, (hPlatform->ZeDriver, &contextDesc, &zeContext));
+  }
 
   *phContext =
-      new ur_context_handle_t_(zeContext, deviceCount, phDevices, true);
+      new ur_context_handle_t_(zeContext, deviceCount, phDevices, ownZeContext);
   return UR_RESULT_SUCCESS;
 } catch (...) {
   return exceptionToResult(std::current_exception());
