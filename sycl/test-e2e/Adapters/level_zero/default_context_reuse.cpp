@@ -1,5 +1,8 @@
-// REQUIRES: level_zero, level_zero_dev_kit
 // REQUIRES: level_zero_v2_adapter
+
+// API 1.14+ is required for zeDriverGetDefaultContext
+// REQUIRES-INTEL-DRIVER: lin: 36300, win: 101.7080
+
 // RUN: %{build} %level_zero_options -o %t.out
 // RUN: %{run} %t.out
 
@@ -71,7 +74,6 @@ int main() {
     } else {
       std::cout << "PASS: platform default context matches.\n";
     }
-
   }
 
   if (!anyTested) {

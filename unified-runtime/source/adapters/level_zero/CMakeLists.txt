@@ -211,14 +211,15 @@ if(UR_BUILD_ADAPTER_L0_V2)
     # Older L0 loaders do not export this symbol; the guard prevents link failures.
     # We only check for the typedef in ze_ddi.h to avoid a link step.
     include(CheckCXXSourceCompiles)
-    cmake_push_check_state(RESET)
+    set(_UR_L0_SAVED_CMAKE_REQUIRED_INCLUDES "${CMAKE_REQUIRED_INCLUDES}")
     get_target_property(_L0_INCLUDE_DIRS LevelZeroLoader-Headers INTERFACE_INCLUDE_DIRECTORIES)
     set(CMAKE_REQUIRED_INCLUDES ${_L0_INCLUDE_DIRS})
     check_cxx_source_compiles(
         "#include <ze_ddi.h>\nint main() { ze_pfnDriverGetDefaultContext_t fn = nullptr; (void)fn; return 0; }"
         HAVE_ZE_DRIVER_GET_DEFAULT_CONTEXT
     )
-    cmake_pop_check_state()
+    set(CMAKE_REQUIRED_INCLUDES "${_UR_L0_SAVED_CMAKE_REQUIRED_INCLUDES}")
+    unset(_UR_L0_SAVED_CMAKE_REQUIRED_INCLUDES)
     if(HAVE_ZE_DRIVER_GET_DEFAULT_CONTEXT)
         target_compile_definitions(ur_adapter_level_zero_v2 PRIVATE
             HAVE_ZE_DRIVER_GET_DEFAULT_CONTEXT)

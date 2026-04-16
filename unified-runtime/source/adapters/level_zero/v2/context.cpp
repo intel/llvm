@@ -62,11 +62,15 @@ populateP2PDevices(const std::vector<ur_device_handle_t> &devices) {
   return p2pDevices;
 }
 
+template <typename T> static void sortAndUnique(std::vector<T> &values) {
+  std::sort(values.begin(), values.end());
+  values.erase(std::unique(values.begin(), values.end()), values.end());
+}
+
 static std::vector<ur_device_handle_t>
 uniqueDevices(uint32_t numDevices, const ur_device_handle_t *phDevices) {
   std::vector<ur_device_handle_t> devices(phDevices, phDevices + numDevices);
-  std::sort(devices.begin(), devices.end());
-  devices.erase(std::unique(devices.begin(), devices.end()), devices.end());
+  sortAndUnique(devices);
   return devices;
 }
 
@@ -110,41 +114,35 @@ static bool isFullPlatformRootDeviceList(uint32_t deviceCount,
     requestedDevices.push_back(phDevices[i]->ZeDevice);
   }
 
-  std::sort(requestedDevices.begin(), requestedDevices.end());
-  requestedDevices.erase(
-      std::unique(requestedDevices.begin(), requestedDevices.end()),
-      requestedDevices.end());
+  sortAndUnique(requestedDevices);
 
   uint32_t zeDeviceCount = 0;
-  ze_result_t zeResult =
-      ZE_CALL_NOCHECK(zeDeviceGet, (hPlatform->ZeDriver, &zeDeviceCount, nullptr));
+  ze_result_t zeResult = ZE_CALL_NOCHECK(
+      zeDeviceGet, (hPlatform->ZeDriver, &zeDeviceCount, nullptr));
   if (zeResult != ZE_RESULT_SUCCESS || zeDeviceCount == 0) {
     return false;
   }
 
   std::vector<ze_device_handle_t> platformDevices(zeDeviceCount);
-  zeResult = ZE_CALL_NOCHECK(
-      zeDeviceGet, (hPlatform->ZeDriver, &zeDeviceCount, platformDevices.data()));
+  zeResult = ZE_CALL_NOCHECK(zeDeviceGet, (hPlatform->ZeDriver, &zeDeviceCount,
+                                           platformDevices.data()));
   if (zeResult != ZE_RESULT_SUCCESS) {
     return false;
   }
 
   platformDevices.resize(zeDeviceCount);
-  platformDevices.erase(
-      std::remove_if(platformDevices.begin(), platformDevices.end(),
-                     [](ze_device_handle_t zeDevice) {
-                       return !isDriverRootDevice(zeDevice);
-                     }),
-      platformDevices.end());
+  platformDevices.erase(std::remove_if(platformDevices.begin(),
+                                       platformDevices.end(),
+                                       [](ze_device_handle_t zeDevice) {
+                                         return !isDriverRootDevice(zeDevice);
+                                       }),
+                        platformDevices.end());
 
   if (platformDevices.empty()) {
     return false;
   }
 
-  std::sort(platformDevices.begin(), platformDevices.end());
-  platformDevices.erase(
-      std::unique(platformDevices.begin(), platformDevices.end()),
-      platformDevices.end());
+  sortAndUnique(platformDevices);
 
   return requestedDevices == platformDevices;
 }
@@ -254,8 +252,9 @@ ur_result_t urContextCreate(uint32_t deviceCount,
 
   if (!pProperties && isFullPlatformRootDeviceList(deviceCount, phDevices)) {
     // Reuse the L0 driver default context when building with a new enough L0
-    // SDK.  The symbol may be absent in older loaders; HAVE_ZE_DRIVER_GET_DEFAULT_CONTEXT
-    // is defined by CMake only when the SDK declares it, preventing link failures.
+    // SDK.  The symbol may be absent in older loaders;
+    // HAVE_ZE_DRIVER_GET_DEFAULT_CONTEXT is defined by CMake only when the SDK
+    // declares it, preventing link failures.
 #if defined(HAVE_ZE_DRIVER_GET_DEFAULT_CONTEXT)
     using pfnZeDriverGetDefaultContext_t =
         ze_context_handle_t(ZE_APICALL *)(ze_driver_handle_t);
@@ -269,7 +268,7 @@ ur_result_t urContextCreate(uint32_t deviceCount,
     auto pfnGetDefaultContext =
         reinterpret_cast<pfnZeDriverGetDefaultContext_t>(
             ur_loader::LibLoader::getFunctionPtr(GlobalAdapter->processHandle,
-                                                "zeDriverGetDefaultContext"));
+                                                 "zeDriverGetDefaultContext"));
 #endif // UR_STATIC_LEVEL_ZERO
     if (pfnGetDefaultContext) {
       ze_context_handle_t zeDefaultContext =
@@ -283,7 +282,8 @@ ur_result_t urContextCreate(uint32_t deviceCount,
   }
 
   if (!zeContext) {
-    ZE2UR_CALL(zeContextCreate, (hPlatform->ZeDriver, &contextDesc, &zeContext));
+    ZE2UR_CALL(zeContextCreate,
+               (hPlatform->ZeDriver, &contextDesc, &zeContext));
   }
 
   *phContext =
