@@ -92,9 +92,6 @@ inline void printDeviceInfos(ur_device_handle_t hDevice,
                             UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_LONG);
   std::cout << prefix;
   printDeviceInfo<uint32_t>(hDevice,
-                            UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_LONG_LONG);
-  std::cout << prefix;
-  printDeviceInfo<uint32_t>(hDevice,
                             UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_FLOAT);
   std::cout << prefix;
   printDeviceInfo<uint32_t>(hDevice,
@@ -110,9 +107,6 @@ inline void printDeviceInfos(ur_device_handle_t hDevice,
   printDeviceInfo<uint32_t>(hDevice, UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_INT);
   std::cout << prefix;
   printDeviceInfo<uint32_t>(hDevice, UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG);
-  std::cout << prefix;
-  printDeviceInfo<uint32_t>(hDevice,
-                            UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG_LONG);
   std::cout << prefix;
   printDeviceInfo<uint32_t>(hDevice, UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_FLOAT);
   std::cout << prefix;
@@ -356,6 +350,12 @@ inline void printDeviceInfos(ur_device_handle_t hDevice,
   printDeviceInfo<uint8_t[]>(hDevice, UR_DEVICE_INFO_LUID);
   std::cout << prefix;
   printDeviceInfo<uint32_t>(hDevice, UR_DEVICE_INFO_NODE_MASK);
+  std::cout << prefix;
+  printDeviceInfo<uint32_t>(hDevice,
+                            UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_LONG_LONG);
+  std::cout << prefix;
+  printDeviceInfo<uint32_t>(hDevice,
+                            UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG_LONG);
   std::cout << prefix;
   printDeviceInfo<ur_bool_t>(hDevice,
                              UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP);

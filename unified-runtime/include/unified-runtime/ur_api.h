@@ -2374,6 +2374,10 @@ typedef enum ur_device_info_t {
   UR_DEVICE_INFO_LUID = 129,
   /// [uint32_t][optional-query] return device Windows node mask
   UR_DEVICE_INFO_NODE_MASK = 130,
+  /// [uint32_t] preferred vector width for long long
+  UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_LONG_LONG = 131,
+  /// [uint32_t] native vector width for long long
+  UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG_LONG = 132,
   /// [::ur_bool_t] Returns true if the device supports the use of
   /// command-buffers.
   UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP = 0x1000,
@@ -2519,10 +2523,6 @@ typedef enum ur_device_info_t {
   /// [::ur_bool_t] returns true if the device supports enqueueing host
   /// tasks
   UR_DEVICE_INFO_ENQUEUE_HOST_TASK_SUPPORT_EXP = 0x9000,
-  /// [uint32_t] preferred vector width for long long
-  UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_LONG_LONG = 0x9001,
-  /// [uint32_t] native vector width for long long
-  UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG_LONG = 0x9002,
   /// @cond
   UR_DEVICE_INFO_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -2548,7 +2548,7 @@ typedef enum ur_device_info_t {
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG_LONG < propName`
+///         + `::UR_DEVICE_INFO_ENQUEUE_HOST_TASK_SUPPORT_EXP < propName`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
 ///         + If `propName` is not supported by the adapter.
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
