@@ -368,7 +368,7 @@ function(add_compiler_rt_runtime name type)
         set_property(TARGET ${libname} PROPERTY CXX_STANDARD ${LIB_CXX_STANDARD})
       endif()
       set_target_output_directories(${libname} ${output_dir_${libname}})
-        if(COMPILER_RT_GPU_BUILD)
+      if(COMPILER_RT_SPIRV_BUILD)
         find_program(LLVM_LINK_EXE
                      NAMES llvm-link
                      PATHS ${LLVM_TOOLS_BINARY_DIR}
