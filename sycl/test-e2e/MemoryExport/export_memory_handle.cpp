@@ -15,7 +15,7 @@ and performs a simple validation on the exported handle to ensure it is valid.
 #include <iostream>
 
 #ifdef _WIN32
-#include <Windows.h>
+#include <windows.h>
 #else
 #include <fcntl.h>
 #endif
