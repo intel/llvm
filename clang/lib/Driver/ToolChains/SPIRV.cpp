@@ -152,11 +152,11 @@ void SPIRV::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   CmdArgs.push_back("-o");
   CmdArgs.push_back(Output.getFilename());
 
-  if (Args.hasArg(options::OPT_sycl_link)) {
-    // Use of --sycl-link will call the clang-sycl-linker instead of
-    // the default linker (spirv-link).
+  // Use of --sycl-link will call the clang-sycl-linker instead of
+  // the default linker (spirv-link).
+  if (Args.hasArg(options::OPT_sycl_link))
     Linker = ToolChain.GetProgramPath("clang-sycl-linker");
-  } else if (!llvm::sys::fs::can_execute(Linker) &&
+  else if (!llvm::sys::fs::can_execute(Linker) &&
            !C.getArgs().hasArg(clang::options::OPT__HASH_HASH_HASH)) {
     C.getDriver().Diag(clang::diag::err_drv_no_spv_tools) << getShortName();
     return;
@@ -164,9 +164,6 @@ void SPIRV::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   C.addCommand(std::make_unique<Command>(JA, *this, ResponseFileSupport::None(),
                                          Args.MakeArgString(Linker), CmdArgs,
                                          Inputs, Output));
-  llvm::errs() << "[DEBUG] calling the command " << Linker << "\n";
-  llvm::errs() << "[DEBUG] with arguments: " << llvm::join(CmdArgs, " ") << "\n";
-  llvm::errs() << "[DEBUG] output file: " << Output.getFilename() << "\n";
 }
 
 SPIRVToolChain::SPIRVToolChain(const Driver &D, const llvm::Triple &Triple,

@@ -164,7 +164,7 @@ using OffloadingImage = OffloadBinary::OffloadingImage;
 
 // TODO: Remove this once the linking and backend compilation have been fully
 // migrated to clang-sycl-linker.
-bool UseClangSYCLLinker = true;
+bool UseClangSYCLLinker = false;
 
 namespace llvm {
 // Provide DenseMapInfo so that OffloadKind can be used in a DenseMap.
@@ -621,8 +621,6 @@ namespace sycl {
 /// llvm-spirv tool.
 static Expected<StringRef> convertSPIRVToIR(StringRef Filename,
                                             const ArgList &Args) {
-  llvm::errs() << "[DEBUG] Converting SPIR-V file " << Filename
-               << " to LLVM IR\n";
   Expected<std::string> SPIRVToIRWrapperPath = findProgram(
       "spirv-to-ir-wrapper", {getMainExecutable("spirv-to-ir-wrapper")});
   if (!SPIRVToIRWrapperPath)
@@ -971,37 +969,37 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args,
     CmdArgs.push_back("-c");
   }
 
-  // // If this is CPU offloading we copy the input libraries.
-  // if (!Triple.isGPU() && !Triple.isNativeCPU()) {
-  //   CmdArgs.push_back("-Wl,-Bsymbolic");
-  //   CmdArgs.push_back("-shared");
-  //   ArgStringList LinkerArgs;
-  //   for (const opt::Arg *Arg :
-  //        Args.filtered(OPT_INPUT, OPT_library, OPT_library_path, OPT_rpath,
-  //                      OPT_whole_archive, OPT_no_whole_archive)) {
-  //     // Sometimes needed libraries are passed by name, such as when using
-  //     // sanitizers. We need to check the file magic for any libraries.
-  //     if (Arg->getOption().matches(OPT_INPUT)) {
-  //       if (!sys::fs::exists(Arg->getValue()) ||
-  //           sys::fs::is_directory(Arg->getValue()))
-  //         continue;
+  // If this is CPU offloading we copy the input libraries.
+  if (!Triple.isGPU() && !Triple.isNativeCPU()) {
+    CmdArgs.push_back("-Wl,-Bsymbolic");
+    CmdArgs.push_back("-shared");
+    ArgStringList LinkerArgs;
+    for (const opt::Arg *Arg :
+         Args.filtered(OPT_INPUT, OPT_library, OPT_library_path, OPT_rpath,
+                       OPT_whole_archive, OPT_no_whole_archive)) {
+      // Sometimes needed libraries are passed by name, such as when using
+      // sanitizers. We need to check the file magic for any libraries.
+      if (Arg->getOption().matches(OPT_INPUT)) {
+        if (!sys::fs::exists(Arg->getValue()) ||
+            sys::fs::is_directory(Arg->getValue()))
+          continue;
 
-  //       file_magic Magic;
-  //       if (auto EC = identify_magic(Arg->getValue(), Magic))
-  //         return createStringError("Failed to open %s", Arg->getValue());
-  //       if (Magic != file_magic::archive &&
-  //           Magic != file_magic::elf_shared_object)
-  //         continue;
-  //     }
-  //     if (Arg->getOption().matches(OPT_whole_archive))
-  //       LinkerArgs.push_back(Args.MakeArgString("-Wl,--whole-archive"));
-  //     else if (Arg->getOption().matches(OPT_no_whole_archive))
-  //       LinkerArgs.push_back(Args.MakeArgString("-Wl,--no-whole-archive"));
-  //     else
-  //       Arg->render(Args, LinkerArgs);
-  //   }
-  //   llvm::append_range(CmdArgs, LinkerArgs);
-  // }
+        file_magic Magic;
+        if (auto EC = identify_magic(Arg->getValue(), Magic))
+          return createStringError("Failed to open %s", Arg->getValue());
+        if (Magic != file_magic::archive &&
+            Magic != file_magic::elf_shared_object)
+          continue;
+      }
+      if (Arg->getOption().matches(OPT_whole_archive))
+        LinkerArgs.push_back(Args.MakeArgString("-Wl,--whole-archive"));
+      else if (Arg->getOption().matches(OPT_no_whole_archive))
+        LinkerArgs.push_back(Args.MakeArgString("-Wl,--no-whole-archive"));
+      else
+        Arg->render(Args, LinkerArgs);
+    }
+    llvm::append_range(CmdArgs, LinkerArgs);
+  }
 
   // Pass on -mllvm options to the linker invocation.
   for (const opt::Arg *Arg : Args.filtered(OPT_mllvm))
@@ -1020,7 +1018,6 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args,
                       Args.MakeArgString(Arg.split('=').second)});
   }
 
-  //TO REMOVE 2
   // link NativeCPU utils lib if needed
   if (Triple.isNativeCPU()) {
     if (auto *A = Args.getLastArg(OPT_sycl_device_library_location_EQ)) {
@@ -1058,7 +1055,6 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args,
   if (Args.hasArg(OPT_clang_backend) || Args.hasArg(OPT_builtin_bitcode_EQ))
     CmdArgs.append({"-mllvm", "-openmp-opt-disable"});
 
-  //TO REMOVE 2
   if (Error Err = executeCommands(*ClangPath, CmdArgs))
     return std::move(Err);
 
@@ -1499,7 +1495,7 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
                                "images of any other kind is not supported");
     
       Expected<std::pair<std::string, std::string>> CompileLinkOptionsOrErr =
-            extractSYCLCompileLinkOptions(Input);
+          extractSYCLCompileLinkOptions(Input);
       if (!CompileLinkOptionsOrErr)
         return CompileLinkOptionsOrErr.takeError();
 
@@ -1865,7 +1861,6 @@ int main(int Argc, char **Argv) {
     timeTraceProfilerInitialize(Granularity, Argv[0]);
   }
 
-  //TO REMOVE 1
   UseSYCLPostLinkTool = Args.hasFlag(OPT_use_sycl_post_link_tool,
                                      OPT_no_use_sycl_post_link_tool, true);
   if (!UseSYCLPostLinkTool && Args.hasArg(OPT_use_sycl_post_link_tool))
@@ -1920,7 +1915,6 @@ int main(int Argc, char **Argv) {
     else
       OffloadImageDumpDir.append(sys::path::get_separator());
   }
-  //TO REMOVE 1
 
   {
     llvm::TimeTraceScope TimeScope("Execute linker wrapper");

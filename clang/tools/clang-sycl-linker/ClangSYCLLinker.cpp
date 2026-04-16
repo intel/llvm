@@ -163,10 +163,6 @@ Expected<std::string> findProgram(const ArgList &Args, StringRef Name,
 void printCommands(ArrayRef<StringRef> CmdArgs) {
   if (CmdArgs.empty())
     return;
-
-  llvm::errs() << " \"" << CmdArgs.front() << "\" ";
-  llvm::errs() << llvm::join(std::next(CmdArgs.begin()), CmdArgs.end(), " ")
-               << "\n";
 }
 
 namespace sycl {
@@ -179,8 +175,6 @@ namespace sycl {
     if (Arg *A = Args.getLastArg(OPT_INPUT))
       SYCLDeviceLibLoc = A->getValue();
     if (Arg *A = Args.getLastArg(OPT_device_libs_EQ)) {
-      llvm::errs() << "[DEBUG] SYCL device library location: " << SYCLDeviceLibLoc << "\n";
-      llvm::errs() << "[DEBUG] SYCL device libraries to link: " << llvm::join(A->getValues(), ", ") << "\n";
       if (A->getValues().size() == 0)
         return createStringError(
             inconvertibleErrorCode(),
@@ -655,7 +649,6 @@ runSYCLPostLinkTool(StringRef LinkedFile, const ArgList &Args) {
   CmdArgs.push_back(*TempFileOrErr);
   CmdArgs.push_back(LinkedFile);
 
-  llvm::errs() << "[DEBUG] Running sycl-post-link with args: " << llvm::join(CmdArgs, " ") << "\n";
   if (Error Err = executeCommands(*SYCLPostLinkPath, CmdArgs))
     return std::move(Err);
 
@@ -756,8 +749,6 @@ Error runSYCLLink(ArrayRef<std::string> Files, const ArgList &Args) {
 } // namespace
 
 int main(int argc, char **argv) {
-  llvm::errs() << "[DEBUG] clang-sycl-linker called with args: "
-               << llvm::join(argv, argv + argc, " ") << "\n";
   InitLLVM X(argc, argv);
   InitializeAllTargetInfos();
   InitializeAllTargets();
