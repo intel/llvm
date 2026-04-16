@@ -176,7 +176,7 @@ namespace sycl {
   static Error getSYCLDeviceLibs(SmallVector<std::string, 16> &DeviceLibFiles,
                                 const ArgList &Args) {
     StringRef SYCLDeviceLibLoc("");
-    if (Arg *A = Args.getLastArg(OPT_library_path_EQ))
+    if (Arg *A = Args.getLastArg(OPT_INPUT))
       SYCLDeviceLibLoc = A->getValue();
     if (Arg *A = Args.getLastArg(OPT_device_libs_EQ)) {
       llvm::errs() << "[DEBUG] SYCL device library location: " << SYCLDeviceLibLoc << "\n";
@@ -265,7 +265,7 @@ Error executeCommands(StringRef ExecutablePath, ArrayRef<StringRef> Args) {
 Expected<SmallVector<std::string>> getInput(const ArgList &Args) {
   // Collect all input bitcode files to be passed to the device linking stage.
   SmallVector<std::string> BitcodeFiles;
-  for (const opt::Arg *Arg : Args.filtered(OPT_input_file_EQ)) {
+  for (const opt::Arg *Arg : Args.filtered(OPT_INPUT)) {
     std::optional<std::string> Filename = std::string(Arg->getValue());
     if (!Filename || !sys::fs::exists(*Filename) ||
         sys::fs::is_directory(*Filename))
@@ -655,6 +655,7 @@ runSYCLPostLinkTool(StringRef LinkedFile, const ArgList &Args) {
   CmdArgs.push_back(*TempFileOrErr);
   CmdArgs.push_back(LinkedFile);
 
+  llvm::errs() << "[DEBUG] Running sycl-post-link with args: " << llvm::join(CmdArgs, " ") << "\n";
   if (Error Err = executeCommands(*SYCLPostLinkPath, CmdArgs))
     return std::move(Err);
 

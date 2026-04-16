@@ -99,8 +99,3 @@ def sycl_allow_device_image_dependencies : Flag<["--", "-"], "sycl-allow-device-
 def syclbin_EQ : Joined<["--", "-"], "syclbin=">,
   Flags<[LinkerOnlyOption]>,
   HelpText<"Output in the SYCLBIN binary format in the state specified by <arg> (input, object or executable)">;
-
-// Options to specify SYCL device kernel bitcode input files, extracted from offload binaries.
-def input_bitcode_file_EQ : Joined<["--", "-"], "input-bitcode-file=">,
-  Flags<[LinkerOnlyOption]>,
-  HelpText<"LLVM bitcode file containing compiled SYCL device kernels to be linked">;

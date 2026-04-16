@@ -853,7 +853,7 @@ Error extractBundledObjects(StringRef Filename, const ArgList &Args,
 } // namespace sycl
 
 namespace generic {
-/// Forwards all required flags to the clang-sycl-linker via -Xlinker.
+// Forwards all required flags to the clang-sycl-linker via -Xlinker.
 static void appendClangSYCLLinkerArgs(const ArgList &Args,
                                       SmallVectorImpl<StringRef> &CmdArgs,
                                       const llvm::Triple &Triple,
@@ -866,47 +866,35 @@ static void appendClangSYCLLinkerArgs(const ArgList &Args,
   if (!Arch.empty())
     XLinker("--arch=" + Arch);
 
-  // Collect all device library file values and pass them to the linker as a single comma-separated list.
-  if (Arg *A = Args.getLastArg(OPT_sycl_device_lib_EQ)) {
-    std::string DeviceLibsStr = llvm::join(A->getValues(), ",");
-    CmdArgs.append({"-Xlinker",
-                    Args.MakeArgString("--device-libs=" + DeviceLibsStr)});
+  static const OptSpecifier DirectOpts[] = {
+      OPT_save_temps,
+      OPT_dry_run,
+      OPT_print_wrapped_module,
+      OPT_sycl_thin_lto,
+      OPT_sycl_allow_device_image_dependencies,
+      OPT_sycl_remove_unused_external_funcs,
+      OPT_no_sycl_remove_unused_external_funcs,
+      OPT_sycl_device_code_split_esimd,
+      OPT_no_sycl_device_code_split_esimd,
+      OPT_sycl_add_default_spec_consts_image,
+      OPT_no_sycl_add_default_spec_consts_image,
+  };
+  for (OptSpecifier Opt : DirectOpts) {
+    if (Arg *A = Args.getLastArg(Opt)) {
+      XLinker("--" + A->getOption().getName().str());
+    }
   }
 
-  static const std::pair<OptSpecifier, StringRef> SimpleFlags[] = {
-      {OPT_save_temps, "--save-temps"},
-      {OPT_dry_run, "--dry-run"},
-      {OPT_print_wrapped_module, "--print-linked-module"},
-      {OPT_sycl_thin_lto, "--sycl-thin-lto"},
-      {OPT_sycl_allow_device_image_dependencies,
-       "--sycl-allow-device-image-dependencies"},
-      {OPT_sycl_remove_unused_external_funcs,
-       "--sycl-remove-unused-external-funcs"},
-      {OPT_no_sycl_remove_unused_external_funcs,
-       "--no-sycl-remove-unused-external-funcs"},
-      {OPT_sycl_device_code_split_esimd, "--sycl-device-code-split-esimd"},
-      {OPT_no_sycl_device_code_split_esimd,
-       "--no-sycl-device-code-split-esimd"},
-      {OPT_sycl_add_default_spec_consts_image,
-       "--sycl-add-default-spec-consts-image"},
-      {OPT_no_sycl_add_default_spec_consts_image,
-       "--no-sycl-add-default-spec-consts-image"},
+  static const OptSpecifier ValueOpts[] = {
+      OPT_sycl_dump_device_code_EQ,  OPT_llvm_spirv_options_EQ,
+      OPT_sycl_post_link_options_EQ, OPT_syclbin_EQ,
+      OPT_bitcode_library_EQ,
   };
-  for (auto [Opt, Flag] : SimpleFlags)
-    if (Args.hasArg(Opt))
-      XLinker(Flag);
-
-  static const std::pair<OptSpecifier, StringRef> ValueFlags[] = {
-      {OPT_sycl_dump_device_code_EQ, "--spirv-dump-device-code="},
-      {OPT_llvm_spirv_options_EQ, "--llvm-spirv-options="},
-      {OPT_sycl_post_link_options_EQ, "--sycl-post-link-options="},
-      {OPT_syclbin_EQ, "--syclbin="},
-      {OPT_bitcode_library_EQ, "--bitcode-library="},
-      {OPT_sycl_device_library_location_EQ, "-library-path="},
-  };
-  for (auto [Opt, Flag] : ValueFlags)
-    if (const opt::Arg *A = Args.getLastArg(Opt))
-      XLinker(Flag + StringRef(A->getValue()));
+  for (OptSpecifier Opt : ValueOpts) {
+    if (const opt::Arg *A = Args.getLastArg(Opt)) {
+      XLinker("--" + A->getOption().getName().str() + A->getValue());
+    }
+  }
 }
 
 Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args,
@@ -958,8 +946,7 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args,
     CmdArgs.push_back("--sycl-link");
     appendClangSYCLLinkerArgs(Args, CmdArgs, Triple, Arch);
     for (StringRef InputFile : InputFiles)
-      CmdArgs.append({"-Xlinker",
-          Args.MakeArgString("-input-file=" + InputFile)});
+      CmdArgs.append({"-Xlinker", Args.MakeArgString(InputFile)});
     if (Error Err = executeCommands(*ClangPath, CmdArgs))
       return std::move(Err);
     return *TempFileOrErr;
