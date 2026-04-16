@@ -85,6 +85,38 @@ TEST(FP8E5M2Test, VariadicNaNEncodingFloat) {
   EXPECT_EQ(a.vals[1], 0xFF); // -NaN -> 0b1_11111_11
 }
 
+TEST(FP8E5M2Test, RawInfinityAndNaNDecoding) {
+  fp8_e5m2 pos_inf;
+  fp8_e5m2 neg_inf;
+  fp8_e5m2 qnan;
+
+  pos_inf.vals[0] = 0x7C; // +inf -> 0b0_11111_00
+  neg_inf.vals[0] = 0xFC; // -inf -> 0b1_11111_00
+  qnan.vals[0] = 0x7D;    // +NaN -> 0b0_11111_01
+
+  const float pos_inf_f = static_cast<float>(pos_inf);
+  const float neg_inf_f = static_cast<float>(neg_inf);
+  const float qnan_f = static_cast<float>(qnan);
+
+  EXPECT_TRUE(std::isinf(pos_inf_f));
+  EXPECT_GT(pos_inf_f, 0.0f);
+  EXPECT_TRUE(std::isinf(neg_inf_f));
+  EXPECT_LT(neg_inf_f, 0.0f);
+  EXPECT_TRUE(std::isnan(qnan_f));
+
+  const sycl::half pos_inf_h = static_cast<sycl::half>(pos_inf);
+  const sycl::ext::oneapi::bfloat16 neg_inf_bf16 =
+      static_cast<sycl::ext::oneapi::bfloat16>(neg_inf);
+  const sycl::ext::oneapi::bfloat16 qnan_bf16 =
+      static_cast<sycl::ext::oneapi::bfloat16>(qnan);
+
+  EXPECT_TRUE(std::isinf(static_cast<float>(pos_inf_h)));
+  EXPECT_GT(static_cast<float>(pos_inf_h), 0.0f);
+  EXPECT_TRUE(std::isinf(static_cast<float>(neg_inf_bf16)));
+  EXPECT_LT(static_cast<float>(neg_inf_bf16), 0.0f);
+  EXPECT_TRUE(std::isnan(static_cast<float>(qnan_bf16)));
+}
+
 TEST(FP8E5M2Test, IntegerConstructorToEvenFiniteAndSize) {
   fp8_e5m2 a0(0);
   fp8_e5m2 a1(1);
