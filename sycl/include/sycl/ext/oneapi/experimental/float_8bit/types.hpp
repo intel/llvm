@@ -202,37 +202,37 @@ template <typename ToT> static inline ToT MakeDirectInf(bool negative) noexcept 
 }
 
 
-template <typename T> struct E8M0SourceTraits;
+template <typename T> struct SourceTraits;
 
-template <> struct E8M0SourceTraits<float> {
+template <> struct SourceTraits<float> {
   using UInt = uint32_t;
   static constexpr size_t ExpBits = 8;
   static constexpr size_t FracBits = 23;
   static constexpr int Bias = 127;
 };
 
-template <> struct E8M0SourceTraits<sycl::half> {
+template <> struct SourceTraits<sycl::half> {
   using UInt = uint16_t;
   static constexpr size_t ExpBits = 5;
   static constexpr size_t FracBits = 10;
   static constexpr int Bias = 15;
 };
 
-template <> struct E8M0SourceTraits<sycl::ext::oneapi::bfloat16> {
+template <> struct SourceTraits<sycl::ext::oneapi::bfloat16> {
   using UInt = uint16_t;
   static constexpr size_t ExpBits = 8;
   static constexpr size_t FracBits = 7;
   static constexpr int Bias = 127;
 };
 
-template <> struct E8M0SourceTraits<double> {
+template <> struct SourceTraits<double> {
   using UInt = uint64_t;
   static constexpr size_t ExpBits = 11;
   static constexpr size_t FracBits = 52;
   static constexpr int Bias = 1023;
 };
 
-template <> struct E8M0SourceTraits<char> {
+template <> struct SourceTraits<char> {
   using UInt = uint8_t;
   using UnsignedT = std::make_unsigned_t<char>;
 
@@ -241,7 +241,7 @@ template <> struct E8M0SourceTraits<char> {
   static constexpr int ValueBits = std::numeric_limits<UnsignedT>::digits;
 };
 
-template <> struct E8M0SourceTraits<signed char> {
+template <> struct SourceTraits<signed char> {
   using UInt = uint8_t;
   using UnsignedT = std::make_unsigned_t<signed char>;
 
@@ -250,7 +250,7 @@ template <> struct E8M0SourceTraits<signed char> {
   static constexpr int ValueBits = std::numeric_limits<UnsignedT>::digits;
 };
 
-template <> struct E8M0SourceTraits<unsigned char> {
+template <> struct SourceTraits<unsigned char> {
   using UInt = uint8_t;
   using UnsignedT = std::make_unsigned_t<unsigned char>;
 
@@ -259,7 +259,7 @@ template <> struct E8M0SourceTraits<unsigned char> {
   static constexpr int ValueBits = std::numeric_limits<UnsignedT>::digits;
 };
 
-template <> struct E8M0SourceTraits<short> {
+template <> struct SourceTraits<short> {
   using UInt = uint16_t;
   using UnsignedT = std::make_unsigned_t<short>;
 
@@ -268,7 +268,7 @@ template <> struct E8M0SourceTraits<short> {
   static constexpr int ValueBits = std::numeric_limits<UnsignedT>::digits;
 };
 
-template <> struct E8M0SourceTraits<int> {
+template <> struct SourceTraits<int> {
   using UInt = uint32_t;
   using UnsignedT = std::make_unsigned_t<int>;
 
@@ -277,7 +277,7 @@ template <> struct E8M0SourceTraits<int> {
   static constexpr int ValueBits = std::numeric_limits<UnsignedT>::digits;
 };
 
-template <> struct E8M0SourceTraits<long> {
+template <> struct SourceTraits<long> {
   using UInt = std::make_unsigned_t<long>;
   using UnsignedT = std::make_unsigned_t<long>;
 
@@ -286,7 +286,7 @@ template <> struct E8M0SourceTraits<long> {
   static constexpr int ValueBits = std::numeric_limits<UnsignedT>::digits;
 };
 
-template <> struct E8M0SourceTraits<long long> {
+template <> struct SourceTraits<long long> {
   using UInt = uint64_t;
   using UnsignedT = std::make_unsigned_t<long long>;
 
@@ -295,7 +295,7 @@ template <> struct E8M0SourceTraits<long long> {
   static constexpr int ValueBits = std::numeric_limits<UnsignedT>::digits;
 };
 
-template <> struct E8M0SourceTraits<unsigned short> {
+template <> struct SourceTraits<unsigned short> {
   using UInt = uint16_t;
   using UnsignedT = std::make_unsigned_t<unsigned short>;
 
@@ -304,7 +304,7 @@ template <> struct E8M0SourceTraits<unsigned short> {
   static constexpr int ValueBits = std::numeric_limits<UnsignedT>::digits;
 };
 
-template <> struct E8M0SourceTraits<unsigned int> {
+template <> struct SourceTraits<unsigned int> {
   using UInt = uint32_t;
   using UnsignedT = std::make_unsigned_t<unsigned int>;
 
@@ -313,7 +313,7 @@ template <> struct E8M0SourceTraits<unsigned int> {
   static constexpr int ValueBits = std::numeric_limits<UnsignedT>::digits;
 };
 
-template <> struct E8M0SourceTraits<unsigned long> {
+template <> struct SourceTraits<unsigned long> {
   using UInt = std::make_unsigned_t<unsigned long>;
   using UnsignedT = std::make_unsigned_t<unsigned long>;
 
@@ -322,7 +322,7 @@ template <> struct E8M0SourceTraits<unsigned long> {
   static constexpr int ValueBits = std::numeric_limits<UnsignedT>::digits;
 };
 
-template <> struct E8M0SourceTraits<unsigned long long> {
+template <> struct SourceTraits<unsigned long long> {
   using UInt = uint64_t;
   using UnsignedT = std::make_unsigned_t<unsigned long long>;
 
@@ -357,7 +357,7 @@ template <> struct E8M0SourceTraits<unsigned long long> {
       MinNormalMantissa + MaxFiniteFracField;
   };
 
-template <typename T, typename Traits = E8M0SourceTraits<T>>
+template <typename T, typename Traits = SourceTraits<T>>
 static inline uint8_t ConvertIntToE8M0_CPU(T f, rounding R,
                                            saturation S) noexcept {
   using UnsignedT = typename Traits::UnsignedT;
@@ -391,8 +391,8 @@ static inline uint8_t ConvertIntToE8M0_CPU(T f, rounding R,
 }
 
 template <int Ebits = 4, int Mbits = 3, typename T,
-          typename Traits = E8M0SourceTraits<T>>
-static inline uint8_t ConvertIntToE4M3_CPU(T f, rounding R,
+          typename Traits = SourceTraits<T>>
+static inline uint8_t ConvertIntToFP8_CPU(T f, rounding R,
                                            saturation S) noexcept {
   using UnsignedT = typename Traits::UnsignedT;
   using Format = FP8FiniteFormatTraits<Ebits, Mbits>;
@@ -467,8 +467,8 @@ static inline uint8_t ConvertIntToE4M3_CPU(T f, rounding R,
 }
 
 template <int Ebits = 4, int Mbits = 3, typename T,
-          typename Traits = E8M0SourceTraits<T>>
-static inline uint8_t ConvertFloatToE4M3_CPU(T f, rounding R,
+          typename Traits = SourceTraits<T>>
+static inline uint8_t ConvertFloatToFP8_CPU(T f, rounding R,
                                              saturation S) noexcept {
   using UInt = typename Traits::UInt;
   using Format = FP8FiniteFormatTraits<Ebits, Mbits>;
@@ -604,7 +604,7 @@ static inline uint8_t ConvertFloatToE4M3_CPU(T f, rounding R,
                               fracField);
 }
 
-template <typename T, typename Traits = E8M0SourceTraits<T>>
+template <typename T, typename Traits = SourceTraits<T>>
 static inline uint8_t ConvertFloatToE8M0_CPU(T f, rounding R,
                                              saturation S) noexcept {
   using UInt = typename Traits::UInt;
@@ -705,8 +705,8 @@ struct HasE8M0IntegralTraits<
     : std::true_type {};
 
 template <int Ebits, int Mbits, typename ToT,
-          typename Traits = E8M0SourceTraits<ToT>>
-static inline ToT ConvertFromE8M0ToBinaryFloat_CPU(uint8_t code,
+          typename Traits = SourceTraits<ToT>>
+static inline ToT ConvertFromFP8ToBinaryFloat_CPU(uint8_t code,
                                                    rounding R) noexcept {
   static_assert((Ebits == 8 && Mbits == 0) || (Ebits == 4 && Mbits == 3) ||
                     (Ebits == 5 && Mbits == 2),
@@ -1031,11 +1031,11 @@ ConvertToFP8_CPU(T h, rounding R = rounding::to_even) noexcept {
 
 template <typename ToT>
 static inline ToT ConvertFromE8M0_CPU(uint8_t code, rounding R) noexcept {
-  using Traits = E8M0SourceTraits<ToT>;
+  using Traits = SourceTraits<ToT>;
 
   if constexpr (HasE8M0FloatTraits<Traits>::value ||
                 HasE8M0IntegralTraits<Traits>::value) {
-    return ConvertFromE8M0ToBinaryFloat_CPU<8, 0, ToT>(code, R);
+    return ConvertFromFP8ToBinaryFloat_CPU<8, 0, ToT>(code, R);
   }
 
   return ToT{};
@@ -1062,10 +1062,10 @@ template <size_t N> class fp8_e4m3_x {
     if constexpr (std::is_same_v<std::decay_t<T>, sycl::half> ||
                   std::is_same_v<std::decay_t<T>, float> ||
                   std::is_same_v<std::decay_t<T>, double>) {
-      return detail::ConvertFloatToE4M3_CPU<4, 3, T>(h, rounding::to_even,
+      return detail::ConvertFloatToFP8_CPU<4, 3, T>(h, rounding::to_even,
                                                      saturation::finite);
     } else if constexpr (std::is_integral_v<std::decay_t<T>>) {
-      return detail::ConvertIntToE4M3_CPU<4, 3, T>(h, rounding::to_even,
+      return detail::ConvertIntToFP8_CPU<4, 3, T>(h, rounding::to_even,
                                                    saturation::finite);
     }
 #endif
@@ -1075,7 +1075,7 @@ template <size_t N> class fp8_e4m3_x {
 #ifdef __SYCL_DEVICE_ONLY__
     return __builtin_spirv_ClampConvertBF16ToE4M3INTEL(h);
 #else
-  return detail::ConvertFloatToE4M3_CPU<4, 3, bfloat16>(
+  return detail::ConvertFloatToFP8_CPU<4, 3, bfloat16>(
     h, rounding::to_even, saturation::finite);
 #endif
   }
@@ -1086,7 +1086,7 @@ template <size_t N> class fp8_e4m3_x {
     sycl::half hi = __builtin_spirv_ConvertE4M3ToFP16EXT(v);
     return static_cast<T>(hi);
 #else
-    return detail::ConvertFromE8M0ToBinaryFloat_CPU<4, 3, T>(v, r);
+    return detail::ConvertFromFP8ToBinaryFloat_CPU<4, 3, T>(v, r);
 #endif
   }
 
@@ -1094,7 +1094,7 @@ template <size_t N> class fp8_e4m3_x {
 #ifdef __SYCL_DEVICE_ONLY__
     return __builtin_spirv_ConvertE4M3ToBF16EXT(v);
 #else
-    return detail::ConvertFromE8M0ToBinaryFloat_CPU<4, 3, bfloat16>(
+    return detail::ConvertFromFP8ToBinaryFloat_CPU<4, 3, bfloat16>(
         v, rounding::to_even);
 #endif
   }
@@ -1443,9 +1443,9 @@ template <size_t N> class fp8_e5m2_x {
     if constexpr (std::is_same_v<std::decay_t<T>, sycl::half> ||
                   std::is_same_v<std::decay_t<T>, float> ||
                   std::is_same_v<std::decay_t<T>, double>) {
-      return detail::ConvertFloatToE4M3_CPU<5, 2, T>(h, rounding::to_even, s);
+      return detail::ConvertFloatToFP8_CPU<5, 2, T>(h, rounding::to_even, s);
     } else if constexpr (std::is_integral_v<std::decay_t<T>>) {
-      return detail::ConvertIntToE4M3_CPU<5, 2, T>(h, rounding::to_even, s);
+      return detail::ConvertIntToFP8_CPU<5, 2, T>(h, rounding::to_even, s);
     }
 #endif
   }
@@ -1456,7 +1456,7 @@ template <size_t N> class fp8_e5m2_x {
                ? __builtin_spirv_ClampConvertBF16ToE5M2INTEL(h)
                : __builtin_spirv_ConvertBF16ToE5M2EXT(h);
 #else
-  return detail::ConvertFloatToE4M3_CPU<5, 2, bfloat16>(h,
+  return detail::ConvertFloatToFP8_CPU<5, 2, bfloat16>(h,
                               rounding::to_even,
                               s);
 #endif
@@ -1468,7 +1468,7 @@ template <size_t N> class fp8_e5m2_x {
     sycl::half hi = __builtin_spirv_ConvertE5M2ToFP16EXT(v);
     return static_cast<T>(hi);
 #else
-    return detail::ConvertFromE8M0ToBinaryFloat_CPU<5, 2, T>(v, r);
+    return detail::ConvertFromFP8ToBinaryFloat_CPU<5, 2, T>(v, r);
 #endif
   }
 
@@ -1476,7 +1476,7 @@ template <size_t N> class fp8_e5m2_x {
 #ifdef __SYCL_DEVICE_ONLY__
     return __builtin_spirv_ConvertE5M2ToBF16EXT(v);
 #else
-    return detail::ConvertFromE8M0ToBinaryFloat_CPU<5, 2, bfloat16>(
+    return detail::ConvertFromFP8ToBinaryFloat_CPU<5, 2, bfloat16>(
       v, rounding::to_even);
 #endif
   }
