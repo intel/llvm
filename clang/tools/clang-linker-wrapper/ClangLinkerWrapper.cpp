@@ -1731,16 +1731,6 @@ static void appendClangSYCLLinkerArgs(const ArgList &Args,
   if (!Arch.empty())
     XLinker("--arch=" + Arch);
 
-  // Collect all device library file values and pass them to the linker as a
-  // single comma-separated list.
-  if (Arg *A = Args.getLastArg(OPT_sycl_device_lib_EQ)) {
-    std::string DeviceLibsStr = llvm::join(A->getValues(), ",");
-    XLinker("--device-libs=" + DeviceLibsStr);
-  }
-  if (Arg *A = Args.getLastArg(OPT_sycl_device_library_location_EQ)) {
-    XLinker("--library-path=" + StringRef(A->getValue()));
-  }
-
   static const OptSpecifier DirectOpts[] = {
       OPT_save_temps,
       OPT_dry_run,
@@ -1815,8 +1805,7 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args,
     CmdArgs.push_back("--sycl-link");
     appendClangSYCLLinkerArgs(Args, CmdArgs, Triple, Arch);
     for (StringRef InputFile : InputFiles)
-      CmdArgs.append({"-Xlinker",
-                      Args.MakeArgString("--input-bitcode-file=" + InputFile)});
+      CmdArgs.append({"-Xlinker", Args.MakeArgString(InputFile)});
     if (Error Err = executeCommands(*ClangPath, CmdArgs))
       return std::move(Err);
     return *TempFileOrErr;
