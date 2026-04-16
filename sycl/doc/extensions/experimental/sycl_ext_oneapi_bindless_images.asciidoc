@@ -226,7 +226,11 @@ semantics.
 
 [NOTE]
 ====
-The `sycl::range<N>` constructors map dimensions in **X, Y, Z order** (width, height, depth), which differs from the SYCL 2020 specification's general `range` convention of "fastest-incrementing" dimension order. This follows standard image/graphics conventions where:
+The `sycl::range<N>` constructors map dimensions in **X, Y, Z order** (width, height, depth), 
+which differs from the SYCL 2020 specification's general `range` convention of "fastest-incrementing" dimension order
+ (https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#sec:multi-dim-linearization).
+
+This follows standard image/graphics conventions where:
 
 * `range<1>{width}` => `width` = `dims[0]`
 * `range<2>{width, height}` => `width` = `dims[0]`, `height` = `dims[1]`

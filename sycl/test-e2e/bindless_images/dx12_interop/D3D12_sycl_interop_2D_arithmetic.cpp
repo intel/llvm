@@ -461,10 +461,9 @@ int runTest(
     sycl::image_channel_type syclType = syclOverride.has_value()
                                             ? syclOverride.value()
                                             : getSyclChannelType<T>();
-    // Bindless images use X,Y,Z order where X is dimension 0, Y is dimension 1.
-    // This differs from SYCL 2020 "fastest-incrementing" convention.
-    // See sycl_ext_oneapi_bindless_images.asciidoc for details.
-    syclexp::image_descriptor imgDesc(sycl::range<2>(height, width), channels,
+    // bindless image ranges use (x,y,z) order,
+    // differing from SYCL 2020 "fastest incrementing" convention
+    syclexp::image_descriptor imgDesc(sycl::range<2>(width, height), channels,
                                       syclType);
 
     auto imgMemA = syclexp::map_external_image_memory(
@@ -501,10 +500,9 @@ int runTest(
 
       kernelEvent = q.submit([&](sycl::handler &h) {
         h.depends_on(waitEvents);
-        // Range order matches image descriptor: (height, width)
+        // ranges for parallel_for use "fastest incrementing" order (z,y,x),
+        // but bindless images ranges use (x,y,z) order.
         h.parallel_for(sycl::range<2>(height, width), [=](sycl::item<2> item) {
-          // Extract x from dimension 1, y from dimension 0 to match bindless
-          // coordinate order
           int x = item.get_id(1);
           int y = item.get_id(0);
 
@@ -567,10 +565,9 @@ int runTest(
 
       kernelEvent = q.submit([&](sycl::handler &h) {
         h.depends_on(waitEvents);
-        // Range order matches image descriptor: (height, width)
+        // ranges for parallel_for use "fastest incrementing" order (z,y,x),
+        // but bindless images ranges use (x,y,z) order.
         h.parallel_for(sycl::range<2>(height, width), [=](sycl::item<2> item) {
-          // Extract x from dimension 1, y from dimension 0 to match bindless
-          // coordinate order
           int x = item.get_id(1);
           int y = item.get_id(0);
 
