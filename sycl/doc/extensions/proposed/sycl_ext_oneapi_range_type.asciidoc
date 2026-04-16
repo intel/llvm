@@ -186,7 +186,7 @@ specified as a property of that kernel or function.
 
 If a translation unit is compiled with `-fsycl-id-queries-range=size_t`, no
 default `range_type` is applied, adhering to the SYCL spec requirement that
-the total number of work-items must be representable as a `size_t`.
+the total number of work-items must be representable in a `size_t`.
 
 The `-fsycl-id-queries-fit-in-int` flag is equivalent to
 `-fsycl-id-queries-range=int`, and `-fno-sycl-id-queries-fit-in-int` is
