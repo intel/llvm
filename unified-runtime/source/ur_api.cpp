@@ -833,7 +833,7 @@ ur_result_t UR_APICALL urDeviceGetSelected(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_DEVICE_INFO_ENQUEUE_HOST_TASK_SUPPORT_EXP < propName`
+///         + `::UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG_LONG < propName`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
 ///         + If `propName` is not supported by the adapter.
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE

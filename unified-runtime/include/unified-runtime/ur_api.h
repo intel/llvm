@@ -2094,8 +2094,6 @@ typedef enum ur_device_info_t {
   UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_INT = 13,
   /// [uint32_t] preferred vector width for long
   UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_LONG = 14,
-  /// [uint32_t] preferred vector width for long long
-  UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_LONG_LONG = 0x9001,
   /// [uint32_t] preferred vector width for float
   UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_FLOAT = 15,
   /// [uint32_t] preferred vector width for double
@@ -2110,8 +2108,6 @@ typedef enum ur_device_info_t {
   UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_INT = 20,
   /// [uint32_t] native vector width for long
   UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG = 21,
-  /// [uint32_t] native vector width for long long
-  UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG_LONG = 0x9002,
   /// [uint32_t] native vector width for float
   UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_FLOAT = 22,
   /// [uint32_t] native vector width for double
@@ -2523,6 +2519,10 @@ typedef enum ur_device_info_t {
   /// [::ur_bool_t] returns true if the device supports enqueueing host
   /// tasks
   UR_DEVICE_INFO_ENQUEUE_HOST_TASK_SUPPORT_EXP = 0x9000,
+  /// [uint32_t] preferred vector width for long long
+  UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_LONG_LONG = 0x9001,
+  /// [uint32_t] native vector width for long long
+  UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG_LONG = 0x9002,
   /// @cond
   UR_DEVICE_INFO_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -2548,7 +2548,7 @@ typedef enum ur_device_info_t {
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_DEVICE_INFO_ENQUEUE_HOST_TASK_SUPPORT_EXP < propName`
+///         + `::UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG_LONG < propName`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
 ///         + If `propName` is not supported by the adapter.
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE

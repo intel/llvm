@@ -571,7 +571,7 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetInfo(
     if (NULL == hDevice)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
-    if (UR_DEVICE_INFO_ENQUEUE_HOST_TASK_SUPPORT_EXP < propName)
+    if (UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG_LONG < propName)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
 
     if (propSize == 0 && pPropValue != NULL)
