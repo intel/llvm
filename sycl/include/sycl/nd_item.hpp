@@ -11,7 +11,7 @@
 #include <sycl/__spirv/spirv_types.hpp>       // for Scope
 #include <sycl/__spirv/spirv_vars.hpp> // for initBuiltInLocalInvocationId
 #include <sycl/access/access.hpp>             // for mode, fence_space
-#include <sycl/detail/defines.hpp>            // for __SYCL_ASSUME_INT
+#include <sycl/detail/defines.hpp>            // for __SYCL_ASSUME_ID_RANGE
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED, __SY...
 #include <sycl/detail/generic_type_traits.hpp> // for ConvertToOpenCLType_t
 #include <sycl/detail/helpers.hpp>            // for getSPIRVMemorySemanticsMask
@@ -57,7 +57,7 @@ public:
 
   size_t __SYCL_ALWAYS_INLINE get_global_id(int Dimension) const {
     size_t Id = get_global_id()[Dimension];
-    __SYCL_ASSUME_INT(Id);
+    __SYCL_ASSUME_ID_RANGE(Id);
     return Id;
   }
 
@@ -74,7 +74,7 @@ public:
       LinId = (Index[0] - Offset[0]) * Extent[1] * Extent[2] +
               (Index[1] - Offset[1]) * Extent[2] + Index[2] - Offset[2];
     }
-    __SYCL_ASSUME_INT(LinId);
+    __SYCL_ASSUME_ID_RANGE(LinId);
     return LinId;
   }
 
@@ -88,7 +88,7 @@ public:
 
   size_t __SYCL_ALWAYS_INLINE get_local_id(int Dimension) const {
     size_t Id = get_local_id()[Dimension];
-    __SYCL_ASSUME_INT(Id);
+    __SYCL_ASSUME_ID_RANGE(Id);
     return Id;
   }
 
@@ -104,7 +104,7 @@ public:
       LinId =
           Index[0] * Extent[1] * Extent[2] + Index[1] * Extent[2] + Index[2];
     }
-    __SYCL_ASSUME_INT(LinId);
+    __SYCL_ASSUME_ID_RANGE(LinId);
     return LinId;
   }
 
@@ -120,7 +120,7 @@ public:
 
   size_t __SYCL_ALWAYS_INLINE get_group(int Dimension) const {
     size_t Id = get_group_id()[Dimension];
-    __SYCL_ASSUME_INT(Id);
+    __SYCL_ASSUME_ID_RANGE(Id);
     return Id;
   }
 
@@ -136,7 +136,7 @@ public:
       LinId =
           Index[0] * Extent[1] * Extent[2] + Index[1] * Extent[2] + Index[2];
     }
-    __SYCL_ASSUME_INT(LinId);
+    __SYCL_ASSUME_ID_RANGE(LinId);
     return LinId;
   }
 
@@ -150,7 +150,7 @@ public:
 
   size_t __SYCL_ALWAYS_INLINE get_group_range(int Dimension) const {
     size_t Range = get_group_range()[Dimension];
-    __SYCL_ASSUME_INT(Range);
+    __SYCL_ASSUME_ID_RANGE(Range);
     return Range;
   }
 
@@ -164,7 +164,7 @@ public:
 
   size_t get_global_range(int Dimension) const {
     size_t Val = get_global_range()[Dimension];
-    __SYCL_ASSUME_INT(Val);
+    __SYCL_ASSUME_ID_RANGE(Val);
     return Val;
   }
 
@@ -178,7 +178,7 @@ public:
 
   size_t get_local_range(int Dimension) const {
     size_t Id = get_local_range()[Dimension];
-    __SYCL_ASSUME_INT(Id);
+    __SYCL_ASSUME_ID_RANGE(Id);
     return Id;
   }
 
