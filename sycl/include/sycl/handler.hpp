@@ -873,7 +873,7 @@ private:
       // We are executing over the rounded range, but there are still
       // items/ids that are are constructed in ther range rounded
       // kernel use items/ids in the user range, which means that
-      // __SYCL_ASSUME_INT can still be violated. So check the bounds
+      // ID range assumptions can still be violated. So check the bounds
       // of the user range, instead of the rounded range.
       detail::checkValueRange<Dims>(UserRange);
       convertToRangeViewAndSetDescriptor(RoundedRange);
