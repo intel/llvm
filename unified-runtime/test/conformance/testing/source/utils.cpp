@@ -129,9 +129,9 @@ ur_result_t GetDevicePreferredVectorWidthLong(ur_device_handle_t device,
 }
 
 ur_result_t GetDevicePreferredVectorWidthLongLong(ur_device_handle_t device,
-                          uint32_t &pref_width) {
+                                                  uint32_t &pref_width) {
   return GetDeviceInfo<uint32_t>(
-    device, UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_LONG_LONG, pref_width);
+      device, UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_LONG_LONG, pref_width);
 }
 
 ur_result_t GetDevicePreferredVectorWidthFloat(ur_device_handle_t device,
@@ -177,9 +177,9 @@ ur_result_t GetDeviceNativeVectorWithLong(ur_device_handle_t device,
 }
 
 ur_result_t GetDeviceNativeVectorWithLongLong(ur_device_handle_t device,
-                        uint32_t &vec_width) {
+                                              uint32_t &vec_width) {
   return GetDeviceInfo<uint32_t>(
-    device, UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG_LONG, vec_width);
+      device, UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG_LONG, vec_width);
 }
 
 ur_result_t GetDeviceNativeVectorWithFloat(ur_device_handle_t device,
