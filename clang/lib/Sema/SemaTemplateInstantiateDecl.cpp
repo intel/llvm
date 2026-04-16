@@ -738,17 +738,6 @@ static void instantiateSYCLUsesAspectsAttr(
   S.SYCL().addSYCLUsesAspectsAttr(New, *Attr, Args.data(), Args.size());
 }
 
-static void instantiateSYCLIntelPipeIOAttr(
-    Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
-    const SYCLIntelPipeIOAttr *Attr, Decl *New) {
-  // The ID expression is a constant expression.
-  EnterExpressionEvaluationContext Unevaluated(
-      S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
-  ExprResult Result = S.SubstExpr(Attr->getID(), TemplateArgs);
-  if (!Result.isInvalid())
-    S.SYCL().addSYCLIntelPipeIOAttr(New, *Attr, Result.getAs<Expr>());
-}
-
 static void instantiateIntelReqdSubGroupSize(
     Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
     const IntelReqdSubGroupSizeAttr *A, Decl *New) {
@@ -1178,10 +1167,6 @@ void Sema::InstantiateAttrs(const MultiLevelTemplateArgumentList &TemplateArgs,
                                                *AMDGPUFlatWorkGroupSize, New);
     }
 
-    if (const auto *SYCLIntelPipeIO = dyn_cast<SYCLIntelPipeIOAttr>(TmplAttr)) {
-      instantiateSYCLIntelPipeIOAttr(*this, TemplateArgs, SYCLIntelPipeIO, New);
-      continue;
-    }
     if (const auto *IntelReqdSubGroupSize =
             dyn_cast<IntelReqdSubGroupSizeAttr>(TmplAttr)) {
       instantiateIntelReqdSubGroupSize(*this, TemplateArgs,

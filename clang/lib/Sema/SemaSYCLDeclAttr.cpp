@@ -422,58 +422,6 @@ void SemaSYCL::addSYCLUsesAspectsAttr(Decl *D, const AttributeCommonInfo &CI,
   D->addAttr(::new (Context) SYCLUsesAspectsAttr(Context, CI, Exprs, Size));
 }
 
-void SemaSYCL::addSYCLIntelPipeIOAttr(Decl *D, const AttributeCommonInfo &CI,
-                                      Expr *E) {
-  VarDecl *VD = cast<VarDecl>(D);
-  QualType Ty = VD->getType();
-  // TODO: Applicable only on pipe storages. Currently they are defined
-  // as structures inside of SYCL headers. Add a check for pipe_storage_t
-  // when it is ready.
-  if (!Ty->isStructureType()) {
-    Diag(CI.getLoc(), diag::err_attribute_wrong_decl_type_str)
-        << CI << CI.isRegularKeywordAttribute()
-        << "SYCL pipe storage declaration";
-    return;
-  }
-
-  if (!E->isValueDependent()) {
-    // Validate that we have an integer constant expression and then store the
-    // converted constant expression into the semantic attribute so that we
-    // don't have to evaluate it again later.
-    llvm::APSInt ArgVal;
-    ExprResult Res = SemaRef.VerifyIntegerConstantExpression(E, &ArgVal);
-    if (Res.isInvalid())
-      return;
-    E = Res.get();
-
-    // This attribute requires a non-negative value.
-    if (ArgVal < 0) {
-      Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
-          << CI << /*non-negative*/ 1;
-      return;
-    }
-
-    // Check to see if there's a duplicate attribute with different values
-    // already applied to the declaration.
-    if (const auto *DeclAttr = D->getAttr<SYCLIntelPipeIOAttr>()) {
-      // If the other attribute argument is instantiation dependent, we won't
-      // have converted it to a constant expression yet and thus we test
-      // whether this is a null pointer.
-      if (const auto *DeclExpr = dyn_cast<ConstantExpr>(DeclAttr->getID())) {
-        if (ArgVal != DeclExpr->getResultAsAPSInt()) {
-          Diag(CI.getLoc(), diag::warn_duplicate_attribute) << CI;
-          Diag(DeclAttr->getLoc(), diag::note_previous_attribute);
-        }
-        // Drop the duplicate attribute.
-        return;
-      }
-    }
-  }
-
-  ASTContext &Context = getASTContext();
-  D->addAttr(::new (Context) SYCLIntelPipeIOAttr(Context, CI, E));
-}
-
 void SemaSYCL::addIntelReqdSubGroupSizeAttr(Decl *D,
                                             const AttributeCommonInfo &CI,
                                             Expr *E) {
@@ -1855,33 +1803,6 @@ SYCLIntelNoGlobalWorkOffsetAttr *SemaSYCL::mergeSYCLIntelNoGlobalWorkOffsetAttr(
   ASTContext &Context = getASTContext();
   return ::new (Context)
       SYCLIntelNoGlobalWorkOffsetAttr(Context, A, A.getValue());
-}
-
-void SemaSYCL::handleSYCLIntelPipeIOAttr(Decl *D, const ParsedAttr &A) {
-  Expr *E = A.getArgAsExpr(0);
-  addSYCLIntelPipeIOAttr(D, A, E);
-}
-
-SYCLIntelPipeIOAttr *
-SemaSYCL::mergeSYCLIntelPipeIOAttr(Decl *D, const SYCLIntelPipeIOAttr &A) {
-  // Check to see if there's a duplicate attribute with different values
-  // already applied to the declaration.
-  if (const auto *DeclAttr = D->getAttr<SYCLIntelPipeIOAttr>()) {
-    if (const auto *DeclExpr = dyn_cast<ConstantExpr>(DeclAttr->getID())) {
-      if (const auto *MergeExpr = dyn_cast<ConstantExpr>(A.getID())) {
-        if (DeclExpr->getResultAsAPSInt() != MergeExpr->getResultAsAPSInt()) {
-          Diag(DeclAttr->getLoc(), diag::err_disallowed_duplicate_attribute)
-              << &A;
-          Diag(A.getLoc(), diag::note_conflicting_attribute);
-        }
-        // Do not add a duplicate attribute.
-        return nullptr;
-      }
-    }
-  }
-
-  ASTContext &Context = getASTContext();
-  return ::new (Context) SYCLIntelPipeIOAttr(Context, A, A.getID());
 }
 
 void SemaSYCL::handleSYCLAddIRAttributesFunctionAttr(Decl *D,
