@@ -1236,6 +1236,13 @@ property is set on a modifiable `command_graph`, calling `queue::wait()` or
 `event::wait()` while the queue is in the recording state will insert a
 `node_type::host_sync` node into the graph instead of throwing an exception.
 
+Additionally, this property allows commands submitted during recording to depend
+on events from outside the graph (i.e. events created before recording began or
+on non-recording queues). Without this property, such dependencies throw a
+synchronous `exception` with error code `invalid` and the message "Graph nodes
+cannot depend on events from outside the graph." When this property is set, the
+runtime inserts a `node_type::host_sync` node as a partition boundary instead.
+
 At finalization, `host_sync` nodes act as partition boundaries that split the
 graph into separately-submitted sub-graphs. During execution, the runtime
 submits each partition to the device independently, waiting for the previous
@@ -1243,7 +1250,8 @@ partition to complete before submitting the next one.
 
 When this property is *not* set, the existing behavior is preserved:
 `queue::wait()` and `event::wait()` during recording throw a synchronous
-`exception` with error code `invalid`.
+`exception` with error code `invalid`, and external event dependencies are
+rejected.
 
 NOTE: Recording a wait silently changes semantics. Users calling
 `queue::wait()` in handwritten SYCL code often have host code after the wait
@@ -2163,9 +2171,15 @@ Host-tasks can be updated using <<executable-graph-update, Executable Graph Upda
 
 When a `command_graph` is constructed with the
 <<allow-wait-recording-property, `property::graph::allow_wait_recording`>>
-property, calls to `queue::wait()` or `event::wait()` during recording insert a
-node of type `node_type::host_sync` into the graph. These nodes are not
-enqueued to the device; instead, they act as partition boundaries.
+property, the following operations during recording insert a node of type
+`node_type::host_sync` into the graph instead of throwing an exception:
+
+* Calling `queue::wait()` or `event::wait()` while the queue is recording.
+* Submitting a command that depends on an event from outside the graph (i.e. an
+  event created before recording began or on a non-recording queue).
+
+These `host_sync` nodes are not enqueued to the device; instead, they act as
+partition boundaries.
 
 At finalization, the runtime splits the graph into partitions at each
 `host_sync` node (and each `host_task` node). During execution of the

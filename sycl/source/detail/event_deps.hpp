@@ -107,6 +107,21 @@ void registerEventDependency(
 
   if (GraphImpl) {
     if (EventGraph == nullptr) {
+      if (GraphImpl->allowWaitRecording()) {
+        // External event dependency with allow_wait_recording means we
+        // insert a host_sync partition boundary. This handles the cases
+        // where a command submitted to a queue depends on an event
+        // from outside the graph
+        auto EmptyCG = std::make_shared<sycl::detail::CG>(
+            sycl::detail::CGType::None,
+            sycl::detail::CG::StorageInitHelper{},
+            sycl::detail::code_location{});
+        std::vector<ext::oneapi::experimental::detail::node_impl *> EmptyDeps;
+        const_cast<ext::oneapi::experimental::detail::graph_impl *>(GraphImpl)
+            ->add(ext::oneapi::experimental::node_type::host_sync, EmptyCG,
+                  EmptyDeps);
+        return;
+      }
       throw sycl::exception(
           make_error_code(errc::invalid),
           "Graph nodes cannot depend on events from outside the graph.");
