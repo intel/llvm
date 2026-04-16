@@ -3,7 +3,6 @@
 #include <cmath>
 #include <complex>
 #include <sycl/detail/core.hpp>
-
 enum { zero, non_zero, inf, NaN, non_zero_nan };
 template <typename T> int complex_classify(std::complex<T> x) {
   if (x == std::complex<T>(0, 0))
