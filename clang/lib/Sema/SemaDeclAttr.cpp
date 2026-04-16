@@ -8302,10 +8302,6 @@ ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D, const ParsedAttr &AL,
     handleTypeTagForDatatypeAttr(S, D, AL);
     break;
 
-  // Intel FPGA specific attributes
-  case ParsedAttr::AT_SYCLIntelPipeIO:
-    S.SYCL().handleSYCLIntelPipeIOAttr(D, AL);
-    break;
   case ParsedAttr::AT_SYCLAddIRAttributesFunction:
     S.SYCL().handleSYCLAddIRAttributesFunctionAttr(D, AL);
     break;

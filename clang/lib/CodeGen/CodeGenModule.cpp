@@ -6189,29 +6189,6 @@ CodeGenModule::CreateRuntimeFunction(llvm::FunctionType *FTy, StringRef Name,
   return {FTy, C};
 }
 
-static void maybeEmitPipeStorageMetadata(const VarDecl *D,
-                                         llvm::GlobalVariable *GV,
-                                         CodeGenModule &CGM) {
-  // TODO: Applicable only on pipe storages. Currently they are defined
-  // as structures inside of SYCL headers. Add a check for pipe_storage_t
-  // when it ready.
-  QualType PipeTy = D->getType();
-  if (!PipeTy->isStructureType())
-    return;
-
-  if (const auto *IOAttr = D->getAttr<SYCLIntelPipeIOAttr>()) {
-    const auto *CE = cast<ConstantExpr>(IOAttr->getID());
-    std::optional<llvm::APSInt> ID = CE->getResultAsAPSInt();
-    llvm::LLVMContext &Context = CGM.getLLVMContext();
-
-    llvm::Metadata *AttrMDArgs[] = {
-        llvm::ConstantAsMetadata::get(llvm::ConstantInt::get(
-            llvm::Type::getInt32Ty(Context), ID->getSExtValue()))};
-    GV->setMetadata(IOAttr->getSpelling(),
-                    llvm::MDNode::get(Context, AttrMDArgs));
-  }
-}
-
 /// GetOrCreateLLVMGlobal - If the specified mangled name is not in the module,
 /// create and return an llvm GlobalVariable with the specified type and address
 /// space. If there is something in the module with the specified name, return
@@ -6393,9 +6370,6 @@ CodeGenModule::GetOrCreateLLVMGlobal(StringRef MangledName, llvm::Type *Ty,
         }
       }
     }
-
-    if (LangOpts.SYCLIsDevice)
-      maybeEmitPipeStorageMetadata(D, GV, *this);
   }
 
   if (D &&
@@ -7146,7 +7120,6 @@ void CodeGenModule::EmitGlobalVarDefinition(const VarDecl *D,
       DI->EmitGlobalVariable(GV, D);
 
   if (LangOpts.SYCLIsDevice) {
-    maybeEmitPipeStorageMetadata(D, GV, *this);
     // Notify SYCL code generation infrastructure that a global variable is
     // being generated.
     getSYCLRuntime().actOnGlobalVarEmit(*this, *D, GV);

@@ -214,7 +214,6 @@
 // CHECK-NEXT: SYCLIntelMinWorkGroupsPerComputeUnit (SubjectMatchRule_function)
 // CHECK-NEXT: SYCLIntelNoGlobalWorkOffset (SubjectMatchRule_function)
 // CHECK-NEXT: SYCLIntelNumSimdWorkItems (SubjectMatchRule_function)
-// CHECK-NEXT: SYCLIntelPipeIO (SubjectMatchRule_variable)
 // CHECK-NEXT: SYCLIntelSchedulerTargetFmaxMhz (SubjectMatchRule_function)
 // CHECK-NEXT: SYCLIntelUseStallEnableClusters (SubjectMatchRule_function)
 // CHECK-NEXT: SYCLKernelEntryPoint (SubjectMatchRule_function)

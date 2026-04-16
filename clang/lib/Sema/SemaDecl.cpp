@@ -3010,8 +3010,6 @@ static bool mergeDeclAttribute(Sema &S, NamedDecl *D,
     NewAttr = S.SYCL().mergeSYCLUsesAspectsAttr(D, *A);
   else if (const auto *A = dyn_cast<SYCLTypeAttr>(Attr))
     NewAttr = S.SYCL().mergeSYCLTypeAttr(D, *A, A->getType());
-  else if (const auto *A = dyn_cast<SYCLIntelPipeIOAttr>(Attr))
-    NewAttr = S.SYCL().mergeSYCLIntelPipeIOAttr(D, *A);
   else if (const auto *A = dyn_cast<SYCLIntelMaxWorkGroupSizeAttr>(Attr))
     NewAttr = S.SYCL().mergeSYCLIntelMaxWorkGroupSizeAttr(D, *A);
   else if (const auto *A = dyn_cast<SYCLAddIRAttributesFunctionAttr>(Attr))
