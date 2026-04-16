@@ -1731,9 +1731,10 @@ void ProgramManager::addImage(sycl_device_binary RawImg,
       sycl::kernel_id KernelID = detail::createSyclObjFromImpl<sycl::kernel_id>(
           std::make_shared<detail::kernel_id_impl>(name));
       CompileTimeKernelInfoTy DefaultCompileTimeInfo{std::string_view(name)};
-      It = m_DeviceKernelInfoMap.emplace_hint(
-          It, std::piecewise_construct, std::forward_as_tuple(name),
-          std::forward_as_tuple(DefaultCompileTimeInfo, KernelID));
+      It = m_DeviceKernelInfoMap
+               .emplace(std::piecewise_construct, std::forward_as_tuple(name),
+                        std::forward_as_tuple(DefaultCompileTimeInfo, KernelID))
+               .first;
     }
     m_KernelIDs2BinImage.insert(
         std::make_pair(It->second.getKernelID(), Img.get()));
