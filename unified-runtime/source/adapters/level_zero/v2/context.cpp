@@ -8,6 +8,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "../adapter.hpp"
 #include "../device.hpp"
 
 #include "context.hpp"
@@ -252,12 +253,33 @@ ur_result_t urContextCreate(uint32_t deviceCount,
   bool ownZeContext = true;
 
   if (!pProperties && isFullPlatformRootDeviceList(deviceCount, phDevices)) {
-    ze_context_handle_t zeDefaultContext =
-        zeDriverGetDefaultContext(hPlatform->ZeDriver);
-    if (zeDefaultContext) {
-      zeContext = zeDefaultContext;
-      ownZeContext = false;
+    // Reuse the L0 driver default context when building with a new enough L0
+    // SDK.  The symbol may be absent in older loaders; HAVE_ZE_DRIVER_GET_DEFAULT_CONTEXT
+    // is defined by CMake only when the SDK declares it, preventing link failures.
+#if defined(HAVE_ZE_DRIVER_GET_DEFAULT_CONTEXT)
+    using pfnZeDriverGetDefaultContext_t =
+        ze_context_handle_t(ZE_APICALL *)(ze_driver_handle_t);
+#ifdef UR_STATIC_LEVEL_ZERO
+    // Static build: symbol is compiled in from libze_loader.a – call directly.
+    pfnZeDriverGetDefaultContext_t pfnGetDefaultContext =
+        zeDriverGetDefaultContext;
+#else
+    // Dynamic build: resolve at runtime so an older libze_loader.so doesn't
+    // cause a hard load-time failure.
+    auto pfnGetDefaultContext =
+        reinterpret_cast<pfnZeDriverGetDefaultContext_t>(
+            ur_loader::LibLoader::getFunctionPtr(GlobalAdapter->processHandle,
+                                                "zeDriverGetDefaultContext"));
+#endif // UR_STATIC_LEVEL_ZERO
+    if (pfnGetDefaultContext) {
+      ze_context_handle_t zeDefaultContext =
+          pfnGetDefaultContext(hPlatform->ZeDriver);
+      if (zeDefaultContext) {
+        zeContext = zeDefaultContext;
+        ownZeContext = false;
+      }
     }
+#endif // HAVE_ZE_DRIVER_GET_DEFAULT_CONTEXT
   }
 
   if (!zeContext) {
