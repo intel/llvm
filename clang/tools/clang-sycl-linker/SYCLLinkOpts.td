@@ -17,6 +17,13 @@ def o : JoinedOrSeparate<["-"], "o">, MetaVarName<"<path>">,
 def output : Separate<["--"], "output-file">, Alias<o>, Flags<[HelpHidden]>,
   HelpText<"Alias for -o">;
 
+def library_path_EQ : Joined<["--", "-"], "library-path=">,
+  Flags<[HelpHidden]>, HelpText<"Add <dir> to the library search path">;
+
+def device_libs_EQ : CommaJoined<["--", "-"], "device-libs=">,
+  Flags<[LinkerOnlyOption]>,
+  HelpText<"A comma separated list of device libraries that are linked during the device link.">;
+
 def arch_EQ : Joined<["--", "-"], "arch=">,
               Flags<[LinkerOnlyOption]>,
               MetaVarName<"<arch>">,
