@@ -2186,7 +2186,7 @@ ProgramManager::getSYCLDeviceImagesWithCompatibleState(
     using StateImagesPairT =
         std::pair<bundle_state, std::vector<const RTDeviceBinaryImage *>>;
     using KernelImageMapT =
-        std::map<kernel_id, StateImagesPairT, LessByNameComp>;
+        std::unordered_map<kernel_id, StateImagesPairT>;
     KernelImageMapT KernelImageMap;
     if (!KernelIDs.empty())
       for (const kernel_id &KernelID : KernelIDs)
