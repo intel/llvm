@@ -192,14 +192,6 @@ set(GENERIC_SOURCES
   umodti3.c
 )
 
-set(SPIRV64_SOURCES
-  divdc3.c
-  divsc3.c
-  mulsc3.c
-  muldc3.c
-)
-
-
 # We only build BF16 files when "__bf16" is available.
 set(BF16_SOURCES
     extendbfsf2.c
@@ -747,7 +739,7 @@ if (APPLE)
 endif()
 
 set(amdgcn_SOURCES ${GENERIC_SOURCES})
-set(spirv64_SOURCES ${SPIRV64_SOURCES})
+set(spirv64_SOURCES ${GENERIC_SOURCES})
 
 set(armv4t_SOURCES ${arm_min_SOURCES})
 set(armv5te_SOURCES ${arm_min_SOURCES})
