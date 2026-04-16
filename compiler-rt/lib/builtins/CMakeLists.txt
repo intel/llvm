@@ -1028,7 +1028,7 @@ else ()
                               COMPILER_RT_HAS_${arch}_BFLOAT16)
       # Build BF16 files only when "__bf16" is available.
 
-      if(COMPILER_RT_HAS_${arch}_BFLOAT16 AND NOT COMPILER_RT_HAS_DECLARE_SPIRV_BUILTINS_FLAG)
+      if(COMPILER_RT_HAS_${arch}_BFLOAT16)
         list(APPEND ${arch}_SOURCES ${BF16_SOURCES})
       endif()
 
