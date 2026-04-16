@@ -201,131 +201,6 @@ template <typename ToT> static inline ToT MakeDirectInf(bool negative) noexcept 
   }
 }
 
-template <typename ToT>
-static inline ToT ConvertFloatToTarget(bool negative, uint32_t significand,
-                                       int exp2, int srcFracBits,
-                                       rounding R) noexcept {
-  if (significand == 0u)
-    return negative ? -ToT{0} : ToT{0};
-
-  if constexpr (std::is_same_v<ToT, sycl::half> ||
-                std::is_same_v<ToT, sycl::ext::oneapi::bfloat16>) {
-    using Traits = DirectBinary16Traits<ToT>;
-    const uint16_t sign = negative ? Traits::SignMask : 0u;
-    const int sigBits = BitWidth(significand);
-    const int unbiasedExp = exp2 + sigBits - 1 - srcFracBits;
-
-    if (unbiasedExp > Traits::Emax) {
-      return sycl::bit_cast<ToT>(static_cast<uint16_t>(
-          sign | (R == rounding::toward_zero ? Traits::MaxFiniteBits
-                                             : Traits::InfBits)));
-    }
-
-    if (unbiasedExp >= Traits::Emin) {
-      const int shift = Traits::FracBits - (sigBits - 1);
-      const uint32_t aligned = significand << shift;
-      const uint16_t expField =
-          static_cast<uint16_t>(unbiasedExp + Traits::Bias) << Traits::FracBits;
-      const uint16_t fracField =
-          static_cast<uint16_t>(aligned & Traits::FracMask);
-      return sycl::bit_cast<ToT>(
-          static_cast<uint16_t>(sign | expField | fracField));
-    }
-
-    const int subShift = exp2 - srcFracBits - Traits::Emin + Traits::FracBits;
-    if (subShift < 0)
-      return sycl::bit_cast<ToT>(sign);
-
-    const uint32_t fracField = significand << subShift;
-    if (fracField == 0u || fracField > Traits::FracMask)
-      return sycl::bit_cast<ToT>(sign);
-
-    return sycl::bit_cast<ToT>(
-        static_cast<uint16_t>(sign | static_cast<uint16_t>(fracField)));
-  } else if constexpr (std::is_floating_point_v<ToT>) {
-    ToT magnitude =
-        std::ldexp(static_cast<ToT>(significand), exp2 - srcFracBits);
-    return negative ? -magnitude : magnitude;
-  } else if constexpr (std::is_integral_v<ToT>) {
-    const int shift = exp2 - srcFracBits;
-    uint64_t magnitude = significand;
-    if (shift >= 0)
-      magnitude <<= shift;
-    else if (-shift < 64)
-      magnitude >>= -shift;
-    else
-      magnitude = 0u;
-
-    if constexpr (std::is_signed_v<ToT>) {
-      int64_t signedMagnitude = static_cast<int64_t>(magnitude);
-      return static_cast<ToT>(negative ? -signedMagnitude : signedMagnitude);
-    } else
-      return static_cast<ToT>(magnitude);
-  } else
-    return ToT{};
-}
-
-template <int Ebits, int Mbits, typename ToT>
-static inline ToT ConvertFromFP8_CPU(uint8_t b,
-                                     rounding R = rounding::to_even) noexcept {
-  static_assert((Ebits == 4 && Mbits == 3) || (Ebits == 5 && Mbits == 2) ||
-                    (Ebits == 8 && Mbits == 0),
-                "Unsupported FP8 (Ebits,Mbits) combination");
-
-  constexpr int Bias = (1 << (Ebits - 1)) - 1;
-  constexpr int Emin = 1 - Bias;
-  constexpr uint8_t ExpMaskAll = static_cast<uint8_t>((1u << Ebits) - 1u);
-  constexpr uint32_t FracDen = (Mbits == 0) ? 1u : (1u << Mbits);
-  constexpr uint8_t MaxFrac = static_cast<uint8_t>(FracDen - 1u);
-
-  // Extract fields.
-  uint8_t sign_bit = (b & 0x80u) ? 1u : 0u;
-  uint8_t frac = (Mbits == 0) ? 0u : static_cast<uint8_t>(b & MaxFrac);
-
-  uint8_t exp = static_cast<uint8_t>((b >> Mbits) & ExpMaskAll);
-  if constexpr (Ebits == 8 && Mbits == 0) {
-    sign_bit = 0u;
-    exp = b;
-  }
-
-  auto make_nan = [&]() -> ToT { return MakeDirectNaN<ToT>(); };
-
-  // Handle exp = all ones (custom finite-only rules).
-  if (exp == ExpMaskAll) {
-    if constexpr (Ebits == 4 && Mbits == 3) {
-      // E4M3: only frac==111 -> NaN, otherwise normal.
-      if (frac == MaxFrac)
-        return make_nan();
-      // treat as normal finite
-    } else if constexpr (Ebits == 5 && Mbits == 2) {
-      // E5M2: NaN when frac in {01,10,11} i.e. frac != 00
-      if (frac != 0)
-        return make_nan();
-      // frac==00 -> normal finite
-    } else // E8M0: exp all ones -> NaN
-      return make_nan();
-  }
-
-  // exp == 0 : zero or subnormal (if Mbits>0)
-  if (exp == 0) {
-    if constexpr (Mbits == 0) {
-      // E8M0: exp==0 is the smallest normal (no subnormals)
-      return ConvertFloatToTarget<ToT>(false, 1u, -Bias, 0, R);
-    } else {
-      if (frac == 0) {
-        return ConvertFloatToTarget<ToT>(sign_bit != 0u, 0u, 0, 0, R);
-      }
-      // Subnormal: value = sign * (frac / 2^Mbits) * 2^(Emin)
-      return ConvertFloatToTarget<ToT>(sign_bit != 0u, frac, Emin, Mbits, R);
-    }
-  }
-
-  // Normal number.
-  int E = static_cast<int>(exp) - Bias;
-  const uint32_t significand =
-      (Mbits == 0) ? 1u : (static_cast<uint32_t>(FracDen) + frac);
-  return ConvertFloatToTarget<ToT>(sign_bit != 0u, significand, E, Mbits, R);
-}
 
 template <typename T> struct E8M0SourceTraits;
 
@@ -456,6 +331,32 @@ template <> struct E8M0SourceTraits<unsigned long long> {
   static constexpr int ValueBits = std::numeric_limits<UnsignedT>::digits;
 };
 
+  template <int Ebits, int Mbits> struct FP8FiniteFormatTraits {
+    static_assert((Ebits == 4 && Mbits == 3) || (Ebits == 5 && Mbits == 2),
+          "Unsupported FP8 finite format");
+
+    static constexpr uint8_t ExpAllOnes = static_cast<uint8_t>((1u << Ebits) - 1u);
+    static constexpr uint8_t MaxFrac = static_cast<uint8_t>((1u << Mbits) - 1u);
+    static constexpr int Bias = (1 << (Ebits - 1)) - 1;
+    static constexpr int Emin = 1 - Bias;
+    static constexpr bool HasInfinity = (Ebits == 5 && Mbits == 2);
+    static constexpr uint8_t MaxFiniteExpField =
+      HasInfinity ? static_cast<uint8_t>(ExpAllOnes - 1u) : ExpAllOnes;
+    static constexpr uint8_t MaxFiniteFracField =
+      (Ebits == 4 && Mbits == 3) ? static_cast<uint8_t>(MaxFrac - 1u)
+                   : MaxFrac;
+    static constexpr uint8_t MaxFiniteCode =
+      static_cast<uint8_t>((MaxFiniteExpField << Mbits) | MaxFiniteFracField);
+    static constexpr uint8_t NaNCode =
+      static_cast<uint8_t>((ExpAllOnes << Mbits) | MaxFrac);
+    static constexpr uint8_t InfinityCode = static_cast<uint8_t>(ExpAllOnes << Mbits);
+    static constexpr int MaxFiniteExp = static_cast<int>(MaxFiniteExpField) - Bias;
+    static constexpr uint64_t MinNormalMantissa = uint64_t{1} << Mbits;
+    static constexpr uint64_t OverflowMantissa = uint64_t{1} << (Mbits + 1);
+    static constexpr uint64_t MaxFiniteMantissa =
+      MinNormalMantissa + MaxFiniteFracField;
+  };
+
 template <typename T, typename Traits = E8M0SourceTraits<T>>
 static inline uint8_t ConvertIntToE8M0_CPU(T f, rounding R,
                                            saturation S) noexcept {
@@ -489,16 +390,20 @@ static inline uint8_t ConvertIntToE8M0_CPU(T f, rounding R,
   return static_cast<uint8_t>(127 + lowerExp + (roundUp ? 1 : 0));
 }
 
-template <typename T, typename Traits = E8M0SourceTraits<T>>
+template <int Ebits = 4, int Mbits = 3, typename T,
+          typename Traits = E8M0SourceTraits<T>>
 static inline uint8_t ConvertIntToE4M3_CPU(T f, rounding R,
                                            saturation S) noexcept {
   using UnsignedT = typename Traits::UnsignedT;
+  using Format = FP8FiniteFormatTraits<Ebits, Mbits>;
 
-  constexpr uint8_t MaxFiniteCode = 0x7Eu;
-  constexpr uint8_t NaNCode = 0x7Fu;
-  constexpr int TargetBias = 7;
-  constexpr int TargetEmax = 8;
-  constexpr int TargetFracBits = 3;
+  auto getOverflowCode = [&]() -> uint8_t {
+    if (S == saturation::finite)
+      return Format::MaxFiniteCode;
+    if constexpr (Format::HasInfinity)
+      return Format::InfinityCode;
+    return Format::NaNCode;
+  };
 
   const uint8_t sign =
       (Traits::IsSigned && f < 0) ? static_cast<uint8_t>(0x80u) : 0u;
@@ -515,11 +420,10 @@ static inline uint8_t ConvertIntToE4M3_CPU(T f, rounding R,
     return sign;
 
   int unbiasedExp = BitWidth(static_cast<uint64_t>(magnitude)) - 1;
-  if (unbiasedExp > TargetEmax)
-    return static_cast<uint8_t>(
-        sign | (S == saturation::finite ? MaxFiniteCode : NaNCode));
+  if (unbiasedExp > Format::MaxFiniteExp)
+    return static_cast<uint8_t>(sign | getOverflowCode());
 
-  const int shift = unbiasedExp - TargetFracBits;
+  const int shift = unbiasedExp - Mbits;
   uint64_t mantissa = 0u;
   if (shift <= 0) {
     mantissa = static_cast<uint64_t>(magnitude) << (-shift);
@@ -543,41 +447,45 @@ static inline uint8_t ConvertIntToE4M3_CPU(T f, rounding R,
     }
   }
 
-  if (mantissa >= 16u) {
-    mantissa = 8u;
+  if (mantissa >= Format::OverflowMantissa) {
+    mantissa = Format::MinNormalMantissa;
     ++unbiasedExp;
   }
 
-  if (unbiasedExp > TargetEmax)
-    return static_cast<uint8_t>(
-        sign | (S == saturation::finite ? MaxFiniteCode : NaNCode));
+  if (unbiasedExp > Format::MaxFiniteExp)
+    return static_cast<uint8_t>(sign | getOverflowCode());
 
-  if (unbiasedExp == TargetEmax && mantissa > 14u)
-    return static_cast<uint8_t>(
-        sign | (S == saturation::finite ? MaxFiniteCode : NaNCode));
+  if (unbiasedExp == Format::MaxFiniteExp &&
+      mantissa > Format::MaxFiniteMantissa)
+    return static_cast<uint8_t>(sign | getOverflowCode());
 
-  const uint8_t expField = static_cast<uint8_t>(unbiasedExp + TargetBias);
-  const uint8_t fracField = static_cast<uint8_t>(mantissa - 8u);
-  return static_cast<uint8_t>(sign | static_cast<uint8_t>(expField << 3) |
+  const uint8_t expField = static_cast<uint8_t>(unbiasedExp + Format::Bias);
+  const uint8_t fracField =
+      static_cast<uint8_t>(mantissa - Format::MinNormalMantissa);
+  return static_cast<uint8_t>(sign | static_cast<uint8_t>(expField << Mbits) |
                               fracField);
 }
 
-template <typename T, typename Traits = E8M0SourceTraits<T>>
+template <int Ebits = 4, int Mbits = 3, typename T,
+          typename Traits = E8M0SourceTraits<T>>
 static inline uint8_t ConvertFloatToE4M3_CPU(T f, rounding R,
                                              saturation S) noexcept {
   using UInt = typename Traits::UInt;
+  using Format = FP8FiniteFormatTraits<Ebits, Mbits>;
 
   constexpr UInt SignMask = UInt{1} << (Traits::ExpBits + Traits::FracBits);
   constexpr UInt FracMask = (UInt{1} << Traits::FracBits) - UInt{1};
   constexpr UInt ExpMask = ((UInt{1} << Traits::ExpBits) - UInt{1})
                            << Traits::FracBits;
   constexpr UInt ExpAllOnes = (UInt{1} << Traits::ExpBits) - UInt{1};
-  constexpr uint8_t MaxFiniteCode = 0x7Eu;
-  constexpr uint8_t NaNCode = 0x7Fu;
-  constexpr int TargetBias = 7;
-  constexpr int TargetEmin = -6;
-  constexpr int TargetEmax = 8;
-  constexpr int TargetFracBits = 3;
+
+  auto getOverflowCode = [&](uint8_t sign) -> uint8_t {
+    if (S == saturation::finite)
+      return static_cast<uint8_t>(sign | Format::MaxFiniteCode);
+    if constexpr (Format::HasInfinity)
+      return static_cast<uint8_t>(sign | Format::InfinityCode);
+    return static_cast<uint8_t>(sign | Format::NaNCode);
+  };
 
   UInt bits;
   __builtin_memcpy(&bits, &f, sizeof(bits));
@@ -590,9 +498,8 @@ static inline uint8_t ConvertFloatToE4M3_CPU(T f, rounding R,
 
   if (exp == ExpAllOnes) {
     if (frac != 0u)
-      return static_cast<uint8_t>(sign | NaNCode);
-    return static_cast<uint8_t>(
-        sign | (S == saturation::finite ? MaxFiniteCode : NaNCode));
+      return static_cast<uint8_t>(sign | Format::NaNCode);
+    return getOverflowCode(sign);
   }
 
   if (exp == 0u && frac == 0u)
@@ -650,52 +557,50 @@ static inline uint8_t ConvertFloatToE4M3_CPU(T f, rounding R,
     return (truncated & 1u) != 0u ? truncated + 1u : truncated;
   };
 
-  if (unbiasedExp > TargetEmax)
-    return static_cast<uint8_t>(
-        sign | (S == saturation::finite ? MaxFiniteCode : NaNCode));
+  if (unbiasedExp > Format::MaxFiniteExp)
+    return getOverflowCode(sign);
 
-  if (unbiasedExp == TargetEmax) {
-    const uint64_t lhs = significand << TargetFracBits;
-    const uint64_t rhs = 14ull << leadingBit;
+  if (unbiasedExp == Format::MaxFiniteExp) {
+    const uint64_t lhs = significand << Mbits;
+    const uint64_t rhs = Format::MaxFiniteMantissa << leadingBit;
     if (lhs > rhs)
-      return static_cast<uint8_t>(
-          sign | (S == saturation::finite ? MaxFiniteCode : NaNCode));
+      return getOverflowCode(sign);
   }
 
-  if (unbiasedExp < TargetEmin) {
-    const int shift = leadingBit - unbiasedExp - 9;
+  if (unbiasedExp < Format::Emin) {
+    const int shift = leadingBit - unbiasedExp - Format::Bias - Mbits + 1;
     uint64_t mantissa = shift > 0 ? roundShiftRight(significand, shift)
                                   : (significand << (-shift));
 
     if (mantissa == 0u)
       return sign;
 
-    if (mantissa >= 8u)
-      return static_cast<uint8_t>(sign | 0x08u);
+    if (mantissa >= Format::MinNormalMantissa)
+      return static_cast<uint8_t>(sign | (uint8_t{1} << Mbits));
 
     return static_cast<uint8_t>(sign | static_cast<uint8_t>(mantissa));
   }
 
-  const int shift = leadingBit - TargetFracBits;
+  const int shift = leadingBit - Mbits;
   uint64_t mantissa = shift > 0 ? roundShiftRight(significand, shift)
                                 : (significand << (-shift));
 
-  if (mantissa >= 16u) {
-    mantissa = 8u;
+  if (mantissa >= Format::OverflowMantissa) {
+    mantissa = Format::MinNormalMantissa;
     ++unbiasedExp;
   }
 
-  if (unbiasedExp > TargetEmax)
-    return static_cast<uint8_t>(
-        sign | (S == saturation::finite ? MaxFiniteCode : NaNCode));
+  if (unbiasedExp > Format::MaxFiniteExp)
+    return getOverflowCode(sign);
 
-  if (unbiasedExp == TargetEmax && mantissa > 14u)
-    return static_cast<uint8_t>(
-        sign | (S == saturation::finite ? MaxFiniteCode : NaNCode));
+  if (unbiasedExp == Format::MaxFiniteExp &&
+      mantissa > Format::MaxFiniteMantissa)
+    return getOverflowCode(sign);
 
-  const uint8_t expField = static_cast<uint8_t>(unbiasedExp + TargetBias);
-  const uint8_t fracField = static_cast<uint8_t>(mantissa - 8u);
-  return static_cast<uint8_t>(sign | static_cast<uint8_t>(expField << 3) |
+  const uint8_t expField = static_cast<uint8_t>(unbiasedExp + Format::Bias);
+  const uint8_t fracField =
+      static_cast<uint8_t>(mantissa - Format::MinNormalMantissa);
+  return static_cast<uint8_t>(sign | static_cast<uint8_t>(expField << Mbits) |
                               fracField);
 }
 
@@ -1157,11 +1062,11 @@ template <size_t N> class fp8_e4m3_x {
     if constexpr (std::is_same_v<std::decay_t<T>, sycl::half> ||
                   std::is_same_v<std::decay_t<T>, float> ||
                   std::is_same_v<std::decay_t<T>, double>) {
-      return detail::ConvertFloatToE4M3_CPU<T>(h, rounding::to_even,
-                                               saturation::finite);
+      return detail::ConvertFloatToE4M3_CPU<4, 3, T>(h, rounding::to_even,
+                                                     saturation::finite);
     } else if constexpr (std::is_integral_v<std::decay_t<T>>) {
-      return detail::ConvertIntToE4M3_CPU<T>(h, rounding::to_even,
-                                             saturation::finite);
+      return detail::ConvertIntToE4M3_CPU<4, 3, T>(h, rounding::to_even,
+                                                   saturation::finite);
     }
 #endif
   }
@@ -1170,8 +1075,8 @@ template <size_t N> class fp8_e4m3_x {
 #ifdef __SYCL_DEVICE_ONLY__
     return __builtin_spirv_ClampConvertBF16ToE4M3INTEL(h);
 #else
-    return detail::ConvertFloatToE4M3_CPU<bfloat16>(h, rounding::to_even,
-                                                    saturation::finite);
+  return detail::ConvertFloatToE4M3_CPU<4, 3, bfloat16>(
+    h, rounding::to_even, saturation::finite);
 #endif
   }
 
@@ -1521,20 +1426,27 @@ public:
 template <size_t N> class fp8_e5m2_x {
   static constexpr size_t NExpBits = 5;
   static constexpr size_t NFracBits = 2;
-  static constexpr float MaxNormal = 114688.0f;              // 1.75 * 2^16
+  static constexpr float MaxNormal = 57344.0f;               // 1.75 * 2^15
   static constexpr float MinSubnormal = 0.0000152587890625f; // 2^-16
-  static constexpr uint8_t MaxFiniteCode = 0x7C;             // 0.11111.00
+  static constexpr uint8_t MaxFiniteCode = 0x7B;             // 0.11110.11
 
   static_assert(N == 1 || N == 2,
                 "fp8_e5m2_x: Template argument N must be 1 or 2");
 
-  uint8_t ConvertToFP8(sycl::half h, saturation s) {
+  template <typename T> uint8_t ConvertToFP8(T h, saturation s) {
 #ifdef __SYCL_DEVICE_ONLY__
+    const sycl::half halfValue = static_cast<sycl::half>(h);
     return s == saturation::finite
-               ? __builtin_spirv_ClampConvertFP16ToE5M2INTEL(h)
-               : __builtin_spirv_ConvertFP16ToE5M2EXT(h);
+               ? __builtin_spirv_ClampConvertFP16ToE5M2INTEL(halfValue)
+               : __builtin_spirv_ConvertFP16ToE5M2EXT(halfValue);
 #else
-    return detail::ConvertToFP8_CPU<5, 2, sycl::half>(h, rounding::to_even);
+    if constexpr (std::is_same_v<std::decay_t<T>, sycl::half> ||
+                  std::is_same_v<std::decay_t<T>, float> ||
+                  std::is_same_v<std::decay_t<T>, double>) {
+      return detail::ConvertFloatToE4M3_CPU<5, 2, T>(h, rounding::to_even, s);
+    } else if constexpr (std::is_integral_v<std::decay_t<T>>) {
+      return detail::ConvertIntToE4M3_CPU<5, 2, T>(h, rounding::to_even, s);
+    }
 #endif
   }
 
@@ -1544,7 +1456,9 @@ template <size_t N> class fp8_e5m2_x {
                ? __builtin_spirv_ClampConvertBF16ToE5M2INTEL(h)
                : __builtin_spirv_ConvertBF16ToE5M2EXT(h);
 #else
-    return detail::ConvertToFP8_CPU<5, 2, bfloat16>(h, rounding::to_even);
+  return detail::ConvertFloatToE4M3_CPU<5, 2, bfloat16>(h,
+                              rounding::to_even,
+                              s);
 #endif
   }
 
