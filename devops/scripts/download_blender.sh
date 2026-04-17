@@ -4,6 +4,8 @@ set -x
 set -e
 set -o pipefail
 
+apt update && apt install -yqq git-lfs
+
 git clone -b v5.1.0 https://projects.blender.org/blender/blender.git
 cd blender
 make update

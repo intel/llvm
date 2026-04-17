@@ -24,9 +24,6 @@ RUN /install_vulkan.sh
 COPY scripts/build_zstd.sh /build_zstd.sh
 RUN /build_zstd.sh
 
-COPY scripts/download_blender.sh /download_blender.sh
-RUN /download_blender.sh
-
 SHELL ["/bin/bash", "-ec"]
 
 # Make the directory if it doesn't exist yet.

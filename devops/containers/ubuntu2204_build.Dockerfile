@@ -15,9 +15,6 @@ RUN /install.sh
 COPY scripts/install_vulkan.sh /install_vulkan.sh
 RUN /install_vulkan.sh
 
-COPY scripts/download_blender.sh /download_blender.sh
-RUN /download_blender.sh
-
 # Install ROCM
 
 # Make the directory if it doesn't exist yet.
