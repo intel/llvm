@@ -289,11 +289,11 @@ TEST_F(SchedulerTest, InOrderQueueHostTaskAndBarrierOrder) {
   std::mutex CvMutex;
   std::condition_variable Cv;
   bool ready = false;
-
   sycl::platform Plt = sycl::platform();
-
   context Ctx{Plt};
   queue InOrderQueue{Ctx, default_selector_v, property::queue::in_order()};
+
+  NumOfEnqueueEventsWaitWithBarrier = 0;
 
   InOrderQueue.submit([&](sycl::handler &CGH) {
     CGH.host_task([&] {
@@ -301,7 +301,8 @@ TEST_F(SchedulerTest, InOrderQueueHostTaskAndBarrierOrder) {
       Cv.wait(lk, [&ready] { return ready; });
     });
   });
-  sycl::event BarrierEvent = InOrderQueue.ext_oneapi_submit_barrier();
+
+  InOrderQueue.ext_oneapi_submit_barrier();
 
   // Host task blocks the execution of a barrier
   //
