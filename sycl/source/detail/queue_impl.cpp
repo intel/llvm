@@ -587,10 +587,10 @@ queue_impl::submit_barrier_direct_impl(sycl::span<const event> DepEvents,
               false};
     }
 
-    CommandGroup.reset(new detail::CGBarrier(
-        std::move(DepEventImpls),
-        ext::oneapi::experimental::event_mode_enum::none /* TODO */,
-        std::move(CGData), BarrierType, CodeLoc));
+    CommandGroup.reset(
+        new detail::CGBarrier(std::move(DepEventImpls),
+                              ext::oneapi::experimental::event_mode_enum::none,
+                              std::move(CGData), BarrierType, CodeLoc));
 
     return {detail::Scheduler::getInstance().addCG(std::move(CommandGroup),
                                                    *this, true),
