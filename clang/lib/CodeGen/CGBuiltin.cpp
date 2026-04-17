@@ -2740,6 +2740,8 @@ static RValue EmitSYCLFreeFunctionKernelBuiltin(CodeGenFunction &CGF,
   // Return false otherwise.
   return RValue::get(
       llvm::ConstantInt::getFalse(CGF.ConvertType(E->getType())));
+}
+
 // stdc_{leading,trailing}_{zeros,ones} and stdc_count_ones: counts bits using
 // ctlz, cttz, or ctpop (IsPop). InvertArg flips the input to count the
 // opposite bit value.
