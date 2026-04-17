@@ -21,14 +21,8 @@
 #define __SYCL_ASSUME_ID_RANGE(x)
 #if (__SYCL_ID_QUERIES_FIT_IN_INT__ || __SYCL_ID_QUERIES_FIT_IN_UINT__) &&     \
     !__has_builtin(__builtin_assume)
-#ifdef _MSC_VER
 #pragma message(                                                               \
     "No assumptions will be emitted due to no __builtin_assume available")
-#else
-#if defined(__cplusplus) && __cplusplus >= 202302L
-#warning "No assumptions will be emitted due to no __builtin_assume available"
-#endif
-#endif
 #endif
 #endif
 
