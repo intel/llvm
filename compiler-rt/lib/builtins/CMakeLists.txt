@@ -952,7 +952,7 @@ else ()
   endif()
 
   # Directly targeting the GPU requires a few extra flags.
-  if("${COMPILER_RT_DEFAULT_TARGET_ARCH}" MATCHES "amdgcn|nvptx")
+  if("${COMPILER_RT_DEFAULT_TARGET_ARCH}" MATCHES "amdgcn|nvptx|spirv64")
     append_list_if(COMPILER_RT_HAS_FFREESTANDING_FLAG -ffreestanding BUILTIN_CFLAGS)
     append_list_if(COMPILER_RT_HAS_NOGPULIB_FLAG -nogpulib BUILTIN_CFLAGS)
     append_list_if(COMPILER_RT_HAS_FLTO_FLAG -flto BUILTIN_CFLAGS)
@@ -964,13 +964,6 @@ else ()
       append_list_if(COMPILER_RT_HAS_CODE_OBJECT_VERSION_FLAG
                      "SHELL:-Xclang -mcode-object-version=none" BUILTIN_CFLAGS)
     endif()
-  endif()
-
-  if("${COMPILER_RT_DEFAULT_TARGET_ARCH}" MATCHES "spirv64")
-    append_list_if(COMPILER_RT_HAS_FFREESTANDING_FLAG -ffreestanding BUILTIN_CFLAGS)
-    append_list_if(COMPILER_RT_HAS_FLTO_FLAG -flto BUILTIN_CFLAGS)
-    append_list_if(COMPILER_RT_HAS_DECLARE_SPIRV_BUILTINS_FLAG
-                   "SHELL:-Xclang -fdeclare-spirv-builtins" BUILTIN_CFLAGS)
   endif()
 
   set(BUILTIN_DEFS "")
