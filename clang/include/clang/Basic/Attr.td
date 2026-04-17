@@ -2933,21 +2933,6 @@ def SYCLIntelMaxInterleaving : StmtAttr {
   let Documentation = [SYCLIntelMaxInterleavingAttrDocs];
 }
 
-def SYCLIntelPipe : TypeAttr {
-  let Spellings = [GNU<"pipe">];
-  let Args = [StringArgument<"Mode">];
-  let LangOpts = [SYCLIsDevice];
-  let Documentation = [SYCLIntelPipeDocs];
-}
-
-def SYCLIntelPipeIO : InheritableAttr {
-  let Spellings = [GNU<"io_pipe_id">];
-  let Args = [ExprArgument<"ID">];
-  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
-  let Subjects = SubjectList<[Var]>;
-  let Documentation = [SYCLIntelPipeIOAttrDocs];
-}
-
 def Naked : InheritableAttr {
   let Spellings = [GCC<"naked">, Declspec<"naked">];
   let Subjects = SubjectList<[Function]>;

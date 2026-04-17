@@ -7,8 +7,6 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
-#ifdef __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
-
 #include <sycl/ext/oneapi/free_function_queries.hpp>
 
 namespace sycl {
@@ -30,5 +28,3 @@ inline sub_group this_sub_group() {
 } // namespace khr
 } // namespace _V1
 } // namespace sycl
-
-#endif

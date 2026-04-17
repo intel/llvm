@@ -3692,30 +3692,6 @@ sycl_detail namespace.
   }];
 }
 
-def SYCLIntelPipeDocs : Documentation {
-  let Category = DocCatStmt;
-  let Heading = "pipe (read_only, write_only)";
-  let Content = [{
-This attribute applies to a type to indicate that it is a pipe type.
-It requires a string argument that specifies if the pipe is read only or
-write only. Expected to be used only in SYCL headers.
-  }];
-}
-
-def SYCLIntelPipeIOAttrDocs : Documentation {
-  let Category = DocCatVariable;
-  let Heading = "IO pipe ID";
-  let Content = [{
-Add I/O attribute to SYCL pipe declaration to declare a special I/O pipe to
-interface with input or output features of an FPGA. These features might include
-network interfaces, PCIe, cameras, or other data capture or processing devices
-or protocols.
-
-The io_pipe_id(id) attribute specifies the I/O feature of an accelerator board
-with which a pipe interfaces. The id argument is the name of the I/O interface.
-  }];
-}
-
 def SYCLIntelLoopCoalesceAttrDocs : Documentation {
   let Category = DocCatVariable;
   let Heading = "intel::loop_coalesce";

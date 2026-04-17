@@ -493,7 +493,6 @@ public:
   void handleSYCLIntelNoGlobalWorkOffsetAttr(Decl *D, const ParsedAttr &AL);
   void handleSYCLIntelUseStallEnableClustersAttr(Decl *D, const ParsedAttr &AL);
   void handleIntelSimpleDualPortAttr(Decl *D, const ParsedAttr &AL);
-  void handleSYCLIntelPipeIOAttr(Decl *D, const ParsedAttr &AL);
   void handleSYCLAddIRAttributesFunctionAttr(Decl *D, const ParsedAttr &AL);
   void handleSYCLAddIRAttributesKernelParameterAttr(Decl *D,
                                                     const ParsedAttr &AL);
@@ -531,8 +530,6 @@ public:
                                    const SYCLIntelESimdVectorizeAttr &A);
   SYCLIntelNoGlobalWorkOffsetAttr *mergeSYCLIntelNoGlobalWorkOffsetAttr(
       Decl *D, const SYCLIntelNoGlobalWorkOffsetAttr &A);
-  SYCLIntelPipeIOAttr *mergeSYCLIntelPipeIOAttr(Decl *D,
-                                                const SYCLIntelPipeIOAttr &A);
   SYCLAddIRAttributesFunctionAttr *mergeSYCLAddIRAttributesFunctionAttr(
       Decl *D, const SYCLAddIRAttributesFunctionAttr &A);
   SYCLAddIRAttributesKernelParameterAttr *
@@ -606,7 +603,6 @@ public:
                              const Expr *LHSZDim, const Expr *RHSXDim,
                              const Expr *RHSYDim, const Expr *RHSZDim);
 
-  void addSYCLIntelPipeIOAttr(Decl *D, const AttributeCommonInfo &CI, Expr *E);
   void addSYCLDeviceHasAttr(Decl *D, const AttributeCommonInfo &CI,
                             Expr **Exprs, unsigned Size);
   void addSYCLUsesAspectsAttr(Decl *D, const AttributeCommonInfo &CI,

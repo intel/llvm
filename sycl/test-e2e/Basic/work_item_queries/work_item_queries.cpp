@@ -9,8 +9,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#define __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
-
 #include <cassert>
 #include <iostream>
 #include <sycl/detail/core.hpp>
