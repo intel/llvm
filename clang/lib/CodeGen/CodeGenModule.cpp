@@ -6115,29 +6115,6 @@ CodeGenModule::CreateRuntimeFunction(llvm::FunctionType *FTy, StringRef Name,
   return {FTy, C};
 }
 
-static void maybeEmitPipeStorageMetadata(const VarDecl *D,
-                                         llvm::GlobalVariable *GV,
-                                         CodeGenModule &CGM) {
-  // TODO: Applicable only on pipe storages. Currently they are defined
-  // as structures inside of SYCL headers. Add a check for pipe_storage_t
-  // when it ready.
-  QualType PipeTy = D->getType();
-  if (!PipeTy->isStructureType())
-    return;
-
-  if (const auto *IOAttr = D->getAttr<SYCLIntelPipeIOAttr>()) {
-    const auto *CE = cast<ConstantExpr>(IOAttr->getID());
-    std::optional<llvm::APSInt> ID = CE->getResultAsAPSInt();
-    llvm::LLVMContext &Context = CGM.getLLVMContext();
-
-    llvm::Metadata *AttrMDArgs[] = {
-        llvm::ConstantAsMetadata::get(llvm::ConstantInt::get(
-            llvm::Type::getInt32Ty(Context), ID->getSExtValue()))};
-    GV->setMetadata(IOAttr->getSpelling(),
-                    llvm::MDNode::get(Context, AttrMDArgs));
-  }
-}
-
 /// GetOrCreateLLVMGlobal - If the specified mangled name is not in the module,
 /// create and return an llvm GlobalVariable with the specified type and address
 /// space. If there is something in the module with the specified name, return
@@ -6319,9 +6296,6 @@ CodeGenModule::GetOrCreateLLVMGlobal(StringRef MangledName, llvm::Type *Ty,
         }
       }
     }
-
-    if (LangOpts.SYCLIsDevice)
-      maybeEmitPipeStorageMetadata(D, GV, *this);
   }
 
   if (D &&
@@ -6673,88 +6647,6 @@ void CodeGenModule::setAspectsEnumDecl(const EnumDecl *ED) {
   AspectsEnumDecl = ED;
 }
 
-void CodeGenModule::generateIntelFPGAAnnotation(
-    const Decl *D, llvm::SmallString<256> &AnnotStr) {
-  llvm::raw_svector_ostream Out(AnnotStr);
-  if (D->hasAttr<SYCLIntelRegisterAttr>())
-    Out << "{register:1}";
-  if (auto const *MA = D->getAttr<SYCLIntelMemoryAttr>()) {
-    SYCLIntelMemoryAttr::MemoryKind Kind = MA->getKind();
-    Out << "{memory:";
-    switch (Kind) {
-    case SYCLIntelMemoryAttr::MLAB:
-    case SYCLIntelMemoryAttr::BlockRAM:
-      Out << SYCLIntelMemoryAttr::ConvertMemoryKindToStr(Kind);
-      break;
-    case SYCLIntelMemoryAttr::Default:
-      Out << "DEFAULT";
-      break;
-    }
-    Out << '}';
-    if (const auto *DD = dyn_cast<DeclaratorDecl>(D)) {
-      Out << "{sizeinfo:";
-      // D can't be of type FunctionDecl (as no memory attribute can be applied
-      // to a function)
-      QualType ElementTy = DD->getType();
-      QualType TmpTy = ElementTy->isArrayType()
-                           ? getContext().getBaseElementType(ElementTy)
-                           : ElementTy;
-      Out << getContext().getTypeSizeInChars(TmpTy).getQuantity();
-      // Add the dimension of the array to Out.
-      while (const auto *AT = getContext().getAsArrayType(ElementTy)) {
-        // Expecting only constant array types, assert otherwise.
-        const auto *CAT = cast<ConstantArrayType>(AT);
-        Out << "," << CAT->getSize();
-        ElementTy = CAT->getElementType();
-      }
-      Out << '}';
-    }
-  }
-  if (D->hasAttr<SYCLIntelSinglePumpAttr>())
-    Out << "{pump:1}";
-  if (D->hasAttr<SYCLIntelDoublePumpAttr>())
-    Out << "{pump:2}";
-  if (const auto *BWA = D->getAttr<SYCLIntelBankWidthAttr>()) {
-    llvm::APSInt BWAInt = BWA->getValue()->EvaluateKnownConstInt(getContext());
-    Out << '{' << BWA->getSpelling() << ':' << BWAInt << '}';
-  }
-  if (const auto *PCA = D->getAttr<SYCLIntelPrivateCopiesAttr>()) {
-    llvm::APSInt PCAInt = PCA->getValue()->EvaluateKnownConstInt(getContext());
-    Out << '{' << PCA->getSpelling() << ':' << PCAInt << '}';
-  }
-  if (const auto *NBA = D->getAttr<SYCLIntelNumBanksAttr>()) {
-    llvm::APSInt NBAInt = NBA->getValue()->EvaluateKnownConstInt(getContext());
-    Out << '{' << NBA->getSpelling() << ':' << NBAInt << '}';
-  }
-  if (const auto *BBA = D->getAttr<SYCLIntelBankBitsAttr>()) {
-    Out << '{' << BBA->getSpelling() << ':';
-    for (SYCLIntelBankBitsAttr::args_iterator I = BBA->args_begin(),
-                                              E = BBA->args_end();
-         I != E; ++I) {
-      if (I != BBA->args_begin())
-        Out << ',';
-      llvm::APSInt BBAInt = (*I)->EvaluateKnownConstInt(getContext());
-      Out << BBAInt;
-    }
-    Out << '}';
-  }
-  if (const auto *MRA = D->getAttr<SYCLIntelMaxReplicatesAttr>()) {
-    llvm::APSInt MRAInt = MRA->getValue()->EvaluateKnownConstInt(getContext());
-    Out << '{' << MRA->getSpelling() << ':' << MRAInt << '}';
-  }
-  if (const auto *MA = D->getAttr<SYCLIntelMergeAttr>()) {
-    Out << '{' << MA->getSpelling() << ':' << MA->getName() << ':'
-        << MA->getDirection() << '}';
-  }
-  if (D->hasAttr<SYCLIntelSimpleDualPortAttr>())
-    Out << "{simple_dual_port:1}";
-  if (const auto *FP2D = D->getAttr<SYCLIntelForcePow2DepthAttr>()) {
-    llvm::APSInt FP2DInt =
-        FP2D->getValue()->EvaluateKnownConstInt(getContext());
-    Out << '{' << FP2D->getSpelling() << ':' << FP2DInt << '}';
-  }
-}
-
 /// Adds global Intel FPGA annotations for a given variable declaration.
 /// This function handles both simple global variables and fields within
 /// structs that are annotated with Intel FPGA attributes. For structs,
@@ -6774,8 +6666,6 @@ void CodeGenModule::addGlobalIntelFPGAAnnotation(const VarDecl *VD,
 
       // Iterate over the fields of the struct.
       for (const auto *Field : RD->fields()) {
-        generateIntelFPGAAnnotation(Field, AnnotStr);
-
         if (const auto *FT =
                 Field->getType()
                     ->getPointeeOrArrayElementType() // Strip pointers/arrays
@@ -6793,8 +6683,6 @@ void CodeGenModule::addGlobalIntelFPGAAnnotation(const VarDecl *VD,
     };
     Gen(RT, Gen);
   }
-
-  generateIntelFPGAAnnotation(VD, AnnotStr);
 
   if (!AnnotStr.empty()) {
     // Get the globals for file name, annotation, and the line number.
@@ -7158,7 +7046,6 @@ void CodeGenModule::EmitGlobalVarDefinition(const VarDecl *D,
       DI->EmitGlobalVariable(GV, D);
 
   if (LangOpts.SYCLIsDevice) {
-    maybeEmitPipeStorageMetadata(D, GV, *this);
     // Notify SYCL code generation infrastructure that a global variable is
     // being generated.
     getSYCLRuntime().actOnGlobalVarEmit(*this, *D, GV);

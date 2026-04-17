@@ -48,8 +48,8 @@ getLibSpirvBasename(const llvm::Triple &HostTriple) {
   // All known windows environments except Cygwin use 32-bit long.
   llvm::SmallString<64> Result(HostTriple.isOSWindows() &&
                                        !HostTriple.isWindowsCygwinEnvironment()
-                                   ? "remangled-l32-signed_char.libspirv.bc"
-                                   : "remangled-l64-signed_char.libspirv.bc");
+                                   ? "libspirv.l32.signed_char.bc"
+                                   : "libspirv.l64.signed_char.bc");
   return Result;
 }
 

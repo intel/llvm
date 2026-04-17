@@ -59,6 +59,7 @@
 #include "llvm/SYCLLowerIR/SYCLOptimizeBarriers.h"
 #include "llvm/SYCLLowerIR/SYCLPropagateAspectsUsage.h"
 #include "llvm/SYCLLowerIR/SYCLPropagateJointMatrixUsage.h"
+#include "llvm/SYCLLowerIR/SYCLRemangleLibspirv.h"
 #include "llvm/SYCLLowerIR/SYCLVirtualFunctionsAnalysis.h"
 #include "llvm/SYCLLowerIR/UtilsSYCLNativeCPU.h"
 #include "llvm/Support/BuryPointer.h"
@@ -1101,6 +1102,13 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
             if (Level != OptimizationLevel::O0)
               MPM.addPass(createModuleToFunctionPassAdaptor(
                   SYCLOptimizeBarriersPass()));
+          });
+    }
+
+    if (CodeGenOpts.SYCLRemangleLibspirv) {
+      PB.registerOptimizerLastEPCallback(
+          [&](ModulePassManager &MPM, OptimizationLevel, ThinOrFullLTOPhase) {
+            MPM.addPass(SYCLRemangleLibspirvPass());
           });
     }
 
