@@ -1975,6 +1975,8 @@ bool llvm::canConstantFoldCallTo(const CallBase *Call, const Function *F) {
   case Intrinsic::experimental_constrained_rint:
   case Intrinsic::experimental_constrained_fcmp:
   case Intrinsic::experimental_constrained_fcmps:
+
+  case Intrinsic::experimental_cttz_elts:
     return true;
   default:
     return false;
@@ -3741,7 +3743,7 @@ static Constant *ConstantFoldIntrinsicCall2(Intrinsic::ID IntrinsicID, Type *Ty,
     case Intrinsic::amdgcn_wave_reduce_and:
     case Intrinsic::amdgcn_wave_reduce_or:
     case Intrinsic::amdgcn_wave_reduce_xor:
-      return dyn_cast<Constant>(Operands[0]);
+      return Operands[0];
     }
 
     return nullptr;
@@ -3798,6 +3800,27 @@ static Constant *ConstantFoldIntrinsicCall2(Intrinsic::ID IntrinsicID, Type *Ty,
                                            /*IsSigned*/false);
       break;
     }
+  }
+
+  if (IntrinsicID == Intrinsic::experimental_cttz_elts) {
+    auto *FVTy = dyn_cast<FixedVectorType>(Operands[0]->getType());
+    bool ZeroIsPoison = cast<ConstantInt>(Operands[1])->isOne();
+    if (!FVTy)
+      return nullptr;
+    unsigned Width = Ty->getIntegerBitWidth();
+    if (APInt::getMaxValue(Width).ult(FVTy->getNumElements()))
+      return PoisonValue::get(Ty);
+    for (unsigned I = 0; I < FVTy->getNumElements(); ++I) {
+      Constant *Elt = Operands[0]->getAggregateElement(I);
+      if (!Elt)
+        return nullptr;
+      if (isa<UndefValue>(Elt) || Elt->isNullValue())
+        continue;
+      return ConstantInt::get(Ty, I);
+    }
+    if (ZeroIsPoison)
+      return PoisonValue::get(Ty);
+    return ConstantInt::get(Ty, FVTy->getNumElements());
   }
   return nullptr;
 }
@@ -4308,8 +4331,8 @@ static Constant *ConstantFoldScalableVectorCall(
     const TargetLibraryInfo *TLI, const CallBase *Call) {
   switch (IntrinsicID) {
   case Intrinsic::aarch64_sve_convert_from_svbool: {
-    auto *Src = dyn_cast<Constant>(Operands[0]);
-    if (!Src || !Src->isNullValue())
+    Constant *Src = Operands[0];
+    if (!Src->isNullValue())
       break;
 
     return ConstantInt::getFalse(SVTy);

@@ -1,0 +1,15 @@
+; OpVariable minimum = 4 (header + result-type + result-id + storage-class);
+; WordCount=3 is malformed.
+; Test that malformed input is rejected early rather than silently causing
+; integer underflow and potential process hang.
+
+; RUN: not llvm-spirv %s -to-binary -o %t.spv 2>&1 | FileCheck %s
+; CHECK: InvalidWordCount:
+
+119734787 65536 0 8 0
+2 Capability Kernel
+2 Capability Addresses
+3 MemoryModel 1 2
+4 TypeInt 3 32 0
+4 TypePointer 4 7 3
+3 Variable 4 5 7
