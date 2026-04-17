@@ -3479,13 +3479,32 @@ Instruction *InstCombinerImpl::visitGetElementPtrInst(GetElementPtrInst &GEP) {
         BackIndices, GEP.getNoWrapFlags());
   }
 
+  // Recursively check whether a type contains a target extension type.
+  // Target extension types have backend-defined semantics and must not be
+  // folded or reinterpreted by generic GEP canonicalization.
+  std::function<bool(Type *)> IsTargetExtType = [&](Type *Ty) -> bool {
+    if (isa<TargetExtType>(Ty))
+      return true;
+
+    if (Ty->isVectorTy())
+      return IsTargetExtType(Ty->getScalarType());
+
+    if (Ty->isArrayTy())
+      return IsTargetExtType(Ty->getArrayElementType());
+
+    if (auto *STy = dyn_cast<StructType>(Ty))
+      return any_of(STy->elements(), IsTargetExtType);
+
+    return false;
+  };
   // Canonicalize gep %T to gep [sizeof(%T) x i8]:
   auto IsCanonicalType = [](Type *Ty) {
     if (auto *AT = dyn_cast<ArrayType>(Ty))
       Ty = AT->getElementType();
     return Ty->isIntegerTy(8);
   };
-  if (Indices.size() == 1 && !IsCanonicalType(GEPEltType)) {
+  if (Indices.size() == 1 && !IsCanonicalType(GEPEltType) &&
+      !IsTargetExtType(GEPEltType)) {
     TypeSize Scale = DL.getTypeAllocSize(GEPEltType);
     assert(!Scale.isScalable() && "Should have been handled earlier");
     Type *NewElemTy = Builder.getInt8Ty();
