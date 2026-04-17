@@ -80,68 +80,8 @@ struct stochastic_seed {
 };
 
 namespace detail {
-static inline uint8_t RneClip(float x, uint8_t max) noexcept {
-  float f = std::floor(x);
-  float frac = x - f;
-  uint8_t i = static_cast<uint8_t>(f);
-  if (frac > 0.5f)
-    ++i;
-  else if (frac == 0.5f)
-    i += (i & 1u); // ties to even
-  return i > max ? max : i;
-}
 
-static inline uint8_t RoundClip(float x, uint8_t max, rounding R,
-                                uint8_t sign_bit) noexcept {
-  if (max == 0) {
-    // No fraction bits (E8M0 path)
-    if (R == rounding::upward) {
-      // For sign-preserving formats, roundTowardPositive increments only for
-      // positive values with a non-zero residual. Negative values stay at the
-      // lower-magnitude encoding.
-      if (!std::isnan(x) && sign_bit == 0u && x > 0.0f)
-        return 1u;
-      return 0u;
-    }
-    if (R == rounding::toward_zero || std::isnan(x))
-      return 0u;
-    if (x > 0.5f)
-      return 1u;
-    if (x == 0.5f)
-      return 0u; // tie -> even (0)
-    return 0u;
-  }
-
-  // Formats with fraction bits (E4M3, E5M2)
-  if (R == rounding::upward) {
-    if (sign_bit == 0u) {
-      // Positive: ceil
-      uint32_t ci = static_cast<uint32_t>(std::ceil(x));
-      if (ci > max)
-        ci = max;
-      return static_cast<uint8_t>(ci);
-    } else {
-      // Negative: toward +inf => magnitude decreases -> floor
-      uint32_t fi = static_cast<uint32_t>(std::floor(x));
-      if (fi > max)
-        fi = max;
-      return static_cast<uint8_t>(fi);
-    }
-  }
-  // default: round-to-nearest-even
-  return RneClip(x, max);
-}
-
-static inline int BitWidth(uint32_t x) noexcept {
-  int width = 0;
-  while (x != 0u) {
-    ++width;
-    x >>= 1;
-  }
-  return width;
-}
-
-static inline int BitWidth(uint64_t x) noexcept {
+template <typename T> static inline int BitWidth(T x) noexcept {
   int width = 0;
   while (x != 0u) {
     ++width;
@@ -154,26 +94,14 @@ template <typename ToT> struct DirectBinary16Traits;
 
 template <> struct DirectBinary16Traits<sycl::half> {
   static constexpr uint16_t SignMask = 0x8000u;
-  static constexpr uint16_t FracMask = 0x03FFu;
   static constexpr uint16_t InfBits = 0x7C00u;
-  static constexpr uint16_t MaxFiniteBits = 0x7BFFu;
   static constexpr uint16_t QuietNaNBits = 0x7E00u;
-  static constexpr int FracBits = 10;
-  static constexpr int Bias = 15;
-  static constexpr int Emin = -14;
-  static constexpr int Emax = 15;
 };
 
 template <> struct DirectBinary16Traits<sycl::ext::oneapi::bfloat16> {
   static constexpr uint16_t SignMask = 0x8000u;
-  static constexpr uint16_t FracMask = 0x007Fu;
   static constexpr uint16_t InfBits = 0x7F80u;
-  static constexpr uint16_t MaxFiniteBits = 0x7F7Fu;
   static constexpr uint16_t QuietNaNBits = 0x7FC0u;
-  static constexpr int FracBits = 7;
-  static constexpr int Bias = 127;
-  static constexpr int Emin = -126;
-  static constexpr int Emax = 127;
 };
 
 template <typename ToT> static inline ToT MakeDirectNaN() noexcept {
@@ -187,7 +115,8 @@ template <typename ToT> static inline ToT MakeDirectNaN() noexcept {
   }
 }
 
-template <typename ToT> static inline ToT MakeDirectInf(bool negative) noexcept {
+template <typename ToT>
+static inline ToT MakeDirectInf(bool negative) noexcept {
   if constexpr (std::is_same_v<ToT, sycl::half> ||
                 std::is_same_v<ToT, sycl::ext::oneapi::bfloat16>) {
     using Traits = DirectBinary16Traits<ToT>;
@@ -200,7 +129,6 @@ template <typename ToT> static inline ToT MakeDirectInf(bool negative) noexcept 
     return ToT{};
   }
 }
-
 
 template <typename T> struct SourceTraits;
 
@@ -331,31 +259,33 @@ template <> struct SourceTraits<unsigned long long> {
   static constexpr int ValueBits = std::numeric_limits<UnsignedT>::digits;
 };
 
-  template <int Ebits, int Mbits> struct FP8FiniteFormatTraits {
-    static_assert((Ebits == 4 && Mbits == 3) || (Ebits == 5 && Mbits == 2),
-          "Unsupported FP8 finite format");
+template <int Ebits, int Mbits> struct FP8FiniteFormatTraits {
+  static_assert((Ebits == 4 && Mbits == 3) || (Ebits == 5 && Mbits == 2),
+                "Unsupported FP8 finite format");
 
-    static constexpr uint8_t ExpAllOnes = static_cast<uint8_t>((1u << Ebits) - 1u);
-    static constexpr uint8_t MaxFrac = static_cast<uint8_t>((1u << Mbits) - 1u);
-    static constexpr int Bias = (1 << (Ebits - 1)) - 1;
-    static constexpr int Emin = 1 - Bias;
-    static constexpr bool HasInfinity = (Ebits == 5 && Mbits == 2);
-    static constexpr uint8_t MaxFiniteExpField =
+  static constexpr uint8_t ExpAllOnes =
+      static_cast<uint8_t>((1u << Ebits) - 1u);
+  static constexpr uint8_t MaxFrac = static_cast<uint8_t>((1u << Mbits) - 1u);
+  static constexpr int Bias = (1 << (Ebits - 1)) - 1;
+  static constexpr int Emin = 1 - Bias;
+  static constexpr bool HasInfinity = (Ebits == 5 && Mbits == 2);
+  static constexpr uint8_t MaxFiniteExpField =
       HasInfinity ? static_cast<uint8_t>(ExpAllOnes - 1u) : ExpAllOnes;
-    static constexpr uint8_t MaxFiniteFracField =
-      (Ebits == 4 && Mbits == 3) ? static_cast<uint8_t>(MaxFrac - 1u)
-                   : MaxFrac;
-    static constexpr uint8_t MaxFiniteCode =
+  static constexpr uint8_t MaxFiniteFracField =
+      (Ebits == 4 && Mbits == 3) ? static_cast<uint8_t>(MaxFrac - 1u) : MaxFrac;
+  static constexpr uint8_t MaxFiniteCode =
       static_cast<uint8_t>((MaxFiniteExpField << Mbits) | MaxFiniteFracField);
-    static constexpr uint8_t NaNCode =
+  static constexpr uint8_t NaNCode =
       static_cast<uint8_t>((ExpAllOnes << Mbits) | MaxFrac);
-    static constexpr uint8_t InfinityCode = static_cast<uint8_t>(ExpAllOnes << Mbits);
-    static constexpr int MaxFiniteExp = static_cast<int>(MaxFiniteExpField) - Bias;
-    static constexpr uint64_t MinNormalMantissa = uint64_t{1} << Mbits;
-    static constexpr uint64_t OverflowMantissa = uint64_t{1} << (Mbits + 1);
-    static constexpr uint64_t MaxFiniteMantissa =
+  static constexpr uint8_t InfinityCode =
+      static_cast<uint8_t>(ExpAllOnes << Mbits);
+  static constexpr int MaxFiniteExp =
+      static_cast<int>(MaxFiniteExpField) - Bias;
+  static constexpr uint64_t MinNormalMantissa = uint64_t{1} << Mbits;
+  static constexpr uint64_t OverflowMantissa = uint64_t{1} << (Mbits + 1);
+  static constexpr uint64_t MaxFiniteMantissa =
       MinNormalMantissa + MaxFiniteFracField;
-  };
+};
 
 template <typename T, typename Traits = SourceTraits<T>>
 static inline uint8_t ConvertIntToE8M0_CPU(T f, rounding R,
@@ -393,7 +323,7 @@ static inline uint8_t ConvertIntToE8M0_CPU(T f, rounding R,
 template <int Ebits = 4, int Mbits = 3, typename T,
           typename Traits = SourceTraits<T>>
 static inline uint8_t ConvertIntToFP8_CPU(T f, rounding R,
-                                           saturation S) noexcept {
+                                          saturation S) noexcept {
   using UnsignedT = typename Traits::UnsignedT;
   using Format = FP8FiniteFormatTraits<Ebits, Mbits>;
 
@@ -469,7 +399,7 @@ static inline uint8_t ConvertIntToFP8_CPU(T f, rounding R,
 template <int Ebits = 4, int Mbits = 3, typename T,
           typename Traits = SourceTraits<T>>
 static inline uint8_t ConvertFloatToFP8_CPU(T f, rounding R,
-                                             saturation S) noexcept {
+                                            saturation S) noexcept {
   using UInt = typename Traits::UInt;
   using Format = FP8FiniteFormatTraits<Ebits, Mbits>;
 
@@ -707,7 +637,7 @@ struct HasE8M0IntegralTraits<
 template <int Ebits, int Mbits, typename ToT,
           typename Traits = SourceTraits<ToT>>
 static inline ToT ConvertFromFP8ToBinaryFloat_CPU(uint8_t code,
-                                                   rounding R) noexcept {
+                                                  rounding R) noexcept {
   static_assert((Ebits == 8 && Mbits == 0) || (Ebits == 4 && Mbits == 3) ||
                     (Ebits == 5 && Mbits == 2),
                 "Unsupported FP8 decode combination");
@@ -780,8 +710,9 @@ static inline ToT ConvertFromFP8ToBinaryFloat_CPU(uint8_t code,
     if (isNaN) {
       bits = ExpAllOnes | QuietNaNBit;
     } else if (isInf) {
-      bits = (negative ? (UInt{1} << (Traits::ExpBits + Traits::FracBits)) : 0u) |
-             ExpAllOnes;
+      bits =
+          (negative ? (UInt{1} << (Traits::ExpBits + Traits::FracBits)) : 0u) |
+          ExpAllOnes;
     } else if (significand == 0u) {
       bits = negative ? (UInt{1} << (Traits::ExpBits + Traits::FracBits)) : 0u;
     } else {
@@ -874,161 +805,6 @@ static inline ToT ConvertFromFP8ToBinaryFloat_CPU(uint8_t code,
   return ToT{};
 }
 
-/// \brief Converts a given value to fp8 floating point with a rounding
-/// mode to_even by default and saturation finite for host code.
-/// \param h The input value to be converted.
-/// \param R The rounding mode to be used during conversion.
-/// \return uint8_t The converted 8-bit floating point value, MSB is sign bit,
-/// Ebits bits exponent, Mbits bits mantissa.
-template <int Ebits, int Mbits, typename T>
-static inline uint8_t
-ConvertToFP8_CPU(T h, rounding R = rounding::to_even) noexcept {
-  // Specialized implementation for fp8_e8m0_x (Ebits=8, Mbits=0)
-  if constexpr (Ebits == 8 && Mbits == 0) {
-    // Format characteristics (finite-only, no zero, no infinity):
-    //  - Bias: 127
-    //  - Exponent field range used for normals: 0 .. 254  (E = ecode - 127 ->
-    //  [-127, +127])
-    //  - Encoding with exp==255 (0xFF) reserved for NaN (single payload 0xFF)
-    //  - Value encoded when exponent field == 0:  +/- 2^{-127}
-    //  - Max normal:  +/- 2^{127}  (~1.7014118e+38)
-    //
-    // Rounding mode: the public API restricts this format to rounding::upward.
-    // Here we honor upward if passed; any other mode falls back to upward
-    // behavior.
-    //
-    // Note: The format cannot represent zero; inputs with |x| < 2^{-127} map
-    //       to the smallest magnitude normal with the input sign preserved
-    //       (consistent with prior sign-preserving underflow behavior).
-    //
-    constexpr uint32_t Bias = 127;
-    constexpr int Emin = -127;
-    constexpr int Emax = 127;
-    constexpr uint8_t NaNCode = 0xFF;                // 11111111
-    constexpr uint8_t MaxExpField = 254;             // 255 reserved for NaN
-    const float min_normal = std::ldexp(1.0f, Emin); // 2^{-127}
-    const float max_normal = std::ldexp(1.0f, Emax); // 2^{127}
-
-    float x = static_cast<float>(h);
-
-    if (std::isnan(x))
-      return NaNCode;
-
-    uint8_t sign = std::signbit(x) ? 0x80 : 0x00;
-    float ax = std::fabs(x);
-
-    // Handle underflow (|x| < min_normal) and x == 0: encode smallest normal
-    // with sign.
-    if (ax == 0.0f || ax < min_normal)
-      return sign; // exp field = 0 -> E = -127
-
-    // Handle overflow (|x| >= max_normal * (anything beyond representable)):
-    if (ax >= max_normal)
-      return static_cast<uint8_t>(sign | (MaxExpField)); // E = +127
-
-    // Determine exponent E such that 2^E <= ax < 2^{E+1}
-    int e2 = 0;
-    std::frexp(ax, &e2);
-    int E = e2 - 1;
-
-    // Upward rounding semantics:
-    //  - For positive numbers: if not exact power-of-two, round up to next
-    //  power (E+1) if within range.
-    //  - For negative numbers: rounding toward +inf moves value toward zero, so
-    //  keep current E.
-
-    if (R == rounding::upward) {
-      if (sign == 0x00) {
-        // Round up (increase exponent) if possible.
-        if (E < Emax)
-          ++E;
-        else
-          E = Emax;
-      }
-    }
-
-    // Clamp exponent just in case.
-    if (E < Emin)
-      E = Emin;
-    if (E > Emax)
-      E = Emax;
-
-    uint8_t ecode = static_cast<uint8_t>(E + Bias); // 0 .. 254
-    // ecode must never be 255 here.
-    return static_cast<uint8_t>(sign | ecode);
-  }
-
-  constexpr int bias = (1 << (Ebits - 1)) - 1;
-  // allow the top exponent field (ExpAllOnes) as a normal exponent except when
-  // frac==MaxFrac (NaN)
-  int emax = 0;
-  int emin = 0;
-  if constexpr (Ebits == 8)
-    emax = 127;
-  else {
-    emax = (1 << Ebits) - 1 - bias; // ExpAllOnes - bias
-    emin = 1 - bias;
-  }
-  constexpr uint8_t ExpAllOnes = static_cast<uint8_t>((1 << Ebits) - 1);
-  constexpr uint8_t MaxFrac = static_cast<uint8_t>((1 << Mbits) - 1);
-  constexpr uint8_t MaxFracForMaxNormal =
-      (Ebits == 4 && Mbits == 3) || (Ebits == 5 && Mbits == 3)
-          ? static_cast<uint8_t>(MaxFrac - 1u)
-          : MaxFrac;
-  constexpr uint8_t MaxExpForMaxNormal =
-      (Ebits == 5 && Mbits == 2) ? static_cast<uint8_t>(ExpAllOnes - 1u)
-                                 : ExpAllOnes;
-  constexpr uint8_t MaxFracMask = MaxFrac;
-
-  float x = static_cast<float>(h);
-  uint8_t sign = std::signbit(x) ? 0x80 : 0x00;
-  if (std::isnan(x))
-    return static_cast<uint8_t>(
-        sign | ((ExpAllOnes << Mbits) | MaxFracMask)); // S.1111.111 -> NaN
-  uint8_t sign_bit = sign ? 1u : 0u;
-  float ax = std::fabs(x);
-  const float max_finite =
-      (2.0f - std::ldexp(1.0f, 1 - Mbits)) * std::ldexp(1.0f, emax);
-  const float min_sub = std::ldexp(1.0f, emin - Mbits);
-
-  if (ax > max_finite) {
-    return static_cast<uint8_t>(
-        sign | ((MaxExpForMaxNormal << Mbits) | MaxFracForMaxNormal));
-  }
-
-  if (ax < min_sub)
-    return sign; // underflow
-
-  int e2 = 0;
-  float m = std::frexp(ax, &e2);
-  int E = e2 - 1;
-
-  if (E < emin) {
-    float scaled = std::ldexp(ax, -emin) * static_cast<float>(1 << Mbits);
-    uint32_t k = RoundClip(scaled, MaxFrac, R, sign_bit);
-    if (k == 0)
-      return sign;
-    return static_cast<uint8_t>(sign | static_cast<uint8_t>(k));
-  }
-
-  float y = m * 2.0f;
-  float frac_scaled = (y - 1.0f) * static_cast<float>(1 << Mbits);
-  uint32_t frac = RoundClip(frac_scaled, MaxFrac, R, sign_bit);
-  if (frac == (1u << Mbits)) {
-    frac = 0;
-    ++E;
-  }
-  if (E > emax) {
-    auto ret = static_cast<uint8_t>(
-        sign | ((MaxExpForMaxNormal << Mbits) | MaxFracForMaxNormal));
-    return ret;
-  }
-  uint8_t ecode = static_cast<uint8_t>(E + bias);
-  auto ret = static_cast<uint8_t>(sign | (ecode << Mbits) |
-                                  static_cast<uint8_t>(frac));
-  return ret;
-}
-
 template <typename ToT>
 static inline ToT ConvertFromE8M0_CPU(uint8_t code, rounding R) noexcept {
   using Traits = SourceTraits<ToT>;
@@ -1046,11 +822,6 @@ static inline ToT ConvertFromE8M0_CPU(uint8_t code, rounding R) noexcept {
 template <size_t N> class fp8_e4m3_x {
   static constexpr size_t NExpBits = 4;
   static constexpr size_t NFracBits = 3;
-  static constexpr float MaxNormal = 448.0f;
-  static constexpr float MinSubnormal = 0.00000762939453125f; // 2^-17
-  static constexpr uint8_t NaNCode = 0xFF;
-  static constexpr uint8_t MaxFiniteCode =
-      0x7E; // 0.1111.110 (positive max normal)
 
   static_assert(N == 1 || N == 2,
                 "fp8_e4m3_x: Template argument N must be 1 or 2");
@@ -1062,11 +833,11 @@ template <size_t N> class fp8_e4m3_x {
     if constexpr (std::is_same_v<std::decay_t<T>, sycl::half> ||
                   std::is_same_v<std::decay_t<T>, float> ||
                   std::is_same_v<std::decay_t<T>, double>) {
-      return detail::ConvertFloatToFP8_CPU<4, 3, T>(h, rounding::to_even,
-                                                     saturation::finite);
+      return detail::ConvertFloatToFP8_CPU<NExpBits, NFracBits, T>(
+          h, rounding::to_even, saturation::finite);
     } else if constexpr (std::is_integral_v<std::decay_t<T>>) {
-      return detail::ConvertIntToFP8_CPU<4, 3, T>(h, rounding::to_even,
-                                                   saturation::finite);
+      return detail::ConvertIntToFP8_CPU<NExpBits, NFracBits, T>(
+          h, rounding::to_even, saturation::finite);
     }
 #endif
   }
@@ -1075,8 +846,8 @@ template <size_t N> class fp8_e4m3_x {
 #ifdef __SYCL_DEVICE_ONLY__
     return __builtin_spirv_ClampConvertBF16ToE4M3INTEL(h);
 #else
-  return detail::ConvertFloatToFP8_CPU<4, 3, bfloat16>(
-    h, rounding::to_even, saturation::finite);
+    return detail::ConvertFloatToFP8_CPU<NExpBits, NFracBits, bfloat16>(
+        h, rounding::to_even, saturation::finite);
 #endif
   }
 
@@ -1086,7 +857,8 @@ template <size_t N> class fp8_e4m3_x {
     sycl::half hi = __builtin_spirv_ConvertE4M3ToFP16EXT(v);
     return static_cast<T>(hi);
 #else
-    return detail::ConvertFromFP8ToBinaryFloat_CPU<4, 3, T>(v, r);
+    return detail::ConvertFromFP8ToBinaryFloat_CPU<NExpBits, NFracBits, T>(v,
+                                                                           r);
 #endif
   }
 
@@ -1094,8 +866,9 @@ template <size_t N> class fp8_e4m3_x {
 #ifdef __SYCL_DEVICE_ONLY__
     return __builtin_spirv_ConvertE4M3ToBF16EXT(v);
 #else
-    return detail::ConvertFromFP8ToBinaryFloat_CPU<4, 3, bfloat16>(
-        v, rounding::to_even);
+    return detail::ConvertFromFP8ToBinaryFloat_CPU<NExpBits, NFracBits,
+                                                   bfloat16>(v,
+                                                             rounding::to_even);
 #endif
   }
 
@@ -1128,7 +901,8 @@ public:
         vals[i] = ConvertBF16ToFP8(in[i]);
       return;
     }
-    const sycl::half in[N] = {v...};
+    using InT = std::common_type_t<std::decay_t<Types>...>;
+    const InT in[N] = {v...};
     for (size_t i = 0; i < N; ++i)
       vals[i] = ConvertToFP8(in[i]);
   }
@@ -1426,9 +1200,6 @@ public:
 template <size_t N> class fp8_e5m2_x {
   static constexpr size_t NExpBits = 5;
   static constexpr size_t NFracBits = 2;
-  static constexpr float MaxNormal = 57344.0f;               // 1.75 * 2^15
-  static constexpr float MinSubnormal = 0.0000152587890625f; // 2^-16
-  static constexpr uint8_t MaxFiniteCode = 0x7B;             // 0.11110.11
 
   static_assert(N == 1 || N == 2,
                 "fp8_e5m2_x: Template argument N must be 1 or 2");
@@ -1443,9 +1214,11 @@ template <size_t N> class fp8_e5m2_x {
     if constexpr (std::is_same_v<std::decay_t<T>, sycl::half> ||
                   std::is_same_v<std::decay_t<T>, float> ||
                   std::is_same_v<std::decay_t<T>, double>) {
-      return detail::ConvertFloatToFP8_CPU<5, 2, T>(h, rounding::to_even, s);
+      return detail::ConvertFloatToFP8_CPU<NExpBits, NFracBits, T>(
+          h, rounding::to_even, s);
     } else if constexpr (std::is_integral_v<std::decay_t<T>>) {
-      return detail::ConvertIntToFP8_CPU<5, 2, T>(h, rounding::to_even, s);
+      return detail::ConvertIntToFP8_CPU<NExpBits, NFracBits, T>(
+          h, rounding::to_even, s);
     }
 #endif
   }
@@ -1456,9 +1229,8 @@ template <size_t N> class fp8_e5m2_x {
                ? __builtin_spirv_ClampConvertBF16ToE5M2INTEL(h)
                : __builtin_spirv_ConvertBF16ToE5M2EXT(h);
 #else
-  return detail::ConvertFloatToFP8_CPU<5, 2, bfloat16>(h,
-                              rounding::to_even,
-                              s);
+    return detail::ConvertFloatToFP8_CPU<NExpBits, NFracBits, bfloat16>(
+        h, rounding::to_even, s);
 #endif
   }
 
@@ -1468,7 +1240,8 @@ template <size_t N> class fp8_e5m2_x {
     sycl::half hi = __builtin_spirv_ConvertE5M2ToFP16EXT(v);
     return static_cast<T>(hi);
 #else
-    return detail::ConvertFromFP8ToBinaryFloat_CPU<5, 2, T>(v, r);
+    return detail::ConvertFromFP8ToBinaryFloat_CPU<NExpBits, NFracBits, T>(v,
+                                                                           r);
 #endif
   }
 
@@ -1476,8 +1249,9 @@ template <size_t N> class fp8_e5m2_x {
 #ifdef __SYCL_DEVICE_ONLY__
     return __builtin_spirv_ConvertE5M2ToBF16EXT(v);
 #else
-    return detail::ConvertFromFP8ToBinaryFloat_CPU<5, 2, bfloat16>(
-      v, rounding::to_even);
+    return detail::ConvertFromFP8ToBinaryFloat_CPU<NExpBits, NFracBits,
+                                                   bfloat16>(v,
+                                                             rounding::to_even);
 #endif
   }
 
@@ -1511,7 +1285,8 @@ public:
         vals[i] = ConvertBF16ToFP8(in[i], saturation::finite);
       return;
     }
-    const sycl::half in[N] = {v...};
+    using InT = std::common_type_t<std::decay_t<Types>...>;
+    const InT in[N] = {v...};
     for (size_t i = 0; i < N; ++i)
       vals[i] = ConvertToFP8(in[i], saturation::finite);
   }

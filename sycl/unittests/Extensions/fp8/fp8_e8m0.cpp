@@ -108,13 +108,6 @@ TEST(FP8E8M0Test, CArrayFloatRoundingModes) {
                         rounding::upward, 0xFF));
 }
 
-TEST(FP8E8M0Test, RoundClipZeroFractionNegativeAndTieCases) {
-  EXPECT_EQ(detail::RoundClip(0.25f, 0, rounding::upward, 0u), 1u);
-  EXPECT_EQ(detail::RoundClip(0.25f, 0, rounding::upward, 1u), 0u);
-  EXPECT_EQ(detail::RoundClip(0.5f, 0, rounding::to_even, 0u), 0u);
-  EXPECT_EQ(detail::RoundClip(0.75f, 0, rounding::to_even, 0u), 1u);
-}
-
 TEST(FP8E8M0Test, CArrayHalfHostUpwardFinite) {
   const sycl::half in[2] = {sycl::half(1.0f), sycl::half(1.1f)};
   const sycl::half in1[2] = {sycl::half(3.0f), sycl::half(0.0f)};
