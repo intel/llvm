@@ -1020,7 +1020,6 @@ else ()
                                int main(void) { return 0; }"
                               COMPILER_RT_HAS_${arch}_BFLOAT16)
       # Build BF16 files only when "__bf16" is available.
-
       if(COMPILER_RT_HAS_${arch}_BFLOAT16)
         list(APPEND ${arch}_SOURCES ${BF16_SOURCES})
       endif()
@@ -1040,7 +1039,6 @@ else ()
         AND NOT CMAKE_COMPILER_IS_GNUCC))
         list(APPEND BUILTIN_CFLAGS_${arch} -fforce-enable-int128)
       endif()
-
 
       add_compiler_rt_runtime(clang_rt.builtins
                               STATIC
