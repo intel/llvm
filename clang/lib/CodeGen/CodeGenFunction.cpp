@@ -889,29 +889,6 @@ void CodeGenFunction::EmitKernelMetadata(const FunctionDecl *FD,
     if (ArgVal->getBoolValue())
       Fn->setMetadata("no_global_work_offset", llvm::MDNode::get(Context, {}));
   }
-
-  if (const auto *A = FD->getAttr<SYCLIntelMaxConcurrencyAttr>()) {
-    const auto *CE = cast<ConstantExpr>(A->getNExpr());
-    llvm::APSInt ArgVal = CE->getResultAsAPSInt();
-    llvm::Metadata *AttrMDArgs[] = {
-        llvm::ConstantAsMetadata::get(Builder.getInt32(ArgVal.getSExtValue()))};
-    Fn->setMetadata("max_concurrency", llvm::MDNode::get(Context, AttrMDArgs));
-  }
-
-  if (FD->hasAttr<SYCLIntelDisableLoopPipeliningAttr>()) {
-    llvm::Metadata *AttrMDArgs[] = {
-        llvm::ConstantAsMetadata::get(Builder.getInt32(0))};
-    Fn->setMetadata("pipeline_kernel", llvm::MDNode::get(Context, AttrMDArgs));
-  }
-
-  if (const auto *A = FD->getAttr<SYCLIntelInitiationIntervalAttr>()) {
-    const auto *CE = cast<ConstantExpr>(A->getNExpr());
-    llvm::APSInt ArgVal = CE->getResultAsAPSInt();
-    llvm::Metadata *AttrMDArgs[] = {
-        llvm::ConstantAsMetadata::get(Builder.getInt32(ArgVal.getSExtValue()))};
-    Fn->setMetadata("initiation_interval",
-                    llvm::MDNode::get(Context, AttrMDArgs));
-  }
 }
 
 /// Determine whether the function F ends with a return stmt.
