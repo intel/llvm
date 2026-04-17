@@ -425,8 +425,25 @@ public:
 
   /// Create the initialization entity for a member subobject with implicit
   /// field initializer.
+  static InitializedEntity
+  InitializeMemberImplicit(FieldDecl *Member,
+                           const InitializedEntity *Parent) {
+    return InitializedEntity(Member, Parent, FieldInitKind::ImplicitField);
+  }
+
+  /// Create the initialization entity for a member subobject with implicit
+  /// field initializer.
   static InitializedEntity InitializeMemberImplicit(IndirectFieldDecl *Member) {
     return InitializedEntity(Member->getAnonField(), /*Parent=*/nullptr,
+                             FieldInitKind::ImplicitField);
+  }
+
+  /// Create the initialization entity for a member subobject with implicit
+  /// field initializer.
+  static InitializedEntity
+  InitializeMemberImplicit(IndirectFieldDecl *Member,
+                           const InitializedEntity *Parent) {
+    return InitializedEntity(Member->getAnonField(), Parent,
                              FieldInitKind::ImplicitField);
   }
 
