@@ -13,6 +13,7 @@
 #include <sycl/detail/builtins/builtins.hpp>
 #include <sycl/detail/generic_type_traits.hpp>
 #include <sycl/detail/type_traits.hpp>
+#include <sycl/exception.hpp>
 
 namespace sycl {
 inline namespace _V1 {

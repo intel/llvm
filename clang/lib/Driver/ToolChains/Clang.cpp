@@ -5714,8 +5714,10 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back("-sycl-std=2020");
     }
 
-    if (Arg *A = Args.getLastArg(options::OPT_fsycl_id_queries_fit_in_int,
-                                 options::OPT_fno_sycl_id_queries_fit_in_int))
+    // Pass SYCL ID queries range option to cc1. The flags
+    // -fsycl-id-queries-fit-in-int and -fno-sycl-id-queries-fit-in-int are
+    // aliases that get rewritten to -fsycl-id-queries-range=.
+    if (Arg *A = Args.getLastArg(options::OPT_fsycl_id_queries_range_EQ))
       A->render(Args, CmdArgs);
 
     if (Args.hasArg(options::OPT_fpreview_breaking_changes))

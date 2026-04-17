@@ -11,7 +11,8 @@
 extern int __nvvm_reflect_ocl(constant char *);
 
 _CLC_DEF _CLC_OVERLOAD size_t __spirv_BuiltInGlobalInvocationId(int dim) {
-  if (__nvvm_reflect_ocl("__CUDA_ID_QUERIES_FIT_IN_INT")) {
+  if (__nvvm_reflect_ocl("__CUDA_ID_QUERIES_FIT_IN_INT") ||
+      __nvvm_reflect_ocl("__CUDA_ID_QUERIES_FIT_IN_UINT")) {
     return (uint)__spirv_BuiltInWorkgroupId(dim) *
                (uint)__spirv_BuiltInWorkgroupSize(dim) +
            (uint)__spirv_BuiltInLocalInvocationId(dim) +
