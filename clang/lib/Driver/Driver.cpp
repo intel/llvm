@@ -1387,7 +1387,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
                 << Target << TripleIt->second;
           continue;
         }
-        Triples.insert(ToolChain::normalizeOffloadTriple(TargetTripleString));
+        Triples.insert(llvm::Triple(TargetTripleString));
       } else {
         Triples.insert(ToolChain::normalizeOffloadTriple(Target));
       }

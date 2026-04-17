@@ -153,7 +153,7 @@ Function *MakeStubFunction(StringRef name, Module &module, CallingConv::ID cc) {
 ///
 /// @return True = valid for definition, False = not valid.
 inline bool CheckValidDef(Value *v) {
-  return !(isa<BranchInst>(v) || isa<ReturnInst>(v));
+  return !(isa<UncondBrInst>(v) || isa<CondBrInst>(v) || isa<ReturnInst>(v));
 }
 
 /// @brief Check whether this value is valid as use.

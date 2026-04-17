@@ -75,7 +75,9 @@ protected:
 
   void decode(std::istream &I) override {
     getDecoder(I) >> Condition >> ExecModel >> Target >> Name;
-    Variables.resize(WordCount - FixedWC - getSizeInWords(Name) + 1);
+    SPIRVWord NameWC = getSizeInWords(Name);
+    SPIRVCK(WordCount >= FixedWC + NameWC - 1, InvalidWordCount, "");
+    Variables.resize(WordCount - FixedWC - NameWC + 1);
     getDecoder(I) >> Variables;
     Module->setName(getOrCreateTarget(), Name);
     Module->addConditionalEntryPoint(Condition, ExecModel, Target, Name,
@@ -170,6 +172,7 @@ public:
 protected:
   void setWordCount(SPIRVWord TheWordCount) override {
     SPIRVEntry::setWordCount(TheWordCount);
+    SPIRVCK(TheWordCount >= FixedWordCount, InvalidWordCount, "");
     Constituents.resize(TheWordCount - FixedWordCount);
   }
   _SPIRV_DEF_ENCDEC3(Type, Id, Constituents)
@@ -251,6 +254,7 @@ protected:
   _SPIRV_DEF_ENCDEC4(Type, Id, Target, Features);
   void setWordCount(SPIRVWord WordCount) override {
     SPIRVEntry::setWordCount(WordCount);
+    SPIRVCK(WordCount >= FixedWC, InvalidWordCount, "");
     Features.resize(WordCount - FixedWC);
     NumWords = WordCount - FixedWC;
   }
@@ -427,6 +431,7 @@ protected:
 
   void setWordCount(SPIRVWord WordCount) override {
     SPIRVEntry::setWordCount(WordCount);
+    SPIRVCK(WordCount >= FixedWC, InvalidWordCount, "");
     Capabilities.resize(WordCount - FixedWC);
     NumWords = WordCount - FixedWC;
   }

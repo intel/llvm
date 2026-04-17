@@ -193,4 +193,21 @@ function(add_libclc_library target_name)
     DESTINATION ${LIBCLC_INSTALL_DIR}/${ARG_TRIPLE}
     COMPONENT ${ARG_PARENT_TARGET}
   )
+
+  # SPIR-V targets can exit early here
+  if( ARG_ARCH STREQUAL spirv OR ARG_ARCH STREQUAL spirv64 )
+    return()
+  endif()
+
+  # Add a test for whether or not the libraries contain unresolved functions
+  # which would usually indicate a build problem. Note that we don't perform
+  # this test for all libclc targets:
+  # * nvptx64-- targets don't include workitem builtins
+  # * clspv targets don't include all OpenCL builtins
+  if( NOT ARG_ARCH MATCHES "^(nvptx|clspv)(64)?$" )
+    add_test( NAME external-funcs-${target_name}
+      COMMAND ./check_external_funcs.sh ${builtins_file} ${LLVM_TOOLS_BINARY_DIR}
+      WORKING_DIRECTORY ${LIBCLC_SOURCE_DIR} )
+  endif()
+
 endfunction()
