@@ -49,6 +49,7 @@ Functions
    * ${x}QueueBeginCaptureIntoGraphExp
    * ${x}QueueEndGraphCaptureExp
    * ${x}QueueIsGraphCaptureEnabledExp
+   * ${x}QueueGetGraphExp
    * ${x}EnqueueGraphExp
 
 Changelog
@@ -67,6 +68,9 @@ Changelog
 |           | entry descriptions and return values.       |
 |           | Rename QueueAppendGraphExp into             |
 |           | EnqueueGraphExp.                            |
++-----------+---------------------------------------------+
+| 1.3       | Add ${x}QueueGetGraphExp to retrieve graph  |
+|           | handle from queue in capture mode.          |
 +-----------+---------------------------------------------+
 
 Support
