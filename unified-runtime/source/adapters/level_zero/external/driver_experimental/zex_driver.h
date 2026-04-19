@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020-2025 Intel Corporation
+ * Copyright (C) 2020-2026 Intel Corporation
  *
  * SPDX-License-Identifier: MIT
  *
@@ -18,18 +18,18 @@
 extern "C" {
 #endif
 
-ZE_APIEXPORT ze_result_t ZE_APICALL zexDriverImportExternalPointer(
+ze_result_t ZE_APICALL zexDriverImportExternalPointer(
     ze_driver_handle_t hDriver, ///< [in] handle of the driver
     void *ptr,                  ///< [in] pointer to be imported to the driver
     size_t size                 ///< [in] size to be imported
 );
 
-ZE_APIEXPORT ze_result_t ZE_APICALL zexDriverReleaseImportedPointer(
+ze_result_t ZE_APICALL zexDriverReleaseImportedPointer(
     ze_driver_handle_t hDriver, ///< [in] handle of the driver
     void *ptr                   ///< [in] pointer to be released from the driver
 );
 
-ZE_APIEXPORT ze_result_t ZE_APICALL zexDriverGetHostPointerBaseAddress(
+ze_result_t ZE_APICALL zexDriverGetHostPointerBaseAddress(
     ze_driver_handle_t hDriver, ///< [in] handle of the driver
     void *ptr,         ///< [in] pointer to be checked if imported to the driver
     void **baseAddress ///< [out] if not null, returns address of the base
