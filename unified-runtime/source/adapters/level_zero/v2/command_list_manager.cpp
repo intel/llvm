@@ -1419,7 +1419,9 @@ ur_result_t ur_command_list_manager::isGraphCaptureActive(bool *pResult) {
 }
 
 ur_result_t ur_command_list_manager::getGraph(ur_exp_graph_handle_t *phGraph) {
-  if (!checkGraphExtensionSupport(hContext.get())) {
+  auto zeGetGraph =
+      hContext.get()->getPlatform()->ZeGraphExt.zeCommandListGetGraphExp;
+  if (!checkGraphExtensionSupport(hContext.get()) || !zeGetGraph) {
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
 
@@ -1431,9 +1433,8 @@ ur_result_t ur_command_list_manager::getGraph(ur_exp_graph_handle_t *phGraph) {
 
   // Fork-join and implicit capture scenarios
   ze_graph_handle_t hZeGraph = nullptr;
-  ze_result_t ZeResult = ZE_CALL_NOCHECK(
-      hContext.get()->getPlatform()->ZeGraphExt.zeCommandListGetGraphExp,
-      (getZeCommandList(), &hZeGraph));
+  ze_result_t ZeResult =
+      ZE_CALL_NOCHECK(zeGetGraph, (getZeCommandList(), &hZeGraph));
 
   if (ZeResult != ZE_RESULT_SUCCESS || !hZeGraph) {
     *phGraph = nullptr;
