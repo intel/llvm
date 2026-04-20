@@ -1031,7 +1031,7 @@ ur_result_t urDeviceGetInfo(
         uint32_t{Device->ZeDeviceProperties->numSubslicesPerSlice});
   case UR_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE:
     return ReturnValue(uint32_t{Device->ZeDeviceProperties->numEUsPerSubslice});
-  case UR_DEVICE_INFO_GPU_HW_THREADS_PER_EU:
+  case UR_DEVICE_INFO_GPU_HW_THREADS_PER_EU: {
     ze_device_properties_t DeviceProp = {};
     DeviceProp.stype = ZE_STRUCTURE_TYPE_DEVICE_PROPERTIES;
     ze_intel_xe_device_exp_properties_t XeDeviceProperties = {};
@@ -1043,6 +1043,7 @@ ur_result_t urDeviceGetInfo(
     return ReturnValue(XeDeviceProperties.maxNumHwThreadsPerExecutionEngine);
     // return
     // ReturnValue(uint32_t{Device->ZeDeviceProperties->numThreadsPerEU});
+  }
   case UR_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES: {
     // There are no explicit restrictions in L0 programming guide, so assume all
     // are supported
