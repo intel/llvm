@@ -165,6 +165,7 @@
 ??$get_info_impl@Unative_vector_width_half@device@info@_V1@sycl@@@device@_V1@sycl@@AEBAIXZ
 ??$get_info_impl@Unative_vector_width_int@device@info@_V1@sycl@@@device@_V1@sycl@@AEBAIXZ
 ??$get_info_impl@Unative_vector_width_long@device@info@_V1@sycl@@@device@_V1@sycl@@AEBAIXZ
+??$get_info_impl@Unative_vector_width_long_long@device@info@_V1@sycl@@@device@_V1@sycl@@AEBAIXZ
 ??$get_info_impl@Unative_vector_width_short@device@info@_V1@sycl@@@device@_V1@sycl@@AEBAIXZ
 ??$get_info_impl@Unode_mask@device@info@intel@ext@_V1@sycl@@@device@_V1@sycl@@AEBAIXZ
 ??$get_info_impl@Unum_args@kernel@info@_V1@sycl@@@kernel@_V1@sycl@@AEBAIXZ
@@ -185,6 +186,7 @@
 ??$get_info_impl@Upreferred_vector_width_half@device@info@_V1@sycl@@@device@_V1@sycl@@AEBAIXZ
 ??$get_info_impl@Upreferred_vector_width_int@device@info@_V1@sycl@@@device@_V1@sycl@@AEBAIXZ
 ??$get_info_impl@Upreferred_vector_width_long@device@info@_V1@sycl@@@device@_V1@sycl@@AEBAIXZ
+??$get_info_impl@Upreferred_vector_width_long_long@device@info@_V1@sycl@@@device@_V1@sycl@@AEBAIXZ
 ??$get_info_impl@Upreferred_vector_width_short@device@info@_V1@sycl@@@device@_V1@sycl@@AEBAIXZ
 ??$get_info_impl@Uprintf_buffer_size@device@info@_V1@sycl@@@device@_V1@sycl@@AEBA_KXZ
 ??$get_info_impl@Uprofile@device@info@_V1@sycl@@@device@_V1@sycl@@AEBA?AVstring@detail@12@XZ
