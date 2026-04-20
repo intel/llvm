@@ -82,35 +82,11 @@ ext::oneapi::experimental::queue_state queue::ext_oneapi_get_state() const {
 ext::oneapi::experimental::command_graph<
     ext::oneapi::experimental::graph_state::modifiable>
 queue::ext_oneapi_get_graph() const {
-  // Try non-native recording path first (queue stores graph directly)
   auto Graph = impl->getCommandGraph();
-
-  if (!Graph) {
-    // Native recording path: queue doesn't store graph, need registry lookup
-    // Query UR for the graph handle being captured by this queue
-    ur_exp_graph_handle_t UrGraphHandle = nullptr;
-    auto UrQueue = impl->getHandleRef();
-    const auto &Adapter = impl->getAdapter();
-
-    ur_result_t Result =
-        Adapter.call_nocheck<sycl::detail::UrApiKind::urQueueGetGraphExp>(
-            UrQueue, &UrGraphHandle);
-
-    if (Result != UR_RESULT_SUCCESS || !UrGraphHandle) {
-      throw sycl::exception(
-          make_error_code(errc::invalid),
-          "ext_oneapi_get_graph() can only be called on recording queues.");
-    }
-
-    // Look up the SYCL graph from the context registry
-    Graph = impl->getContextImpl().getNativeGraph(UrGraphHandle);
-
-    if (!Graph) {
-      throw sycl::exception(
-          make_error_code(errc::invalid),
-          "Failed to find SYCL graph for native recording queue");
-    }
-  }
+  if (!Graph)
+    throw sycl::exception(
+        make_error_code(errc::invalid),
+        "ext_oneapi_get_graph() can only be called on recording queues.");
 
   return sycl::detail::createSyclObjFromImpl<
       ext::oneapi::experimental::command_graph<

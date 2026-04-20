@@ -371,9 +371,6 @@ graph_impl::~graph_impl() {
       context_impl &ContextImpl = *sycl::detail::getSyclObjImpl(MContext);
       sycl::detail::adapter_impl &Adapter = ContextImpl.getAdapter();
 
-      // Deregister from the context registry
-      ContextImpl.deregisterNativeGraph(MNativeGraphHandle);
-
       ur_result_t Result =
           Adapter.call_nocheck<sycl::detail::UrApiKind::urGraphDestroyExp>(
               MNativeGraphHandle);
@@ -848,8 +845,6 @@ void graph_impl::beginRecordingImpl(sycl::detail::queue_impl &Queue,
         throw sycl::exception(sycl::make_error_code(errc::runtime),
                               "Failed to begin native UR graph capture");
       }
-      getContextImpl().registerNativeGraph(MNativeGraphHandle,
-                                           shared_from_this());
     } else {
       // Non-native recording path
       if (AcquireQueueLock) {
