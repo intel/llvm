@@ -50,6 +50,12 @@ function system_info {
 	else
 		echo "CUDA not installed"
 	fi
+	echo "**********NVCC Version**********"
+	if command -v nvcc &> /dev/null; then
+		nvcc --version
+	else
+		echo "NVCC not installed"
+	fi
 	echo "**********L0 Version**********"
 	check_L0_version
 	echo "**********ROCm Version**********"
