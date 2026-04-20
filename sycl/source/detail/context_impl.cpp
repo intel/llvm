@@ -9,6 +9,7 @@
 #include <detail/context_impl.hpp>
 #include <detail/context_info.hpp>
 #include <detail/event_info.hpp>
+#include <detail/graph/graph_impl.hpp>
 #include <detail/memory_pool_impl.hpp>
 #include <detail/platform_impl.hpp>
 #include <detail/queue_impl.hpp>
@@ -246,6 +247,36 @@ void context_impl::addAssociatedDeviceGlobal(const void *DeviceGlobalPtr) {
 void context_impl::removeAssociatedDeviceGlobal(const void *DeviceGlobalPtr) {
   std::lock_guard<std::mutex> Lock{MAssociatedDeviceGlobalsMutex};
   MAssociatedDeviceGlobals.erase(DeviceGlobalPtr);
+}
+
+void context_impl::registerNativeGraph(
+    ur_exp_graph_handle_t UrGraphHandle,
+    std::shared_ptr<sycl::ext::oneapi::experimental::detail::graph_impl>
+        Graph) {
+  if (!UrGraphHandle) {
+    return; // Graph doesn't use native recording
+  }
+  std::lock_guard<std::mutex> Lock(MNativeGraphRegistryMutex);
+  // Use try_emplace to handle multiple begin/end recording cycles
+  MNativeGraphRegistry.try_emplace(UrGraphHandle, Graph);
+}
+
+std::shared_ptr<sycl::ext::oneapi::experimental::detail::graph_impl>
+context_impl::getNativeGraph(ur_exp_graph_handle_t UrGraphHandle) const {
+  std::lock_guard<std::mutex> Lock(MNativeGraphRegistryMutex);
+  auto It = MNativeGraphRegistry.find(UrGraphHandle);
+  if (It != MNativeGraphRegistry.end()) {
+    return It->second.lock(); // Returns nullptr if graph destroyed
+  }
+  return nullptr;
+}
+
+void context_impl::deregisterNativeGraph(ur_exp_graph_handle_t UrGraphHandle) {
+  if (!UrGraphHandle) {
+    return; // Graph doesn't use native recording
+  }
+  std::lock_guard<std::mutex> Lock(MNativeGraphRegistryMutex);
+  MNativeGraphRegistry.erase(UrGraphHandle);
 }
 
 void context_impl::addDeviceGlobalInitializer(
