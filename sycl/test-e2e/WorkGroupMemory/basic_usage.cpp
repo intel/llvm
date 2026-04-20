@@ -1,9 +1,14 @@
 // UNSUPPORTED: hip
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/17339
-// RUN: %{build} -o %t.out
-// RUN: %{run} %t.out
+
 // XFAIL: spirv-backend
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/18230
+
+// XFAIL: cuda
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/21806
+
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 #include <sycl/builtins.hpp>
 #include <sycl/detail/core.hpp>
