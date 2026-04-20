@@ -166,7 +166,7 @@ be used to recreate a `handle` object.
 
 === Inter-process communicable memory
 
-This extension allows for the exchange of USM memory pointers between
+This extension allows for the exchange of USM device memory pointers between
 processes. The following aspect and set of free functions are specific to USM
 memory sharing feature.
 
@@ -469,10 +469,26 @@ another process.
 The following aspect and set of free functions are specific to event object
 sharing feature.
 
+==== Extension to `enum class aspect` for events
+
+[source]
+----
+namespace sycl {
+enum class aspect {
+  ...
+  ext_oneapi_ipc_event
+}
+}
+----
+
+If a SYCL device has this aspect, that device supports inter-process exchange
+of events as described in this section.
+
 ==== New property for the make_event function
 
 This extension adds the following property, which can be used with `make_event`
-(from the sycl_ext_oneapi_reusable_events extension):
+(from the link:../proposed/sycl_ext_oneapi_reusable_events.asciidoc[
+sycl_ext_oneapi_reusable_events] extension):
 
 [source,c++]
 ----
@@ -493,24 +509,6 @@ indicating whether the event can be shared across processes.
 
 _Remarks:_ `make_event` throws an exception with the `errc::invalid` error code
 if the `enable_profiling` and `enable_ipc` properties are both set.
-
-==== Extension to `enum class aspect` for events
-
-[source]
-----
-namespace sycl {
-enum class aspect {
-  ...
-  ext_oneapi_ipc_event
-}
-}
-----
-
-If a SYCL device has this aspect, that device supports the `make_event` call
-with the `enable_ipc` property. If the `make_event` function is called with the
-`enable_ipc` property set, but the device does not have this aspect, the
-`make_event` function throws an `exception` with the
-`errc::feature_not_supported` error code.
 
 ==== New event member function
 
