@@ -293,7 +293,7 @@ Error containerizeRawImage(std::unique_ptr<MemoryBuffer> &Img, OffloadKind Kind,
   llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
   if (Kind == OFK_OpenMP && Triple.isSPIRV() &&
       Triple.getVendor() == llvm::Triple::Intel)
-    return offloading::intel::containerizeOpenMPSPIRVImage(Img);
+    return offloading::intel::containerizeOpenMPSPIRVImage(Img, Triple);
   return Error::success();
 }
 
@@ -1061,44 +1061,23 @@ static Expected<StringRef> runLLVMToSPIRVTranslation(StringRef File,
   return *TempFileOrErr;
 }
 
-/// Adds all AOT backend options required for SYCL AOT compilation step to
-/// \p CmdArgs.
-/// \p Args is passed to provide MakeArgString function for creating persistent
-/// argument string storage.
-/// \p IsCPU is a bool used to distinguish whether the target is an Intel GPU or
-/// Intel CPU.
+/// Adds ocloc options required for SYCL AOT compilation step to \p CmdArgs.
+/// ocloc -options takes arguments in the form of '-options "-g
+/// -cl-opt-disable"' where each argument is separated with spaces. split
+/// function here returns a pair with everything before the separator
+/// ("-options") in the first member of the pair, and everything after the
+/// separator in the second part of the pair. The separator is not included in
+/// any of them.
 /// \p BackendOptions is a string containing backend compilation options. For
 /// example, "-options -cl-opt-disable".
-static void addSYCLBackendOptions(const ArgList &Args,
-                                  SmallVector<StringRef, 8> &CmdArgs,
-                                  bool IsCPU, StringRef BackendOptions) {
-  if (IsCPU) {
-    BackendOptions.split(CmdArgs, " ", /*MaxSplit=*/-1, /*KeepEmpty=*/false);
-  } else {
-    // ocloc -options takes arguments in the form of '-options "-g
-    // -cl-opt-disable"' where each argument is separated with spaces.
-    // split function here returns a pair with everything before the separator
-    // ("-options") in the first member of the pair, and everything after the
-    // separator in the second part of the pair. The separator is not included
-    // in any of them.
-    auto [BeforeOptions, AfterOptions] = BackendOptions.split("-options ");
-    // Only add if not empty, an empty arg can lead to ocloc errors.
-    if (!BeforeOptions.empty()) {
-      SmallVector<StringRef, 8> BeforeArgs;
-      BeforeOptions.split(BeforeArgs, " ", /*MaxSplit=*/-1,
-                          /*KeepEmpty=*/false);
-      for (const auto &string : BeforeArgs) {
-        CmdArgs.push_back(string);
-      }
-    }
-    if (!AfterOptions.empty()) {
-      CmdArgs.push_back("-options");
-      // Split the options string by spaces and rejoin to normalize whitespace
-      SmallVector<StringRef, 8> AfterArgs;
-      AfterOptions.split(AfterArgs, " ", /*MaxSplit=*/-1, /*KeepEmpty=*/false);
-      std::string JoinedOptions = llvm::join(AfterArgs, " ");
-      CmdArgs.push_back(Args.MakeArgString(JoinedOptions));
-    }
+static void addOclocOptions(StringRef BackendOptions,
+                            SmallVector<StringRef, 8> &CmdArgs) {
+  auto [BeforeOptions, AfterOptions] = BackendOptions.split("-options ");
+  BeforeOptions.split(CmdArgs, " ", /*MaxSplit=*/-1, /*KeepEmpty=*/false);
+  // Only add if not empty, an empty arg can lead to ocloc errors.
+  if (!AfterOptions.empty()) {
+    CmdArgs.push_back("-options");
+    CmdArgs.push_back(AfterOptions);
   }
 }
 
@@ -1121,7 +1100,7 @@ static Expected<StringRef> runAOTCompileIntelCPU(StringRef InputFile,
 
   CmdArgs.push_back(*OpenCLAOTPath);
   CmdArgs.push_back("--device=cpu");
-  addSYCLBackendOptions(Args, CmdArgs, /* IsCPU */ true, BackendOptions);
+  BackendOptions.split(CmdArgs, " ", /*MaxSplit=*/-1, /*KeepEmpty=*/false);
   // Create a new file to write the translated file to.
   auto TempFileOrErr =
       createOutputFile(sys::path::filename(ExecutableName), "out");
@@ -1161,7 +1140,7 @@ static Expected<StringRef> runAOTCompileIntelGPU(StringRef InputFile,
     CmdArgs.push_back("-device");
     CmdArgs.push_back(Arch);
   }
-  addSYCLBackendOptions(Args, CmdArgs, /* IsCPU */ false, BackendOptions);
+  addOclocOptions(BackendOptions, CmdArgs);
   // Create a new file to write the translated file to.
   auto TempFileOrErr =
       createOutputFile(sys::path::filename(ExecutableName), "out");
@@ -2786,7 +2765,7 @@ int main(int Argc, char **Argv) {
         Args.hasArg(OPT_help_hidden), Args.hasArg(OPT_help_hidden));
     return EXIT_SUCCESS;
   }
-  if (Args.hasArg(OPT_v)) {
+  if (Args.hasArg(OPT_version)) {
     printVersion(outs());
     return EXIT_SUCCESS;
   }

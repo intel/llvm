@@ -44,6 +44,15 @@ jobs:
               continue
             fi
 
+            # Looks like GH doesn't issue a notification/email if the team was mentioned by the github-actions bot.
+            # Therefore, ensure the gatekeepers are added as reviewers.
+            has_gatekeepers=$(gh pr view "$pr" --repo intel/llvm --json reviewRequests \
+              --jq '([.reviewRequests[]?.login, .reviewRequests[]?.slug, .reviewRequests[]?.name, (.reviewRequests[]?.users[]?.login), (.reviewRequests[]?.teams[]?.slug), (.reviewRequests[]?.teams[]? | (.organization.login + "/" + .slug))] | map(select(. != null)) | any(. == "intel/llvm-gatekeepers" or . == "llvm-gatekeepers"))')
+            if [[ "$has_gatekeepers" != "true" ]]; then
+              gh pr edit "$pr" --repo intel/llvm --add-reviewer intel/llvm-gatekeepers
+              echo "Added intel/llvm-gatekeepers to reviewers for https://github.com/intel/llvm/pull/$pr"
+            fi
+
             # Get the timestamp of the latest comment mentioning @intel/llvm-gatekeepers
             latest_ts=$(gh pr view $pr --repo intel/llvm --json comments \
               --jq '[.comments[] | select(.body | test("@intel/llvm-gatekeepers")) | .createdAt] | last')

@@ -1348,14 +1348,14 @@ static QualType ConvertDeclSpecToType(TypeProcessingState &state) {
         declarator.setInvalidType(true);
       }
     }
-    Result = S.Context.getAutoType(QualType(), AutoKW,
-                                   /*IsDependent*/ false, /*IsPack=*/false,
+    Result = S.Context.getAutoType(DeducedKind::Undeduced, QualType(), AutoKW,
                                    TypeConstraintConcept, TemplateArgs);
     break;
   }
 
   case DeclSpec::TST_auto_type:
-    Result = Context.getAutoType(QualType(), AutoTypeKeyword::GNUAutoType, false);
+    Result = Context.getAutoType(DeducedKind::Undeduced, QualType(),
+                                 AutoTypeKeyword::GNUAutoType);
     break;
 
   case DeclSpec::TST_unknown_anytype:
@@ -6827,66 +6827,6 @@ static void HandleOverflowBehaviorAttr(QualType &Type, const ParsedAttr &Attr,
   }
 }
 
-static void HandleSYCLPipeAttribute(QualType &Type, const ParsedAttr &Attr,
-                                    TypeProcessingState &State) {
-  Sema &S = State.getSema();
-  ASTContext &Ctx = S.Context;
-
-  // Check the attribute arguments.
-  if (Attr.getNumArgs() != 1) {
-    S.Diag(Attr.getLoc(), diag::err_attribute_wrong_number_arguments)
-        << Attr << 1;
-    Attr.setInvalid();
-    return;
-  }
-
-  if (!Attr.isArgExpr(0)) {
-    S.Diag(Attr.getLoc(), diag::err_attribute_argument_type)
-        << Attr << AANT_ArgumentString;
-    Attr.setInvalid();
-    return;
-  }
-
-  StringRef Str;
-  if (auto *SL = dyn_cast<StringLiteral>(Attr.getArgAsExpr(0))) {
-    Str = SL->getString();
-  } else {
-    S.Diag(Attr.getLoc(), diag::err_attribute_argument_type)
-        << Attr << AANT_ArgumentString;
-    Attr.setInvalid();
-    return;
-  }
-
-  bool isReadOnlyPipe;
-  if (Str == "write_only")
-    isReadOnlyPipe = false;
-  else if (Str == "read_only")
-    isReadOnlyPipe = true;
-  else {
-    S.Diag(Attr.getLoc(), diag::err_pipe_attribute_arg_not_allowed) << Str;
-    Attr.setInvalid();
-    return;
-  }
-
-  auto *PipeAttr = ::new (Ctx) SYCLIntelPipeAttr(Ctx, Attr, Str);
-
-  // Apply pipe qualifiers just to the equivalent type, as the expression is not
-  // value dependent (not templated).
-  QualType EquivType = isReadOnlyPipe
-                           ? S.BuildReadPipeType(Type, Attr.getLoc())
-                           : S.BuildWritePipeType(Type, Attr.getLoc());
-  if (EquivType.isNull()) {
-    Attr.setInvalid();
-    return;
-  }
-
-  QualType T = State.getAttributedType(PipeAttr, Type, EquivType);
-  if (!T.isNull())
-    Type = T;
-  else
-    Attr.setInvalid();
-}
-
 /// handleObjCOwnershipTypeAttr - Process an objc_ownership
 /// attribute on the specified type.
 ///
@@ -9190,9 +9130,22 @@ static void processTypeAttrs(TypeProcessingState &state, QualType &type,
     case ParsedAttr::AT_OpenCLLocalAddressSpace:
     case ParsedAttr::AT_OpenCLConstantAddressSpace:
     case ParsedAttr::AT_OpenCLGenericAddressSpace:
-    case ParsedAttr::AT_HLSLGroupSharedAddressSpace:
     case ParsedAttr::AT_AddressSpace:
       HandleAddressSpaceTypeAttribute(type, attr, state);
+      attr.setUsedAsTypeAttr();
+      break;
+    case ParsedAttr::AT_HLSLGroupSharedAddressSpace:
+      HandleAddressSpaceTypeAttribute(type, attr, state);
+      if (state.getDeclarator().getContext() == DeclaratorContext::Prototype) {
+        if (state.getSema().getLangOpts().getHLSLVersion() <
+            LangOptions::HLSL_202x)
+          state.getSema().Diag(attr.getLoc(), diag::warn_hlsl_groupshared_202x);
+
+        // Note: we don't check for the usage of HLSLParamModifiers in/out/inout
+        // here because the check in the AT_HLSLParamModifier case is sufficient
+        // regardless of the order of groupshared or in/out/inout specified in
+        // the parameter. And checking there produces a better error message.
+      }
       attr.setUsedAsTypeAttr();
       break;
     OBJC_POINTER_TYPE_ATTRS_CASELIST:
@@ -9232,10 +9185,6 @@ static void processTypeAttrs(TypeProcessingState &state, QualType &type,
       break;
     case ParsedAttr::AT_OpenCLAccess:
       HandleOpenCLAccessAttr(type, attr, state.getSema());
-      attr.setUsedAsTypeAttr();
-      break;
-    case ParsedAttr::AT_SYCLIntelPipe:
-      HandleSYCLPipeAttribute(type, attr, state);
       attr.setUsedAsTypeAttr();
       break;
     case ParsedAttr::AT_PointerAuth:
@@ -9287,6 +9236,12 @@ static void processTypeAttrs(TypeProcessingState &state, QualType &type,
 
     case ParsedAttr::AT_HLSLParamModifier: {
       HandleHLSLParamModifierAttr(state, type, attr, state.getSema());
+      if (attrs.hasAttribute(ParsedAttr::AT_HLSLGroupSharedAddressSpace)) {
+        state.getSema().Diag(attr.getLoc(), diag::err_hlsl_attr_incompatible)
+            << attr << "'groupshared'";
+        attr.setInvalid();
+        return;
+      }
       attr.setUsedAsTypeAttr();
       break;
     }
@@ -9405,6 +9360,7 @@ static void processTypeAttrs(TypeProcessingState &state, QualType &type,
       break;
     }
     case ParsedAttr::AT_HLSLResourceClass:
+    case ParsedAttr::AT_HLSLResourceDimension:
     case ParsedAttr::AT_HLSLROV:
     case ParsedAttr::AT_HLSLRawBuffer:
     case ParsedAttr::AT_HLSLContainedType: {

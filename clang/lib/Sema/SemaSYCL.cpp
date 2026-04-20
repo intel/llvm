@@ -667,9 +667,6 @@ static void collectSYCLAttributes(FunctionDecl *FD,
                  SYCLIntelMinWorkGroupsPerComputeUnitAttr,
                  SYCLIntelMaxWorkGroupsPerMultiprocessorAttr,
                  SYCLIntelNoGlobalWorkOffsetAttr, SYCLSimdAttr,
-                 SYCLIntelLoopFuseAttr, SYCLIntelMaxConcurrencyAttr,
-                 SYCLIntelDisableLoopPipeliningAttr,
-                 SYCLIntelInitiationIntervalAttr,
                  SYCLIntelUseStallEnableClustersAttr, SYCLDeviceHasAttr,
                  SYCLAddIRAttributesFunctionAttr>(A);
     });
@@ -5804,10 +5801,6 @@ static void PropagateAndDiagnoseDeviceAttr(SemaSYCL &S, Attr *A,
   case attr::Kind::SYCLIntelMinWorkGroupsPerComputeUnit:
   case attr::Kind::SYCLIntelMaxWorkGroupsPerMultiprocessor:
   case attr::Kind::SYCLIntelNoGlobalWorkOffset:
-  case attr::Kind::SYCLIntelLoopFuse:
-  case attr::Kind::SYCLIntelMaxConcurrency:
-  case attr::Kind::SYCLIntelDisableLoopPipelining:
-  case attr::Kind::SYCLIntelInitiationInterval:
   case attr::Kind::SYCLIntelUseStallEnableClusters:
   case attr::Kind::SYCLDeviceHas:
   case attr::Kind::SYCLAddIRAttributesFunction:
@@ -8583,10 +8576,10 @@ public:
       ParmDeclMap::iterator I = MapRef.find(PVD);
       if (I != MapRef.end()) {
         VarDecl *VD = I->second;
-        assert(SemaRef.getASTContext().hasSameUnqualifiedType(PVD->getType(),
-                                                              VD->getType()));
-        assert(!VD->getType().isMoreQualifiedThan(PVD->getType(),
-                                                  SemaRef.getASTContext()));
+        assert(SemaRef.getASTContext().hasSameUnqualifiedType(
+            PVD->getType().getNonReferenceType(), VD->getType()));
+        assert(!VD->getType().isMoreQualifiedThan(
+            PVD->getType().getNonReferenceType(), SemaRef.getASTContext()));
         VD->setIsUsed();
         return DeclRefExpr::Create(
             SemaRef.getASTContext(), DRE->getQualifierLoc(),
@@ -8625,7 +8618,7 @@ OutlinedFunctionDecl *BuildSYCLKernelEntryPointOutline(Sema &SemaRef,
   for (ParmVarDecl *PVD : FD->parameters()) {
     ImplicitParamDecl *IPD = ImplicitParamDecl::Create(
         SemaRef.getASTContext(), OFD, SourceLocation(), PVD->getIdentifier(),
-        PVD->getType(), ImplicitParamKind::Other);
+        PVD->getType().getNonReferenceType(), ImplicitParamKind::Other);
     OFD->setParam(i, IPD);
     ParmMap[PVD] = IPD;
     ++i;

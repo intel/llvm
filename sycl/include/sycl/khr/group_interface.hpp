@@ -11,8 +11,6 @@
 #include <sycl/id.hpp>
 #include <sycl/range.hpp>
 
-#define SYCL_KHR_GROUP_INTERFACE 1
-
 #if __cplusplus >= 202302L && __has_include(<mdspan>)
 #include <mdspan>
 #endif

@@ -21,6 +21,14 @@ endif()
 SET_SOURCE_FILES_PROPERTIES( ToolChains/MSVC.cpp ToolChains/Clang.cpp
   PROPERTIES COMPILE_DEFINITIONS SYCL_MAJOR_VERSION="9" )
 
+if(CLANG_USE_XCSELECT)
+  set(system_libs xcselect)
+endif()
+
+if(LLVM_PTHREAD_LIB)
+  list(APPEND system_libs ${LLVM_PTHREAD_LIB})
+endif()
+
 add_clang_library(clangDriver
   Action.cpp
   Compilation.cpp
@@ -109,7 +117,10 @@ add_clang_library(clangDriver
 
   LINK_LIBS
   clangBasic
+  clangDependencyScanning
   clangFrontend
+  clangScalableStaticAnalysisFrameworkCore
+  clangScalableStaticAnalysisFrameworkFrontend
   clangSerialization
   clangLex
   clangOptions
