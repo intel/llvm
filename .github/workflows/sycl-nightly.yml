@@ -26,7 +26,7 @@ jobs:
         git diff --exit-code -I "^# RUN" origin/sycl-rel-6_3:sycl/test/abi/sycl_symbols_windows.dump sycl/test/abi/sycl_symbols_windows-sycl-rel-6_3.dump
 
   get_date:
-    runs-on: ubuntu-latest
+    runs-on: [Linux, aux-tasks]
     outputs:
       date: ${{ steps.get_date.outputs.date }}
     steps:
@@ -428,9 +428,22 @@ jobs:
       runner: '["Windows","blender"]'
       level_zero_dir: "D:\\github\\level-zero_win-sdk"
       ccache_dir: "D:\\github\\_work\\cache\\blender"
-      blender_classroom_dir: "D:\\github\\classroom-demo"
       toolchain_artifact: sycl_windows_default
       toolchain_artifact_filename: ${{ needs.build-win.outputs.toolchain_artifact_filename }}
+
+  build_and_test_blender_linux:
+    name: Build and Test Blender on Linux
+    needs: ubuntu2204_build
+    if: |
+      !cancelled()
+      && needs.ubuntu2204_build.outputs.build_conclusion == 'success'
+    uses: ./.github/workflows/sycl-blender-build-and-test.yml
+    with:
+      runner: '["Linux","bmg"]'
+      level_zero_dir: ""
+      ccache_dir: "/__w/build_cache_blender"
+      toolchain_artifact: sycl_linux_default
+      toolchain_artifact_filename: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact_filename }}
 
   # Verification example:
   # cosign-windows-amd64.exe verify-blob sycl_linux.tar.gz \

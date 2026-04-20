@@ -15,10 +15,6 @@ on:
         description: 'ccache directory'
         required: true
         type: string
-      blender_classroom_dir:
-        description: 'Blender classroom demo directory'
-        required: true
-        type: string
       toolchain_artifact:
         description: 'Artifact name for toolchain download'
         required: true
@@ -28,14 +24,12 @@ on:
         required: true
         type: string
 
-env:
-  OIDN_INSTALL_DIR: "${{ github.workspace }}/oidn-install"
-  EMBREE_INSTALL_DIR: "${{ github.workspace }}/embree-install"
-  BLENDER_INSTALL_DIR: "${{ github.workspace }}/blender-install"
-
 jobs:
   blender:
     runs-on: ${{ fromJSON(inputs.runner) }}
+    container:
+      image: ${{ contains(inputs.runner, 'Linux') && 'ghcr.io/intel/llvm/ubuntu2404_blender' || '' }}
+      options: ${{ contains(inputs.runner, 'Linux') && '-u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN' || '' }}
     name: Build and Test Blender on ${{ contains(inputs.runner, 'Windows') && 'Windows' || 'Linux' }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -43,6 +37,15 @@ jobs:
           sparse-checkout: |
             devops/
           persist-credentials: false
+
+      - name: Setup Environment Variables
+        shell: bash
+        run: |
+          echo "OIDN_INSTALL_DIR=$GITHUB_WORKSPACE/oidn-install" >> $GITHUB_ENV
+          echo "EMBREE_INSTALL_DIR=$GITHUB_WORKSPACE/embree-install" >> $GITHUB_ENV
+          echo "BLENDER_INSTALL_DIR=$GITHUB_WORKSPACE/blender-install" >> $GITHUB_ENV
+          echo "SYCL_INSTALL_DIR=$GITHUB_WORKSPACE/install" >> $GITHUB_ENV
+
       - name: Download Toolchain
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
@@ -57,20 +60,24 @@ jobs:
           mkdir install
           tar -xf $TOOLCHAIN_ARTIFACT_FILENAME -C install
           rm $TOOLCHAIN_ARTIFACT_FILENAME
+          wget https://github.com/ispc/ispc/releases/download/v1.29.1/ispc-v1.29.1-linux.tar.gz
+          tar xvf ispc-v1.29.1-linux.tar.gz -C install
+          rm ispc-v1.29.1-linux.tar.gz
+          echo "PATH=$PATH:$GITHUB_WORKSPACE/install:$GITHUB_WORKSPACE/install/ispc-v1.29.1-linux/bin:$GITHUB_WORKSPACE/install/ispc-v1.29.1-linux/lib:$GITHUB_WORKSPACE/install/ispc-v1.29.1-linux/" >> $GITHUB_ENV
 
       - name: Build OIDN
         uses: ./devops/actions/blender/oidn
         with:
           cmake_install_prefix: ${{ env.OIDN_INSTALL_DIR }}
-          c_compiler: ${{ github.workspace }}/install/bin/clang${{ runner.os == 'Windows' && '.exe' }}
-          cxx_compiler: ${{ github.workspace }}/install/bin/clang++${{ runner.os == 'Windows' && '.exe' }}
+          c_compiler: ${{ env.SYCL_INSTALL_DIR }}/bin/clang${{ runner.os == 'Windows' && '.exe' || '' }}
+          cxx_compiler: ${{ env.SYCL_INSTALL_DIR }}/bin/clang++${{ runner.os == 'Windows' && '.exe' || '' }}
 
       - name: Build Embree
         uses: ./devops/actions/blender/embree
         with:
           cmake_install_prefix: ${{ env.EMBREE_INSTALL_DIR }}
-          c_compiler: ${{ github.workspace }}/install/bin/clang${{ runner.os == 'Windows' && '.exe' }}
-          cxx_compiler: ${{ github.workspace }}/install/bin/clang++${{ runner.os == 'Windows' && '.exe' }}
+          c_compiler: ${{ env.SYCL_INSTALL_DIR }}/bin/clang${{ runner.os == 'Windows' && '.exe' || '' }}
+          cxx_compiler: ${{ env.SYCL_INSTALL_DIR }}/bin/clang++${{ runner.os == 'Windows' && '.exe' || '' }}
 
       - name: Build Blender
         uses: ./devops/actions/blender/blender-build
@@ -79,18 +86,17 @@ jobs:
           embree_dir: ${{ env.EMBREE_INSTALL_DIR }}
           level_zero_dir: ${{ inputs.level_zero_dir }}
           cmake_install_prefix: ${{ env.BLENDER_INSTALL_DIR }}
-          sycl_dir: ${{ github.workspace }}/install
+          sycl_dir: ${{ env.SYCL_INSTALL_DIR }}
           ccache_dir: ${{ inputs.ccache_dir }}
 
       - name: Run Blender Classroom Demo
         uses: ./devops/actions/blender/blender-demo
         with:
-          blender_dir: ${{ github.workspace }}/blender-install
-          blender_classroom_dir: ${{ inputs.blender_classroom_dir }}
+          blender_dir: ${{ env.BLENDER_INSTALL_DIR }}
 
       - name: Cleanup
-        shell: cmd
+        shell: bash
         if: always()
         run: |
-         rmdir /q /s "${{ env.OIDN_INSTALL_DIR }}" "${{ env.EMBREE_INSTALL_DIR }}" "${{ env.BLENDER_INSTALL_DIR }}"
+          rm -rf "$OIDN_INSTALL_DIR" "$EMBREE_INSTALL_DIR" "$BLENDER_INSTALL_DIR"
   

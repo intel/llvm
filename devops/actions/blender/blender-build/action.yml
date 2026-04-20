@@ -19,17 +19,17 @@ inputs:
     required: true
   cmake_install_prefix:
     description: 'CMAKE_INSTALL_PREFIX for Blender build'
-    required: false
-    default: '${{ github.workspace }}/blender-install'
+    required: true
 
 runs:
   using: "composite"
   steps:
     - uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1.13.0
+      if: runner.os == 'Windows'
       with:
         arch: amd64
 
-    - name: Setup environment
+    - name: Setup environment (Windows)
       shell: powershell
       if: runner.os == 'Windows'
       env:
@@ -42,8 +42,18 @@ runs:
         echo "LIB=$env:LIB;$env:SYCL_DIR_INPUT\lib" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
         echo "CMAKE_EXTRA_ARGS=-DWITH_WINDOWS_SCCACHE=ON" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
-    - name: Checkout Blender
+    - name: Setup environment (Linux)
       shell: bash
+      if: runner.os == 'Linux'
+      env:
+        CCACHE_DIR_INPUT: ${{ inputs.ccache_dir }}
+      run: |
+        echo "CCACHE_DIR=$CCACHE_DIR_INPUT" >> $GITHUB_ENV
+        echo "CCACHE_MAXSIZE=10G" >> $GITHUB_ENV
+        echo "CMAKE_EXTRA_ARGS=-DWITH_COMPILER_CCACHE=ON" >> $GITHUB_ENV
+    - name: Checkout Blender (Windows)
+      shell: bash
+      if: runner.os == 'Windows'
       env:
         EMBREE_DIR_INPUT: ${{ inputs.embree_dir }}
         OIDN_DIR_INPUT: ${{ inputs.oidn_dir }}
@@ -59,7 +69,23 @@ runs:
        cp "$(which SPIRV-Tools-shared.dll)" "$SYCL_DIR_INPUT/bin/"
 
        # Apply source patches.
-       patch -p1 -d blender-src -i "${{ github.action_path }}/patches/Fix-build.patch"
+       patch -p1 -d blender-src -i "../devops/actions/blender/blender-build/patches/Fix-build.patch"
+
+    - name: Checkout Blender (Linux)
+      shell: bash
+      if: runner.os == 'Linux'
+      env:
+        EMBREE_DIR_INPUT: ${{ inputs.embree_dir }}
+        OIDN_DIR_INPUT: ${{ inputs.oidn_dir }}
+        SYCL_DIR_INPUT: ${{ inputs.sycl_dir }}
+      run: |
+       tar xf /opt/blender_5_1_0.tar.xz -C .
+       mv blender blender-src
+       # Work around CMake issue using preinstalled Embree/OIDN.
+       cp -r "$EMBREE_DIR_INPUT" "blender-src/lib/linux_x64/embree"
+       cp -r "$OIDN_DIR_INPUT" "blender-src/lib/linux_x64/OpenImageDenoise"
+       # Apply source patches.
+       patch -p1 -d blender-src -i "../devops/actions/blender/blender-build/patches/Fix-build.patch"
 
     - name: Configure Blender
       shell: bash
@@ -70,12 +96,29 @@ runs:
         EMBREE_DIR_INPUT: ${{ inputs.embree_dir }}
         LEVEL_ZERO_DIR_INPUT: ${{ inputs.level_zero_dir }}
       run: |
-        # Unify the path style to avoid CMake issues.
-        INSTALL_PREFIX=$(cygpath -m "$INSTALL_PREFIX_INPUT")
-        SYCL_DIR=$(cygpath -m "$SYCL_DIR_INPUT")
-        OIDN_DIR=$(cygpath -m "$OIDN_DIR_INPUT")
-        EMBREE_DIR=$(cygpath -m "$EMBREE_DIR_INPUT")
-        LEVEL_ZERO_DIR=$(cygpath -m "$LEVEL_ZERO_DIR_INPUT")
+        EXTRA_CMAKE_ARGS=""
+        # Unify the path style to avoid CMake issues (Windows needs cygpath).
+        if [[ "${{ runner.os }}" == "Windows" ]]; then
+          INSTALL_PREFIX=$(cygpath -m "$INSTALL_PREFIX_INPUT")
+          SYCL_DIR=$(cygpath -m "$SYCL_DIR_INPUT")
+          OIDN_DIR=$(cygpath -m "$OIDN_DIR_INPUT")
+          EMBREE_DIR=$(cygpath -m "$EMBREE_DIR_INPUT")
+          LEVEL_ZERO_DIR=$(cygpath -m "$LEVEL_ZERO_DIR_INPUT")
+        else
+          export CC=gcc-14
+          export CXX=g++-14
+          EXTRA_CMAKE_ARGS="-DWITH_X11_XINPUT=OFF -DWITH_X11_XFIXES=OFF -DWITH_X11_ALPHA=OFF"
+          INSTALL_PREFIX="$INSTALL_PREFIX_INPUT"
+          SYCL_DIR="$SYCL_DIR_INPUT"
+          OIDN_DIR="$OIDN_DIR_INPUT"
+          EMBREE_DIR="$EMBREE_DIR_INPUT"
+          LEVEL_ZERO_DIR="$LEVEL_ZERO_DIR_INPUT"
+        fi
+
+        LEVEL_ZERO_ARGS=""
+        if [[ -n "$LEVEL_ZERO_DIR" ]]; then
+          LEVEL_ZERO_ARGS="-DLEVEL_ZERO_ROOT_DIR=$LEVEL_ZERO_DIR"
+        fi
 
         cmake -GNinja -B blender-build -S blender-src \
           $CMAKE_EXTRA_ARGS \
@@ -85,13 +128,14 @@ runs:
           -DWITH_CYCLES_DEVICE_ONEAPI=ON \
           -DOPENIMAGEDENOISE_ROOT_DIR="$OIDN_DIR" \
           -DEMBREE_ROOT_DIR="$EMBREE_DIR" \
-          -DLEVEL_ZERO_ROOT_DIR="$LEVEL_ZERO_DIR" \
+          $LEVEL_ZERO_ARGS \
           -DWITH_CYCLES_EMBREE=ON \
           -DEMBREE_SYCL_SUPPORT=ON \
           -DWITH_OPENIMAGEDENOISE=ON \
           -DWITH_CYCLES_DEVICE_HIP=OFF \
           -DWITH_CYCLES_DEVICE_CUDA=OFF \
-          -DWITH_CYCLES_DEVICE_OPTIX=OFF
+          -DWITH_CYCLES_DEVICE_OPTIX=OFF \
+          $EXTRA_CMAKE_ARGS
 
     - name: Build Blender
       shell: bash
@@ -102,7 +146,7 @@ runs:
       run: cmake --install blender-build --config Release
 
     - name: Cleanup
-      shell: cmd
+      shell: bash
       if: always()
       run: |
-        rmdir /q /s blender-build blender-src
+        rm -rf blender-build blender-src

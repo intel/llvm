@@ -4,8 +4,7 @@ description: 'Clone and build Embree for Intel GPU with SYCL support'
 inputs:
   cmake_install_prefix:
     description: 'CMAKE_INSTALL_PREFIX for Embree build'
-    required: false
-    default: '${{ github.workspace }}/embree-install'
+    required: true
   c_compiler:
     description: 'Path to C compiler'
     required: true
@@ -17,6 +16,7 @@ runs:
   using: "composite"
   steps:
     - uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1.13.0
+      if: runner.os == 'Windows'
       with:
         arch: amd64
 
@@ -26,7 +26,7 @@ runs:
         repository: 'RenderKit/embree'
         ref: 'v4.4.0'
         path: 'embree-src'
-        cache_path: "D:\\\\github\\\\_work\\\\repo_cache\\\\"
+        cache_path: ${{ runner.os == 'Windows' && 'D:\\github\\_work\\repo_cache\\' || '/__w/repo_cache/' }}
 
     - name: Update Embree Submodules
       shell: bash
@@ -59,7 +59,7 @@ runs:
       run: cmake --install embree-build --config Release
 
     - name: Cleanup
-      shell: cmd
+      shell: bash
       if: always()
       run: |
-        rmdir /q /s embree-build embree-src
+        rm -rf embree-build embree-src

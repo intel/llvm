@@ -5,17 +5,27 @@ inputs:
   blender_dir:
     description: 'Blender installation directory'
     required: true
-  blender_classroom_dir:
-    description: 'Blender classroom demo directory'
-    required: true
 runs:
   using: "composite"
   steps:
+    - name: Download Classroom Demo
+      shell: bash
+      run: |
+        CLASSROOM_URL="https://download.blender.org/demo/test/classroom.zip"
+        curl -L -o classroom.zip "$CLASSROOM_URL"
+        unzip -q classroom.zip
+        CLASSROOM_DIR="$PWD/classroom"
+        echo "CLASSROOM_DIR=$CLASSROOM_DIR" >> $GITHUB_ENV
+
     - name: Render Classroom Scene
       shell: bash
       env:
         BLENDER_DIR: ${{ inputs.blender_dir }}
-        CLASSROOM_DIR: ${{ inputs.blender_classroom_dir }}
+        BLENDER_EXE: blender${{ runner.os == 'Windows' && '.exe' || '' }}
       run: |
-        BLENDER_EXE="$BLENDER_DIR/blender$([[ "${{ runner.os }}" == "Windows" ]] && echo ".exe")"
-        "$BLENDER_EXE" -b -noaudio --debug-cycles --verbose 3 --engine CYCLES "$CLASSROOM_DIR/classroom.blend" -f 1 -- --cycles-device ONEAPI
+        if [[ "${{ runner.os }}" == "Linux" ]]; then
+           wget https://blueprints.launchpad.net/~kobuk-team/+archive/ubuntu/intel-graphics/+files/libze-intel-gpu-raytracing_1.2.2-1~24.04~ppa1_amd64.deb -O rt.deb
+           sudo dpkg --force-all -i rt.deb
+           export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$OIDN_INSTALL_DIR/lib:$EMBREE_INSTALL_DIR/lib:$SYCL_INSTALL_DIR/lib:$BLENDER_INSTALL_DIR/lib" 
+        fi
+        "$BLENDER_DIR/$BLENDER_EXE" -b -noaudio --debug-cycles --verbose 3 --engine CYCLES "$CLASSROOM_DIR/classroom.blend" -f 1 -- --cycles-device ONEAPI
