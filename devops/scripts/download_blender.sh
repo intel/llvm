@@ -18,5 +18,5 @@ rm -rf lib/linux_x64/openimagedenoise
 cd ..
 
 tar -cJf blender_5_1_0.tar.xz blender
-rm -rf blender
+rm -rf blender /var/lib/apt/lists/* /var/cache/apt/archives/*.deb
 mv blender_5_1_0.tar.xz /opt/
