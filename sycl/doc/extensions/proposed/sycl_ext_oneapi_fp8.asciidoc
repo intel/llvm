@@ -261,7 +261,7 @@ class fp8_e4m3_x {
   ~fp8_e4m3_x() = default;
   fp8_e4m3_x& operator=(const fp8_e4m3_x&) = default;
 
-  // Construct from pack of half, bfloat16, float, double.
+  // Construct from pack of half, bfloat16, float.
   // Available only when the size of the pack is equal to N.
 
   // Available only when each type in the pack is half.
@@ -276,23 +276,17 @@ class fp8_e4m3_x {
   template<typename... Floats>
   explicit fp8_e4m3_x(Floats... vals);
 
-  // Available only when each type in the pack is double.
-  template<typename... Doubles>
-  explicit fp8_e4m3_x(Doubles... vals);
-
-  // Construct from an array of half, bfloat16, float, double.
+  // Construct from an array of half, bfloat16, float.
 
   explicit fp8_e4m3_x(half const (&vals)[N], rounding r = rounding::to_even);
   explicit fp8_e4m3_x(bfloat16 const (&vals)[N], rounding r = rounding::to_even);
   explicit fp8_e4m3_x(float const (&vals)[N], rounding r = rounding::to_even);
-  explicit fp8_e4m3_x(double const (&vals)[N]);
 
-  // Construct from an marray of half, bfloat16, float, double.
+  // Construct from an marray of half, bfloat16, float.
 
   explicit fp8_e4m3_x(const marray<half,N>& vals, rounding r = rounding::to_even);
   explicit fp8_e4m3_x(const marray<bfloat16,N>& vals, rounding r = rounding::to_even);
   explicit fp8_e4m3_x(const marray<float,N>& vals, rounding r = rounding::to_even);
-  explicit fp8_e4m3_x(const marray<double,N>& vals);
 
   // Construct from integer types.
   // Available only when N==1.
@@ -306,13 +300,12 @@ class fp8_e4m3_x {
   explicit fp8_e4m3_x(unsigned long val);
   explicit fp8_e4m3_x(unsigned long long val);
 
-  // Assign (operator) from half, bfloat16, float, double, and integer types.
+  // Assign (operator) from half, bfloat16, float, and integer types.
   // Available only when N==1.
 
   fp8_e4m3_x& operator=(half val);
   fp8_e4m3_x& operator=(bfloat16 val);
   fp8_e4m3_x& operator=(float val);
-  fp8_e4m3_x& operator=(double val);
   fp8_e4m3_x& operator=(short val);
   fp8_e4m3_x& operator=(int val);
   fp8_e4m3_x& operator=(long val);
@@ -322,13 +315,12 @@ class fp8_e4m3_x {
   fp8_e4m3_x& operator=(unsigned long val);
   fp8_e4m3_x& operator=(unsigned long long val);
 
-  // Convert to half, bfloat16, float, double.
+  // Convert to half, bfloat16, float.
   // Available only when N==1.
 
   explicit operator half() const;
   explicit operator bfloat16() const;
   explicit operator float() const;
-  explicit operator double() const;
 
   // Convert to integer types.
   // Available only when N==1.
@@ -397,9 +389,6 @@ explicit fp8_e4m3_x(Bfloats... vals);
 
 template<typename... Floats>           (3)
 explicit fp8_e4m3_x(Floats... vals);
-
-template<typename... Doubles>          (4)
-explicit fp8_e4m3_x(Doubles... vals);
 ----
 
 _Constraints_ (1): The size of the `Halfs` pack is `N` and each type in this
@@ -411,9 +400,6 @@ pack is `ext::oneapi::bfloat16`.
 _Constraints_ (3): The size of the `Floats` pack is `N` and each type in this
 pack is `float`.
 
-_Constraints_ (4): The size of the `Doubles` pack is `N` and each type in this
-pack is `double`.
-
 _Effects:_ Initializes each element of this `fp8_e4m3_x` object from the
 corresponding value in the `vals` pack.
 Each value is converted using the `rounding::to_even` rounding mode and the
@@ -423,18 +409,15 @@ Each value is converted using the `rounding::to_even` rounding mode and the
 
 [source,c++]
 ----
-explicit fp8_e4m3_x(half const (&vals)[N], rounding r = rounding::to_even);      (1)
-explicit fp8_e4m3_x(bfloat16 const (&vals)[N], rounding r = rounding::to_even);  (2)
-explicit fp8_e4m3_x(float const (&vals)[N], rounding r = rounding::to_even);     (3)
-explicit fp8_e4m3_x(double const (&vals)[N]);                                    (4)
+explicit fp8_e4m3_x(half const (&vals)[N], rounding r = rounding::to_even);
+explicit fp8_e4m3_x(bfloat16 const (&vals)[N], rounding r = rounding::to_even);
+explicit fp8_e4m3_x(float const (&vals)[N], rounding r = rounding::to_even);
 ----
 
 _Effects:_ Initializes each element of this `fp8_e4m3_x` object from the
 corresponding element in the array `vals`.
-In overloads (1) - (3), each value is converted using the `r` rounding mode and
-the `saturation::finite` saturation mode.
-In overload (4), each value is converted using the `rounding::to_even` rounding
-mode and the `saturation::finite` saturation mode.
+Each value is converted using the `r` rounding mode and the `saturation::finite`
+saturation mode.
 
 _Target Support:_ The rounding mode `r` value has the following restrictions:
 
@@ -446,18 +429,15 @@ _Target Support:_ The rounding mode `r` value has the following restrictions:
 
 [source,c++]
 ----
-explicit fp8_e4m3_x(const marray<half,N>& vals, rounding r = rounding::to_even);      (1)
-explicit fp8_e4m3_x(const marray<bfloat16,N>& vals, rounding r = rounding::to_even);  (2)
-explicit fp8_e4m3_x(const marray<float,N>& vals, rounding r = rounding::to_even);     (3)
-explicit fp8_e4m3_x(const marray<double,N>& vals);                                    (4)
+explicit fp8_e4m3_x(const marray<half,N>& vals, rounding r = rounding::to_even);
+explicit fp8_e4m3_x(const marray<bfloat16,N>& vals, rounding r = rounding::to_even);
+explicit fp8_e4m3_x(const marray<float,N>& vals, rounding r = rounding::to_even);
 ----
 
 _Effects:_ Initializes each element of this `fp8_e4m3_x` object from the
 corresponding element in the `marray` object `vals`.
-In overloads (1) - (3), each value is converted using the `r` rounding mode and
-the `saturation::finite` saturation mode.
-In overload (4), each value is converted using the `rounding::to_even` rounding
-mode and the `saturation::finite` saturation mode.
+Each value is converted using the `r` rounding mode and the `saturation::finite`
+saturation mode.
 
 _Target Support:_ The rounding mode `r` value has the following restrictions:
 
@@ -494,7 +474,6 @@ The value `val` is converted using the `rounding::to_even` rounding mode and the
 fp8_e4m3_x& operator=(half val);
 fp8_e4m3_x& operator=(bfloat16 val);
 fp8_e4m3_x& operator=(float val);
-fp8_e4m3_x& operator=(double val);
 fp8_e4m3_x& operator=(short val);
 fp8_e4m3_x& operator=(int val);
 fp8_e4m3_x& operator=(long val);
@@ -520,7 +499,6 @@ _Returns:_ A reference to this `fp8_e4m3_x` object.
 explicit operator half() const;
 explicit operator bfloat16() const;
 explicit operator float() const;
-explicit operator double() const;
 ----
 
 _Constraints:_ `N == 1`.
@@ -691,7 +669,7 @@ class fp8_e5m2_x {
   ~fp8_e5m2_x() = default;
   fp8_e5m2_x& operator=(const fp8_e5m2_x&) = default;
 
-  // Construct from pack of half, bfloat16, float, double.
+  // Construct from pack of half, bfloat16, float.
   // Available only when the size of the pack is equal to N.
 
   // Available only when each type in the pack is half.
@@ -706,11 +684,7 @@ class fp8_e5m2_x {
   template<typename... Floats>
   explicit fp8_e5m2_x(Floats... vals);
 
-  // Available only when each type in the pack is double.
-  template<typename... Doubles>
-  explicit fp8_e5m2_x(Doubles... vals);
-
-  // Construct from an array of half, bfloat16, float, double.
+  // Construct from an array of half, bfloat16, float.
 
   explicit fp8_e5m2_x(half const (&vals)[N], rounding r = rounding::to_even,
                       saturation s = saturation::finite);
@@ -718,9 +692,8 @@ class fp8_e5m2_x {
                       saturation s = saturation::finite);
   explicit fp8_e5m2_x(float const (&vals)[N], rounding r = rounding::to_even,
                       saturation s = saturation::finite);
-  explicit fp8_e5m2_x(double const (&vals)[N]);
 
-  // Construct from an marray of half, bfloat16, float, double.
+  // Construct from an marray of half, bfloat16, float.
 
   explicit fp8_e5m2_x(const marray<half,N>& vals, rounding r = rounding::to_even,
                       saturation s = saturation::finite);
@@ -728,7 +701,6 @@ class fp8_e5m2_x {
                       saturation s = saturation::finite);
   explicit fp8_e5m2_x(const marray<float,N>& vals, rounding r = rounding::to_even,
                       saturation s = saturation::finite);
-  explicit fp8_e5m2_x(const marray<double,N>& vals);
 
   // Construct with stochastic rounding with user provided seed from an array of
   // half, bfloat16, float.
@@ -762,13 +734,12 @@ class fp8_e5m2_x {
   explicit fp8_e5m2_x(unsigned long val);
   explicit fp8_e5m2_x(unsigned long long val);
 
-  // Assign (operator) from half, bfloat16, float, double, and integer types.
+  // Assign (operator) from half, bfloat16, float, and integer types.
   // Available only when N==1.
 
   fp8_e5m2_x& operator=(half val);
   fp8_e5m2_x& operator=(bfloat16 val);
   fp8_e5m2_x& operator=(float val);
-  fp8_e5m2_x& operator=(double val);
   fp8_e5m2_x& operator=(short val);
   fp8_e5m2_x& operator=(int val);
   fp8_e5m2_x& operator=(long val);
@@ -778,13 +749,12 @@ class fp8_e5m2_x {
   fp8_e5m2_x& operator=(unsigned long val);
   fp8_e5m2_x& operator=(unsigned long long val);
 
-  // Convert to half, bfloat16, float, double.
+  // Convert to half, bfloat16, float.
   // Available only when N==1.
 
   explicit operator half() const;
   explicit operator bfloat16() const;
   explicit operator float() const;
-  explicit operator double() const;
 
   // Convert to integer types.
   // Available only when N==1.
@@ -853,9 +823,6 @@ explicit fp8_e5m2_x(Bfloats... vals);
 
 template<typename... Floats>           (3)
 explicit fp8_e5m2_x(Floats... vals);
-
-template<typename... Doubles>          (4)
-explicit fp8_e5m2_x(Doubles... vals);
 ----
 
 _Constraints_ (1): The size of the `Halfs` pack is `N` and each type in this
@@ -867,9 +834,6 @@ pack is `ext::oneapi::bfloat16`.
 _Constraints_ (3): The size of the `Floats` pack is `N` and each type in this
 pack is `float`.
 
-_Constraints_ (4): The size of the `Doubles` pack is `N` and each type in this
-pack is `double`.
-
 _Effects:_ Initializes each element of this `fp8_e5m2_x` object from the
 corresponding value in the `vals` pack.
 Each value is converted using the `rounding::to_even` rounding mode and the
@@ -879,21 +843,17 @@ Each value is converted using the `rounding::to_even` rounding mode and the
 
 [source,c++]
 ----
-explicit fp8_e5m2_x(half const (&vals)[N], rounding r = rounding::to_even,      (1)
+explicit fp8_e5m2_x(half const (&vals)[N], rounding r = rounding::to_even,
                     saturation s = saturation::finite);
-explicit fp8_e5m2_x(bfloat16 const (&vals)[N], rounding r = rounding::to_even,  (2)
+explicit fp8_e5m2_x(bfloat16 const (&vals)[N], rounding r = rounding::to_even,
                     saturation s = saturation::finite);
-explicit fp8_e5m2_x(float const (&vals)[N], rounding r = rounding::to_even,     (3)
+explicit fp8_e5m2_x(float const (&vals)[N], rounding r = rounding::to_even,
                     saturation s = saturation::finite);
-explicit fp8_e5m2_x(double const (&vals)[N]);                                   (4)
 ----
 
 _Effects:_ Initializes each element of this `fp8_e5m2_x` object from the
 corresponding element in the array `vals`.
-In overloads (1) - (3), each value is converted using the `r` rounding mode and
-the `s` saturation mode.
-In overload (4), each value is converted using the `rounding::to_even` rounding
-mode and the `saturation::finite` saturation mode.
+Each value is converted using the `r` rounding mode and the `s` saturation mode.
 
 _Target Support:_ The rounding mode `r` and saturation mode `s` values have the
 following restrictions:
@@ -906,21 +866,17 @@ following restrictions:
 
 [source,c++]
 ----
-explicit fp8_e5m2_x(const marray<half,N>& vals, rounding r = rounding::to_even,      (1)
+explicit fp8_e5m2_x(const marray<half,N>& vals, rounding r = rounding::to_even,
                     saturation s = saturation::finite);
-explicit fp8_e5m2_x(const marray<bfloat16,N>& vals, rounding r = rounding::to_even,  (2)
+explicit fp8_e5m2_x(const marray<bfloat16,N>& vals, rounding r = rounding::to_even,
                     saturation s = saturation::finite);
-explicit fp8_e5m2_x(const marray<float,N>& vals, rounding r = rounding::to_even,     (3)
+explicit fp8_e5m2_x(const marray<float,N>& vals, rounding r = rounding::to_even,
                     saturation s = saturation::finite);
-explicit fp8_e5m2_x(const marray<double,N>& vals);                                   (4)
 ----
 
 _Effects:_ Initializes each element of this `fp8_e5m2_x` object from the
 corresponding element in the `marray` object `vals`.
-In overloads (1) - (3), each value is converted using the `r` rounding mode and
-the `s` saturation mode.
-In overload (4), each value is converted using the `rounding::to_even` rounding
-mode and the `saturation::finite` saturation mode.
+Each value is converted using the `r` rounding mode and the `s` saturation mode.
 
 _Target Support:_ The rounding mode `r` and saturation mode `s` values have the
 following restrictions:
@@ -1016,7 +972,6 @@ The value `val` is converted using the `rounding::to_even` rounding mode and the
 fp8_e5m2_x& operator=(half val);
 fp8_e5m2_x& operator=(bfloat16 val);
 fp8_e5m2_x& operator=(float val);
-fp8_e5m2_x& operator=(double val);
 fp8_e5m2_x& operator=(short val);
 fp8_e5m2_x& operator=(int val);
 fp8_e5m2_x& operator=(long val);
@@ -1042,7 +997,6 @@ _Returns:_ A reference to this `fp8_e5m2_x` object.
 explicit operator half() const;
 explicit operator bfloat16() const;
 explicit operator float() const;
-explicit operator double() const;
 ----
 
 _Constraints:_ `N == 1`.
@@ -1263,7 +1217,7 @@ class fp8_e8m0_x {
   ~fp8_e8m0_x() = default;
   fp8_e8m0_x& operator=(const fp8_e8m0_x&) = default;
 
-  // Construct from pack of half, bfloat16, float, double.
+  // Construct from pack of half, bfloat16, float.
   // Available only when the size of the pack is equal to N.
 
   // Available only when each type in the pack is half.
@@ -1278,23 +1232,17 @@ class fp8_e8m0_x {
   template<typename... Floats>
   explicit fp8_e8m0_x(Floats... vals);
 
-  // Available only when each type in the pack is double.
-  template<typename... Doubles>
-  explicit fp8_e8m0_x(Doubles... vals);
-
-  // Construct from an array of half, bfloat16, float, double.
+  // Construct from an array of half, bfloat16, float.
 
   explicit fp8_e8m0_x(half const (&vals)[N], rounding r = rounding::upward);
   explicit fp8_e8m0_x(bfloat16 const (&vals)[N], rounding r = rounding::upward);
   explicit fp8_e8m0_x(float const (&vals)[N], rounding r = rounding::upward);
-  explicit fp8_e8m0_x(double const (&vals)[N]);
 
-  // Construct from an marray of half, bfloat16, float, double.
+  // Construct from an marray of half, bfloat16, float.
 
   explicit fp8_e8m0_x(const marray<half,N>& vals, rounding r = rounding::upward);
   explicit fp8_e8m0_x(const marray<bfloat16,N>& vals, rounding r = rounding::upward);
   explicit fp8_e8m0_x(const marray<float,N>& vals, rounding r = rounding::upward);
-  explicit fp8_e8m0_x(const marray<double,N>& vals);
 
   // Construct from integer types.
   // Available only when N==1.
@@ -1308,13 +1256,12 @@ class fp8_e8m0_x {
   explicit fp8_e8m0_x(unsigned long val);
   explicit fp8_e8m0_x(unsigned long long val);
 
-  // Assign (operator) from half, bfloat16, float, double, and integer types.
+  // Assign (operator) from half, bfloat16, float, and integer types.
   // Available only when N==1.
 
   fp8_e8m0_x& operator=(half val);
   fp8_e8m0_x& operator=(bfloat16 val);
   fp8_e8m0_x& operator=(float val);
-  fp8_e8m0_x& operator=(double val);
   fp8_e8m0_x& operator=(short val);
   fp8_e8m0_x& operator=(int val);
   fp8_e8m0_x& operator=(long val);
@@ -1324,13 +1271,12 @@ class fp8_e8m0_x {
   fp8_e8m0_x& operator=(unsigned long val);
   fp8_e8m0_x& operator=(unsigned long long val);
 
-  // Convert to half, bfloat16, float, double.
+  // Convert to half, bfloat16, float.
   // Available only when N==1.
 
   explicit operator half() const;
   explicit operator bfloat16() const;
   explicit operator float() const;
-  explicit operator double() const;
 
   // Convert to integer types.
   // Available only when N==1.
@@ -1399,9 +1345,6 @@ explicit fp8_e8m0_x(Bfloats... vals);
 
 template<typename... Floats>           (3)
 explicit fp8_e8m0_x(Floats... vals);
-
-template<typename... Doubles>          (4)
-explicit fp8_e8m0_x(Doubles... vals);
 ----
 
 _Constraints_ (1): The size of the `Halfs` pack is `N` and each type in this
@@ -1413,9 +1356,6 @@ pack is `ext::oneapi::bfloat16`.
 _Constraints_ (3): The size of the `Floats` pack is `N` and each type in this
 pack is `float`.
 
-_Constraints_ (4): The size of the `Doubles` pack is `N` and each type in this
-pack is `double`.
-
 _Effects:_ Initializes each element of this `fp8_e8m0_x` object from the
 corresponding value in the `vals` pack.
 Each value is converted using the `rounding::upward` rounding mode and the
@@ -1425,18 +1365,15 @@ Each value is converted using the `rounding::upward` rounding mode and the
 
 [source,c++]
 ----
-explicit fp8_e8m0_x(half const (&vals)[N], rounding r = rounding::upward);      (1)
-explicit fp8_e8m0_x(bfloat16 const (&vals)[N], rounding r = rounding::upward);  (2)
-explicit fp8_e8m0_x(float const (&vals)[N], rounding r = rounding::upward);     (3)
-explicit fp8_e8m0_x(double const (&vals)[N]);                                   (4)
+explicit fp8_e8m0_x(half const (&vals)[N], rounding r = rounding::upward);
+explicit fp8_e8m0_x(bfloat16 const (&vals)[N], rounding r = rounding::upward);
+explicit fp8_e8m0_x(float const (&vals)[N], rounding r = rounding::upward);
 ----
 
 _Effects:_ Initializes each element of this `fp8_e8m0_x` object from the
 corresponding element in the array `vals`.
-In overloads (1) - (3), each value is converted using the `r` rounding mode and
-the `saturation::finite` saturation mode.
-In overload (4), each value is converted using the `rounding::upward` rounding
-mode and the `saturation::finite` saturation mode.
+Each value is converted using the `r` rounding mode and the `saturation::finite`
+saturation mode.
 
 _Target Support:_ Host and device code support only `rounding::upward` and
 `rounding::toward_zero`.
@@ -1445,18 +1382,15 @@ _Target Support:_ Host and device code support only `rounding::upward` and
 
 [source,c++]
 ----
-explicit fp8_e8m0_x(const marray<half,N>& vals, rounding r = rounding::upward);      (1)
-explicit fp8_e8m0_x(const marray<bfloat16,N>& vals, rounding r = rounding::upward);  (2)
-explicit fp8_e8m0_x(const marray<float,N>& vals, rounding r = rounding::upward);     (3)
-explicit fp8_e8m0_x(const marray<double,N>& vals);                                   (4)
+explicit fp8_e8m0_x(const marray<half,N>& vals, rounding r = rounding::upward);
+explicit fp8_e8m0_x(const marray<bfloat16,N>& vals, rounding r = rounding::upward);
+explicit fp8_e8m0_x(const marray<float,N>& vals, rounding r = rounding::upward);
 ----
 
 _Effects:_ Initializes each element of this `fp8_e8m0_x` object from the
 corresponding element in the `marray` object `vals`.
-In overloads (1) - (3), each value is converted using the `r` rounding mode and
-the `saturation::finite` saturation mode.
-In overload (4), each value is converted using the `rounding::upward` rounding
-mode and the `saturation::finite` saturation mode.
+Each value is converted using the `r` rounding mode and the `saturation::finite`
+saturation mode.
 
 _Target Support:_ Host and device code support only `rounding::upward` and
 `rounding::toward_zero`.
@@ -1490,7 +1424,6 @@ The value `val` is converted using the `rounding::upward` rounding mode and the
 fp8_e8m0_x& operator=(half val);
 fp8_e8m0_x& operator=(bfloat16 val);
 fp8_e8m0_x& operator=(float val);
-fp8_e8m0_x& operator=(double val);
 fp8_e8m0_x& operator=(short val);
 fp8_e8m0_x& operator=(int val);
 fp8_e8m0_x& operator=(long val);
@@ -1516,7 +1449,6 @@ _Returns:_ A reference to this `fp8_e8m0_x` object.
 explicit operator half() const;      (1)
 explicit operator bfloat16() const;  (2)
 explicit operator float() const;     (3)
-explicit operator double() const;    (4)
 ----
 
 _Constraints:_ `N == 1`.
@@ -1528,7 +1460,7 @@ Conversion (1) uses `rounding::to_even` rounding mode.
 If the converted value cannot be represented in `half`, the result is positive
 Infinity.
 
-[_Note:_ Conversions (2) - (4) are exact, so there is no rounding or saturation
+[_Note:_ Conversions (2) - (3) are exact, so there is no rounding or saturation
 mode.
 _{endnote}_]
 
