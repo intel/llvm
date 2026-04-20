@@ -285,10 +285,8 @@ urProgramLink(ur_context_handle_t hContext, uint32_t count,
       auto URProgram = std::make_unique<ur_program_handle_t_>(
           Program, hContext, hContext->DeviceCount, hContext->Devices.data());
       *phProgram = URProgram.release();
-    } catch (std::bad_alloc &) {
-      return UR_RESULT_ERROR_OUT_OF_RESOURCES;
     } catch (...) {
-      return UR_RESULT_ERROR_UNKNOWN;
+      return exceptionToResult(std::current_exception());
     }
   }
   CL_RETURN_ON_FAILURE(CLResult);
