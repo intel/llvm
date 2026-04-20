@@ -6,9 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-// Intentionally insufficient set of includes and no "#pragma once".
+#pragma once
 
+#include <sycl/detail/builtins/builtin_helpers.hpp>
 #include <sycl/detail/builtins/helper_macros.hpp>
+
+#include <limits>
 
 namespace sycl {
 inline namespace _V1 {
@@ -25,9 +28,8 @@ template <typename... Ts> struct last_int_rest_same {
     return (
         (... &&
          (++i == N
-              ? /* last */ builtin_same_shape_v<Ts> // filter out "bad" types,
-                                                    // e.g. multi-ptr
-                    && std::is_same_v<get_elem_type_t<Ts>, int_type>
+              ? /* last */ builtin_same_shape_v<Ts> &&
+                    std::is_same_v<get_elem_type_t<Ts>, int_type>
               : /* not last  */ builtin_same_or_swizzle_v<first_type, Ts>)));
   }();
 };
@@ -512,7 +514,6 @@ DEVICE_IMPL_TEMPLATE(ONE_ARG, nan, builtin_enable_nan_t, __spirv_ocl_nan)
 #else
 inline float nan(uint32_t) { return std::numeric_limits<float>::quiet_NaN(); }
 inline double nan(uint64_t) { return std::numeric_limits<float>::quiet_NaN(); }
-// NOTE: half_type.hpp provides partial specialization for std::numeric_limits.
 inline half nan(uint16_t) { return std::numeric_limits<half>::quiet_NaN(); }
 template <typename T> detail::builtin_enable_nan_t<T> nan(T x) {
   return detail::builtin_delegate_to_scalar([](auto x) { return nan(x); }, x);

@@ -6,8 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-// Intentionally insufficient set of includes and no "#pragma once".
+#pragma once
 
+#include <sycl/detail/builtins/builtin_helpers.hpp>
 #include <sycl/detail/builtins/helper_macros.hpp>
 
 namespace sycl {
@@ -272,7 +273,7 @@ struct rel_enable_select_vec_helper {
   static constexpr bool check_T2 =
       is_vec_or_swizzle_v<T2> &&
       num_elements<T0>::value == num_elements<T2>::value &&
-      std ::is_integral_v<T2_elem_type> &&
+      std::is_integral_v<T2_elem_type> &&
       sizeof(T0_elem_type) == sizeof(T2_elem_type);
   static constexpr bool value = check_T0 && check_T1 && check_T2;
 };
