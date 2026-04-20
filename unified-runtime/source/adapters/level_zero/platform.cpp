@@ -585,6 +585,8 @@ ur_result_t ur_platform_handle_t_::initialize() {
       {"zeCommandListIsGraphCaptureEnabledExp",
        reinterpret_cast<void **>(
            &ZeGraphExt.zeCommandListIsGraphCaptureEnabledExp)},
+      {"zeCommandListGetGraphExp",
+       reinterpret_cast<void **>(&ZeGraphExt.zeCommandListGetGraphExp)},
       {"zeGraphIsEmptyExp",
        reinterpret_cast<void **>(&ZeGraphExt.zeGraphIsEmptyExp)},
       {"zeGraphDumpContentsExp",

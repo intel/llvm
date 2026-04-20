@@ -2823,6 +2823,14 @@ ur_result_t urPrintQueueIsGraphCaptureEnabledExpParams(
   return str_copy(&ss, buffer, buff_size, out_size);
 }
 
+ur_result_t urPrintQueueGetGraphExpParams(
+    const struct ur_queue_get_graph_exp_params_t *params, char *buffer,
+    const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
 ur_result_t
 urPrintSamplerCreateParams(const struct ur_sampler_create_params_t *params,
                            char *buffer, const size_t buff_size,

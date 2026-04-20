@@ -510,4 +510,10 @@ ur_result_t urQueueIsGraphCaptureEnabledExp(ur_queue_handle_t hQueue,
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
+ur_result_t urQueueGetGraphExp(ur_queue_handle_t hQueue,
+                               ur_exp_graph_handle_t *phGraph) try {
+  return hQueue->get().queueGetGraphExp(phGraph);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
 } // namespace ur::level_zero

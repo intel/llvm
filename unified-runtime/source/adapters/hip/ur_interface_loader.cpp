@@ -256,6 +256,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetQueueExpProcAddrTable(
   pDdiTable->pfnBeginCaptureIntoGraphExp = urQueueBeginCaptureIntoGraphExp;
   pDdiTable->pfnEndGraphCaptureExp = urQueueEndGraphCaptureExp;
   pDdiTable->pfnIsGraphCaptureEnabledExp = urQueueIsGraphCaptureEnabledExp;
+  pDdiTable->pfnGetGraphExp = urQueueGetGraphExp;
 
   return UR_RESULT_SUCCESS;
 }
