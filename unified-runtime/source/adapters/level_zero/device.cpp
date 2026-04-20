@@ -1032,8 +1032,7 @@ ur_result_t urDeviceGetInfo(
   case UR_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE:
     return ReturnValue(uint32_t{Device->ZeDeviceProperties->numEUsPerSubslice});
   case UR_DEVICE_INFO_GPU_HW_THREADS_PER_EU: {
-    uint32_t RETVALUE = Device->ZeDeviceProperties->numThreadsPerEU;
-    return ReturnValue(RETVALUE);
+    return ReturnValue(uint32_t{Device->ZeDeviceProperties->numThreadsPerEU});
   }
   case UR_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES: {
     // There are no explicit restrictions in L0 programming guide, so assume all
