@@ -276,7 +276,7 @@ struct CastIsPossible<To, std::optional<From>> {
 /// always be possible.
 template <typename To, typename From>
 struct CastIsPossible<To, From, std::enable_if_t<std::is_base_of_v<To, From>>> {
-  static inline bool isPossible(const From &f) { return true; }
+  static inline bool isPossible(const From &) { return true; }
 };
 
 //===----------------------------------------------------------------------===//
@@ -595,7 +595,7 @@ constexpr bool IsNullable =
 // Generic values can't *not* be present.
 template <typename T, typename Enable = void> struct ValueIsPresent {
   using UnwrappedType = T;
-  static inline bool isPresent(const T &t) { return true; }
+  static inline bool isPresent(const T &) { return true; }
   static inline decltype(auto) unwrapValue(T &t) { return t; }
 };
 

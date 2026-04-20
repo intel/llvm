@@ -212,7 +212,7 @@ SymPropReader::getPropRegistry() {
             static_cast<ConstantInt *>(Property_ValSize)->getZExtValue();
 
         if (Property_Type_AsUInt64 == llvm::util::PropertyValue::UINT32) {
-          PropSet.insert(std::pair(Property_Name_AsStringRef.rtrim('\0'),
+          PropSet.insert(std::pair(Property_Name_AsStringRef.rtrim('\0').str(),
                                    Property_ValSize_AsUInt64));
         } else if (Property_Type_AsUInt64 ==
                    llvm::util::PropertyValue::BYTE_ARRAY) {
@@ -228,7 +228,8 @@ SymPropReader::getPropRegistry() {
               reinterpret_cast<const unsigned char *>(Data_AsStringRef.data()) +
                   sizeof(llvm::util::PropertyValue::SizeTy),
               DataBitSize);
-          PropSet.insert(std::pair(Property_Name_AsStringRef.rtrim('\0'), PV));
+          PropSet.insert(
+              std::pair(Property_Name_AsStringRef.rtrim('\0').str(), PV));
         } else {
           llvm_unreachable_internal("unsupported property");
         }

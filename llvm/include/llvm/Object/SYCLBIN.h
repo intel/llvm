@@ -10,6 +10,7 @@
 #define LLVM_OBJECT_SYCLBIN_H
 
 #include "llvm/ADT/SmallString.h"
+#include "llvm/Object/OffloadBinary.h"
 #include "llvm/SYCLPostLink/ModuleSplitter.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include <string>
@@ -18,19 +19,15 @@ namespace llvm {
 
 namespace object {
 
-// Representation of a SYCLBIN binary object. This is intended for use as an
-// image inside a OffloadBinary.
+// Representation of a SYCLBIN binary object.
+// Currently SYCLBIN doesn't own memory, so user must ensure memory used to
+// initialize SYCLBIN remains valid for the lifetime of the SYCLBIN object. So
+// far I did not find use case, where we want to move memory ownership to
+// SYCLBIN or do a memory copy. This can be changed if we find this use case.
 class SYCLBIN {
 public:
-  SYCLBIN(MemoryBufferRef Source) : Data{Source} {}
-
   SYCLBIN(const SYCLBIN &Other) = delete;
-  SYCLBIN(SYCLBIN &&Other) = default;
-
   SYCLBIN &operator=(const SYCLBIN &Other) = delete;
-  SYCLBIN &operator=(SYCLBIN &&Other) = default;
-
-  MemoryBufferRef getMemoryBufferRef() const { return Data; }
 
   enum class BundleState : uint8_t { Input = 0, Object = 1, Executable = 2 };
 
@@ -50,61 +47,72 @@ public:
     SYCLBINDesc &operator=(const SYCLBINDesc &Other) = delete;
     SYCLBINDesc &operator=(SYCLBINDesc &&Other) = default;
 
-    size_t getMetadataTableByteSize() const;
-    Expected<size_t> getBinaryTableByteSize() const;
-    Expected<size_t> getSYCLBINByteSize() const;
-
   private:
     struct ImageDesc {
-      SmallString<0> Metadata;
+      ImageKind TheImageKind = ImageKind::IMG_None;
+      llvm::Triple TargetTriple;
+      std::string ArchString;
       SmallString<0> FilePath;
     };
 
     struct AbstractModuleDesc {
-      SmallString<0> Metadata;
+      std::unique_ptr<llvm::util::PropertySetRegistry> Metadata;
       SmallVector<ImageDesc, 4> IRModuleDescs;
       SmallVector<ImageDesc, 4> NativeDeviceCodeImageDescs;
     };
 
-    SmallString<0> GlobalMetadata;
+    std::unique_ptr<llvm::util::PropertySetRegistry> GlobalMetadata;
     SmallVector<AbstractModuleDesc, 4> AbstractModuleDescs;
 
     friend class SYCLBIN;
   };
 
-  /// The current version of the binary used for backwards compatibility.
-  static constexpr uint32_t CurrentVersion = 1;
+  /// Create a SYCLBIN object from a vector of OffloadBinary objects.
+  static Expected<std::unique_ptr<SYCLBIN>>
+  create(SmallVector<std::unique_ptr<OffloadBinary>> OffloadBinaries);
 
-  /// Magic number used to identify SYCLBIN files.
-  static constexpr uint32_t MagicNumber = 0x53594249;
-
-  /// Serialize \p Desc to \p OS .
+  /// Serialize \p Desc.
   static Error write(const SYCLBIN::SYCLBINDesc &Desc, raw_ostream &OS);
 
   /// Deserialize the contents of \p Source to produce a SYCLBIN object.
   static Expected<std::unique_ptr<SYCLBIN>> read(MemoryBufferRef Source);
 
-  struct IRModule {
-    std::unique_ptr<llvm::util::PropertySetRegistry> Metadata;
-    StringRef RawIRBytes;
-  };
-  struct NativeDeviceCodeImage {
-    std::unique_ptr<llvm::util::PropertySetRegistry> Metadata;
-    StringRef RawDeviceCodeImageBytes;
-  };
+  /// Check if OffloadBinary is a SYCLBIN.
+  static bool
+  isSYCLBIN(const SmallVector<std::unique_ptr<OffloadBinary>> &OffloadBinaries);
+
+  ArrayRef<std::unique_ptr<OffloadBinary>> getOffloadBinaries() const {
+    return OffloadBinaries;
+  }
 
   struct AbstractModule {
     std::unique_ptr<llvm::util::PropertySetRegistry> Metadata;
-    SmallVector<IRModule> IRModules;
-    SmallVector<NativeDeviceCodeImage> NativeDeviceCodeImages;
+    SmallVector<const OffloadBinary *> IRModules;
+    SmallVector<const OffloadBinary *> NativeDeviceCodeImages;
   };
 
-  uint32_t Version;
-  std::unique_ptr<llvm::util::PropertySetRegistry> GlobalMetadata;
+  std::unique_ptr<llvm::util::PropertySet> GlobalMetadata;
   SmallVector<AbstractModule, 4> AbstractModules;
 
 private:
-  MemoryBufferRef Data;
+  SYCLBIN(SmallVector<std::unique_ptr<OffloadBinary>> OB)
+      : OffloadBinaries(std::move(OB)) {}
+
+  Error initAbstractModules();
+
+  size_t getNumAbstractModules() const {
+    return GlobalMetadata
+        ->at(llvm::util::PropertySet::key_type{"abstract_modules_num"})
+        .asUint32();
+  }
+
+  SmallVector<std::unique_ptr<OffloadBinary>> OffloadBinaries;
+
+  // The types and fields below are kept for backward compatibility and should
+  // be removed in the future:
+
+  /// Magic number used to identify SYCLBIN files.
+  static constexpr uint32_t MagicNumber = 0x53594249;
 
   struct alignas(8) FileHeaderType {
     uint32_t Magic;
@@ -140,6 +148,8 @@ private:
     uint64_t BinaryBytesOffset;
     uint64_t BinaryBytesSize;
   };
+
+  // End of deprecated types and fields.
 };
 
 } // namespace object
