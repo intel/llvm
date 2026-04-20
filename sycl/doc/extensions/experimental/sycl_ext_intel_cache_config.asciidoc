@@ -20,7 +20,7 @@
 == Notice
 
 [%hardbreaks]
-Copyright (c) 2023-2023 Intel Corporation.  All rights reserved.
+Copyright (c) 2023-2026 Intel Corporation.  All rights reserved.
 
 Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
 of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
@@ -43,7 +43,8 @@ This extension is written against the SYCL 2020 specification, Revision 6 and
 the following extensions:
 
 - link:../experimental/sycl_ext_oneapi_properties.asciidoc[sycl_ext_oneapi_properties]
-- link:sycl_ext_oneapi_kernel_properties.asciidoc[sycl_ext_oneapi_kernel_properties]
+- link:../experimental/sycl_ext_oneapi_enqueue_functions.asciidoc[sycl_ext_oneapi_enqueue_functions]
+- link:../experimental/sycl_ext_oneapi_free_function_kernels.asciidoc[sycl_ext_oneapi_free_function_kernels]
 
 == Status
 
@@ -57,9 +58,10 @@ specification.*
 == Overview
 
 There are devices where the same hardware resources are used for shared local
-memory (SLM) and L1 data cache. Developers may want more L1 data cache or SLM based
-on their application. This extension adds runtime kernel property `cache_config`
-which provides a way to set the preferred cache configuration for a kernel.
+memory (SLM) and L1 data cache. Developers may want more L1 data cache or SLM
+based on their application. This extension adds a kernel launch property
+`cache_config` which provides a way to set the preferred cache configuration
+for a kernel invocation.
 
 === Feature Test Macro
 
@@ -80,14 +82,26 @@ supports.
 
 === Introduction
 
-This extension introduces new kernel property that can be applied to kernels
-using the mechanism defined in link:sycl_ext_oneapi_kernel_properties.asciidoc[sycl_ext_oneapi_kernel_properties].
+This extension introduces a new kernel launch property that specifies the
+preferred cache configuration for a single kernel invocation. The recommended
+way to apply the property is to pass it through a `launch_config` object to
+one of the enqueue free functions defined in
+link:../experimental/sycl_ext_oneapi_enqueue_functions.asciidoc[
+sycl_ext_oneapi_enqueue_functions] (such as `parallel_for` or `nd_launch`).
+The property is applicable both to kernels expressed as SYCL lambdas/function
+objects and to free function kernels defined by
+link:../experimental/sycl_ext_oneapi_free_function_kernels.asciidoc[
+sycl_ext_oneapi_free_function_kernels].
+
+Because `cache_config` is a launch-time property rather than a compile-time
+kernel property, it is not embedded into the kernel's type and the cache
+configuration can be chosen independently for each invocation of the same
+kernel.
 
 === Cache Config Property
 
 ```c++
 namespace sycl::ext::intel::experimental {
-
 
 enum class cache_config_enum : /*unspecified*/ { large_slm, large_data };
 
@@ -105,71 +119,114 @@ struct cache_config {
 ```
 
 The `cache_config` property provides a way to set the preferred cache
-configuration for a kernel. The following values are supported:
+configuration for a kernel invocation. The following values are supported:
 
- * `large_slm`: Prefer having larger shared local memory and smaller L1 data cache.
-                In this case driver will ensure that all workgroups will have enough
-                SLM to run.
+ * `large_slm`: Prefer having larger shared local memory and smaller L1 data
+                cache. In this case the driver will ensure that all workgroups
+                will have enough SLM to run.
 
- * `large_data`: Prefer having larger L1 data cache and smaller shared local memory.
-                 In this case SLM size may be shrinked (which may result in workgroups
-                 spawning as there will be not enough SLM to handle multiple workgroups)
-                 but L1 data cache will be bigger. There may be rare use cases when this
-                 is beneficial.
+ * `large_data`: Prefer having larger L1 data cache and smaller shared local
+                 memory. In this case SLM size may be shrunk (which may result
+                 in workgroups spawning as there will be not enough SLM to
+                 handle multiple workgroups) but L1 data cache will be bigger.
+                 There may be rare use cases when this is beneficial.
 
-These property may be passed to any kernel invocation function (e.g.
-`parallel_for`) via the properties parameter.  At most, only one of these
-values may be passed to any single kernel invocation function.
+The `cache_config` property must be passed to a kernel invocation through a
+`launch_config` object.  At most one `cache_config` value may be passed to
+any single kernel invocation.
 
 Backends that do not support this extension may accept and ignore this
 property.
 
-=== Adding a Property List to a Kernel Launch
+=== Usage Examples
 
-A simple example of using this extension  is shown below.
+Simple examples of using this extension are shown below.
 
-The example assumes that the kernel will benefit from large SLM and hence uses the property
-`cache_config_large_slm`:
+==== parallel_for and nd_launch
 
 ```c++
-using namespace sycl::ext::intel::experimental;
-{
-  ...
-  properties kernel_properties{cache_config{large_slm}};
+namespace syclex = sycl::ext::oneapi::experimental;
+namespace intelex = sycl::ext::intel::experimental;
 
-  q.single_task(kernel_properties, [=] {
-    *a = *b + *c;
-  }).wait();
+sycl::queue q;
+syclex::properties props{intelex::cache_config{intelex::large_slm}};
+
+// Range-based launch.
+syclex::parallel_for(q,
+    syclex::launch_config{sycl::range<1>{1024}, props},
+    [=](sycl::item<1> i) { /* kernel code */ });
+
+// nd_range-based launch.
+syclex::nd_launch(q,
+    syclex::launch_config{sycl::nd_range<1>{{1024}, {64}}, props},
+    [=](sycl::nd_item<1> i) { /* kernel code */ });
+
+q.wait();
+```
+
+==== Free function kernels
+
+For a kernel declared with the free function kernel syntax, the property is
+passed to `nd_launch` via the same `launch_config` mechanism:
+
+```c++
+namespace syclex = sycl::ext::oneapi::experimental;
+namespace intelex = sycl::ext::intel::experimental;
+
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclex::nd_range_kernel<1>))
+void my_kernel(float *ptr) { /* kernel code */ }
+
+int main() {
+  sycl::queue q;
+  float *ptr = sycl::malloc_shared<float>(1024, q);
+
+  syclex::launch_config cfg{
+    sycl::nd_range<1>{{1024}, {64}},
+    syclex::properties{intelex::cache_config{intelex::large_slm}}
+  };
+  syclex::nd_launch(q, cfg, syclex::kernel_function<my_kernel>, ptr);
+
+  q.wait();
 }
 ```
 
-=== Embedding Property into a Kernel
+==== Different cache configurations for different launches of the same kernel
 
-The example below shows how the kernel from the previous section could be
-rewritten to leverage an embedded property list (see link:sycl_ext_oneapi_kernel_properties.asciidoc#embedding-properties-into-a-kernel[embedding-properties-into-a-kernel]):
+Because `cache_config` is a runtime property, different invocations of the
+same kernel can use different cache configurations.
 
 ```c++
-using namespace sycl::ext::intel::experimental;
-struct KernelFunctor {
+namespace syclex = sycl::ext::oneapi::experimental;
+namespace intelex = sycl::ext::intel::experimental;
 
-  KernelFunctor(int* a, int* b, int* c) : a(a), b(b), c(c) {}
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclex::nd_range_kernel<1>))
+void my_kernel(float *ptr) { /* kernel code */ }
 
-  void operator()() const {
-    *a = *b + *c;
-  }
+int main() {
+  sycl::queue q;
+  sycl::context ctxt = q.get_context();
+  float *ptr = sycl::malloc_shared<float>(1024, q);
 
-  auto get(properties_tag) const {
-    return properties{cache_config{large_slm}};
-  }
+  auto bundle =
+      syclex::get_kernel_bundle<my_kernel, sycl::bundle_state::executable>(ctxt);
+  sycl::kernel k = bundle.ext_oneapi_get_kernel<my_kernel>();
 
-  int* a;
-  int* b;
-  int* c;
-};
+  sycl::nd_range<1> ndr{{1024}, {64}};
 
-...
+  // First launch with large SLM.
+  syclex::nd_launch(q,
+      syclex::launch_config{ndr,
+          syclex::properties{intelex::cache_config{intelex::large_slm}}},
+      k, ptr);
 
-q.single_task(KernelFunctor{a, b, c}).wait();
+  // Second launch of the same kernel with large data cache.
+  syclex::nd_launch(q,
+      syclex::launch_config{ndr,
+          syclex::properties{intelex::cache_config{intelex::large_data}}},
+      k, ptr);
+
+  q.wait();
+}
 ```
 
 == Revision History
@@ -180,4 +237,5 @@ q.single_task(KernelFunctor{a, b, c}).wait();
 |========================================
 |Rev|Date|Author|Changes
 |1|2022-03-01|Artur Gainullin|*Initial public working draft*
+|2|2026-04-24|Artur Gainullin|*Clarify `cache_config` as a kernel launch property; remove embedding via `get(properties_tag)`*
 |========================================
