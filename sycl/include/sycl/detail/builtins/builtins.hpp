@@ -71,7 +71,7 @@
 #include <sycl/half_type.hpp>
 #include <sycl/marray.hpp>
 
-#include <algorithm>
+#include <limits>
 
 namespace sycl {
 inline namespace _V1 {
