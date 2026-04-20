@@ -52,9 +52,9 @@ static zex_counter_based_event_exp_flags_t createZeFlags(queue_type queueType,
 
   if (queueType == QUEUE_IMMEDIATE) {
     zeFlags |= ZEX_COUNTER_BASED_EVENT_FLAG_IMMEDIATE;
-  } else {
-    zeFlags |= ZEX_COUNTER_BASED_EVENT_FLAG_NON_IMMEDIATE;
   }
+  // Always set non immediate flag for compatibility with graph record & replay
+  zeFlags |= ZEX_COUNTER_BASED_EVENT_FLAG_NON_IMMEDIATE;
 
   return zeFlags;
 }

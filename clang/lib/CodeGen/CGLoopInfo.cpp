@@ -513,6 +513,10 @@ SmallVector<Metadata *, 4> LoopInfo::createMetadata(
     LoopProperties.push_back(
         MDNode::get(Ctx, MDString::get(Ctx, "llvm.loop.mustprogress")));
 
+  if (Attrs.LICMDisabled)
+    LoopProperties.push_back(
+        MDNode::get(Ctx, MDString::get(Ctx, "llvm.licm.disable")));
+
   assert(!!AccGroup == Attrs.IsParallel &&
          "There must be an access group iff the loop is parallel");
   if (Attrs.IsParallel) {
@@ -579,15 +583,6 @@ SmallVector<Metadata *, 4> LoopInfo::createMetadata(
     LoopProperties.push_back(MDNode::get(Ctx, Vals));
   }
 
-  if (Attrs.SYCLSpeculatedIterationsNIterations) {
-    Metadata *Vals[] = {
-        MDString::get(Ctx, "llvm.loop.intel.speculated.iterations.count"),
-        ConstantAsMetadata::get(
-            ConstantInt::get(llvm::Type::getInt32Ty(Ctx),
-                             *Attrs.SYCLSpeculatedIterationsNIterations))};
-    LoopProperties.push_back(MDNode::get(Ctx, Vals));
-  }
-
   for (const auto &VC : Attrs.SYCLIntelFPGAVariantCount) {
     Metadata *Vals[] = {MDString::get(Ctx, VC.first),
                         ConstantAsMetadata::get(ConstantInt::get(
@@ -635,7 +630,8 @@ LoopAttributes::LoopAttributes(bool IsParallel)
       SYCLLoopCoalesceNLevels(0), SYCLLoopPipeliningDisable(false),
       SYCLLoopPipeliningEnable(false), UnrollCount(0), UnrollAndJamCount(0),
       DistributeEnable(LoopAttributes::Unspecified), PipelineDisabled(false),
-      PipelineInitiationInterval(0), CodeAlign(0), MustProgress(false) {}
+      LICMDisabled(false), PipelineInitiationInterval(0), CodeAlign(0),
+      MustProgress(false) {}
 
 void LoopAttributes::clear() {
   IsParallel = false;
@@ -650,7 +646,6 @@ void LoopAttributes::clear() {
   SYCLLoopCoalesceNLevels = 0;
   SYCLLoopPipeliningDisable = false;
   SYCLMaxInterleavingNInvocations.reset();
-  SYCLSpeculatedIterationsNIterations.reset();
   SYCLIntelFPGAVariantCount.clear();
   SYCLMaxReinvocationDelayNCycles.reset();
   SYCLLoopPipeliningEnable = false;
@@ -662,6 +657,7 @@ void LoopAttributes::clear() {
   VectorizePredicateEnable = LoopAttributes::Unspecified;
   DistributeEnable = LoopAttributes::Unspecified;
   PipelineDisabled = false;
+  LICMDisabled = false;
   PipelineInitiationInterval = 0;
   CodeAlign = 0;
   MustProgress = false;
@@ -688,11 +684,11 @@ LoopInfo::LoopInfo(BasicBlock *Header, const LoopAttributes &Attrs,
       Attrs.SYCLLoopCoalesceNLevels == 0 &&
       Attrs.SYCLLoopPipeliningDisable == false &&
       !Attrs.SYCLMaxInterleavingNInvocations &&
-      !Attrs.SYCLSpeculatedIterationsNIterations &&
       Attrs.SYCLIntelFPGAVariantCount.empty() && Attrs.UnrollCount == 0 &&
       !Attrs.SYCLMaxReinvocationDelayNCycles &&
       !Attrs.SYCLLoopPipeliningEnable && Attrs.UnrollAndJamCount == 0 &&
-      !Attrs.PipelineDisabled && Attrs.PipelineInitiationInterval == 0 &&
+      !Attrs.PipelineDisabled && !Attrs.LICMDisabled &&
+      Attrs.PipelineInitiationInterval == 0 &&
       Attrs.VectorizePredicateEnable == LoopAttributes::Unspecified &&
       Attrs.VectorizeEnable == LoopAttributes::Unspecified &&
       Attrs.UnrollEnable == LoopAttributes::Unspecified &&
@@ -730,6 +726,7 @@ void LoopInfo::finish() {
     BeforeJam.VectorizeEnable = Attrs.VectorizeEnable;
     BeforeJam.DistributeEnable = Attrs.DistributeEnable;
     BeforeJam.VectorizePredicateEnable = Attrs.VectorizePredicateEnable;
+    BeforeJam.LICMDisabled = Attrs.LICMDisabled;
 
     switch (Attrs.UnrollEnable) {
     case LoopAttributes::Unspecified:
@@ -892,6 +889,9 @@ void LoopInfoStack::push(BasicBlock *Header, clang::ASTContext &Ctx,
       case LoopHintAttr::PipelineDisabled:
         setPipelineDisabled(true);
         break;
+      case LoopHintAttr::LICMDisabled:
+        setLICMDisabled(true);
+        break;
       case LoopHintAttr::UnrollCount:
       case LoopHintAttr::UnrollAndJamCount:
       case LoopHintAttr::VectorizeWidth:
@@ -925,6 +925,7 @@ void LoopInfoStack::push(BasicBlock *Header, clang::ASTContext &Ctx,
       case LoopHintAttr::InterleaveCount:
       case LoopHintAttr::PipelineDisabled:
       case LoopHintAttr::PipelineInitiationInterval:
+      case LoopHintAttr::LICMDisabled:
         llvm_unreachable("Options cannot enabled.");
         break;
       }
@@ -947,6 +948,7 @@ void LoopInfoStack::push(BasicBlock *Header, clang::ASTContext &Ctx,
       case LoopHintAttr::Distribute:
       case LoopHintAttr::PipelineDisabled:
       case LoopHintAttr::PipelineInitiationInterval:
+      case LoopHintAttr::LICMDisabled:
         llvm_unreachable("Options cannot be used to assume mem safety.");
         break;
       }
@@ -969,6 +971,7 @@ void LoopInfoStack::push(BasicBlock *Header, clang::ASTContext &Ctx,
       case LoopHintAttr::PipelineDisabled:
       case LoopHintAttr::PipelineInitiationInterval:
       case LoopHintAttr::VectorizePredicate:
+      case LoopHintAttr::LICMDisabled:
         llvm_unreachable("Options cannot be used with 'full' hint.");
         break;
       }
@@ -1010,6 +1013,7 @@ void LoopInfoStack::push(BasicBlock *Header, clang::ASTContext &Ctx,
       case LoopHintAttr::Interleave:
       case LoopHintAttr::Distribute:
       case LoopHintAttr::PipelineDisabled:
+      case LoopHintAttr::LICMDisabled:
         llvm_unreachable("Options cannot be assigned a value.");
         break;
       }
@@ -1047,24 +1051,6 @@ void LoopInfoStack::push(BasicBlock *Header, clang::ASTContext &Ctx,
   // For attribute enable_loop_pipelining:
   // 'llvm.loop.intel.pipelining.enable, i32 1' metadata will be emitted
   for (const auto *A : Attrs) {
-    if (const auto *SYCLIntelIVDep = dyn_cast<SYCLIntelIVDepAttr>(A))
-      addSYCLIVDepInfo(Header->getContext(), SYCLIntelIVDep->getSafelenValue(),
-                       SYCLIntelIVDep->getArrayDecl());
-
-    if (const auto *SYCLIntelII =
-            dyn_cast<SYCLIntelInitiationIntervalAttr>(A)) {
-      const auto *CE = cast<ConstantExpr>(SYCLIntelII->getNExpr());
-      llvm::APSInt ArgVal = CE->getResultAsAPSInt();
-      setSYCLIInterval(ArgVal.getSExtValue());
-    }
-
-    if (const auto *SYCLIntelMaxConcurrency =
-            dyn_cast<SYCLIntelMaxConcurrencyAttr>(A)) {
-      const auto *CE = cast<ConstantExpr>(SYCLIntelMaxConcurrency->getNExpr());
-      llvm::APSInt ArgVal = CE->getResultAsAPSInt();
-      setSYCLMaxConcurrencyNThreads(ArgVal.getSExtValue());
-    }
-
     if (const auto *SYCLIntelLoopCoalesce =
             dyn_cast<SYCLIntelLoopCoalesceAttr>(A)) {
       if (const auto *LCE = SYCLIntelLoopCoalesce->getNExpr()) {
@@ -1076,34 +1062,12 @@ void LoopInfoStack::push(BasicBlock *Header, clang::ASTContext &Ctx,
       }
     }
 
-    if (isa<SYCLIntelDisableLoopPipeliningAttr>(A))
-      setSYCLLoopPipeliningDisable();
-
     if (const auto *SYCLIntelMaxInterleaving =
             dyn_cast<SYCLIntelMaxInterleavingAttr>(A)) {
       const auto *CE = cast<ConstantExpr>(SYCLIntelMaxInterleaving->getNExpr());
       llvm::APSInt ArgVal = CE->getResultAsAPSInt();
       setSYCLMaxInterleavingNInvocations(ArgVal.getSExtValue());
     }
-
-    if (const auto *SYCLIntelSpeculatedIterations =
-            dyn_cast<SYCLIntelSpeculatedIterationsAttr>(A)) {
-      const auto *CE =
-          cast<ConstantExpr>(SYCLIntelSpeculatedIterations->getNExpr());
-      llvm::APSInt ArgVal = CE->getResultAsAPSInt();
-      setSYCLSpeculatedIterationsNIterations(ArgVal.getSExtValue());
-    }
-
-    if (const auto *SYCLIntelMaxReinvocationDelay =
-            dyn_cast<SYCLIntelMaxReinvocationDelayAttr>(A)) {
-      const auto *CE = cast<ConstantExpr>(
-          SYCLIntelMaxReinvocationDelay->getNExpr());
-      llvm::APSInt ArgVal = CE->getResultAsAPSInt();
-      setSYCLMaxReinvocationDelayNCycles(ArgVal.getSExtValue());
-    }
-
-    if (isa<SYCLIntelEnableLoopPipeliningAttr>(A))
-      setSYCLLoopPipeliningEnable();
   }
   // Identify loop attribute 'code_align' from Attrs.
   // For attribute code_align:
