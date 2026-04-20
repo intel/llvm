@@ -129,6 +129,7 @@ jobs:
         ${{ matrix.adapter.other_name != '' && format('-DUR_BUILD_ADAPTER_{0}=ON', matrix.adapter.other_name) || '' }}
         -DUR_STATIC_LOADER=${{matrix.adapter.static_Loader}}
         -DUR_STATIC_ADAPTER_${{matrix.adapter.name}}=${{matrix.adapter.static_adapter}}
+        ${{ matrix.adapter.name == 'CUDA' && '-DUR_CONFORMANCE_NVIDIA_ARCH="sm_75"' || '' }}
         -DUR_DPCXX=./dpcpp_compiler/bin/clang++
         -DUR_SYCL_LIBRARY_DIR=./dpcpp_compiler/lib
         -DCMAKE_INSTALL_PREFIX=./install
