@@ -120,7 +120,7 @@ with a specific context and device.
 namespace sycl::ext::oneapi::experimental {
 
 template<typename PropertyListT = empty_properties_t>
-event make_event(const device &dev, const context &ctxt, PropertyListT props = {});
+event make_event(const context &ctxt, const device &dev, PropertyListT props = {});
 
 } // namespace sycl::ext::oneapi::experimental
 ----
@@ -134,10 +134,16 @@ _Constraints:_
 
 _Returns:_ An event that is associated with context `ctxt` and device `dev`.
 
-_Throws:_ An `exception` with the `errc::feature_not_supported` error code if
-`PropertyListT` contains an `enable_profiling` property that enables profiling
-timestamps and if the platform containing `context` does not support creation
-of such events as reported by the `event_profiling` information descriptor.
+_Throws:_
+
+* An `exception` with the `errc::feature_not_supported` error code if
+  `PropertyListT` contains an `enable_profiling` property that enables
+  profiling timestamps and if the platform containing `ctxt` does not support
+  creation of such events as reported by the `event_profiling` information
+  descriptor.
+
+* An `exception` with the `errc::invalid` error code if `ctxt` does not contain
+  `dev`.
 
 '''
 
@@ -163,7 +169,7 @@ _Effects:_ Equivalent to:
 [source,c++,indent=2]
 ----
 sycl::context ctxt = dev.get_platform().khr_get_default_context();
-return sycl::ext::oneapi::experimental::make_event(dev, ctxt, props);
+return sycl::ext::oneapi::experimental::make_event(ctxt, dev, props);
 ----
 
 '''
@@ -189,9 +195,9 @@ _Effects:_ Equivalent to:
 
 [source,c++,indent=2]
 ----
-sycl::device d;
-sycl::context ctxt = d.get_platform().khr_get_default_context();
-return sycl::ext::oneapi::experimental::make_event(d, ctxt, props);
+sycl::device dev;
+sycl::context ctxt = dev.get_platform().khr_get_default_context();
+return sycl::ext::oneapi::experimental::make_event(ctxt, dev, props);
 ----
 
 '''
@@ -409,11 +415,11 @@ namespace syclex = sycl::ext::oneapi::experimental;
 static constexpr size_t N = 1024;
 
 int main() {
-  sycl::device d;
-  sycl::context ctxt = d.get_platform().khr_get_default_context();
-  sycl::queue q1{ctxt, d, sycl::property::queue::in_order{}};
-  sycl::queue q2{ctxt, d, sycl::property::queue::in_order{}};
-  sycl::event e = syclex::make_event(d, ctxt);
+  sycl::device dev;
+  sycl::context ctxt = dev.get_platform().khr_get_default_context();
+  sycl::queue q1{ctxt, dev, sycl::property::queue::in_order{}};
+  sycl::queue q2{ctxt, dev, sycl::property::queue::in_order{}};
+  sycl::event e = syclex::make_event(ctxt, dev);
 
   // Launch a kernel on `q1` and then signal an event when the kernel completes.
   syclex::parallel_for(q1, {N}, [=](sycl::item<> it) { /* ... */ });
