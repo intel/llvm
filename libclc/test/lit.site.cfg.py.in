@@ -14,9 +14,10 @@ config.target_triple = "@LLVM_TARGET_TRIPLE@"
 config.host_arch = "@HOST_ARCH@"
 config.python_executable = "@PYTHON_EXECUTABLE@"
 config.libclc_root = "@LIBCLC_SOURCE_DIR@"
-config.libclc_targets_to_test = "@LIBCLC_TARGET_TO_TEST@".split(";")
+config.libclc_targets_to_test = "@LIBCLC_TARGETS_TO_BUILD@".split(";")
 config.libclc_output_dir = "@LIBCLC_OUTPUT_LIBRARY_DIR@"
 config.libclc_pertarget_test_dir = "@LIBCLC_PERTARGET_TEST_DIR@"
+config.libclc_obj_root = "@LIBCLC_TARGET_TEST_DIR@"
 
 import lit.llvm
 lit.llvm.initialize(lit_config, config)

@@ -14,8 +14,10 @@
 ; RUN: spirv-val %t.fc2.spv
 ; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o - | FileCheck %s --check-prefixes=CHECK-LLVM-16,CHECK-LLVM-16-DEFAULT
 ; RUN: llvm-spirv -r %t.fc2.spv -o - | llvm-dis -o - | FileCheck %s --check-prefixes=CHECK-LLVM-16,CHECK-LLVM-16-FC2
-; FIXME: FILECHECK_FAIL during llvm-spirv -r in llc compilation flow
-; TODO: rewrite the test as currently DCE removes IR through llc compilation flow
+; RUN: %if spirv-backend %{ llc -O0 -mtriple=spirv32-unknown-unknown -filetype=obj %s -o %t.llc.spv %}
+; RUN: %if spirv-backend %{ llvm-spirv -r %t.llc.spv -o %t.llc.rev.bc %}
+; RUN: %if spirv-backend %{ llvm-dis %t.llc.rev.bc -o %t.llc.rev.ll %}
+; RUN: %if spirv-backend %{ FileCheck %s --check-prefix=CHECK-LLVM < %t.llc.rev.ll %}
 
 ; CHECK-SPIRV: 3 Name [[#r1:]] "r1"
 ; CHECK-SPIRV: 3 Name [[#r2:]] "r2"
@@ -52,15 +54,15 @@
 ; CHECK-SPIRV: 4 FNegate [[float]] [[#r8]]
 ; CHECK-SPIRV: 4 FNegate [[float]] [[#r9]]
 
-; CHECK-LLVM: %r1 = fneg float %a
-; CHECK-LLVM: %r2 = fneg float %a
-; CHECK-LLVM: %r3 = fneg float %a
-; CHECK-LLVM: %r4 = fneg float %a
-; CHECK-LLVM: %r5 = fneg float %a
-; CHECK-LLVM: %r6 = fneg float %a
-; CHECK-LLVM: %r7 = fneg float %a
-; CHECK-LLVM: %r8 = fneg float %a
-; CHECK-LLVM: %r9 = fneg float %a
+; CHECK-LLVM: fneg float %a
+; CHECK-LLVM: fneg float %a
+; CHECK-LLVM: fneg float %a
+; CHECK-LLVM: fneg float %a
+; CHECK-LLVM: fneg float %a
+; CHECK-LLVM: fneg float %a
+; CHECK-LLVM: fneg float %a
+; CHECK-LLVM: fneg float %a
+; CHECK-LLVM: fneg float %a
 
 ; CHECK-LLVM-16: %r1 = fneg float %a
 ; CHECK-LLVM-16: %r2 = fneg nnan float %a
@@ -81,15 +83,25 @@ target triple = "spir-unknown-unknown"
 ; Function Attrs: nounwind
 define spir_kernel void @testFNeg(float %a) local_unnamed_addr #0 !kernel_arg_addr_space !2 !kernel_arg_access_qual !3 !kernel_arg_type !4 !kernel_arg_base_type !4 !kernel_arg_type_qual !5 {
 entry:
+  %tmp = alloca float, align 4
   %r1 = fneg float %a
+  store volatile float %r1, ptr %tmp, align 4
   %r2 = fneg nnan float %a
+  store volatile float %r2, ptr %tmp, align 4
   %r3 = fneg ninf float %a
+  store volatile float %r3, ptr %tmp, align 4
   %r4 = fneg nsz float %a
+  store volatile float %r4, ptr %tmp, align 4
   %r5 = fneg arcp float %a
+  store volatile float %r5, ptr %tmp, align 4
   %r6 = fneg fast float %a
+  store volatile float %r6, ptr %tmp, align 4
   %r7 = fneg nnan ninf float %a
+  store volatile float %r7, ptr %tmp, align 4
   %r8 = fneg contract float %a
+  store volatile float %r8, ptr %tmp, align 4
   %r9 = fneg reassoc float %a
+  store volatile float %r9, ptr %tmp, align 4
   ret void
 }
 

@@ -18,35 +18,32 @@ int __clc_nvvm_reflect_arch();
 
 // CLC helpers
 __local bool *
-__clc__get_group_scratch_bool() __asm("__clc__get_group_scratch_bool");
+__clc__get_group_scratch_bool();
 __local char *
-__clc__get_group_scratch_char() __asm("__clc__get_group_scratch_char");
+__clc__get_group_scratch_char();
 __local uchar *
-__clc__get_group_scratch_uchar() __asm("__clc__get_group_scratch_char");
+__clc__get_group_scratch_uchar();
 __local short *
-__clc__get_group_scratch_short() __asm("__clc__get_group_scratch_short");
+__clc__get_group_scratch_short();
 __local ushort *
-__clc__get_group_scratch_ushort() __asm("__clc__get_group_scratch_short");
+__clc__get_group_scratch_ushort();
 __local int *
-__clc__get_group_scratch_int() __asm("__clc__get_group_scratch_int");
+__clc__get_group_scratch_int();
 __local uint *
-__clc__get_group_scratch_uint() __asm("__clc__get_group_scratch_int");
+__clc__get_group_scratch_uint();
 __local long *
-__clc__get_group_scratch_long() __asm("__clc__get_group_scratch_long");
+__clc__get_group_scratch_long();
 __local ulong *
-__clc__get_group_scratch_ulong() __asm("__clc__get_group_scratch_long");
+__clc__get_group_scratch_ulong();
 __local half *
-__clc__get_group_scratch_half() __asm("__clc__get_group_scratch_half");
+__clc__get_group_scratch_half();
 __local float *
-__clc__get_group_scratch_float() __asm("__clc__get_group_scratch_float");
+__clc__get_group_scratch_float();
 __local double *
-__clc__get_group_scratch_double() __asm("__clc__get_group_scratch_double");
-__local complex_half *__clc__get_group_scratch_complex_half() __asm(
-    "__clc__get_group_scratch_complex_half");
-__local complex_float *__clc__get_group_scratch_complex_float() __asm(
-    "__clc__get_group_scratch_complex_float");
-__local complex_double *__clc__get_group_scratch_complex_double() __asm(
-    "__clc__get_group_scratch_complex_double");
+__clc__get_group_scratch_double();
+__local complex_half *__clc__get_group_scratch_complex_half();
+__local complex_float *__clc__get_group_scratch_complex_float();
+__local complex_double *__clc__get_group_scratch_complex_double();
 
 _CLC_DEF uint inline __clc__membermask() {
   // use a full mask as sync operations are required to be convergent and
