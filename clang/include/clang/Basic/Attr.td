@@ -2910,7 +2910,6 @@ def Mode : Attr {
   // generally does not support.
   let PragmaAttributeSupport = 0;
 }
-}
 
 def Naked : InheritableAttr {
   let Spellings = [GCC<"naked">, Declspec<"naked">];
