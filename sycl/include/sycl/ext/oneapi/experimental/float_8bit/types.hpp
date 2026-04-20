@@ -829,12 +829,12 @@ inline constexpr bool IsSyclFpTypeV = IsSyclFpType<T>::value;
 
 template <size_t N, typename... Types>
 struct SyclfpVariadic
-  : std::bool_constant<
-      (sizeof...(Types) == N) &&
-      (((std::is_same_v<std::decay_t<Types>, half>) && ...) ||
-       ((std::is_same_v<std::decay_t<Types>, bfloat16>) && ...) ||
-       ((std::is_same_v<std::decay_t<Types>, float>) && ...) ||
-       ((std::is_same_v<std::decay_t<Types>, double>) && ...))> {};
+    : std::bool_constant<
+          (sizeof...(Types) == N) &&
+          (((std::is_same_v<std::decay_t<Types>, half>) && ...) ||
+           ((std::is_same_v<std::decay_t<Types>, bfloat16>) && ...) ||
+           ((std::is_same_v<std::decay_t<Types>, float>) && ...) ||
+           ((std::is_same_v<std::decay_t<Types>, double>) && ...))> {};
 
 template <size_t N, typename... Types>
 inline constexpr bool SyclfpVariadicV = SyclfpVariadic<N, Types...>::value;
