@@ -2157,12 +2157,17 @@ DerivedArgList getLinkerArgs(ArrayRef<OffloadFile> Input,
     DAL.AddFlagArg(nullptr, Tbl.getOption(OPT_whole_program));
 
   // This function filters the SYCL device compiler and linker options by target
-  // triple and offload kind.
+  // triple, offload kind, and device architecture.
   // The device_linker_args and device_compiler_args options accept values
   // in the form [<kind>:][<triple>=]<value>.
   // An example of passing such an option to clang-linker-wrapper is:
   // --device-compiler=sycl:spir64_gen-unknown-unknown=opt_val.
+  // For SYCL, the device_compiler_args options can also be in the form
+  // [<kind>:][<arch>=]<value>.
+  //  An example of passing such an option to clang-linker-wrapper is:
+  // --device-compiler=sycl:pvc=opt_val.
   const StringRef TripleStr = DAL.getLastArgValue(OPT_triple_EQ);
+  StringRef CurrentArch = DAL.getLastArgValue(OPT_arch_EQ);
   auto ProcessDeviceArgs = [&](llvm::opt::OptSpecifier DeviceArgsOptionID,
                                llvm::opt::OptSpecifier ForwardedOptionID) {
     for (StringRef DeviceArgValue : Args.getAllArgValues(DeviceArgsOptionID)) {
@@ -2175,14 +2180,21 @@ DerivedArgList getLinkerArgs(ArrayRef<OffloadFile> Input,
       }
       size_t EqPos = DeviceArgValue.find('=');
       if (EqPos != StringRef::npos) {
-        StringRef ArgTargetTripleStr = DeviceArgValue.take_front(EqPos);
-        llvm::Triple ArgTargetTriple(ArgTargetTripleStr);
-        // If this isn't a recognized triple then it's an `arg=value` option.
+        StringRef TargetArchOrTripleStr = DeviceArgValue.take_front(EqPos);
+        llvm::Triple ArgTargetTriple(TargetArchOrTripleStr);
         if (ArgTargetTriple.getArch() != Triple::ArchType::UnknownArch) {
-          if (ArgTargetTripleStr != TripleStr)
+          // If the triple is specified, check it against the current target
+          // triple.
+          if (TargetArchOrTripleStr != TripleStr)
             continue;
-          DeviceArgValue = DeviceArgValue.drop_front(EqPos + 1);
+        } else {
+          // If the triple is not specified, this is a SYCL case, and we should
+          // check the arch instead.
+          if (DeviceArgsOptionID == OPT_device_compiler_args_EQ &&
+            TargetArchOrTripleStr != CurrentArch)
+            continue;
         }
+        DeviceArgValue = DeviceArgValue.drop_front(EqPos + 1);
       }
       if (DeviceArgValue.empty())
         continue;
