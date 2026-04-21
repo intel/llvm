@@ -23,6 +23,12 @@ __SYCL_PARAM_TRAITS_SPEC(ext::intel, device, min_power_limit, int32_t, UR_DEVICE
 __SYCL_PARAM_TRAITS_SPEC(ext::intel, device, max_power_limit, int32_t, UR_DEVICE_INFO_MAX_POWER_LIMIT)
 __SYCL_PARAM_TRAITS_SPEC(ext::intel, device, luid, detail::luid_type, __SYCL_TRAIT_HANDLED_IN_RT)
 __SYCL_PARAM_TRAITS_SPEC(ext::intel, device, node_mask, uint32_t, __SYCL_TRAIT_HANDLED_IN_RT)
+__SYCL_PARAM_TRAITS_SPEC(ext::intel, device, xe_stacks_count, uint32_t, UR_DEVICE_INFO_XE_STACKS_COUNT)
+__SYCL_PARAM_TRAITS_SPEC(ext::intel, device, xe_regions_per_stack, uint32_t, UR_DEVICE_INFO_XE_REGIONS_PER_STACK)
+__SYCL_PARAM_TRAITS_SPEC(ext::intel, device, xe_clusters_per_region, uint32_t, UR_DEVICE_INFO_XE_CLUSTERS_PER_REGION)
+__SYCL_PARAM_TRAITS_SPEC(ext::intel, device, xe_cores_per_cluster, uint32_t, UR_DEVICE_INFO_XE_CORES_PER_CLUSTER)
+__SYCL_PARAM_TRAITS_SPEC(ext::intel, device, eu_count_per_xe_core, uint32_t, UR_DEVICE_INFO_EU_COUNT_PER_XE_CORE)
+__SYCL_PARAM_TRAITS_SPEC(ext::intel, device, max_lanes_per_hw_thread, uint32_t, UR_DEVICE_INFO_MAX_LANES_PER_HW_THREAD)
 #ifdef __SYCL_PARAM_TRAITS_TEMPLATE_SPEC_NEEDS_UNDEF
 #undef __SYCL_PARAM_TRAITS_TEMPLATE_SPEC
 #undef __SYCL_PARAM_TRAITS_TEMPLATE_SPEC_NEEDS_UNDEF

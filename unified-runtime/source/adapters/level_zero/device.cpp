@@ -1578,6 +1578,72 @@ ur_result_t urDeviceGetInfo(
 #else
     return ReturnValue(false);
 #endif
+  case UR_DEVICE_INFO_XE_STACKS_COUNT: {
+    ze_device_properties_t DeviceProp = {};
+    DeviceProp.stype = ZE_STRUCTURE_TYPE_DEVICE_PROPERTIES;
+    ze_intel_xe_device_exp_properties_t XeDeviceProperties = {};
+    XeDeviceProperties.stype = ZE_STRUCTURE_TYPE_INTEL_XE_DEVICE_EXP_PROPERTIES;
+    DeviceProp.pNext = (void *)&XeDeviceProperties;
+
+    ZE2UR_CALL(zeDeviceGetProperties, (ZeDevice, &DeviceProp));
+
+    return ReturnValue(XeDeviceProperties.numXeStacks);
+  }
+  case UR_DEVICE_INFO_XE_REGIONS_PER_STACK: {
+    ze_device_properties_t DeviceProp = {};
+    DeviceProp.stype = ZE_STRUCTURE_TYPE_DEVICE_PROPERTIES;
+    ze_intel_xe_device_exp_properties_t XeDeviceProperties = {};
+    XeDeviceProperties.stype = ZE_STRUCTURE_TYPE_INTEL_XE_DEVICE_EXP_PROPERTIES;
+    DeviceProp.pNext = (void *)&XeDeviceProperties;
+
+    ZE2UR_CALL(zeDeviceGetProperties, (ZeDevice, &DeviceProp));
+
+    return ReturnValue(XeDeviceProperties.numXeRegionsPerStack);
+  }
+  case UR_DEVICE_INFO_XE_CLUSTERS_PER_REGION: {
+    ze_device_properties_t DeviceProp = {};
+    DeviceProp.stype = ZE_STRUCTURE_TYPE_DEVICE_PROPERTIES;
+    ze_intel_xe_device_exp_properties_t XeDeviceProperties = {};
+    XeDeviceProperties.stype = ZE_STRUCTURE_TYPE_INTEL_XE_DEVICE_EXP_PROPERTIES;
+    DeviceProp.pNext = (void *)&XeDeviceProperties;
+
+    ZE2UR_CALL(zeDeviceGetProperties, (ZeDevice, &DeviceProp));
+
+    return ReturnValue(XeDeviceProperties.numXeClustersPerRegion);
+  }
+  case UR_DEVICE_INFO_XE_CORES_PER_CLUSTER: {
+    ze_device_properties_t DeviceProp = {};
+    DeviceProp.stype = ZE_STRUCTURE_TYPE_DEVICE_PROPERTIES;
+    ze_intel_xe_device_exp_properties_t XeDeviceProperties = {};
+    XeDeviceProperties.stype = ZE_STRUCTURE_TYPE_INTEL_XE_DEVICE_EXP_PROPERTIES;
+    DeviceProp.pNext = (void *)&XeDeviceProperties;
+
+    ZE2UR_CALL(zeDeviceGetProperties, (ZeDevice, &DeviceProp));
+
+    return ReturnValue(XeDeviceProperties.numXeCorePerCluster);
+  }
+  case UR_DEVICE_INFO_EU_COUNT_PER_XE_CORE: {
+    ze_device_properties_t DeviceProp = {};
+    DeviceProp.stype = ZE_STRUCTURE_TYPE_DEVICE_PROPERTIES;
+    ze_intel_xe_device_exp_properties_t XeDeviceProperties = {};
+    XeDeviceProperties.stype = ZE_STRUCTURE_TYPE_INTEL_XE_DEVICE_EXP_PROPERTIES;
+    DeviceProp.pNext = (void *)&XeDeviceProperties;
+
+    ZE2UR_CALL(zeDeviceGetProperties, (ZeDevice, &DeviceProp));
+
+    return ReturnValue(XeDeviceProperties.numExecutionEnginesPerXeCore);
+  }
+  case UR_DEVICE_INFO_MAX_LANES_PER_HW_THREAD: {
+    ze_device_properties_t DeviceProp = {};
+    DeviceProp.stype = ZE_STRUCTURE_TYPE_DEVICE_PROPERTIES;
+    ze_intel_xe_device_exp_properties_t XeDeviceProperties = {};
+    XeDeviceProperties.stype = ZE_STRUCTURE_TYPE_INTEL_XE_DEVICE_EXP_PROPERTIES;
+    DeviceProp.pNext = (void *)&XeDeviceProperties;
+
+    ZE2UR_CALL(zeDeviceGetProperties, (ZeDevice, &DeviceProp));
+
+    return ReturnValue(XeDeviceProperties.maxNumLanesPerHwThread);
+  }
   default:
     UR_LOG(ERR, "Unsupported ParamName in urGetDeviceInfo");
     UR_LOG(ERR, "ParamNameParamName={}(0x{})", ParamName,
