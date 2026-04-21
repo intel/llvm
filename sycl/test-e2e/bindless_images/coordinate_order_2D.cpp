@@ -3,8 +3,9 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run-unfiltered-devices} env NEOReadDebugKeys=1 UseBindlessMode=1 UseExternalAllocatorForSshAndDsh=1 %t.out
 
-// This test demonstrates that bindless image coordinate conventions are absolute,
-// not relative/symmetric. We test two interpretations of the same inputs data.
+// This test demonstrates that bindless image coordinate conventions are
+// absolute, not relative/symmetric. We test two interpretations of the same
+// inputs data.
 //
 // Original Data Is Linear: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, ...]
 //
@@ -16,12 +17,12 @@
 //      20  21  22  23  24
 //      25  26  27  28  29
 //
-// Then we use two different image_descriptors (one with reversed range<>) and sample pixels with each,
-// storing the samples in two linear output buffers. If the API is flexible/relative, then both 
-// interpretations should work. But they don't. bindless images expect row-major coordinate semantics.
-// This is important to know if you want performant coalesced memory access. 
+// Then we use two different image_descriptors (one with reversed range<>) and
+// sample pixels with each, storing the samples in two linear output buffers. If
+// the API is flexible/relative, then both interpretations should work. But they
+// don't. bindless images expect row-major coordinate semantics. This is
+// important to know if you want performant coalesced memory access.
 //
-
 
 #include <iostream>
 #include <sycl/detail/core.hpp>
@@ -44,9 +45,9 @@ int main() {
     dataIn[i] = sycl::float4(static_cast<float>(i), 0, 0, 0);
   }
 
-  std::cout << "Testing coordinate order conventions with " << width << "x" << height
-            << " image" << std::endl;
-  std::cout << "Input data: [0, 1, 2, ..., " << (N-1) << "]" << std::endl;
+  std::cout << "Testing coordinate order conventions with " << width << "x"
+            << height << " image" << std::endl;
+  std::cout << "Input data: [0, 1, 2, ..., " << (N - 1) << "]" << std::endl;
 
   // Output buffers for both interpretations
   std::vector<float> output_correct(N);
@@ -61,58 +62,67 @@ int main() {
     // =============================================================================
     // CORRECT CONVENTION: descriptor({width, height}), coords as (x, y)
     // =============================================================================
-    syclex::image_descriptor desc_correct({width, height}, 4, sycl::image_channel_type::fp32);
+    syclex::image_descriptor desc_correct({width, height}, 4,
+                                          sycl::image_channel_type::fp32);
     syclex::image_mem imgMem_correct(desc_correct, dev, ctxt);
 
     q.ext_oneapi_copy(dataIn.data(), imgMem_correct.get_handle(), desc_correct);
     q.wait_and_throw();
 
-    syclex::sampled_image_handle imgHandle_correct = syclex::create_image(imgMem_correct, samp, desc_correct, dev, ctxt);
+    syclex::sampled_image_handle imgHandle_correct =
+        syclex::create_image(imgMem_correct, samp, desc_correct, dev, ctxt);
 
     // =============================================================================
     // REVERSED CONVENTION: descriptor({height, width}), coords as (y, x)
     // =============================================================================
-    syclex::image_descriptor desc_reversed({height, width}, 4, sycl::image_channel_type::fp32);
+    syclex::image_descriptor desc_reversed({height, width}, 4,
+                                           sycl::image_channel_type::fp32);
     syclex::image_mem imgMem_reversed(desc_reversed, dev, ctxt);
 
     // Copy SAME data with reversed descriptor
-    q.ext_oneapi_copy(dataIn.data(), imgMem_reversed.get_handle(), desc_reversed);
+    q.ext_oneapi_copy(dataIn.data(), imgMem_reversed.get_handle(),
+                      desc_reversed);
     q.wait_and_throw();
 
-    syclex::sampled_image_handle imgHandle_reversed = syclex::create_image(imgMem_reversed, samp, desc_reversed, dev, ctxt);
+    syclex::sampled_image_handle imgHandle_reversed =
+        syclex::create_image(imgMem_reversed, samp, desc_reversed, dev, ctxt);
 
     // =============================================================================
     // Sample from BOTH images in the SAME kernel
     // =============================================================================
-    // SYCL 2020 spec (section 3.11.1-3.11.2) says LAST dimension of range is the fastest varying, so we use {height, width}
+    // SYCL 2020 spec (section 3.11.1-3.11.2) says LAST dimension of range is
+    // the fastest varying, so we use {height, width}
     sycl::range<2> output_range{height, width};
-    sycl::buffer<float, 2> buf_correct((float *)output_correct.data(), output_range);
-    sycl::buffer<float, 2> buf_reversed((float *)output_reversed.data(), output_range);
+    sycl::buffer<float, 2> buf_correct((float *)output_correct.data(),
+                                       output_range);
+    sycl::buffer<float, 2> buf_reversed((float *)output_reversed.data(),
+                                        output_range);
 
     q.submit([&](sycl::handler &cgh) {
-      auto acc_correct = buf_correct.get_access<sycl::access_mode::write>(cgh, output_range);
-      auto acc_reversed = buf_reversed.get_access<sycl::access_mode::write>(cgh, output_range);
+      auto acc_correct =
+          buf_correct.get_access<sycl::access_mode::write>(cgh, output_range);
+      auto acc_reversed =
+          buf_reversed.get_access<sycl::access_mode::write>(cgh, output_range);
 
-      cgh.parallel_for<class proof_test>(
-          output_range,
-          [=](sycl::id<2> idx) {
-            
-            size_t y = idx[0];
-            size_t x = idx[1];
+      cgh.parallel_for<class proof_test>(output_range, [=](sycl::id<2> idx) {
+        size_t y = idx[0];
+        size_t x = idx[1];
 
-            float x_norm = float(x + 0.5f) / float(width);
-            float y_norm = float(y + 0.5f) / float(height);
+        float x_norm = float(x + 0.5f) / float(width);
+        float y_norm = float(y + 0.5f) / float(height);
 
-            // CORRECT: Sample with (x, y) convention
-            sycl::float4 px_correct = syclex::sample_image<sycl::float4>(
-                imgHandle_correct, sycl::float2(x_norm, y_norm));  // coordinates as (x, y)
-            acc_correct[sycl::id<2>{y, x}] = px_correct[0];
+        // CORRECT: Sample with (x, y) convention
+        sycl::float4 px_correct = syclex::sample_image<sycl::float4>(
+            imgHandle_correct,
+            sycl::float2(x_norm, y_norm)); // coordinates as (x, y)
+        acc_correct[sycl::id<2>{y, x}] = px_correct[0];
 
-            // REVERSED: Sample with (y, x) convention            
-            sycl::float4 px_reversed = syclex::sample_image<sycl::float4>(
-                imgHandle_reversed, sycl::float2(y_norm, x_norm));  // coordinates as (y, x)
-            acc_reversed[sycl::id<2>{y, x}] = px_reversed[0];
-          });
+        // REVERSED: Sample with (y, x) convention
+        sycl::float4 px_reversed = syclex::sample_image<sycl::float4>(
+            imgHandle_reversed,
+            sycl::float2(y_norm, x_norm)); // coordinates as (y, x)
+        acc_reversed[sycl::id<2>{y, x}] = px_reversed[0];
+      });
     });
 
     q.wait_and_throw();
@@ -136,10 +146,11 @@ int main() {
   bool correct_is_iota = true;
   for (size_t i = 0; i < N; i++) {
     if (output_correct[i] != static_cast<float>(i)) {
-      std::cout << "  Mismatch at index " << i << ": expected " << i
-                << ", got " << output_correct[i] << std::endl;
+      std::cout << "  Mismatch at index " << i << ": expected " << i << ", got "
+                << output_correct[i] << std::endl;
       correct_is_iota = false;
-      if (i > 10) break; // Don't spam too much
+      if (i > 10)
+        break; // Don't spam too much
     }
   }
 
@@ -167,15 +178,18 @@ int main() {
   }
 
   if (!reversed_is_iota) {
-    std::cout << "✓ PASSED: Does NOT produce iota sequence (as expected!)" << std::endl;
+    std::cout << "✓ PASSED: Does NOT produce iota sequence (as expected!)"
+              << std::endl;
     std::cout << "First 10 values: ";
     for (int i = 0; i < 10; i++) {
       std::cout << output_reversed[i] << " ";
     }
     std::cout << "..." << std::endl;
   } else {
-    std::cout << "✗ UNEXPECTED: Reversed convention also produces iota!" << std::endl;
-    std::cout << "This would suggest a symmetric/relative API (unlikely)." << std::endl;
+    std::cout << "✗ UNEXPECTED: Reversed convention also produces iota!"
+              << std::endl;
+    std::cout << "This would suggest a symmetric/relative API (unlikely)."
+              << std::endl;
   }
 
   // =============================================================================
@@ -190,13 +204,19 @@ int main() {
     // API is not  symmetric/relative
     return 0;
   } else if (!correct_is_iota && reversed_is_iota) {
-    std::cout << "FAIL: Understanding is reversed! Convention appears to be {height, width}" << std::endl;
+    std::cout << "FAIL: Understanding is reversed! Convention appears to be "
+                 "{height, width}"
+              << std::endl;
     return 1;
   } else if (correct_is_iota && reversed_is_iota) {
-    std::cout << "FAIL: API appears symmetric/relative, which is unexpected and not likely performant." << std::endl;
+    std::cout << "FAIL: API appears symmetric/relative, which is unexpected "
+                 "and not likely performant."
+              << std::endl;
     return 1;
   } else {
-    std::cout << "FAIL: Neither convention produced expected iota sequence. Something wrong." << std::endl;
+    std::cout << "FAIL: Neither convention produced expected iota sequence. "
+                 "Something wrong."
+              << std::endl;
     return 1;
   }
 }
