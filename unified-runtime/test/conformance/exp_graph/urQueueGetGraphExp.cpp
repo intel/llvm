@@ -97,8 +97,25 @@ struct urQueueGetGraphExpMultiQueueTest
     // Fork-join was initially broken with zeCommandListGetGraph
     std::tuple<size_t, size_t, size_t> minL0DriverVersion = {1, 15, 38146};
     SKIP_IF_DRIVER_TOO_OLD("Level-Zero", minL0DriverVersion, platform, device);
+
+    // Fork-join with out-of-order queue broken due to multi command list capture bug
+    if (getQueueFlag() & UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE) {
+      UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
+    }
   }
   void TearDown() override {
+    bool isCaptureEnabled = false;
+    if (queue1) {
+      if (urQueueIsGraphCaptureEnabledExp(queue1, &isCaptureEnabled) ==
+              UR_RESULT_SUCCESS &&
+          isCaptureEnabled) {
+        urQueueEndGraphCaptureExp(queue1, &graph);
+      }
+      urQueueFinish(queue1);
+    }
+    if (queue2) {
+      urQueueFinish(queue2);
+    }
     if (graph) {
       EXPECT_SUCCESS(urGraphDestroyExp(graph));
     }
@@ -106,6 +123,12 @@ struct urQueueGetGraphExpMultiQueueTest
   }
 
   void TestForkJoinPattern(bool isExplicitCapture) {
+    // Submit event to switch command list for out-of-order queue with L0v2 adapter.
+    // This triggers a bug where fork-join recording is not recognized by an out-of-order queue.
+    uur::raii::Event preEvent = nullptr;
+    ASSERT_SUCCESS(urEnqueueEventsWait(queue2, 0, nullptr, preEvent.ptr()));
+    ASSERT_SUCCESS(urEventWait(1, preEvent.ptr()));
+
     if (isExplicitCapture) {
       ASSERT_SUCCESS(urGraphCreateExp(context, &graph));
       ASSERT_SUCCESS(urQueueBeginCaptureIntoGraphExp(queue1, graph));
@@ -118,15 +141,14 @@ struct urQueueGetGraphExpMultiQueueTest
         urEnqueueEventsWaitWithBarrier(queue1, 0, nullptr, forkEvent.ptr()));
 
     uur::raii::Event joinEvent = nullptr;
-    ASSERT_SUCCESS(urEnqueueEventsWaitWithBarrier(queue2, 1, forkEvent.ptr(),
-                                                  joinEvent.ptr()));
+    ASSERT_SUCCESS(
+        urEnqueueEventsWait(queue2, 1, forkEvent.ptr(), joinEvent.ptr()));
 
     ur_exp_graph_handle_t queue2Graph = nullptr;
     ASSERT_SUCCESS(urQueueGetGraphExp(queue2, &queue2Graph));
 
     ASSERT_SUCCESS(
         urEnqueueEventsWaitWithBarrier(queue1, 1, joinEvent.ptr(), nullptr));
-
     ASSERT_SUCCESS(urQueueEndGraphCaptureExp(queue1, &graph));
 
     ASSERT_EQ(queue2Graph, graph);
