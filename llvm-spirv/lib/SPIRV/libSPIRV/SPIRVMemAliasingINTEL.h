@@ -63,6 +63,7 @@ public:
 
   void setWordCount(SPIRVWord TheWordCount) override {
     SPIRVEntry::setWordCount(TheWordCount);
+    SPIRVCK(TheWordCount >= TheFixedWordCount, InvalidWordCount, "");
     Args.resize(TheWordCount - TheFixedWordCount);
   }
 
