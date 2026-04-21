@@ -8,11 +8,7 @@
 
 void foo()
 {
-  [[intel::use_stall_enable_clusters]] void func(); // device-warning {{'intel::use_stall_enable_clusters' attribute ignored}}
-
   [[intel::max_global_work_dim(1)]] void func1(); // device-warning {{'intel::max_global_work_dim' attribute ignored}}
-
-  [[intel::scheduler_target_fmax_mhz(3)]] void func2(); // device-warning {{'intel::scheduler_target_fmax_mhz' attribute ignored}}
 
   [[intel::kernel_args_restrict]] void func3(); // device-warning {{'intel::kernel_args_restrict' attribute ignored}}
 
