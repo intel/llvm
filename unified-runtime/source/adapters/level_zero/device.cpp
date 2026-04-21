@@ -783,9 +783,11 @@ ur_result_t urDeviceGetInfo(
     return ReturnValue(
         Device->ZeDeviceVectorWidthPropertiesExt->preferred_vector_width_int);
   case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG:
+  case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG_LONG:
     return ReturnValue(
         Device->ZeDeviceVectorWidthPropertiesExt->native_vector_width_long);
   case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_LONG:
+  case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_LONG_LONG:
     return ReturnValue(
         Device->ZeDeviceVectorWidthPropertiesExt->preferred_vector_width_long);
   case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_FLOAT:
