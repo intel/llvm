@@ -67,9 +67,11 @@
 #include <sycl/detail/loop.hpp>
 #include <sycl/detail/type_traits.hpp>
 #include <sycl/detail/type_traits/vec_marray_traits.hpp>
+#include <sycl/detail/vector_core.hpp>
 #include <sycl/half_type.hpp>
 #include <sycl/marray.hpp>
-#include <sycl/vector.hpp>
+
+#include <limits>
 
 namespace sycl {
 inline namespace _V1 {

@@ -2990,8 +2990,6 @@ static bool mergeDeclAttribute(Sema &S, NamedDecl *D,
     NewAttr = S.SYCL().mergeSYCLIntelNumSimdWorkItemsAttr(D, *A);
   else if (const auto *A = dyn_cast<SYCLIntelESimdVectorizeAttr>(Attr))
     NewAttr = S.SYCL().mergeSYCLIntelESimdVectorizeAttr(D, *A);
-  else if (const auto *A = dyn_cast<SYCLIntelSchedulerTargetFmaxMhzAttr>(Attr))
-    NewAttr = S.SYCL().mergeSYCLIntelSchedulerTargetFmaxMhzAttr(D, *A);
   else if (const auto *A = dyn_cast<SYCLIntelNoGlobalWorkOffsetAttr>(Attr))
     NewAttr = S.SYCL().mergeSYCLIntelNoGlobalWorkOffsetAttr(D, *A);
   else if (const auto *A = dyn_cast<SYCLWorkGroupSizeHintAttr>(Attr))

@@ -1570,10 +1570,6 @@ namespace {
     const LoopHintAttr *TransformLoopHintAttr(const LoopHintAttr *LH);
     const LoopUnrollHintAttr *
     TransformLoopUnrollHintAttr(const LoopUnrollHintAttr *LU);
-    const SYCLIntelLoopCoalesceAttr *TransformSYCLIntelLoopCoalesceAttr(
-        const SYCLIntelLoopCoalesceAttr *LC);
-    const SYCLIntelMaxInterleavingAttr *TransformSYCLIntelMaxInterleavingAttr(
-        const SYCLIntelMaxInterleavingAttr *MI);
     const NoInlineAttr *TransformStmtNoInlineAttr(const Stmt *OrigS,
                                                   const Stmt *InstS,
                                                   const NoInlineAttr *A);
@@ -2301,20 +2297,6 @@ const AlwaysInlineAttr *TemplateInstantiator::TransformStmtAlwaysInlineAttr(
     return nullptr;
 
   return A;
-}
-
-const SYCLIntelLoopCoalesceAttr *
-TemplateInstantiator::TransformSYCLIntelLoopCoalesceAttr(
-    const SYCLIntelLoopCoalesceAttr *LC) {
-  Expr *TransformedExpr = getDerived().TransformExpr(LC->getNExpr()).get();
-  return getSema().BuildSYCLIntelLoopCoalesceAttr(*LC, TransformedExpr);
-}
-
-const SYCLIntelMaxInterleavingAttr *
-TemplateInstantiator::TransformSYCLIntelMaxInterleavingAttr(
-    const SYCLIntelMaxInterleavingAttr *MI) {
-  Expr *TransformedExpr = getDerived().TransformExpr(MI->getNExpr()).get();
-  return getSema().BuildSYCLIntelMaxInterleavingAttr(*MI, TransformedExpr);
 }
 
 const LoopUnrollHintAttr *TemplateInstantiator::TransformLoopUnrollHintAttr(

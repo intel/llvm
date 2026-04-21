@@ -7977,17 +7977,11 @@ ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D, const ParsedAttr &AL,
   case ParsedAttr::AT_SYCLIntelNumSimdWorkItems:
     S.SYCL().handleSYCLIntelNumSimdWorkItemsAttr(D, AL);
     break;
-  case ParsedAttr::AT_SYCLIntelSchedulerTargetFmaxMhz:
-    S.SYCL().handleSYCLIntelSchedulerTargetFmaxMhzAttr(D, AL);
-    break;
   case ParsedAttr::AT_SYCLIntelMaxGlobalWorkDim:
     S.SYCL().handleSYCLIntelMaxGlobalWorkDimAttr(D, AL);
     break;
   case ParsedAttr::AT_SYCLIntelNoGlobalWorkOffset:
     S.SYCL().handleSYCLIntelNoGlobalWorkOffsetAttr(D, AL);
-    break;
-  case ParsedAttr::AT_SYCLIntelUseStallEnableClusters:
-    S.SYCL().handleSYCLIntelUseStallEnableClustersAttr(D, AL);
     break;
   case ParsedAttr::AT_VecTypeHint:
     handleVecTypeHint(S, D, AL);

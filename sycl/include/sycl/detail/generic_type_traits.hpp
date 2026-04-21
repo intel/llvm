@@ -17,7 +17,6 @@
 
 #include <cstddef>     // for byte
 #include <cstdint>     // for uint8_t
-#include <limits>      // for numeric_limits
 #include <type_traits> // for enable_if_t, condition...
 #include <utility>     // for forward
 
@@ -212,14 +211,6 @@ template <typename T> inline constexpr T msbMask(T) {
 
 template <typename T> inline constexpr bool msbIsSet(const T x) {
   return (x & msbMask(x));
-}
-
-template <typename T> static constexpr T max_v() {
-  return (std::numeric_limits<T>::max)();
-}
-
-template <typename T> static constexpr T min_v() {
-  return (std::numeric_limits<T>::min)();
 }
 } // namespace detail
 } // namespace _V1

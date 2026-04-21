@@ -662,13 +662,11 @@ static void collectSYCLAttributes(FunctionDecl *FD,
       return isa<IntelReqdSubGroupSizeAttr, IntelNamedSubGroupSizeAttr,
                  SYCLReqdWorkGroupSizeAttr, SYCLWorkGroupSizeHintAttr,
                  SYCLIntelKernelArgsRestrictAttr, SYCLIntelNumSimdWorkItemsAttr,
-                 SYCLIntelSchedulerTargetFmaxMhzAttr,
                  SYCLIntelMaxWorkGroupSizeAttr, SYCLIntelMaxGlobalWorkDimAttr,
                  SYCLIntelMinWorkGroupsPerComputeUnitAttr,
                  SYCLIntelMaxWorkGroupsPerMultiprocessorAttr,
                  SYCLIntelNoGlobalWorkOffsetAttr, SYCLSimdAttr,
-                 SYCLIntelUseStallEnableClustersAttr, SYCLDeviceHasAttr,
-                 SYCLAddIRAttributesFunctionAttr>(A);
+                 SYCLDeviceHasAttr, SYCLAddIRAttributesFunctionAttr>(A);
     });
   }
 }
@@ -5796,12 +5794,10 @@ static void PropagateAndDiagnoseDeviceAttr(SemaSYCL &S, Attr *A,
     LLVM_FALLTHROUGH;
   case attr::Kind::SYCLIntelKernelArgsRestrict:
   case attr::Kind::SYCLIntelNumSimdWorkItems:
-  case attr::Kind::SYCLIntelSchedulerTargetFmaxMhz:
   case attr::Kind::SYCLIntelMaxGlobalWorkDim:
   case attr::Kind::SYCLIntelMinWorkGroupsPerComputeUnit:
   case attr::Kind::SYCLIntelMaxWorkGroupsPerMultiprocessor:
   case attr::Kind::SYCLIntelNoGlobalWorkOffset:
-  case attr::Kind::SYCLIntelUseStallEnableClusters:
   case attr::Kind::SYCLDeviceHas:
   case attr::Kind::SYCLAddIRAttributesFunction:
     SYCLKernel->addAttr(A);

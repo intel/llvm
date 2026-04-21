@@ -1414,8 +1414,6 @@ public:
                                    Stmt *SubStmt) {
     if (SemaRef.CheckRebuiltStmtAttributes(Attrs))
       return StmtError();
-    if (SemaRef.CheckRebuiltAttributedStmtAttributes(Attrs))
-      return StmtError();
     return SemaRef.BuildAttributedStmt(AttrLoc, Attrs, SubStmt);
   }
 

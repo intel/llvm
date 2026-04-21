@@ -3285,62 +3285,6 @@ of the kernel the attribute is applied to.
   }];
 }
 
-def SYCLIntelUseStallEnableClustersAttrDocs : Documentation {
-  let Category = DocCatFunction;
-  let Heading = "intel::use_stall_enable_clusters";
-  let Content = [{
-The ``intel::use_stall_enable_clusters`` attribute requires SYCL.
-When applied to a lambda function, function definition, or function call
-operator (of a function object) on device, this requests, to the
-extent possible, that statically-scheduled clusters handle stalls using a
-stall-enable signal to freeze computation within the cluster. This attribute
-is ignored on the host.
-
-The ``intel::use_stall_enable_clusters`` attribute takes no argument and has an
-effect when applied to a function, and no effect otherwise.
-
-If ``intel::use_stall_enable_clusters`` is applied to a function called from a device
-kernel, the attribute is ignored and it is not propagated to the kernel.
-
-.. code-block:: c++
-
-  class Foo {
-  public:
-    [[intel::use_stall_enable_clusters]] void operator()() const {}
-  };
-
-  [[intel::use_stall_enable_clusters]] void test() {}
-
-  struct FuncObj {
-    [[intel::use_stall_enable_clusters]] void operator()() const {}
-  };
-
-  class Functor
-  {
-      [[intel::use_stall_enable_clusters]] void operator()(item<1> item)
-      {
-          /* kernel code */
-      }
-  }
-
-The ``intel::use_stall_enable_clusters`` attribute supports a nonconforming
-behavior when applied to a lambda in the type position.
-
-.. code-block:: c++
-
-  void test1() {
-    auto lambda = []() [[intel::use_stall_enable_clusters]]{};
-    lambda();
-  }
-
-  kernel<class kernel_name>(
-  []() [[intel::use_stall_enable_clusters]] {
-       /* kernel code */
-  });
-
-  }];
-}
-
 def ReqdWorkGroupSizeAttrDocs : Documentation {
   let Category = DocCatFunction;
   let Heading = "reqd_work_group_size";
@@ -3591,51 +3535,6 @@ have arguments of (1, 1, 1).
   }];
 }
 
-def SYCLIntelSchedulerTargetFmaxMhzAttrDocs : Documentation {
-  let Category = DocCatFunction;
-  let Heading = "intel::scheduler_target_fmax_mhz";
-  let Content = [{
-Applies to a device function/lambda function. Indicates that the kernel should
-be pipelined so as to achieve the specified target clock frequency (Fmax) of N
-MHz. The argument N may be a template parameter. This attribute should be
-ignored for the FPGA emulator device.
-
-``[[intel::scheduler_target_fmax_mhz(N)]]``
-Valid values of N are integers in the range [0, 1048576]. The upper limit,
-although too high to be a realistic value for frequency, is chosen to be future
-proof. The FPGA backend emits a diagnostic message if the passed value is
-unachievable by the device.
-
-This attribute enables communication of the desired maximum frequency of the
-device operation, guiding the FPGA backend to insert the appropriate number of
-registers to break-up the combinational logic circuit, and thereby controlling
-the length of the longest combinational path.
-
-In SYCL 1.2.1 mode, the ``intel::scheduler_target_fmax_mhz`` attribute is
-propagated from the function it is applied to onto the kernel which calls the
-function. In SYCL 2020 mode, the attribute is not propagated to the kernel.
-
-.. code-block:: c++
-
-  [[intel::scheduler_target_fmax_mhz(4)]] void foo() {}
-
-  template<int N>
-  [[intel::scheduler_target_fmax_mhz(N)]] void bar() {}
-
-  class Foo {
-  public:
-    [[intel::scheduler_target_fmax_mhz(6)]] void operator()() const {}
-  };
-
-  template <int N>
-  class Functor {
-  public:
-    [[intel::scheduler_target_fmax_mhz(N)]] void operator()() const {}
-  };
-
-  }];
-}
-
 def SYCLIntelNoGlobalWorkOffsetAttrDocs : Documentation {
   let Category = DocCatFunction;
   let Heading = "intel::no_global_work_offset";
@@ -3716,71 +3615,6 @@ sycl_detail namespace.
   device_global<int> Foo;
   }];
 }
-
-def SYCLIntelLoopCoalesceAttrDocs : Documentation {
-  let Category = DocCatVariable;
-  let Heading = "intel::loop_coalesce";
-  let Content = [{
-This attribute applies to a loop. Indicates that the loop nest should be
-coalesced into a single loop without affecting functionality. Parameter N is
-optional. If specified, it shall be a positive integer, and indicates how many
-of the nested loop levels should be coalesced.
-
-.. code-block:: c++
-
-  void foo() {
-    int a[10];
-    [[intel::loop_coalesce]] for (int i = 0; i != 10; ++i) a[i] = 0;
-  }
-
-  template<int N>
-  void loop_coalesce() {
-    int j = 0, n = 48;
-    [[intel::loop_coalesce(N)]]
-    while (j < n) {
-      if (j % 4) {
-        ++j;
-        continue;
-      }
-    }
-    j = 0;
-    [[intel::loop_coalesce]]
-    while (j < n) {
-      if (j % 6) {
-        ++j;
-        continue;
-      }
-    }
-  }
-
-  }];
-}
-
-def SYCLIntelMaxInterleavingAttrDocs : Documentation {
-  let Category = DocCatVariable;
-  let Heading = "intel::max_interleaving";
-  let Content = [{
-This attribute applies to a loop. Places a maximum limit N on the number of
-interleaved invocations of an inner loop by an outer loop (note, this does not
-mean that this attribute can only be applied to inner loops in user code - outer
-loops in user code may still be contained in an implicit loop due to NDRange).
-Parameter N is mandatory, and may either be 0, or 1.
-
-.. code-block:: c++
-
-  void foo() {
-    int a[10];
-    [[intel::max_interleaving(1)]] for (int i = 0; i != 10; ++i) a[i] = 0;
-  }
-
-  template<int N>
-  void bar() {
-    [[intel::max_interleaving(N)]] for(;;) { }
-  }
-
-  }];
-}
-
 
 def SYCLAddIRAttributesFunctionDocs : Documentation {
   let Category = DocCatFunction;
