@@ -507,8 +507,13 @@ This property controls whether the event can be shared across processes.
 _Effects:_ Creates a new `enable_ipc` property with a boolean value
 indicating whether the event can be shared across processes.
 
-_Remarks:_ `make_event` throws an exception with the `errc::invalid` error code
-if the `enable_profiling` and `enable_ipc` properties are both set.
+_Remarks:_ `make_event` throws an exception with the
+`errc::feature_not_supported` error code if inter-process sharing is enabled
+via `enable_ipc` and the event's device does not have the aspect
+`aspect::ext_oneapi_ipc_event`.
+`make_event` throws an exception with the `errc::invalid` error code if
+profiling is enabled via `enable_profiling` and inter-process sharing is also
+enabled via `enable_ipc`.
 
 ==== New event member function
 
@@ -527,8 +532,7 @@ class event {
 } // namespace sycl
 ----
 
-_Returns:_ True, if the event can be passed between processes using the
-functions defined in this extension.
+_Returns:_ True if the event was created with inter-process sharing enabled.
 
 ==== New functions associated with event object
 
@@ -566,9 +570,6 @@ handle get(sycl::event &evt)
 ----
 !====
 
-_Preconditions:_ `evt` is an event created with the `make_event` function with
-the `enable_ipc` property.
-
 _Returns:_ An IPC "handle" to this event. The bytes of this handle can be
 transferred to another process on the same system, and the other process can
 use the handle to get an event object synchronized with event `evt` through a
@@ -589,10 +590,11 @@ _Preconditions:_ `handle_data` is the IPC "handle" to an event that was
 returned from a call to the `get` function either in this process or in some
 other process on the same system.
 
-_Returns:_ A pointer to an event which is synchronized with the event
-represented by `handle_data`. The returned event is associated with context
-`ctx`. Those events are synchronized in a sense, that when one of the events
-gets signaled, that state is automatically represented in the other event.
+_Returns:_ An `event` object that represents the same event identified by
+`handle_data`. The returned event is associated with context `ctxt`. The
+returned event and the event identified by `handle_data` share the same state.
+When one is signaled, the state of the other event automatically becomes
+signaled also.
 
 [_Note:_ The `open` function can be called multiple times on the same handle
 within the same process. Each call to the `open` function may return a unique
