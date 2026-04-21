@@ -416,6 +416,30 @@ HIPAMDToolChain::getDeviceLibs(const llvm::opt::ArgList &DriverArgs,
 
   addDirectoryList(DriverArgs, LibraryPaths, "", "HIP_DEVICE_LIB_PATH");
 
+  // For SYCL offloading, add SYCL device libraries.
+  if (DeviceOffloadingKind == Action::OFK_SYCL) {
+    llvm::SmallVector<llvm::SmallString<128>, 4> LibraryPaths;
+    SYCLInstallation.getSYCLDeviceLibPath(LibraryPaths);
+
+    // Get SYCL device library names for NVPTX target
+    llvm::SmallVector<BitCodeLibraryInfo, 8> DeviceLibs =
+        clang::driver::getSYCLDeviceLibNames(getDriver(), DriverArgs, *this);
+
+    // Create full path names to each device library
+    for (const auto &DeviceLib : DeviceLibs) {
+      for (const auto &LibraryPath : LibraryPaths) {
+        llvm::SmallString<128> FullLibName(LibraryPath);
+        llvm::sys::path::append(FullLibName, DeviceLib.Path);
+        if (llvm::sys::fs::exists(FullLibName)) {
+          BitCodeLibraryInfo BitCodeLibrary(
+              {FullLibName, DeviceLib.ShouldInternalize});
+          BCLibs.emplace_back(BitCodeLibrary);
+          break;
+        }
+      }
+    }
+  }
+
   // Maintain compatability with --hip-device-lib.
   auto BCLibArgs = DriverArgs.getAllArgValues(options::OPT_hip_device_lib_EQ);
   if (!BCLibArgs.empty()) {

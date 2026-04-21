@@ -1815,38 +1815,6 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args,
                       Args.MakeArgString(Arg.split('=').second)});
   }
 
-  // link NativeCPU utils lib if needed
-  if (Triple.isNativeCPU()) {
-    if (auto *A = Args.getLastArg(OPT_sycl_device_library_location_EQ)) {
-      std::string NativeCPUUtilsLib = "";
-
-      SmallVector<std::string, 8> LibraryPaths;
-      for (const auto &Path : A->getValues()) {
-        SmallString<128> LPath(Path);
-        if (llvm::sys::fs::exists(LPath)) {
-          LibraryPaths.emplace_back(LPath);
-        }
-      }
-
-      for (auto &LPath : LibraryPaths) {
-        // Call llvm-link without --only-needed to link to the nativecpu_utils
-        // lib
-        const char LibNativeCPUUtilsName[] = "libsycl-nativecpu_utils.bc";
-        SmallString<128> LibNativeCPUUtilsPath(LPath);
-        llvm::sys::path::append(LibNativeCPUUtilsPath, LibNativeCPUUtilsName);
-        if (llvm::sys::fs::exists(LibNativeCPUUtilsPath)) {
-          NativeCPUUtilsLib = LibNativeCPUUtilsPath.str();
-          break;
-        }
-      }
-
-      if (NativeCPUUtilsLib != "") {
-        CmdArgs.append({"-Xclang", "-mlink-bitcode-file", "-Xclang",
-                        Args.MakeArgString(NativeCPUUtilsLib)});
-      }
-    }
-  }
-
   // The OpenMPOpt pass can introduce new calls and is expensive, we do
   // not want this when running CodeGen through clang.
   if (Args.hasArg(OPT_clang_backend) || Args.hasArg(OPT_builtin_bitcode_EQ))

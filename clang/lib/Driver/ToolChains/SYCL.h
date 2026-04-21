@@ -21,6 +21,12 @@ namespace driver {
 // AOT compiler).
 StringRef mapIntelGPUArchName(StringRef ArchName);
 
+// Provides a vector of SYCL device library names for the given target triple.
+// This can be used by non-SYCL toolchains when SYCL offloading is enabled.
+llvm::SmallVector<ToolChain::BitCodeLibraryInfo, 8>
+getSYCLDeviceLibNames(const Driver &D, const llvm::opt::ArgList &Args,
+                      const ToolChain &TC);
+
 class Command;
 
 namespace tools {
@@ -154,11 +160,6 @@ public:
                           llvm::opt::OptSpecifier Opt,
                           llvm::opt::OptSpecifier Opt_EQ,
                           StringRef Device) const;
-  // Provides a vector of device library names that are associated with the
-  // given triple and AOT information.
-  SmallVector<ToolChain::BitCodeLibraryInfo, 8>
-  getDeviceLibNames(const Driver &D, const llvm::opt::ArgList &Args,
-                    const llvm::Triple &TargetTriple) const;
 
   bool useIntegratedAs() const override { return true; }
   bool isPICDefault() const override {

@@ -7,7 +7,7 @@
 // RUN: %clang %s -fsycl -fsycl-targets=spir64_x86_64 -c --offload-new-driver -o %t_aot_cpu.o
 // RUN: %clang %s -fsycl -fsycl-targets=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_50 -nocudalib -fno-sycl-libspirv -c --offload-new-driver -o %t_nvptx.o
 // RUN: %clang %s -fsycl -fsycl-targets=amdgcn-amd-amdhsa -Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=gfx803 -fgpu-rdc -nogpulib -fno-sycl-libspirv -c --offload-new-driver -o %t_amdgcn.o
-// RUN: %clang %s -fsycl -fsycl-targets=native_cpu -fno-sycl-libspirv -c --offload-new-driver -o %t_native_cpu.o
+// RUN: %clang %s -fsycl -fsycl-targets=native_cpu -fno-sycl-libspirv --no-offloadlib -c --offload-new-driver -o %t_native_cpu.o
 //
 // Generate .o file as SYCL device library file.
 //
@@ -267,13 +267,13 @@
 // -------
 // Generate .o file as linker wrapper input.
 //
-// RUN: %clang %s -fsycl -fsycl-targets=native_cpu -fno-sycl-libspirv -c --offload-new-driver -o %t6.o
+// RUN: %clang %s -fsycl -fsycl-targets=native_cpu -fno-sycl-libspirv --no-offloadlib -c --offload-new-driver -o %t6.o
 //
-// RUN: clang-linker-wrapper "--host-triple=x86_64-unknown-linux-gnu" "-sycl-device-library-location=%S/Inputs/native_cpu" "--sycl-post-link-options=SYCL_POST_LINK_OPTIONS" "--linker-path=/usr/bin/ld" "--" HOST_LINKER_FLAGS "-dynamic-linker" HOST_DYN_LIB "-o" "a.out" %t6.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-CMDS-NATIVE-CPU %s
+// RUN: clang-linker-wrapper "--host-triple=x86_64-unknown-linux-gnu" "--sycl-post-link-options=SYCL_POST_LINK_OPTIONS" "--linker-path=/usr/bin/ld" "--" HOST_LINKER_FLAGS "-dynamic-linker" HOST_DYN_LIB "-o" "a.out" %t6.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-CMDS-NATIVE-CPU %s
 // CHK-CMDS-NATIVE-CPU: spirv-to-ir-wrapper{{.*}} --llvm-spirv-opts --spirv-preserve-auxdata --spirv-target-env=SPV-IR --spirv-builtin-format=global
 // CHK-CMDS-NATIVE-CPU-NEXT: llvm-link{{.*}} --suppress-warnings
 // CHK-CMDS-NATIVE-CPU-NEXT: sycl-post-link{{.*}} SYCL_POST_LINK_OPTIONS
-// CHK-CMDS-NATIVE-CPU-NEXT: clang{{.*}} --no-default-config -o [[OUT1:.*\.img]] -dumpdir a.out.native_cpu..img. --target=x86_64-unknown-linux-gnu -Wno-override-module -mllvm -sycl-native-cpu-backend -c {{.*}} -Xclang -mlink-bitcode-file -Xclang {{.*}}libsycl-nativecpu_utils.bc
+// CHK-CMDS-NATIVE-CPU-NEXT: clang{{.*}} --no-default-config -o [[OUT1:.*\.img]] -dumpdir a.out.native_cpu..img. --target=x86_64-unknown-linux-gnu -Wno-override-module -mllvm -sycl-native-cpu-backend -c
 // CHK-CMDS-NATIVE-CPU-NEXT:  offload-wrapper: output: [[OUT2:.*\.bc]], input: [[OUT1]]
 // CHK-CMDS-NATIVE-CPU-NEXT: clang{{.*}} --target=x86_64-unknown-linux-gnu -c -o [[OUT3:.*\.o]] [[OUT2]]
 // CHK-CMDS-NATIVE-CPU-NEXT: "{{.*}}/ld" -- HOST_LINKER_FLAGS -dynamic-linker HOST_DYN_LIB -o a.out [[OUT1]] [[OUT3]] {{.*\.o}}
