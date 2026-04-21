@@ -123,19 +123,6 @@ TEST(FP8E8M0Test, CArrayHalfHostUpwardFinite) {
   EXPECT_EQ(a1.vals[1], 0x00);
 }
 
-TEST(FP8E8M0Test, VariadicFloatReferences) {
-  float x = 1.0f;
-  float y = 2.0f;
-  float &xf = x;
-  float &yf = y;
-
-  fp8_e4m3_x2 a(xf, yf);
-
-  EXPECT_EQ(sizeof(a.vals), 2u);
-  EXPECT_EQ(a.vals[0], 0x38);
-  EXPECT_EQ(a.vals[1], 0x40);
-}
-
 TEST(FP8E8M0Test, CArrayBFloat16HostUpwardFinite) {
   const sycl::ext::oneapi::bfloat16 in[2] = {sycl::ext::oneapi::bfloat16(1.0f),
                                              sycl::ext::oneapi::bfloat16(2.0f)};

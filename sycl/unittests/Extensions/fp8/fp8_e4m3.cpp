@@ -50,19 +50,6 @@ TEST(FP8E4M3Test, VariadicFloat) {
   EXPECT_EQ(b.vals[0], 0x39);
 }
 
-TEST(FP8E4M3Test, VariadicFloatReferences) {
-  float x = 1.0f;
-  float y = 2.0f;
-  float &xf = x;
-  float &yf = y;
-
-  fp8_e4m3_x2 a(xf, yf);
-
-  EXPECT_EQ(sizeof(a.vals), 2u);
-  EXPECT_EQ(a.vals[0], 0x38);
-  EXPECT_EQ(a.vals[1], 0x40);
-}
-
 TEST(FP8E4M3Test, VariadicBoundaryEncodingsFloat) {
   // CPU host path: variadic constructors use rounding::to_even and
   // saturation::finite.

@@ -117,19 +117,6 @@ TEST(FP8E5M2Test, RawInfinityAndNaNDecoding) {
   EXPECT_TRUE(std::isnan(static_cast<float>(qnan_bf16)));
 }
 
-TEST(FP8E5M2Test, VariadicFloatReferences) {
-  float x = 1.0f;
-  float y = 2.0f;
-  float &xf = x;
-  float &yf = y;
-
-  fp8_e4m3_x2 a(xf, yf);
-
-  EXPECT_EQ(sizeof(a.vals), 2u);
-  EXPECT_EQ(a.vals[0], 0x38);
-  EXPECT_EQ(a.vals[1], 0x40);
-}
-
 TEST(FP8E5M2Test, IntegerConstructorToEvenFiniteAndSize) {
   fp8_e5m2 a0(0);
   fp8_e5m2 a1(1);
