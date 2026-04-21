@@ -47,8 +47,10 @@
 // CHECK-NEXT: marray.hpp
 // CHECK-NEXT: detail/common.hpp
 // CHECK-NEXT: vector.hpp
-// CHECK-NEXT: detail/named_swizzles_mixin.hpp
 // CHECK-NEXT: detail/vector_arith.hpp
+// CHECK-NEXT: detail/vector_traits.hpp
+// CHECK-NEXT: detail/vector_core.hpp
+// CHECK-NEXT: detail/named_swizzles_mixin.hpp
 // CHECK-NEXT: detail/fwd/accessor.hpp
 // CHECK-NEXT: detail/memcpy.hpp
 // CHECK-NEXT: nd_item.hpp
