@@ -183,9 +183,9 @@ and not recommended to use in production environment.
 
 **`-fsycl-id-queries-range={int,uint,size_t}`**
 
-    Asserts that the kernels and SYCL_EXTERNAL functions defined in this
-    translation unit will always be launched with a global range that is less
-    than or equal to INT_MAX, UINT_MAX, or SIZE_MAX. The application is
+    Asserts that the kernels and SYCL_EXTERNAL functions defined in this source
+    file (translation unit) will always be launched with a global range that is
+    less than or equal to INT_MAX, UINT_MAX, or SIZE_MAX. The application is
     responsible for ensuring that it never invokes these kernels with a larger
     global range. Application code may assume that the return values from the
     following functions fit within int, unsinged int, or size_t respectively:
@@ -197,6 +197,8 @@ and not recommended to use in production environment.
     The compiler uses these assumptions to optimize code generation. When an
     assumption is specified, the runtime validates kernel launch parameters and
     throws an exception if they would violate the assumption.
+
+    Default value is "int".
 
 **`-f[no-]sycl-id-queries-fit-in-int`**
 
