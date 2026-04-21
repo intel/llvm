@@ -2384,13 +2384,14 @@ typedef enum ur_device_info_t {
   /// [uint32_t][optional-query] return Intel GPU number of regions sharing
   /// local L2/L3 (XE_CU) per stack
   UR_DEVICE_INFO_XE_REGIONS_PER_STACK = 134,
-  /// [uint32_t][optional-query] return Intel GPU number of clusters (slices)
-  /// per region
+  /// [uint32_t][optional-query] return Intel GPU number of clusters
+  /// (slices) per region
   UR_DEVICE_INFO_XE_CLUSTERS_PER_REGION = 135,
-  /// [uint32_t][optional-query] return Intel GPU number of XE cores per cluster
+  /// [uint32_t][optional-query] return Intel GPU number of XE cores per
+  /// cluster
   UR_DEVICE_INFO_XE_CORES_PER_CLUSTER = 136,
-  /// [uint32_t][optional-query] return Intel GPU number of execution engines
-  /// (EUs) per XE Core
+  /// [uint32_t][optional-query] return Intel GPU number of execution
+  /// engines (EUs) per XE Core
   UR_DEVICE_INFO_EU_COUNT_PER_XE_CORE = 137,
   /// [uint32_t][optional-query] return Intel GPU maximal number of lanes
   /// (virtual SIMD size) per hardware thread
