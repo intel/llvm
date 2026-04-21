@@ -626,7 +626,7 @@ which can be used by the `kernel::get_info()` overload.
 
 _Returns:_ The same value `ret` that would be computed by:
 
-[source,c++]
+[source,c++,indent=2]
 ----
 auto bundle =
   sycl::get_kernel_bundle<Func, sycl::bundle_state::executable>(ctxt);
@@ -664,7 +664,7 @@ The kernel `Func` must be compatible with the device `dev` as defined by
 
 _Returns:_ The same value `ret` that would be computed by:
 
-[source,c++]
+[source,c++,indent=2]
 ----
 auto bundle =
   sycl::get_kernel_bundle<Func, sycl::bundle_state::executable>(ctxt);
@@ -683,7 +683,7 @@ a@
 ----
 namespace sycl::ext::oneapi::experimental {
 
-template<typename Func, typename Param>
+template<auto *Func, typename Param>
 typename Param::return_type get_kernel_info(const queue& q);
 
 } // namespace sycl::ext::oneapi::experimental
@@ -699,7 +699,7 @@ with `q` as defined by `is_compatible`.
 
 _Returns:_ The same value `ret` that would be computed by:
 
-[source,c++]
+[source,c++,indent=2]
 ----
 sycl::context ctxt = q.get_context();
 sycl::device dev = q.get_device();
@@ -710,6 +710,90 @@ auto ret = bundle.ext_oneapi_get_kernel<Func>().get_info<Param>(dev);
 
 _Remarks:_ Each information descriptor may specify additional preconditions,
 exceptions that are thrown, etc.
+
+'''
+
+[frame=all,grid=none,separator="@"]
+!====
+a@
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+template<auto *Func, typename Param>                              (1)
+typename Param::return_type get_kernel_info(const context& ctxt,
+                                            const device& dev,
+                                            sycl::range<1> r,
+                                            size_t bytes = 0);
+
+template<auto *Func, typename Param>                              (2)
+typename Param::return_type get_kernel_info(const context& ctxt,
+                                            const device& dev,
+                                            sycl::range<2> r,
+                                            size_t bytes = 0);
+
+template<auto *Func, typename Param>                              (3)
+typename Param::return_type get_kernel_info(const context& ctxt,
+                                            const device& dev,
+                                            sycl::range<3> r,
+                                            size_t bytes = 0);
+
+template<auto *Func, typename Param>                              (4)
+typename Param::return_type get_kernel_info(const queue& q,
+                                            sycl::range<1> r,
+                                            size_t bytes = 0);
+
+template<auto *Func, typename Param>                              (5)
+typename Param::return_type get_kernel_info(const queue& q,
+                                            sycl::range<2> r,
+                                            size_t bytes = 0);
+
+template<auto *Func, typename Param>                              (6)
+typename Param::return_type get_kernel_info(const queue& q,
+                                            sycl::range<3> r,
+                                            size_t bytes = 0);
+
+} // namespace sycl::ext::oneapi::experimental
+----
+!====
+
+_Constraints_: Available only if `is_kernel_v<Func>` is `true`.
+Available only if `Param` is
+`ext::oneapi::experimental::info::kernel::max_num_work_groups_sync`.
+
+_Preconditions_ (1) - (3): The device `dev` must be one of the devices contained
+by `ctxt` or must be a descendent device of some device in `ctxt`.
+The kernel `Func` must be compatible with the device `dev` as defined by
+`is_compatible`.
+
+_Preconditions_ (4) - (6): The kernel `Func` must be compatible with the device
+associated with `q` as defined by `is_compatible`.
+
+_Returns_ (1) - (3): The same value `ret` that would be computed by:
+
+[source,c++,indent=2]
+----
+auto bundle =
+  sycl::get_kernel_bundle<Func, sycl::bundle_state::executable>(ctxt);
+sycl::kernel k = bundle.ext_oneapi_get_kernel<Func>();
+auto ret = k.ext_oneapi_get_info<Param>(dev, r, bytes);
+----
+
+_Returns_ (4) - (6): The same value `ret` that would be computed by:
+
+[source,c++,indent=2]
+----
+sycl::context ctxt = q.get_context();
+sycl::device dev = q.get_device();
+auto bundle =
+  sycl::get_kernel_bundle<Func, sycl::bundle_state::executable>(ctxt);
+sycl::kernel k = bundle.ext_oneapi_get_kernel<Func>();
+auto ret = k.ext_oneapi_get_info<Param>(dev, r, bytes);
+----
+
+_Remarks:_ An implementation provides these functions only if it also implements
+the link:../experimental/sycl_ext_oneapi_root_group.asciidoc[
+sycl_ext_oneapi_root_group] extension.
 
 === Behavior with kernel bundle functions in the core SYCL specification
 

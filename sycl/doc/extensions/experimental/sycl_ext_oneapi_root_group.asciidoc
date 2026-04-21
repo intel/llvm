@@ -46,8 +46,6 @@ This extension also depends on the following other SYCL extensions:
   sycl_ext_oneapi_properties]
 * link:../experimental/sycl_ext_oneapi_kernel_properties.asciidoc[
   sycl_ext_oneapi_kernel_properties]
-* link:../proposed/sycl_ext_oneapi_launch_queries.asciidoc[
-  sycl_ext_oneapi_launch_queries]
 
 
 == Status
@@ -117,12 +115,6 @@ struct KernelName {
     sycl::group_barrier(root);
   }
 
-  auto get(syclex::properties_tag) const {
-    // Kernels that use root-group synchronization must be decorated with the
-    // "use_root_sync" kernel property.
-    return syclex::properties{syclex::use_root_sync};
-  }
-
   size_t *data;
 };
 
@@ -130,23 +122,24 @@ int main() {
   sycl::queue q;
 
   // When a kernel uses root-group synchronization, the total number of
-  // work-groups is limited.  This limit can vary depending on the kernel,
-  // so get a "kernel" object representing the kernel when plan to launch.
-  auto bundle = sycl::get_kernel_bundle<KernelName, sycl::bundle_state::executable>(
-    q.get_context());
-  auto kernel = bundle.get_kernel<KernelName>();
-
-  // Get the maximum number of work-groups for this kernel.  The limit also
-  // depends on the size of each work-group (which is 32 in this example), and
-  // on the amount of work-group local memory (which is 0 in this example).
-  auto maxWGs = kernel.ext_oneapi_get_info<
-    syclex::info::kernel_queue_specific::max_num_work_groups>(q, 32, 0);
+  // work-groups is limited.  This limit is specific to the kernel, the device,
+  // the work-group size (which is 32 in this example), and the amount of
+  // dynamically allocated work-group local memory (which is zero in this
+  // example).
+  auto maxWGs = syclex::get_kernel_info<
+    syclex::info::kernel::max_num_work_groups_sync>(q, 32, 0);
 
   // Construct an nd-range which launches the maximum number of work-groups.
   auto ndr = sycl::nd_range<1>{maxWGs * 32, 32};
 
+  // When a kernel uses root-group synchronization, it must be launched with the
+  // "use_root_sync" property.  Construct a launch configuration with this
+  // property.
+  syclex::launch_config cfg{ndr, syclex::properties{syclex::use_root_sync}};
+
   size_t *data = sycl::malloc_device<size_t>(maxWGs * 32, q);
-  q.parallel_for(ndr, KernelName{data}).wait();
+  syclex::nd_launch(q, cfg, KernelName{data});
+  q.wait();
 }
 ----
 
@@ -174,7 +167,147 @@ supports.
 |===
 
 
-=== Kernel properties
+=== Kernel information descriptor
+
+This extension adds the following kernel information descriptor.
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental::info::kernel {
+
+struct max_num_work_groups_sync {
+  using return_type = size_t;
+}
+
+} // namespace sycl::ext::oneapi::experimental
+----
+
+
+=== Kernel information descriptor queries
+
+This extension adds the following member functions to the `kernel` class.
+
+[source,c++]
+----
+namespace sycl {
+
+class kernel {
+ public:
+  template <typename Param>
+  typename Param::return_type ext_oneapi_get_info(const device& dev,
+                                                  sycl::range<1> r,
+                                                  size_t bytes = 0) const;
+
+  template <typename Param>
+  typename Param::return_type ext_oneapi_get_info(const device& dev,
+                                                  sycl::range<2> r,
+                                                  size_t bytes = 0) const;
+
+  template <typename Param>
+  typename Param::return_type ext_oneapi_get_info(const device& dev,
+                                                  sycl::range<3> r,
+                                                  size_t bytes = 0) const;
+};
+
+} // namespace sycl
+----
+
+_Constraints:_ `Param` is
+`ext::oneapi::experimental::info::kernel::max_num_work_groups_sync`.
+
+_Returns:_ The maximum number of work-groups that are allowed when the kernel
+uses root-group synchronization, assuming the kernel is launched with a
+work-group size of `r` and with the specified amount of dynamic work-group local
+memory (in bytes).
+If the kernel can be submitted to the device without an error, the minimum value
+returned by this query is 1, otherwise it is 0.
+
+'''
+
+This extension also adds the following shortcut functions to query a kernel's
+information descriptor.
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+template<typename KernelName, typename Param>                     (1)
+typename Param::return_type get_kernel_info(const context& ctxt,
+                                            const device& dev,
+                                            sycl::range<1> r,
+                                            size_t bytes = 0);
+
+template<typename KernelName, typename Param>                     (2)
+typename Param::return_type get_kernel_info(const context& ctxt,
+                                            const device& dev,
+                                            sycl::range<2> r,
+                                            size_t bytes = 0);
+
+template<typename KernelName, typename Param>                     (3)
+typename Param::return_type get_kernel_info(const context& ctxt,
+                                            const device& dev,
+                                            sycl::range<3> r,
+                                            size_t bytes = 0);
+
+template<typename KernelName, typename Param>                     (4)
+typename Param::return_type get_kernel_info(const queue& q,
+                                            sycl::range<1> r,
+                                            size_t bytes = 0);
+
+template<typename KernelName, typename Param>                     (5)
+typename Param::return_type get_kernel_info(const queue& q,
+                                            sycl::range<2> r,
+                                            size_t bytes = 0);
+
+template<typename KernelName, typename Param>                     (6)
+typename Param::return_type get_kernel_info(const queue& q,
+                                            sycl::range<3> r,
+                                            size_t bytes = 0);
+
+} // namespace sycl::ext::oneapi::experimental
+----
+
+_Constraints:_ `Param` is
+`ext::oneapi::experimental::info::kernel::max_num_work_groups_sync`.
+
+_Preconditions_ (1) - (3): The `KernelName` must be the type kernel name of a
+kernel that is defined in the application.
+The device `dev` must be one of the devices contained by `ctxt` or must be a
+descendent device of some device in `ctxt`.
+The kernel `KernelName` must be compatible with the device `dev` as defined by
+`is_compatible`.
+
+_Preconditions_ (4) - (6): The `KernelName` must be the type kernel name of a
+kernel that is defined in the application.
+The kernel `KernelName` must be compatible with the device associated with `q`
+as defined by `is_compatible`.
+
+_Returns_ (1) - (3): The same value `ret` that would be computed by:
+
+[source,c++,indent=2]
+----
+auto bundle =
+  sycl::get_kernel_bundle<KernelName, sycl::bundle_state::executable>(ctxt);
+sycl::kernel k = bundle.get_kernel<KernelName>();
+auto ret = k.ext_oneapi_get_info<Param>(dev, r, bytes);
+----
+
+_Returns_ (4) - (6): The same value `ret` that would be computed by:
+
+[source,c++,indent=2]
+----
+sycl::context ctxt = q.get_context();
+sycl::device dev = q.get_device();
+auto bundle =
+  sycl::get_kernel_bundle<KernelName, sycl::bundle_state::executable>(ctxt);
+sycl::kernel k = bundle.get_kernel<KernelName>();
+auto ret = k.ext_oneapi_get_info<Param>(dev, r, bytes);
+----
+
+
+=== Kernel launch property
+
+This extension adds the following kernel launch property.
 
 [source,c++]
 ----
@@ -195,16 +328,16 @@ inline constexpr use_root_sync_key::value_t use_root_sync;
 |The `use_root_sync` property adds the requirement that the kernel must be
  launched in a manner that is compatible with using a root-group in group
  functions and algorithms. If the `sycl::nd_range` parameter used to launch the
- kernel is incompatible with the results of the launch queries described in the
- sycl_ext_oneapi_launch_queries extension, an implementation must throw a
- synchronous exception with the `errc::nd_range` error code.
+ kernel is incompatible with the maximum number of work-groups returned by the
+ `max_num_work_groups_sync` query, an implementation must throw a synchronous
+ exception with the `errc::nd_range` error code.
 |===
 
 
 === The `root_group` class
 
 The `root_group` class implements all member functions common to the
-`sycl::group` and `sycl::sub_group` classes and also contains own
+`sycl::group` and `sycl::sub_group` classes and also contains its own
 additional functions.
 
 [source,c++]
@@ -436,13 +569,13 @@ NOTE: Support for passing the `root_group` to other group functions and
 algorithms may be added in a future version of this extension.
 
 These group functions and algorithms act as synchronization points, and can
-only be used in kernels decorated with the `use_root_sync` property.
-Attempting to call these functions in kernels that were not decorated with the
+only be used in kernels launched with the `use_root_sync` property.
+Attempting to call these functions in kernels that were not launched with the
 `use_root_sync` property results in undefined behavior.
 
 NOTE: Implementations are encouraged to throw a synchronous error with the
 `errc::invalid` error code if they are able to detect that a developer has
-attempted to synchronize a `root_group` from an incompatible kernel.
+attempted to synchronize a `root_group` from an incompatible kernel launch.
 
 
 === Accessing the `root_group` instance
