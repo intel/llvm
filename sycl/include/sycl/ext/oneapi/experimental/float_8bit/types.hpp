@@ -104,7 +104,7 @@ template <> struct DirectBinary16Traits<sycl::ext::oneapi::bfloat16> {
   static constexpr uint16_t QuietNaNBits = 0x7FC0u;
 };
 
-template <typename ToT> static constexpr inline ToT MakeDirectNaN() noexcept {
+template <typename ToT> static inline ToT MakeDirectNaN() noexcept {
   if constexpr (std::is_same_v<ToT, sycl::half> ||
                 std::is_same_v<ToT, sycl::ext::oneapi::bfloat16>) {
     return sycl::bit_cast<ToT>(DirectBinary16Traits<ToT>::QuietNaNBits);
@@ -116,7 +116,7 @@ template <typename ToT> static constexpr inline ToT MakeDirectNaN() noexcept {
 }
 
 template <typename ToT>
-static constexpr inline ToT MakeDirectInf(bool negative) noexcept {
+static inline ToT MakeDirectInf(bool negative) noexcept {
   if constexpr (std::is_same_v<ToT, sycl::half> ||
                 std::is_same_v<ToT, sycl::ext::oneapi::bfloat16>) {
     using Traits = DirectBinary16Traits<ToT>;
@@ -817,16 +817,6 @@ static inline ToT ConvertFromE8M0_CPU(uint8_t code, rounding R) noexcept {
   return ToT{};
 }
 
-template <typename T, typename... Ts>
-struct IsOneOf : std::disjunction<std::is_same<T, Ts>...> {};
-
-template <typename T>
-struct IsSyclFpType : IsOneOf<std::decay_t<T>, sycl::half,
-                              sycl::ext::oneapi::bfloat16, float, double> {};
-
-template <typename T>
-inline constexpr bool IsSyclFpTypeV = IsSyclFpType<T>::value;
-
 } // namespace detail
 
 template <size_t N> class fp8_e4m3_x {
@@ -838,12 +828,11 @@ template <size_t N> class fp8_e4m3_x {
 
   template <typename T> uint8_t ConvertToFP8(T h) {
 #ifdef __SYCL_DEVICE_ONLY__
-    if constexpr (std::is_same_v<std::decay_t<T>, bfloat16>)
-      return __builtin_spirv_ClampConvertBF16ToE4M3INTEL(h);
-    else
-      return __builtin_spirv_ClampConvertFP16ToE4M3INTEL(h);
+    return __builtin_spirv_ClampConvertFP16ToE4M3INTEL(h);
 #else
-    if constexpr (detail::IsSyclFpTypeV<T>) {
+    if constexpr (std::is_same_v<std::decay_t<T>, sycl::half> ||
+                  std::is_same_v<std::decay_t<T>, float> ||
+                  std::is_same_v<std::decay_t<T>, double>) {
       return detail::ConvertFloatToFP8_CPU<NExpBits, NFracBits, T>(
           h, rounding::to_even, saturation::finite);
     } else if constexpr (std::is_integral_v<std::decay_t<T>>) {
@@ -853,18 +842,33 @@ template <size_t N> class fp8_e4m3_x {
 #endif
   }
 
+  uint8_t ConvertBF16ToFP8(bfloat16 h) {
+#ifdef __SYCL_DEVICE_ONLY__
+    return __builtin_spirv_ClampConvertBF16ToE4M3INTEL(h);
+#else
+    return detail::ConvertFloatToFP8_CPU<NExpBits, NFracBits, bfloat16>(
+        h, rounding::to_even, saturation::finite);
+#endif
+  }
+
   template <typename T>
   T ConvertFromFP8(uint8_t v, rounding r = rounding::to_even) const {
 #ifdef __SYCL_DEVICE_ONLY__
-    if constexpr (std::is_same_v<std::decay_t<T>, bfloat16>)
-      return __builtin_spirv_ConvertE4M3ToBF16EXT(v);
-    else {
-      sycl::half hi = __builtin_spirv_ConvertE4M3ToFP16EXT(v);
-      return static_cast<T>(hi);
-    }
+    sycl::half hi = __builtin_spirv_ConvertE4M3ToFP16EXT(v);
+    return static_cast<T>(hi);
 #else
     return detail::ConvertFromFP8ToBinaryFloat_CPU<NExpBits, NFracBits, T>(v,
                                                                            r);
+#endif
+  }
+
+  bfloat16 ConvertBF16FromFP8(uint8_t v) const {
+#ifdef __SYCL_DEVICE_ONLY__
+    return __builtin_spirv_ConvertE4M3ToBF16EXT(v);
+#else
+    return detail::ConvertFromFP8ToBinaryFloat_CPU<NExpBits, NFracBits,
+                                                   bfloat16>(v,
+                                                             rounding::to_even);
 #endif
   }
 
@@ -891,6 +895,12 @@ public:
                  ((std::is_same_v<std::decay_t<Types>, float>) && ...) ||
                  ((std::is_same_v<std::decay_t<Types>, double>) && ...))>>
   explicit fp8_e4m3_x(Types... v) {
+    if constexpr (((std::is_same_v<std::decay_t<Types>, bfloat16>) && ...)) {
+      const bfloat16 in[N] = {static_cast<bfloat16>(v)...};
+      for (size_t i = 0; i < N; ++i)
+        vals[i] = ConvertBF16ToFP8(in[i]);
+      return;
+    }
     using InT = std::common_type_t<std::decay_t<Types>...>;
     const InT in[N] = {v...};
     for (size_t i = 0; i < N; ++i)
@@ -898,18 +908,53 @@ public:
   }
 
   // Construct from an array of half, bfloat16, float, double.
-  template <typename T, typename = std::enable_if_t<detail::IsSyclFpTypeV<T>>>
-  explicit fp8_e4m3_x(T const (&v)[N], rounding r = rounding::to_even) {
+  explicit fp8_e4m3_x(sycl::half const (&v)[N],
+                      rounding r = rounding::to_even) {
     CheckConstraints(r);
     for (size_t i = 0; i < N; ++i)
       vals[i] = ConvertToFP8(v[i]);
   }
 
+  explicit fp8_e4m3_x(bfloat16 const (&v)[N], rounding r = rounding::to_even) {
+    CheckConstraints(r);
+    for (size_t i = 0; i < N; ++i)
+      vals[i] = ConvertBF16ToFP8(v[i]);
+  }
+
+  explicit fp8_e4m3_x(float const (&v)[N], rounding r = rounding::to_even) {
+    CheckConstraints(r);
+    for (size_t i = 0; i < N; ++i)
+      vals[i] = ConvertToFP8(v[i]);
+  }
+
+  explicit fp8_e4m3_x(double const (&v)[N]) {
+    for (size_t i = 0; i < N; ++i)
+      vals[i] = ConvertToFP8(v[i]);
+  }
+
   // Construct from an marray of half, bfloat16, float, double.
-  template <typename T, typename = std::enable_if_t<detail::IsSyclFpTypeV<T>>>
-  explicit fp8_e4m3_x(const sycl::marray<T, N> &v,
+  explicit fp8_e4m3_x(const sycl::marray<sycl::half, N> &v,
                       rounding r = rounding::to_even) {
     CheckConstraints(r);
+    for (size_t i = 0; i < N; ++i)
+      vals[i] = ConvertToFP8(v[i]);
+  }
+
+  explicit fp8_e4m3_x(const sycl::marray<bfloat16, N> &v,
+                      rounding r = rounding::to_even) {
+    CheckConstraints(r);
+    for (size_t i = 0; i < N; ++i)
+      vals[i] = ConvertBF16ToFP8(v[i]);
+  }
+
+  explicit fp8_e4m3_x(const sycl::marray<float, N> &v,
+                      rounding r = rounding::to_even) {
+    CheckConstraints(r);
+    for (size_t i = 0; i < N; ++i)
+      vals[i] = ConvertToFP8(v[i]);
+  }
+
+  explicit fp8_e4m3_x(const sycl::marray<double, N> &v) {
     for (size_t i = 0; i < N; ++i)
       vals[i] = ConvertToFP8(v[i]);
   }
@@ -917,33 +962,199 @@ public:
   // Construct from integer types.
   // Available only when N==1.
 
-  template <typename T, size_t M = N,
-            typename = std::enable_if_t<M == 1 && std::is_integral_v<T>>>
-  explicit fp8_e4m3_x(T val) {
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  explicit fp8_e4m3_x(short val) {
     vals[0] = ConvertToFP8(val);
   }
+
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  explicit fp8_e4m3_x(int val) {
+    vals[0] = ConvertToFP8(val);
+  }
+
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  explicit fp8_e4m3_x(long val) {
+    vals[0] = ConvertToFP8(val);
+  }
+
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  explicit fp8_e4m3_x(long long val) {
+    vals[0] = ConvertToFP8(val);
+  }
+
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  explicit fp8_e4m3_x(unsigned short val) {
+    vals[0] = ConvertToFP8(val);
+  }
+
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  explicit fp8_e4m3_x(unsigned int val) {
+    vals[0] = ConvertToFP8(val);
+  }
+
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  explicit fp8_e4m3_x(unsigned long val) {
+    vals[0] = ConvertToFP8(val);
+  }
+
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  explicit fp8_e4m3_x(unsigned long long val) {
+    vals[0] = ConvertToFP8(val);
+  }
+
   // Assign (operator) from half, bfloat16, float, double, and integer types.
   // Available only when N==1.
 
-  template <typename T, size_t M = N,
-            typename = std::enable_if_t<M == 1 && (detail::IsSyclFpTypeV<T> ||
-                                                   std::is_integral_v<T>)>>
-  fp8_e4m3_x &operator=(T val) {
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  fp8_e4m3_x &operator=(sycl::half val) {
     vals[0] = ConvertToFP8(val);
     return *this;
   }
-  // Convert to half, bfloat16, float, double and integer types
+
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  fp8_e4m3_x &operator=(bfloat16 val) {
+    vals[0] = ConvertBF16ToFP8(val);
+    return *this;
+  }
+
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  fp8_e4m3_x &operator=(float val) {
+    vals[0] = ConvertToFP8(val);
+    return *this;
+  }
+
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  fp8_e4m3_x &operator=(double val) {
+    vals[0] = ConvertToFP8(val);
+    return *this;
+  }
+
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  fp8_e4m3_x &operator=(short val) {
+    vals[0] = ConvertToFP8(val);
+    return *this;
+  }
+
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  fp8_e4m3_x &operator=(int val) {
+    vals[0] = ConvertToFP8(val);
+    return *this;
+  }
+
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  fp8_e4m3_x &operator=(long val) {
+    vals[0] = ConvertToFP8(val);
+    return *this;
+  }
+
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  fp8_e4m3_x &operator=(long long val) {
+    vals[0] = ConvertToFP8(val);
+    return *this;
+  }
+
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  fp8_e4m3_x &operator=(unsigned short val) {
+    vals[0] = ConvertToFP8(val);
+    return *this;
+  }
+
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  fp8_e4m3_x &operator=(unsigned int val) {
+    vals[0] = ConvertToFP8(val);
+    return *this;
+  }
+
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  fp8_e4m3_x &operator=(unsigned long val) {
+    vals[0] = ConvertToFP8(val);
+    return *this;
+  }
+
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  fp8_e4m3_x &operator=(unsigned long long val) {
+    vals[0] = ConvertToFP8(val);
+    return *this;
+  }
+
+  // Convert to half, bfloat16, float, double.
   // Available only when N==1.
 
-  template <typename T, size_t M = N,
-            typename = std::enable_if_t<M == 1 && (detail::IsSyclFpTypeV<T> ||
-                                                   std::is_integral_v<T>)>>
-  explicit operator T() const {
-    if constexpr (std::is_integral_v<T>)
-      return ConvertFromFP8<T>(vals[0], rounding::toward_zero);
-    else
-      return ConvertFromFP8<T>(vals[0]);
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  explicit operator half() const {
+    return ConvertFromFP8<sycl::half>(vals[0]);
   }
+
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  explicit operator bfloat16() const {
+    return ConvertBF16FromFP8(vals[0]);
+  }
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  explicit operator float() const {
+    return ConvertFromFP8<float>(vals[0]);
+  }
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  explicit operator double() const {
+    return ConvertFromFP8<double>(vals[0]);
+  }
+
+  // Convert to integer types.
+  // Available only when N==1.
+
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  explicit operator char() const {
+    return ConvertFromFP8<char>(vals[0], rounding::toward_zero);
+  }
+
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  explicit operator signed char() const {
+    return ConvertFromFP8<signed char>(vals[0], rounding::toward_zero);
+  }
+
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  explicit operator short() const {
+    return ConvertFromFP8<short>(vals[0], rounding::toward_zero);
+  }
+
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  explicit operator int() const {
+    return ConvertFromFP8<int>(vals[0], rounding::toward_zero);
+  }
+
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  explicit operator long() const {
+    return ConvertFromFP8<long>(vals[0], rounding::toward_zero);
+  }
+
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  explicit operator long long() const {
+    return ConvertFromFP8<long long>(vals[0], rounding::toward_zero);
+  }
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  explicit operator unsigned char() const {
+    return ConvertFromFP8<unsigned char>(vals[0], rounding::toward_zero);
+  }
+
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  explicit operator unsigned short() const {
+    return ConvertFromFP8<unsigned short>(vals[0], rounding::toward_zero);
+  }
+
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  explicit operator unsigned int() const {
+    return ConvertFromFP8<unsigned int>(vals[0], rounding::toward_zero);
+  }
+
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  explicit operator unsigned long() const {
+    return ConvertFromFP8<unsigned long>(vals[0], rounding::toward_zero);
+  }
+
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  explicit operator unsigned long long() const {
+    return ConvertFromFP8<unsigned long long>(vals[0], rounding::toward_zero);
+  }
+
   // Convert to bool
   // Available only when N==1.
 
@@ -960,15 +1171,28 @@ public:
   }
 
   // Convert to marray of half, bfloat16, float
-  template <typename T, typename = std::enable_if_t<detail::IsOneOf<
-                            std::decay_t<T>, sycl::half,
-                            sycl::ext::oneapi::bfloat16, float>::value>>
-  explicit operator sycl::marray<T, N>() const {
-    sycl::marray<T, N> ret;
+
+  explicit operator sycl::marray<sycl::half, N>() const {
+    sycl::marray<sycl::half, N> ret;
     for (size_t i = 0; i < N; ++i)
-      ret[i] = ConvertFromFP8<T>(vals[i]);
+      ret[i] = ConvertFromFP8<sycl::half>(vals[i]);
     return ret;
   }
+
+  explicit operator sycl::marray<bfloat16, N>() const {
+    sycl::marray<bfloat16, N> ret;
+    for (size_t i = 0; i < N; ++i)
+      ret[i] = ConvertBF16FromFP8(vals[i]);
+    return ret;
+  }
+
+  explicit operator sycl::marray<float, N>() const {
+    sycl::marray<float, N> ret;
+    for (size_t i = 0; i < N; ++i)
+      ret[i] = ConvertFromFP8<float>(vals[i]);
+    return ret;
+  }
+
   // Intentionally public to allow access to the raw values.
   uint8_t vals[N];
 };
@@ -982,16 +1206,14 @@ template <size_t N> class fp8_e5m2_x {
 
   template <typename T> uint8_t ConvertToFP8(T h, saturation s) {
 #ifdef __SYCL_DEVICE_ONLY__
-    if constexpr (std::is_same_v<std::decay_t<T>, bfloat16>)
-      return s == saturation::finite
-                 ? __builtin_spirv_ClampConvertBF16ToE5M2INTEL(h)
-                 : __builtin_spirv_ConvertBF16ToE5M2EXT(h);
     const sycl::half halfValue = static_cast<sycl::half>(h);
     return s == saturation::finite
                ? __builtin_spirv_ClampConvertFP16ToE5M2INTEL(halfValue)
                : __builtin_spirv_ConvertFP16ToE5M2EXT(halfValue);
 #else
-    if constexpr (detail::IsSyclFpTypeV<T>) {
+    if constexpr (std::is_same_v<std::decay_t<T>, sycl::half> ||
+                  std::is_same_v<std::decay_t<T>, float> ||
+                  std::is_same_v<std::decay_t<T>, double>) {
       return detail::ConvertFloatToFP8_CPU<NExpBits, NFracBits, T>(
           h, rounding::to_even, s);
     } else if constexpr (std::is_integral_v<std::decay_t<T>>) {
@@ -1001,40 +1223,35 @@ template <size_t N> class fp8_e5m2_x {
 #endif
   }
 
-  template <typename T>
-  void StochasticConvertToFP8(T h, uint32_t current_seed, uint32_t *pseed,
-                              saturation s, uint8_t i) {
+  uint8_t ConvertBF16ToFP8(bfloat16 h, saturation s) {
 #ifdef __SYCL_DEVICE_ONLY__
-    if constexpr (std::is_same_v<T, bfloat16>) {
-      if (s == saturation::finite) {
-        vals[i] = __builtin_spirv_ClampStochasticRoundBF16ToE5M2INTEL(
-            h, current_seed, pseed);
-      } else {
-        vals[i] = __builtin_spirv_StochasticRoundBF16ToE5M2INTEL(
-            h, current_seed, pseed);
-      }
-    } else {
-      if (s == saturation::finite) {
-        vals[i] = __builtin_spirv_ClampStochasticRoundFP16ToE5M2INTEL(
-            h, current_seed, pseed);
-      } else {
-        vals[i] = __builtin_spirv_StochasticRoundFP16ToE5M2INTEL(
-            h, current_seed, pseed);
-      }
-    }
+    return s == saturation::finite
+               ? __builtin_spirv_ClampConvertBF16ToE5M2INTEL(h)
+               : __builtin_spirv_ConvertBF16ToE5M2EXT(h);
+#else
+    return detail::ConvertFloatToFP8_CPU<NExpBits, NFracBits, bfloat16>(
+        h, rounding::to_even, s);
 #endif
   }
 
   template <typename T>
   T ConvertFromFP8(uint8_t v, rounding r = rounding::to_even) const {
 #ifdef __SYCL_DEVICE_ONLY__
-    if constexpr (std::is_same_v<std::decay_t<T>, bfloat16>)
-      return __builtin_spirv_ConvertE5M2ToBF16EXT(v);
     sycl::half hi = __builtin_spirv_ConvertE5M2ToFP16EXT(v);
     return static_cast<T>(hi);
 #else
     return detail::ConvertFromFP8ToBinaryFloat_CPU<NExpBits, NFracBits, T>(v,
                                                                            r);
+#endif
+  }
+
+  bfloat16 ConvertBF16FromFP8(uint8_t v) const {
+#ifdef __SYCL_DEVICE_ONLY__
+    return __builtin_spirv_ConvertE5M2ToBF16EXT(v);
+#else
+    return detail::ConvertFromFP8ToBinaryFloat_CPU<NExpBits, NFracBits,
+                                                   bfloat16>(v,
+                                                             rounding::to_even);
 #endif
   }
 
@@ -1062,14 +1279,21 @@ public:
                  ((std::is_same_v<std::decay_t<Types>, float>) && ...) ||
                  ((std::is_same_v<std::decay_t<Types>, double>) && ...))>>
   explicit fp8_e5m2_x(Types... v) {
+    if constexpr (((std::is_same_v<std::decay_t<Types>, bfloat16>) && ...)) {
+      const bfloat16 in[N] = {static_cast<bfloat16>(v)...};
+      for (size_t i = 0; i < N; ++i)
+        vals[i] = ConvertBF16ToFP8(in[i], saturation::finite);
+      return;
+    }
     using InT = std::common_type_t<std::decay_t<Types>...>;
     const InT in[N] = {v...};
     for (size_t i = 0; i < N; ++i)
       vals[i] = ConvertToFP8(in[i], saturation::finite);
   }
 
-  template <typename T, typename = std::enable_if_t<detail::IsSyclFpTypeV<T>>>
-  explicit fp8_e5m2_x(T const (&v)[N], rounding r = rounding::to_even,
+  // Construct from an array of half, bfloat16, float, double.
+
+  explicit fp8_e5m2_x(half const (&v)[N], rounding r = rounding::to_even,
                       saturation s = saturation::finite) {
     CheckConstraints(r);
     // TODO: optimize with vectorized builtin calls
@@ -1077,8 +1301,29 @@ public:
       vals[i] = ConvertToFP8(v[i], s);
   }
 
-  template <typename T, typename = std::enable_if_t<detail::IsSyclFpTypeV<T>>>
-  explicit fp8_e5m2_x(const sycl::marray<T, N> &v,
+  explicit fp8_e5m2_x(bfloat16 const (&v)[N], rounding r = rounding::to_even,
+                      saturation s = saturation::finite) {
+    CheckConstraints(r);
+    // TODO: optimize with vectorized builtin calls
+    for (size_t i = 0; i < N; ++i)
+      vals[i] = ConvertBF16ToFP8(v[i], s);
+  }
+
+  explicit fp8_e5m2_x(float const (&v)[N], rounding r = rounding::to_even,
+                      saturation s = saturation::finite) {
+    CheckConstraints(r);
+    for (size_t i = 0; i < N; ++i)
+      vals[i] = ConvertToFP8(v[i], s);
+  }
+
+  explicit fp8_e5m2_x(double const (&v)[N]) {
+    for (size_t i = 0; i < N; ++i)
+      vals[i] = ConvertToFP8(v[i], saturation::finite);
+  }
+
+  // Construct from an marray of half, bfloat16, float, double.
+
+  explicit fp8_e5m2_x(const sycl::marray<sycl::half, N> &v,
                       rounding r = rounding::to_even,
                       saturation s = saturation::finite) {
     CheckConstraints(r);
@@ -1086,59 +1331,340 @@ public:
       vals[i] = ConvertToFP8(v[i], s);
   }
 
-  template <typename T,
-            typename = std::enable_if_t<detail::IsOneOf<
-                std::decay_t<T>, sycl::half, bfloat16, float>::value>>
-  explicit fp8_e5m2_x([[maybe_unused]] T const (&in)[N],
+  explicit fp8_e5m2_x(const sycl::marray<bfloat16, N> &v,
+                      rounding r = rounding::to_even,
+                      saturation s = saturation::finite) {
+    CheckConstraints(r);
+    for (size_t i = 0; i < N; ++i)
+      vals[i] = ConvertBF16ToFP8(v[i], s);
+  }
+
+  explicit fp8_e5m2_x(const sycl::marray<float, N> &v,
+                      rounding r = rounding::to_even,
+                      saturation s = saturation::finite) {
+    CheckConstraints(r);
+    for (size_t i = 0; i < N; ++i)
+      vals[i] = ConvertToFP8(v[i], s);
+  }
+
+  explicit fp8_e5m2_x(const sycl::marray<double, N> &v) {
+    for (size_t i = 0; i < N; ++i)
+      vals[i] = ConvertToFP8(v[i], saturation::finite);
+  }
+
+  // Construct with stochastic rounding with user provided seed from an array of
+  // half, bfloat16, float.
+
+  explicit fp8_e5m2_x([[maybe_unused]] half const (&in)[N],
                       [[maybe_unused]] const stochastic_seed &seed,
                       [[maybe_unused]] saturation s = saturation::finite) {
 #ifdef __SYCL_DEVICE_ONLY__
     uint32_t current_seed = *seed.pseed;
     for (size_t i = 0; i < N; ++i) {
-      StochasticConvertToFP8(in[i], current_seed, seed.pseed, s, i);
+      if (s == saturation::finite) {
+        vals[i] = __builtin_spirv_ClampStochasticRoundFP16ToE5M2INTEL(
+            in[i], current_seed, seed.pseed);
+      } else {
+        vals[i] = __builtin_spirv_StochasticRoundFP16ToE5M2INTEL(
+            in[i], current_seed, seed.pseed);
+      }
       current_seed = *seed.pseed;
     }
 #endif
   }
 
-  template <typename T,
-            typename = std::enable_if_t<detail::IsOneOf<
-                std::decay_t<T>, sycl::half, bfloat16, float>::value>>
-  explicit fp8_e5m2_x([[maybe_unused]] const sycl::marray<T, N> &in,
+  explicit fp8_e5m2_x([[maybe_unused]] bfloat16 const (&in)[N],
                       [[maybe_unused]] const stochastic_seed &seed,
                       [[maybe_unused]] saturation s = saturation::finite) {
-
 #ifdef __SYCL_DEVICE_ONLY__
     uint32_t current_seed = *seed.pseed;
     for (size_t i = 0; i < N; ++i) {
-      StochasticConvertToFP8(in[i], current_seed, seed.pseed, s, i);
+      if (s == saturation::finite) {
+        vals[i] = __builtin_spirv_ClampStochasticRoundBF16ToE5M2INTEL(
+            in[i], current_seed, seed.pseed);
+      } else {
+        vals[i] = __builtin_spirv_StochasticRoundBF16ToE5M2INTEL(
+            in[i], current_seed, seed.pseed);
+      }
       current_seed = *seed.pseed;
     }
 #endif
   }
 
-  template <typename T, size_t M = N,
-            typename = std::enable_if_t<M == 1 && std::is_integral_v<T>>>
-  explicit fp8_e5m2_x(T val) {
+  explicit fp8_e5m2_x([[maybe_unused]] float const (&in)[N],
+                      [[maybe_unused]] const stochastic_seed &seed,
+                      [[maybe_unused]] saturation s = saturation::finite) {
+#ifdef __SYCL_DEVICE_ONLY__
+    uint32_t current_seed = *seed.pseed;
+    for (size_t i = 0; i < N; ++i) {
+      sycl::half h = static_cast<sycl::half>(in[i]);
+      if (s == saturation::finite) {
+        vals[i] = __builtin_spirv_ClampStochasticRoundFP16ToE5M2INTEL(
+            h, current_seed, seed.pseed);
+      } else {
+        vals[i] = __builtin_spirv_StochasticRoundFP16ToE5M2INTEL(
+            h, current_seed, seed.pseed);
+      }
+      current_seed = *seed.pseed;
+    }
+#endif
+  }
+
+  // Construct with stochastic rounding with user provided seed from an marray
+  // of half, bfloat16, float.
+
+  explicit fp8_e5m2_x([[maybe_unused]] const sycl::marray<half, N> &in,
+                      [[maybe_unused]] const stochastic_seed &seed,
+                      [[maybe_unused]] saturation s = saturation::finite) {
+#ifdef __SYCL_DEVICE_ONLY__
+    uint32_t current_seed = *seed.pseed;
+    for (size_t i = 0; i < N; ++i) {
+      if (s == saturation::finite) {
+        vals[i] = __builtin_spirv_ClampStochasticRoundFP16ToE5M2INTEL(
+            in[i], current_seed, seed.pseed);
+      } else {
+        vals[i] = __builtin_spirv_StochasticRoundFP16ToE5M2INTEL(
+            in[i], current_seed, seed.pseed);
+      }
+      current_seed = *seed.pseed;
+    }
+#endif
+  }
+
+  explicit fp8_e5m2_x([[maybe_unused]] const sycl::marray<bfloat16, N> &in,
+                      [[maybe_unused]] const stochastic_seed &seed,
+                      [[maybe_unused]] saturation s = saturation::finite) {
+#ifdef __SYCL_DEVICE_ONLY__
+    uint32_t current_seed = *seed.pseed;
+    for (size_t i = 0; i < N; ++i) {
+      if (s == saturation::finite) {
+        vals[i] = __builtin_spirv_ClampStochasticRoundBF16ToE5M2INTEL(
+            in[i], current_seed, seed.pseed);
+      } else {
+        vals[i] = __builtin_spirv_StochasticRoundBF16ToE5M2INTEL(
+            in[i], current_seed, seed.pseed);
+      }
+      current_seed = *seed.pseed;
+    }
+#endif
+  }
+
+  explicit fp8_e5m2_x([[maybe_unused]] const sycl::marray<float, N> &in,
+                      [[maybe_unused]] const stochastic_seed &seed,
+                      [[maybe_unused]] saturation s = saturation::finite) {
+#ifdef __SYCL_DEVICE_ONLY__
+    uint32_t current_seed = *seed.pseed;
+    for (size_t i = 0; i < N; ++i) {
+      sycl::half h = static_cast<sycl::half>(in[i]);
+      if (s == saturation::finite) {
+        vals[i] = __builtin_spirv_ClampStochasticRoundFP16ToE5M2INTEL(
+            h, current_seed, seed.pseed);
+      } else {
+        vals[i] = __builtin_spirv_StochasticRoundFP16ToE5M2INTEL(
+            h, current_seed, seed.pseed);
+      }
+      current_seed = *seed.pseed;
+    }
+#endif
+  }
+
+  // Construct from integer types.
+  // Available only when N==1.
+
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  explicit fp8_e5m2_x(short val) {
     vals[0] = ConvertToFP8(val, saturation::finite);
   }
 
-  template <typename T, size_t M = N,
-            typename = std::enable_if_t<M == 1 && (detail::IsSyclFpTypeV<T> ||
-                                                   std::is_integral_v<T>)>>
-  fp8_e5m2_x &operator=(T val) {
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  explicit fp8_e5m2_x(int val) {
+    vals[0] = ConvertToFP8(val, saturation::finite);
+  }
+
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  explicit fp8_e5m2_x(long val) {
+    vals[0] = ConvertToFP8(val, saturation::finite);
+  }
+
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  explicit fp8_e5m2_x(long long val) {
+    vals[0] = ConvertToFP8(val, saturation::finite);
+  }
+
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  explicit fp8_e5m2_x(unsigned short val) {
+    vals[0] = ConvertToFP8(val, saturation::finite);
+  }
+
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  explicit fp8_e5m2_x(unsigned int val) {
+    vals[0] = ConvertToFP8(val, saturation::finite);
+  }
+
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  explicit fp8_e5m2_x(unsigned long val) {
+    vals[0] = ConvertToFP8(val, saturation::finite);
+  }
+
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  explicit fp8_e5m2_x(unsigned long long val) {
+    vals[0] = ConvertToFP8(val, saturation::finite);
+  }
+
+  // Assign (operator) from half, bfloat16, float, double, and integer types.
+  // Available only when N==1.
+
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  fp8_e5m2_x &operator=(sycl::half val) {
     vals[0] = ConvertToFP8(val, saturation::finite);
     return *this;
   }
 
-  template <typename T, size_t M = N,
-            typename = std::enable_if_t<M == 1 && (detail::IsSyclFpTypeV<T> ||
-                                                   std::is_integral_v<T>)>>
-  explicit operator T() const {
-    if constexpr (std::is_integral_v<T>)
-      return ConvertFromFP8<T>(vals[0], rounding::toward_zero);
-    else
-      return ConvertFromFP8<T>(vals[0]);
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  fp8_e5m2_x &operator=(bfloat16 val) {
+    vals[0] = ConvertBF16ToFP8(val, saturation::finite);
+    return *this;
+  }
+
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  fp8_e5m2_x &operator=(float val) {
+    vals[0] = ConvertToFP8(val, saturation::finite);
+    return *this;
+  }
+
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  fp8_e5m2_x &operator=(double val) {
+    vals[0] = ConvertToFP8(val, saturation::finite);
+    return *this;
+  }
+
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  fp8_e5m2_x &operator=(short val) {
+    vals[0] = ConvertToFP8(val, saturation::finite);
+    return *this;
+  }
+
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  fp8_e5m2_x &operator=(int val) {
+    vals[0] = ConvertToFP8(val, saturation::finite);
+    return *this;
+  }
+
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  fp8_e5m2_x &operator=(long val) {
+    vals[0] = ConvertToFP8(val, saturation::finite);
+    return *this;
+  }
+
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  fp8_e5m2_x &operator=(long long val) {
+    vals[0] = ConvertToFP8(val, saturation::finite);
+    return *this;
+  }
+
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  fp8_e5m2_x &operator=(unsigned short val) {
+    vals[0] = ConvertToFP8(val, saturation::finite);
+    return *this;
+  }
+
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  fp8_e5m2_x &operator=(unsigned int val) {
+    vals[0] = ConvertToFP8(val, saturation::finite);
+    return *this;
+  }
+
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  fp8_e5m2_x &operator=(unsigned long val) {
+    vals[0] = ConvertToFP8(val, saturation::finite);
+    return *this;
+  }
+
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  fp8_e5m2_x &operator=(unsigned long long val) {
+    vals[0] = ConvertToFP8(val, saturation::finite);
+    return *this;
+  }
+
+  // Convert to half, bfloat16, float, double.
+  // Available only when N==1.
+
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  explicit operator half() const {
+    return ConvertFromFP8<sycl::half>(vals[0]);
+  }
+
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  explicit operator bfloat16() const {
+    return ConvertBF16FromFP8(vals[0]);
+  }
+
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  explicit operator float() const {
+    return ConvertFromFP8<float>(vals[0]);
+  }
+
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  explicit operator double() const {
+    return ConvertFromFP8<double>(vals[0]);
+  }
+
+  // Convert to integer types.
+  // Available only when N==1.
+
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  explicit operator char() const {
+    return ConvertFromFP8<char>(vals[0], rounding::toward_zero);
+  }
+
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  explicit operator signed char() const {
+    return ConvertFromFP8<signed char>(vals[0], rounding::toward_zero);
+  }
+
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  explicit operator short() const {
+    return ConvertFromFP8<short>(vals[0], rounding::toward_zero);
+  }
+
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  explicit operator int() const {
+    return ConvertFromFP8<int>(vals[0], rounding::toward_zero);
+  }
+
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  explicit operator long() const {
+    return ConvertFromFP8<long>(vals[0], rounding::toward_zero);
+  }
+
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  explicit operator long long() const {
+    return ConvertFromFP8<long long>(vals[0], rounding::toward_zero);
+  }
+
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  explicit operator unsigned char() const {
+    return ConvertFromFP8<unsigned char>(vals[0], rounding::toward_zero);
+  }
+
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  explicit operator unsigned short() const {
+    return ConvertFromFP8<unsigned short>(vals[0], rounding::toward_zero);
+  }
+
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  explicit operator unsigned int() const {
+    return ConvertFromFP8<unsigned int>(vals[0], rounding::toward_zero);
+  }
+
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  explicit operator unsigned long() const {
+    return ConvertFromFP8<unsigned long>(vals[0], rounding::toward_zero);
+  }
+
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  explicit operator unsigned long long() const {
+    return ConvertFromFP8<unsigned long long>(vals[0], rounding::toward_zero);
   }
 
   // Convert to bool
@@ -1150,13 +1676,22 @@ public:
     return vals[0] != 0x00 && vals[0] != 0x80;
   }
 
-  template <typename T, typename = std::enable_if_t<detail::IsOneOf<
-                            std::decay_t<T>, sycl::half,
-                            sycl::ext::oneapi::bfloat16, float>::value>>
-  explicit operator sycl::marray<T, N>() const {
-    sycl::marray<T, N> out;
+  explicit operator sycl::marray<sycl::half, N>() const {
+    sycl::marray<sycl::half, N> out;
     for (size_t i = 0; i < N; ++i)
-      out[i] = ConvertFromFP8<T>(vals[i]);
+      out[i] = ConvertFromFP8<sycl::half>(vals[i]);
+    return out;
+  }
+  explicit operator sycl::marray<bfloat16, N>() const {
+    sycl::marray<bfloat16, N> out;
+    for (size_t i = 0; i < N; ++i)
+      out[i] = ConvertBF16FromFP8(vals[i]);
+    return out;
+  }
+  explicit operator sycl::marray<float, N>() const {
+    sycl::marray<float, N> out;
+    for (size_t i = 0; i < N; ++i)
+      out[i] = ConvertFromFP8<float>(vals[i]);
     return out;
   }
 
@@ -1196,48 +1731,248 @@ public:
                                                saturation::finite);
   }
 
-  template <typename T, typename = std::enable_if_t<detail::IsSyclFpTypeV<T>>>
-  explicit fp8_e8m0_x(T const (&in)[N], rounding r = rounding::upward) {
+  explicit fp8_e8m0_x(half const (&in)[N], rounding r = rounding::upward) {
     CheckConstraints(r);
     for (size_t i = 0; i < N; ++i)
       vals[i] = detail::ConvertFloatToE8M0_CPU(in[i], r, saturation::finite);
   }
 
-  template <typename T, typename = std::enable_if_t<detail::IsSyclFpTypeV<T>>>
-  explicit fp8_e8m0_x(const marray<T, N> &in, rounding r = rounding::upward) {
+  explicit fp8_e8m0_x(bfloat16 const (&in)[N], rounding r = rounding::upward) {
     CheckConstraints(r);
     for (size_t i = 0; i < N; ++i)
       vals[i] = detail::ConvertFloatToE8M0_CPU(in[i], r, saturation::finite);
   }
 
-  template <typename T, size_t M = N,
-            typename = std::enable_if_t<M == 1 && std::is_integral_v<T>>>
-  explicit fp8_e8m0_x(T val) {
+  explicit fp8_e8m0_x(float const (&in)[N], rounding r = rounding::upward) {
+    CheckConstraints(r);
+    for (size_t i = 0; i < N; ++i)
+      vals[i] = detail::ConvertFloatToE8M0_CPU(in[i], r, saturation::finite);
+  }
+
+  explicit fp8_e8m0_x(double const (&in)[N]) {
+    for (size_t i = 0; i < N; ++i)
+      vals[i] = detail::ConvertFloatToE8M0_CPU(in[i], rounding::upward,
+                                               saturation::finite);
+  }
+
+  explicit fp8_e8m0_x(const marray<half, N> &in,
+                      rounding r = rounding::upward) {
+    CheckConstraints(r);
+    for (size_t i = 0; i < N; ++i)
+      vals[i] = detail::ConvertFloatToE8M0_CPU(in[i], r, saturation::finite);
+  }
+
+  explicit fp8_e8m0_x(const marray<bfloat16, N> &in,
+                      rounding r = rounding::upward) {
+    CheckConstraints(r);
+    for (size_t i = 0; i < N; ++i)
+      vals[i] = detail::ConvertFloatToE8M0_CPU(in[i], r, saturation::finite);
+  }
+
+  explicit fp8_e8m0_x(const marray<float, N> &in,
+                      rounding r = rounding::upward) {
+    CheckConstraints(r);
+    for (size_t i = 0; i < N; ++i)
+      vals[i] = detail::ConvertFloatToE8M0_CPU(in[i], r, saturation::finite);
+  }
+
+  explicit fp8_e8m0_x(const marray<double, N> &in) {
+    for (size_t i = 0; i < N; ++i)
+      vals[i] = detail::ConvertFloatToE8M0_CPU(in[i], rounding::upward,
+                                               saturation::finite);
+  }
+
+  // Construct from integer types.
+  // Available only when N==1.
+
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  explicit fp8_e8m0_x(short val) {
     vals[0] =
         detail::ConvertIntToE8M0_CPU(val, rounding::upward, saturation::finite);
   }
 
-  template <typename T, size_t M = N,
-            typename = std::enable_if_t<M == 1 && (detail::IsSyclFpTypeV<T> ||
-                                                   std::is_integral_v<T>)>>
-  fp8_e8m0_x &operator=(T val) {
-    if constexpr (std::is_integral_v<T>)
-      vals[0] = detail::ConvertIntToE8M0_CPU(val, rounding::upward,
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  explicit fp8_e8m0_x(int val) {
+    vals[0] =
+        detail::ConvertIntToE8M0_CPU(val, rounding::upward, saturation::finite);
+  }
+
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  explicit fp8_e8m0_x(long val) {
+    vals[0] =
+        detail::ConvertIntToE8M0_CPU(val, rounding::upward, saturation::finite);
+  }
+
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  explicit fp8_e8m0_x(long long val) {
+    vals[0] =
+        detail::ConvertIntToE8M0_CPU(val, rounding::upward, saturation::finite);
+  }
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  explicit fp8_e8m0_x(unsigned short val) {
+    vals[0] =
+        detail::ConvertIntToE8M0_CPU(val, rounding::upward, saturation::finite);
+  }
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  explicit fp8_e8m0_x(unsigned int val) {
+    vals[0] =
+        detail::ConvertIntToE8M0_CPU(val, rounding::upward, saturation::finite);
+  }
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  explicit fp8_e8m0_x(unsigned long val) {
+    vals[0] =
+        detail::ConvertIntToE8M0_CPU(val, rounding::upward, saturation::finite);
+  }
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  explicit fp8_e8m0_x(unsigned long long val) {
+    vals[0] =
+        detail::ConvertIntToE8M0_CPU(val, rounding::upward, saturation::finite);
+  }
+
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  fp8_e8m0_x &operator=(half val) {
+    vals[0] = detail::ConvertFloatToE8M0_CPU(val, rounding::upward,
                                              saturation::finite);
-    else
-      vals[0] = detail::ConvertFloatToE8M0_CPU(val, rounding::upward,
-                                               saturation::finite);
+    return *this;
+  }
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  fp8_e8m0_x &operator=(bfloat16 val) {
+    vals[0] = detail::ConvertFloatToE8M0_CPU(val, rounding::upward,
+                                             saturation::finite);
+    return *this;
+  }
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  fp8_e8m0_x &operator=(float val) {
+    vals[0] = detail::ConvertFloatToE8M0_CPU(val, rounding::upward,
+                                             saturation::finite);
     return *this;
   }
 
-  template <typename T, size_t M = N,
-            typename = std::enable_if_t<M == 1 && (detail::IsSyclFpTypeV<T> ||
-                                                   std::is_integral_v<T>)>>
-  explicit operator T() const {
-    if constexpr (std::is_integral_v<T>)
-      return detail::ConvertFromE8M0_CPU<T>(vals[0], rounding::toward_zero);
-    else
-      return detail::ConvertFromE8M0_CPU<T>(vals[0], rounding::to_even);
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  fp8_e8m0_x &operator=(double val) {
+    vals[0] = detail::ConvertFloatToE8M0_CPU(val, rounding::upward,
+                                             saturation::finite);
+    return *this;
+  }
+
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  fp8_e8m0_x &operator=(short val) {
+    vals[0] =
+        detail::ConvertIntToE8M0_CPU(val, rounding::upward, saturation::finite);
+    return *this;
+  }
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  fp8_e8m0_x &operator=(int val) {
+    vals[0] =
+        detail::ConvertIntToE8M0_CPU(val, rounding::upward, saturation::finite);
+    return *this;
+  }
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  fp8_e8m0_x &operator=(long val) {
+    vals[0] =
+        detail::ConvertIntToE8M0_CPU(val, rounding::upward, saturation::finite);
+    return *this;
+  }
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  fp8_e8m0_x &operator=(long long val) {
+    vals[0] =
+        detail::ConvertIntToE8M0_CPU(val, rounding::upward, saturation::finite);
+    return *this;
+  }
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  fp8_e8m0_x &operator=(unsigned short val) {
+    vals[0] =
+        detail::ConvertIntToE8M0_CPU(val, rounding::upward, saturation::finite);
+    return *this;
+  }
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  fp8_e8m0_x &operator=(unsigned int val) {
+    vals[0] =
+        detail::ConvertIntToE8M0_CPU(val, rounding::upward, saturation::finite);
+    return *this;
+  }
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  fp8_e8m0_x &operator=(unsigned long val) {
+    vals[0] =
+        detail::ConvertIntToE8M0_CPU(val, rounding::upward, saturation::finite);
+    return *this;
+  }
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  fp8_e8m0_x &operator=(unsigned long long val) {
+    vals[0] =
+        detail::ConvertIntToE8M0_CPU(val, rounding::upward, saturation::finite);
+    return *this;
+  }
+
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  explicit operator half() const {
+    return detail::ConvertFromE8M0_CPU<half>(vals[0], rounding::to_even);
+  }
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  explicit operator bfloat16() const {
+    return detail::ConvertFromE8M0_CPU<bfloat16>(vals[0], rounding::to_even);
+  }
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  explicit operator float() const {
+    return detail::ConvertFromE8M0_CPU<float>(vals[0], rounding::to_even);
+  }
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  explicit operator double() const {
+    return detail::ConvertFromE8M0_CPU<double>(vals[0], rounding::to_even);
+  }
+
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  explicit operator char() const {
+    return detail::ConvertFromE8M0_CPU<char>(vals[0], rounding::toward_zero);
+  }
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  explicit operator signed char() const {
+    return detail::ConvertFromE8M0_CPU<signed char>(vals[0],
+                                                    rounding::toward_zero);
+  }
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  explicit operator short() const {
+    return detail::ConvertFromE8M0_CPU<short>(vals[0], rounding::toward_zero);
+  }
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  explicit operator int() const {
+    return detail::ConvertFromE8M0_CPU<int>(vals[0], rounding::toward_zero);
+  }
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  explicit operator long() const {
+    return detail::ConvertFromE8M0_CPU<long>(vals[0], rounding::toward_zero);
+  }
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  explicit operator long long() const {
+    return detail::ConvertFromE8M0_CPU<long long>(vals[0],
+                                                  rounding::toward_zero);
+  }
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  explicit operator unsigned char() const {
+    return detail::ConvertFromE8M0_CPU<unsigned char>(vals[0],
+                                                      rounding::toward_zero);
+  }
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  explicit operator unsigned short() const {
+    return detail::ConvertFromE8M0_CPU<unsigned short>(vals[0],
+                                                       rounding::toward_zero);
+  }
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  explicit operator unsigned int() const {
+    return detail::ConvertFromE8M0_CPU<unsigned int>(vals[0],
+                                                     rounding::toward_zero);
+  }
+
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  explicit operator unsigned long() const {
+    return detail::ConvertFromE8M0_CPU<unsigned long>(vals[0],
+                                                      rounding::toward_zero);
+  }
+
+  template <size_t M = N, typename = std::enable_if_t<M == 1>>
+  explicit operator unsigned long long() const {
+    return detail::ConvertFromE8M0_CPU<unsigned long long>(
+        vals[0], rounding::toward_zero);
   }
 
   template <size_t M = N, typename = std::enable_if_t<M == 1>>
@@ -1245,15 +1980,26 @@ public:
     return true;
   }
 
-  template <typename T, typename = std::enable_if_t<detail::IsOneOf<
-                            std::decay_t<T>, sycl::half,
-                            sycl::ext::oneapi::bfloat16, float>::value>>
-  explicit operator sycl::marray<T, N>() const {
-    sycl::marray<T, N> out;
+  explicit operator sycl::marray<half, N>() const {
+    sycl::marray<half, N> out;
     for (size_t i = 0; i < N; ++i)
-      out[i] = detail::ConvertFromE8M0_CPU<T>(vals[i], rounding::to_even);
+      out[i] = detail::ConvertFromE8M0_CPU<half>(vals[i], rounding::to_even);
     return out;
   }
+  explicit operator sycl::marray<bfloat16, N>() const {
+    sycl::marray<bfloat16, N> out;
+    for (size_t i = 0; i < N; ++i)
+      out[i] =
+          detail::ConvertFromE8M0_CPU<bfloat16>(vals[i], rounding::to_even);
+    return out;
+  }
+  explicit operator sycl::marray<float, N>() const {
+    sycl::marray<float, N> out;
+    for (size_t i = 0; i < N; ++i)
+      out[i] = detail::ConvertFromE8M0_CPU<float>(vals[i], rounding::to_even);
+    return out;
+  }
+
   // Intentionally public to allow access to the raw values.
 
   uint8_t vals[N];
