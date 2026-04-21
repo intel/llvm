@@ -11,14 +11,14 @@
 
 namespace llvm {
 class StringRef;
-template <typename T, typename R> class StringSwitch;
+class Triple;
 } // namespace llvm
 
 namespace clang {
 
 enum class OffloadArch {
-  UNUSED,
-  UNKNOWN,
+  Unused,
+  Unknown,
   // TODO: Deprecate and remove GPU architectures older than sm_52.
   SM_20,
   SM_21,
@@ -226,8 +226,11 @@ const char *OffloadArchToString(OffloadArch A);
 const char *OffloadArchToVirtualArchString(OffloadArch A);
 
 // Convert a string to an OffloadArch enum value. Returns
-// OffloadArch::UNKNOWN if the string is not recognized.
+// OffloadArch::Unknown if the string is not recognized.
 OffloadArch StringToOffloadArch(llvm::StringRef S);
+
+llvm::Triple OffloadArchToTriple(const llvm::Triple &DefaultToolchainTriple,
+                                 OffloadArch ID);
 
 } // namespace clang
 

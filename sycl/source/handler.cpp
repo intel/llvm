@@ -752,8 +752,21 @@ detail::EventImplPtr handler::finalize() {
     return EventImpl;
   }
 
-  // Because graph case is handled right above.
+  // Because command graph case is handled right above.
   assert(Queue);
+
+  // Native graph recording limitation
+  if (type == detail::CGType::CodeplayHostTask && Queue->isNativeRecording()) {
+    throw sycl::exception(
+        make_error_code(errc::feature_not_supported),
+        "SYCL host_task is not supported in native recording mode. Use "
+        "zeCommandListAppendHostFunction as a workaround.");
+  }
+  if (!CommandGroup->getRequirements().empty() && Queue->isNativeRecording()) {
+    throw sycl::exception(
+        make_error_code(errc::feature_not_supported),
+        "sycl::buffer accessors are not supported in native recording mode.");
+  }
 
   // If the queue has an associated graph then we need to take the CG and pass
   // it to the graph to create a node, rather than submit it to the scheduler.
@@ -771,6 +784,7 @@ detail::EventImplPtr handler::finalize() {
   // For commands other than kernel and host task submission, if an event has
   // not been requested, the queue supports events discarding, and the scheduler
   // could have been bypassed (not supported yet), the event can be skipped.
+  // TODO: check if it's possible to discard an event for host task.
   bool DiscardEvent =
       (type != detail::CGType::Kernel &&
        type != detail::CGType::CodeplayHostTask && KernelSchedulerBypass &&
@@ -1650,6 +1664,15 @@ void handler::SetHostTask(std::function<void()> Func) {
   range<1> r(1);
   setNDRangeDescriptor(detail::nd_range_view(r));
   impl->MHostTask.reset(new detail::HostTask(std::move(Func)));
+  setType(detail::CGType::CodeplayHostTask);
+}
+
+void handler::SetHostTaskFromExtEnqueueFunctions(std::function<void()> Func) {
+  range<1> r(1);
+  setNDRangeDescriptor(detail::nd_range_view(r));
+  impl->MHostTask.reset(
+      new detail::HostTask(std::move(Func), /*IsFromExtEnqueueFunctionsAPI=*/
+                           true));
   setType(detail::CGType::CodeplayHostTask);
 }
 

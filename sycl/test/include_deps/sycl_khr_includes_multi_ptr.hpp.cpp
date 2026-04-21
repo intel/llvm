@@ -17,5 +17,6 @@
 // CHECK-NEXT: detail/fwd/half.hpp
 // CHECK-NEXT: detail/fwd/multi_ptr.hpp
 // CHECK-NEXT: detail/type_traits.hpp
+// CHECK-NEXT: detail/type_traits/bool_traits.hpp
 // CHECK-NEXT: detail/type_traits/vec_marray_traits.hpp
 // CHECK-EMPTY:

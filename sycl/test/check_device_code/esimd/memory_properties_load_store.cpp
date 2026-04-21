@@ -2,13 +2,13 @@
 // -O0 lowering, requires `-force-disable-esimd-opt` to disable all
 // optimizations.
 // RUN: sycl-post-link -split=none -properties -split-esimd -lower-esimd -lower-esimd-force-stateless-mem=false -O0 -force-disable-esimd-opt -S %t -o %t.table
-// RUN: FileCheck %s -input-file=%t_esimd_0.ll --check-prefixes=CHECK,CHECK-STATEFUL
+// RUN: FileCheck %s -input-file=%t_0.esimd.ll --check-prefixes=CHECK,CHECK-STATEFUL
 
 // RUN: %clangxx -O0 -fsycl -fsycl-device-only -fsycl-esimd-force-stateless-mem -D__ESIMD_GATHER_SCATTER_LLVM_IR -Xclang -emit-llvm %s -o %t
 // -O0 lowering, requires `-force-disable-esimd-opt` to disable all
 // optimizations.
 // RUN: sycl-post-link -split=none -properties -split-esimd -lower-esimd -lower-esimd-force-stateless-mem -O0 -force-disable-esimd-opt -S %t -o %t.table
-// RUN: FileCheck %s -input-file=%t_esimd_0.ll --check-prefixes=CHECK,CHECK-STATELESS
+// RUN: FileCheck %s -input-file=%t_0.esimd.ll --check-prefixes=CHECK,CHECK-STATELESS
 
 // Checks ESIMD memory functions accepting compile time properties for
 // block_load and block_store. NOTE: must be run in -O0, as optimizer optimizes
