@@ -827,18 +827,6 @@ struct IsSyclFpType : IsOneOf<std::decay_t<T>, sycl::half,
 template <typename T>
 inline constexpr bool IsSyclFpTypeV = IsSyclFpType<T>::value;
 
-template <size_t N, typename... Types>
-struct SyclfpVariadic
-  : std::bool_constant<
-      (sizeof...(Types) == N) &&
-      (((std::is_same_v<std::decay_t<Types>, half>) && ...) ||
-       ((std::is_same_v<std::decay_t<Types>, bfloat16>) && ...) ||
-       ((std::is_same_v<std::decay_t<Types>, float>) && ...) ||
-       ((std::is_same_v<std::decay_t<Types>, double>) && ...))> {};
-
-template <size_t N, typename... Types>
-inline constexpr bool SyclfpVariadicV = SyclfpVariadic<N, Types...>::value;
-
 } // namespace detail
 
 template <size_t N> class fp8_e4m3_x {
@@ -896,7 +884,12 @@ public:
   // Available only when the size of the pack is equal to N.
 
   template <typename... Types,
-            typename = std::enable_if_t<detail::SyclfpVariadicV<N, Types...>>>
+            typename = std::enable_if_t<
+                (sizeof...(Types) == N) &&
+                (((std::is_same_v<std::decay_t<Types>, half>) && ...) ||
+                 ((std::is_same_v<std::decay_t<Types>, bfloat16>) && ...) ||
+                 ((std::is_same_v<std::decay_t<Types>, float>) && ...) ||
+                 ((std::is_same_v<std::decay_t<Types>, double>) && ...))>>
   explicit fp8_e4m3_x(Types... v) {
     using InT = std::common_type_t<std::decay_t<Types>...>;
     const InT in[N] = {v...};
@@ -1062,7 +1055,12 @@ public:
   // Available only when each type in the pack is half.
 
   template <typename... Types,
-            typename = std::enable_if_t<detail::SyclfpVariadicV<N, Types...>>>
+            typename = std::enable_if_t<
+                (sizeof...(Types) == N) &&
+                (((std::is_same_v<std::decay_t<Types>, half>) && ...) ||
+                 ((std::is_same_v<std::decay_t<Types>, bfloat16>) && ...) ||
+                 ((std::is_same_v<std::decay_t<Types>, float>) && ...) ||
+                 ((std::is_same_v<std::decay_t<Types>, double>) && ...))>>
   explicit fp8_e5m2_x(Types... v) {
     using InT = std::common_type_t<std::decay_t<Types>...>;
     const InT in[N] = {v...};
@@ -1184,7 +1182,12 @@ public:
   fp8_e8m0_x &operator=(const fp8_e8m0_x &) = default;
 
   template <typename... Types,
-            typename = std::enable_if_t<detail::SyclfpVariadicV<N, Types...>>>
+            typename = std::enable_if_t<
+                (sizeof...(Types) == N) &&
+                (((std::is_same_v<std::decay_t<Types>, half>) && ...) ||
+                 ((std::is_same_v<std::decay_t<Types>, bfloat16>) && ...) ||
+                 ((std::is_same_v<std::decay_t<Types>, float>) && ...) ||
+                 ((std::is_same_v<std::decay_t<Types>, double>) && ...))>>
   explicit fp8_e8m0_x(Types... v) {
     using InT = std::common_type_t<std::decay_t<Types>...>;
     const InT in[N] = {v...};
