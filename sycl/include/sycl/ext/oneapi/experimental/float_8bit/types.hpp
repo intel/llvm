@@ -1353,7 +1353,7 @@ public:
   }
 
   // Construct with stochastic rounding with user provided seed from an array of
-  // half, bfloat16, float.
+  // half, bfloat16.
 
   explicit fp8_e5m2_x([[maybe_unused]] half const (&in)[N],
                       [[maybe_unused]] const stochastic_seed &seed,
@@ -1391,27 +1391,8 @@ public:
 #endif
   }
 
-  explicit fp8_e5m2_x([[maybe_unused]] float const (&in)[N],
-                      [[maybe_unused]] const stochastic_seed &seed,
-                      [[maybe_unused]] saturation s = saturation::finite) {
-#ifdef __SYCL_DEVICE_ONLY__
-    uint32_t current_seed = *seed.pseed;
-    for (size_t i = 0; i < N; ++i) {
-      sycl::half h = static_cast<sycl::half>(in[i]);
-      if (s == saturation::finite) {
-        vals[i] = __builtin_spirv_ClampStochasticRoundFP16ToE5M2INTEL(
-            h, current_seed, seed.pseed);
-      } else {
-        vals[i] = __builtin_spirv_StochasticRoundFP16ToE5M2INTEL(
-            h, current_seed, seed.pseed);
-      }
-      current_seed = *seed.pseed;
-    }
-#endif
-  }
-
   // Construct with stochastic rounding with user provided seed from an marray
-  // of half, bfloat16, float.
+  // of half, bfloat16.
 
   explicit fp8_e5m2_x([[maybe_unused]] const sycl::marray<half, N> &in,
                       [[maybe_unused]] const stochastic_seed &seed,
@@ -1443,25 +1424,6 @@ public:
       } else {
         vals[i] = __builtin_spirv_StochasticRoundBF16ToE5M2INTEL(
             in[i], current_seed, seed.pseed);
-      }
-      current_seed = *seed.pseed;
-    }
-#endif
-  }
-
-  explicit fp8_e5m2_x([[maybe_unused]] const sycl::marray<float, N> &in,
-                      [[maybe_unused]] const stochastic_seed &seed,
-                      [[maybe_unused]] saturation s = saturation::finite) {
-#ifdef __SYCL_DEVICE_ONLY__
-    uint32_t current_seed = *seed.pseed;
-    for (size_t i = 0; i < N; ++i) {
-      sycl::half h = static_cast<sycl::half>(in[i]);
-      if (s == saturation::finite) {
-        vals[i] = __builtin_spirv_ClampStochasticRoundFP16ToE5M2INTEL(
-            h, current_seed, seed.pseed);
-      } else {
-        vals[i] = __builtin_spirv_StochasticRoundFP16ToE5M2INTEL(
-            h, current_seed, seed.pseed);
       }
       current_seed = *seed.pseed;
     }

@@ -244,30 +244,4 @@ TEST_F(Fp8BuiltinCallTest, E5M2StochasticBf16NoneCallsNonClampStochastic) {
   EXPECT_EQ(fp8_builtin_mock::getCounters().StochasticRoundBF16ToE5M2INTEL, 1);
 }
 
-TEST_F(Fp8BuiltinCallTest, E5M2StochasticFloatFiniteCallsClampStochastic) {
-  float Input[2] = {3.0f, 4.0f};
-  uint32_t SeedValue = 50;
-  stochastic_seed Seed(&SeedValue);
-
-  fp8_e5m2_x2 Value(Input, Seed, saturation::finite);
-  (void)Value;
-
-  EXPECT_EQ(fp8_builtin_mock::getCounters().ClampStochasticRoundFP16ToE5M2INTEL,
-            2);
-  EXPECT_EQ(SeedValue, 52u);
-}
-
-TEST_F(Fp8BuiltinCallTest,
-       E5M2StochasticMarrayFloatNoneCallsNonClampStochastic) {
-  sycl::marray<float, 2> Input = {3.0f, 4.0f};
-  uint32_t SeedValue = 60;
-  stochastic_seed Seed(&SeedValue);
-
-  fp8_e5m2_x2 Value(Input, Seed, saturation::none);
-  (void)Value;
-
-  EXPECT_EQ(fp8_builtin_mock::getCounters().StochasticRoundFP16ToE5M2INTEL, 2);
-  EXPECT_EQ(SeedValue, 62u);
-}
-
 } // namespace
