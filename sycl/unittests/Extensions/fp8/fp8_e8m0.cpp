@@ -495,3 +495,16 @@ TEST(FP8E8M0Test, MarrayFloatToEvenRounding) {
       },
       UnsupportedRoundingAssertRegex);
 }
+
+TEST(FP8E8M0Test, VariadicFloatReferences) {
+  float x = 1.0f;
+  float y = 2.0f;
+  float &xf = x;
+  float &yf = y;
+
+  fp8_e8m0_x2 a(xf, yf);
+
+  EXPECT_EQ(sizeof(a.vals), 2u);
+  EXPECT_EQ(a.vals[0], 0x7F);
+  EXPECT_EQ(a.vals[1], 0x80);
+}

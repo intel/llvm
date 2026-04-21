@@ -727,3 +727,16 @@ TEST(FP8E5M2Test, MarrayFloatTowardZeroRounding) {
       },
       "fp8_e5m2_x: only rounding::to_even is supported");
 }
+
+TEST(FP8E5M2Test, VariadicFloatReferences) {
+  float x = 1.0f;
+  float y = 2.0f;
+  float &xf = x;
+  float &yf = y;
+
+  fp8_e5m2_x2 a(xf, yf);
+
+  EXPECT_EQ(sizeof(a.vals), 2u);
+  EXPECT_EQ(a.vals[0], 0x3C);
+  EXPECT_EQ(a.vals[1], 0x40);
+}
