@@ -4300,10 +4300,11 @@ void OmpStructureChecker::Enter(const parser::OmpClause::Map &x) {
     static auto isValidForVersion{
         [](parser::OmpMapType::Value t, unsigned version) {
           switch (t) {
-          case parser::OmpMapType::Value::Alloc:
           case parser::OmpMapType::Value::Delete:
-          case parser::OmpMapType::Value::Release:
             return version < 60;
+          case parser::OmpMapType::Value::Alloc:
+          case parser::OmpMapType::Value::Release:
+            return version <= 60;
           case parser::OmpMapType::Value::Storage:
             return version >= 60;
           default:
@@ -4336,8 +4337,9 @@ void OmpStructureChecker::Enter(const parser::OmpClause::Map &x) {
         llvm::is_contained(leafs, Directive::OMPD_target_data)) {
       if (version >= 60) {
         // Map types listed in the decay table. [6.0:276]
-        CheckAllowedMapTypes(
-            type->v, {Value::Storage, Value::From, Value::To, Value::Tofrom});
+        CheckAllowedMapTypes(type->v,
+            {Value::Alloc, Value::Release, Value::Storage, Value::From,
+                Value::To, Value::Tofrom});
       } else {
         CheckAllowedMapTypes(
             type->v, {Value::Alloc, Value::From, Value::To, Value::Tofrom});
@@ -4848,7 +4850,6 @@ void OmpStructureChecker::Enter(const parser::OmpClause::UseDeviceAddr &x) {
   SymbolSourceMap currSymbols;
   GetSymbolsInObjectList(x.v, currSymbols);
   semantics::UnorderedSymbolSet listVars;
-  unsigned version{context_.langOptions().OpenMPVersion};
 
   for (auto [_, clause] :
       FindClauses(llvm::omp::Clause::OMPC_use_device_addr)) {
@@ -4861,11 +4862,6 @@ void OmpStructureChecker::Enter(const parser::OmpClause::UseDeviceAddr &x) {
         if (name->symbol) {
           useDeviceAddrNameList.push_back(*name);
         }
-      }
-      if (version < 60 && IsWholeAssumedSizeArray(ompObject)) {
-        auto maybeSource{GetObjectSource(ompObject)};
-        context_.Say(maybeSource.value_or(clause->source),
-            "Whole assumed-size arrays are not allowed on USE_DEVICE_ADDR clause"_err_en_US);
       }
     }
     CheckMultipleOccurrence(

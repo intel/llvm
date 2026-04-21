@@ -148,7 +148,7 @@ static bool isRelExpr(RelExpr expr) {
   return oneof<R_PC, R_GOTREL, R_GOTPLTREL, RE_ARM_PCA, RE_MIPS_GOTREL,
                RE_PPC64_CALL, RE_PPC64_RELAX_TOC, RE_AARCH64_PAGE_PC,
                R_RELAX_GOT_PC, RE_RISCV_PC_INDIRECT, RE_PPC64_RELAX_GOT_PC,
-               RE_LOONGARCH_PAGE_PC>(expr);
+               RE_LOONGARCH_PAGE_PC, RE_LOONGARCH_PC_INDIRECT>(expr);
 }
 
 static RelExpr toPlt(RelExpr expr) {
@@ -1459,42 +1459,25 @@ RelocationBaseSection &elf::getIRelativeSection(Ctx &ctx) {
 }
 
 static bool handleNonPreemptibleIfunc(Ctx &ctx, Symbol &sym, uint16_t flags) {
-  // Handle a reference to a non-preemptible ifunc. These are special in a
-  // few ways:
+  // Non-preemptible ifuncs are called via a PLT entry that resolves the actual
+  // address at runtime. We create an IPLT entry and an IGOTPLT slot. The
+  // IGOTPLT slot is relocated by an IRELATIVE relocation, whose addend encodes
+  // the resolver address. At startup, the runtime calls the resolver and
+  // fills the IGOTPLT slot.
   //
-  // - Unlike most non-preemptible symbols, non-preemptible ifuncs do not have
-  //   a fixed value. But assuming that all references to the ifunc are
-  //   GOT-generating or PLT-generating, the handling of an ifunc is
-  //   relatively straightforward. We create a PLT entry in Iplt, which is
-  //   usually at the end of .plt, which makes an indirect call using a
-  //   matching GOT entry in igotPlt, which is usually at the end of .got.plt.
-  //   The GOT entry is relocated using an IRELATIVE relocation in relaDyn,
-  //   which is usually at the end of .rela.dyn.
+  // For direct (non-GOT/PLT) relocations, the symbol must have a constant
+  // address. We achieve this by redirecting the symbol to its IPLT entry
+  // ("canonicalizing" it), so all references see the same address, and the
+  // resolver is called exactly once. This may result in two GOT entries: one
+  // in .got.plt for the IRELATIVE, and one in .got pointing to the canonical
+  // IPLT entry (for GOT-generating relocations).
   //
-  // - Despite the fact that an ifunc does not have a fixed value, compilers
-  //   that are not passed -fPIC will assume that they do, and will emit
-  //   direct (non-GOT-generating, non-PLT-generating) relocations to the
-  //   symbol. This means that if a direct relocation to the symbol is
-  //   seen, the linker must set a value for the symbol, and this value must
-  //   be consistent no matter what type of reference is made to the symbol.
-  //   This can be done by creating a PLT entry for the symbol in the way
-  //   described above and making it canonical, that is, making all references
-  //   point to the PLT entry instead of the resolver. In lld we also store
-  //   the address of the PLT entry in the dynamic symbol table, which means
-  //   that the symbol will also have the same value in other modules.
-  //   Because the value loaded from the GOT needs to be consistent with
-  //   the value computed using a direct relocation, a non-preemptible ifunc
-  //   may end up with two GOT entries, one in .got.plt that points to the
-  //   address returned by the resolver and is used only by the PLT entry,
-  //   and another in .got that points to the PLT entry and is used by
-  //   GOT-generating relocations.
+  // We clone the symbol to preserve the original resolver address for the
+  // IRELATIVE addend. The clone is tracked in ctx.irelativeSyms so that linker
+  // relaxation can adjust its value when the resolver address changes.
   //
-  // - The fact that these symbols do not have a fixed value makes them an
-  //   exception to the general rule that a statically linked executable does
-  //   not require any form of dynamic relocation. To handle these relocations
-  //   correctly, the IRELATIVE relocations are stored in an array which a
-  //   statically linked executable's startup code must enumerate using the
-  //   linker-defined symbols __rela?_iplt_{start,end}.
+  // Note: IRELATIVE relocations are needed even in static executables; see
+  // `addRelIpltSymbols`.
   if (!sym.isGnuIFunc() || sym.isPreemptible || ctx.arg.zIfuncNoplt)
     return false;
   // Skip unreferenced non-preemptible ifunc.
@@ -1503,17 +1486,14 @@ static bool handleNonPreemptibleIfunc(Ctx &ctx, Symbol &sym, uint16_t flags) {
 
   sym.isInIplt = true;
 
-  // Create an Iplt and the associated IRELATIVE relocation pointing to the
-  // original section/value pairs. For non-GOT non-PLT relocation case below, we
-  // may alter section/value, so create a copy of the symbol to make
-  // section/value fixed.
-  auto *directSym = makeDefined(cast<Defined>(sym));
-  directSym->allocateAux(ctx);
+  auto *irelativeSym = makeDefined(cast<Defined>(sym));
+  irelativeSym->allocateAux(ctx);
+  ctx.irelativeSyms.push_back(irelativeSym);
   auto &dyn = getIRelativeSection(ctx);
   addPltEntry(ctx, *ctx.in.iplt, *ctx.in.igotPlt, dyn, ctx.target->iRelativeRel,
-              *directSym);
+              *irelativeSym);
   sym.allocateAux(ctx);
-  ctx.symAux.back().pltIdx = ctx.symAux[directSym->auxIdx].pltIdx;
+  ctx.symAux.back().pltIdx = ctx.symAux[irelativeSym->auxIdx].pltIdx;
 
   if (flags & HAS_DIRECT_RELOC) {
     // Change the value to the IPLT and redirect all references to it.
@@ -1930,7 +1910,7 @@ ThunkSection *ThunkCreator::getISThunkSec(InputSection *isec) {
     if (isec->outSecOff < first->outSecOff || last->outSecOff < isec->outSecOff)
       continue;
 
-    ts = addThunkSection(tos, isd, isec->outSecOff);
+    ts = addThunkSection(tos, isd, isec->outSecOff, /*isPrefix=*/true);
     thunkedSections[isec] = ts;
     return ts;
   }
@@ -1989,11 +1969,11 @@ void ThunkCreator::createInitialThunkSections(
 
 ThunkSection *ThunkCreator::addThunkSection(OutputSection *os,
                                             InputSectionDescription *isd,
-                                            uint64_t off) {
+                                            uint64_t off, bool isPrefix) {
   auto *ts = make<ThunkSection>(ctx, os, off);
   ts->partition = os->partition;
   if ((ctx.arg.fixCortexA53Errata843419 || ctx.arg.fixCortexA8) &&
-      !isd->sections.empty()) {
+      !isd->sections.empty() && !isPrefix) {
     // The errata fixes are sensitive to addresses modulo 4 KiB. When we add
     // thunks we disturb the base addresses of sections placed after the thunks
     // this makes patches we have generated redundant, and may cause us to
@@ -2017,6 +1997,12 @@ ThunkSection *ThunkCreator::addThunkSection(OutputSection *os,
     // 2.) The InputSectionDescription is larger than 4 KiB. This will prevent
     //     any assertion failures that an InputSectionDescription is < 4 KiB
     //     in size.
+    //
+    // isPrefix is a ThunkSection explicitly inserted before its target
+    // section. We suppress the rounding up of the size of these ThunkSections
+    // as unlike normal ThunkSections, they are small in size, but when BTI is
+    // enabled very frequent. This can bloat code-size and push the errata
+    // patches out of branch range.
     uint64_t isdSize = isd->sections.back()->outSecOff +
                        isd->sections.back()->getSize() -
                        isd->sections.front()->outSecOff;

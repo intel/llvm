@@ -999,6 +999,8 @@ void SystemZInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
     Opcode = SystemZ::LDR;
   else if (SystemZ::FP128BitRegClass.contains(DestReg, SrcReg))
     Opcode = SystemZ::LXR;
+  else if (SystemZ::VR16BitRegClass.contains(DestReg, SrcReg))
+    Opcode = SystemZ::VLR16;
   else if (SystemZ::VR32BitRegClass.contains(DestReg, SrcReg))
     Opcode = SystemZ::VLR32;
   else if (SystemZ::VR64BitRegClass.contains(DestReg, SrcReg))
@@ -1040,7 +1042,7 @@ void SystemZInstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
                                             MachineBasicBlock::iterator MBBI,
                                             Register DestReg, int FrameIdx,
                                             const TargetRegisterClass *RC,
-                                            Register VReg,
+                                            Register VReg, unsigned SubReg,
                                             MachineInstr::MIFlag Flags) const {
   DebugLoc DL = MBBI != MBB.end() ? MBBI->getDebugLoc() : DebugLoc();
 

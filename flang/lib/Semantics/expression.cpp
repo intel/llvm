@@ -1215,7 +1215,8 @@ MaybeExpr ExpressionAnalyzer::Analyze(const parser::Substring &ss) {
               if (!ubValue) {
                 ubValue = len;
               }
-              if (lbValue && ubValue && *lbValue > *ubValue) {
+              if ((len && *len == 0) ||
+                  (lbValue && ubValue && *lbValue > *ubValue)) {
                 // valid, substring is empty
               } else if (lbValue && *lbValue < 1 && (ubValue || !last)) {
                 Say("Substring must begin at 1 or later, not %jd"_err_en_US,
@@ -1223,7 +1224,7 @@ MaybeExpr ExpressionAnalyzer::Analyze(const parser::Substring &ss) {
                 return std::nullopt;
               } else if (ubValue && len && *ubValue > *len &&
                   (lbValue || !first)) {
-                Say("Substring must end at %zd or earlier, not %jd"_err_en_US,
+                Say("Substring must end at %jd or earlier, not %jd"_err_en_US,
                     static_cast<std::intmax_t>(*len),
                     static_cast<std::intmax_t>(*ubValue));
                 return std::nullopt;
@@ -2075,10 +2076,15 @@ MaybeExpr ArrayConstructorContext::ToExpr() {
 
 MaybeExpr ExpressionAnalyzer::Analyze(const parser::ArrayConstructor &array) {
   const parser::AcSpec &acSpec{array.v};
+  const auto &[type, values]{acSpec.t};
+  bool hadAnyFatalError{context_.AnyFatalError()};
   ArrayConstructorContext acContext{
-      *this, AnalyzeTypeSpec(acSpec.type, GetFoldingContext())};
-  for (const parser::AcValue &value : acSpec.values) {
+      *this, AnalyzeTypeSpec(type, GetFoldingContext())};
+  for (const parser::AcValue &value : values) {
     acContext.Add(value);
+  }
+  if (!hadAnyFatalError && context_.AnyFatalError()) {
+    return std::nullopt;
   }
   return acContext.ToExpr();
 }
@@ -3005,58 +3011,7 @@ auto ExpressionAnalyzer::ResolveGeneric(const Symbol &symbol,
       }
     }
   }
-  // F'2023 C7108 checking.  No Fortran compiler actually enforces this
-  // constraint, so it's just a portability warning here.
-  if (derivedType && (explicitIntrinsic || nonElemental || elemental) &&
-      context_.ShouldWarn(
-          common::LanguageFeature::AmbiguousStructureConstructor)) {
-    // See whethr there's ambiguity with a structure constructor.
-    bool possiblyAmbiguous{true};
-    if (const semantics::Scope * dtScope{derivedType->scope()}) {
-      parser::Messages buffer;
-      auto restorer{GetContextualMessages().SetMessages(buffer)};
-      std::list<ComponentSpec> componentSpecs;
-      for (const auto &actual : actuals) {
-        if (actual) {
-          ComponentSpec compSpec;
-          if (const Expr<SomeType> *expr{actual->UnwrapExpr()}) {
-            compSpec.expr = *expr;
-          } else {
-            possiblyAmbiguous = false;
-          }
-          if (auto loc{actual->sourceLocation()}) {
-            compSpec.source = compSpec.exprSource = *loc;
-          }
-          if (auto kw{actual->keyword()}) {
-            compSpec.hasKeyword = true;
-            compSpec.keywordSymbol = dtScope->FindComponent(*kw);
-          }
-          componentSpecs.emplace_back(std::move(compSpec));
-        } else {
-          possiblyAmbiguous = false;
-        }
-      }
-      semantics::DerivedTypeSpec dtSpec{derivedType->name(), *derivedType};
-      dtSpec.set_scope(*dtScope);
-      possiblyAmbiguous = possiblyAmbiguous &&
-          CheckStructureConstructor(
-              derivedType->name(), dtSpec, std::move(componentSpecs))
-              .has_value() &&
-          !buffer.AnyFatalError();
-    }
-    if (possiblyAmbiguous) {
-      if (explicitIntrinsic) {
-        Warn(common::LanguageFeature::AmbiguousStructureConstructor,
-            "Reference to the intrinsic function '%s' is ambiguous with a structure constructor of the same name"_port_en_US,
-            symbol.name());
-      } else {
-        Warn(common::LanguageFeature::AmbiguousStructureConstructor,
-            "Reference to generic function '%s' (resolving to specific '%s') is ambiguous with a structure constructor of the same name"_port_en_US,
-            symbol.name(),
-            nonElemental ? nonElemental->name() : elemental->name());
-      }
-    }
-  }
+
   // Return the right resolution, if there is one.  Explicit intrinsics
   // are preferred, then non-elements specifics, then elementals, and
   // lastly structure constructors.

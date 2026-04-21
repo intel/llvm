@@ -909,6 +909,8 @@ def warn_redecl_library_builtin : Warning<
   InGroup<DiagGroup<"incompatible-library-redeclaration">>;
 def err_builtin_definition : Error<"definition of builtin function %0">;
 def err_builtin_redeclare : Error<"cannot redeclare builtin function %0">;
+def err_invalid_builtin_argument : Error<"invalid argument '%0' to %1">;
+
 def err_arm_invalid_specialreg : Error<"invalid special register for builtin">;
 def err_arm_invalid_coproc : Error<"coprocessor %0 must be configured as "
   "%select{GCP|CDE}1">;
@@ -13657,6 +13659,7 @@ def warn_hlsl_register_type_c_packoffset: Warning<"binding type 'c' ignored in b
 def warn_hlsl_deprecated_register_type_b: Warning<"binding type 'b' only applies to constant buffers. The 'bool constant' binding type is no longer supported">, InGroup<LegacyConstantRegisterBinding>, DefaultError;
 def warn_hlsl_deprecated_register_type_i: Warning<"binding type 'i' ignored. The 'integer constant' binding type is no longer supported">, InGroup<LegacyConstantRegisterBinding>, DefaultError;
 def err_hlsl_unsupported_register_number : Error<"register number should be an integer">;
+def err_hlsl_register_number_too_large : Error<"register number should not exceed 4294967295">;
 def err_hlsl_expected_space : Error<"invalid space specifier '%0' used; expected 'space' followed by an integer, like space1">;
 def err_hlsl_space_on_global_constant : Error<"register space cannot be specified on global constants">;
 def warn_hlsl_implicit_binding : Warning<"resource has implicit register binding">, InGroup<HLSLImplicitBinding>, DefaultIgnore;
@@ -13768,6 +13771,10 @@ def warn_unsafe_buffer_operation : Warning<
 def warn_unsafe_buffer_libc_call : Warning<
   "function %0 is unsafe">,
   InGroup<UnsafeBufferUsageInLibcCall>, DefaultIgnore;
+def warn_unsafe_buffer_format_attr_call : Warning<
+  "formatting function %0 is unsafe">,
+  InGroup<UnsafeBufferUsageInFormatAttrCall>, DefaultIgnore;
+
 def note_unsafe_buffer_printf_call : Note<
   "%select{|change to 'snprintf' for explicit bounds checking | buffer pointer and size may not match"
           "|string argument is not guaranteed to be null-terminated"

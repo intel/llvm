@@ -1348,10 +1348,15 @@ let isCommutable = 1 in
 def V_FMAAK_F64 : VOP2_Pseudo<"v_fmaak_f64", VOP_MADAK_F64, [], "">;
 } // End SubtargetPredicate = HasFmaakFmamkF64Insts, isReMaterializable = 1, FixedSize = 1, Size = 12, SchedRW = [Write64Bit]
 
+// A dedicated profile for V_PK_FMAC_F16.
+def VOP_V2F16_V2F16_V2F16_SPLAT : VOPProfile <[v2f16, v2f16, v2f16, untyped]> {
+  let Src0RC32 = VSrc_v2f16_splat;
+}
+
 let SubtargetPredicate = HasPkFmacF16Inst in {
 // FIXME: V_PK_FMAC_F16 is currently not used in instruction selection.
 // If this changes, ensure the DPP variant is not used for GFX11+.
-defm V_PK_FMAC_F16 : VOP2Inst<"v_pk_fmac_f16", VOP_V2F16_V2F16_V2F16>;
+defm V_PK_FMAC_F16 : VOP2Inst<"v_pk_fmac_f16", VOP_V2F16_V2F16_V2F16_SPLAT>;
 } // End SubtargetPredicate = HasPkFmacF16Inst
 
 // Note: 16-bit instructions produce a 0 result in the high 16-bits
@@ -1481,7 +1486,7 @@ let SubtargetPredicate = isGFX12Plus, isReMaterializable = 1 in {
 } // End SubtargetPredicate = isGFX12Plus, isReMaterializable = 1
 
 let SubtargetPredicate = HasIEEEMinimumMaximumInsts, isReMaterializable = 1,
-    SchedRW = [WriteDoubleAdd], isCommutable = 1 in {
+    SchedRW = [WriteDoubleAdd], isCommutable = 1, IsDPMACCInstruction = 1 in {
   defm V_MIN_NUM_F64 : VOP2Inst_VOPD <"v_min_num_f64", VOP_F64_F64_F64, 0x24, "v_min_num_f64", fminnum_like>;
   defm V_MAX_NUM_F64 : VOP2Inst_VOPD <"v_max_num_f64", VOP_F64_F64_F64, 0x23, "v_max_num_f64", fmaxnum_like>;
 }
