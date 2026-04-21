@@ -13,7 +13,7 @@
 #include <cassert>
 
 // Controls tracing UR calls from within the UR itself.
-bool PrintTrace = [] {
+const bool PrintTrace = [] {
   const char *UrRet = std::getenv("SYCL_UR_TRACE");
   const char *PiRet = std::getenv("SYCL_PI_TRACE");
   const char *Trace = UrRet ? UrRet : (PiRet ? PiRet : nullptr);

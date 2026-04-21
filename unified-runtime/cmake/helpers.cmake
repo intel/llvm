@@ -151,6 +151,8 @@ function(add_ur_target_compile_options name)
             )
         endif()
     endif()
+    target_include_directories(${name} PRIVATE "${PROJECT_SOURCE_DIR}/../llvm/include")
+    target_include_directories(${name} PRIVATE "${PROJECT_BINARY_DIR}/include")
 endfunction()
 
 function(add_ur_target_link_options name)
