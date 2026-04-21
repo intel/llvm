@@ -1003,6 +1003,39 @@ void CudaToolChain::addClangTargetOptions(
       DriverArgs.hasArg(options::OPT_S))
     return;
 
+  // For SYCL offloading, add SYCL device libraries.
+  if (DeviceOffloadingKind == Action::OFK_SYCL) {
+    llvm::SmallVector<ToolChain::BitCodeLibraryInfo, 12> BCLibs;
+
+    llvm::SmallVector<llvm::SmallString<128>, 4> LibraryPaths;
+    SYCLInstallation.getSYCLDeviceLibPath(LibraryPaths);
+
+    // Get SYCL device library names for NVPTX target
+    llvm::SmallVector<BitCodeLibraryInfo, 8> DeviceLibs =
+        clang::driver::getSYCLDeviceLibNames(getDriver(), DriverArgs, *this);
+
+    // Create full path names to each device library
+    for (const auto &DeviceLib : DeviceLibs) {
+      bool DeviceLibFound = false;
+      for (const auto &LibraryPath : LibraryPaths) {
+        llvm::SmallString<128> FullLibName(LibraryPath);
+        llvm::sys::path::append(FullLibName, DeviceLib.Path);
+        if (llvm::sys::fs::exists(FullLibName)) {
+          BitCodeLibraryInfo BitCodeLibrary(
+              {FullLibName, DeviceLib.ShouldInternalize});
+          BCLibs.emplace_back(BitCodeLibrary);
+          DeviceLibFound = true;
+          break;
+        }
+      }
+      if (!DeviceLibFound)
+        getDriver().Diag(diag::err_drv_no_sycl_device_lib) << DeviceLib.Path;
+    }
+    for (const auto &BCLib : BCLibs) {
+      CC1Args.push_back("-mlink-builtin-bitcode");
+      CC1Args.push_back(DriverArgs.MakeArgString(BCLib.Path));
+    }
+  }
   std::string LibDeviceFile = CudaInstallation.getLibDeviceFile(GpuArch);
   if (LibDeviceFile.empty()) {
     getDriver().Diag(diag::err_drv_no_cuda_libdevice) << GpuArch;

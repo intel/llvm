@@ -251,25 +251,25 @@
 // COMMA_OPTS: llvm-offload-binary{{.*}} "--image=file={{.*}}triple=spir64_gen-unknown-unknown,arch=bdw,kind=sycl,compile-opts=-device bdw -FOO a,compile-opts=b,link-opts=-BAR x,link-opts=y"
 
 /// Verify that --cuda-path is passed to clang-linker-wrapper for SYCL offload
-// RUN: %clangxx -fsycl -### -fsycl-targets=nvptx64-nvidia-cuda -fno-sycl-libspirv \
+// RUN: %clangxx -fsycl -### --no-offloadlib -fsycl-targets=nvptx64-nvidia-cuda -fno-sycl-libspirv \
 // RUN:          --cuda-gpu-arch=sm_20 --cuda-path=%S/Inputs/CUDA_80/usr/local/cuda %s \
 // RUN:          --offload-new-driver 2>&1 \
 // RUN:   | FileCheck -check-prefix NVPTX_CUDA_PATH %s
 // NVPTX_CUDA_PATH: clang-linker-wrapper{{.*}}--cuda-path={{.*}}Inputs/CUDA_80/usr/local/cuda"
 
 /// Check for -sycl-allow-device-image-dependencies transmission to clang-linker-wrapper tool
-// RUN: %clangxx -fsycl -###  --offload-new-driver \
+// RUN: %clangxx -fsycl -###  --offload-new-driver --no-offloadlib \
 // RUN:          -fsycl-allow-device-image-dependencies %s 2>&1 \
 // RUN:  | FileCheck -check-prefix CHECK_DYNAMIC_LINKING %s
 // CHECK_DYNAMIC_LINKING: clang-linker-wrapper{{.*}} "-sycl-allow-device-image-dependencies"
 
 /// Check that -sycl-allow-device-image-dependencies is not passed to clang-linker-wrapper tool
-// RUN: %clangxx -fsycl -### --offload-new-driver \
+// RUN: %clangxx -fsycl -### --offload-new-driver --no-offloadlib \
 // RUN:          -fno-sycl-allow-device-image-dependencies %s 2>&1 \
 // RUN:  | FileCheck -check-prefix CHECK_NO_DYNAMIC_LINKING %s
 
 /// Check that -sycl-allow-device-image-dependencies is not passed to clang-linker-wrapper tool
-// RUN: %clangxx -fsycl -### --offload-new-driver %s 2>&1 \
+// RUN: %clangxx -fsycl -### --offload-new-driver --no-offloadlib  %s 2>&1 \
 // RUN:  | FileCheck -check-prefix CHECK_NO_DYNAMIC_LINKING %s
 // CHECK_NO_DYNAMIC_LINKING-NOT: clang-linker-wrapper{{.*}} "-sycl-allow-device-image-dependencies"
 

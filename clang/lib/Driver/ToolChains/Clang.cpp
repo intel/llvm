@@ -11593,90 +11593,10 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
 
   // Add any SYCL offloading specific options to the clang-linker-wrapper
   if (C.hasOffloadToolChain<Action::OFK_SYCL>()) {
-
-    if (Args.hasArg(options::OPT_fsycl_link_EQ))
-      CmdArgs.push_back(Args.MakeArgString("--sycl-device-link"));
-
-    // -sycl-device-library-location=<dir> provides the location in which the
-    // SYCL device libraries can be found.
-    SmallString<128> DeviceLibDir(D.Dir);
-    llvm::sys::path::append(DeviceLibDir, "..", "lib");
-    // Check the library location candidates for the the libsycl-crt library
-    // and use that location.  Base the location on relative to driver if this
-    // is not resolved.
-    SmallVector<SmallString<128>, 4> LibLocCandidates;
     SYCLInstallationDetector SYCLInstallation(D, getToolChain().getTriple(),
                                               Args);
-    SYCLInstallation.getSYCLDeviceLibPath(LibLocCandidates);
-    SmallString<128> LibName("libsycl-crt");
-    bool IsNewOffload = D.getUseNewOffloadingDriver();
-    StringRef LibSuffix = TheTriple.isWindowsMSVCEnvironment()
-                              ? (IsNewOffload ? ".new.obj" : ".obj")
-                              : (IsNewOffload ? ".new.o" : ".o");
-    llvm::sys::path::replace_extension(LibName, LibSuffix);
-    for (const auto &LibLoc : LibLocCandidates) {
-      SmallString<128> FullLibName(LibLoc);
-      llvm::sys::path::append(FullLibName, LibName);
-      if (llvm::sys::fs::exists(FullLibName)) {
-        DeviceLibDir = LibLoc;
-        break;
-      }
-    }
-
-    // -sycl-device-libraries=<comma separated list> contains a list of
-    // file names for fat object files that contain SYCL device library bitcode
-    // necessary for SYCL offloading that will be linked to the user's device
-    // code. clang-linker-wrapper uses the value provided to
-    // -sycl-device-library-location=<dir> to construct the full paths of the
-    // device libraries.
-
-    // On the other hand, --bitcode-library=<triple>=<path to bc file> specifies
-    // one bitcode library to link in for a specific triple. Additionally, the
-    // path is *not* relative to the -sycl-device-library-location - the full
-    // path must be provided.
-    SmallVector<std::string, 4> BCLibList;
-
-    auto appendToList = [](SmallString<256> &List, const Twine &Arg) {
-      if (List.size() > 0)
-        List += ",";
-      List += Arg.str();
-    };
-
-    auto ToolChainRange = C.getOffloadToolChains<Action::OFK_SYCL>();
-    for (const auto &[Kind, TC] :
-         llvm::make_range(ToolChainRange.first, ToolChainRange.second)) {
-      llvm::Triple TargetTriple = TC->getTriple();
-      const toolchains::SYCLToolChain &SYCLTC =
-          static_cast<const toolchains::SYCLToolChain &>(*TC);
-      SmallVector<ToolChain::BitCodeLibraryInfo, 8> SYCLDeviceLibs;
-      // SPIR or SPIR-V device libraries are compiled into the device compile
-      // step.
-      if (!TargetTriple.isSPIROrSPIRV())
-        SYCLDeviceLibs.append(SYCLTC.getDeviceLibNames(D, Args, TargetTriple));
-      for (const auto &AddLib : SYCLDeviceLibs) {
-        if (llvm::sys::path::extension(AddLib.Path) == ".bc") {
-          SmallString<256> LibPath(DeviceLibDir);
-          llvm::sys::path::append(LibPath, AddLib.Path);
-          BCLibList.push_back(
-              (Twine(TC->getTriple().str()) + "=" + LibPath).str());
-          continue;
-        }
-      }
-
-      if (TC->getTriple().isNVPTX())
-        if (const char *LibSpirvFile = SYCLInstallation.findLibspirvPath(
-                TC->getTriple(), Args, *TC->getAuxTriple()))
-          BCLibList.push_back(
-              (Twine(TC->getTriple().str()) + "=" + LibSpirvFile).str());
-    }
-
-    if (BCLibList.size())
-      for (const std::string &Lib : BCLibList)
-        CmdArgs.push_back(
-            Args.MakeArgString(Twine("--bitcode-library=") + Lib));
-
-    CmdArgs.push_back(Args.MakeArgString(
-        Twine("-sycl-device-library-location=") + DeviceLibDir));
+    if (Args.hasArg(options::OPT_fsycl_link_EQ))
+      CmdArgs.push_back(Args.MakeArgString("--sycl-device-link"));
 
     if (C.getDriver().isSaveOffloadCodeEnabled()) {
       SmallString<128> DumpDir;
@@ -11759,6 +11679,7 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     // -Xsycl-target-linker are forwarded using --device-linker.
     const toolchains::SYCLToolChain &SYCLTC =
         static_cast<const toolchains::SYCLToolChain &>(getToolChain());
+    auto ToolChainRange = C.getOffloadToolChains<Action::OFK_SYCL>();
     for (auto &ToolChainMember :
          llvm::make_range(ToolChainRange.first, ToolChainRange.second)) {
       const ToolChain *TC = ToolChainMember.second;
