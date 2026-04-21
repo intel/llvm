@@ -19,6 +19,7 @@
 #include <string>
 #include <string_view>
 #include <thread>
+#include <type_traits>
 
 #if defined(_WIN32) || defined(_WIN64)
 #include <string>
@@ -73,9 +74,35 @@ public:
   /// @return The address as a hexadecimal string.
   ///
   template <class T> std::string addressAsString(T address) {
-    std::stringstream ss;
-    ss << std::hex << address;
-    return ss.str();
+    static_assert(std::is_pointer_v<T> || std::is_integral_v<T>,
+                  "addressAsString requires a pointer or integral type");
+
+    // Convert to uintptr_t to handle both pointers and integers
+    uintptr_t addr_value;
+    if constexpr (std::is_pointer_v<T>) {
+      addr_value = reinterpret_cast<uintptr_t>(address);
+    } else {
+      addr_value = static_cast<uintptr_t>(address);
+    }
+
+    // Hex conversion without std::to_chars (not available in GCC 7.5)
+    static constexpr char hex_digits[] = "0123456789abcdef";
+
+    char buffer[sizeof(uintptr_t) * 2];
+    char *ptr = buffer + sizeof(buffer);
+
+    // Handle zero specially
+    if (addr_value == 0) {
+      return std::string("0");
+    }
+
+    // Convert from least significant digit to most significant
+    while (addr_value != 0) {
+      *--ptr = hex_digits[addr_value & 0xf];
+      addr_value >>= 4;
+    }
+
+    return std::string(ptr, buffer + sizeof(buffer));
   }
 
   /// @brief Creates a string that combines a prefix and an address.
@@ -86,15 +113,18 @@ public:
   ///
   template <class T>
   std::string nameWithAddress(const char *prefix, T address) {
-    std::string coded_string;
+    // Get prefix string and address string
+    const char *prefix_str = prefix ? prefix : "unknown";
+    std::string addr_str = addressAsString<T>(address);
 
-    if (prefix)
-      coded_string = prefix;
-    else
-      coded_string = "unknown";
+    std::string result;
+    result.reserve(std::strlen(prefix_str) + 1 + addr_str.size() + 1);
+    result.append(prefix_str);
+    result.push_back('[');
+    result.append(addr_str);
+    result.push_back(']');
 
-    coded_string += "[" + addressAsString<T>(address) + "]";
-    return coded_string;
+    return result;
   }
 
   /// @brief Creates a string that combines a prefix and an address.
@@ -104,14 +134,19 @@ public:
   /// @return The combined string.
   ///
   template <class T>
-  std::string nameWithAddress(std::string &prefix, T address) {
-    std::string coded_string;
-    if (!prefix.empty())
-      coded_string = prefix + "[" + addressAsString<T>(address) + "]";
-    else
-      coded_string = "unknown[" + addressAsString<T>(address) + "]";
+  std::string nameWithAddress(const std::string &prefix, T address) {
+    // Get prefix string and address string
+    const std::string &prefix_str = !prefix.empty() ? prefix : "unknown";
+    std::string addr_str = addressAsString<T>(address);
 
-    return coded_string;
+    std::string result;
+    result.reserve(prefix_str.size() + 1 + addr_str.size() + 1);
+    result.append(prefix_str);
+    result.push_back('[');
+    result.append(addr_str);
+    result.push_back(']');
+
+    return result;
   }
 
   /// @brief Creates a string that combines a prefix and an address.
@@ -120,16 +155,19 @@ public:
   /// @param address The address to be included in the string.
   /// @return The combined string.
   ///
-  std::string nameWithAddressString(const char *prefix, std::string &address) {
-    std::string coded_string;
+  std::string nameWithAddressString(const char *prefix,
+                                    const std::string &address) {
+    // Get prefix string
+    const char *prefix_str = prefix ? prefix : "unknown";
 
-    if (prefix)
-      coded_string = prefix;
-    else
-      coded_string = "unknown";
+    std::string result;
+    result.reserve(std::strlen(prefix_str) + 1 + address.size() + 1);
+    result.append(prefix_str);
+    result.push_back('[');
+    result.append(address);
+    result.push_back(']');
 
-    coded_string += "[" + address + "]";
-    return coded_string;
+    return result;
   }
 
   /// @brief Creates a string that combines a prefix and an address.
@@ -139,15 +177,18 @@ public:
   /// @return The combined string.
   ///
   std::string nameWithAddressString(const std::string &prefix,
-                                    std::string &address) {
-    std::string coded_string;
-    ;
-    if (!prefix.empty())
-      coded_string = prefix + "[" + address + "]";
-    else
-      coded_string = "unknown[" + address + "]";
+                                    const std::string &address) {
+    // Get prefix string
+    const std::string &prefix_str = !prefix.empty() ? prefix : "unknown";
 
-    return coded_string;
+    std::string result;
+    result.reserve(prefix_str.size() + 1 + address.size() + 1);
+    result.append(prefix_str);
+    result.push_back('[');
+    result.append(address);
+    result.push_back(']');
+
+    return result;
   }
 };
 
