@@ -568,8 +568,18 @@ static void InitializeStandardPredefinedMacros(const TargetInfo &TI,
          getSYCLVersionMacros(LangOpts))
       Builder.defineMacro(Macro.first, Macro.second);
 
-    if (LangOpts.SYCLValueFitInMaxInt)
+    // Define macros based on SYCL ID queries range assumption
+    switch (LangOpts.getSYCLIdQueriesRange()) {
+    case LangOptions::SYCLIdQueriesRangeKind::Int:
       Builder.defineMacro("__SYCL_ID_QUERIES_FIT_IN_INT__");
+      break;
+    case LangOptions::SYCLIdQueriesRangeKind::UInt:
+      Builder.defineMacro("__SYCL_ID_QUERIES_FIT_IN_UINT__");
+      break;
+    case LangOptions::SYCLIdQueriesRangeKind::SizeT:
+      // No macro defined - queries fit in size_t per SYCL spec
+      break;
+    }
 
     // Set __SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__ macro for
     // both host and device compilations if -fsycl-disable-range-rounding
@@ -875,11 +885,17 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
   Builder.defineMacro("__clang_major__", TOSTR(CLANG_VERSION_MAJOR));
   Builder.defineMacro("__clang_minor__", TOSTR(CLANG_VERSION_MINOR));
   Builder.defineMacro("__clang_patchlevel__", TOSTR(CLANG_VERSION_PATCHLEVEL));
-#undef TOSTR
-#undef TOSTR2
   Builder.defineMacro("__clang_version__",
                       "\"" CLANG_VERSION_STRING " "
                       + getClangFullRepositoryVersion() + "\"");
+
+  // DPC++ version macros - Intel's SYCL compiler
+  Builder.defineMacro("__DPCPP__", "1");
+  Builder.defineMacro("__dpcpp_major__", TOSTR(DPCPP_VERSION_MAJOR));
+  Builder.defineMacro("__dpcpp_minor__", TOSTR(DPCPP_VERSION_MINOR));
+  Builder.defineMacro("__dpcpp_patchlevel__", TOSTR(DPCPP_VERSION_PATCH));
+#undef TOSTR
+#undef TOSTR2
 
   if (LangOpts.GNUCVersion != 0) {
     // Major, minor, patch, are given two decimal places each, so 4.2.1 becomes
@@ -944,9 +960,9 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
   Builder.defineMacro("__PRAGMA_REDEFINE_EXTNAME", "1");
 
   // Previously this macro was set to a string aiming to achieve compatibility
-  // with GCC 4.2.1. Now, just return the full Clang version
-  Builder.defineMacro("__VERSION__", "\"" +
-                      Twine(getClangFullCPPVersion()) + "\"");
+  // with GCC 4.2.1. Now, just return the full DPC++ version
+  Builder.defineMacro("__VERSION__",
+                      "\"" + Twine(getDPCPPFullCPPVersion()) + "\"");
 
   // Initialize language-specific preprocessor defines.
 
@@ -1575,6 +1591,11 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
     Builder.defineMacro("__SANITIZE_THREAD__");
   if (LangOpts.Sanitize.has(SanitizerKind::AllocToken))
     Builder.defineMacro("__SANITIZE_ALLOC_TOKEN__");
+
+  if (LangOpts.PointerFieldProtectionABI)
+    Builder.defineMacro("__POINTER_FIELD_PROTECTION_ABI__");
+  if (LangOpts.PointerFieldProtectionTagged)
+    Builder.defineMacro("__POINTER_FIELD_PROTECTION_TAGGED__");
 
   // Target OS macro definitions.
   if (PPOpts.DefineTargetOSMacros) {

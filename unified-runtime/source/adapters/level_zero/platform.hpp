@@ -59,6 +59,8 @@ struct ur_platform_handle_t_ : ur::handle_base<ur::level_zero::ddi_getter>,
   std::string ZeDriverApiVersion;
   ze_api_version_t ZeApiVersion;
 
+  bool IsDriverVersionSkipListed{false};
+
   // Cache driver extensions
   std::unordered_map<std::string, uint32_t> zeDriverExtensionMap;
 
@@ -72,6 +74,7 @@ struct ur_platform_handle_t_ : ur::handle_base<ur::level_zero::ddi_getter>,
   bool ZeCopyOffloadQueueFlagSupported{false};
   bool ZeCopyOffloadListFlagSupported{false};
   bool ZeBindlessImagesExtensionSupported{false};
+  bool ZeExternalMemoryMappingExtensionSupported{false};
   bool ZeLUIDSupported{false};
 
   // Cache UR devices for reuse

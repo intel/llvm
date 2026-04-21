@@ -193,6 +193,54 @@ TLS models are mutually exclusive.
   }];
 }
 
+def AddressSpaceDocs : Documentation {
+  let Category = DocCatType;
+  let Heading = "address_space";
+  let Label = "langext-address_space_documentation";
+  let Content = [{
+.. Note:: This attribute is mainly intended to be used by target headers
+  provided by the toolchain. End users should prefer the documented, named
+  address space annotations for their platform, such as the
+  `OpenCL address spaces`_, ``__global__``, ``__local__``, or something else.
+
+The ``address_space`` attribute functions as a type qualifier that allows the
+programmer to specify the address space for a pointer or reference type.
+Qualified pointer types are considered distinct types for the purposes of
+overload resolution. The attribute takes a single, non-negative integer
+constant expression identifying the address space. For example:
+
+.. code-block:: c
+
+  int * __attribute__((address_space(1))) ptr;
+
+  void foo(__attribute__((address_space(2))) float *buf);
+
+
+Only one address space qualifier may be applied to a given pointer or reference
+type. Where address spaces are allowed (e.g., variables, parameters, return
+types) and what values are valid depends on the target and language mode.
+
+The meaning of each value is defined by the target; multiple address spaces are
+used in environments such as OpenCL, CUDA, HIP, and other GPU programming
+models to distinguish global, local, constant, and private memory. See for
+example the address spaces defined in the `NVPTX Usage Guide`_ and the
+`AMDGPU Usage Guide`_.
+
+.. _`NVPTX Usage Guide`: https://llvm.org/docs/NVPTXUsage.html#address-spaces
+.. _`AMDGPU Usage Guide`: https://llvm.org/docs/AMDGPUUsage.html#address-spaces
+
+Address spaces may partially overlap or be entirely distinct. The compiler may
+reject attempts to convert between distinct, incompatible address spaces.
+Pointer width may vary between different address spaces, so some explicit casts
+may truncate.
+
+For more information, refer to `ISO TR18037`_, which covers embedded C language
+extensions. Section 5 covers named address spaces.
+
+.. _`ISO TR18037`: https://standards.iso.org/ittf/PubliclyAvailableStandards/c051126_ISO_IEC_TR_18037_2008.zip
+  }];
+}
+
 def DLLExportDocs : Documentation {
   let Category = DocCatVariable;
   let Content = [{
@@ -532,25 +580,26 @@ The following examples demonstrate the use of this attribute:
 def SYCLKernelEntryPointDocs : Documentation {
   let Category = DocCatFunction;
   let Content = [{
-The ``sycl_kernel_entry_point`` attribute facilitates the generation of an
-offload kernel entry point, sometimes called a SYCL kernel caller function,
-suitable for invoking a SYCL kernel on an offload device. The attribute is
-intended for use in the implementation of SYCL kernel invocation functions
-like the ``single_task`` and ``parallel_for`` member functions of the
-``sycl::handler`` class specified in section 4.9.4, "Command group ``handler``
-class", of the SYCL 2020 specification.
+The ``sycl_kernel_entry_point`` attribute facilitates the launch of a SYCL
+kernel and the generation of an offload kernel entry point, sometimes called
+a SYCL kernel caller function, suitable for invoking a SYCL kernel on an
+offload device. The attribute is intended for use in the implementation of
+SYCL kernel invocation functions like the ``single_task`` and ``parallel_for``
+member functions of the ``sycl::handler`` class specified in section 4.9.4,
+"Command group ``handler`` class", of the SYCL 2020 specification.
 
-The attribute requires a single type argument that specifies a class type that
-meets the requirements for a SYCL kernel name as described in section 5.2,
-"Naming of kernels", of the SYCL 2020 specification. A unique kernel name type
-is required for each function declared with the attribute. The attribute may
-not first appear on a declaration that follows a definition of the function.
+The attribute requires a single type argument that meets the requirements for
+a SYCL kernel name as described in section 5.2, "Naming of kernels", of the
+SYCL 2020 specification. A unique kernel name type is required for each
+function declared with the attribute. The attribute may not first appear on a
+declaration that follows a definition of the function.
 
 The attribute only appertains to functions and only those that meet the
 following requirements.
 
 * Has a non-deduced ``void`` return type.
-* Is not a non-static member function, constructor, or destructor.
+* Is not a constructor or destructor.
+* Is not a non-static member function with an explicit object parameter.
 * Is not a C variadic function.
 * Is not a coroutine.
 * Is not defined as deleted or as defaulted.
@@ -565,73 +614,84 @@ follows.
 
   namespace sycl {
   class handler {
-    template<typename KernelNameType, typename KernelType>
-    [[ clang::sycl_kernel_entry_point(KernelNameType) ]]
-    static void kernel_entry_point(KernelType kernel) {
-      kernel();
+    template<typename KernelName, typename... Ts>
+    void sycl_kernel_launch(const char* kernelSymbol, Ts&&... kernelArgs) {
+      // This code will run on the host and is responsible for calling functions
+      // appropriate for the desired offload backend (OpenCL, CUDA, HIP,
+      // Level Zero, etc...) to copy the kernel arguments denoted by kernelArgs
+      // to a device and to schedule an invocation of the offload kernel entry
+      // point denoted by kernelSymbol with the copied arguments.
+    }
+
+    template<typename KernelName, typename KernelType>
+    [[ clang::sycl_kernel_entry_point(KernelName) ]]
+    void kernel_entry_point(KernelType kernelFunc) {
+      // This code will run on the device. The call to kernelFunc() invokes
+      // the SYCL kernel.
+      kernelFunc();
     }
 
   public:
-    template<typename KernelNameType, typename KernelType>
-    void single_task(KernelType kernel) {
-      // Call kernel_entry_point() to trigger generation of an offload
-      // kernel entry point.
-      kernel_entry_point<KernelNameType>(kernel);
-      // Call functions appropriate for the desired offload backend
-      // (OpenCL, CUDA, HIP, Level Zero, etc...).
+    template<typename KernelName, typename KernelType>
+    void single_task(const KernelType& kernelFunc) {
+      // This code will run on the host. kernel_entry_point() is called to
+      // trigger generation of an offload kernel entry point and to schedule
+      // an invocation of it on a device with kernelFunc (a SYCL kernel object)
+      // passed as a kernel argument. This call will result in an implicit call
+      // to sycl_kernel_launch() with the symbol name for the generated offload
+      // kernel entry point passed as the first function argument followed by
+      // kernelFunc.
+      kernel_entry_point<KernelName>(kernelFunc);
     }
   };
   } // namespace sycl
 
-A SYCL kernel is a callable object of class type that is constructed on a host,
-often via a lambda expression, and then passed to a SYCL kernel invocation
-function to be executed on an offload device. A SYCL kernel invocation function
-is responsible for copying the provided SYCL kernel object to an offload
-device and initiating a call to it. The SYCL kernel object and its data members
-constitute the parameters of an offload kernel.
+A SYCL kernel object is a callable object of class type that is constructed on
+a host, often via a lambda expression, and then passed to a SYCL kernel
+invocation function to be executed on an offload device. The ``kernelFunc``
+parameters in the example code above correspond to SYCL kernel objects.
 
-A SYCL kernel type is required to satisfy the device copyability requirements
-specified in section 3.13.1, "Device copyable", of the SYCL 2020 specification.
-Additionally, any data members of the kernel object type are required to satisfy
-section 4.12.4, "Rules for parameter passing to kernels". For most types, these
-rules require that the type is trivially copyable.  However, the SYCL
-specification mandates that certain special SYCL types, such as
-``sycl::accessor`` and ``sycl::stream`` be device copyable even if they are not
-trivially copyable. These types require special handling because they cannot
-be copied to device memory as if by ``memcpy()``. Additionally, some offload
-backends, OpenCL for example, require objects of some of these types to be
-passed as individual arguments to the offload kernel.
+A SYCL kernel object type is required to satisfy the device copyability
+requirements specified in section 3.13.1, "Device copyable", of the SYCL 2020
+specification. Additionally, any data members of the kernel object type are
+required to satisfy section 4.12.4, "Rules for parameter passing to kernels".
+For most types, these rules require that the type is trivially copyable.
+However, the SYCL specification mandates that certain special SYCL types, such
+as ``sycl::accessor`` and ``sycl::stream``, be device copyable even if they are
+not trivially copyable. These types require special handling because they cannot
+necessarily be copied to device memory as if by ``memcpy()``.
 
-An offload kernel consists of an entry point function that declares the
-parameters of the offload kernel and the set of all functions and variables that
-are directly or indirectly used by the entry point function.
+The SYCL kernel object and its data members constitute the parameters of an
+offload kernel. An offload kernel consists of an offload entry point function
+and the set of all functions and variables that are directly or indirectly used
+by the entry point function.
 
-A SYCL kernel invocation function invokes a SYCL kernel on a device by
-performing the following tasks (likely with the help of an offload backend
-like OpenCL):
+A SYCL kernel invocation function is responsible for performing the following
+tasks (likely with the help of an offload backend like OpenCL):
 
 #. Identifying the offload kernel entry point to be used for the SYCL kernel.
 
-#. Deconstructing the SYCL kernel object, if necessary, to produce the set of
-   offload kernel arguments required by the offload kernel entry point.
+#. Validating that the SYCL kernel object type and its data members meet the
+   SYCL device copyability and kernel parameter requirements noted above.
 
-#. Copying the offload kernel arguments to device memory.
+#. Copying the SYCL kernel object and any other kernel arguments to device
+   memory including any special handling required for SYCL special types.
 
 #. Initiating execution of the offload kernel entry point.
 
 The offload kernel entry point for a SYCL kernel performs the following tasks:
 
-#. Reconstituting the SYCL kernel object, if necessary, using the offload
-   kernel parameters.
+#. Calling the ``operator()`` member function of the SYCL kernel object.
 
-#. Calling the ``operator()`` member function of the (reconstituted) SYCL kernel
-   object.
+The ``sycl_kernel_entry_point`` attribute facilitates or automates these tasks
+by providing generation of an offload kernel entry point with a unique symbol
+name, type checking of kernel argument requirements, and initiation of kernel
+execution via synthesized calls to a ``sycl_kernel_launch`` template.
 
-The ``sycl_kernel_entry_point`` attribute automates generation of an offload
-kernel entry point that performs those latter tasks. The parameters and body of
-a function declared with the ``sycl_kernel_entry_point`` attribute specify a
-pattern from which the parameters and body of the entry point function are
-derived. Consider the following call to a SYCL kernel invocation function.
+A function declared with the ``sycl_kernel_entry_point`` attribute specifies
+the parameters and body of an offload entry point function. Consider the
+following call to the ``single_task()`` SYCL kernel invocation function assuming
+an implementation similar to the one shown above.
 
 .. code-block:: c++
 
@@ -642,65 +702,87 @@ derived. Consider the following call to a SYCL kernel invocation function.
     });
   }
 
-The SYCL kernel object is the result of the lambda expression. It has two
-data members corresponding to the captures of ``sout`` and ``s``. Since one
-of these data members corresponds to a special SYCL type that must be passed
-individually as an offload kernel parameter, it is necessary to decompose the
-SYCL kernel object into its constituent parts; the offload kernel will have
-two kernel parameters. Given a SYCL implementation that uses a
-``sycl_kernel_entry_point`` attributed function like the one shown above, an
-offload kernel entry point function will be generated that looks approximately
+The SYCL kernel object is the result of the lambda expression. The call to
+``kernel_entry_point()`` via the call to ``single_task()`` triggers the
+generation of an offload kernel entry point function that looks approximately
 as follows.
 
 .. code-block:: c++
 
-  void sycl-kernel-caller-for-KN(sycl::stream sout, S s) {
-    kernel-type kernel = { sout, s );
-    kernel();
+  void sycl-kernel-caller-for-KN(kernel-type kernelFunc) {
+    kernelFunc();
   }
 
 There are a few items worthy of note:
 
-#. The name of the generated function incorporates the SYCL kernel name,
-   ``KN``, that was passed as the ``KernelNameType`` template parameter to
-   ``kernel_entry_point()`` and provided as the argument to the
-   ``sycl_kernel_entry_point`` attribute. There is a one-to-one correspondence
-   between SYCL kernel names and offload kernel entry points.
+#.  ``sycl-kernel-caller-for-KN`` is an exposition only name; the actual name
+    generated for an entry point is an implementation detail and subject to
+    change. However, the name will incorporate the SYCL kernel name, ``KN``,
+    that was passed as the ``KernelName`` template parameter to
+    ``single_task()`` and eventually provided as the argument to the
+    ``sycl_kernel_entry_point`` attribute in order to ensure that a unique
+    name is generated for each entry point. There is a one-to-one correspondence
+    between SYCL kernel names and offload kernel entry points.
 
 #. The SYCL kernel is a lambda closure type and therefore has no name;
    ``kernel-type`` is substituted above and corresponds to the ``KernelType``
-   template parameter deduced in the call to ``kernel_entry_point()``.
-   Lambda types cannot be declared and initialized using the aggregate
-   initialization syntax used above, but the intended behavior should be clear.
+   template parameter deduced in the call to ``single_task()``.
 
-#. ``S`` is a device copyable type that does not directly or indirectly contain
-   a data member of a SYCL special type. It therefore does not need to be
-   decomposed into its constituent members to be passed as a kernel argument.
+#. The parameter and the call to ``kernelFunc()`` in the function body
+   correspond to the definition of ``kernel_entry_point()`` as called by
+   ``single_task()``.
 
-#. The depiction of the ``sycl::stream`` parameter as a single self contained
-   kernel parameter is an oversimplification. SYCL special types may require
-   additional decomposition such that the generated function might have three
-   or more parameters depending on how the SYCL library implementation defines
-   these types.
+#. The parameter is type checked for conformance with the SYCL device
+   copyability and kernel parameter requirements.
 
-#. The call to ``kernel_entry_point()`` has no effect other than to trigger
-   emission of the entry point function. The statments that make up the body
-   of the function are not executed when the function is called; they are
-   only used in the generation of the entry point function.
+Within ``single_task()``, the call to ``kernel_entry_point()`` is effectively
+replaced with a synthesized call to a ''sycl_kernel_launch`` template that
+looks approximately as follows.
+
+.. code-block:: c++
+
+  sycl_kernel_launch<KN>("sycl-kernel-caller-for-KN", kernelFunc);
+
+There are a few items worthy of note:
+
+#. Lookup for the ``sycl_kernel_launch`` template is performed as if from the
+   body of the (possibly instantiated) definition of ``kernel_entry_point()``.
+   If name lookup or overload resolution fails, the program is ill-formed.
+   If the selected overload is a non-static member function, then ``this`` is
+   passed as the implicit object parameter.
+
+#. Function arguments passed to ``sycl_kernel_launch()`` are passed
+   as if by ``std::move(x)``.
+
+#. The ``sycl_kernel_launch`` template is expected to be provided by the SYCL
+   library implementation. It is responsible for copying the kernel arguments
+   to device memory and for scheduling execution of the generated offload
+   kernel entry point identified by the symbol name passed as the first
+   function argument. ``sycl-kernel-caller-for-KN`` is substituted above for
+   the actual symbol name that would be generated for the offload kernel entry
+   point.
 
 It is not necessary for a function declared with the ``sycl_kernel_entry_point``
 attribute to be called for the offload kernel entry point to be emitted. For
 inline functions and function templates, any ODR-use will suffice. For other
 functions, an ODR-use is not required; the offload kernel entry point will be
-emitted if the function is defined.
+emitted if the function is defined. In any case, a call to the function is
+required for the synthesized call to ``sycl_kernel_launch()`` to occur.
+
+A function declared with the ``sycl_kernel_entry_point`` attribute may include
+an exception specification. If a non-throwing exception specification is
+present, an exception propagating from the implicit call to the
+``sycl_kernel_launch`` template will result in a call to ``std::terminate()``.
+Otherwise, such an exception will propagate normally.
 
 Functions declared with the ``sycl_kernel_entry_point`` attribute are not
 limited to the simple example shown above. They may have additional template
 parameters, declare additional function parameters, and have complex control
-flow in the function body. Function parameter decomposition and reconstitution
-is performed for all function parameters. The function must abide by the
-language feature restrictions described in section 5.4, "Language restrictions
-for device functions" in the SYCL 2020 specification.
+flow in the function body. The function must abide by the language feature
+restrictions described in section 5.4, "Language restrictions for device
+functions" in the SYCL 2020 specification. If the function is a non-static
+member function, ``this`` shall not be used in a potentially evaluated
+expression.
   }];
 }
 
@@ -912,6 +994,18 @@ with ``__noinline__`` defined as a macro as ``__attribute__((noinline))``.
     return r;
   }
 
+  }];
+}
+
+def NoOutlineDocs : Documentation {
+  let Category = DocCatFunction;
+  let Content = [{
+This function attribute suppresses outlining from the annotated function.
+
+Outlining is the process where common parts of separate functions are extracted
+into a separate function (or assembly snippet), and calls to that function or
+snippet are inserted in the original functions. In this way, it can be seen as
+the opposite of inlining. It can help to reduce code size.
   }];
 }
 
@@ -2645,8 +2739,10 @@ path of execution, but that can be confusing:
 .. code-block:: c++
 
   if (b) {
-    [[unlikely]] --b; // In the path of execution,
-                      // this branch is considered unlikely.
+    [[unlikely]] --b; // Per the standard this is in the path of
+                      // execution, so this branch should be considered
+                      // unlikely. However, Clang ignores the attribute
+                      // here since it is not on the substatement.
   }
 
   if (b) {
@@ -3016,303 +3112,6 @@ as ``-mlong-calls`` and ``-mno-long-calls``.
   }];
 }
 
-def SYCLIntelDoublePumpAttrDocs : Documentation {
-let Category = DocCatVariable;
-  let Heading = "intel::doublepump";
-  let Content = [{
-This attribute may be attached to a variable or struct member declaration and
-instructs the backend to implement the variable or struct member in a memory
-that is clocked at twice the rate of its accessors.
-
-.. code-block:: c++
-
-  void bar() {
-    [[intel::doublepump]] int var_doublepump;
-  }
-
-  struct foo {
-    [[intel::doublepump]] unsigned int doublepump[64];
-  };
-
-  }];
-}
-
-def SYCLIntelSinglePumpAttrDocs : Documentation {
-let Category = DocCatVariable;
-  let Heading = "intel::singlepump";
-  let Content = [{
-This attribute may be attached to a variable or struct member declaration and
-instructs the backend to implement the variable or struct member in a memory
-that is clocked at the same rate as its accessors.
-
-.. code-block:: c++
-
-  void bar() {
-    [[intel::singlepump]] int var_singlepump;
-  }
-
-  struct foo {
-    [[intel::singlepump]] unsigned int singlepump[64];
-  };
-
-  }];
-}
-
-def SYCLIntelMemoryAttrDocs : Documentation {
-  let Category = DocCatVariable;
-  let Heading = "intel::fpga_memory";
-  let Content = [{
-This attribute may be attached to a variable or struct member declaration and
-instructs the backend to implement the variable or struct member in memory
-rather than promoting to register(s).  If the optional parameter is specified
-it indicates what type of memory to use.
-
-.. code-block:: c++
-
-  void bar() {
-    [[intel::fpga_memory]] int memory;
-  }
-
-  struct foo {
-    [[intel::fpga_memory]] unsigned int memory[64];
-    [[intel::fpga_memory("MLAB")]] unsigned int memory_mlab[64];
-    [[intel::fpga_memory("BLOCK_RAM")]] unsigned int mem_blockram[32];
-  };
-
-  }];
-}
-
-def SYCLIntelRegisterAttrDocs : Documentation {
-  let Category = DocCatVariable;
-  let Heading = "intel::fpga_register";
-  let Content = [{
-This attribute may be attached to a variable or struct member declaration and
-instructs the backend to promote the variable or struct member to register(s)
-if possible.
-
-.. code-block:: c++
-
-  void bar() {
-    [[intel::fpga_register]] int var_reg;
-  }
-
-  struct foo {
-    [[intel::fpga_register]] unsigned int reg[64];
-  };
-
-  }];
-}
-
-def SYCLIntelBankWidthAttrDocs : Documentation {
-  let Category = DocCatVariable;
-  let Heading = "intel::bankwidth";
-  let Content = [{
-This attribute may be attached to a variable or struct member declaration and
-instructs the backend to implement the variable or struct member in a memory
-with banks that are N bytes wide.
-
-.. code-block:: c++
-
-  struct foo {
-    [[intel::bankwidth(4)]] unsigned int bankwidth[32];
-  };
-
-  template <int N>
-  void bar() {
-    [[intel::bankwidth(N)]] unsigned int bank_bits_width;
-  }
-
-  }];
-}
-
-def SYCLIntelNumBanksAttrDocs : Documentation {
-  let Category = DocCatVariable;
-  let Heading = "intel::numbanks";
-  let Content = [{
-This attribute may be attached to a variable or struct member declaration and
-instructs the backend to implement the variable or struct member in a memory
-with N banks.
-
-.. code-block:: c++
-
-  struct foo {
-    [[intel::numbanks(8)]] unsigned int numbanks[64];
-  };
-
-  template <int N>
-  void bar() {
-    [[intel::numbanks(N)]] unsigned int numbanks;
-  }
-
-  }];
-}
-
-def SYCLIntelPrivateCopiesAttrDocs : Documentation {
-  let Category = DocCatVariable;
-  let Heading = "intel::private_copies";
-  let Content = [{
-This attribute may be attached to a variable or struct member declaration and
-instructs the backend to replicate the memory generated for the variable or
-struct member sufficiently to enable the specified number of simultaneous
-threads or loop iterations.
-
-.. code-block:: c++
-
-  struct foo {
-    [[intel::private_copies(4)]] unsigned int private_copies[64];
-  };
-
-  template <int N>
-  void bar() {
-    [[intel::private_copies(N)]] unsigned int private_copies;
-  }
-
-  }];
-}
-
-def SYCLIntelMergeAttrDocs : Documentation {
-  let Category = DocCatVariable;
-  let Heading = "intel::merge";
-  let Content = [{
-This attribute may be attached to a variable or struct member declaration and
-instructs the backend to merge the memories used to implement any variable or
-struct members that are annotated with this attribute and the same first
-argument. The second argument indicates if the memories should be merged in a
-depth-wise or width-wise manner.
-
-.. code-block:: c++
-
-  void bar() {
-    [[intel::merge("mrg1", "depth")]] int merge_depth;
-    [[intel::merge("mrg2", "width")]] int merge_width;
-  }
-
-  struct foo {
-    [[intel::merge("mrg1", "depth")]] unsigned int merge_depth[64];
-    [[intel::merge("mrg2", "width")]] unsigned int merge_width[64];
-  };
-
-  }];
-}
-
-def SYCLIntelMaxReplicatesAttrDocs : Documentation {
-  let Category = DocCatVariable;
-  let Heading = "intel::max_replicates";
-  let Content = [{
-This attribute may be attached to a variable or struct member declaration and
-instructs the backend to replicate the memory generated for the variable or
-struct member no more than the specified maximum number of times to enable
-simultaneous accesses from different load/store sites in the program.
-
-.. code-block:: c++
-
-  struct foo {
-    [[intel::max_replicates(2)]] unsigned int max_replicates[64];
-  };
-
-  template <int N>
-  void bar() {
-    [[intel::max_replicates(N)]] unsigned int max_replicates;
-  }
-
-  }];
-}
-
-def SYCLIntelSimpleDualPortAttrDocs : Documentation {
-  let Category = DocCatVariable;
-  let Heading = "intel::simple_dual_port";
-  let Content = [{
-This attribute may be attached to a variable or struct member declaration and
-instructs the backend to implement the variable or struct member in a memory
-with simple dual port configuration (no memory port services both stores and
-loads).
-
-.. code-block:: c++
-
-  void bar() {
-    [[intel::simple_dual_port]] int var_dual_port;
-  }
-
-  struct foo {
-    [[intel::simple_dual_port]] unsigned int dual_port[64];
-  };
-
-  }];
-}
-
-def SYCLIntelBankBitsDocs : Documentation {
-  let Category = DocCatVariable;
-  let Heading = "intel::bank_bits";
-  let Content = [{
-This attribute may be attached to a variable or struct member declaration and
-instructs the backend to implement the variable or struct member in a banked
-memory with 2^(N+1) banks, where the (b0, ..., bn) bits specified determine the
-pointer address bits to bank on.
-
-.. code-block:: c++
-
-  void bar() {
-    [[intel::bank_bits(2, 3)]] int var_bank_bits;
-  }
-
-  struct foo {
-    [[intel::bank_bits(1, 2)]] unsigned int bb_bb[4]
-    [[intel::bank_bits(2, 3, 4, 5)]] unsigned int bankbits[64];
-  };
-
-  template <int N>
-  void bar() {
-    [[intel::bank_bits(N, 3)]] unsigned int bank_bits;
-  }
-
-  }];
-}
-
-def SYCLIntelForcePow2DepthAttrDocs : Documentation {
-  let Category = DocCatVariable;
-  let Heading = "intel::force_pow2_depth";
-  let Content = [{
-This attribute may be attached to a variable or struct member declaration and
-provides explicit control over the geometry of memory blocks used in a given
-memory system.
-
-.. code-block:: c++
-
-  struct foo {
-    [[intel::force_pow2_depth(1)]] int var_force_p2d;
-    [[intel::force_pow2_depth(1)]] const int const_force_p2d[64] = {0, 1};
-  };
-
-  template <int N>
-  void bar() {
-    [[intel::force_pow2_depth(N)]] unsigned int reg_force_p2d[64];
-  }
-
-In the presence of this attribute, the compiler:
-
-1. Will automatically size the memory depth to the next largest power of 2 if
-force_pow2_depth is set to 1, and will prefer width-stitching of RAM blocks
-over depth-stitching.
-
-.. code-block:: c++
-
-  void func() {
-    [[intel::force_pow2_depth(1)]] unsigned int arr_force_p2d_1[64];
-  }
-
-2. Will not size the memory to the next largest power of 2 if force_pow2_depth
-is set to 0, and will prefer depth-stitching over width-stitching if RAM usage
-can be lowered.
-
-.. code-block:: c++
-
-  void func() {
-    [[intel::force_pow2_depth(0)]] unsigned int arr_force_p2d_0[64];
-  }
-
-  }];
-}
-
 def SYCLIntelKernelArgsRestrictDocs : Documentation {
   let Category = DocCatVariable;
   let Heading = "kernel_args_restrict";
@@ -3459,62 +3258,6 @@ of the kernel the attribute is applied to.
   // argument to the attribute is the one which increments fastest.
   __attribute__((reqd_work_group_size(3, 2, 8)))
   [intel::num_simd_work_items(2)]] void test();
-
-  }];
-}
-
-def SYCLIntelUseStallEnableClustersAttrDocs : Documentation {
-  let Category = DocCatFunction;
-  let Heading = "intel::use_stall_enable_clusters";
-  let Content = [{
-The ``intel::use_stall_enable_clusters`` attribute requires SYCL.
-When applied to a lambda function, function definition, or function call
-operator (of a function object) on device, this requests, to the
-extent possible, that statically-scheduled clusters handle stalls using a
-stall-enable signal to freeze computation within the cluster. This attribute
-is ignored on the host.
-
-The ``intel::use_stall_enable_clusters`` attribute takes no argument and has an
-effect when applied to a function, and no effect otherwise.
-
-If ``intel::use_stall_enable_clusters`` is applied to a function called from a device
-kernel, the attribute is ignored and it is not propagated to the kernel.
-
-.. code-block:: c++
-
-  class Foo {
-  public:
-    [[intel::use_stall_enable_clusters]] void operator()() const {}
-  };
-
-  [[intel::use_stall_enable_clusters]] void test() {}
-
-  struct FuncObj {
-    [[intel::use_stall_enable_clusters]] void operator()() const {}
-  };
-
-  class Functor
-  {
-      [[intel::use_stall_enable_clusters]] void operator()(item<1> item)
-      {
-          /* kernel code */
-      }
-  }
-
-The ``intel::use_stall_enable_clusters`` attribute supports a nonconforming
-behavior when applied to a lambda in the type position.
-
-.. code-block:: c++
-
-  void test1() {
-    auto lambda = []() [[intel::use_stall_enable_clusters]]{};
-    lambda();
-  }
-
-  kernel<class kernel_name>(
-  []() [[intel::use_stall_enable_clusters]] {
-       /* kernel code */
-  });
 
   }];
 }
@@ -3769,51 +3512,6 @@ have arguments of (1, 1, 1).
   }];
 }
 
-def SYCLIntelSchedulerTargetFmaxMhzAttrDocs : Documentation {
-  let Category = DocCatFunction;
-  let Heading = "intel::scheduler_target_fmax_mhz";
-  let Content = [{
-Applies to a device function/lambda function. Indicates that the kernel should
-be pipelined so as to achieve the specified target clock frequency (Fmax) of N
-MHz. The argument N may be a template parameter. This attribute should be
-ignored for the FPGA emulator device.
-
-``[[intel::scheduler_target_fmax_mhz(N)]]``
-Valid values of N are integers in the range [0, 1048576]. The upper limit,
-although too high to be a realistic value for frequency, is chosen to be future
-proof. The FPGA backend emits a diagnostic message if the passed value is
-unachievable by the device.
-
-This attribute enables communication of the desired maximum frequency of the
-device operation, guiding the FPGA backend to insert the appropriate number of
-registers to break-up the combinational logic circuit, and thereby controlling
-the length of the longest combinational path.
-
-In SYCL 1.2.1 mode, the ``intel::scheduler_target_fmax_mhz`` attribute is
-propagated from the function it is applied to onto the kernel which calls the
-function. In SYCL 2020 mode, the attribute is not propagated to the kernel.
-
-.. code-block:: c++
-
-  [[intel::scheduler_target_fmax_mhz(4)]] void foo() {}
-
-  template<int N>
-  [[intel::scheduler_target_fmax_mhz(N)]] void bar() {}
-
-  class Foo {
-  public:
-    [[intel::scheduler_target_fmax_mhz(6)]] void operator()() const {}
-  };
-
-  template <int N>
-  class Functor {
-  public:
-    [[intel::scheduler_target_fmax_mhz(N)]] void operator()() const {}
-  };
-
-  }];
-}
-
 def SYCLIntelNoGlobalWorkOffsetAttrDocs : Documentation {
   let Category = DocCatFunction;
   let Heading = "intel::no_global_work_offset";
@@ -3892,401 +3590,6 @@ sycl_detail namespace.
   struct [[__sycl_detail__::global_variable_allowed]] device_global {}
   
   device_global<int> Foo;
-  }];
-}
-
-def SYCLIntelPipeDocs : Documentation {
-  let Category = DocCatStmt;
-  let Heading = "pipe (read_only, write_only)";
-  let Content = [{
-This attribute applies to a type to indicate that it is a pipe type.
-It requires a string argument that specifies if the pipe is read only or
-write only. Expected to be used only in SYCL headers.
-  }];
-}
-
-def SYCLIntelPipeIOAttrDocs : Documentation {
-  let Category = DocCatVariable;
-  let Heading = "IO pipe ID";
-  let Content = [{
-Add I/O attribute to SYCL pipe declaration to declare a special I/O pipe to
-interface with input or output features of an FPGA. These features might include
-network interfaces, PCIe, cameras, or other data capture or processing devices
-or protocols.
-
-The io_pipe_id(id) attribute specifies the I/O feature of an accelerator board
-with which a pipe interfaces. The id argument is the name of the I/O interface.
-  }];
-}
-
-def SYCLIntelIVDepAttrDocs : Documentation {
-  let Category = DocCatVariable;
-  let Heading = "intel::ivdep";
-  let Content = [{
-This attribute applies to a loop. If no additional arguments are provided, it
-indicates that the backend may assume that the loop carries no dependences.
-If a safelen is provided then the backend may assume that all loop-carried
-dependences have a dependence distance of at least that length.
-If an array variable is provided then the backend may assume that there are
-no loop-carried dependences for this particular array within this loop.
-If both an array variable and a safelen are specified, the backend may assume
-that all loop-carried dependences for this particular array have a dependence
-distance of at least that length.
-Multiple ivdep attributes can be applied to the same loop, but only the greatest
-possible safelen will be chosen for each array, including the case where safelen
-is unspecified and is therefore considered infinite.
-In case of ivdep being applied both w/o an array variable and for a particular
-array, the array variables that were not designated a separate ivdep will receive
-the no-array ivdep's safelen, with the correspondent treatment by the backend.
-The ``[[intel::ivdep]]`` attribute applies a safelen value of 0 or 1 that has
-no effect on the loop and emits a suppressible warning when safelen value of 0
-or 1 is used.
-
-.. code-block:: c++
-
-  void foo() {
-    int a[10];
-    [[intel::ivdep]] for (int i = 0; i != 10; ++i) { }
-    [[intel::ivdep(2)]] for (int i = 0; i != 10; ++i) { }
-    [[intel::ivdep(a)]] for (int i = 0; i != 10; ++i) { }
-    [[intel::ivdep(a, 2)]] for (int i = 0; i != 10; ++i) { }
-  }
-
-  template<int N>
-  void bar() {
-    [[intel::ivdep(N)]] for(;;) { }
-  }
-
-  }];
-}
-
-def SYCLIntelInitiationIntervalAttrDocs : Documentation {
-  let Category = DocCatVariable;
-  let Heading = "intel::initiation_interval";
-  let Content = [{
-This attribute applies to a loop or a function. Indicates that the loop or
-function should be pipelined with an initiation interval of N. N must be a
-positive integer. Cannot be applied multiple times to the same loop or function.
-Cannot be used on the same loop or function in conjunction with
-disable_loop_pipelining.
-
-The ``[[intel::ii]]`` attribute spelling is a deprecated synonym for
-``[[intel::initiation_interval]]`` and will be removed in the future.
-
-.. code-block:: c++
-
-  void foo() {
-    int var = 0;
-    [[intel::initiation_interval(4)]] for (int i = 0; i < 10; ++i) var++;
-  }
-
-  [[intel::initiation_interval(4)]] void foo1 { }
-
-  template<int N>
-  void bar() {
-    [[intel::initiation_interval(N)]] for(;;) { }
-  }
-
-  template<int N>
-  [[intel::initiation_interval(N)]] void bar1 { }
-
-  }];
-}
-
-def SYCLIntelMaxConcurrencyAttrDocs : Documentation {
-  let Category = DocCatVariable;
-  let Heading = "intel::max_concurrency";
-  let Content = [{
-This attribute applies to a loop or a function. It indicates that the
-loop/function should allow no more than N threads or iterations to execute it
-simultaneously. N must be a non negative integer. '0' indicates the
-max_concurrency case to be unbounded. Cannot be applied multiple times to the
-same loop or function, or in conjunction with ``disable_loop_pipelining``.
-
-.. code-block:: c++
-
-  void foo() {
-    int a[10];
-    [[intel::max_concurrency(2)]] for (int i = 0; i != 10; ++i) a[i] = 0;
-  }
-
-  [[intel::max_concurrency(2)]] void foo1 { }
-  template<int N>
-  void bar() {
-    [[intel::max_concurrency(N)]] for(;;) { }
-  }
-  template<int N>
-  [[intel::max_concurrency(N)]] void bar1() { }
-
-  }];
-}
-
-def SYCLIntelLoopCoalesceAttrDocs : Documentation {
-  let Category = DocCatVariable;
-  let Heading = "intel::loop_coalesce";
-  let Content = [{
-This attribute applies to a loop. Indicates that the loop nest should be
-coalesced into a single loop without affecting functionality. Parameter N is
-optional. If specified, it shall be a positive integer, and indicates how many
-of the nested loop levels should be coalesced.
-
-.. code-block:: c++
-
-  void foo() {
-    int a[10];
-    [[intel::loop_coalesce]] for (int i = 0; i != 10; ++i) a[i] = 0;
-  }
-
-  template<int N>
-  void loop_coalesce() {
-    int j = 0, n = 48;
-    [[intel::loop_coalesce(N)]]
-    while (j < n) {
-      if (j % 4) {
-        ++j;
-        continue;
-      }
-    }
-    j = 0;
-    [[intel::loop_coalesce]]
-    while (j < n) {
-      if (j % 6) {
-        ++j;
-        continue;
-      }
-    }
-  }
-
-  }];
-}
-
-def SYCLIntelDisableLoopPipeliningAttrDocs : Documentation {
-  let Category = DocCatVariable;
-  let Heading = "intel::disable_loop_pipelining";
-  let Content = [{
-This attribute applies to a loop or a function. Takes no arguments and
-indicates whether the kernel should be pipelined or not. Cannot be used on the
-same loop or function, or in conjunction with ``speculated_iterations``,
-``max_concurrency``, ``initiation_interval``, ``ivdep``,
-``max_reinvocation_delay`` or ``enable_loop_pipelining`` attribute.
-
-.. code-block:: c++
-
-  void foo() {
-    int var = 0;
-    [[intel::disable_loop_pipelining]] for (int i = 0; i < 10; ++i) var++;
-  }
-
-  [[intel::disable_loop_pipelining]] void foo1() { }
-
-  }];
-}
-
-def SYCLIntelLoopCountAttrDocs : Documentation {
-  let Category = DocCatVariable;
-  let Heading = "intel::loop_count_min, intel::loop_count_max, intel::loop_count_avg, intel::loop_count";
-  let Content = [{
-The loop count attributes specify the minimum, maximum, or average number of
-iterations for a ``for`` loop. These are hints that the user specify that can be
-used by some of the loop optimization to make decisions such as if the loop
-should be unrolled. It is a way for the user to provide some information without
-using PGO.
-
-.. code-block:: c++
-
-  void foo(int *array, size_t n) {
-    [[intel::loop_count_min(4)]] for (int i = 0; i < n; ++i) array[i] = 0;
-  }
-
-  void zoo(int *array, size_t n) {
-    [[intel::loop_count_max(10)]] for (int i = 0; i < n; ++i) array[i] = 0;
-  }
-
-  void count(int *array, size_t n) {
-    [[intel::loop_count(20)]] for (int i = 0; i < n; ++i) array[i] = 0;
-  }
-
-  void goo(int *array, size_t n) {
-    [[intel::loop_count_min(3)]]
-    [[intel::loop_count_max(10)]]
-    [[intel::loop_count_avg(5)]]
-    [[intel::loop_count(20)]]
-    for (int i = 0; i < n; ++i) array[i] = 0;
-  }
-
-  template<int N>
-  void bar() {
-    [[intel::loop_count_avg(N)]] for(;;) { }
-  }
-
-  template<int A>
-  void func() {
-    [[intel::loop_count(A)]] for(;;) { }
-  }
-  }];
-}
-
-def SYCLIntelMaxInterleavingAttrDocs : Documentation {
-  let Category = DocCatVariable;
-  let Heading = "intel::max_interleaving";
-  let Content = [{
-This attribute applies to a loop. Places a maximum limit N on the number of
-interleaved invocations of an inner loop by an outer loop (note, this does not
-mean that this attribute can only be applied to inner loops in user code - outer
-loops in user code may still be contained in an implicit loop due to NDRange).
-Parameter N is mandatory, and may either be 0, or 1.
-
-.. code-block:: c++
-
-  void foo() {
-    int a[10];
-    [[intel::max_interleaving(1)]] for (int i = 0; i != 10; ++i) a[i] = 0;
-  }
-
-  template<int N>
-  void bar() {
-    [[intel::max_interleaving(N)]] for(;;) { }
-  }
-
-  }];
-}
-
-def SYCLIntelSpeculatedIterationsAttrDocs : Documentation {
-  let Category = DocCatVariable;
-  let Heading = "intel::speculated_iterations";
-  let Content = [{
-This attribute applies to a loop. Specifies the number of concurrent speculated
-iterations that will be in flight for a loop invocation (i.e. the exit
-condition for these iterations will not have been evaluated yet).
-Parameter N is mandatory, and may either be 0, or a positive integer. Cannot be
-used on the same loop in conjunction with disable_loop_pipelining.
-
-.. code-block:: c++
-
-  void foo() {
-    int var = 0;
-    [[intel::speculated_iterations(4)]] for (int i = 0; i < 10; ++i) var++;
-  }
-
-  template<int N>
-  void bar() {
-    [[intel::speculated_iterations(N)]] for(;;) { }
-  }
-
-  }];
-}
-
-def SYCLIntelNofusionAttrDocs : Documentation {
-  let Category = DocCatVariable;
-  let Heading = "intel::nofusion";
-  let Content = [{
-This attribute applies to a loop. Indicates that the annotated
-loop should not be fused with any adjacent loop.
-
-.. code-block:: c++
-
-  void foo() {
-    [[intel::nofusion]] for (int i=0; i<10;++i) { }
-  }
-
-  void nofusion() {
-    int a1[10];
-    for (int i = 0; i < 10; ++i) {
-    [[intel::nofusion]] for (int j = 0; j < 10; ++j) {
-      a1[i] += a1[j];
-    }
-  }
-
-  }];
-}
-
-def SYCLIntelMaxReinvocationDelayAttrDocs : Documentation {
-  let Category = DocCatVariable;
-  let Heading = "intel::max_reinvocation_delay";
-  let Content = [{
-This attribute applies to a loop. Specifies the maximum number of cycles allowed
-on the delay between the launch of the last iteration of a loop invocation and
-the launch of the first iteration of a new loop invocation. Parameter N is
-mandatory, and is a positive integer. Cannot be used on the same loop in
-conjunction with disable_loop_pipelining.
-
-.. code-block:: c++
-
-  void foo() {
-    int var = 0;
-    [[intel::max_reinvocation_delay(1)]]
-    for (int i = 0; sycl::log10((float)(x)) < 10; i++) var++;
-  }
-
-  template<int N>
-  void bar() {
-    [[intel::max_reinvocation_delay(N)]] for(;;) { }
-  }
-  }];
-}
-
-def SYCLIntelEnableLoopPipeliningAttrDocs : Documentation {
-  let Category = DocCatVariable;
-  let Heading = "intel::enable_loop_pipelining";
-  let Content = [{
-The ``enable_loop_pipelining`` attribute applies to a loop in SYCL device code.
-Takes no arguments and enables pipelining of the loop. This attribute is useful
-in the low-area flow, in which all loops are unpipelined by default. Cannot be
-used on the same loop in conjunction with ``disable_loop_pipelining`` attribute.
-
-.. code-block:: c++
-
-  void bar() {
-    int a[10];
-    [[[intel::enable_loop_pipelining]] for (int i = 0; i != 10; ++i) a[i] = 0;
-  }
-
-  void Array(int *array, size_t n) {
-    [[intel::enable_loop_pipelining]] for (int i = 0; i < n; ++i) array[i] = 0;
-  }
-
-  void count () {
-    int a1[10], i = 0;
-    [[intel::enable_loop_pipelining]] while (i < 10) {
-      a1[i++] = 3;
-    }
-  }
-
-  void check() {
-    int a = 10;
-    [[intel::enable_loop_pipelining]] do {
-      a = a + 1;
-    } while (a < 20);
-  }
-
-  }];
-}
-
-def SYCLIntelLoopFuseDocs : Documentation {
-  let Category = DocCatFunction;
-  let Heading = "loop_fuse, loop_fuse_independent";
-  let Content = [{
-``[[intel::loop_fuse(N)]]`` and ``[[intel::loop_fuse_independent(N)]]`` attributes apply
-to a function/lambda function. It is a strong request, to the extent possible, to fuse
-the loops within the function, that are contained in at most N-1 other loops within the
-function. If the optional parameter N is omitted, it is a strong request, to the extent
-possible, to fuse loops within the function that are not contained in any other loop
-within the function. ``[[intel::loop_fuse_independent(N)]]`` also guarantees that fusion
-safety analysis can ignore negative-distance dependences between these loops.
-
-.. code-block:: c++
-
-  [[intel::loop_fuse(N)]]
-  int foo() {}
-
-  [[intel::loop_fuse_independent(N)]]
-  int foo() {}
-
-
-``[[intel::loop_fuse(N)]]`` and ``[[intel::loop_fuse_independent(N)]]`` takes one optional
-parameter that is a constant unsigned integer expression. The parameter N may be a template
-parameter.
-
   }];
 }
 
@@ -4843,6 +4146,12 @@ multiversioned function would have if it had been declared without the attribute
 For backward compatibility with earlier Clang releases, a function alias with an
 ``.ifunc`` suffix is also emitted. The  ``.ifunc`` suffixed symbol is a deprecated
 feature and support for it may be removed in the future.
+
+For PowerPC targets, ``target_clones`` is supported on AIX only. Only CPU
+(specified as ``cpu=CPU``) and ``default`` options are allowed. IFUNC is supported
+on AIX in Clang, so dispatch is implemented similar to other targets using IFUNC.
+An FMV function that is only declared in a translation unit is treated as a
+non-FMV. The resolver and the function clones are given internal linkage.
 }];
 }
 
@@ -7654,6 +6963,25 @@ TUs where it is used.
 This attribute can be used on static and non-static member functions of class
 templates, static data members of class templates and member classes of class
 templates.
+
+**Interaction with __declspec(dllexport/dllimport)**
+
+For a DLL platform (i.e., Windows), this attribute also means "this member will
+never be exported or imported". Despite its name, this semantics applies to
+implicit instantiations and non-template entities as well.
+
+  .. code-block:: c++
+
+    // in <exception>
+    class __declspec(dllimport) nested_exception {
+      ...
+    public:
+      __attribute__((exclude_from_explicit_instantiation))
+      exception_ptr nested_ptr() const noexcept { ... }
+    };
+
+In this case, ``nested_exception::nested_ptr`` will never be attempted to be
+imported.
   }];
 }
 
@@ -10195,6 +9523,18 @@ pointing to precise locations of the call site in the source.
       dontcall(); // No Warning
     sizeof(dontcall()); // No Warning
   }
+
+When the call occurs through inlined functions, the
+``-fdiagnostics-show-inlining-chain`` option can be used to show the
+inlining chain that led to the call. This helps identify which call site
+triggered the diagnostic when the attributed function is called from
+multiple locations through inline functions.
+
+When enabled, this option automatically uses debug info for accurate source
+locations if available (``-gline-directives-only`` (implicitly enabled at
+``-g1``) or higher), or falls back to a heuristic based on metadata tracking.
+When falling back, a note is emitted suggesting ``-gline-directives-only`` for
+more accurate locations.
   }];
 }
 
@@ -10588,6 +9928,29 @@ like follows:
 
 This variable will be lowered into a module-level variable, with the `Input`
 storage class, and the `BuiltIn 26` decoration.
+
+The full documentation for this inline SPIR-V attribute can be found here:
+https://github.com/microsoft/hlsl-specs/blob/main/proposals/0011-inline-spirv.md
+  }];
+}
+
+def HLSLVkExtBuiltinOutputDocs : Documentation {
+  let Category = DocCatVariable;
+  let Content = [{
+Vulkan shaders have `Output` builtins. Those variables are externally
+visible to the driver/pipeline, but each copy is private to the current
+lane.
+
+Those builtins can be declared using the `[[vk::ext_builtin_output]]`
+attribute like follows:
+
+.. code-block:: c++
+
+  [[vk::ext_builtin_output(/* Position */ 0)]]
+  static float4 position;
+
+This variable will be lowered into a module-level variable, with the `Output`
+storage class, and the `BuiltIn 0` decoration.
 
 The full documentation for this inline SPIR-V attribute can be found here:
 https://github.com/microsoft/hlsl-specs/blob/main/proposals/0011-inline-spirv.md
@@ -11470,9 +10833,9 @@ not all aspects of the implementation are needed for a given call, the compiler
 may redirect the call to the identifier given as the first argument to the
 attribute (the modular implementation function).
 
-The second argument is a implementation name, and the remaining arguments are
+The second argument is an implementation name, and the remaining arguments are
 aspects of the format string for the compiler to report. The implementation
-name is an unevaluated identifier be in the C namespace.
+name is an unevaluated identifier in the C namespace.
 
 The compiler reports that a call requires an aspect by issuing a relocation for
 the symbol ``<impl_name>_<aspect>`` at the point of the call. This arranges for
@@ -11517,5 +10880,23 @@ The primary difference is for bitfields, where the MS variant only packs
 adjacent fields into the same allocation unit if they have integral types
 of the same size, while the GCC/Itanium variant packs all fields in a bitfield
 tightly.
+  }];
+}
+
+def PersonalityDocs : Documentation {
+  let Category = DocCatFunction;
+  let Content = [{
+``__attribute__((personality(<routine>)))`` is used to specify a personality
+routine that is different from the language that is being used to implement the
+function. This is a targeted, low-level feature aimed at language runtime
+implementors who write runtime support code in C/C++ but need that code to
+participate in a foreign language's exception-handling or unwinding model.
+
+A personality routine is a language-specific callback attached to each stack
+frame that the unwinder invokes to determine whether that frame handles a given
+exception and what cleanup actions to perform. It effectively colors the
+language-agnostic unwinding mechanism with language-specific semantics, enabling
+different languages to coexist on the same call stack while each interpreting
+exceptions according to their own rules.
   }];
 }

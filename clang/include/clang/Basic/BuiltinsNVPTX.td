@@ -179,10 +179,6 @@ let Attributes = [NoThrow] in {
 
 // MISC
 
-let Attributes = [NoThrow, Const] in {
-  def __builtin_ptx_implicit_offset : NVPTXBuiltin<"unsigned int *()">;
-}
-
 def __nvvm_prmt : NVPTXBuiltin<"unsigned int(unsigned int, unsigned int, unsigned int)">;
 let Attributes = [NoReturn] in {
   def __nvvm_exit : NVPTXBuiltin<"void()">;

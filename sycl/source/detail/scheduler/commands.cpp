@@ -241,6 +241,21 @@ void InteropFreeFunc(ur_queue_handle_t, void *InteropData) {
   auto *Data = reinterpret_cast<EnqueueNativeCommandData *>(InteropData);
   return Data->func(Data->ih);
 }
+
+struct EnqueueHostTaskData {
+  explicit EnqueueHostTaskData(std::function<void()> HostTask)
+      : Func(std::move(HostTask)) {}
+
+  std::function<void()> Func;
+};
+
+void NativeHostTask(void *Data) {
+  // Callback data is heap-allocated at enqueue time and released here once
+  // the backend invokes the host task callback.
+  auto HostTaskData = std::unique_ptr<EnqueueHostTaskData>(
+      static_cast<EnqueueHostTaskData *>(Data));
+  HostTaskData->Func();
+}
 } // namespace
 
 class DispatchHostTask {
@@ -331,6 +346,7 @@ public:
     }
 
     try {
+      auto &Queue = HostTask.MQueue;
       // we're ready to call the user-defined lambda now
       if (HostTask.MHostTask->isInteropTask()) {
         assert(HostTask.MQueue &&
@@ -338,7 +354,6 @@ public:
         interop_handle IH{MReqToMem, HostTask.MQueue};
         // TODO: should all the backends that support this entry point use this
         // for host task?
-        auto &Queue = HostTask.MQueue;
         bool NativeCommandSupport = false;
         Queue->getAdapter().call<UrApiKind::urDeviceGetInfo>(
             detail::getSyclObjImpl(Queue->get_device())->getHandleRef(),
@@ -356,14 +371,55 @@ public:
           // This entry point is needed in order to migrate memory across
           // devices in the same context for CUDA and HIP backends
           Queue->getAdapter().call<UrApiKind::urEnqueueNativeCommandExp>(
-              HostTask.MQueue->getHandleRef(), InteropFreeFunc, &CustomOpData,
+              Queue->getHandleRef(), InteropFreeFunc, &CustomOpData,
               MReqUrMem.size(), MReqUrMem.data(), nullptr, 0, nullptr, nullptr);
         } else {
           HostTask.MHostTask->call(MThisCmd->MEvent->getHostProfilingInfo(),
                                    IH);
         }
-      } else
-        HostTask.MHostTask->call(MThisCmd->MEvent->getHostProfilingInfo());
+      } else {
+        if (HostTask.MHostTask->isCreatedFromEnqueueFunction()) {
+          bool NativeHostTaskSupport = false;
+          Queue->getAdapter().call<UrApiKind::urDeviceGetInfo>(
+              detail::getSyclObjImpl(Queue->get_device())->getHandleRef(),
+              UR_DEVICE_INFO_ENQUEUE_HOST_TASK_SUPPORT_EXP,
+              sizeof(NativeHostTaskSupport), &NativeHostTaskSupport, nullptr);
+          if (NativeHostTaskSupport) {
+            auto NativeHostTaskData = std::make_unique<EnqueueHostTaskData>(
+                std::move(HostTask.MHostTask->MHostTask));
+            ur_event_handle_t HostTaskEvent{};
+            Queue->getAdapter().call<UrApiKind::urEnqueueHostTaskExp>(
+                Queue->getHandleRef(), NativeHostTask, NativeHostTaskData.get(),
+                nullptr, 0, nullptr, &HostTaskEvent);
+            // Ownership is transferred to NativeHostTask callback on success.
+            (void)NativeHostTaskData.release();
+
+            // Wait for the host task to complete asynchronously. Since
+            // urEnqueueHostTaskExp executes the callback asynchronously when
+            // UR host task support is available, we must wait for the returned
+            // event before notifying completion. This ensures proper dependency
+            // ordering and allows profiling/async-exception handlers to see the
+            // actual task completion rather than the enqueue time.
+            if (HostTaskEvent) {
+              try {
+                Queue->getAdapter().call<UrApiKind::urEventWait>(
+                    1, &HostTaskEvent);
+              } catch (...) {
+                auto CurrentException = std::current_exception();
+                Queue->getAdapter().call<UrApiKind::urEventRelease>(
+                    HostTaskEvent);
+                throw;
+              }
+              Queue->getAdapter().call<UrApiKind::urEventRelease>(
+                  HostTaskEvent);
+            }
+          } else {
+            HostTask.MHostTask->call(MThisCmd->MEvent->getHostProfilingInfo());
+          }
+        } else {
+          HostTask.MHostTask->call(MThisCmd->MEvent->getHostProfilingInfo());
+        }
+      }
     } catch (...) {
       auto CurrentException = std::current_exception();
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -680,12 +736,12 @@ Command *Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep,
   // 2. Some types of commands do not produce UR events after they are
   // enqueued (e.g. alloca). Note that we can't check the ur event to make that
   // distinction since the command might still be unenqueued at this point.
-  bool PiEventExpected =
+  bool UrEventExpected =
       (!DepEvent->isHost() && !DepEvent->isDefaultConstructed());
   if (auto *DepCmd = DepEvent->getCommand())
-    PiEventExpected &= DepCmd->producesPiEvent();
+    UrEventExpected &= DepCmd->producesUrEvent();
 
-  if (!PiEventExpected) {
+  if (!UrEventExpected) {
     // call to waitInternal() is in waitForPreparedHostEvents() as it's called
     // from enqueue process functions
     MPreparedHostDepsEvents.push_back(DepEvent);
@@ -712,7 +768,7 @@ context_impl *Command::getWorkerContext() const {
   return &MQueue->getContextImpl();
 }
 
-bool Command::producesPiEvent() const { return true; }
+bool Command::producesUrEvent() const { return true; }
 
 bool Command::supportsPostEnqueueCleanup() const { return true; }
 
@@ -985,7 +1041,7 @@ void AllocaCommandBase::emitInstrumentationData() {
 #endif
 }
 
-bool AllocaCommandBase::producesPiEvent() const { return false; }
+bool AllocaCommandBase::producesUrEvent() const { return false; }
 
 bool AllocaCommandBase::supportsPostEnqueueCleanup() const { return false; }
 
@@ -1273,7 +1329,7 @@ void ReleaseCommand::printDot(std::ostream &Stream) const {
   }
 }
 
-bool ReleaseCommand::producesPiEvent() const { return false; }
+bool ReleaseCommand::producesUrEvent() const { return false; }
 
 bool ReleaseCommand::supportsPostEnqueueCleanup() const { return false; }
 
@@ -1369,7 +1425,7 @@ void UnMapMemObject::emitInstrumentationData() {
 #endif
 }
 
-bool UnMapMemObject::producesPiEvent() const {
+bool UnMapMemObject::producesUrEvent() const {
   // TODO remove this workaround once the batching issue is addressed in Level
   // Zero adapter.
   // Consider the following scenario on Level Zero:
@@ -1475,7 +1531,7 @@ context_impl *MemCpyCommand::getWorkerContext() const {
   return &MWorkerQueue->getContextImpl();
 }
 
-bool MemCpyCommand::producesPiEvent() const {
+bool MemCpyCommand::producesUrEvent() const {
   // TODO remove this workaround once the batching issue is addressed in Level
   // Zero adapter.
   // Consider the following scenario on Level Zero:
@@ -1751,7 +1807,7 @@ void EmptyCommand::printDot(std::ostream &Stream) const {
   }
 }
 
-bool EmptyCommand::producesPiEvent() const { return false; }
+bool EmptyCommand::producesUrEvent() const { return false; }
 
 void MemCpyCommandHost::printDot(std::ostream &Stream) const {
   Stream << "\"" << this << "\" [style=filled, fillcolor=\"#B6A2EB\", label=\"";
@@ -3666,7 +3722,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
   return UR_RESULT_ERROR_INVALID_OPERATION;
 }
 
-bool ExecCGCommand::producesPiEvent() const {
+bool ExecCGCommand::producesUrEvent() const {
   return !MCommandBuffer &&
          MCommandGroup->getType() != CGType::CodeplayHostTask;
 }
@@ -3764,7 +3820,7 @@ void UpdateCommandBufferCommand::printDot(std::ostream &Stream) const {
 }
 
 void UpdateCommandBufferCommand::emitInstrumentationData() {}
-bool UpdateCommandBufferCommand::producesPiEvent() const { return false; }
+bool UpdateCommandBufferCommand::producesUrEvent() const { return false; }
 
 CGHostTask::CGHostTask(std::shared_ptr<HostTask> HostTask,
                        detail::queue_impl *Queue, detail::context_impl *Context,

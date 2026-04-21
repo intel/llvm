@@ -43,18 +43,23 @@ SYCL specification refer to that revision.
 
 == Status
 
-This is a proposed extension specification, intended to gather community
-feedback.  Interfaces defined in this specification may not be implemented yet
-or may be in a preliminary state.  The specification itself may also change in
-incompatible ways before it is finalized.  *Shipping software products should
-not rely on APIs defined in this specification.*
+This is a proposed update to an existing extension. Interfaces defined in this
+specification may not be implemented yet or may be in a preliminary state. The
+specification itself may also change in incompatible ways before it is
+finalized. *Shipping software products should not rely on APIs defined in this
+specification.* See
+link:../supported/sycl_ext_oneapi_queue_priority.asciidoc[here] for the existing
+extension, which is implemented.
 
 == Overview
 
-This extension defines an additional queue property that permits a backend,
+This extension defines additional queue properties that permit a backend,
 when supported, to create command queues with different levels of priority.
 Priorities are hints from the programmer that certain command submissions
 to a device may execute before others of lesser priority.
+
+The extension defines a property for a numeric priority value and several
+pre-defined priority properties with fixed numeric values.
 
 == Specification
 
@@ -75,9 +80,16 @@ supports.
 
 |1
 |Initial version of this extension.
+
+|2
+|Adds `sycl::ext::oneapi::property::queue::priority` property and
+`sycl::ext::oneapi::info::device::priority_range` information descriptor.
+
 |===
 
-=== New queue property
+=== New queue property for numeric priority value
+
+Added in revision 2 of this specification.
 
 This extension defines the following new property that may be passed to
 the constructor of the `queue` class:
@@ -106,7 +118,50 @@ highest priority in the range. Lower numbers imply greater priorities.
 If the property is not set for a queue, the default priority for that queue is
 assumed to be 0.
 
+=== New queue properties for pre-defined priority values
+
+This extension defines the following properties that may be passed to
+the constructor of the `queue` class:
+
+'''
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::property::queue {
+
+// Equivalent to: priority(0)
+class priority_normal {
+public:
+  priority_normal() = default;
+};
+
+// Equivalent to the lowest possible priority for the device
+class priority_low {
+public:
+  priority_low() = default;
+};
+
+// Equivalent to the highest possible priority for the device
+class priority_high {
+public:
+  priority_high() = default;
+};
+
+} // namespace sycl::ext::oneapi::property::queue
+----
+
+_Effects:_ Specifies that the queue should be constructed with the specified
+pre-defined priority. The properties map to the numeric priority values in the
+following way: `priority_normal` has a priority value of 0, `priority_low` has
+a priority value of the lowest possible priority (highest numerical value) for
+the device as reported by the `priority_range` information descriptor, and
+`priority_high` has a priority value of the highest possible priority (lowest
+numerical value) for the device as reported by the `priority_range` information
+descriptor.
+
 === New device information descriptor
+
+Added in revision 2 of this specification.
 
 '''
 

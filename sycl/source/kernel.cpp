@@ -55,7 +55,7 @@ kernel::get_info_impl() const {
   return detail::convert_to_abi_neutral(impl->template get_info<Param>());
 }
 
-#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
+#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, UrCode)              \
   template __SYCL_EXPORT detail::ABINeutralT_t<ReturnT>                        \
   kernel::get_info_impl<info::kernel::Desc>() const;
 
@@ -86,7 +86,7 @@ kernel::get_info(const device &Device, const range<3> &WGSize) const {
   return impl->get_info<Param>(Device, WGSize);
 }
 
-#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
+#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, UrCode)              \
   template __SYCL_EXPORT ReturnT kernel::get_info<info::DescType::Desc>(       \
       const device &) const;
 

@@ -18,7 +18,7 @@ class: $xEvent
 name: $x_command_t
 etors:
     - name: KERNEL_LAUNCH
-      desc: Event created by $xEnqueueKernelLaunch
+      desc: Event created by $xEnqueueKernelLaunchWithArgsExp
     - name: EVENTS_WAIT
       desc: Event created by $xEnqueueEventsWait
     - name: EVENTS_WAIT_WITH_BARRIER

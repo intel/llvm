@@ -4763,86 +4763,6 @@ __urdlllocal ur_result_t UR_APICALL urEventSetCallback(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urEnqueueKernelLaunch
-__urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
-    /// [in] handle of the queue object
-    ur_queue_handle_t hQueue,
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] number of dimensions, from 1 to 3, to specify the global and
-    /// work-group work-items
-    uint32_t workDim,
-    /// [in][optional] pointer to an array of workDim unsigned values that
-    /// specify the offset used to calculate the global ID of a work-item
-    const size_t *pGlobalWorkOffset,
-    /// [in] pointer to an array of workDim unsigned values that specify the
-    /// number of global work-items in workDim that will execute the kernel
-    /// function
-    const size_t *pGlobalWorkSize,
-    /// [in][optional] pointer to an array of workDim unsigned values that
-    /// specify the number of local work-items forming a work-group that will
-    /// execute the kernel function.
-    /// If nullptr, the runtime implementation will choose the work-group size.
-    const size_t *pLocalWorkSize,
-    /// [in][optional] pointer to a single linked list of launch properties
-    const ur_kernel_launch_ext_properties_t *launchPropList,
-    /// [in] size of the event wait list
-    uint32_t numEventsInWaitList,
-    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
-    /// events that must be complete before the kernel execution.
-    /// If nullptr, the numEventsInWaitList must be 0, indicating that no wait
-    /// event.
-    const ur_event_handle_t *phEventWaitList,
-    /// [out][optional][alloc] return an event object that identifies this
-    /// particular kernel execution instance. If phEventWaitList and phEvent
-    /// are not NULL, phEvent must not refer to an element of the
-    /// phEventWaitList array.
-    ur_event_handle_t *phEvent) try {
-  ur_result_t result = UR_RESULT_SUCCESS;
-
-  ur_enqueue_kernel_launch_params_t params = {
-      &hQueue,          &hKernel,        &workDim,        &pGlobalWorkOffset,
-      &pGlobalWorkSize, &pLocalWorkSize, &launchPropList, &numEventsInWaitList,
-      &phEventWaitList, &phEvent};
-
-  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_before_callback("urEnqueueKernelLaunch"));
-  if (beforeCallback) {
-    result = beforeCallback(&params);
-    if (result != UR_RESULT_SUCCESS) {
-      return result;
-    }
-  }
-
-  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_replace_callback("urEnqueueKernelLaunch"));
-  if (replaceCallback) {
-    result = replaceCallback(&params);
-  } else {
-
-    // optional output handle
-    if (phEvent) {
-      *phEvent = mock::createDummyHandle<ur_event_handle_t>();
-    }
-    result = UR_RESULT_SUCCESS;
-  }
-
-  if (result != UR_RESULT_SUCCESS) {
-    return result;
-  }
-
-  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_after_callback("urEnqueueKernelLaunch"));
-  if (afterCallback) {
-    return afterCallback(&params);
-  }
-
-  return result;
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urEnqueueEventsWait
 __urdlllocal ur_result_t UR_APICALL urEnqueueEventsWait(
     /// [in] handle of the queue object
@@ -6706,108 +6626,6 @@ __urdlllocal ur_result_t UR_APICALL urKernelCreate(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urKernelSetArgValue
-__urdlllocal ur_result_t UR_APICALL urKernelSetArgValue(
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] argument index in range [0, num args - 1]
-    uint32_t argIndex,
-    /// [in] size of argument type
-    size_t argSize,
-    /// [in][optional] pointer to value properties.
-    const ur_kernel_arg_value_properties_t *pProperties,
-    /// [in] argument value represented as matching arg type.
-    /// The data pointed to will be copied and therefore can be reused on
-    /// return.
-    const void *pArgValue) try {
-  ur_result_t result = UR_RESULT_SUCCESS;
-
-  ur_kernel_set_arg_value_params_t params = {&hKernel, &argIndex, &argSize,
-                                             &pProperties, &pArgValue};
-
-  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_before_callback("urKernelSetArgValue"));
-  if (beforeCallback) {
-    result = beforeCallback(&params);
-    if (result != UR_RESULT_SUCCESS) {
-      return result;
-    }
-  }
-
-  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_replace_callback("urKernelSetArgValue"));
-  if (replaceCallback) {
-    result = replaceCallback(&params);
-  } else {
-
-    result = UR_RESULT_SUCCESS;
-  }
-
-  if (result != UR_RESULT_SUCCESS) {
-    return result;
-  }
-
-  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_after_callback("urKernelSetArgValue"));
-  if (afterCallback) {
-    return afterCallback(&params);
-  }
-
-  return result;
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urKernelSetArgLocal
-__urdlllocal ur_result_t UR_APICALL urKernelSetArgLocal(
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] argument index in range [0, num args - 1]
-    uint32_t argIndex,
-    /// [in] size of the local buffer to be allocated by the runtime
-    size_t argSize,
-    /// [in][optional] pointer to local buffer properties.
-    const ur_kernel_arg_local_properties_t *pProperties) try {
-  ur_result_t result = UR_RESULT_SUCCESS;
-
-  ur_kernel_set_arg_local_params_t params = {&hKernel, &argIndex, &argSize,
-                                             &pProperties};
-
-  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_before_callback("urKernelSetArgLocal"));
-  if (beforeCallback) {
-    result = beforeCallback(&params);
-    if (result != UR_RESULT_SUCCESS) {
-      return result;
-    }
-  }
-
-  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_replace_callback("urKernelSetArgLocal"));
-  if (replaceCallback) {
-    result = replaceCallback(&params);
-  } else {
-
-    result = UR_RESULT_SUCCESS;
-  }
-
-  if (result != UR_RESULT_SUCCESS) {
-    return result;
-  }
-
-  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_after_callback("urKernelSetArgLocal"));
-  if (afterCallback) {
-    return afterCallback(&params);
-  }
-
-  return result;
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urKernelGetInfo
 __urdlllocal ur_result_t UR_APICALL urKernelGetInfo(
     /// [in] handle of the Kernel object
@@ -7061,56 +6879,6 @@ __urdlllocal ur_result_t UR_APICALL urKernelRelease(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urKernelSetArgPointer
-__urdlllocal ur_result_t UR_APICALL urKernelSetArgPointer(
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] argument index in range [0, num args - 1]
-    uint32_t argIndex,
-    /// [in][optional] pointer to USM pointer properties.
-    const ur_kernel_arg_pointer_properties_t *pProperties,
-    /// [in][optional] Pointer obtained by USM allocation or virtual memory
-    /// mapping operation. If null then argument value is considered null.
-    const void *pArgValue) try {
-  ur_result_t result = UR_RESULT_SUCCESS;
-
-  ur_kernel_set_arg_pointer_params_t params = {&hKernel, &argIndex,
-                                               &pProperties, &pArgValue};
-
-  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_before_callback("urKernelSetArgPointer"));
-  if (beforeCallback) {
-    result = beforeCallback(&params);
-    if (result != UR_RESULT_SUCCESS) {
-      return result;
-    }
-  }
-
-  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_replace_callback("urKernelSetArgPointer"));
-  if (replaceCallback) {
-    result = replaceCallback(&params);
-  } else {
-
-    result = UR_RESULT_SUCCESS;
-  }
-
-  if (result != UR_RESULT_SUCCESS) {
-    return result;
-  }
-
-  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_after_callback("urKernelSetArgPointer"));
-  if (afterCallback) {
-    return afterCallback(&params);
-  }
-
-  return result;
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urKernelSetExecInfo
 __urdlllocal ur_result_t UR_APICALL urKernelSetExecInfo(
     /// [in] handle of the kernel object
@@ -7153,104 +6921,6 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetExecInfo(
 
   auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
       mock::getCallbacks().get_after_callback("urKernelSetExecInfo"));
-  if (afterCallback) {
-    return afterCallback(&params);
-  }
-
-  return result;
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urKernelSetArgSampler
-__urdlllocal ur_result_t UR_APICALL urKernelSetArgSampler(
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] argument index in range [0, num args - 1]
-    uint32_t argIndex,
-    /// [in][optional] pointer to sampler properties.
-    const ur_kernel_arg_sampler_properties_t *pProperties,
-    /// [in] handle of Sampler object.
-    ur_sampler_handle_t hArgValue) try {
-  ur_result_t result = UR_RESULT_SUCCESS;
-
-  ur_kernel_set_arg_sampler_params_t params = {&hKernel, &argIndex,
-                                               &pProperties, &hArgValue};
-
-  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_before_callback("urKernelSetArgSampler"));
-  if (beforeCallback) {
-    result = beforeCallback(&params);
-    if (result != UR_RESULT_SUCCESS) {
-      return result;
-    }
-  }
-
-  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_replace_callback("urKernelSetArgSampler"));
-  if (replaceCallback) {
-    result = replaceCallback(&params);
-  } else {
-
-    result = UR_RESULT_SUCCESS;
-  }
-
-  if (result != UR_RESULT_SUCCESS) {
-    return result;
-  }
-
-  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_after_callback("urKernelSetArgSampler"));
-  if (afterCallback) {
-    return afterCallback(&params);
-  }
-
-  return result;
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urKernelSetArgMemObj
-__urdlllocal ur_result_t UR_APICALL urKernelSetArgMemObj(
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] argument index in range [0, num args - 1]
-    uint32_t argIndex,
-    /// [in][optional] pointer to Memory object properties.
-    const ur_kernel_arg_mem_obj_properties_t *pProperties,
-    /// [in][optional] handle of Memory object.
-    ur_mem_handle_t hArgValue) try {
-  ur_result_t result = UR_RESULT_SUCCESS;
-
-  ur_kernel_set_arg_mem_obj_params_t params = {&hKernel, &argIndex,
-                                               &pProperties, &hArgValue};
-
-  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_before_callback("urKernelSetArgMemObj"));
-  if (beforeCallback) {
-    result = beforeCallback(&params);
-    if (result != UR_RESULT_SUCCESS) {
-      return result;
-    }
-  }
-
-  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_replace_callback("urKernelSetArgMemObj"));
-  if (replaceCallback) {
-    result = replaceCallback(&params);
-  } else {
-
-    result = UR_RESULT_SUCCESS;
-  }
-
-  if (result != UR_RESULT_SUCCESS) {
-    return result;
-  }
-
-  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_after_callback("urKernelSetArgMemObj"));
   if (afterCallback) {
     return afterCallback(&params);
   }
@@ -7464,6 +7134,73 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
   auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
       mock::getCallbacks().get_after_callback(
           "urKernelGetSuggestedLocalWorkSize"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urKernelGetSuggestedLocalWorkSizeWithArgs
+__urdlllocal ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSizeWithArgs(
+    /// [in] handle of the kernel
+    ur_kernel_handle_t hKernel,
+    /// [in] handle of the queue object
+    ur_queue_handle_t hQueue,
+    /// [in] number of dimensions, from 1 to 3, to specify the global
+    /// and work-group work-items
+    uint32_t numWorkDim,
+    /// [in] pointer to an array of numWorkDim unsigned values that specify
+    /// the offset used to calculate the global ID of a work-item
+    const size_t *pGlobalWorkOffset,
+    /// [in] pointer to an array of numWorkDim unsigned values that specify
+    /// the number of global work-items in workDim that will execute the
+    /// kernel function
+    const size_t *pGlobalWorkSize,
+    /// [in] Number of entries in pArgs
+    uint32_t numArgs,
+    /// [in][optional][range(0, numArgs)] pointer to a list of kernel arg
+    /// properties.
+    const ur_exp_kernel_arg_properties_t *pArgs,
+    /// [out] pointer to an array of numWorkDim unsigned values that specify
+    /// suggested local work size that will contain the result of the query
+    size_t *pSuggestedLocalWorkSize) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_kernel_get_suggested_local_work_size_with_args_params_t params = {
+      &hKernel,         &hQueue,  &numWorkDim, &pGlobalWorkOffset,
+      &pGlobalWorkSize, &numArgs, &pArgs,      &pSuggestedLocalWorkSize};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback(
+          "urKernelGetSuggestedLocalWorkSizeWithArgs"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback(
+          "urKernelGetSuggestedLocalWorkSizeWithArgs"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback(
+          "urKernelGetSuggestedLocalWorkSizeWithArgs"));
   if (afterCallback) {
     return afterCallback(&params);
   }
@@ -10291,6 +10028,100 @@ __urdlllocal ur_result_t UR_APICALL urUSMContextMemcpyExp(
 
   auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
       mock::getCallbacks().get_after_callback("urUSMContextMemcpyExp"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUSMHostAllocRegisterExp
+__urdlllocal ur_result_t UR_APICALL urUSMHostAllocRegisterExp(
+    /// [in] Handle of the context.
+    ur_context_handle_t hContext,
+    /// [in] Pointer to the host memory range to register.
+    void *pHostMem,
+    /// [in] Size in bytes of the host memory range to register, must be
+    /// page-aligned.
+    size_t size,
+    /// [in][optional] Pointer to host memory registration properties.
+    const ur_exp_usm_host_alloc_register_properties_t *pProperties) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_usm_host_alloc_register_exp_params_t params = {&hContext, &pHostMem, &size,
+                                                    &pProperties};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback("urUSMHostAllocRegisterExp"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback("urUSMHostAllocRegisterExp"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback("urUSMHostAllocRegisterExp"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUSMHostAllocUnregisterExp
+__urdlllocal ur_result_t UR_APICALL urUSMHostAllocUnregisterExp(
+    /// [in] Handle of the context.
+    ur_context_handle_t hContext,
+    /// [in][release] Pointer to the registered host memory range.
+    void *pHostMem) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_usm_host_alloc_unregister_exp_params_t params = {&hContext, &pHostMem};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback("urUSMHostAllocUnregisterExp"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback("urUSMHostAllocUnregisterExp"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback("urUSMHostAllocUnregisterExp"));
   if (afterCallback) {
     return afterCallback(&params);
   }
@@ -13402,8 +13233,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueProcAddrTable(
 
   ur_result_t result = UR_RESULT_SUCCESS;
 
-  pDdiTable->pfnKernelLaunch = driver::urEnqueueKernelLaunch;
-
   pDdiTable->pfnEventsWait = driver::urEnqueueEventsWait;
 
   pDdiTable->pfnEventsWaitWithBarrier = driver::urEnqueueEventsWaitWithBarrier;
@@ -13664,17 +13493,10 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetKernelProcAddrTable(
   pDdiTable->pfnGetSuggestedLocalWorkSize =
       driver::urKernelGetSuggestedLocalWorkSize;
 
-  pDdiTable->pfnSetArgValue = driver::urKernelSetArgValue;
-
-  pDdiTable->pfnSetArgLocal = driver::urKernelSetArgLocal;
-
-  pDdiTable->pfnSetArgPointer = driver::urKernelSetArgPointer;
+  pDdiTable->pfnGetSuggestedLocalWorkSizeWithArgs =
+      driver::urKernelGetSuggestedLocalWorkSizeWithArgs;
 
   pDdiTable->pfnSetExecInfo = driver::urKernelSetExecInfo;
-
-  pDdiTable->pfnSetArgSampler = driver::urKernelSetArgSampler;
-
-  pDdiTable->pfnSetArgMemObj = driver::urKernelSetArgMemObj;
 
   pDdiTable->pfnSetSpecializationConstants =
       driver::urKernelSetSpecializationConstants;
@@ -14136,6 +13958,10 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetUSMExpProcAddrTable(
   pDdiTable->pfnPitchedAllocExp = driver::urUSMPitchedAllocExp;
 
   pDdiTable->pfnContextMemcpyExp = driver::urUSMContextMemcpyExp;
+
+  pDdiTable->pfnHostAllocUnregisterExp = driver::urUSMHostAllocUnregisterExp;
+
+  pDdiTable->pfnHostAllocRegisterExp = driver::urUSMHostAllocRegisterExp;
 
   pDdiTable->pfnImportExp = driver::urUSMImportExp;
 

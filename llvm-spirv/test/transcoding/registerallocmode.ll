@@ -3,6 +3,7 @@
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: spirv-val %t.spv
 ; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o - | FileCheck %s --check-prefix=CHECK-LLVM
+; FIXME: llc does not emit UserSemantic decorations for RegisterAllocMode/num-thread-per-eu annotations, so these are lost in the roundtrip
 
 ; CHECK-SPIRV: EntryPoint [[#]] [[#FUNC0:]] "main_l3"
 ; CHECK-SPIRV: EntryPoint [[#]] [[#FUNC1:]] "main_l6"

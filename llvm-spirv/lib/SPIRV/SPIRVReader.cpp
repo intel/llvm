@@ -81,6 +81,7 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/FileSystem.h"
+#include "llvm/Support/SaveAndRestore.h"
 
 #include <algorithm>
 #include <cstdlib>
@@ -1897,7 +1898,7 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
 
   case OpBranch: {
     auto *BR = static_cast<SPIRVBranch *>(BV);
-    auto *BI = BranchInst::Create(
+    auto *BI = UncondBrInst::Create(
         cast<BasicBlock>(transValue(BR->getTargetLabel(), F, BB)), BB);
     // Loop metadata will be translated in the end of function translation.
     return mapValue(BV, BI);
@@ -1905,10 +1906,10 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
 
   case OpBranchConditional: {
     auto *BR = static_cast<SPIRVBranchConditional *>(BV);
-    auto *BC = BranchInst::Create(
+    auto *BC = CondBrInst::Create(
+        transValue(BR->getCondition(), F, BB),
         cast<BasicBlock>(transValue(BR->getTrueLabel(), F, BB)),
-        cast<BasicBlock>(transValue(BR->getFalseLabel(), F, BB)),
-        transValue(BR->getCondition(), F, BB), BB);
+        cast<BasicBlock>(transValue(BR->getFalseLabel(), F, BB)), BB);
     // Loop metadata will be translated in the end of function translation.
     return mapValue(BV, BC);
   }
@@ -4324,10 +4325,12 @@ void SPIRVToLLVM::transIntelFPGADecorations(SPIRVValue *BV, Value *V) {
     IRBuilder<> Builder(Inst->getParent());
 
     Type *Int8PtrTyPrivate = PointerType::get(*Context, SPIRAS_Private);
+    Type *PtrTyConstant = PointerType::get(*Context, SPIRAS_Constant);
     IntegerType *Int32Ty = IntegerType::get(*Context, 32);
 
     Value *UndefInt8Ptr = PoisonValue::get(Int8PtrTyPrivate);
     Value *UndefInt32 = PoisonValue::get(Int32Ty);
+    Constant *NullPtrConst = Constant::getNullValue(PtrTyConstant);
 
     if (AL && BV->getType()->getPointerElementType()->isTypeStruct()) {
       auto *ST = BV->getType()->getPointerElementType();
@@ -4338,7 +4341,7 @@ void SPIRVToLLVM::transIntelFPGADecorations(SPIRVValue *BV, Value *V) {
         generateIntelFPGAAnnotationForStructMember(ST, I, AnnotStrVec);
         CallInst *AnnotationCall = nullptr;
         for (const auto &AnnotStr : AnnotStrVec) {
-          auto *GS = Builder.CreateGlobalString(AnnotStr);
+          auto *GS = Builder.CreateGlobalString(AnnotStr, "", SPIRAS_Constant);
 
           Instruction *PtrAnnFirstArg = nullptr;
 
@@ -4364,13 +4367,11 @@ void SPIRVToLLVM::transIntelFPGADecorations(SPIRVValue *BV, Value *V) {
           }
 
           auto *AnnotationFn = llvm::Intrinsic::getOrInsertDeclaration(
-              M, Intrinsic::ptr_annotation, {IntTy, Int8PtrTyPrivate});
-
+              M, Intrinsic::ptr_annotation, {IntTy, PtrTyConstant});
           llvm::Value *Args[] = {
               Builder.CreateBitCast(PtrAnnFirstArg, IntTy,
                                     PtrAnnFirstArg->getName()),
-              Builder.CreateBitCast(GS, Int8PtrTyPrivate), UndefInt8Ptr,
-              UndefInt32, UndefInt8Ptr};
+              GS, NullPtrConst, UndefInt32, NullPtrConst};
           AnnotationCall = Builder.CreateCall(AnnotationFn, Args);
           GEPOrUseMap[AL][I] = AnnotationCall;
         }
@@ -5859,14 +5860,11 @@ bool llvm::readSpirv(LLVMContext &C, const SPIRV::TranslatorOpts &Opts,
 
     // Write out the specialized/targeted module
     if (!BM->getFnVarSpvOut().empty()) {
-      auto SaveOpt = SPIRVUseTextFormat;
+      llvm::SaveAndRestore<bool> SaveOpt(SPIRVUseTextFormat, false);
       auto OFSSpv = std::ofstream(BM->getFnVarSpvOut(), std::ios::binary);
-      SPIRVUseTextFormat = false;
       OFSSpv << *BM;
-      if (BM->getError(ErrMsg) != SPIRVEC_Success) {
+      if (BM->getError(ErrMsg) != SPIRVEC_Success)
         return false;
-      }
-      SPIRVUseTextFormat = SaveOpt;
     }
   }
 

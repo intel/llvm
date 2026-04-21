@@ -21,6 +21,7 @@
 
 #include "llvm/ADT/StringRef.h"
 #include "llvm/SYCLLowerIR/SpecConstants.h"
+#include "llvm/SYCLPostLink/ESIMDPostSplitProcessing.h"
 #include "llvm/SYCLPostLink/ModuleSplitter.h"
 #include "llvm/Support/Error.h"
 
@@ -70,6 +71,14 @@ struct PostLinkSettings {
 
   std::optional<SpecConstantsPass::HandlingMode> SpecConstMode;
   bool GenerateModuleDescWithDefaultSpecConsts = false;
+
+  bool EmitOnlyKernelsAsEntryPoints = false;
+  bool EmitParamInfo = false;
+  bool EmitProgramMetadata = false;
+  bool EmitKernelNames = false;
+  bool EmitExportedSymbols = false;
+  bool EmitImportedSymbols = false;
+  llvm::sycl_post_link::ESIMDProcessingOptions ESIMDOptions;
 };
 
 std::string convertSettingsToString(const PostLinkSettings &Settings);

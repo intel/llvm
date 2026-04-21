@@ -191,7 +191,7 @@ void AMDGCN::Linker::constructLinkAndEmitSpirvCommand(
     // Emit SPIR-V binary using the translator
     llvm::opt::ArgStringList TrArgs{
         "--spirv-max-version=1.6",
-        "--spirv-ext=+all",
+        "--spirv-ext=+all,-SPV_KHR_untyped_pointers",
         "--spirv-allow-unknown-intrinsics",
         "--spirv-lower-const-expr",
         "--spirv-preserve-auxdata",
@@ -209,8 +209,7 @@ void AMDGCN::Linker::ConstructJob(Compilation &C, const JobAction &JA,
                                   const InputInfoList &Inputs,
                                   const ArgList &Args,
                                   const char *LinkingOutput) const {
-  if (Inputs.size() > 0 &&
-      Inputs[0].getType() == types::TY_Image &&
+  if (!Inputs.empty() && Inputs[0].getType() == types::TY_Image &&
       JA.getType() == types::TY_Object)
     return HIP::constructGenerateObjFileFromHIPFatBinary(C, Output, Inputs,
                                                          Args, JA, *this);
@@ -231,8 +230,8 @@ void AMDGCN::Linker::ConstructJob(Compilation &C, const JobAction &JA,
 HIPAMDToolChain::HIPAMDToolChain(const Driver &D, const llvm::Triple &Triple,
                                  const ToolChain &HostTC, const ArgList &Args,
                                  const Action::OffloadKind OK)
-    : ROCMToolChain(D, Triple, Args), HostTC(HostTC), SYCLInstallation(D),
-      OK(OK) {
+    : ROCMToolChain(D, Triple, Args), HostTC(HostTC),
+      SYCLInstallation(D, HostTC.getTriple(), Args), OK(OK) {
   // Lookup binaries into the driver directory, this is used to
   // discover the clang-offload-bundler executable.
   getProgramPaths().push_back(getDriver().Dir);
@@ -401,8 +400,11 @@ llvm::SmallVector<ToolChain::BitCodeLibraryInfo, 12>
 HIPAMDToolChain::getDeviceLibs(const llvm::opt::ArgList &DriverArgs,
                                Action::OffloadKind DeviceOffloadingKind) const {
   llvm::SmallVector<BitCodeLibraryInfo, 12> BCLibs;
+  const llvm::Triple &TT = getEffectiveTriple();
+
   if (!DriverArgs.hasFlag(options::OPT_offloadlib, options::OPT_no_offloadlib,
                           true) ||
+      TT.getEnvironment() == llvm::Triple::LLVM ||
       getGPUArch(DriverArgs) == "amdgcnspirv")
     return {};
   ArgStringList LibraryPaths;

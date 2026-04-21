@@ -91,6 +91,11 @@ int printf(const FormatT *__format, Args... args) {
 
 namespace native {
 
+#if defined(__NVPTX__)
+// Libdevice function declaration
+extern "C" __DPCPP_SYCL_EXTERNAL float __nv_tanhf(float);
+#endif
+
 // genfloatfh tanh (genfloatfh x)
 // sycl::native::tanh is only implemented on nvptx backend so far. For other
 // backends we revert to the sycl::tanh impl.
@@ -99,8 +104,30 @@ inline __SYCL_ALWAYS_INLINE std::enable_if_t<
     sycl::detail::is_svgenfloatf_v<T> || sycl::detail::is_svgenfloath_v<T>, T>
 tanh(T x) __NOEXC {
 #if defined(__NVPTX__)
-  return sycl::detail::convertFromOpenCLTypeFor<T>(
-      __clc_native_tanh(sycl::detail::convertToOpenCLType(x)));
+  if constexpr (std::is_same_v<T, float>) {
+    return __nvvm_reflect("__CUDA_ARCH") >= 750 ? __nvvm_tanh_approx_f(x)
+                                                : __nv_tanhf(x);
+  } else if constexpr (std::is_same_v<T, half>) {
+    return __nvvm_reflect("__CUDA_ARCH") >= 750 ? __nvvm_tanh_approx_f16(x)
+                                                : __nv_tanhf(x);
+  } else if constexpr (sycl::detail::is_vgenfloat_v<T>) {
+    // Special case for vec<half, 2> - use native f16x2 intrinsic
+    if constexpr (std::is_same_v<sycl::detail::element_type_t<T>, half> &&
+                  sycl::detail::num_elements_v<T> == 2) {
+      if (__nvvm_reflect("__CUDA_ARCH") >= 750) {
+        auto ocl_vec = sycl::detail::convertToOpenCLType(x);
+        return sycl::bit_cast<T>(__nvvm_tanh_approx_f16x2(ocl_vec));
+      } else {
+        return T(__nv_tanhf(x[0]), __nv_tanhf(x[1]));
+      }
+    }
+    // General vector case - scalarize
+    T res;
+    for (int i = 0; i < x.size(); ++i) {
+      res[i] = native::tanh(x[i]);
+    }
+    return res;
+  }
 #else
   return sycl::tanh(x);
 #endif
@@ -139,16 +166,42 @@ inline __SYCL_ALWAYS_INLINE
   return res;
 }
 
-// genfloath exp2 (genfloath x)
-// sycl::native::exp2 (using half) is only implemented on nvptx backend so far.
+// genfloatfh exp2 (genfloatfh x)
+// sycl::native::exp2 is only implemented on nvptx backend so far.
 // For other backends we revert to the sycl::exp2 impl.
 template <typename T>
-inline __SYCL_ALWAYS_INLINE
-    std::enable_if_t<sycl::detail::is_svgenfloath_v<T>, T>
-    exp2(T x) __NOEXC {
+inline __SYCL_ALWAYS_INLINE std::enable_if_t<
+    sycl::detail::is_svgenfloatf_v<T> || sycl::detail::is_svgenfloath_v<T>, T>
+exp2(T x) __NOEXC {
 #if defined(__NVPTX__)
-  return sycl::detail::convertFromOpenCLTypeFor<T>(
-      __clc_native_exp2(sycl::detail::convertToOpenCLType(x)));
+  if constexpr (std::is_same_v<T, float>) {
+    return __nvvm_reflect("__CUDA_FTZ") ? __nvvm_ex2_approx_ftz_f(x)
+                                        : __nvvm_ex2_approx_f(x);
+  } else if constexpr (std::is_same_v<T, half>) {
+    if (__nvvm_reflect("__CUDA_ARCH") >= 750) {
+      return __nvvm_ex2_approx_f16(x);
+    } else {
+      return native::exp2(static_cast<float>(x));
+    }
+  } else if constexpr (sycl::detail::is_vgenfloat_v<T>) {
+    // Special case for vec<half, 2> - use native f16x2 intrinsic
+    if constexpr (std::is_same_v<sycl::detail::element_type_t<T>, half> &&
+                  sycl::detail::num_elements_v<T> == 2) {
+      if (__nvvm_reflect("__CUDA_ARCH") >= 750) {
+        auto ocl_vec = sycl::detail::convertToOpenCLType(x);
+        return sycl::bit_cast<T>(__nvvm_ex2_approx_f16x2(ocl_vec));
+      } else {
+        return T(native::exp2(static_cast<float>(x[0])),
+                 native::exp2(static_cast<float>(x[1])));
+      }
+    }
+    // General vector case - scalarize
+    T res;
+    for (int i = 0; i < x.size(); ++i) {
+      res[i] = native::exp2(x[i]);
+    }
+    return res;
+  }
 #else
   return sycl::exp2(x);
 #endif

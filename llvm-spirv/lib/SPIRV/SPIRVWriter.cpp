@@ -394,6 +394,8 @@ SPIRVType *LLVMToSPIRVBase::transType(Type *T) {
     // capabilities.
     if (BM->isAllowedToUseExtension(
             ExtensionID::SPV_INTEL_arbitrary_precision_integers) ||
+        BM->isAllowedToUseExtension(
+            ExtensionID::SPV_ALTERA_arbitrary_precision_integers) ||
         BM->getErrorLog().checkError(
             (BitWidth == 4 &&
              BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_int4)) ||
@@ -1406,7 +1408,9 @@ SPIRVValue *LLVMToSPIRVBase::transConstant(Value *V) {
     if (BitWidth > 64) {
       BM->getErrorLog().checkError(
           BM->isAllowedToUseExtension(
-              ExtensionID::SPV_INTEL_arbitrary_precision_integers),
+              ExtensionID::SPV_INTEL_arbitrary_precision_integers) ||
+              BM->isAllowedToUseExtension(
+                  ExtensionID::SPV_ALTERA_arbitrary_precision_integers),
           SPIRVEC_InvalidBitWidth, std::to_string(BitWidth));
       return BM->addConstant(ExpectedType, ConstI->getValue());
     }
@@ -1685,7 +1689,13 @@ SPIRVValue *LLVMToSPIRVBase::transUnaryInst(UnaryInstruction *U,
     }
   } else {
     auto OpCode = U->getOpcode();
-    BOC = OpCodeMap::map(OpCode);
+    // PtrToAddr extracts only the address bits from a pointer, unlike PtrToInt
+    // which converts all pointer representation bits. In SPIR-V, both map to
+    // OpConvertPtrToU since SPIR-V targets use flat address spaces.
+    if (OpCode == Instruction::PtrToAddr)
+      BOC = OpConvertPtrToU;
+    else
+      BOC = OpCodeMap::map(OpCode);
   }
 
   auto *Op = transValue(U->getOperand(0), BB, true, FuncTransMode::Pointer);
@@ -1762,7 +1772,7 @@ private:
 /// instruction, fill the Loop Control mask and possible parameters for its
 /// fields.
 spv::LoopControlMask
-LLVMToSPIRVBase::getLoopControl(const BranchInst *Branch,
+LLVMToSPIRVBase::getLoopControl(const Instruction *Branch,
                                 std::vector<SPIRVWord> &Parameters) {
   if (!Branch)
     return spv::LoopControlMaskNone;
@@ -2468,7 +2478,7 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
                              Pairs, BB));
   }
 
-  if (BranchInst *Branch = dyn_cast<BranchInst>(V)) {
+  if (auto *Branch = dyn_cast<CondBrInst>(V)) {
     SPIRVLabel *SuccessorTrue =
         static_cast<SPIRVLabel *>(transValue(Branch->getSuccessor(0), BB));
 
@@ -2485,29 +2495,6 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
     std::vector<SPIRVWord> Parameters;
     spv::LoopControlMask LoopControl = getLoopControl(Branch, Parameters);
 
-    if (Branch->isUnconditional()) {
-      // Usually, "for" and "while" loops llvm.loop metadata is attached to an
-      // unconditional branch instruction.
-      if (LoopControl != spv::LoopControlMaskNone) {
-        // SuccessorTrue is the loop header BB.
-        const SPIRVInstruction *Term = SuccessorTrue->getTerminateInstr();
-        if (Term && Term->getOpCode() == OpBranchConditional) {
-          const auto *Br = static_cast<const SPIRVBranchConditional *>(Term);
-          BM->addLoopMergeInst(Br->getFalseLabel()->getId(), // Merge Block
-                               BB->getId(),                  // Continue Target
-                               LoopControl, Parameters, SuccessorTrue);
-        } else {
-          if (BM->isAllowedToUseExtension(
-                  ExtensionID::SPV_INTEL_unstructured_loop_controls)) {
-            // For unstructured loop we add a special loop control instruction.
-            // Simple example of unstructured loop is an infinite loop, that has
-            // no terminate instruction.
-            BM->addLoopControlINTELInst(LoopControl, Parameters, SuccessorTrue);
-          }
-        }
-      }
-      return mapValue(V, BM->addBranchInst(SuccessorTrue, BB));
-    }
     // For "do-while" (and in some cases, for "for" and "while") loops,
     // llvm.loop metadata is attached to a conditional branch instructions
     SPIRVLabel *SuccessorFalse =
@@ -2544,6 +2531,46 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
     return mapValue(
         V, BM->addBranchConditionalInst(transValue(Branch->getCondition(), BB),
                                         SuccessorTrue, SuccessorFalse, BB));
+  }
+
+  if (auto *Branch = dyn_cast<UncondBrInst>(V)) {
+    SPIRVLabel *Successor =
+        static_cast<SPIRVLabel *>(transValue(Branch->getSuccessor(0), BB));
+
+    /// Clang attaches !llvm.loop metadata to "latch" BB. This kind of blocks
+    /// has an edge directed to the loop header. Thus latch BB matching to
+    /// "Continue Target" per the SPIR-V spec. This statement is true only after
+    /// applying the loop-simplify pass to the LLVM module.
+    /// For "for" and "while" loops latch BB is terminated by an
+    /// unconditional branch. Also for this kind of loops "Merge Block" can
+    /// be found as block targeted by false edge of the "Header" BB.
+    /// For "do while" loop the latch is terminated by a conditional branch
+    /// with true edge going to the header and the false edge going out of
+    /// the loop, which corresponds to a "Merge Block" per the SPIR-V spec.
+    std::vector<SPIRVWord> Parameters;
+    spv::LoopControlMask LoopControl = getLoopControl(Branch, Parameters);
+
+    // Usually, "for" and "while" loops llvm.loop metadata is attached to an
+    // unconditional branch instruction.
+    if (LoopControl != spv::LoopControlMaskNone) {
+      // SuccessorTrue is the loop header BB.
+      const SPIRVInstruction *Term = Successor->getTerminateInstr();
+      if (Term && Term->getOpCode() == OpBranchConditional) {
+        const auto *Br = static_cast<const SPIRVBranchConditional *>(Term);
+        BM->addLoopMergeInst(Br->getFalseLabel()->getId(), // Merge Block
+                             BB->getId(),                  // Continue Target
+                             LoopControl, Parameters, Successor);
+      } else {
+        if (BM->isAllowedToUseExtension(
+                ExtensionID::SPV_INTEL_unstructured_loop_controls)) {
+          // For unstructured loop we add a special loop control instruction.
+          // Simple example of unstructured loop is an infinite loop, that has
+          // no terminate instruction.
+          BM->addLoopControlINTELInst(LoopControl, Parameters, Successor);
+        }
+      }
+    }
+    return mapValue(V, BM->addBranchInst(Successor, BB));
   }
 
   if (auto *Phi = dyn_cast<PHINode>(V)) {
@@ -4174,6 +4201,8 @@ static SPIRVWord getBuiltinIdForIntrinsic(Intrinsic::ID IID) {
     return OpenCLLIB::Floor;
   case Intrinsic::fma:
     return OpenCLLIB::Fma;
+  case Intrinsic::ldexp:
+    return OpenCLLIB::Ldexp;
   case Intrinsic::frexp:
     return OpenCLLIB::Frexp;
   case Intrinsic::log:
@@ -4474,6 +4503,7 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
   // Binary FP intrinsics
   case Intrinsic::atan2:
   case Intrinsic::copysign:
+  case Intrinsic::ldexp:
   case Intrinsic::pow:
   case Intrinsic::powi:
   case Intrinsic::maximumnum:

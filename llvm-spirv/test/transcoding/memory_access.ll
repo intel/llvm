@@ -5,6 +5,7 @@
 ; RUN: spirv-val %t.spv
 ; RUN: llvm-spirv -r --spirv-target-env=CL2.0 %t.spv -o %t.bc
 ; RUN: llvm-dis < %t.bc | FileCheck %s --check-prefix=CHECK-LLVM
+; FIXME: FILECHECK_FAIL during llvm-spirv -r in llc compilation flow
 
 ; CHECK-SPIRV-NOT: 6 Store {{[0-9]+}} {{[0-9]+}} 1 2 8
 ; CHECK-SPIRV: 5 Store {{[0-9]+}} {{[0-9]+}} 3 8

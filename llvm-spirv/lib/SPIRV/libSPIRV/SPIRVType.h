@@ -175,7 +175,9 @@ public:
       break;
     default:
       if (Module->isAllowedToUseExtension(
-              ExtensionID::SPV_INTEL_arbitrary_precision_integers))
+              ExtensionID::SPV_INTEL_arbitrary_precision_integers) ||
+          Module->isAllowedToUseExtension(
+              ExtensionID::SPV_ALTERA_arbitrary_precision_integers))
         CV.push_back(CapabilityArbitraryPrecisionIntegersINTEL);
     }
     return CV;
@@ -185,7 +187,10 @@ public:
     case 4: {
       if (Module->isAllowedToUseExtension(ExtensionID::SPV_INTEL_int4))
         return ExtensionID::SPV_INTEL_int4;
-      return ExtensionID::SPV_INTEL_arbitrary_precision_integers;
+      if (Module->isAllowedToUseExtension(
+              ExtensionID::SPV_INTEL_arbitrary_precision_integers))
+        return ExtensionID::SPV_INTEL_arbitrary_precision_integers;
+      return ExtensionID::SPV_ALTERA_arbitrary_precision_integers;
     }
     case 8:
     case 16:
@@ -193,7 +198,10 @@ public:
     case 64:
       return {};
     default:
-      return ExtensionID::SPV_INTEL_arbitrary_precision_integers;
+      if (Module->isAllowedToUseExtension(
+              ExtensionID::SPV_INTEL_arbitrary_precision_integers))
+        return ExtensionID::SPV_INTEL_arbitrary_precision_integers;
+      return ExtensionID::SPV_ALTERA_arbitrary_precision_integers;
     }
   }
 
@@ -206,7 +214,9 @@ protected:
             BitWidth == 8 || BitWidth == 16 || BitWidth == 32 ||
             BitWidth == 64 ||
             Module->isAllowedToUseExtension(
-                ExtensionID::SPV_INTEL_arbitrary_precision_integers)) &&
+                ExtensionID::SPV_INTEL_arbitrary_precision_integers) ||
+            Module->isAllowedToUseExtension(
+                ExtensionID::SPV_ALTERA_arbitrary_precision_integers)) &&
            "Invalid bit width");
   }
 
@@ -660,7 +670,8 @@ protected:
     assert(Acc.size() <= 1);
   }
   void setWordCount(SPIRVWord TheWC) override {
-    WordCount = TheWC;
+    SPIRVEntry::setWordCount(TheWC);
+    SPIRVCK(WordCount >= FixedWC, InvalidWordCount, "");
     Acc.resize(WordCount - FixedWC);
   }
 
@@ -783,6 +794,7 @@ public:
 
   void setWordCount(SPIRVWord WordCount) override {
     SPIRVType::setWordCount(WordCount);
+    SPIRVCK(WordCount >= FixedWC, InvalidWordCount, "");
     MemberTypeIdVec.resize(WordCount - FixedWC);
   }
 
@@ -832,10 +844,11 @@ private:
 
 class SPIRVTypeFunction : public SPIRVType {
 public:
+  constexpr static SPIRVWord FixedWC = 3;
   // Complete constructor
   SPIRVTypeFunction(SPIRVModule *M, SPIRVId TheId, SPIRVType *TheReturnType,
                     const std::vector<SPIRVType *> &TheParameterTypes)
-      : SPIRVType(M, 3 + TheParameterTypes.size(), OpTypeFunction, TheId),
+      : SPIRVType(M, FixedWC + TheParameterTypes.size(), OpTypeFunction, TheId),
         ReturnType(TheReturnType) {
     for (const SPIRVType *T : TheParameterTypes) {
       ParamTypeIdVec.push_back(T->getId());
@@ -862,7 +875,8 @@ protected:
   _SPIRV_DEF_ENCDEC3(Id, ReturnType, ParamTypeIdVec)
   void setWordCount(SPIRVWord WordCount) override {
     SPIRVType::setWordCount(WordCount);
-    ParamTypeIdVec.resize(WordCount - 3);
+    SPIRVCK(WordCount >= FixedWC, InvalidWordCount, "");
+    ParamTypeIdVec.resize(WordCount - FixedWC);
   }
   void validate() const override {
     SPIRVEntry::validate();

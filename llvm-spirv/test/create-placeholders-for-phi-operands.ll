@@ -2,6 +2,7 @@
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis %t.rev.bc -o %t.rev.ll
 ; RUN: FileCheck %s --input-file %t.rev.ll --check-prefix CHECK-LLVM
+; RUN: llc -O0 -mtriple=spirv64-unknown-unknown -filetype=obj %s -o %t.llc.spv --spirv-ext=+SPV_INTEL_variable_length_array
 
 ; CHECK-LLVM: phi ptr [ [[savedstack:%.*]], {{.*}} ], [ [[savedstack_us:%.*]], {{.*}} ]
 

@@ -59,6 +59,7 @@
 #include "llvm/SYCLLowerIR/SYCLOptimizeBarriers.h"
 #include "llvm/SYCLLowerIR/SYCLPropagateAspectsUsage.h"
 #include "llvm/SYCLLowerIR/SYCLPropagateJointMatrixUsage.h"
+#include "llvm/SYCLLowerIR/SYCLRemangleLibspirv.h"
 #include "llvm/SYCLLowerIR/SYCLVirtualFunctionsAnalysis.h"
 #include "llvm/SYCLLowerIR/UtilsSYCLNativeCPU.h"
 #include "llvm/Support/BuryPointer.h"
@@ -264,6 +265,7 @@ getSancovOptsFromCGOpts(const CodeGenOptions &CGOpts) {
   Opts.TraceGep = CGOpts.SanitizeCoverageTraceGep;
   Opts.Use8bitCounters = CGOpts.SanitizeCoverage8bitCounters;
   Opts.TracePC = CGOpts.SanitizeCoverageTracePC;
+  Opts.TracePCEntryExit = CGOpts.SanitizeCoverageTracePCEntryExit;
   Opts.TracePCGuard = CGOpts.SanitizeCoverageTracePCGuard;
   Opts.NoPrune = CGOpts.SanitizeCoverageNoPrune;
   Opts.Inline8bitCounters = CGOpts.SanitizeCoverageInline8bitCounters;
@@ -457,7 +459,6 @@ static bool initTargetOptions(const CompilerInstance &CI,
   if (CodeGenOpts.hasWasmExceptions())
     Options.ExceptionModel = llvm::ExceptionHandling::Wasm;
 
-  Options.NoNaNsFPMath = LangOpts.NoHonorNaNs;
   Options.NoZerosInBSS = CodeGenOpts.NoZeroInitializedInBSS;
 
   Options.BBAddrMap = CodeGenOpts.BBAddrMap;
@@ -546,6 +547,7 @@ static bool initTargetOptions(const CompilerInstance &CI,
   Options.MCOptions.Dwarf64 = CodeGenOpts.Dwarf64;
   Options.MCOptions.PreserveAsmComments = CodeGenOpts.PreserveAsmComments;
   Options.MCOptions.Crel = CodeGenOpts.Crel;
+  Options.MCOptions.RelocSectionSym = CodeGenOpts.getRelocSectionSym();
   Options.MCOptions.ImplicitMapSyms = CodeGenOpts.ImplicitMapSyms;
   Options.MCOptions.X86RelaxRelocations = CodeGenOpts.X86RelaxRelocations;
   Options.MCOptions.CompressDebugSections =
@@ -1103,6 +1105,13 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
           });
     }
 
+    if (CodeGenOpts.SYCLRemangleLibspirv) {
+      PB.registerOptimizerLastEPCallback(
+          [&](ModulePassManager &MPM, OptimizationLevel, ThinOrFullLTOPhase) {
+            MPM.addPass(SYCLRemangleLibspirvPass());
+          });
+    }
+
     const bool PrepareForThinLTO = CodeGenOpts.PrepareForThinLTO;
     const bool PrepareForLTO = CodeGenOpts.PrepareForLTO;
 
@@ -1532,6 +1541,8 @@ runThinLTOBackend(CompilerInstance &CI, ModuleSummaryIndex *CombinedIndex,
   Conf.RemarksFormat = CGOpts.OptRecordFormat;
   Conf.SplitDwarfFile = CGOpts.SplitDwarfFile;
   Conf.SplitDwarfOutput = CGOpts.SplitDwarfOutput;
+  for (auto &Plugin : CI.getPassPlugins())
+    Conf.LoadedPassPlugins.push_back(Plugin.get());
   switch (Action) {
   case Backend_EmitNothing:
     Conf.PreCodeGenModuleHook = [](size_t Task, const llvm::Module &Mod) {

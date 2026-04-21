@@ -264,7 +264,8 @@ public:
     OpenCL,
     ChipStar,
     Firmware,
-    LastOSType = Firmware
+    QURT,
+    LastOSType = QURT
   };
   enum EnvironmentType {
     UnknownEnvironment,
@@ -393,6 +394,13 @@ public:
 
   bool operator!=(const Triple &Other) const {
     return !(*this == Other);
+  }
+
+  bool operator<(const Triple &Other) const {
+    return std::tie(Arch, SubArch, Vendor, OS, Environment, ObjectFormat,
+                    Data) < std::tie(Other.Arch, Other.SubArch, Other.Vendor,
+                                     Other.OS, Other.Environment,
+                                     Other.ObjectFormat, Other.Data);
   }
 
   /// @}
@@ -803,6 +811,9 @@ public:
   bool isOSSerenity() const {
     return getOS() == Triple::Serenity;
   }
+
+  /// Tests whether the OS is QURT.
+  bool isOSQurt() const { return getOS() == Triple::QURT; }
 
   /// Tests whether the OS uses the ELF binary format.
   bool isOSBinFormatELF() const {
@@ -1253,6 +1264,9 @@ public:
   bool hasDefaultDataSections() const {
     return isOSBinFormatXCOFF() || isWasm();
   }
+
+  /// Returns the default wchar_t size (in bytes) for this target triple.
+  unsigned getDefaultWCharSize() const;
 
   /// Tests if the environment supports dllimport/export annotations.
   bool hasDLLImportExport() const { return isOSWindows() || isPS(); }

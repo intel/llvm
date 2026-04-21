@@ -134,8 +134,6 @@ int main() {
 
   ur_kernel_handle_t hKernel;
   ur_check(urKernelCreate(hProgram, "plus1", &hKernel));
-  ur_check(urKernelSetArgMemObj(hKernel, 0, nullptr, dA));
-  ur_check(urKernelSetArgMemObj(hKernel, 1, nullptr, dB));
 
   ur_queue_handle_t queue;
   ur_check(urQueueCreate(hContext, current_device, nullptr, &queue));
@@ -145,12 +143,35 @@ int main() {
   ur_check(urEnqueueMemBufferWrite(queue, dB, true, 0, a_size * sizeof(int),
                                    b.data, 0, nullptr, nullptr));
 
+  ur_exp_kernel_arg_value_t val0 = {};
+  val0.memObjTuple = {dA, UR_MEM_FLAG_READ_WRITE};
+  ur_exp_kernel_arg_properties_t arg0 = {
+      UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+      nullptr,
+      UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ,
+      0,
+      sizeof(ur_mem_handle_t),
+      val0};
+
+  ur_exp_kernel_arg_value_t val1 = {};
+  val1.memObjTuple = {dB, UR_MEM_FLAG_READ_WRITE};
+  ur_exp_kernel_arg_properties_t arg1 = {
+      UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+      nullptr,
+      UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ,
+      1,
+      sizeof(ur_mem_handle_t),
+      val1};
+
+  ur_exp_kernel_arg_properties_t args[] = {arg0, arg1};
+
   const size_t gWorkOffset[] = {0, 0, 0};
   const size_t gWorkSize[] = {128, 1, 1};
   const size_t lWorkSize[] = {1, 1, 1};
   ur_event_handle_t event;
-  ur_check(urEnqueueKernelLaunch(queue, hKernel, 3, gWorkOffset, gWorkSize,
-                                 lWorkSize, nullptr, &event));
+  ur_check(urEnqueueKernelLaunchWithArgsExp(queue, hKernel, 3, gWorkOffset,
+                                            gWorkSize, lWorkSize, 2, args,
+                                            nullptr, 0, nullptr, &event));
 
   ur_check(urEnqueueMemBufferRead(queue, dB, true, 0, a_size * sizeof(int),
                                   b.data, 1, &event, nullptr));

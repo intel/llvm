@@ -1,23 +1,17 @@
 ; RUN: opt -passes=globaloffset -enable-global-offset=false %s -S -o - | FileCheck %s
+
 target triple = "nvptx64-nvidia-cuda"
 
-; This test checks that the implicit offset intrinsic is correctly removed
+; This test checks that __spirv_BuiltInGlobalOffset call is correctly removed
 
-declare ptr @llvm.nvvm.implicit.offset()
-; CHECK-NOT: llvm.nvvm.implicit.offset
+declare i64 @_Z27__spirv_BuiltInGlobalOffseti(i32)
 
 define i64 @_ZTS14example_kernel() {
 entry:
-; CHECK-NOT: @llvm.nvvm.implicit.offset()
-; CHECK-NOT: getelementptr
-; CHECK-NOT: load
-; CHECK: [[REG:%[0-9]+]] = zext i{{[0-9]+}} 0 to i{{[0-9]+}}
-; CHECK: ret i{{[0-9]+}} [[REG]]
-  %0 = tail call ptr @llvm.nvvm.implicit.offset()
-  %1 = getelementptr inbounds i32, ptr %0, i64 1
-  %2 = load i32, ptr %1, align 4
-  %3 = zext i32 %2 to i64
-  ret i64 %3
+; CHECK-NOT: @call i64 @_Z27__spirv_BuiltInGlobalOffseti
+; CHECK: ret i64 0
+  %0 = tail call i64 @_Z27__spirv_BuiltInGlobalOffseti(i32 2)
+  ret i64 %0
 }
 
 !llvm.module.flags = !{!0}

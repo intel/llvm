@@ -9,6 +9,10 @@ target triple = "spir-unknown-unknown"
 ; RUN: spirv-val %t.spv
 ; RUN: llvm-spirv -r %t.spv -o %t.bc
 ; RUN: llvm-dis < %t.bc | FileCheck %s --check-prefix=CHECK-LLVM
+; RUN: %if spirv-backend %{ llc -O0 -mtriple=spirv32-unknown-unknown -filetype=obj %s -o %t.llc.spv %}
+; RUN: %if spirv-backend %{ llvm-spirv -r %t.llc.spv -o %t.llc.rev.bc %}
+; RUN: %if spirv-backend %{ llvm-dis %t.llc.rev.bc -o %t.llc.rev.ll %}
+; RUN: %if spirv-backend %{ FileCheck %s --check-prefix=CHECK-LLC < %t.llc.rev.ll %}
 
 ; Check 'LLVM ==> SPIR-V ==> LLVM' conversion of extractvalue/insertvalue.
 
@@ -28,6 +32,15 @@ target triple = "spir-unknown-unknown"
 ; CHECK-LLVM:         %4 = fadd float %2, %3
 ; CHECK-LLVM:         %5 = insertvalue [7 x float] %1, float %4, 5
 ; CHECK-LLVM:         store [7 x float] %5, ptr addrspace(1) %0
+
+; CHECK-LLC-LABEL:    define spir_func void @array_test
+; CHECK-LLC:          %0 = getelementptr inbounds %struct.arr, ptr addrspace(1) %object, i32 0, i32 0
+; CHECK-LLC:          %1 = load [7 x float], ptr addrspace(1) %0, align 4
+; CHECK-LLC:          %2 = extractvalue [7 x float] %1, 4
+; CHECK-LLC:          %3 = extractvalue [7 x float] %1, 2
+; CHECK-LLC:          %4 = fadd float %2, %3
+; CHECK-LLC:          %5 = insertvalue [7 x float] %1, float %4, 5
+; CHECK-LLC:          store [7 x float] %5, ptr addrspace(1) %0, align 4
 
 ; CHECK-SPIRV-LABEL:  5 Function
 ; CHECK-SPIRV-NEXT:   FunctionParameter {{[0-9]+}} [[object:[0-9]+]]
@@ -61,6 +74,14 @@ entry:
 ; CHECK-LLVM:         %3 = fadd float %2, 1.000000e+00
 ; CHECK-LLVM:         %4 = insertvalue %struct.inner %1, float %3, 0
 ; CHECK-LLVM:         store %struct.inner %4, ptr addrspace(1) %0
+
+; CHECK-LLC-LABEL:    define spir_func void @struct_test
+; CHECK-LLC:          %0 = getelementptr inbounds %struct.st, ptr addrspace(1) %object, i32 0, i32 0
+; CHECK-LLC:          %1 = load %struct.inner, ptr addrspace(1) %0, align 4
+; CHECK-LLC:          %2 = extractvalue %struct.inner %1, 0
+; CHECK-LLC:          %3 = fadd float %2, 1.000000e+00
+; CHECK-LLC:          %4 = insertvalue %struct.inner %1, float %3, 0
+; CHECK-LLC:          store %struct.inner %4, ptr addrspace(1) %{{.*}}, align 4
 
 ; CHECK-SPIRV-LABEL:  5 Function
 ; CHECK-SPIRV-NEXT:   FunctionParameter {{[0-9]+}} [[object:[0-9]+]]

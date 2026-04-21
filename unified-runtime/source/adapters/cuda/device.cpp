@@ -129,7 +129,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_INT: {
     return ReturnValue(1u);
   }
-  case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_LONG: {
+  case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_LONG:
+  case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_LONG_LONG: {
     return ReturnValue(1u);
   }
   case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_FLOAT: {
@@ -150,7 +151,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_INT: {
     return ReturnValue(1u);
   }
-  case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG: {
+  case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG:
+  case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG_LONG: {
     return ReturnValue(1u);
   }
   case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_FLOAT: {
@@ -1027,7 +1029,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
 
-    return ReturnValue(ILVersion.data(), ILVersion.size());
+    return ReturnValue(ILVersion.c_str());
   }
   case UR_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP: {
     // Maximum number of 32-bit registers available to a thread block.

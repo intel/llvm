@@ -44,9 +44,9 @@ TEST_P(urEnqueueKernelLaunchTest, DeferredKernelRelease) {
       &event));
 
   ASSERT_SUCCESS(urEnqueueEventsWait(queue, 1, &event, nullptr));
-  ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, n_dimensions,
-                                       &global_offset, &global_size, nullptr,
-                                       nullptr, 0, nullptr, nullptr));
+  ASSERT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
+      queue, kernel, n_dimensions, &global_offset, &global_size, nullptr,
+      GetNumArgs(), GetArgs(), nullptr, 0, nullptr, nullptr));
   ASSERT_SUCCESS(urKernelRelease(kernel));
 
   // Kernel should still be alive since kernel launch is pending
@@ -137,14 +137,14 @@ TEST_P(urMultiQueueLaunchKernelDeferFreeTest, Success) {
   size_t global_size = 1;
 
   ASSERT_SUCCESS(urEnqueueEventsWait(queues[0], 1, &event1, nullptr));
-  ASSERT_SUCCESS(urEnqueueKernelLaunch(queues[0], kernel, 1, &global_offset,
-                                       &global_size, nullptr, nullptr, 0,
-                                       nullptr, nullptr));
+  ASSERT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
+      queues[0], kernel, 1, &global_offset, &global_size, nullptr, 0, nullptr,
+      nullptr, 0, nullptr, nullptr));
 
   ASSERT_SUCCESS(urEnqueueEventsWait(queues[1], 1, &event2, nullptr));
-  ASSERT_SUCCESS(urEnqueueKernelLaunch(queues[1], kernel, 1, &global_offset,
-                                       &global_size, nullptr, nullptr, 0,
-                                       nullptr, nullptr));
+  ASSERT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
+      queues[1], kernel, 1, &global_offset, &global_size, nullptr, 0, nullptr,
+      nullptr, 0, nullptr, nullptr));
 
   ASSERT_SUCCESS(urKernelRelease(kernel));
 

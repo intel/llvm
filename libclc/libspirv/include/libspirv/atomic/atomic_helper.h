@@ -41,8 +41,7 @@ static _CLC_INLINE int __spirv_get_clang_memory_order(int Semantics) {
   case AcquireRelease:
     return __ATOMIC_ACQ_REL;
   case SequentiallyConsistent:
-    // FIXME use __ATOMIC_SEQ_CST
-    return __ATOMIC_ACQ_REL;
+    return __ATOMIC_SEQ_CST;
   default:
     __builtin_unreachable();
   }

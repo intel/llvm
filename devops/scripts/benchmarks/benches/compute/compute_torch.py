@@ -3,7 +3,6 @@
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from ..base import TracingType
 from .compute_benchmark import ComputeBenchmark
 from .compute_enums import RUNTIMES, PROFILERS, runtime_to_tag_name
 
@@ -18,13 +17,15 @@ class TorchBenchmark(ComputeBenchmark):
         variant_name: str,
         profiler_type: PROFILERS,
         measure_completion: int = 0,
+        fixed_args: dict | None = None,
         **kwargs,
     ):
         self._variant_name = variant_name
         self._measure_completion_str = (
             " with measure completion" if measure_completion else ""
         )
-        self._torch_params = kwargs
+        self._torch_params: dict = kwargs
+        self._fixed_args: dict | None = fixed_args  # args used for charts legends
         self._iterations_regular = 1000
         self._iterations_trace = 10
         super().__init__(
@@ -61,12 +62,16 @@ class TorchBenchmark(ComputeBenchmark):
     def _supported_runtimes(self) -> list[RUNTIMES]:
         return super()._supported_runtimes() + [RUNTIMES.SYCL_PREVIEW]
 
-    def _bin_args(self, run_trace: TracingType = TracingType.NONE) -> list[str]:
-        iters = self._get_iters(run_trace)
+    def _bin_args(self, flamegraph_enabled: bool = False) -> list[str]:
+        iters = self._get_iters(flamegraph_enabled)
+        if self._fixed_args is not None:
+            params = dict(self._fixed_args | self._torch_params)
+        else:
+            params = self._torch_params
         return (
             [f"--iterations={iters}"]
             + [f"--profilerType={self._profiler_type.value}"]
-            + [f"--{k}={v}" for k, v in self._torch_params.items()]
+            + [f"--{k}={v}" for k, v in params.items()]
         )
 
 
@@ -78,6 +83,7 @@ class TorchSingleQueue(TorchBenchmark):
         runtime: RUNTIMES,
         variant_name: str,
         profiler_type: PROFILERS,
+        fixed_args: dict | None = None,
         **kwargs,
     ):
         super().__init__(
@@ -86,6 +92,7 @@ class TorchSingleQueue(TorchBenchmark):
             "KernelSubmitSingleQueue",
             variant_name,
             profiler_type,
+            fixed_args=fixed_args,
             **kwargs,
         )
 
@@ -99,6 +106,7 @@ class TorchMultiQueue(TorchBenchmark):
         variant_name: str,
         profiler_type: PROFILERS,
         measure_completion: int = 0,
+        fixed_args: dict | None = None,
         **kwargs,
     ):
         super().__init__(
@@ -108,6 +116,7 @@ class TorchMultiQueue(TorchBenchmark):
             variant_name,
             profiler_type,
             measure_completion=measure_completion,
+            fixed_args=fixed_args,
             **kwargs,
         )
 
@@ -121,6 +130,7 @@ class TorchSlmSize(TorchBenchmark):
         variant_name: str,
         profiler_type: PROFILERS,
         measure_completion: int = 0,
+        fixed_args: dict | None = None,
         **kwargs,
     ):
         super().__init__(
@@ -130,6 +140,7 @@ class TorchSlmSize(TorchBenchmark):
             variant_name,
             profiler_type,
             measure_completion=measure_completion,
+            fixed_args=fixed_args,
             **kwargs,
         )
 
@@ -142,6 +153,7 @@ class TorchLinearKernelSize(TorchBenchmark):
         runtime: RUNTIMES,
         variant_name: str,
         profiler_type: PROFILERS,
+        fixed_args: dict | None = None,
         **kwargs,
     ):
         super().__init__(
@@ -150,6 +162,7 @@ class TorchLinearKernelSize(TorchBenchmark):
             "KernelSubmitLinearKernelSize",
             variant_name,
             profiler_type,
+            fixed_args=fixed_args,
             **kwargs,
         )
 
@@ -182,6 +195,7 @@ class TorchGraphSingleQueue(TorchBenchmark):
         runtime: RUNTIMES,
         variant_name: str,
         profiler_type: PROFILERS,
+        fixed_args: dict | None = None,
         **kwargs,
     ):
         super().__init__(
@@ -190,17 +204,20 @@ class TorchGraphSingleQueue(TorchBenchmark):
             "KernelSubmitGraphSingleQueue",
             variant_name,
             profiler_type,
+            fixed_args=fixed_args,
             **kwargs,
         )
 
 
 class TorchGraphMultiQueue(TorchBenchmark):
+
     def __init__(
         self,
         suite,
         runtime: RUNTIMES,
         variant_name: str,
         profiler_type: PROFILERS,
+        fixed_args: dict | None = None,
         **kwargs,
     ):
         super().__init__(
@@ -209,11 +226,12 @@ class TorchGraphMultiQueue(TorchBenchmark):
             "KernelSubmitGraphMultiQueue",
             variant_name,
             profiler_type,
+            fixed_args=fixed_args,
             **kwargs,
         )
 
 
-class TorchSubmitEventRecordWait(TorchBenchmark):
+class TorchEventRecordWait(TorchBenchmark):
     def __init__(
         self,
         suite,
@@ -228,5 +246,45 @@ class TorchSubmitEventRecordWait(TorchBenchmark):
             "KernelSubmitEventRecordWait",
             variant_name,
             profiler_type,
+            **kwargs,
+        )
+
+
+class TorchEventRecordQuery(TorchBenchmark):
+    def __init__(
+        self,
+        suite,
+        runtime: RUNTIMES,
+        variant_name: str,
+        profiler_type: PROFILERS,
+        **kwargs,
+    ):
+        super().__init__(
+            suite,
+            runtime,
+            "KernelSubmitEventRecordQuery",
+            variant_name,
+            profiler_type,
+            **kwargs,
+        )
+
+
+class TorchGraphVllmMock(TorchBenchmark):
+    def __init__(
+        self,
+        suite,
+        runtime: RUNTIMES,
+        variant_name: str,
+        profiler_type: PROFILERS,
+        fixed_args: dict | None = None,
+        **kwargs,
+    ):
+        super().__init__(
+            suite,
+            runtime,
+            "KernelSubmitGraphVllmMock",
+            variant_name,
+            profiler_type,
+            fixed_args=fixed_args,
             **kwargs,
         )

@@ -1848,6 +1848,7 @@ public:
         {0x07804000, oneapi_exp_arch::intel_gpu_ptl_u},   // A0
         {0x07804001, oneapi_exp_arch::intel_gpu_ptl_u},   // A1
         {0x0780c000, oneapi_exp_arch::intel_gpu_wcl},     // A0
+        {0x0780c001, oneapi_exp_arch::intel_gpu_wcl},     // A1
         {0x07810000, oneapi_exp_arch::intel_gpu_nvl_s},   // A0
         {0x07810004, oneapi_exp_arch::intel_gpu_nvl_s},   // B0
         {0x07814000, oneapi_exp_arch::intel_gpu_nvl_u},   // A0
@@ -2248,9 +2249,6 @@ private:
   ur_device_handle_t MDevice = 0;
   // This is used for getAdapter so should be above other properties.
   platform_impl &MPlatform;
-
-  std::shared_mutex MDeviceHostBaseTimeMutex;
-  std::pair<uint64_t, uint64_t> MDeviceHostBaseTime{0, 0};
 
   const ur_device_handle_t MRootDevice;
 

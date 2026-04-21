@@ -1377,6 +1377,21 @@ address_space_cast(ElementType *pointer) {
           pointer));
 }
 
+namespace detail {
+template <typename ElementType, access::address_space Space,
+          access::decorated DecorateAddress>
+std::add_pointer_t<ElementType>
+get_raw_pointer(multi_ptr<ElementType, Space, DecorateAddress> Ptr) {
+  return Ptr.get_raw();
+}
+
+template <typename ElementType, access::address_space Space,
+          access::decorated DecorateAddress>
+auto get_element_pointer(multi_ptr<ElementType, Space, DecorateAddress> Ptr) {
+  return address_space_cast<Space, DecorateAddress>(&(*Ptr)[0]);
+}
+} // namespace detail
+
 template <
     typename ElementType, access::address_space Space,
     access::decorated DecorateAddress = access::decorated::legacy,

@@ -821,44 +821,6 @@ template <typename... Args>
 extern __DPCPP_SYCL_EXTERNAL int __spirv_ocl_printf(const char *Format,
                                                     Args... args);
 
-// Native builtin extension
-
-extern __DPCPP_SYCL_EXTERNAL float __clc_native_tanh(float);
-extern __DPCPP_SYCL_EXTERNAL __ocl_vec_t<float, 2>
-    __clc_native_tanh(__ocl_vec_t<float, 2>);
-extern __DPCPP_SYCL_EXTERNAL __ocl_vec_t<float, 3>
-    __clc_native_tanh(__ocl_vec_t<float, 3>);
-extern __DPCPP_SYCL_EXTERNAL __ocl_vec_t<float, 4>
-    __clc_native_tanh(__ocl_vec_t<float, 4>);
-extern __DPCPP_SYCL_EXTERNAL __ocl_vec_t<float, 8>
-    __clc_native_tanh(__ocl_vec_t<float, 8>);
-extern __DPCPP_SYCL_EXTERNAL __ocl_vec_t<float, 16>
-    __clc_native_tanh(__ocl_vec_t<float, 16>);
-
-extern __DPCPP_SYCL_EXTERNAL _Float16 __clc_native_tanh(_Float16);
-extern __DPCPP_SYCL_EXTERNAL __ocl_vec_t<_Float16, 2>
-    __clc_native_tanh(__ocl_vec_t<_Float16, 2>);
-extern __DPCPP_SYCL_EXTERNAL __ocl_vec_t<_Float16, 3>
-    __clc_native_tanh(__ocl_vec_t<_Float16, 3>);
-extern __DPCPP_SYCL_EXTERNAL __ocl_vec_t<_Float16, 4>
-    __clc_native_tanh(__ocl_vec_t<_Float16, 4>);
-extern __DPCPP_SYCL_EXTERNAL __ocl_vec_t<_Float16, 8>
-    __clc_native_tanh(__ocl_vec_t<_Float16, 8>);
-extern __DPCPP_SYCL_EXTERNAL __ocl_vec_t<_Float16, 16>
-    __clc_native_tanh(__ocl_vec_t<_Float16, 16>);
-
-extern __DPCPP_SYCL_EXTERNAL _Float16 __clc_native_exp2(_Float16);
-extern __DPCPP_SYCL_EXTERNAL __ocl_vec_t<_Float16, 2>
-    __clc_native_exp2(__ocl_vec_t<_Float16, 2>);
-extern __DPCPP_SYCL_EXTERNAL __ocl_vec_t<_Float16, 3>
-    __clc_native_exp2(__ocl_vec_t<_Float16, 3>);
-extern __DPCPP_SYCL_EXTERNAL __ocl_vec_t<_Float16, 4>
-    __clc_native_exp2(__ocl_vec_t<_Float16, 4>);
-extern __DPCPP_SYCL_EXTERNAL __ocl_vec_t<_Float16, 8>
-    __clc_native_exp2(__ocl_vec_t<_Float16, 8>);
-extern __DPCPP_SYCL_EXTERNAL __ocl_vec_t<_Float16, 16>
-    __clc_native_exp2(__ocl_vec_t<_Float16, 16>);
-
 // FIXME: __clc symbols are intended to be internal symbols to libclc/libspirv
 // and should not be relied upon externally; consider them deprecated. We can't,
 // however, explicitly declare __spirv_ocl versions of these builtins as that

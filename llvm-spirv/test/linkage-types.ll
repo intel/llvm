@@ -4,6 +4,7 @@
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=BACK-TO-LLVM
+; FIXME: FILECHECK_FAIL during llvm-spirv -r in llc compilation flow
 
 ; ModuleID = 'c:/work/tmp/testLink.c'
 target datalayout = "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"

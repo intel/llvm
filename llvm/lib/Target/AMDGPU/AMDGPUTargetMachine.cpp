@@ -17,8 +17,8 @@
 #include "AMDGPUTargetMachine.h"
 #include "AMDGPU.h"
 #include "AMDGPUAliasAnalysis.h"
-#include "AMDGPUArgumentUsageInfo.h"
 #include "AMDGPUBarrierLatency.h"
+#include "AMDGPUCoExecSchedStrategy.h"
 #include "AMDGPUCtorDtorLowering.h"
 #include "AMDGPUExportClustering.h"
 #include "AMDGPUExportKernelRuntimeHandles.h"
@@ -90,6 +90,7 @@
 #include "llvm/CodeGen/PostRAHazardRecognizer.h"
 #include "llvm/CodeGen/RegAllocRegistry.h"
 #include "llvm/CodeGen/TargetPassConfig.h"
+#include "llvm/IR/DiagnosticInfo.h"
 #include "llvm/IR/IntrinsicsAMDGPU.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/IR/PatternMatch.h"
@@ -150,7 +151,9 @@ public:
   void addCodeGenPrepare(PassManagerWrapper &PMW) const;
   void addPreISel(PassManagerWrapper &PMW) const;
   void addILPOpts(PassManagerWrapper &PMWM) const;
+  void addAsmPrinterBegin(PassManagerWrapper &PMW, CreateMCStreamer) const;
   void addAsmPrinter(PassManagerWrapper &PMW, CreateMCStreamer) const;
+  void addAsmPrinterEnd(PassManagerWrapper &PMW, CreateMCStreamer) const;
   Error addInstSelector(PassManagerWrapper &PMW) const;
   void addPreRewrite(PassManagerWrapper &PMW) const;
   void addMachineSSAOptimization(PassManagerWrapper &PMW) const;
@@ -575,6 +578,38 @@ static cl::opt<std::string>
                         cl::desc("Select custom AMDGPU scheduling strategy."),
                         cl::Hidden, cl::init(""));
 
+// Scheduler selection is consulted both when creating the scheduler and from
+// overrideSchedPolicy(), so keep the attribute and global command line handling
+// in one helper.
+StringRef llvm::AMDGPU::getSchedStrategy(const Function &F) {
+  Attribute SchedStrategyAttr = F.getFnAttribute("amdgpu-sched-strategy");
+  if (SchedStrategyAttr.isValid())
+    return SchedStrategyAttr.getValueAsString();
+
+  if (!AMDGPUSchedStrategy.empty())
+    return AMDGPUSchedStrategy;
+
+  return "";
+}
+
+static void
+diagnoseUnsupportedCoExecSchedulerSelection(const Function &F,
+                                            const GCNSubtarget &ST) {
+  if (ST.hasGFX1250Insts())
+    return;
+
+  F.getContext().diagnose(DiagnosticInfoUnsupported(
+      F, "'amdgpu-sched-strategy'='coexec' is only supported for gfx1250",
+      DiagnosticLocation(), DS_Warning));
+}
+
+static bool useNoopPostScheduler(const Function &F) {
+  Attribute PostSchedStrategyAttr =
+      F.getFnAttribute("amdgpu-post-sched-strategy");
+  return PostSchedStrategyAttr.isValid() &&
+         PostSchedStrategyAttr.getValueAsString() == "nop";
+}
+
 static cl::opt<bool> EnableRewritePartialRegUses(
     "amdgpu-enable-rewrite-partial-reg-uses",
     cl::desc("Enable rewrite partial reg uses pass"), cl::init(true),
@@ -644,7 +679,6 @@ extern "C" LLVM_ABI LLVM_EXTERNAL_VISIBILITY void LLVMInitializeAMDGPUTarget() {
   initializeAMDGPULowerExecSyncLegacyPass(*PR);
   initializeAMDGPUSwLowerLDSLegacyPass(*PR);
   initializeAMDGPUAnnotateUniformValuesLegacyPass(*PR);
-  initializeAMDGPUArgumentUsageInfoWrapperLegacyPass(*PR);
   initializeAMDGPUAtomicOptimizerPass(*PR);
   initializeAMDGPULowerKernelArgumentsPass(*PR);
   initializeAMDGPUPromoteKernelArgumentsPass(*PR);
@@ -932,6 +966,17 @@ void AMDGPUTargetMachine::registerPassBuilderCallbacks(PassBuilder &PB) {
 #define GET_PASS_REGISTRY "AMDGPUPassRegistry.def"
 #include "llvm/Passes/TargetPassRegistry.inc"
 
+  PB.registerPipelineParsingCallback(
+      [this](StringRef Name, CGSCCPassManager &PM,
+             ArrayRef<PassBuilder::PipelineElement> Pipeline) {
+        if (Name == "amdgpu-attributor-cgscc" && getTargetTriple().isAMDGCN()) {
+          PM.addPass(AMDGPUAttributorCGSCCPass(
+              *static_cast<GCNTargetMachine *>(this)));
+          return true;
+        }
+        return false;
+      });
+
   PB.registerScalarOptimizerLateEPCallback(
       [](FunctionPassManager &FPM, OptimizationLevel Level) {
         if (Level == OptimizationLevel::O0)
@@ -949,9 +994,9 @@ void AMDGPUTargetMachine::registerPassBuilderCallbacks(PassBuilder &PB) {
       });
 
   PB.registerPipelineEarlySimplificationEPCallback(
-      [](ModulePassManager &PM, OptimizationLevel Level,
-         ThinOrFullLTOPhase Phase) {
-        if (!isLTOPreLink(Phase)) {
+      [this](ModulePassManager &PM, OptimizationLevel Level,
+             ThinOrFullLTOPhase Phase) {
+        if (!isLTOPreLink(Phase) && getTargetTriple().isAMDGCN()) {
           // When we are not using -fgpu-rdc, we can run accelerator code
           // selection relatively early, but still after linking to prevent
           // eager removal of potentially reachable symbols.
@@ -962,6 +1007,7 @@ void AMDGPUTargetMachine::registerPassBuilderCallbacks(PassBuilder &PB) {
             PM.addPass(HipStdParMathFixupPass());
             PM.addPass(HipStdParAcceleratorCodeSelectionPass());
           }
+
           PM.addPass(AMDGPUPrintfRuntimeBindingPass());
         }
 
@@ -1093,14 +1139,6 @@ void AMDGPUTargetMachine::registerPassBuilderCallbacks(PassBuilder &PB) {
           return onlyAllocateWWMRegs;
         return nullptr;
       });
-}
-
-int64_t AMDGPUTargetMachine::getNullPointerValue(unsigned AddrSpace) {
-  return (AddrSpace == AMDGPUAS::LOCAL_ADDRESS ||
-          AddrSpace == AMDGPUAS::PRIVATE_ADDRESS ||
-          AddrSpace == AMDGPUAS::REGION_ADDRESS)
-             ? -1
-             : 0;
 }
 
 bool AMDGPUTargetMachine::isNoopAddrSpaceCast(unsigned SrcAS,
@@ -1240,10 +1278,10 @@ GCNTargetMachine::getTargetTransformInfo(const Function &F) const {
 
 Error GCNTargetMachine::buildCodeGenPipeline(
     ModulePassManager &MPM, raw_pwrite_stream &Out, raw_pwrite_stream *DwoOut,
-    CodeGenFileType FileType, const CGPassBuilderOption &Opts,
+    CodeGenFileType FileType, const CGPassBuilderOption &Opts, MCContext &Ctx,
     PassInstrumentationCallbacks *PIC) {
   AMDGPUCodeGenPassBuilder CGPB(*this, Opts, PIC);
-  return CGPB.buildPipeline(MPM, Out, DwoOut, FileType);
+  return CGPB.buildPipeline(MPM, Out, DwoOut, FileType, Ctx);
 }
 
 ScheduleDAGInstrs *
@@ -1252,11 +1290,7 @@ GCNTargetMachine::createMachineScheduler(MachineSchedContext *C) const {
   if (ST.enableSIScheduler())
     return createSIMachineScheduler(C);
 
-  Attribute SchedStrategyAttr =
-      C->MF->getFunction().getFnAttribute("amdgpu-sched-strategy");
-  StringRef SchedStrategy = SchedStrategyAttr.isValid()
-                                ? SchedStrategyAttr.getValueAsString()
-                                : AMDGPUSchedStrategy;
+  StringRef SchedStrategy = AMDGPU::getSchedStrategy(C->MF->getFunction());
 
   if (SchedStrategy == "max-ilp")
     return createGCNMaxILPMachineScheduler(C);
@@ -1273,11 +1307,19 @@ GCNTargetMachine::createMachineScheduler(MachineSchedContext *C) const {
   if (SchedStrategy == "iterative-maxocc")
     return createIterativeGCNMaxOccupancyMachineScheduler(C);
 
+  if (SchedStrategy == "coexec") {
+    diagnoseUnsupportedCoExecSchedulerSelection(C->MF->getFunction(), ST);
+    return createGCNCoExecMachineScheduler(C);
+  }
+
   return createGCNMaxOccupancyMachineScheduler(C);
 }
 
 ScheduleDAGInstrs *
 GCNTargetMachine::createPostMachineScheduler(MachineSchedContext *C) const {
+  if (useNoopPostScheduler(C->MF->getFunction()))
+    return createGCNNoopPostMachineScheduler(C);
+
   ScheduleDAGMI *DAG =
       new GCNPostScheduleDAGMILive(C, std::make_unique<PostGenericScheduler>(C),
                                    /*RemoveKillFlags=*/true);
@@ -1394,7 +1436,9 @@ void AMDGPUPassConfig::addIRPasses() {
   disablePass(&FuncletLayoutID);
   disablePass(&PatchableFunctionID);
 
-  addPass(createAMDGPUPrintfRuntimeBinding());
+  if (TM.getTargetTriple().isAMDGCN())
+    addPass(createAMDGPUPrintfRuntimeBinding());
+
   if (LowerCtorDtor)
     addPass(createAMDGPUCtorDtorLoweringLegacyPass());
 
@@ -2145,10 +2189,10 @@ bool GCNTargetMachine::parseMachineFunctionInfo(
     MFI->NumUserSGPRs += YamlMFI.NumKernargPreloadSGPRs;
   }
 
-  if (ST.hasIEEEMode())
+  if (ST.hasFeature(AMDGPU::FeatureDX10ClampAndIEEEMode)) {
     MFI->Mode.IEEE = YamlMFI.Mode.IEEE;
-  if (ST.hasDX10ClampMode())
     MFI->Mode.DX10Clamp = YamlMFI.Mode.DX10Clamp;
+  }
 
   // FIXME: Move proper support for denormal-fp-math into base MachineFunction
   MFI->Mode.FP32Denormals.Input = YamlMFI.Mode.FP32InputDenormals
@@ -2195,7 +2239,10 @@ void AMDGPUCodeGenPassBuilder::addIRPasses(PassManagerWrapper &PMW) const {
   }
 
   flushFPMsToMPM(PMW);
-  addModulePass(AMDGPUPrintfRuntimeBindingPass(), PMW);
+
+  if (TM.getTargetTriple().isAMDGCN())
+    addModulePass(AMDGPUPrintfRuntimeBindingPass(), PMW);
+
   if (LowerCtorDtor)
     addModulePass(AMDGPUCtorDtorLoweringPass(), PMW);
 
@@ -2307,11 +2354,6 @@ void AMDGPUCodeGenPassBuilder::addCodeGenPrepare(
 
 void AMDGPUCodeGenPassBuilder::addPreISel(PassManagerWrapper &PMW) const {
 
-  // Require AMDGPUArgumentUsageAnalysis so that it's available during ISel.
-  flushFPMsToMPM(PMW);
-  addModulePass(RequireAnalysisPass<AMDGPUArgumentUsageAnalysis, Module>(),
-                PMW);
-
   if (TM.getOptLevel() > CodeGenOptLevel::None) {
     addFunctionPass(FlattenCFGPass(), PMW);
     addFunctionPass(SinkingPass(), PMW);
@@ -2357,9 +2399,19 @@ void AMDGPUCodeGenPassBuilder::addILPOpts(PassManagerWrapper &PMW) const {
   Base::addILPOpts(PMW);
 }
 
-void AMDGPUCodeGenPassBuilder::addAsmPrinter(PassManagerWrapper &PMW,
-                                             CreateMCStreamer) const {
+void AMDGPUCodeGenPassBuilder::addAsmPrinterBegin(
+    PassManagerWrapper &PMW, CreateMCStreamer CreateStreamer) const {
+  // TODO: Add AsmPrinterBegin
+}
+
+void AMDGPUCodeGenPassBuilder::addAsmPrinter(
+    PassManagerWrapper &PMW, CreateMCStreamer CreateStreamer) const {
   // TODO: Add AsmPrinter.
+}
+
+void AMDGPUCodeGenPassBuilder::addAsmPrinterEnd(
+    PassManagerWrapper &PMW, CreateMCStreamer CreateStreamer) const {
+  // TODO: Add AsmPrinterEnd
 }
 
 Error AMDGPUCodeGenPassBuilder::addInstSelector(PassManagerWrapper &PMW) const {

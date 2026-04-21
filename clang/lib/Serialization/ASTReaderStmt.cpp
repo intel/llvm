@@ -108,6 +108,10 @@ namespace clang {
     /// itself.
     static const unsigned NumExprFields = NumStmtFields + 2;
 
+    /// The number of record fields required for the ObjCObjectLiteral class
+    /// itself (Expr fields + isExpressibleAsConstantInitializer).
+    static const unsigned NumObjCObjectLiteralFields = NumExprFields + 1;
+
     /// The number of bits required for the packing bits for the Expr class.
     static const unsigned NumExprBits = 10;
 
@@ -543,6 +547,7 @@ void ASTStmtReader::VisitCXXReflectExpr(CXXReflectExpr *E) {
 void ASTStmtReader::VisitSYCLKernelCallStmt(SYCLKernelCallStmt *S) {
   VisitStmt(S);
   S->setOriginalStmt(cast<CompoundStmt>(Record.readSubStmt()));
+  S->setKernelLaunchStmt(cast<Stmt>(Record.readSubStmt()));
   S->setOutlinedFunctionDecl(readDeclAs<OutlinedFunctionDecl>());
 }
 
@@ -616,6 +621,14 @@ void ASTStmtReader::VisitSYCLUniqueStableIdExpr(SYCLUniqueStableIdExpr *E) {
   E->setRParenLocation(readSourceLocation());
 
   E->setExpr(Record.readSubExpr());
+}
+
+void ASTStmtReader::VisitUnresolvedSYCLKernelCallStmt(
+    UnresolvedSYCLKernelCallStmt *S) {
+  VisitStmt(S);
+
+  S->setOriginalStmt(cast<CompoundStmt>(Record.readSubStmt()));
+  S->setKernelLaunchIdExpr(Record.readExpr());
 }
 
 void ASTStmtReader::VisitPredefinedExpr(PredefinedExpr *E) {
@@ -1459,15 +1472,16 @@ void ASTStmtReader::VisitGenericSelectionExpr(GenericSelectionExpr *E) {
   E->DefaultLoc = readSourceLocation();
   E->RParenLoc = readSourceLocation();
 
+  // During serialization, either one more Stmt or one more
+  // TypeSourceInfo was encoded to account for the predicate
+  // (whether it was an expression or a type).
   Stmt **Stmts = E->getTrailingObjects<Stmt *>();
-  // Add 1 to account for the controlling expression which is the first
-  // expression in the trailing array of Stmt *. This is not needed for
-  // the trailing array of TypeSourceInfo *.
-  for (unsigned I = 0, N = NumAssocs + 1; I < N; ++I)
+  for (unsigned I = 0, N = NumAssocs + (E->IsExprPredicate ? 1 : 0); I < N; ++I)
     Stmts[I] = Record.readSubExpr();
 
   TypeSourceInfo **TSIs = E->getTrailingObjects<TypeSourceInfo *>();
-  for (unsigned I = 0, N = NumAssocs; I < N; ++I)
+  for (unsigned I = 0, N = NumAssocs + (!E->IsExprPredicate ? 1 : 0); I < N;
+       ++I)
     TSIs[I] = readTypeSourceInfo();
 }
 
@@ -1500,14 +1514,19 @@ void ASTStmtReader::VisitAtomicExpr(AtomicExpr *E) {
 //===----------------------------------------------------------------------===//
 // Objective-C Expressions and Statements
 
-void ASTStmtReader::VisitObjCStringLiteral(ObjCStringLiteral *E) {
+void ASTStmtReader::VisitObjCObjectLiteral(ObjCObjectLiteral *E) {
   VisitExpr(E);
+  E->setExpressibleAsConstantInitializer(Record.readInt());
+}
+
+void ASTStmtReader::VisitObjCStringLiteral(ObjCStringLiteral *E) {
+  VisitObjCObjectLiteral(E);
   E->setString(cast<StringLiteral>(Record.readSubStmt()));
   E->setAtLoc(readSourceLocation());
 }
 
 void ASTStmtReader::VisitObjCBoxedExpr(ObjCBoxedExpr *E) {
-  VisitExpr(E);
+  VisitObjCObjectLiteral(E);
   // could be one of several IntegerLiteral, FloatLiteral, etc.
   E->SubExpr = Record.readSubStmt();
   E->BoxingMethod = readDeclAs<ObjCMethodDecl>();
@@ -1515,7 +1534,7 @@ void ASTStmtReader::VisitObjCBoxedExpr(ObjCBoxedExpr *E) {
 }
 
 void ASTStmtReader::VisitObjCArrayLiteral(ObjCArrayLiteral *E) {
-  VisitExpr(E);
+  VisitObjCObjectLiteral(E);
   unsigned NumElements = Record.readInt();
   assert(NumElements == E->getNumElements() && "Wrong number of elements");
   Expr **Elements = E->getElements();
@@ -1526,7 +1545,7 @@ void ASTStmtReader::VisitObjCArrayLiteral(ObjCArrayLiteral *E) {
 }
 
 void ASTStmtReader::VisitObjCDictionaryLiteral(ObjCDictionaryLiteral *E) {
-  VisitExpr(E);
+  VisitObjCObjectLiteral(E);
   unsigned NumElements = Record.readInt();
   assert(NumElements == E->getNumElements() && "Wrong number of elements");
   bool HasPackExpansions = Record.readInt();
@@ -3250,6 +3269,11 @@ Stmt *ASTReader::ReadStmtFromStream(ModuleFile &F) {
 
     case EXPR_SYCL_UNIQUE_STABLE_ID:
       S = SYCLUniqueStableIdExpr::CreateEmpty(Context);
+      break;
+
+    case STMT_UNRESOLVED_SYCL_KERNEL_CALL:
+      S = UnresolvedSYCLKernelCallStmt::CreateEmpty(Context);
+      break;
 
     case EXPR_OPENACC_ASTERISK_SIZE:
       S = OpenACCAsteriskSizeExpr::CreateEmpty(Context);
@@ -3521,14 +3545,14 @@ Stmt *ASTReader::ReadStmtFromStream(ModuleFile &F) {
       break;
 
     case EXPR_OBJC_ARRAY_LITERAL:
-      S = ObjCArrayLiteral::CreateEmpty(Context,
-                                        Record[ASTStmtReader::NumExprFields]);
+      S = ObjCArrayLiteral::CreateEmpty(
+          Context, Record[ASTStmtReader::NumObjCObjectLiteralFields]);
       break;
 
     case EXPR_OBJC_DICTIONARY_LITERAL:
-      S = ObjCDictionaryLiteral::CreateEmpty(Context,
-            Record[ASTStmtReader::NumExprFields],
-            Record[ASTStmtReader::NumExprFields + 1]);
+      S = ObjCDictionaryLiteral::CreateEmpty(
+          Context, Record[ASTStmtReader::NumObjCObjectLiteralFields],
+          Record[ASTStmtReader::NumObjCObjectLiteralFields + 1]);
       break;
 
     case EXPR_OBJC_ENCODE:
