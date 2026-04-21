@@ -1,6 +1,7 @@
 # required by lit.site.cfg.py.in
 set(LIBCLC_TEST_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 set(LIBCLC_PERTARGET_TEST_DIR ${CMAKE_CURRENT_BINARY_DIR}/targets)
+set(LLVM_TOOLS_DIR ${LLVM_TOOLS_BINARY_DIR})
 
 configure_lit_site_cfg(
   ${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.py.in
@@ -11,14 +12,20 @@ configure_lit_site_cfg(
 
 set(LIBCLC_TEST_DEPS
   FileCheck
-  llvm-dis
+  ${llvm-dis_target}
   not
   clang
   count
+  libclc-opencl-builtins
 )
 
 umbrella_lit_testsuite_begin(check-libclc)
-foreach( t ${LIBCLC_TARGET_TO_TEST} )
+
+foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
+    if (t STREQUAL native_cpu)
+      continue()
+    endif()
+
     # Each target gets own lit testsuite directory.
     # This is done because all suites passed to add_lit_testsuite
     # are collected into a single invocation of lit, for example:

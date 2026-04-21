@@ -646,6 +646,10 @@ public:
 
   bool hasCommandGraph() const { return !MGraph.expired(); }
 
+  bool isNativeRecording() const;
+
+  ext::oneapi::experimental::queue_state ext_oneapi_get_state_impl() const;
+
   EventImplPtr submit_command_to_graph(
       ext::oneapi::experimental::detail::graph_impl &GraphImpl,
       std::unique_ptr<detail::CG> CommandGroup, sycl::detail::CGType CGType,

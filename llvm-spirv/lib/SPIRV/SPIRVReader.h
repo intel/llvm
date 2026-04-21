@@ -63,7 +63,6 @@ class LLVMContext;
 class MDString;
 class IntrinsicInst;
 class LoadInst;
-class BranchInst;
 class BinaryOperator;
 class Value;
 } // namespace llvm
