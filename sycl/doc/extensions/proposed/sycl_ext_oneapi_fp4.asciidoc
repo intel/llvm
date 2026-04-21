@@ -364,17 +364,17 @@ template<typename... Doubles>          (4)
 explicit fp4_e2m1_x(Doubles... vals);
 ----
 
-_Constraints_ (1): The size of the `Halfs` pack is `N` and each type in this
-pack is `half`.
+_Constraints_ (1): The size of the `Halfs` pack is `N` and `std::decay_t` of
+each type in this pack is `half`.
 
-_Constraints_ (2): The size of the `Bfloats` pack is `N` and each type in this
-pack is `ext::oneapi::bfloat16`.
+_Constraints_ (2): The size of the `Bfloats` pack is `N` and `std::decay_t` of
+each type in this pack is `ext::oneapi::bfloat16`.
 
-_Constraints_ (3): The size of the `Floats` pack is `N` and each type in this
-pack is `float`.
+_Constraints_ (3): The size of the `Floats` pack is `N` and `std::decay_t` of
+each type in this pack is `float`.
 
-_Constraints_ (4): The size of the `Doubles` pack is `N` and each type in this
-pack is `double`.
+_Constraints_ (4): The size of the `Doubles` pack is `N` and `std::decay_t` of
+each type in this pack is `double`.
 
 _Effects:_ Initializes each element of this `fp4_e2m1_x` object from the
 corresponding value in the `vals` pack.
