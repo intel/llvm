@@ -198,9 +198,10 @@ ur_result_t urEnqueueEventsWaitWithBarrierExt(
       [&Queue](ur_command_list_ptr_t CmdList, ur_ze_event_list_t &EventWaitList,
                ur_event_handle_t &Event, bool IsInternal,
                bool InterruptBasedEventsEnabled) {
+        (void)InterruptBasedEventsEnabled;
         UR_CALL(createEventAndAssociateQueue(
             Queue, &Event, UR_COMMAND_EVENTS_WAIT_WITH_BARRIER, CmdList,
-            IsInternal, InterruptBasedEventsEnabled));
+            IsInternal, /* IsMultiDevice */ false));
 
         Event->WaitList = EventWaitList;
 
@@ -795,7 +796,7 @@ urEventWait(uint32_t NumEvents,
       //
       ur_event_handle_t_ *Event = ur_cast<ur_event_handle_t_ *>(e);
       if (!Event->hasExternalRefs())
-        die("urEventWait must not be called for an internal event");
+        continue;
 
       ze_event_handle_t ZeHostVisibleEvent;
       if (auto Res = Event->getOrCreateHostVisibleEvent(ZeHostVisibleEvent))
@@ -821,7 +822,7 @@ urEventWait(uint32_t NumEvents,
       {
         std::shared_lock<ur_shared_mutex> EventLock(Event->Mutex);
         if (!Event->hasExternalRefs())
-          die("urEventWait must not be called for an internal event");
+          continue;
 
         if (!Event->Completed) {
           auto HostVisibleEvent = Event->HostVisibleEvent;
@@ -893,15 +894,11 @@ urEventRelease(/** [in] handle of the event object */ ur_event_handle_t Event) {
   UR_CALL(urEventReleaseInternal(Event, &isEventDeleted));
   // If this is a Completed Event Wait Out Event, then we need to cleanup the
   // event at user release and not at the time of completion.
-  // If the event is labelled as completed and no additional references are
-  // removed, then we still need to decrement the event, but not mark as
-  // completed.
+  // Use CleanupCompletedEvent which is a no-op if the event was already
+  // cleaned up (e.g. by CleanupEventListFromResetCmdList), preventing a
+  // double-release of the internal reference count.
   if (isEventsWaitCompleted & !isEventDeleted) {
-    if (Event->CleanedUp) {
-      UR_CALL(urEventReleaseInternal(Event));
-    } else {
-      UR_CALL(CleanupCompletedEvent((Event), false, false));
-    }
+    UR_CALL(CleanupCompletedEvent((Event), false, false));
   }
 
   return UR_RESULT_SUCCESS;
