@@ -1,4 +1,7 @@
 # -*- Python -*-
+"""
+Lit configuration file for libclc tests.
+"""
 
 import os
 
@@ -74,10 +77,16 @@ if config.libclc_target == "amdgcn-amd-amdhsa":
 
 llvm_config.use_clang(additional_flags=clang_flags)
 
-config.substitutions.append(("%PATH%", config.environment["PATH"]))
-
 tool_dirs = [config.llvm_tools_dir]
 
 tools = ["llvm-dis", "not"]
 
 llvm_config.add_tool_substitutions(tools, tool_dirs)
+
+# Propagate PATH from environment
+if "PATH" in os.environ:
+    config.environment["PATH"] = os.path.pathsep.join(
+        [config.llvm_tools_dir, os.environ["PATH"]]
+    )
+else:
+    config.environment["PATH"] = config.llvm_tools_dir

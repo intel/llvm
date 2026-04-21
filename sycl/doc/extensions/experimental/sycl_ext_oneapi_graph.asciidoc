@@ -20,7 +20,7 @@
 
 == Notice
 
-Copyright (c) 2022-2025 Intel Corporation.  All rights reserved.
+Copyright (c) 2022-2026 Intel Corporation.  All rights reserved.
 
 Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
 of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
@@ -59,6 +59,8 @@ Ronan Keryell, AMD +
 Andrey Alekseenko, KTH Royal Institute of Technology +
 Fábio Mestre, Codeplay +
 Konrad Kusiak, Codeplay +
+Adam Fidel, Intel +
+Matthew Michel, Intel +
 
 == Dependencies
 

@@ -470,6 +470,10 @@ etors:
       desc: "[uint8_t[]][optional-query] return device Windows LUID"
     - name: NODE_MASK
       desc: "[uint32_t][optional-query] return device Windows node mask"
+    - name: PREFERRED_VECTOR_WIDTH_LONG_LONG
+      desc: "[uint32_t] preferred vector width for long long"
+    - name: NATIVE_VECTOR_WIDTH_LONG_LONG
+      desc: "[uint32_t] native vector width for long long"
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Retrieves various information about device"
