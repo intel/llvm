@@ -32,6 +32,8 @@ __SYCL_PARAM_TRAITS_SPEC(device, preferred_vector_width_int, uint32_t,
                          UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_INT)
 __SYCL_PARAM_TRAITS_SPEC(device, preferred_vector_width_long, uint32_t,
                          UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_LONG)
+__SYCL_PARAM_TRAITS_SPEC(device, preferred_vector_width_long_long, uint32_t,
+                         UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_LONG_LONG)
 __SYCL_PARAM_TRAITS_SPEC(device, preferred_vector_width_float, uint32_t,
                          UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_FLOAT)
 __SYCL_PARAM_TRAITS_SPEC(device, preferred_vector_width_double, uint32_t,
@@ -46,6 +48,8 @@ __SYCL_PARAM_TRAITS_SPEC(device, native_vector_width_int, uint32_t,
                          UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_INT)
 __SYCL_PARAM_TRAITS_SPEC(device, native_vector_width_long, uint32_t,
                          UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG)
+__SYCL_PARAM_TRAITS_SPEC(device, native_vector_width_long_long, uint32_t,
+                         UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG_LONG)
 __SYCL_PARAM_TRAITS_SPEC(device, native_vector_width_float, uint32_t,
                          UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_FLOAT)
 __SYCL_PARAM_TRAITS_SPEC(device, native_vector_width_double, uint32_t,
