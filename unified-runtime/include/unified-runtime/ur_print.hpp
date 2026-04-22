@@ -5023,6 +5023,11 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
   } break;
   case UR_DEVICE_INFO_MAX_GLOBAL_WORK_GROUPS: {
     const size_t *tptr = (const size_t *)ptr;
+    if (sizeof(size_t) > size) {
+      os << "invalid size (is: " << size << ", expected: >=" << sizeof(size_t)
+         << ")";
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
     os << (const void *)(tptr) << " (";
     os << *tptr;
     os << ")";
