@@ -64,13 +64,14 @@
 #pragma once
 
 #include <sycl/detail/fwd/multi_ptr.hpp>
-#include <sycl/detail/generic_type_traits.hpp>
-#include <sycl/detail/helpers.hpp>
+#include <sycl/detail/loop.hpp>
 #include <sycl/detail/type_traits.hpp>
 #include <sycl/detail/type_traits/vec_marray_traits.hpp>
+#include <sycl/detail/vector_core.hpp>
 #include <sycl/half_type.hpp>
 #include <sycl/marray.hpp>
-#include <sycl/vector.hpp>
+
+#include <limits>
 
 namespace sycl {
 inline namespace _V1 {

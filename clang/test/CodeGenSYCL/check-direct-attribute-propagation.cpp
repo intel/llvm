@@ -10,19 +10,6 @@
 using namespace sycl;
 queue q;
 
-class Foo {
-public:
-  [[intel::scheduler_target_fmax_mhz(1)]] void operator()() const {}
-};
-
-template <int SIZE>
-class Functor {
-public:
-  [[intel::scheduler_target_fmax_mhz(SIZE)]] void operator()() const {}
-};
-
-[[intel::scheduler_target_fmax_mhz(5)]] void foo() {}
-
 class Foo1 {
 public:
   [[intel::num_simd_work_items(1)]] void operator()() const {}
@@ -159,35 +146,15 @@ public:
 
 int main() {
   q.submit([&](handler &h) {
-    // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name1() #0{{.*}} !kernel_arg_buffer_location ![[NUM:[0-9]+]]{{.*}} !scheduler_target_fmax_mhz ![[NUM1:[0-9]+]]
-    Foo boo;
-    h.single_task<class kernel_name1>(boo);
-
-    // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name2() #0{{.*}} !kernel_arg_buffer_location ![[NUM]]{{.*}} !scheduler_target_fmax_mhz ![[NUM42:[0-9]+]]
-    h.single_task<class kernel_name2>(
-        []() [[intel::scheduler_target_fmax_mhz(42)]]{});
-
-    // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name3() #0{{.*}} !kernel_arg_buffer_location ![[NUM]]{{.*}} !scheduler_target_fmax_mhz ![[NUM2:[0-9]+]]
-    Functor<2> f;
-    h.single_task<class kernel_name3>(f);
-
-    // Test attribute is not propagated.
-    // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name4() #0{{.*}} !kernel_arg_buffer_location ![[NUM]]
-    // CHECK-NOT: !scheduler_target_fmax_mhz
-    // CHECK-SAME: {
-    // CHECK: define {{.*}}spir_func void @_Z3foov()
-    h.single_task<class kernel_name4>(
-        []() { foo(); });
-
-    // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name5() #0{{.*}} !kernel_arg_buffer_location ![[NUM]]{{.*}} !num_simd_work_items ![[NUM1]]
+    // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name5() #0{{.*}} !kernel_arg_buffer_location ![[NUM:[0-9]+]]{{.*}} !num_simd_work_items ![[NUM1:[0-9]+]]
     Foo1 boo1;
     h.single_task<class kernel_name5>(boo1);
 
-    // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name6() #0{{.*}} !kernel_arg_buffer_location ![[NUM]]{{.*}} !num_simd_work_items ![[NUM42]]
+    // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name6() #0{{.*}} !kernel_arg_buffer_location ![[NUM]]{{.*}} !num_simd_work_items ![[NUM42:[0-9]+]]
     h.single_task<class kernel_name6>(
         []() [[intel::num_simd_work_items(42)]]{});
 
-    // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name7() #0{{.*}} !kernel_arg_buffer_location ![[NUM]]{{.*}} !num_simd_work_items ![[NUM2]]
+    // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name7() #0{{.*}} !kernel_arg_buffer_location ![[NUM]]{{.*}} !num_simd_work_items ![[NUM2:[0-9]+]]
     Functor1<2> f1;
     h.single_task<class kernel_name7>(f1);
 
