@@ -15,6 +15,7 @@
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/ur.hpp>
 #include <sycl/device.hpp>
+#include <sycl/ext/oneapi/work_group_scratch_memory.hpp>
 
 #include <cstring>
 #include <utility>
@@ -601,6 +602,14 @@ EventImplPtr queue_impl::submit_kernel_direct_impl(
   // Validate and set kernel launch properties.
   KData.validateAndSetKernelLaunchProperties(Props, hasCommandGraph(),
                                              getDeviceImpl());
+
+  if (!Props.get<sycl::ext::oneapi::experimental::work_group_scratch_size>()
+           ->MProperty &&
+      DeviceKernelInfo->getWorkGroupDynamicLocalMem())
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::memory_allocation),
+        "Kernel allocates work group scratch memory but an allocation size "
+        "has not been specified through a kernel launch property!");
 
   auto SubmitKernelFunc = [&](detail::CG::StorageInitHelper &&CGData)
       -> std::pair<EventImplPtr, bool> {

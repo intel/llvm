@@ -1493,6 +1493,18 @@ void ProgramManager::cacheKernelImplicitLocalArg(
     }
 }
 
+void ProgramManager::cacheKernelWorkGroupDynamicLocalMem(
+    const RTDeviceBinaryImage &Img) {
+  const RTDeviceBinaryImage::PropertyRange &WorkGroupDynamicLocalMemRange =
+      Img.getWorkGroupDynamicLocalMem();
+  if (WorkGroupDynamicLocalMemRange.isAvailable())
+    for (auto Prop : WorkGroupDynamicLocalMemRange) {
+      auto It = m_DeviceKernelInfoMap.find(Prop->Name);
+      assert(It != m_DeviceKernelInfoMap.end());
+      It->second.setWorkGroupDynamicLocalMem();
+    }
+}
+
 DeviceKernelInfo &
 ProgramManager::getDeviceKernelInfo(const CompileTimeKernelInfoTy &Info) {
   std::lock_guard<std::mutex> Guard(m_DeviceKernelInfoMapMutex);
@@ -1739,7 +1751,7 @@ void ProgramManager::addImage(sycl_device_binary RawImg,
   }
 
   cacheKernelImplicitLocalArg(*Img);
-
+  cacheKernelWorkGroupDynamicLocalMem(*Img);
   // Sort kernel ids for faster search
   std::sort(KernelIDs->begin(), KernelIDs->end(), LessByHash<kernel_id>{});
 
