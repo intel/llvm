@@ -21,7 +21,9 @@ config.test_exec_root = os.path.join(config.sycl_obj_root, "unittests")
 config.test_source_root = config.test_exec_root
 
 # testFormat: The test format to use to interpret tests.
-config.test_format = lit.formats.GoogleTest(config.llvm_build_mode, "-Non_Preview_Tests")
+config.test_format = lit.formats.GoogleTest(
+    config.llvm_build_mode, "-Non_Preview_Tests"
+)
 
 # Propagate the temp directory. Windows requires this because it uses \Windows\
 # if none of these are present.
