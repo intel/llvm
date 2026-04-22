@@ -118,14 +118,13 @@ unsigned TargetCodeGenInfo::getDeviceKernelCallingConv() const {
   // sub-functions.  This uses a modified version of the C calling convention
   // which simplifies the treatment of non-scalar types.  (The rule adjustment
   // hapens in CodeGenTypes::arrangeLLVMFunctionInfo.)
-  //
-  // Outside of OpenCL, kernels currently do not exist for CPU targets.
-  assert(getABIInfo().getContext().getLangOpts().OpenCL &&
-         "Kernel calling convention only defined for OpenCL");
-
   if (getABIInfo().getContext().getTargetInfo().getTriple().isNativeCPU()) {
     return llvm::CallingConv::SPIR_KERNEL;
   }
+
+  // Outside of OpenCL, kernels currently do not exist for CPU targets.
+  assert(getABIInfo().getContext().getLangOpts().OpenCL &&
+        "Kernel calling convention only defined for OpenCL");
 
   return llvm::CallingConv::C;
 }
