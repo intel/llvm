@@ -1,0 +1,10 @@
+prefix=@CMAKE_INSTALL_PREFIX@
+includedir=${prefix}/include
+libdir=${prefix}/lib@LLVM_LIBDIR_SUFFIX@
+
+Name: XPTI
+Description: XPTI Proxy Library
+URL: https://github.com/intel/llvm
+Version: @PROJECT_VERSION@
+Libs: -L${libdir} -lxpti
+Cflags: -I${includedir}

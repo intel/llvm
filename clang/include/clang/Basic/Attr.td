@@ -1960,23 +1960,6 @@ def SYCLIntelNumSimdWorkItems : InheritableAttr {
   let SupportsNonconformingLambdaSyntax = 1;
 }
 
-def SYCLIntelUseStallEnableClusters : InheritableAttr {
-  let Spellings = [CXX11<"intel","use_stall_enable_clusters">];
-  let LangOpts = [SilentlyIgnoreSYCLIsHost, SYCLIsDevice];
-  let Subjects = SubjectList<[Function], ErrorDiag>;
-  let Documentation = [SYCLIntelUseStallEnableClustersAttrDocs];
-  let SupportsNonconformingLambdaSyntax = 1;
-}
-
-def SYCLIntelSchedulerTargetFmaxMhz : InheritableAttr {
-  let Spellings = [CXX11<"intel", "scheduler_target_fmax_mhz">];
-  let Args = [ExprArgument<"Value">];
-  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
-  let Subjects = SubjectList<[Function], ErrorDiag>;
-  let Documentation = [SYCLIntelSchedulerTargetFmaxMhzAttrDocs];
-  let SupportsNonconformingLambdaSyntax = 1;
-}
-
 def SYCLIntelMaxWorkGroupSize : InheritableAttr {
   let Spellings = [CXX11<"intel", "max_work_group_size">];
   let Args = [ExprArgument<"XDim">,
@@ -2926,24 +2909,6 @@ def Mode : Attr {
   // This is notionally a type attribute, which #pragma clang attribute
   // generally does not support.
   let PragmaAttributeSupport = 0;
-}
-
-def SYCLIntelLoopCoalesce : StmtAttr {
-  let Spellings = [CXX11<"intel", "loop_coalesce">];
-  let Subjects = SubjectList<[ForStmt, CXXForRangeStmt, WhileStmt, DoStmt],
-                             ErrorDiag, "'for', 'while', and 'do' statements">;
-  let Args = [ExprArgument<"NExpr", /*opt*/1>];
-  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
-  let Documentation = [SYCLIntelLoopCoalesceAttrDocs];
-}
-
-def SYCLIntelMaxInterleaving : StmtAttr {
-  let Spellings = [CXX11<"intel", "max_interleaving">];
-  let Subjects = SubjectList<[ForStmt, CXXForRangeStmt, WhileStmt, DoStmt],
-                             ErrorDiag, "'for', 'while', and 'do' statements">;
-  let Args = [ExprArgument<"NExpr">];
-  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
-  let Documentation = [SYCLIntelMaxInterleavingAttrDocs];
 }
 
 def Naked : InheritableAttr {
