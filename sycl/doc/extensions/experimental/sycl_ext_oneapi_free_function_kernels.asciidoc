@@ -725,45 +725,45 @@ template<auto *Func, typename Param,                                       (1)
 typename Param::return_type get_kernel_info(const context& ctxt,
                                             const device& dev,
                                             sycl::range<1> r,
-                                            size_t bytes = 0,
-                                            LaunchProperties props = {});
+                                            LaunchProperties props = {},
+                                            size_t bytes = 0);
 
 template<auto *Func, typename Param,                                       (2)
          typename LaunchProperties = empty_properties_t>
 typename Param::return_type get_kernel_info(const context& ctxt,
                                             const device& dev,
                                             sycl::range<2> r,
-                                            size_t bytes = 0,
-                                            LaunchProperties props = {});
+                                            LaunchProperties props = {},
+                                            size_t bytes = 0);
 
 template<auto *Func, typename Param,                                       (3)
          typename LaunchProperties = empty_properties_t>
 typename Param::return_type get_kernel_info(const context& ctxt,
                                             const device& dev,
                                             sycl::range<3> r,
-                                            size_t bytes = 0,
-                                            LaunchProperties props = {});
+                                            LaunchProperties props = {},
+                                            size_t bytes = 0);
 
 template<auto *Func, typename Param,                                       (4)
          typename LaunchProperties = empty_properties_t>
 typename Param::return_type get_kernel_info(const queue& q,
                                             sycl::range<1> r,
-                                            size_t bytes = 0,
-                                            LaunchProperties props = {});
+                                            LaunchProperties props = {},
+                                            size_t bytes = 0);
 
 template<auto *Func, typename Param,                                       (5)
          typename LaunchProperties = empty_properties_t>
 typename Param::return_type get_kernel_info(const queue& q,
                                             sycl::range<2> r,
-                                            size_t bytes = 0,
-                                            LaunchProperties props = {});
+                                            LaunchProperties props = {},
+                                            size_t bytes = 0);
 
 template<auto *Func, typename Param,                                       (6)
          typename LaunchProperties = empty_properties_t>
 typename Param::return_type get_kernel_info(const queue& q,
                                             sycl::range<3> r,
-                                            size_t bytes = 0,
-                                            LaunchProperties props = {});
+                                            LaunchProperties props = {},
+                                            size_t bytes = 0);
 
 } // namespace sycl::ext::oneapi::experimental
 ----
@@ -792,7 +792,7 @@ _Returns_ (1) - (3): The same value `ret` that would be computed by:
 auto bundle =
   sycl::get_kernel_bundle<Func, sycl::bundle_state::executable>(ctxt);
 sycl::kernel k = bundle.ext_oneapi_get_kernel<Func>();
-auto ret = k.ext_oneapi_get_info<Param>(dev, r, bytes, props);
+auto ret = k.ext_oneapi_get_info<Param>(dev, r, props, bytes);
 ----
 
 _Returns_ (4) - (6): The same value `ret` that would be computed by:
@@ -804,7 +804,7 @@ sycl::device dev = q.get_device();
 auto bundle =
   sycl::get_kernel_bundle<Func, sycl::bundle_state::executable>(ctxt);
 sycl::kernel k = bundle.ext_oneapi_get_kernel<Func>();
-auto ret = k.ext_oneapi_get_info<Param>(dev, r, bytes, props);
+auto ret = k.ext_oneapi_get_info<Param>(dev, r, props, bytes);
 ----
 
 _Remarks:_ An implementation provides these functions only if it also implements

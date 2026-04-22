@@ -123,11 +123,12 @@ int main() {
 
   // When a kernel uses root-group synchronization, the total number of
   // work-groups is limited.  This limit is specific to the kernel, the device,
-  // the work-group size (which is 32 in this example), and the amount of
-  // dynamically allocated work-group local memory (which is zero in this
-  // example).
-  auto maxWGs = syclex::get_kernel_info<
-    syclex::info::kernel::max_num_work_groups_sync>(q, 32, 0);
+  // the work-group size (which is 32 in this example), the launch parameters,
+  // and the amount of dynamically allocated work-group local memory (which is
+  // zero in this example).
+  syclex::properties props{syclex::use_root_sync};
+  auto maxWGs = syclex::get_kernel_info<KernelName,
+    syclex::info::kernel::max_num_work_groups_sync>(q, 32, props, 0);
 
   // Construct an nd-range which launches the maximum number of work-groups.
   auto ndr = sycl::nd_range<1>{maxWGs * 32, 32};
@@ -135,7 +136,7 @@ int main() {
   // When a kernel uses root-group synchronization, it must be launched with the
   // "use_root_sync" property.  Construct a launch configuration with this
   // property.
-  syclex::launch_config cfg{ndr, syclex::properties{syclex::use_root_sync}};
+  syclex::launch_config cfg{ndr, props};
 
   size_t *data = sycl::malloc_device<size_t>(maxWGs * 32, q);
   syclex::nd_launch(q, cfg, KernelName{data});
@@ -196,20 +197,20 @@ class kernel {
   template <typename Param, typename LaunchProperties = empty_properties_t>
   typename Param::return_type ext_oneapi_get_info(const device& dev,
                                                   sycl::range<1> r,
-                                                  size_t bytes = 0,
-                                                  LaunchProperties props = {}) const;
+                                                  LaunchProperties props = {},
+                                                  size_t bytes = 0) const;
 
   template <typename Param, typename LaunchProperties = empty_properties_t>
   typename Param::return_type ext_oneapi_get_info(const device& dev,
                                                   sycl::range<2> r,
-                                                  size_t bytes = 0,
-                                                  LaunchProperties props = {}) const;
+                                                  LaunchProperties props = {},
+                                                  size_t bytes = 0) const;
 
   template <typename Param, typename LaunchProperties = empty_properties_t>
   typename Param::return_type ext_oneapi_get_info(const device& dev,
                                                   sycl::range<3> r,
-                                                  size_t bytes = 0,
-                                                  LaunchProperties props = {}) const;
+                                                  LaunchProperties props = {},
+                                                  size_t bytes = 0) const;
 };
 
 } // namespace sycl
@@ -224,10 +225,18 @@ _Constraints:_
 
 _Returns:_ The maximum number of work-groups that are allowed when the kernel
 uses root-group synchronization, assuming the kernel is launched with a
-work-group size of `r`, `bytes` bytes of dynamic work-group local memory, and
-with kernel launch properties `props`.
+work-group size of `r`, kernel launch properties `props`, and `bytes` bytes of
+dynamic work-group local memory.
 If the kernel can be submitted to the device without an error, the minimum value
 returned by this query is 1, otherwise it is 0.
+
+If the kernel uses
+link:../experimental/sycl_ext_oneapi_work_group_scratch_memory.asciidoc[
+sycl_ext_oneapi_work_group_scratch_memory] to allocate dynamic work-group local
+memory, the amount of that memory can be specified either by including
+`work_group_scratch_size` in `props` or by specifying the size via `bytes`.
+It should only be specified in one of these ways, though, because the query adds
+these value together to get the total amount of dynamic work-group local memory.
 
 _Remarks:_ This query implicitly assumes that the kernel will be launched with
 the `use_root_sync` kernel launch property.
@@ -248,45 +257,45 @@ template<typename KernelName, typename Param,                              (1)
 typename Param::return_type get_kernel_info(const context& ctxt,
                                             const device& dev,
                                             sycl::range<1> r,
-                                            size_t bytes = 0,
-                                            LaunchProperties props = {});
+                                            LaunchProperties props = {},
+                                            size_t bytes = 0);
 
 template<typename KernelName, typename Param,                              (2)
          typename LaunchProperties = empty_properties_t>
 typename Param::return_type get_kernel_info(const context& ctxt,
                                             const device& dev,
                                             sycl::range<2> r,
-                                            size_t bytes = 0,
-                                            LaunchProperties props = {});
+                                            LaunchProperties props = {},
+                                            size_t bytes = 0);
 
 template<typename KernelName, typename Param,                              (3)
          typename LaunchProperties = empty_properties_t>
 typename Param::return_type get_kernel_info(const context& ctxt,
                                             const device& dev,
                                             sycl::range<3> r,
-                                            size_t bytes = 0,
-                                            LaunchProperties props = {});
+                                            LaunchProperties props = {},
+                                            size_t bytes = 0);
 
 template<typename KernelName, typename Param,                              (4)
          typename LaunchProperties = empty_properties_t>
 typename Param::return_type get_kernel_info(const queue& q,
                                             sycl::range<1> r,
-                                            size_t bytes = 0,
-                                            LaunchProperties props = {});
+                                            LaunchProperties props = {},
+                                            size_t bytes = 0);
 
 template<typename KernelName, typename Param,                              (5)
          typename LaunchProperties = empty_properties_t>
 typename Param::return_type get_kernel_info(const queue& q,
                                             sycl::range<2> r,
-                                            size_t bytes = 0,
-                                            LaunchProperties props = {});
+                                            LaunchProperties props = {},
+                                            size_t bytes = 0);
 
 template<typename KernelName, typename Param,                              (6)
          typename LaunchProperties = empty_properties_t>
 typename Param::return_type get_kernel_info(const queue& q,
                                             sycl::range<3> r,
-                                            size_t bytes = 0,
-                                            LaunchProperties props = {});
+                                            LaunchProperties props = {},
+                                            size_t bytes = 0);
 
 } // namespace sycl::ext::oneapi::experimental
 ----
@@ -317,7 +326,7 @@ _Returns_ (1) - (3): The same value `ret` that would be computed by:
 auto bundle =
   sycl::get_kernel_bundle<KernelName, sycl::bundle_state::executable>(ctxt);
 sycl::kernel k = bundle.get_kernel<KernelName>();
-auto ret = k.ext_oneapi_get_info<Param>(dev, r, bytes, props);
+auto ret = k.ext_oneapi_get_info<Param>(dev, r, props, bytes);
 ----
 
 _Returns_ (4) - (6): The same value `ret` that would be computed by:
@@ -329,7 +338,7 @@ sycl::device dev = q.get_device();
 auto bundle =
   sycl::get_kernel_bundle<KernelName, sycl::bundle_state::executable>(ctxt);
 sycl::kernel k = bundle.get_kernel<KernelName>();
-auto ret = k.ext_oneapi_get_info<Param>(dev, r, bytes, props);
+auto ret = k.ext_oneapi_get_info<Param>(dev, r, props, bytes);
 ----
 
 
