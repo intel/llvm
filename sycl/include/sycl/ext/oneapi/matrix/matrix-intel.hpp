@@ -11,8 +11,6 @@
 #include "matrix-unified-utils.hpp" // for use, layout, tf32, matrix
 #include "utils.hpp"                // for getDecorated
 
-#include <sycl/__spirv/spirv_ops_intel_math.hpp>
-#include <sycl/__spirv/spirv_ops_matrix.hpp>
 #include <sycl/__spirv/spirv_types.hpp>       // for MatrixLayout, MatrixUse
 #include <sycl/access/access.hpp>             // for address_space, decorated
 #include <sycl/builtins.hpp>                  // for fabs
