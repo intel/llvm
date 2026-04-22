@@ -160,6 +160,7 @@ MAP(UR_DEVICE_INFO_KERNEL_LAUNCH_CAPABILITIES, ur_kernel_launch_properties_flags
 // Manually changed std::vector<uint8_t> -> std::array<uint8_t, 8>
 MAP(UR_DEVICE_INFO_LUID, std::array<uint8_t, 8>)
 MAP(UR_DEVICE_INFO_NODE_MASK, uint32_t)
+MAP(UR_DEVICE_INFO_MAX_GLOBAL_WORK_GROUPS, size_t)
 
 // These aren't present in the specification, extracted from ur_api.h
 // instead.

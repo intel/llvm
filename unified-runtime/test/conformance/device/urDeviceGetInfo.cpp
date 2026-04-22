@@ -1848,6 +1848,23 @@ TEST_P(urDeviceGetInfoTest, SuccessMemoryBusWidth) {
                              property_value);
 }
 
+TEST_P(urDeviceGetInfoTest, SuccessMaxGlobalWorkGroups) {
+  UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
+
+  size_t property_size = 0;
+  const ur_device_info_t property_name = UR_DEVICE_INFO_MAX_GLOBAL_WORK_GROUPS;
+
+  ASSERT_SUCCESS(
+      urDeviceGetInfo(device, property_name, 0, nullptr, &property_size));
+  ASSERT_EQ(property_size, sizeof(size_t));
+
+  size_t max_global_work_groups = 0;
+  ASSERT_SUCCESS(urDeviceGetInfo(device, property_name,
+                                 sizeof(max_global_work_groups),
+                                 &max_global_work_groups, nullptr));
+  ASSERT_GT(max_global_work_groups, 0u);
+}
+
 TEST_P(urDeviceGetInfoTest, SuccessMaxWorkGroups3D) {
   UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
 

@@ -474,6 +474,8 @@ etors:
       desc: "[uint32_t] preferred vector width for long long"
     - name: NATIVE_VECTOR_WIDTH_LONG_LONG
       desc: "[uint32_t] native vector width for long long"
+    - name: MAX_GLOBAL_WORK_GROUPS
+      desc: "[size_t] return max total number of work groups"
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Retrieves various information about device"

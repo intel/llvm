@@ -9,6 +9,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <OffloadAPI.h>
+#include <limits>
 #include <unified-runtime/ur_api.h>
 #include <ur/ur.hpp>
 
@@ -211,6 +212,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     }
 
     return UR_RESULT_SUCCESS;
+  }
+  case UR_DEVICE_INFO_MAX_GLOBAL_WORK_GROUPS: {
+    return ReturnValue(static_cast<size_t>((std::numeric_limits<int>::max)()));
   }
 
   // Unimplemented features

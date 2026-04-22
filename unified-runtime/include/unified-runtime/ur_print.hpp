@@ -3178,6 +3178,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
   case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG_LONG:
     os << "UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG_LONG";
     break;
+  case UR_DEVICE_INFO_MAX_GLOBAL_WORK_GROUPS:
+    os << "UR_DEVICE_INFO_MAX_GLOBAL_WORK_GROUPS";
+    break;
   case UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP:
     os << "UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP";
     break;
@@ -5016,6 +5019,12 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
 
     os << *tptr;
 
+    os << ")";
+  } break;
+  case UR_DEVICE_INFO_MAX_GLOBAL_WORK_GROUPS: {
+    const size_t *tptr = (const size_t *)ptr;
+    os << (const void *)(tptr) << " (";
+    os << *tptr;
     os << ")";
   } break;
   case UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP: {

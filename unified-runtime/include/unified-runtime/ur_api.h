@@ -2378,6 +2378,8 @@ typedef enum ur_device_info_t {
   UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_LONG_LONG = 131,
   /// [uint32_t] native vector width for long long
   UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG_LONG = 132,
+  /// [size_t] return max total number of work groups
+  UR_DEVICE_INFO_MAX_GLOBAL_WORK_GROUPS = 133,
   /// [::ur_bool_t] Returns true if the device supports the use of
   /// command-buffers.
   UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP = 0x1000,
