@@ -144,7 +144,7 @@ lowerDynamicLocalMemCallDirect(CallInst *CI, Triple TT,
 
 static void lowerLocalMemCall(Function *LocalMemAllocFunc,
                               std::function<void(CallInst *CI)> TransformCall) {
-  static SmallPtrSet<Function *, 16> FuncsCache;
+  SmallPtrSet<Function *, 16> FuncsCache;
   SmallVector<CallInst *, 4> DelCalls;
   for (User *U : LocalMemAllocFunc->users()) {
     auto *CI = cast<CallInst>(U);

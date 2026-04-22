@@ -62,6 +62,13 @@ void freeFuncKernelWithoutRootGroup() {
       reinterpret_cast<int *>(syclex::get_work_group_scratch_memory());
 }
 
+int *get_dynamic_local_mem() {
+  return reinterpret_cast<int *>(syclex::get_work_group_scratch_memory());
+}
+
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclex::single_task_kernel))
+void indirectLocalMemKernel() { int *LocalMem = get_dynamic_local_mem(); }
+
 constexpr int SIZE = 32;
 
 int main() {
@@ -180,6 +187,15 @@ int main() {
     Q.submit([&](sycl::handler &Cgh) {
       syclex::single_task(
           Cgh, syclex::kernel_function<freeFuncKernelWithoutRootGroup>);
+    });
+    assert(false && "Expected exception not seen!");
+  } catch (sycl::exception const &e) {
+    assert(e.code() == errc::memory_allocation);
+  }
+
+  try {
+    Q.submit([&](sycl::handler &Cgh) {
+      syclex::single_task(Cgh, syclex::kernel_function<indirectLocalMemKernel>);
     });
     assert(false && "Expected exception not seen!");
   } catch (sycl::exception const &e) {
