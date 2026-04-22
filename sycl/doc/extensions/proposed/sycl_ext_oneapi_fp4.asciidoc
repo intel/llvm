@@ -243,18 +243,16 @@ class fp4_e2m1_x {
   explicit fp4_e2m1_x(const marray<double,N>& vals);
 
   // Construct with stochastic rounding with user provided seed from an array of
-  // half, bfloat16, float.
+  // half, bfloat16.
 
   explicit fp4_e2m1_x(half const (&vals)[N], const stochastic_seed& seed);
   explicit fp4_e2m1_x(bfloat16 const (&vals)[N], const stochastic_seed& seed);
-  explicit fp4_e2m1_x(float const (&vals)[N], const stochastic_seed& seed);
 
   // Construct with stochastic rounding with user provided seed from an marray
-  // of half, bfloat16, float.
+  // of half, bfloat16.
 
   explicit fp4_e2m1_x(const marray<half,N>& vals, const stochastic_seed& seed);
   explicit fp4_e2m1_x(const marray<bfloat16,N>& vals, const stochastic_seed& seed);
-  explicit fp4_e2m1_x(const marray<float,N>& vals, const stochastic_seed& seed);
 
   // Construct from integer types.
   // Available only when N==1.
@@ -364,17 +362,17 @@ template<typename... Doubles>          (4)
 explicit fp4_e2m1_x(Doubles... vals);
 ----
 
-_Constraints_ (1): The size of the `Halfs` pack is `N` and each type in this
-pack is `half`.
+_Constraints_ (1): The size of the `Halfs` pack is `N` and `std::decay_t` of
+each type in this pack is `half`.
 
-_Constraints_ (2): The size of the `Bfloats` pack is `N` and each type in this
-pack is `ext::oneapi::bfloat16`.
+_Constraints_ (2): The size of the `Bfloats` pack is `N` and `std::decay_t` of
+each type in this pack is `ext::oneapi::bfloat16`.
 
-_Constraints_ (3): The size of the `Floats` pack is `N` and each type in this
-pack is `float`.
+_Constraints_ (3): The size of the `Floats` pack is `N` and `std::decay_t` of
+each type in this pack is `float`.
 
-_Constraints_ (4): The size of the `Doubles` pack is `N` and each type in this
-pack is `double`.
+_Constraints_ (4): The size of the `Doubles` pack is `N` and `std::decay_t` of
+each type in this pack is `double`.
 
 _Effects:_ Initializes each element of this `fp4_e2m1_x` object from the
 corresponding value in the `vals` pack.
@@ -430,7 +428,6 @@ _Target Support:_ The rounding mode `r` has the following restrictions:
 ----
 explicit fp4_e2m1_x(half const (&vals)[N], const stochastic_seed& seed);
 explicit fp4_e2m1_x(bfloat16 const (&vals)[N], const stochastic_seed& seed);
-explicit fp4_e2m1_x(float const (&vals)[N], const stochastic_seed& seed);
 ----
 
 _Effects:_ Initializes each element of this `fp4_e2m1_x` object from the
@@ -455,7 +452,6 @@ They are only supported in device code as follows:
 ----
 explicit fp4_e2m1_x(const marray<half,N>& vals, const stochastic_seed& seed);
 explicit fp4_e2m1_x(const marray<bfloat16,N>& vals, const stochastic_seed& seed);
-explicit fp4_e2m1_x(const marray<float,N>& vals, const stochastic_seed& seed);
 ----
 
 _Effects:_ Initializes each element of this `fp4_e2m1_x` object from the

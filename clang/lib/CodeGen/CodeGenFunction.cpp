@@ -832,15 +832,6 @@ void CodeGenFunction::EmitKernelMetadata(const FunctionDecl *FD,
                     llvm::MDNode::get(Context, AttrMDArgs));
   }
 
-  if (const auto *A = FD->getAttr<SYCLIntelSchedulerTargetFmaxMhzAttr>()) {
-    const auto *CE = cast<ConstantExpr>(A->getValue());
-    std::optional<llvm::APSInt> ArgVal = CE->getResultAsAPSInt();
-    llvm::Metadata *AttrMDArgs[] = {llvm::ConstantAsMetadata::get(
-        Builder.getInt32(ArgVal->getSExtValue()))};
-    Fn->setMetadata("scheduler_target_fmax_mhz",
-                    llvm::MDNode::get(Context, AttrMDArgs));
-  }
-
   if (const auto *A = FD->getAttr<SYCLIntelMaxGlobalWorkDimAttr>()) {
     const auto *CE = cast<ConstantExpr>(A->getValue());
     std::optional<llvm::APSInt> ArgVal = CE->getResultAsAPSInt();
@@ -1241,14 +1232,6 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
     llvm::ConstantAsMetadata *SrcLocMD = llvm::ConstantAsMetadata::get(Line);
     llvm::MDTuple *SrcLocMDT = llvm::MDNode::get(getLLVMContext(), {SrcLocMD});
     Fn->setMetadata("srcloc", SrcLocMDT);
-  }
-
-  if (getLangOpts().SYCLIsDevice && D &&
-      D->hasAttr<SYCLIntelUseStallEnableClustersAttr>()) {
-    llvm::Metadata *AttrMDArgs[] = {
-        llvm::ConstantAsMetadata::get(Builder.getInt32(1))};
-    Fn->setMetadata("stall_enable",
-                    llvm::MDNode::get(getLLVMContext(), AttrMDArgs));
   }
 
   if (getLangOpts().SYCLIsDevice && D &&
