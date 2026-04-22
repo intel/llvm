@@ -968,10 +968,18 @@ public:
   /// Load weak undeclared identifiers from the external source.
   void LoadExternalWeakUndeclaredIdentifiers();
 
+  /// Load #pragma redefine_extname'd undeclared identifiers from the external
+  /// source.
+  void LoadExternalExtnameUndeclaredIdentifiers();
+
   /// Determine if VD, which must be a variable or function, is an external
   /// symbol that nonetheless can't be referenced from outside this translation
   /// unit because its type has no linkage and it's not extern "C".
   bool isExternalWithNoLinkageType(const ValueDecl *VD) const;
+
+  /// Determines whether the given source location is in the main file
+  /// and we're in a context where we should warn about unused entities.
+  bool isMainFileLoc(SourceLocation Loc) const;
 
   /// Obtain a sorted list of functions that are undefined but ODR-used.
   void getUndefinedButUsed(
@@ -4874,7 +4882,16 @@ public:
 
     /// The availability attribute for a specific platform was inferred from
     /// an availability attribute for another platform.
-    AP_InferredFromOtherPlatform = 2
+    AP_InferredFromOtherPlatform = 2,
+
+    /// The availability attribute was inferred from an 'anyAppleOS'
+    /// availability attribute.
+    AP_InferredFromAnyAppleOS = 3,
+
+    /// The availability attribute was inferred from an 'anyAppleOS'
+    /// availability attribute that was applied using '#pragma clang attribute'.
+    /// This has the lowest priority.
+    AP_PragmaClangAttribute_InferredFromAnyAppleOS = 4
   };
 
   /// Describes the reason a calling convention specification was ignored, used
@@ -4994,7 +5011,8 @@ public:
                         VersionTuple Obsoleted, bool IsUnavailable,
                         StringRef Message, bool IsStrict, StringRef Replacement,
                         AvailabilityMergeKind AMK, int Priority,
-                        const IdentifierInfo *IIEnvironment);
+                        const IdentifierInfo *IIEnvironment,
+                        VersionTuple OrigAnyAppleOSVersion = {});
 
   TypeVisibilityAttr *
   mergeTypeVisibilityAttr(Decl *D, const AttributeCommonInfo &CI,
@@ -5039,6 +5057,9 @@ public:
                                             const IdentifierInfo *ModularImplFn,
                                             StringRef ImplName,
                                             MutableArrayRef<StringRef> Aspects);
+
+  PersonalityAttr *mergePersonalityAttr(Decl *D, FunctionDecl *Routine,
+                                        const AttributeCommonInfo &CI);
 
   /// AddAlignedAttr - Adds an aligned attribute to a particular declaration.
   void AddAlignedAttr(Decl *D, const AttributeCommonInfo &CI, Expr *E,
@@ -5187,9 +5208,6 @@ public:
   void ProcessDeclAttributes(Scope *S, Decl *D, const Declarator &PD);
 
 public:
-
-  bool CheckRebuiltAttributedStmtAttributes(ArrayRef<const Attr *> Attrs);
-
   void PopParsingDeclaration(ParsingDeclState state, Decl *decl);
 
   /// Given a set of delayed diagnostics, re-emit them as if they had
@@ -7027,6 +7045,9 @@ public:
   /// Increment when we find a reference; decrement when we find an ignored
   /// assignment.  Ultimately the value is 0 if every reference is an ignored
   /// assignment.
+  ///
+  /// Uses canonical VarDecl as key so in-class decls and out-of-class defs of
+  /// static data members get tracked as a single entry.
   llvm::DenseMap<const VarDecl *, int> RefsMinusAssignments;
 
   /// Used to control the generation of ExprWithCleanups.
@@ -9938,9 +9959,10 @@ public:
 
   /// Is the module scope we are an implementation unit?
   bool currentModuleIsImplementation() const {
-    return ModuleScopes.empty()
-               ? false
-               : ModuleScopes.back().Module->isModuleImplementation();
+    if (ModuleScopes.empty())
+      return false;
+    const Module *M = ModuleScopes.back().Module;
+    return M->isModuleImplementation() || M->isModulePartitionImplementation();
   }
 
   // When loading a non-modular PCH files, this is used to restore module
@@ -11405,28 +11427,10 @@ public:
                                 const IdentifierInfo *AttrName,
                                 SourceRange Range);
 
-  SYCLIntelIVDepAttr *BuildSYCLIntelIVDepAttr(const AttributeCommonInfo &CI,
-                                              Expr *Expr1, Expr *Expr2);
   LoopUnrollHintAttr *BuildLoopUnrollHintAttr(const AttributeCommonInfo &A,
                                               Expr *E);
   OpenCLUnrollHintAttr *
   BuildOpenCLLoopUnrollHintAttr(const AttributeCommonInfo &A, Expr *E);
-
-  SYCLIntelInitiationIntervalAttr *
-  BuildSYCLIntelInitiationIntervalAttr(const AttributeCommonInfo &CI, Expr *E);
-  SYCLIntelMaxConcurrencyAttr *
-  BuildSYCLIntelMaxConcurrencyAttr(const AttributeCommonInfo &CI, Expr *E);
-  SYCLIntelMaxInterleavingAttr *
-  BuildSYCLIntelMaxInterleavingAttr(const AttributeCommonInfo &CI, Expr *E);
-  SYCLIntelSpeculatedIterationsAttr *
-  BuildSYCLIntelSpeculatedIterationsAttr(const AttributeCommonInfo &CI,
-                                         Expr *E);
-  SYCLIntelLoopCoalesceAttr *
-  BuildSYCLIntelLoopCoalesceAttr(const AttributeCommonInfo &CI, Expr *E);
-  SYCLIntelMaxReinvocationDelayAttr *
-  BuildSYCLIntelMaxReinvocationDelayAttr(const AttributeCommonInfo &CI,
-                                         Expr *E);
-
   ///@}
 
   //

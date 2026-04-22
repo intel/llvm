@@ -402,17 +402,17 @@ template<typename... Doubles>          (4)
 explicit fp8_e4m3_x(Doubles... vals);
 ----
 
-_Constraints_ (1): The size of the `Halfs` pack is `N` and each type in this
-pack is `half`.
+_Constraints_ (1): The size of the `Halfs` pack is `N` and `std::decay_t` of
+each type in this pack is `half`.
 
-_Constraints_ (2): The size of the `Bfloats` pack is `N` and each type in this
-pack is `ext::oneapi::bfloat16`.
+_Constraints_ (2): The size of the `Bfloats` pack is `N` and `std::decay_t` of
+each type in this pack is `ext::oneapi::bfloat16`.
 
-_Constraints_ (3): The size of the `Floats` pack is `N` and each type in this
-pack is `float`.
+_Constraints_ (3): The size of the `Floats` pack is `N` and `std::decay_t` of
+each type in this pack is `float`.
 
-_Constraints_ (4): The size of the `Doubles` pack is `N` and each type in this
-pack is `double`.
+_Constraints_ (4): The size of the `Doubles` pack is `N` and `std::decay_t` of
+each type in this pack is `double`.
 
 _Effects:_ Initializes each element of this `fp8_e4m3_x` object from the
 corresponding value in the `vals` pack.
@@ -570,9 +570,9 @@ Otherwise, returns the value `true`.
 
 [source,c++]
 ----
-explicit operator marray<half,N>() const;      (1)
-explicit operator marray<bfloat16,N>() const;  (2)
-explicit operator marray<float,N>() const;     (3)
+explicit operator marray<half,N>() const;
+explicit operator marray<bfloat16,N>() const;
+explicit operator marray<float,N>() const;
 ----
 
 _Returns:_ The values of this `fp8_e4m3_x` object are converted to an `marray` of
@@ -731,23 +731,19 @@ class fp8_e5m2_x {
   explicit fp8_e5m2_x(const marray<double,N>& vals);
 
   // Construct with stochastic rounding with user provided seed from an array of
-  // half, bfloat16, float.
+  // half, bfloat16.
 
   explicit fp8_e5m2_x(half const (&vals)[N], const stochastic_seed& seed,
                       saturation s = saturation::finite);
   explicit fp8_e5m2_x(bfloat16 const (&vals)[N], const stochastic_seed& seed,
                       saturation s = saturation::finite);
-  explicit fp8_e5m2_x(float const (&vals)[N], const stochastic_seed& seed,
-                      saturation s = saturation::finite);
 
   // Construct with stochastic rounding with user provided seed from an marray
-  // of half, bfloat16, float.
+  // of half, bfloat16.
 
   explicit fp8_e5m2_x(const marray<half,N>& vals, const stochastic_seed& seed,
                       saturation s = saturation::finite);
   explicit fp8_e5m2_x(const marray<bfloat16,N>& vals, const stochastic_seed& seed,
-                      saturation s = saturation::finite);
-  explicit fp8_e5m2_x(const marray<float,N>& vals, const stochastic_seed& seed,
                       saturation s = saturation::finite);
 
   // Construct from integer types.
@@ -858,17 +854,17 @@ template<typename... Doubles>          (4)
 explicit fp8_e5m2_x(Doubles... vals);
 ----
 
-_Constraints_ (1): The size of the `Halfs` pack is `N` and each type in this
-pack is `half`.
+_Constraints_ (1): The size of the `Halfs` pack is `N` and `std::decay_t` of
+each type in this pack is `half`.
 
-_Constraints_ (2): The size of the `Bfloats` pack is `N` and each type in this
-pack is `ext::oneapi::bfloat16`.
+_Constraints_ (2): The size of the `Bfloats` pack is `N` and `std::decay_t` of
+each type in this pack is `ext::oneapi::bfloat16`.
 
-_Constraints_ (3): The size of the `Floats` pack is `N` and each type in this
-pack is `float`.
+_Constraints_ (3): The size of the `Floats` pack is `N` and `std::decay_t` of
+each type in this pack is `float`.
 
-_Constraints_ (4): The size of the `Doubles` pack is `N` and each type in this
-pack is `double`.
+_Constraints_ (4): The size of the `Doubles` pack is `N` and `std::decay_t` of
+each type in this pack is `double`.
 
 _Effects:_ Initializes each element of this `fp8_e5m2_x` object from the
 corresponding value in the `vals` pack.
@@ -937,8 +933,6 @@ explicit fp8_e5m2_x(half const (&vals)[N], const stochastic_seed& seed,
                     saturation s = saturation::finite);
 explicit fp8_e5m2_x(bfloat16 const (&vals)[N], const stochastic_seed& seed,
                     saturation s = saturation::finite);
-explicit fp8_e5m2_x(float const (&vals)[N], const stochastic_seed& seed,
-                    saturation s = saturation::finite);
 ----
 
 _Effects:_ Initializes each element of this `fp8_e5m2_x` object from the
@@ -965,8 +959,6 @@ They are only supported in device code as follows:
 explicit fp8_e5m2_x(const marray<half,N>& vals, const stochastic_seed& seed,
                     saturation s = saturation::finite);
 explicit fp8_e5m2_x(const marray<bfloat16,N>& vals, const stochastic_seed& seed,
-                    saturation s = saturation::finite);
-explicit fp8_e5m2_x(const marray<float,N>& vals, const stochastic_seed& seed,
                     saturation s = saturation::finite);
 ----
 
@@ -1093,9 +1085,9 @@ Otherwise, returns the value `true`.
 
 [source,c++]
 ----
-explicit operator marray<half,N>() const;      (1)
-explicit operator marray<bfloat16,N>() const;  (2)
-explicit operator marray<float,N>() const;     (3)
+explicit operator marray<half,N>() const;
+explicit operator marray<bfloat16,N>() const;
+explicit operator marray<float,N>() const;
 ----
 
 _Returns:_ The values of this `fp8_e5m2_x` object are converted to an `marray` of
@@ -1404,17 +1396,17 @@ template<typename... Doubles>          (4)
 explicit fp8_e8m0_x(Doubles... vals);
 ----
 
-_Constraints_ (1): The size of the `Halfs` pack is `N` and each type in this
-pack is `half`.
+_Constraints_ (1): The size of the `Halfs` pack is `N` and `std::decay_t` of
+each type in this pack is `half`.
 
-_Constraints_ (2): The size of the `Bfloats` pack is `N` and each type in this
-pack is `ext::oneapi::bfloat16`.
+_Constraints_ (2): The size of the `Bfloats` pack is `N` and `std::decay_t` of
+each type in this pack is `ext::oneapi::bfloat16`.
 
-_Constraints_ (3): The size of the `Floats` pack is `N` and each type in this
-pack is `float`.
+_Constraints_ (3): The size of the `Floats` pack is `N` and `std::decay_t` of
+each type in this pack is `float`.
 
-_Constraints_ (4): The size of the `Doubles` pack is `N` and each type in this
-pack is `double`.
+_Constraints_ (4): The size of the `Doubles` pack is `N` and `std::decay_t` of
+each type in this pack is `double`.
 
 _Effects:_ Initializes each element of this `fp8_e8m0_x` object from the
 corresponding value in the `vals` pack.
