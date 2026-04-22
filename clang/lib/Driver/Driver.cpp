@@ -5847,8 +5847,7 @@ class OffloadingActionBuilder final {
       // specific libs and doing a separate directory search.  Each toolchain
       // has their own getDeviceLibs that we can potentially use.
       DeviceLibraries =
-          SYCLTC.getDeviceLibNames(C.getDriver(), Args, TC->getTriple());
-
+          clang::driver::getSYCLDeviceLibNames(C.getDriver(), Args, *TC);
       for (const auto &DeviceLib : DeviceLibraries) {
         for (const auto &LLCandidate : LibLocCandidates) {
           SmallString<128> LibName(LLCandidate);

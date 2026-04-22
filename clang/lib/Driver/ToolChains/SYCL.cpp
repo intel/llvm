@@ -548,17 +548,18 @@ static void addSYCLDeviceSanitizerLibs(
 
 // Returns the list of SYCL device library names for the given target.
 SmallVector<ToolChain::BitCodeLibraryInfo, 8>
-SYCLToolChain::getDeviceLibNames(const Driver &D,
-                                 const llvm::opt::ArgList &Args,
-                                 const llvm::Triple &TargetTriple) const {
+clang::driver::getSYCLDeviceLibNames(const Driver &D,
+                                     const llvm::opt::ArgList &Args,
+                                     const ToolChain &TC) {
   SmallVector<ToolChain::BitCodeLibraryInfo, 8> LibraryList;
+  const llvm::Triple TargetTriple(TC.getTriple());
   bool NoOffloadLib =
       !Args.hasFlag(options::OPT_offloadlib, options::OPT_no_offloadlib, true);
   // Default internalization to 'true' for these libraries, as they are
   // expected to link with -mlink-builtin-bitcode.
   auto addLibToList = [&LibraryList](StringRef LibName,
                                      bool Internalize = true) {
-    BitCodeLibraryInfo BitCodeLibrary({LibName, Internalize});
+    ToolChain::BitCodeLibraryInfo BitCodeLibrary({LibName, Internalize});
     LibraryList.emplace_back(BitCodeLibrary);
   };
   if (TargetTriple.isNVPTX()) {
@@ -576,7 +577,7 @@ SYCLToolChain::getDeviceLibNames(const Driver &D,
   // Ignore no-offloadlib for NativeCPU device library, it provides some
   // critical builtins which must be linked with user's device image.
   if (TargetTriple.isNativeCPU()) {
-    addLibToList("libsycl-nativecpu_utils.bc");
+    addLibToList("libsycl-nativecpu_utils.bc", false);
     return LibraryList;
   }
 
@@ -623,7 +624,7 @@ SYCLToolChain::getDeviceLibNames(const Driver &D,
       "libsycl-native-bfloat16"};
   bool NativeBfloatLibs;
   bool NeedBfloatLibs =
-      selectBfloatLibs(Args, TargetTriple, *this, NativeBfloatLibs);
+      selectBfloatLibs(Args, TargetTriple, TC, NativeBfloatLibs);
   if (NeedBfloatLibs && !NoOffloadLib) {
     // Add native or fallback bfloat16 library.
     if (NativeBfloatLibs)
@@ -1447,11 +1448,13 @@ void SYCLToolChain::addClangTargetOptions(
     SYCLInstallation.addLibspirvLinkArgs(getEffectiveTriple(), DriverArgs,
                                          HostTC.getTriple(), CC1Args);
   }
-  // Only link device libraries at compile time for SPIR/SPIRV targets.
-  // Other targets (NVPTX, AMD) link at link time via clang-linker-wrapper.
-  // This is only done with the new offloading model, to fit with LLVM community
-  // implementation.
-  if (!getDriver().getUseNewOffloadingDriver() || !getTriple().isSPIROrSPIRV())
+  // Only link device libraries at compile time for the new offloading model.
+  if (!getDriver().getUseNewOffloadingDriver())
+    return;
+
+  // --no-offloadlib does not pull in device libraries.
+  if (!DriverArgs.hasFlag(options::OPT_offloadlib, options::OPT_no_offloadlib,
+                          true))
     return;
 
   llvm::SmallVector<BitCodeLibraryInfo, 12> BCLibs;
@@ -1918,7 +1921,7 @@ SYCLToolChain::getDeviceLibs(
 
   // Formulate all of the device libraries needed for this compilation.
   SmallVector<BitCodeLibraryInfo, 8> DeviceLibs =
-      getDeviceLibNames(getDriver(), DriverArgs, getTriple());
+      clang::driver::getSYCLDeviceLibNames(getDriver(), DriverArgs, *this);
 
   // Create full path names to each device library.  If found, add to the list
   // of device libraries that will be linked against.
