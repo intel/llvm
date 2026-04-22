@@ -73,9 +73,9 @@ TEST_P(urMultiDeviceProgramCreateWithBinaryTest,
     ASSERT_SUCCESS(
         urKernelCreate(binary_program, kernelName.data(), kernel.ptr()));
 
-    ASSERT_SUCCESS(urEnqueueKernelLaunch(
-        queues[i], kernel.get(), n_dimensions, &global_offset, &local_size,
-        &global_size, nullptr, 0, nullptr, nullptr));
+    ASSERT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
+        queues[i], kernel.get(), n_dimensions, &global_offset, &global_size,
+        &local_size, 0, nullptr, nullptr, 0, nullptr, nullptr));
 
     ASSERT_SUCCESS(urQueueFinish(queues[i]));
   }

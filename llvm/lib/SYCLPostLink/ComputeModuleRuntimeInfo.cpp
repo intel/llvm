@@ -192,6 +192,19 @@ PropSetRegTy computeModuleProperties(const Module &M,
                     /*PropVal=*/true);
       }
     }
+
+    // Export device_global variables.
+    for (auto &GV : M.globals()) {
+      if (!isDeviceGlobalVariable(GV))
+        continue;
+      if (GV.isDeclaration()) // Skip declarations.
+        continue;
+      if (hasDeviceImageScopeProperty(GV)) // Skip per-image globals.
+        continue;
+      if (GV.hasExternalLinkage()) {
+        PropSet.add(PropSetRegTy::SYCL_EXPORTED_SYMBOLS, GV.getName(), true);
+      }
+    }
   }
   if (GlobProps.EmitKernelNames) {
     for (const auto *F : EntryPoints) {
@@ -224,6 +237,26 @@ PropSetRegTy computeModuleProperties(const Module &M,
         assert(!F.use_empty() && "Function F has no uses");
         PropSet.add(PropSetRegTy::SYCL_IMPORTED_SYMBOLS, F.getName(),
                     /*PropVal=*/true);
+      }
+    }
+
+    // Check for imported device_global variables.
+    for (auto &GV : M.globals()) {
+      if (!GV.isDeclaration())
+        continue;
+      if (!GV.hasExternalLinkage())
+        continue;
+
+      // Check if it's a device_global by type name (declarations don't have
+      // attributes).
+      std::string TypeName;
+      raw_string_ostream(TypeName) << *GV.getValueType();
+
+      if (TypeName.find("device_global") == std::string::npos)
+        continue;
+
+      if (AllowDeviceImageDependencies) {
+        PropSet.add(PropSetRegTy::SYCL_IMPORTED_SYMBOLS, GV.getName(), true);
       }
     }
   }

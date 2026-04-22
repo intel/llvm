@@ -243,6 +243,8 @@ ur_result_t GetDevicePreferredVectorWidthInt(ur_device_handle_t device,
                                              uint32_t &pref_width);
 ur_result_t GetDevicePreferredVectorWidthLong(ur_device_handle_t device,
                                               uint32_t &pref_width);
+ur_result_t GetDevicePreferredVectorWidthLongLong(ur_device_handle_t device,
+                                                  uint32_t &pref_width);
 ur_result_t GetDevicePreferredVectorWidthFloat(ur_device_handle_t device,
                                                uint32_t &pref_width);
 ur_result_t GetDevicePreferredVectorWidthDouble(ur_device_handle_t device,
@@ -257,6 +259,8 @@ ur_result_t GetDeviceNativeVectorWithInt(ur_device_handle_t device,
                                          uint32_t &vec_width);
 ur_result_t GetDeviceNativeVectorWithLong(ur_device_handle_t device,
                                           uint32_t &vec_width);
+ur_result_t GetDeviceNativeVectorWithLongLong(ur_device_handle_t device,
+                                              uint32_t &vec_width);
 ur_result_t GetDeviceNativeVectorWithFloat(ur_device_handle_t device,
                                            uint32_t &vec_width);
 ur_result_t GetDeviceNativeVectorWithDouble(ur_device_handle_t device,
@@ -523,6 +527,41 @@ static inline bool isPVC(ur_device_handle_t hDevice) {
                             &deviceId, nullptr),
             UR_RESULT_SUCCESS);
   return (deviceId & 0xff0) == 0xbd0 || (deviceId & 0xff0) == 0xb60;
+}
+
+// Helpers to construct ur_exp_kernel_arg_properties_t for kernel launch args.
+inline ur_exp_kernel_arg_properties_t MakeLocalArgProp(uint32_t index,
+                                                       size_t size) {
+  return {UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+          nullptr,
+          UR_EXP_KERNEL_ARG_TYPE_LOCAL,
+          index,
+          size,
+          {nullptr}};
+}
+
+inline ur_exp_kernel_arg_properties_t MakePointerArgProp(uint32_t index,
+                                                         const void *ptr) {
+  ur_exp_kernel_arg_value_t val = {};
+  val.pointer = ptr;
+  return {UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+          nullptr,
+          UR_EXP_KERNEL_ARG_TYPE_POINTER,
+          index,
+          sizeof(void *),
+          val};
+}
+
+inline ur_exp_kernel_arg_properties_t
+MakeValueArgProp(uint32_t index, const void *data, size_t size) {
+  ur_exp_kernel_arg_value_t val = {};
+  val.value = data;
+  return {UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+          nullptr,
+          UR_EXP_KERNEL_ARG_TYPE_VALUE,
+          index,
+          size,
+          val};
 }
 
 } // namespace uur

@@ -1,4 +1,5 @@
 // Generate .o file as SYCL device library file.
+// REQUIRES: system-linux
 //
 // RUN: touch %t.devicelib.cpp
 // RUN: %clang %t.devicelib.cpp -fsycl -fsycl-targets=spir64-unknown-unknown -c --offload-new-driver -o %t_1.devicelib.o
@@ -65,4 +66,3 @@
 // CHECK-DEFAULT-SAME:,+SPV_EXT_shader_atomic_float16_add
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_fp_max_error
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_memory_access_aliasing
-// CHECK-DEFAULT-SAME:,+SPV_INTEL_global_variable_host_access

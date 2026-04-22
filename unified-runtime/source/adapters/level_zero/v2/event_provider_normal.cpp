@@ -34,10 +34,12 @@ provider_pool::provider_pool(ur_context_handle_t context, queue_type queue,
       ZE_STRUCTURE_TYPE_COUNTER_BASED_EVENT_POOL_EXP_DESC, nullptr, 0};
 
   if (flags & EVENT_FLAGS_COUNTER) {
-    counterBasedExt.flags =
-        queue == queue_type::QUEUE_IMMEDIATE
-            ? ZE_EVENT_POOL_COUNTER_BASED_EXP_FLAG_IMMEDIATE
-            : ZE_EVENT_POOL_COUNTER_BASED_EXP_FLAG_NON_IMMEDIATE;
+    if (queue == queue_type::QUEUE_IMMEDIATE) {
+      counterBasedExt.flags |= ZE_EVENT_POOL_COUNTER_BASED_EXP_FLAG_IMMEDIATE;
+    }
+    // Always set non-immediate flag for compatibility with graph record &
+    // replay
+    counterBasedExt.flags |= ZE_EVENT_POOL_COUNTER_BASED_EXP_FLAG_NON_IMMEDIATE;
     desc.pNext = &counterBasedExt;
   }
 

@@ -1,7 +1,7 @@
 // RUN: %clangxx -fsycl -c -Xclang -emit-llvm %s -o %t
 // RUN: %clangxx -fsycl -c -fsycl-device-only -Xclang -emit-llvm %s -o %t
 // RUN: sycl-post-link -split=none -properties -split-esimd -lower-esimd -S %t -o %t.table
-// RUN: FileCheck %s -input-file=%t_esimd_0.ll
+// RUN: FileCheck %s -input-file=%t_0.esimd.ll
 
 #include <sycl/ext/intel/esimd.hpp>
 #include <sycl/sycl.hpp>

@@ -63,13 +63,15 @@
 
 #pragma once
 
-#include <sycl/detail/helpers.hpp>
+#include <sycl/detail/fwd/multi_ptr.hpp>
+#include <sycl/detail/loop.hpp>
 #include <sycl/detail/type_traits.hpp>
 #include <sycl/detail/type_traits/vec_marray_traits.hpp>
-#include <sycl/detail/vector_convert.hpp>
+#include <sycl/detail/vector_core.hpp>
+#include <sycl/half_type.hpp>
 #include <sycl/marray.hpp>
-#include <sycl/multi_ptr.hpp>
-#include <sycl/vector.hpp>
+
+#include <limits>
 
 namespace sycl {
 inline namespace _V1 {
@@ -82,19 +84,6 @@ struct use_fast_math
 template <typename> struct use_fast_math : std::false_type {};
 #endif
 template <typename T> constexpr bool use_fast_math_v = use_fast_math<T>::value;
-
-// Utility trait for getting the decoration of a multi_ptr.
-template <typename T> struct get_multi_ptr_decoration;
-template <typename ElementType, access::address_space Space,
-          access::decorated DecorateAddress>
-struct get_multi_ptr_decoration<
-    multi_ptr<ElementType, Space, DecorateAddress>> {
-  static constexpr access::decorated value = DecorateAddress;
-};
-
-template <typename T>
-constexpr access::decorated get_multi_ptr_decoration_v =
-    get_multi_ptr_decoration<T>::value;
 
 // Utility trait for checking if a multi_ptr has a "writable" address space,
 // i.e. global, local, private or generic.
@@ -109,6 +98,61 @@ struct has_writeable_addr_space<multi_ptr<ElementType, Space, DecorateAddress>>
 
 template <typename T>
 constexpr bool has_writeable_addr_space_v = has_writeable_addr_space<T>::value;
+
+// Classification of pointer-like types used by builtin pointer helpers.
+enum class builtin_ptr_kind { raw, multi_ptr };
+
+// Maps a pointer-like type to the corresponding builtin_ptr_kind tag.
+template <typename T>
+using builtin_ptr_kind_tag_t = std::integral_constant<
+    builtin_ptr_kind,
+    is_multi_ptr_v<std::remove_cv_t<std::remove_reference_t<T>>>
+        ? builtin_ptr_kind::multi_ptr
+        : builtin_ptr_kind::raw>;
+
+// Returns Ptr unchanged for raw pointer-like types.
+template <typename PtrTy>
+decltype(auto) builtin_raw_ptr(
+    PtrTy &&Ptr,
+    std::integral_constant<builtin_ptr_kind, builtin_ptr_kind::raw>) {
+  return std::forward<PtrTy>(Ptr);
+}
+
+// Extracts the underlying raw pointer from a multi_ptr.
+template <typename PtrTy>
+auto builtin_raw_ptr(
+    PtrTy &&Ptr,
+    std::integral_constant<builtin_ptr_kind, builtin_ptr_kind::multi_ptr>) {
+  return get_raw_pointer(std::forward<PtrTy>(Ptr));
+}
+
+// Returns a raw pointer representation for raw pointers and multi_ptrs.
+template <typename PtrTy> auto builtin_raw_ptr(PtrTy &&Ptr) {
+  return builtin_raw_ptr(std::forward<PtrTy>(Ptr),
+                         builtin_ptr_kind_tag_t<PtrTy>{});
+}
+
+// Returns a pointer to the first element for raw pointer-like types.
+template <typename PtrTy>
+decltype(auto) builtin_element_pointer(
+    PtrTy &&Ptr,
+    std::integral_constant<builtin_ptr_kind, builtin_ptr_kind::raw>) {
+  return &(*std::forward<PtrTy>(Ptr))[0];
+}
+
+// Returns a pointer to the first element while preserving multi_ptr semantics.
+template <typename PtrTy>
+auto builtin_element_pointer(
+    PtrTy &&Ptr,
+    std::integral_constant<builtin_ptr_kind, builtin_ptr_kind::multi_ptr>) {
+  return detail::get_element_pointer(std::forward<PtrTy>(Ptr));
+}
+
+// Returns an element pointer for raw pointers and multi_ptrs.
+template <typename PtrTy> auto builtin_element_pointer(PtrTy &&Ptr) {
+  return builtin_element_pointer(std::forward<PtrTy>(Ptr),
+                                 builtin_ptr_kind_tag_t<PtrTy>{});
+}
 
 // Utility trait for changing the element type of a type T. If T is a scalar,
 // the new type replaces T completely.
@@ -159,6 +203,32 @@ template <class T, int N> marray<T, N> to_marray(vec<T, N> X) {
   for (size_t I = 0; I < N; I++)
     Marray[I] = X[I];
   return Marray;
+}
+
+// Relation builtins widen signed-char masks to the required integer element
+// type. Keep that conversion local here so builtins.hpp does not need to pull
+// in vector_convert.hpp just for vec::convert.
+template <typename NewElemT, int N>
+vec<NewElemT, N> relational_mask_widen(vec<signed char, N> X) {
+  static_assert(std::is_integral_v<NewElemT> &&
+                !std::is_same_v<NewElemT, bool>);
+
+#if defined(__SYCL_DEVICE_ONLY__) && !defined(__NVPTX__)
+  // Keep NVPTX on the scalar fallback for consistency with vec::convert.
+  // TODO: Likely unnecessary as https://github.com/intel/llvm/issues/11840
+  // has been closed already.
+  if constexpr (N > 1) {
+    using src_vector_t = signed char __attribute__((ext_vector_type(N)));
+    using dst_vector_t = NewElemT __attribute__((ext_vector_type(N)));
+    auto OpenCLVec = bit_cast<src_vector_t>(X);
+    return bit_cast<vec<NewElemT, N>>(
+        __builtin_convertvector(OpenCLVec, dst_vector_t));
+  }
+#endif // defined(__SYCL_DEVICE_ONLY__) && !defined(__NVPTX__)
+
+  vec<NewElemT, N> Result{};
+  loop<N>([&](auto idx) { Result[idx] = static_cast<NewElemT>(X[idx]); });
+  return Result;
 }
 
 namespace builtins {

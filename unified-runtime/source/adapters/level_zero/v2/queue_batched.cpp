@@ -125,6 +125,7 @@ ur_queue_batched_t::renewBatchUnlocked(locked<batch_manager> &batchLocked) {
   if (batchLocked->isLimitOfUsedCommandListsReached()) {
     return queueFinishUnlocked(batchLocked);
   } else {
+    UR_CALL(batchLocked->enqueueCurrentBatchUnlocked());
     return batchLocked->renewRegularUnlocked(getNewRegularCmdList());
   }
 }
@@ -157,7 +158,7 @@ ur_queue_batched_t::onEventWaitListUse(ur_event_generation_t batch_generation) {
 
   auto batchLocked = currentCmdLists.lock();
   if (batchLocked->isCurrentGeneration(batch_generation)) {
-    return queueFlushUnlocked(batchLocked);
+    return renewBatchUnlocked(batchLocked);
   } else {
     return UR_RESULT_SUCCESS;
   }
@@ -172,31 +173,6 @@ ur_result_t ur_queue_batched_t::markIssuedCommandInBatch(
   }
 
   batchLocked->markNextIssuedCommand();
-
-  return UR_RESULT_SUCCESS;
-}
-
-ur_result_t ur_queue_batched_t::enqueueKernelLaunch(
-    ur_kernel_handle_t hKernel, uint32_t workDim,
-    const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
-    const size_t *pLocalWorkSize,
-    const ur_kernel_launch_ext_properties_t *launchPropList,
-    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-    ur_event_handle_t *phEvent) {
-
-  wait_list_view waitListView =
-      wait_list_view(phEventWaitList, numEventsInWaitList, this);
-
-  TRACK_SCOPE_LATENCY("ur_queue_batched_t::enqueueKernelLaunch");
-  auto currentRegular = currentCmdLists.lock();
-
-  markIssuedCommandInBatch(currentRegular);
-
-  UR_CALL(currentRegular->getActiveBatch().appendKernelLaunch(
-      hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize, pLocalWorkSize,
-      launchPropList, waitListView,
-      createEventIfRequestedRegular(phEvent,
-                                    currentRegular->getCurrentGeneration())));
 
   return UR_RESULT_SUCCESS;
 }
@@ -228,7 +204,9 @@ ur_result_t batch_manager::batchFinish() {
   UR_CALL(activeBatch.releaseSubmittedKernels());
 
   if (!isActiveBatchEmpty()) {
-    // Should have been enqueued as part of queueFinishUnlocked
+    // The active batch was already submitted to the immediate command list
+    // by queueFinishUnlocked. Reset it here so it is ready to record new
+    // commands.
     TRACK_SCOPE_LATENCY("ur_queue_batched_t::resetRegCmdlist");
     ZE2UR_CALL(zeCommandListReset, (activeBatch.getZeCommandList()));
 
@@ -432,7 +410,7 @@ ur_result_t ur_queue_batched_t::enqueueUSMFreeExp(
       createEventIfRequestedRegular(phEvent,
                                     lockedBatch->getCurrentGeneration())));
 
-  return queueFlushUnlocked(lockedBatch);
+  return renewBatchUnlocked(lockedBatch);
 }
 
 ur_result_t ur_queue_batched_t::enqueueMemBufferMap(
@@ -634,7 +612,7 @@ ur_result_t ur_queue_batched_t::enqueueEventsWaitWithBarrier(
                           phEvent, lockedBatch->getCurrentGeneration())));
   }
 
-  return queueFlushUnlocked(lockedBatch);
+  return renewBatchUnlocked(lockedBatch);
 }
 
 ur_result_t
@@ -652,7 +630,7 @@ ur_queue_batched_t::enqueueEventsWait(uint32_t numEventsInWaitList,
       waitListView, createEventIfRequestedRegular(
                         phEvent, lockedBatch->getCurrentGeneration())));
 
-  return queueFlushUnlocked(lockedBatch);
+  return renewBatchUnlocked(lockedBatch);
 }
 
 ur_result_t ur_queue_batched_t::enqueueMemBufferCopy(
@@ -818,7 +796,7 @@ ur_result_t ur_queue_batched_t::enqueueUSMDeviceAllocExp(
                                     lockedBatch->getCurrentGeneration()),
       UR_USM_TYPE_DEVICE));
 
-  return queueFlushUnlocked(lockedBatch);
+  return renewBatchUnlocked(lockedBatch);
 }
 
 ur_result_t ur_queue_batched_t::enqueueUSMSharedAllocExp(
@@ -840,7 +818,7 @@ ur_result_t ur_queue_batched_t::enqueueUSMSharedAllocExp(
                                     lockedBatch->getCurrentGeneration()),
       UR_USM_TYPE_SHARED));
 
-  return queueFlushUnlocked(lockedBatch);
+  return renewBatchUnlocked(lockedBatch);
 }
 
 ur_result_t ur_queue_batched_t::enqueueUSMHostAllocExp(
@@ -861,7 +839,7 @@ ur_result_t ur_queue_batched_t::enqueueUSMHostAllocExp(
                                     lockedBatch->getCurrentGeneration()),
       UR_USM_TYPE_HOST));
 
-  return queueFlushUnlocked(lockedBatch);
+  return renewBatchUnlocked(lockedBatch);
 }
 
 ur_result_t ur_queue_batched_t::bindlessImagesImageCopyExp(
@@ -969,7 +947,7 @@ ur_result_t ur_queue_batched_t::enqueueCommandBufferExp(
   // command buffer batch (also a regular list) to preserve the order of
   // operations
   if (!lockedBatch->isActiveBatchEmpty()) {
-    UR_CALL(queueFlushUnlocked(lockedBatch));
+    UR_CALL(renewBatchUnlocked(lockedBatch));
   }
 
   // Regular lists cannot be appended to other regular lists for execution, only
@@ -1075,20 +1053,13 @@ ur_queue_batched_t::queueGetNativeHandle(ur_queue_native_desc_t * /*pDesc*/,
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t
-ur_queue_batched_t::queueFlushUnlocked(locked<batch_manager> &batchLocked) {
-  UR_CALL(batchLocked->enqueueCurrentBatchUnlocked());
-
-  return renewBatchUnlocked(batchLocked);
-}
-
 ur_result_t ur_queue_batched_t::queueFlush() {
   auto batchLocked = currentCmdLists.lock();
 
   if (batchLocked->isActiveBatchEmpty()) {
     return UR_RESULT_SUCCESS;
   } else {
-    return queueFlushUnlocked(batchLocked);
+    return renewBatchUnlocked(batchLocked);
   }
 }
 
