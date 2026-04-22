@@ -51,6 +51,10 @@ jobs:
             file: ubuntu2404_build
             tag: latest
             build_args: ""
+          - name: Build Ubuntu 24.04 Docker image with CUDA 13.1
+            file: ubuntu2404_build_cuda131
+            tag: latest
+            build_args: ""
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -86,6 +90,9 @@ jobs:
             tag: latest
           - name: Build + Intel Drivers Ubuntu 24.04 Docker image
             file: ubuntu2404_intel_drivers
+            tag: latest
+          - name: Build + Intel Drivers Ubuntu 24.04 Docker image with CUDA 13.1
+            file: ubuntu2404_intel_drivers_cuda131
             tag: latest
     steps:
       - name: Checkout
