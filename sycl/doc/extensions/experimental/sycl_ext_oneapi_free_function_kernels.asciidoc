@@ -720,7 +720,7 @@ a@
 ----
 namespace sycl::ext::oneapi::experimental {
 
-template<auto *Func, typename Param,                              (1)
+template<auto *Func, typename Param,                                       (1)
          typename LaunchProperties = empty_properties_t>
 typename Param::return_type get_kernel_info(const context& ctxt,
                                             const device& dev,
@@ -728,7 +728,7 @@ typename Param::return_type get_kernel_info(const context& ctxt,
                                             size_t bytes = 0,
                                             LaunchProperties props = {});
 
-template<auto *Func, typename Param,                              (2)
+template<auto *Func, typename Param,                                       (2)
          typename LaunchProperties = empty_properties_t>
 typename Param::return_type get_kernel_info(const context& ctxt,
                                             const device& dev,
@@ -736,7 +736,7 @@ typename Param::return_type get_kernel_info(const context& ctxt,
                                             size_t bytes = 0,
                                             LaunchProperties props = {});
 
-template<auto *Func, typename Param,                              (3)
+template<auto *Func, typename Param,                                       (3)
          typename LaunchProperties = empty_properties_t>
 typename Param::return_type get_kernel_info(const context& ctxt,
                                             const device& dev,
@@ -744,21 +744,21 @@ typename Param::return_type get_kernel_info(const context& ctxt,
                                             size_t bytes = 0,
                                             LaunchProperties props = {});
 
-template<auto *Func, typename Param,                              (4)
+template<auto *Func, typename Param,                                       (4)
          typename LaunchProperties = empty_properties_t>
 typename Param::return_type get_kernel_info(const queue& q,
                                             sycl::range<1> r,
                                             size_t bytes = 0,
                                             LaunchProperties props = {});
 
-template<auto *Func, typename Param,                              (5)
+template<auto *Func, typename Param,                                       (5)
          typename LaunchProperties = empty_properties_t>
 typename Param::return_type get_kernel_info(const queue& q,
                                             sycl::range<2> r,
                                             size_t bytes = 0,
                                             LaunchProperties props = {});
 
-template<auto *Func, typename Param,                              (6)
+template<auto *Func, typename Param,                                       (6)
          typename LaunchProperties = empty_properties_t>
 typename Param::return_type get_kernel_info(const queue& q,
                                             sycl::range<3> r,
