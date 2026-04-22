@@ -113,18 +113,9 @@ public:
   ///
   template <class T>
   std::string nameWithAddress(const char *prefix, T address) {
-    // Get prefix string and address string
     const char *prefix_str = prefix ? prefix : "unknown";
     std::string addr_str = addressAsString<T>(address);
-
-    std::string result;
-    result.reserve(std::strlen(prefix_str) + 1 + addr_str.size() + 1);
-    result.append(prefix_str);
-    result.push_back('[');
-    result.append(addr_str);
-    result.push_back(']');
-
-    return result;
+    return makeNameWithAddressFromView(prefix_str, addr_str);
   }
 
   /// @brief Creates a string that combines a prefix and an address.
@@ -135,18 +126,10 @@ public:
   ///
   template <class T>
   std::string nameWithAddress(const std::string &prefix, T address) {
-    // Get prefix string and address string
-    const std::string &prefix_str = !prefix.empty() ? prefix : "unknown";
     std::string addr_str = addressAsString<T>(address);
-
-    std::string result;
-    result.reserve(prefix_str.size() + 1 + addr_str.size() + 1);
-    result.append(prefix_str);
-    result.push_back('[');
-    result.append(addr_str);
-    result.push_back(']');
-
-    return result;
+    std::string_view prefix_sv = !prefix.empty() ? std::string_view(prefix)
+                                                 : std::string_view("unknown");
+    return makeNameWithAddressFromView(prefix_sv, addr_str);
   }
 
   /// @brief Creates a string that combines a prefix and an address.
@@ -157,17 +140,8 @@ public:
   ///
   std::string nameWithAddressString(const char *prefix,
                                     const std::string &address) {
-    // Get prefix string
     const char *prefix_str = prefix ? prefix : "unknown";
-
-    std::string result;
-    result.reserve(std::strlen(prefix_str) + 1 + address.size() + 1);
-    result.append(prefix_str);
-    result.push_back('[');
-    result.append(address);
-    result.push_back(']');
-
-    return result;
+    return makeNameWithAddressFromView(prefix_str, address);
   }
 
   /// @brief Creates a string that combines a prefix and an address.
@@ -178,16 +152,20 @@ public:
   ///
   std::string nameWithAddressString(const std::string &prefix,
                                     const std::string &address) {
-    // Get prefix string
-    const std::string &prefix_str = !prefix.empty() ? prefix : "unknown";
+    std::string_view prefix_sv = !prefix.empty() ? std::string_view(prefix)
+                                                 : std::string_view("unknown");
+    return makeNameWithAddressFromView(prefix_sv, address);
+  }
 
+private:
+  static std::string makeNameWithAddressFromView(std::string_view prefix,
+                                                 const std::string &address) {
     std::string result;
-    result.reserve(prefix_str.size() + 1 + address.size() + 1);
-    result.append(prefix_str);
+    result.reserve(prefix.size() + 1 + address.size() + 1);
+    result.append(prefix);
     result.push_back('[');
     result.append(address);
     result.push_back(']');
-
     return result;
   }
 };
