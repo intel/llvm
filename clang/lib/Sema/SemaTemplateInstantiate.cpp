@@ -1561,29 +1561,8 @@ namespace {
     const AnnotateAttr *TransformAnnotateAttr(const AnnotateAttr *AA);
     const CXXAssumeAttr *TransformCXXAssumeAttr(const CXXAssumeAttr *AA);
     const LoopHintAttr *TransformLoopHintAttr(const LoopHintAttr *LH);
-    const SYCLIntelIVDepAttr *
-    TransformSYCLIntelIVDepAttr(const SYCLIntelIVDepAttr *IV);
-    const SYCLIntelInitiationIntervalAttr *
-    TransformSYCLIntelInitiationIntervalAttr(
-        const SYCLIntelInitiationIntervalAttr *II);
-    const SYCLIntelMaxConcurrencyAttr *
-    TransformSYCLIntelMaxConcurrencyAttr(
-        const SYCLIntelMaxConcurrencyAttr *MC);
     const LoopUnrollHintAttr *
     TransformLoopUnrollHintAttr(const LoopUnrollHintAttr *LU);
-    const SYCLIntelLoopCoalesceAttr *TransformSYCLIntelLoopCoalesceAttr(
-        const SYCLIntelLoopCoalesceAttr *LC);
-    const SYCLIntelMaxInterleavingAttr *
-    TransformSYCLIntelMaxInterleavingAttr(
-        const SYCLIntelMaxInterleavingAttr *MI);
-    const SYCLIntelSpeculatedIterationsAttr *
-    TransformSYCLIntelSpeculatedIterationsAttr(
-        const SYCLIntelSpeculatedIterationsAttr *SI);
-    const SYCLIntelLoopCountAttr *
-    TransformSYCLIntelLoopCountAttr(const SYCLIntelLoopCountAttr *SI);
-    const SYCLIntelMaxReinvocationDelayAttr *
-    TransformSYCLIntelMaxReinvocationDelayAttr(
-        const SYCLIntelMaxReinvocationDelayAttr *MRD);
     const NoInlineAttr *TransformStmtNoInlineAttr(const Stmt *OrigS,
                                                   const Stmt *InstS,
                                                   const NoInlineAttr *A);
@@ -2289,78 +2268,11 @@ const AlwaysInlineAttr *TemplateInstantiator::TransformStmtAlwaysInlineAttr(
   return A;
 }
 
-const SYCLIntelIVDepAttr *
-TemplateInstantiator::TransformSYCLIntelIVDepAttr(
-    const SYCLIntelIVDepAttr *IVDep) {
-
-  Expr *Expr1 = IVDep->getSafelenExpr()
-                    ? getDerived().TransformExpr(IVDep->getSafelenExpr()).get()
-                    : nullptr;
-  Expr *Expr2 = IVDep->getArrayExpr()
-                    ? getDerived().TransformExpr(IVDep->getArrayExpr()).get()
-                    : nullptr;
-
-  return getSema().BuildSYCLIntelIVDepAttr(*IVDep, Expr1, Expr2);
-}
-
-const SYCLIntelInitiationIntervalAttr *
-TemplateInstantiator::TransformSYCLIntelInitiationIntervalAttr(
-    const SYCLIntelInitiationIntervalAttr *II) {
-  Expr *TransformedExpr = getDerived().TransformExpr(II->getNExpr()).get();
-  return getSema().BuildSYCLIntelInitiationIntervalAttr(*II,
-                                                            TransformedExpr);
-}
-
-const SYCLIntelMaxConcurrencyAttr *
-TemplateInstantiator::TransformSYCLIntelMaxConcurrencyAttr(
-    const SYCLIntelMaxConcurrencyAttr *MC) {
-  Expr *TransformedExpr = getDerived().TransformExpr(MC->getNExpr()).get();
-  return getSema().BuildSYCLIntelMaxConcurrencyAttr(*MC, TransformedExpr);
-}
-
-const SYCLIntelLoopCoalesceAttr *
-TemplateInstantiator::TransformSYCLIntelLoopCoalesceAttr(
-    const SYCLIntelLoopCoalesceAttr *LC) {
-  Expr *TransformedExpr = getDerived().TransformExpr(LC->getNExpr()).get();
-  return getSema().BuildSYCLIntelLoopCoalesceAttr(*LC, TransformedExpr);
-}
-
-const SYCLIntelMaxInterleavingAttr *
-TemplateInstantiator::TransformSYCLIntelMaxInterleavingAttr(
-    const SYCLIntelMaxInterleavingAttr *MI) {
-  Expr *TransformedExpr = getDerived().TransformExpr(MI->getNExpr()).get();
-  return getSema().BuildSYCLIntelMaxInterleavingAttr(*MI, TransformedExpr);
-}
-
-const SYCLIntelSpeculatedIterationsAttr *
-TemplateInstantiator::TransformSYCLIntelSpeculatedIterationsAttr(
-    const SYCLIntelSpeculatedIterationsAttr *SI) {
-  Expr *TransformedExpr = getDerived().TransformExpr(SI->getNExpr()).get();
-  return getSema().BuildSYCLIntelSpeculatedIterationsAttr(*SI,
-                                                              TransformedExpr);
-}
-
-const SYCLIntelLoopCountAttr *
-TemplateInstantiator::TransformSYCLIntelLoopCountAttr(
-    const SYCLIntelLoopCountAttr *LCA) {
-  Expr *TransformedExpr =
-      getDerived().TransformExpr(LCA->getNTripCount()).get();
-  return getSema().BuildSYCLIntelLoopCountAttr(*LCA, TransformedExpr);
-}
-
 const LoopUnrollHintAttr *TemplateInstantiator::TransformLoopUnrollHintAttr(
     const LoopUnrollHintAttr *LU) {
   Expr *TransformedExpr =
       getDerived().TransformExpr(LU->getUnrollHintExpr()).get();
   return getSema().BuildLoopUnrollHintAttr(*LU, TransformedExpr);
-}
-
-const SYCLIntelMaxReinvocationDelayAttr *
-TemplateInstantiator::TransformSYCLIntelMaxReinvocationDelayAttr(
-    const SYCLIntelMaxReinvocationDelayAttr *MRD) {
-  Expr *TransformedExpr = getDerived().TransformExpr(MRD->getNExpr()).get();
-  return getSema().BuildSYCLIntelMaxReinvocationDelayAttr(*MRD,
-                                                              TransformedExpr);
 }
 
 const CodeAlignAttr *
@@ -4626,11 +4538,40 @@ ExprResult Sema::SubstConceptTemplateArguments(
 
     ExprResult TransformUnresolvedLookupExpr(UnresolvedLookupExpr *E,
                                              bool IsAddressOfOperand = false) {
-      if (E->isConceptReference()) {
-        ExprResult Res = SemaRef.SubstExpr(E, MLTAL);
-        return Res;
-      }
-      return E;
+      if (!E->isConceptReference())
+        return E;
+
+      assert(E->getNumDecls() == 1 &&
+             "ConceptReference must have single declaration");
+      NamedDecl *D = *E->decls_begin();
+      ConceptDecl *ResolvedConcept = nullptr;
+
+      if (auto *TTP = dyn_cast<TemplateTemplateParmDecl>(D)) {
+        unsigned Depth = TTP->getDepth();
+        unsigned Pos = TTP->getPosition();
+        if (Depth < MLTAL.getNumLevels() &&
+            MLTAL.hasTemplateArgument(Depth, Pos)) {
+          TemplateArgument Arg = MLTAL(Depth, Pos);
+          assert(Arg.getKind() == TemplateArgument::Template);
+          ResolvedConcept =
+              dyn_cast<ConceptDecl>(Arg.getAsTemplate().getAsTemplateDecl());
+        }
+        if (ResolvedConcept == nullptr)
+          return E;
+      } else
+        ResolvedConcept = cast<ConceptDecl>(D);
+
+      TemplateArgumentListInfo TransArgs(E->getLAngleLoc(), E->getRAngleLoc());
+      if (TransformTemplateArguments(E->getTemplateArgs(),
+                                     E->getNumTemplateArgs(), TransArgs))
+        return ExprError();
+
+      CXXScopeSpec SS;
+      DeclarationNameInfo NameInfo(ResolvedConcept->getDeclName(),
+                                   E->getNameLoc());
+      return SemaRef.CheckConceptTemplateId(SS, SourceLocation(), NameInfo,
+                                            ResolvedConcept, ResolvedConcept,
+                                            &TransArgs, false);
     }
   };
 

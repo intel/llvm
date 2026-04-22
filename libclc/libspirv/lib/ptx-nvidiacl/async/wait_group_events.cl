@@ -14,6 +14,8 @@ int __clc_nvvm_reflect_arch();
 _CLC_OVERLOAD _CLC_DEF void __spirv_GroupWaitEvents(int scope,
                                                     int num_events,
                                                     event_t *event_list) {
+  (void)num_events;
+  (void)event_list;
   if (__clc_nvvm_reflect_arch() >= 800) {
     __nvvm_cp_async_wait_all();
   }

@@ -16,7 +16,6 @@ namespace driver {
 
 class SYCLInstallationDetector {
 public:
-  SYCLInstallationDetector(const Driver &D);
   SYCLInstallationDetector(const Driver &D, const llvm::Triple &HostTriple,
                            const llvm::opt::ArgList &Args);
 

@@ -1,5 +1,5 @@
 // RUN: %clang_cc1 -triple arm64-apple-ios11 -std=c++11 -fcxx-exceptions -fexceptions -emit-llvm -o - %s | FileCheck %s
-// RUN: %clang_cc1 -triple arm64-apple-ios11 -std=c++11 -fcxx-exceptions -fexceptions -fclang-abi-compat=4.0 -emit-llvm -o - %s | FileCheck %s
+// RUN: %clang_cc1 -triple arm64-apple-ios11 -std=c++11 -fcxx-exceptions -fexceptions -fclang-abi-compat=4.0 -emit-llvm -o - %s | FileCheck -check-prefix=ABI40 %s
 
 // CHECK: %[[STRUCT_SMALL:.*]] = type { ptr }
 // CHECK: %[[STRUCT_LARGE:.*]] = type { ptr, [128 x i32] }
@@ -281,10 +281,11 @@ static_assert(sizeof(S) == 8 && sizeof(S2) == 8, "");
 
 // PR42961
 
-// CHECK: define{{.*}} @"_ZN3$_08__invokeEv"()
+// CHECK: define{{.*}} @"_ZN2fpM3$_08__invokeEv"
+// ABI40: define{{.*}} @"_ZN3$_08__invokeEv"
 // CHECK: %[[RETVAL:.*]] = alloca %[[STRUCT_SMALL]], align 8
 // CHECK: %[[COERCE:.*]] = alloca %[[STRUCT_SMALL]], align 8
-// CHECK: %[[CALL:.*]] = call{{.*}} @"_ZNK3$_0clEv"
+// CHECK: %[[CALL:.*]] = call{{.*}} @"_ZNK2fpM3$_0clEv"
 // CHECK: %[[COERCEDIVE:.*]] = getelementptr{{.*}} %[[COERCE]]
 // CHECK: %[[COERCEVALIP:.*]] = inttoptr{{.*}} %[[CALL]]
 // CHECK: call {{.*}}memcpy{{.*}} %[[RETVAL]]{{.*}} %[[COERCE]]

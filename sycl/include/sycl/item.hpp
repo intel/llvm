@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include <sycl/detail/defines.hpp>            // for __SYCL_ASSUME_INT
+#include <sycl/detail/defines.hpp>            // for __SYCL_ASSUME_ID_RANGE
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL_ALWAYS_INLINE, __SYC...
 #include <sycl/detail/item_base.hpp>          // for id, range, ItemBase
 #include <sycl/id.hpp>        // for id, item
@@ -54,13 +54,13 @@ public:
 
   size_t __SYCL_ALWAYS_INLINE get_id(int Dimension) const {
     size_t Id = MImpl.MIndex[Dimension];
-    __SYCL_ASSUME_INT(Id);
+    __SYCL_ASSUME_ID_RANGE(Id);
     return Id;
   }
 
   size_t __SYCL_ALWAYS_INLINE operator[](int Dimension) const {
     size_t Id = MImpl.MIndex[Dimension];
-    __SYCL_ASSUME_INT(Id);
+    __SYCL_ASSUME_ID_RANGE(Id);
     return Id;
   }
 
@@ -68,7 +68,7 @@ public:
 
   size_t __SYCL_ALWAYS_INLINE get_range(int Dimension) const {
     size_t Id = MImpl.MExtent[Dimension];
-    __SYCL_ASSUME_INT(Id);
+    __SYCL_ASSUME_ID_RANGE(Id);
     return Id;
   }
 #ifndef __SYCL_DISABLE_ITEM_TO_INT_CONV__
@@ -85,7 +85,7 @@ public:
   std::enable_if_t<has_offset, size_t> __SYCL_ALWAYS_INLINE
       get_offset(int Dimension) const {
     size_t Id = MImpl.MOffset[Dimension];
-    __SYCL_ASSUME_INT(Id);
+    __SYCL_ASSUME_ID_RANGE(Id);
     return Id;
   }
 
@@ -96,7 +96,7 @@ public:
 
   size_t __SYCL_ALWAYS_INLINE get_linear_id() const {
     size_t Id = MImpl.get_linear_id();
-    __SYCL_ASSUME_INT(Id);
+    __SYCL_ASSUME_ID_RANGE(Id);
     return Id;
   }
 

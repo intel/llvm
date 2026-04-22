@@ -54,23 +54,6 @@ urKernelCreate(ur_program_handle_t hProgram, const char *pKernelName,
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgValue(
-    ur_kernel_handle_t hKernel, uint32_t argIndex, size_t argSize,
-    const ur_kernel_arg_value_properties_t * /*pProperties*/,
-    const void *pArgValue) {
-  // TODO: error checking
-
-  UR_ASSERT(hKernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-
-  return hKernel->addArg(pArgValue, argIndex, argSize);
-}
-
-UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgLocal(
-    ur_kernel_handle_t hKernel, uint32_t argIndex, size_t argSize,
-    const ur_kernel_arg_local_properties_t * /*pProperties*/) {
-  return hKernel->addLocalArg(argIndex, argSize);
-}
-
 UR_APIEXPORT ur_result_t UR_APICALL urKernelGetInfo(ur_kernel_handle_t hKernel,
                                                     ur_kernel_info_t propName,
                                                     size_t propSize,
@@ -198,16 +181,6 @@ urKernelRelease(ur_kernel_handle_t hKernel) {
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgPointer(
-    ur_kernel_handle_t hKernel, uint32_t argIndex,
-    const ur_kernel_arg_pointer_properties_t * /*pProperties*/,
-    const void *pArgValue) {
-
-  UR_ASSERT(hKernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-
-  return hKernel->addPtrArg(const_cast<void *>(pArgValue), argIndex);
-}
-
 UR_APIEXPORT ur_result_t UR_APICALL
 urKernelSetExecInfo(ur_kernel_handle_t /*hKernel*/,
                     ur_kernel_exec_info_t /*propName*/, size_t /*propSize*/,
@@ -215,24 +188,6 @@ urKernelSetExecInfo(ur_kernel_handle_t /*hKernel*/,
                     const void * /*pPropValue*/) {
 
   return UR_RESULT_SUCCESS;
-}
-
-UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgSampler(
-    ur_kernel_handle_t /*hKernel*/, uint32_t /*argIndex*/,
-    const ur_kernel_arg_sampler_properties_t * /*pProperties*/,
-    ur_sampler_handle_t /*hArgValue*/) {
-
-  DIE_NO_IMPLEMENTATION;
-}
-
-UR_APIEXPORT ur_result_t UR_APICALL
-urKernelSetArgMemObj(ur_kernel_handle_t hKernel, uint32_t argIndex,
-                     const ur_kernel_arg_mem_obj_properties_t * /*pProperties*/,
-                     ur_mem_handle_t hArgValue) {
-
-  UR_ASSERT(hKernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-
-  return hKernel->addMemObjArg(hArgValue, argIndex);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urKernelSetSpecializationConstants(

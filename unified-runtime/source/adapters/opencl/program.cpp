@@ -277,16 +277,19 @@ urProgramLink(ur_context_handle_t hContext, uint32_t count,
     // to CL_LINK_PROGRAM_FAILURE
     CLResult = CL_LINK_PROGRAM_FAILURE;
   }
-  CL_RETURN_ON_FAILURE(CLResult);
-  try {
-    auto URProgram = std::make_unique<ur_program_handle_t_>(
-        Program, hContext, hContext->DeviceCount, hContext->Devices.data());
-    *phProgram = URProgram.release();
-  } catch (std::bad_alloc &) {
-    return UR_RESULT_ERROR_OUT_OF_RESOURCES;
-  } catch (...) {
-    return UR_RESULT_ERROR_UNKNOWN;
+  // clLinkProgram may return a valid program object even on failure (e.g.,
+  // CL_LINK_PROGRAM_FAILURE) that contains the link log. Wrap it so the
+  // caller can retrieve the log via urProgramGetBuildInfo.
+  if (Program != nullptr) {
+    try {
+      auto URProgram = std::make_unique<ur_program_handle_t_>(
+          Program, hContext, hContext->DeviceCount, hContext->Devices.data());
+      *phProgram = URProgram.release();
+    } catch (...) {
+      return exceptionToResult(std::current_exception());
+    }
   }
+  CL_RETURN_ON_FAILURE(CLResult);
 
   return UR_RESULT_SUCCESS;
 }
@@ -482,12 +485,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramGetFunctionPointer(
 
   cl_context CLContext = hProgram->Context->CLContext;
 
-  cl_ext::clGetDeviceFunctionPointer_fn FuncT = nullptr;
+  cl_ext::clGetDeviceFunctionPointerINTEL_fn FuncT = nullptr;
 
   UR_RETURN_ON_FAILURE(
-      cl_ext::getExtFuncFromContext<cl_ext::clGetDeviceFunctionPointer_fn>(
+      cl_ext::getExtFuncFromContext<cl_ext::clGetDeviceFunctionPointerINTEL_fn>(
           CLContext,
-          ur::cl::getAdapter()->fnCache.clGetDeviceFunctionPointerCache,
+          ur::cl::getAdapter()->fnCache.clGetDeviceFunctionPointerINTELCache,
           cl_ext::GetDeviceFunctionPointerName, &FuncT));
 
   // Check if the kernel name exists to prevent the OpenCL runtime from throwing
@@ -539,12 +542,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramGetGlobalVariablePointer(
                                         sizeof(CLContext), &CLContext,
                                         nullptr));
 
-  cl_ext::clGetDeviceGlobalVariablePointer_fn FuncT = nullptr;
+  cl_ext::clGetDeviceGlobalVariablePointerINTEL_fn FuncT = nullptr;
 
   UR_RETURN_ON_FAILURE(cl_ext::getExtFuncFromContext<
-                       cl_ext::clGetDeviceGlobalVariablePointer_fn>(
+                       cl_ext::clGetDeviceGlobalVariablePointerINTEL_fn>(
       CLContext,
-      ur::cl::getAdapter()->fnCache.clGetDeviceGlobalVariablePointerCache,
+      ur::cl::getAdapter()->fnCache.clGetDeviceGlobalVariablePointerINTELCache,
       cl_ext::GetDeviceGlobalVariablePointerName, &FuncT));
 
   const cl_int CLResult =

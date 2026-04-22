@@ -12,6 +12,7 @@
 
 #include <sycl/builtins.hpp>
 #include <sycl/half_type.hpp>
+#include <sycl/vector.hpp>
 
 namespace sycl {
 inline namespace _V1 {

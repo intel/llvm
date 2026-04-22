@@ -89,3 +89,51 @@ install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/include/xpti
   DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
   COMPONENT xpti
 )
+
+# Install CMake config files.
+include(CMakePackageConfigHelpers)
+set(INCLUDE_INSTALL_DIR ${CMAKE_INSTALL_INCLUDEDIR})
+set(LIB_INSTALL_DIR ${CMAKE_INSTALL_LIBDIR}${LLVM_LIBDIR_SUFFIX})
+set(CONFIG_INSTALL_DIR ${LIB_INSTALL_DIR}/cmake/xpti)
+
+configure_package_config_file(
+  ${CMAKE_CURRENT_SOURCE_DIR}/xptiConfig.cmake.in
+  ${CMAKE_CURRENT_BINARY_DIR}/xptiConfig.cmake
+  INSTALL_DESTINATION ${CONFIG_INSTALL_DIR}
+  PATH_VARS INCLUDE_INSTALL_DIR
+)
+
+write_basic_package_version_file(
+  ${CMAKE_CURRENT_BINARY_DIR}/xptiConfigVersion.cmake
+  VERSION ${XPTI_VERSION}
+  COMPATIBILITY SameMajorVersion
+)
+
+install(EXPORT xptiTargets
+  FILE xptiTargets.cmake
+  NAMESPACE xpti::
+  DESTINATION ${CONFIG_INSTALL_DIR}
+  COMPONENT xpti
+)
+
+install(FILES
+  ${CMAKE_CURRENT_BINARY_DIR}/xptiConfig.cmake
+  ${CMAKE_CURRENT_BINARY_DIR}/xptiConfigVersion.cmake
+  DESTINATION ${CONFIG_INSTALL_DIR}
+  COMPONENT xpti
+)
+
+if(NOT WIN32)
+  # Install pkg-config file
+  configure_file(
+    ${CMAKE_CURRENT_SOURCE_DIR}/xpti.pc.in
+    ${CMAKE_CURRENT_BINARY_DIR}/xpti.pc
+    @ONLY
+  )
+  
+  install(FILES
+    ${CMAKE_CURRENT_BINARY_DIR}/xpti.pc
+    DESTINATION ${LIB_INSTALL_DIR}/pkgconfig
+    COMPONENT xpti
+  )
+endif()

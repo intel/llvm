@@ -78,7 +78,6 @@ class Options:
     build_jobs: int = len(os.sched_getaffinity(0))  # Cores available for the process.
     exit_on_failure: bool = False
     flamegraph: bool = False
-    unitrace: bool = False
 
     # Options intended for CI:
 

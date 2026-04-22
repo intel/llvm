@@ -117,7 +117,8 @@ TsanInterceptor::~TsanInterceptor() {
   // We must release these objects before releasing adapters, since
   // they may use the adapter in their destructor
   for (const auto &[_, DeviceInfo] : m_DeviceMap) {
-    DeviceInfo->Shadow->Destroy();
+    [[maybe_unused]] ur_result_t Result = DeviceInfo->Shadow->Destroy();
+    assert(Result == UR_RESULT_SUCCESS && "Failed to destroy shadow memory");
     DeviceInfo->Shadow = nullptr;
   }
 

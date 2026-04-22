@@ -262,20 +262,50 @@ void context_impl::addDeviceGlobalInitializer(
   }
 }
 
+void context_impl::removeDeviceGlobalInitializer(
+    ur_program_handle_t Program, const RTDeviceBinaryImage *BinImage) {
+  std::lock_guard<std::mutex> Lock(MDeviceGlobalInitializersMutex);
+
+  for (auto It = MDeviceGlobalInitializers.begin();
+       It != MDeviceGlobalInitializers.end();) {
+    const bool ProgramMatches = It->first.first == Program;
+    const bool ImageMatches = It->second.MBinImage == BinImage;
+
+    if (!ProgramMatches || !ImageMatches) {
+      ++It;
+      continue;
+    }
+
+    {
+      std::lock_guard<std::mutex> InitLock(It->second.MDeviceGlobalInitMutex);
+      if (!It->second.MDeviceGlobalsFullyInitialized)
+        --MDeviceGlobalNotInitializedCnt;
+      It->second.ClearEvents(getAdapter());
+    }
+
+    It = MDeviceGlobalInitializers.erase(It);
+  }
+}
+
 std::vector<ur_event_handle_t> context_impl::initializeDeviceGlobals(
     ur_program_handle_t NativePrg, queue_impl &QueueImpl,
     detail::kernel_bundle_impl *KernelBundleImplPtr) {
+
   if (!MDeviceGlobalNotInitializedCnt.load(std::memory_order_acquire))
     return {};
 
   detail::adapter_impl &Adapter = getAdapter();
   device_impl &DeviceImpl = QueueImpl.getDeviceImpl();
   std::lock_guard<std::mutex> NativeProgramLock(MDeviceGlobalInitializersMutex);
+
   auto ImgIt = MDeviceGlobalInitializers.find(
       std::make_pair(NativePrg, DeviceImpl.getHandleRef()));
-  if (ImgIt == MDeviceGlobalInitializers.end() ||
-      ImgIt->second.MDeviceGlobalsFullyInitialized)
+  if (ImgIt == MDeviceGlobalInitializers.end()) {
     return {};
+  }
+  if (ImgIt->second.MDeviceGlobalsFullyInitialized) {
+    return {};
+  }
 
   DeviceGlobalInitializer &InitRef = ImgIt->second;
   {

@@ -20,37 +20,60 @@ struct BufferFillCommandTest
                                      sizeof(val) * global_size, nullptr,
                                      &buffer));
 
-    // First argument is buffer to fill
+    // Build kernel args
     unsigned current_arg_index = 0;
-    ASSERT_SUCCESS(
-        urKernelSetArgMemObj(kernel, current_arg_index++, nullptr, buffer));
+
+    // First argument is buffer to fill
+    ur_exp_kernel_arg_value_t mem_val = {};
+    mem_val.memObjTuple = {buffer, UR_MEM_FLAG_READ_WRITE};
+    fill_buf_args.push_back({UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+                             nullptr, UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ,
+                             current_arg_index++, sizeof(ur_mem_handle_t),
+                             mem_val});
 
     // Add accessor arguments depending on backend.
     // HIP has 3 offset parameters and other backends only have 1.
     if (backend == UR_BACKEND_HIP) {
-      size_t val = 0;
-      ASSERT_SUCCESS(urKernelSetArgValue(kernel, current_arg_index++,
-                                         sizeof(size_t), nullptr, &val));
-      ASSERT_SUCCESS(urKernelSetArgValue(kernel, current_arg_index++,
-                                         sizeof(size_t), nullptr, &val));
-      ASSERT_SUCCESS(urKernelSetArgValue(kernel, current_arg_index++,
-                                         sizeof(size_t), nullptr, &val));
+      fill_buf_args.push_back({UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+                               nullptr,
+                               UR_EXP_KERNEL_ARG_TYPE_VALUE,
+                               current_arg_index++,
+                               sizeof(size_t),
+                               {&hip_zero_val}});
+      fill_buf_args.push_back({UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+                               nullptr,
+                               UR_EXP_KERNEL_ARG_TYPE_VALUE,
+                               current_arg_index++,
+                               sizeof(size_t),
+                               {&hip_zero_val}});
+      fill_buf_args.push_back({UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+                               nullptr,
+                               UR_EXP_KERNEL_ARG_TYPE_VALUE,
+                               current_arg_index++,
+                               sizeof(size_t),
+                               {&hip_zero_val}});
     } else {
-      struct {
-        size_t offsets[1] = {0};
-      } accessor;
-      ASSERT_SUCCESS(urKernelSetArgValue(kernel, current_arg_index++,
-                                         sizeof(accessor), nullptr, &accessor));
+      fill_buf_args.push_back({UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+                               nullptr,
+                               UR_EXP_KERNEL_ARG_TYPE_VALUE,
+                               current_arg_index++,
+                               sizeof(accessor_val),
+                               {&accessor_val}});
     }
 
     // Second user defined argument is scalar to fill with.
-    ASSERT_SUCCESS(urKernelSetArgValue(kernel, current_arg_index++, sizeof(val),
-                                       nullptr, &val));
+    fill_buf_args.push_back({UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
+                             nullptr,
+                             UR_EXP_KERNEL_ARG_TYPE_VALUE,
+                             current_arg_index++,
+                             sizeof(val),
+                             {&val}});
 
     // Append kernel command to command-buffer and close command-buffer
-    ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchExp(
+    ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchWithArgsExp(
         updatable_cmd_buf_handle, kernel, n_dimensions, &global_offset,
-        &global_size, &local_size, 0, nullptr, 0, nullptr, 0, nullptr, nullptr,
+        &global_size, &local_size, static_cast<uint32_t>(fill_buf_args.size()),
+        fill_buf_args.data(), 0, nullptr, 0, nullptr, 0, nullptr, nullptr,
         nullptr, &command_handle));
     ASSERT_NE(command_handle, nullptr);
 
@@ -75,6 +98,11 @@ struct BufferFillCommandTest
   ur_mem_handle_t buffer = nullptr;
   ur_mem_handle_t new_buffer = nullptr;
   ur_exp_command_buffer_command_handle_t command_handle = nullptr;
+  std::vector<ur_exp_kernel_arg_properties_t> fill_buf_args;
+  size_t hip_zero_val = 0;
+  struct {
+    size_t offsets[1] = {0};
+  } accessor_val;
 };
 
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_MULTI_QUEUE(BufferFillCommandTest);
