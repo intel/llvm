@@ -83,6 +83,8 @@ static cl::opt<unsigned int> JobsInParallel{
 static cl::alias JobsInParallelShort{"j", cl::desc("Alias for --jobs"),
                                      cl::aliasopt(JobsInParallel)};
 
+static constexpr int JobPollSleepIntervalMS = 100;
+
 static void error(const Twine &Msg) {
   errs() << "llvm-foreach: " << Msg << '\n';
   exit(1);
@@ -96,11 +98,11 @@ static void error(std::error_code EC, const Twine &Prefix) {
 // Poll all running jobs.
 // Try to find a finished job with a non-blocking wait.
 // If no job found then sleep and repeat.
-// If found one job then a return code is returned.
+// If found one job, removes it from Jobs and returns its exit code..
 static int waitForAnyJob(std::list<sys::ProcessInfo> &Jobs) {
   while (true) {
+    std::string ErrMsg;
     for (auto It = Jobs.begin(); It != Jobs.end(); ++It) {
-      std::string ErrMsg;
       // Non-blocking wait: returns Pid==0 if still running.
       sys::ProcessInfo WaitResult =
           sys::Wait(*It, /*SecondsToWait=*/0, &ErrMsg);
@@ -116,7 +118,8 @@ static int waitForAnyJob(std::list<sys::ProcessInfo> &Jobs) {
       return RC;
     }
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(
+        std::chrono::milliseconds(JobPollSleepIntervalMS));
   }
 }
 
@@ -289,6 +292,7 @@ int main(int argc, char **argv) {
     std::string ErrMsg;
     sys::ProcessInfo WaitResult = sys::Wait(
         JobsSubmitted.front(), /*SecondsToWait=*/std::nullopt, &ErrMsg);
+    assert(WaitResult.Pid && "sys::Wait should return positive pid");
     if (WaitResult.ReturnCode != 0) {
       errs() << "llvm-foreach: failed with error code: "
              << WaitResult.ReturnCode << ": " << ErrMsg << '\n';
