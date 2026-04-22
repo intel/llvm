@@ -453,8 +453,11 @@ ipc_memory::close(ptr, ctxt);
 
 == Implementation notes
 
-For USM allocations of sub-page size, the implementation may need to share the
-entire page containing the allocation.
+For sub-page allocations, the implementation may need to share the entire page
+with the other process.  As a result, the other process may have access to
+adjacent USM memory that happens to share the same page.  Applications should
+be aware of the potential security implications if the USM memory contains
+sensitive information, and the other application isn't trusted.
 
 == Issues
 
