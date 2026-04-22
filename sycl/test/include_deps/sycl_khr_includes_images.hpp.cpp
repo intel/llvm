@@ -110,7 +110,9 @@
 // CHECK-NEXT: detail/named_swizzles_mixin.hpp
 // CHECK-NEXT: detail/memcpy.hpp
 // CHECK-NEXT: detail/image_ocl_types.hpp
-// CHECK-NEXT: __spirv/spirv_ops.hpp
+// CHECK-NEXT: __spirv/spirv_ops_image.hpp
+// CHECK-NEXT: __spirv/spirv_ops_builtin_decls.hpp
+// CHECK-NEXT: __spirv/spirv_ops_base.hpp
 // CHECK-NEXT: properties/image_properties.hpp
 // CHECK-NEXT: properties/image_properties.def
 // CHECK-EMPTY:
