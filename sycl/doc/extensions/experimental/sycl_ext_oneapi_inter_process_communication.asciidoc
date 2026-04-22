@@ -549,12 +549,11 @@ sycl::event open(const handle_data_t &handle_data, const sycl::context &ctx);
 sycl::event open(const handle_data_t &handle_data);
 
 // Requires C++20
-sycl::event open(const handle_data_view_t &handle_data, const sycl::context &ctx);
+sycl::event open(const handle_data_view_t &handle_data_view,
+                 const sycl::context &ctx);
 
 // Requires C++20
-sycl::event open(const handle_data_view_t &handle_data);
-
-void close(sycl::event &evt);
+sycl::event open(const handle_data_view_t &handle_data_view);
 
 }
 ```
@@ -591,19 +590,19 @@ returned from a call to the `get` function either in this process or in some
 other process on the same system.
 
 _Returns:_ An `event` object that represents the same event identified by
-`handle_data`. The returned event is associated with context `ctxt`. The
+`handle_data`. The returned event is associated with context `ctx`. The
 returned event and the event identified by `handle_data` share the same state.
 When one is signaled, the state of the other event automatically becomes
 signaled also.
 
 [_Note:_ The `open` function can be called multiple times on the same handle
 within the same process. Each call to the `open` function may return a unique
-event object even for the same handle, therefore each call to the `open`
-function must have a matching call to the `close` function.
+event object even for the same handle.
 _{endnote}_]
 
 [_Note:_ The event returned from a call to the `open` function is no longer
-valid if the event associated with `handle_data` is deallocated.
+valid if the event associated with `handle_data` (passed to a `get` call) is
+destroyed.
 _{endnote}_]
 
 _Throws:_ An exception with the `errc::invalid` error code if the handle data
@@ -623,14 +622,15 @@ _Effects:_ Equivalent to:
 ----
 sycl::device d;
 sycl::context ctxt = d.get_platform().khr_get_default_context();
-ipc::event::open(handle_data, ctxt);
+return ipc::event::open(handle_data, ctxt);
 ----
 
 !====
 a!
 [source]
 ----
-sycl::event open(const handle_data_view_t &handle_data, const sycl::context &ctx)
+sycl::event open(const handle_data_view_t &handle_data_view,
+                 const sycl::context &ctx)
 ----
 !====
 
@@ -646,7 +646,7 @@ return ipc::event::open(handle_data, ctx);
 a!
 [source]
 ----
-sycl::event open(const handle_data_view_t &handle_data)
+sycl::event open(const handle_data_view_t &handle_data_view)
 ----
 !====
 
@@ -656,23 +656,8 @@ _Effects:_ Equivalent to:
 ----
 sycl::device d;
 sycl::context ctxt = d.get_platform().khr_get_default_context();
-return ipc::event::open(handle_data, ctx);
+return ipc::event::open(handle_data_view, ctxt);
 ----
-
-!====
-a!
-[source]
-----
-void close(sycl::event &evt)
-----
-!====
-
-_Precondition:_ `evt` was previously returned from a call to the `open` function
-in this same process. This `evt` value has not yet been closed by calling the
-`close` function.
-
-_Effects:_ Closes an event object previously returned by a call to the `open`
-function.
 
 |====
 
