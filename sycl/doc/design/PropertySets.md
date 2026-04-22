@@ -226,7 +226,7 @@ __Key:__ Kernel name.
 __Value type:__ 32 bit integer. ("1")
 
 __Value:__ 1 if the kernel allocates work group scratch memory either directly
-or by way of helper functions and zero or missing otherwise.
+or by way of helper functions and 0 or missing otherwise.
 
 __Notes:__
 
