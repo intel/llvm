@@ -38,6 +38,18 @@ if(UR_BUILD_ADAPTER_L0 OR UR_BUILD_ADAPTER_L0_V2)
         UR_STATIC_LEVEL_ZERO
     )
 
+    # Let shared code know which adapters are being built.
+    # These use _ENABLED suffix to avoid conflicting with UR_ADAPTER_LEVEL_ZERO_V2
+    # which controls include paths in shared source files.
+    if(UR_BUILD_ADAPTER_L0)
+        target_compile_definitions(ur_adapter_level_zero_common PUBLIC
+            UR_L0_V1_ADAPTER_ENABLED)
+    endif()
+    if(UR_BUILD_ADAPTER_L0_V2)
+        target_compile_definitions(ur_adapter_level_zero_common PUBLIC
+            UR_L0_V2_ADAPTER_ENABLED)
+    endif()
+
     # Keep the warning suppression that applied to the shared code
     target_compile_options(ur_adapter_level_zero_common PRIVATE
         $<$<CXX_COMPILER_ID:MSVC>:/wd4805 /wd4244>
@@ -123,7 +135,7 @@ if(UR_BUILD_ADAPTER_L0)
         ur_adapter_level_zero_common
     )
 
-    target_compile_definitions(ur_adapter_level_zero PUBLIC UR_STATIC_LEVEL_ZERO)
+    target_compile_definitions(ur_adapter_level_zero PUBLIC UR_STATIC_LEVEL_ZERO UR_L0_V1_ADAPTER_ENABLED)
     if(UR_STATIC_ADAPTER_L0)
         target_compile_definitions(ur_adapter_level_zero PUBLIC UR_STATIC_ADAPTER_LEVEL_ZERO)
     endif()
@@ -214,6 +226,9 @@ if(UR_BUILD_ADAPTER_L0_V2)
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/queue_immediate_out_of_order.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/usm.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/ur_interface_loader.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/v2/adapter.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/v2/device.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/v2/platform.cpp
     )
     install_ur_library(ur_adapter_level_zero_v2)
 
@@ -227,7 +242,7 @@ if(UR_BUILD_ADAPTER_L0_V2)
             PROPERTIES APPEND_STRING PROPERTY COMPILE_FLAGS "-Wno-unused-parameter")
     endif()
 
-    target_compile_definitions(ur_adapter_level_zero_v2 PUBLIC UR_STATIC_LEVEL_ZERO)
+    target_compile_definitions(ur_adapter_level_zero_v2 PUBLIC UR_STATIC_LEVEL_ZERO UR_L0_V2_ADAPTER_ENABLED)
     if(UR_STATIC_ADAPTER_L0_V2)
         target_compile_definitions(ur_adapter_level_zero_v2 PUBLIC UR_STATIC_ADAPTER_LEVEL_ZERO_V2)
     endif()

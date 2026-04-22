@@ -26,6 +26,8 @@ namespace v2 {
 class event_pool;
 }
 
+namespace v2 {
+
 struct event_profiling_data_t {
   event_profiling_data_t(ze_event_handle_t hZeEvent) : hZeEvent(hZeEvent) {}
 
@@ -54,7 +56,7 @@ private:
   bool timestampRecorded = false;
 };
 
-struct ur_event_handle_t_ : ur_object {
+struct ur_event_handle_t_ : ::ur_object {
 public:
   // cache_borrowed_event is used for pooled events, whilst ze_event_handle_t is
   // used for native events
@@ -149,3 +151,5 @@ protected:
   v2::event_flags_t flags;
   event_profiling_data_t profilingData;
 };
+
+} // namespace v2

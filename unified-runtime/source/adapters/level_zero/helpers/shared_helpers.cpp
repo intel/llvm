@@ -10,6 +10,28 @@
 
 #include "shared_helpers.hpp"
 #include "logger/ur_logger.hpp"
+#include <cstring>
+#include <mutex>
+#include <umf_helpers.hpp>
+
+std::mutex ZeCall::GlobalLock;
+
+namespace umf {
+ur_result_t getProviderNativeError(const char *providerName,
+                                   int32_t nativeError) {
+  if (strcmp(providerName, "LEVEL_ZERO") == 0) {
+    auto zeResult = static_cast<ze_result_t>(nativeError);
+    if (zeResult == ZE_RESULT_ERROR_UNSUPPORTED_SIZE) {
+      return UR_RESULT_ERROR_INVALID_USM_SIZE;
+    }
+    return ze2urResult(zeResult);
+  }
+  if (strcmp(providerName, "Level Zero") == 0) {
+    return static_cast<ur_result_t>(nativeError);
+  }
+  return UR_RESULT_ERROR_UNKNOWN;
+}
+} // namespace umf
 
 ur_result_t ze2urResult(ze_result_t ZeResult) {
   if (ZeResult == ZE_RESULT_SUCCESS)

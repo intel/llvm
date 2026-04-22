@@ -16,8 +16,9 @@
 
 ur_exp_graph_handle_t_::ur_exp_graph_handle_t_(ur_context_handle_t hContext)
     : hContext(hContext) {
-  ZE2UR_CALL_THROWS(hContext->getPlatform()->ZeGraphExt.zeGraphCreateExp,
-                    (hContext->getZeHandle(), &zeGraph, nullptr));
+  auto ctx = v2::v2_cast(hContext);
+  ZE2UR_CALL_THROWS(ctx->getPlatform()->ZeGraphExt.zeGraphCreateExp,
+                    (ctx->getZeHandle(), &zeGraph, nullptr));
 }
 
 ur_exp_graph_handle_t_::ur_exp_graph_handle_t_(ur_context_handle_t hContext,
@@ -27,7 +28,8 @@ ur_exp_graph_handle_t_::ur_exp_graph_handle_t_(ur_context_handle_t hContext,
 ur_exp_graph_handle_t_::~ur_exp_graph_handle_t_() {
   if (zeGraph) {
     ze_result_t ZeResult = ZE_CALL_NOCHECK(
-        hContext->getPlatform()->ZeGraphExt.zeGraphDestroyExp, (zeGraph));
+        v2::v2_cast(hContext)->getPlatform()->ZeGraphExt.zeGraphDestroyExp,
+        (zeGraph));
     if (ZeResult != ZE_RESULT_SUCCESS) {
       UR_LOG(WARN, "Failed to destroy graph handle: {}", ZeResult);
     }
@@ -37,15 +39,18 @@ ur_exp_graph_handle_t_::~ur_exp_graph_handle_t_() {
 ur_exp_executable_graph_handle_t_::ur_exp_executable_graph_handle_t_(
     ur_context_handle_t hContext, ur_exp_graph_handle_t hGraph)
     : hContext(hContext) {
+  auto ctx = v2::v2_cast(hContext);
   ZE2UR_CALL_THROWS(
-      hContext->getPlatform()->ZeGraphExt.zeCommandListInstantiateGraphExp,
+      ctx->getPlatform()->ZeGraphExt.zeCommandListInstantiateGraphExp,
       (hGraph->getZeHandle(), &zeExGraph, nullptr));
 }
 
 ur_exp_executable_graph_handle_t_::~ur_exp_executable_graph_handle_t_() {
   if (zeExGraph) {
     ze_result_t ZeResult = ZE_CALL_NOCHECK(
-        hContext->getPlatform()->ZeGraphExt.zeExecutableGraphDestroyExp,
+        v2::v2_cast(hContext)
+            ->getPlatform()
+            ->ZeGraphExt.zeExecutableGraphDestroyExp,
         (zeExGraph));
     if (ZeResult != ZE_RESULT_SUCCESS) {
       UR_LOG(WARN, "Failed to destroy executable graph handle: {}", ZeResult);
@@ -54,6 +59,8 @@ ur_exp_executable_graph_handle_t_::~ur_exp_executable_graph_handle_t_() {
 }
 
 namespace ur::level_zero_v2 {
+
+using v2::v2_cast;
 
 ur_result_t urGraphCreateExp(ur_context_handle_t hContext,
                              ur_exp_graph_handle_t *phGraph) try {
@@ -113,7 +120,7 @@ ur_result_t urGraphIsEmptyExp(ur_exp_graph_handle_t hGraph, bool *pIsEmpty) {
   }
 
   ze_result_t zeResult =
-      ZE_CALL_NOCHECK(hContext->getPlatform()->ZeGraphExt.zeGraphIsEmptyExp,
+      ZE_CALL_NOCHECK(v2_cast(hContext)->getPlatform()->ZeGraphExt.zeGraphIsEmptyExp,
                       (hGraph->getZeHandle()));
   if (zeResult == ZE_RESULT_ERROR_INVALID_GRAPH) {
     return UR_RESULT_ERROR_INVALID_GRAPH;

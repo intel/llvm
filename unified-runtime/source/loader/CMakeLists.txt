@@ -80,7 +80,7 @@ if(UR_STATIC_ADAPTER_L0_V2)
     target_link_libraries(ur_loader PRIVATE
         ur_adapter_level_zero_v2
     )
-    target_compile_definitions(ur_loader PRIVATE UR_STATIC_ADAPTER_LEVEL_ZERO)
+    target_compile_definitions(ur_loader PRIVATE UR_STATIC_ADAPTER_LEVEL_ZERO_V2)
 endif()
 
 if(UR_ENABLE_TRACING)

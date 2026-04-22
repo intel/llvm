@@ -54,7 +54,7 @@ ur_result_t getMemPtr(ur_mem_handle_t memObj,
 // Checks whether zeCommandListImmediateAppendCommandListsExp can be used for a
 // given context.
 void checkImmediateAppendSupport(ur_context_handle_t context) {
-  if (!context->getPlatform()->ZeCommandListImmediateAppendExt.Supported) {
+  if (!v2::v2_cast(context)->getPlatform()->ZeCommandListImmediateAppendExt.Supported) {
     UR_LOG(ERR, "Adapter v2 is used but the current driver does not support "
                 "the zeCommandListImmediateAppendCommandListsExp entrypoint.");
     throw UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -73,7 +73,7 @@ ur_exp_command_buffer_handle_t_::ur_exp_command_buffer_handle_t_(
           context, device,
           std::forward<v2::raii::command_list_unique_handle>(commandList)),
       context(context), device(device),
-      eventPool(context->getEventPoolCache(PoolCacheType::Regular)
+      eventPool(v2::v2_cast(context)->getEventPoolCache(v2::PoolCacheType::Regular)
                     .borrow(device->Id.value(),
                             isInOrder ? v2::EVENT_FLAGS_COUNTER : 0)) {}
 
@@ -120,7 +120,7 @@ ur_result_t ur_exp_command_buffer_handle_t_::createCommandHandle(
     uint32_t numKernelAlternatives, ur_kernel_handle_t *kernelAlternatives,
     ur_exp_command_buffer_command_handle_t *command) {
 
-  auto platform = context->getPlatform();
+  auto platform = v2::v2_cast(context)->getPlatform();
   ze_command_list_handle_t zeCommandList =
       commandListLocked->getZeCommandList();
   std::unique_ptr<kernel_command_handle> newCommand;
@@ -152,7 +152,7 @@ ur_result_t ur_exp_command_buffer_handle_t_::finalizeCommandBuffer() {
       ++numEventResets;
       ZE2UR_CALL(
           zeCommandListAppendEventReset,
-          (commandListLocked->getZeCommandList(), syncPoints[i]->getZeEvent()));
+          (commandListLocked->getZeCommandList(), v2::v2_cast(syncPoints[i])->getZeEvent()));
     }
 
     if (numEventResets)
@@ -171,7 +171,7 @@ ur_event_handle_t ur_exp_command_buffer_handle_t_::getExecutionEventUnlocked() {
 ur_result_t ur_exp_command_buffer_handle_t_::registerExecutionEventUnlocked(
     ur_event_handle_t nextExecutionEvent) {
   if (currentExecution) {
-    UR_CALL(currentExecution->release());
+    UR_CALL(v2::v2_cast(currentExecution)->release());
     currentExecution = nullptr;
   }
   if (nextExecutionEvent) {
@@ -184,10 +184,10 @@ ur_exp_command_buffer_handle_t_::~ur_exp_command_buffer_handle_t_() try {
   UR_CALL_NOCHECK(commandListManager.lock()->releaseSubmittedKernels());
 
   if (currentExecution) {
-    currentExecution->release();
+    v2::v2_cast(currentExecution)->release();
   }
   for (auto &event : syncPoints) {
-    event->release();
+    v2::v2_cast(event)->release();
   }
 } catch (...) {
   UR_LOG(DEBUG, "ur_exp_command_buffer_handle_t_ destructor failed with: {}",
@@ -202,7 +202,7 @@ ur_result_t ur_exp_command_buffer_handle_t_::applyUpdateCommands(
     return UR_RESULT_ERROR_INVALID_OPERATION;
   }
   UR_CALL(validateCommandDescUnlocked(
-      this, device, context->getPlatform()->ZeDriverGlobalOffsetExtensionFound,
+      this, device, v2::v2_cast(context)->getPlatform()->ZeDriverGlobalOffsetExtensionFound,
       numUpdateCommands, updateCommands));
 
   if (currentExecution) {
@@ -210,14 +210,14 @@ ur_result_t ur_exp_command_buffer_handle_t_::applyUpdateCommands(
     // it would require to remember the update commands and perform update
     // before appending to the queue
     ZE2UR_CALL(zeEventHostSynchronize,
-               (currentExecution->getZeEvent(), UINT64_MAX));
-    currentExecution->release();
+               (v2::v2_cast(currentExecution)->getZeEvent(), UINT64_MAX));
+    v2::v2_cast(currentExecution)->release();
     currentExecution = nullptr;
   }
 
   device_ptr_storage_t zeHandles;
 
-  auto platform = context->getPlatform();
+  auto platform = v2::v2_cast(context)->getPlatform();
   ze_command_list_handle_t zeCommandList =
       commandListLocked->getZeCommandList();
   UR_CALL(updateCommandBufferUnlocked(
@@ -235,7 +235,7 @@ ur_event_handle_t ur_exp_command_buffer_handle_t_::createEventIfRequested(
   }
 
   auto event = eventPool->allocate();
-  event->setQueue(nullptr);
+  v2::v2_cast(event)->setQueue(nullptr);
 
   *retSyncPoint = getSyncPoint(event);
 
@@ -244,6 +244,8 @@ ur_event_handle_t ur_exp_command_buffer_handle_t_::createEventIfRequested(
 
 namespace ur::level_zero_v2 {
 
+using v2::v2_cast;
+
 ur_result_t
 urCommandBufferCreateExp(ur_context_handle_t context, ur_device_handle_t device,
                          const ur_exp_command_buffer_desc_t *commandBufferDesc,
@@ -251,7 +253,7 @@ urCommandBufferCreateExp(ur_context_handle_t context, ur_device_handle_t device,
   checkImmediateAppendSupport(context);
 
   if (commandBufferDesc->isUpdatable &&
-      !context->getPlatform()->ZeMutableCmdListExt.Supported) {
+      !v2_cast(context)->getPlatform()->ZeMutableCmdListExt.Supported) {
     throw UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
 
@@ -264,7 +266,7 @@ urCommandBufferCreateExp(ur_context_handle_t context, ur_device_handle_t device,
   listDesc.CopyOffloadEnable = true;
   listDesc.Mutable = commandBufferDesc->isUpdatable;
   v2::raii::command_list_unique_handle zeCommandList =
-      context->getCommandListCache().getRegularCommandList(device->ZeDevice,
+      v2_cast(context)->getCommandListCache().getRegularCommandList(device->ZeDevice,
                                                            listDesc);
 
   *commandBuffer = new ur_exp_command_buffer_handle_t_(
@@ -290,7 +292,7 @@ urCommandBufferReleaseExp(ur_exp_command_buffer_handle_t hCommandBuffer) try {
 
   if (auto executionEvent = hCommandBuffer->getExecutionEventUnlocked()) {
     ZE2UR_CALL(zeEventHostSynchronize,
-               (executionEvent->getZeEvent(), UINT64_MAX));
+               (v2_cast(executionEvent)->getZeEvent(), UINT64_MAX));
   }
   delete hCommandBuffer;
   return UR_RESULT_SUCCESS;

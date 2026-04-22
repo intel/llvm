@@ -45,3 +45,13 @@ struct ur_adapter_handle_t_ : ur::handle_base<ur::level_zero::ddi_getter> {
 };
 
 extern ur_adapter_handle_t_ *GlobalAdapter;
+
+#ifdef UR_L0_V2_ADAPTER_ENABLED
+extern ur_adapter_handle_t_ *GlobalAdapterV2;
+std::pair<bool, std::string> shouldUseV1Adapter();
+std::pair<bool, std::string> shouldUseV2Adapter();
+#endif
+
+ur_result_t adapterStateInit();
+ur_result_t initPlatforms(ur_adapter_handle_t_ *adapter, PlatformVec &platforms,
+                          ze_result_t ZesResult) noexcept;

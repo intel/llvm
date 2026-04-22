@@ -13,11 +13,7 @@
 #include "logger/ur_logger.hpp"
 #include "ur_interface_loader.hpp"
 
-#ifdef UR_ADAPTER_LEVEL_ZERO_V2
-#include "v2/context.hpp"
-#else
 #include "context.hpp"
-#endif
 
 extern "C" {
 // Check to see if a Level Zero module has any unresolved symbols.

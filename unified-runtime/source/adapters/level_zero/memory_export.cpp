@@ -9,11 +9,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "common.hpp"
-#ifdef UR_ADAPTER_LEVEL_ZERO_V2
-#include "v2/context.hpp"
-#else
 #include "context.hpp"
-#endif
 #include "ur_api.h"
 
 namespace ur::level_zero {

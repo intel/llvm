@@ -11,11 +11,7 @@
 #include "sampler.hpp"
 #include "logger/ur_logger.hpp"
 
-#ifdef UR_ADAPTER_LEVEL_ZERO_V2
-#include "v2/context.hpp"
-#else
 #include "context.hpp"
-#endif
 
 ur_result_t ur2zeSamplerDesc(ze_api_version_t ZeApiVersion,
                              const ur_sampler_desc_t *SamplerDesc,

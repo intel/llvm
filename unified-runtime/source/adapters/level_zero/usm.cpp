@@ -29,17 +29,6 @@
 #include <umf/memory_pool.h>
 #include <umf_helpers.hpp>
 
-namespace umf {
-ur_result_t getProviderNativeError(const char *providerName,
-                                   int32_t nativeError) {
-  if (strcmp(providerName, "Level Zero") == 0) {
-    // L0 provider stores native errors of ur_result_t type
-    return static_cast<ur_result_t>(nativeError);
-  }
-
-  return UR_RESULT_ERROR_UNKNOWN;
-}
-} // namespace umf
 
 usm::DisjointPoolAllConfigs DisjointPoolConfigInstance =
     InitializeDisjointPoolConfig();

@@ -15,8 +15,6 @@
 #include "../common.hpp"
 #include "logger/ur_logger.hpp"
 
-std::mutex ZeCall::GlobalLock;
-
 namespace ur::level_zero_v2 {
 
 ur_result_t

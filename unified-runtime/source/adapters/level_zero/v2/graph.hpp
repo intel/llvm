@@ -44,5 +44,5 @@ private:
 };
 
 inline bool checkGraphExtensionSupport(ur_context_handle_t hContext) {
-  return hContext->getPlatform()->ZeGraphExt.Supported;
+  return v2::v2_cast(hContext)->getPlatform()->ZeGraphExt.Supported;
 }

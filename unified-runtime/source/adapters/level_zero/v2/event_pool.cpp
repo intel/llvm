@@ -27,7 +27,8 @@ ur_event_handle_t event_pool::allocate() {
     auto end = start + EVENTS_BURST;
     for (; start < end; ++start) {
       events.emplace_back(hContext, provider->allocate(), this);
-      freelist.push_back(&events.at(start));
+      freelist.push_back(
+          reinterpret_cast<ur_event_handle_t>(&events.at(start)));
     }
   }
 
@@ -36,8 +37,8 @@ ur_event_handle_t event_pool::allocate() {
 
 #ifndef NDEBUG
   // Set the command type to an invalid value to catch any misuses in tests
-  event->setQueue(nullptr);
-  event->setCommandType(UR_COMMAND_FORCE_UINT32);
+  v2_cast(event)->setQueue(nullptr);
+  v2_cast(event)->setCommandType(UR_COMMAND_FORCE_UINT32);
 #endif
 
   return event;
@@ -48,12 +49,12 @@ void event_pool::free(ur_event_handle_t event) {
 
   std::unique_lock<ur_mutex> lock(mutex);
 
-  event->reset();
+  v2_cast(event)->reset();
   freelist.push_back(event);
 
   // The event is still in the pool, so we need to increment the refcount
-  assert(event->RefCount.getCount() == 0);
-  event->RefCount.retain();
+  assert(v2_cast(event)->RefCount.getCount() == 0);
+  v2_cast(event)->RefCount.retain();
 }
 
 event_provider *event_pool::getProvider() const { return provider.get(); }

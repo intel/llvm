@@ -44,10 +44,10 @@ ur_queue_batched_t::ur_queue_batched_t(
       currentCmdLists(
           hContext, hDevice,
           /* regular command list*/
-          hContext->getCommandListCache().getRegularCommandList(
+          v2_cast(hContext)->getCommandListCache().getRegularCommandList(
               hDevice->ZeDevice, regularCmdListDesc),
           /* command list immediate*/
-          hContext->getCommandListCache().getImmediateCommandList(
+          v2_cast(hContext)->getCommandListCache().getImmediateCommandList(
               hDevice->ZeDevice,
               {true, ordinal, true /* always enable copy offload */},
               ZE_COMMAND_QUEUE_MODE_ASYNCHRONOUS, priority, index)
@@ -56,7 +56,7 @@ ur_queue_batched_t::ur_queue_batched_t(
   TRACK_SCOPE_LATENCY("ur_queue_batched_t::constructor");
 
   // TODO common code?
-  if (!hContext->getPlatform()->ZeCommandListImmediateAppendExt.Supported) {
+  if (!v2_cast(hContext)->getPlatform()->ZeCommandListImmediateAppendExt.Supported) {
     UR_LOG(ERR, "Adapter v2 is used but the current driver does not support "
                 "the zeCommandListImmediateAppendCommandListsExp entrypoint.");
     throw UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -67,10 +67,12 @@ ur_queue_batched_t::ur_queue_batched_t(
 
   this->flags = flags;
 
-  eventPoolRegular = hContext->getEventPoolCache(PoolCacheType::Regular)
+  eventPoolRegular = v2_cast(hContext)
+                         ->getEventPoolCache(PoolCacheType::Regular)
                          .borrow(hDevice->Id.value(), v2::EVENT_FLAGS_COUNTER);
 
-  eventPoolImmediate = hContext->getEventPoolCache(PoolCacheType::Immediate)
+  eventPoolImmediate = v2_cast(hContext)
+                           ->getEventPoolCache(PoolCacheType::Immediate)
                            .borrow(hDevice->Id.value(), eventFlags);
 }
 
@@ -83,8 +85,8 @@ ur_event_handle_t ur_queue_batched_t::createEventIfRequestedRegular(
   }
 
   (*phEvent) = eventPoolRegular->allocate();
-  (*phEvent)->setQueue(this);
-  (*phEvent)->setBatch(batch_generation);
+  v2_cast(*phEvent)->setQueue(this);
+  v2_cast(*phEvent)->setBatch(batch_generation);
 
   return (*phEvent);
 }
@@ -92,12 +94,12 @@ ur_event_handle_t ur_queue_batched_t::createEventIfRequestedRegular(
 ur_event_handle_t ur_queue_batched_t::createEventAndRetainRegular(
     ur_event_handle_t *phEvent, ur_event_generation_t batch_generation) {
   auto hEvent = eventPoolRegular->allocate();
-  hEvent->setQueue(this);
-  hEvent->setBatch(batch_generation);
+  v2_cast(hEvent)->setQueue(this);
+  v2_cast(hEvent)->setBatch(batch_generation);
 
   if (phEvent) {
     (*phEvent) = hEvent;
-    hEvent->retain();
+    v2_cast(hEvent)->retain();
   }
 
   return hEvent;
@@ -200,9 +202,9 @@ ur_result_t batch_manager::hostSynchronize() {
 ur_result_t ur_queue_batched_t::queueFinishPoolsUnlocked() {
   TRACK_SCOPE_LATENCY("ur_queue_batched_t::asyncPools");
 
-  hContext->getAsyncPool()->cleanupPoolsForQueue(this);
-  hContext->forEachUsmPool([this](ur_usm_pool_handle_t hPool) {
-    hPool->cleanupPoolsForQueue(this);
+  v2_cast(v2_cast(hContext)->getAsyncPool())->cleanupPoolsForQueue(this);
+  v2_cast(hContext)->forEachUsmPool([this](ur_usm_pool_handle_t hPool) {
+    v2_cast(hPool)->cleanupPoolsForQueue(this);
     return true;
   });
 

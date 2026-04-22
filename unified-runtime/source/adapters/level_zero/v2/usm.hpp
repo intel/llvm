@@ -18,6 +18,8 @@
 #include "event.hpp"
 #include "ur_pool_manager.hpp"
 
+namespace v2 {
+
 struct UsmPool;
 
 struct AllocationStats {
@@ -52,7 +54,7 @@ private:
   std::atomic_size_t PeakAllocatedMemorySize{0};
 };
 
-struct ur_usm_pool_handle_t_ : ur_object {
+struct ur_usm_pool_handle_t_ : ::ur_object {
   ur_usm_pool_handle_t_(ur_context_handle_t hContext,
                         ur_usm_pool_desc_t *pPoolDes);
   ur_usm_pool_handle_t_(ur_context_handle_t hContext,
@@ -94,8 +96,8 @@ private:
 struct UsmPool {
   UsmPool(ur_usm_pool_handle_t urPool, umf::pool_unique_handle_t umfPool)
       : urPool(urPool), umfPool(std::move(umfPool)),
-        asyncPool([](ur_event_handle_t hEvent) { return hEvent->release(); },
-                  [context = urPool->getContextHandle()](void *ptr) {
+        asyncPool([](ur_event_handle_t hEvent) { return v2_cast(hEvent)->release(); },
+                  [context = v2_cast(urPool)->getContextHandle()](void *ptr) {
                     return ur::level_zero_v2::urUSMFree(context, ptr);
                   }) {}
   ur_usm_pool_handle_t urPool;
@@ -104,3 +106,5 @@ struct UsmPool {
   // invoked first.
   EnqueuedPool asyncPool;
 };
+
+} // namespace v2

@@ -14,5 +14,3 @@
 
 #include "ur_level_zero.hpp"
 
-// Define the static class field
-std::mutex ZeCall::GlobalLock;

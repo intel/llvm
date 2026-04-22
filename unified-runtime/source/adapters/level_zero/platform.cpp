@@ -15,7 +15,7 @@
 namespace ur::level_zero {
 
 ur_result_t urPlatformGet(
-    ur_adapter_handle_t,
+    ur_adapter_handle_t hAdapter,
     /// [in] the number of platforms to be added to phPlatforms. If phPlatforms
     /// is not NULL, then NumEntries should be greater than zero, otherwise
     /// ::UR_RESULT_ERROR_INVALID_SIZE, will be returned.
@@ -28,13 +28,13 @@ ur_result_t urPlatformGet(
     uint32_t *NumPlatforms) {
   // Platform handles are cached for reuse. This is to ensure consistent
   // handle pointers across invocations and to improve retrieval performance.
-  uint32_t nplatforms = (uint32_t)GlobalAdapter->Platforms.size();
+  uint32_t nplatforms = (uint32_t)hAdapter->Platforms.size();
   if (NumPlatforms) {
     *NumPlatforms = nplatforms;
   }
   if (Platforms) {
     for (uint32_t i = 0; i < std::min(nplatforms, NumEntries); ++i) {
-      Platforms[i] = GlobalAdapter->Platforms.at(i).get();
+      Platforms[i] = hAdapter->Platforms.at(i).get();
     }
   }
 
@@ -61,11 +61,7 @@ ur_result_t urPlatformGetInfo(
   switch (ParamName) {
   case UR_PLATFORM_INFO_NAME:
     // TODO: Query Level Zero driver when relevant info is added there.
-#ifdef UR_ADAPTER_LEVEL_ZERO_V2
-    return ReturnValue("Intel(R) oneAPI Unified Runtime over Level-Zero V2");
-#else
     return ReturnValue("Intel(R) oneAPI Unified Runtime over Level-Zero");
-#endif
   case UR_PLATFORM_INFO_VENDOR_NAME:
     // TODO: Query Level Zero driver when relevant info is added there.
     return ReturnValue("Intel(R) Corporation");
@@ -95,7 +91,14 @@ ur_result_t urPlatformGetInfo(
   case UR_PLATFORM_INFO_BACKEND:
     return ReturnValue(UR_BACKEND_LEVEL_ZERO);
   case UR_PLATFORM_INFO_ADAPTER:
+#ifdef UR_L0_V2_ADAPTER_ENABLED
+    return ReturnValue(GlobalAdapterV2 &&
+                               Platform->ddi_table != GlobalAdapter->ddi_table
+                           ? GlobalAdapterV2
+                           : GlobalAdapter);
+#else
     return ReturnValue(GlobalAdapter);
+#endif
   default:
     UR_LOG(DEBUG, "urPlatformGetInfo: unrecognized ParamName");
     return UR_RESULT_ERROR_INVALID_VALUE;
@@ -125,7 +128,7 @@ ur_result_t urPlatformGetNativeHandle(
 
 ur_result_t urPlatformCreateWithNativeHandle(
     /// [in] the native handle of the platform.
-    ur_native_handle_t NativePlatform, ur_adapter_handle_t,
+    ur_native_handle_t NativePlatform, ur_adapter_handle_t hAdapter,
     /// [in][optional] pointer to native platform properties struct.
     const ur_platform_native_properties_t * /*Properties*/,
     /// [out] pointer to the handle of the platform object created.
@@ -133,7 +136,7 @@ ur_result_t urPlatformCreateWithNativeHandle(
   auto ZeDriver = ur_cast<ze_driver_handle_t>(NativePlatform);
 
   uint32_t NumPlatforms = 0;
-  ur_adapter_handle_t AdapterHandle = GlobalAdapter;
+  ur_adapter_handle_t AdapterHandle = hAdapter;
   UR_CALL(
       ur::level_zero::urPlatformGet(AdapterHandle, 0, nullptr, &NumPlatforms));
 

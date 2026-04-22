@@ -168,7 +168,7 @@ private:
   v2::raii::command_list_unique_handle getNewRegularCmdList() {
     TRACK_SCOPE_LATENCY("ur_queue_batched_t::getNewRegularCmdList");
 
-    return hContext->getCommandListCache().getRegularCommandList(
+    return v2_cast(hContext)->getCommandListCache().getRegularCommandList(
         hDevice->ZeDevice, regularCmdListDesc);
   }
 

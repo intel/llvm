@@ -183,8 +183,30 @@ using ur_context_handle_t =
     ur_handle<::ur_context_handle_t, ur::level_zero_v2::urContextRetain,
               ur::level_zero_v2::urContextRelease>;
 using ur_device_handle_t =
-    ur_handle<::ur_device_handle_t, ur::level_zero_v2::urDeviceRetain,
-              ur::level_zero_v2::urDeviceRelease>;
+    ur_handle<::ur_device_handle_t, ur::level_zero::urDeviceRetain,
+              ur::level_zero::urDeviceRelease>;
 
 } // namespace raii
+
+struct ur_context_handle_t_;
+struct ur_event_handle_t_;
+struct ur_usm_pool_handle_t_;
+
+template <typename V2Type, typename HandleType>
+inline V2Type *v2_cast(HandleType h) {
+  return reinterpret_cast<V2Type *>(h);
+}
+
+inline ur_context_handle_t_ *v2_cast(::ur_context_handle_t h) {
+  return reinterpret_cast<ur_context_handle_t_ *>(h);
+}
+
+inline ur_event_handle_t_ *v2_cast(::ur_event_handle_t h) {
+  return reinterpret_cast<ur_event_handle_t_ *>(h);
+}
+
+inline ur_usm_pool_handle_t_ *v2_cast(::ur_usm_pool_handle_t h) {
+  return reinterpret_cast<ur_usm_pool_handle_t_ *>(h);
+}
+
 } // namespace v2

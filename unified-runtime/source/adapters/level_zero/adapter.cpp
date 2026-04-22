@@ -271,7 +271,7 @@ ur_result_t adapterStateInit() {
   return UR_RESULT_SUCCESS;
 }
 
-static bool isBMGorNewer() {
+bool isBMGorNewer() {
   auto urResult = checkDeviceIntelGPUIpVersionOrNewer(0x05004000);
   if (urResult != UR_RESULT_SUCCESS &&
       urResult != UR_RESULT_ERROR_UNSUPPORTED_VERSION) {
@@ -282,17 +282,8 @@ static bool isBMGorNewer() {
   return urResult == UR_RESULT_SUCCESS;
 }
 
-static void releaseStaticLoaderResourcesIfNeeded() {
-#ifdef UR_STATIC_LEVEL_ZERO
-  // Given static linking of the L0 Loader, we must release the static loader
-  // resources if the adapter is not used.
-  zelLoaderContextTeardown();
-#endif
-}
-
-// returns a pair indicating whether to use the V1 adapter and a string
-// indicating the reason for the decision.
-static std::pair<bool, std::string> shouldUseV1Adapter() {
+#ifdef UR_L0_V2_ADAPTER_ENABLED
+std::pair<bool, std::string> shouldUseV1Adapter() {
   auto specificAdapterVersionRequested =
       ur_getenv("UR_LOADER_USE_LEVEL_ZERO_V2").has_value() ||
       ur_getenv("SYCL_UR_USE_LEVEL_ZERO_V2").has_value();
@@ -319,10 +310,11 @@ static std::pair<bool, std::string> shouldUseV1Adapter() {
   return {!isBMGorNewer(), reason};
 }
 
-[[maybe_unused]] static std::pair<bool, std::string> shouldUseV2Adapter() {
+std::pair<bool, std::string> shouldUseV2Adapter() {
   auto [useV1, reason] = shouldUseV1Adapter();
   return {!useV1, reason};
 }
+#endif // UR_L0_V2_ADAPTER_ENABLED
 
 /*
 This constructor initializes the `ur_adapter_handle_t_` object and
@@ -521,25 +513,6 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
 
   PlatformVec platforms;
 
-  bool forceLoadedAdapter = ur_getenv("UR_ADAPTERS_FORCE_LOAD").has_value();
-  if (!forceLoadedAdapter) {
-#ifdef UR_ADAPTER_LEVEL_ZERO_V2
-    auto [useV2, reason] = shouldUseV2Adapter();
-    if (!useV2) {
-      UR_LOG(INFO, "Skipping L0 V2 adapter: {}", reason);
-      releaseStaticLoaderResourcesIfNeeded();
-      return;
-    }
-#else
-    auto [useV1, reason] = shouldUseV1Adapter();
-    if (!useV1) {
-      UR_LOG(INFO, "Skipping L0 V1 adapter: {}", reason);
-      releaseStaticLoaderResourcesIfNeeded();
-      return;
-    }
-#endif
-  }
-
   // Check if the user has enabled the default L0 SysMan initialization.
   const int UrSysmanZesinitEnable = [&UserForcedSysManInit] {
     const char *UrRet = std::getenv("UR_L0_ENABLE_ZESINIT_DEFAULT");
@@ -640,6 +613,18 @@ ur_result_t urAdapterGet(
     return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
   }
 
+#ifdef UR_L0_V2_ADAPTER_ENABLED
+  {
+    auto [useV1, reason] = shouldUseV1Adapter();
+    if (!useV1) {
+      UR_LOG(INFO, "Skipping L0 V1 adapter: {}", reason);
+      if (NumAdapters)
+        *NumAdapters = 0;
+      return UR_RESULT_SUCCESS;
+    }
+  }
+#endif
+
   if (NumEntries && Adapters) {
     *Adapters = GlobalAdapter;
 
@@ -659,12 +644,13 @@ ur_result_t urAdapterGet(
   return UR_RESULT_ERROR_UNKNOWN;
 }
 
-ur_result_t urAdapterRelease([[maybe_unused]] ur_adapter_handle_t Adapter) {
-  assert(GlobalAdapter && GlobalAdapter == Adapter);
+ur_result_t urAdapterRelease(ur_adapter_handle_t Adapter) {
+  if (!Adapter)
+    return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
   // NOTE: This does not require guarding with a mutex; the instant the ref
   // count hits zero, both Get and Retain are UB.
-  if (GlobalAdapter->RefCount.release()) {
+  if (Adapter->RefCount.release()) {
     auto result = adapterStateTeardown();
 #ifdef UR_STATIC_LEVEL_ZERO
     // Given static linking of the L0 Loader, we must delay the loader's
@@ -672,8 +658,13 @@ ur_result_t urAdapterRelease([[maybe_unused]] ur_adapter_handle_t Adapter) {
     zelLoaderContextTeardown();
 #endif
 
-    delete GlobalAdapter;
-    GlobalAdapter = nullptr;
+    if (Adapter == GlobalAdapter)
+      GlobalAdapter = nullptr;
+#ifdef UR_L0_V2_ADAPTER_ENABLED
+    if (Adapter == GlobalAdapterV2)
+      GlobalAdapterV2 = nullptr;
+#endif
+    delete Adapter;
 
     return result;
   }
@@ -681,9 +672,10 @@ ur_result_t urAdapterRelease([[maybe_unused]] ur_adapter_handle_t Adapter) {
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t urAdapterRetain([[maybe_unused]] ur_adapter_handle_t Adapter) {
-  assert(GlobalAdapter && GlobalAdapter == Adapter);
-  GlobalAdapter->RefCount.retain();
+ur_result_t urAdapterRetain(ur_adapter_handle_t Adapter) {
+  if (!Adapter)
+    return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+  Adapter->RefCount.retain();
 
   return UR_RESULT_SUCCESS;
 }
@@ -703,24 +695,18 @@ ur_result_t urAdapterGetLastError(
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t urAdapterGetInfo(ur_adapter_handle_t, ur_adapter_info_t PropName,
-                             size_t PropSize, void *PropValue,
-                             size_t *PropSizeRet) {
+ur_result_t urAdapterGetInfo(ur_adapter_handle_t hAdapter,
+                             ur_adapter_info_t PropName, size_t PropSize,
+                             void *PropValue, size_t *PropSizeRet) {
   UrReturnHelper ReturnValue(PropSize, PropValue, PropSizeRet);
 
   switch (PropName) {
   case UR_ADAPTER_INFO_BACKEND:
     return ReturnValue(UR_BACKEND_LEVEL_ZERO);
   case UR_ADAPTER_INFO_REFERENCE_COUNT:
-    return ReturnValue(GlobalAdapter->RefCount.getCount());
-  case UR_ADAPTER_INFO_VERSION: {
-#ifdef UR_ADAPTER_LEVEL_ZERO_V2
-    uint32_t adapterVersion = 2;
-#else
-    uint32_t adapterVersion = 1;
-#endif
-    return ReturnValue(adapterVersion);
-  }
+    return ReturnValue(hAdapter->RefCount.getCount());
+  case UR_ADAPTER_INFO_VERSION:
+    return ReturnValue(uint32_t{1});
   default:
     return UR_RESULT_ERROR_INVALID_ENUMERATION;
   }
@@ -729,21 +715,21 @@ ur_result_t urAdapterGetInfo(ur_adapter_handle_t, ur_adapter_info_t PropName,
 }
 
 ur_result_t urAdapterSetLoggerCallback(
-    ur_adapter_handle_t, ur_logger_callback_t pfnLoggerCallback,
+    ur_adapter_handle_t hAdapter, ur_logger_callback_t pfnLoggerCallback,
     void *pUserData, ur_logger_level_t level = UR_LOGGER_LEVEL_QUIET) {
 
-  if (GlobalAdapter) {
-    GlobalAdapter->logger.setCallbackSink(pfnLoggerCallback, pUserData, level);
+  if (hAdapter) {
+    hAdapter->logger.setCallbackSink(pfnLoggerCallback, pUserData, level);
   }
 
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t urAdapterSetLoggerCallbackLevel(ur_adapter_handle_t,
+ur_result_t urAdapterSetLoggerCallbackLevel(ur_adapter_handle_t hAdapter,
                                             ur_logger_level_t level) {
 
-  if (GlobalAdapter) {
-    GlobalAdapter->logger.setCallbackLevel(level);
+  if (hAdapter) {
+    hAdapter->logger.setCallbackLevel(level);
   }
 
   return UR_RESULT_SUCCESS;

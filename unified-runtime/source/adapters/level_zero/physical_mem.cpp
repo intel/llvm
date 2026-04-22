@@ -12,11 +12,7 @@
 #include "common.hpp"
 #include "device.hpp"
 
-#ifdef UR_ADAPTER_LEVEL_ZERO_V2
-#include "v2/context.hpp"
-#else
 #include "context.hpp"
-#endif
 
 namespace ur::level_zero {
 

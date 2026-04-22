@@ -35,7 +35,7 @@ provider_counter::provider_counter(ur_platform_handle_t platform,
                      (void **)&this->eventCreateFunc));
 
   ZE2UR_CALL_THROWS(zelLoaderTranslateHandle,
-                    (ZEL_HANDLE_CONTEXT, context->getZeHandle(),
+                    (ZEL_HANDLE_CONTEXT, v2_cast(context)->getZeHandle(),
                      (void **)&translatedContext));
   ZE2UR_CALL_THROWS(
       zelLoaderTranslateHandle,

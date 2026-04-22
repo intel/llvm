@@ -18,9 +18,11 @@
 #include "event_pool_cache.hpp"
 #include "usm.hpp"
 
+namespace v2 {
+
 enum class PoolCacheType { Immediate, Regular };
 
-struct ur_context_handle_t_ : ur_object {
+struct ur_context_handle_t_ : ::ur_object {
   ur_context_handle_t_(ze_context_handle_t hContext, uint32_t numDevices,
                        const ur_device_handle_t *phDevices, bool ownZeContext);
 
@@ -79,7 +81,9 @@ private:
   // P2P devices for each device in the context, indexed by device id.
   const std::vector<std::vector<ur_device_handle_t>> p2pAccessDevices;
 
-  ur_usm_pool_handle_t_ defaultUSMPool;
-  ur_usm_pool_handle_t_ asyncPool;
+  v2::ur_usm_pool_handle_t_ defaultUSMPool;
+  v2::ur_usm_pool_handle_t_ asyncPool;
   std::list<ur_usm_pool_handle_t> usmPoolHandles;
 };
+
+} // namespace v2

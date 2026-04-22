@@ -46,14 +46,14 @@ provider_pool::provider_pool(ur_context_handle_t context, queue_type queue,
   }
 
   std::vector<ze_device_handle_t> devices;
-  for (auto &d : context->getDevices()) {
+  for (auto &d : v2_cast(context)->getDevices()) {
     devices.push_back(d->ZeDevice);
   }
 
   UR_LOG(DEBUG, "ze_event_pool_desc_t flags set to: {}", desc.flags);
 
   ZE2UR_CALL_THROWS(zeEventPoolCreate,
-                    (context->getZeHandle(), &desc, devices.size(),
+                    (v2_cast(context)->getZeHandle(), &desc, devices.size(),
                      devices.data(), pool.ptr()));
 
   freelist.resize(EVENTS_BURST);

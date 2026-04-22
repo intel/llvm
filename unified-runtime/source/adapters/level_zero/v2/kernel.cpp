@@ -52,7 +52,8 @@ ur_result_t ur_single_device_kernel_t::release() {
 ur_kernel_handle_t_::ur_kernel_handle_t_(ur_program_handle_t hProgram,
                                          const char *kernelName)
     : hProgram(hProgram),
-      deviceKernels(hProgram->Context->getPlatform()->getNumDevices()) {
+      deviceKernels(
+          v2::v2_cast(hProgram->Context)->getPlatform()->getNumDevices()) {
   ur::level_zero::urProgramRetain(hProgram);
 
   for (auto &Dev : hProgram->AssociatedDevices) {
@@ -69,12 +70,13 @@ ur_kernel_handle_t_::ur_kernel_handle_t_(ur_program_handle_t hProgram,
     ze_kernel_handle_t zeKernel;
     ZE2UR_CALL_THROWS(zeKernelCreate, (zeModule, &zeKernelDesc, &zeKernel));
 
-    auto urDevice = std::find_if(hProgram->Context->getDevices().begin(),
-                                 hProgram->Context->getDevices().end(),
+    auto urDevice = std::find_if(
+        v2::v2_cast(hProgram->Context)->getDevices().begin(),
+        v2::v2_cast(hProgram->Context)->getDevices().end(),
                                  [zeDevice = zeDevice](const auto &urDevice) {
                                    return urDevice->ZeDevice == zeDevice;
                                  });
-    assert(urDevice != hProgram->Context->getDevices().end());
+    assert(urDevice != v2::v2_cast(hProgram->Context)->getDevices().end());
     auto deviceId = (*urDevice)->Id.value();
 
     deviceKernels[deviceId].emplace(*urDevice, zeKernel, true);
@@ -87,7 +89,8 @@ ur_kernel_handle_t_::ur_kernel_handle_t_(
     ur_context_handle_t context,
     const ur_kernel_native_properties_t *pProperties)
     : hProgram(hProgram),
-      deviceKernels(context ? context->getPlatform()->getNumDevices() : 0) {
+      deviceKernels(context ? v2::v2_cast(context)->getPlatform()->getNumDevices()
+                            : 0) {
   ur::level_zero::urProgramRetain(hProgram);
 
   auto ownZeHandle = pProperties ? pProperties->isNativeHandleOwned : false;
@@ -99,7 +102,7 @@ ur_kernel_handle_t_::ur_kernel_handle_t_(
     throw UR_RESULT_ERROR_INVALID_KERNEL;
   }
 
-  for (auto &Dev : context->getDevices()) {
+  for (auto &Dev : v2::v2_cast(context)->getDevices()) {
     deviceKernels[*Dev->Id].emplace(Dev, zeKernel, ownZeHandle);
 
     // owned only by the first entry

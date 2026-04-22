@@ -57,11 +57,13 @@ static event_flags_t eventFlagsFromQueueFlags(ur_queue_flags_t flags) {
 } // namespace v2
 
 namespace ur::level_zero_v2 {
+
+using v2::v2_cast;
 ur_result_t urQueueCreate(ur_context_handle_t hContext,
                           ur_device_handle_t hDevice,
                           const ur_queue_properties_t *pProperties,
                           ur_queue_handle_t *phQueue) try {
-  if (!hContext->isValidDevice(hDevice)) {
+  if (!v2_cast(hContext)->isValidDevice(hDevice)) {
     return UR_RESULT_ERROR_INVALID_DEVICE;
   }
 

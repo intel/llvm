@@ -16,7 +16,6 @@
 #include "adapters/level_zero/v2/ur_interface_loader.hpp"
 #endif
 
-
 namespace ur_loader {
 ///////////////////////////////////////////////////////////////////////////////
 context_t *getContext() { return context_t::get_direct(); }
@@ -36,7 +35,7 @@ ur_result_t context_t::init() {
   UINT SavedMode = SetErrorMode(SEM_FAILCRITICALERRORS);
 #endif
 
-#ifndef UR_STATIC_ADAPTER_LEVEL_ZERO
+#ifdef UR_STATIC_ADAPTER_LEVEL_ZERO
   // If the adapters were force loaded, it means the user wants to use
   // a specific adapter library. Don't load any static adapters.
   if (!adapter_registry.adaptersForceLoaded()) {

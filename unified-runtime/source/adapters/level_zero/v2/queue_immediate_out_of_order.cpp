@@ -22,7 +22,7 @@ std::array<ur_command_list_manager, N> createCommandListManagers(
   return createArrayOf<ur_command_list_manager, N>([&](size_t) {
     return ur_command_list_manager(
         hContext, hDevice,
-        hContext->getCommandListCache().getImmediateCommandList(
+        v2_cast(hContext)->getCommandListCache().getImmediateCommandList(
             hDevice->ZeDevice,
             {true, ordinal, true /* always enable copy offload */},
             ZE_COMMAND_QUEUE_MODE_ASYNCHRONOUS, priority, index));
@@ -34,7 +34,8 @@ ur_queue_immediate_out_of_order_t::ur_queue_immediate_out_of_order_t(
     ze_command_queue_priority_t priority, std::optional<int32_t> index,
     event_flags_t eventFlags, ur_queue_flags_t flags)
     : hContext(hContext), hDevice(hDevice),
-      eventPool(hContext->getEventPoolCache(PoolCacheType::Immediate)
+      eventPool(v2_cast(hContext)
+                    ->getEventPoolCache(PoolCacheType::Immediate)
                     .borrow(hDevice->Id.value(), eventFlags)),
       commandListManagers(createCommandListManagers<numCommandLists>(
           hContext, hDevice, ordinal, priority, index)),
@@ -118,9 +119,9 @@ ur_result_t ur_queue_immediate_out_of_order_t::queueFinish() {
     UR_CALL(commandListManagersLocked[i].releaseSubmittedKernels());
   }
 
-  hContext->getAsyncPool()->cleanupPoolsForQueue(this);
-  hContext->forEachUsmPool([this](ur_usm_pool_handle_t hPool) {
-    hPool->cleanupPoolsForQueue(this);
+  v2_cast(v2_cast(hContext)->getAsyncPool())->cleanupPoolsForQueue(this);
+  v2_cast(hContext)->forEachUsmPool([this](ur_usm_pool_handle_t hPool) {
+    v2_cast(hPool)->cleanupPoolsForQueue(this);
     return true;
   });
 
@@ -136,7 +137,7 @@ ur_queue_immediate_out_of_order_t::~ur_queue_immediate_out_of_order_t() {
     UR_CALL_THROWS(queueFinish());
 
     for (size_t i = 0; i < numCommandLists; i++) {
-      barrierEvents[i]->release();
+      v2_cast(barrierEvents[i])->release();
     }
   } catch (...) {
     // Ignore errors during destruction
