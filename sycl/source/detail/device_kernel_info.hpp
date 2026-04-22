@@ -128,8 +128,8 @@ private:
 
   FastKernelSubcacheT MFastKernelSubcache;
   std::optional<int> MImplicitLocalArgPos;
-  bool MWorkGroupDynamicLocalMem = false;  
-const std::optional<sycl::kernel_id> MKernelID;
+  bool MWorkGroupDynamicLocalMem = false;
+  const std::optional<sycl::kernel_id> MKernelID;
   // Keeps track of binary image to kernel name reference count.
   // Used for checking if the last image referencing the kernel name
   // is removed in order to trigger cleanup of this struct.

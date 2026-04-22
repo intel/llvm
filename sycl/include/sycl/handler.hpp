@@ -895,9 +895,8 @@ private:
       if constexpr (ext::oneapi::experimental::detail::
                         HasKernelPropertiesGetMethod<
                             const KernelType &>::value) {
-        setKernelLaunchProperties(
-            detail::extractKernelProperties<Info.IsESIMD>(
-                KernelFunc.get(ext::oneapi::experimental::properties_tag{})));
+        setKernelLaunchProperties(detail::extractKernelProperties<Info.IsESIMD>(
+            KernelFunc.get(ext::oneapi::experimental::properties_tag{})));
       }
 
 #ifndef __SYCL_DEVICE_ONLY__

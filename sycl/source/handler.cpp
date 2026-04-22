@@ -492,7 +492,8 @@ detail::EventImplPtr handler::finalize() {
     }
     assert(impl->MKernelData.getKernelName() == MKernelName);
     if (!impl->MHasWorkGroupScratchSizeProperty &&
-        impl->MKernelData.getDeviceKernelInfoPtr()->getWorkGroupDynamicLocalMem())
+        impl->MKernelData.getDeviceKernelInfoPtr()
+            ->getWorkGroupDynamicLocalMem())
       throw sycl::exception(
           sycl::make_error_code(sycl::errc::memory_allocation),
           "Kernel allocates work group scratch memory but an allocation size "
