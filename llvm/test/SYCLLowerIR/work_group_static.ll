@@ -41,8 +41,8 @@ entry:
 ; Function Attrs: convergent
 define internal spir_func ptr addrspace(3) @__sycl_allocateLocalMemoryIndirect() {
 entry:
- %1 = tail call spir_func ptr addrspace(3) @__sycl_dynamicLocalMemoryPlaceholder(i64 128) #1
- ret ptr addrspace(3) %1
+  %1 = tail call spir_func ptr addrspace(3) @__sycl_dynamicLocalMemoryPlaceholder(i64 128) #1
+  ret ptr addrspace(3) %1
 }
 
 ; Function Attrs: convergent
