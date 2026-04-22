@@ -219,7 +219,11 @@ class ComputeRuntime:
                 extra_config_args.append(f"-DIGC_DIR={self.igc}")
 
             project.configure(extra_args=extra_config_args)
-            project.build()
+            # Prepend custom-built libocloc.so and IGC libs to LD_LIBRARY_PATH
+            build_ld_library = [str(project.build_dir / "bin")]
+            if options.build_igc:
+                build_ld_library.append(str(self.igc / "lib"))
+            project.build(ld_library=build_ld_library)
             log.info("Compute Runtime build complete.")
         else:
             log.info("Compute Runtime build skipped, already built.")
