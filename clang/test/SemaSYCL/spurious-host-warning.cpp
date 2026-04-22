@@ -8,8 +8,6 @@
 
 void foo()
 {
-  [[intel::max_global_work_dim(1)]] void func1(); // device-warning {{'intel::max_global_work_dim' attribute ignored}}
-
   [[intel::kernel_args_restrict]] void func3(); // device-warning {{'intel::kernel_args_restrict' attribute ignored}}
 
   [[intel::num_simd_work_items(12)]] void func4(); // device-warning {{'intel::num_simd_work_items' attribute ignored}}
