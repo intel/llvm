@@ -778,7 +778,7 @@ int main(int Ac, char **Av) {
   // be used by a user anyway. After that we may safely add the instance of
   // "spirv-ext" required by LLVM/SPIRV Translator from the corresponding auto
   // variable (SPVExt).
-  StringMap<llvm::cl::Option *> &RegisteredOptions =
+  DenseMap<llvm::StringRef, llvm::cl::Option *> &RegisteredOptions =
       llvm::cl::getRegisteredOptions();
   if (RegisteredOptions.count("spirv-ext") == 1) {
     llvm::cl::Option *OptToDisable = RegisteredOptions["spirv-ext"];
