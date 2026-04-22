@@ -2,7 +2,7 @@
 // RUN: -emit-llvm-bc %s -o %t-host.bc -opt-record-file %t-host.yaml
 // RUN: FileCheck --check-prefixes=SPIR,GEN-AS --input-file %t-host.yaml %s
 // RUN: %clang_cc1 -triple spir64-unknown-unknown -fsycl-is-device \
-// RUN: -emit-llvm-bc %s -o %t-host.bc -opt-record-file %t-host.yaml -fsycl-force-glob-as-in-kernel-args
+// RUN: -emit-llvm-bc %s -o %t-host.bc -opt-record-file %t-host.yaml -fsycl-force-global-as-in-kernel-args
 // RUN: FileCheck --check-prefixes=SPIR,GLOB-AS --input-file %t-host.yaml %s
 
 // RUN: %clang_cc1 -triple nvptx64-unknown-unknown -fsycl-is-device \

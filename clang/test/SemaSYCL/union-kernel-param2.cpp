@@ -1,5 +1,5 @@
 // RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -ast-dump %s | FileCheck --check-prefixes=CHECK,GEN-AS %s
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -ast-dump -fsycl-force-glob-as-in-kernel-args %s | FileCheck --check-prefixes=CHECK,GLOB-AS %s
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -ast-dump -fsycl-force-global-as-in-kernel-args %s | FileCheck --check-prefixes=CHECK,GLOB-AS %s
 
 // This test checks that compiler generates correct kernel arguments for
 // a struct-with-an-array-of-unions and a array-of-struct-with-a-union.

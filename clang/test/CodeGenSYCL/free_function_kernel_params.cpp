@@ -1,7 +1,7 @@
 // RUN: %clang_cc1 -internal-isystem %S/Inputs -fsycl-is-device -triple spir64 \
 // RUN: -emit-llvm %s -o - | FileCheck --check-prefixes=CHECK,GEN-AS %s
 // RUN: %clang_cc1 -internal-isystem %S/Inputs -fsycl-is-device -triple spir64 \
-// RUN: -fsycl-force-glob-as-in-kernel-args -emit-llvm %s -o - | FileCheck %s --check-prefixes=CHECK,GLOB-AS
+// RUN: -fsycl-force-global-as-in-kernel-args -emit-llvm %s -o - | FileCheck %s --check-prefixes=CHECK,GLOB-AS
 // This test checks parameter IR generation for free functions with parameters
 // of non-decomposed struct type, work group memory type, dynamic work group memory type 
 // and special types.

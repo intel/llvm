@@ -1,5 +1,5 @@
 // RUN: %clang_cc1 -fsycl-is-device -ast-dump %s | FileCheck %s --check-prefixes=CHECK,GEN-AS
-// RUN: %clang_cc1 -fsycl-is-device -ast-dump -fsycl-force-glob-as-in-kernel-args %s | FileCheck %s --check-prefixes=CHECK,GLOB-AS
+// RUN: %clang_cc1 -fsycl-is-device -ast-dump -fsycl-force-global-as-in-kernel-args %s | FileCheck %s --check-prefixes=CHECK,GLOB-AS
 
 #include "Inputs/sycl.hpp"
 

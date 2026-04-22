@@ -1,7 +1,7 @@
 // RUN: %clang_cc1 -internal-isystem %S/Inputs -fsycl-is-device -ast-dump \
 // RUN: %s -o - | FileCheck --check-prefixes=GEN-AS,CHECK %s
 // RUN: %clang_cc1 -internal-isystem %S/Inputs -fsycl-is-device -ast-dump \
-// RUN: -fsycl-force-glob-as-in-kernel-args %s -o - | FileCheck --check-prefixes=GLOB-AS,CHECK %s
+// RUN: -fsycl-force-global-as-in-kernel-args %s -o - | FileCheck --check-prefixes=GLOB-AS,CHECK %s
 // This test checks parameter rewriting for free functions with parameters
 // of type scalar, pointer, non-decomposed struct, work group memory, dynamic work group memory 
 // and special types.

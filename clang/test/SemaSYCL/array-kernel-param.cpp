@@ -1,5 +1,5 @@
 // RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -ast-dump -sycl-std=2020 %s | FileCheck --check-prefixes=CHECK,GEN-AS %s
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -ast-dump -fsycl-force-glob-as-in-kernel-args -sycl-std=2020 %s | FileCheck --check-prefixes=CHECK,GLOB-AS %s
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -ast-dump -fsycl-force-global-as-in-kernel-args -sycl-std=2020 %s | FileCheck --check-prefixes=CHECK,GLOB-AS %s
 
 // This test checks that compiler generates correct kernel arguments for
 // arrays, Accessor arrays, and structs containing Accessors.

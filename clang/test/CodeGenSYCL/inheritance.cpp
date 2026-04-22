@@ -1,5 +1,5 @@
 // RUN:  %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown -disable-llvm-passes -emit-llvm %s -o - | FileCheck --check-prefixes=CHECK,GEN-AS %s
-// RUN:  %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown -disable-llvm-passes -emit-llvm -fsycl-force-glob-as-in-kernel-args %s -o - | FileCheck --check-prefix=CHECK,GLOB-AS %s
+// RUN:  %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown -disable-llvm-passes -emit-llvm -fsycl-force-global-as-in-kernel-args %s -o - | FileCheck --check-prefix=CHECK,GLOB-AS %s
 
 #include "Inputs/sycl.hpp"
 
