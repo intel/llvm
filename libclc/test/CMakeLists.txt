@@ -21,11 +21,7 @@ set(LIBCLC_TEST_DEPS
 
 umbrella_lit_testsuite_begin(check-libclc)
 
-foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
-    if (t STREQUAL native_cpu)
-      continue()
-    endif()
-
+if(ARCH MATCHES "amdgcn|nvptx64")
     # Each target gets own lit testsuite directory.
     # This is done because all suites passed to add_lit_testsuite
     # are collected into a single invocation of lit, for example:
@@ -39,18 +35,18 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
     # The solution is to create a separate directory for each target,
     # and copy the lit.site.cfg.py file there; the name of the
     # directory will be used as the target name.
-    file(MAKE_DIRECTORY ${LIBCLC_PERTARGET_TEST_DIR}/${t})
+    file(MAKE_DIRECTORY ${LIBCLC_PERTARGET_TEST_DIR}/${LIBCLC_TARGET})
     file(COPY_FILE ${CMAKE_CURRENT_BINARY_DIR}/lit.site.cfg.py
-                   ${LIBCLC_PERTARGET_TEST_DIR}/${t}/lit.site.cfg.py)
+                   ${LIBCLC_PERTARGET_TEST_DIR}/${LIBCLC_TARGET}/lit.site.cfg.py)
 
-    add_lit_testsuite(check-libclc-spirv-${t}
-      "Running libclc spirv-${t} regression tests"
-      ${LIBCLC_PERTARGET_TEST_DIR}/${t}
+    add_lit_testsuite(check-libclc-spirv-${LIBCLC_TARGET}
+      "Running libclc spirv-${LIBCLC_TARGET} regression tests"
+      ${LIBCLC_PERTARGET_TEST_DIR}/${LIBCLC_TARGET}
       DEPENDS
         ${LIBCLC_TEST_DEPS}
         libspirv-builtins
       )
-endforeach( t )
+endif()
 
 # Testing unresolved symbols.
 # Skip nvptx, clspv, spirv targets

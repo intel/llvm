@@ -22,12 +22,6 @@ def quote(s):
 if config.libclc_target is None:
     lit_config.fatal("libclc_target parameter must be set when running directly")
 
-if config.libclc_target not in config.libclc_targets_to_test:
-    lit_config.fatal(
-        f"libclc_target '{config.libclc_target}' is not built. "
-        f"Available targets: {', '.join(quote(s) for s in config.libclc_targets_to_test)}"
-    )
-
 # name: The name of this test suite.
 config.name = f"LIBCLC-{config.libclc_target.upper()}"
 
@@ -52,6 +46,8 @@ libclc_inc = os.path.join(config.libclc_root, "libspirv", "include")
 config.test_exec_root = os.path.join(
     config.libclc_pertarget_test_dir, config.libclc_target
 )
+
+config.target_triple = None
 
 llvm_config.use_default_substitutions()
 

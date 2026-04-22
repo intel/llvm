@@ -10,19 +10,16 @@ config.llvm_shlib_dir = "@SHLIBDIR@"
 config.llvm_plugin_ext = "@LLVM_PLUGIN_EXT@"
 config.lit_tools_dir = "@LLVM_LIT_TOOLS_DIR@"
 config.host_triple = "@LLVM_HOST_TRIPLE@"
-config.target_triple = "@LLVM_TARGET_TRIPLE@"
 config.host_arch = "@HOST_ARCH@"
 config.python_executable = "@PYTHON_EXECUTABLE@"
 config.libclc_root = "@LIBCLC_SOURCE_DIR@"
-config.libclc_targets_to_test = "@LIBCLC_TARGETS_TO_BUILD@".split(";")
+config.libclc_target = "@LIBCLC_TARGET@"
 config.libclc_output_dir = "@LIBCLC_OUTPUT_LIBRARY_DIR@"
 config.libclc_pertarget_test_dir = "@LIBCLC_PERTARGET_TEST_DIR@"
 config.libclc_obj_root = "@LIBCLC_TARGET_TEST_DIR@"
 
 import lit.llvm
 lit.llvm.initialize(lit_config, config)
-
-config.libclc_target = lit_config.params.get("libclc_target")
 
 if config.libclc_target is None:
     # This file is copied to per-target test directories by cmake,
