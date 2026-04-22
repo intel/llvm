@@ -229,6 +229,8 @@ semantics.
 The `sycl::range<N>` constructors map dimensions in **X, Y, Z order** (width, height, depth), 
 which differs from the SYCL 2020 specification's general `range` convention of "fastest-incrementing" dimension order
  (https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#sec:multi-dim-linearization).
+This means that users should not attempt to use the same `sycl::range<N>` instance for both their `parallel_for` calls 
+and their bindless image `image_descriptor` construction.
 
 This follows standard image/graphics conventions where:
 
