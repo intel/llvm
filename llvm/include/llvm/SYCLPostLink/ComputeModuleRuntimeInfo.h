@@ -27,6 +27,7 @@ struct GlobalBinImageProps {
   bool EmitExportedSymbols;
   bool EmitImportedSymbols;
   bool EmitDeviceGlobalPropSet;
+  int IdQueriesRange; // 0 = int, 1 = uint, 2 = size_t (default)
 };
 bool isModuleUsingAsan(const Module &M);
 bool isModuleUsingMsan(const Module &M);

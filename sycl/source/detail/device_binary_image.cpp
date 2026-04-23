@@ -559,7 +559,9 @@ DynRTDeviceBinaryImage::DynRTDeviceBinaryImage(
       Imgs,
       [](const RTDeviceBinaryImage &Img) { return Img.getMiscProperties(); },
       /*IgnoreDuplicates=*/true, /*DropProperty=*/
-      [](std::string_view PropertyName) { return PropertyName == "optLevel"; });
+      [](std::string_view PropertyName) {
+        return PropertyName == "optLevel" || PropertyName == "idQueriesRange";
+      });
 
   std::array<const std::unordered_map<std::string_view,
                                       const sycl_device_binary_property> *,

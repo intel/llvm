@@ -241,6 +241,19 @@ cl::opt<bool> AllowDeviceImageDependencies{
     cl::desc("Allow dependencies between device images"), cl::cat(PostLinkCat),
     cl::init(false)};
 
+enum IdQueriesRangeMode { IDQR_INT, IDQR_UINT, IDQR_SIZE_T };
+
+cl::opt<IdQueriesRangeMode> IdQueriesRange{
+    "id-queries-range",
+    cl::desc("Specify the assumption about SYCL ID query value ranges"),
+    cl::Optional,
+    cl::init(IDQR_SIZE_T),
+    cl::values(
+        clEnumValN(IDQR_INT, "int", "ID query values fit within MAX_INT"),
+        clEnumValN(IDQR_UINT, "uint", "ID query values fit within MAX_UINT"),
+        clEnumValN(IDQR_SIZE_T, "size_t", "No restriction on ID query values")),
+    cl::cat(PostLinkCat)};
+
 struct IrPropSymFilenameTriple {
   std::string Ir;
   std::string Prop;
@@ -311,9 +324,13 @@ Error saveModule(
       continue;
     auto CopyTriple = BaseTriple;
     if (DoPropGen) {
-      GlobalBinImageProps Props = {EmitKernelParamInfo, EmitProgramMetadata,
-                                   EmitKernelNames,     EmitExportedSymbols,
-                                   EmitImportedSymbols, DeviceGlobals};
+      GlobalBinImageProps Props = {EmitKernelParamInfo,
+                                   EmitProgramMetadata,
+                                   EmitKernelNames,
+                                   EmitExportedSymbols,
+                                   EmitImportedSymbols,
+                                   DeviceGlobals,
+                                   static_cast<int>(IdQueriesRange)};
       StringRef Target = OutputFile.Target;
       std::string NewSuff = Suffix.str();
       if (!Target.empty())
