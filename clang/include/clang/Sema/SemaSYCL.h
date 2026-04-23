@@ -488,8 +488,6 @@ public:
   void handleIntelReqdSubGroupSizeAttr(Decl *D, const ParsedAttr &AL);
   void handleIntelNamedSubGroupSizeAttr(Decl *D, const ParsedAttr &AL);
   void handleSYCLIntelNumSimdWorkItemsAttr(Decl *D, const ParsedAttr &AL);
-  void handleSYCLIntelMaxGlobalWorkDimAttr(Decl *D, const ParsedAttr &AL);
-  void handleSYCLIntelNoGlobalWorkOffsetAttr(Decl *D, const ParsedAttr &AL);
   void handleIntelSimpleDualPortAttr(Decl *D, const ParsedAttr &AL);
   void handleSYCLAddIRAttributesFunctionAttr(Decl *D, const ParsedAttr &AL);
   void handleSYCLAddIRAttributesKernelParameterAttr(Decl *D,
@@ -512,9 +510,6 @@ public:
   SYCLIntelNumSimdWorkItemsAttr *
   mergeSYCLIntelNumSimdWorkItemsAttr(Decl *D,
                                      const SYCLIntelNumSimdWorkItemsAttr &A);
-  SYCLIntelMaxGlobalWorkDimAttr *
-  mergeSYCLIntelMaxGlobalWorkDimAttr(Decl *D,
-                                     const SYCLIntelMaxGlobalWorkDimAttr &A);
   SYCLIntelMinWorkGroupsPerComputeUnitAttr *
   mergeSYCLIntelMinWorkGroupsPerComputeUnitAttr(
       Decl *D, const SYCLIntelMinWorkGroupsPerComputeUnitAttr &A);
@@ -524,8 +519,6 @@ public:
   SYCLIntelESimdVectorizeAttr *
   mergeSYCLIntelESimdVectorizeAttr(Decl *D,
                                    const SYCLIntelESimdVectorizeAttr &A);
-  SYCLIntelNoGlobalWorkOffsetAttr *mergeSYCLIntelNoGlobalWorkOffsetAttr(
-      Decl *D, const SYCLIntelNoGlobalWorkOffsetAttr &A);
   SYCLAddIRAttributesFunctionAttr *mergeSYCLAddIRAttributesFunctionAttr(
       Decl *D, const SYCLAddIRAttributesFunctionAttr &A);
   SYCLAddIRAttributesKernelParameterAttr *
@@ -604,11 +597,6 @@ public:
   void addSYCLUsesAspectsAttr(Decl *D, const AttributeCommonInfo &CI,
                               Expr **Exprs, unsigned Size);
   void addSYCLIntelNumSimdWorkItemsAttr(Decl *D, const AttributeCommonInfo &CI,
-                                        Expr *E);
-  void addSYCLIntelNoGlobalWorkOffsetAttr(Decl *D,
-                                          const AttributeCommonInfo &CI,
-                                          Expr *E);
-  void addSYCLIntelMaxGlobalWorkDimAttr(Decl *D, const AttributeCommonInfo &CI,
                                         Expr *E);
   void addSYCLIntelMinWorkGroupsPerComputeUnitAttr(
       Decl *D, const AttributeCommonInfo &CI, Expr *E);
