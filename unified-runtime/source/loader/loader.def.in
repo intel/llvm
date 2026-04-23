@@ -516,6 +516,7 @@ EXPORTS
 	urPrintQueueFinishParams
 	urPrintQueueFlags
 	urPrintQueueFlushParams
+	urPrintQueueGetGraphExpParams
 	urPrintQueueGetInfoParams
 	urPrintQueueGetNativeHandleParams
 	urPrintQueueIndexProperties
@@ -616,6 +617,7 @@ EXPORTS
 	urQueueEndGraphCaptureExp
 	urQueueFinish
 	urQueueFlush
+	urQueueGetGraphExp
 	urQueueGetInfo
 	urQueueGetNativeHandle
 	urQueueIsGraphCaptureEnabledExp

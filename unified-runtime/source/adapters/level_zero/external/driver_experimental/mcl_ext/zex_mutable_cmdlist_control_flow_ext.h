@@ -17,12 +17,10 @@ typedef struct _zex_label_handle_t *zex_label_handle_t;
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Label descriptor.
 typedef struct _zex_label_desc_t {
-  ze_structure_type_ext_t stype =
-      ZEX_STRUCTURE_TYPE_LABEL_DESCRIPTOR; ///< [in] type of this structure
-  const void *pNext =
-      nullptr; ///< [in][optional] pointer to extension-specific structure
-
-  const char *name;   ///< [in][optional] null-terminated name of the label
+  ze_structure_type_ext_t stype; ///< [in] type of this structure
+                                 ///< ZEX_STRUCTURE_TYPE_LABEL_DESCRIPTOR
+  const void *pNext; ///< [in][optional] pointer to extension-specific structure
+  const char *name;  ///< [in][optional] null-terminated name of the label
   uint32_t alignment; ///< [in][optional] minimum alignment of the label
 } zex_label_desc_t;
 
@@ -39,17 +37,15 @@ typedef enum _zex_operand_flag_t {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Operand descriptor.
 typedef struct _zex_operand_desc_t {
-  ze_structure_type_ext_t stype =
-      ZEX_STRUCTURE_TYPE_OPERAND_DESCRIPTOR; ///< [in] type of this structure
-  const void *pNext =
-      nullptr; ///< [in][optional] pointer to extension-specific structure
-
-  void *memory;  // if memory is NULL then offset is interpreted as MMIO
-                 // if flag ZEX_OPERAND_FLAG_USES_VARIABLE is set memory is
-                 // interpreted as variable
-  size_t offset; // offset within memory or register MMIO
-  uint32_t size; // operand size - dword
-  zex_operand_flags_t flags; // flags
+  ze_structure_type_ext_t stype; ///< [in] type of this structure
+                                 ///< ZEX_STRUCTURE_TYPE_OPERAND_DESCRIPTOR
+  const void *pNext; ///< [in][optional] pointer to extension-specific structure
+  void *memory;  ///< [in] if memory is NULL then offset is interpreted as MMIO
+                 ///< if flag ZEX_OPERAND_FLAG_USES_VARIABLE is set memory is
+                 ///< interpreted as variable
+  size_t offset; ///< [in] offset within memory or register MMIO
+  uint32_t size; ///< [in] operand size - dword
+  zex_operand_flags_t flags; ///< [in] flags
 } zex_operand_desc_t;
 
 #if defined(__cplusplus)

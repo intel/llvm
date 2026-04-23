@@ -727,7 +727,10 @@ etors:
 - name: ENQUEUE_HOST_TASK_EXP
   desc: Enumerator for $xEnqueueHostTaskExp
   value: '309'
-max_id: '309'
+- name: QUEUE_GET_GRAPH_EXP
+  desc: Enumerator for $xQueueGetGraphExp
+  value: '314'
+max_id: '314'
 ---
 type: enum
 desc: Defines structure types

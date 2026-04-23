@@ -1373,6 +1373,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
   case UR_FUNCTION_ENQUEUE_HOST_TASK_EXP:
     os << "UR_FUNCTION_ENQUEUE_HOST_TASK_EXP";
     break;
+  case UR_FUNCTION_QUEUE_GET_GRAPH_EXP:
+    os << "UR_FUNCTION_QUEUE_GET_GRAPH_EXP";
+    break;
   default:
     os << "unknown enumerator";
     break;
@@ -15610,6 +15613,26 @@ inline std::ostream &operator<<(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_queue_get_graph_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_queue_get_graph_exp_params_t *params) {
+
+  os << ".hQueue = ";
+
+  ur::details::printPtr(os, *(params->phQueue));
+
+  os << ", ";
+  os << ".phGraph = ";
+
+  ur::details::printPtr(os, *(params->pphGraph));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_sampler_create_params_t type
 /// @returns
 ///     std::ostream &
@@ -22676,6 +22699,9 @@ inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os,
   } break;
   case UR_FUNCTION_QUEUE_IS_GRAPH_CAPTURE_ENABLED_EXP: {
     os << (const struct ur_queue_is_graph_capture_enabled_exp_params_t *)params;
+  } break;
+  case UR_FUNCTION_QUEUE_GET_GRAPH_EXP: {
+    os << (const struct ur_queue_get_graph_exp_params_t *)params;
   } break;
   case UR_FUNCTION_SAMPLER_CREATE: {
     os << (const struct ur_sampler_create_params_t *)params;

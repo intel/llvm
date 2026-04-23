@@ -66,7 +66,26 @@ TEST_P(urQueueIsGraphCaptureEnabledExpTest, InvalidNullPtrResult) {
 
 struct urQueueIsGraphCaptureEnabledExpMultiQueueTest
     : uur::urGraphSupportedExpMultiQueueTest {
+  void SetUp() override {
+    UUR_RETURN_ON_FATAL_FAILURE(urGraphSupportedExpMultiQueueTest::SetUp());
+    // Fork-join with out-of-order queue broken due to multi command list capture bug
+    if (getQueueFlag() & UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE) {
+      UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
+    }
+  }
   void TearDown() override {
+    bool isCaptureEnabled = false;
+    if (queue1) {
+      if (urQueueIsGraphCaptureEnabledExp(queue1, &isCaptureEnabled) ==
+              UR_RESULT_SUCCESS &&
+          isCaptureEnabled) {
+        urQueueEndGraphCaptureExp(queue1, &graph);
+      }
+      urQueueFinish(queue1);
+    }
+    if (queue2) {
+      urQueueFinish(queue2);
+    }
     if (graph) {
       EXPECT_SUCCESS(urGraphDestroyExp(graph));
     }
@@ -88,20 +107,24 @@ UUR_DEVICE_TEST_SUITE_WITH_QUEUE_TYPES(
 TEST_P(urQueueIsGraphCaptureEnabledExpMultiQueueTest, ForkJoinPattern) {
   bool isEnabled = false;
 
+  // Submit event to switch command list for out-of-order queue with L0v2 adapter.
+  // This triggers a bug where fork-join recording is not recognized by out-of-order queue.
+  uur::raii::Event preEvent = nullptr;
+  ASSERT_SUCCESS(urEnqueueEventsWait(queue2, 0, nullptr, preEvent.ptr()));
+  ASSERT_SUCCESS(urEventWait(1, preEvent.ptr()));
+
   ASSERT_SUCCESS(urQueueBeginGraphCaptureExp(queue1));
 
   uur::raii::Event forkEvent = nullptr;
-  ASSERT_SUCCESS(
-      urEnqueueEventsWaitWithBarrier(queue1, 0, nullptr, forkEvent.ptr()));
+  ASSERT_SUCCESS(urEnqueueEventsWait(queue1, 0, nullptr, forkEvent.ptr()));
 
   uur::raii::Event joinEvent = nullptr;
-  ASSERT_SUCCESS(urEnqueueEventsWaitWithBarrier(queue2, 1, forkEvent.ptr(),
-                                                joinEvent.ptr()));
+  ASSERT_SUCCESS(
+      urEnqueueEventsWait(queue2, 1, forkEvent.ptr(), joinEvent.ptr()));
   ASSERT_SUCCESS(urQueueIsGraphCaptureEnabledExp(queue2, &isEnabled));
   ASSERT_TRUE(isEnabled);
 
-  ASSERT_SUCCESS(
-      urEnqueueEventsWaitWithBarrier(queue1, 1, joinEvent.ptr(), nullptr));
+  ASSERT_SUCCESS(urEnqueueEventsWait(queue1, 1, joinEvent.ptr(), nullptr));
 
   ASSERT_SUCCESS(urQueueEndGraphCaptureExp(queue1, &graph));
 

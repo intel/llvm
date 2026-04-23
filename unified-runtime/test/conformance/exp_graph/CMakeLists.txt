@@ -13,4 +13,5 @@ add_conformance_devices_test(exp_graph
   urQueueBeginCaptureIntoGraphExp.cpp
   urQueueBeginGraphCaptureExp.cpp
   urQueueEndGraphCaptureExp.cpp
-  urQueueIsGraphCaptureEnabledExp.cpp)
+  urQueueIsGraphCaptureEnabledExp.cpp
+  urQueueGetGraphExp.cpp)

@@ -22,9 +22,9 @@ struct urGraphSupportedExpTest : uur::urQueueTest {
   }
 };
 
-struct urGraphSupportedExpMultiQueueTest : uur::urMultiQueueTest {
+struct urGraphSupportedExpMultiQueueTest : uur::urMultiQueueMultiTypeTest {
   void SetUp() override {
-    UUR_RETURN_ON_FATAL_FAILURE(urMultiQueueTest::SetUp());
+    UUR_RETURN_ON_FATAL_FAILURE(urMultiQueueMultiTypeTest::SetUp());
 
     ur_bool_t graph_supported = false;
     ur_result_t result = urDeviceGetInfo(
