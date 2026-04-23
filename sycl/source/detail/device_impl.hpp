@@ -892,7 +892,7 @@ public:
     // ext_oneapi_device_traits.def
 
     CASE(ext::oneapi::experimental::info::device::max_global_work_groups) {
-      return get_info_impl<UR_DEVICE_INFO_MAX_GLOBAL_WORK_GROUPS>();
+      return get_info_impl<UR_DEVICE_INFO_MAX_WORK_GROUPS>();
     }
     CASE(ext::oneapi::experimental::info::device::max_work_groups<3>) {
       size_t result[3];

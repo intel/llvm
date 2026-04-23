@@ -1852,7 +1852,7 @@ TEST_P(urDeviceGetInfoTest, SuccessMaxGlobalWorkGroups) {
   UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
 
   size_t property_size = 0;
-  const ur_device_info_t property_name = UR_DEVICE_INFO_MAX_GLOBAL_WORK_GROUPS;
+  const ur_device_info_t property_name = UR_DEVICE_INFO_MAX_WORK_GROUPS;
 
   ASSERT_SUCCESS(
       urDeviceGetInfo(device, property_name, 0, nullptr, &property_size));

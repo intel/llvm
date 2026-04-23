@@ -472,7 +472,7 @@ ur_result_t urDeviceGetInfo(
                          Device->ZeDeviceComputeProperties->maxGroupCountZ}};
     return ReturnValue(MaxGroupCounts);
   }
-  case UR_DEVICE_INFO_MAX_GLOBAL_WORK_GROUPS: {
+  case UR_DEVICE_INFO_MAX_WORK_GROUPS: {
     return ReturnValue(std::numeric_limits<size_t>::max());
   }
   case UR_DEVICE_INFO_MAX_CLOCK_FREQUENCY:
