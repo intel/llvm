@@ -79,6 +79,18 @@ sycl::getKernelNamesUsingImplicitLocalMem(const Module &M) {
   return SPIRKernelNames;
 }
 
+std::vector<StringRef>
+sycl::getKernelNamesUsingWorkGroupDynamicMem(const Module &M) {
+  std::vector<StringRef> SPIRKernelNames;
+  llvm::for_each(M.functions(), [&](const Function &F) {
+    if (F.getCallingConv() == CallingConv::SPIR_KERNEL &&
+        F.hasFnAttribute(WORK_GROUP_SCRATCH_ATTR)) {
+      SPIRKernelNames.emplace_back(F.getName());
+    }
+  });
+  return SPIRKernelNames;
+}
+
 char SYCLLowerWGLocalMemoryLegacy::ID = 0;
 INITIALIZE_PASS(SYCLLowerWGLocalMemoryLegacy, "sycllowerwglocalmemory",
                 "Replace __sycl_allocateLocalMemory with allocation of memory "

@@ -384,13 +384,12 @@ PropSetRegTy computeModuleProperties(const Module &M,
       PropSet.add(PropSetRegTy::SYCL_IMPLICIT_LOCAL_ARG, FuncAndArgPos.first,
                   FuncAndArgPos.second);
   }
-  const char WORK_GROUP_SCRATCH_ATTR[] = "sycl-work-group-scratch";
-  llvm::for_each(M.functions(), [&](const Function &F) {
-    if (F.getCallingConv() == CallingConv::SPIR_KERNEL &&
-        F.hasFnAttribute(WORK_GROUP_SCRATCH_ATTR))
-      PropSet.add(PropSetRegTy::SYCL_WORK_GROUP_DYNAMIC_LOCAL_MEM, F.getName(),
-                  1);
-  });
+
+  {
+    std::vector<StringRef> Kernels = getKernelNamesUsingWorkGroupDynamicMem(M);
+    for (const auto &Kernel : Kernels)
+      PropSet.add(PropSetRegTy::SYCL_IMPLICIT_LOCAL_ARG, Kernel, 1);
+  }
 
   {
     if (isModuleUsingAsan(M))

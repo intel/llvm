@@ -159,6 +159,7 @@ int main() {
   try {
     syclex::single_task(
         Q, syclex::kernel_function<freeFuncKernelWithoutRootGroup>);
+    assert(false && "Expected exception not seen!");
   } catch (sycl::exception const &e) {
     assert(e.code() == errc::memory_allocation);
   }
