@@ -270,7 +270,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(ReturnSizes);
   }
   case UR_DEVICE_INFO_MAX_WORK_GROUPS: {
-    return ReturnValue(static_cast<size_t>((std::numeric_limits<int>::max)()));
+    return ReturnValue(std::numeric_limits<size_t>::max());
   }
   case UR_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES: {
     return ReturnValue(static_cast<uint32_t>(1u));
