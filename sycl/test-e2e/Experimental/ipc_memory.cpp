@@ -3,7 +3,7 @@
 // DEFINE: %{cpp20} = %if cl_options %{/clang:-std=c++20%} %else %{-std=c++20%}
 
 // RUN: %{build} -o %t.out
-// RUN: %{run} %t.out
+// RUN: %{run} SYCL_UR_TRACE=-1 %t.out
 // RUN: %{build} -DUSE_VIEW %{cpp20} -o %t.view.out
 // RUN: %{run} %t.view.out
 
