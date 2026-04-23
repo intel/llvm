@@ -2021,15 +2021,6 @@ def SYCLIntelMaxWorkGroupsPerMultiprocessor : InheritableAttr {
   let Documentation = [SYCLIntelMaxWorkGroupsPerMultiprocessorDocs];
 }
 
-def SYCLIntelMaxGlobalWorkDim : InheritableAttr {
-  let Spellings = [CXX11<"intel", "max_global_work_dim">];
-  let Args = [ExprArgument<"Value">];
-  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
-  let Subjects = SubjectList<[Function], ErrorDiag>;
-  let Documentation = [SYCLIntelMaxGlobalWorkDimAttrDocs];
-  let SupportsNonconformingLambdaSyntax = 1;
-}
-
 def SYCLDeviceGlobal: InheritableAttr {
   let Spellings = [CXX11<"__sycl_detail__", "device_global">];
   let Subjects = SubjectList<[CXXRecord], ErrorDiag>;
@@ -2046,15 +2037,6 @@ def SYCLGlobalVariableAllowed : InheritableAttr {
   // Only used internally by SYCL implementation
   let Documentation = [SYCLGlobalVariableAllowedAttrDocs];
   let SimpleHandler = 1;
-}
-
-def SYCLIntelNoGlobalWorkOffset : InheritableAttr {
-  let Spellings = [CXX11<"intel", "no_global_work_offset">];
-  let Args = [ExprArgument<"Value", /*optional*/1>];
-  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
-  let Subjects = SubjectList<[Function], ErrorDiag>;
-  let Documentation = [SYCLIntelNoGlobalWorkOffsetAttrDocs];
-  let SupportsNonconformingLambdaSyntax = 1;
 }
 
 class SYCLAddIRAttrMemberCodeHolder<code Code> {

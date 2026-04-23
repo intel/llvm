@@ -662,10 +662,9 @@ static void collectSYCLAttributes(FunctionDecl *FD,
       return isa<IntelReqdSubGroupSizeAttr, IntelNamedSubGroupSizeAttr,
                  SYCLReqdWorkGroupSizeAttr, SYCLWorkGroupSizeHintAttr,
                  SYCLIntelKernelArgsRestrictAttr, SYCLIntelNumSimdWorkItemsAttr,
-                 SYCLIntelMaxWorkGroupSizeAttr, SYCLIntelMaxGlobalWorkDimAttr,
+                 SYCLIntelMaxWorkGroupSizeAttr,
                  SYCLIntelMinWorkGroupsPerComputeUnitAttr,
-                 SYCLIntelMaxWorkGroupsPerMultiprocessorAttr,
-                 SYCLIntelNoGlobalWorkOffsetAttr, SYCLSimdAttr,
+                 SYCLIntelMaxWorkGroupsPerMultiprocessorAttr, SYCLSimdAttr,
                  SYCLDeviceHasAttr, SYCLAddIRAttributesFunctionAttr>(A);
     });
   }
@@ -2333,7 +2332,8 @@ public:
             SemaSYCLRef.getASTContext()));
       PointerStack.pop_back();
     } else if (PointerStack.pop_back_val()) {
-      if (!RD->hasAttr<SYCLGenerateNewTypeAttr>())
+      if (!RD->hasAttr<SYCLGenerateNewTypeAttr>() &&
+          SemaSYCLRef.getLangOpts().SYCLForceGlobalASInKernelArgs)
         RD->addAttr(SYCLGenerateNewTypeAttr::CreateImplicit(
             SemaSYCLRef.getASTContext()));
     }
@@ -2369,7 +2369,8 @@ public:
       PointerStack.pop_back();
     } else if (PointerStack.pop_back_val()) {
       PointerStack.back() = true;
-      if (!RD->hasAttr<SYCLGenerateNewTypeAttr>())
+      if (!RD->hasAttr<SYCLGenerateNewTypeAttr>() &&
+          SemaSYCLRef.getLangOpts().SYCLForceGlobalASInKernelArgs)
         RD->addAttr(SYCLGenerateNewTypeAttr::CreateImplicit(
             SemaSYCLRef.getASTContext()));
     }
@@ -2388,7 +2389,8 @@ public:
       PointerStack.pop_back();
     } else if (PointerStack.pop_back_val()) {
       PointerStack.back() = true;
-      if (!RD->hasAttr<SYCLGenerateNewTypeAttr>())
+      if (!RD->hasAttr<SYCLGenerateNewTypeAttr>() &&
+          SemaSYCLRef.getLangOpts().SYCLForceGlobalASInKernelArgs)
         RD->addAttr(SYCLGenerateNewTypeAttr::CreateImplicit(
             SemaSYCLRef.getASTContext()));
     }
@@ -2418,7 +2420,8 @@ public:
       PointerStack.pop_back();
     } else if (PointerStack.pop_back_val()) {
       PointerStack.back() = true;
-      if (!RD->hasAttr<SYCLGenerateNewTypeAttr>())
+      if (!RD->hasAttr<SYCLGenerateNewTypeAttr>() &&
+          SemaSYCLRef.getLangOpts().SYCLForceGlobalASInKernelArgs)
         RD->addAttr(SYCLGenerateNewTypeAttr::CreateImplicit(
             SemaSYCLRef.getASTContext()));
     }
@@ -2452,7 +2455,8 @@ public:
       CollectionStack.back() = true;
       PointerStack.pop_back();
     } else if (PointerStack.pop_back_val()) {
-      if (!FD->hasAttr<SYCLGenerateNewTypeAttr>())
+      if (!FD->hasAttr<SYCLGenerateNewTypeAttr>() &&
+          SemaSYCLRef.getLangOpts().SYCLForceGlobalASInKernelArgs)
         FD->addAttr(SYCLGenerateNewTypeAttr::CreateImplicit(
             SemaSYCLRef.getASTContext()));
       PointerStack.back() = true;
@@ -5794,10 +5798,8 @@ static void PropagateAndDiagnoseDeviceAttr(SemaSYCL &S, Attr *A,
     LLVM_FALLTHROUGH;
   case attr::Kind::SYCLIntelKernelArgsRestrict:
   case attr::Kind::SYCLIntelNumSimdWorkItems:
-  case attr::Kind::SYCLIntelMaxGlobalWorkDim:
   case attr::Kind::SYCLIntelMinWorkGroupsPerComputeUnit:
   case attr::Kind::SYCLIntelMaxWorkGroupsPerMultiprocessor:
-  case attr::Kind::SYCLIntelNoGlobalWorkOffset:
   case attr::Kind::SYCLDeviceHas:
   case attr::Kind::SYCLAddIRAttributesFunction:
     SYCLKernel->addAttr(A);

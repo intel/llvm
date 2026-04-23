@@ -828,10 +828,6 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
       const bool IsSYCLNativeCPU =
           this->getToolChain().getTriple().isNativeCPU();
       StringRef LibPostfix = ".bc";
-      StringRef NewLibPostfix = ".new.o";
-      if (HostTC->getTriple().isWindowsMSVCEnvironment() &&
-          C.getDriver().IsCLMode())
-        NewLibPostfix = ".new.obj";
       std::string FileName = this->getToolChain().getInputFilename(II);
       StringRef InputFilename = llvm::sys::path::filename(FileName);
       // NativeCPU links against libclc (libspirv)
@@ -848,8 +844,7 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
         return true;
       StringRef LibSyclPrefix("libsycl-");
       if (!InputFilename.starts_with(LibSyclPrefix) ||
-          !InputFilename.ends_with(LibPostfix) ||
-          InputFilename.ends_with(NewLibPostfix))
+          !InputFilename.ends_with(LibPostfix))
         return false;
       // Skip the prefix "libsycl-"
       std::string PureLibName =

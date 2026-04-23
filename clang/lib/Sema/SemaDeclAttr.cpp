@@ -7977,12 +7977,6 @@ ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D, const ParsedAttr &AL,
   case ParsedAttr::AT_SYCLIntelNumSimdWorkItems:
     S.SYCL().handleSYCLIntelNumSimdWorkItemsAttr(D, AL);
     break;
-  case ParsedAttr::AT_SYCLIntelMaxGlobalWorkDim:
-    S.SYCL().handleSYCLIntelMaxGlobalWorkDimAttr(D, AL);
-    break;
-  case ParsedAttr::AT_SYCLIntelNoGlobalWorkOffset:
-    S.SYCL().handleSYCLIntelNoGlobalWorkOffsetAttr(D, AL);
-    break;
   case ParsedAttr::AT_VecTypeHint:
     handleVecTypeHint(S, D, AL);
     break;
@@ -8544,9 +8538,6 @@ void Sema::ProcessDeclAttributeList(
       D->setInvalidDecl();
     } else if (const auto *A =
                    D->getAttr<SYCLIntelMaxWorkGroupsPerMultiprocessorAttr>()) {
-      Diag(D->getLocation(), diag::err_opencl_kernel_attr) << A;
-      D->setInvalidDecl();
-    } else if (const auto *A = D->getAttr<SYCLIntelNoGlobalWorkOffsetAttr>()) {
       Diag(D->getLocation(), diag::err_opencl_kernel_attr) << A;
       D->setInvalidDecl();
     } else if (const auto *A = D->getAttr<VecTypeHintAttr>()) {

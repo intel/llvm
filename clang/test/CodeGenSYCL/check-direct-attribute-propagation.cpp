@@ -1,7 +1,6 @@
 // RUN: %clang_cc1 -O2 -fno-sycl-force-inline-kernel-lambda -fsycl-is-device -internal-isystem %S/Inputs -triple spir64-unknown-unknown -disable-llvm-passes -sycl-std=2020 -emit-llvm -o - %s | FileCheck %s
 
-// Tests for IR of [[intel::scheduler_target_fmax_mhz()]], [[intel::num_simd_work_items()]],
-// [[intel::no_global_work_offset()]], [[intel::max_global_work_dim()]], [[sycl::reqd_sub_group_size()]],
+// Tests for IR of [[intel::scheduler_target_fmax_mhz()]], [[intel::num_simd_work_items()]], [[sycl::reqd_sub_group_size()]],
 // [[sycl::reqd_work_group_size()]], [[intel::kernel_args_restrict]], [[intel::max_work_group_size()]],
 // [[sycl::work_group_size_hint()]] and [[intel::sycl_explicit_simd]] function attributes in SYCL 2020.
 
@@ -22,33 +21,6 @@ public:
 };
 
 [[intel::num_simd_work_items(5)]] void foo1() {}
-
-class Foo2 {
-public:
-  [[intel::no_global_work_offset(1)]] void operator()() const {}
-};
-
-template <int SIZE>
-class Functor2 {
-public:
-  [[intel::no_global_work_offset(SIZE)]] void operator()() const {}
-};
-
-[[intel::no_global_work_offset(0)]] void foo2() {}
-
-class Foo3 {
-public:
-  [[intel::max_global_work_dim(1)]] void operator()() const {}
-};
-
-template <int SIZE>
-class Functor3 {
-public:
-  [[intel::max_global_work_dim(SIZE)]] void operator()() const {}
-};
-
-[[intel::max_global_work_dim(1)]] void foo3() {}
-
 
 class Foo4 {
 public:
@@ -165,46 +137,6 @@ int main() {
     // CHECK: define {{.*}}spir_func void @_Z4foo1v()
     h.single_task<class kernel_name8>(
         []() { foo1(); });
-
-    // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name9() #0{{.*}} !kernel_arg_buffer_location ![[NUM]]{{.*}} !no_global_work_offset ![[NUM:[0-9]+]]
-    Foo2 boo2;
-    h.single_task<class kernel_name9>(boo2);
-
-    // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name10() #0{{.*}} {{.*}} ![[NUM0:[0-9]+]]
-    h.single_task<class kernel_name10>(
-        []() [[intel::no_global_work_offset(0)]]{});
-
-    // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name11() #0{{.*}} !kernel_arg_buffer_location ![[NUM]]{{.*}} !no_global_work_offset ![[NUM]]
-    Functor2<1> f2;
-    h.single_task<class kernel_name11>(f2);
-
-    // Test attribute is not propagated.
-    // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name12() #0{{.*}} !kernel_arg_buffer_location ![[NUM]]
-    // CHECK-NOT: !no_global_work_offset
-    // CHECK-SAME: {
-    // CHECK: define {{.*}}spir_func void @_Z4foo2v()
-    h.single_task<class kernel_name12>(
-        []() { foo2(); });
-
-    // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name13() #0{{.*}} !kernel_arg_buffer_location ![[NUM]]{{.*}} !max_global_work_dim ![[NUM1]]
-    Foo3 boo3;
-    h.single_task<class kernel_name13>(boo3);
-
-    // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name14() #0{{.*}} !kernel_arg_buffer_location ![[NUM]]{{.*}} !max_global_work_dim ![[NUM1]]
-    h.single_task<class kernel_name14>(
-        []() [[intel::max_global_work_dim(1)]]{});
-
-    // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name15() #0{{.*}} !kernel_arg_buffer_location ![[NUM]]{{.*}} !max_global_work_dim ![[NUM2]]
-    Functor3<2> f3;
-    h.single_task<class kernel_name15>(f3);
-
-    // Test attribute is not propagated.
-    // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name16() #0{{.*}} !kernel_arg_buffer_location ![[NUM]]
-    // CHECK-NOT: !max_global_work_dim
-    // CHECK-SAME: {
-    // CHECK: define {{.*}}spir_func void @_Z4foo3v()
-    h.single_task<class kernel_name16>(
-        []() { foo3(); });
 
     // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name17() #0{{.*}} !kernel_arg_buffer_location ![[NUM]]{{.*}} !intel_reqd_sub_group_size ![[NUM16:[0-9]+]]
     Foo4 boo4;
@@ -329,7 +261,6 @@ int main() {
 // CHECK: ![[NUM1]] = !{i32 1}
 // CHECK: ![[NUM42]] = !{i32 42}
 // CHECK: ![[NUM2]] = !{i32 2}
-// CHECK-NOT: ![[NUM0]]  = !{i32 0}
 // CHECK: ![[NUM16]] = !{i32 16}
 // CHECK: ![[NUM32]] = !{i32 16, i32 16, i32 32}
 // CHECK: ![[NUM88]] = !{i32 8, i32 8, i32 8}
