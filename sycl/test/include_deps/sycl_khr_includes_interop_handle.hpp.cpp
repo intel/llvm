@@ -107,7 +107,7 @@
 // CHECK-NEXT: ext/oneapi/experimental/graph/dynamic.hpp
 // CHECK-NEXT: detail/kernel_desc.hpp
 // CHECK-NEXT: ext/oneapi/experimental/work_group_memory.hpp
-// CHECK-NEXT: ext/oneapi/properties/properties.hpp
+// CHECK-NEXT: ext/oneapi/properties.hpp
 // CHECK-NEXT: ext/oneapi/properties/property_utils.hpp
 // CHECK-NEXT: ext/oneapi/properties/property.hpp
 // CHECK-NEXT: ext/oneapi/properties/property_value.hpp

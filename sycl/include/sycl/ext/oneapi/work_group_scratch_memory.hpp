@@ -10,7 +10,7 @@
 #include <sycl/detail/defines_elementary.hpp>      // for __SYCL_ALWAYS_INLINE
 #include <sycl/detail/sycl_local_mem_builtins.hpp> // for __sycl_allocateLocalMemory
 #include <sycl/exception.hpp>                      // for exception
-#include <sycl/ext/oneapi/properties/properties.hpp> // for properties
+#include <sycl/ext/oneapi/properties.hpp> // for properties
 
 namespace sycl {
 inline namespace _V1 {

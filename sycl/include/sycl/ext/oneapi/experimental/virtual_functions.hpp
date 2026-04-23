@@ -1,6 +1,6 @@
 #pragma once
 
-#include <sycl/ext/oneapi/kernel_properties/function_properties.hpp>
+#include <sycl/ext/oneapi/free_function_kernel_properties.hpp>
 #include <sycl/ext/oneapi/properties/property.hpp>
 #include <sycl/ext/oneapi/properties/property_utils.hpp>
 #include <sycl/ext/oneapi/properties/property_value.hpp>

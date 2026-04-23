@@ -19,7 +19,7 @@
 #include <sycl/ext/oneapi/experimental/graph.hpp>
 #include <sycl/ext/oneapi/experimental/use_root_sync_prop.hpp>
 #include <sycl/ext/oneapi/experimental/virtual_functions.hpp>
-#include <sycl/ext/oneapi/kernel_properties/properties.hpp>
+#include <sycl/ext/oneapi/kernel_properties.hpp>
 #include <sycl/ext/oneapi/work_group_scratch_memory.hpp>
 #include <sycl/kernel_handler.hpp>
 
@@ -361,6 +361,52 @@ using KernelPropertyHolderStructTy =
                 sycl::ext::oneapi::experimental::cuda::cluster_size_key<2>,
                 sycl::ext::oneapi::experimental::cuda::cluster_size_key<3>>;
 
+template <typename PropertiesT>
+constexpr void validateKernelProperties() {
+  using namespace sycl::ext::oneapi::experimental;
+
+  if constexpr (PropertiesT::template has_property<work_group_size_key>()) {
+    constexpr auto WGSize =
+        PropertiesT::template get_property<work_group_size_key>();
+
+    if constexpr (PropertiesT::template has_property<max_work_group_size_key>()) {
+      constexpr auto MaxWGSize =
+          PropertiesT::template get_property<max_work_group_size_key>();
+      constexpr auto WGDimensions = decltype(WGSize)::dimensions;
+      constexpr auto MaxWGDimensions = decltype(MaxWGSize)::dimensions;
+
+      static_assert(
+          WGDimensions == MaxWGDimensions,
+          "work_group_size and max_work_group_size dimensionality must match");
+      if constexpr (WGDimensions == MaxWGDimensions) {
+        static_assert(
+            WGDimensions < 1 || WGSize[0] <= MaxWGSize[0],
+            "work_group_size must not exceed max_work_group_size");
+        static_assert(
+            WGDimensions < 2 || WGSize[1] <= MaxWGSize[1],
+            "work_group_size must not exceed max_work_group_size");
+        static_assert(
+            WGDimensions < 3 || WGSize[2] <= MaxWGSize[2],
+            "work_group_size must not exceed max_work_group_size");
+      }
+    }
+
+    if constexpr (PropertiesT::template has_property<
+                      max_linear_work_group_size_key>()) {
+      constexpr auto Dimensions = decltype(WGSize)::dimensions;
+      constexpr auto LinearSize =
+          WGSize[0] * (Dimensions > 1 ? WGSize[1] : 1) *
+          (Dimensions > 2 ? WGSize[2] : 1);
+      constexpr auto MaxLinearWGSize =
+          PropertiesT::template get_property<max_linear_work_group_size_key>();
+
+      static_assert(
+          LinearSize < MaxLinearWGSize.value,
+          "work_group_size must not exceed max_linear_work_group_size");
+    }
+  }
+}
+
 /// Note: it is important that this function *does not* depend on kernel
 /// name or kernel type, because then it will be instantiated for every
 /// kernel, even though body of those instantiated functions could be almost
@@ -370,6 +416,7 @@ template <bool IsESIMDKernel = false, typename PropertiesT,
               ext::oneapi::experimental::is_property_list_v<PropertiesT>>>
 constexpr KernelPropertyHolderStructTy
 extractKernelProperties(PropertiesT Props) {
+  validateKernelProperties<PropertiesT>();
   static_assert(
       !PropertiesT::template has_property<
           sycl::ext::intel::experimental::fp_control_key>() ||

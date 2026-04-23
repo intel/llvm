@@ -1,7 +1,7 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fsyntax-only -I %sycl_source_dir/include -I %sycl_include %s
 // expected-no-diagnostics
 
-#include <sycl/ext/oneapi/kernel_properties/function_properties.hpp>
+#include <sycl/ext/oneapi/free_function_kernel_properties.hpp>
 
 #include <type_traits>
 
