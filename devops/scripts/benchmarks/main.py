@@ -505,7 +505,7 @@ if __name__ == "__main__":
         "--pytorch-root",
         type=str,
         default=None,
-        help="Directory with Python benchmark scripts (e.g. example_benchmark.py); omit to skip Python Bench suite",
+        help="Directory with PyTorch benchmark scripts, omit to skip PyTorch Bench suite",
     )
     parser.add_argument(
         "--adapter",
