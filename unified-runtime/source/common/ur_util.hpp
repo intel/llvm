@@ -348,8 +348,6 @@ inline size_t multiplyWithOverflowCheck(size_t a, size_t b, size_t c) {
   if (c > MaxSizeTVal / Product) {
     return MaxSizeTVal; // Overflow occurred, return max possible value.
   }
-    return MaxSizeTVal; // Overflow occurred, return max possible value.
-  }
   Product *= c;
 #endif
 
