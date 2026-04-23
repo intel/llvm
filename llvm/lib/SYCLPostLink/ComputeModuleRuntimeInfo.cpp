@@ -388,7 +388,7 @@ PropSetRegTy computeModuleProperties(const Module &M,
   {
     std::vector<StringRef> Kernels = getKernelNamesUsingWorkGroupDynamicMem(M);
     for (const auto &Kernel : Kernels)
-      PropSet.add(PropSetRegTy::SYCL_IMPLICIT_LOCAL_ARG, Kernel, 1);
+      PropSet.add(PropSetRegTy::SYCL_WORK_GROUP_DYNAMIC_LOCAL_MEM, Kernel, 1);
   }
 
   {
