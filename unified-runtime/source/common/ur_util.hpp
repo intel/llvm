@@ -327,7 +327,7 @@ inline ur_result_t exceptionToResult(std::exception_ptr eptr) {
 // MAX_SIZE_T.
 inline size_t multiplyWithOverflowCheck(size_t a, size_t b, size_t c) {
 
-  size_t Product = 1;
+  size_t Product = 0;
   size_t MaxSizeTVal = std::numeric_limits<size_t>::max();
 
   if (a == 0 || b == 0 || c == 0) {
@@ -340,12 +340,14 @@ inline size_t multiplyWithOverflowCheck(size_t a, size_t b, size_t c) {
     return MaxSizeTVal; // Overflow occurred, return max possible value.
   }
 #else
-  if (a != 0 && b > MaxSizeTVal / a) {
+  if (b > MaxSizeTVal / a) {
     return MaxSizeTVal; // Overflow occurred, return max possible value.
   }
   Product = a * b;
 
-  if (Product != 0 && c > MaxSizeTVal / Product) {
+  if (c > MaxSizeTVal / Product) {
+    return MaxSizeTVal; // Overflow occurred, return max possible value.
+  }
     return MaxSizeTVal; // Overflow occurred, return max possible value.
   }
   Product *= c;

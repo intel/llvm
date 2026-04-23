@@ -228,7 +228,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
       // Multiply the max group counts in each dimension to get the total max
       // number of work groups. Prevent overflow.
       *reinterpret_cast<size_t *>(pPropValue) = multiplyWithOverflowCheck(
-          static_cast<sie_t>(olVec.x), static_cast<size_t>(olVec.y),
+      *reinterpret_cast<size_t *>(pPropValue) = multiplyWithOverflowCheck(
+          static_cast<size_t>(olVec.x), static_cast<size_t>(olVec.y),
+          static_cast<size_t>(olVec.z));
           static_cast<size_t>(olVec.z));
     }
 
