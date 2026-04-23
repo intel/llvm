@@ -323,8 +323,9 @@ int runTest(
             oldValue.w() = rawValuePixel.w();
           }
         }
-
-        newValue = oldValue / 2.0f;
+        
+        newValue = oldValue / (T)2;
+        
         if (isUnorm) {
           newValue = sycl::clamp(newValue, 0.0f, 1.0f);
           if (channels == 1)
