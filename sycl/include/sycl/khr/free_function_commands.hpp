@@ -16,10 +16,22 @@
 #ifdef __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
 
 #include <sycl/ext/oneapi/experimental/enqueue_functions.hpp>
+#include <sycl/ext/oneapi/properties/properties.hpp>
 
 namespace sycl {
 inline namespace _V1 {
 namespace khr {
+
+struct wait_event
+    : ::sycl::ext::oneapi::experimental::detail::run_time_property_key<
+          wait_event, ::sycl::ext::oneapi::experimental::detail::
+                                       PropKind::WaitEvent> {
+  wait_event(event evt) : e(evt) {}
+
+  event e;
+};
+
+using wait_event_key = wait_event;
 
 template <typename CommandGroupFunc>
 void submit(const queue &q, CommandGroupFunc &&cgf,
@@ -354,20 +366,35 @@ void launch_task(handler &h, const KernelType &k) {
   h.single_task(k);
 }
 
-template <typename KernelType, typename = typename std::enable_if_t<
-                                   enable_kernel_function_overload<KernelType>>>
+template <typename KernelType, typename LaunchPropertiesT =
+  ext::oneapi::experimental::empty_properties_t, typename = typename std::enable_if_t<
+  enable_kernel_function_overload<KernelType>>>
 void launch_task(const sycl::queue &q, KernelType &&k,
+                 const LaunchPropertiesT &lp = {},
                  const sycl::detail::code_location &codeLoc =
                      sycl::detail::code_location::current()) {
   // TODO The handler-less path does not support  kernel functions with the
   // kernel_handler type argument yet.
   if constexpr (!(detail::KernelLambdaHasKernelHandlerArgT<KernelType,
                                                            void>::value)) {
-    detail::submit_kernel_direct_single_task(
-        q, std::forward<KernelType>(k), {},
-        ext::oneapi::experimental::empty_properties_t{}, codeLoc);
+    if constexpr (lp.template has_property<wait_event_key>()) {
+      auto DepEvent = lp.template get_property<wait_event_key>().e;
+      detail::submit_kernel_direct_single_task(
+          q, std::forward<KernelType>(k), sycl::span<const event>(&DepEvent, 1),
+          ext::oneapi::experimental::empty_properties_t{}, codeLoc);
+    } else {
+      detail::submit_kernel_direct_single_task(
+          q, std::forward<KernelType>(k), {},
+          ext::oneapi::experimental::empty_properties_t{}, codeLoc);
+    }
   } else {
-    submit(q, [&](handler &h) { launch_task<KernelType>(h, k); }, codeLoc);
+    submit(q, [&](handler &h) {
+      if constexpr (lp.template has_property<wait_event_key>()) {
+        auto DepEvent = lp.template get_property<wait_event_key>().e;
+        h.depends_on(DepEvent);
+      }
+      launch_task<KernelType>(h, k);
+    }, codeLoc);
   }
 }
 
