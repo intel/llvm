@@ -16,7 +16,7 @@
 #include <sycl/builtins.hpp>                  // for fabs
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL_ALWAYS_INLINE
 #include <sycl/exception.hpp>
-#include <sycl/ext/oneapi/bfloat16.hpp> // for bfloat16
+#include <sycl/ext/oneapi/bfloat16.hpp>       // for bfloat16
 #include <sycl/ext/oneapi/experimental/annotated_ptr/annotated_ptr.hpp> // for annotated_ptr
 #include <sycl/group.hpp>     // for group
 #include <sycl/multi_ptr.hpp> // for multi_ptr
