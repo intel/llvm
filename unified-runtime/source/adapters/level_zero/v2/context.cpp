@@ -74,32 +74,15 @@ uniqueDevices(uint32_t numDevices, const ur_device_handle_t *phDevices) {
   return devices;
 }
 
-static bool isDriverRootDevice(ze_device_handle_t zeDevice) {
-  ze_device_handle_t zeRootDevice = nullptr;
-  ze_result_t zeResult =
-      ZE_CALL_NOCHECK(zeDeviceGetRootDevice, (zeDevice, &zeRootDevice));
-
-  if (zeResult == ZE_RESULT_SUCCESS) {
-    return zeRootDevice == nullptr || zeRootDevice == zeDevice;
-  }
-
-  // If unsupported, keep behavior compatible with older loaders/drivers.
-  if (zeResult == ZE_RESULT_ERROR_UNSUPPORTED_FEATURE) {
-    return true;
-  }
-
-  return false;
-}
-
 static bool isFullPlatformRootDeviceList(uint32_t deviceCount,
                                          const ur_device_handle_t *phDevices) {
-  if (deviceCount == 0 || !phDevices) {
+  if (deviceCount == 0 || !phDevices || !phDevices[0]) {
     return false;
   }
 
   ur_platform_handle_t hPlatform = phDevices[0]->Platform;
 
-  std::vector<ze_device_handle_t> requestedDevices;
+  std::vector<ur_device_handle_t> requestedDevices;
   requestedDevices.reserve(deviceCount);
   for (uint32_t i = 0; i < deviceCount; ++i) {
     if (!phDevices[i] || phDevices[i]->Platform != hPlatform ||
@@ -107,36 +90,25 @@ static bool isFullPlatformRootDeviceList(uint32_t deviceCount,
       return false;
     }
 
-    if (!isDriverRootDevice(phDevices[i]->ZeDevice)) {
-      return false;
-    }
-
-    requestedDevices.push_back(phDevices[i]->ZeDevice);
+    requestedDevices.push_back(phDevices[i]);
   }
 
   sortAndUnique(requestedDevices);
 
-  uint32_t zeDeviceCount = 0;
-  ze_result_t zeResult = ZE_CALL_NOCHECK(
-      zeDeviceGet, (hPlatform->ZeDriver, &zeDeviceCount, nullptr));
-  if (zeResult != ZE_RESULT_SUCCESS || zeDeviceCount == 0) {
+  uint32_t platformDeviceCount = 0;
+  ur_result_t result = ur::level_zero::urDeviceGet(
+      hPlatform, UR_DEVICE_TYPE_ALL, 0, nullptr, &platformDeviceCount);
+  if (result != UR_RESULT_SUCCESS || platformDeviceCount == 0) {
     return false;
   }
 
-  std::vector<ze_device_handle_t> platformDevices(zeDeviceCount);
-  zeResult = ZE_CALL_NOCHECK(zeDeviceGet, (hPlatform->ZeDriver, &zeDeviceCount,
-                                           platformDevices.data()));
-  if (zeResult != ZE_RESULT_SUCCESS) {
+  std::vector<ur_device_handle_t> platformDevices(platformDeviceCount);
+  result = ur::level_zero::urDeviceGet(hPlatform, UR_DEVICE_TYPE_ALL,
+                                       platformDeviceCount,
+                                       platformDevices.data(), nullptr);
+  if (result != UR_RESULT_SUCCESS) {
     return false;
   }
-
-  platformDevices.resize(zeDeviceCount);
-  platformDevices.erase(std::remove_if(platformDevices.begin(),
-                                       platformDevices.end(),
-                                       [](ze_device_handle_t zeDevice) {
-                                         return !isDriverRootDevice(zeDevice);
-                                       }),
-                        platformDevices.end());
 
   if (platformDevices.empty()) {
     return false;
@@ -251,34 +223,12 @@ ur_result_t urContextCreate(uint32_t deviceCount,
   bool ownZeContext = true;
 
   if (!pProperties && isFullPlatformRootDeviceList(deviceCount, phDevices)) {
-    // Reuse the L0 driver default context when building with a new enough L0
-    // SDK.  The symbol may be absent in older loaders;
-    // HAVE_ZE_DRIVER_GET_DEFAULT_CONTEXT is defined by CMake only when the SDK
-    // declares it, preventing link failures.
-#if defined(HAVE_ZE_DRIVER_GET_DEFAULT_CONTEXT)
-    using pfnZeDriverGetDefaultContext_t =
-        ze_context_handle_t(ZE_APICALL *)(ze_driver_handle_t);
-#ifdef UR_STATIC_LEVEL_ZERO
-    // Static build: symbol is compiled in from libze_loader.a – call directly.
-    pfnZeDriverGetDefaultContext_t pfnGetDefaultContext =
-        zeDriverGetDefaultContext;
-#else
-    // Dynamic build: resolve at runtime so an older libze_loader.so doesn't
-    // cause a hard load-time failure.
-    auto pfnGetDefaultContext =
-        reinterpret_cast<pfnZeDriverGetDefaultContext_t>(
-            ur_loader::LibLoader::getFunctionPtr(GlobalAdapter->processHandle,
-                                                 "zeDriverGetDefaultContext"));
-#endif // UR_STATIC_LEVEL_ZERO
-    if (pfnGetDefaultContext) {
-      ze_context_handle_t zeDefaultContext =
-          pfnGetDefaultContext(hPlatform->ZeDriver);
-      if (zeDefaultContext) {
-        zeContext = zeDefaultContext;
-        ownZeContext = false;
-      }
+    ze_context_handle_t zeDefaultContext =
+        zeDriverGetDefaultContext(hPlatform->ZeDriver);
+    if (zeDefaultContext) {
+      zeContext = zeDefaultContext;
+      ownZeContext = false;
     }
-#endif // HAVE_ZE_DRIVER_GET_DEFAULT_CONTEXT
   }
 
   if (!zeContext) {

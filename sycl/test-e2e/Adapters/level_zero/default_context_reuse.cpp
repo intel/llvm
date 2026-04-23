@@ -8,12 +8,6 @@
 
 // Test that full-platform SYCL contexts are reused and match the platform
 // default context when all root devices of a platform are requested.
-// Verifies URT-1145 behavior from the SYCL observable side.
-//
-// Before the fix: urContextCreate always calls zeContextCreate, so two
-// full-platform contexts have different ze_context handles -> test FAILS.
-// After the fix:  urContextCreate reuses the driver default context, so both
-// calls return the same handle -> test PASSES.
 
 #include <iostream>
 #include <level_zero/ze_api.h>
@@ -24,6 +18,12 @@
 #include <vector>
 
 int main() {
+  ze_result_t initResult = zeInit(ZE_INIT_FLAG_GPU_ONLY);
+  if (initResult != ZE_RESULT_SUCCESS) {
+    std::cerr << "FAIL: zeInit failed with error code: " << initResult << "\n";
+    return 1;
+  }
+
   int failed = 0;
   bool anyTested = false;
 
@@ -54,12 +54,26 @@ int main() {
 
     if (h1 != h2) {
       std::cerr << "FAIL: Two full-platform SYCL contexts have different "
-                   "ze_context handles. They should both reuse the L0 "
-                   "default context (URT-1145).\n";
+                   "ze_context handles.\n";
       ++failed;
     } else {
       std::cout << "PASS: Both full-platform contexts share the same "
                    "ze_context handle.\n";
+    }
+
+    ze_driver_handle_t driver =
+        sycl::get_native<sycl::backend::ext_oneapi_level_zero>(platform);
+    ze_context_handle_t hDriverDef = zeDriverGetDefaultContext(driver);
+    if (!hDriverDef) {
+      std::cerr << "FAIL: zeDriverGetDefaultContext() returned a null "
+                   "handle.\n";
+      ++failed;
+      continue;
+    }
+    if (h1 != hDriverDef) {
+      std::cerr << "FAIL: explicit full-platform context handle differs "
+                   "from zeDriverGetDefaultContext().\n";
+      ++failed;
     }
 
     // Also verify the platform default context.
@@ -67,12 +81,13 @@ int main() {
     ze_context_handle_t hDef =
         sycl::get_native<sycl::backend::ext_oneapi_level_zero>(defCtx);
     std::cout << "platform default context handle: " << hDef << "\n";
-    if (hDef != h1) {
+    if (hDef != hDriverDef) {
       std::cerr << "FAIL: platform.khr_get_default_context() handle differs "
-                   "from explicit full-platform context handle.\n";
+                   "from zeDriverGetDefaultContext().\n";
       ++failed;
     } else {
-      std::cout << "PASS: platform default context matches.\n";
+      std::cout << "PASS: platform default context matches "
+                   "zeDriverGetDefaultContext().\n";
     }
   }
 
