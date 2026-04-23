@@ -418,8 +418,7 @@ int runTest(
     for (size_t i = 0; i < totalPixels; ++i) {
       size_t pixelIdx = i / channels;
       int ch = i % channels;
-      T expected =
-          generateTestValue<T>(pixelIdx, ch, totalPixels) / static_cast<T>(2);
+      T expected = generateTestValue<T>(pixelIdx, ch, totalPixels) / T(2);
       if (!checkValue(readbackPixelData[i], expected)) {
         passed = false;
         std::cout << "Mismatch at " << i << " ch:" << ch
