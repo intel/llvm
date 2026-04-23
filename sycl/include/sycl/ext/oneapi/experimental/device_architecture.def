@@ -152,6 +152,14 @@ __SYCL_ARCHITECTURE(amd_gpu_gfx1151, 0x0200000000115100)
 __SYCL_ARCHITECTURE(amd_gpu_gfx1200, 0x0200000000120000)
 __SYCL_ARCHITECTURE(amd_gpu_gfx1201, 0x0200000000120100)
 //
+// Qualcomm architectures
+//
+// AA is 04,
+// CCCCCCCC is the GPU version of that architecture
+__SYCL_ARCHITECTURE(qcom_gpu_x1_85, 0x0400000000018500) // Qualcomm(R) Adreno X1-85
+__SYCL_ARCHITECTURE(qcom_gpu_x2_85, 0x0400000000028500) // Qualcomm(R) Adreno X2-85
+__SYCL_ARCHITECTURE(qcom_gpu_x2_90, 0x0400000000029000) // Qualcomm(R) Adreno X2-90
+//
 // Aliases for Intel graphics architectures
 //
 __SYCL_ARCHITECTURE_ALIAS(intel_gpu_8_0_0, intel_gpu_bdw)
