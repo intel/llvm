@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#pragma once
 #include "device_complex.h"
 
 #if defined(__SPIR__) || defined(__SPIRV__)

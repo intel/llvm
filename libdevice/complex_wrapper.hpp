@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#pragma once
 #include "fallback-complex-fp64.hpp"
 #include "fallback-complex.hpp"
 

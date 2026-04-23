@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#pragma once
 #if defined(__SPIR__) || defined(__SPIRV__)
 
 static inline float __devicelib_fabsf(float x) { return x < 0 ? -x : x; }

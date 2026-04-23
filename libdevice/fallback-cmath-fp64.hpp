@@ -7,6 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#pragma once
 #include "device.h"
 #ifdef __LIBDEVICE_TARGET_SUPPORT
 
