@@ -33,6 +33,12 @@ int main(int argc, char **argv) {
     int numSubslices = 0;
     int numEUsPerSubslice = 0;
     int numHWThreadsPerEU = 0;
+    int numXeStacksCount = 0;
+    int numXeRegionsPerStack = 0;
+    int numXeClustersPerRegion = 0;
+    int numXeCoresPerCluster = 0;
+    int numEUCountPerXeCore = 0;
+    int numMaxLanesPerHWThread = 0;
     for (const auto &dev : plt.get_devices()) {
       std::cout << "Platform #" << pltCount++ << ":" << std::endl;
       auto name = dev.get_info<info::device::name>();
