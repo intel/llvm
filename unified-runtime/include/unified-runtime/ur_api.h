@@ -509,6 +509,8 @@ typedef enum ur_function_t {
   UR_FUNCTION_USM_HOST_ALLOC_REGISTER_EXP = 312,
   /// Enumerator for ::urUSMHostAllocUnregisterExp
   UR_FUNCTION_USM_HOST_ALLOC_UNREGISTER_EXP = 313,
+  /// Enumerator for ::urQueueGetGraphExp
+  UR_FUNCTION_QUEUE_GET_GRAPH_EXP = 314,
   /// @cond
   UR_FUNCTION_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -2374,6 +2376,10 @@ typedef enum ur_device_info_t {
   UR_DEVICE_INFO_LUID = 129,
   /// [uint32_t][optional-query] return device Windows node mask
   UR_DEVICE_INFO_NODE_MASK = 130,
+  /// [uint32_t] preferred vector width for long long
+  UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_LONG_LONG = 131,
+  /// [uint32_t] native vector width for long long
+  UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG_LONG = 132,
   /// [::ur_bool_t] Returns true if the device supports the use of
   /// command-buffers.
   UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP = 0x1000,
@@ -13804,6 +13810,27 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueIsGraphCaptureEnabledExp(
     bool *pResult);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Get the graph handle currently being captured on the specified queue.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hQueue`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == phGraph`
+///     - ::UR_RESULT_ERROR_INVALID_OPERATION
+///         + The queue is not in graph capture mode.
+UR_APIEXPORT ur_result_t UR_APICALL urQueueGetGraphExp(
+    /// [in] Handle of the queue to query.
+    ur_queue_handle_t hQueue,
+    /// [out] Pointer to the handle of the graph being captured. Set to
+    /// nullptr if queue is not in capture mode.
+    ur_exp_graph_handle_t *phGraph);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Return whether the given recorded graph contains any nodes.
 ///
 /// @returns
@@ -14652,6 +14679,15 @@ typedef struct ur_queue_is_graph_capture_enabled_exp_params_t {
   ur_queue_handle_t *phQueue;
   bool **ppResult;
 } ur_queue_is_graph_capture_enabled_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urQueueGetGraphExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_queue_get_graph_exp_params_t {
+  ur_queue_handle_t *phQueue;
+  ur_exp_graph_handle_t **pphGraph;
+} ur_queue_get_graph_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urSamplerCreate

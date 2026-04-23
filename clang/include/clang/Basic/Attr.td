@@ -146,6 +146,12 @@ def HLSLInputBuiltin
                            S->getType().isConstQualified()}],
                     "static const globals">;
 
+def HLSLOutputBuiltin
+    : SubsetSubject<Var, [{S->hasGlobalStorage() &&
+                           S->getStorageClass() == StorageClass::SC_Static &&
+                           !S->getType().isConstQualified()}],
+                    "non-const static globals">;
+
 def GlobalVar : SubsetSubject<Var,
                              [{S->hasGlobalStorage()}], "global variables">;
 
@@ -278,7 +284,8 @@ class VariadicParamOrParamIdxArgument<string name> : Argument<name, 1>;
 class ParamIdxArgument<string name, bit opt = 0> : Argument<name, opt>;
 
 // A version of the form major.minor[.subminor].
-class VersionArgument<string name, bit opt = 0> : Argument<name, opt>;
+class VersionArgument<string name, bit opt = 0, bit fake = 0>
+    : Argument<name, opt, fake>;
 
 // This one's a doozy, so it gets its own special type
 // It can be an unsigned integer, or a type. Either can
@@ -1135,7 +1142,8 @@ def Availability : InheritableAttr {
               VersionArgument<"deprecated">, VersionArgument<"obsoleted">,
               BoolArgument<"unavailable">, StringArgument<"message">,
               BoolArgument<"strict">, StringArgument<"replacement">,
-              IntArgument<"priority">, IdentifierArgument<"environment">];
+              IntArgument<"priority">, IdentifierArgument<"environment">,
+              VersionArgument<"origAnyAppleOSVersion", 0, 1>];
   let AdditionalMembers =
 [{static llvm::StringRef getPrettyPlatformName(llvm::StringRef Platform) {
     return llvm::StringSwitch<llvm::StringRef>(Platform)
@@ -1154,6 +1162,7 @@ def Availability : InheritableAttr {
              .Case("maccatalyst_app_extension", "macCatalyst (App Extension)")
              .Case("xros", "visionOS")
              .Case("xros_app_extension", "visionOS (App Extension)")
+             .Case("anyappleos", "any Apple OS")
              .Case("swift", "Swift")
              .Case("shadermodel", "Shader Model")
              .Case("ohos", "OpenHarmony OS")
@@ -1173,6 +1182,7 @@ static llvm::StringRef getPlatformNameSourceSpelling(llvm::StringRef Platform) {
              .Case("maccatalyst_app_extension", "macCatalystApplicationExtension")
              .Case("xros", "visionOS")
              .Case("xros_app_extension", "visionOSApplicationExtension")
+             .Case("anyappleos", "anyAppleOS")
              .Case("zos", "z/OS")
              .Case("shadermodel", "ShaderModel")
              .Default(Platform);
@@ -1195,6 +1205,7 @@ static llvm::StringRef canonicalizePlatformName(llvm::StringRef Platform) {
              .Case("visionOSApplicationExtension", "xros_app_extension")
              .Case("visionos", "xros")
              .Case("visionos_app_extension", "xros_app_extension")
+             .Case("anyAppleOS", "anyappleos")
              .Case("ShaderModel", "shadermodel")
              .Default(Platform);
 }
@@ -1226,6 +1237,8 @@ static std::vector<llvm::StringRef> equivalentPlatformNames(llvm::StringRef Plat
              .Case("xros_app_extension", {"visionOSApplicationExtension", "visionos_app_extension", "xros_app_extension"})
              .Case("visionOSApplicationExtension", {"visionOSApplicationExtension", "visionos_app_extension", "xros_app_extension"})
              .Case("visionos_app_extension", {"visionOSApplicationExtension", "visionos_app_extension", "xros_app_extension"})
+             .Case("anyappleos", {"anyappleos", "anyAppleOS"})
+             .Case("anyAppleOS", {"anyappleos", "anyAppleOS"})
              .Default({Platform});
 }
 static llvm::Triple::EnvironmentType getEnvironmentType(llvm::StringRef Environment) {
@@ -1947,23 +1960,6 @@ def SYCLIntelNumSimdWorkItems : InheritableAttr {
   let SupportsNonconformingLambdaSyntax = 1;
 }
 
-def SYCLIntelUseStallEnableClusters : InheritableAttr {
-  let Spellings = [CXX11<"intel","use_stall_enable_clusters">];
-  let LangOpts = [SilentlyIgnoreSYCLIsHost, SYCLIsDevice];
-  let Subjects = SubjectList<[Function], ErrorDiag>;
-  let Documentation = [SYCLIntelUseStallEnableClustersAttrDocs];
-  let SupportsNonconformingLambdaSyntax = 1;
-}
-
-def SYCLIntelSchedulerTargetFmaxMhz : InheritableAttr {
-  let Spellings = [CXX11<"intel", "scheduler_target_fmax_mhz">];
-  let Args = [ExprArgument<"Value">];
-  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
-  let Subjects = SubjectList<[Function], ErrorDiag>;
-  let Documentation = [SYCLIntelSchedulerTargetFmaxMhzAttrDocs];
-  let SupportsNonconformingLambdaSyntax = 1;
-}
-
 def SYCLIntelMaxWorkGroupSize : InheritableAttr {
   let Spellings = [CXX11<"intel", "max_work_group_size">];
   let Args = [ExprArgument<"XDim">,
@@ -2002,15 +1998,6 @@ def SYCLIntelMaxWorkGroupsPerMultiprocessor : InheritableAttr {
   let Documentation = [SYCLIntelMaxWorkGroupsPerMultiprocessorDocs];
 }
 
-def SYCLIntelMaxGlobalWorkDim : InheritableAttr {
-  let Spellings = [CXX11<"intel", "max_global_work_dim">];
-  let Args = [ExprArgument<"Value">];
-  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
-  let Subjects = SubjectList<[Function], ErrorDiag>;
-  let Documentation = [SYCLIntelMaxGlobalWorkDimAttrDocs];
-  let SupportsNonconformingLambdaSyntax = 1;
-}
-
 def SYCLDeviceGlobal: InheritableAttr {
   let Spellings = [CXX11<"__sycl_detail__", "device_global">];
   let Subjects = SubjectList<[CXXRecord], ErrorDiag>;
@@ -2027,15 +2014,6 @@ def SYCLGlobalVariableAllowed : InheritableAttr {
   // Only used internally by SYCL implementation
   let Documentation = [SYCLGlobalVariableAllowedAttrDocs];
   let SimpleHandler = 1;
-}
-
-def SYCLIntelNoGlobalWorkOffset : InheritableAttr {
-  let Spellings = [CXX11<"intel", "no_global_work_offset">];
-  let Args = [ExprArgument<"Value", /*optional*/1>];
-  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
-  let Subjects = SubjectList<[Function], ErrorDiag>;
-  let Documentation = [SYCLIntelNoGlobalWorkOffsetAttrDocs];
-  let SupportsNonconformingLambdaSyntax = 1;
 }
 
 class SYCLAddIRAttrMemberCodeHolder<code Code> {
@@ -2913,39 +2891,6 @@ def Mode : Attr {
   // This is notionally a type attribute, which #pragma clang attribute
   // generally does not support.
   let PragmaAttributeSupport = 0;
-}
-
-def SYCLIntelLoopCoalesce : StmtAttr {
-  let Spellings = [CXX11<"intel", "loop_coalesce">];
-  let Subjects = SubjectList<[ForStmt, CXXForRangeStmt, WhileStmt, DoStmt],
-                             ErrorDiag, "'for', 'while', and 'do' statements">;
-  let Args = [ExprArgument<"NExpr", /*opt*/1>];
-  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
-  let Documentation = [SYCLIntelLoopCoalesceAttrDocs];
-}
-
-def SYCLIntelMaxInterleaving : StmtAttr {
-  let Spellings = [CXX11<"intel", "max_interleaving">];
-  let Subjects = SubjectList<[ForStmt, CXXForRangeStmt, WhileStmt, DoStmt],
-                             ErrorDiag, "'for', 'while', and 'do' statements">;
-  let Args = [ExprArgument<"NExpr">];
-  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
-  let Documentation = [SYCLIntelMaxInterleavingAttrDocs];
-}
-
-def SYCLIntelPipe : TypeAttr {
-  let Spellings = [GNU<"pipe">];
-  let Args = [StringArgument<"Mode">];
-  let LangOpts = [SYCLIsDevice];
-  let Documentation = [SYCLIntelPipeDocs];
-}
-
-def SYCLIntelPipeIO : InheritableAttr {
-  let Spellings = [GNU<"io_pipe_id">];
-  let Args = [ExprArgument<"ID">];
-  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
-  let Subjects = SubjectList<[Var]>;
-  let Documentation = [SYCLIntelPipeIOAttrDocs];
 }
 
 def Naked : InheritableAttr {
@@ -4950,7 +4895,7 @@ def NoThreadSafetyAnalysis : InheritableAttr {
 
 def GuardedBy : InheritableAttr {
   let Spellings = [GNU<"guarded_by">];
-  let Args = [ExprArgument<"Arg">];
+  let Args = [VariadicExprArgument<"Args">];
   let LateParsed = LateAttrParseExperimentalExt;
   let TemplateDependent = 1;
   let ParseArgumentsAsUnevaluated = 1;
@@ -4961,7 +4906,7 @@ def GuardedBy : InheritableAttr {
 
 def PtGuardedBy : InheritableAttr {
   let Spellings = [GNU<"pt_guarded_by">];
-  let Args = [ExprArgument<"Arg">];
+  let Args = [VariadicExprArgument<"Args">];
   let LateParsed = LateAttrParseExperimentalExt;
   let TemplateDependent = 1;
   let ParseArgumentsAsUnevaluated = 1;
@@ -5369,11 +5314,11 @@ def LoopHint : Attr {
                           ["vectorize", "vectorize_width", "interleave", "interleave_count",
                            "unroll", "unroll_count", "unroll_and_jam", "unroll_and_jam_count",
                            "pipeline", "pipeline_initiation_interval", "distribute",
-                           "vectorize_predicate"],
+                           "vectorize_predicate", "licm"],
                           ["Vectorize", "VectorizeWidth", "Interleave", "InterleaveCount",
                            "Unroll", "UnrollCount", "UnrollAndJam", "UnrollAndJamCount",
                            "PipelineDisabled", "PipelineInitiationInterval", "Distribute",
-                           "VectorizePredicate"]>,
+                           "VectorizePredicate", "LICMDisabled"]>,
               EnumArgument<"State", "LoopHintState", /*is_string=*/false,
                            ["enable", "disable", "numeric", "fixed_width",
                             "scalable_width", "assume_safety", "full"],
@@ -5396,6 +5341,7 @@ def LoopHint : Attr {
     case PipelineInitiationInterval: return "pipeline_initiation_interval";
     case Distribute: return "distribute";
     case VectorizePredicate: return "vectorize_predicate";
+    case LICMDisabled: return "licm";
     }
     llvm_unreachable("Unhandled LoopHint option.");
   }
@@ -5510,17 +5456,15 @@ def OMPDeclareTargetDecl : InheritableAttr {
   let SemaHandler = 0;
   let Subjects = SubjectList<[Function, SharedVar]>;
   let Documentation = [OMPDeclareTargetDocs];
-  let Args = [
-    EnumArgument<"MapType", "MapTypeTy", /*is_string=*/false,
-                 [ "to", "enter", "link" ],
-                 [ "MT_To", "MT_Enter", "MT_Link" ]>,
-    EnumArgument<"DevType", "DevTypeTy", /*is_string=*/false,
-                 [ "host", "nohost", "any" ],
-                 [ "DT_Host", "DT_NoHost", "DT_Any" ]>,
-    ExprArgument<"IndirectExpr">,
-    BoolArgument<"Indirect">,
-    UnsignedArgument<"Level">
-  ];
+  let Args = [EnumArgument<
+                  "MapType", "MapTypeTy",
+                  /*is_string=*/false, ["to", "enter", "link", "local"],
+                  ["MT_To", "MT_Enter", "MT_Link", "MT_Local"]>,
+              EnumArgument<"DevType", "DevTypeTy",
+                           /*is_string=*/false, ["host", "nohost", "any"],
+                           ["DT_Host", "DT_NoHost", "DT_Any"]>,
+              ExprArgument<"IndirectExpr">, BoolArgument<"Indirect">,
+              UnsignedArgument<"Level">];
   let AdditionalMembers = [{
     void printPrettyPragma(raw_ostream &OS, const PrintingPolicy &Policy) const;
     static std::optional<MapTypeTy>
@@ -5850,6 +5794,14 @@ def HLSLResourceBinding: InheritableAttr {
   }];
 }
 
+def HLSLAssociatedResourceDecl : InheritableAttr {
+  let Spellings = [];
+  let Args = [DeclArgument<Var, "ResDecl">];
+  let Subjects = SubjectList<[ExternalGlobalVar], ErrorDiag>;
+  let LangOpts = [HLSL];
+  let Documentation = [InternalOnly];
+}
+
 def HLSLUnparsedSemantic : HLSLAnnotationAttr {
   let Spellings = [];
   let Args = [DefaultIntArgument<"Index", 0>,
@@ -6004,6 +5956,14 @@ def HLSLVkExtBuiltinInput : InheritableAttr {
   let Subjects = SubjectList<[HLSLInputBuiltin], ErrorDiag>;
   let LangOpts = [HLSL];
   let Documentation = [HLSLVkExtBuiltinInputDocs];
+}
+
+def HLSLVkExtBuiltinOutput : InheritableAttr {
+  let Spellings = [CXX11<"vk", "ext_builtin_output">];
+  let Args = [UnsignedArgument<"BuiltIn">];
+  let Subjects = SubjectList<[HLSLOutputBuiltin], ErrorDiag>;
+  let LangOpts = [HLSL];
+  let Documentation = [HLSLVkExtBuiltinOutputDocs];
 }
 
 def HLSLVkPushConstant : InheritableAttr {
@@ -6196,4 +6156,11 @@ def OverflowBehavior : TypeAttr {
   let Subjects = SubjectList<[Var, TypedefName, Field], WarnDiag,
                              "variables, typedefs, and data members">;
   let Documentation = [Undocumented];
+}
+
+def Personality : InheritableAttr {
+  let Spellings = [Clang<"personality">];
+  let Args = [DeclArgument<Function, "Routine">];
+  let Subjects = SubjectList<[Function]>;
+  let Documentation = [PersonalityDocs];
 }

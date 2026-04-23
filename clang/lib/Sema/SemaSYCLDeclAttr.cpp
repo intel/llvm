@@ -422,58 +422,6 @@ void SemaSYCL::addSYCLUsesAspectsAttr(Decl *D, const AttributeCommonInfo &CI,
   D->addAttr(::new (Context) SYCLUsesAspectsAttr(Context, CI, Exprs, Size));
 }
 
-void SemaSYCL::addSYCLIntelPipeIOAttr(Decl *D, const AttributeCommonInfo &CI,
-                                      Expr *E) {
-  VarDecl *VD = cast<VarDecl>(D);
-  QualType Ty = VD->getType();
-  // TODO: Applicable only on pipe storages. Currently they are defined
-  // as structures inside of SYCL headers. Add a check for pipe_storage_t
-  // when it is ready.
-  if (!Ty->isStructureType()) {
-    Diag(CI.getLoc(), diag::err_attribute_wrong_decl_type_str)
-        << CI << CI.isRegularKeywordAttribute()
-        << "SYCL pipe storage declaration";
-    return;
-  }
-
-  if (!E->isValueDependent()) {
-    // Validate that we have an integer constant expression and then store the
-    // converted constant expression into the semantic attribute so that we
-    // don't have to evaluate it again later.
-    llvm::APSInt ArgVal;
-    ExprResult Res = SemaRef.VerifyIntegerConstantExpression(E, &ArgVal);
-    if (Res.isInvalid())
-      return;
-    E = Res.get();
-
-    // This attribute requires a non-negative value.
-    if (ArgVal < 0) {
-      Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
-          << CI << /*non-negative*/ 1;
-      return;
-    }
-
-    // Check to see if there's a duplicate attribute with different values
-    // already applied to the declaration.
-    if (const auto *DeclAttr = D->getAttr<SYCLIntelPipeIOAttr>()) {
-      // If the other attribute argument is instantiation dependent, we won't
-      // have converted it to a constant expression yet and thus we test
-      // whether this is a null pointer.
-      if (const auto *DeclExpr = dyn_cast<ConstantExpr>(DeclAttr->getID())) {
-        if (ArgVal != DeclExpr->getResultAsAPSInt()) {
-          Diag(CI.getLoc(), diag::warn_duplicate_attribute) << CI;
-          Diag(DeclAttr->getLoc(), diag::note_previous_attribute);
-        }
-        // Drop the duplicate attribute.
-        return;
-      }
-    }
-  }
-
-  ASTContext &Context = getASTContext();
-  D->addAttr(::new (Context) SYCLIntelPipeIOAttr(Context, CI, E));
-}
-
 void SemaSYCL::addIntelReqdSubGroupSizeAttr(Decl *D,
                                             const AttributeCommonInfo &CI,
                                             Expr *E) {
@@ -590,133 +538,6 @@ void SemaSYCL::addSYCLIntelNumSimdWorkItemsAttr(Decl *D,
   D->addAttr(::new (Context) SYCLIntelNumSimdWorkItemsAttr(Context, CI, E));
 }
 
-// Handle scheduler_target_fmax_mhz
-void SemaSYCL::addSYCLIntelSchedulerTargetFmaxMhzAttr(
-    Decl *D, const AttributeCommonInfo &CI, Expr *E) {
-  if (!E->isValueDependent()) {
-    // Validate that we have an integer constant expression and then store the
-    // converted constant expression into the semantic attribute so that we
-    // don't have to evaluate it again later.
-    llvm::APSInt ArgVal;
-    ExprResult Res = SemaRef.VerifyIntegerConstantExpression(E, &ArgVal);
-    if (Res.isInvalid())
-      return;
-    E = Res.get();
-
-    // This attribute requires a non-negative value.
-    if (ArgVal < 0) {
-      Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
-          << CI << /*non-negative*/ 1;
-      return;
-    }
-    // Check to see if there's a duplicate attribute with different values
-    // already applied to the declaration.
-    if (const auto *DeclAttr =
-            D->getAttr<SYCLIntelSchedulerTargetFmaxMhzAttr>()) {
-      // If the other attribute argument is instantiation dependent, we won't
-      // have converted it to a constant expression yet and thus we test
-      // whether this is a null pointer.
-      if (const auto *DeclExpr = dyn_cast<ConstantExpr>(DeclAttr->getValue())) {
-        if (ArgVal != DeclExpr->getResultAsAPSInt()) {
-          Diag(CI.getLoc(), diag::warn_duplicate_attribute) << CI;
-          Diag(DeclAttr->getLoc(), diag::note_previous_attribute);
-        }
-        // Drop the duplicate attribute.
-        return;
-      }
-    }
-  }
-
-  ASTContext &Context = getASTContext();
-  D->addAttr(::new (Context)
-                 SYCLIntelSchedulerTargetFmaxMhzAttr(Context, CI, E));
-}
-
-void SemaSYCL::addSYCLIntelNoGlobalWorkOffsetAttr(Decl *D,
-                                                  const AttributeCommonInfo &CI,
-                                                  Expr *E) {
-  if (!E->isValueDependent()) {
-    // Validate that we have an integer constant expression and then store the
-    // converted constant expression into the semantic attribute so that we
-    // don't have to evaluate it again later.
-    llvm::APSInt ArgVal;
-    ExprResult Res = SemaRef.VerifyIntegerConstantExpression(E, &ArgVal);
-    if (Res.isInvalid())
-      return;
-    E = Res.get();
-
-    // Check to see if there's a duplicate attribute with different values
-    // already applied to the declaration.
-    if (const auto *DeclAttr = D->getAttr<SYCLIntelNoGlobalWorkOffsetAttr>()) {
-      // If the other attribute argument is instantiation dependent, we won't
-      // have converted it to a constant expression yet and thus we test
-      // whether this is a null pointer.
-      if (const auto *DeclExpr = dyn_cast<ConstantExpr>(DeclAttr->getValue())) {
-        if (ArgVal != DeclExpr->getResultAsAPSInt()) {
-          Diag(CI.getLoc(), diag::warn_duplicate_attribute) << CI;
-          Diag(DeclAttr->getLoc(), diag::note_previous_attribute);
-        }
-        // Drop the duplicate attribute.
-        return;
-      }
-    }
-  }
-
-  ASTContext &Context = getASTContext();
-  D->addAttr(::new (Context) SYCLIntelNoGlobalWorkOffsetAttr(Context, CI, E));
-}
-
-void SemaSYCL::addSYCLIntelMaxGlobalWorkDimAttr(Decl *D,
-                                                const AttributeCommonInfo &CI,
-                                                Expr *E) {
-  if (!E->isValueDependent()) {
-    // Validate that we have an integer constant expression and then store the
-    // converted constant expression into the semantic attribute so that we
-    // don't have to evaluate it again later.
-    llvm::APSInt ArgVal;
-    ExprResult Res = SemaRef.VerifyIntegerConstantExpression(E, &ArgVal);
-    if (Res.isInvalid())
-      return;
-    E = Res.get();
-
-    // This attribute must be in the range [0, 3].
-    if (ArgVal < 0 || ArgVal > 3) {
-      Diag(E->getBeginLoc(), diag::err_attribute_argument_out_of_range)
-          << CI << 0 << 3 << E->getSourceRange();
-      return;
-    }
-
-    // Check to see if there's a duplicate attribute with different values
-    // already applied to the declaration.
-    if (const auto *DeclAttr = D->getAttr<SYCLIntelMaxGlobalWorkDimAttr>()) {
-      // If the other attribute argument is instantiation dependent, we won't
-      // have converted it to a constant expression yet and thus we test
-      // whether this is a null pointer.
-      if (const auto *DeclExpr = dyn_cast<ConstantExpr>(DeclAttr->getValue())) {
-        if (ArgVal != DeclExpr->getResultAsAPSInt()) {
-          Diag(CI.getLoc(), diag::warn_duplicate_attribute) << CI;
-          Diag(DeclAttr->getLoc(), diag::note_previous_attribute);
-        }
-        // Drop the duplicate attribute.
-        return;
-      }
-    }
-
-    // If the declaration has a SYCLIntelMaxWorkGroupSizeAttr or
-    // SYCLReqdWorkGroupSizeAttr, check to see if the attribute holds values
-    // equal to (1, 1, 1) in case the value of SYCLIntelMaxGlobalWorkDimAttr
-    // equals to 0.
-    if (ArgVal == 0) {
-      if (checkWorkGroupSizeAttrExpr<SYCLIntelMaxWorkGroupSizeAttr>(D, CI) ||
-          checkWorkGroupSizeAttrExpr<SYCLReqdWorkGroupSizeAttr>(D, CI))
-        return;
-    }
-  }
-
-  ASTContext &Context = getASTContext();
-  D->addAttr(::new (Context) SYCLIntelMaxGlobalWorkDimAttr(Context, CI, E));
-}
-
 // Check that the value is a non-negative integer constant that can fit in
 // 32-bits. Issue correct error message and return false on failure.
 bool static check32BitInt(const Expr *E, SemaSYCL &S, llvm::APSInt &I,
@@ -798,7 +619,7 @@ void SemaSYCL::addSYCLIntelMaxWorkGroupsPerMultiprocessorAttr(
 
     // Feature '.maxclusterrank' requires .target sm_90 or higher.
     auto SM = getOffloadArch(TI);
-    if (SM == OffloadArch::UNKNOWN || SM < OffloadArch::SM_90) {
+    if (SM == OffloadArch::Unknown || SM < OffloadArch::SM_90) {
       Diag(E->getBeginLoc(), diag::warn_cuda_maxclusterrank_sm_90)
           << OffloadArchToString(SM) << CI << E->getSourceRange();
       return;
@@ -1243,17 +1064,6 @@ void SemaSYCL::addSYCLIntelMaxWorkGroupSizeAttr(Decl *D,
     }
   }
 
-  // If the declaration has a SYCLIntelMaxWorkGroupSizeAttr, check to see if
-  // the attribute holds values equal to (1, 1, 1) in case the value of
-  // SYCLIntelMaxGlobalWorkDimAttr equals to 0.
-  if (const auto *DeclAttr = D->getAttr<SYCLIntelMaxGlobalWorkDimAttr>()) {
-    if (areInvalidWorkGroupSizeAttrs(DeclAttr->getValue(), XDim, YDim, ZDim)) {
-      Diag(CI.getLoc(), diag::err_sycl_x_y_z_arguments_must_be_one)
-          << CI << DeclAttr;
-      return;
-    }
-  }
-
   // If the attribute was already applied with different arguments, then
   // diagnose the second attribute as a duplicate and don't add it.
   if (const auto *Existing = D->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
@@ -1313,16 +1123,6 @@ void SemaSYCL::addSYCLReqdWorkGroupSizeAttr(Decl *D,
   XDim = XDimConvert.value();
   YDim = YDimConvert.value();
   ZDim = ZDimConvert.value();
-
-  // If the declaration has a ReqdWorkGroupSizeAttr, check to see if
-  // the attribute holds values equal to (1, 1, 1) in case the value of
-  // SYCLIntelMaxGlobalWorkDimAttr equals to 0.
-  if (const auto *DeclAttr = D->getAttr<SYCLIntelMaxGlobalWorkDimAttr>()) {
-    if (areInvalidWorkGroupSizeAttrs(DeclAttr->getValue(), XDim, YDim, ZDim)) {
-      Diag(CI.getLoc(), diag::err_sycl_x_y_z_arguments_must_be_one)
-          << CI << DeclAttr;
-    }
-  }
 
   // If the 'max_work_group_size' attribute is specified on a declaration along
   // with 'reqd_work_group_size' attribute, check to see if values of
@@ -1467,18 +1267,6 @@ SYCLIntelMaxWorkGroupSizeAttr *SemaSYCL::mergeSYCLIntelMaxWorkGroupSizeAttr(
     }
   }
 
-  // If the declaration has a SYCLIntelMaxWorkGroupSizeAttr, check to see if
-  // the attribute holds values equal to (1, 1, 1) in case the value of
-  // SYCLIntelMaxGlobalWorkDimAttr equals to 0.
-  if (const auto *DeclAttr = D->getAttr<SYCLIntelMaxGlobalWorkDimAttr>()) {
-    if (areInvalidWorkGroupSizeAttrs(DeclAttr->getValue(), A.getXDim(),
-                                     A.getYDim(), A.getZDim())) {
-      Diag(A.getLoc(), diag::err_sycl_x_y_z_arguments_must_be_one)
-          << &A << DeclAttr;
-      return nullptr;
-    }
-  }
-
   ASTContext &Context = getASTContext();
   return ::new (Context) SYCLIntelMaxWorkGroupSizeAttr(
       Context, A, A.getXDim(), A.getYDim(), A.getZDim());
@@ -1509,18 +1297,6 @@ void SemaSYCL::handleSYCLReqdWorkGroupSizeAttr(Decl *D, const ParsedAttr &AL) {
 SYCLReqdWorkGroupSizeAttr *
 SemaSYCL::mergeSYCLReqdWorkGroupSizeAttr(Decl *D,
                                          const SYCLReqdWorkGroupSizeAttr &A) {
-  // If the declaration has a SYCLReqdWorkGroupSizeAttr, check to see if the
-  // attribute holds values equal to (1, 1, 1) in case the value of
-  // SYCLIntelMaxGlobalWorkDimAttr equals to 0.
-  if (const auto *DeclAttr = D->getAttr<SYCLIntelMaxGlobalWorkDimAttr>()) {
-    if (areInvalidWorkGroupSizeAttrs(DeclAttr->getValue(), A.getXDim(),
-                                     A.getYDim(), A.getZDim())) {
-      Diag(A.getLoc(), diag::err_sycl_x_y_z_arguments_must_be_one)
-          << &A << DeclAttr;
-      return nullptr;
-    }
-  }
-
   // If the 'max_work_group_size' attribute is specified on a declaration along
   // with 'reqd_work_group_size' attribute, check to see if values of
   // 'reqd_work_group_size' attribute arguments are equal or less than values
@@ -1681,75 +1457,6 @@ SYCLIntelNumSimdWorkItemsAttr *SemaSYCL::mergeSYCLIntelNumSimdWorkItemsAttr(
       SYCLIntelNumSimdWorkItemsAttr(Context, A, A.getValue());
 }
 
-void SemaSYCL::handleSYCLIntelSchedulerTargetFmaxMhzAttr(Decl *D,
-                                                         const ParsedAttr &AL) {
-  Expr *E = AL.getArgAsExpr(0);
-  addSYCLIntelSchedulerTargetFmaxMhzAttr(D, AL, E);
-}
-
-SYCLIntelSchedulerTargetFmaxMhzAttr *
-SemaSYCL::mergeSYCLIntelSchedulerTargetFmaxMhzAttr(
-    Decl *D, const SYCLIntelSchedulerTargetFmaxMhzAttr &A) {
-  // Check to see if there's a duplicate attribute with different values
-  // already applied to the declaration.
-  if (const auto *DeclAttr =
-          D->getAttr<SYCLIntelSchedulerTargetFmaxMhzAttr>()) {
-    if (const auto *DeclExpr = dyn_cast<ConstantExpr>(DeclAttr->getValue())) {
-      if (const auto *MergeExpr = dyn_cast<ConstantExpr>(A.getValue())) {
-        if (DeclExpr->getResultAsAPSInt() != MergeExpr->getResultAsAPSInt()) {
-          Diag(DeclAttr->getLoc(), diag::warn_duplicate_attribute) << &A;
-          Diag(A.getLoc(), diag::note_previous_attribute);
-          return nullptr;
-        }
-        // Do not add a duplicate attribute.
-        return nullptr;
-      }
-    }
-  }
-  ASTContext &Context = getASTContext();
-  return ::new (Context)
-      SYCLIntelSchedulerTargetFmaxMhzAttr(Context, A, A.getValue());
-}
-
-void SemaSYCL::handleSYCLIntelMaxGlobalWorkDimAttr(Decl *D,
-                                                   const ParsedAttr &AL) {
-  Expr *E = AL.getArgAsExpr(0);
-  addSYCLIntelMaxGlobalWorkDimAttr(D, AL, E);
-}
-
-SYCLIntelMaxGlobalWorkDimAttr *SemaSYCL::mergeSYCLIntelMaxGlobalWorkDimAttr(
-    Decl *D, const SYCLIntelMaxGlobalWorkDimAttr &A) {
-  // Check to see if there's a duplicate attribute with different values
-  // already applied to the declaration.
-  if (const auto *DeclAttr = D->getAttr<SYCLIntelMaxGlobalWorkDimAttr>()) {
-    if (const auto *DeclExpr = dyn_cast<ConstantExpr>(DeclAttr->getValue())) {
-      if (const auto *MergeExpr = dyn_cast<ConstantExpr>(A.getValue())) {
-        if (DeclExpr->getResultAsAPSInt() != MergeExpr->getResultAsAPSInt()) {
-          Diag(DeclAttr->getLoc(), diag::warn_duplicate_attribute) << &A;
-          Diag(A.getLoc(), diag::note_previous_attribute);
-        }
-        // Do not add a duplicate attribute.
-        return nullptr;
-      }
-    }
-  }
-
-  // If the declaration has a SYCLIntelMaxWorkGroupSizeAttr or
-  // SYCLReqdWorkGroupSizeAttr, check to see if the attribute holds values equal
-  // to (1, 1, 1) in case the value of SYCLIntelMaxGlobalWorkDimAttr equals to
-  // 0.
-  const auto *MergeExpr = dyn_cast<ConstantExpr>(A.getValue());
-  if (MergeExpr && MergeExpr->getResultAsAPSInt() == 0) {
-    if (checkWorkGroupSizeAttrExpr<SYCLIntelMaxWorkGroupSizeAttr>(D, A) ||
-        checkWorkGroupSizeAttrExpr<SYCLReqdWorkGroupSizeAttr>(D, A))
-      return nullptr;
-  }
-
-  ASTContext &Context = getASTContext();
-  return ::new (Context)
-      SYCLIntelMaxGlobalWorkDimAttr(Context, A, A.getValue());
-}
-
 SYCLIntelMinWorkGroupsPerComputeUnitAttr *
 SemaSYCL::mergeSYCLIntelMinWorkGroupsPerComputeUnitAttr(
     Decl *D, const SYCLIntelMinWorkGroupsPerComputeUnitAttr &A) {
@@ -1823,65 +1530,6 @@ SYCLIntelESimdVectorizeAttr *SemaSYCL::mergeSYCLIntelESimdVectorizeAttr(
   }
   ASTContext &Context = getASTContext();
   return ::new (Context) SYCLIntelESimdVectorizeAttr(Context, A, A.getValue());
-}
-
-void SemaSYCL::handleSYCLIntelNoGlobalWorkOffsetAttr(Decl *D,
-                                                     const ParsedAttr &A) {
-  // If no attribute argument is specified, set to default value '1'.
-  ASTContext &Context = getASTContext();
-  Expr *E = A.isArgExpr(0) ? A.getArgAsExpr(0)
-                           : IntegerLiteral::Create(Context, llvm::APInt(32, 1),
-                                                    Context.IntTy, A.getLoc());
-
-  addSYCLIntelNoGlobalWorkOffsetAttr(D, A, E);
-}
-
-SYCLIntelNoGlobalWorkOffsetAttr *SemaSYCL::mergeSYCLIntelNoGlobalWorkOffsetAttr(
-    Decl *D, const SYCLIntelNoGlobalWorkOffsetAttr &A) {
-  // Check to see if there's a duplicate attribute with different values
-  // already applied to the declaration.
-  if (const auto *DeclAttr = D->getAttr<SYCLIntelNoGlobalWorkOffsetAttr>()) {
-    if (const auto *DeclExpr = dyn_cast<ConstantExpr>(DeclAttr->getValue())) {
-      if (const auto *MergeExpr = dyn_cast<ConstantExpr>(A.getValue())) {
-        if (DeclExpr->getResultAsAPSInt() != MergeExpr->getResultAsAPSInt()) {
-          Diag(DeclAttr->getLoc(), diag::warn_duplicate_attribute) << &A;
-          Diag(A.getLoc(), diag::note_previous_attribute);
-        }
-        // Do not add a duplicate attribute.
-        return nullptr;
-      }
-    }
-  }
-  ASTContext &Context = getASTContext();
-  return ::new (Context)
-      SYCLIntelNoGlobalWorkOffsetAttr(Context, A, A.getValue());
-}
-
-void SemaSYCL::handleSYCLIntelPipeIOAttr(Decl *D, const ParsedAttr &A) {
-  Expr *E = A.getArgAsExpr(0);
-  addSYCLIntelPipeIOAttr(D, A, E);
-}
-
-SYCLIntelPipeIOAttr *
-SemaSYCL::mergeSYCLIntelPipeIOAttr(Decl *D, const SYCLIntelPipeIOAttr &A) {
-  // Check to see if there's a duplicate attribute with different values
-  // already applied to the declaration.
-  if (const auto *DeclAttr = D->getAttr<SYCLIntelPipeIOAttr>()) {
-    if (const auto *DeclExpr = dyn_cast<ConstantExpr>(DeclAttr->getID())) {
-      if (const auto *MergeExpr = dyn_cast<ConstantExpr>(A.getID())) {
-        if (DeclExpr->getResultAsAPSInt() != MergeExpr->getResultAsAPSInt()) {
-          Diag(DeclAttr->getLoc(), diag::err_disallowed_duplicate_attribute)
-              << &A;
-          Diag(A.getLoc(), diag::note_conflicting_attribute);
-        }
-        // Do not add a duplicate attribute.
-        return nullptr;
-      }
-    }
-  }
-
-  ASTContext &Context = getASTContext();
-  return ::new (Context) SYCLIntelPipeIOAttr(Context, A, A.getID());
 }
 
 void SemaSYCL::handleSYCLAddIRAttributesFunctionAttr(Decl *D,
@@ -2179,13 +1827,6 @@ void SemaSYCL::handleSYCLIntelNumSimdWorkItemsAttr(Decl *D,
                                                    const ParsedAttr &A) {
   Expr *E = A.getArgAsExpr(0);
   addSYCLIntelNumSimdWorkItemsAttr(D, A, E);
-}
-
-// Handles use_stall_enable_clusters
-void SemaSYCL::handleSYCLIntelUseStallEnableClustersAttr(Decl *D,
-                                                         const ParsedAttr &A) {
-  ASTContext &Context = getASTContext();
-  D->addAttr(::new (Context) SYCLIntelUseStallEnableClustersAttr(Context, A));
 }
 
 // Handles max_work_group_size attribute.

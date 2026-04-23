@@ -1,0 +1,26 @@
+@PACKAGE_INIT@
+
+set(XPTIFW_VERSION_MAJOR @PROJECT_VERSION_MAJOR@)
+set(XPTIFW_VERSION_MINOR @PROJECT_VERSION_MINOR@)
+set(XPTIFW_VERSION_PATCH @PROJECT_VERSION_PATCH@)
+set(XPTIFW_VERSION @PROJECT_VERSION@)
+
+# Find required dependencies
+include(CMakeFindDependencyMacro)
+find_dependency(xpti)
+find_dependency(Threads)
+if (XPTI_ENABLE_TBB)
+  find_dependency(tbb)
+endif()
+
+get_filename_component(XPTIFW_CMAKE_DIR "${CMAKE_CURRENT_LIST_FILE}" PATH)
+list(APPEND CMAKE_MODULE_PATH "${XPTIFW_CMAKE_DIR}")
+
+if(NOT TARGET xptifw::xptifw)
+  include("${XPTIFW_CMAKE_DIR}/xptifwTargets.cmake")
+endif()
+
+set(XPTIFW_LIBRARIES "$<IF:$<CONFIG:Debug>,xptifw::xptifwd,xptifw::xptifw>")
+set(XPTIFW_INCLUDE_DIRS "@PACKAGE_INCLUDE_INSTALL_DIR@")
+
+check_required_components(xptifw)

@@ -1563,10 +1563,6 @@ namespace {
     const LoopHintAttr *TransformLoopHintAttr(const LoopHintAttr *LH);
     const LoopUnrollHintAttr *
     TransformLoopUnrollHintAttr(const LoopUnrollHintAttr *LU);
-    const SYCLIntelLoopCoalesceAttr *TransformSYCLIntelLoopCoalesceAttr(
-        const SYCLIntelLoopCoalesceAttr *LC);
-    const SYCLIntelMaxInterleavingAttr *TransformSYCLIntelMaxInterleavingAttr(
-        const SYCLIntelMaxInterleavingAttr *MI);
     const NoInlineAttr *TransformStmtNoInlineAttr(const Stmt *OrigS,
                                                   const Stmt *InstS,
                                                   const NoInlineAttr *A);
@@ -2270,20 +2266,6 @@ const AlwaysInlineAttr *TemplateInstantiator::TransformStmtAlwaysInlineAttr(
     return nullptr;
 
   return A;
-}
-
-const SYCLIntelLoopCoalesceAttr *
-TemplateInstantiator::TransformSYCLIntelLoopCoalesceAttr(
-    const SYCLIntelLoopCoalesceAttr *LC) {
-  Expr *TransformedExpr = getDerived().TransformExpr(LC->getNExpr()).get();
-  return getSema().BuildSYCLIntelLoopCoalesceAttr(*LC, TransformedExpr);
-}
-
-const SYCLIntelMaxInterleavingAttr *
-TemplateInstantiator::TransformSYCLIntelMaxInterleavingAttr(
-    const SYCLIntelMaxInterleavingAttr *MI) {
-  Expr *TransformedExpr = getDerived().TransformExpr(MI->getNExpr()).get();
-  return getSema().BuildSYCLIntelMaxInterleavingAttr(*MI, TransformedExpr);
 }
 
 const LoopUnrollHintAttr *TemplateInstantiator::TransformLoopUnrollHintAttr(
@@ -4556,11 +4538,40 @@ ExprResult Sema::SubstConceptTemplateArguments(
 
     ExprResult TransformUnresolvedLookupExpr(UnresolvedLookupExpr *E,
                                              bool IsAddressOfOperand = false) {
-      if (E->isConceptReference()) {
-        ExprResult Res = SemaRef.SubstExpr(E, MLTAL);
-        return Res;
-      }
-      return E;
+      if (!E->isConceptReference())
+        return E;
+
+      assert(E->getNumDecls() == 1 &&
+             "ConceptReference must have single declaration");
+      NamedDecl *D = *E->decls_begin();
+      ConceptDecl *ResolvedConcept = nullptr;
+
+      if (auto *TTP = dyn_cast<TemplateTemplateParmDecl>(D)) {
+        unsigned Depth = TTP->getDepth();
+        unsigned Pos = TTP->getPosition();
+        if (Depth < MLTAL.getNumLevels() &&
+            MLTAL.hasTemplateArgument(Depth, Pos)) {
+          TemplateArgument Arg = MLTAL(Depth, Pos);
+          assert(Arg.getKind() == TemplateArgument::Template);
+          ResolvedConcept =
+              dyn_cast<ConceptDecl>(Arg.getAsTemplate().getAsTemplateDecl());
+        }
+        if (ResolvedConcept == nullptr)
+          return E;
+      } else
+        ResolvedConcept = cast<ConceptDecl>(D);
+
+      TemplateArgumentListInfo TransArgs(E->getLAngleLoc(), E->getRAngleLoc());
+      if (TransformTemplateArguments(E->getTemplateArgs(),
+                                     E->getNumTemplateArgs(), TransArgs))
+        return ExprError();
+
+      CXXScopeSpec SS;
+      DeclarationNameInfo NameInfo(ResolvedConcept->getDeclName(),
+                                   E->getNameLoc());
+      return SemaRef.CheckConceptTemplateId(SS, SourceLocation(), NameInfo,
+                                            ResolvedConcept, ResolvedConcept,
+                                            &TransArgs, false);
     }
   };
 

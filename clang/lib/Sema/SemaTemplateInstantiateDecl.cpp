@@ -738,17 +738,6 @@ static void instantiateSYCLUsesAspectsAttr(
   S.SYCL().addSYCLUsesAspectsAttr(New, *Attr, Args.data(), Args.size());
 }
 
-static void instantiateSYCLIntelPipeIOAttr(
-    Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
-    const SYCLIntelPipeIOAttr *Attr, Decl *New) {
-  // The ID expression is a constant expression.
-  EnterExpressionEvaluationContext Unevaluated(
-      S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
-  ExprResult Result = S.SubstExpr(Attr->getID(), TemplateArgs);
-  if (!Result.isInvalid())
-    S.SYCL().addSYCLIntelPipeIOAttr(New, *Attr, Result.getAs<Expr>());
-}
-
 static void instantiateIntelReqdSubGroupSize(
     Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
     const IntelReqdSubGroupSizeAttr *A, Decl *New) {
@@ -767,37 +756,6 @@ static void instantiateSYCLIntelNumSimdWorkItemsAttr(
   ExprResult Result = S.SubstExpr(A->getValue(), TemplateArgs);
   if (!Result.isInvalid())
     S.SYCL().addSYCLIntelNumSimdWorkItemsAttr(New, *A, Result.getAs<Expr>());
-}
-
-static void instantiateSYCLIntelSchedulerTargetFmaxMhzAttr(
-    Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
-    const SYCLIntelSchedulerTargetFmaxMhzAttr *A, Decl *New) {
-  EnterExpressionEvaluationContext Unevaluated(
-      S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
-  ExprResult Result = S.SubstExpr(A->getValue(), TemplateArgs);
-  if (!Result.isInvalid())
-    S.SYCL().addSYCLIntelSchedulerTargetFmaxMhzAttr(New, *A,
-                                                    Result.getAs<Expr>());
-}
-
-static void instantiateSYCLIntelNoGlobalWorkOffsetAttr(
-    Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
-    const SYCLIntelNoGlobalWorkOffsetAttr *A, Decl *New) {
-  EnterExpressionEvaluationContext Unevaluated(
-      S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
-  ExprResult Result = S.SubstExpr(A->getValue(), TemplateArgs);
-  if (!Result.isInvalid())
-    S.SYCL().addSYCLIntelNoGlobalWorkOffsetAttr(New, *A, Result.getAs<Expr>());
-}
-
-static void instantiateSYCLIntelMaxGlobalWorkDimAttr(
-    Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
-    const SYCLIntelMaxGlobalWorkDimAttr *A, Decl *New) {
-  EnterExpressionEvaluationContext Unevaluated(
-      S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
-  ExprResult Result = S.SubstExpr(A->getValue(), TemplateArgs);
-  if (!Result.isInvalid())
-    S.SYCL().addSYCLIntelMaxGlobalWorkDimAttr(New, *A, Result.getAs<Expr>());
 }
 
 static void instantiateSYCLIntelMinWorkGroupsPerComputeUnitAttr(
@@ -1016,6 +974,18 @@ static void instantiateDependentHLSLParamModifierAttr(
   ParmVarDecl *NewParm = cast<ParmVarDecl>(New);
   NewParm->addAttr(Attr->clone(S.getASTContext()));
 
+  // If this is groupshared don't change the type because it will assert
+  // below. In this case we might have already produced an error but we
+  // must produce one here again because of all the ways templates can
+  // be used.
+  if (const auto *RT = NewParm->getType()->getAs<LValueReferenceType>()) {
+    if (RT->getPointeeType().getAddressSpace() == LangAS::hlsl_groupshared) {
+      S.Diag(Attr->getLoc(), diag::err_hlsl_attr_incompatible)
+          << Attr << "'groupshared'";
+      return;
+    }
+  }
+
   const Type *OldParmTy = cast<ParmVarDecl>(Old)->getType().getTypePtr();
   if (OldParmTy->isDependentType() && Attr->isAnyOut())
     NewParm->setType(S.HLSL().getInoutParameterType(NewParm->getType()));
@@ -1178,10 +1148,6 @@ void Sema::InstantiateAttrs(const MultiLevelTemplateArgumentList &TemplateArgs,
                                                *AMDGPUFlatWorkGroupSize, New);
     }
 
-    if (const auto *SYCLIntelPipeIO = dyn_cast<SYCLIntelPipeIOAttr>(TmplAttr)) {
-      instantiateSYCLIntelPipeIOAttr(*this, TemplateArgs, SYCLIntelPipeIO, New);
-      continue;
-    }
     if (const auto *IntelReqdSubGroupSize =
             dyn_cast<IntelReqdSubGroupSizeAttr>(TmplAttr)) {
       instantiateIntelReqdSubGroupSize(*this, TemplateArgs,
@@ -1194,18 +1160,6 @@ void Sema::InstantiateAttrs(const MultiLevelTemplateArgumentList &TemplateArgs,
                                                SYCLIntelNumSimdWorkItems, New);
       continue;
     }
-    if (const auto *SYCLIntelSchedulerTargetFmaxMhz =
-            dyn_cast<SYCLIntelSchedulerTargetFmaxMhzAttr>(TmplAttr)) {
-      instantiateSYCLIntelSchedulerTargetFmaxMhzAttr(
-          *this, TemplateArgs, SYCLIntelSchedulerTargetFmaxMhz, New);
-      continue;
-    }
-    if (const auto *SYCLIntelMaxGlobalWorkDim =
-            dyn_cast<SYCLIntelMaxGlobalWorkDimAttr>(TmplAttr)) {
-      instantiateSYCLIntelMaxGlobalWorkDimAttr(*this, TemplateArgs,
-                                               SYCLIntelMaxGlobalWorkDim, New);
-      continue;
-    }
     if (const auto *SYCLIntelMinWorkGroupsPerComputeUnit =
             dyn_cast<SYCLIntelMinWorkGroupsPerComputeUnitAttr>(TmplAttr)) {
       instantiateSYCLIntelMinWorkGroupsPerComputeUnitAttr(
@@ -1216,12 +1170,6 @@ void Sema::InstantiateAttrs(const MultiLevelTemplateArgumentList &TemplateArgs,
             dyn_cast<SYCLIntelMaxWorkGroupsPerMultiprocessorAttr>(TmplAttr)) {
       instantiateSYCLIntelMaxWorkGroupsPerMultiprocessorAttr(
           *this, TemplateArgs, SYCLIntelMaxWorkGroupsPerMultiprocessor, New);
-      continue;
-    }
-    if (const auto *SYCLIntelNoGlobalWorkOffset =
-            dyn_cast<SYCLIntelNoGlobalWorkOffsetAttr>(TmplAttr)) {
-      instantiateSYCLIntelNoGlobalWorkOffsetAttr(
-          *this, TemplateArgs, SYCLIntelNoGlobalWorkOffset, New);
       continue;
     }
     if (const auto *SYCLReqdWorkGroupSize =
@@ -6334,7 +6282,8 @@ void Sema::InstantiateFunctionDefinition(SourceLocation PointOfInstantiation,
 
     checkReferenceToTULocalFromOtherTU(Function, PointOfInstantiation);
 
-    PerformDependentDiagnostics(PatternDecl, TemplateArgs);
+    if (PatternDecl->isDependentContext())
+      PerformDependentDiagnostics(PatternDecl, TemplateArgs);
 
     if (auto *Listener = getASTMutationListener())
       Listener->FunctionDefinitionInstantiated(Function);

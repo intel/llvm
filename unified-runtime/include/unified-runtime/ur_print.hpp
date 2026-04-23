@@ -1375,6 +1375,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
   case UR_FUNCTION_USM_HOST_ALLOC_UNREGISTER_EXP:
     os << "UR_FUNCTION_USM_HOST_ALLOC_UNREGISTER_EXP";
     break;
+  case UR_FUNCTION_QUEUE_GET_GRAPH_EXP:
+    os << "UR_FUNCTION_QUEUE_GET_GRAPH_EXP";
+    break;
   default:
     os << "unknown enumerator";
     break;
@@ -3171,6 +3174,12 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
     break;
   case UR_DEVICE_INFO_NODE_MASK:
     os << "UR_DEVICE_INFO_NODE_MASK";
+    break;
+  case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_LONG_LONG:
+    os << "UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_LONG_LONG";
+    break;
+  case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG_LONG:
+    os << "UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG_LONG";
     break;
   case UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP:
     os << "UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP";
@@ -4974,6 +4983,32 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
     os << "}";
   } break;
   case UR_DEVICE_INFO_NODE_MASK: {
+    const uint32_t *tptr = (const uint32_t *)ptr;
+    if (sizeof(uint32_t) > size) {
+      os << "invalid size (is: " << size << ", expected: >=" << sizeof(uint32_t)
+         << ")";
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    os << (const void *)(tptr) << " (";
+
+    os << *tptr;
+
+    os << ")";
+  } break;
+  case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_LONG_LONG: {
+    const uint32_t *tptr = (const uint32_t *)ptr;
+    if (sizeof(uint32_t) > size) {
+      os << "invalid size (is: " << size << ", expected: >=" << sizeof(uint32_t)
+         << ")";
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    os << (const void *)(tptr) << " (";
+
+    os << *tptr;
+
+    os << ")";
+  } break;
+  case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG_LONG: {
     const uint32_t *tptr = (const uint32_t *)ptr;
     if (sizeof(uint32_t) > size) {
       os << "invalid size (is: " << size << ", expected: >=" << sizeof(uint32_t)
@@ -15459,6 +15494,26 @@ inline std::ostream &operator<<(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_queue_get_graph_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_queue_get_graph_exp_params_t *params) {
+
+  os << ".hQueue = ";
+
+  ur::details::printPtr(os, *(params->phQueue));
+
+  os << ", ";
+  os << ".phGraph = ";
+
+  ur::details::printPtr(os, *(params->pphGraph));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_sampler_create_params_t type
 /// @returns
 ///     std::ostream &
@@ -22623,6 +22678,9 @@ inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os,
   } break;
   case UR_FUNCTION_QUEUE_IS_GRAPH_CAPTURE_ENABLED_EXP: {
     os << (const struct ur_queue_is_graph_capture_enabled_exp_params_t *)params;
+  } break;
+  case UR_FUNCTION_QUEUE_GET_GRAPH_EXP: {
+    os << (const struct ur_queue_get_graph_exp_params_t *)params;
   } break;
   case UR_FUNCTION_SAMPLER_CREATE: {
     os << (const struct ur_sampler_create_params_t *)params;

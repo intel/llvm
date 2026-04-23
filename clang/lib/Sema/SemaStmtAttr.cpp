@@ -72,63 +72,6 @@ static Attr *handleSuppressAttr(Sema &S, Stmt *St, const ParsedAttr &A,
       S.Context, A, DiagnosticIdentifiers.data(), DiagnosticIdentifiers.size());
 }
 
-SYCLIntelMaxInterleavingAttr *
-Sema::BuildSYCLIntelMaxInterleavingAttr(const AttributeCommonInfo &CI,
-                       		        Expr *E) {
-  if (!E->isValueDependent()) {
-    llvm::APSInt ArgVal;
-    ExprResult Res = VerifyIntegerConstantExpression(E, &ArgVal);
-    if (Res.isInvalid())
-      return nullptr;
-    E = Res.get();
-
-    // This attribute accepts values 0 and 1 only.
-    if (ArgVal < 0 || ArgVal > 1) {
-      Diag(E->getBeginLoc(), diag::err_attribute_argument_is_not_valid) << CI;
-      return nullptr;
-    }
-  }
-
-  return new (Context) SYCLIntelMaxInterleavingAttr(Context, CI, E);
-}
-
-static Attr *handleSYCLIntelMaxInterleavingAttr(Sema &S, Stmt *St,
-                                                const ParsedAttr &A) {
-  S.SYCL().checkDeprecatedSYCLAttributeSpelling(A);
-
-  Expr *E = A.getArgAsExpr(0);
-  return S.BuildSYCLIntelMaxInterleavingAttr(A, E);
-}
-
-SYCLIntelLoopCoalesceAttr *
-Sema::BuildSYCLIntelLoopCoalesceAttr(const AttributeCommonInfo &CI,
-                                     Expr *E) {
-  if (E && !E->isValueDependent()) {
-    llvm::APSInt ArgVal;
-    ExprResult Res = VerifyIntegerConstantExpression(E, &ArgVal);
-    if (Res.isInvalid())
-      return nullptr;
-    E = Res.get();
-
-    // This attribute requires a strictly positive value.
-    if (ArgVal <= 0) {
-      Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
-          << CI << /*positive*/ 0;
-      return nullptr;
-    }
-  }
-
-  return new (Context) SYCLIntelLoopCoalesceAttr(Context, CI, E);
-}
-
-static Attr *handleSYCLIntelLoopCoalesceAttr(Sema &S, Stmt *St,
-                                             const ParsedAttr &A) {
-  S.SYCL().checkDeprecatedSYCLAttributeSpelling(A);
-
-  Expr *E = A.isArgExpr(0) ? A.getArgAsExpr(0) : nullptr;
-  return S.BuildSYCLIntelLoopCoalesceAttr(A, E);
-}
-
 enum class IVDepExprResult {
   Invalid,
   Null,
@@ -226,6 +169,7 @@ static Attr *handleLoopHintAttr(Sema &S, Stmt *St, const ParsedAttr &A,
                  .Case("pipeline_initiation_interval",
                        LoopHintAttr::PipelineInitiationInterval)
                  .Case("distribute", LoopHintAttr::Distribute)
+                 .Case("licm", LoopHintAttr::LICMDisabled)
                  .Default(LoopHintAttr::Vectorize);
     if (Option == LoopHintAttr::VectorizeWidth) {
       assert((ValueExpr || (StateLoc && StateLoc->getIdentifierInfo())) &&
@@ -251,7 +195,8 @@ static Attr *handleLoopHintAttr(Sema &S, Stmt *St, const ParsedAttr &A,
                Option == LoopHintAttr::VectorizePredicate ||
                Option == LoopHintAttr::Unroll ||
                Option == LoopHintAttr::Distribute ||
-               Option == LoopHintAttr::PipelineDisabled) {
+               Option == LoopHintAttr::PipelineDisabled ||
+               Option == LoopHintAttr::LICMDisabled) {
       assert(StateLoc && StateLoc->getIdentifierInfo() &&
              "Loop hint must have an argument");
       if (StateLoc->getIdentifierInfo()->isStr("disable"))
@@ -505,11 +450,12 @@ static void CheckForDuplicateLoopAttrs(Sema &S, ArrayRef<const Attr *> Attrs) {
     if (!FirstValue)
       FirstValue = CAFA->getResultAsAPSInt();
 
-    if (FirstValue != SecondValue) {
-      S.Diag((*LastFoundItr)->getLocation(), diag::err_loop_attr_conflict)
-          << *FirstItr;
-      S.Diag((*FirstItr)->getLocation(), diag::note_previous_attribute);
-    }
+    if (llvm::APSInt::isSameValue(*FirstValue, SecondValue))
+      continue;
+
+    S.Diag((*LastFoundItr)->getLocation(), diag::err_loop_attr_conflict)
+        << *FirstItr;
+    S.Diag((*FirstItr)->getLocation(), diag::note_previous_attribute);
   }
 }
 
@@ -557,6 +503,9 @@ CheckForIncompatibleAttributes(Sema &S,
     // The vector predication only has a state form that is exposed by
     // #pragma clang loop vectorize_predicate (enable | disable).
     VectorizePredicate,
+    // The LICM transformation only has a disable state form that is
+    // exposed by #pragma clang loop licm(disable).
+    LICM,
     // This serves as a indicator to how many category are listed in this enum.
     NumberOfCategories
   };
@@ -604,6 +553,9 @@ CheckForIncompatibleAttributes(Sema &S,
     case LoopHintAttr::VectorizePredicate:
       Category = VectorizePredicate;
       break;
+    case LoopHintAttr::LICMDisabled:
+      Category = LICM;
+      break;
     };
 
     assert(Category != NumberOfCategories && "Unhandled loop hint option");
@@ -614,6 +566,7 @@ CheckForIncompatibleAttributes(Sema &S,
         Option == LoopHintAttr::UnrollAndJam ||
         Option == LoopHintAttr::VectorizePredicate ||
         Option == LoopHintAttr::PipelineDisabled ||
+        Option == LoopHintAttr::LICMDisabled ||
         Option == LoopHintAttr::Distribute) {
       // Enable|Disable|AssumeSafety hint.  For example, vectorize(enable).
       PrevAttr = CategoryState.StateAttr;
@@ -666,8 +619,7 @@ CheckForDuplicationSYCLLoopAttribute(Sema &S,
 }
 
 // Diagnose non-identical duplicates as a 'conflicting' loop attributes
-// and suppress duplicate errors in cases where the two match for
-// FPGA attributes: 'SYCLIntelMaxInterleavingAttr'
+// and suppress duplicate errors in cases where the two match
 template <typename LoopAttrT>
 static void CheckForDuplicateAttrs(Sema &S, ArrayRef<const Attr *> Attrs) {
   auto FindFunc = [](const Attr *A) { return isa<const LoopAttrT>(A); };
@@ -708,8 +660,6 @@ static void CheckForDuplicateAttrs(Sema &S, ArrayRef<const Attr *> Attrs) {
 
 static void CheckForIncompatibleSYCLLoopAttributes(
     Sema &S, const SmallVectorImpl<const Attr *> &Attrs) {
-  CheckForDuplicationSYCLLoopAttribute<SYCLIntelLoopCoalesceAttr>(S, Attrs);
-  CheckForDuplicateAttrs<SYCLIntelMaxInterleavingAttr>(S, Attrs);
   CheckForDuplicationSYCLLoopAttribute<LoopUnrollHintAttr>(S, Attrs, false);
 }
 
@@ -894,10 +844,6 @@ static Attr *ProcessStmtAttribute(Sema &S, Stmt *St, const ParsedAttr &A,
     return handleFallThroughAttr(S, St, A, Range);
   case ParsedAttr::AT_LoopHint:
     return handleLoopHintAttr(S, St, A, Range);
-  case ParsedAttr::AT_SYCLIntelLoopCoalesce:
-    return handleSYCLIntelLoopCoalesceAttr(S, St, A);
-  case ParsedAttr::AT_SYCLIntelMaxInterleaving:
-    return handleSYCLIntelMaxInterleavingAttr(S, St, A);
   case ParsedAttr::AT_HLSLLoopHint:
     return handleHLSLLoopHintAttr(S, St, A, Range);
   case ParsedAttr::AT_HLSLControlFlowHint:
@@ -952,11 +898,6 @@ void Sema::ProcessStmtAttributes(Stmt *S, const ParsedAttributes &InAttrs,
   CheckForIncompatibleSYCLLoopAttributes(*this, OutAttrs);
   CheckForIncompatibleUnrollHintAttributes(*this, OutAttrs, InAttrs.Range);
   CheckForDuplicateLoopAttrs<CodeAlignAttr>(*this, OutAttrs);
-}
-
-bool Sema::CheckRebuiltAttributedStmtAttributes(ArrayRef<const Attr *> Attrs) {
-  CheckForDuplicateAttrs<SYCLIntelMaxInterleavingAttr>(*this, Attrs);
-  return false;
 }
 
 bool Sema::CheckRebuiltStmtAttributes(ArrayRef<const Attr *> Attrs) {

@@ -63,7 +63,22 @@ struct ur_context_handle_t_ : ur_object {
   // For that the Device or its root devices need to be in the context.
   bool isValidDevice(ur_device_handle_t Device) const;
 
+  ur_exp_graph_handle_t getGraphFromZeHandle(ze_graph_handle_t zeGraph) {
+    auto it = zeToUrGraphMap.find(zeGraph);
+    return (it != zeToUrGraphMap.end()) ? it->second : nullptr;
+  }
+
+  void registerGraph(ze_graph_handle_t zeGraph, ur_exp_graph_handle_t hGraph) {
+    zeToUrGraphMap[zeGraph] = hGraph;
+  }
+
+  void unregisterGraph(ze_graph_handle_t zeGraph) {
+    zeToUrGraphMap.erase(zeGraph);
+  }
+
   ur::RefCount RefCount;
+
+  ur_shared_mutex GraphMapMutex;
 
 private:
   const v2::raii::ze_context_handle_t hContext;
@@ -82,4 +97,9 @@ private:
   ur_usm_pool_handle_t_ defaultUSMPool;
   ur_usm_pool_handle_t_ asyncPool;
   std::list<ur_usm_pool_handle_t> usmPoolHandles;
+
+  // Graph fork-join may occur from direct L0 submissions, so we must map
+  // L0 graph handles to UR handles to query across different command list
+  // managers. Caller must protect accesses with GraphMapMutex.
+  std::unordered_map<ze_graph_handle_t, ur_exp_graph_handle_t> zeToUrGraphMap;
 };
