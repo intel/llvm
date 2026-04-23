@@ -231,7 +231,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
       *reinterpret_cast<size_t *>(pPropValue) = multiplyWithOverflowCheck(
           static_cast<size_t>(olVec.x), static_cast<size_t>(olVec.y),
           static_cast<size_t>(olVec.z));
-          static_cast<size_t>(olVec.z));
     }
 
     return UR_RESULT_SUCCESS;
