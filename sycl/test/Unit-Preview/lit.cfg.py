@@ -10,7 +10,7 @@ import lit.formats
 import lit.util
 
 # name: The name of this test suite.
-config.name = "SYCL-Unit"
+config.name = "SYCL-Unit-Preview"
 
 # suffixes: A list of file extensions to treat as test files.
 config.suffixes = []
@@ -21,9 +21,7 @@ config.test_exec_root = os.path.join(config.sycl_obj_root, "unittests")
 config.test_source_root = config.test_exec_root
 
 # testFormat: The test format to use to interpret tests.
-config.test_format = lit.formats.GoogleTest(
-    config.llvm_build_mode, "-Non_Preview_Tests"
-)
+config.test_format = lit.formats.GoogleTest(config.llvm_build_mode, "-Preview_Tests")
 
 # Propagate the temp directory. Windows requires this because it uses \Windows\
 # if none of these are present.
@@ -95,7 +93,7 @@ else:
 config.environment["ONEAPI_DEVICE_SELECTOR"] = "*:*"
 lit_config.note("Using Mock Adapter.")
 
-config.environment["SYCL_CACHE_DIR"] = config.llvm_obj_root + "/sycl_cache"
+config.environment["SYCL_CACHE_DIR"] = config.llvm_obj_root + "/sycl_cache_preview"
 lit_config.note("SYCL cache directory: {}".format(config.environment["SYCL_CACHE_DIR"]))
 
 # Disable the UR logger callback sink during test runs as output to SYCL RT can interfere with some tests relying on standard input/output
