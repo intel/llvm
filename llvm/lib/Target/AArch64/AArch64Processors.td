@@ -869,6 +869,22 @@ def TuneAmpere1B : SubtargetFeature<"ampere1b", "ARMProcFamily", "Ampere1B",
                                     FeatureStpAlignedOnly,
                                     FeatureMaxInterleaveFactor4]>;
 
+def TuneAmpere1C : SubtargetFeature<"ampere1c", "ARMProcFamily", "Ampere1C",
+                                    "Ampere Computing Ampere-1C processors", [
+                                    FeaturePostRAScheduler,
+                                    FeatureFuseAES,
+                                    FeatureFuseAdrpAdd,
+                                    FeatureALULSLFast,
+                                    FeatureAggressiveFMA,
+                                    FeatureArithmeticBccFusion,
+                                    FeatureCmpBccFusion,
+                                    FeatureFuseAddress,
+                                    FeatureFuseLiterals,
+                                    FeatureStorePairSuppress,
+                                    FeatureEnableSelectOptimize,
+                                    FeaturePredictableSelectIsExpensive,
+                                    FeatureMaxInterleaveFactor4]>;
+
 def TuneOryon  : SubtargetFeature<"oryon-1", "ARMProcFamily",
                                     "Oryon",
                                     "Nuvia Inc Oryon processors", [
@@ -1348,6 +1364,12 @@ def ProcessorFeatures {
                                      FeatureJS, FeatureLSE, FeaturePAuth, FeatureRAS, FeatureRCPC,
                                      FeatureCCIDX,
                                      FeatureRDM];
+  list<SubtargetFeature> Ampere1C = [HasV9_2aOps, FeatureNEON, FeatureCSSC, FeatureCCIDX,
+                                     FeatureFP8FMA, FeatureFAMINMAX, FeatureLUT,
+                                     FeatureSVEAES, FeatureSVESM4, FeatureSVESHA3,
+                                     FeatureSVE2, FeatureSVEB16B16, FeatureMTE,
+                                     FeatureFP16FML, FeatureSSBS, FeatureRandGen,
+                                     FeaturePerfMon];
   list<SubtargetFeature> Oryon = [HasV8_6aOps, FeatureNEON, FeaturePerfMon,
                                      FeatureRandGen,
                                      FeaturePAuth, FeatureSM4, FeatureSHA2,
@@ -1357,7 +1379,7 @@ def ProcessorFeatures {
                                      FeatureSSBS, FeatureCCIDX,
                                      FeatureJS, FeatureLSE, FeatureRAS, FeatureRCPC, FeatureRDM];
   list<SubtargetFeature> GB10 = !listconcat(X925, [FeatureSVEAES, FeatureSVESHA3, FeatureSVESM4]);
-  list<SubtargetFeature> Grace = !listconcat(NeoverseV2, [FeatureSVESM4, FeatureSVEAES, FeatureSVESHA3]);
+  list<SubtargetFeature> Grace = !listconcat(!listremove(NeoverseV2, [FeatureRandGen]), [FeatureSVESM4, FeatureSVEAES, FeatureSVESHA3]);
 
   // ETE and TRBE are future architecture extensions. We temporarily enable them
   // by default for users targeting generic AArch64. The extensions do not
@@ -1585,6 +1607,9 @@ def : ProcessorModel<"ampere1a", Ampere1Model, ProcessorFeatures.Ampere1A,
 
 def : ProcessorModel<"ampere1b", Ampere1BModel, ProcessorFeatures.Ampere1B,
                      [TuneAmpere1B]>;
+
+def : ProcessorModel<"ampere1c", NeoverseN3Model, ProcessorFeatures.Ampere1C,
+                     [TuneAmpere1C]>;
 
 // Qualcomm Oryon
 def : ProcessorModel<"oryon-1", OryonModel, ProcessorFeatures.Oryon,

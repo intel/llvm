@@ -1783,7 +1783,7 @@ Instruction *InstCombinerImpl::FoldOpIntoSelect(Instruction &Op, SelectInst *SI,
                                                 bool FoldWithMultiUse,
                                                 bool SimplifyBothArms) {
   // Don't modify shared select instructions unless set FoldWithMultiUse
-  if (!SI->hasOneUse() && !FoldWithMultiUse)
+  if (!SI->hasOneUser() && !FoldWithMultiUse)
     return nullptr;
 
   Value *TV = SI->getTrueValue();
@@ -4070,12 +4070,10 @@ Instruction *InstCombinerImpl::visitReturnInst(ReturnInst &RI) {
     return nullptr;
 
   KnownFPClass KnownClass;
-  Value *Simplified =
-      SimplifyDemandedUseFPClass(RetVal, ~ReturnClass, KnownClass, &RI);
-  if (!Simplified)
-    return nullptr;
+  if (SimplifyDemandedFPClass(&RI, 0, ~ReturnClass, KnownClass))
+    return &RI;
 
-  return ReturnInst::Create(RI.getContext(), Simplified);
+  return nullptr;
 }
 
 // WARNING: keep in sync with SimplifyCFGOpt::simplifyUnreachable()!
@@ -4328,26 +4326,32 @@ static Value *simplifySwitchOnSelectUsingRanges(SwitchInst &SI,
 Instruction *InstCombinerImpl::visitSwitchInst(SwitchInst &SI) {
   Value *Cond = SI.getCondition();
   Value *Op0;
-  ConstantInt *AddRHS;
-  if (match(Cond, m_Add(m_Value(Op0), m_ConstantInt(AddRHS)))) {
-    // Change 'switch (X+4) case 1:' into 'switch (X) case -3'.
-    for (auto Case : SI.cases()) {
-      Constant *NewCase = ConstantExpr::getSub(Case.getCaseValue(), AddRHS);
-      assert(isa<ConstantInt>(NewCase) &&
-             "Result of expression should be constant");
-      Case.setValue(cast<ConstantInt>(NewCase));
-    }
-    return replaceOperand(SI, 0, Op0);
-  }
+  const APInt *CondOpC;
+  using InvertFn = std::function<APInt(const APInt &Case, const APInt &C)>;
 
-  ConstantInt *SubLHS;
-  if (match(Cond, m_Sub(m_ConstantInt(SubLHS), m_Value(Op0)))) {
-    // Change 'switch (1-X) case 1:' into 'switch (X) case 0'.
-    for (auto Case : SI.cases()) {
-      Constant *NewCase = ConstantExpr::getSub(SubLHS, Case.getCaseValue());
-      assert(isa<ConstantInt>(NewCase) &&
-             "Result of expression should be constant");
-      Case.setValue(cast<ConstantInt>(NewCase));
+  auto MaybeInvertible = [&](Value *Cond) -> InvertFn {
+    if (match(Cond, m_Add(m_Value(Op0), m_APInt(CondOpC))))
+      // Change 'switch (X+C) case Case:' into 'switch (X) case Case-C'.
+      return [](const APInt &Case, const APInt &C) { return Case - C; };
+
+    if (match(Cond, m_Sub(m_APInt(CondOpC), m_Value(Op0))))
+      // Change 'switch (C-X) case Case:' into 'switch (X) case C-Case'.
+      return [](const APInt &Case, const APInt &C) { return C - Case; };
+
+    if (match(Cond, m_Xor(m_Value(Op0), m_APInt(CondOpC))) &&
+        !CondOpC->isMinSignedValue() && !CondOpC->isMaxSignedValue())
+      // Change 'switch (X^C) case Case:' into 'switch (X) case Case^C'.
+      // Prevent creation of large case values by excluding extremes.
+      return [](const APInt &Case, const APInt &C) { return Case ^ C; };
+
+    return nullptr;
+  };
+
+  // Attempt to invert and simplify the switch condition.
+  if (auto InvertFn = MaybeInvertible(Cond); InvertFn) {
+    for (auto &Case : SI.cases()) {
+      const APInt &New = InvertFn(Case.getCaseValue()->getValue(), *CondOpC);
+      Case.setValue(ConstantInt::get(SI.getContext(), New));
     }
     return replaceOperand(SI, 0, Op0);
   }
@@ -5060,68 +5064,63 @@ Instruction *InstCombinerImpl::visitLandingPadInst(LandingPadInst &LI) {
 Value *
 InstCombinerImpl::pushFreezeToPreventPoisonFromPropagating(FreezeInst &OrigFI) {
   // Try to push freeze through instructions that propagate but don't produce
-  // poison as far as possible. If an operand of freeze does not produce poison
-  // then push the freeze through to the operands that are not guaranteed
-  // non-poison. The actual transform is as follows.
-  //   Op1 = ...                        ; Op1 can be poison
-  //   Op0 = Inst(Op1, NonPoisonOps...)
+  // poison as far as possible.  If an operand of freeze follows three
+  // conditions 1) one-use, 2) does not produce poison, and 3) has all but one
+  // guaranteed-non-poison operands then push the freeze through to the one
+  // operand that is not guaranteed non-poison.  The actual transform is as
+  // follows.
+  //   Op1 = ...                        ; Op1 can be posion
+  //   Op0 = Inst(Op1, NonPoisonOps...) ; Op0 has only one use and only have
+  //                                    ; single guaranteed-non-poison operands
   //   ... = Freeze(Op0)
   // =>
   //   Op1 = ...
   //   Op1.fr = Freeze(Op1)
   //   ... = Inst(Op1.fr, NonPoisonOps...)
+  auto *OrigOp = OrigFI.getOperand(0);
+  auto *OrigOpInst = dyn_cast<Instruction>(OrigOp);
 
-  auto CanPushFreeze = [](Value *V) {
-    if (!isa<Instruction>(V) || isa<PHINode>(V))
-      return false;
+  // While we could change the other users of OrigOp to use freeze(OrigOp), that
+  // potentially reduces their optimization potential, so let's only do this iff
+  // the OrigOp is only used by the freeze.
+  if (!OrigOpInst || !OrigOpInst->hasOneUse() || isa<PHINode>(OrigOp))
+    return nullptr;
 
-    // We can't push the freeze through an instruction which can itself create
-    // poison.  If the only source of new poison is flags, we can simply
-    // strip them (since we know the only use is the freeze and nothing can
-    // benefit from them.)
-    return !canCreateUndefOrPoison(cast<Operator>(V),
-                                   /*ConsiderFlagsAndMetadata*/ false);
-  };
+  // We can't push the freeze through an instruction which can itself create
+  // poison.  If the only source of new poison is flags, we can simply
+  // strip them (since we know the only use is the freeze and nothing can
+  // benefit from them.)
+  if (canCreateUndefOrPoison(cast<Operator>(OrigOp),
+                             /*ConsiderFlagsAndMetadata*/ false))
+    return nullptr;
 
-  // Pushing freezes up long instruction chains can be expensive. Instead,
-  // we directly push the freeze all the way to the leaves. However, we leave
-  // deduplication of freezes on the same value for freezeOtherUses().
-  Use *OrigUse = &OrigFI.getOperandUse(0);
-  SmallPtrSet<Instruction *, 8> Visited;
-  SmallVector<Use *, 8> Worklist;
-  Worklist.push_back(OrigUse);
-  while (!Worklist.empty()) {
-    auto *U = Worklist.pop_back_val();
-    Value *V = U->get();
-    if (!CanPushFreeze(V)) {
-      // If we can't push through the original instruction, abort the transform.
-      if (U == OrigUse)
-        return nullptr;
-
-      auto *UserI = cast<Instruction>(U->getUser());
-      Builder.SetInsertPoint(UserI);
-      Value *Frozen = Builder.CreateFreeze(V, V->getName() + ".fr");
-      U->set(Frozen);
+  // If operand is guaranteed not to be poison, there is no need to add freeze
+  // to the operand. So we first find the operand that is not guaranteed to be
+  // poison.
+  Value *MaybePoisonOperand = nullptr;
+  for (Value *V : OrigOpInst->operands()) {
+    if (isa<MetadataAsValue>(V) || isGuaranteedNotToBeUndefOrPoison(V) ||
+        // Treat identical operands as a single operand.
+        (MaybePoisonOperand && MaybePoisonOperand == V))
       continue;
-    }
-
-    auto *I = cast<Instruction>(V);
-    if (!Visited.insert(I).second)
-      continue;
-
-    // reverse() to emit freezes in a more natural order.
-    for (Use &Op : reverse(I->operands())) {
-      Value *OpV = Op.get();
-      if (isa<MetadataAsValue>(OpV) || isGuaranteedNotToBeUndefOrPoison(OpV))
-        continue;
-      Worklist.push_back(&Op);
-    }
-
-    I->dropPoisonGeneratingAnnotations();
-    this->Worklist.add(I);
+    if (!MaybePoisonOperand)
+      MaybePoisonOperand = V;
+    else
+      return nullptr;
   }
 
-  return OrigUse->get();
+  OrigOpInst->dropPoisonGeneratingAnnotations();
+
+  // If all operands are guaranteed to be non-poison, we can drop freeze.
+  if (!MaybePoisonOperand)
+    return OrigOp;
+
+  Builder.SetInsertPoint(OrigOpInst);
+  Value *FrozenMaybePoisonOperand = Builder.CreateFreeze(
+      MaybePoisonOperand, MaybePoisonOperand->getName() + ".fr");
+
+  OrigOpInst->replaceUsesOfWith(MaybePoisonOperand, FrozenMaybePoisonOperand);
+  return OrigOp;
 }
 
 Instruction *InstCombinerImpl::foldFreezeIntoRecurrence(FreezeInst &FI,

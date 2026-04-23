@@ -42,7 +42,7 @@ jobs:
     secrets: inherit
     with:
       build_cache_root: "/__w/"
-      build_configure_extra_args: '${{ needs.get_build_info.outputs.info }} -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_INSTALL_LIBDIR=lib --disable-jit --no-assertions --add_security_flags=sanitize --hip --cuda'
+      build_configure_extra_args: '${{ needs.get_build_info.outputs.info }} -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_INSTALL_LIBDIR=lib --disable-jit --no-assertions --add_security_flags=sanitize --cuda'
       build_image: ghcr.io/intel/llvm/release_build:latest
 
       toolchain_artifact: sycl_linux_default

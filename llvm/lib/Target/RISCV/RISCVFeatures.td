@@ -270,7 +270,7 @@ def HasStdExtZacas : Predicate<"Subtarget->hasStdExtZacas()">,
 def NoStdExtZacas : Predicate<"!Subtarget->hasStdExtZacas()">;
 
 def FeatureStdExtZalasr
-    : RISCVExperimentalExtension<0, 9, "Load-Acquire and Store-Release Instructions">;
+    : RISCVExtension<1, 0, "Load-Acquire and Store-Release Instructions">;
 def HasStdExtZalasr : Predicate<"Subtarget->hasStdExtZalasr()">,
                       AssemblerPredicate<(all_of FeatureStdExtZalasr),
                           "'Zalasr' (Load-Acquire and Store-Release Instructions)">;
@@ -1488,9 +1488,8 @@ def HasVendorXwchc
 // Qualcomm Extensions
 
 def FeatureVendorXqccmp
-    : RISCVExperimentalExtension<0, 3,
-                                 "Qualcomm 16-bit Push/Pop and Double Moves",
-                                 [FeatureStdExtZca]>;
+    : RISCVExtension<0, 3, "Qualcomm 16-bit Push/Pop and Double Moves",
+                     [FeatureStdExtZca]>;
 def HasVendorXqccmp
     : Predicate<"Subtarget->hasVendorXqccmp()">,
       AssemblerPredicate<(all_of FeatureVendorXqccmp),
@@ -1842,6 +1841,10 @@ def TuneDisablePostMISchedStoreClustering : SubtargetFeature<"disable-postmische
 def TuneDisableLatencySchedHeuristic
     : SubtargetFeature<"disable-latency-sched-heuristic", "DisableLatencySchedHeuristic", "true",
                        "Disable latency scheduling heuristic">;
+
+def TuneEnableVsetvliSchedHeuristic
+    : SubtargetFeature<"enable-vsetvli-sched-heuristic", "EnableVsetvliSchedHeuristic", "true",
+                       "Enable vsetvli-based scheduling heuristic">;
 
 def TunePredictableSelectIsExpensive
     : SubtargetFeature<"predictable-select-expensive", "PredictableSelectIsExpensive", "true",
