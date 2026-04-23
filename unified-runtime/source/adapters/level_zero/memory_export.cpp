@@ -89,7 +89,7 @@ ur_result_t urMemoryExportExportMemoryHandleExp(
     MemAllocProps.pNext = &MemExportWin32;
     ZE2UR_CALL(zeMemGetAllocProperties,
                (hContext->getZeHandle(), pMem, &MemAllocProps, nullptr));
-    void **ppMemHandleRet = static_cast<void **>(&pMemHandleRet);
+    void **ppMemHandleRet = static_cast<void **>(pMemHandleRet);
     *ppMemHandleRet = MemExportWin32.handle;
     break;
   }
