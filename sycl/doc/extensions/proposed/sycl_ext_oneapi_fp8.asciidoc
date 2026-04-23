@@ -570,9 +570,9 @@ Otherwise, returns the value `true`.
 
 [source,c++]
 ----
-explicit operator marray<half,N>() const;      (1)
-explicit operator marray<bfloat16,N>() const;  (2)
-explicit operator marray<float,N>() const;     (3)
+explicit operator marray<half,N>() const;
+explicit operator marray<bfloat16,N>() const;
+explicit operator marray<float,N>() const;
 ----
 
 _Returns:_ The values of this `fp8_e4m3_x` object are converted to an `marray` of
@@ -1085,9 +1085,9 @@ Otherwise, returns the value `true`.
 
 [source,c++]
 ----
-explicit operator marray<half,N>() const;      (1)
-explicit operator marray<bfloat16,N>() const;  (2)
-explicit operator marray<float,N>() const;     (3)
+explicit operator marray<half,N>() const;
+explicit operator marray<bfloat16,N>() const;
+explicit operator marray<float,N>() const;
 ----
 
 _Returns:_ The values of this `fp8_e5m2_x` object are converted to an `marray` of
