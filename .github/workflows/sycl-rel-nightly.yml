@@ -6,6 +6,10 @@ on:
       sycl_build_info:
         description: |
           Compiler build info, e.g. "X.Y.Z release"
+      pre_release:
+        description: PRE_RELEASE CMake variable value (e.g. 0 or 1)
+        required: false
+        default: '1'
 
 
 permissions: read-all
@@ -16,17 +20,21 @@ jobs:
     outputs:
       info: ${{ steps.get_info.outputs.info }}
     steps:
-    # TODO: version detection can be automated, e.g. by using branch name.
     - id: get_info
       run: |
-        if [ -n "${{ inputs.sycl_build_info }}" ]; then
-          echo "info=${{ inputs.sycl_build_info }}" >> $GITHUB_OUTPUT
+        if [ "${{ inputs.pre_release }}" = "0" ]; then
+          # Do not pass build info for release builds.
+          info="-DPRE_RELEASE=0"
         else
-          date=$(date +'%Y-%m-%d')
-          version="7.0.0"
-          info="Nightly $date $version pre-release"
-          echo "info=$info" >> $GITHUB_OUTPUT
+          if [ -n "${{ inputs.sycl_build_info }}" ]; then
+            info='-DSYCL_BUILD_INFO="${{ inputs.sycl_build_info }}"'
+          else
+            date=$(date +'%Y-%m-%d')
+            info="-DSYCL_BUILD_INFO=\"Nightly $date\""
+          fi
         fi
+
+        echo "info=$info" >> $GITHUB_OUTPUT
 
   ubuntu2204_build:
     needs: get_build_info
@@ -34,7 +42,7 @@ jobs:
     secrets: inherit
     with:
       build_cache_root: "/__w/"
-      build_configure_extra_args: '-DSYCL_BUILD_INFO="${{ needs.get_build_info.outputs.info }}" -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_INSTALL_LIBDIR=lib --disable-jit --no-assertions --add_security_flags=sanitize --cuda'
+      build_configure_extra_args: '${{ needs.get_build_info.outputs.info }} -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_INSTALL_LIBDIR=lib --disable-jit --no-assertions --add_security_flags=sanitize --cuda'
       build_image: ghcr.io/intel/llvm/release_build:latest
 
       toolchain_artifact: sycl_linux_default
@@ -105,7 +113,7 @@ jobs:
       # We upload both Linux/Windows build via Github's "Releases"
       # functionality, make sure Linux/Windows names follow the same pattern.
       toolchain_artifact_filename: sycl_windows.tar.gz
-      build_configure_extra_args: '-DSYCL_BUILD_INFO="${{ needs.get_build_info.outputs.info }}" -DLLVM_SPIRV_ENABLE_LIBSPIRV_DIS=off -DCMAKE_POSITION_INDEPENDENT_CODE=ON --disable-jit --no-assertions --add_security_flags=sanitize'
+      build_configure_extra_args: '${{ needs.get_build_info.outputs.info }} -DLLVM_SPIRV_ENABLE_LIBSPIRV_DIS=off -DCMAKE_POSITION_INDEPENDENT_CODE=ON --disable-jit --no-assertions --add_security_flags=sanitize'
       release_toolchain_artifact: sycl_windows_release
 
   e2e-win:
