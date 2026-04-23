@@ -8,7 +8,6 @@
 
 #pragma once
 
-#include <sycl/__spirv/spirv_ops_atomic.hpp>
 #include <sycl/__spirv/spirv_types.hpp> // for Scope, MemorySemanticsMask
 #include <sycl/aliases.hpp>
 #include <sycl/bit_cast.hpp>
@@ -282,14 +281,30 @@ public:
 
   T fetch_min(T Operand, memory_order Order = memory_order::relaxed) {
     __SYCL_STATIC_ASSERT_NOT_FLOAT(T);
+#ifdef __SYCL_DEVICE_ONLY__
+    auto SPIRVOrder = detail::getSPIRVMemorySemanticsMask(Order);
+    if constexpr (std::is_signed_v<T>)
+      return __spirv_AtomicSMin(Ptr, SpirvScope, SPIRVOrder, Operand);
+    else
+      return __spirv_AtomicUMin(Ptr, SpirvScope, SPIRVOrder, Operand);
+#else
     return __spirv_AtomicMin(
         Ptr, SpirvScope, detail::getSPIRVMemorySemanticsMask(Order), Operand);
+#endif
   }
 
   T fetch_max(T Operand, memory_order Order = memory_order::relaxed) {
     __SYCL_STATIC_ASSERT_NOT_FLOAT(T);
+#ifdef __SYCL_DEVICE_ONLY__
+    auto SPIRVOrder = detail::getSPIRVMemorySemanticsMask(Order);
+    if constexpr (std::is_signed_v<T>)
+      return __spirv_AtomicSMax(Ptr, SpirvScope, SPIRVOrder, Operand);
+    else
+      return __spirv_AtomicUMax(Ptr, SpirvScope, SPIRVOrder, Operand);
+#else
     return __spirv_AtomicMax(
         Ptr, SpirvScope, detail::getSPIRVMemorySemanticsMask(Order), Operand);
+#endif
   }
 
 private:

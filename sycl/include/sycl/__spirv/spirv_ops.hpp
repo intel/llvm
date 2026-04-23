@@ -8,7 +8,6 @@
 
 #pragma once
 
-#include <sycl/__spirv/spirv_ops_atomic.hpp>
 #include <sycl/__spirv/spirv_ops_image.hpp>
 #include <sycl/__spirv/spirv_ops_intel_math.hpp>
 #include <sycl/__spirv/spirv_ops_matrix.hpp>
