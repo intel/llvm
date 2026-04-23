@@ -229,7 +229,8 @@ bool Sema::DiagnoseUseOfDecl(NamedDecl *D, ArrayRef<SourceLocation> Locs,
                              ObjCInterfaceDecl *ClassReceiver,
                              bool SkipTrailingRequiresClause) {
   if (getLangOpts().SYCLIsDevice) {
-    if (auto VD = dyn_cast<VarDecl>(D)) {
+    if (auto VD = dyn_cast<VarDecl>(D);
+        VD && !VD->getType()->isDependentType()) {
       bool IsConst = VD->getType().isConstant(Context);
       bool IsRuntimeEvaluated =
           ExprEvalContexts.empty() ||
@@ -240,6 +241,7 @@ bool Sema::DiagnoseUseOfDecl(NamedDecl *D, ArrayRef<SourceLocation> Locs,
       if (IsRuntimeEvaluated && !IsEsimdPrivateGlobal && !IsConst &&
           VD->getStorageClass() == SC_Static &&
           !VD->hasAttr<SYCLGlobalVarAttr>() &&
+          !VD->getType()->isDependentType() &&
           !SemaSYCL::isTypeDecoratedWithDeclAttribute<
               SYCLGlobalVariableAllowedAttr>(VD->getType()) &&
           !SemaSYCL::isTypeDecoratedWithDeclAttribute<SYCLScopeAttr>(
