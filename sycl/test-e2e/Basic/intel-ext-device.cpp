@@ -125,9 +125,9 @@ int main(int argc, char **argv) {
           std::cout << "Device ID = " << deviceID << std::endl;
         }
         if (SYCL_EXT_INTEL_DEVICE_INFO >= 9 &&
-            dev.has(aspect::ext_intel_xe_stacks_count)) {
+            dev.has(aspect::ext_intel_xe_stack_count)) {
           numXeStacksCount =
-              dev.get_info<ext::intel::info::device::xe_stacks_count>();
+              dev.get_info<ext::intel::info::device::xe_stack_count>();
           std::cout << "Number of stacks/chiplets/tile = " << numXeStacksCount
                     << std::endl;
         }

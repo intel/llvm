@@ -214,7 +214,7 @@
 ??$get_info_impl@Uxe_clusters_per_region@device@info@intel@ext@_V1@sycl@@@device@_V1@sycl@@AEBAIXZ
 ??$get_info_impl@Uxe_cores_per_cluster@device@info@intel@ext@_V1@sycl@@@device@_V1@sycl@@AEBAIXZ
 ??$get_info_impl@Uxe_regions_per_stack@device@info@intel@ext@_V1@sycl@@@device@_V1@sycl@@AEBAIXZ
-??$get_info_impl@Uxe_stacks_count@device@info@intel@ext@_V1@sycl@@@device@_V1@sycl@@AEBAIXZ
+??$get_info_impl@Uxe_stack_count@device@info@intel@ext@_V1@sycl@@@device@_V1@sycl@@AEBAIXZ
 ??$get_profiling_info@Ucommand_end@event_profiling@info@_V1@sycl@@@event@_V1@sycl@@QEBA_KXZ
 ??$get_profiling_info@Ucommand_start@event_profiling@info@_V1@sycl@@@event@_V1@sycl@@QEBA_KXZ
 ??$get_profiling_info@Ucommand_submit@event_profiling@info@_V1@sycl@@@event@_V1@sycl@@QEBA_KXZ
