@@ -1876,7 +1876,7 @@ TEST_P(urDeviceGetInfoTest, SuccessMaxWorkGroups3D) {
   ASSERT_EQ(property_size, sizeof(size_t) * 3);
 
   std::array<size_t, 3> max_work_group_sizes = {};
-  ASSERT_SUCCESS(urDeviceGetInfo(device, UR_DEVICE_INFO_MAX_WORK_GROUPS_3D,
+  ASSERT_SUCCESS(urDeviceGetInfo(device, property_name,
                                  sizeof(max_work_group_sizes),
                                  max_work_group_sizes.data(), nullptr));
   for (size_t i = 0; i < 3; i++) {

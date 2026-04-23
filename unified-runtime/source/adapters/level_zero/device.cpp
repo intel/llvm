@@ -473,7 +473,12 @@ ur_result_t urDeviceGetInfo(
     return ReturnValue(MaxGroupCounts);
   }
   case UR_DEVICE_INFO_MAX_WORK_GROUPS: {
-    return ReturnValue(std::numeric_limits<size_t>::max());
+    // Multiply the max group counts in each dimension to get the total max
+    // number of work groups. Prevent overflow.
+    return ReturnValue(multiplyWithOverflowCheck(
+        Device->ZeDeviceComputeProperties->maxGroupCountX,
+        Device->ZeDeviceComputeProperties->maxGroupCountY,
+        Device->ZeDeviceComputeProperties->maxGroupCountZ));
   }
   case UR_DEVICE_INFO_MAX_CLOCK_FREQUENCY:
     return ReturnValue(uint32_t{Device->ZeDeviceProperties->coreClockRate});

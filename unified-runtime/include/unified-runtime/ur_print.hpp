@@ -5029,7 +5029,9 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
       return UR_RESULT_ERROR_INVALID_SIZE;
     }
     os << (const void *)(tptr) << " (";
+
     os << *tptr;
+
     os << ")";
   } break;
   case UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP: {
