@@ -20,7 +20,7 @@ permissions: read-all
 jobs:
   run-clang-tidy:
     if: ${{ !contains(github.event.pull_request.labels.*.name, 'disable-lint') }}
-    runs-on: [Linux, build]
+    runs-on: [Linux, build-test]
     container:
       image: ghcr.io/intel/llvm/sycl_ubuntu2404_nightly:latest
       options: -u 1001:1001
