@@ -76,6 +76,7 @@ supports.
 | 6     | Memory clock rate and bus width queries are supported
 | 7     | Throttle reasons, fan speed and power limits queries are supported
 | 8     | Device LUID and device node mask is supported
+| 9     | XE device properties are supported
 |===
 
 === PCI Address
@@ -1106,6 +1107,324 @@ the device does not have `aspect::ext_intel_device_info_node_mask`.
 ----
 if (dev.has(aspect::ext_intel_device_info_node_mask)) {
   auto NodeMask = dev.get_info<ext::intel::info::device::node_mask>();
+}
+----
+
+'''
+
+=== Intel GPU Number of Stacks/Chiplets/Tiles
+
+Missing before version 9 of this extension.
+
+This extension adds the following device aspect and information descriptor,
+which allow an application to query the number of stacks/chiplets/tiles on an Intel GPU.
+
+==== New device aspect
+
+[source,c++]
+----
+namespace sycl {
+
+enum class aspect {
+  ext_intel_xe_stacks_count
+  // ...
+};
+
+} // namespace sycl
+----
+
+`ext_intel_xe_stacks_count`: Indicates that the device supports the
+`xe_stacks_count` information descriptor.
+
+==== New device information descriptor
+
+[source,c++]
+----
+namespace sycl::ext::intel::info::device {
+struct xe_stacks_count {
+  using return_type = uint32_t;
+};
+} // namespace sycl::ext::intel::info::device
+----
+
+_Remarks:_ Template parameter to `device::get_info`.
+
+_Returns:_ The number of stacks/chiplets/tiles.
+
+_Throws:_ An `exception` with the `errc::feature_not_supported` error code if
+the device does not have `aspect::ext_intel_xe_stacks_count`.
+
+==== Example Usage
+
+[source,c++]
+----
+if (dev.has(aspect::ext_intel_xe_stacks_count)) {
+  auto XeStacksCount = dev.get_info<ext::intel::info::device::xe_stacks_count>();
+}
+----
+
+'''
+
+=== Intel GPU Number of Regions per Stack
+
+Missing before version 9 of this extension.
+
+This extension adds the following device aspect and information descriptor,
+which allow an application to query the number of regions sharing local L2/L3 (XE_CU) per stack on an Intel GPU.
+
+==== New device aspect
+
+[source,c++]
+----
+namespace sycl {
+
+enum class aspect {
+  ext_intel_xe_regions_per_stack
+  // ...
+};
+
+} // namespace sycl
+----
+
+`ext_intel_xe_regions_per_stack`: Indicates that the device supports the
+`xe_regions_per_stack` information descriptor.
+
+==== New device information descriptor
+
+[source,c++]
+----
+namespace sycl::ext::intel::info::device {
+struct xe_regions_per_stack {
+  using return_type = uint32_t;
+};
+} // namespace sycl::ext::intel::info::device
+----
+
+_Remarks:_ Template parameter to `device::get_info`.
+
+_Returns:_ The number of regions per stack.
+
+_Throws:_ An `exception` with the `errc::feature_not_supported` error code if
+the device does not have `aspect::ext_intel_xe_regions_per_stack`.
+
+==== Example Usage
+
+[source,c++]
+----
+if (dev.has(aspect::ext_intel_xe_regions_per_stack)) {
+  auto numRegionsPerStack = dev.get_info<ext::intel::info::device::xe_regions_per_stack>();
+}
+----
+
+'''
+
+=== Intel GPU Number of Clusters per Region
+
+Missing before version 9 of this extension.
+
+This extension adds the following device aspect and information descriptor,
+which allow an application to query the number of clusters (slices) per region on an Intel GPU.
+
+==== New device aspect
+
+[source,c++]
+----
+namespace sycl {
+
+enum class aspect {
+  ext_intel_xe_clusters_per_region
+  // ...
+};
+
+} // namespace sycl
+----
+
+`ext_intel_xe_clusters_per_region`: Indicates that the device supports the
+`xe_clusters_per_region` information descriptor.
+
+==== New device information descriptor
+
+[source,c++]
+----
+namespace sycl::ext::intel::info::device {
+struct xe_clusters_per_region {
+  using return_type = uint32_t;
+};
+} // namespace sycl::ext::intel::info::device
+----
+
+_Remarks:_ Template parameter to `device::get_info`.
+
+_Returns:_ The number of clusters per region.
+
+_Throws:_ An `exception` with the `errc::feature_not_supported` error code if
+the device does not have `aspect::ext_intel_xe_clusters_per_region`.
+
+==== Example Usage
+
+[source,c++]
+----
+if (dev.has(aspect::ext_intel_xe_clusters_per_region)) {
+  auto numClustersPerRegion = dev.get_info<ext::intel::info::device::xe_clusters_per_region>();
+}
+----
+
+'''
+
+=== Intel GPU Number of XE Cores per Cluster
+
+Missing before version 9 of this extension.
+
+This extension adds the following device aspect and information descriptor,
+which allow an application to query the number of XE cores per cluster on an Intel GPU.
+
+==== New device aspect
+
+[source,c++]
+----
+namespace sycl {
+
+enum class aspect {
+  ext_intel_xe_cores_per_cluster
+  // ...
+};
+
+} // namespace sycl
+----
+
+`ext_intel_xe_cores_per_cluster`: Indicates that the device supports the
+`xe_cores_per_cluster` information descriptor.
+
+==== New device information descriptor
+
+[source,c++]
+----
+namespace sycl::ext::intel::info::device {
+struct xe_cores_per_cluster {
+  using return_type = uint32_t;
+};
+} // namespace sycl::ext::intel::info::device
+----
+
+_Remarks:_ Template parameter to `device::get_info`.
+
+_Returns:_ The number of XE cores per cluster.
+
+_Throws:_ An `exception` with the `errc::feature_not_supported` error code if
+the device does not have `aspect::ext_intel_xe_cores_per_cluster`.
+
+==== Example Usage
+
+[source,c++]
+----
+if (dev.has(aspect::ext_intel_xe_cores_per_cluster)) {
+  auto numXECoresPerCluster = dev.get_info<ext::intel::info::device::xe_cores_per_cluster>();
+}
+----
+
+'''
+
+=== Intel GPU Number of Execution Engines (EUs) per XE Core
+
+Missing before version 9 of this extension.
+
+This extension adds the following device aspect and information descriptor,
+which allow an application to query the number of execution engines (as known as execution units i.e. EUs) per XE Core on an Intel GPU.
+
+==== New device aspect
+
+[source,c++]
+----
+namespace sycl {
+
+enum class aspect {
+  ext_intel_eu_count_per_xe_core
+  // ...
+};
+
+} // namespace sycl
+----
+
+`ext_intel_eu_count_per_xe_core`: Indicates that the device supports the
+`eu_count_per_xe_core` information descriptor.
+
+==== New device information descriptor
+
+[source,c++]
+----
+namespace sycl::ext::intel::info::device {
+struct eu_count_per_xe_core {
+  using return_type = uint32_t;
+};
+} // namespace sycl::ext::intel::info::device
+----
+
+_Remarks:_ Template parameter to `device::get_info`.
+
+_Returns:_ The number of execution engines per XE core.
+
+_Throws:_ An `exception` with the `errc::feature_not_supported` error code if
+the device does not have `aspect::ext_intel_eu_count_per_xe_core`.
+
+==== Example Usage
+
+[source,c++]
+----
+if (dev.has(aspect::ext_intel_eu_count_per_xe_core)) {
+  auto numEUsPerXECore = dev.get_info<ext::intel::info::device::eu_count_per_xe_core>();
+}
+----
+
+'''
+
+=== Intel GPU Maximal Number of Lanes per HW Thread
+
+Missing before version 9 of this extension.
+
+This extension adds the following device aspect and information descriptor,
+which allow an application to query the maximal number of lanes (virtual SIMD size) per HW thread on an Intel GPU.
+
+==== New device aspect
+
+[source,c++]
+----
+namespace sycl {
+
+enum class aspect {
+  ext_intel_max_lanes_per_hw_thread
+  // ...
+};
+
+} // namespace sycl
+----
+
+`ext_intel_max_lanes_per_hw_thread`: Indicates that the device supports the
+`max_lanes_per_hw_thread` information descriptor.
+
+==== New device information descriptor
+
+[source,c++]
+----
+namespace sycl::ext::intel::info::device {
+struct max_lanes_per_hw_thread {
+  using return_type = uint32_t;
+};
+} // namespace sycl::ext::intel::info::device
+----
+
+_Remarks:_ Template parameter to `device::get_info`.
+
+_Returns:_ The maximal number of lanes per HW thread.
+
+_Throws:_ An `exception` with the `errc::feature_not_supported` error code if
+the device does not have `aspect::ext_intel_max_lanes_per_hw_thread`.
+
+==== Example Usage
+
+[source,c++]
+----
+if (dev.has(aspect::ext_intel_max_lanes_per_hw_thread)) {
+  auto numMaxLanesPerHWThread = dev.get_info<ext::intel::info::device::max_lanes_per_hw_thread>();
 }
 ----
 

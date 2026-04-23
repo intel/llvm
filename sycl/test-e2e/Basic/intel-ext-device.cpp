@@ -118,6 +118,50 @@ int main(int argc, char **argv) {
           int deviceID = dev.get_info<ext::intel::info::device::device_id>();
           std::cout << "Device ID = " << deviceID << std::endl;
         }
+        if (SYCL_EXT_INTEL_DEVICE_INFO >= 9 &&
+            dev.has(aspect::ext_intel_xe_stacks_count)) {
+          numXeStacksCount =
+              dev.get_info<ext::intel::info::device::xe_stacks_count>();
+          std::cout << "Number of stacks/chiplets/tile = " << numXeStacksCount
+                    << std::endl;
+        }
+        if (SYCL_EXT_INTEL_DEVICE_INFO >= 9 &&
+            dev.has(aspect::ext_intel_xe_regions_per_stack)) {
+          numXeRegionsPerStack =
+              dev.get_info<ext::intel::info::device::xe_regions_per_stack>();
+          std::cout
+              << "Number of Regions sharing local L2/L3 (XE_CU) per stack = "
+              << numXeRegionsPerStack << std::endl;
+        }
+        if (SYCL_EXT_INTEL_DEVICE_INFO >= 9 &&
+            dev.has(aspect::ext_intel_xe_clusters_per_region)) {
+          numXeClustersPerRegion =
+              dev.get_info<ext::intel::info::device::xe_clusters_per_region>();
+          std::cout << "Number of Clusters (slices) per Region = "
+                    << numXeClustersPerRegion << std::endl;
+        }
+        if (SYCL_EXT_INTEL_DEVICE_INFO >= 9 &&
+            dev.has(aspect::ext_intel_xe_cores_per_cluster)) {
+          numXeCoresPerCluster =
+              dev.get_info<ext::intel::info::device::xe_cores_per_cluster>();
+          std::cout << "Number of XE Cores per Cluster = "
+                    << numXeCoresPerCluster << std::endl;
+        }
+        if (SYCL_EXT_INTEL_DEVICE_INFO >= 9 &&
+            dev.has(aspect::ext_intel_eu_count_per_xe_core)) {
+          numEUCountPerXeCore =
+              dev.get_info<ext::intel::info::device::eu_count_per_xe_core>();
+          std::cout << "Number of Execution Engines (EUs) per XE Core = "
+                    << numEUCountPerXeCore << std::endl;
+        }
+        if (SYCL_EXT_INTEL_DEVICE_INFO >= 9 &&
+            dev.has(aspect::ext_intel_max_lanes_per_hw_thread)) {
+          numMaxLanesPerHWThread =
+              dev.get_info<ext::intel::info::device::max_lanes_per_hw_thread>();
+          std::cout
+              << "Maximal number of lanes (virtual SIMD size) per HW thread = "
+              << numMaxLanesPerHWThread << std::endl;
+        }
       } // SYCL_EXT_INTEL_DEVICE_INFO
       std::cout << std::endl;
     }

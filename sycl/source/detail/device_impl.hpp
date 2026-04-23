@@ -2360,7 +2360,13 @@ private:
           aspect::ext_oneapi_bindless_images,
           aspect::ext_oneapi_bindless_images_1d_usm,
           aspect::ext_oneapi_bindless_images_2d_usm,
-          aspect::ext_oneapi_is_composite, aspect::ext_oneapi_is_component>>
+          aspect::ext_oneapi_is_composite, aspect::ext_oneapi_is_component,
+          aspect::ext_intel_xe_stacks_count,
+          aspect::ext_intel_xe_regions_per_stack,
+          aspect::ext_intel_xe_clusters_per_region,
+          aspect::ext_intel_xe_cores_per_cluster,
+          aspect::ext_intel_eu_count_per_xe_core,
+          aspect::ext_intel_max_lanes_per_hw_thread>>
       MCache;
 
   const size_t MIndexWithinPlatform = 0;
