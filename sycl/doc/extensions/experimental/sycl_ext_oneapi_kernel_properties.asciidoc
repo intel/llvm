@@ -287,11 +287,11 @@ by the property, the implementation must throw a synchronous exception with the
 
 |===
 
-== Embedding Properties into a Kernel
+=== Embedding Properties into a Kernel
 
-In other situations it may be useful to embed a kernel's properties directly
-into its type, to ensure that a kernel cannot be launched without a property
-that it depends upon for correctness.
+A kernel's properties are embedded directly into its type, to ensure that a
+kernel cannot be launched without a property that it depends upon for
+correctness.
 
 To enable this use-case, this extension adds a mechanism for implementations to
 extract a property list from a kernel functor, if a kernel functor declares
@@ -323,8 +323,8 @@ attributes to be applied to different call operators within the same
 functor. An embedded property list applies to all call operators in
 the functor.
 
-The example below shows how the kernel from the previous section could be
-rewritten to leverage an embedded property list:
+The example below shows how a simple vector addition kernel could be
+written to leverage an embedded property list:
 
 ```c++
 struct KernelFunctor {
@@ -362,6 +362,87 @@ combinations that can be detected at compile-time should be reported via a
 diagnostic; invalid combinations that can only be detected at run-time should
 result in an implementation throwing an `exception` with the `errc::invalid`
 error code.
+
+=== Using Properties with Lambda Expressions
+
+When a SYCL kernel is defined via a lambda expression, there is no way to
+define a `get` member function and subsequently no way to embed kernel
+properties. Instead, developers must wrap the lambda expression in an object.
+
+To simplify this usage pattern, this extension defines a `kernel_function`
+that encapsulates a kernel function (which may be a lambda expression) and a
+property list.
+
+NOTE: Developers are free to create classes that derive from `kernel_function`
+or define their own wrapper classes (e.g., to attach commonly used property
+lists).
+
+```c++
+namespace sycl::ext::oneapi::experimental {
+
+template <typename Function, typename Properties = empty_properties_t>
+struct kernel_function {
+
+  kernel_function(Function &&f, Properties p = properties{});
+
+  // Available only if Function is invocable with Args
+  template <typename... Args>
+  void operator()(Args&&... args) const;
+
+  // Available only if Properties contains no run-time properties
+  static constexpr auto get(properties_tag) const;
+
+  // Available only if Properties contains at least one run-time property
+  auto get(properties_tag) const;
+
+} // namespace sycl::ext::oneapi::experimental
+```
+
+---
+
+```c++
+template <typename... Args>
+void operator()(Args&&... args) const;
+```
+
+_Constraints_: `Function` is invocable with `Args`.
+
+_Effects_: Invokes `Function` with `Args`.
+
+---
+
+```c++
+static constexpr auto get(properties_tag) const; (1)
+
+auto get(properties_tag) const;                  (2)
+```
+
+_Constraints_ (1): `Properties` contains no run-time properties.
+
+_Constraints_ (2): `Properties` contains at least one run-time property.
+
+_Returns_: The property list associated with this kernel function.
+
+---
+
+The example below shows how the `KernelFunctor` example from the previous
+section can be written using this wrapper:
+
+```c++
+namespace syclx = sycl::ext::oneapi::experimental;
+
+...
+
+auto lambda = [=](id<1> i) const {
+    a[i] = b[i] + c[i];
+}
+auto props = syclx::properties{syclx::work_group_size<8, 8>, syclx::sub_group_size<8>};
+auto kernel = syclx::kernel_function(lambda, props);
+
+...
+
+q.parallel_for(range<2>{16, 16}, kernel).wait();
+```
 
 === Querying Properties in a Compiled Kernel
 
