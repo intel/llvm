@@ -2,6 +2,9 @@
 // REQUIRES: aspect-ext_oneapi_external_memory_import || (windows && level_zero && aspect-ext_oneapi_bindless_images)
 // REQUIRES: vulkan
 
+// UNSUPPORTED: linux && gpu-intel-dg2
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21764
+
 // RUN: %{build} %link-vulkan -o %t.out %if target-spir %{ -Wno-ignored-attributes %}
 
 // RUN: %{run} %t.out --type float --channels 1
@@ -28,9 +31,11 @@
 // RUN: %{run} %t.out --type int8 --channels 1
 // RUN: %{run} %t.out --type int8 --channels 2
 // RUN: %{run} %t.out --type int8 --channels 4
-// RUN: %{run} %t.out --type unorm8 --channels 1
-// RUN: %{run} %t.out --type unorm8 --channels 2
-// RUN: %{run} %t.out --type unorm8 --channels 4
+
+// CUDA doesn't support unorm8,
+// RUN-IF: !cuda, %{run} %t.out --type unorm8 --channels 1
+// RUN-IF: !cuda, %{run} %t.out --type unorm8 --channels 2
+// RUN-IF: !cuda, %{run} %t.out --type unorm8 --channels 4
 
 // clang-format off
 /*
@@ -323,9 +328,9 @@ int runTest(
             oldValue.w() = rawValuePixel.w();
           }
         }
-        
+
         newValue = oldValue / (T)2;
-        
+
         if (isUnorm) {
           newValue = sycl::clamp(newValue, 0.0f, 1.0f);
           if (channels == 1)
