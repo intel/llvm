@@ -2983,8 +2983,6 @@ static bool mergeDeclAttribute(Sema &S, NamedDecl *D,
     NewAttr = S.SYCL().mergeIntelReqdSubGroupSizeAttr(D, *A);
   else if (const auto *A = dyn_cast<IntelNamedSubGroupSizeAttr>(Attr))
     NewAttr = S.SYCL().mergeIntelNamedSubGroupSizeAttr(D, *A);
-  else if (const auto *A = dyn_cast<SYCLIntelNumSimdWorkItemsAttr>(Attr))
-    NewAttr = S.SYCL().mergeSYCLIntelNumSimdWorkItemsAttr(D, *A);
   else if (const auto *A = dyn_cast<SYCLIntelESimdVectorizeAttr>(Attr))
     NewAttr = S.SYCL().mergeSYCLIntelESimdVectorizeAttr(D, *A);
   else if (const auto *A = dyn_cast<SYCLWorkGroupSizeHintAttr>(Attr))
@@ -3003,8 +3001,6 @@ static bool mergeDeclAttribute(Sema &S, NamedDecl *D,
     NewAttr = S.SYCL().mergeSYCLUsesAspectsAttr(D, *A);
   else if (const auto *A = dyn_cast<SYCLTypeAttr>(Attr))
     NewAttr = S.SYCL().mergeSYCLTypeAttr(D, *A, A->getType());
-  else if (const auto *A = dyn_cast<SYCLIntelMaxWorkGroupSizeAttr>(Attr))
-    NewAttr = S.SYCL().mergeSYCLIntelMaxWorkGroupSizeAttr(D, *A);
   else if (const auto *A = dyn_cast<SYCLAddIRAttributesFunctionAttr>(Attr))
     NewAttr = S.SYCL().mergeSYCLAddIRAttributesFunctionAttr(D, *A);
   else if (const auto *A =
