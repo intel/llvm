@@ -1578,7 +1578,7 @@ ur_result_t urDeviceGetInfo(
 #else
     return ReturnValue(false);
 #endif
-  case UR_DEVICE_INFO_XE_STACKS_COUNT: {
+  case UR_DEVICE_INFO_XE_STACK_COUNT: {
     ze_device_properties_t DeviceProp = {};
     DeviceProp.stype = ZE_STRUCTURE_TYPE_DEVICE_PROPERTIES;
     ze_intel_xe_device_exp_properties_t XeDeviceProperties = {};
@@ -1622,7 +1622,7 @@ ur_result_t urDeviceGetInfo(
 
     return ReturnValue(XeDeviceProperties.numXeCorePerCluster);
   }
-  case UR_DEVICE_INFO_EU_COUNT_PER_XE_CORE: {
+  case UR_DEVICE_INFO_EUS_PER_XE_CORE: {
     ze_device_properties_t DeviceProp = {};
     DeviceProp.stype = ZE_STRUCTURE_TYPE_DEVICE_PROPERTIES;
     ze_intel_xe_device_exp_properties_t XeDeviceProperties = {};

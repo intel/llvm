@@ -3178,8 +3178,8 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
   case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG_LONG:
     os << "UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG_LONG";
     break;
-  case UR_DEVICE_INFO_XE_STACKS_COUNT:
-    os << "UR_DEVICE_INFO_XE_STACKS_COUNT";
+  case UR_DEVICE_INFO_XE_STACK_COUNT:
+    os << "UR_DEVICE_INFO_XE_STACK_COUNT";
     break;
   case UR_DEVICE_INFO_XE_REGIONS_PER_STACK:
     os << "UR_DEVICE_INFO_XE_REGIONS_PER_STACK";
@@ -3190,8 +3190,8 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
   case UR_DEVICE_INFO_XE_CORES_PER_CLUSTER:
     os << "UR_DEVICE_INFO_XE_CORES_PER_CLUSTER";
     break;
-  case UR_DEVICE_INFO_EU_COUNT_PER_XE_CORE:
-    os << "UR_DEVICE_INFO_EU_COUNT_PER_XE_CORE";
+  case UR_DEVICE_INFO_EUS_PER_XE_CORE:
+    os << "UR_DEVICE_INFO_EUS_PER_XE_CORE";
     break;
   case UR_DEVICE_INFO_MAX_LANES_PER_HW_THREAD:
     os << "UR_DEVICE_INFO_MAX_LANES_PER_HW_THREAD";
@@ -5036,7 +5036,7 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
 
     os << ")";
   } break;
-  case UR_DEVICE_INFO_XE_STACKS_COUNT: {
+  case UR_DEVICE_INFO_XE_STACK_COUNT: {
     const uint32_t *tptr = (const uint32_t *)ptr;
     if (sizeof(uint32_t) > size) {
       os << "invalid size (is: " << size << ", expected: >=" << sizeof(uint32_t)
@@ -5088,7 +5088,7 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
 
     os << ")";
   } break;
-  case UR_DEVICE_INFO_EU_COUNT_PER_XE_CORE: {
+  case UR_DEVICE_INFO_EUS_PER_XE_CORE: {
     const uint32_t *tptr = (const uint32_t *)ptr;
     if (sizeof(uint32_t) > size) {
       os << "invalid size (is: " << size << ", expected: >=" << sizeof(uint32_t)

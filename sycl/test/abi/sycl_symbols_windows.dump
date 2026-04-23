@@ -81,7 +81,7 @@
 ??$get_info_impl@Udouble_fp_config@device@info@_V1@sycl@@@device@_V1@sycl@@AEBA?AV?$vector@W4fp_config@info@_V1@sycl@@V?$allocator@W4fp_config@info@_V1@sycl@@@std@@@std@@XZ
 ??$get_info_impl@Udriver_version@device@info@_V1@sycl@@@device@_V1@sycl@@AEBA?AVstring@detail@12@XZ
 ??$get_info_impl@Uerror_correction_support@device@info@_V1@sycl@@@device@_V1@sycl@@AEBA_NXZ
-??$get_info_impl@Ueu_count_per_xe_core@device@info@intel@ext@_V1@sycl@@@device@_V1@sycl@@AEBAIXZ
+??$get_info_impl@Ueus_per_xe_core@device@info@intel@ext@_V1@sycl@@@device@_V1@sycl@@AEBAIXZ
 ??$get_info_impl@Uexecution_capabilities@device@info@_V1@sycl@@@device@_V1@sycl@@AEBA?AV?$vector@W4execution_capability@info@_V1@sycl@@V?$allocator@W4execution_capability@info@_V1@sycl@@@std@@@std@@XZ
 ??$get_info_impl@Uext_intel_device_info_uuid@device@info@_V1@sycl@@@device@_V1@sycl@@AEBA?AV?$array@E$0BA@@std@@XZ
 ??$get_info_impl@Uext_intel_gpu_eu_count@device@info@_V1@sycl@@@device@_V1@sycl@@AEBAIXZ

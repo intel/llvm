@@ -357,7 +357,7 @@ inline void printDeviceInfos(ur_device_handle_t hDevice,
   printDeviceInfo<uint32_t>(hDevice,
                             UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG_LONG);
   std::cout << prefix;
-  printDeviceInfo<uint32_t>(hDevice, UR_DEVICE_INFO_XE_STACKS_COUNT);
+  printDeviceInfo<uint32_t>(hDevice, UR_DEVICE_INFO_XE_STACK_COUNT);
   std::cout << prefix;
   printDeviceInfo<uint32_t>(hDevice, UR_DEVICE_INFO_XE_REGIONS_PER_STACK);
   std::cout << prefix;
@@ -365,7 +365,7 @@ inline void printDeviceInfos(ur_device_handle_t hDevice,
   std::cout << prefix;
   printDeviceInfo<uint32_t>(hDevice, UR_DEVICE_INFO_XE_CORES_PER_CLUSTER);
   std::cout << prefix;
-  printDeviceInfo<uint32_t>(hDevice, UR_DEVICE_INFO_EU_COUNT_PER_XE_CORE);
+  printDeviceInfo<uint32_t>(hDevice, UR_DEVICE_INFO_EUS_PER_XE_CORE);
   std::cout << prefix;
   printDeviceInfo<uint32_t>(hDevice, UR_DEVICE_INFO_MAX_LANES_PER_HW_THREAD);
   std::cout << prefix;

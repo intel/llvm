@@ -1126,22 +1126,22 @@ which allow an application to query the number of stacks/chiplets/tiles on an In
 namespace sycl {
 
 enum class aspect {
-  ext_intel_xe_stacks_count
+  ext_intel_xe_stack_count
   // ...
 };
 
 } // namespace sycl
 ----
 
-`ext_intel_xe_stacks_count`: Indicates that the device supports the
-`xe_stacks_count` information descriptor.
+`ext_intel_xe_stack_count`: Indicates that the device supports the
+`xe_stack_count` information descriptor.
 
 ==== New device information descriptor
 
 [source,c++]
 ----
 namespace sycl::ext::intel::info::device {
-struct xe_stacks_count {
+struct xe_stack_count {
   using return_type = uint32_t;
 };
 } // namespace sycl::ext::intel::info::device
@@ -1152,14 +1152,14 @@ _Remarks:_ Template parameter to `device::get_info`.
 _Returns:_ The number of stacks/chiplets/tiles.
 
 _Throws:_ An `exception` with the `errc::feature_not_supported` error code if
-the device does not have `aspect::ext_intel_xe_stacks_count`.
+the device does not have `aspect::ext_intel_xe_stack_count`.
 
 ==== Example Usage
 
 [source,c++]
 ----
-if (dev.has(aspect::ext_intel_xe_stacks_count)) {
-  auto XeStacksCount = dev.get_info<ext::intel::info::device::xe_stacks_count>();
+if (dev.has(aspect::ext_intel_xe_stack_count)) {
+  auto XeStacksCount = dev.get_info<ext::intel::info::device::xe_stack_count>();
 }
 ----
 
@@ -1338,22 +1338,22 @@ which allow an application to query the number of execution engines (as known as
 namespace sycl {
 
 enum class aspect {
-  ext_intel_eu_count_per_xe_core
+  ext_intel_eus_per_xe_core
   // ...
 };
 
 } // namespace sycl
 ----
 
-`ext_intel_eu_count_per_xe_core`: Indicates that the device supports the
-`eu_count_per_xe_core` information descriptor.
+`ext_intel_eus_per_xe_core`: Indicates that the device supports the
+`eus_per_xe_core` information descriptor.
 
 ==== New device information descriptor
 
 [source,c++]
 ----
 namespace sycl::ext::intel::info::device {
-struct eu_count_per_xe_core {
+struct eus_per_xe_core {
   using return_type = uint32_t;
 };
 } // namespace sycl::ext::intel::info::device
@@ -1364,14 +1364,14 @@ _Remarks:_ Template parameter to `device::get_info`.
 _Returns:_ The number of execution engines per XE core.
 
 _Throws:_ An `exception` with the `errc::feature_not_supported` error code if
-the device does not have `aspect::ext_intel_eu_count_per_xe_core`.
+the device does not have `aspect::ext_intel_eus_per_xe_core`.
 
 ==== Example Usage
 
 [source,c++]
 ----
-if (dev.has(aspect::ext_intel_eu_count_per_xe_core)) {
-  auto numEUsPerXECore = dev.get_info<ext::intel::info::device::eu_count_per_xe_core>();
+if (dev.has(aspect::ext_intel_eus_per_xe_core)) {
+  auto numEUsPerXECore = dev.get_info<ext::intel::info::device::eus_per_xe_core>();
 }
 ----
 

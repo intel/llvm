@@ -154,9 +154,9 @@ int main(int argc, char **argv) {
                     << numXeCoresPerCluster << std::endl;
         }
         if (SYCL_EXT_INTEL_DEVICE_INFO >= 9 &&
-            dev.has(aspect::ext_intel_eu_count_per_xe_core)) {
+            dev.has(aspect::ext_intel_eus_per_xe_core)) {
           numEUCountPerXeCore =
-              dev.get_info<ext::intel::info::device::eu_count_per_xe_core>();
+              dev.get_info<ext::intel::info::device::eus_per_xe_core>();
           std::cout << "Number of Execution Engines (EUs) per XE Core = "
                     << numEUCountPerXeCore << std::endl;
         }
