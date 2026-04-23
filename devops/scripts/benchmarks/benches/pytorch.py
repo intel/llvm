@@ -3,8 +3,7 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-"""PyTorch benchmarks suite: run out-of-tree PyTorch benchmarks and parse results.
-"""
+"""PyTorch benchmarks suite: run out-of-tree PyTorch benchmarks and parse results."""
 
 import json
 import sys
@@ -81,19 +80,22 @@ class RealWorldAppBench(Benchmark):
 
         env_vars = dict(env_vars) if env_vars else {}
 
-        with tempfile.NamedTemporaryFile(
-            suffix=".json", delete=False
-        ) as tmp:
+        with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as tmp:
             tmp_path = tmp.name
 
         command = [
             sys.executable,
             str(self._script_path),
-            "--device", "xpu",
-            "--iter", "10000",
-            "--model", "vit",
-            "--batch", "50",
-            "--output-json", tmp_path,
+            "--device",
+            "xpu",
+            "--iter",
+            "10000",
+            "--model",
+            "vit",
+            "--batch",
+            "50",
+            "--output-json",
+            tmp_path,
         ]
 
         self.run_bench(
