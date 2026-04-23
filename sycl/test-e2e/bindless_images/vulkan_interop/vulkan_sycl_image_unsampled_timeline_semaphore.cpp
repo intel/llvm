@@ -2,12 +2,6 @@
 // REQUIRES: aspect-ext_oneapi_external_memory_import || (windows && level_zero && aspect-ext_oneapi_bindless_images)
 // REQUIRES: vulkan
 
-// UNSUPPORTED: cuda
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21716
-
-// UNSUPPORTED: linux && gpu-intel-dg2
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21764
-
 // RUN: %{build} %link-vulkan -o %t.out %if target-spir %{ -Wno-ignored-attributes %}
 
 // RUN: %{run} %t.out --type float --channels 1
@@ -54,8 +48,6 @@
 // clang-format on
 
 #include "vulkan_setup.hpp"
-#include <iostream>
-#include <string>
 #include <sycl/builtins.hpp>
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/bindless_images.hpp>
@@ -288,62 +280,59 @@ int runTest(
     VK_CHECK(vkQueueSubmit(vkCtx.queue, 1, &uploadSubInfo, VK_NULL_HANDLE));
 
     q.ext_oneapi_wait_external_semaphore(syclSem, vkSignalVal);
+    // ranges for parallel_for use "fastest incrementing" order (z,y,x),
+    // but bindless images ranges use (x,y,z) order.
     q.submit([&](sycl::handler &h) {
-      h.parallel_for(sycl::range<2>(imageWidth, imageHeight), [=](sycl::item<2>
+      h.parallel_for(sycl::range<2>(imageHeight, imageWidth), [=](sycl::item<2>
                                                                       item) {
-        int x = item.get_id(0);
-        int y = item.get_id(1);
         bool isUnorm = (syclType == sycl::image_channel_type::unorm_int8);
+        sycl::int2 coords(item.get_id(1), item.get_id(0));
         using Vec4 = sycl::vec<float, 4>;
         Vec4 oldValue(0, 0, 0, 0);
         Vec4 newValue(0, 0, 0, 0);
-        if (isUnorm) {
-          oldValue =
-              syclexp::fetch_image<Vec4>(unsampledHandle, sycl::int2(x, y));
+
+        if (channels == 1) {
+          oldValue.x() = syclexp::fetch_image<T>(unsampledHandle, coords);
+
+        } else if (channels == 2) {
+          sycl::vec<T, 2> rawValuePixel =
+              syclexp::fetch_image<sycl::vec<T, 2>>(unsampledHandle, coords);
+          oldValue.x() = rawValuePixel.x();
+          oldValue.y() = rawValuePixel.y();
         } else {
-          auto fetchT = [&](auto &hdl) {
-            Vec4 v(0, 0, 0, 0);
-            if (channels == 1)
-              v.x() = (float)syclexp::fetch_image<T>(hdl, sycl::int2(x, y));
-            else {
-              auto raw =
-                  syclexp::fetch_image<sycl::vec<T, 4>>(hdl, sycl::int2(x, y));
-              v.x() = (float)raw.x();
-              v.y() = (float)raw.y();
-              v.z() = (float)raw.z();
-              v.w() = (float)raw.w();
-            }
-            return v;
-          };
-          oldValue = fetchT(unsampledHandle);
+          sycl::vec<T, 4> rawValuePixel =
+              syclexp::fetch_image<sycl::vec<T, 4>>(unsampledHandle, coords);
+          oldValue.x() = rawValuePixel.x();
+          oldValue.y() = rawValuePixel.y();
+          oldValue.z() = rawValuePixel.z();
+          oldValue.w() = rawValuePixel.w();
         }
-        newValue = oldValue / (T)2;
+        newValue = oldValue / static_cast<T>(2);
         if (isUnorm) {
           newValue = sycl::clamp(newValue, 0.0f, 1.0f);
           if (channels == 1)
-            syclexp::write_image(unsampledHandle, sycl::int2(x, y),
-                                 newValue.x());
+            syclexp::write_image(unsampledHandle, coords, newValue.x());
           else if (channels == 2)
-            syclexp::write_image(unsampledHandle, sycl::int2(x, y),
+            syclexp::write_image(unsampledHandle, coords,
                                  sycl::float2(newValue.x(), newValue.y()));
           else
-            syclexp::write_image(unsampledHandle, sycl::int2(x, y), newValue);
+            syclexp::write_image(unsampledHandle, coords, newValue);
         } else {
           if (channels == 1)
-            syclexp::write_image(unsampledHandle, sycl::int2(x, y),
+            syclexp::write_image(unsampledHandle, coords,
                                  static_cast<T>(newValue.x()));
           else if (channels == 2)
-            syclexp::write_image(unsampledHandle, sycl::int2(x, y),
+            syclexp::write_image(unsampledHandle, coords,
                                  sycl::vec<T, 2>(static_cast<T>(newValue.x()),
                                                  static_cast<T>(newValue.y())));
           else
-            syclexp::write_image(unsampledHandle, sycl::int2(x, y),
+            syclexp::write_image(unsampledHandle, coords,
                                  sycl::vec<T, 4>(static_cast<T>(newValue.x()),
                                                  static_cast<T>(newValue.y()),
                                                  static_cast<T>(newValue.z()),
                                                  static_cast<T>(newValue.w())));
         }
-      });
+      }
     });
     q.ext_oneapi_signal_external_semaphore(syclSem, syclSignalVal);
     q.wait();
@@ -411,7 +400,8 @@ int runTest(
     for (size_t i = 0; i < totalPixels; ++i) {
       size_t pixelIdx = i / channels;
       int ch = i % channels;
-      T expected = generateTestValue<T>(pixelIdx, ch, totalPixels) / T(2);
+      T expected =
+          generateTestValue<T>(pixelIdx, ch, totalPixels) / static_cast<T>(2);
       if (!checkValue(readbackPixelData[i], expected)) {
         passed = false;
         std::cout << "Mismatch at " << i << " ch:" << ch
