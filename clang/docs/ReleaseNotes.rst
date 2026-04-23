@@ -470,6 +470,10 @@ Bug Fixes to C++ Support
   conforming and could lead to recursive constraint satisfaction checking. (#GH149443)
 - Fixed a crash in Itanium C++ name mangling for a lambda in a local class field initializer inside a constructor/destructor. (#GH176395)
 
+- Fix a bug where clang would produce inconsistent values when
+  ``std::source_location::current()`` was used in a function template.
+  Fixes (`#78128 <https://github.com/llvm/llvm-project/issues/78128>`_)
+
 Bug Fixes to AST Handling
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 - Fixed a bug where explicit nullability property attributes were not stored in AST nodes in Objective-C. (#GH179703)
