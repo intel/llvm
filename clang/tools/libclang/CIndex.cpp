@@ -7269,6 +7269,7 @@ CXCursor clang_getCursorDefinition(CXCursor C) {
   case Decl::FileScopeAsm:
   case Decl::TopLevelStmt:
   case Decl::StaticAssert:
+  case Decl::ExplicitInstantiation:
   case Decl::Block:
   case Decl::OutlinedFunction:
   case Decl::Captured:
@@ -8849,6 +8850,7 @@ static CXLanguageKind getDeclLanguage(const Decl *D) {
   case Decl::NamespaceAlias:
   case Decl::NonTypeTemplateParm:
   case Decl::StaticAssert:
+  case Decl::ExplicitInstantiation:
   case Decl::TemplateTemplateParm:
   case Decl::TemplateTypeParm:
   case Decl::UnresolvedUsingTypename:
