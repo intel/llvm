@@ -1,4 +1,3 @@
-# Copyright (C) 2026 Intel Corporation
 # Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -46,20 +45,15 @@ class RealWorldAppBench(Benchmark):
     def name(self) -> str:
         return "real-world-app"
 
+    def display_name(self) -> str:
+        return "PyTorch Real-World App Microbenchmark"
+
     def enabled(self) -> bool:
         if not is_pytorch_bench_available():
             return False
         root = Path(options.pytorch_root)
         script = root / self._SCRIPT_NAME
         return script.is_file()
-
-    def setup(self) -> None:
-        self._script_path = Path(options.pytorch_root) / self._SCRIPT_NAME
-        if not self._script_path.is_file():
-            log.warning(
-                "Real world app benchmark script missing: %s",
-                self._script_path,
-            )
 
     def description(self) -> str:
         return "Measures real-world XPU application performance via PyTorch dynamo microbenchmark."
@@ -73,11 +67,6 @@ class RealWorldAppBench(Benchmark):
         flamegraph_enabled: bool = False,
         force_trace: bool = False,
     ) -> list[Result]:
-        if self._script_path is None or not self._script_path.is_file():
-            raise FileNotFoundError(
-                f"Benchmark script not available: {self._script_path!s}"
-            )
-
         env_vars = dict(env_vars) if env_vars else {}
 
         with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as tmp:
@@ -132,6 +121,7 @@ class RealWorldAppBench(Benchmark):
                 )
             )
         if not results:
+            log.info(f"Raw benchmark output:\n{raw}")
             raise ValueError(
                 "Could not extract any numeric metrics from benchmark JSON output"
             )
