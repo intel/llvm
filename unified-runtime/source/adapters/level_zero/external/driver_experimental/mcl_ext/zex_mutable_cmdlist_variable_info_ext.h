@@ -6,7 +6,7 @@
  */
 
 #pragma once
-
+#include "level_zero/driver_experimental/mcl_ext/zex_mutable_cmdlist_variable_ext.h"
 #include "level_zero/ze_stypes.h"
 #include <level_zero/ze_api.h>
 
@@ -51,21 +51,17 @@ typedef enum _zex_variable_type_t {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Variable information
 typedef struct _zex_variable_info_t {
-  ze_structure_type_ext_t stype =
-      ZEX_STRUCTURE_TYPE_VARIABLE_INFO; ///< type of this structure
-  const void *pNext =
-      nullptr; ///< [optional] pointer to extension-specific structure
-
-  zex_variable_handle_t handle = nullptr; ///< handle to the variable
-  const char *name = nullptr;             ///< name of the variable
-  size_t size = 0U;                       ///< size of the variable
-  zex_variable_state_t state =
-      ZEX_VARIABLE_STATE_DECLARED; ///< current state of the variable
-  zex_variable_flags_t flags =
-      ZEX_VARIABLE_FLAGS_NONE; ///< flags providing additional metadata about
-                               ///< the variable
-  zex_variable_type_t type =
-      ZEX_VARIABLE_TYPE_NONE; ///< type of value represented by this variable
+  ze_structure_type_ext_t
+      stype; ///< [in] type of this structure ZEX_STRUCTURE_TYPE_VARIABLE_INFO
+  const void *pNext; ///< [in][optional] pointer to extension-specific structure
+  zex_variable_handle_t handle; ///< [out] handle to the variable
+  const char *name;             ///< [out] name of the variable
+  size_t size;                  ///< [out] size of the variable
+  zex_variable_state_t state;   ///< [out] current state of the variable
+  zex_variable_flags_t
+      flags; ///< [out] flags providing additional metadata about the variable
+  zex_variable_type_t
+      type; ///< [out] type of value represented by this variable
 } zex_variable_info_t;
 
 #if defined(__cplusplus)
