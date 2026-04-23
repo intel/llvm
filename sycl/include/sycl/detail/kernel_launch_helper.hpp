@@ -361,15 +361,15 @@ using KernelPropertyHolderStructTy =
                 sycl::ext::oneapi::experimental::cuda::cluster_size_key<2>,
                 sycl::ext::oneapi::experimental::cuda::cluster_size_key<3>>;
 
-template <typename PropertiesT>
-constexpr void validateKernelProperties() {
+template <typename PropertiesT> constexpr void validateKernelProperties() {
   using namespace sycl::ext::oneapi::experimental;
 
   if constexpr (PropertiesT::template has_property<work_group_size_key>()) {
     constexpr auto WGSize =
         PropertiesT::template get_property<work_group_size_key>();
 
-    if constexpr (PropertiesT::template has_property<max_work_group_size_key>()) {
+    if constexpr (PropertiesT::template has_property<
+                      max_work_group_size_key>()) {
       constexpr auto MaxWGSize =
           PropertiesT::template get_property<max_work_group_size_key>();
       constexpr auto WGDimensions = decltype(WGSize)::dimensions;
@@ -379,24 +379,20 @@ constexpr void validateKernelProperties() {
           WGDimensions == MaxWGDimensions,
           "work_group_size and max_work_group_size dimensionality must match");
       if constexpr (WGDimensions == MaxWGDimensions) {
-        static_assert(
-            WGDimensions < 1 || WGSize[0] <= MaxWGSize[0],
-            "work_group_size must not exceed max_work_group_size");
-        static_assert(
-            WGDimensions < 2 || WGSize[1] <= MaxWGSize[1],
-            "work_group_size must not exceed max_work_group_size");
-        static_assert(
-            WGDimensions < 3 || WGSize[2] <= MaxWGSize[2],
-            "work_group_size must not exceed max_work_group_size");
+        static_assert(WGDimensions < 1 || WGSize[0] <= MaxWGSize[0],
+                      "work_group_size must not exceed max_work_group_size");
+        static_assert(WGDimensions < 2 || WGSize[1] <= MaxWGSize[1],
+                      "work_group_size must not exceed max_work_group_size");
+        static_assert(WGDimensions < 3 || WGSize[2] <= MaxWGSize[2],
+                      "work_group_size must not exceed max_work_group_size");
       }
     }
 
     if constexpr (PropertiesT::template has_property<
                       max_linear_work_group_size_key>()) {
       constexpr auto Dimensions = decltype(WGSize)::dimensions;
-      constexpr auto LinearSize =
-          WGSize[0] * (Dimensions > 1 ? WGSize[1] : 1) *
-          (Dimensions > 2 ? WGSize[2] : 1);
+      constexpr auto LinearSize = WGSize[0] * (Dimensions > 1 ? WGSize[1] : 1) *
+                                  (Dimensions > 2 ? WGSize[2] : 1);
       constexpr auto MaxLinearWGSize =
           PropertiesT::template get_property<max_linear_work_group_size_key>();
 

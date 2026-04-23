@@ -8,7 +8,8 @@
 using namespace sycl::ext::oneapi::experimental;
 
 int main() {
-  constexpr auto Props = properties{work_group_size<2, 3>, device_has<sycl::aspect::cpu>};
+  constexpr auto Props =
+      properties{work_group_size<2, 3>, device_has<sycl::aspect::cpu>};
 
   static_assert(is_property_value<decltype(single_task_kernel)>::value);
   static_assert(decltype(Props)::has_property<work_group_size_key>());
