@@ -13,6 +13,7 @@
 #include <sycl/range.hpp>
 
 #include <array>
+#include <limits>
 
 namespace sycl {
 inline namespace _V1 {
@@ -98,6 +99,45 @@ public:
   std::array<size_t, 3> NumWorkGroups{0, 0, 0};
   std::array<size_t, 3> ClusterDimensions{1, 1, 1};
   size_t Dims = 0;
+
+  // Returns the total number of global workgroups for the kernel execution
+  // along all dimensions, or the maximum value of size_t if overflow occurs.
+  uint64_t getNumGlobalWorkGroups() const {
+    auto getProductAndCheckForOverflow = [](const size_t &a, const size_t &b,
+                                            const size_t &c) -> uint64_t {
+      uint64_t Product = 0;
+      uint64_t MaxSizeTVal = std::numeric_limits<uint64_t>::max();
+      if (a == 0 || b == 0 || c == 0) {
+        return 0;
+      }
+
+#ifndef _MSC_VER
+      if (__builtin_mul_overflow(a, b, &Product) ||
+          __builtin_mul_overflow(Product, c, &Product)) {
+        return MaxSizeTVal; // Overflow occurred, return max possible value.
+      }
+#else
+      if (b > MaxSizeTVal / a) {
+        return MaxSizeTVal; // Overflow occurred, return max possible value.
+      }
+      Product = a * b;
+
+      if (c > MaxSizeTVal / Product) {
+        return MaxSizeTVal; // Overflow occurred, return max possible value.
+      }
+      Product *= c;
+#endif
+
+      return Product;
+    };
+
+    if (NumWorkGroups[0] != 0)
+      return getProductAndCheckForOverflow(NumWorkGroups[0], NumWorkGroups[1],
+                                           NumWorkGroups[2]);
+    else
+      return getProductAndCheckForOverflow(GlobalSize[0], GlobalSize[1],
+                                           GlobalSize[2]);
+  }
 
 private:
   void init(const size_t *N, bool SetNumWorkGroups) {

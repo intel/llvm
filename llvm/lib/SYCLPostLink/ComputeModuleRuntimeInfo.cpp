@@ -378,6 +378,10 @@ PropSetRegTy computeModuleProperties(const Module &M,
       PropSet.add(PropSetRegTy::SYCL_MISC_PROP, "optLevel", OptLevel);
   }
   {
+    PropSet.add(PropSetRegTy::SYCL_MISC_PROP, "idQueriesRange",
+                GlobProps.IdQueriesRange);
+  }
+  {
     std::vector<std::pair<StringRef, int>> ArgPos =
         getKernelNamesUsingImplicitLocalMem(M);
     for (const auto &FuncAndArgPos : ArgPos)
