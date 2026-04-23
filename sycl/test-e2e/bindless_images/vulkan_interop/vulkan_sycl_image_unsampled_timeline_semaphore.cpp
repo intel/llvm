@@ -290,24 +290,41 @@ int runTest(
         using Vec4 = sycl::vec<float, 4>;
         Vec4 oldValue(0, 0, 0, 0);
         Vec4 newValue(0, 0, 0, 0);
-
-        if (channels == 1) {
-          oldValue.x() = syclexp::fetch_image<T>(unsampledHandle, coords);
-
-        } else if (channels == 2) {
-          sycl::vec<T, 2> rawValuePixel =
-              syclexp::fetch_image<sycl::vec<T, 2>>(unsampledHandle, coords);
-          oldValue.x() = rawValuePixel.x();
-          oldValue.y() = rawValuePixel.y();
+        if (isUnorm) {
+          if (channels == 1) {
+            oldValue.x() = syclexp::fetch_image<float>(unsampledHandle, coords);
+          } else if (channels == 2) {
+            sycl::float2 p =
+                syclexp::fetch_image<sycl::float2>(unsampledHandle, coords);
+            oldValue.x() = p.x();
+            oldValue.y() = p.y();
+          } else {
+            sycl::float4 p =
+                syclexp::fetch_image<sycl::float4>(unsampledHandle, coords);
+            oldValue.x() = p.x();
+            oldValue.y() = p.y();
+            oldValue.z() = p.z();
+            oldValue.w() = p.w();
+          }
         } else {
-          sycl::vec<T, 4> rawValuePixel =
-              syclexp::fetch_image<sycl::vec<T, 4>>(unsampledHandle, coords);
-          oldValue.x() = rawValuePixel.x();
-          oldValue.y() = rawValuePixel.y();
-          oldValue.z() = rawValuePixel.z();
-          oldValue.w() = rawValuePixel.w();
+          if (channels == 1) {
+            oldValue.x() = syclexp::fetch_image<T>(unsampledHandle, coords);
+          } else if (channels == 2) {
+            sycl::vec<T, 2> rawValuePixel =
+                syclexp::fetch_image<sycl::vec<T, 2>>(unsampledHandle, coords);
+            oldValue.x() = rawValuePixel.x();
+            oldValue.y() = rawValuePixel.y();
+          } else {
+            sycl::vec<T, 4> rawValuePixel =
+                syclexp::fetch_image<sycl::vec<T, 4>>(unsampledHandle, coords);
+            oldValue.x() = rawValuePixel.x();
+            oldValue.y() = rawValuePixel.y();
+            oldValue.z() = rawValuePixel.z();
+            oldValue.w() = rawValuePixel.w();
+          }
         }
-        newValue = oldValue / static_cast<T>(2);
+
+        newValue = oldValue / 2.0f;
         if (isUnorm) {
           newValue = sycl::clamp(newValue, 0.0f, 1.0f);
           if (channels == 1)
@@ -332,7 +349,7 @@ int runTest(
                                                  static_cast<T>(newValue.z()),
                                                  static_cast<T>(newValue.w())));
         }
-      }
+      });
     });
     q.ext_oneapi_signal_external_semaphore(syclSem, syclSignalVal);
     q.wait();
@@ -407,6 +424,7 @@ int runTest(
         std::cout << "Mismatch at " << i << " ch:" << ch
                   << " Got: " << (double)readbackPixelData[i]
                   << " Exp: " << (double)expected << std::endl;
+        break;
       }
     }
     vkUnmapMemory(vkCtx.device, stagingBuf.memory);
