@@ -77,6 +77,8 @@ struct BufferMem {
   std::unordered_map<void *, BufferMap> PtrToBufferMap;
 
   AllocMode MemAllocMode;
+  // True if UR performed the hipHostRegister call and owns the registration.
+  bool HostPtrRegisteredByUR = false;
 
 private:
   // Vector of HIP pointers
@@ -88,6 +90,15 @@ public:
       : OuterMemStruct{OuterMemStruct}, HostPtr{HostPtr}, Size{Size},
         PtrToBufferMap{}, MemAllocMode{Mode},
         Ptrs(Context->Devices.size(), native_type{0}) {};
+
+  BufferMem(const BufferMem &Buffer)
+      : Parent{Buffer.Parent}, OuterMemStruct{Buffer.OuterMemStruct},
+        HostPtr{Buffer.HostPtr}, Size{Buffer.Size},
+        PtrToBufferMap{Buffer.PtrToBufferMap},
+        MemAllocMode{Buffer.MemAllocMode}, Ptrs{Buffer.Ptrs} {
+    // HostPtrRegisteredByUR intentionally not copied: ownership of the
+    // hipHostRegister call belongs to the original BufferMem only.
+  }
 
   // This will allocate memory on device if there isn't already an active
   // allocation on the device
@@ -161,7 +172,8 @@ public:
       }
       break;
     case AllocMode::UseHostPtr:
-      UR_CHECK_ERROR(hipHostUnregister(HostPtr));
+      if (HostPtrRegisteredByUR)
+        UR_CHECK_ERROR(hipHostUnregister(HostPtr));
       break;
     case AllocMode::AllocHostPtr:
       UR_CHECK_ERROR(hipHostFree(HostPtr));
