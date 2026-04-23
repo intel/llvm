@@ -138,6 +138,20 @@ extern T __spirv_AtomicMin(std::atomic<T> *Ptr, __spv::Scope::Flag,
 }
 
 template <typename T>
+extern std::enable_if_t<std::is_signed_v<T>, T>
+__spirv_AtomicSMin(std::atomic<T> *Ptr, __spv::Scope::Flag Scope,
+                   __spv::MemorySemanticsMask::Flag MS, T V) {
+  return __spirv_AtomicMin(Ptr, Scope, MS, V);
+}
+
+template <typename T>
+extern std::enable_if_t<!std::is_signed_v<T>, T>
+__spirv_AtomicUMin(std::atomic<T> *Ptr, __spv::Scope::Flag Scope,
+                   __spv::MemorySemanticsMask::Flag MS, T V) {
+  return __spirv_AtomicMin(Ptr, Scope, MS, V);
+}
+
+template <typename T>
 extern T __spirv_AtomicMax(std::atomic<T> *Ptr, __spv::Scope::Flag,
                            __spv::MemorySemanticsMask::Flag MS, T V) {
   std::memory_order MemoryOrder = ::sycl::detail::getStdMemoryOrder(MS);
@@ -148,6 +162,20 @@ extern T __spirv_AtomicMax(std::atomic<T> *Ptr, __spv::Scope::Flag,
     Val = Ptr->load(MemoryOrder);
   }
   return Val;
+}
+
+template <typename T>
+extern std::enable_if_t<std::is_signed_v<T>, T>
+__spirv_AtomicSMax(std::atomic<T> *Ptr, __spv::Scope::Flag Scope,
+                   __spv::MemorySemanticsMask::Flag MS, T V) {
+  return __spirv_AtomicMax(Ptr, Scope, MS, V);
+}
+
+template <typename T>
+extern std::enable_if_t<!std::is_signed_v<T>, T>
+__spirv_AtomicUMax(std::atomic<T> *Ptr, __spv::Scope::Flag Scope,
+                   __spv::MemorySemanticsMask::Flag MS, T V) {
+  return __spirv_AtomicMax(Ptr, Scope, MS, V);
 }
 
 #endif // !defined(__SYCL_DEVICE_ONLY__)
@@ -281,30 +309,20 @@ public:
 
   T fetch_min(T Operand, memory_order Order = memory_order::relaxed) {
     __SYCL_STATIC_ASSERT_NOT_FLOAT(T);
-#ifdef __SYCL_DEVICE_ONLY__
     auto SPIRVOrder = detail::getSPIRVMemorySemanticsMask(Order);
     if constexpr (std::is_signed_v<T>)
       return __spirv_AtomicSMin(Ptr, SpirvScope, SPIRVOrder, Operand);
     else
       return __spirv_AtomicUMin(Ptr, SpirvScope, SPIRVOrder, Operand);
-#else
-    return __spirv_AtomicMin(
-        Ptr, SpirvScope, detail::getSPIRVMemorySemanticsMask(Order), Operand);
-#endif
   }
 
   T fetch_max(T Operand, memory_order Order = memory_order::relaxed) {
     __SYCL_STATIC_ASSERT_NOT_FLOAT(T);
-#ifdef __SYCL_DEVICE_ONLY__
     auto SPIRVOrder = detail::getSPIRVMemorySemanticsMask(Order);
     if constexpr (std::is_signed_v<T>)
       return __spirv_AtomicSMax(Ptr, SpirvScope, SPIRVOrder, Operand);
     else
       return __spirv_AtomicUMax(Ptr, SpirvScope, SPIRVOrder, Operand);
-#else
-    return __spirv_AtomicMax(
-        Ptr, SpirvScope, detail::getSPIRVMemorySemanticsMask(Order), Operand);
-#endif
   }
 
 private:
