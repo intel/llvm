@@ -80,7 +80,7 @@ int test_device_global() {
   auto checkVal = [&](int32_t expected) {
     val = -1;
     q.memcpy(&val, dgAddr, dgSize).wait();
-    std::cout << "val: " << val << " == " << expected << '\n';
+    std::cout << "val: " << val << " == " << expected << std::endl;
     assert(val == expected);
   };
 
