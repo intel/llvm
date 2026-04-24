@@ -661,8 +661,7 @@ static void collectSYCLAttributes(FunctionDecl *FD,
       // FIXME: Make this list self-adapt as new SYCL attributes are added.
       return isa<IntelReqdSubGroupSizeAttr, IntelNamedSubGroupSizeAttr,
                  SYCLReqdWorkGroupSizeAttr, SYCLWorkGroupSizeHintAttr,
-                 SYCLIntelKernelArgsRestrictAttr, SYCLIntelNumSimdWorkItemsAttr,
-                 SYCLIntelMaxWorkGroupSizeAttr,
+                 SYCLIntelKernelArgsRestrictAttr,
                  SYCLIntelMinWorkGroupsPerComputeUnitAttr,
                  SYCLIntelMaxWorkGroupsPerMultiprocessorAttr, SYCLSimdAttr,
                  SYCLDeviceHasAttr, SYCLAddIRAttributesFunctionAttr>(A);
@@ -5732,19 +5731,6 @@ static void PropagateAndDiagnoseDeviceAttr(SemaSYCL &S, Attr *A,
         S.Diag(RWGSA->getLocation(), diag::note_conflicting_attribute);
         SYCLKernel->setInvalidDecl();
       }
-    } else if (auto *Existing =
-                   SYCLKernel->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
-      if (S.checkMaxAllowedWorkGroupSize(
-              RWGSA->getXDim(), RWGSA->getYDim(), RWGSA->getZDim(),
-              Existing->getXDim(), Existing->getYDim(), Existing->getZDim())) {
-        S.Diag(SYCLKernel->getLocation(),
-               diag::err_conflicting_sycl_kernel_attributes);
-        S.Diag(Existing->getLocation(), diag::note_conflicting_attribute);
-        S.Diag(RWGSA->getLocation(), diag::note_conflicting_attribute);
-        SYCLKernel->setInvalidDecl();
-      } else {
-        SYCLKernel->addAttr(A);
-      }
     } else {
       SYCLKernel->addAttr(A);
     }
@@ -5766,25 +5752,6 @@ static void PropagateAndDiagnoseDeviceAttr(SemaSYCL &S, Attr *A,
     SYCLKernel->addAttr(A);
     break;
   }
-  case attr::Kind::SYCLIntelMaxWorkGroupSize: {
-    auto *SIMWGSA = cast<SYCLIntelMaxWorkGroupSizeAttr>(A);
-    if (auto *Existing = SYCLKernel->getAttr<SYCLReqdWorkGroupSizeAttr>()) {
-      if (S.checkMaxAllowedWorkGroupSize(
-              Existing->getXDim(), Existing->getYDim(), Existing->getZDim(),
-              SIMWGSA->getXDim(), SIMWGSA->getYDim(), SIMWGSA->getZDim())) {
-        S.Diag(SYCLKernel->getLocation(),
-               diag::err_conflicting_sycl_kernel_attributes);
-        S.Diag(Existing->getLocation(), diag::note_conflicting_attribute);
-        S.Diag(SIMWGSA->getLocation(), diag::note_conflicting_attribute);
-        SYCLKernel->setInvalidDecl();
-      } else {
-        SYCLKernel->addAttr(A);
-      }
-    } else {
-      SYCLKernel->addAttr(A);
-    }
-    break;
-  }
   case attr::Kind::SYCLSimd:
     if (KernelBody && !KernelBody->getAttr<SYCLSimdAttr>()) {
       // Usual kernel can't call ESIMD functions.
@@ -5797,7 +5764,6 @@ static void PropagateAndDiagnoseDeviceAttr(SemaSYCL &S, Attr *A,
     }
     LLVM_FALLTHROUGH;
   case attr::Kind::SYCLIntelKernelArgsRestrict:
-  case attr::Kind::SYCLIntelNumSimdWorkItems:
   case attr::Kind::SYCLIntelMinWorkGroupsPerComputeUnit:
   case attr::Kind::SYCLIntelMaxWorkGroupsPerMultiprocessor:
   case attr::Kind::SYCLDeviceHas:
