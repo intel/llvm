@@ -29,6 +29,16 @@ template <class Kernel> DeviceKernelInfo &getDeviceKernelInfo() {
   return Info;
 }
 
+// Overload for free function kernels
+// Uses FreeFunctionInfoData which is specialized by the integration header
+__SYCL_EXPORT DeviceKernelInfo &getDeviceKernelInfo(const char *KernelName);
+
+template <auto *Func> DeviceKernelInfo &getDeviceKernelInfo() {
+  static DeviceKernelInfo &Info =
+      getDeviceKernelInfo(FreeFunctionInfoData<Func>::getFunctionName());
+  return Info;
+}
+
 } // namespace detail
 } // namespace _V1
 } // namespace sycl

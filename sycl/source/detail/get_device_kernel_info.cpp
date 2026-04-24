@@ -19,6 +19,10 @@ DeviceKernelInfo &getDeviceKernelInfo(const CompileTimeKernelInfoTy &Info) {
   return ProgramManager::getInstance().getDeviceKernelInfo(Info);
 }
 
+DeviceKernelInfo &getDeviceKernelInfo(const char *KernelName) {
+  return ProgramManager::getInstance().getDeviceKernelInfo(KernelName);
+}
+
 } // namespace detail
 } // namespace _V1
 } // namespace sycl

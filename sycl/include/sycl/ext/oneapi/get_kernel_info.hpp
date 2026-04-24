@@ -9,6 +9,7 @@
 #pragma once
 #include <sycl/context.hpp>
 #include <sycl/detail/export.hpp>
+#include <sycl/detail/get_device_kernel_info.hpp>
 #include <sycl/detail/info_desc_helpers.hpp>
 #include <sycl/detail/kernel_cache.hpp>
 #include <sycl/device.hpp>
@@ -115,13 +116,51 @@ std::enable_if_t<ext::oneapi::experimental::is_kernel_v<Func>,
                  typename sycl::detail::is_kernel_device_specific_info_desc<
                      Param>::return_type>
 get_kernel_info(const context &ctxt, const device &dev) {
-  // TODO: Optimize free function kernel path
-  // Free functions have compiler-generated kernel types that are harder to
-  // access For now, use the existing get_kernel_bundle path
-  auto Bundle = sycl::ext::oneapi::experimental::get_kernel_bundle<
-      Func, sycl::bundle_state::executable>(ctxt, {dev});
-  return Bundle.template ext_oneapi_get_kernel<Func>().template get_info<Param>(
-      dev);
+  // Optimized path for free function kernels
+  // Uses FreeFunctionInfoData which is specialized by the integration header
+  auto &CtxImpl = *sycl::detail::getSyclObjImpl(ctxt);
+  auto &DevImpl = *sycl::detail::getSyclObjImpl(dev);
+
+  sycl::detail::DeviceKernelInfo &DKI =
+      sycl::detail::getDeviceKernelInfo<Func>();
+
+  // Dispatch to appropriate fast cache function based on query type
+  if constexpr (std::is_same_v<
+                    Param,
+                    sycl::info::kernel_device_specific::work_group_size>) {
+    return sycl::detail::getKernelWorkGroupSize(CtxImpl, DevImpl, DKI);
+  } else if constexpr (std::is_same_v<Param,
+                                      sycl::info::kernel_device_specific::
+                                          compile_work_group_size>) {
+    return sycl::detail::getKernelCompileWorkGroupSize(CtxImpl, DevImpl, DKI);
+  } else if constexpr (std::is_same_v<Param,
+                                      sycl::info::kernel_device_specific::
+                                          preferred_work_group_size_multiple>) {
+    return sycl::detail::getKernelPreferredWorkGroupSizeMultiple(CtxImpl,
+                                                                 DevImpl, DKI);
+  } else if constexpr (std::is_same_v<Param,
+                                      sycl::info::kernel_device_specific::
+                                          private_mem_size>) {
+    return sycl::detail::getKernelPrivateMemSize(CtxImpl, DevImpl, DKI);
+  } else if constexpr (std::is_same_v<Param,
+                                      sycl::info::kernel_device_specific::
+                                          max_sub_group_size>) {
+    return sycl::detail::getKernelMaxSubGroupSize(CtxImpl, DevImpl, DKI);
+  } else if constexpr (std::is_same_v<Param,
+                                      sycl::info::kernel_device_specific::
+                                          compile_num_sub_groups>) {
+    return sycl::detail::getKernelCompileNumSubGroups(CtxImpl, DevImpl, DKI);
+  } else if constexpr (std::is_same_v<Param,
+                                      sycl::info::kernel_device_specific::
+                                          compile_sub_group_size>) {
+    return sycl::detail::getKernelCompileSubGroupSize(CtxImpl, DevImpl, DKI);
+  } else {
+    // Fallback for any other queries
+    auto Bundle = sycl::ext::oneapi::experimental::get_kernel_bundle<
+        Func, sycl::bundle_state::executable>(ctxt, {dev});
+    return Bundle.template ext_oneapi_get_kernel<Func>()
+        .template get_info<Param>(dev);
+  }
 }
 
 template <auto *Func, typename Param>
