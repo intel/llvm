@@ -117,15 +117,12 @@ struct urBatchedQueueTest : uur::urContextTest {
     }
   }
 
-  void skipIfNoGraphSupport() {
+  bool isGraphSupported() {
     ur_bool_t graph_supported = false;
-    ASSERT_SUCCESS(urDeviceGetInfo(
+    auto result = urDeviceGetInfo(
         device, UR_DEVICE_INFO_GRAPH_RECORD_AND_REPLAY_SUPPORT_EXP,
-        sizeof(graph_supported), &graph_supported, nullptr));
-
-    if (!graph_supported) {
-      GTEST_SKIP() << "EXP graph record and replay feature is not supported.";
-    }
+        sizeof(graph_supported), &graph_supported, nullptr);
+    return result == UR_RESULT_SUCCESS && graph_supported;
   }
 
   ur_queue_properties_t batched_queue_properties = {
@@ -556,7 +553,9 @@ TEST_P(urBatchedQueueTest, FlushBatchAfterEnqueuedOperationsLimitIsReached) {
 
 // Graph capture is not active by default
 TEST_P(urBatchedQueueTest, GraphCaptureActiveReturnsFalseByDefault) {
-  ASSERT_NO_FATAL_FAILURE(skipIfNoGraphSupport());
+  if (!isGraphSupported()) {
+    GTEST_SKIP() << "EXP graph record and replay feature is not supported.";
+  }
 
   bool isEnabled = false;
   ASSERT_SUCCESS(urQueueIsGraphCaptureEnabledExp(queue1, &isEnabled));
@@ -565,7 +564,9 @@ TEST_P(urBatchedQueueTest, GraphCaptureActiveReturnsFalseByDefault) {
 
 // After beginning graph capture, isGraphCaptureActive should return true.
 TEST_P(urBatchedQueueTest, GraphCaptureActiveReturnsTrueAfterBeginCapture) {
-  ASSERT_NO_FATAL_FAILURE(skipIfNoGraphSupport());
+  if (!isGraphSupported()) {
+    GTEST_SKIP() << "EXP graph record and replay feature is not supported.";
+  }
 
   ASSERT_SUCCESS(urQueueBeginGraphCaptureExp(queue1));
 
@@ -581,7 +582,9 @@ TEST_P(urBatchedQueueTest, GraphCaptureActiveReturnsTrueAfterBeginCapture) {
 
 // After ending graph capture, isGraphCaptureActive should return false again.
 TEST_P(urBatchedQueueTest, GraphCaptureActiveReturnsFalseAfterEndCapture) {
-  ASSERT_NO_FATAL_FAILURE(skipIfNoGraphSupport());
+  if (!isGraphSupported()) {
+    GTEST_SKIP() << "EXP graph record and replay feature is not supported.";
+  }
 
   ASSERT_SUCCESS(urQueueBeginGraphCaptureExp(queue1));
 
@@ -600,7 +603,9 @@ TEST_P(urBatchedQueueTest, GraphCaptureActiveReturnsFalseAfterEndCapture) {
 // list (not the regular batch). Events created for operations on the immediate
 // list have no batch generation number (getBatch() == std::nullopt).
 TEST_P(urBatchedQueueTest, EnqueueDuringGraphCaptureUsesImmediateList) {
-  ASSERT_NO_FATAL_FAILURE(skipIfNoGraphSupport());
+  if (!isGraphSupported()) {
+    GTEST_SKIP() << "EXP graph record and replay feature is not supported.";
+  }
 
   ASSERT_SUCCESS(urQueueBeginGraphCaptureExp(queue1));
 
