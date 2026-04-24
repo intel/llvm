@@ -8,6 +8,10 @@
 //
 //===----------------------------------------------------------------------===//
 
+#ifdef _WIN32
+#include <umf/experimental/ctl.h>
+#endif
+
 #include "memory.hpp"
 
 #include "../ur_interface_loader.hpp"
@@ -860,6 +864,20 @@ ur_result_t urMemImageGetInfo(ur_mem_handle_t /*hMemory*/,
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
+inline ur_result_t enableWindowsUMFIPCWorkaround(
+    [[maybe_unused]] umf_memory_pool_handle_t umfPool) {
+#ifdef _WIN32
+  // UMF on Windows currently requires a workaround for IPC to work.
+  umf_memory_provider_handle_t umfProvider = nullptr;
+  UR_CALL(umf::umf2urResult(umfPoolGetMemoryProvider(umfPool, &umfProvider)));
+  int useImportExportForIPC = 1;
+  UR_CALL(umf::umf2urResult(umfCtlSet(
+      "umf.provider.by_handle.{}.LEVEL_ZERO.params.use_import_export_for_IPC",
+      &useImportExportForIPC, sizeof(useImportExportForIPC), umfProvider)));
+#endif
+  return UR_RESULT_SUCCESS;
+}
+
 ur_result_t urIPCGetMemHandleExp(ur_context_handle_t, void *pMem,
                                  void **ppIPCMemHandleData,
                                  size_t *pIPCMemHandleDataSizeRet) {
@@ -867,6 +885,8 @@ ur_result_t urIPCGetMemHandleExp(ur_context_handle_t, void *pMem,
   auto urRet = umf::umf2urResult(umfPoolByPtr(pMem, &umfPool));
   if (urRet)
     return urRet;
+
+  UR_CALL(enableWindowsUMFIPCWorkaround(umfPool));
 
   // Fast path for returning the size of the handle only.
   if (!ppIPCMemHandleData)
@@ -897,6 +917,8 @@ ur_result_t urIPCOpenMemHandleExp(ur_context_handle_t hContext,
   if (!pool)
     return UR_RESULT_ERROR_INVALID_CONTEXT;
   umf_memory_pool_handle_t umfPool = pool->umfPool.get();
+
+  UR_CALL(enableWindowsUMFIPCWorkaround(umfPool));
 
   size_t umfHandleSize = 0;
   auto urRet =
