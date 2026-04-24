@@ -98,6 +98,12 @@ def Aspectext_oneapi_clock_device : Aspect<"ext_oneapi_clock_device">;
 def Aspectext_oneapi_is_integrated_gpu : Aspect<"ext_oneapi_is_integrated_gpu">;
 def Aspectext_oneapi_ipc_memory : Aspect<"ext_oneapi_ipc_memory">;
 def Aspectext_oneapi_device_wait : Aspect<"ext_oneapi_device_wait">;
+def Aspectext_intel_xe_stack_count : Aspect<"ext_intel_xe_stack_count">;
+def Aspectext_intel_xe_regions_per_stack : Aspect<"ext_intel_xe_regions_per_stack">;
+def Aspectext_intel_xe_clusters_per_region : Aspect<"ext_intel_xe_clusters_per_region">;
+def Aspectext_intel_xe_cores_per_cluster : Aspect<"ext_intel_xe_cores_per_cluster">;
+def Aspectext_intel_eus_per_xe_core : Aspect<"ext_intel_eus_per_xe_core">;
+def Aspectext_intel_max_lanes_per_hw_thread : Aspect<"ext_intel_max_lanes_per_hw_thread">;
 
 // Deprecated aspects
 def AspectInt64_base_atomics : Aspect<"int64_base_atomics">;
@@ -177,7 +183,13 @@ def : TargetInfo<"__TestAspectList",
     Aspectext_oneapi_clock_device,
     Aspectext_oneapi_is_integrated_gpu,
     Aspectext_oneapi_ipc_memory,
-    Aspectext_oneapi_device_wait],
+    Aspectext_oneapi_device_wait,
+    Aspectext_intel_xe_stack_count,
+    Aspectext_intel_xe_regions_per_stack,
+    Aspectext_intel_xe_clusters_per_region,
+    Aspectext_intel_xe_cores_per_cluster,
+    Aspectext_intel_eus_per_xe_core,
+    Aspectext_intel_max_lanes_per_hw_thread],
     []>;
 // This definition serves the only purpose of testing whether the deprecated aspect list defined in here and in SYCL RT
 // match.

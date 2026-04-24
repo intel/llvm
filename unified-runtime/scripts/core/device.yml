@@ -474,6 +474,18 @@ etors:
       desc: "[uint32_t] preferred vector width for long long"
     - name: NATIVE_VECTOR_WIDTH_LONG_LONG
       desc: "[uint32_t] native vector width for long long"
+    - name: XE_STACK_COUNT
+      desc: "[uint32_t][optional-query] return Intel GPU number of stacks/chiplets/tiles"
+    - name: XE_REGIONS_PER_STACK
+      desc: "[uint32_t][optional-query] return Intel GPU number of regions sharing local L2/L3 (XE_CU) per stack"
+    - name: XE_CLUSTERS_PER_REGION
+      desc: "[uint32_t][optional-query] return Intel GPU number of clusters (slices) per region"
+    - name: XE_CORES_PER_CLUSTER
+      desc: "[uint32_t][optional-query] return Intel GPU number of XE cores per cluster"
+    - name: EUS_PER_XE_CORE
+      desc: "[uint32_t][optional-query] return Intel GPU number of execution engines (EUs) per XE Core"
+    - name: MAX_LANES_PER_HW_THREAD
+      desc: "[uint32_t][optional-query] return Intel GPU maximal number of lanes (virtual SIMD size) per hardware thread"
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Retrieves various information about device"
