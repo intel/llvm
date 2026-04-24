@@ -54,6 +54,7 @@ option(VAL_USE_LIBBACKTRACE_BACKTRACE "enable libbacktrace validation backtrace 
 option(UR_ENABLE_ASSERTIONS "Enable assertions for all build types" OFF)
 option(UR_BUILD_XPTI_LIBS "Build the XPTI libraries when tracing is enabled" ON)
 option(UR_STATIC_LOADER "Build loader as a static library" OFF)
+option(UR_ADAPTER_SEARCH_LOADER_DIR_FIRST "Prefer loader library directory over OS search paths when discovering adapters" OFF)
 option(UR_FORCE_LIBSTDCXX "Force use of libstdc++ in a build using libc++ on Linux" OFF)
 option(UR_ENABLE_LATENCY_HISTOGRAM "Enable latncy histogram" OFF)
 option(UR_FORCE_FETCH_LEVEL_ZERO "Force fetching Level Zero even if preinstalled loader is found" OFF)
