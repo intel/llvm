@@ -25,6 +25,13 @@ if [ ! -f "$LOG_FILE" ]; then
   exit 0
 fi
 
+# Check if file is empty
+if [ ! -s "$LOG_FILE" ]; then
+  printf '### %s Summary\n\n' "$TEST_TYPE"
+  printf '⚠️ Log file is empty: %s\n\n' "$LOG_FILE"
+  exit 0
+fi
+
 # Parse log file in single pass using awk for efficiency
 # Uses 'sub' instead of 'gsub' for more precise regex matching
 # Processes each line once and extracts test names by category
@@ -98,12 +105,14 @@ printf '### %s Summary\n' "$TEST_TYPE"
 # Critical issues (TIMEOUT, FAIL, XPASS) are open by default
 # Other categories are collapsed to save space
 
-# Helper function to print test list with indentation
+# Helper function to print test list in code block
 print_test_list() {
   local -n tests_ref=$1
+  printf '\n```\n'
   for test in "${tests_ref[@]}"; do
-    printf '  %s\n' "$test"
+    printf '%s\n' "$test"
   done
+  printf '```\n'
 }
 
 # Define display order and labels

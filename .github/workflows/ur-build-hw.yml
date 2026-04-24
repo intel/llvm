@@ -163,29 +163,35 @@ jobs:
       run: |
         cmake --build build -j $(($(nproc)/3)) -- check-unified-runtime-conformance > conformance_tests.log 2>&1
 
-    - name: Adapter Tests logs
-      if: ${{ always() && matrix.adapter.other_name == '' }}
-      run: |
-        echo "::group::Show Full Adapter Tests Log"
-        cat adapter_tests.log
-        echo "::endgroup::"
-
-    - name: Conformance Tests logs
-      if: ${{ always() }}
-      run: |
-        echo "::group::Show Full Conformance Tests Log"
-        cat conformance_tests.log
-        echo "::endgroup::"
-
     - name: Report Adapter Tests Summary
       if: ${{ always() && matrix.adapter.other_name == '' }}
       run: |
-        devops/scripts/generate_test_summary.sh adapter_tests.log "Adapter Tests" >> $GITHUB_STEP_SUMMARY
+        echo "Current directory: $PWD"
+        echo "Generating Adapter Tests Summary..."
+        if [ -f adapter_tests.log ]; then
+          echo "Log file size: $(wc -l < adapter_tests.log) lines"
+          bash devops/scripts/generate_test_summary.sh adapter_tests.log "Adapter Tests" >> $GITHUB_STEP_SUMMARY || echo "⚠️ Failed to generate adapter tests summary"
+        else
+          echo "⚠️ adapter_tests.log not found in $PWD"
+          ls -la *.log 2>/dev/null || echo "No .log files found"
+          echo "### Adapter Tests Summary" >> $GITHUB_STEP_SUMMARY
+          echo "⚠️ Log file not found" >> $GITHUB_STEP_SUMMARY
+        fi
 
     - name: Report Conformance Tests Summary
       if: ${{ always() }}
       run: |
-        devops/scripts/generate_test_summary.sh conformance_tests.log "Conformance Tests" >> $GITHUB_STEP_SUMMARY
+        echo "Current directory: $PWD"
+        echo "Generating Conformance Tests Summary..."
+        if [ -f conformance_tests.log ]; then
+          echo "Log file size: $(wc -l < conformance_tests.log) lines"
+          bash devops/scripts/generate_test_summary.sh conformance_tests.log "Conformance Tests" >> $GITHUB_STEP_SUMMARY || echo "⚠️ Failed to generate conformance tests summary"
+        else
+          echo "⚠️ conformance_tests.log not found in $PWD"
+          ls -la *.log 2>/dev/null || echo "No .log files found"
+          echo "### Conformance Tests Summary" >> $GITHUB_STEP_SUMMARY
+          echo "⚠️ Log file not found" >> $GITHUB_STEP_SUMMARY
+        fi
 
     - name: Debug CI platform information
       if: ${{ always() }}
