@@ -40,8 +40,8 @@ class ComputeBench(Suite):
         return "https://github.com/intel/compute-benchmarks.git"
 
     def git_hash(self) -> str:
-        # Apr 03, 2026
-        return "6216e3a570054064f6610823e6a38d1878a9f932"
+        # Apr 22, 2026
+        return "9f1624abf5073f81549f9d49c1cb5d3f8d3bcd83"
 
     def setup(self) -> None:
         if options.sycl is None:
@@ -129,13 +129,6 @@ class ComputeBench(Suite):
                 if in_order_queue
                 else long_kernel_exec_time_ooo
             )
-            if (
-                runtime == RUNTIMES.LEVEL_ZERO
-                and in_order_queue == 1
-                and use_events == 1
-            ):
-                # XXX: verify why IOQ + events + L0 causes issues
-                continue
             for kernel_exec_time in [1, *long_kernel_exec_time]:
                 benches.append(
                     SubmitKernel(
@@ -179,9 +172,8 @@ class ComputeBench(Suite):
                         self, runtime, 1000, 256, profiler_type=PROFILERS.CPU_COUNTER
                     )
                 )
-                # XXX: IOQ + events + L0 causes issues
-                benches.append(UllsKernelSwitch(self, runtime, 8, 200, 0, 0, 1, 1))
             benches.append(UllsEmptyKernel(self, runtime, 1000, 256))
+            benches.append(UllsKernelSwitch(self, runtime, 8, 200, 0, 0, 1, 1))
 
         # Add GraphApiSubmitGraph benchmarks
         submit_graph_params = product(
@@ -198,13 +190,6 @@ class ComputeBench(Suite):
             measure_completion_time,
             use_events,
         ) in submit_graph_params:
-            if (
-                runtime == RUNTIMES.LEVEL_ZERO
-                and in_order_queue == 1
-                and use_events == 1
-            ):
-                # XXX: verify why IOQ + events + L0 causes issues
-                continue
             # SYCL only supports graph mode, UR & L0 support both emulated
             # and non-emulated graph APIs.
             if runtime == RUNTIMES.SYCL or runtime == RUNTIMES.SYCL_PREVIEW:
@@ -381,9 +366,6 @@ class ComputeBench(Suite):
 
         # Add TorchMultiQueue benchmarks
         for runtime in filter(lambda x: x != RUNTIMES.UR, RUNTIMES):
-            if runtime == RUNTIMES.LEVEL_ZERO:
-                # XXX: verify why L0 benchmarks with counter based events cause issues
-                continue
             for profiler_type, measure_completion in product(list(PROFILERS), [0, 1]):
 
                 def createTorchMultiQueueBench(variant_name: str, **kwargs):
@@ -542,9 +524,6 @@ class ComputeBench(Suite):
 
         # Add TorchEventRecordWait benchmarks
         for runtime in filter(lambda x: x != RUNTIMES.UR, RUNTIMES):
-            if runtime == RUNTIMES.LEVEL_ZERO:
-                # XXX: verify why L0 benchmarks with counter based events cause issues
-                continue
             for profiler_type in list(PROFILERS):
                 benches.append(
                     TorchEventRecordWait(
@@ -560,9 +539,6 @@ class ComputeBench(Suite):
 
         # Add TorchEventRecordQuery benchmarks
         for runtime in filter(lambda x: x != RUNTIMES.UR, RUNTIMES):
-            if runtime == RUNTIMES.LEVEL_ZERO:
-                # XXX: verify why L0 benchmarks with counter based events cause issues
-                continue
             for profiler_type in list(PROFILERS):
                 benches.append(
                     TorchEventRecordQuery(
@@ -631,10 +607,6 @@ class ComputeBench(Suite):
         for runtime in filter(lambda x: x != RUNTIMES.UR, RUNTIMES):
             if "pvc" in device_arch and runtime == RUNTIMES.LEVEL_ZERO:
                 continue
-            if runtime == RUNTIMES.LEVEL_ZERO:
-                # XXX: verify why L0 benchmarks with counter based events cause issues
-                continue
-
             for profiler_type in list(PROFILERS):
 
                 def createTorchGraphMultiQueueBench(variant_name: str, **kwargs):
