@@ -16,6 +16,7 @@
 
 #include "command_buffer.hpp"
 #include "common.hpp"
+#include "common/device.hpp"
 #include "event.hpp"
 #include "logger/ur_logger.hpp"
 #include "ur_interface_loader.hpp"
@@ -760,7 +761,7 @@ ur_result_t urEnqueueTimestampRecordingExp(
   (*OutEvent)->RecordEventEndTimestamp = 0;
 
   uint64_t DeviceStartTimestamp = 0;
-  UR_CALL(ur::level_zero::urDeviceGetGlobalTimestamps(
+  UR_CALL(ur::level_zero::common::urDeviceGetGlobalTimestamps(
       Device, &DeviceStartTimestamp, nullptr));
   (*OutEvent)->RecordEventStartTimestamp = DeviceStartTimestamp;
 

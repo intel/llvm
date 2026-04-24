@@ -11,7 +11,7 @@
 
 #include "common.hpp"
 #include "common/ur_ref_count.hpp"
-#include "enqueued_pool.hpp"
+#include "common/enqueued_pool.hpp"
 #include "event.hpp"
 #include "ur_api.h"
 #include "ur_pool_manager.hpp"

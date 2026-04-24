@@ -24,7 +24,7 @@
 #include "event.hpp"
 #include "program.hpp"
 #include "queue.hpp"
-#include "sampler.hpp"
+#include "common/sampler.hpp"
 #include <umf/ipc.h>
 
 struct ur_device_handle_t_;

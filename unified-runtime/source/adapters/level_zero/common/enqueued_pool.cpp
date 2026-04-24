@@ -9,7 +9,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "enqueued_pool.hpp"
-#include "usm.hpp"
+#include "../usm.hpp"
 
 #include <ur_api.h>
 

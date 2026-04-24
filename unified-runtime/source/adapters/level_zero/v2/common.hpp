@@ -13,7 +13,8 @@
 #include <exception>
 #include <ze_api.h>
 
-#include "../helpers/shared_helpers.hpp"
+#include "../common/device.hpp"
+#include "../common/helpers/shared_helpers.hpp"
 #include "logger/ur_logger.hpp"
 #include "ur_interface_loader.hpp"
 
@@ -183,8 +184,8 @@ using ur_context_handle_t =
     ur_handle<::ur_context_handle_t, ur::level_zero_v2::urContextRetain,
               ur::level_zero_v2::urContextRelease>;
 using ur_device_handle_t =
-    ur_handle<::ur_device_handle_t, ur::level_zero::urDeviceRetain,
-              ur::level_zero::urDeviceRelease>;
+    ur_handle<::ur_device_handle_t, ur::level_zero::common::urDeviceRetain,
+              ur::level_zero::common::urDeviceRelease>;
 
 } // namespace raii
 

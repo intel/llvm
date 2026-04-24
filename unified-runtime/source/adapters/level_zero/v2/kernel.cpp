@@ -17,10 +17,11 @@
 #include "queue_handle.hpp"
 
 #include "../device.hpp"
-#include "../helpers/kernel_helpers.hpp"
+#include "../common/helpers/kernel_helpers.hpp"
+#include "../common/program.hpp"
 #include "../platform.hpp"
 #include "../program.hpp"
-#include "../sampler.hpp"
+#include "../common/sampler.hpp"
 #include "ur_interface_loader.hpp"
 
 ur_single_device_kernel_t::ur_single_device_kernel_t(ur_device_handle_t hDevice,
@@ -54,7 +55,7 @@ ur_kernel_handle_t_::ur_kernel_handle_t_(ur_program_handle_t hProgram,
     : hProgram(hProgram),
       deviceKernels(
           v2::v2_cast(hProgram->Context)->getPlatform()->getNumDevices()) {
-  ur::level_zero::urProgramRetain(hProgram);
+  ur::level_zero::common::urProgramRetain(hProgram);
 
   for (auto &Dev : hProgram->AssociatedDevices) {
     auto zeDevice = Dev->ZeDevice;
@@ -91,7 +92,7 @@ ur_kernel_handle_t_::ur_kernel_handle_t_(
     : hProgram(hProgram),
       deviceKernels(context ? v2::v2_cast(context)->getPlatform()->getNumDevices()
                             : 0) {
-  ur::level_zero::urProgramRetain(hProgram);
+  ur::level_zero::common::urProgramRetain(hProgram);
 
   auto ownZeHandle = pProperties ? pProperties->isNativeHandleOwned : false;
 
@@ -122,7 +123,7 @@ ur_result_t ur_kernel_handle_t_::release() {
     }
   }
 
-  UR_CALL_THROWS(ur::level_zero::urProgramRelease(hProgram));
+  UR_CALL_THROWS(ur::level_zero::common::urProgramRelease(hProgram));
 
   delete this;
 

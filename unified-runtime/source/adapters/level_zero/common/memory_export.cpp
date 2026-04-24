@@ -8,11 +8,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "common.hpp"
-#include "context.hpp"
+#include "../common.hpp"
+#include "../context.hpp"
 #include "ur_api.h"
 
-namespace ur::level_zero {
+namespace ur::level_zero::common {
 
 ur_result_t urMemoryExportAllocExportableMemoryExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice, size_t alignment,
@@ -93,4 +93,4 @@ ur_result_t urMemoryExportExportMemoryHandleExp(
   return UR_RESULT_SUCCESS;
 }
 
-} // namespace ur::level_zero
+} // namespace ur::level_zero::common

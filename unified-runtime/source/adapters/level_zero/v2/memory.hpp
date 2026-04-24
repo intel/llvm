@@ -15,8 +15,8 @@
 #include <ur_api.h>
 
 #include "../device.hpp"
-#include "../helpers/memory_helpers.hpp"
-#include "../image_common.hpp"
+#include "../common/helpers/memory_helpers.hpp"
+#include "../common/image_common.hpp"
 #include "command_list_manager.hpp"
 #include "common.hpp"
 #include "common/ur_ref_count.hpp"

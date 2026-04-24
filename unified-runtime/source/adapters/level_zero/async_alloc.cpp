@@ -9,7 +9,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "context.hpp"
-#include "enqueued_pool.hpp"
+#include "common/enqueued_pool.hpp"
 #include "event.hpp"
 
 #include "logger/ur_logger.hpp"

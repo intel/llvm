@@ -11,6 +11,7 @@
 #include <ur/ur.hpp>
 #include <ur_api.h>
 
+#include "../common/platform.hpp"
 #include "ur_interface_loader.hpp"
 
 namespace ur::level_zero_v2 {
@@ -23,8 +24,8 @@ ur_result_t urPlatformGetInfo(ur_platform_handle_t hPlatform,
     return ReturnValue(
         "Intel(R) oneAPI Unified Runtime over Level-Zero V2");
   }
-  return ur::level_zero::urPlatformGetInfo(hPlatform, paramName, size,
-                                           paramValue, sizeRet);
+  return ur::level_zero::common::urPlatformGetInfo(hPlatform, paramName, size,
+                                                   paramValue, sizeRet);
 }
 
 } // namespace ur::level_zero_v2

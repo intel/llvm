@@ -11,10 +11,10 @@
 #include "common.hpp"
 #include "context.hpp"
 #include "event.hpp"
-#include "image_common.hpp"
+#include "common/image_common.hpp"
 #include "logger/ur_logger.hpp"
 #include "memory.hpp"
-#include "sampler.hpp"
+#include "common/sampler.hpp"
 #include "ur_api.h"
 #include "ur_interface_loader.hpp"
 

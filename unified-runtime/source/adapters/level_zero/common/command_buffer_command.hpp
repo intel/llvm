@@ -8,16 +8,19 @@
 //
 //===----------------------------------------------------------------------===//
 #pragma once
-#include "common.hpp"
+#include <cstring>
 #include <unordered_set>
+#include <ur/ur.hpp>
 #include <ur_api.h>
 
-struct ur_exp_command_buffer_command_handle_t_ : public ur_object {
+struct ur_exp_command_buffer_command_handle_t_ : public ur::handle_base_no_ddi {
   ur_exp_command_buffer_command_handle_t_(
       ur_exp_command_buffer_handle_t commandBuffer, uint64_t commandId)
       : commandBuffer(commandBuffer), commandId(commandId) {}
 
   virtual ~ur_exp_command_buffer_command_handle_t_() {}
+
+  ur_shared_mutex Mutex;
 
   // Command-buffer of this command.
   ur_exp_command_buffer_handle_t commandBuffer;

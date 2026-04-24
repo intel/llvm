@@ -11,10 +11,10 @@
 #include "kernel_helpers.hpp"
 #include "logger/ur_logger.hpp"
 
-#include "../common.hpp"
-#include "../device.hpp"
+#include "../../common.hpp"
+#include "../../device.hpp"
 
-#include "../context.hpp"
+#include "../../context.hpp"
 
 ur_result_t getSuggestedLocalWorkSize(ur_device_handle_t hDevice,
                                       ze_kernel_handle_t hZeKernel,

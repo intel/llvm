@@ -9,9 +9,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "logger/ur_logger.hpp"
-#include "ur_level_zero.hpp"
+#include "../ur_level_zero.hpp"
 
-namespace ur::level_zero {
+namespace ur::level_zero::common {
 
 ur_result_t urUsmP2PEnablePeerAccessExp(ur_device_handle_t /*commandDevice*/,
                                         ur_device_handle_t /*peerDevice*/) {
@@ -66,4 +66,4 @@ ur_result_t urUsmP2PPeerAccessGetInfoExp(ur_device_handle_t commandDevice,
 
   return ReturnValue(propertyValue);
 }
-} // namespace ur::level_zero
+} // namespace ur::level_zero::common

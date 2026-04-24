@@ -9,8 +9,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "command_buffer.hpp"
-#include "../command_buffer_command.hpp"
-#include "../helpers/kernel_helpers.hpp"
+#include "../common/command_buffer_command.hpp"
+#include "../common/helpers/kernel_helpers.hpp"
 #include "command_list_manager.hpp"
 #include "logger/ur_logger.hpp"
 #include "queue_handle.hpp"

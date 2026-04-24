@@ -8,11 +8,12 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "../platform.hpp"
 #include "platform.hpp"
-#include "adapter.hpp"
-#include "ur_level_zero.hpp"
+#include "../adapter.hpp"
+#include "../ur_level_zero.hpp"
 
-namespace ur::level_zero {
+namespace ur::level_zero::common {
 
 ur_result_t urPlatformGet(
     ur_adapter_handle_t hAdapter,
@@ -138,11 +139,11 @@ ur_result_t urPlatformCreateWithNativeHandle(
   uint32_t NumPlatforms = 0;
   ur_adapter_handle_t AdapterHandle = hAdapter;
   UR_CALL(
-      ur::level_zero::urPlatformGet(AdapterHandle, 0, nullptr, &NumPlatforms));
+      ur::level_zero::common::urPlatformGet(AdapterHandle, 0, nullptr, &NumPlatforms));
 
   if (NumPlatforms) {
     std::vector<ur_platform_handle_t> Platforms(NumPlatforms);
-    UR_CALL(ur::level_zero::urPlatformGet(AdapterHandle, NumPlatforms,
+    UR_CALL(ur::level_zero::common::urPlatformGet(AdapterHandle, NumPlatforms,
                                           Platforms.data(), nullptr));
 
     // The SYCL spec requires that the set of platforms must remain fixed for
@@ -204,7 +205,7 @@ ur_result_t urPlatformGetBackendOption(
   return UR_RESULT_ERROR_INVALID_VALUE;
 }
 
-} // namespace ur::level_zero
+} // namespace ur::level_zero::common
 
 ur_result_t ur_platform_handle_t_::initialize() {
   ZE2UR_CALL(zeDriverGetApiVersion, (ZeDriver, &ZeApiVersion));

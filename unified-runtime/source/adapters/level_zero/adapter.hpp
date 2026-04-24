@@ -24,7 +24,7 @@ using PlatformVec = std::vector<std::unique_ptr<ur_platform_handle_t_>>;
 
 class ur_legacy_sink;
 
-struct ur_adapter_handle_t_ : ur::handle_base<ur::level_zero::ddi_getter> {
+struct ur_adapter_handle_t_ : ur::handle_base_no_ddi {
   ur_adapter_handle_t_();
 
   zes_pfnDriverGetDeviceByUuidExp_t getDeviceByUUIdFunctionPtr = nullptr;

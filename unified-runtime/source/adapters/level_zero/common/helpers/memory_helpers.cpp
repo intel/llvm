@@ -9,7 +9,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "memory_helpers.hpp"
-#include "../common.hpp"
+#include "../../common.hpp"
 
 ur_result_t
 getMemoryAttrs(ze_context_handle_t hContext, void *ptr,

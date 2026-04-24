@@ -9,12 +9,12 @@
 //===----------------------------------------------------------------------===//
 
 #include "physical_mem.hpp"
-#include "common.hpp"
-#include "device.hpp"
+#include "../common.hpp"
+#include "../device.hpp"
 
-#include "context.hpp"
+#include "../context.hpp"
 
-namespace ur::level_zero {
+namespace ur::level_zero::common {
 
 ur_result_t urPhysicalMemCreate(
     ur_context_handle_t hContext, ur_device_handle_t hDevice, size_t size,
@@ -72,4 +72,4 @@ ur_result_t urPhysicalMemGetInfo(ur_physical_mem_handle_t hPhysicalMem,
   return UR_RESULT_SUCCESS;
 }
 
-} // namespace ur::level_zero
+} // namespace ur::level_zero::common

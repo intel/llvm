@@ -17,6 +17,8 @@
 
 #include "adapter.hpp"
 #include "common.hpp"
+#include "common/device.hpp"
+#include "common/platform.hpp"
 #include "event.hpp"
 #include "queue.hpp"
 #include "ur_interface_loader.hpp"
@@ -796,12 +798,12 @@ ur_result_t urQueueCreateWithNativeHandle(
   uint32_t NumEntries = 1;
   ur_platform_handle_t Platform{};
   ur_adapter_handle_t AdapterHandle = GlobalAdapter;
-  UR_CALL(ur::level_zero::urPlatformGet(AdapterHandle, NumEntries, &Platform,
+  UR_CALL(ur::level_zero::common::urPlatformGet(AdapterHandle, NumEntries, &Platform,
                                         nullptr));
 
   ur_device_handle_t UrDevice = Device;
   if (UrDevice == nullptr) {
-    UR_CALL(ur::level_zero::urDeviceGet(Platform, UR_DEVICE_TYPE_GPU,
+    UR_CALL(ur::level_zero::common::urDeviceGet(Platform, UR_DEVICE_TYPE_GPU,
                                         NumEntries, &UrDevice, nullptr));
   }
 

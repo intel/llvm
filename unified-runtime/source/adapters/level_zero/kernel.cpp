@@ -13,7 +13,8 @@
 #include "ur_api.h"
 #include "ur_interface_loader.hpp"
 
-#include "helpers/kernel_helpers.hpp"
+#include "common/helpers/kernel_helpers.hpp"
+#include "common/program.hpp"
 
 ur_result_t getZeKernel(ze_device_handle_t hDevice, ur_kernel_handle_t hKernel,
                         ze_kernel_handle_t *phZeKernel) {
@@ -1110,7 +1111,7 @@ ur_result_t urKernelSetSpecializationConstants(
 
 ur_result_t ur_kernel_handle_t_::initialize() {
   // Retain the program and context to show it's used by this kernel.
-  UR_CALL(ur::level_zero::urProgramRetain(Program));
+  UR_CALL(ur::level_zero::common::urProgramRetain(Program));
 
   if (IndirectAccessTrackingEnabled)
     // TODO: do piContextRetain without the guard

@@ -18,7 +18,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include "helpers/shared_helpers.hpp"
+#include "common/helpers/shared_helpers.hpp"
 #include "ur_interface_loader.hpp"
 
 // Base class to store common data

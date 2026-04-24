@@ -11,6 +11,7 @@
 #include <ur/ur.hpp>
 #include <ur_api.h>
 
+#include "../common/device.hpp"
 #include "../device.hpp"
 #include "ur_interface_loader.hpp"
 
@@ -27,8 +28,8 @@ ur_result_t urDeviceGetInfo(ur_device_handle_t hDevice,
     UrReturnHelper ReturnValue(propSize, propValue, propSizeRet);
     return ReturnValue(hDevice->Platform->ZeHostTaskExt.Supported);
   }
-  return ur::level_zero::urDeviceGetInfo(hDevice, propName, propSize, propValue,
-                                         propSizeRet);
+  return ur::level_zero::common::urDeviceGetInfo(hDevice, propName, propSize,
+                                                 propValue, propSizeRet);
 }
 
 } // namespace ur::level_zero_v2

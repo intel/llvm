@@ -13,6 +13,7 @@
 #include <ur_api.h>
 
 #include "../adapter.hpp"
+#include "../common/adapter.hpp"
 #include "../device.hpp"
 #include "../platform.hpp"
 #include "ur_interface_loader.hpp"
@@ -28,7 +29,7 @@ ur_result_t urAdapterGetInfo(ur_adapter_handle_t hAdapter,
     UrReturnHelper ReturnValue(propSize, propValue, propSizeRet);
     return ReturnValue(uint32_t{2});
   }
-  return ur::level_zero::urAdapterGetInfo(hAdapter, propName, propSize,
+  return ur::level_zero::common::urAdapterGetInfo(hAdapter, propName, propSize,
                                           propValue, propSizeRet);
 }
 

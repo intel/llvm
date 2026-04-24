@@ -14,7 +14,7 @@
 
 #include <utility>
 
-#include "../common.hpp"
+#include "../../common.hpp"
 
 // If USM Import feature is enabled and hostptr is supplied,
 // import the hostptr if not already imported into USM.

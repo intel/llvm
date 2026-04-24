@@ -15,7 +15,7 @@
 #include <utility>
 
 #include "../command_buffer_command.hpp"
-#include "../common.hpp"
+#include "../../common.hpp"
 #include "logger/ur_logger.hpp"
 #include <ur/ur.hpp>
 

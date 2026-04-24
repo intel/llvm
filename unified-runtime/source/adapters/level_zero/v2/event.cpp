@@ -11,6 +11,7 @@
 #include <optional>
 #include <ze_api.h>
 
+#include "../common/device.hpp"
 #include "context.hpp"
 #include "event.hpp"
 #include "event_pool.hpp"
@@ -84,7 +85,7 @@ void event_profiling_data_t::recordStartTimestamp(ur_device_handle_t hDevice) {
   timestampMaxValue = hDevice->getTimestampMask();
 
   uint64_t deviceStartTimestamp = 0;
-  UR_CALL_THROWS(ur::level_zero::urDeviceGetGlobalTimestamps(
+  UR_CALL_THROWS(ur::level_zero::common::urDeviceGetGlobalTimestamps(
       hDevice, &deviceStartTimestamp, nullptr));
 
   assert(adjustedEventStartTimestamp == 0);

@@ -7,11 +7,12 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+#include "../device.hpp"
 #include "device.hpp"
-#include "adapter.hpp"
+#include "../adapter.hpp"
 #include "logger/ur_logger.hpp"
-#include "ur_interface_loader.hpp"
-#include "ur_level_zero.hpp"
+#include "../ur_interface_loader.hpp"
+#include "../ur_level_zero.hpp"
 #include "ur_util.hpp"
 #include <algorithm>
 #include <climits>
@@ -66,7 +67,7 @@ getRangeOfAllowedCopyEngines(const ur_device_handle_t &Device) {
   return std::pair<int, int>(LowerCopyEngineIndex, UpperCopyEngineIndex);
 }
 
-namespace ur::level_zero {
+namespace ur::level_zero::common {
 
 ur_result_t urDeviceGet(
     /// [in] handle of the platform instance
@@ -170,7 +171,7 @@ ur_result_t urDeviceGet(
         // device.
         if (DeviceDefaultGPU) {
           uint32_t maxComputeUnits = 0;
-          ur_result_t UrRet = ur::level_zero::urDeviceGetInfo(
+          ur_result_t UrRet = ur::level_zero::common::urDeviceGetInfo(
               D.get(), UR_DEVICE_INFO_MAX_COMPUTE_UNITS,
               sizeof(maxComputeUnits), &maxComputeUnits, nullptr);
           maxComputeUnits = (UrRet == UR_RESULT_SUCCESS) ? maxComputeUnits : 0;
@@ -1608,7 +1609,7 @@ ur_result_t urDevicePartition(
 
     OutDevices[I] = Device->SubDevices[I];
     // reusing the same pi_device needs to increment the reference count
-    ur::level_zero::urDeviceRetain(OutDevices[I]);
+    ur::level_zero::common::urDeviceRetain(OutDevices[I]);
   }
 
   if (NumDevicesRet) {
@@ -1805,7 +1806,7 @@ ur_result_t urDeviceWaitExp(ur_device_handle_t Device) {
   ZE2UR_CALL(zeDeviceSynchronize, (Device->ZeDevice));
   return UR_RESULT_SUCCESS;
 }
-} // namespace ur::level_zero
+} // namespace ur::level_zero::common
 
 /**
  * @brief Determines the mode of immediate command lists to be used.
@@ -2139,7 +2140,7 @@ ur_result_t ur_device_handle_t_::initialize(int SubSubDeviceOrdinal,
       return UR_RESULT_ERROR_UNKNOWN;
     }
 
-    if (ur::level_zero::CopyEngineRequested((ur_device_handle_t)this)) {
+    if (ur::level_zero::common::CopyEngineRequested((ur_device_handle_t)this)) {
       for (uint32_t i = 0; i < numQueueGroups; i++) {
         if (((QueueGroupProperties[i].flags &
               ZE_COMMAND_QUEUE_GROUP_PROPERTY_FLAG_COMPUTE) == 0) &&

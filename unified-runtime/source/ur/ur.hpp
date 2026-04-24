@@ -232,6 +232,14 @@ template <typename getddi> struct handle_base {
   handle_base &operator=(const handle_base &) = delete;
 };
 
+struct handle_base_no_ddi {
+  const ur_dditable_t *ddi_table = nullptr;
+
+  handle_base_no_ddi(const handle_base_no_ddi &) = delete;
+  handle_base_no_ddi &operator=(const handle_base_no_ddi &) = delete;
+  handle_base_no_ddi() = default;
+};
+
 template <typename T, typename Assign>
 ur_result_t getInfoImpl(size_t param_value_size, void *param_value,
                         size_t *param_value_size_ret, T value,

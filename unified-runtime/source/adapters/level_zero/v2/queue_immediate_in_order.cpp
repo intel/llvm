@@ -15,8 +15,8 @@
 #include "ur.hpp"
 
 #include "../common/latency_tracker.hpp"
-#include "../helpers/kernel_helpers.hpp"
-#include "../image_common.hpp"
+#include "../common/helpers/kernel_helpers.hpp"
+#include "../common/image_common.hpp"
 
 #include "../program.hpp"
 #include "ur_interface_loader.hpp"

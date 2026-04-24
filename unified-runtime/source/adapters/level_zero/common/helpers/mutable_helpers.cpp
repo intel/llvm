@@ -9,10 +9,10 @@
 //===----------------------------------------------------------------------===//
 
 #include "mutable_helpers.hpp"
-#include "../device.hpp"
-#include "../ur_interface_loader.hpp"
-#include "../ur_level_zero.hpp"
-#include "adapters/level_zero/command_buffer_command.hpp"
+#include "../../device.hpp"
+#include "../../ur_interface_loader.hpp"
+#include "../../ur_level_zero.hpp"
+#include "adapters/level_zero/common/command_buffer_command.hpp"
 #include "kernel_helpers.hpp"
 #include "ur_api.h"
 #include <memory>

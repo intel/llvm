@@ -9,9 +9,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "command_list_manager.hpp"
-#include "../helpers/kernel_helpers.hpp"
-#include "../helpers/memory_helpers.hpp"
-#include "../sampler.hpp"
+#include "../common/helpers/kernel_helpers.hpp"
+#include "../common/helpers/memory_helpers.hpp"
+#include "../common/sampler.hpp"
 #include "command_buffer.hpp"
 #include "common.hpp"
 #include "context.hpp"

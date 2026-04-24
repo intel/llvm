@@ -8,12 +8,13 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "../program.hpp"
 #include "program.hpp"
-#include "device.hpp"
+#include "../device.hpp"
 #include "logger/ur_logger.hpp"
-#include "ur_interface_loader.hpp"
+#include "../ur_interface_loader.hpp"
 
-#include "context.hpp"
+#include "../context.hpp"
 
 extern "C" {
 // Check to see if a Level Zero module has any unresolved symbols.
@@ -71,7 +72,7 @@ static bool isCodeFormatIL(ur_program_handle_t_::CodeFormat CodeFormat) {
   return CodeFormat == ur_program_handle_t_::CodeFormat::SPIRV;
 }
 
-namespace ur::level_zero {
+namespace ur::level_zero::common {
 
 ur_result_t urProgramCreateWithIL(
     /// [in] handle of the context instance
@@ -156,7 +157,7 @@ ur_result_t urProgramBuild(
     /// [in][optional] pointer to build options null-terminated string.
     const char *Options) {
   std::vector<ur_device_handle_t> Devices = Context->getDevices();
-  return ur::level_zero::urProgramBuildExp(Program, Devices.size(),
+  return ur::level_zero::common::urProgramBuildExp(Program, Devices.size(),
                                            Devices.data(),
                                            ur_exp_program_flags_t{}, Options);
 }
@@ -326,7 +327,7 @@ ur_result_t urProgramCompile(
     /// [in][optional] pointer to build options null-terminated string.
     const char *Options) {
   auto devices = Context->getDevices();
-  return ur::level_zero::urProgramCompileExp(Program, devices.size(),
+  return ur::level_zero::common::urProgramCompileExp(Program, devices.size(),
                                              devices.data(),
                                              ur_exp_program_flags_t{}, Options);
 }
@@ -343,7 +344,7 @@ ur_result_t urProgramLink(
     /// [out] pointer to handle of program object created.
     ur_program_handle_t *Program) {
   std::vector<ur_device_handle_t> Devices = Context->getDevices();
-  return ur::level_zero::urProgramLinkExp(
+  return ur::level_zero::common::urProgramLinkExp(
       Context, Devices.size(), Devices.data(), ur_exp_program_flags_t{}, Count,
       Programs, Options, Program);
 }
@@ -718,11 +719,11 @@ ur_result_t urProgramGetFunctionPointer(
   if (ZeResult == ZE_RESULT_ERROR_INVALID_ARGUMENT) {
     size_t Size;
     *FunctionPointerRet = 0;
-    UR_CALL(ur::level_zero::urProgramGetInfo(
+    UR_CALL(ur::level_zero::common::urProgramGetInfo(
         Program, UR_PROGRAM_INFO_KERNEL_NAMES, 0, nullptr, &Size));
 
     std::string ClResult(Size, ' ');
-    UR_CALL(ur::level_zero::urProgramGetInfo(
+    UR_CALL(ur::level_zero::common::urProgramGetInfo(
         Program, UR_PROGRAM_INFO_KERNEL_NAMES, ClResult.size(), &ClResult[0],
         nullptr));
 
@@ -1107,7 +1108,7 @@ ur_result_t urProgramSetSpecializationConstants(
   return UR_RESULT_SUCCESS;
 }
 
-} // namespace ur::level_zero
+} // namespace ur::level_zero::common
 
 ur_program_handle_t_::ur_program_handle_t_(state St,
                                            ur_context_handle_t Context,

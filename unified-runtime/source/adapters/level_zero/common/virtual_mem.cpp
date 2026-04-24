@@ -8,14 +8,14 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "common.hpp"
-#include "device.hpp"
+#include "../common.hpp"
+#include "../device.hpp"
 #include "logger/ur_logger.hpp"
 #include "physical_mem.hpp"
 
-#include "context.hpp"
+#include "../context.hpp"
 
-namespace ur::level_zero {
+namespace ur::level_zero::common {
 
 ur_result_t urVirtualMemGranularityGetInfo(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
@@ -124,4 +124,4 @@ ur_result_t urVirtualMemGetInfo(ur_context_handle_t hContext,
 
   return UR_RESULT_SUCCESS;
 }
-} // namespace ur::level_zero
+} // namespace ur::level_zero::common

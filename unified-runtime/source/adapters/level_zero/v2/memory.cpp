@@ -12,8 +12,8 @@
 #include "context.hpp"
 #include "ur_interface_loader.hpp"
 
-#include "../helpers/memory_helpers.hpp"
-#include "../image_common.hpp"
+#include "../common/helpers/memory_helpers.hpp"
+#include "../common/image_common.hpp"
 
 static bool isAccessCompatible(ur_mem_buffer_t::device_access_mode_t requested,
                                ur_mem_buffer_t::device_access_mode_t actual) {

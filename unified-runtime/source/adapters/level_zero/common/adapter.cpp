@@ -8,9 +8,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "adapter.hpp"
-#include "common.hpp"
-#include "ur_level_zero.hpp"
+#include "../adapter.hpp"
+#include "../common.hpp"
+#include "../ur_level_zero.hpp"
 #include <iomanip>
 
 // As windows order of unloading dlls is reversed from linux, windows will call
@@ -354,7 +354,7 @@ Behavior Summary:
   SysMan initialization is skipped.
 */
 ur_adapter_handle_t_::ur_adapter_handle_t_()
-    : handle_base(), logger(logger::get_logger("level_zero")), RefCount(0) {
+    : logger(logger::get_logger("level_zero")), RefCount(0) {
   auto ZeInitDriversResult = ZE_RESULT_ERROR_UNINITIALIZED;
   auto ZeInitResult = ZE_RESULT_ERROR_UNINITIALIZED;
   auto ZesResult = ZE_RESULT_ERROR_UNINITIALIZED;
@@ -584,7 +584,7 @@ ur_result_t adapterStateTeardown() {
   return UR_RESULT_SUCCESS;
 }
 
-namespace ur::level_zero {
+namespace ur::level_zero::common {
 ur_result_t urAdapterGet(
     /// [in] the number of platforms to be added to phAdapters. If phAdapters is
     /// not NULL, then NumEntries should be greater than zero, otherwise
@@ -604,6 +604,12 @@ ur_result_t urAdapterGet(
 
   if (!GlobalAdapter) {
     GlobalAdapter = new ur_adapter_handle_t_();
+
+#ifdef UR_L0_V1_ADAPTER_ENABLED
+    GlobalAdapter->ddi_table = ur::level_zero::ddi_getter::value();
+    for (auto &p : GlobalAdapter->Platforms)
+      p->ddi_table = ur::level_zero::ddi_getter::value();
+#endif
   }
 
   if (GlobalAdapter->Platforms.size() == 0) {
@@ -735,4 +741,4 @@ ur_result_t urAdapterSetLoggerCallbackLevel(ur_adapter_handle_t hAdapter,
   return UR_RESULT_SUCCESS;
 }
 
-} // namespace ur::level_zero
+} // namespace ur::level_zero::common

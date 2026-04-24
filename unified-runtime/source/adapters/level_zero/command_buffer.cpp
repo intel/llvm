@@ -8,9 +8,10 @@
 //
 //===----------------------------------------------------------------------===//
 #include "command_buffer.hpp"
-#include "command_buffer_command.hpp"
-#include "helpers/kernel_helpers.hpp"
-#include "helpers/mutable_helpers.hpp"
+#include "common/command_buffer_command.hpp"
+#include "common/device.hpp"
+#include "common/helpers/kernel_helpers.hpp"
+#include "common/helpers/mutable_helpers.hpp"
 #include "logger/ur_logger.hpp"
 #include "ur/ur.hpp"
 #include "ur_api.h"
@@ -487,7 +488,7 @@ ur_exp_command_buffer_handle_t_::ur_exp_command_buffer_handle_t_(
       InOrderRequested(Desc->isInOrder), IsInOrderCmdList(IsInOrderCmdList),
       UseImmediateAppendPath(UseImmediateAppendPath) {
   UR_CALL_NOCHECK(ur::level_zero::urContextRetain(Context));
-  UR_CALL_NOCHECK(ur::level_zero::urDeviceRetain(Device));
+  UR_CALL_NOCHECK(ur::level_zero::common::urDeviceRetain(Device));
 }
 
 void ur_exp_command_buffer_handle_t_::cleanupCommandBufferResources() {
@@ -495,7 +496,7 @@ void ur_exp_command_buffer_handle_t_::cleanupCommandBufferResources() {
   UR_CALL_NOCHECK(ur::level_zero::urContextRelease(Context));
 
   // Release the device
-  UR_CALL_NOCHECK(ur::level_zero::urDeviceRelease(Device));
+  UR_CALL_NOCHECK(ur::level_zero::common::urDeviceRelease(Device));
 
   // Release the memory allocated to the CommandList stored in the
   // command_buffer

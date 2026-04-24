@@ -12,7 +12,7 @@
 
 #include "ur_api.h"
 
-#include "../enqueued_pool.hpp"
+#include "../common/enqueued_pool.hpp"
 #include "common.hpp"
 #include "common/ur_ref_count.hpp"
 #include "event.hpp"

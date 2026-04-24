@@ -9,7 +9,7 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
-#include "common.hpp"
+#include "../common.hpp"
 
 #include "ur_api.h"
 #include "ur_pool_manager.hpp"

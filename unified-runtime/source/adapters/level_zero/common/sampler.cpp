@@ -11,7 +11,7 @@
 #include "sampler.hpp"
 #include "logger/ur_logger.hpp"
 
-#include "context.hpp"
+#include "../context.hpp"
 
 ur_result_t ur2zeSamplerDesc(ze_api_version_t ZeApiVersion,
                              const ur_sampler_desc_t *SamplerDesc,
@@ -75,7 +75,7 @@ ur_result_t ur2zeSamplerDesc(ze_api_version_t ZeApiVersion,
   return UR_RESULT_SUCCESS;
 }
 
-namespace ur::level_zero {
+namespace ur::level_zero::common {
 
 ur_result_t urSamplerCreate(
     /// [in] handle of the context object
@@ -187,4 +187,4 @@ ur_result_t urSamplerCreateWithNativeHandle(
                 "{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
-} // namespace ur::level_zero
+} // namespace ur::level_zero::common

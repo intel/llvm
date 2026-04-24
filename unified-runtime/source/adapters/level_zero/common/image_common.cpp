@@ -10,14 +10,14 @@
 
 #include <loader/ze_loader.h>
 
-#include "common.hpp"
-#include "context.hpp"
+#include "../common.hpp"
+#include "../context.hpp"
 #include "helpers/memory_helpers.hpp"
 #include "image_common.hpp"
 #include "logger/ur_logger.hpp"
-#include "platform.hpp"
+#include "../platform.hpp"
 #include "sampler.hpp"
-#include "ur_interface_loader.hpp"
+#include "../ur_interface_loader.hpp"
 
 namespace {
 
@@ -1054,7 +1054,7 @@ bool verifyCommonImagePropertiesSupport(
   return supported;
 }
 
-namespace ur::level_zero {
+namespace ur::level_zero::common {
 
 ur_result_t urUSMPitchedAllocExp(ur_context_handle_t hContext,
                                  ur_device_handle_t hDevice,
@@ -1168,7 +1168,7 @@ ur_result_t urBindlessImagesSampledImageHandleDestroyExp(
   // Sampled image is a combination of unsampled image and sampler.
   // The sampler is tied to the image on creation, and is destroyed together
   // with the image.
-  return ur::level_zero::urBindlessImagesUnsampledImageHandleDestroyExp(
+  return ur::level_zero::common::urBindlessImagesUnsampledImageHandleDestroyExp(
       hContext, hDevice, hImage);
 }
 
@@ -1176,7 +1176,7 @@ ur_result_t
 urBindlessImagesMipmapFreeExp(ur_context_handle_t hContext,
                               ur_device_handle_t hDevice,
                               ur_exp_image_mem_native_handle_t hMem) {
-  return ur::level_zero::urBindlessImagesImageFreeExp(hContext, hDevice, hMem);
+  return ur::level_zero::common::urBindlessImagesImageFreeExp(hContext, hDevice, hMem);
 }
 
 ur_result_t urBindlessImagesImageGetInfoExp(
@@ -1582,4 +1582,4 @@ ur_result_t urBindlessImagesSupportsImportingHandleTypeExp(
   return UR_RESULT_SUCCESS;
 }
 
-} // namespace ur::level_zero
+} // namespace ur::level_zero::common
