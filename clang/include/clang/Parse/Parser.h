@@ -4449,8 +4449,7 @@ private:
 
   //===--------------------------------------------------------------------===//
   // C++ Expressions
-  ExprResult tryParseCXXIdExpression(CXXScopeSpec &SS, bool isAddressOfOperand,
-                                     Token &Replacement);
+  ExprResult tryParseCXXIdExpression(CXXScopeSpec &SS, bool isAddressOfOperand);
 
   ExprResult tryParseCXXPackIndexingExpression(ExprResult PackIdExpression);
   ExprResult ParseCXXPackIndexingExpression(ExprResult PackIdExpression);
