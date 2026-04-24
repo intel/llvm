@@ -862,6 +862,8 @@ public:
     if (!UId)
       return nullptr;
 
+    xpti::SharedLock Lock(MTracepointMutex);
+
     if (MUID64Check.count(UId) == 0)
       return nullptr;
 
@@ -914,6 +916,8 @@ public:
     if (!Event || Event->unique_id == xpti::invalid_uid)
       return;
 
+    std::lock_guard<xpti::SharedSpinLock> Lock(MTracepointMutex);
+
     if (MUID64Check.count(Event->unique_id) == 0)
       return;
 
@@ -922,18 +926,15 @@ public:
         reinterpret_cast<xpti::TracePointImpl *>(Event->unique_id);
 
     xpti::uid128_t UId = TP->MUId;
-    {
-      std::lock_guard<xpti::SharedSpinLock> Lock(MTracepointMutex);
-      // Find the event list for a given UID
-      auto &Instances = MTracepoints[UId];
-      MUID64Check.erase(UId.uid64);
-      // Now release the event associated with the UID instance
-      delete Instances[UId.instance];
-      Instances.erase(UId.instance);
-      // If there are no more events associated with the UID, we can release
-      // the Payload as well, but we will not as the same payload may be
-      // revisited and we need to keep the instance count going
-    }
+    // Find the event list for a given UID
+    auto &Instances = MTracepoints[UId];
+    MUID64Check.erase(UId.uid64);
+    // Now release the event associated with the UID instance
+    delete Instances[UId.instance];
+    Instances.erase(UId.instance);
+    // If there are no more events associated with the UID, we can release
+    // the Payload as well, but we will not as the same payload may be
+    // revisited and we need to keep the instance count going
   }
 
   /// @brief Adds metadata to a trace event.
@@ -1166,9 +1167,9 @@ public:
       return xpti::result_t::XPTI_RESULT_INVALIDARG;
 
     {
-      xpti::uid128_t UId = TP->MUId;
       // Lock the mutex to ensure thread-safe access to the tracepoints map
       std::lock_guard<xpti::SharedSpinLock> Lock(MTracepointMutex);
+      xpti::uid128_t UId = TP->MUId;
       // Find the tracepoint for a given UID
       auto &Instances = MTracepoints[UId];
       // Now release the 64-bit UID associated with tracepoint instance
@@ -1316,7 +1317,55 @@ public:
   /// @return Returns true if the UID exists in the set, indicating it is valid;
   ///         otherwise, returns false.
   ///
-  bool isValidUID64(uint64_t UId) { return (MUID64Check.count(UId) > 0); }
+  bool isValidUID64(uint64_t UId) {
+    xpti::SharedLock Lock(MTracepointMutex);
+    return (MUID64Check.count(UId) > 0);
+  }
+
+  const xpti::trace_event_data_t *findEvent(uint64_t UId) {
+    if (UId == xpti::invalid_uid)
+      return nullptr;
+
+    xpti::SharedLock Lock(MTracepointMutex);
+
+    if (MUID64Check.count(UId) == 0)
+      return nullptr;
+
+    xpti::TracePointImpl *TP = reinterpret_cast<xpti::TracePointImpl *>(UId);
+    if (TP && xpti::is_valid_event(&TP->MEvent))
+      return &TP->MEvent;
+    return nullptr;
+  }
+
+  const xpti::payload_t *queryPayloadByUID(uint64_t UId) {
+    if (UId == xpti::invalid_uid)
+      return nullptr;
+
+    xpti::SharedLock Lock(MTracepointMutex);
+
+    if (MUID64Check.count(UId) == 0)
+      return nullptr;
+
+    xpti::TracePointImpl *TP = reinterpret_cast<xpti::TracePointImpl *>(UId);
+    if (TP && xpti::is_valid_payload(&TP->MPayload))
+      return &TP->MPayload;
+    return nullptr;
+  }
+
+  const xpti_payload_t *lookupPayload(uint64_t UId) {
+    if (UId == xpti::invalid_uid)
+      return nullptr;
+
+    xpti::SharedLock Lock(MTracepointMutex);
+
+    if (MUID64Check.count(UId) == 0)
+      return nullptr;
+
+    xpti::TracePointImpl *TP = reinterpret_cast<xpti::TracePointImpl *>(UId);
+    if (TP && xpti::is_valid_payload(&TP->MPayload))
+      return TP->payload();
+    return nullptr;
+  }
 
 private:
   /// @brief Registers an event with a given payload and returns the event
@@ -2217,19 +2266,7 @@ public:
   /// nullptr otherwise.
   ///
   inline const xpti::trace_event_data_t *findEvent(uint64_t UniversalID) {
-    if (UniversalID == xpti::invalid_uid)
-      return nullptr;
-
-    if (MTracepoints.isValidUID64(UniversalID)) {
-      xpti::TracePointImpl *TP =
-          reinterpret_cast<xpti::TracePointImpl *>(UniversalID);
-      if (TP && xpti::is_valid_event(&TP->MEvent))
-        return &TP->MEvent;
-      else
-        return nullptr;
-    }
-
-    return nullptr;
+    return MTracepoints.findEvent(UniversalID);
   }
 
   ///
@@ -2486,26 +2523,11 @@ public:
   }
 
   const xpti::payload_t *queryPayloadByUID(uint64_t uid) {
-    if (uid == xpti::invalid_uid)
-      return nullptr;
-    if (!MTracepoints.isValidUID64(uid))
-      return nullptr;
-
-    xpti::TracePointImpl *TP = reinterpret_cast<xpti::TracePointImpl *>(uid);
-    if (xpti::is_valid_payload(&TP->MPayload))
-      return &TP->MPayload;
-
-    return nullptr;
+    return MTracepoints.queryPayloadByUID(uid);
   }
 
   inline const xpti_payload_t *lookupPayload(uint64_t uid) {
-    if (!MTracepoints.isValidUID64(uid))
-      return nullptr;
-    xpti::TracePointImpl *TP = reinterpret_cast<xpti::TracePointImpl *>(uid);
-    if (TP && xpti::is_valid_payload(&TP->MPayload))
-      return TP->payload();
-    else
-      return nullptr;
+    return MTracepoints.lookupPayload(uid);
   }
 
   void printStatistics() {
