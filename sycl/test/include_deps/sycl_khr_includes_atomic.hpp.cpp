@@ -11,10 +11,8 @@
 // CHECK-NEXT: atomic_fence.hpp
 // CHECK-NEXT: memory_enums.hpp
 // CHECK-NEXT: detail/spirv.hpp
-// CHECK-NEXT: __spirv/spirv_ops.hpp
 // CHECK-NEXT: __spirv/spirv_types.hpp
 // CHECK-NEXT: detail/defines.hpp
-// CHECK-NEXT: detail/export.hpp
 // CHECK-NEXT: access/access.hpp
 // CHECK-NEXT: detail/generic_type_traits.hpp
 // CHECK-NEXT: aliases.hpp

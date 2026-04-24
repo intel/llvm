@@ -94,7 +94,6 @@
 // CHECK-NEXT: usm/usm_enums.hpp
 // CHECK-NEXT: properties/buffer_properties.def
 // CHECK-NEXT: atomic.hpp
-// CHECK-NEXT: __spirv/spirv_ops.hpp
 // CHECK-NEXT: builtins.hpp
 // CHECK-NEXT: detail/builtins/builtins.hpp
 // CHECK-NEXT: detail/vector_core.hpp

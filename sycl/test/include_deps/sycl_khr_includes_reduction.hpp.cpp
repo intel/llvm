@@ -96,7 +96,6 @@
 // CHECK-NEXT: usm/usm_enums.hpp
 // CHECK-NEXT: properties/buffer_properties.def
 // CHECK-NEXT: atomic.hpp
-// CHECK-NEXT: __spirv/spirv_ops.hpp
 // CHECK-NEXT: atomic_ref.hpp
 // CHECK-NEXT: ext/oneapi/experimental/address_cast.hpp
 // CHECK-NEXT: detail/spirv.hpp

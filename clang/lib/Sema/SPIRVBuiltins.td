@@ -330,6 +330,8 @@ def Int       : IntType<"int",       QualType<"Context.IntTy", 0, 1>, 32>;
 def UInt      : UIntType<"uint",      QualType<"Context.UnsignedIntTy">, 32>;
 def Long      : IntType<"long",      QualType<"Context.getIntTypeForBitwidth(64, true)", 0, 1>, 64>;
 def ULong     : UIntType<"ulong",     QualType<"Context.getIntTypeForBitwidth(64, false)">, 64>;
+def LongLong  : IntType<"longlong",  QualType<"Context.LongLongTy", 0, 1>, 64>;
+def ULongLong : UIntType<"ulonglong", QualType<"Context.UnsignedLongLongTy">, 64>;
 def Float     : FPType<"float",     QualType<"Context.FloatTy">, 32>;
 def Double    : FPType<"double",    QualType<"Context.DoubleTy">, 64>;
 def Half      : FPType<"half",      QualTypeFromFunction<"GetFloat16Type">, 16>;
@@ -365,6 +367,15 @@ def TLSignedInts    : TypeList<[Char, SChar, Short, Int, Long]>;
 def TLUIToSIInts    : TypeList<[UChar, UChar, UShort, UInt, ULong]>;
 def TLUnsignedInts : TypeList<[UChar, UShort, UInt, ULong]>;
 
+// Atomic builtins also need long long and unsigned long long overloads.
+def TLAtomicAll      : TypeList<[Char, SChar, UChar, Short, UShort, Int, UInt,
+                                 Long, ULong, LongLong, ULongLong, Float,
+                                 Double, Half]>;
+def TLAtomicSignedInts : TypeList<[Char, SChar, Short, Int, Long, LongLong]>;
+def TLAtomicUnsignedInts : TypeList<[UChar, UShort, UInt, ULong, ULongLong]>;
+def TLAtomicAllInts : TypeList<[Char, SChar, UChar, Short, UShort, Int, UInt,
+                                Long, ULong, LongLong, ULongLong]>;
+
 // Signed to Unsigned conversion
 // FIXME: handle properly char (signed or unsigned depending on host)
 def TLSToUSignedInts    : TypeList<[Char, SChar, Short, Int, Long]>;
@@ -387,6 +398,7 @@ def AGenTypeN              : GenericType<"AGenTypeN", TLAll, VecAndScalar>;
 def AGenTypeNNoScalar      : GenericType<"AGenTypeNNoScalar", TLAll, VecNoScalar>;
 def AGenTypeNWithBool
     : GenericType<"AGenTypeNWithBool", TLAllWithBool, VecAndScalar>;
+def AtomicAGenType1        : GenericType<"AtomicAGenType1", TLAtomicAll, Vec1>;
 // Bool
 def BoolGenTypeN : GenericType<"BoolGenTypeN", TypeList<[Bool]>, VecAndScalar>;
 // All integer
@@ -394,6 +406,7 @@ def AIGenType1             : GenericType<"AIGenType1", TLAllInts, Vec1>;
 def AIGenTypeN             : GenericType<"AIGenTypeN", TLAllInts, VecAndScalar>;
 def AUIGenTypeN             : GenericType<"AUIGenTypeN", TLUnsignedInts, VecAndScalar>;
 def ASIGenTypeN             : GenericType<"ASIGenTypeN", TLSignedInts, VecAndScalar>;
+def AtomicAIGenType1       : GenericType<"AtomicAIGenType1", TLAtomicAllInts, Vec1>;
 // unsigned integers matching 1:1 with signed ints
 def AUIToSIGenTypeN          : GenericType<"AUIToSIGenTypeN", TLUIToSIInts, VecAndScalar>;
 def AIGenTypeNNoScalar     : GenericType<"AIGenTypeNNoScalar", TLAllInts, VecNoScalar>;
@@ -402,9 +415,11 @@ def AI2UGenTypeN           : GenericType<"AI2UGenTypeN", TLAllUIntsTwice, VecAnd
 // Signed integer
 def SGenType1 : GenericType<"SGenType1", TLSignedInts, Vec1>;
 def SGenTypeN              : GenericType<"SGenTypeN", TLSignedInts, VecAndScalar>;
+def AtomicSGenType1        : GenericType<"AtomicSGenType1", TLAtomicSignedInts, Vec1>;
 // Unsigned integer
 def UGenType1 : GenericType<"UGenType1", TLUnsignedInts, Vec1>;
 def UGenTypeN              : GenericType<"UGenTypeN", TLUnsignedInts, VecAndScalar>;
+def AtomicUGenType1        : GenericType<"AtomicUGenType1", TLAtomicUnsignedInts, Vec1>;
 def UToSGenTypeN           : GenericType<"UToSGenTypeN", TLUIToSIInts, VecAndScalar>;
 def UInt4 : GenericType<"UInt4", TypeList<[UInt]>, Vec4>;
 // Float
@@ -1032,48 +1047,52 @@ foreach name = ["SubgroupBlockWriteINTEL"] in {
 
 foreach AS = [GlobalAS, LocalAS, PrivateAS, GenericAS] in {
   def : SPVBuiltin<
-            "AtomicLoad", [AGenType1, PointerType<AGenType1, AS>, Int, Int],
+            "AtomicLoad",
+            [AtomicAGenType1, PointerType<AtomicAGenType1, AS>, Int, Int],
             Attr.Convergent>;
 
-  def : SPVBuiltin<"AtomicStore",
-                   [Void, PointerType<AGenType1, AS>, Int, Int, AGenType1],
+  def : SPVBuiltin<"AtomicStore", [Void, PointerType<AtomicAGenType1, AS>,
+                                     Int, Int, AtomicAGenType1],
                    Attr.Convergent>;
 
   def : SPVBuiltin<"AtomicExchange",
-                   [AGenType1, PointerType<AGenType1, AS>, Int, Int, AGenType1],
+                   [AtomicAGenType1, PointerType<AtomicAGenType1, AS>, Int,
+                    Int, AtomicAGenType1],
                    Attr.Convergent>;
 
   foreach name = ["AtomicCompareExchange", "AtomicCompareExchangeWeak"] in {
     def : SPVBuiltin<name,
-                     [AIGenType1, PointerType<AIGenType1, AS>, Int, Int, Int,
-                      AIGenType1, AIGenType1],
+                     [AtomicAIGenType1, PointerType<AtomicAIGenType1, AS>,
+                      Int, Int, Int, AtomicAIGenType1, AtomicAIGenType1],
                      Attr.Convergent>;
   }
 
   foreach name = ["AtomicIIncrement", "AtomicIDecrement"] in {
-    def : SPVBuiltin<name, [AIGenType1, PointerType<AIGenType1, AS>, Int, Int],
+    def : SPVBuiltin<name,
+                     [AtomicAIGenType1, PointerType<AtomicAIGenType1, AS>,
+                      Int, Int],
                      Attr.Convergent>;
   }
 
   foreach name = ["AtomicSMin", "AtomicSMax"] in {
     def : SPVBuiltin<name,
-                     [SGenType1, PointerType<SGenType1, AS>, Int, Int,
-                      SGenType1],
+                     [AtomicSGenType1, PointerType<AtomicSGenType1, AS>, Int,
+                      Int, AtomicSGenType1],
                      Attr.Convergent>;
   }
 
   foreach name = ["AtomicUMin", "AtomicUMax"] in {
     def : SPVBuiltin<name,
-                     [UGenType1, PointerType<UGenType1, AS>, Int, Int,
-                      UGenType1],
+                     [AtomicUGenType1, PointerType<AtomicUGenType1, AS>, Int,
+                      Int, AtomicUGenType1],
                      Attr.Convergent>;
   }
 
   foreach name = ["AtomicIAdd", "AtomicISub", "AtomicAnd", "AtomicOr",
                   "AtomicXor"] in {
     def : SPVBuiltin<name,
-                     [AIGenType1, PointerType<AIGenType1, AS>, Int, Int,
-                      AIGenType1],
+                     [AtomicAIGenType1, PointerType<AtomicAIGenType1, AS>,
+                      Int, Int, AtomicAIGenType1],
                      Attr.Convergent>;
   }
 

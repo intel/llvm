@@ -9,12 +9,6 @@
 #pragma once
 
 #ifdef __SYCL_DEVICE_ONLY__
-// Some __spirv_* inrinsics are automatically forward-declared by the compiler,
-// but not all of them. For example:
-//   __spirv_AtomicStore(unsigned long long*, ...)
-// Therefore, we need the following include to get forward-declarations of those
-// versions.
-#include <sycl/__spirv/spirv_ops.hpp>
 #include <sycl/__spirv/spirv_types.hpp>
 
 #include <sycl/access/access.hpp>
@@ -29,6 +23,8 @@
 
 #include <sycl/detail/memcpy.hpp> // sycl::detail::memcpy
 #include <sycl/detail/type_traits.hpp>
+
+#include <type_traits>
 
 namespace sycl {
 inline namespace _V1 {
@@ -718,7 +714,10 @@ AtomicMin(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
   auto *Ptr = GetMultiPtrDecoratedAs<T>(MPtr);
   auto SPIRVOrder = getMemorySemanticsMask(Order);
   auto SPIRVScope = getScope(Scope);
-  return __spirv_AtomicMin(Ptr, SPIRVScope, SPIRVOrder, Value);
+  if constexpr (std::is_signed_v<T>)
+    return __spirv_AtomicSMin(Ptr, SPIRVScope, SPIRVOrder, Value);
+  else
+    return __spirv_AtomicUMin(Ptr, SPIRVScope, SPIRVOrder, Value);
 }
 
 template <typename T, access::address_space AddressSpace,
@@ -729,7 +728,7 @@ AtomicMin(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
   auto *Ptr = GetMultiPtrDecoratedAs<T>(MPtr);
   auto SPIRVOrder = getMemorySemanticsMask(Order);
   auto SPIRVScope = getScope(Scope);
-  return __spirv_AtomicMin(Ptr, SPIRVScope, SPIRVOrder, Value);
+  return __spirv_AtomicFMinEXT(Ptr, SPIRVScope, SPIRVOrder, Value);
 }
 
 template <typename T, access::address_space AddressSpace,
@@ -751,7 +750,10 @@ AtomicMax(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
   auto *Ptr = GetMultiPtrDecoratedAs<T>(MPtr);
   auto SPIRVOrder = getMemorySemanticsMask(Order);
   auto SPIRVScope = getScope(Scope);
-  return __spirv_AtomicMax(Ptr, SPIRVScope, SPIRVOrder, Value);
+  if constexpr (std::is_signed_v<T>)
+    return __spirv_AtomicSMax(Ptr, SPIRVScope, SPIRVOrder, Value);
+  else
+    return __spirv_AtomicUMax(Ptr, SPIRVScope, SPIRVOrder, Value);
 }
 
 template <typename T, access::address_space AddressSpace,
@@ -762,7 +764,7 @@ AtomicMax(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
   auto *Ptr = GetMultiPtrDecoratedAs<T>(MPtr);
   auto SPIRVOrder = getMemorySemanticsMask(Order);
   auto SPIRVScope = getScope(Scope);
-  return __spirv_AtomicMax(Ptr, SPIRVScope, SPIRVOrder, Value);
+  return __spirv_AtomicFMaxEXT(Ptr, SPIRVScope, SPIRVOrder, Value);
 }
 
 template <typename T, access::address_space AddressSpace,
