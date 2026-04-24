@@ -1578,72 +1578,23 @@ ur_result_t urDeviceGetInfo(
 #else
     return ReturnValue(false);
 #endif
-  case UR_DEVICE_INFO_XE_STACK_COUNT: {
-    ze_device_properties_t DeviceProp = {};
-    DeviceProp.stype = ZE_STRUCTURE_TYPE_DEVICE_PROPERTIES;
-    ze_intel_xe_device_exp_properties_t XeDeviceProperties = {};
-    XeDeviceProperties.stype = ZE_STRUCTURE_TYPE_INTEL_XE_DEVICE_EXP_PROPERTIES;
-    DeviceProp.pNext = (void *)&XeDeviceProperties;
-
-    ZE2UR_CALL(zeDeviceGetProperties, (ZeDevice, &DeviceProp));
-
-    return ReturnValue(XeDeviceProperties.numXeStacks);
-  }
-  case UR_DEVICE_INFO_XE_REGIONS_PER_STACK: {
-    ze_device_properties_t DeviceProp = {};
-    DeviceProp.stype = ZE_STRUCTURE_TYPE_DEVICE_PROPERTIES;
-    ze_intel_xe_device_exp_properties_t XeDeviceProperties = {};
-    XeDeviceProperties.stype = ZE_STRUCTURE_TYPE_INTEL_XE_DEVICE_EXP_PROPERTIES;
-    DeviceProp.pNext = (void *)&XeDeviceProperties;
-
-    ZE2UR_CALL(zeDeviceGetProperties, (ZeDevice, &DeviceProp));
-
-    return ReturnValue(XeDeviceProperties.numXeRegionsPerStack);
-  }
-  case UR_DEVICE_INFO_XE_CLUSTERS_PER_REGION: {
-    ze_device_properties_t DeviceProp = {};
-    DeviceProp.stype = ZE_STRUCTURE_TYPE_DEVICE_PROPERTIES;
-    ze_intel_xe_device_exp_properties_t XeDeviceProperties = {};
-    XeDeviceProperties.stype = ZE_STRUCTURE_TYPE_INTEL_XE_DEVICE_EXP_PROPERTIES;
-    DeviceProp.pNext = (void *)&XeDeviceProperties;
-
-    ZE2UR_CALL(zeDeviceGetProperties, (ZeDevice, &DeviceProp));
-
-    return ReturnValue(XeDeviceProperties.numXeClustersPerRegion);
-  }
-  case UR_DEVICE_INFO_XE_CORES_PER_CLUSTER: {
-    ze_device_properties_t DeviceProp = {};
-    DeviceProp.stype = ZE_STRUCTURE_TYPE_DEVICE_PROPERTIES;
-    ze_intel_xe_device_exp_properties_t XeDeviceProperties = {};
-    XeDeviceProperties.stype = ZE_STRUCTURE_TYPE_INTEL_XE_DEVICE_EXP_PROPERTIES;
-    DeviceProp.pNext = (void *)&XeDeviceProperties;
-
-    ZE2UR_CALL(zeDeviceGetProperties, (ZeDevice, &DeviceProp));
-
-    return ReturnValue(XeDeviceProperties.numXeCorePerCluster);
-  }
-  case UR_DEVICE_INFO_EUS_PER_XE_CORE: {
-    ze_device_properties_t DeviceProp = {};
-    DeviceProp.stype = ZE_STRUCTURE_TYPE_DEVICE_PROPERTIES;
-    ze_intel_xe_device_exp_properties_t XeDeviceProperties = {};
-    XeDeviceProperties.stype = ZE_STRUCTURE_TYPE_INTEL_XE_DEVICE_EXP_PROPERTIES;
-    DeviceProp.pNext = (void *)&XeDeviceProperties;
-
-    ZE2UR_CALL(zeDeviceGetProperties, (ZeDevice, &DeviceProp));
-
-    return ReturnValue(XeDeviceProperties.numExecutionEnginesPerXeCore);
-  }
-  case UR_DEVICE_INFO_MAX_LANES_PER_HW_THREAD: {
-    ze_device_properties_t DeviceProp = {};
-    DeviceProp.stype = ZE_STRUCTURE_TYPE_DEVICE_PROPERTIES;
-    ze_intel_xe_device_exp_properties_t XeDeviceProperties = {};
-    XeDeviceProperties.stype = ZE_STRUCTURE_TYPE_INTEL_XE_DEVICE_EXP_PROPERTIES;
-    DeviceProp.pNext = (void *)&XeDeviceProperties;
-
-    ZE2UR_CALL(zeDeviceGetProperties, (ZeDevice, &DeviceProp));
-
-    return ReturnValue(XeDeviceProperties.maxNumLanesPerHwThread);
-  }
+  case UR_DEVICE_INFO_XE_STACK_COUNT:
+    return ReturnValue(uint32_t{Device->ZeXEDeviceProperties->numXeStacks});
+  case UR_DEVICE_INFO_XE_REGIONS_PER_STACK:
+    return ReturnValue(
+        uint32_t{Device->ZeXEDeviceProperties->numXeRegionsPerStack});
+  case UR_DEVICE_INFO_XE_CLUSTERS_PER_REGION:
+    return ReturnValue(
+        uint32_t{Device->ZeXEDeviceProperties->numXeClustersPerRegion});
+  case UR_DEVICE_INFO_XE_CORES_PER_CLUSTER:
+    return ReturnValue(
+        uint32_t{Device->ZeXEDeviceProperties->numXeCorePerCluster});
+  case UR_DEVICE_INFO_EUS_PER_XE_CORE:
+    return ReturnValue(
+        uint32_t{Device->ZeXEDeviceProperties->numExecutionEnginesPerXeCore});
+  case UR_DEVICE_INFO_MAX_LANES_PER_HW_THREAD:
+    return ReturnValue(
+        uint32_t{Device->ZeXEDeviceProperties->maxNumLanesPerHwThread});
   default:
     UR_LOG(ERR, "Unsupported ParamName in urGetDeviceInfo");
     UR_LOG(ERR, "ParamNameParamName={}(0x{})", ParamName,
@@ -2227,6 +2178,14 @@ ur_result_t ur_device_handle_t_::initialize(int SubSubDeviceOrdinal,
             }
           }
         }
+      };
+
+  ZeXEDeviceProperties.Compute =
+      [ZeDevice](ze_intel_xe_device_exp_properties_t &Properties) {
+        ze_device_properties_t P;
+        P.stype = ZE_STRUCTURE_TYPE_DEVICE_PROPERTIES;
+        P.pNext = (void *)&Properties;
+        ZE_CALL_NOCHECK(zeDeviceGetProperties, (ZeDevice, &P));
       };
 
   ImmCommandListUsed = this->useImmediateCommandLists();
