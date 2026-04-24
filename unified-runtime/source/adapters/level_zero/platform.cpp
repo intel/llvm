@@ -562,7 +562,7 @@ ur_result_t ur_platform_handle_t_::initialize() {
   ZeMemGetPitchFor2dImageExt.Supported =
       ZeMemGetPitchFor2dImageExt.zeMemGetPitchFor2dImage != nullptr;
 
-  // Populate Graph Extension structure.
+  // Populate Graph Extension structure. Mandatory graph functions.
   std::unordered_map<std::string, void **> ZeGraphFuncNameToAddrMap = {
       {"zeGraphCreateExp",
        reinterpret_cast<void **>(&ZeGraphExt.zeGraphCreateExp)},
@@ -596,6 +596,19 @@ ur_result_t ur_platform_handle_t_::initialize() {
     ZE_CALL_NOCHECK(zeDriverGetExtensionFunctionAddress,
                     (ZeDriver, funcName.c_str(), funcAddr));
     ZeGraphExt.Supported &= (*funcAddr != nullptr);
+  }
+
+  // Optional graph functions. If the function is not supported due to driver
+  // version, then still mark graphs as supported and only return unsupported
+  // code in affected function.
+  std::unordered_map<std::string, void **> ZeGraphOptionalFuncNameToAddrMap = {
+      {"zeCommandListGetGraphExp",
+       reinterpret_cast<void **>(&ZeGraphExt.zeCommandListGetGraphExp)},
+  };
+
+  for (auto &[funcName, funcAddr] : ZeGraphOptionalFuncNameToAddrMap) {
+    ZE_CALL_NOCHECK(zeDriverGetExtensionFunctionAddress,
+                    (ZeDriver, funcName.c_str(), funcAddr));
   }
 
   if (this->isDriverVersionNewerOrSimilar(1, 14, 36035)) {

@@ -129,6 +129,12 @@ UR_APIEXPORT ur_result_t urQueueIsGraphCaptureEnabledExp(
   DIE_NO_IMPLEMENTATION;
 }
 
+UR_APIEXPORT ur_result_t urQueueGetGraphExp(
+    ur_queue_handle_t /* hQueue */, ur_exp_graph_handle_t * /* phGraph */) {
+
+  DIE_NO_IMPLEMENTATION;
+}
+
 UR_APIEXPORT ur_result_t urEnqueueHostTaskExp(
     ur_queue_handle_t /* hQueue */,
     ur_exp_host_task_function_t /* pfnHostTask */, void * /* data */,

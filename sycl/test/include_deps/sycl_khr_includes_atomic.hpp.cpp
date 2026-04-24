@@ -21,8 +21,10 @@
 // CHECK-NEXT: bit_cast.hpp
 // CHECK-NEXT: detail/fwd/half.hpp
 // CHECK-NEXT: detail/type_traits.hpp
+// CHECK-NEXT: detail/type_traits/bool_traits.hpp
 // CHECK-NEXT: detail/type_traits/vec_marray_traits.hpp
 // CHECK-NEXT: detail/fwd/multi_ptr.hpp
+// CHECK-NEXT: detail/type_traits/integer_traits.hpp
 // CHECK-NEXT: id.hpp
 // CHECK-NEXT: detail/array.hpp
 // CHECK-NEXT: range.hpp

@@ -31,9 +31,10 @@ typedef enum _zex_temp_variable_type_t {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Temporary variable descriptor
 typedef struct _zex_temp_variable_desc_t {
-  ze_structure_type_ext_t stype = ZEX_STRUCTURE_TYPE_TEMP_VARIABLE_DESCRIPTOR;
-  const void *pNext = nullptr;
-
+  ze_structure_type_ext_t
+      stype;         ///< [in] type of this structure
+                     ///< ZEX_STRUCTURE_TYPE_TEMP_VARIABLE_DESCRIPTOR
+  const void *pNext; ///< [in][optional] pointer to extension-specific structure
   zex_temp_variable_flags_t flags;
   size_t size;
 } zex_temp_variable_desc_t;

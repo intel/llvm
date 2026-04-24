@@ -162,9 +162,27 @@ int test_error() {
   return 0;
 }
 
+#ifndef MCR_TEST_COUNT
+#define MCR_TEST_COUNT 5
+#endif
+
 int main() {
 #ifdef SYCL_EXT_ONEAPI_KERNEL_COMPILER
-  return test_device_global() || test_error();
+  constexpr std::size_t testCount{MCR_TEST_COUNT};
+  std::size_t testIteration{1}, failed{};
+  int constexpr OK = 0;
+
+  for (; testIteration <= testCount; ++testIteration) {
+    std::cout << "Test iteration: " << testIteration << " / " << testCount;
+    std::cout << std::endl;
+
+    if (test_device_global() != OK) {
+      ++failed;
+      break;
+    }
+  }
+
+  return failed || test_error();
 #else
   static_assert(false, "Kernel Compiler feature test macro undefined");
 #endif

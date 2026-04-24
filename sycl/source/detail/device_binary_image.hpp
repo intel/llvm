@@ -20,6 +20,7 @@
 #include <cstring>
 #include <memory>
 #include <mutex>
+#include <string_view>
 
 namespace sycl {
 inline namespace _V1 {
@@ -75,6 +76,7 @@ public:
   uint32_t asUint32() const;
   ByteArray asByteArray() const;
   const char *asCString() const;
+  std::string_view asStringView() const;
 
 protected:
   friend std::ostream &operator<<(std::ostream &Out,

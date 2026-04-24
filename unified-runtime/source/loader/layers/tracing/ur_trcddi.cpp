@@ -10913,6 +10913,42 @@ __urdlllocal ur_result_t UR_APICALL urQueueIsGraphCaptureEnabledExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urQueueGetGraphExp
+__urdlllocal ur_result_t UR_APICALL urQueueGetGraphExp(
+    /// [in] Handle of the queue to query.
+    ur_queue_handle_t hQueue,
+    /// [out] Pointer to the handle of the graph being captured. Set to
+    /// nullptr if queue is not in capture mode.
+    ur_exp_graph_handle_t *phGraph) {
+  auto pfnGetGraphExp = getContext()->urDdiTable.QueueExp.pfnGetGraphExp;
+
+  if (nullptr == pfnGetGraphExp)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_queue_get_graph_exp_params_t params = {&hQueue, &phGraph};
+  uint64_t instance = getContext()->notify_begin(
+      UR_FUNCTION_QUEUE_GET_GRAPH_EXP, "urQueueGetGraphExp", &params);
+
+  auto &logger = getContext()->logger;
+  UR_LOG_L(logger, INFO, "   ---> urQueueGetGraphExp\n");
+
+  ur_result_t result = pfnGetGraphExp(hQueue, phGraph);
+
+  getContext()->notify_end(UR_FUNCTION_QUEUE_GET_GRAPH_EXP,
+                           "urQueueGetGraphExp", &params, &result, instance);
+
+  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_QUEUE_GET_GRAPH_EXP,
+                                    &params);
+    UR_LOG_L(logger, INFO, "   <--- urQueueGetGraphExp({}) -> {};\n",
+             args_str.str(), result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urGraphIsEmptyExp
 __urdlllocal ur_result_t UR_APICALL urGraphIsEmptyExp(
     /// [in] Handle of the graph to query.
@@ -12122,6 +12158,9 @@ __urdlllocal ur_result_t UR_APICALL urGetQueueExpProcAddrTable(
   dditable.pfnIsGraphCaptureEnabledExp = pDdiTable->pfnIsGraphCaptureEnabledExp;
   pDdiTable->pfnIsGraphCaptureEnabledExp =
       ur_tracing_layer::urQueueIsGraphCaptureEnabledExp;
+
+  dditable.pfnGetGraphExp = pDdiTable->pfnGetGraphExp;
+  pDdiTable->pfnGetGraphExp = ur_tracing_layer::urQueueGetGraphExp;
 
   return result;
 }

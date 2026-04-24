@@ -21,7 +21,9 @@
 // CHECK-NEXT: range.hpp
 // CHECK-NEXT: info/info_desc.hpp
 // CHECK-NEXT: ur_api.h
+// CHECK-NEXT: detail/device_info_types.hpp
 // CHECK-NEXT: detail/type_traits.hpp
+// CHECK-NEXT: detail/type_traits/bool_traits.hpp
 // CHECK-NEXT: detail/type_traits/vec_marray_traits.hpp
 // CHECK-NEXT: detail/fwd/multi_ptr.hpp
 // CHECK-NEXT: access/access.hpp
@@ -70,6 +72,8 @@
 // CHECK-NEXT: accessor.hpp
 // CHECK-NEXT: buffer.hpp
 // CHECK-NEXT: detail/common.hpp
+// CHECK-NEXT: detail/assert.hpp
+// CHECK-NEXT: detail/nd_loop.hpp
 // CHECK-NEXT: detail/fwd/accessor.hpp
 // CHECK-NEXT: detail/helpers.hpp
 // CHECK-NEXT: memory_enums.hpp
@@ -86,7 +90,9 @@
 // CHECK-NEXT: properties/property_traits.hpp
 // CHECK-NEXT: detail/accessor_iterator.hpp
 // CHECK-NEXT: detail/generic_type_traits.hpp
+// CHECK-NEXT: detail/type_traits/integer_traits.hpp
 // CHECK-NEXT: detail/handler_proxy.hpp
+// CHECK-NEXT: detail/loop.hpp
 // CHECK-NEXT: multi_ptr.hpp
 // CHECK-NEXT: detail/address_space_cast.hpp
 // CHECK-NEXT: pointers.hpp
@@ -110,9 +116,10 @@
 // CHECK-NEXT: detail/host_profiling_info.hpp
 // CHECK-NEXT: detail/item_base.hpp
 // CHECK-NEXT: group.hpp
+// CHECK-NEXT: detail/async_work_group_copy_ptr.hpp
 // CHECK-NEXT: device_event.hpp
-// CHECK-NEXT: item.hpp
 // CHECK-NEXT: h_item.hpp
+// CHECK-NEXT: item.hpp
 // CHECK-NEXT: kernel_handler.hpp
 // CHECK-NEXT: nd_item.hpp
 // CHECK-NEXT: nd_range.hpp

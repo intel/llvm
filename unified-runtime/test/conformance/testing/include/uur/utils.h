@@ -243,6 +243,8 @@ ur_result_t GetDevicePreferredVectorWidthInt(ur_device_handle_t device,
                                              uint32_t &pref_width);
 ur_result_t GetDevicePreferredVectorWidthLong(ur_device_handle_t device,
                                               uint32_t &pref_width);
+ur_result_t GetDevicePreferredVectorWidthLongLong(ur_device_handle_t device,
+                                                  uint32_t &pref_width);
 ur_result_t GetDevicePreferredVectorWidthFloat(ur_device_handle_t device,
                                                uint32_t &pref_width);
 ur_result_t GetDevicePreferredVectorWidthDouble(ur_device_handle_t device,
@@ -257,6 +259,8 @@ ur_result_t GetDeviceNativeVectorWithInt(ur_device_handle_t device,
                                          uint32_t &vec_width);
 ur_result_t GetDeviceNativeVectorWithLong(ur_device_handle_t device,
                                           uint32_t &vec_width);
+ur_result_t GetDeviceNativeVectorWithLongLong(ur_device_handle_t device,
+                                              uint32_t &vec_width);
 ur_result_t GetDeviceNativeVectorWithFloat(ur_device_handle_t device,
                                            uint32_t &vec_width);
 ur_result_t GetDeviceNativeVectorWithDouble(ur_device_handle_t device,

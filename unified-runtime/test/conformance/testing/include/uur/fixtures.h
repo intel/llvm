@@ -679,6 +679,33 @@ struct urMultiQueueTest : urContextTest {
   ur_queue_handle_t queue2 = nullptr;
 };
 
+struct urMultiQueueMultiTypeTest : urContextTest {
+  void SetUp() override {
+    UUR_RETURN_ON_FATAL_FAILURE(urContextTest::SetUp());
+
+    ur_queue_flag_t queueMode = this->getQueueFlag();
+    ur_queue_properties_t props = {UR_STRUCTURE_TYPE_QUEUE_PROPERTIES, nullptr,
+                                   queueMode};
+    ASSERT_SUCCESS(urQueueCreate(this->context, this->device, &props, &queue1));
+    ASSERT_SUCCESS(urQueueCreate(this->context, this->device, &props, &queue2));
+  }
+
+  void TearDown() override {
+    if (queue1 != nullptr) {
+      EXPECT_SUCCESS(urQueueRelease(queue1));
+    }
+    if (queue2 != nullptr) {
+      EXPECT_SUCCESS(urQueueRelease(queue2));
+    }
+    UUR_RETURN_ON_FATAL_FAILURE(urContextTest::TearDown());
+  }
+
+  ur_queue_flag_t getQueueFlag() { return std::get<1>(GetParam()); }
+
+  ur_queue_handle_t queue1 = nullptr;
+  ur_queue_handle_t queue2 = nullptr;
+};
+
 template <class T>
 struct urMultiQueueTestWithParam : urContextTestWithParam<T> {
   void SetUp() override {

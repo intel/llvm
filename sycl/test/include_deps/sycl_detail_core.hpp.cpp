@@ -12,8 +12,10 @@
 // CHECK-NEXT: backend_types.hpp
 // CHECK-NEXT: detail/array.hpp
 // CHECK-NEXT: detail/common.hpp
-// CHECK-NEXT: detail/export.hpp
+// CHECK-NEXT: detail/assert.hpp
 // CHECK-NEXT: __spirv/spirv_vars.hpp
+// CHECK-NEXT: detail/export.hpp
+// CHECK-NEXT: detail/nd_loop.hpp
 // CHECK-NEXT: detail/fwd/accessor.hpp
 // CHECK-NEXT: detail/defines.hpp
 // CHECK-NEXT: detail/helpers.hpp
@@ -44,9 +46,12 @@
 // CHECK-NEXT: bit_cast.hpp
 // CHECK-NEXT: detail/fwd/half.hpp
 // CHECK-NEXT: detail/type_traits.hpp
+// CHECK-NEXT: detail/type_traits/bool_traits.hpp
 // CHECK-NEXT: detail/type_traits/vec_marray_traits.hpp
 // CHECK-NEXT: detail/fwd/multi_ptr.hpp
+// CHECK-NEXT: detail/type_traits/integer_traits.hpp
 // CHECK-NEXT: detail/handler_proxy.hpp
+// CHECK-NEXT: detail/loop.hpp
 // CHECK-NEXT: multi_ptr.hpp
 // CHECK-NEXT: detail/address_space_cast.hpp
 // CHECK-NEXT: pointers.hpp
@@ -60,6 +65,7 @@
 // CHECK-NEXT: info/aspects.def
 // CHECK-NEXT: info/aspects_deprecated.def
 // CHECK-NEXT: info/info_desc.hpp
+// CHECK-NEXT: detail/device_info_types.hpp
 // CHECK-NEXT: ext/oneapi/experimental/device_architecture.hpp
 // CHECK-NEXT: ext/oneapi/experimental/device_architecture.def
 // CHECK-NEXT: ext/oneapi/experimental/forward_progress.hpp
@@ -90,9 +96,10 @@
 // CHECK-NEXT: detail/item_base.hpp
 // CHECK-NEXT: detail/kernel_desc.hpp
 // CHECK-NEXT: group.hpp
+// CHECK-NEXT: detail/async_work_group_copy_ptr.hpp
 // CHECK-NEXT: device_event.hpp
-// CHECK-NEXT: item.hpp
 // CHECK-NEXT: h_item.hpp
+// CHECK-NEXT: item.hpp
 // CHECK-NEXT: kernel_handler.hpp
 // CHECK-NEXT: nd_item.hpp
 // CHECK-NEXT: nd_range.hpp

@@ -5208,9 +5208,6 @@ public:
   void ProcessDeclAttributes(Scope *S, Decl *D, const Declarator &PD);
 
 public:
-
-  bool CheckRebuiltAttributedStmtAttributes(ArrayRef<const Attr *> Attrs);
-
   void PopParsingDeclaration(ParsingDeclState state, Decl *decl);
 
   /// Given a set of delayed diagnostics, re-emit them as if they had
@@ -11434,12 +11431,6 @@ public:
                                               Expr *E);
   OpenCLUnrollHintAttr *
   BuildOpenCLLoopUnrollHintAttr(const AttributeCommonInfo &A, Expr *E);
-
-  SYCLIntelMaxInterleavingAttr *
-  BuildSYCLIntelMaxInterleavingAttr(const AttributeCommonInfo &CI, Expr *E);
-  SYCLIntelLoopCoalesceAttr *
-  BuildSYCLIntelLoopCoalesceAttr(const AttributeCommonInfo &CI, Expr *E);
-
   ///@}
 
   //

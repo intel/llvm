@@ -160,6 +160,21 @@ params:
       desc: "[out] Pointer to a boolean where the result will be stored."
 --- #--------------------------------------------------------------------------
 type: function
+desc: "Get the graph handle currently being captured on the specified queue."
+class: $xQueue
+name: GetGraphExp
+params:
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: "[in] Handle of the queue to query."
+    - type: $x_exp_graph_handle_t*
+      name: phGraph
+      desc: "[out] Pointer to the handle of the graph being captured. Set to nullptr if queue is not in capture mode."
+returns:
+    - $X_RESULT_ERROR_INVALID_OPERATION:
+        - "The queue is not in graph capture mode."
+--- #--------------------------------------------------------------------------
+type: function
 desc: "Return whether the given recorded graph contains any nodes."
 class: $xGraph
 name: IsEmptyExp

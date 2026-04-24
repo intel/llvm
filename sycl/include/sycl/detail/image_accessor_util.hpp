@@ -17,7 +17,7 @@
 #include <sycl/builtins.hpp>                   // for clamp, fmax, min
 #include <sycl/detail/array.hpp>               // for array
 #include <sycl/detail/export.hpp>              // for __SYCL_EXPORT
-#include <sycl/detail/generic_type_traits.hpp> // for max_v, min_v, TryToGe...
+#include <sycl/detail/generic_type_traits.hpp>
 #include <sycl/detail/vector_convert.hpp> // for vec, vec::convert, operator*, round...
 #include <sycl/exception.hpp>
 #include <sycl/id.hpp>      // for id
@@ -26,6 +26,7 @@
 #include <sycl/sampler.hpp> // for addressing_mode, coor...
 
 #include <cstdint>     // for int32_t, uint16_t
+#include <limits>      // for numeric_limits
 #include <stddef.h>    // for size_t
 #include <type_traits> // for enable_if_t
 
@@ -479,15 +480,15 @@ convertWriteData(const uint4 WriteData,
   switch (ImageChannelType) {
   case image_channel_type::unsigned_int8: {
     // convert_uchar_sat(Data)
-    std::uint32_t MinVal = min_v<std::uint8_t>();
-    std::uint32_t MaxVal = max_v<std::uint8_t>();
+    std::uint32_t MinVal = (std::numeric_limits<std::uint8_t>::min)();
+    std::uint32_t MaxVal = (std::numeric_limits<std::uint8_t>::max)();
     uint4 PixelData = sycl::clamp(WriteData, MinVal, MaxVal);
     return PixelData.convert<ChannelType>();
   }
   case image_channel_type::unsigned_int16: {
     // convert_ushort_sat(Data)
-    std::uint32_t MinVal = min_v<std::uint16_t>();
-    std::uint32_t MaxVal = max_v<std::uint16_t>();
+    std::uint32_t MinVal = (std::numeric_limits<std::uint16_t>::min)();
+    std::uint32_t MaxVal = (std::numeric_limits<std::uint16_t>::max)();
     uint4 PixelData = sycl::clamp(WriteData, MinVal, MaxVal);
     return PixelData.convert<ChannelType>();
   }
@@ -513,15 +514,15 @@ convertWriteData(const int4 WriteData,
   switch (ImageChannelType) {
   case image_channel_type::signed_int8: {
     // convert_char_sat(Data)
-    std::int32_t MinVal = min_v<std::int8_t>();
-    std::int32_t MaxVal = max_v<std::int8_t>();
+    std::int32_t MinVal = (std::numeric_limits<std::int8_t>::min)();
+    std::int32_t MaxVal = (std::numeric_limits<std::int8_t>::max)();
     int4 PixelData = sycl::clamp(WriteData, MinVal, MaxVal);
     return PixelData.convert<ChannelType>();
   }
   case image_channel_type::signed_int16: {
     // convert_short_sat(Data)
-    std::int32_t MinVal = min_v<std::int16_t>();
-    std::int32_t MaxVal = max_v<std::int16_t>();
+    std::int32_t MinVal = (std::numeric_limits<std::int16_t>::min)();
+    std::int32_t MaxVal = (std::numeric_limits<std::int16_t>::max)();
     int4 PixelData = sycl::clamp(WriteData, MinVal, MaxVal);
     return PixelData.convert<ChannelType>();
   }
@@ -542,7 +543,8 @@ vec<ChannelType, 4> processFloatDataToPixel(float4 WriteData, float MulFactor) {
   float4 Temp = WriteData * MulFactor;
   int4 TempInInt = Temp.convert<int, rounding_mode::rte>();
   int4 TempInIntSaturated =
-      sycl::clamp(TempInInt, min_v<ChannelType>(), max_v<ChannelType>());
+      sycl::clamp(TempInInt, (std::numeric_limits<ChannelType>::min)(),
+                  (std::numeric_limits<ChannelType>::max)());
   return TempInIntSaturated.convert<ChannelType>();
 }
 

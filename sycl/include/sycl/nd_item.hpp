@@ -8,21 +8,21 @@
 
 #pragma once
 
-#include <sycl/__spirv/spirv_types.hpp>       // for Scope
-#include <sycl/__spirv/spirv_vars.hpp> // for initBuiltInLocalInvocationId
-#include <sycl/access/access.hpp>             // for mode, fence_space
-#include <sycl/detail/defines.hpp>            // for __SYCL_ASSUME_ID_RANGE
+#include <sycl/__spirv/spirv_types.hpp> // for Scope
+#include <sycl/__spirv/spirv_vars.hpp>  // for initBuiltInLocalInvocationId
+#include <sycl/access/access.hpp>       // for mode, fence_space
+#include <sycl/detail/async_work_group_copy_ptr.hpp> // for convertToOpenCLGroupAsyncCopyPtr
+#include <sycl/detail/defines.hpp>                   // for __SYCL_ASSUME_INT
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED, __SY...
-#include <sycl/detail/generic_type_traits.hpp> // for ConvertToOpenCLType_t
 #include <sycl/detail/helpers.hpp>            // for getSPIRVMemorySemanticsMask
 #include <sycl/detail/type_traits.hpp>        // for is_bool, change_base_...
 #include <sycl/device_event.hpp>              // for device_event
-#include <sycl/group.hpp>     // for group
-#include <sycl/id.hpp>        // for id
-#include <sycl/item.hpp>      // for item
-#include <sycl/nd_range.hpp>  // for nd_range
-#include <sycl/pointers.hpp>  // for decorated_global_ptr, decor...
-#include <sycl/range.hpp>     // for range
+#include <sycl/group.hpp>                     // for group
+#include <sycl/id.hpp>                        // for id
+#include <sycl/item.hpp>                      // for item
+#include <sycl/nd_range.hpp>                  // for nd_range
+#include <sycl/pointers.hpp> // for decorated_global_ptr, decor...
+#include <sycl/range.hpp>    // for range
 
 #include <cstddef>     // for size_t
 #include <stdint.h>    // for uint32_t
@@ -247,12 +247,10 @@ public:
                                           [[maybe_unused]] size_t srcStride)
       const {
 #ifdef __SYCL_DEVICE_ONLY__
-    using DestT = detail::ConvertToOpenCLType_t<decltype(dest)>;
-    using SrcT = detail::ConvertToOpenCLType_t<decltype(src)>;
-
-    __ocl_event_t E =
-        __spirv_GroupAsyncCopy(__spv::Scope::Workgroup, DestT(dest.get()),
-                               SrcT(src.get()), numElements, srcStride, 0);
+    __ocl_event_t E = __spirv_GroupAsyncCopy(
+        __spv::Scope::Workgroup, detail::convertToOpenCLGroupAsyncCopyPtr(dest),
+        detail::convertToOpenCLGroupAsyncCopyPtr(src), numElements, srcStride,
+        0);
     return device_event(E);
 #else
     return nullptr;
@@ -275,12 +273,10 @@ public:
                                           [[maybe_unused]] size_t destStride)
       const {
 #ifdef __SYCL_DEVICE_ONLY__
-    using DestT = detail::ConvertToOpenCLType_t<decltype(dest)>;
-    using SrcT = detail::ConvertToOpenCLType_t<decltype(src)>;
-
-    __ocl_event_t E =
-        __spirv_GroupAsyncCopy(__spv::Scope::Workgroup, DestT(dest.get()),
-                               SrcT(src.get()), numElements, destStride, 0);
+    __ocl_event_t E = __spirv_GroupAsyncCopy(
+        __spv::Scope::Workgroup, detail::convertToOpenCLGroupAsyncCopyPtr(dest),
+        detail::convertToOpenCLGroupAsyncCopyPtr(src), numElements, destStride,
+        0);
     return device_event(E);
 #else
     return nullptr;
@@ -302,12 +298,10 @@ public:
                         [[maybe_unused]] size_t numElements,
                         [[maybe_unused]] size_t srcStride) const {
 #ifdef __SYCL_DEVICE_ONLY__
-    using DestT = detail::ConvertToOpenCLType_t<decltype(dest)>;
-    using SrcT = detail::ConvertToOpenCLType_t<decltype(src)>;
-
-    __ocl_event_t E =
-        __spirv_GroupAsyncCopy(__spv::Scope::Workgroup, DestT(dest.get()),
-                               SrcT(src.get()), numElements, srcStride, 0);
+    __ocl_event_t E = __spirv_GroupAsyncCopy(
+        __spv::Scope::Workgroup, detail::convertToOpenCLGroupAsyncCopyPtr(dest),
+        detail::convertToOpenCLGroupAsyncCopyPtr(src), numElements, srcStride,
+        0);
     return device_event(E);
 #else
     return nullptr;
@@ -329,12 +323,10 @@ public:
                         [[maybe_unused]] size_t numElements,
                         [[maybe_unused]] size_t destStride) const {
 #ifdef __SYCL_DEVICE_ONLY__
-    using DestT = detail::ConvertToOpenCLType_t<decltype(dest)>;
-    using SrcT = detail::ConvertToOpenCLType_t<decltype(src)>;
-
-    __ocl_event_t E =
-        __spirv_GroupAsyncCopy(__spv::Scope::Workgroup, DestT(dest.get()),
-                               SrcT(src.get()), numElements, destStride, 0);
+    __ocl_event_t E = __spirv_GroupAsyncCopy(
+        __spv::Scope::Workgroup, detail::convertToOpenCLGroupAsyncCopyPtr(dest),
+        detail::convertToOpenCLGroupAsyncCopyPtr(src), numElements, destStride,
+        0);
     return device_event(E);
 #else
     return nullptr;

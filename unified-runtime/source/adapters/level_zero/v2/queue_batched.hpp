@@ -482,6 +482,10 @@ public:
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
 
+  ur_result_t queueGetGraphExp(ur_exp_graph_handle_t * /* phGraph */) override {
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  }
+
   ur_result_t
   enqueueHostTaskExp(ur_exp_host_task_function_t pfnHostTask, void *data,
                      const ur_exp_host_task_properties_t *pProperties,

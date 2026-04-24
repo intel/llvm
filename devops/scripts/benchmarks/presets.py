@@ -46,6 +46,9 @@ presets: dict[str, list[str]] = {
     "LLama": [
         "llama.cpp bench",
     ],
+    "Pytorch": [
+        "PyTorch Benchmarks",
+    ],
 }
 
 

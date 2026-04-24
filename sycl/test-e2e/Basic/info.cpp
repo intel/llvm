@@ -233,6 +233,8 @@ int main() {
       dev, "Preferred vector width int");
   print_info<info::device::preferred_vector_width_long, std::uint32_t>(
       dev, "Preferred vector width long");
+  print_info<info::device::preferred_vector_width_long_long, std::uint32_t>(
+      dev, "Preferred vector width long long");
   print_info<info::device::preferred_vector_width_float, std::uint32_t>(
       dev, "Preferred vector width float");
   print_info<info::device::preferred_vector_width_double, std::uint32_t>(
@@ -247,6 +249,8 @@ int main() {
       dev, "Native vector width int");
   print_info<info::device::native_vector_width_long, std::uint32_t>(
       dev, "Native vector width long");
+  print_info<info::device::native_vector_width_long_long, std::uint32_t>(
+      dev, "Native vector width long long");
   print_info<info::device::native_vector_width_float, std::uint32_t>(
       dev, "Native vector width float");
   print_info<info::device::native_vector_width_double, std::uint32_t>(

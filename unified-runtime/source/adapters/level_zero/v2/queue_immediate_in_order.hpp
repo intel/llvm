@@ -563,6 +563,10 @@ public:
     return commandListManager.lock()->isGraphCaptureActive(pResult);
   }
 
+  ur_result_t queueGetGraphExp(ur_exp_graph_handle_t *phGraph) override {
+    return commandListManager.lock()->getGraph(phGraph);
+  }
+
   ur_result_t
   enqueueHostTaskExp(ur_exp_host_task_function_t pfnHostTask, void *data,
                      const ur_exp_host_task_properties_t *pProperties,

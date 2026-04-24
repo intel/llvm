@@ -90,6 +90,8 @@ public:
   std::unordered_map<void *, BufferMap> PtrToBufferMap;
 
   AllocMode MemAllocMode;
+  // True if UR performed the cuMemHostRegister call and owns the registration.
+  bool HostPtrRegisteredByUR = false;
 
   BufferMem(ur_context_handle_t Context, ur_mem_handle_t OuterMemStruct,
             AllocMode Mode, void *HostPtr, size_t Size)
@@ -97,7 +99,14 @@ public:
         OuterMemStruct{OuterMemStruct}, HostPtr{HostPtr}, Size{Size},
         MemAllocMode{Mode} {};
 
-  BufferMem(const BufferMem &Buffer) = default;
+  BufferMem(const BufferMem &Buffer)
+      : Ptrs{Buffer.Ptrs}, Parent{Buffer.Parent},
+        OuterMemStruct{Buffer.OuterMemStruct}, HostPtr{Buffer.HostPtr},
+        Size{Buffer.Size}, PtrToBufferMap{Buffer.PtrToBufferMap},
+        MemAllocMode{Buffer.MemAllocMode} {
+    // HostPtrRegisteredByUR is intentionally not copied: ownership of the
+    // cuMemHostRegister call belongs to the original BufferMem only.
+  }
 
   native_type getPtrWithOffset(const ur_device_handle_t Device, size_t Offset);
 
@@ -165,7 +174,8 @@ public:
       }
       break;
     case AllocMode::UseHostPtr:
-      UR_CHECK_ERROR(cuMemHostUnregister(HostPtr));
+      if (HostPtrRegisteredByUR)
+        UR_CHECK_ERROR(cuMemHostUnregister(HostPtr));
       break;
     case AllocMode::AllocHostPtr:
       UMF_CHECK_ERROR(umfFree((void *)HostPtr));

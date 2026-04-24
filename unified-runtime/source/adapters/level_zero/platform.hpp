@@ -200,6 +200,8 @@ struct ur_platform_handle_t_ : ur::handle_base<ur::level_zero::ddi_getter>,
         ze_executable_graph_handle_t hGraph);
     ze_result_t (*zeCommandListIsGraphCaptureEnabledExp)(
         ze_command_list_handle_t hCommandList);
+    ze_result_t (*zeCommandListGetGraphExp)(
+        ze_command_list_handle_t hCommandList, ze_graph_handle_t *phGraph);
     ze_result_t (*zeGraphIsEmptyExp)(ze_graph_handle_t hGraph);
     ze_result_t (*zeGraphDumpContentsExp)(ze_graph_handle_t hGraph,
                                           const char *filePath, void *pNext);

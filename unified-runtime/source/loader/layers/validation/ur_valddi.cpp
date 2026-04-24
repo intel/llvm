@@ -11705,6 +11705,38 @@ __urdlllocal ur_result_t UR_APICALL urQueueIsGraphCaptureEnabledExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urQueueGetGraphExp
+__urdlllocal ur_result_t UR_APICALL urQueueGetGraphExp(
+    /// [in] Handle of the queue to query.
+    ur_queue_handle_t hQueue,
+    /// [out] Pointer to the handle of the graph being captured. Set to
+    /// nullptr if queue is not in capture mode.
+    ur_exp_graph_handle_t *phGraph) {
+  auto pfnGetGraphExp = getContext()->urDdiTable.QueueExp.pfnGetGraphExp;
+
+  if (nullptr == pfnGetGraphExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == phGraph)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hQueue)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hQueue)) {
+    URLOG_CTX_INVALID_REFERENCE(hQueue);
+  }
+
+  ur_result_t result = pfnGetGraphExp(hQueue, phGraph);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urGraphIsEmptyExp
 __urdlllocal ur_result_t UR_APICALL urGraphIsEmptyExp(
     /// [in] Handle of the graph to query.
@@ -12923,6 +12955,9 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetQueueExpProcAddrTable(
   dditable.pfnIsGraphCaptureEnabledExp = pDdiTable->pfnIsGraphCaptureEnabledExp;
   pDdiTable->pfnIsGraphCaptureEnabledExp =
       ur_validation_layer::urQueueIsGraphCaptureEnabledExp;
+
+  dditable.pfnGetGraphExp = pDdiTable->pfnGetGraphExp;
+  pDdiTable->pfnGetGraphExp = ur_validation_layer::urQueueGetGraphExp;
 
   return result;
 }

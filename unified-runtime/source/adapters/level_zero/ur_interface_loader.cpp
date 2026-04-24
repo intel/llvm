@@ -476,6 +476,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetQueueExpProcAddrTable(
   pDdiTable->pfnEndGraphCaptureExp = ur::level_zero::urQueueEndGraphCaptureExp;
   pDdiTable->pfnIsGraphCaptureEnabledExp =
       ur::level_zero::urQueueIsGraphCaptureEnabledExp;
+  pDdiTable->pfnGetGraphExp = ur::level_zero::urQueueGetGraphExp;
 
   return result;
 }

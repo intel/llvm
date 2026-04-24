@@ -157,6 +157,22 @@ HOST_IMPL_TEMPLATE(THREE_ARGS, bitselect, builtin_enable_bitselect_t, rel,
 #endif
 
 namespace detail {
+template <typename InputIt, typename Predicate>
+bool builtin_any_of(InputIt First, InputIt Last, Predicate Pred) {
+  for (; First != Last; ++First)
+    if (Pred(*First))
+      return true;
+  return false;
+}
+
+template <typename InputIt, typename Predicate>
+bool builtin_all_of(InputIt First, InputIt Last, Predicate Pred) {
+  for (; First != Last; ++First)
+    if (!Pred(*First))
+      return false;
+  return true;
+}
+
 template <typename T>
 struct builtin_enable_rel_all_any
     : std::enable_if<(is_marray_v<T> &&
@@ -177,7 +193,7 @@ struct builtin_enable_rel_all_any_deprecated
 template <typename T>
 typename detail::builtin_enable_rel_all_any<T>::type any(T x) {
   if constexpr (detail::is_marray_v<T>) {
-    return std::any_of(x.begin(), x.end(), [](bool x) { return x; });
+    return detail::builtin_any_of(x.begin(), x.end(), [](bool x) { return x; });
   } else {
     for (size_t i = 0; i < detail::num_elements<T>::value; ++i)
       if (detail::msbIsSet(x[i]))
@@ -190,8 +206,8 @@ template <typename T>
 __SYCL2020_DEPRECATED("This overload is deprecated in SYCL 2020.")
 typename detail::builtin_enable_rel_all_any_deprecated<T>::type any(T x) {
   if constexpr (detail::is_marray_v<T>) {
-    return std::any_of(x.begin(), x.end(),
-                       [](auto x) { return detail::msbIsSet(x); });
+    return detail::builtin_any_of(x.begin(), x.end(),
+                                  [](auto x) { return detail::msbIsSet(x); });
   } else {
     return detail::msbIsSet(x);
   }
@@ -200,7 +216,7 @@ typename detail::builtin_enable_rel_all_any_deprecated<T>::type any(T x) {
 template <typename T>
 typename detail::builtin_enable_rel_all_any<T>::type all(T x) {
   if constexpr (detail::is_marray_v<T>) {
-    return std::all_of(x.begin(), x.end(), [](bool x) { return x; });
+    return detail::builtin_all_of(x.begin(), x.end(), [](bool x) { return x; });
   } else {
     for (size_t i = 0; i < detail::num_elements<T>::value; ++i)
       if (!detail::msbIsSet(x[i]))
@@ -213,8 +229,8 @@ template <typename T>
 __SYCL2020_DEPRECATED("This overload is deprecated in SYCL 2020.")
 typename detail::builtin_enable_rel_all_any_deprecated<T>::type all(T x) {
   if constexpr (detail::is_marray_v<T>) {
-    return std::all_of(x.begin(), x.end(),
-                       [](auto x) { return detail::msbIsSet(x); });
+    return detail::builtin_all_of(x.begin(), x.end(),
+                                  [](auto x) { return detail::msbIsSet(x); });
   } else {
     return detail::msbIsSet(x);
   }

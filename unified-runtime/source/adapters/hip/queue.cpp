@@ -282,6 +282,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueIsGraphCaptureEnabledExp(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
+UR_APIEXPORT ur_result_t UR_APICALL urQueueGetGraphExp(
+    ur_queue_handle_t /* hQueue */, ur_exp_graph_handle_t * /* phGraph */) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueHostTaskExp(
     ur_queue_handle_t /* hQueue */,
     ur_exp_host_task_function_t /* pfnHostTask */, void * /* data */,

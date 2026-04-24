@@ -90,6 +90,27 @@ const char *DeviceBinaryProperty::asCString() const {
   return ur::cast<const char *>(Prop->ValAddr) + Shift;
 }
 
+std::string_view DeviceBinaryProperty::asStringView() const {
+  const char *Str = asCString();
+  // ValSize covers the entire blob stored at ValAddr. The two property types
+  // that can carry string data have different layouts:
+  // - BYTE_ARRAY: used by PropertyValue (property_set_io.hpp) when serialising
+  //   any byte sequence, including strings. The blob starts with a mandatory
+  //   8-byte little-endian uint64_t encoding the payload bit-count, followed
+  //   by the actual bytes. asCString() already skips that 8-byte header, so
+  //   we subtract 8 from ValSize to get the true payload length.
+  // - STRING: a plain null-terminated C string written directly to ValAddr,
+  //   with ValSize counting the bytes including the terminator. asCString()
+  //   returns the start of the string directly, so we subtract 1 to exclude
+  //   the terminator from the view's length.
+  assert((Prop->Type == SYCL_PROPERTY_TYPE_STRING ||
+          Prop->Type == SYCL_PROPERTY_TYPE_BYTE_ARRAY) &&
+         "property type mismatch");
+  size_t Len = Prop->Type == SYCL_PROPERTY_TYPE_BYTE_ARRAY ? Prop->ValSize - 8
+                                                           : Prop->ValSize - 1;
+  return {Str, Len};
+}
+
 void RTDeviceBinaryImage::PropertyRange::init(sycl_device_binary Bin,
                                               const char *PropSetName) {
   assert(!this->Begin && !this->End && "already initialized");
