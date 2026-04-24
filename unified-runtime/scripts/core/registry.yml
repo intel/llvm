@@ -721,7 +721,10 @@ etors:
 - name: USM_HOST_ALLOC_UNREGISTER_EXP
   desc: Enumerator for $xUSMHostAllocUnregisterExp
   value: '313'
-max_id: '313'
+- name: QUEUE_GET_GRAPH_EXP
+  desc: Enumerator for $xQueueGetGraphExp
+  value: '314'
+max_id: '314'
 ---
 type: enum
 desc: Defines structure types

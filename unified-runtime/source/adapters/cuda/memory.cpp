@@ -19,28 +19,17 @@
 
 /// Creates a UR Memory object using a CUDA memory allocation.
 /// Can trigger a manual copy depending on the mode.
-/// \TODO Implement USE_HOST_PTR using cuHostRegister
-/// https://github.com/intel/llvm/issues/9789
-///
 UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreate(
     ur_context_handle_t hContext, ur_mem_flags_t flags, size_t size,
     const ur_buffer_properties_t *pProperties, ur_mem_handle_t *phBuffer) {
-  // Currently, USE_HOST_PTR is not implemented using host register
-  // since this triggers a weird segfault after program ends.
-  // Setting this constant to true enables testing that behavior.
-  const bool EnableUseHostPtr = false;
-  const bool PerformInitialCopy =
-      (flags & UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER) ||
-      ((flags & UR_MEM_FLAG_USE_HOST_POINTER) && !EnableUseHostPtr);
+  const bool PerformInitialCopy = (flags & UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER);
   ur_mem_handle_t MemObj = nullptr;
 
   try {
     auto HostPtr = pProperties ? pProperties->pHost : nullptr;
     BufferMem::AllocMode AllocMode = BufferMem::AllocMode::Classic;
 
-    if ((flags & UR_MEM_FLAG_USE_HOST_POINTER) && EnableUseHostPtr) {
-      UR_CHECK_ERROR(
-          cuMemHostRegister(HostPtr, size, CU_MEMHOSTREGISTER_DEVICEMAP));
+    if (flags & UR_MEM_FLAG_USE_HOST_POINTER) {
       AllocMode = BufferMem::AllocMode::UseHostPtr;
     } else if (flags & UR_MEM_FLAG_ALLOC_HOST_POINTER) {
       HostPtr = umfPoolMalloc(hContext->MemoryPoolHost, size);
@@ -396,8 +385,12 @@ ur_result_t allocateMemObjOnDeviceIfNeeded(ur_mem_handle_t Mem,
       // Host allocation has already been made
       UR_CHECK_ERROR(cuMemHostGetDevicePointer(&DevPtr, Buffer.HostPtr, 0));
     } else if (Buffer.MemAllocMode == BufferMem::AllocMode::UseHostPtr) {
-      UR_CHECK_ERROR(cuMemHostRegister(Buffer.HostPtr, Buffer.Size,
-                                       CU_MEMHOSTALLOC_DEVICEMAP));
+      auto const result = cuMemHostRegister(Buffer.HostPtr, Buffer.Size,
+                                            CU_MEMHOSTREGISTER_DEVICEMAP);
+      if (result == CUDA_SUCCESS)
+        Buffer.HostPtrRegisteredByUR = true;
+      else if (result != CUDA_ERROR_HOST_MEMORY_ALREADY_REGISTERED)
+        UR_CHECK_ERROR(result);
       UR_CHECK_ERROR(cuMemHostGetDevicePointer(&DevPtr, Buffer.HostPtr, 0));
     } else {
       *(void **)&DevPtr = umfPoolMalloc(hDevice->MemoryPoolDevice, Buffer.Size);
