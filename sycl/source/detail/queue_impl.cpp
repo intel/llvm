@@ -491,10 +491,13 @@ EventImplPtr queue_impl::submit_barrier_scheduler_bypass(
   ResEvent->setEnqueued();
   ResEvent->setStateIncomplete();
 
-  // TODO Do we have to honor the "depends_on" dependencies here?
-  // For compatibility with the scheduler logic, this check is
-  // added here, until the code is changed in both places if needed.
-  if (BarrierType == CGType::BarrierWaitlist && RawBarrierDepEvents.empty()) {
+  // We can skip the barrier UR call only if both the barrier wait list
+  // and the list of barrier command dependencies are empty (after filtering
+  // the UR events).
+  // TODO Currently the scheduler path will only check the barrier wait
+  // list.
+  if (BarrierType == CGType::BarrierWaitlist && RawBarrierDepEvents.empty() &&
+      RawDepEvents.empty()) {
     ResEvent->setComplete();
     return ResEvent;
   }
