@@ -11,6 +11,9 @@
 // UNSUPPORTED: opencl && gpu
 // UNSUPPORTED-TRACKER: GSD-4287
 
+// UNSUPPORTED: gpu-nvidia-geforce-rtx-3090
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20408
+
 // RUN: %{build} -o %t.out
 // RUN: %if hip %{ env SYCL_JIT_AMDGCN_PTX_TARGET_CPU=%{amd_arch} %} %{l0_leak_check} %{run} %t.out
 
