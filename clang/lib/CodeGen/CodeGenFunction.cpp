@@ -823,15 +823,6 @@ void CodeGenFunction::EmitKernelMetadata(const FunctionDecl *FD,
                     llvm::MDNode::get(Context, AttrMDArgs));
   }
 
-  if (const auto *A = FD->getAttr<SYCLIntelNumSimdWorkItemsAttr>()) {
-    const auto *CE = cast<ConstantExpr>(A->getValue());
-    std::optional<llvm::APSInt> ArgVal = CE->getResultAsAPSInt();
-    llvm::Metadata *AttrMDArgs[] = {llvm::ConstantAsMetadata::get(
-        Builder.getInt32(ArgVal->getZExtValue()))};
-    Fn->setMetadata("num_simd_work_items",
-                    llvm::MDNode::get(Context, AttrMDArgs));
-  }
-
   auto attrAsMDArg = [&](Expr *E) {
     const auto *CE = cast<ConstantExpr>(E);
     std::optional<llvm::APSInt> ArgVal = CE->getResultAsAPSInt();
@@ -848,20 +839,6 @@ void CodeGenFunction::EmitKernelMetadata(const FunctionDecl *FD,
           FD->getAttr<SYCLIntelMaxWorkGroupsPerMultiprocessorAttr>()) {
     Fn->setMetadata("max_work_groups_per_mp",
                     llvm::MDNode::get(Context, {attrAsMDArg(A->getValue())}));
-  }
-
-  if (const SYCLIntelMaxWorkGroupSizeAttr *A =
-          FD->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
-
-    // Attributes arguments (first and third) are reversed on SYCLDevice.
-    if (getLangOpts().SYCLIsDevice) {
-      llvm::Metadata *AttrMDArgs[] = {
-          llvm::ConstantAsMetadata::get(Builder.getInt32(A->getZDimVal())),
-          llvm::ConstantAsMetadata::get(Builder.getInt32(A->getYDimVal())),
-          llvm::ConstantAsMetadata::get(Builder.getInt32(A->getXDimVal()))};
-      Fn->setMetadata("max_work_group_size",
-                      llvm::MDNode::get(Context, AttrMDArgs));
-    }
   }
 }
 
