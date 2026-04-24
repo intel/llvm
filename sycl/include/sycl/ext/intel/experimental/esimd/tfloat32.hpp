@@ -12,6 +12,8 @@
 
 #include <sycl/bit_cast.hpp>
 
+#include <cstdint>
+
 namespace sycl {
 inline namespace _V1 {
 namespace ext {
