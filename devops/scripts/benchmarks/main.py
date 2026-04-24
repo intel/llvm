@@ -16,6 +16,7 @@ from benches.velocity import VelocityBench
 from benches.syclbench import *
 from benches.llamacpp import *
 from benches.umf import *
+from benches.pytorch import PytorchBenchSuite
 from benches.benchdnn import OneDnnBench
 from options import Compare, options
 from output_markdown import generate_markdown
@@ -285,6 +286,7 @@ def main(directory, additional_env_vars, compare_names, filter, execution_stats)
         SyclBench(),
         LlamaCppBench(),
         UMFSuite(),
+        PytorchBenchSuite(),
         GromacsBench(),
         OneDnnBench(),
     ]
@@ -499,6 +501,12 @@ if __name__ == "__main__":
         "--sycl", type=str, help="Root directory of the SYCL compiler.", default=None
     )
     parser.add_argument("--umf", type=str, help="UMF install prefix path", default=None)
+    parser.add_argument(
+        "--pytorch-root",
+        type=str,
+        default=None,
+        help="Directory with PyTorch benchmark scripts, omit to skip PyTorch Bench suite",
+    )
     parser.add_argument(
         "--adapter",
         type=str,
@@ -791,6 +799,7 @@ if __name__ == "__main__":
     options.dry_run = args.dry_run
     options.list_benchmarks = args.list
     options.umf = args.umf
+    options.pytorch_root = args.pytorch_root
     options.iterations_stddev = args.iterations_stddev
     options.stddev_threshold = args.stddev_threshold
     options.build_igc = args.build_igc

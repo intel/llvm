@@ -1690,6 +1690,39 @@ Error extractBundledObjects(StringRef Filename, const ArgList &Args,
   return Error::success();
 }
 
+/// Bundles a compiled SYCL device module into a target-specific fat binary.
+///
+/// \param ClangOutput  Path to the compiled device object.
+/// \param LinkerArgs   Linker arguments forwarded to the bundling tools.
+/// \param Triple       Target triple used to select the bundling path.
+/// \param Arch         Target architecture (e.g. \c sm_80, \c gfx906).
+/// \returns Path to the produced fat binary, or an error.
+Expected<StringRef> bundleDeviceModule(StringRef ClangOutput,
+                                       const ArgList &LinkerArgs,
+                                       const llvm::Triple &Triple,
+                                       StringRef Arch) {
+  if (Triple.isNVPTX()) {
+    auto VirtualArch = StringRef(clang::OffloadArchToVirtualArchString(
+        clang::StringToOffloadArch(Arch)));
+    auto PtxasOutputOrErr = nvptx::ptxas(ClangOutput, LinkerArgs, Arch);
+    if (!PtxasOutputOrErr)
+      return PtxasOutputOrErr.takeError();
+    SmallVector<std::pair<StringRef, StringRef>, 4> BundlerInputFiles;
+    BundlerInputFiles.emplace_back(ClangOutput, VirtualArch);
+    BundlerInputFiles.emplace_back(*PtxasOutputOrErr, Arch);
+    return nvptx::fatbinary(BundlerInputFiles, LinkerArgs);
+  }
+
+  if (Triple.isAMDGCN()) {
+    SmallVector<std::tuple<StringRef, StringRef, StringRef>, 4>
+        BundlerInputFiles;
+    BundlerInputFiles.emplace_back(ClangOutput, Triple.getTriple(), Arch);
+    return amdgcn::fatbinary(BundlerInputFiles, LinkerArgs);
+  }
+
+  llvm_unreachable("bundleDeviceModule called for non-NVPTX/AMDGCN triple");
+}
+
 } // namespace sycl
 
 namespace generic {
@@ -2384,33 +2417,14 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
       }
       for (size_t I = 0, E = SplitModules.size(); I != E; ++I) {
         SmallVector<StringRef> Files = {SplitModules[I].ModuleFilePath};
-        SmallVector<std::pair<StringRef, StringRef>, 4> BundlerInputFilesNVPTX;
-        SmallVector<std::tuple<StringRef, StringRef, StringRef>, 4>
-                                                        BundlerInputFilesAMDGCN;
         auto ClangOutputOrErr =
             linkDevice(Files, LinkerArgs, true /* IsSYCLKind */,
                        CompileLinkOptionsOrErr->first);
         if (!ClangOutputOrErr)
           return ClangOutputOrErr.takeError();
-        if (Triple.isNVPTX()) {
-          auto VirtualArch = StringRef(clang::OffloadArchToVirtualArchString(
-              clang::StringToOffloadArch(Arch)));
-          auto PtxasOutputOrErr =
-              nvptx::ptxas(*ClangOutputOrErr, LinkerArgs, Arch);
-          if (!PtxasOutputOrErr)
-            return PtxasOutputOrErr.takeError();
-          BundlerInputFilesNVPTX.emplace_back(*ClangOutputOrErr, VirtualArch);
-          BundlerInputFilesNVPTX.emplace_back(*PtxasOutputOrErr, Arch);
-          auto BundledFileOrErr =
-              nvptx::fatbinary(BundlerInputFilesNVPTX, LinkerArgs);
-          if (!BundledFileOrErr)
-            return BundledFileOrErr.takeError();
-          SplitModules[I].ModuleFilePath = *BundledFileOrErr;
-        } else if (Triple.isAMDGCN()) {
-          BundlerInputFilesAMDGCN.emplace_back(*ClangOutputOrErr,
-                                               Triple.getTriple(), Arch);
-          auto BundledFileOrErr =
-              amdgcn::fatbinary(BundlerInputFilesAMDGCN, LinkerArgs);
+        if (Triple.isNVPTX() || Triple.isAMDGCN()) {
+          auto BundledFileOrErr = sycl::bundleDeviceModule(
+              *ClangOutputOrErr, LinkerArgs, Triple, Arch);
           if (!BundledFileOrErr)
             return BundledFileOrErr.takeError();
           SplitModules[I].ModuleFilePath = *BundledFileOrErr;
