@@ -1,6 +1,5 @@
 # required by lit.site.cfg.py.in
 set(LIBCLC_TEST_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
-set(LIBCLC_PERTARGET_TEST_DIR ${CMAKE_CURRENT_BINARY_DIR}/targets)
 set(LLVM_TOOLS_DIR ${LLVM_TOOLS_BINARY_DIR})
 
 configure_lit_site_cfg(
@@ -17,6 +16,7 @@ set(LIBCLC_TEST_DEPS
   clang
   count
   libclc-opencl-builtins
+  libspirv-builtins
 )
 
 umbrella_lit_testsuite_begin(check-libclc)
@@ -35,16 +35,14 @@ if(ARCH MATCHES "amdgcn|nvptx64")
     # The solution is to create a separate directory for each target,
     # and copy the lit.site.cfg.py file there; the name of the
     # directory will be used as the target name.
-    file(MAKE_DIRECTORY ${LIBCLC_PERTARGET_TEST_DIR}/${LIBCLC_TARGET})
+    file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/${LIBCLC_TARGET})
     file(COPY_FILE ${CMAKE_CURRENT_BINARY_DIR}/lit.site.cfg.py
-                   ${LIBCLC_PERTARGET_TEST_DIR}/${LIBCLC_TARGET}/lit.site.cfg.py)
+                   ${CMAKE_CURRENT_BINARY_DIR}/${LIBCLC_TARGET}/lit.site.cfg.py)
 
     add_lit_testsuite(check-libclc-spirv-${LIBCLC_TARGET}
       "Running libclc spirv-${LIBCLC_TARGET} regression tests"
-      ${LIBCLC_PERTARGET_TEST_DIR}/${LIBCLC_TARGET}
-      DEPENDS
-        ${LIBCLC_TEST_DEPS}
-        libspirv-builtins
+      ${CMAKE_CURRENT_BINARY_DIR}/${LIBCLC_TARGET}
+      DEPENDS ${LIBCLC_TEST_DEPS}
       )
 endif()
 

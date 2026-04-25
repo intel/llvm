@@ -21,12 +21,5 @@ config.libclc_obj_root = "@LIBCLC_TARGET_TEST_DIR@"
 import lit.llvm
 lit.llvm.initialize(lit_config, config)
 
-if config.libclc_target is None:
-    # This file is copied to per-target test directories by cmake,
-    # use the name of the directory containing this file as the target name.
-    dirname = os.path.dirname(__file__)
-    if os.path.realpath(dirname) != os.path.realpath("@CMAKE_CURRENT_BINARY_DIR@"):
-        config.libclc_target = os.path.basename(dirname)
-
 # Let the main config do the real work.
 lit_config.load_config(config, "@LIBCLC_TEST_SOURCE_DIR@/lit.cfg.py")
