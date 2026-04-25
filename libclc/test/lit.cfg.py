@@ -19,9 +19,6 @@ def quote(s):
 
 # Configuration file for the 'lit' test runner.
 
-if config.libclc_target is None:
-    lit_config.fatal("libclc_target parameter must be set when running directly")
-
 # name: The name of this test suite.
 config.name = f"LIBCLC-{config.libclc_target.upper()}"
 
@@ -47,7 +44,7 @@ config.test_exec_root = os.path.join(
     config.libclc_pertarget_test_dir, config.libclc_target
 )
 
-config.target_triple = None
+config.target_triple = config.libclc_target
 
 llvm_config.use_default_substitutions()
 
@@ -66,7 +63,7 @@ clang_flags = [
     "-nogpulib",
 ]
 
-if config.libclc_target == "amdgcn-amd-amdhsa":
+if config.libclc_target == "amdgcn-amd-amdhsa-llvm":
     # libclc for amdgcn is currently built for tahiti which doesn't support
     # fp16 so disable the extension for the tests
     clang_flags += ["-Xclang", "-cl-ext=-cl_khr_fp16"]
