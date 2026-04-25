@@ -593,7 +593,6 @@ function(sycl_add_install_command component manifest_suffix install_script deps)
     COMMAND "${CMAKE_COMMAND}"
     "-DCMAKE_INSTALL_COMPONENT=${component}"
     -P "${install_script}"
-    # Fix: Use the deps variable passed into the function
     DEPENDS ${__chain_dep} ${deps}
     COMMENT "Deploying component ${component} (${manifest_suffix})"
     USES_TERMINAL
@@ -608,7 +607,7 @@ endfunction()
 
 foreach(component IN LISTS SYCL_TOOLCHAIN_DEPLOY_COMPONENTS)
   message(STATUS "Adding component ${component} to deploy")
-  if("${component}" STREQUAL "libspirv-builtins")
+  if("${component}" MATCHES "libspirv-builtins")
     foreach(tgt IN LISTS LLVM_RUNTIME_TARGETS)
       if("libclc" IN_LIST RUNTIMES_${tgt}_LLVM_ENABLE_RUNTIMES)
         set(INSTALL_SCRIPT "${CMAKE_BINARY_DIR}/runtimes/runtimes-${tgt}-bins/libclc/cmake_install.cmake")
