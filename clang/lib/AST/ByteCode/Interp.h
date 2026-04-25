@@ -863,6 +863,13 @@ bool IncDecHelper(InterpState &S, CodePtr OpPC, const Pointer &Ptr,
   }
 
   const T &Value = Ptr.deref<T>();
+
+  // Can't inc/dec non-numbers.
+  if constexpr (isIntegralOrPointer<T>()) {
+    if (!Value.isNumber())
+      return false;
+  }
+
   T Result;
   if constexpr (needsAlloc<T>())
     Result = S.allocAP<T>(Value.bitWidth());
@@ -2785,6 +2792,12 @@ template <PrimType Name, class T = typename PrimConv<Name>::T>
 bool CastIntegralFloating(InterpState &S, CodePtr OpPC,
                           const llvm::fltSemantics *Sem, uint32_t FPOI) {
   const T &From = S.Stk.pop<T>();
+
+  if constexpr (isIntegralOrPointer<T>()) {
+    if (!From.isNumber())
+      return false;
+  }
+
   APSInt FromAP = From.toAPSInt();
 
   FPOptions FPO = FPOptions::getFromOpaqueInt(FPOI);

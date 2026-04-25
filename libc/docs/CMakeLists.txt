@@ -45,6 +45,7 @@ if (SPHINX_FOUND)
       cpio
       ctype
       dirent
+      dlfcn
       endian
       errno
       fcntl
@@ -71,6 +72,7 @@ if (SPHINX_FOUND)
       sys/stat
       sys/statvfs
       sys/time
+      sys/uio
       sys/utsname
       sys/wait
       termios

@@ -11,6 +11,7 @@ Implementation Status
    cpio
    ctype
    dirent
+   dlfcn
    endian
    errno
    fcntl
@@ -39,6 +40,7 @@ Implementation Status
    sys/stat
    sys/statvfs
    sys/time
+   sys/uio
    sys/utsname
    sys/wait
    termios
