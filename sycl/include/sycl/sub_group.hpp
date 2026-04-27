@@ -15,7 +15,7 @@
 #include <sycl/nd_item.hpp>
 #include <sycl/range.hpp> // for range
 
-#include <stdint.h>    // for uint32_t
+#include <stdint.h> // for uint32_t
 
 #ifndef __SYCL_DEVICE_ONLY__
 #include <sycl/exception.hpp> // for exception, make_error...
