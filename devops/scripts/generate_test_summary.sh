@@ -32,6 +32,22 @@ if [ ! -s "$LOG_FILE" ]; then
   exit 0
 fi
 
+# Parse LIT summary statistics from end of log
+# Extracts counts from lines like "Total Discovered Tests: 5554" and "  Passed : 4696 (84.55%)"
+parse_summary_stats() {
+  awk '
+    /^Total Discovered Tests:/ { gsub(/[^0-9]/, ""); if ($0 != "") print "TOTAL:" $0 }
+    /^  Skipped:/               { match($0, /[0-9]+/); if (RSTART > 0) print "SKIPPED_COUNT:" substr($0, RSTART, RLENGTH) }
+    /^  Passed[ :]/             { match($0, /[0-9]+/); if (RSTART > 0) print "PASSED_COUNT:" substr($0, RSTART, RLENGTH) }
+    /^  Failed[ :]/             { match($0, /[0-9]+/); if (RSTART > 0) print "FAILED_COUNT:" substr($0, RSTART, RLENGTH) }
+    /^  Unsupported[ :]/        { match($0, /[0-9]+/); if (RSTART > 0) print "UNSUPPORTED_COUNT:" substr($0, RSTART, RLENGTH) }
+    /^  Unresolved[ :]/         { match($0, /[0-9]+/); if (RSTART > 0) print "UNRESOLVED_COUNT:" substr($0, RSTART, RLENGTH) }
+    /^  Timeout[ :]/            { match($0, /[0-9]+/); if (RSTART > 0) print "TIMEOUT_COUNT:" substr($0, RSTART, RLENGTH) }
+    /^  Expected Passes[ :]/    { match($0, /[0-9]+/); if (RSTART > 0) print "XFAIL_COUNT:" substr($0, RSTART, RLENGTH) }
+    /^  Unexpected Passes[ :]/  { match($0, /[0-9]+/); if (RSTART > 0) print "XPASS_COUNT:" substr($0, RSTART, RLENGTH) }
+  ' "$LOG_FILE"
+}
+
 # Parse log file in single pass using awk for efficiency
 # Uses 'sub' instead of 'gsub' for more precise regex matching
 # Processes each line once and extracts test names by category
@@ -88,6 +104,34 @@ while IFS=: read -r status test_name; do
   esac
 done <<< "$results"
 
+# Parse summary statistics from LIT output (source of truth for counts)
+# These override array-based counts where available, especially for skipped tests
+# which don't appear in verbose output
+summary_stats=$(parse_summary_stats)
+total_tests=""
+summary_skip_count=""
+summary_pass_count=""
+summary_fail_count=""
+summary_unsup_count=""
+summary_unres_count=""
+summary_timeout_count=""
+summary_xfail_count=""
+summary_xpass_count=""
+
+while IFS=: read -r key value; do
+  case "$key" in
+    TOTAL) total_tests="$value" ;;
+    SKIPPED_COUNT) summary_skip_count="$value" ;;
+    PASSED_COUNT) summary_pass_count="$value" ;;
+    FAILED_COUNT) summary_fail_count="$value" ;;
+    UNSUPPORTED_COUNT) summary_unsup_count="$value" ;;
+    UNRESOLVED_COUNT) summary_unres_count="$value" ;;
+    TIMEOUT_COUNT) summary_timeout_count="$value" ;;
+    XFAIL_COUNT) summary_xfail_count="$value" ;;
+    XPASS_COUNT) summary_xpass_count="$value" ;;
+  esac
+done <<< "$summary_stats"
+
 # Calculate counts from array lengths
 timeout_count=${#timeout_tests[@]}
 fail_count=${#fail_tests[@]}
@@ -98,8 +142,23 @@ unres_count=${#unres_tests[@]}
 skip_count=${#skip_tests[@]}
 pass_count=${#pass_tests[@]}
 
+# Use summary counts where available (more accurate, especially for skipped tests)
+[ -n "$summary_timeout_count" ] && timeout_count=$summary_timeout_count
+[ -n "$summary_fail_count" ] && fail_count=$summary_fail_count
+[ -n "$summary_xpass_count" ] && xpass_count=$summary_xpass_count
+[ -n "$summary_xfail_count" ] && xfail_count=$summary_xfail_count
+[ -n "$summary_unsup_count" ] && unsup_count=$summary_unsup_count
+[ -n "$summary_unres_count" ] && unres_count=$summary_unres_count
+[ -n "$summary_skip_count" ] && skip_count=$summary_skip_count
+[ -n "$summary_pass_count" ] && pass_count=$summary_pass_count
+
 # Generate summary
 printf '### %s Summary\n' "$TEST_TYPE"
+
+# Show overall statistics if available
+if [ -n "$total_tests" ]; then
+  printf '\n**Total Discovered Tests:** %s\n\n' "$total_tests"
+fi
 
 # Print results (priority order: critical issues first)
 # Critical issues (TIMEOUT, FAIL, XPASS) are open by default
@@ -160,7 +219,12 @@ for cat in "${category_order[@]}"; do
 done
 
 # Total summary statistics
-total=$((pass_count + fail_count + xfail_count + xpass_count + unsup_count + timeout_count + unres_count + skip_count))
+# Use LIT-reported total if available, otherwise calculate from counts
+if [ -n "$total_tests" ] && [ "$total_tests" -gt 0 ]; then
+  total=$total_tests
+else
+  total=$((pass_count + fail_count + xfail_count + xpass_count + unsup_count + timeout_count + unres_count + skip_count))
+fi
 
 printf '\n\n### Testing Time Summary:\n'
 printf '  Total Discovered Tests: %d\n' "$total"
