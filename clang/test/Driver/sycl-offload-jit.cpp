@@ -36,10 +36,10 @@
 // CHECK-SYCL-HEADERS-DEVICE: "-fsycl-is-device"{{.*}} "-internal-isystem" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include"
 // CHECK-SYCL-HEADERS-HOST: "-fsycl-is-host"{{.*}} "-internal-isystem" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include"
 // CHECK-LSYCL: clang-linker-wrapper{{.*}} "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}lib{{[/\\]+}}libsycl.so"
-// Check that -fsycl -fno-sycl does not pass libLLVMSYCL.so to the linker.
+// Check that -fsycl -fno-sycl does not pass libsycl.so to the linker.
 // RUN: %clang -### --target=x86_64-unknown-linux-gnu -fsycl -fno-sycl %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHECK-NO-SYCL-RT %s
-// CHECK-NO-SYCL-RT-NOT: libLLVMSYCL.so
+// CHECK-NO-SYCL-RT-NOT: libsycl.so
 
 /// Check -fsycl-is-device is passed when compiling for the device.
 /// Check -fsycl-is-host is passed when compiling for host.
