@@ -553,25 +553,34 @@ std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
 queue_impl::ext_oneapi_get_graph_impl() const {
   auto Graph = getCommandGraph();
   if (!Graph) {
-    ur_exp_graph_handle_t UrGraphHandle = nullptr;
-    ur_result_t Result =
-        getAdapter().call_nocheck<UrApiKind::urQueueGetGraphExp>(
-            MQueue, &UrGraphHandle);
-    if (Result == UR_RESULT_ERROR_INVALID_OPERATION) {
-      throw sycl::exception(
-          make_error_code(errc::invalid),
-          "ext_oneapi_get_graph() can only be called on recording queues.");
-    } else if (Result != UR_RESULT_SUCCESS) {
-      throw sycl::exception(make_error_code(errc::runtime),
-                            "Failed to query native UR graph from queue.");
-    }
+    ur_bool_t SupportsGraphRecordReplay = false;
+    ur_result_t QueryResult =
+        getAdapter().call_nocheck<UrApiKind::urDeviceGetInfo>(
+            getDeviceImpl().getHandleRef(),
+            UR_DEVICE_INFO_GRAPH_RECORD_AND_REPLAY_SUPPORT_EXP,
+            sizeof(ur_bool_t), &SupportsGraphRecordReplay, nullptr);
 
-    Graph = getContextImpl().getNativeGraph(UrGraphHandle);
-    if (!Graph) {
-      throw sycl::exception(
-          make_error_code(errc::invalid),
-          "ext_oneapi_get_graph() can only be called on recording queues.");
+    if (QueryResult == UR_RESULT_SUCCESS && SupportsGraphRecordReplay) {
+      ur_exp_graph_handle_t UrGraphHandle = nullptr;
+      ur_result_t Result =
+          getAdapter().call_nocheck<UrApiKind::urQueueGetGraphExp>(
+              MQueue, &UrGraphHandle);
+
+      if (Result == UR_RESULT_SUCCESS) {
+        Graph = getContextImpl().getNativeGraph(UrGraphHandle);
+      } else if (Result != UR_RESULT_ERROR_INVALID_OPERATION) {
+        throw sycl::exception(make_error_code(errc::runtime),
+                              "Failed to query native UR graph from queue.");
+      }
+    } else if (QueryResult != UR_RESULT_SUCCESS) {
+      throw sycl::exception(make_error_code(errc::runtime),
+                            "Failed to query device info.");
     }
+  }
+  if (!Graph) {
+    throw sycl::exception(
+        make_error_code(errc::invalid),
+        "ext_oneapi_get_graph() can only be called on recording queues.");
   }
   return Graph;
 }
