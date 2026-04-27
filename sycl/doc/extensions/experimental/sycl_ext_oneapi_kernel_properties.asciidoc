@@ -117,17 +117,17 @@ supports.
 
 === Headers
 
-In the {dpcpp} implementation, the full API described in this extension is
-provided by:
+In the current {dpcpp} implementation, the APIs described in this extension
+are organized as follows:
 
 * `#include <sycl/ext/oneapi/kernel_properties.hpp>`
 
-This umbrella header should be used when code needs property lists such as
-`properties{...}`, embedded kernel properties via `properties_tag`, or any of
-the non-launch kernel properties described in this extension.
+This umbrella header is the most direct choice when code needs property lists
+such as `properties{...}`, embedded kernel properties via `properties_tag`, or
+any of the non-launch kernel properties described in this extension.
 
-The implementation also provides lighter-weight headers for code that only
-needs free-function annotations:
+The implementation also currently provides lighter-weight headers for code
+that only needs free-function annotations:
 
 * `#include <sycl/ext/oneapi/free_function_kernel_properties.hpp>` for
   `nd_range_kernel<Dims>`, `single_task_kernel`,
@@ -139,10 +139,11 @@ needs free-function annotations:
 These lighter-weight headers are primarily intended for code paths where
 reduced compile time is a high priority and the application only needs
 function-level annotations.
-The `sycl/ext/oneapi/free_function_kernel_properties.hpp` header is intended
-for the free-function kernel definition path. Code that forms property lists,
-uses `properties_tag`, or depends on the umbrella property's property-list
-conflict checks should include `sycl/ext/oneapi/kernel_properties.hpp`.
+The `sycl/ext/oneapi/free_function_kernel_properties.hpp` header is aimed at
+the free-function kernel definition path. Code that forms property lists or
+uses `properties_tag` will generally find
+`sycl/ext/oneapi/kernel_properties.hpp` to be the more natural header to
+include.
 
 === Kernel Properties
 

@@ -3,8 +3,8 @@
 
 #include <sycl/ext/oneapi/properties/properties.hpp>
 
-#include <cstdint>
 #include "mock_compile_time_properties.hpp"
+#include <cstdint>
 
 #include <type_traits>
 

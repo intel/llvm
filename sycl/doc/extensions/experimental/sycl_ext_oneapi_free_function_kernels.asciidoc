@@ -125,8 +125,8 @@ choice of headers depending on which properties they need:
   `work_group_size_hint`, `sub_group_size`, `max_work_group_size`, and
   `max_linear_work_group_size`.
 
-* `#include <sycl/ext/oneapi/kernel_properties.hpp>` provides the
-  full kernel properties interface, including property lists such as
+* `#include <sycl/ext/oneapi/kernel_properties.hpp>` currently provides the
+  broader kernel properties interface, including property lists such as
   `properties{...}` and embedded kernel properties via `properties_tag`.
 
 Applications may include the umbrella header in all cases. The lightweight
@@ -134,8 +134,9 @@ header is intended for code that defines free-function kernels and only needs
 the free-function annotation path.
 
 Code that forms property lists such as `properties{...}`, uses
-`properties_tag`, or depends on the umbrella property's property-list conflict
-checks should include `sycl/ext/oneapi/kernel_properties.hpp`.
+`properties_tag`, or otherwise needs the broader kernel-properties interface
+will generally find `sycl/ext/oneapi/kernel_properties.hpp` to be the more
+convenient header to include.
 
 === Defining a free function kernel
 
@@ -832,8 +833,8 @@ In the {dpcpp} implementation, code that defines free-function kernels may
 include `sycl/ext/oneapi/free_function_kernel_properties.hpp` instead of the
 full `sycl/ext/oneapi/kernel_properties.hpp` header when it only needs the
 free-function annotation path. Applications that use property-list semantics,
-including `properties{...}`, `properties_tag`, or the associated
-property-list conflict checks, should include the umbrella header.
+including `properties{...}` or `properties_tag`, will generally prefer the
+umbrella header.
 
 ```
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
