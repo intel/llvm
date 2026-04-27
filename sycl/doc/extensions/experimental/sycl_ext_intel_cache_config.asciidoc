@@ -20,7 +20,7 @@
 == Notice
 
 [%hardbreaks]
-Copyright (c) 2023-2026 Intel Corporation.  All rights reserved.
+Copyright (c) 2023 Intel Corporation.  All rights reserved.
 
 Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
 of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
@@ -44,7 +44,6 @@ the following extensions:
 
 - link:../experimental/sycl_ext_oneapi_properties.asciidoc[sycl_ext_oneapi_properties]
 - link:../experimental/sycl_ext_oneapi_enqueue_functions.asciidoc[sycl_ext_oneapi_enqueue_functions]
-- link:../experimental/sycl_ext_oneapi_free_function_kernels.asciidoc[sycl_ext_oneapi_free_function_kernels]
 
 == Status
 
@@ -145,23 +144,27 @@ Simple examples of using this extension are shown below.
 ==== parallel_for and nd_launch
 
 ```c++
+#include <sycl/sycl.hpp>
+
 namespace syclex = sycl::ext::oneapi::experimental;
 namespace intelex = sycl::ext::intel::experimental;
 
-sycl::queue q;
-syclex::properties props{intelex::cache_config{intelex::large_slm}};
+int main() {
+    sycl::queue q;
+    syclex::properties props{intelex::cache_config{intelex::large_slm}};
 
-// Range-based launch.
-syclex::parallel_for(q,
-    syclex::launch_config{sycl::range<1>{1024}, props},
-    [=](sycl::item<1> i) { /* kernel code */ });
+    // Range-based launch.
+    syclex::parallel_for(q,
+        syclex::launch_config{sycl::range<1>{1024}, props},
+        [=](sycl::item<1> i) { /* kernel code */ });
 
-// nd_range-based launch.
-syclex::nd_launch(q,
-    syclex::launch_config{sycl::nd_range<1>{{1024}, {64}}, props},
-    [=](sycl::nd_item<1> i) { /* kernel code */ });
+    // nd_range-based launch.
+    syclex::nd_launch(q,
+        syclex::launch_config{sycl::nd_range<1>{{1024}, {64}}, props},
+        [=](sycl::nd_item<1> i) { /* kernel code */ });
 
-q.wait();
+    q.wait();
+}
 ```
 
 ==== Free function kernels
@@ -170,6 +173,8 @@ For a kernel declared with the free function kernel syntax, the property is
 passed to `nd_launch` via the same `launch_config` mechanism:
 
 ```c++
+#include <sycl/sycl.hpp>
+
 namespace syclex = sycl::ext::oneapi::experimental;
 namespace intelex = sycl::ext::intel::experimental;
 
@@ -196,6 +201,8 @@ Because `cache_config` is a runtime property, different invocations of the
 same kernel can use different cache configurations.
 
 ```c++
+#include <sycl/sycl.hpp>
+
 namespace syclex = sycl::ext::oneapi::experimental;
 namespace intelex = sycl::ext::intel::experimental;
 
