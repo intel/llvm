@@ -1090,8 +1090,8 @@ static TripleSet inferOffloadToolchains(Compilation &C,
   } else if (Archs.empty() && Kind == Action::OFK_SYCL)
     Triples.insert(
         llvm::Triple(C.getDefaultToolChain().getTriple().isArch64Bit()
-                         ? llvm::Triple::spirv64
-                         : llvm::Triple::spirv32));
+                         ? llvm::Triple::spir64
+                         : llvm::Triple::spir));
 
   // We need to dispatch these to the appropriate toolchain now.
   C.getArgs().eraseArg(options::OPT_offload_arch_EQ);

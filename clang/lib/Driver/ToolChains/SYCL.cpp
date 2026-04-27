@@ -32,11 +32,11 @@ SYCLInstallationDetector::SYCLInstallationDetector(
   SmallString<128> DriverDir(D.Dir);
   SmallString<128> LibPath(DriverDir);
   llvm::sys::path::append(LibPath, "..", "lib", HostTriple.str(),
-                          "libLLVMSYCL.so");
+                          "libsycl.so");
   // Flat lib path for LLVM_ENABLE_PER_TARGET_RUNTIME_DIR=OFF builds,
   // where the library is installed directly in lib/ with no triple subdir.
   SmallString<128> FlatLibPath(DriverDir);
-  llvm::sys::path::append(FlatLibPath, "..", "lib", "libLLVMSYCL.so");
+  llvm::sys::path::append(FlatLibPath, "..", "lib", "libsycl.so");
 
   if (DriverDir.starts_with(SysRoot) &&
       Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false)) {
