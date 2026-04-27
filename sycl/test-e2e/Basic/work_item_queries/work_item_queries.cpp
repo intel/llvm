@@ -12,7 +12,7 @@
 #include <cassert>
 #include <iostream>
 #include <sycl/detail/core.hpp>
-#include <sycl/khr/work_item_queries.hpp>
+#include <sycl/khr/includes/work_item_queries.hpp>
 
 template <size_t... Dims> static int check_this_nd_item_api() {
   // Define the kernel ranges.
