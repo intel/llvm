@@ -367,8 +367,23 @@ urProgramGetInfo(ur_program_handle_t hProgram, ur_program_info_t propName,
     return ReturnValue(&hProgram->Device, 1);
   case UR_PROGRAM_INFO_BINARY_SIZES:
     return ReturnValue(&hProgram->BinarySizeInBytes, 1);
-  case UR_PROGRAM_INFO_BINARIES:
-    return ReturnValue(&hProgram->Binary, 1);
+  case UR_PROGRAM_INFO_BINARIES: {
+    if (pPropSizeRet) {
+      *pPropSizeRet = sizeof(uint8_t *);
+    }
+
+    if (!pProgramInfo) {
+      return UR_RESULT_SUCCESS;
+    }
+
+    UR_ASSERT(propSize >= sizeof(uint8_t *), UR_RESULT_ERROR_INVALID_SIZE);
+
+    auto **ppBinaries = static_cast<uint8_t **>(pProgramInfo);
+    if (ppBinaries[0]) {
+      std::memcpy(ppBinaries[0], hProgram->Binary, hProgram->BinarySizeInBytes);
+    }
+    return UR_RESULT_SUCCESS;
+  }
   case UR_PROGRAM_INFO_KERNEL_NAMES:
     // CUDA has no way to query a list of kernels from a binary.
     // In SYCL this is only used in kernel bundle when building from source
