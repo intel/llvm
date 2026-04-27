@@ -94,20 +94,20 @@ static float _Complex ref1_results[] = {
 static float ref2_results[] = {0.f, 5.f, 13.f, INFINITY, 0.f, M_PI_2};
 
 static float _Complex ref3_results[] = {
-    CMPLXF(0.f, 1.f),         CMPLXF(1.f, 1.f),
-    CMPLXF(2.f, 0.f),         CMPLXF(2.f, 3.f),
-    CMPLXF(M_PI_2, 0.f),      CMPLXF(0.f, 0.f),
-    CMPLXF(1.f, 0.f),         CMPLXF(0.f, 0.f),
-    CMPLXF(INFINITY, M_PI_2), CMPLXF(INFINITY, 0.f),
-    CMPLXF(0.f, M_PI_2),      CMPLXF(INFINITY, M_PI_2),
-    CMPLXF(INFINITY, 0.f),    CMPLXF(1.557408f, 0.f),
-    CMPLXF(0.f, 0.761594f),   CMPLXF(M_PI_2, 0.f),
-    CMPLXF(-1.f, 0.f),        CMPLXF(-1.f, 0.f),
+    CMPLXF(0.f, 1.f),      CMPLXF(1.f, 1.f),       CMPLXF(2.f, 0.f),
+    CMPLXF(2.f, 3.f),      CMPLXF(M_PI_2, 0.f),    CMPLXF(0.f, 0.f),
+    CMPLXF(1.f, 0.f),      CMPLXF(0.f, 0.f),       CMPLXF(INFINITY, M_PI_2),
+    CMPLXF(INFINITY, 0.f), CMPLXF(0.f, M_PI_2),    CMPLXF(INFINITY, M_PI_2),
+    CMPLXF(INFINITY, 0.f), CMPLXF(1.557408f, 0.f), CMPLXF(0.f, 0.761594f),
+    CMPLXF(M_PI_2, 0.f),   CMPLXF(-1.f, 0.f),      CMPLXF(-1.f, 0.f),
     CMPLXF(-1.f, 0.f)};
 
-static constexpr auto TestArraySize1 = sizeof(ref1_results) / sizeof(ref1_results[0]);
-static constexpr auto TestArraySize2 = sizeof(ref2_results) / sizeof(ref2_results[0]);
-static constexpr auto TestArraySize3 = sizeof(ref3_results) / sizeof(ref3_results[0]);
+static constexpr auto TestArraySize1 =
+    sizeof(ref1_results) / sizeof(ref1_results[0]);
+static constexpr auto TestArraySize2 =
+    sizeof(ref2_results) / sizeof(ref2_results[0]);
+static constexpr auto TestArraySize3 =
+    sizeof(ref3_results) / sizeof(ref3_results[0]);
 
 int device_complex_test_1(s::queue &deviceQueue) {
   s::range<1> numOfItems1{TestArraySize1};
@@ -151,10 +151,8 @@ int device_complex_test_1(s::queue &deviceQueue) {
         // cpolar is not in C99; compute polar form inline.
         buf_out1_access[index++] = CMPLXF(1.f * cosf(0.f), 1.f * sinf(0.f));
         buf_out1_access[index++] = CMPLXF(10.f * cosf(0.f), 10.f * sinf(0.f));
-        buf_out1_access[index++] =
-            CMPLXF(100.f * cosf(0.f), 100.f * sinf(0.f));
-        buf_out1_access[index++] =
-            CMPLXF(200.f * cosf(0.f), 200.f * sinf(0.f));
+        buf_out1_access[index++] = CMPLXF(100.f * cosf(0.f), 100.f * sinf(0.f));
+        buf_out1_access[index++] = CMPLXF(200.f * cosf(0.f), 200.f * sinf(0.f));
         buf_out1_access[index++] = cprojf(CMPLXF(1.f, 2.f));
         buf_out1_access[index++] = cprojf(CMPLXF(INFINITY, -1.f));
         buf_out1_access[index++] = cprojf(CMPLXF(0.f, -INFINITY));
