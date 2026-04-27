@@ -10,9 +10,5 @@ void foo()
 {
   [[intel::kernel_args_restrict]] void func3(); // device-warning {{'intel::kernel_args_restrict' attribute ignored}}
 
-  [[intel::num_simd_work_items(12)]] void func4(); // device-warning {{'intel::num_simd_work_items' attribute ignored}}
-
-  [[intel::max_work_group_size(32, 32, 32)]] void func5(); // device-warning {{'intel::max_work_group_size' attribute ignored}}
-
   [[intel::device_indirectly_callable]] void func6(); // device-warning {{'intel::device_indirectly_callable' attribute ignored}}
 }

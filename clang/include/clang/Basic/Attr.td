@@ -1951,37 +1951,6 @@ def SYCLIntelKernelArgsRestrict : InheritableAttr {
   let SupportsNonconformingLambdaSyntax = 1;
 }
 
-def SYCLIntelNumSimdWorkItems : InheritableAttr {
-  let Spellings = [CXX11<"intel", "num_simd_work_items">];
-  let Args = [ExprArgument<"Value">];
-  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
-  let Subjects = SubjectList<[Function], ErrorDiag>;
-  let Documentation = [SYCLIntelNumSimdWorkItemsAttrDocs];
-  let SupportsNonconformingLambdaSyntax = 1;
-}
-
-def SYCLIntelMaxWorkGroupSize : InheritableAttr {
-  let Spellings = [CXX11<"intel", "max_work_group_size">];
-  let Args = [ExprArgument<"XDim">,
-              ExprArgument<"YDim">,
-              ExprArgument<"ZDim">];
-  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
-  let Subjects = SubjectList<[Function], ErrorDiag>;
-  let AdditionalMembers = [{
-    unsigned getXDimVal() const {
-      return cast<ConstantExpr>(getXDim())->getResultAsAPSInt().getExtValue();
-    }
-    unsigned getYDimVal() const {
-      return cast<ConstantExpr>(getYDim())->getResultAsAPSInt().getExtValue();
-    }
-    unsigned getZDimVal() const {
-      return cast<ConstantExpr>(getZDim())->getResultAsAPSInt().getExtValue();
-    }
-  }];
-  let Documentation = [SYCLIntelMaxWorkGroupSizeAttrDocs];
-  let SupportsNonconformingLambdaSyntax = 1;
-}
-
 def SYCLIntelMinWorkGroupsPerComputeUnit : InheritableAttr {
   let Spellings = [CXX11<"intel", "min_work_groups_per_cu">];
   let Args = [ExprArgument<"Value">];
