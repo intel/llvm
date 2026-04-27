@@ -557,11 +557,13 @@ queue_impl::ext_oneapi_get_graph_impl() const {
     ur_result_t Result =
         getAdapter().call_nocheck<UrApiKind::urQueueGetGraphExp>(
             MQueue, &UrGraphHandle);
-
-    if (Result != UR_RESULT_SUCCESS || !UrGraphHandle) {
+    if (Result == UR_RESULT_ERROR_INVALID_OPERATION) {
       throw sycl::exception(
           make_error_code(errc::invalid),
           "ext_oneapi_get_graph() can only be called on recording queues.");
+    } else if (Result != UR_RESULT_SUCCESS) {
+      throw sycl::exception(make_error_code(errc::runtime),
+                            "Failed to query native UR graph from queue.");
     }
 
     Graph = getContextImpl().getNativeGraph(UrGraphHandle);
