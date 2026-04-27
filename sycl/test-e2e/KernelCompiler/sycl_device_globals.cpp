@@ -11,6 +11,9 @@
 // UNSUPPORTED: opencl && gpu
 // UNSUPPORTED-TRACKER: GSD-4287
 
+// UNSUPPORTED: gpu-nvidia-geforce-rtx-3090
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20408
+
 // RUN: %{build} -o %t.out
 // RUN: %if hip %{ env SYCL_JIT_AMDGCN_PTX_TARGET_CPU=%{amd_arch} %} %{l0_leak_check} %{run} %t.out
 
@@ -80,7 +83,7 @@ int test_device_global() {
   auto checkVal = [&](int32_t expected) {
     val = -1;
     q.memcpy(&val, dgAddr, dgSize).wait();
-    std::cout << "val: " << val << " == " << expected << '\n';
+    std::cout << "val: " << val << " == " << expected << std::endl;
     assert(val == expected);
   };
 
