@@ -170,6 +170,8 @@ jobs:
           echo "Log file size: $(wc -l < adapter_tests.log) lines"
           echo "First 30 lines of adapter_tests.log:"
           head -30 adapter_tests.log
+          echo "\n--- Last 30 lines (should contain LIT summary) ---"
+          tail -30 adapter_tests.log
           echo "\n--- Lines with test results ---"
           grep -E "(PASS:|FAIL:|XFAIL:|XPASS:|UNSUPPORTED:|TIMEOUT:|UNRESOLVED:|SKIPPED:)" adapter_tests.log | head -20 || echo "No test result lines found"
           bash devops/scripts/generate_test_summary.sh adapter_tests.log "Adapter Tests" >> $GITHUB_STEP_SUMMARY || echo "Failed to generate adapter tests summary"
@@ -189,6 +191,8 @@ jobs:
           echo "Log file size: $(wc -l < conformance_tests.log) lines"
           echo "First 30 lines of conformance_tests.log:"
           head -30 conformance_tests.log
+          echo "\n--- Last 30 lines (should contain LIT summary) ---"
+          tail -30 conformance_tests.log
           echo "\n--- Lines with test results ---"
           grep -E "(PASS:|FAIL:|XFAIL:|XPASS:|UNSUPPORTED:|TIMEOUT:|UNRESOLVED:|SKIPPED:)" conformance_tests.log | head -20 || echo "No test result lines found"
           bash devops/scripts/generate_test_summary.sh conformance_tests.log "Conformance Tests" >> $GITHUB_STEP_SUMMARY || echo "Failed to generate conformance tests summary"
