@@ -2851,8 +2851,19 @@ private:
                                       bool IsDeviceImageScoped, size_t NumBytes,
                                       size_t Offset);
 
+  // TODO: Remove during next ABI-breaking window.
   void setKernelLaunchProperties(
       const detail::KernelPropertyHolderStructTy &KernelLaunchProperties);
+
+  inline constexpr void SetKernelLaunchpropertiesIfNotEmpty(
+      const detail::KernelPropertyHolderStructTy &KernelLaunchProperties) {
+    (void)KernelLaunchProperties;
+
+#ifndef __SYCL_DEVICE_ONLY__
+    if (!KernelLaunchProperties.isEmpty())
+      setKernelLaunchProperties(KernelLaunchProperties);
+#endif
+  }
 
   // Various checks that are only meaningful for host compilation, because they
   // result in runtime errors (i.e. exceptions being thrown). To save time
