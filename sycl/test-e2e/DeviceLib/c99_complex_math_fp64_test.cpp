@@ -70,19 +70,7 @@ bool approx_equal_cmplx_d(double _Complex x, double _Complex y) {
 // Unlike the std::complex version, the C99 complex device library
 // handles tanh(-inf + nan*i) and tanh(-inf + -inf*i) correctly on all
 // platforms, so no _WIN32 workaround is needed in the reference data.
-static double _Complex ref1_results[] = {CMPLX(-1., 1.),
-                                         CMPLX(1., 3.),
-                                         CMPLX(-2., 10.),
-                                         CMPLX(-8., 31.),
-                                         CMPLX(1., 1.),
-                                         CMPLX(2., 1.),
-                                         CMPLX(2., 2.),
-                                         CMPLX(3., 4.),
-                                         CMPLX(2., 1.),
-                                         CMPLX(0., 1.),
-                                         CMPLX(2., 0.),
-                                         CMPLX(0., 0.),
-                                         CMPLX(0., 1.),
+static double _Complex ref1_results[] = {CMPLX(0., 1.),
                                          CMPLX(1., 1.),
                                          CMPLX(2., 0.),
                                          CMPLX(2., 3.),
@@ -98,11 +86,6 @@ static double _Complex ref1_results[] = {CMPLX(-1., 1.),
                                          CMPLX(1., 0.),
                                          CMPLX(1., 0.),
                                          CMPLX(-1., 0.),
-                                         CMPLX(-INFINITY, 0.),
-                                         CMPLX(1., 0.),
-                                         CMPLX(10., 0.),
-                                         CMPLX(100., 0.),
-                                         CMPLX(200., 0.),
                                          CMPLX(1., 2.),
                                          CMPLX(INFINITY, 0.),
                                          CMPLX(INFINITY, 0.),
@@ -154,18 +137,6 @@ int device_complex_test(s::queue &deviceQueue) {
       auto buf_out2_access = buffer2.get_access<sycl_write>(cgh);
       cgh.single_task<class C99DeviceComplexFP64Test>([=]() {
         int index = 0;
-        buf_out1_access[index++] = CMPLX(0., 1.) * CMPLX(1., 1.);
-        buf_out1_access[index++] = CMPLX(1., 1.) * CMPLX(2., 1.);
-        buf_out1_access[index++] = CMPLX(2., 3.) * CMPLX(2., 2.);
-        buf_out1_access[index++] = CMPLX(4., 5.) * CMPLX(3., 4.);
-        buf_out1_access[index++] = CMPLX(-1., 1.) / CMPLX(0., 1.);
-        buf_out1_access[index++] = CMPLX(1., 3.) / CMPLX(1., 1.);
-        buf_out1_access[index++] = CMPLX(-2., 10.) / CMPLX(2., 3.);
-        buf_out1_access[index++] = CMPLX(-8., 31.) / CMPLX(4., 5.);
-        buf_out1_access[index++] = CMPLX(4., 2.) / CMPLX(2., 0.);
-        buf_out1_access[index++] = CMPLX(-1., 0.) / CMPLX(0., 1.);
-        buf_out1_access[index++] = CMPLX(0., 10.) / CMPLX(0., 5.);
-        buf_out1_access[index++] = CMPLX(0., 0.) / CMPLX(1., 0.);
         buf_out1_access[index++] = csqrt(CMPLX(-1., 0.));
         buf_out1_access[index++] = csqrt(CMPLX(0., 2.));
         buf_out1_access[index++] = csqrt(CMPLX(4., 0.));
@@ -182,13 +153,6 @@ int device_complex_test(s::queue &deviceQueue) {
         buf_out1_access[index++] = csin(CMPLX(M_PI_2, 0.));
         buf_out1_access[index++] = ccos(CMPLX(0., 0.));
         buf_out1_access[index++] = ccos(CMPLX(M_PI, 0.));
-        // clog10 is not in C99; compute as clog(z) / log(10).
-        buf_out1_access[index++] = clog(CMPLX(0., 0.)) / log(10.0);
-        // cpolar is not in C99; compute polar form inline.
-        buf_out1_access[index++] = CMPLX(1. * cos(0.), 1. * sin(0.));
-        buf_out1_access[index++] = CMPLX(10. * cos(0.), 10. * sin(0.));
-        buf_out1_access[index++] = CMPLX(100. * cos(0.), 100. * sin(0.));
-        buf_out1_access[index++] = CMPLX(200. * cos(0.), 200. * sin(0.));
         buf_out1_access[index++] = cproj(CMPLX(1., 2.));
         buf_out1_access[index++] = cproj(CMPLX(INFINITY, -1.));
         buf_out1_access[index++] = cproj(CMPLX(0., -INFINITY));

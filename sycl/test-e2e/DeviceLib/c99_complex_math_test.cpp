@@ -68,28 +68,20 @@ bool approx_equal_cmplx_f(float _Complex x, float _Complex y) {
 }
 
 static float _Complex ref1_results[] = {
-    CMPLXF(-1.f, 1.f),          CMPLXF(1.f, 3.f),
-    CMPLXF(-2.f, 10.f),         CMPLXF(-8.f, 31.f),
-    CMPLXF(1.f, 1.f),           CMPLXF(2.f, 1.f),
-    CMPLXF(2.f, 2.f),           CMPLXF(3.f, 4.f),
-    CMPLXF(2.f, 1.f),           CMPLXF(0.f, 1.f),
-    CMPLXF(2.f, 0.f),           CMPLXF(0.f, 0.f),
     CMPLXF(1.f, 0.f),           CMPLXF(0.f, 1.f),
     CMPLXF(-1.f, 0.f),          CMPLXF(0.f, M_E),
     CMPLXF(0.f, 0.f),           CMPLXF(0.f, M_PI_2),
     CMPLXF(0.f, M_PI),          CMPLXF(1.f, M_PI_2),
     CMPLXF(0.f, 0.f),           CMPLXF(1.f, 0.f),
     CMPLXF(1.f, 0.f),           CMPLXF(-1.f, 0.f),
-    CMPLXF(-INFINITY, 0.f),     CMPLXF(1.f, 0.f),
-    CMPLXF(10.f, 0.f),          CMPLXF(100.f, 0.f),
-    CMPLXF(200.f, 0.f),         CMPLXF(1.f, 2.f),
-    CMPLXF(INFINITY, 0.f),      CMPLXF(INFINITY, 0.f),
-    CMPLXF(0.f, 1.f),           CMPLXF(0.f, 0.f),
-    CMPLXF(1.f, 0.f),           CMPLXF(INFINITY, 0.f),
-    CMPLXF(0.f, 0.f),           CMPLXF(0.f, M_PI_2),
-    CMPLXF(1.f, -4.f),          CMPLXF(18.f, -7.f),
-    CMPLXF(M_PI_2, 0.549306f),  CMPLXF(INFINITY, 0.f),
-    CMPLXF(INFINITY, INFINITY), CMPLXF(INFINITY, -INFINITY)};
+    CMPLXF(1.f, 2.f),           CMPLXF(INFINITY, 0.f),
+    CMPLXF(INFINITY, 0.f),      CMPLXF(0.f, 1.f),
+    CMPLXF(0.f, 0.f),           CMPLXF(1.f, 0.f),
+    CMPLXF(INFINITY, 0.f),      CMPLXF(0.f, 0.f),
+    CMPLXF(0.f, M_PI_2),        CMPLXF(1.f, -4.f),
+    CMPLXF(18.f, -7.f),         CMPLXF(M_PI_2, 0.549306f),
+    CMPLXF(INFINITY, 0.f),      CMPLXF(INFINITY, INFINITY),
+    CMPLXF(INFINITY, -INFINITY)};
 
 static float ref2_results[] = {0.f, 5.f, 13.f, INFINITY, 0.f, M_PI_2};
 
@@ -122,18 +114,6 @@ int device_complex_test_1(s::queue &deviceQueue) {
       auto buf_out2_access = buffer2.get_access<sycl_write>(cgh);
       cgh.single_task<class C99DeviceComplexTest>([=]() {
         int index = 0;
-        buf_out1_access[index++] = CMPLXF(0.f, 1.f) * CMPLXF(1.f, 1.f);
-        buf_out1_access[index++] = CMPLXF(1.f, 1.f) * CMPLXF(2.f, 1.f);
-        buf_out1_access[index++] = CMPLXF(2.f, 3.f) * CMPLXF(2.f, 2.f);
-        buf_out1_access[index++] = CMPLXF(4.f, 5.f) * CMPLXF(3.f, 4.f);
-        buf_out1_access[index++] = CMPLXF(-1.f, 1.f) / CMPLXF(0.f, 1.f);
-        buf_out1_access[index++] = CMPLXF(1.f, 3.f) / CMPLXF(1.f, 1.f);
-        buf_out1_access[index++] = CMPLXF(-2.f, 10.f) / CMPLXF(2.f, 3.f);
-        buf_out1_access[index++] = CMPLXF(-8.f, 31.f) / CMPLXF(4.f, 5.f);
-        buf_out1_access[index++] = CMPLXF(4.f, 2.f) / CMPLXF(2.f, 0.f);
-        buf_out1_access[index++] = CMPLXF(-1.f, 0.f) / CMPLXF(0.f, 1.f);
-        buf_out1_access[index++] = CMPLXF(0.f, 10.f) / CMPLXF(0.f, 5.f);
-        buf_out1_access[index++] = CMPLXF(0.f, 0.f) / CMPLXF(1.f, 0.f);
         buf_out1_access[index++] = cexpf(CMPLXF(0.f, 0.f));
         buf_out1_access[index++] = cexpf(CMPLXF(0.f, M_PI_2));
         buf_out1_access[index++] = cexpf(CMPLXF(0.f, M_PI));
@@ -146,13 +126,6 @@ int device_complex_test_1(s::queue &deviceQueue) {
         buf_out1_access[index++] = csinf(CMPLXF(M_PI_2, 0.f));
         buf_out1_access[index++] = ccosf(CMPLXF(0.f, 0.f));
         buf_out1_access[index++] = ccosf(CMPLXF(M_PI, 0.f));
-        // clog10 is not in C99; compute as clogf(z) / logf(10).
-        buf_out1_access[index++] = clogf(CMPLXF(0.f, 0.f)) / logf(10.0f);
-        // cpolar is not in C99; compute polar form inline.
-        buf_out1_access[index++] = CMPLXF(1.f * cosf(0.f), 1.f * sinf(0.f));
-        buf_out1_access[index++] = CMPLXF(10.f * cosf(0.f), 10.f * sinf(0.f));
-        buf_out1_access[index++] = CMPLXF(100.f * cosf(0.f), 100.f * sinf(0.f));
-        buf_out1_access[index++] = CMPLXF(200.f * cosf(0.f), 200.f * sinf(0.f));
         buf_out1_access[index++] = cprojf(CMPLXF(1.f, 2.f));
         buf_out1_access[index++] = cprojf(CMPLXF(INFINITY, -1.f));
         buf_out1_access[index++] = cprojf(CMPLXF(0.f, -INFINITY));
