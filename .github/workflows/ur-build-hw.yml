@@ -143,54 +143,60 @@ jobs:
 
     - name: Test adapter specific
       id: run_adapter_tests
-      continue-on-error: true
       env:
         ZE_ENABLE_LOADER_DEBUG_TRACE: 1
         LIT_OPTS: "-v -a --no-progress-bar --timeout 120 -j 50"
         # These tests cause timeouts on CI
         LIT_FILTER_OUT: "(adapters/level_zero/memcheck.test|adapters/level_zero/v2/deferred_kernel_memcheck.test)"
       run: |
-        cmake --build build -j $(($(nproc)/3)) -- check-unified-runtime-adapter > adapter_tests.log 2>&1
+        cmake --build build -j $(($(nproc)/3)) -- check-unified-runtime-adapter 2>&1 | tee adapter_tests.log
       # Don't run adapter specific tests when building multiple adapters
       if: ${{ matrix.adapter.other_name == '' }}
 
     - name: Test adapters
       id: run_conformance_tests
-      continue-on-error: true
       env:
         ZE_ENABLE_LOADER_DEBUG_TRACE: 1
         LIT_OPTS: "-v -a --no-progress-bar --timeout 120 -j 50"
       run: |
-        cmake --build build -j $(($(nproc)/3)) -- check-unified-runtime-conformance > conformance_tests.log 2>&1
+        cmake --build build -j $(($(nproc)/3)) -- check-unified-runtime-conformance 2>&1 | tee conformance_tests.log
 
     - name: Report Adapter Tests Summary
-      if: ${{ always() && matrix.adapter.other_name == '' }}
+      if: ${{ (success() || failure()) && matrix.adapter.other_name == '' }}
       run: |
         echo "Current directory: $PWD"
         echo "Generating Adapter Tests Summary..."
         if [ -f adapter_tests.log ]; then
           echo "Log file size: $(wc -l < adapter_tests.log) lines"
-          bash devops/scripts/generate_test_summary.sh adapter_tests.log "Adapter Tests" >> $GITHUB_STEP_SUMMARY || echo "⚠️ Failed to generate adapter tests summary"
+          echo "First 30 lines of adapter_tests.log:"
+          head -30 adapter_tests.log
+          echo "\n--- Lines with test results ---"
+          grep -E "(PASS:|FAIL:|XFAIL:|XPASS:|UNSUPPORTED:|TIMEOUT:|UNRESOLVED:|SKIPPED:)" adapter_tests.log | head -20 || echo "No test result lines found"
+          bash devops/scripts/generate_test_summary.sh adapter_tests.log "Adapter Tests" >> $GITHUB_STEP_SUMMARY || echo "Failed to generate adapter tests summary"
         else
-          echo "⚠️ adapter_tests.log not found in $PWD"
+          echo "adapter_tests.log not found in $PWD"
           ls -la *.log 2>/dev/null || echo "No .log files found"
           echo "### Adapter Tests Summary" >> $GITHUB_STEP_SUMMARY
-          echo "⚠️ Log file not found" >> $GITHUB_STEP_SUMMARY
+          echo "Log file not found" >> $GITHUB_STEP_SUMMARY
         fi
 
     - name: Report Conformance Tests Summary
-      if: ${{ always() }}
+      if: ${{ success() || failure() }}
       run: |
         echo "Current directory: $PWD"
         echo "Generating Conformance Tests Summary..."
         if [ -f conformance_tests.log ]; then
           echo "Log file size: $(wc -l < conformance_tests.log) lines"
-          bash devops/scripts/generate_test_summary.sh conformance_tests.log "Conformance Tests" >> $GITHUB_STEP_SUMMARY || echo "⚠️ Failed to generate conformance tests summary"
+          echo "First 30 lines of conformance_tests.log:"
+          head -30 conformance_tests.log
+          echo "\n--- Lines with test results ---"
+          grep -E "(PASS:|FAIL:|XFAIL:|XPASS:|UNSUPPORTED:|TIMEOUT:|UNRESOLVED:|SKIPPED:)" conformance_tests.log | head -20 || echo "No test result lines found"
+          bash devops/scripts/generate_test_summary.sh conformance_tests.log "Conformance Tests" >> $GITHUB_STEP_SUMMARY || echo "Failed to generate conformance tests summary"
         else
-          echo "⚠️ conformance_tests.log not found in $PWD"
+          echo "conformance_tests.log not found in $PWD"
           ls -la *.log 2>/dev/null || echo "No .log files found"
           echo "### Conformance Tests Summary" >> $GITHUB_STEP_SUMMARY
-          echo "⚠️ Log file not found" >> $GITHUB_STEP_SUMMARY
+          echo "Log file not found" >> $GITHUB_STEP_SUMMARY
         fi
 
     - name: Debug CI platform information
