@@ -120,7 +120,7 @@ attributes #6 = { convergent nounwind }
 !0 = !{!1, !2, !3}
 !1 = !{i32 6149, i32 1}
 !2 = !{i32 6148, i32 0}
-!3 = !{i32 6147, i32 1, !"dg_int2"}
+!3 = !{i32 6188, i32 2, !"dg_int2"}
 !4 = !{!"libcpmt"}
 !5 = !{i32 1, i32 2}
 !6 = !{i32 4, i32 100000}
@@ -128,6 +128,6 @@ attributes #6 = { convergent nounwind }
 !8 = !{i32 1, !"wchar_size", i32 2}
 !9 = !{i32 7, !"frame-pointer", i32 2}
 !10 = !{}
-; CHECK-MOD0: !{i32 6147, i32 1, !"dg_int2"}
-; CHECK-MOD1: !{i32 6147, i32 1, !"dg_int2"}
-; CHECK-MOD2-NOT: !{i32 6147, i32 1, !"dg_int2"}
+; CHECK-MOD0: !{i32 6188, i32 2, !"dg_int2"}
+; CHECK-MOD1: !{i32 6188, i32 2, !"dg_int2"}
+; CHECK-MOD2-NOT: !{i32 6188, i32 2, !"dg_int2"}
