@@ -31,11 +31,9 @@
 // RUN: %{run} %t.out --type int8 --channels 1
 // RUN: %{run} %t.out --type int8 --channels 2
 // RUN: %{run} %t.out --type int8 --channels 4
-
-// CUDA doesn't support unorm8,
-// RUN-IF: !cuda, %{run} %t.out --type unorm8 --channels 1
-// RUN-IF: !cuda, %{run} %t.out --type unorm8 --channels 2
-// RUN-IF: !cuda, %{run} %t.out --type unorm8 --channels 4
+// RUN: %{run} %t.out --type unorm8 --channels 1
+// RUN: %{run} %t.out --type unorm8 --channels 2
+// RUN: %{run} %t.out --type unorm8 --channels 4
 
 // clang-format off
 /*
