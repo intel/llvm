@@ -10,7 +10,6 @@
 // implementations do not depend on double precision, so all tests
 // run on both Linux and Windows without requiring fp64.
 
-#include <cassert>
 #include <cmath>
 #include <iostream>
 #include <limits>

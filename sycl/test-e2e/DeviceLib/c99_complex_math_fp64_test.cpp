@@ -10,7 +10,6 @@
 // implementations handle tanh(-inf + nan*i) and tanh(-inf + -inf*i) correctly
 // on both Linux and Windows.
 
-#include <cassert>
 #include <cmath>
 #include <iostream>
 #include <limits>
