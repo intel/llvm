@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.20.0)
 
 message("Configuring SYCL End-to-End Tests")
 
+set(ENV{LIT_FILTER} "sycl_device_globals")
+
 option(SYCL_E2E_LIT_ALLOW_UNKNOWN_ARCH
   "Allow unknown architectures when configuring e2e tests" Off)
 

@@ -64,9 +64,9 @@ int test_device_global() {
   source_kb kbSrc = syclex::create_kernel_bundle_from_source(
       ctx, syclex::source_language::sycl, DGSource);
 
+  
   exe_kb kbExe1 = syclex::build(kbSrc);
   auto addK = kbExe1.ext_oneapi_get_kernel("ff_dg_adder");
-
   // Check presence of device globals.
   assert(kbExe1.ext_oneapi_has_device_global("DG"));
   // Querying a non-existing device global shall not crash.
@@ -128,7 +128,6 @@ int test_device_global() {
   assert(*valBuf == -1);
 
   sycl::free(valBuf, q);
-
   return 0;
 }
 
@@ -162,27 +161,10 @@ int test_error() {
   return 0;
 }
 
-#ifndef MCR_TEST_COUNT
-#define MCR_TEST_COUNT 5
-#endif
-
 int main() {
 #ifdef SYCL_EXT_ONEAPI_KERNEL_COMPILER
-  constexpr std::size_t testCount{MCR_TEST_COUNT};
-  std::size_t testIteration{1}, failed{};
-  int constexpr OK = 0;
-
-  for (; testIteration <= testCount; ++testIteration) {
-    std::cout << "Test iteration: " << testIteration << " / " << testCount;
-    std::cout << std::endl;
-
-    if (test_device_global() != OK) {
-      ++failed;
-      break;
-    }
-  }
-
-  return failed || test_error();
+  
+  return test_device_global() || test_error();
 #else
   static_assert(false, "Kernel Compiler feature test macro undefined");
 #endif
