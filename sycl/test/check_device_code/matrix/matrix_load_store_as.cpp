@@ -21,9 +21,11 @@ SYCL_EXTERNAL [[sycl::reqd_sub_group_size(16)]] void matrix_store_as(
   joint_matrix<sub_group, float, use::accumulator, 8, 16> tC;
 
   sub_group sg = it.get_sub_group();
-  vec<unsigned short, 8> slmvec = sg.load<8>(pA);
-  sg.store<8>(tileA.template get_multi_ptr<sycl::access::decorated::yes>(),
-              slmvec);
+  vec<unsigned short, 8> slmvec;
+  sycl::ext::oneapi::experimental::group_load(sg, pA.get(), slmvec);
+  sycl::ext::oneapi::experimental::group_store(
+      sg, slmvec,
+      tileA.template get_multi_ptr<sycl::access::decorated::yes>().get());
   it.barrier(access::fence_space::local_space);
 
   // A should load from local address space
