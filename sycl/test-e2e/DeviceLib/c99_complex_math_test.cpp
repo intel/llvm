@@ -66,13 +66,6 @@ bool approx_equal_cmplx_f(float _Complex x, float _Complex y) {
          approx_equal_fp(__imag__ x, __imag__ y);
 }
 
-// Helper to compute complex norm (|z|^2) without calling C99 functions.
-float c99_normf(float _Complex z) {
-  float r = __real__ z;
-  float i = __imag__ z;
-  return r * r + i * i;
-}
-
 static float _Complex ref1_results[] = {
     CMPLXF(-1.f, 1.f),          CMPLXF(1.f, 3.f),
     CMPLXF(-2.f, 10.f),         CMPLXF(-8.f, 31.f),
@@ -97,8 +90,7 @@ static float _Complex ref1_results[] = {
     CMPLXF(M_PI_2, 0.549306f),  CMPLXF(INFINITY, 0.f),
     CMPLXF(INFINITY, INFINITY), CMPLXF(INFINITY, -INFINITY)};
 
-static float ref2_results[] = {0.f, 25.f, 169.f,    INFINITY, 0.f,
-                               5.f, 13.f, INFINITY, 0.f,      M_PI_2};
+static float ref2_results[] = {0.f, 5.f, 13.f, INFINITY, 0.f, M_PI_2};
 
 static float _Complex ref3_results[] = {
     CMPLXF(0.f, 1.f),         CMPLXF(1.f, 1.f),
@@ -179,10 +171,6 @@ int device_complex_test_1(s::queue &deviceQueue) {
         buf_out1_access[index++] = cexpf(CMPLXF(1e6f, -0.1f));
 
         index = 0;
-        buf_out2_access[index++] = c99_normf(CMPLXF(0.f, 0.f));
-        buf_out2_access[index++] = c99_normf(CMPLXF(3.f, 4.f));
-        buf_out2_access[index++] = c99_normf(CMPLXF(12.f, 5.f));
-        buf_out2_access[index++] = c99_normf(CMPLXF(INFINITY, 1.f));
         buf_out2_access[index++] = cabsf(CMPLXF(0.f, 0.f));
         buf_out2_access[index++] = cabsf(CMPLXF(3.f, 4.f));
         buf_out2_access[index++] = cabsf(CMPLXF(12.f, 5.f));

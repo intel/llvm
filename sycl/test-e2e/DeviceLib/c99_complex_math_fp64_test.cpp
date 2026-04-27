@@ -67,13 +67,6 @@ bool approx_equal_cmplx_d(double _Complex x, double _Complex y) {
          approx_equal_fp(__imag__ x, __imag__ y);
 }
 
-// Helper to compute complex norm (|z|^2) without calling C99 functions.
-double c99_norm(double _Complex z) {
-  double r = __real__ z;
-  double i = __imag__ z;
-  return r * r + i * i;
-}
-
 // Unlike the std::complex version, the C99 complex device library
 // handles tanh(-inf + nan*i) and tanh(-inf + -inf*i) correctly on all
 // platforms, so no _WIN32 workaround is needed in the reference data.
@@ -143,11 +136,10 @@ static double _Complex ref1_results[] = {
     CMPLX(INFINITY, INFINITY),
     CMPLX(INFINITY, -INFINITY)};
 
-static double ref2_results[] = {0., 25., 169.,     INFINITY, 0.,
-                                5., 13., INFINITY, 0.,       M_PI_2};
+static double ref2_results[] = {0., 5., 13., INFINITY, 0., M_PI_2};
 
 static constexpr auto TestArraySize1 = sizeof(ref1_results) / sizeof(ref1_results[0]);
-static constexpr auto TestArraySize2 = 10;
+static constexpr auto TestArraySize2 = 6;
 
 int device_complex_test(s::queue &deviceQueue) {
   s::range<1> numOfItems1{TestArraySize1};
@@ -230,10 +222,6 @@ int device_complex_test(s::queue &deviceQueue) {
         buf_out1_access[index++] = cexp(CMPLX(1e6, -0.1));
 
         index = 0;
-        buf_out2_access[index++] = c99_norm(CMPLX(0., 0.));
-        buf_out2_access[index++] = c99_norm(CMPLX(3., 4.));
-        buf_out2_access[index++] = c99_norm(CMPLX(12., 5.));
-        buf_out2_access[index++] = c99_norm(CMPLX(INFINITY, 1.));
         buf_out2_access[index++] = cabs(CMPLX(0., 0.));
         buf_out2_access[index++] = cabs(CMPLX(3., 4.));
         buf_out2_access[index++] = cabs(CMPLX(12., 5.));
