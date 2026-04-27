@@ -468,67 +468,140 @@ EventImplPtr queue_impl::submit_kernel_scheduler_bypass(
   return ResultEvent;
 }
 
-// TODO: Not sure what to do with CodeLoc here?
-EventImplPtr queue_impl::submit_barrier_direct_impl(
-    sycl::span<const event> DepEvents,
-    [[maybe_unused]] const detail::code_location &CodeLoc) {
+EventImplPtr queue_impl::submit_barrier_scheduler_bypass(
+    std::vector<detail::EventImplPtr> &BarrierDepEvents,
+    std::vector<detail::EventImplPtr> &DepEvents, detail::CGType BarrierType) {
 
-  detail::CG::StorageInitHelper CGData;
-  std::vector<ur_event_handle_t> UrDepEvents;
+  ur_event_handle_t UREvent = nullptr;
+  std::vector<ur_event_handle_t> RawBarrierDepEvents;
+  std::vector<ur_event_handle_t> RawDepEvents;
 
-  if (!DepEvents.empty()) {
-    std::vector<EventImplPtr> DepEventImpls;
-    for (const event &Event : DepEvents) {
-      const auto &EventPtr = detail::getSyclObjImpl(Event);
-      DepEventImpls.emplace_back(EventPtr);
+  if (BarrierDepEvents.size() > 0) {
+    RawBarrierDepEvents =
+        detail::Command::getUrEvents(BarrierDepEvents, this, false);
+  }
 
-      // Register HostEvents.
-      if (EventPtr->isHost()) {
-        detail::registerEventDependency(
-            EventPtr, CGData.MEvents, this, getContextImpl(), getDeviceImpl(),
-            getCommandGraph().get(), CGType::BarrierWaitlist);
-      }
-    }
-
-    UrDepEvents = getUrEventsBlocking(DepEventImpls, false, *this, false);
+  if (DepEvents.size() > 0) {
+    RawDepEvents = detail::Command::getUrEvents(DepEvents, this, false);
   }
 
   auto ResEvent = detail::event_impl::create_device_event(*this);
   ResEvent->setWorkerQueue(weak_from_this());
   ResEvent->setSubmissionTime();
+  ResEvent->setEnqueued();
+  ResEvent->setStateIncomplete();
 
-  // Add dependency to the command graph if there are host events.
-  if (!CGData.MEvents.empty() && getCommandGraph()) {
-    std::unique_ptr<detail::CG> CommandGroup;
-    // Submit a barrier node to the command graph for host event dependencies.
-    CommandGroup.reset(new detail::CGBarrier(
-        CGData.MEvents, ext::oneapi::experimental::event_mode_enum::none,
-        CGData, CGType::BarrierWaitlist, CodeLoc));
-
-    this->submit_command_to_graph(*getCommandGraph(), std::move(CommandGroup),
-                                  CGType::BarrierWaitlist);
-  }
-
-  // Spec says that call to ext_oneapi_submit_barrier(Events) should
-  // insert a barrier that waits for all events in 'Events' to complete.
-  // But, if all events in 'Events' can be skipped (NOP or host events),
-  // then the barrier itself can be skipped as well.
-  if (!DepEvents.empty() && UrDepEvents.empty()) {
+  // We can skip the barrier UR call only if both the barrier wait list
+  // and the list of barrier command dependencies are empty (after filtering
+  // the UR events).
+  // TODO Currently the scheduler path will only check the barrier wait
+  // list.
+  if (BarrierType == CGType::BarrierWaitlist && RawBarrierDepEvents.empty() &&
+      RawDepEvents.empty()) {
+    ResEvent->setComplete();
     return ResEvent;
   }
 
-  ur_event_handle_t UREvent = nullptr;
-  ur_exp_enqueue_ext_properties_t Properties{
-      UR_STRUCTURE_TYPE_EXP_ENQUEUE_EXT_PROPERTIES, nullptr, 0};
-  ResEvent->setStateIncomplete();
+  if (BarrierType == CGType::Barrier) {
+    if (RawDepEvents.size()) {
+      getAdapter().call<UrApiKind::urEnqueueEventsWait>(
+          getHandleRef(), RawDepEvents.size(), &RawDepEvents[0], nullptr);
+    }
 
-  getAdapter().call<UrApiKind::urEnqueueEventsWaitWithBarrierExt>(
-      getHandleRef(), &Properties, UrDepEvents.size(),
-      UrDepEvents.size() ? UrDepEvents.data() : nullptr, &UREvent);
+    getAdapter().call<UrApiKind::urEnqueueEventsWaitWithBarrierExt>(
+        getHandleRef(), nullptr, 0, nullptr, &UREvent);
+  } else {
+
+    RawDepEvents.insert(RawDepEvents.end(), RawBarrierDepEvents.begin(),
+                        RawBarrierDepEvents.end());
+
+    getAdapter().call<UrApiKind::urEnqueueEventsWaitWithBarrierExt>(
+        getHandleRef(), nullptr, RawDepEvents.size(), RawDepEvents.data(),
+        &UREvent);
+  }
 
   ResEvent->setHandle(UREvent);
-  ResEvent->setEnqueued();
+
+  // connect returned event with dependent events
+  if (!isInOrder()) {
+
+    if (BarrierType == CGType::BarrierWaitlist) {
+      DepEvents.insert(DepEvents.end(), BarrierDepEvents.begin(),
+                       BarrierDepEvents.end());
+    }
+
+    // DepEvents is not used anymore, so can move.
+    ResEvent->getPreparedDepsEvents() = std::move(DepEvents);
+    // ResultEvent is local for current thread, no need to lock.
+    ResEvent->cleanDepEventsThroughOneLevelUnlocked();
+  }
+
   return ResEvent;
+}
+
+EventImplPtr
+queue_impl::submit_barrier_direct_impl(sycl::span<const event> DepEvents,
+                                       detail::CGType BarrierType,
+                                       const detail::code_location &CodeLoc) {
+  auto SubmitBarrierFunc = [&](detail::CG::StorageInitHelper &&CGData)
+      -> std::pair<EventImplPtr, bool> {
+    std::vector<detail::EventImplPtr> DepEventImpls;
+
+    if (!DepEvents.empty()) {
+      for (const event &Event : DepEvents) {
+        const auto &EventPtr = detail::getSyclObjImpl(Event);
+
+        if (EventPtr->isHost()) {
+          detail::registerEventDependency</*LockQueue*/ false>(
+              EventPtr, CGData.MEvents, this, getContextImpl(), getDeviceImpl(),
+              getCommandGraph().get(), CGType::BarrierWaitlist);
+        }
+
+        DepEventImpls.emplace_back(EventPtr);
+      }
+    }
+
+    bool SchedulerBypass = !getCommandGraph();
+
+    if (DepEventImpls.size() > 0) {
+      SchedulerBypass &= detail::Scheduler::areEventsSafeForSchedulerBypass(
+          DepEventImpls, getContextImpl());
+    }
+
+    SchedulerBypass &= detail::Scheduler::areEventsSafeForSchedulerBypass(
+        CGData.MEvents, getContextImpl());
+
+    if (SchedulerBypass) {
+      return {submit_barrier_scheduler_bypass(DepEventImpls, CGData.MEvents,
+                                              BarrierType),
+              /*SchedulerBypass*/ true};
+    }
+
+    std::unique_ptr<detail::CG> CommandGroup;
+
+    if (auto GraphImpl = getCommandGraph(); GraphImpl) {
+      CGData.MEvents.insert(std::end(CGData.MEvents), std::begin(DepEventImpls),
+                            std::end(DepEventImpls));
+      CommandGroup.reset(
+          new detail::CG(detail::CGType::Barrier, std::move(CGData), CodeLoc));
+
+      return {this->submit_command_to_graph(
+                  *getCommandGraph(), std::move(CommandGroup), CGType::Barrier),
+              false};
+    }
+
+    CommandGroup.reset(
+        new detail::CGBarrier(std::move(DepEventImpls),
+                              ext::oneapi::experimental::event_mode_enum::none,
+                              std::move(CGData), BarrierType, CodeLoc));
+
+    return {detail::Scheduler::getInstance().addCG(std::move(CommandGroup),
+                                                   *this, true),
+            /*SchedulerBypass*/ false};
+  };
+
+  return submit_direct(true, {}, SubmitBarrierFunc, BarrierType,
+                       /*InsertBarrierForInOrderCommand*/ false);
 }
 
 bool queue_impl::isNativeRecording() const {
@@ -768,6 +841,12 @@ detail::EventImplPtr queue_impl::submit_direct(
           MissedCleanupRequests.clear();
         });
 
+    if (Type == CGType::Barrier && !Deps.UnenqueuedCmdEvents.empty()) {
+      for (const EventImplPtr &Event : Deps.UnenqueuedCmdEvents) {
+        CGData.MEvents.push_back(Event);
+      }
+    }
+
     if (Deps.LastBarrier && !Deps.LastBarrier->isEnqueued()) {
       CGData.MEvents.push_back(Deps.LastBarrier);
     }
@@ -793,7 +872,10 @@ detail::EventImplPtr queue_impl::submit_direct(
   // Barrier and un-enqueued commands synchronization for out or order queue.
   // The event must also be stored for future wait calls.
   if (!inOrder) {
-    if (!EventImpl->isEnqueued()) {
+    if (Type == CGType::Barrier || Type == CGType::BarrierWaitlist) {
+      Deps.LastBarrier = EventImpl;
+      Deps.UnenqueuedCmdEvents.clear();
+    } else if (!EventImpl->isEnqueued()) {
       Deps.UnenqueuedCmdEvents.push_back(EventImpl);
     }
     addEventUnlocked(EventImpl);
