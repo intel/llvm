@@ -275,10 +275,10 @@ void SYCLMemObjT::prepareForAllocation(context_impl *Context) {
 
   switch (Backend) {
   case backend::ext_oneapi_level_zero:
-  case backend::ext_oneapi_cuda:
-  case backend::ext_oneapi_hip:
     SkipShadowCopy = true;
     break;
+  case backend::ext_oneapi_cuda:
+  case backend::ext_oneapi_hip:
   case backend::opencl:
   case backend::ext_oneapi_native_cpu:
   case backend::ext_oneapi_offload:
@@ -291,6 +291,8 @@ void SYCLMemObjT::prepareForAllocation(context_impl *Context) {
   }
 
   std::lock_guard<std::mutex> Lock(MCreateShadowCopyMtx);
+  if (!MHasPendingAlignedShadowCopy)
+    return;
   if (SkipShadowCopy) {
     if (MShadowCopy != nullptr) {
       // A writable host accessor already forced a SYCL shadow copy. Keep using

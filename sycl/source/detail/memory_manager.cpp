@@ -324,17 +324,13 @@ void *MemoryManager::allocateInteropMemObject(
   return UserPtr;
 }
 
-static ur_mem_flags_t
-getMemObjCreationFlags(void *UserPtr, bool HostPtrReadOnly,
-                       bool BackendOwnedWriteBack = false) {
+static ur_mem_flags_t getMemObjCreationFlags(void *UserPtr,
+                                             bool HostPtrReadOnly) {
   // Create read_write mem object to handle arbitrary uses.
   ur_mem_flags_t Result =
       HostPtrReadOnly ? UR_MEM_FLAG_READ_ONLY : UR_MEM_FLAG_READ_WRITE;
-  if (UserPtr) {
+  if (UserPtr)
     Result |= UR_MEM_FLAG_USE_HOST_POINTER;
-    if (BackendOwnedWriteBack)
-      Result |= UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER;
-  }
   return Result;
 }
 
@@ -354,12 +350,12 @@ void *MemoryManager::allocateImageObject(context_impl *TargetContext,
   return NewMem;
 }
 
-void *MemoryManager::allocateBufferObject(
-    context_impl *TargetContext, void *UserPtr, bool HostPtrReadOnly,
-    bool BackendOwnedWriteBack, const size_t Size,
-    const sycl::property_list &PropsList) {
+void *
+MemoryManager::allocateBufferObject(context_impl *TargetContext, void *UserPtr,
+                                    bool HostPtrReadOnly, const size_t Size,
+                                    const sycl::property_list &PropsList) {
   ur_mem_flags_t CreationFlags =
-      getMemObjCreationFlags(UserPtr, HostPtrReadOnly, BackendOwnedWriteBack);
+      getMemObjCreationFlags(UserPtr, HostPtrReadOnly);
   if (PropsList.has_property<
           sycl::ext::oneapi::property::buffer::use_pinned_host_memory>())
     CreationFlags |= UR_MEM_FLAG_ALLOC_HOST_POINTER;
@@ -375,11 +371,13 @@ void *MemoryManager::allocateBufferObject(
   return NewMem;
 }
 
-void *MemoryManager::allocateMemBuffer(
-    context_impl *TargetContext, SYCLMemObjI *MemObj, void *UserPtr,
-    bool HostPtrReadOnly, bool BackendOwnedWriteBack, size_t Size,
-    const EventImplPtr &InteropEvent, context_impl *InteropContext,
-    const sycl::property_list &PropsList, ur_event_handle_t &OutEventToWait) {
+void *MemoryManager::allocateMemBuffer(context_impl *TargetContext,
+                                       SYCLMemObjI *MemObj, void *UserPtr,
+                                       bool HostPtrReadOnly, size_t Size,
+                                       const EventImplPtr &InteropEvent,
+                                       context_impl *InteropContext,
+                                       const sycl::property_list &PropsList,
+                                       ur_event_handle_t &OutEventToWait) {
   void *MemPtr;
   if (!TargetContext)
     MemPtr =
@@ -389,8 +387,8 @@ void *MemoryManager::allocateMemBuffer(
         allocateInteropMemObject(TargetContext, UserPtr, InteropEvent,
                                  InteropContext, PropsList, OutEventToWait);
   else
-    MemPtr = allocateBufferObject(TargetContext, UserPtr, HostPtrReadOnly,
-                                  BackendOwnedWriteBack, Size, PropsList);
+    MemPtr = allocateBufferObject(TargetContext, UserPtr, HostPtrReadOnly, Size,
+                                  PropsList);
   XPTIRegistry::bufferAssociateNotification(MemObj, MemPtr);
   return MemPtr;
 }

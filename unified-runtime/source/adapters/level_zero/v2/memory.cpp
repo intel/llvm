@@ -122,11 +122,12 @@ ur_integrated_buffer_handle_t::ur_integrated_buffer_handle_t(
     });
 
     if (hostPtr) {
-      // Initial copy using Level Zero for USM HOST memory
       auto hDevice = hContext->getDevices()[0];
       UR_CALL_THROWS(
           synchronousZeCopy(hContext, hDevice, this->ptr.get(), hostPtr, size));
       mapToPtr = hostPtr;
+      if (accessMode != device_access_mode_t::read_only)
+        writeBackPtr = hostPtr;
     }
   }
 }
@@ -646,15 +647,12 @@ ur_result_t urMemBufferCreate(ur_context_handle_t hContext,
   // 4. Otherwise - allocate USM and copy-back through map/unmap operations
   if (useHostBuffer(hContext)) {
     if (useHostPtr) {
-      auto buffer = std::unique_ptr<ur_mem_handle_t_>(
-          ur_mem_handle_t_::create<ur_integrated_buffer_handle_t>(
-              hContext, hostPtr, size, accessMode));
-      if (copyHostPtr && hostPtr) {
-        static_cast<ur_integrated_buffer_handle_t *>(buffer->getBuffer())
-            ->setWriteBackPtr(hostPtr);
-      }
-      *phBuffer = buffer.release();
+      *phBuffer = ur_mem_handle_t_::create<ur_integrated_buffer_handle_t>(
+          hContext, hostPtr, size, accessMode);
     } else if (copyHostPtr && hostPtr) {
+      // Not used by SYCL today. Kept for direct UR calls to
+      // urMemBufferCreate(..., UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER, ...)
+      // without UR_MEM_FLAG_USE_HOST_POINTER.
       auto buffer = std::unique_ptr<ur_mem_handle_t_>(
           ur_mem_handle_t_::create<ur_integrated_buffer_handle_t>(
               hContext, nullptr, size, accessMode));
@@ -673,6 +671,9 @@ ur_result_t urMemBufferCreate(ur_context_handle_t hContext,
       *phBuffer = ur_mem_handle_t_::create<ur_discrete_buffer_handle_t>(
           hContext, hostPtr, size, accessMode);
     } else if (copyHostPtr && hostPtr) {
+      // Not used by SYCL today. Kept for direct UR calls to
+      // urMemBufferCreate(..., UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER, ...)
+      // without UR_MEM_FLAG_USE_HOST_POINTER.
       auto buffer = std::unique_ptr<ur_mem_handle_t_>(
           ur_mem_handle_t_::create<ur_discrete_buffer_handle_t>(
               hContext, nullptr, size, accessMode));
