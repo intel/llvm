@@ -43,7 +43,7 @@ foreach(adapter ${UR_ADAPTERS_LIST})
         if(UR_STANDALONE_BUILD)
             add_custom_target(check-unified-runtime-conformance-${adapter}
                 COMMAND "${URLIT_LIT_BINARY}" "${CMAKE_CURRENT_BINARY_DIR}"
-                    -a -Dselector=${adapter}:*
+                    --show-unsupported --show-pass --show-xfail -Dselector=${adapter}:*
                 DEPENDS deps_check-unified-runtime-conformance
             )
         else()
