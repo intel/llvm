@@ -15,16 +15,16 @@
 #include "common.hpp"
 #include "common/ur_ref_count.hpp"
 #include "event_pool_cache.hpp"
+#include "logger/ur_logger.hpp"
 #include "usm.hpp"
 
 enum class PoolCacheType { Immediate, Regular };
 
 struct ur_context_handle_t_ : ur_object {
-  ur_context_handle_t_(ze_context_handle_t hContext, uint32_t numDevices,
-                       const ur_device_handle_t *phDevices, bool ownZeContext);
+  ur_context_handle_t_(v2::raii::ze_context_handle_t zeCtx, uint32_t numDevices,
+                       const ur_device_handle_t *phDevices);
 
   ur_result_t retain();
-  ur_result_t release();
 
   inline ze_context_handle_t getZeHandle() const { return hContext.get(); }
   ur_platform_handle_t getPlatform() const;
@@ -35,6 +35,8 @@ struct ur_context_handle_t_ : ur_object {
 
   void addUsmPool(ur_usm_pool_handle_t hPool);
   void removeUsmPool(ur_usm_pool_handle_t hPool);
+  void changeResidentDevice(ur_device_handle_t hDevice,
+                            ur_device_handle_t peerDevice, bool isAdding);
 
   template <typename Func> void forEachUsmPool(Func func) {
     std::shared_lock<ur_shared_mutex> lock(Mutex);
@@ -44,8 +46,11 @@ struct ur_context_handle_t_ : ur_object {
     }
   }
 
-  const std::vector<ur_device_handle_t> &
-  getP2PDevices(ur_device_handle_t hDevice) const;
+  std::vector<ur_device_handle_t>
+  getDevicesWhoseAllocationsCanBeAccessedFrom(ur_device_handle_t hDevice);
+
+  std::vector<ur_device_handle_t>
+  getDevicesWhichCanAccessAllocationsPresentOn(ur_device_handle_t hDevice);
 
   v2::event_pool &getNativeEventsPool() { return nativeEventsPool; }
   v2::command_list_cache_t &getCommandListCache() { return commandListCache; }
@@ -81,7 +86,10 @@ struct ur_context_handle_t_ : ur_object {
 
 private:
   const v2::raii::ze_context_handle_t hContext;
-  const std::vector<ur_device_handle_t> hDevices;
+  const std::vector<ur_device_handle_t>
+      hDevices; // possibly without subdevices, only what was passed to ctor,
+                // context may have user-defined, limited subset of available
+                // devices
   v2::command_list_cache_t commandListCache;
   v2::event_pool_cache eventPoolCacheImmediate;
   v2::event_pool_cache eventPoolCacheRegular;
@@ -89,9 +97,6 @@ private:
   // pool used for urEventCreateWithNativeHandle when native handle is NULL
   // (uses non-counter based events to allow for signaling from host)
   v2::event_pool nativeEventsPool;
-
-  // P2P devices for each device in the context, indexed by device id.
-  const std::vector<std::vector<ur_device_handle_t>> p2pAccessDevices;
 
   ur_usm_pool_handle_t_ defaultUSMPool;
   ur_usm_pool_handle_t_ asyncPool;
