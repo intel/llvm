@@ -141,6 +141,7 @@ ur_result_t urDeviceGet(
     case UR_DEVICE_TYPE_GPU:
       Matched = (D->ZeDeviceProperties->type == ZE_DEVICE_TYPE_GPU);
       break;
+    case UR_DEVICE_TYPE_CUSTOM:
     case UR_DEVICE_TYPE_DEFAULT:
       Matched = (D->ZeDeviceProperties->type == ZE_DEVICE_TYPE_GPU);
       DeviceDefaultGPU = true;

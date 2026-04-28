@@ -6,7 +6,7 @@
 #
 # See YaML.md for syntax definition
 #
-# NOTE: device_types must be explictly listed. Refrain from using 
+# NOTE: device_types must be explictly listed. Refrain from using
 #       $X_DEVICE_TYPE_ALL.
 --- #--------------------------------------------------------------------------
 type: header
@@ -45,6 +45,7 @@ device_types:
     - $X_DEVICE_TYPE_FPGA
     - $X_DEVICE_TYPE_MCA
     - $X_DEVICE_TYPE_VPU
+    - $X_DEVICE_TYPE_CUSTOM
 --- #--------------------------------------------------------------------------
 type: manifest
 name: level_zero_v2
@@ -55,6 +56,7 @@ device_types:
     - $X_DEVICE_TYPE_FPGA
     - $X_DEVICE_TYPE_MCA
     - $X_DEVICE_TYPE_VPU
+    - $X_DEVICE_TYPE_CUSTOM
 --- #--------------------------------------------------------------------------
 type: manifest
 name: native_cpu
