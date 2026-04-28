@@ -3,11 +3,6 @@
 
 # Generate test summary from LIT output log
 # Usage: generate_test_summary.sh <log_file> <test_type>
-#   log_file: Path to the LIT output log file
-#   test_type: Test category name (e.g., "Adapter Tests", "Conformance Tests")
-#
-# Security: Uses awk for text processing to avoid command injection
-# Performance: Single-pass awk processing for efficiency
 
 set -euo pipefail
 
@@ -21,19 +16,18 @@ fi
 
 if [ ! -f "$LOG_FILE" ]; then
   printf '### %s Summary\n\n' "$TEST_TYPE"
-  printf '⚠️ Log file not found: %s\n\n' "$LOG_FILE"
+  printf 'Log file not found: %s\n\n' "$LOG_FILE"
   exit 0
 fi
 
 # Check if file is empty
 if [ ! -s "$LOG_FILE" ]; then
   printf '### %s Summary\n\n' "$TEST_TYPE"
-  printf '⚠️ Log file is empty: %s\n\n' "$LOG_FILE"
+  printf 'Log file is empty: %s\n\n' "$LOG_FILE"
   exit 0
 fi
 
-# Parse LIT summary statistics from end of log
-# Extracts counts from lines like "Total Discovered Tests: 5554" and "  Passed : 4696 (84.55%)"
+# Parse LIT summary statistics
 parse_summary_stats() {
   awk '
     /^Total Discovered Tests:/ { gsub(/[^0-9]/, ""); if ($0 != "") print "TOTAL:" $0 }
@@ -48,13 +42,9 @@ parse_summary_stats() {
   ' "$LOG_FILE"
 }
 
-# Parse log file in single pass using awk for efficiency
-# Uses 'sub' instead of 'gsub' for more precise regex matching
-# Processes each line once and extracts test names by category
-# Output format: STATUS:test_name for efficient array population (O(n) instead of O(n²))
+# Parse test results from log
 parse_results() {
   awk '
-    # Extract and clean test name from LIT status line
     function extract_test_name(prefix) {
       line = $0
       sub("^" prefix ": ", "", line)
@@ -79,8 +69,7 @@ if ! results=$(parse_results); then
   exit 1
 fi
 
-# Memory optimization: Use arrays instead of string concatenation (O(n) vs O(n²))
-# Initialize arrays for each test status category
+# Initialize arrays for test results
 declare -a timeout_tests=()
 declare -a fail_tests=()
 declare -a xpass_tests=()
@@ -90,7 +79,7 @@ declare -a unres_tests=()
 declare -a skip_tests=()
 declare -a pass_tests=()
 
-# Parse results and populate arrays efficiently
+# Populate arrays from parsed results
 while IFS=: read -r status test_name; do
   case "$status" in
     TIMEOUT) timeout_tests+=("$test_name") ;;

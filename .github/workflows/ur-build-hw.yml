@@ -153,7 +153,7 @@ jobs:
       # Don't run adapter specific tests when building multiple adapters
       if: ${{ matrix.adapter.other_name == '' }}
 
-    - name: Adapter Tests logs
+    - name: Test adapter specific logs
       if: ${{ always() && matrix.adapter.other_name == '' }}
       run: |
         echo "::group::Show Full Adapter Tests Log"
@@ -168,14 +168,14 @@ jobs:
       run: |
         cmake --build build -j $(($(nproc)/3)) -- check-unified-runtime-conformance > conformance_tests.log 2>&1
 
-    - name: Conformance Tests logs
+    - name: Test adapters logs
       if: ${{ always() }}
       run: |
         echo "::group::Show Full Conformance Tests Log"
         cat conformance_tests.log
         echo "::endgroup::"
 
-    - name: Report Adapter Tests Summary
+    - name: Report Test adapter specific summary
       if: ${{ (success() || failure()) && matrix.adapter.other_name == '' }}
       run: |
         if [ -f adapter_tests.log ]; then
@@ -185,7 +185,7 @@ jobs:
           echo "Log file not found" >> $GITHUB_STEP_SUMMARY
         fi
 
-    - name: Report Conformance Tests Summary
+    - name: Report Test adapters summary
       if: ${{ success() || failure() }}
       run: |
         if [ -f conformance_tests.log ]; then
