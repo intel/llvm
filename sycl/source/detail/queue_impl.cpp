@@ -137,7 +137,8 @@ EventImplPtr queue_impl::memset(void *Ptr, int Value, size_t Count,
   TP.addMetadata([&](auto TEvent) {
     xpti::addMetadata(TEvent, "memory_size", Count);
     if (detail::GSYCLStreamDetailLevel >=
-        xpti::stream_detail_level_t::XPTI_STREAM_DETAIL_LEVEL_NORMAL) {
+            xpti::stream_detail_level_t::XPTI_STREAM_DETAIL_LEVEL_NORMAL ||
+        isDebugStream(detail::getActiveXPTIStreamID())) {
       xpti::addMetadata(TEvent, "sycl_device",
                         reinterpret_cast<size_t>(MDevice.getHandleRef()));
       xpti::addMetadata(TEvent, "memory_ptr", reinterpret_cast<size_t>(Ptr));
@@ -195,7 +196,8 @@ EventImplPtr queue_impl::memcpy(void *Dest, const void *Src, size_t Count,
   TP.addMetadata([&](auto TEvent) {
     xpti::addMetadata(TEvent, "memory_size", Count);
     if (detail::GSYCLStreamDetailLevel >=
-        xpti::stream_detail_level_t::XPTI_STREAM_DETAIL_LEVEL_NORMAL) {
+            xpti::stream_detail_level_t::XPTI_STREAM_DETAIL_LEVEL_NORMAL ||
+        isDebugStream(detail::getActiveXPTIStreamID())) {
       xpti::addMetadata(TEvent, "sycl_device",
                         reinterpret_cast<size_t>(MDevice.getHandleRef()));
       xpti::addMetadata(TEvent, "src_memory_ptr",
@@ -1061,7 +1063,8 @@ void queue_impl::constructorNotification() {
   // Cache the trace event, stream id and instance IDs for the destructor.
   MTraceEvent = (void *)TEvent;
   if (detail::GSYCLStreamDetailLevel >=
-      xpti::stream_detail_level_t::XPTI_STREAM_DETAIL_LEVEL_NORMAL) {
+          xpti::stream_detail_level_t::XPTI_STREAM_DETAIL_LEVEL_NORMAL ||
+      isDebugStream(detail::getActiveXPTIStreamID())) {
     xpti::addMetadata(TEvent, "sycl_context",
                       reinterpret_cast<size_t>(MContext->getHandleRef()));
     xpti::addMetadata(TEvent, "sycl_device_name",
