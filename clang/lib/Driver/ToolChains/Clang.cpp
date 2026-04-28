@@ -5437,7 +5437,11 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   }
 
   const llvm::Triple *AuxTriple =
+<<<<<<< HEAD
       (IsSYCL || IsCuda || IsHIP) ? TC.getAuxTriple() : nullptr;
+=======
+      (IsCuda || IsHIP || IsSYCL) ? TC.getAuxTriple() : nullptr;
+>>>>>>> 0052113fb692b9a7c96f7b642c8e65071878d823
   bool IsWindowsMSVC = RawTriple.isWindowsMSVCEnvironment();
   bool IsUEFI = RawTriple.isUEFI();
   bool IsIAMCU = RawTriple.isOSIAMCU();
@@ -7365,6 +7369,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       else
         CmdArgs.push_back("-std=c89");
     else {
+<<<<<<< HEAD
       if (Args.hasArg(options::OPT_fsycl)) {
         // Use of -std= with 'C' is not supported for SYCL.
         const LangStandard *LangStd =
@@ -7372,6 +7377,20 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
         if (LangStd && LangStd->getLanguage() == Language::C)
           D.Diag(diag::err_drv_argument_not_allowed_with)
               << Std->getAsString(Args) << "-fsycl";
+=======
+      if (IsSYCL) {
+        const LangStandard *LangStd =
+            LangStandard::getLangStandardForName(Std->getValue());
+        if (LangStd) {
+          // Use of -std= with 'C' is not supported for SYCL.
+          if (LangStd->getLanguage() == Language::C)
+            D.Diag(diag::err_drv_argument_not_allowed_with)
+                << Std->getAsString(Args) << "-fsycl";
+          // SYCL requires C++17 or later.
+          else if (LangStd->isCPlusPlus() && !LangStd->isCPlusPlus17())
+            D.Diag(diag::err_drv_sycl_requires_cxx17) << Std->getAsString(Args);
+        }
+>>>>>>> 0052113fb692b9a7c96f7b642c8e65071878d823
       }
       Std->render(Args, CmdArgs);
     }
@@ -7400,9 +7419,16 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       ImplyVCPPCXXVer = true;
 
     if (IsSYCL && types::isCXX(InputType) &&
+<<<<<<< HEAD
         !Args.hasArg(options::OPT__SLASH_std))
       // For DPC++, we default to -std=c++17 for all compilations.  Use of -std
       // on the command line will override.
+=======
+        !Args.hasArg(options::OPT__SLASH_std) && !IsWindowsMSVC)
+      // For SYCL, we default to -std=c++17 for all compilations. Use of -std
+      // on the command line will override. On Windows MSVC, this is handled
+      // by the ImplyVCPPCXXVer path below.
+>>>>>>> 0052113fb692b9a7c96f7b642c8e65071878d823
       CmdArgs.push_back("-std=c++17");
 
     Args.AddLastArg(CmdArgs, options::OPT_ftrigraphs,
@@ -8325,6 +8351,20 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                              .Case("c++23preview", "-std=c++23")
                              .Case("c++latest", "-std=c++26")
                              .Default("");
+      if (IsSYCL) {
+        const LangStandard *LangStd =
+            LangStandard::getLangStandardForName(StdArg->getValue());
+        if (LangStd) {
+          // Use of /std: with 'C' is not supported for SYCL.
+          if (LangStd->getLanguage() == Language::C)
+            D.Diag(diag::err_drv_argument_not_allowed_with)
+                << StdArg->getAsString(Args) << "-fsycl";
+          // SYCL requires C++17 or later.
+          else if (LangStd->isCPlusPlus() && !LangStd->isCPlusPlus17())
+            D.Diag(diag::err_drv_sycl_requires_cxx17)
+                << StdArg->getAsString(Args);
+        }
+      }
       if (LanguageStandard.empty())
         D.Diag(clang::diag::warn_drv_unused_argument)
             << StdArg->getAsString(Args);
@@ -8332,7 +8372,11 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
     if (LanguageStandard.empty()) {
       if (IsSYCL)
+<<<<<<< HEAD
         // For DPC++, C++17 is the default.
+=======
+        // For SYCL, C++17 is the default.
+>>>>>>> 0052113fb692b9a7c96f7b642c8e65071878d823
         LanguageStandard = "-std=c++17";
       else if (IsMSVC2015Compatible)
         LanguageStandard = "-std=c++14";
