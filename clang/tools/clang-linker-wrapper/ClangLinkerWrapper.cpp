@@ -160,6 +160,10 @@ static bool CanonicalPrefixes = true;
 
 using OffloadingImage = OffloadBinary::OffloadingImage;
 
+// TODO: Remove this once the linking and backend compilation have been fully
+// migrated to clang-sycl-linker.
+bool UseClangSYCLLinker = false;
+
 namespace llvm {
 // Provide DenseMapInfo so that OffloadKind can be used in a DenseMap.
 template <> struct DenseMapInfo<OffloadKind> {
@@ -1726,6 +1730,50 @@ Expected<StringRef> bundleDeviceModule(StringRef ClangOutput,
 } // namespace sycl
 
 namespace generic {
+// Forwards all required flags to the clang-sycl-linker via -Xlinker.
+static void appendClangSYCLLinkerArgs(const ArgList &Args,
+                                      SmallVectorImpl<StringRef> &CmdArgs,
+                                      const llvm::Triple &Triple,
+                                      StringRef Arch) {
+  auto XLinker = [&](const Twine &Arg) {
+    CmdArgs.append({"-Xlinker", Args.MakeArgString(Arg)});
+  };
+
+  XLinker("--triple=" + Triple.getTriple());
+  if (!Arch.empty())
+    XLinker("--arch=" + Arch);
+
+  static const OptSpecifier DirectOpts[] = {
+      OPT_save_temps,
+      OPT_dry_run,
+      OPT_print_wrapped_module,
+      OPT_sycl_thin_lto,
+      OPT_sycl_allow_device_image_dependencies,
+      OPT_sycl_remove_unused_external_funcs,
+      OPT_no_sycl_remove_unused_external_funcs,
+      OPT_sycl_device_code_split_esimd,
+      OPT_no_sycl_device_code_split_esimd,
+      OPT_sycl_add_default_spec_consts_image,
+      OPT_no_sycl_add_default_spec_consts_image,
+  };
+  for (OptSpecifier Opt : DirectOpts) {
+    if (Arg *A = Args.getLastArg(Opt)) {
+      XLinker("--" + A->getOption().getName().str());
+    }
+  }
+
+  static const OptSpecifier ValueOpts[] = {
+      OPT_sycl_dump_device_code_EQ,  OPT_llvm_spirv_options_EQ,
+      OPT_sycl_post_link_options_EQ, OPT_syclbin_EQ,
+      OPT_bitcode_library_EQ,
+  };
+  for (OptSpecifier Opt : ValueOpts) {
+    if (const opt::Arg *A = Args.getLastArg(Opt)) {
+      XLinker("--" + A->getOption().getName().str() + A->getValue());
+    }
+  }
+}
+
 Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args,
                           bool IsSYCLKind = false) {
   llvm::TimeTraceScope TimeScope("Clang");
@@ -1763,6 +1811,17 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args,
           "--target=" +
           (Triple.isNativeCPU() ? HostTriple : Triple).getTriple()),
   };
+
+  if (UseClangSYCLLinker) {
+    CmdArgs.push_back("-fsycl");
+    CmdArgs.push_back("--sycl-link");
+    appendClangSYCLLinkerArgs(Args, CmdArgs, Triple, Arch);
+    for (StringRef InputFile : InputFiles)
+      CmdArgs.append({"-Xlinker", Args.MakeArgString(InputFile)});
+    if (Error Err = executeCommands(*ClangPath, CmdArgs))
+      return std::move(Err);
+    return *TempFileOrErr;
+  }
 
   if (!Arch.empty())
     Triple.isAMDGPU() ? CmdArgs.push_back(Args.MakeArgString("-mcpu=" + Arch))
