@@ -1,12 +1,9 @@
 // REQUIRES: aspect-usm_device_allocations && aspect-ext_oneapi_ipc_memory
 
-// UNSUPPORTED: level_zero && windows
-// UNSUPPORTED-TRACKER: UMFW-348
-
 // DEFINE: %{cpp20} = %if cl_options %{/clang:-std=c++20%} %else %{-std=c++20%}
 
 // RUN: %{build} -o %t.out
-// RUN: %{run} %t.out
+// RUN: %{run} SYCL_UR_TRACE=-1 %t.out
 // RUN: %{build} -DUSE_VIEW %{cpp20} -o %t.view.out
 // RUN: %{run} %t.view.out
 
@@ -22,6 +19,8 @@
 #include <linux/prctl.h>
 #include <sys/prctl.h>
 #include <unistd.h>
+#elif defined(__WIN32__) || defined(_WIN32)
+#include <windows.h>
 #endif // defined(__linux__)
 
 namespace syclexp = sycl::ext::oneapi::experimental;
@@ -29,7 +28,28 @@ namespace syclexp = sycl::ext::oneapi::experimental;
 constexpr size_t N = 32;
 constexpr const char *CommsFile = "ipc_comms.txt";
 
-int spawner(int argc, char *argv[]) {
+void spawn_and_sync(std::string Exe) {
+  std::string Cmd = Exe + " 1";
+  std::cout << "Spawning: " << Cmd << std::endl;
+#if defined(__WIN32__) || defined(_WIN32)
+  STARTUPINFO StartupInfo;
+  PROCESS_INFORMATION ProcInfo;
+
+  std::memset(&ProcInfo, 0, sizeof(ProcInfo));
+  std::memset(&StartupInfo, 0, sizeof(StartupInfo));
+  StartupInfo.cb = sizeof(StartupInfo);
+  CreateProcessA(NULL, const_cast<char *>(Cmd.c_str()), NULL, NULL, TRUE, 0,
+                 NULL, NULL, &StartupInfo, &ProcInfo);
+  WaitForSingleObject(ProcInfo.hProcess, 30000);
+  CloseHandle(ProcInfo.hProcess);
+  CloseHandle(ProcInfo.hThread);
+#else
+  std::system(Cmd.c_str());
+#endif
+}
+
+int spawner(int argc, char *argv[]) try {
+  std::cout << "Running spanwer..." << std::endl;
   assert(argc == 1);
   sycl::queue Q;
 
@@ -67,9 +87,7 @@ int spawner(int argc, char *argv[]) {
     }
 
     // Spawn other process with an argument.
-    std::string Cmd = std::string{argv[0]} + " 1";
-    std::cout << "Spawning: " << Cmd << std::endl;
-    std::system(Cmd.c_str());
+    spawn_and_sync(std::string{argv[0]});
   }
 
   int Failures = 0;
@@ -84,9 +102,13 @@ int spawner(int argc, char *argv[]) {
   }
   sycl::free(DataPtr, Q);
   return Failures;
+} catch (sycl::exception &e) {
+  std::cout << "Spawner failed: " << e.what() << std::endl;
+  throw;
 }
 
-int consumer() {
+int consumer() try {
+  std::cout << "Running consumer..." << std::endl;
   sycl::queue Q;
 
   // Read the handle data.
@@ -126,6 +148,9 @@ int consumer() {
   syclexp::ipc_memory::close(DataPtr, Q.get_context());
 
   return Failures;
+} catch (sycl::exception &e) {
+  std::cout << "Consumer failed: " << e.what() << std::endl;
+  throw;
 }
 
 int main(int argc, char *argv[]) {
