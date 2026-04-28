@@ -1,136 +1,61 @@
-// REQUIRES: aspect-ext_oneapi_bindless_images
-// REQUIRES: aspect-ext_oneapi_external_memory_import || (windows && level_zero && aspect-ext_oneapi_bindless_images)
-// REQUIRES: vulkan
-
-// RUN: %{build} %link-vulkan -o %t.out %if target-spir %{ -Wno-ignored-attributes %}
+// Shared implementation for the Vulkan/SYCL 1D image read interop tests.
 
 /*
-    Run ALL the vulkan formats through the gauntlet. sampled and unsampled.
-    This entire test takes less than 30 seconds on a slow machine.  MUCH faster
-   (and more complete coveraage) than SFINAE based approach.
+  Run ALL the vulkan formats through the gauntlet. sampled and unsampled.
+  This entire test takes less than 30 seconds on a slow machine.  MUCH faster
+  (and more complete coveraage) than SFINAE based approach.
 
-    IF a particular variant is having problems on some platform, please do NOT
-   just disable the whole test, instead use   RUN~IF (SOMETHING) yadda-yadda
-    to enable/disable that variant.
+  IF a particular variant is having problems on some platform, please do NOT
+  just disable the whole test, instead use   RUN~IF (SOMETHING) yadda-yadda
+  to enable/disable that variant.
 
-    For semaphore testing, we run just a sampling. Note, that on Linux if there
-   is a failure in the first section, then likely ALL semaphore tests afterwards
-   will fail. This is being tracked as a separate issue.
-
+  For semaphore testing, we run just a sampling. Note, that on Linux if there
+  is a failure in the first section, then likely ALL semaphore tests afterwards
+  will fail. This is being tracked as a separate issue.
 */
+
+/*
+  The block above tests these formats, sampled and unsampled, with and without
+  semaphores
+
+  VK_FORMAT_R32_SFLOAT
+  VK_FORMAT_R32G32_SFLOAT
+  VK_FORMAT_R32G32B32A32_SFLOAT
+  VK_FORMAT_R16_SFLOAT
+  VK_FORMAT_R16G16_SFLOAT
+  VK_FORMAT_R16G16B16A16_SFLOAT
+  VK_FORMAT_R32_SINT
+  VK_FORMAT_R32G32_SINT
+  VK_FORMAT_R32G32B32A32_SINT
+  VK_FORMAT_R32_UINT
+  VK_FORMAT_R32G32_UINT
+  VK_FORMAT_R32G32B32A32_UINT
+  VK_FORMAT_R16_SINT
+  VK_FORMAT_R16G16_SINT
+  VK_FORMAT_R16G16B16A16_SINT
+  VK_FORMAT_R16_UINT
+  VK_FORMAT_R16G16_UINT
+  VK_FORMAT_R16G16B16A16_UINT
+  VK_FORMAT_R8_UINT
+  VK_FORMAT_R8G8_UINT
+  VK_FORMAT_R8G8B8A8_UINT
+  VK_FORMAT_R8_SINT
+  VK_FORMAT_R8G8_SINT
+  VK_FORMAT_R8G8B8A8_SINT
+  VK_FORMAT_R8_UNORM
+  VK_FORMAT_R8G8_UNORM
+  VK_FORMAT_R8G8B8A8_UNORM
+*/
+
 // clang-format off
-// RUN: %{run} %t.out --type float --channels 1 32
-// RUN: %{run} %t.out --type float --channels 2 32
-// RUN: %{run} %t.out --type float --channels 4 32
-// RUN: %{run} %t.out --type half --channels 1 32
-// RUN: %{run} %t.out --type half --channels 2 32
-// RUN: %{run} %t.out --type half --channels 4 32
-// RUN: %{run} %t.out --type int32 --channels 1 32
-// RUN: %{run} %t.out --type int32 --channels 2 32
-// RUN: %{run} %t.out --type int32 --channels 4 32
-// RUN: %{run} %t.out --type uint32 --channels 1 32
-// RUN: %{run} %t.out --type uint32 --channels 2 32
-// RUN: %{run} %t.out --type uint32 --channels 4 32
-// RUN: %{run} %t.out --type int16 --channels 1 32
-// RUN: %{run} %t.out --type int16 --channels 2 32
-// RUN: %{run} %t.out --type int16 --channels 4 32
-// RUN: %{run} %t.out --type uint16 --channels 1 32
-// RUN: %{run} %t.out --type uint16 --channels 2 32
-// RUN: %{run} %t.out --type uint16 --channels 4 32
-// RUN: %{run} %t.out --type uint8 --channels 1 32
-// RUN: %{run} %t.out --type uint8 --channels 2 32
-// RUN: %{run} %t.out --type uint8 --channels 4 32
-// RUN: %{run} %t.out --type int8 --channels 1 32
-// RUN: %{run} %t.out --type int8 --channels 2 32
-// RUN: %{run} %t.out --type int8 --channels 4 32
-// RUN-IF: !cuda, %{run} %t.out --type unorm8 --channels 1 32
-// RUN-IF: !cuda, %{run} %t.out --type unorm8 --channels 2 32
-// RUN-IF: !cuda, %{run} %t.out --type unorm8 --channels 4 32
-// RUN: %{run} %t.out --type float --channels 1 --sampled 32
-// RUN: %{run} %t.out --type float --channels 2 --sampled 32
-// RUN: %{run} %t.out --type float --channels 4 --sampled 32
-// RUN: %{run} %t.out --type half --channels 1 --sampled 32
-// RUN: %{run} %t.out --type half --channels 2 --sampled 32
-// RUN: %{run} %t.out --type half --channels 4 --sampled 32
-// RUN: %{run} %t.out --type int32 --channels 1 --sampled 32
-// RUN: %{run} %t.out --type int32 --channels 2 --sampled 32
-// RUN: %{run} %t.out --type int32 --channels 4 --sampled 32
-// RUN: %{run} %t.out --type uint32 --channels 1 --sampled 32
-// RUN: %{run} %t.out --type uint32 --channels 2 --sampled 32
-// RUN: %{run} %t.out --type uint32 --channels 4 --sampled 32
-// RUN: %{run} %t.out --type int16 --channels 1 --sampled 32
-// RUN: %{run} %t.out --type int16 --channels 2 --sampled 32
-// RUN: %{run} %t.out --type int16 --channels 4 --sampled 32
-// RUN: %{run} %t.out --type uint16 --channels 1 --sampled 32
-// RUN: %{run} %t.out --type uint16 --channels 2 --sampled 32
-// RUN: %{run} %t.out --type uint16 --channels 4 --sampled 32
-// RUN: %{run} %t.out --type uint8 --channels 1 --sampled 32
-// RUN: %{run} %t.out --type uint8 --channels 2 --sampled 32
-// RUN: %{run} %t.out --type uint8 --channels 4 --sampled 32
-// RUN: %{run} %t.out --type int8 --channels 1 --sampled 32
-// RUN: %{run} %t.out --type int8 --channels 2 --sampled 32
-// RUN: %{run} %t.out --type int8 --channels 4 --sampled 32
-// RUN-IF: !cuda, %{run} %t.out --type unorm8 --channels 1 --sampled 32
-// RUN-IF: !cuda, %{run} %t.out --type unorm8 --channels 2 --sampled 32
-// RUN-IF: !cuda, %{run} %t.out --type unorm8 --channels 4 --sampled 32
-
-// RUN: %{run} %t.out --type float --channels 1 32 --semaphores
-// RUN: %{run} %t.out --type float --channels 2 32 --semaphores
-// RUN: %{run} %t.out --type float --channels 4 32 --semaphores
-// RUN: %{run} %t.out --type half --channels 1 32 --semaphores
-// RUN: %{run} %t.out --type int32 --channels 2 32 --semaphores
-// RUN: %{run} %t.out --type uint32 --channels 4 32 --semaphores
-// RUN: %{run} %t.out --type int16 --channels 1 32 --semaphores
-// RUN: %{run} %t.out --type uint16 --channels 2 32 --semaphores
-// RUN: %{run} %t.out --type uint8 --channels 4 32 --semaphores
-// RUN: %{run} %t.out --type int8 --channels 1 32 --semaphores
-// RUN-IF: !cuda, %{run} %t.out --type unorm8 --channels 2 32 --semaphores
-// RUN: %{run} %t.out --type float --channels 4 --sampled 32 --semaphores
-// RUN: %{run} %t.out --type int16 --channels 4 --sampled 32 --semaphores
-// RUN: %{run} %t.out --type int8 --channels 4 --sampled 32 --semaphores
-// RUN-IF: !cuda, %{run} %t.out --type unorm8 --channels 4 --sampled 32 --semaphores
-
-/*
-
-The block above tests these formats, sampled and unsampled, with and without
-semaphores
-
-VK_FORMAT_R32_SFLOAT
-VK_FORMAT_R32G32_SFLOAT
-VK_FORMAT_R32G32B32A32_SFLOAT
-VK_FORMAT_R16_SFLOAT
-VK_FORMAT_R16G16_SFLOAT
-VK_FORMAT_R16G16B16A16_SFLOAT
-VK_FORMAT_R32_SINT
-VK_FORMAT_R32G32_SINT
-VK_FORMAT_R32G32B32A32_SINT
-VK_FORMAT_R32_UINT
-VK_FORMAT_R32G32_UINT
-VK_FORMAT_R32G32B32A32_UINT
-VK_FORMAT_R16_SINT
-VK_FORMAT_R16G16_SINT
-VK_FORMAT_R16G16B16A16_SINT
-VK_FORMAT_R16_UINT
-VK_FORMAT_R16G16_UINT
-VK_FORMAT_R16G16B16A16_UINT
-VK_FORMAT_R8_UINT
-VK_FORMAT_R8G8_UINT
-VK_FORMAT_R8G8B8A8_UINT
-VK_FORMAT_R8_SINT
-VK_FORMAT_R8G8_SINT
-VK_FORMAT_R8G8B8A8_SINT
-VK_FORMAT_R8_UNORM
-VK_FORMAT_R8G8_UNORM
-VK_FORMAT_R8G8B8A8_UNORM
-
-*/
-
 /*
   Vulkan/SYCL 1D Image Read Test (Sampled + Unsampled)
 
-  clang++ -fsycl -o vsr_1d_test.bin vulkan_sycl_image_interop_read_1d.cpp -lvulkan -I$VULKAN_SDK/include -L$VULKAN_SDK/lib
+  clang++ -fsycl -o vsr_1d_test.bin vulkan_sycl_image_interop_read_1d.cpp
+  -lvulkan -I$VULKAN_SDK/include -L$VULKAN_SDK/lib
 
-  clang++ -fsycl -o vsr_1d_test.exe vulkan_sycl_image_interop_read_1d.cpp -Wno-ignored-attributes  -lvulkan-1 -I$VULKAN_SDK/Include -L$VULKAN_SDK/Lib
+  clang++ -fsycl -o vsr_1d_test.exe vulkan_sycl_image_interop_read_1d.cpp
+  -Wno-ignored-attributes  -lvulkan-1 -I$VULKAN_SDK/Include -L$VULKAN_SDK/Lib
 
   USAGE:
     ./vsr_1d_test.bin [FLAGS] [Wx]
@@ -140,8 +65,9 @@ VK_FORMAT_R8G8B8A8_UNORM
     --semaphores   Use Vulkan Semaphores for SYCL Interop Sync
     --linear       Use LINEAR tiling for the Vulkan Image (default is OPTIMAL)
     --channels X   Set number of channels (1, 2, or 4). Default is 4 (RGBA)
-    --type XXX     Set data type (float, half, uint32, int32, uint16, int16, uint8, int8, unorm8). Default is float 
-    Wx             Set custom Width (e.g. 64x)
+    --type XXX     Set data type (float, half, uint32, int32, uint16, int16,
+  uint8, int8, unorm8). Default is float Wx             Set custom Width (e.g.
+  64x)
 
   EXAMPLES:
     ./vsr_1d_test.bin
@@ -151,6 +77,8 @@ VK_FORMAT_R8G8B8A8_UNORM
     ./vsr_1d_test.bin --linear --type unorm8 128x
 */
 // clang-format on
+
+#pragma once
 
 #include "vulkan_setup.hpp"
 
