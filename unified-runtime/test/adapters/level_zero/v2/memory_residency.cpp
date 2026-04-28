@@ -9,6 +9,9 @@
 #include "uur/fixtures.h"
 #include "uur/utils.h"
 
+#include <algorithm>
+#include <vector>
+
 using urMemoryResidencyTest = uur::urMultiDeviceContextTestTemplate<1>;
 UUR_INSTANTIATE_PLATFORM_TEST_SUITE(urMemoryResidencyTest);
 
@@ -19,9 +22,9 @@ TEST_P(urMemoryResidencyTest, allocatingDeviceMemoryWillResultInOOM) {
     GTEST_SKIP() << "Test requires a PVC device";
   }
 
-  size_t initialMemFree = 0;
+  uint64_t initialMemFree = 0;
   ASSERT_SUCCESS(urDeviceGetInfo(devices[0], UR_DEVICE_INFO_GLOBAL_MEM_FREE,
-                                 sizeof(size_t), &initialMemFree, nullptr));
+                                 sizeof(uint64_t), &initialMemFree, nullptr));
 
   if (initialMemFree < allocSize) {
     GTEST_SKIP() << "Not enough device memory available";
@@ -31,9 +34,9 @@ TEST_P(urMemoryResidencyTest, allocatingDeviceMemoryWillResultInOOM) {
   ASSERT_SUCCESS(
       urUSMDeviceAlloc(context, devices[0], nullptr, nullptr, allocSize, &ptr));
 
-  size_t currentMemFree = 0;
+  uint64_t currentMemFree = 0;
   ASSERT_SUCCESS(urDeviceGetInfo(devices[0], UR_DEVICE_INFO_GLOBAL_MEM_FREE,
-                                 sizeof(size_t), &currentMemFree, nullptr));
+                                 sizeof(uint64_t), &currentMemFree, nullptr));
 
   // amount of free memory should decrease after making a memory allocation
   // resident
@@ -57,24 +60,344 @@ struct urMemoryMultiResidencyTest : uur::urMultiDeviceContextTestTemplate<2> {
         GTEST_SKIP() << "EXP usm p2p feature is not supported.";
       }
     }
+
+    if (!uur::isPVC(devices[0]) || !uur::isPVC(devices[1])) {
+      GTEST_SKIP() << "Test requires PVC devices";
+    }
+
+    if (!hasHardwareP2PSupport()) {
+      GTEST_SKIP() << "No hardware P2P connection between devices";
+    }
   }
 
   void TearDown() override {
+    // Disable peer access if a test enabled it but did not clean up (e.g. due
+    // to an assertion failure), so subsequent tests start from a clean state.
+    if (peerAccessEnabled) {
+      EXPECT_SUCCESS(urUsmP2PDisablePeerAccessExp(devices[1], devices[0]));
+    }
     UUR_RETURN_ON_FATAL_FAILURE(
         uur::urMultiDeviceContextTestTemplate<2>::TearDown());
   }
+
+  // Returns true when hardware P2P connectivity exists in the direction used
+  // by the tests: devices[1] accessing allocations on devices[0].
+  bool hasHardwareP2PSupport() {
+    int supported = 0;
+    if (urUsmP2PPeerAccessGetInfoExp(
+            devices[1], devices[0], UR_EXP_PEER_INFO_UR_PEER_ACCESS_SUPPORT,
+            sizeof(int), &supported, nullptr) != UR_RESULT_SUCCESS) {
+      return false;
+    }
+    return supported != 0;
+  }
+
+  // Whether peer access from devices[1] to devices[0] has been enabled by
+  // this test and must be disabled in TearDown.
+  bool peerAccessEnabled = false;
 };
 
 UUR_INSTANTIATE_PLATFORM_TEST_SUITE(urMemoryMultiResidencyTest);
 
-TEST_P(urMemoryMultiResidencyTest, allocationInitiallyAbsentOnPeer) {}
+// Verify that allocating USM memory on devices[0] does NOT make it resident on
+// devices[1] when peer access has not been enabled.  Only the peer device's
+// free memory is checked: it must not decrease by allocSize.  The source
+// device free memory is intentionally not checked because deferred frees from
+// earlier tests complete asynchronously and make the source baseline
+// unreliable; that property is already covered by
+// allocatingDeviceMemoryWillResultInOOM.
+TEST_P(urMemoryMultiResidencyTest, allocationInitiallyAbsentOnPeer) {
+  static constexpr size_t allocSize = 1024 * 1024;
 
-TEST_P(urMemoryMultiResidencyTest, allocationExistsOnPeerWithEnabledAccess) {
+  uint64_t initialMemFreePeer = 0;
+  ASSERT_SUCCESS(urDeviceGetInfo(devices[1], UR_DEVICE_INFO_GLOBAL_MEM_FREE,
+                                 sizeof(uint64_t), &initialMemFreePeer,
+                                 nullptr));
+  if (initialMemFreePeer < allocSize) {
+    GTEST_SKIP()
+        << "Not enough peer device memory available for reliable check";
+  }
+
+  // Allocate on devices[0] WITHOUT enabling P2P.
+  void *ptr = nullptr;
+  ASSERT_SUCCESS(
+      urUSMDeviceAlloc(context, devices[0], nullptr, nullptr, allocSize, &ptr));
+
+  uint64_t currentMemFreePeer = 0;
+  ur_result_t res =
+      urDeviceGetInfo(devices[1], UR_DEVICE_INFO_GLOBAL_MEM_FREE,
+                      sizeof(uint64_t), &currentMemFreePeer, nullptr);
+
+  ASSERT_SUCCESS(urUSMFree(context, ptr));
+
+  ASSERT_SUCCESS(res);
+  // Without P2P, the allocation must not be resident on the peer:
+  // free memory on devices[1] must not have decreased by a full allocSize.
+  ASSERT_GT(currentMemFreePeer, initialMemFreePeer - allocSize);
+}
+
+// Verify that enabling peer access succeeds and that a second enable attempt
+// returns UR_RESULT_ERROR_INVALID_OPERATION (access already enabled). Confirms
+// that source-device free memory decreases by at least allocSize, showing the
+// allocation succeeded on devices[0] with P2P enabled. Also verifies end-to-end
+// P2P data transfer: the allocation on devices[0] is filled with a known
+// pattern and then read by devices[1]'s command engine; the result is checked
+// for correctness to confirm the feature works in the correct direction.
+// Note: peer-device free memory is not checked because
+// UR_DEVICE_INFO_GLOBAL_MEM_FREE does not reliably reflect
+// zeContextMakeMemoryResident behaviour for device USM allocations.
+TEST_P(urMemoryMultiResidencyTest,
+       enablePeerAccessStateMachineAndSourceAllocation) {
+  // Enable devices[1] to access allocations on devices[0], so that new
+  // allocations on devices[0] are made resident on devices[1] too.
+  ASSERT_SUCCESS(urUsmP2PEnablePeerAccessExp(devices[1], devices[0]));
+  peerAccessEnabled = true;
+
+  // A second enable must be rejected because access is already enabled.
+  ASSERT_EQ(urUsmP2PEnablePeerAccessExp(devices[1], devices[0]),
+            UR_RESULT_ERROR_INVALID_OPERATION);
+
+  static constexpr size_t allocSize = 1024 * 1024;
+  uint64_t initialMemFreeSource = 0;
+  ASSERT_SUCCESS(urDeviceGetInfo(devices[0], UR_DEVICE_INFO_GLOBAL_MEM_FREE,
+                                 sizeof(uint64_t), &initialMemFreeSource,
+                                 nullptr));
+  if (initialMemFreeSource < allocSize) {
+    GTEST_SKIP() << "Not enough source device memory available";
+  }
 
   void *ptr = nullptr;
   ASSERT_SUCCESS(
-      urUSMDeviceAlloc(context, devices[0], nullptr, nullptr, 1, &ptr));
+      urUSMDeviceAlloc(context, devices[0], nullptr, nullptr, allocSize, &ptr));
+
+  // Fill ptr on devices[0] with a known pattern using devices[0]'s queue.
+  static constexpr uint8_t fillPattern = 0xAB;
+  ur_queue_handle_t srcQueue = nullptr;
+  ur_result_t fillRes1 = urQueueCreate(context, devices[0], nullptr, &srcQueue);
+  ur_result_t fillRes2 =
+      (fillRes1 == UR_RESULT_SUCCESS)
+          ? urEnqueueUSMFill(srcQueue, ptr, sizeof(fillPattern), &fillPattern,
+                             allocSize, 0, nullptr, nullptr)
+          : fillRes1;
+  ur_result_t fillRes3 =
+      (fillRes2 == UR_RESULT_SUCCESS) ? urQueueFinish(srcQueue) : fillRes2;
+  if (srcQueue) {
+    urQueueRelease(srcQueue);
+  }
+
+  // Verify end-to-end P2P access: copy ptr (on devices[0]) to dstPtr (on
+  // devices[1]) using devices[1]'s queue, then read back for data verification.
+  void *dstPtr = nullptr;
+  ur_queue_handle_t peerQueue = nullptr;
+  std::vector<uint8_t> hostData(allocSize);
+  ur_result_t p2pRes1 = urUSMDeviceAlloc(context, devices[1], nullptr, nullptr,
+                                         allocSize, &dstPtr);
+  ur_result_t p2pRes2 =
+      (p2pRes1 == UR_RESULT_SUCCESS)
+          ? urQueueCreate(context, devices[1], nullptr, &peerQueue)
+          : p2pRes1;
+  // devices[1]'s engine reads ptr from devices[0] via P2P.
+  ur_result_t p2pRes3 = (p2pRes2 == UR_RESULT_SUCCESS)
+                            ? urEnqueueUSMMemcpy(peerQueue, true, dstPtr, ptr,
+                                                 allocSize, 0, nullptr, nullptr)
+                            : p2pRes2;
+  // Read result back to host for verification.
+  ur_result_t p2pRes4 =
+      (p2pRes3 == UR_RESULT_SUCCESS)
+          ? urEnqueueUSMMemcpy(peerQueue, true, hostData.data(), dstPtr,
+                               allocSize, 0, nullptr, nullptr)
+          : p2pRes3;
+
+  // Save return code so ptr is freed before any ASSERT terminates the test.
+  uint64_t currentMemFreeSource = 0;
+  ur_result_t res =
+      urDeviceGetInfo(devices[0], UR_DEVICE_INFO_GLOBAL_MEM_FREE,
+                      sizeof(uint64_t), &currentMemFreeSource, nullptr);
+
+  if (peerQueue) {
+    urQueueRelease(peerQueue);
+  }
+  if (dstPtr) {
+    urUSMFree(context, dstPtr);
+  }
   ASSERT_SUCCESS(urUSMFree(context, ptr));
+  ASSERT_SUCCESS(urUsmP2PDisablePeerAccessExp(devices[1], devices[0]));
+  peerAccessEnabled = false;
+
+  ASSERT_SUCCESS(res);
+  // Allocation is physically on devices[0]: its free memory must decrease.
+  ASSERT_LE(currentMemFreeSource, initialMemFreeSource - allocSize);
+
+  ASSERT_SUCCESS(fillRes1);
+  ASSERT_SUCCESS(fillRes2);
+  ASSERT_SUCCESS(fillRes3);
+
+  ASSERT_SUCCESS(p2pRes1);
+  ASSERT_SUCCESS(p2pRes2);
+  ASSERT_SUCCESS(p2pRes3);
+  ASSERT_SUCCESS(p2pRes4);
+  // All bytes transferred via P2P must match the fill pattern.
+  EXPECT_TRUE(std::all_of(hostData.begin(), hostData.end(),
+                          [](uint8_t b) { return b == fillPattern; }));
 }
 
-TEST_P(urMemoryMultiResidencyTest, allocationAbsentOnPeerWithDisabledAccess) {}
+// Verify that disabling peer access succeeds and that a second disable attempt
+// returns UR_RESULT_ERROR_INVALID_OPERATION (access already disabled). Confirms
+// that source-device free memory still shows the allocation after peer access is
+// disabled, proving the allocation on devices[0] remains valid.
+// Note: peer-device eviction is not verified via free memory because
+// UR_DEVICE_INFO_GLOBAL_MEM_FREE does not reliably reflect
+// zeContextEvictMemory behaviour for device USM allocations.
+TEST_P(urMemoryMultiResidencyTest,
+       disablePeerAccessStateMachineAndSourceAllocationPersists) {
+  // Enable devices[1] to access allocations on devices[0], so that new
+  // allocations on devices[0] are made resident on devices[1] too.
+  ASSERT_SUCCESS(urUsmP2PEnablePeerAccessExp(devices[1], devices[0]));
+  peerAccessEnabled = true;
+
+  static constexpr size_t allocSize = 1024 * 1024;
+  uint64_t initialMemFreeSource = 0;
+  ASSERT_SUCCESS(urDeviceGetInfo(devices[0], UR_DEVICE_INFO_GLOBAL_MEM_FREE,
+                                 sizeof(uint64_t), &initialMemFreeSource,
+                                 nullptr));
+  if (initialMemFreeSource < allocSize) {
+    GTEST_SKIP() << "Not enough source device memory available";
+  }
+
+  void *ptr = nullptr;
+  ASSERT_SUCCESS(
+      urUSMDeviceAlloc(context, devices[0], nullptr, nullptr, allocSize, &ptr));
+
+  // Disable P2P; the runtime evicts the allocation from devices[1] (not
+  // verified here, see the function-level comment above). Save return codes so
+  // ptr is freed before any ASSERT terminates the test.
+  ur_result_t res1 = urUsmP2PDisablePeerAccessExp(devices[1], devices[0]);
+  if (res1 == UR_RESULT_SUCCESS) {
+    peerAccessEnabled = false;
+  }
+
+  // A second disable must be rejected because access is already disabled.
+  ur_result_t res2 = urUsmP2PDisablePeerAccessExp(devices[1], devices[0]);
+
+  uint64_t currentMemFreeSource = 0;
+  ur_result_t res3 =
+      urDeviceGetInfo(devices[0], UR_DEVICE_INFO_GLOBAL_MEM_FREE,
+                      sizeof(uint64_t), &currentMemFreeSource, nullptr);
+
+  ASSERT_SUCCESS(urUSMFree(context, ptr));
+
+  ASSERT_SUCCESS(res1);
+  ASSERT_EQ(res2, UR_RESULT_ERROR_INVALID_OPERATION);
+  ASSERT_SUCCESS(res3);
+  // Allocation is physically on devices[0]: its free memory must decrease.
+  ASSERT_LE(currentMemFreeSource, initialMemFreeSource - allocSize);
+}
+
+// Verify that USM memory allocated on devices[0] and filled with a known
+// pattern can be correctly read by devices[1] when P2P access is enabled.
+// This confirms end-to-end P2P data transfer works in the correct direction.
+TEST_P(urMemoryMultiResidencyTest, p2pReadSucceedsWithPeerAccessEnabled) {
+  static constexpr size_t allocSize = 1024 * 1024;
+  static constexpr uint8_t fillPattern = 0xAB;
+
+  // Allocate on devices[0] and fill with a known pattern.
+  void *srcPtr = nullptr;
+  ASSERT_SUCCESS(urUSMDeviceAlloc(context, devices[0], nullptr, nullptr,
+                                  allocSize, &srcPtr));
+  ur_queue_handle_t srcQueue = nullptr;
+  ASSERT_SUCCESS(urQueueCreate(context, devices[0], nullptr, &srcQueue));
+  ASSERT_SUCCESS(urEnqueueUSMFill(srcQueue, srcPtr, sizeof(fillPattern),
+                                  &fillPattern, allocSize, 0, nullptr,
+                                  nullptr));
+  ASSERT_SUCCESS(urQueueFinish(srcQueue));
+  urQueueRelease(srcQueue);
+
+  // Enable P2P: devices[1] can now access allocations on devices[0].
+  ASSERT_SUCCESS(urUsmP2PEnablePeerAccessExp(devices[1], devices[0]));
+  peerAccessEnabled = true;
+
+  // Copy srcPtr (on devices[0]) to dstPtr (on devices[1]) using devices[1]'s
+  // queue (P2P read), then copy dstPtr back to the host for data verification.
+  void *dstPtr = nullptr;
+  ur_queue_handle_t peerQueue = nullptr;
+  std::vector<uint8_t> hostData(allocSize, 0);
+  ur_result_t res1 = urUSMDeviceAlloc(context, devices[1], nullptr, nullptr,
+                                      allocSize, &dstPtr);
+  ur_result_t res2 =
+      (res1 == UR_RESULT_SUCCESS)
+          ? urQueueCreate(context, devices[1], nullptr, &peerQueue)
+          : res1;
+  ur_result_t res3 = (res2 == UR_RESULT_SUCCESS)
+                         ? urEnqueueUSMMemcpy(peerQueue, true, dstPtr, srcPtr,
+                                              allocSize, 0, nullptr, nullptr)
+                         : res2;
+  ur_result_t res4 =
+      (res3 == UR_RESULT_SUCCESS)
+          ? urEnqueueUSMMemcpy(peerQueue, true, hostData.data(), dstPtr,
+                               allocSize, 0, nullptr, nullptr)
+          : res3;
+
+  if (peerQueue) {
+    urQueueRelease(peerQueue);
+  }
+  if (dstPtr) {
+    urUSMFree(context, dstPtr);
+  }
+  ASSERT_SUCCESS(urUSMFree(context, srcPtr));
+  ASSERT_SUCCESS(urUsmP2PDisablePeerAccessExp(devices[1], devices[0]));
+  peerAccessEnabled = false;
+
+  ASSERT_SUCCESS(res1);
+  ASSERT_SUCCESS(res2);
+  ASSERT_SUCCESS(res3);
+  ASSERT_SUCCESS(res4);
+  // All bytes transferred via P2P must match the fill pattern.
+  EXPECT_TRUE(std::all_of(hostData.begin(), hostData.end(),
+                          [](uint8_t b) { return b == fillPattern; }));
+}
+
+// Verify that a USM allocation on devices[0] is NOT made resident on
+// devices[1] when P2P access has not been enabled.  The feature under test
+// restricts residency, not hardware access: Level Zero hardware can still
+// transfer data cross-device via the interconnect regardless of residency
+// state, so the copy result is not checked here.  The observable guarantee
+// is that devices[1] free memory must not decrease by a full allocSize,
+// proving the allocation was never pinned on the peer device.
+TEST_P(urMemoryMultiResidencyTest, allocationNotResidentOnPeerWithoutP2P) {
+  static constexpr size_t allocSize = 1024 * 1024;
+  static constexpr uint8_t fillPattern = 0xAB;
+
+  uint64_t initialMemFreePeer = 0;
+  ASSERT_SUCCESS(urDeviceGetInfo(devices[1], UR_DEVICE_INFO_GLOBAL_MEM_FREE,
+                                 sizeof(uint64_t), &initialMemFreePeer,
+                                 nullptr));
+  if (initialMemFreePeer < allocSize) {
+    GTEST_SKIP()
+        << "Not enough peer device memory available for reliable check";
+  }
+
+  // Allocate on devices[0] WITHOUT enabling P2P — must not consume
+  // devices[1] memory.
+  void *srcPtr = nullptr;
+  ASSERT_SUCCESS(urUSMDeviceAlloc(context, devices[0], nullptr, nullptr,
+                                  allocSize, &srcPtr));
+
+  ur_queue_handle_t srcQueue = nullptr;
+  ASSERT_SUCCESS(urQueueCreate(context, devices[0], nullptr, &srcQueue));
+  ASSERT_SUCCESS(urEnqueueUSMFill(srcQueue, srcPtr, sizeof(fillPattern),
+                                  &fillPattern, allocSize, 0, nullptr,
+                                  nullptr));
+  ASSERT_SUCCESS(urQueueFinish(srcQueue));
+  urQueueRelease(srcQueue);
+
+  uint64_t currentMemFreePeer = 0;
+  ur_result_t memRes =
+      urDeviceGetInfo(devices[1], UR_DEVICE_INFO_GLOBAL_MEM_FREE,
+                      sizeof(uint64_t), &currentMemFreePeer, nullptr);
+
+  ASSERT_SUCCESS(urUSMFree(context, srcPtr));
+  ASSERT_SUCCESS(memRes);
+  // Without P2P the allocation must not be resident on devices[1]: free
+  // memory on devices[1] must not have decreased by a full allocSize.
+  ASSERT_GT(currentMemFreePeer, initialMemFreePeer - allocSize);
+}
