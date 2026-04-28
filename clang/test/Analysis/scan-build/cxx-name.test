@@ -4,4 +4,4 @@ Check that scan-build sets the CLANG_CXX environment variable (meant to be
 consumed by ccc-analyzer) to an appropriate pathname for the clang++ executable,
 derived from the pathname of the clang executable:
 
-CHECK: CLANG_CXX=/clang++{{(\.exe)?}}/
+CHECK: CLANG_CXX=/dpclang++{{(\.exe)?}}/

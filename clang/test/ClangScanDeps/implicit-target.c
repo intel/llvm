@@ -12,7 +12,7 @@
 
 // RUN: clang-scan-deps -format experimental-full -compilation-database %t/cdb.json | FileCheck %s
 
-// RUN: clang-scan-deps -format experimental-full -- x86_64-w64-mingw32-clang %t/source.c -o %t/source.o | FileCheck %s
+// RUN: clang-scan-deps -format experimental-full -- x86_64-w64-mingw32-dpclang %t/source.c -o %t/source.o | FileCheck %s
 
 // CHECK: "-triple",
 // CHECK-NEXT: "x86_64-w64-windows-gnu",
@@ -22,7 +22,7 @@
 [
   {
     "directory": "DIR"
-    "command": "x86_64-w64-mingw32-clang -c DIR/source.c -o DIR/source.o"
+    "command": "x86_64-w64-mingw32-dpclang -c DIR/source.c -o DIR/source.o"
     "file": "DIR/source.c"
   },
 ]

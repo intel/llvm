@@ -446,47 +446,47 @@ TEST(ToolChainTest, GetTargetAndMode) {
   if (!llvm::TargetRegistry::lookupTarget(llvm::Triple("x86_64"), IgnoredError))
     GTEST_SKIP();
 
-  ParsedClangName Res = ToolChain::getTargetAndModeFromProgramName("clang");
+  ParsedClangName Res = ToolChain::getTargetAndModeFromProgramName("dpclang");
   EXPECT_TRUE(Res.TargetPrefix.empty());
-  EXPECT_TRUE(Res.ModeSuffix == "clang");
+  EXPECT_TRUE(Res.ModeSuffix == "dpclang");
   EXPECT_TRUE(Res.DriverMode == nullptr);
   EXPECT_FALSE(Res.TargetIsValid);
 
-  Res = ToolChain::getTargetAndModeFromProgramName("clang++");
+  Res = ToolChain::getTargetAndModeFromProgramName("dpclang++");
   EXPECT_TRUE(Res.TargetPrefix.empty());
-  EXPECT_TRUE(Res.ModeSuffix == "clang++");
+  EXPECT_TRUE(Res.ModeSuffix == "dpclang++");
   EXPECT_STREQ(Res.DriverMode, "--driver-mode=g++");
   EXPECT_FALSE(Res.TargetIsValid);
 
-  Res = ToolChain::getTargetAndModeFromProgramName("clang++6.0");
+  Res = ToolChain::getTargetAndModeFromProgramName("dpclang++6.0");
   EXPECT_TRUE(Res.TargetPrefix.empty());
-  EXPECT_TRUE(Res.ModeSuffix == "clang++");
+  EXPECT_TRUE(Res.ModeSuffix == "dpclang++");
   EXPECT_STREQ(Res.DriverMode, "--driver-mode=g++");
   EXPECT_FALSE(Res.TargetIsValid);
 
-  Res = ToolChain::getTargetAndModeFromProgramName("clang++-release");
+  Res = ToolChain::getTargetAndModeFromProgramName("dpclang++-release");
   EXPECT_TRUE(Res.TargetPrefix.empty());
-  EXPECT_TRUE(Res.ModeSuffix == "clang++");
+  EXPECT_TRUE(Res.ModeSuffix == "dpclang++");
   EXPECT_STREQ(Res.DriverMode, "--driver-mode=g++");
   EXPECT_FALSE(Res.TargetIsValid);
 
-  Res = ToolChain::getTargetAndModeFromProgramName("x86_64-clang++");
+  Res = ToolChain::getTargetAndModeFromProgramName("x86_64-dpclang++");
   EXPECT_TRUE(Res.TargetPrefix == "x86_64");
-  EXPECT_TRUE(Res.ModeSuffix == "clang++");
+  EXPECT_TRUE(Res.ModeSuffix == "dpclang++");
   EXPECT_STREQ(Res.DriverMode, "--driver-mode=g++");
   EXPECT_TRUE(Res.TargetIsValid);
 
   Res = ToolChain::getTargetAndModeFromProgramName(
-      "x86_64-linux-gnu-clang-c++");
+      "x86_64-linux-gnu-dpclang-c++");
   EXPECT_TRUE(Res.TargetPrefix == "x86_64-linux-gnu");
-  EXPECT_TRUE(Res.ModeSuffix == "clang-c++");
+  EXPECT_TRUE(Res.ModeSuffix == "dpclang-c++");
   EXPECT_STREQ(Res.DriverMode, "--driver-mode=g++");
   EXPECT_TRUE(Res.TargetIsValid);
 
   Res = ToolChain::getTargetAndModeFromProgramName(
-      "x86_64-linux-gnu-clang-c++-tot");
+      "x86_64-linux-gnu-dpclang-c++-tot");
   EXPECT_TRUE(Res.TargetPrefix == "x86_64-linux-gnu");
-  EXPECT_TRUE(Res.ModeSuffix == "clang-c++");
+  EXPECT_TRUE(Res.ModeSuffix == "dpclang-c++");
   EXPECT_STREQ(Res.DriverMode, "--driver-mode=g++");
   EXPECT_TRUE(Res.TargetIsValid);
 
@@ -502,15 +502,15 @@ TEST(ToolChainTest, GetTargetAndMode) {
   EXPECT_TRUE(Res.DriverMode == nullptr);
   EXPECT_FALSE(Res.TargetIsValid);
 
-  Res = ToolChain::getTargetAndModeFromProgramName("qqq-clang-cl");
+  Res = ToolChain::getTargetAndModeFromProgramName("qqq-dpclang-cl");
   EXPECT_TRUE(Res.TargetPrefix == "qqq");
-  EXPECT_TRUE(Res.ModeSuffix == "clang-cl");
+  EXPECT_TRUE(Res.ModeSuffix == "dpclang-cl");
   EXPECT_STREQ(Res.DriverMode, "--driver-mode=cl");
   EXPECT_FALSE(Res.TargetIsValid);
 
-  Res = ToolChain::getTargetAndModeFromProgramName("clang-dxc");
+  Res = ToolChain::getTargetAndModeFromProgramName("dpclang-dxc");
   EXPECT_TRUE(Res.TargetPrefix.empty());
-  EXPECT_TRUE(Res.ModeSuffix == "clang-dxc");
+  EXPECT_TRUE(Res.ModeSuffix == "dpclang-dxc");
   EXPECT_STREQ(Res.DriverMode, "--driver-mode=dxc");
   EXPECT_FALSE(Res.TargetIsValid);
 }

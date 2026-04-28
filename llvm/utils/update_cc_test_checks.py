@@ -159,9 +159,9 @@ def str_to_commandline(value):
 def infer_dependent_args(args):
     if not args.clang:
         if not args.llvm_bin:
-            args.clang = "clang"
+            args.clang = "dpclang"
         else:
-            args.clang = os.path.join(args.llvm_bin, "clang")
+            args.clang = os.path.join(args.llvm_bin, "dpclang")
     if not args.opt:
         if not args.llvm_bin:
             args.opt = "opt"

@@ -5,9 +5,9 @@ macro(add_sycl_executable ARG_TARGET_NAME)
     "OPTIONS;SOURCES;LIBRARIES;DEPENDANTS"
     ${ARGN})
 
-  set(CXX_COMPILER clang++)
+  set(CXX_COMPILER dpclang++)
   if(MSVC)
-    set(CXX_COMPILER clang-cl.exe)
+    set(CXX_COMPILER dpclang-cl.exe)
     set(LIB_POSTFIX ".lib")
   else()
     set(LIB_PREFIX "-l")
