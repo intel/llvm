@@ -11,7 +11,7 @@
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/get_device_kernel_info.hpp>
 #include <sycl/detail/info_desc_helpers.hpp>
-#include <sycl/detail/kernel_cache.hpp>
+#include <sycl/detail/kernel_info_queries.hpp>
 #include <sycl/device.hpp>
 #include <sycl/kernel_bundle.hpp>
 #include <sycl/kernel_bundle_enums.hpp>
