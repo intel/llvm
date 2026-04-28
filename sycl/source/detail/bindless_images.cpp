@@ -496,7 +496,6 @@ __SYCL_EXPORT external_mem import_external_memory<resource_win32_handle>(
       externalMemDesc, syclQueue.get_device(), syclQueue.get_context());
 }
 
-__SYCL_EXPORT
 image_mem_handle map_external_image_memory(external_mem extMem,
                                            const image_descriptor &desc,
                                            const sycl::device &syclDevice,
@@ -707,6 +706,9 @@ release_external_semaphore(external_semaphore externalSemaphore,
       sycl::errc::invalid,
       sycl::detail::UrApiKind::urBindlessImagesReleaseExternalSemaphoreExp>(
       urCtx, urDevice, externalSemaphore.raw_handle);
+
+#if defined(_WIN32) || defined(_WIN64)
+#endif
 }
 
 __SYCL_EXPORT void
@@ -964,6 +966,151 @@ __SYCL_EXPORT bool is_image_handle_supported<sampled_image_handle>(
       imageDescriptor, imageMemoryHandleType, syclQueue.get_device(),
       syclQueue.get_context());
 }
+
+// ============================================================================
+// resource_win32_name support - Windows-specific code at end of file
+// ============================================================================
+#if defined(_WIN32) || defined(_WIN64)
+#define WIN32_LEAN_AND_MEAN
+#include <mutex>
+#include <unordered_map>
+#include <windows.h>
+
+// Include D3D12 for OpenSharedHandleByName
+#ifdef __has_include
+#if __has_include(<d3d12.h>)
+#include <d3d12.h>
+#define SYCL_HAS_D3D12_INTEROP 1
+#endif
+#endif
+
+namespace {
+// Track opened handles so we can close them on release
+std::mutex g_win32NameHandlesMutex;
+std::unordered_map<ur_exp_external_mem_handle_t, HANDLE> g_win32NameHandles;
+
+HANDLE openNamedHandleImpl(void *device, const void *name) {
+#ifdef SYCL_HAS_D3D12_INTEROP
+  // OpenSharedHandleByName requires ID3D12Device1 or higher
+  auto d3dDeviceBase = static_cast<ID3D12Device *>(device);
+  ID3D12Device1 *d3dDevice1 = nullptr;
+
+  HRESULT hr = d3dDeviceBase->QueryInterface(IID_PPV_ARGS(&d3dDevice1));
+  if (FAILED(hr)) {
+    std::wcerr << L"[SYCL] Failed to query ID3D12Device1 interface: 0x"
+               << std::hex << hr << std::dec << L"\n";
+    return nullptr;
+  }
+
+  HANDLE openedHandle = nullptr;
+  const wchar_t *wname = static_cast<const wchar_t *>(name);
+
+  hr = d3dDevice1->OpenSharedHandleByName(wname, GENERIC_ALL, &openedHandle);
+  d3dDevice1->Release(); // Release the QI'd interface
+
+  return SUCCEEDED(hr) ? openedHandle : nullptr;
+#else
+  (void)device;
+  (void)name;
+  throw sycl::exception(
+      sycl::make_error_code(sycl::errc::feature_not_supported),
+      "resource_win32_name requires D3D12 headers. "
+      "Use resource_win32_handle instead.");
+  return nullptr;
+#endif
+}
+} // anonymous namespace
+
+template <>
+__SYCL_EXPORT external_mem import_external_memory<resource_win32_name>(
+    external_mem_descriptor<resource_win32_name> externalMemDesc,
+    const sycl::device &syclDevice, const sycl::context &syclContext) {
+
+  if (!externalMemDesc.external_resource.device) {
+    throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
+                          "D3D12 device required in resource_win32_name");
+  }
+
+  HANDLE openedHandle =
+      openNamedHandleImpl(externalMemDesc.external_resource.device,
+                          externalMemDesc.external_resource.name);
+
+  if (!openedHandle) {
+    throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
+                          "Failed to open named Win32 handle");
+  }
+
+  // Use existing resource_win32_handle implementation
+  external_mem_descriptor<resource_win32_handle> handleDesc{
+      {openedHandle},
+      externalMemDesc.handle_type,
+      externalMemDesc.size_in_bytes};
+
+  external_mem result = import_external_memory<resource_win32_handle>(
+      handleDesc, syclDevice, syclContext);
+
+  // Track for cleanup
+  std::lock_guard<std::mutex> lock(g_win32NameHandlesMutex);
+  g_win32NameHandles[result.raw_handle] = openedHandle;
+
+  return result;
+}
+
+template <>
+__SYCL_EXPORT external_mem import_external_memory<resource_win32_name>(
+    external_mem_descriptor<resource_win32_name> externalMemDesc,
+    const sycl::queue &syclQueue) {
+  return import_external_memory<resource_win32_name>(
+      externalMemDesc, syclQueue.get_device(), syclQueue.get_context());
+}
+
+template <>
+__SYCL_EXPORT external_semaphore import_external_semaphore(
+    external_semaphore_descriptor<resource_win32_name> externalSemaphoreDesc,
+    const sycl::device &syclDevice, const sycl::context &syclContext) {
+
+  if (!externalSemaphoreDesc.external_resource.device) {
+    throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
+                          "D3D12 device required in resource_win32_name");
+  }
+
+  HANDLE openedHandle =
+      openNamedHandleImpl(externalSemaphoreDesc.external_resource.device,
+                          externalSemaphoreDesc.external_resource.name);
+
+  if (!openedHandle) {
+    throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
+                          "Failed to open named Win32 semaphore");
+  }
+
+  // Use existing resource_win32_handle implementation
+  external_semaphore_descriptor<resource_win32_handle> handleDesc{
+      {openedHandle}, externalSemaphoreDesc.handle_type};
+
+  external_semaphore result =
+      import_external_semaphore(handleDesc, syclDevice, syclContext);
+
+  // Track for cleanup
+  std::lock_guard<std::mutex> lock(g_win32NameHandlesMutex);
+  g_win32NameHandles[reinterpret_cast<ur_exp_external_mem_handle_t>(
+      result.raw_handle)] = openedHandle;
+
+  return result;
+}
+
+template <>
+__SYCL_EXPORT external_semaphore import_external_semaphore(
+    external_semaphore_descriptor<resource_win32_name> externalSemaphoreDesc,
+    const sycl::queue &syclQueue) {
+  return import_external_semaphore(
+      externalSemaphoreDesc, syclQueue.get_device(), syclQueue.get_context());
+}
+
+// TODO: Cleanup function that should be called from release_external_memory
+// and release_external_semaphore, but we avoid modifying those functions
+// to keep changes minimal. Handles will be leaked until proper integration.
+
+#endif // _WIN32 || _WIN64
 
 } // namespace ext::oneapi::experimental
 } // namespace _V1
