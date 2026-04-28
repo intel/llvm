@@ -1418,6 +1418,16 @@ SPIRVValue *LLVMToSPIRVBase::transConstant(Value *V) {
   }
 
   if (auto *ConstFP = dyn_cast<ConstantFP>(V)) {
+    if (V->getType()->isVectorTy()) {
+      SPIRVType *InnerTy = ExpectedType->getScalarType();
+      SPIRVValue *ScalarVal =
+          transConstantUse(ConstantFP::get(V->getType()->getScalarType(),
+                                           ConstFP->getValueAPF()),
+                           InnerTy);
+      unsigned NumElts = cast<FixedVectorType>(V->getType())->getNumElements();
+      std::vector<SPIRVValue *> BV(NumElts, ScalarVal);
+      return BM->addCompositeConstant(ExpectedType, BV);
+    }
     auto *BT = static_cast<SPIRVType *>(ExpectedType);
     return BM->addConstant(
         BT, ConstFP->getValueAPF().bitcastToAPInt().getZExtValue());
