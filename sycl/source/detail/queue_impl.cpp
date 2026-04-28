@@ -924,7 +924,8 @@ void *queue_impl::instrumentationProlog(const detail::code_location &CodeLoc,
   IId = xptiGetUniqueId();
   auto WaitEvent = Event->event_ref();
   if (detail::GSYCLStreamDetailLevel >=
-      xpti::stream_detail_level_t::XPTI_STREAM_DETAIL_LEVEL_NORMAL) {
+          xpti::stream_detail_level_t::XPTI_STREAM_DETAIL_LEVEL_NORMAL ||
+      isDebugStream(StreamID)) {
     xpti::addMetadata(WaitEvent, "sycl_device_type", queueDeviceToString(this));
   }
   // Full metadata is added only at VERBOSE level or if subscribing to

@@ -94,7 +94,8 @@ static size_t deviceToID(const device &Device) {
 static void addDeviceMetadata(xpti_td *TraceEvent, queue_impl *Queue,
                               xpti::stream_id_t StreamID) {
   if (detail::GSYCLStreamDetailLevel <
-      xpti::stream_detail_level_t::XPTI_STREAM_DETAIL_LEVEL_NORMAL)
+          xpti::stream_detail_level_t::XPTI_STREAM_DETAIL_LEVEL_NORMAL &&
+      !detail::isDebugStream(StreamID))
     return;
 
   xpti::addMetadata(TraceEvent, "sycl_device_type", queueDeviceToString(Queue));
@@ -604,13 +605,15 @@ void Command::emitEdgeEventForCommandDependence(
       xpti::addMetadata(EdgeEvent, "memory_object",
                         reinterpret_cast<size_t>(ObjAddr));
       if (detail::GSYCLStreamDetailLevel >=
-          xpti::stream_detail_level_t::XPTI_STREAM_DETAIL_LEVEL_NORMAL) {
+              xpti::stream_detail_level_t::XPTI_STREAM_DETAIL_LEVEL_NORMAL ||
+          detail::isDebugStream(MStreamID)) {
         xpti::addMetadata(EdgeEvent, "access_mode",
                           static_cast<int>(AccMode.value()));
       }
     } else {
       if (detail::GSYCLStreamDetailLevel >=
-          xpti::stream_detail_level_t::XPTI_STREAM_DETAIL_LEVEL_NORMAL) {
+              xpti::stream_detail_level_t::XPTI_STREAM_DETAIL_LEVEL_NORMAL ||
+          detail::isDebugStream(MStreamID)) {
         xpti::addMetadata(EdgeEvent, "event",
                           reinterpret_cast<size_t>(ObjAddr));
       }
@@ -684,7 +687,8 @@ void Command::emitEdgeEventForEventDependence(Command *Cmd,
       EdgeEvent->source_id = NodeEvent->unique_id;
       EdgeEvent->target_id = TgtEvent->unique_id;
       if (detail::GSYCLStreamDetailLevel >=
-          xpti::stream_detail_level_t::XPTI_STREAM_DETAIL_LEVEL_NORMAL) {
+              xpti::stream_detail_level_t::XPTI_STREAM_DETAIL_LEVEL_NORMAL ||
+          detail::isDebugStream(MStreamID)) {
         xpti::addMetadata(EdgeEvent, "event",
                           reinterpret_cast<size_t>(UrEventAddr));
       }
@@ -1163,7 +1167,8 @@ void AllocaSubBufCommand::emitInstrumentationData() {
 
   xpti_td *TE = static_cast<xpti_td *>(MTraceEvent);
   if (detail::GSYCLStreamDetailLevel >=
-      xpti::stream_detail_level_t::XPTI_STREAM_DETAIL_LEVEL_NORMAL) {
+          xpti::stream_detail_level_t::XPTI_STREAM_DETAIL_LEVEL_NORMAL ||
+      detail::isDebugStream(MStreamID)) {
     xpti::addMetadata(TE, "offset", this->MRequirement.MOffsetInBytes);
     xpti::addMetadata(TE, "access_range_start",
                       this->MRequirement.MAccessRange[0]);
@@ -1245,7 +1250,8 @@ void ReleaseCommand::emitInstrumentationData() {
   xpti_td *TE = static_cast<xpti_td *>(MTraceEvent);
   addDeviceMetadata(TE, MQueue, MStreamID);
   if (detail::GSYCLStreamDetailLevel >=
-      xpti::stream_detail_level_t::XPTI_STREAM_DETAIL_LEVEL_NORMAL) {
+          xpti::stream_detail_level_t::XPTI_STREAM_DETAIL_LEVEL_NORMAL ||
+      detail::isDebugStream(MStreamID)) {
     xpti::addMetadata(TE, "allocation_type",
                       commandToName(MAllocaCmd->getType()));
   }
@@ -1535,7 +1541,8 @@ void MemCpyCommand::emitInstrumentationData() {
   xpti::addMetadata(CmdTraceEvent, "memory_object",
                     reinterpret_cast<size_t>(MAddress));
   if (detail::GSYCLStreamDetailLevel >=
-      xpti::stream_detail_level_t::XPTI_STREAM_DETAIL_LEVEL_NORMAL) {
+          xpti::stream_detail_level_t::XPTI_STREAM_DETAIL_LEVEL_NORMAL ||
+      detail::isDebugStream(MStreamID)) {
     xpti::addMetadata(CmdTraceEvent, "copy_from",
                       MSrcQueue ? deviceToID(MSrcQueue->get_device()) : 0);
     xpti::addMetadata(CmdTraceEvent, "copy_to",
@@ -1711,7 +1718,8 @@ void MemCpyCommandHost::emitInstrumentationData() {
   xpti::addMetadata(CmdTraceEvent, "memory_object",
                     reinterpret_cast<size_t>(MAddress));
   if (detail::GSYCLStreamDetailLevel >=
-      xpti::stream_detail_level_t::XPTI_STREAM_DETAIL_LEVEL_NORMAL) {
+          xpti::stream_detail_level_t::XPTI_STREAM_DETAIL_LEVEL_NORMAL ||
+      detail::isDebugStream(MStreamID)) {
     xpti::addMetadata(CmdTraceEvent, "copy_from",
                       MSrcQueue ? deviceToID(MSrcQueue->get_device()) : 0);
     xpti::addMetadata(CmdTraceEvent, "copy_to",
