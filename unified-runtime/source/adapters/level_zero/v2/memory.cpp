@@ -360,12 +360,17 @@ void *ur_discrete_buffer_handle_t::getDevicePtr(
     return getActiveDeviceAlloc(offset);
   }
 
-  auto &p2pDevices = hContext->getP2PDevices(hDevice);
+  auto p2pDevices =
+      hContext->getDevicesWhoseAllocationsCanBeAccessedFrom(hDevice);
   auto p2pAccessible = std::find(p2pDevices.begin(), p2pDevices.end(),
                                  activeAllocationDevice) != p2pDevices.end();
 
   if (!p2pAccessible) {
     // TODO: migrate buffer through the host
+    UR_LOG(WARN,
+           "p2p is not accessible: requesting device ptr:{} cannot access "
+           "allocation on device ptr:{}",
+           (void *)hDevice, (void *)activeAllocationDevice);
     throw UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
 

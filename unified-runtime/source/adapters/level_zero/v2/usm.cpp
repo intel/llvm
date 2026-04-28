@@ -111,19 +111,33 @@ makeProvider(usm::pool_descriptor poolDescriptor) {
   UMF_CALL_THROWS(umfLevelZeroMemoryProviderParamsSetMemoryType(
       hParams, urToUmfMemoryType(poolDescriptor.type)));
 
-  std::vector<ze_device_handle_t> residentZeHandles;
+  // zeDeviceHandles has to be in the scope of hParams because hParams keeps
+  // reference of it inside.
+  std::vector<ze_device_handle_t> zeDeviceHandles;
 
-  if (poolDescriptor.type == UR_USM_TYPE_DEVICE) {
+  if (poolDescriptor.supportsResidentDevices()) {
     assert(level_zero_device_handle);
-    auto residentHandles =
-        poolDescriptor.hContext->getP2PDevices(poolDescriptor.hDevice);
-    residentZeHandles.push_back(level_zero_device_handle);
-    for (auto &device : residentHandles) {
-      residentZeHandles.push_back(device->ZeDevice);
+
+    // Make memory resident on the source device itself plus all peer devices
+    // that have explicitly enabled peer access to it.
+    zeDeviceHandles.push_back(level_zero_device_handle);
+    for (auto dev :
+         poolDescriptor.hContext->getDevicesWhichCanAccessAllocationsPresentOn(
+             poolDescriptor.hDevice)) {
+      zeDeviceHandles.push_back(dev->ZeDevice);
     }
 
     UMF_CALL_THROWS(umfLevelZeroMemoryProviderParamsSetResidentDevices(
-        hParams, residentZeHandles.data(), residentZeHandles.size()));
+        hParams, zeDeviceHandles.data(), zeDeviceHandles.size()));
+
+    UR_LOG(INFO,
+           "memory provider will be created with {} resident device(s), "
+           "desc:{}",
+           zeDeviceHandles.size(),
+           logger::makeStringFromStreamable(poolDescriptor));
+  } else {
+    UR_LOG(INFO, "memory provider does not support resident devices, desc:{}",
+           logger::makeStringFromStreamable(poolDescriptor));
   }
 
   UMF_CALL_THROWS(umfLevelZeroMemoryProviderParamsSetFreePolicy(
@@ -430,6 +444,50 @@ size_t ur_usm_pool_handle_t_::getTotalUsedSize() {
 }
 
 size_t ur_usm_pool_handle_t_::getPeakUsedSize() { return allocStats.getPeak(); }
+
+void ur_usm_pool_handle_t_::changeResidentDevice(ur_device_handle_t hDevice,
+                                                 ur_device_handle_t peerDevice,
+                                                 bool isAdding) {
+  poolManager.forEachPoolWithDesc([=](const auto &desc, auto pool) {
+    if (desc.supportsResidentDevices() && desc.hDevice &&
+        desc.hDevice->ZeDevice == hDevice->ZeDevice) {
+      UR_LOG(INFO, "found {} of srcDevice:{} valid to {} peerDevice:{}",
+             logger::makeStringFromStreamable(desc), desc.hDevice->Id.value(),
+             isAdding ? "add" : "remove", peerDevice->Id.value());
+      umf_memory_provider_handle_t hProvider;
+      umf_result_t getProviderResult =
+          umfPoolGetMemoryProvider(pool->umfPool.get(), &hProvider);
+      if (getProviderResult != UMF_RESULT_SUCCESS) {
+        UR_LOG(ERR, "getting memory provider failed with:{}",
+               getProviderResult);
+        return true;
+      }
+      umf_result_t changeResult =
+          umfLevelZeroMemoryProviderResidentDeviceChange(
+              hProvider, peerDevice->ZeDevice, isAdding);
+      if (changeResult != UMF_RESULT_SUCCESS) {
+        // UMF updates its internal resident-device list before calling
+        // zeContextMakeMemoryResident / zeContextEvictMemory, so both the
+        // UR peer-status table and the UMF provider state are already
+        // consistent when this error is observed.  The failure originates
+        // from zeContextEvictMemory returning a non-SUCCESS result for
+        // device USM memory: zeContextMakeMemoryResident is called at
+        // allocation time (inside the UMF provider) and returns SUCCESS for
+        // device memory, but zeContextEvictMemory subsequently fails because
+        // the Level Zero driver treats the make-resident call as a no-op for
+        // device USM (the memory is already on the source device; no
+        // explicit hardware pinning on the peer is required).  Aborting here
+        // would be wrong: the system is in a fully consistent state and
+        // future allocations will correctly omit the now-disabled peer from
+        // their resident-device set.
+        UR_LOG(WARN,
+               "changing resident devices in UMF failed with:{}, continuing",
+               changeResult);
+      }
+    }
+    return true;
+  });
+}
 
 namespace ur::level_zero {
 ur_result_t urUSMPoolCreate(

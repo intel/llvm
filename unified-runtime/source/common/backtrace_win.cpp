@@ -20,9 +20,8 @@ std::vector<BacktraceLine> getCurrentBacktrace() {
   HANDLE process = GetCurrentProcess();
   SymInitialize(process, nullptr, true);
 
-  PVOID frames[MAX_BACKTRACE_FRAMES];
-  WORD frameCount =
-      CaptureStackBackTrace(0, MAX_BACKTRACE_FRAMES, frames, NULL);
+  PVOID frames[MaxBacktraceFrames];
+  WORD frameCount = CaptureStackBackTrace(0, MaxBacktraceFrames, frames, NULL);
 
   if (frameCount == 0) {
     SymCleanup(process);
