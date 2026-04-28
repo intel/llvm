@@ -17,6 +17,20 @@
 
 #include <memory>
 
+#if defined(_WIN32) || defined(_WIN64)
+#include <mutex>
+#include <unordered_map>
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+
+namespace {
+// Track handles opened via resource_win32_name so we can close them on release.
+// Declared here so release_external_memory/semaphore can access them.
+std::mutex g_win32NameHandlesMutex;
+std::unordered_map<ur_exp_external_mem_handle_t, HANDLE> g_win32NameHandles;
+} // namespace
+#endif
+
 namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental {
@@ -993,10 +1007,6 @@ __SYCL_EXPORT bool is_image_handle_supported<sampled_image_handle>(
 // resource_win32_name support - Windows-specific code at end of file
 // ============================================================================
 #if defined(_WIN32) || defined(_WIN64)
-#define WIN32_LEAN_AND_MEAN
-#include <mutex>
-#include <unordered_map>
-#include <windows.h>
 
 // Include D3D12 for OpenSharedHandleByName
 #ifdef __has_include
@@ -1007,9 +1017,6 @@ __SYCL_EXPORT bool is_image_handle_supported<sampled_image_handle>(
 #endif
 
 namespace {
-// Track handles opened via resource_win32_name so we can close them on release
-std::mutex g_win32NameHandlesMutex;
-std::unordered_map<ur_exp_external_mem_handle_t, HANDLE> g_win32NameHandles;
 
 HANDLE openNamedHandleImpl(void *device, const void *name) {
 #ifdef SYCL_HAS_D3D12_INTEROP
