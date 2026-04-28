@@ -3960,7 +3960,7 @@
 ?getDeviceBackend@handler@_V1@sycl@@AEBA?AW4backend@23@XZ
 ?getDeviceFromHandler@detail@_V1@sycl@@YA?AVdevice@23@AEAVhandler@23@@Z
 ?getDeviceKernelInfo@detail@_V1@sycl@@YAAEAVDeviceKernelInfo@123@AEBUCompileTimeKernelInfoTy@compile_time_kernel_info_v1@123@@Z
-?getDeviceKernelInfo@detail@_V1@sycl@@YAAEAVDeviceKernelInfo@123@PEBD@Z
+?getDeviceKernelInfo@detail@_V1@sycl@@YAAEAVDeviceKernelInfo@123@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@Z
 ?getElemSize@AccessorBaseHost@detail@_V1@sycl@@QEBAIXZ
 ?getElementSize@LocalAccessorBaseHost@detail@_V1@sycl@@QEAAHXZ
 ?getElementSize@SampledImageAccessorBaseHost@detail@_V1@sycl@@QEBAHXZ
