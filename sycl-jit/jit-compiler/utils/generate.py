@@ -37,6 +37,11 @@ const resource_file ToolchainFiles[] = {"""
             # We only need .bc files from libdevice:
             if re.search(r"[/\\]libsycl-.*\.(o|obj|spv)$", file_path):
                 return
+            # Avoid leaking paths to the build directory:
+            if re.search(
+                r"[/\\](CMakeLists\.txt|cmake_install\.cmake|.*\.cmake)$", file_path
+            ):
+                return
             out.write(
                 f"""
 {{
