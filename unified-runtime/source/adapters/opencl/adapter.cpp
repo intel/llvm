@@ -8,6 +8,29 @@
 //
 //===----------------------------------------------------------------------===//
 
+#ifdef UR_STATIC_ADAPTER_OPENCL
+// Define the OpenCL dispatch-pointer table here, before common.hpp activates
+// the redirect macros.  Defining here (rather than in a separate TU) ensures
+// the symbols land in adapter.cpp.o, which is always pulled into
+// libur_loader.so when the static adapter is embedded.
+//
+// CL_ENABLE_BETA_EXTENSIONS must be defined before including cl_ext.h so that
+// extension types such as cl_command_buffer_khr are visible.  common.hpp sets
+// this macro before its own <CL/cl_ext.h> include; we must mirror that here
+// because once cl_ext.h is included (with its include guard) common.hpp's
+// re-include will be a no-op.
+#ifndef CL_ENABLE_BETA_EXTENSIONS
+#define CL_ENABLE_BETA_EXTENSIONS
+#endif
+#include <CL/cl.h>
+#include <CL/cl_ext.h>
+namespace cl_dispatch {
+#define CL_FUNCTION(FUNC) decltype(::FUNC) *FUNC##_ptr = nullptr;
+#include "all_functions.def"
+#undef CL_FUNCTION
+} // namespace cl_dispatch
+#endif // UR_STATIC_ADAPTER_OPENCL
+
 #include "adapter.hpp"
 #include "common.hpp"
 #include "ur/ur.hpp"
@@ -24,6 +47,45 @@
 static ur_adapter_handle_t liveAdapter = nullptr;
 
 ur_adapter_handle_t_::ur_adapter_handle_t_() : handle_base() {
+#ifdef UR_STATIC_ADAPTER_OPENCL
+  // Load the OpenCL ICD loader dynamically so that the static adapter
+  // has no link-time dependency on it.
+#ifdef _MSC_VER
+  openclLibHandle = LoadLibraryA("OpenCL.dll");
+  if (!openclLibHandle) {
+    die("Failed to load OpenCL.dll");
+  }
+#define CL_FUNCTION(FUNC)                                                      \
+  cl_dispatch::FUNC##_ptr =                                                    \
+      reinterpret_cast<decltype(cl_dispatch::FUNC##_ptr)>(                     \
+          GetProcAddress(static_cast<HMODULE>(openclLibHandle), #FUNC));
+#include "all_functions.def"
+#undef CL_FUNCTION
+#define CL_CORE_FUNCTION(FUNC)                                                 \
+  FUNC = reinterpret_cast<decltype(::FUNC) *>(                                 \
+      GetProcAddress(static_cast<HMODULE>(openclLibHandle), #FUNC));
+#include "core_functions.def"
+#undef CL_CORE_FUNCTION
+#else // !_MSC_VER
+  openclLibHandle = dlopen("libOpenCL.so.1", RTLD_LAZY | RTLD_GLOBAL);
+  if (!openclLibHandle) {
+    openclLibHandle = dlopen("libOpenCL.so", RTLD_LAZY | RTLD_GLOBAL);
+  }
+  if (!openclLibHandle) {
+    die("Failed to load OpenCL ICD loader");
+  }
+#define CL_FUNCTION(FUNC)                                                      \
+  cl_dispatch::FUNC##_ptr =                                                    \
+      reinterpret_cast<decltype(cl_dispatch::FUNC##_ptr)>(                     \
+          dlsym(openclLibHandle, #FUNC));
+#include "all_functions.def"
+#undef CL_FUNCTION
+#define CL_CORE_FUNCTION(FUNC)                                                 \
+  FUNC = reinterpret_cast<decltype(::FUNC) *>(dlsym(openclLibHandle, #FUNC));
+#include "core_functions.def"
+#undef CL_CORE_FUNCTION
+#endif // _MSC_VER
+#else  // !UR_STATIC_ADAPTER_OPENCL
 #ifdef _MSC_VER
 
   // Retrieving handle of an already linked OpenCL.dll library doesn't increase
@@ -42,9 +104,13 @@ ur_adapter_handle_t_::ur_adapter_handle_t_() : handle_base() {
 #define CL_CORE_FUNCTION(FUNC)                                                 \
   FUNC = reinterpret_cast<decltype(::FUNC) *>(dlsym(RTLD_DEFAULT, #FUNC));
 #include "core_functions.def"
+
+namespace ur::opencl {
+
 #undef CL_CORE_FUNCTION
 
 #endif // _MSC_VER
+#endif // UR_STATIC_ADAPTER_OPENCL
   assert(!liveAdapter);
   liveAdapter = this;
 }
@@ -52,6 +118,16 @@ ur_adapter_handle_t_::ur_adapter_handle_t_() : handle_base() {
 ur_adapter_handle_t_::~ur_adapter_handle_t_() {
   assert(liveAdapter == this);
   liveAdapter = nullptr;
+#ifdef UR_STATIC_ADAPTER_OPENCL
+  if (openclLibHandle) {
+#ifdef _MSC_VER
+    FreeLibrary(static_cast<HMODULE>(openclLibHandle));
+#else
+    dlclose(openclLibHandle);
+#endif
+    openclLibHandle = nullptr;
+  }
+#endif
 }
 
 ur_adapter_handle_t ur::cl::getAdapter() {
@@ -147,3 +223,5 @@ UR_APIEXPORT ur_result_t UR_APICALL urAdapterSetLoggerCallbackLevel(
 
   return UR_RESULT_SUCCESS;
 }
+
+} // namespace ur::opencl

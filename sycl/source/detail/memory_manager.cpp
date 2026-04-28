@@ -331,9 +331,8 @@ getMemObjCreationFlags(void *UserPtr, bool HostPtrReadOnly,
   ur_mem_flags_t Result =
       HostPtrReadOnly ? UR_MEM_FLAG_READ_ONLY : UR_MEM_FLAG_READ_WRITE;
   if (UserPtr) {
+    std::ignore = BackendOwnedWriteBack;
     Result |= UR_MEM_FLAG_USE_HOST_POINTER;
-    if (BackendOwnedWriteBack)
-      Result |= UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER;
   }
   return Result;
 }

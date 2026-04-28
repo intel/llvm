@@ -33,6 +33,10 @@ struct ur_adapter_handle_t_ : ur::opencl::handle_base {
 
   ur::RefCount RefCount;
 
+#ifdef UR_STATIC_ADAPTER_OPENCL
+  void *openclLibHandle = nullptr;
+#endif
+
   // Function pointers to core OpenCL entry points which may not exist in older
   // versions of the OpenCL-ICD-Loader are tracked here and initialized by
   // dynamically loading the symbol by name.

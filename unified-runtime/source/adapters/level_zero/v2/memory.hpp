@@ -123,7 +123,6 @@ struct ur_integrated_buffer_handle_t : ur_mem_buffer_t {
   // Perform final copy-back to original host pointer if needed
   void copyBackToHostIfNeeded();
 
-  void setMapToPtr(void *hostPtr) { mapToPtr = hostPtr; }
   void setWriteBackPtr(void *hostPtr) { writeBackPtr = hostPtr; }
 
 private:

@@ -12,6 +12,9 @@
 #ifdef UR_STATIC_ADAPTER_LEVEL_ZERO
 #include "adapters/level_zero/ur_interface_loader.hpp"
 #endif
+#ifdef UR_STATIC_ADAPTER_OPENCL
+#include "adapters/opencl/ur_interface_loader.hpp"
+#endif
 
 namespace ur_loader {
 ///////////////////////////////////////////////////////////////////////////////
@@ -38,6 +41,13 @@ ur_result_t context_t::init() {
   if (!adapter_registry.adaptersForceLoaded()) {
     auto &level_zero = platforms.emplace_back(nullptr);
     ur::level_zero::urAdapterGetDdiTables(&level_zero.dditable);
+  }
+#endif
+
+#ifdef UR_STATIC_ADAPTER_OPENCL
+  if (!adapter_registry.adaptersForceLoaded()) {
+    auto &opencl = platforms.emplace_back(nullptr);
+    ur::opencl::urAdapterGetDdiTables(&opencl.dditable);
   }
 #endif
 

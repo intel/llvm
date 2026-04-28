@@ -11,7 +11,12 @@ find_package(Threads REQUIRED)
 
 set(TARGET_NAME ur_adapter_opencl)
 
-add_ur_adapter(${TARGET_NAME} SHARED
+set(ADAPTER_LIB_TYPE SHARED)
+if(UR_STATIC_ADAPTER_OPENCL)
+    set(ADAPTER_LIB_TYPE STATIC)
+endif()
+
+add_ur_adapter(${TARGET_NAME} ${ADAPTER_LIB_TYPE}
     ${CMAKE_CURRENT_SOURCE_DIR}/ur_interface_loader.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/adapter.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/adapter.cpp
@@ -48,10 +53,36 @@ add_ur_adapter(${TARGET_NAME} SHARED
 )
 install_ur_library(${TARGET_NAME})
 
-set_target_properties(${TARGET_NAME} PROPERTIES
-    VERSION "${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_VERSION_PATCH}"
-    SOVERSION "${PROJECT_VERSION_MAJOR}"
-)
+if(UR_STATIC_ADAPTER_OPENCL)
+    target_compile_definitions(${TARGET_NAME} PUBLIC UR_STATIC_ADAPTER_OPENCL)
+    target_link_libraries(${TARGET_NAME} PRIVATE
+        ${PROJECT_NAME}::headers
+        ${PROJECT_NAME}::common
+        ${PROJECT_NAME}::umf
+        Threads::Threads
+        OpenCL-Headers
+        ${CMAKE_DL_LIBS}
+    )
+    install(TARGETS ${TARGET_NAME}
+        EXPORT ${PROJECT_NAME}-targets
+        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    )
+else()
+    set_target_properties(${TARGET_NAME} PROPERTIES
+        VERSION "${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_VERSION_PATCH}"
+        SOVERSION "${PROJECT_VERSION_MAJOR}"
+    )
+    target_link_libraries(${TARGET_NAME} PRIVATE
+        ${PROJECT_NAME}::headers
+        ${PROJECT_NAME}::common
+        ${PROJECT_NAME}::umf
+        Threads::Threads
+        OpenCL-Headers
+        ${OpenCL_LIBRARY}
+    )
+endif()
 
 # https://github.com/intel/llvm/issues/19648
 if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND LLVM_ENABLE_PEDANTIC)
@@ -60,13 +91,4 @@ endif()
 
 target_include_directories(${TARGET_NAME} PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/../../"
-)
-
-target_link_libraries(${TARGET_NAME} PRIVATE
-    ${PROJECT_NAME}::headers
-    ${PROJECT_NAME}::common
-    ${PROJECT_NAME}::umf
-    Threads::Threads
-    OpenCL-Headers
-    ${OpenCL_LIBRARY}
 )

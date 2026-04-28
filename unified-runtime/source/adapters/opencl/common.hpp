@@ -14,6 +14,7 @@
 
 #include <CL/cl.h>
 #include <CL/cl_ext.h>
+#include "cl_icd_dispatch.hpp"
 #include <climits>
 #include <map>
 #include <mutex>
