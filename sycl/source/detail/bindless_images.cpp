@@ -553,6 +553,18 @@ void *map_external_linear_memory(external_mem extMem, uint64_t offset,
 __SYCL_EXPORT void release_external_memory(external_mem extMem,
                                            const sycl::device &syclDevice,
                                            const sycl::context &syclContext) {
+#if defined(_WIN32) || defined(_WIN64)
+  // Close handle if it was opened via resource_win32_name
+  {
+    std::lock_guard<std::mutex> lock(g_win32NameHandlesMutex);
+    auto it = g_win32NameHandles.find(extMem.raw_handle);
+    if (it != g_win32NameHandles.end()) {
+      CloseHandle(it->second);
+      g_win32NameHandles.erase(it);
+    }
+  }
+#endif
+
   auto [urDevice, urCtx, Adapter] = get_ur_handles(syclDevice, syclContext);
 
   Adapter
@@ -699,6 +711,20 @@ __SYCL_EXPORT void
 release_external_semaphore(external_semaphore externalSemaphore,
                            const sycl::device &syclDevice,
                            const sycl::context &syclContext) {
+#if defined(_WIN32) || defined(_WIN64)
+  // Close handle if it was opened via resource_win32_name
+  {
+    std::lock_guard<std::mutex> lock(g_win32NameHandlesMutex);
+    auto it =
+        g_win32NameHandles.find(reinterpret_cast<ur_exp_external_mem_handle_t>(
+            externalSemaphore.raw_handle));
+    if (it != g_win32NameHandles.end()) {
+      CloseHandle(it->second);
+      g_win32NameHandles.erase(it);
+    }
+  }
+#endif
+
   auto [urDevice, urCtx, Adapter] = get_ur_handles(syclDevice, syclContext);
 
   Adapter->call<
@@ -968,6 +994,8 @@ __SYCL_EXPORT bool is_image_handle_supported<sampled_image_handle>(
 // ============================================================================
 #if defined(_WIN32) || defined(_WIN64)
 #define WIN32_LEAN_AND_MEAN
+#include <mutex>
+#include <unordered_map>
 #include <windows.h>
 
 // Include D3D12 for OpenSharedHandleByName
@@ -979,6 +1007,10 @@ __SYCL_EXPORT bool is_image_handle_supported<sampled_image_handle>(
 #endif
 
 namespace {
+// Track handles opened via resource_win32_name so we can close them on release
+std::mutex g_win32NameHandlesMutex;
+std::unordered_map<ur_exp_external_mem_handle_t, HANDLE> g_win32NameHandles;
+
 HANDLE openNamedHandleImpl(void *device, const void *name) {
 #ifdef SYCL_HAS_D3D12_INTEROP
   // OpenSharedHandleByName requires ID3D12Device1 or higher
@@ -1034,10 +1066,16 @@ __SYCL_EXPORT external_mem import_external_memory<resource_win32_name>(
       externalMemDesc.size_in_bytes};
 
   // Delegate to existing resource_win32_handle implementation
-  // Note: openedHandle is not closed here; it will be closed by the
-  // underlying UR layer when release_external_memory is called
-  return import_external_memory<resource_win32_handle>(handleDesc, syclDevice,
-                                                       syclContext);
+  external_mem result = import_external_memory<resource_win32_handle>(
+      handleDesc, syclDevice, syclContext);
+
+  // Track the opened handle so we can close it on release
+  {
+    std::lock_guard<std::mutex> lock(g_win32NameHandlesMutex);
+    g_win32NameHandles[result.raw_handle] = openedHandle;
+  }
+
+  return result;
 }
 
 template <>
@@ -1068,12 +1106,20 @@ __SYCL_EXPORT external_semaphore import_external_semaphore(
   }
 
   // Delegate to existing resource_win32_handle implementation
-  // Note: openedHandle is not closed here; it will be closed by the
-  // underlying UR layer when release_external_semaphore is called
   external_semaphore_descriptor<resource_win32_handle> handleDesc{
       {openedHandle}, externalSemaphoreDesc.handle_type};
 
-  return import_external_semaphore(handleDesc, syclDevice, syclContext);
+  external_semaphore result =
+      import_external_semaphore(handleDesc, syclDevice, syclContext);
+
+  // Track the opened handle so we can close it on release
+  {
+    std::lock_guard<std::mutex> lock(g_win32NameHandlesMutex);
+    g_win32NameHandles[reinterpret_cast<ur_exp_external_mem_handle_t>(
+        result.raw_handle)] = openedHandle;
+  }
+
+  return result;
 }
 
 template <>
