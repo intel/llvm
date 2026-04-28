@@ -30,7 +30,6 @@
 
 #include <sycl/access/access.hpp>
 #include <sycl/detail/generic_type_traits.hpp>
-#include <sycl/detail/memcpy.hpp>
 
 #include <sycl/__spirv/spirv_ops_image.hpp>
 
@@ -41,24 +40,112 @@ namespace detail {
 // Type trait to get the associated sampled image type for a given image type.
 template <typename ImageType> struct sampled_opencl_image_type;
 
-// The SPIR-V spec requires the result of OpImageSampleExplicitLod to be a
-// vector type of four components. To satisfy this requirement, we need to use
-// a temporary vector type to hold the result of the SPIR-V call, and then
-// copy the result back to the original return type. The following type trait is
-// used to get the temporary vector type based on the original return type.
-
-template <typename RetType> struct image_sample_explicit_lod_result {
-  using type = sycl::vec<RetType, 4>;
+// Helper to extract element type from scalar or OpenCL vector type
+// (e.g., float or float __attribute__((ext_vector_type(4))))
+template <typename T> struct get_image_element_type { using type = T; };
+template <typename T, int N>
+struct get_image_element_type<T __attribute__((ext_vector_type(N)))> {
+  using type = T;
 };
+template <typename T>
+using get_image_element_type_t = typename get_image_element_type<T>::type;
 
-template <typename ElemT, int N>
-struct image_sample_explicit_lod_result<sycl::vec<ElemT, N>> {
-  using type = sycl::vec<ElemT, 4>;
+// Helper to get number of elements (1 for scalar, N for vector)
+template <typename T> struct get_num_elements {
+  static constexpr int value = 1;
 };
+template <typename T, int N>
+struct get_num_elements<T __attribute__((ext_vector_type(N)))> {
+  static constexpr int value = N;
+};
+template <typename T>
+inline constexpr int get_num_elements_v = get_num_elements<T>::value;
 
-template <typename RetType>
-using image_sample_explicit_lod_result_t =
-    typename image_sample_explicit_lod_result<RetType>::type;
+// The OpenCL SPIR-V environment spec requires that OpImageRead, OpImageWrite,
+// OpImageFetch, and OpImageSampleExplicitLod use vec4 operands with 32-bit
+// component types, with the sole exception of half (_Float16) which may use
+// 16-bit components. Channel sizes and narrow integer types (8-bit and 16-bit)
+// must be widened to their vec4 32-bit equivalents.
+template <typename T> struct spirv_image_widened_elem_type { using type = T; };
+template <> struct spirv_image_widened_elem_type<int8_t>   { using type = int32_t; };
+template <> struct spirv_image_widened_elem_type<uint8_t>  { using type = uint32_t; };
+template <> struct spirv_image_widened_elem_type<int16_t>  { using type = int32_t; };
+template <> struct spirv_image_widened_elem_type<uint16_t> { using type = uint32_t; };
+template <typename T>
+using spirv_image_widened_elem_type_t = typename spirv_image_widened_elem_type<T>::type;
+
+// Compile-time verification of type widening rules.
+static_assert(std::is_same_v<spirv_image_widened_elem_type_t<int8_t>, int32_t>);
+static_assert(std::is_same_v<spirv_image_widened_elem_type_t<uint8_t>, uint32_t>);
+static_assert(std::is_same_v<spirv_image_widened_elem_type_t<int16_t>, int32_t>);
+static_assert(std::is_same_v<spirv_image_widened_elem_type_t<uint16_t>, uint32_t>);
+static_assert(std::is_same_v<spirv_image_widened_elem_type_t<int32_t>, int32_t>);
+static_assert(std::is_same_v<spirv_image_widened_elem_type_t<uint32_t>, uint32_t>);
+static_assert(std::is_same_v<spirv_image_widened_elem_type_t<float>, float>);
+static_assert(std::is_same_v<spirv_image_widened_elem_type_t<_Float16>, _Float16>);
+
+// Helper function to convert vec4 result to requested OpenCL type.
+// Handles scalar, vec2, vec3, and vec4 return types.
+template <typename RequestedType, typename Vec4Type>
+static inline constexpr RequestedType convertVec4ToRequestedType(Vec4Type vec4Result) {
+  using ElemType = get_image_element_type_t<RequestedType>;
+  constexpr int NumElements = get_num_elements_v<RequestedType>;
+
+  // Extract components based on RequestedType
+  if constexpr (NumElements == 1) {
+    return static_cast<ElemType>(vec4Result[0]);
+  } else if constexpr (NumElements == 2) {
+    using Vec2Type = ElemType __attribute__((ext_vector_type(2)));
+    Vec2Type result;
+    result[0] = static_cast<ElemType>(vec4Result[0]);
+    result[1] = static_cast<ElemType>(vec4Result[1]);
+    return result;
+  } else if constexpr (NumElements == 3) {
+    using Vec3Type = ElemType __attribute__((ext_vector_type(3)));
+    Vec3Type result;
+    result[0] = static_cast<ElemType>(vec4Result[0]);
+    result[1] = static_cast<ElemType>(vec4Result[1]);
+    result[2] = static_cast<ElemType>(vec4Result[2]);
+    return result;
+  } else {
+    static_assert(NumElements == 4, "Vector size must be 1, 2, 3, or 4");
+    using Vec4NarrowType = ElemType __attribute__((ext_vector_type(4)));
+    Vec4NarrowType result;
+    result[0] = static_cast<ElemType>(vec4Result[0]);
+    result[1] = static_cast<ElemType>(vec4Result[1]);
+    result[2] = static_cast<ElemType>(vec4Result[2]);
+    result[3] = static_cast<ElemType>(vec4Result[3]);
+    return result;
+  }
+}
+
+// Helper function to convert scalar or OpenCL vector value to vec4 for OpImageWrite.
+template <typename SourceType>
+static inline constexpr auto convertRequestedTypeToVec4(SourceType val) {
+  using RawElemType = get_image_element_type_t<SourceType>;
+  using ElemType = spirv_image_widened_elem_type_t<RawElemType>;
+  using Vec4Type = ElemType __attribute__((ext_vector_type(4)));
+  constexpr int NumElements = get_num_elements_v<SourceType>;
+
+  Vec4Type result{};
+  if constexpr (NumElements == 1) {
+    result[0] = static_cast<ElemType>(val);
+  } else if constexpr (NumElements == 2) {
+    result[0] = static_cast<ElemType>(val[0]);
+    result[1] = static_cast<ElemType>(val[1]);
+  } else if constexpr (NumElements == 3) {
+    result[0] = static_cast<ElemType>(val[0]);
+    result[1] = static_cast<ElemType>(val[1]);
+    result[2] = static_cast<ElemType>(val[2]);
+  } else {
+    static_assert(NumElements == 4, "Vector size must be 1, 2, 3, or 4");
+    result[0] = static_cast<ElemType>(val[0]);
+    result[1] = static_cast<ElemType>(val[1]);
+    result[2] = static_cast<ElemType>(val[2]);
+    result[3] = static_cast<ElemType>(val[3]);
+  }
+  return result;
+}
 
 } // namespace detail
 } // namespace _V1
@@ -84,8 +171,11 @@ static void __invoke__ImageWrite(ImageT Img, CoordT Coords, ValT Val) {
   auto TmpCoords = sycl::detail::convertToOpenCLType(Coords);
   auto TmpVal = sycl::detail::convertToOpenCLType(Val);
 
-  __spirv_ImageWrite<ImageT, decltype(TmpCoords), decltype(TmpVal)>(
-      Img, TmpCoords, TmpVal);
+  // SPIR-V spec requires OpImageWrite texel to be vec4.
+  auto vec4Val = sycl::detail::convertRequestedTypeToVec4(TmpVal);
+
+  __spirv_ImageWrite<ImageT, decltype(TmpCoords), decltype(vec4Val)>(
+      Img, TmpCoords, vec4Val);
 }
 
 template <typename RetType, typename ImageT, typename CoordT>
@@ -95,8 +185,16 @@ static RetType __invoke__ImageRead(ImageT Img, CoordT Coords) {
   using TempRetT = sycl::detail::ConvertToOpenCLType_t<RetType>;
   auto TmpCoords = sycl::detail::convertToOpenCLType(Coords);
 
+  // SPIR-V spec requires OpImageRead to return a 32-bit (or 16-bit for half) vec4.
+  using RawElemType = sycl::detail::get_image_element_type_t<TempRetT>;
+  using ElemType = sycl::detail::spirv_image_widened_elem_type_t<RawElemType>;
+  using Vec4Type = ElemType __attribute__((ext_vector_type(4)));
+
+  Vec4Type vec4Result =
+      __spirv_ImageRead<Vec4Type, ImageT, decltype(TmpCoords)>(Img, TmpCoords);
+
   return sycl::detail::convertFromOpenCLTypeFor<RetType>(
-      __spirv_ImageRead<TempRetT, ImageT, decltype(TmpCoords)>(Img, TmpCoords));
+      sycl::detail::convertVec4ToRequestedType<TempRetT>(vec4Result));
 }
 
 template <typename RetType, typename ImageT, typename CoordT>
@@ -106,9 +204,17 @@ static RetType __invoke__ImageFetch(ImageT Img, CoordT Coords) {
   using TempRetT = sycl::detail::ConvertToOpenCLType_t<RetType>;
   auto TmpCoords = sycl::detail::convertToOpenCLType(Coords);
 
+  // SPIR-V spec requires OpImageFetch to return a 32-bit (or 16-bit for half) vec4.
+  using RawElemType = sycl::detail::get_image_element_type_t<TempRetT>;
+  using ElemType = sycl::detail::spirv_image_widened_elem_type_t<RawElemType>;
+  using Vec4Type = ElemType __attribute__((ext_vector_type(4)));
+
+  Vec4Type vec4Result =
+      __spirv_ImageFetch<Vec4Type, ImageT, decltype(TmpCoords)>(Img,
+                                                                TmpCoords);
+
   return sycl::detail::convertFromOpenCLTypeFor<RetType>(
-      __spirv_ImageFetch<TempRetT, ImageT, decltype(TmpCoords)>(Img,
-                                                                TmpCoords));
+      sycl::detail::convertVec4ToRequestedType<TempRetT>(vec4Result));
 }
 
 template <typename RetType, typename ImageT, typename CoordT>
@@ -118,9 +224,17 @@ static RetType __invoke__SampledImageFetch(ImageT Img, CoordT Coords) {
   using TempRetT = sycl::detail::ConvertToOpenCLType_t<RetType>;
   auto TmpCoords = sycl::detail::convertToOpenCLType(Coords);
 
+  // SPIR-V spec requires OpImageFetch to return a 32-bit (or 16-bit for half) vec4.
+  using RawElemType = sycl::detail::get_image_element_type_t<TempRetT>;
+  using ElemType = sycl::detail::spirv_image_widened_elem_type_t<RawElemType>;
+  using Vec4Type = ElemType __attribute__((ext_vector_type(4)));
+
+  Vec4Type vec4Result =
+      __spirv_SampledImageFetch<Vec4Type, ImageT, decltype(TmpCoords)>(
+          Img, TmpCoords);
+
   return sycl::detail::convertFromOpenCLTypeFor<RetType>(
-      __spirv_SampledImageFetch<TempRetT, ImageT, decltype(TmpCoords)>(
-          Img, TmpCoords));
+      sycl::detail::convertVec4ToRequestedType<TempRetT>(vec4Result));
 }
 
 template <typename RetType, typename ImageT, typename CoordT>
@@ -147,9 +261,17 @@ static RetType __invoke__ImageArrayFetch(ImageT Img, CoordT Coords,
   using TempRetT = sycl::detail::ConvertToOpenCLType_t<RetType>;
   auto TmpCoords = sycl::detail::convertToOpenCLType(Coords);
 
+  // SPIR-V spec requires OpImageFetch to return a 32-bit (or 16-bit for half) vec4.
+  using RawElemType = sycl::detail::get_image_element_type_t<TempRetT>;
+  using ElemType = sycl::detail::spirv_image_widened_elem_type_t<RawElemType>;
+  using Vec4Type = ElemType __attribute__((ext_vector_type(4)));
+
+  Vec4Type vec4Result =
+      __spirv_ImageArrayFetch<Vec4Type, ImageT, decltype(TmpCoords)>(
+          Img, TmpCoords, ArrayLayer);
+
   return sycl::detail::convertFromOpenCLTypeFor<RetType>(
-      __spirv_ImageArrayFetch<TempRetT, ImageT, decltype(TmpCoords)>(
-          Img, TmpCoords, ArrayLayer));
+      sycl::detail::convertVec4ToRequestedType<TempRetT>(vec4Result));
 }
 
 template <typename RetType, typename ImageT, typename CoordT>
@@ -160,9 +282,17 @@ static RetType __invoke__SampledImageArrayFetch(ImageT Img, CoordT Coords,
   using TempRetT = sycl::detail::ConvertToOpenCLType_t<RetType>;
   auto TmpCoords = sycl::detail::convertToOpenCLType(Coords);
 
+  // SPIR-V spec requires OpImageFetch to return a 32-bit (or 16-bit for half) vec4.
+  using RawElemType = sycl::detail::get_image_element_type_t<TempRetT>;
+  using ElemType = sycl::detail::spirv_image_widened_elem_type_t<RawElemType>;
+  using Vec4Type = ElemType __attribute__((ext_vector_type(4)));
+
+  Vec4Type vec4Result =
+      __spirv_SampledImageArrayFetch<Vec4Type, ImageT, decltype(TmpCoords)>(
+          Img, TmpCoords, ArrayLayer);
+
   return sycl::detail::convertFromOpenCLTypeFor<RetType>(
-      __spirv_SampledImageArrayFetch<TempRetT, ImageT, decltype(TmpCoords)>(
-          Img, TmpCoords, ArrayLayer));
+      sycl::detail::convertVec4ToRequestedType<TempRetT>(vec4Result));
 }
 
 template <typename RetType, typename ImageT, typename CoordT>
@@ -173,9 +303,17 @@ static RetType __invoke__ImageArrayRead(ImageT Img, CoordT Coords,
   using TempRetT = sycl::detail::ConvertToOpenCLType_t<RetType>;
   auto TmpCoords = sycl::detail::convertToOpenCLType(Coords);
 
+  // SPIR-V spec requires OpImageRead to return a 32-bit (or 16-bit for half) vec4.
+  using RawElemType = sycl::detail::get_image_element_type_t<TempRetT>;
+  using ElemType = sycl::detail::spirv_image_widened_elem_type_t<RawElemType>;
+  using Vec4Type = ElemType __attribute__((ext_vector_type(4)));
+
+  Vec4Type vec4Result =
+      __spirv_ImageArrayRead<Vec4Type, ImageT, decltype(TmpCoords)>(
+          Img, TmpCoords, ArrayLayer);
+
   return sycl::detail::convertFromOpenCLTypeFor<RetType>(
-      __spirv_ImageArrayRead<TempRetT, ImageT, decltype(TmpCoords)>(
-          Img, TmpCoords, ArrayLayer));
+      sycl::detail::convertVec4ToRequestedType<TempRetT>(vec4Result));
 }
 
 template <typename ImageT, typename CoordT, typename ValT>
@@ -186,8 +324,11 @@ static void __invoke__ImageArrayWrite(ImageT Img, CoordT Coords, int ArrayLayer,
   auto TmpCoords = sycl::detail::convertToOpenCLType(Coords);
   auto TmpVal = sycl::detail::convertToOpenCLType(Val);
 
-  __spirv_ImageArrayWrite<ImageT, decltype(TmpCoords), decltype(TmpVal)>(
-      Img, TmpCoords, ArrayLayer, TmpVal);
+  // SPIR-V spec requires OpImageWrite texel to be vec4.
+  auto vec4Val = sycl::detail::convertRequestedTypeToVec4(TmpVal);
+
+  __spirv_ImageArrayWrite<ImageT, decltype(TmpCoords), decltype(vec4Val)>(
+      Img, TmpCoords, ArrayLayer, vec4Val);
 }
 
 template <typename RetType, typename SmpImageT, typename DirVecT>
@@ -197,25 +338,24 @@ static RetType __invoke__ImageReadCubemap(SmpImageT SmpImg, DirVecT DirVec) {
   using TempRetT = sycl::detail::ConvertToOpenCLType_t<RetType>;
   auto TmpDirVec = sycl::detail::convertToOpenCLType(DirVec);
 
+  // SPIR-V spec requires OpImageSampleExplicitLod to return a 32-bit (or 16-bit for half) vec4.
+  using RawElemType = sycl::detail::get_image_element_type_t<TempRetT>;
+  using ElemType = sycl::detail::spirv_image_widened_elem_type_t<RawElemType>;
+  using Vec4Type = ElemType __attribute__((ext_vector_type(4)));
+
+  Vec4Type vec4Result =
+      __spirv_ImageSampleCubemap<SmpImageT, Vec4Type, decltype(TmpDirVec)>(
+          SmpImg, TmpDirVec);
+
   return sycl::detail::convertFromOpenCLTypeFor<RetType>(
-      __spirv_ImageSampleCubemap<SmpImageT, TempRetT, decltype(TmpDirVec)>(
-          SmpImg, TmpDirVec));
+      sycl::detail::convertVec4ToRequestedType<TempRetT>(vec4Result));
 }
 
 template <typename RetType, typename SmpImageT, typename CoordT>
 static RetType __invoke__ImageReadLod(SmpImageT SmpImg, CoordT Coords,
                                       float Level) {
-  // The result type of the SPIR-V instruction OpImageSampleExplicitLod must be
-  // a vector of four components. Use the type trait to get the appropriate
-  // temporary vector type based on the original return type.
-  using NoRefT = std::remove_reference_t<RetType>;
-  using RetVecType = sycl::detail::image_sample_explicit_lod_result_t<NoRefT>;
-  static_assert(sizeof(RetVecType) >= sizeof(RetType),
-                "RetVecType should be at least as big as RetType to hold the "
-                "result of the SPIR-V call.");
-
   // Convert from sycl types to builtin types to get correct function mangling.
-  using TempRetT = sycl::detail::ConvertToOpenCLType_t<RetVecType>;
+  using TempRetT = sycl::detail::ConvertToOpenCLType_t<RetType>;
   auto TmpCoords = sycl::detail::convertToOpenCLType(Coords);
 
   enum ImageOperands { Lod = 0x2 };
@@ -226,14 +366,17 @@ static RetType __invoke__ImageReadLod(SmpImageT SmpImg, CoordT Coords,
   // Sampled Image must be an object whose type is OpTypeSampledImage
   // Image Operands encodes what operands follow. Either Lod
   // or Grad image operands must be present
-  auto ResultVec = sycl::detail::convertFromOpenCLTypeFor<RetVecType>(
-      __spirv_ImageSampleExplicitLod<SmpImageT, TempRetT, decltype(TmpCoords)>(
-          SmpImg, TmpCoords, ImageOperands::Lod, Level));
+  // SPIR-V spec requires OpImageSampleExplicitLod to return a 32-bit (or 16-bit for half) vec4.
+  using RawElemType = sycl::detail::get_image_element_type_t<TempRetT>;
+  using ElemType = sycl::detail::spirv_image_widened_elem_type_t<RawElemType>;
+  using Vec4Type = ElemType __attribute__((ext_vector_type(4)));
 
-  // Copy the result back to the original return type the user expects.
-  RetType Result;
-  sycl::detail::memcpy_no_adl(&Result, &ResultVec, sizeof(Result));
-  return Result;
+  Vec4Type vec4Result =
+      __spirv_ImageSampleExplicitLod<SmpImageT, Vec4Type, decltype(TmpCoords)>(
+          SmpImg, TmpCoords, ImageOperands::Lod, Level);
+
+  return sycl::detail::convertFromOpenCLTypeFor<RetType>(
+      sycl::detail::convertVec4ToRequestedType<TempRetT>(vec4Result));
 }
 
 template <typename RetType, typename SmpImageT, typename CoordT>
@@ -254,9 +397,17 @@ static RetType __invoke__ImageReadGrad(SmpImageT SmpImg, CoordT Coords,
   // Sampled Image must be an object whose type is OpTypeSampledImage
   // Image Operands encodes what operands follow. Either Lod
   // or Grad image operands must be present
+  // SPIR-V spec requires OpImageSampleExplicitLod to return a 32-bit (or 16-bit for half) vec4.
+  using RawElemType = sycl::detail::get_image_element_type_t<TempRetT>;
+  using ElemType = sycl::detail::spirv_image_widened_elem_type_t<RawElemType>;
+  using Vec4Type = ElemType __attribute__((ext_vector_type(4)));
+
+  Vec4Type vec4Result =
+      __spirv_ImageSampleExplicitLod<SmpImageT, Vec4Type, decltype(TmpCoords)>(
+          SmpImg, TmpCoords, ImageOperands::Grad, TmpGraddX, TmpGraddY);
+
   return sycl::detail::convertFromOpenCLTypeFor<RetType>(
-      __spirv_ImageSampleExplicitLod<SmpImageT, TempRetT, decltype(TmpCoords)>(
-          SmpImg, TmpCoords, ImageOperands::Grad, TmpGraddX, TmpGraddY));
+      sycl::detail::convertVec4ToRequestedType<TempRetT>(vec4Result));
 }
 
 template <typename RetType, typename ImageT, typename CoordT>
@@ -281,10 +432,18 @@ static RetType __invoke__ImageReadSampler(ImageT Img, CoordT Coords,
   enum ImageOperands { Lod = 0x2 };
 
   // Lod value is zero as mipmap is not supported.
-  return sycl::detail::convertFromOpenCLTypeFor<RetType>(
-      __spirv_ImageSampleExplicitLod<SampledT, TempRetT, decltype(TmpCoords)>(
+  // SPIR-V spec requires OpImageSampleExplicitLod to return a 32-bit (or 16-bit for half) vec4.
+  using RawElemType = sycl::detail::get_image_element_type_t<TempRetT>;
+  using ElemType = sycl::detail::spirv_image_widened_elem_type_t<RawElemType>;
+  using Vec4Type = ElemType __attribute__((ext_vector_type(4)));
+
+  Vec4Type vec4Result =
+      __spirv_ImageSampleExplicitLod<SampledT, Vec4Type, decltype(TmpCoords)>(
           __spirv_SampledImage<ImageT, SampledT>(Img, Smpl), TmpCoords,
-          ImageOperands::Lod, 0.0f));
+          ImageOperands::Lod, 0.0f);
+
+  return sycl::detail::convertFromOpenCLTypeFor<RetType>(
+      sycl::detail::convertVec4ToRequestedType<TempRetT>(vec4Result));
 }
 
 namespace sycl {
