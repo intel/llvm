@@ -337,6 +337,43 @@ bool Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj,
   return true;
 }
 
+bool Scheduler::removeMemoryRecord(const std::shared_ptr<MemObjRecord> &Record,
+                                   bool StrictLock) {
+  MemObjRecord *RawRecord = Record.get();
+  if (!RawRecord)
+    return true;
+
+#ifdef _WIN32
+  bool allowWait = GlobalHandler::instance().isOkToDefer();
+  if (!allowWait)
+    StrictLock = false;
+#else
+  bool allowWait = true;
+#endif
+
+  if (allowWait) {
+    ReadLockT Lock = StrictLock ? ReadLockT(MGraphLock)
+                                : ReadLockT(MGraphLock, std::try_to_lock);
+    if (!Lock.owns_lock())
+      return false;
+    waitForRecordToFinish(RawRecord, Lock);
+  }
+
+  {
+    WriteLockT Lock = StrictLock ? acquireWriteLock()
+                                 : WriteLockT(MGraphLock, std::try_to_lock);
+    if (!Lock.owns_lock()) {
+      if (allowWait)
+        return false;
+      return true;
+    }
+    MGraphBuilder.decrementLeafCountersForRecord(RawRecord);
+    MGraphBuilder.cleanupCommandsForRecord(RawRecord);
+    MGraphBuilder.removeRecordForMemObj(Record);
+  }
+  return true;
+}
+
 EventImplPtr Scheduler::addHostAccessor(Requirement *Req) {
   std::vector<Command *> AuxiliaryCmds;
   EventImplPtr NewCmdEvent = nullptr;
@@ -444,6 +481,17 @@ void Scheduler::releaseResources(BlockingT Blocking) {
   do {
     cleanupDeferredMemObjects(Blocking);
   } while (Blocking == BlockingT::BLOCKING && !isDeferredMemObjectsEmpty());
+
+  // Shutdown can happen while user memory objects are still alive. In that
+  // case their command graph nodes continue to hold queues and contexts.
+  // Drain the remaining memory records to release those resources without
+  // dereferencing potentially dead memory-object pointers.
+  while (!MGraphBuilder.MMemObjs.empty()) {
+    auto Record = MGraphBuilder.MMemObjs.back().MRecord;
+    if (!removeMemoryRecord(Record, Blocking == BlockingT::BLOCKING)) {
+      break;
+    }
+  }
 }
 
 MemObjRecord *Scheduler::getMemObjRecord(const Requirement *const Req) {

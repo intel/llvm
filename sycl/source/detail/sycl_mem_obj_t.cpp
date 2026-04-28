@@ -141,33 +141,54 @@ void SYCLMemObjT::updateHostMemory(void *const Ptr) {
 }
 
 void SYCLMemObjT::updateHostMemory() {
+  std::exception_ptr exception;
+
   // Don't try updating host memory when shutting down.
   if ((MUploadDataFunctor != nullptr) && MNeedWriteBack &&
-      GlobalHandler::instance().isOkToDefer())
-    MUploadDataFunctor();
+      GlobalHandler::instance().isOkToDefer()) {
+    try {
+      MUploadDataFunctor();
+    } catch (...) {
+      exception = std::current_exception();
+    }
+  }
 
   // If we're attached to a memory record, process the deletion of the memory
   // record. We may get detached before we do this.
   if (MRecord) {
-    // Don't strictly try holding the lock in removeMemoryObject during shutdown
-    // to prevent deadlocks.
-    bool Result = Scheduler::getInstance().removeMemoryObject(
-        this, GlobalHandler::instance().isOkToDefer());
-    std::ignore = Result; // for no assert build
+    try {
+      // Don't strictly try holding the lock in removeMemoryObject during
+      // shutdown to prevent deadlocks.
+      bool Result = Scheduler::getInstance().removeMemoryObject(
+          this, GlobalHandler::instance().isOkToDefer());
+      std::ignore = Result; // for no assert build
 
-    // removeMemoryObject might fail during shutdown because of not being
-    // able to hold write lock. This can happen if shutdown happens due to
-    // exception/termination while holding lock.
-    assert(
-        (Result || !GlobalHandler::instance().isOkToDefer()) &&
-        "removeMemoryObject should not return false in mem object destructor");
+      // removeMemoryObject might fail during shutdown because of not being
+      // able to hold write lock. This can happen if shutdown happens due to
+      // exception/termination while holding lock.
+      assert((Result || !GlobalHandler::instance().isOkToDefer()) &&
+             "removeMemoryObject should not return false in mem object "
+             "destructor");
+    } catch (...) {
+      // Keep only the first exception, as the others are likely to be side
+      // effects of the first one.
+      if (!exception)
+        exception = std::current_exception();
+    }
   }
-  releaseHostMem(MShadowCopy);
 
-  if (MOpenCLInterop) {
-    getAdapter().call<UrApiKind::urMemRelease>(MInteropMemObject);
+  try {
+    releaseHostMem(MShadowCopy);
+    if (MOpenCLInterop) {
+      getAdapter().call<UrApiKind::urMemRelease>(MInteropMemObject);
+    }
+  } catch (...) {
+    if (!exception)
+      exception = std::current_exception();
+    std::rethrow_exception(exception);
   }
 }
+
 adapter_impl &SYCLMemObjT::getAdapter() const {
   assert((MInteropContext != nullptr) &&
          "Trying to get Adapter from SYCLMemObjT with nullptr ContextImpl.");
