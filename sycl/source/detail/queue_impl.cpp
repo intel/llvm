@@ -552,29 +552,17 @@ queue_impl::ext_oneapi_get_state_impl() const {
 std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
 queue_impl::ext_oneapi_get_graph_impl() const {
   auto Graph = getCommandGraph();
-  if (!Graph) {
-    ur_bool_t SupportsGraphRecordReplay = false;
-    ur_result_t QueryResult =
-        getAdapter().call_nocheck<UrApiKind::urDeviceGetInfo>(
-            getDeviceImpl().getHandleRef(),
-            UR_DEVICE_INFO_GRAPH_RECORD_AND_REPLAY_SUPPORT_EXP,
-            sizeof(ur_bool_t), &SupportsGraphRecordReplay, nullptr);
+  if (!Graph && isNativeRecording()) {
+    ur_exp_graph_handle_t UrGraphHandle = nullptr;
+    ur_result_t Result =
+        getAdapter().call_nocheck<UrApiKind::urQueueGetGraphExp>(
+            MQueue, &UrGraphHandle);
 
-    if (QueryResult == UR_RESULT_SUCCESS && SupportsGraphRecordReplay) {
-      ur_exp_graph_handle_t UrGraphHandle = nullptr;
-      ur_result_t Result =
-          getAdapter().call_nocheck<UrApiKind::urQueueGetGraphExp>(
-              MQueue, &UrGraphHandle);
-
-      if (Result == UR_RESULT_SUCCESS) {
-        Graph = getContextImpl().getNativeGraph(UrGraphHandle);
-      } else if (Result != UR_RESULT_ERROR_INVALID_OPERATION) {
-        throw sycl::exception(make_error_code(errc::runtime),
-                              "Failed to query native UR graph from queue.");
-      }
-    } else if (QueryResult != UR_RESULT_SUCCESS) {
+    if (Result == UR_RESULT_SUCCESS) {
+      Graph = getContextImpl().getNativeGraph(UrGraphHandle);
+    } else if (Result != UR_RESULT_ERROR_INVALID_OPERATION) {
       throw sycl::exception(make_error_code(errc::runtime),
-                            "Failed to query device info.");
+                            "Failed to query native UR graph from queue.");
     }
   }
   if (!Graph) {
