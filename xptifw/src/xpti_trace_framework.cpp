@@ -140,6 +140,12 @@ xpti::utils::SpinLock g_framework_mutex;
 /// This variable represents the default stream ID in the XPTI trace framework.
 uint8_t g_default_stream_id = 0;
 
+/// @var STREAM_ID_MAX
+/// @brief This variable represents the maximum stream ID in the XPTI trace
+/// framework, inclusive. Since stream IDs are represented as uint8_t, the
+/// maximum value is 255.
+constexpr uint8_t STREAM_ID_MAX = 255;
+
 /// @var g_default_event_type
 /// @brief A variable of type xpti::trace_event_type_t, initialized with
 /// xpti::trace_event_type_t::algorithm. This variable represents the default
@@ -2012,7 +2018,7 @@ public:
         (g_helper.checkTraceEnv() && MSubscribers.hasValidSubscribers());
 
     // Initialize all effective stream detail levels to default (NORMAL)
-    for (size_t i = 0; i < 256; ++i) {
+    for (size_t i = 0; i <= STREAM_ID_MAX; ++i) {
       MEffectiveStreamDetailLevels[i].store(
           static_cast<uint8_t>(
               xpti::stream_detail_level_t::XPTI_STREAM_DETAIL_LEVEL_NORMAL),
@@ -2041,7 +2047,7 @@ public:
     MStringTableRef.clear();
     MNotifier.clear();
     // Reset all effective levels to default
-    for (size_t i = 0; i < 256; ++i) {
+    for (size_t i = 0; i <= STREAM_ID_MAX; ++i) {
       MEffectiveStreamDetailLevels[i].store(
           static_cast<uint8_t>(
               xpti::stream_detail_level_t::XPTI_STREAM_DETAIL_LEVEL_NORMAL),
@@ -2669,8 +2675,8 @@ private:
   bool MTraceEnabled;
   /// Cached effective detail levels per stream (indexed by stream_id)
   /// Lock-free array of atomics for fast reads by producers
-  /// stream_id is uint8_t, so we need 256 entries
-  std::array<std::atomic<uint8_t>, 256> MEffectiveStreamDetailLevels;
+  std::array<std::atomic<uint8_t>, STREAM_ID_MAX + 1>
+      MEffectiveStreamDetailLevels;
 };
 
 /// @var static int GFrameworkReferenceCounter
