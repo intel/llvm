@@ -156,6 +156,13 @@ jobs:
     - name: Test adapter specific logs
       if: ${{ always() && matrix.adapter.other_name == '' }}
       run: |
+        set -o pipefail
+        if [ -f adapter_tests.log ]; then
+          echo "=== Adapter Tests Statistics ==="
+          # Extract failed/problematic tests and statistics (stops before build errors)
+          awk '/^(Failed Tests|Unexpectedly Passed Tests|Unresolved Tests|Timed Out Tests) \([0-9]+\):/{flag=1}/^Testing Time:/{flag=1}flag{if(NF>0&&!/^[ \t]/&&$0!~/^(Failed Tests|Unexpectedly Passed|Unresolved|Timed Out|Testing Time|Expected|Unexpected|Total Discovered|Unsupported Tests)/){exit};print}' adapter_tests.log || echo "No test statistics found"
+          echo ""
+        fi
         echo "::group::Show Full Adapter Tests Log"
         cat adapter_tests.log
         echo "::endgroup::"
@@ -171,6 +178,13 @@ jobs:
     - name: Test adapters logs
       if: ${{ always() }}
       run: |
+        set -o pipefail
+        if [ -f conformance_tests.log ]; then
+          echo "=== Conformance Tests Statistics ==="
+          # Extract failed/problematic tests and statistics (stops before build errors)
+          awk '/^(Failed Tests|Unexpectedly Passed Tests|Unresolved Tests|Timed Out Tests) \([0-9]+\):/{flag=1}/^Testing Time:/{flag=1}flag{if(NF>0&&!/^[ \t]/&&$0!~/^(Failed Tests|Unexpectedly Passed|Unresolved|Timed Out|Testing Time|Expected|Unexpected|Total Discovered|Unsupported Tests)/){exit};print}' conformance_tests.log || echo "No test statistics found"
+          echo ""
+        fi
         echo "::group::Show Full Conformance Tests Log"
         cat conformance_tests.log
         echo "::endgroup::"
@@ -178,8 +192,9 @@ jobs:
     - name: Report Test adapter specific summary
       if: ${{ (success() || failure()) && matrix.adapter.other_name == '' }}
       run: |
+        set -o pipefail
         if [ -f adapter_tests.log ]; then
-          bash devops/scripts/generate_test_summary.sh adapter_tests.log "Adapter Tests" >> $GITHUB_STEP_SUMMARY || echo "Failed to generate adapter tests summary"
+          timeout 120s bash devops/scripts/generate_test_summary.sh adapter_tests.log "Adapter Tests" >> $GITHUB_STEP_SUMMARY || echo "Failed to generate adapter tests summary"
         else
           echo "### Adapter Tests Summary" >> $GITHUB_STEP_SUMMARY
           echo "Log file not found" >> $GITHUB_STEP_SUMMARY
@@ -188,8 +203,9 @@ jobs:
     - name: Report Test adapters summary
       if: ${{ success() || failure() }}
       run: |
+        set -o pipefail
         if [ -f conformance_tests.log ]; then
-          bash devops/scripts/generate_test_summary.sh conformance_tests.log "Conformance Tests" >> $GITHUB_STEP_SUMMARY || echo "Failed to generate conformance tests summary"
+          timeout 120s bash devops/scripts/generate_test_summary.sh conformance_tests.log "Conformance Tests" >> $GITHUB_STEP_SUMMARY || echo "Failed to generate conformance tests summary"
         else
           echo "### Conformance Tests Summary" >> $GITHUB_STEP_SUMMARY
           echo "Log file not found" >> $GITHUB_STEP_SUMMARY

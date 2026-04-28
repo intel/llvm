@@ -1,5 +1,4 @@
 #!/bin/bash
-# shellcheck disable=SC2207
 
 # Generate test summary from LIT output log
 # Usage: generate_test_summary.sh <log_file> <test_type>
@@ -13,6 +12,16 @@ if [ -z "$LOG_FILE" ]; then
   echo "Usage: $0 <log_file> <test_type>" >&2
   exit 1
 fi
+
+# Basic input validation
+if [[ "$LOG_FILE" =~ [\;\&\|\`\$] ]]; then
+  echo "ERROR: Invalid characters in log file path" >&2
+  exit 1
+fi
+
+# Sanitize TEST_TYPE to prevent HTML/markdown injection
+# Allow only alphanumeric, spaces, hyphens, underscores
+TEST_TYPE=$(echo "$TEST_TYPE" | tr -cd '[:alnum:][:space:]-_' | tr -s ' ')
 
 if [ ! -f "$LOG_FILE" ]; then
   printf '### %s Summary\n\n' "$TEST_TYPE"
@@ -65,7 +74,7 @@ parse_results() {
 
 # Parse results with error handling
 if ! results=$(parse_results); then
-  printf "ERROR: Failed to parse test results from %s\n" "$LOG_FILE" >&2
+  printf 'ERROR: Failed to parse test results from %s\n' "$LOG_FILE" >&2
   exit 1
 fi
 
@@ -144,14 +153,37 @@ pass_count=${#pass_tests[@]}
 # Generate summary
 printf '### %s Summary\n' "$TEST_TYPE"
 
-# Show overall statistics if available
-if [ -n "$total_tests" ]; then
-  printf '\n**Total Discovered Tests:** %s\n\n' "$total_tests"
+# Show overall statistics
+if [ -n "$total_tests" ] && [ "$total_tests" -gt 0 ]; then
+  printf '\n**Total Discovered Tests:** %s\n' "$total_tests"
 fi
+if [ "$pass_count" -gt 0 ]; then
+  printf '**Passed:** %d\n' "$pass_count"
+fi
+if [ "$skip_count" -gt 0 ]; then
+  printf '**Skipped:** %d\n' "$skip_count"
+fi
+if [ "$fail_count" -gt 0 ]; then
+  printf '**Failed:** %d\n' "$fail_count"
+fi
+if [ "$xfail_count" -gt 0 ]; then
+  printf '**Expected Failures:** %d\n' "$xfail_count"
+fi
+if [ "$xpass_count" -gt 0 ]; then
+  printf '**Unexpected Passes:** %d\n' "$xpass_count"
+fi
+if [ "$unsup_count" -gt 0 ]; then
+  printf '**Unsupported:** %d\n' "$unsup_count"
+fi
+if [ "$timeout_count" -gt 0 ]; then
+  printf '**Timeouts:** %d\n' "$timeout_count"
+fi
+if [ "$unres_count" -gt 0 ]; then
+  printf '**Unresolved:** %d\n' "$unres_count"
+fi
+printf '\n'
 
-# Print results (priority order: critical issues first)
-# Critical issues (TIMEOUT, FAIL, XPASS) are open by default
-# Other categories are collapsed to save space
+# Detailed test lists by category (collapsed)
 
 # Helper function to print test list in code block
 print_test_list() {
@@ -206,26 +238,6 @@ for cat in "${category_order[@]}"; do
     printf '\n</details>\n'
   fi
 done
-
-# Total summary statistics
-# Use LIT-reported total if available, otherwise calculate from counts
-if [ -n "$total_tests" ] && [ "$total_tests" -gt 0 ]; then
-  total=$total_tests
-else
-  total=$((pass_count + fail_count + xfail_count + xpass_count + unsup_count + timeout_count + unres_count + skip_count))
-fi
-
-printf '\n\n### Testing Time Summary:\n'
-printf '  Total Discovered Tests: %d\n' "$total"
-printf '  Passed           : %d\n' "$pass_count"
-printf '  Failed           : %d\n' "$fail_count"
-printf '  Expected Failed  : %d\n' "$xfail_count"
-printf '  Unexpected Passed: %d\n' "$xpass_count"
-printf '  Unsupported      : %d\n' "$unsup_count"
-printf '  Timed Out        : %d\n' "$timeout_count"
-printf '  Unresolved       : %d\n' "$unres_count"
-printf '  Skipped          : %d\n' "$skip_count"
-printf '\n'
 
 # Exit with error if there are failures or timeouts
 if [ "$fail_count" -gt 0 ] || [ "$timeout_count" -gt 0 ]; then
