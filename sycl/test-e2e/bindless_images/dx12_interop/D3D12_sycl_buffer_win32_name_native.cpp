@@ -8,9 +8,6 @@
 // UNSUPPORTED: gpu-intel-gen12
 // UNSUPPORTED-TRACKER: GSD-12427
 
-// UNSUPPORTED: arch-intel_gpu_bmg_g21
-// UNSUPPORTED-TRACKER: GSD-12436
-
 // RUN: %{build} %link-directx -o %t.exe %if target-spir %{ -Wno-ignored-attributes %}
 // RUN: %{run} %t.exe --no-sem
 // RUN: %{run} %t.exe
@@ -19,8 +16,14 @@
 /*
   DirectX 12 / SYCL Buffer + Fence (Timeline) Interop Test - resource_win32_name
 
+  clang++.exe -fsycl -o dsbwnn.exe D3D12_sycl_buffer_win32_name_native.cpp -ld3d12 -ldxgi -ld3dcompiler
+
   Tests native resource_win32_name support in SYCL.
   SYCL runtime internally converts named handles to regular handles.
+
+  FLAGS: --no-sem       Don't use semaphores for SYCL/D3D12 synchronization
+         --iterations N  Number of iterations to run (default: 10)
+         --size M       Number of uint32_t elements in the buffer (default: 1024)
 */
 // clang-format on
 
@@ -84,7 +87,7 @@ D3D12NamedBuffer createNamedExportableBuffer(D3D12Context &ctx, size_t size,
     throw std::runtime_error("Failed to create named shared handle");
   }
 
-  std::wcout << L"[D3D12] Created named buffer: " << name << L"\n";
+  std::cout << "[D3D12] Created named buffer: " << name << std::endl;
 
   return result;
 }
@@ -108,7 +111,7 @@ D3D12NamedFence createNamedExportableFence(D3D12Context &ctx,
     throw std::runtime_error("Failed to create named shared fence handle");
   }
 
-  std::wcout << L"[D3D12] Created named fence: " << name << L"\n";
+  std::cout << "[D3D12] Created named fence: " << name << std::endl;
 
   return result;
 }
@@ -182,11 +185,12 @@ int main(int argc, char **argv) {
     auto context = q.get_context();
 
     std::cout << "[SYCL] Device: "
-              << device.get_info<sycl::info::device::name>() << "\n";
+              << device.get_info<sycl::info::device::name>() << std::endl;
 
     // Import buffers BY NAME using resource_win32_name
     // Pass D3D12 device pointer so SYCL can open the named handle
-    std::cout << "[SYCL] Importing input buffer by name (native support)\n";
+    std::cout << "[SYCL] Importing input buffer by name (native support)"
+              << std::endl;
     syclexp::external_mem_descriptor<syclexp::resource_win32_name> inDesc{
         {(const void *)inBuf.name.c_str(), d3dCtx.device.Get()},
         syclexp::external_mem_handle_type::win32_nt_handle,
@@ -194,7 +198,8 @@ int main(int argc, char **argv) {
     syclexp::external_mem inExtMem =
         syclexp::import_external_memory(inDesc, device, context);
 
-    std::cout << "[SYCL] Importing output buffer by name (native support)\n";
+    std::cout << "[SYCL] Importing output buffer by name (native support)"
+              << std::endl;
     syclexp::external_mem_descriptor<syclexp::resource_win32_name> outDesc{
         {(const void *)outBuf.name.c_str(), d3dCtx.device.Get()},
         syclexp::external_mem_handle_type::win32_nt_handle,
@@ -205,7 +210,8 @@ int main(int argc, char **argv) {
     // Import timeline fence BY NAME
     syclexp::external_semaphore syclSem{};
     if (useSemaphores) {
-      std::cout << "[SYCL] Importing fence by name (native support)\n";
+      std::cout << "[SYCL] Importing fence by name (native support)"
+                << std::endl;
       auto semDesc =
           syclexp::external_semaphore_descriptor<syclexp::resource_win32_name>{
               {(const void *)extFence.name.c_str(), d3dCtx.device.Get()},
@@ -218,7 +224,8 @@ int main(int argc, char **argv) {
     uint32_t *outPtr = static_cast<uint32_t *>(
         syclexp::map_external_linear_memory(outExtMem, 0, bufferSize, q));
 
-    std::cout << "[Test] Starting " << iterations << " iteration test...\n";
+    std::cout << "[Test] Starting " << iterations << " iteration test..."
+              << std::endl;
 
     for (int i = 1; i <= iterations; ++i) {
       uint64_t d3dSignalVal = (uint64_t)(2 * i - 1);
@@ -261,13 +268,13 @@ int main(int argc, char **argv) {
       d3dCtx.fence->SetEventOnCompletion(d3dCtx.fenceValue, d3dCtx.fenceEvent);
       WaitForSingleObject(d3dCtx.fenceEvent, INFINITE);
 
-      std::cout << "  [" << i << "] D3D12 upload done" << std::flush;
+      std::cout << "  [" << i << "] D3D12 upload done" << std::endl;
 
       // SYCL: Wait, execute, signal
       if (useSemaphores) {
-        std::cout << ", SYCL sem-wait(" << d3dSignalVal << ")..." << std::flush;
+        std::cout << ", SYCL sem-wait(" << d3dSignalVal << ")..." << std::endl;
         q.ext_oneapi_wait_external_semaphore(syclSem, d3dSignalVal);
-        std::cout << "ok" << std::flush;
+        std::cout << "ok" << std::endl;
       }
 
       q.submit([&](sycl::handler &h) {
@@ -278,12 +285,12 @@ int main(int argc, char **argv) {
       });
 
       if (useSemaphores) {
-        std::cout << ", SYCL sem-signal(" << syclSignalVal << ")" << std::flush;
+        std::cout << ", SYCL sem-signal(" << syclSignalVal << ")" << std::endl;
         q.ext_oneapi_signal_external_semaphore(syclSem, syclSignalVal);
-        std::cout << "ok" << std::flush;
+        std::cout << "ok" << std::endl;
       }
       q.wait();
-      std::cout << ", SYCL done" << std::flush;
+      std::cout << ", SYCL done" << std::endl;
 
       // D3D12: Readback and verify
       if (useSemaphores) {
@@ -311,7 +318,7 @@ int main(int argc, char **argv) {
       d3dCtx.cmdQueue->ExecuteCommandLists(1, ppCommandLists);
 
       // Host wait for readback
-      std::cout << ", d3d-fence..." << std::flush;
+      std::cout << ", d3d-fence..." << std::endl;
       d3dCtx.fenceValue++;
       d3dCtx.cmdQueue->Signal(d3dCtx.fence.Get(), d3dCtx.fenceValue);
       d3dCtx.fence->SetEventOnCompletion(d3dCtx.fenceValue, d3dCtx.fenceEvent);
@@ -331,14 +338,14 @@ int main(int argc, char **argv) {
         if (outData[j] != expected) {
           if (errors++ < 5)
             std::cerr << "  [" << j << "]: got " << outData[j] << " expected "
-                      << expected << "\n";
+                      << expected << std::endl;
         }
       }
       outStaging.resource->Unmap(0, nullptr);
 
       if (errors > 0) {
         std::cerr << "\nFAILURE at iteration " << i << ": " << errors
-                  << " mismatches\n";
+                  << " mismatches" << std::endl;
         return 1;
       }
 
@@ -353,12 +360,13 @@ int main(int argc, char **argv) {
       executeAndWait(d3dCtx);
 
       if (i % 5 == 0 || i == 1)
-        std::cout << " PASS\n";
+        std::cout << " PASS" << std::endl;
       else
-        std::cout << " ok\n";
+        std::cout << " ok" << std::endl;
     }
 
-    std::cout << "SUCCESS! All " << iterations << " iterations passed.\n";
+    std::cout << "SUCCESS! All " << iterations << " iterations passed."
+              << std::endl;
 
     // SYCL Cleanup - handles are automatically closed by release functions
     syclexp::unmap_external_linear_memory(inPtr, q);
@@ -369,7 +377,7 @@ int main(int argc, char **argv) {
     syclexp::release_external_memory(outExtMem, device, context);
 
   } catch (sycl::exception &e) {
-    std::cerr << "SYCL Exception: " << e.what() << "\n";
+    std::cerr << "SYCL Exception: " << e.what() << std::endl;
     return 1;
   }
 
