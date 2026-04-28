@@ -13,8 +13,6 @@
 #include <unordered_map>
 #include <utility>
 
-#define MAX_BACKTRACE_FRAMES 64
-
 namespace ur_validation_layer {
 
 struct RefCountContext {
