@@ -58,9 +58,11 @@ AsanInterceptor::~AsanInterceptor() {
 ///   R -- right redzone (0 or more bytes)
 ///
 /// ref: "compiler-rt/lib/asan/asan_allocator.cpp" Allocator::Allocate
-ur_result_t AsanInterceptor::allocateMemory(
-    ur_context_handle_t Context, ur_device_handle_t Device,
-    const AllocMemoryParams &Params, size_t Size, AllocType Type, void **ResultPtr) {
+ur_result_t AsanInterceptor::allocateMemory(ur_context_handle_t Context,
+                                            ur_device_handle_t Device,
+                                            const AllocMemoryParams &Params,
+                                            size_t Size, AllocType Type,
+                                            void **ResultPtr) {
 
   auto ContextInfo = getContextInfo(Context);
   std::shared_ptr<DeviceInfo> DeviceInfo =

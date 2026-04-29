@@ -210,8 +210,8 @@ private:
   static const uint32_t kSharedUSMIdMask = ((uint32_t)-1) >>
                                            (32 - kSharedUSMShift);
   static const uint32_t kLocalIdMask = ((uint32_t)-1) >> (32 - kLocalShift);
-  static const uint32_t kExportableMemIdMask =
-      ((uint32_t)-1) >> (32 - kExportableMemShift);
+  static const uint32_t kExportableMemIdMask = ((uint32_t)-1) >>
+                                               (32 - kExportableMemShift);
   static const uint32_t kChainedIdMask = ((uint32_t)-1) >> (32 - kDepthShift);
   static const uint32_t kStackIdMask = ((uint32_t)-1) >> (32 - kDepthShift);
 
