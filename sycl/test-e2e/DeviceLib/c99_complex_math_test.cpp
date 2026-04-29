@@ -58,7 +58,6 @@ float _Complex catanhf(float _Complex z);
 }
 
 namespace s = sycl;
-constexpr s::access::mode sycl_read = s::access::mode::read;
 constexpr s::access::mode sycl_write = s::access::mode::write;
 
 bool approx_equal_cmplx_f(float _Complex x, float _Complex y) {
