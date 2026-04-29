@@ -216,7 +216,7 @@ DEVICE_IMPL_TEMPLATE(TWO_ARGS, mul24, enable_upsample_t, [](auto... xs) {
 template <typename T0, typename T1>
 std::enable_if_t<detail::enable_upsample_v<T0, T1>,
                  detail::upsample_ret_type_t<T0>>
-  upsample(T0 x, T1 y) {
+upsample(T0 x, T1 y) {
   using namespace detail;
   if constexpr (is_vec_or_swizzle_v<T0> || is_marray_v<T0>) {
     return builtin_delegate_to_scalar(
