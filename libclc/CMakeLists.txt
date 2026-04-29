@@ -25,19 +25,7 @@ option(
 # List of all supported architectures.
 set( LIBCLC_ARCHS_ALL amdgpu amdgcn clspv clspv64 nvptx64 spirv spirv64 )
 
-# Handle both LLVM_RUNTIMES_TARGET (per-target builds) and LIBCLC_TARGETS_TO_BUILD (multi-target builds)
-if(LLVM_RUNTIMES_TARGET)
-  set(LIBCLC_TARGET ${LLVM_RUNTIMES_TARGET})
-elseif(LIBCLC_TARGETS_TO_BUILD)
-  # For multi-target builds, use the first target from the list
-  list(GET LIBCLC_TARGETS_TO_BUILD 0 LIBCLC_TARGET)
-  # Handle empty first element (from leading semicolon)
-  if(NOT LIBCLC_TARGET AND LIBCLC_TARGETS_TO_BUILD)
-    list(GET LIBCLC_TARGETS_TO_BUILD 1 LIBCLC_TARGET)
-  endif()
-else()
-  message(FATAL_ERROR "Neither LLVM_RUNTIMES_TARGET nor LIBCLC_TARGETS_TO_BUILD is set\n")
-endif()
+set(LIBCLC_TARGET ${LLVM_RUNTIMES_TARGET})
 
 if(NOT LIBCLC_TARGET)
   message(FATAL_ERROR "libclc target is empty\n")
@@ -164,8 +152,8 @@ add_custom_target( libclc ALL )
 add_custom_target( libclc-opencl-builtins COMMENT "Build libclc OpenCL builtins" )
 add_dependencies( libclc libclc-opencl-builtins )
 
-add_custom_target( libspirv-builtins COMMENT "Build libspirv builtins" )
-add_dependencies( libclc libspirv-builtins )
+add_custom_target(libspirv-builtins COMMENT "Build libspirv builtins")
+add_dependencies(libclc libspirv-builtins)
 
 # Determine the clang target triple.
 set(clang_triple ${LIBCLC_TARGET})
@@ -263,6 +251,23 @@ else()
     ${OPENCL_GENERIC_SOURCES} ${_opencl_overrides})
 endif()
 
+set(BUILD_LIBSPIRV FALSE)
+if (ARCH STREQUAL amdgcn OR ARCH STREQUAL nvptx64 OR ARCH STREQUAL native_cpu)
+  set(BUILD_LIBSPIRV TRUE)
+
+  # Collect libspirv sources.
+  set(_libspirv_overrides)
+  if(ARCH STREQUAL amdgcn)
+    list(APPEND _libspirv_overrides ${LISPIRV_AMDGCN_SOURCES})
+  elseif(ARCH STREQUAL nvptx64)
+    list(APPEND _libspirv_overrides ${LISPIRV_PTX_NVIDIACL_SOURCES})
+  elseif(ARCH STREQUAL native_cpu)
+    list(APPEND _libspirv_overrides ${LISPIRV_NATIVE_CPU_SOURCES})
+  endif()
+  libclc_merge_sources(libspirv_sources
+    ${LISPIRV_GENERIC_SOURCES} ${_libspirv_overrides})
+endif()
+
 # Common compile options shared by CLC and OpenCL libraries.
 set(compile_flags
   -flto
@@ -315,26 +320,6 @@ add_libclc_library(libclc-${LIBCLC_TARGET}
   OUTPUT_FILENAME libclc
   PARENT_TARGET libclc-opencl-builtins
 )
-
-# Build libspirv for SYCL-specific targets (amdgcn-amd-amdhsa-llvm, nvptx64-nvidia-cuda, native_cpu)
-set(BUILD_LIBSPIRV FALSE)
-if(LIBCLC_TARGET STREQUAL "amdgcn-amd-amdhsa-llvm" OR
-   LIBCLC_TARGET STREQUAL "nvptx64-nvidia-cuda" OR
-   LIBCLC_TARGET STREQUAL "native_cpu")
-  set(BUILD_LIBSPIRV TRUE)
-
-  # Collect libspirv sources.
-  set(_libspirv_overrides)
-  if(ARCH STREQUAL amdgcn)
-    list(APPEND _libspirv_overrides ${LISPIRV_AMDGCN_SOURCES})
-  elseif(ARCH STREQUAL nvptx64)
-    list(APPEND _libspirv_overrides ${LISPIRV_PTX_NVIDIACL_SOURCES})
-  elseif(LIBCLC_TARGET STREQUAL "native_cpu")
-    list(APPEND _libspirv_overrides ${LISPIRV_NATIVE_CPU_SOURCES})
-  endif()
-  libclc_merge_sources(libspirv_sources
-    ${LISPIRV_GENERIC_SOURCES} ${_libspirv_overrides})
-endif()
 
 if(BUILD_LIBSPIRV)
   # Build base libspirv library
