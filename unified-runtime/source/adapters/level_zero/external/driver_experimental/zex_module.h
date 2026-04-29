@@ -1,9 +1,7 @@
-/*
- * Copyright (C) 2020-2025 Intel Corporation
- *
- * SPDX-License-Identifier: MIT
- *
- */
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
+//
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #ifndef _ZEX_MODULE_H
 #define _ZEX_MODULE_H
@@ -11,21 +9,23 @@
 #pragma once
 #endif
 
+#include "level_zero/ze_stypes.h"
 #include <level_zero/ze_api.h>
 
 #if defined(__cplusplus)
 extern "C" {
 #endif
 
-ZE_APIEXPORT ze_result_t ZE_APICALL
-zexKernelGetBaseAddress(ze_kernel_handle_t hKernel, uint64_t *baseAddress);
+ze_result_t ZE_APICALL zexKernelGetBaseAddress(ze_kernel_handle_t hKernel,
+                                               uint64_t *baseAddress);
 
-ZE_APIEXPORT ze_result_t ZE_APICALL zexKernelGetArgumentSize(
-    ze_kernel_handle_t hKernel, uint32_t argIndex, uint32_t *pArgSize);
+ze_result_t ZE_APICALL zexKernelGetArgumentSize(ze_kernel_handle_t hKernel,
+                                                uint32_t argIndex,
+                                                uint32_t *pArgSize);
 
-ZE_APIEXPORT ze_result_t ZE_APICALL
-zexKernelGetArgumentType(ze_kernel_handle_t hKernel, uint32_t argIndex,
-                         uint32_t *pSize, char *pString);
+ze_result_t ZE_APICALL zexKernelGetArgumentType(ze_kernel_handle_t hKernel,
+                                                uint32_t argIndex,
+                                                uint32_t *pSize, char *pString);
 
 #if defined(__cplusplus)
 } // extern "C"

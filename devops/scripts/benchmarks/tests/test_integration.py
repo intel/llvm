@@ -1,6 +1,5 @@
-# Copyright (C) 2025-2026 Intel Corporation
-# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
-# See LICENSE.TXT
+# Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+# See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import argparse
@@ -226,16 +225,16 @@ class TestE2E(unittest.TestCase):
         )
 
     def test_torch_l0(self):
-        # self._checkCase(
-        #     "torch_benchmark_l0 KernelSubmitEventRecordWait KernelWGCount 256, KernelWGSize 512, Profiling 0",
-        #     "KernelSubmitEventRecordWait medium",
-        #     {"pytorch", "L0"},
-        # )
-        # self._checkCase(
-        #     "torch_benchmark_l0 KernelSubmitEventRecordQuery EventQueryIterations 1000, KernelWGCount 256, KernelWGSize 512, Profiling 0 CPU count",
-        #     "KernelSubmitEventRecordQuery medium, CPU count",
-        #     {"pytorch", "L0"},
-        # )
+        self._checkCase(
+            "torch_benchmark_l0 KernelSubmitEventRecordWait KernelWGCount 256, KernelWGSize 512, Profiling 0",
+            "KernelSubmitEventRecordWait medium",
+            {"pytorch", "L0"},
+        )
+        self._checkCase(
+            "torch_benchmark_l0 KernelSubmitEventRecordQuery EventQueryIterations 1000, KernelWGCount 256, KernelWGSize 512, Profiling 0 CPU count",
+            "KernelSubmitEventRecordQuery medium, CPU count",
+            {"pytorch", "L0"},
+        )
         self._checkCase(
             "torch_benchmark_l0 KernelSubmitSingleQueue KernelDataType Int32, KernelWGCount 4096, KernelWGSize 512",
             "KernelSubmitSingleQueue Int32Large",
@@ -248,16 +247,16 @@ class TestE2E(unittest.TestCase):
             {"pytorch", "L0"},
             "--test=KernelSubmitSingleQueue.*--profilerType=cpuCounter",
         )
-        # self._checkCase(
-        #     "torch_benchmark_l0 KernelSubmitMultiQueue KernelsPerQueue 20, MeasureCompletionTime 0",
-        #     "KernelSubmitMultiQueue large",
-        #     {"pytorch", "L0"},
-        # )
-        # self._checkCase(
-        #     "torch_benchmark_l0 KernelSubmitMultiQueue KernelsPerQueue 20, MeasureCompletionTime 1 CPU count",
-        #     "KernelSubmitMultiQueue large with measure completion, CPU count",
-        #     {"pytorch", "L0"},
-        # )
+        self._checkCase(
+            "torch_benchmark_l0 KernelSubmitMultiQueue KernelsPerQueue 20, MeasureCompletionTime 0",
+            "KernelSubmitMultiQueue large",
+            {"pytorch", "L0"},
+        )
+        self._checkCase(
+            "torch_benchmark_l0 KernelSubmitMultiQueue KernelsPerQueue 20, MeasureCompletionTime 1 CPU count",
+            "KernelSubmitMultiQueue large with measure completion, CPU count",
+            {"pytorch", "L0"},
+        )
         self._checkCase(
             "torch_benchmark_l0 KernelSubmitSlmSize MeasureCompletionTime 1, SlmNum 1",
             "KernelSubmitSlmSize small with measure completion",

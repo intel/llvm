@@ -376,9 +376,10 @@ public:
   }
 
   event submit_barrier_direct_with_event(sycl::span<const event> DepEvents,
+                                         detail::CGType BarrierType,
                                          const detail::code_location &CodeLoc) {
     detail::EventImplPtr EventImpl =
-        submit_barrier_direct_impl(DepEvents, CodeLoc);
+        submit_barrier_direct_impl(DepEvents, BarrierType, CodeLoc);
     return createSyclObjFromImpl<event>(std::move(EventImpl));
   }
 
@@ -424,6 +425,10 @@ public:
       bool EventNeeded, detail::kernel_impl *KernelImplPtr,
       detail::kernel_bundle_impl *KernelBundleImpPtr,
       const detail::code_location &CodeLoc, bool IsTopCodeLoc);
+
+  EventImplPtr submit_barrier_scheduler_bypass(
+      std::vector<detail::EventImplPtr> &BarrierDepEvents,
+      std::vector<detail::EventImplPtr> &DepEvents, detail::CGType BarrierType);
 
   /// Performs a blocking wait for the completion of all enqueued tasks in the
   /// queue.
@@ -960,6 +965,7 @@ protected:
   ///
   /// \return a SYCL event representing submitted command group or nullptr.
   EventImplPtr submit_barrier_direct_impl(sycl::span<const event> DepEvents,
+                                          detail::CGType BarrierType,
                                           const detail::code_location &CodeLoc);
 
   /// Helper function for submitting a memory operation with a handler.

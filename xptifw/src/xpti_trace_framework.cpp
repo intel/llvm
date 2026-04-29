@@ -140,6 +140,12 @@ xpti::utils::SpinLock g_framework_mutex;
 /// This variable represents the default stream ID in the XPTI trace framework.
 uint8_t g_default_stream_id = 0;
 
+/// @var STREAM_ID_MAX
+/// @brief This variable represents the maximum stream ID in the XPTI trace
+/// framework, inclusive. Since stream IDs are represented as uint8_t, the
+/// maximum value is 255.
+constexpr uint8_t STREAM_ID_MAX = 255;
+
 /// @var g_default_event_type
 /// @brief A variable of type xpti::trace_event_type_t, initialized with
 /// xpti::trace_event_type_t::algorithm. This variable represents the default
@@ -392,6 +398,8 @@ public:
     xpti::plugin_init_t init = nullptr;
     /// The finalization entry point
     xpti::plugin_fini_t fini = nullptr;
+    /// Optional callback for querying stream detail level (optional)
+    xpti::query_subscriber_stream_detail_level_t query_detail_level = nullptr;
     /// The name of the shared object (in UTF8?))
     std::string name;
     /// indicates whether the data structure is valid
@@ -399,7 +407,7 @@ public:
   };
 
   // Data structures defined to hold the plugin data that can be looked up by
-  // plugin name or the handle
+  // plugin name or library handle
   using plugin_handle_lut_t = std::map<xpti_plugin_handle_t, plugin_data_t>;
   using plugin_name_lut_t = std::map<std::string, plugin_data_t>;
 
@@ -463,13 +471,20 @@ public:
           g_helper.findFunction(Handle, "xptiTraceFinish"));
       if (InitFunc && FiniFunc) {
         //  We appear to have loaded a valid plugin, so we will insert the
-        //  plugin information into the two maps guarded by a lock
+        //  plugin information into the maps guarded by a lock
         plugin_data_t Data;
         Data.valid = true;
         Data.handle = Handle;
         Data.name = Path;
         Data.init = InitFunc;
         Data.fini = FiniFunc;
+
+        // Look for optional detail level query callback
+        Data.query_detail_level =
+            reinterpret_cast<xpti::query_subscriber_stream_detail_level_t>(
+                g_helper.findFunction(Handle,
+                                      "xptiQuerySubscriberStreamDetailLevel"));
+
         {
           std::lock_guard<std::mutex> Lock(MMutex);
           MNameLUT[Path] = Data;
@@ -585,6 +600,28 @@ public:
     }
     MHandleLUT.clear();
     MNameLUT.clear();
+  }
+
+  /// Query all subscribers for requested detail level, return max.
+  xpti::stream_detail_level_t
+  querySubscribersForStreamDetailLevel(const char *stream_name) {
+    std::lock_guard<std::mutex> Lock(MMutex);
+
+    xpti::stream_detail_level_t max_level =
+        xpti::stream_detail_level_t::XPTI_STREAM_DETAIL_LEVEL_NONE;
+
+    for (const auto &handle_entry : MHandleLUT) {
+      const plugin_data_t &plugin = handle_entry.second;
+      xpti::stream_detail_level_t sub_level =
+          xpti::stream_detail_level_t::XPTI_STREAM_DETAIL_LEVEL_NORMAL;
+      if (plugin.query_detail_level)
+        plugin.query_detail_level(stream_name, &sub_level);
+
+      if (static_cast<uint8_t>(sub_level) > static_cast<uint8_t>(max_level))
+        max_level = sub_level;
+    }
+
+    return max_level;
   }
 
 private:
@@ -862,6 +899,8 @@ public:
     if (!UId)
       return nullptr;
 
+    xpti::SharedLock Lock(MTracepointMutex);
+
     if (MUID64Check.count(UId) == 0)
       return nullptr;
 
@@ -914,6 +953,8 @@ public:
     if (!Event || Event->unique_id == xpti::invalid_uid)
       return;
 
+    std::lock_guard<xpti::SharedSpinLock> Lock(MTracepointMutex);
+
     if (MUID64Check.count(Event->unique_id) == 0)
       return;
 
@@ -922,18 +963,15 @@ public:
         reinterpret_cast<xpti::TracePointImpl *>(Event->unique_id);
 
     xpti::uid128_t UId = TP->MUId;
-    {
-      std::lock_guard<xpti::SharedSpinLock> Lock(MTracepointMutex);
-      // Find the event list for a given UID
-      auto &Instances = MTracepoints[UId];
-      MUID64Check.erase(UId.uid64);
-      // Now release the event associated with the UID instance
-      delete Instances[UId.instance];
-      Instances.erase(UId.instance);
-      // If there are no more events associated with the UID, we can release
-      // the Payload as well, but we will not as the same payload may be
-      // revisited and we need to keep the instance count going
-    }
+    // Find the event list for a given UID
+    auto &Instances = MTracepoints[UId];
+    MUID64Check.erase(UId.uid64);
+    // Now release the event associated with the UID instance
+    delete Instances[UId.instance];
+    Instances.erase(UId.instance);
+    // If there are no more events associated with the UID, we can release
+    // the Payload as well, but we will not as the same payload may be
+    // revisited and we need to keep the instance count going
   }
 
   /// @brief Adds metadata to a trace event.
@@ -1166,9 +1204,9 @@ public:
       return xpti::result_t::XPTI_RESULT_INVALIDARG;
 
     {
-      xpti::uid128_t UId = TP->MUId;
       // Lock the mutex to ensure thread-safe access to the tracepoints map
       std::lock_guard<xpti::SharedSpinLock> Lock(MTracepointMutex);
+      xpti::uid128_t UId = TP->MUId;
       // Find the tracepoint for a given UID
       auto &Instances = MTracepoints[UId];
       // Now release the 64-bit UID associated with tracepoint instance
@@ -1316,7 +1354,55 @@ public:
   /// @return Returns true if the UID exists in the set, indicating it is valid;
   ///         otherwise, returns false.
   ///
-  bool isValidUID64(uint64_t UId) { return (MUID64Check.count(UId) > 0); }
+  bool isValidUID64(uint64_t UId) {
+    xpti::SharedLock Lock(MTracepointMutex);
+    return (MUID64Check.count(UId) > 0);
+  }
+
+  const xpti::trace_event_data_t *findEvent(uint64_t UId) {
+    if (UId == xpti::invalid_uid)
+      return nullptr;
+
+    xpti::SharedLock Lock(MTracepointMutex);
+
+    if (MUID64Check.count(UId) == 0)
+      return nullptr;
+
+    xpti::TracePointImpl *TP = reinterpret_cast<xpti::TracePointImpl *>(UId);
+    if (TP && xpti::is_valid_event(&TP->MEvent))
+      return &TP->MEvent;
+    return nullptr;
+  }
+
+  const xpti::payload_t *queryPayloadByUID(uint64_t UId) {
+    if (UId == xpti::invalid_uid)
+      return nullptr;
+
+    xpti::SharedLock Lock(MTracepointMutex);
+
+    if (MUID64Check.count(UId) == 0)
+      return nullptr;
+
+    xpti::TracePointImpl *TP = reinterpret_cast<xpti::TracePointImpl *>(UId);
+    if (TP && xpti::is_valid_payload(&TP->MPayload))
+      return &TP->MPayload;
+    return nullptr;
+  }
+
+  const xpti_payload_t *lookupPayload(uint64_t UId) {
+    if (UId == xpti::invalid_uid)
+      return nullptr;
+
+    xpti::SharedLock Lock(MTracepointMutex);
+
+    if (MUID64Check.count(UId) == 0)
+      return nullptr;
+
+    xpti::TracePointImpl *TP = reinterpret_cast<xpti::TracePointImpl *>(UId);
+    if (TP && xpti::is_valid_payload(&TP->MPayload))
+      return TP->payload();
+    return nullptr;
+  }
 
 private:
   /// @brief Registers an event with a given payload and returns the event
@@ -1979,6 +2065,15 @@ public:
     MSubscribers.loadFromEnvironmentVariable();
     MTraceEnabled =
         (g_helper.checkTraceEnv() && MSubscribers.hasValidSubscribers());
+
+    // Initialize all effective stream detail levels to default (NORMAL)
+    for (size_t i = 0; i <= STREAM_ID_MAX; ++i) {
+      MEffectiveStreamDetailLevels[i].store(
+          static_cast<uint8_t>(
+              xpti::stream_detail_level_t::XPTI_STREAM_DETAIL_LEVEL_NORMAL),
+          std::memory_order_relaxed);
+    }
+
     //  We create a default stream "xpti.framework" and save it in
     //  `g_default_stream
     g_default_stream_id = registerStream(g_default_stream);
@@ -2000,6 +2095,13 @@ public:
     MTracepoints.clear();
     MStringTableRef.clear();
     MNotifier.clear();
+    // Reset all effective levels to default
+    for (size_t i = 0; i <= STREAM_ID_MAX; ++i) {
+      MEffectiveStreamDetailLevels[i].store(
+          static_cast<uint8_t>(
+              xpti::stream_detail_level_t::XPTI_STREAM_DETAIL_LEVEL_NORMAL),
+          std::memory_order_relaxed);
+    }
   }
 
   /// @brief Enables or disables tracing globally.
@@ -2217,19 +2319,7 @@ public:
   /// nullptr otherwise.
   ///
   inline const xpti::trace_event_data_t *findEvent(uint64_t UniversalID) {
-    if (UniversalID == xpti::invalid_uid)
-      return nullptr;
-
-    if (MTracepoints.isValidUID64(UniversalID)) {
-      xpti::TracePointImpl *TP =
-          reinterpret_cast<xpti::TracePointImpl *>(UniversalID);
-      if (TP && xpti::is_valid_event(&TP->MEvent))
-        return &TP->MEvent;
-      else
-        return nullptr;
-    }
-
-    return nullptr;
+    return MTracepoints.findEvent(UniversalID);
   }
 
   ///
@@ -2271,8 +2361,15 @@ public:
     if (!Stream || !VersionString)
       return xpti::result_t::XPTI_RESULT_INVALIDARG;
 
+    // Initialize subscribers for the stream
     MSubscribers.initializeForStream(Stream, MajorRevision, MinorRevision,
                                      VersionString);
+
+    // Query subscribers for their requested detail level and compute effective
+    // level
+    xpti::stream_id_t stream_id = registerStream(Stream);
+    computeEffectiveStreamDetailLevel(stream_id, Stream);
+
     return xpti::result_t::XPTI_RESULT_SUCCESS;
   }
 
@@ -2474,6 +2571,42 @@ public:
 
   bool hasSubscribers() { return MSubscribers.hasValidSubscribers(); }
 
+  /// @brief Computes effective detail level by querying all subscribers.
+  ///
+  /// Queries all registered subscribers for their requested detail level for
+  /// the given stream and caches the maximum (most verbose) level requested.
+  /// This allows lock-free reads via getEffectiveStreamDetailLevel.
+  ///
+  /// @param stream The stream ID to compute.
+  /// @param stream_name The stream name for querying subscribers.
+  void computeEffectiveStreamDetailLevel(xpti::stream_id_t stream,
+                                         const char *stream_name) {
+    // Query all subscribers for their requested detail level for this stream
+    xpti::stream_detail_level_t max_level =
+        MSubscribers.querySubscribersForStreamDetailLevel(stream_name);
+
+    // Update the cached effective level atomically
+    MEffectiveStreamDetailLevels[stream].store(static_cast<uint8_t>(max_level),
+                                               std::memory_order_release);
+  }
+
+  /// @brief Gets the effective stream detail level for a stream.
+  ///
+  /// The effective detail level is the maximum requested level across all
+  /// subscribers for the given stream. If no subscriber has set a level for
+  /// the stream, the default (NORMAL) is returned.
+  ///
+  /// @param stream The stream ID for which the effective detail level is
+  ///               requested.
+  ///
+  /// @return The effective detail level for the stream.
+  xpti::stream_detail_level_t
+  getEffectiveStreamDetailLevel(xpti::stream_id_t stream) {
+    uint8_t level =
+        MEffectiveStreamDetailLevels[stream].load(std::memory_order_acquire);
+    return static_cast<xpti::stream_detail_level_t>(level);
+  }
+
   xpti::result_t finalizeStream(const char *Stream) {
     if (!Stream)
       return xpti::result_t::XPTI_RESULT_INVALIDARG;
@@ -2486,26 +2619,11 @@ public:
   }
 
   const xpti::payload_t *queryPayloadByUID(uint64_t uid) {
-    if (uid == xpti::invalid_uid)
-      return nullptr;
-    if (!MTracepoints.isValidUID64(uid))
-      return nullptr;
-
-    xpti::TracePointImpl *TP = reinterpret_cast<xpti::TracePointImpl *>(uid);
-    if (xpti::is_valid_payload(&TP->MPayload))
-      return &TP->MPayload;
-
-    return nullptr;
+    return MTracepoints.queryPayloadByUID(uid);
   }
 
   inline const xpti_payload_t *lookupPayload(uint64_t uid) {
-    if (!MTracepoints.isValidUID64(uid))
-      return nullptr;
-    xpti::TracePointImpl *TP = reinterpret_cast<xpti::TracePointImpl *>(uid);
-    if (TP && xpti::is_valid_payload(&TP->MPayload))
-      return TP->payload();
-    else
-      return nullptr;
+    return MTracepoints.lookupPayload(uid);
   }
 
   void printStatistics() {
@@ -2577,6 +2695,10 @@ private:
   xpti::Tracepoints MTracepoints;
   /// Flag indicates whether tracing should be enabled
   bool MTraceEnabled;
+  /// Cached effective detail levels per stream (indexed by stream_id)
+  /// Lock-free array of atomics for fast reads by producers
+  std::array<std::atomic<uint8_t>, STREAM_ID_MAX + 1>
+      MEffectiveStreamDetailLevels;
 };
 
 /// @var static int GFrameworkReferenceCounter
@@ -3730,6 +3852,11 @@ xptiSetDefaultTraceType(xpti::trace_point_type_t DefaultTraceType) {
 
 XPTI_EXPORT_API void xptiReleaseEvent(xpti::trace_event_data_t *Event) {
   return xpti::Framework::instance().releaseEvent(Event);
+}
+
+XPTI_EXPORT_API xpti::stream_detail_level_t
+xptiGetEffectiveStreamDetailLevel(xpti::stream_id_t stream) {
+  return xpti::Framework::instance().getEffectiveStreamDetailLevel(stream);
 }
 
 } // extern "C"

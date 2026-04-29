@@ -189,6 +189,8 @@ int runTest(
     sycl::image_channel_type syclType = syclOverride.has_value()
                                             ? syclOverride.value()
                                             : getSyclChannelType<T>();
+    // bindless image ranges use (x,y,z) order,
+    // differening from SYCL 2020 "fastest incrementing" convention.
     syclexp::image_descriptor imgDesc(sycl::range<3>(width, height, depth),
                                       channels, syclType);
     syclexp::image_mem_handle devHandle = syclexp::map_external_image_memory(
@@ -198,10 +200,12 @@ int runTest(
 
     sycl::event kernelEvent = q.submit([&](sycl::handler &h) {
       h.parallel_for(
-          sycl::range<3>(width, height, depth), [=](sycl::item<3> item) {
-            int x = item.get_id(0);
+          // ranges for parallel_for use "fastest incrementing" order (z,y,x),
+          // but bindless images ranges use (x,y,z) order.
+          sycl::range<3>(depth, height, width), [=](sycl::item<3> item) {
+            int x = item.get_id(2);
             int y = item.get_id(1);
-            int z = item.get_id(2);
+            int z = item.get_id(0);
             size_t index = z * width * height + y * width + x;
             size_t totalPixels = width * height * depth;
 

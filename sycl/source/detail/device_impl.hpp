@@ -1164,6 +1164,48 @@ public:
                         "ext_intel_device_info_node_mask aspect");
       return get_info_impl<UR_DEVICE_INFO_NODE_MASK>();
     }
+    CASE(ext::intel::info::device::xe_stack_count) {
+      if (!has(aspect::ext_intel_xe_stack_count))
+        throw exception(make_error_code(errc::feature_not_supported),
+                        "The device does not have the "
+                        "ext_intel_xe_stack_count aspect");
+      return get_info_impl<UR_DEVICE_INFO_XE_STACK_COUNT>();
+    }
+    CASE(ext::intel::info::device::xe_regions_per_stack) {
+      if (!has(aspect::ext_intel_xe_regions_per_stack))
+        throw exception(make_error_code(errc::feature_not_supported),
+                        "The device does not have the "
+                        "ext_intel_xe_regions_per_stack aspect");
+      return get_info_impl<UR_DEVICE_INFO_XE_REGIONS_PER_STACK>();
+    }
+    CASE(ext::intel::info::device::xe_clusters_per_region) {
+      if (!has(aspect::ext_intel_xe_clusters_per_region))
+        throw exception(make_error_code(errc::feature_not_supported),
+                        "The device does not have the "
+                        "ext_intel_xe_clusters_per_region aspect");
+      return get_info_impl<UR_DEVICE_INFO_XE_CLUSTERS_PER_REGION>();
+    }
+    CASE(ext::intel::info::device::xe_cores_per_cluster) {
+      if (!has(aspect::ext_intel_xe_cores_per_cluster))
+        throw exception(make_error_code(errc::feature_not_supported),
+                        "The device does not have the "
+                        "ext_intel_xe_cores_per_cluster aspect");
+      return get_info_impl<UR_DEVICE_INFO_XE_CORES_PER_CLUSTER>();
+    }
+    CASE(ext::intel::info::device::eus_per_xe_core) {
+      if (!has(aspect::ext_intel_eus_per_xe_core))
+        throw exception(make_error_code(errc::feature_not_supported),
+                        "The device does not have the "
+                        "ext_intel_eus_per_xe_core aspect");
+      return get_info_impl<UR_DEVICE_INFO_EUS_PER_XE_CORE>();
+    }
+    CASE(ext::intel::info::device::max_lanes_per_hw_thread) {
+      if (!has(aspect::ext_intel_max_lanes_per_hw_thread))
+        throw exception(make_error_code(errc::feature_not_supported),
+                        "The device does not have the "
+                        "ext_intel_max_lanes_per_hw_thread aspect");
+      return get_info_impl<UR_DEVICE_INFO_MAX_LANES_PER_HW_THREAD>();
+    }
     else {
       constexpr auto Desc = UrInfoCode<Param>::value;
       return static_cast<typename Param::return_type>(get_info_impl<Desc>());
@@ -1287,6 +1329,24 @@ public:
     CASE(ext_intel_power_limits) {
       return has_info_desc(UR_DEVICE_INFO_MIN_POWER_LIMIT) &&
              has_info_desc(UR_DEVICE_INFO_MAX_POWER_LIMIT);
+    }
+    CASE(ext_intel_xe_stack_count) {
+      return has_info_desc(UR_DEVICE_INFO_XE_STACK_COUNT);
+    }
+    CASE(ext_intel_xe_regions_per_stack) {
+      return has_info_desc(UR_DEVICE_INFO_XE_REGIONS_PER_STACK);
+    }
+    CASE(ext_intel_xe_clusters_per_region) {
+      return has_info_desc(UR_DEVICE_INFO_XE_CLUSTERS_PER_REGION);
+    }
+    CASE(ext_intel_xe_cores_per_cluster) {
+      return has_info_desc(UR_DEVICE_INFO_XE_CORES_PER_CLUSTER);
+    }
+    CASE(ext_intel_eus_per_xe_core) {
+      return has_info_desc(UR_DEVICE_INFO_EUS_PER_XE_CORE);
+    }
+    CASE(ext_intel_max_lanes_per_hw_thread) {
+      return has_info_desc(UR_DEVICE_INFO_MAX_LANES_PER_HW_THREAD);
     }
     CASE(ext_oneapi_srgb) { return get_info<info::device::ext_oneapi_srgb>(); }
     CASE(ext_oneapi_native_assert) {
@@ -2294,7 +2354,13 @@ private:
           aspect::ext_oneapi_bindless_images,
           aspect::ext_oneapi_bindless_images_1d_usm,
           aspect::ext_oneapi_bindless_images_2d_usm,
-          aspect::ext_oneapi_is_composite, aspect::ext_oneapi_is_component>>
+          aspect::ext_oneapi_is_composite, aspect::ext_oneapi_is_component,
+          aspect::ext_intel_xe_stack_count,
+          aspect::ext_intel_xe_regions_per_stack,
+          aspect::ext_intel_xe_clusters_per_region,
+          aspect::ext_intel_xe_cores_per_cluster,
+          aspect::ext_intel_eus_per_xe_core,
+          aspect::ext_intel_max_lanes_per_hw_thread>>
       MCache;
 
   const size_t MIndexWithinPlatform = 0;

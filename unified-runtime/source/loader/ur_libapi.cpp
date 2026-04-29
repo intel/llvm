@@ -1,9 +1,8 @@
 /*
  *
- * Copyright (C) 2022 Intel Corporation
  *
- * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
- * Exceptions. See LICENSE.TXT
+ * Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+ * See https://llvm.org/LICENSE.txt for license information.
  *
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
@@ -11283,6 +11282,36 @@ ur_result_t UR_APICALL urQueueIsGraphCaptureEnabledExp(
     return UR_RESULT_ERROR_UNINITIALIZED;
 
   return pfnIsGraphCaptureEnabledExp(hQueue, pResult);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Get the graph handle currently being captured on the specified queue.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hQueue`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == phGraph`
+///     - ::UR_RESULT_ERROR_INVALID_OPERATION
+///         + The queue is not in graph capture mode.
+ur_result_t UR_APICALL urQueueGetGraphExp(
+    /// [in] Handle of the queue to query.
+    ur_queue_handle_t hQueue,
+    /// [out] Pointer to the handle of the graph being captured. Set to
+    /// nullptr if queue is not in capture mode.
+    ur_exp_graph_handle_t *phGraph) try {
+  auto pfnGetGraphExp =
+      ur_lib::getContext()->urDdiTable.QueueExp.pfnGetGraphExp;
+  if (nullptr == pfnGetGraphExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  return pfnGetGraphExp(hQueue, phGraph);
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }

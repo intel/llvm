@@ -81,6 +81,7 @@
 ??$get_info_impl@Udouble_fp_config@device@info@_V1@sycl@@@device@_V1@sycl@@AEBA?AV?$vector@W4fp_config@info@_V1@sycl@@V?$allocator@W4fp_config@info@_V1@sycl@@@std@@@std@@XZ
 ??$get_info_impl@Udriver_version@device@info@_V1@sycl@@@device@_V1@sycl@@AEBA?AVstring@detail@12@XZ
 ??$get_info_impl@Uerror_correction_support@device@info@_V1@sycl@@@device@_V1@sycl@@AEBA_NXZ
+??$get_info_impl@Ueus_per_xe_core@device@info@intel@ext@_V1@sycl@@@device@_V1@sycl@@AEBAIXZ
 ??$get_info_impl@Uexecution_capabilities@device@info@_V1@sycl@@@device@_V1@sycl@@AEBA?AV?$vector@W4execution_capability@info@_V1@sycl@@V?$allocator@W4execution_capability@info@_V1@sycl@@@std@@@std@@XZ
 ??$get_info_impl@Uext_intel_device_info_uuid@device@info@_V1@sycl@@@device@_V1@sycl@@AEBA?AV?$array@E$0BA@@std@@XZ
 ??$get_info_impl@Uext_intel_gpu_eu_count@device@info@_V1@sycl@@@device@_V1@sycl@@AEBAIXZ
@@ -141,6 +142,7 @@
 ??$get_info_impl@Umax_image_linear_height@device@info@experimental@oneapi@ext@_V1@sycl@@@device@_V1@sycl@@AEBA_KXZ
 ??$get_info_impl@Umax_image_linear_row_pitch@device@info@experimental@oneapi@ext@_V1@sycl@@@device@_V1@sycl@@AEBA_KXZ
 ??$get_info_impl@Umax_image_linear_width@device@info@experimental@oneapi@ext@_V1@sycl@@@device@_V1@sycl@@AEBA_KXZ
+??$get_info_impl@Umax_lanes_per_hw_thread@device@info@intel@ext@_V1@sycl@@@device@_V1@sycl@@AEBAIXZ
 ??$get_info_impl@Umax_mem_alloc_size@device@info@_V1@sycl@@@device@_V1@sycl@@AEBA_KXZ
 ??$get_info_impl@Umax_mem_bandwidth@device@info@intel@ext@_V1@sycl@@@device@_V1@sycl@@AEBA_KXZ
 ??$get_info_impl@Umax_num_sub_groups@device@info@_V1@sycl@@@device@_V1@sycl@@AEBAIXZ
@@ -209,6 +211,10 @@
 ??$get_info_impl@Uvendor_id@device@info@_V1@sycl@@@device@_V1@sycl@@AEBAIXZ
 ??$get_info_impl@Uversion@device@info@_V1@sycl@@@device@_V1@sycl@@AEBA?AVstring@detail@12@XZ
 ??$get_info_impl@Uversion@platform@info@_V1@sycl@@@platform@_V1@sycl@@AEBA?AVstring@detail@12@XZ
+??$get_info_impl@Uxe_clusters_per_region@device@info@intel@ext@_V1@sycl@@@device@_V1@sycl@@AEBAIXZ
+??$get_info_impl@Uxe_cores_per_cluster@device@info@intel@ext@_V1@sycl@@@device@_V1@sycl@@AEBAIXZ
+??$get_info_impl@Uxe_regions_per_stack@device@info@intel@ext@_V1@sycl@@@device@_V1@sycl@@AEBAIXZ
+??$get_info_impl@Uxe_stack_count@device@info@intel@ext@_V1@sycl@@@device@_V1@sycl@@AEBAIXZ
 ??$get_profiling_info@Ucommand_end@event_profiling@info@_V1@sycl@@@event@_V1@sycl@@QEBA_KXZ
 ??$get_profiling_info@Ucommand_start@event_profiling@info@_V1@sycl@@@event@_V1@sycl@@QEBA_KXZ
 ??$get_profiling_info@Ucommand_submit@event_profiling@info@_V1@sycl@@@event@_V1@sycl@@QEBA_KXZ
@@ -3768,6 +3774,7 @@
 ?end_recording@modifiable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@QEAAXAEBV?$vector@Vqueue@_V1@sycl@@V?$allocator@Vqueue@_V1@sycl@@@std@@@std@@@Z
 ?end_recording@modifiable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@QEAAXXZ
 ?eventNeeded@handler@_V1@sycl@@AEBA_NXZ
+?export_device_mem_dma_buf@detail@experimental@oneapi@ext@_V1@sycl@@YAHPEAXAEBVdevice@56@AEBVcontext@56@@Z
 ?export_device_mem_opaque_fd@detail@experimental@oneapi@ext@_V1@sycl@@YAHPEAXAEBVdevice@56@AEBVcontext@56@@Z
 ?export_device_mem_win32_nt_handle@detail@experimental@oneapi@ext@_V1@sycl@@YAPEAXPEAXAEBVdevice@56@AEBVcontext@56@@Z
 ?ext_codeplay_has_graph@interop_handle@_V1@sycl@@QEBA_NXZ

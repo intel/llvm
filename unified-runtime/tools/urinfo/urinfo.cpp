@@ -1,11 +1,11 @@
-// Copyright (C) 2023 Intel Corporation
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include "urinfo.hpp"
 #include <cstdlib>
+#include <exception>
 #include <iostream>
 #include <string>
 #include <string_view>
@@ -217,10 +217,17 @@ options:
 } // namespace urinfo
 
 int main(int argc, const char **argv) {
-  auto app = urinfo::app{argc, argv};
-  app.printSummary();
-  if (app.verbose) {
-    app.printDetail();
+  try {
+    auto app = urinfo::app{argc, argv};
+    app.printSummary();
+    if (app.verbose) {
+      app.printDetail();
+    }
+    return 0;
+  } catch (const std::exception &e) {
+    std::fprintf(stderr, "error: %s\n", e.what());
+  } catch (...) {
+    std::fprintf(stderr, "error: unknown exception\n");
   }
-  return 0;
+  return 1;
 }

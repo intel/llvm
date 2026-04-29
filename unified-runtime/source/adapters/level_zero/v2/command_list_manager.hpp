@@ -1,9 +1,8 @@
 //===--------- command_list_manager.hpp - Level Zero Adapter --------------===//
 //
-// Copyright (C) 2024-2026 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
@@ -260,6 +259,7 @@ struct ur_command_list_manager {
   ur_result_t beginCaptureIntoGraph(ur_exp_graph_handle_t hGraph);
   ur_result_t endGraphCapture(ur_exp_graph_handle_t *phGraph);
   ur_result_t isGraphCaptureActive(bool *pResult);
+  ur_result_t getGraph(ur_exp_graph_handle_t *phGraph);
 
   v2::raii::command_list_unique_handle &&releaseCommandList();
 

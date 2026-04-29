@@ -1,9 +1,7 @@
-/*
- * Copyright (C) 2024-2025 Intel Corporation
- *
- * SPDX-License-Identifier: MIT
- *
- */
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
+//
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #ifndef _ZEX_CONTEXT_H
 #define _ZEX_CONTEXT_H
@@ -20,11 +18,11 @@
 extern "C" {
 #endif
 
-ZE_APIEXPORT ze_result_t ZE_APICALL zeIntelMediaCommunicationCreate(
+ze_result_t ZE_APICALL zeIntelMediaCommunicationCreate(
     ze_context_handle_t hContext, ze_device_handle_t hDevice,
     ze_intel_media_communication_desc_t *desc,
     ze_intel_media_doorbell_handle_desc_t *phDoorbell);
-ZE_APIEXPORT ze_result_t ZE_APICALL zeIntelMediaCommunicationDestroy(
+ze_result_t ZE_APICALL zeIntelMediaCommunicationDestroy(
     ze_context_handle_t hContext, ze_device_handle_t hDevice,
     ze_intel_media_doorbell_handle_desc_t *phDoorbell);
 

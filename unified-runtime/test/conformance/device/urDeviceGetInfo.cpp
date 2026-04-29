@@ -1,6 +1,5 @@
-// Copyright (C) 2022-2023 Intel Corporation
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
@@ -1146,9 +1145,9 @@ TEST_P(urDeviceGetInfoTest, SuccessReferenceCount) {
                              property_value);
 }
 
+// Optional query: Not all adapters support intermediate language (IL).
+// NativeCPU executes native code directly without IL support.
 TEST_P(urDeviceGetInfoTest, SuccessILVersion) {
-  UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
-
   size_t property_size = 0;
   const ur_device_info_t property_name = UR_DEVICE_INFO_IL_VERSION;
 

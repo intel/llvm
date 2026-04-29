@@ -509,6 +509,7 @@
 		urPrintQueueFinishParams;
 		urPrintQueueFlags;
 		urPrintQueueFlushParams;
+		urPrintQueueGetGraphExpParams;
 		urPrintQueueGetInfoParams;
 		urPrintQueueGetNativeHandleParams;
 		urPrintQueueIndexProperties;
@@ -611,6 +612,7 @@
 		urQueueEndGraphCaptureExp;
 		urQueueFinish;
 		urQueueFlush;
+		urQueueGetGraphExp;
 		urQueueGetInfo;
 		urQueueGetNativeHandle;
 		urQueueIsGraphCaptureEnabledExp;

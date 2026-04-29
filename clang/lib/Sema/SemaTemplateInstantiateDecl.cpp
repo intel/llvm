@@ -748,36 +748,6 @@ static void instantiateIntelReqdSubGroupSize(
     S.SYCL().addIntelReqdSubGroupSizeAttr(New, *A, Result.getAs<Expr>());
 }
 
-static void instantiateSYCLIntelNumSimdWorkItemsAttr(
-    Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
-    const SYCLIntelNumSimdWorkItemsAttr *A, Decl *New) {
-  EnterExpressionEvaluationContext Unevaluated(
-      S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
-  ExprResult Result = S.SubstExpr(A->getValue(), TemplateArgs);
-  if (!Result.isInvalid())
-    S.SYCL().addSYCLIntelNumSimdWorkItemsAttr(New, *A, Result.getAs<Expr>());
-}
-
-static void instantiateSYCLIntelNoGlobalWorkOffsetAttr(
-    Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
-    const SYCLIntelNoGlobalWorkOffsetAttr *A, Decl *New) {
-  EnterExpressionEvaluationContext Unevaluated(
-      S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
-  ExprResult Result = S.SubstExpr(A->getValue(), TemplateArgs);
-  if (!Result.isInvalid())
-    S.SYCL().addSYCLIntelNoGlobalWorkOffsetAttr(New, *A, Result.getAs<Expr>());
-}
-
-static void instantiateSYCLIntelMaxGlobalWorkDimAttr(
-    Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
-    const SYCLIntelMaxGlobalWorkDimAttr *A, Decl *New) {
-  EnterExpressionEvaluationContext Unevaluated(
-      S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
-  ExprResult Result = S.SubstExpr(A->getValue(), TemplateArgs);
-  if (!Result.isInvalid())
-    S.SYCL().addSYCLIntelMaxGlobalWorkDimAttr(New, *A, Result.getAs<Expr>());
-}
-
 static void instantiateSYCLIntelMinWorkGroupsPerComputeUnitAttr(
     Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
     const SYCLIntelMinWorkGroupsPerComputeUnitAttr *A, Decl *New) {
@@ -875,25 +845,6 @@ static void instantiateSYCLWorkGroupSizeHintAttr(
 
   S.SYCL().addSYCLWorkGroupSizeHintAttr(New, *A, XResult.get(), YResult.get(),
                                         ZResult.get());
-}
-
-static void instantiateSYCLIntelMaxWorkGroupSizeAttr(
-    Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
-    const SYCLIntelMaxWorkGroupSizeAttr *A, Decl *New) {
-  EnterExpressionEvaluationContext Unevaluated(
-      S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
-  ExprResult XResult = S.SubstExpr(A->getXDim(), TemplateArgs);
-  if (XResult.isInvalid())
-    return;
-  ExprResult YResult = S.SubstExpr(A->getYDim(), TemplateArgs);
-  if (YResult.isInvalid())
-    return;
-  ExprResult ZResult = S.SubstExpr(A->getZDim(), TemplateArgs);
-  if (ZResult.isInvalid())
-    return;
-
-  S.SYCL().addSYCLIntelMaxWorkGroupSizeAttr(New, *A, XResult.get(),
-                                            YResult.get(), ZResult.get());
 }
 
 static void instantiateSYCLReqdWorkGroupSizeAttr(
@@ -1174,18 +1125,6 @@ void Sema::InstantiateAttrs(const MultiLevelTemplateArgumentList &TemplateArgs,
                                        IntelReqdSubGroupSize, New);
       continue;
     }
-    if (const auto *SYCLIntelNumSimdWorkItems =
-            dyn_cast<SYCLIntelNumSimdWorkItemsAttr>(TmplAttr)) {
-      instantiateSYCLIntelNumSimdWorkItemsAttr(*this, TemplateArgs,
-                                               SYCLIntelNumSimdWorkItems, New);
-      continue;
-    }
-    if (const auto *SYCLIntelMaxGlobalWorkDim =
-            dyn_cast<SYCLIntelMaxGlobalWorkDimAttr>(TmplAttr)) {
-      instantiateSYCLIntelMaxGlobalWorkDimAttr(*this, TemplateArgs,
-                                               SYCLIntelMaxGlobalWorkDim, New);
-      continue;
-    }
     if (const auto *SYCLIntelMinWorkGroupsPerComputeUnit =
             dyn_cast<SYCLIntelMinWorkGroupsPerComputeUnitAttr>(TmplAttr)) {
       instantiateSYCLIntelMinWorkGroupsPerComputeUnitAttr(
@@ -1198,22 +1137,10 @@ void Sema::InstantiateAttrs(const MultiLevelTemplateArgumentList &TemplateArgs,
           *this, TemplateArgs, SYCLIntelMaxWorkGroupsPerMultiprocessor, New);
       continue;
     }
-    if (const auto *SYCLIntelNoGlobalWorkOffset =
-            dyn_cast<SYCLIntelNoGlobalWorkOffsetAttr>(TmplAttr)) {
-      instantiateSYCLIntelNoGlobalWorkOffsetAttr(
-          *this, TemplateArgs, SYCLIntelNoGlobalWorkOffset, New);
-      continue;
-    }
     if (const auto *SYCLReqdWorkGroupSize =
             dyn_cast<SYCLReqdWorkGroupSizeAttr>(TmplAttr)) {
       instantiateSYCLReqdWorkGroupSizeAttr(*this, TemplateArgs,
                                            SYCLReqdWorkGroupSize, New);
-      continue;
-    }
-    if (const auto *SYCLIntelMaxWorkGroupSize =
-            dyn_cast<SYCLIntelMaxWorkGroupSizeAttr>(TmplAttr)) {
-      instantiateSYCLIntelMaxWorkGroupSizeAttr(*this, TemplateArgs,
-                                               SYCLIntelMaxWorkGroupSize, New);
       continue;
     }
     if (const auto *SYCLIntelESimdVectorize =
