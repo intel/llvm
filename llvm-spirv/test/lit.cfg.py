@@ -85,7 +85,7 @@ if config.spirv_tools_have_spirv_val:
     llvm_config.add_tool_substitutions(['spirv-val'], [config.spirv_tools_bin_dir])
     using_spirv_tools = True
 else:
-    config.substitutions.append(('spirv-val', ':'))
+    llvm_config.add_tool_substitutions([ToolSubst('spirv-val', ':')])
 
 if not config.llvm_spirv_build_external and config.llvm_build_shared_libs:
     config.available_features.add('pass-plugin')
