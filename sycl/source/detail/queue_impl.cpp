@@ -627,7 +627,7 @@ EventImplPtr queue_impl::submit_kernel_direct_impl(
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::memory_allocation),
         "Kernel allocates work group scratch memory but an allocation size "
-        "has not been specified through a kernel launch property!");
+        "has not been specified through the work_group_scratch_size property!");
 
   auto SubmitKernelFunc = [&](detail::CG::StorageInitHelper &&CGData)
       -> std::pair<EventImplPtr, bool> {

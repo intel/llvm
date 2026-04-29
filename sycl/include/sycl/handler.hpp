@@ -2854,7 +2854,7 @@ private:
   void setKernelLaunchProperties(
       const detail::KernelPropertyHolderStructTy &KernelLaunchProperties);
 
-  // TODO: Remove the following function during the next ABI-breaking window.
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   inline constexpr void SetKernelLaunchpropertiesIfNotEmpty(
       const detail::KernelPropertyHolderStructTy &KernelLaunchProperties) {
     (void)KernelLaunchProperties;
@@ -2862,8 +2862,9 @@ private:
 #ifndef __SYCL_DEVICE_ONLY__
     if (!KernelLaunchProperties.isEmpty())
       setKernelLaunchProperties(KernelLaunchProperties);
-#endif
+#endif // __SYCL_DEVICE_ONLY
   }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   // Various checks that are only meaningful for host compilation, because they
   // result in runtime errors (i.e. exceptions being thrown). To save time

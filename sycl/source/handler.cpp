@@ -497,7 +497,8 @@ detail::EventImplPtr handler::finalize() {
       throw sycl::exception(
           sycl::make_error_code(sycl::errc::memory_allocation),
           "Kernel allocates work group scratch memory but an allocation size "
-          "has not been specified through a kernel launch property!");
+          "has not been specified through the work_group_scratch_size "
+          "property!");
 
     // If there were uses of set_specialization_constant build the kernel_bundle
     detail::kernel_bundle_impl *KernelBundleImpPtr =
