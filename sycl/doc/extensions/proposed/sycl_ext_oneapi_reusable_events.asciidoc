@@ -58,6 +58,11 @@ finalized.
 *Shipping software products should not rely on APIs defined in this
 specification.*
 
+== Backend support status
+
+This extension is not supported with the Level Zero v1 adapter. All of the
+functions defined in the extension will throw an `exception` with the
+`errc::feature_not_supported` error code.
 
 == Overview
 
@@ -106,7 +111,7 @@ to determine which of the extension's features the implementation supports.
 === New functions to create an event
 
 This extension adds the following factory functions which can create an event
-with a specific context.
+with a specific context and device.
 
 '''
 
@@ -115,7 +120,7 @@ with a specific context.
 namespace sycl::ext::oneapi::experimental {
 
 template<typename PropertyListT = empty_properties_t>
-event make_event(const context &ctxt, PropertyListT props = {});
+event make_event(const context &ctxt, const device &dev, PropertyListT props = {});
 
 } // namespace sycl::ext::oneapi::experimental
 ----
@@ -127,12 +132,45 @@ _Constraints:_
 * `is_property_list_v<PropertyListT>` is `true` and contains no properties other
   than those listed below in section "New property for creating an event".
 
-_Returns:_ An event that is associated with context `ctxt`.
+_Returns:_ An event that is associated with context `ctxt` and device `dev`.
 
-_Throws:_ An `exception` with the `errc::feature_not_supported` error code if
-`PropertyListT` contains an `enable_profiling` property that enables profiling
-timestamps and if the platform containing `context` does not support creation
-of such events as reported by the `event_profiling` information descriptor.
+_Throws:_
+
+* An `exception` with the `errc::feature_not_supported` error code if
+  `PropertyListT` contains an `enable_profiling` property that enables
+  profiling timestamps and if the platform containing `ctxt` does not support
+  creation of such events as reported by the `event_profiling` information
+  descriptor.
+
+* An `exception` with the `errc::invalid` error code if `ctxt` does not contain
+  `dev`.
+
+'''
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+template<typename PropertyListT = empty_properties_t>
+event make_event(const device &dev, PropertyListT props = {});
+
+} // namespace sycl::ext::oneapi::experimental
+----
+
+_Constraints:_
+
+* `PropertyListT` is one of the properties listed below in section "New property
+  for creating an event"; or
+* `is_property_list_v<PropertyListT>` is `true` and contains no properties other
+  than those listed below in section "New property for creating an event".
+
+_Effects:_ Equivalent to:
+
+[source,c++,indent=2]
+----
+sycl::context ctxt = dev.get_platform().khr_get_default_context();
+return sycl::ext::oneapi::experimental::make_event(ctxt, dev, props);
+----
 
 '''
 
@@ -157,10 +195,49 @@ _Effects:_ Equivalent to:
 
 [source,c++,indent=2]
 ----
-sycl::device d;
-sycl::context ctxt = d.get_platform().khr_get_default_context();
-return sycl::ext::oneapi::experimental::make_event(ctxt, props);
+sycl::device dev;
+sycl::context ctxt = dev.get_platform().khr_get_default_context();
+return sycl::ext::oneapi::experimental::make_event(ctxt, dev, props);
 ----
+
+'''
+
+=== New event member functions
+
+This extension adds the following new member functions to the event class:
+
+'''
+
+[source,c++]
+----
+namespace sycl {
+
+class event {
+  // ...
+  device ext_oneapi_get_device() const;
+  context ext_oneapi_get_context() const;
+};
+
+} // namespace sycl
+----
+
+'''
+
+[source,c++]
+----
+device ext_oneapi_get_device() const;
+----
+
+_Returns:_ The device object associated with this event.
+
+'''
+
+[source,c++]
+----
+context ext_oneapi_get_context() const;
+----
+
+_Returns:_ The context object associated with this event.
 
 '''
 
@@ -236,7 +313,7 @@ Any commands submitted to the queue after this barrier cannot begin execution
 until all commands associated with `evt` or `evts` have completed.
 
 _Remarks:_ The event `evt` and the events in `evts` do _not_ need to have the
-same context as `q`.
+same context or the same device as `q`.
 
 '''
 
@@ -295,13 +372,14 @@ time.
 _{endnote}_]
 
 _Throws:_ An `exception` with the `errc::invalid` error code if `evt` and `q`
-don't have the same context.
+don't have the same context or don't have the same device.
 
 === Interaction with other event APIs
 
 An event _E_ created via `make_event` can be used as a command dependency (e.g.
 via `handler::depends_on`) for a command submitted to some queue _Q_.
-It is _not_ necessary for the context of _E_ to match the context of _Q_.
+It is _not_ necessary for the context or device of _E_ to match the context or
+device of _Q_.
 
 If an event _E_ is used as a command dependency for some command _C_ (e.g. via
 `handler::depends_on`), the dependency is captured at the point when _C_ is
@@ -315,6 +393,15 @@ If another host thread is blocked waiting for event _E_ to complete via
 new command via `enqueue_signal_event`, the behavior of the `event:wait` or
 `event::wait_and_throw` call is undefined.
 
+The core SYCL specification defines a default constructor for the `event`
+class. The default constructor creates an event that is equivalent to calling
+`make_event` with no parameters.
+
+Several of the `queue` class member functions from the core SYCL specification
+return an event. These events are associated with the queue's context and the
+queue's device as though created by `make_event` with that context and device.
+These events may be passed to any of the functions in this extension that take
+an event parameter.
 
 == Examples
 
@@ -328,9 +415,11 @@ namespace syclex = sycl::ext::oneapi::experimental;
 static constexpr size_t N = 1024;
 
 int main() {
-  sycl::queue q1{sycl::property::queue::in_order{}};
-  sycl::queue q2{sycl::property::queue::in_order{}};
-  sycl::event e = syclex::make_event();
+  sycl::device dev;
+  sycl::context ctxt = dev.get_platform().khr_get_default_context();
+  sycl::queue q1{ctxt, dev, sycl::property::queue::in_order{}};
+  sycl::queue q2{ctxt, dev, sycl::property::queue::in_order{}};
+  sycl::event e = syclex::make_event(ctxt, dev);
 
   // Launch a kernel on `q1` and then signal an event when the kernel completes.
   syclex::parallel_for(q1, {N}, [=](sycl::item<> it) { /* ... */ });
@@ -396,10 +485,9 @@ int main() {
 The APIs in this extension have a straightforward mapping to Level Zero when
 using counter-based events:
 
-* The `make_event` function maps to `zeEventPoolCreate` and `zeEventCreate`.
+* The `make_event` function maps to `zeEventCounterBasedCreate`.
   If the `enable_profiling` property is specified to `make_event`, the event
-  should be created from a pool that has the
-  `ZE_EVENT_POOL_FLAG_KERNEL_TIMESTAMP` flag.
+  should have the corresponding Level Zero flag set.
 * Platforms on the Level Zero backend can return `true` for the
   `event_profiling` information descriptor.
 * The `enqueue_wait_event` function maps to `zeCommandListAppendWaitOnEvents`.
@@ -408,40 +496,6 @@ using counter-based events:
   `ze_event_handle_t`.
   Each call to `zeCommandListAppendSignalEvent` can pass this same
   `ze_event_handle_t`, thus reusing the backend event across many calls.
-
-However, standard events do not directly map because a standard Level Zero event
-_E_ cannot be passed to `zeCommandListAppendSignalEvent` until all previous
-"signal" operations on _E_ have completed and all previous commands using _E_
-as a "wait event" (i.e. dependency) have completed.
-To compensate for this, the runtime can track the lifetime of the backend event.
-If the backend event associated with `enqueue_signal_event` is still in use,
-the runtime can disassociate that backend event from the SYCL event, and
-allocate a new backend event.
-
-A counter-based event, however, cannot be used to signal a command in an
-out-of-order queue.
-Therefore, the implementation currently uses standard events for out-of-order
-queues and counter-based events for in-order queues.
-This presents a problem for the `make_event` function because we do not know
-whether the event will be used with an in-order vs. an out-of-order queue at the
-point when it is created.
-One option is to require the application to pass a property to `make_event`
-telling whether the event will be used to signal an in-order vs. an out-of-order
-queue.
-Doing this is less convenient for the user, though.
-Instead, `make_event` can always create a counter-based event when the backend
-is Level Zero.
-If the application later uses the SYCL event to signal a command from an
-out-of-order queue, the implementation can release the backend counter-based
-event and allocate a standard-event instead.
-This optimizes for the case of in-order queues and adds a bit of overhead to
-the case when the queue is out-of-order.
-However, this is consistent with our strategy to favor in-order queues as the
-optimal path.
-Alternatively, `make_event` could simply not allocate any backend event,
-delaying this until the first time the event is used to signal a command.
-At that point, we do know whether the event will signal an out-of-order vs. an
-in order queue, so we can create the right type of backend event.
 
 === Mapping on OpenCL
 
