@@ -21,45 +21,41 @@
 
 #ifdef __SYCL_DEVICE_ONLY__
 // FP8 builtins
-extern __DPCPP_SYCL_EXTERNAL
-    uint8_t __builtin_spirv_ClampConvertFP16ToE4M3INTEL(sycl::half) noexcept;
-extern __DPCPP_SYCL_EXTERNAL
-    uint8_t __builtin_spirv_ConvertFP16ToE4M3EXT(sycl::half) noexcept;
-extern __DPCPP_SYCL_EXTERNAL sycl::half
-__builtin_spirv_ConvertE4M3ToFP16EXT(uint8_t) noexcept;
-extern __DPCPP_SYCL_EXTERNAL
-    uint8_t __builtin_spirv_ClampConvertBF16ToE4M3INTEL(
-        sycl::ext::oneapi::bfloat16) noexcept;
+
 extern __DPCPP_SYCL_EXTERNAL uint8_t
-    __builtin_spirv_ConvertBF16ToE4M3EXT(sycl::ext::oneapi::bfloat16) noexcept;
-extern __DPCPP_SYCL_EXTERNAL sycl::ext::oneapi::bfloat16
+__builtin_spirv_ClampConvertFP16ToE4M3INTEL(_Float16) noexcept;
+
+extern __DPCPP_SYCL_EXTERNAL _Float16
+__builtin_spirv_ConvertE4M3ToFP16EXT(char) noexcept;
+
+extern __DPCPP_SYCL_EXTERNAL uint8_t
+__builtin_spirv_ClampConvertBF16ToE4M3INTEL(__bf16) noexcept;
+extern __DPCPP_SYCL_EXTERNAL __bf16
 __builtin_spirv_ConvertE4M3ToBF16EXT(uint8_t) noexcept;
-extern __DPCPP_SYCL_EXTERNAL
-    uint8_t __builtin_spirv_ClampConvertFP16ToE5M2INTEL(sycl::half) noexcept;
-extern __DPCPP_SYCL_EXTERNAL
-    uint8_t __builtin_spirv_ConvertFP16ToE5M2EXT(sycl::half) noexcept;
-extern __DPCPP_SYCL_EXTERNAL sycl::half
-__builtin_spirv_ConvertE5M2ToFP16EXT(uint8_t) noexcept;
-extern __DPCPP_SYCL_EXTERNAL
-    uint8_t __builtin_spirv_ClampConvertBF16ToE5M2INTEL(
-        sycl::ext::oneapi::bfloat16) noexcept;
 extern __DPCPP_SYCL_EXTERNAL uint8_t
-    __builtin_spirv_ConvertBF16ToE5M2EXT(sycl::ext::oneapi::bfloat16) noexcept;
-extern __DPCPP_SYCL_EXTERNAL sycl::ext::oneapi::bfloat16
+__builtin_spirv_ClampConvertFP16ToE5M2INTEL(_Float16) noexcept;
+extern __DPCPP_SYCL_EXTERNAL uint8_t
+__builtin_spirv_ConvertFP16ToE5M2EXT(_Float16) noexcept;
+extern __DPCPP_SYCL_EXTERNAL _Float16
+__builtin_spirv_ConvertE5M2ToFP16EXT(uint8_t) noexcept;
+extern __DPCPP_SYCL_EXTERNAL uint8_t
+__builtin_spirv_ClampConvertBF16ToE5M2INTEL(__bf16) noexcept;
+extern __DPCPP_SYCL_EXTERNAL uint8_t
+__builtin_spirv_ConvertBF16ToE5M2EXT(__bf16) noexcept;
+extern __DPCPP_SYCL_EXTERNAL __bf16
 __builtin_spirv_ConvertE5M2ToBF16EXT(uint8_t) noexcept;
 extern __DPCPP_SYCL_EXTERNAL uint8_t
-__builtin_spirv_ClampStochasticRoundFP16ToE5M2INTEL(sycl::half, uint32_t,
+__builtin_spirv_ClampStochasticRoundFP16ToE5M2INTEL(_Float16, uint32_t,
                                                     uint32_t *) noexcept;
 extern __DPCPP_SYCL_EXTERNAL uint8_t
-__builtin_spirv_StochasticRoundFP16ToE5M2INTEL(sycl::half, uint32_t,
+__builtin_spirv_StochasticRoundFP16ToE5M2INTEL(_Float16, uint32_t,
                                                uint32_t *) noexcept;
 extern __DPCPP_SYCL_EXTERNAL uint8_t
-__builtin_spirv_ClampStochasticRoundBF16ToE5M2INTEL(sycl::ext::oneapi::bfloat16,
-                                                    uint32_t,
+__builtin_spirv_ClampStochasticRoundBF16ToE5M2INTEL(__bf16, uint32_t,
                                                     uint32_t *) noexcept;
 extern __DPCPP_SYCL_EXTERNAL uint8_t
-__builtin_spirv_StochasticRoundBF16ToE5M2INTEL(sycl::ext::oneapi::bfloat16,
-                                               uint32_t, uint32_t *) noexcept;
+__builtin_spirv_StochasticRoundBF16ToE5M2INTEL(__bf16, uint32_t,
+                                               uint32_t *) noexcept;
 #endif // __SYCL_DEVICE_ONLY__
 
 namespace sycl {
@@ -828,7 +824,12 @@ template <size_t N> class fp8_e4m3_x {
 
   template <typename T> uint8_t ConvertToFP8(T h) {
 #ifdef __SYCL_DEVICE_ONLY__
-    return __builtin_spirv_ClampConvertFP16ToE4M3INTEL(h);
+    _Float16 v{0};
+    if constexpr (std::is_same_v<std::decay_t<T>, sycl::half>)
+      v = static_cast<_Float16>(static_cast<float>(h));
+    else
+      v = static_cast<_Float16>(h);
+    return __builtin_spirv_ClampConvertFP16ToE4M3INTEL(v);
 #else
     if constexpr (std::is_same_v<std::decay_t<T>, sycl::half> ||
                   std::is_same_v<std::decay_t<T>, float> ||
@@ -844,7 +845,8 @@ template <size_t N> class fp8_e4m3_x {
 
   uint8_t ConvertBF16ToFP8(bfloat16 h) {
 #ifdef __SYCL_DEVICE_ONLY__
-    return __builtin_spirv_ClampConvertBF16ToE4M3INTEL(h);
+    return __builtin_spirv_ClampConvertBF16ToE4M3INTEL(
+        sycl::bit_cast<__bf16>(h));
 #else
     return detail::ConvertFloatToFP8_CPU<NExpBits, NFracBits, bfloat16>(
         h, rounding::to_even, saturation::finite);
@@ -864,7 +866,7 @@ template <size_t N> class fp8_e4m3_x {
 
   bfloat16 ConvertBF16FromFP8(uint8_t v) const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return __builtin_spirv_ConvertE4M3ToBF16EXT(v);
+    return sycl::bit_cast<bfloat16>(__builtin_spirv_ConvertE4M3ToBF16EXT(v));
 #else
     return detail::ConvertFromFP8ToBinaryFloat_CPU<NExpBits, NFracBits,
                                                    bfloat16>(v,
@@ -899,12 +901,12 @@ public:
       const bfloat16 in[N] = {static_cast<bfloat16>(v)...};
       for (size_t i = 0; i < N; ++i)
         vals[i] = ConvertBF16ToFP8(in[i]);
-      return;
+    } else {
+      using InT = std::common_type_t<std::decay_t<Types>...>;
+      const InT in[N] = {v...};
+      for (size_t i = 0; i < N; ++i)
+        vals[i] = ConvertToFP8(in[i]);
     }
-    using InT = std::common_type_t<std::decay_t<Types>...>;
-    const InT in[N] = {v...};
-    for (size_t i = 0; i < N; ++i)
-      vals[i] = ConvertToFP8(in[i]);
   }
 
   // Construct from an array of half, bfloat16, float, double.
@@ -1162,7 +1164,8 @@ public:
   explicit operator bool() const {
 #ifdef __SYCL_DEVICE_ONLY__
     // detect +0 / -0
-    sycl::half h = __builtin_spirv_ConvertE4M3ToFP16EXT(vals[0]);
+    sycl::half h =
+        __builtin_spirv_ConvertE4M3ToFP16EXT(sycl::bit_cast<char>(vals[0]));
     return h != 0;
 #else
     // no need to convert, just check sign bit and 0s
@@ -1206,10 +1209,14 @@ template <size_t N> class fp8_e5m2_x {
 
   template <typename T> uint8_t ConvertToFP8(T h, saturation s) {
 #ifdef __SYCL_DEVICE_ONLY__
-    const sycl::half halfValue = static_cast<sycl::half>(h);
+    _Float16 v{0};
+    if constexpr (std::is_same_v<std::decay_t<T>, sycl::half>)
+      v = static_cast<_Float16>(static_cast<float>(h));
+    else
+      v = static_cast<_Float16>(h);
     return s == saturation::finite
-               ? __builtin_spirv_ClampConvertFP16ToE5M2INTEL(halfValue)
-               : __builtin_spirv_ConvertFP16ToE5M2EXT(halfValue);
+               ? __builtin_spirv_ClampConvertFP16ToE5M2INTEL(v)
+               : __builtin_spirv_ConvertFP16ToE5M2EXT(v);
 #else
     if constexpr (std::is_same_v<std::decay_t<T>, sycl::half> ||
                   std::is_same_v<std::decay_t<T>, float> ||
@@ -1226,8 +1233,10 @@ template <size_t N> class fp8_e5m2_x {
   uint8_t ConvertBF16ToFP8(bfloat16 h, saturation s) {
 #ifdef __SYCL_DEVICE_ONLY__
     return s == saturation::finite
-               ? __builtin_spirv_ClampConvertBF16ToE5M2INTEL(h)
-               : __builtin_spirv_ConvertBF16ToE5M2EXT(h);
+               ? __builtin_spirv_ClampConvertBF16ToE5M2INTEL(
+                     sycl::bit_cast<__bf16>(h))
+               : __builtin_spirv_ConvertBF16ToE5M2EXT(
+                     sycl::bit_cast<__bf16>(h));
 #else
     return detail::ConvertFloatToFP8_CPU<NExpBits, NFracBits, bfloat16>(
         h, rounding::to_even, s);
@@ -1247,7 +1256,7 @@ template <size_t N> class fp8_e5m2_x {
 
   bfloat16 ConvertBF16FromFP8(uint8_t v) const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return __builtin_spirv_ConvertE5M2ToBF16EXT(v);
+    return sycl::bit_cast<bfloat16>(__builtin_spirv_ConvertE5M2ToBF16EXT(v));
 #else
     return detail::ConvertFromFP8ToBinaryFloat_CPU<NExpBits, NFracBits,
                                                    bfloat16>(v,
@@ -1283,12 +1292,12 @@ public:
       const bfloat16 in[N] = {static_cast<bfloat16>(v)...};
       for (size_t i = 0; i < N; ++i)
         vals[i] = ConvertBF16ToFP8(in[i], saturation::finite);
-      return;
+    } else {
+      using InT = std::common_type_t<std::decay_t<Types>...>;
+      const InT in[N] = {v...};
+      for (size_t i = 0; i < N; ++i)
+        vals[i] = ConvertToFP8(in[i], saturation::finite);
     }
-    using InT = std::common_type_t<std::decay_t<Types>...>;
-    const InT in[N] = {v...};
-    for (size_t i = 0; i < N; ++i)
-      vals[i] = ConvertToFP8(in[i], saturation::finite);
   }
 
   // Construct from an array of half, bfloat16, float, double.
@@ -1361,12 +1370,13 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     uint32_t current_seed = *seed.pseed;
     for (size_t i = 0; i < N; ++i) {
+      const _Float16 v = static_cast<_Float16>(static_cast<float>(in[i]));
       if (s == saturation::finite) {
         vals[i] = __builtin_spirv_ClampStochasticRoundFP16ToE5M2INTEL(
-            in[i], current_seed, seed.pseed);
+            v, current_seed, seed.pseed);
       } else {
         vals[i] = __builtin_spirv_StochasticRoundFP16ToE5M2INTEL(
-            in[i], current_seed, seed.pseed);
+            v, current_seed, seed.pseed);
       }
       current_seed = *seed.pseed;
     }
@@ -1381,10 +1391,10 @@ public:
     for (size_t i = 0; i < N; ++i) {
       if (s == saturation::finite) {
         vals[i] = __builtin_spirv_ClampStochasticRoundBF16ToE5M2INTEL(
-            in[i], current_seed, seed.pseed);
+            sycl::bit_cast<__bf16>(in[i]), current_seed, seed.pseed);
       } else {
         vals[i] = __builtin_spirv_StochasticRoundBF16ToE5M2INTEL(
-            in[i], current_seed, seed.pseed);
+            sycl::bit_cast<__bf16>(in[i]), current_seed, seed.pseed);
       }
       current_seed = *seed.pseed;
     }
@@ -1400,12 +1410,14 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     uint32_t current_seed = *seed.pseed;
     for (size_t i = 0; i < N; ++i) {
+
+      _Float16 v = static_cast<_Float16>(static_cast<float>(in[i]));
       if (s == saturation::finite) {
         vals[i] = __builtin_spirv_ClampStochasticRoundFP16ToE5M2INTEL(
-            in[i], current_seed, seed.pseed);
+            v, current_seed, seed.pseed);
       } else {
         vals[i] = __builtin_spirv_StochasticRoundFP16ToE5M2INTEL(
-            in[i], current_seed, seed.pseed);
+            v, current_seed, seed.pseed);
       }
       current_seed = *seed.pseed;
     }
@@ -1420,10 +1432,10 @@ public:
     for (size_t i = 0; i < N; ++i) {
       if (s == saturation::finite) {
         vals[i] = __builtin_spirv_ClampStochasticRoundBF16ToE5M2INTEL(
-            in[i], current_seed, seed.pseed);
+            sycl::bit_cast<__bf16>(in[i]), current_seed, seed.pseed);
       } else {
         vals[i] = __builtin_spirv_StochasticRoundBF16ToE5M2INTEL(
-            in[i], current_seed, seed.pseed);
+            sycl::bit_cast<__bf16>(in[i]), current_seed, seed.pseed);
       }
       current_seed = *seed.pseed;
     }

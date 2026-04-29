@@ -43,76 +43,67 @@ inline void resetCounters() { getCounters() = Counters{}; }
 } // namespace fp8_builtin_mock
 
 // Builtin mocks (do not replace helpers.hpp; provide symbols here).
-inline sycl::half __builtin_spirv_ConvertE4M3ToFP16EXT(uint8_t) noexcept {
+inline _Float16 __builtin_spirv_ConvertE4M3ToFP16EXT(char) noexcept {
   ++fp8_builtin_mock::getCounters().ConvertE4M3ToFP16EXT;
-  return static_cast<sycl::half>(2.0f);
+  return static_cast<_Float16>(2.0f);
 }
 
-inline sycl::half __builtin_spirv_ConvertE5M2ToFP16EXT(uint8_t) noexcept {
+inline _Float16 __builtin_spirv_ConvertE5M2ToFP16EXT(uint8_t) noexcept {
   ++fp8_builtin_mock::getCounters().ConvertE5M2ToFP16EXT;
-  return static_cast<sycl::half>(3.0f);
+  return static_cast<_Float16>(3.0f);
 }
 
-inline sycl::ext::oneapi::bfloat16
-__builtin_spirv_ConvertE4M3ToBF16EXT(uint8_t) noexcept {
+inline __bf16 __builtin_spirv_ConvertE4M3ToBF16EXT(uint8_t) noexcept {
   ++fp8_builtin_mock::getCounters().ConvertE4M3ToBF16EXT;
-  return static_cast<sycl::ext::oneapi::bfloat16>(4.0f);
+  return static_cast<__bf16>(4.0f);
 }
 
-inline sycl::ext::oneapi::bfloat16
-__builtin_spirv_ConvertE5M2ToBF16EXT(uint8_t) noexcept {
+inline __bf16 __builtin_spirv_ConvertE5M2ToBF16EXT(uint8_t) noexcept {
   ++fp8_builtin_mock::getCounters().ConvertE5M2ToBF16EXT;
-  return static_cast<sycl::ext::oneapi::bfloat16>(5.0f);
+  return static_cast<__bf16>(5.0f);
 }
 
-inline uint8_t __builtin_spirv_ConvertFP16ToE4M3EXT(sycl::half) noexcept {
+inline uint8_t __builtin_spirv_ConvertFP16ToE4M3EXT(_Float16) noexcept {
   ++fp8_builtin_mock::getCounters().ConvertFP16ToE4M3EXT;
   return 0x01;
 }
 
-inline uint8_t
-__builtin_spirv_ConvertBF16ToE4M3EXT(sycl::ext::oneapi::bfloat16) noexcept {
+inline uint8_t __builtin_spirv_ConvertBF16ToE4M3EXT(__bf16) noexcept {
   ++fp8_builtin_mock::getCounters().ConvertBF16ToE4M3EXT;
   return 0x02;
 }
-
-inline uint8_t
-__builtin_spirv_ClampConvertFP16ToE4M3INTEL(sycl::half) noexcept {
+inline uint8_t __builtin_spirv_ClampConvertFP16ToE4M3INTEL(_Float16) noexcept {
   ++fp8_builtin_mock::getCounters().ClampConvertFP16ToE4M3INTEL;
   return 0x11;
 }
 
-inline uint8_t __builtin_spirv_ClampConvertBF16ToE4M3INTEL(
-    sycl::ext::oneapi::bfloat16) noexcept {
+inline uint8_t __builtin_spirv_ClampConvertBF16ToE4M3INTEL(__bf16) noexcept {
   ++fp8_builtin_mock::getCounters().ClampConvertBF16ToE4M3INTEL;
   return 0x12;
 }
 
-inline uint8_t __builtin_spirv_ConvertFP16ToE5M2EXT(sycl::half) noexcept {
+inline uint8_t __builtin_spirv_ConvertFP16ToE5M2EXT(_Float16) noexcept {
   ++fp8_builtin_mock::getCounters().ConvertFP16ToE5M2EXT;
   return 0x03;
 }
 
-inline uint8_t
-__builtin_spirv_ClampConvertFP16ToE5M2INTEL(sycl::half) noexcept {
+inline uint8_t __builtin_spirv_ClampConvertFP16ToE5M2INTEL(_Float16) noexcept {
   ++fp8_builtin_mock::getCounters().ClampConvertFP16ToE5M2INTEL;
   return 0x21;
 }
 
-inline uint8_t
-__builtin_spirv_ConvertBF16ToE5M2EXT(sycl::ext::oneapi::bfloat16) noexcept {
+inline uint8_t __builtin_spirv_ConvertBF16ToE5M2EXT(__bf16) noexcept {
   ++fp8_builtin_mock::getCounters().ConvertBF16ToE5M2EXT;
   return 0x04;
 }
 
-inline uint8_t __builtin_spirv_ClampConvertBF16ToE5M2INTEL(
-    sycl::ext::oneapi::bfloat16) noexcept {
+inline uint8_t __builtin_spirv_ClampConvertBF16ToE5M2INTEL(__bf16) noexcept {
   ++fp8_builtin_mock::getCounters().ClampConvertBF16ToE5M2INTEL;
   return 0x22;
 }
 
 inline uint8_t
-__builtin_spirv_StochasticRoundFP16ToE5M2INTEL(sycl::half, uint32_t Seed,
+__builtin_spirv_StochasticRoundFP16ToE5M2INTEL(_Float16, uint32_t Seed,
                                                uint32_t *NextSeed) noexcept {
   ++fp8_builtin_mock::getCounters().StochasticRoundFP16ToE5M2INTEL;
   if (NextSeed)
@@ -121,25 +112,25 @@ __builtin_spirv_StochasticRoundFP16ToE5M2INTEL(sycl::half, uint32_t Seed,
 }
 
 inline uint8_t
-__builtin_spirv_StochasticRoundFP16ToE4M3INTEL(sycl::half) noexcept {
+__builtin_spirv_StochasticRoundFP16ToE4M3INTEL(_Float16) noexcept {
   return 0x00;
 }
 
-inline uint8_t __builtin_spirv_StochasticRoundBF16ToE5M2INTEL(
-    sycl::ext::oneapi::bfloat16, uint32_t Seed, uint32_t *NextSeed) noexcept {
+inline uint8_t
+__builtin_spirv_StochasticRoundBF16ToE5M2INTEL(__bf16, uint32_t Seed,
+                                               uint32_t *NextSeed) noexcept {
   ++fp8_builtin_mock::getCounters().StochasticRoundBF16ToE5M2INTEL;
   if (NextSeed)
     *NextSeed = Seed + 1;
   return 0x32;
 }
 
-inline uint8_t __builtin_spirv_StochasticRoundBF16ToE4M3INTEL(
-    sycl::ext::oneapi::bfloat16) noexcept {
+inline uint8_t __builtin_spirv_StochasticRoundBF16ToE4M3INTEL(__bf16) noexcept {
   return 0x00;
 }
 
 inline uint8_t __builtin_spirv_ClampStochasticRoundFP16ToE5M2INTEL(
-    sycl::half, uint32_t Seed, uint32_t *NextSeed) noexcept {
+    _Float16, uint32_t Seed, uint32_t *NextSeed) noexcept {
   ++fp8_builtin_mock::getCounters().ClampStochasticRoundFP16ToE5M2INTEL;
   if (NextSeed)
     *NextSeed = Seed + 1;
@@ -147,19 +138,19 @@ inline uint8_t __builtin_spirv_ClampStochasticRoundFP16ToE5M2INTEL(
 }
 
 inline uint8_t
-__builtin_spirv_ClampStochasticRoundFP16ToE4M3INTEL(sycl::half) noexcept {
+__builtin_spirv_ClampStochasticRoundFP16ToE4M3INTEL(_Float16) noexcept {
   return 0x00;
 }
 
 inline uint8_t __builtin_spirv_ClampStochasticRoundBF16ToE5M2INTEL(
-    sycl::ext::oneapi::bfloat16, uint32_t Seed, uint32_t *NextSeed) noexcept {
+    __bf16, uint32_t Seed, uint32_t *NextSeed) noexcept {
   ++fp8_builtin_mock::getCounters().ClampStochasticRoundBF16ToE5M2INTEL;
   if (NextSeed)
     *NextSeed = Seed + 1;
   return 0x42;
 }
 
-inline uint8_t __builtin_spirv_ClampStochasticRoundBF16ToE4M3INTEL(
-    sycl::ext::oneapi::bfloat16) noexcept {
+inline uint8_t
+__builtin_spirv_ClampStochasticRoundBF16ToE4M3INTEL(__bf16) noexcept {
   return 0x00;
 }
