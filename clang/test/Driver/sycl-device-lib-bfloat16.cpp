@@ -26,6 +26,9 @@
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_pvc %s \
 // RUN:   --sysroot=%S/Inputs/SYCL -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=BFLOAT16-NATIVE
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_12_60_7 %s \
+// RUN:   --sysroot=%S/Inputs/SYCL -### 2>&1 \
+// RUN:   | FileCheck %s -check-prefix=BFLOAT16-NATIVE
 // RUN: %clang_cl -### -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend \
 // RUN:   "-device pvc" /clang:--sysroot=%S/Inputs/SYCL -- %s 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=BFLOAT16-NATIVE
@@ -37,6 +40,9 @@
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_wcl %s \
 // RUN:   --sysroot=%S/Inputs/SYCL -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=BFLOAT16-NATIVE
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_30_3_0 %s \
+// RUN:   --sysroot=%S/Inputs/SYCL -### 2>&1 \
+// RUN:   | FileCheck %s -check-prefix=BFLOAT16-NATIVE
 // RUN: %clang_cl -### -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend \
 // RUN:   "-device wcl" /clang:--sysroot=%S/Inputs/SYCL -- %s 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=BFLOAT16-NATIVE
@@ -46,6 +52,9 @@
 // RUN:   "-device cri" %s --sysroot=%S/Inputs/SYCL -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=BFLOAT16-NATIVE
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_cri %s \
+// RUN:   --sysroot=%S/Inputs/SYCL -### 2>&1 \
+// RUN:   | FileCheck %s -check-prefix=BFLOAT16-NATIVE
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_35_11_0 %s \
 // RUN:   --sysroot=%S/Inputs/SYCL -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=BFLOAT16-NATIVE
 // RUN: %clang_cl -### -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend \
@@ -147,10 +156,15 @@
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_dg1,intel_gpu_acm_g10 \
 // RUN:   --sysroot=%S/Inputs/SYCL %s -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=BFLOAT16-FALLBACK-FALLBACK
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_12_10_0,intel_gpu_acm_g10 \
+// RUN:   --sysroot=%S/Inputs/SYCL %s -### 2>&1 \
+// RUN:   | FileCheck %s -check-prefix=BFLOAT16-FALLBACK-FALLBACK
 // RUN: %clang_cl -### -fsycl -fsycl-targets=intel_gpu_dg1,intel_gpu_acm_g10 \
 // RUN:   /clang:--sysroot=%S/Inputs/SYCL -- %s 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=BFLOAT16-FALLBACK-FALLBACK
-
+// RUN: %clang_cl -### -fsycl -fsycl-targets=intel_gpu_12_10_0,intel_gpu_acm_g10 \
+// RUN:   /clang:--sysroot=%S/Inputs/SYCL -- %s 2>&1 \
+// RUN:   | FileCheck %s -check-prefix=BFLOAT16-FALLBACK-FALLBACK
 
 // Test AOT-PVC + JIT compilation uses native libs + no libs
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_pvc,spir64 \
