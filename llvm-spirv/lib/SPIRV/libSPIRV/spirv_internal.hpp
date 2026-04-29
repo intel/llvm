@@ -98,7 +98,6 @@ enum InternalDecoration {
 };
 
 enum InternalCapability {
-  ICapOptNoneINTEL = 6094,
   ICapTokenTypeINTEL = 6112,
   ICapabilityHWThreadQueryINTEL = 6134,
   ICapGlobalVariableDecorationsINTEL = 6146,
@@ -126,8 +125,6 @@ enum InternalCapability {
   ICapabilitySubgroupRequirementsINTEL = 6445,
   ICapabilityBindlessImagesINTEL = 6528
 };
-
-enum InternalFunctionControlMask { IFunctionControlOptNoneINTELMask = 0x10000 };
 
 enum InternalExecutionMode {
   IExecModeNamedSubgroupSizeINTEL = 6446,
@@ -286,8 +283,6 @@ constexpr Decoration DecorationImplementInCSRINTEL =
 constexpr Decoration DecorationArgumentAttributeINTEL =
     static_cast<Decoration>(IDecArgumentAttributeINTEL);
 
-constexpr Capability CapabilityOptNoneINTEL =
-    static_cast<Capability>(ICapOptNoneINTEL);
 constexpr Capability CapabilityTokenTypeINTEL =
     static_cast<Capability>(ICapTokenTypeINTEL);
 constexpr Capability CapabilityGlobalVariableDecorationsINTEL =
@@ -295,8 +290,6 @@ constexpr Capability CapabilityGlobalVariableDecorationsINTEL =
 constexpr Capability CapabilityBFloat16ArithmeticINTEL =
     static_cast<Capability>(ICapabilityBFloat16ArithmeticINTEL);
 
-constexpr FunctionControlMask FunctionControlOptNoneINTELMask =
-    static_cast<FunctionControlMask>(IFunctionControlOptNoneINTELMask);
 
 constexpr ExecutionMode ExecutionModeNamedSubgroupSizeINTEL =
     static_cast<ExecutionMode>(IExecModeNamedSubgroupSizeINTEL);
