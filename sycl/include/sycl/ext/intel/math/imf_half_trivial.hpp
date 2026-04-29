@@ -11,7 +11,7 @@
 #pragma once
 
 #include <sycl/builtins.hpp>
-#include <sycl/half_type.hpp>
+#include <sycl/detail/half_type_impl.hpp>
 #include <sycl/vector.hpp>
 
 namespace sycl {

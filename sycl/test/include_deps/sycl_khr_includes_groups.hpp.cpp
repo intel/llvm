@@ -37,6 +37,7 @@
 // CHECK-NEXT: detail/string.hpp
 // CHECK-NEXT: functional.hpp
 // CHECK-NEXT: half_type.hpp
+// CHECK-NEXT: detail/half_type_impl.hpp
 // CHECK-NEXT: bit_cast.hpp
 // CHECK-NEXT: aspects.hpp
 // CHECK-NEXT: info/aspects.def
