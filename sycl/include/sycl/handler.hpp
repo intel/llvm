@@ -15,7 +15,6 @@
 #include <sycl/detail/defines_elementary.hpp>
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/get_device_kernel_info.hpp>
-#include <sycl/detail/id_queries_fit_in_int.hpp>
 #include <sycl/detail/impl_utils.hpp>
 #include <sycl/detail/kernel_desc.hpp>
 #include <sycl/detail/kernel_launch_helper.hpp>
@@ -875,7 +874,6 @@ private:
       // kernel use items/ids in the user range, which means that
       // ID range assumptions can still be violated. So check the bounds
       // of the user range, instead of the rounded range.
-      detail::checkValueRange<Dims>(UserRange);
       convertToRangeViewAndSetDescriptor(RoundedRange);
       StoreLambda<KName, decltype(Wrapper), Dims, TransformedArgType>(
           std::move(Wrapper));
@@ -904,7 +902,6 @@ private:
       verifyUsedKernelBundleInternal(Info.Name);
       SetKernelLaunchpropertiesIfNotEmpty(
           detail::extractKernelProperties<Info.IsESIMD>(Props));
-      detail::checkValueRange<Dims>(UserRange);
       convertToRangeViewAndSetDescriptor(std::move(UserRange));
       StoreLambda<NameT, KernelType, Dims, TransformedArgType>(
           std::move(KernelFunc));
@@ -930,7 +927,6 @@ private:
 #ifndef __SYCL_DEVICE_ONLY__
     throwIfActionIsCreated();
     setDeviceKernelInfo(std::move(Kernel));
-    detail::checkValueRange<Dims>(NumWorkItems);
     convertToRangeViewAndSetDescriptor(std::move(NumWorkItems));
     SetKernelLaunchpropertiesIfNotEmpty(detail::extractKernelProperties(Props));
     extractArgsAndReqs();
@@ -953,7 +949,6 @@ private:
 #ifndef __SYCL_DEVICE_ONLY__
     throwIfActionIsCreated();
     setDeviceKernelInfo(std::move(Kernel));
-    detail::checkValueRange<Dims>(NDRange);
     convertToRangeViewAndSetDescriptor(std::move(NDRange));
     SetKernelLaunchpropertiesIfNotEmpty(detail::extractKernelProperties(Props));
     extractArgsAndReqs();
@@ -990,7 +985,6 @@ private:
     throwIfActionIsCreated();
     verifyUsedKernelBundleInternal(Info.Name);
 
-    detail::checkValueRange<Dims>(params...);
     if constexpr (SetNumWorkGroups) {
       convertToRangeViewAndSetDescriptor(std::move(params)...,
                                          /*SetNumWorkGroups=*/true);
@@ -1459,7 +1453,6 @@ public:
 #ifndef __SYCL_DEVICE_ONLY__
     throwIfActionIsCreated();
     setDeviceKernelInfo(std::move(Kernel));
-    detail::checkValueRange<Dims>(NumWorkItems, WorkItemOffset);
     setNDRangeDescriptor(std::move(NumWorkItems), std::move(WorkItemOffset));
     extractArgsAndReqs();
 #endif

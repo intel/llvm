@@ -110,7 +110,6 @@
 // CHECK-NEXT: CL/cl_ext.h
 // CHECK-NEXT: detail/get_device_kernel_info.hpp
 // CHECK-NEXT: detail/compile_time_kernel_info.hpp
-// CHECK-NEXT: detail/id_queries_fit_in_int.hpp
 // CHECK-NEXT: detail/kernel_launch_helper.hpp
 // CHECK-NEXT: detail/cg_types.hpp
 // CHECK-NEXT: detail/host_profiling_info.hpp

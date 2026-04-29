@@ -2716,6 +2716,7 @@ void enqueueImpKernel(
   std::shared_ptr<kernel_impl> SyclKernelImpl;
   device_image_impl *DeviceImageImpl = nullptr;
   FastKernelCacheValPtr KernelCacheVal;
+  sycl_device_binary_property IdQueryRangeProp;
 
   if (nullptr != MSyclKernel) {
     assert(MSyclKernel->get_info<info::kernel::context>() ==
@@ -2731,17 +2732,25 @@ void enqueueImpKernel(
     // their duplication in such cases.
     KernelMutex = &MSyclKernel->getNoncacheableEnqueueMutex();
     EliminatedArgMask = MSyclKernel->getKernelArgMask();
+
+    if (!MSyclKernel->isInteropOrSourceBased()) {
+      auto &DeviceImage = detail::ProgramManager::getInstance().getDeviceImage(
+          DeviceKernelInfo.Name, ContextImpl, DeviceImpl);
+      IdQueryRangeProp = DeviceImage.getProperty("idQueriesRange");
+    }
   } else if ((SyclKernelImpl =
                   KernelBundleImplPtr
                       ? KernelBundleImplPtr->tryGetKernel(DeviceKernelInfo.Name)
                       : std::shared_ptr<kernel_impl>{nullptr})) {
     Kernel = SyclKernelImpl->getHandleRef();
     DeviceImageImpl = &SyclKernelImpl->getDeviceImage();
-
     Program = DeviceImageImpl->get_ur_program();
 
     EliminatedArgMask = SyclKernelImpl->getKernelArgMask();
     KernelMutex = SyclKernelImpl->getCacheMutex();
+
+    IdQueryRangeProp =
+        DeviceImageImpl->get_bin_image_ref()->getProperty("idQueriesRange");
   } else {
     KernelCacheVal = detail::ProgramManager::getInstance().getOrCreateKernel(
         ContextImpl, DeviceImpl, DeviceKernelInfo, NDRDesc);
@@ -2749,6 +2758,11 @@ void enqueueImpKernel(
     KernelMutex = KernelCacheVal->MMutex;
     Program = KernelCacheVal->MProgramHandle;
     EliminatedArgMask = KernelCacheVal->MKernelArgMask;
+
+    const RTDeviceBinaryImage &DeviceImage =
+        detail::ProgramManager::getInstance().getDeviceImage(
+            DeviceKernelInfo.Name, ContextImpl, DeviceImpl);
+    IdQueryRangeProp = DeviceImage.getProperty("idQueriesRange");
   }
 
   // We may need more events for the launch, so we make another reference.
@@ -2767,6 +2781,50 @@ void enqueueImpKernel(
                                        DeviceGlobalInitEvents.begin(),
                                        DeviceGlobalInitEvents.end());
     EventsWaitList = std::move(EventsWithDeviceGlobalInits);
+  }
+
+  // Get Max number of work groups that this kernel can accept.
+  {
+    // Skip the check for interop kernels.
+    if (!(MSyclKernel && MSyclKernel->isInterop())) {
+      uint64_t MaxRange;
+      string ErrMsg;
+      uint32_t IdQueriesRange =
+          IdQueryRangeProp ? DeviceBinaryProperty(IdQueryRangeProp).asUint32()
+                           : 0;
+      switch (IdQueriesRange) {
+      case 1:
+        MaxRange = static_cast<uint64_t>(std::numeric_limits<uint32_t>::max());
+        ErrMsg =
+            "The kernel was compiled with -fsycl-id-queries-range=uint, but "
+            "the "
+            "provided "
+            "range/offset exceeds the maximum value storable in a uint32_t. "
+            "Either reduce the range/offset or "
+            "recompile the kernel with -fsycl-id-queries-range=size_t.";
+        break;
+      case 2:
+        MaxRange = static_cast<uint64_t>(std::numeric_limits<size_t>::max());
+        ErrMsg = "The provided range/offset exceeds the maximum "
+                 "value storable in a size_t, "
+                 "which is the maximum value supported by DPCPP.";
+        break;
+      case 0:
+      default:
+        MaxRange = static_cast<uint64_t>(std::numeric_limits<int>::max());
+        ErrMsg =
+            "The kernel was compiled with -fsycl-id-queries-range=int, but the "
+            "provided "
+            "range/offset exceeds the maximum value storable in a int. Either "
+            "reduce the range/offset or "
+            "recompile the kernel with -fsycl-id-queries-range=[uint|size_t].";
+      }
+
+      if (NDRDesc.getNumGlobalWorkGroups() > MaxRange) {
+        throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
+                              ErrMsg.c_str());
+      }
+    }
   }
 
   ur_result_t Error = UR_RESULT_SUCCESS;

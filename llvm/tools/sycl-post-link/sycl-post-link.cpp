@@ -241,13 +241,13 @@ cl::opt<bool> AllowDeviceImageDependencies{
     cl::desc("Allow dependencies between device images"), cl::cat(PostLinkCat),
     cl::init(false)};
 
-enum IdQueriesRangeMode { IDQR_INT, IDQR_UINT, IDQR_SIZE_T };
+enum IdQueriesRangeMode { IDQR_INT = 0, IDQR_UINT = 1, IDQR_SIZE_T = 2 };
 
 cl::opt<IdQueriesRangeMode> IdQueriesRange{
     "id-queries-range",
     cl::desc("Specify the assumption about SYCL ID query value ranges"),
     cl::Optional,
-    cl::init(IDQR_SIZE_T),
+    cl::init(IDQR_INT),
     cl::values(
         clEnumValN(IDQR_INT, "int", "ID query values fit within MAX_INT"),
         clEnumValN(IDQR_UINT, "uint", "ID query values fit within MAX_UINT"),

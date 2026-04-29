@@ -18,7 +18,6 @@
 #include <sycl/detail/common.hpp>             // for code_location
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEP...
 #include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
-#include <sycl/detail/id_queries_fit_in_int.hpp> // for checkValueRange
 #include <sycl/detail/info_desc_helpers.hpp>  // for is_queue_info_...
 #include <sycl/detail/kernel_desc.hpp>        // for KernelInfo
 #include <sycl/detail/nd_range_view.hpp>
@@ -3988,10 +3987,6 @@ auto submit_kernel_direct_parallel_for(const queue &Queue, nd_range<Dims> Range,
       "must be either sycl::nd_item or be convertible from sycl::nd_item");
   using TransformedArgType = sycl::nd_item<Dims>;
 
-#ifndef __SYCL_DEVICE_ONLY__
-  detail::checkValueRange<Dims>(Range);
-#endif
-
   return submit_kernel_direct<detail::WrapAs::parallel_for, TransformedArgType,
                               NameT, EventNeeded, PropertiesT,
                               KernelTypeUniversalRef, Dims>(
@@ -4058,14 +4053,6 @@ auto submit_kernel_direct_parallel_for(const queue &Queue, range<Dims> Range,
     using KTypeWrapper = decltype(Wrapper);
     using KName = std::conditional_t<std::is_same<KernelType, NameT>::value,
                                      KTypeWrapper, NameWT>;
-#ifndef __SYCL_DEVICE_ONLY__
-    // We are executing over the rounded range, but there are still
-    // items/ids that are constructed in the range rounded
-    // kernel, use items/ids in the user range, which means that
-    // ID range assumptions can still be violated. So check the bounds
-    // of the user range, instead of the rounded range.
-    detail::checkValueRange<Dims>(Range);
-#endif
     return submit_kernel_direct<detail::WrapAs::parallel_for,
                                 TransformedArgType, KName, EventNeeded,
                                 PropertiesT, KTypeWrapper, Dims>(
@@ -4076,9 +4063,6 @@ auto submit_kernel_direct_parallel_for(const queue &Queue, range<Dims> Range,
        // SYCL_LANGUAGE_VERSION >= 202012L
   {
 #ifndef __SYCL_FORCE_PARALLEL_FOR_RANGE_ROUNDING__
-#ifndef __SYCL_DEVICE_ONLY__
-    detail::checkValueRange<Dims>(Range);
-#endif
     return submit_kernel_direct<detail::WrapAs::parallel_for,
                                 TransformedArgType, NameT, EventNeeded,
                                 PropertiesT, KernelTypeUniversalRef, Dims>(
