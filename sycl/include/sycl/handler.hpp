@@ -362,7 +362,8 @@ private:
                             "a single kernel or explicit memory operation.");
   }
 
-  template <class Kernel> void setDeviceKernelInfo(void *KernelFuncPtr) {
+  template <class Kernel, typename KernelType = Kernel>
+  void setDeviceKernelInfo(void *KernelFuncPtr) {
     constexpr auto Info = detail::CompileTimeKernelInfo<Kernel>;
     MKernelName = Info.Name;
     setKernelFunc(KernelFuncPtr);
@@ -679,7 +680,7 @@ private:
         "-fsycl-host-compiler-options='/std:c++latest' "
         "might also help.");
 
-    setDeviceKernelInfo<KernelName>((void *)MHostKernel->getPtr());
+    setDeviceKernelInfo<KernelName, KernelType>((void *)MHostKernel->getPtr());
 
     // If the kernel lambda is callable with a kernel_handler argument, manifest
     // the associated kernel handler.

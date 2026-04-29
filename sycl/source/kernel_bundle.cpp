@@ -185,6 +185,11 @@ kernel_id get_kernel_id_impl(string_view KernelName) {
       std::string_view(KernelName));
 }
 
+kernel_id get_kernel_id_impl(string_view KernelName, const void *Anchor) {
+  return detail::ProgramManager::getInstance().getSYCLKernelID(
+      std::string_view(KernelName), Anchor);
+}
+
 detail::KernelBundleImplPtr
 get_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
                        bundle_state State) {
