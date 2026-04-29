@@ -277,3 +277,4 @@ Set of information about an native device code image in a SYCLBIN file.
 | -------- | ----------------- | ----- |
 | "arch"   | Byte array. ("2") | A string representing the architecture of the binary, corresponding to the value of `-fsycl-targets` option used when compiling this binary. |
 | "target" | Byte array. ("2") | A string representing the target of the binary, corresponding to the value of `-fsycl-targets` option used when compiling this binary. This may be missing if no part of `-fsycl-targets` was used during the compilation of this binary or if `-fsycl-targets` was not used at all. |
+
