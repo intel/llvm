@@ -2851,10 +2851,10 @@ private:
                                       bool IsDeviceImageScoped, size_t NumBytes,
                                       size_t Offset);
 
-  // TODO: Remove during next ABI-breaking window.
   void setKernelLaunchProperties(
       const detail::KernelPropertyHolderStructTy &KernelLaunchProperties);
 
+  // TODO: Remove the following function during the next ABI-breaking window.
   inline constexpr void SetKernelLaunchpropertiesIfNotEmpty(
       const detail::KernelPropertyHolderStructTy &KernelLaunchProperties) {
     (void)KernelLaunchProperties;

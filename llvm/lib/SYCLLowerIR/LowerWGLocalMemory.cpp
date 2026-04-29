@@ -79,9 +79,9 @@ sycl::getKernelNamesUsingImplicitLocalMem(const Module &M) {
   return SPIRKernelNames;
 }
 
-std::vector<StringRef>
+SmallVector<StringRef>
 sycl::getKernelNamesUsingWorkGroupDynamicMem(const Module &M) {
-  std::vector<StringRef> SPIRKernelNames;
+  SmallVector<StringRef> SPIRKernelNames;
   llvm::for_each(M.functions(), [&](const Function &F) {
     if (F.getCallingConv() == CallingConv::SPIR_KERNEL &&
         F.hasFnAttribute(WORK_GROUP_SCRATCH_ATTR)) {
