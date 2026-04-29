@@ -113,8 +113,9 @@ __urdlllocal ur_result_t UR_APICALL urUSMHostAlloc(
 
   UR_LOG_L(getContext()->logger, DEBUG, "==== urUSMHostAlloc");
 
-  return getAsanInterceptor()->allocateMemory(hContext, nullptr, pUSMDesc, pool,
-                                              size, AllocType::HOST_USM, ppMem);
+  return getAsanInterceptor()->allocateMemory(
+      hContext, nullptr, AllocMemoryParams::forUSM(pUSMDesc, pool), size,
+      AllocType::HOST_USM, ppMem);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -141,7 +142,8 @@ __urdlllocal ur_result_t UR_APICALL urUSMDeviceAlloc(
   UR_LOG_L(getContext()->logger, DEBUG, "==== urUSMDeviceAlloc");
 
   return getAsanInterceptor()->allocateMemory(
-      hContext, hDevice, pUSMDesc, pool, size, AllocType::DEVICE_USM, ppMem);
+      hContext, hDevice, AllocMemoryParams::forUSM(pUSMDesc, pool), size,
+      AllocType::DEVICE_USM, ppMem);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -168,7 +170,8 @@ __urdlllocal ur_result_t UR_APICALL urUSMSharedAlloc(
   UR_LOG_L(getContext()->logger, DEBUG, "==== urUSMSharedAlloc");
 
   return getAsanInterceptor()->allocateMemory(
-      hContext, hDevice, pUSMDesc, pool, size, AllocType::SHARED_USM, ppMem);
+      hContext, hDevice, AllocMemoryParams::forUSM(pUSMDesc, pool), size,
+      AllocType::SHARED_USM, ppMem);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1276,8 +1279,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferMap(
       USMDesc.align = MemBuffer->getAlignment();
       ur_usm_pool_handle_t Pool{};
       UR_CALL(getAsanInterceptor()->allocateMemory(
-          Context, nullptr, &USMDesc, Pool, size, AllocType::HOST_USM,
-          ppRetMap));
+          Context, nullptr, AllocMemoryParams::forUSM(&USMDesc, Pool), size,
+          AllocType::HOST_USM, ppRetMap));
     }
 
     // Actually, if the access mode is write only, we don't need to do this
@@ -1599,6 +1602,75 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunchWithArgsExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urMemoryExportAllocExportableMemoryExp
+__urdlllocal ur_result_t UR_APICALL urMemoryExportAllocExportableMemoryExp(
+    /// [in] Handle to context in which to allocate memory.
+    ur_context_handle_t hContext,
+    /// [in] Handle to device on which to allocate memory.
+    ur_device_handle_t hDevice,
+    /// [in] Requested alignment of the allocation.
+    size_t alignment,
+    /// [in] Requested size of the allocation.
+    size_t size,
+    /// [in] Type of the memory handle to be exported (e.g. file descriptor,
+    /// or win32 NT handle).
+    ur_exp_external_mem_type_t handleTypeToExport,
+    /// [out][alloc] Pointer to allocated exportable memory.
+    void **ppMem) {
+  UR_LOG_L(getContext()->logger, DEBUG,
+           "==== urMemoryExportAllocExportableMemoryExp");
+
+  UR_CALL(getAsanInterceptor()->allocateMemory(
+      hContext, hDevice,
+      AllocMemoryParams::forExportableMem(alignment, handleTypeToExport), size,
+      AllocType::EXPORTABLE_MEM, ppMem));
+
+  return UR_RESULT_SUCCESS;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urMemoryExportFreeExportableMemoryExp
+__urdlllocal ur_result_t UR_APICALL urMemoryExportFreeExportableMemoryExp(
+    /// [in] Handle to context in which to free memory.
+    ur_context_handle_t hContext,
+    /// [in] Handle to device on which to free memory.
+    ur_device_handle_t,
+    /// [in][release] Pointer to exportable memory to be deallocated.
+    void *pMem) {
+  UR_LOG_L(getContext()->logger, DEBUG,
+           "==== urMemoryExportFreeExportableMemoryExp");
+  UR_CALL(getAsanInterceptor()->releaseMemory(hContext, pMem));
+
+  return UR_RESULT_SUCCESS;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urMemoryExportExportMemoryHandleExp
+__urdlllocal ur_result_t UR_APICALL urMemoryExportExportMemoryHandleExp(
+    /// [in] Handle to context in which the exportable memory was allocated.
+    ur_context_handle_t hContext,
+    /// [in] Handle to device on which the exportable memory was allocated.
+    ur_device_handle_t hDevice,
+    /// [in] Type of the memory handle to be exported (e.g. file descriptor,
+    /// or win32 NT handle).
+    ur_exp_external_mem_type_t handleTypeToExport,
+    /// [in] Pointer to exportable memory handle.
+    void *pMem,
+    /// [out] Returned exportable handle to memory allocated in `pMem`
+    void *pMemHandleRet) {
+  UR_LOG_L(getContext()->logger, DEBUG,
+           "==== urMemoryExportExportMemoryHandleExp");
+  auto AllocInfoItOp = getAsanInterceptor()->findAllocInfoByAddress((uptr)pMem);
+  if (AllocInfoItOp.has_value()) {
+    pMem = reinterpret_cast<void *>(AllocInfoItOp.value()->first);
+  }
+  UR_CALL(getContext()->urDdiTable.MemoryExportExp.pfnExportMemoryHandleExp(
+      hContext, hDevice, handleTypeToExport, pMem, pMemHandleRet));
+
+  return UR_RESULT_SUCCESS;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Exported function for filling application's Adapter table
 ///        with current process' addresses
 ///
@@ -1608,26 +1680,15 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunchWithArgsExp(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
 __urdlllocal ur_result_t UR_APICALL urGetAdapterProcAddrTable(
-    /// [in] API version requested
-    ur_api_version_t version,
     /// [in,out] pointer to table of DDI function pointers
     ur_adapter_dditable_t *pDdiTable) {
   if (nullptr == pDdiTable) {
     return UR_RESULT_ERROR_INVALID_NULL_POINTER;
   }
 
-  if (UR_MAJOR_VERSION(ur_sanitizer_layer::getContext()->version) !=
-          UR_MAJOR_VERSION(version) ||
-      UR_MINOR_VERSION(ur_sanitizer_layer::getContext()->version) >
-          UR_MINOR_VERSION(version)) {
-    return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
-  }
-
-  ur_result_t result = UR_RESULT_SUCCESS;
-
   pDdiTable->pfnGet = ur_sanitizer_layer::asan::urAdapterGet;
 
-  return result;
+  return UR_RESULT_SUCCESS;
 }
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Exported function for filling application's Context table
@@ -1638,22 +1699,11 @@ __urdlllocal ur_result_t UR_APICALL urGetAdapterProcAddrTable(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
 __urdlllocal ur_result_t UR_APICALL urGetContextProcAddrTable(
-    /// [in] API version requested
-    ur_api_version_t version,
     /// [in,out] pointer to table of DDI function pointers
     ur_context_dditable_t *pDdiTable) {
   if (nullptr == pDdiTable) {
     return UR_RESULT_ERROR_INVALID_NULL_POINTER;
   }
-
-  if (UR_MAJOR_VERSION(ur_sanitizer_layer::getContext()->version) !=
-          UR_MAJOR_VERSION(version) ||
-      UR_MINOR_VERSION(ur_sanitizer_layer::getContext()->version) >
-          UR_MINOR_VERSION(version)) {
-    return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
-  }
-
-  ur_result_t result = UR_RESULT_SUCCESS;
 
   pDdiTable->pfnCreate = ur_sanitizer_layer::asan::urContextCreate;
   pDdiTable->pfnRetain = ur_sanitizer_layer::asan::urContextRetain;
@@ -1662,7 +1712,7 @@ __urdlllocal ur_result_t UR_APICALL urGetContextProcAddrTable(
   pDdiTable->pfnCreateWithNativeHandle =
       ur_sanitizer_layer::asan::urContextCreateWithNativeHandle;
 
-  return result;
+  return UR_RESULT_SUCCESS;
 }
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Exported function for filling application's Program table
@@ -1673,19 +1723,10 @@ __urdlllocal ur_result_t UR_APICALL urGetContextProcAddrTable(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
 __urdlllocal ur_result_t UR_APICALL urGetProgramProcAddrTable(
-    /// [in] API version requested
-    ur_api_version_t version,
     /// [in,out] pointer to table of DDI function pointers
     ur_program_dditable_t *pDdiTable) {
   if (nullptr == pDdiTable) {
     return UR_RESULT_ERROR_INVALID_NULL_POINTER;
-  }
-
-  if (UR_MAJOR_VERSION(ur_sanitizer_layer::getContext()->version) !=
-          UR_MAJOR_VERSION(version) ||
-      UR_MINOR_VERSION(ur_sanitizer_layer::getContext()->version) >
-          UR_MINOR_VERSION(version)) {
-    return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
   }
 
   pDdiTable->pfnCreateWithIL = ur_sanitizer_layer::asan::urProgramCreateWithIL;
@@ -1710,28 +1751,17 @@ __urdlllocal ur_result_t UR_APICALL urGetProgramProcAddrTable(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
 __urdlllocal ur_result_t UR_APICALL urGetKernelProcAddrTable(
-    /// [in] API version requested
-    ur_api_version_t version,
     /// [in,out] pointer to table of DDI function pointers
     ur_kernel_dditable_t *pDdiTable) {
   if (nullptr == pDdiTable) {
     return UR_RESULT_ERROR_INVALID_NULL_POINTER;
   }
 
-  if (UR_MAJOR_VERSION(ur_sanitizer_layer::getContext()->version) !=
-          UR_MAJOR_VERSION(version) ||
-      UR_MINOR_VERSION(ur_sanitizer_layer::getContext()->version) >
-          UR_MINOR_VERSION(version)) {
-    return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
-  }
-
-  ur_result_t result = UR_RESULT_SUCCESS;
-
   pDdiTable->pfnRetain = ur_sanitizer_layer::asan::urKernelRetain;
   pDdiTable->pfnRelease = ur_sanitizer_layer::asan::urKernelRelease;
   pDdiTable->pfnSetExecInfo = ur_sanitizer_layer::asan::urKernelSetExecInfo;
 
-  return result;
+  return UR_RESULT_SUCCESS;
 }
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Exported function for filling application's Mem table
@@ -1742,22 +1772,11 @@ __urdlllocal ur_result_t UR_APICALL urGetKernelProcAddrTable(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
 __urdlllocal ur_result_t UR_APICALL urGetMemProcAddrTable(
-    /// [in] API version requested
-    ur_api_version_t version,
     /// [in,out] pointer to table of DDI function pointers
     ur_mem_dditable_t *pDdiTable) {
   if (nullptr == pDdiTable) {
     return UR_RESULT_ERROR_INVALID_NULL_POINTER;
   }
-
-  if (UR_MAJOR_VERSION(ur_sanitizer_layer::getContext()->version) !=
-          UR_MAJOR_VERSION(version) ||
-      UR_MINOR_VERSION(ur_sanitizer_layer::getContext()->version) >
-          UR_MINOR_VERSION(version)) {
-    return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
-  }
-
-  ur_result_t result = UR_RESULT_SUCCESS;
 
   pDdiTable->pfnBufferCreate = ur_sanitizer_layer::asan::urMemBufferCreate;
   pDdiTable->pfnRetain = ur_sanitizer_layer::asan::urMemRetain;
@@ -1768,7 +1787,7 @@ __urdlllocal ur_result_t UR_APICALL urGetMemProcAddrTable(
       ur_sanitizer_layer::asan::urMemGetNativeHandle;
   pDdiTable->pfnGetInfo = ur_sanitizer_layer::asan::urMemGetInfo;
 
-  return result;
+  return UR_RESULT_SUCCESS;
 }
 /// @brief Exported function for filling application's ProgramExp table
 ///        with current process' addresses
@@ -1778,29 +1797,18 @@ __urdlllocal ur_result_t UR_APICALL urGetMemProcAddrTable(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
 __urdlllocal ur_result_t UR_APICALL urGetProgramExpProcAddrTable(
-    /// [in] API version requested
-    ur_api_version_t version,
     /// [in,out] pointer to table of DDI function pointers
     ur_program_exp_dditable_t *pDdiTable) {
   if (nullptr == pDdiTable) {
     return UR_RESULT_ERROR_INVALID_NULL_POINTER;
   }
 
-  if (UR_MAJOR_VERSION(ur_sanitizer_layer::getContext()->version) !=
-          UR_MAJOR_VERSION(version) ||
-      UR_MINOR_VERSION(ur_sanitizer_layer::getContext()->version) >
-          UR_MINOR_VERSION(version)) {
-    return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
-  }
-
-  ur_result_t result = UR_RESULT_SUCCESS;
-
   pDdiTable->pfnBuildExp = ur_sanitizer_layer::asan::urProgramBuildExp;
   pDdiTable->pfnLinkExp = ur_sanitizer_layer::asan::urProgramLinkExp;
   pDdiTable->pfnDynamicLinkExp =
       ur_sanitizer_layer::asan::urProgramDynamicLinkExp;
 
-  return result;
+  return UR_RESULT_SUCCESS;
 }
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Exported function for filling application's Enqueue table
@@ -1811,22 +1819,11 @@ __urdlllocal ur_result_t UR_APICALL urGetProgramExpProcAddrTable(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
 __urdlllocal ur_result_t UR_APICALL urGetEnqueueProcAddrTable(
-    /// [in] API version requested
-    ur_api_version_t version,
     /// [in,out] pointer to table of DDI function pointers
     ur_enqueue_dditable_t *pDdiTable) {
   if (nullptr == pDdiTable) {
     return UR_RESULT_ERROR_INVALID_NULL_POINTER;
   }
-
-  if (UR_MAJOR_VERSION(ur_sanitizer_layer::getContext()->version) !=
-          UR_MAJOR_VERSION(version) ||
-      UR_MINOR_VERSION(ur_sanitizer_layer::getContext()->version) >
-          UR_MINOR_VERSION(version)) {
-    return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
-  }
-
-  ur_result_t result = UR_RESULT_SUCCESS;
 
   pDdiTable->pfnMemBufferRead =
       ur_sanitizer_layer::asan::urEnqueueMemBufferRead;
@@ -1845,7 +1842,7 @@ __urdlllocal ur_result_t UR_APICALL urGetEnqueueProcAddrTable(
   pDdiTable->pfnMemBufferMap = ur_sanitizer_layer::asan::urEnqueueMemBufferMap;
   pDdiTable->pfnMemUnmap = ur_sanitizer_layer::asan::urEnqueueMemUnmap;
 
-  return result;
+  return UR_RESULT_SUCCESS;
 }
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Exported function for filling application's USM table
@@ -1856,29 +1853,18 @@ __urdlllocal ur_result_t UR_APICALL urGetEnqueueProcAddrTable(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
 __urdlllocal ur_result_t UR_APICALL urGetUSMProcAddrTable(
-    /// [in] API version requested
-    ur_api_version_t version,
     /// [in,out] pointer to table of DDI function pointers
     ur_usm_dditable_t *pDdiTable) {
   if (nullptr == pDdiTable) {
     return UR_RESULT_ERROR_INVALID_NULL_POINTER;
   }
 
-  if (UR_MAJOR_VERSION(ur_sanitizer_layer::getContext()->version) !=
-          UR_MAJOR_VERSION(version) ||
-      UR_MINOR_VERSION(ur_sanitizer_layer::getContext()->version) >
-          UR_MINOR_VERSION(version)) {
-    return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
-  }
-
-  ur_result_t result = UR_RESULT_SUCCESS;
-
   pDdiTable->pfnDeviceAlloc = ur_sanitizer_layer::asan::urUSMDeviceAlloc;
   pDdiTable->pfnHostAlloc = ur_sanitizer_layer::asan::urUSMHostAlloc;
   pDdiTable->pfnSharedAlloc = ur_sanitizer_layer::asan::urUSMSharedAlloc;
   pDdiTable->pfnFree = ur_sanitizer_layer::asan::urUSMFree;
 
-  return result;
+  return UR_RESULT_SUCCESS;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1890,26 +1876,15 @@ __urdlllocal ur_result_t UR_APICALL urGetUSMProcAddrTable(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
 __urdlllocal ur_result_t UR_APICALL urGetDeviceProcAddrTable(
-    /// [in] API version requested
-    ur_api_version_t version,
     /// [in,out] pointer to table of DDI function pointers
     ur_device_dditable_t *pDdiTable) {
   if (nullptr == pDdiTable) {
     return UR_RESULT_ERROR_INVALID_NULL_POINTER;
   }
 
-  if (UR_MAJOR_VERSION(ur_sanitizer_layer::getContext()->version) !=
-          UR_MAJOR_VERSION(version) ||
-      UR_MINOR_VERSION(ur_sanitizer_layer::getContext()->version) >
-          UR_MINOR_VERSION(version)) {
-    return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
-  }
-
-  ur_result_t result = UR_RESULT_SUCCESS;
-
   pDdiTable->pfnGetInfo = ur_sanitizer_layer::asan::urDeviceGetInfo;
 
-  return result;
+  return UR_RESULT_SUCCESS;
 }
 /// @brief Exported function for filling application's ProgramExp table
 ///        with current process' addresses
@@ -1965,22 +1940,11 @@ using VirtualMemoryNotSupported =
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
 __urdlllocal ur_result_t UR_APICALL urGetCommandBufferExpProcAddrTable(
-    /// [in] API version requested
-    ur_api_version_t version,
     /// [in,out] pointer to table of DDI function pointers
     ur_command_buffer_exp_dditable_t *pDdiTable) {
   if (nullptr == pDdiTable) {
     return UR_RESULT_ERROR_INVALID_NULL_POINTER;
   }
-
-  if (UR_MAJOR_VERSION(ur_sanitizer_layer::getContext()->version) !=
-          UR_MAJOR_VERSION(version) ||
-      UR_MINOR_VERSION(ur_sanitizer_layer::getContext()->version) >
-          UR_MINOR_VERSION(version)) {
-    return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
-  }
-
-  ur_result_t result = UR_RESULT_SUCCESS;
 
 #define SET_UNSUPPORTED(FuncPtr)                                               \
   do {                                                                         \
@@ -2010,7 +1974,7 @@ __urdlllocal ur_result_t UR_APICALL urGetCommandBufferExpProcAddrTable(
 
 #undef SET_UNSUPPORTED
 
-  return result;
+  return UR_RESULT_SUCCESS;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2022,22 +1986,11 @@ __urdlllocal ur_result_t UR_APICALL urGetCommandBufferExpProcAddrTable(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
 __urdlllocal ur_result_t UR_APICALL urGetVirtualMemProcAddrTable(
-    /// [in] API version requested
-    ur_api_version_t version,
     /// [in,out] pointer to table of DDI function pointers
     ur_virtual_mem_dditable_t *pDdiTable) {
   if (nullptr == pDdiTable) {
     return UR_RESULT_ERROR_INVALID_NULL_POINTER;
   }
-
-  if (UR_MAJOR_VERSION(ur_sanitizer_layer::getContext()->version) !=
-          UR_MAJOR_VERSION(version) ||
-      UR_MINOR_VERSION(ur_sanitizer_layer::getContext()->version) >
-          UR_MINOR_VERSION(version)) {
-    return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
-  }
-
-  ur_result_t result = UR_RESULT_SUCCESS;
 
 #define SET_UNSUPPORTED(FuncPtr)                                               \
   do {                                                                         \
@@ -2054,78 +2007,117 @@ __urdlllocal ur_result_t UR_APICALL urGetVirtualMemProcAddrTable(
 
 #undef SET_UNSUPPORTED
 
-  return result;
+  return UR_RESULT_SUCCESS;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's MemoryExport table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+__urdlllocal ur_result_t UR_APICALL
+urGetMemoryExportExpProcAddrTable(ur_memory_export_exp_dditable_t *pDdiTable) {
+  if (nullptr == pDdiTable) {
+    return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+  }
+
+  pDdiTable->pfnAllocExportableMemoryExp =
+      ur_sanitizer_layer::asan::urMemoryExportAllocExportableMemoryExp;
+  pDdiTable->pfnFreeExportableMemoryExp =
+      ur_sanitizer_layer::asan::urMemoryExportFreeExportableMemoryExp;
+  pDdiTable->pfnExportMemoryHandleExp =
+      ur_sanitizer_layer::asan::urMemoryExportExportMemoryHandleExp;
+
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t urCheckVersion(ur_api_version_t version) {
+  if (UR_MAJOR_VERSION(ur_sanitizer_layer::getContext()->version) !=
+          UR_MAJOR_VERSION(version) ||
+      UR_MINOR_VERSION(ur_sanitizer_layer::getContext()->version) >
+          UR_MINOR_VERSION(version)) {
+    return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
+  }
+  return UR_RESULT_SUCCESS;
 }
 } // namespace asan
 
 ur_result_t initAsanDDITable(ur_dditable_t *dditable) {
-  ur_result_t result = UR_RESULT_SUCCESS;
 
   UR_LOG_L(getContext()->logger, QUIET, "==== DeviceSanitizer: ASAN");
 
+  ur_result_t result =
+      ur_sanitizer_layer::asan::urCheckVersion(UR_API_VERSION_CURRENT);
+
   if (UR_RESULT_SUCCESS == result) {
-    result = ur_sanitizer_layer::asan::urGetAdapterProcAddrTable(
-        UR_API_VERSION_CURRENT, &dditable->Adapter);
+    result =
+        ur_sanitizer_layer::asan::urGetAdapterProcAddrTable(&dditable->Adapter);
   }
 
   if (UR_RESULT_SUCCESS == result) {
-    result = ur_sanitizer_layer::asan::urGetContextProcAddrTable(
-        UR_API_VERSION_CURRENT, &dditable->Context);
+    result =
+        ur_sanitizer_layer::asan::urGetContextProcAddrTable(&dditable->Context);
   }
 
   if (UR_RESULT_SUCCESS == result) {
-    result = ur_sanitizer_layer::asan::urGetKernelProcAddrTable(
-        UR_API_VERSION_CURRENT, &dditable->Kernel);
+    result =
+        ur_sanitizer_layer::asan::urGetKernelProcAddrTable(&dditable->Kernel);
   }
 
   if (UR_RESULT_SUCCESS == result) {
-    result = ur_sanitizer_layer::asan::urGetProgramProcAddrTable(
-        UR_API_VERSION_CURRENT, &dditable->Program);
+    result =
+        ur_sanitizer_layer::asan::urGetProgramProcAddrTable(&dditable->Program);
   }
 
   if (UR_RESULT_SUCCESS == result) {
-    result = ur_sanitizer_layer::asan::urGetKernelProcAddrTable(
-        UR_API_VERSION_CURRENT, &dditable->Kernel);
+    result =
+        ur_sanitizer_layer::asan::urGetKernelProcAddrTable(&dditable->Kernel);
   }
 
   if (UR_RESULT_SUCCESS == result) {
-    result = ur_sanitizer_layer::asan::urGetMemProcAddrTable(
-        UR_API_VERSION_CURRENT, &dditable->Mem);
+    result = ur_sanitizer_layer::asan::urGetMemProcAddrTable(&dditable->Mem);
   }
 
   if (UR_RESULT_SUCCESS == result) {
     result = ur_sanitizer_layer::asan::urGetProgramExpProcAddrTable(
-        UR_API_VERSION_CURRENT, &dditable->ProgramExp);
+        &dditable->ProgramExp);
   }
 
   if (UR_RESULT_SUCCESS == result) {
-    result = ur_sanitizer_layer::asan::urGetEnqueueProcAddrTable(
-        UR_API_VERSION_CURRENT, &dditable->Enqueue);
+    result =
+        ur_sanitizer_layer::asan::urGetEnqueueProcAddrTable(&dditable->Enqueue);
   }
 
   if (UR_RESULT_SUCCESS == result) {
-    result = ur_sanitizer_layer::asan::urGetUSMProcAddrTable(
-        UR_API_VERSION_CURRENT, &dditable->USM);
+    result = ur_sanitizer_layer::asan::urGetUSMProcAddrTable(&dditable->USM);
   }
 
   if (UR_RESULT_SUCCESS == result) {
-    result = ur_sanitizer_layer::asan::urGetDeviceProcAddrTable(
-        UR_API_VERSION_CURRENT, &dditable->Device);
+    result =
+        ur_sanitizer_layer::asan::urGetDeviceProcAddrTable(&dditable->Device);
   }
 
   if (UR_RESULT_SUCCESS == result) {
     result = ur_sanitizer_layer::asan::urGetCommandBufferExpProcAddrTable(
-        UR_API_VERSION_CURRENT, &dditable->CommandBufferExp);
+        &dditable->CommandBufferExp);
   }
 
   if (UR_RESULT_SUCCESS == result) {
     result = ur_sanitizer_layer::asan::urGetVirtualMemProcAddrTable(
-        UR_API_VERSION_CURRENT, &dditable->VirtualMem);
+        &dditable->VirtualMem);
   }
 
   if (UR_RESULT_SUCCESS == result) {
     result = ur_sanitizer_layer::asan::urGetEnqueueExpProcAddrTable(
         &dditable->EnqueueExp);
+  }
+
+  if (UR_RESULT_SUCCESS == result) {
+    result = ur_sanitizer_layer::asan::urGetMemoryExportExpProcAddrTable(
+        &dditable->MemoryExportExp);
   }
 
   if (result != UR_RESULT_SUCCESS) {
