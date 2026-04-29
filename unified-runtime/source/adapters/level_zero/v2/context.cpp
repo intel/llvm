@@ -76,20 +76,11 @@ uniqueDevices(uint32_t numDevices, const ur_device_handle_t *phDevices) {
 
 static bool isFullPlatformRootDeviceList(uint32_t deviceCount,
                                          const ur_device_handle_t *phDevices) {
-  if (deviceCount == 0 || !phDevices || !phDevices[0]) {
-    return false;
-  }
-
   ur_platform_handle_t hPlatform = phDevices[0]->Platform;
 
   std::vector<ur_device_handle_t> requestedDevices;
   requestedDevices.reserve(deviceCount);
   for (uint32_t i = 0; i < deviceCount; ++i) {
-    if (!phDevices[i] || phDevices[i]->Platform != hPlatform ||
-        phDevices[i]->RootDevice) {
-      return false;
-    }
-
     requestedDevices.push_back(phDevices[i]);
   }
 
@@ -213,8 +204,17 @@ ur_context_handle_t_::getP2PDevices(ur_device_handle_t hDevice) const {
 namespace ur::level_zero {
 ur_result_t urContextCreate(uint32_t deviceCount,
                             const ur_device_handle_t *phDevices,
-                            const ur_context_properties_t *pProperties,
+                            const ur_context_properties_t * /*pProperties*/,
                             ur_context_handle_t *phContext) try {
+
+  if (deviceCount == 0 || !phDevices || !phContext) {
+    return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+  }
+  for (uint32_t i = 0; i < deviceCount; ++i) {
+    if (!phDevices[i]) {
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+    }
+  }
 
   ur_platform_handle_t hPlatform = phDevices[0]->Platform;
   ZeStruct<ze_context_desc_t> contextDesc{};
@@ -222,7 +222,7 @@ ur_result_t urContextCreate(uint32_t deviceCount,
   ze_context_handle_t zeContext{};
   bool ownZeContext = true;
 
-  if (!pProperties && isFullPlatformRootDeviceList(deviceCount, phDevices)) {
+  if (isFullPlatformRootDeviceList(deviceCount, phDevices)) {
     ze_context_handle_t zeDefaultContext =
         zeDriverGetDefaultContext(hPlatform->ZeDriver);
     if (zeDefaultContext) {
