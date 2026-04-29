@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <sycl/detail/get_device_kernel_info.hpp>
 #include <sycl/detail/kernel_desc.hpp>
 
 #include <detail/global_handler.hpp>
