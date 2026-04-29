@@ -6,9 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-// Intentionally insufficient set of includes and no "#pragma once".
+#pragma once
 
+#include <sycl/detail/builtins/builtin_helpers.hpp>
 #include <sycl/detail/builtins/helper_macros.hpp>
+
+#include <limits>
 
 namespace sycl {
 inline namespace _V1 {
@@ -512,7 +515,6 @@ DEVICE_IMPL_TEMPLATE(ONE_ARG, nan, builtin_enable_nan_t, __spirv_ocl_nan)
 #else
 inline float nan(uint32_t) { return std::numeric_limits<float>::quiet_NaN(); }
 inline double nan(uint64_t) { return std::numeric_limits<float>::quiet_NaN(); }
-// NOTE: half_type.hpp provides partial specialization for std::numeric_limits.
 inline half nan(uint16_t) { return std::numeric_limits<half>::quiet_NaN(); }
 template <typename T> detail::builtin_enable_nan_t<T> nan(T x) {
   return detail::builtin_delegate_to_scalar([](auto x) { return nan(x); }, x);

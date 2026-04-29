@@ -1,16 +1,15 @@
 // Use update_test.sh to (re-)generate the checks
 // REQUIRES: linux
-// RUN: bash %S/deps_known.sh sycl/khr/includes/math.hpp | FileCheck %s
+// RUN: bash %S/deps_known.sh sycl/khr/includes/builtins_geometric.hpp | FileCheck %s
 
-// CHECK-LABEL: Dependencies for <sycl/khr/includes/math.hpp>:
+// CHECK-LABEL: Dependencies for <sycl/khr/includes/builtins_geometric.hpp>:
 // CHECK-NEXT: /dev/null: /dev/null
-// CHECK-NEXT: khr/includes/math.hpp
+// CHECK-NEXT: khr/includes/builtins_geometric.hpp
 // CHECK-NEXT: khr/includes/version.hpp
 // CHECK-NEXT: detail/defines_elementary.hpp
 // CHECK-NEXT: feature_test.hpp
-// CHECK-NEXT: builtins.hpp
-// CHECK-NEXT: detail/builtins/builtins.hpp
-// CHECK-NEXT: detail/builtins/common_functions.hpp
+// CHECK-NEXT: builtins_geometric.hpp
+// CHECK-NEXT: detail/builtins/geometric_functions.hpp
 // CHECK-NEXT: detail/builtins/builtin_helpers.hpp
 // CHECK-NEXT: detail/fwd/multi_ptr.hpp
 // CHECK-NEXT: access/access.hpp
@@ -40,10 +39,4 @@
 // CHECK-NEXT: detail/memcpy.hpp
 // CHECK-NEXT: marray.hpp
 // CHECK-NEXT: detail/builtins/helper_macros.hpp
-// CHECK-NEXT: detail/builtins/geometric_functions.hpp
-// CHECK-NEXT: detail/builtins/half_precision_math_functions.hpp
-// CHECK-NEXT: detail/builtins/integer_functions.hpp
-// CHECK-NEXT: detail/builtins/math_functions.hpp
-// CHECK-NEXT: detail/builtins/native_math_functions.hpp
-// CHECK-NEXT: detail/builtins/relational_functions.hpp
 // CHECK-EMPTY:
