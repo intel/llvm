@@ -14,7 +14,7 @@
 //   __spirv_AtomicStore(unsigned long long*, ...)
 // Therefore, we need the following include to get forward-declarations of those
 // versions.
-#include <sycl/__spirv/spirv_ops.hpp>
+#include <sycl/__spirv/spirv_ops_atomic.hpp>
 #include <sycl/__spirv/spirv_types.hpp>
 
 #include <sycl/access/access.hpp>
