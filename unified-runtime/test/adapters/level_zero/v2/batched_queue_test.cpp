@@ -624,6 +624,35 @@ TEST_P(urBatchedQueueTest, EnqueueDuringGraphCaptureUsesImmediateList) {
   ASSERT_SUCCESS(urQueueEndGraphCaptureExp(queue1, &graph));
   ASSERT_NE(graph, nullptr);
 
+  bool graphIsEmpty = true;
+  ASSERT_SUCCESS(urGraphIsEmptyExp(graph, &graphIsEmpty));
+  ASSERT_FALSE(graphIsEmpty)
+      << "recorded graph should contain the captured mem buffer write";
+
+  // Prove replay performs the write: clear the buffer, then run the executable
+  // graph and read back the original pattern.
+  const uint8_t clearByte = 0;
+  ASSERT_SUCCESS(urEnqueueMemBufferFill(queue1, buffer, &clearByte,
+                                        sizeof(clearByte), 0, buffer_size, 0,
+                                        nullptr, nullptr));
+  ASSERT_SUCCESS(urQueueFinish(queue1));
+
+  ur_exp_executable_graph_handle_t exGraph = nullptr;
+  ASSERT_SUCCESS(urGraphInstantiateGraphExp(graph, &exGraph));
+  ASSERT_NE(exGraph, nullptr);
+
+  ASSERT_SUCCESS(urEnqueueGraphExp(queue1, exGraph, 0, nullptr, nullptr));
+  ASSERT_SUCCESS(urQueueFinish(queue1));
+
+  std::vector<uint8_t> output(buffer_size, 0);
+  ASSERT_SUCCESS(urEnqueueMemBufferRead(queue1, buffer, /* isBlocking */ true,
+                                        0, buffer_size, output.data(), 0,
+                                        nullptr, nullptr));
+  for (size_t i = 0; i < buffer_size; i++) {
+    ASSERT_EQ(output[i], data[i]) << "mismatch at byte " << i;
+  }
+
+  ASSERT_SUCCESS(urGraphExecutableGraphDestroyExp(exGraph));
   ASSERT_SUCCESS(urEventRelease(event));
   ASSERT_SUCCESS(urGraphDestroyExp(graph));
 }
