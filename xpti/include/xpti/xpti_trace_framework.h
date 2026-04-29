@@ -1003,6 +1003,13 @@ XPTI_EXPORT_API bool xptiCheckTracepointScopeNotification();
 /// @param e The event for which associated data will be removed
 XPTI_EXPORT_API void xptiReleaseEvent(xpti::trace_event_data_t *e);
 
+/// @brief Gets effective stream detail level (max across all subscribers).
+/// @param stream Stream ID to query.
+/// @return Effective detail level. Defaults to NORMAL if not set.
+/// @note Lock-free; safe to call in hot paths.
+XPTI_EXPORT_API xpti::stream_detail_level_t
+xptiGetEffectiveStreamDetailLevel(xpti::stream_id_t stream);
+
 typedef xpti::result_t (*xpti_framework_initialize_t)();
 typedef xpti::result_t (*xpti_framework_finalize_t)();
 typedef xpti::result_t (*xpti_initialize_t)(const char *, uint32_t, uint32_t,
@@ -1072,4 +1079,6 @@ typedef xpti_tracepoint_t *(*xpti_create_tracepoint_t)(const char *,
                                                        const char *, uint32_t,
                                                        uint32_t, void *);
 typedef xpti::result_t (*xpti_delete_tracepoint_t)(xpti_tracepoint_t *);
+typedef xpti::stream_detail_level_t (*xpti_get_effective_stream_detail_level_t)(
+    xpti::stream_id_t);
 }
