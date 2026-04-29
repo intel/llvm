@@ -290,7 +290,6 @@ constexpr Capability CapabilityGlobalVariableDecorationsINTEL =
 constexpr Capability CapabilityBFloat16ArithmeticINTEL =
     static_cast<Capability>(ICapabilityBFloat16ArithmeticINTEL);
 
-
 constexpr ExecutionMode ExecutionModeNamedSubgroupSizeINTEL =
     static_cast<ExecutionMode>(IExecModeNamedSubgroupSizeINTEL);
 
