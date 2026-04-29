@@ -28,8 +28,9 @@ template <typename... Ts> struct last_int_rest_same {
     return (
         (... &&
          (++i == N
-              ? /* last */ builtin_same_shape_v<Ts> &&
-                    std::is_same_v<get_elem_type_t<Ts>, int_type>
+              ? /* last */ builtin_same_shape_v<Ts> // filter out "bad" types,
+                                                    // e.g. multi-ptr
+                    && std::is_same_v<get_elem_type_t<Ts>, int_type>
               : /* not last  */ builtin_same_or_swizzle_v<first_type, Ts>)));
   }();
 };
