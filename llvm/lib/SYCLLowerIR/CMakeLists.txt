@@ -6,9 +6,9 @@ if (NOT TARGET LLVMGenXIntrinsics)
   if (NOT LLVMGenXIntrinsics_FOUND)
     set(LLVMGenXIntrinsics_GIT_REPO https://github.com/intel/vc-intrinsics.git)
 
-    # Date: May 29, 2025
-    # Use OneNthEltsVecArgument instead of HalfVecArguments to fix build failure.
-    set(LLVMGenXIntrinsics_GIT_TAG 60cea7590bd022d95f5cf336ee765033bd114d69)
+    # Date: Oct 21, 2025
+    # Add support for Xe3p devices.
+    set(LLVMGenXIntrinsics_GIT_TAG f8055b7c1ed8195e5932a89f74bb2a30061adf08)
     if(NOT FETCHCONTENT_SOURCE_DIR_VC-INTRINSICS)
       message(STATUS "vc-intrinsics repo is missing. Will try to download "
         "${LLVMGenXIntrinsics_GIT_TAG} from ${LLVMGenXIntrinsics_GIT_REPO}")
