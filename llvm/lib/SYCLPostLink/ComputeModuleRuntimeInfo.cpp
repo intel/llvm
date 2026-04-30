@@ -386,6 +386,12 @@ PropSetRegTy computeModuleProperties(const Module &M,
   }
 
   {
+    SmallVector<StringRef> Kernels = getKernelNamesUsingWorkGroupDynamicMem(M);
+    for (const auto &Kernel : Kernels)
+      PropSet.add(PropSetRegTy::SYCL_WORK_GROUP_DYNAMIC_LOCAL_MEM, Kernel, 1);
+  }
+
+  {
     if (isModuleUsingAsan(M))
       PropSet.add(PropSetRegTy::SYCL_MISC_PROP, "sanUsed", "asan");
     else if (isModuleUsingMsan(M))

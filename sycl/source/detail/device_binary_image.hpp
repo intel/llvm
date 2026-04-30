@@ -237,6 +237,9 @@ public:
   }
   const PropertyRange &getVirtualFunctions() const { return VirtualFunctions; }
   const PropertyRange &getImplicitLocalArg() const { return ImplicitLocalArg; }
+  const PropertyRange &getWorkGroupDynamicLocalMem() const {
+    return WorkGroupDynamicLocalMem;
+  }
   const PropertyRange &getRegisteredKernels() const {
     return RegisteredKernels;
   }
@@ -265,6 +268,7 @@ protected:
   RTDeviceBinaryImage::PropertyRange DeviceRequirements;
   RTDeviceBinaryImage::PropertyRange VirtualFunctions;
   RTDeviceBinaryImage::PropertyRange ImplicitLocalArg;
+  RTDeviceBinaryImage::PropertyRange WorkGroupDynamicLocalMem;
   RTDeviceBinaryImage::PropertyRange RegisteredKernels;
   RTDeviceBinaryImage::PropertyRange Misc;
 

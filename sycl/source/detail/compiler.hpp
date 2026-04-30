@@ -65,6 +65,10 @@
 #define __SYCL_PROPERTY_SET_SYCL_VIRTUAL_FUNCTIONS "SYCL/virtual functions"
 /// PropertySetRegistry::SYCL_IMPLICIT_LOCAL_ARG defined in PropertySetIO.h
 #define __SYCL_PROPERTY_SET_SYCL_IMPLICIT_LOCAL_ARG "SYCL/implicit local arg"
+/// PropertySetRegistry::SYCL_WORK_GROUP_DYNAMIC_LOCAL_MEM defined in
+/// PropertySetIO.h
+#define __SYCL_PROPERTY_SET_SYCL_WORK_GROUP_DYNAMIC_LOCAL_MEM                  \
+  "SYCL/work group dynamic local mem"
 /// PropertySetRegistry::SYCL_REGISTERED_KERNELS defined in PropertySetIO.h
 #define __SYCL_PROPERTY_SET_SYCL_REGISTERED_KERNELS "SYCL/registered kernels"
 

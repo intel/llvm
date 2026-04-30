@@ -219,6 +219,23 @@ have an implicit local memory argument.
 local memory argument.
 
 
+### [SYCL/work group dynamic local mem]
+
+__Key:__ Kernel name.
+
+__Value type:__ 32 bit integer. ("1")
+
+__Value:__ 1 if the kernel allocates work group scratch memory either directly
+or by way of helper functions and 0 or missing otherwise.
+
+__Notes:__
+
+1. If no entry is present for a given kernel in the binary, the kernel does not
+allocate work group scratch memory.
+2. If this property set is missing, no kernels in the binary allocate work 
+group scratch memory.
+
+
 ### [SYCL/registered kernels]
 
 __Key:__ "Registered" kernel name.
