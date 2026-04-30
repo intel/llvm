@@ -1418,6 +1418,16 @@ SPIRVValue *LLVMToSPIRVBase::transConstant(Value *V) {
   }
 
   if (auto *ConstFP = dyn_cast<ConstantFP>(V)) {
+    if (V->getType()->isVectorTy()) {
+      SPIRVType *InnerTy = ExpectedType->getScalarType();
+      SPIRVValue *ScalarVal =
+          transConstantUse(ConstantFP::get(V->getType()->getScalarType(),
+                                           ConstFP->getValueAPF()),
+                           InnerTy);
+      unsigned NumElts = cast<FixedVectorType>(V->getType())->getNumElements();
+      std::vector<SPIRVValue *> BV(NumElts, ScalarVal);
+      return BM->addCompositeConstant(ExpectedType, BV);
+    }
     auto *BT = static_cast<SPIRVType *>(ExpectedType);
     return BM->addConstant(
         BT, ConstFP->getValueAPF().bitcastToAPInt().getZExtValue());
@@ -5654,21 +5664,18 @@ processMiniFPOrInt4Type(Type *LLVMTy, FPEncodingWrap Encoding,
   unsigned TyWidth = cast<IntegerType>(ScalarTy)->getBitWidth();
   unsigned VecSize = 0;
 
-  if (TyWidth == 32) {
-    // Int4 or FP4 packed in 32-bit integer, change type and vector size.
-    assert((Encoding == FPEncodingWrap::E2M1 ||
-            Encoding == FPEncodingWrap::Integer) &&
-           "Unknown FP encoding");
+  bool IsPacked =
+      Encoding == FPEncodingWrap::E2M1 || Encoding == FPEncodingWrap::Integer;
+  if (IsPacked &&
+      (TyWidth == 8 || TyWidth == 16 || TyWidth == 32 || TyWidth == 64)) {
+    // Int4 or FP4 packed in an integer: each N-bit integer holds N/4 values.
     assert(!isLLVMCooperativeMatrixType(LLVMTy) &&
            "FP4 and Int4 matrices must not be packed");
-    VecSize = 8;
-    TyWidth = 4;
-  } else if (TyWidth == 8 && (Encoding == FPEncodingWrap::E2M1 ||
-                              Encoding == FPEncodingWrap::Integer)) {
-    assert(!isLLVMCooperativeMatrixType(LLVMTy) &&
-           "FP4 and Int4 matrices must not be packed");
-    // Int4 or FP4 packed in 8-bit integer, change type and vector size.
-    VecSize = 2;
+    unsigned OuterVecLen =
+        LLVMTy->isVectorTy()
+            ? cast<VectorType>(LLVMTy)->getElementCount().getFixedValue()
+            : 1;
+    VecSize = (TyWidth / 4) * OuterVecLen;
     TyWidth = 4;
   } else {
     if (LLVMTy->isVectorTy())
@@ -5764,14 +5771,16 @@ SPIRVValue *LLVMToSPIRVBase::transDirectCallInst(CallInst *CI,
                   ->getArgs());
           SrcOp = BM->addUnaryInst(OpBitcast, SrcTy, SrcOp, BB);
         } else if (FPDesc.SrcEncoding != FPEncodingWrap::Integer ||
-                   (SrcTy->isTypeVector() && !LLVMSrcTy->isVectorTy())) {
-          // Create bitcast for FP4, FP8 and packed Int4.
+                   SrcVecSize > 0) {
+          // Create bitcast for FP4, FP8 and packed Int4 (including cases where
+          // both the LLVM and SPIR-V types are vectors but with different
+          // sizes, e.g. <2 x i8> repacked as <4 x Int4>).
           SrcOp = BM->addUnaryInst(OpBitcast, SrcTy, SrcOp, BB);
         }
       }
+      unsigned DstVecSize = 0;
       if (!DstTy) {
         // Dst type is 'mini' float or int4.
-        unsigned DstVecSize = 0;
         DstTy = processMiniFPOrInt4Type(LLVMDstTy, FPDesc.DstEncoding,
                                         GetScalarTy, BM, DstVecSize);
 
@@ -5799,10 +5808,9 @@ SPIRVValue *LLVMToSPIRVBase::transDirectCallInst(CallInst *CI,
       if (FPDesc.DstEncoding == FPEncodingWrap::IEEE754 ||
           FPDesc.DstEncoding == FPEncodingWrap::BF16)
         return Conv;
-      // Originally not-packed integer.
+      // Originally not-packed integer (no repacking, or cooperative matrix).
       if (FPDesc.DstEncoding == FPEncodingWrap::Integer &&
-          (DstTy->isTypeVector() == LLVMDstTy->isVectorTy() ||
-           isLLVMCooperativeMatrixType(LLVMDstTy)))
+          (DstVecSize == 0 || isLLVMCooperativeMatrixType(LLVMDstTy)))
         return Conv;
       // Need to adjust types: create bitcast for FP8 and packed Int4.
       SPIRVValue *BitCast =
