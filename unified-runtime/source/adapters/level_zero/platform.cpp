@@ -746,9 +746,9 @@ ur_platform_handle_t_::getDeviceFromNativeHandle(ze_device_handle_t ZeDevice) {
   std::shared_lock<ur_shared_mutex> Lock(URDevicesCacheMutex);
   auto it = std::find_if(URDevicesCache.begin(), URDevicesCache.end(),
                          [&](std::unique_ptr<ur_device_handle_t_> &D) {
-                           return D.get()->ZeDevice == ZeDevice &&
-                                  (D.get()->RootDevice == nullptr ||
-                                   D.get()->RootDevice->RootDevice == nullptr);
+                           return D->ZeDevice == ZeDevice &&
+                                  (D->RootDevice == nullptr ||
+                                   D->RootDevice->RootDevice == nullptr);
                          });
   if (it != URDevicesCache.end()) {
     return (*it).get();
@@ -912,6 +912,43 @@ ur_result_t ur_platform_handle_t_::populateDeviceCacheIfNeeded() {
     bool Supported = (ZeResult != ZE_RESULT_ERROR_UNSUPPORTED_FEATURE &&
                       ZeResult != ZE_RESULT_ERROR_UNSUPPORTED_VERSION);
     ZeDeviceSynchronizeSupported = Supported;
+  }
+
+  for (auto &dev : URDevicesCache) {
+    dev->peers = std::vector<ur_device_handle_t_::PeerStatus>(
+        URDevicesCache.size(), ur_device_handle_t_::PeerStatus::NO_CONNECTION);
+
+    for (size_t peerId = 0; peerId < URDevicesCache.size(); ++peerId) {
+      if (peerId == dev->Id.value())
+        continue;
+
+      ZeStruct<ze_device_p2p_properties_t> p2pProperties;
+      ZE2UR_CALL(
+          zeDeviceGetP2PProperties,
+          (dev->ZeDevice, URDevicesCache[peerId]->ZeDevice, &p2pProperties));
+      if (!(p2pProperties.flags & ZE_DEVICE_P2P_PROPERTY_FLAG_ACCESS)) {
+        UR_LOG(INFO,
+               "p2p access to memory of dev:{} from dev:{} not possible due to "
+               "lack of p2p property",
+               peerId, dev->Id.value());
+        continue;
+      }
+
+      ze_bool_t p2p;
+      ZE2UR_CALL(zeDeviceCanAccessPeer,
+                 (dev->ZeDevice, URDevicesCache[peerId]->ZeDevice, &p2p));
+      if (!p2p) {
+        UR_LOG(INFO,
+               "p2p access to memory of dev:{} from dev:{} not possible due to "
+               "no connection",
+               peerId, dev->Id.value());
+        continue;
+      }
+
+      UR_LOG(INFO, "p2p access to memory of dev:{} from dev:{} can be enabled",
+             peerId, dev->Id.value());
+      dev->peers[peerId] = ur_device_handle_t_::PeerStatus::DISABLED;
+    }
   }
 
   return UR_RESULT_SUCCESS;

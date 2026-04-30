@@ -13,8 +13,8 @@
 namespace ur {
 
 std::vector<BacktraceLine> getCurrentBacktrace() {
-  void *backtraceFrames[MAX_BACKTRACE_FRAMES];
-  int frameCount = ::backtrace(backtraceFrames, MAX_BACKTRACE_FRAMES);
+  void *backtraceFrames[MaxBacktraceFrames];
+  int frameCount = ::backtrace(backtraceFrames, MaxBacktraceFrames);
   char **backtraceStr = ::backtrace_symbols(backtraceFrames, frameCount);
   // TODO: implement getting demangled symbols using abi::__cxa_demangle
   if (backtraceStr == nullptr) {
