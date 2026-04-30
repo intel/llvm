@@ -53,7 +53,7 @@ int main() {
 // CHECK-DAG: @.sycl_offloading.0.data = internal unnamed_addr constant [[[SIZE1:.*]] x i8]
 // CHECK-DAG: @__sycl_offload_entry_name = internal unnamed_addr constant [25 x i8] c"_ZTSZ4mainE11fake_kernel\00"
 // CHECK-DAG: @__sycl_offload_entries_arr = internal constant [1 x %struct.__tgt_offload_entry] [%struct.__tgt_offload_entry { i64 0, i16 1, i16 8, i32 0, ptr null, ptr @__sycl_offload_entry_name, i64 0, i64 0, ptr null }]
-// CHECK-DAG: @.sycl_offloading.0.info = internal local_unnamed_addr constant [2 x i64] [i64 ptrtoint (ptr @.sycl_offloading.0.data to i64), i64 772], section ".tgtimg", align 16
+// CHECK-DAG: @.sycl_offloading.0.info = internal local_unnamed_addr constant [2 x i64] [i64 ptrtoint (ptr @.sycl_offloading.0.data to i64), i64 770], section ".tgtimg", align 16
 // CHECK-DAG: @llvm.used = appending global [1 x ptr] [ptr @.sycl_offloading.0.info], section "llvm.metadata"
 
 // CHECK-DAG: @.sycl_offloading.device_images = internal unnamed_addr constant [1 x %__sycl.tgt_device_image] [%__sycl.tgt_device_image { i16 3, i8 4, i8 0, ptr @.sycl_offloading.target.0, ptr @.sycl_offloading.opts.compile.0, ptr @.sycl_offloading.opts.link.0, ptr @.sycl_offloading.0.data, ptr getelementptr ([[[SIZE2:.*]] x i8], ptr @.sycl_offloading.0.data, i64 0, i64 [[SIZE2]]), ptr @__sycl_offload_entries_arr, ptr getelementptr ([1 x %struct.__tgt_offload_entry], ptr @__sycl_offload_entries_arr, i64 0, i64 1), ptr @__sycl_offload_prop_sets_arr.2, ptr getelementptr ([2 x %_pi_device_binary_property_set_struct], ptr @__sycl_offload_prop_sets_arr.2, i64 0, i64 2) }]
