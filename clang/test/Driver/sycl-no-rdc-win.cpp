@@ -23,7 +23,7 @@
 // CHECK: 36: file-table-tform, {33, 35}, tempfiletable, (device-sycl)
 // CHECK: 37: clang-offload-wrapper, {36}, object, (device-sycl)
 // CHECK: 38: offload, "device-sycl (spir64-unknown-unknown)" {37}, object
-// CHECK: 39: linker, {13, 38}, ir, (device-sycl)
+// CHECK: 39: linker, {13, 31}, ir, (device-sycl)
 // CHECK: 40: sycl-post-link, {39}, tempfiletable, (device-sycl)
 // CHECK: 41: file-table-tform, {40}, tempfilelist, (device-sycl)
 // CHECK: 42: llvm-spirv, {41}, tempfilelist, (device-sycl)
