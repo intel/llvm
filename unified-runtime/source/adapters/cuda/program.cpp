@@ -106,11 +106,15 @@ ur_program_handle_t_::setMetadata(const ur_program_metadata_t *Metadata,
 }
 
 ur_result_t ur_program_handle_t_::setBinary(const char *Source, size_t Length) {
-  // Do not re-set program binary data which has already been set as that will
-  // delete the old binary data.
-  UR_ASSERT(Binary == nullptr && BinarySizeInBytes == 0,
+  // Do not re-set program binary data once initialized.
+  UR_ASSERT(Binary.empty() && BinarySizeInBytes == 0,
             UR_RESULT_ERROR_INVALID_OPERATION);
-  Binary = Source;
+  UR_ASSERT(Source || Length == 0, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+
+  Binary.resize(Length + 1, '\0');
+  if (Length) {
+    std::memcpy(Binary.data(), Source, Length);
+  }
   BinarySizeInBytes = Length;
   return UR_RESULT_SUCCESS;
 }
@@ -149,7 +153,10 @@ ur_result_t ur_program_handle_t_::buildProgram(const char *BuildOptions) {
     }
   }
 
-  UR_CHECK_ERROR(cuModuleLoadDataEx(&Module, static_cast<const void *>(Binary),
+  UR_ASSERT(Binary.size() > 1, UR_RESULT_ERROR_INVALID_PROGRAM);
+
+  UR_CHECK_ERROR(cuModuleLoadDataEx(&Module,
+                                    static_cast<const void *>(Binary.data()),
                                     Options.size(), Options.data(),
                                     OptionVals.data()));
 
@@ -274,7 +281,7 @@ urProgramLink(ur_context_handle_t hContext, uint32_t count,
       for (size_t i = 0; i < count; ++i) {
         ur_program_handle_t Program = phPrograms[i];
         UR_CHECK_ERROR(cuLinkAddData(
-            State, CU_JIT_INPUT_PTX, const_cast<char *>(Program->Binary),
+            State, CU_JIT_INPUT_PTX, Program->Binary.data(),
             Program->BinarySizeInBytes, nullptr, 0, nullptr, nullptr));
       }
       void *CuBin = nullptr;
@@ -379,7 +386,8 @@ urProgramGetInfo(ur_program_handle_t hProgram, ur_program_info_t propName,
 
     auto **ppBinaries = static_cast<uint8_t **>(pProgramInfo);
     if (ppBinaries[0]) {
-      std::memcpy(ppBinaries[0], hProgram->Binary, hProgram->BinarySizeInBytes);
+      std::memcpy(ppBinaries[0], hProgram->Binary.data(),
+                  hProgram->BinarySizeInBytes);
     }
     return UR_RESULT_SUCCESS;
   }
