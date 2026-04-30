@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
 
-#  Copyright (C) 2023-2026 Intel Corporation
-#  Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
-#  See LICENSE.TXT
-#  SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+# Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+# See https://llvm.org/LICENSE.txt for license information.
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 # get_system_info.sh - Script for 'debug' printing all the system info.
 
@@ -49,6 +48,12 @@ function system_info {
 		nvidia-smi
 	else
 		echo "CUDA not installed"
+	fi
+	echo "**********NVCC Version**********"
+	if command -v nvcc &> /dev/null; then
+		nvcc --version
+	else
+		echo "NVCC not installed"
 	fi
 	echo "**********L0 Version**********"
 	check_L0_version

@@ -37,6 +37,7 @@
 // CHECK-NEXT: detail/string.hpp
 // CHECK-NEXT: functional.hpp
 // CHECK-NEXT: half_type.hpp
+// CHECK-NEXT: detail/half_type_impl.hpp
 // CHECK-NEXT: bit_cast.hpp
 // CHECK-NEXT: aspects.hpp
 // CHECK-NEXT: info/aspects.def
@@ -58,9 +59,12 @@
 // CHECK-NEXT: nd_range.hpp
 // CHECK-NEXT: ext/oneapi/functional.hpp
 // CHECK-NEXT: detail/spirv.hpp
-// CHECK-NEXT: __spirv/spirv_ops.hpp
+// CHECK-NEXT: __spirv/spirv_ops_atomic.hpp
+// CHECK-NEXT: __spirv/spirv_ops_builtin_decls.hpp
+// CHECK-NEXT: __spirv/spirv_ops_base.hpp
 // CHECK-NEXT: multi_ptr.hpp
 // CHECK-NEXT: detail/address_space_cast.hpp
 // CHECK-NEXT: group_barrier.hpp
 // CHECK-NEXT: sub_group.hpp
+// CHECK-NEXT: __spirv/spirv_ops_subgroup.hpp
 // CHECK-EMPTY:

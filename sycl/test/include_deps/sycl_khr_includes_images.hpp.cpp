@@ -75,6 +75,7 @@
 // CHECK-NEXT: ext/oneapi/matrix/query-types.hpp
 // CHECK-NEXT: ext/oneapi/bfloat16.hpp
 // CHECK-NEXT: half_type.hpp
+// CHECK-NEXT: detail/half_type_impl.hpp
 // CHECK-NEXT: ext/oneapi/matrix/matrix-unified-utils.hpp
 // CHECK-NEXT: info/platform_traits.def
 // CHECK-NEXT: info/context_traits.def
@@ -110,7 +111,9 @@
 // CHECK-NEXT: detail/named_swizzles_mixin.hpp
 // CHECK-NEXT: detail/memcpy.hpp
 // CHECK-NEXT: detail/image_ocl_types.hpp
-// CHECK-NEXT: __spirv/spirv_ops.hpp
+// CHECK-NEXT: __spirv/spirv_ops_image.hpp
+// CHECK-NEXT: __spirv/spirv_ops_builtin_decls.hpp
+// CHECK-NEXT: __spirv/spirv_ops_base.hpp
 // CHECK-NEXT: properties/image_properties.hpp
 // CHECK-NEXT: properties/image_properties.def
 // CHECK-EMPTY:

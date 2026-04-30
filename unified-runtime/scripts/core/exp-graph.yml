@@ -1,8 +1,7 @@
 #
-# Copyright (C) 2025 Intel Corporation
 #
-# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
-# See LICENSE.TXT
+# Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+# See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #
 # See YaML.md for syntax definition
@@ -158,6 +157,21 @@ params:
     - type: bool*
       name: pResult
       desc: "[out] Pointer to a boolean where the result will be stored."
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Get the graph handle currently being captured on the specified queue."
+class: $xQueue
+name: GetGraphExp
+params:
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: "[in] Handle of the queue to query."
+    - type: $x_exp_graph_handle_t*
+      name: phGraph
+      desc: "[out] Pointer to the handle of the graph being captured. Set to nullptr if queue is not in capture mode."
+returns:
+    - $X_RESULT_ERROR_INVALID_OPERATION:
+        - "The queue is not in graph capture mode."
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Return whether the given recorded graph contains any nodes."

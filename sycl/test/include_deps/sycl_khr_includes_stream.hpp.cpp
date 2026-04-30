@@ -75,6 +75,7 @@
 // CHECK-NEXT: ext/oneapi/matrix/query-types.hpp
 // CHECK-NEXT: ext/oneapi/bfloat16.hpp
 // CHECK-NEXT: half_type.hpp
+// CHECK-NEXT: detail/half_type_impl.hpp
 // CHECK-NEXT: ext/oneapi/matrix/matrix-unified-utils.hpp
 // CHECK-NEXT: info/platform_traits.def
 // CHECK-NEXT: info/context_traits.def
@@ -94,7 +95,9 @@
 // CHECK-NEXT: usm/usm_enums.hpp
 // CHECK-NEXT: properties/buffer_properties.def
 // CHECK-NEXT: atomic.hpp
-// CHECK-NEXT: __spirv/spirv_ops.hpp
+// CHECK-NEXT: __spirv/spirv_ops_atomic.hpp
+// CHECK-NEXT: __spirv/spirv_ops_builtin_decls.hpp
+// CHECK-NEXT: __spirv/spirv_ops_base.hpp
 // CHECK-NEXT: builtins.hpp
 // CHECK-NEXT: detail/builtins/builtins.hpp
 // CHECK-NEXT: detail/vector_core.hpp

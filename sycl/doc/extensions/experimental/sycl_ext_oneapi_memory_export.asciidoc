@@ -109,8 +109,8 @@ handles to import SYCL allocated memory into external APIs.
 
 [_Note:_ Not all of the handle types defined in this enum may be supported for
 exporting memory by the implementation. Currently, the {dpcpp} implementation
-only supports exporting memory with the `opaque_fd` and `win32_nt_handle` handle
-types. This enum is shared with the memory import functionality defined in the
+only supports exporting memory with the `opaque_fd`, `win32_nt_handle`, and
+`dma_buf` handle types. This enum is shared with the memory import functionality defined in the
 https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/experimental/sycl_ext_oneapi_bindless_images.asciidoc[sycl_ext_oneapi_bindless_images]
 extension, where more handle types may be supported for importing memory into
 SYCL.
@@ -142,6 +142,9 @@ represented by an `int`.
 
 The `win32_nt_handle` handle type corresponds to a Windows NT handle, which is
 represented by a `void *`.
+
+The `dma_buf` handle type corresponds to a Linux DMA-BUF file descriptor, which
+is represented by an `int`.
 
 === API of the extension
 
@@ -186,13 +189,15 @@ instance of `sycl::property_list`. Currently, this extension does not define
 any properties that can be used with this function, so the `propList` parameter
 is ignored and reserved for future use.
 
-Only two values of `externalMemHandleType` are supported by this extension:
+Only three values of `externalMemHandleType` are supported by this extension:
 
 - `external_mem_handle_type::opaque_fd` is supported when the host is a Posix
   compliant operating system.
 
 - `external_mem_handle_type::win32_nt_handle`` is supported when the host is
   Windows.
+
+- `external_mem_handle_type::dma_buf` is supported when the host is Linux.
 
 No other values are supported. This function will throw a `sycl::exception` with
 the `errc::feature_not_supported` code if an unsupported value is passed.
@@ -220,15 +225,18 @@ export_device_mem_handle(void *deviceMemory, const sycl::queue &syclQueue);
 }
 ```
 
-Constraints: `ExternalMemHandleType` is either
-`external_mem_handle_type::opaque_fd` or
-`external_mem_handle_type::win32_nt_handle`.
+Constraints: `ExternalMemHandleType` is `external_mem_handle_type::opaque_fd`,
+`external_mem_handle_type::win32_nt_handle`, or
+`external_mem_handle_type::dma_buf`.
 
 When `ExternalMemHandleType` is `external_mem_handle_type::opaque_fd`, the
 `+__return_type__+` is `int`.
 
 When `ExternalMemHandleType` is `external_mem_handle_type::win32_nt_handle`, the
 `+__return_type__+` is `void *`.
+
+When `ExternalMemHandleType` is `external_mem_handle_type::dma_buf`, the
+`+__return_type__+` is `int`.
 
 The `export_device_mem_handle` function accepts a `void *` representing a device
 allocation made using `alloc_exportable_device_mem`.

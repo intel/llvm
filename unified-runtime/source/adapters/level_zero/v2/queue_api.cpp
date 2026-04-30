@@ -1,9 +1,8 @@
 /*
  *
- * Copyright (C) 2024 Intel Corporation
  *
- * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
- * Exceptions. See LICENSE.TXT
+ * Part of the LLVM Project, under the Apache License v2.0 with LLVM
+ * Exceptions. See https://llvm.org/LICENSE.txt for license information.
  *
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
@@ -507,6 +506,12 @@ ur_result_t urEnqueueGraphExp(ur_queue_handle_t hQueue,
 ur_result_t urQueueIsGraphCaptureEnabledExp(ur_queue_handle_t hQueue,
                                             bool *pResult) try {
   return hQueue->get().queueIsGraphCapteEnabledExp(pResult);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+ur_result_t urQueueGetGraphExp(ur_queue_handle_t hQueue,
+                               ur_exp_graph_handle_t *phGraph) try {
+  return hQueue->get().queueGetGraphExp(phGraph);
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }

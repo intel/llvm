@@ -1,10 +1,9 @@
 /*
  *
- * Copyright (C) 2023 Intel Corporation
  *
- * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
+ * Part of the LLVM Project, under the Apache License v2.0 with LLVM
  * Exceptions.
- * See LICENSE.TXT
+ * See https://llvm.org/LICENSE.txt for license information.
  *
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
@@ -1374,6 +1373,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
     break;
   case UR_FUNCTION_USM_HOST_ALLOC_UNREGISTER_EXP:
     os << "UR_FUNCTION_USM_HOST_ALLOC_UNREGISTER_EXP";
+    break;
+  case UR_FUNCTION_QUEUE_GET_GRAPH_EXP:
+    os << "UR_FUNCTION_QUEUE_GET_GRAPH_EXP";
     break;
   default:
     os << "unknown enumerator";
@@ -3177,6 +3179,24 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
     break;
   case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG_LONG:
     os << "UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG_LONG";
+    break;
+  case UR_DEVICE_INFO_XE_STACK_COUNT:
+    os << "UR_DEVICE_INFO_XE_STACK_COUNT";
+    break;
+  case UR_DEVICE_INFO_XE_REGIONS_PER_STACK:
+    os << "UR_DEVICE_INFO_XE_REGIONS_PER_STACK";
+    break;
+  case UR_DEVICE_INFO_XE_CLUSTERS_PER_REGION:
+    os << "UR_DEVICE_INFO_XE_CLUSTERS_PER_REGION";
+    break;
+  case UR_DEVICE_INFO_XE_CORES_PER_CLUSTER:
+    os << "UR_DEVICE_INFO_XE_CORES_PER_CLUSTER";
+    break;
+  case UR_DEVICE_INFO_EUS_PER_XE_CORE:
+    os << "UR_DEVICE_INFO_EUS_PER_XE_CORE";
+    break;
+  case UR_DEVICE_INFO_MAX_LANES_PER_HW_THREAD:
+    os << "UR_DEVICE_INFO_MAX_LANES_PER_HW_THREAD";
     break;
   case UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP:
     os << "UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP";
@@ -5006,6 +5026,84 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
     os << ")";
   } break;
   case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG_LONG: {
+    const uint32_t *tptr = (const uint32_t *)ptr;
+    if (sizeof(uint32_t) > size) {
+      os << "invalid size (is: " << size << ", expected: >=" << sizeof(uint32_t)
+         << ")";
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    os << (const void *)(tptr) << " (";
+
+    os << *tptr;
+
+    os << ")";
+  } break;
+  case UR_DEVICE_INFO_XE_STACK_COUNT: {
+    const uint32_t *tptr = (const uint32_t *)ptr;
+    if (sizeof(uint32_t) > size) {
+      os << "invalid size (is: " << size << ", expected: >=" << sizeof(uint32_t)
+         << ")";
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    os << (const void *)(tptr) << " (";
+
+    os << *tptr;
+
+    os << ")";
+  } break;
+  case UR_DEVICE_INFO_XE_REGIONS_PER_STACK: {
+    const uint32_t *tptr = (const uint32_t *)ptr;
+    if (sizeof(uint32_t) > size) {
+      os << "invalid size (is: " << size << ", expected: >=" << sizeof(uint32_t)
+         << ")";
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    os << (const void *)(tptr) << " (";
+
+    os << *tptr;
+
+    os << ")";
+  } break;
+  case UR_DEVICE_INFO_XE_CLUSTERS_PER_REGION: {
+    const uint32_t *tptr = (const uint32_t *)ptr;
+    if (sizeof(uint32_t) > size) {
+      os << "invalid size (is: " << size << ", expected: >=" << sizeof(uint32_t)
+         << ")";
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    os << (const void *)(tptr) << " (";
+
+    os << *tptr;
+
+    os << ")";
+  } break;
+  case UR_DEVICE_INFO_XE_CORES_PER_CLUSTER: {
+    const uint32_t *tptr = (const uint32_t *)ptr;
+    if (sizeof(uint32_t) > size) {
+      os << "invalid size (is: " << size << ", expected: >=" << sizeof(uint32_t)
+         << ")";
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    os << (const void *)(tptr) << " (";
+
+    os << *tptr;
+
+    os << ")";
+  } break;
+  case UR_DEVICE_INFO_EUS_PER_XE_CORE: {
+    const uint32_t *tptr = (const uint32_t *)ptr;
+    if (sizeof(uint32_t) > size) {
+      os << "invalid size (is: " << size << ", expected: >=" << sizeof(uint32_t)
+         << ")";
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    os << (const void *)(tptr) << " (";
+
+    os << *tptr;
+
+    os << ")";
+  } break;
+  case UR_DEVICE_INFO_MAX_LANES_PER_HW_THREAD: {
     const uint32_t *tptr = (const uint32_t *)ptr;
     if (sizeof(uint32_t) > size) {
       os << "invalid size (is: " << size << ", expected: >=" << sizeof(uint32_t)
@@ -15491,6 +15589,26 @@ inline std::ostream &operator<<(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_queue_get_graph_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_queue_get_graph_exp_params_t *params) {
+
+  os << ".hQueue = ";
+
+  ur::details::printPtr(os, *(params->phQueue));
+
+  os << ", ";
+  os << ".phGraph = ";
+
+  ur::details::printPtr(os, *(params->pphGraph));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_sampler_create_params_t type
 /// @returns
 ///     std::ostream &
@@ -22655,6 +22773,9 @@ inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os,
   } break;
   case UR_FUNCTION_QUEUE_IS_GRAPH_CAPTURE_ENABLED_EXP: {
     os << (const struct ur_queue_is_graph_capture_enabled_exp_params_t *)params;
+  } break;
+  case UR_FUNCTION_QUEUE_GET_GRAPH_EXP: {
+    os << (const struct ur_queue_get_graph_exp_params_t *)params;
   } break;
   case UR_FUNCTION_SAMPLER_CREATE: {
     os << (const struct ur_sampler_create_params_t *)params;

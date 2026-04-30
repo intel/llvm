@@ -1,9 +1,8 @@
 //===--------- device.cpp - Level Zero Adapter ----------------------------===//
 //
-// Copyright (C) 2023-2026 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
@@ -1578,6 +1577,23 @@ ur_result_t urDeviceGetInfo(
 #else
     return ReturnValue(false);
 #endif
+  case UR_DEVICE_INFO_XE_STACK_COUNT:
+    return ReturnValue(uint32_t{Device->ZeXEDeviceProperties->numXeStacks});
+  case UR_DEVICE_INFO_XE_REGIONS_PER_STACK:
+    return ReturnValue(
+        uint32_t{Device->ZeXEDeviceProperties->numXeRegionsPerStack});
+  case UR_DEVICE_INFO_XE_CLUSTERS_PER_REGION:
+    return ReturnValue(
+        uint32_t{Device->ZeXEDeviceProperties->numXeClustersPerRegion});
+  case UR_DEVICE_INFO_XE_CORES_PER_CLUSTER:
+    return ReturnValue(
+        uint32_t{Device->ZeXEDeviceProperties->numXeCorePerCluster});
+  case UR_DEVICE_INFO_EUS_PER_XE_CORE:
+    return ReturnValue(
+        uint32_t{Device->ZeXEDeviceProperties->numExecutionEnginesPerXeCore});
+  case UR_DEVICE_INFO_MAX_LANES_PER_HW_THREAD:
+    return ReturnValue(
+        uint32_t{Device->ZeXEDeviceProperties->maxNumLanesPerHwThread});
   default:
     UR_LOG(ERR, "Unsupported ParamName in urGetDeviceInfo");
     UR_LOG(ERR, "ParamNameParamName={}(0x{})", ParamName,
@@ -2161,6 +2177,23 @@ ur_result_t ur_device_handle_t_::initialize(int SubSubDeviceOrdinal,
             }
           }
         }
+      };
+
+  ZeXEDeviceProperties.Compute =
+      [ZeDevice](ze_intel_xe_device_exp_properties_t &Properties) {
+        // Set up default values of 0
+        Properties.numXeStacks = 0;
+        Properties.numXeRegionsPerStack = 0;
+        Properties.numXeClustersPerRegion = 0;
+        Properties.numXeCorePerCluster = 0;
+        Properties.numExecutionEnginesPerXeCore = 0;
+        Properties.maxNumHwThreadsPerExecutionEngine = 0;
+        Properties.maxNumLanesPerHwThread = 0;
+
+        ze_device_properties_t P;
+        P.stype = ZE_STRUCTURE_TYPE_DEVICE_PROPERTIES;
+        P.pNext = (void *)&Properties;
+        ZE_CALL_NOCHECK(zeDeviceGetProperties, (ZeDevice, &P));
       };
 
   ImmCommandListUsed = this->useImmediateCommandLists();

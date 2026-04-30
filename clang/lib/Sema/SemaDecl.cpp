@@ -2983,12 +2983,8 @@ static bool mergeDeclAttribute(Sema &S, NamedDecl *D,
     NewAttr = S.SYCL().mergeIntelReqdSubGroupSizeAttr(D, *A);
   else if (const auto *A = dyn_cast<IntelNamedSubGroupSizeAttr>(Attr))
     NewAttr = S.SYCL().mergeIntelNamedSubGroupSizeAttr(D, *A);
-  else if (const auto *A = dyn_cast<SYCLIntelNumSimdWorkItemsAttr>(Attr))
-    NewAttr = S.SYCL().mergeSYCLIntelNumSimdWorkItemsAttr(D, *A);
   else if (const auto *A = dyn_cast<SYCLIntelESimdVectorizeAttr>(Attr))
     NewAttr = S.SYCL().mergeSYCLIntelESimdVectorizeAttr(D, *A);
-  else if (const auto *A = dyn_cast<SYCLIntelNoGlobalWorkOffsetAttr>(Attr))
-    NewAttr = S.SYCL().mergeSYCLIntelNoGlobalWorkOffsetAttr(D, *A);
   else if (const auto *A = dyn_cast<SYCLWorkGroupSizeHintAttr>(Attr))
     NewAttr = S.SYCL().mergeSYCLWorkGroupSizeHintAttr(D, *A);
   else if (const auto *A =
@@ -2997,8 +2993,6 @@ static bool mergeDeclAttribute(Sema &S, NamedDecl *D,
   else if (const auto *A =
                dyn_cast<SYCLIntelMaxWorkGroupsPerMultiprocessorAttr>(Attr))
     NewAttr = S.SYCL().mergeSYCLIntelMaxWorkGroupsPerMultiprocessorAttr(D, *A);
-  else if (const auto *A = dyn_cast<SYCLIntelMaxGlobalWorkDimAttr>(Attr))
-    NewAttr = S.SYCL().mergeSYCLIntelMaxGlobalWorkDimAttr(D, *A);
   else if (const auto *BTFA = dyn_cast<BTFDeclTagAttr>(Attr))
     NewAttr = S.mergeBTFDeclTagAttr(D, *BTFA);
   else if (const auto *A = dyn_cast<SYCLDeviceHasAttr>(Attr))
@@ -3007,8 +3001,6 @@ static bool mergeDeclAttribute(Sema &S, NamedDecl *D,
     NewAttr = S.SYCL().mergeSYCLUsesAspectsAttr(D, *A);
   else if (const auto *A = dyn_cast<SYCLTypeAttr>(Attr))
     NewAttr = S.SYCL().mergeSYCLTypeAttr(D, *A, A->getType());
-  else if (const auto *A = dyn_cast<SYCLIntelMaxWorkGroupSizeAttr>(Attr))
-    NewAttr = S.SYCL().mergeSYCLIntelMaxWorkGroupSizeAttr(D, *A);
   else if (const auto *A = dyn_cast<SYCLAddIRAttributesFunctionAttr>(Attr))
     NewAttr = S.SYCL().mergeSYCLAddIRAttributesFunctionAttr(D, *A);
   else if (const auto *A =
