@@ -15,7 +15,7 @@ RUN /download_blender.sh
 # This depends on other components from the GPU driver but we installed them outside
 # of the package manager, so use dpkg --force-all to ignore dependency errors.
 RUN wget https://launchpadlibrarian.net/847063136/libze-intel-gpu-raytracing_1.2.2-1~24.04~ppa1_amd64.deb -O rt.deb && \
-    sudo dpkg --force-all -i rt.deb && \
+    dpkg --force-all -i rt.deb && \
     rm rt.deb
 
 USER sycl
