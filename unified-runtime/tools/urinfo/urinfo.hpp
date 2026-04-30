@@ -356,6 +356,8 @@ inline void printDeviceInfos(ur_device_handle_t hDevice,
   printDeviceInfo<uint32_t>(hDevice,
                             UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG_LONG);
   std::cout << prefix;
+  printDeviceInfo<size_t>(hDevice, UR_DEVICE_INFO_MAX_WORK_GROUPS);
+  std::cout << prefix;
   printDeviceInfo<uint32_t>(hDevice, UR_DEVICE_INFO_XE_STACK_COUNT);
   std::cout << prefix;
   printDeviceInfo<uint32_t>(hDevice, UR_DEVICE_INFO_XE_REGIONS_PER_STACK);

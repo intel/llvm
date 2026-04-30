@@ -110,6 +110,25 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(ReturnSizes);
   }
 
+  case UR_DEVICE_INFO_MAX_WORK_GROUPS: {
+    int MaxX = 0, MaxY = 0, MaxZ = 0;
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &MaxX, CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_X, hDevice->get()));
+    assert(MaxX >= 0);
+
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &MaxY, CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_Y, hDevice->get()));
+    assert(MaxY >= 0);
+
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &MaxZ, CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_Z, hDevice->get()));
+    assert(MaxZ >= 0);
+
+    return ReturnValue(multiplyWithOverflowCheck(static_cast<size_t>(MaxX),
+                                                 static_cast<size_t>(MaxY),
+                                                 static_cast<size_t>(MaxZ)));
+  }
+
   case UR_DEVICE_INFO_MAX_WORK_GROUP_SIZE: {
     int MaxWorkGroupSize = 0;
     UR_CHECK_ERROR(cuDeviceGetAttribute(
