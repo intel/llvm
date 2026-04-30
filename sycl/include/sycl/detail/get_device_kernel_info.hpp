@@ -10,6 +10,8 @@
 #include <sycl/detail/compile_time_kernel_info.hpp>
 #include <sycl/detail/kernel_desc.hpp>
 
+#include <string_view>
+
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
@@ -26,6 +28,17 @@ getDeviceKernelInfo(const CompileTimeKernelInfoTy &);
 template <class Kernel> DeviceKernelInfo &getDeviceKernelInfo() {
   static DeviceKernelInfo &Info =
       getDeviceKernelInfo(CompileTimeKernelInfo<Kernel>);
+  return Info;
+}
+
+// Overload for free function kernels
+// Uses FreeFunctionInfoData which is specialized by the integration header
+__SYCL_EXPORT DeviceKernelInfo &
+getDeviceKernelInfo(std::string_view KernelName);
+
+template <auto *Func> DeviceKernelInfo &getDeviceKernelInfo() {
+  static DeviceKernelInfo &Info =
+      getDeviceKernelInfo(FreeFunctionInfoData<Func>::getFunctionName());
   return Info;
 }
 
