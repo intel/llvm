@@ -22,7 +22,34 @@ enum class AllocType {
   SHARED_USM,
   HOST_USM,
   MEM_BUFFER,
-  DEVICE_GLOBAL
+  DEVICE_GLOBAL,
+  EXPORTABLE_MEM
+};
+
+struct AllocMemoryParams {
+  // For normal USM allocations
+  const ur_usm_desc_t *USMDesc = nullptr;
+  ur_usm_pool_handle_t Pool = {};
+  // For exportable memory allocations
+  ur_exp_external_mem_type_t HandleTypeToExport = {};
+  size_t Alignment = 0;
+
+  static AllocMemoryParams forUSM(const ur_usm_desc_t *USMDesc,
+                                  ur_usm_pool_handle_t Pool) {
+    AllocMemoryParams Params;
+    Params.USMDesc = USMDesc;
+    Params.Pool = Pool;
+    return Params;
+  }
+
+  static AllocMemoryParams
+  forExportableMem(size_t Alignment,
+                   ur_exp_external_mem_type_t HandleTypeToExport) {
+    AllocMemoryParams Params;
+    Params.Alignment = Alignment;
+    Params.HandleTypeToExport = HandleTypeToExport;
+    return Params;
+  }
 };
 
 inline const char *ToString(AllocType Type) {
@@ -37,6 +64,8 @@ inline const char *ToString(AllocType Type) {
     return "Memory Buffer";
   case AllocType::DEVICE_GLOBAL:
     return "Device Global";
+  case AllocType::EXPORTABLE_MEM:
+    return "Exportable Memory";
   default:
     return "Unknown Type";
   }

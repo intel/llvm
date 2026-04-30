@@ -1164,7 +1164,8 @@ __urdlllocal ur_result_t UR_APICALL urUSMDeviceAlloc(
   UR_LOG_L(getContext()->logger, DEBUG, "==== urUSMDeviceAlloc");
 
   return getTsanInterceptor()->allocateMemory(
-      hContext, hDevice, pUSMDesc, pool, size, AllocType::DEVICE_USM, ppMem);
+      hContext, hDevice, AllocMemoryParams::forUSM(pUSMDesc, pool), size,
+      AllocType::DEVICE_USM, ppMem);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1182,8 +1183,9 @@ __urdlllocal ur_result_t UR_APICALL urUSMHostAlloc(
     void **ppMem) {
   UR_LOG_L(getContext()->logger, DEBUG, "==== urUSMHostAlloc");
 
-  return getTsanInterceptor()->allocateMemory(hContext, nullptr, pUSMDesc, pool,
-                                              size, AllocType::HOST_USM, ppMem);
+  return getTsanInterceptor()->allocateMemory(
+      hContext, nullptr, AllocMemoryParams::forUSM(pUSMDesc, pool), size,
+      AllocType::HOST_USM, ppMem);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1204,7 +1206,8 @@ __urdlllocal ur_result_t UR_APICALL urUSMSharedAlloc(
   UR_LOG_L(getContext()->logger, DEBUG, "==== urUSMSharedAlloc");
 
   return getTsanInterceptor()->allocateMemory(
-      hContext, hDevice, pUSMDesc, pool, size, AllocType::SHARED_USM, ppMem);
+      hContext, hDevice, AllocMemoryParams::forUSM(pUSMDesc, pool), size,
+      AllocType::SHARED_USM, ppMem);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1326,6 +1329,56 @@ ur_result_t urEnqueueKernelLaunchWithArgsExp(
   UR_CALL(getTsanInterceptor()->postLaunchKernel(hKernel, hQueue, LaunchInfo));
 
   return UR_RESULT_SUCCESS;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urMemoryExportAllocExportableMemoryExp
+__urdlllocal ur_result_t UR_APICALL urMemoryExportAllocExportableMemoryExp(
+    /// [in] Handle to context in which to allocate memory.
+    ur_context_handle_t hContext,
+    /// [in] Handle to device on which to allocate memory.
+    ur_device_handle_t hDevice,
+    /// [in] Requested alignment of the allocation.
+    size_t alignment,
+    /// [in] Requested size of the allocation.
+    size_t size,
+    /// [in] Type of the memory handle to be exported (e.g. file descriptor,
+    /// or win32 NT handle).
+    ur_exp_external_mem_type_t handleTypeToExport,
+    /// [out][alloc] Pointer to allocated exportable memory.
+    void **ppMem) {
+  UR_LOG_L(getContext()->logger, DEBUG,
+           "==== urMemoryExportAllocExportableMemoryExp");
+
+  UR_CALL(getTsanInterceptor()->allocateMemory(
+      hContext, hDevice,
+      AllocMemoryParams::forExportableMem(alignment, handleTypeToExport), size,
+      AllocType::EXPORTABLE_MEM, ppMem));
+
+  return UR_RESULT_SUCCESS;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urMemoryExportFreeExportableMemoryExp
+__urdlllocal ur_result_t UR_APICALL urMemoryExportFreeExportableMemoryExp(
+    /// [in] Handle to context in which to free memory.
+    ur_context_handle_t hContext,
+    /// [in] Handle to device on which to free memory.
+    ur_device_handle_t hDevice,
+    /// [in][release] Pointer to exportable memory to be deallocated.
+    void *pMem) {
+  UR_LOG_L(getContext()->logger, DEBUG,
+           "==== urMemoryExportFreeExportableMemoryExp");
+
+  auto DI = getTsanInterceptor()->getDeviceInfo(hDevice);
+  std::scoped_lock<ur_shared_mutex> Guard(DI->AllocInfosMutex);
+  auto It = std::find_if(DI->AllocInfos.begin(), DI->AllocInfos.end(),
+                         [&](auto &P) { return P.AllocBegin == (uptr)pMem; });
+  if (It != DI->AllocInfos.end())
+    DI->AllocInfos.erase(It);
+
+  return getContext()->urDdiTable.MemoryExportExp.pfnFreeExportableMemoryExp(
+      hContext, hDevice, pMem);
 }
 
 ur_result_t urCheckVersion(ur_api_version_t version) {
@@ -1552,6 +1605,28 @@ ur_result_t urGetEnqueueExpProcAddrTable(
 
   return result;
 }
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's MemoryExport table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+__urdlllocal ur_result_t UR_APICALL
+urGetMemoryExportExpProcAddrTable(ur_memory_export_exp_dditable_t *pDdiTable) {
+  if (nullptr == pDdiTable) {
+    return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+  }
+
+  pDdiTable->pfnAllocExportableMemoryExp =
+      ur_sanitizer_layer::tsan::urMemoryExportAllocExportableMemoryExp;
+  pDdiTable->pfnFreeExportableMemoryExp =
+      ur_sanitizer_layer::tsan::urMemoryExportFreeExportableMemoryExp;
+
+  return UR_RESULT_SUCCESS;
+}
 } // namespace tsan
 
 ur_result_t initTsanDDITable(ur_dditable_t *dditable) {
@@ -1604,6 +1679,11 @@ ur_result_t initTsanDDITable(ur_dditable_t *dditable) {
   if (UR_RESULT_SUCCESS == result) {
     result = ur_sanitizer_layer::tsan::urGetEnqueueExpProcAddrTable(
         &dditable->EnqueueExp);
+  }
+
+  if (UR_RESULT_SUCCESS == result) {
+    result = ur_sanitizer_layer::tsan::urGetMemoryExportExpProcAddrTable(
+        &dditable->MemoryExportExp);
   }
 
   if (result != UR_RESULT_SUCCESS) {

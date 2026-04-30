@@ -60,8 +60,7 @@ AsanInterceptor::~AsanInterceptor() {
 /// ref: "compiler-rt/lib/asan/asan_allocator.cpp" Allocator::Allocate
 ur_result_t AsanInterceptor::allocateMemory(ur_context_handle_t Context,
                                             ur_device_handle_t Device,
-                                            const ur_usm_desc_t *Properties,
-                                            ur_usm_pool_handle_t Pool,
+                                            const AllocMemoryParams &Params,
                                             size_t Size, AllocType Type,
                                             void **ResultPtr) {
 
@@ -69,8 +68,7 @@ ur_result_t AsanInterceptor::allocateMemory(ur_context_handle_t Context,
   std::shared_ptr<DeviceInfo> DeviceInfo =
       Device ? getDeviceInfo(Device) : nullptr;
 
-  /// Modified from llvm/compiler-rt/lib/asan/asan_allocator.cpp
-  uint32_t Alignment = Properties ? Properties->align : 0;
+  size_t Alignment = Params.USMDesc ? Params.USMDesc->align : Params.Alignment;
   // Alignment must be zero or a power-of-two
   if (0 != (Alignment & (Alignment - 1))) {
     return UR_RESULT_ERROR_INVALID_ARGUMENT;
@@ -94,14 +92,18 @@ ur_result_t AsanInterceptor::allocateMemory(ur_context_handle_t Context,
 
   void *Allocated = nullptr;
 
-  if (Pool == nullptr) {
-    Pool = ContextInfo->getUSMPool();
+  if (Type != AllocType::EXPORTABLE_MEM) {
+    UR_CALL(SafeAllocate(Context, Device, NeededSize, Params.USMDesc,
+                         Params.Pool ? Params.Pool : ContextInfo->getUSMPool(),
+                         Type, &Allocated));
+  } else {
+    UR_CALL(
+        getContext()->urDdiTable.MemoryExportExp.pfnAllocExportableMemoryExp(
+            Context, Device, Alignment, NeededSize, Params.HandleTypeToExport,
+            &Allocated));
   }
 
-  UR_CALL(SafeAllocate(Context, Device, NeededSize, Properties, Pool, Type,
-                       &Allocated));
-
-  // Udpate statistics
+  // Update statistics
   ContextInfo->Stats.UpdateUSMMalloced(NeededSize, NeededSize - Size);
 
   uptr AllocBegin = reinterpret_cast<uptr>(Allocated);
@@ -216,8 +218,14 @@ ur_result_t AsanInterceptor::releaseMemory(ur_context_handle_t Context,
     std::scoped_lock<ur_shared_mutex> Guard(m_AllocationMapMutex);
     m_AllocationMap.erase(AllocInfoIt);
 
-    return getContext()->urDdiTable.USM.pfnFree(
-        Context, (void *)(AllocInfo->AllocBegin));
+    if (AllocInfo->Type != AllocType::EXPORTABLE_MEM) {
+      return getContext()->urDdiTable.USM.pfnFree(
+          Context, (void *)(AllocInfo->AllocBegin));
+    } else {
+      return getContext()
+          ->urDdiTable.MemoryExportExp.pfnFreeExportableMemoryExp(
+              Context, AllocInfo->Device, (void *)(AllocInfo->AllocBegin));
+    }
   }
 
   // If quarantine is enabled, cache it
@@ -233,8 +241,15 @@ ur_result_t AsanInterceptor::releaseMemory(ur_context_handle_t Context,
       ContextInfo->Stats.UpdateUSMRealFreed(ToFreeAllocInfo->AllocSize,
                                             ToFreeAllocInfo->getRedzoneSize());
 
-      UR_CALL(getContext()->urDdiTable.USM.pfnFree(
-          Context, (void *)(ToFreeAllocInfo->AllocBegin)));
+      if (ToFreeAllocInfo->Type != AllocType::EXPORTABLE_MEM) {
+        UR_CALL(getContext()->urDdiTable.USM.pfnFree(
+            Context, (void *)(ToFreeAllocInfo->AllocBegin)));
+      } else {
+        UR_CALL(
+            getContext()->urDdiTable.MemoryExportExp.pfnFreeExportableMemoryExp(
+                Context, ToFreeAllocInfo->Device,
+                (void *)(ToFreeAllocInfo->AllocBegin)));
+      }
 
       // Erase it at last to avoid use-after-free.
       m_AllocationMap.erase(It);
@@ -341,6 +356,9 @@ AsanInterceptor::enqueueAllocInfo(std::shared_ptr<DeviceInfo> &DeviceInfo,
     case AllocType::MEM_BUFFER:
       ShadowByte = &kMemBufferDeallocatedMagic;
       break;
+    case AllocType::EXPORTABLE_MEM:
+      ShadowByte = &kExportableMemDeallocatedMagic;
+      break;
     default:
       ShadowByte = &kUnknownMagic;
       assert(false && "Unknow AllocInfo Type");
@@ -387,6 +405,9 @@ AsanInterceptor::enqueueAllocInfo(std::shared_ptr<DeviceInfo> &DeviceInfo,
     break;
   case AllocType::DEVICE_GLOBAL:
     ShadowByte = &kDeviceGlobalRedzoneMagic;
+    break;
+  case AllocType::EXPORTABLE_MEM:
+    ShadowByte = &kExportableMemRedzoneMagic;
     break;
   default:
     ShadowByte = &kUnknownMagic;
