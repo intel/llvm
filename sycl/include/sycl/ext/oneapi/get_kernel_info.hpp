@@ -12,6 +12,7 @@
 #include <sycl/detail/get_device_kernel_info.hpp>
 #include <sycl/detail/info_desc_helpers.hpp>
 #include <sycl/device.hpp>
+#include <sycl/exception.hpp>
 #include <sycl/ext/oneapi/experimental/free_function_traits.hpp>
 #include <sycl/info/info_desc.hpp>
 #include <sycl/kernel_bundle.hpp>
@@ -30,6 +31,34 @@ kernel_bundle<State> get_kernel_bundle(const context &,
                                        const std::vector<device> &);
 
 namespace ext::oneapi {
+namespace detail {
+
+// Replicates the spec-mandated pre-query checks from kernel_impl::get_info
+// that we'd otherwise skip by going straight to the fast cache.
+template <typename Param>
+inline void validate_device_specific_query(const device &Dev) {
+  if constexpr (std::is_same_v<
+                    Param,
+                    sycl::info::kernel_device_specific::global_work_size>) {
+    if (Dev.get_info<sycl::info::device::device_type>() !=
+        sycl::info::device_type::custom)
+      throw exception(
+          sycl::make_error_code(errc::invalid),
+          "info::kernel_device_specific::global_work_size descriptor may only "
+          "be used if the device type is device_type::custom or if the "
+          "kernel is a built-in kernel.");
+  } else if constexpr (std::is_same_v<
+                           Param,
+                           ext::intel::info::kernel_device_specific::
+                               spill_memory_size>) {
+    if (!Dev.has(aspect::ext_intel_spill_memory_size))
+      throw exception(
+          make_error_code(errc::feature_not_supported),
+          "This device does not have the ext_intel_spill_memory_size aspect");
+  }
+}
+
+} // namespace detail
 
 // Non-device-specific query - keep inline fallback via kernel_bundle
 template <typename KernelName, typename Param>
@@ -45,6 +74,7 @@ get_kernel_info(const context &Ctx) {
 template <typename KernelName, typename Param>
 typename sycl::detail::is_kernel_device_specific_info_desc<Param>::return_type
 get_kernel_info(const context &Ctx, const device &Dev) {
+  detail::validate_device_specific_query<Param>(Dev);
   auto &CtxImpl = *sycl::detail::getSyclObjImpl(Ctx);
   auto &DevImpl = *sycl::detail::getSyclObjImpl(Dev);
   sycl::detail::DeviceKernelInfo &DKI =
@@ -77,6 +107,7 @@ std::enable_if_t<ext::oneapi::experimental::is_kernel_v<Func>,
                  typename sycl::detail::is_kernel_device_specific_info_desc<
                      Param>::return_type>
 get_kernel_info(const context &ctxt, const device &dev) {
+  ext::oneapi::detail::validate_device_specific_query<Param>(dev);
   auto &CtxImpl = *sycl::detail::getSyclObjImpl(ctxt);
   auto &DevImpl = *sycl::detail::getSyclObjImpl(dev);
   sycl::detail::DeviceKernelInfo &DKI =
