@@ -59,38 +59,49 @@ struct image_descriptor {
   unsigned int num_channels{4};
   image_channel_type channel_type{image_channel_type::fp32};
   image_type type{image_type::standard};
-  unsigned int num_levels{1};
-  unsigned int array_size{1};
+  unsigned int num_levels{1};  // -- ur_image_desc_t::numMipLevel
+  unsigned int array_size{1};  // -- ur_image_desc_t::arraySize
+  unsigned int num_samples{0}; // -- ur_image_desc_t::numSamples
+  size_t row_pitch{0};         // -- ur_image_desc_t::rowPitch
+  size_t slice_pitch{0};       // -- ur_image_desc_t::slicePitch
 
   image_descriptor() = default;
 
   image_descriptor(range<1> dims, unsigned int num_channels,
                    image_channel_type channel_type,
                    image_type type = image_type::standard,
-                   unsigned int num_levels = 1, unsigned int array_size = 1)
+                   unsigned int num_levels = 1, unsigned int array_size = 1,
+                   unsigned int num_samples = 0)
       : width(dims[0]), height(0), depth(0), num_channels(num_channels),
         channel_type(channel_type), type(type), num_levels(num_levels),
-        array_size(array_size) {
+        array_size(array_size), num_samples(num_samples) {
     verify();
   }
 
   image_descriptor(range<2> dims, unsigned int num_channels,
                    image_channel_type channel_type,
                    image_type type = image_type::standard,
-                   unsigned int num_levels = 1, unsigned int array_size = 1)
+                   unsigned int num_levels = 1, unsigned int array_size = 1,
+                   unsigned int num_samples = 0, size_t row_pitch = 0,
+                   size_t slice_pitch = 0)
       : width(dims[0]), height(dims[1]), depth(0), num_channels(num_channels),
         channel_type(channel_type), type(type), num_levels(num_levels),
-        array_size(array_size) {
+        array_size(array_size), num_samples(num_samples), row_pitch(row_pitch),
+        slice_pitch(slice_pitch) {
     verify();
   }
 
   image_descriptor(range<3> dims, unsigned int num_channels,
                    image_channel_type channel_type,
                    image_type type = image_type::standard,
-                   unsigned int num_levels = 1, unsigned int array_size = 1)
+                   unsigned int num_levels = 1, unsigned int array_size = 1,
+                   unsigned int num_samples = 0, size_t row_pitch = 0,
+                   size_t slice_pitch = 0)
       : width(dims[0]), height(dims[1]), depth(dims[2]),
         num_channels(num_channels), channel_type(channel_type), type(type),
-        num_levels(num_levels), array_size(array_size) {
+        num_levels(num_levels), array_size(array_size),
+        num_samples(num_samples), row_pitch(row_pitch),
+        slice_pitch(slice_pitch) {
     verify();
   };
 
