@@ -47,10 +47,9 @@ inline void validate_device_specific_query(const device &Dev) {
           "info::kernel_device_specific::global_work_size descriptor may only "
           "be used if the device type is device_type::custom or if the "
           "kernel is a built-in kernel.");
-  } else if constexpr (std::is_same_v<
-                           Param,
-                           ext::intel::info::kernel_device_specific::
-                               spill_memory_size>) {
+  } else if constexpr (std::is_same_v<Param,
+                                      ext::intel::info::kernel_device_specific::
+                                          spill_memory_size>) {
     if (!Dev.has(aspect::ext_intel_spill_memory_size))
       throw exception(
           make_error_code(errc::feature_not_supported),
