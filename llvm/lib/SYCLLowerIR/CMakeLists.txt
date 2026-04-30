@@ -6,15 +6,9 @@ if (NOT TARGET LLVMGenXIntrinsics)
   if (NOT LLVMGenXIntrinsics_FOUND)
     set(LLVMGenXIntrinsics_GIT_REPO https://github.com/intel/vc-intrinsics.git)
 
-<<<<<<< HEAD
     # Date: April 01, 2026
     # Fix build.
     set(LLVMGenXIntrinsics_GIT_TAG dpcpp_staging)
-=======
-    # Date: Oct 21, 2025
-    # Add support for Xe3p devices.
-    set(LLVMGenXIntrinsics_GIT_TAG f8055b7c1ed8195e5932a89f74bb2a30061adf08)
->>>>>>> 8453f18a9f6c41772f110e1d5011acb2f2ab345b
     if(NOT FETCHCONTENT_SOURCE_DIR_VC-INTRINSICS)
       message(STATUS "vc-intrinsics repo is missing. Will try to download "
         "${LLVMGenXIntrinsics_GIT_TAG} from ${LLVMGenXIntrinsics_GIT_REPO}")
