@@ -135,12 +135,17 @@ EventImplPtr queue_impl::memset(void *Ptr, int Value, size_t Count,
   // This information is necessary for memset, so we will not guard it by debug
   // stream check.
   TP.addMetadata([&](auto TEvent) {
-    xpti::addMetadata(TEvent, "sycl_device",
-                      reinterpret_cast<size_t>(MDevice.getHandleRef()));
-    xpti::addMetadata(TEvent, "memory_ptr", reinterpret_cast<size_t>(Ptr));
-    xpti::addMetadata(TEvent, "value_set", Value);
     xpti::addMetadata(TEvent, "memory_size", Count);
-    xpti::addMetadata(TEvent, "queue_id", MQueueID);
+    if (detail::GSYCLStreamDetailLevel >=
+            xpti::stream_detail_level_t::XPTI_STREAM_DETAIL_LEVEL_NORMAL ||
+        isDebugStream(detail::getActiveXPTIStreamID())) {
+      xpti::addMetadata(TEvent, "sycl_device",
+                        reinterpret_cast<size_t>(MDevice.getHandleRef()));
+      xpti::addMetadata(TEvent, "memory_ptr", reinterpret_cast<size_t>(Ptr));
+      xpti::addMetadata(TEvent, "value_set", Value);
+
+      xpti::addMetadata(TEvent, "queue_id", MQueueID);
+    }
   });
 
   // Before we notifiy the subscribers, we broadcast the 'queue_id', which was a
@@ -189,13 +194,18 @@ EventImplPtr queue_impl::memcpy(void *Dest, const void *Src, size_t Count,
   const char *UserData = "memory_transfer_node::memcpy";
   // We will include this metadata information as it is required for memcpy.
   TP.addMetadata([&](auto TEvent) {
-    xpti::addMetadata(TEvent, "sycl_device",
-                      reinterpret_cast<size_t>(MDevice.getHandleRef()));
-    xpti::addMetadata(TEvent, "src_memory_ptr", reinterpret_cast<size_t>(Src));
-    xpti::addMetadata(TEvent, "dest_memory_ptr",
-                      reinterpret_cast<size_t>(Dest));
     xpti::addMetadata(TEvent, "memory_size", Count);
-    xpti::addMetadata(TEvent, "queue_id", MQueueID);
+    if (detail::GSYCLStreamDetailLevel >=
+            xpti::stream_detail_level_t::XPTI_STREAM_DETAIL_LEVEL_NORMAL ||
+        isDebugStream(detail::getActiveXPTIStreamID())) {
+      xpti::addMetadata(TEvent, "sycl_device",
+                        reinterpret_cast<size_t>(MDevice.getHandleRef()));
+      xpti::addMetadata(TEvent, "src_memory_ptr",
+                        reinterpret_cast<size_t>(Src));
+      xpti::addMetadata(TEvent, "dest_memory_ptr",
+                        reinterpret_cast<size_t>(Dest));
+      xpti::addMetadata(TEvent, "queue_id", MQueueID);
+    }
   });
   // Before we notify the subscribers, we stash the 'queue_id', which was a
   // metadata entry to TLS for use by callback handlers
@@ -997,12 +1007,16 @@ void *queue_impl::instrumentationProlog(const detail::code_location &CodeLoc,
 
   IId = xptiGetUniqueId();
   auto WaitEvent = Event->event_ref();
-  // We will allow the device type to be set
-  xpti::addMetadata(WaitEvent, "sycl_device_type", queueDeviceToString(this));
-  // We limit the amount of metadata that is added to the regular stream.
-  // Only "sycl.debug" stream will have the full information. This improves the
-  // performance when this data is not required by the tool or the collector.
-  if (isDebugStream(StreamID)) {
+  if (detail::GSYCLStreamDetailLevel >=
+          xpti::stream_detail_level_t::XPTI_STREAM_DETAIL_LEVEL_NORMAL ||
+      isDebugStream(StreamID)) {
+    xpti::addMetadata(WaitEvent, "sycl_device_type", queueDeviceToString(this));
+  }
+  // Full metadata is added only at VERBOSE level or if subscribing to
+  // sycl.debug stream.
+  if (detail::GSYCLStreamDetailLevel >=
+          xpti::stream_detail_level_t::XPTI_STREAM_DETAIL_LEVEL_VERBOSE ||
+      isDebugStream(StreamID)) {
     if (HasSourceInfo) {
       xpti::addMetadata(WaitEvent, "sym_function_name", CodeLoc.functionName());
       xpti::addMetadata(WaitEvent, "sym_source_file_name", CodeLoc.fileName());
@@ -1130,18 +1144,20 @@ void queue_impl::constructorNotification() {
   xpti_td *TEvent = Event->event_ref();
   // Cache the trace event, stream id and instance IDs for the destructor.
   MTraceEvent = (void *)TEvent;
-  // We will allow the queue metadata to be set as this is performed
-  // infrequently.
-  xpti::addMetadata(TEvent, "sycl_context",
-                    reinterpret_cast<size_t>(MContext->getHandleRef()));
-  xpti::addMetadata(TEvent, "sycl_device_name",
-                    MDevice.get_info<info::device::name>());
-  xpti::addMetadata(TEvent, "sycl_device",
-                    reinterpret_cast<size_t>(MDevice.getHandleRef()));
-  xpti::addMetadata(TEvent, "is_inorder", MIsInorder);
-  xpti::addMetadata(TEvent, "queue_id", MQueueID);
-  xpti::addMetadata(TEvent, "queue_handle",
-                    reinterpret_cast<size_t>(getHandleRef()));
+  if (detail::GSYCLStreamDetailLevel >=
+          xpti::stream_detail_level_t::XPTI_STREAM_DETAIL_LEVEL_NORMAL ||
+      isDebugStream(detail::getActiveXPTIStreamID())) {
+    xpti::addMetadata(TEvent, "sycl_context",
+                      reinterpret_cast<size_t>(MContext->getHandleRef()));
+    xpti::addMetadata(TEvent, "sycl_device_name",
+                      MDevice.get_info<info::device::name>());
+    xpti::addMetadata(TEvent, "sycl_device",
+                      reinterpret_cast<size_t>(MDevice.getHandleRef()));
+    xpti::addMetadata(TEvent, "is_inorder", MIsInorder);
+    xpti::addMetadata(TEvent, "queue_id", MQueueID);
+    xpti::addMetadata(TEvent, "queue_handle",
+                      reinterpret_cast<size_t>(getHandleRef()));
+  }
   // Also publish to TLS before notification.
   xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY, MQueueID);
   xptiNotifySubscribers(detail::getActiveXPTIStreamID(),

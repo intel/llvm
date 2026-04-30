@@ -1145,9 +1145,9 @@ TEST_P(urDeviceGetInfoTest, SuccessReferenceCount) {
                              property_value);
 }
 
+// Optional query: Not all adapters support intermediate language (IL).
+// NativeCPU executes native code directly without IL support.
 TEST_P(urDeviceGetInfoTest, SuccessILVersion) {
-  UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
-
   size_t property_size = 0;
   const ur_device_info_t property_name = UR_DEVICE_INFO_IL_VERSION;
 
