@@ -93,4 +93,3 @@ template <> struct is_esimd_arithmetic_type<hf8, void> : std::true_type {};
 } // namespace sycl
 
 /// @endcond ESIMD_DETAIL
-

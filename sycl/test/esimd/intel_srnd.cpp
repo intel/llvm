@@ -74,4 +74,3 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL simd<float, 16> foo() {
 #endif
   return simd<float, 16>();
 }
-
