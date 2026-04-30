@@ -329,6 +329,85 @@ DefineShuffleVec2to16(int32_t, i32, int32_t);
 DefineShuffleVec2to16(uint32_t, i32, int32_t);
 DefineShuffleVec2to16(float, f32, float);
 
+#define DefGroupNonUniformShuffle(Type, Sfx, MuxType)                          \
+  DEVICE_EXTERN_C MuxType __mux_sub_group_shuffle_##Sfx(MuxType val,           \
+                                                        int32_t lid) noexcept; \
+  DEVICE_EXTERNAL Type __spirv_GroupNonUniformShuffle(                         \
+      int32_t scope, Type data, unsigned value) noexcept {                     \
+    if (__spv::Scope::Flag::Subgroup == scope)                                 \
+      return (Type)__mux_sub_group_shuffle_##Sfx((MuxType)data, value);        \
+    return (Type)0;                                                            \
+  }                                                                            \
+  static_assert(true)
+
+#define DefGroupNonUniformShuffleUp(Type, Sfx, MuxType)                        \
+  DEVICE_EXTERN_C MuxType __mux_sub_group_shuffle_up_##Sfx(                    \
+      MuxType prev, MuxType curr, int32_t delta) noexcept;                     \
+  DEVICE_EXTERNAL Type __spirv_GroupNonUniformShuffleUp(                       \
+      int32_t scope, Type data, unsigned delta) noexcept {                     \
+    if (__spv::Scope::Flag::Subgroup == scope)                                 \
+      return (Type)__mux_sub_group_shuffle_up_##Sfx((MuxType)data,             \
+                                                    (MuxType)data, delta);     \
+    return (Type)0;                                                            \
+  }                                                                            \
+  static_assert(true)
+
+#define DefGroupNonUniformShuffleDown(Type, Sfx, MuxType)                      \
+  DEVICE_EXTERN_C MuxType __mux_sub_group_shuffle_down_##Sfx(                  \
+      MuxType curr, MuxType next, int32_t delta) noexcept;                     \
+  DEVICE_EXTERNAL Type __spirv_GroupNonUniformShuffleDown(                     \
+      int32_t scope, Type data, unsigned delta) noexcept {                     \
+    if (__spv::Scope::Flag::Subgroup == scope)                                 \
+      return (Type)__mux_sub_group_shuffle_down_##Sfx((MuxType)data,           \
+                                                      (MuxType)data, delta);   \
+    return (Type)0;                                                            \
+  }                                                                            \
+  static_assert(true)
+
+#define DefGroupNonUniformShuffleXor(Type, Sfx, MuxType)                       \
+  DEVICE_EXTERN_C MuxType __mux_sub_group_shuffle_xor_##Sfx(MuxType val,       \
+                                                            int32_t xor_val);  \
+  DEVICE_EXTERNAL Type __spirv_GroupNonUniformShuffleXor(                      \
+      int32_t scope, Type data, unsigned value) noexcept {                     \
+    if (__spv::Scope::Flag::Subgroup == scope)                                 \
+      return (Type)__mux_sub_group_shuffle_xor_##Sfx((MuxType)data, value);    \
+    return (Type)0;                                                            \
+  }                                                                            \
+  static_assert(true)
+
+#define DefGroupNonUniformShuffle_All(Type, Sfx, MuxType)                      \
+  DefGroupNonUniformShuffle(Type, Sfx, MuxType);                               \
+  DefGroupNonUniformShuffleUp(Type, Sfx, MuxType);                             \
+  DefGroupNonUniformShuffleDown(Type, Sfx, MuxType);                           \
+  DefGroupNonUniformShuffleXor(Type, Sfx, MuxType);
+
+DefGroupNonUniformShuffle_All(uint64_t, i64, int64_t);
+DefGroupNonUniformShuffle_All(int64_t, i64, int64_t);
+DefGroupNonUniformShuffle_All(int32_t, i32, int32_t);
+DefGroupNonUniformShuffle_All(uint32_t, i32, int32_t);
+DefGroupNonUniformShuffle_All(int16_t, i16, int16_t);
+DefGroupNonUniformShuffle_All(uint16_t, i16, int16_t);
+DefGroupNonUniformShuffle_All(int8_t, i8, int8_t);
+DefGroupNonUniformShuffle_All(uint8_t, i8, int8_t);
+DefGroupNonUniformShuffle_All(double, f64, double);
+DefGroupNonUniformShuffle_All(float, f32, float);
+DefGroupNonUniformShuffle_All(_Float16, f16, _Float16);
+
+#define DefineGroupNonUniformShuffleVec(T, N, Sfx, MuxType) \
+  using vt##T##N = ncpu_types::native_vector_t<T, N>; \
+  using vt##MuxType##N = ncpu_types::native_vector_t<MuxType, N>; \
+  DefGroupNonUniformShuffle_All(vt##T##N, v##N##Sfx, vt##MuxType##N)
+
+#define DefineGroupNonUniformShuffleVec2to16(Type, Sfx, MuxType) \
+ DefineGroupNonUniformShuffleVec(Type, 2, Sfx, MuxType); \
+ DefineGroupNonUniformShuffleVec(Type, 4, Sfx, MuxType); \
+ DefineGroupNonUniformShuffleVec(Type, 8, Sfx, MuxType); \
+ DefineGroupNonUniformShuffleVec(Type, 16, Sfx, MuxType)
+
+DefineGroupNonUniformShuffleVec2to16(int32_t, i32, int32_t);
+DefineGroupNonUniformShuffleVec2to16(uint32_t, i32, int32_t);
+DefineGroupNonUniformShuffleVec2to16(float, f32, float);
+
 #define GET_PROPS __attribute__((pure))
 #define GEN_u32(bname, muxname)                                                \
   DEVICE_EXTERN_C GET_PROPS uint32_t muxname();                                \
