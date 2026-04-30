@@ -53,3 +53,4 @@ int main() {
   (void)sycl::select(MA, MB, MMask);
   return 0;
 }
+

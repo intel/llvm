@@ -61,3 +61,4 @@ int main() {
   (void)sycl::half_precision::divide(MA, MB);
   return 0;
 }
+

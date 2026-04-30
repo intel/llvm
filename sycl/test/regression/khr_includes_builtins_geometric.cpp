@@ -44,3 +44,4 @@ int main() {
   (void)sycl::normalize(MA);
   return 0;
 }
+

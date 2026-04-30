@@ -46,3 +46,4 @@ int main() {
   (void)sycl::upsample(MArray2s{1, 2}, MArray2us{3, 4});
   return 0;
 }
+

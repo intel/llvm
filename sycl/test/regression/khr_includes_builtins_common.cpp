@@ -42,3 +42,4 @@ int main() {
   (void)sycl::step(0.5f, Vec2f{0.25f, 0.75f});
   return 0;
 }
+
