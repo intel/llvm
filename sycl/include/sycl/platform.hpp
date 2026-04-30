@@ -215,7 +215,8 @@ private:
   ur_native_handle_t getNative() const;
 
   std::shared_ptr<detail::platform_impl> impl;
-  platform(std::shared_ptr<detail::platform_impl> impl) : impl(impl) {}
+  platform(std::shared_ptr<detail::platform_impl> impl)
+      : impl(std::move(impl)) {}
 
   platform(const device &Device);
 

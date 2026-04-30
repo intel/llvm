@@ -995,6 +995,10 @@ if lit_config.params.get("enable_new_offload_model", "False") != "False":
     config.available_features.add("new-offload-model")
     config.cxx_flags += " --offload-new-driver "
 
+# Add O0 feature for unoptimized builds
+if re.search(r"(^|\s)(-O0|/Od)(\s|$)", config.cxx_flags):
+    config.available_features.add("O0")
+
 # That has to be executed last so that all device-independent features have been
 # discovered already.
 config.sycl_dev_features = {}

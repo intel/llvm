@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include <sycl/__spirv/spirv_ops.hpp>
+#include <sycl/__spirv/spirv_ops_runtime.hpp>
 #include <sycl/aspects.hpp>
 #include <sycl/exception.hpp>
 

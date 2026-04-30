@@ -59,7 +59,9 @@
 // CHECK-NEXT: nd_range.hpp
 // CHECK-NEXT: ext/oneapi/functional.hpp
 // CHECK-NEXT: detail/spirv.hpp
-// CHECK-NEXT: __spirv/spirv_ops.hpp
+// CHECK-NEXT: __spirv/spirv_ops_atomic.hpp
+// CHECK-NEXT: __spirv/spirv_ops_builtin_decls.hpp
+// CHECK-NEXT: __spirv/spirv_ops_base.hpp
 // CHECK-NEXT: multi_ptr.hpp
 // CHECK-NEXT: detail/address_space_cast.hpp
 // CHECK-EMPTY:
