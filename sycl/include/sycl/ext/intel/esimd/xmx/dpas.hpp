@@ -16,6 +16,9 @@
 #include <sycl/ext/intel/experimental/esimd/detail/math_intrin.hpp>
 #include <sycl/ext/intel/experimental/esimd/tfloat32.hpp>
 #include <sycl/ext/oneapi/bfloat16.hpp>
+#include <sycl/ext/intel/experimental/esimd/bf8.hpp>
+#include <sycl/ext/intel/experimental/esimd/fp4.hpp>
+#include <sycl/ext/intel/experimental/esimd/hf8.hpp>
 
 namespace sycl {
 inline namespace _V1 {
@@ -36,6 +39,15 @@ template <typename T> constexpr dpas_argument_type dpas_precision_from_type() {
     return dpas_argument_type::u8;
   else if constexpr (__ESIMD_DNS::is_type<T, char, signed char>())
     return dpas_argument_type::s8;
+  else if constexpr (std::is_same_v<T,
+                                    sycl::ext::intel::experimental::esimd::bf8>)
+    return dpas_argument_type::bf8;
+  else if constexpr (std::is_same_v<T,
+                                    sycl::ext::intel::experimental::esimd::hf8>)
+    return dpas_argument_type::hf8;
+  else if constexpr (std::is_same_v<
+                         T, sycl::ext::intel::experimental::esimd::fp4_S1E2M1>)
+    return dpas_argument_type::e2m1;
   else
     return dpas_argument_type::Invalid;
 }
@@ -47,6 +59,11 @@ template <dpas_argument_type T> constexpr int dpas_bitsize_from_precision() {
     return 4;
   else if constexpr (T == dpas_argument_type::u8 || T == dpas_argument_type::s8)
     return 8;
+  else if constexpr (T == dpas_argument_type::bf8 ||
+                     T == dpas_argument_type::hf8)
+    return 8;
+  else if constexpr (T == dpas_argument_type::e2m1)
+    return 4;
   else if constexpr (T == dpas_argument_type::bf16 ||
                      T == dpas_argument_type::fp16)
     return 16;
@@ -146,6 +163,31 @@ constexpr int verify_parameters_and_deduce_exec_size() {
                     " Result |   C   |   B  |  A  \n"
                     " f, hf  | f, hf |  hf  |  hf \n");
     }
+  } else if constexpr (APrecision == dpas_argument_type::bf8 ||
+                     APrecision == dpas_argument_type::hf8) {
+    using bfloat16 = sycl::ext::oneapi::bfloat16;
+    static_assert(ExecutionSize == 16,
+                  "bf8 and hf16 types can be used only with ExecutionSize=16");
+    static_assert((BPrecision == dpas_argument_type::bf8 ||
+                   BPrecision == dpas_argument_type::hf8) &&
+                      __ESIMD_DNS::is_type<T, float, bfloat16> &&
+                      __ESIMD_DNS::is_type<CT, float, bfloat16>,
+                  "Unsupported DPAS types! The supported types are:\n"
+                  " Result | C |  B  |  A  \n"
+                  " f, bf  | f, bf | bf8 | bf8 \n"
+                  " f, bf  | f, bf | hf8 | hf8 \n"
+                  " f, bf  | f, bf | hf8 | bf8 \n"
+                  " f, bf  | f, bf | bf8 | hf8 \n");
+  } else if constexpr (APrecision == dpas_argument_type::e2m1) {
+    using bfloat16 = sycl::ext::oneapi::bfloat16;
+    static_assert(ExecutionSize == 16,
+                  "fp4 types can be used only with ExecutionSize=16");
+    static_assert((BPrecision == dpas_argument_type::e2m1) &&
+                      __ESIMD_DNS::is_type<T, float, bfloat16> &&
+                      __ESIMD_DNS::is_type<CT, float, bfloat16>,
+                  "Unsupported DPAS types! The supported types are:\n"
+                  " Result | C |  B  |  A  \n"
+                  " f, bf  | f, bf | e2m1 | e2m1 \n");
   } else if constexpr (APrecision == dpas_argument_type::bf16 ||
                        BPrecision == dpas_argument_type::bf16) {
     using bfloat16 = sycl::ext::oneapi::bfloat16;
@@ -341,6 +383,106 @@ auto dpasw(__ESIMD_NS::simd<BT, BN> B, __ESIMD_NS::simd<AT, AN> A) {
   __ESIMD_NS::simd<T, ResultN> Result =
       __esimd_dpasw_nosrc0<Info, RawT, int, int, ResultN, BNCasted, ANCasted>(
           BCasted.data(), ACasted.data());
+  return Result;
+}
+
+/// BDPAS (Block Scaled Dot Product Accumulate Systolic)
+/// Computes the result of matrix operations: Result = C + AScale x BScale x A x
+/// B;
+/// @param C represents BDPAS accumulator operand.
+/// @param B represents the 2nd matrix multiplier.
+/// @param A represents the 1st matrix multiplier.
+/// @param BScale represents B matrix block scale in E8M0 format.
+/// @param AScale represents A matrix block scale in E8M0 format.
+/// @return the vector value of BDPAS computation result.
+template <
+    typename T, typename CT, typename BT, typename AT,
+    dpas_argument_type BPrecision = detail::dpas_precision_from_type<BT>(),
+    dpas_argument_type APrecision = detail::dpas_precision_from_type<AT>(),
+    int N, int BN, int AN, int BSN, int ASN>
+__ESIMD_NS::simd<T, N>
+bdpas(__ESIMD_NS::simd<CT, N> C, __ESIMD_NS::simd<BT, BN> B,
+      __ESIMD_NS::simd<AT, AN> A, __ESIMD_NS::simd<uint8_t, BSN> BScale,
+      __ESIMD_NS::simd<uint8_t, ASN> AScale) {
+  using bfloat16 = sycl::ext::oneapi::bfloat16;
+  constexpr int AElemBitSize =
+      detail::dpas_bitsize_from_precision<APrecision>();
+  constexpr int BElemBitSize =
+      detail::dpas_bitsize_from_precision<BPrecision>();
+  constexpr int OpsPerChannel =
+      std::max(std::min(32 / std::max(AElemBitSize, BElemBitSize), 8), 1);
+  constexpr int SystolicDepth = 8;
+  constexpr int RepeatCount = 8;
+  constexpr int M = RepeatCount;
+  constexpr int K = SystolicDepth * OpsPerChannel;
+  constexpr int ExecSize = 16;
+  constexpr int KScaled = K * AElemBitSize / (sizeof(AT) * 8);
+
+  static_assert(N == M * ExecSize, "Incorrect result vector size.");
+  static_assert(BN == KScaled * ExecSize, "Incorrect B vector size.");
+  static_assert(AN == KScaled * M, "Incorrect A vector size.");
+
+  if constexpr (APrecision == dpas_argument_type::fp16 ||
+                BPrecision == dpas_argument_type::fp16) {
+    static_assert(APrecision == BPrecision &&
+                      __ESIMD_DNS::is_type<T, float, sycl::half>() &&
+                      __ESIMD_DNS::is_type<CT, float, sycl::half>(),
+                  "Unsupported BDPAS types! The supported types are:\n"
+                  " Result |   C   |   B  |  A  \n"
+                  "  f, hf |  f,hf |  hf  |  hf \n");
+    static_assert(ExecSize == BSN, "Incorrect B scale vector size.");
+    static_assert(M == ASN, "Incorrect A scale vector size.");
+  } else if constexpr (APrecision == dpas_argument_type::bf16 ||
+                       BPrecision == dpas_argument_type::bf16) {
+    static_assert(APrecision == BPrecision &&
+                      __ESIMD_DNS::is_type<T, float, bfloat16>() &&
+                      __ESIMD_DNS::is_type<CT, float, bfloat16>(),
+                  "Unsupported BDPAS types! The supported types are:\n"
+                  " Result |   C   |   B  |  A  \n"
+                  "  f, bf |  f,bf |  bf  |  bf \n");
+    static_assert(ExecSize == BSN, "Incorrect B scale vector size.");
+    static_assert(M == ASN, "Incorrect A scale vector size.");
+  } else if constexpr (APrecision == dpas_argument_type::bf8 ||
+                       APrecision == dpas_argument_type::hf8) {
+    static_assert((BPrecision == dpas_argument_type::bf8 ||
+                   BPrecision == dpas_argument_type::hf8) &&
+                      __ESIMD_DNS::is_type<T, float, bfloat16> &&
+                      __ESIMD_DNS::is_type<CT, float, bfloat16>,
+                  "Unsupported DPAS types! The supported types are:\n"
+                  " Result | C |  B  |  A  \n"
+                  " f, bf  | f, bf | bf8 | bf8 \n"
+                  " f, bf  | f, bf | hf8 | hf8 \n"
+                  " f, bf  | f, bf | hf8 | bf8 \n"
+                  " f, bf  | f, bf | bf8 | hf8 \n");
+    static_assert(ExecSize == BSN, "Incorrect B scale vector size.");
+    static_assert(M == ASN, "Incorrect A scale vector size.");
+  } else if constexpr (APrecision == dpas_argument_type::e2m1) {
+    static_assert((BPrecision == dpas_argument_type::e2m1) &&
+                      __ESIMD_DNS::is_type<T, float, bfloat16> &&
+                      __ESIMD_DNS::is_type<CT, float, bfloat16>,
+                  "Unsupported BDPAS types! The supported types are:\n"
+                  " Result |   C   |  B   |  A  \n"
+                  " f, bf  | f, bf | e2m1 | e2m1 \n");
+    static_assert(ExecSize * 2 == BSN, "Incorrect B scale vector size.");
+    static_assert(M * 2 == ASN, "Incorrect A scale vector size.");
+  } else {
+    static_assert(false, "Unsupported BDPAS types! The supported types for "
+                         "vectors A and B are bf16, fp16, bf8, hf8, e2m1");
+  }
+
+  using MsgT = uint32_t;
+  constexpr int ANCasted = AN * sizeof(AT) / sizeof(MsgT);
+  constexpr int BNCasted = BN * sizeof(BT) / sizeof(MsgT);
+  __ESIMD_NS::simd<MsgT, ANCasted> ACasted = A.template bit_cast_view<MsgT>();
+  __ESIMD_NS::simd<MsgT, BNCasted> BCasted = B.template bit_cast_view<MsgT>();
+  using CRawT = typename __ESIMD_NS::simd<CT, N>::raw_element_type;
+  using RawT = typename __ESIMD_NS::simd<T, N>::raw_element_type;
+
+  __ESIMD_NS::simd<RawT, N> Result =
+      __esimd_bdpas<BPrecision, APrecision, SystolicDepth, RepeatCount, RawT,
+                    CRawT, MsgT, MsgT, N, BNCasted, ANCasted, BSN, ASN>(
+          C.data(), BCasted.data(), ACasted.data(), BScale.data(),
+          AScale.data());
   return Result;
 }
 

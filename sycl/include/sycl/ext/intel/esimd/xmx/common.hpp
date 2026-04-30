@@ -32,7 +32,10 @@ enum class dpas_argument_type {
   s8 = 8,                                                 // signed 8 bits
   bf16 = 9,                                               // bfloat 16
   fp16 = 10,                                              // half float
+  bf8 = 11,                                               // bfloat 8
   tf32 = 12,                                              // tensorfloat 32
+  hf8 = 14,                                               // 8-bit "half" float
+  e2m1 = 15,                                              // s1.e2.m1 4-bit float 
 };
 
 } // namespace ext::intel::esimd::xmx

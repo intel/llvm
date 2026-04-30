@@ -720,6 +720,149 @@ __ESIMD_NS::simd<T, N> dp4(__ESIMD_NS::simd<T, N> v1,
   return retv;
 }
 
+/// convert_to_bf8 - converts vector of fp32 values to "bf8" data format.
+// Available on PVC platform
+// maps to FCVT vISA instruction
+/// \param src0 fp32 operand that requires convertion to "bf8"
+/// \return the vector of integers that contains the result of conversion
+template <typename SrcType, int N>
+__ESIMD_API __ESIMD_NS::simd<uint8_t, N>
+convert_to_bf8(__ESIMD_NS::simd<SrcType, N> src0) {
+  static_assert(__ESIMD_DNS::is_fp_type<SrcType>::value,
+                "only fp32(float)->bf8 conversions are supported");
+  return __esimd_qf_cvt<N, uint8_t, SrcType>(src0.data());
+}
+
+/// convert_from_bf8 - converts vector of bf8 values to fp32 data format.
+// Available on PVC platform
+// maps to FCVT vISA instruction
+/// \param src0 bf8 operand that requires convertion to fp32
+/// \return the vector of fp32 value that contains the result of conversion
+template <typename DstType, int N>
+__ESIMD_API __ESIMD_NS::simd<DstType, N>
+convert_from_bf8(__ESIMD_NS::simd<uint8_t, N> src0) {
+  static_assert(__ESIMD_DNS::is_fp_type<DstType>::value,
+                "only bf8->fp32(float) conversions are supported");
+  using SrcType = typename decltype(src0)::element_type;
+  return __esimd_qf_cvt<N, DstType, SrcType>(src0.data());
+}
+
+// TODO: we need a more generic solution to derive storage types
+template <sycl::ext::intel::esimd::xmx::dpas_argument_type>
+struct SrndPrecisionTypeStorage;
+
+template <>
+struct SrndPrecisionTypeStorage<
+    sycl::ext::intel::esimd::xmx::dpas_argument_type::bf8> {
+  using StorageT = uint8_t;
+};
+template <>
+struct SrndPrecisionTypeStorage<
+    sycl::ext::intel::esimd::xmx::dpas_argument_type::fp16> {
+  using StorageT = sycl::detail::half_impl::StorageT;
+};
+
+/// srnd - perform stochastic rounding.
+// Supported convertions:
+//   half -> bf8
+//   fp32 (float) -> half
+//   fp32 -> bf8 (emulated sequence, fp32 converted to half)
+// Available on PVC_XT+
+// maps to SRND vISA instruction
+/// \param src0 the operand to be rounded
+/// \param src1 random number used for rounding
+/// \return the converted value
+template <sycl::ext::intel::esimd::xmx::dpas_argument_type DstPrecision, int N,
+          typename SrcType>
+__ESIMD_API
+    __ESIMD_NS::simd<typename SrndPrecisionTypeStorage<DstPrecision>::StorageT,
+                     N>
+    srnd(__ESIMD_NS::simd<SrcType, N> src0, __ESIMD_NS::simd<SrcType, N> src1) {
+
+  using DstStorageT = typename SrndPrecisionTypeStorage<DstPrecision>::StorageT;
+  constexpr bool is_bf8_fp32 =
+      (DstPrecision == sycl::ext::intel::esimd::xmx::dpas_argument_type::bf8) &&
+      __ESIMD_DNS::is_fp_type<SrcType>::value;
+  constexpr bool is_hf16_fp32 =
+      (DstPrecision ==
+       sycl::ext::intel::esimd::xmx::dpas_argument_type::fp16) &&
+      __ESIMD_DNS::is_fp_type<SrcType>::value;
+  constexpr bool is_bf8_hf16 =
+      (DstPrecision == sycl::ext::intel::esimd::xmx::dpas_argument_type::bf8) &&
+      std::is_same_v<SrcType, __ESIMD_DNS::__raw_t<sycl::half>>;
+
+  static_assert((is_bf8_fp32 || is_hf16_fp32 || is_bf8_hf16),
+                "unsupported srnd type");
+
+  if constexpr (is_bf8_fp32) {
+    using half_t = sycl::detail::half_impl::StorageT;
+    // emulated sequence, uses convertion of fp32->hf
+    __ESIMD_NS::simd<half_t, N> src0_hf = src0;
+    __ESIMD_NS::simd<half_t, N> src1_hf = src1;
+    return __esimd_srnd<N, DstStorageT, half_t>(src0_hf.data(), src1_hf.data());
+  } else {
+    return __esimd_srnd<N, DstStorageT, SrcType>(src0.data(), src1.data());
+  }
+}
+
+/// srnd - perform stochastic rounding.
+/// Supported conversions:
+///   half -> bf8
+/// Available on Xe3+
+/// \param src0 the operand to be rounded
+/// \param src1 random number used for rounding
+/// \return the converted value
+template <int N>
+ESIMD_INLINE __ESIMD_NS::simd<sycl::ext::intel::experimental::esimd::bf8, N>
+srnd(__ESIMD_NS::simd<sycl::half, N> src0, __ESIMD_NS::simd<uint8_t, N> src1) {
+  return __esimd_srnd<N>(src0.data(), src1.data());
+}
+
+/// srnd - perform stochastic rounding.
+/// Supported conversions:
+///   float -> bf8
+/// Available on Xe3+
+/// \param src0 the operand to be rounded
+/// \param src1 random number used for rounding
+/// \return the converted value
+template <int N>
+ESIMD_INLINE __ESIMD_NS::simd<sycl::ext::intel::experimental::esimd::bf8, N>
+srnd(__ESIMD_NS::simd<float, N> src0, __ESIMD_NS::simd<uint8_t, N> src1) {
+  __ESIMD_NS::simd<sycl::half, N> src = src0;
+  return __esimd_srnd<N>(src.data(), src1.data());
+}
+
+/// srnd - perform stochastic rounding.
+/// Supported conversions:
+///  half -> bf8
+///  half -> hf8
+///  bfloat16 -> bf8
+///  bfloat16 -> hf8
+/// @tparam DstType is the destination type (bf8 or hf8).
+/// @tparam N is the vector size.
+/// @tparam SrcType is the input vector type (half or bfloat16).
+/// @param src0 the operand to be rounded
+/// @param src1 random number used for rounding
+/// @return the converted value
+template <typename DstType, int N, typename SrcType>
+__ESIMD_API std::enable_if_t<
+    (std::is_same_v<DstType, sycl::ext::intel::experimental::esimd::hf8> ||
+     std::is_same_v<DstType, sycl::ext::intel::experimental::esimd::bf8>) &&
+     (std::is_same_v<SrcType, sycl::half> ||
+                                std::is_same_v<SrcType,
+                                               sycl::ext::oneapi::bfloat16>),
+    __ESIMD_NS::simd<DstType, N>>
+
+srnd(__ESIMD_NS::simd<SrcType, N> src0, __ESIMD_NS::simd<uint8_t, N> src1) {
+  if constexpr (std::is_same_v<DstType,
+                               sycl::ext::intel::experimental::esimd::hf8>)
+    return __esimd_biased_rounding_hf8<N, DstType, SrcType>(src0.data(),
+                                                            src1.data());
+  else
+    return __esimd_biased_rounding_bf8<N, DstType, SrcType>(src0.data(),
+                                                            src1.data());
+}
+
 /// srnd - perform stochastic rounding.
 /// Supported conversions:
 ///   float -> half
