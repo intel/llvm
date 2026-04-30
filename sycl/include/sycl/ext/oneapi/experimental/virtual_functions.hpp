@@ -1,5 +1,6 @@
 #pragma once
 
+#include <sycl/ext/oneapi/free_function_kernel_properties.hpp>
 #include <sycl/ext/oneapi/properties/property.hpp>
 #include <sycl/ext/oneapi/properties/property_utils.hpp>
 #include <sycl/ext/oneapi/properties/property_value.hpp>
@@ -40,6 +41,17 @@ namespace detail {
 
 template <typename Set>
 struct PropertyMetaInfo<indirectly_callable_key::value_t<Set>> {
+  static constexpr const char *name = "indirectly-callable";
+  static constexpr const char *value =
+#ifdef __SYCL_DEVICE_ONLY__
+      __builtin_sycl_unique_stable_name(Set);
+#else
+      "";
+#endif
+};
+
+template <typename Set>
+struct FunctionPropertyMetaInfo<indirectly_callable_key::value_t<Set>> {
   static constexpr const char *name = "indirectly-callable";
   static constexpr const char *value =
 #ifdef __SYCL_DEVICE_ONLY__
@@ -96,6 +108,17 @@ struct UniqueStableNameListStr
 
 template <typename... SetIds>
 struct PropertyMetaInfo<calls_indirectly_key::value_t<SetIds...>> {
+  static constexpr const char *name = "calls-indirectly";
+  static constexpr const char *value =
+#ifdef __SYCL_DEVICE_ONLY__
+      UniqueStableNameListStr<SetIds...>::value;
+#else
+      "";
+#endif
+};
+
+template <typename... SetIds>
+struct FunctionPropertyMetaInfo<calls_indirectly_key::value_t<SetIds...>> {
   static constexpr const char *name = "calls-indirectly";
   static constexpr const char *value =
 #ifdef __SYCL_DEVICE_ONLY__

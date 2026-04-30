@@ -112,6 +112,32 @@ supports.
  feature-test macro always has this value.
 |===
 
+=== Headers
+
+In the {dpcpp} implementation, applications that use this extension have a
+choice of headers depending on which properties they need:
+
+* `#include <sycl/ext/oneapi/free_function_kernel_properties.hpp>` is
+  sufficient for `SYCL_EXT_ONEAPI_FUNCTION_PROPERTY`,
+  `nd_range_kernel<Dims>`, `single_task_kernel`, and the standalone
+  compile-time kernel properties that may be applied directly to a free
+  function kernel declaration, such as `work_group_size`,
+  `work_group_size_hint`, `sub_group_size`, `max_work_group_size`, and
+  `max_linear_work_group_size`.
+
+* `#include <sycl/ext/oneapi/kernel_properties.hpp>` currently provides the
+  broader kernel properties interface, including property lists such as
+  `properties{...}` and embedded kernel properties via `properties_tag`.
+
+Applications may include the umbrella header in all cases. The lightweight
+header is intended for code that defines free-function kernels and only needs
+the free-function annotation path.
+
+Code that forms property lists such as `properties{...}`, uses
+`properties_tag`, or otherwise needs the broader kernel-properties interface
+will generally find `sycl/ext/oneapi/kernel_properties.hpp` to be the more
+convenient header to include.
+
 === Defining a free function kernel
 
 A free function kernel is a normal C++ function definition, where the function
@@ -802,6 +828,13 @@ A free function kernel may also be decorated with any of the properties defined
 in link:../experimental/sycl_ext_oneapi_kernel_properties.asciidoc[
 sycl_ext_oneapi_kernel_properties] by applying the properties to the function
 declaration as illustrated below.
+
+In the {dpcpp} implementation, code that defines free-function kernels may
+include `sycl/ext/oneapi/free_function_kernel_properties.hpp` instead of the
+full `sycl/ext/oneapi/kernel_properties.hpp` header when it only needs the
+free-function annotation path. Applications that use property-list semantics,
+including `properties{...}` or `properties_tag`, will generally prefer the
+umbrella header.
 
 ```
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
