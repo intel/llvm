@@ -82,16 +82,10 @@ ext::oneapi::experimental::queue_state queue::ext_oneapi_get_state() const {
 ext::oneapi::experimental::command_graph<
     ext::oneapi::experimental::graph_state::modifiable>
 queue::ext_oneapi_get_graph() const {
-  auto Graph = impl->getCommandGraph();
-  if (!Graph)
-    throw sycl::exception(
-        make_error_code(errc::invalid),
-        "ext_oneapi_get_graph() can only be called on recording queues.");
-
   return sycl::detail::createSyclObjFromImpl<
       ext::oneapi::experimental::command_graph<
           ext::oneapi::experimental::graph_state::modifiable>>(
-      std::move(Graph));
+      impl->ext_oneapi_get_graph_impl());
 }
 
 void queue::throw_asynchronous() { impl->throw_asynchronous(); }

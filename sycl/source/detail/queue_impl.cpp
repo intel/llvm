@@ -632,6 +632,30 @@ queue_impl::ext_oneapi_get_state_impl() const {
   return ext::oneapi::experimental::queue_state::executing;
 }
 
+std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
+queue_impl::ext_oneapi_get_graph_impl() const {
+  auto Graph = getCommandGraph();
+  if (!Graph && isNativeRecording()) {
+    ur_exp_graph_handle_t UrGraphHandle = nullptr;
+    ur_result_t Result =
+        getAdapter().call_nocheck<UrApiKind::urQueueGetGraphExp>(
+            MQueue, &UrGraphHandle);
+
+    if (Result == UR_RESULT_SUCCESS) {
+      Graph = getContextImpl().getNativeGraph(UrGraphHandle);
+    } else if (Result != UR_RESULT_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(make_error_code(errc::runtime),
+                            "Failed to query native UR graph from queue.");
+    }
+  }
+  if (!Graph) {
+    throw sycl::exception(
+        make_error_code(errc::invalid),
+        "ext_oneapi_get_graph() can only be called on recording queues.");
+  }
+  return Graph;
+}
+
 EventImplPtr queue_impl::submit_command_to_graph(
     ext::oneapi::experimental::detail::graph_impl &GraphImpl,
     std::unique_ptr<detail::CG> CommandGroup, sycl::detail::CGType CGType,
