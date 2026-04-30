@@ -848,9 +848,8 @@ template <typename DstType, int N, typename SrcType>
 __ESIMD_API std::enable_if_t<
     (std::is_same_v<DstType, sycl::ext::intel::experimental::esimd::hf8> ||
      std::is_same_v<DstType, sycl::ext::intel::experimental::esimd::bf8>) &&
-     (std::is_same_v<SrcType, sycl::half> ||
-                                std::is_same_v<SrcType,
-                                               sycl::ext::oneapi::bfloat16>),
+        (std::is_same_v<SrcType, sycl::half> ||
+         std::is_same_v<SrcType, sycl::ext::oneapi::bfloat16>),
     __ESIMD_NS::simd<DstType, N>>
 
 srnd(__ESIMD_NS::simd<SrcType, N> src0, __ESIMD_NS::simd<uint8_t, N> src1) {

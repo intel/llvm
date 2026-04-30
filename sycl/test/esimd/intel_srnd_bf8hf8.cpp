@@ -35,4 +35,3 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void bf8_convert() {
   // CHECK: call <8 x i8> @llvm.genx.biased.rounding.hf8.v8i8.v8i16(<8 x i16> {{[^)]+}}, <8 x i8> {{[^)]+}})
   simd<hf8, 8> res4 = __ESIMD_ENS::srnd<hf8>(B, bias);
 }
-

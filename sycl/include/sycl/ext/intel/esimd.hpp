@@ -78,7 +78,7 @@
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wpsabi"
 #endif // !defined(__SYCL_DEVICE_ONLY__) && defined(__clang__)
-
+// clang-format off
 #include <sycl/detail/type_traits.hpp>
 #include <sycl/ext/intel/esimd/alt_ui.hpp>
 #include <sycl/ext/intel/esimd/common.hpp>
@@ -94,7 +94,7 @@
 #include <sycl/ext/intel/esimd/xmx/dpas.hpp>
 #include <sycl/ext/intel/experimental/esimd/math.hpp>
 #include <sycl/ext/intel/experimental/esimd/memory.hpp>
-
+// clang-format on
 #if !defined(__SYCL_DEVICE_ONLY__) && defined(__clang__)
 #pragma clang diagnostics pop
 #endif // !defined(__SYCL_DEVICE_ONLY__) && defined(__clang__)

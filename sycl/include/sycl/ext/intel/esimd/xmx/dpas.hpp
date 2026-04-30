@@ -13,12 +13,12 @@
 #include <sycl/detail/defines_elementary.hpp>
 #include <sycl/ext/intel/esimd/detail/types.hpp>
 #include <sycl/ext/intel/esimd/xmx/common.hpp>
-#include <sycl/ext/intel/experimental/esimd/detail/math_intrin.hpp>
-#include <sycl/ext/intel/experimental/esimd/tfloat32.hpp>
-#include <sycl/ext/oneapi/bfloat16.hpp>
 #include <sycl/ext/intel/experimental/esimd/bf8.hpp>
+#include <sycl/ext/intel/experimental/esimd/detail/math_intrin.hpp>
 #include <sycl/ext/intel/experimental/esimd/fp4.hpp>
 #include <sycl/ext/intel/experimental/esimd/hf8.hpp>
+#include <sycl/ext/intel/experimental/esimd/tfloat32.hpp>
+#include <sycl/ext/oneapi/bfloat16.hpp>
 
 namespace sycl {
 inline namespace _V1 {
@@ -164,7 +164,7 @@ constexpr int verify_parameters_and_deduce_exec_size() {
                     " f, hf  | f, hf |  hf  |  hf \n");
     }
   } else if constexpr (APrecision == dpas_argument_type::bf8 ||
-                     APrecision == dpas_argument_type::hf8) {
+                       APrecision == dpas_argument_type::hf8) {
     using bfloat16 = sycl::ext::oneapi::bfloat16;
     static_assert(ExecutionSize == 16,
                   "bf8 and hf16 types can be used only with ExecutionSize=16");
