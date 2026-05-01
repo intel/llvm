@@ -393,16 +393,16 @@ DefGroupNonUniformShuffle_All(double, f64, double);
 DefGroupNonUniformShuffle_All(float, f32, float);
 DefGroupNonUniformShuffle_All(_Float16, f16, _Float16);
 
-#define DefineGroupNonUniformShuffleVec(T, N, Sfx, MuxType) \
-  using vt##T##N = ncpu_types::native_vector_t<T, N>; \
-  using vt##MuxType##N = ncpu_types::native_vector_t<MuxType, N>; \
+#define DefineGroupNonUniformShuffleVec(T, N, Sfx, MuxType)                    \
+  using vt##T##N = ncpu_types::native_vector_t<T, N>;                          \
+  using vt##MuxType##N = ncpu_types::native_vector_t<MuxType, N>;              \
   DefGroupNonUniformShuffle_All(vt##T##N, v##N##Sfx, vt##MuxType##N)
 
-#define DefineGroupNonUniformShuffleVec2to16(Type, Sfx, MuxType) \
- DefineGroupNonUniformShuffleVec(Type, 2, Sfx, MuxType); \
- DefineGroupNonUniformShuffleVec(Type, 4, Sfx, MuxType); \
- DefineGroupNonUniformShuffleVec(Type, 8, Sfx, MuxType); \
- DefineGroupNonUniformShuffleVec(Type, 16, Sfx, MuxType)
+#define DefineGroupNonUniformShuffleVec2to16(Type, Sfx, MuxType)               \
+  DefineGroupNonUniformShuffleVec(Type, 2, Sfx, MuxType);                      \
+  DefineGroupNonUniformShuffleVec(Type, 4, Sfx, MuxType);                      \
+  DefineGroupNonUniformShuffleVec(Type, 8, Sfx, MuxType);                      \
+  DefineGroupNonUniformShuffleVec(Type, 16, Sfx, MuxType)
 
 DefineGroupNonUniformShuffleVec2to16(int32_t, i32, int32_t);
 DefineGroupNonUniformShuffleVec2to16(uint32_t, i32, int32_t);
