@@ -24,7 +24,7 @@ jobs:
           echo "changed_file_cnt=${{ github.event.pull_request.changed_files }}" >> $GITHUB_OUTPUT
 
       - name: Check file changes
-        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36
+        uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d
         if: steps.changed_files.outputs.changed_file_cnt < 500
         id: changes
         with:
