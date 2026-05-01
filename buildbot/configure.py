@@ -105,10 +105,7 @@ def do_configure(args, passthrough_args):
         sycl_enabled_backends.append("hip")
 
     if args.native_cpu:
-        if args.native_cpu_libclc_targets:
-            libclc_targets_to_build += ";" + args.native_cpu_libclc_targets
-        else:
-            libclc_build_native = "ON"
+        libclc_targets_to_build += ";native_cpu"
         sycl_enabled_backends.append("native_cpu")
 
     # all llvm compiler targets don't require 3rd party dependencies, so can be
@@ -235,7 +232,6 @@ def do_configure(args, passthrough_args):
         cmake_cmd.extend(
             [
                 "-DLIBCLC_TARGETS_TO_BUILD={}".format(libclc_targets_to_build),
-                "-DLIBCLC_NATIVECPU_HOST_TARGET={}".format(libclc_build_native),
             ]
         )
 

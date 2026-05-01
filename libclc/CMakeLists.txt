@@ -170,14 +170,7 @@ add_dependencies( libclc libspirv-builtins )
 
 # Determine the clang target triple.
 set(clang_triple ${LIBCLC_TARGET})
-if(ARCH STREQUAL native_cpu)
-  # native_cpu uses the host triple
-  set(clang_triple ${CMAKE_CXX_COMPILER_TARGET})
-  if(NOT clang_triple)
-    # If not cross-compiling, get the default target triple
-    set(clang_triple ${CMAKE_HOST_SYSTEM_PROCESSOR})
-  endif()
-elseif(ARCH STREQUAL spirv AND LIBCLC_USE_SPIRV_BACKEND)
+if(ARCH STREQUAL spirv AND LIBCLC_USE_SPIRV_BACKEND)
   set(clang_triple spirv32--)
 elseif(ARCH STREQUAL spirv64 AND LIBCLC_USE_SPIRV_BACKEND)
   set(clang_triple spirv64--)
