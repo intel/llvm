@@ -453,7 +453,7 @@ jobs:
       with:
         name: sycl_windows_default
     - name: Sign with sigstore/cosign
-      uses: sigstore/gh-action-sigstore-python@a5caf349bc536fbef3668a10ed7f5cd309a4b53d # v3.2.0
+      uses: sigstore/gh-action-sigstore-python@04cffa1d795717b140764e8b640de88853c92acc # v3.3.0
       with:
         inputs: sycl_linux.tar.gz sycl_windows.tar.gz
     - name: Compute tag
@@ -466,7 +466,7 @@ jobs:
           echo "TAG=${{ needs.get_date.outputs.date }}-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
         fi
     - name: Upload binaries
-      uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b # v2.5.0
+      uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3.0.0
       with:
         files: |
           sycl_linux.tar.gz
