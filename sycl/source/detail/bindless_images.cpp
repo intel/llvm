@@ -1018,6 +1018,24 @@ __SYCL_EXPORT bool is_image_handle_supported<sampled_image_handle>(
 
 namespace {
 
+// Closes a HANDLE on scope exit unless released. Used so that if the UR import
+// call throws after we've opened a named handle, we don't leak it.
+struct NamedHandleGuard {
+  HANDLE h;
+  explicit NamedHandleGuard(HANDLE handle) : h(handle) {}
+  ~NamedHandleGuard() {
+    if (h)
+      CloseHandle(h);
+  }
+  HANDLE release() {
+    HANDLE out = h;
+    h = nullptr;
+    return out;
+  }
+  NamedHandleGuard(const NamedHandleGuard &) = delete;
+  NamedHandleGuard &operator=(const NamedHandleGuard &) = delete;
+};
+
 HANDLE openNamedHandleImpl(void *device, const void *name) {
 #ifdef SYCL_HAS_D3D12_INTEROP
   // OpenSharedHandleByName requires ID3D12Device1 or higher
@@ -1066,6 +1084,10 @@ __SYCL_EXPORT external_mem import_external_memory<resource_win32_name>(
                           "Failed to open named Win32 handle");
   }
 
+  // Close openedHandle if the delegated UR import throws before we've
+  // handed ownership to the tracking map.
+  NamedHandleGuard guard(openedHandle);
+
   // Use existing resource_win32_handle implementation
   external_mem_descriptor<resource_win32_handle> handleDesc{
       {openedHandle},
@@ -1081,6 +1103,7 @@ __SYCL_EXPORT external_mem import_external_memory<resource_win32_name>(
     std::lock_guard<std::mutex> lock(g_win32NameHandlesMutex);
     g_win32NameHandles[result.raw_handle] = openedHandle;
   }
+  guard.release();
 
   return result;
 }
@@ -1112,6 +1135,10 @@ __SYCL_EXPORT external_semaphore import_external_semaphore(
                           "Failed to open named Win32 semaphore");
   }
 
+  // Close openedHandle if the delegated UR import throws before we've
+  // handed ownership to the tracking map.
+  NamedHandleGuard guard(openedHandle);
+
   // Delegate to existing resource_win32_handle implementation
   external_semaphore_descriptor<resource_win32_handle> handleDesc{
       {openedHandle}, externalSemaphoreDesc.handle_type};
@@ -1125,6 +1152,7 @@ __SYCL_EXPORT external_semaphore import_external_semaphore(
     g_win32NameHandles[reinterpret_cast<ur_exp_external_mem_handle_t>(
         result.raw_handle)] = openedHandle;
   }
+  guard.release();
 
   return result;
 }
