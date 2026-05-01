@@ -25,9 +25,13 @@
 
 namespace {
 // Track handles opened via resource_win32_name so we can close them on release.
-// Declared here so release_external_memory/semaphore can access them.
+// Declared here so release_external_memory/semaphore can access them. Separate
+// maps per UR handle type (memory vs. semaphore) — the two handle types are
+// unrelated and must not be confused via reinterpret_cast.
 std::mutex g_win32NameHandlesMutex;
-std::unordered_map<ur_exp_external_mem_handle_t, HANDLE> g_win32NameHandles;
+std::unordered_map<ur_exp_external_mem_handle_t, HANDLE> g_win32NameMemHandles;
+std::unordered_map<ur_exp_external_semaphore_handle_t, HANDLE>
+    g_win32NameSemHandles;
 } // namespace
 #endif
 
@@ -571,10 +575,10 @@ __SYCL_EXPORT void release_external_memory(external_mem extMem,
   // Close handle if it was opened via resource_win32_name
   {
     std::lock_guard<std::mutex> lock(g_win32NameHandlesMutex);
-    auto it = g_win32NameHandles.find(extMem.raw_handle);
-    if (it != g_win32NameHandles.end()) {
+    auto it = g_win32NameMemHandles.find(extMem.raw_handle);
+    if (it != g_win32NameMemHandles.end()) {
       CloseHandle(it->second);
-      g_win32NameHandles.erase(it);
+      g_win32NameMemHandles.erase(it);
     }
   }
 #endif
@@ -729,12 +733,10 @@ release_external_semaphore(external_semaphore externalSemaphore,
   // Close handle if it was opened via resource_win32_name
   {
     std::lock_guard<std::mutex> lock(g_win32NameHandlesMutex);
-    auto it =
-        g_win32NameHandles.find(reinterpret_cast<ur_exp_external_mem_handle_t>(
-            externalSemaphore.raw_handle));
-    if (it != g_win32NameHandles.end()) {
+    auto it = g_win32NameSemHandles.find(externalSemaphore.raw_handle);
+    if (it != g_win32NameSemHandles.end()) {
       CloseHandle(it->second);
-      g_win32NameHandles.erase(it);
+      g_win32NameSemHandles.erase(it);
     }
   }
 #endif
@@ -1101,7 +1103,7 @@ __SYCL_EXPORT external_mem import_external_memory<resource_win32_name>(
   // Track the opened handle so we can close it on release
   {
     std::lock_guard<std::mutex> lock(g_win32NameHandlesMutex);
-    g_win32NameHandles[result.raw_handle] = openedHandle;
+    g_win32NameMemHandles[result.raw_handle] = openedHandle;
   }
   guard.release();
 
@@ -1149,8 +1151,7 @@ __SYCL_EXPORT external_semaphore import_external_semaphore(
   // Track the opened handle so we can close it on release
   {
     std::lock_guard<std::mutex> lock(g_win32NameHandlesMutex);
-    g_win32NameHandles[reinterpret_cast<ur_exp_external_mem_handle_t>(
-        result.raw_handle)] = openedHandle;
+    g_win32NameSemHandles[result.raw_handle] = openedHandle;
   }
   guard.release();
 
