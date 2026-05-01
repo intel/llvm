@@ -87,7 +87,7 @@ D3D12NamedBuffer createNamedExportableBuffer(D3D12Context &ctx, size_t size,
     throw std::runtime_error("Failed to create named shared handle");
   }
 
-  std::cout << "[D3D12] Created named buffer: " << name << std::endl;
+  std::wcout << L"[D3D12] Created named buffer: " << name << std::endl;
 
   return result;
 }
@@ -111,7 +111,7 @@ D3D12NamedFence createNamedExportableFence(D3D12Context &ctx,
     throw std::runtime_error("Failed to create named shared fence handle");
   }
 
-  std::cout << "[D3D12] Created named fence: " << name << std::endl;
+  std::wcout << L"[D3D12] Created named fence: " << name << std::endl;
 
   return result;
 }
