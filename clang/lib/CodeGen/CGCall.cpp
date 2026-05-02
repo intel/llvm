@@ -6134,6 +6134,16 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
         getLLVMContext(),
         llvm::Attribute::get(getLLVMContext(), "virtual-call"));
   }
+  // Apply always_inline to all calls within flatten functions.
+  // FIXME: should this really take priority over __try, below?
+  if (CurCodeDecl && CurCodeDecl->hasAttr<FlattenAttr>() &&
+      !InNoInlineAttributedStmt &&
+      !(TargetDecl && TargetDecl->hasAttr<NoInlineAttr>()) &&
+      !CGM.getTargetCodeGenInfo().wouldInliningViolateFunctionCallABI(
+          CallerDecl, CalleeDecl)) {
+    Attrs =
+        Attrs.addFnAttribute(getLLVMContext(), llvm::Attribute::AlwaysInline);
+  }
 
   // Disable inlining inside SEH __try blocks.
   if (isSEHTryScope()) {
