@@ -9201,7 +9201,6 @@ static void handleTimeTrace(Compilation &C, const ArgList &Args,
         Path = addOffloadingPrefixToPath(Path, OffloadingPrefix);
       }
     }
-    llvm::sys::path::replace_extension(Path, "json");
   }
   const char *ResultFile = C.getArgs().MakeArgString(Path);
   C.addTimeTraceFile(ResultFile, JA);
