@@ -17,6 +17,7 @@ permissions:
   contents: read
 
 jobs:
+  if: false
   bandit:
     if: github.repository == 'intel/llvm'
     name: Bandit

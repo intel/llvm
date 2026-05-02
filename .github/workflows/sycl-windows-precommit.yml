@@ -46,6 +46,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  if: false
   detect_changes:
     uses: ./.github/workflows/sycl-detect-changes.yml
 

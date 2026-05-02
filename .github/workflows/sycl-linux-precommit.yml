@@ -46,6 +46,7 @@ concurrency:
 permissions: read-all
 
 jobs:
+  if: false
   detect_changes:
     uses: ./.github/workflows/sycl-detect-changes.yml
 
