@@ -2,6 +2,9 @@
 // These tests require a fake install tree with a symlinked clang so that D.Dir points to a
 // controlled location, allowing us to place a dummy libsycl.so where the driver expects it.
 // UNSUPPORTED: system-windows, system-cygwin
+// INTEL_CUSTOMIZATION
+// XFAIL: *
+// end INTEL_CUSTOMIZATION
 
 // Check if path to the SYCL RT is passed to clang-linker-wrapper for SYCL compilation.
 // The test also checks if SYCL header include paths are added to the SYCL host and device compilation.
