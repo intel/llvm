@@ -21,9 +21,12 @@
 
 ; CHECK-SPIRV: String [[#StrOuter:]] "Outer"
 ; CHECK-SPIRV: String [[#StrInner:]] "Inner"
+; CHECK-SPIRV: TypeVoid [[#VoidTy:]]
 ; CHECK-SPIRV: TypeBool [[#TypeBool:]]
 ; CHECK-SPIRV: ConstantTrue [[#TypeBool]] [[#ConstTrue:]]
 ; CHECK-SPIRV: ConstantFalse [[#TypeBool]] [[#ConstFalse:]]
+; Void-returning function: ReturnType must be VoidTy, not DebugInfoNone.
+; CHECK-SPIRV: ExtInst [[#VoidTy]] [[#]] [[#]] DebugTypeFunction [[#]] [[#VoidTy]]
 ; CHECK-SPIRV: ExtInst [[#]] [[#]] [[#]] DebugLexicalBlock [[#]] [[#]] [[#]] [[#]] [[#StrOuter]] [[#ConstTrue]]
 ; CHECK-SPIRV: ExtInst [[#]] [[#]] [[#]] DebugLexicalBlock [[#]] [[#]] [[#]] [[#]] [[#StrInner]] [[#ConstFalse]]
 

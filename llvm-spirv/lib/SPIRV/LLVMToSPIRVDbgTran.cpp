@@ -903,16 +903,17 @@ LLVMToSPIRVDbgTran::transDbgSubroutineType(const DISubroutineType *FT) {
 
   DITypeArray Types = FT->getTypeArray();
   const size_t NumElements = Types.size();
-  if (NumElements) {
-    Ops.resize(1 + NumElements);
-    // First element of the TypeArray is the type of the return value,
-    // followed by types of the function arguments' types.
-    // The same order is preserved in SPIRV.
-    for (unsigned I = 0; I < NumElements; ++I)
-      Ops[ReturnTypeIdx + I] = transDbgEntry(Types[I])->getId();
-  } else { // void foo();
-    Ops[ReturnTypeIdx] = getVoidTy()->getId();
-  }
+
+  // First element of the TypeArray is the return type (null means void),
+  // followed by the formal argument types. The same order is used in SPIR-V.
+  // All DebugInfo specs require ReturnType to reference a valid type, so map
+  // a null (or absent) return type to VoidTy rather than DebugInfoNone.
+  Ops.resize(ReturnTypeIdx + std::max<size_t>(NumElements, 1));
+  Ops[ReturnTypeIdx] = (NumElements && Types[0])
+                           ? transDbgEntry(Types[0])->getId()
+                           : getVoidTy()->getId();
+  for (unsigned I = 1; I < NumElements; ++I)
+    Ops[ReturnTypeIdx + I] = transDbgEntry(Types[I])->getId();
 
   if (isNonSemanticDebugInfo())
     transformToConstant(Ops, {FlagsIdx});
