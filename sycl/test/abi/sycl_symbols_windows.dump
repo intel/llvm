@@ -224,17 +224,6 @@
 ??$is_image_handle_supported@Usampled_image_handle@experimental@oneapi@ext@_V1@sycl@@@experimental@oneapi@ext@_V1@sycl@@YA_NAEBUimage_descriptor@01234@W4image_memory_handle_type@01234@AEBVqueue@34@@Z
 ??$is_image_handle_supported@Uunsampled_image_handle@experimental@oneapi@ext@_V1@sycl@@@experimental@oneapi@ext@_V1@sycl@@YA_NAEBUimage_descriptor@01234@W4image_memory_handle_type@01234@AEBVdevice@34@AEBVcontext@34@@Z
 ??$is_image_handle_supported@Uunsampled_image_handle@experimental@oneapi@ext@_V1@sycl@@@experimental@oneapi@ext@_V1@sycl@@YA_NAEBUimage_descriptor@01234@W4image_memory_handle_type@01234@AEBVqueue@34@@Z
-??$queryCachedKernelInfo@Ucompile_num_sub_groups@kernel_device_specific@info@_V1@sycl@@@detail@_V1@sycl@@YAIAEAVcontext_impl@012@AEAVdevice_impl@012@AEAVDeviceKernelInfo@012@@Z
-??$queryCachedKernelInfo@Ucompile_sub_group_size@kernel_device_specific@info@_V1@sycl@@@detail@_V1@sycl@@YAIAEAVcontext_impl@012@AEAVdevice_impl@012@AEAVDeviceKernelInfo@012@@Z
-??$queryCachedKernelInfo@Ucompile_work_group_size@kernel_device_specific@info@_V1@sycl@@@detail@_V1@sycl@@YA?AV?$range@$02@12@AEAVcontext_impl@012@AEAVdevice_impl@012@AEAVDeviceKernelInfo@012@@Z
-??$queryCachedKernelInfo@Uext_codeplay_num_regs@kernel_device_specific@info@_V1@sycl@@@detail@_V1@sycl@@YAIAEAVcontext_impl@012@AEAVdevice_impl@012@AEAVDeviceKernelInfo@012@@Z
-??$queryCachedKernelInfo@Uglobal_work_size@kernel_device_specific@info@_V1@sycl@@@detail@_V1@sycl@@YA?AV?$range@$02@12@AEAVcontext_impl@012@AEAVdevice_impl@012@AEAVDeviceKernelInfo@012@@Z
-??$queryCachedKernelInfo@Umax_num_sub_groups@kernel_device_specific@info@_V1@sycl@@@detail@_V1@sycl@@YAIAEAVcontext_impl@012@AEAVdevice_impl@012@AEAVDeviceKernelInfo@012@@Z
-??$queryCachedKernelInfo@Umax_sub_group_size@kernel_device_specific@info@_V1@sycl@@@detail@_V1@sycl@@YAIAEAVcontext_impl@012@AEAVdevice_impl@012@AEAVDeviceKernelInfo@012@@Z
-??$queryCachedKernelInfo@Upreferred_work_group_size_multiple@kernel_device_specific@info@_V1@sycl@@@detail@_V1@sycl@@YA_KAEAVcontext_impl@012@AEAVdevice_impl@012@AEAVDeviceKernelInfo@012@@Z
-??$queryCachedKernelInfo@Uprivate_mem_size@kernel_device_specific@info@_V1@sycl@@@detail@_V1@sycl@@YA_KAEAVcontext_impl@012@AEAVdevice_impl@012@AEAVDeviceKernelInfo@012@@Z
-??$queryCachedKernelInfo@Uspill_memory_size@kernel_device_specific@info@intel@ext@_V1@sycl@@@detail@_V1@sycl@@YA_KAEAVcontext_impl@012@AEAVdevice_impl@012@AEAVDeviceKernelInfo@012@@Z
-??$queryCachedKernelInfo@Uwork_group_size@kernel_device_specific@info@_V1@sycl@@@detail@_V1@sycl@@YA_KAEAVcontext_impl@012@AEAVdevice_impl@012@AEAVDeviceKernelInfo@012@@Z
 ??$update_nd_range@$00@node@experimental@oneapi@ext@_V1@sycl@@QEAAXV?$nd_range@$00@45@@Z
 ??$update_nd_range@$01@node@experimental@oneapi@ext@_V1@sycl@@QEAAXV?$nd_range@$01@45@@Z
 ??$update_nd_range@$02@node@experimental@oneapi@ext@_V1@sycl@@QEAAXV?$nd_range@$02@45@@Z
@@ -3959,6 +3948,7 @@
 ?getAccessRange@AccessorBaseHost@detail@_V1@sycl@@QEAAAEAV?$range@$02@34@XZ
 ?getAccessRange@AccessorBaseHost@detail@_V1@sycl@@QEBAAEBV?$range@$02@34@XZ
 ?getBorderColor@detail@_V1@sycl@@YA?AV?$vec@M$03@23@W4image_channel_order@23@@Z
+?getCachedKernelImpl@detail@_V1@sycl@@YA?AV?$shared_ptr@Vkernel_impl@detail@_V1@sycl@@@std@@AEAVcontext_impl@123@AEAVdevice_impl@123@AEAVDeviceKernelInfo@123@@Z
 ?getChannelOrder@SampledImageAccessorBaseHost@detail@_V1@sycl@@QEBA?AW4image_channel_order@34@XZ
 ?getChannelOrder@UnsampledImageAccessorBaseHost@detail@_V1@sycl@@QEBA?AW4image_channel_order@34@XZ
 ?getChannelOrder@image_plain@detail@_V1@sycl@@IEBA?AW4image_channel_order@34@XZ

@@ -10,11 +10,11 @@
 #include <sycl/context.hpp>
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/get_device_kernel_info.hpp>
+#include <sycl/detail/impl_utils.hpp>
 #include <sycl/detail/info_desc_helpers.hpp>
 #include <sycl/device.hpp>
-#include <sycl/exception.hpp>
 #include <sycl/ext/oneapi/experimental/free_function_traits.hpp>
-#include <sycl/info/info_desc.hpp>
+#include <sycl/kernel.hpp>
 #include <sycl/kernel_bundle.hpp>
 #include <sycl/kernel_bundle_enums.hpp>
 #include <sycl/queue.hpp>
@@ -33,33 +33,17 @@ kernel_bundle<State> get_kernel_bundle(const context &,
 namespace ext::oneapi {
 namespace detail {
 
-// Replicates the spec-mandated pre-query checks from kernel_impl::get_info
-// that we'd otherwise skip by going straight to the fast cache.
-template <typename Param>
-inline void validate_device_specific_query(const device &Dev) {
-  if constexpr (std::is_same_v<
-                    Param,
-                    sycl::info::kernel_device_specific::global_work_size>) {
-    if (Dev.get_info<sycl::info::device::device_type>() !=
-        sycl::info::device_type::custom)
-      throw exception(
-          sycl::make_error_code(errc::invalid),
-          "info::kernel_device_specific::global_work_size descriptor may only "
-          "be used if the device type is device_type::custom or if the "
-          "kernel is a built-in kernel.");
-  } else if constexpr (std::is_same_v<Param,
-                                      ext::intel::info::kernel_device_specific::
-                                          spill_memory_size>) {
-    if (!Dev.has(aspect::ext_intel_spill_memory_size))
-      throw exception(
-          make_error_code(errc::feature_not_supported),
-          "This device does not have the ext_intel_spill_memory_size aspect");
-  }
+// Wrap the cached kernel_impl returned by the runtime into a sycl::kernel.
+inline sycl::kernel getCachedKernel(sycl::detail::context_impl &CtxImpl,
+                                    sycl::detail::device_impl &DevImpl,
+                                    sycl::detail::DeviceKernelInfo &DKI) {
+  return sycl::detail::createSyclObjFromImpl<sycl::kernel>(
+      sycl::detail::getCachedKernelImpl(CtxImpl, DevImpl, DKI));
 }
 
 } // namespace detail
 
-// Non-device-specific query - keep inline fallback via kernel_bundle
+// Non-device-specific query - keep inline fallback via kernel_bundle.
 template <typename KernelName, typename Param>
 typename sycl::detail::is_kernel_info_desc<Param>::return_type
 get_kernel_info(const context &Ctx) {
@@ -68,17 +52,18 @@ get_kernel_info(const context &Ctx) {
   return Bundle.template get_kernel<KernelName>().template get_info<Param>();
 }
 
-// Device-specific query - uses fast kernel cache (O(1) lookup) for all
-// kernel_device_specific queries.
+// Device-specific query - uses fast kernel cache (O(1) lookup) to retrieve
+// the cached UR kernel, then dispatches to kernel::get_info<Param>(device),
+// which already performs the spec-mandated validation.
 template <typename KernelName, typename Param>
 typename sycl::detail::is_kernel_device_specific_info_desc<Param>::return_type
 get_kernel_info(const context &Ctx, const device &Dev) {
-  detail::validate_device_specific_query<Param>(Dev);
   auto &CtxImpl = *sycl::detail::getSyclObjImpl(Ctx);
   auto &DevImpl = *sycl::detail::getSyclObjImpl(Dev);
   sycl::detail::DeviceKernelInfo &DKI =
       sycl::detail::getDeviceKernelInfo<KernelName>();
-  return sycl::detail::queryCachedKernelInfo<Param>(CtxImpl, DevImpl, DKI);
+  return detail::getCachedKernel(CtxImpl, DevImpl, DKI)
+      .template get_info<Param>(Dev);
 }
 
 // Queue variant - delegates to context+device
@@ -106,12 +91,12 @@ std::enable_if_t<ext::oneapi::experimental::is_kernel_v<Func>,
                  typename sycl::detail::is_kernel_device_specific_info_desc<
                      Param>::return_type>
 get_kernel_info(const context &ctxt, const device &dev) {
-  ext::oneapi::detail::validate_device_specific_query<Param>(dev);
   auto &CtxImpl = *sycl::detail::getSyclObjImpl(ctxt);
   auto &DevImpl = *sycl::detail::getSyclObjImpl(dev);
   sycl::detail::DeviceKernelInfo &DKI =
       sycl::detail::getDeviceKernelInfo<Func>();
-  return sycl::detail::queryCachedKernelInfo<Param>(CtxImpl, DevImpl, DKI);
+  return ext::oneapi::detail::getCachedKernel(CtxImpl, DevImpl, DKI)
+      .template get_info<Param>(dev);
 }
 
 template <auto *Func, typename Param>
