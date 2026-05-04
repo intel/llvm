@@ -651,7 +651,13 @@ public:
 
   bool hasCommandGraph() const { return !MGraph.expired(); }
 
-  bool isNativeRecording() const;
+  bool isNativeRecording() const {
+    return MNativeRecordingActive.load(std::memory_order_acquire);
+  }
+
+  void setNativeRecordingActive(bool Value) noexcept {
+    MNativeRecordingActive.store(Value, std::memory_order_release);
+  }
 
   ext::oneapi::experimental::queue_state ext_oneapi_get_state_impl() const;
 
@@ -1101,6 +1107,11 @@ protected:
 
   // Used exclusively in getLastEvent and queue_empty() implementations
   std::atomic<bool> MEmpty = true;
+
+  // Tracks whether the queue is currently under native UR graph capture
+  // (urQueueBeginCaptureIntoGraphExp called but not yet ended). Avoids
+  // a cross-layer UR call on every buffer-accessor submission.
+  std::atomic<bool> MNativeRecordingActive{false};
 
   std::vector<EventImplPtr> MStreamsServiceEvents;
   std::mutex MStreamsServiceEventsMutex;

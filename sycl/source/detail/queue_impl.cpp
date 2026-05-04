@@ -615,13 +615,6 @@ queue_impl::submit_barrier_direct_impl(sycl::span<const event> DepEvents,
                        /*InsertBarrierForInOrderCommand*/ false);
 }
 
-bool queue_impl::isNativeRecording() const {
-  bool IsGraphCaptureEnabled = false;
-  ur_result_t Result =
-      getAdapter().call_nocheck<UrApiKind::urQueueIsGraphCaptureEnabledExp>(
-          MQueue, &IsGraphCaptureEnabled);
-  return Result == UR_RESULT_SUCCESS && IsGraphCaptureEnabled;
-}
 
 ext::oneapi::experimental::queue_state
 queue_impl::ext_oneapi_get_state_impl() const {
