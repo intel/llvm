@@ -56,6 +56,20 @@ public:
               const KernelArgMask *ArgMask, ur_program_handle_t Program,
               std::mutex *CacheMutex);
 
+  // Tag type selecting the slim constructor below.
+  struct for_cached_info_query_t {};
+
+  /// Slim constructor for device-specific info queries on a kernel retrieved
+  /// from the ProgramManager's fast kernel cache. Skips the UR round-trips
+  /// the interop constructor performs (program lookup, context validation,
+  /// function-name query, USM indirect-access enable) because none of that
+  /// state is read by kernel::get_info<Param>(device). The resulting
+  /// kernel_impl is only safe for that query path: calls that reach
+  /// MKernelBundleImpl or MDeviceImageImpl (e.g. get_info<num_args>) will
+  /// deref null.
+  kernel_impl(for_cached_info_query_t, Managed<ur_kernel_handle_t> &&Kernel,
+              context_impl &Context, const KernelArgMask *ArgMask);
+
   // This section means the object is non-movable and non-copyable
   // There is no need of move and copy constructors in kernel_impl.
   // If they need to be added, urKernelRetain method for MKernel

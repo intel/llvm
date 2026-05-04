@@ -41,8 +41,8 @@ getCachedKernelImpl(context_impl &CtxImpl, device_impl &DevImpl,
   // reference (the FastKernelCacheVal also owns one).
   Managed<ur_kernel_handle_t> KernelHandle =
       KernelCacheVal->MKernelHandle.retain();
-  return std::make_shared<kernel_impl>(std::move(KernelHandle), CtxImpl,
-                                       /*KernelBundleImpl=*/nullptr,
+  return std::make_shared<kernel_impl>(kernel_impl::for_cached_info_query_t{},
+                                       std::move(KernelHandle), CtxImpl,
                                        KernelCacheVal->MKernelArgMask);
 }
 

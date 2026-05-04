@@ -46,6 +46,13 @@ kernel_impl::kernel_impl(Managed<ur_kernel_handle_t> &&Kernel,
   enableUSMIndirectAccess();
 }
 
+kernel_impl::kernel_impl(for_cached_info_query_t,
+                         Managed<ur_kernel_handle_t> &&Kernel,
+                         context_impl &Context, const KernelArgMask *ArgMask)
+    : MKernel(std::move(Kernel)), MContext(Context.shared_from_this()),
+      MKernelArgMaskPtr{ArgMask},
+      MDeviceKernelInfo(createCompileTimeKernelInfo()) {}
+
 kernel_impl::kernel_impl(Managed<ur_kernel_handle_t> &&Kernel,
                          context_impl &ContextImpl,
                          std::shared_ptr<device_image_impl> &&DeviceImageImpl,
