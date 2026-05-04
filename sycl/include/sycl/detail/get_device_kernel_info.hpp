@@ -11,7 +11,9 @@
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/kernel_desc.hpp>
 
-#include <memory>
+#include <unified-runtime/ur_api.h>
+
+#include <cstddef>
 #include <string_view>
 
 namespace sycl {
@@ -21,7 +23,6 @@ namespace detail {
 class context_impl;
 class device_impl;
 class DeviceKernelInfo;
-class kernel_impl;
 
 // Lifetime of the underlying `DeviceKernelInfo` is tied to the availability of
 // the `sycl_device_binaries` corresponding to this kernel. In other words, once
@@ -48,13 +49,32 @@ template <auto *Func> DeviceKernelInfo &getDeviceKernelInfo() {
   return Info;
 }
 
-// O(1) cached-kernel lookup. Uses ProgramManager::getOrCreateKernel to fetch
-// (or build and cache) the UR kernel for this context/device/KernelInfo, and
-// returns a kernel_impl wrapping it. Callers wrap into a sycl::kernel and use
-// its existing get_info<Param>(device) entry points.
-__SYCL_EXPORT std::shared_ptr<kernel_impl>
-getCachedKernelImpl(context_impl &CtxImpl, device_impl &DevImpl,
-                    DeviceKernelInfo &KernelInfo);
+// O(1) cached-kernel lookup + direct UR dispatch for kernel_device_specific
+// info queries. Each helper fetches (or builds) the UR kernel via
+// ProgramManager::getOrCreateKernel and then issues the corresponding
+// urKernelGet*Info call, writing the raw result into `Result`. `ResultSize`
+// must match the size of the UR-reported value (e.g. sizeof(size_t)*3 for a
+// three-element range, sizeof(uint32_t) for a uint32 query, etc.). These
+// bypass the sycl::kernel wrapper to keep the fast path allocation-free.
+
+__SYCL_EXPORT void queryCachedKernelGroupInfo(context_impl &CtxImpl,
+                                              device_impl &DevImpl,
+                                              DeviceKernelInfo &KernelInfo,
+                                              ur_kernel_group_info_t InfoCode,
+                                              size_t ResultSize, void *Result);
+
+__SYCL_EXPORT void queryCachedKernelSubGroupInfo(
+    context_impl &CtxImpl, device_impl &DevImpl, DeviceKernelInfo &KernelInfo,
+    ur_kernel_sub_group_info_t InfoCode, size_t ResultSize, void *Result);
+
+__SYCL_EXPORT void queryCachedKernelUrKernelInfo(
+    context_impl &CtxImpl, device_impl &DevImpl, DeviceKernelInfo &KernelInfo,
+    ur_kernel_info_t InfoCode, size_t ResultSize, void *Result);
+
+// ext_intel_spill_memory_size has custom per-device demultiplexing logic that
+// doesn't fit the simple "one UR call with a buffer" pattern above.
+__SYCL_EXPORT size_t queryCachedKernelSpillMemSize(
+    context_impl &CtxImpl, device_impl &DevImpl, DeviceKernelInfo &KernelInfo);
 
 } // namespace detail
 } // namespace _V1
