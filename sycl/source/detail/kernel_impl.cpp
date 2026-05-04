@@ -47,11 +47,12 @@ kernel_impl::kernel_impl(Managed<ur_kernel_handle_t> &&Kernel,
 }
 
 kernel_impl::kernel_impl(for_cached_info_query_t,
-                         Managed<ur_kernel_handle_t> &&Kernel,
-                         context_impl &Context, const KernelArgMask *ArgMask)
-    : MKernel(std::move(Kernel)), MContext(Context.shared_from_this()),
-      MKernelArgMaskPtr{ArgMask},
-      MDeviceKernelInfo(createCompileTimeKernelInfo()) {}
+                         FastKernelCacheValPtr CachedKernel,
+                         context_impl &Context)
+    : MContext(Context.shared_from_this()),
+      MKernelArgMaskPtr{CachedKernel->MKernelArgMask},
+      MDeviceKernelInfo(createCompileTimeKernelInfo()),
+      MCachedKernel(std::move(CachedKernel)) {}
 
 kernel_impl::kernel_impl(Managed<ur_kernel_handle_t> &&Kernel,
                          context_impl &ContextImpl,

@@ -37,13 +37,10 @@ getCachedKernelImpl(context_impl &CtxImpl, device_impl &DevImpl,
   FastKernelCacheValPtr KernelCacheVal =
       ProgramManager::getInstance().getOrCreateKernel(CtxImpl, DevImpl,
                                                       KernelInfo, NDRDesc);
-  // Retain the UR kernel so the wrapping kernel_impl owns an independent
-  // reference (the FastKernelCacheVal also owns one).
-  Managed<ur_kernel_handle_t> KernelHandle =
-      KernelCacheVal->MKernelHandle.retain();
+  // The wrapping kernel_impl keeps the FastKernelCacheVal alive via
+  // shared_ptr rather than issuing a urKernelRetain/urKernelRelease pair.
   return std::make_shared<kernel_impl>(kernel_impl::for_cached_info_query_t{},
-                                       std::move(KernelHandle), CtxImpl,
-                                       KernelCacheVal->MKernelArgMask);
+                                       std::move(KernelCacheVal), CtxImpl);
 }
 
 } // namespace detail

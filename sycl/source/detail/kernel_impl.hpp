@@ -10,6 +10,7 @@
 
 #include <detail/context_impl.hpp>
 #include <detail/device_impl.hpp>
+#include <detail/device_kernel_info.hpp>
 #include <detail/kernel_arg_mask.hpp>
 #include <detail/kernel_info.hpp>
 #include <sycl/detail/common.hpp>
@@ -60,15 +61,16 @@ public:
   struct for_cached_info_query_t {};
 
   /// Slim constructor for device-specific info queries on a kernel retrieved
-  /// from the ProgramManager's fast kernel cache. Skips the UR round-trips
-  /// the interop constructor performs (program lookup, context validation,
-  /// function-name query, USM indirect-access enable) because none of that
-  /// state is read by kernel::get_info<Param>(device). The resulting
-  /// kernel_impl is only safe for that query path: calls that reach
-  /// MKernelBundleImpl or MDeviceImageImpl (e.g. get_info<num_args>) will
-  /// deref null.
-  kernel_impl(for_cached_info_query_t, Managed<ur_kernel_handle_t> &&Kernel,
-              context_impl &Context, const KernelArgMask *ArgMask);
+  /// from the ProgramManager's fast kernel cache. The supplied cache entry
+  /// keeps the UR kernel handle alive, so we skip both the retain/release
+  /// pair and the UR round-trips the interop constructor performs (program
+  /// lookup, context validation, function-name query, USM indirect-access
+  /// enable) — none of that state is read by kernel::get_info<Param>(device).
+  /// The resulting kernel_impl is only safe for that query path: calls that
+  /// reach MKernelBundleImpl or MDeviceImageImpl (e.g. get_info<num_args>)
+  /// will deref null.
+  kernel_impl(for_cached_info_query_t, FastKernelCacheValPtr CachedKernel,
+              context_impl &Context);
 
   // This section means the object is non-movable and non-copyable
   // There is no need of move and copy constructors in kernel_impl.
@@ -209,7 +211,10 @@ public:
   typename Param::return_type ext_oneapi_get_info(queue Queue,
                                                   const range<1> &WG) const;
 
-  ur_kernel_handle_t getHandleRef() const { return MKernel; }
+  ur_kernel_handle_t getHandleRef() const {
+    return MCachedKernel ? ur_kernel_handle_t{MCachedKernel->MKernelHandle}
+                         : ur_kernel_handle_t{MKernel};
+  }
 
   /// Check if kernel was created from a program that had been created from
   /// source.
@@ -276,6 +281,12 @@ private:
   // For regular kernel we get DeviceKernelInfo from the ProgramManager.
   bool MOwnsDeviceKernelInfo = false;
   DeviceKernelInfo MDeviceKernelInfo;
+
+  // Set only by the for_cached_info_query_t constructor. Keeps the fast
+  // kernel cache entry (and therefore the UR kernel handle) alive for the
+  // lifetime of this kernel_impl, avoiding a urKernelRetain/urKernelRelease
+  // pair per query. When set, getHandleRef() sources the UR handle from here.
+  FastKernelCacheValPtr MCachedKernel;
 
   bool isBuiltInKernel(device_impl &Device) const;
   void checkIfValidForNumArgsInfoQuery() const;
