@@ -57,9 +57,10 @@ __SYCL_EXPORT void *openIPCMemHandle(const std::byte *HandleData,
 
 } // namespace detail
 
-namespace ext::oneapi::experimental::ipc_memory {
+namespace ext::oneapi::experimental::ipc::memory {
+namespace detail {
 
-__SYCL_EXPORT handle get(void *Ptr, const sycl::context &Ctx) {
+std::pair<void *, size_t> get(void *Ptr, const sycl::context &Ctx) {
   auto CtxImpl = sycl::detail::getSyclObjImpl(Ctx);
   sycl::detail::adapter_impl &Adapter = CtxImpl->getAdapter();
 
@@ -85,16 +86,48 @@ __SYCL_EXPORT handle get(void *Ptr, const sycl::context &Ctx) {
   return {HandlePtr, HandleSize};
 }
 
-__SYCL_EXPORT void put(handle &Handle, const sycl::context &Ctx) {
+void put(std::byte *HandleData, const sycl::context &Ctx) {
   auto CtxImpl = sycl::detail::getSyclObjImpl(Ctx);
   CtxImpl->getAdapter().call<sycl::detail::UrApiKind::urIPCPutMemHandleExp>(
-      CtxImpl->getHandleRef(), Handle.MData);
+      CtxImpl->getHandleRef(), HandleData);
 }
 
-__SYCL_EXPORT void close(void *Ptr, const sycl::context &Ctx) {
+void close(void *Ptr, const sycl::context &Ctx) {
   auto CtxImpl = sycl::detail::getSyclObjImpl(Ctx);
   CtxImpl->getAdapter().call<sycl::detail::UrApiKind::urIPCCloseMemHandleExp>(
       CtxImpl->getHandleRef(), Ptr);
+}
+
+} // namespace detail
+
+__SYCL_EXPORT handle get(void *Ptr, const sycl::context &Ctx) {
+  std::pair<void *, size_t> RetHandle = detail::get(Ptr, Ctx);
+  return {RetHandle.first, RetHandle.second};
+}
+
+__SYCL_EXPORT void put(handle &Handle, const sycl::context &Ctx) {
+  detail::put(Handle.MData, Ctx);
+}
+
+__SYCL_EXPORT void close(void *Ptr, const sycl::context &Ctx) {
+  detail::close(Ptr, Ctx);
+}
+} // namespace ext::oneapi::experimental::ipc::memory
+
+namespace ext::oneapi::experimental::ipc_memory {
+
+__SYCL_EXPORT handle get(void *Ptr, const sycl::context &Ctx) {
+  std::pair<void *, size_t> RetHandle =
+      ext::oneapi::experimental::ipc::memory::detail::get(Ptr, Ctx);
+  return {RetHandle.first, RetHandle.second};
+}
+
+__SYCL_EXPORT void put(handle &Handle, const sycl::context &Ctx) {
+  ext::oneapi::experimental::ipc::memory::detail::put(Handle.MData, Ctx);
+}
+
+__SYCL_EXPORT void close(void *Ptr, const sycl::context &Ctx) {
+  ext::oneapi::experimental::ipc::memory::detail::close(Ptr, Ctx);
 }
 
 } // namespace ext::oneapi::experimental::ipc_memory

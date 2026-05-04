@@ -16,6 +16,8 @@
 #include <sycl/device.hpp>
 #include <sycl/platform.hpp>
 
+#include "detail/ipc_common.hpp"
+
 #include <cstddef>
 
 #if __has_include(<span>)
@@ -31,6 +33,69 @@ __SYCL_EXPORT void *openIPCMemHandle(const std::byte *HandleData,
                                      const sycl::context &Ctx,
                                      const sycl::device &Dev);
 }
+
+namespace ext::oneapi::experimental::ipc::memory {
+
+__SYCL_EXPORT handle get(void *Ptr, const sycl::context &Ctx);
+
+inline handle get(void *Ptr) {
+  sycl::device Dev;
+  sycl::context Ctx = Dev.get_platform().khr_get_default_context();
+  return ipc::memory::get(Ptr, Ctx);
+}
+
+__SYCL_EXPORT void put(handle &HandleData, const sycl::context &Ctx);
+
+inline void put(handle &HandleData) {
+  sycl::device Dev;
+  sycl::context Ctx = Dev.get_platform().khr_get_default_context();
+  ipc::memory::put(HandleData, Ctx);
+}
+
+inline void *open(const handle_data_t &HandleData, const sycl::context &Ctx,
+                  const sycl::device &Dev) {
+  return sycl::detail::openIPCMemHandle(HandleData.data(), HandleData.size(),
+                                        Ctx, Dev);
+}
+
+inline void *open(handle_data_t HandleData, const sycl::device &Dev) {
+  sycl::context Ctx = Dev.get_platform().khr_get_default_context();
+  return ipc::memory::open(HandleData, Ctx, Dev);
+}
+
+inline void *open(handle_data_t HandleData) {
+  sycl::device Dev;
+  sycl::context Ctx = Dev.get_platform().khr_get_default_context();
+  return ipc::memory::open(HandleData, Ctx, Dev);
+}
+
+#if __cpp_lib_span
+inline void *open(const handle_data_view_t &HandleDataView,
+                  const sycl::context &Ctx, const sycl::device &Dev) {
+  return sycl::detail::openIPCMemHandle(HandleDataView.data(),
+                                        HandleDataView.size(), Ctx, Dev);
+}
+
+inline void *open(handle_data_view_t HandleDataView, const sycl::device &Dev) {
+  sycl::context Ctx = Dev.get_platform().khr_get_default_context();
+  return ipc::memory::open(HandleDataView, Ctx, Dev);
+}
+
+inline void *open(handle_data_view_t HandleDataView) {
+  sycl::device Dev;
+  sycl::context Ctx = Dev.get_platform().khr_get_default_context();
+  return ipc::memory::open(HandleDataView, Ctx, Dev);
+}
+#endif
+
+__SYCL_EXPORT void close(void *Ptr, const sycl::context &Ctx);
+
+inline void close(void *Ptr) {
+  sycl::device Dev;
+  sycl::context Ctx = Dev.get_platform().khr_get_default_context();
+  ipc::memory::close(Ptr, Ctx);
+}
+} // namespace ext::oneapi::experimental::ipc::memory
 
 namespace ext::oneapi::experimental::ipc_memory {
 
