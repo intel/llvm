@@ -24,7 +24,7 @@ runs:
       uses: ./devops/actions/cached_checkout
       with:
         repository: 'RenderKit/oidn'
-        ref: 'v2.4.1'
+        ref: 'fbd9370fe3f863400dc201ce7115d2e7be0d0cb4' # Switch to release branch after next release, see https://github.com/intel/llvm/issues/21893
         path: 'oidn-src'
         cache_path: "D:\\\\github\\\\_work\\\\repo_cache\\\\"
 
