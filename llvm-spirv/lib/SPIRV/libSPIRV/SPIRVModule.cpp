@@ -546,6 +546,8 @@ public:
                                                   llvm::MDNode *MD) override;
   SPIRVInstruction *addAssumeTrueKHRInst(SPIRVValue *Condition,
                                          SPIRVBasicBlock *BB) override;
+  SPIRVInstruction *addAbortKHRInst(SPIRVValue *Message,
+                                    SPIRVBasicBlock *BB) override;
   SPIRVInstruction *addExpectKHRInst(SPIRVType *ResultTy, SPIRVValue *Value,
                                      SPIRVValue *ExpectedValue,
                                      SPIRVBasicBlock *BB) override;
@@ -2018,6 +2020,11 @@ SPIRVInstruction *SPIRVModuleImpl::addSampledImageInst(SPIRVType *ResultTy,
 SPIRVInstruction *SPIRVModuleImpl::addAssumeTrueKHRInst(SPIRVValue *Condition,
                                                         SPIRVBasicBlock *BB) {
   return addInstruction(new SPIRVAssumeTrueKHR(Condition->getId(), BB), BB);
+}
+
+SPIRVInstruction *SPIRVModuleImpl::addAbortKHRInst(SPIRVValue *Message,
+                                                   SPIRVBasicBlock *BB) {
+  return addInstruction(new SPIRVAbortKHR(Message, BB), BB);
 }
 
 SPIRVInstruction *SPIRVModuleImpl::addExpectKHRInst(SPIRVType *ResultTy,

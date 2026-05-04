@@ -526,6 +526,8 @@ public:
                                       llvm::MDNode *MD) = 0;
   virtual SPIRVInstruction *addAssumeTrueKHRInst(SPIRVValue *Condition,
                                                  SPIRVBasicBlock *BB) = 0;
+  virtual SPIRVInstruction *addAbortKHRInst(SPIRVValue *Message,
+                                            SPIRVBasicBlock *BB) = 0;
   virtual SPIRVInstruction *addExpectKHRInst(SPIRVType *ResultTy,
                                              SPIRVValue *Value,
                                              SPIRVValue *ExpectedValue,

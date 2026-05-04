@@ -2352,7 +2352,7 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
     return mapValue(V, BI);
   }
 
-  if (dyn_cast<UnreachableInst>(V))
+  if (isa<UnreachableInst>(V))
     return mapValue(V, BM->addUnreachableInst(BB));
 
   if (auto *RI = dyn_cast<ReturnInst>(V)) {
@@ -5173,9 +5173,10 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
   case Intrinsic::invariant_start:
   case Intrinsic::invariant_end:
   case Intrinsic::dbg_label:
-  // llvm.trap and llvm.debugtrap intrinsics are not implemented. But for now
-  // don't crash. This change is pending the trap/abort intrinsic
-  // implementation.
+  // TODO: lower llvm.trap / llvm.ubsantrap / llvm.debugtrap to OpAbortKHR
+  // (with a null/undefined Message) when the SPV_KHR_abort extension is
+  // enabled. For now we silently drop these intrinsics so that the translator
+  // doesn't crash on input that contains them.
   case Intrinsic::trap:
   case Intrinsic::ubsantrap:
   case Intrinsic::debugtrap:
@@ -6363,6 +6364,15 @@ void LLVMToSPIRVBase::transFunction(Function *I) {
     SPIRVBasicBlock *BB =
         static_cast<SPIRVBasicBlock *>(transValue(&FI, nullptr));
     for (auto &BI : FI) {
+      // SPV_KHR_abort: OpAbortKHR is itself a SPIR-V block terminator. Once a
+      // basic block has been terminated by OpAbortKHR, any subsequent LLVM IR
+      // instructions in the same block (typically lifetime intrinsics, a
+      // trailing `unreachable`, or a `ret`) must not be emitted, otherwise
+      // the resulting SPIR-V would have instructions after a block terminator
+      // and fail validation.
+      if (auto *Last = BB->getTerminateInstr();
+          Last && Last->getOpCode() == OpAbortKHR)
+        break;
       transValue(&BI, BB, false);
     }
   }
@@ -6935,6 +6945,16 @@ LLVMToSPIRVBase::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
   case OpControlBarrier: {
     auto BArgs = transValue(getArguments(CI), BB);
     return BM->addControlBarrierInst(BArgs[0], BArgs[1], BArgs[2], BB);
+  } break;
+  case OpAbortKHR: {
+    if (!BM->checkExtension(ExtensionID::SPV_KHR_abort,
+                            SPIRVEC_RequiresExtension, "SPV_KHR_abort\n"))
+      return nullptr;
+    BM->getErrorLog().checkError(
+        CI->arg_size() == 1, SPIRVEC_InvalidInstruction,
+        "__spirv_AbortKHR must be called with exactly one Message argument\n");
+    auto *Msg = transValue(CI->getArgOperand(0), BB);
+    return BM->addAbortKHRInst(Msg, BB);
   } break;
   case OpGroupAsyncCopy: {
     auto BArgs = transValue(getArguments(CI), BB);
@@ -7621,7 +7641,8 @@ bool runSpirvBackend(Module *M, std::string &Result, std::string &ErrMsg,
       SPIRV::ExtensionID::SPV_INTEL_function_pointers,
       SPIRV::ExtensionID::SPV_KHR_shader_clock,
       SPIRV::ExtensionID::SPV_KHR_cooperative_matrix,
-      SPIRV::ExtensionID::SPV_KHR_non_semantic_info};
+      SPIRV::ExtensionID::SPV_KHR_non_semantic_info,
+      SPIRV::ExtensionID::SPV_KHR_abort};
   // The fallback for the Triple value.
   static const std::string DefaultTriple = "spirv64-unknown-unknown";
 

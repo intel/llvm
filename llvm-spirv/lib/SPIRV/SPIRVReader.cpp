@@ -1953,6 +1953,21 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
                                transValue(RV->getReturnValue(), F, BB), BB));
   }
 
+  case OpAbortKHR: {
+    // OpAbortKHR is a SPIR-V block terminator. In LLVM IR, model it as a call
+    // to the SPIR-V friendly builtin __spirv_AbortKHR followed by an
+    // 'unreachable' terminator.
+    auto *AbortInst =
+        transSPIRVBuiltinFromInst(static_cast<SPIRVAbortKHR *>(BV), BB);
+    if (auto *Call = dyn_cast<CallInst>(AbortInst)) {
+      Call->setDoesNotReturn();
+      if (auto *Callee = Call->getCalledFunction())
+        Callee->setDoesNotReturn();
+    }
+    new UnreachableInst(*Context, BB);
+    return mapValue(BV, AbortInst);
+  }
+
   case OpLifetimeStart: {
     SPIRVLifetimeStart *LTStart = static_cast<SPIRVLifetimeStart *>(BV);
     IRBuilder<> Builder(BB);

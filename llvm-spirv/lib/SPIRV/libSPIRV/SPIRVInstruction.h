@@ -857,6 +857,50 @@ protected:
 typedef SPIRVInstNoOperand<OpReturn> SPIRVReturn;
 typedef SPIRVInstNoOperand<OpUnreachable> SPIRVUnreachable;
 
+class SPIRVAbortKHR : public SPIRVInstruction {
+public:
+  static const Op OC = OpAbortKHR;
+  static const SPIRVWord FixedWordCount = 3;
+  // Complete constructor.
+  SPIRVAbortKHR(SPIRVValue *TheMessage, SPIRVBasicBlock *TheBB)
+      : SPIRVInstruction(FixedWordCount, OC, TheBB),
+        MessageTypeId(TheMessage->getType()->getId()),
+        MessageId(TheMessage->getId()) {
+    setAttr();
+    validate();
+    assert(TheBB && "Invalid BB");
+  }
+  // Incomplete constructor.
+  SPIRVAbortKHR()
+      : SPIRVInstruction(OC), MessageTypeId(SPIRVID_INVALID),
+        MessageId(SPIRVID_INVALID) {
+    setAttr();
+  }
+
+  SPIRVCapVec getRequiredCapability() const override {
+    return getVec(CapabilityAbortKHR);
+  }
+
+  std::optional<ExtensionID> getRequiredExtension() const override {
+    return ExtensionID::SPV_KHR_abort;
+  }
+
+  std::vector<SPIRVValue *> getOperands() override {
+    return std::vector<SPIRVValue *>(1, getValue(MessageId));
+  }
+
+  _SPIRV_DEF_ENCDEC2(MessageTypeId, MessageId)
+
+protected:
+  void setAttr() {
+    setHasNoId();
+    setHasNoType();
+  }
+  void validate() const override { SPIRVInstruction::validate(); }
+  SPIRVId MessageTypeId;
+  SPIRVId MessageId;
+};
+
 class SPIRVReturnValue : public SPIRVInstruction {
 public:
   static const Op OC = OpReturnValue;
