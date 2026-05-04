@@ -3882,7 +3882,8 @@ bool Sema::InstantiateInClassInitializer(
   // we don't have a scope.
   ContextRAII SavedContext(*this, Instantiation->getParent());
   EnterExpressionEvaluationContext EvalContext(
-      *this, Sema::ExpressionEvaluationContext::PotentiallyEvaluated);
+      *this, Sema::ExpressionEvaluationContext::PotentiallyEvaluated,
+      Instantiation);
   ExprEvalContexts.back().DelayedDefaultInitializationContext = {
       PointOfInstantiation, Instantiation, CurContext};
 

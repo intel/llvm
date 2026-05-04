@@ -5888,15 +5888,12 @@ bool Sema::CheckCallingConvAttr(const ParsedAttr &Attrs, CallingConv &CC,
       A = HostTI->checkCallingConvention(CC);
     if (A == TargetInfo::CCCR_OK && CheckDevice && DeviceTI)
       A = DeviceTI->checkCallingConvention(CC);
-  } else if (LangOpts.SYCLIsDevice && TI.getTriple().isAMDGPU() &&
-             CC == CC_X86VectorCall) {
-    // Assuming SYCL Device AMDGPU CC_X86VectorCall functions are always to be
-    // emitted on the host. The MSVC STL has CC-based specializations so we
-    // cannot change the CC to be the default as that will cause a clash with
-    // another specialization.
-    A = TI.checkCallingConvention(CC);
-    if (Aux && A != TargetInfo::CCCR_OK)
-      A = Aux->checkCallingConvention(CC);
+  } else if (LangOpts.SYCLIsDevice) {
+    // In SYCL we may meet unsupported calling conventions in host code,
+    // especially inside of included headers. Now we don't know if they will be
+    // emitted, so we just defer any diagnostics. Everything is still emitted
+    // for the host, which will check calling conventions properly.
+    A = TargetInfo::CCCR_OK;
   } else {
     A = TI.checkCallingConvention(CC);
   }

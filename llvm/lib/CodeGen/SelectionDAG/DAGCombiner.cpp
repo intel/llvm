@@ -7980,7 +7980,7 @@ SDValue DAGCombiner::visitAND(SDNode *N) {
   // fold (and (freeze (load x)), 255) -> (freeze (zextload x, i8))
   // fold (and (freeze (extload x, i16)), 255) -> (freeze (zextload x, i8))
   if (N1C && !VT.isVector()) {
-    SDValue Inner = N0.getOpcode() == ISD::FREEZE ? N0.getOperand(0) : N0;
+    SDValue Inner = peekThroughFreeze(N0);
     if (Inner.getOpcode() == ISD::LOAD)
       if (SDValue Res = reduceLoadWidth(N))
         return Res;
@@ -13957,8 +13957,13 @@ static SDValue combineVSelectWithAllOnesOrZeros(SDValue Cond, SDValue TVal,
       ISD::isConstantSplatVector(TVal.getNode(), TValAPInt) &&
       TValAPInt.isOne() &&
       ISD::isConstantSplatVectorAllOnes(Cond.getOperand(1).getNode()) &&
-      ISD::isConstantSplatVectorAllOnes(FVal.getNode())) {
-    return SDValue();
+      ISD::isConstantSplatVectorAllOnes(FVal.getNode()) &&
+      !TLI.shouldAvoidTransformToShift(VT, VT.getScalarSizeInBits() - 1)) {
+    SDValue LHS = Cond.getOperand(0);
+    SDValue ShiftC =
+        DAG.getShiftAmountConstant(VT.getScalarSizeInBits() - 1, VT, DL);
+    SDValue Shift = DAG.getNode(ISD::SRA, DL, VT, LHS, ShiftC);
+    return DAG.getNode(ISD::OR, DL, VT, Shift, TVal);
   }
 
   // To use the condition operand as a bitwise mask, it must have elements that

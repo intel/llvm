@@ -77,6 +77,7 @@
 #include "clang/Sema/SemaPPC.h"
 #include "clang/Sema/SemaRISCV.h"
 #include "clang/Sema/SemaSPIRV.h"
+#include "clang/Sema/SemaSYCL.h"
 #include "clang/Sema/SemaSystemZ.h"
 #include "clang/Sema/SemaWasm.h"
 #include "clang/Sema/SemaX86.h"
@@ -4875,17 +4876,16 @@ void Sema::checkCall(NamedDecl *FDecl, const FunctionProtoType *Proto,
     }
   }
 
+  if (FD && FD->isVariadic() && getLangOpts().SYCLIsDevice &&
+      !isUnevaluatedContext() && !SYCL().isDeclAllowedInSYCLDeviceCode(FD))
+    SYCL().DiagIfDeviceCode(Loc, diag::err_variadic_device_fn)
+        << diag::OffloadLang::SYCL;
+
   if (FD)
     diagnoseArgDependentDiagnoseIfAttrs(FD, ThisArg, Args, Loc);
 
   if (FD && FD->hasAttr<SYCLKernelAttr>())
     SYCL().CheckSYCLKernelCall(FD, Args);
-
-  // Diagnose variadic calls in SYCL.
-  if (FD && FD->isVariadic() && getLangOpts().SYCLIsDevice &&
-      !isUnevaluatedContext() && !SYCL().isDeclAllowedInSYCLDeviceCode(FD))
-    SYCL().DiagIfDeviceCode(Loc, diag::err_sycl_restrict)
-        << SemaSYCL::KernelCallVariadicFunction;
 }
 
 void Sema::CheckConstrainedAuto(const AutoType *AutoT, SourceLocation Loc) {
