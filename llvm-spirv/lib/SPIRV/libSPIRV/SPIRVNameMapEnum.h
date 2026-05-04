@@ -673,6 +673,7 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
       "SubgroupMatrixMultiplyAccumulateINTEL");
   add(CapabilityTernaryBitwiseFunctionINTEL, "TernaryBitwiseFunctionINTEL");
   add(CapabilityFMAKHR, "FMAKHR");
+  add(CapabilityPredicatedIOINTEL, "PredicatedIOINTEL");
   // From spirv_internal.hpp
   add(internal::CapabilityOptNoneINTEL, "OptNoneINTEL");
   add(internal::CapabilityTokenTypeINTEL, "TokenTypeINTEL");
@@ -707,7 +708,6 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
   add(internal::CapabilityBFloat16ArithmeticINTEL, "BFloat16ArithmeticINTEL");
   add(CapabilityFloat8EXT, "Float8EXT");
   add(CapabilityFloat8CooperativeMatrixEXT, "Float8CooperativeMatrixEXT");
-  add(internal::CapabilityPredicatedIOINTEL, "PredicatedIOINTEL");
   add(internal::CapabilitySigmoidINTEL, "SigmoidINTEL");
   add(internal::CapabilityDeviceBarrierINTEL, "DeviceBarrierINTEL");
   add(internal::CapabilityFloat4E2M1INTEL, "Float4E2M1INTEL");
