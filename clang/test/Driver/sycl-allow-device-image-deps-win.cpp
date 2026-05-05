@@ -28,7 +28,7 @@
 /// our flag overrides the user's optimization setting for correctness.
 // RUN: %clang_cl -fsycl --offload-new-driver \
 // RUN:          -fsycl-allow-device-image-dependencies /O2 \
-// RUN:          -### -- %s /link /OPT:REF 2>&1 \
+// RUN:          -### %s /link /OPT:REF 2>&1 \
 // RUN:  | FileCheck -check-prefix CHECK_OPT_ORDER %s
 // CHECK_OPT_ORDER: clang-linker-wrapper
 // CHECK_OPT_ORDER-SAME: "/OPT:REF"
