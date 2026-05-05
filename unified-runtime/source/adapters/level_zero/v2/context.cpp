@@ -206,13 +206,11 @@ ur_result_t urContextCreate(uint32_t deviceCount,
                             const ur_context_properties_t * /*pProperties*/,
                             ur_context_handle_t *phContext) try {
 
-  if (deviceCount == 0 || !phDevices || !phContext) {
-    return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+  if (deviceCount == 0) {
+    return UR_RESULT_ERROR_INVALID_SIZE;
   }
   for (uint32_t i = 0; i < deviceCount; ++i) {
-    if (!phDevices[i]) {
-      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
-    }
+    UR_ASSERT(phDevices[i], UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   }
 
   ur_platform_handle_t hPlatform = phDevices[0]->Platform;
