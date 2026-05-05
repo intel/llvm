@@ -2013,7 +2013,7 @@ llvm::opt::DerivedArgList *ToolChain::TranslateOffloadTargetArgs(
         llvm::Triple TT = normalizeOffloadTriple(A->getValue(0));
 
         // Passing device args: -Xopenmp-target=<triple> -opt=val.
-        if (TT.getTriple() == getTripleString())
+        if (TT.isCompatibleWith(getTriple()))
           Index = Args.getBaseArgs().MakeIndex(A->getValue(1));
         else
           continue;
