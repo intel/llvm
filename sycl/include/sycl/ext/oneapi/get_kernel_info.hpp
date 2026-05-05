@@ -23,7 +23,6 @@
 #include <sycl/range.hpp>
 
 #include <cstddef>
-#include <cstdint>
 #include <type_traits>
 #include <vector>
 
