@@ -32,18 +32,17 @@ const char *kPtxSource = "\n\
 } // namespace
 
 TEST_P(cudaProgramTest, CreateWithBinaryDeepCopiesInputBuffer) {
-  std::vector<uint8_t> original(
-      reinterpret_cast<const uint8_t *>(kPtxSource),
-      reinterpret_cast<const uint8_t *>(kPtxSource) + std::strlen(kPtxSource));
+  std::vector<uint8_t> original(reinterpret_cast<const uint8_t *>(kPtxSource),
+                                reinterpret_cast<const uint8_t *>(kPtxSource) +
+                                    std::strlen(kPtxSource));
   std::vector<uint8_t> source = original;
 
   size_t binary_size = source.size();
   const uint8_t *binary_data = source.data();
 
   uur::raii::Program program = nullptr;
-  ASSERT_SUCCESS(urProgramCreateWithBinary(context, 1, &device, &binary_size,
-                                           &binary_data, nullptr,
-                                           program.ptr()));
+  ASSERT_SUCCESS(urProgramCreateWithBinary(
+      context, 1, &device, &binary_size, &binary_data, nullptr, program.ptr()));
 
   // If urProgramCreateWithBinary keeps a borrowed pointer, this overwrite would
   // corrupt the program binary view.
@@ -65,9 +64,9 @@ TEST_P(cudaProgramTest, CreateWithBinaryDeepCopiesInputBuffer) {
 }
 
 TEST_P(cudaProgramTest, LinkProgramOwnsBinaryAfterLinkStateDestroyed) {
-  std::vector<uint8_t> source(
-      reinterpret_cast<const uint8_t *>(kPtxSource),
-      reinterpret_cast<const uint8_t *>(kPtxSource) + std::strlen(kPtxSource));
+  std::vector<uint8_t> source(reinterpret_cast<const uint8_t *>(kPtxSource),
+                              reinterpret_cast<const uint8_t *>(kPtxSource) +
+                                  std::strlen(kPtxSource));
 
   size_t binary_size = source.size();
   const uint8_t *binary_data = source.data();
@@ -91,8 +90,8 @@ TEST_P(cudaProgramTest, LinkProgramOwnsBinaryAfterLinkStateDestroyed) {
   std::vector<uint8_t> linked_binary(linked_binary_size);
   uint8_t *linked_binary_ptr = linked_binary.data();
   ASSERT_SUCCESS(urProgramGetInfo(linked_program, UR_PROGRAM_INFO_BINARIES,
-                                  sizeof(linked_binary_ptr),
-                                  &linked_binary_ptr, nullptr));
+                                  sizeof(linked_binary_ptr), &linked_binary_ptr,
+                                  nullptr));
   EXPECT_TRUE(std::any_of(linked_binary.begin(), linked_binary.end(),
                           [](uint8_t byte) { return byte != 0; }));
 
