@@ -378,10 +378,6 @@ urProgramGetInfo(ur_program_handle_t hProgram, ur_program_info_t propName,
       *pPropSizeRet = sizeof(uint8_t *);
     }
 
-    if (!pProgramInfo) {
-      return UR_RESULT_SUCCESS;
-    }
-
     UR_ASSERT(propSize >= sizeof(uint8_t *), UR_RESULT_ERROR_INVALID_SIZE);
 
     auto **ppBinaries = static_cast<uint8_t **>(pProgramInfo);
