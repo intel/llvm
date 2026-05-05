@@ -5741,14 +5741,13 @@ bool Sema::CheckCallingConvAttr(const ParsedAttr &Attrs, CallingConv &CC,
     }
   }
 
-  const TargetInfo &TI = Context.getTargetInfo();
   bool IsTargetDefaultMSABI =
       Context.getTargetInfo().getTriple().isOSWindows() ||
       Context.getTargetInfo().getTriple().isUEFI();
   // TODO: diagnose uses of these conventions on the wrong target.
   switch (Attrs.getKind()) {
   case ParsedAttr::AT_CDecl:
-    CC = TI.getDefaultCallingConv();
+    CC = CC_C;
     break;
   case ParsedAttr::AT_FastCall:
     CC = CC_X86FastCall;
@@ -5859,6 +5858,7 @@ bool Sema::CheckCallingConvAttr(const ParsedAttr &Attrs, CallingConv &CC,
 
   TargetInfo::CallingConvCheckResult A = TargetInfo::CCCR_OK;
   auto *Aux = Context.getAuxTargetInfo();
+  const TargetInfo &TI = Context.getTargetInfo();
   // CUDA functions may have host and/or device attributes which indicate
   // their targeted execution environment, therefore the calling convention
   // of functions in CUDA should be checked against the target deduced based
