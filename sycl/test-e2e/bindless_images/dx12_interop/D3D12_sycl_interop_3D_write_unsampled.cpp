@@ -2,7 +2,7 @@
 // REQUIRES: aspect-ext_oneapi_external_memory_import
 // REQUIRES: windows
 
-// RUN: %{build} -o %t.exe -ld3d12 -ldxgi -ld3dcompiler
+// RUN: %{build} -o %t.exe %link-directx
 // RUN: %{run} %t.exe --type float --channels 4 8x8x8
 
 // clang-format off
