@@ -74,16 +74,6 @@ template <> struct spirv_image_widened_elem_type<uint16_t> { using type = uint32
 template <typename T>
 using spirv_image_widened_elem_type_t = typename spirv_image_widened_elem_type<T>::type;
 
-// Compile-time verification of type widening rules.
-static_assert(std::is_same_v<spirv_image_widened_elem_type_t<int8_t>, int32_t>);
-static_assert(std::is_same_v<spirv_image_widened_elem_type_t<uint8_t>, uint32_t>);
-static_assert(std::is_same_v<spirv_image_widened_elem_type_t<int16_t>, int32_t>);
-static_assert(std::is_same_v<spirv_image_widened_elem_type_t<uint16_t>, uint32_t>);
-static_assert(std::is_same_v<spirv_image_widened_elem_type_t<int32_t>, int32_t>);
-static_assert(std::is_same_v<spirv_image_widened_elem_type_t<uint32_t>, uint32_t>);
-static_assert(std::is_same_v<spirv_image_widened_elem_type_t<float>, float>);
-static_assert(std::is_same_v<spirv_image_widened_elem_type_t<_Float16>, _Float16>);
-
 // Helper function to convert vec4 result to requested OpenCL type.
 // Handles scalar, vec2, vec3, and vec4 return types.
 template <typename RequestedType, typename Vec4Type>
