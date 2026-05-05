@@ -5891,9 +5891,10 @@ bool Sema::CheckCallingConvAttr(const ParsedAttr &Attrs, CallingConv &CC,
   } else if (LangOpts.SYCLIsDevice) {
     // In SYCL we may meet unsupported calling conventions in host code,
     // especially inside of included headers. Now we don't know if they will be
-    // emitted, so we just defer any diagnostics. Everything is still emitted
-    // for the host, which will check calling conventions properly.
-    A = TargetInfo::CCCR_OK;
+    // emitted, so we just defer any diagnostics. Check for the host triple if
+    // we have one, since everything is still emitted for the host.
+    if (Aux)
+      A = Aux->checkCallingConvention(CC);
   } else {
     A = TI.checkCallingConvention(CC);
   }
