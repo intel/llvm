@@ -3152,7 +3152,7 @@ the behavior is undefined, unless one of the following exceptions applies:
 
 * ``"align"`` operand bundles may specify a non-power-of-two alignment
   (including a zero alignment). If this is the case, then the pointer value
-  must be a null pointer, otherwise the behavior is undefined.
+  must be an all-zero pointer, otherwise the behavior is undefined.
 
 * ``dereferenceable(<n>)`` operand bundles only guarantee the pointer is
   dereferenceable at the point of the assumption. The pointer may not be
@@ -9252,6 +9252,16 @@ flags metadata, using the following key-value pairs:
          call to the checker function and then one to the target.
        * 2 --- CFG uses the "dispatch" mechanism. This calls a dispatcher
          function which both checks and then calls the target.
+
+Other Module Flags
+------------------
+
+``require-logical-pointer``
+    This flag indicates this module must only use logical pointer intrinsics
+    such as :ref:`@llvm.structured.gep <i_structured_gep>` or
+    :ref:`@llvm.structured.alloca <i_structured_alloca>`.
+    Using a normal :ref:`getelementptr <i_getelementptr>` or
+    :ref:`alloca <i_alloca>` is illegal.
 
 Embedded Objects Names Metadata
 ===============================
