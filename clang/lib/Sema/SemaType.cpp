@@ -8403,8 +8403,7 @@ static bool handleFunctionTypeAttr(TypeProcessingState &state, ParsedAttr &attr,
   // much ability to diagnose it later.
   if (!supportsVariadicCall(CC)) {
     const FunctionProtoType *FnP = dyn_cast<FunctionProtoType>(fn);
-    // Disable these diagnostics for SYCL
-    if (FnP && FnP->isVariadic() && !S.getLangOpts().SYCLIsDevice) {
+    if (FnP && FnP->isVariadic()) {
       // stdcall and fastcall are ignored with a warning for GCC and MS
       // compatibility.
       if (CC == CC_X86StdCall || CC == CC_X86FastCall)
