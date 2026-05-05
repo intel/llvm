@@ -10,10 +10,8 @@
 #include <sycl/detail/compile_time_kernel_info.hpp>
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/kernel_desc.hpp>
+#include <sycl/info/info_desc.hpp>
 
-#include <unified-runtime/ur_api.h>
-
-#include <cstddef>
 #include <string_view>
 
 namespace sycl {
@@ -49,32 +47,32 @@ template <auto *Func> DeviceKernelInfo &getDeviceKernelInfo() {
   return Info;
 }
 
-// O(1) cached-kernel lookup + direct UR dispatch for kernel_device_specific
-// info queries. Each helper fetches (or builds) the UR kernel via
-// ProgramManager::getOrCreateKernel and then issues the corresponding
-// urKernelGet*Info call, writing the raw result into `Result`. `ResultSize`
-// must match the size of the UR-reported value (e.g. sizeof(size_t)*3 for a
-// three-element range, sizeof(uint32_t) for a uint32 query, etc.). These
-// bypass the sycl::kernel wrapper to keep the fast path allocation-free.
+// O(1) cached-kernel lookup + device-specific info query. Fetches the kernel
+// via ProgramManager::getOrCreateKernel and dispatches to the existing
+// get_kernel_device_specific_info<Param> helper in the library. Validation
+// that kernel_impl::get_info would normally perform is replicated inside this
+// function (see validateDeviceSpecificQuery in get_device_kernel_info.cpp).
+// The 12 template instantiations below are the ABI boundary; callers in
+// public headers (get_kernel_info.hpp) dispatch to them via the extern
+// template declarations.
+template <typename Param>
+__SYCL_EXPORT typename Param::return_type
+get_kernel_info_impl(context_impl &CtxImpl, device_impl &DevImpl,
+                     DeviceKernelInfo &KernelInfo);
 
-__SYCL_EXPORT void queryCachedKernelGroupInfo(context_impl &CtxImpl,
-                                              device_impl &DevImpl,
-                                              DeviceKernelInfo &KernelInfo,
-                                              ur_kernel_group_info_t InfoCode,
-                                              size_t ResultSize, void *Result);
+#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, UrCode)              \
+  extern template __SYCL_EXPORT ReturnT                                        \
+  get_kernel_info_impl<info::DescType::Desc>(context_impl &, device_impl &,    \
+                                             DeviceKernelInfo &);
+#include <sycl/info/kernel_device_specific_traits.def>
+#undef __SYCL_PARAM_TRAITS_SPEC
 
-__SYCL_EXPORT void queryCachedKernelSubGroupInfo(
-    context_impl &CtxImpl, device_impl &DevImpl, DeviceKernelInfo &KernelInfo,
-    ur_kernel_sub_group_info_t InfoCode, size_t ResultSize, void *Result);
-
-__SYCL_EXPORT void queryCachedKernelUrKernelInfo(
-    context_impl &CtxImpl, device_impl &DevImpl, DeviceKernelInfo &KernelInfo,
-    ur_kernel_info_t InfoCode, size_t ResultSize, void *Result);
-
-// ext_intel_spill_memory_size has custom per-device demultiplexing logic that
-// doesn't fit the simple "one UR call with a buffer" pattern above.
-__SYCL_EXPORT size_t queryCachedKernelSpillMemSize(
-    context_impl &CtxImpl, device_impl &DevImpl, DeviceKernelInfo &KernelInfo);
+#define __SYCL_PARAM_TRAITS_SPEC(Namespace, DescType, Desc, ReturnT, UrCode)   \
+  extern template __SYCL_EXPORT ReturnT                                        \
+  get_kernel_info_impl<Namespace::info::DescType::Desc>(                       \
+      context_impl &, device_impl &, DeviceKernelInfo &);
+#include <sycl/info/ext_intel_kernel_info_traits.def>
+#undef __SYCL_PARAM_TRAITS_SPEC
 
 } // namespace detail
 } // namespace _V1
