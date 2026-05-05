@@ -13,6 +13,10 @@
 ; RUN: llvm-spirv %t.spv -to-text -o - | FileCheck %s --check-prefixes=CHECK-SPIRV,CHECK-SPIRV-EXT
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis %t.rev.bc -o - | FileCheck %s --check-prefix=CHECK-LLVM
+; RUN: %if spirv-backend %{ llc -O0 -mtriple=spirv64-unknown-unknown -filetype=obj %s -o %t.llc.spv %}
+; RUN: %if spirv-backend %{ llvm-spirv -r %t.llc.spv -o %t.llc.rev.bc %}
+; RUN: %if spirv-backend %{ llvm-dis %t.llc.rev.bc -o %t.llc.rev.ll %}
+; RUN: %if spirv-backend %{ FileCheck %s --check-prefix=CHECK-LLVM < %t.llc.rev.ll %}
 
 source_filename = "math_builtin_float_half.cpp"
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
@@ -32,8 +36,8 @@ target triple = "spirv64-unknown-unknown"
 
 ; CHECK-LLVM: %addr = alloca half
 ; CHECK-LLVM: %addr2 = alloca <2 x half>
-; CHECK-LLVM: %res = call spir_func half @_Z5fractDhPDh(half 0xH39C4, ptr %addr)
-; CHECK-LLVM: %res2 = call spir_func <2 x half> @_Z5fractDv2_DhPS_(<2 x half> <half 0xH39C4, half 0xH0000>, ptr %addr2)
+; CHECK-LLVM: %{{[a-z0-9]+}} = call spir_func half @_Z5fractDhPDh(half 0xH39C4, ptr %addr)
+; CHECK-LLVM: %{{[a-z0-9]+}} = call spir_func <2 x half> @_Z5fractDv2_DhPS_(<2 x half> <half 0xH39C4, half 0xH0000>, ptr %addr2)
 
 define spir_kernel void @test() {
 entry:

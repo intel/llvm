@@ -1,6 +1,6 @@
 // RUN: %clangxx -fsycl -fsycl-device-only -S %s -o %t.ll
 // RUN: sycl-post-link -split=none -properties -split-esimd -lower-esimd -S %t.ll -o %t.table
-// RUN: FileCheck %s -input-file=%t_esimd_0.ll
+// RUN: FileCheck %s -input-file=%t_0.esimd.ll
 
 // The test checks that there are no unexpected extra conversions or intrinsic
 // calls added by the API headers or compiler when generating code

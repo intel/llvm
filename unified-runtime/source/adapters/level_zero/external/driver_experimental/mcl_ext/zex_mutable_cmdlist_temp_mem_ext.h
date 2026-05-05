@@ -1,9 +1,7 @@
-/*
- * Copyright (C) 2025 Intel Corporation
- *
- * SPDX-License-Identifier: MIT
- *
- */
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
+//
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #pragma once
 
@@ -31,9 +29,10 @@ typedef enum _zex_temp_variable_type_t {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Temporary variable descriptor
 typedef struct _zex_temp_variable_desc_t {
-  ze_structure_type_ext_t stype = ZEX_STRUCTURE_TYPE_TEMP_VARIABLE_DESCRIPTOR;
-  const void *pNext = nullptr;
-
+  ze_structure_type_ext_t
+      stype;         ///< [in] type of this structure
+                     ///< ZEX_STRUCTURE_TYPE_TEMP_VARIABLE_DESCRIPTOR
+  const void *pNext; ///< [in][optional] pointer to extension-specific structure
   zex_temp_variable_flags_t flags;
   size_t size;
 } zex_temp_variable_desc_t;

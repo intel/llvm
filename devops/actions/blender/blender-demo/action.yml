@@ -1,0 +1,21 @@
+name: 'Run Blender Classroom Demo'
+description: 'Download and render the Blender Classroom demo scene with Intel GPU'
+
+inputs:
+  blender_dir:
+    description: 'Blender installation directory'
+    required: true
+  blender_classroom_dir:
+    description: 'Blender classroom demo directory'
+    required: true
+runs:
+  using: "composite"
+  steps:
+    - name: Render Classroom Scene
+      shell: bash
+      env:
+        BLENDER_DIR: ${{ inputs.blender_dir }}
+        CLASSROOM_DIR: ${{ inputs.blender_classroom_dir }}
+      run: |
+        BLENDER_EXE="$BLENDER_DIR/blender$([[ "${{ runner.os }}" == "Windows" ]] && echo ".exe")"
+        "$BLENDER_EXE" -b -noaudio --debug-cycles --verbose 3 --engine CYCLES "$CLASSROOM_DIR/classroom.blend" -f 1 -- --cycles-device ONEAPI

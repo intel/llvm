@@ -1,9 +1,8 @@
 //===--------- ur_interface_loader.hpp - Level Zero Adapter ------------===//
 //
-// Copyright (C) 2024 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -276,13 +275,6 @@ urEventCreateWithNativeHandle(ur_native_handle_t hNativeEvent,
 ur_result_t urEventSetCallback(ur_event_handle_t hEvent,
                                ur_execution_info_t execStatus,
                                ur_event_callback_t pfnNotify, void *pUserData);
-ur_result_t urEnqueueKernelLaunch(
-    ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel, uint32_t workDim,
-    const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
-    const size_t *pLocalWorkSize,
-    const ur_kernel_launch_ext_properties_t *launchPropList,
-    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-    ur_event_handle_t *phEvent);
 ur_result_t urEnqueueEventsWait(ur_queue_handle_t hQueue,
                                 uint32_t numEventsInWaitList,
                                 const ur_event_handle_t *phEventWaitList,
@@ -427,13 +419,6 @@ ur_result_t urEnqueueKernelLaunchWithArgsExp(
 ur_result_t urKernelCreate(ur_program_handle_t hProgram,
                            const char *pKernelName,
                            ur_kernel_handle_t *phKernel);
-ur_result_t urKernelSetArgValue(
-    ur_kernel_handle_t hKernel, uint32_t argIndex, size_t argSize,
-    const ur_kernel_arg_value_properties_t *pProperties, const void *pArgValue);
-ur_result_t
-urKernelSetArgLocal(ur_kernel_handle_t hKernel, uint32_t argIndex,
-                    size_t argSize,
-                    const ur_kernel_arg_local_properties_t *pProperties);
 ur_result_t urKernelGetInfo(ur_kernel_handle_t hKernel,
                             ur_kernel_info_t propName, size_t propSize,
                             void *pPropValue, size_t *pPropSizeRet);
@@ -450,22 +435,10 @@ ur_result_t urKernelGetSubGroupInfo(ur_kernel_handle_t hKernel,
 ur_result_t urKernelRetain(ur_kernel_handle_t hKernel);
 ur_result_t urKernelRelease(ur_kernel_handle_t hKernel);
 ur_result_t
-urKernelSetArgPointer(ur_kernel_handle_t hKernel, uint32_t argIndex,
-                      const ur_kernel_arg_pointer_properties_t *pProperties,
-                      const void *pArgValue);
-ur_result_t
 urKernelSetExecInfo(ur_kernel_handle_t hKernel, ur_kernel_exec_info_t propName,
                     size_t propSize,
                     const ur_kernel_exec_info_properties_t *pProperties,
                     const void *pPropValue);
-ur_result_t
-urKernelSetArgSampler(ur_kernel_handle_t hKernel, uint32_t argIndex,
-                      const ur_kernel_arg_sampler_properties_t *pProperties,
-                      ur_sampler_handle_t hArgValue);
-ur_result_t
-urKernelSetArgMemObj(ur_kernel_handle_t hKernel, uint32_t argIndex,
-                     const ur_kernel_arg_mem_obj_properties_t *pProperties,
-                     ur_mem_handle_t hArgValue);
 ur_result_t urKernelSetSpecializationConstants(
     ur_kernel_handle_t hKernel, uint32_t count,
     const ur_specialization_constant_info_t *pSpecConstants);
@@ -889,6 +862,8 @@ ur_result_t urGraphExecutableGraphDestroyExp(
     ur_exp_executable_graph_handle_t hExecutableGraph);
 ur_result_t urQueueIsGraphCaptureEnabledExp(ur_queue_handle_t hQueue,
                                             bool *pResult);
+ur_result_t urQueueGetGraphExp(ur_queue_handle_t hQueue,
+                               ur_exp_graph_handle_t *phGraph);
 ur_result_t urGraphIsEmptyExp(ur_exp_graph_handle_t hGraph, bool *pResult);
 ur_result_t urGraphDumpContentsExp(ur_exp_graph_handle_t hGraph,
                                    const char *filePath);

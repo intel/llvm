@@ -29,6 +29,18 @@ inline namespace _V1 {
 // Forward declaration
 class device;
 namespace detail {
+class context_impl;
+} // namespace detail
+namespace ext {
+namespace oneapi {
+namespace experimental {
+namespace detail {
+class graph_impl;
+} // namespace detail
+} // namespace experimental
+} // namespace oneapi
+} // namespace ext
+namespace detail {
 class context_impl : public std::enable_shared_from_this<context_impl> {
   struct private_tag {
     explicit private_tag() = default;
@@ -194,6 +206,15 @@ public:
                                   devices_range Devs,
                                   const RTDeviceBinaryImage *BinImage);
 
+  /// Removes device global initializers for a program.
+  void removeDeviceGlobalInitializer(ur_program_handle_t Program,
+                                     const RTDeviceBinaryImage *BinImage);
+
+  /// Returns the number of programs with device globals not yet initialized.
+  size_t getDeviceGlobalNotInitializedCnt() const {
+    return MDeviceGlobalNotInitializedCnt.load(std::memory_order_relaxed);
+  }
+
   /// Initializes device globals for a program on the associated queue.
   std::vector<ur_event_handle_t>
   initializeDeviceGlobals(ur_program_handle_t NativePrg, queue_impl &QueueImpl,
@@ -230,6 +251,24 @@ public:
   std::shared_ptr<sycl::ext::oneapi::experimental::detail::memory_pool_impl>
   get_default_memory_pool(const context &Context, const device &Device,
                           const usm::alloc &Kind);
+
+  /// Register a native UR graph handle with its SYCL graph implementation.
+  /// @param UrGraphHandle The native UR graph handle to register
+  /// @param Graph The SYCL graph implementation to associate with the handle
+  void registerNativeGraph(
+      ur_exp_graph_handle_t UrGraphHandle,
+      std::shared_ptr<sycl::ext::oneapi::experimental::detail::graph_impl>
+          Graph);
+
+  /// Lookup a SYCL graph implementation from a native UR graph handle.
+  /// @param UrGraphHandle The native UR graph handle to look up
+  /// @return Shared pointer to graph_impl if found, nullptr otherwise
+  std::shared_ptr<sycl::ext::oneapi::experimental::detail::graph_impl>
+  getNativeGraph(ur_exp_graph_handle_t UrGraphHandle) const;
+
+  /// Deregister a native UR graph handle.
+  /// @param UrGraphHandle The native UR graph handle to deregister
+  void deregisterNativeGraph(ur_exp_graph_handle_t UrGraphHandle);
 
 private:
   bool MOwnedByRuntime;
@@ -309,6 +348,16 @@ private:
            std::unique_ptr<std::byte[]>>
       MDeviceGlobalUnregisteredData;
   std::mutex MDeviceGlobalUnregisteredDataMutex;
+
+  // Native graph registry mapping UR handles to their originating SYCL graph
+  // object. Enables command_graph lookup in cases where direct backend
+  // submissions (e.g. L0) bypass SYCL and cause a queue to transition to
+  // recording without our knowledge.
+  std::unordered_map<
+      ur_exp_graph_handle_t,
+      std::weak_ptr<sycl::ext::oneapi::experimental::detail::graph_impl>>
+      MNativeGraphRegistry;
+  mutable std::mutex MNativeGraphRegistryMutex;
 
   void verifyProps(const property_list &Props) const;
 };

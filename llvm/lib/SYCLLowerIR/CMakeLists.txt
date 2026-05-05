@@ -6,9 +6,9 @@ if (NOT TARGET LLVMGenXIntrinsics)
   if (NOT LLVMGenXIntrinsics_FOUND)
     set(LLVMGenXIntrinsics_GIT_REPO https://github.com/intel/vc-intrinsics.git)
 
-    # Date: May 29, 2025
-    # Use OneNthEltsVecArgument instead of HalfVecArguments to fix build failure.
-    set(LLVMGenXIntrinsics_GIT_TAG 60cea7590bd022d95f5cf336ee765033bd114d69)
+    # Date: April 01, 2026
+    # Fix build.
+    set(LLVMGenXIntrinsics_GIT_TAG dpcpp_staging)
     if(NOT FETCHCONTENT_SOURCE_DIR_VC-INTRINSICS)
       message(STATUS "vc-intrinsics repo is missing. Will try to download "
         "${LLVMGenXIntrinsics_GIT_TAG} from ${LLVMGenXIntrinsics_GIT_REPO}")
@@ -42,6 +42,7 @@ add_llvm_component_library(LLVMSYCLLowerIR
   LowerInvokeSimd.cpp
   LowerWGLocalMemory.cpp
   LowerWGScope.cpp
+  MangleUtils.cpp
   MutatePrintfAddrspace.cpp
   SpecConstants.cpp
   SYCLAddOptLevelAttribute.cpp
@@ -54,6 +55,7 @@ add_llvm_component_library(LLVMSYCLLowerIR
   SYCLOptimizeBarriers.cpp
   SYCLPropagateAspectsUsage.cpp
   SYCLPropagateJointMatrixUsage.cpp
+  SYCLRemangleLibspirv.cpp
   SYCLVirtualFunctionsAnalysis.cpp
   SYCLUtils.cpp
 

@@ -8,7 +8,7 @@
 
 #define VER_PRODUCT_NAME_STR        "oneAPI Unified Runtime Zero Loader for Windows(R)"
 
-#define VER_LEGALCOPYRIGHT_STR      "Copyright (C) 2022 Intel Corporation"
+#define VER_LEGALCOPYRIGHT_STR      "Part of the LLVM Project"
 
 1 VERSIONINFO
 FILEVERSION     VER_FILEVERSION

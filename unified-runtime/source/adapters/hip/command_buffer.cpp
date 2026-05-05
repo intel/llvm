@@ -1,9 +1,8 @@
 //===--------- command_buffer.cpp - HIP Adapter ---------------------------===//
 //
-// Copyright (C) 2023 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
@@ -349,8 +348,8 @@ urCommandBufferAppendKernelLaunchWithArgsExp(
         ur_kernel_arg_mem_obj_properties_t Props = {
             UR_STRUCTURE_TYPE_KERNEL_ARG_MEM_OBJ_PROPERTIES, nullptr,
             pArgs[i].value.memObjTuple.flags};
-        UR_CALL(urKernelSetArgMemObj(hKernel, pArgs[i].index, &Props,
-                                     pArgs[i].value.memObjTuple.hMem));
+        UR_CALL(hKernel->setKernelArgMemObj(pArgs[i].index, &Props,
+                                            pArgs[i].value.memObjTuple.hMem));
         break;
       }
       case UR_EXP_KERNEL_ARG_TYPE_SAMPLER: {

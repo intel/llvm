@@ -369,7 +369,7 @@ public:
   SanitizerType kernelUsesSanitizer() const { return m_SanitizerFoundInImage; }
 
   void cacheKernelImplicitLocalArg(const RTDeviceBinaryImage &Img);
-
+  void cacheKernelWorkGroupDynamicLocalMem(const RTDeviceBinaryImage &Img);
   DeviceKernelInfo &getDeviceKernelInfo(const CompileTimeKernelInfoTy &Info);
   DeviceKernelInfo &getDeviceKernelInfo(std::string_view KernelName);
   DeviceKernelInfo *tryGetDeviceKernelInfo(std::string_view KernelName);
@@ -408,6 +408,10 @@ private:
   bool isBfloat16DeviceImage(const RTDeviceBinaryImage *BinImage);
   bool shouldBF16DeviceImageBeUsed(const RTDeviceBinaryImage *BinImage,
                                    const device_impl &DeviceImpl);
+
+  /// Returns a comma-separated list of available image target names for the
+  /// given kernel ID, for use in error messages.
+  std::string getKernelTargetList(const kernel_id &KernelID);
 
 protected:
   using RTDeviceBinaryImageUPtr = std::unique_ptr<RTDeviceBinaryImage>;
@@ -451,6 +455,12 @@ protected:
   /// Access must be guarded by the m_ImgMapsMutex mutex.
   std::unordered_map<sycl_device_binary, RTDeviceBinaryImageUPtr>
       m_DeviceImages;
+
+  /// Keeps merged device binary images alive for linked programs with multiple
+  /// images. The merged image combines device_globals from all linked images.
+  /// Access must be guarded by the MNativeProgramsMutex mutex.
+  std::unordered_map<ur_program_handle_t, DynRTDeviceBinaryImageUPtr>
+      m_MergedImages;
 
   /// Maps names of built-in kernels to their unique kernel IDs.
   /// Access must be guarded by the m_BuiltInKernelIDsMutex mutex.

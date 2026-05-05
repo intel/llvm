@@ -57,6 +57,10 @@
 #define __SYCL_ID_QUERIES_FIT_IN_INT__ 0
 #endif
 
+#ifndef __SYCL_ID_QUERIES_FIT_IN_UINT__
+#define __SYCL_ID_QUERIES_FIT_IN_UINT__ 0
+#endif
+
 #ifndef __SYCL_DEPRECATED
 #if !defined(__SYCL_DISABLE_DEPRECATION_WARNINGS)
 #define __SYCL_DEPRECATED(message) [[deprecated(message)]]

@@ -4,19 +4,19 @@
 
 ; No lowering
 ; RUN: sycl-post-link -properties -split-esimd -S < %s -o %t.table
-; RUN: FileCheck %s -input-file=%t_esimd_0.ll --check-prefixes CHECK-NO-LOWERING
+; RUN: FileCheck %s -input-file=%t_0.esimd.ll --check-prefixes CHECK-NO-LOWERING
 
 ; Default lowering
 ; RUN: sycl-post-link -properties -split-esimd -lower-esimd -S < %s -o %t.table
-; RUN: FileCheck %s -input-file=%t_esimd_0.ll --check-prefixes CHECK-O2
+; RUN: FileCheck %s -input-file=%t_0.esimd.ll --check-prefixes CHECK-O2
 
 ; -O2 lowering
 ; RUN: sycl-post-link -properties -split-esimd -lower-esimd -O2 -S < %s -o %t.table
-; RUN: FileCheck %s -input-file=%t_esimd_0.ll --check-prefixes CHECK-O2
+; RUN: FileCheck %s -input-file=%t_0.esimd.ll --check-prefixes CHECK-O2
 
 ; -O0 lowering, requires `-force-disable-esimd-opt` to disable all optimizations.
 ; RUN: sycl-post-link -properties -split-esimd -lower-esimd -O0 -force-disable-esimd-opt -S < %s -o %t.table
-; RUN: FileCheck %s -input-file=%t_esimd_0.ll --check-prefixes CHECK-O0
+; RUN: FileCheck %s -input-file=%t_0.esimd.ll --check-prefixes CHECK-O0
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
 target triple = "spir64-unknown-linux"

@@ -1,0 +1,12 @@
+; OpBranchConditional minimum = 4 (header + condition + true-label +
+; false-label); WordCount=3 is malformed.
+; Test that malformed input is rejected early rather than silently causing
+; integer underflow and potential process hang.
+
+; RUN: not llvm-spirv %s -to-binary -o %t.spv 2>&1 | FileCheck %s
+; CHECK: InvalidWordCount:
+
+119734787 65536 0 1 0
+2 Capability Kernel
+3 MemoryModel 1 2
+3 BranchConditional 2 3 4

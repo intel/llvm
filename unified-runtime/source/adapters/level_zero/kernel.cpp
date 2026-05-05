@@ -1,9 +1,8 @@
 //===--------- kernel.cpp - Level Zero Adapter ----------------------------===//
 //
-// Copyright (C) 2023 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
@@ -154,6 +153,17 @@ ur_result_t urKernelSetArgMemObjHelper(
   return UR_RESULT_SUCCESS;
 }
 
+// forward declaration of the old enqueue function to call after setting all the
+// arguments
+static ur_result_t
+urEnqueueKernelLaunch(ur_queue_handle_t Queue, ur_kernel_handle_t Kernel,
+                      uint32_t WorkDim, const size_t *GlobalWorkOffset,
+                      const size_t *GlobalWorkSize, const size_t *LocalWorkSize,
+                      const ur_kernel_launch_ext_properties_t *LaunchPropList,
+                      uint32_t NumEventsInWaitList,
+                      const ur_event_handle_t *EventWaitList,
+                      ur_event_handle_t *OutEvent);
+
 ur_result_t urEnqueueKernelLaunchWithArgsExp(
     /// [in] handle of the queue object
     ur_queue_handle_t Queue,
@@ -225,12 +235,12 @@ ur_result_t urEnqueueKernelLaunchWithArgsExp(
     }
   }
   // Normalize so each dimension has at least one work item
-  return level_zero::urEnqueueKernelLaunch(
-      Queue, Kernel, workDim, GlobalWorkOffset, GlobalWorkSize, LocalWorkSize,
-      LaunchPropList, NumEventsInWaitList, EventWaitList, OutEvent);
+  return urEnqueueKernelLaunch(Queue, Kernel, workDim, GlobalWorkOffset,
+                               GlobalWorkSize, LocalWorkSize, LaunchPropList,
+                               NumEventsInWaitList, EventWaitList, OutEvent);
 }
 
-ur_result_t urEnqueueKernelLaunch(
+static ur_result_t urEnqueueKernelLaunch(
     /// [in] handle of the queue object
     ur_queue_handle_t Queue,
     /// [in] handle of the kernel object

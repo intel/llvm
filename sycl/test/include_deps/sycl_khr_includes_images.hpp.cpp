@@ -15,8 +15,10 @@
 // CHECK-NEXT: backend_types.hpp
 // CHECK-NEXT: detail/array.hpp
 // CHECK-NEXT: detail/common.hpp
-// CHECK-NEXT: detail/export.hpp
+// CHECK-NEXT: detail/assert.hpp
 // CHECK-NEXT: __spirv/spirv_vars.hpp
+// CHECK-NEXT: detail/export.hpp
+// CHECK-NEXT: detail/nd_loop.hpp
 // CHECK-NEXT: detail/fwd/accessor.hpp
 // CHECK-NEXT: detail/defines.hpp
 // CHECK-NEXT: detail/helpers.hpp
@@ -47,9 +49,12 @@
 // CHECK-NEXT: bit_cast.hpp
 // CHECK-NEXT: detail/fwd/half.hpp
 // CHECK-NEXT: detail/type_traits.hpp
+// CHECK-NEXT: detail/type_traits/bool_traits.hpp
 // CHECK-NEXT: detail/type_traits/vec_marray_traits.hpp
 // CHECK-NEXT: detail/fwd/multi_ptr.hpp
+// CHECK-NEXT: detail/type_traits/integer_traits.hpp
 // CHECK-NEXT: detail/handler_proxy.hpp
+// CHECK-NEXT: detail/loop.hpp
 // CHECK-NEXT: multi_ptr.hpp
 // CHECK-NEXT: detail/address_space_cast.hpp
 // CHECK-NEXT: pointers.hpp
@@ -63,12 +68,14 @@
 // CHECK-NEXT: info/aspects.def
 // CHECK-NEXT: info/aspects_deprecated.def
 // CHECK-NEXT: info/info_desc.hpp
+// CHECK-NEXT: detail/device_info_types.hpp
 // CHECK-NEXT: ext/oneapi/experimental/device_architecture.hpp
 // CHECK-NEXT: ext/oneapi/experimental/device_architecture.def
 // CHECK-NEXT: ext/oneapi/experimental/forward_progress.hpp
 // CHECK-NEXT: ext/oneapi/matrix/query-types.hpp
 // CHECK-NEXT: ext/oneapi/bfloat16.hpp
 // CHECK-NEXT: half_type.hpp
+// CHECK-NEXT: detail/half_type_impl.hpp
 // CHECK-NEXT: ext/oneapi/matrix/matrix-unified-utils.hpp
 // CHECK-NEXT: info/platform_traits.def
 // CHECK-NEXT: info/context_traits.def
@@ -98,11 +105,15 @@
 // CHECK-NEXT: event.hpp
 // CHECK-NEXT: sampler.hpp
 // CHECK-NEXT: vector.hpp
-// CHECK-NEXT: detail/named_swizzles_mixin.hpp
 // CHECK-NEXT: detail/vector_arith.hpp
+// CHECK-NEXT: detail/vector_traits.hpp
+// CHECK-NEXT: detail/vector_core.hpp
+// CHECK-NEXT: detail/named_swizzles_mixin.hpp
 // CHECK-NEXT: detail/memcpy.hpp
 // CHECK-NEXT: detail/image_ocl_types.hpp
-// CHECK-NEXT: __spirv/spirv_ops.hpp
+// CHECK-NEXT: __spirv/spirv_ops_image.hpp
+// CHECK-NEXT: __spirv/spirv_ops_builtin_decls.hpp
+// CHECK-NEXT: __spirv/spirv_ops_base.hpp
 // CHECK-NEXT: properties/image_properties.hpp
 // CHECK-NEXT: properties/image_properties.def
 // CHECK-EMPTY:

@@ -1,9 +1,8 @@
 //===--------- queue_immediate_in_order.hpp - Level Zero Adapter ---------===//
 //
-// Copyright (C) 2024-2026 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
@@ -54,21 +53,6 @@ public:
                                    ur_native_handle_t *phNativeQueue) override;
   ur_result_t queueFinish() override;
   ur_result_t queueFlush() override;
-  ur_result_t enqueueKernelLaunch(
-      ur_kernel_handle_t hKernel, uint32_t workDim,
-      const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
-      const size_t *pLocalWorkSize,
-      const ur_kernel_launch_ext_properties_t *launchPropList,
-      uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-      ur_event_handle_t *phEvent) override {
-    wait_list_view waitListView =
-        wait_list_view(phEventWaitList, numEventsInWaitList);
-
-    return commandListManager.lock()->appendKernelLaunch(
-        hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize, pLocalWorkSize,
-        launchPropList, waitListView,
-        createEventIfRequested(eventPool.get(), phEvent, this));
-  }
   ur_result_t
   enqueueEventsWaitWithBarrier(uint32_t numEventsInWaitList,
                                const ur_event_handle_t *phEventWaitList,
@@ -576,6 +560,10 @@ public:
 
   ur_result_t queueIsGraphCapteEnabledExp(bool *pResult) override {
     return commandListManager.lock()->isGraphCaptureActive(pResult);
+  }
+
+  ur_result_t queueGetGraphExp(ur_exp_graph_handle_t *phGraph) override {
+    return commandListManager.lock()->getGraph(phGraph);
   }
 
   ur_result_t

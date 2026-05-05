@@ -1,6 +1,5 @@
-// Copyright (C) 2026 Intel Corporation
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
@@ -43,7 +42,13 @@ struct urUSMHostMemRegisterTest : uur::urQueueTest {
 UUR_INSTANTIATE_DEVICE_TEST_SUITE(urUSMHostMemRegisterTest);
 
 TEST_P(urUSMHostMemRegisterTest, Success) {
-  ASSERT_SUCCESS(urUSMHostAllocRegisterExp(context, alloc, allocSize, nullptr));
+  // It frequently fails in CI with a UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY
+  // error during urEnqueueUSMMemcpy.
+  // See https://github.com/intel/llvm/issues/21633.
+  UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
+
+  UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
+      urUSMHostAllocRegisterExp(context, alloc, allocSize, nullptr));
 
   void *alloc2 = nullptr;
   ASSERT_SUCCESS(urUSMHostAlloc(context, nullptr, nullptr, allocSize, &alloc2));

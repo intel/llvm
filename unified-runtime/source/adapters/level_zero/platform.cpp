@@ -1,9 +1,8 @@
 //===--------- platform.cpp - Level Zero Adapter --------------------------===//
 //
-// Copyright (C) 2023-2026 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
@@ -297,6 +296,12 @@ ur_result_t ur_platform_handle_t_::initialize() {
         ZeLUIDSupported = true;
       }
     }
+    if (strncmp(extension.name, ZE_EXTERNAL_MEMORY_MAPPING_EXT_NAME,
+                strlen(ZE_EXTERNAL_MEMORY_MAPPING_EXT_NAME) + 1) == 0) {
+      if (extension.version == ZE_EXTERNAL_MEMMAP_SYSMEM_EXT_VERSION_CURRENT) {
+        ZeExternalMemoryMappingExtensionSupported = true;
+      }
+    }
     zeDriverExtensionMap[extension.name] = extension.version;
   }
 
@@ -534,23 +539,29 @@ ur_result_t ur_platform_handle_t_::initialize() {
             .zeCommandListImmediateAppendCommandListsExp != nullptr;
   }
 
-  ZE_CALL_NOCHECK(zeDriverGetExtensionFunctionAddress,
-                  (ZeDriver, "zeImageGetDeviceOffsetExp",
-                   reinterpret_cast<void **>(
-                       &ZeImageGetDeviceOffsetExt.zeImageGetDeviceOffsetExp)));
+  if (ZeApiVersion >= ZE_API_VERSION_1_15) {
+    ZeImageGetDeviceOffsetExt.zeImageGetDeviceOffsetExp =
+        zeImageGetDeviceOffsetExp;
+    ZeMemGetPitchFor2dImageExt.zeMemGetPitchFor2dImage =
+        zeMemGetPitchFor2dImage;
+  } else {
+    ZE_CALL_NOCHECK(
+        zeDriverGetExtensionFunctionAddress,
+        (ZeDriver, "zeImageGetDeviceOffsetExp",
+         reinterpret_cast<void **>(
+             &ZeImageGetDeviceOffsetExt.zeImageGetDeviceOffsetExp)));
+    ZE_CALL_NOCHECK(zeDriverGetExtensionFunctionAddress,
+                    (ZeDriver, "zeMemGetPitchFor2dImage",
+                     reinterpret_cast<void **>(
+                         &ZeMemGetPitchFor2dImageExt.zeMemGetPitchFor2dImage)));
+  }
 
   ZeImageGetDeviceOffsetExt.Supported =
       ZeImageGetDeviceOffsetExt.zeImageGetDeviceOffsetExp != nullptr;
-
-  ZE_CALL_NOCHECK(zeDriverGetExtensionFunctionAddress,
-                  (ZeDriver, "zeMemGetPitchFor2dImage",
-                   reinterpret_cast<void **>(
-                       &ZeMemGetPitchFor2dImageExt.zeMemGetPitchFor2dImage)));
-
   ZeMemGetPitchFor2dImageExt.Supported =
       ZeMemGetPitchFor2dImageExt.zeMemGetPitchFor2dImage != nullptr;
 
-  // Populate Graph Extension structure.
+  // Populate Graph Extension structure. Mandatory graph functions.
   std::unordered_map<std::string, void **> ZeGraphFuncNameToAddrMap = {
       {"zeGraphCreateExp",
        reinterpret_cast<void **>(&ZeGraphExt.zeGraphCreateExp)},
@@ -584,6 +595,19 @@ ur_result_t ur_platform_handle_t_::initialize() {
     ZE_CALL_NOCHECK(zeDriverGetExtensionFunctionAddress,
                     (ZeDriver, funcName.c_str(), funcAddr));
     ZeGraphExt.Supported &= (*funcAddr != nullptr);
+  }
+
+  // Optional graph functions. If the function is not supported due to driver
+  // version, then still mark graphs as supported and only return unsupported
+  // code in affected function.
+  std::unordered_map<std::string, void **> ZeGraphOptionalFuncNameToAddrMap = {
+      {"zeCommandListGetGraphExp",
+       reinterpret_cast<void **>(&ZeGraphExt.zeCommandListGetGraphExp)},
+  };
+
+  for (auto &[funcName, funcAddr] : ZeGraphOptionalFuncNameToAddrMap) {
+    ZE_CALL_NOCHECK(zeDriverGetExtensionFunctionAddress,
+                    (ZeDriver, funcName.c_str(), funcAddr));
   }
 
   if (this->isDriverVersionNewerOrSimilar(1, 14, 36035)) {

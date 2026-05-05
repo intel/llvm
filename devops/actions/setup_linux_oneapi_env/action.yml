@@ -13,10 +13,12 @@ runs:
         | sudo tee /etc/apt/sources.list.d/oneAPI.list && \
         sudo apt update && sudo apt-get -y install intel-oneapi-compiler-dpcpp-cpp-2025.3
 
-        env_before=$(env | sort)         
+        env_before=$(env | sort)
         source /opt/intel/oneapi/setvars.sh
         env_after=$(env | sort)
         changed_envvars=$(comm -13 <(echo "$env_before") <(echo "$env_after"))
         while IFS= read -r line; do
-          echo "$line" >> $GITHUB_ENV
+          if [[ ! "$line" =~ ^CMAKE_PREFIX_PATH= ]]; then
+            echo "$line" >> $GITHUB_ENV
+          fi
         done <<< "$changed_envvars"

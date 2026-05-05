@@ -196,7 +196,7 @@ namespace {
       list.push_back(UnqualUsingEntry(UD->getNominatedNamespace(), Common));
     }
 
-    void done() { llvm::sort(list, UnqualUsingEntry::Comparator()); }
+    void done() { llvm::stable_sort(list, UnqualUsingEntry::Comparator()); }
 
     typedef ListTy::const_iterator const_iterator;
 
@@ -1627,7 +1627,7 @@ void Sema::makeMergedDefinitionVisible(NamedDecl *ND) {
   if (auto *ED = dyn_cast<EnumDecl>(ND);
       ED && ED->isFromGlobalModule() && !ED->isScoped()) {
     for (auto *ECD : ED->enumerators()) {
-      ECD->setVisibleDespiteOwningModule();
+      ECD->setVisiblePromoted();
       DeclContext *RedeclCtx = ED->getDeclContext()->getRedeclContext();
       if (RedeclCtx->lookup(ECD->getDeclName()).empty())
         RedeclCtx->makeDeclVisibleInContext(ECD);

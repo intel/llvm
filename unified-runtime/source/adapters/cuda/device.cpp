@@ -1,9 +1,8 @@
 //===--------- device.cpp - CUDA Adapter ----------------------------------===//
 //
-// Copyright (C) 2023-2026 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
@@ -111,6 +110,25 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(ReturnSizes);
   }
 
+  case UR_DEVICE_INFO_MAX_WORK_GROUPS: {
+    int MaxX = 0, MaxY = 0, MaxZ = 0;
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &MaxX, CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_X, hDevice->get()));
+    assert(MaxX >= 0);
+
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &MaxY, CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_Y, hDevice->get()));
+    assert(MaxY >= 0);
+
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &MaxZ, CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_Z, hDevice->get()));
+    assert(MaxZ >= 0);
+
+    return ReturnValue(multiplyWithOverflowCheck(static_cast<size_t>(MaxX),
+                                                 static_cast<size_t>(MaxY),
+                                                 static_cast<size_t>(MaxZ)));
+  }
+
   case UR_DEVICE_INFO_MAX_WORK_GROUP_SIZE: {
     int MaxWorkGroupSize = 0;
     UR_CHECK_ERROR(cuDeviceGetAttribute(
@@ -129,7 +147,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_INT: {
     return ReturnValue(1u);
   }
-  case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_LONG: {
+  case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_LONG:
+  case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_LONG_LONG: {
     return ReturnValue(1u);
   }
   case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_FLOAT: {
@@ -150,7 +169,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_INT: {
     return ReturnValue(1u);
   }
-  case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG: {
+  case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG:
+  case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG_LONG: {
     return ReturnValue(1u);
   }
   case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_FLOAT: {

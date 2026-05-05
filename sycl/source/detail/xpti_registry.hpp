@@ -61,6 +61,8 @@ extern uint8_t GSYCLStreamID;
 extern uint8_t GSYCLDebugStreamID;
 extern uint8_t GUrApiStreamID;
 
+extern xpti::stream_detail_level_t GSYCLStreamDetailLevel;
+
 extern xpti::trace_event_data_t *GMemAllocEvent;
 extern xpti::trace_event_data_t *GSYCLGraphEvent;
 extern xpti::trace_event_data_t *GSYCLCallEvent;
@@ -101,6 +103,10 @@ public:
       // SYCL events
       detail::GSYCLStreamID =
           this->initializeStream(SYCL_STREAM_NAME, GMajVer, GMinVer, GVerStr);
+      // Cache the effective stream detail level - it's immutable after stream
+      // initialization, so we query it once here
+      detail::GSYCLStreamDetailLevel =
+          xptiGetEffectiveStreamDetailLevel(detail::GSYCLStreamID);
       // Register the SYCL Debug event stream; tools subscribing to this stream
       // will receive additional metadata in the regular "sycl" stream.
       detail::GSYCLDebugStreamID = this->initializeStream(

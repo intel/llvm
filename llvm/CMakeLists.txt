@@ -16,6 +16,30 @@ if(NOT LLVM_NO_INSTALL_NAME_DIR_FOR_BUILD_TREE)
   set(CMAKE_BUILD_WITH_INSTALL_NAME_DIR ON)
 endif()
 
+# Darwin used to keep libLLVM's install name unversioned even when
+# LLVM_VERSION_SUFFIX was set. That makes distinct LLVM builds look
+# interchangeable to Mach-O consumers. Keep an opt-out for downstream users
+# that still depend on the legacy install name.
+option(LLVM_VERSIONED_DYLIB_NAME_ON_DARWIN "If set, use versioned dylib names and install names on Darwin like other Unix platforms" ON)
+mark_as_advanced(LLVM_VERSIONED_DYLIB_NAME_ON_DARWIN)
+# At the time of writing (2026-04-01),
+# https://github.com/llvm/llvm-project/pull/189004#issuecomment-4171272082
+# claims that Xcode uses libclang for indexing and can load additional
+# toolchains, so keeping libclang.dylib unversioned avoids breaking that
+# compatibility by default. If this ever changes, audit Darwin libclang users
+# first and verify that Xcode and downstream toolchains accept a versioned
+# libclang install name before changing this default.
+option(LLVM_UNVERSIONED_LIBCLANG_ON_DARWIN "If set, keep libclang's Darwin dylib identity unversioned when Darwin versioned dylib names are enabled" ON)
+mark_as_advanced(LLVM_UNVERSIONED_LIBCLANG_ON_DARWIN)
+# At the time of writing (2026-04-01),
+# https://github.com/llvm/llvm-project/pull/189004#issuecomment-4165730721
+# claims that the macOS linker requires libLTO.dylib to keep that stable name
+# for LTO builds. If this ever changes, audit Darwin LTO users first and
+# verify that ld64 and downstream toolchains accept a versioned libLTO install
+# name before changing this default.
+option(LLVM_UNVERSIONED_LIBLTO_ON_DARWIN "If set, keep libLTO's Darwin dylib identity unversioned when Darwin versioned dylib names are enabled" ON)
+mark_as_advanced(LLVM_UNVERSIONED_LIBLTO_ON_DARWIN)
+
 include(${LLVM_COMMON_CMAKE_UTILS}/Modules/LLVMVersion.cmake)
 include(${LLVM_COMMON_CMAKE_UTILS}/Modules/DPCPPVersion.cmake)
 
@@ -105,7 +129,7 @@ endif()
 # This allows an easy way of setting up a build directory for llvm and another
 # one for llvm+clang+... using the same sources.
 # These projects will be included when "all" is included in LLVM_ENABLE_PROJECTS.
-set(LLVM_ALL_PROJECTS "bolt;clang;clang-tools-extra;cross-project-tests;libclc;lld;lldb;mlir;polly")
+set(LLVM_ALL_PROJECTS "bolt;clang;clang-tools-extra;cross-project-tests;lld;lldb;mlir;polly")
 set(LLVM_ALL_PROJECTS "${LLVM_ALL_PROJECTS};${LLVM_EXTERNAL_PROJECTS}")
 
 # The libc and compiler-rt projects are not part of LLVM_ALL_PROJECTS, because
@@ -141,7 +165,7 @@ endforeach()
 #
 # As we migrate runtimes to using the bootstrapping build, the set of default runtimes
 # should grow as we remove those runtimes from LLVM_ENABLE_PROJECTS above.
-set(LLVM_DEFAULT_RUNTIMES "libcxx;libcxxabi;libunwind;compiler-rt;openmp")
+set(LLVM_DEFAULT_RUNTIMES "libcxx;libcxxabi;libunwind;libclc;compiler-rt;openmp")
 set(LLVM_SUPPORTED_RUNTIMES "libc;libunwind;libcxxabi;libcxx;compiler-rt;openmp;llvm-libgcc;offload;flang-rt;libclc;libsycl;orc-rt")
 set(LLVM_ENABLE_RUNTIMES "" CACHE STRING
   "Semicolon-separated list of runtimes to build, or \"all\" (${LLVM_DEFAULT_RUNTIMES}). Supported runtimes are ${LLVM_SUPPORTED_RUNTIMES}.")
@@ -223,6 +247,22 @@ if(LIBC_GPU_BUILD)
   endif()
   list(APPEND RUNTIMES_nvptx64-nvidia-cuda_LLVM_ENABLE_RUNTIMES "libc")
   list(APPEND RUNTIMES_amdgcn-amd-amdhsa_LLVM_ENABLE_RUNTIMES "libc")
+endif()
+
+# Set up Arm64X build of the OpenMP runtime
+option(LIBOMP_ENABLE_ARM64X "Build the OpenMP library as Arm64X for compatibility with both Arm64 and Arm64EC" OFF)
+if(LIBOMP_ENABLE_ARM64X)
+  if(NOT CMAKE_HOST_WIN32 AND NOT CMAKE_HOST_SYSTEM_PROCESSOR STREQUAL "ARM64")
+    message(FATAL_ERROR "Arm64X builds are only supported on Windows hosts.")
+  endif()
+  if(NOT LLVM_RUNTIME_TARGETS)
+    set(LLVM_RUNTIME_TARGETS "default")
+  endif()
+
+  if(NOT "arm64ec-pc-windows-msvc" IN_LIST LLVM_RUNTIME_TARGETS)
+    list(APPEND LLVM_RUNTIME_TARGETS "arm64ec-pc-windows-msvc")
+  endif()
+  set(RUNTIMES_arm64ec-pc-windows-msvc_LIBOMP_ENABLE_ARM64X ON)
 endif()
 
 foreach(_name ${LLVM_RUNTIME_TARGETS})
@@ -383,7 +423,7 @@ list(INSERT CMAKE_MODULE_PATH 0
 
 # Generate a CompilationDatabase (compile_commands.json file) for our build,
 # for use by clang_complete, YouCompleteMe, etc.
-set(CMAKE_EXPORT_COMPILE_COMMANDS 1)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 option(LLVM_INSTALL_BINUTILS_SYMLINKS
   "Install symlinks from the binutils tool names to the corresponding LLVM tools." OFF)
@@ -608,6 +648,8 @@ set(LLVM_TARGET_ARCH "host"
 
 set(LLVM_ENABLE_LIBXML2 "ON" CACHE STRING "Use libxml2 if available. Can be ON, OFF, or FORCE_ON")
 
+set(LLVM_USE_STATIC_LIBXML2 "OFF" CACHE BOOL "Use static version of libxml2. Can be ON, or OFF")
+
 option(LLVM_ENABLE_LIBEDIT "Use libedit if available." ON)
 
 option(LLVM_ENABLE_LIBPFM "Use libpfm for performance counters if available." ON)
@@ -615,6 +657,11 @@ option(LLVM_ENABLE_LIBPFM "Use libpfm for performance counters if available." ON
 option(LLVM_ENABLE_THREADS "Use threads if available." ON)
 
 set(LLVM_ENABLE_ICU "OFF" CACHE STRING "Use ICU for text encoding conversion support if available. Can be ON, OFF, or FORCE_ON")
+
+# After Windows 10 1903, icu.lib is available.
+if(WIN32 AND CMAKE_SYSTEM_VERSION VERSION_GREATER_EQUAL "10.0.18362")
+  cmake_dependent_option(LLVM_ENABLE_WINDOWS_ICU "Use Windows vendored ICU if possible" OFF LLVM_ENABLE_ICU OFF)
+endif()
 
 set(LLVM_ENABLE_ICONV "OFF" CACHE STRING "Use iconv for text encoding conversion support if available. Can be ON, OFF, or FORCE_ON")
 

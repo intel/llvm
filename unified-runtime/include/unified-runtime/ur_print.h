@@ -1,10 +1,9 @@
 /*
  *
- * Copyright (C) 2023 Intel Corporation
  *
- * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
+ * Part of the LLVM Project, under the Apache License v2.0 with LLVM
  * Exceptions.
- * See LICENSE.TXT
+ * See https://llvm.org/LICENSE.txt for license information.
  *
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
@@ -2203,36 +2202,6 @@ urPrintKernelGetSuggestedLocalWorkSizeWithArgsParams(
     char *buffer, const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Print ur_kernel_set_arg_value_params_t struct
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_INVALID_SIZE
-///         - `buff_size < out_size`
-UR_APIEXPORT ur_result_t UR_APICALL urPrintKernelSetArgValueParams(
-    const struct ur_kernel_set_arg_value_params_t *params, char *buffer,
-    const size_t buff_size, size_t *out_size);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Print ur_kernel_set_arg_local_params_t struct
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_INVALID_SIZE
-///         - `buff_size < out_size`
-UR_APIEXPORT ur_result_t UR_APICALL urPrintKernelSetArgLocalParams(
-    const struct ur_kernel_set_arg_local_params_t *params, char *buffer,
-    const size_t buff_size, size_t *out_size);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Print ur_kernel_set_arg_pointer_params_t struct
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_INVALID_SIZE
-///         - `buff_size < out_size`
-UR_APIEXPORT ur_result_t UR_APICALL urPrintKernelSetArgPointerParams(
-    const struct ur_kernel_set_arg_pointer_params_t *params, char *buffer,
-    const size_t buff_size, size_t *out_size);
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_kernel_set_exec_info_params_t struct
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -2240,26 +2209,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urPrintKernelSetArgPointerParams(
 ///         - `buff_size < out_size`
 UR_APIEXPORT ur_result_t UR_APICALL urPrintKernelSetExecInfoParams(
     const struct ur_kernel_set_exec_info_params_t *params, char *buffer,
-    const size_t buff_size, size_t *out_size);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Print ur_kernel_set_arg_sampler_params_t struct
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_INVALID_SIZE
-///         - `buff_size < out_size`
-UR_APIEXPORT ur_result_t UR_APICALL urPrintKernelSetArgSamplerParams(
-    const struct ur_kernel_set_arg_sampler_params_t *params, char *buffer,
-    const size_t buff_size, size_t *out_size);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Print ur_kernel_set_arg_mem_obj_params_t struct
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_INVALID_SIZE
-///         - `buff_size < out_size`
-UR_APIEXPORT ur_result_t UR_APICALL urPrintKernelSetArgMemObjParams(
-    const struct ur_kernel_set_arg_mem_obj_params_t *params, char *buffer,
     const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2403,6 +2352,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urPrintQueueEndGraphCaptureExpParams(
 UR_APIEXPORT ur_result_t UR_APICALL urPrintQueueIsGraphCaptureEnabledExpParams(
     const struct ur_queue_is_graph_capture_enabled_exp_params_t *params,
     char *buffer, const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_queue_get_graph_exp_params_t struct
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL urPrintQueueGetGraphExpParams(
+    const struct ur_queue_get_graph_exp_params_t *params, char *buffer,
+    const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_sampler_create_params_t struct
@@ -2603,16 +2562,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urPrintPhysicalMemReleaseParams(
 ///         - `buff_size < out_size`
 UR_APIEXPORT ur_result_t UR_APICALL urPrintPhysicalMemGetInfoParams(
     const struct ur_physical_mem_get_info_params_t *params, char *buffer,
-    const size_t buff_size, size_t *out_size);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Print ur_enqueue_kernel_launch_params_t struct
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_INVALID_SIZE
-///         - `buff_size < out_size`
-UR_APIEXPORT ur_result_t UR_APICALL urPrintEnqueueKernelLaunchParams(
-    const struct ur_enqueue_kernel_launch_params_t *params, char *buffer,
     const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////

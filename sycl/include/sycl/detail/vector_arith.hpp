@@ -8,54 +8,14 @@
 
 #pragma once
 
-#include <sycl/aliases.hpp>
 #include <sycl/detail/generic_type_traits.hpp>
+#include <sycl/detail/vector_traits.hpp>
 
 #include <functional>
 
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
-template <typename T> struct from_incomplete;
-template <typename T>
-struct from_incomplete<const T> : public from_incomplete<T> {};
-
-template <typename DataT, int NumElements>
-struct from_incomplete<vec<DataT, NumElements>> {
-  using element_type = DataT;
-  static constexpr size_t size() { return NumElements; }
-};
-
-#if !__SYCL_USE_LIBSYCL8_VEC_IMPL
-template <bool IsConstVec, typename DataT, int VecSize, int... Indexes>
-struct from_incomplete<
-    hide_swizzle_from_adl::Swizzle<IsConstVec, DataT, VecSize, Indexes...>> {
-  using element_type = DataT;
-  static constexpr size_t size() { return sizeof...(Indexes); }
-
-  using vec_ty = std::conditional_t<IsConstVec, const vec<DataT, VecSize>,
-                                    vec<DataT, VecSize>>;
-  using result_vec_ty = vec<DataT, size()>;
-  static constexpr int vec_size = VecSize;
-  static constexpr bool is_over_const_vec = IsConstVec;
-  static constexpr bool has_repeating_indexes = []() constexpr {
-    int Idxs[] = {Indexes...};
-    for (std::size_t i = 1; i < sizeof...(Indexes); ++i) {
-      for (std::size_t j = 0; j < i; ++j)
-        if (Idxs[j] == Idxs[i])
-          // Repeating index
-          return true;
-    }
-
-    return false;
-  }();
-  static constexpr bool is_assignable = !IsConstVec && !has_repeating_indexes;
-};
-#endif
-
-template <bool Cond, typename Mixin> struct ApplyIf {};
-template <typename Mixin> struct ApplyIf<true, Mixin> : Mixin {};
-
 // We use std::plus<void> and similar to "map" template parameter to an
 // overloaded operator. These three below are missing from `<functional>`.
 struct ShiftLeft {
@@ -716,6 +676,23 @@ protected:
   }
 };
 #endif // (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+
+template <typename DataT, int NumElements>
+struct vec_ops_base<vec<DataT, NumElements>> {
+  using Combined = vec_arith<DataT, NumElements>;
+};
+#else
+template <typename DataT, int NumElements>
+struct vec_ops_base<vec<DataT, NumElements>> {
+  using Combined = typename VecOperators<vec<DataT, NumElements>>::Combined;
+};
+
+template <bool IsConstVec, typename DataT, int VecSize, int... Indexes>
+struct swizzle_ops_base<
+    hide_swizzle_from_adl::Swizzle<IsConstVec, DataT, VecSize, Indexes...>> {
+  using Combined = typename SwizzleOperators<hide_swizzle_from_adl::Swizzle<
+      IsConstVec, DataT, VecSize, Indexes...>>::Combined;
+};
 #endif
 
 #undef __SYCL_INSTANTIATE_OPERATORS

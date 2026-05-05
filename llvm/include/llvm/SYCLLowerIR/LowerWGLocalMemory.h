@@ -50,7 +50,9 @@ void initializeSYCLLowerWGLocalMemoryLegacyPass(PassRegistry &);
 namespace sycl {
 std::vector<std::pair<StringRef, int>>
 getKernelNamesUsingImplicitLocalMem(const Module &M);
-}
+
+SmallVector<StringRef> getKernelNamesUsingWorkGroupDynamicMem(const Module &M);
+} // namespace sycl
 
 } // namespace llvm
 

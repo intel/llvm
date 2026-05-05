@@ -3,6 +3,9 @@
 // Extra run to check for leaks in Level Zero using UR_L0_LEAKS_DEBUG
 // RUN: %if level_zero %{%{l0_leak_check} %{run} %t.out %S/../Inputs/Kernels/update_with_indices_accessor.spv 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
 
+// UNSUPPORTED: linux && arch-intel_gpu_bmg_g21
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21859
+
 // REQUIRES: level_zero
 
 // Tests updating an accessor argument to a graph node created from SPIR-V

@@ -9,7 +9,7 @@
 #pragma once
 
 #include <sycl/detail/array.hpp>              // for array
-#include <sycl/detail/defines.hpp>            // for __SYCL_ASSUME_INT
+#include <sycl/detail/defines.hpp>            // for __SYCL_ASSUME_ID_RANGE
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL_DEPRECATED, __SYCL_A...
 #include <sycl/range.hpp>     // for range
 
@@ -105,7 +105,7 @@ public:
 
   __SYCL_ALWAYS_INLINE operator EnableIfT<(Dimensions == 1), size_t>() const {
     size_t Result = this->common_array[0];
-    __SYCL_ASSUME_INT(Result);
+    __SYCL_ASSUME_ID_RANGE(Result);
     return Result;
   }
 #endif // __SYCL_DISABLE_ID_TO_INT_CONV__

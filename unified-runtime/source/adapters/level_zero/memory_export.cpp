@@ -1,9 +1,8 @@
 //===--------- memory_export.cpp - Level Zero Adapter ---------------------===//
 //
-// Copyright (C) 2025 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
@@ -23,7 +22,8 @@ ur_result_t urMemoryExportAllocExportableMemoryExp(
     size_t size, ur_exp_external_mem_type_t handleTypeToExport, void **ppMem) {
 
   UR_ASSERT(handleTypeToExport == UR_EXP_EXTERNAL_MEM_TYPE_OPAQUE_FD ||
-                handleTypeToExport == UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT,
+                handleTypeToExport == UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT ||
+                handleTypeToExport == UR_EXP_EXTERNAL_MEM_TYPE_DMA_BUF,
             UR_RESULT_ERROR_INVALID_ENUMERATION);
 
   ze_external_memory_export_desc_t MemExportDesc{};
@@ -35,6 +35,9 @@ ur_result_t urMemoryExportAllocExportableMemoryExp(
     break;
   case UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT:
     MemExportDesc.flags = ZE_EXTERNAL_MEMORY_TYPE_FLAG_OPAQUE_WIN32;
+    break;
+  case UR_EXP_EXTERNAL_MEM_TYPE_DMA_BUF:
+    MemExportDesc.flags = ZE_EXTERNAL_MEMORY_TYPE_FLAG_DMA_BUF;
     break;
   default:
     return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -85,8 +88,20 @@ ur_result_t urMemoryExportExportMemoryHandleExp(
     MemAllocProps.pNext = &MemExportWin32;
     ZE2UR_CALL(zeMemGetAllocProperties,
                (hContext->getZeHandle(), pMem, &MemAllocProps, nullptr));
-    void **ppMemHandleRet = static_cast<void **>(&pMemHandleRet);
+    void **ppMemHandleRet = static_cast<void **>(pMemHandleRet);
     *ppMemHandleRet = MemExportWin32.handle;
+    break;
+  }
+  case UR_EXP_EXTERNAL_MEM_TYPE_DMA_BUF: {
+    MemExportFD.stype = ZE_STRUCTURE_TYPE_EXTERNAL_MEMORY_EXPORT_FD;
+    MemExportFD.flags = ZE_EXTERNAL_MEMORY_TYPE_FLAG_DMA_BUF;
+    MemAllocProps.pNext = &MemExportFD;
+
+    ZE2UR_CALL(zeMemGetAllocProperties,
+               (hContext->getZeHandle(), pMem, &MemAllocProps, nullptr));
+
+    int *pMemHandleRetIntPtr = static_cast<int *>(pMemHandleRet);
+    *pMemHandleRetIntPtr = MemExportFD.fd;
     break;
   }
   default: {

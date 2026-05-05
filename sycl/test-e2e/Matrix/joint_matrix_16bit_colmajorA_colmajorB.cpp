@@ -21,10 +21,6 @@
 // XFAIL: run-mode && gpu-intel-dg2
 // XFAIL-TRACKER: GSD-5768
 
-// Only transpose on half data type
-// XFAIL: arch-intel_cpu_gnr || arch-intel_cpu_dmr
-// XFAIL-TRACKER: CMPLRLLVM-65499
-
 #include "common.hpp"
 
 template <typename T, size_t TM, size_t TN, size_t TK> class imatrix;

@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "fallback-cstring.hpp"
 #include "include/spir_global_var.hpp"
 #include "spirv_vars.h"
 #include "wrapper.h"
@@ -13,7 +14,7 @@
 #include <cstdint>
 
 #define RAND_NEXT_LEN 1024
-DeviceGlobal<uint64_t[RAND_NEXT_LEN]> RandNext;
+__attribute__((weak)) DeviceGlobal<uint64_t[RAND_NEXT_LEN]> RandNext;
 
 #ifdef __LIBDEVICE_TARGET_SUPPORT
 DEVICE_EXTERN_C_INLINE

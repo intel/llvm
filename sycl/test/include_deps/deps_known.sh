@@ -18,6 +18,7 @@ function deps() {
         | sed 's@.*/include/sycl/@@' \
         | sed 's@.*/include/CL/@CL/@' \
         | sed 's@.*/include/ur_@ur_@' \
+        | sed 's@.*/include/unified-runtime/@@' \
         | sed 's/ \\//'
 }
 

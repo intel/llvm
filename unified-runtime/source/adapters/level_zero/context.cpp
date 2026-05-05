@@ -1,9 +1,8 @@
 //===--------- context.cpp - Level Zero Adapter ---------------------------===//
 //
-// Copyright (C) 2023 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
@@ -306,7 +305,7 @@ ur_result_t ur_context_handle_t_::finalize() {
     std::scoped_lock<ur_mutex> Lock(EventCacheMutex);
     for (auto &EventCache : EventCaches) {
       for (auto &Event : EventCache) {
-        if (checkL0LoaderTeardown()) {
+        if (Event->ZeEvent && checkL0LoaderTeardown()) {
           auto ZeResult = ZE_CALL_NOCHECK(zeEventDestroy, (Event->ZeEvent));
           // Gracefully handle the case that L0 was already unloaded.
           if (ZeResult && (ZeResult != ZE_RESULT_ERROR_UNINITIALIZED &&
@@ -517,6 +516,21 @@ ur_result_t ur_context_handle_t_::getFreeSlotInExistingOrNewPool(
   Index = 0;
   // Create one event ZePool per MaxNumEventsPerPool events
   if (*ZePool == nullptr) {
+    // Before creating a new pool, scan the cache tail for a fully-recycled
+    // pool that can be reused (all events released, all slots available).
+    for (auto it = std::next(ZePoolCache->begin()); it != ZePoolCache->end();
+         ++it) {
+      if (*it != nullptr && NumEventsUnreleasedInEventPool.count(*it) &&
+          NumEventsUnreleasedInEventPool[*it] == 0 &&
+          NumEventsAvailableInEventPool.count(*it) &&
+          NumEventsAvailableInEventPool[*it] == MaxNumEventsPerPool) {
+        ZePoolCache->front() = *it;
+        ZePoolCache->erase(it);
+        break;
+      }
+    }
+  }
+  if (*ZePool == nullptr) {
     ze_event_pool_counter_based_exp_desc_t counterBasedExt = {
         ZE_STRUCTURE_TYPE_COUNTER_BASED_EVENT_POOL_EXP_DESC, nullptr, 0};
 
@@ -682,9 +696,26 @@ ur_context_handle_t_::decrementUnreleasedEventsInPool(ur_event_handle_t Event) {
     die("Invalid event release: event pool doesn't have unreleased events");
   if (--NumEventsUnreleasedInEventPool[Event->ZeEventPool] == 0) {
     if (ZePoolCache->front() != Event->ZeEventPool) {
-      ZePoolCache->push_back(Event->ZeEventPool);
+      bool hasFrontPool =
+          !ZePoolCache->empty() && ZePoolCache->front() != nullptr;
+      if (hasFrontPool && checkL0LoaderTeardown()) {
+        ZE_CALL_NOCHECK(zeEventPoolDestroy, (Event->ZeEventPool));
+        NumEventsAvailableInEventPool.erase(Event->ZeEventPool);
+        NumEventsUnreleasedInEventPool.erase(Event->ZeEventPool);
+        // Remove the destroyed pool handle from the cache to prevent
+        // double-free in finalize().
+        ZePoolCache->remove(Event->ZeEventPool);
+        Event->ZeEventPool = nullptr;
+      } else if (!ZePoolCache->empty() && ZePoolCache->front() == nullptr) {
+        ZePoolCache->front() = Event->ZeEventPool;
+        NumEventsAvailableInEventPool[Event->ZeEventPool] = MaxNumEventsPerPool;
+      } else {
+        ZePoolCache->push_back(Event->ZeEventPool);
+        NumEventsAvailableInEventPool[Event->ZeEventPool] = MaxNumEventsPerPool;
+      }
+    } else {
+      NumEventsAvailableInEventPool[Event->ZeEventPool] = MaxNumEventsPerPool;
     }
-    NumEventsAvailableInEventPool[Event->ZeEventPool] = MaxNumEventsPerPool;
   }
 
   return UR_RESULT_SUCCESS;

@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 
-# Copyright (C) 2024-2026 Intel Corporation
-# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
-# See LICENSE.TXT
+# Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+# See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import argparse
@@ -16,8 +15,8 @@ from benches.velocity import VelocityBench
 from benches.syclbench import *
 from benches.llamacpp import *
 from benches.umf import *
+from benches.pytorch import PytorchBenchSuite
 from benches.benchdnn import OneDnnBench
-from benches.base import TracingType
 from options import Compare, options
 from output_markdown import generate_markdown
 from output_html import generate_html
@@ -98,7 +97,7 @@ def run_iterations(
     iters: int,
     results: dict[str, list[Result]],
     failures: dict[str, str],
-    run_trace: TracingType = TracingType.NONE,
+    flamegraph_enabled: bool = False,
     force_trace: bool = False,
 ) -> bool:
     """
@@ -110,7 +109,7 @@ def run_iterations(
     for iter in range(iters):
         try:
             bench_results = benchmark.run(
-                env_vars, run_trace=run_trace, force_trace=force_trace
+                env_vars, flamegraph_enabled=flamegraph_enabled, force_trace=force_trace
             )
             if bench_results is None:
                 if options.exit_on_failure:
@@ -267,13 +266,6 @@ def main(directory, additional_env_vars, compare_names, filter, execution_stats)
     if options.dry_run:
         log.info("Dry run mode enabled. No benchmarks will be executed.")
 
-    options.unitrace = args.unitrace is not None
-
-    if options.unitrace and options.save_name is None:
-        raise ValueError(
-            "Unitrace requires a save name to be specified via --save option."
-        )
-
     if options.flamegraph and options.save_name is None:
         raise ValueError(
             "FlameGraph requires a save name to be specified via --save option."
@@ -293,6 +285,7 @@ def main(directory, additional_env_vars, compare_names, filter, execution_stats)
         SyclBench(),
         LlamaCppBench(),
         UMFSuite(),
+        PytorchBenchSuite(),
         GromacsBench(),
         OneDnnBench(),
     ]
@@ -356,14 +349,11 @@ def main(directory, additional_env_vars, compare_names, filter, execution_stats)
             processed: list[Result] = []
             iterations_rc = False
 
-            # Determine if we should run regular benchmarks
-            # Run regular benchmarks if:
+            # Run regular benchmarks only if:
             # - No tracing options specified, OR
             # - Any tracing option is set to "inclusive"
             should_run_regular = (
-                not options.unitrace
-                and not options.flamegraph  # No tracing options
-                or args.unitrace == "inclusive"  # Unitrace inclusive
+                not options.flamegraph  # No tracing options
                 or args.flamegraph == "inclusive"  # Flamegraph inclusive
             )
 
@@ -375,7 +365,7 @@ def main(directory, additional_env_vars, compare_names, filter, execution_stats)
                         options.iterations,
                         intermediate_results,
                         failures,
-                        run_trace=TracingType.NONE,
+                        flamegraph_enabled=False,
                     )
                     valid, processed = process_results(
                         intermediate_results,
@@ -385,23 +375,9 @@ def main(directory, additional_env_vars, compare_names, filter, execution_stats)
                     if valid:
                         break
 
-            # single unitrace run independent of benchmark iterations (if unitrace enabled)
-            if options.unitrace and (
-                benchmark.traceable(TracingType.UNITRACE) or args.unitrace == "force"
-            ):
-                iterations_rc = run_iterations(
-                    benchmark,
-                    merged_env_vars,
-                    1,
-                    intermediate_results,
-                    failures,
-                    run_trace=TracingType.UNITRACE,
-                    force_trace=(args.unitrace == "force"),
-                )
             # single flamegraph run independent of benchmark iterations (if flamegraph enabled)
             if options.flamegraph and (
-                benchmark.traceable(TracingType.FLAMEGRAPH)
-                or args.flamegraph == "force"
+                benchmark.traceable() or args.flamegraph == "force"
             ):
                 iterations_rc = run_iterations(
                     benchmark,
@@ -409,7 +385,7 @@ def main(directory, additional_env_vars, compare_names, filter, execution_stats)
                     1,
                     intermediate_results,
                     failures,
-                    run_trace=TracingType.FLAMEGRAPH,
+                    flamegraph_enabled=True,
                     force_trace=(args.flamegraph == "force"),
                 )
 
@@ -524,6 +500,12 @@ if __name__ == "__main__":
         "--sycl", type=str, help="Root directory of the SYCL compiler.", default=None
     )
     parser.add_argument("--umf", type=str, help="UMF install prefix path", default=None)
+    parser.add_argument(
+        "--pytorch-root",
+        type=str,
+        default=None,
+        help="Directory with PyTorch benchmark scripts, omit to skip PyTorch Bench suite",
+    )
     parser.add_argument(
         "--adapter",
         type=str,
@@ -699,14 +681,6 @@ if __name__ == "__main__":
         default=None,
     )
     parser.add_argument(
-        "--unitrace",
-        nargs="?",
-        const="exclusive",
-        default=None,
-        help='Unitrace logs generation. "exclusive" omits regular benchmarks doing only trace generation - this is default and can be omitted. "inclusive" generation is done along regular benchmarks. "force" is same as exclusive but ignores traceable() method.',
-        choices=["exclusive", "inclusive", "force"],
-    )
-    parser.add_argument(
         "--flamegraph",
         nargs="?",
         const="exclusive",
@@ -824,6 +798,7 @@ if __name__ == "__main__":
     options.dry_run = args.dry_run
     options.list_benchmarks = args.list
     options.umf = args.umf
+    options.pytorch_root = args.pytorch_root
     options.iterations_stddev = args.iterations_stddev
     options.stddev_threshold = args.stddev_threshold
     options.build_igc = args.build_igc

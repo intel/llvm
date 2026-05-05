@@ -1,9 +1,8 @@
 //===--------- ur_interface_loader.cpp - Level Zero Adapter ------------===//
 //
-// Copyright (C) 2024 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -185,7 +184,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetEnqueueProcAddrTable(
     return result;
   }
 
-  pDdiTable->pfnKernelLaunch = ur::level_zero::urEnqueueKernelLaunch;
   pDdiTable->pfnEventsWait = ur::level_zero::urEnqueueEventsWait;
   pDdiTable->pfnEventsWaitWithBarrier =
       ur::level_zero::urEnqueueEventsWaitWithBarrier;
@@ -317,12 +315,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetKernelProcAddrTable(
       ur::level_zero::urKernelGetSuggestedLocalWorkSize;
   pDdiTable->pfnGetSuggestedLocalWorkSizeWithArgs =
       ur::level_zero::urKernelGetSuggestedLocalWorkSizeWithArgs;
-  pDdiTable->pfnSetArgValue = ur::level_zero::urKernelSetArgValue;
-  pDdiTable->pfnSetArgLocal = ur::level_zero::urKernelSetArgLocal;
-  pDdiTable->pfnSetArgPointer = ur::level_zero::urKernelSetArgPointer;
   pDdiTable->pfnSetExecInfo = ur::level_zero::urKernelSetExecInfo;
-  pDdiTable->pfnSetArgSampler = ur::level_zero::urKernelSetArgSampler;
-  pDdiTable->pfnSetArgMemObj = ur::level_zero::urKernelSetArgMemObj;
   pDdiTable->pfnSetSpecializationConstants =
       ur::level_zero::urKernelSetSpecializationConstants;
   pDdiTable->pfnSuggestMaxCooperativeGroupCount =
@@ -482,6 +475,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetQueueExpProcAddrTable(
   pDdiTable->pfnEndGraphCaptureExp = ur::level_zero::urQueueEndGraphCaptureExp;
   pDdiTable->pfnIsGraphCaptureEnabledExp =
       ur::level_zero::urQueueIsGraphCaptureEnabledExp;
+  pDdiTable->pfnGetGraphExp = ur::level_zero::urQueueGetGraphExp;
 
   return result;
 }

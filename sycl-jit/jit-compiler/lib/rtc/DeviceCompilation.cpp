@@ -785,21 +785,13 @@ static void getDeviceLibraries(const ArgList &Args,
 
   using SYCLDeviceLibsList = SmallVector<StringRef>;
   const SYCLDeviceLibsList SYCLDeviceLibs = {"libsycl-crt",
-                                             "libsycl-complex",
-                                             "libsycl-complex-fp64",
                                              "libsycl-cmath",
-                                             "libsycl-cmath-fp64",
 #if defined(_WIN32)
                                              "libsycl-msvc-math",
 #endif
                                              "libsycl-imf",
                                              "libsycl-imf-fp64",
                                              "libsycl-imf-bf16",
-                                             "libsycl-fallback-cstring",
-                                             "libsycl-fallback-complex",
-                                             "libsycl-fallback-complex-fp64",
-                                             "libsycl-fallback-cmath",
-                                             "libsycl-fallback-cmath-fp64",
                                              "libsycl-fallback-imf",
                                              "libsycl-fallback-imf-fp64",
                                              "libsycl-fallback-imf-bf16"};
@@ -842,9 +834,9 @@ Error jit_compiler::linkDeviceLibraries(llvm::Module &Module,
     // Based on the OS and the format decide on the version of libspirv.
     // NOTE: this will be problematic if cross-compiling between OSes.
 #ifdef _WIN32
-    std::string Libclc = "remangled-l32-signed_char.libspirv.bc";
+    std::string Libclc = "libspirv.l32.signed_char.bc";
 #else
-    std::string Libclc = "remangled-l64-signed_char.libspirv.bc";
+    std::string Libclc = "libspirv.l64.signed_char.bc";
 #endif
     LibNames.push_back(Libclc);
   }
@@ -865,7 +857,6 @@ Error jit_compiler::linkDeviceLibraries(llvm::Module &Module,
             TC.loadBitcodeLibrary(LibPath, Context).moveInto(LibModule)) {
       return Error;
     }
-
     if (Linker::linkModules(Module, std::move(LibModule),
                             Linker::LinkOnlyNeeded)) {
       return createStringError("Unable to link device library %s: %s",

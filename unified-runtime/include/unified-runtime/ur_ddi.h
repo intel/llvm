@@ -1,10 +1,9 @@
 /*
  *
- * Copyright (C) 2022 Intel Corporation
  *
- * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
+ * Part of the LLVM Project, under the Apache License v2.0 with LLVM
  * Exceptions.
- * See LICENSE.TXT
+ * See https://llvm.org/LICENSE.txt for license information.
  *
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
@@ -529,40 +528,10 @@ typedef ur_result_t(
     const size_t *, uint32_t, const ur_exp_kernel_arg_properties_t *, size_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urKernelSetArgValue
-typedef ur_result_t(UR_APICALL *ur_pfnKernelSetArgValue_t)(
-    ur_kernel_handle_t, uint32_t, size_t,
-    const ur_kernel_arg_value_properties_t *, const void *);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urKernelSetArgLocal
-typedef ur_result_t(UR_APICALL *ur_pfnKernelSetArgLocal_t)(
-    ur_kernel_handle_t, uint32_t, size_t,
-    const ur_kernel_arg_local_properties_t *);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urKernelSetArgPointer
-typedef ur_result_t(UR_APICALL *ur_pfnKernelSetArgPointer_t)(
-    ur_kernel_handle_t, uint32_t, const ur_kernel_arg_pointer_properties_t *,
-    const void *);
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urKernelSetExecInfo
 typedef ur_result_t(UR_APICALL *ur_pfnKernelSetExecInfo_t)(
     ur_kernel_handle_t, ur_kernel_exec_info_t, size_t,
     const ur_kernel_exec_info_properties_t *, const void *);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urKernelSetArgSampler
-typedef ur_result_t(UR_APICALL *ur_pfnKernelSetArgSampler_t)(
-    ur_kernel_handle_t, uint32_t, const ur_kernel_arg_sampler_properties_t *,
-    ur_sampler_handle_t);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urKernelSetArgMemObj
-typedef ur_result_t(UR_APICALL *ur_pfnKernelSetArgMemObj_t)(
-    ur_kernel_handle_t, uint32_t, const ur_kernel_arg_mem_obj_properties_t *,
-    ur_mem_handle_t);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urKernelSetSpecializationConstants
@@ -589,12 +558,7 @@ typedef struct ur_kernel_dditable_t {
   ur_pfnKernelGetSuggestedLocalWorkSize_t pfnGetSuggestedLocalWorkSize;
   ur_pfnKernelGetSuggestedLocalWorkSizeWithArgs_t
       pfnGetSuggestedLocalWorkSizeWithArgs;
-  ur_pfnKernelSetArgValue_t pfnSetArgValue;
-  ur_pfnKernelSetArgLocal_t pfnSetArgLocal;
-  ur_pfnKernelSetArgPointer_t pfnSetArgPointer;
   ur_pfnKernelSetExecInfo_t pfnSetExecInfo;
-  ur_pfnKernelSetArgSampler_t pfnSetArgSampler;
-  ur_pfnKernelSetArgMemObj_t pfnSetArgMemObj;
   ur_pfnKernelSetSpecializationConstants_t pfnSetSpecializationConstants;
   ur_pfnKernelSuggestMaxCooperativeGroupCount_t
       pfnSuggestMaxCooperativeGroupCount;
@@ -713,12 +677,18 @@ typedef ur_result_t(UR_APICALL *ur_pfnQueueIsGraphCaptureEnabledExp_t)(
     ur_queue_handle_t, bool *);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urQueueGetGraphExp
+typedef ur_result_t(UR_APICALL *ur_pfnQueueGetGraphExp_t)(
+    ur_queue_handle_t, ur_exp_graph_handle_t *);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of QueueExp functions pointers
 typedef struct ur_queue_exp_dditable_t {
   ur_pfnQueueBeginGraphCaptureExp_t pfnBeginGraphCaptureExp;
   ur_pfnQueueBeginCaptureIntoGraphExp_t pfnBeginCaptureIntoGraphExp;
   ur_pfnQueueEndGraphCaptureExp_t pfnEndGraphCaptureExp;
   ur_pfnQueueIsGraphCaptureEnabledExp_t pfnIsGraphCaptureEnabledExp;
+  ur_pfnQueueGetGraphExp_t pfnGetGraphExp;
 } ur_queue_exp_dditable_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -946,13 +916,6 @@ typedef ur_result_t(UR_APICALL *ur_pfnGetPhysicalMemProcAddrTable_t)(
     ur_api_version_t, ur_physical_mem_dditable_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urEnqueueKernelLaunch
-typedef ur_result_t(UR_APICALL *ur_pfnEnqueueKernelLaunch_t)(
-    ur_queue_handle_t, ur_kernel_handle_t, uint32_t, const size_t *,
-    const size_t *, const size_t *, const ur_kernel_launch_ext_properties_t *,
-    uint32_t, const ur_event_handle_t *, ur_event_handle_t *);
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urEnqueueEventsWait
 typedef ur_result_t(UR_APICALL *ur_pfnEnqueueEventsWait_t)(
     ur_queue_handle_t, uint32_t, const ur_event_handle_t *,
@@ -1112,7 +1075,6 @@ typedef ur_result_t(UR_APICALL *ur_pfnEnqueueEventsWaitWithBarrierExt_t)(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of Enqueue functions pointers
 typedef struct ur_enqueue_dditable_t {
-  ur_pfnEnqueueKernelLaunch_t pfnKernelLaunch;
   ur_pfnEnqueueEventsWait_t pfnEventsWait;
   ur_pfnEnqueueEventsWaitWithBarrier_t pfnEventsWaitWithBarrier;
   ur_pfnEnqueueMemBufferRead_t pfnMemBufferRead;

@@ -250,10 +250,6 @@ public:
       handleUSMEnqueueMemcpy2D(
           static_cast<ur_enqueue_usm_memcpy_2d_params_t *>(Data->args_data));
       return;
-    case UR_FUNCTION_KERNEL_SET_ARG_POINTER:
-      handleKernelSetArgPointer(
-          static_cast<ur_kernel_set_arg_pointer_params_t *>(Data->args_data));
-      return;
     case UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH_WITH_ARGS_EXP:
       handleEnqueueKernelLaunchWithArgsExp(
           static_cast<ur_enqueue_kernel_launch_with_args_exp_params_t *>(
@@ -417,14 +413,6 @@ public:
     CheckPointerValidness("destination parameter", *Params->ppDst,
                           *Params->pdstPitch, *Params->pwidth, *Params->pheight,
                           "ext_oneapi_copy2d/ext_oneapi_memcpy2d");
-  }
-
-  static void
-  handleKernelSetArgPointer(const ur_kernel_set_arg_pointer_params_t *Params) {
-    void *Ptr = (const_cast<void *>(*Params->ppArgValue));
-    CheckPointerValidness(
-        "kernel parameter with index = " + std::to_string(*Params->pargIndex),
-        Ptr, 0 /*no data how it will be used in kernel*/, "kernel");
   }
 
   static void handleEnqueueKernelLaunchWithArgsExp(

@@ -9,9 +9,9 @@
 ; RUN: -o intel_gpu_dg1,%t-dg1.table
 
 ; RUN: FileCheck %s -input-file=%t-dg1.table -check-prefix=CHECK-TABLE
-; RUN: FileCheck %s -input-file=%t-dg1_esimd_0.sym -check-prefix=CHECK-SYM -implicit-check-not=reqd_sub_group_size_kernel_1
+; RUN: FileCheck %s -input-file=%t-dg1_0.esimd.sym -check-prefix=CHECK-SYM -implicit-check-not=reqd_sub_group_size_kernel_1
 
-; CHECK-TABLE: _esimd_0.sym
+; CHECK-TABLE: _0.esimd.sym
 ; CHECK-SYM: esimd_kernel
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"

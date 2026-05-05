@@ -33,12 +33,6 @@ void constructLLVMForeachCommand(Compilation &C, const JobAction &JA,
                                  StringRef Increment, StringRef Ext = "out",
                                  StringRef ParallelJobs = "");
 
-// Provides a vector of device library names that are associated with the
-// given triple and AOT information.
-SmallVector<std::string, 8> getDeviceLibraries(const Compilation &C,
-                                               const llvm::Triple &TargetTriple,
-                                               bool IsSpirvAOT);
-
 // Populates the SYCL device traits macros.
 void populateSYCLDeviceTraitsMacrosArgs(
     Compilation &C, const llvm::opt::ArgList &Args,
@@ -160,6 +154,11 @@ public:
                           llvm::opt::OptSpecifier Opt,
                           llvm::opt::OptSpecifier Opt_EQ,
                           StringRef Device) const;
+  // Provides a vector of device library names that are associated with the
+  // given triple and AOT information.
+  SmallVector<ToolChain::BitCodeLibraryInfo, 8>
+  getDeviceLibNames(const Driver &D, const llvm::opt::ArgList &Args,
+                    const llvm::Triple &TargetTriple) const;
 
   bool useIntegratedAs() const override { return true; }
   bool isPICDefault() const override {
@@ -188,6 +187,12 @@ public:
   void AddClangCXXStdlibIncludeArgs(
       const llvm::opt::ArgList &Args,
       llvm::opt::ArgStringList &CC1Args) const override;
+
+  // Provides a vector of device library names including the full path that are
+  // associated with the offloading kind.
+  llvm::SmallVector<BitCodeLibraryInfo, 12>
+  getDeviceLibs(const llvm::opt::ArgList &Args,
+                const Action::OffloadKind DeviceOffloadingKind) const override;
 
   SanitizerMask getSupportedSanitizers() const override;
 

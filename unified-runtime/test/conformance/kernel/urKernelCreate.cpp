@@ -1,6 +1,5 @@
-// Copyright (C) 2023-2026 Intel Corporation
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
@@ -85,9 +84,9 @@ TEST_P(urMultiDeviceKernelCreateTest, WithProgramBuild) {
     ASSERT_SUCCESS(
         urKernelCreate(program.get(), kernelName.data(), kernel.ptr()));
 
-    ASSERT_SUCCESS(urEnqueueKernelLaunch(
-        queues[i], kernel.get(), n_dimensions, &global_offset, &local_size,
-        &global_size, nullptr, 0, nullptr, nullptr));
+    ASSERT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
+        queues[i], kernel.get(), n_dimensions, &global_offset, &global_size,
+        &local_size, 0, nullptr, nullptr, 0, nullptr, nullptr));
 
     ASSERT_SUCCESS(urQueueFinish(queues[i]));
   }
@@ -127,9 +126,9 @@ TEST_P(urMultiDeviceKernelCreateTest, WithProgramCompileAndLink) {
     ASSERT_SUCCESS(
         urKernelCreate(linked_program.get(), kernelName.data(), kernel.ptr()));
 
-    ASSERT_SUCCESS(urEnqueueKernelLaunch(
-        queues[i], kernel.get(), n_dimensions, &global_offset, &local_size,
-        &global_size, nullptr, 0, nullptr, nullptr));
+    ASSERT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
+        queues[i], kernel.get(), n_dimensions, &global_offset, &global_size,
+        &local_size, 0, nullptr, nullptr, 0, nullptr, nullptr));
 
     ASSERT_SUCCESS(urQueueFinish(queues[i]));
   }

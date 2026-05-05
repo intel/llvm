@@ -2367,6 +2367,11 @@ void OMPClauseEnqueue::VisitOMPSizesClause(const OMPSizesClause *C) {
     Visitor->AddStmt(E);
 }
 
+void OMPClauseEnqueue::VisitOMPCountsClause(const OMPCountsClause *C) {
+  for (auto E : C->getCountsRefs())
+    Visitor->AddStmt(E);
+}
+
 void OMPClauseEnqueue::VisitOMPPermutationClause(
     const OMPPermutationClause *C) {
   for (auto E : C->getArgsRefs())
@@ -6331,6 +6336,8 @@ CXString clang_getCursorKindSpelling(enum CXCursorKind Kind) {
     return cxstring::createRef("OMPInterchangeDirective");
   case CXCursor_OMPFuseDirective:
     return cxstring::createRef("OMPFuseDirective");
+  case CXCursor_OMPSplitDirective:
+    return cxstring::createRef("OMPSplitDirective");
   case CXCursor_OMPForDirective:
     return cxstring::createRef("OMPForDirective");
   case CXCursor_OMPForSimdDirective:
@@ -9401,12 +9408,7 @@ CXModule clang_getModuleForFile(CXTranslationUnit TU, CXFile File) {
   return Header.getModule();
 }
 
-CXFile clang_Module_getASTFile(CXModule CXMod) {
-  if (!CXMod)
-    return nullptr;
-  Module *Mod = static_cast<Module *>(CXMod);
-  return cxfile::makeCXFile(Mod->getASTFile());
-}
+CXFile clang_Module_getASTFile(CXModule CXMod) { return nullptr; }
 
 CXModule clang_Module_getParent(CXModule CXMod) {
   if (!CXMod)

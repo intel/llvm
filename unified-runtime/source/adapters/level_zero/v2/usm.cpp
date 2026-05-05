@@ -1,9 +1,8 @@
 //===--------- usm.cpp - Level Zero Adapter ------------------------------===//
 //
-// Copyright (C) 2024 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
@@ -847,6 +846,10 @@ ur_result_t UR_APICALL urUSMContextMemcpyExp(ur_context_handle_t hContext,
 ur_result_t urUSMHostAllocRegisterExp(
     ur_context_handle_t hContext, void *pHostMem, size_t size,
     const ur_exp_usm_host_alloc_register_properties_t * /*pProperties*/) {
+  if (!hContext->getPlatform()->ZeExternalMemoryMappingExtensionSupported) {
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  }
+
   ze_external_memmap_sysmem_ext_desc_t sysMemDesc = {
       ZE_STRUCTURE_TYPE_EXTERNAL_MEMMAP_SYSMEM_EXT_DESC, nullptr, pHostMem,
       size};
@@ -864,6 +867,10 @@ ur_result_t urUSMHostAllocRegisterExp(
 
 ur_result_t urUSMHostAllocUnregisterExp(ur_context_handle_t hContext,
                                         void *pHostMem) {
+  if (!hContext->getPlatform()->ZeExternalMemoryMappingExtensionSupported) {
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  }
+
   ZE2UR_CALL(zeMemFree, (hContext->getZeHandle(), pHostMem));
 
   return UR_RESULT_SUCCESS;

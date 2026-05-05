@@ -1,10 +1,9 @@
 //===----------------------------------------------------------------------===//
 /*
  *
- * Copyright (C) 2025 Intel Corporation
  *
- * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
- * Exceptions. See LICENSE.TXT
+ * Part of the LLVM Project, under the Apache License v2.0 with LLVM
+ * Exceptions. See https://llvm.org/LICENSE.txt for license information.
  *
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
@@ -117,7 +116,8 @@ TsanInterceptor::~TsanInterceptor() {
   // We must release these objects before releasing adapters, since
   // they may use the adapter in their destructor
   for (const auto &[_, DeviceInfo] : m_DeviceMap) {
-    DeviceInfo->Shadow->Destroy();
+    [[maybe_unused]] ur_result_t Result = DeviceInfo->Shadow->Destroy();
+    assert(Result == UR_RESULT_SUCCESS && "Failed to destroy shadow memory");
     DeviceInfo->Shadow = nullptr;
   }
 

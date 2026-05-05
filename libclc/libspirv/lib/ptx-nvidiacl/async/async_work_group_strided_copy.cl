@@ -21,6 +21,7 @@ int __clc_nvvm_reflect_arch();
       int scope, __attribute__((address_space(1))) TYPE *dst,                  \
       const __attribute__((address_space(3))) TYPE *src, size_t num_gentypes,  \
       size_t stride, event_t event) {                                          \
+    (void)scope;                                                               \
     STRIDED_COPY(__attribute__((address_space(1))),                            \
                  __attribute__((address_space(3))), stride, 1);                \
     return event;                                                              \
@@ -64,6 +65,7 @@ __CLC_GROUP_CP_ASYNC_DST_GLOBAL(uchar16);
       int scope, __attribute__((address_space(3))) TYPE *dst,                  \
       const __attribute__((address_space(1))) TYPE *src, size_t num_gentypes,  \
       size_t stride, event_t event) {                                          \
+    (void)scope;                                                               \
     if (__clc_nvvm_reflect_arch() >= 800) {                                    \
       size_t id, size;                                                         \
       SET_GROUP_SIZE_AND_ID(size, id);                                         \
@@ -94,6 +96,7 @@ __CLC_GROUP_CP_ASYNC_4(uchar4);
       int scope, __attribute__((address_space(3))) TYPE *dst,                  \
       const __attribute__((address_space(1))) TYPE *src, size_t num_gentypes,  \
       size_t stride, event_t event) {                                          \
+    (void)scope;                                                               \
     if (__clc_nvvm_reflect_arch() >= 800) {                                    \
       size_t id, size;                                                         \
       SET_GROUP_SIZE_AND_ID(size, id);                                         \
@@ -127,6 +130,7 @@ __CLC_GROUP_CP_ASYNC_8(uchar8);
       int scope, __attribute__((address_space(3))) TYPE *dst,                  \
       const __attribute__((address_space(1))) TYPE *src, size_t num_gentypes,  \
       size_t stride, event_t event) {                                          \
+    (void)scope;                                                               \
     if (__clc_nvvm_reflect_arch() >= 800) {                                    \
       size_t id, size;                                                         \
       SET_GROUP_SIZE_AND_ID(size, id);                                         \

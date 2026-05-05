@@ -8,8 +8,7 @@
 ; RUN: %if spirv-backend %{ llc -O0 -mtriple=spirv32-unknown-unknown -filetype=obj %s -o %t.llc.spv %}
 ; RUN: %if spirv-backend %{ llvm-spirv -r %t.llc.spv -o %t.llc.rev.bc %}
 ; RUN: %if spirv-backend %{ llvm-dis %t.llc.rev.bc -o %t.llc.rev.ll %}
-; RUN: %if spirv-backend %{ FileCheck %s --check-prefix=CHECK-LLC < %t.llc.rev.ll %}
-; TODO: rewrite the test as currently DCE removes IR through llc compilation flow
+; RUN: %if spirv-backend %{ FileCheck %s --check-prefix=CHECK-LLVM < %t.llc.rev.ll %}
 
 ; CHECK-SPIRV: TypeBool [[bool:[0-9]+]]
 ; CHECK-SPIRV: TypeVector [[bool2:[0-9]+]] [[bool]] 2
@@ -26,13 +25,12 @@ target triple = "spir-unknown-unknown"
 ; CHECK-LLVM-LABEL: @testFUnordEqual
 ; CHECK-LLVM: fcmp ueq <2 x float> %a, %b
 
-; CHECK-LLC-LABEL: @testFUnordEqual
-; CHECK-LLC: ret void
-
 ; Function Attrs: nounwind
 define spir_kernel void @testFUnordEqual(<2 x float> %a, <2 x float> %b) #0 !kernel_arg_addr_space !2 !kernel_arg_access_qual !3 !kernel_arg_type !4 !kernel_arg_type_qual !5 !kernel_arg_base_type !4 {
 entry:
   %0 = fcmp ueq <2 x float> %a, %b
+  %tmp = alloca <2 x i1>, align 1
+  store volatile <2 x i1> %0, ptr %tmp, align 1
   ret void
 }
 
@@ -45,13 +43,12 @@ entry:
 ; CHECK-LLVM-LABEL: @testFUnordGreaterThan
 ; CHECK-LLVM: fcmp ugt <2 x float> %a, %b
 
-; CHECK-LLC-LABEL: @testFUnordGreaterThan
-; CHECK-LLC: ret void
-
 ; Function Attrs: nounwind
 define spir_kernel void @testFUnordGreaterThan(<2 x float> %a, <2 x float> %b) #0 !kernel_arg_addr_space !2 !kernel_arg_access_qual !3 !kernel_arg_type !4 !kernel_arg_type_qual !5 !kernel_arg_base_type !4 {
 entry:
   %0 = fcmp ugt <2 x float> %a, %b
+  %tmp = alloca <2 x i1>, align 1
+  store volatile <2 x i1> %0, ptr %tmp, align 1
   ret void
 }
 
@@ -64,13 +61,12 @@ entry:
 ; CHECK-LLVM-LABEL: @testFUnordGreaterThanEqual
 ; CHECK-LLVM: fcmp uge <2 x float> %a, %b
 
-; CHECK-LLC-LABEL: @testFUnordGreaterThanEqual
-; CHECK-LLC: ret void
-
 ; Function Attrs: nounwind
 define spir_kernel void @testFUnordGreaterThanEqual(<2 x float> %a, <2 x float> %b) #0 !kernel_arg_addr_space !2 !kernel_arg_access_qual !3 !kernel_arg_type !4 !kernel_arg_type_qual !5 !kernel_arg_base_type !4 {
 entry:
   %0 = fcmp uge <2 x float> %a, %b
+  %tmp = alloca <2 x i1>, align 1
+  store volatile <2 x i1> %0, ptr %tmp, align 1
   ret void
 }
 
@@ -83,13 +79,12 @@ entry:
 ; CHECK-LLVM-LABEL: @testFUnordLessThan
 ; CHECK-LLVM: fcmp ult <2 x float> %a, %b
 
-; CHECK-LLC-LABEL: @testFUnordLessThan
-; CHECK-LLC: ret void
-
 ; Function Attrs: nounwind
 define spir_kernel void @testFUnordLessThan(<2 x float> %a, <2 x float> %b) #0 !kernel_arg_addr_space !2 !kernel_arg_access_qual !3 !kernel_arg_type !4 !kernel_arg_type_qual !5 !kernel_arg_base_type !4 {
 entry:
   %0 = fcmp ult <2 x float> %a, %b
+  %tmp = alloca <2 x i1>, align 1
+  store volatile <2 x i1> %0, ptr %tmp, align 1
   ret void
 }
 
@@ -102,13 +97,12 @@ entry:
 ; CHECK-LLVM-LABEL: @testFUnordLessThanEqual
 ; CHECK-LLVM: fcmp ule <2 x float> %a, %b
 
-; CHECK-LLC-LABEL: @testFUnordLessThanEqual
-; CHECK-LLC: ret void
-
 ; Function Attrs: nounwind
 define spir_kernel void @testFUnordLessThanEqual(<2 x float> %a, <2 x float> %b) #0 !kernel_arg_addr_space !2 !kernel_arg_access_qual !3 !kernel_arg_type !4 !kernel_arg_type_qual !5 !kernel_arg_base_type !4 {
 entry:
   %0 = fcmp ule <2 x float> %a, %b
+  %tmp = alloca <2 x i1>, align 1
+  store volatile <2 x i1> %0, ptr %tmp, align 1
   ret void
 }
 

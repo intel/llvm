@@ -1,6 +1,5 @@
-// Copyright (C) 2022-2026 Intel Corporation
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
@@ -15,6 +14,7 @@
 #include <uur/known_failure.h>
 #include <uur/utils.h>
 
+#include <cstring>
 #include <random>
 
 namespace uur {
@@ -673,6 +673,33 @@ struct urMultiQueueTest : urContextTest {
     }
     UUR_RETURN_ON_FATAL_FAILURE(urContextTest::TearDown());
   }
+
+  ur_queue_handle_t queue1 = nullptr;
+  ur_queue_handle_t queue2 = nullptr;
+};
+
+struct urMultiQueueMultiTypeTest : urContextTest {
+  void SetUp() override {
+    UUR_RETURN_ON_FATAL_FAILURE(urContextTest::SetUp());
+
+    ur_queue_flag_t queueMode = this->getQueueFlag();
+    ur_queue_properties_t props = {UR_STRUCTURE_TYPE_QUEUE_PROPERTIES, nullptr,
+                                   queueMode};
+    ASSERT_SUCCESS(urQueueCreate(this->context, this->device, &props, &queue1));
+    ASSERT_SUCCESS(urQueueCreate(this->context, this->device, &props, &queue2));
+  }
+
+  void TearDown() override {
+    if (queue1 != nullptr) {
+      EXPECT_SUCCESS(urQueueRelease(queue1));
+    }
+    if (queue2 != nullptr) {
+      EXPECT_SUCCESS(urQueueRelease(queue2));
+    }
+    UUR_RETURN_ON_FATAL_FAILURE(urContextTest::TearDown());
+  }
+
+  ur_queue_flag_t getQueueFlag() { return std::get<1>(GetParam()); }
 
   ur_queue_handle_t queue1 = nullptr;
   ur_queue_handle_t queue2 = nullptr;
@@ -1608,8 +1635,10 @@ struct KernelLaunchHelper {
   }
 
   void SetBuffer1DArg(ur_mem_handle_t mem_handle, size_t *buffer_index) {
-    ASSERT_SUCCESS(
-        urKernelSetArgMemObj(kernel, current_arg_index, nullptr, mem_handle));
+    ur_exp_kernel_arg_value_t arg_val = {};
+    arg_val.memObjTuple = {mem_handle, UR_MEM_FLAG_READ_WRITE};
+    AddArgProperties(current_arg_index, UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ,
+                     sizeof(ur_mem_handle_t), arg_val);
     if (buffer_index) {
       *buffer_index = current_arg_index;
     }
@@ -1621,43 +1650,43 @@ struct KernelLaunchHelper {
     // the AMD backend handles this differently and uses three separate
     // arguments for each of the three dimensions of the accessor.
 
-    ur_backend_t backend;
-    ASSERT_SUCCESS(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND,
-                                     sizeof(backend), &backend, nullptr));
     std::string target_name;
     ASSERT_SUCCESS(GetPlatformTriple(platform, target_name));
     if (target_name == "amdgcn-amd-amdhsa") {
       // this emulates the three offset params for buffer accessor on AMD.
       size_t val = 0;
-      ASSERT_SUCCESS(urKernelSetArgValue(kernel, current_arg_index + 1,
-                                         sizeof(size_t), nullptr, &val));
-      ASSERT_SUCCESS(urKernelSetArgValue(kernel, current_arg_index + 2,
-                                         sizeof(size_t), nullptr, &val));
-      ASSERT_SUCCESS(urKernelSetArgValue(kernel, current_arg_index + 3,
-                                         sizeof(size_t), nullptr, &val));
+      AddValueArg(current_arg_index + 1, &val, sizeof(size_t));
+      AddValueArg(current_arg_index + 2, &val, sizeof(size_t));
+      AddValueArg(current_arg_index + 3, &val, sizeof(size_t));
       current_arg_index += 4;
     } else {
       // This emulates the offset struct sycl adds for a 1D buffer accessor.
       struct {
         size_t offsets[1] = {0};
       } accessor;
-      ASSERT_SUCCESS(urKernelSetArgValue(kernel, current_arg_index + 1,
-                                         sizeof(accessor), nullptr, &accessor));
+      AddValueArg(current_arg_index + 1, &accessor, sizeof(accessor));
       current_arg_index += 2;
     }
   }
 
   template <class T> void AddPodArg(T data) {
-    ASSERT_SUCCESS(urKernelSetArgValue(kernel, current_arg_index, sizeof(data),
-                                       nullptr, &data));
+    AddValueArg(current_arg_index, &data, sizeof(data));
     current_arg_index++;
+  }
+
+  void AddPointerArg(uint32_t index, const void *ptr) {
+    ur_exp_kernel_arg_value_t arg_val = {};
+    arg_val.pointer = ptr;
+    AddArgProperties(index, UR_EXP_KERNEL_ARG_TYPE_POINTER, sizeof(void *),
+                     arg_val);
   }
 
   void Launch1DRange(size_t global_size, size_t local_size = 1) {
     size_t offset = 0;
-    ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, 1, &offset,
-                                         &global_size, &local_size, nullptr, 0,
-                                         nullptr, nullptr));
+    ASSERT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
+        queue, kernel, 1, &offset, &global_size, &local_size,
+        static_cast<uint32_t>(args.size()), args.data(), nullptr, 0, nullptr,
+        nullptr));
     ASSERT_SUCCESS(urQueueFinish(queue));
   }
 
@@ -1679,12 +1708,43 @@ struct KernelLaunchHelper {
     ValidateBuffer<T>(buffer, size, validator);
   }
 
+  uint32_t GetNumArgs() const { return static_cast<uint32_t>(args.size()); }
+
+  const ur_exp_kernel_arg_properties_t *GetArgs() const {
+    return args.empty() ? nullptr : args.data();
+  }
+
   ur_platform_handle_t &platform;
   ur_context_handle_t &context;
   ur_kernel_handle_t &kernel;
   ur_queue_handle_t &queue;
 
   uint32_t current_arg_index = 0;
+  std::vector<ur_exp_kernel_arg_properties_t> args;
+
+private:
+  // Store value data persistently so pointers remain valid until launch.
+  std::vector<std::vector<uint8_t>> arg_value_storage;
+
+  void AddValueArg(uint32_t index, const void *data, size_t size) {
+    auto &stored = arg_value_storage.emplace_back(size);
+    std::memcpy(stored.data(), data, size);
+    ur_exp_kernel_arg_value_t arg_val = {};
+    arg_val.value = stored.data();
+    AddArgProperties(index, UR_EXP_KERNEL_ARG_TYPE_VALUE, size, arg_val);
+  }
+
+  void AddArgProperties(uint32_t index, ur_exp_kernel_arg_type_t type,
+                        size_t size, ur_exp_kernel_arg_value_t value) {
+    ur_exp_kernel_arg_properties_t prop = {};
+    prop.stype = UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES;
+    prop.pNext = nullptr;
+    prop.type = type;
+    prop.index = index;
+    prop.size = size;
+    prop.value = value;
+    args.push_back(prop);
+  }
 };
 
 // Parameterized kernel fixture with execution helpers, for the difference
@@ -1711,8 +1771,18 @@ struct urBaseKernelExecutionTestWithParam : urBaseKernelTestWithParam<T> {
 
   template <class K> void AddPodArg(K data) { helper.AddPodArg(data); }
 
+  void AddPointerArg(const void *ptr) {
+    helper.AddPointerArg(helper.current_arg_index, ptr);
+    helper.current_arg_index++;
+  }
+
   void Launch1DRange(size_t global_size, size_t local_size = 1) {
     helper.Launch1DRange(global_size, local_size);
+  }
+
+  uint32_t GetNumArgs() const { return helper.GetNumArgs(); }
+  const ur_exp_kernel_arg_properties_t *GetArgs() const {
+    return helper.GetArgs();
   }
 
   template <class K>
@@ -1726,9 +1796,10 @@ struct urBaseKernelExecutionTestWithParam : urBaseKernelTestWithParam<T> {
     helper.ValidateBuffer(buffer, size, value);
   }
 
-private:
   KernelLaunchHelper helper = KernelLaunchHelper{this->platform, this->context,
                                                  this->kernel, this->queue};
+
+private:
   std::vector<ur_mem_handle_t> buffer_args;
 };
 
@@ -1754,8 +1825,18 @@ struct urBaseKernelExecutionTest : urBaseKernelTest {
 
   template <class T> void AddPodArg(T data) { helper.AddPodArg(data); }
 
+  void AddPointerArg(const void *ptr) {
+    helper.AddPointerArg(helper.current_arg_index, ptr);
+    helper.current_arg_index++;
+  }
+
   void Launch1DRange(size_t global_size, size_t local_size = 1) {
     helper.Launch1DRange(global_size, local_size);
+  }
+
+  uint32_t GetNumArgs() const { return helper.GetNumArgs(); }
+  const ur_exp_kernel_arg_properties_t *GetArgs() const {
+    return helper.GetArgs();
   }
 
   template <class T>
@@ -1769,9 +1850,10 @@ struct urBaseKernelExecutionTest : urBaseKernelTest {
     helper.ValidateBuffer(buffer, size, value);
   }
 
-private:
   KernelLaunchHelper helper =
       KernelLaunchHelper{platform, context, kernel, queue};
+
+private:
   std::vector<ur_mem_handle_t> buffer_args;
 };
 
