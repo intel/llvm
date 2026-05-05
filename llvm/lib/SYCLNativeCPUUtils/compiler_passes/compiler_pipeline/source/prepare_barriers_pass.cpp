@@ -86,7 +86,7 @@ compiler::utils::PrepareBarriersPass::run(Module &M,
       auto InlineResult =
           InlineFunction(*cast<CallInst>(U), IFI, /*MergeAttributes*/ false,
                          /*CalleeAAR*/ nullptr, /*InsertLifetime*/ true,
-                         /*ForwardVarArgsTo*/ nullptr);
+                         /*TrackInlineHistory*/ false);
       if (InlineResult.isSuccess()) {
         Changed = true;
 

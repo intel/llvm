@@ -15,13 +15,15 @@ void bar() {
   printf("hello\n");
 }
 
-template<typename KN, typename...Args>
-void sycl_kernel_launch(Args ...args) {}
-
-template<typename KN, typename K>
-[[clang::sycl_kernel_entry_point(KN)]]
-__cdecl void sycl_entry_point(K k) {
-  k(); // expected-note {{called by}}
+template <typename name, typename Func>
+// expected-no-warning@+1
+__cdecl __attribute__((sycl_kernel)) void kernel_single_task(const Func &kernelFunc) {
+  // expected-error@+1 2{{SYCL kernel cannot call a variadic function}}
+  printf("cannot call from here\n");
+  // expected-no-error@+1
+  moo();
+  // expected-note@+1{{called by}}
+  kernelFunc();
 }
 
 int main() {

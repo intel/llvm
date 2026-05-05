@@ -1,4 +1,4 @@
-// UNSUPPORTED: spirv-val
+// UNSUPPORTED: spirv-val, system-windows
 //
 // Verify that a warning is emitted exactly once when spirv-val is not found.
 // This test is unsupported when spirv-val is in the build directory because
