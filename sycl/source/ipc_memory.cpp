@@ -57,7 +57,11 @@ __SYCL_EXPORT void *openIPCMemHandle(const std::byte *HandleData,
 
 } // namespace detail
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+namespace ext::oneapi::experimental::ipc::memory {
+#else
 namespace ext::oneapi::experimental::ipc_memory {
+#endif
 
 __SYCL_EXPORT handle get(void *Ptr, const sycl::context &Ctx) {
   auto CtxImpl = sycl::detail::getSyclObjImpl(Ctx);
@@ -97,6 +101,10 @@ __SYCL_EXPORT void close(void *Ptr, const sycl::context &Ctx) {
       CtxImpl->getHandleRef(), Ptr);
 }
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+} // namespace ext::oneapi::experimental::ipc::memory
+#else
 } // namespace ext::oneapi::experimental::ipc_memory
+#endif
 } // namespace _V1
 } // namespace sycl

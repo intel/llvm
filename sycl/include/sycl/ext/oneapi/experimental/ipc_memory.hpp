@@ -16,6 +16,10 @@
 #include <sycl/device.hpp>
 #include <sycl/platform.hpp>
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+#include "detail/ipc_common.hpp"
+#endif
+
 #include <cstddef>
 
 #if __has_include(<span>)
@@ -32,7 +36,11 @@ __SYCL_EXPORT void *openIPCMemHandle(const std::byte *HandleData,
                                      const sycl::device &Dev);
 }
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+namespace ext::oneapi::experimental::ipc::memory {
+#else
 namespace ext::oneapi::experimental::ipc_memory {
+#endif
 
 using handle_data_t = std::vector<std::byte>;
 
@@ -40,6 +48,7 @@ using handle_data_t = std::vector<std::byte>;
 using handle_data_view_t = std::span<const std::byte, std::dynamic_extent>;
 #endif
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 struct handle {
 public:
   handle_data_t data() const { return {MData, MData + MSize}; }
@@ -58,13 +67,14 @@ private:
   friend __SYCL_EXPORT handle get(void *Ptr, const sycl::context &Ctx);
   friend __SYCL_EXPORT void put(handle &HandleData, const sycl::context &Ctx);
 };
+#endif
 
 __SYCL_EXPORT handle get(void *Ptr, const sycl::context &Ctx);
 
 inline handle get(void *Ptr) {
   sycl::device Dev;
   sycl::context Ctx = Dev.get_platform().khr_get_default_context();
-  return ipc_memory::get(Ptr, Ctx);
+  return get(Ptr, Ctx);
 }
 
 __SYCL_EXPORT void put(handle &HandleData, const sycl::context &Ctx);
@@ -72,7 +82,7 @@ __SYCL_EXPORT void put(handle &HandleData, const sycl::context &Ctx);
 inline void put(handle &HandleData) {
   sycl::device Dev;
   sycl::context Ctx = Dev.get_platform().khr_get_default_context();
-  ipc_memory::put(HandleData, Ctx);
+  put(HandleData, Ctx);
 }
 
 inline void *open(const handle_data_t &HandleData, const sycl::context &Ctx,
@@ -83,13 +93,13 @@ inline void *open(const handle_data_t &HandleData, const sycl::context &Ctx,
 
 inline void *open(handle_data_t HandleData, const sycl::device &Dev) {
   sycl::context Ctx = Dev.get_platform().khr_get_default_context();
-  return ipc_memory::open(HandleData, Ctx, Dev);
+  return open(HandleData, Ctx, Dev);
 }
 
 inline void *open(handle_data_t HandleData) {
   sycl::device Dev;
   sycl::context Ctx = Dev.get_platform().khr_get_default_context();
-  return ipc_memory::open(HandleData, Ctx, Dev);
+  return open(HandleData, Ctx, Dev);
 }
 
 #if __cpp_lib_span
@@ -101,13 +111,13 @@ inline void *open(const handle_data_view_t &HandleDataView,
 
 inline void *open(handle_data_view_t HandleDataView, const sycl::device &Dev) {
   sycl::context Ctx = Dev.get_platform().khr_get_default_context();
-  return ipc_memory::open(HandleDataView, Ctx, Dev);
+  return open(HandleDataView, Ctx, Dev);
 }
 
 inline void *open(handle_data_view_t HandleDataView) {
   sycl::device Dev;
   sycl::context Ctx = Dev.get_platform().khr_get_default_context();
-  return ipc_memory::open(HandleDataView, Ctx, Dev);
+  return open(HandleDataView, Ctx, Dev);
 }
 #endif
 
@@ -116,10 +126,14 @@ __SYCL_EXPORT void close(void *Ptr, const sycl::context &Ctx);
 inline void close(void *Ptr) {
   sycl::device Dev;
   sycl::context Ctx = Dev.get_platform().khr_get_default_context();
-  ipc_memory::close(Ptr, Ctx);
+  close(Ptr, Ctx);
 }
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+} // namespace ext::oneapi::experimental::ipc::memory
+#else
 } // namespace ext::oneapi::experimental::ipc_memory
+#endif
 } // namespace _V1
 } // namespace sycl
 
