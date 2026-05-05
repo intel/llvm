@@ -110,8 +110,7 @@ TEST_P(urEnqueueEventsWaitTest, InvalidNullPtrEventWaitList) {
                    UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 
   uur::raii::Event eventDummy = nullptr;
-  ASSERT_SUCCESS(
-      urEventCreateWithNativeHandle(0, context, nullptr, eventDummy.ptr()));
+  ASSERT_SUCCESS(uur::MakeDummyEventForWaitList(context, eventDummy.ptr()));
 
   ASSERT_EQ_RESULT(urEnqueueEventsWait(queue1, 0, eventDummy.ptr(), nullptr),
                    UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);

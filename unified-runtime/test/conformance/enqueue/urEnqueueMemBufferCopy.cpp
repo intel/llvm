@@ -84,8 +84,7 @@ TEST_P(urEnqueueMemBufferCopyTestWithParam, InvalidNullPtrEventWaitList) {
                    UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 
   uur::raii::Event eventDummy = nullptr;
-  ASSERT_SUCCESS(
-      urEventCreateWithNativeHandle(0, context, nullptr, eventDummy.ptr()));
+  ASSERT_SUCCESS(uur::MakeDummyEventForWaitList(context, eventDummy.ptr()));
 
   ASSERT_EQ_RESULT(urEnqueueMemBufferCopy(queue, src_buffer, dst_buffer, 0, 0,
                                           size, 0, eventDummy.ptr(), nullptr),

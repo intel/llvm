@@ -145,8 +145,7 @@ TEST_P(urEnqueueUSMPrefetchTest, InvalidEventWaitList) {
                                         nullptr, nullptr));
 
   uur::raii::Event eventDummy = nullptr;
-  ASSERT_SUCCESS(
-      urEventCreateWithNativeHandle(0, context, nullptr, eventDummy.ptr()));
+  ASSERT_SUCCESS(uur::MakeDummyEventForWaitList(context, eventDummy.ptr()));
 
   ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST,
                    urEnqueueUSMPrefetch(queue, ptr, allocation_size,

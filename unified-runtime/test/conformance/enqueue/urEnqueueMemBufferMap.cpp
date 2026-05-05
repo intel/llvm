@@ -282,8 +282,7 @@ TEST_P(urEnqueueMemBufferMapTestWithParam, InvalidNullPtrEventWaitList) {
                    UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 
   uur::raii::Event eventDummy = nullptr;
-  ASSERT_SUCCESS(
-      urEventCreateWithNativeHandle(0, context, nullptr, eventDummy.ptr()));
+  ASSERT_SUCCESS(uur::MakeDummyEventForWaitList(context, eventDummy.ptr()));
 
   ASSERT_EQ_RESULT(urEnqueueMemBufferMap(queue, buffer, true,
                                          UR_MAP_FLAG_READ | UR_MAP_FLAG_WRITE,
