@@ -13,14 +13,14 @@ queue q;
 
 class Foo {
 public:
-  [[intel::max_work_group_size(2, 4, 8), intel::min_work_groups_per_cu(2),
+  [[intel::min_work_groups_per_cu(2),
     intel::max_work_groups_per_mp(4)]] void
   operator()() const {}
 };
 
 template <int N> class Functor {
 public:
-  [[intel::max_work_group_size(N, 4, 8), intel::min_work_groups_per_cu(N),
+  [[intel::min_work_groups_per_cu(N),
     intel::max_work_groups_per_mp(N)]] void
   operator()() const {}
 };
@@ -33,8 +33,7 @@ int main() {
 
     // Test attribute is applied on lambda.
     h.single_task<class kernel_name2>(
-        [] [[intel::max_work_group_size(2, 4, 8),
-             intel::min_work_groups_per_cu(2),
+        [] [[intel::min_work_groups_per_cu(2),
              intel::max_work_groups_per_mp(4)]] () {});
 
     // Test class template argument.
@@ -44,12 +43,10 @@ int main() {
   return 0;
 }
 
-// CHECK: define {{.*}}ptx_kernel void @{{.*}}kernel_name1() #0 {{.*}} !min_work_groups_per_cu ![[MWGPC:[0-9]+]] !max_work_groups_per_mp ![[MWGPM:[0-9]+]] !max_work_group_size ![[MWGS:[0-9]+]]
-// CHECK: define {{.*}}ptx_kernel void @{{.*}}kernel_name2() #0 {{.*}} !min_work_groups_per_cu ![[MWGPC:[0-9]+]] !max_work_groups_per_mp ![[MWGPM:[0-9]+]] !max_work_group_size ![[MWGS:[0-9]+]]
-// CHECK: define {{.*}}ptx_kernel void @{{.*}}kernel_name3() #0 {{.*}} !min_work_groups_per_cu ![[MWGPC_MWGPM:[0-9]+]] !max_work_groups_per_mp ![[MWGPC_MWGPM]] !max_work_group_size ![[MWGS_2:[0-9]+]]
+// CHECK: define {{.*}}ptx_kernel void @{{.*}}kernel_name1() #0 {{.*}} !min_work_groups_per_cu ![[MWGPC:[0-9]+]] !max_work_groups_per_mp ![[MWGPM:[0-9]+]]
+// CHECK: define {{.*}}ptx_kernel void @{{.*}}kernel_name2() #0 {{.*}} !min_work_groups_per_cu ![[MWGPC:[0-9]+]] !max_work_groups_per_mp ![[MWGPM:[0-9]+]]
+// CHECK: define {{.*}}ptx_kernel void @{{.*}}kernel_name3() #0 {{.*}} !min_work_groups_per_cu ![[MWGPC_MWGPM:[0-9]+]] !max_work_groups_per_mp ![[MWGPC_MWGPM]]
 
 // CHECK: ![[MWGPC]] = !{i32 2}
 // CHECK: ![[MWGPM]] = !{i32 4}
-// CHECK: ![[MWGS]] = !{i32 8, i32 4, i32 2}
 // CHECK: ![[MWGPC_MWGPM]] = !{i32 6}
-// CHECK: ![[MWGS_2]] = !{i32 8, i32 4, i32 6}

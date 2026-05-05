@@ -46,6 +46,12 @@ __SYCL_EXPORT void *openIPCMemHandle(const std::byte *HandleData,
                           "HandleData data size does not correspond "
                           "to the target platform's IPC memory handle size.");
   Adapter.checkUrResult(UrRes);
+  if (Ptr == nullptr)
+    throw sycl::exception(
+        sycl::make_error_code(errc::runtime),
+        "urIPCOpenMemHandleExp returned success but did not produce a "
+        "valid memory pointer.");
+
   return Ptr;
 }
 

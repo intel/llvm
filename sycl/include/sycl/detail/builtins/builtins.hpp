@@ -64,11 +64,11 @@
 #pragma once
 
 #include <sycl/detail/fwd/multi_ptr.hpp>
+#include <sycl/detail/half_type_impl.hpp>
 #include <sycl/detail/loop.hpp>
 #include <sycl/detail/type_traits.hpp>
 #include <sycl/detail/type_traits/vec_marray_traits.hpp>
 #include <sycl/detail/vector_core.hpp>
-#include <sycl/half_type.hpp>
 #include <sycl/marray.hpp>
 
 #include <limits>

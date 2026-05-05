@@ -1,6 +1,5 @@
-// Copyright (C) 2022-2023 Intel Corporation
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
@@ -1146,9 +1145,9 @@ TEST_P(urDeviceGetInfoTest, SuccessReferenceCount) {
                              property_value);
 }
 
+// Optional query: Not all adapters support intermediate language (IL).
+// NativeCPU executes native code directly without IL support.
 TEST_P(urDeviceGetInfoTest, SuccessILVersion) {
-  UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
-
   size_t property_size = 0;
   const ur_device_info_t property_name = UR_DEVICE_INFO_IL_VERSION;
 
@@ -1848,6 +1847,23 @@ TEST_P(urDeviceGetInfoTest, SuccessMemoryBusWidth) {
                              property_value);
 }
 
+TEST_P(urDeviceGetInfoTest, SuccessMaxGlobalWorkGroups) {
+  UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
+
+  size_t property_size = 0;
+  const ur_device_info_t property_name = UR_DEVICE_INFO_MAX_WORK_GROUPS;
+
+  ASSERT_SUCCESS(
+      urDeviceGetInfo(device, property_name, 0, nullptr, &property_size));
+  ASSERT_EQ(property_size, sizeof(size_t));
+
+  size_t max_global_work_groups = 0;
+  ASSERT_SUCCESS(urDeviceGetInfo(device, property_name,
+                                 sizeof(max_global_work_groups),
+                                 &max_global_work_groups, nullptr));
+  ASSERT_GT(max_global_work_groups, 0u);
+}
+
 TEST_P(urDeviceGetInfoTest, SuccessMaxWorkGroups3D) {
   UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
 
@@ -1859,7 +1875,7 @@ TEST_P(urDeviceGetInfoTest, SuccessMaxWorkGroups3D) {
   ASSERT_EQ(property_size, sizeof(size_t) * 3);
 
   std::array<size_t, 3> max_work_group_sizes = {};
-  ASSERT_SUCCESS(urDeviceGetInfo(device, UR_DEVICE_INFO_MAX_WORK_GROUPS_3D,
+  ASSERT_SUCCESS(urDeviceGetInfo(device, property_name,
                                  sizeof(max_work_group_sizes),
                                  max_work_group_sizes.data(), nullptr));
   for (size_t i = 0; i < 3; i++) {
