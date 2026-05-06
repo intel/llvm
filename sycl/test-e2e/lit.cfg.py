@@ -686,6 +686,13 @@ with test_env():
     if "opencl:cpu" in sycl_ls_output:
         config.available_features.add("opencl-cpu-rt")
 
+    # Count physical GPU devices: each physical GPU produces one output line
+    # that contains ":gpu]". Add a feature when at least two are present so
+    # tests requiring multi-GPU hardware can be skipped on single-GPU machines.
+    gpu_device_lines = [l for l in sycl_ls_output.splitlines() if ":gpu]" in l]
+    if len(gpu_device_lines) >= 2:
+        config.available_features.add("two-or-more-gpu-devices")
+
     if len(config.sycl_devices) == 1 and config.sycl_devices[0] == "all":
         devices = set()
         for line in sycl_ls_output.splitlines():
