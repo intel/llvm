@@ -377,7 +377,6 @@ public:
     KernelCallFunctionPointer,
     KernelAllocateStorage,
     KernelUseAssembly,
-    KernelCallVariadicFunction,
     KernelCallUndefinedFunction,
     KernelConstStaticVariable
   };
