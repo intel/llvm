@@ -11741,9 +11741,8 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     // -sycl-device-library-location).
     //
     // Note: SPIR/SPIRV device libraries are linked at compile time using
-    // -mlink-builtin-bitcode (as of PR #21672), so they are not passed here.
-    // Only non-SPIR targets (NVPTX, AMD) pass device libraries to
-    // clang-linker-wrapper.
+    // -mlink-builtin-bitcode, so they are not passed here. Only non-SPIR
+    // targets (NVPTX, AMD) pass device libraries to clang-linker-wrapper.
     SmallVector<std::string, 4> BCLibList;
 
     auto appendToList = [](SmallString<256> &List, const Twine &Arg) {

@@ -1458,11 +1458,11 @@ linkDeviceLibFiles(SmallVectorImpl<StringRef> &InputFiles,
 /// Link all SYCL device input files into a single LLVM IR file, then link
 /// with device library files specified via --bitcode-library option.
 ///
-/// NOTE: As of PR #21672, SPIR/SPIRV device libraries are linked at compile
-/// time using -mlink-builtin-bitcode. This function now primarily handles
-/// device library linking for non-SPIR targets (NVPTX, AMD) at link time.
+/// SPIR/SPIRV device libraries are linked at compile time using
+/// -mlink-builtin-bitcode. This function now primarily handles device library
+/// linking for non-SPIR targets (NVPTX, AMD) at link time.
 ///
-/// The legacy -sycl-device-libraries option (fat objects) is deprecated.
+/// The legacy -sycl-device-libraries option (fat objects) has been removed.
 /// Use --bitcode-library=<triple>=<path> for device libraries instead.
 ///
 /// \param InputFiles List of LLVM IR device input files to link
