@@ -270,7 +270,6 @@ if(CMAKE_SYSTEM_NAME STREQUAL Windows)
     install(
       FILES ${URD_INSTALL_DIR}/bin/ur_adapter_${adapter}d.dll
       DESTINATION "bin" COMPONENT ur_adapter_${adapter})
-    add_dependencies(install-sycl-ur-adapter-${adapter} unified-runtimed)
   endforeach()
   if(UMF_BUILD_SHARED_LIBRARY)
     # Also install umfd.dll
