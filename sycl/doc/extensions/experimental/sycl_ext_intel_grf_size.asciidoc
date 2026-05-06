@@ -10,6 +10,7 @@
 :encoding: utf-8
 :lang: en
 :dpcpp: pass:[DPC++]
+:endnote: &#8212;{nbsp}end{nbsp}note
 
 // Set the default source code type in this document to C++,
 // for syntax highlighting purposes.  This is needed because
@@ -70,8 +71,8 @@ the size of the general register file (GRF) that the compiler uses when
 generating device code for a kernel.
 Advanced users may want to increase this size if the kernel is known to need
 many registers.
-However, increasing this size may also reduce the maximum work-group size for
-the kernel.
+However, increasing this size also has negative effects, so be sure to read the
+details below carefully before using these properties.
 
 The properties described in this extension are advanced features that most
 applications should not need to use.
@@ -103,20 +104,21 @@ supports.
 
 === Properties
 
-This extension adds the following properties that can be used when defining a
-kernel.
-However, using these properties to select a larger GRF size may impose a lower
-limit on the kernel's maximum work-group size.
-Applications can query the maximum work-group size for the kernel via the
-`info::kernel_device_specific::work_group_size` information descriptor, which is
-defined in the core SYCL specification.
-
+This extension add the properties listed below, which applications can use
+when defining a kernel to select the kernel's GRF size.
 When a kernel is defined without any of these properties, the compiler is free
 to choose any GRF size.
 However, for devices with two GRF sizes, compilers typically choose the smaller
 size.
 
 A kernel may be defined with at most one of these GRF-setting properties.
+
+[_Note_: Using these properties to select a larger GRF size may impose a lower
+limit on the kernel's maximum work-group size.
+Applications can query the maximum work-group size for the kernel via the
+`info::kernel_device_specific::work_group_size` information descriptor, which is
+defined in the core SYCL specification.
+_{endnote}_]
 
 '''
 
