@@ -73,7 +73,7 @@ uniqueDevices(uint32_t numDevices, const ur_device_handle_t *phDevices) {
   return devices;
 }
 
-static bool isFullPlatformRootDeviceList(uint32_t deviceCount,
+static bool isCompletePlatformDeviceList(uint32_t deviceCount,
                                          const ur_device_handle_t *phDevices) {
   ur_platform_handle_t hPlatform = phDevices[0]->Platform;
 
@@ -216,25 +216,19 @@ ur_result_t urContextCreate(uint32_t deviceCount,
   ur_platform_handle_t hPlatform = phDevices[0]->Platform;
   ZeStruct<ze_context_desc_t> contextDesc{};
 
-  ze_context_handle_t zeContext{};
-  bool ownZeContext = true;
-
-  if (isFullPlatformRootDeviceList(deviceCount, phDevices)) {
-    ze_context_handle_t zeDefaultContext =
-        zeDriverGetDefaultContext(hPlatform->ZeDriver);
-    if (zeDefaultContext) {
-      zeContext = zeDefaultContext;
-      ownZeContext = false;
+  if (isCompletePlatformDeviceList(deviceCount, phDevices)) {
+    if (auto zeContext = zeDriverGetDefaultContext(hPlatform->ZeDriver)) {
+      *phContext =
+          new ur_context_handle_t_(zeContext, deviceCount, phDevices, false);
+      return UR_RESULT_SUCCESS;
     }
   }
 
-  if (!zeContext) {
-    ZE2UR_CALL(zeContextCreate,
-               (hPlatform->ZeDriver, &contextDesc, &zeContext));
-  }
+  ze_context_handle_t zeContext{};
+  ZE2UR_CALL(zeContextCreate, (hPlatform->ZeDriver, &contextDesc, &zeContext));
 
   *phContext =
-      new ur_context_handle_t_(zeContext, deviceCount, phDevices, ownZeContext);
+      new ur_context_handle_t_(zeContext, deviceCount, phDevices, true);
   return UR_RESULT_SUCCESS;
 } catch (...) {
   return exceptionToResult(std::current_exception());
