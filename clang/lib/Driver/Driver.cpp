@@ -7666,7 +7666,7 @@ Driver::getOffloadArchs(Compilation &C, const llvm::opt::DerivedArgList &Args,
           auto GPUsOrErr = TC.getSystemGPUArchs(Args);
           if (!GPUsOrErr) {
             TC.getDriver().Diag(diag::err_drv_undetermined_gpu_arch)
-                << llvm::Triple::getArchTypeName(TC.getArch())
+                << TC.getTriple().getArchName()
                 << llvm::toString(GPUsOrErr.takeError()) << "--offload-arch";
             continue;
           }
@@ -7769,8 +7769,8 @@ Driver::getOffloadArchs(Compilation &C, const llvm::opt::DerivedArgList &Args,
         auto ArchsOrErr = TC.getSystemGPUArchs(Args);
         if (!ArchsOrErr) {
           TC.getDriver().Diag(diag::err_drv_undetermined_gpu_arch)
-              << llvm::Triple::getArchTypeName(TC.getArch())
-              << llvm::toString(ArchsOrErr.takeError()) << "--offload-arch";
+              << TC.getArchName() << llvm::toString(ArchsOrErr.takeError())
+              << "--offload-arch";
         } else if (!ArchsOrErr->empty()) {
           for (auto Arch : *ArchsOrErr)
             Archs.insert(Args.MakeArgStringRef(Arch));
@@ -9624,8 +9624,8 @@ InputInfoList Driver::BuildJobsForActionNoCache(
   }
 
   if (CCCPrintBindings && !CCGenDiagnostics) {
-    llvm::errs() << "# \"" << T->getToolChain().getTripleString() << '"'
-                 << " - \"" << T->getName() << "\", inputs: [";
+    llvm::errs() << "# \"" << T->getToolChain().getEffectiveTriple().str()
+                 << '"' << " - \"" << T->getName() << "\", inputs: [";
     for (unsigned i = 0, e = InputInfos.size(); i != e; ++i) {
       llvm::errs() << InputInfos[i].getAsString();
       if (i + 1 != e)

@@ -173,7 +173,7 @@ enum class OffloadArch {
   ARL_H,
   BMG_G21,
   LNL_M,
-  LAST,
+  LAST = LNL_M,
 
   CudaDefault = OffloadArch::SM_75,
   HIPDefault = OffloadArch::GFX906,
