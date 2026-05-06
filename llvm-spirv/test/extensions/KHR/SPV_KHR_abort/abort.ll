@@ -9,7 +9,7 @@
 ; FIXME: enable the following run when the translator CI is updated to a new
 ; version of the SPIR-V Tools that includes the support for the SPV_KHR_abort
 ; extension.
-; RUN: not spirv-val %t.spv
+; TODO: RUNx: spirv-val %t.spv
 
 ; RUN: not llvm-spirv %t.bc 2>&1 | FileCheck %s --check-prefix=CHECK-ERROR
 ; CHECK-ERROR: RequiresExtension: Feature requires the following SPIR-V extension:
