@@ -155,10 +155,9 @@ ur_result_t ur_program_handle_t_::buildProgram(const char *BuildOptions) {
 
   UR_ASSERT(Binary.size() > 1, UR_RESULT_ERROR_INVALID_PROGRAM);
 
-  UR_CHECK_ERROR(cuModuleLoadDataEx(&Module,
-                                    static_cast<const void *>(Binary.data()),
-                                    Options.size(), Options.data(),
-                                    OptionVals.data()));
+  UR_CHECK_ERROR(
+      cuModuleLoadDataEx(&Module, static_cast<const void *>(Binary.data()),
+                         Options.size(), Options.data(), OptionVals.data()));
 
   BuildStatus = UR_PROGRAM_BUILD_STATUS_SUCCESS;
 
