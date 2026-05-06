@@ -123,6 +123,7 @@
 #include "llvm/CodeGen/MachineBlockHashInfo.h"
 #include "llvm/CodeGen/MachineBlockPlacement.h"
 #include "llvm/CodeGen/MachineBranchProbabilityInfo.h"
+#include "llvm/CodeGen/MachineCFGPrinter.h"
 #include "llvm/CodeGen/MachineCSE.h"
 #include "llvm/CodeGen/MachineCopyPropagation.h"
 #include "llvm/CodeGen/MachineDebugify.h"
@@ -252,6 +253,7 @@
 #include "llvm/Transforms/IPO/HotColdSplitting.h"
 #include "llvm/Transforms/IPO/IROutliner.h"
 #include "llvm/Transforms/IPO/InferFunctionAttrs.h"
+#include "llvm/Transforms/IPO/Instrumentor.h"
 #include "llvm/Transforms/IPO/Internalize.h"
 #include "llvm/Transforms/IPO/LoopExtractor.h"
 #include "llvm/Transforms/IPO/LowerTypeTests.h"
@@ -443,7 +445,8 @@ bool applyMIRDebugify(DIBuilder &DIB, Function &F, ModuleAnalysisManager &AM) {
 
 // Passes for testing crashes.
 // DO NOT USE THIS EXCEPT FOR TESTING!
-class TriggerCrashModulePass : public PassInfoMixin<TriggerCrashModulePass> {
+class TriggerCrashModulePass
+    : public OptionalPassInfoMixin<TriggerCrashModulePass> {
 public:
   PreservedAnalyses run(Module &, ModuleAnalysisManager &) {
     abort();
@@ -453,7 +456,7 @@ public:
 };
 
 class TriggerCrashFunctionPass
-    : public PassInfoMixin<TriggerCrashFunctionPass> {
+    : public OptionalPassInfoMixin<TriggerCrashFunctionPass> {
 public:
   PreservedAnalyses run(Function &, FunctionAnalysisManager &) {
     abort();
@@ -465,7 +468,7 @@ public:
 // A pass for testing message reporting of -verify-each failures.
 // DO NOT USE THIS EXCEPT FOR TESTING!
 class TriggerVerifierErrorPass
-    : public PassInfoMixin<TriggerVerifierErrorPass> {
+    : public OptionalPassInfoMixin<TriggerVerifierErrorPass> {
 public:
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &) {
     // Intentionally break the Module by creating an alias without setting the
@@ -499,7 +502,7 @@ public:
 // A pass requires all MachineFunctionProperties.
 // DO NOT USE THIS EXCEPT FOR TESTING!
 class RequireAllMachineFunctionPropertiesPass
-    : public PassInfoMixin<RequireAllMachineFunctionPropertiesPass> {
+    : public OptionalPassInfoMixin<RequireAllMachineFunctionPropertiesPass> {
 public:
   PreservedAnalyses run(MachineFunction &MF, MachineFunctionAnalysisManager &) {
     MFPropsModifier _(*this, MF);
