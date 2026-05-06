@@ -127,19 +127,6 @@ function(add_sycl_ur_adapter NAME)
     LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT ur_adapter_${NAME}
     RUNTIME DESTINATION "bin" COMPONENT ur_adapter_${NAME})
 
-  set(manifest_file
-    ${CMAKE_CURRENT_BINARY_DIR}/install_manifest_ur_adapter_${NAME}.txt)
-  add_custom_command(OUTPUT ${manifest_file}
-    COMMAND "${CMAKE_COMMAND}"
-    "-DCMAKE_INSTALL_COMPONENT=ur_adapter_${NAME}"
-    -P "${CMAKE_BINARY_DIR}/cmake_install.cmake"
-    COMMENT "Deploying component ur_adapter_${NAME}"
-    USES_TERMINAL
-  )
-  add_custom_target(install-sycl-ur-adapter-${NAME}
-    DEPENDS ${manifest_file} ur_adapter_${NAME}
-  )
-
   set_property(GLOBAL APPEND PROPERTY
     SYCL_TOOLCHAIN_INSTALL_COMPONENTS ur_adapter_${NAME})
 endfunction()
