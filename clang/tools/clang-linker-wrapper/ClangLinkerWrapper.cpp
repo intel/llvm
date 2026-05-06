@@ -633,33 +633,6 @@ fatbinary(ArrayRef<std::tuple<StringRef, StringRef, StringRef>> InputFiles,
 } // namespace amdgcn
 
 namespace sycl {
-// This utility function is used to gather all SYCL device library files that
-// will be linked with input device files.
-// The list of files and its location are passed from driver.
-static Error getSYCLDeviceLibs(SmallVector<std::string, 16> &DeviceLibFiles,
-                               const ArgList &Args) {
-  StringRef SYCLDeviceLibLoc("");
-  if (Arg *A = Args.getLastArg(OPT_sycl_device_library_location_EQ))
-    SYCLDeviceLibLoc = A->getValue();
-  if (Arg *A = Args.getLastArg(OPT_sycl_device_lib_EQ)) {
-    if (A->getValues().size() == 0)
-      return createStringError(
-          inconvertibleErrorCode(),
-          "Number of device library files cannot be zero.");
-    for (StringRef Val : A->getValues()) {
-      SmallString<128> LibName(SYCLDeviceLibLoc);
-      llvm::sys::path::append(LibName, Val);
-      if (llvm::sys::fs::exists(LibName))
-        DeviceLibFiles.push_back(std::string(LibName));
-      else
-        return createStringError(inconvertibleErrorCode(),
-                                 std::string(LibName) +
-                                     " SYCL device library file is not found.");
-    }
-  }
-  return Error::success();
-}
-
 /// This routine is used to convert SPIR-V input files into LLVM IR files.
 /// 'llvm-spirv -r' command is used for this purpose.
 /// If input is not a SPIR-V file, then the original file is returned.
@@ -1482,51 +1455,31 @@ linkDeviceLibFiles(SmallVectorImpl<StringRef> &InputFiles,
   return *OutFileOrErr;
 }
 
-/// This function is used to link all SYCL device input files into a single
-/// LLVM IR file. This file is in turn linked with all SYCL device library
-/// files.
-/// 'InputFiles' is the list of all LLVM IR device input files.
-/// 'Args' encompasses all arguments required for linking and wrapping device
-/// code and will be parsed to generate options required to be passed into the
-/// llvm-link tool.
+/// Link all SYCL device input files into a single LLVM IR file, then link
+/// with device library files specified via --bitcode-library option.
+///
+/// NOTE: As of PR #21672, SPIR/SPIRV device libraries are linked at compile
+/// time using -mlink-builtin-bitcode. This function now primarily handles
+/// device library linking for non-SPIR targets (NVPTX, AMD) at link time.
+///
+/// The legacy -sycl-device-libraries option (fat objects) is deprecated.
+/// Use --bitcode-library=<triple>=<path> for device libraries instead.
+///
+/// \param InputFiles List of LLVM IR device input files to link
+/// \param Args Command line arguments for linking and wrapping device code
+/// \return Path to the final linked device file
 static Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
                                       const ArgList &Args) {
-  // First llvm-link step.
+  // First llvm-link step: link all device input files.
   auto LinkedFile = sycl::linkDeviceInputFiles(InputFiles, Args);
   if (!LinkedFile)
     reportError(LinkedFile.takeError());
 
-  // Gathering device library files
-  SmallVector<std::string, 16> DeviceLibFiles;
-  if (Error Err = sycl::getSYCLDeviceLibs(DeviceLibFiles, Args))
-    reportError(std::move(Err));
+  // Gather device library files from --bitcode-library option.
   const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
-  SmallVector<std::string, 16> ExtractedDeviceLibFiles;
-  for (auto &File : DeviceLibFiles) {
-    auto BufferOrErr = MemoryBuffer::getFile(File);
-    if (!BufferOrErr)
-      return createFileError(File, BufferOrErr.getError());
-    auto Buffer = std::move(*BufferOrErr);
-    SmallVector<OffloadFile> Binaries;
-    if (Error Err = extractOffloadBinaries(Buffer->getMemBufferRef(), Binaries))
-      return std::move(Err);
-    bool CompatibleBinaryFound = false;
-    for (auto &Binary : Binaries) {
-      auto BinTriple = Binary.getBinary()->getTriple();
-      if (BinTriple == Triple.getTriple()) {
-        auto FileNameOrErr =
-            writeOffloadFile(Binary, true /* HasSYCLOffloadKind */);
-        if (!FileNameOrErr)
-          return FileNameOrErr.takeError();
-        ExtractedDeviceLibFiles.emplace_back(*FileNameOrErr);
-        CompatibleBinaryFound = true;
-      }
-    }
-    if (!CompatibleBinaryFound)
-      WithColor::warning(errs(), LinkerExecutable)
-          << "Compatible SYCL device library binary not found\n";
-  }
+  SmallVector<std::string, 16> DeviceLibFiles;
 
+  // Collect bitcode libraries from --bitcode-library option
   for (StringRef Library : Args.getAllArgValues(OPT_bitcode_library_EQ)) {
     auto [LibraryTriple, LibraryPath] = Library.split('=');
     if (llvm::Triple(LibraryTriple) != Triple)
@@ -1537,19 +1490,19 @@ static Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
                                "The specified device library " + LibraryPath +
                                    " does not exist.");
 
-    ExtractedDeviceLibFiles.emplace_back(LibraryPath.str());
+    DeviceLibFiles.emplace_back(LibraryPath.str());
   }
 
   // No device library files provided, second device linking step not required.
-  if (ExtractedDeviceLibFiles.empty())
+  if (DeviceLibFiles.empty())
     return *LinkedFile;
 
   SmallVector<StringRef, 16> InputFilesVec;
-  InputFilesVec.reserve(ExtractedDeviceLibFiles.size() + 1 /*LinkedFile*/);
+  InputFilesVec.reserve(DeviceLibFiles.size() + 1 /*LinkedFile*/);
   InputFilesVec.emplace_back(*LinkedFile);
-  for (auto &File : ExtractedDeviceLibFiles)
+  for (auto &File : DeviceLibFiles)
     InputFilesVec.emplace_back(File);
-  // second llvm-link step
+  // Second llvm-link step to incorporate device libraries
   auto DeviceLinkedFile = sycl::linkDeviceLibFiles(InputFilesVec, Args);
   if (!DeviceLinkedFile)
     reportError(DeviceLinkedFile.takeError());
