@@ -847,6 +847,19 @@ DINode *SPIRVToLLVMDbgTran::transTypeFunction(const SPIRVExtInst *DebugInst) {
   return getDIBuilder(DebugInst).createSubroutineType(ArgTypes, Flags);
 }
 
+DISubroutineType *
+SPIRVToLLVMDbgTran::transSubroutineType(const SPIRVExtInst *DebugInst,
+                                        SPIRVId TypeId) {
+  auto *TypeInst = BM->get<SPIRVExtInst>(TypeId);
+  if (auto *Ty = transDebugInst<DISubroutineType>(TypeInst))
+    return Ty;
+
+  // Avoid a null DISubroutineType in case the SPIR-V type was DebugInfoNone.
+  SmallVector<llvm::Metadata *, 1> Elements{nullptr};
+  DITypeArray ArgTypes = getDIBuilder(DebugInst).getOrCreateTypeArray(Elements);
+  return getDIBuilder(DebugInst).createSubroutineType(ArgTypes);
+}
+
 DINode *
 SPIRVToLLVMDbgTran::transTypePtrToMember(const SPIRVExtInst *DebugInst) {
   using namespace SPIRVDebug::Operand::TypePtrToMember;
@@ -904,8 +917,7 @@ DINode *SPIRVToLLVMDbgTran::transFunction(const SPIRVExtInst *DebugInst,
     assert(Ops.size() >= MinOperandCount && "Invalid number of operands");
 
   StringRef Name = getString(Ops[NameIdx]);
-  DISubroutineType *Ty =
-      transDebugInst<DISubroutineType>(BM->get<SPIRVExtInst>(Ops[TypeIdx]));
+  DISubroutineType *Ty = transSubroutineType(DebugInst, Ops[TypeIdx]);
   DIFile *File = getFile(Ops[SourceIdx]);
   SPIRVWord LineNo =
       getConstantValueOrLiteral(Ops, LineIdx, DebugInst->getExtSetKind());
@@ -1037,8 +1049,7 @@ DINode *SPIRVToLLVMDbgTran::transFunctionDecl(const SPIRVExtInst *DebugInst) {
   DIFile *File = getFile(Ops[SourceIdx]);
   SPIRVWord LineNo =
       getConstantValueOrLiteral(Ops, LineIdx, DebugInst->getExtSetKind());
-  DISubroutineType *Ty =
-      transDebugInst<DISubroutineType>(BM->get<SPIRVExtInst>(Ops[TypeIdx]));
+  DISubroutineType *Ty = transSubroutineType(DebugInst, Ops[TypeIdx]);
 
   SPIRVWord SPIRVDebugFlags =
       getConstantValueOrLiteral(Ops, FlagsIdx, DebugInst->getExtSetKind());
