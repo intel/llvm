@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <sycl/detail/get_device_kernel_info.hpp>
+#include <sycl/detail/get_kernel_info_impl.hpp>
 #include <sycl/detail/kernel_desc.hpp>
 
 #include <detail/context_impl.hpp>
@@ -35,26 +36,25 @@ DeviceKernelInfo &getDeviceKernelInfo(std::string_view KernelName) {
 // device &) for global_work_size, and the spill_memory_size specialization
 // immediately below it). If you change those, change these too.
 template <typename Param>
-static void validateDeviceSpecificQuery(device_impl &DevImpl,
-                                        DeviceKernelInfo &KernelInfo) {
+static void validateDeviceSpecificQuery(const device_impl &DevImpl,
+                                        const DeviceKernelInfo &KernelInfo) {
   if constexpr (std::is_same_v<
                     Param, info::kernel_device_specific::global_work_size>) {
     bool IsCustom = DevImpl.get_info<info::device::device_type>() ==
                     info::device_type::custom;
     if (!IsCustom) {
-      std::string KernelName(std::string_view{KernelInfo.Name});
+      std::string_view KernelName{KernelInfo.Name};
       auto BuiltIns = DevImpl.get_info<info::device::built_in_kernel_ids>();
       bool IsBuiltIn =
           std::any_of(BuiltIns.begin(), BuiltIns.end(), [&](kernel_id &Id) {
-            return Id.get_name() == KernelName;
+            return KernelName == Id.get_name();
           });
       if (!IsBuiltIn)
-        throw exception(sycl::make_error_code(errc::invalid),
-                        "info::kernel_device_specific::global_work_size "
-                        "descriptor may only "
-                        "be used if the device type is device_type::custom or "
-                        "if the kernel "
-                        "is a built-in kernel.");
+        throw exception(
+            sycl::make_error_code(errc::invalid),
+            "info::kernel_device_specific::global_work_size descriptor may "
+            "only be used if the device type is device_type::custom or if the "
+            "kernel is a built-in kernel.");
     }
   } else if constexpr (std::is_same_v<Param,
                                       ext::intel::info::kernel_device_specific::

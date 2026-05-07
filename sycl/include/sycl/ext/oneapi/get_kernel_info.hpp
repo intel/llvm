@@ -10,6 +10,7 @@
 #include <sycl/context.hpp>
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/get_device_kernel_info.hpp>
+#include <sycl/detail/get_kernel_info_impl.hpp>
 #include <sycl/detail/impl_utils.hpp>
 #include <sycl/detail/info_desc_helpers.hpp>
 #include <sycl/device.hpp>
@@ -47,6 +48,8 @@ get_kernel_info(const context &Ctx) {
 template <typename KernelName, typename Param>
 typename sycl::detail::is_kernel_device_specific_info_desc<Param>::return_type
 get_kernel_info(const context &Ctx, const device &Dev) {
+  static_assert(sycl::detail::is_kernel_device_specific_info_desc<Param>::value,
+                "Invalid kernel_device_specific information descriptor");
   auto &CtxImpl = *sycl::detail::getSyclObjImpl(Ctx);
   auto &DevImpl = *sycl::detail::getSyclObjImpl(Dev);
   sycl::detail::DeviceKernelInfo &DKI =
@@ -79,6 +82,8 @@ std::enable_if_t<ext::oneapi::experimental::is_kernel_v<Func>,
                  typename sycl::detail::is_kernel_device_specific_info_desc<
                      Param>::return_type>
 get_kernel_info(const context &ctxt, const device &dev) {
+  static_assert(sycl::detail::is_kernel_device_specific_info_desc<Param>::value,
+                "Invalid kernel_device_specific information descriptor");
   auto &CtxImpl = *sycl::detail::getSyclObjImpl(ctxt);
   auto &DevImpl = *sycl::detail::getSyclObjImpl(dev);
   sycl::detail::DeviceKernelInfo &DKI =
