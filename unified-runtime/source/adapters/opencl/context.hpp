@@ -31,7 +31,7 @@ struct ur_context_handle_t_ : ur::opencl::handle_base {
       : handle_base(), CLContext(Ctx), DeviceCount(DevCount) {
     for (uint32_t i = 0; i < DeviceCount; i++) {
       Devices.emplace_back(phDevices[i]);
-      urDeviceRetain(phDevices[i]);
+      ur::opencl::urDeviceRetain(phDevices[i]);
     }
   }
 
@@ -46,7 +46,7 @@ struct ur_context_handle_t_ : ur::opencl::handle_base {
     ur::cl::getAdapter()->fnCache.clearCache(CLContext);
 
     for (uint32_t i = 0; i < DeviceCount; i++) {
-      urDeviceRelease(Devices[i]);
+      ur::opencl::urDeviceRelease(Devices[i]);
     }
     if (IsNativeHandleOwned) {
       clReleaseContext(CLContext);

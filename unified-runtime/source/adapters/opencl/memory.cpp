@@ -335,6 +335,8 @@ ur_result_t ur_mem_handle_t_::makeWithNative(native_type NativeMem,
   return UR_RESULT_SUCCESS;
 }
 
+namespace ur::opencl {
+
 UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreate(
     ur_context_handle_t hContext, ur_mem_flags_t flags, size_t size,
     const ur_buffer_properties_t *pProperties, ur_mem_handle_t *phBuffer) {
@@ -622,3 +624,5 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urIPCClosePhysMemHandleExp(ur_context_handle_t, ur_physical_mem_handle_t) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
+
+} // namespace ur::opencl

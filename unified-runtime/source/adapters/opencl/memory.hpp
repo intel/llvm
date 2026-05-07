@@ -26,11 +26,11 @@ struct ur_mem_handle_t_ : ur::opencl::handle_base {
 
   ur_mem_handle_t_(native_type Mem, ur_context_handle_t Ctx)
       : handle_base(), CLMemory(Mem), Context(Ctx) {
-    urContextRetain(Context);
+    ur::opencl::urContextRetain(Context);
   }
 
   ~ur_mem_handle_t_() {
-    urContextRelease(Context);
+    ur::opencl::urContextRelease(Context);
     if (IsNativeHandleOwned) {
       clReleaseMemObject(CLMemory);
     }

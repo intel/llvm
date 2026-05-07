@@ -43,7 +43,7 @@ ur_result_t ur_kernel_handle_t_::makeWithNative(native_type NativeKernel,
     } else {
       ur_native_handle_t hNativeHandle =
           reinterpret_cast<ur_native_handle_t>(CLProgram);
-      UR_RETURN_ON_FAILURE(urProgramCreateWithNativeHandle(
+      UR_RETURN_ON_FAILURE(ur::opencl::urProgramCreateWithNativeHandle(
           hNativeHandle, Context, nullptr, &Program));
     }
 
@@ -58,6 +58,8 @@ ur_result_t ur_kernel_handle_t_::makeWithNative(native_type NativeKernel,
 
   return UR_RESULT_SUCCESS;
 }
+
+namespace ur::opencl {
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urKernelCreate(ur_program_handle_t hProgram, const char *pKernelName,
@@ -244,14 +246,15 @@ urKernelGetSubGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
     // value is given we use the max work item size of the device in the first
     // dimension to avoid truncation of max sub-group size.
     uint32_t MaxDims = 0;
-    ur_result_t URRet =
-        urDeviceGetInfo(hDevice, UR_DEVICE_INFO_MAX_WORK_ITEM_DIMENSIONS,
-                        sizeof(uint32_t), &MaxDims, nullptr);
+    ur_result_t URRet = ur::opencl::urDeviceGetInfo(
+        hDevice, UR_DEVICE_INFO_MAX_WORK_ITEM_DIMENSIONS, sizeof(uint32_t),
+        &MaxDims, nullptr);
     if (URRet != UR_RESULT_SUCCESS)
       return URRet;
     std::shared_ptr<size_t[]> WgSizes{new size_t[MaxDims]};
-    URRet = urDeviceGetInfo(hDevice, UR_DEVICE_INFO_MAX_WORK_ITEM_SIZES,
-                            MaxDims * sizeof(size_t), WgSizes.get(), nullptr);
+    URRet = ur::opencl::urDeviceGetInfo(
+        hDevice, UR_DEVICE_INFO_MAX_WORK_ITEM_SIZES, MaxDims * sizeof(size_t),
+        WgSizes.get(), nullptr);
     if (URRet != UR_RESULT_SUCCESS)
       return URRet;
     for (size_t i = 1; i < MaxDims; ++i)
@@ -305,14 +308,14 @@ urKernelGetSubGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
       // Two calls to urDeviceGetInfo are needed: the first determines the size
       // required to store the result, and the second returns the actual size
       // values.
-      UR_RETURN_ON_FAILURE(urDeviceGetInfo(hDevice,
-                                           UR_DEVICE_INFO_SUB_GROUP_SIZES_INTEL,
-                                           0, nullptr, &ResultSize));
+      UR_RETURN_ON_FAILURE(ur::opencl::urDeviceGetInfo(
+          hDevice, UR_DEVICE_INFO_SUB_GROUP_SIZES_INTEL, 0, nullptr,
+          &ResultSize));
       assert(ResultSize % sizeof(uint32_t) == 0);
       std::vector<uint32_t> Result(ResultSize / sizeof(uint32_t));
-      UR_RETURN_ON_FAILURE(urDeviceGetInfo(hDevice,
-                                           UR_DEVICE_INFO_SUB_GROUP_SIZES_INTEL,
-                                           ResultSize, Result.data(), nullptr));
+      UR_RETURN_ON_FAILURE(ur::opencl::urDeviceGetInfo(
+          hDevice, UR_DEVICE_INFO_SUB_GROUP_SIZES_INTEL, ResultSize,
+          Result.data(), nullptr));
       RetVal = *std::max_element(Result.begin(), Result.end());
       Ret = CL_SUCCESS;
     } else if (propName == UR_KERNEL_SUB_GROUP_INFO_SUB_GROUP_SIZE_INTEL) {
@@ -529,12 +532,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSizeWithArgs(
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
     }
   }
-  return urKernelGetSuggestedLocalWorkSize(hKernel, hQueue, workDim,
-                                           pGlobalWorkOffset, pGlobalWorkSize,
-                                           pSuggestedLocalWorkSize);
+  return ur::opencl::urKernelGetSuggestedLocalWorkSize(
+      hKernel, hQueue, workDim, pGlobalWorkOffset, pGlobalWorkSize,
+      pSuggestedLocalWorkSize);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urKernelSetSpecializationConstants(
     ur_kernel_handle_t, uint32_t, const ur_specialization_constant_info_t *) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
+
+} // namespace ur::opencl

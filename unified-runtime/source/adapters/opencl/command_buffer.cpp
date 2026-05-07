@@ -20,7 +20,7 @@
 /// The ur_exp_command_buffer_handle_t_ destructor calls CL release
 /// command-buffer to free the underlying object.
 ur_exp_command_buffer_handle_t_::~ur_exp_command_buffer_handle_t_() {
-  urQueueRelease(hInternalQueue);
+  ur::opencl::urQueueRelease(hInternalQueue);
   if (LastSubmission) {
     clReleaseEvent(LastSubmission);
   }
@@ -37,6 +37,8 @@ ur_exp_command_buffer_handle_t_::~ur_exp_command_buffer_handle_t_() {
 
   clReleaseCommandBufferKHR(CLCommandBuffer);
 }
+
+namespace ur::opencl {
 
 UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferCreateExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
@@ -81,14 +83,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferCreateExp(
     QueueProperties.flags = UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE;
   }
   UR_RETURN_ON_FAILURE(
-      urQueueCreate(hContext, hDevice, &QueueProperties, &Queue));
+      ur::opencl::urQueueCreate(hContext, hDevice, &QueueProperties, &Queue));
 
   cl_int Res = CL_SUCCESS;
   const cl_command_queue CLQueue = Queue->CLQueue;
   auto CLCommandBuffer =
       clCreateCommandBufferKHR(1, &CLQueue, Properties, &Res);
   if (Res != CL_SUCCESS) {
-    urQueueRelease(Queue);
+    ur::opencl::urQueueRelease(Queue);
     CL_RETURN_ON_FAILURE_AND_SET_NULL(Res, phCommandBuffer);
   }
 
@@ -205,7 +207,7 @@ urCommandBufferAppendKernelLaunchWithArgsExp(
     }
   }
 
-  return urCommandBufferAppendKernelLaunchExp(
+  return ur::opencl::urCommandBufferAppendKernelLaunchExp(
       hCommandBuffer, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
       pLocalWorkSize, 0, nullptr, numSyncPointsInWaitList, pSyncPointWaitList,
       numEventsInWaitList, phEventWaitList, pSyncPoint, phEvent,
@@ -920,3 +922,5 @@ urCommandBufferGetNativeHandleExp(ur_exp_command_buffer_handle_t hCommandBuffer,
       reinterpret_cast<ur_native_handle_t>(hCommandBuffer->CLCommandBuffer);
   return UR_RESULT_SUCCESS;
 }
+
+} // namespace ur::opencl

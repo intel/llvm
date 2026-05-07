@@ -99,6 +99,8 @@ usmDescToCLMemProperties(const ur_base_desc_t *Desc,
   return UR_RESULT_SUCCESS;
 }
 
+namespace ur::opencl {
+
 UR_APIEXPORT ur_result_t UR_APICALL
 urUSMHostAlloc(ur_context_handle_t Context, const ur_usm_desc_t *pUSMDesc,
                ur_usm_pool_handle_t, size_t size, void **ppMem) {
@@ -840,3 +842,5 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMHostAllocUnregisterExp(
     ur_context_handle_t /*hContext*/, void * /*pHostMem*/) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
+
+} // namespace ur::opencl

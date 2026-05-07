@@ -25,16 +25,16 @@ struct ur_event_handle_t_ : ur::opencl::handle_base {
   ur_event_handle_t_(native_type Event, ur_context_handle_t Ctx,
                      ur_queue_handle_t Queue)
       : handle_base(), CLEvent(Event), Context(Ctx), Queue(Queue) {
-    urContextRetain(Context);
+    ur::opencl::urContextRetain(Context);
     if (Queue) {
-      urQueueRetain(Queue);
+      ur::opencl::urQueueRetain(Queue);
     }
   }
 
   ~ur_event_handle_t_() {
-    urContextRelease(Context);
+    ur::opencl::urContextRelease(Context);
     if (Queue) {
-      urQueueRelease(Queue);
+      ur::opencl::urQueueRelease(Queue);
     }
     if (IsNativeHandleOwned) {
       clReleaseEvent(CLEvent);

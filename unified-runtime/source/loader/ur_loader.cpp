@@ -11,6 +11,9 @@
 #ifdef UR_STATIC_ADAPTER_LEVEL_ZERO
 #include "adapters/level_zero/ur_interface_loader.hpp"
 #endif
+#ifdef UR_STATIC_ADAPTER_OPENCL
+#include "adapters/opencl/ur_interface_loader.hpp"
+#endif
 
 namespace ur_loader {
 ///////////////////////////////////////////////////////////////////////////////
@@ -31,16 +34,44 @@ ur_result_t context_t::init() {
   UINT SavedMode = SetErrorMode(SEM_FAILCRITICALERRORS);
 #endif
 
-#ifdef UR_STATIC_ADAPTER_LEVEL_ZERO
+#if defined(UR_STATIC_ADAPTER_LEVEL_ZERO) || defined(UR_STATIC_ADAPTER_OPENCL)
   // If the adapters were force loaded, it means the user wants to use
   // a specific adapter library. Don't load any static adapters.
+  [[maybe_unused]] bool staticOCLRegistered = false;
   if (!adapter_registry.adaptersForceLoaded()) {
+#ifdef UR_STATIC_ADAPTER_LEVEL_ZERO
     auto &level_zero = platforms.emplace_back(nullptr);
     ur::level_zero::urAdapterGetDdiTables(&level_zero.dditable);
+#endif
+#ifdef UR_STATIC_ADAPTER_OPENCL
+    {
+      // Probe the adapter before registering: urAdapterGet triggers
+      // loadOCLLibrary(). If the OpenCL library is absent the global
+      // ocl::*_ptr function pointers stay null, and any later call through
+      // the DDI table (e.g. urPlatformGetInfo) would segfault.
+      ur_dditable_t ocl_ddi = {};
+      ur::opencl::urAdapterGetDdiTables(&ocl_ddi);
+      ur_adapter_handle_t hAdapter = nullptr;
+      if (ocl_ddi.Adapter.pfnGet &&
+          ocl_ddi.Adapter.pfnGet(1, &hAdapter, nullptr) == UR_RESULT_SUCCESS) {
+        ocl_ddi.Adapter.pfnRelease(hAdapter);
+        auto &opencl = platforms.emplace_back(nullptr);
+        opencl.dditable = ocl_ddi;
+        staticOCLRegistered = true;
+      }
+    }
+#endif
   }
 #endif
 
   for (const auto &adapterPaths : adapter_registry) {
+#ifdef UR_STATIC_ADAPTER_OPENCL
+    // Skip the dynamic OpenCL adapter when the static one is already
+    // registered — loading both would double-register the OCL backend.
+    if (staticOCLRegistered && !adapterPaths.empty() &&
+        adapterPaths[0].string().find("ur_adapter_opencl") != std::string::npos)
+      continue;
+#endif
     for (const auto &path : adapterPaths) {
       auto handle = LibLoader::loadAdapterLibrary(path.string().c_str());
       if (handle) {

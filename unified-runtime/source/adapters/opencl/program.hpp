@@ -26,14 +26,14 @@ struct ur_program_handle_t_ : ur::opencl::handle_base {
   ur_program_handle_t_(native_type Prog, ur_context_handle_t Ctx,
                        uint32_t NumDevices, ur_device_handle_t *Devs)
       : handle_base(), CLProgram(Prog), Context(Ctx), NumDevices(NumDevices) {
-    urContextRetain(Context);
+    ur::opencl::urContextRetain(Context);
     for (uint32_t i = 0; i < NumDevices; i++) {
       Devices.push_back(Devs[i]);
     }
   }
 
   ~ur_program_handle_t_() {
-    urContextRelease(Context);
+    ur::opencl::urContextRelease(Context);
     if (IsNativeHandleOwned) {
       clReleaseProgram(CLProgram);
     }

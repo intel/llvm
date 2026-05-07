@@ -11,10 +11,12 @@
 #include "common.hpp"
 #include "ur/ur.hpp"
 
+#ifndef UR_STATIC_ADAPTER_OPENCL
 #ifdef _MSC_VER
 #include <Windows.h>
 #else
 #include <dlfcn.h>
+#endif
 #endif
 
 // There can only be one OpenCL adapter alive at a time.
@@ -23,6 +25,25 @@
 static ur_adapter_handle_t liveAdapter = nullptr;
 
 ur_adapter_handle_t_::ur_adapter_handle_t_() : handle_base() {
+#ifdef UR_STATIC_ADAPTER_OPENCL
+  if (!ocl::loadOCLLibrary()) {
+    return;
+  }
+  // Probe for platforms: a stub ICD may load successfully but expose none.
+  cl_uint NumPlatforms = 0;
+  cl_int Result = ocl::clGetPlatformIDs_ptr(0, nullptr, &NumPlatforms);
+  if (Result != CL_SUCCESS || NumPlatforms == 0) {
+    // No platforms found — unload immediately. This adapter never escapes
+    // urAdapterGet, so no teardown paths can hold function pointers yet.
+    ocl::unloadOCLLibrary();
+    return;
+  }
+  // Mirror the symbols already resolved by ocl_dynamic_lib into the per-adapter
+  // struct fields, so call sites like `getAdapter()->FIELD(...)` work.
+#define CL_CORE_FUNCTION(FUNC, FIELD) FIELD = ocl::FUNC##_ptr;
+#include "core_functions.def"
+#undef CL_CORE_FUNCTION
+#else
 #ifdef _MSC_VER
 
   // Retrieving handle of an already linked OpenCL.dll library doesn't increase
@@ -30,27 +51,35 @@ ur_adapter_handle_t_::ur_adapter_handle_t_() : handle_base() {
   auto handle = GetModuleHandleA("OpenCL.dll");
   assert(handle);
 
-#define CL_CORE_FUNCTION(FUNC)                                                 \
-  FUNC = reinterpret_cast<decltype(::FUNC) *>(GetProcAddress(handle, #FUNC));
+#define CL_CORE_FUNCTION(FUNC, FIELD)                                          \
+  FIELD = reinterpret_cast<decltype(::FUNC) *>(GetProcAddress(handle, #FUNC));
 #include "core_functions.def"
 #undef CL_CORE_FUNCTION
 #else // _MSC_VER
 
   // Use the default shared object search order (RTLD_DEFAULT) since the
   // OpenCL-ICD-Loader has already been loaded into the process.
-#define CL_CORE_FUNCTION(FUNC)                                                 \
-  FUNC = reinterpret_cast<decltype(::FUNC) *>(dlsym(RTLD_DEFAULT, #FUNC));
+#define CL_CORE_FUNCTION(FUNC, FIELD)                                          \
+  FIELD = reinterpret_cast<decltype(::FUNC) *>(dlsym(RTLD_DEFAULT, #FUNC));
 #include "core_functions.def"
 #undef CL_CORE_FUNCTION
 
 #endif // _MSC_VER
+#endif // UR_STATIC_ADAPTER_OPENCL
   assert(!liveAdapter);
   liveAdapter = this;
 }
 
 ur_adapter_handle_t_::~ur_adapter_handle_t_() {
+#ifdef UR_STATIC_ADAPTER_OPENCL
+  if (liveAdapter == this) {
+    liveAdapter = nullptr;
+    ocl::unloadOCLLibrary();
+  }
+#else
   assert(liveAdapter == this);
   liveAdapter = nullptr;
+#endif
 }
 
 ur_adapter_handle_t ur::cl::getAdapter() {
@@ -60,26 +89,36 @@ ur_adapter_handle_t ur::cl::getAdapter() {
   return liveAdapter;
 }
 
+namespace ur::opencl {
+
 UR_APIEXPORT ur_result_t UR_APICALL
 urAdapterGet(uint32_t NumEntries, ur_adapter_handle_t *phAdapters,
              uint32_t *pNumAdapters) {
   static std::mutex AdapterConstructionMutex{};
 
-  if (NumEntries > 0 && phAdapters) {
-    std::lock_guard<std::mutex> Lock{AdapterConstructionMutex};
+  // Always construct the adapter, even for count-only queries (NumEntries==0),
+  // because the loader may bypass the intercept and call this directly when
+  // there is only one platform registered.
+  std::lock_guard<std::mutex> Lock{AdapterConstructionMutex};
 
+  if (!liveAdapter) {
+    ur_adapter_handle_t_ *newAdapter = new ur_adapter_handle_t_();
     if (!liveAdapter) {
-      *phAdapters = new ur_adapter_handle_t_();
-    } else {
-      *phAdapters = liveAdapter;
+      delete newAdapter;
+      if (pNumAdapters) {
+        *pNumAdapters = 0;
+      }
+      return UR_RESULT_ERROR_UNINITIALIZED;
     }
+  }
 
-    auto &adapter = *phAdapters;
-    adapter->RefCount.retain();
+  if (NumEntries > 0 && phAdapters) {
+    *phAdapters = liveAdapter;
+    liveAdapter->RefCount.retain();
   }
 
   if (pNumAdapters) {
-    *pNumAdapters = 1;
+    *pNumAdapters = liveAdapter != nullptr ? 1 : 0;
   }
 
   return UR_RESULT_SUCCESS;
@@ -146,3 +185,5 @@ UR_APIEXPORT ur_result_t UR_APICALL urAdapterSetLoggerCallbackLevel(
 
   return UR_RESULT_SUCCESS;
 }
+
+} // namespace ur::opencl

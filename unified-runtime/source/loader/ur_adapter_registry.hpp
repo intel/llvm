@@ -398,6 +398,7 @@ private:
 public:
   void enableMock() {
     adaptersLoadPaths.clear();
+    forceLoaded = true;
 
     std::vector<fs::path> loadPaths;
     auto adapterNamePath = fs::path{mockAdapterName};

@@ -25,11 +25,11 @@ struct ur_sampler_handle_t_ : ur::opencl::handle_base {
 
   ur_sampler_handle_t_(native_type Sampler, ur_context_handle_t Ctx)
       : handle_base(), CLSampler(Sampler), Context(Ctx) {
-    urContextRetain(Context);
+    ur::opencl::urContextRetain(Context);
   }
 
   ~ur_sampler_handle_t_() {
-    urContextRelease(Context);
+    ur::opencl::urContextRelease(Context);
     if (IsNativeHandleOwned) {
       clReleaseSampler(CLSampler);
     }
