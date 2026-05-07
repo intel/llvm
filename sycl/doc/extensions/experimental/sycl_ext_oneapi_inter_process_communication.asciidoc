@@ -560,26 +560,26 @@ namespace syclext = sycl::ext::oneapi::experimental;
 
 namespace sycl::ext::oneapi::experimental::ipc::physical_memory {
 
-handle get(syclext::physical_mem &phys_mem);
+syclext::ipc::handle get(syclext::physical_mem &phys_mem);
 
-syclext::physical_mem open(const handle_data_t &handle_data,
+syclext::physical_mem open(const syclext::ipc::handle_data_t &handle_data,
                            const sycl::context &ctx, const sycl::device &dev);
 
-syclext::physical_mem open(const handle_data_t &handle_data,
+syclext::physical_mem open(const syclext::ipc::handle_data_t &handle_data,
                            const sycl::device &dev);
 
-syclext::physical_mem open(const handle_data_t &handle_data);
+syclext::physical_mem open(const syclext::ipc::handle_data_t &handle_data);
 
 // Requires C++20
-syclext::physical_mem open(const handle_data_view_t &handle_data_view,
+syclext::physical_mem open(const syclext::ipc::handle_data_view_t &handle_data_view,
                            const sycl::context &ctx, const sycl::device &dev);
 
 // Requires C++20
-syclext::physical_mem open(const handle_data_view_t &handle_data_view,
+syclext::physical_mem open(const syclext::ipc::handle_data_view_t &handle_data_view,
                            const sycl::device &dev);
 
 // Requires C++20
-syclext::physical_mem open(const handle_data_view_t &handle_data_view);
+syclext::physical_mem open(const syclext::ipc::handle_data_view_t &handle_data_view);
 
 }
 ```
@@ -591,7 +591,7 @@ a|
 a!
 [source]
 ----
-handle get(syclext::physical_mem &phys_mem)
+syclext::ipc::handle get(syclext::physical_mem &phys_mem)
 ----
 !====
 
@@ -608,7 +608,7 @@ the device associated with `phys_mem` does not have
 a!
 [source]
 ----
-syclext::physical_mem open(const handle_data_t &handle_data,
+syclext::physical_mem open(const syclext::ipc::handle_data_t &handle_data,
                            const sycl::context &ctx, const sycl::device &dev)
 ----
 !====
@@ -643,7 +643,7 @@ _Throws:_
 a!
 [source]
 ----
-syclext::physical_mem open(const handle_data_t &handle_data,
+syclext::physical_mem open(const syclext::ipc::handle_data_t &handle_data,
                            const sycl::device &dev)
 ----
 !====
@@ -660,7 +660,7 @@ return ipc::physical_memory::open(handle_data, ctxt, dev);
 a!
 [source]
 ----
-syclext::physical_mem open(const handle_data_t &handle_data)
+syclext::physical_mem open(const syclext::ipc::handle_data_t &handle_data)
 ----
 !====
 
@@ -677,7 +677,7 @@ return ipc::physical_memory::open(handle_data, ctxt, d);
 a!
 [source]
 ----
-syclext::physical_mem open(const handle_data_view_t &handle_data_view,
+syclext::physical_mem open(const syclext::ipc::handle_data_view_t &handle_data_view,
                            const sycl::context &ctx, const sycl::device &dev)
 ----
 !====
@@ -694,7 +694,7 @@ return ipc::physical_memory::open(handle_data, ctx, dev);
 a!
 [source]
 ----
-syclext::physical_mem open(const handle_data_view_t &handle_data_view,
+syclext::physical_mem open(const syclext::ipc::handle_data_view_t &handle_data_view,
                            const sycl::device &dev)
 ----
 !====
@@ -711,7 +711,7 @@ return ipc::physical_memory::open(handle_data_view, ctxt, dev);
 a!
 [source]
 ----
-syclext::physical_mem open(const handle_data_view_t &handle_data_view)
+syclext::physical_mem open(const syclext::ipc::handle_data_view_t &handle_data_view)
 ----
 !====
 
