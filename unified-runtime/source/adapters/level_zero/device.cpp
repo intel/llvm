@@ -1574,11 +1574,14 @@ ur_result_t urDeviceGetInfo(
   case UR_DEVICE_INFO_IS_INTEGRATED_GPU:
     return ReturnValue(static_cast<ur_bool_t>(Device->isIntegrated() != 0));
   case UR_DEVICE_INFO_GRAPH_RECORD_AND_REPLAY_SUPPORT_EXP:
-#ifdef UR_ADAPTER_LEVEL_ZERO_V2
-    return ReturnValue(Device->Platform->ZeGraphExt.Supported);
-#else
+    // TODO: Re-enable when platform requirements are defined for graph record
+    // and replay
     return ReturnValue(false);
-#endif
+    // #ifdef UR_ADAPTER_LEVEL_ZERO_V2
+    //     return ReturnValue(Device->Platform->ZeGraphExt.Supported);
+    // #else
+    //     return ReturnValue(false);
+    // #endif
   case UR_DEVICE_INFO_ENQUEUE_HOST_TASK_SUPPORT_EXP:
 #ifdef UR_ADAPTER_LEVEL_ZERO_V2
     return ReturnValue(Device->Platform->ZeHostTaskExt.Supported);
