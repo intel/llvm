@@ -194,7 +194,7 @@ static inline bool IsIntelCPUOffloadArch(OffloadArch Arch) {
 }
 
 static inline bool IsIntelGPUOffloadArch(OffloadArch Arch) {
-  return Arch >= OffloadArch::BDW && Arch < OffloadArch::LAST;
+  return Arch >= OffloadArch::BDW && Arch <= OffloadArch::LAST;
 }
 
 static inline bool IsIntelOffloadArch(OffloadArch Arch) {
