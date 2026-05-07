@@ -57,6 +57,10 @@ there to be a per-platform default context even if the core SYCL specification
 does not provide a convenient way to get it.
 _{endnote}_]
 
+This extension also depends on the following other SYCL extensions:
+
+* link:sycl_ext_oneapi_virtual_mem.asciidoc[sycl_ext_oneapi_virtual_mem]
+* link:sycl_ext_oneapi_properties.asciidoc[sycl_ext_oneapi_properties]
 
 == Status
 
@@ -535,6 +539,11 @@ memory.
 The following aspect and set of free functions are specific to
 physical memory handle sharing feature.
 
+The physical memory is represented by the
+`sycl::ext::oneapi::experimental::physical_mem` object instance
+(from the link:sycl_ext_oneapi_virtual_mem.asciidoc[
+sycl_ext_oneapi_virtual_mem] extension).
+
 ==== Extension to `enum class aspect` for physical memory
 
 [source]
@@ -549,6 +558,54 @@ enum class aspect {
 
 If a SYCL device has this aspect, that device supports the functions in the
 `ipc::physical_memory` namespace specified in the following section.
+
+==== New property for the physical_mem constructor
+
+This extension adds the following property, which can be passed to the
+physical_mem object constructor.
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+struct enable_ipc {
+  enable_ipc(bool enable = true);
+};
+using enable_ipc_key = enable_ipc;
+
+} // namespace sycl::ext::oneapi::experimental
+----
+
+This property controls whether the physical memory object can be shared across
+processes.
+
+_Effects:_ Creates a new `enable_ipc` property with a boolean value
+indicating whether the physical memory object can be shared across processes.
+
+_Remarks:_ `physical_mem` constructor throws an exception with the
+`errc::feature_not_supported` error code if inter-process sharing is enabled
+via `enable_ipc` and the device associated with `physical_mem` does not have
+the aspect `aspect::ext_oneapi_ipc_event`.
+
+==== New physical_mem member function
+
+This extension adds a new physical_mem type member function, which can be used
+to check if a given physical memory allcation can be passed between processes.
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+class physical_mem {
+  // ...
+  bool ext_oneapi_ipc_enabled() const;
+};
+
+} // namespace sycl::ext::oneapi::experimental
+----
+
+_Returns:_ True if the physical_mem object was created with inter-process
+sharing enabled.
 
 ==== New functions associated with physical memory
 
@@ -613,9 +670,13 @@ syclext::physical_mem open(const syclext::ipc::handle_data_t &handle_data,
 ----
 !====
 
-_Preconditions:_ `handle_data` is the IPC "handle" to a physical memory object
-that was returned from a call to the `get` function either in this process or in some
-other process on the same system.
+_Preconditions:_
+
+ * `handle_data` is the IPC "handle" to a physical memory object
+   that was returned from a call to the `get` function either in this process
+   or in some other process on the same system.
+ * `dev` is the same device that was associated with the `physical_mem` object
+   passed to the `get` function call that produced `handle_data`.
 
 _Returns:_ A physical memory object represented by `handle_data`. The returned
 object is associated with context `ctx` and device `dev`.

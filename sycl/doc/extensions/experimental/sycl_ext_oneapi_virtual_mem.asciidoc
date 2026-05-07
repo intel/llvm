@@ -41,6 +41,9 @@ This extension is written against the SYCL 2020 revision 8 specification.  All
 references below to the "core SYCL specification" or to section numbers in the
 SYCL specification refer to that revision.
 
+This extension also depends on the following other SYCL extensions:
+
+* link:sycl_ext_oneapi_properties.asciidoc[sycl_ext_oneapi_properties]
 
 == Status
 
@@ -242,8 +245,11 @@ enum class address_access_mode : /*unspecified*/ {
 
 class physical_mem {
 public:
-  physical_mem(const device &syclDevice, const context &syclContext, size_t numBytes);
-  physical_mem(const queue &syclQueue, size_t numBytes);
+  template<typename PropertyListT = empty_properties_t>
+  physical_mem(const device &syclDevice, const context &syclContext, size_t numBytes,
+               PropertyListT props = {});
+  template<typename PropertyListT = empty_properties_t>
+  physical_mem(const queue &syclQueue, size_t numBytes, PropertyListT props = {});
 
   /* -- common interface members -- */
 
@@ -265,7 +271,9 @@ public:
 |============================
 |Member function |Description
 
-|`physical_mem(const device &syclDevice, const context &syclContext, size_t numBytes)` |
+|`template<typename PropertyListT = empty_properties_t>
+  physical_mem(const device &syclDevice, const context &syclContext, size_t numBytes,
+  PropertyListT props = {})` |
 Constructs a `physical_mem` instance using the `syclDevice` provided. This
 device must either be contained by `syclContext` or it must be a descendent
 device of some device that is contained by that context, otherwise this function
@@ -281,8 +289,12 @@ an exception with `errc::feature_not_supported`.
 If the constructor is unable to allocate the required memory on `syclDevice`,
 the call throws an exception with `errc::memory_allocation`.
 
-|`physical_mem(const queue &syclQueue, size_t numBytes)` |
-Same as `physical_mem(syclQueue.get_device(), syclQueue.get_context(), numBytes)`.
+`props` can optionally be used to provide the physical memory properties.
+
+|`template<typename PropertyListT = empty_properties_t>
+  physical_mem(const queue &syclQueue, size_t numBytes, PropertyListT props = {})` |
+Same as `physical_mem(syclQueue.get_device(), syclQueue.get_context(), numBytes,
+props)`.
 
 |`void *map(uintptr_t ptr, size_t numBytes, address_access_mode mode, size_t offset = 0)` |
 Maps a virtual memory range, specified by `ptr` and `numBytes`, to the physical
