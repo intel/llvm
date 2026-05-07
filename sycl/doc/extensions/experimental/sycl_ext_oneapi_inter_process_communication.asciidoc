@@ -70,11 +70,11 @@ specification.*
 
 == Overview
 
-This extension adds the ability for SYCL programs to share device USM memory
-allocations between processes. This is done by the allocating process creating
-a new IPC memory handle through the new free functions and transferring the
+This extension adds the ability for SYCL programs to share various objects
+or USM memory allocations between processes. This is done by creating a new IPC
+handle in one process through the new free functions and transferring the
 returned handle data to the other processes. The other processes can use the
-handle data to retrieve the corresponding device USM memory.
+handle data to retrieve the corresponding object or allocation.
 
 
 == Specification
@@ -99,7 +99,74 @@ implementation supports.
  feature-test macro always has this value.
 |===
 
-=== Extension to `enum class aspect`
+=== Generic types
+
+This extension adds these generic types for all of the objects supported by the
+extension to be shared between processes.
+
+It adds aliases `handle_data_t` and `handle_data_view_t` as well as a new
+handle type `handle` under the `ipc` experimental namespace.
+
+```
+namespace sycl::ext::oneapi::experimental::ipc {
+
+using handle_data_t = std::vector<std::byte>;
+
+// Requires C++20
+using handle_data_view_t = std::span<const std::byte, std::dynamic_extent>;
+
+struct handle {
+  handle_data_t data() const;
+
+  // Requires C++20
+  handle_data_view_t data_view() const;
+};
+
+}
+```
+
+|====
+a|
+[frame=all,grid=none]
+!====
+a!
+[source]
+----
+handle_data_t data() const;
+----
+!====
+
+_Preconditions:_ The `put` function has not previously been called with this
+handle and the resources associated with this handle have not been freed.
+
+_Returns:_ The handle data associated with the IPC handle object. This data can
+be transferred to other processes, but cannot be used to recreate a `handle`
+object.
+
+!====
+a!
+[source]
+----
+handle_data_view_t data_view() const;
+----
+!====
+
+_Preconditions:_ The `put` function has not previously been called with this
+handle and the resources associated with this handle have not been freed.
+
+_Returns:_ A `std::span` with a view into the handle data associated with the
+IPC handle object. This data can be transferred to other processes, but cannot
+be used to recreate a `handle` object.
+
+|====
+
+=== Inter-process communicable memory
+
+This extension allows for the exchange of USM device memory pointers between
+processes. The following aspect and set of free functions are specific to USM
+memory sharing feature.
+
+==== Extension to `enum class aspect` for USM memory
 
 [source]
 ----
@@ -114,8 +181,7 @@ enum class aspect {
 If a SYCL device has this aspect, that device supports the `get` and `open`
 functions specified in the following section.
 
-
-=== Inter-process communicable memory
+==== New functions and types associated with USM memory
 
 This extension adds a new type aliases `handle_data_t` and `handle_data_view_t`
 as well as a new IPC memory handle type `handle` under the `ipc_memory`
@@ -129,6 +195,9 @@ using handle_data_t = std::vector<std::byte>;
 // Requires C++20
 using handle_data_view_t = std::span<const std::byte, std::dynamic_extent>;
 
+// This struct is defined for backward compatibility and will be replaced by
+// the sycl::ext::oneapi::experimental::ipc::handle struct in the next ABI
+// braking window.
 struct handle {
   handle_data_t data() const;
 
@@ -291,7 +360,7 @@ _Effects_: Equivalent to:
 ----
 sycl::device d;
 sycl::context ctxt = d.get_platform().khr_get_default_context();
-ipc_memory::put(handle_data, ctxt);
+ipc_memory::put(ipc_handle, ctxt);
 ----
 
 !====
@@ -352,15 +421,14 @@ _Effects_: Equivalent to:
 [source,c++,indent=2]
 ----
 sycl::context ctxt = dev.get_platform().khr_get_default_context();
-return ipc_memory::put(handle_data, ctxt, dev);
+return ipc_memory::open(handle_data, ctxt, dev);
 ----
 
 !====
 a!
 [source]
 ----
-void *open(const handle_data_t &handle_data, const sycl::context &ctx,
-           const sycl::device &dev)
+void *open(const handle_data_t &handle_data)
 ----
 !====
 
@@ -387,7 +455,7 @@ _Effects_: Equivalent to:
 [source,c++,indent=2]
 ----
 handle_data_t handle_data{handle_data_view.begin(), handle_data_view.end()};
-return ipc_memory::put(handle_data, ctx, dev);
+return ipc_memory::open(handle_data, ctx, dev);
 ----
 
 !====
@@ -403,15 +471,14 @@ _Effects_: Equivalent to:
 [source,c++,indent=2]
 ----
 sycl::context ctxt = dev.get_platform().khr_get_default_context();
-return ipc_memory::put(handle_data_view, ctxt, dev);
+return ipc_memory::open(handle_data_view, ctxt, dev);
 ----
 
 !====
 a!
 [source]
 ----
-void *open(const handle_data_view_t &handle_data_view, const sycl::context &ctx,
-           const sycl::device &dev)
+void *open(const handle_data_view_t &handle_data_view)
 ----
 !====
 
