@@ -344,6 +344,7 @@ public:
   void VisitSubstTemplateTypeParmType(const SubstTemplateTypeParmType *T);
   void
   VisitSubstTemplateTypeParmPackType(const SubstTemplateTypeParmPackType *T);
+  void VisitDeducedType(const DeducedType *T);
   void VisitAutoType(const AutoType *T);
   void VisitDeducedTemplateSpecializationType(
       const DeducedTemplateSpecializationType *T);

@@ -1,9 +1,8 @@
 //===--------- common.cpp - Level Zero Adapter ----------------------------===//
 //
-// Copyright (C) 2023 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
@@ -344,6 +343,12 @@ getZexStructureType<ze_intel_device_block_array_exp_properties_t>() {
   return ZE_INTEL_DEVICE_BLOCK_ARRAY_EXP_PROPERTIES;
 }
 #endif // ZE_INTEL_DEVICE_BLOCK_ARRAY_EXP_NAME
+
+template <>
+ze_structure_type_ext_t
+getZexStructureType<ze_intel_xe_device_exp_properties_t>() {
+  return ZE_STRUCTURE_TYPE_INTEL_XE_DEVICE_EXP_PROPERTIES;
+}
 
 // Global variables for ZER_EXT_RESULT_ADAPTER_SPECIFIC_ERROR
 thread_local int32_t ErrorMessageCode = 0;

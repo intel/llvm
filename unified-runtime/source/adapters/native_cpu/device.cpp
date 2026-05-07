@@ -1,9 +1,8 @@
 //===--------- device.cpp - NATIVE CPU Adapter ----------------------------===//
 //
-// Copyright (C) 2023-2026 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
@@ -228,6 +227,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_SHORT:
   case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_INT:
   case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_LONG:
+  case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_LONG_LONG:
   case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_FLOAT:
   case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_DOUBLE:
   case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_HALF:
@@ -240,6 +240,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_INT:
     return ReturnValue(uint32_t{8});
   case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG:
+  case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG_LONG:
     return ReturnValue(uint32_t{4});
   case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_FLOAT:
     return ReturnValue(uint32_t{8});
@@ -362,6 +363,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS:
   case UR_DEVICE_INFO_IL_VERSION:
   case UR_DEVICE_INFO_MAX_WORK_GROUPS_3D:
+  case UR_DEVICE_INFO_MAX_WORK_GROUPS:
   case UR_DEVICE_INFO_MEMORY_CLOCK_RATE:
   case UR_DEVICE_INFO_MEMORY_BUS_WIDTH:
   case UR_DEVICE_INFO_GLOBAL_MEM_FREE:

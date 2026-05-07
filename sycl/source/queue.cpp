@@ -76,24 +76,16 @@ context queue::get_context() const { return impl->get_context(); }
 device queue::get_device() const { return impl->get_device(); }
 
 ext::oneapi::experimental::queue_state queue::ext_oneapi_get_state() const {
-  return impl->hasCommandGraph()
-             ? ext::oneapi::experimental::queue_state::recording
-             : ext::oneapi::experimental::queue_state::executing;
+  return impl->ext_oneapi_get_state_impl();
 }
 
 ext::oneapi::experimental::command_graph<
     ext::oneapi::experimental::graph_state::modifiable>
 queue::ext_oneapi_get_graph() const {
-  auto Graph = impl->getCommandGraph();
-  if (!Graph)
-    throw sycl::exception(
-        make_error_code(errc::invalid),
-        "ext_oneapi_get_graph() can only be called on recording queues.");
-
   return sycl::detail::createSyclObjFromImpl<
       ext::oneapi::experimental::command_graph<
           ext::oneapi::experimental::graph_state::modifiable>>(
-      std::move(Graph));
+      impl->ext_oneapi_get_graph_impl());
 }
 
 void queue::throw_asynchronous() { impl->throw_asynchronous(); }
@@ -207,7 +199,8 @@ void queue::wait_and_throw_proxy(const detail::code_location &CodeLoc) {
 /// \return a SYCL event object, which corresponds to the queue the command
 /// group is being enqueued on.
 event queue::ext_oneapi_submit_barrier(const detail::code_location &CodeLoc) {
-  return ext_oneapi_submit_barrier(std::vector<event>{}, CodeLoc);
+  return impl->submit_barrier_direct_with_event({}, detail::CGType::Barrier,
+                                                CodeLoc);
 }
 
 /// Prevents any commands submitted afterward to this queue from executing
@@ -221,26 +214,8 @@ event queue::ext_oneapi_submit_barrier(const detail::code_location &CodeLoc) {
 /// group is being enqueued on.
 event queue::ext_oneapi_submit_barrier(const std::vector<event> &WaitList,
                                        const detail::code_location &CodeLoc) {
-
-  // If waitlist contains only empty, default constructed events, ignore
-  // them.
-  bool AllEventsEmptyOrNop = std::all_of(
-      begin(WaitList), end(WaitList), [&](const event &Event) -> bool {
-        detail::event_impl &EventImpl = *detail::getSyclObjImpl(Event);
-        return (EventImpl.isDefaultConstructed() || EventImpl.isNOP()) &&
-               !EventImpl.hasCommandGraph();
-      });
-
-  // TODO: Support no-handler barrier submission for queues with command graphs.
-  if (impl->getCommandGraph()) {
-    if (WaitList.empty() || AllEventsEmptyOrNop)
-      return submit([=](handler &CGH) { CGH.ext_oneapi_barrier(); }, CodeLoc);
-    else
-      return submit([=](handler &CGH) { CGH.ext_oneapi_barrier(WaitList); },
-                    CodeLoc);
-  } else {
-    return impl->submit_barrier_direct_with_event(WaitList, CodeLoc);
-  }
+  return impl->submit_barrier_direct_with_event(
+      WaitList, detail::CGType::BarrierWaitlist, CodeLoc);
 }
 
 template <typename Param>

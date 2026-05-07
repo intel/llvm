@@ -2,6 +2,8 @@
 // UNSUPPORTED: target-nvidia || target-amd
 // UNSUPPORTED-INTENDED: subgroup size requirement implicitly make nvptx/amdgcn
 // not supported
+// XFAIL: spirv-backend && run-mode
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/21782
 
 // RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out

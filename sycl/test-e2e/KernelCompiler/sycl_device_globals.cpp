@@ -11,6 +11,9 @@
 // UNSUPPORTED: opencl && gpu
 // UNSUPPORTED-TRACKER: GSD-4287
 
+// UNSUPPORTED: gpu-nvidia-geforce-rtx-3090
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20408
+
 // RUN: %{build} -o %t.out
 // RUN: %if hip %{ env SYCL_JIT_AMDGCN_PTX_TARGET_CPU=%{amd_arch} %} %{l0_leak_check} %{run} %t.out
 
@@ -80,7 +83,7 @@ int test_device_global() {
   auto checkVal = [&](int32_t expected) {
     val = -1;
     q.memcpy(&val, dgAddr, dgSize).wait();
-    std::cout << "val: " << val << " == " << expected << '\n';
+    std::cout << "val: " << val << " == " << expected << std::endl;
     assert(val == expected);
   };
 
@@ -162,9 +165,27 @@ int test_error() {
   return 0;
 }
 
+#ifndef MCR_TEST_COUNT
+#define MCR_TEST_COUNT 5
+#endif
+
 int main() {
 #ifdef SYCL_EXT_ONEAPI_KERNEL_COMPILER
-  return test_device_global() || test_error();
+  constexpr std::size_t testCount{MCR_TEST_COUNT};
+  std::size_t testIteration{1}, failed{};
+  int constexpr OK = 0;
+
+  for (; testIteration <= testCount; ++testIteration) {
+    std::cout << "Test iteration: " << testIteration << " / " << testCount;
+    std::cout << std::endl;
+
+    if (test_device_global() != OK) {
+      ++failed;
+      break;
+    }
+  }
+
+  return failed || test_error();
 #else
   static_assert(false, "Kernel Compiler feature test macro undefined");
 #endif

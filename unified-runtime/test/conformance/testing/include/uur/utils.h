@@ -1,6 +1,5 @@
-// Copyright (C) 2022-2023 Intel Corporation
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
@@ -243,6 +242,8 @@ ur_result_t GetDevicePreferredVectorWidthInt(ur_device_handle_t device,
                                              uint32_t &pref_width);
 ur_result_t GetDevicePreferredVectorWidthLong(ur_device_handle_t device,
                                               uint32_t &pref_width);
+ur_result_t GetDevicePreferredVectorWidthLongLong(ur_device_handle_t device,
+                                                  uint32_t &pref_width);
 ur_result_t GetDevicePreferredVectorWidthFloat(ur_device_handle_t device,
                                                uint32_t &pref_width);
 ur_result_t GetDevicePreferredVectorWidthDouble(ur_device_handle_t device,
@@ -257,6 +258,8 @@ ur_result_t GetDeviceNativeVectorWithInt(ur_device_handle_t device,
                                          uint32_t &vec_width);
 ur_result_t GetDeviceNativeVectorWithLong(ur_device_handle_t device,
                                           uint32_t &vec_width);
+ur_result_t GetDeviceNativeVectorWithLongLong(ur_device_handle_t device,
+                                              uint32_t &vec_width);
 ur_result_t GetDeviceNativeVectorWithFloat(ur_device_handle_t device,
                                            uint32_t &vec_width);
 ur_result_t GetDeviceNativeVectorWithDouble(ur_device_handle_t device,
@@ -558,6 +561,16 @@ MakeValueArgProp(uint32_t index, const void *data, size_t size) {
           index,
           size,
           val};
+}
+
+// Creates a UR event handle from a null native handle. The returned event is
+// NOT a valid event - it cannot be waited on, profiled, or otherwise used.
+// Its only purpose is to provide a non-null ur_event_handle_t so that the
+// validation layer's wait-list argument checks can be exercised in tests
+// without enqueuing any real work on the queue.
+inline ur_result_t MakeDummyEventForWaitList(ur_context_handle_t hContext,
+                                             ur_event_handle_t *phEvent) {
+  return urEventCreateWithNativeHandle(0, hContext, nullptr, phEvent);
 }
 
 } // namespace uur

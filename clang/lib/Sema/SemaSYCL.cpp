@@ -661,14 +661,10 @@ static void collectSYCLAttributes(FunctionDecl *FD,
       // FIXME: Make this list self-adapt as new SYCL attributes are added.
       return isa<IntelReqdSubGroupSizeAttr, IntelNamedSubGroupSizeAttr,
                  SYCLReqdWorkGroupSizeAttr, SYCLWorkGroupSizeHintAttr,
-                 SYCLIntelKernelArgsRestrictAttr, SYCLIntelNumSimdWorkItemsAttr,
-                 SYCLIntelSchedulerTargetFmaxMhzAttr,
-                 SYCLIntelMaxWorkGroupSizeAttr, SYCLIntelMaxGlobalWorkDimAttr,
+                 SYCLIntelKernelArgsRestrictAttr,
                  SYCLIntelMinWorkGroupsPerComputeUnitAttr,
-                 SYCLIntelMaxWorkGroupsPerMultiprocessorAttr,
-                 SYCLIntelNoGlobalWorkOffsetAttr, SYCLSimdAttr,
-                 SYCLIntelUseStallEnableClustersAttr, SYCLDeviceHasAttr,
-                 SYCLAddIRAttributesFunctionAttr>(A);
+                 SYCLIntelMaxWorkGroupsPerMultiprocessorAttr, SYCLSimdAttr,
+                 SYCLDeviceHasAttr, SYCLAddIRAttributesFunctionAttr>(A);
     });
   }
 }
@@ -2335,7 +2331,8 @@ public:
             SemaSYCLRef.getASTContext()));
       PointerStack.pop_back();
     } else if (PointerStack.pop_back_val()) {
-      if (!RD->hasAttr<SYCLGenerateNewTypeAttr>())
+      if (!RD->hasAttr<SYCLGenerateNewTypeAttr>() &&
+          SemaSYCLRef.getLangOpts().SYCLForceGlobalASInKernelArgs)
         RD->addAttr(SYCLGenerateNewTypeAttr::CreateImplicit(
             SemaSYCLRef.getASTContext()));
     }
@@ -2371,7 +2368,8 @@ public:
       PointerStack.pop_back();
     } else if (PointerStack.pop_back_val()) {
       PointerStack.back() = true;
-      if (!RD->hasAttr<SYCLGenerateNewTypeAttr>())
+      if (!RD->hasAttr<SYCLGenerateNewTypeAttr>() &&
+          SemaSYCLRef.getLangOpts().SYCLForceGlobalASInKernelArgs)
         RD->addAttr(SYCLGenerateNewTypeAttr::CreateImplicit(
             SemaSYCLRef.getASTContext()));
     }
@@ -2390,7 +2388,8 @@ public:
       PointerStack.pop_back();
     } else if (PointerStack.pop_back_val()) {
       PointerStack.back() = true;
-      if (!RD->hasAttr<SYCLGenerateNewTypeAttr>())
+      if (!RD->hasAttr<SYCLGenerateNewTypeAttr>() &&
+          SemaSYCLRef.getLangOpts().SYCLForceGlobalASInKernelArgs)
         RD->addAttr(SYCLGenerateNewTypeAttr::CreateImplicit(
             SemaSYCLRef.getASTContext()));
     }
@@ -2420,7 +2419,8 @@ public:
       PointerStack.pop_back();
     } else if (PointerStack.pop_back_val()) {
       PointerStack.back() = true;
-      if (!RD->hasAttr<SYCLGenerateNewTypeAttr>())
+      if (!RD->hasAttr<SYCLGenerateNewTypeAttr>() &&
+          SemaSYCLRef.getLangOpts().SYCLForceGlobalASInKernelArgs)
         RD->addAttr(SYCLGenerateNewTypeAttr::CreateImplicit(
             SemaSYCLRef.getASTContext()));
     }
@@ -2454,7 +2454,8 @@ public:
       CollectionStack.back() = true;
       PointerStack.pop_back();
     } else if (PointerStack.pop_back_val()) {
-      if (!FD->hasAttr<SYCLGenerateNewTypeAttr>())
+      if (!FD->hasAttr<SYCLGenerateNewTypeAttr>() &&
+          SemaSYCLRef.getLangOpts().SYCLForceGlobalASInKernelArgs)
         FD->addAttr(SYCLGenerateNewTypeAttr::CreateImplicit(
             SemaSYCLRef.getASTContext()));
       PointerStack.back() = true;
@@ -4091,8 +4092,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     Expr *ArrayRef = createSimpleArrayParamReferenceExpr(FieldTy);
     InitializationKind InitKind = InitializationKind::CreateDirect({}, {}, {});
 
-    InitializedEntity Entity = InitializedEntity::InitializeMember(
-        FD, &VarEntity.value(), /*Implicit*/ true);
+    InitializedEntity Entity = InitializedEntity::InitializeMemberImplicit(FD);
 
     addFieldInit(FD, FieldTy, ArrayRef, InitKind, Entity);
   }
@@ -5730,19 +5730,6 @@ static void PropagateAndDiagnoseDeviceAttr(SemaSYCL &S, Attr *A,
         S.Diag(RWGSA->getLocation(), diag::note_conflicting_attribute);
         SYCLKernel->setInvalidDecl();
       }
-    } else if (auto *Existing =
-                   SYCLKernel->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
-      if (S.checkMaxAllowedWorkGroupSize(
-              RWGSA->getXDim(), RWGSA->getYDim(), RWGSA->getZDim(),
-              Existing->getXDim(), Existing->getYDim(), Existing->getZDim())) {
-        S.Diag(SYCLKernel->getLocation(),
-               diag::err_conflicting_sycl_kernel_attributes);
-        S.Diag(Existing->getLocation(), diag::note_conflicting_attribute);
-        S.Diag(RWGSA->getLocation(), diag::note_conflicting_attribute);
-        SYCLKernel->setInvalidDecl();
-      } else {
-        SYCLKernel->addAttr(A);
-      }
     } else {
       SYCLKernel->addAttr(A);
     }
@@ -5764,25 +5751,6 @@ static void PropagateAndDiagnoseDeviceAttr(SemaSYCL &S, Attr *A,
     SYCLKernel->addAttr(A);
     break;
   }
-  case attr::Kind::SYCLIntelMaxWorkGroupSize: {
-    auto *SIMWGSA = cast<SYCLIntelMaxWorkGroupSizeAttr>(A);
-    if (auto *Existing = SYCLKernel->getAttr<SYCLReqdWorkGroupSizeAttr>()) {
-      if (S.checkMaxAllowedWorkGroupSize(
-              Existing->getXDim(), Existing->getYDim(), Existing->getZDim(),
-              SIMWGSA->getXDim(), SIMWGSA->getYDim(), SIMWGSA->getZDim())) {
-        S.Diag(SYCLKernel->getLocation(),
-               diag::err_conflicting_sycl_kernel_attributes);
-        S.Diag(Existing->getLocation(), diag::note_conflicting_attribute);
-        S.Diag(SIMWGSA->getLocation(), diag::note_conflicting_attribute);
-        SYCLKernel->setInvalidDecl();
-      } else {
-        SYCLKernel->addAttr(A);
-      }
-    } else {
-      SYCLKernel->addAttr(A);
-    }
-    break;
-  }
   case attr::Kind::SYCLSimd:
     if (KernelBody && !KernelBody->getAttr<SYCLSimdAttr>()) {
       // Usual kernel can't call ESIMD functions.
@@ -5795,13 +5763,8 @@ static void PropagateAndDiagnoseDeviceAttr(SemaSYCL &S, Attr *A,
     }
     LLVM_FALLTHROUGH;
   case attr::Kind::SYCLIntelKernelArgsRestrict:
-  case attr::Kind::SYCLIntelNumSimdWorkItems:
-  case attr::Kind::SYCLIntelSchedulerTargetFmaxMhz:
-  case attr::Kind::SYCLIntelMaxGlobalWorkDim:
   case attr::Kind::SYCLIntelMinWorkGroupsPerComputeUnit:
   case attr::Kind::SYCLIntelMaxWorkGroupsPerMultiprocessor:
-  case attr::Kind::SYCLIntelNoGlobalWorkOffset:
-  case attr::Kind::SYCLIntelUseStallEnableClusters:
   case attr::Kind::SYCLDeviceHas:
   case attr::Kind::SYCLAddIRAttributesFunction:
     SYCLKernel->addAttr(A);
@@ -8576,10 +8539,10 @@ public:
       ParmDeclMap::iterator I = MapRef.find(PVD);
       if (I != MapRef.end()) {
         VarDecl *VD = I->second;
-        assert(SemaRef.getASTContext().hasSameUnqualifiedType(PVD->getType(),
-                                                              VD->getType()));
-        assert(!VD->getType().isMoreQualifiedThan(PVD->getType(),
-                                                  SemaRef.getASTContext()));
+        assert(SemaRef.getASTContext().hasSameUnqualifiedType(
+            PVD->getType().getNonReferenceType(), VD->getType()));
+        assert(!VD->getType().isMoreQualifiedThan(
+            PVD->getType().getNonReferenceType(), SemaRef.getASTContext()));
         VD->setIsUsed();
         return DeclRefExpr::Create(
             SemaRef.getASTContext(), DRE->getQualifierLoc(),
@@ -8618,7 +8581,7 @@ OutlinedFunctionDecl *BuildSYCLKernelEntryPointOutline(Sema &SemaRef,
   for (ParmVarDecl *PVD : FD->parameters()) {
     ImplicitParamDecl *IPD = ImplicitParamDecl::Create(
         SemaRef.getASTContext(), OFD, SourceLocation(), PVD->getIdentifier(),
-        PVD->getType(), ImplicitParamKind::Other);
+        PVD->getType().getNonReferenceType(), ImplicitParamKind::Other);
     OFD->setParam(i, IPD);
     ParmMap[PVD] = IPD;
     ++i;

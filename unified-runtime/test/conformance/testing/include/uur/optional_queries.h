@@ -1,10 +1,9 @@
 /*
  *
- * Copyright (C) 2024 Intel Corporation
  *
- * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
+ * Part of the LLVM Project, under the Apache License v2.0 with LLVM
  * Exceptions.
- * See LICENSE.TXT
+ * See https://llvm.org/LICENSE.txt for license information.
  *
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
@@ -28,6 +27,7 @@ constexpr std::array optional_ur_device_info_t = {
     UR_DEVICE_INFO_DEVICE_ID,
     UR_DEVICE_INFO_MEMORY_CLOCK_RATE,
     UR_DEVICE_INFO_GLOBAL_MEM_FREE,
+    UR_DEVICE_INFO_IL_VERSION,
     UR_DEVICE_INFO_UUID,
     UR_DEVICE_INFO_PCI_ADDRESS,
     UR_DEVICE_INFO_GPU_EU_COUNT,
@@ -48,6 +48,12 @@ constexpr std::array optional_ur_device_info_t = {
     UR_DEVICE_INFO_MAX_POWER_LIMIT,
     UR_DEVICE_INFO_LUID,
     UR_DEVICE_INFO_NODE_MASK,
+    UR_DEVICE_INFO_XE_STACK_COUNT,
+    UR_DEVICE_INFO_XE_REGIONS_PER_STACK,
+    UR_DEVICE_INFO_XE_CLUSTERS_PER_REGION,
+    UR_DEVICE_INFO_XE_CORES_PER_CLUSTER,
+    UR_DEVICE_INFO_EUS_PER_XE_CORE,
+    UR_DEVICE_INFO_MAX_LANES_PER_HW_THREAD,
 };
 
 template <> inline bool isQueryOptional(ur_device_info_t query) {

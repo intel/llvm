@@ -60,12 +60,10 @@ CFGResult CFGAnalysis::run(llvm::Function &F,
       }
       Res.exitBB = &BB;
       LLVM_DEBUG(dbgs() << BB.getName() << " returns\n");
-    } else if (BranchInst *B = dyn_cast<BranchInst>(term)) {
-      if (B->isConditional()) {
-        auto *const cond = B->getCondition();
-        if (cond && UVR.isVarying(cond)) {
-          mayDiverge = true;
-        }
+    } else if (CondBrInst *B = dyn_cast<CondBrInst>(term)) {
+      auto *const cond = B->getCondition();
+      if (cond && UVR.isVarying(cond)) {
+        mayDiverge = true;
       }
     } else if (isa<SwitchInst>(term)) {
       // Control Flow Conversion Pass is not able to handle switch instructions.

@@ -1,10 +1,9 @@
 /*
  *
- * Copyright (C) 2022 Intel Corporation
  *
- * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
+ * Part of the LLVM Project, under the Apache License v2.0 with LLVM
  * Exceptions.
- * See LICENSE.TXT
+ * See https://llvm.org/LICENSE.txt for license information.
  *
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
@@ -6192,6 +6191,25 @@ __urdlllocal ur_result_t UR_APICALL urQueueIsGraphCaptureEnabledExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urQueueGetGraphExp
+__urdlllocal ur_result_t UR_APICALL urQueueGetGraphExp(
+    /// [in] Handle of the queue to query.
+    ur_queue_handle_t hQueue,
+    /// [out] Pointer to the handle of the graph being captured. Set to
+    /// nullptr if queue is not in capture mode.
+    ur_exp_graph_handle_t *phGraph) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hQueue);
+
+  auto *pfnGetGraphExp = dditable->QueueExp.pfnGetGraphExp;
+  if (nullptr == pfnGetGraphExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnGetGraphExp(hQueue, phGraph);
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urGraphIsEmptyExp
 __urdlllocal ur_result_t UR_APICALL urGraphIsEmptyExp(
     /// [in] Handle of the graph to query.
@@ -7411,6 +7429,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetQueueExpProcAddrTable(
       pDdiTable->pfnEndGraphCaptureExp = ur_loader::urQueueEndGraphCaptureExp;
       pDdiTable->pfnIsGraphCaptureEnabledExp =
           ur_loader::urQueueIsGraphCaptureEnabledExp;
+      pDdiTable->pfnGetGraphExp = ur_loader::urQueueGetGraphExp;
     } else {
       // return pointers directly to platform's DDIs
       *pDdiTable = ur_loader::getContext()->platforms.front().dditable.QueueExp;

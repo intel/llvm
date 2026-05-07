@@ -44,6 +44,9 @@ __SYCL_EXPORT void *alloc_exportable_device_mem(
   case external_mem_handle_type::win32_nt_handle:
     UrExternalMemType = UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT;
     break;
+  case external_mem_handle_type::dma_buf:
+    UrExternalMemType = UR_EXP_EXTERNAL_MEM_TYPE_DMA_BUF;
+    break;
   default:
     throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
                           "Invalid external memory handle type");
@@ -107,6 +110,24 @@ export_device_mem_win32_nt_handle(void *DeviceMemory,
       static_cast<void *>(&RetNTHandle));
 
   return RetNTHandle;
+}
+
+__SYCL_EXPORT int export_device_mem_dma_buf(void *DeviceMemory,
+                                            const sycl::device &SyclDevice,
+                                            const sycl::context &SyclContext) {
+  auto [UrDevice, UrCtx, Adapter] = get_ur_handles(SyclDevice, SyclContext);
+
+  ur_exp_external_mem_type_t UrExternalMemType =
+      UR_EXP_EXTERNAL_MEM_TYPE_DMA_BUF;
+
+  int RetFDHandle = 0;
+
+  Adapter->call<sycl::errc::runtime,
+                sycl::detail::UrApiKind::urMemoryExportExportMemoryHandleExp>(
+      UrCtx, UrDevice, UrExternalMemType, DeviceMemory,
+      reinterpret_cast<void *>(&RetFDHandle));
+
+  return RetFDHandle;
 }
 
 } // namespace detail

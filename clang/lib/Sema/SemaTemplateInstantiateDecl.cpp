@@ -710,52 +710,6 @@ static void instantiateDependentAMDGPUMaxNumWorkGroupsAttr(
     S.AMDGPU().addAMDGPUMaxNumWorkGroupsAttr(New, Attr, XExpr, YExpr, ZExpr);
 }
 
-static void instantiateSYCLIntelForcePow2DepthAttr(
-    Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
-    const SYCLIntelForcePow2DepthAttr *Attr, Decl *New) {
-  EnterExpressionEvaluationContext Unevaluated(
-      S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
-  ExprResult Result = S.SubstExpr(Attr->getValue(), TemplateArgs);
-  if (!Result.isInvalid())
-    return S.SYCL().addSYCLIntelForcePow2DepthAttr(New, *Attr,
-                                                   Result.getAs<Expr>());
-}
-
-static void instantiateSYCLIntelBankWidthAttr(
-    Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
-    const SYCLIntelBankWidthAttr *Attr, Decl *New) {
-  EnterExpressionEvaluationContext Unevaluated(
-      S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
-  ExprResult Result = S.SubstExpr(Attr->getValue(), TemplateArgs);
-  if (!Result.isInvalid())
-    S.SYCL().addSYCLIntelBankWidthAttr(New, *Attr, Result.getAs<Expr>());
-}
-
-static void instantiateSYCLIntelNumBanksAttr(
-    Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
-    const SYCLIntelNumBanksAttr *Attr, Decl *New) {
-  EnterExpressionEvaluationContext Unevaluated(
-      S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
-  ExprResult Result = S.SubstExpr(Attr->getValue(), TemplateArgs);
-  if (!Result.isInvalid())
-    S.SYCL().addSYCLIntelNumBanksAttr(New, *Attr, Result.getAs<Expr>());
-}
-
-static void instantiateSYCLIntelBankBitsAttr(
-    Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
-    const SYCLIntelBankBitsAttr *Attr, Decl *New) {
-  EnterExpressionEvaluationContext Unevaluated(
-      S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
-  SmallVector<Expr *, 8> Args;
-  for (auto I : Attr->args()) {
-    ExprResult Result = S.SubstExpr(I, TemplateArgs);
-    if (Result.isInvalid())
-      return;
-    Args.push_back(Result.getAs<Expr>());
-  }
-  S.SYCL().addSYCLIntelBankBitsAttr(New, *Attr, Args.data(), Args.size());
-}
-
 static void
 instantiateSYCLDeviceHasAttr(Sema &S,
                              const MultiLevelTemplateArgumentList &TemplateArgs,
@@ -784,17 +738,6 @@ static void instantiateSYCLUsesAspectsAttr(
   S.SYCL().addSYCLUsesAspectsAttr(New, *Attr, Args.data(), Args.size());
 }
 
-static void instantiateSYCLIntelPipeIOAttr(
-    Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
-    const SYCLIntelPipeIOAttr *Attr, Decl *New) {
-  // The ID expression is a constant expression.
-  EnterExpressionEvaluationContext Unevaluated(
-      S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
-  ExprResult Result = S.SubstExpr(Attr->getID(), TemplateArgs);
-  if (!Result.isInvalid())
-    S.SYCL().addSYCLIntelPipeIOAttr(New, *Attr, Result.getAs<Expr>());
-}
-
 static void instantiateIntelReqdSubGroupSize(
     Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
     const IntelReqdSubGroupSizeAttr *A, Decl *New) {
@@ -803,47 +746,6 @@ static void instantiateIntelReqdSubGroupSize(
   ExprResult Result = S.SubstExpr(A->getValue(), TemplateArgs);
   if (!Result.isInvalid())
     S.SYCL().addIntelReqdSubGroupSizeAttr(New, *A, Result.getAs<Expr>());
-}
-
-static void instantiateSYCLIntelNumSimdWorkItemsAttr(
-    Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
-    const SYCLIntelNumSimdWorkItemsAttr *A, Decl *New) {
-  EnterExpressionEvaluationContext Unevaluated(
-      S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
-  ExprResult Result = S.SubstExpr(A->getValue(), TemplateArgs);
-  if (!Result.isInvalid())
-    S.SYCL().addSYCLIntelNumSimdWorkItemsAttr(New, *A, Result.getAs<Expr>());
-}
-
-static void instantiateSYCLIntelSchedulerTargetFmaxMhzAttr(
-    Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
-    const SYCLIntelSchedulerTargetFmaxMhzAttr *A, Decl *New) {
-  EnterExpressionEvaluationContext Unevaluated(
-      S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
-  ExprResult Result = S.SubstExpr(A->getValue(), TemplateArgs);
-  if (!Result.isInvalid())
-    S.SYCL().addSYCLIntelSchedulerTargetFmaxMhzAttr(New, *A,
-                                                    Result.getAs<Expr>());
-}
-
-static void instantiateSYCLIntelNoGlobalWorkOffsetAttr(
-    Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
-    const SYCLIntelNoGlobalWorkOffsetAttr *A, Decl *New) {
-  EnterExpressionEvaluationContext Unevaluated(
-      S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
-  ExprResult Result = S.SubstExpr(A->getValue(), TemplateArgs);
-  if (!Result.isInvalid())
-    S.SYCL().addSYCLIntelNoGlobalWorkOffsetAttr(New, *A, Result.getAs<Expr>());
-}
-
-static void instantiateSYCLIntelMaxGlobalWorkDimAttr(
-    Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
-    const SYCLIntelMaxGlobalWorkDimAttr *A, Decl *New) {
-  EnterExpressionEvaluationContext Unevaluated(
-      S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
-  ExprResult Result = S.SubstExpr(A->getValue(), TemplateArgs);
-  if (!Result.isInvalid())
-    S.SYCL().addSYCLIntelMaxGlobalWorkDimAttr(New, *A, Result.getAs<Expr>());
 }
 
 static void instantiateSYCLIntelMinWorkGroupsPerComputeUnitAttr(
@@ -866,26 +768,6 @@ static void instantiateSYCLIntelMaxWorkGroupsPerMultiprocessorAttr(
   if (!Result.isInvalid())
     S.SYCL().addSYCLIntelMaxWorkGroupsPerMultiprocessorAttr(
         New, *A, Result.getAs<Expr>());
-}
-
-static void instantiateSYCLIntelPrivateCopiesAttr(
-    Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
-    const SYCLIntelPrivateCopiesAttr *A, Decl *New) {
-  EnterExpressionEvaluationContext Unevaluated(
-      S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
-  ExprResult Result = S.SubstExpr(A->getValue(), TemplateArgs);
-  if (!Result.isInvalid())
-    S.SYCL().addSYCLIntelPrivateCopiesAttr(New, *A, Result.getAs<Expr>());
-}
-
-static void instantiateSYCLIntelMaxReplicatesAttr(
-    Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
-    const SYCLIntelMaxReplicatesAttr *A, Decl *New) {
-  EnterExpressionEvaluationContext Unevaluated(
-      S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
-  ExprResult Result = S.SubstExpr(A->getValue(), TemplateArgs);
-  if (!Result.isInvalid())
-    S.SYCL().addSYCLIntelMaxReplicatesAttr(New, *A, Result.getAs<Expr>());
 }
 
 static void instantiateSYCLIntelESimdVectorizeAttr(
@@ -963,25 +845,6 @@ static void instantiateSYCLWorkGroupSizeHintAttr(
 
   S.SYCL().addSYCLWorkGroupSizeHintAttr(New, *A, XResult.get(), YResult.get(),
                                         ZResult.get());
-}
-
-static void instantiateSYCLIntelMaxWorkGroupSizeAttr(
-    Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
-    const SYCLIntelMaxWorkGroupSizeAttr *A, Decl *New) {
-  EnterExpressionEvaluationContext Unevaluated(
-      S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
-  ExprResult XResult = S.SubstExpr(A->getXDim(), TemplateArgs);
-  if (XResult.isInvalid())
-    return;
-  ExprResult YResult = S.SubstExpr(A->getYDim(), TemplateArgs);
-  if (YResult.isInvalid())
-    return;
-  ExprResult ZResult = S.SubstExpr(A->getZDim(), TemplateArgs);
-  if (ZResult.isInvalid())
-    return;
-
-  S.SYCL().addSYCLIntelMaxWorkGroupSizeAttr(New, *A, XResult.get(),
-                                            YResult.get(), ZResult.get());
 }
 
 static void instantiateSYCLReqdWorkGroupSizeAttr(
@@ -1081,6 +944,18 @@ static void instantiateDependentHLSLParamModifierAttr(
     const HLSLParamModifierAttr *Attr, const Decl *Old, Decl *New) {
   ParmVarDecl *NewParm = cast<ParmVarDecl>(New);
   NewParm->addAttr(Attr->clone(S.getASTContext()));
+
+  // If this is groupshared don't change the type because it will assert
+  // below. In this case we might have already produced an error but we
+  // must produce one here again because of all the ways templates can
+  // be used.
+  if (const auto *RT = NewParm->getType()->getAs<LValueReferenceType>()) {
+    if (RT->getPointeeType().getAddressSpace() == LangAS::hlsl_groupshared) {
+      S.Diag(Attr->getLoc(), diag::err_hlsl_attr_incompatible)
+          << Attr << "'groupshared'";
+      return;
+    }
+  }
 
   const Type *OldParmTy = cast<ParmVarDecl>(Old)->getType().getTypePtr();
   if (OldParmTy->isDependentType() && Attr->isAnyOut())
@@ -1244,63 +1119,10 @@ void Sema::InstantiateAttrs(const MultiLevelTemplateArgumentList &TemplateArgs,
                                                *AMDGPUFlatWorkGroupSize, New);
     }
 
-    if (const auto *SYCLIntelBankWidth =
-            dyn_cast<SYCLIntelBankWidthAttr>(TmplAttr)) {
-      instantiateSYCLIntelBankWidthAttr(*this, TemplateArgs, SYCLIntelBankWidth,
-                                        New);
-    }
-
-    if (const auto *SYCLIntelNumBanks =
-            dyn_cast<SYCLIntelNumBanksAttr>(TmplAttr)) {
-      instantiateSYCLIntelNumBanksAttr(*this, TemplateArgs, SYCLIntelNumBanks,
-                                       New);
-    }
-    if (const auto *SYCLIntelPrivateCopies =
-            dyn_cast<SYCLIntelPrivateCopiesAttr>(TmplAttr)) {
-      instantiateSYCLIntelPrivateCopiesAttr(*this, TemplateArgs,
-                                            SYCLIntelPrivateCopies, New);
-    }
-    if (const auto *SYCLIntelMaxReplicates =
-            dyn_cast<SYCLIntelMaxReplicatesAttr>(TmplAttr)) {
-      instantiateSYCLIntelMaxReplicatesAttr(*this, TemplateArgs,
-                                            SYCLIntelMaxReplicates, New);
-    }
-    if (const auto *SYCLIntelBankBits =
-            dyn_cast<SYCLIntelBankBitsAttr>(TmplAttr)) {
-      instantiateSYCLIntelBankBitsAttr(*this, TemplateArgs, SYCLIntelBankBits,
-                                       New);
-    }
-    if (const auto *SYCLIntelForcePow2Depth =
-            dyn_cast<SYCLIntelForcePow2DepthAttr>(TmplAttr)) {
-      instantiateSYCLIntelForcePow2DepthAttr(*this, TemplateArgs,
-                                             SYCLIntelForcePow2Depth, New);
-    }
-    if (const auto *SYCLIntelPipeIO = dyn_cast<SYCLIntelPipeIOAttr>(TmplAttr)) {
-      instantiateSYCLIntelPipeIOAttr(*this, TemplateArgs, SYCLIntelPipeIO, New);
-      continue;
-    }
     if (const auto *IntelReqdSubGroupSize =
             dyn_cast<IntelReqdSubGroupSizeAttr>(TmplAttr)) {
       instantiateIntelReqdSubGroupSize(*this, TemplateArgs,
                                        IntelReqdSubGroupSize, New);
-      continue;
-    }
-    if (const auto *SYCLIntelNumSimdWorkItems =
-            dyn_cast<SYCLIntelNumSimdWorkItemsAttr>(TmplAttr)) {
-      instantiateSYCLIntelNumSimdWorkItemsAttr(*this, TemplateArgs,
-                                               SYCLIntelNumSimdWorkItems, New);
-      continue;
-    }
-    if (const auto *SYCLIntelSchedulerTargetFmaxMhz =
-            dyn_cast<SYCLIntelSchedulerTargetFmaxMhzAttr>(TmplAttr)) {
-      instantiateSYCLIntelSchedulerTargetFmaxMhzAttr(
-          *this, TemplateArgs, SYCLIntelSchedulerTargetFmaxMhz, New);
-      continue;
-    }
-    if (const auto *SYCLIntelMaxGlobalWorkDim =
-            dyn_cast<SYCLIntelMaxGlobalWorkDimAttr>(TmplAttr)) {
-      instantiateSYCLIntelMaxGlobalWorkDimAttr(*this, TemplateArgs,
-                                               SYCLIntelMaxGlobalWorkDim, New);
       continue;
     }
     if (const auto *SYCLIntelMinWorkGroupsPerComputeUnit =
@@ -1315,22 +1137,10 @@ void Sema::InstantiateAttrs(const MultiLevelTemplateArgumentList &TemplateArgs,
           *this, TemplateArgs, SYCLIntelMaxWorkGroupsPerMultiprocessor, New);
       continue;
     }
-    if (const auto *SYCLIntelNoGlobalWorkOffset =
-            dyn_cast<SYCLIntelNoGlobalWorkOffsetAttr>(TmplAttr)) {
-      instantiateSYCLIntelNoGlobalWorkOffsetAttr(
-          *this, TemplateArgs, SYCLIntelNoGlobalWorkOffset, New);
-      continue;
-    }
     if (const auto *SYCLReqdWorkGroupSize =
             dyn_cast<SYCLReqdWorkGroupSizeAttr>(TmplAttr)) {
       instantiateSYCLReqdWorkGroupSizeAttr(*this, TemplateArgs,
                                            SYCLReqdWorkGroupSize, New);
-      continue;
-    }
-    if (const auto *SYCLIntelMaxWorkGroupSize =
-            dyn_cast<SYCLIntelMaxWorkGroupSizeAttr>(TmplAttr)) {
-      instantiateSYCLIntelMaxWorkGroupSizeAttr(*this, TemplateArgs,
-                                               SYCLIntelMaxWorkGroupSize, New);
       continue;
     }
     if (const auto *SYCLIntelESimdVectorize =
@@ -6431,7 +6241,8 @@ void Sema::InstantiateFunctionDefinition(SourceLocation PointOfInstantiation,
 
     checkReferenceToTULocalFromOtherTU(Function, PointOfInstantiation);
 
-    PerformDependentDiagnostics(PatternDecl, TemplateArgs);
+    if (PatternDecl->isDependentContext())
+      PerformDependentDiagnostics(PatternDecl, TemplateArgs);
 
     if (auto *Listener = getASTMutationListener())
       Listener->FunctionDefinitionInstantiated(Function);
@@ -6474,7 +6285,6 @@ VarTemplateSpecializationDecl *Sema::BuildVarTemplateInstantiation(
   if (FromVar->isInvalidDecl())
     return nullptr;
 
-  NonSFINAEContext _(*this);
   InstantiatingTemplate Inst(*this, PointOfInstantiation, FromVar);
   if (Inst.isInvalid())
     return nullptr;
@@ -6714,8 +6524,7 @@ void Sema::InstantiateVariableInitializer(
       Expr *InitExpr = Init.get();
 
       if (Var->hasAttr<DLLImportAttr>() &&
-          (!InitExpr ||
-           !InitExpr->isConstantInitializer(getASTContext(), false))) {
+          (!InitExpr || !InitExpr->isConstantInitializer(getASTContext()))) {
         // Do not dynamically initialize dllimport variables.
       } else if (InitExpr) {
         bool DirectInit = OldVar->isDirectInit();

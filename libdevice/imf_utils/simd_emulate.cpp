@@ -227,6 +227,9 @@ public:
   Tp operator()(const Tp &x, const Tp &y) { return x + y; }
 };
 
+// Using latest compiler's optimization will break imf simd tests for vaddsu2,
+// turn off optimization to unblock pre-ci.
+#pragma clang optimize off
 template <typename Tp> class __add_us_op {
   static_assert(std::is_same<uint8_t, Tp>::value ||
                     std::is_same<uint16_t, Tp>::value,
@@ -241,6 +244,7 @@ public:
       return static_cast<Tp>(z);
   }
 };
+#pragma clang optimize on
 
 template <typename Tp> class __imax_relu_op {
   static_assert(std::is_same<int16_t, Tp>::value,
@@ -262,10 +266,6 @@ public:
   }
 };
 
-// Clang will optimize this function with llvm.sadd.sat intrinsic which
-// can't be handled by llvm-spirv translator, so using turn off clang
-// optimization for this function to avoid llvm-spirv crash.
-#pragma clang optimize off
 template <typename Tp> class __add_ss_op {
   static_assert(std::is_same<int8_t, Tp>::value ||
                     std::is_same<int16_t, Tp>::value,
@@ -282,7 +282,6 @@ public:
                   std::numeric_limits<Tp>::max()));
   }
 };
-#pragma clang optimize on
 
 template <typename Tp> class __sub_op {
 public:
@@ -303,10 +302,6 @@ public:
   }
 };
 
-// Clang will optimize this function with llvm.sadd.sat intrinsic which
-// can't be handled by llvm-spirv translator, so using turn off clang
-// optimization for this function to avoid llvm-spirv crash.
-#pragma clang optimize off
 template <typename Tp> class __sub_ss_op {
   static_assert(std::is_same<int8_t, Tp>::value ||
                     std::is_same<int16_t, Tp>::value,
@@ -323,7 +318,6 @@ public:
                   std::numeric_limits<Tp>::max()));
   }
 };
-#pragma clang optimize on
 
 template <typename Tp> class __avgs_op {
   static_assert(std::is_same<int8_t, Tp>::value ||

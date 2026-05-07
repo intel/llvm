@@ -21,7 +21,9 @@
 // CHECK-NEXT: range.hpp
 // CHECK-NEXT: info/info_desc.hpp
 // CHECK-NEXT: ur_api.h
+// CHECK-NEXT: detail/device_info_types.hpp
 // CHECK-NEXT: detail/type_traits.hpp
+// CHECK-NEXT: detail/type_traits/bool_traits.hpp
 // CHECK-NEXT: detail/type_traits/vec_marray_traits.hpp
 // CHECK-NEXT: detail/fwd/multi_ptr.hpp
 // CHECK-NEXT: access/access.hpp
@@ -33,6 +35,7 @@
 // CHECK-NEXT: aliases.hpp
 // CHECK-NEXT: bit_cast.hpp
 // CHECK-NEXT: half_type.hpp
+// CHECK-NEXT: detail/half_type_impl.hpp
 // CHECK-NEXT: detail/fwd/half.hpp
 // CHECK-NEXT: ext/oneapi/matrix/matrix-unified-utils.hpp
 // CHECK-NEXT: __spirv/spirv_types.hpp

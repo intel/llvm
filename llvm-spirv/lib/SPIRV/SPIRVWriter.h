@@ -99,7 +99,7 @@ public:
 
   SPIRVValue *getTranslatedValue(const Value *) const;
 
-  spv::LoopControlMask getLoopControl(const BranchInst *Branch,
+  spv::LoopControlMask getLoopControl(const Instruction *Branch,
                                       std::vector<SPIRVWord> &Parameters);
 
   // Translation functions

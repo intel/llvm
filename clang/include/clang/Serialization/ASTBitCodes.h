@@ -44,7 +44,7 @@ namespace serialization {
 /// Version 4 of AST files also requires that the version control branch and
 /// revision match exactly, since there is no backward compatibility of
 /// AST files at this time.
-const unsigned VERSION_MAJOR = 35;
+const unsigned VERSION_MAJOR = 37;
 
 /// AST file minor version number supported by this version of
 /// Clang.
@@ -748,6 +748,9 @@ enum ASTRecordTypes {
 
   /// Record code for #pragma clang riscv intrinsic vector.
   RISCV_VECTOR_INTRINSICS_PRAGMA = 78,
+
+  /// Record code for extname-redefined undeclared identifiers.
+  EXTNAME_UNDECLARED_IDENTIFIERS = 79,
 };
 
 /// Record types used within a source manager block.
@@ -1168,7 +1171,7 @@ enum PredefinedTypeIDs {
 ///
 /// Type IDs for non-predefined types will start at
 /// NUM_PREDEF_TYPE_IDs.
-const unsigned NUM_PREDEF_TYPE_IDS = 526;
+const unsigned NUM_PREDEF_TYPE_IDS = 527;
 
 // Ensure we do not overrun the predefined types we reserved
 // in the enum PredefinedTypeIDs above.
@@ -1967,6 +1970,7 @@ enum StmtCode {
   STMP_OMP_STRIPE_DIRECTIVE,
   STMT_OMP_UNROLL_DIRECTIVE,
   STMT_OMP_REVERSE_DIRECTIVE,
+  STMT_OMP_SPLIT_DIRECTIVE,
   STMT_OMP_INTERCHANGE_DIRECTIVE,
   STMT_OMP_FUSE_DIRECTIVE,
   STMT_OMP_FOR_DIRECTIVE,

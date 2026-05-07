@@ -1,9 +1,8 @@
 //===--------- platform.cpp - OpenCL Adapter ---------------------------===//
 //
-// Copyright (C) 2023 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
@@ -277,16 +276,19 @@ urProgramLink(ur_context_handle_t hContext, uint32_t count,
     // to CL_LINK_PROGRAM_FAILURE
     CLResult = CL_LINK_PROGRAM_FAILURE;
   }
-  CL_RETURN_ON_FAILURE(CLResult);
-  try {
-    auto URProgram = std::make_unique<ur_program_handle_t_>(
-        Program, hContext, hContext->DeviceCount, hContext->Devices.data());
-    *phProgram = URProgram.release();
-  } catch (std::bad_alloc &) {
-    return UR_RESULT_ERROR_OUT_OF_RESOURCES;
-  } catch (...) {
-    return UR_RESULT_ERROR_UNKNOWN;
+  // clLinkProgram may return a valid program object even on failure (e.g.,
+  // CL_LINK_PROGRAM_FAILURE) that contains the link log. Wrap it so the
+  // caller can retrieve the log via urProgramGetBuildInfo.
+  if (Program != nullptr) {
+    try {
+      auto URProgram = std::make_unique<ur_program_handle_t_>(
+          Program, hContext, hContext->DeviceCount, hContext->Devices.data());
+      *phProgram = URProgram.release();
+    } catch (...) {
+      return exceptionToResult(std::current_exception());
+    }
   }
+  CL_RETURN_ON_FAILURE(CLResult);
 
   return UR_RESULT_SUCCESS;
 }

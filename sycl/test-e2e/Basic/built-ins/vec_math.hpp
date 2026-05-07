@@ -3,6 +3,7 @@
 #include <sycl/detail/core.hpp>
 
 #include <sycl/builtins.hpp>
+#include <sycl/vector.hpp>
 
 #define TEST(FUNC, VEC_ELEM_TYPE, DIM, EXPECTED, DELTA, ...)                   \
   {                                                                            \

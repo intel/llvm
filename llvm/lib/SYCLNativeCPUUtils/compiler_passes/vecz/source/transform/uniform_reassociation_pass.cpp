@@ -122,7 +122,7 @@ private:
   /// @param[in] Branch the branch instruction to canonicalize
   /// @returns true iff the branch condition is mixed (Varying Op Uniform)
   ///          and can be split into two separate branches.
-  bool canSplitBranch(llvm::BranchInst &Branch);
+  bool canSplitBranch(llvm::CondBrInst &Branch);
 
   UniformValueResult *UVR = nullptr;
 };
@@ -207,7 +207,7 @@ bool Reassociator::reassociate(llvm::BinaryOperator &Op) {
   return false;
 }
 
-bool Reassociator::canSplitBranch(BranchInst &Branch) {
+bool Reassociator::canSplitBranch(CondBrInst &Branch) {
   if (auto *Op = dyn_cast<BinaryOperator>(Branch.getCondition())) {
     auto Opcode = Op->getOpcode();
     if (Opcode == Instruction::Or || Opcode == Instruction::And) {
@@ -230,7 +230,7 @@ bool Reassociator::run(llvm::Function &F, llvm::FunctionAnalysisManager &AM) {
   SmallVector<BasicBlock *, 16> Blocks;
   DT->getDescendants(&F.getEntryBlock(), Blocks);
 
-  SmallVector<BranchInst *, 4> SplitBranches;
+  SmallVector<CondBrInst *, 4> SplitBranches;
   for (auto *const BB : Blocks) {
     for (auto Iit = BB->begin(); Iit != BB->end();) {
       auto &I = *(Iit++);
@@ -239,9 +239,8 @@ bool Reassociator::run(llvm::Function &F, llvm::FunctionAnalysisManager &AM) {
         if (form == OpForm::Varying || form == OpForm::Mixed) {
           reassociate(*BinOp);
         }
-      } else if (auto *Branch = dyn_cast<BranchInst>(&I)) {
-        if (Branch->isConditional() && Branch->getNumSuccessors() == 2 &&
-            canSplitBranch(*Branch)) {
+      } else if (auto *Branch = dyn_cast<CondBrInst>(&I)) {
+        if (canSplitBranch(*Branch)) {
           // Lazily obtain the Loop Info
           if (!LI) {
             LI = &AM.getResult<LoopAnalysis>(F);
@@ -293,7 +292,7 @@ bool Reassociator::run(llvm::Function &F, llvm::FunctionAnalysisManager &AM) {
     if (Opcode == Instruction::Or) {
       BasicBlock *SuccT = Branch->getSuccessor(0);
 
-      BranchInst::Create(SuccT, newBB, uniformCond, BB);
+      CondBrInst::Create(uniformCond, SuccT, newBB, BB);
       Branch->setCondition(varyingCond);
 
       // If the branch target has PHI nodes, they need to get an extra target
@@ -305,7 +304,7 @@ bool Reassociator::run(llvm::Function &F, llvm::FunctionAnalysisManager &AM) {
     } else {
       BasicBlock *SuccF = Branch->getSuccessor(1);
 
-      BranchInst::Create(newBB, SuccF, uniformCond, BB);
+      CondBrInst::Create(uniformCond, newBB, SuccF, BB);
       Branch->setCondition(varyingCond);
 
       // If the branch target has PHI nodes, they need to get an extra target

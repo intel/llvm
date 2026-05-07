@@ -1012,6 +1012,7 @@ protected:
   void validate() const override;
   void setWordCount(SPIRVWord WordCount) override {
     SPIRVEntry::setWordCount(WordCount);
+    this->SPIRVCK(WordCount, InvalidWordCount, "");
     Elements.resize(WordCount - 1);
   }
   _SPIRV_DCL_ENCDEC

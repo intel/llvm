@@ -14,8 +14,10 @@
 ; RUN: spirv-val %t.fc2.spv
 ; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o - | FileCheck %s --check-prefixes=CHECK-LLVM-16,CHECK-LLVM-16-DEFAULT
 ; RUN: llvm-spirv -r %t.fc2.spv -o - | llvm-dis -o - | FileCheck %s --check-prefixes=CHECK-LLVM-16,CHECK-LLVM-16-FC2
-; FIXME: FILECHECK_FAIL during llvm-spirv -r in llc compilation flow
-; TODO: rewrite the test as currently DCE removes IR through llc compilation flow
+; RUN: %if spirv-backend %{ llc -O0 -mtriple=spirv32-unknown-unknown -filetype=obj %s -o %t.llc.spv %}
+; RUN: %if spirv-backend %{ llvm-spirv -r %t.llc.spv -o %t.llc.rev.bc %}
+; RUN: %if spirv-backend %{ llvm-dis %t.llc.rev.bc -o %t.llc.rev.ll %}
+; RUN: %if spirv-backend %{ FileCheck %s --check-prefix=CHECK-LLVM < %t.llc.rev.ll %}
 
 ; CHECK-SPIRV: 3 Name [[#r1:]] "r1"
 ; CHECK-SPIRV: 3 Name [[#r2:]] "r2"
@@ -204,96 +206,96 @@
 ; CHECK-SPIRV: 5 Unordered [[#bool]] [[#r89]]
 ; CHECK-SPIRV: 5 Unordered [[#bool]] [[#r90]]
 
-; CHECK-LLVM: %r1 = fcmp oeq float %a, %b
-; CHECK-LLVM: %r2 = fcmp oeq float %a, %b
-; CHECK-LLVM: %r3 = fcmp oeq float %a, %b
-; CHECK-LLVM: %r4 = fcmp oeq float %a, %b
-; CHECK-LLVM: %r5 = fcmp oeq float %a, %b
-; CHECK-LLVM: %r6 = fcmp oeq float %a, %b
-; CHECK-LLVM: %r7 = fcmp oeq float %a, %b
-; CHECK-LLVM: %r8 = fcmp one float %a, %b
-; CHECK-LLVM: %r9 = fcmp one float %a, %b
-; CHECK-LLVM: %r10 = fcmp one float %a, %b
-; CHECK-LLVM: %r11 = fcmp one float %a, %b
-; CHECK-LLVM: %r12 = fcmp one float %a, %b
-; CHECK-LLVM: %r13 = fcmp one float %a, %b
-; CHECK-LLVM: %r14 = fcmp one float %a, %b
-; CHECK-LLVM: %r15 = fcmp olt float %a, %b
-; CHECK-LLVM: %r16 = fcmp olt float %a, %b
-; CHECK-LLVM: %r17 = fcmp olt float %a, %b
-; CHECK-LLVM: %r18 = fcmp olt float %a, %b
-; CHECK-LLVM: %r19 = fcmp olt float %a, %b
-; CHECK-LLVM: %r20 = fcmp olt float %a, %b
-; CHECK-LLVM: %r21 = fcmp olt float %a, %b
-; CHECK-LLVM: %r22 = fcmp ogt float %a, %b
-; CHECK-LLVM: %r23 = fcmp ogt float %a, %b
-; CHECK-LLVM: %r24 = fcmp ogt float %a, %b
-; CHECK-LLVM: %r25 = fcmp ogt float %a, %b
-; CHECK-LLVM: %r26 = fcmp ogt float %a, %b
-; CHECK-LLVM: %r27 = fcmp ogt float %a, %b
-; CHECK-LLVM: %r28 = fcmp ogt float %a, %b
-; CHECK-LLVM: %r29 = fcmp ole float %a, %b
-; CHECK-LLVM: %r30 = fcmp ole float %a, %b
-; CHECK-LLVM: %r31 = fcmp ole float %a, %b
-; CHECK-LLVM: %r32 = fcmp ole float %a, %b
-; CHECK-LLVM: %r33 = fcmp ole float %a, %b
-; CHECK-LLVM: %r34 = fcmp ole float %a, %b
-; CHECK-LLVM: %r35 = fcmp ole float %a, %b
-; CHECK-LLVM: %r36 = fcmp oge float %a, %b
-; CHECK-LLVM: %r37 = fcmp oge float %a, %b
-; CHECK-LLVM: %r38 = fcmp oge float %a, %b
-; CHECK-LLVM: %r39 = fcmp oge float %a, %b
-; CHECK-LLVM: %r40 = fcmp oge float %a, %b
-; CHECK-LLVM: %r41 = fcmp oge float %a, %b
-; CHECK-LLVM: %r42 = fcmp oge float %a, %b
-; CHECK-LLVM: %r43 = fcmp ord float %a, %b
-; CHECK-LLVM: %r44 = fcmp ord float %a, %b
-; CHECK-LLVM: %r45 = fcmp ord float %a, %b
-; CHECK-LLVM: %r46 = fcmp ueq float %a, %b
-; CHECK-LLVM: %r47 = fcmp ueq float %a, %b
-; CHECK-LLVM: %r48 = fcmp ueq float %a, %b
-; CHECK-LLVM: %r49 = fcmp ueq float %a, %b
-; CHECK-LLVM: %r50 = fcmp ueq float %a, %b
-; CHECK-LLVM: %r51 = fcmp ueq float %a, %b
-; CHECK-LLVM: %r52 = fcmp ueq float %a, %b
-; CHECK-LLVM: %r53 = fcmp une float %a, %b
-; CHECK-LLVM: %r54 = fcmp une float %a, %b
-; CHECK-LLVM: %r55 = fcmp une float %a, %b
-; CHECK-LLVM: %r56 = fcmp une float %a, %b
-; CHECK-LLVM: %r57 = fcmp une float %a, %b
-; CHECK-LLVM: %r58 = fcmp une float %a, %b
-; CHECK-LLVM: %r59 = fcmp une float %a, %b
-; CHECK-LLVM: %r60 = fcmp ult float %a, %b
-; CHECK-LLVM: %r61 = fcmp ult float %a, %b
-; CHECK-LLVM: %r62 = fcmp ult float %a, %b
-; CHECK-LLVM: %r63 = fcmp ult float %a, %b
-; CHECK-LLVM: %r64 = fcmp ult float %a, %b
-; CHECK-LLVM: %r65 = fcmp ult float %a, %b
-; CHECK-LLVM: %r66 = fcmp ult float %a, %b
-; CHECK-LLVM: %r67 = fcmp ugt float %a, %b
-; CHECK-LLVM: %r68 = fcmp ugt float %a, %b
-; CHECK-LLVM: %r69 = fcmp ugt float %a, %b
-; CHECK-LLVM: %r70 = fcmp ugt float %a, %b
-; CHECK-LLVM: %r71 = fcmp ugt float %a, %b
-; CHECK-LLVM: %r72 = fcmp ugt float %a, %b
-; CHECK-LLVM: %r73 = fcmp ugt float %a, %b
-; CHECK-LLVM: %r74 = fcmp ule float %a, %b
-; CHECK-LLVM: %r75 = fcmp ule float %a, %b
-; CHECK-LLVM: %r76 = fcmp ule float %a, %b
-; CHECK-LLVM: %r77 = fcmp ule float %a, %b
-; CHECK-LLVM: %r78 = fcmp ule float %a, %b
-; CHECK-LLVM: %r79 = fcmp ule float %a, %b
-; CHECK-LLVM: %r80 = fcmp ule float %a, %b
-; CHECK-LLVM: %r81 = fcmp uge float %a, %b
-; CHECK-LLVM: %r82 = fcmp uge float %a, %b
-; CHECK-LLVM: %r83 = fcmp uge float %a, %b
-; CHECK-LLVM: %r84 = fcmp uge float %a, %b
-; CHECK-LLVM: %r85 = fcmp uge float %a, %b
-; CHECK-LLVM: %r86 = fcmp uge float %a, %b
-; CHECK-LLVM: %r87 = fcmp uge float %a, %b
-; CHECK-LLVM: %r88 = fcmp uno float %a, %b
-; CHECK-LLVM: %r89 = fcmp uno float %a, %b
-; CHECK-LLVM: %r90 = fcmp uno float %a, %b
+; CHECK-LLVM: fcmp oeq float %a, %b
+; CHECK-LLVM: fcmp oeq float %a, %b
+; CHECK-LLVM: fcmp oeq float %a, %b
+; CHECK-LLVM: fcmp oeq float %a, %b
+; CHECK-LLVM: fcmp oeq float %a, %b
+; CHECK-LLVM: fcmp oeq float %a, %b
+; CHECK-LLVM: fcmp oeq float %a, %b
+; CHECK-LLVM: fcmp one float %a, %b
+; CHECK-LLVM: fcmp one float %a, %b
+; CHECK-LLVM: fcmp one float %a, %b
+; CHECK-LLVM: fcmp one float %a, %b
+; CHECK-LLVM: fcmp one float %a, %b
+; CHECK-LLVM: fcmp one float %a, %b
+; CHECK-LLVM: fcmp one float %a, %b
+; CHECK-LLVM: fcmp olt float %a, %b
+; CHECK-LLVM: fcmp olt float %a, %b
+; CHECK-LLVM: fcmp olt float %a, %b
+; CHECK-LLVM: fcmp olt float %a, %b
+; CHECK-LLVM: fcmp olt float %a, %b
+; CHECK-LLVM: fcmp olt float %a, %b
+; CHECK-LLVM: fcmp olt float %a, %b
+; CHECK-LLVM: fcmp ogt float %a, %b
+; CHECK-LLVM: fcmp ogt float %a, %b
+; CHECK-LLVM: fcmp ogt float %a, %b
+; CHECK-LLVM: fcmp ogt float %a, %b
+; CHECK-LLVM: fcmp ogt float %a, %b
+; CHECK-LLVM: fcmp ogt float %a, %b
+; CHECK-LLVM: fcmp ogt float %a, %b
+; CHECK-LLVM: fcmp ole float %a, %b
+; CHECK-LLVM: fcmp ole float %a, %b
+; CHECK-LLVM: fcmp ole float %a, %b
+; CHECK-LLVM: fcmp ole float %a, %b
+; CHECK-LLVM: fcmp ole float %a, %b
+; CHECK-LLVM: fcmp ole float %a, %b
+; CHECK-LLVM: fcmp ole float %a, %b
+; CHECK-LLVM: fcmp oge float %a, %b
+; CHECK-LLVM: fcmp oge float %a, %b
+; CHECK-LLVM: fcmp oge float %a, %b
+; CHECK-LLVM: fcmp oge float %a, %b
+; CHECK-LLVM: fcmp oge float %a, %b
+; CHECK-LLVM: fcmp oge float %a, %b
+; CHECK-LLVM: fcmp oge float %a, %b
+; CHECK-LLVM: fcmp ord float %a, %b
+; CHECK-LLVM: fcmp ord float %a, %b
+; CHECK-LLVM: fcmp ord float %a, %b
+; CHECK-LLVM: fcmp ueq float %a, %b
+; CHECK-LLVM: fcmp ueq float %a, %b
+; CHECK-LLVM: fcmp ueq float %a, %b
+; CHECK-LLVM: fcmp ueq float %a, %b
+; CHECK-LLVM: fcmp ueq float %a, %b
+; CHECK-LLVM: fcmp ueq float %a, %b
+; CHECK-LLVM: fcmp ueq float %a, %b
+; CHECK-LLVM: fcmp une float %a, %b
+; CHECK-LLVM: fcmp une float %a, %b
+; CHECK-LLVM: fcmp une float %a, %b
+; CHECK-LLVM: fcmp une float %a, %b
+; CHECK-LLVM: fcmp une float %a, %b
+; CHECK-LLVM: fcmp une float %a, %b
+; CHECK-LLVM: fcmp une float %a, %b
+; CHECK-LLVM: fcmp ult float %a, %b
+; CHECK-LLVM: fcmp ult float %a, %b
+; CHECK-LLVM: fcmp ult float %a, %b
+; CHECK-LLVM: fcmp ult float %a, %b
+; CHECK-LLVM: fcmp ult float %a, %b
+; CHECK-LLVM: fcmp ult float %a, %b
+; CHECK-LLVM: fcmp ult float %a, %b
+; CHECK-LLVM: fcmp ugt float %a, %b
+; CHECK-LLVM: fcmp ugt float %a, %b
+; CHECK-LLVM: fcmp ugt float %a, %b
+; CHECK-LLVM: fcmp ugt float %a, %b
+; CHECK-LLVM: fcmp ugt float %a, %b
+; CHECK-LLVM: fcmp ugt float %a, %b
+; CHECK-LLVM: fcmp ugt float %a, %b
+; CHECK-LLVM: fcmp ule float %a, %b
+; CHECK-LLVM: fcmp ule float %a, %b
+; CHECK-LLVM: fcmp ule float %a, %b
+; CHECK-LLVM: fcmp ule float %a, %b
+; CHECK-LLVM: fcmp ule float %a, %b
+; CHECK-LLVM: fcmp ule float %a, %b
+; CHECK-LLVM: fcmp ule float %a, %b
+; CHECK-LLVM: fcmp uge float %a, %b
+; CHECK-LLVM: fcmp uge float %a, %b
+; CHECK-LLVM: fcmp uge float %a, %b
+; CHECK-LLVM: fcmp uge float %a, %b
+; CHECK-LLVM: fcmp uge float %a, %b
+; CHECK-LLVM: fcmp uge float %a, %b
+; CHECK-LLVM: fcmp uge float %a, %b
+; CHECK-LLVM: fcmp uno float %a, %b
+; CHECK-LLVM: fcmp uno float %a, %b
+; CHECK-LLVM: fcmp uno float %a, %b
 
 
 ; CHECK-LLVM-16: %r1 = fcmp oeq float %a, %b
@@ -405,96 +407,187 @@ target triple = "spir-unknown-unknown"
 ; Function Attrs: nounwind
 define spir_kernel void @testFCmp(float %a, float %b) local_unnamed_addr #0 !kernel_arg_addr_space !2 !kernel_arg_access_qual !3 !kernel_arg_type !4 !kernel_arg_base_type !4 !kernel_arg_type_qual !5 {
 entry:
+  %tmp = alloca i1, align 1
   %r1 = fcmp oeq float %a, %b
+  store volatile i1 %r1, ptr %tmp, align 1
   %r2 = fcmp nnan oeq float %a, %b
+  store volatile i1 %r2, ptr %tmp, align 1
   %r3 = fcmp ninf oeq float %a, %b
+  store volatile i1 %r3, ptr %tmp, align 1
   %r4 = fcmp nsz oeq float %a, %b
+  store volatile i1 %r4, ptr %tmp, align 1
   %r5 = fcmp arcp oeq float %a, %b
+  store volatile i1 %r5, ptr %tmp, align 1
   %r6 = fcmp fast oeq float %a, %b
+  store volatile i1 %r6, ptr %tmp, align 1
   %r7 = fcmp nnan ninf oeq float %a, %b
+  store volatile i1 %r7, ptr %tmp, align 1
   %r8 = fcmp one float %a, %b
+  store volatile i1 %r8, ptr %tmp, align 1
   %r9 = fcmp nnan one float %a, %b
+  store volatile i1 %r9, ptr %tmp, align 1
   %r10 = fcmp ninf one float %a, %b
+  store volatile i1 %r10, ptr %tmp, align 1
   %r11 = fcmp nsz one float %a, %b
+  store volatile i1 %r11, ptr %tmp, align 1
   %r12 = fcmp arcp one float %a, %b
+  store volatile i1 %r12, ptr %tmp, align 1
   %r13 = fcmp fast one float %a, %b
+  store volatile i1 %r13, ptr %tmp, align 1
   %r14 = fcmp nnan ninf one float %a, %b
+  store volatile i1 %r14, ptr %tmp, align 1
   %r15 = fcmp olt float %a, %b
+  store volatile i1 %r15, ptr %tmp, align 1
   %r16 = fcmp nnan olt float %a, %b
+  store volatile i1 %r16, ptr %tmp, align 1
   %r17 = fcmp ninf olt float %a, %b
+  store volatile i1 %r17, ptr %tmp, align 1
   %r18 = fcmp nsz olt float %a, %b
+  store volatile i1 %r18, ptr %tmp, align 1
   %r19 = fcmp arcp olt float %a, %b
+  store volatile i1 %r19, ptr %tmp, align 1
   %r20 = fcmp fast olt float %a, %b
+  store volatile i1 %r20, ptr %tmp, align 1
   %r21 = fcmp nnan ninf olt float %a, %b
+  store volatile i1 %r21, ptr %tmp, align 1
   %r22 = fcmp ogt float %a, %b
+  store volatile i1 %r22, ptr %tmp, align 1
   %r23 = fcmp nnan ogt float %a, %b
+  store volatile i1 %r23, ptr %tmp, align 1
   %r24 = fcmp ninf ogt float %a, %b
+  store volatile i1 %r24, ptr %tmp, align 1
   %r25 = fcmp nsz ogt float %a, %b
+  store volatile i1 %r25, ptr %tmp, align 1
   %r26 = fcmp arcp ogt float %a, %b
+  store volatile i1 %r26, ptr %tmp, align 1
   %r27 = fcmp fast ogt float %a, %b
+  store volatile i1 %r27, ptr %tmp, align 1
   %r28 = fcmp nnan ninf ogt float %a, %b
+  store volatile i1 %r28, ptr %tmp, align 1
   %r29 = fcmp ole float %a, %b
+  store volatile i1 %r29, ptr %tmp, align 1
   %r30 = fcmp nnan ole float %a, %b
+  store volatile i1 %r30, ptr %tmp, align 1
   %r31 = fcmp ninf ole float %a, %b
+  store volatile i1 %r31, ptr %tmp, align 1
   %r32 = fcmp nsz ole float %a, %b
+  store volatile i1 %r32, ptr %tmp, align 1
   %r33 = fcmp arcp ole float %a, %b
+  store volatile i1 %r33, ptr %tmp, align 1
   %r34 = fcmp fast ole float %a, %b
+  store volatile i1 %r34, ptr %tmp, align 1
   %r35 = fcmp nnan ninf ole float %a, %b
+  store volatile i1 %r35, ptr %tmp, align 1
   %r36 = fcmp oge float %a, %b
+  store volatile i1 %r36, ptr %tmp, align 1
   %r37 = fcmp nnan oge float %a, %b
+  store volatile i1 %r37, ptr %tmp, align 1
   %r38 = fcmp ninf oge float %a, %b
+  store volatile i1 %r38, ptr %tmp, align 1
   %r39 = fcmp nsz oge float %a, %b
+  store volatile i1 %r39, ptr %tmp, align 1
   %r40 = fcmp arcp oge float %a, %b
+  store volatile i1 %r40, ptr %tmp, align 1
   %r41 = fcmp fast oge float %a, %b
+  store volatile i1 %r41, ptr %tmp, align 1
   %r42 = fcmp nnan ninf oge float %a, %b
+  store volatile i1 %r42, ptr %tmp, align 1
   %r43 = fcmp ord float %a, %b
+  store volatile i1 %r43, ptr %tmp, align 1
   %r44 = fcmp ninf ord float %a, %b
+  store volatile i1 %r44, ptr %tmp, align 1
   %r45 = fcmp nsz ord float %a, %b
+  store volatile i1 %r45, ptr %tmp, align 1
   %r46 = fcmp ueq float %a, %b
+  store volatile i1 %r46, ptr %tmp, align 1
   %r47 = fcmp nnan ueq float %a, %b
+  store volatile i1 %r47, ptr %tmp, align 1
   %r48 = fcmp ninf ueq float %a, %b
+  store volatile i1 %r48, ptr %tmp, align 1
   %r49 = fcmp nsz ueq float %a, %b
+  store volatile i1 %r49, ptr %tmp, align 1
   %r50 = fcmp arcp ueq float %a, %b
+  store volatile i1 %r50, ptr %tmp, align 1
   %r51 = fcmp fast ueq float %a, %b
+  store volatile i1 %r51, ptr %tmp, align 1
   %r52 = fcmp nnan ninf ueq float %a, %b
+  store volatile i1 %r52, ptr %tmp, align 1
   %r53 = fcmp une float %a, %b
+  store volatile i1 %r53, ptr %tmp, align 1
   %r54 = fcmp nnan une float %a, %b
+  store volatile i1 %r54, ptr %tmp, align 1
   %r55 = fcmp ninf une float %a, %b
+  store volatile i1 %r55, ptr %tmp, align 1
   %r56 = fcmp nsz une float %a, %b
+  store volatile i1 %r56, ptr %tmp, align 1
   %r57 = fcmp arcp une float %a, %b
+  store volatile i1 %r57, ptr %tmp, align 1
   %r58 = fcmp fast une float %a, %b
+  store volatile i1 %r58, ptr %tmp, align 1
   %r59 = fcmp nnan ninf une float %a, %b
+  store volatile i1 %r59, ptr %tmp, align 1
   %r60 = fcmp ult float %a, %b
+  store volatile i1 %r60, ptr %tmp, align 1
   %r61 = fcmp nnan ult float %a, %b
+  store volatile i1 %r61, ptr %tmp, align 1
   %r62 = fcmp ninf ult float %a, %b
+  store volatile i1 %r62, ptr %tmp, align 1
   %r63 = fcmp nsz ult float %a, %b
+  store volatile i1 %r63, ptr %tmp, align 1
   %r64 = fcmp arcp ult float %a, %b
+  store volatile i1 %r64, ptr %tmp, align 1
   %r65 = fcmp fast ult float %a, %b
+  store volatile i1 %r65, ptr %tmp, align 1
   %r66 = fcmp nnan ninf ult float %a, %b
+  store volatile i1 %r66, ptr %tmp, align 1
   %r67 = fcmp ugt float %a, %b
+  store volatile i1 %r67, ptr %tmp, align 1
   %r68 = fcmp nnan ugt float %a, %b
+  store volatile i1 %r68, ptr %tmp, align 1
   %r69 = fcmp ninf ugt float %a, %b
+  store volatile i1 %r69, ptr %tmp, align 1
   %r70 = fcmp nsz ugt float %a, %b
+  store volatile i1 %r70, ptr %tmp, align 1
   %r71 = fcmp arcp ugt float %a, %b
+  store volatile i1 %r71, ptr %tmp, align 1
   %r72 = fcmp fast ugt float %a, %b
+  store volatile i1 %r72, ptr %tmp, align 1
   %r73 = fcmp nnan ninf ugt float %a, %b
+  store volatile i1 %r73, ptr %tmp, align 1
   %r74 = fcmp ule float %a, %b
+  store volatile i1 %r74, ptr %tmp, align 1
   %r75 = fcmp nnan ule float %a, %b
+  store volatile i1 %r75, ptr %tmp, align 1
   %r76 = fcmp ninf ule float %a, %b
+  store volatile i1 %r76, ptr %tmp, align 1
   %r77 = fcmp nsz ule float %a, %b
+  store volatile i1 %r77, ptr %tmp, align 1
   %r78 = fcmp arcp ule float %a, %b
+  store volatile i1 %r78, ptr %tmp, align 1
   %r79 = fcmp fast ule float %a, %b
+  store volatile i1 %r79, ptr %tmp, align 1
   %r80 = fcmp nnan ninf ule float %a, %b
+  store volatile i1 %r80, ptr %tmp, align 1
   %r81 = fcmp uge float %a, %b
+  store volatile i1 %r81, ptr %tmp, align 1
   %r82 = fcmp nnan uge float %a, %b
+  store volatile i1 %r82, ptr %tmp, align 1
   %r83 = fcmp ninf uge float %a, %b
+  store volatile i1 %r83, ptr %tmp, align 1
   %r84 = fcmp nsz uge float %a, %b
+  store volatile i1 %r84, ptr %tmp, align 1
   %r85 = fcmp arcp uge float %a, %b
+  store volatile i1 %r85, ptr %tmp, align 1
   %r86 = fcmp fast uge float %a, %b
+  store volatile i1 %r86, ptr %tmp, align 1
   %r87 = fcmp nnan ninf uge float %a, %b
+  store volatile i1 %r87, ptr %tmp, align 1
   %r88 = fcmp uno float %a, %b
+  store volatile i1 %r88, ptr %tmp, align 1
   %r89 = fcmp ninf uno float %a, %b
+  store volatile i1 %r89, ptr %tmp, align 1
   %r90 = fcmp nsz uno float %a, %b
+  store volatile i1 %r90, ptr %tmp, align 1
   ret void
 }
 

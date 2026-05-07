@@ -1418,6 +1418,16 @@ SPIRVValue *LLVMToSPIRVBase::transConstant(Value *V) {
   }
 
   if (auto *ConstFP = dyn_cast<ConstantFP>(V)) {
+    if (V->getType()->isVectorTy()) {
+      SPIRVType *InnerTy = ExpectedType->getScalarType();
+      SPIRVValue *ScalarVal =
+          transConstantUse(ConstantFP::get(V->getType()->getScalarType(),
+                                           ConstFP->getValueAPF()),
+                           InnerTy);
+      unsigned NumElts = cast<FixedVectorType>(V->getType())->getNumElements();
+      std::vector<SPIRVValue *> BV(NumElts, ScalarVal);
+      return BM->addCompositeConstant(ExpectedType, BV);
+    }
     auto *BT = static_cast<SPIRVType *>(ExpectedType);
     return BM->addConstant(
         BT, ConstFP->getValueAPF().bitcastToAPInt().getZExtValue());
@@ -1772,7 +1782,7 @@ private:
 /// instruction, fill the Loop Control mask and possible parameters for its
 /// fields.
 spv::LoopControlMask
-LLVMToSPIRVBase::getLoopControl(const BranchInst *Branch,
+LLVMToSPIRVBase::getLoopControl(const Instruction *Branch,
                                 std::vector<SPIRVWord> &Parameters) {
   if (!Branch)
     return spv::LoopControlMaskNone;
@@ -2478,7 +2488,7 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
                              Pairs, BB));
   }
 
-  if (BranchInst *Branch = dyn_cast<BranchInst>(V)) {
+  if (auto *Branch = dyn_cast<CondBrInst>(V)) {
     SPIRVLabel *SuccessorTrue =
         static_cast<SPIRVLabel *>(transValue(Branch->getSuccessor(0), BB));
 
@@ -2495,29 +2505,6 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
     std::vector<SPIRVWord> Parameters;
     spv::LoopControlMask LoopControl = getLoopControl(Branch, Parameters);
 
-    if (Branch->isUnconditional()) {
-      // Usually, "for" and "while" loops llvm.loop metadata is attached to an
-      // unconditional branch instruction.
-      if (LoopControl != spv::LoopControlMaskNone) {
-        // SuccessorTrue is the loop header BB.
-        const SPIRVInstruction *Term = SuccessorTrue->getTerminateInstr();
-        if (Term && Term->getOpCode() == OpBranchConditional) {
-          const auto *Br = static_cast<const SPIRVBranchConditional *>(Term);
-          BM->addLoopMergeInst(Br->getFalseLabel()->getId(), // Merge Block
-                               BB->getId(),                  // Continue Target
-                               LoopControl, Parameters, SuccessorTrue);
-        } else {
-          if (BM->isAllowedToUseExtension(
-                  ExtensionID::SPV_INTEL_unstructured_loop_controls)) {
-            // For unstructured loop we add a special loop control instruction.
-            // Simple example of unstructured loop is an infinite loop, that has
-            // no terminate instruction.
-            BM->addLoopControlINTELInst(LoopControl, Parameters, SuccessorTrue);
-          }
-        }
-      }
-      return mapValue(V, BM->addBranchInst(SuccessorTrue, BB));
-    }
     // For "do-while" (and in some cases, for "for" and "while") loops,
     // llvm.loop metadata is attached to a conditional branch instructions
     SPIRVLabel *SuccessorFalse =
@@ -2554,6 +2541,46 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
     return mapValue(
         V, BM->addBranchConditionalInst(transValue(Branch->getCondition(), BB),
                                         SuccessorTrue, SuccessorFalse, BB));
+  }
+
+  if (auto *Branch = dyn_cast<UncondBrInst>(V)) {
+    SPIRVLabel *Successor =
+        static_cast<SPIRVLabel *>(transValue(Branch->getSuccessor(0), BB));
+
+    /// Clang attaches !llvm.loop metadata to "latch" BB. This kind of blocks
+    /// has an edge directed to the loop header. Thus latch BB matching to
+    /// "Continue Target" per the SPIR-V spec. This statement is true only after
+    /// applying the loop-simplify pass to the LLVM module.
+    /// For "for" and "while" loops latch BB is terminated by an
+    /// unconditional branch. Also for this kind of loops "Merge Block" can
+    /// be found as block targeted by false edge of the "Header" BB.
+    /// For "do while" loop the latch is terminated by a conditional branch
+    /// with true edge going to the header and the false edge going out of
+    /// the loop, which corresponds to a "Merge Block" per the SPIR-V spec.
+    std::vector<SPIRVWord> Parameters;
+    spv::LoopControlMask LoopControl = getLoopControl(Branch, Parameters);
+
+    // Usually, "for" and "while" loops llvm.loop metadata is attached to an
+    // unconditional branch instruction.
+    if (LoopControl != spv::LoopControlMaskNone) {
+      // SuccessorTrue is the loop header BB.
+      const SPIRVInstruction *Term = Successor->getTerminateInstr();
+      if (Term && Term->getOpCode() == OpBranchConditional) {
+        const auto *Br = static_cast<const SPIRVBranchConditional *>(Term);
+        BM->addLoopMergeInst(Br->getFalseLabel()->getId(), // Merge Block
+                             BB->getId(),                  // Continue Target
+                             LoopControl, Parameters, Successor);
+      } else {
+        if (BM->isAllowedToUseExtension(
+                ExtensionID::SPV_INTEL_unstructured_loop_controls)) {
+          // For unstructured loop we add a special loop control instruction.
+          // Simple example of unstructured loop is an infinite loop, that has
+          // no terminate instruction.
+          BM->addLoopControlINTELInst(LoopControl, Parameters, Successor);
+        }
+      }
+    }
+    return mapValue(V, BM->addBranchInst(Successor, BB));
   }
 
   if (auto *Phi = dyn_cast<PHINode>(V)) {
@@ -5637,21 +5664,18 @@ processMiniFPOrInt4Type(Type *LLVMTy, FPEncodingWrap Encoding,
   unsigned TyWidth = cast<IntegerType>(ScalarTy)->getBitWidth();
   unsigned VecSize = 0;
 
-  if (TyWidth == 32) {
-    // Int4 or FP4 packed in 32-bit integer, change type and vector size.
-    assert((Encoding == FPEncodingWrap::E2M1 ||
-            Encoding == FPEncodingWrap::Integer) &&
-           "Unknown FP encoding");
+  bool IsPacked =
+      Encoding == FPEncodingWrap::E2M1 || Encoding == FPEncodingWrap::Integer;
+  if (IsPacked &&
+      (TyWidth == 8 || TyWidth == 16 || TyWidth == 32 || TyWidth == 64)) {
+    // Int4 or FP4 packed in an integer: each N-bit integer holds N/4 values.
     assert(!isLLVMCooperativeMatrixType(LLVMTy) &&
            "FP4 and Int4 matrices must not be packed");
-    VecSize = 8;
-    TyWidth = 4;
-  } else if (TyWidth == 8 && (Encoding == FPEncodingWrap::E2M1 ||
-                              Encoding == FPEncodingWrap::Integer)) {
-    assert(!isLLVMCooperativeMatrixType(LLVMTy) &&
-           "FP4 and Int4 matrices must not be packed");
-    // Int4 or FP4 packed in 8-bit integer, change type and vector size.
-    VecSize = 2;
+    unsigned OuterVecLen =
+        LLVMTy->isVectorTy()
+            ? cast<VectorType>(LLVMTy)->getElementCount().getFixedValue()
+            : 1;
+    VecSize = (TyWidth / 4) * OuterVecLen;
     TyWidth = 4;
   } else {
     if (LLVMTy->isVectorTy())
@@ -5747,14 +5771,16 @@ SPIRVValue *LLVMToSPIRVBase::transDirectCallInst(CallInst *CI,
                   ->getArgs());
           SrcOp = BM->addUnaryInst(OpBitcast, SrcTy, SrcOp, BB);
         } else if (FPDesc.SrcEncoding != FPEncodingWrap::Integer ||
-                   (SrcTy->isTypeVector() && !LLVMSrcTy->isVectorTy())) {
-          // Create bitcast for FP4, FP8 and packed Int4.
+                   SrcVecSize > 0) {
+          // Create bitcast for FP4, FP8 and packed Int4 (including cases where
+          // both the LLVM and SPIR-V types are vectors but with different
+          // sizes, e.g. <2 x i8> repacked as <4 x Int4>).
           SrcOp = BM->addUnaryInst(OpBitcast, SrcTy, SrcOp, BB);
         }
       }
+      unsigned DstVecSize = 0;
       if (!DstTy) {
         // Dst type is 'mini' float or int4.
-        unsigned DstVecSize = 0;
         DstTy = processMiniFPOrInt4Type(LLVMDstTy, FPDesc.DstEncoding,
                                         GetScalarTy, BM, DstVecSize);
 
@@ -5782,10 +5808,9 @@ SPIRVValue *LLVMToSPIRVBase::transDirectCallInst(CallInst *CI,
       if (FPDesc.DstEncoding == FPEncodingWrap::IEEE754 ||
           FPDesc.DstEncoding == FPEncodingWrap::BF16)
         return Conv;
-      // Originally not-packed integer.
+      // Originally not-packed integer (no repacking, or cooperative matrix).
       if (FPDesc.DstEncoding == FPEncodingWrap::Integer &&
-          (DstTy->isTypeVector() == LLVMDstTy->isVectorTy() ||
-           isLLVMCooperativeMatrixType(LLVMDstTy)))
+          (DstVecSize == 0 || isLLVMCooperativeMatrixType(LLVMDstTy)))
         return Conv;
       // Need to adjust types: create bitcast for FP8 and packed Int4.
       SPIRVValue *BitCast =

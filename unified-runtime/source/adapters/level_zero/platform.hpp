@@ -1,9 +1,8 @@
 //===--------- platform.hpp - Level Zero Adapter --------------------------===//
 //
-// Copyright (C) 2023-2026 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
@@ -200,6 +199,8 @@ struct ur_platform_handle_t_ : ur::handle_base<ur::level_zero::ddi_getter>,
         ze_executable_graph_handle_t hGraph);
     ze_result_t (*zeCommandListIsGraphCaptureEnabledExp)(
         ze_command_list_handle_t hCommandList);
+    ze_result_t (*zeCommandListGetGraphExp)(
+        ze_command_list_handle_t hCommandList, ze_graph_handle_t *phGraph);
     ze_result_t (*zeGraphIsEmptyExp)(ze_graph_handle_t hGraph);
     ze_result_t (*zeGraphDumpContentsExp)(ze_graph_handle_t hGraph,
                                           const char *filePath, void *pNext);

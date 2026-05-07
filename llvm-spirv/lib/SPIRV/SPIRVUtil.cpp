@@ -2496,6 +2496,12 @@ public:
       setArgAttr(0, SPIR::ATTR_CONST);
       addUnsignedArg(0);
       break;
+    case OpSubgroupBlockPrefetchINTEL:
+      setArgAttr(0, SPIR::ATTR_CONST);
+      addUnsignedArg(0);
+      addUnsignedArg(1);
+      addUnsignedArg(2); // optional Memory Operands bitmask
+      break;
     case OpAtomicUMax:
     case OpAtomicUMin:
       addUnsignedArg(0);

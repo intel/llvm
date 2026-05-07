@@ -1,9 +1,8 @@
 //===--------- queue_immediate_in_order.hpp - Level Zero Adapter ---------===//
 //
-// Copyright (C) 2024-2026 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
@@ -561,6 +560,10 @@ public:
 
   ur_result_t queueIsGraphCapteEnabledExp(bool *pResult) override {
     return commandListManager.lock()->isGraphCaptureActive(pResult);
+  }
+
+  ur_result_t queueGetGraphExp(ur_exp_graph_handle_t *phGraph) override {
+    return commandListManager.lock()->getGraph(phGraph);
   }
 
   ur_result_t

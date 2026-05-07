@@ -269,6 +269,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     ReturnSizes.sizes[2] = Max;
     return ReturnValue(ReturnSizes);
   }
+  case UR_DEVICE_INFO_MAX_WORK_GROUPS: {
+    return ReturnValue(std::numeric_limits<size_t>::max());
+  }
   case UR_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES: {
     return ReturnValue(static_cast<uint32_t>(1u));
   }
@@ -887,7 +890,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
 
     return UR_RESULT_SUCCESS;
   }
-  case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_LONG: {
+  case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_LONG:
+  case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_LONG_LONG: {
     CL_RETURN_ON_FAILURE(clGetDeviceInfo(hDevice->CLDevice,
                                          CL_DEVICE_PREFERRED_VECTOR_WIDTH_LONG,
                                          propSize, pPropValue, pPropSizeRet));
@@ -936,7 +940,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
 
     return UR_RESULT_SUCCESS;
   }
-  case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG: {
+  case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG:
+  case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG_LONG: {
     CL_RETURN_ON_FAILURE(clGetDeviceInfo(hDevice->CLDevice,
                                          CL_DEVICE_NATIVE_VECTOR_WIDTH_LONG,
                                          propSize, pPropValue, pPropSizeRet));

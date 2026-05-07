@@ -14,6 +14,7 @@
 #include <sycl/ext/oneapi/experimental/detail/invoke_simd_types.hpp>
 #include <sycl/ext/oneapi/experimental/uniform.hpp>
 
+#include <sycl/detail/loop.hpp>
 #include <sycl/sub_group.hpp>
 
 #include <functional>

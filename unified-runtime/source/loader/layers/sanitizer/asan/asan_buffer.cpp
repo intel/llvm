@@ -1,9 +1,8 @@
 /*
  *
- * Copyright (C) 2024 Intel Corporation
  *
- * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
- * Exceptions. See LICENSE.TXT
+ * Part of the LLVM Project, under the Apache License v2.0 with LLVM
+ * Exceptions. See https://llvm.org/LICENSE.txt for license information.
  *
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
@@ -96,10 +95,9 @@ ur_result_t MemBuffer::getHandle(ur_device_handle_t Device, char *&Handle) {
   if (!Allocation) {
     ur_usm_desc_t USMDesc{};
     USMDesc.align = getAlignment();
-    ur_usm_pool_handle_t Pool{};
-    URes = getAsanInterceptor()->allocateMemory(Context, Device, &USMDesc, Pool,
-                                                Size, AllocType::MEM_BUFFER,
-                                                ur_cast<void **>(&Allocation));
+    URes = getAsanInterceptor()->allocateMemory(
+        Context, Device, AllocMemoryParams::forUSM(&USMDesc, {}), Size,
+        AllocType::MEM_BUFFER, ur_cast<void **>(&Allocation));
     if (URes != UR_RESULT_SUCCESS) {
       UR_LOG_L(getContext()->logger, ERR,
                "Failed to allocate {} bytes memory for buffer {}", Size, this);
@@ -134,10 +132,9 @@ ur_result_t MemBuffer::getHandle(ur_device_handle_t Device, char *&Handle) {
     if (!HostAllocation) {
       ur_usm_desc_t USMDesc{};
       USMDesc.align = getAlignment();
-      ur_usm_pool_handle_t Pool{};
       URes = getAsanInterceptor()->allocateMemory(
-          Context, nullptr, &USMDesc, Pool, Size, AllocType::HOST_USM,
-          ur_cast<void **>(&HostAllocation));
+          Context, nullptr, AllocMemoryParams::forUSM(&USMDesc, {}), Size,
+          AllocType::HOST_USM, ur_cast<void **>(&HostAllocation));
       if (URes != UR_RESULT_SUCCESS) {
         UR_LOG_L(getContext()->logger, ERR,
                  "Failed to allocate {} bytes host USM for buffer {} migration",

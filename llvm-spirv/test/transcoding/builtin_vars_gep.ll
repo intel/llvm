@@ -12,7 +12,6 @@
 ; RUN: %if spirv-backend %{ llvm-spirv -r %t.llc.spv -o %t.llc.rev.bc %}
 ; RUN: %if spirv-backend %{ llvm-dis %t.llc.rev.bc -o %t.llc.rev.ll %}
 ; RUN: %if spirv-backend %{ FileCheck %s --check-prefix=CHECK-LLC < %t.llc.rev.ll %}
-; TODO: rewrite the test as currently DCE removes IR through llc compilation flow
 
 ; CHECK-SPIRV: Decorate [[Id:[0-9]+]] BuiltIn 28
 ; CHECK-SPIRV: Variable {{[0-9]+}} [[Id:[0-9]+]]
@@ -26,6 +25,8 @@ target triple = "spir-unknown-unknown"
 define spir_kernel void @f() {
 entry:
   %0 = load i64, ptr addrspace(1) @__spirv_BuiltInGlobalInvocationId, align 32
+  %tmp = alloca i64, align 8
+  store volatile i64 %0, ptr %tmp, align 8
   ; CHECK-OCL-IR: %[[#ID1:]] = call spir_func i64 @_Z13get_global_idj(i32 0)
 
   ; CHECK-SPV-IR: %[[#ID1:]] = call spir_func i64 @_Z33__spirv_BuiltInGlobalInvocationIdi(i32 0)

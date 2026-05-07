@@ -1,10 +1,9 @@
 //===----------------------------------------------------------------------===//
 /*
  *
- * Copyright (C) 2024 Intel Corporation
  *
- * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
- * Exceptions. See LICENSE.TXT
+ * Part of the LLVM Project, under the Apache License v2.0 with LLVM
+ * Exceptions. See https://llvm.org/LICENSE.txt for license information.
  *
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
@@ -46,15 +45,15 @@ MsanInterceptor::~MsanInterceptor() {
 
 ur_result_t MsanInterceptor::allocateMemory(ur_context_handle_t Context,
                                             ur_device_handle_t Device,
-                                            const ur_usm_desc_t *Properties,
-                                            ur_usm_pool_handle_t Pool,
+                                            const AllocMemoryParams &Params,
                                             size_t Size, AllocType Type,
                                             void **ResultPtr) {
 
   auto ContextInfo = getContextInfo(Context);
   std::shared_ptr<DeviceInfo> DI = Device ? getDeviceInfo(Device) : nullptr;
 
-  uint32_t Alignment = Properties ? Properties->align : MSAN_ORIGIN_GRANULARITY;
+  uint32_t Alignment =
+      Params.USMDesc ? Params.USMDesc->align : Params.Alignment;
   // Alignment must be zero or a power-of-two
   if (0 != (Alignment & (Alignment - 1))) {
     return UR_RESULT_ERROR_INVALID_ARGUMENT;
@@ -63,18 +62,24 @@ ur_result_t MsanInterceptor::allocateMemory(ur_context_handle_t Context,
     Alignment = MSAN_ORIGIN_GRANULARITY;
   }
 
-  ur_usm_desc_t NewProperties;
-  if (Properties) {
-    NewProperties = *Properties;
-    NewProperties.align = Alignment;
-  } else {
-    NewProperties = {UR_STRUCTURE_TYPE_USM_DESC, nullptr,
-                     UR_USM_ADVICE_FLAG_DEFAULT, Alignment};
-  }
-
   void *Allocated = nullptr;
-  UR_CALL(
-      SafeAllocate(Context, Device, Size, Properties, Pool, Type, &Allocated));
+  if (Type != AllocType::EXPORTABLE_MEM) {
+    ur_usm_desc_t NewProperties;
+    if (Params.USMDesc) {
+      NewProperties = *Params.USMDesc;
+      NewProperties.align = Alignment;
+    } else {
+      NewProperties = {UR_STRUCTURE_TYPE_USM_DESC, nullptr,
+                       UR_USM_ADVICE_FLAG_DEFAULT, Alignment};
+    }
+    UR_CALL(SafeAllocate(Context, Device, Size, &NewProperties, Params.Pool,
+                         Type, &Allocated));
+  } else {
+    UR_CALL(
+        getContext()->urDdiTable.MemoryExportExp.pfnAllocExportableMemoryExp(
+            Context, Device, Alignment, Size, Params.HandleTypeToExport,
+            &Allocated));
+  }
 
   *ResultPtr = Allocated;
 
@@ -96,6 +101,9 @@ ur_result_t MsanInterceptor::allocateMemory(ur_context_handle_t Context,
     break;
   case AllocType::SHARED_USM:
     HeapType = HeapType::SharedUSM;
+    break;
+  case AllocType::EXPORTABLE_MEM:
+    HeapType = HeapType::ExportableMem;
     break;
   default:
     UR_LOG_L(getContext()->logger, ERR, "Unknown heap type");

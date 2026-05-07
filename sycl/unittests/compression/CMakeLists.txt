@@ -1,7 +1,7 @@
 add_sycl_unittest(CompressionTests OBJECT
   CompressionTests.cpp
 )
-target_compile_definitions(CompressionTests_Non_Preview_Tests PRIVATE SYCL_RT_ZSTD_AVAILABLE)
+target_compile_definitions(CompressionTests-Non_Preview_Tests PRIVATE SYCL_RT_ZSTD_AVAILABLE)
 if(SYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB)
-  target_compile_definitions(CompressionTests_Preview_Tests PRIVATE SYCL_RT_ZSTD_AVAILABLE __INTEL_PREVIEW_BREAKING_CHANGES)
+  target_compile_definitions(CompressionTests-Preview_Tests PRIVATE SYCL_RT_ZSTD_AVAILABLE __INTEL_PREVIEW_BREAKING_CHANGES)
 endif()

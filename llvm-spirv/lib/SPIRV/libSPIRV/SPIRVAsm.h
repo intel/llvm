@@ -119,7 +119,8 @@ public:
   bool isOperandLiteral(unsigned int Index) const override { return false; }
   void setWordCount(SPIRVWord TheWordCount) override {
     SPIRVEntry::setWordCount(TheWordCount);
-    Args.resize(TheWordCount - FixedWC);
+    SPIRVCK(WordCount >= FixedWC, InvalidWordCount, "");
+    Args.resize(WordCount - FixedWC);
   }
   const std::vector<SPIRVWord> &getArguments() const { return Args; }
 

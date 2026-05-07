@@ -191,6 +191,44 @@ TEST_P(SchedulerTest, InOrderQueueNoSchedulerPath) {
   EXPECT_EQ(KernelEventListSize[1] /*EventsCount*/, 0u);
 }
 
+// This test checks the barrier submission path (handler-less, scheduler
+// bypass), where the wait event list is an empty vector, but the barrier
+// has a dependenent event set (through the external event) from a different
+// queue (so it cannot be skipped).
+//
+// In this case, even though the wait event list is empty, the barrier
+// command needs to honor the dependent event and submit the barrier
+// command to the backend.
+TEST_P(SchedulerTest, InOrderQueueBarrierEmptyWaitListDepEvent) {
+  KernelEventListSize.clear();
+  sycl::unittest::UrMock<> Mock;
+  bool UseShortcutFunction = GetParam();
+  mock::getCallbacks().set_before_callback(
+      "urEnqueueEventsWaitWithBarrierExt",
+      &redefinedEnqueueEventsWaitWithBarrierExt);
+  BarrierCalled = false;
+
+  sycl::platform Plt = sycl::platform();
+
+  context Ctx{Plt};
+  queue InOrderQueue1{Ctx, default_selector_v, property::queue::in_order()};
+  queue InOrderQueue2{Ctx, default_selector_v, property::queue::in_order()};
+
+  event EventKernel = sycl::unittest::single_task_wrapper<TestKernel>(
+      UseShortcutFunction, InOrderQueue1, []() {});
+
+  ExpectedEvent = detail::getSyclObjImpl(EventKernel)->getHandle();
+
+  std::vector<event> WaitEventList;
+  InOrderQueue2.ext_oneapi_set_external_event(EventKernel);
+  InOrderQueue2.ext_oneapi_submit_barrier(WaitEventList);
+
+  InOrderQueue1.wait();
+  InOrderQueue2.wait();
+
+  ASSERT_TRUE(BarrierCalled);
+}
+
 } // anonymous namespace
 
 INSTANTIATE_TEST_SUITE_P(

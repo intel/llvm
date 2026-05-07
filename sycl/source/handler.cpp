@@ -43,6 +43,7 @@
 #include <sycl/ext/oneapi/experimental/graph.hpp>
 #include <sycl/ext/oneapi/experimental/work_group_memory.hpp>
 #include <sycl/ext/oneapi/memcpy2d.hpp>
+#include <sycl/ext/oneapi/work_group_scratch_memory.hpp>
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 #include <detail/xpti_registry.hpp>
@@ -490,6 +491,14 @@ detail::EventImplPtr handler::finalize() {
               std::string_view(MKernelName)));
     }
     assert(impl->MKernelData.getKernelName() == MKernelName);
+    if (!impl->MHasWorkGroupScratchSizeProperty &&
+        impl->MKernelData.getDeviceKernelInfoPtr()
+            ->getWorkGroupDynamicLocalMem())
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::memory_allocation),
+          "Kernel allocates work group scratch memory but an allocation size "
+          "has not been specified through the work_group_scratch_size "
+          "property!");
 
     // If there were uses of set_specialization_constant build the kernel_bundle
     detail::kernel_bundle_impl *KernelBundleImpPtr =
@@ -752,8 +761,21 @@ detail::EventImplPtr handler::finalize() {
     return EventImpl;
   }
 
-  // Because graph case is handled right above.
+  // Because command graph case is handled right above.
   assert(Queue);
+
+  // Native graph recording limitation
+  if (type == detail::CGType::CodeplayHostTask && Queue->isNativeRecording()) {
+    throw sycl::exception(
+        make_error_code(errc::feature_not_supported),
+        "SYCL host_task is not supported in native recording mode. Use "
+        "zeCommandListAppendHostFunction as a workaround.");
+  }
+  if (!CommandGroup->getRequirements().empty() && Queue->isNativeRecording()) {
+    throw sycl::exception(
+        make_error_code(errc::feature_not_supported),
+        "sycl::buffer accessors are not supported in native recording mode.");
+  }
 
   // If the queue has an associated graph then we need to take the CG and pass
   // it to the graph to create a node, rather than submit it to the scheduler.
@@ -1574,6 +1596,9 @@ void handler::memcpyFromHostOnlyDeviceGlobal(void *Dest,
 
 void handler::setKernelLaunchProperties(
     const detail::KernelPropertyHolderStructTy &Kprop) {
+  impl->MHasWorkGroupScratchSizeProperty |= static_cast<bool>(
+      Kprop.get<sycl::ext::oneapi::experimental::work_group_scratch_size>()
+          ->MProperty);
   impl->MKernelData.validateAndSetKernelLaunchProperties(
       Kprop, getCommandGraph() != nullptr /*hasGraph?*/,
       impl->get_device() /*device_impl*/);
