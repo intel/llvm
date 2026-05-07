@@ -555,6 +555,9 @@ TraversalResult findMaxSLMUsageAlongAllPaths(const ScopedCallGraph::Node *Cur,
 
 PreservedAnalyses
 ESIMDLowerSLMReservationCalls::run(Module &M, ModuleAnalysisManager &MAM) {
+  if (M.getContext().getDiagHandlerPtr()->HasErrors)
+    return PreservedAnalyses::all();
+
   // Create a detailed "scoped" call graph. Scope start/end is marked with
   // x = __esimd_slm_alloc / __esimd_slm_free(x)
   //
