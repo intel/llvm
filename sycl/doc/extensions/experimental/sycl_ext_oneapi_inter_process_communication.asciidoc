@@ -197,7 +197,7 @@ using handle_data_view_t = std::span<const std::byte, std::dynamic_extent>;
 
 // This struct is defined for backward compatibility and will be replaced by
 // the sycl::ext::oneapi::experimental::ipc::handle struct in the next ABI
-// braking window.
+// breaking window.
 struct handle {
   handle_data_t data() const;
 
