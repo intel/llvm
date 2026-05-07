@@ -105,11 +105,15 @@ implementation supports.
 
 === Generic types
 
-This extension adds these generic types for all of the objects supported by the
-extension to be shared between processes.
+This extension adds generic types to be used by the IPC features going forward.
 
-It adds aliases `handle_data_t` and `handle_data_view_t` as well as a new
+It adds `handle_data_t` and `handle_data_view_t` aliases as well as a new
 handle type `handle` under the `ipc` experimental namespace.
+
+For backward compatibility, the USM memory IPC API continues to define and use
+the `handle` type and related aliases from the
+`sycl::ext::oneapi::experimental::ipc_memory` namespace until the next
+ABI-breaking window.
 
 ```
 namespace sycl::ext::oneapi::experimental::ipc {
@@ -140,8 +144,8 @@ handle_data_t data() const;
 ----
 !====
 
-_Preconditions:_ The `put` function has not previously been called with this
-handle and the resources associated with this handle have not been freed.
+_Preconditions:_ The resources associated with this handle have not been
+released by the relevant IPC API or by the destruction of the original object.
 
 _Returns:_ The handle data associated with the IPC handle object. This data can
 be transferred to other processes, but cannot be used to recreate a `handle`
@@ -155,8 +159,8 @@ handle_data_view_t data_view() const;
 ----
 !====
 
-_Preconditions:_ The `put` function has not previously been called with this
-handle and the resources associated with this handle have not been freed.
+_Preconditions:_ The resources associated with this handle have not been
+released by the relevant IPC API or by the destruction of the original object.
 
 _Returns:_ A `std::span` with a view into the handle data associated with the
 IPC handle object. This data can be transferred to other processes, but cannot
@@ -200,8 +204,8 @@ using handle_data_t = std::vector<std::byte>;
 using handle_data_view_t = std::span<const std::byte, std::dynamic_extent>;
 
 // This struct is defined for backward compatibility and will be replaced by
-// the sycl::ext::oneapi::experimental::ipc::handle struct in the next ABI
-// breaking window.
+// the sycl::ext::oneapi::experimental::ipc::handle struct in the next
+// ABI-breaking window.
 struct handle {
   handle_data_t data() const;
 
@@ -617,7 +621,7 @@ namespace syclext = sycl::ext::oneapi::experimental;
 
 namespace sycl::ext::oneapi::experimental::ipc::physical_memory {
 
-syclext::ipc::handle get(syclext::physical_mem &phys_mem);
+syclext::ipc::handle get(const syclext::physical_mem &phys_mem);
 
 syclext::physical_mem open(const syclext::ipc::handle_data_t &handle_data,
                            const sycl::context &ctx, const sycl::device &dev);
