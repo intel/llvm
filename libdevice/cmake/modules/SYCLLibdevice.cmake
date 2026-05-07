@@ -1,21 +1,16 @@
 include(CheckCXXCompilerFlag)
 set(obj_binary_dir "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
 if (MSVC)
+  set(obj-suffix obj)
   set(devicelib_host_static_obj sycl-devicelib-host.lib)
 else()
+  set(obj-suffix o)
   set(devicelib_host_static_obj libsycl-devicelib-host.a)
 endif()
 set(bc-suffix bc)
 set(bc_binary_dir "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
 set(install_dest_obj lib${LLVM_LIBDIR_SUFFIX})
 set(install_dest_bc lib${LLVM_LIBDIR_SUFFIX})
-
-string(CONCAT sycl_targets_opt
-  "-fsycl-targets="
-  "spir64_x86_64-unknown-unknown,"
-  "spir64_gen-unknown-unknown,"
-  "spir64-unknown-unknown,"
-  "spirv64-unknown-unknown")
 
 string(CONCAT sycl_pvc_target_opt
   "-fsycl-targets="
@@ -435,14 +430,6 @@ add_devicelibs(libsycl-imf
   SRC imf_wrapper.cpp
   DEPENDENCIES ${imf_obj_deps}
   BUILD_ARCHS ${imf_build_archs})
-add_devicelibs(libsycl-imf-fp64
-  SRC imf_wrapper_fp64.cpp
-  DEPENDENCIES ${imf_obj_deps}
-  BUILD_ARCHS ${imf_build_archs})
-add_devicelibs(libsycl-imf-bf16
-  SRC imf_wrapper_bf16.cpp
-  DEPENDENCIES ${imf_obj_deps}
-  BUILD_ARCHS ${imf_build_archs})
 if(MSVC)
   add_devicelibs(libsycl-msvc-math
     SRC msvc_math.cpp
@@ -745,23 +732,19 @@ foreach(dtype IN ITEMS bf16 fp32 fp64)
     DTYPE ${dtype}
     EXTRA_OPTS ${obj_host_compile_opts}
     TGT_NAME ${tgt_name})
-
-  set(wrapper_name imf_wrapper.cpp)
-  if (NOT ("${dtype}" STREQUAL "fp32"))
-    set(wrapper_name imf_wrapper_${dtype}.cpp)
-  endif()
-  add_custom_command(
-    OUTPUT ${obj_binary_dir}/imf-${dtype}-host.${obj-suffix}
-    COMMAND ${clang_exe} ${obj_host_compile_opts}
-            ${CMAKE_CURRENT_SOURCE_DIR}/${wrapper_name}
-            -o ${obj_binary_dir}/imf-${dtype}-host.${obj-suffix}
-    MAIN_DEPENDENCY ${CMAKE_CURRENT_SOURCE_DIR}/${wrapper_name}
-    DEPENDS ${imf_obj_deps}
-    VERBATIM)
-
-  add_custom_target(imf_${dtype}_host_obj DEPENDS
-    ${obj_binary_dir}/imf-${dtype}-host.${obj-suffix})
 endforeach()
+
+add_custom_command(
+  OUTPUT ${obj_binary_dir}/imf-wrapper-host.${obj-suffix}
+  COMMAND ${clang_exe} ${obj_host_compile_opts}
+          ${CMAKE_CURRENT_SOURCE_DIR}/imf_wrapper.cpp
+          -o ${obj_binary_dir}/imf-wrapper-host.${obj-suffix}
+  MAIN_DEPENDENCY ${CMAKE_CURRENT_SOURCE_DIR}/imf_wrapper.cpp
+  DEPENDS ${imf_obj_deps}
+  VERBATIM)
+
+add_custom_target(imf_wrapper_host_obj DEPENDS
+  ${obj_binary_dir}/imf-wrapper-host.${obj-suffix})
 
 add_custom_target(imf_host_obj
   DEPENDS ${obj_binary_dir}/${devicelib_host_static_obj})
@@ -769,15 +752,14 @@ add_custom_command(
   OUTPUT ${obj_binary_dir}/${devicelib_host_static_obj}
   COMMAND ${llvm-ar_exe} rcs
           ${obj_binary_dir}/${devicelib_host_static_obj}
-          ${obj_binary_dir}/imf-fp32-host.${obj-suffix}
+          ${obj_binary_dir}/imf-wrapper-host.${obj-suffix}
           ${obj_binary_dir}/fallback-imf-fp32-host.${obj-suffix}
-          ${obj_binary_dir}/imf-fp64-host.${obj-suffix}
           ${obj_binary_dir}/fallback-imf-fp64-host.${obj-suffix}
-          ${obj_binary_dir}/imf-bf16-host.${obj-suffix}
           ${obj_binary_dir}/fallback-imf-bf16-host.${obj-suffix}
-  DEPENDS imf_fp32_host_obj imf_fallback_fp32_host_obj
-  DEPENDS imf_fp64_host_obj imf_fallback_fp64_host_obj
-  DEPENDS imf_bf16_host_obj imf_fallback_bf16_host_obj
+  DEPENDS imf_wrapper_host_obj
+  DEPENDS imf_fallback_fp32_host_obj
+  DEPENDS imf_fallback_fp64_host_obj
+  DEPENDS imf_fallback_bf16_host_obj
   DEPENDS ${llvm-ar_target}
   VERBATIM)
 add_dependencies(libsycldevice-obj imf_host_obj)
