@@ -35,6 +35,12 @@ struct ur_adapter_handle_t_ : ur::opencl::handle_base {
   // Function pointers to core OpenCL entry points which may not exist in older
   // versions of the OpenCL-ICD-Loader are tracked here and initialized by
   // dynamically loading the symbol by name.
+#ifdef UR_STATIC_ADAPTER_OPENCL
+  // Temporarily undefine the OCL function macros from ocl_dynamic_lib.hpp
+  // so we can use decltype on the original function names
+#undef clSetProgramSpecializationConstant
+#undef clSetContextDestructorCallback
+#endif
 #define CL_CORE_FUNCTION(FUNC) decltype(::FUNC) *FUNC = nullptr;
 #include "core_functions.def"
 #undef CL_CORE_FUNCTION

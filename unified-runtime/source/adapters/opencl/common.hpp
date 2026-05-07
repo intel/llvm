@@ -14,6 +14,13 @@
 
 #include <CL/cl.h>
 #include <CL/cl_ext.h>
+
+#ifdef UR_STATIC_ADAPTER_OPENCL
+// Include dynamic loading header which will redirect all OpenCL function calls
+// to our dynamically loaded function pointers
+#include "ocl_dynamic_lib.hpp"
+#endif
+
 #include <climits>
 #include <map>
 #include <mutex>

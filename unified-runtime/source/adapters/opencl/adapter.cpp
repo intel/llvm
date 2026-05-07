@@ -11,10 +11,14 @@
 #include "common.hpp"
 #include "ur/ur.hpp"
 
+#ifdef UR_STATIC_ADAPTER_OPENCL
+#include "ocl_dynamic_lib.hpp"
+#else
 #ifdef _MSC_VER
 #include <Windows.h>
 #else
 #include <dlfcn.h>
+#endif
 #endif
 
 // There can only be one OpenCL adapter alive at a time.
@@ -23,6 +27,11 @@
 static ur_adapter_handle_t liveAdapter = nullptr;
 
 ur_adapter_handle_t_::ur_adapter_handle_t_() : handle_base() {
+#ifdef UR_STATIC_ADAPTER_OPENCL
+  if (!ocl::loadOCLLibrary()) {
+    return;
+  }
+#else
 #ifdef _MSC_VER
 
   // Retrieving handle of an already linked OpenCL.dll library doesn't increase
@@ -44,13 +53,23 @@ ur_adapter_handle_t_::ur_adapter_handle_t_() : handle_base() {
 #undef CL_CORE_FUNCTION
 
 #endif // _MSC_VER
+#endif // UR_STATIC_ADAPTER_OPENCL
   assert(!liveAdapter);
   liveAdapter = this;
 }
 
 ur_adapter_handle_t_::~ur_adapter_handle_t_() {
+#ifdef UR_STATIC_ADAPTER_OPENCL
+  // Constructor may have returned early (load failure) without setting
+  // liveAdapter, so only clean up if this adapter was fully initialized.
+  if (liveAdapter == this) {
+    liveAdapter = nullptr;
+    ocl::unloadOCLLibrary();
+  }
+#else
   assert(liveAdapter == this);
   liveAdapter = nullptr;
+#endif
 }
 
 ur_adapter_handle_t ur::cl::getAdapter() {
@@ -69,17 +88,22 @@ urAdapterGet(uint32_t NumEntries, ur_adapter_handle_t *phAdapters,
     std::lock_guard<std::mutex> Lock{AdapterConstructionMutex};
 
     if (!liveAdapter) {
-      *phAdapters = new ur_adapter_handle_t_();
-    } else {
-      *phAdapters = liveAdapter;
+      ur_adapter_handle_t_ *newAdapter = new ur_adapter_handle_t_();
+      if (!liveAdapter) {
+        delete newAdapter;
+        if (pNumAdapters) {
+          *pNumAdapters = 0;
+        }
+        return UR_RESULT_ERROR_UNINITIALIZED;
+      }
     }
 
-    auto &adapter = *phAdapters;
-    adapter->RefCount.retain();
+    *phAdapters = liveAdapter;
+    liveAdapter->RefCount.retain();
   }
 
   if (pNumAdapters) {
-    *pNumAdapters = 1;
+    *pNumAdapters = liveAdapter ? 1 : 0;
   }
 
   return UR_RESULT_SUCCESS;

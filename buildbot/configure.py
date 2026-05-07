@@ -258,6 +258,9 @@ def do_configure(args, passthrough_args):
     if args.add_security_flags:
         cmake_cmd.extend(["-DEXTRA_SECURITY_FLAGS={}".format(args.add_security_flags)])
 
+    if args.static_opencl_adapter:
+        cmake_cmd.extend(["-DUR_STATIC_ADAPTER_OPENCL=ON"])
+
     # Add path to root CMakeLists.txt
     cmake_cmd.append(llvm_dir)
 
@@ -438,6 +441,11 @@ def main():
     )
     parser.add_argument(
         "--use-zstd", action="store_true", help="Force zstd linkage while building."
+    )
+    parser.add_argument(
+        "--static-opencl-adapter",
+        action="store_true",
+        help="Build OpenCL adapter as static library with dynamic OpenCL loading (no OpenCL dependency at link time).",
     )
     parser.add_argument(
         "--print-cmake-flags",
