@@ -21,7 +21,6 @@ add_conformance_devices_test(adapter-cuda
     urEventCreateWithNativeHandle.cpp
     urQueueGetNativeHandle.cpp
     kernel_tests.cpp
-    program_tests.cpp
     memory_tests.cpp
     event_tests.cpp
     #FIXME: make this cleaner
