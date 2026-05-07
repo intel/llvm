@@ -589,12 +589,12 @@ indicating whether the physical memory object can be shared across processes.
 _Remarks:_ `physical_mem` constructor throws an exception with the
 `errc::feature_not_supported` error code if inter-process sharing is enabled
 via `enable_ipc` and the device associated with `physical_mem` does not have
-the aspect `aspect::ext_oneapi_ipc_event`.
+the aspect `aspect::ext_oneapi_ipc_physical_memory`.
 
 ==== New physical_mem member function
 
 This extension adds a new physical_mem type member function, which can be used
-to check if a given physical memory allcation can be passed between processes.
+to check if a given physical memory allocation can be passed between processes.
 
 [source,c++]
 ----
