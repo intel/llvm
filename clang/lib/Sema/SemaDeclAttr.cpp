@@ -5954,8 +5954,11 @@ bool Sema::CheckCallingConvAttr(const ParsedAttr &Attrs, CallingConv &CC,
     // especially inside of included headers. Now we don't know if they will be
     // emitted, so we just defer any diagnostics. Check for the host triple if
     // we have one, since everything is still emitted for the host.
-    if (Aux)
+    A = TI.checkCallingConvention(CC);
+    if (A != TargetInfo::CCCR_OK && Aux)
       A = Aux->checkCallingConvention(CC);
+    else
+      A = TargetInfo::CCCR_OK;
   } else {
     A = TI.checkCallingConvention(CC);
   }

@@ -18,7 +18,7 @@ void bar() {
 template <typename name, typename Func>
 // expected-no-warning@+1
 __cdecl __attribute__((sycl_kernel)) void kernel_single_task(const Func &kernelFunc) {
-  // expected-error@+1 2{{SYCL kernel cannot call a variadic function}}
+  // expected-error@+1 2{{SYCL device code does not support variadic functions}}
   printf("cannot call from here\n");
   // expected-no-error@+1
   moo();
@@ -26,9 +26,25 @@ __cdecl __attribute__((sycl_kernel)) void kernel_single_task(const Func &kernelF
   kernelFunc();
 }
 
+template<typename KN, typename...Args>
+void sycl_kernel_launch(Args ...args) {}
+
+template<typename KN, typename K>
+[[clang::sycl_kernel_entry_point(KN)]]
+__cdecl void sycl_entry_point(K k) {
+  k(); // expected-note {{called by}}
+}
+
 int main() {
   //expected-error@+1 {{SYCL device code does not support variadic functions}}
   sycl_entry_point<class kn>([]() { printf("world\n");
+     moo();
+  //expected-error@+1 {{SYCL device code does not support variadic functions}}
+     foo(1,2); });
+
+  //expected-note@+2 {{in instantiation of}}
+  //expected-error@+1 {{SYCL device code does not support variadic functions}}
+  kernel_single_task<class kn>([]() { printf("world\n");
      moo();
   //expected-error@+1 {{SYCL device code does not support variadic functions}}
      foo(1,2); });
