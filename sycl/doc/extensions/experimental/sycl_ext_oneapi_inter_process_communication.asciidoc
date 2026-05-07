@@ -525,6 +525,206 @@ ipc_memory::close(ptr, ctxt);
 
 |====
 
+=== Inter-process exchange of physical memory
+
+This extension allows for the exchange of a physical memory handle between
+processes. A given physical memory handle can be mapped into a virtual address
+space in multiple processes, so the processes can access the same device
+memory.
+
+The following aspect and set of free functions are specific to
+physical memory handle sharing feature.
+
+==== Extension to `enum class aspect` for physical memory
+
+[source]
+----
+namespace sycl {
+enum class aspect {
+  ...
+  ext_oneapi_ipc_physical_memory
+}
+}
+----
+
+If a SYCL device has this aspect, that device supports the functions in the
+`ipc::physical_memory` namespace specified in the following section.
+
+==== New functions associated with physical memory
+
+This extension adds new free functions under the `ipc::physical_memory` experimental
+namespace.
+
+```
+namespace syclext = sycl::ext::oneapi::experimental;
+
+namespace sycl::ext::oneapi::experimental::ipc::physical_memory {
+
+handle get(syclext::physical_mem &phys_mem);
+
+syclext::physical_mem open(const handle_data_t &handle_data,
+                           const sycl::context &ctx, const sycl::device &dev);
+
+syclext::physical_mem open(const handle_data_t &handle_data,
+                           const sycl::device &dev);
+
+syclext::physical_mem open(const handle_data_t &handle_data);
+
+// Requires C++20
+syclext::physical_mem open(const handle_data_view_t &handle_data_view,
+                           const sycl::context &ctx, const sycl::device &dev);
+
+// Requires C++20
+syclext::physical_mem open(const handle_data_view_t &handle_data_view,
+                           const sycl::device &dev);
+
+// Requires C++20
+syclext::physical_mem open(const handle_data_view_t &handle_data_view);
+
+}
+```
+
+|====
+a|
+[frame=all,grid=none]
+!====
+a!
+[source]
+----
+handle get(syclext::physical_mem &phys_mem)
+----
+!====
+
+_Returns:_ An IPC "handle" to this physical memory object. The bytes of this
+handle can be transferred to another process on the same system, and the other
+process can use the handle to get a physical memory object representing the
+same memory allocation through a call to the `open` function.
+
+_Throws:_ An exception with the `errc::feature_not_supported` error code if
+the device associated with `phys_mem` does not have
+`aspect::ext_oneapi_ipc_physical_memory`.
+
+!====
+a!
+[source]
+----
+syclext::physical_mem open(const handle_data_t &handle_data,
+                           const sycl::context &ctx, const sycl::device &dev)
+----
+!====
+
+_Preconditions:_ `handle_data` is the IPC "handle" to a physical memory object
+that was returned from a call to the `get` function either in this process or in some
+other process on the same system.
+
+_Returns:_ A physical memory object represented by `handle_data`. The returned
+object is associated with context `ctx` and device `dev`.
+
+[_Note:_ The `open` function can be called multiple times on the same handle
+within the same process. Each call to the `open` function may return a unique
+physical memory object even for the same handle.
+_{endnote}_]
+
+[_Note:_ The physical memory object returned from a call to the `open` function
+is no longer valid if the original object associated with `handle_data` (passed
+to a `get` function call) is destroyed.
+_{endnote}_]
+
+_Throws:_
+
+ * An exception with the `errc::feature_not_supported` error code if device
+   `dev` does not have `aspect::ext_oneapi_ipc_physical_memory`.
+ * An exception with the `errc::invalid` error code if the handle data
+   `handle_data` has an unexpected number of bytes.
+ * An exception with the `errc::invalid` error code if `ctx` does not contain
+  `dev`.
+
+!====
+a!
+[source]
+----
+syclext::physical_mem open(const handle_data_t &handle_data,
+                           const sycl::device &dev)
+----
+!====
+
+_Effects:_ Equivalent to:
+
+[source,c++,indent=2]
+----
+sycl::context ctxt = dev.get_platform().khr_get_default_context();
+return ipc::physical_memory::open(handle_data, ctxt, dev);
+----
+
+!====
+a!
+[source]
+----
+syclext::physical_mem open(const handle_data_t &handle_data)
+----
+!====
+
+_Effects:_ Equivalent to:
+
+[source,c++,indent=2]
+----
+sycl::device d;
+sycl::context ctxt = d.get_platform().khr_get_default_context();
+return ipc::physical_memory::open(handle_data, ctxt, d);
+----
+
+!====
+a!
+[source]
+----
+syclext::physical_mem open(const handle_data_view_t &handle_data_view,
+                           const sycl::context &ctx, const sycl::device &dev)
+----
+!====
+
+_Effects:_ Equivalent to:
+
+[source,c++,indent=2]
+----
+handle_data_t handle_data{handle_data_view.begin(), handle_data_view.end()};
+return ipc::physical_memory::open(handle_data, ctx, dev);
+----
+
+!====
+a!
+[source]
+----
+syclext::physical_mem open(const handle_data_view_t &handle_data_view,
+                           const sycl::device &dev)
+----
+!====
+
+_Effects:_ Equivalent to:
+
+[source,c++,indent=2]
+----
+sycl::context ctxt = dev.get_platform().khr_get_default_context();
+return ipc::physical_memory::open(handle_data_view, ctxt, dev);
+----
+
+!====
+a!
+[source]
+----
+syclext::physical_mem open(const handle_data_view_t &handle_data_view)
+----
+!====
+
+_Effects:_ Equivalent to:
+
+[source,c++,indent=2]
+----
+sycl::device d;
+sycl::context ctxt = d.get_platform().khr_get_default_context();
+return ipc::physical_memory::open(handle_data_view, ctxt, d);
+----
+
+|====
 
 == Issues
 
