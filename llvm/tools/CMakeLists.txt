@@ -51,7 +51,6 @@ add_llvm_external_project(bolt)
 # file as external projects.
 add_llvm_implicit_projects()
 
-add_llvm_external_project(libclc)
 add_llvm_external_project(polly)
 
 # libclc depends on clang
