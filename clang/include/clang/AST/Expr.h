@@ -595,11 +595,11 @@ public:
                                                  SmallVectorImpl<
                                                    PartialDiagnosticAt> &Diags);
 
-  /// isConstantInitializer - Returns true if this expression can be emitted to
+  /// Returns true if this expression can be emitted to
   /// IR as a constant, and thus can be used as a constant initializer in C.
   /// If this expression is not constant and Culprit is non-null,
   /// it is used to store the address of first non constant expr.
-  bool isConstantInitializer(ASTContext &Ctx, bool ForRef,
+  bool isConstantInitializer(ASTContext &Ctx, bool ForRef = false,
                              const Expr **Culprit = nullptr) const;
 
   /// If this expression is an unambiguous reference to a single declaration,
@@ -5127,6 +5127,17 @@ public:
 
   static bool classof(const Stmt *T) {
     return T->getStmtClass() == SourceLocExprClass;
+  }
+
+  static bool MayBeDependent(SourceLocIdentKind Kind) {
+    switch (Kind) {
+    case SourceLocIdentKind::Function:
+    case SourceLocIdentKind::FuncSig:
+    case SourceLocIdentKind::SourceLocStruct:
+      return true;
+    default:
+      return false;
+    }
   }
 
 private:

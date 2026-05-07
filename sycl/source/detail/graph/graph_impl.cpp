@@ -371,6 +371,8 @@ graph_impl::~graph_impl() {
       context_impl &ContextImpl = *sycl::detail::getSyclObjImpl(MContext);
       sycl::detail::adapter_impl &Adapter = ContextImpl.getAdapter();
 
+      ContextImpl.deregisterNativeGraph(MNativeGraphHandle);
+
       ur_result_t Result =
           Adapter.call_nocheck<sycl::detail::UrApiKind::urGraphDestroyExp>(
               MNativeGraphHandle);
@@ -2095,18 +2097,33 @@ modifiable_command_graph::modifiable_command_graph(
     const sycl::context &SyclContext, const sycl::device &SyclDevice,
     const sycl::property_list &PropList)
     : impl(std::make_shared<detail::graph_impl>(SyclContext, SyclDevice,
-                                                PropList)) {}
+                                                PropList)) {
+  if (auto UrNativeHandle = impl->getNativeGraphHandle()) {
+    auto &ContextImpl = *sycl::detail::getSyclObjImpl(SyclContext);
+    ContextImpl.registerNativeGraph(UrNativeHandle, impl);
+  }
+}
 
 modifiable_command_graph::modifiable_command_graph(
     const sycl::queue &SyclQueue, const sycl::property_list &PropList)
     : impl(std::make_shared<detail::graph_impl>(
-          SyclQueue.get_context(), SyclQueue.get_device(), PropList)) {}
+          SyclQueue.get_context(), SyclQueue.get_device(), PropList)) {
+  if (auto UrNativeHandle = impl->getNativeGraphHandle()) {
+    auto &ContextImpl = *sycl::detail::getSyclObjImpl(SyclQueue.get_context());
+    ContextImpl.registerNativeGraph(UrNativeHandle, impl);
+  }
+}
 
 modifiable_command_graph::modifiable_command_graph(
     const sycl::device &SyclDevice, const sycl::property_list &PropList)
     : impl(std::make_shared<detail::graph_impl>(
           SyclDevice.get_platform().khr_get_default_context(), SyclDevice,
-          PropList)) {}
+          PropList)) {
+  if (auto UrNativeHandle = impl->getNativeGraphHandle()) {
+    auto &ContextImpl = *sycl::detail::getSyclObjImpl(impl->getContext());
+    ContextImpl.registerNativeGraph(UrNativeHandle, impl);
+  }
+}
 
 node modifiable_command_graph::addImpl(dynamic_command_group &DynCGF,
                                        const std::vector<node> &Deps) {

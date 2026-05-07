@@ -864,7 +864,7 @@ private:
       if constexpr (ext::oneapi::experimental::detail::
                         HasKernelPropertiesGetMethod<
                             decltype(Wrapper)>::value) {
-        SetKernelLaunchpropertiesIfNotEmpty(detail::extractKernelProperties(
+        setKernelLaunchProperties(detail::extractKernelProperties(
             Wrapper.get(ext::oneapi::experimental::properties_tag{})));
       }
 
@@ -895,14 +895,13 @@ private:
       if constexpr (ext::oneapi::experimental::detail::
                         HasKernelPropertiesGetMethod<
                             const KernelType &>::value) {
-        SetKernelLaunchpropertiesIfNotEmpty(
-            detail::extractKernelProperties<Info.IsESIMD>(
-                KernelFunc.get(ext::oneapi::experimental::properties_tag{})));
+        setKernelLaunchProperties(detail::extractKernelProperties<Info.IsESIMD>(
+            KernelFunc.get(ext::oneapi::experimental::properties_tag{})));
       }
 
 #ifndef __SYCL_DEVICE_ONLY__
       verifyUsedKernelBundleInternal(Info.Name);
-      SetKernelLaunchpropertiesIfNotEmpty(
+      setKernelLaunchProperties(
           detail::extractKernelProperties<Info.IsESIMD>(Props));
       detail::checkValueRange<Dims>(UserRange);
       convertToRangeViewAndSetDescriptor(std::move(UserRange));
@@ -932,7 +931,7 @@ private:
     setDeviceKernelInfo(std::move(Kernel));
     detail::checkValueRange<Dims>(NumWorkItems);
     convertToRangeViewAndSetDescriptor(std::move(NumWorkItems));
-    SetKernelLaunchpropertiesIfNotEmpty(detail::extractKernelProperties(Props));
+    setKernelLaunchProperties(detail::extractKernelProperties(Props));
     extractArgsAndReqs();
 #endif
   }
@@ -955,7 +954,7 @@ private:
     setDeviceKernelInfo(std::move(Kernel));
     detail::checkValueRange<Dims>(NDRange);
     convertToRangeViewAndSetDescriptor(std::move(NDRange));
-    SetKernelLaunchpropertiesIfNotEmpty(detail::extractKernelProperties(Props));
+    setKernelLaunchProperties(detail::extractKernelProperties(Props));
     extractArgsAndReqs();
 #endif
   }
@@ -978,9 +977,8 @@ private:
 
     if constexpr (ext::oneapi::experimental::detail::
                       HasKernelPropertiesGetMethod<const KernelType &>::value) {
-      SetKernelLaunchpropertiesIfNotEmpty(
-          detail::extractKernelProperties<Info.IsESIMD>(
-              KernelFunc.get(ext::oneapi::experimental::properties_tag{})));
+      setKernelLaunchProperties(detail::extractKernelProperties<Info.IsESIMD>(
+          KernelFunc.get(ext::oneapi::experimental::properties_tag{})));
     }
 
 #ifndef __SYCL_DEVICE_ONLY__
@@ -999,7 +997,7 @@ private:
     }
 
     StoreLambda<NameT, KernelType, Dims, ElementType>(std::move(KernelFunc));
-    SetKernelLaunchpropertiesIfNotEmpty(
+    setKernelLaunchProperties(
         detail::extractKernelProperties<Info.IsESIMD>(Props));
 #endif
   }
@@ -2856,6 +2854,7 @@ private:
   void setKernelLaunchProperties(
       const detail::KernelPropertyHolderStructTy &KernelLaunchProperties);
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   inline constexpr void SetKernelLaunchpropertiesIfNotEmpty(
       const detail::KernelPropertyHolderStructTy &KernelLaunchProperties) {
     (void)KernelLaunchProperties;
@@ -2863,8 +2862,9 @@ private:
 #ifndef __SYCL_DEVICE_ONLY__
     if (!KernelLaunchProperties.isEmpty())
       setKernelLaunchProperties(KernelLaunchProperties);
-#endif
+#endif // __SYCL_DEVICE_ONLY
   }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   // Various checks that are only meaningful for host compilation, because they
   // result in runtime errors (i.e. exceptions being thrown). To save time

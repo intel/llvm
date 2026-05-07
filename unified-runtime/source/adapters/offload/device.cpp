@@ -8,6 +8,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <OffloadAPI.h>
+#include <limits>
 #include <unified-runtime/ur_api.h>
 #include <ur/ur.hpp>
 
@@ -51,9 +52,26 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(nullptr);
   case UR_DEVICE_INFO_VERSION:
     return ReturnValue("");
-  case UR_DEVICE_INFO_EXTENSIONS:
-    // todo: use offload API to query supported extensions
-    return ReturnValue("cl_khr_il_program");
+  case UR_DEVICE_INFO_EXTENSIONS: {
+    std::string SupportedExtensions = "cl_khr_il_program ";
+
+    bool DoubleFPSupport = false;
+    if (olGetDeviceInfo(
+            hDevice->OffloadDevice, OL_DEVICE_INFO_DOUBLE_FP_SUPPORT,
+            sizeof(DoubleFPSupport), &DoubleFPSupport) == OL_SUCCESS &&
+        DoubleFPSupport) {
+      SupportedExtensions += "cl_khr_fp64 ";
+    }
+
+    bool HalfFPSupport = false;
+    if (olGetDeviceInfo(hDevice->OffloadDevice, OL_DEVICE_INFO_HALF_FP_SUPPORT,
+                        sizeof(HalfFPSupport), &HalfFPSupport) == OL_SUCCESS &&
+        HalfFPSupport) {
+      SupportedExtensions += "cl_khr_fp16 ";
+    }
+
+    return ReturnValue(SupportedExtensions.c_str());
+  }
   case UR_DEVICE_INFO_USE_NATIVE_ASSERT:
     return ReturnValue(false);
   case UR_DEVICE_INFO_TYPE:
@@ -85,14 +103,28 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     olInfo = OL_DEVICE_INFO_NUM_COMPUTE_UNITS;
     break;
   case UR_DEVICE_INFO_SINGLE_FP_CONFIG:
-    olInfo = OL_DEVICE_INFO_SINGLE_FP_CONFIG;
-    break;
   case UR_DEVICE_INFO_HALF_FP_CONFIG:
-    olInfo = OL_DEVICE_INFO_HALF_FP_CONFIG;
+  case UR_DEVICE_INFO_DOUBLE_FP_CONFIG: {
+    ol_device_info_t SupportInfo;
+    if (propName == UR_DEVICE_INFO_SINGLE_FP_CONFIG) {
+      SupportInfo = OL_DEVICE_INFO_SINGLE_FP_SUPPORT;
+      olInfo = OL_DEVICE_INFO_SINGLE_FP_CONFIG;
+    } else if (propName == UR_DEVICE_INFO_HALF_FP_CONFIG) {
+      SupportInfo = OL_DEVICE_INFO_HALF_FP_SUPPORT;
+      olInfo = OL_DEVICE_INFO_HALF_FP_CONFIG;
+    } else {
+      SupportInfo = OL_DEVICE_INFO_DOUBLE_FP_SUPPORT;
+      olInfo = OL_DEVICE_INFO_DOUBLE_FP_CONFIG;
+    }
+
+    bool Supported = false;
+    if (olGetDeviceInfo(hDevice->OffloadDevice, SupportInfo, sizeof(Supported),
+                        &Supported) != OL_SUCCESS ||
+        !Supported) {
+      return ReturnValue(ur_device_fp_capability_flags_t{0});
+    }
     break;
-  case UR_DEVICE_INFO_DOUBLE_FP_CONFIG:
-    olInfo = OL_DEVICE_INFO_DOUBLE_FP_CONFIG;
-    break;
+  }
   case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_CHAR:
   case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_CHAR:
     olInfo = OL_DEVICE_INFO_NATIVE_VECTOR_WIDTH_CHAR;
@@ -207,6 +239,27 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
       urVec[0] = olVec.x;
       urVec[1] = olVec.y;
       urVec[2] = olVec.z;
+    }
+
+    return UR_RESULT_SUCCESS;
+  }
+  case UR_DEVICE_INFO_MAX_WORK_GROUPS: {
+    // OL dimensions are uint32_t while UR is size_t, so they need to be mapped.
+    if (pPropSizeRet) {
+      *pPropSizeRet = sizeof(size_t);
+    }
+
+    if (pPropValue) {
+      ol_dimensions_t olVec;
+      OL_RETURN_ON_ERR(olGetDeviceInfo(
+          hDevice->OffloadDevice, OL_DEVICE_INFO_MAX_WORK_SIZE_PER_DIMENSION,
+          sizeof(olVec), &olVec));
+
+      // Multiply the max group counts in each dimension to get the total max
+      // number of work groups. Prevent overflow.
+      *reinterpret_cast<size_t *>(pPropValue) = multiplyWithOverflowCheck(
+          static_cast<size_t>(olVec.x), static_cast<size_t>(olVec.y),
+          static_cast<size_t>(olVec.z));
     }
 
     return UR_RESULT_SUCCESS;

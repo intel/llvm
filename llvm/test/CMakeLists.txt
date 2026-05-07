@@ -66,6 +66,7 @@ set(LLVM_TEST_DEPENDS_COMMON
   count
   llvm-config
   not
+  split-file
   )
 
 set(LLVM_TEST_DEPENDS
@@ -160,7 +161,6 @@ set(LLVM_TEST_DEPENDS
   spirv-to-ir-wrapper
   sycl-post-link
   sycl-module-split
-  split-file
   verify-uselistorder
   yaml-bench
   yaml2obj
