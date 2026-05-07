@@ -20,6 +20,7 @@ namespace ext::intel::esimd::xmx {
 /// Describes the element types in the input matrices.
 /// Used as template parameter to dpas() and may be omitted when
 /// it is deducible from the element types of input matrices.
+// clang-format off
 enum class dpas_argument_type {
   Invalid = 0,
   u1 __SYCL_DEPRECATED("u1 is reserved/unsupported") = 1, // unsigned 1 bit
@@ -32,9 +33,12 @@ enum class dpas_argument_type {
   s8 = 8,                                                 // signed 8 bits
   bf16 = 9,                                               // bfloat 16
   fp16 = 10,                                              // half float
+  bf8 = 11,                                               // bfloat 8
   tf32 = 12,                                              // tensorfloat 32
+  hf8 = 14,                                               // 8-bit "half" float
+  e2m1 = 15,                                              // s1.e2.m1 4-bit float
 };
-
+// clang-format on
 } // namespace ext::intel::esimd::xmx
 } // namespace _V1
 } // namespace sycl
