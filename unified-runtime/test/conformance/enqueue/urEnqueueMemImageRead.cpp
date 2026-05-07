@@ -1,10 +1,10 @@
-// Copyright (C) 2023-2026 Intel Corporation
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #include <uur/fixtures.h>
 #include <uur/known_failure.h>
+#include <uur/raii.h>
 
 struct urEnqueueMemImageReadTest : uur::urMemImageQueueTest {
   void SetUp() override {
@@ -67,12 +67,12 @@ TEST_P(urEnqueueMemImageReadTest, InvalidNullPtrEventWaitList) {
                                          nullptr),
                    UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 
-  ur_event_handle_t validEvent;
-  ASSERT_SUCCESS(urEnqueueEventsWait(queue, 0, nullptr, &validEvent));
+  uur::raii::Event eventDummy = nullptr;
+  ASSERT_SUCCESS(uur::MakeDummyEventForWaitList(context, eventDummy.ptr()));
 
   ASSERT_EQ_RESULT(urEnqueueMemImageRead(queue, image1D, true, origin, region1D,
-                                         0, 0, output.data(), 0, &validEvent,
-                                         nullptr),
+                                         0, 0, output.data(), 0,
+                                         eventDummy.ptr(), nullptr),
                    UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 
   ur_event_handle_t inv_evt = nullptr;
@@ -80,8 +80,6 @@ TEST_P(urEnqueueMemImageReadTest, InvalidNullPtrEventWaitList) {
                                          0, 0, output.data(), 1, &inv_evt,
                                          nullptr),
                    UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
-
-  ASSERT_SUCCESS(urEventRelease(validEvent));
 }
 
 TEST_P(urEnqueueMemImageReadTest, InvalidOrigin1D) {

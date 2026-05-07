@@ -5240,6 +5240,18 @@ OptimizeNoneAttr *Sema::mergeOptimizeNoneAttr(Decl *D,
 }
 
 static void handleAlwaysInlineAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
+  AlwaysInlineAttr AIA(S.Context, AL);
+  if (!S.getLangOpts().MicrosoftExt &&
+      (AIA.isMSVCForceInline() || AIA.isMSVCForceInlineCalls())) {
+    S.Diag(AL.getLoc(), diag::warn_attribute_ignored) << AL;
+    return;
+  }
+  if (AIA.isMSVCForceInlineCalls()) {
+    S.Diag(AL.getLoc(), diag::warn_stmt_attribute_ignored_in_function)
+        << "[[msvc::forceinline]]";
+    return;
+  }
+
   if (AlwaysInlineAttr *Inline =
           S.mergeAlwaysInlineAttr(D, AL, AL.getAttrName()))
     D->addAttr(Inline);
@@ -7908,9 +7920,6 @@ ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D, const ParsedAttr &AL,
     else
       handleWorkGroupSize<ReqdWorkGroupSizeAttr>(S, D, AL);
     break;
-  case ParsedAttr::AT_SYCLIntelMaxWorkGroupSize:
-    S.SYCL().handleSYCLIntelMaxWorkGroupSize(D, AL);
-    break;
   case ParsedAttr::AT_SYCLIntelMinWorkGroupsPerComputeUnit:
     S.SYCL().handleSYCLIntelMinWorkGroupsPerComputeUnit(D, AL);
     break;
@@ -7922,9 +7931,6 @@ ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D, const ParsedAttr &AL,
     break;
   case ParsedAttr::AT_IntelNamedSubGroupSize:
     S.SYCL().handleIntelNamedSubGroupSizeAttr(D, AL);
-    break;
-  case ParsedAttr::AT_SYCLIntelNumSimdWorkItems:
-    S.SYCL().handleSYCLIntelNumSimdWorkItemsAttr(D, AL);
     break;
   case ParsedAttr::AT_VecTypeHint:
     handleVecTypeHint(S, D, AL);
@@ -8476,9 +8482,6 @@ void Sema::ProcessDeclAttributeList(
       Diag(D->getLocation(), diag::err_opencl_kernel_attr) << A;
       D->setInvalidDecl();
     } else if (const auto *A = D->getAttr<SYCLWorkGroupSizeHintAttr>()) {
-      Diag(D->getLocation(), diag::err_opencl_kernel_attr) << A;
-      D->setInvalidDecl();
-    } else if (const auto *A = D->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
       Diag(D->getLocation(), diag::err_opencl_kernel_attr) << A;
       D->setInvalidDecl();
     } else if (const auto *A =

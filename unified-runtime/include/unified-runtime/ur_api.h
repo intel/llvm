@@ -1,10 +1,9 @@
 /*
  *
- * Copyright (C) 2022 Intel Corporation
  *
- * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
+ * Part of the LLVM Project, under the Apache License v2.0 with LLVM
  * Exceptions.
- * See LICENSE.TXT
+ * See https://llvm.org/LICENSE.txt for license information.
  *
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
@@ -2205,7 +2204,8 @@ typedef enum ur_device_info_t {
   /// It is unsuitable for general use in applications. This feature is
   /// provided for identifying memory leaks.
   UR_DEVICE_INFO_REFERENCE_COUNT = 64,
-  /// [char[]] null-terminated IL version
+  /// [char[]][optional-query] null-terminated IL version. Optional as not
+  /// all adapters support IL (e.g., NativeCPU).
   UR_DEVICE_INFO_IL_VERSION = 65,
   /// [char[]] null-terminated device name
   UR_DEVICE_INFO_NAME = 66,
@@ -2380,6 +2380,26 @@ typedef enum ur_device_info_t {
   UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_LONG_LONG = 131,
   /// [uint32_t] native vector width for long long
   UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG_LONG = 132,
+  /// [size_t] return max total number of work groups
+  UR_DEVICE_INFO_MAX_WORK_GROUPS = 133,
+  /// [uint32_t][optional-query] return Intel GPU number of
+  /// stacks/chiplets/tiles
+  UR_DEVICE_INFO_XE_STACK_COUNT = 134,
+  /// [uint32_t][optional-query] return Intel GPU number of regions sharing
+  /// local L2/L3 (XE_CU) per stack
+  UR_DEVICE_INFO_XE_REGIONS_PER_STACK = 135,
+  /// [uint32_t][optional-query] return Intel GPU number of clusters
+  /// (slices) per region
+  UR_DEVICE_INFO_XE_CLUSTERS_PER_REGION = 136,
+  /// [uint32_t][optional-query] return Intel GPU number of XE cores per
+  /// cluster
+  UR_DEVICE_INFO_XE_CORES_PER_CLUSTER = 137,
+  /// [uint32_t][optional-query] return Intel GPU number of execution
+  /// engines (EUs) per XE Core
+  UR_DEVICE_INFO_EUS_PER_XE_CORE = 138,
+  /// [uint32_t][optional-query] return Intel GPU maximal number of lanes
+  /// (virtual SIMD size) per hardware thread
+  UR_DEVICE_INFO_MAX_LANES_PER_HW_THREAD = 139,
   /// [::ur_bool_t] Returns true if the device supports the use of
   /// command-buffers.
   UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP = 0x1000,

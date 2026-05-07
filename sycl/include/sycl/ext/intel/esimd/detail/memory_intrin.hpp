@@ -20,7 +20,7 @@
 #include <sycl/vector.hpp>
 
 #ifdef __SYCL_DEVICE_ONLY__
-#include <sycl/__spirv/spirv_ops.hpp>
+#include <sycl/__spirv/spirv_ops_runtime.hpp>
 #endif
 
 #include <cstdint>

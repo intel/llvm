@@ -32,7 +32,7 @@
 #include <sycl/detail/generic_type_traits.hpp>
 #include <sycl/detail/memcpy.hpp>
 
-#include <sycl/__spirv/spirv_ops.hpp>
+#include <sycl/__spirv/spirv_ops_image.hpp>
 
 namespace sycl {
 inline namespace _V1 {

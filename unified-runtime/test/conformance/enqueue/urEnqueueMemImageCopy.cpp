@@ -1,11 +1,11 @@
-// Copyright (C) 2023-2026 Intel Corporation
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #include <sstream>
 #include <uur/fixtures.h>
 #include <uur/known_failure.h>
+#include <uur/raii.h>
 
 struct urEnqueueMemImageCopyTest
     : public uur::urMultiQueueTypeTestWithParam<ur_mem_type_t> {
@@ -243,11 +243,11 @@ TEST_P(urEnqueueMemImageCopyTest, InvalidNullPtrEventWaitList) {
                                          {0, 0, 0}, size, 1, nullptr, nullptr),
                    UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 
-  ur_event_handle_t validEvent;
-  ASSERT_SUCCESS(urEnqueueEventsWait(queue, 0, nullptr, &validEvent));
+  uur::raii::Event eventDummy = nullptr;
+  ASSERT_SUCCESS(uur::MakeDummyEventForWaitList(context, eventDummy.ptr()));
 
   ASSERT_EQ_RESULT(urEnqueueMemImageCopy(queue, srcImage, dstImage, {0, 0, 0},
-                                         {0, 0, 0}, size, 0, &validEvent,
+                                         {0, 0, 0}, size, 0, eventDummy.ptr(),
                                          nullptr),
                    UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 
@@ -255,8 +255,6 @@ TEST_P(urEnqueueMemImageCopyTest, InvalidNullPtrEventWaitList) {
   ASSERT_EQ_RESULT(urEnqueueMemImageCopy(queue, srcImage, dstImage, {0, 0, 0},
                                          {0, 0, 0}, size, 1, &inv_evt, nullptr),
                    UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
-
-  ASSERT_SUCCESS(urEventRelease(validEvent));
 }
 
 TEST_P(urEnqueueMemImageCopyTest, InvalidSize) {

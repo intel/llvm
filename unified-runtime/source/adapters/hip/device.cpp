@@ -1,9 +1,8 @@
 //===--------- device.cpp - HIP Adapter -----------------------------------===//
 //
-// Copyright (C) 2023-2026 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
@@ -116,6 +115,25 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return_sizes.sizes[1] = size_t(MaxY);
     return_sizes.sizes[2] = size_t(MaxZ);
     return ReturnValue(return_sizes);
+  }
+
+  case UR_DEVICE_INFO_MAX_WORK_GROUPS: {
+    int MaxX = 0, MaxY = 0, MaxZ = 0;
+    UR_CHECK_ERROR(hipDeviceGetAttribute(&MaxX, hipDeviceAttributeMaxGridDimX,
+                                         hDevice->get()));
+    assert(MaxX >= 0);
+
+    UR_CHECK_ERROR(hipDeviceGetAttribute(&MaxY, hipDeviceAttributeMaxGridDimY,
+                                         hDevice->get()));
+    assert(MaxY >= 0);
+
+    UR_CHECK_ERROR(hipDeviceGetAttribute(&MaxZ, hipDeviceAttributeMaxGridDimZ,
+                                         hDevice->get()));
+    assert(MaxZ >= 0);
+
+    return ReturnValue(multiplyWithOverflowCheck(static_cast<size_t>(MaxX),
+                                                 static_cast<size_t>(MaxY),
+                                                 static_cast<size_t>(MaxZ)));
   }
 
   case UR_DEVICE_INFO_MAX_WORK_GROUP_SIZE: {

@@ -34,6 +34,11 @@
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Program.h"
 
+// This macro should be defined by the build system.
+#ifndef OFFLOAD_MIN_CUDA_VERSION
+#error "Missing OFFLOAD_MIN_CUDA_VERSION macro"
+#endif
+
 using namespace llvm::offload::debug;
 using namespace error;
 
@@ -1086,6 +1091,20 @@ struct CUDADeviceTy : public GenericDeviceTy {
     return Plugin::check(Res, "error in cuEventSynchronize: %s");
   }
 
+  /// Get the elapsed time in milliseconds between two events.
+  Expected<float> getEventElapsedTimeImpl(void *StartEventPtr,
+                                          void *EndEventPtr) override {
+    CUevent StartEvent = reinterpret_cast<CUevent>(StartEventPtr);
+    CUevent EndEvent = reinterpret_cast<CUevent>(EndEventPtr);
+
+    float ElapsedTime = 0.0f;
+    CUresult Res = cuEventElapsedTime(&ElapsedTime, StartEvent, EndEvent);
+    if (auto Err = Plugin::check(Res, "error in cuEventElapsedTime: %s"))
+      return std::move(Err);
+
+    return ElapsedTime;
+  }
+
   /// Print information about the device.
   Expected<InfoTreeNode> obtainInfoImpl() override {
     char TmpChar[1000];
@@ -1579,6 +1598,22 @@ struct CUDAPluginTy final : public GenericPluginTy {
 
     if (auto Err = Plugin::check(Res, "error in cuInit: %s"))
       return std::move(Err);
+
+    // Get the latest CUDA version supported by the driver.
+    int Version;
+    Res = cuDriverGetVersion(&Version);
+    if (auto Err = Plugin::check(Res, "error in cuDriverGetVersion: %s"))
+      return std::move(Err);
+
+    // Verify that the driver supports the minimum CUDA version required.
+    constexpr int MinVersion = OFFLOAD_MIN_CUDA_VERSION;
+    if (Version < MinVersion) {
+      ODBG(OLDT_Init) << "Minimum CUDA version not supported by the driver.";
+      return Plugin::error(
+          ErrorCode::UNSUPPORTED,
+          "CUDA driver does not support minimum CUDA version %d (%d detected)",
+          MinVersion, Version);
+    }
 
     // Get the number of devices.
     int NumDevices;
