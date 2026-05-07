@@ -652,7 +652,7 @@ a|
 a!
 [source]
 ----
-syclext::ipc::handle get(syclext::physical_mem &phys_mem)
+syclext::ipc::handle get(const syclext::physical_mem &phys_mem)
 ----
 !====
 
