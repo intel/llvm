@@ -74,7 +74,6 @@ endforeach()
 # library.
 # Additional compilation options are needed for compiling each device library.
 set(full_build_archs)
-set(imf_build_archs)
 if ("NVPTX" IN_LIST LLVM_TARGETS_TO_BUILD)
   list(APPEND full_build_archs nvptx64-nvidia-cuda)
   set(compile_opts_nvptx64-nvidia-cuda "-fsycl-targets=nvptx64-nvidia-cuda"
@@ -428,8 +427,7 @@ add_devicelibs(libsycl-cmath
   DEPENDENCIES ${cmath_obj_deps})
 add_devicelibs(libsycl-imf
   SRC imf_wrapper.cpp
-  DEPENDENCIES ${imf_obj_deps}
-  BUILD_ARCHS ${imf_build_archs})
+  DEPENDENCIES ${imf_obj_deps})
 if(MSVC)
   add_devicelibs(libsycl-msvc-math
     SRC msvc_math.cpp
@@ -673,26 +671,6 @@ foreach(dtype IN ITEMS bf16 fp32 fp64)
       DTYPE ${dtype}
       EXTRA_OPTS ${${ftype}_device_compile_opts}
       TGT_NAME ${tgt_name})
-  endforeach()
-endforeach()
-
-# Add device fallback imf libraries for single bitcode targets.
-# The output files are bitcode.
-foreach(arch IN LISTS imf_build_archs)
-  foreach(dtype IN ITEMS bf16 fp32 fp64)
-    set(tgt_name imf_fallback_${dtype}_bc_${arch})
-
-    add_lib_imf(libsycl-fallback-imf-${arch}-${dtype}
-      ARCH ${arch}
-      DIR ${bc_binary_dir}
-      FTYPE bc
-      DTYPE ${dtype}
-      EXTRA_OPTS ${bc_device_compile_opts} ${compile_opts_${arch}}
-      TGT_NAME ${tgt_name})
-
-    append_to_property(
-      ${bc_binary_dir}/libsycl-fallback-imf-${arch}-${dtype}.${bc-suffix}
-      PROPERTY_NAME BC_DEVICE_LIBS_${arch})
   endforeach()
 endforeach()
 
