@@ -10,8 +10,7 @@
 //
 // Generate .bc file as SYCL device library file.
 //
-// RUN: touch %t.devicelib.cpp
-// RUN: %clang -cc1 -fsycl-is-device -emit-llvm-bc -o %t.devicelib.bc %t.devicelib.cpp
+// RUN: touch %t.devicelib.bc
 //
 // Run clang-linker-wrapper test
 //
@@ -77,8 +76,7 @@
 //
 // Generate AOT .bc file as SYCL device library file.
 //
-// RUN: touch %t.devicelib.cpp
-// RUN: %clang -cc1 -fsycl-is-device -emit-llvm-bc -o %t.devicelib_aot.bc %t.devicelib.cpp
+// RUN: touch %t.devicelib_aot.bc
 //
 // Check -sycl-add-default-spec-consts-image option enables emitting
 // -generate-device-image-default-spec-consts in sycl-post-link.

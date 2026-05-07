@@ -1,10 +1,9 @@
 // Generate .bc file as SYCL device library file.
 // REQUIRES: system-linux
 //
-// RUN: touch %t.devicelib.cpp
-// RUN: %clang -cc1 -fsycl-is-device -emit-llvm-bc -o %t_1.devicelib.bc %t.devicelib.cpp
-// RUN: %clang -cc1 -fsycl-is-device -emit-llvm-bc -o %t_2.devicelib.bc %t.devicelib.cpp
-// RUN: %clang -cc1 -fsycl-is-device -emit-llvm-bc -o %t_3.devicelib.bc %t.devicelib.cpp
+// RUN: touch %t_1.devicelib.bc
+// RUN: touch %t_2.devicelib.bc
+// RUN: touch %t_3.devicelib.bc
 
 /// Check llvm-spirv extensions that are set
 

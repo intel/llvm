@@ -11,8 +11,7 @@
 //
 // Generate .bc file as SYCL device library file.
 //
-// RUN: touch %t.devicelib.cpp
-// RUN: %clang -cc1 -fsycl-is-device -emit-llvm-bc -o %t.devicelib.bc %t.devicelib.cpp
+// RUN: touch %t.devicelib.bc
 
 // TODO: fix the problem that sycl-post-link and sycl-post-link-library match sycl-post-link{{.*}}
 // Run clang-linker-wrapper test
@@ -109,8 +108,7 @@
 //
 // Generate .bc file as SYCL device library file.
 //
-// RUN: touch %t1.devicelib.cpp
-// RUN: %clang -cc1 -fsycl-is-device -emit-llvm-bc -o %t1.devicelib.bc %t1.devicelib.cpp
+// RUN: touch %t1.devicelib.bc
 //
 // Run clang-linker-wrapper test (with and without -sycl-embed-ir). -sycl-embed-ir should have no effect for Intel targets.
 //
@@ -141,8 +139,7 @@
 //
 // Generate .bc file as SYCL device library file.
 //
-// RUN: touch %t2.devicelib.cpp
-// RUN: %clang -cc1 -fsycl-is-device -emit-llvm-bc -o %t2.devicelib.bc %t2.devicelib.cpp
+// RUN: touch %t2.devicelib.bc
 //
 // Run clang-linker-wrapper test
 //
@@ -165,8 +162,7 @@
 //
 // Generate .o file as SYCL device library file.
 //
-// RUN: touch %t3.devicelib.cpp
-// RUN: %clang -cc1 -fsycl-is-device -emit-llvm-bc -o %t3.devicelib.bc %t3.devicelib.cpp
+// RUN: touch %t3.devicelib.bc
 //
 // Run clang-linker-wrapper test
 //
@@ -208,8 +204,7 @@
 //
 // Generate .o file as SYCL device library file.
 //
-// RUN: touch %t3.devicelib.cpp
-// RUN: %clang -cc1 -fsycl-is-device -emit-llvm-bc -o %t3.devicelib.bc %t3.devicelib.cpp
+// RUN: touch %t3.devicelib.bc
 //
 // Run clang-linker-wrapper test
 //
