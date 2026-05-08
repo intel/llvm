@@ -260,6 +260,49 @@ ur_result_t AsanInterceptor::releaseMemory(ur_context_handle_t Context,
   return UR_RESULT_SUCCESS;
 }
 
+ur_result_t AsanInterceptor::registerIPCMemory(ur_context_handle_t Context,
+                                               ur_device_handle_t Device,
+                                               uptr Addr, size_t Size) {
+  auto CI = getContextInfo(Context);
+  auto DI = getDeviceInfo(Device);
+
+  auto AI = std::make_shared<AllocInfo>(AllocInfo{Addr,
+                                                  Addr,
+                                                  Addr + Size,
+                                                  Size,
+                                                  AllocType::DEVICE_USM,
+                                                  false,
+                                                  Context,
+                                                  Device,
+                                                  GetCurrentBacktrace(),
+                                                  {}});
+
+  DI->insertAllocInfo(AI);
+
+  // For memory release
+  {
+    std::scoped_lock<ur_shared_mutex> Guard(m_AllocationMapMutex);
+    m_AllocationMap.emplace(AI->AllocBegin, std::move(AI));
+  }
+
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t AsanInterceptor::unregisterIPCMemory(uptr Addr) {
+  auto AllocInfoItOp = findAllocInfoByAddress(Addr);
+  if (AllocInfoItOp.has_value()) {
+    auto AllocInfo = AllocInfoItOp.value()->second;
+    AllocInfo->IsReleased = true;
+    AllocInfo->ReleaseStack = GetCurrentBacktrace();
+    getDeviceInfo(AllocInfo->Device)->insertAllocInfo(AllocInfo);
+
+    std::scoped_lock<ur_shared_mutex> Guard(m_AllocationMapMutex);
+    m_AllocationMap.erase(*AllocInfoItOp);
+  }
+
+  return UR_RESULT_SUCCESS;
+}
+
 ur_result_t AsanInterceptor::preLaunchKernel(ur_kernel_handle_t Kernel,
                                              ur_queue_handle_t Queue,
                                              LaunchInfo &LaunchInfo) {
@@ -369,9 +412,12 @@ AsanInterceptor::enqueueAllocInfo(std::shared_ptr<DeviceInfo> &DeviceInfo,
   }
 
   // Init zero
-  static const int8_t Zero = 0;
   UR_CALL(DeviceInfo->Shadow->EnqueuePoisonShadow(Queue, AI->AllocBegin,
-                                                  AI->AllocSize, &Zero));
+                                                  AI->AllocSize, &kZeroMagic));
+
+  // If no redzones to poison, so we're done.
+  if (AI->UserEnd == (AI->AllocBegin + AI->AllocSize))
+    return UR_RESULT_SUCCESS;
 
   uptr TailBegin = RoundUpTo(AI->UserEnd, ASAN_SHADOW_GRANULARITY);
   uptr TailEnd = AI->AllocBegin + AI->AllocSize;

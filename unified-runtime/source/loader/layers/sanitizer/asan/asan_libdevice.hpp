@@ -111,6 +111,8 @@ const int8_t kPrivateRightRedzoneMagic = (int8_t)0xf3;
 // Unknown shadow value
 constexpr int8_t kUnknownMagic = (int8_t)0xff;
 
+constexpr int8_t kZeroMagic = 0;
+
 constexpr auto kSPIR_AsanDeviceGlobalMetadata = "__AsanDeviceGlobalMetadata";
 constexpr auto kSPIR_AsanSpirKernelMetadata = "__AsanKernelMetadata";
 
