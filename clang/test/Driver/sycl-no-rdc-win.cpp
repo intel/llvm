@@ -30,7 +30,7 @@
 // CHECK: 37: file-table-tform, {34, 36}, tempfiletable, (device-sycl)
 // CHECK: 38: clang-offload-wrapper, {37}, object, (device-sycl)
 // CHECK: 39: offload, "device-sycl (spir64-unknown-unknown)" {38}, object
-// CHECK: 45: linker, {8, 17, 32, 39}, image, (host-sycl)
+// CHECK: 40: linker, {8, 17, 32, 39}, image, (host-sycl)
 
 // RUN: %clang -### -fsycl -fno-sycl-rdc -c -fsycl-targets=spir64_gen --sysroot=%S/Inputs/SYCL %t1.cpp 2>&1 | FileCheck -check-prefix=CHECK-EARLY %s
 // RUN: %clang_cl -### -fsycl -fno-sycl-rdc -c -fsycl-targets=spir64_gen /clang:--sysroot=%S/Inputs/SYCL %t1.cpp 2>&1 | FileCheck -check-prefix=CHECK-EARLY %s
