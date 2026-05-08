@@ -7,15 +7,14 @@
 // RUN: llvm-offload-binary -o %t.fat --image=file=%t.device.bc,kind=sycl,triple=spir64-unknown-unknown
 // RUN: %clang -cc1 %s -triple=x86_64-unknown-linux-gnu -emit-obj -o %t.o -fembed-offload-object=%t.fat
 //
-// Generate .o file as SYCL device library file.
+// Generate .bc file as SYCL device library file.
 //
-// RUN: touch %t.devicelib.cpp
-// RUN: %clang %t.devicelib.cpp -fsycl -fsycl-targets=spir64-unknown-unknown -c --offload-new-driver -o %t.devicelib.o
+// RUN: touch %t.devicelib.bc
 //
 // Run clang-linker-wrapper test
 //
 //// RUN: clang-linker-wrapper --print-wrapped-module --host-triple=x86_64-unknown-linux-gnu \
-// RUN:                      -sycl-device-libraries=%t.devicelib.o \
+// RUN:                      --bitcode-library=spir64-unknown-unknown=%t.devicelib.bc \
 // RUN:                      -sycl-post-link-options="-split=auto -symbols -properties" %t.o -o %t.out 2>&1 --linker-path="/usr/bin/ld" | FileCheck %s
 
 template <typename t, typename Func>

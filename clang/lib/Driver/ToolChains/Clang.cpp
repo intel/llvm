@@ -11803,17 +11803,14 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       }
     }
 
-    // -sycl-device-libraries=<comma separated list> contains a list of
-    // file names for fat object files that contain SYCL device library bitcode
-    // necessary for SYCL offloading that will be linked to the user's device
-    // code. clang-linker-wrapper uses the value provided to
-    // -sycl-device-library-location=<dir> to construct the full paths of the
-    // device libraries.
-
-    // On the other hand, --bitcode-library=<triple>=<path to bc file> specifies
-    // one bitcode library to link in for a specific triple. Additionally, the
-    // path is *not* relative to the -sycl-device-library-location - the full
-    // path must be provided.
+    // Device libraries for SYCL offloading are specified using
+    // --bitcode-library=<triple>=<path to bc file> for each library.
+    // The full path must be provided (not relative to
+    // -sycl-device-library-location).
+    //
+    // Note: SPIR/SPIRV device libraries are linked at compile time using
+    // -mlink-builtin-bitcode, so they are not passed here. Only non-SPIR
+    // targets (NVPTX, AMD) pass device libraries to clang-linker-wrapper.
     SmallVector<std::string, 4> BCLibList;
 
     auto appendToList = [](SmallString<256> &List, const Twine &Arg) {

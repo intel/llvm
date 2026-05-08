@@ -303,12 +303,13 @@
 // HIP-NEXT:   ret void
 // HIP-NEXT: }
 
+// RUN: %clang -cc1 -fsycl-is-device -emit-llvm-bc -o %t.sycl.bc %s
 // RUN: llvm-offload-binary -o %t.out --image=file=%t.elf.o,kind=sycl,triple=spirv64-unknown-unknown,arch=generic
 // RUN: %clang -cc1 %s -triple x86_64-unknown-linux-gnu -emit-obj -o %t.o \
 // RUN:   -fembed-offload-object=%t.out
-// RUN: clang-linker-wrapper --print-wrapped-module --dry-run --host-triple=x86_64-unknown-linux-gnu -sycl-device-libraries=%t.o \
+// RUN: clang-linker-wrapper --print-wrapped-module --dry-run --host-triple=x86_64-unknown-linux-gnu --bitcode-library=spirv64-unknown-unknown=%t.sycl.bc \
 // RUN:   --linker-path=/usr/bin/ld %t.o -o a.out 2>&1 | FileCheck %s --check-prefixes=SYCL-INTEL
-// RUN: clang-linker-wrapper --print-wrapped-module --dry-run --host-triple=x86_64-unknown-linux-gnu -r -sycl-device-libraries=%t.o \
+// RUN: clang-linker-wrapper --print-wrapped-module --dry-run --host-triple=x86_64-unknown-linux-gnu -r --bitcode-library=spirv64-unknown-unknown=%t.sycl.bc \
 // RUN:   --linker-path=/usr/bin/ld %t.o -o a.out 2>&1 | FileCheck %s --check-prefixes=SYCL-INTEL
 
 // SYCL-INTEL: spirv-to-ir-wrapper
