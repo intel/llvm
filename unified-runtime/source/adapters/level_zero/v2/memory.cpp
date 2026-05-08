@@ -126,8 +126,6 @@ ur_integrated_buffer_handle_t::ur_integrated_buffer_handle_t(
       UR_CALL_THROWS(
           synchronousZeCopy(hContext, hDevice, this->ptr.get(), hostPtr, size));
       mapToPtr = hostPtr;
-      if (accessMode != device_access_mode_t::read_only)
-        writeBackPtr = hostPtr;
     }
   }
 }
