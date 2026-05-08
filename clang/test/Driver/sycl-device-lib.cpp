@@ -12,11 +12,6 @@
 // SYCL_DEVICE_LIB_LINK_DEFAULT: clang{{.*}} "-mlink-builtin-bitcode" "{{.*}}libsycl-crt.bc"
 // SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: {{.*}}libsycl-cmath.bc
 // SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: {{.*}}libsycl-imf.bc
-// SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: {{.*}}libsycl-imf-fp64.bc
-// SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: {{.*}}libsycl-imf-bf16.bc
-// SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: {{.*}}libsycl-fallback-imf.bc
-// SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: {{.*}}libsycl-fallback-imf-fp64.bc
-// SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: {{.*}}libsycl-fallback-imf-bf16.bc
 // SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: "-mlink-builtin-bitcode-postopt"
 
 /// ###########################################################################
@@ -43,11 +38,6 @@
 // SYCL_DEVICE_LIB_ASAN: clang{{.*}} "-mlink-builtin-bitcode" "{{.*}}libsycl-crt.bc
 // SYCL_DEVICE_LIB_ASAN-SAME: {{.*}}libsycl-cmath.bc
 // SYCL_DEVICE_LIB_ASAN-SAME: {{.*}}libsycl-imf.bc
-// SYCL_DEVICE_LIB_ASAN-SAME: {{.*}}libsycl-imf-fp64.bc
-// SYCL_DEVICE_LIB_ASAN-SAME: {{.*}}libsycl-imf-bf16.bc
-// SYCL_DEVICE_LIB_ASAN-SAME: {{.*}}libsycl-fallback-imf.bc
-// SYCL_DEVICE_LIB_ASAN-SAME: {{.*}}libsycl-fallback-imf-fp64.bc
-// SYCL_DEVICE_LIB_ASAN-SAME: {{.*}}libsycl-fallback-imf-bf16.bc
 // SYCL_DEVICE_LIB_ASAN-SAME: "-mlink-bitcode-file" "{{.*}}libsycl-asan.bc"
 
 // RUN: %clangxx -fsycl --offload-new-driver %s --sysroot=%S/Inputs/SYCL -Xarch_device "-fsanitize=address -DUSE_SYCL_DEVICE_ASAN" -### 2>&1 \
@@ -77,11 +67,6 @@
 // SYCL_DEVICE_LIB_ASAN_PVC: clang{{.*}} "-mlink-builtin-bitcode" "{{.*}}libsycl-crt.bc"
 // SYCL_DEVICE_LIB_ASAN_PVC-SAME: {{.*}}libsycl-cmath.bc
 // SYCL_DEVICE_LIB_ASAN_PVC-SAME: {{.*}}libsycl-imf.bc
-// SYCL_DEVICE_LIB_ASAN_PVC-SAME: {{.*}}libsycl-imf-fp64.bc
-// SYCL_DEVICE_LIB_ASAN_PVC-SAME: {{.*}}libsycl-imf-bf16.bc
-// SYCL_DEVICE_LIB_ASAN_PVC-SAME: {{.*}}libsycl-fallback-imf.bc
-// SYCL_DEVICE_LIB_ASAN_PVC-SAME: {{.*}}libsycl-fallback-imf-fp64.bc
-// SYCL_DEVICE_LIB_ASAN_PVC-SAME: {{.*}}libsycl-fallback-imf-bf16.bc
 // SYCL_DEVICE_LIB_ASAN_PVC-SAME: "-mlink-bitcode-file" "{{.*}}libsycl-asan-pvc.bc"
 
 /// ###########################################################################
@@ -91,11 +76,6 @@
 // SYCL_DEVICE_LIB_ASAN_CPU: clang{{.*}} "-mlink-builtin-bitcode" "{{.*}}libsycl-crt.bc"
 // SYCL_DEVICE_LIB_ASAN_CPU-SAME: {{.*}}libsycl-cmath.bc
 // SYCL_DEVICE_LIB_ASAN_CPU-SAME: {{.*}}libsycl-imf.bc
-// SYCL_DEVICE_LIB_ASAN_CPU-SAME: {{.*}}libsycl-imf-fp64.bc
-// SYCL_DEVICE_LIB_ASAN_CPU-SAME: {{.*}}libsycl-imf-bf16.bc
-// SYCL_DEVICE_LIB_ASAN_CPU-SAME: {{.*}}libsycl-fallback-imf.bc
-// SYCL_DEVICE_LIB_ASAN_CPU-SAME: {{.*}}libsycl-fallback-imf-fp64.bc
-// SYCL_DEVICE_LIB_ASAN_CPU-SAME: {{.*}}libsycl-fallback-imf-bf16.bc
 // SYCL_DEVICE_LIB_ASAN_CPU-SAME: "-mlink-bitcode-file" "{{.*}}libsycl-asan-cpu.bc"
 
 /// ###########################################################################
@@ -108,20 +88,10 @@
 // SYCL_DEVICE_LIB_ASAN_CPU_GPU: clang{{.*}} "-triple" "spir64_gen-unknown-unknown"{{.*}} "-mlink-builtin-bitcode" "{{.*}}libsycl-crt.bc"
 // SYCL_DEVICE_LIB_ASAN_CPU_GPU-SAME: {{.*}}libsycl-cmath.bc
 // SYCL_DEVICE_LIB_ASAN_CPU_GPU-SAME: {{.*}}libsycl-imf.bc
-// SYCL_DEVICE_LIB_ASAN_CPU_GPU-SAME: {{.*}}libsycl-imf-fp64.bc
-// SYCL_DEVICE_LIB_ASAN_CPU_GPU-SAME: {{.*}}libsycl-imf-bf16.bc
-// SYCL_DEVICE_LIB_ASAN_CPU_GPU-SAME: {{.*}}libsycl-fallback-imf.bc
-// SYCL_DEVICE_LIB_ASAN_CPU_GPU-SAME: {{.*}}libsycl-fallback-imf-fp64.bc
-// SYCL_DEVICE_LIB_ASAN_CPU_GPU-SAME: {{.*}}libsycl-fallback-imf-bf16.bc
 // SYCL_DEVICE_LIB_ASAN_CPU_GPU-SAME: "-mlink-bitcode-file" "{{.*}}libsycl-asan.bc"
 // SYCL_DEVICE_LIB_ASAN_CPU_GPU: clang{{.*}} "-triple" "spir64_x86_64-unknown-unknown"{{.*}} "-mlink-builtin-bitcode" "{{.*}}libsycl-crt.bc"
 // SYCL_DEVICE_LIB_ASAN_CPU_GPU-SAME: {{.*}}libsycl-cmath.bc
 // SYCL_DEVICE_LIB_ASAN_CPU_GPU-SAME: {{.*}}libsycl-imf.bc
-// SYCL_DEVICE_LIB_ASAN_CPU_GPU-SAME: {{.*}}libsycl-imf-fp64.bc
-// SYCL_DEVICE_LIB_ASAN_CPU_GPU-SAME: {{.*}}libsycl-imf-bf16.bc
-// SYCL_DEVICE_LIB_ASAN_CPU_GPU-SAME: {{.*}}libsycl-fallback-imf.bc
-// SYCL_DEVICE_LIB_ASAN_CPU_GPU-SAME: {{.*}}libsycl-fallback-imf-fp64.bc
-// SYCL_DEVICE_LIB_ASAN_CPU_GPU-SAME: {{.*}}libsycl-fallback-imf-bf16.bc
 // SYCL_DEVICE_LIB_ASAN_CPU_GPU-SAME: "-mlink-bitcode-file" "{{.*}}libsycl-asan.bc"
 
 /// ###########################################################################
@@ -140,11 +110,6 @@
 // SYCL_DEVICE_LIB_ASAN_DG2: clang{{.*}} "-mlink-builtin-bitcode" "{{.*}}libsycl-crt.bc"
 // SYCL_DEVICE_LIB_ASAN_DG2-SAME: {{.*}}libsycl-cmath.bc
 // SYCL_DEVICE_LIB_ASAN_DG2-SAME: {{.*}}libsycl-imf.bc
-// SYCL_DEVICE_LIB_ASAN_DG2-SAME: {{.*}}libsycl-imf-fp64.bc
-// SYCL_DEVICE_LIB_ASAN_DG2-SAME: {{.*}}libsycl-imf-bf16.bc
-// SYCL_DEVICE_LIB_ASAN_DG2-SAME: {{.*}}libsycl-fallback-imf.bc
-// SYCL_DEVICE_LIB_ASAN_DG2-SAME: {{.*}}libsycl-fallback-imf-fp64.bc
-// SYCL_DEVICE_LIB_ASAN_DG2-SAME: {{.*}}libsycl-fallback-imf-bf16.bc
 // SYCL_DEVICE_LIB_ASAN_DG2-SAME: "-mlink-bitcode-file" "{{.*}}libsycl-asan-dg2.bc"
 
 /// ###########################################################################
@@ -159,11 +124,6 @@
 // SYCL_DEVICE_LIB_ASAN_MUL: clang{{.*}} "-mlink-builtin-bitcode" "{{.*}}libsycl-crt.bc"
 // SYCL_DEVICE_LIB_ASAN_MUL-SAME: {{.*}}libsycl-cmath.bc
 // SYCL_DEVICE_LIB_ASAN_MUL-SAME: {{.*}}libsycl-imf.bc
-// SYCL_DEVICE_LIB_ASAN_MUL-SAME: {{.*}}libsycl-imf-fp64.bc
-// SYCL_DEVICE_LIB_ASAN_MUL-SAME: {{.*}}libsycl-imf-bf16.bc
-// SYCL_DEVICE_LIB_ASAN_MUL-SAME: {{.*}}libsycl-fallback-imf.bc
-// SYCL_DEVICE_LIB_ASAN_MUL-SAME: {{.*}}libsycl-fallback-imf-fp64.bc
-// SYCL_DEVICE_LIB_ASAN_MUL-SAME: {{.*}}libsycl-fallback-imf-bf16.bc
 // SYCL_DEVICE_LIB_ASAN_MUL-SAME: "-mlink-bitcode-file" "{{.*}}libsycl-asan.bc"
 
 /// ###########################################################################
@@ -181,11 +141,6 @@
 // SYCL_DEVICE_LIB_MSAN: clang{{.*}} "-mlink-builtin-bitcode" "{{.*}}libsycl-crt.bc"
 // SYCL_DEVICE_LIB_MSAN-SAME: {{.*}}libsycl-cmath.bc
 // SYCL_DEVICE_LIB_MSAN-SAME: {{.*}}libsycl-imf.bc
-// SYCL_DEVICE_LIB_MSAN-SAME: {{.*}}libsycl-imf-fp64.bc
-// SYCL_DEVICE_LIB_MSAN-SAME: {{.*}}libsycl-imf-bf16.bc
-// SYCL_DEVICE_LIB_MSAN-SAME: {{.*}}libsycl-fallback-imf.bc
-// SYCL_DEVICE_LIB_MSAN-SAME: {{.*}}libsycl-fallback-imf-fp64.bc
-// SYCL_DEVICE_LIB_MSAN-SAME: {{.*}}libsycl-fallback-imf-bf16.bc
 // SYCL_DEVICE_LIB_MSAN-SAME: "-mlink-bitcode-file" "{{.*}}libsycl-msan.bc"
 
 // RUN: %clangxx -fsycl --offload-new-driver %s --sysroot=%S/Inputs/SYCL -Xarch_device "-fsanitize=memory -DUSE_SYCL_DEVICE_MSAN" -### 2>&1 \
@@ -218,11 +173,6 @@
 // SYCL_DEVICE_LIB_TSAN: clang{{.*}} "-mlink-builtin-bitcode" "{{.*}}libsycl-crt.bc"
 // SYCL_DEVICE_LIB_TSAN-SAME: {{.*}}libsycl-cmath.bc
 // SYCL_DEVICE_LIB_TSAN-SAME: {{.*}}libsycl-imf.bc
-// SYCL_DEVICE_LIB_TSAN-SAME: {{.*}}libsycl-imf-fp64.bc
-// SYCL_DEVICE_LIB_TSAN-SAME: {{.*}}libsycl-imf-bf16.bc
-// SYCL_DEVICE_LIB_TSAN-SAME: {{.*}}libsycl-fallback-imf.bc
-// SYCL_DEVICE_LIB_TSAN-SAME: {{.*}}libsycl-fallback-imf-fp64.bc
-// SYCL_DEVICE_LIB_TSAN-SAME: {{.*}}libsycl-fallback-imf-bf16.bc
 // SYCL_DEVICE_LIB_TSAN-SAME: "-mlink-bitcode-file" "{{.*}}libsycl-tsan.bc"
 
 // RUN: %clangxx -fsycl --offload-new-driver %s --sysroot=%S/Inputs/SYCL -Xarch_device "-fsanitize=thread -DUSE_SYCL_DEVICE_TSAN" -### 2>&1 \

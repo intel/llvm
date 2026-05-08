@@ -161,6 +161,8 @@ endfunction()
 #     Custom target to create
 # * INPUT <string> ...
 #     List of bytecode files to link together
+# * OUT_DIR <string>
+#     Directory where the output bitcode should be placed
 # * RSP_DIR <string>
 #     Directory where a response file should be placed
 #     (Only needed for WIN32 or CYGWIN)
@@ -169,7 +171,7 @@ endfunction()
 function(link_bc)
   cmake_parse_arguments(ARG
     "INTERNALIZE"
-    "TARGET;RSP_DIR"
+    "TARGET;OUT_DIR;RSP_DIR"
     "INPUTS;DEPENDENCIES"
     ${ARGN}
   )
@@ -193,9 +195,14 @@ function(link_bc)
     set( link_flags --internalize --only-needed )
   endif()
 
+  if (NOT DEFINED ARG_OUT_DIR)
+    set(output_dir ${CMAKE_CURRENT_BINARY_DIR})
+  else()
+    set(output_dir ${ARG_OUT_DIR})
+  endif()
   add_custom_command(
     OUTPUT ${ARG_TARGET}.bc
-    COMMAND ${llvm-link_exe} ${link_flags} -o ${ARG_TARGET}.bc ${LINK_INPUT_ARG}
+    COMMAND ${llvm-link_exe} ${link_flags} -o ${output_dir}/${ARG_TARGET}.bc ${LINK_INPUT_ARG}
     DEPENDS ${llvm-link_target} ${ARG_DEPENDENCIES} ${ARG_INPUTS} ${RSP_FILE}
   )
 
@@ -425,7 +432,6 @@ add_devicelibs(libsycl-cmath
   SRC cmath_wrapper.cpp
   BUILD_ARCHS ${full_build_archs}
   DEPENDENCIES ${cmath_obj_deps})
-
 if(MSVC)
   add_devicelibs(libsycl-msvc-math
     SRC msvc_math.cpp
@@ -669,6 +675,7 @@ list(APPEND imf_bc_file_list ${obj_binary_dir}/imf-wrapper-device.${bc-suffix})
 list(APPEND imf_bc_file_list ${obj_binary_dir}/imf-fallback-device.${bc-suffix})
 
 link_bc(TARGET libsycl-imf
+        OUT_DIR ${obj_binary_dir}
         RSP_DIR ${CMAKE_CURRENT_BINARY_DIR}
         INPUTS ${imf_bc_file_list}
         DEPENDENCIES imf_wrapper_bc imf_fallback_bc)
@@ -741,7 +748,7 @@ install( FILES ${obj_binary_dir}/${devicelib_host_static_obj}
 
 foreach(ftype IN LISTS filetypes)
   install(
-    FILES ${CMAKE_CURRENT_BINARY_DIR}/libsycl-imf.${${ftype}-suffix}
+    FILES ${obj_binary_dir}/libsycl-imf.${${ftype}-suffix}
     DESTINATION ${install_dest_${ftype}}
     COMPONENT libsycldevice)
 endforeach()
@@ -750,6 +757,8 @@ set(libsycldevice_build_targets)
 foreach(filetype IN LISTS filetypes)
   list(APPEND libsycldevice_build_targets libsycldevice-${filetype})
 endforeach()
+
+list(APPEND libsycldevice_build_targets libsycldevice-obj)
 
 add_custom_target(install-libsycldevice
   COMMAND ${CMAKE_COMMAND} -DCMAKE_INSTALL_COMPONENT=libsycldevice -P ${CMAKE_BINARY_DIR}/cmake_install.cmake
