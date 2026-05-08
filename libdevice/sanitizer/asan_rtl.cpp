@@ -475,6 +475,9 @@ MemoryType GetMemoryTypeByShadowValue(int shadow_value) {
     return MemoryType::LOCAL;
   case kDeviceGlobalRedzoneMagic:
     return MemoryType::DEVICE_GLOBAL;
+  case kExportableMemRedzoneMagic:
+  case kExportableMemDeallocatedMagic:
+    return MemoryType::EXPORTABLE_MEM;
   default:
     return MemoryType::UNKNOWN;
   }
@@ -504,11 +507,13 @@ void ReportAccessError(uptr poisoned_addr, uint32_t as, bool is_recover,
   case kMemBufferRedzoneMagic:
   case kSharedLocalRedzoneMagic:
   case kDeviceGlobalRedzoneMagic:
+  case kExportableMemRedzoneMagic:
     error_type = ErrorType::OUT_OF_BOUNDS;
     break;
   case kUsmDeviceDeallocatedMagic:
   case kUsmHostDeallocatedMagic:
   case kUsmSharedDeallocatedMagic:
+  case kExportableMemDeallocatedMagic:
     error_type = ErrorType::USE_AFTER_FREE;
     break;
   case kNullPointerRedzoneMagic:

@@ -188,6 +188,9 @@ if(WIN32)
 endif()
 
 target_compile_options(sycl-jit PRIVATE ${SYCL_JIT_WARNING_FLAGS})
+# Host GCC can hit -Werror=conversion on Clang headers in DeviceCompilation.cpp;
+target_compile_options(sycl-jit PRIVATE
+  $<$<COMPILE_LANG_AND_ID:CXX,GNU>:-Wno-error=conversion>)
 
 # Mark LLVM and SPIR-V headers as system headers to ignore warnigns in them.
 # This classification remains intact even if the same paths are added as normal
