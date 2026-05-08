@@ -2,9 +2,6 @@
 // RUN: %{run} %t.out
 //
 
-// UNSUPPORTED: cuda
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21924
-
 // XFAIL: target-native-cpu
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142
 
