@@ -235,8 +235,8 @@ using clGetDeviceGlobalVariablePointerINTEL_fn = CL_API_ENTRY
 
 using clEnqueueWriteGlobalVariableINTEL_fn = CL_API_ENTRY
     cl_int(CL_API_CALL *)(cl_command_queue, cl_program, const char *, cl_bool,
-                          size_t, size_t, const void *, cl_uint, const cl_event *,
-                          cl_event *);
+                          size_t, size_t, const void *, cl_uint,
+                          const cl_event *, cl_event *);
 
 using clEnqueueReadGlobalVariableINTEL_fn = CL_API_ENTRY
     cl_int(CL_API_CALL *)(cl_command_queue, cl_program, const char *, cl_bool,
