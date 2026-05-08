@@ -5,7 +5,8 @@
 // Extra run to check for leaks in Level Zero using UR_L0_LEAKS_DEBUG
 // RUN: %if level_zero %{%{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
 
-// Test that update() throws when called on a graph in native recording mode
+// Test that finalize() throws when both enable_native_recording and updatable
+// properties are set on the same graph.
 
 #include "../../graph_common.hpp"
 
@@ -28,18 +29,9 @@ int main() {
   });
   Graph.end_recording();
 
-  auto ExecGraph = Graph.finalize({exp_ext::property::graph::updatable{}});
-
-  if (!expectException([&]() { ExecGraph.update(Graph); },
-                       "update(graph) with native recording enabled",
-                       sycl::errc::feature_not_supported)) {
-    free(Data, Queue);
-    return 1;
-  }
-
   if (!expectException(
-          [&]() { ExecGraph.update(std::vector<exp_ext::node>{}); },
-          "update(nodes) with native recording enabled",
+          [&]() { Graph.finalize({exp_ext::property::graph::updatable{}}); },
+          "finalize() with enable_native_recording and updatable",
           sycl::errc::feature_not_supported)) {
     free(Data, Queue);
     return 1;
