@@ -107,6 +107,7 @@ set(LLVM_TEST_DEPENDS
   llvm-exegesis
   llvm-extract
   llvm-foreach
+  llvm-extract-bundle-entry
   llvm-gsymutil
   llvm-ir2vec
   llvm-isel-fuzzer
