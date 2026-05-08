@@ -16,6 +16,14 @@
 
 namespace syclexp = sycl::ext::oneapi::experimental;
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+namespace ipc_memory = syclexp::ipc::memory;
+namespace ipc_memory_common = syclexp::ipc;
+#else
+namespace ipc_memory = syclexp::ipc_memory;
+namespace ipc_memory_common = syclexp::ipc_memory;
+#endif
+
 namespace {
 
 int DummyInt = 42;
@@ -109,9 +117,8 @@ protected:
 };
 
 TEST_F(IPCTests, IPCGetPutImplicit) {
-  syclexp::ipc_memory::handle IPCMemHandle =
-      syclexp::ipc_memory::get(DummyPtr, Ctxt);
-  syclexp::ipc_memory::handle_data_t IPCMemHandleData = IPCMemHandle.data();
+  ipc_memory_common::handle IPCMemHandle = ipc_memory::get(DummyPtr, Ctxt);
+  ipc_memory_common::handle_data_t IPCMemHandleData = IPCMemHandle.data();
   ASSERT_EQ(IPCMemHandleData.size(), DummyHandleDataSize);
   EXPECT_EQ(std::memcmp(IPCMemHandleData.data(), DummyHandleData,
                         DummyHandleDataSize),
@@ -125,9 +132,8 @@ TEST_F(IPCTests, IPCGetPutImplicit) {
 }
 
 TEST_F(IPCTests, IPCGetPutExplicit) {
-  syclexp::ipc_memory::handle IPCMemHandle =
-      syclexp::ipc_memory::get(DummyPtr, Ctxt);
-  syclexp::ipc_memory::handle_data_t IPCMemHandleData = IPCMemHandle.data();
+  ipc_memory_common::handle IPCMemHandle = ipc_memory::get(DummyPtr, Ctxt);
+  ipc_memory_common::handle_data_t IPCMemHandleData = IPCMemHandle.data();
   ASSERT_EQ(IPCMemHandleData.size(), DummyHandleDataSize);
   EXPECT_EQ(std::memcmp(IPCMemHandleData.data(), DummyHandleData,
                         DummyHandleDataSize),
@@ -139,7 +145,7 @@ TEST_F(IPCTests, IPCGetPutExplicit) {
   EXPECT_EQ(urIPCOpenMemHandleExp_counter, 0);
   EXPECT_EQ(urIPCCloseMemHandleExp_counter, 0);
 
-  syclexp::ipc_memory::put(IPCMemHandle, Ctxt);
+  ipc_memory::put(IPCMemHandle, Ctxt);
 
   // Calling "put" explicitly should call the UR function.
   EXPECT_EQ(urIPCGetMemHandleExp_counter, 1);
@@ -149,10 +155,9 @@ TEST_F(IPCTests, IPCGetPutExplicit) {
 }
 
 TEST_F(IPCTests, IPCOpenClose) {
-  syclexp::ipc_memory::handle_data_t HandleData{
+  ipc_memory_common::handle_data_t HandleData{
       DummyHandleData, DummyHandleData + DummyHandleDataSize};
-  void *Ptr =
-      syclexp::ipc_memory::open(HandleData, Ctxt, Ctxt.get_devices()[0]);
+  void *Ptr = ipc_memory::open(HandleData, Ctxt, Ctxt.get_devices()[0]);
   EXPECT_EQ(Ptr, DummyPtr);
 
   // Opening an IPC handle should call open.
@@ -161,7 +166,7 @@ TEST_F(IPCTests, IPCOpenClose) {
   EXPECT_EQ(urIPCOpenMemHandleExp_counter, 1);
   EXPECT_EQ(urIPCCloseMemHandleExp_counter, 0);
 
-  syclexp::ipc_memory::close(Ptr, Ctxt);
+  ipc_memory::close(Ptr, Ctxt);
 
   // When we close an IPC memory pointer, it should call close.
   EXPECT_EQ(urIPCGetMemHandleExp_counter, 0);
@@ -171,10 +176,9 @@ TEST_F(IPCTests, IPCOpenClose) {
 }
 
 TEST_F(IPCTests, IPCOpenCloseView) {
-  syclexp::ipc_memory::handle_data_view_t HandleDataView{DummyHandleData,
-                                                         DummyHandleDataSize};
-  void *Ptr =
-      syclexp::ipc_memory::open(HandleDataView, Ctxt, Ctxt.get_devices()[0]);
+  ipc_memory_common::handle_data_view_t HandleDataView{DummyHandleData,
+                                                       DummyHandleDataSize};
+  void *Ptr = ipc_memory::open(HandleDataView, Ctxt, Ctxt.get_devices()[0]);
   EXPECT_EQ(Ptr, DummyPtr);
 
   // Opening an IPC handle should call open.
@@ -183,7 +187,7 @@ TEST_F(IPCTests, IPCOpenCloseView) {
   EXPECT_EQ(urIPCOpenMemHandleExp_counter, 1);
   EXPECT_EQ(urIPCCloseMemHandleExp_counter, 0);
 
-  syclexp::ipc_memory::close(Ptr, Ctxt);
+  ipc_memory::close(Ptr, Ctxt);
 
   // When we close an IPC memory pointer, it should call close.
   EXPECT_EQ(urIPCGetMemHandleExp_counter, 0);

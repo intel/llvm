@@ -26,6 +26,14 @@
 
 namespace syclexp = sycl::ext::oneapi::experimental;
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+namespace ipc_memory = syclexp::ipc::memory;
+namespace ipc_memory_common = syclexp::ipc;
+#else
+namespace ipc_memory = syclexp::ipc_memory;
+namespace ipc_memory_common = syclexp::ipc_memory;
+#endif
+
 constexpr size_t N = 32;
 constexpr const char *CommsFile = "ipc_comms.txt";
 
@@ -52,12 +60,12 @@ int spawner(int argc, char *argv[]) {
   {
     // Write handle data to file.
     {
-      syclexp::ipc_memory::handle Handle =
-          syclexp::ipc_memory::get(DataPtr, Q.get_context());
+      ipc_memory_common::handle Handle =
+          ipc_memory::get(DataPtr, Q.get_context());
 #ifdef USE_VIEW
-      syclexp::ipc_memory::handle_data_view_t HandleData = Handle.data_view();
+      ipc_memory_common::handle_data_view_t HandleData = Handle.data_view();
 #else
-      syclexp::ipc_memory::handle_data_t HandleData = Handle.data();
+      ipc_memory_common::handle_data_t HandleData = Handle.data();
 #endif
       size_t HandleDataSize = HandleData.size();
       std::fstream FS(CommsFile, std::ios_base::out | std::ios_base::binary);
@@ -98,13 +106,13 @@ int consumer() {
 
   // Open IPC handle.
 #ifdef USE_VIEW
-  syclexp::ipc_memory::handle_data_view_t Handle{HandleData.get(), HandleSize};
+  ipc_memory_common::handle_data_view_t Handle{HandleData.get(), HandleSize};
 #else
-  syclexp::ipc_memory::handle_data_t Handle{HandleData.get(),
-                                            HandleData.get() + HandleSize};
+  ipc_memory_common::handle_data_t Handle{HandleData.get(),
+                                          HandleData.get() + HandleSize};
 #endif
   int *DataPtr = reinterpret_cast<int *>(
-      syclexp::ipc_memory::open(Handle, Q.get_context(), Q.get_device()));
+      ipc_memory::open(Handle, Q.get_context(), Q.get_device()));
 
   // Test the data already in the USM pointer.
   int Failures = 0;
@@ -123,7 +131,7 @@ int consumer() {
    }).wait();
 
   // Close the IPC pointer.
-  syclexp::ipc_memory::close(DataPtr, Q.get_context());
+  ipc_memory::close(DataPtr, Q.get_context());
 
   return Failures;
 }

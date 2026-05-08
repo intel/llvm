@@ -21,6 +21,14 @@
 
 namespace syclexp = sycl::ext::oneapi::experimental;
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+namespace ipc_memory = syclexp::ipc::memory;
+namespace ipc_memory_common = syclexp::ipc;
+#else
+namespace ipc_memory = syclexp::ipc_memory;
+namespace ipc_memory_common = syclexp::ipc_memory;
+#endif
+
 int main() {
   sycl::queue Q;
 
@@ -36,14 +44,13 @@ int main() {
 #endif // defined(__linux__)
 
   int *DataPtr = sycl::malloc_device<int>(32, Q);
-  syclexp::ipc_memory::handle Handle =
-      syclexp::ipc_memory::get(DataPtr, Q.get_context());
+  ipc_memory_common::handle Handle = ipc_memory::get(DataPtr, Q.get_context());
 
   // Free data before put.
   sycl::free(DataPtr, Q);
 
   // Try calling put after free.
-  syclexp::ipc_memory::put(Handle, Q.get_context());
+  ipc_memory::put(Handle, Q.get_context());
 
   return 0;
 }
