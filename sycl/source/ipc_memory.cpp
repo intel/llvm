@@ -117,7 +117,7 @@ __SYCL_EXPORT void close(void *Ptr, const sycl::context &Ctx) {
 } // namespace ext::oneapi::experimental::ipc::memory
 
 namespace ext::oneapi::experimental::ipc_memory {
-
+__SYCL_SUPPRESS_DEPRECATED_PUSH
 __SYCL_EXPORT handle get(void *Ptr, const sycl::context &Ctx) {
   std::pair<void *, size_t> RetHandle =
       ext::oneapi::experimental::ipc::memory::detail::get(Ptr, Ctx);
@@ -131,7 +131,7 @@ __SYCL_EXPORT void put(handle &Handle, const sycl::context &Ctx) {
 __SYCL_EXPORT void close(void *Ptr, const sycl::context &Ctx) {
   ext::oneapi::experimental::ipc::memory::detail::close(Ptr, Ctx);
 }
-
+__SYCL_SUPPRESS_DEPRECATED_POP
 } // namespace ext::oneapi::experimental::ipc_memory
 } // namespace _V1
 } // namespace sycl

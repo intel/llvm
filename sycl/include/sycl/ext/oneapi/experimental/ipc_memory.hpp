@@ -97,9 +97,12 @@ inline void close(void *Ptr) {
 }
 } // namespace ext::oneapi::experimental::ipc::memory
 
-namespace ext::oneapi::experimental::ipc_memory {
+namespace ext::oneapi::experimental {
+namespace __SYCL_DEPRECATED("The ipc_memory namespace is deprecated. Use the "
+                            "ipc::memory namespace instead.") ipc_memory {
+  __SYCL_SUPPRESS_DEPRECATED_PUSH
 
-using handle_data_t = std::vector<std::byte>;
+  using handle_data_t = std::vector<std::byte>;
 
 #if __cpp_lib_span
 using handle_data_view_t = std::span<const std::byte, std::dynamic_extent>;
@@ -183,8 +186,9 @@ inline void close(void *Ptr) {
   sycl::context Ctx = Dev.get_platform().khr_get_default_context();
   ipc_memory::close(Ptr, Ctx);
 }
-
-} // namespace ext::oneapi::experimental::ipc_memory
+__SYCL_SUPPRESS_DEPRECATED_POP
+} // namespace ipc_memory
+} // namespace ext::oneapi::experimental
 } // namespace _V1
 } // namespace sycl
 
