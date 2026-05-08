@@ -5,6 +5,8 @@
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
+// RUN: %{build} -DUSE_DEPRECATED_IPC_MEMORY_NAMESPACE -o %t2.out
+// RUN: %{run} %t2.out
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/ipc_memory.hpp>
@@ -21,6 +23,14 @@
 
 namespace syclexp = sycl::ext::oneapi::experimental;
 
+#ifdef USE_DEPRECATED_IPC_MEMORY_NAMESPACE
+namespace ipc_common = syclexp::ipc_memory;
+namespace ipc_memory = syclexp::ipc_memory;
+#else
+namespace ipc_common = syclexp::ipc;
+namespace ipc_memory = syclexp::ipc::memory;
+#endif
+
 int main() {
   sycl::queue Q;
 
@@ -36,14 +46,13 @@ int main() {
 #endif // defined(__linux__)
 
   int *DataPtr = sycl::malloc_device<int>(32, Q);
-  syclexp::ipc_memory::handle Handle =
-      syclexp::ipc_memory::get(DataPtr, Q.get_context());
+  ipc_common::handle Handle = ipc_memory::get(DataPtr, Q.get_context());
 
   // Free data before put.
   sycl::free(DataPtr, Q);
 
   // Try calling put after free.
-  syclexp::ipc_memory::put(Handle, Q.get_context());
+  ipc_memory::put(Handle, Q.get_context());
 
   return 0;
 }

@@ -12,6 +12,8 @@
 #include <sycl/ext/oneapi/experimental/ipc_memory.hpp>
 #include <sycl/usm/usm_pointer_info.hpp>
 
+#include <utility>
+
 namespace sycl {
 inline namespace _V1 {
 
