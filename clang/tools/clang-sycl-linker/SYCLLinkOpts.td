@@ -62,7 +62,7 @@ def sycl_post_link_options_EQ : Joined<["--", "-"], "sycl-post-link-options=">,
 
 def sycl_module_split_mode_EQ : Joined<["--", "-"], "sycl-module-split-mode=">,
   Flags<[LinkerOnlyOption]>,
-  HelpText<"Module split mode: per-kernel, per-tu, auto, or none">;
+  HelpText<"Module split mode: kernel, source, auto, or none">;
 
 def use_sycl_post_link_tool : Flag<["--", "-"], "use-sycl-post-link-tool">,
   Flags<[LinkerOnlyOption]>,
