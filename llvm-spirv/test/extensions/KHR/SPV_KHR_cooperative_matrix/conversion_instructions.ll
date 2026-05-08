@@ -130,7 +130,7 @@ entry:
 ; CHECK-SPIRV: CompositeConstruct [[#MatrixTypeFloat16]] [[#MatrixIn:]] [[#]] {{$}}
 ; CHECK-SPIRV: FConvert [[#MatrixTypeFloat]] [[#]] [[#MatrixIn]]
 
-; CHECK-LLVM: %[[#Matrix:]] = call spir_func target("spirv.CooperativeMatrixKHR", half, 3, 12, 12, 2) @_Z26__spirv_CompositeConstructDh(half 0xH0000)
+; CHECK-LLVM: %[[#Matrix:]] = call spir_func target("spirv.CooperativeMatrixKHR", half, 3, 12, 12, 2) @_Z26__spirv_CompositeConstructDh(half 0.000000e+00)
 ; CHECK-LLVM: call spir_func target("spirv.CooperativeMatrixKHR", float, 3, 12, 12, 2) @_Z75__spirv_FConvert_RPU3AS145__spirv_CooperativeMatrixKHR__float_3_12_12_2_satPU3AS144__spirv_CooperativeMatrixKHR__half_3_12_12_2(target("spirv.CooperativeMatrixKHR", half, 3, 12, 12, 2) %[[#Matrix]])
 
 define void @f_convert() {

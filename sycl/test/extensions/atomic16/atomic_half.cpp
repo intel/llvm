@@ -1,6 +1,6 @@
 // RUN: %clangxx %s -fsycl-device-only -S -o - | FileCheck %s
 
-// CHECK: call spir_func void @_Z19__spirv_AtomicStore{{.*}}(ptr {{.*}}, i32 {{.*}}, i32 {{.*}}, half noundef 0xH3C00)
+// CHECK: call spir_func void @_Z19__spirv_AtomicStore{{.*}}(ptr {{.*}}, i32 {{.*}}, i32 {{.*}}, half noundef 1.000000e+00)
 // CHECK: call spir_func noundef half @_Z18__spirv_AtomicLoad{{.*}}(ptr {{.*}}, i32 {{.*}}, i32 {{.*}})
 // CHECK: call spir_func noundef half @_Z22__spirv_AtomicExchange{{.*}}(ptr {{.*}}, i32 {{.*}}, i32 {{.*}}, half {{.*}})
 // CHECK: call spir_func noundef half @_Z21__spirv_AtomicFAddEXT{{.*}}(ptr {{.*}}, i32 {{.*}}, i32 {{.*}}, half {{.*}})

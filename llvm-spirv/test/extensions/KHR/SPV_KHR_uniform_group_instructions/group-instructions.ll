@@ -39,7 +39,7 @@
 ; CHECK-LLVM: %call5 = call spir_func i1 @_Z25__spirv_GroupLogicalOrKHR{{.*}}(i32 2, i32 0, i1 false)
 ; CHECK-LLVM: %call6 = call spir_func i1 @_Z26__spirv_GroupLogicalXorKHR{{.*}}(i32 2, i32 0, i1 false)
 ; CHECK-LLVM: %call7 = call spir_func i32 @_Z20__spirv_GroupIMulKHR{{.*}}(i32 2, i32 0, i32 0)
-; CHECK-LLVM: %call8 = call spir_func half @_Z20__spirv_GroupFMulKHR{{.*}}(i32 2, i32 0, half 0xH0000)
+; CHECK-LLVM: %call8 = call spir_func half @_Z20__spirv_GroupFMulKHR{{.*}}(i32 2, i32 0, half 0.000000e+00)
 
 ; ModuleID = 'source.bc'
 source_filename = "group_operations.cpp"
