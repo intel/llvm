@@ -3197,7 +3197,8 @@ typedef struct ur_context_properties_t {
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `NULL != pProperties && ::UR_CONTEXT_FLAGS_MASK &
 ///         pProperties->flags`
-///     - ::UR_RESULT_ERROR_INVALID_SIZE - "`DeviceCount == 0`"
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         + `DeviceCount == 0`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE - "If device handles in
 ///     phDevices are not valid handles."
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY

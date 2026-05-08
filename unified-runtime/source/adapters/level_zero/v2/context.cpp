@@ -206,9 +206,6 @@ ur_result_t urContextCreate(uint32_t deviceCount,
                             const ur_context_properties_t * /*pProperties*/,
                             ur_context_handle_t *phContext) try {
 
-  if (deviceCount == 0) {
-    return UR_RESULT_ERROR_INVALID_SIZE;
-  }
   for (uint32_t i = 0; i < deviceCount; ++i) {
     UR_ASSERT(phDevices[i], UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   }

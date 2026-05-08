@@ -60,7 +60,7 @@ params:
       name: phContext
       desc: "[out][alloc] pointer to handle of context object created"
 returns:
-    - $X_RESULT_ERROR_INVALID_SIZE
+    - $X_RESULT_ERROR_INVALID_SIZE:
         - "`DeviceCount == 0`"
     - $X_RESULT_ERROR_INVALID_NULL_HANDLE
         - "If device handles in phDevices are not valid handles."
