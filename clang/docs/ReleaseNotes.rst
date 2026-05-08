@@ -49,6 +49,11 @@ C++ Specific Potentially Breaking Changes
 - Clang now correctly rejects ``export`` declarations in module implementation
   partitions. (#GH107602)
 
+- Template argument deduction now treats the ``N`` in ``_BitInt(N)``
+  as being of type ``std::size_t`` instead of ``int``,
+  matching the deduction of array sizes from ``int(&)[N]``.
+  This is a breaking change for code that depended on the previously deduced type. (#GH195033)
+
 ABI Changes in This Version
 ---------------------------
 
@@ -356,7 +361,6 @@ Attribute Changes in Clang
   usage.
 
 - Clang now allows GNU attributes between a member declarator and bit-field width. (#GH184954)
-- Clang now disallows use of the ``selectany`` attribute on non-global-variable declarations. (#GH189141)
 
 Improvements to Clang's diagnostics
 -----------------------------------
@@ -480,6 +484,9 @@ Improvements to Clang's diagnostics
   skipping subsequent valid declarations when their previous decl is missing semicolon.
 
 - Removed the body of lambdas from some diagnostic messages.
+
+- Fixed false positive host-device mismatch errors in discarded `if constexpr` branches for CUDA/HIP;
+  such calls are now correctly skipped.
 
 Improvements to Clang's time-trace
 ----------------------------------
