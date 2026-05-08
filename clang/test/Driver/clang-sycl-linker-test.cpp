@@ -8,7 +8,8 @@
 // RUN: clang-sycl-linker --dry-run -v -triple=spirv64 %t_1.bc %t_2.bc -o %t-spirv.out 2>&1 \
 // RUN:   | FileCheck %s --check-prefix=SIMPLE-FO
 // SIMPLE-FO: sycl-device-link: inputs: {{.*}}.bc, {{.*}}.bc  libfiles:  output: [[LLVMLINKOUT:.*]].bc
-// SIMPLE-FO-NEXT: LLVM backend: input: [[LLVMLINKOUT]].bc, output: {{.*}}_0.spv
+// SIMPLE-FO-NEXT: "{{.*}}sycl-post-link{{.*}}" {{.*}} [[LLVMLINKOUT]].bc
+// SIMPLE-FO-NEXT: LLVM backend: input: {{.*}}.bc, output: {{.*}}_0.spv
 //
 // Test that IMG_SPIRV image kind is set for non-AOT compilation.
 // RUN: llvm-objdump --offloading %t-spirv.out | FileCheck %s --check-prefix=IMAGE-KIND-SPIRV
@@ -20,8 +21,9 @@
 // RUN: touch %t.dir/lib2.bc
 // RUN: clang-sycl-linker --dry-run -v -triple=spirv64 %t_1.bc %t_2.bc --library-path=%t.dir --device-libs=lib1.bc,lib2.bc -o a.spv 2>&1 \
 // RUN:   | FileCheck %s --check-prefix=DEVLIBS
-// DEVLIBS: sycl-device-link: inputs: {{.*}}.bc  libfiles: {{.*}}lib1.bc, {{.*}}lib2.bc  output: [[LLVMLINKOUT:.*]].bc
-// DEVLIBS-NEXT: LLVM backend: input: [[LLVMLINKOUT]].bc, output: a_0.spv
+// DEVLIBS: sycl-device-link: inputs: {{.*}}.bc, {{.*}}.bc  libfiles: {{.*}}lib1.bc, {{.*}}lib2.bc  output: [[LLVMLINKOUT:.*]].bc
+// DEVLIBS-NEXT: "{{.*}}sycl-post-link{{.*}}" {{.*}} [[LLVMLINKOUT]].bc
+// DEVLIBS-NEXT: LLVM backend: input: {{.*}}.bc, output: a_0.spv
 //
 // Test a simple case with a random file (not bitcode) as input.
 // RUN: touch %t.o
@@ -42,7 +44,8 @@
 // RUN:     --ocloc-options="-a -b" \
 // RUN:   | FileCheck %s --check-prefix=AOT-INTEL-GPU
 // AOT-INTEL-GPU:      sycl-device-link: inputs: {{.*}}.bc, {{.*}}.bc libfiles: output: [[LLVMLINKOUT:.*]].bc
-// AOT-INTEL-GPU-NEXT: LLVM backend: input: [[LLVMLINKOUT]].bc, output: [[SPIRVTRANSLATIONOUT:.*]]_0.spv
+// AOT-INTEL-GPU-NEXT: "{{.*}}sycl-post-link{{.*}}" {{.*}} [[LLVMLINKOUT]].bc
+// AOT-INTEL-GPU-NEXT: LLVM backend: input: {{.*}}.bc, output: [[SPIRVTRANSLATIONOUT:.*]]_0.spv
 // AOT-INTEL-GPU-NEXT: "{{.*}}ocloc{{.*}}" {{.*}}-device bmg_g21 -a -b {{.*}}-output [[SPIRVTRANSLATIONOUT]]_0.out -file [[SPIRVTRANSLATIONOUT]]_0.spv
 //
 // Test that IMG_Object image kind is set for AOT compilation (Intel GPU).
@@ -54,7 +57,8 @@
 // RUN:     --opencl-aot-options="-a -b" \
 // RUN:   | FileCheck %s --check-prefix=AOT-INTEL-CPU
 // AOT-INTEL-CPU:      sycl-device-link: inputs: {{.*}}.bc, {{.*}}.bc libfiles: output: [[LLVMLINKOUT:.*]].bc
-// AOT-INTEL-CPU-NEXT: LLVM backend: input: [[LLVMLINKOUT]].bc, output: [[SPIRVTRANSLATIONOUT:.*]]_0.spv
+// AOT-INTEL-CPU-NEXT: "{{.*}}sycl-post-link{{.*}}" {{.*}} [[LLVMLINKOUT]].bc
+// AOT-INTEL-CPU-NEXT: LLVM backend: input: {{.*}}.bc, output: [[SPIRVTRANSLATIONOUT:.*]]_0.spv
 // AOT-INTEL-CPU-NEXT: "{{.*}}opencl-aot{{.*}}" {{.*}}--device=cpu -a -b {{.*}}-o [[SPIRVTRANSLATIONOUT]]_0.out [[SPIRVTRANSLATIONOUT]]_0.spv
 //
 // Test that IMG_Object image kind is set for AOT compilation (Intel CPU).
