@@ -188,6 +188,9 @@ This extension adds a new type aliases `handle_data_t` and `handle_data_view_t`
 as well as a new IPC memory handle type `handle` under the `ipc_memory`
 experimental namespace.
 
+Note, that the `ipc_memory` namespace is deprecated and applications should use
+the `ipc::memory` namespace instead.
+
 ```
 namespace [[deprecated]] sycl::ext::oneapi::experimental::ipc_memory {
 
