@@ -248,6 +248,32 @@ void context_impl::removeAssociatedDeviceGlobal(const void *DeviceGlobalPtr) {
   MAssociatedDeviceGlobals.erase(DeviceGlobalPtr);
 }
 
+void context_impl::registerNativeGraph(
+    ur_exp_graph_handle_t UrGraphHandle,
+    std::shared_ptr<sycl::ext::oneapi::experimental::detail::graph_impl>
+        Graph) {
+  assert(UrGraphHandle != nullptr && Graph != nullptr);
+  std::lock_guard<std::mutex> Lock(MNativeGraphRegistryMutex);
+  MNativeGraphRegistry.try_emplace(UrGraphHandle, Graph);
+}
+
+std::shared_ptr<sycl::ext::oneapi::experimental::detail::graph_impl>
+context_impl::getNativeGraph(ur_exp_graph_handle_t UrGraphHandle) const {
+  assert(UrGraphHandle != nullptr);
+  std::lock_guard<std::mutex> Lock(MNativeGraphRegistryMutex);
+  auto It = MNativeGraphRegistry.find(UrGraphHandle);
+  if (It != MNativeGraphRegistry.end()) {
+    return It->second.lock();
+  }
+  return nullptr;
+}
+
+void context_impl::deregisterNativeGraph(ur_exp_graph_handle_t UrGraphHandle) {
+  assert(UrGraphHandle != nullptr);
+  std::lock_guard<std::mutex> Lock(MNativeGraphRegistryMutex);
+  MNativeGraphRegistry.erase(UrGraphHandle);
+}
+
 void context_impl::addDeviceGlobalInitializer(
     ur_program_handle_t Program, devices_range Devs,
     const RTDeviceBinaryImage *BinImage) {

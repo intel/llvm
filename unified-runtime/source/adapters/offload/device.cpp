@@ -52,9 +52,26 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(nullptr);
   case UR_DEVICE_INFO_VERSION:
     return ReturnValue("");
-  case UR_DEVICE_INFO_EXTENSIONS:
-    // todo: use offload API to query supported extensions
-    return ReturnValue("cl_khr_il_program");
+  case UR_DEVICE_INFO_EXTENSIONS: {
+    std::string SupportedExtensions = "cl_khr_il_program ";
+
+    bool DoubleFPSupport = false;
+    if (olGetDeviceInfo(
+            hDevice->OffloadDevice, OL_DEVICE_INFO_DOUBLE_FP_SUPPORT,
+            sizeof(DoubleFPSupport), &DoubleFPSupport) == OL_SUCCESS &&
+        DoubleFPSupport) {
+      SupportedExtensions += "cl_khr_fp64 ";
+    }
+
+    bool HalfFPSupport = false;
+    if (olGetDeviceInfo(hDevice->OffloadDevice, OL_DEVICE_INFO_HALF_FP_SUPPORT,
+                        sizeof(HalfFPSupport), &HalfFPSupport) == OL_SUCCESS &&
+        HalfFPSupport) {
+      SupportedExtensions += "cl_khr_fp16 ";
+    }
+
+    return ReturnValue(SupportedExtensions.c_str());
+  }
   case UR_DEVICE_INFO_USE_NATIVE_ASSERT:
     return ReturnValue(false);
   case UR_DEVICE_INFO_TYPE:
@@ -86,14 +103,28 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     olInfo = OL_DEVICE_INFO_NUM_COMPUTE_UNITS;
     break;
   case UR_DEVICE_INFO_SINGLE_FP_CONFIG:
-    olInfo = OL_DEVICE_INFO_SINGLE_FP_CONFIG;
-    break;
   case UR_DEVICE_INFO_HALF_FP_CONFIG:
-    olInfo = OL_DEVICE_INFO_HALF_FP_CONFIG;
+  case UR_DEVICE_INFO_DOUBLE_FP_CONFIG: {
+    ol_device_info_t SupportInfo;
+    if (propName == UR_DEVICE_INFO_SINGLE_FP_CONFIG) {
+      SupportInfo = OL_DEVICE_INFO_SINGLE_FP_SUPPORT;
+      olInfo = OL_DEVICE_INFO_SINGLE_FP_CONFIG;
+    } else if (propName == UR_DEVICE_INFO_HALF_FP_CONFIG) {
+      SupportInfo = OL_DEVICE_INFO_HALF_FP_SUPPORT;
+      olInfo = OL_DEVICE_INFO_HALF_FP_CONFIG;
+    } else {
+      SupportInfo = OL_DEVICE_INFO_DOUBLE_FP_SUPPORT;
+      olInfo = OL_DEVICE_INFO_DOUBLE_FP_CONFIG;
+    }
+
+    bool Supported = false;
+    if (olGetDeviceInfo(hDevice->OffloadDevice, SupportInfo, sizeof(Supported),
+                        &Supported) != OL_SUCCESS ||
+        !Supported) {
+      return ReturnValue(ur_device_fp_capability_flags_t{0});
+    }
     break;
-  case UR_DEVICE_INFO_DOUBLE_FP_CONFIG:
-    olInfo = OL_DEVICE_INFO_DOUBLE_FP_CONFIG;
-    break;
+  }
   case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_CHAR:
   case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_CHAR:
     olInfo = OL_DEVICE_INFO_NATIVE_VECTOR_WIDTH_CHAR;
