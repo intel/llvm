@@ -39,7 +39,7 @@
 ; a situation, where spec constant default value contains less elements than
 ; spec constant type, due to padding inserted by a compiler.
 
-; CHECK: %[[#SCV1:]] = call spir_func float @_Z20__spirv_SpecConstantif(i32 [[#SCID1:]], float 0x40091EB860000000)
+; CHECK: %[[#SCV1:]] = call spir_func float @_Z20__spirv_SpecConstantif(i32 [[#SCID1:]], float 3.140000e+00)
 ; CHECK: %[[#SCV2:]] = call spir_func i8 @_Z20__spirv_SpecConstantia(i32 [[#SCID2:]], i8 97)
 ; CHECK: %[[#SCV3:]] = call spir_func i32 @_Z20__spirv_SpecConstantii(i32 [[#SCID3:]], i32 42)
 ; CHECK: %[[#SCV4:]] = call spir_func i8 @_Z20__spirv_SpecConstantia(i32 [[#SCID4:]], i8 8)

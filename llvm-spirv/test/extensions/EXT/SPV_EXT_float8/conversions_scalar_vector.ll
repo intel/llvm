@@ -198,7 +198,7 @@ declare dso_local spir_func <8 x bfloat> @_Z36__builtin_spirv_ConvertE5M2ToBF16E
 ; CHECK-SPIRV: ReturnValue [[#Cast1]]
 
 ; CHECK-LLVM-LABEL: hf16_e4m3_scalar
-; CHECK-LLVM: %[[#Call:]] = call i8 @_Z36__builtin_spirv_ConvertFP16ToE4M3EXTDh(half 0xH3C00)
+; CHECK-LLVM: %[[#Call:]] = call i8 @_Z36__builtin_spirv_ConvertFP16ToE4M3EXTDh(half 1.000000e+00)
 ; CHECK-LLVM: ret i8 %[[#Call]]
 
 define spir_func i8 @hf16_e4m3_scalar() {
@@ -215,7 +215,7 @@ declare dso_local spir_func i8 @_Z36__builtin_spirv_ConvertFP16ToE4M3EXTDh(half)
 ; CHECK-SPIRV: ReturnValue [[#Cast1]]
 
 ; CHECK-LLVM-LABEL: hf16_e4m3_vector
-; CHECK-LLVM: %[[#Call:]] = call <8 x i8> @_Z36__builtin_spirv_ConvertFP16ToE4M3EXTDv8_Dh(<8 x half> splat (half 0xH3C00))
+; CHECK-LLVM: %[[#Call:]] = call <8 x i8> @_Z36__builtin_spirv_ConvertFP16ToE4M3EXTDv8_Dh(<8 x half> splat (half 1.000000e+00))
 ; CHECK-LLVM: ret <8 x i8> %[[#Call]]
 
 define spir_func <8 x i8> @hf16_e4m3_vector() {
@@ -232,7 +232,7 @@ declare dso_local spir_func <8 x i8> @_Z36__builtin_spirv_ConvertFP16ToE4M3EXTDv
 ; CHECK-SPIRV: ReturnValue [[#Cast1]]
 
 ; CHECK-LLVM-LABEL: hf16_e5m2_scalar
-; CHECK-LLVM: %[[#Call:]] = call i8 @_Z36__builtin_spirv_ConvertFP16ToE5M2EXTDh(half 0xH3C00)
+; CHECK-LLVM: %[[#Call:]] = call i8 @_Z36__builtin_spirv_ConvertFP16ToE5M2EXTDh(half 1.000000e+00)
 ; CHECK-LLVM: ret i8 %[[#Call]]
 
 define spir_func i8 @hf16_e5m2_scalar() {
@@ -249,7 +249,7 @@ declare dso_local spir_func i8 @_Z36__builtin_spirv_ConvertFP16ToE5M2EXTDh(half)
 ; CHECK-SPIRV: ReturnValue [[#Cast1]]
 
 ; CHECK-LLVM-LABEL: hf16_e5m2_vector
-; CHECK-LLVM: %[[#Call:]] = call <8 x i8> @_Z36__builtin_spirv_ConvertFP16ToE5M2EXTDv8_Dh(<8 x half> splat (half 0xH3C00))
+; CHECK-LLVM: %[[#Call:]] = call <8 x i8> @_Z36__builtin_spirv_ConvertFP16ToE5M2EXTDv8_Dh(<8 x half> splat (half 1.000000e+00))
 ; CHECK-LLVM: ret <8 x i8> %[[#Call]]
 
 define spir_func <8 x i8> @hf16_e5m2_vector() {
@@ -266,7 +266,7 @@ declare dso_local spir_func <8 x i8> @_Z36__builtin_spirv_ConvertFP16ToE5M2EXTDv
 ; CHECK-SPIRV: ReturnValue [[#Cast1]]
 
 ; CHECK-LLVM-LABEL: bf16_e4m3_scalar
-; CHECK-LLVM: %[[#Call:]] = call i8 @_Z36__builtin_spirv_ConvertBF16ToE4M3EXTDF16b(bfloat 0xR3F80)
+; CHECK-LLVM: %[[#Call:]] = call i8 @_Z36__builtin_spirv_ConvertBF16ToE4M3EXTDF16b(bfloat 1.000000e+00)
 ; CHECK-LLVM: ret i8 %[[#Call]]
 
 define spir_func i8 @bf16_e4m3_scalar() {
@@ -283,7 +283,7 @@ declare dso_local spir_func i8 @_Z36__builtin_spirv_ConvertBF16ToE4M3EXTDF16b(bf
 ; CHECK-SPIRV: ReturnValue [[#Cast1]]
 
 ; CHECK-LLVM-LABEL: bf16_e4m3_vector
-; CHECK-LLVM: %[[#Call:]] = call <8 x i8> @_Z36__builtin_spirv_ConvertBF16ToE4M3EXTDv8_DF16b(<8 x bfloat> splat (bfloat 0xR3F80))
+; CHECK-LLVM: %[[#Call:]] = call <8 x i8> @_Z36__builtin_spirv_ConvertBF16ToE4M3EXTDv8_DF16b(<8 x bfloat> splat (bfloat 1.000000e+00))
 ; CHECK-LLVM: ret <8 x i8> %[[#Call]]
 
 define spir_func <8 x i8> @bf16_e4m3_vector() {
@@ -300,7 +300,7 @@ declare dso_local spir_func <8 x i8> @_Z36__builtin_spirv_ConvertBF16ToE4M3EXTDv
 ; CHECK-SPIRV: ReturnValue [[#Cast1]]
 
 ; CHECK-LLVM-LABEL: bf16_e5m2_scalar
-; CHECK-LLVM: %[[#Call:]] = call i8 @_Z36__builtin_spirv_ConvertBF16ToE5M2EXTDF16b(bfloat 0xR3F80)
+; CHECK-LLVM: %[[#Call:]] = call i8 @_Z36__builtin_spirv_ConvertBF16ToE5M2EXTDF16b(bfloat 1.000000e+00)
 ; CHECK-LLVM: ret i8 %[[#Call]]
 
 define spir_func i8 @bf16_e5m2_scalar() {
@@ -317,7 +317,7 @@ declare dso_local spir_func i8 @_Z36__builtin_spirv_ConvertBF16ToE5M2EXTDF16b(bf
 ; CHECK-SPIRV: ReturnValue [[#Cast1]]
 
 ; CHECK-LLVM-LABEL: bf16_e5m2_vector
-; CHECK-LLVM: %[[#Call:]] = call <8 x i8> @_Z36__builtin_spirv_ConvertBF16ToE5M2EXTDv8_DF16b(<8 x bfloat> splat (bfloat 0xR3F80))
+; CHECK-LLVM: %[[#Call:]] = call <8 x i8> @_Z36__builtin_spirv_ConvertBF16ToE5M2EXTDv8_DF16b(<8 x bfloat> splat (bfloat 1.000000e+00))
 ; CHECK-LLVM: ret <8 x i8> %[[#Call]]
 
 define spir_func <8 x i8> @bf16_e5m2_vector() {
