@@ -681,6 +681,9 @@ int main(int argc, char **argv) {
   std::vector<std::unique_ptr<util::SimpleTable>> Tables =
       processInputModule(std::move(M), OutputPrefix);
 
+  if (Context.getDiagHandlerPtr()->HasErrors)
+    return 1;
+
   // Input module was processed and a single output file was requested.
   if (IROutputOnly)
     return 0;
