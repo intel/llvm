@@ -8,8 +8,6 @@
 
 #pragma once
 
-#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
-
 #include <sycl/context.hpp>
 #include <sycl/detail/defines_elementary.hpp>
 #include <sycl/detail/export.hpp>
@@ -63,5 +61,3 @@ private:
 } // namespace ext::oneapi::experimental::ipc
 } // namespace _V1
 } // namespace sycl
-
-#endif
