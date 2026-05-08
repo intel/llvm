@@ -20,7 +20,7 @@
 // RUN: touch %t.dir/lib2.bc
 // RUN: clang-sycl-linker --dry-run -v -triple=spirv64 %t_1.bc %t_2.bc --library-path=%t.dir --device-libs=lib1.bc,lib2.bc -o a.spv 2>&1 \
 // RUN:   | FileCheck %s --check-prefix=DEVLIBS
-// DEVLIBS: sycl-device-link: inputs: {{.*}}.bc  libfiles: {{.*}}lib1.bc, {{.*}}lib2.bc  output: [[LLVMLINKOUT:.*]].bc
+// DEVLIBS: sycl-device-link: inputs: {{.*}}.bc, {{.*}}.bc  libfiles: {{.*}}lib1.bc, {{.*}}lib2.bc  output: [[LLVMLINKOUT:.*]].bc
 // DEVLIBS-NEXT: LLVM backend: input: [[LLVMLINKOUT]].bc, output: a_0.spv
 //
 // Test a simple case with a random file (not bitcode) as input.
@@ -69,3 +69,50 @@
 // RUN: not clang-sycl-linker --dry-run %t_1.bc %t_2.bc -o a.out 2>&1 \
 // RUN: | FileCheck %s --check-prefix=NOTARGET
 // NOTARGET: Target triple must be specified
+//
+// Test that driver options are correctly passed through clang-linker-wrapper.
+// RUN: %clangxx -### -fsycl --offload-new-driver -fsycl-targets=spir64-unknown-unknown \
+// RUN:          -Xsycl-target-backend=spir64-unknown-unknown "-backend-opt" \
+// RUN:          %t_1.bc %t_2.bc 2>&1 | FileCheck %s --check-prefix=CHECK-BACKEND-OPT
+// CHECK-BACKEND-OPT: clang-linker-wrapper{{.*}} "--device-compiler=sycl:spir64-unknown-unknown=-backend-opt"
+//
+// Test multiple backend options.
+// RUN: %clangxx -### -fsycl --offload-new-driver -fsycl-targets=spir64-unknown-unknown \
+// RUN:          -Xsycl-target-backend=spir64-unknown-unknown "-opt1 -opt2" \
+// RUN:          %t_1.bc %t_2.bc 2>&1 | FileCheck %s --check-prefix=CHECK-MULTI-OPTS
+// CHECK-MULTI-OPTS: clang-linker-wrapper{{.*}} "--device-compiler=sycl:spir64-unknown-unknown=-opt1 -opt2"
+//
+// Test linker options are forwarded.
+// RUN: %clangxx -### -fsycl --offload-new-driver -fsycl-targets=spir64-unknown-unknown \
+// RUN:          -Xsycl-target-linker=spir64-unknown-unknown "-linker-opt" \
+// RUN:          %t_1.bc %t_2.bc 2>&1 | FileCheck %s --check-prefix=CHECK-LINKER-OPT
+// CHECK-LINKER-OPT: clang-linker-wrapper{{.*}} "--device-linker=sycl:spir64-unknown-unknown=-linker-opt"
+//
+// Test both backend and linker options together.
+// RUN: %clangxx -### -fsycl --offload-new-driver -fsycl-targets=spir64-unknown-unknown \
+// RUN:          -Xsycl-target-backend=spir64-unknown-unknown "-backend-opt" \
+// RUN:          -Xsycl-target-linker=spir64-unknown-unknown "-linker-opt" \
+// RUN:          %t_1.bc %t_2.bc 2>&1 | FileCheck %s --check-prefix=CHECK-BOTH-OPTS
+// CHECK-BOTH-OPTS: clang-linker-wrapper{{.*}} "--device-compiler=sycl:spir64-unknown-unknown=-backend-opt"
+// CHECK-BOTH-OPTS-SAME: "--device-linker=sycl:spir64-unknown-unknown=-linker-opt"
+//
+// Test AOT GPU with backend options.
+// RUN: %clangxx -### -fsycl --offload-new-driver -fsycl-targets=spir64_gen-unknown-unknown \
+// RUN:          -Xsycl-target-backend=spir64_gen "-device pvc" \
+// RUN:          %t_1.bc %t_2.bc 2>&1 | FileCheck %s --check-prefix=CHECK-AOT-GPU
+// CHECK-AOT-GPU: clang-linker-wrapper{{.*}} "--device-compiler=sycl:spir64_gen-unknown-unknown=-device pvc"
+//
+// Test AOT CPU with backend options.
+// RUN: %clangxx -### -fsycl --offload-new-driver -fsycl-targets=spir64_x86_64-unknown-unknown \
+// RUN:          -Xsycl-target-backend=spir64_x86_64 "-march=skylake" \
+// RUN:          %t_1.bc %t_2.bc 2>&1 | FileCheck %s --check-prefix=CHECK-AOT-CPU
+// CHECK-AOT-CPU: clang-linker-wrapper{{.*}} "--device-compiler=sycl:spir64_x86_64-unknown-unknown=-march=skylake"
+//
+// Test multi-target with target-specific options (both in same invocation).
+// RUN: %clangxx -### -fsycl --offload-new-driver \
+// RUN:          -fsycl-targets=spir64_gen-unknown-unknown,spir64_x86_64-unknown-unknown \
+// RUN:          -Xsycl-target-backend=spir64_gen "-device pvc" \
+// RUN:          -Xsycl-target-backend=spir64_x86_64 "-march=skylake" \
+// RUN:          %t_1.bc %t_2.bc 2>&1 | FileCheck %s --check-prefix=CHECK-MULTI-TARGET
+// CHECK-MULTI-TARGET: clang-linker-wrapper{{.*}} "--device-compiler=sycl:spir64_gen-unknown-unknown=-device pvc"
+// CHECK-MULTI-TARGET-SAME: "--device-compiler=sycl:spir64_x86_64-unknown-unknown=-march=skylake"
