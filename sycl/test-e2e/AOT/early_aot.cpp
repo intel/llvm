@@ -1,13 +1,15 @@
 // Test early-AOT behaviors with -fsycl -fno-sycl-rdc.  This targets spir64_gen
 
 // REQUIRES: ocloc, gpu, target-spir
-// XFAIL: new-offload-model
-// XFAIL-TRACKER: CMPLRLLVM-51875
+
+// Note: Temporary. New Offload Model requires -fno-sycl-rdc to be specified
+// at linking step but Old Offload Model requires -fno-sycl-rdc to be
+// specified at compilation step.
 
 // Build the early AOT device binaries
-// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen %gpu_aot_target_opts -fno-sycl-rdc -c -DADD_CPP %s -o %t_add.o
-// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen %gpu_aot_target_opts -fno-sycl-rdc -c -DSUB_CPP %s -o %t_sub.o
-// RUN: %clangxx -fsycl -DMAIN_CPP %s %t_add.o %t_sub.o -o %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen %gpu_aot_target_opts %if !new-offload-model %{ -fno-sycl-rdc %} -c -DADD_CPP %s -o %t_add.o
+// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen %gpu_aot_target_opts %if !new-offload-model %{ -fno-sycl-rdc %} -c -DSUB_CPP %s -o %t_sub.o
+// RUN: %clangxx -fsycl %if new-offload-model %{ -fno-sycl-rdc %} -DMAIN_CPP %s %t_add.o %t_sub.o -o %t.out
 
 // RUN: %{run} %t.out
 
