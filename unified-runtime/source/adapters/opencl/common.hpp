@@ -224,24 +224,24 @@ CONSTFIX char GetKernelSubGroupInfoName[] = "clGetKernelSubGroupInfoKHR";
 #undef CONSTFIX
 
 using clGetDeviceFunctionPointerINTEL_fn = CL_API_ENTRY
-cl_int(CL_API_CALL *)(cl_device_id device, cl_program program,
-                      const char *FuncName, cl_ulong *ret_ptr);
+    cl_int(CL_API_CALL *)(cl_device_id device, cl_program program,
+                          const char *FuncName, cl_ulong *ret_ptr);
 
 using clGetDeviceGlobalVariablePointerINTEL_fn = CL_API_ENTRY
-cl_int(CL_API_CALL *)(cl_device_id device, cl_program program,
-                      const char *globalVariableName,
-                      size_t *globalVariableSizeRet,
-                      void **globalVariablePointerRet);
+    cl_int(CL_API_CALL *)(cl_device_id device, cl_program program,
+                          const char *globalVariableName,
+                          size_t *globalVariableSizeRet,
+                          void **globalVariablePointerRet);
 
 using clEnqueueWriteGlobalVariableINTEL_fn = CL_API_ENTRY
-cl_int(CL_API_CALL *)(cl_command_queue, cl_program, const char *, cl_bool,
-                      size_t, size_t, const void *, cl_uint, const cl_event *,
-                      cl_event *);
+    cl_int(CL_API_CALL *)(cl_command_queue, cl_program, const char *, cl_bool,
+                          size_t, size_t, const void *, cl_uint, const cl_event *,
+                          cl_event *);
 
 using clEnqueueReadGlobalVariableINTEL_fn = CL_API_ENTRY
-cl_int(CL_API_CALL *)(cl_command_queue, cl_program, const char *, cl_bool,
-                      size_t, size_t, void *, cl_uint, const cl_event *,
-                      cl_event *);
+    cl_int(CL_API_CALL *)(cl_command_queue, cl_program, const char *, cl_bool,
+                          size_t, size_t, void *, cl_uint, const cl_event *,
+                          cl_event *);
 
 using clEnqueueReadHostPipeINTEL_fn = CL_API_ENTRY
 cl_int(CL_API_CALL *)(cl_command_queue queue, cl_program program,
