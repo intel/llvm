@@ -205,7 +205,7 @@ def do_configure(args, passthrough_args):
     cmake_cmd.extend(
         [
             "-DRUNTIMES_spirv64-unknown-unknown_LLVM_ENABLE_RUNTIMES={}".format(
-                    llvm_spirv64_runtimes
+                llvm_spirv64_runtimes
             ),
         ]
     )
