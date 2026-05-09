@@ -1848,11 +1848,14 @@ __urdlllocal ur_result_t UR_APICALL urIPCOpenMemHandleExp(
       hContext, hDevice, pIPCMemHandleData, ipcMemHandleDataSize, ppMem));
 
   // Mark IPC memory as initialized in shadow memory
+  size_t MemSize;
+  UR_CALL(getContext()->urDdiTable.USM.pfnGetMemAllocInfo(
+      hContext, *ppMem, UR_USM_ALLOC_INFO_SIZE, sizeof(MemSize), &MemSize,
+      nullptr));
   std::shared_ptr<DeviceInfo> DI = getMsanInterceptor()->getDeviceInfo(hDevice);
   ManagedQueue Queue(hContext, hDevice);
   UR_CALL(DI->Shadow->EnqueuePoisonShadow(Queue, reinterpret_cast<uptr>(*ppMem),
-                                          ipcMemHandleDataSize,
-                                          &kMemInitializedMagic));
+                                          MemSize, &kMemInitializedMagic));
 
   return UR_RESULT_SUCCESS;
 }

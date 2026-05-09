@@ -1688,8 +1688,12 @@ __urdlllocal ur_result_t UR_APICALL urIPCOpenMemHandleExp(
   UR_CALL(getContext()->urDdiTable.IPCExp.pfnOpenMemHandleExp(
       hContext, hDevice, pIPCMemHandleData, ipcMemHandleDataSize, ppMem));
 
+  size_t MemSize;
+  UR_CALL(getContext()->urDdiTable.USM.pfnGetMemAllocInfo(
+      hContext, *ppMem, UR_USM_ALLOC_INFO_SIZE, sizeof(MemSize), &MemSize,
+      nullptr));
   UR_CALL(getAsanInterceptor()->registerIPCMemory(
-      hContext, hDevice, reinterpret_cast<uptr>(*ppMem), ipcMemHandleDataSize));
+      hContext, hDevice, reinterpret_cast<uptr>(*ppMem), MemSize));
 
   return UR_RESULT_SUCCESS;
 }
