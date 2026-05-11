@@ -18,20 +18,18 @@
 // Provide __isa_available for MSVC device code BEFORE including STL headers.
 // Must come before #include_next so our definition is seen first.
 #if defined(__SYCL_DEVICE_ONLY__) && defined(_MSC_VER)
-// VS2026 STL headers use __isa_available (a runtime global variable) to detect
-// CPU features. SYCL device code cannot access host runtime globals, so
-// provide a workaround. 
-// __isa_available is an integer "level" the MSVC STL compares against named
-// constants in <vcruntime.h> (e.g. __ISA_AVAILABLE_AVX2 == 5,
-// __ISA_AVAILABLE_AVX512 == 6). We pick a value greater than any currently
-// defined level so every feature gate in the STL evaluates "available."
-#ifndef __SYCL_MSVC_ISA_AVAILABLE_DEVICE_STUB
-#define __SYCL_MSVC_ISA_AVAILABLE_DEVICE_STUB 10 // > __ISA_AVAILABLE_AVX512
-#endif
+// VS2026 STL headers use __isa_available (a runtime global variable) to
+// detect CPU features: `if (__isa_available >= _Stl_isa_available_avx2) ...`.
+// SYCL device code cannot access host runtime globals, so provide a device-
+// side definition. The VALUE of this variable only steers the STL's runtime
+// feature dispatch — both branches of the dispatch compile either way. We
+// pick __ISA_AVAILABLE_X86 (== 0, the baseline in <isa_availability.h>),
+// which matches a spir64 device's reality (no x86 ISA), and so selects the
+// STL's scalar fallback paths if these dispatches are ever reached.
 extern "C" int __isa_available
     __attribute__((sycl_global_var))
     __attribute__((weak))
-    = __SYCL_MSVC_ISA_AVAILABLE_DEVICE_STUB;
+    = 0;
 #endif // defined(__SYCL_DEVICE_ONLY__) && defined(_MSC_VER)
 
 // Include real STL <complex> header - the next one from the include search
