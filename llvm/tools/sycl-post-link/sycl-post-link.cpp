@@ -324,13 +324,9 @@ Error saveModule(
       continue;
     auto CopyTriple = BaseTriple;
     if (DoPropGen) {
-      GlobalBinImageProps Props = {EmitKernelParamInfo,
-                                   EmitProgramMetadata,
-                                   EmitKernelNames,
-                                   EmitExportedSymbols,
-                                   EmitImportedSymbols,
-                                   DeviceGlobals,
-                                   static_cast<int>(IdQueriesRange)};
+      GlobalBinImageProps Props = {EmitKernelParamInfo, EmitProgramMetadata,
+                                   EmitKernelNames,     EmitExportedSymbols,
+                                   EmitImportedSymbols, DeviceGlobals};
       StringRef Target = OutputFile.Target;
       std::string NewSuff = Suffix.str();
       if (!Target.empty())
@@ -339,7 +335,7 @@ Error saveModule(
       CopyTriple.Prop = (OutputPrefix + NewSuff + ".prop").str();
       if (Error E = sycl_post_link::saveModuleProperties(
               MD, Props, CopyTriple.Prop, Target, AllowDeviceImageDependencies,
-              SplitMode))
+              SplitMode, static_cast<int>(IdQueriesRange)))
         return E;
     }
     addTableRow(*Table, CopyTriple);

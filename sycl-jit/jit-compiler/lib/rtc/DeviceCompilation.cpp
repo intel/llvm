@@ -954,6 +954,25 @@ static IRSplitMode getDeviceCodeSplitMode(const InputArgList &UserArgList) {
   return SPLIT_AUTO;
 }
 
+// Parse and return the value of `-fsycl-id-queries-range=<int|uint|size_t>`
+// option. Return 0 if option is not specified (default value) or if value
+// specified is int, Return 1 if value specified is uint, and 2 if value
+// specified is size_t.
+static int getSYCLIdMaxRange(const InputArgList &UserArgList) {
+  int MaxRange = 0;
+  if (auto *Arg = UserArgList.getLastArg(OPT_fsycl_id_queries_range_EQ)) {
+    StringRef ArgVal{Arg->getValue()};
+    if (ArgVal == "int") {
+      MaxRange = 0;
+    } else if (ArgVal == "uint") {
+      MaxRange = 1;
+    } else if (ArgVal == "size_t") {
+      MaxRange = 2;
+    }
+  }
+  return MaxRange;
+}
+
 static void encodeProperties(PropertySetRegistry &Properties,
                              RTCDevImgInfo &DevImgInfo) {
   const auto &PropertySets = Properties.getPropSets();
@@ -993,6 +1012,8 @@ jit_compiler::performPostLink(ModuleUPtr Module,
   const bool AllowDeviceImageDependencies = UserArgList.hasFlag(
       options::OPT_fsycl_allow_device_image_dependencies,
       options::OPT_fno_sycl_allow_device_image_dependencies, false);
+
+  const int MaxIdRange = getSYCLIdMaxRange(UserArgList);
 
   // TODO: EmitOnlyKernelsAsEntryPoints is controlled by
   //       `shouldEmitOnlyKernelsAsEntryPoints` in
@@ -1085,7 +1106,7 @@ jit_compiler::performPostLink(ModuleUPtr Module,
                                   /*DeviceGlobals=*/true};
       PropertySetRegistry Properties =
           computeModuleProperties(MDesc->getModule(), MDesc->entries(), PropReq,
-                                  AllowDeviceImageDependencies);
+                                  AllowDeviceImageDependencies, MaxIdRange);
 
       // When the split mode is none, the required work group size will be added
       // to the whole module, which will make the runtime unable to launch the

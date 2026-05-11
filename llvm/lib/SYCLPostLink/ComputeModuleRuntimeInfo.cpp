@@ -118,7 +118,8 @@ PropSetRegTy computeDeviceLibProperties(const Module &M,
 PropSetRegTy computeModuleProperties(const Module &M,
                                      const EntryPointSet &EntryPoints,
                                      const GlobalBinImageProps &GlobProps,
-                                     bool AllowDeviceImageDependencies) {
+                                     bool AllowDeviceImageDependencies,
+                                     int IdQueriesRange) {
 
   PropSetRegTy PropSet;
   {
@@ -378,8 +379,7 @@ PropSetRegTy computeModuleProperties(const Module &M,
       PropSet.add(PropSetRegTy::SYCL_MISC_PROP, "optLevel", OptLevel);
   }
   {
-    PropSet.add(PropSetRegTy::SYCL_MISC_PROP, "idQueriesRange",
-                GlobProps.IdQueriesRange);
+    PropSet.add(PropSetRegTy::SYCL_MISC_PROP, "idQueriesRange", IdQueriesRange);
   }
   {
     std::vector<std::pair<StringRef, int>> ArgPos =

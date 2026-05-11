@@ -27,7 +27,6 @@ struct GlobalBinImageProps {
   bool EmitExportedSymbols;
   bool EmitImportedSymbols;
   bool EmitDeviceGlobalPropSet;
-  int IdQueriesRange; // 0 = int, 1 = uint, 2 = size_t (default)
 };
 bool isModuleUsingAsan(const Module &M);
 bool isModuleUsingMsan(const Module &M);
@@ -41,7 +40,8 @@ PropSetRegTy computeDeviceLibProperties(const Module &M,
 PropSetRegTy computeModuleProperties(const Module &M,
                                      const EntryPointSet &EntryPoints,
                                      const GlobalBinImageProps &GlobProps,
-                                     bool AllowDeviceImageDependencies);
+                                     bool AllowDeviceImageDependencies,
+                                     int IdQueriesRange);
 
 std::string computeModuleSymbolTable(const Module &M,
                                      const EntryPointSet &EntryPoints);
