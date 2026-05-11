@@ -187,34 +187,32 @@ namespace ur::level_zero {
 ur_result_t urContextCreate(uint32_t deviceCount,
                             const ur_device_handle_t *phDevices,
                             const ur_context_properties_t * /*pProperties*/,
-                            ur_context_handle_t *phContext) {
+                            ur_context_handle_t *phContext) try {
   *phContext = nullptr;
-  try {
 
-    ur_platform_handle_t hPlatform = phDevices[0]->Platform;
-    ZeStruct<ze_context_desc_t> contextDesc{};
+  ur_platform_handle_t hPlatform = phDevices[0]->Platform;
+  ZeStruct<ze_context_desc_t> contextDesc{};
 
-    ze_context_handle_t rawZeContext{};
-    ZE2UR_CALL(zeContextCreate,
-               (hPlatform->ZeDriver, &contextDesc, &rawZeContext));
-    UR_LOG(INFO, "ZE context created with {} devices", deviceCount);
+  ze_context_handle_t rawZeContext{};
+  ZE2UR_CALL(zeContextCreate,
+             (hPlatform->ZeDriver, &contextDesc, &rawZeContext));
+  UR_LOG(INFO, "ZE context created with {} devices", deviceCount);
 
-    // Wrap immediately so any exception thrown by the ur_context_handle_t_
-    // constructor (after hContext member is initialised) does not double-free
-    // the Level Zero context handle.
-    *phContext =
-        new ur_context_handle_t_(rawZeContext, deviceCount, phDevices, true);
-    {
-      std::scoped_lock<ur_shared_mutex> Lock(hPlatform->ContextsMutex);
-      hPlatform->Contexts.push_back(*phContext);
-    }
-    return UR_RESULT_SUCCESS;
-  } catch (...) {
-    UR_LOG(ERR, "creating context failed");
-    delete *phContext;
-    *phContext = nullptr;
-    return exceptionToResult(std::current_exception());
+  // Wrap immediately so any exception thrown by the ur_context_handle_t_
+  // constructor (after hContext member is initialised) does not double-free
+  // the Level Zero context handle.
+  *phContext =
+      new ur_context_handle_t_(rawZeContext, deviceCount, phDevices, true);
+  {
+    std::scoped_lock<ur_shared_mutex> Lock(hPlatform->ContextsMutex);
+    hPlatform->Contexts.push_back(*phContext);
   }
+  return UR_RESULT_SUCCESS;
+} catch (...) {
+  UR_LOG(ERR, "creating context failed");
+  delete *phContext;
+  *phContext = nullptr;
+  return exceptionToResult(std::current_exception());
 }
 
 ur_result_t urContextGetNativeHandle(ur_context_handle_t hContext,
@@ -230,26 +228,25 @@ ur_result_t urContextCreateWithNativeHandle(
     ur_native_handle_t hNativeContext, ur_adapter_handle_t, uint32_t numDevices,
     const ur_device_handle_t *phDevices,
     const ur_context_native_properties_t *pProperties,
-    ur_context_handle_t *phContext) {
+    ur_context_handle_t *phContext) try {
   *phContext = nullptr;
-  try {
-    auto zeContext = reinterpret_cast<ze_context_handle_t>(hNativeContext);
 
-    auto ownZeHandle = pProperties ? pProperties->isNativeHandleOwned : false;
+  auto zeContext = reinterpret_cast<ze_context_handle_t>(hNativeContext);
 
-    *phContext =
-        new ur_context_handle_t_(zeContext, numDevices, phDevices, ownZeHandle);
-    {
-      auto hPlatform = phDevices[0]->Platform;
-      std::scoped_lock<ur_shared_mutex> Lock(hPlatform->ContextsMutex);
-      hPlatform->Contexts.push_back(*phContext);
-    }
-    return UR_RESULT_SUCCESS;
-  } catch (...) {
-    delete *phContext;
-    *phContext = nullptr;
-    return exceptionToResult(std::current_exception());
+  auto ownZeHandle = pProperties ? pProperties->isNativeHandleOwned : false;
+
+  *phContext =
+      new ur_context_handle_t_(zeContext, numDevices, phDevices, ownZeHandle);
+  {
+    auto hPlatform = phDevices[0]->Platform;
+    std::scoped_lock<ur_shared_mutex> Lock(hPlatform->ContextsMutex);
+    hPlatform->Contexts.push_back(*phContext);
   }
+  return UR_RESULT_SUCCESS;
+} catch (...) {
+  delete *phContext;
+  *phContext = nullptr;
+  return exceptionToResult(std::current_exception());
 }
 
 ur_result_t urContextRetain(ur_context_handle_t hContext) try {
