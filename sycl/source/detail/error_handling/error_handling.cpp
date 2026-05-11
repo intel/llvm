@@ -332,6 +332,24 @@ void handleInvalidWorkGroupSize(const device_impl &DeviceImpl,
           // else unknown.  fallback (below)
         }
       }
+    } else if (IsLevelZero) {
+      // Make sure maximum number of work groups in each dimension does not
+      // exceed uint32_t.
+      uint64_t NumGlobalWorkGroups = NDRDesc.getNumGlobalWorkGroups();
+      uint64_t MaxUint =
+          static_cast<uint64_t>(std::numeric_limits<uint32_t>::max());
+      // Split the max work groups across all dimensions and check if
+      // any dimension exceeds uint32_t.
+      uint64_t NumGlobalWorkGroupsPerDim = NumGlobalWorkGroups / NDRDesc.Dims;
+      if (NumGlobalWorkGroupsPerDim > MaxUint) {
+        std::string ErrorMessage =
+            "Number of global work groups in 1st dimension " +
+            std::to_string(NumGlobalWorkGroups) +
+            " exceeds the maximum "
+            "supported value of " +
+            std::to_string(MaxUint) + ".";
+        throw sycl::exception(make_error_code(errc::nd_range), ErrorMessage);
+      }
     } else {
       // TODO: Decide what checks (if any) we need for the other backends
     }

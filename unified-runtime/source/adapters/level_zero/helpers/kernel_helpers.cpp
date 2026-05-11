@@ -91,6 +91,7 @@ ur_result_t calculateKernelWorkDimensions(
   // If LocalWorkSize is not provided then Kernel must be provided to query
   // suggested group size.
   UR_ASSERT(LocalWorkSize || Kernel, UR_RESULT_ERROR_INVALID_VALUE);
+  UR_ASSERT(WorkDim > 0 && WorkDim < 4, UR_RESULT_ERROR_INVALID_VALUE);
 
   // New variable needed because GlobalWorkSize parameter might not be of size
   // 3
@@ -105,33 +106,25 @@ ur_result_t calculateKernelWorkDimensions(
     UR_CALL(getSuggestedLocalWorkSize(Device, Kernel, GlobalWorkSize3D, WG));
   }
 
-  // TODO: assert if sizes do not fit into 32-bit?
-  switch (WorkDim) {
-  case 3:
-    ZeThreadGroupDimensions.groupCountX =
-        ur_cast<uint32_t>(GlobalWorkSize3D[0] / WG[0]);
-    ZeThreadGroupDimensions.groupCountY =
-        ur_cast<uint32_t>(GlobalWorkSize3D[1] / WG[1]);
-    ZeThreadGroupDimensions.groupCountZ =
-        ur_cast<uint32_t>(GlobalWorkSize3D[2] / WG[2]);
-    break;
-  case 2:
-    ZeThreadGroupDimensions.groupCountX =
-        ur_cast<uint32_t>(GlobalWorkSize3D[0] / WG[0]);
-    ZeThreadGroupDimensions.groupCountY =
-        ur_cast<uint32_t>(GlobalWorkSize3D[1] / WG[1]);
-    WG[2] = 1;
-    break;
-  case 1:
-    ZeThreadGroupDimensions.groupCountX =
-        ur_cast<uint32_t>(GlobalWorkSize3D[0] / WG[0]);
-    WG[1] = WG[2] = 1;
-    break;
-
-  default:
-    UR_LOG(ERR, "calculateKernelWorkDimensions: unsupported work_dim");
-    return UR_RESULT_ERROR_INVALID_VALUE;
+  uint64_t GroupCountPerDimension[3] = {1, 1, 1};
+  for (uint32_t I = 0; I < WorkDim; I++) {
+    GroupCountPerDimension[I] = GlobalWorkSize3D[I] / WG[I];
+    // Ensure that the number of groups in each dimension fits within uint32_t.
+    if (GroupCountPerDimension[I] > UINT32_MAX) {
+      UR_LOG(ERR,
+             "Number of work groups in dimension {} exceeds the maximum "
+             "supported value of {}.",
+             I, UINT32_MAX);
+      return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
+    }
   }
+
+  ZeThreadGroupDimensions.groupCountX =
+      ur_cast<uint32_t>(GroupCountPerDimension[0]);
+  ZeThreadGroupDimensions.groupCountY =
+      ur_cast<uint32_t>(GroupCountPerDimension[1]);
+  ZeThreadGroupDimensions.groupCountZ =
+      ur_cast<uint32_t>(GroupCountPerDimension[2]);
 
   // Error handling for non-uniform group size case
   if (GlobalWorkSize3D[0] !=

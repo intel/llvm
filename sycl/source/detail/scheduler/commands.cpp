@@ -2757,7 +2757,7 @@ void enqueueImpKernel(
   std::shared_ptr<kernel_impl> SyclKernelImpl;
   device_image_impl *DeviceImageImpl = nullptr;
   FastKernelCacheValPtr KernelCacheVal;
-  sycl_device_binary_property IdQueryRangeProp;
+  sycl_device_binary_property IdQueryRangeProp = nullptr;
 
   if (nullptr != MSyclKernel) {
     assert(MSyclKernel->get_info<info::kernel::context>() ==
@@ -2838,10 +2838,8 @@ void enqueueImpKernel(
         MaxRange = static_cast<uint64_t>(std::numeric_limits<uint32_t>::max());
         ErrMsg =
             "The kernel was compiled with -fsycl-id-queries-range=uint, but "
-            "the "
-            "provided "
-            "range/offset exceeds the maximum value storable in a uint32_t. "
-            "Either reduce the range/offset or "
+            "the provided range/offset exceeds the maximum value storable in "
+            "an uint32_t. Either reduce the range/offset or "
             "recompile the kernel with -fsycl-id-queries-range=size_t.";
         break;
       case 2:
@@ -2855,9 +2853,8 @@ void enqueueImpKernel(
         MaxRange = static_cast<uint64_t>(std::numeric_limits<int>::max());
         ErrMsg =
             "The kernel was compiled with -fsycl-id-queries-range=int, but the "
-            "provided "
-            "range/offset exceeds the maximum value storable in a int. Either "
-            "reduce the range/offset or "
+            "provided range/offset exceeds the maximum value storable in an "
+            "int. Either reduce the range/offset or "
             "recompile the kernel with -fsycl-id-queries-range=[uint|size_t].";
       }
 
