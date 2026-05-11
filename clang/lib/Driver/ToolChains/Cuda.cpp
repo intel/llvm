@@ -1015,7 +1015,7 @@ void CudaToolChain::addClangTargetOptions(
     return;
 
   // For SYCL offloading, add SYCL device libraries.
-  if (0 && DeviceOffloadingKind == Action::OFK_SYCL) {
+  if (DeviceOffloadingKind == Action::OFK_SYCL) {
     llvm::SmallVector<ToolChain::BitCodeLibraryInfo, 12> BCLibs;
 
     llvm::SmallVector<llvm::SmallString<128>, 4> LibraryPaths;
