@@ -23,6 +23,7 @@
 
 namespace syclexp = sycl::ext::oneapi::experimental;
 
+// clang-format off
 #ifdef USE_DEPRECATED_IPC_MEMORY_NAMESPACE
 
 #if defined(_MSC_VER)
@@ -38,6 +39,7 @@ namespace ipc_memory = syclexp::ipc_memory;
 namespace ipc_common = syclexp::ipc;
 namespace ipc_memory = syclexp::ipc::memory;
 #endif
+// clang-format on
 
 int main() {
   sycl::queue Q;
