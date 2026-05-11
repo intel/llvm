@@ -8,7 +8,6 @@
 // CHECK-NEXT: khr/includes/version.hpp
 // CHECK-NEXT: detail/defines_elementary.hpp
 // CHECK-NEXT: feature_test.hpp
-// CHECK-NEXT: builtins_relational.hpp
 // CHECK-NEXT: detail/builtins/relational_functions.hpp
 // CHECK-NEXT: detail/builtins/builtin_helpers.hpp
 // CHECK-NEXT: detail/fwd/multi_ptr.hpp

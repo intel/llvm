@@ -8,7 +8,6 @@
 // CHECK-NEXT: khr/includes/version.hpp
 // CHECK-NEXT: detail/defines_elementary.hpp
 // CHECK-NEXT: feature_test.hpp
-// CHECK-NEXT: builtins_geometric.hpp
 // CHECK-NEXT: detail/builtins/geometric_functions.hpp
 // CHECK-NEXT: detail/builtins/builtin_helpers.hpp
 // CHECK-NEXT: detail/fwd/multi_ptr.hpp

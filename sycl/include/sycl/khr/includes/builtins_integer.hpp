@@ -11,6 +11,8 @@
 
 #include "version.hpp"
 
-#include <sycl/builtins_integer.hpp>
+#include <sycl/detail/defines_elementary.hpp>
+
+#include <sycl/detail/builtins/integer_functions.hpp>
 
 #endif // __SYCL_KHR_INCLUDES_BUILTINS_INTEGER

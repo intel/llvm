@@ -11,6 +11,8 @@
 
 #include "version.hpp"
 
-#include <sycl/builtins_geometric.hpp>
+#include <sycl/detail/defines_elementary.hpp>
+
+#include <sycl/detail/builtins/geometric_functions.hpp>
 
 #endif // __SYCL_KHR_INCLUDES_BUILTINS_GEOMETRIC
