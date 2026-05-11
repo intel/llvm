@@ -32,9 +32,6 @@
  *  - xxHash source repository : https://github.com/Cyan4973/xxHash
  */
 
-// xxhash64 is based on commit d2df04efcbef7d7f6886d345861e5dfda4edacc1. Removed
-// everything but a simple interface for computing xxh64.
-
 // xxh3_64bits is based on commit d5891596637d21366b9b1dcf2c0007a3edb26a9e (July
 // 2023).
 

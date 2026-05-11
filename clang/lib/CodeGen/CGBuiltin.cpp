@@ -3760,7 +3760,7 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
 
     Value *Values[] = {Value0, Value1};
     OperandBundleDefT<Value *> OBD("separate_storage", Values);
-    Builder.CreateAssumption(ConstantInt::getTrue(getLLVMContext()), {OBD});
+    Builder.CreateAssumption({OBD});
     return RValue::get(nullptr);
   }
   case Builtin::BI__builtin_allow_runtime_check: {
