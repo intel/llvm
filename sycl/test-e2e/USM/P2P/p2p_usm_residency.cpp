@@ -9,6 +9,10 @@
 // different pattern, enables P2P access from dev0 to dev1, then uses dev0's
 // queue to copy the data to the host and verifies correctness.
 //
+// Phase 3 (negative): Allocates memory on dev0, enables then disables P2P
+// access from dev1, and verifies that a subsequent memcpy via dev1's queue
+// does not return the correct data.
+//
 // REQUIRES: level_zero && two-or-more-gpu-devices
 // UNSUPPORTED: level_zero_v1_adapter
 // UNSUPPORTED-INTENDED: Test is specific to the Level Zero v2 adapter.
@@ -63,6 +67,61 @@ static bool testP2PRead(context &ctx, queue &srcQueue, device &srcDev,
   return true;
 }
 
+// Allocate N ints on srcQueue's device, fill with fillVal, enable P2P, then
+// disable P2P, and verify that a memcpy from dstQueue does NOT return the
+// correct data (since dstDev should no longer be able to access srcDev's
+// allocations after P2P is disabled).
+static bool testP2PReadFailsAfterDisable(context &ctx, queue &srcQueue,
+                                         device &srcDev, queue &dstQueue,
+                                         device &dstDev, size_t N, int fillVal,
+                                         const char *label) {
+  int *src = sycl::malloc_device<int>(N, srcQueue);
+  if (!src) {
+    std::cout << label << ": device alloc failed. Skipping.\n";
+    return true;
+  }
+  srcQueue.fill(src, fillVal, N).wait();
+
+  // Enable then disable P2P: dstDev should no longer be able to access
+  // allocations on srcDev.
+  std::cout << "Enabling P2P (temporarily).\n";
+  dstDev.ext_oneapi_enable_peer_access(srcDev);
+  std::cout << "Disabling P2P: dstDev should no longer access srcDev.\n";
+  dstDev.ext_oneapi_disable_peer_access(srcDev);
+
+  // Attempt a memcpy from srcDev's allocation via dstQueue after P2P has been
+  // revoked — the data should NOT match the original fill pattern.
+  std::vector<int> result(N, 0);
+  try {
+    dstQueue.memcpy(result.data(), src, N * sizeof(int)).wait();
+  } catch (sycl::exception &e) {
+    std::cout << label << ": memcpy threw exception: " << e.what() << "\n";
+    sycl::free(src, ctx);
+    std::cout << label << ": OK (memcpy failed after P2P disable)\n";
+    return true;
+  }
+
+  sycl::free(src, ctx);
+
+  // Check that the copied data does NOT match the source pattern.
+  bool allMatch = true;
+  for (size_t i = 0; i < N; ++i) {
+    if (result[i] != fillVal) {
+      allMatch = false;
+      break;
+    }
+  }
+
+  if (allMatch) {
+    std::cout << label
+              << ": FAIL — memcpy returned correct data after P2P was "
+                 "disabled\n";
+    return false;
+  }
+  std::cout << label << ": OK (data mismatch confirms P2P access revoked)\n";
+  return true;
+}
+
 int main() {
   // Find a platform with at least two GPU devices.
   std::vector<device> gpus;
@@ -89,7 +148,7 @@ int main() {
   queue q0(ctx, dev0);
   queue q1(ctx, dev1);
 
-  constexpr size_t N = 1024;
+  constexpr size_t N = 1024 * 1024 * 1024;
 
   // Phase 1: dev1 reads dev0's memory (P2P: dev1 -> dev0).
   std::cout << "Phase 1: dev1 reads dev0's memory (P2P: dev1 -> dev0).\n";
@@ -113,6 +172,12 @@ int main() {
   }
   if (!testP2PRead(ctx, q1, dev1, q0, dev0, N, 0x55,
                    "Phase 2 (dev0 reads dev1)"))
+    return 1;
+
+  // Phase 3: verify that memcpy fails after P2P is disabled.
+  std::cout << "Phase 3: verify memcpy fails after P2P is disabled.\n";
+  if (!testP2PReadFailsAfterDisable(ctx, q0, dev0, q1, dev1, N, 0x77,
+                                    "Phase 3 (dev1 reads dev0 after disable)"))
     return 1;
 
   std::cout << "PASS\n";
