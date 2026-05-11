@@ -1,8 +1,8 @@
 // RUN: %clangxx -fsycl -fsyntax-only -Wno-deprecated-declarations %s
 
 #include <sycl/khr/includes/builtins_geometric.hpp>
-#include <sycl/marray.hpp>
-#include <sycl/vector.hpp>
+#include <sycl/khr/includes/marray.hpp>
+#include <sycl/khr/includes/vec.hpp>
 
 #include <type_traits>
 
@@ -44,4 +44,3 @@ int main() {
   (void)sycl::normalize(MA);
   return 0;
 }
-

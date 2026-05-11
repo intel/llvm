@@ -1,9 +1,9 @@
 // RUN: %clangxx -fsycl -fsyntax-only -Wno-deprecated-declarations %s
 
 #include <sycl/khr/includes/builtins_math.hpp>
-#include <sycl/marray.hpp>
-#include <sycl/multi_ptr.hpp>
-#include <sycl/vector.hpp>
+#include <sycl/khr/includes/marray.hpp>
+#include <sycl/khr/includes/multi_ptr.hpp>
+#include <sycl/khr/includes/vec.hpp>
 
 #include <type_traits>
 
@@ -61,4 +61,3 @@ int main() {
   (void)sycl::half_precision::divide(MA, MB);
   return 0;
 }
-

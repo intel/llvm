@@ -1,8 +1,8 @@
 // RUN: %clangxx -fsycl -fsyntax-only -Wno-deprecated-declarations %s
 
 #include <sycl/khr/includes/builtins_integer.hpp>
-#include <sycl/marray.hpp>
-#include <sycl/vector.hpp>
+#include <sycl/khr/includes/marray.hpp>
+#include <sycl/khr/includes/vec.hpp>
 
 #include <cstdint>
 #include <type_traits>
@@ -46,4 +46,3 @@ int main() {
   (void)sycl::upsample(MArray2s{1, 2}, MArray2us{3, 4});
   return 0;
 }
-

@@ -1,8 +1,8 @@
 // RUN: %clangxx -fsycl -fsyntax-only -Wno-deprecated-declarations %s
 
 #include <sycl/khr/includes/builtins_relational.hpp>
-#include <sycl/marray.hpp>
-#include <sycl/vector.hpp>
+#include <sycl/khr/includes/marray.hpp>
+#include <sycl/khr/includes/vec.hpp>
 
 #include <cstdint>
 #include <type_traits>
@@ -53,4 +53,3 @@ int main() {
   (void)sycl::select(MA, MB, MMask);
   return 0;
 }
-
