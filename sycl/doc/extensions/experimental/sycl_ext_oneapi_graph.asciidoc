@@ -2623,7 +2623,7 @@ exception if attempted:
 
 | Out-of-order queue
 | Native recording requires an in-order queue backed by an immediate command list.
-| `invalid`
+| `feature_not_supported`
 
 |===
 

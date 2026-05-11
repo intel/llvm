@@ -823,7 +823,7 @@ void graph_impl::beginRecordingImpl(sycl::detail::queue_impl &Queue,
 
   // Native recording limitation: in-order queues only
   if (MNativeGraphHandle && !Queue.isInOrder()) {
-    throw sycl::exception(make_error_code(errc::invalid),
+    throw sycl::exception(make_error_code(errc::feature_not_supported),
                           "Native recording only works with in-order queues");
   }
 
