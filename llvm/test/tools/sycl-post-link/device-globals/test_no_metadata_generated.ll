@@ -43,6 +43,6 @@ attributes #2 = { convergent nounwind }
 !4 = !{i32 4, i32 100000}
 !5 = !{!"clang version 14.0.0"}
 
-; CHECK-NOT: ![[#MN1:]] = !{i32 6147
+; CHECK-NOT: ![[#MN1:]] = !{i32 6188
 ; CHECK-NOT: ![[#MN2:]] = !{i32 6148
 ; CHECK-NOT: ![[#MN3:]] = !{i32 6149
