@@ -24,6 +24,14 @@
 namespace syclexp = sycl::ext::oneapi::experimental;
 
 #ifdef USE_DEPRECATED_IPC_MEMORY_NAMESPACE
+
+#if defined(_MSC_VER)
+__pragma(warning(push)) __pragma(warning(disable : 4996))
+#else
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#endif
+
 namespace ipc_common = syclexp::ipc_memory;
 namespace ipc_memory = syclexp::ipc_memory;
 #else
