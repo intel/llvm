@@ -24,7 +24,6 @@
 //
 // >> ---- link the full hetero app
 // RUN: %{run-aux} %clangxx --offload-new-driver -Wno-unused-command-line-argument -fsycl -fsycl-targets=spir64 a.o b.o -o app.exe %sycl_options
-//
 // RUN: %{run} ./app.exe
 
 #ifdef B_CPP
