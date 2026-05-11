@@ -282,26 +282,25 @@ ur_result_t urContextCreateWithNativeHandle(
     ur_native_handle_t hNativeContext, ur_adapter_handle_t, uint32_t numDevices,
     const ur_device_handle_t *phDevices,
     const ur_context_native_properties_t *pProperties,
-    ur_context_handle_t *phContext) {
+    ur_context_handle_t *phContext) try {
   *phContext = nullptr;
-  try {
-    auto zeContext = reinterpret_cast<ze_context_handle_t>(hNativeContext);
 
-    auto ownZeHandle = pProperties ? pProperties->isNativeHandleOwned : false;
+  auto zeContext = reinterpret_cast<ze_context_handle_t>(hNativeContext);
 
-    *phContext =
-        new ur_context_handle_t_(zeContext, numDevices, phDevices, ownZeHandle);
-    {
-      auto hPlatform = phDevices[0]->Platform;
-      std::scoped_lock<ur_shared_mutex> Lock(hPlatform->ContextsMutex);
-      hPlatform->Contexts.push_back(*phContext);
-    }
-    return UR_RESULT_SUCCESS;
-  } catch (...) {
-    delete *phContext;
-    *phContext = nullptr;
-    return exceptionToResult(std::current_exception());
+  auto ownZeHandle = pProperties ? pProperties->isNativeHandleOwned : false;
+
+  *phContext =
+      new ur_context_handle_t_(zeContext, numDevices, phDevices, ownZeHandle);
+  {
+    auto hPlatform = phDevices[0]->Platform;
+    std::scoped_lock<ur_shared_mutex> Lock(hPlatform->ContextsMutex);
+    hPlatform->Contexts.push_back(*phContext);
   }
+  return UR_RESULT_SUCCESS;
+} catch (...) {
+  delete *phContext;
+  *phContext = nullptr;
+  return exceptionToResult(std::current_exception());
 }
 
 ur_result_t urContextRetain(ur_context_handle_t hContext) try {

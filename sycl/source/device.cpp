@@ -209,36 +209,32 @@ ur_native_handle_t device::getNative() const { return impl->getNative(); }
 
 bool device::has(aspect Aspect) const { return impl->has(Aspect); }
 
-void device::ext_oneapi_enable_peer_access(const device &peer) {
-  ur_device_handle_t Device = impl->getHandleRef();
-  ur_device_handle_t Peer = peer.impl->getHandleRef();
-
+template <detail::UrApiKind ApiKind>
+static void p2pAccessHelper(const device &self, const device &peer,
+                            ur_device_handle_t Device, ur_device_handle_t Peer,
+                            detail::adapter_impl &Adapter,
+                            const char *errorMsg) {
   if (Device == Peer)
     return;
 
-  if (peer.get_platform() != get_platform()) {
-    throw exception(errc::invalid,
-                    "Cannot enable peer access between different platforms");
-  }
+  if (peer.get_platform() != self.get_platform())
+    throw exception(errc::invalid, errorMsg);
 
-  impl->getAdapter().call<detail::UrApiKind::urUsmP2PEnablePeerAccessExp>(
-      Device, Peer);
+  Adapter.call<ApiKind>(Device, Peer);
+}
+
+void device::ext_oneapi_enable_peer_access(const device &peer) {
+  p2pAccessHelper<detail::UrApiKind::urUsmP2PEnablePeerAccessExp>(
+      *this, peer, impl->getHandleRef(), peer.impl->getHandleRef(),
+      impl->getAdapter(),
+      "Cannot enable peer access between different platforms");
 }
 
 void device::ext_oneapi_disable_peer_access(const device &peer) {
-  ur_device_handle_t Device = impl->getHandleRef();
-  ur_device_handle_t Peer = peer.impl->getHandleRef();
-
-  if (Device == Peer)
-    return;
-
-  if (peer.get_platform() != get_platform()) {
-    throw exception(errc::invalid,
-                    "Cannot disable peer access between different platforms");
-  }
-
-  impl->getAdapter().call<detail::UrApiKind::urUsmP2PDisablePeerAccessExp>(
-      Device, Peer);
+  p2pAccessHelper<detail::UrApiKind::urUsmP2PDisablePeerAccessExp>(
+      *this, peer, impl->getHandleRef(), peer.impl->getHandleRef(),
+      impl->getAdapter(),
+      "Cannot disable peer access between different platforms");
 }
 
 bool device::ext_oneapi_can_access_peer(const device &peer,
