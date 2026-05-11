@@ -167,6 +167,17 @@ template <> struct std::hash<auto_pch_key> {
 };
 
 namespace {
+std::string getLibPathSuffix() {
+#define TOSTR2(X) #X
+#define TOSTR(X) TOSTR2(X)
+#ifdef _WIN32
+  return "/lib/";
+#else
+  return "/share/dpcpp-" TOSTR(DPCPP_VERSION_MAJOR) "/";
+#endif
+#undef TOSTR
+#undef TOSTR2
+}
 class SYCLToolchain {
   static auto &getToolchainFS() {
     // TODO: For some reason, removing `thread_local` results in data races
@@ -841,10 +852,11 @@ Error jit_compiler::linkDeviceLibraries(llvm::Module &Module,
     std::string TripleName = (Format == BinaryFormat::PTX)
                                  ? "nvptx64-nvidia-cuda"
                                  : "amdgcn-amd-amdhsa";
+
     std::string LibPath =
         (LibName.find("libspirv") != std::string::npos)
             ? (TC.getLibclcDir() + TripleName + "/" + LibName).str()
-            : (TC.getPrefix() + "/lib/" + LibName).str();
+            : (TC.getPrefix() + getLibPathSuffix() + LibName).str();
 
     ModuleUPtr LibModule;
     if (auto Error =
@@ -1105,7 +1117,8 @@ jit_compiler::performPostLink(ModuleUPtr Module,
     auto &Ctx = Modules.front()->getContext();
     auto WrapLibraryInDevImg = [&](const std::string &LibName) -> Error {
       std::string LibPath =
-          (SYCLToolchain::instance().getPrefix() + "/lib/" + LibName).str();
+          (SYCLToolchain::instance().getPrefix() + getLibPathSuffix() + LibName)
+              .str();
       ModuleUPtr LibModule;
       if (auto Error = SYCLToolchain::instance()
                            .loadBitcodeLibrary(LibPath, Ctx)

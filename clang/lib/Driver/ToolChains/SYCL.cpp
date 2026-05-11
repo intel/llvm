@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 #include "SYCL.h"
+#include "clang/Basic/Version.h"
 #include "clang/Driver/CommonArgs.h"
 #include "clang/Driver/Compilation.h"
 #include "clang/Driver/Driver.h"
@@ -25,7 +26,7 @@ using namespace llvm::opt;
 SYCLInstallationDetector::SYCLInstallationDetector(
     const Driver &D, const llvm::Triple &HostTriple,
     const llvm::opt::ArgList &Args)
-    : D(D), InstallationCandidates()  {
+    : D(D), InstallationCandidates(), HostTriple(HostTriple) {
   // When -fsycl is active, locate the SYCL runtime library and record its
   // directory in SYCLRTLibPath for use by the linker.
   StringRef SysRoot = D.SysRoot;
@@ -110,12 +111,23 @@ void SYCLInstallationDetector::addLibspirvLinkArgs(
 
 void SYCLInstallationDetector::getSYCLDeviceLibPath(
     llvm::SmallVector<llvm::SmallString<128>, 4> &DeviceLibPaths) const {
+#define TOSTR2(X) #X
+#define TOSTR(X) TOSTR2(X)
+  Twine ShareDirSuffix = Twine("/share/dpcpp-") + TOSTR(DPCPP_VERSION_MAJOR);
+#undef TOSTR
+#undef TOSTR2
   for (const auto &IC : InstallationCandidates) {
+    if (!HostTriple.isWindowsMSVCEnvironment()) {
+      llvm::SmallString<128> InstallDataPath(IC.str());
+      InstallDataPath.append(ShareDirSuffix.str());
+      DeviceLibPaths.emplace_back(InstallDataPath);
+    }
     llvm::SmallString<128> InstallLibPath(IC.str());
     InstallLibPath.append("/lib");
     DeviceLibPaths.emplace_back(InstallLibPath);
   }
-
+  if (!HostTriple.isWindowsMSVCEnvironment())
+    DeviceLibPaths.emplace_back(D.SysRoot + ShareDirSuffix.str());
   DeviceLibPaths.emplace_back(D.SysRoot + "/lib");
 }
 
