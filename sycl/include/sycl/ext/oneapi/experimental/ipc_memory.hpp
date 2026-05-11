@@ -187,8 +187,9 @@ inline void close(void *Ptr) {
   ipc_memory::close(Ptr, Ctx);
 }
 __SYCL_SUPPRESS_DEPRECATED_POP
-} // namespace __SYCL_DEPRECATED("The ipc_memory namespace is deprecated. Use
-  // the ""ipc::memory namespace instead.")ipc_memory
+// clang-format off
+} // namespace ipc_memory
+// clang-format on
 } // namespace ext::oneapi::experimental
 } // namespace _V1
 } // namespace sycl
