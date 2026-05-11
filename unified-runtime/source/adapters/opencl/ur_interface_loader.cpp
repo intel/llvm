@@ -28,7 +28,11 @@ ur_result_t validateProcInputs(ur_api_version_t Version, void *pDdiTable) {
 }
 } // namespace
 
+#ifdef UR_STATIC_ADAPTER_OPENCL
+namespace ur::opencl {
+#else
 extern "C" {
+#endif
 
 UR_DLLEXPORT ur_result_t UR_APICALL urGetAdapterProcAddrTable(
     ur_api_version_t version, ur_adapter_dditable_t *pDdiTable) {
@@ -510,6 +514,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetGraphExpProcAddrTable(
   return UR_RESULT_SUCCESS;
 }
 
+#ifndef UR_STATIC_ADAPTER_OPENCL
 UR_DLLEXPORT ur_result_t UR_APICALL urAllAddrTable(ur_api_version_t version,
                                                    ur_dditable_t *pDdiTable) {
   urGetAdapterProcAddrTable(version, &pDdiTable->Adapter);
@@ -540,14 +545,147 @@ UR_DLLEXPORT ur_result_t UR_APICALL urAllAddrTable(ur_api_version_t version,
 
   return UR_RESULT_SUCCESS;
 }
+#endif // UR_STATIC_ADAPTER_OPENCL
 
+#ifdef UR_STATIC_ADAPTER_OPENCL
+} // namespace ur::opencl
+#else
 } // extern "C"
+#endif
 
-const ur_dditable_t *ur::opencl::ddi_getter::value() {
+namespace {
+ur_result_t populateDdiTable(ur_dditable_t *ddi) {
+  if (ddi == nullptr) {
+    return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+  }
+
+  ur_result_t result;
+
+#ifdef UR_STATIC_ADAPTER_OPENCL
+#define ADAPTER_CALL ::ur::opencl
+#else
+#define ADAPTER_CALL
+#endif
+
+  result = ADAPTER_CALL::urGetAdapterProcAddrTable(UR_API_VERSION_CURRENT,
+                                                   &ddi->Adapter);
+  if (result != UR_RESULT_SUCCESS)
+    return result;
+  result = ADAPTER_CALL::urGetBindlessImagesExpProcAddrTable(
+      UR_API_VERSION_CURRENT, &ddi->BindlessImagesExp);
+  if (result != UR_RESULT_SUCCESS)
+    return result;
+  result = ADAPTER_CALL::urGetCommandBufferExpProcAddrTable(
+      UR_API_VERSION_CURRENT, &ddi->CommandBufferExp);
+  if (result != UR_RESULT_SUCCESS)
+    return result;
+  result = ADAPTER_CALL::urGetContextProcAddrTable(UR_API_VERSION_CURRENT,
+                                                   &ddi->Context);
+  if (result != UR_RESULT_SUCCESS)
+    return result;
+  result = ADAPTER_CALL::urGetEnqueueProcAddrTable(UR_API_VERSION_CURRENT,
+                                                   &ddi->Enqueue);
+  if (result != UR_RESULT_SUCCESS)
+    return result;
+  result = ADAPTER_CALL::urGetEnqueueExpProcAddrTable(UR_API_VERSION_CURRENT,
+                                                      &ddi->EnqueueExp);
+  if (result != UR_RESULT_SUCCESS)
+    return result;
+  result = ADAPTER_CALL::urGetEventProcAddrTable(UR_API_VERSION_CURRENT,
+                                                 &ddi->Event);
+  if (result != UR_RESULT_SUCCESS)
+    return result;
+  result = ADAPTER_CALL::urGetGraphExpProcAddrTable(UR_API_VERSION_CURRENT,
+                                                    &ddi->GraphExp);
+  if (result != UR_RESULT_SUCCESS)
+    return result;
+  result = ADAPTER_CALL::urGetIPCExpProcAddrTable(UR_API_VERSION_CURRENT,
+                                                  &ddi->IPCExp);
+  if (result != UR_RESULT_SUCCESS)
+    return result;
+  result = ADAPTER_CALL::urGetKernelProcAddrTable(UR_API_VERSION_CURRENT,
+                                                  &ddi->Kernel);
+  if (result != UR_RESULT_SUCCESS)
+    return result;
+  result =
+      ADAPTER_CALL::urGetMemProcAddrTable(UR_API_VERSION_CURRENT, &ddi->Mem);
+  if (result != UR_RESULT_SUCCESS)
+    return result;
+  result = ADAPTER_CALL::urGetMemoryExportExpProcAddrTable(
+      UR_API_VERSION_CURRENT, &ddi->MemoryExportExp);
+  if (result != UR_RESULT_SUCCESS)
+    return result;
+  result = ADAPTER_CALL::urGetPhysicalMemProcAddrTable(UR_API_VERSION_CURRENT,
+                                                       &ddi->PhysicalMem);
+  if (result != UR_RESULT_SUCCESS)
+    return result;
+  result = ADAPTER_CALL::urGetPlatformProcAddrTable(UR_API_VERSION_CURRENT,
+                                                    &ddi->Platform);
+  if (result != UR_RESULT_SUCCESS)
+    return result;
+  result = ADAPTER_CALL::urGetProgramProcAddrTable(UR_API_VERSION_CURRENT,
+                                                   &ddi->Program);
+  if (result != UR_RESULT_SUCCESS)
+    return result;
+  result = ADAPTER_CALL::urGetProgramExpProcAddrTable(UR_API_VERSION_CURRENT,
+                                                      &ddi->ProgramExp);
+  if (result != UR_RESULT_SUCCESS)
+    return result;
+  result = ADAPTER_CALL::urGetQueueProcAddrTable(UR_API_VERSION_CURRENT,
+                                                 &ddi->Queue);
+  if (result != UR_RESULT_SUCCESS)
+    return result;
+  result = ADAPTER_CALL::urGetQueueExpProcAddrTable(UR_API_VERSION_CURRENT,
+                                                    &ddi->QueueExp);
+  if (result != UR_RESULT_SUCCESS)
+    return result;
+  result = ADAPTER_CALL::urGetSamplerProcAddrTable(UR_API_VERSION_CURRENT,
+                                                   &ddi->Sampler);
+  if (result != UR_RESULT_SUCCESS)
+    return result;
+  result =
+      ADAPTER_CALL::urGetUSMProcAddrTable(UR_API_VERSION_CURRENT, &ddi->USM);
+  if (result != UR_RESULT_SUCCESS)
+    return result;
+  result = ADAPTER_CALL::urGetUSMExpProcAddrTable(UR_API_VERSION_CURRENT,
+                                                  &ddi->USMExp);
+  if (result != UR_RESULT_SUCCESS)
+    return result;
+  result = ADAPTER_CALL::urGetUsmP2PExpProcAddrTable(UR_API_VERSION_CURRENT,
+                                                     &ddi->UsmP2PExp);
+  if (result != UR_RESULT_SUCCESS)
+    return result;
+  result = ADAPTER_CALL::urGetVirtualMemProcAddrTable(UR_API_VERSION_CURRENT,
+                                                      &ddi->VirtualMem);
+  if (result != UR_RESULT_SUCCESS)
+    return result;
+  result = ADAPTER_CALL::urGetDeviceProcAddrTable(UR_API_VERSION_CURRENT,
+                                                  &ddi->Device);
+  if (result != UR_RESULT_SUCCESS)
+    return result;
+  result = ADAPTER_CALL::urGetDeviceExpProcAddrTable(UR_API_VERSION_CURRENT,
+                                                     &ddi->DeviceExp);
+  if (result != UR_RESULT_SUCCESS)
+    return result;
+
+#undef ADAPTER_CALL
+
+  return result;
+}
+} // namespace
+
+namespace ur::opencl {
+const ur_dditable_t *ddi_getter::value() {
   static std::once_flag flag;
   static ur_dditable_t table;
 
-  std::call_once(flag,
-                 []() { urAllAddrTable(UR_API_VERSION_CURRENT, &table); });
+  std::call_once(flag, []() { populateDdiTable(&table); });
   return &table;
 }
+
+#ifdef UR_STATIC_ADAPTER_OPENCL
+ur_result_t urAdapterGetDdiTables(ur_dditable_t *ddi) {
+  return populateDdiTable(ddi);
+}
+#endif
+} // namespace ur::opencl

@@ -46,10 +46,13 @@ static bool getSymbolAddr(void *handle, const char *name, T *funcPtr) {
 
 static void loadOCLLibraryImpl() {
 #ifdef _WIN32
-  OCLLibHandle = LoadLibraryExA("OpenCL.dll", NULL, LOAD_LIBRARY_SEARCH_SYSTEM32);
+  OCLLibHandle =
+      LoadLibraryExA("OpenCL.dll", NULL, LOAD_LIBRARY_SEARCH_SYSTEM32);
   if (!OCLLibHandle) {
     DWORD error = GetLastError();
-    UR_LOG(ERR, "Failed to load OpenCL.dll from system directory (error code: {})", error);
+    UR_LOG(ERR,
+           "Failed to load OpenCL.dll from system directory (error code: {})",
+           error);
     return;
   }
   UR_LOG(DEBUG, "Successfully loaded OpenCL.dll");
@@ -57,12 +60,15 @@ static void loadOCLLibraryImpl() {
   OCLLibHandle = dlopen("libOpenCL.so.1", RTLD_NOW | RTLD_LOCAL);
   if (!OCLLibHandle) {
     const char *error1 = dlerror();
-    UR_LOG(DEBUG, "Failed to load libOpenCL.so.1: {}", error1 ? error1 : "unknown error");
+    UR_LOG(DEBUG, "Failed to load libOpenCL.so.1: {}",
+           error1 ? error1 : "unknown error");
 
     OCLLibHandle = dlopen("libOpenCL.so", RTLD_NOW | RTLD_LOCAL);
     if (!OCLLibHandle) {
       const char *error2 = dlerror();
-      UR_LOG(ERR, "Failed to load OpenCL library. Tried libOpenCL.so.1 and libOpenCL.so: {}",
+      UR_LOG(ERR,
+             "Failed to load OpenCL library. Tried libOpenCL.so.1 and "
+             "libOpenCL.so: {}",
              error2 ? error2 : "unknown error");
       return;
     }
@@ -94,15 +100,32 @@ static void loadOCLLibraryImpl() {
 #undef OCL_FUNC
 
   if (required_missing > 0) {
-    UR_LOG(ERR, "Failed to load {} required OpenCL function(s)", required_missing);
+    UR_LOG(ERR, "Failed to load {} required OpenCL function(s)",
+           required_missing);
   }
 
   if (optional_missing > 0) {
-    UR_LOG(DEBUG, "{} optional OpenCL function(s) not available (normal for older OpenCL versions)",
+    UR_LOG(DEBUG,
+           "{} optional OpenCL function(s) not available (normal for older "
+           "OpenCL versions)",
            optional_missing);
   }
 
-  OCLLoadSuccess = success;
+  if (!success) {
+    // Required symbols missing — close the handle we opened to avoid a leak.
+#ifdef _WIN32
+    FreeLibrary((HMODULE)OCLLibHandle);
+#else
+    dlclose(OCLLibHandle);
+#endif
+    OCLLibHandle = nullptr;
+#define OCL_FUNC(name, required) name##_ptr = nullptr;
+#include "ocl_functions.def"
+#undef OCL_FUNC
+    return;
+  }
+
+  OCLLoadSuccess = true;
 }
 
 bool loadOCLLibrary() {

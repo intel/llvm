@@ -103,7 +103,13 @@ urAdapterGet(uint32_t NumEntries, ur_adapter_handle_t *phAdapters,
   }
 
   if (pNumAdapters) {
-    *pNumAdapters = liveAdapter ? 1 : 0;
+#ifdef UR_STATIC_ADAPTER_OPENCL
+    // Probe libOpenCL for the count-only query pattern (NumEntries == 0);
+    // loadOCLLibrary() is idempotent.
+    *pNumAdapters = (liveAdapter || ocl::loadOCLLibrary()) ? 1 : 0;
+#else
+    *pNumAdapters = 1;
+#endif
   }
 
   return UR_RESULT_SUCCESS;

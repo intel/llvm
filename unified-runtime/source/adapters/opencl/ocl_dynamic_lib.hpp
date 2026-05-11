@@ -92,7 +92,8 @@ void unloadOCLLibrary();
 #define clEnqueueBarrier ocl::clEnqueueBarrier_ptr
 #define clGetExtensionFunctionAddress ocl::clGetExtensionFunctionAddress_ptr
 #define clCreateSubBuffer ocl::clCreateSubBuffer_ptr
-#define clSetMemObjectDestructorCallback ocl::clSetMemObjectDestructorCallback_ptr
+#define clSetMemObjectDestructorCallback                                       \
+  ocl::clSetMemObjectDestructorCallback_ptr
 #define clCreateUserEvent ocl::clCreateUserEvent_ptr
 #define clSetUserEventStatus ocl::clSetUserEventStatus_ptr
 #define clSetEventCallback ocl::clSetEventCallback_ptr
@@ -109,8 +110,10 @@ void unloadOCLLibrary();
 #define clEnqueueMigrateMemObjects ocl::clEnqueueMigrateMemObjects_ptr
 #define clEnqueueMarkerWithWaitList ocl::clEnqueueMarkerWithWaitList_ptr
 #define clEnqueueBarrierWithWaitList ocl::clEnqueueBarrierWithWaitList_ptr
-#define clGetExtensionFunctionAddressForPlatform ocl::clGetExtensionFunctionAddressForPlatform_ptr
-#define clCreateCommandQueueWithProperties ocl::clCreateCommandQueueWithProperties_ptr
+#define clGetExtensionFunctionAddressForPlatform                               \
+  ocl::clGetExtensionFunctionAddressForPlatform_ptr
+#define clCreateCommandQueueWithProperties                                     \
+  ocl::clCreateCommandQueueWithProperties_ptr
 #define clCreatePipe ocl::clCreatePipe_ptr
 #define clGetPipeInfo ocl::clGetPipeInfo_ptr
 #define clSVMAlloc ocl::clSVMAlloc_ptr
@@ -123,7 +126,8 @@ void unloadOCLLibrary();
 #define clEnqueueSVMMemFill ocl::clEnqueueSVMMemFill_ptr
 #define clEnqueueSVMMap ocl::clEnqueueSVMMap_ptr
 #define clEnqueueSVMUnmap ocl::clEnqueueSVMUnmap_ptr
-#define clSetProgramSpecializationConstant ocl::clSetProgramSpecializationConstant_ptr
+#define clSetProgramSpecializationConstant                                     \
+  ocl::clSetProgramSpecializationConstant_ptr
 #define clSetProgramReleaseCallback ocl::clSetProgramReleaseCallback_ptr
 #define clCreateBufferWithProperties ocl::clCreateBufferWithProperties_ptr
 #define clCreateImageWithProperties ocl::clCreateImageWithProperties_ptr
