@@ -1,8 +1,8 @@
 // RUN: %clangxx -fsycl -fsyntax-only -Wno-deprecated-declarations %s
 
 #include <sycl/khr/includes/builtins_common.hpp>
-#include <sycl/marray.hpp>
-#include <sycl/vector.hpp>
+#include <sycl/khr/includes/marray.hpp>
+#include <sycl/khr/includes/vec.hpp>
 
 #include <type_traits>
 
@@ -42,4 +42,3 @@ int main() {
   (void)sycl::step(0.5f, Vec2f{0.25f, 0.75f});
   return 0;
 }
-
