@@ -928,10 +928,10 @@ SPIRVFunction *LLVMToSPIRVBase::transFunctionDecl(Function *F) {
       if (!BM->isAllowedToUseExtension(ExtensionID::SPV_EXT_float8) &&
           !BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_int4) &&
           !BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_float4)) {
-        std::string ErrorStr =
-            "One of the following extensions: SPV_EXT_float8, SPV_INTEL_float4"
-            "SPV_INTEL_int4 should be enabled to process "
-            "conversion builtins";
+        std::string ErrorStr = "One of the following extensions: "
+                               "SPV_EXT_float8, SPV_INTEL_float4, "
+                               "SPV_INTEL_int4 should be enabled to process "
+                               "conversion builtins";
         getErrorLog().checkError(false, SPIRVEC_RequiresExtension, F, ErrorStr);
       }
       return nullptr;
