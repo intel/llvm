@@ -1345,6 +1345,15 @@ void LLVMToSPIRVBase::transAuxDataInst(SPIRVValue *BV, Value *V) {
                      : NonSemanticAuxData::GlobalVariableMetadata,
                    transType(Type::getVoidTy(V->getContext())), Ops);
   }
+
+  if (GO->hasAvailableExternallyLinkage()) {
+    auto *I32Ty = BM->addIntegerType(32);
+    auto *LinkageVal =
+        BM->addConstant(I32Ty, NonSemanticAuxData::AvailableExternally);
+    std::vector<SPIRVWord> LinkageOps = {BV->getId(), LinkageVal->getId()};
+    BM->addAuxData(NonSemanticAuxData::Linkage,
+                   transType(Type::getVoidTy(V->getContext())), LinkageOps);
+  }
 }
 
 SPIRVValue *LLVMToSPIRVBase::transConstantUse(Constant *C,
