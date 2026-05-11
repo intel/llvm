@@ -3,9 +3,9 @@
 // DEFINE: %{cpp20} = %if cl_options %{/clang:-std=c++20%} %else %{-std=c++20%}
 
 // RUN: %{build} -o %t.out
-// RUN: %{run} SYCL_UR_TRACE=-1 %t.out
+// RUN: %if windows %{env UR_L0_V2_ENABLE_WINDOWS_IPC_WA=1 %} %{run} SYCL_UR_TRACE=-1 %t.out
 // RUN: %{build} -DUSE_VIEW %{cpp20} -o %t.view.out
-// RUN: %{run} %t.view.out
+// RUN: %if windows %{env UR_L0_V2_ENABLE_WINDOWS_IPC_WA=1 %} %{run} %t.view.out
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/ipc_memory.hpp>

@@ -145,6 +145,10 @@ Environment Variables
 | UR_L0_DISABLE_USM_ALLOCATOR                 | Controls the use of the USM allocator.                       | "0": USM allocator is enabled.                               | "0"              |
 |                                             |                                                              | Any other value: USM allocator is disabled.                  |                  |
 +---------------------------------------------+--------------------------------------------------------------+--------------------------------------------------------------+------------------+
+| UR_L0_V2_ENABLE_WINDOWS_IPC_WA              | Enables the Windows UMF IPC workaround during Level Zero v2  | "0" or unset: The workaround is disabled.                  | "0"              |
+|                                             | provider creation. This must be enabled before provider/pool | "1": The workaround is enabled.                            |                  |
+|                                             | creation so UMF import/export IPC support is configured.     |                                                              |                  |
++---------------------------------------------+--------------------------------------------------------------+--------------------------------------------------------------+------------------+
 | UR_L0_CMD_BUFFER_USE_IMMEDIATE_APPEND_PATH  | Controls which command-buffer implementation path is used.   | "1": the immediate append path will always be enabled as     | Unset            |
 |                                             | The paths rely on different APIs to enqueue command-buffers. | long as the pre-requisites are met.                          |                  |
 |                                             | The immediate append path relies on                          | "0": the immediate append path will always be disabled.      |                  |
