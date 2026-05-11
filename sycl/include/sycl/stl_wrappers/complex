@@ -18,24 +18,21 @@
 // Provide __isa_available for MSVC device code BEFORE including STL headers.
 // Must come before #include_next so our definition is seen first.
 #if defined(__SYCL_DEVICE_ONLY__) && defined(_MSC_VER)
-// VS2022+ STL headers use __isa_available (a runtime global variable) to detect
-// CPU features. SYCL device code cannot access host runtime globals. Provide a
-// definition that assumes AVX2+ features are available (value >= 5 enables FMA
-// optimizations). Must be non-const to match STL's 'extern int' declaration.
-// sycl_global_var attribute suppresses the "non-const global in device code"
-// diagnostic.
-extern "C" int __isa_available __attribute__((sycl_global_var)) = 10;
-#endif // defined(__SYCL_DEVICE_ONLY__) && defined(_MSC_VER)
-
-// VS2026's <complex> annotates _Sqr_error_x86_x64_fma with
-// [[__gnu__::__target__("fma")]]. clang/icx treats target(...) as REPLACING the
-// function's target feature set (not augmenting it), so sse2 drops out and the
-// function's _mm_set_sd / _mm_store_sd calls fail to compile on spir64. Augment
-// the target string so sse2 (and sse) stay in the feature set.
-#if defined(__SYCL_DEVICE_ONLY__) && defined(_MSC_VER)
-#pragma push_macro("__target__")
-#define __target__(x) __target__(x ",sse2,sse")
+// VS2026 STL headers use __isa_available (a runtime global variable) to detect
+// CPU features. SYCL device code cannot access host runtime globals, so
+// provide a workaround. 
+// __isa_available is an integer "level" the MSVC STL compares against named
+// constants in <vcruntime.h> (e.g. __ISA_AVAILABLE_AVX2 == 5,
+// __ISA_AVAILABLE_AVX512 == 6). We pick a value greater than any currently
+// defined level so every feature gate in the STL evaluates "available."
+#ifndef __SYCL_MSVC_ISA_AVAILABLE_DEVICE_STUB
+#define __SYCL_MSVC_ISA_AVAILABLE_DEVICE_STUB 10 // > __ISA_AVAILABLE_AVX512
 #endif
+extern "C" int __isa_available
+    __attribute__((sycl_global_var))
+    __attribute__((weak))
+    = __SYCL_MSVC_ISA_AVAILABLE_DEVICE_STUB;
+#endif // defined(__SYCL_DEVICE_ONLY__) && defined(_MSC_VER)
 
 // Include real STL <complex> header - the next one from the include search
 // directories.
@@ -49,10 +46,6 @@ extern "C" int __isa_available __attribute__((sycl_global_var)) = 10;
 // where the following would result in the <complex> we want. This is obviously
 // hacky, but the best we can do...
 #include <../include/complex>
-#endif
-
-#if defined(__SYCL_DEVICE_ONLY__) && defined(_MSC_VER)
-#pragma pop_macro("__target__")
 #endif
 
 #if defined(__NVPTX__) || defined(__AMDGCN__)

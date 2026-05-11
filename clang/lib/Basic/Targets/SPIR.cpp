@@ -84,6 +84,22 @@ void SPIR64TargetInfo::getTargetDefines(const LangOptions &Opts,
   DefineStd(Builder, "SPIR64", Opts);
 }
 
+bool WindowsX86_64_SPIR64TargetInfo::initFeatureMap(
+    llvm::StringMap<bool> &Features, DiagnosticsEngine &Diags, StringRef CPU,
+    const std::vector<std::string> &FeaturesVec) const {
+  // When SYCL device code compiles MSVC STL headers, the headers take the
+  // x86 intrinsics path under _M_X64 (defined by MicrosoftX86_64_SPIR64-
+  // TargetInfo). Those intrinsics require sse/sse2 in the target feature set;
+  // without them, any function-level __target__ attribute that recomputes
+  // features (e.g. VS2026 <complex>'s [[gnu::target("fma")]] on
+  // _Sqr_error_x86_x64_fma) strips the baseline and the function's sse2
+  // intrinsic calls (_mm_set_sd, _mm_store_sd, ...) fail to compile. Mirror
+  // X86TargetInfo's "x86_64 always has SSE2" assumption.
+  Features["sse"] = true;
+  Features["sse2"] = true;
+  return SPIR64TargetInfo::initFeatureMap(Features, Diags, CPU, FeaturesVec);
+}
+
 void BaseSPIRVTargetInfo::getTargetDefines(const LangOptions &Opts,
                                            MacroBuilder &Builder) const {
   DefineStd(Builder, "SPIRV", Opts);

@@ -395,6 +395,11 @@ public:
     return (CC == CC_SpirFunction || CC == CC_DeviceKernel) ? CCCR_OK
                                     : CCCR_Warning;
   }
+
+  bool initFeatureMap(llvm::StringMap<bool> &Features, DiagnosticsEngine &Diags,
+                      StringRef CPU,
+                      const std::vector<std::string> &FeaturesVec)
+      const override;
 };
 
 // x86-64 SPIR64 Windows Visual Studio target
