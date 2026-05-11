@@ -418,7 +418,7 @@ HIPAMDToolChain::getDeviceLibs(const llvm::opt::ArgList &DriverArgs,
   addDirectoryList(DriverArgs, LibraryPaths, "", "HIP_DEVICE_LIB_PATH");
 
   // For SYCL offloading, add SYCL device libraries.
-  if (DeviceOffloadingKind == Action::OFK_SYCL) {
+  if (0 && DeviceOffloadingKind == Action::OFK_SYCL) {
     llvm::SmallVector<llvm::SmallString<128>, 4> LibraryPaths;
     SYCLInstallation.getSYCLDeviceLibPath(LibraryPaths);
 
