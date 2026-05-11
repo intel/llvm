@@ -117,33 +117,21 @@ supports.
 
 === Headers
 
-In the current {dpcpp} implementation, the APIs described in this extension
-are organized as follows:
+The APIs defined in this extension are provided by either of the following header files:
 
-* `#include <sycl/ext/oneapi/kernel_properties.hpp>`
+* `<sycl/sycl.hpp>`
+* `<sycl/ext/oneapi/kernel_properties.hpp>`
 
-This umbrella header is the most direct choice when code needs property lists
-such as `properties{...}`, embedded kernel properties via `properties_tag`, or
-any of the non-launch kernel properties described in this extension.
+In addition, the following lightweight header provides a subset of the APIs that
+is suitable for applications that define kernels using the
+link:../experimental/sycl_ext_oneapi_free_function_kernels.asciidoc[
+sycl_ext_oneapi_free_function_kernels] extension:
 
-The implementation also currently provides lighter-weight headers for code
-that only needs free-function annotations:
+* `<sycl/ext/oneapi/free_function_kernel_properties.hpp>`
 
-* `#include <sycl/ext/oneapi/free_function_kernel_properties.hpp>` for
-  `nd_range_kernel<Dims>`, `single_task_kernel`,
-  `SYCL_EXT_ONEAPI_FUNCTION_PROPERTY`, and the standalone compile-time kernel
-  properties that may be applied directly to a free function declaration, such
-  as `work_group_size`, `work_group_size_hint`, `sub_group_size`,
-  `max_work_group_size`, and `max_linear_work_group_size`.
+This lightweight header provides `SYCL_EXT_ONEAPI_FUNCTION_PROPERTY`, and the properties `work_group_size`, `work_group_size_hint`, `sub_group_size`, `max_work_group_size`, and `max_linear_work_group_size`.
 
-These lighter-weight headers are primarily intended for code paths where
-reduced compile time is a high priority and the application only needs
-function-level annotations.
-The `sycl/ext/oneapi/free_function_kernel_properties.hpp` header is aimed at
-the free-function kernel definition path. Code that forms property lists or
-uses `properties_tag` will generally find
-`sycl/ext/oneapi/kernel_properties.hpp` to be the more natural header to
-include.
+[_Note:_ The lightweight header is intended for cases where kernels are defined using the free-function kernel syntax and fast compilation time is a priority. -- _end note_]
 
 === Kernel Properties
 

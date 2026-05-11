@@ -114,29 +114,22 @@ supports.
 
 === Headers
 
-In the {dpcpp} implementation, applications that use this extension have a
-choice of headers depending on which properties they need:
+The APIs defined in this extension are provided by either of the following header files:
 
-* `#include <sycl/ext/oneapi/free_function_kernel_properties.hpp>` is
-  sufficient for `SYCL_EXT_ONEAPI_FUNCTION_PROPERTY`,
-  `nd_range_kernel<Dims>`, `single_task_kernel`, and the standalone
-  compile-time kernel properties that may be applied directly to a free
-  function kernel declaration, such as `work_group_size`,
-  `work_group_size_hint`, `sub_group_size`, `max_work_group_size`, and
-  `max_linear_work_group_size`.
+* `<sycl/sycl.hpp>`
+* `<sycl/ext/oneapi/kernel_properties.hpp>`
 
-* `#include <sycl/ext/oneapi/kernel_properties.hpp>` currently provides the
-  broader kernel properties interface, including property lists such as
-  `properties{...}` and embedded kernel properties via `properties_tag`.
+In addition, the following lightweight header provides a subset of the APIs from this extension:
 
-Applications may include the umbrella header in all cases. The lightweight
-header is intended for code that defines free-function kernels and only needs
-the free-function annotation path.
+* `<sycl/ext/oneapi/free_function_kernel_properties.hpp>`
 
-Code that forms property lists such as `properties{...}`, uses
-`properties_tag`, or otherwise needs the broader kernel-properties interface
-will generally find `sycl/ext/oneapi/kernel_properties.hpp` to be the more
-convenient header to include.
+This lightweight header provides `SYCL_EXT_ONEAPI_FUNCTION_PROPERTY`, and the
+properties `nd_range_kernel<Dims>` and `single_task_kernel`.  See
+link:../experimental/sycl_ext_oneapi_kernel_properties.asciidoc[
+sycl_ext_oneapi_kernel_properties] for other APIs that are provided by this
+header.
+
+[_Note:_ The lightweight header is intended for cases where fast compilation time is a priority. -- _end note_]
 
 === Defining a free function kernel
 
@@ -829,14 +822,9 @@ in link:../experimental/sycl_ext_oneapi_kernel_properties.asciidoc[
 sycl_ext_oneapi_kernel_properties] by applying the properties to the function
 declaration as illustrated below.
 
-In the {dpcpp} implementation, code that defines free-function kernels may
-include `sycl/ext/oneapi/free_function_kernel_properties.hpp` instead of the
-full `sycl/ext/oneapi/kernel_properties.hpp` header when it only needs the
-free-function annotation path. Applications that use property-list semantics,
-including `properties{...}` or `properties_tag`, will generally prefer the
-umbrella header.
-
 ```
+#include <sycl/ext/oneapi/kernel_properties.hpp>
+
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::work_group_size<32>))
 void iota(float start, float *ptr) {
