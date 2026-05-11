@@ -379,7 +379,11 @@ PropSetRegTy computeModuleProperties(const Module &M,
       PropSet.add(PropSetRegTy::SYCL_MISC_PROP, "optLevel", OptLevel);
   }
   {
-    PropSet.add(PropSetRegTy::SYCL_MISC_PROP, "idQueriesRange", IdQueriesRange);
+    // Add device image property only if the image has a non-default
+    // SYCL Id range. The default range is 0 (signed int).
+    if (IdQueriesRange != 0)
+      PropSet.add(PropSetRegTy::SYCL_MISC_PROP, "idQueriesRange",
+                  IdQueriesRange);
   }
   {
     std::vector<std::pair<StringRef, int>> ArgPos =

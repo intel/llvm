@@ -2775,9 +2775,9 @@ void enqueueImpKernel(
     EliminatedArgMask = MSyclKernel->getKernelArgMask();
 
     if (!MSyclKernel->isInteropOrSourceBased()) {
-      auto &DeviceImage = detail::ProgramManager::getInstance().getDeviceImage(
-          DeviceKernelInfo.Name, ContextImpl, DeviceImpl);
-      IdQueryRangeProp = DeviceImage.getProperty("idQueriesRange");
+      auto &DeviceImageImpl = MSyclKernel->getDeviceImage();
+      IdQueryRangeProp =
+          DeviceImageImpl.get_bin_image_ref()->getProperty("idQueriesRange");
     }
   } else if ((SyclKernelImpl =
                   KernelBundleImplPtr
@@ -2830,6 +2830,9 @@ void enqueueImpKernel(
     if (!(MSyclKernel && MSyclKernel->isInterop())) {
       uint64_t MaxRange;
       string ErrMsg;
+      // If IdQueryRangeProp property is not present in the device image,
+      // it means that the kernel was compiled without -fsycl-id-queries-range
+      // option, so use the default range type of `int`.
       uint32_t IdQueriesRange =
           IdQueryRangeProp ? DeviceBinaryProperty(IdQueryRangeProp).asUint32()
                            : 0;
