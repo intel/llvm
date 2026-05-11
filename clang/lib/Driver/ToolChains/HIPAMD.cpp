@@ -289,16 +289,15 @@ void HIPAMDToolChain::addClangTargetOptions(
     return; // No DeviceLibs for SPIR-V.
   }
 
-  if (DeviceOffloadingKind == Action::OFK_SYCL) {
-    SYCLInstallation.addSYCLIncludeArgs(DriverArgs, CC1Args);
-    SYCLInstallation.addLibspirvLinkArgs(getEffectiveTriple(), DriverArgs,
-                                         HostTC.getTriple(), CC1Args);
-  }
-
   for (auto BCFile : getDeviceLibs(DriverArgs, DeviceOffloadingKind)) {
     CC1Args.push_back(BCFile.ShouldInternalize ? "-mlink-builtin-bitcode"
                                                : "-mlink-bitcode-file");
     CC1Args.push_back(DriverArgs.MakeArgString(BCFile.Path));
+  }
+  if (DeviceOffloadingKind == Action::OFK_SYCL) {
+    SYCLInstallation.addSYCLIncludeArgs(DriverArgs, CC1Args);
+    SYCLInstallation.addLibspirvLinkArgs(getEffectiveTriple(), DriverArgs,
+                                         HostTC.getTriple(), CC1Args);
   }
 }
 

@@ -988,9 +988,6 @@ void CudaToolChain::addClangTargetOptions(
         CC1Args.append(
             {"-mllvm", "-nvvm-reflect-add=__CUDA_ID_QUERIES_FIT_IN_UINT=1"});
     }
-
-    SYCLInstallation.addLibspirvLinkArgs(getEffectiveTriple(), DriverArgs,
-                                         HostTC.getTriple(), CC1Args);
   } else {
     CC1Args.append({"-fcuda-is-device", "-mllvm",
                     "-enable-memcpyopt-without-libcalls",
@@ -1042,6 +1039,8 @@ void CudaToolChain::addClangTargetOptions(
       CC1Args.push_back("-mlink-builtin-bitcode");
       CC1Args.push_back(DriverArgs.MakeArgString(BCLib.Path));
     }
+    SYCLInstallation.addLibspirvLinkArgs(getEffectiveTriple(), DriverArgs,
+                                         HostTC.getTriple(), CC1Args);
   }
   std::string LibDeviceFile = CudaInstallation.getLibDeviceFile(GpuArch);
   if (LibDeviceFile.empty()) {
