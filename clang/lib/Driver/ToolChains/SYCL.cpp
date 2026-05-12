@@ -235,9 +235,8 @@ static bool selectBfloatLibs(const llvm::opt::ArgList &Args,
                              const llvm::Triple &Triple, const ToolChain &TC,
                              bool &UseNative) {
   static llvm::SmallSet<StringRef, 8> GPUArchsWithNBF16{
-      "pvc",   "acm_g10", "acm_g11", "acm_g12", "bmg_g21", "lnl_m",
-      "ptl_h", "ptl_u",   "wcl",     "cri",     "nvl_s",   "nvl_u",
-      "nvl_p"};
+      "pvc",   "acm_g10", "acm_g11", "acm_g12", "bmg_g21", "lnl_m", "ptl_h",
+      "ptl_u", "wcl",     "cri",     "nvl_s",   "nvl_u",   "nvl_p"};
   bool NeedLibs = false;
 
   // spir64 target is actually JIT compilation, so we defer selection of
