@@ -951,6 +951,8 @@ ProgramInfo::getKernelMetadata(ur_kernel_handle_t Kernel) const {
 }
 
 ContextInfo::~ContextInfo() {
+  DeferredEvents.releaseAll();
+
   Stats.Print(Handle);
 
   InternalQueueMap.clear();

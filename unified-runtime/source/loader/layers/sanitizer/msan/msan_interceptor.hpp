@@ -18,6 +18,7 @@
 #include "msan_shadow.hpp"
 #include "sanitizer_common/sanitizer_common.hpp"
 #include "sanitizer_common/sanitizer_options.hpp"
+#include "sanitizer_common/sanitizer_utils.hpp"
 #include "ur_sanitizer_layer.hpp"
 
 #include <memory>
@@ -141,6 +142,7 @@ struct ContextInfo {
   std::atomic<int32_t> RefCount = 1;
 
   std::vector<ur_device_handle_t> DeviceList;
+  DeferredEventList DeferredEvents;
 
   explicit ContextInfo(ur_context_handle_t Context) : Handle(Context) {
     [[maybe_unused]] auto Result =
