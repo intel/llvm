@@ -147,9 +147,13 @@ function(compile_lib_ext filename)
   add_dependencies(libsycldevice-${ARG_FILETYPE}
     ${devicelib-${ARG_FILETYPE}-target})
 
-  install( FILES ${devicelib-file}
-           DESTINATION ${install_dest_${ARG_FILETYPE}}
-           COMPONENT libsycldevice)
+  if ("${devicelib-file}" MATCHES "nvptx64|amdgcn")
+    return()
+  else()
+    install( FILES ${devicelib-file}
+             DESTINATION ${install_dest_${ARG_FILETYPE}}
+             COMPONENT libsycldevice)
+  endif()
 endfunction()
 
 # Links together one or more bytecode files
@@ -409,17 +413,18 @@ endif()
 check_cxx_compiler_flag(-Wno-invalid-noreturn HAS_NO_INVALID_NORETURN_WARN_FLAG)
 # Add all device libraries for each filetype except for the Intel math function
 # ones.
+set(itt_build_archs)
 add_devicelibs(libsycl-itt-stubs
   SRC itt_stubs.cpp
-  BUILD_ARCHS ${full_build_archs}
+  BUILD_ARCHS ${itt_build_archs}
   DEPENDENCIES ${itt_obj_deps})
 add_devicelibs(libsycl-itt-compiler-wrappers
   SRC itt_compiler_wrappers.cpp
-  BUILD_ARCHS ${full_build_archs}
+  BUILD_ARCHS ${itt_build_archs}
   DEPENDENCIES ${itt_obj_deps})
 add_devicelibs(libsycl-itt-user-wrappers
   SRC itt_user_wrappers.cpp
-  BUILD_ARCHS ${full_build_archs}
+  BUILD_ARCHS ${itt_build_archs}
   DEPENDENCIES ${itt_obj_deps})
 
 add_devicelibs(libsycl-crt
@@ -508,13 +513,14 @@ else()
   endif()
 endif()
 
+set(bfloat16_build_archs)
 add_devicelibs(libsycl-fallback-bfloat16
   SRC fallback-bfloat16.cpp
-  BUILD_ARCHS ${full_build_archs}
+  BUILD_ARCHS ${bfloat16_build_archs}
   DEPENDENCIES ${bfloat16_obj_deps})
 add_devicelibs(libsycl-native-bfloat16
   SRC bfloat16_wrapper.cpp
-  BUILD_ARCHS ${full_build_archs}
+  BUILD_ARCHS ${bfloat16_build_archs}
   DEPENDENCIES ${bfloat16_obj_deps})
 
 # Create dependency and source lists for Intel math function libraries.
