@@ -95,7 +95,12 @@ descToDisjoinPoolMemType(const usm::pool_descriptor &desc) {
 
 static inline void enableWindowsUMFIPCWorkaroundAtProviderCreation() {
 #ifdef _WIN32
-  if (!getenv_tobool("UR_L0_V2_ENABLE_WINDOWS_IPC_WA")) {
+  const bool Enabled = getenv_tobool("UR_L0_V2_ENABLE_WINDOWS_IPC_WA");
+  UR_LOG(INFO,
+         "Windows IPC workaround at provider creation: flag={}, applying "
+         "before provider creation",
+         Enabled);
+  if (!Enabled) {
     return;
   }
 
@@ -106,6 +111,8 @@ static inline void enableWindowsUMFIPCWorkaroundAtProviderCreation() {
   UMF_CALL_THROWS(umfCtlSet(
       "umf.provider.default.LEVEL_ZERO.params.use_import_export_for_IPC",
       &useImportExportForIPC, sizeof(useImportExportForIPC)));
+  UR_LOG(INFO,
+         "Windows IPC workaround configured for default Level Zero provider");
 #endif
 }
 

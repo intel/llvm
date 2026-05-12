@@ -58,6 +58,7 @@ jobs:
     with:
       changes: ${{ needs.detect_changes.outputs.filters }}
       e2e_binaries_artifact: sycl_windows_e2ebin
+      e2e_extra_lit_opts: Experimental/ipc_memory.cpp
       e2e_binaries_new_offload_model_artifact: sycl_windows_e2ebin_with_new_offload_model
 
   run_prebuilt_e2e_tests:
@@ -84,6 +85,7 @@ jobs:
       toolchain_artifact_filename: ${{ needs.build.outputs.toolchain_artifact_filename }}
       testing_mode: run-only
       binaries_artifact: sycl_windows_e2ebin
+      extra_lit_opts: Experimental/ipc_memory.cpp
 
   run_prebuilt_e2e_with_new_offload_model_tests:
     needs: build
