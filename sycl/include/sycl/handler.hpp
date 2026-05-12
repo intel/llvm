@@ -37,8 +37,8 @@
 #include <sycl/ext/oneapi/experimental/graph.hpp>
 #include <sycl/ext/oneapi/experimental/raw_kernel_arg.hpp>
 #include <sycl/ext/oneapi/experimental/use_root_sync_prop.hpp>
-#include <sycl/ext/oneapi/kernel_properties/properties.hpp>
-#include <sycl/ext/oneapi/properties/properties.hpp>
+#include <sycl/ext/oneapi/kernel_properties.hpp>
+#include <sycl/ext/oneapi/properties.hpp>
 #include <sycl/group.hpp>
 #include <sycl/id.hpp>
 #include <sycl/item.hpp>
