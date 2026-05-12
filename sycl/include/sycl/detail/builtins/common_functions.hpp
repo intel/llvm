@@ -6,8 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-// Intentionally insufficient set of includes and no "#pragma once".
+#pragma once
 
+#include <sycl/detail/builtins/builtin_helpers.hpp>
 #include <sycl/detail/builtins/helper_macros.hpp>
 
 namespace sycl {

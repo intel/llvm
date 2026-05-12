@@ -13,10 +13,10 @@
 #include <sycl/ext/oneapi/bindless_images.hpp>
 #include <sycl/usm.hpp>
 
-class kernel_sampled_fetch;
-
 // Uncomment to print additional test information
 // #define VERBOSE_PRINT
+
+class kernel_sampled_fetch;
 
 int main() {
   sycl::device dev;
