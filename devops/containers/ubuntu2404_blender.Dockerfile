@@ -18,6 +18,11 @@ RUN wget https://launchpadlibrarian.net/847063136/libze-intel-gpu-raytracing_1.2
     dpkg --force-all -i rt.deb && \
     rm rt.deb
 
+# Install ISPC which is a dep for Blender's CPU device.
+RUN wget https://github.com/ispc/ispc/releases/download/v1.30.0/ispc-v1.30.0-linux.tar.gz -O ispc.tar.gz && \
+    tar xf ispc.tar.gz && cp -r ispc-v1.30.0-linux/bin /usr/ && cp -r ispc-v1.30.0-linux/include /usr/ && \
+    cp -r ispc-v1.30.0-linux/lib /usr/ && rm -rf ispc-v1.30.0-linux ispc.tar.gz
+
 USER sycl
 
 ENTRYPOINT ["/bin/bash", "/drivers_entrypoint.sh"]

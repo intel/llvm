@@ -24,6 +24,7 @@ enum class external_semaphore_handle_type {
   win32_nt_dx12_fence = 2,
   timeline_fd = 3,
   timeline_win32_nt_handle = 4,
+  win32_nt_dx11_fence = 5,
 };
 
 /// Opaque external memory handle type
@@ -52,6 +53,8 @@ struct resource_win32_handle {
 // Windows external name type
 struct resource_win32_name {
   const void *name;
+  void *device; // ID3D12Device* (ID3D12Device1 or higher) for opening the
+                // named handle via OpenSharedHandleByName
 };
 
 /// Opaque external memory descriptor type

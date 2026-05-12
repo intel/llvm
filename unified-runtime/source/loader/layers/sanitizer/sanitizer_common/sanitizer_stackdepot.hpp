@@ -16,8 +16,8 @@
 
 namespace ur_sanitizer_layer {
 
-const uint32_t kHeapTypeCount = 4;
-enum HeapType { DeviceUSM, HostUSM, SharedUSM, Local };
+const uint32_t kHeapTypeCount = 5;
+enum HeapType { DeviceUSM, HostUSM, SharedUSM, Local, ExportableMem };
 
 inline const char *ToString(HeapType Type) {
   switch (Type) {
@@ -29,6 +29,8 @@ inline const char *ToString(HeapType Type) {
     return "Shared USM";
   case HeapType::Local:
     return "Local Memory";
+  case HeapType::ExportableMem:
+    return "Exportable Memory";
   default:
     return "Unknown Heap Type";
   }
