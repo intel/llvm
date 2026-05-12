@@ -1,10 +1,9 @@
 /*
  *
- * Copyright (C) 2023 Intel Corporation
  *
- * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
+ * Part of the LLVM Project, under the Apache License v2.0 with LLVM
  * Exceptions.
- * See LICENSE.TXT
+ * See https://llvm.org/LICENSE.txt for license information.
  *
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
@@ -356,6 +355,8 @@ inline void printDeviceInfos(ur_device_handle_t hDevice,
   std::cout << prefix;
   printDeviceInfo<uint32_t>(hDevice,
                             UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG_LONG);
+  std::cout << prefix;
+  printDeviceInfo<size_t>(hDevice, UR_DEVICE_INFO_MAX_WORK_GROUPS);
   std::cout << prefix;
   printDeviceInfo<uint32_t>(hDevice, UR_DEVICE_INFO_XE_STACK_COUNT);
   std::cout << prefix;

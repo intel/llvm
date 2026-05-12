@@ -1,8 +1,10 @@
 include(CheckCXXCompilerFlag)
 set(obj_binary_dir "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
 if (MSVC)
+  set(obj-suffix obj)
   set(devicelib_host_static_obj sycl-devicelib-host.lib)
 else()
+  set(obj-suffix o)
   set(devicelib_host_static_obj libsycl-devicelib-host.a)
 endif()
 set(bc-suffix bc)
@@ -79,7 +81,6 @@ endforeach()
 # library.
 # Additional compilation options are needed for compiling each device library.
 set(full_build_archs)
-set(imf_build_archs)
 if ("NVPTX" IN_LIST LLVM_TARGETS_TO_BUILD)
   list(APPEND full_build_archs nvptx64-nvidia-cuda)
   set(compile_opts_nvptx64-nvidia-cuda "-fsycl-targets=nvptx64-nvidia-cuda"
@@ -153,9 +154,13 @@ function(compile_lib_ext filename)
   add_dependencies(libsycldevice-${ARG_FILETYPE}
     ${devicelib-${ARG_FILETYPE}-target})
 
-  install( FILES ${devicelib-file}
-           DESTINATION ${install_dest_${ARG_FILETYPE}}
-           COMPONENT libsycldevice)
+  if ("${devicelib-file}" MATCHES "nvptx64|amdgcn")
+    return()
+  else()
+    install( FILES ${devicelib-file}
+             DESTINATION ${install_dest_${ARG_FILETYPE}}
+             COMPONENT libsycldevice)
+  endif()
 endfunction()
 
 # Links together one or more bytecode files
@@ -310,9 +315,10 @@ set(sycl-compiler_deps
   ${clang-offload-bundler_target} ${llvm-offload-binary_target}
   ${file-table-tform_target} ${llvm-foreach_target} ${llvm-spirv_target}
   ${sycl-post-link_target})
-set(crt_obj_deps wrapper.h device.h spirv_vars.h ${sycl-compiler_deps})
-set(complex_obj_deps device_complex.h device.h ${sycl-compiler_deps})
-set(cmath_obj_deps device_math.h device.h ${sycl-compiler_deps})
+set(crt_obj_deps wrapper.h device.h spirv_vars.h fallback-cstring.hpp ${sycl-compiler_deps})
+set(cmath_obj_deps
+  device_math.h device.h fallback-cmath.hpp fallback-cmath-fp64.hpp
+  device_complex.h fallback-complex.hpp fallback-complex-fp64.hpp complex_wrapper.hpp ${sycl-compiler_deps})
 set(imf_obj_deps device_imf.hpp imf_half.hpp imf_bf16.hpp imf_rounding_op.hpp imf_impl_utils.hpp device.h ${sycl-compiler_deps})
 set(itt_obj_deps device_itt.h spirv_vars.h device.h ${sycl-compiler_deps})
 set(bfloat16_obj_deps sycl-headers ${sycl-compiler_deps})
@@ -407,17 +413,18 @@ endif()
 check_cxx_compiler_flag(-Wno-invalid-noreturn HAS_NO_INVALID_NORETURN_WARN_FLAG)
 # Add all device libraries for each filetype except for the Intel math function
 # ones.
+set(itt_build_archs)
 add_devicelibs(libsycl-itt-stubs
   SRC itt_stubs.cpp
-  BUILD_ARCHS ${full_build_archs}
+  BUILD_ARCHS ${itt_build_archs}
   DEPENDENCIES ${itt_obj_deps})
 add_devicelibs(libsycl-itt-compiler-wrappers
   SRC itt_compiler_wrappers.cpp
-  BUILD_ARCHS ${full_build_archs}
+  BUILD_ARCHS ${itt_build_archs}
   DEPENDENCIES ${itt_obj_deps})
 add_devicelibs(libsycl-itt-user-wrappers
   SRC itt_user_wrappers.cpp
-  BUILD_ARCHS ${full_build_archs}
+  BUILD_ARCHS ${itt_build_archs}
   DEPENDENCIES ${itt_obj_deps})
 
 add_devicelibs(libsycl-crt
@@ -426,38 +433,19 @@ add_devicelibs(libsycl-crt
   DEPENDENCIES ${crt_obj_deps}
   EXTRA_OPTS $<$<BOOL:${HAS_NO_INVALID_NORETURN_WARN_FLAG}>:-Wno-invalid-noreturn>)
 
-add_devicelibs(libsycl-complex
-  SRC complex_wrapper.cpp
-  BUILD_ARCHS ${full_build_archs}
-  DEPENDENCIES ${complex_obj_deps})
-add_devicelibs(libsycl-complex-fp64
-  SRC complex_wrapper_fp64.cpp
-  BUILD_ARCHS ${full_build_archs}
-  DEPENDENCIES ${complex_obj_deps} )
 add_devicelibs(libsycl-cmath
   SRC cmath_wrapper.cpp
   BUILD_ARCHS ${full_build_archs}
   DEPENDENCIES ${cmath_obj_deps})
-add_devicelibs(libsycl-cmath-fp64
-  SRC cmath_wrapper_fp64.cpp
-  BUILD_ARCHS ${full_build_archs}
-  DEPENDENCIES ${cmath_obj_deps} )
 add_devicelibs(libsycl-imf
   SRC imf_wrapper.cpp
-  DEPENDENCIES ${imf_obj_deps}
-  BUILD_ARCHS ${imf_build_archs})
+  DEPENDENCIES ${imf_obj_deps})
 add_devicelibs(libsycl-imf-fp64
   SRC imf_wrapper_fp64.cpp
-  DEPENDENCIES ${imf_obj_deps}
-  BUILD_ARCHS ${imf_build_archs})
+  DEPENDENCIES ${imf_obj_deps})
 add_devicelibs(libsycl-imf-bf16
   SRC imf_wrapper_bf16.cpp
-  DEPENDENCIES ${imf_obj_deps}
-  BUILD_ARCHS ${imf_build_archs})
-add_devicelibs(libsycl-bfloat16
-  SRC bfloat16_wrapper.cpp
-  BUILD_ARCHS ${full_build_archs}
-  DEPENDENCIES ${cmath_obj_deps})
+  DEPENDENCIES ${imf_obj_deps})
 if(MSVC)
   add_devicelibs(libsycl-msvc-math
     SRC msvc_math.cpp
@@ -534,33 +522,14 @@ else()
   endif()
 endif()
 
-add_devicelibs(libsycl-fallback-cstring
-  SRC fallback-cstring.cpp
-  BUILD_ARCHS ${full_build_archs}
-  DEPENDENCIES ${crt_obj_deps})
-add_devicelibs(libsycl-fallback-complex
-  SRC fallback-complex.cpp
-  BUILD_ARCHS ${full_build_archs}
-  DEPENDENCIES ${complex_obj_deps})
-add_devicelibs(libsycl-fallback-complex-fp64
-  SRC fallback-complex-fp64.cpp
-  BUILD_ARCHS ${full_build_archs}
-  DEPENDENCIES ${complex_obj_deps})
-add_devicelibs(libsycl-fallback-cmath
-  SRC fallback-cmath.cpp
-  BUILD_ARCHS ${full_build_archs}
-  DEPENDENCIES ${cmath_obj_deps})
-add_devicelibs(libsycl-fallback-cmath-fp64
-  SRC fallback-cmath-fp64.cpp
-  BUILD_ARCHS ${full_build_archs}
-  DEPENDENCIES ${cmath_obj_deps})
+set(bfloat16_build_archs)
 add_devicelibs(libsycl-fallback-bfloat16
   SRC fallback-bfloat16.cpp
-  BUILD_ARCHS ${full_build_archs}
+  BUILD_ARCHS ${bfloat16_build_archs}
   DEPENDENCIES ${bfloat16_obj_deps})
 add_devicelibs(libsycl-native-bfloat16
   SRC bfloat16_wrapper.cpp
-  BUILD_ARCHS ${full_build_archs}
+  BUILD_ARCHS ${bfloat16_build_archs}
   DEPENDENCIES ${bfloat16_obj_deps})
 
 # Create dependency and source lists for Intel math function libraries.
@@ -724,26 +693,6 @@ foreach(dtype IN ITEMS bf16 fp32 fp64)
   endforeach()
 endforeach()
 
-# Add device fallback imf libraries for single bitcode targets.
-# The output files are bitcode.
-foreach(arch IN LISTS imf_build_archs)
-  foreach(dtype IN ITEMS bf16 fp32 fp64)
-    set(tgt_name imf_fallback_${dtype}_bc_${arch})
-
-    add_lib_imf(libsycl-fallback-imf-${arch}-${dtype}
-      ARCH ${arch}
-      DIR ${bc_binary_dir}
-      FTYPE bc
-      DTYPE ${dtype}
-      EXTRA_OPTS ${bc_device_compile_opts} ${compile_opts_${arch}}
-      TGT_NAME ${tgt_name})
-
-    append_to_property(
-      ${bc_binary_dir}/libsycl-fallback-imf-${arch}-${dtype}.${bc-suffix}
-      PROPERTY_NAME BC_DEVICE_LIBS_${arch})
-  endforeach()
-endforeach()
-
 # Create one large bitcode file for the NVPTX and AMD targets.
 # Use all the files collected in the respective global properties.
 foreach(arch IN LISTS full_build_archs)
@@ -834,6 +783,8 @@ set(libsycldevice_build_targets)
 foreach(filetype IN LISTS filetypes)
   list(APPEND libsycldevice_build_targets libsycldevice-${filetype})
 endforeach()
+
+list(APPEND libsycldevice_build_targets libsycldevice-obj)
 
 add_custom_target(install-libsycldevice
   COMMAND ${CMAKE_COMMAND} -DCMAKE_INSTALL_COMPONENT=libsycldevice -P ${CMAKE_BINARY_DIR}/cmake_install.cmake

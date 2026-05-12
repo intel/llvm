@@ -36,6 +36,7 @@
 // CHECK-NEXT: aliases.hpp
 // CHECK-NEXT: bit_cast.hpp
 // CHECK-NEXT: half_type.hpp
+// CHECK-NEXT: detail/half_type_impl.hpp
 // CHECK-NEXT: detail/fwd/half.hpp
 // CHECK-NEXT: ext/oneapi/matrix/matrix-unified-utils.hpp
 // CHECK-NEXT: __spirv/spirv_types.hpp

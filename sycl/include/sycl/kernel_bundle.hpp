@@ -23,7 +23,7 @@
 #include <unified-runtime/ur_api.h>
 
 #include <sycl/ext/oneapi/experimental/free_function_traits.hpp>
-#include <sycl/ext/oneapi/properties/properties.hpp>     // PropertyT
+#include <sycl/ext/oneapi/properties.hpp>                // PropertyT
 #include <sycl/ext/oneapi/properties/property.hpp>       // build_options
 #include <sycl/ext/oneapi/properties/property_value.hpp> // and log
 

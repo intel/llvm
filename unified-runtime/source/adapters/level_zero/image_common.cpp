@@ -1,9 +1,8 @@
 //===--------- image.cpp - Level Zero Adapter -----------------------------===//
 //
-// Copyright (C) 2023 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
@@ -1427,6 +1426,9 @@ ur_result_t urBindlessImagesImportExternalSemaphoreExp(
         break;
       case UR_EXP_EXTERNAL_SEMAPHORE_TYPE_WIN32_NT_DX12_FENCE:
         SemDesc.flags = ZE_EXTERNAL_SEMAPHORE_EXT_FLAG_D3D12_FENCE;
+        break;
+      case UR_EXP_EXTERNAL_SEMAPHORE_TYPE_WIN32_NT_DX11_FENCE:
+        SemDesc.flags = ZE_EXTERNAL_SEMAPHORE_EXT_FLAG_D3D11_FENCE;
         break;
       case UR_EXP_EXTERNAL_SEMAPHORE_TYPE_TIMELINE_WIN32_NT:
         SemDesc.flags =

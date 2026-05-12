@@ -1,9 +1,8 @@
 //===--------- image.cpp - Level Zero Adapter -----------------------------===//
 //
-// Copyright (C) 2023-2025 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
@@ -122,15 +121,31 @@ ur_result_t urBindlessImagesWaitExternalSemaphoreExp(
   // We want to batch these commands to avoid extra submissions (costly)
   bool OkToBatch = true;
 
+  // External semaphore operations require an immediate command list per the
+  // Level Zero spec. If the queue is not using immediate command lists,
+  // we need to get one specifically for this operation.
+  bool NeedTempImmCmdList = !hQueue->UsingImmCmdLists;
+
   ur_ze_event_list_t TmpWaitList;
   UR_CALL(TmpWaitList.createAndRetainUrZeEventList(
       numEventsInWaitList, phEventWaitList, hQueue, UseCopyEngine));
 
   // Get a new command list to be used on this call
   ur_command_list_ptr_t CommandList{};
-  UR_CALL(hQueue->Context->getAvailableCommandList(
-      hQueue, CommandList, UseCopyEngine, numEventsInWaitList, phEventWaitList,
-      OkToBatch, nullptr /*ForcedCmdQueue*/));
+  if (NeedTempImmCmdList) {
+    // Ensure the queue group has ImmCmdLists initialized so we can
+    // obtain an immediate command list.
+    auto &QGroup = hQueue->getQueueGroup(UseCopyEngine);
+    if (QGroup.ImmCmdLists.empty()) {
+      QGroup.ImmCmdLists = std::vector<ur_command_list_ptr_t>(
+          QGroup.ZeQueues.size(), hQueue->CommandListMap.end());
+    }
+    CommandList = QGroup.getImmCmdList();
+  } else {
+    UR_CALL(hQueue->Context->getAvailableCommandList(
+        hQueue, CommandList, UseCopyEngine, numEventsInWaitList,
+        phEventWaitList, OkToBatch, nullptr /*ForcedCmdQueue*/));
+  }
 
   ze_event_handle_t ZeEvent = nullptr;
   ur_event_handle_t InternalEvent;
@@ -158,7 +173,15 @@ ur_result_t urBindlessImagesWaitExternalSemaphoreExp(
              (ZeCommandList, 1, &hExtSemaphore, &WaitParams, ZeEvent,
               WaitList.Length, WaitList.ZeEventList));
 
-  UR_CALL(hQueue->executeCommandList(CommandList, false, OkToBatch));
+  if (NeedTempImmCmdList) {
+    // Immediate command lists auto-execute; no explicit submission needed.
+    // Update LastCommandEvent for in-order queue semantics.
+    if (!CommandList->second.EventList.empty()) {
+      hQueue->LastCommandEvent = CommandList->second.EventList.back();
+    }
+  } else {
+    UR_CALL(hQueue->executeCommandList(CommandList, false, OkToBatch));
+  }
 
   return UR_RESULT_SUCCESS;
 }
@@ -180,15 +203,31 @@ ur_result_t urBindlessImagesSignalExternalSemaphoreExp(
   // We want to batch these commands to avoid extra submissions (costly)
   bool OkToBatch = true;
 
+  // External semaphore operations require an immediate command list per the
+  // Level Zero spec. If the queue is not using immediate command lists,
+  // we need to get one specifically for this operation.
+  bool NeedTempImmCmdList = !hQueue->UsingImmCmdLists;
+
   ur_ze_event_list_t TmpWaitList;
   UR_CALL(TmpWaitList.createAndRetainUrZeEventList(
       numEventsInWaitList, phEventWaitList, hQueue, UseCopyEngine));
 
   // Get a new command list to be used on this call
   ur_command_list_ptr_t CommandList{};
-  UR_CALL(hQueue->Context->getAvailableCommandList(
-      hQueue, CommandList, UseCopyEngine, numEventsInWaitList, phEventWaitList,
-      OkToBatch, nullptr /*ForcedCmdQueue*/));
+  if (NeedTempImmCmdList) {
+    // Ensure the queue group has ImmCmdLists initialized so we can
+    // obtain an immediate command list.
+    auto &QGroup = hQueue->getQueueGroup(UseCopyEngine);
+    if (QGroup.ImmCmdLists.empty()) {
+      QGroup.ImmCmdLists = std::vector<ur_command_list_ptr_t>(
+          QGroup.ZeQueues.size(), hQueue->CommandListMap.end());
+    }
+    CommandList = QGroup.getImmCmdList();
+  } else {
+    UR_CALL(hQueue->Context->getAvailableCommandList(
+        hQueue, CommandList, UseCopyEngine, numEventsInWaitList,
+        phEventWaitList, OkToBatch, nullptr /*ForcedCmdQueue*/));
+  }
 
   ze_event_handle_t ZeEvent = nullptr;
   ur_event_handle_t InternalEvent;
@@ -217,7 +256,15 @@ ur_result_t urBindlessImagesSignalExternalSemaphoreExp(
              (ZeCommandList, 1, &hExtSemaphore, &SignalParams, ZeEvent,
               WaitList.Length, WaitList.ZeEventList));
 
-  UR_CALL(hQueue->executeCommandList(CommandList, false, OkToBatch));
+  if (NeedTempImmCmdList) {
+    // Immediate command lists auto-execute; no explicit submission needed.
+    // Update LastCommandEvent for in-order queue semantics.
+    if (!CommandList->second.EventList.empty()) {
+      hQueue->LastCommandEvent = CommandList->second.EventList.back();
+    }
+  } else {
+    UR_CALL(hQueue->executeCommandList(CommandList, false, OkToBatch));
+  }
 
   return UR_RESULT_SUCCESS;
 }

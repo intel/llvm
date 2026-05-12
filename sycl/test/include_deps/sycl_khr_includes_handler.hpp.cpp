@@ -75,6 +75,7 @@
 // CHECK-NEXT: ext/oneapi/matrix/query-types.hpp
 // CHECK-NEXT: ext/oneapi/bfloat16.hpp
 // CHECK-NEXT: half_type.hpp
+// CHECK-NEXT: detail/half_type_impl.hpp
 // CHECK-NEXT: ext/oneapi/matrix/matrix-unified-utils.hpp
 // CHECK-NEXT: info/platform_traits.def
 // CHECK-NEXT: info/context_traits.def
@@ -120,7 +121,7 @@
 // CHECK-NEXT: ext/oneapi/properties/property_value.hpp
 // CHECK-NEXT: ext/intel/experimental/kernel_execution_properties.hpp
 // CHECK-NEXT: ext/oneapi/experimental/cluster_group_prop.hpp
-// CHECK-NEXT: ext/oneapi/properties/properties.hpp
+// CHECK-NEXT: ext/oneapi/properties.hpp
 // CHECK-NEXT: ext/oneapi/properties/property_utils.hpp
 // CHECK-NEXT: ext/oneapi/experimental/graph.hpp
 // CHECK-NEXT: ext/oneapi/experimental/graph/command_graph.hpp
@@ -135,7 +136,8 @@
 // CHECK-NEXT: ext/oneapi/experimental/work_group_memory.hpp
 // CHECK-NEXT: ext/oneapi/experimental/use_root_sync_prop.hpp
 // CHECK-NEXT: ext/oneapi/experimental/virtual_functions.hpp
-// CHECK-NEXT: ext/oneapi/kernel_properties/properties.hpp
+// CHECK-NEXT: ext/oneapi/free_function_kernel_properties.hpp
+// CHECK-NEXT: ext/oneapi/kernel_properties.hpp
 // CHECK-NEXT: ext/oneapi/work_group_scratch_memory.hpp
 // CHECK-NEXT: detail/sycl_local_mem_builtins.hpp
 // CHECK-NEXT: detail/nd_range_view.hpp

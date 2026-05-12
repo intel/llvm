@@ -1,9 +1,8 @@
 //===--------- device.cpp - Level Zero Adapter ----------------------------===//
 //
-// Copyright (C) 2023-2026 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
@@ -471,6 +470,14 @@ ur_result_t urDeviceGetInfo(
                          Device->ZeDeviceComputeProperties->maxGroupCountY,
                          Device->ZeDeviceComputeProperties->maxGroupCountZ}};
     return ReturnValue(MaxGroupCounts);
+  }
+  case UR_DEVICE_INFO_MAX_WORK_GROUPS: {
+    // Multiply the max group counts in each dimension to get the total max
+    // number of work groups. Prevent overflow.
+    return ReturnValue(multiplyWithOverflowCheck(
+        Device->ZeDeviceComputeProperties->maxGroupCountX,
+        Device->ZeDeviceComputeProperties->maxGroupCountY,
+        Device->ZeDeviceComputeProperties->maxGroupCountZ));
   }
   case UR_DEVICE_INFO_MAX_CLOCK_FREQUENCY:
     return ReturnValue(uint32_t{Device->ZeDeviceProperties->coreClockRate});

@@ -1,10 +1,9 @@
 /*
  *
- * Copyright (C) 2023 Intel Corporation
  *
- * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
+ * Part of the LLVM Project, under the Apache License v2.0 with LLVM
  * Exceptions.
- * See LICENSE.TXT
+ * See https://llvm.org/LICENSE.txt for license information.
  *
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
@@ -3181,6 +3180,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
   case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG_LONG:
     os << "UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG_LONG";
     break;
+  case UR_DEVICE_INFO_MAX_WORK_GROUPS:
+    os << "UR_DEVICE_INFO_MAX_WORK_GROUPS";
+    break;
   case UR_DEVICE_INFO_XE_STACK_COUNT:
     os << "UR_DEVICE_INFO_XE_STACK_COUNT";
     break;
@@ -5030,6 +5032,19 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
     const uint32_t *tptr = (const uint32_t *)ptr;
     if (sizeof(uint32_t) > size) {
       os << "invalid size (is: " << size << ", expected: >=" << sizeof(uint32_t)
+         << ")";
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    os << (const void *)(tptr) << " (";
+
+    os << *tptr;
+
+    os << ")";
+  } break;
+  case UR_DEVICE_INFO_MAX_WORK_GROUPS: {
+    const size_t *tptr = (const size_t *)ptr;
+    if (sizeof(size_t) > size) {
+      os << "invalid size (is: " << size << ", expected: >=" << sizeof(size_t)
          << ")";
       return UR_RESULT_ERROR_INVALID_SIZE;
     }
@@ -12081,6 +12096,9 @@ inline std::ostream &operator<<(std::ostream &os,
     break;
   case UR_EXP_EXTERNAL_SEMAPHORE_TYPE_TIMELINE_WIN32_NT:
     os << "UR_EXP_EXTERNAL_SEMAPHORE_TYPE_TIMELINE_WIN32_NT";
+    break;
+  case UR_EXP_EXTERNAL_SEMAPHORE_TYPE_WIN32_NT_DX11_FENCE:
+    os << "UR_EXP_EXTERNAL_SEMAPHORE_TYPE_WIN32_NT_DX11_FENCE";
     break;
   default:
     os << "unknown enumerator";

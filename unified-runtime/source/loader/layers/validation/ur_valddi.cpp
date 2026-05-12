@@ -1,10 +1,9 @@
 /*
  *
- * Copyright (C) 2023-2026 Intel Corporation
  *
- * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
+ * Part of the LLVM Project, under the Apache License v2.0 with LLVM
  * Exceptions.
- * See LICENSE.TXT
+ * See https://llvm.org/LICENSE.txt for license information.
  *
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
@@ -8527,7 +8526,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImportExternalSemaphoreExp(
     if (NULL == hDevice)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
-    if (UR_EXP_EXTERNAL_SEMAPHORE_TYPE_TIMELINE_WIN32_NT < semHandleType)
+    if (UR_EXP_EXTERNAL_SEMAPHORE_TYPE_WIN32_NT_DX11_FENCE < semHandleType)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
   }
 

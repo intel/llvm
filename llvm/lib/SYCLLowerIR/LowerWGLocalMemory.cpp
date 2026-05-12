@@ -27,6 +27,7 @@ static constexpr char DYNAMIC_LOCALMEM_GV[] =
     "__sycl_dynamicLocalMemoryPlaceholder_GV";
 static constexpr char WORK_GROUP_STATIC_ATTR[] = "sycl-work-group-static";
 static constexpr char WORK_GROUP_STATIC_ARG_ATTR[] = "sycl-implicit-local-arg";
+static constexpr char WORK_GROUP_SCRATCH_ATTR[] = "sycl-work-group-scratch";
 
 namespace {
 class SYCLLowerWGLocalMemoryLegacy : public ModulePass {
@@ -75,6 +76,18 @@ sycl::getKernelNamesUsingImplicitLocalMem(const Module &M) {
       }
     });
   }
+  return SPIRKernelNames;
+}
+
+SmallVector<StringRef>
+sycl::getKernelNamesUsingWorkGroupDynamicMem(const Module &M) {
+  SmallVector<StringRef> SPIRKernelNames;
+  llvm::for_each(M.functions(), [&](const Function &F) {
+    if (F.getCallingConv() == CallingConv::SPIR_KERNEL &&
+        F.hasFnAttribute(WORK_GROUP_SCRATCH_ATTR)) {
+      SPIRKernelNames.emplace_back(F.getName());
+    }
+  });
   return SPIRKernelNames;
 }
 
@@ -143,7 +156,7 @@ lowerDynamicLocalMemCallDirect(CallInst *CI, Triple TT,
 
 static void lowerLocalMemCall(Function *LocalMemAllocFunc,
                               std::function<void(CallInst *CI)> TransformCall) {
-  static SmallPtrSet<Function *, 16> FuncsCache;
+  SmallPtrSet<Function *, 16> FuncsCache;
   SmallVector<CallInst *, 4> DelCalls;
   for (User *U : LocalMemAllocFunc->users()) {
     auto *CI = cast<CallInst>(U);
@@ -168,6 +181,11 @@ static void lowerLocalMemCall(Function *LocalMemAllocFunc,
       if (F->getCallingConv() == CallingConv::SPIR_KERNEL &&
           !F->hasFnAttribute(WORK_GROUP_STATIC_ATTR))
         F->addFnAttr(WORK_GROUP_STATIC_ATTR);
+
+      if (F->getCallingConv() == CallingConv::SPIR_KERNEL &&
+          LocalMemAllocFunc->getName() == SYCL_DYNAMIC_LOCALMEM_CALL &&
+          !F->hasFnAttribute(WORK_GROUP_SCRATCH_ATTR))
+        F->addFnAttr(WORK_GROUP_SCRATCH_ATTR);
 
       for (auto *FU : F->users()) {
         if (auto *UCI = dyn_cast<CallInst>(FU)) {

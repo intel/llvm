@@ -75,6 +75,7 @@
 // CHECK-NEXT: ext/oneapi/matrix/query-types.hpp
 // CHECK-NEXT: ext/oneapi/bfloat16.hpp
 // CHECK-NEXT: half_type.hpp
+// CHECK-NEXT: detail/half_type_impl.hpp
 // CHECK-NEXT: ext/oneapi/matrix/matrix-unified-utils.hpp
 // CHECK-NEXT: info/platform_traits.def
 // CHECK-NEXT: info/context_traits.def
@@ -107,7 +108,7 @@
 // CHECK-NEXT: ext/oneapi/experimental/graph/dynamic.hpp
 // CHECK-NEXT: detail/kernel_desc.hpp
 // CHECK-NEXT: ext/oneapi/experimental/work_group_memory.hpp
-// CHECK-NEXT: ext/oneapi/properties/properties.hpp
+// CHECK-NEXT: ext/oneapi/properties.hpp
 // CHECK-NEXT: ext/oneapi/properties/property_utils.hpp
 // CHECK-NEXT: ext/oneapi/properties/property.hpp
 // CHECK-NEXT: ext/oneapi/properties/property_value.hpp

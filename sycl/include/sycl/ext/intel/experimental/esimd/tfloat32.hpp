@@ -10,8 +10,9 @@
 
 #pragma once
 
-#include <sycl/__spirv/spirv_ops.hpp>
 #include <sycl/bit_cast.hpp>
+
+#include <cstdint>
 
 namespace sycl {
 inline namespace _V1 {

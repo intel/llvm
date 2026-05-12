@@ -892,20 +892,14 @@ public:
     // ext_oneapi_device_traits.def
 
     CASE(ext::oneapi::experimental::info::device::max_global_work_groups) {
-      return static_cast<size_t>((std::numeric_limits<int>::max)());
+      return get_info_impl<UR_DEVICE_INFO_MAX_WORK_GROUPS>();
     }
     CASE(ext::oneapi::experimental::info::device::max_work_groups<3>) {
-      size_t Limit = get_info<
-          ext::oneapi::experimental::info::device::max_global_work_groups,
-          DependentFalse>();
-
-      // TODO: std::array<size_t, 3> ?
       size_t result[3];
       getAdapter().call<UrApiKind::urDeviceGetInfo>(
           getHandleRef(), UR_DEVICE_INFO_MAX_WORK_GROUPS_3D, sizeof(result),
           &result, nullptr);
-      return id<3>(std::min(Limit, result[2]), std::min(Limit, result[1]),
-                   std::min(Limit, result[0]));
+      return id<3>(result[2], result[1], result[0]);
     }
     CASE(ext::oneapi::experimental::info::device::max_work_groups<2>) {
       id<3> max_3d =
