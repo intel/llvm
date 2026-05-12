@@ -16,6 +16,6 @@ status:
 3. zwięzły: done. Windows precommit E2E build/run now filtered to Experimental/ipc_memory.cpp.
 4. zwięzły: done. Test now enables SYCL/UR/UMF logs and prints runtime/env/IPC diagnostics in spawner and consumer.
 5. zwięzły: done. Likely root cause in L0 v2 IPC path: workaround set only on default provider creation, but old working adapter reapplies it by provider handle at IPC get/open time.
-6. zwięzły: in progress. After Windows failures on a276b8cfdd3, pushed follow-up debug commit fae705528d5; fresh CI rerun has started and SYCL Windows build / Build + LIT is pending again.
-7. zwięzły: in progress. Current loop added more Windows spawn diagnostics in ipc_memory: direct includes, quoted child command, GetLastError/timeout/exit-code reporting, and hard failure on child launch/exit issues; waiting for new CI result to choose next fix.
+6. zwięzły: in progress. Actual PR head moved again and local plus remote rrudnick_fix_win_ipc now point to fcfd467a4b3 ('noop'), which includes extra unrelated temp files beyond IPC work.
+7. zwięzły: blocked on CI visibility. Public PR checks page still shows stale a276b8c data, not current fcfd467a4b3 head, so no grounded next IPC fix can be chosen from CI yet.
 
