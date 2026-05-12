@@ -6,16 +6,16 @@ plan:
 3. minimize workflows so only Experimental/ipc_memory.cpp is run
 4. enable SYCL, UR and UMF logs. Add extra logs for IPC to check if it is properly enaled and when
 5. diagnose why test is failing
-6. fix the test, push the changes and check CI 
+6. fix the test, push the changes and check CI - YOU ALL ALLOWED ONLY TO PUSH TO PR #21987 !!!!!
 7. on any failures - fix them or add more logs to find the problem, then repeat 6
 
 status:
 
 1. zwięzły: done. PR changes touch [ipc_memory test], UR L0 v2 IPC workaround, docs, and Windows IPC runtime path.
-2. zwięzły: done. CI red in Windows E2E matrix only; Windows build/LIT green, failing runners are Level Zero GPU E2E jobs.
+2. zwięzły: done. Fresh CI is visible for current head 638b2f16865: Windows build / Build + LIT failed again, and Windows Level Zero GEN12, Arc, and Battlemage E2E jobs are also failing on the same run.
 3. zwięzły: done. Windows precommit E2E build/run now filtered to Experimental/ipc_memory.cpp.
 4. zwięzły: done. Test now enables SYCL/UR/UMF logs and prints runtime/env/IPC diagnostics in spawner and consumer.
 5. zwięzły: done. Likely root cause in L0 v2 IPC path: workaround set only on default provider creation, but old working adapter reapplies it by provider handle at IPC get/open time.
-6. zwięzły: in progress. Actual PR head moved again and local plus remote rrudnick_fix_win_ipc now point to fcfd467a4b3 ('noop'), which includes extra unrelated temp files beyond IPC work.
-7. zwięzły: blocked on CI visibility. Public PR checks page still shows stale a276b8c data, not current fcfd467a4b3 head, so no grounded next IPC fix can be chosen from CI yet.
+6. zwięzły: in progress. Actual local plus remote PR head is now 638b2f16865 after the latest plan-only push to PR #21987, and that exact head has a fresh CI run instead of stale check data.
+7. zwięzły: in progress. Current grounded failure loop is Windows run 25760016208: build / Build + LIT has 2 errors and 1 warning, and all three Windows Level Zero runners still fail; detailed logs remain hidden on the public job page, so the next fix still needs actionable log content.
 
