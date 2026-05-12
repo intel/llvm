@@ -5968,6 +5968,9 @@ bool Sema::CheckCallingConvAttr(const ParsedAttr &Attrs, CallingConv &CC,
       A = Aux->checkCallingConvention(CC);
       if (A == TargetInfo::CCCR_Error)
         A = TargetInfo::CCCR_Warning;
+    } else if (Aux && A == TargetInfo::CCCR_Error) {
+      // Assume this calling convention is only used for host only functions.
+      A = Aux->checkCallingConvention(CC);
     }
   } else {
     A = TI.checkCallingConvention(CC);
