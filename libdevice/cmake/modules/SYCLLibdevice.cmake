@@ -205,14 +205,14 @@ function(link_bc)
     set(output_dir ${ARG_OUT_DIR})
   endif()
   add_custom_command(
-    OUTPUT ${ARG_TARGET}.bc
+    OUTPUT  ${output_dir}/${ARG_TARGET}.bc
     COMMAND ${llvm-link_exe} ${link_flags} -o ${output_dir}/${ARG_TARGET}.bc ${LINK_INPUT_ARG}
     DEPENDS ${llvm-link_target} ${ARG_DEPENDENCIES} ${ARG_INPUTS} ${RSP_FILE}
   )
 
-  add_custom_target( ${ARG_TARGET} ALL DEPENDS ${ARG_TARGET}.bc )
+  add_custom_target( ${ARG_TARGET} ALL DEPENDS ${output_dir}/${ARG_TARGET}.bc )
   set_target_properties( ${ARG_TARGET} PROPERTIES
-    TARGET_FILE ${CMAKE_CURRENT_BINARY_DIR}/${ARG_TARGET}.bc
+    TARGET_FILE ${output_dir}/${ARG_TARGET}.bc
   )
 endfunction()
 
