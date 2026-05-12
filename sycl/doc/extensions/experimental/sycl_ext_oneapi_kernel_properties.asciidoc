@@ -9,6 +9,7 @@
 :encoding: utf-8
 :lang: en
 :dpcpp: pass:[DPC++]
+:endnote: &#8212;{nbsp}end{nbsp}note
 
 :blank: pass:[ +]
 
@@ -129,9 +130,13 @@ sycl_ext_oneapi_free_function_kernels] extension:
 
 * `<sycl/ext/oneapi/free_function_kernel_properties.hpp>`
 
-This lightweight header provides `SYCL_EXT_ONEAPI_FUNCTION_PROPERTY`, and the properties `work_group_size`, `work_group_size_hint`, `sub_group_size`, `max_work_group_size`, and `max_linear_work_group_size`.
+This lightweight header provides `SYCL_EXT_ONEAPI_FUNCTION_PROPERTY`, 
+and the properties `work_group_size`, `work_group_size_hint`, 
+`sub_group_size`, `max_work_group_size`, and `max_linear_work_group_size`.
 
-[_Note:_ The lightweight header is intended for cases where kernels are defined using the free-function kernel syntax and fast compilation time is a priority. -- _end note_]
+[_Note:_ The lightweight header is intended for cases where 
+kernels are defined using the free-function kernel syntax and fast 
+compilation time is a priority._{endnote}_]
 
 === Kernel Properties
 

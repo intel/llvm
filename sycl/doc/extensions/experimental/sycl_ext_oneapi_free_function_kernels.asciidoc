@@ -129,7 +129,9 @@ link:../experimental/sycl_ext_oneapi_kernel_properties.asciidoc[
 sycl_ext_oneapi_kernel_properties] for other APIs that are provided by this
 header.
 
-[_Note:_ The lightweight header is intended for cases where fast compilation time is a priority. -- _end note_]
+[_Note:_ The lightweight header is intended for cases where fast compilation 
+time is a priority.
+_{endnote}_]
 
 === Defining a free function kernel
 
