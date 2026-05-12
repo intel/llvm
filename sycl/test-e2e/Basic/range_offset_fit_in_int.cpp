@@ -11,9 +11,11 @@
 
 namespace S = sycl;
 
-constexpr char Msg[] = "Provided range and/or offset does not fit in int. "
-                       "Pass `-fsycl-id-queries-range=size_t' to "
-                       "remove this limit.";
+constexpr char Msg[] =
+    "The kernel was compiled with -fsycl-id-queries-range=int, but the "
+    "provided range/offset exceeds the maximum value storable in a int. Either "
+    "reduce the range/offset or recompile the kernel with "
+    "-fsycl-id-queries-range=[uint|size_t].";
 
 void checkRangeException(S::exception &E) {
   std::cerr << E.what() << std::endl;
@@ -84,7 +86,8 @@ void test() {
       CGH.parallel_for<class PF_RIL>(RangeInLimits,
                                      [Acc](S::id<2> Id) { Acc[0] += 1; });
     });
-  } catch (...) {
+  } catch (S::exception &E) {
+    std::cout << "Unexpected exception: " << E.what() << std::endl;
     assert(false && "Unexpected exception catched");
   }
 
