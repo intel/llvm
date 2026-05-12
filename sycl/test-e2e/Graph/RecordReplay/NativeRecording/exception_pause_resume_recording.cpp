@@ -5,8 +5,8 @@
 // Extra run to check for leaks in Level Zero using UR_L0_LEAKS_DEBUG
 // RUN: %if level_zero %{%{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
 
-// Tests that attempting to pause and resume recording is unsupported in native recording
-// mode and throws an exception.
+// Tests that attempting to pause and resume recording is unsupported in native
+// recording mode and throws an exception.
 
 #include "../../graph_common.hpp"
 
