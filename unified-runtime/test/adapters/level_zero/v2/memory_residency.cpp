@@ -136,6 +136,55 @@ TEST_P(urMemoryMultiResidencyTest, allocationInitiallyAbsentOnPeer) {
   ASSERT_GT(currentMemFreePeer, initialMemFreePeer - allocSize);
 }
 
+TEST_P(urMemoryMultiResidencyTest, allocAfterEnablingPeerAccess) {
+  // Enable devices[1] to access allocations on devices[0], so that new
+  // allocations on devices[0] are made resident on devices[1] too.
+  ASSERT_SUCCESS(urUsmP2PEnablePeerAccessExp(devices[1], devices[0]));
+  peerAccessEnabled = true;
+
+  static constexpr size_t allocSize = 1024 * 1024;
+  uint64_t initialMemFreeSource = 0;
+  ASSERT_SUCCESS(urDeviceGetInfo(devices[0], UR_DEVICE_INFO_GLOBAL_MEM_FREE,
+                                 sizeof(uint64_t), &initialMemFreeSource,
+                                 nullptr));
+  if (initialMemFreeSource < allocSize) {
+    GTEST_SKIP() << "Not enough source device memory available";
+  }
+
+  void *ptr = nullptr;
+  ASSERT_SUCCESS(
+      urUSMDeviceAlloc(context, devices[0], nullptr, nullptr, allocSize, &ptr));
+  ASSERT_SUCCESS(urUSMFree(context, ptr));
+
+  ASSERT_SUCCESS(urUsmP2PDisablePeerAccessExp(devices[1], devices[0]));
+  peerAccessEnabled = false;
+}
+
+TEST_P(urMemoryMultiResidencyTest, allocBeforeEnablingPeerAccess) {
+  static constexpr size_t allocSize = 1024 * 1024;
+  uint64_t initialMemFreeSource = 0;
+  ASSERT_SUCCESS(urDeviceGetInfo(devices[0], UR_DEVICE_INFO_GLOBAL_MEM_FREE,
+                                 sizeof(uint64_t), &initialMemFreeSource,
+                                 nullptr));
+  if (initialMemFreeSource < allocSize) {
+    GTEST_SKIP() << "Not enough source device memory available";
+  }
+
+  void *ptr = nullptr;
+  ASSERT_SUCCESS(
+      urUSMDeviceAlloc(context, devices[0], nullptr, nullptr, allocSize, &ptr));
+
+  // Enable devices[1] to access allocations on devices[0], so that new
+  // allocations on devices[0] are made resident on devices[1] too.
+  ASSERT_SUCCESS(urUsmP2PEnablePeerAccessExp(devices[1], devices[0]));
+  peerAccessEnabled = true;
+
+  ASSERT_SUCCESS(urUsmP2PDisablePeerAccessExp(devices[1], devices[0]));
+  peerAccessEnabled = false;
+
+  ASSERT_SUCCESS(urUSMFree(context, ptr));
+}
+
 // Verify that enabling peer access succeeds and that a second enable attempt
 // returns UR_RESULT_ERROR_INVALID_OPERATION (access already enabled). Confirms
 // that source-device free memory decreases by at least allocSize, showing the
