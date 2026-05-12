@@ -12,6 +12,8 @@
 
 #pragma once
 
+#include <cstdint>
+
 namespace sycl {
 namespace ext {
 namespace oneapi {
@@ -47,10 +49,7 @@ inline bool operator!=(const foo &lhs, const foo &rhs) { return !(lhs == rhs); }
 struct foz : detail::run_time_property_key<foz, fakePropKind(4)> {
   constexpr foz(float v1, bool v2) : value1(v1), value2(v2) {}
   // Define copy constructor to make foz non-trivially copyable
-  constexpr foz(const foz &f) {
-    value1 = f.value1;
-    value2 = f.value2;
-  }
+  constexpr foz(const foz &f) : value1(f.value1), value2(f.value2) {}
   float value1;
   bool value2;
 };

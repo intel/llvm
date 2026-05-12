@@ -1,4 +1,4 @@
-//==---------- properties.hpp - compatibility forwarding header ------------==//
+//==--- function_properties.hpp - compatibility forwarding header ---------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -8,4 +8,6 @@
 
 #pragma once
 
-#include <sycl/ext/oneapi/properties.hpp>
+// Compatibility shim for the legacy kernel_properties/* include path.
+// Delete this header when support for that include path is removed.
+#include <sycl/ext/oneapi/free_function_kernel_properties.hpp>
