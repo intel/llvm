@@ -205,14 +205,14 @@ function(link_bc)
     set(output_dir ${ARG_OUT_DIR})
   endif()
   add_custom_command(
-    OUTPUT  ${output_dir}/${ARG_TARGET}.bc
-    COMMAND ${llvm-link_exe} ${link_flags} -o ${output_dir}/${ARG_TARGET}.bc ${LINK_INPUT_ARG}
+    OUTPUT  "${output_dir}/${ARG_TARGET}.bc"
+    COMMAND ${llvm-link_exe} ${link_flags} -o "${output_dir}/${ARG_TARGET}.bc" ${LINK_INPUT_ARG}
     DEPENDS ${llvm-link_target} ${ARG_DEPENDENCIES} ${ARG_INPUTS} ${RSP_FILE}
   )
 
-  add_custom_target( ${ARG_TARGET} ALL DEPENDS ${output_dir}/${ARG_TARGET}.bc )
+  add_custom_target( ${ARG_TARGET} ALL DEPENDS "${output_dir}/${ARG_TARGET}.bc" )
   set_target_properties( ${ARG_TARGET} PROPERTIES
-    TARGET_FILE ${output_dir}/${ARG_TARGET}.bc
+    TARGET_FILE "${output_dir}/${ARG_TARGET}.bc"
   )
 endfunction()
 
@@ -667,21 +667,21 @@ foreach(ftype IN LISTS filetypes)
 endforeach()
 
 add_custom_command(
-  OUTPUT ${obj_binary_dir}/imf-wrapper-device.${bc-suffix}
+  OUTPUT ${bc_binary_dir}/imf-wrapper-device.${bc-suffix}
   COMMAND ${clang_exe} ${compile_opts} ${bc_device_compile_opts}
           ${CMAKE_CURRENT_SOURCE_DIR}/imf_wrapper.cpp
-          -o ${obj_binary_dir}/imf-wrapper-device.${bc-suffix}
+          -o ${bc_binary_dir}/imf-wrapper-device.${bc-suffix}
   MAIN_DEPENDENCY ${CMAKE_CURRENT_SOURCE_DIR}/imf_wrapper.cpp
   DEPENDS ${imf_obj_deps}
   VERBATIM)
 
 add_custom_target(imf_wrapper_bc DEPENDS
-  ${obj_binary_dir}/imf-wrapper-device.${bc-suffix})
-list(APPEND imf_bc_file_list ${obj_binary_dir}/imf-wrapper-device.${bc-suffix})
-list(APPEND imf_bc_file_list ${obj_binary_dir}/imf-fallback-device.${bc-suffix})
+  ${bc_binary_dir}/imf-wrapper-device.${bc-suffix})
+list(APPEND imf_bc_file_list ${bc_binary_dir}/imf-wrapper-device.${bc-suffix})
+list(APPEND imf_bc_file_list ${bc_binary_dir}/imf-fallback-device.${bc-suffix})
 
 link_bc(TARGET libsycl-imf
-        OUT_DIR ${obj_binary_dir}
+        OUT_DIR ${bc_binary_dir}
         RSP_DIR ${CMAKE_CURRENT_BINARY_DIR}
         INPUTS ${imf_bc_file_list}
         DEPENDENCIES imf_wrapper_bc imf_fallback_bc)
