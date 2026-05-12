@@ -1850,6 +1850,14 @@ public:
             {"gfx1201", oneapi_exp_arch::amd_gpu_gfx1201},
         };
 
+    // Only for Qualcomm GPU architectures
+    constexpr std::pair<const char *, oneapi_exp_arch>
+        QualcommGPUArchitectures[] = {
+            {"X1-85", oneapi_exp_arch::qcom_gpu_x1_85},
+            {"X2-85", oneapi_exp_arch::qcom_gpu_x2_85},
+            {"X2-90", oneapi_exp_arch::qcom_gpu_x2_90},
+        };
+
     // Only for Intel GPU architectures
     constexpr std::pair<const int, oneapi_exp_arch> IntelGPUArchitectures[] = {
         {0x02000000, oneapi_exp_arch::intel_gpu_bdw},
@@ -1919,8 +1927,8 @@ public:
         {10, oneapi_exp_arch::intel_cpu_dmr},
     };
     backend CurrentBackend = getBackend();
-    auto LookupIPVersion = [&, this](auto &ArchList)
-        -> std::optional<ext::oneapi::experimental::architecture> {
+    auto LookupIPVersion =
+        [&, this](auto &ArchList) -> std::optional<oneapi_exp_arch> {
       auto DeviceIp = get_info_impl_nocheck<UR_DEVICE_INFO_IP_VERSION>();
       if (!DeviceIp.has_val()) {
         ur_result_t Err = DeviceIp.error();
@@ -1939,30 +1947,57 @@ public:
       return std::nullopt;
     };
 
+    auto MapQualcommArchIDToArchName = [&](const char *arch) {
+      for (const auto &Item : QualcommGPUArchitectures) {
+        if (std::string_view(Item.first) == arch)
+          return Item.second;
+      }
+      return oneapi_exp_arch::unknown;
+    };
+
+    auto MapNvidiaOrAMDArchIDToArchName = [&](const char *arch) {
+      for (const auto &Item : NvidiaAmdGPUArchitectures) {
+        if (std::string_view(Item.first) == arch)
+          return Item.second;
+      }
+      return oneapi_exp_arch::unknown;
+    };
+
     if (is_gpu() && (backend::ext_oneapi_level_zero == CurrentBackend ||
                      backend::opencl == CurrentBackend)) {
-      return LookupIPVersion(IntelGPUArchitectures)
-          .value_or(ext::oneapi::experimental::architecture::unknown);
-    } else if (is_gpu() && (backend::ext_oneapi_cuda == CurrentBackend ||
-                            backend::ext_oneapi_hip == CurrentBackend)) {
-      auto MapArchIDToArchName = [&](const char *arch) {
-        for (const auto &Item : NvidiaAmdGPUArchitectures) {
-          if (std::string_view(Item.first) == arch)
-            return Item.second;
-        }
-        return ext::oneapi::experimental::architecture::unknown;
-      };
-      std::string DeviceArch =
+      // Check if device is Intel architecture.
+      oneapi_exp_arch DeviceArch = LookupIPVersion(IntelGPUArchitectures)
+                                        .value_or(oneapi_exp_arch::unknown);
+      if (DeviceArch != oneapi_exp_arch::unknown) {
+        return DeviceArch;
+      }
+
+      // Otherwise, check if device is Qualcomm architecture.
+      // If not, return `oneapi_exp_arch::unknown`.
+
+      // Qualcomm architecture doesn't support LevelZero.
+      if (backend::ext_oneapi_level_zero == CurrentBackend) {
+        return oneapi_exp_arch::unknown;
+      }
+
+      std::string DeviceArchStr =
           get_info_impl<UrInfoCode<info::device::version>::value>();
       std::string_view DeviceArchSubstr =
-          std::string_view{DeviceArch}.substr(0, DeviceArch.find(":"));
-      return MapArchIDToArchName(DeviceArchSubstr.data());
+          std::string_view{DeviceArchStr}.substr(0, DeviceArchStr.find(":"));
+      return MapQualcommArchIDToArchName(DeviceArchSubstr.data());
+    } else if (is_gpu() && (backend::ext_oneapi_cuda == CurrentBackend ||
+                            backend::ext_oneapi_hip == CurrentBackend)) {
+      std::string DeviceArchStr =
+          get_info_impl<UrInfoCode<info::device::version>::value>();
+      std::string_view DeviceArchSubstr =
+          std::string_view{DeviceArchStr}.substr(0, DeviceArchStr.find(":"));
+      return MapNvidiaOrAMDArchIDToArchName(DeviceArchSubstr.data());
     } else if (is_cpu() && backend::opencl == CurrentBackend) {
       return LookupIPVersion(IntelCPUArchitectures)
-          .value_or(ext::oneapi::experimental::architecture::x86_64);
+          .value_or(oneapi_exp_arch::x86_64);
     } // else is not needed
     // TODO: add support of other architectures by extending with else if
-    return ext::oneapi::experimental::architecture::unknown;
+    return oneapi_exp_arch::unknown;
   }
 
   std::vector<ext::oneapi::experimental::matrix::combination>

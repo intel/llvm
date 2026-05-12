@@ -1,3 +1,4 @@
+// XFAIL: arch-qcom_gpu_x1_85 && arch-qcom_gpu_x2_85 && arch-qcom_gpu_x2_90
 // RUN: %{build} -o %t1.out
 // RUN: %{run} %t1.out
 
