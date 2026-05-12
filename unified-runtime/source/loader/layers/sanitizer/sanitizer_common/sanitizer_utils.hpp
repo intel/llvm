@@ -33,8 +33,11 @@ struct DeferredEventList {
 
   void releaseAll() {
     std::scoped_lock<ur_shared_mutex> Lock(Mutex);
-    for (auto E : List)
-      getContext()->urDdiTable.Event.pfnRelease(E);
+    for (auto &E : List) {
+      [[maybe_unused]] auto Result =
+          getContext()->urDdiTable.Event.pfnRelease(E);
+      assert(Result == UR_RESULT_SUCCESS);
+    }
     List.clear();
   }
 
