@@ -36,10 +36,13 @@ static ur_result_t validateP2PDevicePair(ur_device_handle_t commandDevice,
   return UR_RESULT_SUCCESS;
 }
 
+// commandDevice wants to access peerDevice's memory.  The peer table is stored
+// on peerDevice: peerDevice->peers[commandDevice->Id] tracks whether
+// commandDevice is allowed to access peerDevice's allocations.
 static ur_result_t urUsmP2PChangePeerAccessExp(ur_device_handle_t commandDevice,
                                                ur_device_handle_t peerDevice,
                                                bool isAdding) {
-  UR_CALL(validateP2PDevicePair(commandDevice, peerDevice));
+  UR_CALL(validateP2PDevicePair(peerDevice, commandDevice));
 
   UR_LOG(INFO, "user tries to {} peer access to memory of {} from {}",
          (isAdding ? "enable" : "disable"), *peerDevice, *commandDevice);
@@ -48,21 +51,21 @@ static ur_result_t urUsmP2PChangePeerAccessExp(ur_device_handle_t commandDevice,
     const auto expectedPeerStatus =
         isAdding ? ur_device_handle_t_::PeerStatus::DISABLED
                  : ur_device_handle_t_::PeerStatus::ENABLED;
-    std::scoped_lock<ur_shared_mutex> Lock(commandDevice->Mutex);
+    std::scoped_lock<ur_shared_mutex> Lock(peerDevice->Mutex);
     const auto existingPeerStatus =
-        commandDevice->peers[peerDevice->Id.value()];
+        peerDevice->peers[commandDevice->Id.value()];
     if (existingPeerStatus != expectedPeerStatus) {
       UR_LOG(ERR,
              "existing peer status:{} does not match expected peer status:{}",
              existingPeerStatus, expectedPeerStatus);
       return UR_RESULT_ERROR_INVALID_OPERATION;
     }
-    commandDevice->peers[peerDevice->Id.value()] =
+    peerDevice->peers[commandDevice->Id.value()] =
         (isAdding ? ur_device_handle_t_::PeerStatus::ENABLED
                   : ur_device_handle_t_::PeerStatus::DISABLED);
   }
 
-  auto Platform = commandDevice->Platform;
+  auto Platform = peerDevice->Platform;
   // Copy the context list under the mutex and iterate outside the critical
   // section to avoid holding ContextsMutex during potentially heavy
   // changeResidentDevice calls and to reduce deadlock risk.
@@ -73,7 +76,7 @@ static ur_result_t urUsmP2PChangePeerAccessExp(ur_device_handle_t commandDevice,
   }
   UR_LOG(INFO, "changing peers in {} contexts", Contexts.size());
   for (auto Context : Contexts) {
-    Context->changeResidentDevice(commandDevice, peerDevice, isAdding);
+    Context->changeResidentDevice(peerDevice, commandDevice, isAdding);
   }
 
   return UR_RESULT_SUCCESS;
@@ -97,13 +100,13 @@ ur_result_t urUsmP2PPeerAccessGetInfoExp(ur_device_handle_t commandDevice,
 
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
 
-  UR_CALL(validateP2PDevicePair(commandDevice, peerDevice));
+  UR_CALL(validateP2PDevicePair(peerDevice, commandDevice));
 
   int propertyValue = 0;
   switch (propName) {
   case UR_EXP_PEER_INFO_UR_PEER_ACCESS_SUPPORT: {
-    std::scoped_lock<ur_shared_mutex> Lock(commandDevice->Mutex);
-    propertyValue = commandDevice->peers[peerDevice->Id.value()] !=
+    std::scoped_lock<ur_shared_mutex> Lock(peerDevice->Mutex);
+    propertyValue = peerDevice->peers[commandDevice->Id.value()] !=
                     ur_device_handle_t_::PeerStatus::NO_CONNECTION;
     break;
   }
