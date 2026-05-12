@@ -901,6 +901,10 @@ namespace sycl::ext::oneapi::experimental::ipc::physical_memory {
 
 handle get(const physical_mem &phys_mem);
 
+void put(handle &ipc_handle, const sycl::context &ctx);
+
+void put(handle &ipc_handle);
+
 physical_mem open(const handle_data_t &handle_data, const sycl::context &ctx,
                   const sycl::device &dev);
 
@@ -945,6 +949,47 @@ not created with inter-process sharing enabled via the `enable_ipc` property.
 a!
 [source]
 ----
+void put(handle &ipc_handle, const sycl::context &ctx)
+----
+!====
+
+_Preconditions:_ `ipc_handle` is the IPC "handle" to physical memory that was
+returned from a call to `get`. The `put` function has not been previously called on the
+handle.
+
+_Effects:_ Deallocates resources associated with the handle. These resources are
+automatically deallocated when the physical memory object is destroyed, so it
+is not strictly necessary to call the `put` function. After the resources
+associated with the handle have been deallocated, i.e. through a call to the
+`put` function or through destruction of the physical memory object, the handle
+data is invalid and using it in the `put` and `open` functions will result in
+undefined behavior.
+
+[_Note:_ Any objects retrieved through a call to the `open` function in any
+process on the system will still be valid after a call to the `put` function.
+_{endnote}_]
+
+!====
+a!
+[source]
+----
+void put(handle &ipc_handle)
+----
+!====
+
+_Effects_: Equivalent to:
+
+[source,c++,indent=2]
+----
+sycl::device d;
+sycl::context ctxt = d.get_platform().khr_get_default_context();
+ipc::physical_memory::put(ipc_handle, ctxt);
+----
+
+!====
+a!
+[source]
+----
 physical_mem open(const handle_data_t &handle_data, const sycl::context &ctx,
                   const sycl::device &dev)
 ----
@@ -966,9 +1011,10 @@ within the same process. Each call to the `open` function may return a unique
 physical memory object even for the same handle.
 _{endnote}_]
 
-[_Note:_ The physical memory object returned from a call to the `open` function
-is no longer valid if the original object associated with `handle_data` (passed
-to a `get` function call) is destroyed.
+[_Note:_ The physical memory allocation associated with the object returned
+from a call to the `open` function is valid through the entire lifetime of the
+physical memory object. The physical memory is released once all the physical
+memory objects associated with that allocation are destroyed.
 _{endnote}_]
 
 _Throws:_
