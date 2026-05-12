@@ -107,7 +107,8 @@ struct TsanRuntimeData {
   TsanErrorReport Report[TSAN_MAX_NUM_REPORTS];
 };
 
-constexpr auto kSPIR_TsanDeviceGlobalMetadata = "__TsanDeviceGlobalMetadata";
+constexpr auto kSPIR_TsanDeviceGlobalMetadataPrefix =
+    "__TsanDeviceGlobalMetadata_";
 
 constexpr auto kSPIR_TsanSpirKernelMetadata = "__TsanKernelMetadata";
 

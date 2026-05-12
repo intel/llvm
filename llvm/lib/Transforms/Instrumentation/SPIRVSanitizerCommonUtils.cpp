@@ -12,7 +12,7 @@
 
 #include "llvm/Transforms/Instrumentation/SPIRVSanitizerCommonUtils.h"
 #include "llvm/IR/Instructions.h"
-#include "llvm/Support/MD5.h"
+#include "llvm/Support/Process.h"
 
 using namespace llvm;
 
@@ -69,15 +69,28 @@ void getFunctionsOfUser(User *User, SmallVectorImpl<Function *> &Functions) {
   }
 }
 
-SmallString<128>
-computeKernelMetadataUniqueId(StringRef Prefix,
-                              SmallVectorImpl<uint8_t> &KernelNamesBytes) {
-  MD5 Hash;
-  SmallString<32> UniqueIdSuffix;
-  SmallString<128> UniqueId(Prefix);
-  auto R = Hash.hash(KernelNamesBytes);
-  Hash.stringifyResult(R, UniqueIdSuffix);
-  UniqueId.append(UniqueIdSuffix);
+SmallString<40> computeMetadataUniqueId(Module &M) {
+  // Return the cached hash if already computed for this module.
+  constexpr StringRef CacheKey = "sycl.sanitizer.hash";
+  if (NamedMDNode *NMD = M.getNamedMetadata(CacheKey))
+    if (NMD->getNumOperands() > 0)
+      if (auto *MS = dyn_cast<MDString>(NMD->getOperand(0)->getOperand(0)))
+        return MS->getString();
+
+  uint32_t Parts[4];
+  for (uint32_t &P : Parts)
+    P = sys::Process::GetRandomNumber();
+
+  SmallString<40> UniqueId;
+  raw_svector_ostream OS(UniqueId);
+  for (uint32_t P : Parts)
+    OS << format_hex_no_prefix(P, 8);
+
+  // Cache the result in the module so subsequent calls are stable.
+  NamedMDNode *NMD = M.getOrInsertNamedMetadata(CacheKey);
+  NMD->addOperand(
+      MDNode::get(M.getContext(), {MDString::get(M.getContext(), UniqueId)}));
+
   return UniqueId;
 }
 

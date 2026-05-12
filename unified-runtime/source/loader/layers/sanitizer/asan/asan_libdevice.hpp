@@ -113,8 +113,9 @@ constexpr int8_t kUnknownMagic = (int8_t)0xff;
 
 constexpr int8_t kZeroMagic = 0;
 
-constexpr auto kSPIR_AsanDeviceGlobalMetadata = "__AsanDeviceGlobalMetadata";
-constexpr auto kSPIR_AsanSpirKernelMetadata = "__AsanKernelMetadata";
+constexpr auto kSPIR_AsanDeviceGlobalMetadataPrefix =
+    "__AsanDeviceGlobalMetadata_";
+constexpr auto kSPIR_AsanSpirKernelMetadataPrefix = "__AsanKernelMetadata_";
 
 #if !defined(__SPIR__) && !defined(__SPIRV__)
 } // namespace ur_sanitizer_layer
