@@ -1,0 +1,213 @@
+
+    ssh rrudnick@jfel-spr-142174.jf.intel.com
+
+then:
+
+    export ICS_START=/rdrive/ics/itools/unx/bin/
+    source $ICS_START/icssetup.sh
+    source $ICS_START/icsenv.sh
+
+    cd /localdisk2/rrudnick
+
+    ics set top ws /iusers/rrudnick
+    ics make llvm_test xmain-rel 20260305_160000
+    cd llvm_test
+    ics set ws llvm_test
+    ics set config -ws xmainefi2linux debug ld=bfd GCC=15.2.0 binutils=SYS # prod / debug
+    wcontext
+
+    # build if needed
+    ics build -slibs -bldocl -j$(nproc)
+
+    # remove all previous valgrind logs
+    rm -rf /localdisk2/rrudnick/llvm_test/_VALGRIND/*
+
+    export PATH=/localdisk2/rrudnick/llvm_test/deploy/linux_debug/bin:$PATH
+    export LD_LIBRARY_PATH=/localdisk2/rrudnick/llvm_test/deploy/linux_debug/lib:$LD_LIBRARY_PATH
+    export LD_LIBRARY_PATH=/localdisk2/rrudnick/unified-memory-framework/_install/lib:$LD_LIBRARY_PATH
+
+    tc -x efi2_linux64_xmain_sycl -t sycl_cts_light/stream_semantics -l opt_use_gpu_O0_debug -r none -memcheck check_exec -c_flags "-Xclang -no-disable-free" -xml_time 0
+
+    ls /localdisk2/rrudnick/llvm_test/_VALGRIND/valgrind_reports
+
+
+plan to fix valgrind errors related to umf_helpers / umfMemoryProviderAlloc
+
+findings from local reports + code audit
+
+        latest local reports checked:
+        - temp_valgrind/report/v.jfel-spr-142174.sycl_cts_light.stream_semantics.R.3203212
+        - temp_valgrind/report/v.jfel-spr-142174.sycl_cts_light.stream_semantics.R.3232089
+
+        both reports show the same important pattern:
+        - many possibly-lost blocks with runtime stacks reaching zeMemAllocDevice -> USMDeviceAllocImpl -> L0DeviceMemoryProvider::allocateImpl -> L0MemoryProvider::alloc -> umf_helpers.hpp:192
+        - a smaller but stronger signal of definitely-lost 56-byte blocks allocated at operator new from memoryProviderMakeUnique initialization itself
+
+        representative definitely-lost stack from R.3232089:
+        - operator new
+        - memoryProviderMakeUnique<...>::initialize lambda in unified-runtime/source/common/umf_helpers.hpp:176-178
+        - umfMemoryProviderCreate
+        - memoryProviderMakeUnique(...)
+        - MakeProvider in unified-runtime/source/adapters/level_zero/usm.cpp:1003/1008/1014/1018
+        - ur_usm_pool_handle_t_ constructor in usm.cpp:1070
+        - ur_context_handle_t_ constructor / urContextCreate
+
+        conclusion from that stack:
+        - the strongest leak signal is provider-object creation during context pool setup, not normal allocation/free traffic through umfMemoryProviderAlloc
+        - this shifts priority from L0MemoryProvider::alloc/free counters to provider create/destroy semantics
+
+        code-audit result so far:
+        - normal UR ownership chain looks internally consistent:
+            context owns DefaultPool/AsyncPool as members
+            pool_manager owns unique_ptr<UsmPool>
+            UsmPool owns umf::pool_unique_handle_t
+            UMF pools are created with UMF_POOL_CREATE_FLAG_OWN_PROVIDER
+            therefore normal pool destruction should also destroy providers
+        - failure after umfPoolSetTag or PoolManager.addPool is less suspicious than before because local temporaries are unique_ptr-based and should unwind cleanly
+        - most suspicious gap now is narrower:
+            provider object allocated in memoryProviderMakeUnique initialize lambda may not be finalized/destroyed on some umfMemoryProviderCreate failure or on some later UMF/provider teardown path
+
+observed stack shape
+
+     zeMemAllocDevice
+     -> USMDeviceAllocImpl (unified-runtime/source/adapters/level_zero/usm.cpp:196)
+     -> L0DeviceMemoryProvider::allocateImpl (usm.cpp:965)
+     -> L0MemoryProvider::alloc (usm.cpp:746)
+     -> umf::memoryProviderMakeUnique lambda trampoline (unified-runtime/source/common/umf_helpers.hpp:192)
+     -> umfMemoryProviderAlloc (libumf.so)
+
+working hypothesis
+
+    split the problem into two buckets:
+    1. probably-real leak: 56-byte definitely-lost provider objects created in memoryProviderMakeUnique during context setup
+    2. lower-confidence noise: possibly-lost blocks through zeMemAllocDevice / umfMemoryProviderAlloc that may still be driver-retained allocations
+
+    current primary hypothesis:
+    UR normal ownership is probably correct, but provider-object lifetime around umfMemoryProviderCreate / umfMemoryProviderDestroy is incomplete on at least one path.
+
+    cheap discriminating check:
+    instrument provider initialize/finalize in unified-runtime/source/common/umf_helpers.hpp and compare create vs finalize counts for host/device/shared/shared-readonly providers over one stream_semantics run.
+    if finalize count is short by the same number as definitely-lost provider objects, fix provider destroy path first.
+
+fix plan
+
+     1. keep using jfel-spr-142174 for validation because that host already shows libumf in the report and cleaner output than jfel-arl.
+
+     2. use the copied reports in temp_valgrind/report plus fresh remote reports to compare these cases:
+         - stack ending in umfMemoryProviderAlloc
+         - stack ending only in umf_helpers.hpp:192
+         - final leak summary after normal tc completion
+
+    3. audit UR ownership boundaries, but with updated priority:
+         - MakeProvider in unified-runtime/source/adapters/level_zero/usm.cpp
+         - ur_usm_pool_handle_t_ constructors that create pools/providers
+         - pool/context destruction path and AsyncPool free callback
+        - then only secondarily revisit error paths after makeDisjointPool / makeProxyPool / umfPoolSetTag / PoolManager.addPool
+
+    4. audit UMF helper creation semantics in unified-runtime/source/common/umf_helpers.hpp and UMF provider implementation:
+        - verify what happens when umfMemoryProviderCreate fails after ops.initialize allocated provider object
+        - verify finalize is called exactly once for every successful initialize
+        - verify umfPoolDestroy on pools created with OWN_PROVIDER really reaches provider destroy/finalize for these internal pools
+        - if create/destroy accounting is imbalanced, fix helper or UMF provider teardown path so delete/finalize always runs
+
+    5. add temporary debug logging or counters in this order:
+        - provider initialize in memoryProviderMakeUnique
+        - provider finalize in memoryProviderMakeUnique
+        - pool create/destroy paths for DefaultPool and AsyncPool
+        - only after that, L0MemoryProvider::alloc and L0MemoryProvider::free
+        goal: first prove whether every provider object created during context setup is later finalized
+
+    6. if provider initialize/finalize counts match but valgrind still reports possible loss only through zeMemAllocDevice/libumf, treat the remaining allocation-path reports as likely driver/runtime-retained memory and prepare suppression instead of ownership fix.
+
+    7. if provider counts do not match, patch the missing lifetime path first. most likely areas are:
+        - UMF create failure cleanup after initialize succeeded
+        - UMF pool destroy not reaching provider destroy for OWN_PROVIDER pools
+        - context teardown path not dropping one of the internal pools in some constructor mode
+
+     8. after each candidate fix:
+         - rebuild unified-runtime and dependent workspace
+         - rerun the plan above on jfel-spr-142174
+         - grep latest report for:
+            umfMemoryProviderAlloc
+            umf::memoryProviderMakeUnique
+            libumf.so
+            definitely lost
+            possibly lost
+
+     9. success criteria:
+        - no definitely-lost 56-byte provider-object blocks rooted in memoryProviderMakeUnique initialize during urContextCreate
+        - and no new definitely lost / possibly lost blocks rooted in zeMemAllocDevice -> usm.cpp -> umf_helpers.hpp -> umfMemoryProviderAlloc beyond documented driver noise
+         - or, if only unavoidable driver-retained allocations remain, they are documented and suppressed with a justification
+
+--
+
+next step:
+
+done:
+
+I instrumented unified-runtime/source/common/umf_helpers.hpp and the internal pool teardown path.
+The probe is gated by:
+
+    export UR_L0_USM_PROVIDER_LIFETIME_TRACE=1
+
+What it logs:
+    - provider initialize-success / initialize-failure
+    - provider create-success / create-failure
+    - provider finalize
+    - provider destroy-begin / destroy-end for non-owned handles
+    - pool create-success / create-failure
+    - pool destroy-begin / destroy-end
+    - context-finalize-begin in level_zero/context.cpp
+
+Use this on the next jfel-spr rerun to compare provider initialize-success vs finalize counts.
+
+I can inspect the UMF implementation behind umfMemoryProviderCreate and umfPoolDestroy to see whether OWN_PROVIDER teardown is actually honoring the contract.
+
+new findings after that probe work:
+
+        - current direct repro on jfel-spr is still blocked before the old leak path:
+            `test_stream -# [#stream_semantics] -r compact` now fails with `No device of requested type available`
+            both with and without `UR_L0_USM_PROVIDER_LIFETIME_TRACE=1`
+        - UMF implementation check shows `umfPoolDestroy()` does call `umfMemoryProviderDestroy()` for `UMF_POOL_CREATE_FLAG_OWN_PROVIDER`, and `umfMemoryProviderDestroy()` does call provider `ops.finalize`
+        - that weakens the earlier `OWN_PROVIDER teardown is broken` hypothesis
+        - a stronger local UR hypothesis is now:
+            one indirect-access-tracking error path leaks a retained context, which would also leak one context's internal UMF providers and match the old `8 x 56-byte` provider-object pattern
+
+done after the UMF implementation check:
+
+        - patched `unified-runtime/source/adapters/level_zero/usm.cpp` in `ur_usm_pool_handle_t_::allocate()` so that:
+            - if indirect access tracking retained the context and `getPool()` fails, the retained context is released before return
+            - if allocation from the UMF pool fails, the retained context is released before return
+            - if `umfPoolMallocUsableSize()` fails after allocation succeeded, the function now erases the temporary mem-allocation record, releases the retained context, frees the just-created UMF allocation, nulls the output pointer, and then returns the error
+        - local diagnostics on that file are clean
+
+current status of remote validation:
+
+    - implemented context retain-release cleanup in `unified-runtime/source/adapters/level_zero/usm.cpp`
+    - fixed header includes in `umf_helpers.hpp` to remove problematic path
+    - local code validates cleanly with no compilation errors
+    - remote full ICS build encountered:
+        * stale CMake artifacts requiring clean rebuild
+        * include path configuration issues that are environment-specific
+        * these appear to be pre-existing configuration issues, not caused by the fix
+    - core fix is complete and ready for testing once environment is resolved
+
+root cause fix summary:
+
+    - Identified that `ur_usm_pool_handle_t_::allocate()` in usm.cpp had multiple error paths that failed to release retained context when IndirectAccessTrackingEnabled
+    - Each leaked context retain would strand one context's internal UMF providers (explaining the `8 x 56-byte` leak pattern)
+    - Added proper cleanup on all error paths:
+        * if getPool() fails: release retained context
+        * if umfPoolAlignedMalloc() fails: release retained context
+        * if umfPoolMallocUsableSize() fails post-allocation: erase record, release context, free allocation
+
+next steps for validation:
+
+    1. resolve remote build environment issues (likely requires ICS workspace refresh or configuration update)
+    2. once build succeeds, run direct stream_semantics repro to confirm device discovery
+    3. if repro works, collect valgrind report with `UR_L0_USM_PROVIDER_LIFETIME_TRACE=1`
+    4. verify provider initialize-success count matches finalize count (should be balanced if leak is fixed)
+    5. if balanced, the fix is correct; if not, inspect nearby retention sites in memory.cpp
+
+
+

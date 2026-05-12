@@ -12,9 +12,9 @@
 #include <sycl/usm.hpp>
 
 #include <cassert>
-#include <cstring>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <fstream>
 #include <iostream>
 #include <memory>
@@ -65,8 +65,7 @@ void spawn_and_sync(std::string Exe) {
                      NULL, NULL, &StartupInfo, &ProcInfo);
   std::cout << "CreateProcessA result: " << Created << std::endl;
   if (!Created) {
-    std::cout << "CreateProcessA GetLastError: " << GetLastError()
-              << std::endl;
+    std::cout << "CreateProcessA GetLastError: " << GetLastError() << std::endl;
     throw std::runtime_error("CreateProcessA failed");
   }
 

@@ -1,0 +1,125 @@
+
+
+NOTES:
+* never use /tmp folder - only local temp files in local temp dir
+
+STATUS:
+- 2026-04-28: After updating `/localdisk2/rrudnick/unified-memory-framework/_install`, reran the same `tc` memcheck test. `stream_semantics` still passed, and the valgrind report path stayed `/localdisk2/rrudnick/llvm_test/_VALGRIND/valgrind_reports/v.pod-ub24-jfel-arl-799814.sycl_cts_light.stream_semantics.R.1130`.
+- 2026-04-28: Rerun after UMF rebuild still showed no `umf::memoryProviderMakeUnique`, no `libumf`, and no `/localdisk2/rrudnick/unified-memory-framework` path in the report. Summary stayed unchanged at `definitely lost: 133,996 bytes in 331 blocks`, `possibly lost: 6,734,246 bytes in 1,335 blocks`, `ERROR SUMMARY: 4656 errors from 462 contexts`.
+- 2026-04-28: Leading rerun stacks remained in external driver/compiler libraries: `libze_intel_gpu.so.1.14.37020` and `libigc.so.2.28.4` with `Conditional jump or move depends on uninitialised value(s)`.
+- 2026-04-28: Installed SSH key with `ssh-copy-id`; key-based login to `rrudnick@jfel-arl-799814.jf.intel.com` now works.
+- 2026-04-28: Repro-only run completed in `pod ub24` after full ICS workspace setup. `which icx` resolved to `/iusers/rrudnick/llvm_test/deploy/linux_prod/bin/icx`, so prior `icx-WRAPPER: Failed to execvp()` came from bad or incomplete env setup, not current missing compiler binary.
+- 2026-04-28: `tc -x efi2_linux64_xmain_sycl -t sycl_cts_light/stream_semantics -l opt_use_gpu_O0_debug -r none -memcheck check_exec -c_flags "-Xclang -no-disable-free" -xml_time 0` built and passed. Remote test log: `/localdisk2/rrudnick/llvm_test/stream_semantics.lf`.
+- 2026-04-28: Valgrind report generated at `/localdisk2/rrudnick/llvm_test/_VALGRIND/valgrind_reports/v.pod-ub24-jfel-arl-799814.sycl_cts_light.stream_semantics.R.1130`. No output hit for `umf::memoryProviderMakeUnique`.
+- 2026-04-28: Current actionable valgrind findings are in external GPU compiler/runtime libs, not UMF symbol stack traces. First visible errors: `Conditional jump or move depends on uninitialised value(s)` in `libze_intel_gpu.so.1.14.37020` and `libigc.so.2.28.4`. Summary from report: `definitely lost: 133,996 bytes in 331 blocks`, `possibly lost: 6,734,246 bytes in 1,335 blocks`, `ERROR SUMMARY: 4656 errors from 462 contexts`.
+- 2026-04-27: In progress. Starting remote reproduction from this plan.
+- 2026-04-27: SSH repro run completed and transcript was saved to temp_valgrind/repro_20260427.log.
+- 2026-04-27: Blocked before valgrind triage. The tc run failed with `compfail - stream_semantics - cmake fail`.
+- 2026-04-27: Relevant compiler setup error from the log: `icx-WRAPPER: Failed to execvp(): icx: No such file or directory`.
+- 2026-04-27: No valgrind output mentioning `umf::memoryProviderMakeUnique` was produced in this run because the test did not build.
+
+0. orig icssetup
+
+    # 20260124_160000 
+    # qa_release -> debug
+
+    pod ub24
+    export ICS_START=/rdrive/ics/itools/unx/bin/
+    source $ICS_START/icssetup.sh
+    source $ICS_START/icsenv.sh
+
+    ics set top ws /iusers/rrudnick
+    ics set ws -nocd -archive deploy_xmain 20260305_160000 xmainefi2linux
+    ics set config -ws xmainefi2linux qa_release ld=bfd GCC=15.2.0 binutils=SYS
+    ics set context ws host
+    tc -x efi2_linux64_xmain_sycl -t sycl_cts_light/stream_semantics -l opt_use_gpu_O0_debug -r none -memcheck check_exec -c_flags "-Xclang -no-disable-free" -xml_time 0
+
+0.1 
+
+    ics make llvm_repro xmain-rel 20260124_160000
+    ics set config -ws xmainefi2linux prod ld=bfd GCC=15.2.0 binutils=SYS # or debug
+    ics set ws llvm_repro
+    ics build -slibs -bldocl -j$(nproc)
+    wcontext
+
+1. build + repro 
+
+    # ssh rrudnick@jfel-arl-799814.jf.intel.com
+    ssh rrudnick@jfel-spr-142174.jf.intel.com
+
+then 
+
+    export ICS_START=/rdrive/ics/itools/unx/bin/
+    source $ICS_START/icssetup.sh
+    source $ICS_START/icsenv.sh
+
+    pod ub24
+
+    cd /localdisk2/rrudnick
+
+    export ICS_START=/rdrive/ics/itools/unx/bin/
+    source $ICS_START/icssetup.sh
+    source $ICS_START/icsenv.sh
+
+    #ics set ws -nocd -archive deploy_xmain 20260124_160000 xmainefi2linux
+    #ics set config -ws xmainefi2linux debug ld=bfd GCC=15.2.0 binutils=SYS
+    #ics set context ws host
+
+    ics set top ws /iusers/rrudnick
+    ics make llvm_test xmain-rel 20260305_160000
+    ics set ws llvm_test
+    ics set config -ws xmainefi2linux debug ld=bfd GCC=15.2.0 binutils=SYS # prod / debug
+    wcontext
+
+    # build if needed
+    ics build -slibs -bldocl -j$(nproc)
+
+    export PATH=/localdisk2/rrudnick/llvm_test/deploy/linux_prod/bin:$PATH
+    export LD_LIBRARY_PATH=/localdisk2/rrudnick/llvm_test/deploy/linux_prod/lib:$LD_LIBRARY_PATH
+    export LD_LIBRARY_PATH=/localdisk2/rrudnick/unified-memory-framework/_install/lib:$LD_LIBRARY_PATH
+
+    tc -x efi2_linux64_xmain_sycl -t sycl_cts_light/stream_semantics -l opt_use_gpu_O0_debug -r none -memcheck check_exec -c_flags "-Xclang -no-disable-free" -xml_time 0
+
+then check output from valgrind and look for problems from umf::memoryProviderMakeUnique
+
+2. repro only
+
+    ssh rrudnick@jfel-arl-142174.jf.intel.com
+
+    export ICS_START=/rdrive/ics/itools/unx/bin/
+    source $ICS_START/icssetup.sh
+    source $ICS_START/icsenv.sh
+
+    pod ub24
+
+    cd /localdisk2/rrudnick
+
+    export ICS_START=/rdrive/ics/itools/unx/bin/
+    source $ICS_START/icssetup.sh
+    source $ICS_START/icsenv.sh
+
+    ics set top ws /iusers/rrudnick
+    ics set ws llvm_test
+    ics set config -ws xmainefi2linux prod ld=bfd GCC=15.2.0 binutils=SYS # or debug
+
+    # build if needed
+    ics build -slibs -bldocl -j$(nproc)    
+    wcontext
+
+    export PATH=/localdisk2/rrudnick/llvm_test/deploy/linux_prod/bin:$PATH
+    export LD_LIBRARY_PATH=/localdisk2/rrudnick/llvm_test/deploy/linux_prod/lib:$LD_LIBRARY_PATH
+    export LD_LIBRARY_PATH=/localdisk2/rrudnick/unified-memory-framework/_install/lib:$LD_LIBRARY_PATH
+
+    tc -x efi2_linux64_xmain_sycl -t sycl_cts_light/stream_semantics -l opt_use_gpu_O0_debug -r none -memcheck check_exec -c_flags "-Xclang -no-disable-free" -xml_time 0
+
+then check output from valgrind and look for problems from umf::memoryProviderMakeUnique
+
+3. copy reports 
+
+ls /localdisk2/rrudnick/llvm_test/_VALGRIND/valgrind_reports -l
+
+scp rrudnick@jfel-spr-142174.jf.intel.com:/localdisk2/rrudnick/llvm_test/_VALGRIND/valgrind_reports/
+
+v.jfel-spr-142174.sycl_cts_light.stream_semantics.R.3161153 
+
+/home/rrudnick/llvm/temp_valgrind/report

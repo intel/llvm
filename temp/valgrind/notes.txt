@@ -1,0 +1,34 @@
+
+example umfMemoryProviderAlloc
+
+==3203212== 1,680 bytes in 1 blocks are possibly lost in loss record 1,422 of 1,458
+==3203212==    at 0x4E045B3: operator new(unsigned long) (vg_replace_malloc.c:342)
+==3203212==    by 0xC042496: ???
+==3203212==    by 0xBFD2A1E: ???
+==3203212==    by 0xBFD2FA4: ???
+==3203212==    by 0xBBBCFCF: ???
+==3203212==    by 0xB044D4F: zeMemAllocDevice (level-zero-loader-src/source/lib/ze_libapi.cpp:6243)
+==3203212==    by 0xAF1DCA6: USMDeviceAllocImpl(void**, ur_context_handle_t_*, ur_device_handle_t_*, unsigned int, unsigned long, unsigned int) (llvm/unified-runtime/source/adapters/level_zero/usm.cpp:196)
+==3203212==    by 0xAF1DBD9: L0DeviceMemoryProvider::allocateImpl(void**, unsigned long, unsigned int) (llvm/unified-runtime/source/adapters/level_zero/usm.cpp:965)
+==3203212==    by 0xAF1C856: L0MemoryProvider::alloc(unsigned long, unsigned long, void**) (llvm/unified-runtime/source/adapters/level_zero/usm.cpp:746)
+==3203212==    by 0xAF322F4: _ZZN3umf24memoryProviderMakeUniqueI22L0DeviceMemoryProviderJRP20ur_context_handle_t_RP19ur_device_handle_t_EEEDaDpOT0_ENKUlPvDpT_E_clIJmmPSB_EEEDaSB_SD_ (llvm/unified-runtime/source/common/umf_helpers.hpp:192)
+==3203212==    by 0xAF32291: _ZZN3umf24memoryProviderMakeUniqueI22L0DeviceMemoryProviderJRP20ur_context_handle_t_RP19ur_device_handle_t_EEEDaDpOT0_ENUlPvDpT_E_8__invokeIJmmPSB_EEEDaSB_SD_ (llvm/unified-runtime/source/common/umf_helpers.hpp:192)
+==3203212==    by 0xB0EDED8: umfMemoryProviderAlloc (in /localdisk2/rrudnick/unified-memory-framework/_install/lib/libumf.so.1.1.0)
+==3203212== 
+
+umf_helpers
+
+==3232089== 32 bytes in 1 blocks are possibly lost in loss record 272 of 1,458
+==3232089==    at 0x4E045B3: operator new(unsigned long) (vg_replace_malloc.c:342)
+==3232089==    by 0xC02EB26: ???
+==3232089==    by 0xC0424C0: ???
+==3232089==    by 0xBFD2A1E: ???
+==3232089==    by 0xBFD2FA4: ???
+==3232089==    by 0xBBBCFCF: ???
+==3232089==    by 0xB044D4F: zeMemAllocDevice (level-zero-loader-src/source/lib/ze_libapi.cpp:6243)
+==3232089==    by 0xAF1DCA6: USMDeviceAllocImpl(void**, ur_context_handle_t_*, ur_device_handle_t_*, unsigned int, unsigned long, unsigned int) (llvm/unified-runtime/source/adapters/level_zero/usm.cpp:196)
+==3232089==    by 0xAF1DBD9: L0DeviceMemoryProvider::allocateImpl(void**, unsigned long, unsigned int) (llvm/unified-runtime/source/adapters/level_zero/usm.cpp:965)
+==3232089==    by 0xAF1C856: L0MemoryProvider::alloc(unsigned long, unsigned long, void**) (llvm/unified-runtime/source/adapters/level_zero/usm.cpp:746)
+==3232089==    by 0xAF322F4: _ZZN3umf24memoryProviderMakeUniqueI22L0DeviceMemoryProviderJRP20ur_context_handle_t_RP19ur_device_handle_t_EEEDaDpOT0_ENKUlPvDpT_E_clIJmmPSB_EEEDaSB_SD_ (llvm/unified-runtime/source/common/umf_helpers.hpp:192)
+==3232089==    by 0xAF32291: _ZZN3umf24memoryProviderMakeUniqueI22L0DeviceMemoryProviderJRP20ur_context_handle_t_RP19ur_device_handle_t_EEEDaDpOT0_ENUlPvDpT_E_8__invokeIJmmPSB_EEEDaSB_SD_ (llvm/unified-runtime/source/common/umf_helpers.hpp:192)
+==3232089== 

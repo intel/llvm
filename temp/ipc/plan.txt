@@ -1,0 +1,21 @@
+
+plan:
+
+1. look at changes in PR https://github.com/intel/llvm/pull/21987
+2. look at the status of CI
+3. minimize workflows so only Experimental/ipc_memory.cpp is run
+4. enable SYCL, UR and UMF logs. Add extra logs for IPC to check if it is properly enaled and when
+5. diagnose why test is failing
+6. fix the test, push the changes and check CI 
+7. on any failures - fix them or add more logs to find the problem, then repeat 6
+
+status:
+
+1. zwięzły: done. PR changes touch [ipc_memory test], UR L0 v2 IPC workaround, docs, and Windows IPC runtime path.
+2. zwięzły: done. CI red in Windows E2E matrix only; Windows build/LIT green, failing runners are Level Zero GPU E2E jobs.
+3. zwięzły: done. Windows precommit E2E build/run now filtered to Experimental/ipc_memory.cpp.
+4. zwięzły: done. Test now enables SYCL/UR/UMF logs and prints runtime/env/IPC diagnostics in spawner and consumer.
+5. zwięzły: done. Likely root cause in L0 v2 IPC path: workaround set only on default provider creation, but old working adapter reapplies it by provider handle at IPC get/open time.
+6. zwięzły: in progress. After Windows failures on a276b8cfdd3, pushed follow-up debug commit fae705528d5; fresh CI rerun has started and SYCL Windows build / Build + LIT is pending again.
+7. zwięzły: in progress. Current loop added more Windows spawn diagnostics in ipc_memory: direct includes, quoted child command, GetLastError/timeout/exit-code reporting, and hard failure on child launch/exit issues; waiting for new CI result to choose next fix.
+
