@@ -11,9 +11,15 @@
 #include <sycl/ext/oneapi/experimental/ipc_memory.hpp>
 #include <sycl/usm.hpp>
 
+#include <cassert>
+#include <cstring>
 #include <cstdio>
 #include <cstdlib>
 #include <fstream>
+#include <iostream>
+#include <memory>
+#include <stdexcept>
+#include <string>
 
 #if defined(__linux__)
 #include <linux/prctl.h>
@@ -45,7 +51,7 @@ static void print_runtime_diagnostics(const char *Role, sycl::queue &Q) {
 }
 
 void spawn_and_sync(std::string Exe) {
-  std::string Cmd = Exe + " 1";
+  std::string Cmd = '"' + Exe + '"' + " 1";
   std::cout << "Spawning: " << Cmd << std::endl;
 #if defined(__WIN32__) || defined(_WIN32)
   STARTUPINFO StartupInfo;
@@ -58,13 +64,41 @@ void spawn_and_sync(std::string Exe) {
       CreateProcessA(NULL, const_cast<char *>(Cmd.c_str()), NULL, NULL, TRUE, 0,
                      NULL, NULL, &StartupInfo, &ProcInfo);
   std::cout << "CreateProcessA result: " << Created << std::endl;
+  if (!Created) {
+    std::cout << "CreateProcessA GetLastError: " << GetLastError()
+              << std::endl;
+    throw std::runtime_error("CreateProcessA failed");
+  }
+
   DWORD WaitStatus = WaitForSingleObject(ProcInfo.hProcess, 30000);
   std::cout << "WaitForSingleObject result: " << WaitStatus << std::endl;
+  if (WaitStatus == WAIT_FAILED) {
+    std::cout << "WaitForSingleObject GetLastError: " << GetLastError()
+              << std::endl;
+    CloseHandle(ProcInfo.hProcess);
+    CloseHandle(ProcInfo.hThread);
+    throw std::runtime_error("WaitForSingleObject failed");
+  }
+
+  if (WaitStatus == WAIT_TIMEOUT) {
+    CloseHandle(ProcInfo.hProcess);
+    CloseHandle(ProcInfo.hThread);
+    throw std::runtime_error("Child process timed out");
+  }
+
   DWORD ExitCode = 0;
-  if (Created && GetExitCodeProcess(ProcInfo.hProcess, &ExitCode))
-    std::cout << "Child exit code: " << ExitCode << std::endl;
+  if (!GetExitCodeProcess(ProcInfo.hProcess, &ExitCode)) {
+    std::cout << "GetExitCodeProcess GetLastError: " << GetLastError()
+              << std::endl;
+    CloseHandle(ProcInfo.hProcess);
+    CloseHandle(ProcInfo.hThread);
+    throw std::runtime_error("GetExitCodeProcess failed");
+  }
+  std::cout << "Child exit code: " << ExitCode << std::endl;
   CloseHandle(ProcInfo.hProcess);
   CloseHandle(ProcInfo.hThread);
+  if (ExitCode != 0)
+    throw std::runtime_error("Child process returned non-zero exit code");
 #else
   std::system(Cmd.c_str());
 #endif
