@@ -1026,8 +1026,16 @@ bool SPIRVModuleImpl::importBuiltinSet(const std::string &BuiltinSetName,
 bool SPIRVModuleImpl::importBuiltinSetWithId(const std::string &BuiltinSetName,
                                              SPIRVId BuiltinSetId) {
   SPIRVExtInstSetKind BuiltinSet = SPIRVEIS_Count;
-  SPIRVCKRT(SPIRVBuiltinSetNameMap::rfind(BuiltinSetName, &BuiltinSet),
-            InvalidBuiltinSetName, "Actual is " + BuiltinSetName);
+  if (!SPIRVBuiltinSetNameMap::rfind(BuiltinSetName, &BuiltinSet)) {
+    // Per the non-semantic principle, a consumer may safely ignore any
+    // "NonSemantic.*" extended instruction set it does not recognize.
+    // Accept the import and tag it with a sentinel kind.
+    if (BuiltinSetName.find("NonSemantic.") == 0) {
+      IdToInstSetMap[BuiltinSetId] = SPIRVEIS_NonSemantic_Unknown;
+      return true;
+    }
+    SPIRVCKRT(false, InvalidBuiltinSetName, "Actual is " + BuiltinSetName);
+  }
   IdToInstSetMap[BuiltinSetId] = BuiltinSet;
   ExtInstSetIds[BuiltinSet] = BuiltinSetId;
   return true;

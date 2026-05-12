@@ -1631,6 +1631,15 @@ MDNode *SPIRVToLLVMDbgTran::transDebugInstImpl(const SPIRVExtInst *DebugInst) {
     return transTypeArrayDynamic(DebugInst);
 
   default:
+    // Non-semantic shader debug info opcodes that are unknown to this
+    // translator are silently ignored to avoid crashing on modules produced
+    // by newer producers. The semantic OpenCL/SPIRV.debug paths still
+    // require every opcode to be implemented.
+    // TODO: since introduction of rolling version of NonSemanticDebugInfo, we
+    // must no longer just ignore unknown debug info set, but instead process
+    // instructions, that the translator know.
+    if (isNonSemanticDebugInfo(DebugInst->getExtSetKind()))
+      return nullptr;
     llvm_unreachable("Not implemented SPIR-V debug instruction!");
   }
 }
@@ -1696,6 +1705,8 @@ SPIRVToLLVMDbgTran::transDebugIntrinsic(const SPIRVExtInst *DebugInst,
     return DbgValIntr;
   }
   default:
+    if (isNonSemanticDebugInfo(DebugInst->getExtSetKind()))
+      return nullptr;
     llvm_unreachable("Unknown debug intrinsic!");
   }
 }

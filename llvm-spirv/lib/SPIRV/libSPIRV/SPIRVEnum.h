@@ -81,6 +81,9 @@ enum SPIRVExtInstSetKind {
   SPIRVEIS_NonSemantic_Shader_DebugInfo_100,
   SPIRVEIS_NonSemantic_Shader_DebugInfo_200,
   SPIRVEIS_NonSemantic_AuxData,
+  // Sentinel kind for any "NonSemantic.*" extended instruction set the
+  // translator does not recognize.
+  SPIRVEIS_NonSemantic_Unknown,
   SPIRVEIS_Count,
 };
 
