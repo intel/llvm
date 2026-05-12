@@ -57,11 +57,11 @@ TEST_F(Fp8BuiltinCallTest, E4M3CastToBf16CallsConvertE4M3ToBF16) {
   EXPECT_EQ(fp8_builtin_mock::getCounters().ConvertE4M3ToBF16EXT, 1);
 }
 
-TEST_F(Fp8BuiltinCallTest, E4M3CastToBoolCallsConvertE4M3ToFP16) {
+TEST_F(Fp8BuiltinCallTest, E4M3CastToBoolDoesNotCallConvertE4M3ToFP16) {
   fp8_e4m3 Value(static_cast<sycl::half>(1.0f));
   fp8_builtin_mock::resetCounters();
-  (void)static_cast<bool>(Value);
-  EXPECT_EQ(fp8_builtin_mock::getCounters().ConvertE4M3ToFP16EXT, 1);
+  EXPECT_TRUE(static_cast<bool>(Value));
+  EXPECT_EQ(fp8_builtin_mock::getCounters().ConvertE4M3ToFP16EXT, 0);
 }
 
 TEST_F(Fp8BuiltinCallTest, E4M3MarrayCastToHalfCallsConvertE4M3ToFP16) {
