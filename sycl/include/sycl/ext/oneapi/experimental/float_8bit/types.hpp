@@ -149,13 +149,6 @@ template <> struct SourceTraits<sycl::ext::oneapi::bfloat16> {
   static constexpr int Bias = 127;
 };
 
-template <> struct SourceTraits<double> {
-  using UInt = uint64_t;
-  static constexpr size_t ExpBits = 11;
-  static constexpr size_t FracBits = 52;
-  static constexpr int Bias = 1023;
-};
-
 template <> struct SourceTraits<char> {
   using UInt = uint8_t;
   using UnsignedT = std::make_unsigned_t<char>;
@@ -832,8 +825,7 @@ template <size_t N> class fp8_e4m3_x {
     return __builtin_spirv_ClampConvertFP16ToE4M3INTEL(v);
 #else
     if constexpr (std::is_same_v<std::decay_t<T>, sycl::half> ||
-                  std::is_same_v<std::decay_t<T>, float> ||
-                  std::is_same_v<std::decay_t<T>, double>) {
+                  std::is_same_v<std::decay_t<T>, float>) {
       return detail::ConvertFloatToFP8_CPU<NExpBits, NFracBits, T>(
           h, rounding::to_even, saturation::finite);
     } else if constexpr (std::is_integral_v<std::decay_t<T>>) {
@@ -886,7 +878,7 @@ public:
   ~fp8_e4m3_x() = default;
   fp8_e4m3_x &operator=(const fp8_e4m3_x &) = default;
 
-  // Construct from pack of half, float, double.
+  // Construct from pack of half, float.
   // Available only when the size of the pack is equal to N.
 
   template <typename... Types,
@@ -894,8 +886,7 @@ public:
                 (sizeof...(Types) == N) &&
                 (((std::is_same_v<std::decay_t<Types>, half>) && ...) ||
                  ((std::is_same_v<std::decay_t<Types>, bfloat16>) && ...) ||
-                 ((std::is_same_v<std::decay_t<Types>, float>) && ...) ||
-                 ((std::is_same_v<std::decay_t<Types>, double>) && ...))>>
+                 ((std::is_same_v<std::decay_t<Types>, float>) && ...))>>
   explicit fp8_e4m3_x(Types... v) {
     if constexpr (((std::is_same_v<std::decay_t<Types>, bfloat16>) && ...)) {
       const bfloat16 in[N] = {static_cast<bfloat16>(v)...};
@@ -909,7 +900,7 @@ public:
     }
   }
 
-  // Construct from an array of half, bfloat16, float, double.
+  // Construct from an array of half, bfloat16, float.
   explicit fp8_e4m3_x(sycl::half const (&v)[N],
                       rounding r = rounding::to_even) {
     CheckConstraints(r);
@@ -929,12 +920,7 @@ public:
       vals[i] = ConvertToFP8(v[i]);
   }
 
-  explicit fp8_e4m3_x(double const (&v)[N]) {
-    for (size_t i = 0; i < N; ++i)
-      vals[i] = ConvertToFP8(v[i]);
-  }
-
-  // Construct from an marray of half, bfloat16, float, double.
+  // Construct from an marray of half, bfloat16, float.
   explicit fp8_e4m3_x(const sycl::marray<sycl::half, N> &v,
                       rounding r = rounding::to_even) {
     CheckConstraints(r);
@@ -952,11 +938,6 @@ public:
   explicit fp8_e4m3_x(const sycl::marray<float, N> &v,
                       rounding r = rounding::to_even) {
     CheckConstraints(r);
-    for (size_t i = 0; i < N; ++i)
-      vals[i] = ConvertToFP8(v[i]);
-  }
-
-  explicit fp8_e4m3_x(const sycl::marray<double, N> &v) {
     for (size_t i = 0; i < N; ++i)
       vals[i] = ConvertToFP8(v[i]);
   }
@@ -1004,7 +985,7 @@ public:
     vals[0] = ConvertToFP8(val);
   }
 
-  // Assign (operator) from half, bfloat16, float, double, and integer types.
+  // Assign (operator) from half, bfloat16, float, and integer types.
   // Available only when N==1.
 
   template <size_t M = N, typename = std::enable_if_t<M == 1>>
@@ -1021,12 +1002,6 @@ public:
 
   template <size_t M = N, typename = std::enable_if_t<M == 1>>
   fp8_e4m3_x &operator=(float val) {
-    vals[0] = ConvertToFP8(val);
-    return *this;
-  }
-
-  template <size_t M = N, typename = std::enable_if_t<M == 1>>
-  fp8_e4m3_x &operator=(double val) {
     vals[0] = ConvertToFP8(val);
     return *this;
   }
@@ -1079,7 +1054,7 @@ public:
     return *this;
   }
 
-  // Convert to half, bfloat16, float, double.
+  // Convert to half, bfloat16, float.
   // Available only when N==1.
 
   template <size_t M = N, typename = std::enable_if_t<M == 1>>
@@ -1094,10 +1069,6 @@ public:
   template <size_t M = N, typename = std::enable_if_t<M == 1>>
   explicit operator float() const {
     return ConvertFromFP8<float>(vals[0]);
-  }
-  template <size_t M = N, typename = std::enable_if_t<M == 1>>
-  explicit operator double() const {
-    return ConvertFromFP8<double>(vals[0]);
   }
 
   // Convert to integer types.
@@ -1162,15 +1133,8 @@ public:
 
   template <size_t M = N, typename = std::enable_if_t<M == 1>>
   explicit operator bool() const {
-#ifdef __SYCL_DEVICE_ONLY__
-    // detect +0 / -0
-    sycl::half h =
-        __builtin_spirv_ConvertE4M3ToFP16EXT(sycl::bit_cast<char>(vals[0]));
-    return h != 0;
-#else
     // no need to convert, just check sign bit and 0s
     return vals[0] != 0 && vals[0] != 0x80;
-#endif
   }
 
   // Convert to marray of half, bfloat16, float
@@ -1219,8 +1183,7 @@ template <size_t N> class fp8_e5m2_x {
                : __builtin_spirv_ConvertFP16ToE5M2EXT(v);
 #else
     if constexpr (std::is_same_v<std::decay_t<T>, sycl::half> ||
-                  std::is_same_v<std::decay_t<T>, float> ||
-                  std::is_same_v<std::decay_t<T>, double>) {
+                  std::is_same_v<std::decay_t<T>, float>) {
       return detail::ConvertFloatToFP8_CPU<NExpBits, NFracBits, T>(
           h, rounding::to_even, s);
     } else if constexpr (std::is_integral_v<std::decay_t<T>>) {
@@ -1275,7 +1238,7 @@ public:
   ~fp8_e5m2_x() = default;
   fp8_e5m2_x &operator=(const fp8_e5m2_x &) = default;
 
-  // Construct from pack of half, bfloat16, float, double.
+  // Construct from pack of half, bfloat16, float.
   // Available only when the size of the pack is equal to N.
 
   // Available only when each type in the pack is half.
@@ -1285,8 +1248,7 @@ public:
                 (sizeof...(Types) == N) &&
                 (((std::is_same_v<std::decay_t<Types>, half>) && ...) ||
                  ((std::is_same_v<std::decay_t<Types>, bfloat16>) && ...) ||
-                 ((std::is_same_v<std::decay_t<Types>, float>) && ...) ||
-                 ((std::is_same_v<std::decay_t<Types>, double>) && ...))>>
+                 ((std::is_same_v<std::decay_t<Types>, float>) && ...))>>
   explicit fp8_e5m2_x(Types... v) {
     if constexpr (((std::is_same_v<std::decay_t<Types>, bfloat16>) && ...)) {
       const bfloat16 in[N] = {static_cast<bfloat16>(v)...};
@@ -1300,7 +1262,7 @@ public:
     }
   }
 
-  // Construct from an array of half, bfloat16, float, double.
+  // Construct from an array of half, bfloat16, float.
 
   explicit fp8_e5m2_x(half const (&v)[N], rounding r = rounding::to_even,
                       saturation s = saturation::finite) {
@@ -1325,12 +1287,7 @@ public:
       vals[i] = ConvertToFP8(v[i], s);
   }
 
-  explicit fp8_e5m2_x(double const (&v)[N]) {
-    for (size_t i = 0; i < N; ++i)
-      vals[i] = ConvertToFP8(v[i], saturation::finite);
-  }
-
-  // Construct from an marray of half, bfloat16, float, double.
+  // Construct from an marray of half, bfloat16, float.
 
   explicit fp8_e5m2_x(const sycl::marray<sycl::half, N> &v,
                       rounding r = rounding::to_even,
@@ -1354,11 +1311,6 @@ public:
     CheckConstraints(r);
     for (size_t i = 0; i < N; ++i)
       vals[i] = ConvertToFP8(v[i], s);
-  }
-
-  explicit fp8_e5m2_x(const sycl::marray<double, N> &v) {
-    for (size_t i = 0; i < N; ++i)
-      vals[i] = ConvertToFP8(v[i], saturation::finite);
   }
 
   // Construct with stochastic rounding with user provided seed from an array of
@@ -1485,7 +1437,7 @@ public:
     vals[0] = ConvertToFP8(val, saturation::finite);
   }
 
-  // Assign (operator) from half, bfloat16, float, double, and integer types.
+  // Assign (operator) from half, bfloat16, float, and integer types.
   // Available only when N==1.
 
   template <size_t M = N, typename = std::enable_if_t<M == 1>>
@@ -1506,11 +1458,6 @@ public:
     return *this;
   }
 
-  template <size_t M = N, typename = std::enable_if_t<M == 1>>
-  fp8_e5m2_x &operator=(double val) {
-    vals[0] = ConvertToFP8(val, saturation::finite);
-    return *this;
-  }
 
   template <size_t M = N, typename = std::enable_if_t<M == 1>>
   fp8_e5m2_x &operator=(short val) {
@@ -1560,7 +1507,7 @@ public:
     return *this;
   }
 
-  // Convert to half, bfloat16, float, double.
+  // Convert to half, bfloat16, float.
   // Available only when N==1.
 
   template <size_t M = N, typename = std::enable_if_t<M == 1>>
@@ -1578,10 +1525,6 @@ public:
     return ConvertFromFP8<float>(vals[0]);
   }
 
-  template <size_t M = N, typename = std::enable_if_t<M == 1>>
-  explicit operator double() const {
-    return ConvertFromFP8<double>(vals[0]);
-  }
 
   // Convert to integer types.
   // Available only when N==1.
@@ -1695,8 +1638,7 @@ public:
                 (sizeof...(Types) == N) &&
                 (((std::is_same_v<std::decay_t<Types>, half>) && ...) ||
                  ((std::is_same_v<std::decay_t<Types>, bfloat16>) && ...) ||
-                 ((std::is_same_v<std::decay_t<Types>, float>) && ...) ||
-                 ((std::is_same_v<std::decay_t<Types>, double>) && ...))>>
+                 ((std::is_same_v<std::decay_t<Types>, float>) && ...))>>
   explicit fp8_e8m0_x(Types... v) {
     using InT = std::common_type_t<std::decay_t<Types>...>;
     const InT in[N] = {v...};
@@ -1723,12 +1665,6 @@ public:
       vals[i] = detail::ConvertFloatToE8M0_CPU(in[i], r, saturation::finite);
   }
 
-  explicit fp8_e8m0_x(double const (&in)[N]) {
-    for (size_t i = 0; i < N; ++i)
-      vals[i] = detail::ConvertFloatToE8M0_CPU(in[i], rounding::upward,
-                                               saturation::finite);
-  }
-
   explicit fp8_e8m0_x(const marray<half, N> &in,
                       rounding r = rounding::upward) {
     CheckConstraints(r);
@@ -1748,12 +1684,6 @@ public:
     CheckConstraints(r);
     for (size_t i = 0; i < N; ++i)
       vals[i] = detail::ConvertFloatToE8M0_CPU(in[i], r, saturation::finite);
-  }
-
-  explicit fp8_e8m0_x(const marray<double, N> &in) {
-    for (size_t i = 0; i < N; ++i)
-      vals[i] = detail::ConvertFloatToE8M0_CPU(in[i], rounding::upward,
-                                               saturation::finite);
   }
 
   // Construct from integer types.
@@ -1823,13 +1753,6 @@ public:
   }
 
   template <size_t M = N, typename = std::enable_if_t<M == 1>>
-  fp8_e8m0_x &operator=(double val) {
-    vals[0] = detail::ConvertFloatToE8M0_CPU(val, rounding::upward,
-                                             saturation::finite);
-    return *this;
-  }
-
-  template <size_t M = N, typename = std::enable_if_t<M == 1>>
   fp8_e8m0_x &operator=(short val) {
     vals[0] =
         detail::ConvertIntToE8M0_CPU(val, rounding::upward, saturation::finite);
@@ -1886,13 +1809,10 @@ public:
   explicit operator bfloat16() const {
     return detail::ConvertFromE8M0_CPU<bfloat16>(vals[0], rounding::to_even);
   }
+
   template <size_t M = N, typename = std::enable_if_t<M == 1>>
   explicit operator float() const {
     return detail::ConvertFromE8M0_CPU<float>(vals[0], rounding::to_even);
-  }
-  template <size_t M = N, typename = std::enable_if_t<M == 1>>
-  explicit operator double() const {
-    return detail::ConvertFromE8M0_CPU<double>(vals[0], rounding::to_even);
   }
 
   template <size_t M = N, typename = std::enable_if_t<M == 1>>

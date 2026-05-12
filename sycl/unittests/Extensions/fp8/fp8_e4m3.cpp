@@ -85,6 +85,32 @@ TEST(FP8E4M3Test, VariadicNaNEncodingFloat) {
   EXPECT_EQ(a.vals[1], 0xFF); // -NaN -> 0b1_1111_111
 }
 
+TEST(FP8E4M3Test, ScalarInfinityClampsToMaxNormalPreservingSign) {
+  // Spec: non-stochastic conversion with finite saturation clamps Infinity to
+  // max normal while preserving sign.
+  fp8_e4m3 pos(std::numeric_limits<float>::infinity());
+  fp8_e4m3 neg(-std::numeric_limits<float>::infinity());
+
+  EXPECT_EQ(pos.vals[0], 0x7E); // +448.0 -> 0b0_1111_110
+  EXPECT_EQ(neg.vals[0], 0xFE); // -448.0 -> 0b1_1111_110
+
+  EXPECT_EQ(static_cast<float>(pos), 448.0f);
+  EXPECT_EQ(static_cast<float>(neg), -448.0f);
+}
+
+TEST(FP8E4M3Test, X2InfinityClampsToMaxNormalPreservingSign) {
+  const float in[2] = {std::numeric_limits<float>::infinity(),
+                       -std::numeric_limits<float>::infinity()};
+  fp8_e4m3_x2 value(in);
+
+  EXPECT_EQ(value.vals[0], 0x7E); // +448.0 -> 0b0_1111_110
+  EXPECT_EQ(value.vals[1], 0xFE); // -448.0 -> 0b1_1111_110
+
+  sycl::marray<float, 2> out = static_cast<sycl::marray<float, 2>>(value);
+  EXPECT_EQ(out[0], 448.0f);
+  EXPECT_EQ(out[1], -448.0f);
+}
+
 TEST(FP8E4M3Test, IntegerToEvenFiniteAndSize) {
   // Integer constructors: to_even + finite saturation (CPU).
   fp8_e4m3 a0(0);
@@ -117,6 +143,43 @@ TEST(FP8E4M3Test, AssignmentOperatorToEvenFiniteAndSize) {
 
   a = 0.015625f; // min normal
   EXPECT_EQ(a.vals[0], 0x08);
+}
+
+TEST(FP8E4M3Test, AssignmentOperatorsAllScalarWidths) {
+  fp8_e4m3 value(11.0f);
+
+  EXPECT_EQ(&(value = sycl::half(11.0f)), &value);
+  EXPECT_EQ(static_cast<float>(value), 11.0f);
+
+  EXPECT_EQ(&(value = sycl::ext::oneapi::bfloat16(-13.0f)), &value);
+  EXPECT_EQ(static_cast<float>(value), -13.0f);
+
+  EXPECT_EQ(&(value = 14.0f), &value);
+  EXPECT_EQ(static_cast<float>(value), 14.0f);
+
+  EXPECT_EQ(&(value = static_cast<short>(9)), &value);
+  EXPECT_EQ(static_cast<float>(value), 9.0f);
+
+  EXPECT_EQ(&(value = -10), &value);
+  EXPECT_EQ(static_cast<float>(value), -10.0f);
+
+  EXPECT_EQ(&(value = 22L), &value);
+  EXPECT_EQ(static_cast<float>(value), 22.0f);
+
+  EXPECT_EQ(&(value = -26LL), &value);
+  EXPECT_EQ(static_cast<float>(value), -26.0f);
+
+  EXPECT_EQ(&(value = static_cast<unsigned short>(30)), &value);
+  EXPECT_EQ(static_cast<float>(value), 30.0f);
+
+  EXPECT_EQ(&(value = 44U), &value);
+  EXPECT_EQ(static_cast<float>(value), 44.0f);
+
+  EXPECT_EQ(&(value = 52UL), &value);
+  EXPECT_EQ(static_cast<float>(value), 52.0f);
+
+  EXPECT_EQ(&(value = 88ULL), &value);
+  EXPECT_EQ(static_cast<float>(value), 88.0f);
 }
 
 TEST(FP8E4M3Test, FloatingPointConversionOperators) {
@@ -199,25 +262,6 @@ TEST(FP8E4M3Test, CArrayFloatHostToEvenFinite) {
   EXPECT_EQ(a2.vals[1], 0x00); // 0
 }
 
-TEST(FP8E4M3Test, CArrayDoubleToEvenFinite) {
-  // Double c-array: to_even + finite saturation.
-  const double in[2] = {448.0, 449.0};
-  const double in1[2] = {0.015625, 0.013671875};
-  const double in2[2] = {0.001953125, std::numeric_limits<double>::quiet_NaN()};
-  fp8_e4m3_x2 a(in);
-  fp8_e4m3_x2 a1(in1);
-  fp8_e4m3_x2 a2(in2);
-
-  EXPECT_EQ(sizeof(a.vals), 2u);
-  EXPECT_EQ(sizeof(a1.vals), 2u);
-  EXPECT_EQ(sizeof(a2.vals), 2u);
-  EXPECT_EQ(a.vals[0], 0x7E);  // +448
-  EXPECT_EQ(a.vals[1], 0x7E);  // 449 -> clamp to +448
-  EXPECT_EQ(a1.vals[0], 0x08); // min normal
-  EXPECT_EQ(a1.vals[1], 0x07); // max subnormal
-  EXPECT_EQ(a2.vals[0], 0x01); // min subnormal
-  EXPECT_EQ(a2.vals[1], 0x7F); // NaN
-}
 
 TEST(FP8E4M3Test, CArrayHalfHostToEvenFinite) {
   // Host code supports only rounding::to_even and saturation::finite.
@@ -317,11 +361,9 @@ TEST(FP8E4M3Test, FloatingPointConversionOperatorsMoreTypes) {
   EXPECT_EQ(sizeof(b.vals), 1u);
   EXPECT_EQ(sizeof(nanv.vals), 1u);
 
-  double da = static_cast<double>(a);
   sycl::half ha = static_cast<sycl::half>(a);
   sycl::ext::oneapi::bfloat16 ba = static_cast<sycl::ext::oneapi::bfloat16>(a);
 
-  EXPECT_EQ(da, 1.0);
   EXPECT_EQ(static_cast<float>(ha), 1.0f);
   EXPECT_EQ(static_cast<float>(ba), 1.0f);
 
@@ -329,6 +371,29 @@ TEST(FP8E4M3Test, FloatingPointConversionOperatorsMoreTypes) {
 
   float fn = static_cast<float>(nanv);
   EXPECT_TRUE(std::isnan(fn));
+}
+
+TEST(FP8E4M3Test, MarrayConversionOperatorsHalfNumericValues) {
+  fp8_e4m3_x2 a(6.5f, -0.3125f);
+
+  EXPECT_EQ(sizeof(a.vals), 2u);
+
+  sycl::marray<sycl::half, 2> out = static_cast<sycl::marray<sycl::half, 2>>(a);
+
+  EXPECT_EQ(static_cast<float>(out[0]), 6.5f);
+  EXPECT_EQ(static_cast<float>(out[1]), -0.3125f);
+}
+
+TEST(FP8E4M3Test, MarrayConversionOperatorsBFloat16NumericValues) {
+  fp8_e4m3_x2 a(-12.0f, 0.1875f);
+
+  EXPECT_EQ(sizeof(a.vals), 2u);
+
+  sycl::marray<sycl::ext::oneapi::bfloat16, 2> out =
+      static_cast<sycl::marray<sycl::ext::oneapi::bfloat16, 2>>(a);
+
+  EXPECT_EQ(static_cast<float>(out[0]), -12.0f);
+  EXPECT_EQ(static_cast<float>(out[1]), 0.1875f);
 }
 
 TEST(FP8E4M3Test, IntegerConversionOperatorsMultipleWidthsTowardZero) {
@@ -344,6 +409,32 @@ TEST(FP8E4M3Test, IntegerConversionOperatorsMultipleWidthsTowardZero) {
   EXPECT_EQ(s, -1);
   EXPECT_EQ(l, 1);
   EXPECT_EQ(ll, -1);
+}
+
+TEST(FP8E4M3Test, IntegerConversionOperatorsRemainingWidthsTowardZero) {
+  fp8_e4m3 pos_char(13.0f);
+  fp8_e4m3 neg_schar(-11.0f);
+  fp8_e4m3 pos_uchar(14.0f);
+  fp8_e4m3 pos_ushort(22.0f);
+  fp8_e4m3 pos_uint(30.0f);
+  fp8_e4m3 pos_ulong(44.0f);
+  fp8_e4m3 pos_ull(88.0f);
+
+  char c = static_cast<char>(pos_char);
+  signed char sc = static_cast<signed char>(neg_schar);
+  unsigned char uc = static_cast<unsigned char>(pos_uchar);
+  unsigned short us = static_cast<unsigned short>(pos_ushort);
+  unsigned int ui = static_cast<unsigned int>(pos_uint);
+  unsigned long ul = static_cast<unsigned long>(pos_ulong);
+  unsigned long long ull = static_cast<unsigned long long>(pos_ull);
+
+  EXPECT_EQ(c, static_cast<char>(13));
+  EXPECT_EQ(sc, static_cast<signed char>(-11));
+  EXPECT_EQ(uc, static_cast<unsigned char>(14));
+  EXPECT_EQ(us, static_cast<unsigned short>(22));
+  EXPECT_EQ(ui, 30u);
+  EXPECT_EQ(ul, 44ul);
+  EXPECT_EQ(ull, 88ull);
 }
 
 TEST(FP8E4M3Test, CArrayFloatRoundingToEven) {
@@ -399,13 +490,6 @@ TEST(FP8E4M3Test, MarrayFloatRoundingToEven) {
   EXPECT_EQ(a.vals[1], 0x38);
 }
 
-TEST(FP8E4M3Test, MarrayDoubleToEven) {
-  const sycl::marray<double, 2> in = {0.012, 1.0625};
-  fp8_e4m3_x2 a(in);
-
-  EXPECT_EQ(a.vals[0], 0x06);
-  EXPECT_EQ(a.vals[1], 0x38);
-}
 
 TEST(FP8E4M3Test, VariadicRejectsMixedTypes) {
   EXPECT_FALSE((std::is_constructible_v<fp8_e4m3_x2, float, sycl::half>));
@@ -448,9 +532,6 @@ TEST(FP8E4M3Test, X2NotConstructibleFromSingleFloat) {
   EXPECT_FALSE((std::is_constructible_v<fp8_e4m3_x2, float>));
 }
 
-TEST(FP8E4M3Test, X2NotConstructibleFromSingleDouble) {
-  EXPECT_FALSE((std::is_constructible_v<fp8_e4m3_x2, double>));
-}
 
 TEST(FP8E4M3Test, X2NotConstructibleFromSingleBFloat16) {
   EXPECT_FALSE(
@@ -482,9 +563,6 @@ TEST(FP8E4M3Test, X2NotAssignableFromSingleFloat) {
   EXPECT_FALSE((std::is_assignable_v<fp8_e4m3_x2 &, float>));
 }
 
-TEST(FP8E4M3Test, X2NotAssignableFromSingleDouble) {
-  EXPECT_FALSE((std::is_assignable_v<fp8_e4m3_x2 &, double>));
-}
 
 TEST(FP8E4M3Test, X2NotAssignableFromSingleChar) {
   EXPECT_FALSE((std::is_assignable_v<fp8_e4m3_x2 &, char>));

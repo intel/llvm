@@ -249,27 +249,6 @@ TEST(FP8E5M2Test, CArrayFloatHostToEvenFinite) {
   EXPECT_EQ(a1.vals[1], 0x7B); // finite saturation => +57344
 }
 
-TEST(FP8E5M2Test, CArrayDoubleToEvenFinite) {
-  // Double c-array: to_even + finite saturation.
-  const double in[2] = {57344.0, 60000.0};
-  const double in1[2] = {0.00006103515625, 0.0000457763671875};
-  const double in2[2] = {0.0000152587890625,
-                         std::numeric_limits<double>::quiet_NaN()};
-  fp8_e5m2_x2 a(in);
-  fp8_e5m2_x2 a1(in1);
-  fp8_e5m2_x2 a2(in2);
-
-  EXPECT_EQ(sizeof(a.vals), 2u);
-  EXPECT_EQ(sizeof(a1.vals), 2u);
-  EXPECT_EQ(sizeof(a2.vals), 2u);
-  EXPECT_EQ(a.vals[0], 0x7B);  // +57344
-  EXPECT_EQ(a.vals[1], 0x7B);  // 60000 -> clamp to +57344
-  EXPECT_EQ(a1.vals[0], 0x04); // min normal
-  EXPECT_EQ(a1.vals[1], 0x03); // max subnormal
-  EXPECT_EQ(a2.vals[0], 0x01); // min subnormal
-  EXPECT_EQ(a2.vals[1], 0x7F); // NaN
-}
-
 TEST(FP8E5M2Test, CArrayHalfHostToEvenFinite) {
   const sycl::half in[2] = {sycl::half(1.0f), sycl::half(2.0f)};
   const sycl::half in1[2] = {sycl::half(1.125f), sycl::half(-0.0f)};
@@ -338,22 +317,6 @@ TEST(FP8E5M2Test, MarrayAndOperators) {
   EXPECT_EQ(out3[1], -1.5f);
 }
 
-TEST(FP8E5M2Test, MarrayDouble) {
-  sycl::marray<double, 2> dvals = {1.0, 2.0};
-  sycl::marray<double, 2> dvals1 = {57344.0, -0.0};
-
-  fp8_e5m2_x2 ah(dvals);
-  fp8_e5m2_x2 ah1(dvals1);
-
-  EXPECT_EQ(sizeof(ah.vals), 2u);
-  EXPECT_EQ(sizeof(ah1.vals), 2u);
-
-  EXPECT_EQ(ah.vals[0], 0x3C);
-  EXPECT_EQ(ah.vals[1], 0x40);
-  EXPECT_EQ(ah1.vals[0], 0x7B);
-  EXPECT_EQ(ah1.vals[1], 0x80);
-}
-
 TEST(FP8E5M2Test, FloatingPointConversionOperatorsMoreTypes) {
   fp8_e5m2 a(1.0f);
   fp8_e5m2 b(0.00006103515625f);
@@ -363,11 +326,9 @@ TEST(FP8E5M2Test, FloatingPointConversionOperatorsMoreTypes) {
   EXPECT_EQ(sizeof(b.vals), 1u);
   EXPECT_EQ(sizeof(nanv.vals), 1u);
 
-  double da = static_cast<double>(a);
   sycl::half ha = static_cast<sycl::half>(a);
   sycl::ext::oneapi::bfloat16 ba = static_cast<sycl::ext::oneapi::bfloat16>(a);
 
-  EXPECT_EQ(da, 1.0);
   EXPECT_EQ(static_cast<float>(ha), 1.0f);
   EXPECT_EQ(static_cast<float>(ba), 1.0f);
 
@@ -434,9 +395,6 @@ TEST(FP8E5M2Test, AssignmentOperatorsAllTypes) {
   a = 3.0f;
   EXPECT_EQ(a.vals[0], 0x42); // 3.0
 
-  a = 4.0;
-  EXPECT_EQ(a.vals[0], 0x44); // 4.0
-
   a = static_cast<short>(-1);
   EXPECT_EQ(a.vals[0], 0xBC);
 
@@ -482,8 +440,6 @@ TEST(FP8E5M2Test, BoolOperatorWithNaN) {
 
 TEST(FP8E5M2Test, VariadicMixedScalarTypes) {
   EXPECT_FALSE((std::is_constructible_v<fp8_e5m2, float, sycl::half>));
-  EXPECT_FALSE(
-      (std::is_constructible_v<fp8_e5m2, sycl::ext::oneapi::bfloat16, double>));
 }
 
 TEST(FP8E5M2Test, X2NotConstructibleFromSingleShort) {
@@ -522,10 +478,6 @@ TEST(FP8E5M2Test, X2NotConstructibleFromSingleFloat) {
   EXPECT_FALSE((std::is_constructible_v<fp8_e5m2_x2, float>));
 }
 
-TEST(FP8E5M2Test, X2NotConstructibleFromSingleDouble) {
-  EXPECT_FALSE((std::is_constructible_v<fp8_e5m2_x2, double>));
-}
-
 TEST(FP8E5M2Test, X2NotConstructibleFromSingleBFloat16) {
   EXPECT_FALSE(
       (std::is_constructible_v<fp8_e5m2_x2, sycl::ext::oneapi::bfloat16>));
@@ -554,10 +506,6 @@ TEST(FP8E5M2Test, X2NotAssignableFromSingleBFloat16) {
 
 TEST(FP8E5M2Test, X2NotAssignableFromSingleFloat) {
   EXPECT_FALSE((std::is_assignable_v<fp8_e5m2_x2 &, float>));
-}
-
-TEST(FP8E5M2Test, X2NotAssignableFromSingleDouble) {
-  EXPECT_FALSE((std::is_assignable_v<fp8_e5m2_x2 &, double>));
 }
 
 TEST(FP8E5M2Test, X2NotAssignableFromSingleChar) {
