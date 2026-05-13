@@ -205,7 +205,7 @@ function(link_bc)
     if (EXISTS "${ARG_OUT_DIR}")
       set(output_dir ${ARG_OUT_DIR})
     else()
-      message(FATAL "Invalid OUT_DIR ${ARG_OUT_DIR} for ${ARG_TARGET}.bc")
+      message(FATAL_ERROR "Invalid OUT_DIR ${ARG_OUT_DIR} for ${ARG_TARGET}.bc")
     endif()
   endif()
   add_custom_command(
