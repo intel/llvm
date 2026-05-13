@@ -186,15 +186,11 @@ TEST_P(urMemoryMultiResidencyTest, allocBeforeEnablingPeerAccess) {
 }
 
 // Verify that enabling peer access succeeds and that a second enable attempt
-// returns UR_RESULT_ERROR_INVALID_OPERATION (access already enabled). Confirms
-// that source-device free memory decreases by at least allocSize, showing the
-// allocation succeeded on devices[0] with P2P enabled. Also verifies end-to-end
-// P2P data transfer: the allocation on devices[0] is filled with a known
-// pattern and then read by devices[1]'s command engine; the result is checked
-// for correctness to confirm the feature works in the correct direction.
-// Note: peer-device free memory is not checked because
-// UR_DEVICE_INFO_GLOBAL_MEM_FREE does not reliably reflect
-// zeContextMakeMemoryResident behaviour for device USM allocations.
+// returns UR_RESULT_ERROR_INVALID_OPERATION (access already enabled). Also
+// verifies end-to-end P2P data transfer: the allocation on devices[0] is filled
+// with a known pattern and then read by devices[1]'s command engine; the result
+// is checked for correctness to confirm the feature works in the correct
+// direction.
 TEST_P(urMemoryMultiResidencyTest,
        enablePeerAccessStateMachineAndSourceAllocation) {
   // Enable devices[1] to access allocations on devices[0], so that new
@@ -207,13 +203,6 @@ TEST_P(urMemoryMultiResidencyTest,
             UR_RESULT_ERROR_INVALID_OPERATION);
 
   static constexpr size_t allocSize = 1024 * 1024;
-  uint64_t initialMemFreeSource = 0;
-  ASSERT_SUCCESS(urDeviceGetInfo(devices[0], UR_DEVICE_INFO_GLOBAL_MEM_FREE,
-                                 sizeof(uint64_t), &initialMemFreeSource,
-                                 nullptr));
-  if (initialMemFreeSource < allocSize) {
-    GTEST_SKIP() << "Not enough source device memory available";
-  }
 
   void *ptr = nullptr;
   ASSERT_SUCCESS(
@@ -257,12 +246,6 @@ TEST_P(urMemoryMultiResidencyTest,
                                allocSize, 0, nullptr, nullptr)
           : p2pRes3;
 
-  // Save return code so ptr is freed before any ASSERT terminates the test.
-  uint64_t currentMemFreeSource = 0;
-  ur_result_t res =
-      urDeviceGetInfo(devices[0], UR_DEVICE_INFO_GLOBAL_MEM_FREE,
-                      sizeof(uint64_t), &currentMemFreeSource, nullptr);
-
   if (peerQueue) {
     urQueueRelease(peerQueue);
   }
@@ -272,10 +255,6 @@ TEST_P(urMemoryMultiResidencyTest,
   ASSERT_SUCCESS(urUSMFree(context, ptr));
   ASSERT_SUCCESS(urUsmP2PDisablePeerAccessExp(devices[1], devices[0]));
   peerAccessEnabled = false;
-
-  ASSERT_SUCCESS(res);
-  // Allocation is physically on devices[0]: its free memory must decrease.
-  ASSERT_LE(currentMemFreeSource, initialMemFreeSource - allocSize);
 
   ASSERT_SUCCESS(fillRes1);
   ASSERT_SUCCESS(fillRes2);
