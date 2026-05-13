@@ -4278,6 +4278,10 @@ bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
   Opts.SYCLCUDACompat =
       Args.hasArg(OPT_fsycl_cuda_compat, OPT_fno_sycl_cuda_compat, false);
 
+  // Pre-parse fsycl-is-device before setLangDefaults so that SYCLIsDevice is
+  // available in BoolFOption Default expressions (e.g. offload_uniform_block).
+  Opts.SYCLIsDevice = Args.hasArg(OPT_fsycl_is_device);
+
   LangOptions::setLangDefaults(Opts, IK.getLanguage(), T, Includes, LangStd);
 
   // The key paths of codegen options defined in Options.td start with
