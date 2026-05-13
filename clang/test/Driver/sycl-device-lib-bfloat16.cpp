@@ -61,6 +61,38 @@
 // RUN:   "-device cri" /clang:--sysroot=%S/Inputs/SYCL -- %s 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=BFLOAT16-NATIVE
 
+// Test that a novalake AOT compilation uses the native library.
+// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend \
+// RUN:   "-device nvl_s" %s --sysroot=%S/Inputs/SYCL -### 2>&1 \
+// RUN:   | FileCheck %s -check-prefix=BFLOAT16-NATIVE
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_nvl_s %s \
+// RUN:   --sysroot=%S/Inputs/SYCL -### 2>&1 \
+// RUN:   | FileCheck %s -check-prefix=BFLOAT16-NATIVE
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_30_4_0 %s \
+// RUN:   --sysroot=%S/Inputs/SYCL -### 2>&1 \
+// RUN:   | FileCheck %s -check-prefix=BFLOAT16-NATIVE
+// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend \
+// RUN:   "-device nvl_u" %s --sysroot=%S/Inputs/SYCL -### 2>&1 \
+// RUN:   | FileCheck %s -check-prefix=BFLOAT16-NATIVE
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_nvl_u %s \
+// RUN:   --sysroot=%S/Inputs/SYCL -### 2>&1 \
+// RUN:   | FileCheck %s -check-prefix=BFLOAT16-NATIVE
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_30_5_0 %s \
+// RUN:   --sysroot=%S/Inputs/SYCL -### 2>&1 \
+// RUN:   | FileCheck %s -check-prefix=BFLOAT16-NATIVE
+// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend \
+// RUN:   "-device nvl_p" %s --sysroot=%S/Inputs/SYCL -### 2>&1 \
+// RUN:   | FileCheck %s -check-prefix=BFLOAT16-NATIVE
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_nvl_p %s \
+// RUN:   --sysroot=%S/Inputs/SYCL -### 2>&1 \
+// RUN:   | FileCheck %s -check-prefix=BFLOAT16-NATIVE
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_35_10_0 %s \
+// RUN:   --sysroot=%S/Inputs/SYCL -### 2>&1 \
+// RUN:   | FileCheck %s -check-prefix=BFLOAT16-NATIVE
+// RUN: %clang_cl -### -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend \
+// RUN:   "-device nvl_s" /clang:--sysroot=%S/Inputs/SYCL -- %s 2>&1 \
+// RUN:   | FileCheck %s -check-prefix=BFLOAT16-NATIVE
+
 // Test that unless all targets support bfloat16, AOT compilation uses the
 // fallback library.
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend \
