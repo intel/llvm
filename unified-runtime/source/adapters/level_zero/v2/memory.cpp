@@ -8,6 +8,10 @@
 //
 //===----------------------------------------------------------------------===//
 
+#ifdef _WIN32
+#include <umf/experimental/ctl.h>
+#endif
+
 #include "memory.hpp"
 
 #include "../ur_interface_loader.hpp"
@@ -860,11 +864,41 @@ ur_result_t urMemImageGetInfo(ur_mem_handle_t /*hMemory*/,
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
+inline ur_result_t enableWindowsUMFIPCWorkaround(
+    [[maybe_unused]] umf_memory_pool_handle_t umfPool) {
+#ifdef _WIN32
+  if (!getenv_tobool("UR_L0_V2_ENABLE_WINDOWS_IPC_WA"))
+    return UR_RESULT_SUCCESS;
+
+  umf_memory_provider_handle_t umfProvider = nullptr;
+  auto urRet =
+      umf::umf2urResult(umfPoolGetMemoryProvider(umfPool, &umfProvider));
+  if (urRet)
+    return urRet;
+
+  int useImportExportForIPC = 1;
+  UR_LOG(INFO,
+         "Applying Windows IPC workaround to provider handle {} before IPC "
+         "operation",
+         static_cast<void *>(umfProvider));
+  return umf::umf2urResult(umfCtlSet(
+      "umf.provider.by_handle.{}.LEVEL_ZERO.params.use_import_export_for_IPC",
+      &useImportExportForIPC, sizeof(useImportExportForIPC), umfProvider));
+#endif
+  return UR_RESULT_SUCCESS;
+}
+
 ur_result_t urIPCGetMemHandleExp(ur_context_handle_t, void *pMem,
                                  void **ppIPCMemHandleData,
                                  size_t *pIPCMemHandleDataSizeRet) {
+  UR_LOG(INFO, "urIPCGetMemHandleExp: mem={} size_only={}", pMem,
+         ppIPCMemHandleData == nullptr);
   umf_memory_pool_handle_t umfPool;
   auto urRet = umf::umf2urResult(umfPoolByPtr(pMem, &umfPool));
+  if (urRet)
+    return urRet;
+
+  urRet = enableWindowsUMFIPCWorkaround(umfPool);
   if (urRet)
     return urRet;
 
@@ -891,6 +925,8 @@ ur_result_t urIPCOpenMemHandleExp(ur_context_handle_t hContext,
                                   ur_device_handle_t hDevice,
                                   void *pIPCMemHandleData,
                                   size_t ipcMemHandleDataSize, void **ppMem) {
+  UR_LOG(INFO, "urIPCOpenMemHandleExp: handle={} size={}", pIPCMemHandleData,
+         ipcMemHandleDataSize);
   auto *pool = hContext->getDefaultUSMPool()->getPool(
       usm::pool_descriptor{hContext->getDefaultUSMPool(), hContext, hDevice,
                            UR_USM_TYPE_DEVICE, false});
@@ -898,9 +934,12 @@ ur_result_t urIPCOpenMemHandleExp(ur_context_handle_t hContext,
     return UR_RESULT_ERROR_INVALID_CONTEXT;
   umf_memory_pool_handle_t umfPool = pool->umfPool.get();
 
+  auto urRet = enableWindowsUMFIPCWorkaround(umfPool);
+  if (urRet)
+    return urRet;
+
   size_t umfHandleSize = 0;
-  auto urRet =
-      umf::umf2urResult(umfPoolGetIPCHandleSize(umfPool, &umfHandleSize));
+  urRet = umf::umf2urResult(umfPoolGetIPCHandleSize(umfPool, &umfHandleSize));
   if (urRet)
     return urRet;
 
@@ -912,12 +951,16 @@ ur_result_t urIPCOpenMemHandleExp(ur_context_handle_t hContext,
   if (urRet)
     return urRet;
 
-  return umf::umf2urResult(umfOpenIPCHandle(
+  urRet = umf::umf2urResult(umfOpenIPCHandle(
       umfIPCHandler, reinterpret_cast<umf_ipc_handle_t>(pIPCMemHandleData),
       ppMem));
+  if (!urRet)
+    UR_LOG(INFO, "urIPCOpenMemHandleExp succeeded: mem={}", *ppMem);
+  return urRet;
 }
 
 ur_result_t urIPCCloseMemHandleExp(ur_context_handle_t, void *pMem) {
+  UR_LOG(INFO, "urIPCCloseMemHandleExp: mem={}", pMem);
   return umf::umf2urResult(umfCloseIPCHandle(pMem));
 }
 

@@ -93,8 +93,33 @@ descToDisjoinPoolMemType(const usm::pool_descriptor &desc) {
   UR_FFAILURE("invalid memory type: " << desc.type);
 }
 
+static inline void enableWindowsUMFIPCWorkaroundAtProviderCreation() {
+#ifdef _WIN32
+  const bool Enabled = getenv_tobool("UR_L0_V2_ENABLE_WINDOWS_IPC_WA");
+  UR_LOG(INFO,
+         "Windows IPC workaround at provider creation: flag={}, applying "
+         "before provider creation",
+         Enabled);
+  if (!Enabled) {
+    return;
+  }
+
+  // UMF IPC on Windows must be configured before the Level Zero provider is
+  // created, otherwise the pool can end up with an IPC handler built without
+  // import/export support.
+  int useImportExportForIPC = 1;
+  UMF_CALL_THROWS(umfCtlSet(
+      "umf.provider.default.LEVEL_ZERO.params.use_import_export_for_IPC",
+      &useImportExportForIPC, sizeof(useImportExportForIPC)));
+  UR_LOG(INFO,
+         "Windows IPC workaround configured for default Level Zero provider");
+#endif
+}
+
 static umf::provider_unique_handle_t
 makeProvider(usm::pool_descriptor poolDescriptor) {
+  enableWindowsUMFIPCWorkaroundAtProviderCreation();
+
   umf_level_zero_memory_provider_params_handle_t hParams;
   UMF_CALL_THROWS(umfLevelZeroMemoryProviderParamsCreate(&hParams));
   std::unique_ptr<umf_level_zero_memory_provider_params_t,
