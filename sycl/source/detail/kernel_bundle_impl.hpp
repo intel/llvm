@@ -551,7 +551,8 @@ public:
     for (const kernel_bundle<bundle_state::object> &Bundle : ObjectBundles) {
       kernel_bundle_impl &BundleImpl = *getSyclObjImpl(Bundle);
       for (const auto &[Name, Values] : BundleImpl.MSpecConstValues) {
-        MSpecConstValues[Name] = Values;
+        set_specialization_constant_raw_value(Name.c_str(), Values.data(),
+                                              Values.size());
       }
     }
   }
