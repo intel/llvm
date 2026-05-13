@@ -2,75 +2,21 @@
 set(LIBCLC_TEST_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 set(LLVM_TOOLS_DIR ${LLVM_TOOLS_BINARY_DIR})
 
+if(LIBCLC_TARGET_ARCH IN_LIST LIBCLC_ARCHS_AMDGPU)
+  set(LIBCLC_TARGET_CPU "gfx900")
+else()
+  set(LIBCLC_TARGET_CPU "")
+endif()
+
 configure_lit_site_cfg(
   ${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.py.in
   ${CMAKE_CURRENT_BINARY_DIR}/lit.site.cfg.py
   MAIN_CONFIG
-    ${CMAKE_CURRENT_SOURCE_DIR}/lit.cfg.py
+  ${CMAKE_CURRENT_SOURCE_DIR}/lit.cfg.py
 )
 
-set(LIBCLC_TEST_DEPS
-  FileCheck
-  ${llvm-dis_target}
-  not
-  clang
-  count
-  libclc-opencl-builtins
-  libspirv-builtins
+add_lit_testsuite(check-libclc "Running libclc tests"
+  ${CMAKE_CURRENT_BINARY_DIR}
+  DEPENDS libclc
 )
-
-umbrella_lit_testsuite_begin(check-libclc)
-
-if(ARCH MATCHES "amdgcn|nvptx64")
-    # Each target gets own lit testsuite directory.
-    # This is done because all suites passed to add_lit_testsuite
-    # are collected into a single invocation of lit, for example:
-    #   add_lit_testsuite(check-a dir PARAMS "foo=1")
-    #   add_lit_testsuite(check-b dir PARAMS "foo=2" "bar=3")
-    # results in a call to lit like this (for `check-all`):
-    #   llvm-lit --param=foo=1 --param=foo=2 --param=bar=3 dir dir
-    # This means we can't reuse the same directory and rely on
-    # different parameter values to distinguish between targets, because
-    # parameters with the same name overwrite each other.
-    # The solution is to create a separate directory for each target,
-    # and copy the lit.site.cfg.py file there; the name of the
-    # directory will be used as the target name.
-    file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/${LIBCLC_TARGET})
-    file(COPY_FILE ${CMAKE_CURRENT_BINARY_DIR}/lit.site.cfg.py
-                   ${CMAKE_CURRENT_BINARY_DIR}/${LIBCLC_TARGET}/lit.site.cfg.py)
-
-    add_lit_testsuite(check-libclc-spirv-${LIBCLC_TARGET}
-      "Running libclc spirv-${LIBCLC_TARGET} regression tests"
-      ${CMAKE_CURRENT_BINARY_DIR}/${LIBCLC_TARGET}
-      DEPENDS ${LIBCLC_TEST_DEPS}
-      )
-endif()
-
-# Testing unresolved symbols.
-# Skip nvptx and spirv targets.
-if(ARCH MATCHES amdgcn)
-  foreach(tgt IN LISTS LIBCLC_UNRESOLVED_SYMBOL_TEST_TARGETS)
-    set(target_file "$<TARGET_PROPERTY:${tgt},TARGET_FILE>")
-
-    set(LIBCLC_TARGET_TEST_DIR ${CMAKE_CURRENT_BINARY_DIR}/${tgt})
-    file(MAKE_DIRECTORY ${LIBCLC_TARGET_TEST_DIR})
-    file(GENERATE OUTPUT ${LIBCLC_TARGET_TEST_DIR}/check-external-funcs.test
-      CONTENT "; RUN: llvm-nm -u \"${target_file}\" | FileCheck %s --allow-empty\n\n; CHECK-NOT: {{.+}}\n"
-    )
-
-    configure_lit_site_cfg(
-        ${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.py.in
-        ${LIBCLC_TARGET_TEST_DIR}/lit.site.cfg.py
-        MAIN_CONFIG
-        ${CMAKE_CURRENT_SOURCE_DIR}/lit.cfg.py
-    )
-
-    add_lit_testsuite(check-libclc-external-funcs-${tgt} "Running ${tgt} unresolved symbols tests"
-      ${LIBCLC_TARGET_TEST_DIR}
-      DEPENDS ${LIBCLC_TEST_DEPS}
-    )
-    set_target_properties(check-libclc-external-funcs-${tgt} PROPERTIES FOLDER "libclc tests")
-  endforeach()
-endif()
-
-umbrella_lit_testsuite_end(check-libclc)
+set_target_properties(check-libclc PROPERTIES FOLDER "libclc tests")
