@@ -135,8 +135,13 @@ public:
         getProductAndCheckForOverflow(GlobalSize.data(), Dims);
     uint64_t LocalProduct =
         getProductAndCheckForOverflow(LocalSize.data(), Dims);
+
+    // Localproduct equals to zero means user has not specified local size
+    // and backend is free to choose it. In this case, the maximum number of
+    // workgroups is equal to the total global size, assuming local size to
+    // be 1.
     if (LocalProduct == 0)
-      return 0;
+      return GlobalProduct;
     return GlobalProduct / LocalProduct;
   }
 

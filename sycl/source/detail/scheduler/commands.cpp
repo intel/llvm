@@ -27,6 +27,7 @@
 #include <sycl/detail/cg_types.hpp>
 #include <sycl/detail/helpers.hpp>
 #include <sycl/detail/kernel_desc.hpp>
+#include <sycl/exception.hpp>
 #include <sycl/sampler.hpp>
 
 #include <cassert>
@@ -2598,6 +2599,63 @@ getCGKernelInfo(const CGExecKernel &CommandGroup, context_impl &ContextImpl,
   return std::make_tuple(UrKernel, DeviceImageImpl, EliminatedArgMask);
 }
 
+void checkNDRangeBoundsAndThrow(const NDRDescT &NDRDesc,
+                                uint32_t IdQueriesRange) {
+  uint64_t MaxRange = 0;
+  string ErrMsg;
+  switch (IdQueriesRange) {
+  case 1:
+    MaxRange = static_cast<uint64_t>(std::numeric_limits<uint32_t>::max());
+    ErrMsg = "The kernel was compiled with -fsycl-id-queries-range=uint, but "
+             "the provided range/offset exceeds the maximum value storable in "
+             "an uint32_t. Either reduce the range/offset or "
+             "recompile the kernel with -fsycl-id-queries-range=size_t.";
+    break;
+  case 2:
+    MaxRange = static_cast<uint64_t>(std::numeric_limits<size_t>::max());
+    ErrMsg = "The provided range/offset exceeds the maximum "
+             "value storable in a size_t, "
+             "which is the maximum value supported by DPCPP.";
+    break;
+  case 0:
+  default:
+    MaxRange = static_cast<uint64_t>(std::numeric_limits<int>::max());
+    ErrMsg =
+        "The kernel was compiled with -fsycl-id-queries-range=int, but the "
+        "provided range/offset exceeds the maximum value storable in an "
+        "int. Either reduce the range/offset or "
+        "recompile the kernel with -fsycl-id-queries-range=[uint|size_t].";
+  }
+
+  bool ExceedsMaxRange = NDRDesc.getNumGlobalWorkGroups() > MaxRange;
+  if (!ExceedsMaxRange) {
+    for (size_t I = 0; I < NDRDesc.Dims; ++I) {
+      const uint64_t GlobalSize = static_cast<uint64_t>(NDRDesc.GlobalSize[I]);
+      const uint64_t GlobalOffset =
+          static_cast<uint64_t>(NDRDesc.GlobalOffset[I]);
+      const uint64_t LocalSize = static_cast<uint64_t>(NDRDesc.LocalSize[I]);
+      // Validate the maximum generated global id in each dimension:
+      // GlobalOffset + GlobalSize - 1 <= MaxRange.
+      // Use overflow-safe arithmetic instead of forming the sum directly.
+      if (GlobalSize != 0 && (GlobalOffset > MaxRange ||
+                              (GlobalSize - 1) > (MaxRange - GlobalOffset))) {
+        ExceedsMaxRange = true;
+        break;
+      }
+      if (GlobalSize > MaxRange - LocalSize) {
+        ExceedsMaxRange = true;
+        break;
+      }
+    }
+  }
+  if (ExceedsMaxRange) {
+    throw detail::set_ur_error(
+        sycl::exception(sycl::make_error_code(sycl::errc::invalid),
+                        ErrMsg.c_str()),
+        UR_RESULT_ERROR_INVALID_VALUE);
+  }
+}
+
 ur_result_t enqueueImpCommandBufferKernel(
     const context &Ctx, device_impl &DeviceImpl,
     ur_exp_command_buffer_handle_t CommandBuffer,
@@ -2824,48 +2882,16 @@ void enqueueImpKernel(
     EventsWaitList = std::move(EventsWithDeviceGlobalInits);
   }
 
-  // Get Max number of work groups that this kernel can accept.
-  {
-    // Skip the check for interop kernels.
-    if (!(MSyclKernel && MSyclKernel->isInterop())) {
-      uint64_t MaxRange;
-      string ErrMsg;
-      // If IdQueryRangeProp property is not present in the device image,
-      // it means that the kernel was compiled without -fsycl-id-queries-range
-      // option, so use the default range type of `int`.
-      uint32_t IdQueriesRange =
-          IdQueryRangeProp ? DeviceBinaryProperty(IdQueryRangeProp).asUint32()
-                           : 0;
-      switch (IdQueriesRange) {
-      case 1:
-        MaxRange = static_cast<uint64_t>(std::numeric_limits<uint32_t>::max());
-        ErrMsg =
-            "The kernel was compiled with -fsycl-id-queries-range=uint, but "
-            "the provided range/offset exceeds the maximum value storable in "
-            "an uint32_t. Either reduce the range/offset or "
-            "recompile the kernel with -fsycl-id-queries-range=size_t.";
-        break;
-      case 2:
-        MaxRange = static_cast<uint64_t>(std::numeric_limits<size_t>::max());
-        ErrMsg = "The provided range/offset exceeds the maximum "
-                 "value storable in a size_t, "
-                 "which is the maximum value supported by DPCPP.";
-        break;
-      case 0:
-      default:
-        MaxRange = static_cast<uint64_t>(std::numeric_limits<int>::max());
-        ErrMsg =
-            "The kernel was compiled with -fsycl-id-queries-range=int, but the "
-            "provided range/offset exceeds the maximum value storable in an "
-            "int. Either reduce the range/offset or "
-            "recompile the kernel with -fsycl-id-queries-range=[uint|size_t].";
-      }
-
-      if (NDRDesc.getNumGlobalWorkGroups() > MaxRange) {
-        throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
-                              ErrMsg.c_str());
-      }
-    }
+  // Get Max number of work groups and linear id range that this kernel can
+  // accept. Skip the check for interop kernels.
+  if (!(MSyclKernel->isInterop())) {
+    // If IdQueryRangeProp property is not present in the device image,
+    // it means that the kernel was compiled without -fsycl-id-queries-range
+    // option, so use the default range type of `int`.
+    uint32_t IdQueriesRange =
+        IdQueryRangeProp ? DeviceBinaryProperty(IdQueryRangeProp).asUint32()
+                         : 0;
+    checkNDRangeBoundsAndThrow(NDRDesc, IdQueriesRange);
   }
 
   ur_result_t Error = UR_RESULT_SUCCESS;

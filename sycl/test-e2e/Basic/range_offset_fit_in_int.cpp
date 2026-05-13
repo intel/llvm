@@ -13,8 +13,8 @@ namespace S = sycl;
 
 constexpr char Msg[] =
     "The kernel was compiled with -fsycl-id-queries-range=int, but the "
-    "provided range/offset exceeds the maximum value storable in a int. Either "
-    "reduce the range/offset or recompile the kernel with "
+    "provided range/offset exceeds the maximum value storable in an int. "
+    "Either reduce the range/offset or recompile the kernel with "
     "-fsycl-id-queries-range=[uint|size_t].";
 
 void checkRangeException(S::exception &E) {
@@ -60,10 +60,9 @@ void test() {
       S::id<2>{(OutOfLimitsSize / 4) * 3, (OutOfLimitsSize / 4) * 3});
 
   int Data = 0;
-  S::buffer<int, 1> Buf{&Data, 1};
-
   // no offset, either dim of range exceeds limit
   try {
+    S::buffer<int, 1> Buf{&Data, 1};
     Queue.submit([&](S::handler &CGH) {
       auto Acc = Buf.get_access<sycl::access::mode::read_write>(CGH);
 
@@ -80,6 +79,7 @@ void test() {
 
   // no offset, all dims of range are in limits
   try {
+    S::buffer<int, 1> Buf{&Data, 1};
     Queue.submit([&](S::handler &CGH) {
       auto Acc = Buf.get_access<sycl::access::mode::read_write>(CGH);
 
@@ -87,12 +87,12 @@ void test() {
                                      [Acc](S::id<2> Id) { Acc[0] += 1; });
     });
   } catch (S::exception &E) {
-    std::cout << "Unexpected exception: " << E.what() << std::endl;
     assert(false && "Unexpected exception catched");
   }
 
   // no offset, all dims of range are in limits, linear id exceeds limits
   try {
+    S::buffer<int, 1> Buf{&Data, 1};
     Queue.submit([&](S::handler &CGH) {
       auto Acc = Buf.get_access<sycl::access::mode::read_write>(CGH);
 
@@ -109,6 +109,7 @@ void test() {
 
   // small offset, either dim of range exceeds limit
   try {
+    S::buffer<int, 1> Buf{&Data, 1};
     Queue.submit([&](S::handler &CGH) {
       auto Acc = Buf.get_access<sycl::access::mode::read_write>(CGH);
 
@@ -125,6 +126,7 @@ void test() {
 
   // large offset, neither dim of range exceeds limit, offset + range > limit
   try {
+    S::buffer<int, 1> Buf{&Data, 1};
     Queue.submit([&](S::handler &CGH) {
       auto Acc = Buf.get_access<sycl::access::mode::read_write>(CGH);
 
@@ -142,6 +144,7 @@ void test() {
 
   // large offset, neither dim of range exceeds limit
   try {
+    S::buffer<int, 1> Buf{&Data, 1};
     Queue.submit([&](S::handler &CGH) {
       auto Acc = Buf.get_access<sycl::access::mode::read_write>(CGH);
 
@@ -158,6 +161,7 @@ void test() {
 
   // small offset, neither range dim exceeds limit
   try {
+    S::buffer<int, 1> Buf{&Data, 1};
     Queue.submit([&](S::handler &CGH) {
       auto Acc = Buf.get_access<sycl::access::mode::read_write>(CGH);
 
@@ -170,6 +174,7 @@ void test() {
 
   // small offset, global range's dim is out of limits
   try {
+    S::buffer<int, 1> Buf{&Data, 1};
     Queue.submit([&](S::handler &CGH) {
       auto Acc = Buf.get_access<sycl::access::mode::read_write>(CGH);
 
@@ -186,6 +191,7 @@ void test() {
 
   // large offset, ranges are in limits
   try {
+    S::buffer<int, 1> Buf{&Data, 1};
     Queue.submit([&](S::handler &CGH) {
       auto Acc = Buf.get_access<sycl::access::mode::read_write>(CGH);
 
@@ -202,6 +208,7 @@ void test() {
 
   // small offset, ranges are in limits
   try {
+    S::buffer<int, 1> Buf{&Data, 1};
     Queue.submit([&](S::handler &CGH) {
       auto Acc = Buf.get_access<sycl::access::mode::read_write>(CGH);
 
@@ -214,6 +221,7 @@ void test() {
 
   // small offset, ranges are in limits, linear id out of limits
   try {
+    S::buffer<int, 1> Buf{&Data, 1};
     Queue.submit([&](S::handler &CGH) {
       auto Acc = Buf.get_access<sycl::access::mode::read_write>(CGH);
 
@@ -230,6 +238,7 @@ void test() {
 
   // small offset, ranges are in limits, range + offset exceeds limits
   try {
+    S::buffer<int, 1> Buf{&Data, 1};
     Queue.submit([&](S::handler &CGH) {
       auto Acc = Buf.get_access<sycl::access::mode::read_write>(CGH);
 
