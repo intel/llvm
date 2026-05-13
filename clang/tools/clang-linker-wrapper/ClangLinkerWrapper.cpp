@@ -1691,7 +1691,8 @@ namespace generic {
 /// "clang -fsycl --sycl-link".
 ///
 /// \param Args The parsed command-line arguments from clang-linker-wrapper.
-/// \param CmdArgs The command arguments list to append to (for clang invocation).
+/// \param CmdArgs The command arguments list to append to (for clang
+/// invocation).
 /// \param Triple The target triple for the device.
 /// \param Arch The target architecture (e.g., "pvc", "graniterapids").
 static void appendClangSYCLLinkerArgs(const ArgList &Args,
