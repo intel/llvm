@@ -1373,6 +1373,12 @@ void handler::ext_oneapi_wait_external_semaphore(
 void handler::ext_oneapi_wait_external_semaphore(
     sycl::ext::oneapi::experimental::external_semaphore ExtSemaphore,
     uint64_t WaitValue) {
+  std::cerr << "[SYCL] ENTER: handler::ext_oneapi_wait_external_semaphore(external_semaphore, uint64_t)\n";
+  std::cerr << "[SYCL]    -ext_oneapi_wait_external_semaphore: semaphore type       = "
+            << static_cast<int>(ExtSemaphore.handle_type) << "\n";
+  std::cerr << "[SYCL]    -ext_oneapi_wait_external_semaphore: semaphore raw handle = "
+            << static_cast<void *>(ExtSemaphore.raw_handle) << "\n";
+  std::cerr << "[SYCL]    -ext_oneapi_wait_external_semaphore: wait value         = " << WaitValue << "\n";
   throwIfGraphAssociated<
       ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
           sycl_ext_oneapi_bindless_images>();
@@ -1397,6 +1403,7 @@ void handler::ext_oneapi_wait_external_semaphore(
       (ur_exp_external_semaphore_handle_t)ExtSemaphore.raw_handle;
   impl->MWaitValue = WaitValue;
   setType(detail::CGType::SemaphoreWait);
+  std::cerr << "[SYCL] LEAVE: handler::ext_oneapi_wait_external_semaphore(external_semaphore, uint64_t)\n";
 }
 
 void handler::ext_oneapi_signal_external_semaphore(
@@ -1423,11 +1430,18 @@ void handler::ext_oneapi_signal_external_semaphore(
       (ur_exp_external_semaphore_handle_t)ExtSemaphore.raw_handle;
   impl->MSignalValue = {};
   setType(detail::CGType::SemaphoreSignal);
+  std::cerr << "[SYCL] LEAVE: handler::ext_oneapi_signal_external_semaphore(external_semaphore, uint64_t)\n";
 }
 
 void handler::ext_oneapi_signal_external_semaphore(
     sycl::ext::oneapi::experimental::external_semaphore ExtSemaphore,
     uint64_t SignalValue) {
+  std::cerr << "[SYCL] ENTER: handler::ext_oneapi_signal_external_semaphore(external_semaphore, uint64_t)\n";
+  std::cerr << "[SYCL]    -ext_oneapi_signal_external_semaphore: semaphore type       = "
+            << static_cast<int>(ExtSemaphore.handle_type) << "\n";
+  std::cerr << "[SYCL]    -ext_oneapi_signal_external_semaphore: semaphore raw handle = "
+            << static_cast<void *>(ExtSemaphore.raw_handle) << "\n";
+  std::cerr << "[SYCL]    -ext_oneapi_signal_external_semaphore: signal value         = " << SignalValue << "\n";
   throwIfGraphAssociated<
       ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
           sycl_ext_oneapi_bindless_images>();
@@ -1452,6 +1466,7 @@ void handler::ext_oneapi_signal_external_semaphore(
       (ur_exp_external_semaphore_handle_t)ExtSemaphore.raw_handle;
   impl->MSignalValue = SignalValue;
   setType(detail::CGType::SemaphoreSignal);
+  std::cerr << "[SYCL] LEAVE: handler::ext_oneapi_signal_external_semaphore(external_semaphore, uint64_t)\n";
 }
 
 void handler::use_kernel_bundle(

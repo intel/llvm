@@ -19,6 +19,8 @@
 
 #include "loader/ze_loader.h"
 
+#include <iostream>
+
 namespace ur::level_zero {
 
 ur_result_t urBindlessImagesImageCopyExp(
@@ -108,11 +110,13 @@ ur_result_t urBindlessImagesWaitExternalSemaphoreExp(
     ur_queue_handle_t hQueue, ur_exp_external_semaphore_handle_t hSemaphore,
     bool hasValue, uint64_t waitValue, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+  std::cerr << "[SYCL] ENTER: urBindlessImagesWaitExternalSemaphoreExp(ur_queue_handle_t, ur_exp_external_semaphore_handle_t, ...)\n";
   auto UrPlatform = hQueue->Context->getPlatform();
   if (UrPlatform->ZeExternalSemaphoreExt.Supported == false) {
     UR_LOG_LEGACY(ERR,
                   logger::LegacyMessage("[UR][L0] {} function not supported!"),
                   "{} function not supported!", __FUNCTION__);
+    std::cerr << "[SYCL] LEAVE: urBindlessImagesWaitExternalSemaphoreExp(ur_queue_handle_t, ur_exp_external_semaphore_handle_t, ...) --> UR_RESULT_ERROR_UNSUPPORTED_FEATURE\n";
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
 
@@ -121,16 +125,19 @@ ur_result_t urBindlessImagesWaitExternalSemaphoreExp(
   // We want to batch these commands to avoid extra submissions (costly)
   bool OkToBatch = true;
 
+  std::cerr << "[SYCL]    -urBindlessImagesWaitExternalSemaphoreExp: calling createAndRetainUrZeEventList\n";
   ur_ze_event_list_t TmpWaitList;
   UR_CALL(TmpWaitList.createAndRetainUrZeEventList(
       numEventsInWaitList, phEventWaitList, hQueue, UseCopyEngine));
 
   // Get a new command list to be used on this call
+  std::cerr << "[SYCL]    -urBindlessImagesWaitExternalSemaphoreExp: calling getAvailableCommandList\n";
   ur_command_list_ptr_t CommandList{};
   UR_CALL(hQueue->Context->getAvailableCommandList(
       hQueue, CommandList, UseCopyEngine, numEventsInWaitList, phEventWaitList,
       OkToBatch, nullptr /*ForcedCmdQueue*/));
 
+  std::cerr << "[SYCL]    -urBindlessImagesWaitExternalSemaphoreExp: calling createEventAndAssociateQueue\n";
   ze_event_handle_t ZeEvent = nullptr;
   ur_event_handle_t InternalEvent;
   bool IsInternal = phEvent == nullptr;
@@ -139,6 +146,7 @@ ur_result_t urBindlessImagesWaitExternalSemaphoreExp(
                                        UR_COMMAND_EXTERNAL_SEMAPHORE_WAIT_EXP,
                                        CommandList, IsInternal,
                                        /*IsMultiDevice*/ false));
+  std::cerr << "[SYCL]    -urBindlessImagesWaitExternalSemaphoreExp: calling setSignalEvent\n";
   UR_CALL(setSignalEvent(hQueue, UseCopyEngine, &ZeEvent, Event,
                          numEventsInWaitList, phEventWaitList,
                          CommandList->second.ZeQueue));
@@ -147,18 +155,28 @@ ur_result_t urBindlessImagesWaitExternalSemaphoreExp(
   const auto &ZeCommandList = CommandList->first;
   const auto &WaitList = (*Event)->WaitList;
 
+  std::cerr << "[SYCL]    -urBindlessImagesWaitExternalSemaphoreExp: calling zexCommandListAppendWaitExternalSemaphoresExp\n";
   ze_external_semaphore_wait_params_ext_t WaitParams = {
       ZE_STRUCTURE_TYPE_EXTERNAL_SEMAPHORE_WAIT_PARAMS_EXT, nullptr, 0};
   WaitParams.value = hasValue ? waitValue : 0;
   ze_external_semaphore_ext_handle_t hExtSemaphore =
       reinterpret_cast<ze_external_semaphore_ext_handle_t>(hSemaphore);
-  ZE2UR_CALL(UrPlatform->ZeExternalSemaphoreExt
-                 .zexCommandListAppendWaitExternalSemaphoresExp,
-             (ZeCommandList, 1, &hExtSemaphore, &WaitParams, ZeEvent,
-              WaitList.Length, WaitList.ZeEventList));
+//   ZE2UR_CALL(UrPlatform->ZeExternalSemaphoreExt
+//                  .zexCommandListAppendWaitExternalSemaphoresExp,
+//              (ZeCommandList, 1, &hExtSemaphore, &WaitParams, ZeEvent, WaitList.Length, WaitList.ZeEventList));
+  {
+    ze_result_t ZeResult = UrPlatform->ZeExternalSemaphoreExt.zexCommandListAppendWaitExternalSemaphoresExp(ZeCommandList, 1, &hExtSemaphore, &WaitParams, ZeEvent, WaitList.Length, WaitList.ZeEventList);
+    std::cerr << "[SYCL]    -urBindlessImagesWaitExternalSemaphoreExp: zexCommandListAppendWaitExternalSemaphoresExp returned " << ZeResult << "\n";
+    if (ZeResult) {
+      std::cerr << "[SYCL] LEAVE: urBindlessImagesWaitExternalSemaphoreExp(ur_queue_handle_t, ur_exp_external_semaphore_handle_t, ...) --> " << ze2urResult(ZeResult) << "\n";
+      return ze2urResult(ZeResult);
+    }
+  }
 
+  std::cerr << "[SYCL]    -urBindlessImagesWaitExternalSemaphoreExp: calling executeCommandList\n";
   UR_CALL(hQueue->executeCommandList(CommandList, false, OkToBatch));
 
+  std::cerr << "[SYCL] LEAVE: urBindlessImagesWaitExternalSemaphoreExp(ur_queue_handle_t, ur_exp_external_semaphore_handle_t, ...) --> UR_RESULT_SUCCESS\n";
   return UR_RESULT_SUCCESS;
 }
 
@@ -166,11 +184,13 @@ ur_result_t urBindlessImagesSignalExternalSemaphoreExp(
     ur_queue_handle_t hQueue, ur_exp_external_semaphore_handle_t hSemaphore,
     bool hasValue, uint64_t signalValue, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+  std::cerr << "[SYCL] ENTER: urBindlessImagesSignalExternalSemaphoreExp(ur_queue_handle_t, ur_exp_external_semaphore_handle_t, ...)\n";
   auto UrPlatform = hQueue->Context->getPlatform();
   if (UrPlatform->ZeExternalSemaphoreExt.Supported == false) {
     UR_LOG_LEGACY(ERR,
                   logger::LegacyMessage("[UR][L0] {} function not supported!"),
                   "{} function not supported!", __FUNCTION__);
+    std::cerr << "[SYCL] LEAVE: urBindlessImagesSignalExternalSemaphoreExp(ur_queue_handle_t, ur_exp_external_semaphore_handle_t, ...) --> UR_RESULT_ERROR_UNSUPPORTED_FEATURE\n";
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
 

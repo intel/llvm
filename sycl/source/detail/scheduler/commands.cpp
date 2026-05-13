@@ -33,6 +33,8 @@
 #include <optional>
 #include <string>
 #include <vector>
+#include <iomanip>
+#include <sstream>
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 #include <detail/xpti_registry.hpp>
@@ -856,6 +858,7 @@ void Command::emitInstrumentation(uint16_t Type, const char *Txt) {
 
 bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
                       std::vector<Command *> &ToCleanUp) {
+  std::cerr << "[SYCL] ENTER: Command::enqueue(EnqueueResultT &, BlockingT, std::vector<Command *> &)\n";
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   // If command is enqueued from host task thread - it will not have valid
   // submission code location set. So we set it manually to properly trace
@@ -867,14 +870,19 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
   }
 #endif
   // Exit if already enqueued
-  if (MEnqueueStatus == EnqueueResultT::SyclEnqueueSuccess)
+  if (MEnqueueStatus == EnqueueResultT::SyclEnqueueSuccess) {
+    std::cerr << "[SYCL]    -enqueue: Command is already enqueued(1), skipping enqueueing again.\n";
+    std::cerr << "[SYCL] LEAVE: Command::enqueue(EnqueueResultT &, BlockingT, std::vector<Command *> &) --> true\n";
     return true;
+  }
 
   // If the command is blocked from enqueueing
   if (MIsBlockable && MEnqueueStatus == EnqueueResultT::SyclEnqueueBlocked) {
     // Exit if enqueue type is not blocking
     if (!Blocking) {
       EnqueueResult = EnqueueResultT(EnqueueResultT::SyclEnqueueBlocked, this);
+      std::cerr << "[SYCL]    -enqueue: Command is blocked, skipping enqueueing.\n";
+      std::cerr << "[SYCL] LEAVE: Command::enqueue(EnqueueResultT &, BlockingT, std::vector<Command *> &) --> false\n";
       return false;
     }
 
@@ -888,6 +896,7 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
 #endif
 
     // Wait if blocking
+    std::cerr << "[SYCL]    -enqueue: Command is blocked, waiting for it to  be unblocked.\n";
     while (MEnqueueStatus == EnqueueResultT::SyclEnqueueBlocked)
       ;
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -898,8 +907,11 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
   std::lock_guard<std::mutex> Lock(MEnqueueMtx);
 
   // Exit if the command is already enqueued
-  if (MEnqueueStatus == EnqueueResultT::SyclEnqueueSuccess)
+  if (MEnqueueStatus == EnqueueResultT::SyclEnqueueSuccess) {
+    std::cerr << "[SYCL]    -enqueue: Command is already enqueued(2), skipping enqueueing again.\n";
+    std::cerr << "[SYCL] LEAVE: Command::enqueue(EnqueueResultT &, BlockingT, std::vector<Command *> &) --> true\n";
     return true;
+  }
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   emitInstrumentation(xpti::trace_task_begin, nullptr);
@@ -907,6 +919,8 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
 
   if (MEnqueueStatus == EnqueueResultT::SyclEnqueueFailed) {
     EnqueueResult = EnqueueResultT(EnqueueResultT::SyclEnqueueFailed, this);
+    std::cerr << "[SYCL]    -enqueue: enqueue failed.\n";
+    std::cerr << "[SYCL] LEAVE: Command::enqueue(EnqueueResultT &, BlockingT, std::vector<Command *> &) --> false\n";
     return false;
   }
 
@@ -915,7 +929,9 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
   // This will avoid execution of the same failed command twice.
   MEnqueueStatus = EnqueueResultT::SyclEnqueueFailed;
   MShouldCompleteEventIfPossible = true;
+  std::cerr << "[SYCL]    -enqueue: calling enqueue implementation.\n";
   ur_result_t Res = enqueueImp();
+  std::cerr << "[SYCL]    -enqueue: enqueue implementation finished --> result = " << static_cast<int>(Res) << ".\n";
 
   if (UR_RESULT_SUCCESS != Res)
     EnqueueResult =
@@ -3118,14 +3134,22 @@ ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
 }
 
 ur_result_t ExecCGCommand::enqueueImp() {
+  std::cerr << "[SYCL] ENTER: ExecCGCommand::enqueueImp()\n";
   if (MCommandBuffer) {
-    return enqueueImpCommandBuffer();
+    std::cerr << "[SYCL]    -enqueueImp: Using command buffer.\n";
+    ur_result_t ret = enqueueImpCommandBuffer();
+    std::cerr << "[SYCL] LEAVE: ExecCGCommand::enqueueImp() --> " << static_cast<int>(ret) << ".\n";
+    return ret;
   } else {
-    return enqueueImpQueue();
+    std::cerr << "[SYCL]    -enqueueImp: Using queue.\n";
+    ur_result_t ret = enqueueImpQueue();
+    std::cerr << "[SYCL] LEAVE: ExecCGCommand::enqueueImp() --> " << static_cast<int>(ret) << ".\n";
+    return ret;
   }
 }
 
 ur_result_t ExecCGCommand::enqueueImpQueue() {
+  std::cerr << "[SYCL] ENTER: ExecCGCommand::enqueueImpQueue()\n";
   if (getCG().getType() != CGType::CodeplayHostTask)
     waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
@@ -3145,6 +3169,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     }
   };
 
+  std::cerr << "[SYCL]    -enqueueImpQueue: Submitting command group of type " << static_cast<int>(MCommandGroup->getType()) << "\n";
   switch (MCommandGroup->getType()) {
 
   case CGType::UpdateHost: {
@@ -3672,6 +3697,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
   case CGType::SemaphoreWait: {
     assert(MQueue &&
            "Semaphore wait submissions should have an associated queue");
+    std::cerr << "[SYCL]    -enqueueImpQueue: processing semaphore wait\n";
     CGSemaphoreWait *SemWait = (CGSemaphoreWait *)MCommandGroup.get();
     detail::adapter_impl &Adapter = MQueue->getAdapter();
     auto OptWaitValue = SemWait->getWaitValue();
@@ -3682,16 +3708,19 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
             MQueue->getHandleRef(), SemWait->getExternalSemaphore(),
             OptWaitValue.has_value(), WaitValue, RawEvents.size(),
             RawEvents.data(), Event);
-        Result != UR_RESULT_SUCCESS)
+        Result != UR_RESULT_SUCCESS) {
+      std::cerr << "[SYCL] LEAVE: ExecCGCommand::enqueueImpQueue() --> " << static_cast<int>(Result) << "\n";
       return Result;
-
+    }
     SetEventHandleOrDiscard();
 
+    std::cerr << "[SYCL] LEAVE: ExecCGCommand::enqueueImpQueue() --> UR_RESULT_SUCCESS\n";
     return UR_RESULT_SUCCESS;
   }
   case CGType::SemaphoreSignal: {
     assert(MQueue &&
            "Semaphore signal submissions should have an associated queue");
+    std::cerr << "[SYCL]    -enqueueImpQueue: processing semaphore signal\n";
     CGSemaphoreSignal *SemSignal = (CGSemaphoreSignal *)MCommandGroup.get();
     detail::adapter_impl &Adapter = MQueue->getAdapter();
     auto OptSignalValue = SemSignal->getSignalValue();
@@ -3702,11 +3731,13 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
             MQueue->getHandleRef(), SemSignal->getExternalSemaphore(),
             OptSignalValue.has_value(), SignalValue, RawEvents.size(),
             RawEvents.data(), Event);
-        Result != UR_RESULT_SUCCESS)
+        Result != UR_RESULT_SUCCESS) {
+      std::cerr << "[SYCL] LEAVE: ExecCGCommand::enqueueImpQueue() --> " << static_cast<int>(Result) << "\n";
       return Result;
-
+    }
     SetEventHandleOrDiscard();
 
+    std::cerr << "[SYCL] LEAVE: ExecCGCommand::enqueueImpQueue() --> UR_RESULT_SUCCESS\n";
     return UR_RESULT_SUCCESS;
   }
   case CGType::AsyncAlloc: {
