@@ -2884,7 +2884,7 @@ void enqueueImpKernel(
 
   // Get Max number of work groups and linear id range that this kernel can
   // accept. Skip the check for interop kernels.
-  if (!(MSyclKernel->isInterop())) {
+  {
     // If IdQueryRangeProp property is not present in the device image,
     // it means that the kernel was compiled without -fsycl-id-queries-range
     // option, so use the default range type of `int`.
