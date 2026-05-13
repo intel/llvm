@@ -8,7 +8,7 @@
 
 """Check NVML library and NVIDIA driver version compatibility."""
 
-import subprocess
+import subprocess  # nosec B404
 import sys
 import re
 from pathlib import Path
@@ -21,7 +21,8 @@ NVML_SEARCH_PATHS = ['/usr/lib', '/usr/lib64', '/usr/local/lib']
 def get_driver_version() -> Optional[str]:
     """Get NVIDIA driver version from nvidia-smi."""
     try:
-        result = subprocess.run(
+        # Use nvidia-smi with fixed arguments - no user input, safe to use
+        result = subprocess.run(  # nosec B603 B607
             ['nvidia-smi', '--query-gpu=driver_version',
              '--format=csv,noheader'],
             capture_output=True,
