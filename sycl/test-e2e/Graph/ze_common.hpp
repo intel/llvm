@@ -31,6 +31,14 @@
 #endif
 #endif
 
+// ZE_CALLBACK may evaluate to a calling convention unsupported by the device
+// which throws an error with -Werror even though it is not used in device code.
+#ifdef __SYCL_DEVICE_ONLY__
+#define HOST_ONLY_ZE_CALLBACK // ignore ZE_CALLBACK
+#else
+#define HOST_ONLY_ZE_CALLBACK ZE_CALLBACK
+#endif
+
 inline ze_result_t getDriver(ze_driver_handle_t &ZeDriver) {
   uint32_t DriverCount = 0;
   ze_result_t status = zeDriverGet(&DriverCount, nullptr);

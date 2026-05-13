@@ -20,11 +20,11 @@ struct CallbackData {
   sycl::context *sycl_context;
 };
 
-void ZE_CALLBACK printCallback(void *pUserData) {
+void HOST_ONLY_ZE_CALLBACK printCallback(void *pUserData) {
   std::cout << "CALLBACK_INVOKED" << std::endl;
 }
 
-void ZE_CALLBACK memoryCleanupCallback(void *pUserData) {
+void HOST_ONLY_ZE_CALLBACK memoryCleanupCallback(void *pUserData) {
   CallbackData *data = static_cast<CallbackData *>(pUserData);
   if (data && data->allocated_memory && data->sycl_context) {
     sycl::free(data->allocated_memory, *(data->sycl_context));
