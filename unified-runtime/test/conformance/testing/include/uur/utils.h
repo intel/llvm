@@ -522,9 +522,11 @@ inline void isQueueBatched(ur_queue_handle_t queue, bool *info) {
 // when that is stable.
 static inline bool isPVC(ur_device_handle_t hDevice) {
   uint32_t deviceId;
-  EXPECT_EQ(urDeviceGetInfo(hDevice, UR_DEVICE_INFO_DEVICE_ID, sizeof(uint32_t),
-                            &deviceId, nullptr),
-            UR_RESULT_SUCCESS);
+  ur_result_t result = urDeviceGetInfo(hDevice, UR_DEVICE_INFO_DEVICE_ID,
+                                       sizeof(uint32_t), &deviceId, nullptr);
+  if (result != UR_RESULT_SUCCESS) {
+    return false;
+  }
   return (deviceId & 0xff0) == 0xbd0 || (deviceId & 0xff0) == 0xb60;
 }
 
