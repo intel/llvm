@@ -13,6 +13,26 @@ code thus unit tests check only API
 
 using namespace sycl::ext::oneapi::experimental;
 
+TEST(FP8E4M3Test, TrivialSpecialMembers) {
+  EXPECT_TRUE((std::is_trivially_default_constructible_v<fp8_e4m3>));
+  EXPECT_TRUE((std::is_trivially_copy_constructible_v<fp8_e4m3>));
+  EXPECT_TRUE((std::is_trivially_destructible_v<fp8_e4m3>));
+  EXPECT_TRUE((std::is_trivially_copy_assignable_v<fp8_e4m3>));
+
+  EXPECT_TRUE((std::is_trivially_default_constructible_v<fp8_e4m3_x2>));
+  EXPECT_TRUE((std::is_trivially_copy_constructible_v<fp8_e4m3_x2>));
+  EXPECT_TRUE((std::is_trivially_destructible_v<fp8_e4m3_x2>));
+  EXPECT_TRUE((std::is_trivially_copy_assignable_v<fp8_e4m3_x2>));
+
+  fp8_e4m3 source(1.0f);
+  fp8_e4m3 copy(source);
+  fp8_e4m3 assigned;
+  assigned = source;
+
+  EXPECT_EQ(copy.vals[0], source.vals[0]);
+  EXPECT_EQ(assigned.vals[0], source.vals[0]);
+}
+
 TEST(FP8E4M3Test, VariadicHalf) {
   fp8_e4m3_x2 a(sycl::half(1.0f), sycl::half(2.0f));
 
@@ -240,6 +260,14 @@ TEST(FP8E4M3Test, BoolOperatorZeroRules) {
   EXPECT_FALSE(static_cast<bool>(zn));
   EXPECT_TRUE(static_cast<bool>(one));
   EXPECT_TRUE(static_cast<bool>(sub));
+}
+
+TEST(FP8E4M3Test, BoolOperatorTreatsNaNAsTrue) {
+  fp8_e4m3 nanv(std::numeric_limits<float>::quiet_NaN());
+
+  EXPECT_EQ(sizeof(nanv.vals), 1u);
+  EXPECT_EQ(nanv.vals[0], 0x7F);
+  EXPECT_TRUE(static_cast<bool>(nanv));
 }
 
 TEST(FP8E4M3Test, CArrayFloatHostToEvenFinite) {
