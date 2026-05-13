@@ -3,9 +3,9 @@
 // DEFINE: %{cpp20} = %if cl_options %{/clang:-std=c++20%} %else %{-std=c++20%}
 
 // RUN: %{build} -o %t.out
-// RUN: env %if windows %{UR_L0_V2_ENABLE_WINDOWS_IPC_WA=1 %} SYCL_UR_TRACE=-1 UR_LOG_LOADER="level:debug;output:stdout;flush:debug" UR_LOG_LEVEL_ZERO="level:debug;output:stdout;flush:debug" UMF_LOG="level:debug;flush:debug;output:stdout;pid:yes" %{run} %t.out
+// RUN: %{run} %t.out
 // RUN: %{build} -DUSE_VIEW %{cpp20} -o %t.view.out
-// RUN: env %if windows %{UR_L0_V2_ENABLE_WINDOWS_IPC_WA=1 %} SYCL_UR_TRACE=-1 UR_LOG_LOADER="level:debug;output:stdout;flush:debug" UR_LOG_LEVEL_ZERO="level:debug;output:stdout;flush:debug" UMF_LOG="level:debug;flush:debug;output:stdout;pid:yes" %{run} %t.view.out
+// RUN: %{run} %t.view.out
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/ipc_memory.hpp>
@@ -37,6 +37,28 @@ constexpr const char *CommsFile = "ipc_comms.txt";
 static void print_env(const char *Name) {
   const char *Value = std::getenv(Name);
   std::cout << Name << '=' << (Value ? Value : "<unset>") << std::endl;
+}
+
+static void set_env(const char *Name, const char *Value) {
+#if defined(__WIN32__) || defined(_WIN32)
+  if (!SetEnvironmentVariableA(Name, Value)) {
+    std::cout << "SetEnvironmentVariableA failed for " << Name
+              << ": " << GetLastError() << std::endl;
+    throw std::runtime_error("SetEnvironmentVariableA failed");
+  }
+#else
+  if (setenv(Name, Value, 1) != 0) {
+    throw std::runtime_error("setenv failed");
+  }
+#endif
+}
+
+static void configure_runtime_diagnostics_env() {
+  set_env("UR_L0_V2_ENABLE_WINDOWS_IPC_WA", "1");
+  set_env("SYCL_UR_TRACE", "-1");
+  set_env("UR_LOG_LOADER", "level:debug;output:stdout;flush:debug");
+  set_env("UR_LOG_LEVEL_ZERO", "level:debug;output:stdout;flush:debug");
+  set_env("UMF_LOG", "level:debug;flush:debug;output:stdout;pid:yes");
 }
 
 static void print_runtime_diagnostics(const char *Role, sycl::queue &Q) {
@@ -106,6 +128,7 @@ void spawn_and_sync(std::string Exe) {
 int spawner(int argc, char *argv[]) try {
   std::cout << "Running spanwer..." << std::endl;
   assert(argc == 1);
+  configure_runtime_diagnostics_env();
   sycl::queue Q;
   print_runtime_diagnostics("spawner", Q);
 
@@ -166,6 +189,7 @@ int spawner(int argc, char *argv[]) try {
 
 int consumer() try {
   std::cout << "Running consumer..." << std::endl;
+  configure_runtime_diagnostics_env();
   sycl::queue Q;
   print_runtime_diagnostics("consumer", Q);
 
