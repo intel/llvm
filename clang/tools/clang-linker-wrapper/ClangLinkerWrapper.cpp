@@ -160,8 +160,10 @@ static bool CanonicalPrefixes = true;
 
 using OffloadingImage = OffloadBinary::OffloadingImage;
 
-// TODO: Remove this once the linking and backend compilation have been fully
-// migrated to clang-sycl-linker.
+// Controls whether to use clang-sycl-linker for SYCL device linking.
+// Set via --use-clang-sycl-linker flag.
+// TODO: Remove this flag once the linking and backend compilation have been
+// fully migrated to clang-sycl-linker and make it the default behavior.
 bool UseClangSYCLLinker = false;
 
 namespace llvm {
@@ -1683,7 +1685,15 @@ Expected<StringRef> bundleDeviceModule(StringRef ClangOutput,
 } // namespace sycl
 
 namespace generic {
-// Forwards all required flags to the clang-sycl-linker via -Xlinker.
+/// Append arguments for clang-sycl-linker invocation via -Xlinker.
+/// This function forwards all necessary options from clang-linker-wrapper to
+/// clang-sycl-linker by wrapping them with -Xlinker when invoking
+/// "clang -fsycl --sycl-link".
+///
+/// \param Args The parsed command-line arguments from clang-linker-wrapper.
+/// \param CmdArgs The command arguments list to append to (for clang invocation).
+/// \param Triple The target triple for the device.
+/// \param Arch The target architecture (e.g., "pvc", "graniterapids").
 static void appendClangSYCLLinkerArgs(const ArgList &Args,
                                       SmallVectorImpl<StringRef> &CmdArgs,
                                       const llvm::Triple &Triple,
@@ -1940,6 +1950,15 @@ Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
           "For SPIR targets, Linking is supported only for JIT compilations "
           "and AOT compilations for Intel CPUs/GPUs");
     if (IsSYCLKind) {
+      // When UseClangSYCLLinker is enabled, route spirv64 through
+      // generic::clang() which invokes "clang -fsycl --sycl-link" and forwards
+      // options via -Xlinker. Without this check, spirv64 uses the old
+      // sycl::runLLVMToSPIRVTranslation() path below. Other architectures
+      // (nvptx, amdgcn, etc.) already route through generic::clang() and check
+      // UseClangSYCLLinker there.
+      if (UseClangSYCLLinker)
+        return generic::clang(InputFiles, Args, IsSYCLKind);
+
       auto SPVFile = sycl::runLLVMToSPIRVTranslation(InputFiles[0], Args);
       if (!SPVFile)
         return SPVFile.takeError();
@@ -2824,6 +2843,7 @@ int main(int Argc, char **Argv) {
   SaveTemps = Args.hasArg(OPT_save_temps);
   CudaBinaryPath = Args.getLastArgValue(OPT_cuda_path_EQ).str();
   CanonicalPrefixes = !Args.hasArg(OPT_no_canonical_prefixes);
+  UseClangSYCLLinker = Args.hasArg(OPT_use_clang_sycl_linker);
 
   llvm::Triple Triple(
       Args.getLastArgValue(OPT_host_triple_EQ, sys::getDefaultTargetTriple()));
