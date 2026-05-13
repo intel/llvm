@@ -434,8 +434,16 @@ static PostLinkSettings getSYCLPostLinkSettings(const ArgList &Args,
     Settings.GenerateModuleDescWithDefaultSpecConsts = true;
 
   Settings.SplitMode = Settings.ESIMDOptions.SplitMode = *SYCLModuleSplitMode;
-  // TODO: fill AllowDeviceImageDependencies, ESIMDOptions.OptLevel and
-  // ESIMDOptions.ForceDisableESIMDOpt
+  // --sycl-allow-device-image-dependencies already guards
+  // EmitOnlyKernelsAsEntryPoints above, but
+  // ESIMDOptions.AllowDeviceImageDependencies is a separate field that controls
+  // ESIMD-specific behaviour: module cleanup, dependency-graph construction,
+  // and inter-image symbol export. Without setting it here, ESIMD processing
+  // silently ignores the flag and always behaves as if device-image
+  // dependencies are disallowed.
+  Settings.ESIMDOptions.AllowDeviceImageDependencies =
+      Args.hasArg(OPT_sycl_allow_device_image_dependencies);
+  // TODO: fill ESIMDOptions.OptLevel and ESIMDOptions.ForceDisableESIMDOpt
 
   return Settings;
 }
@@ -722,7 +730,15 @@ Error runSYCLLink(ArrayRef<std::string> Files, const ArgList &Args) {
     return LinkedFile.takeError();
 
   // Run sycl-post-link processing on the linked module.
-  bool IsDevicePassedWithSyclTargetBackend = false; // TODO: Detect from args
+  // IsDevicePassedWithSyclTargetBackend is true when the user explicitly named
+  // a device via -Xsycl-target-backend (which lands in --ocloc-options as
+  // "-device <name>"). When true, sycl-post-link must NOT prepend the arch
+  // prefix to the output path because the backend already knows the target.
+  StringRef OclocOptions = Args.getLastArgValue(OPT_ocloc_options_EQ);
+  SmallVector<StringRef> OclocArgs;
+  OclocOptions.split(OclocArgs, ' ', /*MaxSplit=*/-1, /*KeepEmpty=*/false);
+  bool IsDevicePassedWithSyclTargetBackend =
+      llvm::is_contained(OclocArgs, "-device");
   SmallVector<StringRef> InputFilesSYCL = {*LinkedFile};
 
   auto SplitModulesOrErr =
@@ -782,8 +798,7 @@ Error runSYCLLink(ArrayRef<std::string> Files, const ArgList &Args) {
         Args.MakeArgString(Args.getLastArgValue(OPT_triple_EQ));
     TheImage.StringData["arch"] =
         Args.MakeArgString(Args.getLastArgValue(OPT_arch_EQ));
-    TheImage.StringData["symbols"] =
-        SplitModules[I].Symbols; // Use post-link symbols
+    TheImage.StringData["symbols"] = SplitModules[I].Symbols;
     TheImage.Image = std::move(*FileOrErr);
 
     llvm::SmallString<0> Buffer = OffloadBinary::write(TheImage);

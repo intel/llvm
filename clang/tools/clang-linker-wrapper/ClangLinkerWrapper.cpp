@@ -730,8 +730,16 @@ getSYCLPostLinkSettings(const ArgList &Args, const llvm::Triple Triple) {
     Settings.GenerateModuleDescWithDefaultSpecConsts = true;
 
   Settings.SplitMode = Settings.ESIMDOptions.SplitMode = *SYCLModuleSplitMode;
-  // TODO: fill AllowDeviceImageDependencies, ESIMDOptions.OptLevel and
-  // ESIMDOptions.ForceDisableESIMDOpt
+  // --sycl-allow-device-image-dependencies already guards
+  // EmitOnlyKernelsAsEntryPoints above, but
+  // ESIMDOptions.AllowDeviceImageDependencies is a separate field that controls
+  // ESIMD-specific behaviour: module cleanup, dependency-graph construction,
+  // and inter-image symbol export. Without setting it here, ESIMD processing
+  // silently ignores the flag and always behaves as if device-image
+  // dependencies are disallowed.
+  Settings.ESIMDOptions.AllowDeviceImageDependencies =
+      Args.hasArg(OPT_sycl_allow_device_image_dependencies);
+  // TODO: fill ESIMDOptions.OptLevel and ESIMDOptions.ForceDisableESIMDOpt
 
   return Settings;
 }
