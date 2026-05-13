@@ -58,6 +58,7 @@ template <> inline void SPIRVMap<LinkageType, std::string>::init() {
   add(LinkageTypeExport, "Export");
   add(LinkageTypeImport, "Import");
   add(LinkageTypeLinkOnceODR, "LinkOnceODR");
+  add(LinkageTypeWeakAMD, "WeakAMD");
   add(internal::LinkageTypeInternal, "Internal");
   add(LinkageTypeMax, "Max");
 }
@@ -487,6 +488,7 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
   add(CapabilityFragmentMaskAMD, "FragmentMaskAMD");
   add(CapabilityStencilExportEXT, "StencilExportEXT");
   add(CapabilityImageReadWriteLodAMD, "ImageReadWriteLodAMD");
+  add(CapabilityWeakLinkageAMD, "WeakLinkageAMD");
   add(CapabilityInt64ImageEXT, "Int64ImageEXT");
   add(CapabilityShaderClockKHR, "ShaderClockKHR");
   add(CapabilitySampleMaskOverrideCoverageNV, "SampleMaskOverrideCoverageNV");

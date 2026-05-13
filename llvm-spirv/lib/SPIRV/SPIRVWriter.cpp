@@ -7505,6 +7505,9 @@ LLVMToSPIRVBase::transLinkageType(const GlobalValue *GV) {
   if (GV->hasLinkOnceODRLinkage())
     if (BM->isAllowedToUseExtension(ExtensionID::SPV_KHR_linkonce_odr))
       return SPIRVLinkageTypeKind::LinkageTypeLinkOnceODR;
+  if (GV->hasWeakAnyLinkage())
+    if (BM->isAllowedToUseExtension(ExtensionID::SPV_AMD_weak_linkage))
+      return SPIRVLinkageTypeKind::LinkageTypeWeakAMD;
   return SPIRVLinkageTypeKind::LinkageTypeExport;
 }
 
@@ -7651,6 +7654,7 @@ bool runSpirvBackend(Module *M, std::string &Result, std::string &ErrMsg,
       SPIRV::ExtensionID::SPV_KHR_expect_assume,
       SPIRV::ExtensionID::SPV_KHR_bit_instructions,
       SPIRV::ExtensionID::SPV_KHR_linkonce_odr,
+      SPIRV::ExtensionID::SPV_AMD_weak_linkage,
       SPIRV::ExtensionID::SPV_INTEL_inline_assembly,
       SPIRV::ExtensionID::SPV_INTEL_bfloat16_conversion,
       SPIRV::ExtensionID::SPV_KHR_subgroup_rotate,
