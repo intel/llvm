@@ -34,6 +34,8 @@
 #include "llvm/Option/ArgList.h"
 #include "llvm/Option/OptTable.h"
 #include "llvm/Option/Option.h"
+#include "llvm/SYCLPostLink/ModuleSplitter.h"
+#include "llvm/SYCLPostLink/SYCLPostLink.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/FormatVariadic.h"
@@ -46,8 +48,6 @@
 #include "llvm/Support/TimeProfiler.h"
 #include "llvm/Support/WithColor.h"
 #include "llvm/Target/TargetMachine.h"
-#include "llvm/SYCLPostLink/ModuleSplitter.h"
-#include "llvm/SYCLPostLink/SYCLPostLink.h"
 
 using namespace llvm;
 using namespace llvm::opt;
@@ -382,8 +382,9 @@ static Error runCodeGen(StringRef File, const ArgList &Args,
   return Error::success();
 }
 
-/// Creates and configures PostLinkSettings for SYCL post-link library processing.
-/// NOTE: Any changes made here should be reflected in getTripleBasedSYCLPostLinkOpts().
+/// Creates and configures PostLinkSettings for SYCL post-link library
+/// processing. NOTE: Any changes made here should be reflected in
+/// getTripleBasedSYCLPostLinkOpts().
 static PostLinkSettings getSYCLPostLinkSettings(const ArgList &Args,
                                                 const llvm::Triple Triple) {
   PostLinkSettings Settings;
@@ -440,10 +441,12 @@ static PostLinkSettings getSYCLPostLinkSettings(const ArgList &Args,
 }
 
 /// Add triple-based sycl-post-link options.
-/// NOTE: Any changes made here should be reflected in getSYCLPostLinkSettings().
-static void getTripleBasedSYCLPostLinkOpts(const ArgList &Args,
-                                           SmallVector<StringRef, 8> &PostLinkArgs,
-                                           const llvm::Triple Triple) {
+/// NOTE: Any changes made here should be reflected in
+/// getSYCLPostLinkSettings().
+static void
+getTripleBasedSYCLPostLinkOpts(const ArgList &Args,
+                               SmallVector<StringRef, 8> &PostLinkArgs,
+                               const llvm::Triple Triple) {
   bool SpecConstsSupported = (!Triple.isNVPTX() && !Triple.isAMDGCN() &&
                               !Triple.isSPIRAOT() && !Triple.isNativeCPU());
   if (SpecConstsSupported)
@@ -473,8 +476,7 @@ static void getTripleBasedSYCLPostLinkOpts(const ArgList &Args,
 
   bool SplitEsimd =
       Args.hasFlag(OPT_sycl_device_code_split_esimd,
-                   OPT_no_sycl_device_code_split_esimd,
-                   Triple.isSPIROrSPIRV());
+                   OPT_no_sycl_device_code_split_esimd, Triple.isSPIROrSPIRV());
 
   if (!Args.hasArg(OPT_sycl_thin_lto))
     PostLinkArgs.push_back("-symbols");
@@ -500,8 +502,8 @@ static void getTripleBasedSYCLPostLinkOpts(const ArgList &Args,
 static Expected<std::vector<SplitModule>>
 runSYCLPostLinkTool(ArrayRef<StringRef> InputFiles, const ArgList &Args,
                     bool IsDevicePassedWithSyclTargetBackend) {
-  Expected<std::string> SYCLPostLinkPath =
-      findProgram(Args, "sycl-post-link", {getMainExecutable("sycl-post-link")});
+  Expected<std::string> SYCLPostLinkPath = findProgram(
+      Args, "sycl-post-link", {getMainExecutable("sycl-post-link")});
   if (!SYCLPostLinkPath)
     return SYCLPostLinkPath.takeError();
 
@@ -550,8 +552,8 @@ runSYCLPostLinkTool(ArrayRef<StringRef> InputFiles, const ArgList &Args,
 
   if (DryRun) {
     // In DryRun we need a dummy entry in order to continue the whole pipeline.
-    auto ImageFileOrErr = createTempFile(Args,
-        sys::path::filename(OutputFile) + ".sycl.split.image", "bc");
+    auto ImageFileOrErr = createTempFile(
+        Args, sys::path::filename(OutputFile) + ".sycl.split.image", "bc");
     if (!ImageFileOrErr)
       return ImageFileOrErr.takeError();
 
@@ -572,8 +574,8 @@ runSYCLPostLinkLibrary(ArrayRef<StringRef> InputFiles, const ArgList &Args,
   PostLinkSettings Settings = getSYCLPostLinkSettings(Args, Triple);
 
   if (DryRun) {
-    auto OutputFileOrErr = createTempFile(Args,
-        sys::path::filename(OutputFile) + ".sycl.split.image", "bc");
+    auto OutputFileOrErr = createTempFile(
+        Args, sys::path::filename(OutputFile) + ".sycl.split.image", "bc");
     if (!OutputFileOrErr)
       return OutputFileOrErr.takeError();
 
@@ -743,7 +745,8 @@ Error runSYCLLink(ArrayRef<std::string> Files, const ArgList &Args) {
   for (size_t I = 0, E = SplitModules.size(); I != E; ++I) {
     StringRef Stem = OutputFile.rsplit('.').first;
     std::string SPVFile = (Stem + "_" + Twine(I) + ".spv").str();
-    if (Error Err = runCodeGen(SplitModules[I].ModuleFilePath, Args, SPVFile, C))
+    if (Error Err =
+            runCodeGen(SplitModules[I].ModuleFilePath, Args, SPVFile, C))
       return Err;
     if (!IsAOTCompileNeeded) {
       SplitModules[I].ModuleFilePath = SPVFile;
@@ -779,7 +782,8 @@ Error runSYCLLink(ArrayRef<std::string> Files, const ArgList &Args) {
         Args.MakeArgString(Args.getLastArgValue(OPT_triple_EQ));
     TheImage.StringData["arch"] =
         Args.MakeArgString(Args.getLastArgValue(OPT_arch_EQ));
-    TheImage.StringData["symbols"] = SplitModules[I].Symbols;  // Use post-link symbols
+    TheImage.StringData["symbols"] =
+        SplitModules[I].Symbols; // Use post-link symbols
     TheImage.Image = std::move(*FileOrErr);
 
     llvm::SmallString<0> Buffer = OffloadBinary::write(TheImage);
@@ -835,8 +839,8 @@ int main(int argc, char **argv) {
   if (Args.hasArg(OPT_sycl_module_split_mode_EQ)) {
     StringRef StrMode = Args.getLastArgValue(OPT_sycl_module_split_mode_EQ);
     if (UseSYCLPostLinkTool)
-      reportError(createStringError(
-          "--sycl-module-split-mode cannot be used with --use-sycl-post-link-tool"));
+      reportError(createStringError("--sycl-module-split-mode cannot be used "
+                                    "with --use-sycl-post-link-tool"));
     SYCLModuleSplitMode = module_split::convertStringToSplitMode(StrMode);
     if (!SYCLModuleSplitMode)
       reportError(createStringError("Invalid split mode: " + StrMode));
