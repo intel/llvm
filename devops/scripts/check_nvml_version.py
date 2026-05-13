@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Optional, Tuple
 
 COMMAND_TIMEOUT = 30
-NVML_SEARCH_PATHS = ['/usr/lib', '/usr/lib64', '/usr/local/lib']
+NVML_SEARCH_PATHS = ["/usr/lib", "/usr/lib64", "/usr/local/lib"]
 
 
 def get_driver_version() -> Optional[str]:
@@ -23,12 +23,11 @@ def get_driver_version() -> Optional[str]:
     try:
         # Use nvidia-smi with fixed arguments - no user input, safe to use
         result = subprocess.run(  # nosec B603 B607
-            ['nvidia-smi', '--query-gpu=driver_version',
-             '--format=csv,noheader'],
+            ["nvidia-smi", "--query-gpu=driver_version", "--format=csv,noheader"],
             capture_output=True,
             text=True,
             check=True,
-            timeout=COMMAND_TIMEOUT
+            timeout=COMMAND_TIMEOUT,
         )
         version = result.stdout.strip()
         if not version:
@@ -57,18 +56,15 @@ def find_nvml_library() -> Optional[str]:
             path = Path(search_path)
             if not path.exists():
                 continue
-            
-            for lib_file in path.rglob('libnvidia-ml.so.1'):
+
+            for lib_file in path.rglob("libnvidia-ml.so.1"):
                 real_path = lib_file.resolve()
-                version_match = re.search(
-                    r'\.so\.(\d+\.\d+(?:\.\d+)?)',
-                    str(real_path)
-                )
+                version_match = re.search(r"\.so\.(\d+\.\d+(?:\.\d+)?)", str(real_path))
                 if version_match:
                     return version_match.group(1)
         except (OSError, PermissionError):
             continue
-    
+
     print("::error::NVML library not found in container")
     print(f"ERROR: libnvidia-ml.so.1 not found in {NVML_SEARCH_PATHS}", file=sys.stderr)
     return None
@@ -77,7 +73,7 @@ def find_nvml_library() -> Optional[str]:
 def parse_version(version: str) -> Optional[Tuple[int, ...]]:
     """Parse version string into tuple of integers."""
     try:
-        return tuple(int(x) for x in version.split('.'))
+        return tuple(int(x) for x in version.split("."))
     except (ValueError, AttributeError):
         return None
 
@@ -86,18 +82,17 @@ def compare_versions(driver_version: str, nvml_version: str) -> bool:
     """Check if NVML library version is compatible with driver version."""
     driver_parts = parse_version(driver_version)
     nvml_parts = parse_version(nvml_version)
-    
+
     if not driver_parts or not nvml_parts:
         print("::error::Failed to parse version numbers")
         print(
-            f"ERROR: Driver: {driver_version}, Library: {nvml_version}",
-            file=sys.stderr
+            f"ERROR: Driver: {driver_version}, Library: {nvml_version}", file=sys.stderr
         )
         return False
-    
+
     driver_major = driver_parts[0]
     nvml_major = nvml_parts[0]
-    
+
     if driver_major != nvml_major:
         print(
             f"::error::NVML version mismatch - "
@@ -105,10 +100,10 @@ def compare_versions(driver_version: str, nvml_version: str) -> bool:
         )
         print(
             f"ERROR: Major versions differ ({driver_major} vs {nvml_major})",
-            file=sys.stderr
+            file=sys.stderr,
         )
         return False
-    
+
     if nvml_parts > driver_parts:
         print(
             f"::error::NVML version mismatch - "
@@ -117,10 +112,10 @@ def compare_versions(driver_version: str, nvml_version: str) -> bool:
         print(
             f"ERROR: Library version ({nvml_version}) "
             f"is newer than driver ({driver_version})",
-            file=sys.stderr
+            file=sys.stderr,
         )
         return False
-    
+
     return True
 
 
@@ -129,14 +124,14 @@ def main() -> int:
     driver_version = get_driver_version()
     if not driver_version:
         return 1
-    
+
     nvml_version = find_nvml_library()
     if not nvml_version:
         return 1
-    
+
     if not compare_versions(driver_version, nvml_version):
         return 1
-    
+
     print(
         f"NVML version check passed: "
         f"Driver {driver_version}, Library {nvml_version}"
@@ -144,5 +139,5 @@ def main() -> int:
     return 0
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     sys.exit(main())
