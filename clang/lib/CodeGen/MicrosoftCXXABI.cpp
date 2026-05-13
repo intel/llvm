@@ -1197,14 +1197,13 @@ bool MicrosoftCXXABI::classifyReturnType(CGFunctionInfo &FI) const {
   bool isIndirectReturn = !isTrivialForABI || FI.isInstanceMethod();
 
   if (isIndirectReturn) {
-    QualType Ret = FI.getReturnType();
-    CharUnits Align = CGM.getContext().getTypeAlignInChars(Ret);
-    unsigned AddressSpace = CGM.getCodeGenOpts().UseAllocaASForSrets
+    CharUnits Align = CGM.getContext().getTypeAlignInChars(FI.getReturnType());
+    LangAS SRetAS = CGM.getTargetCodeGenInfo().getSRetAddrSpace(RD);
+    unsigned AS = CGM.getCodeGenOpts().UseAllocaASForSrets
                                 ? CGM.getDataLayout().getAllocaAddrSpace()
-                                : CGM.getTypes().getTargetAddressSpace(Ret);
+                                : CGM.getContext().getTargetAddressSpace(SRetAS);
     FI.getReturnInfo() =
-        ABIArgInfo::getIndirect(Align, /*AddrSpace=*/AddressSpace,
-                                /*ByVal=*/false);
+        ABIArgInfo::getIndirect(Align, /*AddrSpace=*/AS, /*ByVal=*/false);
 
     // MSVC always passes `this` before the `sret` parameter.
     FI.getReturnInfo().setSRetAfterThis(FI.isInstanceMethod());

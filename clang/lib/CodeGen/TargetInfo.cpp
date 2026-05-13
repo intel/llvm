@@ -125,6 +125,7 @@ unsigned TargetCodeGenInfo::getDeviceKernelCallingConv() const {
   // Outside of OpenCL, kernels currently do not exist for CPU targets.
   assert(getABIInfo().getContext().getLangOpts().OpenCL &&
         "Kernel calling convention only defined for OpenCL");
+
   return llvm::CallingConv::C;
 }
 

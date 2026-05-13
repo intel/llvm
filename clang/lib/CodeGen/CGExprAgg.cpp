@@ -288,21 +288,28 @@ void AggExprEmitter::withReturnValueSlot(
   // its lifetime before we have the chance to emit a proper destructor call.
   //
   // We also need a temporary if the destination is in a different address space
-  // from the alloca AS, to avoid an invalid addrspacecast on the sret pointer.
-  // Look through addrspacecasts to avoid unnecessary temps when the
-  // destination is already in the alloca AS.
+  // from the sret AS. Use the target hook to get the actual sret AS for this
+  // return type.
+  const CXXRecordDecl *RD = RetTy->getAsCXXRecordDecl();
+  LangAS SRetLangAS = CGF.CGM.getTargetCodeGenInfo().getSRetAddrSpace(RD);
+  unsigned SRetAS = CGF.CGM.getCodeGenOpts().UseAllocaASForSrets
+                                ? CGF.getContext().getTargetAddressSpace(
+                                    CGF.CGM.getASTAllocaAddressSpace())
+                                : CGF.getContext().getTargetAddressSpace(SRetLangAS);
+  bool CanAggregateCopy =
+      RD ? (RD->hasTrivialCopyConstructor() ||
+            RD->hasTrivialMoveConstructor() || RD->hasTrivialCopyAssignment() ||
+            RD->hasTrivialMoveAssignment() || RD->hasAttr<TrivialABIAttr>() ||
+            RD->isUnion())
+         : RetTy.isTriviallyCopyableType(CGF.getContext());
   bool DestASMismatch = false;
-  unsigned SRetAS = CGF.getContext().getTargetAddressSpace(
-      CGF.CGM.getASTAllocaAddressSpace());
-  if (CGF.CGM.getCodeGenOpts().UseAllocaASForSrets) {
-    DestASMismatch = !Dest.isIgnored() &&
-                     RetTy.isTriviallyCopyableType(CGF.getContext()) &&
-                     Dest.getAddress()
-                             .getBasePointer()
-                             ->stripPointerCasts()
-                             ->getType()
-                             ->getPointerAddressSpace() != SRetAS;
-  }
+  if (CGF.CGM.getCodeGenOpts().UseAllocaASForSrets)
+    DestASMismatch = !Dest.isIgnored() && CanAggregateCopy &&
+                        Dest.getAddress()
+                                .getBasePointer()
+                                ->stripPointerCasts()
+                                ->getType()
+                                ->getPointerAddressSpace() != SRetAS;
   bool UseTemp = Dest.isPotentiallyAliased() || Dest.requiresGCollection() ||
                  (RequiresDestruction && Dest.isIgnored()) || DestASMismatch;
 
@@ -651,9 +658,15 @@ void AggExprEmitter::EmitArrayInit(Address DestPtr, llvm::ArrayType *AType,
   auto Emit = [&](Expr *Init, uint64_t ArrayIndex) {
     llvm::Value *element = begin;
     if (ArrayIndex > 0) {
-      element = Builder.CreateInBoundsGEP(
-          llvmElementType, begin,
-          llvm::ConstantInt::get(CGF.SizeTy, ArrayIndex), "arrayinit.element");
+      if (CGF.getLangOpts().EmitLogicalPointer)
+        element = Builder.CreateStructuredGEP(
+            AType, begin, llvm::ConstantInt::get(CGF.SizeTy, ArrayIndex),
+            "arrayinit.element");
+      else
+        element = Builder.CreateInBoundsGEP(
+            llvmElementType, begin,
+            llvm::ConstantInt::get(CGF.SizeTy, ArrayIndex),
+            "arrayinit.element");
 
       // Tell the cleanup that it needs to destroy up to this
       // element.  TODO: some of these stores can be trivially

@@ -407,6 +407,7 @@ bool serialization::isRedeclarableDeclKind(unsigned Kind) {
     return true;
 
   // Never redeclarable.
+  case Decl::ExplicitInstantiation:
   case Decl::UsingDirective:
   case Decl::Label:
   case Decl::UnresolvedUsingTypename:

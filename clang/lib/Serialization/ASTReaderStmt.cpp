@@ -1797,6 +1797,7 @@ void ASTStmtReader::VisitMSDependentExistsStmt(MSDependentExistsStmt *S) {
 void ASTStmtReader::VisitCXXOperatorCallExpr(CXXOperatorCallExpr *E) {
   VisitCallExpr(E);
   E->CXXOperatorCallExprBits.OperatorKind = Record.readInt();
+  E->CXXOperatorCallExprBits.IsReversed = Record.readInt();
   E->BeginLoc = Record.readSourceLocation();
 }
 

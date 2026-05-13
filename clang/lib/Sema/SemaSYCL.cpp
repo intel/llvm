@@ -4092,7 +4092,8 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     Expr *ArrayRef = createSimpleArrayParamReferenceExpr(FieldTy);
     InitializationKind InitKind = InitializationKind::CreateDirect({}, {}, {});
 
-    InitializedEntity Entity = InitializedEntity::InitializeMemberImplicit(FD);
+    InitializedEntity Entity =
+        InitializedEntity::InitializeMemberImplicit(FD, &VarEntity.value());
 
     addFieldInit(FD, FieldTy, ArrayRef, InitKind, Entity);
   }
