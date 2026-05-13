@@ -13579,6 +13579,8 @@ def err_free_function_class_method : Error<
 def err_sycl_kernel_virtual_arg : Error<
   "argument type '%0' virtually inherited from base class `%1` is not supported as a SYCL kernel argument">;
 
+def err_sycl_device_invalid_target : Error<
+  "%0 is not a supported SYCL device target">;
 
 // SYCL external attribute diagnostics
 def err_sycl_external_invalid_linkage : Error<

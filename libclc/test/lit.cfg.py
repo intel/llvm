@@ -26,20 +26,19 @@ config.name = f"LIBCLC-{config.libclc_target.upper()}"
 
 
 # testFormat: The test format to use to interpret tests.
-config.test_format = lit.formats.ShTest()
+config.test_format = lit.formats.ShTest(not llvm_config.use_lit_shell)
 
 # suffixes: A list of file extensions to treat as test files.
-config.suffixes = [".cl", ".test"]
+config.suffixes = [".cl", ".cpp", ".test"]
 
-# Exclude certain directories and files from test discovery
+# excludes: A list of directories  and fles to exclude from the testsuite.
 config.excludes = [
     "CMakeLists.txt",
     "update_libclc_tests.py",
 ]
 
 # test_source_root: The root path where tests are located.
-# For per-target tests, this is the target's test directory.
-config.test_source_root = os.path.dirname(__file__)
+config.test_source_root = os.path.join(os.path.dirname(__file__), "binding")
 
 libclc_inc = os.path.join(config.libclc_root, "libspirv", "include")
 

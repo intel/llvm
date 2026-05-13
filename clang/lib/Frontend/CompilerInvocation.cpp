@@ -5327,6 +5327,8 @@ bool CompilerInvocation::CreateFromArgsImpl(
     Res.getTargetOpts().HostTriple = Res.getFrontendOpts().AuxTriple;
 
   if (LangOpts.SYCLIsDevice) {
+    if (!Args.hasArg(options::OPT_triple))
+      Res.getTargetOpts().Triple = "spirv64-unknown-unknown";
     // Set the triple of the host for SYCL device compile.
     Res.getTargetOpts().HostTriple = Res.getFrontendOpts().AuxTriple;
     // If specified, create empty integration header files for now.
