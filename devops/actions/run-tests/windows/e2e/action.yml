@@ -95,12 +95,12 @@ runs:
       echo "working-directory=$(pwd)"
       if [ -f build-e2e/CMakeCache.txt ]; then
         echo "::group::Relevant CMakeCache entries"
-        rg -n "CMAKE_CXX_COMPILER:|LLVM_LIT:|SYCL_E2E_TESTS_LIT_FLAGS:|CMAKE_GENERATOR:|LEVEL_ZERO_" build-e2e/CMakeCache.txt || true
+        grep -nE "CMAKE_CXX_COMPILER:|LLVM_LIT:|SYCL_E2E_TESTS_LIT_FLAGS:|CMAKE_GENERATOR:|LEVEL_ZERO_" build-e2e/CMakeCache.txt || true
         echo "::endgroup::"
       fi
       if [ -f build-e2e/build.ninja ]; then
         echo "::group::check-sycl-e2e target excerpt"
-        rg -n -C 3 "check-sycl-e2e|ipc_memory\.cpp" build-e2e/build.ninja || true
+        grep -nE "check-sycl-e2e|ipc_memory\.cpp" build-e2e/build.ninja || true
         echo "::endgroup::"
       fi
       if [ -d build-e2e/Experimental/Output ]; then
@@ -121,7 +121,7 @@ runs:
         done
       fi
       echo "::group::ipc_memory excerpt from e2e.log"
-      rg -n -C 8 "ipc_memory\.cpp|FAILED:|executed command|command stdout|command stderr|error:" e2e.log || true
+      grep -nE "ipc_memory\.cpp|FAILED:|executed command|command stdout|command stderr|error:" e2e.log || true
       echo "::endgroup::"
       echo "::endgroup::"
   - name: Report E2E Failures

@@ -3,9 +3,9 @@
 // DEFINE: %{cpp20} = %if cl_options %{/clang:-std=c++20%} %else %{-std=c++20%}
 
 // RUN: %{build} -o %t.out
-// RUN: %{run} %t.out
+// RUN: %{run-unfiltered-devices} %t.out
 // RUN: %{build} -DUSE_VIEW %{cpp20} -o %t.view.out
-// RUN: %{run} %t.view.out
+// RUN: %{run-unfiltered-devices} %t.view.out
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/ipc_memory.hpp>
@@ -42,8 +42,8 @@ static void print_env(const char *Name) {
 static void set_env(const char *Name, const char *Value) {
 #if defined(__WIN32__) || defined(_WIN32)
   if (!SetEnvironmentVariableA(Name, Value)) {
-    std::cout << "SetEnvironmentVariableA failed for " << Name
-              << ": " << GetLastError() << std::endl;
+    std::cout << "SetEnvironmentVariableA failed for " << Name << ": "
+              << GetLastError() << std::endl;
     throw std::runtime_error("SetEnvironmentVariableA failed");
   }
 #else
@@ -54,6 +54,7 @@ static void set_env(const char *Name, const char *Value) {
 }
 
 static void configure_runtime_diagnostics_env() {
+  set_env("ONEAPI_DEVICE_SELECTOR", "level_zero:gpu");
   set_env("UR_L0_V2_ENABLE_WINDOWS_IPC_WA", "1");
   set_env("SYCL_UR_TRACE", "-1");
   set_env("UR_LOG_LOADER", "level:debug;output:stdout;flush:debug");
@@ -65,6 +66,7 @@ static void print_runtime_diagnostics(const char *Role, sycl::queue &Q) {
   std::cout << '[' << Role << "] backend=" << static_cast<int>(Q.get_backend())
             << " device=" << Q.get_device().get_info<sycl::info::device::name>()
             << std::endl;
+  print_env("ONEAPI_DEVICE_SELECTOR");
   print_env("UR_L0_V2_ENABLE_WINDOWS_IPC_WA");
   print_env("SYCL_UR_TRACE");
   print_env("UR_LOG_LOADER");
