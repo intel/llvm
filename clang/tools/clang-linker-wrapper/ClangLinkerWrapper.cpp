@@ -1747,7 +1747,7 @@ static void appendClangSYCLLinkerArgs(const ArgList &Args,
 }
 
 Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args,
-                          bool IsSYCLKind = false) {
+                          uint16_t ActiveOffloadKindMask = 0) {
   llvm::TimeTraceScope TimeScope("Clang");
   // Use `clang` to invoke the appropriate device tools.
   Expected<std::string> ClangPath =
@@ -1801,17 +1801,17 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args,
   if (!Triple.isNVPTX() && !Triple.isSPIRV() && !Triple.isNativeCPU())
     CmdArgs.push_back("-Wl,--no-undefined");
 
-  if (IsSYCLKind && Triple.isNVPTX())
+  if ((ActiveOffloadKindMask & OFK_SYCL) && Triple.isNVPTX())
     CmdArgs.push_back("-S");
 
-  if (IsSYCLKind && Triple.isNativeCPU()) {
+  if ((ActiveOffloadKindMask & OFK_SYCL) && Triple.isNativeCPU()) {
     CmdArgs.push_back("-Wno-override-module");
     CmdArgs.push_back("-mllvm");
     CmdArgs.push_back("-sycl-native-cpu-backend");
     CmdArgs.push_back("-c");
   }
 
-  if (UseClangSYCLLinker) {
+  if (UseClangSYCLLinker && (ActiveOffloadKindMask & OFK_SYCL)) {
     CmdArgs.push_back("-fsycl");
     CmdArgs.push_back("--sycl-link");
     appendClangSYCLLinkerArgs(Args, CmdArgs, Triple, Arch);
@@ -1924,7 +1924,8 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args,
 } // namespace generic
 
 Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
-                               const ArgList &Args, bool IsSYCLKind = false,
+                               const ArgList &Args,
+                               uint16_t ActiveOffloadKindMask = 0,
                                StringRef SYCLBackendOptions = StringRef()) {
   const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
   switch (Triple.getArch()) {
@@ -1938,7 +1939,7 @@ Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
   case Triple::ppc64:
   case Triple::ppc64le:
   case Triple::systemz:
-    return generic::clang(InputFiles, Args, IsSYCLKind);
+    return generic::clang(InputFiles, Args, ActiveOffloadKindMask);
   case Triple::spirv32:
   case Triple::spirv64:
   case Triple::spir:
@@ -1950,7 +1951,7 @@ Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
           inconvertibleErrorCode(),
           "For SPIR targets, Linking is supported only for JIT compilations "
           "and AOT compilations for Intel CPUs/GPUs");
-    if (IsSYCLKind) {
+    if (ActiveOffloadKindMask & OFK_SYCL) {
       // When UseClangSYCLLinker is enabled, route spirv64 through
       // generic::clang() which invokes "clang -fsycl --sycl-link" and forwards
       // options via -Xlinker. Without this check, spirv64 uses the old
@@ -1958,7 +1959,7 @@ Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
       // (nvptx, amdgcn, etc.) already route through generic::clang() and check
       // UseClangSYCLLinker there.
       if (UseClangSYCLLinker)
-        return generic::clang(InputFiles, Args, IsSYCLKind);
+        return generic::clang(InputFiles, Args, ActiveOffloadKindMask);
 
       auto SPVFile = sycl::runLLVMToSPIRVTranslation(InputFiles[0], Args);
       if (!SPVFile)
@@ -1978,10 +1979,10 @@ Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
     return StringRef("");
   }
   case Triple::loongarch64:
-    return generic::clang(InputFiles, Args, IsSYCLKind);
+    return generic::clang(InputFiles, Args, ActiveOffloadKindMask);
   case Triple::native_cpu:
-    if (IsSYCLKind)
-      return generic::clang(InputFiles, Args, IsSYCLKind);
+    if (ActiveOffloadKindMask & OFK_SYCL)
+      return generic::clang(InputFiles, Args, ActiveOffloadKindMask);
     return createStringError(Triple.getArchName() +
                              " linking is not supported other than for SYCL");
   default:
@@ -2457,9 +2458,8 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
       }
       for (size_t I = 0, E = SplitModules.size(); I != E; ++I) {
         SmallVector<StringRef> Files = {SplitModules[I].ModuleFilePath};
-        auto ClangOutputOrErr =
-            linkDevice(Files, LinkerArgs, true /* IsSYCLKind */,
-                       CompileLinkOptionsOrErr->first);
+        auto ClangOutputOrErr = linkDevice(Files, LinkerArgs, OFK_SYCL,
+                                           CompileLinkOptionsOrErr->first);
         if (!ClangOutputOrErr)
           return ClangOutputOrErr.takeError();
         if (Triple.isNVPTX() || Triple.isAMDGCN()) {
@@ -2519,7 +2519,8 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
       }
 
       // Link the remaining device files using the device linker.
-      auto OutputOrErr = linkDevice(InputFiles, LinkerArgs);
+      auto OutputOrErr =
+          linkDevice(InputFiles, LinkerArgs, ActiveOffloadKindMask);
       if (!OutputOrErr)
         return OutputOrErr.takeError();
 
