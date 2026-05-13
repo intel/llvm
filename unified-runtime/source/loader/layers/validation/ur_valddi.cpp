@@ -8726,9 +8726,6 @@ __urdlllocal ur_result_t UR_APICALL urDeviceWaitExp(
   if (getContext()->enableParameterValidation) {
     if (NULL == hDevice)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (hDevice == nullptr)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
   if (getContext()->enableLifetimeValidation &&
