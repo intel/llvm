@@ -195,28 +195,6 @@ jobs:
         cat conformance_tests.log
         echo "::endgroup::"
 
-    - name: Report Test adapter specific summary
-      if: ${{ (success() || failure()) && matrix.adapter.other_name == '' }}
-      run: |
-        set -o pipefail
-        if [ -f adapter_tests.log ]; then
-          timeout 120s bash devops/scripts/generate_test_summary.sh adapter_tests.log "Adapter Tests" >> $GITHUB_STEP_SUMMARY || echo "Failed to generate adapter tests summary"
-        else
-          echo "### Adapter Tests Summary" >> $GITHUB_STEP_SUMMARY
-          echo "Log file not found" >> $GITHUB_STEP_SUMMARY
-        fi
-
-    - name: Report Test adapters summary
-      if: ${{ success() || failure() }}
-      run: |
-        set -o pipefail
-        if [ -f conformance_tests.log ]; then
-          timeout 120s bash devops/scripts/generate_test_summary.sh conformance_tests.log "Conformance Tests" >> $GITHUB_STEP_SUMMARY || echo "Failed to generate conformance tests summary"
-        else
-          echo "### Conformance Tests Summary" >> $GITHUB_STEP_SUMMARY
-          echo "Log file not found" >> $GITHUB_STEP_SUMMARY
-        fi
-
     - name: Debug CI platform information
       if: ${{ always() }}
       run: ./devops/scripts/get_system_info.sh
