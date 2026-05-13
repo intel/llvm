@@ -202,7 +202,11 @@ function(link_bc)
   if (NOT DEFINED ARG_OUT_DIR)
     set(output_dir ${CMAKE_CURRENT_BINARY_DIR})
   else()
-    set(output_dir ${ARG_OUT_DIR})
+    if (EXISTS "${ARG_OUT_DIR}")
+      set(output_dir ${ARG_OUT_DIR})
+    else()
+      message(FATAL "Invalid OUT_DIR ${ARG_OUT_DIR} for ${ARG_TARGET}.bc")
+    endif()
   endif()
   add_custom_command(
     OUTPUT  "${output_dir}/${ARG_TARGET}.bc"
