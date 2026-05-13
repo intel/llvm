@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "ABIInfo.h"
 #include "CGCXXABI.h"
 #include "CGDebugInfo.h"
 #include "CGHLSLRuntime.h"
@@ -294,7 +295,8 @@ void AggExprEmitter::withReturnValueSlot(
   LangAS SRetLangAS = CGF.CGM.getTargetCodeGenInfo().getSRetAddrSpace(RD);
   unsigned SRetAS = CGF.CGM.getCodeGenOpts().UseAllocaASForSrets
                                 ? CGF.getContext().getTargetAddressSpace(
-                                    CGF.CGM.getASTAllocaAddressSpace())
+                                    getLangASFromTargetAS(
+                                      CGF.CGM.getABIInfo().getDataLayout().getAllocaAddrSpace()))
                                 : CGF.getContext().getTargetAddressSpace(SRetLangAS);
   bool CanAggregateCopy =
       RD ? (RD->hasTrivialCopyConstructor() ||
