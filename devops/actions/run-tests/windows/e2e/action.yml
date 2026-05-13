@@ -76,7 +76,7 @@ runs:
     continue-on-error: true
     shell: bash
     env:
-      LIT_OPTS: -v --no-progress-bar --show-unsupported --show-pass --show-xfail --max-time ${{ inputs.testing_mode == 'run-only' && 1200 || 3600 }} --time-tests --param print_features=True --param test-mode=${{ inputs.testing_mode }} --param sycl_devices=${{ inputs.target_devices }} ${{ inputs.extra_lit_opts }}
+      LIT_OPTS: -vv --no-progress-bar --show-unsupported --show-pass --show-xfail --max-time ${{ inputs.testing_mode == 'run-only' && 1200 || 3600 }} --time-tests --param print_features=True --param test-mode=${{ inputs.testing_mode }} --param sycl_devices=${{ inputs.target_devices }} ${{ inputs.extra_lit_opts }}
     run: |
       cmake --build build-e2e --target check-sycl-e2e > e2e.log 2>&1
   # Two steps below are duplicated between Lin/Win actions, updates must change both
@@ -86,6 +86,43 @@ runs:
     run: |
       echo "::group::Show Full E2E Log"
       cat e2e.log
+      echo "::endgroup::"
+  - name: E2E failure diagnostics
+    if: steps.run_e2e.outcome != 'success'
+    shell: bash
+    run: |
+      echo "::group::IPC Failure Diagnostics"
+      echo "working-directory=$(pwd)"
+      if [ -f build-e2e/CMakeCache.txt ]; then
+        echo "::group::Relevant CMakeCache entries"
+        rg -n "CMAKE_CXX_COMPILER:|LLVM_LIT:|SYCL_E2E_TESTS_LIT_FLAGS:|CMAKE_GENERATOR:|LEVEL_ZERO_" build-e2e/CMakeCache.txt || true
+        echo "::endgroup::"
+      fi
+      if [ -f build-e2e/build.ninja ]; then
+        echo "::group::check-sycl-e2e target excerpt"
+        rg -n -C 3 "check-sycl-e2e|ipc_memory\.cpp" build-e2e/build.ninja || true
+        echo "::endgroup::"
+      fi
+      if [ -d build-e2e/Experimental/Output ]; then
+        echo "::group::Experimental Output listing"
+        find build-e2e/Experimental/Output -maxdepth 1 -type f | sort || true
+        echo "::endgroup::"
+        for path in build-e2e/Experimental/Output/ipc_memory.cpp*; do
+          [ -e "$path" ] || continue
+          echo "::group::Artifact $path"
+          ls -l "$path"
+          echo "::endgroup::"
+        done
+        for exe in build-e2e/Experimental/Output/ipc_memory.cpp*.out; do
+          [ -f "$exe" ] || continue
+          echo "::group::Direct rerun $exe"
+          "$(realpath "$exe")" 2>&1 || true
+          echo "::endgroup::"
+        done
+      fi
+      echo "::group::ipc_memory excerpt from e2e.log"
+      rg -n -C 8 "ipc_memory\.cpp|FAILED:|executed command|command stdout|command stderr|error:" e2e.log || true
+      echo "::endgroup::"
       echo "::endgroup::"
   - name: Report E2E Failures
     if: steps.run_e2e.outcome != 'success'
