@@ -1,0 +1,33 @@
+From b5a7bc268d968dd5f289c08612dcff52aa8a921e Mon Sep 17 00:00:00 2001
+From: Nick Sarnie <nick.sarnie@intel.com>
+Date: Tue, 5 May 2026 07:54:47 -0700
+Subject: [PATCH] Remove unused subgroup functions
+
+These are unused and cause compiler errors.
+
+Signed-off-by: Nick Sarnie <nick.sarnie@intel.com>
+---
+ common/sys/sycl.h | 8 --------
+ 1 file changed, 8 deletions(-)
+
+diff --git a/common/sys/sycl.h b/common/sys/sycl.h
+index 6bef829fc..a8b7c95a6 100644
+--- a/common/sys/sycl.h
++++ b/common/sys/sycl.h
+@@ -281,14 +281,6 @@ namespace embree
+   template <typename T, class BinaryOperation> __forceinline T sub_group_inclusive_scan(T x, BinaryOperation binary_op, T init) {
+     return sycl::inclusive_scan_over_group(this_sub_group(),x,binary_op,init);
+   }
+-
+-  template <typename T> __forceinline T sub_group_load(const void* src) {
+-    return this_sub_group().load(sycl::multi_ptr<T,sycl::access::address_space::global_space>((T*)src));
+-  }
+-
+-  template <typename T> __forceinline void sub_group_store(void* dst, const T& x) {
+-    this_sub_group().store(sycl::multi_ptr<T,sycl::access::address_space::global_space>((T*)dst),x);
+-  }
+ }
+ 
+ #if __SYCL_COMPILER_VERSION < 20210801
+-- 
+2.53.0
