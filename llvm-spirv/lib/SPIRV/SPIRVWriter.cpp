@@ -2098,12 +2098,20 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
 
   if (auto *GV = dyn_cast<GlobalVariable>(V)) {
     llvm::Type *Ty = Scavenger->getScavengedType(GV);
-    // Though variables with common linkage type are initialized by 0,
-    // they can be represented in SPIR-V as uninitialized variables with
-    // 'Export' linkage type, just as tentative definitions look in C
-    llvm::Constant *Init = GV->hasInitializer() && !GV->hasCommonLinkage()
-                               ? GV->getInitializer()
-                               : nullptr;
+    // Check whether the global has an initializer for SPIR-V.
+    // Variables with common linkage are represented as uninitialized with
+    // 'Export' linkage, just as tentative definitions look in C.
+    // Undef/poison initializers are dropped unless the variable is constant
+    // with an aggregate type
+    auto HasInit = [](const GlobalVariable *GV) {
+      if (!GV->hasInitializer() || GV->hasCommonLinkage())
+        return false;
+      if (isa<UndefValue>(GV->getInitializer()))
+        return GV->isConstant() &&
+               GV->getInitializer()->getType()->isAggregateType();
+      return true;
+    };
+    llvm::Constant *Init = HasInit(GV) ? GV->getInitializer() : nullptr;
     SPIRVValue *BVarInit = nullptr;
     StructType *ST = Init ? dyn_cast<StructType>(Init->getType()) : nullptr;
     if (ST && ST->hasName() && isSPIRVConstantName(ST->getName())) {
