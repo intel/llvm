@@ -7,12 +7,10 @@
 // RUN: %{build} -o %t_uint.out -fsycl-id-queries-range=uint
 // RUN: %{build} -o %t_size.out -fsycl-id-queries-range=size_t
 
-// RUN: %{run} %t_int.out 17179869184 16 2>&1 | FileCheck --check-prefix=CHECK-PASS %s
+// RUN: %{run} %t_size.out 17179869184 16 2>&1 | FileCheck --check-prefix=CHECK-PASS %s
+
 // RUN: %{run} %t_int.out 17179869184 8 2>&1 | FileCheck --check-prefix=CHECK-INT-EXCEEDS %s
-
-// RUN: %{run} %t_uint.out 17179869184 16 2>&1 | FileCheck --check-prefix=CHECK-PASS %s
 // RUN: %{run} %t_uint.out 17179869184 4 2>&1 | FileCheck --check-prefix=CHECK-UINT-EXCEEDS %s
-
 // RUN: %{run} %t_size.out 17179869184 4 2>&1 | FileCheck --check-prefix=CHECK-SIZE-PER-DIM-EXCEEDS %s
 
 // Tests that launching kernels with large ranges produces proper error

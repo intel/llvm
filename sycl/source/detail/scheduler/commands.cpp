@@ -2629,20 +2629,22 @@ void checkNDRangeBoundsAndThrow(const NDRDescT &NDRDesc,
 
   bool ExceedsMaxRange = NDRDesc.getNumGlobalWorkGroups() > MaxRange;
   if (!ExceedsMaxRange) {
+    uint64_t TotalGlobalSize = 1;
     for (size_t I = 0; I < NDRDesc.Dims; ++I) {
       const uint64_t GlobalSize = static_cast<uint64_t>(NDRDesc.GlobalSize[I]);
       const uint64_t GlobalOffset =
           static_cast<uint64_t>(NDRDesc.GlobalOffset[I]);
-      const uint64_t LocalSize = static_cast<uint64_t>(NDRDesc.LocalSize[I]);
       // Validate the maximum generated global id in each dimension:
       // GlobalOffset + GlobalSize - 1 <= MaxRange.
       // Use overflow-safe arithmetic instead of forming the sum directly.
-      if (GlobalSize != 0 && (GlobalOffset > MaxRange ||
-                              (GlobalSize - 1) > (MaxRange - GlobalOffset))) {
+      if (GlobalSize != 0 && GlobalOffset != 0 &&
+          (GlobalOffset > MaxRange ||
+           (GlobalSize - 1) > (MaxRange - GlobalOffset))) {
         ExceedsMaxRange = true;
         break;
       }
-      if (GlobalSize > MaxRange - LocalSize) {
+      TotalGlobalSize *= GlobalSize;
+      if (TotalGlobalSize > MaxRange) {
         ExceedsMaxRange = true;
         break;
       }
