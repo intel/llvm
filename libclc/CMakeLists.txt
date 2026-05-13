@@ -177,6 +177,10 @@ elseif(ARCH STREQUAL nvptx64)
         "SHELL:-Xclang +ptx72" -march=sm_86
         "SHELL:-mllvm --nvvm-reflect-enable=false")
 endif()
+if(LIBCLC_TARGET_ARCH IN_LIST LIBCLC_ARCHS_AMDGPU OR LIBCLC_TARGET_ARCH IN_LIST LIBCLC_ARCHS_NVPTX)
+  list(APPEND target_compile_flags -fvisibility=hidden)
+  list(APPEND target_compile_flags "SHELL:-Xclang -fapply-global-visibility-to-externs")
+endif()
 
 # Common compile options shared by CLC and OpenCL libraries.
 set(compile_flags
