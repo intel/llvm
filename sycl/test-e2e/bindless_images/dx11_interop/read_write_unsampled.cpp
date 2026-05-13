@@ -17,6 +17,7 @@
 #include "dx11_interop.h"
 
 #include <sycl/ext/oneapi/bindless_images.hpp>
+#include <sycl/properties/all_properties.hpp>
 
 #ifdef TEST_SEMAPHORE_IMPORT
 #include <d3d11_4.h> // Used for ID3D11Device5 / ID3D11DeviceContext4 / ID3D11Fence
@@ -438,8 +439,16 @@ int runTest(D3D11ProgramState &d3d11ProgramState, sycl::queue syclQueue,
 }
 
 int main() {
-  // Create SYCL queue, relying on SYCL device selection
+  // Create SYCL queue, relying on SYCL device selection.
+#ifdef TEST_SEMAPHORE_IMPORT
+  // External semaphore ops require an in-order queue backed by immediate
+  // command lists (see sycl_ext_oneapi_bindless_images.asciidoc).
+  sycl::queue syclQueue{
+      {sycl::property::queue::in_order{},
+       sycl::ext::intel::property::queue::immediate_command_list{}}};
+#else
   sycl::queue syclQueue;
+#endif
   sycl::device syclDevice = syclQueue.get_device();
 
   // Initialize D3D11 and create DX11 programs state from the SYCL device

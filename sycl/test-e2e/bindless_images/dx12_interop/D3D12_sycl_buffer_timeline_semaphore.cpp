@@ -50,6 +50,7 @@
 #include <string>
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/bindless_images.hpp>
+#include <sycl/properties/all_properties.hpp>
 #include <vector>
 
 #define WIN32_LEAN_AND_MEAN
@@ -120,7 +121,11 @@ int main(int argc, char **argv) {
 
   // SYCL INTEROP
   try {
-    sycl::queue q;
+    // External semaphore ops require an in-order queue backed by immediate
+    // command lists (see sycl_ext_oneapi_bindless_images.asciidoc).
+    sycl::queue q{
+        {sycl::property::queue::in_order{},
+         sycl::ext::intel::property::queue::immediate_command_list{}}};
     auto device = q.get_device();
     auto context = q.get_context();
 

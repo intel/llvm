@@ -135,6 +135,7 @@
 #include <sycl/ext/oneapi/bindless_images.hpp>
 #include <sycl/ext/oneapi/bindless_images_interop.hpp>
 #include <sycl/image.hpp>
+#include <sycl/properties/all_properties.hpp>
 
 // ---------------------------------------------------------
 // SYCL TYPE MAPPING HELPERS
@@ -245,7 +246,11 @@ int runTest(
   // SYCL Import and Verification
   namespace syclexp = sycl::ext::oneapi::experimental;
   try {
-    sycl::queue q;
+    // External semaphore ops require an in-order queue backed by immediate
+    // command lists (see sycl_ext_oneapi_bindless_images.asciidoc).
+    sycl::queue q{
+        {sycl::property::queue::in_order{},
+         sycl::ext::intel::property::queue::immediate_command_list{}}};
 
     // Import Memory (Platform Specific)
 #ifdef _WIN32

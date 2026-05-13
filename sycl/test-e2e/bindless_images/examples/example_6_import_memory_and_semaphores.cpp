@@ -11,11 +11,16 @@
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/bindless_images.hpp>
+#include <sycl/properties/all_properties.hpp>
 
 int main() {
-  // Set up queue
+  // Set up queue.
+  // External semaphore ops require an in-order queue backed by immediate
+  // command lists (see sycl_ext_oneapi_bindless_images.asciidoc).
   sycl::device dev;
-  sycl::queue q(dev);
+  sycl::queue q(dev,
+                {sycl::property::queue::in_order{},
+                 sycl::ext::intel::property::queue::immediate_command_list{}});
 
   size_t width = 123 /* passed from external API */;
   size_t height = 123 /* passed from external API */;

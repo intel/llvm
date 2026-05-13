@@ -40,6 +40,7 @@
 #include <sycl/ext/oneapi/bindless_images.hpp>
 #include <sycl/ext/oneapi/bindless_images_interop.hpp>
 #include <sycl/image.hpp>
+#include <sycl/properties/all_properties.hpp>
 
 namespace syclexp = sycl::ext::oneapi::experimental;
 
@@ -152,7 +153,11 @@ int runTest(
   }
 
   try {
-    sycl::queue q;
+    // External semaphore ops require an in-order queue backed by immediate
+    // command lists (see sycl_ext_oneapi_bindless_images.asciidoc).
+    sycl::queue q{
+        {sycl::property::queue::in_order{},
+         sycl::ext::intel::property::queue::immediate_command_list{}}};
 
     // IMPORT MEMORY
 #ifdef _WIN32

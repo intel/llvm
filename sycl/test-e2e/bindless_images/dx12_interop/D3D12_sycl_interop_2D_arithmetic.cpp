@@ -118,6 +118,7 @@
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/bindless_images.hpp>
 #include <sycl/ext/oneapi/bindless_images_interop.hpp>
+#include <sycl/properties/all_properties.hpp>
 #include <vector>
 
 namespace syclexp = sycl::ext::oneapi::experimental;
@@ -415,7 +416,11 @@ int runTest(
     signalExportableFence(ctx, extFenceB);
 
   try {
-    sycl::queue q;
+    // External semaphore ops require an in-order queue backed by immediate
+    // command lists (see sycl_ext_oneapi_bindless_images.asciidoc).
+    sycl::queue q{
+        {sycl::property::queue::in_order{},
+         sycl::ext::intel::property::queue::immediate_command_list{}}};
 
     auto extMemA = syclexp::import_external_memory(
         syclexp::external_mem_descriptor<syclexp::resource_win32_handle>{
