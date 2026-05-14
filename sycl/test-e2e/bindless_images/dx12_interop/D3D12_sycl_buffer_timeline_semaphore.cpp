@@ -121,8 +121,10 @@ int main(int argc, char **argv) {
 
   // SYCL INTEROP
   try {
-    sycl::property_list props{useSemaphores ? sycl::ext::intel::property::queue::immediate_command_list{}
-                                            : sycl::property_list{}};
+    sycl::property_list props{
+        useSemaphores
+            ? sycl::ext::intel::property::queue::immediate_command_list{}
+            : sycl::property_list{}};
     sycl::queue q{props};
     auto device = q.get_device();
     auto context = q.get_context();
