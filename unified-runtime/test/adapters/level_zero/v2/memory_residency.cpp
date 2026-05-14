@@ -343,10 +343,10 @@ TEST_P(urMemoryMultiResidencyTest, disablePeerAccessStateMachine) {
 
 // Verify that USM memory allocated on devices[0] and filled with a known
 // pattern can be correctly read by devices[1] when P2P access is enabled.
-// The test requires P2P to be enabled BEFORE allocation so that the memory
-// provider registers the peer as a resident device.  Without P2P enabled at
-// allocation time, urEnqueueUSMMemcpy would fail because the allocation is
-// not accessible from the peer device's command list.
+// P2P is enabled before the allocation here, but enabling it after the
+// allocation is equally valid: urUsmP2PEnablePeerAccessExp calls
+// changeResidentDevice on all contexts, which retroactively makes existing
+// allocations resident on the peer device.
 TEST_P(urMemoryMultiResidencyTest, p2pReadSucceedsWithPeerAccessEnabled) {
   static constexpr size_t allocSize = 1024 * 1024;
   static constexpr uint8_t fillPattern = 0xAB;
