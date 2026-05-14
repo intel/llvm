@@ -50,7 +50,7 @@ public:
     return NativePrograms;
   }
 
-  std::unordered_map<std::string_view, sycl::detail::DeviceKernelInfo> &
+  std::unordered_map<std::string, sycl::detail::DeviceKernelInfo> &
   getDeviceKernelInfoMap() {
     return m_DeviceKernelInfoMap;
   }
