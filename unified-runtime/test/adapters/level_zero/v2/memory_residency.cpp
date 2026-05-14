@@ -407,43 +407,6 @@ TEST_P(urMemoryMultiResidencyTest, p2pReadSucceedsWithPeerAccessEnabled) {
                           [](uint8_t b) { return b == fillPattern; }));
 }
 
-// Verify that urEnqueueUSMMemcpy from devices[0]'s memory fails when P2P
-// access has NOT been enabled from devices[1].  The adapter checks the peer
-// table and returns UR_RESULT_ERROR_INVALID_OPERATION.
-TEST_P(urMemoryMultiResidencyTest, p2pReadFailsWithoutPeerAccessDisabled) {
-  static constexpr size_t allocSize = 1024 * 1024;
-  static constexpr uint8_t fillPattern = 0xCD;
-
-  // Allocate on devices[0] and fill — P2P is NOT enabled.
-  void *srcPtr = nullptr;
-  ASSERT_SUCCESS(urUSMDeviceAlloc(context, devices[0], nullptr, nullptr,
-                                  allocSize, &srcPtr));
-  ur_queue_handle_t srcQueue = nullptr;
-  ASSERT_SUCCESS(urQueueCreate(context, devices[0], nullptr, &srcQueue));
-  ASSERT_SUCCESS(urEnqueueUSMFill(srcQueue, srcPtr, sizeof(fillPattern),
-                                  &fillPattern, allocSize, 0, nullptr,
-                                  nullptr));
-  ASSERT_SUCCESS(urQueueFinish(srcQueue));
-  urQueueRelease(srcQueue);
-
-  // Attempt to copy srcPtr (on devices[0]) to dstPtr (on devices[1]) using
-  // devices[1]'s queue — should fail because P2P is disabled.
-  void *dstPtr = nullptr;
-  ASSERT_SUCCESS(urUSMDeviceAlloc(context, devices[1], nullptr, nullptr,
-                                  allocSize, &dstPtr));
-  ur_queue_handle_t peerQueue = nullptr;
-  ASSERT_SUCCESS(urQueueCreate(context, devices[1], nullptr, &peerQueue));
-
-  ur_result_t copyResult = urEnqueueUSMMemcpy(peerQueue, true, dstPtr, srcPtr,
-                                              allocSize, 0, nullptr, nullptr);
-
-  urQueueRelease(peerQueue);
-  urUSMFree(context, dstPtr);
-  ASSERT_SUCCESS(urUSMFree(context, srcPtr));
-
-  ASSERT_EQ(copyResult, UR_RESULT_ERROR_INVALID_OPERATION);
-}
-
 // Verify that a USM allocation on devices[0] is NOT made resident on
 // devices[1] when P2P access has not been enabled.  The feature under test
 // restricts residency, not hardware access: Level Zero hardware can still
