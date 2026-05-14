@@ -50,6 +50,7 @@
 #include <string>
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/bindless_images.hpp>
+#include <sycl/properties/queue_properties.hpp>
 #include <vector>
 
 #define WIN32_LEAN_AND_MEAN
@@ -120,7 +121,9 @@ int main(int argc, char **argv) {
 
   // SYCL INTEROP
   try {
-    sycl::queue q;
+    sycl::property_list props{useSemaphores ? sycl::ext::intel::property::queue::immediate_command_list{}
+                                            : sycl::property_list{}};
+    sycl::queue q{props};
     auto device = q.get_device();
     auto context = q.get_context();
 
