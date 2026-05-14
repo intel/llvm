@@ -171,6 +171,11 @@ private:
 
   std::vector<host_allocation_desc_t> hostAllocations;
 
+  // USM HOST staging buffers used for async host-based migration
+  // (when P2P is not accessible). Kept alive until the buffer is released
+  // so the async copies have valid source/destination memory.
+  std::vector<usm_unique_ptr_t> migrationStagingBuffers;
+
   void *getActiveDeviceAlloc(size_t offset = 0);
   void *allocateOnDevice(ur_device_handle_t hDevice, size_t size);
   ur_result_t migrateBufferTo(ur_device_handle_t hDevice, void *src,
