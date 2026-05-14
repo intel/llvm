@@ -5375,11 +5375,14 @@ class InitListExpr : public Expr {
 
 public:
   InitListExpr(const ASTContext &C, SourceLocation lbraceloc,
-               ArrayRef<Expr*> initExprs, SourceLocation rbraceloc);
+               ArrayRef<Expr *> initExprs, SourceLocation rbraceloc,
+               bool isExplicit);
 
   /// Build an empty initializer list.
   explicit InitListExpr(EmptyShell Empty)
-    : Expr(InitListExprClass, Empty), AltForm(nullptr, true) { }
+      : Expr(InitListExprClass, Empty), AltForm(nullptr, true) {
+    InitListExprBits.IsExplicit = false;
+  }
 
   unsigned getNumInits() const { return InitExprs.size(); }
 
@@ -5491,11 +5494,7 @@ public:
 
   // Explicit InitListExpr's originate from source code (and have valid source
   // locations). Implicit InitListExpr's are created by the semantic analyzer.
-  // FIXME: This is wrong; InitListExprs created by semantic analysis have
-  // valid source locations too!
-  bool isExplicit() const {
-    return LBraceLoc.isValid() && RBraceLoc.isValid();
-  }
+  bool isExplicit() const { return InitListExprBits.IsExplicit; }
 
   /// Is this an initializer for an array of characters, initialized by a string
   /// literal or an @encode?
