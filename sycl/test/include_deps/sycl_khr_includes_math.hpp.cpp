@@ -10,6 +10,8 @@
 // CHECK-NEXT: feature_test.hpp
 // CHECK-NEXT: builtins.hpp
 // CHECK-NEXT: detail/builtins/builtins.hpp
+// CHECK-NEXT: detail/builtins/common_functions.hpp
+// CHECK-NEXT: detail/builtins/builtin_helpers.hpp
 // CHECK-NEXT: detail/fwd/multi_ptr.hpp
 // CHECK-NEXT: access/access.hpp
 // CHECK-NEXT: detail/half_type_impl.hpp
@@ -37,12 +39,11 @@
 // CHECK-NEXT: detail/type_traits/integer_traits.hpp
 // CHECK-NEXT: detail/memcpy.hpp
 // CHECK-NEXT: marray.hpp
-// CHECK-NEXT: detail/builtins/common_functions.inc
 // CHECK-NEXT: detail/builtins/helper_macros.hpp
-// CHECK-NEXT: detail/builtins/geometric_functions.inc
-// CHECK-NEXT: detail/builtins/half_precision_math_functions.inc
-// CHECK-NEXT: detail/builtins/integer_functions.inc
-// CHECK-NEXT: detail/builtins/math_functions.inc
-// CHECK-NEXT: detail/builtins/native_math_functions.inc
-// CHECK-NEXT: detail/builtins/relational_functions.inc
+// CHECK-NEXT: detail/builtins/geometric_functions.hpp
+// CHECK-NEXT: detail/builtins/half_precision_math_functions.hpp
+// CHECK-NEXT: detail/builtins/integer_functions.hpp
+// CHECK-NEXT: detail/builtins/math_functions.hpp
+// CHECK-NEXT: detail/builtins/native_math_functions.hpp
+// CHECK-NEXT: detail/builtins/relational_functions.hpp
 // CHECK-EMPTY:

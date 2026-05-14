@@ -5,6 +5,9 @@
 // UNSUPPORTED: linux && gpu-intel-dg2
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21764
 
+// XFAIL: windows && gpu-intel-dg2
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/21985
+
 // RUN: %{build} %link-vulkan -o %t.out %if target-spir %{ -Wno-ignored-attributes %}
 
 // RUN: %{run} %t.out --type float --channels 1
