@@ -59,10 +59,10 @@ static bool testP2PRead(context &ctx, queue &srcQueue, device &srcDev,
   std::vector<int> result(N, 0);
   dstQueue.memcpy(result.data(), src, N * sizeof(int)).wait();
 
-  sycl::free(src, ctx);
   std::cout
       << "Disabling P2P: dstDev may no longer access allocations on srcDev.\n";
   dstDev.ext_oneapi_disable_peer_access(srcDev);
+  sycl::free(src, ctx);
 
   for (size_t i = 0; i < N; ++i) {
     if (result[i] != fillVal) {
