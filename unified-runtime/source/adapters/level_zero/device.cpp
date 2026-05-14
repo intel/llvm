@@ -1575,7 +1575,25 @@ ur_result_t urDeviceGetInfo(
     return ReturnValue(static_cast<ur_bool_t>(Device->isIntegrated() != 0));
   case UR_DEVICE_INFO_GRAPH_RECORD_AND_REPLAY_SUPPORT_EXP:
 #ifdef UR_ADAPTER_LEVEL_ZERO_V2
-    return ReturnValue(Device->Platform->ZeGraphExt.Supported);
+  {
+    if (!Device->Platform->ZeGraphExt.Supported) {
+      return ReturnValue(false);
+    }
+
+    ze_record_replay_graph_exp_properties_t GraphProperties{};
+    GraphProperties.stype =
+        ZE_STRUCTURE_TYPE_RECORD_REPLAY_GRAPH_EXP_PROPERTIES;
+    GraphProperties.pNext = nullptr;
+    ZeStruct<ze_device_properties_t> DeviceProperties;
+    DeviceProperties.pNext = &GraphProperties;
+    ZE2UR_CALL(zeDeviceGetProperties, (ZeDevice, &DeviceProperties));
+
+    constexpr ze_record_replay_graph_exp_flags_t GraphModeMask =
+        ZE_RECORD_REPLAY_GRAPH_EXP_FLAG_IMMUTABLE_GRAPH |
+        ZE_RECORD_REPLAY_GRAPH_EXP_FLAG_MUTABLE_GRAPH;
+    return ReturnValue(static_cast<ur_bool_t>(
+        (GraphProperties.graphFlags & GraphModeMask) != 0));
+  }
 #else
     return ReturnValue(false);
 #endif

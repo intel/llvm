@@ -305,6 +305,12 @@ ur_result_t ur_platform_handle_t_::initialize() {
     zeDriverExtensionMap[extension.name] = extension.version;
   }
 
+  const auto GraphExtension =
+      zeDriverExtensionMap.find(ZE_RECORD_REPLAY_GRAPH_EXP_NAME);
+  const bool ZeGraphExtensionSupported =
+      GraphExtension != zeDriverExtensionMap.end() &&
+      GraphExtension->second >= ZE_RECORD_REPLAY_GRAPH_EXP_VERSION_1_0;
+
   ZE2UR_CALL(zelLoaderTranslateHandle, (ZEL_HANDLE_DRIVER, ZeDriver,
                                         (void **)&ZeDriverHandleExpTranslated));
 
@@ -561,53 +567,58 @@ ur_result_t ur_platform_handle_t_::initialize() {
   ZeMemGetPitchFor2dImageExt.Supported =
       ZeMemGetPitchFor2dImageExt.zeMemGetPitchFor2dImage != nullptr;
 
-  // Populate Graph Extension structure. Mandatory graph functions.
-  std::unordered_map<std::string, void **> ZeGraphFuncNameToAddrMap = {
-      {"zeGraphCreateExp",
-       reinterpret_cast<void **>(&ZeGraphExt.zeGraphCreateExp)},
-      {"zeCommandListBeginGraphCaptureExp",
-       reinterpret_cast<void **>(
-           &ZeGraphExt.zeCommandListBeginGraphCaptureExp)},
-      {"zeCommandListBeginCaptureIntoGraphExp",
-       reinterpret_cast<void **>(
-           &ZeGraphExt.zeCommandListBeginCaptureIntoGraphExp)},
-      {"zeCommandListEndGraphCaptureExp",
-       reinterpret_cast<void **>(&ZeGraphExt.zeCommandListEndGraphCaptureExp)},
-      {"zeCommandListInstantiateGraphExp",
-       reinterpret_cast<void **>(&ZeGraphExt.zeCommandListInstantiateGraphExp)},
-      {"zeCommandListAppendGraphExp",
-       reinterpret_cast<void **>(&ZeGraphExt.zeCommandListAppendGraphExp)},
-      {"zeGraphDestroyExp",
-       reinterpret_cast<void **>(&ZeGraphExt.zeGraphDestroyExp)},
-      {"zeExecutableGraphDestroyExp",
-       reinterpret_cast<void **>(&ZeGraphExt.zeExecutableGraphDestroyExp)},
-      {"zeCommandListIsGraphCaptureEnabledExp",
-       reinterpret_cast<void **>(
-           &ZeGraphExt.zeCommandListIsGraphCaptureEnabledExp)},
-      {"zeGraphIsEmptyExp",
-       reinterpret_cast<void **>(&ZeGraphExt.zeGraphIsEmptyExp)},
-      {"zeGraphDumpContentsExp",
-       reinterpret_cast<void **>(&ZeGraphExt.zeGraphDumpContentsExp)},
-  };
+  if (ZeGraphExtensionSupported) {
+    // Populate Graph Extension structure. Mandatory graph functions.
+    std::unordered_map<std::string, void **> ZeGraphFuncNameToAddrMap = {
+        {"zeGraphCreateExp",
+         reinterpret_cast<void **>(&ZeGraphExt.zeGraphCreateExp)},
+        {"zeCommandListBeginGraphCaptureExp",
+         reinterpret_cast<void **>(
+             &ZeGraphExt.zeCommandListBeginGraphCaptureExp)},
+        {"zeCommandListBeginCaptureIntoGraphExp",
+         reinterpret_cast<void **>(
+             &ZeGraphExt.zeCommandListBeginCaptureIntoGraphExp)},
+        {"zeCommandListEndGraphCaptureExp",
+         reinterpret_cast<void **>(
+             &ZeGraphExt.zeCommandListEndGraphCaptureExp)},
+        {"zeCommandListInstantiateGraphExp",
+         reinterpret_cast<void **>(
+             &ZeGraphExt.zeCommandListInstantiateGraphExp)},
+        {"zeCommandListAppendGraphExp",
+         reinterpret_cast<void **>(&ZeGraphExt.zeCommandListAppendGraphExp)},
+        {"zeGraphDestroyExp",
+         reinterpret_cast<void **>(&ZeGraphExt.zeGraphDestroyExp)},
+        {"zeExecutableGraphDestroyExp",
+         reinterpret_cast<void **>(&ZeGraphExt.zeExecutableGraphDestroyExp)},
+        {"zeCommandListIsGraphCaptureEnabledExp",
+         reinterpret_cast<void **>(
+             &ZeGraphExt.zeCommandListIsGraphCaptureEnabledExp)},
+        {"zeGraphIsEmptyExp",
+         reinterpret_cast<void **>(&ZeGraphExt.zeGraphIsEmptyExp)},
+        {"zeGraphDumpContentsExp",
+         reinterpret_cast<void **>(&ZeGraphExt.zeGraphDumpContentsExp)},
+    };
 
-  ZeGraphExt.Supported = true;
-  for (auto &[funcName, funcAddr] : ZeGraphFuncNameToAddrMap) {
-    ZE_CALL_NOCHECK(zeDriverGetExtensionFunctionAddress,
-                    (ZeDriver, funcName.c_str(), funcAddr));
-    ZeGraphExt.Supported &= (*funcAddr != nullptr);
-  }
+    ZeGraphExt.Supported = true;
+    for (auto &[funcName, funcAddr] : ZeGraphFuncNameToAddrMap) {
+      ZE_CALL_NOCHECK(zeDriverGetExtensionFunctionAddress,
+                      (ZeDriver, funcName.c_str(), funcAddr));
+      ZeGraphExt.Supported &= (*funcAddr != nullptr);
+    }
 
-  // Optional graph functions. If the function is not supported due to driver
-  // version, then still mark graphs as supported and only return unsupported
-  // code in affected function.
-  std::unordered_map<std::string, void **> ZeGraphOptionalFuncNameToAddrMap = {
-      {"zeCommandListGetGraphExp",
-       reinterpret_cast<void **>(&ZeGraphExt.zeCommandListGetGraphExp)},
-  };
+    // Optional graph functions. If the function is not supported due to driver
+    // version, then still mark graphs as supported and only return unsupported
+    // code in affected function.
+    std::unordered_map<std::string, void **> ZeGraphOptionalFuncNameToAddrMap =
+        {
+            {"zeCommandListGetGraphExp",
+             reinterpret_cast<void **>(&ZeGraphExt.zeCommandListGetGraphExp)},
+        };
 
-  for (auto &[funcName, funcAddr] : ZeGraphOptionalFuncNameToAddrMap) {
-    ZE_CALL_NOCHECK(zeDriverGetExtensionFunctionAddress,
-                    (ZeDriver, funcName.c_str(), funcAddr));
+    for (auto &[funcName, funcAddr] : ZeGraphOptionalFuncNameToAddrMap) {
+      ZE_CALL_NOCHECK(zeDriverGetExtensionFunctionAddress,
+                      (ZeDriver, funcName.c_str(), funcAddr));
+    }
   }
 
   if (this->isDriverVersionNewerOrSimilar(1, 14, 36035)) {

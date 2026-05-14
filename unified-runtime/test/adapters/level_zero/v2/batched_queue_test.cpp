@@ -18,17 +18,21 @@
 #include "event_provider.hpp"
 #include "event_provider_counter.hpp"
 #include "event_provider_normal.hpp"
+#include "level_zero/external/driver_experimental/zex_graph.h"
 #include "queue_batched.hpp"
 #include "queue_handle.hpp"
 #include "unified-runtime/ur_api.h"
 #include "uur/checks.h"
 #include "uur/fixtures.h"
+#include "uur/utils.h"
 #include "ze_api.h"
 
 #include "gtest/gtest.h"
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <gtest/gtest.h>
+#include <iostream>
 #include <optional>
 #include <vector>
 
@@ -115,6 +119,17 @@ struct urBatchedQueueTest : uur::urContextTest {
     for (size_t index = 0; index < buffer_size; index++) {
       ASSERT_EQ(data[index], output[index]);
     }
+  }
+
+  bool isGraphSupported() {
+    ur_bool_t graph_supported = false;
+    auto result = urDeviceGetInfo(
+        device, UR_DEVICE_INFO_GRAPH_RECORD_AND_REPLAY_SUPPORT_EXP,
+        sizeof(graph_supported), &graph_supported, nullptr);
+    if (result != UR_RESULT_SUCCESS || !graph_supported) {
+      return false;
+    }
+    return true;
   }
 
   ur_queue_properties_t batched_queue_properties = {
@@ -541,4 +556,131 @@ TEST_P(urBatchedQueueTest, FlushBatchAfterEnqueuedOperationsLimitIsReached) {
   for (uint64_t j = 0; j < v2::maxNumberOfEnqueuedOperations + 1; j++) {
     ASSERT_SUCCESS(urEventRelease(events[j]));
   }
+}
+
+// Graph capture is not active by default
+TEST_P(urBatchedQueueTest, GraphCaptureActiveReturnsFalseByDefault) {
+  if (!isGraphSupported()) {
+    GTEST_SKIP() << "EXP graph record and replay feature is not supported.";
+  }
+
+  bool isEnabled = false;
+  ASSERT_SUCCESS(urQueueIsGraphCaptureEnabledExp(queue1, &isEnabled));
+  ASSERT_FALSE(isEnabled);
+}
+
+// After beginning graph capture, isGraphCaptureActive should return true.
+TEST_P(urBatchedQueueTest, GraphCaptureActiveReturnsTrueAfterBeginCapture) {
+  if (!isGraphSupported()) {
+    GTEST_SKIP() << "EXP graph record and replay feature is not supported.";
+  }
+
+  ASSERT_SUCCESS(urQueueBeginGraphCaptureExp(queue1));
+
+  bool isEnabled = false;
+  ASSERT_SUCCESS(urQueueIsGraphCaptureEnabledExp(queue1, &isEnabled));
+  ASSERT_TRUE(isEnabled);
+
+  ur_exp_graph_handle_t graph = nullptr;
+  ASSERT_SUCCESS(urQueueEndGraphCaptureExp(queue1, &graph));
+  ASSERT_NE(graph, nullptr);
+  ASSERT_SUCCESS(urGraphDestroyExp(graph));
+}
+
+// After ending graph capture, isGraphCaptureActive should return false again.
+TEST_P(urBatchedQueueTest, GraphCaptureActiveReturnsFalseAfterEndCapture) {
+  if (!isGraphSupported()) {
+    GTEST_SKIP() << "EXP graph record and replay feature is not supported.";
+  }
+
+  ASSERT_SUCCESS(urQueueBeginGraphCaptureExp(queue1));
+
+  ur_exp_graph_handle_t graph = nullptr;
+  ASSERT_SUCCESS(urQueueEndGraphCaptureExp(queue1, &graph));
+  ASSERT_NE(graph, nullptr);
+
+  bool isEnabled = true;
+  ASSERT_SUCCESS(urQueueIsGraphCaptureEnabledExp(queue1, &isEnabled));
+  ASSERT_FALSE(isEnabled);
+
+  ASSERT_SUCCESS(urGraphDestroyExp(graph));
+}
+
+// Graph capture may be started on a batched queue, but captured operations
+// should still be submitted on an immediate command list for execution. Events created for
+// those operations have no batch generation number (getBatch() == std::nullopt).
+TEST_P(urBatchedQueueTest, EnqueueDuringGraphCaptureUsesImmediateList) {
+  if (!isGraphSupported()) {
+    GTEST_SKIP() << "EXP graph record and replay feature is not supported.";
+  }
+
+  ur_queue_handle_t captureQueue = queue1;
+  ur_queue_handle_t submitQueue = nullptr;
+
+  ur_queue_properties_t immediate_queue_properties = {
+      UR_STRUCTURE_TYPE_QUEUE_PROPERTIES, nullptr,
+      UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE};
+
+  ASSERT_SUCCESS(urQueueCreate(context, device, &immediate_queue_properties,
+                               &submitQueue));
+  ASSERT_NE(submitQueue, nullptr);
+  ASSERT_SUCCESS(urQueueBeginGraphCaptureExp(captureQueue));
+
+  // Graph capture records the copy source address. Use USM shared memory so
+  // the pointer stays valid for device access on discrete GPUs (e.g. PVC);
+  // plain host stack/heap pointers can fault on synchronize/replay.
+  ur_event_handle_t event = nullptr;
+  void *usmSrc = nullptr;
+  std::vector<uint8_t> data(buffer_size, 42);
+  ASSERT_SUCCESS(urUSMSharedAlloc(context, device, nullptr, nullptr,
+                                  buffer_size, &usmSrc));
+  ASSERT_NE(usmSrc, nullptr);
+  std::memcpy(usmSrc, data.data(), buffer_size);
+
+  ASSERT_SUCCESS(urEnqueueMemBufferWrite(captureQueue, buffer,
+                                         /* isBlocking */ true, 0, buffer_size,
+                                         usmSrc, 0, nullptr, &event));
+
+  // The capture operation should not be associated with the batched queue's
+  // regular batch generation.
+  ASSERT_EQ(event->getBatch(), std::nullopt);
+
+  ur_exp_graph_handle_t graph = nullptr;
+  ASSERT_SUCCESS(urQueueEndGraphCaptureExp(captureQueue, &graph));
+  ASSERT_NE(graph, nullptr);
+
+  bool graphIsEmpty = true;
+  ASSERT_SUCCESS(urGraphIsEmptyExp(graph, &graphIsEmpty));
+  ASSERT_FALSE(graphIsEmpty)
+      << "recorded graph should contain the captured mem buffer write";
+
+  // Prove replay from an immediate queue performs the write: clear the buffer,
+  // then run the executable graph and read back the original pattern.
+  const uint8_t clearByte = 0;
+  ASSERT_SUCCESS(urEnqueueMemBufferFill(submitQueue, buffer, &clearByte,
+                                        sizeof(clearByte), 0, buffer_size, 0,
+                                        nullptr, nullptr));
+  ASSERT_SUCCESS(urQueueFinish(submitQueue));
+
+  ur_exp_executable_graph_handle_t exGraph = nullptr;
+  ASSERT_SUCCESS(urGraphInstantiateGraphExp(graph, &exGraph));
+  ASSERT_NE(exGraph, nullptr);
+
+  ASSERT_SUCCESS(urEnqueueGraphExp(submitQueue, exGraph, 0, nullptr, nullptr));
+  ASSERT_SUCCESS(urQueueFinish(submitQueue));
+
+  std::vector<uint8_t> output(buffer_size, 0);
+  ASSERT_SUCCESS(urEnqueueMemBufferRead(submitQueue, buffer,
+                                        /* isBlocking */ true, 0, buffer_size,
+                                        output.data(), 0, nullptr, nullptr));
+
+  for (size_t i = 0; i < buffer_size; i++) {
+    ASSERT_EQ(output[i], data[i]) << "mismatch at byte " << i;
+  }
+
+  ASSERT_SUCCESS(urGraphExecutableGraphDestroyExp(exGraph));
+  ASSERT_SUCCESS(urEventRelease(event));
+  ASSERT_SUCCESS(urGraphDestroyExp(graph));
+  ASSERT_SUCCESS(urUSMFree(context, usmSrc));
+  ASSERT_SUCCESS(urQueueRelease(submitQueue));
 }
