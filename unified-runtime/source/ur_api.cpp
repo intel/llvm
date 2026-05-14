@@ -7312,7 +7312,6 @@ ur_result_t UR_APICALL urBindlessImagesSignalExternalSemaphoreExp(
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hDevice`
-///         + `hDevice == nullptr`
 ///     - ::UR_RESULT_ERROR_INVALID_DEVICE
 ur_result_t UR_APICALL urDeviceWaitExp(
     /// [in] handle of the device instance.
