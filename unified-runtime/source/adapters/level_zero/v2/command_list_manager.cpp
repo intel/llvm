@@ -352,43 +352,60 @@ ur_result_t ur_command_list_manager::appendKernelLaunch(
   return UR_RESULT_SUCCESS;
 }
 
+// Check P2P access for a device-to-device memcpy.  Returns
+// UR_RESULT_ERROR_INVALID_OPERATION when the destination is device memory,
+// the source is device memory residing on a different device, and peer access
+// between those two devices has not been enabled.  In all other cases
+// (host/shared memory, same device, or unknown allocation type) returns
+// UR_RESULT_SUCCESS so the copy can proceed.
+static ur_result_t checkP2PAccess(ze_context_handle_t zeContext,
+                                  const void *pDst, const void *pSrc,
+                                  ur_context_handle_t urContext,
+                                  ur_device_handle_t urDevice) {
+  ZeStruct<ze_memory_allocation_properties_t> dstProps;
+  ze_device_handle_t dstZeDevice = nullptr;
+  if (ZE_CALL_NOCHECK(zeMemGetAllocProperties,
+                      (zeContext, pDst, &dstProps, &dstZeDevice)) !=
+          ZE_RESULT_SUCCESS ||
+      dstProps.type != ZE_MEMORY_TYPE_DEVICE) {
+    return UR_RESULT_SUCCESS;
+  }
+
+  ZeStruct<ze_memory_allocation_properties_t> srcProps;
+  ze_device_handle_t srcZeDevice = nullptr;
+  if (ZE_CALL_NOCHECK(zeMemGetAllocProperties,
+                      (zeContext, pSrc, &srcProps, &srcZeDevice)) !=
+          ZE_RESULT_SUCCESS ||
+      srcProps.type != ZE_MEMORY_TYPE_DEVICE || !srcZeDevice ||
+      srcZeDevice == urDevice->ZeDevice) {
+    return UR_RESULT_SUCCESS;
+  }
+
+  auto *srcDevice =
+      urContext->getPlatform()->getDeviceFromNativeHandle(srcZeDevice);
+  if (!srcDevice || !srcDevice->Id.has_value() || !urDevice->Id.has_value() ||
+      urDevice->Id.value() >= srcDevice->peers.size()) {
+    return UR_RESULT_SUCCESS;
+  }
+
+  std::scoped_lock<ur_shared_mutex> lock(srcDevice->Mutex);
+  if (srcDevice->peers[urDevice->Id.value()] !=
+      ur_device_handle_t_::PeerStatus::ENABLED) {
+    return UR_RESULT_ERROR_INVALID_OPERATION;
+  }
+
+  return UR_RESULT_SUCCESS;
+}
+
 ur_result_t ur_command_list_manager::appendUSMMemcpy(
     bool blocking, void *pDst, const void *pSrc, size_t size,
     wait_list_view &waitListView, ur_event_handle_t phEvent) {
   TRACK_SCOPE_LATENCY("ur_command_list_manager::appendUSMMemcpy");
 
-  // Check P2P access: if the source pointer is device memory on a different
-  // device AND the destination is also device memory (not host/shared), verify
-  // that peer access has been enabled.  Copies to host memory always succeed
-  // regardless of P2P state.
-  ZeStruct<ze_memory_allocation_properties_t> dstMemProps;
-  ze_device_handle_t dstZeDevice = nullptr;
-  auto zeDstResult = ZE_CALL_NOCHECK(
-      zeMemGetAllocProperties,
-      (hContext.get()->getZeHandle(), pDst, &dstMemProps, &dstZeDevice));
-  if (zeDstResult == ZE_RESULT_SUCCESS &&
-      dstMemProps.type == ZE_MEMORY_TYPE_DEVICE) {
-    ZeStruct<ze_memory_allocation_properties_t> srcMemProps;
-    ze_device_handle_t srcZeDevice = nullptr;
-    auto zeSrcResult = ZE_CALL_NOCHECK(
-        zeMemGetAllocProperties,
-        (hContext.get()->getZeHandle(), pSrc, &srcMemProps, &srcZeDevice));
-    if (zeSrcResult == ZE_RESULT_SUCCESS &&
-        srcMemProps.type == ZE_MEMORY_TYPE_DEVICE && srcZeDevice &&
-        srcZeDevice != hDevice.get()->ZeDevice) {
-      auto *srcDevice =
-          hContext.get()->getPlatform()->getDeviceFromNativeHandle(srcZeDevice);
-      if (srcDevice && srcDevice->Id.has_value() &&
-          hDevice.get()->Id.has_value() &&
-          hDevice.get()->Id.value() < srcDevice->peers.size()) {
-        std::scoped_lock<ur_shared_mutex> lock(srcDevice->Mutex);
-        if (srcDevice->peers[hDevice.get()->Id.value()] !=
-            ur_device_handle_t_::PeerStatus::ENABLED) {
-          return UR_RESULT_ERROR_INVALID_OPERATION;
-        }
-      }
-    }
-  }
+  // Verify P2P access when copying between device allocations on different
+  // devices.  Copies to/from host or shared memory always succeed.
+  UR_CALL(checkP2PAccess(hContext.get()->getZeHandle(), pDst, pSrc,
+                         hContext.get(), hDevice.get()));
 
   auto zeSignalEvent = getSignalEvent(phEvent, UR_COMMAND_USM_MEMCPY);
   auto [pWaitEvents, numWaitEvents, _] = waitListView;
