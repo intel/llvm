@@ -174,6 +174,79 @@ static bool testP2PReadFailsWithoutEnable(context &ctx, queue &srcQueue,
   return true;
 }
 
+// Verify the transition from blocked to permitted using the same allocation:
+// first attempt a device-to-device memcpy from dstQueue without P2P (must
+// fail), then enable P2P and retry the copy (must succeed with correct data).
+static bool testP2PReadFailsThenSucceedsAfterEnable(
+    context &ctx, queue &srcQueue, device &srcDev, queue &dstQueue,
+    device &dstDev, size_t N, int fillVal, const char *label) {
+  int *src = sycl::malloc_device<int>(N, srcQueue);
+  if (!src) {
+    std::cout << label << ": device alloc failed (src). Skipping.\n";
+    return true;
+  }
+
+  int *dst = sycl::malloc_device<int>(N, dstQueue);
+  if (!dst) {
+    std::cout << label << ": device alloc failed (dst). Skipping.\n";
+    sycl::free(src, ctx);
+    return true;
+  }
+
+  srcQueue.fill(src, fillVal, N).wait();
+
+  // Without P2P the copy must fail.
+  bool gotException = false;
+  try {
+    dstQueue.memcpy(dst, src, N * sizeof(int)).wait();
+  } catch (sycl::exception &e) {
+    std::cout << label << ": first memcpy (no P2P) threw: " << e.what() << "\n";
+    gotException = true;
+  }
+
+  if (!gotException) {
+    std::cout << label << ": FAIL — first memcpy succeeded without P2P\n";
+    sycl::free(dst, ctx);
+    sycl::free(src, ctx);
+    return false;
+  }
+
+  // Enable P2P: dstDev may now access allocations on srcDev.
+  std::cout << label << ": enabling P2P.\n";
+  dstDev.ext_oneapi_enable_peer_access(srcDev);
+
+  // Retry — must succeed now.
+  bool copyOk = true;
+  std::vector<int> result(N, 0);
+  try {
+    dstQueue.memcpy(dst, src, N * sizeof(int)).wait();
+    // Read back to host for verification.
+    dstQueue.memcpy(result.data(), dst, N * sizeof(int)).wait();
+  } catch (sycl::exception &e) {
+    std::cout << label << ": second memcpy (P2P enabled) threw: " << e.what()
+              << "\n";
+    copyOk = false;
+  }
+
+  std::cout << label << ": disabling P2P.\n";
+  dstDev.ext_oneapi_disable_peer_access(srcDev);
+  sycl::free(dst, ctx);
+  sycl::free(src, ctx);
+
+  if (!copyOk)
+    return false;
+
+  for (size_t i = 0; i < N; ++i) {
+    if (result[i] != fillVal) {
+      std::cout << label << ": FAIL at index " << i << ": got " << result[i]
+                << ", expected " << fillVal << "\n";
+      return false;
+    }
+  }
+  std::cout << label << ": OK (failed without P2P, succeeded after enable)\n";
+  return true;
+}
+
 int main() {
   // Find a platform with at least two GPU devices.
   std::vector<device> gpus;
@@ -239,6 +312,14 @@ int main() {
   std::cout << "Phase 4: verify memcpy fails without ever enabling P2P.\n";
   if (!testP2PReadFailsWithoutEnable(ctx, q0, dev0, q1, dev1, N, 0x99,
                                      "Phase 4 (dev1 reads dev0 without P2P)"))
+    return 1;
+
+  // Phase 5: verify the transition from blocked to permitted.
+  std::cout << "Phase 5: verify memcpy fails without P2P then succeeds after "
+               "enabling it.\n";
+  if (!testP2PReadFailsThenSucceedsAfterEnable(
+          ctx, q0, dev0, q1, dev1, N, 0xAA,
+          "Phase 5 (dev1 reads dev0: fail then succeed)"))
     return 1;
 
   std::cout << "PASS\n";
