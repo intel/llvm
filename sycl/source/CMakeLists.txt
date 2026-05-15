@@ -97,11 +97,21 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
 
   find_package(Threads REQUIRED)
 
+  if(WIN32 AND UR_STATIC_LOADER AND WIN_DUPE)
+    # sycld is /MDd; link against the debug static ur_loaderd.lib produced
+    # by the unified-runtimed subbuild instead of the release loader target.
+    set(_sycl_ur_loader_lib ${LLVM_BINARY_DIR}/lib/ur_loaderd.lib)
+  elseif(NOT WIN32 OR UR_STATIC_LOADER)
+    set(_sycl_ur_loader_lib UnifiedRuntimeLoader)
+  else()
+    set(_sycl_ur_loader_lib "")
+  endif()
+
   target_link_libraries(${LIB_NAME}
     PRIVATE
       ${CMAKE_DL_LIBS}
       ${CMAKE_THREAD_LIBS_INIT}
-      $<$<NOT:$<BOOL:${WIN32}>>:UnifiedRuntimeLoader>
+      ${_sycl_ur_loader_lib}
       $<$<BOOL:${WIN32}>:shlwapi>
   )
 
