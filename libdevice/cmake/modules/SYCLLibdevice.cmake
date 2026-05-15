@@ -199,14 +199,10 @@ function(link_bc)
     set( link_flags --internalize --only-needed )
   endif()
 
-  if (NOT DEFINED ARG_OUT_DIR)
-    set(output_dir ${CMAKE_CURRENT_BINARY_DIR})
+  if (DEFINED ARG_OUT_DIR)
+    set(output_dir ${ARG_OUT_DIR})
   else()
-    if (EXISTS "${ARG_OUT_DIR}")
-      set(output_dir ${ARG_OUT_DIR})
-    else()
-      message(FATAL_ERROR "Invalid OUT_DIR ${ARG_OUT_DIR} for ${ARG_TARGET}.bc")
-    endif()
+    set(output_dir ${CMAKE_CURRENT_BINARY_DIR})
   endif()
   add_custom_command(
     OUTPUT  "${output_dir}/${ARG_TARGET}.bc"
