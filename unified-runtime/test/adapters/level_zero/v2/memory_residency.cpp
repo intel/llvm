@@ -407,6 +407,63 @@ TEST_P(urMemoryMultiResidencyTest, p2pReadSucceedsWithPeerAccessEnabled) {
                           [](uint8_t b) { return b == fillPattern; }));
 }
 
+// Verify that revoking peer access from devices[1] to devices[0] prevents
+// subsequent USM copies from devices[1]'s queue. A successful copy is first
+// performed with P2P enabled to confirm the setup is correct; then P2P is
+// disabled and the same copy is expected to fail with
+// UR_RESULT_ERROR_INVALID_OPERATION.
+TEST_P(urMemoryMultiResidencyTest, p2pReadFailsAfterRevokingAccess) {
+  static constexpr size_t allocSize = 1024 * 1024;
+
+  uint64_t initialMemFreeSource = 0;
+  ASSERT_SUCCESS(urDeviceGetInfo(devices[0], UR_DEVICE_INFO_GLOBAL_MEM_FREE,
+                                 sizeof(uint64_t), &initialMemFreeSource,
+                                 nullptr));
+  if (initialMemFreeSource < allocSize) {
+    GTEST_SKIP() << "Not enough source device memory available";
+  }
+
+  uint64_t initialMemFreePeer = 0;
+  ASSERT_SUCCESS(urDeviceGetInfo(devices[1], UR_DEVICE_INFO_GLOBAL_MEM_FREE,
+                                 sizeof(uint64_t), &initialMemFreePeer,
+                                 nullptr));
+  if (initialMemFreePeer < allocSize) {
+    GTEST_SKIP() << "Not enough peer device memory available";
+  }
+
+  void *srcPtr = nullptr;
+  ASSERT_SUCCESS(urUSMDeviceAlloc(context, devices[0], nullptr, nullptr,
+                                  allocSize, &srcPtr));
+
+  void *dstPtr = nullptr;
+  ASSERT_SUCCESS(urUSMDeviceAlloc(context, devices[1], nullptr, nullptr,
+                                  allocSize, &dstPtr));
+
+  // Enable P2P and confirm a copy from devices[0] to devices[1] succeeds.
+  ASSERT_SUCCESS(urUsmP2PEnablePeerAccessExp(devices[1], devices[0]));
+  peerAccessEnabled = true;
+
+  ur_queue_handle_t peerQueue = nullptr;
+  ASSERT_SUCCESS(urQueueCreate(context, devices[1], nullptr, &peerQueue));
+
+  ASSERT_SUCCESS(urEnqueueUSMMemcpy(peerQueue, true, dstPtr, srcPtr, allocSize,
+                                    0, nullptr, nullptr));
+
+  // Revoke P2P access.
+  ASSERT_SUCCESS(urUsmP2PDisablePeerAccessExp(devices[1], devices[0]));
+  peerAccessEnabled = false;
+
+  // Copy must now fail: devices[1] can no longer access srcPtr on devices[0].
+  ur_result_t copyResult = urEnqueueUSMMemcpy(peerQueue, true, dstPtr, srcPtr,
+                                              allocSize, 0, nullptr, nullptr);
+
+  urQueueRelease(peerQueue);
+  urUSMFree(context, dstPtr);
+  ASSERT_SUCCESS(urUSMFree(context, srcPtr));
+
+  ASSERT_EQ(copyResult, UR_RESULT_ERROR_INVALID_OPERATION);
+}
+
 // Verify that a USM allocation on devices[0] is NOT made resident on
 // devices[1] when P2P access has not been enabled.  The feature under test
 // restricts residency, not hardware access: Level Zero hardware can still
