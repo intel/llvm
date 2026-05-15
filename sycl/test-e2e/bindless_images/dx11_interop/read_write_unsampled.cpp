@@ -17,7 +17,7 @@
 #include "dx11_interop.h"
 
 #include <sycl/ext/oneapi/bindless_images.hpp>
-#include <sycl/properties/all_properties.hpp>
+#include <sycl/properties/queue_properties.hpp>
 
 #ifdef TEST_SEMAPHORE_IMPORT
 #include <d3d11_4.h> // Used for ID3D11Device5 / ID3D11DeviceContext4 / ID3D11Fence

@@ -24,7 +24,7 @@
 #include <iostream>
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/bindless_images.hpp>
-#include <sycl/properties/all_properties.hpp>
+#include <sycl/properties/queue_properties.hpp>
 
 namespace syclexp = sycl::ext::oneapi::experimental;
 

@@ -130,7 +130,7 @@
 #include <sycl/ext/oneapi/bindless_images.hpp>
 #include <sycl/ext/oneapi/bindless_images_interop.hpp>
 #include <sycl/image.hpp>
-#include <sycl/properties/all_properties.hpp>
+#include <sycl/properties/queue_properties.hpp>
 #include <vector>
 
 namespace syclexp = sycl::ext::oneapi::experimental;
