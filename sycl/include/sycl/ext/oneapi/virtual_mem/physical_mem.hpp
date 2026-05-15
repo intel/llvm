@@ -26,17 +26,33 @@ namespace ext::oneapi::experimental {
 
 enum class address_access_mode : char { none = 0, read = 1, read_write = 2 };
 
+struct enable_ipc_key : detail::compile_time_property_key<
+                            detail::PropKind::PhysicalMemoryEnableIPC> {
+  using value_t = property_value<enable_ipc_key>;
+};
+
+inline constexpr enable_ipc_key::value_t enable_ipc;
+
 class __SYCL_EXPORT physical_mem
     : public sycl::detail::OwnerLessBase<physical_mem> {
   friend sycl::detail::ImplUtils;
 
 public:
+  template <typename PropertyListT = empty_properties_t>
   physical_mem(const device &SyclDevice, const context &SyclContext,
-               size_t NumBytes);
+               size_t NumBytes,
+               const PropertyListT &PropList = empty_properties_t{}) {
 
-  physical_mem(const queue &SyclQueue, size_t NumBytes)
-      : physical_mem(SyclQueue.get_device(), SyclQueue.get_context(),
-                     NumBytes) {}
+    bool EnableIPC = PropertyListT::template has_property<enable_ipc_key>();
+
+    create(SyclDevice, SyclContext, NumBytes, EnableIPC);
+  }
+
+  template <typename PropertyListT = empty_properties_t>
+  physical_mem(const queue &SyclQueue, size_t NumBytes,
+               const PropertyListT &PropList = empty_properties_t{})
+      : physical_mem(SyclQueue.get_device(), SyclQueue.get_context(), NumBytes,
+                     PropList) {}
 
   physical_mem(const physical_mem &rhs) = default;
   physical_mem(physical_mem &&rhs) = default;
@@ -57,8 +73,12 @@ public:
 
   size_t size() const noexcept;
 
+  bool ipc_enabled() const;
+
 private:
   std::shared_ptr<sycl::detail::physical_mem_impl> impl;
+  void create(const device &SyclDevice, const context &SyclContext,
+               size_t NumBytes, bool EnableIPC);
 };
 
 } // namespace ext::oneapi::experimental
