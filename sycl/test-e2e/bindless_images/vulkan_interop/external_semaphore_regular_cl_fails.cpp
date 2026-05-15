@@ -1,26 +1,28 @@
 
 //
 // REQUIRES: aspect-ext_oneapi_external_semaphore_import
+// REQUIRES: vulkan
 //
-// RUN: %{build} -o %t.out
+// RUN: %{build} %link-vulkan -o %t.out %if target-spir %{ -Wno-ignored-attributes %}
 // RUN: %{run} %t.out
 
-// Importing an external semaphore on a queue backed by a regular
+// Waiting on an external semaphore from a queue backed by a regular
 // (non-immediate) command list must throw sycl::exception.
 //
 // sycl_ext_oneapi_bindless_images requires queues used with external
-// semaphores to be constructed with BOTH
+// semaphore wait/signal to be constructed with BOTH
 //   - sycl::property::queue::in_order
 //   - sycl::ext::intel::property::queue::immediate_command_list
-// This test violates the second requirement (explicitly requests
-// no_immediate_command_list) and verifies the runtime rejects the import.
-//
-// This is a contract test, not an interop test: no real Vulkan context is
-// created. The runtime rejects at import before inspecting the handle, so
-// a bogus fd / handle is enough. That's also why this test does not gate
-// on `vulkan` or link against the Vulkan loader -- it lives here because
-// the Vulkan-flavored handle types are what most readers will look for.
+// The Level Zero adapter rejects external_semaphore wait/signal at the
+// point of submission when the queue is not using immediate command
+// lists. This test verifies that contract by:
+//   1. Creating a real, exportable Vulkan binary semaphore.
+//   2. Importing it into SYCL via a (lawful) immediate-CL queue.
+//   3. Calling ext_oneapi_wait_external_semaphore on a separate queue
+//      that explicitly opts into no_immediate_command_list, and
+//      expecting a sycl::exception.
 
+#include "vulkan_setup.hpp"
 #include <iostream>
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/bindless_images.hpp>
@@ -29,29 +31,50 @@
 namespace syclexp = sycl::ext::oneapi::experimental;
 
 int main() {
-  sycl::queue q{
+  VulkanContext vkCtx = createVulkanContext();
+  VkSemaphore vkSem = createExportableSemaphore(vkCtx);
+
+  // Lawful queue: import the semaphore here.
+  sycl::queue immQ{
       {sycl::property::queue::in_order{},
-       sycl::ext::intel::property::queue::no_immediate_command_list{}}};
+       sycl::ext::intel::property::queue::immediate_command_list{}}};
+  auto device = immQ.get_device();
+  auto context = immQ.get_context();
 
 #ifdef _WIN32
+  HANDLE semHandle = getSemaphoreHandle(vkCtx, vkSem);
   syclexp::external_semaphore_descriptor<syclexp::resource_win32_handle> desc{
-      /*handle=*/nullptr,
-      syclexp::external_semaphore_handle_type::win32_nt_handle};
+      semHandle, syclexp::external_semaphore_handle_type::win32_nt_handle};
 #else
+  int semFd = getSemaphoreFd(vkCtx, vkSem);
   syclexp::external_semaphore_descriptor<syclexp::resource_fd> desc{
-      /*file_descriptor=*/-1,
-      syclexp::external_semaphore_handle_type::opaque_fd};
+      semFd, syclexp::external_semaphore_handle_type::opaque_fd};
 #endif
 
+  syclexp::external_semaphore syclSem =
+      syclexp::import_external_semaphore(desc, device, context);
+
+  // The non-immediate-CL queue is what should trigger rejection on use.
+  sycl::queue regQ{
+      context, device,
+      sycl::property_list{
+          sycl::property::queue::in_order{},
+          sycl::ext::intel::property::queue::no_immediate_command_list{}}};
+
+  int ret = 1;
   try {
-    (void)syclexp::import_external_semaphore(desc, q);
+    regQ.ext_oneapi_wait_external_semaphore(syclSem);
+    regQ.wait_and_throw();
+    std::cerr << "FAIL: ext_oneapi_wait_external_semaphore on a "
+                 "non-immediate-CL queue did not throw."
+              << std::endl;
   } catch (const sycl::exception &e) {
     std::cout << "Got expected sycl::exception: " << e.what() << std::endl;
-    return 0;
+    ret = 0;
   }
 
-  std::cerr << "FAIL: import_external_semaphore on a non-immediate-CL queue "
-               "did not throw."
-            << std::endl;
-  return 1;
+  syclexp::release_external_semaphore(syclSem, device, context);
+  vkDestroySemaphore(vkCtx.device, vkSem, nullptr);
+  cleanupVulkanContext(vkCtx);
+  return ret;
 }

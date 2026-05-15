@@ -1,9 +1,6 @@
 // REQUIRES: aspect-ext_oneapi_external_memory_import
 // REQUIRES: vulkan
 
-// UNSUPPORTED: windows && gpu-intel-gen12
-// UNSUPPORTED-TRACKER: URLZA-723
-
 // clang-format off
 
 // On Linux L0, there are problem with semaphores and latest drivers.
