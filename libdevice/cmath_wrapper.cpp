@@ -41,6 +41,9 @@ DEVICE_EXTERN_C_INLINE
 double erfc(double x) { return __spirv_ocl_erfc(x); }
 
 DEVICE_EXTERN_C_INLINE
+double log1p(double x) { return __spirv_ocl_log1p(x); }
+
+DEVICE_EXTERN_C_INLINE
 double tgamma(double x) { return __spirv_ocl_tgamma(x); }
 
 DEVICE_EXTERN_C_INLINE
