@@ -117,8 +117,6 @@ set(TARGET_LIBM_ENTRYPOINTS
     libc.src.math.exp2f
     libc.src.math.exp
     libc.src.math.expf
-    libc.src.math.expm1
-    libc.src.math.expm1f
     libc.src.math.fabs
     libc.src.math.fabsf
     libc.src.math.fdim
@@ -135,7 +133,6 @@ set(TARGET_LIBM_ENTRYPOINTS
     libc.src.math.fmodf
     libc.src.math.frexp
     libc.src.math.frexpf
-    libc.src.math.hypot
     libc.src.math.hypotf
     libc.src.math.ilogb
     libc.src.math.ilogbf

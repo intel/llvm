@@ -119,6 +119,14 @@ add_entrypoint_object(
 )
 
 add_entrypoint_object(
+  exp10
+  SRCS
+    exp10.cpp
+  HDRS
+    ../exp10.h
+)
+
+add_entrypoint_object(
   exp10f
   SRCS
     exp10f.cpp
@@ -127,11 +135,27 @@ add_entrypoint_object(
 )
 
 add_entrypoint_object(
+  exp2
+  SRCS
+    exp2.cpp
+  HDRS
+    ../exp2.h
+)
+
+add_entrypoint_object(
   exp2f
   SRCS
     exp2f.cpp
   HDRS
     ../exp2f.h
+)
+
+add_entrypoint_object(
+  exp
+  SRCS
+    exp.cpp
+  HDRS
+    ../exp.h
 )
 
 add_entrypoint_object(
@@ -404,6 +428,14 @@ add_entrypoint_object(
     sinf.cpp
   HDRS
     ../sinf.h
+)
+
+add_entrypoint_object(
+  sinhf
+  SRCS
+    sinhf.cpp
+  HDRS
+    ../sinhf.h
 )
 
 add_entrypoint_object(
