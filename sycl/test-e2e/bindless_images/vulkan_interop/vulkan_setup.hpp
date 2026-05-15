@@ -338,7 +338,7 @@ inline VulkanContext createVulkanContext() {
   createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
   createInfo.pApplicationInfo = &appInfo;
 
-#ifndef ONT_VALIDATE_FOR_THE_LOVE_OF_ALL_THATS_HOLY_WHAT_WERE_YOU_THINKING
+#ifndef ONT_VALIDATE
   uint32_t instanceExtensionCount = 0;
   VK_CHECK(vkEnumerateInstanceExtensionProperties(
       nullptr, &instanceExtensionCount, nullptr));
@@ -406,7 +406,7 @@ inline VulkanContext createVulkanContext() {
 
   VK_CHECK(vkCreateInstance(&createInfo, nullptr, &ctx.instance));
 
-#ifndef ONT_VALIDATE_FOR_THE_LOVE_OF_ALL_THATS_HOLY_WHAT_WERE_YOU_THINKING
+#ifndef ONT_VALIDATE
   // Create a persistent debug messenger that stays alive for the application's
   // lifetime to capture all subsequent events.
   auto vkCreateDebugUtilsMessengerFuncPtr =
@@ -475,7 +475,7 @@ inline VulkanContext createVulkanContext() {
 
 inline void cleanupVulkanContext(VulkanContext &ctx) {
   vkDestroyDevice(ctx.device, nullptr);
-#ifndef ONT_VALIDATE_FOR_THE_LOVE_OF_ALL_THATS_HOLY_WHAT_WERE_YOU_THINKING
+#ifndef ONT_VALIDATE
   auto vkDestroyDebugUtilsMessengerFuncPtr =
       (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(
           ctx.instance, "vkDestroyDebugUtilsMessengerEXT");
@@ -1241,7 +1241,7 @@ inline void cleanupVulkan(VulkanContext &ctx, ImageResources &res) {
   vkDestroyImage(ctx.device, res.image, nullptr);
   vkFreeMemory(ctx.device, res.memory, nullptr);
   vkDestroyDevice(ctx.device, nullptr);
-#ifndef ONT_VALIDATE_FOR_THE_LOVE_OF_ALL_THATS_HOLY_WHAT_WERE_YOU_THINKING
+#ifndef ONT_VALIDATE
   auto vkDestroyDebugUtilsMessengerFuncPtr =
       (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(
           ctx.instance, "vkDestroyDebugUtilsMessengerEXT");
