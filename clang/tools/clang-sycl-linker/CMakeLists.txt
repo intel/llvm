@@ -10,6 +10,7 @@ set(LLVM_LINK_COMPONENTS
   Option
   Object
   Support
+  SYCLPostLink
   Target
   TargetParser
   )
