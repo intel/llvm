@@ -8,6 +8,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "common.hpp"
+#include "external/driver_experimental/zex_graph.h"
 #include "logger/ur_logger.hpp"
 #include "usm.hpp"
 
@@ -348,6 +349,12 @@ template <>
 ze_structure_type_ext_t
 getZexStructureType<ze_intel_xe_device_exp_properties_t>() {
   return ZE_STRUCTURE_TYPE_INTEL_XE_DEVICE_EXP_PROPERTIES;
+}
+
+template <>
+ze_structure_type_ext_t
+getZexStructureType<ze_record_replay_graph_exp_properties_t>() {
+  return ZE_STRUCTURE_TYPE_RECORD_REPLAY_GRAPH_EXP_PROPERTIES;
 }
 
 // Global variables for ZER_EXT_RESULT_ADAPTER_SPECIFIC_ERROR

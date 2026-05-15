@@ -333,6 +333,10 @@ inline context kernel_impl::get_info<info::kernel::context>() const {
   return createSyclObjFromImpl<context>(MContext);
 }
 
+// NOTE: the global_work_size and spill_memory_size pre-query checks below are
+// mirrored in validateDeviceSpecificQuery (get_device_kernel_info.cpp), which
+// serves the ext::oneapi::get_kernel_info<KernelName, Param> fast path that
+// does not go through kernel_impl. Keep both in sync.
 template <typename Param>
 inline typename Param::return_type
 kernel_impl::get_info(const device &Device) const {

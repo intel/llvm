@@ -4,6 +4,9 @@
 // XFAIL: (opencl && gpu)
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/11364
 //
+// UNSUPPORTED: gpu-intel-gen12
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21023
+//
 // RUN: %{build} -I %S/Inputs %S/Inputs/kernels_in_file2.cpp -o %t.out %threads_lib
 //
 // Since this is a multi-threaded application enable memory tracking and
