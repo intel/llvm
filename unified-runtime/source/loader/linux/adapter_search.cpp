@@ -9,6 +9,7 @@
  */
 
 #include <dlfcn.h>
+#include <filesystem>
 #include <optional>
 
 #include "ur_filesystem_resolved.hpp"
@@ -23,7 +24,7 @@ std::optional<fs::path> getLoaderLibPath() {
   if (dladdr((void *)getLoaderLibPath, &info)) {
     auto libPath = fs::path(info.dli_fname);
     if (fs::exists(libPath)) {
-      return fs::absolute(libPath).parent_path();
+      return fs::canonical(libPath).parent_path();
     }
   }
 
