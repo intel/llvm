@@ -163,6 +163,8 @@ struct ContextInfo {
 
   std::optional<Quarantine> m_Quarantine;
 
+  DeferredEventList DeferredEvents;
+
   AsanStatsWrapper Stats;
 
   explicit ContextInfo(ur_context_handle_t Context) : Handle(Context) {
@@ -300,9 +302,9 @@ public:
 
   ur_result_t allocateMemory(ur_context_handle_t Context,
                              ur_device_handle_t Device,
-                             const ur_usm_desc_t *Properties,
-                             ur_usm_pool_handle_t Pool, size_t Size,
+                             const AllocMemoryParams &Params, size_t Size,
                              AllocType Type, void **ResultPtr);
+
   ur_result_t releaseMemory(ur_context_handle_t Context, void *Ptr);
 
   ur_result_t registerProgram(ur_program_handle_t Program);

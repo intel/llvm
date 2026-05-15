@@ -699,14 +699,14 @@ int main() {
 // CHECK-SPIR-NEXT:   }
 
 // CHECK-AMDGCN: #[[AMDGCN_ATTR0]] = { convergent mustprogress noinline norecurse nounwind optnone "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-optlevel"="0" }
-// CHECK-AMDGCN: #[[AMDGCN_ATTR1]] = { convergent nounwind }
+// CHECK-AMDGCN: #[[AMDGCN_ATTR1]] = { convergent nounwind "uniform-work-group-size" }
 //
 // CHECK-NVPTX: #[[NVPTX_ATTR0]] = { convergent mustprogress noinline norecurse nounwind optnone "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-optlevel"="0" }
-// CHECK-NVPTX: #[[NVPTX_ATTR1]] = { convergent nounwind }
+// CHECK-NVPTX: #[[NVPTX_ATTR1]] = { convergent nounwind "uniform-work-group-size" }
 //
 // WindowsX86_64_SPIR64TargetInfo::initFeatureMap adds +sse/+sse2 to the
 // device-target feature baseline; every other SPIR/SPIRV target class used by
 // the RUN lines above leaves it empty.
 // CHECK-SPIR-NO-SSE2: #[[SPIR_ATTR0]] = { convergent mustprogress noinline norecurse nounwind optnone "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-optlevel"="0" }
 // CHECK-SPIR-SSE2:    #[[SPIR_ATTR0]] = { convergent mustprogress noinline norecurse nounwind optnone "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-optlevel"="0" "target-features"="+sse,+sse2" }
-// CHECK-SPIR: #[[SPIR_ATTR1]] = { convergent nounwind }
+// CHECK-SPIR: #[[SPIR_ATTR1]] = { convergent nounwind "uniform-work-group-size" }

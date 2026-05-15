@@ -69,17 +69,18 @@ inline const char *ToString(ErrorType ErrorType) {
 // So it's easy to check that USM_XXX is also in global memory, and we can also
 // mark an address is a generic & global & usm_device address
 enum MemoryType : uint32_t {
-  UNKNOWN       = 0x000000'00,
-  GLOBAL        = 0x000001'00,
-  USM_DEVICE    = 0x000001'01,
-  USM_HOST      = 0x000001'02,
-  USM_SHARED    = 0x000001'03,
-  MEM_BUFFER    = 0x000001'04,
-  DEVICE_GLOBAL = 0x000001'05,
-  LOCAL         = 0x000002'00,
-  PRIVATE       = 0x000004'00,
-  CONSTANT      = 0x000008'00,
-  GENERIC       = 0x000010'00,
+  UNKNOWN        = 0x000000'00,
+  GLOBAL         = 0x000001'00,
+  USM_DEVICE     = 0x000001'01,
+  USM_HOST       = 0x000001'02,
+  USM_SHARED     = 0x000001'03,
+  MEM_BUFFER     = 0x000001'04,
+  DEVICE_GLOBAL  = 0x000001'05,
+  EXPORTABLE_MEM = 0x000001'06,
+  LOCAL          = 0x000002'00,
+  PRIVATE        = 0x000004'00,
+  CONSTANT       = 0x000008'00,
+  GENERIC        = 0x000010'00,
 };
 // clang-format on
 
@@ -99,6 +100,8 @@ inline const char *ToString(MemoryType MemoryType) {
     return "Memory Buffer";
   case MemoryType::DEVICE_GLOBAL:
     return "Device Global";
+  case MemoryType::EXPORTABLE_MEM:
+    return "Exportable Memory";
   default:
     return "Unknown Memory";
   }

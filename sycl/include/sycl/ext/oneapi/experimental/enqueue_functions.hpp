@@ -15,7 +15,7 @@
 #include <sycl/ext/oneapi/experimental/enqueue_types.hpp>
 #include <sycl/ext/oneapi/experimental/free_function_traits.hpp>
 #include <sycl/ext/oneapi/experimental/graph.hpp>
-#include <sycl/ext/oneapi/properties/properties.hpp>
+#include <sycl/ext/oneapi/properties.hpp>
 #include <sycl/handler.hpp>
 #include <sycl/nd_range.hpp>
 #include <sycl/queue.hpp>

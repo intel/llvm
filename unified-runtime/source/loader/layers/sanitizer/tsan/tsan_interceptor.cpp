@@ -132,16 +132,22 @@ TsanInterceptor::~TsanInterceptor() {
 
 ur_result_t TsanInterceptor::allocateMemory(ur_context_handle_t Context,
                                             ur_device_handle_t Device,
-                                            const ur_usm_desc_t *Properties,
-                                            ur_usm_pool_handle_t Pool,
+                                            const AllocMemoryParams &Params,
                                             size_t Size, AllocType Type,
                                             void **ResultPtr) {
   auto CI = getContextInfo(Context);
 
   void *Allocated = nullptr;
 
-  UR_CALL(
-      SafeAllocate(Context, Device, Size, Properties, Pool, Type, &Allocated));
+  if (Type != AllocType::EXPORTABLE_MEM) {
+    UR_CALL(SafeAllocate(Context, Device, Size, Params.USMDesc, Params.Pool,
+                         Type, &Allocated));
+  } else {
+    UR_CALL(
+        getContext()->urDdiTable.MemoryExportExp.pfnAllocExportableMemoryExp(
+            Context, Device, Params.Alignment, Size, Params.HandleTypeToExport,
+            &Allocated));
+  }
 
   auto AI = TsanAllocInfo{reinterpret_cast<uptr>(Allocated), Size};
   // For updating shadow memory
