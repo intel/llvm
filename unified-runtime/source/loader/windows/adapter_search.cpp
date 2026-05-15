@@ -9,7 +9,6 @@
  */
 
 /* This include needs to be before Libloaderapi.h */
-#include <filesystem>
 #include <windows.h>
 
 #include <Libloaderapi.h>

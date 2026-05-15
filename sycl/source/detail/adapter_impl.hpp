@@ -54,7 +54,7 @@ public:
       : MAdapter(adapter), MBackend(UseBackend),
         MAdapterMutex(std::make_shared<std::mutex>()) {
 
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(SYCL_UR_STATIC_LOADER)
     UrLoaderHandle = ur::getURLoaderLibrary();
     PopulateUrFuncPtrTable(&UrFuncPtrs, UrLoaderHandle);
 #endif

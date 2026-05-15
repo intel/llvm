@@ -26,6 +26,15 @@ target_compile_definitions(ur_loader PRIVATE
     UR_STATIC_LOADER=$<BOOL:${UR_STATIC_LOADER}>
 )
 
+if(UR_STATIC_LOADER AND WIN32)
+    # When the loader is linked statically into SYCL,
+    # the UR API symbols must not be re-exported from that DLL.
+    target_compile_definitions(ur_loader PUBLIC
+        UR_APIEXPORT=
+        UR_DLLEXPORT=
+    )
+endif()
+
 if (MSVC)
     set(TARGET_LIBNAME ur_loader)
     string(TOUPPER ${TARGET_LIBNAME} TARGET_LIBNAME)

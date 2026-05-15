@@ -9,7 +9,6 @@
  */
 
 #include <dlfcn.h>
-#include <filesystem>
 #include <optional>
 
 #include "ur_filesystem_resolved.hpp"
