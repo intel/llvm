@@ -25,7 +25,7 @@
 namespace ocl {
 
 // Define storage for all function pointers using X-macros
-#define OCL_FUNC(name, required) decltype(::name) *name##_ptr = nullptr;
+#define OCL_FUNC(name) decltype(::name) *name##_ptr = nullptr;
 #include "ocl_functions.def"
 #undef OCL_FUNC
 
@@ -79,39 +79,22 @@ static void loadOCLLibraryImpl() {
 #endif
 
   bool success = true;
-  int required_missing = 0;
-  int optional_missing = 0;
+  int missing = 0;
 
-#define OCL_FUNC(name, required)                                               \
+#define OCL_FUNC(name)                                                         \
   do {                                                                         \
     if (!getSymbolAddr(OCLLibHandle, #name, &name##_ptr)) {                    \
-      if (required) {                                                          \
-        UR_LOG(ERR, "Required OpenCL function not found: {}", #name);          \
-        required_missing++;                                                    \
-        success = false;                                                       \
-      } else {                                                                 \
-        UR_LOG(DEBUG, "Optional OpenCL function not found: {}", #name);        \
-        optional_missing++;                                                    \
-      }                                                                        \
+      UR_LOG(ERR, "Required OpenCL function not found: {}", #name);            \
+      missing++;                                                               \
+      success = false;                                                         \
     }                                                                          \
   } while (0);
 
 #include "ocl_functions.def"
 #undef OCL_FUNC
 
-  if (required_missing > 0) {
-    UR_LOG(ERR, "Failed to load {} required OpenCL function(s)",
-           required_missing);
-  }
-
-  if (optional_missing > 0) {
-    UR_LOG(DEBUG,
-           "{} optional OpenCL function(s) not available (normal for older "
-           "OpenCL versions)",
-           optional_missing);
-  }
-
   if (!success) {
+    UR_LOG(ERR, "Failed to load {} required OpenCL function(s)", missing);
     // Required symbols missing — close the handle we opened to avoid a leak.
 #ifdef _WIN32
     FreeLibrary((HMODULE)OCLLibHandle);
@@ -119,7 +102,7 @@ static void loadOCLLibraryImpl() {
     dlclose(OCLLibHandle);
 #endif
     OCLLibHandle = nullptr;
-#define OCL_FUNC(name, required) name##_ptr = nullptr;
+#define OCL_FUNC(name) name##_ptr = nullptr;
 #include "ocl_functions.def"
 #undef OCL_FUNC
     return;
@@ -147,7 +130,7 @@ void unloadOCLLibrary() {
 #endif
     OCLLibHandle = nullptr;
 
-#define OCL_FUNC(name, required) name##_ptr = nullptr;
+#define OCL_FUNC(name) name##_ptr = nullptr;
 #include "ocl_functions.def"
 #undef OCL_FUNC
   }

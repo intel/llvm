@@ -35,20 +35,9 @@ struct ur_adapter_handle_t_ : ur::opencl::handle_base {
   // Function pointers to core OpenCL entry points which may not exist in older
   // versions of the OpenCL-ICD-Loader are tracked here and initialized by
   // dynamically loading the symbol by name.
-#ifdef UR_STATIC_ADAPTER_OPENCL
-  // Lift redirect macros so decltype resolves the real CL signatures
-#undef clSetProgramSpecializationConstant
-#undef clSetContextDestructorCallback
-#endif
 #define CL_CORE_FUNCTION(FUNC) decltype(::FUNC) *FUNC = nullptr;
 #include "core_functions.def"
 #undef CL_CORE_FUNCTION
-#ifdef UR_STATIC_ADAPTER_OPENCL
-  // Restore redirect macros so direct calls in this TU still go via pointers
-#define clSetProgramSpecializationConstant                                     \
-  ocl::clSetProgramSpecializationConstant_ptr
-#define clSetContextDestructorCallback ocl::clSetContextDestructorCallback_ptr
-#endif
 };
 
 namespace ur {

@@ -31,6 +31,11 @@ ur_adapter_handle_t_::ur_adapter_handle_t_() : handle_base() {
   if (!ocl::loadOCLLibrary()) {
     return;
   }
+  // Mirror the symbols already resolved by ocl_dynamic_lib into the per-adapter
+  // struct fields, so call sites like `getAdapter()->FUNC(...)` work.
+#define CL_CORE_FUNCTION(FUNC) FUNC = ocl::FUNC##_ptr;
+#include "core_functions.def"
+#undef CL_CORE_FUNCTION
 #else
 #ifdef _MSC_VER
 

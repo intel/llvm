@@ -34,18 +34,18 @@ ur_result_t context_t::init() {
   UINT SavedMode = SetErrorMode(SEM_FAILCRITICALERRORS);
 #endif
 
-#ifdef UR_STATIC_ADAPTER_LEVEL_ZERO
+#if defined(UR_STATIC_ADAPTER_LEVEL_ZERO) || defined(UR_STATIC_ADAPTER_OPENCL)
   // If the adapters were force loaded, it means the user wants to use
   // a specific adapter library. Don't load any static adapters.
   if (!adapter_registry.adaptersForceLoaded()) {
+#ifdef UR_STATIC_ADAPTER_LEVEL_ZERO
     auto &level_zero = platforms.emplace_back(nullptr);
     ur::level_zero::urAdapterGetDdiTables(&level_zero.dditable);
-  }
 #endif
 #ifdef UR_STATIC_ADAPTER_OPENCL
-  if (!adapter_registry.adaptersForceLoaded()) {
     auto &opencl = platforms.emplace_back(nullptr);
     ur::opencl::urAdapterGetDdiTables(&opencl.dditable);
+#endif
   }
 #endif
 
