@@ -35,7 +35,7 @@ enum class Group;
 // Size of each of the diagnostic categories.
 enum {
   DIAG_SIZE_COMMON = 300,
-  DIAG_SIZE_DRIVER = 400,
+  DIAG_SIZE_DRIVER = 410,
   DIAG_SIZE_FRONTEND = 200,
   DIAG_SIZE_SERIALIZATION = 120,
   DIAG_SIZE_LEX = 500,
