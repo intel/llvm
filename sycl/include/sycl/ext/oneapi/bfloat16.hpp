@@ -636,10 +636,11 @@ inline bfloat16 getBfloat16WithRoundingMode(const Ty &a) {
 // Specialization of some functions in namespace `std`.
 namespace std {
 
-// Specialization of `std::hash<sycl::ext::oneapi::bfloat16>`.
+// Specialization of `std::hash<sycl::ext::oneapi::bfloat16>`. See
+// half_type.hpp for the rationale on avoiding `std::hash<uint16_t>`.
 template <> struct hash<sycl::ext::oneapi::bfloat16> {
   size_t operator()(sycl::ext::oneapi::bfloat16 const &Key) const noexcept {
-    return hash<uint16_t>{}(sycl::bit_cast<uint16_t>(Key));
+    return static_cast<size_t>(sycl::bit_cast<uint16_t>(Key));
   }
 };
 

@@ -10,9 +10,9 @@
 
 #include <sycl/detail/half_type_impl.hpp>
 
-// For std::hash, seems to be the most lightweight header provide it under
-// C++17:
-#include <optional>
+namespace std {
+template <class> struct hash;
+}
 
 #ifdef __SYCL_DEVICE_ONLY__
 #include <iosfwd>
@@ -50,10 +50,16 @@ inline std::istream &operator>>(std::istream &I, sycl::half &rhs) {
 // Partial specialization of some functions in namespace `std`
 namespace std {
 
-// Partial specialization of `std::hash<sycl::half>`
+// Partial specialization of `std::hash<sycl::half>`. Avoid calling
+// `std::hash<uint16_t>` so we don't need <functional>/<optional> for the
+// primary template definition; the bit pattern of a 16-bit half hashes
+// to itself zero-extended into a size_t (identity on the underlying
+// integer is what libstdc++/libc++ do for std::hash<uint16_t> too).
 template <> struct hash<sycl::half> {
   size_t operator()(sycl::half const &Key) const noexcept {
-    return hash<uint16_t>{}(reinterpret_cast<const uint16_t &>(Key));
+    uint16_t Bits = 0;
+    __builtin_memcpy(&Bits, &Key, sizeof(Bits));
+    return static_cast<size_t>(Bits);
   }
 };
 
