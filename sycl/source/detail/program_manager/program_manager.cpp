@@ -1360,7 +1360,7 @@ ProgramManager::getDeviceImage(std::string_view KernelName,
   std::optional<kernel_id> FoundKernelID;
   {
     std::lock_guard<std::mutex> Guard(m_DeviceKernelInfoMapMutex);
-    if (auto It = m_DeviceKernelInfoMap.find(KernelName);
+    if (auto It = m_DeviceKernelInfoMap.find(std::string(KernelName));
         It != m_DeviceKernelInfoMap.end()) {
       FoundKernelID = It->second.getKernelID();
       Img = getBinImageFromMultiMap(m_KernelIDs2BinImage, *FoundKernelID,
@@ -1568,7 +1568,7 @@ void ProgramManager::cacheKernelWorkGroupDynamicLocalMem(
 DeviceKernelInfo &
 ProgramManager::getDeviceKernelInfo(const CompileTimeKernelInfoTy &Info) {
   std::lock_guard<std::mutex> Guard(m_DeviceKernelInfoMapMutex);
-  auto It = m_DeviceKernelInfoMap.find(Info.Name);
+  auto It = m_DeviceKernelInfoMap.find(std::string(Info.Name));
   assert(It != m_DeviceKernelInfoMap.end());
   It->second.setCompileTimeInfoIfNeeded(Info);
   return It->second;
@@ -1577,7 +1577,7 @@ ProgramManager::getDeviceKernelInfo(const CompileTimeKernelInfoTy &Info) {
 DeviceKernelInfo &
 ProgramManager::getDeviceKernelInfo(std::string_view KernelName) {
   std::lock_guard<std::mutex> Guard(m_DeviceKernelInfoMapMutex);
-  auto It = m_DeviceKernelInfoMap.find(KernelName);
+  auto It = m_DeviceKernelInfoMap.find(std::string(KernelName));
   assert(It != m_DeviceKernelInfoMap.end());
   return It->second;
 }
@@ -1585,7 +1585,7 @@ ProgramManager::getDeviceKernelInfo(std::string_view KernelName) {
 DeviceKernelInfo *
 ProgramManager::tryGetDeviceKernelInfo(std::string_view KernelName) {
   std::lock_guard<std::mutex> Guard(m_DeviceKernelInfoMapMutex);
-  auto It = m_DeviceKernelInfoMap.find(KernelName);
+  auto It = m_DeviceKernelInfoMap.find(std::string(KernelName));
   return It != m_DeviceKernelInfoMap.end() ? &It->second : nullptr;
 }
 
@@ -1778,7 +1778,7 @@ void ProgramManager::addImage(sycl_device_binary RawImg,
     if (m_ExportedSymbolImages.find(name) != m_ExportedSymbolImages.end())
       continue;
 
-    auto It = m_DeviceKernelInfoMap.find(std::string_view(name));
+    auto It = m_DeviceKernelInfoMap.find(name);
     if (It == m_DeviceKernelInfoMap.end()) {
       sycl::kernel_id KernelID = detail::createSyclObjFromImpl<sycl::kernel_id>(
           std::make_shared<detail::kernel_id_impl>(name));
@@ -1920,7 +1920,7 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
         continue;
       }
 
-      auto DKIIt = m_DeviceKernelInfoMap.find(Name);
+      auto DKIIt = m_DeviceKernelInfoMap.find(std::string(Name));
       assert(DKIIt != m_DeviceKernelInfoMap.end());
       removeFromMultimapByVal(m_KernelIDs2BinImage, DKIIt->second.getKernelID(),
                               Img);
@@ -2052,8 +2052,7 @@ std::vector<kernel_id> ProgramManager::getAllSYCLKernelIDs() {
 
   std::vector<sycl::kernel_id> AllKernelIDs;
   AllKernelIDs.reserve(m_DeviceKernelInfoMap.size());
-  for (const std::pair<const std::string_view, DeviceKernelInfo> &Pair :
-       m_DeviceKernelInfoMap) {
+  for (const auto &Pair : m_DeviceKernelInfoMap) {
     AllKernelIDs.push_back(Pair.second.getKernelID());
   }
   return AllKernelIDs;

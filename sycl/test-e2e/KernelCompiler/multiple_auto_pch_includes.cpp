@@ -47,7 +47,7 @@ int main(int argc, char **argv) {
 #include <sycl/builtins.hpp>
 #include <sycl/ext/oneapi/bfloat16.hpp>
 #include <sycl/ext/oneapi/free_function_queries.hpp>
-#include <sycl/ext/oneapi/kernel_properties/properties.hpp>
+#include <sycl/ext/oneapi/kernel_properties.hpp>
 #include <sycl/group_barrier.hpp>
 #include <sycl/half_type.hpp>
 #include <sycl/marray.hpp>

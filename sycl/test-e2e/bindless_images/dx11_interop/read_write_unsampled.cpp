@@ -18,7 +18,11 @@
 
 #include <sycl/ext/oneapi/bindless_images.hpp>
 
-#include <d3d11_3.h>
+#ifdef TEST_SEMAPHORE_IMPORT
+#include <d3d11_4.h> // Used for ID3D11Device5 / ID3D11DeviceContext4 / ID3D11Fence
+#else
+#include <d3d11_3.h> // Used for ID3D11Device3
+#endif               // TEST_SEMAPHORE_IMPORT
 
 #include <limits>
 
@@ -76,6 +80,25 @@ syclImportTextureMem(HANDLE sharedHandle, size_t allocationSize,
   return syclImageHandle;
 }
 
+#ifdef TEST_SEMAPHORE_IMPORT
+syclexp::external_semaphore syclImportDX11FenceSemaphore(HANDLE sharedHandle,
+                                                         sycl::queue queue) {
+  syclexp::external_semaphore_descriptor<syclexp::resource_win32_handle>
+      semDesc{sharedHandle,
+              syclexp::external_semaphore_handle_type::win32_nt_dx11_fence};
+  auto ret = syclexp::import_external_semaphore(semDesc, queue);
+  return ret;
+}
+
+void waitD3D11Fence(ID3D11Fence *fence, UINT64 value, HANDLE eventHandle,
+                    DWORD msecTimeout = INFINITE) {
+  ThrowIfFailed(fence->SetEventOnCompletion(value, eventHandle));
+  if (WaitForSingleObject(eventHandle, msecTimeout) != WAIT_OBJECT_0) {
+    throw std::runtime_error("Timed out waiting for D3D11 fence.");
+  }
+}
+#endif // TEST_SEMAPHORE_IMPORT
+
 template <int NDims, typename DType, int NChannels>
 void callSyclKernel(sycl::queue syclQueue,
                     syclexp::unsampled_image_handle syclImageHandle,
@@ -86,8 +109,8 @@ void callSyclKernel(sycl::queue syclQueue,
     using VecType = sycl::vec<DType, NChannels>;
 
     // All we are doing is doubling the value of each pixel in the texture.
-    syclQueue
-        .submit([&](sycl::handler &cgh) {
+    auto e =
+        syclQueue.submit([&](sycl::handler &cgh) {
           cgh.parallel_for(
               sycl::nd_range<NDims>{globalSize, localSize},
               [=](sycl::nd_item<NDims> it) {
@@ -128,8 +151,11 @@ void callSyclKernel(sycl::queue syclQueue,
                   syclexp::write_image(imgHandle, int(dim0), px);
                 }
               });
-        })
-        .wait_and_throw();
+        });
+#ifndef TEST_SEMAPHORE_IMPORT
+    e.wait_and_throw();
+#endif
+
     // Instead of wait_and_throw here, we may want to import and use the
     // ID3D11Fence interface to synchronize the SYCL queue with the D3D11
     // device by signaling the completion of the work and waiting for it on
@@ -288,6 +314,32 @@ int runTest(D3D11ProgramState &d3d11ProgramState, sycl::queue syclQueue,
   ThrowIfFailed(texture.As(&keyedMutex));
   d3d11ProgramState.key = 0;
 
+#ifdef TEST_SEMAPHORE_IMPORT
+  ComPtr<ID3D11Device5> device5;
+  ThrowIfFailed(pDevice->QueryInterface(IID_PPV_ARGS(&device5)));
+
+  ComPtr<ID3D11DeviceContext4> context4;
+  ThrowIfFailed(
+      d3d11ProgramState.deviceContext->QueryInterface(IID_PPV_ARGS(&context4)));
+
+  ComPtr<ID3D11Fence> fence;
+  uint64_t fenceVal = 0;
+  ThrowIfFailed(device5->CreateFence(fenceVal, D3D11_FENCE_FLAG_SHARED,
+                                     IID_PPV_ARGS(&fence)));
+
+  HANDLE sharedFence = INVALID_HANDLE_VALUE;
+  ThrowIfFailed(
+      fence->CreateSharedHandle(nullptr, GENERIC_ALL, nullptr, &sharedFence));
+
+  syclexp::external_semaphore syclSemaphore =
+      syclImportDX11FenceSemaphore(sharedFence, syclQueue);
+
+  HANDLE fenceEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
+  if (fenceEvent == nullptr) {
+    ThrowIfFailed(HRESULT_FROM_WIN32(GetLastError()));
+  }
+#endif // TEST_SEMAPHORE_IMPORT
+
   // Create an NT handle to a shared resource referring to our texture.
   // Opening the shared resource gives access to it for use on the SYCL device.
   ComPtr<IDXGIResource1> sharedResource;
@@ -329,6 +381,11 @@ int runTest(D3D11ProgramState &d3d11ProgramState, sycl::queue syclQueue,
   syclexp::unsampled_image_handle syclImageHandle = syclImportTextureMem(
       sharedHandle, allocationSize, syclImageDesc, syclQueue);
 
+#ifdef TEST_SEMAPHORE_IMPORT
+  ThrowIfFailed(context4->Signal(fence.Get(), fenceVal));
+  syclQueue.ext_oneapi_wait_external_semaphore(syclSemaphore, fenceVal);
+  fenceVal++;
+#endif
   // Submit the SYCL kernel.
   // When IDXGIKeyedMutex importing into SYCL is implemented, we'll be able to
   // call it from the SYCL API. All it does is ensuring only one device has
@@ -338,6 +395,14 @@ int runTest(D3D11ProgramState &d3d11ProgramState, sycl::queue syclQueue,
                                           globalSize, localSize);
   // Back to the D3D11 process
   ThrowIfFailed(keyedMutex->ReleaseSync(d3d11ProgramState.key));
+
+#ifdef TEST_SEMAPHORE_IMPORT
+  syclQueue.submit([&](sycl::handler &cgh) {
+    cgh.ext_oneapi_signal_external_semaphore(syclSemaphore, fenceVal);
+  });
+  waitD3D11Fence(fence.Get(), fenceVal, fenceEvent);
+  fenceVal++;
+#endif
 
   // Read-back and verify
   int errc = 1;
@@ -351,6 +416,11 @@ int runTest(D3D11ProgramState &d3d11ProgramState, sycl::queue syclQueue,
 
   // cleanup of the shared handle.
   CloseNTHandle(sharedHandle);
+
+#ifdef TEST_SEMAPHORE_IMPORT
+  CloseNTHandle(sharedFence);
+  CloseNTHandle(fenceEvent);
+#endif
 
 #ifdef VERBOSE_PRINT
   if (errc == 1) {

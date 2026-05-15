@@ -163,6 +163,8 @@ struct ContextInfo {
 
   std::optional<Quarantine> m_Quarantine;
 
+  DeferredEventList DeferredEvents;
+
   AsanStatsWrapper Stats;
 
   explicit ContextInfo(ur_context_handle_t Context) : Handle(Context) {
