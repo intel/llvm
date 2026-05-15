@@ -34,10 +34,9 @@
 #include <sycl/range.hpp>                             // for range
 
 #include <cstddef>     // for size_t
-#include <functional>  // for hash
 #include <iterator>    // for reverse_iterator
 #include <limits>      // for numeric_limits
-#include <memory>      // for shared_ptr
+#include <memory>      // for shared_ptr, hash
 #include <type_traits> // for enable_if_t
 
 /// \file accessor.hpp
