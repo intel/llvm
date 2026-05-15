@@ -128,6 +128,52 @@ static bool testP2PReadFailsAfterDisable(context &ctx, queue &srcQueue,
   return true;
 }
 
+// Allocate N ints on srcQueue's device, fill with fillVal, and verify that a
+// device-to-device memcpy from dstQueue fails without ever enabling P2P (since
+// dstDev must not access srcDev's allocations when P2P has never been enabled).
+static bool testP2PReadFailsWithoutEnable(context &ctx, queue &srcQueue,
+                                          device &srcDev, queue &dstQueue,
+                                          device &dstDev, size_t N, int fillVal,
+                                          const char *label) {
+  (void)srcDev;
+  (void)dstDev;
+
+  int *src = sycl::malloc_device<int>(N, srcQueue);
+  if (!src) {
+    std::cout << label << ": device alloc failed (src). Skipping.\n";
+    return true;
+  }
+
+  int *dst = sycl::malloc_device<int>(N, dstQueue);
+  if (!dst) {
+    std::cout << label << ": device alloc failed (dst). Skipping.\n";
+    sycl::free(src, ctx);
+    return true;
+  }
+
+  srcQueue.fill(src, fillVal, N).wait();
+
+  // Attempt a device-to-device memcpy without ever enabling P2P — must fail.
+  bool gotException = false;
+  try {
+    dstQueue.memcpy(dst, src, N * sizeof(int)).wait();
+  } catch (sycl::exception &e) {
+    std::cout << label << ": memcpy threw exception: " << e.what() << "\n";
+    gotException = true;
+  }
+
+  sycl::free(dst, ctx);
+  sycl::free(src, ctx);
+
+  if (!gotException) {
+    std::cout << label
+              << ": FAIL — device-to-device memcpy succeeded without P2P\n";
+    return false;
+  }
+  std::cout << label << ": OK (memcpy correctly failed without P2P)\n";
+  return true;
+}
+
 int main() {
   // Find a platform with at least two GPU devices.
   std::vector<device> gpus;
@@ -187,6 +233,12 @@ int main() {
   std::cout << "Phase 3: verify memcpy fails after P2P is disabled.\n";
   if (!testP2PReadFailsAfterDisable(ctx, q0, dev0, q1, dev1, N, 0x77,
                                     "Phase 3 (dev1 reads dev0 after disable)"))
+    return 1;
+
+  // Phase 4: verify that memcpy fails without ever enabling P2P.
+  std::cout << "Phase 4: verify memcpy fails without ever enabling P2P.\n";
+  if (!testP2PReadFailsWithoutEnable(ctx, q0, dev0, q1, dev1, N, 0x99,
+                                     "Phase 4 (dev1 reads dev0 without P2P)"))
     return 1;
 
   std::cout << "PASS\n";
