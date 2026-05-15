@@ -221,9 +221,10 @@ void SYCLMemObjT::materializeShadowCopy(const void *SourcePtr,
   // runtime detail; the user allocator cannot be relied upon to satisfy
   // backend alignment requirements (e.g. CL_DEVICE_MEM_BASE_ADDR_ALIGN).
   const size_t AllocBytes =
-      MSizeInBytes == 0 ? RequiredAlign
-                        : ((MSizeInBytes + RequiredAlign - 1) / RequiredAlign) *
-                              RequiredAlign;
+      MSizeInBytes == 0
+          ? RequiredAlign
+          : MSizeInBytes +
+                (RequiredAlign - (MSizeInBytes % RequiredAlign)) % RequiredAlign;
   void *NewShadowCopy = detail::OSUtil::alignedAlloc(RequiredAlign, AllocBytes);
   if (!NewShadowCopy)
     throw std::bad_alloc();
@@ -270,8 +271,6 @@ void SYCLMemObjT::prepareForAllocation(context_impl *Context) {
     Backend = Devices.front().getBackend();
 
   const size_t BackendRequiredAlign = getBackendShadowCopyAlignment(Context);
-  if (BackendRequiredAlign > MPendingShadowCopyAlignment)
-    MPendingShadowCopyAlignment = BackendRequiredAlign;
 
   switch (Backend) {
   case backend::ext_oneapi_level_zero:
@@ -293,10 +292,14 @@ void SYCLMemObjT::prepareForAllocation(context_impl *Context) {
   std::lock_guard<std::mutex> Lock(MCreateShadowCopyMtx);
   if (!MHasPendingAlignedShadowCopy)
     return;
+  if (BackendRequiredAlign > MPendingShadowCopyAlignment)
+    MPendingShadowCopyAlignment = BackendRequiredAlign;
   if (SkipShadowCopy) {
     if (MShadowCopy != nullptr) {
       // A writable host accessor already forced a SYCL shadow copy. Keep using
       // that path so the final copy-back still targets the original user ptr.
+      MBackendOwnsWriteBack = false;
+      MHasPendingAlignedShadowCopy = false;
       return;
     }
 

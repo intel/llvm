@@ -126,6 +126,10 @@ ur_integrated_buffer_handle_t::ur_integrated_buffer_handle_t(
       UR_CALL_THROWS(
           synchronousZeCopy(hContext, hDevice, this->ptr.get(), hostPtr, size));
       mapToPtr = hostPtr;
+      // Mirror mapToPtr so that ~ur_integrated_buffer_handle_t copies device
+      // updates back to the original host pointer even without an explicit
+      // map/unmap.
+      writeBackPtr = hostPtr;
     }
   }
 }

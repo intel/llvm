@@ -42,26 +42,22 @@ static int runReadOnlySumKernel(sycl::queue &Q, const int *HostPtr, size_t N) {
 
 // Writable kernel path; buffer destruction happens at scope exit.
 static void runWriteKernel(sycl::queue &Q, int *HostPtr, size_t N) {
-  {
-    sycl::buffer<int, 1> Buf(HostPtr, sycl::range<1>(N));
+  sycl::buffer<int, 1> Buf(HostPtr, sycl::range<1>(N));
 
-    Q.submit([&](sycl::handler &CGH) {
-      auto OutAcc = Buf.get_access<sycl::access::mode::write>(CGH);
-      CGH.single_task([=]() {
-        for (size_t I = 0; I < N; ++I)
-          OutAcc[I] = static_cast<int>(I * 3 + 7);
-      });
+  Q.submit([&](sycl::handler &CGH) {
+    auto OutAcc = Buf.get_access<sycl::access::mode::write>(CGH);
+    CGH.single_task([=]() {
+      for (size_t I = 0; I < N; ++I)
+        OutAcc[I] = static_cast<int>(I * 3 + 7);
     });
-    Q.wait_and_throw();
-  }
+  });
+  Q.wait_and_throw();
 }
 
 // Verifies host-side result after writable-buffer destruction.
 static bool checkExpectedPattern(const int *Ptr, size_t N) {
-  std::vector<int> Tmp(N);
-  std::memcpy(Tmp.data(), Ptr, sizeof(int) * N);
   for (size_t I = 0; I < N; ++I) {
-    if (Tmp[I] != static_cast<int>(I * 3 + 7))
+    if (Ptr[I] != static_cast<int>(I * 3 + 7))
       return false;
   }
   return true;
