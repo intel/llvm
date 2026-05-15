@@ -164,7 +164,7 @@ using OffloadingImage = OffloadBinary::OffloadingImage;
 // Set via --use-clang-sycl-linker flag.
 // TODO: Remove this flag once the linking and backend compilation have been
 // fully migrated to clang-sycl-linker and make it the default behavior.
-bool UseClangSYCLLinker = false;
+static bool UseClangSYCLLinker = false;
 
 namespace llvm {
 // Provide DenseMapInfo so that OffloadKind can be used in a DenseMap.
@@ -1682,13 +1682,21 @@ Expected<StringRef> bundleDeviceModule(StringRef ClangOutput,
   llvm_unreachable("bundleDeviceModule called for non-NVPTX/AMDGCN triple");
 }
 
-} // namespace sycl
-
-namespace generic {
 /// Append arguments for clang-sycl-linker invocation via -Xlinker.
 /// This function forwards all necessary options from clang-linker-wrapper to
 /// clang-sycl-linker by wrapping them with -Xlinker when invoking
 /// "clang -fsycl --sycl-link".
+///
+/// TODO: The following options are forwarded but not yet defined in
+/// SYCLLinkOpts.td, so clang-sycl-linker currently ignores them. Each should
+/// be added to SYCLLinkOpts.td and wired up in ClangSYCLLinker.cpp as the
+/// corresponding functionality is migrated into clang-sycl-linker:
+///   --print-wrapped-module, --sycl-thin-lto,
+///   --sycl-allow-device-image-dependencies,
+///   --sycl-remove-unused-external-funcs, --sycl-device-code-split-esimd,
+///   --sycl-add-default-spec-consts-image, --sycl-dump-device-code=,
+///   --llvm-spirv-options=, --sycl-post-link-options=,
+///   --device-compiler=, --device-linker=
 ///
 /// \param Args The parsed command-line arguments from clang-linker-wrapper.
 /// \param CmdArgs The command arguments list to append to (for clang
@@ -1713,28 +1721,30 @@ static void appendClangSYCLLinkerArgs(const ArgList &Args,
       OPT_print_wrapped_module,
       OPT_sycl_thin_lto,
       OPT_sycl_allow_device_image_dependencies,
-      OPT_sycl_remove_unused_external_funcs,
-      OPT_no_sycl_remove_unused_external_funcs,
-      OPT_sycl_device_code_split_esimd,
-      OPT_no_sycl_device_code_split_esimd,
-      OPT_sycl_add_default_spec_consts_image,
-      OPT_no_sycl_add_default_spec_consts_image,
   };
   for (OptSpecifier Opt : DirectOpts) {
-    if (Arg *A = Args.getLastArg(Opt)) {
+    if (Arg *A = Args.getLastArg(Opt))
       XLinker("--" + A->getOption().getName().str());
-    }
   }
+  if (Arg *A = Args.getLastArg(OPT_sycl_remove_unused_external_funcs,
+                               OPT_no_sycl_remove_unused_external_funcs))
+    XLinker("--" + A->getOption().getName().str());
+  if (Arg *A = Args.getLastArg(OPT_sycl_device_code_split_esimd,
+                               OPT_no_sycl_device_code_split_esimd))
+    XLinker("--" + A->getOption().getName().str());
+  if (Arg *A = Args.getLastArg(OPT_sycl_add_default_spec_consts_image,
+                               OPT_no_sycl_add_default_spec_consts_image))
+    XLinker("--" + A->getOption().getName().str());
 
+  // All options below are single-valued; only the last occurrence is forwarded.
   static const OptSpecifier ValueOpts[] = {
-      OPT_sycl_dump_device_code_EQ,  OPT_llvm_spirv_options_EQ,
-      OPT_sycl_post_link_options_EQ, OPT_syclbin_EQ,
-      OPT_bitcode_library_EQ,
+      OPT_sycl_dump_device_code_EQ,
+      OPT_llvm_spirv_options_EQ,
+      OPT_sycl_post_link_options_EQ,
   };
   for (OptSpecifier Opt : ValueOpts) {
-    if (const opt::Arg *A = Args.getLastArg(Opt)) {
+    if (const opt::Arg *A = Args.getLastArg(Opt))
       XLinker("--" + A->getOption().getName().str() + A->getValue());
-    }
   }
 
   // Forward all device compiler and linker options (can have multiple)
@@ -1746,8 +1756,11 @@ static void appendClangSYCLLinkerArgs(const ArgList &Args,
   }
 }
 
+} // namespace sycl
+
+namespace generic {
 Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args,
-                          uint16_t ActiveOffloadKindMask = 0) {
+                          uint16_t ActiveOffloadKindMask) {
   llvm::TimeTraceScope TimeScope("Clang");
   // Use `clang` to invoke the appropriate device tools.
   Expected<std::string> ClangPath =
@@ -1811,10 +1824,11 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args,
     CmdArgs.push_back("-c");
   }
 
-  if (UseClangSYCLLinker && (ActiveOffloadKindMask & OFK_SYCL)) {
+  if (UseClangSYCLLinker && (ActiveOffloadKindMask & OFK_SYCL) &&
+      Triple.isSPIROrSPIRV()) {
     CmdArgs.push_back("-fsycl");
     CmdArgs.push_back("--sycl-link");
-    appendClangSYCLLinkerArgs(Args, CmdArgs, Triple, Arch);
+    sycl::appendClangSYCLLinkerArgs(Args, CmdArgs, Triple, Arch);
     for (StringRef InputFile : InputFiles)
       CmdArgs.append({"-Xlinker", Args.MakeArgString(InputFile)});
     if (Error Err = executeCommands(*ClangPath, CmdArgs))
