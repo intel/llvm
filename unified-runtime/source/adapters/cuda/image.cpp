@@ -505,6 +505,23 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
                       hDevice) != hContext->getDevices().end(),
             UR_RESULT_ERROR_INVALID_CONTEXT);
 
+  const int unsupportedImageChannelTypes[] = {
+      UR_IMAGE_CHANNEL_TYPE_SNORM_INT8,
+      UR_IMAGE_CHANNEL_TYPE_SNORM_INT16,
+      UR_IMAGE_CHANNEL_TYPE_UNORM_INT8,
+      UR_IMAGE_CHANNEL_TYPE_UNORM_INT16,
+      UR_IMAGE_CHANNEL_TYPE_UNORM_SHORT_565,
+      UR_IMAGE_CHANNEL_TYPE_UNORM_SHORT_555};
+  if (std::find(std::begin(unsupportedImageChannelTypes),
+                std::end(unsupportedImageChannelTypes),
+                pImageFormat->channelType) !=
+      std::end(unsupportedImageChannelTypes)) {
+    UR_LOG(
+        ERR,
+        "CUDA does not support normalized channel types for unsampled images");
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  }
+
   unsigned int NumChannels = 0;
   UR_CALL(urCalculateNumChannels(pImageFormat->channelOrder, &NumChannels));
 
