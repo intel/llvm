@@ -7,6 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "../adapter.hpp"
 #include "../device.hpp"
 
 #include "context.hpp"
@@ -60,12 +61,52 @@ populateP2PDevices(const std::vector<ur_device_handle_t> &devices) {
   return p2pDevices;
 }
 
+template <typename T> static void sortAndUnique(std::vector<T> &values) {
+  std::sort(values.begin(), values.end());
+  values.erase(std::unique(values.begin(), values.end()), values.end());
+}
+
 static std::vector<ur_device_handle_t>
 uniqueDevices(uint32_t numDevices, const ur_device_handle_t *phDevices) {
   std::vector<ur_device_handle_t> devices(phDevices, phDevices + numDevices);
-  std::sort(devices.begin(), devices.end());
-  devices.erase(std::unique(devices.begin(), devices.end()), devices.end());
+  sortAndUnique(devices);
   return devices;
+}
+
+static bool isCompletePlatformDeviceList(uint32_t deviceCount,
+                                         const ur_device_handle_t *phDevices) {
+  ur_platform_handle_t hPlatform = phDevices[0]->Platform;
+
+  std::vector<ur_device_handle_t> requestedDevices;
+  requestedDevices.reserve(deviceCount);
+  for (uint32_t i = 0; i < deviceCount; ++i) {
+    requestedDevices.push_back(phDevices[i]);
+  }
+
+  sortAndUnique(requestedDevices);
+
+  uint32_t platformDeviceCount = 0;
+  ur_result_t result = ur::level_zero::urDeviceGet(
+      hPlatform, UR_DEVICE_TYPE_ALL, 0, nullptr, &platformDeviceCount);
+  if (result != UR_RESULT_SUCCESS || platformDeviceCount == 0) {
+    return false;
+  }
+
+  std::vector<ur_device_handle_t> platformDevices(platformDeviceCount);
+  result = ur::level_zero::urDeviceGet(hPlatform, UR_DEVICE_TYPE_ALL,
+                                       platformDeviceCount,
+                                       platformDevices.data(), nullptr);
+  if (result != UR_RESULT_SUCCESS) {
+    return false;
+  }
+
+  if (platformDevices.empty()) {
+    return false;
+  }
+
+  sortAndUnique(platformDevices);
+
+  return requestedDevices == platformDevices;
 }
 
 ur_context_handle_t_::ur_context_handle_t_(ze_context_handle_t hContext,
@@ -165,8 +206,20 @@ ur_result_t urContextCreate(uint32_t deviceCount,
                             const ur_context_properties_t * /*pProperties*/,
                             ur_context_handle_t *phContext) try {
 
+  for (uint32_t i = 0; i < deviceCount; ++i) {
+    UR_ASSERT(phDevices[i], UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  }
+
   ur_platform_handle_t hPlatform = phDevices[0]->Platform;
   ZeStruct<ze_context_desc_t> contextDesc{};
+
+  if (isCompletePlatformDeviceList(deviceCount, phDevices)) {
+    if (auto zeContext = zeDriverGetDefaultContext(hPlatform->ZeDriver)) {
+      *phContext =
+          new ur_context_handle_t_(zeContext, deviceCount, phDevices, false);
+      return UR_RESULT_SUCCESS;
+    }
+  }
 
   ze_context_handle_t zeContext{};
   ZE2UR_CALL(zeContextCreate, (hPlatform->ZeDriver, &contextDesc, &zeContext));
