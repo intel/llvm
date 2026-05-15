@@ -23,7 +23,7 @@ option(
 )
 
 # List of all supported architectures.
-set( LIBCLC_ARCHS_ALL amdgpu amdgcn clspv clspv64 nvptx64 spirv spirv64 )
+set( LIBCLC_ARCHS_ALL amdgpu amdgcn clspv clspv64 nvptx64 spirv spirv64 native_cpu)
 
 set(LIBCLC_TARGET ${LLVM_RUNTIMES_TARGET})
 
