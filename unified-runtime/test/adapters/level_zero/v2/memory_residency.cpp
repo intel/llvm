@@ -407,6 +407,79 @@ TEST_P(urMemoryMultiResidencyTest, p2pReadSucceedsWithPeerAccessEnabled) {
                           [](uint8_t b) { return b == fillPattern; }));
 }
 
+// Verify the transition from blocked to permitted: attempt a USM copy from
+// devices[1]'s queue without P2P (must fail), then enable P2P on the same
+// allocation and retry the copy (must succeed with correct data).
+TEST_P(urMemoryMultiResidencyTest, p2pReadSucceedsAfterEnablingAccess) {
+  static constexpr size_t allocSize = 1024 * 1024;
+  static constexpr uint8_t fillPattern = 0xCD;
+
+  uint64_t initialMemFreeSource = 0;
+  ASSERT_SUCCESS(urDeviceGetInfo(devices[0], UR_DEVICE_INFO_GLOBAL_MEM_FREE,
+                                 sizeof(uint64_t), &initialMemFreeSource,
+                                 nullptr));
+  if (initialMemFreeSource < allocSize) {
+    GTEST_SKIP() << "Not enough source device memory available";
+  }
+
+  uint64_t initialMemFreePeer = 0;
+  ASSERT_SUCCESS(urDeviceGetInfo(devices[1], UR_DEVICE_INFO_GLOBAL_MEM_FREE,
+                                 sizeof(uint64_t), &initialMemFreePeer,
+                                 nullptr));
+  if (initialMemFreePeer < allocSize) {
+    GTEST_SKIP() << "Not enough peer device memory available";
+  }
+
+  void *srcPtr = nullptr;
+  ASSERT_SUCCESS(urUSMDeviceAlloc(context, devices[0], nullptr, nullptr,
+                                  allocSize, &srcPtr));
+
+  void *dstPtr = nullptr;
+  ASSERT_SUCCESS(urUSMDeviceAlloc(context, devices[1], nullptr, nullptr,
+                                  allocSize, &dstPtr));
+
+  ur_queue_handle_t srcQueue = nullptr;
+  ASSERT_SUCCESS(urQueueCreate(context, devices[0], nullptr, &srcQueue));
+  ASSERT_SUCCESS(urEnqueueUSMFill(srcQueue, srcPtr, sizeof(fillPattern),
+                                  &fillPattern, allocSize, 0, nullptr,
+                                  nullptr));
+  ASSERT_SUCCESS(urQueueFinish(srcQueue));
+  urQueueRelease(srcQueue);
+
+  ur_queue_handle_t peerQueue = nullptr;
+  ASSERT_SUCCESS(urQueueCreate(context, devices[1], nullptr, &peerQueue));
+
+  // Without P2P the copy must be rejected.
+  ur_result_t copyWithoutP2P = urEnqueueUSMMemcpy(
+      peerQueue, true, dstPtr, srcPtr, allocSize, 0, nullptr, nullptr);
+  ASSERT_EQ(copyWithoutP2P, UR_RESULT_ERROR_INVALID_OPERATION);
+
+  // Enable P2P: devices[1] can now access allocations on devices[0].
+  ASSERT_SUCCESS(urUsmP2PEnablePeerAccessExp(devices[1], devices[0]));
+  peerAccessEnabled = true;
+
+  // Retry the copy — must succeed now.
+  ASSERT_SUCCESS(urEnqueueUSMMemcpy(peerQueue, true, dstPtr, srcPtr, allocSize,
+                                    0, nullptr, nullptr));
+
+  // Read result back to host for verification.
+  std::vector<uint8_t> hostData(allocSize);
+  ur_queue_handle_t hostQueue = nullptr;
+  ASSERT_SUCCESS(urQueueCreate(context, devices[1], nullptr, &hostQueue));
+  ASSERT_SUCCESS(urEnqueueUSMMemcpy(hostQueue, true, hostData.data(), dstPtr,
+                                    allocSize, 0, nullptr, nullptr));
+  urQueueRelease(hostQueue);
+
+  urQueueRelease(peerQueue);
+  urUSMFree(context, dstPtr);
+  ASSERT_SUCCESS(urUSMFree(context, srcPtr));
+  ASSERT_SUCCESS(urUsmP2PDisablePeerAccessExp(devices[1], devices[0]));
+  peerAccessEnabled = false;
+
+  EXPECT_TRUE(std::all_of(hostData.begin(), hostData.end(),
+                          [](uint8_t b) { return b == fillPattern; }));
+}
+
 // Verify that revoking peer access from devices[1] to devices[0] prevents
 // subsequent USM copies from devices[1]'s queue. A successful copy is first
 // performed with P2P enabled to confirm the setup is correct; then P2P is
