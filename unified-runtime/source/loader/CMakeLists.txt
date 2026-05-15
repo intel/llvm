@@ -209,6 +209,7 @@ if(UR_ENABLE_SANITIZER)
         )
         target_include_directories(ur_loader PRIVATE ${LLVM_INCLUDE_DIRS})
         target_link_libraries(ur_loader PRIVATE LLVMSupport LLVMSymbolize)
+        target_compile_definitions(ur_loader PRIVATE UR_HAVE_SYMBOLIZER)
         # In in-tree build, if LLVM is built with libc++, we also need to build
         # symbolizer.cpp with libc++ abi and link libc++ in.
         if(NOT UR_STANDALONE_BUILD AND LLVM_LIBCXX_USED)
