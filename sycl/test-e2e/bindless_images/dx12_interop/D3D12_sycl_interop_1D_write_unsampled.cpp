@@ -7,7 +7,7 @@
 
 // clang-format off
 /*
-    clang++.exe -fsycl -o ds1w.exe D3D12_sycl_interop_1D_write.cpp -ld3d12 -ldxgi -ld3dcompiler
+    clang++.exe -fsycl -o ds1w.exe D3D12_sycl_interop_1D_write_unsampled.cpp -ld3d12 -ldxgi -ld3dcompiler
 
     FLAGS:
     --sampled      ERROR: Sampled image writes are not supported
@@ -47,19 +47,19 @@
 // RUN: %{run} %t.exe --type unorm8 --channels 4 33x
 
 // Semaphore coverage tests
-// At this time, semaphores aren't working on DG2 (GSD-12428), and can hang on BMG if run in parallel (GSD-12436).
-// RUN-IF: (!gpu-intel-dg2 && !arch-intel_gpu_bmg_g21), %{run} %t.exe --type float --channels 4 --semaphores 33x
-// RUN-IF: (!gpu-intel-dg2 && !arch-intel_gpu_bmg_g21), %{run} %t.exe --type float --channels 1 --semaphores 33x
-// RUN-IF: (!gpu-intel-dg2 && !arch-intel_gpu_bmg_g21), %{run} %t.exe --type half --channels 2 --semaphores 33x
-// RUN-IF: (!gpu-intel-dg2 && !arch-intel_gpu_bmg_g21), %{run} %t.exe --type int32 --channels 4 --semaphores 33x
-// RUN-IF: (!gpu-intel-dg2 && !arch-intel_gpu_bmg_g21), %{run} %t.exe --type uint32 --channels 1 --semaphores 33x
-// RUN-IF: (!gpu-intel-dg2 && !arch-intel_gpu_bmg_g21), %{run} %t.exe --type int16 --channels 2 --semaphores 33x
-// RUN-IF: (!gpu-intel-dg2 && !arch-intel_gpu_bmg_g21), %{run} %t.exe --type uint16 --channels 4 --semaphores 33x
-// RUN-IF: (!gpu-intel-dg2 && !arch-intel_gpu_bmg_g21), %{run} %t.exe --type uint8 --channels 1 --semaphores 33x
-// RUN-IF: (!gpu-intel-dg2 && !arch-intel_gpu_bmg_g21), %{run} %t.exe --type int8 --channels 2 --semaphores 33x
-// RUN-IF: (!gpu-intel-dg2 && !arch-intel_gpu_bmg_g21), %{run} %t.exe --type unorm8 --channels 4 --semaphores 33x
-// RUN-IF: (!gpu-intel-dg2 && !arch-intel_gpu_bmg_g21), %{run} %t.exe --type half --channels 4 --semaphores 33x
-// RUN-IF: (!gpu-intel-dg2 && !arch-intel_gpu_bmg_g21), %{run} %t.exe --type uint32 --channels 2 --semaphores 33x
+// At this time, semaphores can hang on BMG if run in parallel (GSD-12436).
+// RUN-IF: (!arch-intel_gpu_bmg_g21), %{run} %t.exe --type float --channels 4 --semaphores 33x
+// RUN-IF: (!arch-intel_gpu_bmg_g21), %{run} %t.exe --type float --channels 1 --semaphores 33x
+// RUN-IF: (!arch-intel_gpu_bmg_g21), %{run} %t.exe --type half --channels 2 --semaphores 33x
+// RUN-IF: (!arch-intel_gpu_bmg_g21), %{run} %t.exe --type int32 --channels 4 --semaphores 33x
+// RUN-IF: (!arch-intel_gpu_bmg_g21), %{run} %t.exe --type uint32 --channels 1 --semaphores 33x
+// RUN-IF: (!arch-intel_gpu_bmg_g21), %{run} %t.exe --type int16 --channels 2 --semaphores 33x
+// RUN-IF: (!arch-intel_gpu_bmg_g21), %{run} %t.exe --type uint16 --channels 4 --semaphores 33x
+// RUN-IF: (!arch-intel_gpu_bmg_g21), %{run} %t.exe --type uint8 --channels 1 --semaphores 33x
+// RUN-IF: (!arch-intel_gpu_bmg_g21), %{run} %t.exe --type int8 --channels 2 --semaphores 33x
+// RUN-IF: (!arch-intel_gpu_bmg_g21), %{run} %t.exe --type unorm8 --channels 4 --semaphores 33x
+// RUN-IF: (!arch-intel_gpu_bmg_g21), %{run} %t.exe --type half --channels 4 --semaphores 33x
+// RUN-IF: (!arch-intel_gpu_bmg_g21), %{run} %t.exe --type uint32 --channels 2 --semaphores 33x
 
 // clang-format on
 

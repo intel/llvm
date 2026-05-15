@@ -7,8 +7,8 @@
 // UNSUPPORTED: linux
 // UNSUPPORTED-TRACKER: GSD-12357
 
-// XFAIL: windows && gpu-intel-dg2
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/21985
+
+// clang-format off
 
 /*
     Run ALL the vulkan formats through the gauntlet. sampled and unsampled.
@@ -102,24 +102,24 @@
 /*
   Vulkan/SYCL 2D Arithmetic (A + B = C)
 
-  clang++ -fsycl -o vs_2d_arith.bin vulkan_sycl_2d_arithmetic.cpp -lvulkan
-  -I$VULKAN_SDK/include -L$VULKAN_SDK/lib
+  clang++ -fsycl -o vs_2d_arith.bin vulkan_sycl_2d_arithmetic.cpp -lvulkan -I$VULKAN_SDK/include -L$VULKAN_SDK/lib
 
-  clang++ -fsycl -o vs_2d_arith.exe vulkan_sycl_2d_arithmetic.cpp
-  -Wno-ignored-attributes -lvulkan-1 -I$VULKAN_SDK/Include -L$VULKAN_SDK/Lib
+  clang++ -fsycl -o vs_2d_arith.exe vulkan_sycl_2d_arithmetic.cpp -Wno-ignored-attributes -lvulkan-1 -I$VULKAN_SDK/Include -L$VULKAN_SDK/Lib
 
   FLAGS
     --semaphores   Use Vulkan Semaphores for SYCL Interop Sync
     --linear       Use LINEAR tiling for the Vulkan Image (default is OPTIMAL)
     --channels  X  Set number of channels (1, 2, or 4). Default is 4 (RGBA)
-    --type  XXX    Set data type (float, half, uint32, int32, uint16, int16,
-  uint8, int8, unorm8). Default is float WxH            Set custom Width x
-  Height (e.g. 8x4)
+    --type  XXX    Set data type (float, half, uint32, int32, uint16, int16, uint8, int8, unorm8). Default is float 
+    WxH            Set custom Width x Height (e.g. 8x4)
     --sampled
 
   // RUN: %{run} %t.out --type float --semaphores
   // RUN: %{run} %t.out --type unorm8 --sampled --semaphores
 */
+
+// clang-format on
+
 #include "vulkan_setup.hpp"
 
 #include <algorithm>
