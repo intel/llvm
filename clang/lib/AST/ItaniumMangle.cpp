@@ -593,6 +593,7 @@ private:
   void mangleInitListElements(const InitListExpr *InitList);
   void mangleRequirement(SourceLocation RequiresExprLoc,
                          const concepts::Requirement *Req);
+  void mangleReferenceToPack(const NamedDecl *ND);
   void mangleExpression(const Expr *E, unsigned Arity = UnknownArity,
                         bool AsTemplateArg = false);
   void mangleCXXCtorType(CXXCtorType T, const CXXRecordDecl *InheritedFrom);
@@ -4440,10 +4441,10 @@ void CXXNameMangler::mangleType(const PackExpansionType *T) {
 }
 
 void CXXNameMangler::mangleType(const PackIndexingType *T) {
-  if (!T->hasSelectedType())
-    mangleType(T->getPattern());
-  else
-    mangleType(T->getSelectedType());
+  // <type>  ::= Dy <type> <expression>  # pack indexing type (C++23)
+  Out << "Dy";
+  mangleType(T->getPattern());
+  mangleExpression(T->getIndexExpr());
 }
 
 void CXXNameMangler::mangleType(const ObjCInterfaceType *T) {
@@ -4909,6 +4910,7 @@ void CXXNameMangler::mangleRequirement(SourceLocation RequiresExprLoc,
 
 void CXXNameMangler::mangleExpression(const Expr *E, unsigned Arity,
                                       bool AsTemplateArg) {
+  // clang-format off
   // <expression> ::= <unary operator-name> <expression>
   //              ::= <binary operator-name> <expression> <expression>
   //              ::= <trinary operator-name> <expression> <expression> <expression>
@@ -4928,6 +4930,8 @@ void CXXNameMangler::mangleExpression(const Expr *E, unsigned Arity,
   //              ::= ds <expression> <expression>                   # expr.*expr
   //              ::= sZ <template-param>                            # size of a parameter pack
   //              ::= sZ <function-param>    # size of a function parameter pack
+  //              ::= sy <template-param> <expression>               # pack indexing expression
+  //              ::= sy <function-param> <expression>               # pack indexing expression
   //              ::= u <source-name> <template-arg>* E # vendor extended expression
   //              ::= <expr-primary>
   // <expr-primary> ::= L <type> <value number> E    # integer literal
@@ -4937,6 +4941,7 @@ void CXXNameMangler::mangleExpression(const Expr *E, unsigned Arity,
   //                ::= L <pointer type> 0 E         # null pointer template argument
   //                ::= L <type> <real-part float> _ <imag-part float> E    # complex floating point literal (C99); not used by clang
   //                ::= L <mangled-name> E           # external name
+  // clang-format on
   QualType ImplicitlyConvertedToType;
 
   // A top-level expression that's not <expr-primary> needs to be wrapped in
@@ -5007,7 +5012,6 @@ recurse:
   case Expr::OMPIteratorExprClass:
   case Expr::CXXInheritedCtorInitExprClass:
   case Expr::CXXParenListInitExprClass:
-  case Expr::PackIndexingExprClass:
     llvm_unreachable("unexpected statement kind");
 
   case Expr::ConstantExprClass:
@@ -5905,17 +5909,7 @@ recurse:
     }
 
     Out << "sZ";
-    const NamedDecl *Pack = SPE->getPack();
-    if (const TemplateTypeParmDecl *TTP = dyn_cast<TemplateTypeParmDecl>(Pack))
-      mangleTemplateParameter(TTP->getDepth(), TTP->getIndex());
-    else if (const NonTypeTemplateParmDecl *NTTP
-                = dyn_cast<NonTypeTemplateParmDecl>(Pack))
-      mangleTemplateParameter(NTTP->getDepth(), NTTP->getIndex());
-    else if (const TemplateTemplateParmDecl *TempTP
-                                    = dyn_cast<TemplateTemplateParmDecl>(Pack))
-      mangleTemplateParameter(TempTP->getDepth(), TempTP->getIndex());
-    else
-      mangleFunctionParam(cast<ParmVarDecl>(Pack));
+    mangleReferenceToPack(SPE->getPack());
     break;
   }
 
@@ -5942,6 +5936,15 @@ recurse:
       mangleExpression(FE->getLHS());
     if (FE->getRHS())
       mangleExpression(FE->getRHS());
+    break;
+  }
+
+  case Expr::PackIndexingExprClass: {
+    auto *PE = cast<PackIndexingExpr>(E);
+    NotPrimaryExpr();
+    Out << "sy";
+    mangleReferenceToPack(PE->getPackDecl());
+    mangleExpression(PE->getIndexExpr());
     break;
   }
 
@@ -6133,6 +6136,17 @@ void CXXNameMangler::mangleCXXDtorType(CXXDtorType T) {
   case Dtor_VectorDeleting:
     llvm_unreachable("Itanium ABI does not use vector deleting dtors");
   }
+}
+
+void CXXNameMangler::mangleReferenceToPack(const NamedDecl *Pack) {
+  if (const auto *TTP = dyn_cast<TemplateTypeParmDecl>(Pack))
+    mangleTemplateParameter(TTP->getDepth(), TTP->getIndex());
+  else if (const auto *NTTP = dyn_cast<NonTypeTemplateParmDecl>(Pack))
+    mangleTemplateParameter(NTTP->getDepth(), NTTP->getIndex());
+  else if (const auto *TempTP = dyn_cast<TemplateTemplateParmDecl>(Pack))
+    mangleTemplateParameter(TempTP->getDepth(), TempTP->getIndex());
+  else
+    mangleFunctionParam(cast<ParmVarDecl>(Pack));
 }
 
 // Helper to provide ancillary information on a template used to mangle its
