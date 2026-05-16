@@ -297,10 +297,11 @@ void AggExprEmitter::withReturnValueSlot(
                                     CGF.CGM.getASTAllocaAddressSpace())
                                 : CGF.getContext().getTargetAddressSpace(SRetLangAS);
   bool CanAggregateCopy =
-      RD ? (RD->hasTrivialCopyConstructor() ||
-            RD->hasTrivialMoveConstructor() || RD->hasTrivialCopyAssignment() ||
-            RD->hasTrivialMoveAssignment() || RD->hasAttr<TrivialABIAttr>() ||
-            RD->isUnion())
+      RD ? (RD->hasDefinition() &&
+            (RD->hasTrivialCopyConstructor() ||
+             RD->hasTrivialMoveConstructor() || RD->hasTrivialCopyAssignment() ||
+             RD->hasTrivialMoveAssignment() || RD->hasAttr<TrivialABIAttr>() ||
+             RD->isUnion()))
          : RetTy.isTriviallyCopyableType(CGF.getContext());
   bool DestASMismatch = false;
   if (CGF.CGM.getCodeGenOpts().UseAllocaASForSrets)
