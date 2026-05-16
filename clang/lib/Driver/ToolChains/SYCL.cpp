@@ -46,9 +46,8 @@ SYCLInstallationDetector::SYCLInstallationDetector(
     // LLVM_ENABLE_PER_TARGET_RUNTIME_DIR=OFF: library is in lib/
     else if (D.getVFS().exists(FlatLibPath))
       llvm::sys::path::append(DriverDir, "..", "lib");
-    else
-      return; // Neither path exists : broken install, leave SYCLRTLibPath unset
-    SYCLRTLibPath = DriverDir;
+    if (!DriverDir.equals(D.Dir))
+      SYCLRTLibPath = DriverDir;
   }
   InstallationCandidates.emplace_back(D.Dir + "/..");
 }
