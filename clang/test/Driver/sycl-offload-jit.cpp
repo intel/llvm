@@ -35,7 +35,7 @@
 // RUN:   | FileCheck -check-prefixes=CHECK-LSYCL,CHECK-SYCL-HEADERS-HOST,CHECK-SYCL-HEADERS-DEVICE %s
 // CHECK-SYCL-HEADERS-DEVICE: "-fsycl-is-device"{{.*}} "-internal-isystem" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include"
 // CHECK-SYCL-HEADERS-HOST: "-fsycl-is-host"{{.*}} "-internal-isystem" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include"
-// CHECK-LSYCL: clang-linker-wrapper{{.*}} "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}lib{{[/\\]+}}libsycl.so"
+// CHECK-LSYCL: clang-linker-wrapper{{.*}} "{{.*}}libsycl.so"
 // Check that -fsycl -fno-sycl does not pass libsycl.so to the linker.
 // RUN: %clang -### --target=x86_64-unknown-linux-gnu -fsycl -fno-sycl %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHECK-NO-SYCL-RT %s
