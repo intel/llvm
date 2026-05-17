@@ -332,27 +332,29 @@ void handleInvalidWorkGroupSize(const device_impl &DeviceImpl,
           // else unknown.  fallback (below)
         }
       }
-    } else if (IsLevelZero) {
-      // Make sure maximum number of work groups in each dimension does not
-      // exceed uint32_t.
-      uint64_t NumGlobalWorkGroups = NDRDesc.getNumGlobalWorkGroups();
-      uint64_t MaxUint =
-          static_cast<uint64_t>(std::numeric_limits<uint32_t>::max());
-      // Split the max work groups across all dimensions and check if
-      // any dimension exceeds uint32_t.
-      uint64_t NumGlobalWorkGroupsPerDim = NumGlobalWorkGroups / NDRDesc.Dims;
-      if (NumGlobalWorkGroupsPerDim > MaxUint) {
-        std::string ErrorMessage =
-            "Number of global work groups in 1st dimension " +
-            std::to_string(NumGlobalWorkGroups) +
-            " exceeds the maximum "
-            "supported value of " +
-            std::to_string(MaxUint) + ".";
-        throw sycl::exception(make_error_code(errc::nd_range), ErrorMessage);
-      }
     } else {
       // TODO: Decide what checks (if any) we need for the other backends
     }
+
+    size_t result[3];
+    Adapter.call<UrApiKind::urDeviceGetInfo>(Device,
+                                             UR_DEVICE_INFO_MAX_WORK_GROUPS_3D,
+                                             sizeof(result), &result, nullptr);
+
+    for (size_t I = 0; I < NDRDesc.Dims; ++I) {
+      size_t LocalSize = NDRDesc.LocalSize[I] ? NDRDesc.LocalSize[I] : 1;
+      size_t NumWorkGroupDims = NDRDesc.GlobalSize[I] / LocalSize;
+      if (NumWorkGroupDims > result[I]) {
+        std::string ErrorMessage = "Number of work groups in dimension " +
+                                   std::to_string(I) + " " +
+                                   std::to_string(NumWorkGroupDims) +
+                                   " exceeds the maximum "
+                                   "supported value of " +
+                                   std::to_string(result[I]) + ".";
+        throw sycl::exception(make_error_code(errc::nd_range), ErrorMessage);
+      }
+    }
+
     throw sycl::exception(
         make_error_code(errc::nd_range),
         "Non-uniform work-groups are not supported by the target device");

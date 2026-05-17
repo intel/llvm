@@ -250,6 +250,17 @@ public:
     return ImageId;
   }
 
+  uint32_t getIdQueriesRangeProperties() const {
+    static uint32_t IdQueriesRange = [&]() -> uint32_t {
+      if (auto Prop = this->getProperty("idQueriesRange")) {
+        return DeviceBinaryProperty(Prop).asUint32();
+      } else {
+        return 0; // Default value is "int" range.
+      }
+    }();
+    return IdQueriesRange;
+  }
+
 protected:
   sycl_device_binary get() const { return Bin; }
 

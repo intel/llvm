@@ -13,7 +13,6 @@
 #include <sycl/range.hpp>
 
 #include <array>
-#include <limits>
 
 namespace sycl {
 inline namespace _V1 {
@@ -103,9 +102,6 @@ public:
   // Returns the total number of global workgroups for the kernel execution
   // along all dimensions, or the maximum value of uint64_t if overflow occurs.
   uint64_t getNumGlobalWorkGroups() const {
-    if (Dims == 0)
-      return 0;
-
     auto getProductAndCheckForOverflow = [](const size_t *Vals,
                                             size_t NumDims) -> uint64_t {
       uint64_t Product = 1;
@@ -129,8 +125,6 @@ public:
     if (NumWorkGroups[0] != 0)
       return getProductAndCheckForOverflow(NumWorkGroups.data(), Dims);
 
-    // TODO: Can we have a case where only GFlobalSize and GlobalOffset are
-    // are set, and not LocalSize? If so, we need to handle that case as well.
     uint64_t GlobalProduct =
         getProductAndCheckForOverflow(GlobalSize.data(), Dims);
     uint64_t LocalProduct =
