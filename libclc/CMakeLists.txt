@@ -26,7 +26,8 @@ option(
 set( LIBCLC_ARCHS_NVPTX nvptx64 )
 set( LIBCLC_ARCHS_AMDGPU amdgpu amdgcn )
 set( LIBCLC_ARCHS_SPIRV spirv spirv32 spirv64 )
-set( LIBCLC_ARCHS_ALL ${LIBCLC_ARCHS_AMDGPU} ${LIBCLC_ARCHS_NVPTX} ${LIBCLC_ARCHS_SPIRV} )
+set( LIBCLC_ARCHS_NATIVE_CPU native_cpu )
+set( LIBCLC_ARCHS_ALL ${LIBCLC_ARCHS_AMDGPU} ${LIBCLC_ARCHS_NVPTX} ${LIBCLC_ARCHS_SPIRV} ${LIBCLC_ARCHS_NATIVE_CPU} )
 
 set(LIBCLC_TARGET ${LLVM_RUNTIMES_TARGET})
 
@@ -35,7 +36,7 @@ if(NOT LIBCLC_TARGET)
 endif()
 
 # Parse the target triple into arch and OS components.
-if(LIBCLC_TARGET STREQUAL "native_cpu")
+if(LIBCLC_TARGET STREQUAL ${LIBCLC_ARCHS_NATIVE_CPU})
   set(LIBCLC_TARGET_ARCH "native_cpu")
   set(LIBCLC_TARGET_OS "")
 else()
@@ -114,7 +115,7 @@ elseif(LIBCLC_TARGET_ARCH IN_LIST LIBCLC_ARCHS_NVPTX)
   set(LIBCLC_ARCH_DIR nvptx)
 elseif(LIBCLC_TARGET_ARCH IN_LIST LIBCLC_ARCHS_SPIRV)
   set(LIBCLC_ARCH_DIR spirv)
-elseif(LIBCLC_TARGET_ARCH STREQUAL native_cpu)
+elseif(LIBCLC_TARGET_ARCH IN_LIST LIBCLC_ARCHS_NATIVE_CPU)
   set(LIBCLC_ARCH_DIR native_cpu)
 endif()
 
@@ -170,7 +171,7 @@ elseif(LIBCLC_TARGET_ARCH IN_LIST LIBCLC_ARCHS_AMDGPU)
   list(APPEND target_compile_flags "SHELL:-Xclang -mcode-object-version=none")
   # SYCL-specific: Disable AMDGPU reflection, deferring to after linking
   list(APPEND target_compile_flags -mllvm --amdgpu-oclc-reflect-enable=false)
-elseif(ARCH STREQUAL nvptx64)
+elseif(LIBCLC_TARGET_ARCH IN_LIST LIBCLC_ARCHS_NVPTX)
   # SYCL-specific: Some targets don't have a specific GPU to target
   # Disable NVVM reflection, deferring to after linking
   list(APPEND target_compile_flags "SHELL:-Xclang -target-feature"
@@ -209,6 +210,8 @@ set(common_defs
 add_custom_target(libclc ALL)
 add_custom_target(libclc-opencl-builtins COMMENT "Build libclc OpenCL builtins")
 add_dependencies(libclc libclc-opencl-builtins)
+add_custom_target(libspirv-builtins COMMENT "Build libspirv builtins")
+add_dependencies(libclc libspirv-builtins)
 
 # Configure the CLC internal builtins library.
 set(LIBCLC_CLC_TARGET clc)
@@ -239,20 +242,25 @@ libclc_add_library(libclc-${LIBCLC_TARGET}
   PARENT_TARGET libclc-opencl-builtins
 )
 
-if(BUILD_LIBSPIRV)
+if(LIBCLC_TARGET_ARCH IN_LIST LIBCLC_ARCHS_AMDGPU OR
+   LIBCLC_TARGET_ARCH IN_LIST LIBCLC_ARCHS_NVPTX OR
+   LIBCLC_TARGET_ARCH IN_LIST LIBCLC_ARCHS_NATIVE_CPU)
+  set(LIBCLC_LIBSPIRV_TARGET libspirv)
+
   # Build base libspirv library
-  add_libclc_library(libspirv-${LIBCLC_TARGET}
+  libclc_add_library(libspirv-${LIBCLC_TARGET}
     ARCH ${ARCH}
     TRIPLE ${clang_triple}
     TARGET_TRIPLE ${LIBCLC_TARGET}
-    SOURCES ${libspirv_sources}
     COMPILE_OPTIONS ${compile_flags} "SHELL:-Xclang -fdeclare-spirv-builtins"
     INCLUDE_DIRS
       ${CMAKE_CURRENT_SOURCE_DIR}/clc/include
       ${CMAKE_CURRENT_SOURCE_DIR}/libspirv/include
-    COMPILE_DEFINITIONS ${_common_defs}
-    INTERNALIZE_LIBRARIES ${clc_lib}
+    COMPILE_DEFINITIONS ${common_defs}
+    INTERNALIZE_LIBRARIES ${LIBCLC_CLC_TARGET}
     OPT_FLAGS ${opt_flags}
+    SOURCE_TARGET ${LIBCLC_LIBSPIRV_TARGET}
+    SOURCE_SUB_DIR libspirv
     OUTPUT_FILENAME libspirv
     PARENT_TARGET libspirv-builtins
   )
@@ -260,11 +268,11 @@ if(BUILD_LIBSPIRV)
   # Build remangled variants for SYCL with different long widths and char signedness
   foreach(long_width 32 64)
     foreach(char_signedness signed unsigned)
-      add_libclc_library(libspirv-${LIBCLC_TARGET}-${long_width}-${char_signedness}
+      libclc_add_library(libspirv-${LIBCLC_TARGET}-${long_width}-${char_signedness}
+        REMANGLE
         ARCH ${ARCH}
         TRIPLE ${clang_triple}
         TARGET_TRIPLE ${LIBCLC_TARGET}
-        SOURCES ${libspirv_sources}
         COMPILE_OPTIONS ${compile_flags}
           "SHELL:-Xclang -fdeclare-spirv-builtins"
           "SHELL:-Xclang -fsycl-remangle-libspirv"
@@ -273,9 +281,11 @@ if(BUILD_LIBSPIRV)
         INCLUDE_DIRS
           ${CMAKE_CURRENT_SOURCE_DIR}/clc/include
           ${CMAKE_CURRENT_SOURCE_DIR}/libspirv/include
-        COMPILE_DEFINITIONS ${_common_defs}
-        INTERNALIZE_LIBRARIES ${clc_lib}
+        COMPILE_DEFINITIONS ${common_defs}
+        INTERNALIZE_LIBRARIES ${LIBCLC_CLC_TARGET}
         OPT_FLAGS ${opt_flags}
+        SOURCE_TARGET ${LIBCLC_LIBSPIRV_TARGET}
+        SOURCE_SUB_DIR libspirv
         OUTPUT_FILENAME libspirv.l${long_width}.${char_signedness}_char
         PARENT_TARGET libspirv-builtins
       )

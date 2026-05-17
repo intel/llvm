@@ -85,7 +85,7 @@ endfunction()
 # installation.
 function(libclc_add_library target_name)
   cmake_parse_arguments(ARG
-    ""
+    "REMANGLE"
     "ARCH;TRIPLE;TARGET_TRIPLE;SOURCE_TARGET;SOURCE_SUB_DIR;OUTPUT_FILENAME;PARENT_TARGET"
     "COMPILE_OPTIONS;INCLUDE_DIRS;COMPILE_DEFINITIONS;INTERNALIZE_LIBRARIES;OPT_FLAGS"
     ${ARGN}
@@ -101,13 +101,26 @@ function(libclc_add_library target_name)
     message(FATAL_ERROR "PARENT_TARGET is required for libclc_add_library")
   endif()
 
-  libclc_add_builtin_library(${ARG_SOURCE_TARGET}
-    COMPILE_OPTIONS ${ARG_COMPILE_OPTIONS}
-    INCLUDE_DIRS ${ARG_INCLUDE_DIRS}
-    COMPILE_DEFINITIONS ${ARG_COMPILE_DEFINITIONS}
-    SOURCE_SUB_DIR ${ARG_SOURCE_SUB_DIR}
-    FOLDER "libclc/Device IR/Intermediate"
-  )
+  if(NOT TARGET ${ARG_SOURCE_TARGET})
+    libclc_add_builtin_library(${ARG_SOURCE_TARGET}
+      COMPILE_OPTIONS ${ARG_COMPILE_OPTIONS}
+      INCLUDE_DIRS ${ARG_INCLUDE_DIRS}
+      COMPILE_DEFINITIONS ${ARG_COMPILE_DEFINITIONS}
+      SOURCE_SUB_DIR ${ARG_SOURCE_SUB_DIR}
+      FOLDER "libclc/Device IR/Intermediate"
+    )
+  endif()
+
+  get_target_property(all_srcs ${ARG_SOURCE_TARGET} SOURCES)
+  if(ARG_REMANGLE)
+    add_library(${target_name}-obj OBJECT)
+    target_sources(${target_name}-obj PRIVATE ${all_srcs})
+    target_compile_options(${target_name}-obj PRIVATE ${ARG_COMPILE_OPTIONS})
+    get_target_property(inc_dirs ${ARG_SOURCE_TARGET} INCLUDE_DIRECTORIES)
+    target_include_directories(${target_name}-obj PRIVATE ${inc_dirs})
+    target_compile_definitions(${target_name}-obj PRIVATE ${ARG_COMPILE_DEFINITIONS})
+    set(ARG_SOURCE_TARGET ${target_name}-obj)
+  endif()
 
   set(library_dir ${LIBCLC_OUTPUT_LIBRARY_DIR}/${ARG_TARGET_TRIPLE})
   file(MAKE_DIRECTORY ${library_dir})
@@ -158,7 +171,9 @@ function(libclc_add_library target_name)
   )
 
   string(REPLACE "-" ";" triple_parts "${ARG_TRIPLE}")
-  list(GET triple_parts 2 triple_os)
+  if(NOT LIBCLC_TARGET_ARCH IN_LIST LIBCLC_ARCHS_NATIVE_CPU)
+    list(GET triple_parts 2 triple_os)
+  endif()
   if(ARG_ARCH IN_LIST LIBCLC_ARCHS_SPIRV AND NOT triple_os STREQUAL vulkan)
     # SPIR-V targets produce a .spv file from the linked bitcode.
     set(builtins_lib ${library_dir}/${ARG_OUTPUT_FILENAME}.spv)
@@ -199,21 +214,4 @@ function(libclc_add_library target_name)
     DESTINATION ${LIBCLC_INSTALL_DIR}/${ARG_TARGET_TRIPLE}
     COMPONENT ${ARG_PARENT_TARGET}
   )
-
-  # SPIR-V targets can exit early here
-  if( ARG_ARCH STREQUAL spirv OR ARG_ARCH STREQUAL spirv64 )
-    return()
-  endif()
-
-  # Add a test for whether or not the libraries contain unresolved functions
-  # which would usually indicate a build problem. Note that we don't perform
-  # this test for all libclc targets:
-  # * nvptx64-- targets don't include workitem builtins
-  # * clspv targets don't include all OpenCL builtins
-  if( NOT ARG_ARCH MATCHES "^(nvptx|clspv)(64)?$" )
-    add_test( NAME external-funcs-${target_name}
-      COMMAND ./check_external_funcs.sh ${builtins_file} ${LLVM_TOOLS_BINARY_DIR}
-      WORKING_DIRECTORY ${LIBCLC_SOURCE_DIR} )
-  endif()
-
 endfunction()

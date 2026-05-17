@@ -1,3 +1,9 @@
+if(LIBCLC_TARGET_ARCH IN_LIST LIBCLC_ARCHS_NATIVE_CPU)
+  # Tests are not supported on native_cpu. Create a dummy check-libclc target.
+  add_custom_target(check-libclc)
+  return()
+endif()
+
 # required by lit.site.cfg.py.in
 set(LIBCLC_TEST_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 set(LLVM_TOOLS_DIR ${LLVM_TOOLS_BINARY_DIR})
