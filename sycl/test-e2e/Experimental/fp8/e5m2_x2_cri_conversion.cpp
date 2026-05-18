@@ -9,11 +9,22 @@
 
 #include <cmath>
 #include <limits>
+#include <sycl/ext/oneapi/experimental/builtins.hpp>
 #include <sycl/ext/oneapi/experimental/float_8bit/types.hpp>
 #include <sycl/queue.hpp>
 #include <sycl/usm.hpp>
 
 using namespace sycl::ext::oneapi::experimental;
+
+#ifdef __SYCL_DEVICE_ONLY__
+#define CONSTANT __attribute__((opencl_constant))
+#else
+#define CONSTANT
+#endif
+
+static const CONSTANT char kKernelStartFmt[] = "kernel: enter vals=(%u,%u)\n";
+static const CONSTANT char kKernelUnpackedFmt[] = "kernel: unpacked=(%f,%f)\n";
+static const CONSTANT char kKernelStoreFmt[] = "kernel: store vals=(%u,%u)\n";
 
 namespace {
 
@@ -311,20 +322,32 @@ template <typename T> int test_fp8_simple_type_conversion(sycl::queue &queue) {
   auto *data = sycl::malloc_shared<fp8_e5m2_x2>(1, queue);
   data[0] = fp8_e5m2_x2(static_cast<T>(1.5f), static_cast<T>(2.5f));
 
+  std::cout << "KErnel start\n";
   queue.single_task([=]() {
-    fp8_e5m2_x2 value = data[0];
-    sycl::marray<T, 2> f = static_cast<sycl::marray<T, 2>>(value);
-    f[0] += static_cast<T>(1.0f);
-    f[1] += static_cast<T>(1.0f);
-    data[0] = fp8_e5m2_x2(f);
+    // sycl::ext::oneapi::experimental::printf("1\n");
+    // fp8_e5m2_x2 value = data[0];
+    // sycl::ext::oneapi::experimental::printf(kKernelStartFmt,
+    //                                        (unsigned int)value.vals[0],
+    //                                        (unsigned int)value.vals[1]);
+    // sycl::marray<T, 2> f = static_cast<sycl::marray<T, 2>>(value);
+    // sycl::ext::oneapi::experimental::printf(kKernelUnpackedFmt,
+    //                                        (float)f[0], (float)f[1]);
+    // f[0] += static_cast<T>(1.0f);
+    // f[1] += static_cast<T>(1.0f);
+    // data[0] = fp8_e5m2_x2(f);
+    // sycl::ext::oneapi::experimental::printf(kKernelStoreFmt,
+    //                                        (unsigned int)data[0].vals[0],
+    //                                        (unsigned int)data[0].vals[1]);
   });
   queue.wait_and_throw();
+  std::cout << "KErnel finish\n";
 
   sycl::marray<T, 2> expected_input(static_cast<T>(2.5f), static_cast<T>(3.5f));
   fp8_e5m2_x2 expected(expected_input);
   sycl::marray<T, 2> out = static_cast<sycl::marray<T, 2>>(data[0]);
   sycl::marray<T, 2> expected_out = static_cast<sycl::marray<T, 2>>(expected);
 
+  std::cout << "free data\n";
   sycl::free(data, queue);
   for (size_t i = 0; i < 2; ++i) {
     if (std::fabs(static_cast<float>(out[i]) -
@@ -332,6 +355,7 @@ template <typename T> int test_fp8_simple_type_conversion(sycl::queue &queue) {
       return 1;
   }
 
+  std::cout << "success\n";
   return 0;
 }
 
@@ -407,25 +431,25 @@ int main() {
 
   int ret = test_fp8_simple_type_conversion<float>(queue);
   ret |= test_fp8_simple_type_conversion<sycl::half>(queue);
-  // ret |= test_fp8_simple_type_conversion<sycl::ext::oneapi::bfloat16>(queue);
+  ret |= test_fp8_simple_type_conversion<sycl::ext::oneapi::bfloat16>(queue);
 
   ret |= test_marray_conversion<float>(queue);
   ret |= test_marray_conversion<sycl::half>(queue);
-  // ret |= test_marray_conversion<sycl::ext::oneapi::bfloat16>(queue);
+  ret |= test_marray_conversion<sycl::ext::oneapi::bfloat16>(queue);
 
   ret |= test_carray_conversion<float>(queue);
   ret |= test_carray_conversion<sycl::half>(queue);
-  // ret |= test_carray_conversion<sycl::ext::oneapi::bfloat16>(queue);
+  ret |= test_carray_conversion<sycl::ext::oneapi::bfloat16>(queue);
 
   ret |= test_explicit_to_even_carray_constructor<float>(queue);
   ret |= test_explicit_to_even_carray_constructor<sycl::half>(queue);
-  // ret |=
-  //     test_explicit_to_even_carray_constructor<sycl::ext::oneapi::bfloat16>(queue);
+  ret |= test_explicit_to_even_carray_constructor<sycl::ext::oneapi::bfloat16>(
+      queue);
 
   ret |= test_explicit_to_even_marray_constructor<float>(queue);
   ret |= test_explicit_to_even_marray_constructor<sycl::half>(queue);
-  // ret |=
-  //     test_explicit_to_even_marray_constructor<sycl::ext::oneapi::bfloat16>(queue);
+  ret |= test_explicit_to_even_marray_constructor<sycl::ext::oneapi::bfloat16>(
+      queue);
 
   ret |= test_boundary_round_trip_nan(queue);
   ret |= test_boundary_round_trip_negative_zero(queue);

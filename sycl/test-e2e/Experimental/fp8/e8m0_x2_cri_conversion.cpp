@@ -334,9 +334,11 @@ int test_raw_vals_access(sycl::queue &queue) {
 } // namespace
 
 template <typename T> int test_fp8_simple_type_conversion(sycl::queue &queue) {
+
   auto *data = sycl::malloc_shared<fp8_e8m0_x2>(1, queue);
   data[0] = fp8_e8m0_x2(static_cast<T>(4.0f), static_cast<T>(16.0f));
 
+  std::cout << "kernel\n";
   queue.single_task([=]() {
     fp8_e8m0_x2 value = data[0];
     sycl::marray<T, 2> f = static_cast<sycl::marray<T, 2>>(value);
@@ -346,6 +348,7 @@ template <typename T> int test_fp8_simple_type_conversion(sycl::queue &queue) {
   });
   queue.wait_and_throw();
 
+  std::cout << "kernel finished\n";
   sycl::marray<T, 2> expected_input(static_cast<T>(8.0f),
                                     static_cast<T>(32.0f));
   fp8_e8m0_x2 expected(expected_input);
@@ -436,37 +439,30 @@ int main() {
   int ret = test_fp8_simple_type_conversion<float>(queue);
   ret |= test_fp8_simple_type_conversion<sycl::half>(queue);
   ret |= test_fp8_simple_type_conversion<sycl::ext::oneapi::bfloat16>(queue);
-
   ret |= test_marray_conversion<float>(queue);
   ret |= test_marray_conversion<sycl::half>(queue);
   ret |= test_marray_conversion<sycl::ext::oneapi::bfloat16>(queue);
-
   ret |= test_carray_conversion<float>(queue);
   ret |= test_carray_conversion<sycl::half>(queue);
   ret |= test_carray_conversion<sycl::ext::oneapi::bfloat16>(queue);
-
   ret |= test_explicit_upward_carray_constructor<float>(queue);
   ret |= test_explicit_upward_carray_constructor<sycl::half>(queue);
   ret |= test_explicit_upward_carray_constructor<sycl::ext::oneapi::bfloat16>(
       queue);
-
   ret |= test_explicit_toward_zero_carray_constructor<float>(queue);
   ret |= test_explicit_toward_zero_carray_constructor<sycl::half>(queue);
   ret |=
       test_explicit_toward_zero_carray_constructor<sycl::ext::oneapi::bfloat16>(
           queue);
-
   ret |= test_explicit_upward_marray_constructor<float>(queue);
   ret |= test_explicit_upward_marray_constructor<sycl::half>(queue);
   ret |= test_explicit_upward_marray_constructor<sycl::ext::oneapi::bfloat16>(
       queue);
-
   ret |= test_explicit_toward_zero_marray_constructor<float>(queue);
   ret |= test_explicit_toward_zero_marray_constructor<sycl::half>(queue);
   ret |=
       test_explicit_toward_zero_marray_constructor<sycl::ext::oneapi::bfloat16>(
           queue);
-
   ret |= test_boundary_round_trip_nan(queue);
   ret |= test_boundary_round_trip_exact_powers_of_two(queue);
   ret |= test_boundary_round_trip_max_min_normal(queue);

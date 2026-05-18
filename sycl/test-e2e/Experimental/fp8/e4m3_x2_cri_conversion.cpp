@@ -91,7 +91,8 @@ int test_boundary_round_trip_nan(sycl::queue &queue) {
 
   queue.single_task([=]() {
     fp8_e4m3_x2 value = data[0];
-    sycl::marray<float, 2> unpacked = static_cast<sycl::marray<float, 2>>(value);
+    sycl::marray<float, 2> unpacked =
+        static_cast<sycl::marray<float, 2>>(value);
     data[0] = fp8_e4m3_x2(unpacked, rounding::to_even);
     sycl::marray<float, 2> round_tripped =
         static_cast<sycl::marray<float, 2>>(data[0]);
@@ -114,7 +115,8 @@ int test_boundary_round_trip_negative_zero(sycl::queue &queue) {
 
   queue.single_task([=]() {
     fp8_e4m3_x2 value = data[0];
-    sycl::marray<float, 2> unpacked = static_cast<sycl::marray<float, 2>>(value);
+    sycl::marray<float, 2> unpacked =
+        static_cast<sycl::marray<float, 2>>(value);
     data[0] = fp8_e4m3_x2(unpacked, rounding::to_even);
     sycl::marray<float, 2> round_tripped =
         static_cast<sycl::marray<float, 2>>(data[0]);
@@ -142,7 +144,8 @@ int test_boundary_round_trip_subnormals(sycl::queue &queue) {
 
   queue.single_task([=]() {
     fp8_e4m3_x2 value = data[0];
-    sycl::marray<float, 2> unpacked = static_cast<sycl::marray<float, 2>>(value);
+    sycl::marray<float, 2> unpacked =
+        static_cast<sycl::marray<float, 2>>(value);
     data[0] = fp8_e4m3_x2(unpacked, rounding::to_even);
     sycl::marray<float, 2> round_tripped =
         static_cast<sycl::marray<float, 2>>(data[0]);
@@ -170,7 +173,8 @@ int test_boundary_round_trip_exact_normals(sycl::queue &queue) {
 
   queue.single_task([=]() {
     fp8_e4m3_x2 value = data[0];
-    sycl::marray<float, 2> unpacked = static_cast<sycl::marray<float, 2>>(value);
+    sycl::marray<float, 2> unpacked =
+        static_cast<sycl::marray<float, 2>>(value);
     data[0] = fp8_e4m3_x2(unpacked, rounding::to_even);
     sycl::marray<float, 2> round_tripped =
         static_cast<sycl::marray<float, 2>>(data[0]);
@@ -198,7 +202,8 @@ int test_boundary_round_trip_exact_subnormal_limits(sycl::queue &queue) {
 
   queue.single_task([=]() {
     fp8_e4m3_x2 value = data[0];
-    sycl::marray<float, 2> unpacked = static_cast<sycl::marray<float, 2>>(value);
+    sycl::marray<float, 2> unpacked =
+        static_cast<sycl::marray<float, 2>>(value);
     data[0] = fp8_e4m3_x2(unpacked, rounding::to_even);
     sycl::marray<float, 2> round_tripped =
         static_cast<sycl::marray<float, 2>>(data[0]);
@@ -226,7 +231,8 @@ int test_boundary_round_trip_saturation_and_infinity_clamp(sycl::queue &queue) {
 
   queue.single_task([=]() {
     fp8_e4m3_x2 value = data[0];
-    sycl::marray<float, 2> unpacked = static_cast<sycl::marray<float, 2>>(value);
+    sycl::marray<float, 2> unpacked =
+        static_cast<sycl::marray<float, 2>>(value);
     data[0] = fp8_e4m3_x2(unpacked, rounding::to_even);
     sycl::marray<float, 2> round_tripped =
         static_cast<sycl::marray<float, 2>>(data[0]);
@@ -268,8 +274,8 @@ template <typename T> int test_fp8_simple_type_conversion(sycl::queue &queue) {
 
   sycl::free(data, queue);
   for (size_t i = 0; i < 2; ++i) {
-    if (std::fabs(static_cast<float>(out[i]) - static_cast<float>(expected_out[i])) >
-        0.0f)
+    if (std::fabs(static_cast<float>(out[i]) -
+                  static_cast<float>(expected_out[i])) > 0.0f)
       return 1;
   }
 
@@ -289,15 +295,16 @@ template <typename T> int test_marray_conversion(sycl::queue &queue) {
     data[0] = fp8_e4m3_x2(f);
   });
   queue.wait_and_throw();
-  sycl::marray<T, 2> expected_input(static_cast<T>(2.25f), static_cast<T>(4.5f));
+  sycl::marray<T, 2> expected_input(static_cast<T>(2.25f),
+                                    static_cast<T>(4.5f));
   fp8_e4m3_x2 expected(expected_input);
   sycl::marray<T, 2> out = static_cast<sycl::marray<T, 2>>(data[0]);
   sycl::marray<T, 2> expected_out = static_cast<sycl::marray<T, 2>>(expected);
 
   sycl::free(data, queue);
   for (size_t i = 0; i < 2; ++i) {
-    if (std::fabs(static_cast<float>(out[i]) - static_cast<float>(expected_out[i])) >
-        0.0f)
+    if (std::fabs(static_cast<float>(out[i]) -
+                  static_cast<float>(expected_out[i])) > 0.0f)
       return 1;
   }
   return 0;
@@ -350,25 +357,25 @@ int main() {
   // marray<bfloat16, 2>, and marray<float, 2>.
   int ret = test_fp8_simple_type_conversion<float>(queue);
   ret |= test_fp8_simple_type_conversion<sycl::half>(queue);
- // ret |= test_fp8_simple_type_conversion<sycl::ext::oneapi::bfloat16>(queue);
+  ret |= test_fp8_simple_type_conversion<sycl::ext::oneapi::bfloat16>(queue);
 
   ret |= test_marray_conversion<float>(queue);
   ret |= test_marray_conversion<sycl::half>(queue);
-//  ret |= test_marray_conversion<sycl::ext::oneapi::bfloat16>(queue);
+  ret |= test_marray_conversion<sycl::ext::oneapi::bfloat16>(queue);
 
   ret |= test_carray_conversion<float>(queue);
   ret |= test_carray_conversion<sycl::half>(queue);
- // ret |= test_carray_conversion<sycl::ext::oneapi::bfloat16>(queue);
+  ret |= test_carray_conversion<sycl::ext::oneapi::bfloat16>(queue);
 
   ret |= test_explicit_to_even_carray_constructor<float>(queue);
   ret |= test_explicit_to_even_carray_constructor<sycl::half>(queue);
- // ret |=
-  //    test_explicit_to_even_carray_constructor<sycl::ext::oneapi::bfloat16>(queue);
+  ret |= test_explicit_to_even_carray_constructor<sycl::ext::oneapi::bfloat16>(
+      queue);
 
   ret |= test_explicit_to_even_marray_constructor<float>(queue);
   ret |= test_explicit_to_even_marray_constructor<sycl::half>(queue);
- // ret |=
-  //    test_explicit_to_even_marray_constructor<sycl::ext::oneapi::bfloat16>(queue);
+  ret |= test_explicit_to_even_marray_constructor<sycl::ext::oneapi::bfloat16>(
+      queue);
 
   ret |= test_boundary_round_trip_nan(queue);
   ret |= test_boundary_round_trip_negative_zero(queue);
