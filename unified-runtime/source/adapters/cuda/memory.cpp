@@ -9,6 +9,10 @@
 
 #include <cuda.h>
 
+#ifdef _WIN32
+#include <umf/experimental/ctl.h>
+#endif
+
 #include "common.hpp"
 #include "context.hpp"
 #include "enqueue.hpp"

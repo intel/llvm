@@ -50,6 +50,11 @@ on:
         type: string
         required: false
 
+      e2e_extra_lit_opts:
+        type: string
+        required: false
+        default: ''
+
       e2e_binaries_new_offload_model_artifact:
         type: string
         required: false
@@ -251,7 +256,7 @@ jobs:
         testing_mode: build-only
         target_devices: all
         binaries_artifact: ${{ inputs.e2e_binaries_artifact }}
-        extra_lit_opts: --param sycl_build_targets="spir"
+        extra_lit_opts: --param sycl_build_targets="spir" ${{ inputs.e2e_extra_lit_opts }}
         cxx: ${{ inputs.cxx }}
 
     - name: Build E2E tests with New Offload Model
