@@ -3921,11 +3921,11 @@ void AddressSanitizer::initializeCallbacks(const TargetLibraryInfo *TLI) {
     auto *GenericPtrTy = PointerType::get(*C, kSpirOffloadGenericAS);
     auto GetBlock2DCheckFunc = [&](StringRef Name) {
       return M.getOrInsertFunction(
-          Name, IRB.getVoidTy(), GenericPtrTy, GenericPtrTy,
+          Name, IRB.getVoidTy(), GenericPtrTy, GenericPtrTy, IRB.getInt32Ty(),
           IRB.getInt32Ty(), IRB.getInt32Ty(), IRB.getInt32Ty(),
           IRB.getInt32Ty(), IRB.getInt32Ty(), IRB.getInt32Ty(),
-          IRB.getInt32Ty(), IRB.getInt32Ty(), IRB.getInt32Ty(),
-          Int8PtrTy, IRB.getInt32Ty(), Int8PtrTy);
+          IRB.getInt32Ty(), IRB.getInt32Ty(), Int8PtrTy, IRB.getInt32Ty(),
+          Int8PtrTy);
     };
     AsanSGBlock2DLoadCheck = GetBlock2DCheckFunc("__asan_block2d_load_check");
     AsanSGBlock2DStoreCheck = GetBlock2DCheckFunc("__asan_block2d_store_check");

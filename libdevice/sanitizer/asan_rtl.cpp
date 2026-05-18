@@ -1029,12 +1029,11 @@ ASAN_MEMMOVE(1)
 ASAN_MEMMOVE(3)
 ASAN_MEMMOVE(4)
 
-static void Block2DCheck(uptr surface_base, uptr block_ptr,
-                         int element_size, int block_width, int block_height,
-                         int block_count, int surface_pitch, int coord_x,
-                         int coord_y, bool is_load,
-                         const char __SYCL_CONSTANT__ *file, uint32_t line,
-                         const char __SYCL_CONSTANT__ *func) {
+static void Block2DCheck(uptr surface_base, uptr block_ptr, int element_size,
+                         int block_width, int block_height, int block_count,
+                         int surface_pitch, int coord_x, int coord_y,
+                         bool is_load, const char __SYCL_CONSTANT__ *file,
+                         uint32_t line, const char __SYCL_CONSTANT__ *func) {
   // Per SPV_INTEL_2d_block_io spec:
   //   element_size: bytes per element
   //   block_width: elements per row
@@ -1044,8 +1043,7 @@ static void Block2DCheck(uptr surface_base, uptr block_ptr,
   size_t block_size = (size_t)row_width_bytes * block_height;
 
   {
-    DebugInfo debug{block_ptr, /*as=*/4, block_size, is_load, file, func,
-                    line};
+    DebugInfo debug{block_ptr, /*as=*/4, block_size, is_load, file, func, line};
     if (auto poisoned_addr =
             IsRegionPoisoned(block_ptr, 4, block_size, &debug)) {
       ReportAccessError(poisoned_addr, 4, false, &debug);
@@ -1058,7 +1056,7 @@ static void Block2DCheck(uptr surface_base, uptr block_ptr,
   for (int row = 0; row < block_height; row++) {
     uptr row_addr = start_addr + (uptr)row * surface_pitch;
     DebugInfo debug{row_addr, /*as=*/4, (size_t)row_width_bytes, !is_load, file,
-                    func, line};
+                    func,     line};
     if (auto poisoned_addr =
             IsRegionPoisoned(row_addr, 4, (size_t)row_width_bytes, &debug)) {
       ReportAccessError(poisoned_addr, 4, false, &debug);
