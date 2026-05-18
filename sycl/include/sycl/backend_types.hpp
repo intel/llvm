@@ -9,6 +9,7 @@
 #pragma once
 
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
+#include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
 
 #include <iosfwd> // for operator<<, ostream
 
@@ -37,6 +38,6 @@ template <backend Backend, typename SYCLObjectT>
 using backend_return_t =
     typename backend_traits<Backend>::template return_type<SYCLObjectT>;
 
-std::ostream &operator<<(std::ostream &Out, backend be);
+__SYCL_EXPORT std::ostream &operator<<(std::ostream &Out, backend be);
 } // namespace _V1
 } // namespace sycl
