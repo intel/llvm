@@ -25,6 +25,7 @@
 
 #include <algorithm>
 #include <memory>
+#include <ostream>
 
 namespace sycl {
 inline namespace _V1 {
@@ -356,5 +357,35 @@ kernel make_kernel(const context &TargetContext,
 }
 
 } // namespace detail
+
+__SYCL_EXPORT std::ostream &operator<<(std::ostream &Out, backend be) {
+  switch (be) {
+  case backend::host:
+    Out << "host";
+    break;
+  case backend::opencl:
+    Out << "opencl";
+    break;
+  case backend::ext_oneapi_level_zero:
+    Out << "ext_oneapi_level_zero";
+    break;
+  case backend::ext_oneapi_cuda:
+    Out << "ext_oneapi_cuda";
+    break;
+  case backend::ext_oneapi_hip:
+    Out << "ext_oneapi_hip";
+    break;
+  case backend::ext_oneapi_native_cpu:
+    Out << "ext_oneapi_native_cpu";
+    break;
+  case backend::ext_oneapi_offload:
+    Out << "ext_oneapi_offload";
+    break;
+  case backend::all:
+    Out << "all";
+  }
+  return Out;
+}
+
 } // namespace _V1
 } // namespace sycl

@@ -191,6 +191,7 @@ set(SYCL_EXT_ONEAPI_BACKEND_HIP ${LLVM_HAS_AMDGPU_TARGET})
 # Configure SYCL version macro
 set(sycl_inc_dir ${CMAKE_CURRENT_SOURCE_DIR}/include)
 set(sycl_src_dir ${CMAKE_CURRENT_SOURCE_DIR}/source)
+set(sycl_internal_dir ${CMAKE_CURRENT_SOURCE_DIR}/internal)
 
 if(NOT DEFINED SYCL_COMPILER_VERSION)
   find_package(Git QUIET)
