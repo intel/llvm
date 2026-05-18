@@ -6,6 +6,9 @@
 ; RUN: sycl-post-link -properties -split=auto -symbols -S < %s -o %t_default.table
 ; RUN: FileCheck %s -input-file=%t_default_0.prop --check-prefix CHECK-DEFAULT
 
+; RUN: sycl-post-link -properties -split=auto -symbols -S -id-queries-range=int < %s -o %t_default.table
+; RUN: FileCheck %s -input-file=%t_default_0.prop --check-prefix CHECK-DEFAULT
+
 ; uint mode: property should be emitted with value 1
 ; RUN: sycl-post-link -properties -split=auto -symbols -S -id-queries-range=uint < %s -o %t_uint.table
 ; RUN: FileCheck %s -input-file=%t_uint_0.prop --check-prefix CHECK-UINT
