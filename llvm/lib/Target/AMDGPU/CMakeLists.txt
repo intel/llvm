@@ -93,6 +93,7 @@ add_llvm_target(AMDGPUCodeGen
   AMDGPUMarkLastScratchLoad.cpp
   AMDGPUMIRFormatter.cpp
   AMDGPUOclcReflect.cpp
+  AMDGPUNextUseAnalysis.cpp
   AMDGPUPerfHintAnalysis.cpp
   AMDGPUPostLegalizerCombiner.cpp
   AMDGPUPreLegalizerCombiner.cpp

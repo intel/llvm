@@ -15,6 +15,11 @@ HEADERS=(
     sycl/khr/includes/bit.hpp
     sycl/khr/includes/buffer.hpp
     sycl/khr/includes/byte.hpp
+    sycl/khr/includes/builtins_common.hpp
+    sycl/khr/includes/builtins_geometric.hpp
+    sycl/khr/includes/builtins_integer.hpp
+    sycl/khr/includes/builtins_math.hpp
+    sycl/khr/includes/builtins_relational.hpp
     sycl/khr/includes/context.hpp
     sycl/khr/includes/device.hpp
     sycl/khr/includes/event.hpp

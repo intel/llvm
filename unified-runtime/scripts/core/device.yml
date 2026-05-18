@@ -264,7 +264,7 @@ etors:
     - name: MAX_WRITE_IMAGE_ARGS
       desc: "[uint32_t] max number of image objects arguments of a kernel declared with the write_only qualifier"
     - name: MAX_READ_WRITE_IMAGE_ARGS
-      desc: "[uint32_t] max number of image objects arguments of a kernel declared with the read_write qualifier"
+      desc: "[uint32_t][optional-query] max number of image objects arguments of a kernel declared with the read_write qualifier"
     - name: IMAGE2D_MAX_WIDTH
       desc: "[size_t] max width of Image2D object"
     - name: IMAGE2D_MAX_HEIGHT

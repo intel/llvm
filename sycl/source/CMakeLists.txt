@@ -299,6 +299,7 @@ set(SYCL_COMMON_SOURCES
     "detail/kernel_compiler/kernel_compiler_sycl.cpp"
     "detail/kernel_impl.cpp"
     "detail/get_device_kernel_info.cpp"
+    "detail/get_kernel_info_impl.cpp"
     "detail/device_kernel_info.cpp"
     "detail/kernel_program_cache.cpp"
     "detail/memory_export.cpp"

@@ -79,14 +79,12 @@ ur_result_t urEnqueueUSMFill2DFallback(ur_queue_handle_t hQueue, void *pMem,
     WaitEvents.push_back(Event);
   }
 
-  if (phEvent) {
-    UR_CALL(getContext()->urDdiTable.Enqueue.pfnEventsWait(
-        hQueue, WaitEvents.size(), WaitEvents.data(), phEvent));
-  }
+  UR_CALL(getContext()->urDdiTable.Enqueue.pfnEventsWait(
+      hQueue, WaitEvents.size(), WaitEvents.data(), phEvent));
 
-  for (const auto Event : WaitEvents) {
-    UR_CALL(getContext()->urDdiTable.Event.pfnRelease(Event));
-  }
+  getMsanInterceptor()
+      ->getContextInfo(GetContext(hQueue))
+      ->DeferredEvents.add(WaitEvents);
 
   return UR_RESULT_SUCCESS;
 }
@@ -830,21 +828,17 @@ ur_result_t urEnqueueMemBufferWrite(
     // Update shadow memory
     std::shared_ptr<DeviceInfo> DeviceInfo =
         getMsanInterceptor()->getDeviceInfo(Device);
-    const char Val = 0;
     uptr ShadowAddr = DeviceInfo->Shadow->MemToShadow((uptr)pDst + offset);
     Event = nullptr;
-    UR_CALL(getContext()->urDdiTable.Enqueue.pfnUSMFill(
-        hQueue, (void *)ShadowAddr, 1, &Val, size, numEventsInWaitList,
-        phEventWaitList, &Event));
+    UR_CALL(EnqueueUSMSetZero(hQueue, (void *)ShadowAddr, size,
+                              numEventsInWaitList, phEventWaitList, &Event));
     Events.push_back(Event);
 
-    if (phEvent) {
-      UR_CALL(getContext()->urDdiTable.Enqueue.pfnEventsWait(
-          hQueue, Events.size(), Events.data(), phEvent));
-    }
-
-    for (const auto &E : Events)
-      UR_CALL(getContext()->urDdiTable.Event.pfnRelease(E));
+    UR_CALL(getContext()->urDdiTable.Enqueue.pfnEventsWait(
+        hQueue, Events.size(), Events.data(), phEvent));
+    getMsanInterceptor()
+        ->getContextInfo(GetContext(hQueue))
+        ->DeferredEvents.add(Events);
   } else {
     UR_CALL(pfnMemBufferWrite(hQueue, hBuffer, blockingWrite, offset, size,
                               pSrc, numEventsInWaitList, phEventWaitList,
@@ -1039,13 +1033,11 @@ ur_result_t urEnqueueMemBufferCopy(
         numEventsInWaitList, phEventWaitList, &Event));
     Events.push_back(Event);
 
-    if (phEvent) {
-      UR_CALL(getContext()->urDdiTable.Enqueue.pfnEventsWait(
-          hQueue, Events.size(), Events.data(), phEvent));
-    }
-
-    for (const auto &E : Events)
-      UR_CALL(getContext()->urDdiTable.Event.pfnRelease(E));
+    UR_CALL(getContext()->urDdiTable.Enqueue.pfnEventsWait(
+        hQueue, Events.size(), Events.data(), phEvent));
+    getMsanInterceptor()
+        ->getContextInfo(GetContext(hQueue))
+        ->DeferredEvents.add(Events);
   } else {
     UR_CALL(pfnMemBufferCopy(hQueue, hBufferSrc, hBufferDst, srcOffset,
                              dstOffset, size, numEventsInWaitList,
@@ -1164,21 +1156,17 @@ ur_result_t urEnqueueMemBufferFill(
     // Update shadow memory
     std::shared_ptr<DeviceInfo> DeviceInfo =
         getMsanInterceptor()->getDeviceInfo(Device);
-    const char Val = 0;
     uptr ShadowAddr = DeviceInfo->Shadow->MemToShadow((uptr)Handle + offset);
     Event = nullptr;
-    UR_CALL(getContext()->urDdiTable.Enqueue.pfnUSMFill(
-        hQueue, (void *)ShadowAddr, 1, &Val, size, numEventsInWaitList,
-        phEventWaitList, &Event));
+    UR_CALL(EnqueueUSMSetZero(hQueue, (void *)ShadowAddr, size,
+                              numEventsInWaitList, phEventWaitList, &Event));
     Events.push_back(Event);
 
-    if (phEvent) {
-      UR_CALL(getContext()->urDdiTable.Enqueue.pfnEventsWait(
-          hQueue, Events.size(), Events.data(), phEvent));
-    }
-
-    for (const auto &E : Events)
-      UR_CALL(getContext()->urDdiTable.Event.pfnRelease(E));
+    UR_CALL(getContext()->urDdiTable.Enqueue.pfnEventsWait(
+        hQueue, Events.size(), Events.data(), phEvent));
+    getMsanInterceptor()
+        ->getContextInfo(GetContext(hQueue))
+        ->DeferredEvents.add(Events);
   } else {
     UR_CALL(pfnMemBufferFill(hQueue, hBuffer, pPattern, patternSize, offset,
                              size, numEventsInWaitList, phEventWaitList,
@@ -1417,13 +1405,11 @@ ur_result_t urEnqueueUSMFill(
 
   // NOTE: No need to set origin, since its shadow is clean
 
-  if (phEvent) {
-    UR_CALL(getContext()->urDdiTable.Enqueue.pfnEventsWait(
-        hQueue, Events.size(), Events.data(), phEvent));
-  }
-
-  for (const auto &E : Events)
-    UR_CALL(getContext()->urDdiTable.Event.pfnRelease(E));
+  UR_CALL(getContext()->urDdiTable.Enqueue.pfnEventsWait(
+      hQueue, Events.size(), Events.data(), phEvent));
+  getMsanInterceptor()
+      ->getContextInfo(GetContext(hQueue))
+      ->DeferredEvents.add(Events);
 
   return UR_RESULT_SUCCESS;
 }
@@ -1509,13 +1495,11 @@ ur_result_t urEnqueueUSMMemcpy(
     }
   }
 
-  if (phEvent) {
-    UR_CALL(getContext()->urDdiTable.Enqueue.pfnEventsWait(
-        hQueue, Events.size(), Events.data(), phEvent));
-  }
-
-  for (const auto &E : Events)
-    UR_CALL(getContext()->urDdiTable.Event.pfnRelease(E));
+  UR_CALL(getContext()->urDdiTable.Enqueue.pfnEventsWait(
+      hQueue, Events.size(), Events.data(), phEvent));
+  getMsanInterceptor()
+      ->getContextInfo(GetContext(hQueue))
+      ->DeferredEvents.add(Events);
 
   return UR_RESULT_SUCCESS;
 }
@@ -1574,13 +1558,11 @@ ur_result_t urEnqueueUSMFill2D(
 
   // NOTE: No need to set origin, since its shadow is clean
 
-  if (phEvent) {
-    UR_CALL(getContext()->urDdiTable.Enqueue.pfnEventsWait(
-        hQueue, Events.size(), Events.data(), phEvent));
-  }
-
-  for (const auto &E : Events)
-    UR_CALL(getContext()->urDdiTable.Event.pfnRelease(E));
+  UR_CALL(getContext()->urDdiTable.Enqueue.pfnEventsWait(
+      hQueue, Events.size(), Events.data(), phEvent));
+  getMsanInterceptor()
+      ->getContextInfo(GetContext(hQueue))
+      ->DeferredEvents.add(Events);
 
   return UR_RESULT_SUCCESS;
 }
@@ -1682,13 +1664,11 @@ ur_result_t urEnqueueUSMMemcpy2D(
     Events.push_back(Event);
   }
 
-  if (phEvent) {
-    UR_CALL(getContext()->urDdiTable.Enqueue.pfnEventsWait(
-        hQueue, Events.size(), Events.data(), phEvent));
-  }
-
-  for (const auto E : Events)
-    UR_CALL(getContext()->urDdiTable.Event.pfnRelease(E));
+  UR_CALL(getContext()->urDdiTable.Enqueue.pfnEventsWait(
+      hQueue, Events.size(), Events.data(), phEvent));
+  getMsanInterceptor()
+      ->getContextInfo(GetContext(hQueue))
+      ->DeferredEvents.add(Events);
 
   return UR_RESULT_SUCCESS;
 }

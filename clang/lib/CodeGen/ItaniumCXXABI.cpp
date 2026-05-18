@@ -1381,16 +1381,16 @@ bool ItaniumCXXABI::classifyReturnType(CGFunctionInfo &FI) const {
   if (!RD)
     return false;
 
-  // If C++ prohibits us from making a copy, return by address.
+  // If C++ prohibits us from making a copy, return by address using the target
+  // hook getSRetAddrSpace to decide the AS.
   if (!RD->canPassInRegisters()) {
-    QualType Ret = FI.getReturnType();
-    auto Align = CGM.getContext().getTypeAlignInChars(Ret);
-    unsigned AddressSpace = CGM.getCodeGenOpts().UseAllocaASForSrets
+    auto Align = CGM.getContext().getTypeAlignInChars(FI.getReturnType());
+    LangAS SRetAS = CGM.getTargetCodeGenInfo().getSRetAddrSpace(RD);
+    unsigned AS = CGM.getCodeGenOpts().UseAllocaASForSrets
                                 ? CGM.getDataLayout().getAllocaAddrSpace()
-                                : CGM.getTypes().getTargetAddressSpace(Ret);
+                                : CGM.getContext().getTargetAddressSpace(SRetAS);
     FI.getReturnInfo() =
-        ABIArgInfo::getIndirect(Align, /*AddrSpace=*/AddressSpace,
-                                /*ByVal=*/false);
+        ABIArgInfo::getIndirect(Align, /*AddrSpace=*/AS, /*ByVal=*/false);
     return true;
   }
   return false;

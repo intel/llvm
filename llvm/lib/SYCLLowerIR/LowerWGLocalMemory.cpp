@@ -83,7 +83,9 @@ SmallVector<StringRef>
 sycl::getKernelNamesUsingWorkGroupDynamicMem(const Module &M) {
   SmallVector<StringRef> SPIRKernelNames;
   llvm::for_each(M.functions(), [&](const Function &F) {
-    if (F.getCallingConv() == CallingConv::SPIR_KERNEL &&
+    // PTX_Kernel covers CUDA targets.
+    if ((F.getCallingConv() == CallingConv::SPIR_KERNEL ||
+         F.getCallingConv() == CallingConv::PTX_Kernel) &&
         F.hasFnAttribute(WORK_GROUP_SCRATCH_ATTR)) {
       SPIRKernelNames.emplace_back(F.getName());
     }
@@ -182,7 +184,8 @@ static void lowerLocalMemCall(Function *LocalMemAllocFunc,
           !F->hasFnAttribute(WORK_GROUP_STATIC_ATTR))
         F->addFnAttr(WORK_GROUP_STATIC_ATTR);
 
-      if (F->getCallingConv() == CallingConv::SPIR_KERNEL &&
+      if ((F->getCallingConv() == CallingConv::SPIR_KERNEL ||
+           F->getCallingConv() == CallingConv::PTX_Kernel) &&
           LocalMemAllocFunc->getName() == SYCL_DYNAMIC_LOCALMEM_CALL &&
           !F->hasFnAttribute(WORK_GROUP_SCRATCH_ATTR))
         F->addFnAttr(WORK_GROUP_SCRATCH_ATTR);

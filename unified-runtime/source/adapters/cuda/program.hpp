@@ -13,6 +13,7 @@
 
 #include <atomic>
 #include <unordered_map>
+#include <vector>
 
 #include "common/ur_ref_count.hpp"
 #include "context.hpp"
@@ -20,7 +21,7 @@
 struct ur_program_handle_t_ : ur::cuda::handle_base {
   using native_type = CUmodule;
   native_type Module;
-  const char *Binary;
+  std::vector<char> Binary;
   size_t BinarySizeInBytes;
   ur::RefCount RefCount;
   ur_context_handle_t Context;

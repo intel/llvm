@@ -8,24 +8,43 @@
 #pragma once
 
 #include <sycl/detail/compile_time_kernel_info.hpp>
+#include <sycl/detail/export.hpp>
 #include <sycl/detail/kernel_desc.hpp>
+
+#include <string_view>
 
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
 class DeviceKernelInfo;
+
 // Lifetime of the underlying `DeviceKernelInfo` is tied to the availability of
 // the `sycl_device_binaries` corresponding to this kernel. In other words, once
 // user library is unloaded (see __sycl_unregister_lib), program manager
 // destroys this `DeviceKernelInfo` object and the reference returned from here
 // becomes stale.
+//
+// The returned reference is cached in a function-local static by the
+// `getDeviceKernelInfo<Kernel>()` / `getDeviceKernelInfo<Func>()` templates
+// below, so subsequent queries for same kernel avoid program manager lookup.
 __SYCL_EXPORT DeviceKernelInfo &
 getDeviceKernelInfo(const CompileTimeKernelInfoTy &);
 
 template <class Kernel> DeviceKernelInfo &getDeviceKernelInfo() {
   static DeviceKernelInfo &Info =
       getDeviceKernelInfo(CompileTimeKernelInfo<Kernel>);
+  return Info;
+}
+
+// Overload for free function kernels
+// Uses FreeFunctionInfoData which is specialized by the integration header
+__SYCL_EXPORT DeviceKernelInfo &
+getDeviceKernelInfo(std::string_view KernelName);
+
+template <auto *Func> DeviceKernelInfo &getDeviceKernelInfo() {
+  static DeviceKernelInfo &Info =
+      getDeviceKernelInfo(FreeFunctionInfoData<Func>::getFunctionName());
   return Info;
 }
 
