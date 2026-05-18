@@ -5,6 +5,8 @@
 // RUN: %{build} -o %t.exe %link-directx
 // RUN: %{run} %t.exe --type float --channels 4 8x8x8
 
+// clang-format off
+
 /*
     clang++.exe -fsycl -o ds3w.exe D3D12_sycl_interop_3D_write_unsampled.cpp -ld3d12 -ldxgi -ld3dcompiler
 
@@ -17,7 +19,7 @@
    WxHxD           Set custom Width x Height x Depth (e.g. 8x4x2)
 */
 
-// clang-format off
+
 
 // RUN: %{run} %t.exe --type float --channels 1 33x32x31
 // RUN: %{run} %t.exe --type float --channels 2 32x33x31
@@ -62,17 +64,7 @@
 // RUN-IF: (!arch-intel_gpu_bmg_g21), %{run} %t.exe --type half --channels 4 --semaphores 15x16x17
 // RUN-IF: (!arch-intel_gpu_bmg_g21), %{run} %t.exe --type uint32 --channels 2 --semaphores 32x31x33
 
-/*
-    clang++.exe -fsycl -o ds3w.exe D3D12_sycl_interop_3D_write.cpp -ld3d12 -ldxgi -ld3dcompiler
 
-    FLAGS:
-    --sampled      ERROR: Sampled image writes are not supported
-    --semaphores   Use DX12 Fences for SYCL Interop Sync
-    --channels X   Set number of channels (1, 2, or 4). Default is 4 (RGBA)
-    --type XXX     Set data type (float, half, uint32, int32, uint16, int16, uint8, int8, unorm8). 
-                   Default is float 
-   WxHxD           Set custom Width x Height x Depth (e.g. 8x4x41)
-*/
 // clang-format on
 
 #include "d3d12_setup.hpp"
