@@ -223,7 +223,7 @@ public:
   tryGetSYCLKernelID(std::string_view KernelName) const {
     std::lock_guard<std::mutex> Guard(m_DeviceKernelInfoMapMutex);
 
-    auto It = m_DeviceKernelInfoMap.find(KernelName);
+    auto It = m_DeviceKernelInfoMap.find(std::string(KernelName));
     if (It == m_DeviceKernelInfoMap.end())
       return std::nullopt;
 
@@ -509,7 +509,9 @@ protected:
 
   // Map for storing device kernel information. Runtime lookup should be avoided
   // by caching the pointers when possible.
-  std::unordered_map<std::string_view, DeviceKernelInfo> m_DeviceKernelInfoMap;
+  // Uses std::string keys (not string_view) because the backing storage for
+  // kernel names lives in DSO offload tables that may be unmapped on dlclose.
+  std::unordered_map<std::string, DeviceKernelInfo> m_DeviceKernelInfoMap;
 
   // Protects m_DeviceKernelInfoMap.
   mutable std::mutex m_DeviceKernelInfoMapMutex;

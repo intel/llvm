@@ -10,8 +10,8 @@
 // XFAIL: windows && gpu-intel-dg2
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/21985
 
-// XFAIL: windows && arch-intel_gpu_bmg_g21
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/21986
+// UNSUPPORTED: windows && arch-intel_gpu_bmg_g21
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21986
 
 /*
     Run all the vulkan formats through a write test. Note this is unsampled
