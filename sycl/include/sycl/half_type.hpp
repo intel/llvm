@@ -57,9 +57,7 @@ namespace std {
 // integer is what libstdc++/libc++ do for std::hash<uint16_t> too).
 template <> struct hash<sycl::half> {
   size_t operator()(sycl::half const &Key) const noexcept {
-    uint16_t Bits = 0;
-    __builtin_memcpy(&Bits, &Key, sizeof(Bits));
-    return static_cast<size_t>(Bits);
+    return static_cast<size_t>(sycl::bit_cast<uint16_t>(Key));
   }
 };
 
