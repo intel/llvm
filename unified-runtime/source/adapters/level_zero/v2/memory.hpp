@@ -171,8 +171,19 @@ private:
 
   std::vector<host_allocation_desc_t> hostAllocations;
 
+  // USM HOST staging buffer for the most recent async host-based migration
+  // (when P2P is not accessible). Released at the start of the next migration
+  // after zeCommandListHostSynchronize guarantees the previous async copy has
+  // completed, or when the buffer is released. Only one buffer is kept at a
+  // time, preventing unbounded memory growth for long-lived buffers.
+  usm_unique_ptr_t migrationStagingBuffer;
+
   void *getActiveDeviceAlloc(size_t offset = 0);
   void *allocateOnDevice(ur_device_handle_t hDevice, size_t size);
+  // Ensures a device allocation exists for hDevice and returns its pointer.
+  // Unlike allocateOnDevice, does NOT update activeAllocationDevice, so it
+  // is safe to call before the data migration is complete.
+  void *ensureDeviceAlloc(ur_device_handle_t hDevice, size_t size);
   ur_result_t migrateBufferTo(ur_device_handle_t hDevice, void *src,
                               size_t size);
 };
