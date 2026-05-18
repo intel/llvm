@@ -1,5 +1,4 @@
-libclc_configure_source_list(LISPIRV_AMDGCN_SOURCES
-  ${CMAKE_CURRENT_SOURCE_DIR}
+libclc_add_sources(${LIBCLC_LIBSPIRV_TARGET} FILES
   atomic/atomic_and.cl
   atomic/atomic_max.cl
   atomic/atomic_min.cl

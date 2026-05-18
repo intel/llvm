@@ -1,6 +1,4 @@
-
-libclc_configure_source_list(LISPIRV_PTX_NVIDIACL_SOURCES
-  ${CMAKE_CURRENT_SOURCE_DIR}
+libclc_add_sources(${LIBCLC_LIBSPIRV_TARGET} FILES
   reflect.cl
   conversion/GenericCastToPtrExplicit.cl
   integer/mul24.cl
