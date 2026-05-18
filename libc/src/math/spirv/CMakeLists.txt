@@ -247,14 +247,6 @@ add_entrypoint_object(
 )
 
 add_entrypoint_object(
-  fmodf
-  SRCS
-    fmodf.cpp
-  HDRS
-    ../fmodf.h
-)
-
-add_entrypoint_object(
   frexp
   SRCS
     frexp.cpp

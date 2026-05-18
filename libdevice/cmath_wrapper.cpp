@@ -17,6 +17,9 @@ DEVICE_EXTERN_C_INLINE
 float expm1f(float x) { return __spirv_ocl_expm1(x); }
 
 DEVICE_EXTERN_C_INLINE
+float fmodf(float x, float y) { return __spirv_ocl_fmod(x, y); }
+
+DEVICE_EXTERN_C_INLINE
 float tgammaf(float x) { return __spirv_ocl_tgamma(x); }
 
 DEVICE_EXTERN_C_INLINE
