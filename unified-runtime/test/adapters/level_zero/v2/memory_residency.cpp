@@ -12,11 +12,19 @@
 #include <algorithm>
 #include <vector>
 
+// Allocation size must exceed the disjoint pool MaxPoolableSize (4 MB for
+// device USM) so that allocations bypass the pool's free-list cache and go
+// directly to the UMF memory provider, which is where residency is
+// established.  Using pool-sized allocations leads to cross-test interference:
+// a freed allocation stays in the pool cache with stale residency from a
+// previous test, causing the next test's free-memory measurement to be wrong.
+static constexpr size_t kAllocSize = 5 * 1024 * 1024;
+
 using urMemoryResidencyTest = uur::urMultiDeviceContextTestTemplate<1>;
 UUR_INSTANTIATE_PLATFORM_TEST_SUITE(urMemoryResidencyTest);
 
 TEST_P(urMemoryResidencyTest, allocatingDeviceMemoryWillResultInOOM) {
-  static constexpr size_t allocSize = 1024 * 1024;
+  constexpr size_t allocSize = kAllocSize;
 
   if (!uur::isPVC(devices[0])) {
     GTEST_SKIP() << "Test requires a PVC device";
@@ -107,7 +115,7 @@ UUR_INSTANTIATE_PLATFORM_TEST_SUITE(urMemoryMultiResidencyTest);
 // unreliable; that property is already covered by
 // allocatingDeviceMemoryWillResultInOOM.
 TEST_P(urMemoryMultiResidencyTest, allocationInitiallyAbsentOnPeer) {
-  static constexpr size_t allocSize = 1024 * 1024;
+  constexpr size_t allocSize = kAllocSize;
 
   uint64_t initialMemFreePeer = 0;
   ASSERT_SUCCESS(urDeviceGetInfo(devices[1], UR_DEVICE_INFO_GLOBAL_MEM_FREE,
@@ -142,7 +150,7 @@ TEST_P(urMemoryMultiResidencyTest, allocAfterEnablingPeerAccess) {
   ASSERT_SUCCESS(urUsmP2PEnablePeerAccessExp(devices[1], devices[0]));
   peerAccessEnabled = true;
 
-  static constexpr size_t allocSize = 1024 * 1024;
+  constexpr size_t allocSize = kAllocSize;
   uint64_t initialMemFreeSource = 0;
   ASSERT_SUCCESS(urDeviceGetInfo(devices[0], UR_DEVICE_INFO_GLOBAL_MEM_FREE,
                                  sizeof(uint64_t), &initialMemFreeSource,
@@ -161,7 +169,7 @@ TEST_P(urMemoryMultiResidencyTest, allocAfterEnablingPeerAccess) {
 }
 
 TEST_P(urMemoryMultiResidencyTest, allocBeforeEnablingPeerAccess) {
-  static constexpr size_t allocSize = 1024 * 1024;
+  constexpr size_t allocSize = kAllocSize;
   uint64_t initialMemFreeSource = 0;
   ASSERT_SUCCESS(urDeviceGetInfo(devices[0], UR_DEVICE_INFO_GLOBAL_MEM_FREE,
                                  sizeof(uint64_t), &initialMemFreeSource,
@@ -202,7 +210,7 @@ TEST_P(urMemoryMultiResidencyTest,
   ASSERT_EQ(urUsmP2PEnablePeerAccessExp(devices[1], devices[0]),
             UR_RESULT_ERROR_INVALID_OPERATION);
 
-  static constexpr size_t allocSize = 1024 * 1024;
+  constexpr size_t allocSize = kAllocSize;
 
   void *ptr = nullptr;
   ASSERT_SUCCESS(
@@ -275,7 +283,7 @@ TEST_P(urMemoryMultiResidencyTest,
 // because the source pointer on devices[0] is not accessible from devices[1].
 TEST_P(urMemoryMultiResidencyTest,
        enablePeerAccessStateMachineAndSourceAllocationFailsWithoutP2P) {
-  static constexpr size_t allocSize = 1024 * 1024;
+  constexpr size_t allocSize = kAllocSize;
   uint64_t initialMemFreeSource = 0;
   ASSERT_SUCCESS(urDeviceGetInfo(devices[0], UR_DEVICE_INFO_GLOBAL_MEM_FREE,
                                  sizeof(uint64_t), &initialMemFreeSource,
@@ -348,7 +356,7 @@ TEST_P(urMemoryMultiResidencyTest, disablePeerAccessStateMachine) {
 // changeResidentDevice on all contexts, which retroactively makes existing
 // allocations resident on the peer device.
 TEST_P(urMemoryMultiResidencyTest, p2pReadSucceedsWithPeerAccessEnabled) {
-  static constexpr size_t allocSize = 1024 * 1024;
+  constexpr size_t allocSize = kAllocSize;
   static constexpr uint8_t fillPattern = 0xAB;
 
   // Enable P2P: devices[1] can now access allocations on devices[0].
@@ -411,7 +419,7 @@ TEST_P(urMemoryMultiResidencyTest, p2pReadSucceedsWithPeerAccessEnabled) {
 // devices[1]'s queue without P2P (must fail), then enable P2P on the same
 // allocation and retry the copy (must succeed with correct data).
 TEST_P(urMemoryMultiResidencyTest, p2pReadSucceedsAfterEnablingAccess) {
-  static constexpr size_t allocSize = 1024 * 1024;
+  constexpr size_t allocSize = kAllocSize;
   static constexpr uint8_t fillPattern = 0xCD;
 
   uint64_t initialMemFreeSource = 0;
@@ -486,7 +494,7 @@ TEST_P(urMemoryMultiResidencyTest, p2pReadSucceedsAfterEnablingAccess) {
 // disabled and the same copy is expected to fail with
 // UR_RESULT_ERROR_INVALID_OPERATION.
 TEST_P(urMemoryMultiResidencyTest, p2pReadFailsAfterRevokingAccess) {
-  static constexpr size_t allocSize = 1024 * 1024;
+  constexpr size_t allocSize = kAllocSize;
 
   uint64_t initialMemFreeSource = 0;
   ASSERT_SUCCESS(urDeviceGetInfo(devices[0], UR_DEVICE_INFO_GLOBAL_MEM_FREE,
@@ -545,7 +553,7 @@ TEST_P(urMemoryMultiResidencyTest, p2pReadFailsAfterRevokingAccess) {
 // is that devices[1] free memory must not decrease by a full allocSize,
 // proving the allocation was never pinned on the peer device.
 TEST_P(urMemoryMultiResidencyTest, allocationNotResidentOnPeerWithoutP2P) {
-  static constexpr size_t allocSize = 1024 * 1024;
+  constexpr size_t allocSize = kAllocSize;
   static constexpr uint8_t fillPattern = 0xAB;
 
   uint64_t initialMemFreePeer = 0;
