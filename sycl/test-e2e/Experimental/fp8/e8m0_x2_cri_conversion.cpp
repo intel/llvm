@@ -1,11 +1,8 @@
 
+// REQUIRES: intel_feature_gpu_cri
 // RUN: %{build} -Xclang -freg-struct-return -Xspirv-translator --spirv-ext=+SPV_INTEL_fp_conversions,+SPV_EXT_float8,+SPV_KHR_bfloat16 -o %t.out
 // RUN: %{run} SYCL_UR_TRACE=1 %t.out
 
-// Warning! This test requires CRI device or its simulator run to communicate
-// via TCP socket with port 60999, or any other from config
-
-// TODO need to set requirement of intel_feature_gpu_cri
 
 #include <cmath>
 #include <limits>
