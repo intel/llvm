@@ -161,6 +161,7 @@ VK_FORMAT_R8G8B8A8_UNORM
     ./vsr_1d_test.bin --linear --type unorm8 128x
 */
 // clang-format on
+#include <iostream>
 
 #include "vulkan_setup.hpp"
 

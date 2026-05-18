@@ -28,6 +28,7 @@
     correct file.
 */
 // clang-format on
+#include <iostream>
 
 #include <sycl/detail/core.hpp>
 #include <sycl/kernel_bundle.hpp>

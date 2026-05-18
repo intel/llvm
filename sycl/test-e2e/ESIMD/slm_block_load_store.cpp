@@ -14,6 +14,7 @@
 //
 
 // This test verifies usage of slm_block_load() and slm_block_store().
+#include <iostream>
 
 #include "esimd_test_utils.hpp"
 

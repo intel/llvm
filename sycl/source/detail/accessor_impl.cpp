@@ -13,7 +13,7 @@
 #include <detail/xpti_registry.hpp>
 
 #include <cstdlib>
-#include <iostream>
+#include <detail/iostream_proxy.hpp>
 
 namespace sycl {
 inline namespace _V1 {

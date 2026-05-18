@@ -109,6 +109,7 @@
 // RUN-IF: (!gpu-intel-dg2 && !arch-intel_gpu_bmg_g21), %{run} %t.exe --type uint32 --channels 4 --sampled --semaphores 32x33
 
 // clang-format on
+#include <iostream>
 
 #include "d3d12_setup.hpp"
 

@@ -49,6 +49,7 @@
     ./vsb.bin --size 1024
 */
 // clang-format on
+#include <iostream>
 
 #include "vulkan_setup.hpp"
 #include <numeric>

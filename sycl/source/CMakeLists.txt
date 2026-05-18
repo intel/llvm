@@ -74,6 +74,7 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
     ${LIB_OBJ_NAME}
     PRIVATE
       ${CMAKE_CURRENT_SOURCE_DIR}
+      ${sycl_internal_dir}
       ${sycl_inc_dir}
   )
 
@@ -357,6 +358,7 @@ set(SYCL_COMMON_SOURCES
     "kernel_bundle.cpp"
     "physical_mem.cpp"
     "platform.cpp"
+    "printers.cpp"
     "queue.cpp"
     "sampler.cpp"
     "stream.cpp"

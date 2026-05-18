@@ -6,6 +6,7 @@
 // forward compatibility with future SYCL versions.
 //
 // UNSUPPORTED: true
+#include <iostream>
 
 #include "helper.hpp"
 #include <complex>

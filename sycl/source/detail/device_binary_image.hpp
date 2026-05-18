@@ -14,10 +14,11 @@
 #include <sycl/detail/ur.hpp>
 #include <unified-runtime/ur_api.h>
 
-#include <sycl/detail/iostream_proxy.hpp>
+#include <detail/iostream_proxy.hpp>
 
 #include <atomic>
 #include <cstring>
+#include <detail/iostream_proxy.hpp>
 #include <memory>
 #include <mutex>
 #include <string_view>

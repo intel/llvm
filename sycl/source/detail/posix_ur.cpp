@@ -6,10 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <detail/iostream_proxy.hpp>
 #include <sycl/detail/defines_elementary.hpp>
-#include <sycl/detail/iostream_proxy.hpp>
 #include <sycl/detail/ur.hpp>
 
+#include <detail/iostream_proxy.hpp>
 #include <dlfcn.h>
 #include <string>
 

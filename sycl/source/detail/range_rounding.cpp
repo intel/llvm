@@ -10,9 +10,16 @@
 #include <detail/device_impl.hpp>
 #include <sycl/detail/range_rounding.hpp>
 
+#include <detail/iostream_proxy.hpp>
+
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
+
+void reportAdjustedRange(int Dim, size_t From, size_t To) {
+  std::cout << "parallel_for range adjusted at dim " << Dim << " from " << From
+            << " to " << To << std::endl;
+}
 
 void GetRangeRoundingSettings(size_t &MinFactor, size_t &GoodFactor,
                               size_t &MinRange) {

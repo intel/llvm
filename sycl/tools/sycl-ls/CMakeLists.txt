@@ -1,6 +1,6 @@
 add_executable(sycl-ls sycl-ls.cpp)
 add_dependencies(sycl-ls sycl)
-target_include_directories(sycl-ls PRIVATE "${sycl_inc_dir}")
+target_include_directories(sycl-ls PRIVATE "${sycl_inc_dir}"  "${sycl_internal_dir}")
 
 set(sycl_lib sycl)
 string(TOLOWER "${CMAKE_BUILD_TYPE}" build_type_lower)

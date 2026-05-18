@@ -2,6 +2,7 @@
 // RUN: %{run} %t.out
 //
 // The test checks functionality of the slm_gather/slm_scatter ESIMD APIs.
+#include <iostream>
 
 #include "../esimd_test_utils.hpp"
 

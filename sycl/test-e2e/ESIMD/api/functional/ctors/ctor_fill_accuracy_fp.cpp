@@ -16,6 +16,7 @@
 // The test do the following actions:
 //  - call simd with predefined base and step values
 //  - bitwise comparing that output[i] is equal to base + i * step_value.
+#include <iostream>
 
 #include "ctor_fill.hpp"
 
