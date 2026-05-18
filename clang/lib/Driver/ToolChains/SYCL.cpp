@@ -822,7 +822,7 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
                       InputFilename.contains("libdevice")))
         return true;
       if ((InputFilename.compare("libm.bc") == 0) &&
-           (FileName.find("spirv64-unknown-unknown") != std::string::npos))
+          (FileName.find("spirv64-unknown-unknown") != std::string::npos))
         return true;
       StringRef LibSyclPrefix("libsycl-");
       if (!InputFilename.starts_with(LibSyclPrefix) ||
