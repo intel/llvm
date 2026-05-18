@@ -322,32 +322,20 @@ template <typename T> int test_fp8_simple_type_conversion(sycl::queue &queue) {
   auto *data = sycl::malloc_shared<fp8_e5m2_x2>(1, queue);
   data[0] = fp8_e5m2_x2(static_cast<T>(1.5f), static_cast<T>(2.5f));
 
-  std::cout << "KErnel start\n";
   queue.single_task([=]() {
-    // sycl::ext::oneapi::experimental::printf("1\n");
-    // fp8_e5m2_x2 value = data[0];
-    // sycl::ext::oneapi::experimental::printf(kKernelStartFmt,
-    //                                        (unsigned int)value.vals[0],
-    //                                        (unsigned int)value.vals[1]);
-    // sycl::marray<T, 2> f = static_cast<sycl::marray<T, 2>>(value);
-    // sycl::ext::oneapi::experimental::printf(kKernelUnpackedFmt,
-    //                                        (float)f[0], (float)f[1]);
-    // f[0] += static_cast<T>(1.0f);
-    // f[1] += static_cast<T>(1.0f);
-    // data[0] = fp8_e5m2_x2(f);
-    // sycl::ext::oneapi::experimental::printf(kKernelStoreFmt,
-    //                                        (unsigned int)data[0].vals[0],
-    //                                        (unsigned int)data[0].vals[1]);
+    fp8_e5m2_x2 value = data[0];
+    sycl::marray<T, 2> f = static_cast<sycl::marray<T, 2>>(value);
+    f[0] += static_cast<T>(1.0f);
+    f[1] += static_cast<T>(1.0f);
+    data[0] = fp8_e5m2_x2(f);
   });
   queue.wait_and_throw();
-  std::cout << "KErnel finish\n";
 
   sycl::marray<T, 2> expected_input(static_cast<T>(2.5f), static_cast<T>(3.5f));
   fp8_e5m2_x2 expected(expected_input);
   sycl::marray<T, 2> out = static_cast<sycl::marray<T, 2>>(data[0]);
   sycl::marray<T, 2> expected_out = static_cast<sycl::marray<T, 2>>(expected);
 
-  std::cout << "free data\n";
   sycl::free(data, queue);
   for (size_t i = 0; i < 2; ++i) {
     if (std::fabs(static_cast<float>(out[i]) -
@@ -355,7 +343,6 @@ template <typename T> int test_fp8_simple_type_conversion(sycl::queue &queue) {
       return 1;
   }
 
-  std::cout << "success\n";
   return 0;
 }
 

@@ -154,9 +154,7 @@ int main() {
   ret |= test_fp8_simple_type_conversion<signed char>(queue);
   ret |= test_fp8_simple_type_conversion<unsigned char>(queue);
   // check special requirement for boolean conversion - only +0.0 and -0.0
-  should be converted to false,
-      all other values should be converted to true ret |=
-      test_boolean_conversion(queue, 0.0f, false);
+  ret |= test_boolean_conversion(queue, 0.0f, false);
   ret |= test_boolean_conversion(queue, -0.0f, false);
   ret |= test_boolean_conversion(queue, 1.0f, true);
   ret |= test_boolean_conversion(queue, -1.0f, true);
