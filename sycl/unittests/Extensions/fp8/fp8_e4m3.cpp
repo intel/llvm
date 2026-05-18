@@ -290,7 +290,6 @@ TEST(FP8E4M3Test, CArrayFloatHostToEvenFinite) {
   EXPECT_EQ(a2.vals[1], 0x00); // 0
 }
 
-
 TEST(FP8E4M3Test, CArrayHalfHostToEvenFinite) {
   // Host code supports only rounding::to_even and saturation::finite.
   const sycl::half in[2] = {sycl::half(448.0f), sycl::half(449.0f)};
@@ -518,7 +517,6 @@ TEST(FP8E4M3Test, MarrayFloatRoundingToEven) {
   EXPECT_EQ(a.vals[1], 0x38);
 }
 
-
 TEST(FP8E4M3Test, VariadicRejectsMixedTypes) {
   EXPECT_FALSE((std::is_constructible_v<fp8_e4m3_x2, float, sycl::half>));
   EXPECT_FALSE((std::is_constructible_v<fp8_e4m3_x2, sycl::half, float>));
@@ -560,7 +558,6 @@ TEST(FP8E4M3Test, X2NotConstructibleFromSingleFloat) {
   EXPECT_FALSE((std::is_constructible_v<fp8_e4m3_x2, float>));
 }
 
-
 TEST(FP8E4M3Test, X2NotConstructibleFromSingleBFloat16) {
   EXPECT_FALSE(
       (std::is_constructible_v<fp8_e4m3_x2, sycl::ext::oneapi::bfloat16>));
@@ -590,7 +587,6 @@ TEST(FP8E4M3Test, X2NotAssignableFromSingleBFloat16) {
 TEST(FP8E4M3Test, X2NotAssignableFromSingleFloat) {
   EXPECT_FALSE((std::is_assignable_v<fp8_e4m3_x2 &, float>));
 }
-
 
 TEST(FP8E4M3Test, X2NotAssignableFromSingleChar) {
   EXPECT_FALSE((std::is_assignable_v<fp8_e4m3_x2 &, char>));

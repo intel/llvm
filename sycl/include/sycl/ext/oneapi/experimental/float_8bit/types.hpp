@@ -1458,7 +1458,6 @@ public:
     return *this;
   }
 
-
   template <size_t M = N, typename = std::enable_if_t<M == 1>>
   fp8_e5m2_x &operator=(short val) {
     vals[0] = ConvertToFP8(val, saturation::finite);
@@ -1524,7 +1523,6 @@ public:
   explicit operator float() const {
     return ConvertFromFP8<float>(vals[0]);
   }
-
 
   // Convert to integer types.
   // Available only when N==1.
