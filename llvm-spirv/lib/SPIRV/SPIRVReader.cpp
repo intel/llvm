@@ -1140,9 +1140,10 @@ Value *SPIRVToLLVM::transConvertInst(SPIRVValue *BV, Function *F,
         if (MangledName.empty())
           MangledName = mangleBuiltin(BuiltinName, OpsTys, &Info);
 
-        FunctionType *FTy = FunctionType::get(Dst, OpsTys, false);
-        FunctionCallee Func = M->getOrInsertFunction(MangledName, FTy);
-        return CallInst::Create(Func, Ops, "", BB);
+        Function *Func = getOrCreateFunction(M, Dst, OpsTys, MangledName);
+        auto *CI = CallInst::Create(Func, Ops, "", BB);
+        CI->setCallingConv(CallingConv::SPIR_FUNC);
+        return CI;
       }
     }
     // These conversions can be done without __builtin_spirv prefixed functions
