@@ -32,9 +32,8 @@ using namespace sycl;
 // CHECK-UINT-EXCEEDS-SAME: storable in an uint32_t. Either reduce the range/offset or
 // CHECK-UINT-EXCEEDS-SAME: recompile the kernel with -fsycl-id-queries-range=size_t.
 
-// CHECK-SIZE-PER-DIM-EXCEEDS: FAIL: Number of global work groups in 1st dimension
-// CHECK-SIZE-PER-DIM-EXCEEDS-SAME: 4294967296 exceeds the maximum supported value of
-// CHECK-SIZE-PER-DIM-EXCEEDS-SAME: 4294967295.
+// CHECK-SIZE-PER-DIM-EXCEEDS: FAIL:  Number of work groups in dimension 0 4294967296
+// CHECK-SIZE-PER-DIM-EXCEEDS-SAME: exceeds the maximum supported value of 4294967295.
 void test_nd_range_large_workgroups(queue &q, size_t GlobalSize,
                                     size_t LocalSize) {
   try {
