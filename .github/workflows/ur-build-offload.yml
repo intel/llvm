@@ -2,6 +2,8 @@ name: UR - Build offload adapter
 
 permissions: read-all
 
+# Pre-container disk check: use ACTIONS_RUNNER_HOOK_JOB_STARTED on self-hosted
+# runners — see devops/scripts/gha_runner_job_started_hook.sh
 on: [ workflow_call, workflow_dispatch ]
 
 jobs:
