@@ -2477,6 +2477,7 @@ static QualType ModifyAddressSpace(SemaSYCL &SemaSYCLRef, QualType Ty) {
   // same type as field but global address space, because OpenCL requires it.
   // Function pointers should have program address space. This is set in
   // CodeGen.
+  Qualifiers PtrQuals = Ty.getQualifiers();
   QualType PointeeTy = Ty->getPointeeType();
   Qualifiers Quals = PointeeTy.getQualifiers();
   LangAS AS = Quals.getAddressSpace();
@@ -2487,7 +2488,8 @@ static QualType ModifyAddressSpace(SemaSYCL &SemaSYCLRef, QualType Ty) {
     Quals.setAddressSpace(LangAS::sycl_global);
   PointeeTy = SemaSYCLRef.getASTContext().getQualifiedType(
       PointeeTy.getUnqualifiedType(), Quals);
-  return SemaSYCLRef.getASTContext().getPointerType(PointeeTy);
+  QualType PtrTy = SemaSYCLRef.getASTContext().getPointerType(PointeeTy);
+  return SemaSYCLRef.getASTContext().getQualifiedType(PtrTy, PtrQuals);
 }
 
 // This visitor is used to traverse a non-decomposed record/array to
