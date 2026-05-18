@@ -583,13 +583,13 @@ clang::driver::getSYCLDeviceLibNames(const Driver &D,
   };
   if (TargetTriple.isNVPTX()) {
     if (!NoOffloadLib)
-      addLibToList("devicelib-nvptx64-nvidia-cuda.bc");
+      addLibToList("devicelib-nvptx64-nvidia-cuda.bc", false);
     return LibraryList;
   }
 
   if (TargetTriple.isAMDGCN()) {
     if (!NoOffloadLib)
-      addLibToList("devicelib-amdgcn-amd-amdhsa.bc");
+      addLibToList("devicelib-amdgcn-amd-amdhsa.bc", false);
     return LibraryList;
   }
 
