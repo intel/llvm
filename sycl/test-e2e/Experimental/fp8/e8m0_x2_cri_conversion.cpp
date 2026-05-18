@@ -3,7 +3,6 @@
 // RUN: %{build} -Xclang -freg-struct-return -Xspirv-translator --spirv-ext=+SPV_INTEL_fp_conversions,+SPV_EXT_float8,+SPV_KHR_bfloat16 -o %t.out
 // RUN: %{run} SYCL_UR_TRACE=1 %t.out
 
-
 #include <cmath>
 #include <limits>
 #include <sycl/ext/oneapi/experimental/float_8bit/types.hpp>

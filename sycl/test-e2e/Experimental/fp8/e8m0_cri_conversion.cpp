@@ -348,9 +348,7 @@ int test_raw_vals_access(sycl::queue &queue) {
   auto *out = sycl::malloc_shared<uint8_t>(1, queue);
   data[0] = fp8_e8m0(1.0f);
 
-  queue.single_task([=]() {
-    out[0] = data[0].vals[0];
-  });
+  queue.single_task([=]() { out[0] = data[0].vals[0]; });
   queue.wait_and_throw();
 
   int ret = (out[0] != 127) ? 1 : 0;
