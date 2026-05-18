@@ -19,6 +19,8 @@
 #include <stdexcept>
 #include <type_traits>
 
+#define SYCL_EXT_ONEAPI_FP8 1
+
 #ifdef __SYCL_DEVICE_ONLY__
 // FP8 builtins
 
