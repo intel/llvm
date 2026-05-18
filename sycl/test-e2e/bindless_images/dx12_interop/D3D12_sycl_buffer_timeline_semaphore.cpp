@@ -10,11 +10,6 @@
 // UNSUPPORTED-TRACKER: GSD-12427
 // Gen12-semaphores-work-but-this-test-hangs.
 
-// UNSUPPORTED: arch-intel_gpu_bmg_g21
-// UNSUPPORTED-TRACKER: GSD-12436
-// this test works on BMG, but if run in parallel with itself, or with  other
-// semaphore tests, it can hang.
-
 // RUN: %{build} %link-directx -o %t.exe %if target-spir %{ -Wno-ignored-attributes %}
 // RUN: %{run} %t.exe --no-sem
 // RUN: %{run} %t.exe
