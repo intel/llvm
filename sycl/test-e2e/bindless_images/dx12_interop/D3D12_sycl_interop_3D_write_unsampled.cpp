@@ -64,7 +64,6 @@
 // RUN-IF: (!arch-intel_gpu_bmg_g21), %{run} %t.exe --type half --channels 4 --semaphores 15x16x17
 // RUN-IF: (!arch-intel_gpu_bmg_g21), %{run} %t.exe --type uint32 --channels 2 --semaphores 32x31x33
 
-
 // clang-format on
 
 #include "d3d12_setup.hpp"

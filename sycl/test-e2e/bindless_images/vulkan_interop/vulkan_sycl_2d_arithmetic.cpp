@@ -7,7 +7,6 @@
 // UNSUPPORTED: linux
 // UNSUPPORTED-TRACKER: GSD-12357
 
-
 // clang-format off
 
 /*
