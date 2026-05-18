@@ -341,7 +341,7 @@ void *ur_discrete_buffer_handle_t::getActiveDeviceAlloc(size_t offset) {
 void *ur_discrete_buffer_handle_t::getDevicePtr(
     ur_device_handle_t hDevice, device_access_mode_t /*access*/, size_t offset,
     size_t /*size*/, ze_command_list_handle_t /*cmdList*/,
-    wait_list_view & /*waitListView*/) {
+    wait_list_view &waitListView) {
   TRACK_SCOPE_LATENCY("ur_discrete_buffer_handle_t::getDevicePtr");
 
   if (!activeAllocationDevice) {
@@ -366,12 +366,26 @@ void *ur_discrete_buffer_handle_t::getDevicePtr(
                                  activeAllocationDevice) != p2pDevices.end();
 
   if (!p2pAccessible) {
-    // TODO: migrate buffer through the host
-    UR_LOG(WARN,
-           "p2p is not accessible: requesting device ptr:{} cannot access "
-           "allocation on device ptr:{}",
-           (void *)hDevice, (void *)activeAllocationDevice);
-    throw UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    // Wait for pending operations on the buffer to complete before migrating.
+    for (uint32_t i = 0; i < waitListView.num; i++) {
+      ZE2UR_CALL_THROWS(zeEventHostSynchronize,
+                        (waitListView.handles[i], UINT64_MAX));
+    }
+    waitListView.clear();
+
+    // Migrate buffer through the host: copy from the current device to a
+    // temporary host buffer, then from host to the target device.
+    auto bufferSize = getSize();
+    std::vector<char> hostBuf(bufferSize);
+
+    UR_CALL_THROWS(synchronousZeCopy(hContext, activeAllocationDevice,
+                                     hostBuf.data(), getActiveDeviceAlloc(),
+                                     bufferSize));
+
+    UR_CALL_THROWS(migrateBufferTo(hDevice, hostBuf.data(), bufferSize));
+
+    activeAllocationDevice = hDevice;
+    return getActiveDeviceAlloc(offset);
   }
 
   // TODO: see if it's better to migrate the memory to the specified device
