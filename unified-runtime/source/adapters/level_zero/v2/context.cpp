@@ -242,6 +242,10 @@ ur_result_t urContextCreate(uint32_t deviceCount,
       if (auto zeContext = zeDriverGetDefaultContext(hPlatform->ZeDriver)) {
         *phContext =
             new ur_context_handle_t_(zeContext, deviceCount, phDevices, false);
+        {
+          std::scoped_lock<ur_shared_mutex> Lock(hPlatform->ContextsMutex);
+          hPlatform->Contexts.push_back(*phContext);
+        }
         return UR_RESULT_SUCCESS;
       }
     }
