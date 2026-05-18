@@ -55,9 +55,10 @@ UUR_INSTANTIATE_DEVICE_TEST_SUITE_MULTI_QUEUE(
 // Note: Due to an issue with HIP, the subgroup test is not generated
 struct urEnqueueKernelLaunchKernelSubGroupTest : uur::urKernelExecutionTest {
   void SetUp() override {
-    // Subgroup size of 8 isn't supported on the Data Center GPU Max
-    UUR_KNOWN_FAILURE_ON(uur::HIP{}, uur::LevelZero{"Data Center GPU Max"},
-                         uur::LevelZeroV2{"Data Center GPU Max"});
+    // Subgroup size of 8 isn't supported on the Data Center GPU Max or Battlemage Arc
+    UUR_KNOWN_FAILURE_ON(uur::HIP{},
+                         uur::LevelZero{"Data Center GPU Max", "Arc(TM) B"},
+                         uur::LevelZeroV2{"Data Center GPU Max", "Arc(TM) B"});
 
     program_name = "subgroup";
     UUR_RETURN_ON_FATAL_FAILURE(urKernelExecutionTest::SetUp());
