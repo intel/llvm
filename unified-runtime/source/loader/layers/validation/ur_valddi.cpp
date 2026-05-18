@@ -860,6 +860,9 @@ __urdlllocal ur_result_t UR_APICALL urContextCreate(
 
     if (NULL != pProperties && UR_CONTEXT_FLAGS_MASK & pProperties->flags)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
+
+    if (DeviceCount == 0)
+      return UR_RESULT_ERROR_INVALID_SIZE;
   }
 
   ur_result_t result =
@@ -8725,9 +8728,6 @@ __urdlllocal ur_result_t UR_APICALL urDeviceWaitExp(
 
   if (getContext()->enableParameterValidation) {
     if (NULL == hDevice)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (hDevice == nullptr)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
