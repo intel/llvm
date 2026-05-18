@@ -7,9 +7,6 @@
 // UNSUPPORTED: linux
 // UNSUPPORTED-TRACKER: GSD-12357
 
-// XFAIL: windows && gpu-intel-dg2
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/21985
-
 // XFAIL: windows && arch-intel_gpu_bmg_g21
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/21986
 

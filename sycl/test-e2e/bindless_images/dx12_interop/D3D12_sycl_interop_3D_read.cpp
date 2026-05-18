@@ -6,13 +6,15 @@
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20384
 // also GSD-12430
 
+// UNSUPPORTED: gpu-intel-dg2
+// UNSUPPORTED-TRACKER: GSD-12430
+
 // RUN: %{build} -o %t.exe %link-directx
 // RUN: %{run} %t.exe --type float --channels 4 8x8x8
 
+// clang-format off
 
 // clang++.exe -fsycl -o ds3r.exe D3D12_sycl_interop_3D_read.cpp -ld3d12 -ldxgi -ld3dcompiler
-
-// clang-format off
 
 // RUN: %{run} %t.exe --type float --channels 1 33x32x31
 // RUN: %{run} %t.exe --type float --channels 2 32x33x31

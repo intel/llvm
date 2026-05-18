@@ -10,9 +10,6 @@
 // UNSUPPORTED: windows && gpu-intel-gen12
 // UNSUPPORTED-TRACKER: URLZA-723
 
-// XFAIL: windows && gpu-intel-dg2
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/21985
-
 // UNSUPPORTED: windows && arch-intel_gpu_bmg_g21
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21986
 

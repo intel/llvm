@@ -2,6 +2,10 @@
 // REQUIRES: aspect-ext_oneapi_external_semaphore_import
 // REQUIRES: windows
 
+// UNSUPPORTED: gpu-intel-dg2
+// UNSUPPORTED-TRACKER: GSD-12428
+// semaphores-do-not-work-dg2
+
 // UNSUPPORTED: gpu-intel-gen12
 // UNSUPPORTED-TRACKER: GSD-12427
 
