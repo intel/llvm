@@ -21,7 +21,11 @@ void llvm::initializeIPO(PassRegistry &Registry) {
   initializeBarrierNoopPass(Registry);
   initializeDAEPass(Registry);
   initializeDAHPass(Registry);
+<<<<<<< HEAD
   initializeDAESYCLPass(Registry);
+=======
+  initializeExpandVariadicsPass(Registry);
+>>>>>>> a5077468984ac3c47e6a3ca779c6f0ba680706c0
   initializeGlobalDCELegacyPassPass(Registry);
   initializeLoopExtractorLegacyPassPass(Registry);
   initializeSingleLoopExtractorPass(Registry);
