@@ -7,9 +7,6 @@
 // UNSUPPORTED: linux
 // UNSUPPORTED-TRACKER: GSD-12357
 
-// UNSUPPORTED: windows && arch-intel_gpu_bmg_g21
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21986
-
 /*
     Run all the vulkan formats through a write test. Note this is unsampled
    only, you can't "write" with the image sampler.
