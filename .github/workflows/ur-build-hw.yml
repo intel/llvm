@@ -142,15 +142,9 @@ jobs:
       run: cmake --install build
 
     - name: Test adapter specific
-      id: run_adapter_tests
-      continue-on-error: true
-      env:
-        ZE_ENABLE_LOADER_DEBUG_TRACE: 1
-        LIT_OPTS: "--show-unsupported --show-pass --show-xfail --no-progress-bar --timeout 120 -j 50"
-        # These tests cause timeouts on CI
-        LIT_FILTER_OUT: "(adapters/level_zero/memcheck.test|adapters/level_zero/v2/deferred_kernel_memcheck.test)"
-      run: |
-        cmake --build build -j $(($(nproc)/3)) -- check-unified-runtime-adapter 2>&1 | tee adapter_tests.log
+      uses: ./devops/actions/run-tests/ur/adapter-specific
+      with:
+        build_dir: build
       # Don't run adapter specific tests when building multiple adapters
       if: ${{ matrix.adapter.other_name == '' }}
 
@@ -158,44 +152,102 @@ jobs:
       if: ${{ always() && matrix.adapter.other_name == '' }}
       shell: bash
       run: |
-        echo "::group::Show Full Adapter Tests Log"
-        cat adapter_tests.log
-        echo "::endgroup::"
-
-    - name: Report adapter specific failures
-      if: ${{ steps.run_adapter_tests.outcome != 'success' && matrix.adapter.other_name == '' }}
-      shell: bash
-      run: |
-        # Report adapter specific failures
-        awk '/^(Failed Tests|Unexpectedly Passed Tests|Unresolved Tests|Timed Out Tests) \([0-9]+\):/ {flag=1} /^Testing Time:/ {flag=1} flag {if (NF>0 && !/^[ \t]/ && $0 !~ /^(Failed Tests|Unexpectedly Passed|Unresolved|Timed Out|Testing Time|Expected|Unexpected|Total Discovered|Unsupported Tests)/) {exit}; print}' adapter_tests.log >> $GITHUB_STEP_SUMMARY
-        awk '/^(Failed Tests|Unexpectedly Passed Tests|Unresolved Tests|Timed Out Tests) \([0-9]+\):/ {flag=1} /^Testing Time:/ {flag=1} flag {if (NF>0 && !/^[ \t]/ && $0 !~ /^(Failed Tests|Unexpectedly Passed|Unresolved|Timed Out|Testing Time|Expected|Unexpected|Total Discovered|Unsupported Tests)/) {exit}; print}' adapter_tests.log
-        exit 1
+        if [ ! -f adapter_tests.log ]; then
+          echo "Log file not found"
+          exit 0
+        fi
+        
+        echo "=== Adapter Tests Statistics ==="
+        awk '/^(Total Discovered|Expected Passes|Expected Failures|Unsupported|Passed|Failed|Timed Out|Unexpectedly Passed|Unresolved) (Tests)?:?/ {print}' adapter_tests.log
+        echo ""
+        
+        if grep -q "^Passed Tests ([0-9]\+):" adapter_tests.log; then
+          count=$(grep "^Passed Tests ([0-9]\+):" adapter_tests.log | sed 's/Passed Tests (\([0-9]\+\)):/\1/')
+          echo "::group::Passed Tests ($count)"
+          awk '/^Passed Tests \([0-9]+\):/ {flag=1; next} /^$/ {flag=0} flag' adapter_tests.log
+          echo "::endgroup::"
+        fi
+        
+        if grep -q "^Unsupported Tests ([0-9]\+):" adapter_tests.log; then
+          count=$(grep "^Unsupported Tests ([0-9]\+):" adapter_tests.log | sed 's/Unsupported Tests (\([0-9]\+\)):/\1/')
+          echo "::group::Unsupported Tests ($count)"
+          awk '/^Unsupported Tests \([0-9]+\):/ {flag=1; next} /^$/ {flag=0} flag' adapter_tests.log
+          echo "::endgroup::"
+        fi
+        
+        if grep -q "^Failed Tests ([0-9]\+):" adapter_tests.log; then
+          count=$(grep "^Failed Tests ([0-9]\+):" adapter_tests.log | sed 's/Failed Tests (\([0-9]\+\)):/\1/')
+          echo "::group::Failed Tests ($count)"
+          awk '/^Failed Tests \([0-9]+\):/ {flag=1; next} /^$/ {flag=0} flag' adapter_tests.log
+          echo "::endgroup::"
+        fi
+        
+        if grep -q "^Timed Out Tests ([0-9]\+):" adapter_tests.log; then
+          count=$(grep "^Timed Out Tests ([0-9]\+):" adapter_tests.log | sed 's/Timed Out Tests (\([0-9]\+\)):/\1/')
+          echo "::group::Timed Out Tests ($count)"
+          awk '/^Timed Out Tests \([0-9]+\):/ {flag=1; next} /^$/ {flag=0} flag' adapter_tests.log
+          echo "::endgroup::"
+        fi
+        
+        if grep -q "^Unexpectedly Passed Tests ([0-9]\+):" adapter_tests.log; then
+          count=$(grep "^Unexpectedly Passed Tests ([0-9]\+):" adapter_tests.log | sed 's/Unexpectedly Passed Tests (\([0-9]\+\)):/\1/')
+          echo "::group::Unexpectedly Passed Tests ($count)"
+          awk '/^Unexpectedly Passed Tests \([0-9]+\):/ {flag=1; next} /^$/ {flag=0} flag' adapter_tests.log
+          echo "::endgroup::"
+        fi
 
     - name: Test adapters
-      id: run_conformance_tests
-      continue-on-error: true
-      env:
-        ZE_ENABLE_LOADER_DEBUG_TRACE: 1
-        LIT_OPTS: "--show-unsupported --show-pass --show-xfail --no-progress-bar --timeout 120 -j 50"
-      run: |
-        cmake --build build -j $(($(nproc)/3)) -- check-unified-runtime-conformance 2>&1 | tee conformance_tests.log
+      uses: ./devops/actions/run-tests/ur/adapters
+      with:
+        build_dir: build
 
     - name: Test adapters logs
       if: ${{ always() }}
       shell: bash
       run: |
-        echo "::group::Show Full Conformance Tests Log"
-        cat conformance_tests.log
-        echo "::endgroup::"
-
-    - name: Report conformance failures
-      if: ${{ steps.run_conformance_tests.outcome != 'success' }}
-      shell: bash
-      run: |
-        # Report conformance failures
-        awk '/^(Failed Tests|Unexpectedly Passed Tests|Unresolved Tests|Timed Out Tests) \([0-9]+\):/ {flag=1} /^Testing Time:/ {flag=1} flag {if (NF>0 && !/^[ \t]/ && $0 !~ /^(Failed Tests|Unexpectedly Passed|Unresolved|Timed Out|Testing Time|Expected|Unexpected|Total Discovered|Unsupported Tests)/) {exit}; print}' conformance_tests.log >> $GITHUB_STEP_SUMMARY
-        awk '/^(Failed Tests|Unexpectedly Passed Tests|Unresolved Tests|Timed Out Tests) \([0-9]+\):/ {flag=1} /^Testing Time:/ {flag=1} flag {if (NF>0 && !/^[ \t]/ && $0 !~ /^(Failed Tests|Unexpectedly Passed|Unresolved|Timed Out|Testing Time|Expected|Unexpected|Total Discovered|Unsupported Tests)/) {exit}; print}' conformance_tests.log
-        exit 1
+        if [ ! -f conformance_tests.log ]; then
+          echo "Log file not found"
+          exit 0
+        fi
+        
+        echo "=== Conformance Tests Statistics ==="
+        awk '/^(Total Discovered|Expected Passes|Expected Failures|Unsupported|Passed|Failed|Timed Out|Unexpectedly Passed|Unresolved) (Tests)?:?/ {print}' conformance_tests.log
+        echo ""
+        
+        if grep -q "^Passed Tests ([0-9]\+):" conformance_tests.log; then
+          count=$(grep "^Passed Tests ([0-9]\+):" conformance_tests.log | sed 's/Passed Tests (\([0-9]\+\)):/\1/')
+          echo "::group::Passed Tests ($count)"
+          awk '/^Passed Tests \([0-9]+\):/ {flag=1; next} /^$/ {flag=0} flag' conformance_tests.log
+          echo "::endgroup::"
+        fi
+        
+        if grep -q "^Unsupported Tests ([0-9]\+):" conformance_tests.log; then
+          count=$(grep "^Unsupported Tests ([0-9]\+):" conformance_tests.log | sed 's/Unsupported Tests (\([0-9]\+\)):/\1/')
+          echo "::group::Unsupported Tests ($count)"
+          awk '/^Unsupported Tests \([0-9]+\):/ {flag=1; next} /^$/ {flag=0} flag' conformance_tests.log
+          echo "::endgroup::"
+        fi
+        
+        if grep -q "^Failed Tests ([0-9]\+):" conformance_tests.log; then
+          count=$(grep "^Failed Tests ([0-9]\+):" conformance_tests.log | sed 's/Failed Tests (\([0-9]\+\)):/\1/')
+          echo "::group::Failed Tests ($count)"
+          awk '/^Failed Tests \([0-9]+\):/ {flag=1; next} /^$/ {flag=0} flag' conformance_tests.log
+          echo "::endgroup::"
+        fi
+        
+        if grep -q "^Timed Out Tests ([0-9]\+):" conformance_tests.log; then
+          count=$(grep "^Timed Out Tests ([0-9]\+):" conformance_tests.log | sed 's/Timed Out Tests (\([0-9]\+\)):/\1/')
+          echo "::group::Timed Out Tests ($count)"
+          awk '/^Timed Out Tests \([0-9]+\):/ {flag=1; next} /^$/ {flag=0} flag' conformance_tests.log
+          echo "::endgroup::"
+        fi
+        
+        if grep -q "^Unexpectedly Passed Tests ([0-9]\+):" conformance_tests.log; then
+          count=$(grep "^Unexpectedly Passed Tests ([0-9]\+):" conformance_tests.log | sed 's/Unexpectedly Passed Tests (\([0-9]\+\)):/\1/')
+          echo "::group::Unexpectedly Passed Tests ($count)"
+          awk '/^Unexpectedly Passed Tests \([0-9]+\):/ {flag=1; next} /^$/ {flag=0} flag' conformance_tests.log
+          echo "::endgroup::"
+        fi
 
     - name: Debug CI platform information
       if: ${{ always() }}

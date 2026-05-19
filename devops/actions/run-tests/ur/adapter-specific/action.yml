@@ -1,0 +1,30 @@
+name: 'Run UR Adapter Specific Tests'
+
+inputs:
+  build_dir:
+    required: false
+    default: 'build'
+
+runs:
+  using: "composite"
+  steps:
+  - name: Run adapter specific tests
+    id: run_tests
+    continue-on-error: true
+    shell: bash
+    env:
+      ZE_ENABLE_LOADER_DEBUG_TRACE: 1
+      LIT_OPTS: "--show-unsupported --show-pass --show-xfail --no-progress-bar --succinct --timeout 120 -j 50"
+      LIT_FILTER_OUT: "(adapters/level_zero/memcheck.test|adapters/level_zero/v2/deferred_kernel_memcheck.test)"
+    run: |
+      echo "::group::Show Full Test Adapter Specific Logs"
+      cmake --build ${{ inputs.build_dir }} -j $(($(nproc)/3)) -- check-unified-runtime-adapter 2>&1 | tee adapter_tests.log
+      echo "::endgroup::"
+  
+  - name: Report adapter specific failures
+    if: steps.run_tests.outcome != 'success'
+    shell: bash
+    run: |
+      awk '/^(Failed Tests|Unexpectedly Passed Tests|Unresolved Tests|Timed Out Tests) \([0-9]+\):/ {flag=1} /^Testing Time:/ {flag=1} flag {if (NF>0 && !/^[ \t]/ && $0 !~ /^(Failed Tests|Unexpectedly Passed|Unresolved|Timed Out|Testing Time|Expected|Unexpected|Total Discovered|Unsupported Tests)/) {exit}; print}' adapter_tests.log >> $GITHUB_STEP_SUMMARY
+      awk '/^(Failed Tests|Unexpectedly Passed Tests|Unresolved Tests|Timed Out Tests) \([0-9]+\):/ {flag=1} /^Testing Time:/ {flag=1} flag {if (NF>0 && !/^[ \t]/ && $0 !~ /^(Failed Tests|Unexpectedly Passed|Unresolved|Timed Out|Testing Time|Expected|Unexpected|Total Discovered|Unsupported Tests)/) {exit}; print}' adapter_tests.log
+      exit 1
