@@ -187,6 +187,30 @@ params:
 returns:
     - $X_RESULT_ERROR_INVALID_GRAPH
 --- #--------------------------------------------------------------------------
+type: fptr_typedef
+desc: "Callback function invoked when a graph is destroyed."
+name: $x_exp_graph_destruction_callback_t
+return: void
+params:
+    - type: void*
+      name: pUserData
+      desc: "[in] pointer to user data to be passed to the callback"
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Register a callback to be invoked when the graph is destroyed."
+class: $xGraph
+name: SetDestructionCallbackExp
+params:
+    - type: $x_exp_graph_handle_t
+      name: hGraph
+      desc: "[in] Handle of the graph to register the callback for."
+    - type: $x_exp_graph_destruction_callback_t
+      name: pfnCallback
+      desc: "[in] Function pointer to the callback. The callback must not access hGraph."
+    - type: void*
+      name: pUserData
+      desc: "[in][optional] Pointer to user data to be passed to the callback. The user data must not reference hGraph."
+--- #--------------------------------------------------------------------------
 type: function
 desc: "Dump the contents of the recorded graph to the provided file path."
 class: $xGraph
