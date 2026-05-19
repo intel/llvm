@@ -1,4 +1,5 @@
 // Test the behaviors when enabling SYCL offloading with preprocessed files.
+// REQUIRES: libdevice
 
 /// Creating a preprocessed file is expected to do an integration header
 /// creation step.

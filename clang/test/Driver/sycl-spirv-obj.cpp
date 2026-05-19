@@ -3,7 +3,7 @@
 ///
 
 /// -fsycl-device-obj=spirv
-// RUN: %clangxx -target x86_64-unknown-linux-gnu -c -fsycl --offload-new-driver -fsycl-device-obj=spirv -### %s 2>&1 | \
+// RUN: %clangxx -target x86_64-unknown-linux-gnu -c -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-device-obj=spirv -### %s 2>&1 | \
 // RUN:  FileCheck %s -check-prefix SPIRV_DEVICE_OBJ
 // SPIRV_DEVICE_OBJ: clang{{.*}} "-cc1" "-triple" "spir64-unknown-unknown"
 // SPIRV_DEVICE_OBJ-SAME: "-aux-triple" "x86_64-unknown-linux-gnu"
@@ -18,7 +18,7 @@
 // SPIRV_DEVICE_OBJ-SAME: "-fsycl-is-host"
 // SPIRV_DEVICE_OBJ-SAME: "-o" "[[HOST_OBJ:.+\.o]]"
 
-// RUN: %clangxx -target x86_64-unknown-linux-gnu -c -fsycl --offload-new-driver -fsycl-device-obj=spirv -ccc-print-phases %s 2>&1 | \
+// RUN: %clangxx -target x86_64-unknown-linux-gnu -c -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-device-obj=spirv -ccc-print-phases %s 2>&1 | \
 // RUN:  FileCheck %s -check-prefix SPIRV_DEVICE_OBJ_PHASES
 // SPIRV_DEVICE_OBJ_PHASES: 0: input, "[[INPUTSRC:.+\.cpp]]", c++, (host-sycl)
 // SPIRV_DEVICE_OBJ_PHASES: 1: preprocessor, {0}, c++-cpp-output, (host-sycl)
@@ -36,6 +36,6 @@
 
 /// Use of -fsycl-device-obj=spirv should not be effective during linking
 // RUN: touch %t.o
-// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver -fsycl-device-obj=spirv -### %t.o 2>&1 | \
+// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-device-obj=spirv -### %t.o 2>&1 | \
 // RUN:  FileCheck %s -check-prefixes=LLVM_SPIRV_R
 // LLVM_SPIRV_R: clang-linker-wrapper{{.*}}
