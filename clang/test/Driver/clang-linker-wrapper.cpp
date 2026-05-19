@@ -2,9 +2,9 @@
 // -------
 // Generate .o file as linker wrapper input.
 //
-// RUN: %clang %s -fsycl -fsycl-targets=spir64-unknown-unknown -c --offload-new-driver -o %t.o
-// RUN: %clang %s -fsycl -fsycl-targets=intel_gpu_pvc -c --offload-new-driver -o %t_aot_gpu.o
-// RUN: %clang %s -fsycl -fsycl-targets=spir64_x86_64 -c --offload-new-driver -o %t_aot_cpu.o
+// RUN: %clang %s -fsycl -fsycl-targets=spir64-unknown-unknown -c --offload-new-driver --no-offloadlib -o %t.o
+// RUN: %clang %s -fsycl -fsycl-targets=intel_gpu_pvc -c --offload-new-driver --no-offloadlib -o %t_aot_gpu.o
+// RUN: %clang %s -fsycl -fsycl-targets=spir64_x86_64 -c --offload-new-driver --no-offloadlib -o %t_aot_cpu.o
 // RUN: %clang %s -fsycl -fsycl-targets=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_50 -nocudalib -fno-sycl-libspirv -c --offload-new-driver -o %t_nvptx.o
 // RUN: %clang %s -fsycl -fsycl-targets=amdgcn-amd-amdhsa -Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=gfx803 -fgpu-rdc -nogpulib -fno-sycl-libspirv -c --offload-new-driver -o %t_amdgcn.o
 // RUN: %clang %s -fsycl -fsycl-targets=native_cpu -fno-sycl-libspirv -c --offload-new-driver -o %t_native_cpu.o
@@ -104,7 +104,7 @@
 // -------
 // Generate .o file as linker wrapper input.
 //
-// RUN: %clang %s -fsycl -fsycl-targets=intel_gpu_pvc -c --offload-new-driver -o %t1.o
+// RUN: %clang %s -fsycl -fsycl-targets=intel_gpu_pvc -c --offload-new-driver --no-offloadlib -o %t1.o
 //
 // Generate .bc file as SYCL device library file.
 //
@@ -135,7 +135,7 @@
 // -------
 // Generate .o file as linker wrapper input.
 //
-// RUN: %clang %s -fsycl -fsycl-targets=spir64_x86_64 -c --offload-new-driver -o %t2.o
+// RUN: %clang %s -fsycl -fsycl-targets=spir64_x86_64 -c --offload-new-driver --no-offloadlib -o %t2.o
 //
 // Generate .bc file as SYCL device library file.
 //
@@ -250,7 +250,7 @@
 // -------
 // Generate .o file as linker wrapper input.
 //
-// RUN: %clang %s -fsycl -fsycl-targets=spir64-unknown-unknown -c --offload-new-driver -o %t5.o
+// RUN: %clang %s -fsycl -fsycl-targets=spir64-unknown-unknown -c --offload-new-driver --no-offloadlib -o %t5.o
 //
 // RUN: clang-linker-wrapper -sycl-post-link-options="SYCL_POST_LINK_OPTIONS" -llvm-spirv-options="LLVM_SPIRV_OPTIONS" "--host-triple=x86_64-unknown-linux-gnu" "--linker-path=/usr/bin/ld" "--" HOST_LINKER_FLAGS "-dynamic-linker" HOST_DYN_LIB "-o" "a.out" HOST_LIB_PATH HOST_STAT_LIB %t5.o --bitcode-library=spir64-unknown-unknown=%S/Inputs/SYCL/lib/libsycl-crt.bc -sycl-device-library-location=%S/Inputs/SYCL/lib --dry-run 2>&1 | FileCheck -check-prefix=CHK-CMDS-DEVICE-LIB-DIR %s
 // CHK-CMDS-DEVICE-LIB-DIR: spirv-to-ir-wrapper{{.*}} --llvm-spirv-opts --spirv-preserve-auxdata --spirv-target-env=SPV-IR --spirv-builtin-format=global

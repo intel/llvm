@@ -1,10 +1,10 @@
 // Test SYCL -foffload-fp32-prec-div
 
-// RUN: %clang -### -fsycl --offload-new-driver \
+// RUN: %clang -### -fsycl --offload-new-driver --no-offloadlib \
 // RUN:    -fsycl-targets=spir64_gen -foffload-fp32-prec-div %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=AOT %s
 
-// RUN: %clang -### -fsycl --offload-new-driver \
+// RUN: %clang -### -fsycl --offload-new-driver --no-offloadlib \
 // RUN:   -foffload-fp32-prec-div %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=JIT %s
 

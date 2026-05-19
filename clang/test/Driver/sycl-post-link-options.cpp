@@ -1,12 +1,12 @@
 /// Verify same set of sycl-post-link options generated for old and new offloading model
 // RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl -### \
-// RUN:          --no-offload-new-driver -Xdevice-post-link -O0 %s --sysroot=%S/Inputs/SYCL 2>&1 \
+// RUN:          --no-offload-new-driver --no-offloadlib -Xdevice-post-link -O0 %s --sysroot=%S/Inputs/SYCL 2>&1 \
 // RUN:   | FileCheck -check-prefix OPTIONS_POSTLINK_JIT_OLD %s
 // OPTIONS_POSTLINK_JIT_OLD: sycl-post-link{{.*}} "-O2" "-device-globals" "--device-lib-dir={{.*}}" "-properties" "-spec-const=native" "-emit-only-kernels-as-entry-points" "-emit-param-info" "-symbols" "-emit-exported-symbols" "-emit-imported-symbols" "-split-esimd" "-lower-esimd" "-O0"
 //
 // Generate .o file as linker wrapper input.
 //
-// RUN: %clang %s -fsycl -fsycl-targets=spir64-unknown-unknown -c --offload-new-driver -o %t.o
+// RUN: %clang %s -fsycl -fsycl-targets=spir64-unknown-unknown -c --offload-new-driver --no-offloadlib -o %t.o
 //
 // Generate .bc file as SYCL device library file.
 //
@@ -28,26 +28,26 @@
 // RUN:   --linker-path=/usr/bin/ld %t.o -o a.out 2>&1 | FileCheck --check-prefix OPTIONS_POSTLINK_JIT_NEW_SYCLBIN %s
 // OPTIONS_POSTLINK_JIT_NEW_SYCLBIN: sycl-post-link{{.*}} -spec-const=native -properties -emit-only-kernels-as-entry-points -emit-param-info -symbols -emit-kernel-names -emit-exported-symbols -emit-imported-symbols -split-esimd -lower-esimd -O2 -device-globals -O0
 //
-// Ensure driver forwards these triple based options to clang-linker-wrapper.
+// Ensure driver --no-offloadlib forwards these triple based options to clang-linker-wrapper.
 // 
-// RUN: %clangxx %s -### -fsycl --offload-new-driver \
+// RUN: %clangxx %s -### -fsycl --offload-new-driver --no-offloadlib \
 // RUN:   -fsycl-remove-unused-external-funcs \
 // RUN:   -fsycl-device-code-split-esimd \
 // RUN:   -fsycl-add-default-spec-consts-image \
 // RUN:   2>&1 | FileCheck --check-prefix=OPTIONS_FORWARD %s
-// RUN: %clang_cl %s -### -fsycl --offload-new-driver \
+// RUN: %clang_cl %s -### -fsycl --offload-new-driver --no-offloadlib \
 // RUN:   -fsycl-remove-unused-external-funcs \
 // RUN:   -fsycl-device-code-split-esimd \
 // RUN:   -fsycl-add-default-spec-consts-image \
 // RUN:   2>&1 | FileCheck --check-prefix=OPTIONS_FORWARD %s
 // OPTIONS_FORWARD: clang-linker-wrapper{{.*}} "-sycl-remove-unused-external-funcs" "-sycl-device-code-split-esimd" "-sycl-add-default-spec-consts-image"
 //
-// RUN: %clangxx %s -### -fsycl --offload-new-driver \
+// RUN: %clangxx %s -### -fsycl --offload-new-driver --no-offloadlib \
 // RUN:   -fno-sycl-remove-unused-external-funcs \
 // RUN:   -fno-sycl-device-code-split-esimd \
 // RUN:   -fno-sycl-add-default-spec-consts-image \
 // RUN:   2>&1 | FileCheck --check-prefix=OPTIONS_FORWARD_NO %s
-// RUN: %clang_cl %s -### -fsycl --offload-new-driver \
+// RUN: %clang_cl %s -### -fsycl --offload-new-driver --no-offloadlib \
 // RUN:   -fno-sycl-remove-unused-external-funcs \
 // RUN:   -fno-sycl-device-code-split-esimd \
 // RUN:   -fno-sycl-add-default-spec-consts-image \
@@ -72,7 +72,7 @@
 // 
 // Generate AOT .o file as linker wrapper input.
 //
-// RUN: %clang %s -fsycl -fsycl-targets=spir64_gen-unknown-unknown -c --offload-new-driver -o %t_aot.o
+// RUN: %clang %s -fsycl -fsycl-targets=spir64_gen-unknown-unknown -c --offload-new-driver --no-offloadlib -o %t_aot.o
 //
 // Generate AOT .bc file as SYCL device library file.
 //

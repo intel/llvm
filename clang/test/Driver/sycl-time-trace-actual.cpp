@@ -9,7 +9,7 @@
 // RUN: cp %s %t/src/test.cpp
 
 // Test 1: Compile-only mode with explicit trace directory
-// RUN: %clang --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver \
+// RUN: %clang --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver --no-offloadlib \
 // RUN:   -c -ftime-trace=%t/traces -ftime-trace-granularity=0 \
 // RUN:   -ftime-trace-verbose %t/src/test.cpp -o %t/test.o
 
@@ -26,7 +26,7 @@
 // Test 2: Verify trace file naming with -o option
 // When using -c with -o, trace files should be named based on the -o output
 // RUN: rm -rf %t/traces2 && mkdir -p %t/traces2
-// RUN: %clang --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver \
+// RUN: %clang --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver --no-offloadlib \
 // RUN:   -c -ftime-trace=%t/traces2 %t/src/test.cpp -o %t/different_name.o
 
 // Should be named after the -o output (different_name), not the source (test.cpp)
@@ -37,7 +37,7 @@
 // Test 3: Compile and link mode
 // In compile+link mode, trace files are named based on source file
 // RUN: rm -rf %t/traces3 && mkdir -p %t/traces3
-// RUN: %clang --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver \
+// RUN: %clang --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver --no-offloadlib \
 // RUN:   -ftime-trace=%t/traces3 %t/src/test.cpp -o %t/myapp
 
 // Frontend traces should still be generated (named after source file)
@@ -49,7 +49,7 @@
 // RUN: rm -rf %t/traces4 && mkdir -p %t/traces4 %t/src2
 // RUN: cp %s %t/src2/file1.cpp
 // RUN: cp %s %t/src2/file2.cpp
-// RUN: %clang --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver \
+// RUN: %clang --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver --no-offloadlib \
 // RUN:   -c -ftime-trace=%t/traces4 %t/src2/file1.cpp %t/src2/file2.cpp
 
 // Should have clean trace file names since basenames are unique
@@ -64,7 +64,7 @@
 // RUN: rm -rf %t/traces5 && mkdir -p %t/traces5 %t/dir1 %t/dir2
 // RUN: cp %s %t/dir1/test.cpp
 // RUN: cp %s %t/dir2/test.cpp
-// RUN: %clang --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver \
+// RUN: %clang --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver --no-offloadlib \
 // RUN:   -c -ftime-trace=%t/traces5 %t/dir1/test.cpp %t/dir2/test.cpp
 
 // Should have 4 trace files (2 sources × 2 traces each)
