@@ -9,6 +9,9 @@
 
 // clang-format off
 
+// UNSUPPORTED: windows && arch-intel_gpu_bmg_g21
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21986
+
 /*
     Run ALL the vulkan formats through the gauntlet. sampled and unsampled.
     This entire test takes less than 30 seconds on a slow machine.  MUCH faster

@@ -9,6 +9,9 @@
 // UNSUPPORTED: gpu-intel-gen12
 // UNSUPPORTED-TRACKER: GSD-12427
 
+// UNSUPPORTED: arch-intel_gpu_bmg_g21
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22028
+
 // RUN: %{build} %link-directx -o %t.exe %if target-spir %{ -Wno-ignored-attributes %}
 // RUN: %{run} %t.exe --no-sem
 // RUN: %{run} %t.exe

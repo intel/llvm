@@ -1,5 +1,5 @@
 // Generate .bc file as SYCL device library file.
-// REQUIRES: system-linux
+// REQUIRES: system-linux, libdevice
 //
 // RUN: touch %t.devicelib.bc
 

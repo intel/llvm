@@ -25,17 +25,29 @@ using namespace llvm::opt;
 SYCLInstallationDetector::SYCLInstallationDetector(
     const Driver &D, const llvm::Triple &HostTriple,
     const llvm::opt::ArgList &Args)
-    : D(D), InstallationCandidates() {
-  // Detect the presence of the SYCL runtime library (libsycl.so) in the
-  // filesystem. This is used to determine whether a usable SYCL installation
-  // is available for the current driver invocation.
+    : D(D), InstallationCandidates()  {
+  // When -fsycl is active, locate the SYCL runtime library and record its
+  // directory in SYCLRTLibPath for use by the linker.
   StringRef SysRoot = D.SysRoot;
   SmallString<128> DriverDir(D.Dir);
+  SmallString<128> LibPath(DriverDir);
+  llvm::sys::path::append(LibPath, "..", "lib", HostTriple.str(),
+                          "libsycl.so");
+  // Flat lib path for LLVM_ENABLE_PER_TARGET_RUNTIME_DIR=OFF builds,
+  // where the library is installed directly in lib/ with no triple subdir.
+  SmallString<128> FlatLibPath(DriverDir);
+  llvm::sys::path::append(FlatLibPath, "..", "lib", "libsycl.so");
+
   if (DriverDir.starts_with(SysRoot) &&
-      (Args.hasArg(options::OPT_fsycl) ||
-       D.getVFS().exists(DriverDir + "/../lib/libsycl.so"))) {
-    llvm::sys::path::append(DriverDir, "..", "lib");
-    SYCLRTLibPath = DriverDir;
+      Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false)) {
+    // LLVM_ENABLE_PER_TARGET_RUNTIME_DIR=ON: library is in lib/<triple>/
+    if (D.getVFS().exists(LibPath))
+      llvm::sys::path::append(DriverDir, "..", "lib", HostTriple.str());
+    // LLVM_ENABLE_PER_TARGET_RUNTIME_DIR=OFF: library is in lib/
+    else if (D.getVFS().exists(FlatLibPath))
+      llvm::sys::path::append(DriverDir, "..", "lib");
+    if (!DriverDir.equals(D.Dir))
+      SYCLRTLibPath = DriverDir;
   }
   InstallationCandidates.emplace_back(D.Dir + "/..");
 }
@@ -588,17 +600,11 @@ SYCLToolChain::getDeviceLibNames(const Driver &D,
   }
 
   using SYCLDeviceLibsList = SmallVector<StringRef>;
-  const SYCLDeviceLibsList SYCLDeviceLibs = {"libsycl-crt",
-                                             "libsycl-cmath",
+  const SYCLDeviceLibsList SYCLDeviceLibs = {"libsycl-crt", "libsycl-cmath",
 #if defined(_WIN32)
                                              "libsycl-msvc-math",
 #endif
-                                             "libsycl-imf",
-                                             "libsycl-imf-fp64",
-                                             "libsycl-imf-bf16",
-                                             "libsycl-fallback-imf",
-                                             "libsycl-fallback-imf-fp64",
-                                             "libsycl-fallback-imf-bf16"};
+                                             "libsycl-imf"};
   auto addLibraries = [&](const SYCLDeviceLibsList &LibsList) {
     for (const StringRef &Lib : LibsList)
       addLibToList(Args.MakeArgString(Lib + ".bc"));
@@ -757,14 +763,9 @@ static llvm::SmallVector<StringRef, 16> SYCLDeviceLibList{
     "tsan-cpu",
 #endif
     "imf",
-    "imf-fp64",
-    "imf-bf16",
     "itt-compiler-wrappers",
     "itt-stubs",
     "itt-user-wrappers",
-    "fallback-imf",
-    "fallback-imf-fp64",
-    "fallback-imf-bf16",
     "fallback-bfloat16",
     "native-bfloat16"};
 
