@@ -677,6 +677,7 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
   add(CapabilityFMAKHR, "FMAKHR");
   add(CapabilityPredicatedIOINTEL, "PredicatedIOINTEL");
   add(CapabilityAbortKHR, "AbortKHR");
+  add(CapabilityPoisonFreezeKHR, "PoisonFreezeKHR");
   // From spirv_internal.hpp
   add(internal::CapabilityOptNoneINTEL, "OptNoneINTEL");
   add(internal::CapabilityTokenTypeINTEL, "TokenTypeINTEL");

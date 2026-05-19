@@ -528,6 +528,10 @@ public:
                                                  SPIRVBasicBlock *BB) = 0;
   virtual SPIRVInstruction *addAbortKHRInst(SPIRVValue *Message,
                                             SPIRVBasicBlock *BB) = 0;
+  virtual SPIRVValue *addPoisonKHR(SPIRVType *TheType) = 0;
+  virtual SPIRVInstruction *addFreezeKHRInst(SPIRVType *TheType,
+                                             SPIRVValue *Value,
+                                             SPIRVBasicBlock *BB) = 0;
   virtual SPIRVInstruction *addExpectKHRInst(SPIRVType *ResultTy,
                                              SPIRVValue *Value,
                                              SPIRVValue *ExpectedValue,

@@ -315,6 +315,7 @@ template <> inline void SPIRVMap<SPIRVExecutionModeKind, SPIRVCapVec>::init() {
                {CapabilityRegisterLimitsINTEL});
   ADD_VEC_INIT(ExecutionModeNamedMaximumRegistersINTEL,
                {CapabilityRegisterLimitsINTEL});
+  ADD_VEC_INIT(ExecutionModeArithmeticPoisonKHR, {CapabilityPoisonFreezeKHR});
 }
 
 template <> inline void SPIRVMap<SPIRVMemoryModelKind, SPIRVCapVec>::init() {

@@ -1722,6 +1722,16 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
   case OpUndef:
     return mapValue(BV, UndefValue::get(transType(BV->getType())));
 
+  case OpPoisonKHR:
+    return mapValue(BV, PoisonValue::get(transType(BV->getType())));
+
+  case OpFreezeKHR: {
+    auto *BI = static_cast<SPIRVInstTemplateBase *>(BV);
+    Value *Operand = transValue(BI->getOperand(0), F, BB);
+    IRBuilder<> Builder(BB);
+    return mapValue(BV, Builder.CreateFreeze(Operand, BV->getName()));
+  }
+
   case OpSizeOf: {
     Type *ResTy = transType(BV->getType());
     auto *BI = static_cast<SPIRVSizeOf *>(BV);
@@ -5068,6 +5078,16 @@ bool SPIRVToLLVM::transMetadata() {
       assert(EM->getLiterals()[0] == 0 &&
              "Invalid named maximum number of registers");
       ValueVec.push_back(MDString::get(*Context, "AutoINTEL"));
+      ExecModeMD->addOperand(MDNode::get(*Context, ValueVec));
+    }
+    if (auto *EM = BF->getExecutionMode(ExecutionModeArithmeticPoisonKHR)) {
+      NamedMDNode *ExecModeMD =
+          M->getOrInsertNamedMetadata(kSPIRVMD::ExecutionMode);
+
+      SmallVector<Metadata *, 2> ValueVec;
+      ValueVec.push_back(ConstantAsMetadata::get(F));
+      ValueVec.push_back(
+          ConstantAsMetadata::get(getUInt32(M, EM->getExecutionMode())));
       ExecModeMD->addOperand(MDNode::get(*Context, ValueVec));
     }
   }

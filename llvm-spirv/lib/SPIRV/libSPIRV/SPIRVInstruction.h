@@ -4789,5 +4789,19 @@ public:
 typedef SPIRVInstTemplate<SPIRVFmaKHRInstBase, OpFmaKHR, true, 6, false>
     SPIRVFmaKHR;
 
+class SPIRVFreezeKHRInstBase : public SPIRVInstTemplateBase {
+public:
+  SPIRVCapVec getRequiredCapability() const override {
+    return getVec(CapabilityPoisonFreezeKHR);
+  }
+
+  std::optional<ExtensionID> getRequiredExtension() const override {
+    return ExtensionID::SPV_KHR_poison_freeze;
+  }
+};
+
+typedef SPIRVInstTemplate<SPIRVFreezeKHRInstBase, OpFreezeKHR, true, 4, false>
+    SPIRVFreezeKHR;
+
 } // namespace SPIRV
 #endif // SPIRV_LIBSPIRV_SPIRVINSTRUCTION_H

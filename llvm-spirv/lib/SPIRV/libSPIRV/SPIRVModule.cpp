@@ -546,6 +546,9 @@ public:
                                                   llvm::MDNode *MD) override;
   SPIRVInstruction *addAssumeTrueKHRInst(SPIRVValue *Condition,
                                          SPIRVBasicBlock *BB) override;
+  SPIRVValue *addPoisonKHR(SPIRVType *TheType) override;
+  SPIRVInstruction *addFreezeKHRInst(SPIRVType *TheType, SPIRVValue *Value,
+                                     SPIRVBasicBlock *BB) override;
   SPIRVInstruction *addAbortKHRInst(SPIRVValue *Message,
                                     SPIRVBasicBlock *BB) override;
   SPIRVInstruction *addExpectKHRInst(SPIRVType *ResultTy, SPIRVValue *Value,
@@ -2033,6 +2036,19 @@ SPIRVInstruction *SPIRVModuleImpl::addAssumeTrueKHRInst(SPIRVValue *Condition,
 SPIRVInstruction *SPIRVModuleImpl::addAbortKHRInst(SPIRVValue *Message,
                                                    SPIRVBasicBlock *BB) {
   return addInstruction(new SPIRVAbortKHR(Message, BB), BB);
+}
+
+SPIRVValue *SPIRVModuleImpl::addPoisonKHR(SPIRVType *TheType) {
+  return addConstant(new SPIRVPoisonKHR(this, TheType, getId()));
+}
+
+SPIRVInstruction *SPIRVModuleImpl::addFreezeKHRInst(SPIRVType *TheType,
+                                                    SPIRVValue *Value,
+                                                    SPIRVBasicBlock *BB) {
+  return addInstruction(
+      SPIRVInstTemplateBase::create(OpFreezeKHR, TheType, getId(),
+                                    getVec(Value->getId()), BB, this),
+      BB);
 }
 
 SPIRVInstruction *SPIRVModuleImpl::addExpectKHRInst(SPIRVType *ResultTy,
