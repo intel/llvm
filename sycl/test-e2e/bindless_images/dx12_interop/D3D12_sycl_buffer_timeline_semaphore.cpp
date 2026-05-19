@@ -116,11 +116,15 @@ int main(int argc, char **argv) {
 
   // SYCL INTEROP
   try {
-    // External semaphore ops require an in-order queue backed by immediate
-    // command lists (see sycl_ext_oneapi_bindless_images.asciidoc).
-    sycl::queue q{
-        {sycl::property::queue::in_order{},
-         sycl::ext::intel::property::queue::immediate_command_list{}}};
+    // Bindless image interop requires an in-order queue (per spec). External
+    // semaphore ops additionally require immediate command lists; see
+    // sycl_ext_oneapi_bindless_images.asciidoc.
+    sycl::property_list qProps =
+        useSemaphores ? sycl::property_list{sycl::property::queue::in_order{},
+                                            sycl::ext::intel::property::queue::
+                                                immediate_command_list{}}
+                      : sycl::property_list{sycl::property::queue::in_order{}};
+    sycl::queue q{qProps};
     auto device = q.get_device();
     auto context = q.get_context();
 

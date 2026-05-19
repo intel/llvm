@@ -204,11 +204,15 @@ int runTest(
 
   // SYCL Import and Verification
   try {
-    // External semaphore ops require an in-order queue backed by immediate
-    // command lists (see sycl_ext_oneapi_bindless_images.asciidoc).
-    sycl::queue q{
-        {sycl::property::queue::in_order{},
-         sycl::ext::intel::property::queue::immediate_command_list{}}};
+    // Bindless image interop requires an in-order queue (per spec). External
+    // semaphore ops additionally require immediate command lists; see
+    // sycl_ext_oneapi_bindless_images.asciidoc.
+    sycl::property_list qProps =
+        useSemaphores ? sycl::property_list{sycl::property::queue::in_order{},
+                                            sycl::ext::intel::property::queue::
+                                                immediate_command_list{}}
+                      : sycl::property_list{sycl::property::queue::in_order{}};
+    sycl::queue q{qProps};
 
     syclexp::external_mem_descriptor<syclexp::resource_win32_handle> extMemDesc{
         imgRes.sharedHandle, syclexp::external_mem_handle_type::win32_nt_handle,
