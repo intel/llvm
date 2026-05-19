@@ -1,4 +1,5 @@
-//==------- SYCLBINSerializeMulti.cpp - Multi-image SYCLBIN serialize tests -==//
+//==------- SYCLBINSerializeMulti.cpp - Multi-image SYCLBIN serialize tests
+//-==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -63,8 +64,8 @@ TEST(SYCLBINSerializeMulti, OneAbstractModulePerImage) {
       sycl::get_kernel_id<SYCLBINSerializeMultiKernelA>(),
       sycl::get_kernel_id<SYCLBINSerializeMultiKernelB>(),
       sycl::get_kernel_id<SYCLBINSerializeMultiKernelC>()};
-  auto KB = sycl::get_kernel_bundle<sycl::bundle_state::executable>(
-      Ctx, {Dev}, KIDs);
+  auto KB =
+      sycl::get_kernel_bundle<sycl::bundle_state::executable>(Ctx, {Dev}, KIDs);
 
   std::vector<char> Bytes =
       sycl::detail::getSyclObjImpl(KB)->ext_oneapi_get_content();
