@@ -604,8 +604,7 @@ SYCLToolChain::getDeviceLibNames(const Driver &D,
 #if defined(_WIN32)
                                              "libsycl-msvc-math",
 #endif
-                                             "libsycl-imf",
-                                             "libm"};
+                                             "libsycl-imf", "libm"};
   auto addLibraries = [&](const SYCLDeviceLibsList &LibsList) {
     for (const StringRef &Lib : LibsList)
       addLibToList(Args.MakeArgString(Lib + ".bc"));
