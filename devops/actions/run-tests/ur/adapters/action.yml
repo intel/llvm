@@ -16,8 +16,15 @@ runs:
       ZE_ENABLE_LOADER_DEBUG_TRACE: 1
       LIT_OPTS: "--show-unsupported --show-pass --show-xfail --no-progress-bar --succinct --timeout 120 -j 50"
     run: |
+      BUILD_DIR="${{ inputs.build_dir }}"
+      if [[ "$BUILD_DIR" =~ [^a-zA-Z0-9/_-] ]] || [[ "$BUILD_DIR" =~ \.\. ]]; then
+        echo "::error::Invalid build_dir: contains disallowed characters or path traversal"
+        exit 1
+      fi
+      
       echo "::group::Show Full Test Adapters Logs"
-      cmake --build ${{ inputs.build_dir }} -j $(($(nproc)/3)) -- check-unified-runtime-conformance 2>&1 | tee conformance_tests.log
+      # Use 1/3 of CPUs to avoid OOM on resource-constrained runners
+      cmake --build "$BUILD_DIR" -j $(($(nproc)/3)) -- check-unified-runtime-conformance 2>&1 | tee conformance_tests.log
       echo "::endgroup::"
   
   - name: Report conformance failures

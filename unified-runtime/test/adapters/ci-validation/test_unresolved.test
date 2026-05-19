@@ -1,0 +1,9 @@
+// Copyright (C) 2025 Intel Corporation
+// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
+// RUN: python3 %S/nonexistent_script.py | FileCheck %s
+// CHECK: This will never match
+
+// This test references a non-existent script, causing infrastructure failure.
+// It should appear in "Unresolved Tests" category in CI logs.

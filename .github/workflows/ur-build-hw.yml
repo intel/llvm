@@ -158,42 +158,52 @@ jobs:
         fi
         
         echo "=== Adapter Tests Statistics ==="
-        awk '/^(Total Discovered|Expected Passes|Expected Failures|Unsupported|Passed|Failed|Timed Out|Unexpectedly Passed|Unresolved) (Tests)?:?/ {print}' adapter_tests.log
+        awk '/^ *(Total Discovered|Expected Passes|Expected Failures|Unsupported|Skipped|Passed|Failed|Timed Out|Unexpectedly Passed|Unresolved) *(Tests)? *:/ {print}' adapter_tests.log
         echo ""
         
         if grep -q "^Passed Tests ([0-9]\+):" adapter_tests.log; then
-          count=$(grep "^Passed Tests ([0-9]\+):" adapter_tests.log | sed 's/Passed Tests (\([0-9]\+\)):/\1/')
-          echo "::group::Passed Tests ($count)"
-          awk '/^Passed Tests \([0-9]+\):/ {flag=1; next} /^$/ {flag=0} flag' adapter_tests.log
-          echo "::endgroup::"
+          count=$(grep "^Passed Tests ([0-9]\+):" adapter_tests.log | sed 's/Passed Tests (\([0-9]\+\)):/\1/' | head -1)
+          if [[ "$count" =~ ^[0-9]+$ ]]; then
+            echo "::group::Passed Tests ($count)"
+            awk '/^Passed Tests \([0-9]+\):/ {flag=1; next} /^$/ {flag=0} flag' adapter_tests.log
+            echo "::endgroup::"
+          fi
         fi
         
         if grep -q "^Unsupported Tests ([0-9]\+):" adapter_tests.log; then
-          count=$(grep "^Unsupported Tests ([0-9]\+):" adapter_tests.log | sed 's/Unsupported Tests (\([0-9]\+\)):/\1/')
-          echo "::group::Unsupported Tests ($count)"
-          awk '/^Unsupported Tests \([0-9]+\):/ {flag=1; next} /^$/ {flag=0} flag' adapter_tests.log
-          echo "::endgroup::"
+          count=$(grep "^Unsupported Tests ([0-9]\+):" adapter_tests.log | sed 's/Unsupported Tests (\([0-9]\+\)):/\1/' | head -1)
+          if [[ "$count" =~ ^[0-9]+$ ]]; then
+            echo "::group::Unsupported Tests ($count)"
+            awk '/^Unsupported Tests \([0-9]+\):/ {flag=1; next} /^$/ {flag=0} flag' adapter_tests.log
+            echo "::endgroup::"
+          fi
         fi
         
         if grep -q "^Failed Tests ([0-9]\+):" adapter_tests.log; then
-          count=$(grep "^Failed Tests ([0-9]\+):" adapter_tests.log | sed 's/Failed Tests (\([0-9]\+\)):/\1/')
-          echo "::group::Failed Tests ($count)"
-          awk '/^Failed Tests \([0-9]+\):/ {flag=1; next} /^$/ {flag=0} flag' adapter_tests.log
-          echo "::endgroup::"
+          count=$(grep "^Failed Tests ([0-9]\+):" adapter_tests.log | sed 's/Failed Tests (\([0-9]\+\)):/\1/' | head -1)
+          if [[ "$count" =~ ^[0-9]+$ ]]; then
+            echo "::group::Failed Tests ($count)"
+            awk '/^Failed Tests \([0-9]+\):/ {flag=1; next} /^$/ {flag=0} flag' adapter_tests.log
+            echo "::endgroup::"
+          fi
         fi
         
         if grep -q "^Timed Out Tests ([0-9]\+):" adapter_tests.log; then
-          count=$(grep "^Timed Out Tests ([0-9]\+):" adapter_tests.log | sed 's/Timed Out Tests (\([0-9]\+\)):/\1/')
-          echo "::group::Timed Out Tests ($count)"
-          awk '/^Timed Out Tests \([0-9]+\):/ {flag=1; next} /^$/ {flag=0} flag' adapter_tests.log
-          echo "::endgroup::"
+          count=$(grep "^Timed Out Tests ([0-9]\+):" adapter_tests.log | sed 's/Timed Out Tests (\([0-9]\+\)):/\1/' | head -1)
+          if [[ "$count" =~ ^[0-9]+$ ]]; then
+            echo "::group::Timed Out Tests ($count)"
+            awk '/^Timed Out Tests \([0-9]+\):/ {flag=1; next} /^$/ {flag=0} flag' adapter_tests.log
+            echo "::endgroup::"
+          fi
         fi
         
         if grep -q "^Unexpectedly Passed Tests ([0-9]\+):" adapter_tests.log; then
-          count=$(grep "^Unexpectedly Passed Tests ([0-9]\+):" adapter_tests.log | sed 's/Unexpectedly Passed Tests (\([0-9]\+\)):/\1/')
-          echo "::group::Unexpectedly Passed Tests ($count)"
-          awk '/^Unexpectedly Passed Tests \([0-9]+\):/ {flag=1; next} /^$/ {flag=0} flag' adapter_tests.log
-          echo "::endgroup::"
+          count=$(grep "^Unexpectedly Passed Tests ([0-9]\+):" adapter_tests.log | sed 's/Unexpectedly Passed Tests (\([0-9]\+\)):/\1/' | head -1)
+          if [[ "$count" =~ ^[0-9]+$ ]]; then
+            echo "::group::Unexpectedly Passed Tests ($count)"
+            awk '/^Unexpectedly Passed Tests \([0-9]+\):/ {flag=1; next} /^$/ {flag=0} flag' adapter_tests.log
+            echo "::endgroup::"
+          fi
         fi
 
     - name: Test adapters
@@ -211,42 +221,52 @@ jobs:
         fi
         
         echo "=== Conformance Tests Statistics ==="
-        awk '/^(Total Discovered|Expected Passes|Expected Failures|Unsupported|Passed|Failed|Timed Out|Unexpectedly Passed|Unresolved) (Tests)?:?/ {print}' conformance_tests.log
+        awk '/^ *(Total Discovered|Expected Passes|Expected Failures|Unsupported|Skipped|Passed|Failed|Timed Out|Unexpectedly Passed|Unresolved) *(Tests)? *:/ {print}' conformance_tests.log
         echo ""
         
         if grep -q "^Passed Tests ([0-9]\+):" conformance_tests.log; then
-          count=$(grep "^Passed Tests ([0-9]\+):" conformance_tests.log | sed 's/Passed Tests (\([0-9]\+\)):/\1/')
-          echo "::group::Passed Tests ($count)"
-          awk '/^Passed Tests \([0-9]+\):/ {flag=1; next} /^$/ {flag=0} flag' conformance_tests.log
-          echo "::endgroup::"
+          count=$(grep "^Passed Tests ([0-9]\+):" conformance_tests.log | sed 's/Passed Tests (\([0-9]\+\)):/\1/' | head -1)
+          if [[ "$count" =~ ^[0-9]+$ ]]; then
+            echo "::group::Passed Tests ($count)"
+            awk '/^Passed Tests \([0-9]+\):/ {flag=1; next} /^$/ {flag=0} flag' conformance_tests.log
+            echo "::endgroup::"
+          fi
         fi
         
         if grep -q "^Unsupported Tests ([0-9]\+):" conformance_tests.log; then
-          count=$(grep "^Unsupported Tests ([0-9]\+):" conformance_tests.log | sed 's/Unsupported Tests (\([0-9]\+\)):/\1/')
-          echo "::group::Unsupported Tests ($count)"
-          awk '/^Unsupported Tests \([0-9]+\):/ {flag=1; next} /^$/ {flag=0} flag' conformance_tests.log
-          echo "::endgroup::"
+          count=$(grep "^Unsupported Tests ([0-9]\+):" conformance_tests.log | sed 's/Unsupported Tests (\([0-9]\+\)):/\1/' | head -1)
+          if [[ "$count" =~ ^[0-9]+$ ]]; then
+            echo "::group::Unsupported Tests ($count)"
+            awk '/^Unsupported Tests \([0-9]+\):/ {flag=1; next} /^$/ {flag=0} flag' conformance_tests.log
+            echo "::endgroup::"
+          fi
         fi
         
         if grep -q "^Failed Tests ([0-9]\+):" conformance_tests.log; then
-          count=$(grep "^Failed Tests ([0-9]\+):" conformance_tests.log | sed 's/Failed Tests (\([0-9]\+\)):/\1/')
-          echo "::group::Failed Tests ($count)"
-          awk '/^Failed Tests \([0-9]+\):/ {flag=1; next} /^$/ {flag=0} flag' conformance_tests.log
-          echo "::endgroup::"
+          count=$(grep "^Failed Tests ([0-9]\+):" conformance_tests.log | sed 's/Failed Tests (\([0-9]\+\)):/\1/' | head -1)
+          if [[ "$count" =~ ^[0-9]+$ ]]; then
+            echo "::group::Failed Tests ($count)"
+            awk '/^Failed Tests \([0-9]+\):/ {flag=1; next} /^$/ {flag=0} flag' conformance_tests.log
+            echo "::endgroup::"
+          fi
         fi
         
         if grep -q "^Timed Out Tests ([0-9]\+):" conformance_tests.log; then
-          count=$(grep "^Timed Out Tests ([0-9]\+):" conformance_tests.log | sed 's/Timed Out Tests (\([0-9]\+\)):/\1/')
-          echo "::group::Timed Out Tests ($count)"
-          awk '/^Timed Out Tests \([0-9]+\):/ {flag=1; next} /^$/ {flag=0} flag' conformance_tests.log
-          echo "::endgroup::"
+          count=$(grep "^Timed Out Tests ([0-9]\+):" conformance_tests.log | sed 's/Timed Out Tests (\([0-9]\+\)):/\1/' | head -1)
+          if [[ "$count" =~ ^[0-9]+$ ]]; then
+            echo "::group::Timed Out Tests ($count)"
+            awk '/^Timed Out Tests \([0-9]+\):/ {flag=1; next} /^$/ {flag=0} flag' conformance_tests.log
+            echo "::endgroup::"
+          fi
         fi
         
         if grep -q "^Unexpectedly Passed Tests ([0-9]\+):" conformance_tests.log; then
-          count=$(grep "^Unexpectedly Passed Tests ([0-9]\+):" conformance_tests.log | sed 's/Unexpectedly Passed Tests (\([0-9]\+\)):/\1/')
-          echo "::group::Unexpectedly Passed Tests ($count)"
-          awk '/^Unexpectedly Passed Tests \([0-9]+\):/ {flag=1; next} /^$/ {flag=0} flag' conformance_tests.log
-          echo "::endgroup::"
+          count=$(grep "^Unexpectedly Passed Tests ([0-9]\+):" conformance_tests.log | sed 's/Unexpectedly Passed Tests (\([0-9]\+\)):/\1/' | head -1)
+          if [[ "$count" =~ ^[0-9]+$ ]]; then
+            echo "::group::Unexpectedly Passed Tests ($count)"
+            awk '/^Unexpectedly Passed Tests \([0-9]+\):/ {flag=1; next} /^$/ {flag=0} flag' conformance_tests.log
+            echo "::endgroup::"
+          fi
         fi
 
     - name: Debug CI platform information
