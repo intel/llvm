@@ -14,7 +14,7 @@
 #include <sycl/detail/export.hpp>      // for __SYCL_EXPORT
 #include <sycl/detail/kernel_desc.hpp> // for kernel_param_kind_t
 #include <sycl/ext/oneapi/experimental/work_group_memory.hpp> // for work_group_memory
-#include <sycl/ext/oneapi/properties/properties.hpp> // for empty_properties_t
+#include <sycl/ext/oneapi/properties.hpp> // for empty_properties_t
 
 #include <functional> // for function
 #include <memory>     // for shared_ptr

@@ -504,10 +504,10 @@
 // CHECK-STD: clang{{.*}} "-emit-obj" {{.*}} "-std=c++17"
 
 // -std=c++17 override check
-// RUN: %clangxx -### -c -fsycl --offload-new-driver -std=c++14 -xc++ %s 2>&1 | FileCheck -check-prefix=CHECK-STD-OVR %s
-// RUN: %clang_cl -### -c -fsycl --offload-new-driver /std:c++14 -TP %s 2>&1 | FileCheck -check-prefix=CHECK-STD-OVR %s
-// CHECK-STD-OVR: clang{{.*}} "-emit-llvm-bc" {{.*}} "-std=c++14"
-// CHECK-STD-OVR: clang{{.*}} "-emit-obj" {{.*}} "-std=c++14"
+// RUN: %clangxx -### -c -fsycl --offload-new-driver -std=c++20 -xc++ %s 2>&1 | FileCheck -check-prefix=CHECK-STD-OVR %s
+// RUN: %clang_cl -### -c -fsycl --offload-new-driver /std:c++20 -TP %s 2>&1 | FileCheck -check-prefix=CHECK-STD-OVR %s
+// CHECK-STD-OVR: clang{{.*}} "-emit-llvm-bc" {{.*}} "-std=c++20"
+// CHECK-STD-OVR: clang{{.*}} "-emit-obj" {{.*}} "-std=c++20"
 // CHECK-STD-OVR-NOT: clang{{.*}} "-std=c++17"
 
 // Check sycl-post-link optimization level.

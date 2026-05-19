@@ -8,9 +8,9 @@
 #include <string>
 #include <vector>
 
-#define MAX_BACKTRACE_FRAMES 64
-
 namespace ur {
+
+static constexpr int MaxBacktraceFrames = 64;
 
 using BacktraceLine = std::string;
 std::vector<BacktraceLine> getCurrentBacktrace();

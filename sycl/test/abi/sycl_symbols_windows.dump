@@ -215,6 +215,17 @@
 ??$get_info_impl@Uxe_cores_per_cluster@device@info@intel@ext@_V1@sycl@@@device@_V1@sycl@@AEBAIXZ
 ??$get_info_impl@Uxe_regions_per_stack@device@info@intel@ext@_V1@sycl@@@device@_V1@sycl@@AEBAIXZ
 ??$get_info_impl@Uxe_stack_count@device@info@intel@ext@_V1@sycl@@@device@_V1@sycl@@AEBAIXZ
+??$get_kernel_info_impl@Ucompile_num_sub_groups@kernel_device_specific@info@_V1@sycl@@@detail@_V1@sycl@@YAIAEAVcontext_impl@012@AEAVdevice_impl@012@AEAVDeviceKernelInfo@012@@Z
+??$get_kernel_info_impl@Ucompile_sub_group_size@kernel_device_specific@info@_V1@sycl@@@detail@_V1@sycl@@YAIAEAVcontext_impl@012@AEAVdevice_impl@012@AEAVDeviceKernelInfo@012@@Z
+??$get_kernel_info_impl@Ucompile_work_group_size@kernel_device_specific@info@_V1@sycl@@@detail@_V1@sycl@@YA?AV?$range@$02@12@AEAVcontext_impl@012@AEAVdevice_impl@012@AEAVDeviceKernelInfo@012@@Z
+??$get_kernel_info_impl@Uext_codeplay_num_regs@kernel_device_specific@info@_V1@sycl@@@detail@_V1@sycl@@YAIAEAVcontext_impl@012@AEAVdevice_impl@012@AEAVDeviceKernelInfo@012@@Z
+??$get_kernel_info_impl@Uglobal_work_size@kernel_device_specific@info@_V1@sycl@@@detail@_V1@sycl@@YA?AV?$range@$02@12@AEAVcontext_impl@012@AEAVdevice_impl@012@AEAVDeviceKernelInfo@012@@Z
+??$get_kernel_info_impl@Umax_num_sub_groups@kernel_device_specific@info@_V1@sycl@@@detail@_V1@sycl@@YAIAEAVcontext_impl@012@AEAVdevice_impl@012@AEAVDeviceKernelInfo@012@@Z
+??$get_kernel_info_impl@Umax_sub_group_size@kernel_device_specific@info@_V1@sycl@@@detail@_V1@sycl@@YAIAEAVcontext_impl@012@AEAVdevice_impl@012@AEAVDeviceKernelInfo@012@@Z
+??$get_kernel_info_impl@Upreferred_work_group_size_multiple@kernel_device_specific@info@_V1@sycl@@@detail@_V1@sycl@@YA_KAEAVcontext_impl@012@AEAVdevice_impl@012@AEAVDeviceKernelInfo@012@@Z
+??$get_kernel_info_impl@Uprivate_mem_size@kernel_device_specific@info@_V1@sycl@@@detail@_V1@sycl@@YA_KAEAVcontext_impl@012@AEAVdevice_impl@012@AEAVDeviceKernelInfo@012@@Z
+??$get_kernel_info_impl@Uspill_memory_size@kernel_device_specific@info@intel@ext@_V1@sycl@@@detail@_V1@sycl@@YA_KAEAVcontext_impl@012@AEAVdevice_impl@012@AEAVDeviceKernelInfo@012@@Z
+??$get_kernel_info_impl@Uwork_group_size@kernel_device_specific@info@_V1@sycl@@@detail@_V1@sycl@@YA_KAEAVcontext_impl@012@AEAVdevice_impl@012@AEAVDeviceKernelInfo@012@@Z
 ??$get_profiling_info@Ucommand_end@event_profiling@info@_V1@sycl@@@event@_V1@sycl@@QEBA_KXZ
 ??$get_profiling_info@Ucommand_start@event_profiling@info@_V1@sycl@@@event@_V1@sycl@@QEBA_KXZ
 ??$get_profiling_info@Ucommand_submit@event_profiling@info@_V1@sycl@@@event@_V1@sycl@@QEBA_KXZ
@@ -3739,6 +3750,7 @@
 ?category@exception@_V1@sycl@@QEBAAEBVerror_category@std@@XZ
 ?checkNodePropertiesAndThrow@modifiable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@KAXAEBVproperty_list@67@@Z
 ?close@ipc_memory@experimental@oneapi@ext@_V1@sycl@@YAXPEAXAEBVcontext@56@@Z
+?close@memory@ipc@experimental@oneapi@ext@_V1@sycl@@YAXPEAXAEBVcontext@67@@Z
 ?code@exception@_V1@sycl@@QEBAAEBVerror_code@std@@XZ
 ?compile_from_source@detail@experimental@oneapi@ext@_V1@sycl@@YA?AV?$kernel_bundle@$00@56@AEAV?$kernel_bundle@$02@56@AEBV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@std@@AEBV?$vector@Vstring_view@detail@_V1@sycl@@V?$allocator@Vstring_view@detail@_V1@sycl@@@std@@@std@@PEAVstring@156@2@Z
 ?compile_impl@detail@_V1@sycl@@YA?AV?$shared_ptr@Vkernel_bundle_impl@detail@_V1@sycl@@@std@@AEBV?$kernel_bundle@$0A@@23@AEBV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@5@AEBVproperty_list@23@@Z
@@ -3950,6 +3962,7 @@
 ?get@device@_V1@sycl@@QEBAPEAU_cl_device_id@@XZ
 ?get@ipc_memory@experimental@oneapi@ext@_V1@sycl@@YA?AUhandle@123456@PEAXAEBVcontext@56@@Z
 ?get@kernel@_V1@sycl@@QEBAPEAU_cl_kernel@@XZ
+?get@memory@ipc@experimental@oneapi@ext@_V1@sycl@@YA?AUhandle@234567@PEAXAEBVcontext@67@@Z
 ?get@platform@_V1@sycl@@QEBAPEAU_cl_platform_id@@XZ
 ?get@queue@_V1@sycl@@QEBAPEAU_cl_command_queue@@XZ
 ?getAccData@AccessorBaseHost@detail@_V1@sycl@@QEAAAEAUAccHostDataT@234@XZ
@@ -3970,6 +3983,7 @@
 ?getDeviceBackend@handler@_V1@sycl@@AEBA?AW4backend@23@XZ
 ?getDeviceFromHandler@detail@_V1@sycl@@YA?AVdevice@23@AEAVhandler@23@@Z
 ?getDeviceKernelInfo@detail@_V1@sycl@@YAAEAVDeviceKernelInfo@123@AEBUCompileTimeKernelInfoTy@compile_time_kernel_info_v1@123@@Z
+?getDeviceKernelInfo@detail@_V1@sycl@@YAAEAVDeviceKernelInfo@123@V?$basic_string_view@DU?$char_traits@D@std@@@std@@@Z
 ?getElemSize@AccessorBaseHost@detail@_V1@sycl@@QEBAIXZ
 ?getElementSize@LocalAccessorBaseHost@detail@_V1@sycl@@QEAAHXZ
 ?getElementSize@SampledImageAccessorBaseHost@detail@_V1@sycl@@QEBAHXZ
@@ -4267,6 +4281,7 @@
 ?print_graph@modifiable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@IEBAXVstring_view@267@_N@Z
 ?print_graph@modifiable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@QEBAXV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@_N@Z
 ?put@ipc_memory@experimental@oneapi@ext@_V1@sycl@@YAXAEAUhandle@123456@AEBVcontext@56@@Z
+?put@memory@ipc@experimental@oneapi@ext@_V1@sycl@@YAXAEAUhandle@234567@AEBVcontext@67@@Z
 ?query@tls_code_loc_t@detail@_V1@sycl@@QEAAAEBUcode_location@234@XZ
 ?reduComputeWGSize@detail@_V1@sycl@@YA_K_K0AEA_K@Z
 ?reduGetMaxNumConcurrentWorkGroups@detail@_V1@sycl@@YAIAEAVhandler@23@@Z

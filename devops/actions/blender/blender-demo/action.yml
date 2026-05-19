@@ -5,17 +5,35 @@ inputs:
   blender_dir:
     description: 'Blender installation directory'
     required: true
-  blender_classroom_dir:
-    description: 'Blender classroom demo directory'
-    required: true
 runs:
   using: "composite"
   steps:
+    - name: Download Classroom Demo
+      shell: bash
+      run: |
+        CLASSROOM_URL="https://download.blender.org/demo/test/classroom.zip"
+        curl -L -o classroom.zip "$CLASSROOM_URL"
+        unzip -q classroom.zip
+        CLASSROOM_DIR="$PWD/classroom"
+        echo "CLASSROOM_DIR=$CLASSROOM_DIR" >> $GITHUB_ENV
+
+    - name: Setup environment (Linux)
+      shell: bash
+      if: runner.os == 'Linux'
+      env:
+        CCACHE_DIR_INPUT: ${{ inputs.ccache_dir }}
+      run: |
+       echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$OIDN_INSTALL_DIR/lib:$EMBREE_INSTALL_DIR/lib:$SYCL_INSTALL_DIR/lib:$BLENDER_INSTALL_DIR/lib" >> $GITHUB_ENV
+       # Shader compile takes ~20 minutes, so save the cache outside the Docker container so it can be reused.
+       # Entire program takes ~25 seconds with the cache.
+       # Windows doesn't use a container so we don't need to do anything.
+       echo "SYCL_CACHE_DIR=/__w/shader_cache/sycl" >> $GITHUB_ENV
+       echo "NEO_CACHE_DIR=/__w/shader_cache/level_zero" >> $GITHUB_ENV
+
     - name: Render Classroom Scene
       shell: bash
       env:
         BLENDER_DIR: ${{ inputs.blender_dir }}
-        CLASSROOM_DIR: ${{ inputs.blender_classroom_dir }}
+        BLENDER_EXE: blender${{ runner.os == 'Windows' && '.exe' || '' }}
       run: |
-        BLENDER_EXE="$BLENDER_DIR/blender$([[ "${{ runner.os }}" == "Windows" ]] && echo ".exe")"
-        "$BLENDER_EXE" -b -noaudio --debug-cycles --verbose 3 --engine CYCLES "$CLASSROOM_DIR/classroom.blend" -f 1 -- --cycles-device ONEAPI
+        "$BLENDER_DIR/$BLENDER_EXE" -b -noaudio --debug-cycles --verbose 3 --engine CYCLES "$CLASSROOM_DIR/classroom.blend" -f 1 -- --cycles-device ONEAPI
