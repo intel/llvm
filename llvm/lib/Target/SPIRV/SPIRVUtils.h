@@ -229,6 +229,23 @@ MachineBasicBlock::iterator getOpVariableMBBIt(MachineFunction &MF);
 // terminators and debug instructions.
 MachineBasicBlock::iterator getInsertPtValidEnd(MachineBasicBlock *MBB);
 
+<<<<<<< HEAD
+=======
+// Returns true if a pointer to the storage class can be casted to/from a
+// pointer to the Generic storage class.
+constexpr bool isGenericCastablePtr(SPIRV::StorageClass::StorageClass SC) {
+  switch (SC) {
+  case SPIRV::StorageClass::Workgroup:
+  case SPIRV::StorageClass::CrossWorkgroup:
+  case SPIRV::StorageClass::Function:
+  case SPIRV::StorageClass::CodeSectionINTEL:
+    return true;
+  default:
+    return false;
+  }
+}
+
+>>>>>>> cab2fdaf5a1009c78e1705ed9b1308f0b4b9a1fb
 // Convert a SPIR-V storage class to the corresponding LLVM IR address space.
 // TODO: maybe the following two functions should be handled in the subtarget
 // to allow for different OpenCL vs Vulkan handling.
