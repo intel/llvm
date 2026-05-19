@@ -330,7 +330,9 @@ void AggExprEmitter::withReturnValueSlot(
           RetAddr.isKnownNonNull());
     }
   } else {
-    RetAddr = CGF.CreateMemTempWithoutCast(RetTy, "tmp");
+    RetAddr = CGF.CGM.getCodeGenOpts().UseAllocaASForSrets
+                  ? CGF.CreateMemTempWithoutCast(RetTy, "tmp")
+                  : CGF.CreateMemTemp(RetTy, "tmp");
     if (CGF.EmitLifetimeStart(RetAddr.getBasePointer())) {
       LifetimeStartInst =
           cast<llvm::IntrinsicInst>(std::prev(Builder.GetInsertPoint()));
@@ -2195,7 +2197,9 @@ void CodeGenFunction::EmitAggExpr(const Expr *E, AggValueSlot Slot) {
 
 LValue CodeGenFunction::EmitAggExprToLValue(const Expr *E) {
   assert(hasAggregateEvaluationKind(E->getType()) && "Invalid argument!");
-  Address Temp = CreateMemTemp(E->getType());
+  Address Temp = CGM.getCodeGenOpts().UseAllocaASForSrets
+                     ? CreateMemTempWithoutCast(E->getType())
+                     : CreateMemTemp(E->getType());
   LValue LV = MakeAddrLValue(Temp, E->getType());
   EmitAggExpr(E, AggValueSlot::forLValue(LV, AggValueSlot::IsNotDestructed,
                                          AggValueSlot::DoesNotNeedGCBarriers,
