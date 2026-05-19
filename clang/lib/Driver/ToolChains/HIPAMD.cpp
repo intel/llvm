@@ -289,16 +289,15 @@ void HIPAMDToolChain::addClangTargetOptions(
     return; // No DeviceLibs for SPIR-V.
   }
 
-  if (DeviceOffloadingKind == Action::OFK_SYCL) {
-    SYCLInstallation.addSYCLIncludeArgs(DriverArgs, CC1Args);
-    SYCLInstallation.addLibspirvLinkArgs(getEffectiveTriple(), DriverArgs,
-                                         HostTC.getTriple(), CC1Args);
-  }
-
   for (auto BCFile : getDeviceLibs(DriverArgs, DeviceOffloadingKind)) {
     CC1Args.push_back(BCFile.ShouldInternalize ? "-mlink-builtin-bitcode"
                                                : "-mlink-bitcode-file");
     CC1Args.push_back(DriverArgs.MakeArgString(BCFile.Path));
+  }
+  if (DeviceOffloadingKind == Action::OFK_SYCL) {
+    SYCLInstallation.addSYCLIncludeArgs(DriverArgs, CC1Args);
+    SYCLInstallation.addLibspirvLinkArgs(getEffectiveTriple(), DriverArgs,
+                                         HostTC.getTriple(), CC1Args);
   }
 }
 
@@ -416,6 +415,30 @@ HIPAMDToolChain::getDeviceLibs(const llvm::opt::ArgList &DriverArgs,
     LibraryPaths.push_back(DriverArgs.MakeArgString(Path));
 
   addDirectoryList(DriverArgs, LibraryPaths, "", "HIP_DEVICE_LIB_PATH");
+
+  // For SYCL offloading, add SYCL device libraries.
+  if (DeviceOffloadingKind == Action::OFK_SYCL) {
+    llvm::SmallVector<llvm::SmallString<128>, 4> LibraryPaths;
+    SYCLInstallation.getSYCLDeviceLibPath(LibraryPaths);
+
+    // Get SYCL device library names for NVPTX target
+    llvm::SmallVector<BitCodeLibraryInfo, 8> DeviceLibs =
+        clang::driver::getSYCLDeviceLibNames(getDriver(), DriverArgs, *this);
+
+    // Create full path names to each device library
+    for (const auto &DeviceLib : DeviceLibs) {
+      for (const auto &LibraryPath : LibraryPaths) {
+        llvm::SmallString<128> FullLibName(LibraryPath);
+        llvm::sys::path::append(FullLibName, DeviceLib.Path);
+        if (llvm::sys::fs::exists(FullLibName)) {
+          BitCodeLibraryInfo BitCodeLibrary(
+              {FullLibName, DeviceLib.ShouldInternalize});
+          BCLibs.emplace_back(BitCodeLibrary);
+          break;
+        }
+      }
+    }
+  }
 
   // Maintain compatability with --hip-device-lib.
   auto BCLibArgs = DriverArgs.getAllArgValues(options::OPT_hip_device_lib_EQ);

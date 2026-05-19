@@ -11773,87 +11773,10 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
 
   // Add any SYCL offloading specific options to the clang-linker-wrapper
   if (C.hasOffloadToolChain<Action::OFK_SYCL>()) {
-
-    if (Args.hasArg(options::OPT_fsycl_link_EQ))
-      CmdArgs.push_back(Args.MakeArgString("--sycl-device-link"));
-
-    // -sycl-device-library-location=<dir> provides the location in which the
-    // SYCL device libraries can be found.
-    SmallString<128> DeviceLibDir(D.Dir);
-    llvm::sys::path::append(DeviceLibDir, "..", "lib");
-    // Check the library location candidates for the the libsycl-crt library
-    // and use that location.  Base the location on relative to driver if this
-    // is not resolved.
-    SmallVector<SmallString<128>, 4> LibLocCandidates;
     SYCLInstallationDetector SYCLInstallation(D, getToolChain().getTriple(),
                                               Args);
-    SYCLInstallation.getSYCLDeviceLibPath(LibLocCandidates);
-    SmallString<128> LibName("libsycl-crt");
-    bool IsNewOffload = D.getUseNewOffloadingDriver();
-    StringRef LibSuffix = TheTriple.isWindowsMSVCEnvironment()
-                              ? (IsNewOffload ? ".new.obj" : ".obj")
-                              : (IsNewOffload ? ".new.o" : ".o");
-    llvm::sys::path::replace_extension(LibName, LibSuffix);
-    for (const auto &LibLoc : LibLocCandidates) {
-      SmallString<128> FullLibName(LibLoc);
-      llvm::sys::path::append(FullLibName, LibName);
-      if (llvm::sys::fs::exists(FullLibName)) {
-        DeviceLibDir = LibLoc;
-        break;
-      }
-    }
-
-    // Device libraries for SYCL offloading are specified using
-    // --bitcode-library=<triple>=<path to bc file> for each library.
-    // The full path must be provided (not relative to
-    // -sycl-device-library-location).
-    //
-    // Note: SPIR/SPIRV device libraries are linked at compile time using
-    // -mlink-builtin-bitcode, so they are not passed here. Only non-SPIR
-    // targets (NVPTX, AMD) pass device libraries to clang-linker-wrapper.
-    SmallVector<std::string, 4> BCLibList;
-
-    auto appendToList = [](SmallString<256> &List, const Twine &Arg) {
-      if (List.size() > 0)
-        List += ",";
-      List += Arg.str();
-    };
-
-    auto ToolChainRange = C.getOffloadToolChains<Action::OFK_SYCL>();
-    for (const auto &[Kind, TC] :
-         llvm::make_range(ToolChainRange.first, ToolChainRange.second)) {
-      llvm::Triple TargetTriple = TC->getTriple();
-      const toolchains::SYCLToolChain &SYCLTC =
-          static_cast<const toolchains::SYCLToolChain &>(*TC);
-      SmallVector<ToolChain::BitCodeLibraryInfo, 8> SYCLDeviceLibs;
-      // SPIR or SPIR-V device libraries are compiled into the device compile
-      // step.
-      if (!TargetTriple.isSPIROrSPIRV())
-        SYCLDeviceLibs.append(SYCLTC.getDeviceLibNames(D, Args, TargetTriple));
-      for (const auto &AddLib : SYCLDeviceLibs) {
-        if (llvm::sys::path::extension(AddLib.Path) == ".bc") {
-          SmallString<256> LibPath(DeviceLibDir);
-          llvm::sys::path::append(LibPath, AddLib.Path);
-          BCLibList.push_back(
-              (Twine(TC->getTriple().str()) + "=" + LibPath).str());
-          continue;
-        }
-      }
-
-      if (TC->getTriple().isNVPTX())
-        if (const char *LibSpirvFile = SYCLInstallation.findLibspirvPath(
-                TC->getTriple(), Args, *TC->getAuxTriple()))
-          BCLibList.push_back(
-              (Twine(TC->getTriple().str()) + "=" + LibSpirvFile).str());
-    }
-
-    if (BCLibList.size())
-      for (const std::string &Lib : BCLibList)
-        CmdArgs.push_back(
-            Args.MakeArgString(Twine("--bitcode-library=") + Lib));
-
-    CmdArgs.push_back(Args.MakeArgString(
-        Twine("-sycl-device-library-location=") + DeviceLibDir));
+    if (Args.hasArg(options::OPT_fsycl_link_EQ))
+      CmdArgs.push_back(Args.MakeArgString("--sycl-device-link"));
 
     if (C.getDriver().isSaveOffloadCodeEnabled()) {
       SmallString<128> DumpDir;
@@ -11936,9 +11859,46 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     // -Xsycl-target-linker are forwarded using --device-linker.
     const toolchains::SYCLToolChain &SYCLTC =
         static_cast<const toolchains::SYCLToolChain &>(getToolChain());
+    auto ToolChainRange = C.getOffloadToolChains<Action::OFK_SYCL>();
     for (auto &ToolChainMember :
          llvm::make_range(ToolChainRange.first, ToolChainRange.second)) {
       const ToolChain *TC = ToolChainMember.second;
+      // Handle native_cpu separately to add device library via
+      // --device-compiler
+      if (TC->getTriple().isNativeCPU()) {
+        SmallString<64> NativeUtilsLib("libsycl-nativecpu_utils.bc");
+        SYCLInstallationDetector SYCLInstall(TC->getDriver(), TC->getTriple(),
+                                             Args);
+        SmallVector<SmallString<128>, 4> DeviceLibLocCandidates;
+        SYCLInstall.getSYCLDeviceLibPath(DeviceLibLocCandidates);
+        for (const auto &DeviceLibLoc : DeviceLibLocCandidates) {
+          SmallString<128> FullLibName(DeviceLibLoc);
+          llvm::sys::path::append(FullLibName, NativeUtilsLib);
+          if (llvm::sys::fs::exists(FullLibName)) {
+            CmdArgs.push_back(Args.MakeArgString(
+                "--device-compiler=" +
+                Action::GetOffloadKindName(Action::OFK_SYCL) + ":" +
+                TC->getTripleString() + "=-Xclang"));
+            CmdArgs.push_back(Args.MakeArgString(
+                "--device-compiler=" +
+                Action::GetOffloadKindName(Action::OFK_SYCL) + ":" +
+                TC->getTripleString() + "=-mlink-bitcode-file"));
+            SmallString<256> BackendOptString;
+            BackendOptString = FullLibName;
+
+            CmdArgs.push_back(Args.MakeArgString(
+                "--device-compiler=" +
+                Action::GetOffloadKindName(Action::OFK_SYCL) + ":" +
+                TC->getTripleString() + "=-Xclang"));
+            CmdArgs.push_back(Args.MakeArgString(
+                "--device-compiler=" +
+                Action::GetOffloadKindName(Action::OFK_SYCL) + ":" +
+                TC->getTripleString() + "=" + BackendOptString));
+            break;
+          }
+        }
+        continue; // Don't process native_cpu through the SPIR/SPIRV path below
+      }
       if (!TC->getTriple().isSPIROrSPIRV())
         continue;
       ArgStringList BuildArgs;
