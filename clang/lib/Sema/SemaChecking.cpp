@@ -3982,7 +3982,6 @@ Sema::CheckBuiltinFunctionCall(FunctionDecl *FDecl, unsigned BuiltinID,
       return ExprError();
     break;
 
-<<<<<<< HEAD
   case Builtin::BI__builtin_sycl_is_kernel:
   case Builtin::BI__builtin_sycl_is_single_task_kernel:
   case Builtin::BI__builtin_sycl_is_nd_range_kernel: {
@@ -4016,7 +4015,6 @@ Sema::CheckBuiltinFunctionCall(FunctionDecl *FDecl, unsigned BuiltinID,
 
     break;
   }
-=======
   case Builtin::BIfeclearexcept:
   case Builtin::BIfegetexceptflag:
   case Builtin::BIferaiseexcept:
@@ -4034,7 +4032,6 @@ Sema::CheckBuiltinFunctionCall(FunctionDecl *FDecl, unsigned BuiltinID,
       Diag(TheCall->getBeginLoc(), diag::warn_fe_access_without_fenv_access)
           << FDecl->getName() << TheCall->getSourceRange();
     }
->>>>>>> 5f2bedca745d5efa1955369cfe352bcd09be4633
   }
 
   if (getLangOpts().HLSL && HLSL().CheckBuiltinFunctionCall(BuiltinID, TheCall))
