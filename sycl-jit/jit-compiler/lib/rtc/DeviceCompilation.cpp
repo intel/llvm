@@ -844,7 +844,7 @@ Error jit_compiler::linkDeviceLibraries(llvm::Module &Module,
     std::string LibPath;
     if (LibName.find("libspirv") != std::string::npos)
       LibPath = (TC.getLibclcDir() + TripleName + "/" + LibName).str();
-    else if (LibName == "libm")
+    else if (LibName == "libm.bc")
       LibPath =
           (TC.getPrefix() + "/lib/spirv64-unknown-unknown/" + LibName).str();
     else

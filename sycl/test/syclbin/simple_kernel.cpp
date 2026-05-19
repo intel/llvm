@@ -1,7 +1,7 @@
-// RUN: %clangxx --offload-new-driver -fsyclbin=input -o %t.input.syclbin %s
-// RUN: %clangxx --offload-new-driver -fsyclbin=object -o %t.object.syclbin %s
-// RUN: %clangxx --offload-new-driver -fsyclbin=executable -o %t.executable.syclbin %s
-// RUN: %clangxx --offload-new-driver -fsyclbin -o %t.default.syclbin %s
+// RUN: %clangxx --offload-new-driver -fsyclbin=input -o %t.input.syclbin %s --no-offloadlib
+// RUN: %clangxx --offload-new-driver -fsyclbin=object -o %t.object.syclbin %s --no-offloadlib
+// RUN: %clangxx --offload-new-driver -fsyclbin=executable -o %t.executable.syclbin %s --no-offloadlib
+// RUN: %clangxx --offload-new-driver -fsyclbin -o %t.default.syclbin %s --no-offloadlib
 // RUN: syclbin-dump %t.input.syclbin | FileCheck %s --check-prefix CHECK-INPUT
 // RUN: syclbin-dump %t.object.syclbin | FileCheck %s --check-prefix CHECK-OBJECT
 // RUN: syclbin-dump %t.executable.syclbin | FileCheck %s --check-prefix CHECK-EXECUTABLE
