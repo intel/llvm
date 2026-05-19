@@ -261,6 +261,7 @@ void SYCLMemObjT::prepareForAllocation(context_impl *Context) {
   if (!Context)
     return;
 
+  std::lock_guard<std::mutex> Lock(MCreateShadowCopyMtx);
   if (!MHasPendingAlignedShadowCopy)
     return;
 
@@ -289,9 +290,6 @@ void SYCLMemObjT::prepareForAllocation(context_impl *Context) {
     break;
   }
 
-  std::lock_guard<std::mutex> Lock(MCreateShadowCopyMtx);
-  if (!MHasPendingAlignedShadowCopy)
-    return;
   if (BackendRequiredAlign > MPendingShadowCopyAlignment)
     MPendingShadowCopyAlignment = BackendRequiredAlign;
   if (SkipShadowCopy) {
