@@ -3,7 +3,7 @@
 // REQUIRES: aspect-ext_oneapi_external_memory_import || (windows && level_zero && aspect-ext_oneapi_bindless_images)
 // REQUIRES: vulkan
 
-// maybe working on Windows.  Test. 
+// maybe working on Windows.  Test.
 // UNSUPPORTED-TRACKER: CMPLRLLVM-73525
 
 // RUN: %{build} %link-vulkan -o %t.out %if target-spir %{ -Wno-ignored-attributes %}
