@@ -2,6 +2,10 @@
 // RUN: %{build} -Xclang -freg-struct-return -Xspirv-translator=spir64 --spirv-ext=+SPV_INTEL_fp_conversions,+SPV_EXT_float8,+SPV_KHR_bfloat16 -o %t.out
 // RUN: %{run} SYCL_UR_TRACE=1 %t.out
 
+// make it XFAIL until driver will be installed on CI machines and the test will be enabled in the test suite
+// XFAIL: *
+// XFAIL-TRACKER: CMPLRLLVM-69851
+
 #include <cmath>
 #include <limits>
 #include <sycl/ext/oneapi/experimental/builtins.hpp>
@@ -10,16 +14,6 @@
 #include <sycl/usm.hpp>
 
 using namespace sycl::ext::oneapi::experimental;
-
-#ifdef __SYCL_DEVICE_ONLY__
-#define CONSTANT __attribute__((opencl_constant))
-#else
-#define CONSTANT
-#endif
-
-static const CONSTANT char kKernelStartFmt[] = "kernel: enter vals=(%u,%u)\n";
-static const CONSTANT char kKernelUnpackedFmt[] = "kernel: unpacked=(%f,%f)\n";
-static const CONSTANT char kKernelStoreFmt[] = "kernel: store vals=(%u,%u)\n";
 
 namespace {
 

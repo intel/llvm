@@ -3,6 +3,10 @@
 // RUN: %{build} -Xclang -freg-struct-return -Xspirv-translator=spir64 --spirv-ext=+SPV_INTEL_fp_conversions,+SPV_EXT_float8,+SPV_KHR_bfloat16 -o %t.out
 // RUN: %{run} SYCL_UR_TRACE=1 %t.out
 
+// make it XFAIL until driver will be installed on CI machines and the test will be enabled in the test suite
+// XFAIL: *
+// XFAIL-TRACKER: CMPLRLLVM-69851
+
 #include <cmath>
 #include <limits>
 #include <sycl/ext/oneapi/experimental/float_8bit/types.hpp>
@@ -334,7 +338,6 @@ template <typename T> int test_fp8_simple_type_conversion(sycl::queue &queue) {
   auto *data = sycl::malloc_shared<fp8_e8m0_x2>(1, queue);
   data[0] = fp8_e8m0_x2(static_cast<T>(4.0f), static_cast<T>(16.0f));
 
-  std::cout << "kernel\n";
   queue.single_task([=]() {
     fp8_e8m0_x2 value = data[0];
     sycl::marray<T, 2> f = static_cast<sycl::marray<T, 2>>(value);
@@ -344,7 +347,6 @@ template <typename T> int test_fp8_simple_type_conversion(sycl::queue &queue) {
   });
   queue.wait_and_throw();
 
-  std::cout << "kernel finished\n";
   sycl::marray<T, 2> expected_input(static_cast<T>(8.0f),
                                     static_cast<T>(32.0f));
   fp8_e8m0_x2 expected(expected_input);
