@@ -63,6 +63,7 @@ enum InternalOp {
   IOpTaskSequenceAsyncINTEL = 6164,
   IOpTaskSequenceGetINTEL = 6165,
   IOpTaskSequenceReleaseINTEL = 6166,
+  IOpFSigmoidINTEL = 6168,
   IOpCooperativeMatrixLoadCheckedINTEL = 6193,
   IOpCooperativeMatrixStoreCheckedINTEL = 6194,
   IOpCooperativeMatrixConstructCheckedINTEL = 6195,
@@ -82,7 +83,6 @@ enum InternalOp {
   IOpConvertHandleToImageINTEL = 6529,
   IOpConvertHandleToSamplerINTEL = 6530,
   IOpConvertHandleToSampledImageINTEL = 6531,
-  IOpFSigmoidINTEL = 6168,
   IOpPrev = OpMax - 2,
   IOpForward
 };
