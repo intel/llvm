@@ -70,6 +70,59 @@ public:
   std::unique_ptr<PropertySetRegistry> GlobalMetadata;
   std::vector<AbstractModule> AbstractModules;
 
+  // Description of a single image to be packed into a SYCLBIN. Unlike the
+  // LLVMObject SYCLBIN writer (which reads bytes from files on disk), the
+  // runtime serializer always operates on in-memory bytes since kernel_bundles
+  // hold their device images in memory.
+  //
+  // Lifetime contract: SYCLBINDesc and the ImageDesc instances it owns are
+  // intended for **synchronous use** with SYCLBIN::write. The Bytes view
+  // borrows from external storage (typically RTDeviceBinaryImage payloads
+  // owned by the program manager / SYCLBINBinaries / DynRTDeviceBinaryImage)
+  // and must remain valid until SYCLBIN::write returns. Do not store a
+  // SYCLBINDesc beyond the call.
+  struct ImageDesc {
+    // Per-image metadata (e.g. the IR/native image property set, plus any
+    // forwarded property sets from the originating RTDeviceBinaryImage).
+    std::string Metadata;
+    // Raw image payload bytes. Non-owning view; see the lifetime contract on
+    // SYCLBINDesc above.
+    std::string_view Bytes;
+  };
+
+  // Description of a single abstract module: per-module metadata plus the
+  // collection of IR and native images it groups together.
+  struct AbstractModuleDesc {
+    std::string Metadata;
+    std::vector<ImageDesc> IRModules;
+    std::vector<ImageDesc> NativeDeviceCodeImages;
+  };
+
+  // Description of a full SYCLBIN-to-be: a global metadata blob plus all the
+  // abstract modules.
+  struct SYCLBINDesc {
+    std::string GlobalMetadata;
+    std::vector<AbstractModuleDesc> AbstractModules;
+  };
+
+  // Serialize \p Desc into a SYCLBIN binary blob. Throws sycl::exception on
+  // malformed input. \p Desc must outlive the call: ImageDesc::Bytes views are
+  // dereferenced during serialization (see SYCLBINDesc lifetime contract).
+  static std::vector<char> write(const SYCLBINDesc &Desc);
+
+  // Build and serialize a SYCLBIN representing the given runtime device images
+  // at the given bundle state. Each image becomes its own abstract module.
+  // Property sets carried on the source image are forwarded verbatim into the
+  // abstract module metadata so device-requirement-driven matching (e.g.
+  // `compile_target`) survives a round-trip.
+  //
+  // The Images pointers must remain valid for the duration of the call: the
+  // intermediate SYCLBINDesc holds non-owning views into each image's binary
+  // payload (see ImageDesc::Bytes).
+  static std::vector<char>
+  serializeImages(const std::vector<const RTDeviceBinaryImage *> &Images,
+                  uint8_t State);
+
 private:
   struct alignas(8) FileHeaderType {
     uint32_t Magic;
