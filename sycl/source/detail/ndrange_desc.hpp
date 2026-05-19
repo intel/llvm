@@ -99,46 +99,6 @@ public:
   std::array<size_t, 3> ClusterDimensions{1, 1, 1};
   size_t Dims = 0;
 
-  // Returns the total number of global workgroups for the kernel execution
-  // along all dimensions, or the maximum value of uint64_t if overflow occurs.
-  uint64_t getNumGlobalWorkGroups() const {
-    auto getProductAndCheckForOverflow = [](const size_t *Vals,
-                                            size_t NumDims) -> uint64_t {
-      uint64_t Product = 1;
-      uint64_t MaxVal = std::numeric_limits<uint64_t>::max();
-      for (size_t I = 0; I < NumDims; ++I) {
-        if (Vals[I] == 0)
-          return 0;
-#ifndef _MSC_VER
-        if (__builtin_mul_overflow(Product, static_cast<uint64_t>(Vals[I]),
-                                   &Product))
-          return MaxVal;
-#else
-        if (Vals[I] > MaxVal / Product)
-          return MaxVal;
-        Product *= Vals[I];
-#endif
-      }
-      return Product;
-    };
-
-    if (NumWorkGroups[0] != 0)
-      return getProductAndCheckForOverflow(NumWorkGroups.data(), Dims);
-
-    uint64_t GlobalProduct =
-        getProductAndCheckForOverflow(GlobalSize.data(), Dims);
-    uint64_t LocalProduct =
-        getProductAndCheckForOverflow(LocalSize.data(), Dims);
-
-    // Localproduct equals to zero means user has not specified local size
-    // and backend is free to choose it. In this case, the maximum number of
-    // workgroups is equal to the total global size, assuming local size to
-    // be 1.
-    if (LocalProduct == 0)
-      return GlobalProduct;
-    return GlobalProduct / LocalProduct;
-  }
-
 private:
   void init(const size_t *N, bool SetNumWorkGroups) {
     if (SetNumWorkGroups) {

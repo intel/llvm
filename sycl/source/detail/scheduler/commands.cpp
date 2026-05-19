@@ -2610,27 +2610,30 @@ void checkNDRangeBoundsAndThrow(const NDRDescT &NDRDesc,
     MaxRange = static_cast<uint64_t>(std::numeric_limits<int>::max());
   }
 
-  bool ExceedsMaxRange = NDRDesc.getNumGlobalWorkGroups() > MaxRange;
-  if (!ExceedsMaxRange) {
-    uint64_t TotalGlobalSize = 1;
-    for (size_t I = 0; I < NDRDesc.Dims; ++I) {
-      const uint64_t GlobalSize = static_cast<uint64_t>(NDRDesc.GlobalSize[I]);
-      const uint64_t GlobalOffset =
-          static_cast<uint64_t>(NDRDesc.GlobalOffset[I]);
-      // Validate the maximum generated global id in each dimension:
-      // GlobalOffset + GlobalSize - 1 <= MaxRange.
-      // Use overflow-safe arithmetic instead of forming the sum directly.
-      if (GlobalSize != 0 && GlobalOffset != 0 &&
-          (GlobalOffset > MaxRange ||
-           (GlobalSize - 1) > (MaxRange - GlobalOffset))) {
-        ExceedsMaxRange = true;
-        break;
-      }
-      TotalGlobalSize *= GlobalSize;
-      if (TotalGlobalSize > MaxRange) {
-        ExceedsMaxRange = true;
-        break;
-      }
+  // Check if the provided global size and offset values are within the maximum
+  // range supported by the kernel's id queries type, per dimension.
+  // Also check if the total global size (product of global sizes across all
+  // dimensions) is within the maximum range, to ensure that functions like
+  // get_global_linear_id can safely return a value within the maximum range.
+  bool ExceedsMaxRange = false;
+  uint64_t TotalGlobalSize = 1;
+  for (size_t I = 0; I < NDRDesc.Dims; ++I) {
+    const uint64_t GlobalSize = static_cast<uint64_t>(NDRDesc.GlobalSize[I]);
+    const uint64_t GlobalOffset =
+        static_cast<uint64_t>(NDRDesc.GlobalOffset[I]);
+    // Validate the maximum generated global id in each dimension:
+    // GlobalOffset + GlobalSize - 1 <= MaxRange.
+    // Use overflow-safe arithmetic instead of forming the sum directly.
+    if (GlobalSize != 0 && GlobalOffset != 0 &&
+        (GlobalOffset > MaxRange ||
+         (GlobalSize - 1) > (MaxRange - GlobalOffset))) {
+      ExceedsMaxRange = true;
+      break;
+    }
+    TotalGlobalSize *= GlobalSize;
+    if (TotalGlobalSize > MaxRange) {
+      ExceedsMaxRange = true;
+      break;
     }
   }
 
