@@ -148,6 +148,21 @@ jobs:
       # Don't run adapter specific tests when building multiple adapters
       if: ${{ matrix.adapter.other_name == '' }}
 
+    - name: Test CI validation suite (intentional failures)
+      shell: bash
+      continue-on-error: false
+      if: ${{ matrix.adapter.other_name == '' }}
+      run: |
+        echo "::group::CI Validation Test Suite"
+        cmake --build build -- check-unified-runtime-adapter-ci-validation 2>&1 | tee ci_validation_tests.log
+        echo "::endgroup::"
+        echo ""
+        echo "=== CI Validation Tests Statistics ==="
+        awk '/^ *(Total Discovered|Expected Passes|Expected Failures|Unsupported|Skipped|Passed|Failed|Timed Out|Unexpectedly Passed|Unresolved) *(Tests)? *:/ {print}' ci_validation_tests.log
+        echo ""
+        echo "Note: This test suite intentionally generates failures, timeouts, and other test outcomes"
+        echo "to validate CI logging and test categorization. It will fail the workflow."
+
     - name: Test adapter specific logs
       if: ${{ always() && matrix.adapter.other_name == '' }}
       shell: bash
@@ -170,6 +185,15 @@ jobs:
           fi
         fi
         
+        if grep -q "^Skipped Tests ([0-9]\+):" adapter_tests.log; then
+          count=$(grep "^Skipped Tests ([0-9]\+):" adapter_tests.log | sed 's/Skipped Tests (\([0-9]\+\)):/\1/' | head -1)
+          if [[ "$count" =~ ^[0-9]+$ ]]; then
+            echo "::group::Skipped Tests ($count)"
+            awk '/^Skipped Tests \([0-9]+\):/ {flag=1; next} /^$/ {flag=0} flag' adapter_tests.log
+            echo "::endgroup::"
+          fi
+        fi
+        
         if grep -q "^Unsupported Tests ([0-9]\+):" adapter_tests.log; then
           count=$(grep "^Unsupported Tests ([0-9]\+):" adapter_tests.log | sed 's/Unsupported Tests (\([0-9]\+\)):/\1/' | head -1)
           if [[ "$count" =~ ^[0-9]+$ ]]; then
@@ -188,6 +212,15 @@ jobs:
           fi
         fi
         
+        if grep -q "^Expected Failures ([0-9]\+):" adapter_tests.log; then
+          count=$(grep "^Expected Failures ([0-9]\+):" adapter_tests.log | sed 's/Expected Failures (\([0-9]\+\)):/\1/' | head -1)
+          if [[ "$count" =~ ^[0-9]+$ ]]; then
+            echo "::group::Expected Failures ($count)"
+            awk '/^Expected Failures \([0-9]+\):/ {flag=1; next} /^$/ {flag=0} flag' adapter_tests.log
+            echo "::endgroup::"
+          fi
+        fi
+        
         if grep -q "^Timed Out Tests ([0-9]\+):" adapter_tests.log; then
           count=$(grep "^Timed Out Tests ([0-9]\+):" adapter_tests.log | sed 's/Timed Out Tests (\([0-9]\+\)):/\1/' | head -1)
           if [[ "$count" =~ ^[0-9]+$ ]]; then
@@ -202,6 +235,15 @@ jobs:
           if [[ "$count" =~ ^[0-9]+$ ]]; then
             echo "::group::Unexpectedly Passed Tests ($count)"
             awk '/^Unexpectedly Passed Tests \([0-9]+\):/ {flag=1; next} /^$/ {flag=0} flag' adapter_tests.log
+            echo "::endgroup::"
+          fi
+        fi
+        
+        if grep -q "^Unresolved Tests ([0-9]\+):" adapter_tests.log; then
+          count=$(grep "^Unresolved Tests ([0-9]\+):" adapter_tests.log | sed 's/Unresolved Tests (\([0-9]\+\)):/\1/' | head -1)
+          if [[ "$count" =~ ^[0-9]+$ ]]; then
+            echo "::group::Unresolved Tests ($count)"
+            awk '/^Unresolved Tests \([0-9]+\):/ {flag=1; next} /^$/ {flag=0} flag' adapter_tests.log
             echo "::endgroup::"
           fi
         fi
@@ -233,6 +275,15 @@ jobs:
           fi
         fi
         
+        if grep -q "^Skipped Tests ([0-9]\+):" conformance_tests.log; then
+          count=$(grep "^Skipped Tests ([0-9]\+):" conformance_tests.log | sed 's/Skipped Tests (\([0-9]\+\)):/\1/' | head -1)
+          if [[ "$count" =~ ^[0-9]+$ ]]; then
+            echo "::group::Skipped Tests ($count)"
+            awk '/^Skipped Tests \([0-9]+\):/ {flag=1; next} /^$/ {flag=0} flag' conformance_tests.log
+            echo "::endgroup::"
+          fi
+        fi
+        
         if grep -q "^Unsupported Tests ([0-9]\+):" conformance_tests.log; then
           count=$(grep "^Unsupported Tests ([0-9]\+):" conformance_tests.log | sed 's/Unsupported Tests (\([0-9]\+\)):/\1/' | head -1)
           if [[ "$count" =~ ^[0-9]+$ ]]; then
@@ -251,6 +302,15 @@ jobs:
           fi
         fi
         
+        if grep -q "^Expected Failures ([0-9]\+):" conformance_tests.log; then
+          count=$(grep "^Expected Failures ([0-9]\+):" conformance_tests.log | sed 's/Expected Failures (\([0-9]\+\)):/\1/' | head -1)
+          if [[ "$count" =~ ^[0-9]+$ ]]; then
+            echo "::group::Expected Failures ($count)"
+            awk '/^Expected Failures \([0-9]+\):/ {flag=1; next} /^$/ {flag=0} flag' conformance_tests.log
+            echo "::endgroup::"
+          fi
+        fi
+        
         if grep -q "^Timed Out Tests ([0-9]\+):" conformance_tests.log; then
           count=$(grep "^Timed Out Tests ([0-9]\+):" conformance_tests.log | sed 's/Timed Out Tests (\([0-9]\+\)):/\1/' | head -1)
           if [[ "$count" =~ ^[0-9]+$ ]]; then
@@ -265,6 +325,15 @@ jobs:
           if [[ "$count" =~ ^[0-9]+$ ]]; then
             echo "::group::Unexpectedly Passed Tests ($count)"
             awk '/^Unexpectedly Passed Tests \([0-9]+\):/ {flag=1; next} /^$/ {flag=0} flag' conformance_tests.log
+            echo "::endgroup::"
+          fi
+        fi
+        
+        if grep -q "^Unresolved Tests ([0-9]\+):" conformance_tests.log; then
+          count=$(grep "^Unresolved Tests ([0-9]\+):" conformance_tests.log | sed 's/Unresolved Tests (\([0-9]\+\)):/\1/' | head -1)
+          if [[ "$count" =~ ^[0-9]+$ ]]; then
+            echo "::group::Unresolved Tests ($count)"
+            awk '/^Unresolved Tests \([0-9]+\):/ {flag=1; next} /^$/ {flag=0} flag' conformance_tests.log
             echo "::endgroup::"
           fi
         fi

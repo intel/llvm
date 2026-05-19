@@ -6,16 +6,18 @@ SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 Helper script for CI test validation - generates different test outcomes
 """
+
 import sys
 import time
+
 
 def main():
     if len(sys.argv) < 2:
         print("Usage: test_helper.py <test_type>")
         sys.exit(1)
-    
+
     test_type = sys.argv[1]
-    
+
     if test_type == "pass":
         print("Test passed: result = 42")
         sys.exit(0)
@@ -32,6 +34,7 @@ def main():
     else:
         print(f"Unknown test type: {test_type}")
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()
