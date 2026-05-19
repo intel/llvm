@@ -2131,8 +2131,8 @@ typedef enum ur_device_info_t {
   /// [uint32_t] max number of image objects arguments of a kernel declared
   /// with the write_only qualifier
   UR_DEVICE_INFO_MAX_WRITE_IMAGE_ARGS = 31,
-  /// [uint32_t] max number of image objects arguments of a kernel declared
-  /// with the read_write qualifier
+  /// [uint32_t][optional-query] max number of image objects arguments of a
+  /// kernel declared with the read_write qualifier
   UR_DEVICE_INFO_MAX_READ_WRITE_IMAGE_ARGS = 32,
   /// [size_t] max width of Image2D object
   UR_DEVICE_INFO_IMAGE2D_MAX_WIDTH = 33,
@@ -3197,6 +3197,10 @@ typedef struct ur_context_properties_t {
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `NULL != pProperties && ::UR_CONTEXT_FLAGS_MASK &
 ///         pProperties->flags`
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         + `DeviceCount == 0`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE - "If device handles in
+///     phDevices are not valid handles."
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY
 UR_APIEXPORT ur_result_t UR_APICALL urContextCreate(
@@ -9980,6 +9984,8 @@ typedef enum ur_exp_external_semaphore_type_t {
   UR_EXP_EXTERNAL_SEMAPHORE_TYPE_TIMELINE_FD = 3,
   /// Timeline semaphore Win32 NT handle
   UR_EXP_EXTERNAL_SEMAPHORE_TYPE_TIMELINE_WIN32_NT = 4,
+  /// Fence semaphore Win32 NT DirectX 11 handle
+  UR_EXP_EXTERNAL_SEMAPHORE_TYPE_WIN32_NT_DX11_FENCE = 5,
   /// @cond
   UR_EXP_EXTERNAL_SEMAPHORE_TYPE_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -10878,7 +10884,7 @@ urBindlessImagesSupportsImportingHandleTypeExp(
 ///         + `NULL == hContext`
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_EXP_EXTERNAL_SEMAPHORE_TYPE_TIMELINE_WIN32_NT <
+///         + `::UR_EXP_EXTERNAL_SEMAPHORE_TYPE_WIN32_NT_DX11_FENCE <
 ///         semHandleType`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pExternalSemaphoreDesc`
@@ -11026,7 +11032,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesSignalExternalSemaphoreExp(
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hDevice`
-///         + `hDevice == nullptr`
 ///     - ::UR_RESULT_ERROR_INVALID_DEVICE
 UR_APIEXPORT ur_result_t UR_APICALL urDeviceWaitExp(
     /// [in] handle of the device instance.

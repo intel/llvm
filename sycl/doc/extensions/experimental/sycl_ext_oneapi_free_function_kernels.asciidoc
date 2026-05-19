@@ -112,6 +112,27 @@ supports.
  feature-test macro always has this value.
 |===
 
+=== Headers
+
+The APIs defined in this extension are provided by either of the following header files:
+
+* `<sycl/sycl.hpp>`
+* `<sycl/ext/oneapi/kernel_properties.hpp>`
+
+In addition, the following lightweight header provides a subset of the APIs from this extension:
+
+* `<sycl/ext/oneapi/free_function_kernel_properties.hpp>`
+
+This lightweight header provides `SYCL_EXT_ONEAPI_FUNCTION_PROPERTY`, and the
+properties `nd_range_kernel<Dims>` and `single_task_kernel`.  See
+link:../experimental/sycl_ext_oneapi_kernel_properties.asciidoc[
+sycl_ext_oneapi_kernel_properties] for other APIs that are provided by this
+header.
+
+[_Note:_ The lightweight header is intended for cases where fast compilation 
+time is a priority.
+_{endnote}_]
+
 === Defining a free function kernel
 
 A free function kernel is a normal C++ function definition, where the function
@@ -804,6 +825,8 @@ sycl_ext_oneapi_kernel_properties] by applying the properties to the function
 declaration as illustrated below.
 
 ```
+#include <sycl/ext/oneapi/kernel_properties.hpp>
+
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::work_group_size<32>))
 void iota(float start, float *ptr) {

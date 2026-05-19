@@ -649,6 +649,7 @@ ProgramInfo::getKernelMetadata(ur_kernel_handle_t Kernel) const {
 }
 
 ContextInfo::~ContextInfo() {
+  DeferredEvents.releaseAll();
   [[maybe_unused]] auto Result =
       getContext()->urDdiTable.Context.pfnRelease(Handle);
   assert(Result == UR_RESULT_SUCCESS);

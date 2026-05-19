@@ -1,5 +1,5 @@
 /// Check compilation tool steps when using the integration footer
-// RUN:  %clangxx -fsycl --offload-new-driver -I cmdline/dir -include dummy.h %/s -### 2>&1 \
+// RUN:  %clangxx -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -I cmdline/dir -include dummy.h %/s -### 2>&1 \
 // RUN:   | FileCheck -check-prefix FOOTER %s -DSRCDIR=%/S -DCMDDIR=cmdline/dir
 
 // FOOTER: clang{{.*}} "-fsycl-is-device"{{.*}} "-fsycl-int-header=[[INTHEADER:.+\.h]]" "-fsycl-int-footer=[[INTFOOTER:.+\h]]" "-sycl-std={{.*}}"{{.*}} "-include" "dummy.h"
@@ -9,7 +9,7 @@
 // FOOTER-NOT: "-include-internal-header" "[[INTHEADER]]"
 
 /// Preprocessed file creation with integration footer
-// RUN: %clangxx -fsycl --offload-new-driver -E %/s -### 2>&1 \
+// RUN: %clangxx -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -E %/s -### 2>&1 \
 // RUN:   | FileCheck -check-prefix FOOTER_PREPROC_GEN %s
 // FOOTER_PREPROC_GEN: clang{{.*}} "-fsycl-is-device"{{.*}} "-fsycl-int-header=[[INTHEADER:.+\.h]]" "-fsycl-int-footer=[[INTFOOTER:.+\h]]" "-sycl-std={{.*}}" "-o" "[[PREPROC_DEVICE:.+\.ii]]"
 // FOOTER_PREPROC_GEN: clang{{.*}} "-fsycl-is-host"
@@ -21,18 +21,18 @@
 
 /// Preprocessed file use with integration footer
 // RUN: touch %t.ii
-// RUN:  %clangxx -fsycl --offload-new-driver %t.ii -### 2>&1 \
+// RUN:  %clangxx -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL %t.ii -### 2>&1 \
 // RUN:   | FileCheck -check-prefix FOOTER_PREPROC_USE %s
 // FOOTER_PREPROC_USE: clang{{.*}} "-fsycl-is-host"
 
 /// Check that integration footer can be disabled
-// RUN:  %clangxx -fsycl --offload-new-driver -fno-sycl-use-footer %s -### 2>&1 \
+// RUN:  %clangxx -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fno-sycl-use-footer %s -### 2>&1 \
 // RUN:   | FileCheck -check-prefix NO-FOOTER --implicit-check-not "-fsycl-int-footer" %s
 // NO-FOOTER: clang{{.*}} "-fsycl-is-device"{{.*}} "-fsycl-int-header=[[INTHEADER:.+\.h]]" "-sycl-std={{.*}}"
 // NO-FOOTER: clang{{.*}} "-fsycl-is-host"{{.*}} "-include-internal-header" "[[INTHEADER]]"
 
 /// Check phases without integration footer
-// RUN: %clangxx -fsycl --offload-new-driver -fno-sycl-instrument-device-code --no-offloadlib -fno-sycl-use-footer -target x86_64-unknown-linux-gnu %s -ccc-print-phases 2>&1 \
+// RUN: %clangxx -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fno-sycl-instrument-device-code --no-offloadlib -fno-sycl-use-footer -target x86_64-unknown-linux-gnu %s -ccc-print-phases 2>&1 \
 // RUN:   | FileCheck -check-prefix NO-FOOTER-PHASES -check-prefix COMMON-PHASES %s
 // NO-FOOTER-PHASES: 0: input, "{{.*}}", c++, (host-sycl)
 // NO-FOOTER-PHASES: 1: preprocessor, {0}, c++-cpp-output, (host-sycl)
@@ -42,7 +42,7 @@
 // NO-FOOTER-PHASES: [[#DEVICE_IR:]]: compiler, {4}, ir, (device-sycl)
 
 /// Check phases with integration footer
-// RUN: %clangxx -fsycl --offload-new-driver -fno-sycl-instrument-device-code --no-offloadlib -target x86_64-unknown-linux-gnu %s -ccc-print-phases 2>&1 \
+// RUN: %clangxx -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fno-sycl-instrument-device-code --no-offloadlib -target x86_64-unknown-linux-gnu %s -ccc-print-phases 2>&1 \
 // RUN:   | FileCheck -check-prefix FOOTER-PHASES -check-prefix COMMON-PHASES %s
 // FOOTER-PHASES: 0: input, "{{.*}}", c++, (host-sycl)
 // FOOTER-PHASES: 1: preprocessor, {0}, c++-cpp-output, (host-sycl)
@@ -59,14 +59,14 @@
 // COMMON-PHASES: [[#OFFLOAD+6]]: clang-linker-wrapper, {[[#OFFLOAD+5]]}, image, (host-sycl)
 
 /// Test for -fsycl-footer-path=<dir>
-// RUN:  %clangxx -fsycl --offload-new-driver -fsycl-footer-path=dummy_dir %s -### 2>&1 \
+// RUN:  %clangxx -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-footer-path=dummy_dir %s -### 2>&1 \
 // RUN:   | FileCheck -check-prefix FOOTER_PATH %s
 // FOOTER_PATH: clang{{.*}} "-fsycl-is-device"
 // FOOTER_PATH-SAME: "-fsycl-int-footer=dummy_dir{{(/|\\\\)}}{{.*}}-footer-{{.*}}.h"
 // FOOTER_PATH: clang{{.*}} "-include-internal-footer" "dummy_dir{{(/|\\\\)}}{{.*}}-footer-{{.*}}.h"
 
 /// Check behaviors for dependency generation
-// RUN:  %clangxx -fsycl --offload-new-driver -MD -c %s -### 2>&1 \
+// RUN:  %clangxx -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -MD -c %s -### 2>&1 \
 // RUN:   | FileCheck -check-prefix DEP_GEN %s
 // DEP_GEN:  clang{{.*}} "-fsycl-is-device"
 // DEP_GEN-SAME: "-dependency-file" "[[DEPFILE:.+\.d]]"
@@ -77,7 +77,7 @@
 // DEP_GEN-SAME: "-dependency-file" "[[DEPFILE]]"
 
 /// Dependency generation phases
-// RUN:  %clangxx -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver -MD -c %s -ccc-print-phases 2>&1 \
+// RUN:  %clangxx -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -MD -c %s -ccc-print-phases 2>&1 \
 // RUN:   | FileCheck -check-prefix DEP_GEN_PHASES %s
 // DEP_GEN_PHASES: 0: input, "[[INPUTFILE:.+\.cpp]]", c++, (host-sycl)
 // DEP_GEN_PHASES: 1: preprocessor, {0}, c++-cpp-output, (host-sycl)
@@ -93,6 +93,6 @@
 // DEP_GEN_PHASES: 11: assembler, {10}, object, (host-sycl)
 
 /// Allow for -o and preprocessing
-// RUN:  %clangxx -fsycl --offload-new-driver -MD -c %s -o dummy -### 2>&1 \
+// RUN:  %clangxx -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -MD -c %s -o dummy -### 2>&1 \
 // RUN:   | FileCheck -check-prefix DEP_GEN_OUT_ERROR %s
 // DEP_GEN_OUT_ERROR-NOT: cannot specify -o when generating multiple output files

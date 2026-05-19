@@ -2,8 +2,11 @@
 // REQUIRES: aspect-ext_oneapi_external_memory_import || (windows && level_zero && aspect-ext_oneapi_bindless_images)
 // REQUIRES: vulkan
 
-// UNSUPPORTED: linux && gpu-intel-dg2
+// UNSUPPORTED: linux && (gpu-intel-dg2 || arch-intel_gpu_mtl_u)
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21764
+
+// XFAIL: windows && gpu-intel-dg2
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/21985
 
 // RUN: %{build} %link-vulkan -o %t.out %if target-spir %{ -Wno-ignored-attributes %}
 

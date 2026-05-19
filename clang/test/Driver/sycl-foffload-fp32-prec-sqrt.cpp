@@ -1,10 +1,10 @@
 // Test SYCL -foffload-fp32-prec-sqrt
 
-// RUN: %clang -### -fsycl --offload-new-driver \
+// RUN: %clang -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL \
 // RUN:    -fsycl-targets=spir64_gen -foffload-fp32-prec-sqrt %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=AOT %s
 
-// RUN: %clang -### -fsycl --offload-new-driver \
+// RUN: %clang -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL \
 // RUN:   -foffload-fp32-prec-sqrt %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=JIT %s
 

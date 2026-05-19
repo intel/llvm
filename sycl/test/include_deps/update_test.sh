@@ -7,42 +7,47 @@ HEADERS=(
 
     sycl/detail/core.hpp
 
-    sycl/khr/includes/accessor.hpp
-    sycl/khr/includes/atomic.hpp
+    sycl/khr/split_headers/accessor.hpp
+    sycl/khr/split_headers/atomic.hpp
     # backend header depends on how the project was configured and as such it
     # is not exactly portable, so it is excluded
-    # sycl/khr/includes/backend
-    sycl/khr/includes/bit.hpp
-    sycl/khr/includes/buffer.hpp
-    sycl/khr/includes/byte.hpp
-    sycl/khr/includes/context.hpp
-    sycl/khr/includes/device.hpp
-    sycl/khr/includes/event.hpp
-    sycl/khr/includes/exception.hpp
-    sycl/khr/includes/functional.hpp
-    sycl/khr/includes/group_algorithms.hpp
-    sycl/khr/includes/groups.hpp
-    sycl/khr/includes/half.hpp
-    sycl/khr/includes/handler.hpp
-    sycl/khr/includes/hierarchical_parallelism.hpp
-    sycl/khr/includes/images.hpp
-    sycl/khr/includes/index_space.hpp
-    sycl/khr/includes/interop_handle.hpp
-    sycl/khr/includes/kernel_bundle.hpp
-    sycl/khr/includes/kernel_handler.hpp
-    sycl/khr/includes/marray.hpp
-    sycl/khr/includes/math.hpp
-    sycl/khr/includes/multi_ptr.hpp
-    sycl/khr/includes/platform.hpp
-    sycl/khr/includes/property_list.hpp
-    sycl/khr/includes/queue.hpp
-    sycl/khr/includes/reduction.hpp
-    sycl/khr/includes/span.hpp
-    sycl/khr/includes/stream.hpp
-    sycl/khr/includes/type_traits.hpp
-    sycl/khr/includes/usm.hpp
-    sycl/khr/includes/vec.hpp
-    sycl/khr/includes/version.hpp
+    # sycl/khr/split_headers/backend
+    sycl/khr/split_headers/bit.hpp
+    sycl/khr/split_headers/buffer.hpp
+    sycl/khr/split_headers/byte.hpp
+    sycl/khr/split_headers/builtins_common.hpp
+    sycl/khr/split_headers/builtins_geometric.hpp
+    sycl/khr/split_headers/builtins_integer.hpp
+    sycl/khr/split_headers/builtins_math.hpp
+    sycl/khr/split_headers/builtins_relational.hpp
+    sycl/khr/split_headers/context.hpp
+    sycl/khr/split_headers/device.hpp
+    sycl/khr/split_headers/event.hpp
+    sycl/khr/split_headers/exception.hpp
+    sycl/khr/split_headers/functional.hpp
+    sycl/khr/split_headers/group_algorithms.hpp
+    sycl/khr/split_headers/groups.hpp
+    sycl/khr/split_headers/half.hpp
+    sycl/khr/split_headers/handler.hpp
+    sycl/khr/split_headers/hierarchical_parallelism.hpp
+    sycl/khr/split_headers/images.hpp
+    sycl/khr/split_headers/index_space.hpp
+    sycl/khr/split_headers/interop_handle.hpp
+    sycl/khr/split_headers/kernel_bundle.hpp
+    sycl/khr/split_headers/kernel_handler.hpp
+    sycl/khr/split_headers/marray.hpp
+    sycl/khr/split_headers/math.hpp
+    sycl/khr/split_headers/multi_ptr.hpp
+    sycl/khr/split_headers/platform.hpp
+    sycl/khr/split_headers/property_list.hpp
+    sycl/khr/split_headers/queue.hpp
+    sycl/khr/split_headers/reduction.hpp
+    sycl/khr/split_headers/span.hpp
+    sycl/khr/split_headers/stream.hpp
+    sycl/khr/split_headers/type_traits.hpp
+    sycl/khr/split_headers/usm.hpp
+    sycl/khr/split_headers/vec.hpp
+    sycl/khr/split_headers/version.hpp
 )
 
 for x in ${HEADERS[@]} ; do
