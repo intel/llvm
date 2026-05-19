@@ -193,7 +193,8 @@ void appendPropSetTo(PropertySetRegistry &Registry,
   PropertySet &Set = Registry[Category];
   for (sycl_device_binary_property Prop = PropSet->PropertiesBegin;
        Prop != PropSet->PropertiesEnd; ++Prop) {
-    PropertyValue::Type Ty = PropertyValue::getTypeTag(static_cast<int>(Prop->Type));
+    PropertyValue::Type Ty =
+        PropertyValue::getTypeTag(static_cast<int>(Prop->Type));
     PropertyValue Value(Ty);
     if (Ty == PropertyValue::UINT32) {
       // For UINT32 properties the value is encoded directly in ValSize.
@@ -377,8 +378,9 @@ std::vector<char> SYCLBIN::write(const SYCLBINDesc &Desc) {
   return std::vector<char>(Buf.begin(), Buf.end());
 }
 
-std::vector<char> SYCLBIN::serializeImages(
-    const std::vector<const RTDeviceBinaryImage *> &Images, uint8_t State) {
+std::vector<char>
+SYCLBIN::serializeImages(const std::vector<const RTDeviceBinaryImage *> &Images,
+                         uint8_t State) {
   SYCLBINDesc Desc;
 
   // Global metadata: just the bundle state.
@@ -457,10 +459,12 @@ std::vector<char> SYCLBIN::serializeImages(
                                   CT->ValSize - sizeof(PropertyValue::SizeTy)};
         }
       }
-      NDCIProps.add(PropertySetRegistry::SYCLBIN_NATIVE_DEVICE_CODE_IMAGE_METADATA,
-                    "arch", Arch);
-      NDCIProps.add(PropertySetRegistry::SYCLBIN_NATIVE_DEVICE_CODE_IMAGE_METADATA,
-                    "target", std::string_view{Triple});
+      NDCIProps.add(
+          PropertySetRegistry::SYCLBIN_NATIVE_DEVICE_CODE_IMAGE_METADATA,
+          "arch", Arch);
+      NDCIProps.add(
+          PropertySetRegistry::SYCLBIN_NATIVE_DEVICE_CODE_IMAGE_METADATA,
+          "target", std::string_view{Triple});
       ID.Metadata = serializePropSetRegistry(NDCIProps);
     }
   }

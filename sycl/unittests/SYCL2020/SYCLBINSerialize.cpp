@@ -185,8 +185,7 @@ TEST(SYCLBINSerialize, BundleStateRoundTripObject) {
   sycl::context Ctx{Dev};
   // Construct an object-state bundle via compile() of an input-state bundle,
   // matching how the public API exposes object-state kernel_bundles.
-  auto Input =
-      sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx, {Dev});
+  auto Input = sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx, {Dev});
   auto Obj = sycl::compile(Input);
 
   std::vector<char> Bytes =
@@ -247,9 +246,9 @@ TEST(SYCLBINSerialize, EmptyBundle) {
   // no images.
   sycl::detail::SYCLBIN::SYCLBINDesc Desc;
   sycl::detail::PropertySetRegistry GlobalProps;
-  GlobalProps.add(
-      sycl::detail::PropertySetRegistry::SYCLBIN_GLOBAL_METADATA, "state",
-      static_cast<uint32_t>(sycl::bundle_state::executable));
+  GlobalProps.add(sycl::detail::PropertySetRegistry::SYCLBIN_GLOBAL_METADATA,
+                  "state",
+                  static_cast<uint32_t>(sycl::bundle_state::executable));
   std::ostringstream GMOS;
   GlobalProps.write(GMOS);
   Desc.GlobalMetadata = GMOS.str();
@@ -391,9 +390,9 @@ TEST(SYCLBINSerialize, DeviceGlobalsRoundTrip) {
   ASSERT_NE(PIt, It->second.end());
   ASSERT_EQ(PIt->second.getType(), PropertyValue::BYTE_ARRAY);
   EXPECT_EQ(PIt->second.getByteArraySize(), sizeof(DGDescr));
-  EXPECT_EQ(std::memcmp(PIt->second.asByteArray(), DGDescr.data(),
-                        sizeof(DGDescr)),
-            0);
+  EXPECT_EQ(
+      std::memcmp(PIt->second.asByteArray(), DGDescr.data(), sizeof(DGDescr)),
+      0);
 }
 
 // A SYCLBIN containing both an IR module and a native device code image in

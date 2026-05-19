@@ -101,8 +101,7 @@ TEST(SYCLBINSerializeJIT, SPIRVImageBecomesIRModule) {
 
       auto TyIt = It->second.find("type");
       ASSERT_NE(TyIt, It->second.end());
-      ASSERT_EQ(TyIt->second.getType(),
-                sycl::detail::PropertyValue::UINT32);
+      ASSERT_EQ(TyIt->second.getType(), sycl::detail::PropertyValue::UINT32);
       if (TyIt->second.asUint32() == 0u)
         FoundTypeSPIRV = true;
 
