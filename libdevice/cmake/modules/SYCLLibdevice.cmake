@@ -12,13 +12,6 @@ set(bc_binary_dir "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
 set(install_dest_obj lib${LLVM_LIBDIR_SUFFIX})
 set(install_dest_bc lib${LLVM_LIBDIR_SUFFIX})
 
-string(CONCAT sycl_targets_opt
-  "-fsycl-targets="
-  "spir64_x86_64-unknown-unknown,"
-  "spir64_gen-unknown-unknown,"
-  "spir64-unknown-unknown,"
-  "spirv64-unknown-unknown")
-
 string(CONCAT sycl_pvc_target_opt
   "-fsycl-targets="
   "intel_gpu_pvc")
@@ -172,6 +165,8 @@ endfunction()
 #     Custom target to create
 # * INPUT <string> ...
 #     List of bytecode files to link together
+# * OUT_DIR <string>
+#     Directory where the output bitcode should be placed
 # * RSP_DIR <string>
 #     Directory where a response file should be placed
 #     (Only needed for WIN32 or CYGWIN)
@@ -180,7 +175,7 @@ endfunction()
 function(link_bc)
   cmake_parse_arguments(ARG
     "INTERNALIZE"
-    "TARGET;RSP_DIR"
+    "TARGET;OUT_DIR;RSP_DIR"
     "INPUTS;DEPENDENCIES"
     ${ARGN}
   )
@@ -204,15 +199,20 @@ function(link_bc)
     set( link_flags --internalize --only-needed )
   endif()
 
+  if (DEFINED ARG_OUT_DIR)
+    set(output_dir ${ARG_OUT_DIR})
+  else()
+    set(output_dir ${CMAKE_CURRENT_BINARY_DIR})
+  endif()
   add_custom_command(
-    OUTPUT ${ARG_TARGET}.bc
-    COMMAND ${llvm-link_exe} ${link_flags} -o ${ARG_TARGET}.bc ${LINK_INPUT_ARG}
+    OUTPUT  "${output_dir}/${ARG_TARGET}.bc"
+    COMMAND ${llvm-link_exe} ${link_flags} -o "${output_dir}/${ARG_TARGET}.bc" ${LINK_INPUT_ARG}
     DEPENDS ${llvm-link_target} ${ARG_DEPENDENCIES} ${ARG_INPUTS} ${RSP_FILE}
   )
 
-  add_custom_target( ${ARG_TARGET} ALL DEPENDS ${ARG_TARGET}.bc )
+  add_custom_target( ${ARG_TARGET} ALL DEPENDS "${output_dir}/${ARG_TARGET}.bc" )
   set_target_properties( ${ARG_TARGET} PROPERTIES
-    TARGET_FILE ${CMAKE_CURRENT_BINARY_DIR}/${ARG_TARGET}.bc
+    TARGET_FILE "${output_dir}/${ARG_TARGET}.bc"
   )
 endfunction()
 
@@ -436,15 +436,6 @@ add_devicelibs(libsycl-cmath
   SRC cmath_wrapper.cpp
   BUILD_ARCHS ${full_build_archs}
   DEPENDENCIES ${cmath_obj_deps})
-add_devicelibs(libsycl-imf
-  SRC imf_wrapper.cpp
-  DEPENDENCIES ${imf_obj_deps})
-add_devicelibs(libsycl-imf-fp64
-  SRC imf_wrapper_fp64.cpp
-  DEPENDENCIES ${imf_obj_deps})
-add_devicelibs(libsycl-imf-bf16
-  SRC imf_wrapper_bf16.cpp
-  DEPENDENCIES ${imf_obj_deps})
 if(MSVC)
   add_devicelibs(libsycl-msvc-math
     SRC msvc_math.cpp
@@ -535,25 +526,22 @@ add_devicelibs(libsycl-native-bfloat16
 file(MAKE_DIRECTORY ${obj_binary_dir}/libdevice)
 set(imf_fallback_src_dir ${obj_binary_dir}/libdevice)
 set(imf_src_dir ${CMAKE_CURRENT_SOURCE_DIR})
-set(imf_fallback_fp32_deps device.h device_imf.hpp imf_half.hpp imf_rounding_op.hpp imf_impl_utils.hpp
+set(imf_fallback_deps device.h device_imf.hpp imf_half.hpp imf_rounding_op.hpp imf_impl_utils.hpp imf_bf16.hpp
                            imf_utils/integer_misc.cpp
                            imf_utils/float_convert.cpp
                            imf_utils/half_convert.cpp
                            imf_utils/simd_emulate.cpp
                            imf_utils/fp32_round.cpp
                            imf/imf_inline_fp32.cpp
-                           imf/imf_fp32_dl.cpp)
-set(imf_fallback_fp64_deps device.h device_imf.hpp imf_half.hpp imf_rounding_op.hpp imf_impl_utils.hpp
-                           imf_utils/double_convert.cpp imf_utils/fp64_round.cpp
+                           imf/imf_fp32_dl.cpp
+                           imf_utils/double_convert.cpp
+                           imf_utils/fp64_round.cpp
                            imf/imf_inline_fp64.cpp
-                           imf/imf_fp64_dl.cpp)
-set(imf_fallback_bf16_deps device.h device_imf.hpp imf_bf16.hpp
+                           imf/imf_fp64_dl.cpp
                            imf_utils/bfloat16_convert.cpp
                            imf/imf_inline_bf16.cpp)
 
-set(imf_fp32_fallback_src ${imf_fallback_src_dir}/imf_fp32_fallback.cpp)
-set(imf_fp64_fallback_src ${imf_fallback_src_dir}/imf_fp64_fallback.cpp)
-set(imf_bf16_fallback_src ${imf_fallback_src_dir}/imf_bf16_fallback.cpp)
+set(imf_fallback_src ${imf_fallback_src_dir}/imf_fallback.cpp)
 
 set(imf_host_cxx_flags -c
   --target=${LLVM_HOST_TRIPLE}
@@ -613,24 +601,21 @@ endif()
 
 set(obj_host_compile_opts ${imf_host_cxx_flags} --no-offload-new-driver)
 
-foreach(datatype IN ITEMS fp32 fp64 bf16)
-  string(TOUPPER ${datatype} upper_datatype)
+add_custom_command(
+  OUTPUT ${imf_fallback_src}
+  COMMAND ${CMAKE_COMMAND}
+          -D SRC_DIR=${imf_src_dir}
+          -D DEST_DIR=${imf_fallback_src_dir}
+          -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules/ImfSrcConcate.cmake
+  DEPENDS ${imf_fallback_deps})
 
-  add_custom_command(
-    OUTPUT ${imf_${datatype}_fallback_src}
-    COMMAND ${CMAKE_COMMAND}
-            -D SRC_DIR=${imf_src_dir}
-            -D DEST_DIR=${imf_fallback_src_dir}
-            -D IMF_TARGET=${upper_datatype}
-            -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules/ImfSrcConcate.cmake
-    DEPENDS ${imf_fallback_${datatype}_deps})
-
-  add_custom_target(get_imf_fallback_${datatype}
-     DEPENDS ${imf_${datatype}_fallback_src})
-endforeach()
+add_custom_target(get_imf_fallback
+   DEPENDS ${imf_fallback_src})
 
 add_custom_target(libsycldevice-obj)
 add_dependencies(libsycldevice libsycldevice-obj)
+
+set(imf_bc_file_list)
 # Adds Intel math functions libraries.
 #
 # Arguments:
@@ -640,9 +625,6 @@ add_dependencies(libsycldevice libsycldevice-obj)
 #    The directory where the output file should be located in.
 # * FTYPE <string>
 #    Filetype of the output library file (e.g. 'bc').
-# * DTYPE <string>
-#   The datatype of the library, which determines the input source
-#   and dependencies of the compilation command.
 # * TGT_NAME <string>
 #   Name of the new target that depends on the compilation of the library.
 # * EXTRA_OPTS <string> ...
@@ -653,7 +635,7 @@ add_dependencies(libsycldevice libsycldevice-obj)
 function(add_lib_imf name)
   cmake_parse_arguments(ARG
     ""
-    "DIR;FTYPE;DTYPE;TGT_NAME"
+    "DIR;FTYPE;TGT_NAME"
     "EXTRA_OPTS"
     ${ARGN})
 
@@ -661,36 +643,48 @@ function(add_lib_imf name)
     OUTPUT ${ARG_DIR}/${name}.${${ARG_FTYPE}-suffix}
     COMMAND ${clang_exe} ${compile_opts} ${ARG_EXTRA_OPTS}
             -I ${CMAKE_CURRENT_SOURCE_DIR}/imf
-            ${imf_${ARG_DTYPE}_fallback_src}
+            ${imf_fallback_src}
             -o
             ${ARG_DIR}/${name}.${${ARG_FTYPE}-suffix}
-            DEPENDS ${imf_fallback_${ARG_DTYPE}_deps}
-            get_imf_fallback_${ARG_DTYPE} ${sycl-compiler_deps}
+            DEPENDS ${imf_fallback_deps}
+            get_imf_fallback ${sycl-compiler_deps}
     VERBATIM)
-
   add_custom_target(${ARG_TGT_NAME}
     DEPENDS ${ARG_DIR}/${name}.${${ARG_FTYPE}-suffix})
-
-  add_dependencies(libsycldevice-${ARG_FTYPE} ${ARG_TGT_NAME})
 endfunction()
 
 # Add device fallback imf libraries for the SPIRV targets and all filetypes.
-foreach(dtype IN ITEMS bf16 fp32 fp64)
-  foreach(ftype IN LISTS filetypes)
-    set(libsycl_name libsycl-fallback-imf)
-    if (NOT (dtype STREQUAL "fp32"))
-      set(libsycl_name libsycl-fallback-imf-${dtype})
-    endif()
-    set(tgt_name imf_fallback_${dtype}_${ftype})
+foreach(ftype IN LISTS filetypes)
+  set(libsycl_name imf-fallback-device)
+  set(tgt_name imf_fallback_${ftype})
 
-    add_lib_imf(${libsycl_name}
-      DIR ${${ftype}_binary_dir}
-      FTYPE ${ftype}
-      DTYPE ${dtype}
-      EXTRA_OPTS ${${ftype}_device_compile_opts}
-      TGT_NAME ${tgt_name})
-  endforeach()
+  add_lib_imf(${libsycl_name}
+    DIR ${${ftype}_binary_dir}
+    FTYPE ${ftype}
+    EXTRA_OPTS ${${ftype}_device_compile_opts}
+    TGT_NAME ${tgt_name})
 endforeach()
+
+add_custom_command(
+  OUTPUT ${bc_binary_dir}/imf-wrapper-device.${bc-suffix}
+  COMMAND ${clang_exe} ${compile_opts} ${bc_device_compile_opts}
+          ${CMAKE_CURRENT_SOURCE_DIR}/imf_wrapper.cpp
+          -o ${bc_binary_dir}/imf-wrapper-device.${bc-suffix}
+  MAIN_DEPENDENCY ${CMAKE_CURRENT_SOURCE_DIR}/imf_wrapper.cpp
+  DEPENDS ${imf_obj_deps}
+  VERBATIM)
+
+add_custom_target(imf_wrapper_bc DEPENDS
+  ${bc_binary_dir}/imf-wrapper-device.${bc-suffix})
+list(APPEND imf_bc_file_list ${bc_binary_dir}/imf-wrapper-device.${bc-suffix})
+list(APPEND imf_bc_file_list ${bc_binary_dir}/imf-fallback-device.${bc-suffix})
+
+link_bc(TARGET libsycl-imf
+        OUT_DIR ${bc_binary_dir}
+        RSP_DIR ${CMAKE_CURRENT_BINARY_DIR}
+        INPUTS ${imf_bc_file_list}
+        DEPENDENCIES imf_wrapper_bc imf_fallback_bc)
+add_dependencies(libsycldevice-bc libsycl-imf)
 
 # Create one large bitcode file for the NVPTX and AMD targets.
 # Use all the files collected in the respective global properties.
@@ -719,32 +713,25 @@ foreach(arch IN LISTS full_build_archs)
 endforeach()
 
 # Add host objects for host device imf libraries.
-foreach(dtype IN ITEMS bf16 fp32 fp64)
-  set(tgt_name imf_fallback_${dtype}_host_obj)
+set(imf_host_tgt_name imf_fallback_host_obj)
 
-  add_lib_imf(fallback-imf-${dtype}-host
-    DIR ${obj_binary_dir}
-    FTYPE obj
-    DTYPE ${dtype}
-    EXTRA_OPTS ${obj_host_compile_opts}
-    TGT_NAME ${tgt_name})
+add_lib_imf(fallback-imf-host
+  DIR ${obj_binary_dir}
+  FTYPE obj
+  EXTRA_OPTS ${obj_host_compile_opts}
+  TGT_NAME ${imf_host_tgt_name})
 
-  set(wrapper_name imf_wrapper.cpp)
-  if (NOT ("${dtype}" STREQUAL "fp32"))
-    set(wrapper_name imf_wrapper_${dtype}.cpp)
-  endif()
-  add_custom_command(
-    OUTPUT ${obj_binary_dir}/imf-${dtype}-host.${obj-suffix}
-    COMMAND ${clang_exe} ${obj_host_compile_opts}
-            ${CMAKE_CURRENT_SOURCE_DIR}/${wrapper_name}
-            -o ${obj_binary_dir}/imf-${dtype}-host.${obj-suffix}
-    MAIN_DEPENDENCY ${CMAKE_CURRENT_SOURCE_DIR}/${wrapper_name}
-    DEPENDS ${imf_obj_deps}
-    VERBATIM)
+add_custom_command(
+  OUTPUT ${obj_binary_dir}/imf-wrapper-host.${obj-suffix}
+  COMMAND ${clang_exe} ${obj_host_compile_opts}
+          ${CMAKE_CURRENT_SOURCE_DIR}/imf_wrapper.cpp
+          -o ${obj_binary_dir}/imf-wrapper-host.${obj-suffix}
+  MAIN_DEPENDENCY ${CMAKE_CURRENT_SOURCE_DIR}/imf_wrapper.cpp
+  DEPENDS ${imf_obj_deps}
+  VERBATIM)
 
-  add_custom_target(imf_${dtype}_host_obj DEPENDS
-    ${obj_binary_dir}/imf-${dtype}-host.${obj-suffix})
-endforeach()
+add_custom_target(imf_wrapper_host_obj DEPENDS
+  ${obj_binary_dir}/imf-wrapper-host.${obj-suffix})
 
 add_custom_target(imf_host_obj
   DEPENDS ${obj_binary_dir}/${devicelib_host_static_obj})
@@ -752,15 +739,10 @@ add_custom_command(
   OUTPUT ${obj_binary_dir}/${devicelib_host_static_obj}
   COMMAND ${llvm-ar_exe} rcs
           ${obj_binary_dir}/${devicelib_host_static_obj}
-          ${obj_binary_dir}/imf-fp32-host.${obj-suffix}
-          ${obj_binary_dir}/fallback-imf-fp32-host.${obj-suffix}
-          ${obj_binary_dir}/imf-fp64-host.${obj-suffix}
-          ${obj_binary_dir}/fallback-imf-fp64-host.${obj-suffix}
-          ${obj_binary_dir}/imf-bf16-host.${obj-suffix}
-          ${obj_binary_dir}/fallback-imf-bf16-host.${obj-suffix}
-  DEPENDS imf_fp32_host_obj imf_fallback_fp32_host_obj
-  DEPENDS imf_fp64_host_obj imf_fallback_fp64_host_obj
-  DEPENDS imf_bf16_host_obj imf_fallback_bf16_host_obj
+          ${obj_binary_dir}/imf-wrapper-host.${obj-suffix}
+          ${obj_binary_dir}/fallback-imf-host.${obj-suffix}
+  DEPENDS imf_wrapper_host_obj
+  DEPENDS imf_fallback_host_obj
   DEPENDS ${llvm-ar_target}
   VERBATIM)
 add_dependencies(libsycldevice-obj imf_host_obj)
@@ -771,9 +753,7 @@ install( FILES ${obj_binary_dir}/${devicelib_host_static_obj}
 
 foreach(ftype IN LISTS filetypes)
   install(
-    FILES ${${ftype}_binary_dir}/libsycl-fallback-imf.${${ftype}-suffix}
-          ${${ftype}_binary_dir}/libsycl-fallback-imf-fp64.${${ftype}-suffix}
-          ${${ftype}_binary_dir}/libsycl-fallback-imf-bf16.${${ftype}-suffix}
+    FILES ${obj_binary_dir}/libsycl-imf.${${ftype}-suffix}
     DESTINATION ${install_dest_${ftype}}
     COMPONENT libsycldevice)
 endforeach()

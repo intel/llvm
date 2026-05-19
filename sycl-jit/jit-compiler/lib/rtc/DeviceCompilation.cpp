@@ -784,17 +784,11 @@ static void getDeviceLibraries(const ArgList &Args,
   }
 
   using SYCLDeviceLibsList = SmallVector<StringRef>;
-  const SYCLDeviceLibsList SYCLDeviceLibs = {"libsycl-crt",
-                                             "libsycl-cmath",
+  const SYCLDeviceLibsList SYCLDeviceLibs = {"libsycl-crt", "libsycl-cmath",
 #if defined(_WIN32)
                                              "libsycl-msvc-math",
 #endif
-                                             "libsycl-imf",
-                                             "libsycl-imf-fp64",
-                                             "libsycl-imf-bf16",
-                                             "libsycl-fallback-imf",
-                                             "libsycl-fallback-imf-fp64",
-                                             "libsycl-fallback-imf-bf16"};
+                                             "libsycl-imf", "libm"};
 
   StringRef LibSuffix = ".bc";
   auto AddLibraries = [&](const SYCLDeviceLibsList &LibsList) {
@@ -847,10 +841,14 @@ Error jit_compiler::linkDeviceLibraries(llvm::Module &Module,
     std::string TripleName = (Format == BinaryFormat::PTX)
                                  ? "nvptx64-nvidia-cuda"
                                  : "amdgcn-amd-amdhsa";
-    std::string LibPath =
-        (LibName.find("libspirv") != std::string::npos)
-            ? (TC.getLibclcDir() + TripleName + "/" + LibName).str()
-            : (TC.getPrefix() + "/lib/" + LibName).str();
+    std::string LibPath;
+    if (LibName.find("libspirv") != std::string::npos)
+      LibPath = (TC.getLibclcDir() + TripleName + "/" + LibName).str();
+    else if (LibName == "libm")
+      LibPath =
+          (TC.getPrefix() + "/lib/spirv64-unknown-unknown/" + LibName).str();
+    else
+      LibPath = (TC.getPrefix() + "/lib/" + LibName).str();
 
     ModuleUPtr LibModule;
     if (auto Error =
