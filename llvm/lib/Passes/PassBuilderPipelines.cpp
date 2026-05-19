@@ -1598,20 +1598,13 @@ PassBuilder::buildModuleOptimizationPipeline(OptimizationLevel Level,
 
   invokeVectorizerStartEPCallbacks(OptimizePM, Level);
 
-<<<<<<< HEAD
   if (!SYCLOptimizationMode) {
     LoopPassManager LPM;
     // First rotate loops that may have been un-rotated by prior passes.
     // Disable header duplication at -Oz.
-    LPM.addPass(LoopRotatePass(/*EnableLoopHeaderDuplication=*/true, LTOPreLink,
-=======
-  LoopPassManager LPM;
-  // First rotate loops that may have been un-rotated by prior passes.
-  // Disable header duplication at -Oz.
-  LPM.addPass(LoopRotatePass(/*EnableLoopHeaderDuplication=*/true,
-                             isLTOPreLink(LTOPhase),
->>>>>>> 6aac1077c3587967a78f71b33fadfa2aae1dc4f1
-                             /*CheckExitCount=*/true));
+    LPM.addPass(LoopRotatePass(/*EnableLoopHeaderDuplication=*/true,
+			       isLTOPreLink(LTOPhase),
+			       /*CheckExitCount=*/true));
     // Some loops may have become dead by now. Try to delete them.
     // FIXME: see discussion in https://reviews.llvm.org/D112851,
     //        this may need to be revisited once we run GVN before loop deletion
