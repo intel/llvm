@@ -6,11 +6,14 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <clc/relational/clc_bitselect.h>
-#include <libspirv/spirv.h>
+#include "clc/relational/clc_bitselect.h"
+#include "libspirv/spirv.h"
 
-#define __CLC_BODY <bitselect.inc>
-#include <clc/integer/gentype.inc>
+#define __CLC_FUNCTION __spirv_ocl_bitselect
+#define __CLC_IMPL_FUNCTION(x) __clc_bitselect
 
-#define __CLC_BODY <bitselect.inc>
-#include <clc/math/gentype.inc>
+#define __CLC_BODY "clc/shared/ternary_def.inc"
+#include "clc/integer/gentype.inc"
+
+#define __CLC_BODY "clc/shared/ternary_def.inc"
+#include "clc/math/gentype.inc"

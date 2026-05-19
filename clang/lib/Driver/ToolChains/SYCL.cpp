@@ -31,6 +31,7 @@ SYCLInstallationDetector::SYCLInstallationDetector(
   StringRef SysRoot = D.SysRoot;
   SmallString<128> DriverDir(D.Dir);
 
+<<<<<<< HEAD
   if (HostTriple.isWindowsMSVCEnvironment() ||
       HostTriple.isWindowsItaniumEnvironment()) {
     // Windows: Check for LLVMSYCL.lib
@@ -73,6 +74,18 @@ SYCLInstallationDetector::SYCLInstallationDetector(
 
       SYCLRTLibPath = DriverDir;
     }
+=======
+  if (DriverDir.starts_with(SysRoot) &&
+      Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false)) {
+    // LLVM_ENABLE_PER_TARGET_RUNTIME_DIR=ON: library is in lib/<triple>/
+    if (D.getVFS().exists(LibPath))
+      llvm::sys::path::append(DriverDir, "..", "lib", HostTriple.str());
+    // LLVM_ENABLE_PER_TARGET_RUNTIME_DIR=OFF: library is in lib/
+    else if (D.getVFS().exists(FlatLibPath))
+      llvm::sys::path::append(DriverDir, "..", "lib");
+    if (!DriverDir.equals(D.Dir))
+      SYCLRTLibPath = DriverDir;
+>>>>>>> fd9c7289ce498ed7d6ad9412d61019ecd44576b7
   }
   InstallationCandidates.emplace_back(D.Dir + "/..");
 }
@@ -625,17 +638,11 @@ SYCLToolChain::getDeviceLibNames(const Driver &D,
   }
 
   using SYCLDeviceLibsList = SmallVector<StringRef>;
-  const SYCLDeviceLibsList SYCLDeviceLibs = {"libsycl-crt",
-                                             "libsycl-cmath",
+  const SYCLDeviceLibsList SYCLDeviceLibs = {"libsycl-crt", "libsycl-cmath",
 #if defined(_WIN32)
                                              "libsycl-msvc-math",
 #endif
-                                             "libsycl-imf",
-                                             "libsycl-imf-fp64",
-                                             "libsycl-imf-bf16",
-                                             "libsycl-fallback-imf",
-                                             "libsycl-fallback-imf-fp64",
-                                             "libsycl-fallback-imf-bf16"};
+                                             "libsycl-imf"};
   auto addLibraries = [&](const SYCLDeviceLibsList &LibsList) {
     for (const StringRef &Lib : LibsList)
       addLibToList(Args.MakeArgString(Lib + ".bc"));
@@ -794,14 +801,9 @@ static llvm::SmallVector<StringRef, 16> SYCLDeviceLibList{
     "tsan-cpu",
 #endif
     "imf",
-    "imf-fp64",
-    "imf-bf16",
     "itt-compiler-wrappers",
     "itt-stubs",
     "itt-user-wrappers",
-    "fallback-imf",
-    "fallback-imf-fp64",
-    "fallback-imf-bf16",
     "fallback-bfloat16",
     "native-bfloat16"};
 

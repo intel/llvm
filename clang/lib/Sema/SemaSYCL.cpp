@@ -2477,6 +2477,7 @@ static QualType ModifyAddressSpace(SemaSYCL &SemaSYCLRef, QualType Ty) {
   // same type as field but global address space, because OpenCL requires it.
   // Function pointers should have program address space. This is set in
   // CodeGen.
+  Qualifiers PtrQuals = Ty.getQualifiers();
   QualType PointeeTy = Ty->getPointeeType();
   Qualifiers Quals = PointeeTy.getQualifiers();
   LangAS AS = Quals.getAddressSpace();
@@ -2487,7 +2488,8 @@ static QualType ModifyAddressSpace(SemaSYCL &SemaSYCLRef, QualType Ty) {
     Quals.setAddressSpace(LangAS::sycl_global);
   PointeeTy = SemaSYCLRef.getASTContext().getQualifiedType(
       PointeeTy.getUnqualifiedType(), Quals);
-  return SemaSYCLRef.getASTContext().getPointerType(PointeeTy);
+  QualType PtrTy = SemaSYCLRef.getASTContext().getPointerType(PointeeTy);
+  return SemaSYCLRef.getASTContext().getQualifiedType(PtrTy, PtrQuals);
 }
 
 // This visitor is used to traverse a non-decomposed record/array to
@@ -4092,7 +4094,12 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     Expr *ArrayRef = createSimpleArrayParamReferenceExpr(FieldTy);
     InitializationKind InitKind = InitializationKind::CreateDirect({}, {}, {});
 
+<<<<<<< HEAD
     InitializedEntity Entity = InitializedEntity::InitializeMemberImplicit(FD);
+=======
+    InitializedEntity Entity =
+        InitializedEntity::InitializeMemberImplicit(FD, &VarEntity.value());
+>>>>>>> fd9c7289ce498ed7d6ad9412d61019ecd44576b7
 
     addFieldInit(FD, FieldTy, ArrayRef, InitKind, Entity);
   }

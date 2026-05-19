@@ -108,6 +108,8 @@ TEST_P(urDeviceGetSelectedTest, SuccessSelected_StarColonStar) {
 }
 
 TEST_P(urDeviceGetSelectedTest, SuccessSelected_StarColonZero) {
+  // Related issue: #22025
+  UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
   uur::set_env("ONEAPI_DEVICE_SELECTOR", "*:0");
   uint32_t count = 0;
   ASSERT_SUCCESS(
@@ -153,6 +155,8 @@ TEST_P(urDeviceGetSelectedTest, SuccessSelected_SelectAndDiscard) {
 
 TEST_P(urDeviceGetSelectedTest,
        SuccessSelected_SelectSomethingAndDiscardSomethingElse) {
+  // Related issue: #22025
+  UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
   uur::set_env("ONEAPI_DEVICE_SELECTOR", "*:0;!*:1");
   uint32_t count = 0;
   ASSERT_SUCCESS(

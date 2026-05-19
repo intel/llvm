@@ -12,6 +12,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/SYCLLowerIR/CleanupSYCLMetadata.h"
+#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/IR/Constants.h"
@@ -34,18 +35,18 @@ void cleanupSYCLCompilerModuleMetadata(const Module &M, llvm::StringRef MD) {
 }
 
 // GV is supposed to be either llvm.compiler.used or llvm.used.
-SmallVector<Constant *>
-eraseGlobalVariableAndReturnOperands(GlobalVariable *GV) {
+SmallPtrSet<Constant *, 0>
+eraseGlobalVariableAndReturnUniqueOperands(GlobalVariable *GV) {
   assert(GV->user_empty() && "Users aren't expected");
   Constant *Initializer = GV->getInitializer();
   GV->setInitializer(nullptr);
   GV->eraseFromParent();
 
   // Destroy the initializer and save operands.
-  SmallVector<Constant *> Operands;
-  Operands.resize(0);
+  SmallPtrSet<Constant *, 0> Operands;
+  Operands.reserve(Initializer->getNumOperands());
   for (auto &Op : Initializer->operands())
-    Operands.push_back(cast<Constant>(Op));
+    Operands.insert(cast<Constant>(Op));
 
   assert(isSafeToDestroyConstant(Initializer) &&
          "Cannot remove initializer of the given GV");
@@ -81,8 +82,8 @@ CleanupSYCLMetadataFromLLVMUsed::run(Module &M, ModuleAnalysisManager &) {
   if (!GV)
     return PreservedAnalyses::all();
 
-  SmallVector<Constant *, 8> IOperands =
-      eraseGlobalVariableAndReturnOperands(GV);
+  SmallPtrSet<Constant *, 0> IOperands =
+      eraseGlobalVariableAndReturnUniqueOperands(GV);
   // Erase all operands.
   for (auto *Op : IOperands) {
     auto StrippedOp = Op->stripPointerCasts();
@@ -113,7 +114,8 @@ RemoveDeviceGlobalFromLLVMCompilerUsed::run(Module &M,
 
   const auto *VAT = cast<ArrayType>(GV->getValueType());
   // Destroy the initializer. Keep the operands so we keep the ones we need.
-  SmallVector<Constant *> IOperands = eraseGlobalVariableAndReturnOperands(GV);
+  SmallPtrSet<Constant *, 0> IOperands =
+      eraseGlobalVariableAndReturnUniqueOperands(GV);
 
   // Iterate through all operands. If they are device_global then we drop them
   // and erase them if they have no uses afterwards. All other values are kept.
