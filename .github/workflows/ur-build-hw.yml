@@ -148,21 +148,6 @@ jobs:
       # Don't run adapter specific tests when building multiple adapters
       if: ${{ matrix.adapter.other_name == '' }}
 
-    - name: Test CI validation suite (intentional failures)
-      shell: bash
-      continue-on-error: false
-      if: ${{ matrix.adapter.other_name == '' }}
-      run: |
-        echo "::group::CI Validation Test Suite"
-        cmake --build build -- check-unified-runtime-adapter-ci-validation 2>&1 | tee ci_validation_tests.log
-        echo "::endgroup::"
-        echo ""
-        echo "=== CI Validation Tests Statistics ==="
-        awk '/^ *(Total Discovered|Expected Passes|Expected Failures|Unsupported|Skipped|Passed|Failed|Timed Out|Unexpectedly Passed|Unresolved) *(Tests)? *:/ {print}' ci_validation_tests.log
-        echo ""
-        echo "Note: This test suite intentionally generates failures, timeouts, and other test outcomes"
-        echo "to validate CI logging and test categorization. It will fail the workflow."
-
     - name: Test adapter specific logs
       if: ${{ always() && matrix.adapter.other_name == '' }}
       shell: bash

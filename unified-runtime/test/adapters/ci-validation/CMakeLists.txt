@@ -7,13 +7,16 @@
 
 add_custom_target(check-unified-runtime-adapter-ci-validation
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/llvm/utils/lit/lit.py
-            -v
             --show-pass
             --show-unsupported
             --show-xfail
+            --no-progress-bar
             --succinct
             --timeout 10
             ${CMAKE_CURRENT_SOURCE_DIR}
     COMMENT "Running CI validation test suite (generates intentional failures/timeouts)"
     USES_TERMINAL
 )
+
+# Add as dependency to main adapter tests target so it runs automatically
+add_dependencies(check-unified-runtime-adapter check-unified-runtime-adapter-ci-validation)
