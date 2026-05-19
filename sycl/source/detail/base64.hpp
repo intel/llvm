@@ -13,6 +13,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <ostream>
 #include <string>
 #include <vector>
 
@@ -22,6 +23,16 @@ namespace detail {
 
 class Base64 {
 private:
+  // Encoding table: 6-bit index -> base64 character. Used by encode() only.
+  // Decoding uses arithmetic decode() below since the input domain is sparse.
+  static constexpr char EncodingTable[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                                          "abcdefghijklmnopqrstuvwxyz"
+                                          "0123456789+/";
+
+  static inline int composeInd(uint8_t ByteLo, uint8_t ByteHi, int BitsLo) {
+    return ((ByteHi << BitsLo) | (ByteLo >> (8 - BitsLo))) & 0x3F;
+  }
+
   // Decode a single character.
   static inline int decode(char Ch) {
     if (Ch >= 'A' && Ch <= 'Z') // 0..25
@@ -58,6 +69,48 @@ private:
 
 public:
   using byte = uint8_t;
+
+  // Get the size of the encoded byte sequence of given size.
+  static size_t getEncodedSize(size_t SrcSize) {
+    constexpr int ByteSizeInBits = 8;
+    constexpr int EncBitsPerChar = 6;
+    return (SrcSize * ByteSizeInBits + (EncBitsPerChar - 1)) / EncBitsPerChar;
+  }
+
+  // Encode a byte sequence of given size into the output stream.
+  // Returns the number of bytes in the encoded result.
+  static size_t encode(const byte *Src, std::ostream &Out, size_t SrcSize) {
+    size_t Off = 0;
+
+    // Encode full byte triples.
+    for (size_t TriB = 0; TriB < SrcSize / 3; ++TriB) {
+      Off = TriB * 3;
+      byte Byte0 = Src[Off++];
+      byte Byte1 = Src[Off++];
+      byte Byte2 = Src[Off++];
+
+      Out << EncodingTable[Byte0 & 0x3F];
+      Out << EncodingTable[composeInd(Byte0, Byte1, 2)];
+      Out << EncodingTable[composeInd(Byte1, Byte2, 4)];
+      Out << EncodingTable[(Byte2 >> 2) & 0x3F];
+    }
+    // Encode the remainder, if any.
+    int RemBytes = static_cast<int>(SrcSize - Off);
+
+    if (RemBytes > 0) {
+      byte Byte0 = Src[Off + 0];
+      Out << EncodingTable[Byte0 & 0x3F];
+
+      if (RemBytes > 1) {
+        byte Byte1 = Src[Off + 1];
+        Out << EncodingTable[composeInd(Byte0, Byte1, 2)];
+        Out << EncodingTable[(Byte1 >> 4) & 0x3F];
+      } else {
+        Out << EncodingTable[(Byte0 >> 6) & 0x3F];
+      }
+    }
+    return getEncodedSize(SrcSize);
+  }
 
   // Get the size of the encoded byte sequence of given size.
   static size_t getDecodedSize(size_t SrcSize) { return (SrcSize * 3 + 3) / 4; }

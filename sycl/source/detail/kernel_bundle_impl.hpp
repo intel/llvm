@@ -1039,6 +1039,26 @@ public:
 
   bundle_state get_bundle_state() const { return MState; }
 
+  // Serialize this kernel_bundle into the SYCLBIN binary format. Always
+  // re-serializes from the live device images to reflect any state-promotion
+  // (compile/link/build) that may have replaced the original images, even when
+  // the bundle was originally constructed from a SYCLBIN file.
+  std::vector<char> ext_oneapi_get_content() const {
+    if (MState == bundle_state::ext_oneapi_source)
+      throw sycl::exception(
+          make_error_code(errc::invalid),
+          "ext_oneapi_get_content is not supported for kernel_bundles in the "
+          "ext_oneapi_source state.");
+
+    std::vector<const RTDeviceBinaryImage *> Images;
+    Images.reserve(MUniqueDeviceImages.size());
+    for (device_image_impl &DevImg : device_images())
+      if (const RTDeviceBinaryImage *Bin = DevImg.get_bin_image_ref())
+        Images.push_back(Bin);
+
+    return SYCLBIN::serializeImages(Images, static_cast<uint8_t>(MState));
+  }
+
   const SpecConstMapT &get_spec_const_map_ref() const noexcept {
     return MSpecConstValues;
   }
