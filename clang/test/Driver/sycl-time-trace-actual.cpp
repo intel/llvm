@@ -76,6 +76,10 @@
 // CHECK-COLLISION-DAG: dir2-test-sycl-spir64-unknown-unknown.json
 
 // Minimal SYCL code for testing
+// Provide stub runtime registration hooks so link mode works in this
+// driver-only test environment without pulling in the SYCL runtime.
+extern "C" void __sycl_register_lib(void *) {}
+extern "C" void __sycl_unregister_lib(void *) {}
 int main() {
   return 0;
 }
