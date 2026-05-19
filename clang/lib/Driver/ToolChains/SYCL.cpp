@@ -31,7 +31,6 @@ SYCLInstallationDetector::SYCLInstallationDetector(
   StringRef SysRoot = D.SysRoot;
   SmallString<128> DriverDir(D.Dir);
 
-<<<<<<< HEAD
   if (HostTriple.isWindowsMSVCEnvironment() ||
       HostTriple.isWindowsItaniumEnvironment()) {
     // Windows: Check for LLVMSYCL.lib
@@ -74,18 +73,6 @@ SYCLInstallationDetector::SYCLInstallationDetector(
 
       SYCLRTLibPath = DriverDir;
     }
-=======
-  if (DriverDir.starts_with(SysRoot) &&
-      Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false)) {
-    // LLVM_ENABLE_PER_TARGET_RUNTIME_DIR=ON: library is in lib/<triple>/
-    if (D.getVFS().exists(LibPath))
-      llvm::sys::path::append(DriverDir, "..", "lib", HostTriple.str());
-    // LLVM_ENABLE_PER_TARGET_RUNTIME_DIR=OFF: library is in lib/
-    else if (D.getVFS().exists(FlatLibPath))
-      llvm::sys::path::append(DriverDir, "..", "lib");
-    if (!DriverDir.equals(D.Dir))
-      SYCLRTLibPath = DriverDir;
->>>>>>> fd9c7289ce498ed7d6ad9412d61019ecd44576b7
   }
   InstallationCandidates.emplace_back(D.Dir + "/..");
 }

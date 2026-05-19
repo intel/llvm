@@ -23,15 +23,11 @@ option(
 )
 
 # List of all supported architectures.
-<<<<<<< HEAD
 set( LIBCLC_ARCHS_NVPTX nvptx64 )
 set( LIBCLC_ARCHS_AMDGPU amdgpu amdgcn )
 set( LIBCLC_ARCHS_SPIRV spirv spirv32 spirv64 )
 set( LIBCLC_ARCHS_NATIVE_CPU native_cpu )
 set( LIBCLC_ARCHS_ALL ${LIBCLC_ARCHS_AMDGPU} ${LIBCLC_ARCHS_NVPTX} ${LIBCLC_ARCHS_SPIRV} ${LIBCLC_ARCHS_NATIVE_CPU} )
-=======
-set( LIBCLC_ARCHS_ALL amdgpu amdgcn clspv clspv64 nvptx64 spirv spirv64 native_cpu)
->>>>>>> fd9c7289ce498ed7d6ad9412d61019ecd44576b7
 
 set(LIBCLC_TARGET ${LLVM_RUNTIMES_TARGET})
 
