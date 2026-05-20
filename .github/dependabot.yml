@@ -1,7 +1,17 @@
 version: 2
 updates:
   - package-ecosystem: "github-actions"
-    directory: "/"
+    directories:
+      - "/"
+      # Required to update composite actions.
+      # See: https://github.com/dependabot/dependabot-core/issues/6704
+      - "/devops/actions/*"
+      - "/devops/actions/*/*"
+      - "/devops/actions/*/*/*"
+      # 3 asterisks are enough at the moment, adding more just in case:
+      - "/devops/actions/*/*/*/*"
+      - "/devops/actions/*/*/*/*/*"
+      
     schedule:
       interval: "monthly"
     groups:

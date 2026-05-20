@@ -7,6 +7,7 @@
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis %t.rev.bc -o %t.rev.ll
 ; RUN: FileCheck < %t.rev.ll %s --check-prefix CHECK-LLVM
+; FIXME: FILECHECK_FAIL during llvm-spirv -r in llc compilation flow
 
 ; CHECK-SPIRV: Name [[FOO_VAR:[0-9]+]] "foo"
 ; CHECK-SPIRV: Name [[BAR_VAR:[0-9]+]] "bar"

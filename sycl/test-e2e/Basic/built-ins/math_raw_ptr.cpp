@@ -6,6 +6,7 @@
 
 #include <sycl/builtins.hpp>
 #include <sycl/detail/core.hpp>
+#include <sycl/vector.hpp>
 
 template <typename T>
 int CheckResult(const T &Actual, const T &Reference, const char *Category,

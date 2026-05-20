@@ -13,11 +13,24 @@
 
 #include "CodeGenFunction.h"
 #include "CodeGenModule.h"
+#include <cassert>
 
 using namespace clang;
 using namespace CodeGen;
 
-static void SetDeviceKernelAttributes(llvm::Function *Fn, CodeGenFunction &CGF) {
+void CodeGenFunction::EmitSYCLKernelCallStmt(const SYCLKernelCallStmt &S) {
+  // SYCLKernelCallStmt instances are only injected in the definitions of
+  // functions declared with the sycl_kernel_entry_point attribute. ODR-use of
+  // such a function in code emitted during device compilation should be
+  // diagnosed. Thus, any attempt to emit a SYCLKernelCallStmt during device
+  // compilation indicates a missing diagnostic.
+  assert(!getLangOpts().SYCLIsDevice &&
+         "Attempt to emit a SYCL kernel call statement during device"
+         " compilation");
+  EmitStmt(S.getKernelLaunchStmt());
+}
+
+static void SetSYCLKernelAttributes(llvm::Function *Fn, CodeGenFunction &CGF) {
   // SYCL 2020 device language restrictions require forward progress and
   // disallow recursion.
   Fn->setDoesNotRecurse();
@@ -62,7 +75,7 @@ void CodeGenModule::EmitSYCLKernelCaller(const FunctionDecl *KernelEntryPointFn,
   // Emit the SYCL kernel caller function.
   CodeGenFunction CGF(*this);
   SetLLVMFunctionAttributes(GlobalDecl(), FnInfo, Fn, false);
-  SetDeviceKernelAttributes(Fn, CGF);
+  SetSYCLKernelAttributes(Fn, CGF);
   CGF.StartFunction(GlobalDecl(), Ctx.VoidTy, Fn, FnInfo, Args,
                     SourceLocation(), SourceLocation());
   CGF.EmitFunctionBody(OutlinedFnDecl->getBody());

@@ -29,6 +29,10 @@ uint8_t GSYCLDebugStreamID = xpti::invalid_id<xpti::stream_id_t>;
 uint8_t GUrCallStreamID = xpti::invalid_id<xpti::stream_id_t>;
 uint8_t GUrApiStreamID = xpti::invalid_id<xpti::stream_id_t>;
 
+// Effective stream detail level for the "sycl" stream
+xpti::stream_detail_level_t GSYCLStreamDetailLevel =
+    xpti::stream_detail_level_t::XPTI_STREAM_DETAIL_LEVEL_NORMAL;
+
 xpti::trace_event_data_t *GMemAllocEvent = nullptr;
 xpti::trace_event_data_t *GSYCLGraphEvent = nullptr;
 xpti::trace_event_data_t *GSYCLCallEvent = nullptr;

@@ -91,7 +91,6 @@ enum InternalOp {
 
 enum InternalDecoration {
   IDecRuntimeAlignedINTEL = 5940,
-  IDecCallableFunctionINTEL = 6087,
   IDecHostAccessINTEL = 6147,
   IDecInitModeINTEL = 6148,
   IDecImplementInCSRINTEL = 6149,
@@ -153,6 +152,17 @@ enum InternalBuiltIn {
   IBuiltInSubDeviceIDINTEL = 6135,
   IBuiltInGlobalHWThreadIDINTEL = 6136,
   IBuiltInDeviceBarrierValidINTEL = 6186,
+};
+
+enum InternalMatrixMultiplyAccumulateOperandsMask {
+  // FP8 matrix operands
+  IMatrixMultiplyAccumulateOperandsMatrixAPackedFloat8E4M3INTELMask = 0x4000,
+  IMatrixMultiplyAccumulateOperandsMatrixBPackedFloat8E4M3INTELMask = 0x8000,
+  IMatrixMultiplyAccumulateOperandsMatrixAPackedFloat8E5M2INTELMask = 0x10000,
+  IMatrixMultiplyAccumulateOperandsMatrixBPackedFloat8E5M2INTELMask = 0x20000,
+  // FP4 matrix operands
+  IMatrixMultiplyAccumulateOperandsMatrixAPackedFloat4E2M1INTELMask = 0x40000,
+  IMatrixMultiplyAccumulateOperandsMatrixBPackedFloat4E2M1INTELMask = 0x80000,
 };
 
 #define _SPIRV_OP(x, y) constexpr x x##y = static_cast<x>(I##x##y);

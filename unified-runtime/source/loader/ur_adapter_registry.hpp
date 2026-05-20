@@ -1,9 +1,8 @@
 /*
  *
- * Copyright (C) 2023 Intel Corporation
  *
- * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
- * Exceptions. See LICENSE.TXT
+ * Part of the LLVM Project, under the Apache License v2.0 with LLVM
+ * Exceptions. See https://llvm.org/LICENSE.txt for license information.
  *
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
@@ -390,6 +389,8 @@ public:
 
     std::vector<fs::path> loadPaths;
     auto adapterNamePath = fs::path{mockAdapterName};
+    loadPaths.emplace_back(adapterNamePath);
+
     auto loaderLibPathOpt = getLoaderLibPath();
     if (loaderLibPathOpt.has_value()) {
       const auto &loaderLibPath = loaderLibPathOpt.value();

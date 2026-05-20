@@ -80,8 +80,9 @@ bool objdump::DylibId;
 bool objdump::Verbose;
 bool objdump::ObjcMetaData;
 std::string objdump::DisSymName;
+bool objdump::IsOtool;
 bool objdump::SymbolicOperands;
-static std::vector<std::string> ArchFlags;
+std::vector<std::string> objdump::ArchFlags;
 
 static bool ArchAll = false;
 static std::string ThumbTripleName;
@@ -2674,8 +2675,9 @@ void objdump::parseInputMachO(MachOUniversalBinary *UB) {
     return;
   }
   // No architecture flags were specified so if this contains a slice that
-  // matches the host architecture dump only that.
-  if (!ArchAll) {
+  // matches the host architecture dump only that. For otool -a dump all
+  // architectures to match classic otool behaviour.
+  if (!ArchAll && !(IsOtool && ArchiveHeaders)) {
     for (MachOUniversalBinary::object_iterator I = UB->begin_objects(),
                                                 E = UB->end_objects();
           I != E; ++I) {
@@ -2764,9 +2766,7 @@ void objdump::parseInputMachO(MachOUniversalBinary *UB) {
         }
         if (MachOObjectFile *O =
                 dyn_cast<MachOObjectFile>(&*ChildOrErr.get())) {
-          if (MachOObjectFile *MachOOF = dyn_cast<MachOObjectFile>(O))
-            ProcessMachO(Filename, MachOOF, MachOOF->getFileName(),
-                          ArchitectureName);
+          ProcessMachO(Filename, O, O->getFileName(), ArchitectureName);
         }
       }
       if (Err)
@@ -7328,7 +7328,7 @@ static void DisassembleMachO(StringRef Filename, MachOObjectFile *MachOOF,
   std::unique_ptr<const MCSubtargetInfo> STI(
       TheTarget->createMCSubtargetInfo(TheTriple, MachOMCPU, FeaturesStr));
   CHECK_TARGET_INFO_CREATION(STI);
-  MCContext Ctx(TheTriple, AsmInfo.get(), MRI.get(), STI.get());
+  MCContext Ctx(TheTriple, *AsmInfo, MRI.get(), STI.get());
   std::unique_ptr<MCDisassembler> DisAsm(
       TheTarget->createMCDisassembler(*STI, Ctx));
   CHECK_TARGET_INFO_CREATION(DisAsm);
@@ -7382,8 +7382,8 @@ static void DisassembleMachO(StringRef Filename, MachOObjectFile *MachOOF,
     ThumbSTI.reset(ThumbTarget->createMCSubtargetInfo(ThumbTriple, MachOMCPU,
                                                       FeaturesStr));
     CHECK_THUMB_TARGET_INFO_CREATION(ThumbSTI);
-    ThumbCtx.reset(new MCContext(ThumbTriple, ThumbAsmInfo.get(),
-                                 ThumbMRI.get(), ThumbSTI.get()));
+    ThumbCtx.reset(new MCContext(ThumbTriple, *ThumbAsmInfo, ThumbMRI.get(),
+                                 ThumbSTI.get()));
     ThumbDisAsm.reset(ThumbTarget->createMCDisassembler(*ThumbSTI, *ThumbCtx));
     CHECK_THUMB_TARGET_INFO_CREATION(ThumbDisAsm);
     MCContext *PtrThumbCtx = ThumbCtx.get();
@@ -7508,7 +7508,8 @@ static void DisassembleMachO(StringRef Filename, MachOObjectFile *MachOOF,
       }
     }
     if (!DisSymName.empty() && !DisSymNameFound) {
-      outs() << "Can't find -dis-symname: " << DisSymName << "\n";
+      outs() << "Can't find " << (IsOtool ? "-p symbol" : "--dis-symname")
+             << ": " << DisSymName << "\n";
       return;
     }
     // Set up the block of info used by the Symbolizer call backs.
@@ -7549,7 +7550,8 @@ static void DisassembleMachO(StringRef Filename, MachOObjectFile *MachOOF,
       bool containsSym = Sections[SectIdx].containsSymbol(Symbols[SymIdx]);
       if (!containsSym) {
         if (!DisSymName.empty() && DisSymName == SymName) {
-          outs() << "-dis-symname: " << DisSymName << " not in the section\n";
+          outs() << (IsOtool ? "-p symbol" : "--dis-symname") << ": "
+                 << DisSymName << " not in the section\n";
           return;
         }
         continue;
@@ -7560,7 +7562,8 @@ static void DisassembleMachO(StringRef Filename, MachOObjectFile *MachOOF,
       // is an N_SECT symbol in the (__TEXT,__text) but its address is before the
       // start of the section in a standard MH_EXECUTE filetype.
       if (!DisSymName.empty() && DisSymName == "__mh_execute_header") {
-        outs() << "-dis-symname: __mh_execute_header not in any section\n";
+        outs() << (IsOtool ? "-p symbol" : "--dis-symname")
+               << ": __mh_execute_header not in any section\n";
         return;
       }
       // When this code is trying to disassemble a symbol at a time and in the

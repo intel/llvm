@@ -21,6 +21,7 @@
 #include "llvm/Support/Threading.h"
 
 #include <list>
+#include <thread>
 #include <vector>
 
 using namespace llvm;
@@ -82,6 +83,8 @@ static cl::opt<unsigned int> JobsInParallel{
 static cl::alias JobsInParallelShort{"j", cl::desc("Alias for --jobs"),
                                      cl::aliasopt(JobsInParallel)};
 
+static constexpr int JobPollSleepIntervalMS = 100;
+
 static void error(const Twine &Msg) {
   errs() << "llvm-foreach: " << Msg << '\n';
   exit(1);
@@ -92,20 +95,32 @@ static void error(std::error_code EC, const Twine &Prefix) {
     error(Prefix + ": " + EC.message());
 }
 
-// This function returns 0 if all jobs have successfully completed..
-int checkIfJobsAreFinished(std::list<sys::ProcessInfo> &JobsSubmitted) {
-  std::string ErrMsg;
-  auto It = JobsSubmitted.begin();
-  while (It != JobsSubmitted.end()) {
-    sys::ProcessInfo WaitResult = sys::Wait(*It, std::nullopt, &ErrMsg);
-    assert(WaitResult.Pid);
-    It = JobsSubmitted.erase(It);
-    if (WaitResult.ReturnCode != 0) {
-      errs() << "llvm-foreach: " << ErrMsg << '\n';
-      return WaitResult.ReturnCode;
+// Poll all running jobs.
+// Try to find a finished job with a non-blocking wait.
+// If no job found then sleep and repeat.
+// If found one job, removes it from Jobs and returns its exit code..
+static int waitForAnyJob(std::list<sys::ProcessInfo> &Jobs) {
+  while (true) {
+    std::string ErrMsg;
+    for (auto It = Jobs.begin(); It != Jobs.end(); ++It) {
+      // Non-blocking wait: returns Pid==0 if still running.
+      sys::ProcessInfo WaitResult =
+          sys::Wait(*It, /*SecondsToWait=*/0, &ErrMsg);
+      if (WaitResult.Pid == 0)
+        continue; // Job is in progress. Move on.
+
+      if (WaitResult.ReturnCode != 0)
+        errs() << "llvm-foreach: failed with error code: "
+               << WaitResult.ReturnCode << ": " << ErrMsg << '\n';
+
+      int RC = WaitResult.ReturnCode;
+      Jobs.erase(It);
+      return RC;
     }
+
+    std::this_thread::sleep_for(
+        std::chrono::milliseconds(JobPollSleepIntervalMS));
   }
-  return 0;
 }
 
 int main(int argc, char **argv) {
@@ -262,19 +277,30 @@ int main(int argc, char **argv) {
     }
     // Do not start execution of a new job until previous one(s) are finished,
     // if the maximum number of parallel workers is reached.
-    if (JobsSubmitted.size() == JobsInParallel)
-      if (int Result = checkIfJobsAreFinished(JobsSubmitted))
-        Res = Result;
+    if (JobsSubmitted.size() == JobsInParallel) {
+      if (int ReturnCode = waitForAnyJob(JobsSubmitted); ReturnCode)
+        Res = ReturnCode;
+    }
 
     JobsSubmitted.emplace_back(
         sys::ExecuteNoWait(Prog, Args, /*Env=*/std::nullopt,
                            /*Redirects=*/{}, /*MemoryLimit=*/0));
   }
 
-  // Wait for all commands to be executed.
-  if (!JobsSubmitted.empty())
-    if (int Result = checkIfJobsAreFinished(JobsSubmitted))
-      Res = Result;
+  // Wait for all commands to be executed (blocking wait, no sleep needed).
+  while (!JobsSubmitted.empty()) {
+    std::string ErrMsg;
+    sys::ProcessInfo WaitResult = sys::Wait(
+        JobsSubmitted.front(), /*SecondsToWait=*/std::nullopt, &ErrMsg);
+    assert(WaitResult.Pid && "sys::Wait should return positive pid");
+    if (WaitResult.ReturnCode != 0) {
+      errs() << "llvm-foreach: failed with error code: "
+             << WaitResult.ReturnCode << ": " << ErrMsg << '\n';
+      Res = WaitResult.ReturnCode;
+    }
+
+    JobsSubmitted.pop_front();
+  }
 
   if (!OutputFileList.empty()) {
     OS.close();

@@ -1,13 +1,12 @@
-# Copyright (C) 2024-2026 Intel Corporation
-# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
-# See LICENSE.TXT
+# Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+# See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import os
 import csv
 from pathlib import Path
 
-from .base import Benchmark, Suite, TracingType
+from .base import Benchmark, Suite
 from utils.logger import log
 from utils.result import Result
 from options import options
@@ -138,7 +137,7 @@ class SyclBenchmark(Benchmark):
     def run(
         self,
         env_vars,
-        run_trace: TracingType = TracingType.NONE,
+        flamegraph_enabled: bool = False,
         force_trace: bool = False,
     ) -> list[Result]:
         self.outputfile = os.path.join(options.workdir, self.test + ".csv")

@@ -32,6 +32,10 @@ template <> struct exported_mem<external_mem_handle_type::win32_nt_handle> {
   using type = void *;
 };
 
+template <> struct exported_mem<external_mem_handle_type::dma_buf> {
+  using type = int;
+};
+
 template <external_mem_handle_type ExternalMemHandleType>
 using exported_mem_t = typename exported_mem<ExternalMemHandleType>::type;
 
@@ -43,6 +47,10 @@ __SYCL_EXPORT void *
 export_device_mem_win32_nt_handle(void *DeviceMemory,
                                   const sycl::device &SyclDevice,
                                   const sycl::context &SyclContext);
+
+__SYCL_EXPORT int export_device_mem_dma_buf(void *DeviceMemory,
+                                            const sycl::device &SyclDevice,
+                                            const sycl::context &SyclContext);
 } // namespace detail
 
 __SYCL_EXPORT void *alloc_exportable_device_mem(
@@ -115,6 +123,31 @@ template <external_mem_handle_type ExternalMemHandleType,
           std::enable_if_t<ExternalMemHandleType ==
                                external_mem_handle_type::win32_nt_handle,
                            bool> = true>
+inline detail::exported_mem_t<ExternalMemHandleType>
+export_device_mem_handle(void *DeviceMemory, const sycl::queue &SyclQueue) {
+  return export_device_mem_handle<ExternalMemHandleType>(
+      DeviceMemory, SyclQueue.get_device(), SyclQueue.get_context());
+}
+
+// Available only when ExternalMemHandleType ==
+// external_mem_handle_type::dma_buf
+template <
+    external_mem_handle_type ExternalMemHandleType,
+    std::enable_if_t<ExternalMemHandleType == external_mem_handle_type::dma_buf,
+                     bool> = true>
+inline detail::exported_mem_t<ExternalMemHandleType>
+export_device_mem_handle(void *DeviceMemory, const sycl::device &SyclDevice,
+                         const sycl::context &SyclContext) {
+  return detail::export_device_mem_dma_buf(DeviceMemory, SyclDevice,
+                                           SyclContext);
+}
+
+// Available only when ExternalMemHandleType ==
+// external_mem_handle_type::dma_buf (Queue variant)
+template <
+    external_mem_handle_type ExternalMemHandleType,
+    std::enable_if_t<ExternalMemHandleType == external_mem_handle_type::dma_buf,
+                     bool> = true>
 inline detail::exported_mem_t<ExternalMemHandleType>
 export_device_mem_handle(void *DeviceMemory, const sycl::queue &SyclQueue) {
   return export_device_mem_handle<ExternalMemHandleType>(

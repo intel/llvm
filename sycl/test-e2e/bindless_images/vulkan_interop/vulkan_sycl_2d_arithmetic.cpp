@@ -7,6 +7,12 @@
 // UNSUPPORTED: linux
 // UNSUPPORTED-TRACKER: GSD-12357
 
+// XFAIL: windows && gpu-intel-dg2
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/21985
+
+// UNSUPPORTED: windows && arch-intel_gpu_bmg_g21
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21986
+
 /*
     Run ALL the vulkan formats through the gauntlet. sampled and unsampled.
     This entire test takes less than 30 seconds on a slow machine.  MUCH faster
@@ -330,6 +336,8 @@ int runTest(
     sycl::image_channel_type syclType = syclOverride.has_value()
                                             ? syclOverride.value()
                                             : getSyclChannelType<T>();
+    // bindless image ranges use (x,y,z) order,
+    // differing from SYCL 2020 "fastest incrementing" convention
     syclexp::image_descriptor imgDesc(
         sycl::range<2>(width, height), // dims
         channels,                      // num_channels
@@ -382,9 +390,11 @@ int runTest(
 
       kernelEvent = q.submit([&](sycl::handler &h) {
         h.depends_on(waitEvents);
-        h.parallel_for(sycl::range<2>(width, height), [=](sycl::item<2> item) {
-          int x = item.get_id(0);
-          int y = item.get_id(1);
+        // ranges for parallel_for use "fastest incrementing" order (z,y,x),
+        // but bindless images ranges use (x,y,z) order.
+        h.parallel_for(sycl::range<2>(height, width), [=](sycl::item<2> item) {
+          int x = item.get_id(1);
+          int y = item.get_id(0);
 
           bool isUnorm = (syclType == sycl::image_channel_type::unorm_int8);
           using Vec4 = sycl::vec<float, 4>;
@@ -451,9 +461,11 @@ int runTest(
 
       kernelEvent = q.submit([&](sycl::handler &h) {
         h.depends_on(waitEvents);
-        h.parallel_for(sycl::range<2>(width, height), [=](sycl::item<2> item) {
-          int x = item.get_id(0);
-          int y = item.get_id(1);
+        // ranges for parallel_for use "fastest incrementing" order (z,y,x),
+        // but bindless images ranges use (x,y,z) order.
+        h.parallel_for(sycl::range<2>(height, width), [=](sycl::item<2> item) {
+          int x = item.get_id(1);
+          int y = item.get_id(0);
 
           bool isUnorm = (syclType == sycl::image_channel_type::unorm_int8);
           using Vec4 = sycl::vec<float, 4>;

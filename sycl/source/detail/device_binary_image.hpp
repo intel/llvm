@@ -20,6 +20,7 @@
 #include <cstring>
 #include <memory>
 #include <mutex>
+#include <string_view>
 
 namespace sycl {
 inline namespace _V1 {
@@ -75,6 +76,7 @@ public:
   uint32_t asUint32() const;
   ByteArray asByteArray() const;
   const char *asCString() const;
+  std::string_view asStringView() const;
 
 protected:
   friend std::ostream &operator<<(std::ostream &Out,
@@ -235,6 +237,9 @@ public:
   }
   const PropertyRange &getVirtualFunctions() const { return VirtualFunctions; }
   const PropertyRange &getImplicitLocalArg() const { return ImplicitLocalArg; }
+  const PropertyRange &getWorkGroupDynamicLocalMem() const {
+    return WorkGroupDynamicLocalMem;
+  }
   const PropertyRange &getRegisteredKernels() const {
     return RegisteredKernels;
   }
@@ -263,6 +268,7 @@ protected:
   RTDeviceBinaryImage::PropertyRange DeviceRequirements;
   RTDeviceBinaryImage::PropertyRange VirtualFunctions;
   RTDeviceBinaryImage::PropertyRange ImplicitLocalArg;
+  RTDeviceBinaryImage::PropertyRange WorkGroupDynamicLocalMem;
   RTDeviceBinaryImage::PropertyRange RegisteredKernels;
   RTDeviceBinaryImage::PropertyRange Misc;
 

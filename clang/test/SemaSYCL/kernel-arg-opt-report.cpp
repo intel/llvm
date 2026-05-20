@@ -1,10 +1,13 @@
 // RUN: %clang_cc1 -triple spir64-unknown-unknown -fsycl-is-device \
 // RUN: -emit-llvm-bc %s -o %t-host.bc -opt-record-file %t-host.yaml
-// RUN: FileCheck -check-prefix=SPIR --input-file %t-host.yaml %s
+// RUN: FileCheck --check-prefixes=SPIR,GEN-AS --input-file %t-host.yaml %s
+// RUN: %clang_cc1 -triple spir64-unknown-unknown -fsycl-is-device \
+// RUN: -emit-llvm-bc %s -o %t-host.bc -opt-record-file %t-host.yaml -fsycl-force-global-as-in-kernel-args
+// RUN: FileCheck --check-prefixes=SPIR,GLOB-AS --input-file %t-host.yaml %s
 
 // RUN: %clang_cc1 -triple nvptx64-unknown-unknown -fsycl-is-device \
 // RUN: -emit-llvm-bc %s -o %t-host.bc -opt-record-file %t-host.yaml
-// RUN: FileCheck -check-prefix=NVPTX --input-file %t-host.yaml %s
+// RUN: FileCheck --check-prefixes=NVPTX --input-file %t-host.yaml %s
 // The test generates remarks about the kernel argument, their location and type
 // in the resulting yaml file.
 
@@ -69,7 +72,7 @@ int main() {
 // SPIR: Pass:{{.*}}sycl
 // SPIR: Name:{{.*}}Region
 // SPIR: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
-// SPIR-NEXT: Line: 33, Column: 8 }
+// SPIR-NEXT: Line: 36, Column: 8 }
 // SPIR-NEXT: Function:        _ZTS13KernelFunctor
 // SPIR-NEXT: Args:
 // SPIR-NEXT: String:          'Arg '
@@ -90,7 +93,7 @@ int main() {
 // SPIR: Pass:{{.*}}sycl
 // SPIR: Name:{{.*}}Region
 // SPIR: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
-// SPIR-NEXT: Line: 33, Column: 8 }
+// SPIR-NEXT: Line: 36, Column: 8 }
 // SPIR-NEXT: Function:        _ZTS13KernelFunctor
 // SPIR-NEXT: Args:
 // SPIR-NEXT: String:          'Arg '
@@ -111,7 +114,7 @@ int main() {
 // SPIR: Pass:{{.*}}sycl
 // SPIR: Name:{{.*}}Region
 // SPIR: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
-// SPIR-NEXT: Line: 33, Column: 8 }
+// SPIR-NEXT: Line: 36, Column: 8 }
 // SPIR-NEXT: Function:        _ZTS13KernelFunctor
 // SPIR-NEXT: Args:
 // SPIR-NEXT: String:          'Arg '
@@ -132,7 +135,7 @@ int main() {
 // SPIR: Pass:{{.*}}sycl
 // SPIR: Name:{{.*}}Region
 // SPIR: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
-// SPIR-NEXT: Line: 33, Column: 8 }
+// SPIR-NEXT: Line: 36, Column: 8 }
 // SPIR-NEXT: Function:        _ZTS13KernelFunctor
 // SPIR-NEXT: Args:
 // SPIR-NEXT: String:          'Arg '
@@ -153,7 +156,7 @@ int main() {
 // SPIR: Pass:{{.*}}sycl
 // SPIR: Name:{{.*}}Region
 // SPIR: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
-// SPIR-NEXT: Line: 33, Column: 8 }
+// SPIR-NEXT: Line: 36, Column: 8 }
 // SPIR-NEXT: Function:        _ZTS13KernelFunctor
 // SPIR-NEXT: Args:
 // SPIR-NEXT: String:          'Arg '
@@ -174,7 +177,7 @@ int main() {
 // SPIR: Pass:{{.*}}sycl
 // SPIR: Name:{{.*}}Region
 // SPIR: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
-// SPIR-NEXT: Line: 33, Column: 8 }
+// SPIR-NEXT: Line: 36, Column: 8 }
 // SPIR-NEXT: Function:        _ZTS13KernelFunctor
 // SPIR-NEXT: Args:
 // SPIR-NEXT: String:          'Arg '
@@ -195,7 +198,7 @@ int main() {
 // SPIR: Pass:{{.*}}sycl
 // SPIR: Name:{{.*}}Region
 // SPIR: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
-// SPIR-NEXT: Line: 33, Column: 8 }
+// SPIR-NEXT: Line: 36, Column: 8 }
 // SPIR-NEXT: Function:        _ZTS13KernelFunctor
 // SPIR-NEXT: Args:
 // SPIR-NEXT: String:          'Arg '
@@ -216,7 +219,7 @@ int main() {
 // SPIR: Pass:{{.*}}sycl
 // SPIR: Name:{{.*}}Region
 // SPIR: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
-// SPIR-NEXT: Line: 33, Column: 8 }
+// SPIR-NEXT: Line: 36, Column: 8 }
 // SPIR-NEXT: Function:        _ZTS13KernelFunctor
 // SPIR-NEXT: Args:
 // SPIR-NEXT: String:          'Arg '
@@ -237,7 +240,7 @@ int main() {
 // SPIR: Pass:{{.*}}sycl
 // SPIR: Name:{{.*}}Region
 // SPIR: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
-// SPIR-NEXT: Line: 33, Column: 8 }
+// SPIR-NEXT: Line: 36, Column: 8 }
 // SPIR-NEXT: Function:        _ZTS13KernelFunctor
 // SPIR-NEXT: Args:
 // SPIR-NEXT: String:          'Arg '
@@ -258,7 +261,7 @@ int main() {
 // SPIR: Pass:{{.*}}sycl
 // SPIR: Name:{{.*}}Region
 // SPIR: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
-// SPIR-NEXT: Line: 33, Column: 8 }
+// SPIR-NEXT: Line: 36, Column: 8 }
 // SPIR-NEXT: Function:        _ZTS13KernelFunctor
 // SPIR-NEXT: Args:
 // SPIR-NEXT: String:          'Arg '
@@ -279,7 +282,7 @@ int main() {
 // SPIR: Pass:{{.*}}sycl
 // SPIR: Name:{{.*}}Region
 // SPIR: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
-// SPIR-NEXT: Line: 33, Column: 8 }
+// SPIR-NEXT: Line: 36, Column: 8 }
 // SPIR-NEXT: Function:        _ZTS13KernelFunctor
 // SPIR-NEXT: Args:
 // SPIR-NEXT: String:          'Arg '
@@ -300,7 +303,7 @@ int main() {
 // SPIR: Pass:{{.*}}sycl
 // SPIR: Name:{{.*}}Region
 // SPIR: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
-// SPIR-NEXT: Line: 33, Column: 8 }
+// SPIR-NEXT: Line: 36, Column: 8 }
 // SPIR-NEXT: Function:        _ZTS13KernelFunctor
 // SPIR-NEXT: Args:
 // SPIR-NEXT: String:          'Arg '
@@ -321,19 +324,21 @@ int main() {
 // SPIR: Pass:{{.*}}sycl
 // SPIR: Name:{{.*}}Region
 // SPIR: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
-// SPIR-NEXT: Line: 33, Column: 8 }
+// SPIR-NEXT: Line: 36, Column: 8 }
 // SPIR-NEXT: Function:        _ZTS13KernelFunctor
 // SPIR-NEXT: Args:
 // SPIR-NEXT: String:          'Arg '
 // SPIR-NEXT: Argument:        '12'
 // SPIR-NEXT: String:          ':'
-// SPIR-NEXT: String:          Compiler generated argument for base class with pointer,
-// SPIR-NEXT: String:          StructWithPointer
+// GEN-AS: String:          Compiler generated argument for base class,
+// GLOB-AS: String:          Compiler generated argument for base class with pointer,
+// SPIR: String:          StructWithPointer
 // SPIR-NEXT: String:          '  ('
 // SPIR-NEXT: String:          ''
 // SPIR-NEXT: String:          'Type:'
-// SPIR-NEXT: String:          Compiler generated
-// SPIR-NEXT: String:          ', '
+// GEN-AS: String:          StructWithPointer
+// GLOB-AS: String:          Compiler generated
+// SPIR: String:          ', '
 // SPIR-NEXT: String:          'Size: '
 // SPIR-NEXT: Argument:        '8'
 // SPIR-NEXT: String:          ')'
@@ -342,7 +347,7 @@ int main() {
 // SPIR: Pass:{{.*}}sycl
 // SPIR: Name:{{.*}}Region
 // SPIR: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
-// SPIR-NEXT: Line: 33, Column: 8 }
+// SPIR-NEXT: Line: 36, Column: 8 }
 // SPIR-NEXT: Function:        _ZTS13KernelFunctor
 // SPIR-NEXT: Args:
 // SPIR-NEXT: String:          'Arg '
@@ -363,7 +368,7 @@ int main() {
 // SPIR: Pass:{{.*}}sycl
 // SPIR: Name:{{.*}}Region
 // SPIR: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
-// SPIR-NEXT: Line: 33, Column: 8 }
+// SPIR-NEXT: Line: 36, Column: 8 }
 // SPIR-NEXT: Function:        _ZTS13KernelFunctor
 // SPIR-NEXT: Args:
 // SPIR-NEXT: String:          'Arg '
@@ -384,7 +389,7 @@ int main() {
 // SPIR: Pass:{{.*}}sycl
 // SPIR: Name:{{.*}}Region
 // SPIR: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
-// SPIR-NEXT: Line: 33, Column: 8 }
+// SPIR-NEXT: Line: 36, Column: 8 }
 // SPIR-NEXT: Function:        _ZTS13KernelFunctor
 // SPIR-NEXT: Args:
 // SPIR-NEXT: String:          'Arg '
@@ -405,7 +410,7 @@ int main() {
 // SPIR: Pass:{{.*}}sycl
 // SPIR: Name:{{.*}}Region
 // SPIR: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
-// SPIR-NEXT: Line: 33, Column: 8 }
+// SPIR-NEXT: Line: 36, Column: 8 }
 // SPIR-NEXT: Function:        _ZTS13KernelFunctor
 // SPIR-NEXT: Args:
 // SPIR-NEXT: String:          'Arg '
@@ -426,19 +431,22 @@ int main() {
 // SPIR: Pass:{{.*}}sycl
 // SPIR: Name:{{.*}}Region
 // SPIR: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
-// SPIR-NEXT: Line: 33, Column: 8 }
+// SPIR-NEXT: Line: 36, Column: 8 }
 // SPIR-NEXT: Function:        _ZTS13KernelFunctor
 // SPIR-NEXT: Args:
 // SPIR-NEXT: String:          'Arg '
 // SPIR-NEXT: Argument:        '17'
 // SPIR-NEXT: String:          ':'
-// SPIR-NEXT: String:          Compiler generated argument for object with pointer,
-// SPIR-NEXT: String:          Obj
-// SPIR-NEXT: String:          '  ('
-// SPIR-NEXT: String:          ''
-// SPIR-NEXT: String:          'Type:'
-// SPIR-NEXT: String:          Compiler generated 
-// SPIR-NEXT: String:          ', '
+// GEN-AS: String:          'Field:Obj, '
+// GEN-AS-NEXT: String:          'Type:'
+// GEN-AS-NEXT: String:          StructWithPointer
+// GLOB-AS: String:          Compiler generated argument for object with pointer,
+// GLOB-AS-NEXT: String:          Obj
+// GLOB-AS-NEXT: String:          '  ('
+// GLOB-AS-NEXT: String:          ''
+// GLOB-AS-NEXT: String:          'Type:'
+// GLOB-AS-NEXT: String:          Compiler generated
+// SPIR: String:          ', '
 // SPIR-NEXT: String:          'Size: '
 // SPIR-NEXT: Argument:        '8'
 // SPIR-NEXT: String:          ')'
@@ -448,7 +456,7 @@ int main() {
 // SPIR: Pass:{{.*}}sycl
 // SPIR: Name:{{.*}}Region
 // SPIR: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
-// SPIR-NEXT: Line: 59, Column: 9 }
+// SPIR-NEXT: Line: 62, Column: 9 }
 // SPIR-NEXT: Function:        _ZTSZZ4mainENKUlRN4sycl3_V17handlerEE0_clES2_E3XYZ
 // SPIR-NEXT: Args:
 // SPIR-NEXT: String:          'Arg '
@@ -469,7 +477,7 @@ int main() {
 // SPIR: Pass:{{.*}}sycl
 // SPIR: Name:{{.*}}Region
 // SPIR: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
-// SPIR-NEXT: Line: 59, Column: 9 }
+// SPIR-NEXT: Line: 62, Column: 9 }
 // SPIR-NEXT: Function:        _ZTSZZ4mainENKUlRN4sycl3_V17handlerEE0_clES2_E3XYZ
 // SPIR-NEXT: Args:
 // SPIR-NEXT: String:          'Arg '
@@ -490,7 +498,7 @@ int main() {
 // SPIR: Pass:{{.*}}sycl
 // SPIR: Name:{{.*}}Region
 // SPIR: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
-// SPIR-NEXT: Line: 59, Column: 9 }
+// SPIR-NEXT: Line: 62, Column: 9 }
 // SPIR-NEXT: Function:        _ZTSZZ4mainENKUlRN4sycl3_V17handlerEE0_clES2_E3XYZ
 // SPIR-NEXT: Args:
 // SPIR-NEXT: String:          'Arg '
@@ -511,7 +519,7 @@ int main() {
 // SPIR: Pass:{{.*}}sycl
 // SPIR: Name:{{.*}}Region
 // SPIR: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
-// SPIR-NEXT: Line: 59, Column: 9 }
+// SPIR-NEXT: Line: 62, Column: 9 }
 // SPIR-NEXT: Function:        _ZTSZZ4mainENKUlRN4sycl3_V17handlerEE0_clES2_E3XYZ
 // SPIR-NEXT: Args:
 // SPIR-NEXT: String:          'Arg '
@@ -532,7 +540,7 @@ int main() {
 // SPIR: Pass:{{.*}}sycl
 // SPIR: Name:{{.*}}Region
 // SPIR: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
-// SPIR-NEXT: Line: 59, Column: 9 }
+// SPIR-NEXT: Line: 62, Column: 9 }
 // SPIR-NEXT: Function:        _ZTSZZ4mainENKUlRN4sycl3_V17handlerEE0_clES2_E3XYZ
 // SPIR-NEXT: Args:
 // SPIR-NEXT: String:          'Arg '
@@ -553,7 +561,7 @@ int main() {
 // NVPTX: Pass:{{.*}}sycl
 // NVPTX: Name:{{.*}}Region
 // NVPTX: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
-// NVPTX: Line: 59, Column: 9 }
+// NVPTX: Line: 62, Column: 9 }
 // NVPTX-NEXT: Function:        _ZTSZZ4mainENKUlRN4sycl3_V17handlerEE0_clES2_E3XYZ
 // NVPTX-NEXT: Args:
 // NVPTX-NEXT: String:          'Arg '

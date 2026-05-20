@@ -21,6 +21,7 @@ _CLC_DEF static bool __clc_nvvm_is_global(generic void *ptr) {
 #define GenericCastToPtrExplicit_To(ADDRSPACE, NAME)                           \
   _CLC_OVERLOAD _CLC_DEF ADDRSPACE void *                                      \
   __spirv_GenericCastToPtrExplicit_To##NAME(generic void *ptr, int unused) {   \
+    (void)unused;                                                              \
     if (__clc_nvvm_is_##ADDRSPACE(ptr))                                        \
       return (ADDRSPACE void *)ptr;                                            \
     return 0;                                                                  \
@@ -28,6 +29,7 @@ _CLC_DEF static bool __clc_nvvm_is_global(generic void *ptr) {
   _CLC_OVERLOAD _CLC_DEF ADDRSPACE const void *                                \
   __spirv_GenericCastToPtrExplicit_To##NAME(generic const void *ptr,           \
                                             int unused) {                      \
+    (void)unused;                                                              \
     return __spirv_GenericCastToPtrExplicit_To##NAME((generic void *)ptr,      \
                                                      unused);                  \
   }

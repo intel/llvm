@@ -3,12 +3,12 @@
 ; RUN: sycl-post-link -properties -split=auto -split-esimd -lower-esimd -O2 -spec-const=native -o %t.table %s -generate-device-image-default-spec-consts
 ; RUN: FileCheck %s -input-file=%t.table -check-prefix=CHECK-TABLE
 ; RUN: FileCheck %s -input-file=%t_1.prop -check-prefix=CHECK-PROP
-; RUN: FileCheck %s -input-file=%t_esimd_1.prop -check-prefix=CHECK-ESIMD-PROP
+; RUN: FileCheck %s -input-file=%t_1.esimd.prop -check-prefix=CHECK-ESIMD-PROP
 ; RUN: %if asserts %{ sycl-post-link -properties -debug-only=SpecConst -split=auto -split-esimd -lower-esimd -O2 -spec-const=native %s -generate-device-image-default-spec-consts 2>&1 | FileCheck %s --check-prefix=CHECK-LOG %}
 
-; CHECK-TABLE: {{.*}}_esimd_0.bc|{{.*}}_esimd_0.prop
+; CHECK-TABLE: {{.*}}_0.esimd.bc|{{.*}}_0.esimd.prop
 ; CHECK-TABLE: {{.*}}_0.bc|{{.*}}_0.prop
-; CHECK-TABLE: {{.*}}_esimd_1.bc|{{.*}}_esimd_1.prop
+; CHECK-TABLE: {{.*}}_1.esimd.bc|{{.*}}_1.esimd.prop
 ; CHECK-TABLE: {{.*}}_1.bc|{{.*}}_1.prop
 
 ; CHECK-PROP: specConstsReplacedWithDefault=1|1

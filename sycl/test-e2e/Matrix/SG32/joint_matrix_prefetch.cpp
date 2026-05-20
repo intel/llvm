@@ -11,6 +11,8 @@
 // REQUIRES: aspect-ext_intel_matrix
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
+// XFAIL: run-mode && (arch-intel_gpu_pvc || arch-intel_gpu_bmg_g21)
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/21612
 
 // SG size = 32 is not currently supported for SYCL Joint Matrix by IGC on DG2
 // UNSUPPORTED: gpu-intel-dg2

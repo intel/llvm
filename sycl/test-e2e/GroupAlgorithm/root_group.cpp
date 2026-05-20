@@ -2,7 +2,7 @@
 // XFAIL: (opencl && !cpu)
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/14641
 
-// RUN: %{build} -I . -o %t.out %if target-nvidia %{ -Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_70 %}
+// RUN: %{build} -I . -o %t.out %if target-nvidia %{ -Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_75 %}
 // RUN: %{run} %t.out
 
 // Disabled temporarily while investigation into the failure is ongoing.
@@ -10,6 +10,10 @@
 
 // XFAIL: target-native_cpu
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142
+
+// Fails on CUDA 13, enable when fixed.
+// UNSUPPORTED: target-nvidia
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21525
 
 #include <cassert>
 #include <cstdlib>

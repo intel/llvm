@@ -87,11 +87,6 @@ public:
     return std::make_shared<event_impl>(queue, private_tag{});
   }
 
-  static std::shared_ptr<event_impl> create_discarded_event() {
-    return std::make_shared<event_impl>(HostEventState::HES_Discarded,
-                                        private_tag{});
-  }
-
   static std::shared_ptr<event_impl> create_completed_host_event() {
     return std::make_shared<event_impl>(HostEventState::HES_Complete,
                                         private_tag{});

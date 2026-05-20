@@ -34,7 +34,7 @@
 #include <sycl/ext/oneapi/device_global/properties.hpp> // for device_image_s...
 #include <sycl/ext/oneapi/experimental/event_mode_property.hpp>
 #include <sycl/ext/oneapi/experimental/graph.hpp>    // for command_graph...
-#include <sycl/ext/oneapi/properties/properties.hpp> // for empty_properti...
+#include <sycl/ext/oneapi/properties.hpp>            // for empty_properti...
 #include <sycl/handler.hpp>                          // for handler, isDev...
 #include <sycl/id.hpp>                               // for id
 #include <sycl/kernel.hpp>                           // for auto_name
@@ -3610,9 +3610,7 @@ public:
   ///
   /// \return returns true if all enqueued commands in the queue have been
   /// completed, otherwise returns false.
-#ifdef __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
   bool khr_empty() const;
-#endif
 
   std::optional<event> ext_oneapi_get_last_event() const {
     return static_cast<std::optional<event>>(ext_oneapi_get_last_event_impl());
@@ -4064,7 +4062,7 @@ auto submit_kernel_direct_parallel_for(const queue &Queue, range<Dims> Range,
     // We are executing over the rounded range, but there are still
     // items/ids that are constructed in the range rounded
     // kernel, use items/ids in the user range, which means that
-    // __SYCL_ASSUME_INT can still be violated. So check the bounds
+    // ID range assumptions can still be violated. So check the bounds
     // of the user range, instead of the rounded range.
     detail::checkValueRange<Dims>(Range);
 #endif

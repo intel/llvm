@@ -44,6 +44,7 @@ enum GroupOperation {
   Reduce = 0,
   InclusiveScan = 1,
   ExclusiveScan = 2,
+  ClusteredReduce = 3,
 };
 
 typedef struct {
