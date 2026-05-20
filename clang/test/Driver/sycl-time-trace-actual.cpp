@@ -2,7 +2,7 @@
 // This test performs actual compilation
 // and verifies that both host and device trace JSON files are created.
 
-// REQUIRES: system-linux
+// REQUIRES: system-linux, libdevice
 
 // Setup: Create test directories and input file
 // RUN: rm -rf %t && mkdir -p %t/src %t/traces
