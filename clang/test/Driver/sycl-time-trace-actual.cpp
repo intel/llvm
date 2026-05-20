@@ -10,7 +10,7 @@
 
 // Test 1: Compile-only mode with explicit trace directory
 // RUN: %clang --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver \
-// RUN:   -c -ftime-trace=%t/traces -ftime-trace-granularity=0 \
+// RUN:   --sysroot=%S/Inputs/SYCL -c -ftime-trace=%t/traces -ftime-trace-granularity=0 \
 // RUN:   -ftime-trace-verbose %t/src/test.cpp -o %t/test.o
 
 // Verify host and device trace files were generated
@@ -27,7 +27,7 @@
 // When using -c with -o, trace files should be named based on the -o output
 // RUN: rm -rf %t/traces2 && mkdir -p %t/traces2
 // RUN: %clang --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver \
-// RUN:   -c -ftime-trace=%t/traces2 %t/src/test.cpp -o %t/different_name.o
+// RUN:   --sysroot=%S/Inputs/SYCL -c -ftime-trace=%t/traces2 %t/src/test.cpp -o %t/different_name.o
 
 // Should be named after the -o output (different_name), not the source (test.cpp)
 // RUN: ls %t/traces2/ | FileCheck %s --check-prefix=CHECK-TEST2
@@ -38,7 +38,7 @@
 // In compile+link mode, trace files are named based on source file
 // RUN: rm -rf %t/traces3 && mkdir -p %t/traces3
 // RUN: %clang --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver \
-// RUN:   -ftime-trace=%t/traces3 %t/src/test.cpp -o %t/myapp
+// RUN:   --sysroot=%S/Inputs/SYCL -nostdlib -ftime-trace=%t/traces3 %t/src/test.cpp -o %t/myapp
 
 // Frontend traces should still be generated (named after source file)
 // RUN: ls %t/traces3/ | FileCheck %s --check-prefix=CHECK-TEST3
@@ -50,7 +50,7 @@
 // RUN: cp %s %t/src2/file1.cpp
 // RUN: cp %s %t/src2/file2.cpp
 // RUN: %clang --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver \
-// RUN:   -c -ftime-trace=%t/traces4 %t/src2/file1.cpp %t/src2/file2.cpp
+// RUN:   --sysroot=%S/Inputs/SYCL -c -ftime-trace=%t/traces4 %t/src2/file1.cpp %t/src2/file2.cpp
 
 // Should have clean trace file names since basenames are unique
 // RUN: ls %t/traces4/ | FileCheck %s --check-prefix=CHECK-UNIQUE
@@ -65,7 +65,7 @@
 // RUN: cp %s %t/dir1/test.cpp
 // RUN: cp %s %t/dir2/test.cpp
 // RUN: %clang --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver \
-// RUN:   -c -ftime-trace=%t/traces5 %t/dir1/test.cpp %t/dir2/test.cpp
+// RUN:   --sysroot=%S/Inputs/SYCL -c -ftime-trace=%t/traces5 %t/dir1/test.cpp %t/dir2/test.cpp
 
 // Should have 4 trace files (2 sources × 2 traces each)
 // Verify they use directory names to disambiguate (dir1-test, dir2-test)
@@ -76,6 +76,10 @@
 // CHECK-COLLISION-DAG: dir2-test-sycl-spir64-unknown-unknown.json
 
 // Minimal SYCL code for testing
+// Provide stub runtime registration hooks so link mode works in this
+// driver-only test environment without pulling in the SYCL runtime.
+extern "C" void __sycl_register_lib(void *) {}
+extern "C" void __sycl_unregister_lib(void *) {}
 int main() {
   return 0;
 }
