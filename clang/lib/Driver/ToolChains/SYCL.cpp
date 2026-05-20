@@ -113,13 +113,13 @@ void SYCLInstallationDetector::getSYCLDeviceLibPath(
     llvm::SmallVector<llvm::SmallString<128>, 4> &DeviceLibPaths) const {
 #define TOSTR2(X) #X
 #define TOSTR(X) TOSTR2(X)
-  Twine ShareDirSuffix = Twine("/share/dpcpp-") + TOSTR(DPCPP_VERSION_MAJOR);
+  Twine LinuxDirSuffix = Twine("/lib/dpcpp-") + TOSTR(DPCPP_VERSION_MAJOR);
 #undef TOSTR
 #undef TOSTR2
   for (const auto &IC : InstallationCandidates) {
     if (!HostTriple.isWindowsMSVCEnvironment()) {
       llvm::SmallString<128> InstallDataPath(IC.str());
-      InstallDataPath.append(ShareDirSuffix.str());
+      InstallDataPath.append(LinuxDirSuffix.str());
       DeviceLibPaths.emplace_back(InstallDataPath);
     }
     llvm::SmallString<128> InstallLibPath(IC.str());
@@ -127,7 +127,7 @@ void SYCLInstallationDetector::getSYCLDeviceLibPath(
     DeviceLibPaths.emplace_back(InstallLibPath);
   }
   if (!HostTriple.isWindowsMSVCEnvironment())
-    DeviceLibPaths.emplace_back(D.SysRoot + ShareDirSuffix.str());
+    DeviceLibPaths.emplace_back(D.SysRoot + LinuxDirSuffix.str());
   DeviceLibPaths.emplace_back(D.SysRoot + "/lib");
 }
 

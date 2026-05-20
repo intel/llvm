@@ -15,8 +15,8 @@ if(WIN32)
   set(install_dest_bc lib${LLVM_LIBDIR_SUFFIX})
   set(bc_binary_dir "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
 else()
-  # On other platforms, install to share/dpcpp-<major_ver>/
-  set(bc_dir "share/dpcpp-${DPCPP_VERSION_MAJOR}")
+  # On other platforms, install to lib/dpcpp-<major_ver>/
+  set(bc_dir "lib/dpcpp-${DPCPP_VERSION_MAJOR}")
   set(install_dest_bc ${bc_dir})
   set(bc_binary_dir "${CMAKE_BINARY_DIR}/${bc_dir}")
 endif()
