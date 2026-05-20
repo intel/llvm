@@ -22,6 +22,7 @@ void bar() {
 // no-aux-warning@+1 {{'__swiftasynccall__' calling convention is not supported for this target}}
 void __attribute__((__swiftasynccall__)) g(void) {}
 
+<<<<<<< HEAD
 template <typename name, typename Func>
 // no-aux-warning@+1 {{'__cdecl' calling convention is not supported for this target}}
 __cdecl __attribute__((sycl_kernel)) void kernel_single_task(const Func &kernelFunc) {
@@ -33,6 +34,8 @@ __cdecl __attribute__((sycl_kernel)) void kernel_single_task(const Func &kernelF
   kernelFunc();
 }
 
+=======
+>>>>>>> f7424c7486397dc350952873fc3063fe75bf824d
 template<typename KN, typename...Args>
 void sycl_kernel_launch(Args ...args) {}
 
