@@ -328,7 +328,9 @@ void enqueue_signal_event(queue q, event& evt);
 ----
 
 _Effects:_ The event `evt` is immediately disassociated with any previous
-command, and its status is set to `info::event_command_status::submitted`.
+command, and its status is set to `info::event_command_status::submitted`. The
+event is also disassociated with any previous device and is associated with the
+device returned by `q.get_device()`.
 
 If the queue `q` is in-order (i.e. was constructed with
 `property::queue::in_order`), this function enqueues a lightweight "tag"
@@ -372,8 +374,13 @@ is implemented by submitting an actual kernel, which has non-zero execution
 time.
 _{endnote}_]
 
-_Throws:_ An `exception` with the `errc::invalid` error code if `evt` and `q`
-don't have the same context or don't have the same device.
+_Throws:_ An `exception` with the `errc::invalid` error code if the device
+associated with `evt` differs from the device associated with `q` and the
+devices cannot P2P access each other. The P2P access between devices can be
+queried using the `device::ext_oneapi_can_access_peer` function and enabled
+using the `device::ext_oneapi_enable_peer_access` function defined in the
+link:../experimental/sycl_ext_oneapi_peer_access.asciidoc[
+sycl_ext_oneapi_peer_access] extension.
 
 === Interaction with other event APIs
 
