@@ -158,7 +158,7 @@ jobs:
         fi
         
         echo "=== Adapter Tests Statistics ==="
-        awk '/^ *(Total Discovered|Expected Passes|Expected Failures|Unsupported|Skipped|Passed|Failed|Timed Out|Unexpectedly Passed|Unresolved) *(Tests)? *:/ {print}' adapter_tests.log
+        awk '/^ *(Total Discovered|Expected Passes|Expectedly Failed|Unsupported|Skipped|Passed|Failed|Timed Out|Unexpectedly Passed|Unresolved) *(Tests)? *:/ {print}' adapter_tests.log
         echo ""
         
         if grep -q "^Passed Tests ([0-9]\+):" adapter_tests.log; then
@@ -197,11 +197,11 @@ jobs:
           fi
         fi
         
-        if grep -q "^Expected Failures ([0-9]\+):" adapter_tests.log; then
-          count=$(grep "^Expected Failures ([0-9]\+):" adapter_tests.log | sed 's/Expected Failures (\([0-9]\+\)):/\1/' | head -1)
+        if grep -q "^Expectedly Failed Tests ([0-9]\+):" adapter_tests.log; then
+          count=$(grep "^Expectedly Failed Tests ([0-9]\+):" adapter_tests.log | sed 's/Expectedly Failed Tests (\([0-9]\+\)):/\1/' | head -1)
           if [[ "$count" =~ ^[0-9]+$ ]]; then
-            echo "::group::Expected Failures ($count)"
-            awk '/^Expected Failures \([0-9]+\):/ {flag=1; next} /^$/ {flag=0} flag' adapter_tests.log
+            echo "::group::Expectedly Failed Tests ($count)"
+            awk '/^Expectedly Failed Tests \([0-9]+\):/ {flag=1; next} /^$/ {flag=0} flag' adapter_tests.log
             echo "::endgroup::"
           fi
         fi
@@ -248,7 +248,7 @@ jobs:
         fi
         
         echo "=== Conformance Tests Statistics ==="
-        awk '/^ *(Total Discovered|Expected Passes|Expected Failures|Unsupported|Skipped|Passed|Failed|Timed Out|Unexpectedly Passed|Unresolved) *(Tests)? *:/ {print}' conformance_tests.log
+        awk '/^ *(Total Discovered|Expected Passes|Expectedly Failed|Unsupported|Skipped|Passed|Failed|Timed Out|Unexpectedly Passed|Unresolved) *(Tests)? *:/ {print}' conformance_tests.log
         echo ""
         
         if grep -q "^Passed Tests ([0-9]\+):" conformance_tests.log; then
@@ -287,11 +287,11 @@ jobs:
           fi
         fi
         
-        if grep -q "^Expected Failures ([0-9]\+):" conformance_tests.log; then
-          count=$(grep "^Expected Failures ([0-9]\+):" conformance_tests.log | sed 's/Expected Failures (\([0-9]\+\)):/\1/' | head -1)
+        if grep -q "^Expectedly Failed Tests ([0-9]\+):" conformance_tests.log; then
+          count=$(grep "^Expectedly Failed Tests ([0-9]\+):" conformance_tests.log | sed 's/Expectedly Failed Tests (\([0-9]\+\)):/\1/' | head -1)
           if [[ "$count" =~ ^[0-9]+$ ]]; then
-            echo "::group::Expected Failures ($count)"
-            awk '/^Expected Failures \([0-9]+\):/ {flag=1; next} /^$/ {flag=0} flag' conformance_tests.log
+            echo "::group::Expectedly Failed Tests ($count)"
+            awk '/^Expectedly Failed Tests \([0-9]+\):/ {flag=1; next} /^$/ {flag=0} flag' conformance_tests.log
             echo "::endgroup::"
           fi
         fi

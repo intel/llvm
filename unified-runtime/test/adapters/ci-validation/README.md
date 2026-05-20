@@ -15,11 +15,10 @@ These tests intentionally generate different test outcomes to verify that our CI
 |-----------|------------------|-------------|
 | `test_pass.test` | Pass | Passed Tests |
 | `test_fail.test` | Fail | Failed Tests |
-| `test_unsupported.test` | Skip | Skipped/Unsupported Tests |
-| `test_xfail.test` | Expected Fail | Expected Failures |
+| `test_unsupported.test` | Skip | Unsupported Tests |
+| `test_xfail.test` | Expected Fail | Expectedly Failed Tests |
 | `test_unexpected_pass.test` | Unexpected Pass | Unexpectedly Passed Tests |
 | `test_timeout.test` | Timeout | Timed Out Tests |
-| `test_unresolved.test` | Unresolved | Unresolved Tests |
 
 ## Running Locally
 
@@ -38,17 +37,17 @@ python3 llvm/utils/lit/lit.py \
 ## Expected Statistics
 
 When run on a Linux system, you should see approximately:
-- Total Discovered Tests: 7
+- Total Discovered Tests: 6
 - Passed: 1
 - Failed: 1
-- Skipped/Unsupported: 1
-- Expected Failures: 1
+- Unsupported: 1
+- Expectedly Failed: 1
 - Unexpectedly Passed: 1
 - Timed Out: 1
-- Unresolved: 1
 
 ## Notes
 
 - `test_timeout.test` requires LIT timeout to be set (e.g., `--timeout 5`)
 - `test_unsupported.test` is marked UNSUPPORTED on linux/windows (i.e., all platforms)
+- `test_xfail.test` uses XFAIL marker - shows as "Expectedly Failed Tests" in LIT output
 - These tests should NOT be run in production CI on every commit (too slow due to timeout test)

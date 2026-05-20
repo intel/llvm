@@ -32,6 +32,6 @@ runs:
     if: steps.run_tests.outcome != 'success'
     shell: bash
     run: |
-      awk '/^(Failed Tests|Unexpectedly Passed Tests|Unresolved Tests|Timed Out Tests) \([0-9]+\):/ {flag=1} /^Testing Time:/ {flag=1} flag {if (NF>0 && !/^[ \t]/ && $0 !~ /^(Failed Tests|Unexpectedly Passed|Unresolved|Timed Out|Testing Time|Expected|Unexpected|Total Discovered|Unsupported Tests)/) {exit}; print}' adapter_tests.log >> $GITHUB_STEP_SUMMARY
-      awk '/^(Failed Tests|Unexpectedly Passed Tests|Unresolved Tests|Timed Out Tests) \([0-9]+\):/ {flag=1} /^Testing Time:/ {flag=1} flag {if (NF>0 && !/^[ \t]/ && $0 !~ /^(Failed Tests|Unexpectedly Passed|Unresolved|Timed Out|Testing Time|Expected|Unexpected|Total Discovered|Unsupported Tests)/) {exit}; print}' adapter_tests.log
+      awk '/(Failed Tests|Unexpectedly Passed Tests|Unresolved Tests|Timed Out Tests) \([0-9]+\):/ {flag=1} /^Testing Time:/ {flag=0} flag' adapter_tests.log >> $GITHUB_STEP_SUMMARY
+      awk '/(Failed Tests|Unexpectedly Passed Tests|Unresolved Tests|Timed Out Tests) \([0-9]+\):/ {flag=1} /^Testing Time:/ {flag=0} flag' adapter_tests.log
       exit 1
