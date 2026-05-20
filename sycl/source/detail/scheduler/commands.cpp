@@ -2622,9 +2622,8 @@ void checkNDRangeBoundsAndThrow(const NDRDescT &NDRDesc,
     const uint64_t GlobalOffset =
         static_cast<uint64_t>(NDRDesc.GlobalOffset[I]);
     // Validate the maximum generated global id in each dimension:
-    // GlobalOffset + GlobalSize - 1 <= MaxRange.
-    if (GlobalOffset > MaxRange ||
-        (GlobalSize - 1) > (MaxRange - GlobalOffset)) {
+    // GlobalOffset + GlobalSize <= MaxRange.
+    if (GlobalOffset > MaxRange || GlobalSize > (MaxRange - GlobalOffset)) {
       ExceedsMaxRange = true;
       break;
     }
