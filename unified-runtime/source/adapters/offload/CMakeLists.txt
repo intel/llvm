@@ -25,6 +25,14 @@ add_ur_adapter(${TARGET_NAME}
 
 set(UR_OFFLOAD_INSTALL_DIR "" CACHE PATH "Path to the directory containing libomptarget.so etc")
 set(UR_OFFLOAD_INCLUDE_DIR "" CACHE PATH "Path to the directory containing LLVM headers")
+
+# Set the correct library name based on platform
+if(WIN32)
+    set(LLVM_OFFLOAD_LIBRARY "${UR_OFFLOAD_INSTALL_DIR}/lib/LLVMOffload.lib")
+else()
+    set(LLVM_OFFLOAD_LIBRARY "${UR_OFFLOAD_INSTALL_DIR}/lib/libLLVMOffload.so")
+endif()
+
 if (UR_OFFLOAD_INSTALL_DIR STREQUAL "" OR UR_OFFLOAD_INCLUDE_DIR STREQUAL "")
     include(ExternalProject)
     set(LLVM_PROJECT_SOURCE_DIR  ${CMAKE_BINARY_DIR}/llvm-src-offload)
@@ -103,6 +111,17 @@ if (UR_OFFLOAD_INSTALL_DIR STREQUAL "" OR UR_OFFLOAD_INCLUDE_DIR STREQUAL "")
     install(DIRECTORY "${UR_OFFLOAD_INSTALL_DIR}/"
         DESTINATION "${CMAKE_INSTALL_PREFIX}"
         COMPONENT ur_adapter_offload)
+else()
+    # When using user-provided liboffload, install the runtime library
+    if(WIN32)
+        install(FILES "${UR_OFFLOAD_INSTALL_DIR}/bin/LLVMOffload.dll"
+            DESTINATION "${CMAKE_INSTALL_PREFIX}/bin"
+            COMPONENT ur_adapter_offload)
+    else()
+        install(FILES "${UR_OFFLOAD_INSTALL_DIR}/lib/libLLVMOffload.so"
+            DESTINATION "${CMAKE_INSTALL_PREFIX}/lib"
+            COMPONENT ur_adapter_offload)
+    endif()
 endif()
 
 # When targetting CUDA devices, we need a workaround to avoid sending PTX to
@@ -137,7 +156,7 @@ target_link_libraries(${TARGET_NAME} PRIVATE
     ${PROJECT_NAME}::common
     ${PROJECT_NAME}::umf
     ur_common
-    ${UR_OFFLOAD_INSTALL_DIR}/lib/libLLVMOffload.so
+    ${LLVM_OFFLOAD_LIBRARY}
     ${ADDITIONAL_LINK_LIBS}
 )
 

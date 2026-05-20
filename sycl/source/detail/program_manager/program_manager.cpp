@@ -1505,14 +1505,16 @@ Managed<ur_program_handle_t> ProgramManager::build(
 
   Managed<ur_program_handle_t> LinkedProg{Adapter};
   auto doLink = [&] {
+    const char *LinkOptsPtr =
+        LinkOptions.empty() ? nullptr : LinkOptions.c_str();
     auto Res = Adapter.call_nocheck<UrApiKind::urProgramLinkExp>(
         Context.getHandleRef(), Devices.size(), Devices.data(),
         ur_exp_program_flags_t{}, LinkPrograms.size(), LinkPrograms.data(),
-        LinkOptions.c_str(), &LinkedProg);
+        LinkOptsPtr, &LinkedProg);
     if (Res == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
       Res = Adapter.call_nocheck<UrApiKind::urProgramLink>(
           Context.getHandleRef(), LinkPrograms.size(), LinkPrograms.data(),
-          LinkOptions.c_str(), &LinkedProg);
+          LinkOptsPtr, &LinkedProg);
     }
     return Res;
   };
