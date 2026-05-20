@@ -37,5 +37,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urGraphDumpContentsExp(
 UR_APIEXPORT ur_result_t UR_APICALL urGraphInstantiateGraphExp(
     ur_exp_graph_handle_t /* hGraph */,
     ur_exp_executable_graph_handle_t * /* phExecutableGraph */) {
+
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
