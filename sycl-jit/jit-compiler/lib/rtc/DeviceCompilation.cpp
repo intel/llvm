@@ -173,7 +173,7 @@ std::string getLibPathSuffix() {
 #ifdef _WIN32
   return "/lib/";
 #else
-  return "/lib/dpcpp-" TOSTR(DPCPP_VERSION_MAJOR) "/";
+  return "/lib/dpcpp-" TOSTR(DPCPP_VERSION_MAJOR) "/sycl/";
 #endif
 #undef TOSTR
 #undef TOSTR2

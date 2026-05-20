@@ -113,7 +113,8 @@ void SYCLInstallationDetector::getSYCLDeviceLibPath(
     llvm::SmallVector<llvm::SmallString<128>, 4> &DeviceLibPaths) const {
 #define TOSTR2(X) #X
 #define TOSTR(X) TOSTR2(X)
-  Twine LinuxDirSuffix = Twine("/lib/dpcpp-") + TOSTR(DPCPP_VERSION_MAJOR);
+  Twine LinuxDirSuffix =
+      Twine("/lib/dpcpp-") + TOSTR(DPCPP_VERSION_MAJOR) + "/sycl";
 #undef TOSTR
 #undef TOSTR2
   for (const auto &IC : InstallationCandidates) {
