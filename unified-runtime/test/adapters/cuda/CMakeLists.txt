@@ -13,7 +13,9 @@ add_ur_lit_testsuite(cuda)
 add_dependencies(check-unified-runtime-adapter check-unified-runtime-cuda)
 
 # Add CI validation tests as subdirectory
+# They run automatically with check-unified-runtime-cuda
 add_subdirectory(ci-validation)
+add_dependencies(check-unified-runtime-cuda check-unified-runtime-cuda-ci-validation)
 
 add_conformance_devices_test(adapter-cuda
     fixtures.h

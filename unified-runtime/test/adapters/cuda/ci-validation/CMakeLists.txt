@@ -7,6 +7,3 @@
 # to validate CI logging and categorization
 
 add_ur_lit_testsuite(cuda-ci-validation)
-
-# Add as dependency to CUDA adapter tests so they run together
-add_dependencies(check-unified-runtime-cuda check-unified-runtime-cuda-ci-validation)
