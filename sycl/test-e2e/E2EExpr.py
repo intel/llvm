@@ -19,6 +19,8 @@ class E2EExpr(BooleanExpression):
         "linux",
         "system-linux",
         "windows",
+        "O0",
+        "two-or-more-gpu-devices",
         "system-windows",
         "cl_options",
         "enable-perf-tests",
