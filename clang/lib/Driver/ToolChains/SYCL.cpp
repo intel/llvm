@@ -118,7 +118,8 @@ void SYCLInstallationDetector::getSYCLDeviceLibPath(
 #undef TOSTR
 #undef TOSTR2
   for (const auto &IC : InstallationCandidates) {
-    if (!HostTriple.isWindowsMSVCEnvironment()) {
+    if (!HostTriple.isWindowsMSVCEnvironment() &&
+        !HostTriple.isWindowsItaniumEnvironment()) {
       llvm::SmallString<128> InstallDataPath(IC.str());
       InstallDataPath.append(LinuxDirSuffix.str());
       DeviceLibPaths.emplace_back(InstallDataPath);
@@ -127,7 +128,8 @@ void SYCLInstallationDetector::getSYCLDeviceLibPath(
     InstallLibPath.append("/lib");
     DeviceLibPaths.emplace_back(InstallLibPath);
   }
-  if (!HostTriple.isWindowsMSVCEnvironment())
+  if (!HostTriple.isWindowsMSVCEnvironment() &&
+      !HostTriple.isWindowsItaniumEnvironment())
     DeviceLibPaths.emplace_back(D.SysRoot + LinuxDirSuffix.str());
   DeviceLibPaths.emplace_back(D.SysRoot + "/lib");
 }
