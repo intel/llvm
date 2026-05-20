@@ -2623,10 +2623,8 @@ void checkNDRangeBoundsAndThrow(const NDRDescT &NDRDesc,
         static_cast<uint64_t>(NDRDesc.GlobalOffset[I]);
     // Validate the maximum generated global id in each dimension:
     // GlobalOffset + GlobalSize - 1 <= MaxRange.
-    // Use overflow-safe arithmetic instead of forming the sum directly.
-    if (GlobalSize != 0 && GlobalOffset != 0 &&
-        (GlobalOffset > MaxRange ||
-         (GlobalSize - 1) > (MaxRange - GlobalOffset))) {
+    if (GlobalOffset > MaxRange ||
+        (GlobalSize - 1) > (MaxRange - GlobalOffset)) {
       ExceedsMaxRange = true;
       break;
     }
