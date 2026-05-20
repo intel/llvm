@@ -10,14 +10,36 @@
 #include "device.h"
 
 #if defined(__SPIR__) || defined(__SPIRV__)
+
+DEVICE_EXTERN_C_INLINE
+float acoshf(float x) { return __spirv_ocl_acosh(x); }
+
+DEVICE_EXTERN_C_INLINE
+float asinhf(float x) { return __spirv_ocl_asinh(x); }
+
+DEVICE_EXTERN_C_INLINE
+float atanhf(float x) { return __spirv_ocl_atanh(x); }
+
+DEVICE_EXTERN_C_INLINE
+float cbrtf(float x) { return __spirv_ocl_cbrt(x); }
+
 DEVICE_EXTERN_C_INLINE
 float erfcf(float x) { return __spirv_ocl_erfc(x); }
+
+DEVICE_EXTERN_C_INLINE
+float erff(float x) { return __spirv_ocl_erf(x); }
 
 DEVICE_EXTERN_C_INLINE
 float expm1f(float x) { return __spirv_ocl_expm1(x); }
 
 DEVICE_EXTERN_C_INLINE
 float fmodf(float x, float y) { return __spirv_ocl_fmod(x, y); }
+
+DEVICE_EXTERN_C_INLINE
+float hypotf(float x, float y) { return __spirv_ocl_hypot(x, y); }
+
+DEVICE_EXTERN_C_INLINE
+float log1pf(float x) { return __spirv_ocl_log1p(x); }
 
 DEVICE_EXTERN_C_INLINE
 float tgammaf(float x) { return __spirv_ocl_tgamma(x); }
