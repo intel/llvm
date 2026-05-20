@@ -2,13 +2,6 @@
 // REQUIRES: aspect-ext_oneapi_external_memory_import
 // REQUIRES: windows
 
-// UNSUPPORTED: arch-intel_gpu_bmg_g21
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20384
-// also GSD-12430
-
-// UNSUPPORTED: gpu-intel-dg2
-// UNSUPPORTED-TRACKER: GSD-12430
-
 // RUN: %{build} -o %t.exe %link-directx
 // RUN: %{run} %t.exe --type float --channels 4 8x8x8
 
@@ -64,24 +57,23 @@
 // RUN: %{run} %t.exe --type int8 --channels 1 --sampled 17x16x15
 // RUN: %{run} %t.exe --type int8 --channels 2 --sampled 16x15x17
 // RUN: %{run} %t.exe --type int8 --channels 4 --sampled 15x17x16
-// RUN-IF: !gpu-intel-gen12, %{run} %t.exe --type unorm8 --channels 1 --sampled 9x8x7
-// RUN-IF: !gpu-intel-gen12, %{run} %t.exe --type unorm8 --channels 2 --sampled 8x7x9
-// RUN-IF: !gpu-intel-gen12, %{run} %t.exe --type unorm8 --channels 4 --sampled 7x9x8
+// RUN-IF: (!gpu-intel-gen12 && !gpu-intel-dg2 && !arch-intel_gpu_bmg_g21), %{run} %t.exe --type unorm8 --channels 1 --sampled 9x8x7
+// RUN-IF: (!gpu-intel-gen12 && !gpu-intel-dg2 && !arch-intel_gpu_bmg_g21), %{run} %t.exe --type unorm8 --channels 2 --sampled 8x7x9
+// RUN-IF: (!gpu-intel-gen12 && !gpu-intel-dg2 && !arch-intel_gpu_bmg_g21), %{run} %t.exe --type unorm8 --channels 4 --sampled 7x9x8
 
 // Semaphore coverage tests
-// At this time, semaphores can hang on BMG if run in parallel (GSD-12436).
-// RUN-IF: (!arch-intel_gpu_bmg_g21), %{run} %t.exe --type float --channels 4 --semaphores 16x17x15
-// RUN-IF: (!arch-intel_gpu_bmg_g21), %{run} %t.exe --type half --channels 2 --semaphores 17x16x15
-// RUN-IF: (!arch-intel_gpu_bmg_g21), %{run} %t.exe --type int32 --channels 1 --semaphores 9x8x7
-// RUN-IF: (!arch-intel_gpu_bmg_g21), %{run} %t.exe --type uint32 --channels 4 --semaphores 33x31x32
-// RUN-IF: (!arch-intel_gpu_bmg_g21), %{run} %t.exe --type int16 --channels 2 --semaphores 15x17x16
-// RUN-IF: (!arch-intel_gpu_bmg_g21), %{run} %t.exe --type uint16 --channels 1 --semaphores 9x7x8
-// RUN-IF: (!arch-intel_gpu_bmg_g21), %{run} %t.exe --type uint8 --channels 4 --semaphores 32x31x33
-// RUN-IF: (!arch-intel_gpu_bmg_g21), %{run} %t.exe --type int8 --channels 2 --semaphores 16x15x17
-// RUN-IF: (!arch-intel_gpu_bmg_g21), %{run} %t.exe --type float --channels 4 --sampled --semaphores 31x32x33
-// RUN-IF: (!arch-intel_gpu_bmg_g21), %{run} %t.exe --type half --channels 2 --sampled --semaphores 15x16x17
-// RUN-IF: (!arch-intel_gpu_bmg_g21), %{run} %t.exe --type int32 --channels 1 --sampled --semaphores 7x8x9
-// RUN-IF: (!arch-intel_gpu_bmg_g21), %{run} %t.exe --type uint32 --channels 4 --sampled --semaphores 32x31x33
+// RUN:  %{run} %t.exe --type float --channels 4 --semaphores 16x17x15
+// RUN:  %{run} %t.exe --type half --channels 2 --semaphores 17x16x15
+// RUN:  %{run} %t.exe --type int32 --channels 1 --semaphores 9x8x7
+// RUN:  %{run} %t.exe --type uint32 --channels 4 --semaphores 33x31x32
+// RUN:  %{run} %t.exe --type int16 --channels 2 --semaphores 15x17x16
+// RUN:  %{run} %t.exe --type uint16 --channels 1 --semaphores 9x7x8
+// RUN:  %{run} %t.exe --type uint8 --channels 4 --semaphores 32x31x33
+// RUN:  %{run} %t.exe --type int8 --channels 2 --semaphores 16x15x17
+// RUN:  %{run} %t.exe --type float --channels 4 --sampled --semaphores 31x32x33
+// RUN:  %{run} %t.exe --type half --channels 2 --sampled --semaphores 15x16x17
+// RUN:  %{run} %t.exe --type int32 --channels 1 --sampled --semaphores 7x8x9
+// RUN:  %{run} %t.exe --type uint32 --channels 4 --sampled --semaphores 32x31x33
 
 /*
     clang++.exe -fsycl -o ds3r.exe D3D12_sycl_interop_3D_read.cpp -ld3d12 -ldxgi -ld3dcompiler
@@ -96,12 +88,13 @@
    WxHxD           Set custom Width x Height x Depth (e.g. 16x15x14)
 
 
-    BMG:
-
+    BMG: 
+    - WORKS, including --sampled and semaphores
+    - unorm8 does NOT work
 
     DG2:
-    - WORKS, including --sampled
-    - semaphores segfault
+    - WORKS, including --sampled and semaphores
+    - unorm8 does NOT work.
 
     GEN12: 
     - WORKS, including --sampled and semaphores
