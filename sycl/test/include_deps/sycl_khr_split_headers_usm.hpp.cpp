@@ -114,6 +114,10 @@
 // CHECK-NEXT: detail/sycl_mem_obj_allocator.hpp
 // CHECK-NEXT: detail/aligned_allocator.hpp
 // CHECK-NEXT: detail/os_util.hpp
+// CHECK-NEXT: properties/buffer_properties.hpp
+// CHECK-NEXT: context.hpp
+// CHECK-NEXT: usm/usm_enums.hpp
+// CHECK-NEXT: properties/buffer_properties.def
 // CHECK-NEXT: detail/cg_types.hpp
 // CHECK-NEXT: detail/host_profiling_info.hpp
 // CHECK-NEXT: detail/item_base.hpp
@@ -178,9 +182,7 @@
 // CHECK-NEXT: ext/oneapi/experimental/raw_kernel_arg.hpp
 // CHECK-NEXT: kernel.hpp
 // CHECK-NEXT: sampler.hpp
-// CHECK-NEXT: usm/usm_enums.hpp
 // CHECK-NEXT: sycl_span.hpp
 // CHECK-NEXT: usm/usm_pointer_info.hpp
-// CHECK-NEXT: context.hpp
 // CHECK-NEXT: usm/usm_allocator.hpp
 // CHECK-EMPTY:

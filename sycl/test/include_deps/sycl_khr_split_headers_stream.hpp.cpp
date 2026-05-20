@@ -17,12 +17,12 @@
 // CHECK-NEXT: id.hpp
 // CHECK-NEXT: detail/array.hpp
 // CHECK-NEXT: range.hpp
-// CHECK-NEXT: detail/fwd/buffer.hpp
 // CHECK-NEXT: detail/common.hpp
 // CHECK-NEXT: detail/assert.hpp
 // CHECK-NEXT: __spirv/spirv_vars.hpp
 // CHECK-NEXT: detail/export.hpp
 // CHECK-NEXT: detail/nd_loop.hpp
+// CHECK-NEXT: detail/fwd/buffer.hpp
 // CHECK-NEXT: detail/generic_type_traits.hpp
 // CHECK-NEXT: aliases.hpp
 // CHECK-NEXT: bit_cast.hpp

@@ -81,10 +81,10 @@
 // CHECK-NEXT: accessor.hpp
 // CHECK-NEXT: detail/accessor_iterator.hpp
 // CHECK-NEXT: detail/fwd/accessor.hpp
-// CHECK-NEXT: detail/fwd/buffer.hpp
 // CHECK-NEXT: detail/common.hpp
 // CHECK-NEXT: detail/assert.hpp
 // CHECK-NEXT: detail/nd_loop.hpp
+// CHECK-NEXT: detail/fwd/buffer.hpp
 // CHECK-NEXT: detail/generic_type_traits.hpp
 // CHECK-NEXT: detail/type_traits/integer_traits.hpp
 // CHECK-NEXT: detail/handler_proxy.hpp

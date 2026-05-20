@@ -17,12 +17,12 @@
 // CHECK-NEXT: id.hpp
 // CHECK-NEXT: detail/array.hpp
 // CHECK-NEXT: range.hpp
-// CHECK-NEXT: detail/fwd/buffer.hpp
 // CHECK-NEXT: detail/common.hpp
 // CHECK-NEXT: detail/assert.hpp
 // CHECK-NEXT: __spirv/spirv_vars.hpp
 // CHECK-NEXT: detail/export.hpp
 // CHECK-NEXT: detail/nd_loop.hpp
+// CHECK-NEXT: detail/fwd/buffer.hpp
 // CHECK-NEXT: detail/generic_type_traits.hpp
 // CHECK-NEXT: aliases.hpp
 // CHECK-NEXT: bit_cast.hpp
@@ -97,6 +97,11 @@
 // CHECK-NEXT: detail/sycl_mem_obj_allocator.hpp
 // CHECK-NEXT: detail/aligned_allocator.hpp
 // CHECK-NEXT: detail/os_util.hpp
+// CHECK-NEXT: properties/buffer_properties.hpp
+// CHECK-NEXT: context.hpp
+// CHECK-NEXT: async_handler.hpp
+// CHECK-NEXT: usm/usm_enums.hpp
+// CHECK-NEXT: properties/buffer_properties.def
 // CHECK-NEXT: detail/backend_traits.hpp
 // CHECK-NEXT: event.hpp
 // CHECK-NEXT: sampler.hpp
@@ -111,8 +116,5 @@
 // CHECK-NEXT: __spirv/spirv_ops_builtin_decls.hpp
 // CHECK-NEXT: __spirv/spirv_ops_base.hpp
 // CHECK-NEXT: properties/image_properties.hpp
-// CHECK-NEXT: context.hpp
-// CHECK-NEXT: async_handler.hpp
-// CHECK-NEXT: usm/usm_enums.hpp
 // CHECK-NEXT: properties/image_properties.def
 // CHECK-EMPTY:
