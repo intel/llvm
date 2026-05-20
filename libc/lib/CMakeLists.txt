@@ -54,7 +54,8 @@ foreach(archive IN ZIP_LISTS
       )
     else()
       link_bitcode_library(
-        ${archive_1}bitcode
+       ${archive_1}bitcode
+       ${archive_1}
        ${archive_1}.bc
        DEPENDS
           ${${archive_2}}

@@ -116,6 +116,7 @@ function(add_bitcode_entrypoint_library target_name base_target_name)
       target_link_options(${target_name} PRIVATE "${LIBC_COMPILE_OPTIONS_DEFAULT}"
                       "-r" "-nostdlib" "-flto" "-Wl,--lto-emit-llvm")
   endif()
+  add_dependencies(${base_target_name} ${target_name})
 endfunction(add_bitcode_entrypoint_library)
 
 # A rule to build a library from a collection of entrypoint objects and bundle
@@ -124,7 +125,7 @@ endfunction(add_bitcode_entrypoint_library)
 #     link_bitcode_library(
 #       DEPENDS <list of add_entrypoint_object targets>
 #     )
-function(link_bitcode_library target_name output_name)
+function(link_bitcode_library target_name base_target_name output_name)
   cmake_parse_arguments(
     "ENTRYPOINT_LIBRARY"
     "" # No optional arguments
@@ -159,6 +160,7 @@ function(link_bitcode_library target_name output_name)
     add_custom_target(${target_name}
       COMMAND ${LLVM_LINK_EXE} -o ${bc_file} @${CMAKE_BINARY_DIR}/${target_name}.rsp
       DEPENDS ${objects})
+    add_dependencies(${base_target_name} ${target_name})
   endif()
 endfunction(link_bitcode_library)
 
