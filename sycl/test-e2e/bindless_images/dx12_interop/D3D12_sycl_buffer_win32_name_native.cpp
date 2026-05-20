@@ -9,7 +9,6 @@
 // UNSUPPORTED: gpu-intel-gen12
 // UNSUPPORTED-TRACKER: GSD-12427
 
-
 // RUN: %{build} %link-directx -o %t.exe %if target-spir %{ -Wno-ignored-attributes %}
 // RUN: %{run} %t.exe --no-sem
 // RUN: %{run} %t.exe
