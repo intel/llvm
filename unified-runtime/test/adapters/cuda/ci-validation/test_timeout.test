@@ -1,0 +1,9 @@
+// Copyright (C) 2025 Intel Corporation
+// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
+// RUN: python3 %S/test_helper.py timeout
+
+// This test intentionally times out (infinite loop).
+// It should appear in "Timed Out Tests" category in CI logs.
+// Note: LIT timeout must be configured (e.g., --timeout 5) to catch this.

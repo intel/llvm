@@ -7,5 +7,6 @@
 
 add_ur_lit_testsuite(adapter-ci-validation)
 
-# Add as dependency to main adapter tests target so it runs automatically
-add_dependencies(check-unified-runtime-adapter check-unified-runtime-adapter-ci-validation)
+# NOTE: CI validation tests are now integrated into adapter-specific test suites
+# (e.g., cuda/ci-validation/) to appear together in test results.
+# This standalone suite is kept for compatibility but not added as dependency.

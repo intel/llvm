@@ -12,6 +12,9 @@ endif()
 add_ur_lit_testsuite(cuda)
 add_dependencies(check-unified-runtime-adapter check-unified-runtime-cuda)
 
+# Add CI validation tests as subdirectory
+add_subdirectory(ci-validation)
+
 add_conformance_devices_test(adapter-cuda
     fixtures.h
     context_tests.cpp
