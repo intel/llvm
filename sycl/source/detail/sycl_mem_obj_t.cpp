@@ -223,8 +223,8 @@ void SYCLMemObjT::materializeShadowCopy(const void *SourcePtr,
   const size_t AllocBytes =
       MSizeInBytes == 0
           ? RequiredAlign
-          : MSizeInBytes +
-                (RequiredAlign - (MSizeInBytes % RequiredAlign)) % RequiredAlign;
+          : MSizeInBytes + (RequiredAlign - (MSizeInBytes % RequiredAlign)) %
+                               RequiredAlign;
   void *NewShadowCopy = detail::OSUtil::alignedAlloc(RequiredAlign, AllocBytes);
   if (!NewShadowCopy)
     throw std::bad_alloc();

@@ -126,13 +126,6 @@ ur_integrated_buffer_handle_t::ur_integrated_buffer_handle_t(
       UR_CALL_THROWS(
           synchronousZeCopy(hContext, hDevice, this->ptr.get(), hostPtr, size));
       mapToPtr = hostPtr;
-      // Mirror mapToPtr so that ~ur_integrated_buffer_handle_t copies device
-      // updates back to the original host pointer even without an explicit
-      // map/unmap. Skip for read-only buffers: the user host pointer may be
-      // const, and a device-to-host copy would silently overwrite it with
-      // (possibly uninitialized) device data, corrupting adjacent memory.
-      if (accessMode != device_access_mode_t::read_only)
-        writeBackPtr = hostPtr;
     }
   }
 }
@@ -214,14 +207,6 @@ void ur_integrated_buffer_handle_t::unmapHostPtr(
 
 void ur_integrated_buffer_handle_t::copyBackToHostIfNeeded() {
   if (!writeBackPtr) {
-    return;
-  }
-
-  // During L0 loader teardown the driver state is unstable; a synchronous
-  // copy issued here can interact badly with already-released resources and
-  // corrupt the host heap. Skip the write-back in that case.
-  if (!checkL0LoaderTeardown()) {
-    writeBackPtr = nullptr;
     return;
   }
 
