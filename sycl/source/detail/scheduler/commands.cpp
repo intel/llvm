@@ -2601,11 +2601,20 @@ getCGKernelInfo(const CGExecKernel &CommandGroup, context_impl &ContextImpl,
 
 void checkNDRangeBoundsAndThrow(const NDRDescT &NDRDesc,
                                 const uint32_t IdQueriesRange) {
+
+  // Skipping the range check if the kernel supports size_t range for id
+  // queries. Because, range exceeding size_t is not practically possible, and
+  // for a 64-bit size_t, it'll take hundreds of years for such a kernel to
+  // complete.
+  if (IdQueriesRange == 2) {
+    // DPCPP supports up to size_t range for id queries, so we can skip the
+    // check in this case.
+    return;
+  }
+
   uint64_t MaxRange = 0;
   if (IdQueriesRange == 1) { /*uint32_t*/
     MaxRange = static_cast<uint64_t>(std::numeric_limits<uint32_t>::max());
-  } else if (IdQueriesRange == 2) { /*size_t*/
-    MaxRange = static_cast<uint64_t>(std::numeric_limits<size_t>::max());
   } else { /*int*/
     MaxRange = static_cast<uint64_t>(std::numeric_limits<int>::max());
   }
@@ -2635,7 +2644,7 @@ void checkNDRangeBoundsAndThrow(const NDRDescT &NDRDesc,
   }
 
   if (ExceedsMaxRange) {
-    string ErrMsg;
+    std::string ErrMsg;
     switch (IdQueriesRange) {
     case 1:
       ErrMsg =
@@ -2643,11 +2652,6 @@ void checkNDRangeBoundsAndThrow(const NDRDescT &NDRDesc,
           "the provided range/offset exceeds the maximum value storable in "
           "an uint32_t. Either reduce the range/offset or "
           "recompile the kernel with -fsycl-id-queries-range=size_t.";
-      break;
-    case 2:
-      ErrMsg = "The provided range/offset exceeds the maximum "
-               "value storable in a size_t, "
-               "which is the maximum value supported by DPCPP.";
       break;
     case 0:
     default:
