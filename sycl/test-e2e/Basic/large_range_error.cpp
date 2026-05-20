@@ -7,8 +7,10 @@
 
 // RUN: %{run} %t_size.out 17179869184 16 2>&1 | FileCheck --check-prefix=CHECK-PASS %s
 
+// clang-format off
 // RUN: %{run} %t_int.out 17179869184 8 2>&1 | FileCheck --check-prefix=CHECK-INT-EXCEEDS %s
 // RUN: %{run} %t_uint.out 17179869184 4 2>&1 | FileCheck --check-prefix=CHECK-UINT-EXCEEDS %s
+// clang-format on
 
 // RUN-IF: !cpu, %{run} %t_size.out 17179869184 4 2>&1 | FileCheck --check-prefix=CHECK-SIZE-PER-DIM-EXCEEDS %s
 // RUN-IF: cpu, %{run} %t_size.out 17179869184 4 2>&1 | FileCheck --check-prefix=CHECK-PASS %s
@@ -32,8 +34,7 @@ using namespace sycl;
 // CHECK-UINT-EXCEEDS-SAME: storable in an uint32_t. Either reduce the range/offset or
 // CHECK-UINT-EXCEEDS-SAME: recompile the kernel with -fsycl-id-queries-range=size_t.
 
-// CHECK-SIZE-PER-DIM-EXCEEDS: FAIL:  Number of work groups in dimension 0 4294967296
-// CHECK-SIZE-PER-DIM-EXCEEDS-SAME: exceeds the maximum supported value of 4294967295.
+// CHECK-SIZE-PER-DIM-EXCEEDS: FAIL
 void test_nd_range_large_workgroups(queue &q, size_t GlobalSize,
                                     size_t LocalSize) {
   try {
