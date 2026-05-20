@@ -1206,8 +1206,13 @@ Value *SPIRVToLLVM::transConvertInst(SPIRVValue *BV, Function *F,
   // extension for image-handle-to-index conversion, or redesigning ESIMD
   // accessor storage.
   case OpConvertPtrToU: {
-    if (Src->getType()->isTargetExtTy())
-      return transSPIRVBuiltinFromInst(BC, BB);
+    if (Src->getType()->isTargetExtTy()) {
+      if (BM->getExtension().count("SPV_INTEL_vector_compute"))
+        return transSPIRVBuiltinFromInst(BC, BB);
+      BM->getErrorLog().checkError(false, SPIRVEC_InvalidInstruction,
+                                   "OpConvertPtrToU on a target extension type "
+                                   "requires SPV_INTEL_vector_compute");
+    }
     [[fallthrough]];
   }
   default:
