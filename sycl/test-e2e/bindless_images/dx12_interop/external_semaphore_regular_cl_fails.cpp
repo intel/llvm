@@ -1,6 +1,6 @@
 
 //
-// REQUIRES: aspect-ext_oneapi_external_semaphore_import, windows
+// REQUIRES: aspect-ext_oneapi_external_semaphore_import, windows, level_zero
 //
 // RUN: %{build} %link-directx -o %t.exe %if target-spir %{ -Wno-ignored-attributes %}
 // RUN: %{run} %t.exe

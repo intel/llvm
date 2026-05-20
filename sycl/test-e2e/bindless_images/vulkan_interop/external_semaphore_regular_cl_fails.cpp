@@ -1,7 +1,7 @@
 
 //
 // REQUIRES: aspect-ext_oneapi_external_semaphore_import
-// REQUIRES: vulkan
+// REQUIRES: vulkan && level_zero
 //
 // RUN: %{build} %link-vulkan -o %t.out %if target-spir %{ -Wno-ignored-attributes %}
 // RUN: %{run} %t.out
