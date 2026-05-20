@@ -49,6 +49,7 @@
 #include <sycl/property_list.hpp>
 #include <sycl/range.hpp>
 #include <sycl/sampler.hpp>
+#include <sycl/usm/usm_enums.hpp>
 
 #include <assert.h>
 #include <functional>
@@ -138,12 +139,11 @@ inline namespace _V1 {
 
 template <bundle_state State> class kernel_bundle;
 class handler;
-template <typename T, int Dimensions, typename AllocatorT, typename Enable>
-class buffer;
 
 namespace ext ::oneapi ::experimental {
 template <typename, typename> class work_group_memory;
 template <typename, typename> class dynamic_work_group_memory;
+class memory_pool;
 struct image_descriptor;
 enum class prefetch_type;
 

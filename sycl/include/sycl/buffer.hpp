@@ -15,6 +15,7 @@
 #include <sycl/detail/defines_elementary.hpp>
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/fwd/accessor.hpp>
+#include <sycl/detail/fwd/buffer.hpp>
 #include <sycl/detail/helpers.hpp>
 #include <sycl/detail/iostream_proxy.hpp>
 #include <sycl/detail/is_device_copyable.hpp>
@@ -24,6 +25,7 @@
 #include <sycl/detail/sycl_mem_obj_allocator.hpp>
 #include <sycl/ext/oneapi/accessor_property_list.hpp>
 #include <sycl/id.hpp>
+#include <sycl/properties/buffer_properties.hpp>
 #include <sycl/property_list.hpp>
 #include <sycl/range.hpp>
 #include <unified-runtime/ur_api.h> // for ur_native_handle_t
@@ -51,9 +53,6 @@ template <int dimensions> class range;
 
 template <typename DataT>
 using buffer_allocator = detail::sycl_memory_object_allocator<DataT>;
-
-template <typename T, int Dimensions, typename AllocatorT, typename Enable>
-class buffer;
 
 namespace ext::oneapi {
 template <typename SYCLObjT> class weak_object;
@@ -171,10 +170,7 @@ protected:
 /// \sa sycl_api_acc
 ///
 /// \ingroup sycl_api
-template <typename T, int dimensions = 1,
-          typename AllocatorT = buffer_allocator<std::remove_const_t<T>>,
-          typename __Enabled =
-              typename std::enable_if_t<(dimensions > 0) && (dimensions <= 3)>>
+template <typename T, int dimensions, typename AllocatorT, typename __Enabled>
 class buffer : public detail::buffer_plain,
                public detail::OwnerLessBase<buffer<T, dimensions, AllocatorT>> {
   static_assert(is_device_copyable_v<T>,

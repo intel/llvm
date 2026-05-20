@@ -95,6 +95,16 @@
 // CHECK-NEXT: properties/property_traits.hpp
 // CHECK-NEXT: queue.hpp
 // CHECK-NEXT: accessor.hpp
+// CHECK-NEXT: detail/accessor_iterator.hpp
+// CHECK-NEXT: detail/fwd/buffer.hpp
+// CHECK-NEXT: detail/handler_proxy.hpp
+// CHECK-NEXT: ext/oneapi/accessor_property_list.hpp
+// CHECK-NEXT: multi_ptr.hpp
+// CHECK-NEXT: detail/address_space_cast.hpp
+// CHECK-NEXT: pointers.hpp
+// CHECK-NEXT: properties/accessor_properties.hpp
+// CHECK-NEXT: properties/runtime_accessor_properties.def
+// CHECK-NEXT: async_handler.hpp
 // CHECK-NEXT: buffer.hpp
 // CHECK-NEXT: detail/helpers.hpp
 // CHECK-NEXT: memory_enums.hpp
@@ -104,19 +114,6 @@
 // CHECK-NEXT: detail/sycl_mem_obj_allocator.hpp
 // CHECK-NEXT: detail/aligned_allocator.hpp
 // CHECK-NEXT: detail/os_util.hpp
-// CHECK-NEXT: ext/oneapi/accessor_property_list.hpp
-// CHECK-NEXT: detail/accessor_iterator.hpp
-// CHECK-NEXT: detail/handler_proxy.hpp
-// CHECK-NEXT: multi_ptr.hpp
-// CHECK-NEXT: detail/address_space_cast.hpp
-// CHECK-NEXT: pointers.hpp
-// CHECK-NEXT: properties/accessor_properties.hpp
-// CHECK-NEXT: properties/runtime_accessor_properties.def
-// CHECK-NEXT: properties/buffer_properties.hpp
-// CHECK-NEXT: context.hpp
-// CHECK-NEXT: async_handler.hpp
-// CHECK-NEXT: usm/usm_enums.hpp
-// CHECK-NEXT: properties/buffer_properties.def
 // CHECK-NEXT: detail/cg_types.hpp
 // CHECK-NEXT: detail/host_profiling_info.hpp
 // CHECK-NEXT: detail/item_base.hpp
@@ -181,7 +178,9 @@
 // CHECK-NEXT: ext/oneapi/experimental/raw_kernel_arg.hpp
 // CHECK-NEXT: kernel.hpp
 // CHECK-NEXT: sampler.hpp
+// CHECK-NEXT: usm/usm_enums.hpp
 // CHECK-NEXT: sycl_span.hpp
 // CHECK-NEXT: usm/usm_pointer_info.hpp
+// CHECK-NEXT: context.hpp
 // CHECK-NEXT: usm/usm_allocator.hpp
 // CHECK-EMPTY:

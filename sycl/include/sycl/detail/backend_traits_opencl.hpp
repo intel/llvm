@@ -18,6 +18,7 @@
 #include <sycl/backend_types.hpp>         // for backend
 #include <sycl/detail/backend_traits.hpp> // for BackendInput, BackendReturn
 #include <sycl/detail/cl.h>               // for _cl_event, cl_event, cl_de...
+#include <sycl/detail/fwd/buffer.hpp>     // for buffer (fwd)
 #include <sycl/detail/ur.hpp>             // for assertion and ur handles
 #include <sycl/device.hpp>                // for device
 #include <sycl/event.hpp>                 // for event
@@ -33,8 +34,6 @@ inline namespace _V1 {
 
 template <bundle_state State> class kernel_bundle;
 class queue;
-template <typename T, int Dimensions, typename AllocatorT, typename Enable>
-class buffer;
 class context;
 
 namespace detail {

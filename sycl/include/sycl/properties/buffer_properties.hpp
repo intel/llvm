@@ -9,6 +9,7 @@
 #pragma once
 
 #include <sycl/context.hpp>                    // for context
+#include <sycl/detail/fwd/buffer.hpp>          // for buffer (fwd)
 #include <sycl/detail/property_helper.hpp>     // for PropWithDataKind, Dat...
 #include <sycl/properties/property_traits.hpp> // for is_property_of
 
@@ -49,10 +50,6 @@ private:
 };
 
 } // namespace property::buffer
-
-// Forward declaration
-template <typename T, int Dimensions, typename AllocatorT, typename Enable>
-class buffer;
 
 #define __SYCL_MANUALLY_DEFINED_PROP(NS_QUALIFIER, PROP_NAME)                  \
   template <typename T, int Dimensions, typename AllocatorT>                   \
