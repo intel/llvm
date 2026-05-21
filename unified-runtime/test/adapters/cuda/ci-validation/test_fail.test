@@ -1,8 +1,0 @@
-// Copyright (C) 2025 Intel Corporation
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
-// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-
-// RUN: not python3 %S/test_helper.py fail
-
-// This test demonstrates a failing test scenario.
-// It should appear in "Failed Tests" category in CI logs.

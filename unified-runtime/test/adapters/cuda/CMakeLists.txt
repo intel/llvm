@@ -12,11 +12,6 @@ endif()
 add_ur_lit_testsuite(cuda)
 add_dependencies(check-unified-runtime-adapter check-unified-runtime-cuda)
 
-# Add CI validation tests as subdirectory
-# They run automatically with check-unified-runtime-cuda
-add_subdirectory(ci-validation)
-add_dependencies(check-unified-runtime-cuda check-unified-runtime-cuda-ci-validation)
-
 add_conformance_devices_test(adapter-cuda
     fixtures.h
     context_tests.cpp
@@ -29,6 +24,7 @@ add_conformance_devices_test(adapter-cuda
     kernel_tests.cpp
     memory_tests.cpp
     event_tests.cpp
+    ci_validation_tests.cpp
     #FIXME: make this cleaner
     ${CMAKE_CURRENT_SOURCE_DIR}/../../../source/adapters/cuda/queue.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../../../source/adapters/cuda/common.cpp
