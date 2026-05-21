@@ -731,7 +731,7 @@ public:
   bool empty() const;
 
   template <typename Func, typename... ArgTs>
-  void set_destruction_callback(Func&& Callback, ArgTs&&... CbArgs);
+  void set_destruction_callback(Func&& callback, ArgTs&&... cbArgs);
 };
 
 template<>
@@ -1544,7 +1544,7 @@ void set_destruction_callback(Func&& Callback, ArgTs&&... CbArgs);
 
 _Effects:_ Registers a user callback that will be invoked when the last
 reference to the underlying graph object is destroyed. All arguments are stored
-as their decayed types (`std::decay_t<ArgTs>`); references are not preserved.
+as their decayed types (`std::decay_t<ArgTs>...`); references are not preserved.
 If `Callback` or any argument in `CbArgs` is passed as an lvalue, it is
 copy-constructed into internal storage. If passed as an rvalue, it is
 move-constructed into internal storage. Users who require reference semantics
@@ -1557,7 +1557,8 @@ on destruction, in an unspecified order.
 
 The following restrictions apply to the callback and callback arguments:
 
-* `Func` must be _Callable_ with parameter types matching `ArgTs...`.
+* `Func` must be _Callable_ with parameter types matching
+  `std::decay_t<ArgTs>...`.
 * `std::decay_t<Func>` must be _CopyConstructible_. If passed as an rvalue,
   _MoveConstructible_ is used as an optimization and no copies are performed.
 * Each type in `std::decay_t<ArgTs>...` must be _CopyConstructible_. If passed
