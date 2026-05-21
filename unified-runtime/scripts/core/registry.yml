@@ -739,7 +739,13 @@ etors:
 - name: IPC_CLOSE_PHYS_MEM_HANDLE_EXP
   desc: Enumerator for $xIPCClosePhysMemHandleExp
   value: '319'
-max_id: '319'
+- name: GRAPH_GET_NATIVE_HANDLE_EXP
+  desc: Enumerator for $xGraphGetNativeHandleExp
+  value: '320'
+- name: GRAPH_EXECUTABLE_GRAPH_GET_NATIVE_HANDLE_EXP
+  desc: Enumerator for $xGraphExecutableGraphGetNativeHandleExp
+  value: '321'
+max_id: '321'
 ---
 type: enum
 desc: Defines structure types
