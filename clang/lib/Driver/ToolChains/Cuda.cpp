@@ -1208,6 +1208,7 @@ void CudaToolChain::AddIAMCUIncludeArgs(const ArgList &Args,
   HostTC.AddIAMCUIncludeArgs(Args, CC1Args);
 }
 
+<<<<<<< HEAD
 llvm::SmallVector<ToolChain::BitCodeLibraryInfo, 12>
 CudaToolChain::getDeviceLibs(
     const llvm::opt::ArgList &DriverArgs,
@@ -1223,6 +1224,10 @@ CudaToolChain::getDeviceLibs(
 }
 
 SanitizerMask CudaToolChain::getSupportedSanitizers() const {
+=======
+SanitizerMask CudaToolChain::getSupportedSanitizers(
+    StringRef BoundArch, Action::OffloadKind DeviceOffloadKind) const {
+>>>>>>> 3c8670b4a90c64199e905be698077089b58622ca
   // The CudaToolChain only supports sanitizers in the sense that it allows
   // sanitizer arguments on the command line if they are supported by the host
   // toolchain. The CudaToolChain will actually ignore any command line
@@ -1232,7 +1237,9 @@ SanitizerMask CudaToolChain::getSupportedSanitizers() const {
   // This behavior is necessary because the host and device toolchains
   // invocations often share the command line, so the device toolchain must
   // tolerate flags meant only for the host toolchain.
-  return HostTC.getSupportedSanitizers();
+
+  // FIXME: Be accurate and use DeviceOffloadKind.
+  return HostTC.getSupportedSanitizers(BoundArch, DeviceOffloadKind);
 }
 
 VersionTuple CudaToolChain::computeMSVCVersion(const Driver *D,
