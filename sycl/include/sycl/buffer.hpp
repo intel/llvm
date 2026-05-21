@@ -73,18 +73,18 @@ inline std::array<size_t, 3> rangeToArray(const range<1> &r) {
 class buffer_impl;
 
 template <typename T, int Dimensions, typename AllocatorT>
-buffer<T, Dimensions, AllocatorT, void>
+buffer<T, Dimensions, AllocatorT>
 make_buffer_helper(ur_native_handle_t Handle, const context &Ctx,
                    const event &Evt, bool OwnNativeHandle = true) {
-  return buffer<T, Dimensions, AllocatorT, void>(Handle, Ctx, OwnNativeHandle,
+  return buffer<T, Dimensions, AllocatorT>(Handle, Ctx, OwnNativeHandle,
                                                  Evt);
 }
 
 template <backend BackendName, typename DataT, int Dimensions,
           typename Allocator>
-auto get_native_buffer(const buffer<DataT, Dimensions, Allocator, void> &Obj)
+auto get_native_buffer(const buffer<DataT, Dimensions, Allocator> &Obj)
     -> backend_return_t<BackendName,
-                        buffer<DataT, Dimensions, Allocator, void>>;
+                        buffer<DataT, Dimensions, Allocator>>;
 
 template <backend Backend, typename DataT, int Dimensions,
           typename AllocatorT = buffer_allocator<std::remove_const_t<DataT>>>
@@ -173,6 +173,8 @@ protected:
 template <typename T, int dimensions, typename AllocatorT, typename __Enabled>
 class buffer : public detail::buffer_plain,
                public detail::OwnerLessBase<buffer<T, dimensions, AllocatorT>> {
+  static_assert((dimensions > 0) && (dimensions <= 3),
+                "buffer dimensions must be 1, 2, or 3");
   static_assert(is_device_copyable_v<T>,
                 "Underlying type of a buffer must be device copyable!");
 
@@ -730,7 +732,7 @@ private:
             access::placeholder isPlaceholder, typename PropertyListT>
   friend class accessor;
   template <typename HT, int HDims, typename HAllocT>
-  friend buffer<HT, HDims, HAllocT, void>
+  friend buffer<HT, HDims, HAllocT>
   detail::make_buffer_helper(ur_native_handle_t, const context &, const event &,
                              bool);
   template <typename SYCLObjT> friend class ext::oneapi::weak_object;
@@ -816,9 +818,9 @@ private:
   template <backend BackendName, typename DataT, int Dimensions,
             typename Allocator>
   friend auto detail::get_native_buffer(
-      const buffer<DataT, Dimensions, Allocator, void> &Obj)
+      const buffer<DataT, Dimensions, Allocator> &Obj)
       -> backend_return_t<BackendName,
-                          buffer<DataT, Dimensions, Allocator, void>>;
+                          buffer<DataT, Dimensions, Allocator>>;
 
   template <backend BackendName>
   backend_return_t<BackendName, buffer<T, dimensions, AllocatorT>>

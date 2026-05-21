@@ -54,7 +54,7 @@ private:
 #define __SYCL_MANUALLY_DEFINED_PROP(NS_QUALIFIER, PROP_NAME)                  \
   template <typename T, int Dimensions, typename AllocatorT>                   \
   struct is_property_of<NS_QUALIFIER::PROP_NAME,                               \
-                        buffer<T, Dimensions, AllocatorT, void>>               \
+                        buffer<T, Dimensions, AllocatorT>>                     \
       : std::true_type {};
 #define __SYCL_DATA_LESS_PROP(NS_QUALIFIER, PROP_NAME, ENUM_VAL)               \
   __SYCL_MANUALLY_DEFINED_PROP(NS_QUALIFIER, PROP_NAME)

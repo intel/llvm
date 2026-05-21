@@ -422,9 +422,9 @@ private:
   /// only after the command group finishes the work on device/host.
   ///
   /// @param ReduBuf is a pointer to buffer that must be stored.
-  template <typename T, int Dimensions, typename AllocatorT, typename Enable>
+  template <typename T, int Dimensions, typename AllocatorT>
   void
-  addReduction(const std::shared_ptr<buffer<T, Dimensions, AllocatorT, Enable>>
+  addReduction(const std::shared_ptr<buffer<T, Dimensions, AllocatorT>>
                    &ReduBuf) {
     detail::markBufferAsInternal(getSyclObjImpl(*ReduBuf));
     addReduction(std::shared_ptr<const void>(ReduBuf));

@@ -57,15 +57,15 @@ template <> struct interop<backend::opencl, platform> {
   using type = cl_platform_id;
 };
 
-template <typename DataT, int Dimensions, typename AllocatorT, typename Enable>
+template <typename DataT, int Dimensions, typename AllocatorT>
 struct BackendInput<backend::opencl,
-                    buffer<DataT, Dimensions, AllocatorT, Enable>> {
+                    buffer<DataT, Dimensions, AllocatorT>> {
   using type = cl_mem;
 };
 
-template <typename DataT, int Dimensions, typename AllocatorT, typename Enable>
+template <typename DataT, int Dimensions, typename AllocatorT>
 struct BackendReturn<backend::opencl,
-                     buffer<DataT, Dimensions, AllocatorT, Enable>> {
+                     buffer<DataT, Dimensions, AllocatorT>> {
   using type = std::vector<cl_mem>;
 };
 

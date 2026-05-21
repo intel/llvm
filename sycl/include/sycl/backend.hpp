@@ -109,9 +109,9 @@ struct BufferInterop<backend::opencl, DataT, Dimensions, AllocatorT> {
 #if SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO
 template <backend BackendName, typename DataT, int Dimensions,
           typename AllocatorT>
-auto get_native_buffer(const buffer<DataT, Dimensions, AllocatorT, void> &Obj)
+auto get_native_buffer(const buffer<DataT, Dimensions, AllocatorT> &Obj)
     -> backend_return_t<BackendName,
-                        buffer<DataT, Dimensions, AllocatorT, void>> {
+                        buffer<DataT, Dimensions, AllocatorT>> {
   // No check for backend mismatch because buffer can be allocated on different
   // backends
   if (BackendName == backend::ext_oneapi_level_zero)

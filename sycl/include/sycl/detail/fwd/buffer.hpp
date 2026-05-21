@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include <type_traits> // for enable_if_t, remove_const_t
+#include <type_traits> // for remove_const_t
 
 namespace sycl {
 inline namespace _V1 {
@@ -16,19 +16,25 @@ namespace detail {
 template <typename DataT> class aligned_allocator;
 } // namespace detail
 
-// The non-type template parameter is intentionally named "Dimensions" here
-// even though the primary template in <sycl/buffer.hpp> spells it
-// "dimensions". Param names need not match across declarations, and MSVC
-// /permissive- (Visual Studio 2022 17.x) miscompiles the lowercase form
-// when the default for `__Enabled` references it from this forward
-// declaration ("error C2065: 'dimensions': undeclared identifier" while
-// instantiating sycl::accessor). The capitalized name avoids the MSVC
-// lookup bug; behavior on GCC and Clang is unchanged.
+// The trailing `__Enabled` template parameter is preserved (and defaults to
+// `void`) to keep the mangled name of `buffer<T, Dims, AllocatorT>` identical
+// to the historical 4-parameter form, which is observable in user code that
+// declares functions taking buffers by value/reference. Removing the
+// parameter would change ITANIUM/MSVC mangling for those user symbols.
+//
+// The previous SFINAE-based default for `__Enabled`
+// (`std::enable_if_t<(Dimensions > 0) && (Dimensions <= 3)>`) was replaced
+// with a non-dependent `void`. The dimension constraint is enforced by a
+// `static_assert` inside the primary template in <sycl/buffer.hpp>, matching
+// the convention used by other SYCL templates such as `range`, `id`, and
+// `nd_range`. The dependent default expression also tripped a MSVC
+// /permissive- bug when present at this forward declaration position
+// (C2065 'Dimensions': undeclared identifier while instantiating
+// sycl::accessor).
 template <typename T, int Dimensions = 1,
           typename AllocatorT =
               detail::aligned_allocator<std::remove_const_t<T>>,
-          typename __Enabled =
-              std::enable_if_t<(Dimensions > 0) && (Dimensions <= 3)>>
+          typename __Enabled = void>
 class buffer;
 } // namespace _V1
 } // namespace sycl
