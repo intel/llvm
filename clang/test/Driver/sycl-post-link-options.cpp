@@ -2,9 +2,9 @@
 // REQUIRES: libdevice
 
 // RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl -### \
-// RUN:          --no-offload-new-driver -Xdevice-post-link -O0 %s --sysroot=%S/Inputs/SYCL 2>&1 \
+// RUN:          --no-offload-new-driver -Xdevice-post-link -O0 -fsycl-id-queries-range=int %s --sysroot=%S/Inputs/SYCL 2>&1 \
 // RUN:   | FileCheck -check-prefix OPTIONS_POSTLINK_JIT_OLD %s
-// OPTIONS_POSTLINK_JIT_OLD: sycl-post-link{{.*}} "-O2" "-device-globals" "--device-lib-dir={{.*}}" "-properties" "-spec-const=native" "-emit-only-kernels-as-entry-points" "-emit-param-info" "-symbols" "-emit-exported-symbols" "-emit-imported-symbols" "-split-esimd" "-lower-esimd" "-O0"
+// OPTIONS_POSTLINK_JIT_OLD: sycl-post-link{{.*}} "-O2" "-device-globals" "-id-queries-range=int" "--device-lib-dir={{.*}}" "-properties" "-spec-const=native" "-emit-only-kernels-as-entry-points" "-emit-param-info" "-symbols" "-emit-exported-symbols" "-emit-imported-symbols" "-split-esimd" "-lower-esimd" "-O0"
 //
 // Generate .o file as linker wrapper input.
 //
