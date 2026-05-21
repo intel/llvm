@@ -2,13 +2,7 @@
 // REQUIRES: aspect-ext_oneapi_external_semaphore_import
 // REQUIRES: windows
 
-// UNSUPPORTED: gpu-intel-dg2
-// UNSUPPORTED-TRACKER: GSD-12428
-// semaphores-do-not-work-dg2
-
-// UNSUPPORTED: gpu-intel-gen12
-// UNSUPPORTED-TRACKER: GSD-12427
-// Gen12-semaphores-work-but-this-test-hangs.
+// REQUIRES-INTEL-DRIVER: win: 38308
 
 // RUN: %{build} %link-directx -o %t.exe %if target-spir %{ -Wno-ignored-attributes %}
 // RUN: %{run} %t.exe --no-sem
