@@ -32,6 +32,15 @@ struct MockKernelInfoBase {
   static constexpr unsigned getColumnNumber() { return 0; }
 };
 
+
+// Instantiating this function registers kernel names in KernelRegistry,
+// as would normally be done by a kernel wrapper at its submisison.
+template <typename... KernelNames> void registerKernelNames() {
+  (sycl::detail::KernelRegistrar<
+       KernelNames,
+       sycl::detail::KernelInfo<KernelNames>>::registerKernelName(),
+   ...);
+}
 } // namespace unittest
 } // namespace _V1
 } // namespace sycl
@@ -39,6 +48,8 @@ struct MockKernelInfoBase {
 // In most cases we don't need to redefine any other method besides getName(),
 // so here we only have the simplest helper. If any test needs to redefine more
 // methods, they can do that explicitly.
+// While kernel name registry is not part of the integration header, all kernels
+// that have one need to have the other, so add the instantiation here.
 #define MOCK_INTEGRATION_HEADER(KernelName)                                    \
   namespace sycl {                                                             \
   inline namespace _V1 {                                                       \
@@ -48,5 +59,8 @@ struct MockKernelInfoBase {
     static constexpr const char *getName() { return #KernelName; }             \
   };                                                                           \
   } /* namespace detail */                                                     \
+  namespace unittest {                                                         \
+  template void registerKernelNames<KernelName>();                             \
+  } /* namespace unittest */                                                   \
   } /* namespace _V1 */                                                        \
   } /* namespace sycl */
