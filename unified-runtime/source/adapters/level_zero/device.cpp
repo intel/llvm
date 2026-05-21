@@ -1265,11 +1265,34 @@ ur_result_t urDeviceGetInfo(
 
     return ReturnValue(imageAllocProps.maxImageLinearHeight);
   }
-  case UR_DEVICE_INFO_IMAGE_PITCH_ALIGN_EXP:
-  case UR_DEVICE_INFO_MAX_IMAGE_LINEAR_PITCH_EXP:
-    UR_LOG(ERR, "Unsupported ParamName in urGetDeviceInfo");
-    UR_LOG(ERR, "ParamName=%{}(0x{})", ParamName, logger::toHex(ParamName));
-    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+  case UR_DEVICE_INFO_IMAGE_PITCH_ALIGN_EXP: {
+    ze_device_image_properties_t imageProps = {};
+    imageProps.stype = ZE_STRUCTURE_TYPE_DEVICE_IMAGE_PROPERTIES;
+    ze_device_pitched_alloc_exp_properties_t imageAllocProps = {};
+    imageAllocProps.stype =
+        ZE_STRUCTURE_TYPE_PITCHED_ALLOC_DEVICE_EXP_PROPERTIES;
+    ze_pitched_alloc_2dimage_linear_pitch_exp_info_t imageLinearPitchInfo = {};
+    imageLinearPitchInfo.stype = static_cast<ze_structure_type_t>(
+        ZE_STRUCTURE_TYPE_PITCHED_ALLOC_2DIMAGE_LINEAR_PITCH_EXP_INFO);
+    imageProps.pNext = (void *)&imageAllocProps;
+    imageAllocProps.pNext = (void *)&imageLinearPitchInfo;
+    ZE_CALL_NOCHECK(zeDeviceGetImageProperties, (ZeDevice, &imageProps));
+    return ReturnValue(static_cast<uint32_t>(imageLinearPitchInfo.pitchAlign));
+  }
+  case UR_DEVICE_INFO_MAX_IMAGE_LINEAR_PITCH_EXP: {
+    ze_device_image_properties_t imageProps = {};
+    imageProps.stype = ZE_STRUCTURE_TYPE_DEVICE_IMAGE_PROPERTIES;
+    ze_device_pitched_alloc_exp_properties_t imageAllocProps = {};
+    imageAllocProps.stype =
+        ZE_STRUCTURE_TYPE_PITCHED_ALLOC_DEVICE_EXP_PROPERTIES;
+    ze_pitched_alloc_2dimage_linear_pitch_exp_info_t imageLinearPitchInfo = {};
+    imageLinearPitchInfo.stype = static_cast<ze_structure_type_t>(
+        ZE_STRUCTURE_TYPE_PITCHED_ALLOC_2DIMAGE_LINEAR_PITCH_EXP_INFO);
+    imageProps.pNext = (void *)&imageAllocProps;
+    imageAllocProps.pNext = (void *)&imageLinearPitchInfo;
+    ZE_CALL_NOCHECK(zeDeviceGetImageProperties, (ZeDevice, &imageProps));
+    return ReturnValue(imageLinearPitchInfo.maxSupportedPitch);
+  }
   case UR_DEVICE_INFO_MIPMAP_SUPPORT_EXP: {
     // L0 does not support mipmaps.
     return ReturnValue(false);
