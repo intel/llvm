@@ -222,3 +222,41 @@ params:
     - type: const char*
       name: filePath
       desc: "[in] Path to the file to write the dumped graph contents."
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Return platform native graph handle."
+class: $xGraph
+name: GetNativeHandleExp
+details:
+    - "Retrieved native handle can be used for direct interaction with the native platform driver."
+params:
+    - type: "$x_exp_graph_handle_t"
+      name: hGraph
+      desc: |
+            [in] Handle of the graph.
+    - type: $x_native_handle_t*
+      name: phNativeGraph
+      desc: |
+            [out] A pointer to the native handle of the graph.
+returns:
+    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
+        - "If the adapter has no underlying equivalent handle."
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Return platform native executable graph handle."
+class: $xGraph
+name: ExecutableGraphGetNativeHandleExp
+details:
+    - "Retrieved native handle can be used for direct interaction with the native platform driver."
+params:
+    - type: "$x_exp_executable_graph_handle_t"
+      name: hExecutableGraph
+      desc: |
+            [in] Handle of the executable graph.
+    - type: $x_native_handle_t*
+      name: phNativeExecutableGraph
+      desc: |
+            [out] A pointer to the native handle of the executable graph.
+returns:
+    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
+        - "If the adapter has no underlying equivalent handle."
