@@ -2,9 +2,6 @@
 // REQUIRES: aspect-ext_oneapi_external_memory_import || (windows && level_zero && aspect-ext_oneapi_bindless_images)
 // REQUIRES: vulkan
 
-// UNSUPPORTED: linux && gpu-intel-dg2
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21764
-
 // XFAIL: windows && gpu-intel-dg2
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/21985
 

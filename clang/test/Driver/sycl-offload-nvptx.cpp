@@ -5,7 +5,7 @@
 // DEFINE: %{resource_dir} = %/S/Inputs/SYCL/lib/clang/resource_dir
 
 /// Check action graph.
-// RUN: %clangxx -### -std=c++11 -target x86_64-unknown-linux-gnu -fsycl \
+// RUN: %clangxx -### -std=c++17 -target x86_64-unknown-linux-gnu -fsycl \
 // RUN: -fsycl-targets=nvptx64-nvidia-cuda --cuda-path=%S/Inputs/CUDA/usr/local/cuda \
 // RUN: -resource-dir %{resource_dir} %s 2>&1 \
 // RUN: | FileCheck -check-prefix=CHK-ACTIONS %s
@@ -15,7 +15,7 @@
 // RUN: -resource-dir %{resource_dir} %s 2>&1 \
 // RUN: | FileCheck -check-prefix=CHK-ACTIONS-WIN %s
 
-// CHK-ACTIONS: "-cc1" "-triple" "nvptx64-nvidia-cuda" "-{{.*}}"-aux-triple" "x86_64-unknown-linux-gnu"{{.*}} "-fsycl-is-device"{{.*}} "-Wno-sycl-strict"{{.*}} "-sycl-std=2020" {{.*}} "-emit-llvm-bc" {{.*}} "-internal-isystem" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl{{[/\\]+}}stl_wrappers"{{.*}} "-mlink-builtin-bitcode" "{{.*}}libspirv.l64.signed_char.bc"{{.*}} "-mlink-builtin-bitcode" "{{.*}}libdevice{{.*}}.10.bc"{{.*}} "-target-sdk-version=[[CUDA_VERSION:[0-9.]+]]"{{.*}} "-target-cpu" "sm_75"{{.*}} "-target-feature" "+ptx63"{{.*}} "-std=c++11"{{.*}}
+// CHK-ACTIONS: "-cc1" "-triple" "nvptx64-nvidia-cuda" "-{{.*}}"-aux-triple" "x86_64-unknown-linux-gnu"{{.*}} "-fsycl-is-device"{{.*}} "-Wno-sycl-strict"{{.*}} "-sycl-std=2020" {{.*}} "-emit-llvm-bc" {{.*}} "-internal-isystem" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl{{[/\\]+}}stl_wrappers"{{.*}} "-mlink-builtin-bitcode" "{{.*}}libspirv.l64.signed_char.bc"{{.*}} "-mlink-builtin-bitcode" "{{.*}}libdevice{{.*}}.10.bc"{{.*}} "-target-sdk-version=[[CUDA_VERSION:[0-9.]+]]"{{.*}} "-target-cpu" "sm_75"{{.*}} "-target-feature" "+ptx63"{{.*}} "-std=c++17"{{.*}}
 // CHK-ACTIONS: sycl-post-link
 // CHK-ACTIONS-NOT: -split
 // CHK-ACTIONS-SAME: -o
@@ -41,7 +41,7 @@
 // CHK-ACTIONS-WIN: clang{{.*}} "--target=[[HOST_TARGET]]" "-c"
 
 /// Check phases w/out specifying a compute capability.
-// RUN: %clangxx -ccc-print-phases --sysroot=%S/Inputs/SYCL -std=c++11 \
+// RUN: %clangxx -ccc-print-phases --sysroot=%S/Inputs/SYCL -std=c++17 \
 // RUN: -target x86_64-unknown-linux-gnu -fsycl --no-offloadlib \
 // RUN: -fsycl-targets=nvptx64-nvidia-cuda %s 2>&1 \
 // RUN: -resource-dir %{resource_dir} \
@@ -74,7 +74,7 @@
 // CHK-PHASES-NO-CC: 21: linker, {8, 20}, image, (host-sycl)
 //
 /// Check phases specifying a compute capability.
-// RUN: %clangxx -ccc-print-phases --sysroot=%S/Inputs/SYCL -std=c++11 \
+// RUN: %clangxx -ccc-print-phases --sysroot=%S/Inputs/SYCL -std=c++17 \
 // RUN: -target x86_64-unknown-linux-gnu -fsycl --no-offloadlib \
 // RUN: -fsycl-targets=nvptx64-nvidia-cuda \
 // RUN: -resource-dir %{resource_dir} \
@@ -114,7 +114,7 @@
 // CHK-PREPROC: 2: offload, "device-sycl (nvptx64-nvidia-cuda:sm_[[CUDA_VERSION]])" {1}, c++-cpp-output
 // CHK-PREPROC: 4: compiler, {0}, none, (device-sycl, sm_[[CUDA_VERSION]])
 //
-// RUN: not %clangxx -### -std=c++11 -target x86_64-unknown-linux-gnu -fsycl \
+// RUN: not %clangxx -### -std=c++17 -target x86_64-unknown-linux-gnu -fsycl \
 // RUN: -fsycl-targets=nvptx64-nvidia-cuda --cuda-path=%S/Inputs/no/CUDA/path/here \
 // RUN: -resource-dir %{resource_dir} %s 2>&1 \
 // RUN: | FileCheck -check-prefix=CHK-CUDA-PATH-ERROR %s
@@ -127,7 +127,7 @@
 // CHK-CUDA-PATH-ERROR: provide path to different CUDA installation via '--cuda-path', or pass '-nocudalib' to build without linking with libdevice
 //
 //
-// RUN: %clangxx -### -std=c++11 -target x86_64-unknown-linux-gnu -fsycl \
+// RUN: %clangxx -### -std=c++17 -target x86_64-unknown-linux-gnu -fsycl \
 // RUN: -fsycl-targets=nvptx64-nvidia-cuda --cuda-path=%S/Inputs/no/CUDA/path/here \
 // RUN: -resource-dir %{resource_dir} -nocudalib %s 2>&1 \
 // RUN: | FileCheck -check-prefix=CHK-CUDA-NO-LIB %s
@@ -141,7 +141,7 @@
 //
 
 // Check that flags linked to fsycl-cuda-compatibility are set correctly
-// RUN: %clangxx -### -std=c++11 -target x86_64-unknown-linux-gnu -fsycl -fsycl-cuda-compatibility \
+// RUN: %clangxx -### -std=c++17 -target x86_64-unknown-linux-gnu -fsycl -fsycl-cuda-compatibility \
 // RUN: -fsycl-targets=nvptx64-nvidia-cuda --cuda-path=%S/Inputs/CUDA/usr/local/cuda \
 // RUN: -resource-dir %{resource_dir} %s 2>&1 \
 // RUN: | FileCheck -check-prefix=CHK-ACTIONS-CUDA-COMPAT %s

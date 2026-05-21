@@ -5552,7 +5552,9 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
   // If the call returns a temporary with struct return, create a temporary
   // alloca to hold the result, unless one is given to us.
   Address SRetPtr = Address::invalid();
-  RawAddress SRetAlloca = RawAddress::invalid();
+  RawAddress SRetAllocaR = RawAddress::invalid();
+  // Original alloca for lifetime markers
+  Address SRetAlloca = Address::invalid();
   bool NeedSRetLifetimeEnd = false;
   if (RetAI.isIndirect() || RetAI.isInAlloca() || RetAI.isCoerceAndExpand()) {
     // For virtual function pointer thunks and musttail calls, we must always
@@ -5568,12 +5570,14 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
     } else {
       SRetPtr = CGM.getCodeGenOpts().UseAllocaASForSrets
                     ? CreateMemTempWithoutCast(RetTy, "tmp")
-                    : CreateMemTemp(RetTy, "tmp", &SRetAlloca);
+                    : CreateMemTemp(RetTy, "tmp", &SRetAllocaR);
       if (HaveInsertPoint() && ReturnValue.isUnused()) {
         if (CGM.getCodeGenOpts().UseAllocaASForSrets)
           NeedSRetLifetimeEnd = EmitLifetimeStart(SRetPtr.getBasePointer());
         else
-          NeedSRetLifetimeEnd = EmitLifetimeStart(SRetAlloca.getPointer());
+          NeedSRetLifetimeEnd = EmitLifetimeStart(SRetAllocaR.getPointer());
+        if (NeedSRetLifetimeEnd)
+          SRetAlloca = SRetPtr;
       }
     }
     if (IRFunctionArgs.hasSRetArg()) {
@@ -6131,17 +6135,6 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
         llvm::Attribute::get(getLLVMContext(), "virtual-call"));
   }
 
-  // Apply always_inline to all calls within flatten functions.
-  // FIXME: should this really take priority over __try, below?
-  if (CurCodeDecl && CurCodeDecl->hasAttr<FlattenAttr>() &&
-      !InNoInlineAttributedStmt &&
-      !(TargetDecl && TargetDecl->hasAttr<NoInlineAttr>()) &&
-      !CGM.getTargetCodeGenInfo().wouldInliningViolateFunctionCallABI(
-          CallerDecl, CalleeDecl)) {
-    Attrs =
-        Attrs.addFnAttribute(getLLVMContext(), llvm::Attribute::AlwaysInline);
-  }
-
   // Disable inlining inside SEH __try blocks.
   if (isSEHTryScope()) {
     Attrs = Attrs.addFnAttribute(getLLVMContext(), llvm::Attribute::NoInline);
@@ -6171,11 +6164,14 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
   // can't depend on being inside of an ExprWithCleanups, so we need to manually
   // pop this cleanup later on. Being eager about this is OK, since this
   // temporary is 'invisible' outside of the callee.
+  // Use the original alloca pointer (before any addrspacecast) for the
+  // lifetime end marker, since lifetime intrinsics must reference the alloca
+  // address space.
   if (NeedSRetLifetimeEnd) {
     if (CGM.getCodeGenOpts().UseAllocaASForSrets)
-      pushFullExprCleanup<CallLifetimeEnd>(NormalEHLifetimeMarker, SRetPtr);
-    else
       pushFullExprCleanup<CallLifetimeEnd>(NormalEHLifetimeMarker, SRetAlloca);
+    else
+      pushFullExprCleanup<CallLifetimeEnd>(NormalEHLifetimeMarker, SRetAllocaR);
   }
 
   llvm::BasicBlock *InvokeDest = CannotThrow ? nullptr : getInvokeDest();
