@@ -1,5 +1,6 @@
 // Complile the kernel with different -fsycl-id-queries-range values
-// to test overflow detection and Level Zero work-group limits.
+// to check for error thrown when kernel is launched with a range
+// larger than the supported one.
 
 // RUN: %{build} -o %t_int.out -fsycl-id-queries-range=int
 // RUN: %{build} -o %t_uint.out -fsycl-id-queries-range=uint
@@ -10,10 +11,10 @@
 // clang-format off
 // RUN: %{run} %t_int.out 17179869184 8 2>&1 | FileCheck --check-prefix=CHECK-INT-EXCEEDS %s
 // RUN: %{run} %t_uint.out 17179869184 4 2>&1 | FileCheck --check-prefix=CHECK-UINT-EXCEEDS %s
-// clang-format on
 
 // RUN-IF: !cpu, %{run} %t_size.out 17179869184 4 2>&1 | FileCheck --check-prefix=CHECK-SIZE-PER-DIM-EXCEEDS %s
 // RUN-IF: cpu, %{run} %t_size.out 17179869184 4 2>&1 | FileCheck --check-prefix=CHECK-PASS %s
+// clang-format on
 
 // Tests that launching kernels with large ranges produces proper error
 // messages. Validates overflow detection and Level Zero work-group limits
