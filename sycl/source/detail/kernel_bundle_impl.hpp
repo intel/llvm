@@ -1015,11 +1015,12 @@ public:
   // (compile/link/build) that may have replaced the original images, even when
   // the bundle was originally constructed from a SYCLBIN file.
   std::vector<char> ext_oneapi_get_content() const {
-    if (MState == bundle_state::ext_oneapi_source)
-      throw sycl::exception(
-          make_error_code(errc::invalid),
-          "ext_oneapi_get_content is not supported for kernel_bundles in the "
-          "ext_oneapi_source state.");
+    // Per the sycl_ext_oneapi_syclbin extension, the public surface uses a
+    // _Constraints:_ clause that excludes ext_oneapi_source via SFINAE on
+    // kernel_bundle<State>::ext_oneapi_get_content. This assert backstops the
+    // SFINAE in case the impl is reached through a different path.
+    assert(MState != bundle_state::ext_oneapi_source &&
+           "ext_oneapi_get_content reached on a source-state kernel_bundle.");
 
     std::vector<const RTDeviceBinaryImage *> Images;
     Images.reserve(MUniqueDeviceImages.size());
