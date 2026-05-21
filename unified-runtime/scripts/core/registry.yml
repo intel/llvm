@@ -724,7 +724,13 @@ etors:
 - name: QUEUE_GET_GRAPH_EXP
   desc: Enumerator for $xQueueGetGraphExp
   value: '314'
-max_id: '314'
+- name: GRAPH_GET_NATIVE_HANDLE_EXP
+  desc: Enumerator for $xGraphGetNativeHandleExp
+  value: '315'
+- name: GRAPH_EXECUTABLE_GRAPH_GET_NATIVE_HANDLE_EXP
+  desc: Enumerator for $xGraphExecutableGraphGetNativeHandleExp
+  value: '316'
+max_id: '316'
 ---
 type: enum
 desc: Defines structure types
