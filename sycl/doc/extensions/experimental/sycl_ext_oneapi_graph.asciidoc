@@ -1243,6 +1243,13 @@ capture the constructor will throw `feature_not_supported`.
 See the <<native-recording, Native Recording>> section for a full description
 of the feature.
 
+===== Interaction with the SYCL_GRAPH_FORCE_NATIVE_RECORDING environment variable
+
+{dpcpp} supports an environment variable `SYCL_GRAPH_FORCE_NATIVE_RECORDING`.
+When set to `1`, all `command_graph` instances behave as if
+`property::graph::enable_native_recording` were included in the property list
+at construction time.
+
 ==== Graph Member Functions
 
 ===== Constructor of the `command_graph` class
