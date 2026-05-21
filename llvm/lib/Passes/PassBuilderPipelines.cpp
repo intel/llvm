@@ -2504,12 +2504,9 @@ PassBuilder::buildO0DefaultPipeline(OptimizationLevel Level,
   // Emit annotation remarks.
   addAnnotationRemarksPass(MPM);
 
-<<<<<<< HEAD
   if (PTO.OptimizeSYCLFramework)
     addDefaultSYCLFrameworkOptimizationPipeline(MPM);
-=======
   instructionCountersPass(MPM, /* IsPreOptimization */ false);
->>>>>>> c25924f92d69294002e40e80a01fb91ebc984dc0
 
   return MPM;
 }
