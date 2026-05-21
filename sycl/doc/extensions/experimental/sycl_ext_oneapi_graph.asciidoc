@@ -729,6 +729,9 @@ public:
   std::vector<node> get_root_nodes() const;
 
   bool empty() const;
+
+  template <typename Func, typename... ArgTs>
+  void set_destruction_callback(Func&& Callback, ArgTs&&... CbArgs);
 };
 
 template<>
@@ -1532,6 +1535,41 @@ _Constraints:_ This member function is only available when the `command_graph` s
 
 _Returns:_ The total size in bytes of the memory required for
 <<graph-memory-allocations, graph-owned memory allocations>> in this graph.
+
+[source,c++]
+----
+template <typename Func, typename... ArgTs>
+void set_destruction_callback(Func&& Callback, ArgTs&&... CbArgs);
+----
+
+_Effects:_ Registers a user callback that will be invoked when the last
+reference to the underlying graph object is destroyed. All arguments are stored
+as their decayed types (`std::decay_t<ArgTs>`); references are not preserved.
+If `Callback` or any argument in `CbArgs` is passed as an lvalue, it is
+copy-constructed into internal storage. If passed as an rvalue, it is
+move-constructed into internal storage. Users who require reference semantics
+must pass `std::ref` or `std::cref` and are responsible for ensuring the
+referenced object outlives the graph. When the graph is destroyed the stored
+callable is invoked with the stored arguments as if by
+`std::apply(Callback, std::tuple(CbArgs...))`.
+Multiple callbacks may be registered on the same graph and all will be invoked
+on destruction, in an unspecified order.
+
+The following restrictions apply to the callback and callback arguments:
+
+* `Func` must be _Callable_ with parameter types matching `ArgTs...`.
+* `std::decay_t<Func>` must be _CopyConstructible_. If passed as an rvalue,
+  _MoveConstructible_ is used as an optimization and no copies are performed.
+* Each type in `std::decay_t<ArgTs>...` must be _CopyConstructible_. If passed
+  as an rvalue, _MoveConstructible_ is used as an optimization and no copies are performed.
+* The callback must not throw exceptions. If an exception escapes the callback
+  the behavior is undefined.
+* `Func` and `CbArgs` must not capture or reference the `command_graph` object
+  being destroyed, either directly or indirectly. Violating this requirement is
+  undefined behavior.
+
+_Constraints:_ This member function is only available when the `command_graph`
+state is `graph_state::modifiable`.
 
 =====  Member functions of the `command_graph` class for graph update
 
