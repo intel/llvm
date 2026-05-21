@@ -76,15 +76,13 @@ template <typename T, int Dimensions, typename AllocatorT>
 buffer<T, Dimensions, AllocatorT>
 make_buffer_helper(ur_native_handle_t Handle, const context &Ctx,
                    const event &Evt, bool OwnNativeHandle = true) {
-  return buffer<T, Dimensions, AllocatorT>(Handle, Ctx, OwnNativeHandle,
-                                                 Evt);
+  return buffer<T, Dimensions, AllocatorT>(Handle, Ctx, OwnNativeHandle, Evt);
 }
 
 template <backend BackendName, typename DataT, int Dimensions,
           typename Allocator>
 auto get_native_buffer(const buffer<DataT, Dimensions, Allocator> &Obj)
-    -> backend_return_t<BackendName,
-                        buffer<DataT, Dimensions, Allocator>>;
+    -> backend_return_t<BackendName, buffer<DataT, Dimensions, Allocator>>;
 
 template <backend Backend, typename DataT, int Dimensions,
           typename AllocatorT = buffer_allocator<std::remove_const_t<DataT>>>
@@ -817,10 +815,9 @@ private:
 
   template <backend BackendName, typename DataT, int Dimensions,
             typename Allocator>
-  friend auto detail::get_native_buffer(
-      const buffer<DataT, Dimensions, Allocator> &Obj)
-      -> backend_return_t<BackendName,
-                          buffer<DataT, Dimensions, Allocator>>;
+  friend auto
+  detail::get_native_buffer(const buffer<DataT, Dimensions, Allocator> &Obj)
+      -> backend_return_t<BackendName, buffer<DataT, Dimensions, Allocator>>;
 
   template <backend BackendName>
   backend_return_t<BackendName, buffer<T, dimensions, AllocatorT>>

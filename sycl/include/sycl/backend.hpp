@@ -110,8 +110,7 @@ struct BufferInterop<backend::opencl, DataT, Dimensions, AllocatorT> {
 template <backend BackendName, typename DataT, int Dimensions,
           typename AllocatorT>
 auto get_native_buffer(const buffer<DataT, Dimensions, AllocatorT> &Obj)
-    -> backend_return_t<BackendName,
-                        buffer<DataT, Dimensions, AllocatorT>> {
+    -> backend_return_t<BackendName, buffer<DataT, Dimensions, AllocatorT>> {
   // No check for backend mismatch because buffer can be allocated on different
   // backends
   if (BackendName == backend::ext_oneapi_level_zero)
