@@ -1960,6 +1960,8 @@ SYCLToolChain::getDeviceLibs(
   return BCLibs;
 }
 
-SanitizerMask SYCLToolChain::getSupportedSanitizers() const {
+SanitizerMask SYCLToolChain::getSupportedSanitizers(
+    StringRef /*BoundArch*/, Action::OffloadKind /*DeviceOffloadKind*/) const {
+
   return SanitizerKind::Address | SanitizerKind::Memory | SanitizerKind::Thread;
 }
