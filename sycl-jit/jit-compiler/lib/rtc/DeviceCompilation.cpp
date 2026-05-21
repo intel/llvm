@@ -51,6 +51,7 @@
 #include <llvm/Support/BinaryStreamReader.h>
 #include <llvm/Support/BinaryStreamWriter.h>
 #include <llvm/Support/Caching.h>
+#include <llvm/Support/FormatVariadic.h>
 #include <llvm/Support/PropertySetIO.h>
 #include <llvm/Support/TimeProfiler.h>
 #include <llvm/TargetParser/TargetParser.h>
@@ -168,15 +169,11 @@ template <> struct std::hash<auto_pch_key> {
 
 namespace {
 std::string getLibPathSuffix() {
-#define TOSTR2(X) #X
-#define TOSTR(X) TOSTR2(X)
 #ifdef _WIN32
   return "/lib/";
 #else
-  return "/lib/dpcpp-" TOSTR(DPCPP_VERSION_MAJOR) "/sycl/";
+  return llvm::formatv("/lib/dpcpp-{0}/sycl/", DPCPP_VERSION_MAJOR);
 #endif
-#undef TOSTR
-#undef TOSTR2
 }
 class SYCLToolchain {
   static auto &getToolchainFS() {

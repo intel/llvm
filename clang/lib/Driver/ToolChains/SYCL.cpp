@@ -13,6 +13,7 @@
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/SYCLLowerIR/DeviceConfigFile.hpp"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/VirtualFileSystem.h"
 #include <sstream>
@@ -111,26 +112,28 @@ void SYCLInstallationDetector::addLibspirvLinkArgs(
 
 void SYCLInstallationDetector::getSYCLDeviceLibPath(
     llvm::SmallVector<llvm::SmallString<128>, 4> &DeviceLibPaths) const {
-#define TOSTR2(X) #X
-#define TOSTR(X) TOSTR2(X)
-  StringRef LinuxDirSuffix = "/lib/dpcpp-" TOSTR(DPCPP_VERSION_MAJOR) "/sycl";
-#undef TOSTR
-#undef TOSTR2
+  std::string LinuxDirSuffix =
+      llvm::formatv("/lib/dpcpp-{0}/sycl", DPCPP_VERSION_MAJOR);
   for (const auto &IC : InstallationCandidates) {
     if (!HostTriple.isWindowsMSVCEnvironment() &&
         !HostTriple.isWindowsItaniumEnvironment()) {
-      llvm::SmallString<128> InstallDataPath(IC.str());
-      InstallDataPath.append(LinuxDirSuffix.str());
-      DeviceLibPaths.emplace_back(InstallDataPath);
+      SmallString<128> InstallPath(IC);
+      llvm::sys::path::append(InstallPath, LinuxDirSuffix);
+      DeviceLibPaths.emplace_back(InstallPath);
     }
-    llvm::SmallString<128> InstallLibPath(IC.str());
-    InstallLibPath.append("/lib");
-    DeviceLibPaths.emplace_back(InstallLibPath);
+    SmallString<128> InstallPath(IC);
+    llvm::sys::path::append(InstallPath, "lib");
+    DeviceLibPaths.emplace_back(InstallPath);
   }
   if (!HostTriple.isWindowsMSVCEnvironment() &&
-      !HostTriple.isWindowsItaniumEnvironment())
-    DeviceLibPaths.emplace_back(D.SysRoot + LinuxDirSuffix.str());
-  DeviceLibPaths.emplace_back(D.SysRoot + "/lib");
+      !HostTriple.isWindowsItaniumEnvironment()) {
+    SmallString<128> Path(D.SysRoot);
+    llvm::sys::path::append(Path, LinuxDirSuffix);
+    DeviceLibPaths.emplace_back(Path.str());
+  }
+  SmallString<128> Path(D.SysRoot);
+  llvm::sys::path::append(Path, "lib");
+  DeviceLibPaths.emplace_back(Path.str());
 }
 
 void SYCLInstallationDetector::addSYCLIncludeArgs(
