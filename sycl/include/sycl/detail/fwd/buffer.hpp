@@ -20,7 +20,7 @@ template <typename T, int dimensions = 1,
           typename AllocatorT =
               detail::aligned_allocator<std::remove_const_t<T>>,
           typename __Enabled =
-              typename std::enable_if_t<(dimensions > 0) && (dimensions <= 3)>>
+              std::enable_if_t<(dimensions > 0) && (dimensions <= 3)>>
 class buffer;
 } // namespace _V1
 } // namespace sycl
