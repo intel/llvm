@@ -398,7 +398,7 @@ queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
 }
 
 EventImplPtr queue_impl::submit_kernel_scheduler_bypass(
-    KernelData &KData, std::vector<detail::EventImplPtr> DepEvents,
+    KernelData &KData, std::vector<detail::EventImplPtr> &DepEvents,
     bool EventNeeded, detail::kernel_impl *KernelImplPtr,
     detail::kernel_bundle_impl *KernelBundleImpPtr,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
@@ -469,8 +469,7 @@ EventImplPtr queue_impl::submit_kernel_scheduler_bypass(
     ResultEvent->setEnqueued();
     // connect returned event with dependent events
     if (!isInOrder()) {
-      // DepEvents is not used anymore, so can move.
-      ResultEvent->getPreparedDepsEvents() = std::move(DepEvents);
+      ResultEvent->getPreparedDepsEvents() = DepEvents;
       // ResultEvent is local for current thread, no need to lock.
       ResultEvent->cleanDepEventsThroughOneLevelUnlocked();
     }
