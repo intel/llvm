@@ -1527,17 +1527,6 @@ _Returns:_ `true` if the graph contains no nodes, otherwise `false`.
 
 [source,c++]
 ----
-size_t get_required_mem_size() const noexcept;
-----
-
-_Constraints:_ This member function is only available when the `command_graph` state is
-`graph_state::executable`.
-
-_Returns:_ The total size in bytes of the memory required for
-<<graph-memory-allocations, graph-owned memory allocations>> in this graph.
-
-[source,c++]
-----
 template <typename Func, typename... ArgTs>
 void set_destruction_callback(Func&& Callback, ArgTs&&... CbArgs);
 ----
@@ -1550,10 +1539,9 @@ copy-constructed into internal storage. If passed as an rvalue, it is
 move-constructed into internal storage. Users who require reference semantics
 must pass `std::ref` or `std::cref` and are responsible for ensuring the
 referenced object outlives the graph. When the graph is destroyed the stored
-callable is invoked with the stored arguments as if by
-`std::apply(Callback, std::tuple(CbArgs...))`.
-Multiple callbacks may be registered on the same graph and all will be invoked
-on destruction, in an unspecified order.
+callable is invoked with the stored arguments. Multiple callbacks may be
+registered on the same graph and all will be invoked on destruction, in an
+unspecified order.
 
 The following restrictions apply to the callback and callback arguments:
 
@@ -1571,6 +1559,17 @@ The following restrictions apply to the callback and callback arguments:
 
 _Constraints:_ This member function is only available when the `command_graph`
 state is `graph_state::modifiable`.
+
+[source,c++]
+----
+size_t get_required_mem_size() const noexcept;
+----
+
+_Constraints:_ This member function is only available when the `command_graph` state is
+`graph_state::executable`.
+
+_Returns:_ The total size in bytes of the memory required for
+<<graph-memory-allocations, graph-owned memory allocations>> in this graph.
 
 =====  Member functions of the `command_graph` class for graph update
 
