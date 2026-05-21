@@ -90,6 +90,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetGraphExpProcAddrTable(
   pDdiTable->pfnExecutableGraphDestroyExp = urGraphExecutableGraphDestroyExp;
   pDdiTable->pfnIsEmptyExp = urGraphIsEmptyExp;
   pDdiTable->pfnDumpContentsExp = urGraphDumpContentsExp;
+  pDdiTable->pfnGetNativeHandleExp = urGraphGetNativeHandleExp;
+  pDdiTable->pfnExecutableGraphGetNativeHandleExp =
+      urGraphExecutableGraphGetNativeHandleExp;
 
   return UR_RESULT_SUCCESS;
 }
