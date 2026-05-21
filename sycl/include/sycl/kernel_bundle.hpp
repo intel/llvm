@@ -246,7 +246,7 @@ public:
     return ext_oneapi_get_device_global_size(detail::string_view{name});
   }
 
-  __SYCL_EXPORT std::vector<char> ext_oneapi_get_content() const;
+  std::vector<char> ext_oneapi_get_content() const;
 
 protected:
   // \returns a kernel object which represents the kernel identified by
