@@ -882,7 +882,7 @@ namespace sycl::ext::oneapi::experimental {
 
 class physical_mem {
   // ...
-  bool ext_oneapi_ipc_enabled() const;
+  bool ipc_enabled() const;
 };
 
 } // namespace sycl::ext::oneapi::experimental
