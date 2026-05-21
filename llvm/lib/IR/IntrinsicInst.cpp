@@ -264,7 +264,6 @@ Value *InstrProfIncrementInst::getStep() const {
   return ConstantInt::get(Type::getInt64Ty(Context), 1);
 }
 
-<<<<<<< HEAD
 Type::TypeID FPBuiltinIntrinsic::getBaseTypeID() const {
   // All currently supported FP builtins are characterized by the type of their
   // first argument. Since llvm.fpbuiltin.sincos doesn't return a value, using
@@ -331,14 +330,7 @@ bool FPBuiltinIntrinsic::classof(const IntrinsicInst *I) {
   }
 }
 
-Value *InstrProfCallsite::getCallee() const {
-  if (isa<InstrProfCallsite>(this))
-    return getArgOperand(4);
-  return nullptr;
-}
-=======
 Value *InstrProfCallsite::getCallee() const { return getArgOperand(4); }
->>>>>>> ac09b41daec4df16e26011abb021c17844db66c7
 
 void InstrProfCallsite::setCallee(Value *Callee) {
   assert(isa<InstrProfCallsite>(this));
