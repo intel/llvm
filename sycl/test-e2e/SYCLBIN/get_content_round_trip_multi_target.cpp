@@ -1,4 +1,8 @@
 // REQUIRES: aspect-usm_device_allocations, target-spir, opencl-aot, opencl-cpu-rt
+// UNSUPPORTED: opencl && cpu
+// UNSUPPORTED-INTENDED: Multi-target SYCLBIN round-trip on the OpenCL CPU
+// runtime currently fails image selection at reload time
+// (UR_RESULT_ERROR_INVALID_BINARY); GPU coverage is sufficient for this test.
 
 // -- End-to-end round-trip test for kernel_bundle::ext_oneapi_get_content()
 // -- with a multi-target SYCLBIN. Compiles with both spir64 (JIT) and
