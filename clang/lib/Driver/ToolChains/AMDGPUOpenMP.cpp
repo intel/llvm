@@ -105,8 +105,8 @@ const char *AMDGCN::OpenMPLinker::constructLLVMLinkCommand(
       //  - write an opt pass that sets that on every function it sees and pipe
       //    the device-libs bitcode through that on the way to this llvm-link
       SmallVector<ToolChain::BitCodeLibraryInfo, 12> BCLibs =
-          AMDGPUOpenMPTC.getCommonDeviceLibNames(Args, SubArchName.str(),
-                                                 Action::OFK_OpenMP);
+          AMDGPUOpenMPTC.getCommonDeviceLibNames(
+              Args, SubArchName.str(), SubArchName.str(), Action::OFK_OpenMP);
       for (auto BCLib : BCLibs)
         CmdArgs.push_back(Args.MakeArgString(BCLib.Path));
     }
