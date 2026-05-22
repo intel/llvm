@@ -25,12 +25,100 @@ runs:
       echo "::group::Show Full Test Adapters Logs"
       # Use 1/3 of CPUs to avoid OOM on resource-constrained runners
       cmake --build "$BUILD_DIR" -j $(($(nproc)/3)) -- check-unified-runtime-conformance 2>&1 | tee conformance_tests.log
+      # Show log without test lists and statistics (cut before asterisks)
+      awk '/^\*\*\*\*/ {exit} {print}' conformance_tests.log
       echo "::endgroup::"
   
   - name: Report conformance failures
     if: steps.run_tests.outcome != 'success'
     shell: bash
     run: |
-      awk '/(Failed Tests|Unexpectedly Passed Tests|Unresolved Tests|Timed Out Tests) \([0-9]+\):/ {flag=1} flag' conformance_tests.log >> $GITHUB_STEP_SUMMARY
-      awk '/(Failed Tests|Unexpectedly Passed Tests|Unresolved Tests|Timed Out Tests) \([0-9]+\):/ {flag=1} flag' conformance_tests.log
+      # Show all error details from first failure/timeout to summary section
+      awk '/^(FAIL|TIMEOUT):/ {flag=1} /^Testing Time/ && flag {exit} flag {print}' conformance_tests.log >> $GITHUB_STEP_SUMMARY
+      awk '/^(FAIL|TIMEOUT):/ {flag=1} /^Testing Time/ && flag {exit} flag {print}' conformance_tests.log
       exit 1
+  
+  - name: Show conformance test statistics and lists
+    if: ${{ always() }}
+    shell: bash
+    run: |
+      if [ ! -f conformance_tests.log ]; then
+        echo "Log file not found"
+        exit 0
+      fi
+      
+      echo "=== Conformance Tests Statistics ==="
+      awk '/^ *(Total Discovered|Expected Passes|Expectedly Failed|Unsupported|Skipped|Passed|Failed|Timed Out|Unexpectedly Passed|Unresolved) *(Tests)? *:/ {print}' conformance_tests.log
+      echo ""
+      
+      if grep -q "^Passed Tests ([0-9]\+):" conformance_tests.log; then
+        count=$(grep "^Passed Tests ([0-9]\+):" conformance_tests.log | sed 's/Passed Tests (\([0-9]\+\)):/\1/' | head -1)
+        if [[ "$count" =~ ^[0-9]+$ ]]; then
+          echo "::group::Passed Tests ($count)"
+          awk '/^Passed Tests \([0-9]+\):/ {flag=1; next} /^$/ {flag=0} flag' conformance_tests.log
+          echo "::endgroup::"
+        fi
+      fi
+      
+      if grep -q "^Skipped Tests ([0-9]\+):" conformance_tests.log; then
+        count=$(grep "^Skipped Tests ([0-9]\+):" conformance_tests.log | sed 's/Skipped Tests (\([0-9]\+\)):/\1/' | head -1)
+        if [[ "$count" =~ ^[0-9]+$ ]]; then
+          echo "::group::Skipped Tests ($count)"
+          awk '/^Skipped Tests \([0-9]+\):/ {flag=1; next} /^$/ {flag=0} flag' conformance_tests.log
+          echo "::endgroup::"
+        fi
+      fi
+      
+      if grep -q "^Unsupported Tests ([0-9]\+):" conformance_tests.log; then
+        count=$(grep "^Unsupported Tests ([0-9]\+):" conformance_tests.log | sed 's/Unsupported Tests (\([0-9]\+\)):/\1/' | head -1)
+        if [[ "$count" =~ ^[0-9]+$ ]]; then
+          echo "::group::Unsupported Tests ($count)"
+          awk '/^Unsupported Tests \([0-9]+\):/ {flag=1; next} /^$/ {flag=0} flag' conformance_tests.log
+          echo "::endgroup::"
+        fi
+      fi
+      
+      if grep -q "^Failed Tests ([0-9]\+):" conformance_tests.log; then
+        count=$(grep "^Failed Tests ([0-9]\+):" conformance_tests.log | sed 's/Failed Tests (\([0-9]\+\)):/\1/' | head -1)
+        if [[ "$count" =~ ^[0-9]+$ ]]; then
+          echo "::group::Failed Tests ($count)"
+          awk '/^Failed Tests \([0-9]+\):/ {flag=1; next} /^$/ {flag=0} flag' conformance_tests.log
+          echo "::endgroup::"
+        fi
+      fi
+      
+      if grep -q "^Expectedly Failed Tests ([0-9]\+):" conformance_tests.log; then
+        count=$(grep "^Expectedly Failed Tests ([0-9]\+):" conformance_tests.log | sed 's/Expectedly Failed Tests (\([0-9]\+\)):/\1/' | head -1)
+        if [[ "$count" =~ ^[0-9]+$ ]]; then
+          echo "::group::Expectedly Failed Tests ($count)"
+          awk '/^Expectedly Failed Tests \([0-9]+\):/ {flag=1; next} /^$/ {flag=0} flag' conformance_tests.log
+          echo "::endgroup::"
+        fi
+      fi
+      
+      if grep -q "^Timed Out Tests ([0-9]\+):" conformance_tests.log; then
+        count=$(grep "^Timed Out Tests ([0-9]\+):" conformance_tests.log | sed 's/Timed Out Tests (\([0-9]\+\)):/\1/' | head -1)
+        if [[ "$count" =~ ^[0-9]+$ ]]; then
+          echo "::group::Timed Out Tests ($count)"
+          awk '/^Timed Out Tests \([0-9]+\):/ {flag=1; next} /^$/ {flag=0} flag' conformance_tests.log
+          echo "::endgroup::"
+        fi
+      fi
+      
+      if grep -q "^Unexpectedly Passed Tests ([0-9]\+):" conformance_tests.log; then
+        count=$(grep "^Unexpectedly Passed Tests ([0-9]\+):" conformance_tests.log | sed 's/Unexpectedly Passed Tests (\([0-9]\+\)):/\1/' | head -1)
+        if [[ "$count" =~ ^[0-9]+$ ]]; then
+          echo "::group::Unexpectedly Passed Tests ($count)"
+          awk '/^Unexpectedly Passed Tests \([0-9]+\):/ {flag=1; next} /^$/ {flag=0} flag' conformance_tests.log
+          echo "::endgroup::"
+        fi
+      fi
+      
+      if grep -q "^Unresolved Tests ([0-9]\+):" conformance_tests.log; then
+        count=$(grep "^Unresolved Tests ([0-9]\+):" conformance_tests.log | sed 's/Unresolved Tests (\([0-9]\+\)):/\1/' | head -1)
+        if [[ "$count" =~ ^[0-9]+$ ]]; then
+          echo "::group::Unresolved Tests ($count)"
+          awk '/^Unresolved Tests \([0-9]+\):/ {flag=1; next} /^$/ {flag=0} flag' conformance_tests.log
+          echo "::endgroup::"
+        fi
+      fi
