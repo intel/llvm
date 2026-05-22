@@ -81,10 +81,19 @@ UUR_INSTANTIATE_DEVICE_TEST_SUITE_MULTI_QUEUE(urUSMContextMemcpyExpTestDevice);
 
 TEST_P(urUSMContextMemcpyExpTestDevice, Success) {
   // https://github.com/intel/llvm/issues/19688
-  UUR_KNOWN_FAILURE_ON(uur::CUDA{});
-  ASSERT_SUCCESS(
-      urUSMContextMemcpyExp(context, dst_ptr, src_ptr, allocation_size));
-  verifyData();
+  // Testing without xfail to reproduce sporadic failure
+  // Run multiple iterations to increase chance of catching race condition
+  constexpr int NumIterations = 20;
+  for (int i = 0; i < NumIterations; ++i) {
+    ASSERT_SUCCESS(
+        urUSMContextMemcpyExp(context, dst_ptr, src_ptr, allocation_size));
+    verifyData();
+
+    // Re-initialize for next iteration
+    if (i < NumIterations - 1) {
+      initAllocations();
+    }
+  }
 }
 
 // Arbitrarily do the negative tests with device allocations. These are mostly a
