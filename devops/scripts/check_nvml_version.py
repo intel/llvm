@@ -46,6 +46,10 @@ def get_driver_version() -> Optional[str]:
     except subprocess.CalledProcessError as e:
         print("::error::Failed to run nvidia-smi")
         print(f"ERROR: Command failed: {e}", file=sys.stderr)
+        if e.stdout and e.stdout.strip():
+            print(f"ERROR: nvidia-smi stdout: {e.stdout.strip()}", file=sys.stderr)
+        if e.stderr and e.stderr.strip():
+            print(f"ERROR: nvidia-smi stderr: {e.stderr.strip()}", file=sys.stderr)
         return None
     except subprocess.TimeoutExpired:
         print("::error::nvidia-smi timeout")
