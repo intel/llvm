@@ -6,7 +6,7 @@
 // UNSUPPORTED: linux
 // UNSUPPORTED-TRACKER: GSD-12371
 
-// REQUIRES-INTEL-DRIVER: win: 38308
+// REQUIRES-INTEL-DRIVER: lin: 38303 win: 101.9999
 
 // RUN: %{build} %link-vulkan -o %t.out %if target-spir %{ -Wno-ignored-attributes %}
 // RUN: %{run} %t.out --no-sem
