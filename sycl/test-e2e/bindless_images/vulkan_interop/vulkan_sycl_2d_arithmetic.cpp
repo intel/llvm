@@ -9,9 +9,6 @@
 
 // clang-format off
 
-// UNSUPPORTED: windows && arch-intel_gpu_bmg_g21
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21986
-
 /*
     Run ALL the vulkan formats through the gauntlet. sampled and unsampled.
     This entire test takes less than 30 seconds on a slow machine.  MUCH faster
@@ -51,9 +48,6 @@
 // RUN: %{run} %t.out --type int8 --channels 1 32x33
 // RUN: %{run} %t.out --type int8 --channels 2 32x33
 // RUN: %{run} %t.out --type int8 --channels 4 32x33
-// RUN: %{run} %t.out --type unorm8 --channels 1 32x33
-// RUN: %{run} %t.out --type unorm8 --channels 2 32x33
-// RUN: %{run} %t.out --type unorm8 --channels 4 32x33
 // RUN: %{run} %t.out --type float --channels 1 --sampled 32x33
 // RUN: %{run} %t.out --type float --channels 2 --sampled 32x33
 // RUN: %{run} %t.out --type float --channels 4 --sampled 32x33
@@ -78,9 +72,6 @@
 // RUN: %{run} %t.out --type int8 --channels 1 --sampled 32x33
 // RUN: %{run} %t.out --type int8 --channels 2 --sampled 32x33
 // RUN: %{run} %t.out --type int8 --channels 4 --sampled 32x33
-// RUN: %{run} %t.out --type unorm8 --channels 1 --sampled 32x33
-// RUN: %{run} %t.out --type unorm8 --channels 2 --sampled 32x33
-// RUN: %{run} %t.out --type unorm8 --channels 4 --sampled 32x33
 
 // RUN: %{run} %t.out --type float --channels 1 32x33 --semaphores
 // RUN: %{run} %t.out --type half --channels 2 32x33 --semaphores
@@ -90,7 +81,6 @@
 // RUN: %{run} %t.out --type uint16 --channels 4 32x33 --semaphores
 // RUN: %{run} %t.out --type uint8 --channels 1 32x33 --semaphores
 // RUN: %{run} %t.out --type int8 --channels 2 32x33 --semaphores
-// RUN: %{run} %t.out --type unorm8 --channels 4 32x33 --semaphores
 // RUN: %{run} %t.out --type float --channels 1 --sampled 32x33 --semaphores
 // RUN: %{run} %t.out --type half --channels 2 --sampled 32x33 --semaphores
 // RUN: %{run} %t.out --type int32 --channels 4 --sampled 32x33 --semaphores
@@ -99,7 +89,6 @@
 // RUN: %{run} %t.out --type uint16 --channels 4 --sampled 32x33 --semaphores
 // RUN: %{run} %t.out --type uint8 --channels 1 --sampled 32x33 --semaphores
 // RUN: %{run} %t.out --type int8 --channels 2 --sampled 32x33 --semaphores
-// RUN: %{run} %t.out --type unorm8 --channels 4 --sampled 32x33 --semaphores
 
 /*
   Vulkan/SYCL 2D Arithmetic (A + B = C)

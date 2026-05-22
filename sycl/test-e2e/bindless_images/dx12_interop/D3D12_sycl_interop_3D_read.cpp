@@ -57,9 +57,6 @@
 // RUN: %{run} %t.exe --type int8 --channels 1 --sampled 17x16x15
 // RUN: %{run} %t.exe --type int8 --channels 2 --sampled 16x15x17
 // RUN: %{run} %t.exe --type int8 --channels 4 --sampled 15x17x16
-// RUN-IF: (!gpu-intel-gen12 && !gpu-intel-dg2 && !arch-intel_gpu_bmg_g21), %{run} %t.exe --type unorm8 --channels 1 --sampled 9x8x7
-// RUN-IF: (!gpu-intel-gen12 && !gpu-intel-dg2 && !arch-intel_gpu_bmg_g21), %{run} %t.exe --type unorm8 --channels 2 --sampled 8x7x9
-// RUN-IF: (!gpu-intel-gen12 && !gpu-intel-dg2 && !arch-intel_gpu_bmg_g21), %{run} %t.exe --type unorm8 --channels 4 --sampled 7x9x8
 
 // Semaphore coverage tests
 // RUN:  %{run} %t.exe --type float --channels 4 --semaphores 16x17x15

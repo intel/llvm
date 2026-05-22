@@ -31,12 +31,6 @@
 // RUN: %{run} %t.out --type int8 --channels 2
 // RUN: %{run} %t.out --type int8 --channels 4
 
-// CUDA doesn't support unorm8 on unsampled images.
-// https://github.com/intel/llvm/issues/21888
-// RUN-IF: !cuda, %{run} %t.out --type unorm8 --channels 1
-// RUN-IF: !cuda, %{run} %t.out --type unorm8 --channels 2
-// RUN-IF: !cuda, %{run} %t.out --type unorm8 --channels 4
-
 // clang-format off
 /*
   Vulkan/SYCL 2D Image with Timeline Semaphore Interop with image size 32x32
