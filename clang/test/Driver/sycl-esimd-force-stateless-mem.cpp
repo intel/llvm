@@ -1,5 +1,5 @@
 
-/// Verify that the driver --no-offloadlib option is translated to corresponding options
+/// Verify that the driver option is translated to corresponding options
 /// to host/device compilation and sycl-post-link.
 
 // Case1: Check that the enforcing is turned on by default.

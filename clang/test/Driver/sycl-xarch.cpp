@@ -1,5 +1,5 @@
 ///
-/// Perform several driver --no-offloadlib tests for SYCL -Xarch_device/host on Linux
+/// Perform several driver tests for SYCL -Xarch_device/host on Linux
 ///
 
 // UNSUPPORTED: system-windows

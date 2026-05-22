@@ -1,5 +1,5 @@
 ///
-/// Perform driver --no-offloadlib test for SYCL RTC mode.
+/// Perform driver test for SYCL RTC mode.
 ///
 
 /// Check that the '-fsycl-rtc-mode' is correctly forwarded to the device

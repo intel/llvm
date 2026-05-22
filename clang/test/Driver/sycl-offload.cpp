@@ -1,5 +1,5 @@
 ///
-/// Perform several driver --no-offloadlib tests for SYCL offloading
+/// Perform several driver tests for SYCL offloading
 ///
 
 // REQUIRES: x86-registered-target
