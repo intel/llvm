@@ -1,0 +1,51 @@
+name: 'Run UR Adapter Specific Tests'
+
+inputs:
+  build_dir:
+    required: false
+    default: 'build'
+
+runs:
+  using: "composite"
+  steps:
+  - name: Run adapter specific tests
+    id: run_tests
+    continue-on-error: true
+    shell: bash
+    env:
+      BUILD_DIR: ${{ inputs.build_dir }}
+      ZE_ENABLE_LOADER_DEBUG_TRACE: 1
+      LIT_OPTS: "--show-unsupported --show-pass --show-xfail --no-progress-bar --succinct --timeout 120 -j 50"
+      LIT_FILTER_OUT: "(adapters/level_zero/memcheck.test|adapters/level_zero/v2/deferred_kernel_memcheck.test)"
+    run: |
+      if [[ "$BUILD_DIR" =~ [^a-zA-Z0-9/_-] ]] || [[ "$BUILD_DIR" =~ \.\. ]]; then
+        echo "::error::Invalid build_dir: contains disallowed characters or path traversal"
+        exit 1
+      fi
+      
+      echo "::group::Show Full Test Adapter Specific Logs"
+      # Use 1/3 of CPUs to avoid OOM on resource-constrained runners
+      # Use Python script to cut log at summary section (removes duplicate statistics/lists)
+      cmake --build "$BUILD_DIR" -j $(($(nproc)/3)) -- check-unified-runtime-adapter 2>&1 | tee adapter_tests.log | python3 devops/scripts/ur_test_summary.py cut-from-stdin
+      echo "::endgroup::"
+  
+  - name: Report adapter specific failures
+    if: steps.run_tests.outcome != 'success'
+    shell: bash
+    run: |
+      # Show error details but stop before test lists (which are shown in collapsed sections)
+      python3 devops/scripts/ur_test_summary.py extract-errors adapter_tests.log >> $GITHUB_STEP_SUMMARY
+      python3 devops/scripts/ur_test_summary.py extract-errors adapter_tests.log
+      exit 1
+  
+  - name: Show adapter specific test statistics and lists
+    if: ${{ always() }}
+    shell: bash
+    run: |
+      if [ ! -f adapter_tests.log ]; then
+        echo "Log file not found"
+        exit 0
+      fi
+      
+      echo "=== Adapter Tests Statistics ==="
+      python3 devops/scripts/ur_test_summary.py show-summary adapter_tests.log

@@ -4,6 +4,9 @@
 
 add_custom_target(check-unified-runtime-adapter)
 
+# CI validation test suite (intentional failures/timeouts for testing CI logging)
+add_subdirectory(ci-validation)
+
 if(UR_BUILD_ADAPTER_CUDA OR UR_BUILD_ADAPTER_ALL)
     add_subdirectory(cuda)
 endif()
