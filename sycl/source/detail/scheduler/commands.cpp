@@ -27,6 +27,7 @@
 #include <sycl/detail/cg_types.hpp>
 #include <sycl/detail/helpers.hpp>
 #include <sycl/detail/kernel_desc.hpp>
+#include <sycl/exception.hpp>
 #include <sycl/sampler.hpp>
 
 #include <cassert>
@@ -2598,6 +2599,76 @@ getCGKernelInfo(const CGExecKernel &CommandGroup, context_impl &ContextImpl,
   return std::make_tuple(UrKernel, DeviceImageImpl, EliminatedArgMask);
 }
 
+void checkNDRangeBoundsAndThrow(const NDRDescT &NDRDesc,
+                                const uint32_t IdQueriesRange) {
+
+  // Skipping the range check if the kernel supports size_t range for id
+  // queries. Because, range exceeding size_t is not practically possible, and
+  // for a 64-bit size_t, it'll take hundreds of years for such a kernel to
+  // complete.
+  if (IdQueriesRange == 2) {
+    // DPCPP supports up to size_t range for id queries, so we can skip the
+    // check in this case.
+    return;
+  }
+
+  uint64_t MaxRange = 0;
+  if (IdQueriesRange == 1) { /*uint32_t*/
+    MaxRange = static_cast<uint64_t>(std::numeric_limits<uint32_t>::max());
+  } else { /*int*/
+    MaxRange = static_cast<uint64_t>(std::numeric_limits<int>::max());
+  }
+
+  // Check if the provided global size and offset values are within the maximum
+  // range supported by the kernel's id queries type, per dimension.
+  // Also check if the total global size (product of global sizes across all
+  // dimensions) is within the maximum range, to ensure that functions like
+  // get_global_linear_id can safely return a value within the maximum range.
+  bool ExceedsMaxRange = false;
+  uint64_t TotalGlobalSize = 1;
+  for (size_t I = 0; I < NDRDesc.Dims; ++I) {
+    const uint64_t GlobalSize = static_cast<uint64_t>(NDRDesc.GlobalSize[I]);
+    const uint64_t GlobalOffset =
+        static_cast<uint64_t>(NDRDesc.GlobalOffset[I]);
+    // Validate the maximum generated global id in each dimension:
+    // GlobalOffset + GlobalSize <= MaxRange.
+    if (GlobalOffset > MaxRange || GlobalSize > (MaxRange - GlobalOffset)) {
+      ExceedsMaxRange = true;
+      break;
+    }
+    TotalGlobalSize *= GlobalSize;
+    if (TotalGlobalSize > MaxRange) {
+      ExceedsMaxRange = true;
+      break;
+    }
+  }
+
+  if (ExceedsMaxRange) {
+    std::string ErrMsg;
+    switch (IdQueriesRange) {
+    case 1:
+      ErrMsg =
+          "The kernel was compiled with -fsycl-id-queries-range=uint, but "
+          "the provided range/offset exceeds the maximum value storable in "
+          "an uint32_t. Either reduce the range/offset or "
+          "recompile the kernel with -fsycl-id-queries-range=size_t.";
+      break;
+    case 0:
+    default:
+      ErrMsg =
+          "The kernel was compiled with -fsycl-id-queries-range=int, but the "
+          "provided range/offset exceeds the maximum value storable in an "
+          "int. Either reduce the range/offset or "
+          "recompile the kernel with -fsycl-id-queries-range=[uint|size_t].";
+    }
+
+    throw detail::set_ur_error(
+        sycl::exception(sycl::make_error_code(sycl::errc::invalid),
+                        ErrMsg.c_str()),
+        UR_RESULT_ERROR_INVALID_VALUE);
+  }
+}
+
 ur_result_t enqueueImpCommandBufferKernel(
     const context &Ctx, device_impl &DeviceImpl,
     ur_exp_command_buffer_handle_t CommandBuffer,
@@ -2757,6 +2828,7 @@ void enqueueImpKernel(
   std::shared_ptr<kernel_impl> SyclKernelImpl;
   device_image_impl *DeviceImageImpl = nullptr;
   FastKernelCacheValPtr KernelCacheVal;
+  uint32_t IdQueryRangeProp = 0;
 
   if (nullptr != MSyclKernel) {
     assert(MSyclKernel->get_info<info::kernel::context>() ==
@@ -2772,17 +2844,25 @@ void enqueueImpKernel(
     // their duplication in such cases.
     KernelMutex = &MSyclKernel->getNoncacheableEnqueueMutex();
     EliminatedArgMask = MSyclKernel->getKernelArgMask();
+
+    if (!MSyclKernel->isInteropOrSourceBased()) {
+      DeviceImageImpl = &MSyclKernel->getDeviceImage();
+      IdQueryRangeProp =
+          DeviceImageImpl->get_bin_image_ref()->getIdQueriesRangeProperties();
+    }
   } else if ((SyclKernelImpl =
                   KernelBundleImplPtr
                       ? KernelBundleImplPtr->tryGetKernel(DeviceKernelInfo.Name)
                       : std::shared_ptr<kernel_impl>{nullptr})) {
     Kernel = SyclKernelImpl->getHandleRef();
     DeviceImageImpl = &SyclKernelImpl->getDeviceImage();
-
     Program = DeviceImageImpl->get_ur_program();
 
     EliminatedArgMask = SyclKernelImpl->getKernelArgMask();
     KernelMutex = SyclKernelImpl->getCacheMutex();
+
+    IdQueryRangeProp =
+        DeviceImageImpl->get_bin_image_ref()->getIdQueriesRangeProperties();
   } else {
     KernelCacheVal = detail::ProgramManager::getInstance().getOrCreateKernel(
         ContextImpl, DeviceImpl, DeviceKernelInfo, NDRDesc);
@@ -2790,6 +2870,11 @@ void enqueueImpKernel(
     KernelMutex = KernelCacheVal->MMutex;
     Program = KernelCacheVal->MProgramHandle;
     EliminatedArgMask = KernelCacheVal->MKernelArgMask;
+
+    const RTDeviceBinaryImage &DeviceImage =
+        detail::ProgramManager::getInstance().getDeviceImage(
+            DeviceKernelInfo.Name, ContextImpl, DeviceImpl);
+    IdQueryRangeProp = DeviceImage.getIdQueriesRangeProperties();
   }
 
   // We may need more events for the launch, so we make another reference.
@@ -2808,6 +2893,15 @@ void enqueueImpKernel(
                                        DeviceGlobalInitEvents.begin(),
                                        DeviceGlobalInitEvents.end());
     EventsWaitList = std::move(EventsWithDeviceGlobalInits);
+  }
+
+  // Get Max number of work groups and linear id range that this kernel can
+  // accept. Skip the check for interop kernels.
+  {
+    // If IdQueryRangeProp property is not present in the device image,
+    // it means that the kernel was compiled without -fsycl-id-queries-range
+    // option, so use the default range type of `int`.
+    checkNDRangeBoundsAndThrow(NDRDesc, IdQueryRangeProp);
   }
 
   ur_result_t Error = UR_RESULT_SUCCESS;

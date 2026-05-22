@@ -11198,6 +11198,12 @@ static void getNonTripleBasedSYCLPostLinkOpts(const ToolChain &TC,
   if (allowDeviceImageDependencies(TCArgs))
     addArgs(PostLinkArgs, TCArgs, {"-allow-device-image-dependencies"});
 
+  // Forward -fsycl-id-queries-range= to sycl-post-link.
+  if (Arg *A = TCArgs.getLastArg(options::OPT_fsycl_id_queries_range_EQ)) {
+    PostLinkArgs.push_back(
+        TCArgs.MakeArgString(Twine("-id-queries-range=") + A->getValue()));
+  }
+
   // For bfloat16 conversions LLVM IR devicelib, we only need to embed it
   // when non-AOT compilation is used.
   if (TC.getTriple().isSPIROrSPIRV() && !TC.getTriple().isSPIRAOT()) {
