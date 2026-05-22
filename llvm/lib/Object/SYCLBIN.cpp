@@ -8,16 +8,27 @@
 
 #include "llvm/Object/SYCLBIN.h"
 
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Object/OffloadBinary.h"
-#include "llvm/Support/FileSystem.h"
-#include "llvm/Support/Path.h"
+#include "llvm/Support/Endian.h"
+#include "llvm/Support/Error.h"
+#include "llvm/Support/MathExtras.h"
+#include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/raw_ostream.h"
+
+#include <cstring>
 
 using namespace llvm;
 using namespace llvm::object;
 
 namespace {
+
+// ---------------------------------------------------------------------------
+// V1 (SYBI-magic) reader helpers. Untouched logic from the original
+// implementation, retained so files produced by pre-v2 toolchains continue
+// to load.
+// ---------------------------------------------------------------------------
 
 class SYCLBINBlockReader {
 protected:
@@ -74,7 +85,31 @@ public:
   }
 };
 
+// Parse a serialized PropertySetRegistry blob. PropertySetRegistry::read
+// uses line_iterator, which requires a null-terminated MemoryBuffer.
+Expected<std::unique_ptr<llvm::util::PropertySetRegistry>>
+parsePropertyRegistry(StringRef Blob) {
+  auto MemBuf = MemoryBuffer::getMemBufferCopy(Blob);
+  return llvm::util::PropertySetRegistry::read(MemBuf.get());
+}
+
+// Returns true if Buf starts with the v1 SYBI magic word.
+bool hasLegacyMagic(StringRef Buf) {
+  if (Buf.size() < sizeof(uint32_t))
+    return false;
+  uint32_t Magic;
+  std::memcpy(&Magic, Buf.data(), sizeof(uint32_t));
+  return Magic == SYCLBIN::LegacyMagicNumber;
+}
+
 } // namespace
+
+// ---------------------------------------------------------------------------
+// SYCLBINDesc construction.
+//
+// Builds an in-memory description of the SYCLBIN to be written. The on-disk
+// layout is decided at write-time by SYCLBIN::write.
+// ---------------------------------------------------------------------------
 
 SYCLBIN::SYCLBINDesc::SYCLBINDesc(BundleState State,
                                   ArrayRef<SYCLBINModuleDesc> ModuleDescs) {
@@ -106,216 +141,253 @@ SYCLBIN::SYCLBINDesc::SYCLBINDesc(BundleState State,
       SM.Properties.write(AMMetadataOS);
 
       ImageDesc ID;
-      // Copy the filepath.
       ID.FilePath = SM.ModuleFilePath;
+      ID.TargetTripleStr = MD.TargetTriple.str();
 
-      // Create metadata and save the descriptor to the right collection.
-      raw_svector_ostream IDMetadataOS(ID.Metadata);
       if (MD.ArchString.empty()) {
-        // If the arch string is empty, it must be an IR module.
-        llvm::util::PropertySetRegistry IRMMetadata;
-        // TODO: Determine type from the input.
-        IRMMetadata.add(
-            llvm::util::PropertySetRegistry::SYCLBIN_IR_MODULE_METADATA, "type",
-            /*SPIR-V*/ 0);
-        IRMMetadata.add(
-            llvm::util::PropertySetRegistry::SYCLBIN_IR_MODULE_METADATA,
-            "target", MD.TargetTriple.str());
-        IRMMetadata.write(IDMetadataOS);
+        // No arch string -> IR module.
+        ID.IRType = /*SPIR-V*/ 0;
         AMD.IRModuleDescs.emplace_back(std::move(ID));
       } else {
-        // If the arch string is empty, it must be an native device code image.
-        llvm::util::PropertySetRegistry NDCIMetadata;
-        NDCIMetadata.add(llvm::util::PropertySetRegistry::
-                             SYCLBIN_NATIVE_DEVICE_CODE_IMAGE_METADATA,
-                         "arch", MD.ArchString);
-        NDCIMetadata.add(llvm::util::PropertySetRegistry::
-                             SYCLBIN_NATIVE_DEVICE_CODE_IMAGE_METADATA,
-                         "target", MD.TargetTriple.str());
-        NDCIMetadata.write(IDMetadataOS);
+        // Arch string set -> native device code image.
+        ID.ArchString = MD.ArchString;
         AMD.NativeDeviceCodeImageDescs.emplace_back(std::move(ID));
       }
     }
   }
 }
 
-size_t SYCLBIN::SYCLBINDesc::getMetadataTableByteSize() const {
-  size_t MetadataTableSize = GlobalMetadata.size();
-  for (const SYCLBINDesc::AbstractModuleDesc &AMD : AbstractModuleDescs) {
-    MetadataTableSize += AMD.Metadata.size();
-    for (const SYCLBINDesc::ImageDesc &IRMD : AMD.IRModuleDescs)
-      MetadataTableSize += IRMD.Metadata.size();
-    for (const SYCLBINDesc::ImageDesc &NDCID : AMD.NativeDeviceCodeImageDescs)
-      MetadataTableSize += NDCID.Metadata.size();
-  }
-  return MetadataTableSize;
-}
+// ---------------------------------------------------------------------------
+// V2 writer.
+//
+// The on-disk file is a multi-entry OffloadBinary. Every entry has
+// ImageKind == IMG_SYCLBIN, OffloadKind == OFK_SYCL, and conveys its role
+// via OffloadBinary StringData keys. Entry image bytes encode property-set
+// metadata and (for ir/native entries) the raw binary payload.
+// ---------------------------------------------------------------------------
 
-Expected<size_t> SYCLBIN::SYCLBINDesc::getBinaryTableByteSize() const {
-  size_t BinaryTableSize = 0;
-  const auto GetFileSizeAndIncrease =
-      [&BinaryTableSize](const StringRef FilePath) -> Error {
-    uint64_t FileSize = 0;
-    if (std::error_code EC = sys::fs::file_size(FilePath, FileSize))
-      return createFileError(FilePath, EC);
-    BinaryTableSize += FileSize;
+namespace {
+
+struct EntryStorage {
+  std::unique_ptr<MemoryBuffer> Image;
+  std::string TripleHolder;
+  std::string ArchHolder;
+  std::string AMIndexHolder;
+  std::string IRTypeHolder;
+};
+
+} // namespace
+
+// We can't build OffloadingImage directly because StringData values are
+// StringRef and need backing storage living until OffloadBinary::write
+// returns. The helper writes the file in three passes:
+//   1. Build per-entry images (with payload concatenation for ir/native).
+//   2. Build OffloadingImage list referencing storage.
+//   3. Hand to OffloadBinary::write.
+Error SYCLBIN::write(const SYCLBIN::SYCLBINDesc &Desc, raw_ostream &OS) {
+  // Pass 1: materialize image bytes and per-entry string holders.
+  size_t TotalEntries = 1; // global_metadata
+  for (const auto &AMD : Desc.AbstractModuleDescs)
+    TotalEntries +=
+        1 + AMD.IRModuleDescs.size() + AMD.NativeDeviceCodeImageDescs.size();
+
+  SmallVector<EntryStorage> Storage;
+  Storage.reserve(TotalEntries);
+
+  SmallVector<OffloadBinary::OffloadingImage> Images;
+  Images.reserve(TotalEntries);
+
+  // Helper: build the [u64 metadata_size][metadata][raw_bytes] payload for an
+  // ir/native entry.
+  auto buildPayload = [](StringRef MetadataBlob, StringRef RawBytes,
+                         std::unique_ptr<MemoryBuffer> &Out) -> Error {
+    SmallString<0> Buf;
+    Buf.reserve(sizeof(uint64_t) + MetadataBlob.size() + RawBytes.size());
+    raw_svector_ostream BufOS(Buf);
+
+    uint64_t MetadataSize = MetadataBlob.size();
+    char SizeBytes[sizeof(uint64_t)];
+    support::endian::write64le(SizeBytes, MetadataSize);
+    BufOS.write(SizeBytes, sizeof(SizeBytes));
+    BufOS.write(MetadataBlob.data(), MetadataBlob.size());
+    BufOS.write(RawBytes.data(), RawBytes.size());
+
+    Out = MemoryBuffer::getMemBufferCopy(Buf);
     return Error::success();
   };
-  for (const SYCLBINDesc::AbstractModuleDesc &AMD : AbstractModuleDescs) {
-    for (const SYCLBINDesc::ImageDesc &IRMD : AMD.IRModuleDescs)
-      if (Error E = GetFileSizeAndIncrease(IRMD.FilePath))
-        return std::move(E);
-    for (const SYCLBINDesc::ImageDesc &NDCID : AMD.NativeDeviceCodeImageDescs)
-      if (Error E = GetFileSizeAndIncrease(NDCID.FilePath))
-        return std::move(E);
-  }
-  return BinaryTableSize;
-}
 
-Expected<size_t> SYCLBIN::SYCLBINDesc::getSYCLBINByteSize() const {
-  size_t ByteSize = 0;
-  ByteSize +=
-      alignTo(sizeof(FileHeaderType), 8) +
-      alignTo(sizeof(AbstractModuleHeaderType), 8) * AbstractModuleDescs.size();
-  for (const SYCLBINDesc::AbstractModuleDesc &AMD : AbstractModuleDescs)
-    ByteSize +=
-        alignTo(sizeof(IRModuleHeaderType), 8) * AMD.IRModuleDescs.size() +
-        alignTo(sizeof(NativeDeviceCodeImageHeaderType), 8) *
-            AMD.NativeDeviceCodeImageDescs.size();
-  ByteSize += alignTo(getMetadataTableByteSize(), 8);
-  size_t BinaryTableSize = 0;
-  if (Error E = getBinaryTableByteSize().moveInto(BinaryTableSize))
-    return std::move(E);
-  ByteSize += alignTo(BinaryTableSize, 8);
-  return ByteSize;
-}
+  // Per-image helper: serialize IR/native metadata PropertySetRegistry into
+  // a SmallString.
+  auto serializeImageMetadata =
+      [](const SYCLBINDesc::ImageDesc &ID, StringRef Category,
+         SmallString<0> &Out) {
+        raw_svector_ostream MetadataOS(Out);
+        llvm::util::PropertySetRegistry Reg;
+        if (Category ==
+            llvm::util::PropertySetRegistry::SYCLBIN_IR_MODULE_METADATA) {
+          Reg.add(Category, "type", ID.IRType);
+          Reg.add(Category, "target", StringRef(ID.TargetTripleStr));
+        } else {
+          assert(
+              Category ==
+              llvm::util::PropertySetRegistry::
+                  SYCLBIN_NATIVE_DEVICE_CODE_IMAGE_METADATA);
+          Reg.add(Category, "arch", StringRef(ID.ArchString));
+          Reg.add(Category, "target", StringRef(ID.TargetTripleStr));
+        }
+        Reg.write(MetadataOS);
+      };
 
-Error SYCLBIN::write(const SYCLBIN::SYCLBINDesc &Desc, raw_ostream &OS) {
-  uint32_t IRModuleCount = 0, NativeDeviceCodeImageCount = 0;
-  for (const SYCLBINDesc::AbstractModuleDesc &AMD : Desc.AbstractModuleDescs) {
-    IRModuleCount += AMD.IRModuleDescs.size();
-    NativeDeviceCodeImageCount += AMD.NativeDeviceCodeImageDescs.size();
-  }
-  size_t HeaderTrackedMetadataOffset = 0, HeaderTrackedBinariesOffset = 0;
-
-  // Headers:
-  // Write file header.
-  FileHeaderType FileHeader;
-  FileHeader.Magic = MagicNumber;
-  FileHeader.Version = CurrentVersion;
-  FileHeader.AbstractModuleCount = Desc.AbstractModuleDescs.size();
-  FileHeader.IRModuleCount = IRModuleCount;
-  FileHeader.NativeDeviceCodeImageCount = NativeDeviceCodeImageCount;
-  FileHeader.GlobalMetadataOffset = 0;
-  FileHeader.GlobalMetadataSize = Desc.GlobalMetadata.size();
-  FileHeader.MetadataByteTableSize = Desc.getMetadataTableByteSize();
-  if (Error E = Desc.getBinaryTableByteSize().moveInto(
-          FileHeader.BinaryByteTableSize))
-    return E;
-  OS << StringRef(reinterpret_cast<char *>(&FileHeader), sizeof(FileHeader));
-  OS.write_zeros(alignTo(OS.tell(), 8) - OS.tell());
-  HeaderTrackedMetadataOffset += FileHeader.GlobalMetadataSize;
-
-  // Write abstract module headers.
-  size_t IRModuleOffset = 0, NativeDeviceCodeImageOffset = 0;
-  size_t BinariesCount = 0;
-  for (const SYCLBINDesc::AbstractModuleDesc &AMD : Desc.AbstractModuleDescs) {
-    AbstractModuleHeaderType AMHeader;
-    AMHeader.MetadataOffset = HeaderTrackedMetadataOffset;
-    AMHeader.MetadataSize = AMD.Metadata.size();
-    AMHeader.IRModuleCount = AMD.IRModuleDescs.size();
-    AMHeader.IRModuleOffset = IRModuleOffset;
-    AMHeader.NativeDeviceCodeImageCount = AMD.NativeDeviceCodeImageDescs.size();
-    AMHeader.NativeDeviceCodeImageOffset = NativeDeviceCodeImageOffset;
-    OS << StringRef(reinterpret_cast<char *>(&AMHeader), sizeof(AMHeader));
-    OS.write_zeros(alignTo(OS.tell(), 8) - OS.tell());
-    HeaderTrackedMetadataOffset += AMHeader.MetadataSize;
-    IRModuleOffset += AMHeader.IRModuleCount;
-    NativeDeviceCodeImageOffset += AMHeader.NativeDeviceCodeImageCount;
-    BinariesCount +=
-        AMHeader.IRModuleCount + AMHeader.NativeDeviceCodeImageCount;
+  // Entry 0: global metadata.
+  {
+    EntryStorage &S = Storage.emplace_back();
+    S.Image = MemoryBuffer::getMemBufferCopy(StringRef(Desc.GlobalMetadata));
+    OffloadBinary::OffloadingImage Img;
+    Img.TheImageKind = IMG_SYCLBIN;
+    Img.TheOffloadKind = OFK_SYCL;
+    Img.StringData["role"] = "global_metadata";
+    Img.Image = nullptr; // patched below after Storage stable
+    Images.emplace_back(std::move(Img));
   }
 
-  // Store file handles for later.
-  SmallVector<std::unique_ptr<MemoryBuffer>, 4> BinaryFileBuffers;
-  BinaryFileBuffers.reserve(BinariesCount);
+  // Per abstract module: am_metadata, ir entries, native entries.
+  for (size_t I = 0; I < Desc.AbstractModuleDescs.size(); ++I) {
+    const auto &AMD = Desc.AbstractModuleDescs[I];
 
-  // Write IR module headers.
-  for (const SYCLBINDesc::AbstractModuleDesc &AMD : Desc.AbstractModuleDescs) {
-    for (const SYCLBINDesc::ImageDesc &IRMD : AMD.IRModuleDescs) {
-      auto FileBufferOrError =
-          llvm::MemoryBuffer::getFileOrSTDIN(IRMD.FilePath);
+    // am_metadata entry.
+    {
+      EntryStorage &S = Storage.emplace_back();
+      S.AMIndexHolder = std::to_string(I);
+      S.Image = MemoryBuffer::getMemBufferCopy(StringRef(AMD.Metadata));
+      OffloadBinary::OffloadingImage Img;
+      Img.TheImageKind = IMG_SYCLBIN;
+      Img.TheOffloadKind = OFK_SYCL;
+      Img.StringData["role"] = "am_metadata";
+      Img.StringData["am_index"] = S.AMIndexHolder;
+      Img.Image = nullptr;
+      Images.emplace_back(std::move(Img));
+    }
+
+    // IR module entries.
+    for (const auto &IRMD : AMD.IRModuleDescs) {
+      EntryStorage &S = Storage.emplace_back();
+      S.AMIndexHolder = std::to_string(I);
+      S.IRTypeHolder = std::to_string(IRMD.IRType);
+      S.TripleHolder = std::string(IRMD.TargetTripleStr);
+
+      auto FileBufferOrError = MemoryBuffer::getFileOrSTDIN(IRMD.FilePath);
       if (!FileBufferOrError)
         return createFileError(IRMD.FilePath, FileBufferOrError.getError());
-      std::unique_ptr<MemoryBuffer> &BFB =
-          BinaryFileBuffers.emplace_back(std::move(*FileBufferOrError));
 
-      IRModuleHeaderType IRMHeader;
-      IRMHeader.MetadataOffset = HeaderTrackedMetadataOffset;
-      IRMHeader.MetadataSize = IRMD.Metadata.size();
-      IRMHeader.RawIRBytesOffset = HeaderTrackedBinariesOffset;
-      IRMHeader.RawIRBytesSize = BFB->getBufferSize();
-      OS << StringRef(reinterpret_cast<char *>(&IRMHeader), sizeof(IRMHeader));
-      OS.write_zeros(alignTo(OS.tell(), 8) - OS.tell());
-      HeaderTrackedMetadataOffset += IRMHeader.MetadataSize;
-      HeaderTrackedBinariesOffset += IRMHeader.RawIRBytesSize;
+      SmallString<0> MetadataBlob;
+      serializeImageMetadata(
+          IRMD, llvm::util::PropertySetRegistry::SYCLBIN_IR_MODULE_METADATA,
+          MetadataBlob);
+
+      if (Error E = buildPayload(MetadataBlob,
+                                 (*FileBufferOrError)->getBuffer(), S.Image))
+        return E;
+
+      OffloadBinary::OffloadingImage Img;
+      Img.TheImageKind = IMG_SYCLBIN;
+      Img.TheOffloadKind = OFK_SYCL;
+      Img.StringData["role"] = "ir";
+      Img.StringData["am_index"] = S.AMIndexHolder;
+      Img.StringData["ir_type"] = S.IRTypeHolder;
+      Img.StringData["triple"] = S.TripleHolder;
+      Img.Image = nullptr;
+      Images.emplace_back(std::move(Img));
     }
-  }
 
-  // Write native device code image headers.
-  for (const SYCLBINDesc::AbstractModuleDesc &AMD : Desc.AbstractModuleDescs) {
-    for (const SYCLBINDesc::ImageDesc &NDCID : AMD.NativeDeviceCodeImageDescs) {
-      auto FileBufferOrError =
-          llvm::MemoryBuffer::getFileOrSTDIN(NDCID.FilePath);
+    // Native device-code image entries.
+    for (const auto &NDCID : AMD.NativeDeviceCodeImageDescs) {
+      EntryStorage &S = Storage.emplace_back();
+      S.AMIndexHolder = std::to_string(I);
+      S.ArchHolder = std::string(NDCID.ArchString);
+      S.TripleHolder = std::string(NDCID.TargetTripleStr);
+
+      auto FileBufferOrError = MemoryBuffer::getFileOrSTDIN(NDCID.FilePath);
       if (!FileBufferOrError)
         return createFileError(NDCID.FilePath, FileBufferOrError.getError());
-      std::unique_ptr<MemoryBuffer> &BFB =
-          BinaryFileBuffers.emplace_back(std::move(*FileBufferOrError));
 
-      NativeDeviceCodeImageHeaderType NDCIHeader;
-      NDCIHeader.MetadataOffset = HeaderTrackedMetadataOffset;
-      NDCIHeader.MetadataSize = NDCID.Metadata.size();
-      NDCIHeader.BinaryBytesOffset = HeaderTrackedBinariesOffset;
-      NDCIHeader.BinaryBytesSize = BFB->getBufferSize();
-      OS << StringRef(reinterpret_cast<char *>(&NDCIHeader),
-                      sizeof(NDCIHeader));
-      OS.write_zeros(alignTo(OS.tell(), 8) - OS.tell());
-      HeaderTrackedMetadataOffset += NDCIHeader.MetadataSize;
-      HeaderTrackedBinariesOffset += NDCIHeader.BinaryBytesSize;
+      SmallString<0> MetadataBlob;
+      serializeImageMetadata(
+          NDCID,
+          llvm::util::PropertySetRegistry::
+              SYCLBIN_NATIVE_DEVICE_CODE_IMAGE_METADATA,
+          MetadataBlob);
+
+      if (Error E = buildPayload(MetadataBlob,
+                                 (*FileBufferOrError)->getBuffer(), S.Image))
+        return E;
+
+      OffloadBinary::OffloadingImage Img;
+      Img.TheImageKind = IMG_SYCLBIN;
+      Img.TheOffloadKind = OFK_SYCL;
+      Img.StringData["role"] = "native";
+      Img.StringData["am_index"] = S.AMIndexHolder;
+      Img.StringData["arch"] = S.ArchHolder;
+      Img.StringData["triple"] = S.TripleHolder;
+      Img.Image = nullptr;
+      Images.emplace_back(std::move(Img));
     }
   }
 
-  // Metadata table:
-  // Write global metadata.
-  OS << Desc.GlobalMetadata;
+  // Pass 2: patch image pointers to refer to the now-stable Storage entries.
+  assert(Storage.size() == Images.size());
+  for (size_t I = 0; I < Images.size(); ++I)
+    Images[I].Image =
+        MemoryBuffer::getMemBuffer(Storage[I].Image->getBuffer(),
+                                    /*BufferName=*/"",
+                                    /*RequiresNullTerminator=*/false);
 
-  // Write abstract module metadata.
-  for (const SYCLBINDesc::AbstractModuleDesc &AMD : Desc.AbstractModuleDescs)
-    OS << AMD.Metadata;
-
-  // Write IR module metadata.
-  for (const SYCLBINDesc::AbstractModuleDesc &AMD : Desc.AbstractModuleDescs)
-    for (const SYCLBINDesc::ImageDesc &IRMD : AMD.IRModuleDescs)
-      OS << IRMD.Metadata;
-
-  // Write native device code image metadata.
-  for (const SYCLBINDesc::AbstractModuleDesc &AMD : Desc.AbstractModuleDescs)
-    for (const SYCLBINDesc::ImageDesc &NDCID : AMD.NativeDeviceCodeImageDescs)
-      OS << NDCID.Metadata;
-
-  // Pad table to the right alignment.
-  OS.write_zeros(alignTo(OS.tell(), 8) - OS.tell());
-
-  // Binary byte table:
-  for (const std::unique_ptr<MemoryBuffer> &BFB : BinaryFileBuffers)
-    OS << StringRef{BFB->getBufferStart(), BFB->getBufferSize()};
-  OS.write_zeros(alignTo(OS.tell(), 8) - OS.tell());
-
+  // Pass 3: hand everything to OffloadBinary::write.
+  SmallString<0> Bytes = OffloadBinary::write(Images);
+  OS.write(Bytes.data(), Bytes.size());
   return Error::success();
 }
 
+// ---------------------------------------------------------------------------
+// Reader dispatch.
+// ---------------------------------------------------------------------------
+
 Expected<std::unique_ptr<SYCLBIN>> SYCLBIN::read(MemoryBufferRef Source) {
+  StringRef Buf = Source.getBuffer();
+
+  // Bare v1 image: starts with SYBI magic, no OffloadBinary envelope.
+  if (hasLegacyMagic(Buf))
+    return readV1(Source);
+
+  // Try parsing as an OffloadBinary. Both v1 (single SYBI-image entry) and
+  // v2 (multi-entry, no SYBI) are wrapped in an OffloadBinary envelope.
+  auto OBVecOrErr = OffloadBinary::create(Source);
+  if (!OBVecOrErr) {
+    // Not an OffloadBinary and not bare-SYBI -> propagate the parse error.
+    return OBVecOrErr.takeError();
+  }
+  auto &OBVec = *OBVecOrErr;
+  if (OBVec.empty())
+    return createStringError(inconvertibleErrorCode(),
+                             "OffloadBinary contains no entries.");
+
+  // Discriminator: v1 -> first entry's image starts with SYBI magic.
+  if (hasLegacyMagic(OBVec[0]->getImage())) {
+    // Hand the inner SYBI-magic image to the v1 reader.
+    return readV1(MemoryBufferRef(OBVec[0]->getImage(),
+                                  Source.getBufferIdentifier()));
+  }
+
+  // v2: dispatch to the multi-entry reader.
+  return readV2(Source);
+}
+
+// ---------------------------------------------------------------------------
+// V1 reader (legacy SYBI-magic path). Behavior preserved.
+// ---------------------------------------------------------------------------
+
+Expected<std::unique_ptr<SYCLBIN>> SYCLBIN::readV1(MemoryBufferRef Source) {
   auto Result = std::make_unique<SYCLBIN>(Source);
+  Result->Version = 1;
 
   if (Source.getBufferSize() < sizeof(FileHeaderType))
     return createStringError(inconvertibleErrorCode(),
@@ -324,15 +396,14 @@ Expected<std::unique_ptr<SYCLBIN>> SYCLBIN::read(MemoryBufferRef Source) {
   // Read the file header.
   const FileHeaderType *FileHeader =
       reinterpret_cast<const FileHeaderType *>(Source.getBufferStart());
-  if (FileHeader->Magic != MagicNumber)
+  if (FileHeader->Magic != LegacyMagicNumber)
     return createStringError(inconvertibleErrorCode(),
                              "Incorrect SYCLBIN magic number.");
 
-  if (FileHeader->Version > CurrentVersion)
+  if (FileHeader->Version > 1)
     return createStringError(inconvertibleErrorCode(),
-                             "Unsupported SYCLBIN version " +
+                             "Unsupported legacy SYCLBIN version " +
                                  std::to_string(FileHeader->Version) + ".");
-  Result->Version = FileHeader->Version;
 
   const size_t AMHeaderBlockSize =
       sizeof(AbstractModuleHeaderType) * FileHeader->AbstractModuleCount;
@@ -349,7 +420,6 @@ Expected<std::unique_ptr<SYCLBIN>> SYCLBIN::read(MemoryBufferRef Source) {
     return createStringError(inconvertibleErrorCode(),
                              "Unexpected file contents size.");
 
-  // Create reader objects. These help with checking out-of-bounds access.
   SYCLBINHeaderBlockReader HeaderBlockReader{Source.getBufferStart(),
                                              HeaderBlockSize};
   SYCLBINByteTableBlockReader MetadataByteTableBlockReader{
@@ -359,19 +429,16 @@ Expected<std::unique_ptr<SYCLBIN>> SYCLBIN::read(MemoryBufferRef Source) {
       Source.getBufferStart() + HeaderBlockSize + AlignedMetadataByteTableSize,
       static_cast<size_t>(FileHeader->BinaryByteTableSize)};
 
-  // Read global metadata.
   if (Error E = MetadataByteTableBlockReader
                     .GetMetadata(FileHeader->GlobalMetadataOffset,
                                  FileHeader->GlobalMetadataSize)
                     .moveInto(Result->GlobalMetadata))
     return std::move(E);
 
-  // Read the abstract modules.
   Result->AbstractModules.resize(FileHeader->AbstractModuleCount);
   for (uint32_t I = 0; I < FileHeader->AbstractModuleCount; ++I) {
     AbstractModule &AM = Result->AbstractModules[I];
 
-    // Read the header for the current abstract module.
     const AbstractModuleHeaderType *AMHeader = nullptr;
     const size_t AMHeaderByteOffset =
         sizeof(FileHeaderType) + sizeof(AbstractModuleHeaderType) * I;
@@ -381,19 +448,16 @@ Expected<std::unique_ptr<SYCLBIN>> SYCLBIN::read(MemoryBufferRef Source) {
                 .moveInto(AMHeader))
       return std::move(E);
 
-    // Read the metadata for the current abstract module.
     if (Error E =
             MetadataByteTableBlockReader
                 .GetMetadata(AMHeader->MetadataOffset, AMHeader->MetadataSize)
                 .moveInto(AM.Metadata))
       return std::move(E);
 
-    // Read the IR modules of the current abstract module.
     AM.IRModules.resize(AMHeader->IRModuleCount);
     for (uint32_t J = 0; J < AMHeader->IRModuleCount; ++J) {
       IRModule &IRM = AM.IRModules[J];
 
-      // Read the header for the current IR module.
       const IRModuleHeaderType *IRMHeader = nullptr;
       const size_t IRMHeaderByteOffset =
           sizeof(FileHeaderType) + AMHeaderBlockSize +
@@ -403,14 +467,12 @@ Expected<std::unique_ptr<SYCLBIN>> SYCLBIN::read(MemoryBufferRef Source) {
                         .moveInto(IRMHeader))
         return std::move(E);
 
-      // Read the metadata for the current IR module.
       if (Error E = MetadataByteTableBlockReader
                         .GetMetadata(IRMHeader->MetadataOffset,
                                      IRMHeader->MetadataSize)
                         .moveInto(IRM.Metadata))
         return std::move(E);
 
-      // Read the binary blob for the current IR module.
       if (Error E = BinaryByteTableBlockReader
                         .GetBinaryBlob(IRMHeader->RawIRBytesOffset,
                                        IRMHeader->RawIRBytesSize)
@@ -418,12 +480,10 @@ Expected<std::unique_ptr<SYCLBIN>> SYCLBIN::read(MemoryBufferRef Source) {
         return std::move(E);
     }
 
-    // Read the native device code images of the current abstract module.
     AM.NativeDeviceCodeImages.resize(AMHeader->NativeDeviceCodeImageCount);
     for (uint32_t J = 0; J < AMHeader->NativeDeviceCodeImageCount; ++J) {
       NativeDeviceCodeImage &NDCI = AM.NativeDeviceCodeImages[J];
 
-      // Read the header for the current native device code image.
       const NativeDeviceCodeImageHeaderType *NDCIHeader = nullptr;
       const size_t NDCIHeaderByteOffset =
           sizeof(FileHeaderType) + AMHeaderBlockSize + IRMHeaderBlockSize +
@@ -435,20 +495,155 @@ Expected<std::unique_ptr<SYCLBIN>> SYCLBIN::read(MemoryBufferRef Source) {
                         .moveInto(NDCIHeader))
         return std::move(E);
 
-      // Read the metadata for the current native device code image.
       if (Error E = MetadataByteTableBlockReader
                         .GetMetadata(NDCIHeader->MetadataOffset,
                                      NDCIHeader->MetadataSize)
                         .moveInto(NDCI.Metadata))
         return std::move(E);
 
-      // Read the binary blob for the current native device code image.
       if (Error E = BinaryByteTableBlockReader
                         .GetBinaryBlob(NDCIHeader->BinaryBytesOffset,
                                        NDCIHeader->BinaryBytesSize)
                         .moveInto(NDCI.RawDeviceCodeImageBytes))
         return std::move(E);
     }
+  }
+
+  return std::move(Result);
+}
+
+// ---------------------------------------------------------------------------
+// V2 reader. Walks the multi-entry OffloadBinary, groups entries by
+// am_index, and decodes the [u64 metadata_size][metadata][raw_bytes] payload
+// for ir/native entries.
+// ---------------------------------------------------------------------------
+
+namespace {
+
+// Decode a u64 little-endian length prefix and split the entry image into
+// (metadata_blob, raw_payload).
+Error splitImagePayload(StringRef Image, StringRef &Metadata,
+                        StringRef &RawBytes) {
+  if (Image.size() < sizeof(uint64_t))
+    return createStringError(inconvertibleErrorCode(),
+                             "SYCLBIN v2 entry image too small.");
+  uint64_t MetadataSize =
+      support::endian::read64le(Image.data());
+  if (MetadataSize > Image.size() - sizeof(uint64_t))
+    return createStringError(inconvertibleErrorCode(),
+                             "SYCLBIN v2 entry metadata size out of range.");
+  Metadata = Image.substr(sizeof(uint64_t), MetadataSize);
+  RawBytes = Image.substr(sizeof(uint64_t) + MetadataSize);
+  return Error::success();
+}
+
+Expected<uint64_t> parseAMIndex(StringRef S) {
+  uint64_t V = 0;
+  if (S.empty() || S.getAsInteger(/*Radix=*/10, V))
+    return createStringError(inconvertibleErrorCode(),
+                             "SYCLBIN v2 invalid am_index '" + S + "'.");
+  return V;
+}
+
+} // namespace
+
+Expected<std::unique_ptr<SYCLBIN>> SYCLBIN::readV2(MemoryBufferRef Source) {
+  auto Result = std::make_unique<SYCLBIN>(Source);
+  Result->Version = 2;
+
+  auto OBVecOrErr = OffloadBinary::create(Source);
+  if (!OBVecOrErr)
+    return OBVecOrErr.takeError();
+  auto &OBVec = *OBVecOrErr;
+
+  // First pass: locate global metadata, count abstract modules.
+  uint64_t MaxAMIndex = 0;
+  bool HasAMs = false;
+  const OffloadBinary *GlobalMD = nullptr;
+  for (const auto &OB : OBVec) {
+    if (OB->getImageKind() != IMG_SYCLBIN)
+      return createStringError(inconvertibleErrorCode(),
+                               "SYCLBIN v2 entry has unexpected ImageKind.");
+    StringRef Role = OB->getString("role");
+    if (Role == "global_metadata") {
+      if (GlobalMD)
+        return createStringError(
+            inconvertibleErrorCode(),
+            "SYCLBIN v2 has multiple global_metadata entries.");
+      GlobalMD = OB.get();
+    } else if (Role == "am_metadata" || Role == "ir" || Role == "native") {
+      auto IdxOrErr = parseAMIndex(OB->getString("am_index"));
+      if (!IdxOrErr)
+        return IdxOrErr.takeError();
+      MaxAMIndex = std::max(MaxAMIndex, *IdxOrErr);
+      HasAMs = true;
+    } else {
+      return createStringError(inconvertibleErrorCode(),
+                               "SYCLBIN v2 entry has unknown role '" + Role +
+                                   "'.");
+    }
+  }
+  if (!GlobalMD)
+    return createStringError(inconvertibleErrorCode(),
+                             "SYCLBIN v2 missing global_metadata entry.");
+
+  // Decode global metadata.
+  if (Error E = parsePropertyRegistry(GlobalMD->getImage())
+                    .moveInto(Result->GlobalMetadata))
+    return std::move(E);
+
+  size_t NumAMs = HasAMs ? static_cast<size_t>(MaxAMIndex + 1) : 0;
+  Result->AbstractModules.resize(NumAMs);
+
+  // Second pass: populate per-AM metadata, ir, native entries.
+  for (const auto &OB : OBVec) {
+    StringRef Role = OB->getString("role");
+    if (Role == "global_metadata")
+      continue;
+    auto IdxOrErr = parseAMIndex(OB->getString("am_index"));
+    if (!IdxOrErr)
+      return IdxOrErr.takeError();
+    AbstractModule &AM = Result->AbstractModules[*IdxOrErr];
+
+    if (Role == "am_metadata") {
+      if (AM.Metadata)
+        return createStringError(
+            inconvertibleErrorCode(),
+            "SYCLBIN v2 has duplicate am_metadata for am_index " +
+                std::to_string(*IdxOrErr) + ".");
+      if (Error E = parsePropertyRegistry(OB->getImage())
+                        .moveInto(AM.Metadata))
+        return std::move(E);
+    } else if (Role == "ir" || Role == "native") {
+      StringRef MetadataBlob, RawBytes;
+      if (Error E = splitImagePayload(OB->getImage(), MetadataBlob, RawBytes))
+        return std::move(E);
+
+      std::unique_ptr<llvm::util::PropertySetRegistry> ImgMetadata;
+      if (Error E = parsePropertyRegistry(MetadataBlob).moveInto(ImgMetadata))
+        return std::move(E);
+
+      if (Role == "ir") {
+        IRModule IRM;
+        IRM.Metadata = std::move(ImgMetadata);
+        IRM.RawIRBytes = RawBytes;
+        AM.IRModules.emplace_back(std::move(IRM));
+      } else {
+        NativeDeviceCodeImage NDCI;
+        NDCI.Metadata = std::move(ImgMetadata);
+        NDCI.RawDeviceCodeImageBytes = RawBytes;
+        AM.NativeDeviceCodeImages.emplace_back(std::move(NDCI));
+      }
+    }
+  }
+
+  // Validate every AM has metadata.
+  for (size_t I = 0; I < Result->AbstractModules.size(); ++I) {
+    if (!Result->AbstractModules[I].Metadata)
+      return createStringError(
+          inconvertibleErrorCode(),
+          "SYCLBIN v2 missing am_metadata for am_index " + std::to_string(I) +
+              ".");
   }
 
   return std::move(Result);

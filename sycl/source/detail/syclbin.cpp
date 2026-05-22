@@ -11,8 +11,6 @@
 #include <detail/program_manager/program_manager.hpp>
 #include <detail/syclbin.hpp>
 
-#include "llvm/ADT/SmallVector.h"
-#include "llvm/Object/OffloadBinary.h"
 #include "llvm/Object/SYCLBIN.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/MemoryBuffer.h"
@@ -84,25 +82,10 @@ struct SYCLBINBinaries::Impl {
       : ContentCopy{copyContent(Data, Size)}, ContentSize{Size} {
     llvm::MemoryBufferRef Buffer(
         llvm::StringRef(ContentCopy.get(), ContentSize), "");
-
-    // SYCLBIN files on disk are wrapped in an OffloadBinary envelope. Try
-    // unwrapping first; if that fails, fall back to treating the buffer as a
-    // bare SYCLBIN image.
-    if (auto OBVecOrErr = llvm::object::OffloadBinary::create(Buffer)) {
-      ParsedOffloadBinaries = std::move(*OBVecOrErr);
-      if (ParsedOffloadBinaries.empty() ||
-          ParsedOffloadBinaries[0]->getImageKind() !=
-              llvm::object::IMG_SYCLBIN)
-        throw sycl::exception(make_error_code(errc::invalid),
-                              "Unexpected image type in offload binary.");
-      llvm::StringRef Image = ParsedOffloadBinaries[0]->getImage();
-      ParsedSYCLBIN = expectOrThrow(
-          llvm::object::SYCLBIN::read(llvm::MemoryBufferRef(Image, "")));
-    } else {
-      llvm::consumeError(OBVecOrErr.takeError());
-      ParsedSYCLBIN = expectOrThrow(llvm::object::SYCLBIN::read(Buffer));
-    }
-
+    // SYCLBIN::read accepts the whole on-disk file and dispatches between
+    // the v1 (legacy SYBI-magic) and v2 (multi-entry OffloadBinary) layouts
+    // internally.
+    ParsedSYCLBIN = expectOrThrow(llvm::object::SYCLBIN::read(Buffer));
     populateBinaries();
   }
 
@@ -111,8 +94,6 @@ struct SYCLBINBinaries::Impl {
   std::unique_ptr<char[]> ContentCopy;
   size_t ContentSize = 0;
 
-  llvm::SmallVector<std::unique_ptr<llvm::object::OffloadBinary>>
-      ParsedOffloadBinaries;
   std::unique_ptr<llvm::object::SYCLBIN> ParsedSYCLBIN;
 
   std::deque<std::vector<_sycl_device_binary_property_struct>> BinaryProperties;
