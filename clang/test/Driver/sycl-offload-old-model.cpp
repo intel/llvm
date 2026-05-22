@@ -1100,4 +1100,4 @@
 // RUN:   | FileCheck -check-prefix=CHECK-OLD-MODEL %s
 // RUN: %clang_cl -### -fsycl -- %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHECK-OLD-MODEL %s
-// CHECK-OLD-MODEL-DEFAULT-NOT: "--offload-new-driver"
+// CHECK-OLD-MODEL-NOT: "--offload-new-driver"
