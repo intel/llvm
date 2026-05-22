@@ -25,18 +25,17 @@ runs:
       
       echo "::group::Show Full Test Adapter Specific Logs"
       # Use 1/3 of CPUs to avoid OOM on resource-constrained runners
-      cmake --build "$BUILD_DIR" -j $(($(nproc)/3)) -- check-unified-runtime-adapter 2>&1 | tee adapter_tests.log
-      # Show log without test lists and statistics (cut before asterisks)
-      awk '/^\*\*\*\*/ {exit} {print}' adapter_tests.log
+      # Pipe tee to awk to avoid output duplication
+      cmake --build "$BUILD_DIR" -j $(($(nproc)/3)) -- check-unified-runtime-adapter 2>&1 | tee adapter_tests.log | awk '/^\*\*\*\*/ {exit} {print}'
       echo "::endgroup::"
   
   - name: Report adapter specific failures
     if: steps.run_tests.outcome != 'success'
     shell: bash
     run: |
-      # Show all error details from first failure/timeout to summary section
-      awk '/^(FAIL|TIMEOUT):/ {flag=1} /^Testing Time/ && flag {exit} flag {print}' adapter_tests.log >> $GITHUB_STEP_SUMMARY
-      awk '/^(FAIL|TIMEOUT):/ {flag=1} /^Testing Time/ && flag {exit} flag {print}' adapter_tests.log
+      # Show error details but stop before test lists (which are shown in collapsed sections)
+      awk '/^(FAIL|TIMEOUT):/ {flag=1} flag && /^(Passed|Skipped|Unsupported|Failed|Expectedly Failed|Timed Out|Unexpectedly Passed|Unresolved) Tests \(/ {exit} flag' adapter_tests.log >> $GITHUB_STEP_SUMMARY
+      awk '/^(FAIL|TIMEOUT):/ {flag=1} flag && /^(Passed|Skipped|Unsupported|Failed|Expectedly Failed|Timed Out|Unexpectedly Passed|Unresolved) Tests \(/ {exit} flag' adapter_tests.log
       exit 1
   
   - name: Show adapter specific test statistics and lists
