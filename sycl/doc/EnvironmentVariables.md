@@ -29,6 +29,7 @@ compiler and runtime.
 | `SYCL_JIT_AMDGCN_PTX_KERNELS` | '1' or '0' | Enable ('1') or disable ('0') JIT compilation of kernels. Only supported for Nvidia and AMD backends. Note, that it is required to have a valid binary for the desired backend (AMD or CUDA), that was compiled with `-fsycl-embed-ir` in order to use JIT-ing. When JIT-ing is enabled SYCL runtime will try to cache and reuse JIT-compiled kernels, furthermore if a kernel uses specialization constants the compiler will attempt to materialize the values in place, turning them to de-facto compile time constants. Default is '0'. |
 | `SYCL_JIT_AMDGCN_PTX_TARGET_CPU` | Any(\*) | Allows setting the target architecture to be used when JIT-ing kernels. Examples include setting SM version for Nvidia, or target architecture for AMD. |
 | `SYCL_JIT_AMDGCN_PTX_TARGET_FEATURES` | Any(\*) | Allows setting desired target features to be used when JIT-ing kernels. Examples include setting PTX version for Nvidia. |
+| `SYCL_GRAPH_FORCE_NATIVE_RECORDING` | '1' or '0' | When set to '1', forces every `command_graph` to use native recording as if `property::graph::enable_native_recording` was passed in its property list. When unset or set to any other value, native recording is enabled only when that property is set explicitly. Default is disabled. |
 
 `(*) Note: Any means this environment variable is effective when set to any non-null value.`
 

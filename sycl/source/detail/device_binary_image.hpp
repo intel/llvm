@@ -250,6 +250,17 @@ public:
     return ImageId;
   }
 
+  uint32_t getIdQueriesRangeProperties() const {
+    std::call_once(*MIdQueriesRangeFlag, [this]() {
+      if (auto Prop = this->getProperty("idQueriesRange")) {
+        MIdQueriesRange = DeviceBinaryProperty(Prop).asUint32();
+      } else {
+        MIdQueriesRange = 0; // Default value is "int" range.
+      }
+    });
+    return MIdQueriesRange;
+  }
+
 protected:
   sycl_device_binary get() const { return Bin; }
 
@@ -277,6 +288,12 @@ protected:
 private:
   static std::atomic<uintptr_t> ImageCounter;
   uintptr_t ImageId = 0;
+  // Wrap MIdQueriesRangeFlag in a std::unique_ptr<std::once_flag>,
+  // which is movable (unlike std::once_flag itself).
+  // This allows the defaulted = operator to compile.
+  mutable std::unique_ptr<std::once_flag> MIdQueriesRangeFlag =
+      std::make_unique<std::once_flag>();
+  mutable uint32_t MIdQueriesRange = 0;
 };
 
 // Dynamically allocated device binary image, which de-allocates its binary
