@@ -45,3 +45,10 @@ namespace cl {
 ur_adapter_handle_t getAdapter();
 } // namespace cl
 } // namespace ur
+
+#ifdef UR_STATIC_ADAPTER_OPENCL
+namespace ur::opencl {
+ur_result_t urAdapterGet(uint32_t NumEntries, ur_adapter_handle_t *phAdapters,
+                         uint32_t *pNumAdapters);
+} // namespace ur::opencl
+#endif

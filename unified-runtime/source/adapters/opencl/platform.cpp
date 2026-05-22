@@ -114,7 +114,11 @@ urPlatformGet(ur_adapter_handle_t, uint32_t NumEntries,
               ur_platform_handle_t *phPlatforms, uint32_t *pNumPlatforms) {
   static std::mutex adapterPopulationMutex{};
   ur_adapter_handle_t Adapter = nullptr;
+#ifdef UR_STATIC_ADAPTER_OPENCL
+  UR_RETURN_ON_FAILURE(ur::opencl::urAdapterGet(1, &Adapter, nullptr));
+#else
   UR_RETURN_ON_FAILURE(urAdapterGet(1, &Adapter, nullptr));
+#endif
   if (!Adapter) {
     // The only operation urAdapterGet really performs is allocating the adapter
     // handle via new, so no adapter handle here almost certainly means memory

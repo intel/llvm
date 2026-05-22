@@ -84,6 +84,10 @@ ur_adapter_handle_t ur::cl::getAdapter() {
   return liveAdapter;
 }
 
+#ifdef UR_STATIC_ADAPTER_OPENCL
+namespace ur::opencl {
+#endif
+
 UR_APIEXPORT ur_result_t UR_APICALL
 urAdapterGet(uint32_t NumEntries, ur_adapter_handle_t *phAdapters,
              uint32_t *pNumAdapters) {
@@ -181,3 +185,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urAdapterSetLoggerCallbackLevel(
 
   return UR_RESULT_SUCCESS;
 }
+
+#ifdef UR_STATIC_ADAPTER_OPENCL
+} // namespace ur::opencl
+#endif
