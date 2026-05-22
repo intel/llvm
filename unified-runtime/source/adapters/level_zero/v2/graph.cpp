@@ -169,7 +169,7 @@ ur_result_t urGraphSetDestructionCallbackExp(
     return ze2urResult(ZeResult);
   }
 
-  // Ownership is transfered to L0 for destruction
+  // Ownership is transfered to the graph destruction callback for deletion
   CbData.release();
   return UR_RESULT_SUCCESS;
 }
