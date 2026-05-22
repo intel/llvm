@@ -73,11 +73,7 @@ namespace driver
                     *ph${func_class} = reinterpret_cast<ur_${func_class.lower()}_handle_t>(hNative${func_class});
                     mock::retainDummyHandle(*ph${func_class});
                 %else:
-                    <%
-                        native_out = th.find_param_name("^phNative.*", n, tags, obj)
-                        obj_in = th.find_param_name("^h(?!Native).*", n, tags, obj)
-                    %>
-                    *${native_out} = reinterpret_cast<ur_native_handle_t>(${obj_in});
+                    *phNative${func_class} = reinterpret_cast<ur_native_handle_t>(h${func_class});
                 %endif
             ## These special cases handle memory stuff. Use verbose regex matching
             ## to limit the possibility of unintentional stuff getting generated for

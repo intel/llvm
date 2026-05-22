@@ -727,8 +727,8 @@ etors:
 - name: GRAPH_GET_NATIVE_HANDLE_EXP
   desc: Enumerator for $xGraphGetNativeHandleExp
   value: '315'
-- name: GRAPH_EXECUTABLE_GRAPH_GET_NATIVE_HANDLE_EXP
-  desc: Enumerator for $xGraphExecutableGraphGetNativeHandleExp
+- name: EXECUTABLE_GRAPH_GET_NATIVE_HANDLE_EXP
+  desc: Enumerator for $xExecutableGraphGetNativeHandleExp
   value: '316'
 max_id: '316'
 ---

@@ -220,8 +220,8 @@ returns:
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Return platform native executable graph handle."
-class: $xGraph
-name: ExecutableGraphGetNativeHandleExp
+class: $xExecutableGraph
+name: GetNativeHandleExp
 details:
     - "Retrieved native handle can be used for direct interaction with the native platform driver."
 params:

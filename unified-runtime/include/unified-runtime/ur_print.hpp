@@ -1380,8 +1380,8 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
   case UR_FUNCTION_GRAPH_GET_NATIVE_HANDLE_EXP:
     os << "UR_FUNCTION_GRAPH_GET_NATIVE_HANDLE_EXP";
     break;
-  case UR_FUNCTION_GRAPH_EXECUTABLE_GRAPH_GET_NATIVE_HANDLE_EXP:
-    os << "UR_FUNCTION_GRAPH_EXECUTABLE_GRAPH_GET_NATIVE_HANDLE_EXP";
+  case UR_FUNCTION_EXECUTABLE_GRAPH_GET_NATIVE_HANDLE_EXP:
+    os << "UR_FUNCTION_EXECUTABLE_GRAPH_GET_NATIVE_HANDLE_EXP";
     break;
   default:
     os << "unknown enumerator";
@@ -21617,12 +21617,12 @@ operator<<(std::ostream &os,
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the
-/// ur_graph_executable_graph_get_native_handle_exp_params_t type
+/// ur_executable_graph_get_native_handle_exp_params_t type
 /// @returns
 ///     std::ostream &
 inline std::ostream &
 operator<<(std::ostream &os, [[maybe_unused]] const struct
-           ur_graph_executable_graph_get_native_handle_exp_params_t *params) {
+           ur_executable_graph_get_native_handle_exp_params_t *params) {
 
   os << ".hExecutableGraph = ";
 
@@ -23286,9 +23286,9 @@ inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os,
   case UR_FUNCTION_GRAPH_GET_NATIVE_HANDLE_EXP: {
     os << (const struct ur_graph_get_native_handle_exp_params_t *)params;
   } break;
-  case UR_FUNCTION_GRAPH_EXECUTABLE_GRAPH_GET_NATIVE_HANDLE_EXP: {
-    os << (const struct ur_graph_executable_graph_get_native_handle_exp_params_t
-               *)params;
+  case UR_FUNCTION_EXECUTABLE_GRAPH_GET_NATIVE_HANDLE_EXP: {
+    os << (const struct ur_executable_graph_get_native_handle_exp_params_t *)
+            params;
   } break;
   case UR_FUNCTION_IPC_GET_MEM_HANDLE_EXP: {
     os << (const struct ur_ipc_get_mem_handle_exp_params_t *)params;

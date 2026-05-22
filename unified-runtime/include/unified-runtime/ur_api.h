@@ -512,8 +512,8 @@ typedef enum ur_function_t {
   UR_FUNCTION_QUEUE_GET_GRAPH_EXP = 314,
   /// Enumerator for ::urGraphGetNativeHandleExp
   UR_FUNCTION_GRAPH_GET_NATIVE_HANDLE_EXP = 315,
-  /// Enumerator for ::urGraphExecutableGraphGetNativeHandleExp
-  UR_FUNCTION_GRAPH_EXECUTABLE_GRAPH_GET_NATIVE_HANDLE_EXP = 316,
+  /// Enumerator for ::urExecutableGraphGetNativeHandleExp
+  UR_FUNCTION_EXECUTABLE_GRAPH_GET_NATIVE_HANDLE_EXP = 316,
   /// @cond
   UR_FUNCTION_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -13938,7 +13938,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urGraphGetNativeHandleExp(
 ///         + `NULL == phNativeExecutableGraph`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
 ///         + If the adapter has no underlying equivalent handle.
-UR_APIEXPORT ur_result_t UR_APICALL urGraphExecutableGraphGetNativeHandleExp(
+UR_APIEXPORT ur_result_t UR_APICALL urExecutableGraphGetNativeHandleExp(
     /// [in] Handle of the executable graph.
     ur_exp_executable_graph_handle_t hExecutableGraph,
     /// [out] A pointer to the native handle of the executable graph.
@@ -16485,13 +16485,13 @@ typedef struct ur_graph_get_native_handle_exp_params_t {
 } ur_graph_get_native_handle_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function parameters for urGraphExecutableGraphGetNativeHandleExp
+/// @brief Function parameters for urExecutableGraphGetNativeHandleExp
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_graph_executable_graph_get_native_handle_exp_params_t {
+typedef struct ur_executable_graph_get_native_handle_exp_params_t {
   ur_exp_executable_graph_handle_t *phExecutableGraph;
   ur_native_handle_t **pphNativeExecutableGraph;
-} ur_graph_executable_graph_get_native_handle_exp_params_t;
+} ur_executable_graph_get_native_handle_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urIPCGetMemHandleExp

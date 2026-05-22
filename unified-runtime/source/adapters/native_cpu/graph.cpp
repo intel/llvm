@@ -46,9 +46,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urGraphInstantiateGraphExp(
   DIE_NO_IMPLEMENTATION;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urGraphGetNativeHandleExp(
-    ur_exp_graph_handle_t /* hGraph */,
-    ur_native_handle_t * /* phNativeGraph */) {
+UR_APIEXPORT ur_result_t UR_APICALL
+urGraphGetNativeHandleExp(ur_exp_graph_handle_t /* hGraph */,
+                          ur_native_handle_t * /* phNativeGraph */) {
 
   DIE_NO_IMPLEMENTATION;
 }

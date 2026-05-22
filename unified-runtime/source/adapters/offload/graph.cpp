@@ -40,9 +40,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urGraphInstantiateGraphExp(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urGraphGetNativeHandleExp(
-    ur_exp_graph_handle_t /* hGraph */,
-    ur_native_handle_t * /* phNativeGraph */) {
+UR_APIEXPORT ur_result_t UR_APICALL
+urGraphGetNativeHandleExp(ur_exp_graph_handle_t /* hGraph */,
+                          ur_native_handle_t * /* phNativeGraph */) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 

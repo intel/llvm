@@ -9916,7 +9916,7 @@ ur_result_t UR_APICALL urGraphGetNativeHandleExp(
 ///         + `NULL == phNativeExecutableGraph`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
 ///         + If the adapter has no underlying equivalent handle.
-ur_result_t UR_APICALL urGraphExecutableGraphGetNativeHandleExp(
+ur_result_t UR_APICALL urExecutableGraphGetNativeHandleExp(
     /// [in] Handle of the executable graph.
     ur_exp_executable_graph_handle_t hExecutableGraph,
     /// [out] A pointer to the native handle of the executable graph.

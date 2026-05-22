@@ -1898,11 +1898,6 @@ typedef ur_result_t(UR_APICALL *ur_pfnGraphGetNativeHandleExp_t)(
     ur_exp_graph_handle_t, ur_native_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urGraphExecutableGraphGetNativeHandleExp
-typedef ur_result_t(UR_APICALL *ur_pfnGraphExecutableGraphGetNativeHandleExp_t)(
-    ur_exp_executable_graph_handle_t, ur_native_handle_t *);
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of GraphExp functions pointers
 typedef struct ur_graph_exp_dditable_t {
   ur_pfnGraphCreateExp_t pfnCreateExp;
@@ -1912,8 +1907,6 @@ typedef struct ur_graph_exp_dditable_t {
   ur_pfnGraphIsEmptyExp_t pfnIsEmptyExp;
   ur_pfnGraphDumpContentsExp_t pfnDumpContentsExp;
   ur_pfnGraphGetNativeHandleExp_t pfnGetNativeHandleExp;
-  ur_pfnGraphExecutableGraphGetNativeHandleExp_t
-      pfnExecutableGraphGetNativeHandleExp;
 } ur_graph_exp_dditable_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1935,6 +1928,37 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetGraphExpProcAddrTable(
 /// @brief Function-pointer for urGetGraphExpProcAddrTable
 typedef ur_result_t(UR_APICALL *ur_pfnGetGraphExpProcAddrTable_t)(
     ur_api_version_t, ur_graph_exp_dditable_t *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urExecutableGraphGetNativeHandleExp
+typedef ur_result_t(UR_APICALL *ur_pfnExecutableGraphGetNativeHandleExp_t)(
+    ur_exp_executable_graph_handle_t, ur_native_handle_t *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Table of ExecutableGraphExp functions pointers
+typedef struct ur_executable_graph_exp_dditable_t {
+  ur_pfnExecutableGraphGetNativeHandleExp_t pfnGetNativeHandleExp;
+} ur_executable_graph_exp_dditable_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's ExecutableGraphExp table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+UR_DLLEXPORT ur_result_t UR_APICALL urGetExecutableGraphExpProcAddrTable(
+    /// [in] API version requested
+    ur_api_version_t version,
+    /// [in,out] pointer to table of DDI function pointers
+    ur_executable_graph_exp_dditable_t *pDdiTable);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urGetExecutableGraphExpProcAddrTable
+typedef ur_result_t(UR_APICALL *ur_pfnGetExecutableGraphExpProcAddrTable_t)(
+    ur_api_version_t, ur_executable_graph_exp_dditable_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urIPCGetMemHandleExp
@@ -2280,6 +2304,7 @@ typedef struct ur_dditable_t {
   ur_bindless_images_exp_dditable_t BindlessImagesExp;
   ur_command_buffer_exp_dditable_t CommandBufferExp;
   ur_graph_exp_dditable_t GraphExp;
+  ur_executable_graph_exp_dditable_t ExecutableGraphExp;
   ur_ipc_exp_dditable_t IPCExp;
   ur_memory_export_exp_dditable_t MemoryExportExp;
   ur_usm_p2p_exp_dditable_t UsmP2PExp;
