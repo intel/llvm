@@ -12,5 +12,9 @@
 
 namespace LIBC_NAMESPACE_DECL {
 
-LLVM_LIBC_FUNCTION(float, sinf, (float x)) { return __builtin_sinf(x); }
+// LLVM_LIBC_FUNCTION(float, sinf, (float x)) { return __builtin_sinf(x); }
+// Following code is to bypass a known IGC issue, should not upstream it.
+LLVM_LIBC_FUNCTION(float, sinf, (float x)) {
+  return (x == 0.f) ? x : __builtin_sinf(x);
+}
 } // namespace LIBC_NAMESPACE_DECL
