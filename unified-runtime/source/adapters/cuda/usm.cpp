@@ -575,17 +575,28 @@ urUSMPoolTrimToExp(ur_context_handle_t hContext, ur_device_handle_t hDevice,
 
 UR_APIEXPORT ur_result_t UR_APICALL urUSMContextMemcpyExp(
     ur_context_handle_t hContext, void *pDst, const void *pSrc, size_t Size) {
-  // cuMemcpy is synchronous with respect to the host, but it does not
-  // synchronize with any device streams. We need to synchronize all streams
-  // in the context before performing the copy to ensure all previous
-  // operations have completed.
+  // cuMemcpy for device-to-device copies may NOT synchronize with the host
+  // or with other streams. According to CUDA documentation, device-to-device
+  // copies using cuMemcpy can execute asynchronously.
   //
-  // Set the context and synchronize all streams
+  // Solution:
+  // 1. Synchronize all streams in context to ensure prior operations complete
+  // 2. Use cuMemcpyAsync with default stream for the copy
+  // 3. Synchronize the stream to ensure copy completes before returning
+  //
+  // Set the context
   ScopedContext Active(hContext->getDevices().front());
+  
+  // Ensure all pending operations in all streams have completed
   UR_CHECK_ERROR(cuCtxSynchronize());
-
-  // Now perform the synchronous copy
-  UR_CHECK_ERROR(cuMemcpy((CUdeviceptr)pDst, (CUdeviceptr)pSrc, Size));
+  
+  // Perform the copy using async API with default stream
+  UR_CHECK_ERROR(
+      cuMemcpyAsync((CUdeviceptr)pDst, (CUdeviceptr)pSrc, Size, 0));
+  
+  // Synchronize the stream to ensure the copy has completed
+  UR_CHECK_ERROR(cuStreamSynchronize(0));
+  
   return UR_RESULT_SUCCESS;
 }
 
