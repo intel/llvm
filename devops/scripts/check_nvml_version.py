@@ -27,11 +27,21 @@ def get_driver_version() -> Optional[str]:
             check=True,
             timeout=COMMAND_TIMEOUT,
         )
-        version = result.stdout.strip()
-        if not version:
+        versions = [line.strip() for line in result.stdout.splitlines() if line.strip()]
+        if not versions:
             print("::error::Failed to get NVIDIA driver version")
             print("ERROR: nvidia-smi returned empty version", file=sys.stderr)
             return None
+
+        version = versions[0]
+        if any(candidate != version for candidate in versions[1:]):
+            print("::error::Inconsistent NVIDIA driver versions reported")
+            print(
+                f"ERROR: nvidia-smi reported multiple driver versions: {versions}",
+                file=sys.stderr,
+            )
+            return None
+
         return version
     except subprocess.CalledProcessError as e:
         print("::error::Failed to run nvidia-smi")
