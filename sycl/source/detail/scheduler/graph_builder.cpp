@@ -187,7 +187,7 @@ Scheduler::GraphBuilder::getOrInsertMemObjRecord(queue_impl *Queue,
   if (nullptr != Record)
     return Record;
 
-  const size_t LeafLimit = 8;
+  const size_t LeafLimit = 7;
   LeavesCollection::AllocateDependencyF AllocateDependency =
       [this](Command *Dependant, Command *Dependency, MemObjRecord *Record,
              LeavesCollection::EnqueueListT &ToEnqueue) {
