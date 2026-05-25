@@ -29,7 +29,7 @@
 // RUN:   --linker-path=/usr/bin/ld %t.o -o a.out 2>&1 | FileCheck --check-prefix OPTIONS_POSTLINK_JIT_NEW_SYCLBIN %s
 // OPTIONS_POSTLINK_JIT_NEW_SYCLBIN: sycl-post-link{{.*}} -spec-const=native -properties -emit-only-kernels-as-entry-points -emit-param-info -symbols -emit-kernel-names -emit-exported-symbols -emit-imported-symbols -split-esimd -lower-esimd -O2 -device-globals -O0
 //
-// Ensure driver --no-offloadlib forwards these triple based options to clang-linker-wrapper.
+// Ensure driver forwards these triple based options to clang-linker-wrapper.
 // 
 // RUN: %clangxx %s -### -fsycl --offload-new-driver \
 // RUN:   --sysroot=%S/Inputs/SYCL \

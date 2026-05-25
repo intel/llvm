@@ -1,7 +1,7 @@
 /// Tests behaviors of -fsyclbin
 
 /// -fsyclbin is only used with the new offloading model.
-// RUN: %clangxx -fsycl -fsyclbin --no-offload-new-driver --no-offloadlib %s -### 2>&1 \
+// RUN: %clangxx -fsycl -fsyclbin --no-offload-new-driver %s -### 2>&1 \
 // RUN: | FileCheck %s --check-prefix=UNUSED
 // UNUSED: warning: argument unused during compilation: '-fsyclbin'
 

@@ -5,7 +5,7 @@
 /// Check that the '-fsycl-rtc-mode' is correctly forwarded to the device
 /// compilation and only to the device compilation.
 
-// RUN: %clangxx -fsycl -fsycl-rtc-mode --no-offload-new-driver --no-offloadlib %s -### 2>&1 \
+// RUN: %clangxx -fsycl -fsycl-rtc-mode --no-offload-new-driver %s -### 2>&1 \
 // RUN:   | FileCheck %s
 
 // RUN: %clangxx -fsycl -fsycl-rtc-mode --offload-new-driver --sysroot=%S/Inputs/SYCL %s -### 2>&1 \
@@ -20,7 +20,7 @@
 /// Check that the '-fno-sycl-rtc-mode' is correctly forwarded to the device
 /// compilation and only to the device compilation.
 
-// RUN: %clangxx -fsycl -fno-sycl-rtc-mode --no-offload-new-driver --no-offloadlib %s -### 2>&1 \
+// RUN: %clangxx -fsycl -fno-sycl-rtc-mode --no-offload-new-driver %s -### 2>&1 \
 // RUN:   | FileCheck %s --check-prefix=NEGATIVE
 
 // RUN: %clangxx -fsycl -fno-sycl-rtc-mode --offload-new-driver --sysroot=%S/Inputs/SYCL %s -### 2>&1 \

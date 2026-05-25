@@ -30,10 +30,10 @@
 // CHK-FLOW-NEXT: clang-linker-wrapper{{.*}} "--host-triple=x86_64-unknown-linux-gnu"{{.*}} "--linker-path={{.*}}/ld" {{.*}} "[[CC1FINALOUT]]"
 
 /// Verify phases used to generate SPIR-V instead of LLVM-IR
-// RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver --no-offloadlib \
+// RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver \
 // RUN:          -fsycl-device-obj=spirv -ccc-print-phases %s 2>&1 \
 // RUN:   | FileCheck -check-prefix SPIRV_OBJ %s
-// RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver --no-offloadlib \
+// RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver \
 // RUN:          -fsycl-device-only -fsycl-device-obj=spirv \
 // RUN:          -ccc-print-phases %s 2>&1 \
 // RUN:   | FileCheck -check-prefix SPIRV_OBJ %s
@@ -113,7 +113,7 @@
 /// Check phases with multiple intel_gpu settings
 // RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl \
 // RUN:          -fsycl-targets=intel_gpu_dg1,intel_gpu_pvc \
-// RUN:          --offload-new-driver --no-offloadlib -ccc-print-phases %s 2>&1 \
+// RUN:          --offload-new-driver -ccc-print-phases %s 2>&1 \
 // RUN:  | FileCheck -check-prefix=MULT_TARG_PHASES %s
 // MULT_TARG_PHASES: 0: input, "[[INPUT:.+\.cpp]]", c++, (host-sycl)
 // MULT_TARG_PHASES: 1: preprocessor, {0}, c++-cpp-output, (host-sycl)

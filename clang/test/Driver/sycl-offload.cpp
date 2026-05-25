@@ -33,7 +33,7 @@
 
 /// ###########################################################################
 
-/// Check error for no -fsycl --offload-new-driver --no-offloadlib option
+/// Check error for no -fsycl --offload-new-driver option
 // RUN:   not %clang -### -fsycl-targets=spir64-unknown-unknown  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-NO-FSYCL %s
 // RUN:   not %clang_cl -### -fsycl-targets=spir64-unknown-unknown  %s 2>&1 \
@@ -479,14 +479,14 @@
 /// passing of a library should not trigger the unbundler
 // RUN: touch %t.a
 // RUN: touch %t.lib
-// RUN: %clang -ccc-print-phases -fsycl --offload-new-driver --no-offloadlib -fno-sycl-instrument-device-code --no-offloadlib %t.a %s 2>&1 \
+// RUN: %clang -ccc-print-phases -fsycl --offload-new-driver --no-offloadlib -fno-sycl-instrument-device-code %t.a %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=LIB-UNBUNDLE-CHECK %s
-// RUN: %clang_cl -ccc-print-phases -fsycl --offload-new-driver --no-offloadlib -fno-sycl-instrument-device-code --no-offloadlib %t.lib %s 2>&1 \
+// RUN: %clang_cl -ccc-print-phases -fsycl --offload-new-driver --no-offloadlib -fno-sycl-instrument-device-code %t.lib %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=LIB-UNBUNDLE-CHECK %s
 // LIB-UNBUNDLE-CHECK-NOT: clang-offload-unbundler
 
 /// passing of only a library should not create a device link
-// RUN: %clang -ccc-print-phases -fsycl --offload-new-driver --no-offloadlib -lsomelib 2>&1 \
+// RUN: %clang -ccc-print-phases -fsycl --offload-new-driver -lsomelib 2>&1 \
 // RUN:  | FileCheck -check-prefix=LIB-NODEVICE %s
 // LIB-NODEVICE: 0: input, "somelib", object, (host-sycl)
 // LIB-NODEVICE: 1: clang-linker-wrapper, {0}, image, (host-sycl)
@@ -612,7 +612,7 @@
 
 /// ###########################################################################
 
-/// Check that the needed -fsycl --offload-new-driver --no-offloadlib -fsycl-is-device and -fsycl-is-host options
+/// Check that the needed -fsycl --offload-new-driver -fsycl-is-device and -fsycl-is-host options
 /// are passed to all of the needed compilation steps regardless of final
 /// phase.
 // RUN:  %clang -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -c %s 2>&1 | FileCheck -check-prefix=CHECK-OPTS %s
