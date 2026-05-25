@@ -9332,6 +9332,8 @@ CXString clang_Cursor_getBinaryOpcodeStr(enum CX_BinaryOperatorKind Op) {
 }
 
 static const RawComment *getCursorRawComment(CXCursor C) {
+  if (!clang_isDeclaration(C.kind) && C.kind != CXCursor_MacroDefinition)
+    return nullptr;
   ASTContext &Context = getCursorContext(C);
   if (clang_isDeclaration(C.kind))
     return Context.getRawCommentForAnyRedecl(getCursorDecl(C));
