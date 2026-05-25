@@ -1,8 +1,8 @@
 // REQUIRES: linux, gpu && level_zero && arch-intel_gpu_pvc
 // RUN: %{build} %device_asan_flags -O2 -g -DOOB_SRC -Xspirv-translator -spirv-ext=+SPV_INTEL_2d_block_io -Xs "-options ' -cl-intel-enable-auto-large-GRF-mode'" -o %t1.out
-// RUN: %{run} not --crash %t1.out 2>&1 | FileCheck --check-prefix=CHECK,CHECK-SRC %s
+// RUN: %{run} not --crash %t1.out 2>&1 | FileCheck --check-prefixes=CHECK,CHECK-SRC %s
 // RUN: %{build} %device_asan_flags -O2 -g -DOOB_DST -Xspirv-translator -spirv-ext=+SPV_INTEL_2d_block_io -Xs "-options ' -cl-intel-enable-auto-large-GRF-mode'" -o %t2.out
-// RUN: %{run} not --crash %t2.out 2>&1 | FileCheck --check-prefix=CHECK,CHECK-DST %s
+// RUN: %{run} not --crash %t2.out 2>&1 | FileCheck --check-prefixes=CHECK,CHECK-DST %s
 
 // Test that ASAN detects out-of-bounds access from 2D block store operations.
 
