@@ -479,9 +479,9 @@
 /// passing of a library should not trigger the unbundler
 // RUN: touch %t.a
 // RUN: touch %t.lib
-// RUN: %clang -ccc-print-phases -fsycl --offload-new-driver --no-offloadlib -fno-sycl-instrument-device-code %t.a %s 2>&1 \
+// RUN: %clang -ccc-print-phases -fsycl --offload-new-driver -fno-sycl-instrument-device-code --no-offloadlib %t.a %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=LIB-UNBUNDLE-CHECK %s
-// RUN: %clang_cl -ccc-print-phases -fsycl --offload-new-driver --no-offloadlib -fno-sycl-instrument-device-code %t.lib %s 2>&1 \
+// RUN: %clang_cl -ccc-print-phases -fsycl --offload-new-driver -fno-sycl-instrument-device-code --no-offloadlib %t.lib %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=LIB-UNBUNDLE-CHECK %s
 // LIB-UNBUNDLE-CHECK-NOT: clang-offload-unbundler
 
