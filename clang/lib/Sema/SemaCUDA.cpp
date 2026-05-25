@@ -1111,6 +1111,12 @@ bool SemaCUDA::CheckCall(SourceLocation Loc, FunctionDecl *Callee) {
   if (!Caller)
     return true;
 
+  // If the caller is a dependent context (e.g. uninstantiated function template),
+  // defer the check until instantiation. This avoids false positives in
+  // dependent if constexpr branches.
+  if (Caller->isDependentContext())
+    return true;
+
   // If the caller is known-emitted, mark the callee as known-emitted.
   // Otherwise, mark the call in our call graph so we can traverse it later.
   bool CallerKnownEmitted = SemaRef.getEmissionStatus(Caller) ==
