@@ -45,7 +45,6 @@ TEST(MultiPtrNegativeConversions, CannotConvertBetweenIncompatibleTypes) {
   EXPECT_FALSE((std::is_convertible_v<float_ptr, double_ptr>));
 }
 
-
 TEST(MultiPtrNegativeConversions, CannotConvertToGenericFromNonGeneric) {
   using private_ptr =
       multi_ptr_t<int, address_space::private_space, decorated::no>;
@@ -130,7 +129,6 @@ TEST(MultiPtrNegativeConversions, ConstantSpaceNotSupportedForVoidInNonLegacy) {
       multi_ptr_t<const void, address_space::constant_space, decorated::legacy>;
   EXPECT_TRUE((std::is_default_constructible_v<const_void_constant_legacy>));
 }
-
 
 TEST(MultiPtrNegativeConversions, CannotComparePointersOfDifferentTypes) {
   using int_ptr = multi_ptr_t<int, address_space::private_space, decorated::no>;

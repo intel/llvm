@@ -1,7 +1,8 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-//===------------------------- prefetch.cpp --------------------------------===//
+//===------------------------- prefetch.cpp
+//--------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -16,8 +17,7 @@
 
 using namespace sycl;
 
-template <access::decorated IsDecorated>
-void testPrefetchWithDecoration() {
+template <access::decorated IsDecorated> void testPrefetchWithDecoration() {
   constexpr size_t Size = 1024;
   std::vector<int> HostData(Size);
   for (size_t i = 0; i < Size; ++i) {
@@ -82,25 +82,29 @@ void testPrefetchWithGlobalPointer() {
   Q.submit([&](handler &CGH) {
     auto Acc = Buf.get_access<access::mode::read_write>(CGH);
 
-    CGH.parallel_for<class GlobalPrefetchKernel>(range<1>(Size), [=](id<1> Index) {
-      using global_ptr = multi_ptr<float, access::address_space::global_space, access::decorated::yes>;
+    CGH.parallel_for<class GlobalPrefetchKernel>(
+        range<1>(Size), [=](id<1> Index) {
+          using global_ptr =
+              multi_ptr<float, access::address_space::global_space,
+                        access::decorated::yes>;
 
-      global_ptr Ptr = address_space_cast<access::address_space::global_space,
-                                          access::decorated::yes>(&Acc[0]);
+          global_ptr Ptr =
+              address_space_cast<access::address_space::global_space,
+                                 access::decorated::yes>(&Acc[0]);
 
-      // Prefetch future data
-      if (Index[0] < Size - 50) {
-        auto FuturePtr = Ptr + Index[0] + 10;
-        FuturePtr.prefetch(20);
-      }
+          // Prefetch future data
+          if (Index[0] < Size - 50) {
+            auto FuturePtr = Ptr + Index[0] + 10;
+            FuturePtr.prefetch(20);
+          }
 
-      // Process data
-      float Sum = 0.0f;
-      for (size_t i = 0; i < 5 && Index[0] + i < Size; ++i) {
-        Sum += Ptr[Index[0] + i];
-      }
-      Acc[Index] = Sum;
-    });
+          // Process data
+          float Sum = 0.0f;
+          for (size_t i = 0; i < 5 && Index[0] + i < Size; ++i) {
+            Sum += Ptr[Index[0] + i];
+          }
+          Acc[Index] = Sum;
+        });
   });
 
   Q.wait();
@@ -112,7 +116,8 @@ void testPrefetchWithGlobalPointer() {
     for (size_t j = 0; j < 5 && i + j < Size; ++j) {
       Expected += static_cast<float>(i + j) * 0.5f;
     }
-    assert(std::abs(HostAcc[i] - Expected) < 0.001f && "Global prefetch test failed");
+    assert(std::abs(HostAcc[i] - Expected) < 0.001f &&
+           "Global prefetch test failed");
   }
 }
 
@@ -129,27 +134,34 @@ void testPrefetchWithLargeData() {
   Q.submit([&](handler &CGH) {
     auto Acc = Buf.get_access<access::mode::read>(CGH);
 
-    CGH.parallel_for<class LargePrefetchKernel>(range<1>(Size / 8), [=](id<1> Index) {
-      auto Ptr = Acc.template get_multi_ptr<access::decorated::yes>();
-      size_t BaseIndex = Index[0] * 8;
+    CGH.parallel_for<class LargePrefetchKernel>(
+        range<1>(Size / 8), [=](id<1> Index) {
+          auto Ptr = Acc.template get_multi_ptr<access::decorated::yes>();
+          size_t BaseIndex = Index[0] * 8;
 
-      // Prefetch a chunk of data
-      auto ChunkPtr = Ptr + BaseIndex;
-      ChunkPtr.prefetch(64);
+          // Prefetch a chunk of data
+          auto ChunkPtr = Ptr + BaseIndex;
+          ChunkPtr.prefetch(64);
 
-      // Process the prefetched chunk
-      double Sum = 0.0;
-      for (size_t i = 0; i < 8; ++i) {
-        Sum += ChunkPtr[i];
-      }
-      // Just to use the Sum (avoid optimization removal)
-      if (Sum < 0) {
-        ChunkPtr[0] = Sum;
-      }
-    });
+          // Process the prefetched chunk
+          double Sum = 0.0;
+          for (size_t i = 0; i < 8; ++i) {
+            Sum += ChunkPtr[i];
+          }
+          // Just to use the Sum (avoid optimization removal)
+          if (Sum < 0) {
+            ChunkPtr[0] = Sum;
+          }
+        });
   });
 
   Q.wait();
+
+  auto HostAcc = Buf.get_host_access();
+  for (size_t i = 0; i < Size; ++i) {
+    assert(HostAcc[i] == static_cast<double>(i) &&
+           "Large prefetch test failed");
+  }
 }
 
 void testPrefetchAtBoundaries() {
@@ -179,6 +191,11 @@ void testPrefetchAtBoundaries() {
   });
 
   Q.wait();
+
+  auto HostAcc = Buf.get_host_access();
+  for (size_t i = 0; i < Size; ++i) {
+    assert(HostAcc[i] == 42 && "Boundary prefetch test failed");
+  }
 }
 
 void testPrefetchWithStructs() {
@@ -191,7 +208,8 @@ void testPrefetchWithStructs() {
   constexpr size_t Size = 128;
   std::vector<TestStruct> HostData(Size);
   for (size_t i = 0; i < Size; ++i) {
-    HostData[i] = {static_cast<int>(i), static_cast<float>(i) * 1.5f, static_cast<double>(i) * 2.5};
+    HostData[i] = {static_cast<int>(i), static_cast<float>(i) * 1.5f,
+                   static_cast<double>(i) * 2.5};
   }
 
   queue Q;
@@ -200,27 +218,38 @@ void testPrefetchWithStructs() {
   Q.submit([&](handler &CGH) {
     auto Acc = Buf.get_access<access::mode::read>(CGH);
 
-    CGH.parallel_for<class StructPrefetchKernel>(range<1>(Size / 2), [=](id<1> Index) {
-      auto Ptr = Acc.template get_multi_ptr<access::decorated::yes>();
-      size_t BaseIdx = Index[0] * 2;
+    CGH.parallel_for<class StructPrefetchKernel>(
+        range<1>(Size / 2), [=](id<1> Index) {
+          auto Ptr = Acc.template get_multi_ptr<access::decorated::yes>();
+          size_t BaseIdx = Index[0] * 2;
 
-      // Prefetch structures
-      auto StructPtr = Ptr + BaseIdx;
-      StructPtr.prefetch(8);
+          // Prefetch structures
+          auto StructPtr = Ptr + BaseIdx;
+          StructPtr.prefetch(8);
 
-      // Access the data
-      int Sum = 0;
-      for (size_t i = 0; i < 2 && BaseIdx + i < Size; ++i) {
-        Sum += StructPtr[i].A;
-      }
-      // Use sum to prevent optimization
-      if (Sum < 0) {
-        StructPtr[0].A = Sum;
-      }
-    });
+          // Access the data
+          int Sum = 0;
+          for (size_t i = 0; i < 2 && BaseIdx + i < Size; ++i) {
+            Sum += StructPtr[i].A;
+          }
+          // Use sum to prevent optimization
+          if (Sum < 0) {
+            StructPtr[0].A = Sum;
+          }
+        });
   });
 
   Q.wait();
+
+  auto HostAcc = Buf.get_host_access();
+  for (size_t i = 0; i < Size; ++i) {
+    assert(HostAcc[i].A == static_cast<int>(i) &&
+           "Struct prefetch integer field test failed");
+    assert(std::abs(HostAcc[i].B - static_cast<float>(i) * 1.5f) < 0.001f &&
+           "Struct prefetch float field test failed");
+    assert(std::abs(HostAcc[i].C - static_cast<double>(i) * 2.5) < 0.001 &&
+           "Struct prefetch double field test failed");
+  }
 }
 
 int main() {
