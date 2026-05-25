@@ -10,7 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <sycl/sycl.hpp>
+#include <sycl/multi_ptr.hpp>
+#include <sycl/queue.hpp>
 
 #include <cassert>
 #include <vector>

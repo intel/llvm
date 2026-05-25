@@ -1,4 +1,4 @@
-#include <sycl/sycl.hpp>
+#include <sycl/multi_ptr.hpp>
 
 #include <gtest/gtest.h>
 
