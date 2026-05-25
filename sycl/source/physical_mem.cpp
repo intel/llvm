@@ -21,6 +21,7 @@ void *physical_mem::map(uintptr_t Ptr, size_t NumBytes,
 context physical_mem::get_context() const { return impl->get_context(); }
 device physical_mem::get_device() const { return impl->get_device(); }
 size_t physical_mem::size() const noexcept { return impl->size(); }
+bool physical_mem::ipc_enabled() const noexcept { return impl->ipc_enabled(); }
 
 void physical_mem::create(const device &SyclDevice, const context &SyclContext,
                           size_t NumBytes, bool EnableIPC) {

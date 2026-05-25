@@ -73,13 +73,18 @@ public:
 
   size_t size() const noexcept;
 
-  bool ipc_enabled() const;
+  bool ipc_enabled() const noexcept;
 
 private:
   std::shared_ptr<sycl::detail::physical_mem_impl> impl;
   void create(const device &SyclDevice, const context &SyclContext,
-               size_t NumBytes, bool EnableIPC);
+              size_t NumBytes, bool EnableIPC);
+  physical_mem(std::shared_ptr<sycl::detail::physical_mem_impl> Impl)
+      : impl(std::move(Impl)) {}
 };
+
+template <>
+struct is_property_key_of<enable_ipc_key, physical_mem> : std::true_type {};
 
 } // namespace ext::oneapi::experimental
 } // namespace _V1

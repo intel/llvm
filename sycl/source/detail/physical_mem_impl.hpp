@@ -62,9 +62,22 @@ public:
     Adapter.checkUrResult(Err);
   }
 
+  physical_mem_impl(device_impl &DeviceImpl, const context &SyclContext,
+                    size_t NumBytes, ur_physical_mem_handle_t PhysicalMem)
+      : MPhysicalMem(PhysicalMem), MDevice(DeviceImpl),
+        MContext(getSyclObjImpl(SyclContext)), MNumBytes(NumBytes),
+        MOpenedFromIpc(true) {}
+
   ~physical_mem_impl() noexcept(false) {
     adapter_impl &Adapter = MContext->getAdapter();
-    Adapter.call<UrApiKind::urPhysicalMemRelease>(MPhysicalMem);
+
+    if (MOpenedFromIpc) {
+      // TODO IPC physical memory
+      // Adapter.call<UrApiKind::urIPCClosePhysMemHandleExp>(
+      //    MContext->getHandleRef(), MPhysicalMem);
+    } else {
+      Adapter.call<UrApiKind::urPhysicalMemRelease>(MPhysicalMem);
+    }
   }
 
   void *map(uintptr_t Ptr, size_t NumBytes,
@@ -94,7 +107,8 @@ private:
   device_impl &MDevice;
   const std::shared_ptr<context_impl> MContext;
   const size_t MNumBytes;
-  const bool MIPCEnabled;
+  const bool MIPCEnabled = false;
+  const bool MOpenedFromIpc = false;
 };
 
 } // namespace detail
