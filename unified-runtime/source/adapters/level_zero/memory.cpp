@@ -1398,8 +1398,8 @@ ur_result_t urEnqueueUSMAdvise(
   // so manually add command to signal our event.
   ZE2UR_CALL(zeCommandListAppendSignalEvent, (ZeCommandList, ZeEvent));
 
-  Queue->executeCommandList(CommandList, false /*IsBlocking*/,
-                            false /*OKToBatchCommand*/);
+  UR_CALL(Queue->executeCommandList(CommandList, false /*IsBlocking*/,
+                                    false /*OKToBatchCommand*/));
 
   return UR_RESULT_SUCCESS;
 }

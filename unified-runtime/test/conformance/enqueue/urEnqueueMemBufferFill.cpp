@@ -212,6 +212,9 @@ using urEnqueueMemBufferFillMultiDeviceTest =
 UUR_INSTANTIATE_PLATFORM_TEST_SUITE(urEnqueueMemBufferFillMultiDeviceTest);
 
 TEST_P(urEnqueueMemBufferFillMultiDeviceTest, FillReadDifferentQueues) {
+  // Related issue: https://github.com/intel/llvm/issues/22058.
+  UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{"Data Center GPU Max"});
+
   // First queue does a fill.
   const uint32_t input = 42;
   ASSERT_SUCCESS(urEnqueueMemBufferFill(

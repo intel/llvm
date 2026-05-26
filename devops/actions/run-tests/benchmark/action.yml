@@ -120,8 +120,6 @@ runs:
 
       export SAVE_NAME="${SAVE_PREFIX}_${GPU_TYPE}_${SAVE_SUFFIX}"
       echo "SAVE_NAME=$SAVE_NAME" >> $GITHUB_ENV
-      export SAVE_TIMESTAMP="$(date -u +'%Y%m%d_%H%M%S')"  # Timestamps are in UTC time
-      echo "SAVE_TIMESTAMP=$SAVE_TIMESTAMP" >> $GITHUB_ENV
 
       # By default, the benchmark scripts forceload level_zero
       FORCELOAD_ADAPTER="${TARGET_DEVICE%%:*}"
@@ -138,6 +136,11 @@ runs:
         echo "Using SYCL from: $SYCL_DIR"
         export CMPLR_ROOT=$SYCL_DIR
         echo "CMPLR_ROOT=$CMPLR_ROOT" >> $GITHUB_ENV
+
+        # Set timestamp based on the compiler library's time.
+        # It's useful for nightly to have a consistent timestamp for all runs.
+        export SAVE_TIMESTAMP="$(date -u -r "$CMPLR_ROOT/lib/libsycl.so" +'%Y%m%d_%H%M%S')"
+        echo "SAVE_TIMESTAMP=$SAVE_TIMESTAMP"
       else
         echo "INFO: SYCL directory '$SYCL_DIR' does not exist or is missing libsycl.so"
         echo "Checking if SYCL is installed in the system..."
@@ -147,6 +150,11 @@ runs:
         echo "Using SYCL from: $CMPLR_ROOT !"
         echo "CMPLR_ROOT=$CMPLR_ROOT" >> $GITHUB_ENV
       fi
+
+      if [ -z "$SAVE_TIMESTAMP" ]; then
+        export SAVE_TIMESTAMP="$(date -u +'%Y%m%d_%H%M%S')"  # Current timestamp in UTC time
+      fi
+      echo "SAVE_TIMESTAMP=$SAVE_TIMESTAMP" >> $GITHUB_ENV
   - name: Set NUMA node to run benchmarks on
     shell: bash
     run: |
