@@ -276,13 +276,6 @@ int runTest(D3D11ProgramState &d3d11ProgramState, sycl::queue syclQueue,
 
   DXGI_FORMAT texFormat = toDXGIFormat(NChannels, channelType);
 
-  // DirectX 11 does not allow us to specify a row major layout for 2D textures
-  // that have ArraySize > 1 and we would like to specify it in order to
-  // accurately calculate the allocation size for the texture so that we can
-  // import it from SYCL side. Hence, in light of this restriction, instead of
-  // using ArraySize > 1 to simulate 3D textures, we simulate them by simply
-  // collapsing the depth dimension onto the height dimension and set ArraySize
-  // to 1.
   // Create a shared texture
   ComPtr<ID3D11Texture2D1> texture;
   // Initialize the texture description.
@@ -303,7 +296,7 @@ int runTest(D3D11ProgramState &d3d11ProgramState, sycl::queue syclQueue,
   // it is only applicable to 2D textures.
   texDesc.MiscFlags = D3D11_RESOURCE_MISC_SHARED_NTHANDLE |
                       D3D11_RESOURCE_MISC_SHARED_KEYEDMUTEX;
-  texDesc.TextureLayout = D3D11_TEXTURE_LAYOUT_ROW_MAJOR;
+  texDesc.TextureLayout = D3D11_TEXTURE_LAYOUT_UNDEFINED;
 
   ComPtr<ID3D11Device3> device3;
   pDevice->QueryInterface(IID_PPV_ARGS(&device3));
@@ -374,8 +367,6 @@ int runTest(D3D11ProgramState &d3d11ProgramState, sycl::queue syclQueue,
 
   // Unfortunately, DX11 does not expose the texture allocation information
   // like DX12, so we have to calculate it manually the best we can (no mips).
-  // The fact that the texture has been requested to have a row major layout
-  // should support this speculative calculation.
   const size_t allocationSize =
       texWidth * texHeight * texDepth * NChannels * sizeof(DType);
   syclexp::unsampled_image_handle syclImageHandle = syclImportTextureMem(
