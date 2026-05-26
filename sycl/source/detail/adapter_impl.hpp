@@ -8,12 +8,15 @@
 
 #pragma once
 
+#include <detail/backend_impl.hpp>
 #include <detail/config.hpp>
 #include <detail/ur.hpp>
 #include <sycl/backend_types.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/iostream_proxy.hpp>
 #include <sycl/detail/type_traits.hpp>
+
+#include <backend_helpers.hpp>
 
 #include <unified-runtime/ur_api.h>
 #ifdef XPTI_ENABLE_INSTRUMENTATION
