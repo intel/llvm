@@ -12,10 +12,12 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Object/OffloadBinary.h"
 #include "llvm/SYCLPostLink/ModuleSplitter.h"
+#include "llvm/Support/Allocator.h"
 #include "llvm/Support/Endian.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/MemoryBuffer.h"
+#include "llvm/Support/StringSaver.h"
 #include "llvm/Support/raw_ostream.h"
 
 #include <cstring>
@@ -169,178 +171,151 @@ SYCLBIN::SYCLBINDesc::SYCLBINDesc(BundleState State,
 
 namespace {
 
-struct EntryStorage {
-  std::unique_ptr<MemoryBuffer> Image;
-  std::string TripleHolder;
-  std::string ArchHolder;
-  std::string AMIndexHolder;
-  std::string IRTypeHolder;
-};
+// Concatenate [u64 LE metadata_size][metadata][raw_bytes] into a fresh
+// MemoryBuffer for an "ir" or "native" entry payload.
+std::unique_ptr<MemoryBuffer> buildIrOrNativePayload(StringRef MetadataBlob,
+                                                    StringRef RawBytes) {
+  SmallString<0> Buf;
+  Buf.reserve(sizeof(uint64_t) + MetadataBlob.size() + RawBytes.size());
+  raw_svector_ostream BufOS(Buf);
+
+  char SizeBytes[sizeof(uint64_t)];
+  support::endian::write64le(SizeBytes,
+                             static_cast<uint64_t>(MetadataBlob.size()));
+  BufOS.write(SizeBytes, sizeof(SizeBytes));
+  BufOS.write(MetadataBlob.data(), MetadataBlob.size());
+  BufOS.write(RawBytes.data(), RawBytes.size());
+  return MemoryBuffer::getMemBufferCopy(Buf);
+}
+
+// Serialize the IR-module / native-image metadata PropertySetRegistry blob.
+//
+// The IR type (uint32 SPIR-V/PTX/AMDGCN tag), arch and triple strings are
+// stored *here*, in the per-image metadata blob, as the canonical authoritative
+// source. The same triple / arch / ir_type values are *also* duplicated into
+// the surrounding OffloadBinary entry's StringData by the writer below; that
+// duplication is intentional so that generic offload tooling (for example,
+// `llvm-objdump --offloading`) can show a triple/arch column for a SYCLBIN
+// without having to crack open this PropertySetRegistry blob, while the SYCL
+// runtime continues to read the canonical copies from this blob. The reader
+// always uses *this* copy, so any future change that drops the StringData
+// duplication or evolves it independently of the SYCL runtime stays
+// backwards compatible.
+SmallString<0> serializeImageMetadata(uint32_t IRType, StringRef ArchString,
+                                      StringRef TargetTripleStr,
+                                      StringRef Category) {
+  SmallString<0> Out;
+  raw_svector_ostream MetadataOS(Out);
+  llvm::util::PropertySetRegistry Reg;
+  if (Category ==
+      llvm::util::PropertySetRegistry::SYCLBIN_IR_MODULE_METADATA) {
+    Reg.add(Category, "type", IRType);
+    Reg.add(Category, "target", TargetTripleStr);
+  } else {
+    assert(Category == llvm::util::PropertySetRegistry::
+                           SYCLBIN_NATIVE_DEVICE_CODE_IMAGE_METADATA);
+    Reg.add(Category, "arch", ArchString);
+    Reg.add(Category, "target", TargetTripleStr);
+  }
+  Reg.write(MetadataOS);
+  return Out;
+}
 
 } // namespace
 
-// We can't build OffloadingImage directly because StringData values are
-// StringRef and need backing storage living until OffloadBinary::write
-// returns. The helper writes the file in three passes:
-//   1. Build per-entry images (with payload concatenation for ir/native).
-//   2. Build OffloadingImage list referencing storage.
-//   3. Hand to OffloadBinary::write.
 Error SYCLBIN::write(const SYCLBIN::SYCLBINDesc &Desc, raw_ostream &OS) {
-  // Pass 1: materialize image bytes and per-entry string holders.
+  // Reserve exact entry count up front so the OffloadingImage SmallVector
+  // doesn't reallocate. Storage for the per-entry image MemoryBuffers
+  // (`OffloadingImage::Image` is a unique_ptr<MemoryBuffer>) and StringData
+  // values lives inside each `OffloadingImage` itself; the only auxiliary
+  // storage we need is for the StringData *value* strings, which we keep in
+  // a BumpPtrAllocator/StringSaver tied to this function's lifetime.
   size_t TotalEntries = 1; // global_metadata
   for (const auto &AMD : Desc.AbstractModuleDescs)
     TotalEntries +=
         1 + AMD.IRModuleDescs.size() + AMD.NativeDeviceCodeImageDescs.size();
 
-  SmallVector<EntryStorage> Storage;
-  Storage.reserve(TotalEntries);
-
   SmallVector<OffloadBinary::OffloadingImage> Images;
   Images.reserve(TotalEntries);
 
-  // Helper: build the [u64 metadata_size][metadata][raw_bytes] payload for an
-  // ir/native entry.
-  auto buildPayload = [](StringRef MetadataBlob, StringRef RawBytes,
-                         std::unique_ptr<MemoryBuffer> &Out) -> Error {
-    SmallString<0> Buf;
-    Buf.reserve(sizeof(uint64_t) + MetadataBlob.size() + RawBytes.size());
-    raw_svector_ostream BufOS(Buf);
+  BumpPtrAllocator Alloc;
+  StringSaver Saver(Alloc);
 
-    uint64_t MetadataSize = MetadataBlob.size();
-    char SizeBytes[sizeof(uint64_t)];
-    support::endian::write64le(SizeBytes, MetadataSize);
-    BufOS.write(SizeBytes, sizeof(SizeBytes));
-    BufOS.write(MetadataBlob.data(), MetadataBlob.size());
-    BufOS.write(RawBytes.data(), RawBytes.size());
-
-    Out = MemoryBuffer::getMemBufferCopy(Buf);
-    return Error::success();
-  };
-
-  // Per-image helper: serialize IR/native metadata PropertySetRegistry into
-  // a SmallString.
-  auto serializeImageMetadata = [](const SYCLBINDesc::ImageDesc &ID,
-                                   StringRef Category, SmallString<0> &Out) {
-    raw_svector_ostream MetadataOS(Out);
-    llvm::util::PropertySetRegistry Reg;
-    if (Category ==
-        llvm::util::PropertySetRegistry::SYCLBIN_IR_MODULE_METADATA) {
-      Reg.add(Category, "type", ID.IRType);
-      Reg.add(Category, "target", StringRef(ID.TargetTripleStr));
-    } else {
-      assert(Category == llvm::util::PropertySetRegistry::
-                             SYCLBIN_NATIVE_DEVICE_CODE_IMAGE_METADATA);
-      Reg.add(Category, "arch", StringRef(ID.ArchString));
-      Reg.add(Category, "target", StringRef(ID.TargetTripleStr));
-    }
-    Reg.write(MetadataOS);
-  };
-
-  // Entry 0: global metadata.
-  {
-    EntryStorage &S = Storage.emplace_back();
-    S.Image = MemoryBuffer::getMemBufferCopy(StringRef(Desc.GlobalMetadata));
+  // Helper to populate the common fields and append to Images. Returns the
+  // appended image so callers can add SYCLBIN-specific StringData keys.
+  auto appendEntry = [&](StringRef Role,
+                         std::unique_ptr<MemoryBuffer> ImageBuf)
+      -> OffloadBinary::OffloadingImage & {
     OffloadBinary::OffloadingImage Img;
     Img.TheImageKind = IMG_SYCLBIN;
     Img.TheOffloadKind = OFK_SYCL;
-    Img.StringData["role"] = "global_metadata";
-    Img.Image = nullptr; // patched below after Storage stable
+    Img.StringData["sycl_format_version"] = "2";
+    Img.StringData["role"] = Saver.save(Role);
+    Img.Image = std::move(ImageBuf);
     Images.emplace_back(std::move(Img));
-  }
+    return Images.back();
+  };
+
+  // Entry 0: global metadata. Image bytes = the serialized
+  // PropertySetRegistry that carries the global "state" property and any
+  // future global SYCLBIN settings.
+  appendEntry("global_metadata", MemoryBuffer::getMemBufferCopy(
+                                     StringRef(Desc.GlobalMetadata)));
 
   // Per abstract module: am_metadata, ir entries, native entries.
   for (size_t I = 0; I < Desc.AbstractModuleDescs.size(); ++I) {
     const auto &AMD = Desc.AbstractModuleDescs[I];
+    StringRef AMIdxStr = Saver.save(std::to_string(I));
 
-    // am_metadata entry.
-    {
-      EntryStorage &S = Storage.emplace_back();
-      S.AMIndexHolder = std::to_string(I);
-      S.Image = MemoryBuffer::getMemBufferCopy(StringRef(AMD.Metadata));
-      OffloadBinary::OffloadingImage Img;
-      Img.TheImageKind = IMG_SYCLBIN;
-      Img.TheOffloadKind = OFK_SYCL;
-      Img.StringData["role"] = "am_metadata";
-      Img.StringData["am_index"] = S.AMIndexHolder;
-      Img.Image = nullptr;
-      Images.emplace_back(std::move(Img));
-    }
+    auto &AMEntry = appendEntry(
+        "am_metadata", MemoryBuffer::getMemBufferCopy(StringRef(AMD.Metadata)));
+    AMEntry.StringData["am_index"] = AMIdxStr;
 
-    // IR module entries.
     for (const auto &IRMD : AMD.IRModuleDescs) {
-      EntryStorage &S = Storage.emplace_back();
-      S.AMIndexHolder = std::to_string(I);
-      S.IRTypeHolder = std::to_string(IRMD.IRType);
-      S.TripleHolder = std::string(IRMD.TargetTripleStr);
-
       auto FileBufferOrError = MemoryBuffer::getFileOrSTDIN(IRMD.FilePath);
       if (!FileBufferOrError)
         return createFileError(IRMD.FilePath, FileBufferOrError.getError());
 
-      SmallString<0> MetadataBlob;
-      serializeImageMetadata(
-          IRMD, llvm::util::PropertySetRegistry::SYCLBIN_IR_MODULE_METADATA,
-          MetadataBlob);
+      SmallString<0> MetadataBlob = serializeImageMetadata(
+          IRMD.IRType, /*ArchString=*/StringRef(), IRMD.TargetTripleStr,
+          llvm::util::PropertySetRegistry::SYCLBIN_IR_MODULE_METADATA);
 
-      if (Error E = buildPayload(MetadataBlob,
-                                 (*FileBufferOrError)->getBuffer(), S.Image))
-        return E;
-
-      OffloadBinary::OffloadingImage Img;
-      Img.TheImageKind = IMG_SYCLBIN;
-      Img.TheOffloadKind = OFK_SYCL;
-      Img.StringData["role"] = "ir";
-      Img.StringData["am_index"] = S.AMIndexHolder;
-      Img.StringData["ir_type"] = S.IRTypeHolder;
-      Img.StringData["triple"] = S.TripleHolder;
-      Img.Image = nullptr;
-      Images.emplace_back(std::move(Img));
+      auto &E = appendEntry(
+          "ir", buildIrOrNativePayload(MetadataBlob,
+                                       (*FileBufferOrError)->getBuffer()));
+      E.StringData["am_index"] = AMIdxStr;
+      // See comment on serializeImageMetadata above: the triple / ir_type
+      // are duplicated here as a convenience for generic offload tooling.
+      E.StringData["ir_type"] = Saver.save(std::to_string(IRMD.IRType));
+      E.StringData["triple"] = Saver.save(StringRef(IRMD.TargetTripleStr));
     }
 
-    // Native device-code image entries.
     for (const auto &NDCID : AMD.NativeDeviceCodeImageDescs) {
-      EntryStorage &S = Storage.emplace_back();
-      S.AMIndexHolder = std::to_string(I);
-      S.ArchHolder = std::string(NDCID.ArchString);
-      S.TripleHolder = std::string(NDCID.TargetTripleStr);
-
       auto FileBufferOrError = MemoryBuffer::getFileOrSTDIN(NDCID.FilePath);
       if (!FileBufferOrError)
         return createFileError(NDCID.FilePath, FileBufferOrError.getError());
 
-      SmallString<0> MetadataBlob;
-      serializeImageMetadata(NDCID,
-                             llvm::util::PropertySetRegistry::
-                                 SYCLBIN_NATIVE_DEVICE_CODE_IMAGE_METADATA,
-                             MetadataBlob);
+      SmallString<0> MetadataBlob = serializeImageMetadata(
+          /*IRType=*/0, NDCID.ArchString, NDCID.TargetTripleStr,
+          llvm::util::PropertySetRegistry::
+              SYCLBIN_NATIVE_DEVICE_CODE_IMAGE_METADATA);
 
-      if (Error E = buildPayload(MetadataBlob,
-                                 (*FileBufferOrError)->getBuffer(), S.Image))
-        return E;
-
-      OffloadBinary::OffloadingImage Img;
-      Img.TheImageKind = IMG_SYCLBIN;
-      Img.TheOffloadKind = OFK_SYCL;
-      Img.StringData["role"] = "native";
-      Img.StringData["am_index"] = S.AMIndexHolder;
-      Img.StringData["arch"] = S.ArchHolder;
-      Img.StringData["triple"] = S.TripleHolder;
-      Img.Image = nullptr;
-      Images.emplace_back(std::move(Img));
+      auto &E = appendEntry(
+          "native", buildIrOrNativePayload(MetadataBlob,
+                                           (*FileBufferOrError)->getBuffer()));
+      E.StringData["am_index"] = AMIdxStr;
+      // See comment on serializeImageMetadata above: the triple / arch are
+      // duplicated here as a convenience for generic offload tooling.
+      E.StringData["arch"] = Saver.save(StringRef(NDCID.ArchString));
+      E.StringData["triple"] = Saver.save(StringRef(NDCID.TargetTripleStr));
     }
   }
 
-  // Pass 2: patch image pointers to refer to the now-stable Storage entries.
-  assert(Storage.size() == Images.size());
-  for (size_t I = 0; I < Images.size(); ++I)
-    Images[I].Image =
-        MemoryBuffer::getMemBuffer(Storage[I].Image->getBuffer(),
-                                   /*BufferName=*/"",
-                                   /*RequiresNullTerminator=*/false);
-
-  // Pass 3: hand everything to OffloadBinary::write.
   SmallString<0> Bytes = OffloadBinary::write(Images);
   OS.write(Bytes.data(), Bytes.size());
+  // OS-level write errors (e.g. ENOSPC) are reported by the caller-owned
+  // raw_fd_ostream / FileOutputBuffer when it commits / closes the file.
+  // raw_ostream itself has no portable polling for this.
   return Error::success();
 }
 
@@ -518,14 +493,17 @@ Expected<std::unique_ptr<SYCLBIN>> SYCLBIN::readV1(MemoryBufferRef Source) {
 namespace {
 
 // Decode a u64 little-endian length prefix and split the entry image into
-// (metadata_blob, raw_payload).
+// (metadata_blob, raw_payload). Defensive against attacker-supplied size
+// fields: every offset arithmetic is done on the LHS so an out-of-range
+// MetadataSize never triggers unsigned wrap-around or large allocations.
 Error splitImagePayload(StringRef Image, StringRef &Metadata,
                         StringRef &RawBytes) {
   if (Image.size() < sizeof(uint64_t))
     return createStringError(inconvertibleErrorCode(),
                              "SYCLBIN v2 entry image too small.");
   uint64_t MetadataSize = support::endian::read64le(Image.data());
-  if (MetadataSize > Image.size() - sizeof(uint64_t))
+  if (sizeof(uint64_t) + MetadataSize < MetadataSize ||
+      sizeof(uint64_t) + MetadataSize > Image.size())
     return createStringError(inconvertibleErrorCode(),
                              "SYCLBIN v2 entry metadata size out of range.");
   Metadata = Image.substr(sizeof(uint64_t), MetadataSize);
@@ -533,9 +511,17 @@ Error splitImagePayload(StringRef Image, StringRef &Metadata,
   return Error::success();
 }
 
+// Parse a decimal am_index value. Rejects leading sign characters because
+// they can otherwise produce two's-complement-wrapped UINT64_MAX values
+// that are then used to size AbstractModules.
 Expected<uint64_t> parseAMIndex(StringRef S) {
+  if (S.empty() || S.front() == '+' || S.front() == '-' ||
+      !std::all_of(S.begin(), S.end(),
+                   [](unsigned char C) { return std::isdigit(C); }))
+    return createStringError(inconvertibleErrorCode(),
+                             "SYCLBIN v2 invalid am_index '" + S + "'.");
   uint64_t V = 0;
-  if (S.empty() || S.getAsInteger(/*Radix=*/10, V))
+  if (S.getAsInteger(/*Radix=*/10, V))
     return createStringError(inconvertibleErrorCode(),
                              "SYCLBIN v2 invalid am_index '" + S + "'.");
   return V;
@@ -553,6 +539,11 @@ Expected<std::unique_ptr<SYCLBIN>> SYCLBIN::readV2(MemoryBufferRef Source) {
   auto &OBVec = *OBVecOrErr;
 
   // First pass: locate global metadata, count abstract modules.
+  // The number of abstract modules is bounded by the number of OffloadBinary
+  // entries (each AM contributes at least one am_metadata entry); reject
+  // larger am_index values up front so an attacker-supplied am_index = 2^60
+  // doesn't trigger an OOM-sized AbstractModules.resize().
+  const uint64_t AMIndexMax = OBVec.size();
   uint64_t MaxAMIndex = 0;
   bool HasAMs = false;
   const OffloadBinary *GlobalMD = nullptr;
@@ -571,6 +562,12 @@ Expected<std::unique_ptr<SYCLBIN>> SYCLBIN::readV2(MemoryBufferRef Source) {
       auto IdxOrErr = parseAMIndex(OB->getString("am_index"));
       if (!IdxOrErr)
         return IdxOrErr.takeError();
+      if (*IdxOrErr >= AMIndexMax)
+        return createStringError(
+            inconvertibleErrorCode(),
+            "SYCLBIN v2 am_index " + std::to_string(*IdxOrErr) +
+                " is out of range (entries=" + std::to_string(AMIndexMax) +
+                ").");
       MaxAMIndex = std::max(MaxAMIndex, *IdxOrErr);
       HasAMs = true;
     } else {
@@ -582,6 +579,15 @@ Expected<std::unique_ptr<SYCLBIN>> SYCLBIN::readV2(MemoryBufferRef Source) {
   if (!GlobalMD)
     return createStringError(inconvertibleErrorCode(),
                              "SYCLBIN v2 missing global_metadata entry.");
+
+  // Validate the writer-stamped sycl_format_version on the global_metadata
+  // entry. If it is present and disagrees with the version this reader was
+  // built for, fail loudly rather than silently misinterpreting fields.
+  if (StringRef Ver = GlobalMD->getString("sycl_format_version"); !Ver.empty())
+    if (Ver != "2")
+      return createStringError(inconvertibleErrorCode(),
+                               "Unsupported sycl_format_version '" + Ver +
+                                   "' (this reader supports v2).");
 
   // Decode global metadata.
   if (Error E = parsePropertyRegistry(GlobalMD->getImage())

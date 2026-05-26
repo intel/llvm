@@ -119,6 +119,13 @@ public:
   /// Deserialize the contents of \p Source to produce a SYCLBIN object.
   /// Accepts both the v1 and v2 on-disk formats; the v1 reader is retained
   /// for backward compatibility with files produced by older toolchains.
+  ///
+  /// Lifetime contract: \p Source's underlying memory must outlive the
+  /// returned SYCLBIN. Every StringRef inside the result's AbstractModules
+  /// (RawIRBytes, RawDeviceCodeImageBytes) points directly into the source
+  /// buffer; the SYCLBIN does not own its byte storage. Callers that load
+  /// from a file should hold the backing MemoryBuffer for at least as long
+  /// as they keep the SYCLBIN around.
   static Expected<std::unique_ptr<SYCLBIN>> read(MemoryBufferRef Source);
 
   struct IRModule {
@@ -143,12 +150,11 @@ public:
   SmallVector<AbstractModule, 4> AbstractModules;
 
 private:
-  // Buffer that owns the raw byte storage referenced by every StringRef in
-  // AbstractModules. Populated when v1 parsing has to copy decoded property
-  // blobs out of an unaligned source; left empty for v2 parses that point
-  // directly into Data.
-  std::unique_ptr<MemoryBuffer> OwnedStorage;
-
+  // The MemoryBufferRef passed to read() must outlive this SYCLBIN, because
+  // every StringRef inside AbstractModules (RawIRBytes,
+  // RawDeviceCodeImageBytes) points directly into its bytes. We keep the
+  // reference here for diagnostic / round-trip purposes; we deliberately do
+  // not own the storage to avoid copying potentially large device images.
   MemoryBufferRef Data;
 
   // Legacy v1 on-disk header types. Retained verbatim so the v1 reader path

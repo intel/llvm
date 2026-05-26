@@ -1,3 +1,4 @@
+#include "llvm/Object/OffloadBinary.h"
 #include "llvm/Object/SYCLBIN.h"
 #include "llvm/SYCLPostLink/ModuleSplitter.h"
 #include "llvm/Support/FileOutputBuffer.h"
@@ -441,4 +442,228 @@ TEST(SYCLBINTest, checkLegacyV1ReaderBackwardCompat) {
   EXPECT_EQ(static_cast<uint8_t>(IRM.RawIRBytes[1]), 0xAD);
   EXPECT_EQ(static_cast<uint8_t>(IRM.RawIRBytes[2]), 0xBE);
   EXPECT_EQ(static_cast<uint8_t>(IRM.RawIRBytes[3]), 0xEF);
+}
+
+// -----------------------------------------------------------------------
+// Negative-path tests for the v2 reader. Each test builds a v2 OffloadBinary
+// directly with one wrong field so each exercises exactly one error path in
+// SYCLBIN::readV2.
+// -----------------------------------------------------------------------
+
+TEST(SYCLBINTest, V2ReaderRejectsTrashBuffer) {
+  auto MB = MemoryBuffer::getMemBuffer(StringRef("not-a-syclbin"),
+                                       /*BufferName=*/"",
+                                       /*RequiresNullTerminator=*/false);
+  auto Result = SYCLBIN::read(*MB);
+  EXPECT_FALSE(static_cast<bool>(Result));
+  if (!Result)
+    consumeError(Result.takeError());
+}
+
+TEST(SYCLBINTest, V2ReaderRejectsNegativeAMIndex) {
+  // Round-trip a valid file then mutate the StringData "am_index" value to
+  // a leading-minus sign in the on-disk bytes. We do this by patching the
+  // *first* occurrence of an ASCII "0\0" pattern that could only have come
+  // from our writer's am_index serialization. The test just confirms that
+  // SYCLBIN::read rejects a hand-crafted buffer with am_index = "-1".
+  // Easier path: build a buffer programmatically using OffloadBinary::write
+  // and supply an invalid am_index directly. The minimal-buffer path
+  // exercises the writer / reader; this test exercises only the reader.
+  OffloadBinary::OffloadingImage Global;
+  Global.TheImageKind = IMG_SYCLBIN;
+  Global.TheOffloadKind = OFK_SYCL;
+  Global.StringData["role"] = "global_metadata";
+  Global.StringData["sycl_format_version"] = "2";
+  // global metadata payload: minimal serialized PropertySetRegistry with
+  // SYCLBIN/global metadata.state = 0.
+  PropertySetRegistry Reg;
+  Reg.add(PropertySetRegistry::SYCLBIN_GLOBAL_METADATA, "state", uint32_t{0});
+  SmallString<0> RegBlob;
+  raw_svector_ostream RegOS(RegBlob);
+  Reg.write(RegOS);
+  Global.Image = MemoryBuffer::getMemBufferCopy(RegBlob);
+
+  OffloadBinary::OffloadingImage AM;
+  AM.TheImageKind = IMG_SYCLBIN;
+  AM.TheOffloadKind = OFK_SYCL;
+  AM.StringData["role"] = "am_metadata";
+  AM.StringData["am_index"] = "-1"; // <- the bad value
+  AM.Image = MemoryBuffer::getMemBufferCopy(StringRef());
+
+  SmallVector<OffloadBinary::OffloadingImage> Imgs;
+  Imgs.emplace_back(std::move(Global));
+  Imgs.emplace_back(std::move(AM));
+  SmallString<0> Bytes = OffloadBinary::write(Imgs);
+
+  auto MB = MemoryBuffer::getMemBufferCopy(Bytes);
+  auto Result = SYCLBIN::read(*MB);
+  EXPECT_FALSE(static_cast<bool>(Result));
+  if (!Result)
+    consumeError(Result.takeError());
+}
+
+TEST(SYCLBINTest, V2ReaderRejectsOutOfRangeAMIndex) {
+  OffloadBinary::OffloadingImage Global;
+  Global.TheImageKind = IMG_SYCLBIN;
+  Global.TheOffloadKind = OFK_SYCL;
+  Global.StringData["role"] = "global_metadata";
+  PropertySetRegistry Reg;
+  Reg.add(PropertySetRegistry::SYCLBIN_GLOBAL_METADATA, "state", uint32_t{0});
+  SmallString<0> RegBlob;
+  raw_svector_ostream RegOS(RegBlob);
+  Reg.write(RegOS);
+  Global.Image = MemoryBuffer::getMemBufferCopy(RegBlob);
+
+  OffloadBinary::OffloadingImage AM;
+  AM.TheImageKind = IMG_SYCLBIN;
+  AM.TheOffloadKind = OFK_SYCL;
+  AM.StringData["role"] = "am_metadata";
+  AM.StringData["am_index"] = "999999"; // > number of entries (2)
+  AM.Image = MemoryBuffer::getMemBufferCopy(StringRef());
+
+  SmallVector<OffloadBinary::OffloadingImage> Imgs;
+  Imgs.emplace_back(std::move(Global));
+  Imgs.emplace_back(std::move(AM));
+  SmallString<0> Bytes = OffloadBinary::write(Imgs);
+
+  auto MB = MemoryBuffer::getMemBufferCopy(Bytes);
+  auto Result = SYCLBIN::read(*MB);
+  EXPECT_FALSE(static_cast<bool>(Result));
+  if (!Result)
+    consumeError(Result.takeError());
+}
+
+TEST(SYCLBINTest, V2ReaderRejectsMissingGlobalMetadata) {
+  OffloadBinary::OffloadingImage AM;
+  AM.TheImageKind = IMG_SYCLBIN;
+  AM.TheOffloadKind = OFK_SYCL;
+  AM.StringData["role"] = "am_metadata";
+  AM.StringData["am_index"] = "0";
+  AM.Image = MemoryBuffer::getMemBufferCopy(StringRef());
+
+  SmallVector<OffloadBinary::OffloadingImage> Imgs;
+  Imgs.emplace_back(std::move(AM));
+  SmallString<0> Bytes = OffloadBinary::write(Imgs);
+
+  auto MB = MemoryBuffer::getMemBufferCopy(Bytes);
+  auto Result = SYCLBIN::read(*MB);
+  EXPECT_FALSE(static_cast<bool>(Result));
+  if (!Result)
+    consumeError(Result.takeError());
+}
+
+TEST(SYCLBINTest, V2ReaderRejectsUnknownRole) {
+  OffloadBinary::OffloadingImage Global;
+  Global.TheImageKind = IMG_SYCLBIN;
+  Global.TheOffloadKind = OFK_SYCL;
+  Global.StringData["role"] = "global_metadata";
+  PropertySetRegistry Reg;
+  Reg.add(PropertySetRegistry::SYCLBIN_GLOBAL_METADATA, "state", uint32_t{0});
+  SmallString<0> RegBlob;
+  raw_svector_ostream RegOS(RegBlob);
+  Reg.write(RegOS);
+  Global.Image = MemoryBuffer::getMemBufferCopy(RegBlob);
+
+  OffloadBinary::OffloadingImage Bogus;
+  Bogus.TheImageKind = IMG_SYCLBIN;
+  Bogus.TheOffloadKind = OFK_SYCL;
+  Bogus.StringData["role"] = "definitely-not-a-real-role";
+  Bogus.StringData["am_index"] = "0";
+  Bogus.Image = MemoryBuffer::getMemBufferCopy(StringRef());
+
+  SmallVector<OffloadBinary::OffloadingImage> Imgs;
+  Imgs.emplace_back(std::move(Global));
+  Imgs.emplace_back(std::move(Bogus));
+  SmallString<0> Bytes = OffloadBinary::write(Imgs);
+
+  auto MB = MemoryBuffer::getMemBufferCopy(Bytes);
+  auto Result = SYCLBIN::read(*MB);
+  EXPECT_FALSE(static_cast<bool>(Result));
+  if (!Result)
+    consumeError(Result.takeError());
+}
+
+TEST(SYCLBINTest, V2ReaderRejectsTruncatedIRPayload) {
+  OffloadBinary::OffloadingImage Global;
+  Global.TheImageKind = IMG_SYCLBIN;
+  Global.TheOffloadKind = OFK_SYCL;
+  Global.StringData["role"] = "global_metadata";
+  PropertySetRegistry Reg;
+  Reg.add(PropertySetRegistry::SYCLBIN_GLOBAL_METADATA, "state", uint32_t{0});
+  SmallString<0> RegBlob;
+  raw_svector_ostream RegOS(RegBlob);
+  Reg.write(RegOS);
+  Global.Image = MemoryBuffer::getMemBufferCopy(RegBlob);
+
+  OffloadBinary::OffloadingImage AM;
+  AM.TheImageKind = IMG_SYCLBIN;
+  AM.TheOffloadKind = OFK_SYCL;
+  AM.StringData["role"] = "am_metadata";
+  AM.StringData["am_index"] = "0";
+  AM.Image = MemoryBuffer::getMemBufferCopy(StringRef());
+
+  // ir entry with image too small to even hold the u64 length prefix
+  OffloadBinary::OffloadingImage IR;
+  IR.TheImageKind = IMG_SYCLBIN;
+  IR.TheOffloadKind = OFK_SYCL;
+  IR.StringData["role"] = "ir";
+  IR.StringData["am_index"] = "0";
+  IR.Image = MemoryBuffer::getMemBufferCopy(StringRef("short"));
+
+  SmallVector<OffloadBinary::OffloadingImage> Imgs;
+  Imgs.emplace_back(std::move(Global));
+  Imgs.emplace_back(std::move(AM));
+  Imgs.emplace_back(std::move(IR));
+  SmallString<0> Bytes = OffloadBinary::write(Imgs);
+
+  auto MB = MemoryBuffer::getMemBufferCopy(Bytes);
+  auto Result = SYCLBIN::read(*MB);
+  EXPECT_FALSE(static_cast<bool>(Result));
+  if (!Result)
+    consumeError(Result.takeError());
+}
+
+// Regression: make sure SYCLBIN::read still accepts a real v1 .syclbin
+// produced by an older intel/sycl toolchain (pre-v2). The fixture was
+// generated by building the basic SYCLBIN executable test from
+// `intel/sycl @ 2d41460b781b` (the commit immediately before the v2
+// rewrite).
+TEST(SYCLBINTest, V1RealFixtureReads) {
+  SmallString<256> Path(__FILE__);
+  llvm::sys::path::remove_filename(Path);
+  llvm::sys::path::append(Path, "Inputs", "syclbin_v1_legacy.syclbin");
+
+  auto MBOrErr = MemoryBuffer::getFile(Path);
+  ASSERT_TRUE(static_cast<bool>(MBOrErr))
+      << "Cannot open v1 fixture at " << Path.c_str();
+
+  auto Result = SYCLBIN::read(**MBOrErr);
+  ASSERT_THAT_EXPECTED(Result, Succeeded());
+  EXPECT_EQ((*Result)->Version, uint32_t{1});
+  ASSERT_GE((*Result)->AbstractModules.size(), size_t{1});
+  EXPECT_NE((*Result)->GlobalMetadata.get(), nullptr);
+}
+
+TEST(SYCLBINTest, V2ReaderRejectsBogusFormatVersion) {
+  OffloadBinary::OffloadingImage Global;
+  Global.TheImageKind = IMG_SYCLBIN;
+  Global.TheOffloadKind = OFK_SYCL;
+  Global.StringData["role"] = "global_metadata";
+  Global.StringData["sycl_format_version"] = "999";
+  PropertySetRegistry Reg;
+  Reg.add(PropertySetRegistry::SYCLBIN_GLOBAL_METADATA, "state", uint32_t{0});
+  SmallString<0> RegBlob;
+  raw_svector_ostream RegOS(RegBlob);
+  Reg.write(RegOS);
+  Global.Image = MemoryBuffer::getMemBufferCopy(RegBlob);
+
+  SmallVector<OffloadBinary::OffloadingImage> Imgs;
+  Imgs.emplace_back(std::move(Global));
+  SmallString<0> Bytes = OffloadBinary::write(Imgs);
+
+  auto MB = MemoryBuffer::getMemBufferCopy(Bytes);
+  auto Result = SYCLBIN::read(*MB);
+  EXPECT_FALSE(static_cast<bool>(Result));
+  if (!Result)
+    consumeError(Result.takeError());
 }

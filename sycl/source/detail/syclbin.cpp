@@ -250,6 +250,13 @@ SYCLBINBinaries::Impl::convertAbstractModuleProperties(
       auto &PropName = PropIt.first;
       auto &PropVal = PropIt.second;
       _sycl_device_binary_property_struct &BinProp = PropsList.emplace_back();
+      // _sycl_device_binary_property_struct is a plain-C struct with no
+      // in-class initializers, so emplace_back leaves every field
+      // uninitialized. Zero-init explicitly: the UINT32 path below only
+      // writes the lower 4 bytes of the uint64_t ValSize field, and we want
+      // the upper 4 bytes to be deterministically zero rather than stack /
+      // freelist garbage.
+      BinProp = {};
       auto &OwnedName =
           PropertyNameStorage.emplace_back(PropName.data(), PropName.size());
       BinProp.Name = const_cast<char *>(OwnedName.c_str());
