@@ -352,7 +352,7 @@ jobs:
       fail-fast: false
       matrix:
         enable_new_offload_model: ['False', 'True']
-        include:
+        target:
           - name: SYCL-CTS on OCL CPU
             runner: '["Linux", "gen12"]'
             image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
@@ -364,11 +364,11 @@ jobs:
             target_devices: level_zero:gpu
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
-      name: ${{ matrix.name }} with ${{ matrix.enable_new_offload_model == 'True' && 'New Offload Model' || 'Old Offload Model' }}
-      runner: ${{ matrix.runner }}
+      name: ${{ matrix.target.name }} with ${{ matrix.enable_new_offload_model == 'True' && 'New Offload Model' || 'Old Offload Model' }}
+      runner: ${{ matrix.target.runner }}
       testing_mode: 'run-only'
-      image_options: ${{ matrix.image_options }}
-      target_devices: ${{ matrix.target_devices }}
+      image_options: ${{ matrix.target.image_options }}
+      target_devices: ${{ matrix.target.target_devices }}
       tests_selector: cts
       repo_ref: ${{ github.sha }}
       toolchain_artifact: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact }}
