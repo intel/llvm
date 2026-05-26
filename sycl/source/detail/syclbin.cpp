@@ -250,8 +250,8 @@ SYCLBINBinaries::Impl::convertAbstractModuleProperties(
       auto &PropName = PropIt.first;
       auto &PropVal = PropIt.second;
       _sycl_device_binary_property_struct &BinProp = PropsList.emplace_back();
-      auto &OwnedName = PropertyNameStorage.emplace_back(PropName.data(),
-                                                          PropName.size());
+      auto &OwnedName =
+          PropertyNameStorage.emplace_back(PropName.data(), PropName.size());
       BinProp.Name = const_cast<char *>(OwnedName.c_str());
       BinProp.Type = static_cast<uint32_t>(PropVal.getType());
       if (BinProp.Type == SYCL_PROPERTY_TYPE_UINT32) {
@@ -267,7 +267,7 @@ SYCLBINBinaries::Impl::convertAbstractModuleProperties(
     _sycl_device_binary_property_set_struct &BinPropSet =
         BinPropSets.emplace_back();
     auto &OwnedSetName = PropertyNameStorage.emplace_back(PropSetName.data(),
-                                                           PropSetName.size());
+                                                          PropSetName.size());
     BinPropSet.Name = const_cast<char *>(OwnedSetName.c_str());
     BinPropSet.PropertiesBegin = PropsList.data();
     BinPropSet.PropertiesEnd = PropsList.data() + PropsList.size();
@@ -383,7 +383,9 @@ SYCLBINBinaries::getBestCompatibleImages(devices_range, bundle_state) {
 }
 
 std::vector<const RTDeviceBinaryImage *>
-SYCLBINBinaries::getNativeBinaryImages(device_impl &) { throwUnsupported(); }
+SYCLBINBinaries::getNativeBinaryImages(device_impl &) {
+  throwUnsupported();
+}
 
 #endif // SYCL_RT_HAS_LLVMOBJECT
 
