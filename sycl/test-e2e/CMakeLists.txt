@@ -81,6 +81,20 @@ if(hip_FOUND)
   set(HIP_INCLUDE "${hip_INCLUDE_DIRS}")
 endif()
 
+# Extract the DPC++ version from the compiler output.
+execute_process(
+      COMMAND ${SYCL_CXX_COMPILER} --version
+      WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+      RESULT_VARIABLE CMPLR_RESULT
+      OUTPUT_VARIABLE CMPLR_VER
+      OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
+
+if(CMPLR_RESULT EQUAL 0 AND CMPLR_VER)
+  string(REGEX MATCH "DPC\\+\\+ compiler ([0-9]+)" _ ${CMPLR_VER})
+  set(DPCPP_VERSION_MAJOR "${CMAKE_MATCH_1}")
+endif()
+
 if(SYCL_TEST_E2E_STANDALONE)
   configure_file("${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.py.in"
                  "${CMAKE_CURRENT_BINARY_DIR}/lit.site.cfg.py")
