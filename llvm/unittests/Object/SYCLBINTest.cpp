@@ -1,5 +1,5 @@
-#include "llvm/Object/OffloadBinary.h"
 #include "llvm/Object/SYCLBIN.h"
+#include "llvm/Object/OffloadBinary.h"
 #include "llvm/SYCLPostLink/ModuleSplitter.h"
 #include "llvm/Support/FileOutputBuffer.h"
 

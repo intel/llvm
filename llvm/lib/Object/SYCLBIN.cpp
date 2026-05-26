@@ -174,7 +174,7 @@ namespace {
 // Concatenate [u64 LE metadata_size][metadata][raw_bytes] into a fresh
 // MemoryBuffer for an "ir" or "native" entry payload.
 std::unique_ptr<MemoryBuffer> buildIrOrNativePayload(StringRef MetadataBlob,
-                                                    StringRef RawBytes) {
+                                                     StringRef RawBytes) {
   SmallString<0> Buf;
   Buf.reserve(sizeof(uint64_t) + MetadataBlob.size() + RawBytes.size());
   raw_svector_ostream BufOS(Buf);
@@ -207,8 +207,7 @@ SmallString<0> serializeImageMetadata(uint32_t IRType, StringRef ArchString,
   SmallString<0> Out;
   raw_svector_ostream MetadataOS(Out);
   llvm::util::PropertySetRegistry Reg;
-  if (Category ==
-      llvm::util::PropertySetRegistry::SYCLBIN_IR_MODULE_METADATA) {
+  if (Category == llvm::util::PropertySetRegistry::SYCLBIN_IR_MODULE_METADATA) {
     Reg.add(Category, "type", IRType);
     Reg.add(Category, "target", TargetTripleStr);
   } else {
@@ -243,8 +242,7 @@ Error SYCLBIN::write(const SYCLBIN::SYCLBINDesc &Desc, raw_ostream &OS) {
 
   // Helper to populate the common fields and append to Images. Returns the
   // appended image so callers can add SYCLBIN-specific StringData keys.
-  auto appendEntry = [&](StringRef Role,
-                         std::unique_ptr<MemoryBuffer> ImageBuf)
+  auto appendEntry = [&](StringRef Role, std::unique_ptr<MemoryBuffer> ImageBuf)
       -> OffloadBinary::OffloadingImage & {
     OffloadBinary::OffloadingImage Img;
     Img.TheImageKind = IMG_SYCLBIN;
@@ -259,8 +257,8 @@ Error SYCLBIN::write(const SYCLBIN::SYCLBINDesc &Desc, raw_ostream &OS) {
   // Entry 0: global metadata. Image bytes = the serialized
   // PropertySetRegistry that carries the global "state" property and any
   // future global SYCLBIN settings.
-  appendEntry("global_metadata", MemoryBuffer::getMemBufferCopy(
-                                     StringRef(Desc.GlobalMetadata)));
+  appendEntry("global_metadata",
+              MemoryBuffer::getMemBufferCopy(StringRef(Desc.GlobalMetadata)));
 
   // Per abstract module: am_metadata, ir entries, native entries.
   for (size_t I = 0; I < Desc.AbstractModuleDescs.size(); ++I) {
