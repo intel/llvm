@@ -78,20 +78,23 @@
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wpsabi"
 #endif // !defined(__SYCL_DEVICE_ONLY__) && defined(__clang__)
-
+// clang-format off
 #include <sycl/detail/type_traits.hpp>
 #include <sycl/ext/intel/esimd/alt_ui.hpp>
 #include <sycl/ext/intel/esimd/common.hpp>
 #include <sycl/ext/intel/esimd/detail/bfloat16_type_traits.hpp>
 #include <sycl/ext/intel/esimd/detail/half_type_traits.hpp>
 #include <sycl/ext/intel/esimd/detail/tfloat32_type_traits.hpp>
+#include <sycl/ext/intel/esimd/detail/bf8_type_traits.hpp>
+#include <sycl/ext/intel/esimd/detail/fp4_type_traits.hpp>
+#include <sycl/ext/intel/esimd/detail/hf8_type_traits.hpp>
 #include <sycl/ext/intel/esimd/memory_properties.hpp>
 #include <sycl/ext/intel/esimd/simd.hpp>
 #include <sycl/ext/intel/esimd/simd_view.hpp>
 #include <sycl/ext/intel/esimd/xmx/dpas.hpp>
 #include <sycl/ext/intel/experimental/esimd/math.hpp>
 #include <sycl/ext/intel/experimental/esimd/memory.hpp>
-
+// clang-format on
 #if !defined(__SYCL_DEVICE_ONLY__) && defined(__clang__)
 #pragma clang diagnostics pop
 #endif // !defined(__SYCL_DEVICE_ONLY__) && defined(__clang__)

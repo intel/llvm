@@ -784,25 +784,11 @@ static void getDeviceLibraries(const ArgList &Args,
   }
 
   using SYCLDeviceLibsList = SmallVector<StringRef>;
-  const SYCLDeviceLibsList SYCLDeviceLibs = {"libsycl-crt",
-                                             "libsycl-complex",
-                                             "libsycl-complex-fp64",
-                                             "libsycl-cmath",
-                                             "libsycl-cmath-fp64",
+  const SYCLDeviceLibsList SYCLDeviceLibs = {"libsycl-crt", "libsycl-cmath",
 #if defined(_WIN32)
                                              "libsycl-msvc-math",
 #endif
-                                             "libsycl-imf",
-                                             "libsycl-imf-fp64",
-                                             "libsycl-imf-bf16",
-                                             "libsycl-fallback-cstring",
-                                             "libsycl-fallback-complex",
-                                             "libsycl-fallback-complex-fp64",
-                                             "libsycl-fallback-cmath",
-                                             "libsycl-fallback-cmath-fp64",
-                                             "libsycl-fallback-imf",
-                                             "libsycl-fallback-imf-fp64",
-                                             "libsycl-fallback-imf-bf16"};
+                                             "libsycl-imf"};
 
   StringRef LibSuffix = ".bc";
   auto AddLibraries = [&](const SYCLDeviceLibsList &LibsList) {
@@ -842,9 +828,9 @@ Error jit_compiler::linkDeviceLibraries(llvm::Module &Module,
     // Based on the OS and the format decide on the version of libspirv.
     // NOTE: this will be problematic if cross-compiling between OSes.
 #ifdef _WIN32
-    std::string Libclc = "remangled-l32-signed_char.libspirv.bc";
+    std::string Libclc = "libspirv.l32.signed_char.bc";
 #else
-    std::string Libclc = "remangled-l64-signed_char.libspirv.bc";
+    std::string Libclc = "libspirv.l64.signed_char.bc";
 #endif
     LibNames.push_back(Libclc);
   }
@@ -865,7 +851,6 @@ Error jit_compiler::linkDeviceLibraries(llvm::Module &Module,
             TC.loadBitcodeLibrary(LibPath, Context).moveInto(LibModule)) {
       return Error;
     }
-
     if (Linker::linkModules(Module, std::move(LibModule),
                             Linker::LinkOnlyNeeded)) {
       return createStringError("Unable to link device library %s: %s",
@@ -963,6 +948,25 @@ static IRSplitMode getDeviceCodeSplitMode(const InputArgList &UserArgList) {
   return SPLIT_AUTO;
 }
 
+// Parse and return the value of `-fsycl-id-queries-range=<int|uint|size_t>`
+// option. Return 0 if option is not specified (default value) or if value
+// specified is int, Return 1 if value specified is uint, and 2 if value
+// specified is size_t.
+static int getSYCLIdMaxRange(const InputArgList &UserArgList) {
+  int MaxRange = 0;
+  if (auto *Arg = UserArgList.getLastArg(OPT_fsycl_id_queries_range_EQ)) {
+    StringRef ArgVal{Arg->getValue()};
+    if (ArgVal == "int") {
+      MaxRange = 0;
+    } else if (ArgVal == "uint") {
+      MaxRange = 1;
+    } else if (ArgVal == "size_t") {
+      MaxRange = 2;
+    }
+  }
+  return MaxRange;
+}
+
 static void encodeProperties(PropertySetRegistry &Properties,
                              RTCDevImgInfo &DevImgInfo) {
   const auto &PropertySets = Properties.getPropSets();
@@ -1002,6 +1006,8 @@ jit_compiler::performPostLink(ModuleUPtr Module,
   const bool AllowDeviceImageDependencies = UserArgList.hasFlag(
       options::OPT_fsycl_allow_device_image_dependencies,
       options::OPT_fno_sycl_allow_device_image_dependencies, false);
+
+  const int MaxIdRange = getSYCLIdMaxRange(UserArgList);
 
   // TODO: EmitOnlyKernelsAsEntryPoints is controlled by
   //       `shouldEmitOnlyKernelsAsEntryPoints` in
@@ -1094,7 +1100,7 @@ jit_compiler::performPostLink(ModuleUPtr Module,
                                   /*DeviceGlobals=*/true};
       PropertySetRegistry Properties =
           computeModuleProperties(MDesc->getModule(), MDesc->entries(), PropReq,
-                                  AllowDeviceImageDependencies);
+                                  AllowDeviceImageDependencies, MaxIdRange);
 
       // When the split mode is none, the required work group size will be added
       // to the whole module, which will make the runtime unable to launch the

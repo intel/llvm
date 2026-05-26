@@ -15,7 +15,6 @@
 #include <sycl/detail/defines_elementary.hpp>
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/get_device_kernel_info.hpp>
-#include <sycl/detail/id_queries_fit_in_int.hpp>
 #include <sycl/detail/impl_utils.hpp>
 #include <sycl/detail/kernel_desc.hpp>
 #include <sycl/detail/kernel_launch_helper.hpp>
@@ -37,8 +36,8 @@
 #include <sycl/ext/oneapi/experimental/graph.hpp>
 #include <sycl/ext/oneapi/experimental/raw_kernel_arg.hpp>
 #include <sycl/ext/oneapi/experimental/use_root_sync_prop.hpp>
-#include <sycl/ext/oneapi/kernel_properties/properties.hpp>
-#include <sycl/ext/oneapi/properties/properties.hpp>
+#include <sycl/ext/oneapi/kernel_properties.hpp>
+#include <sycl/ext/oneapi/properties.hpp>
 #include <sycl/group.hpp>
 #include <sycl/id.hpp>
 #include <sycl/item.hpp>
@@ -865,6 +864,7 @@ private:
                         HasKernelPropertiesGetMethod<
                             decltype(Wrapper)>::value) {
         SetKernelLaunchproperties(detail::extractKernelProperties(
+        setKernelLaunchProperties(detail::extractKernelProperties(
             Wrapper.get(ext::oneapi::experimental::properties_tag{})));
       }
 
@@ -873,9 +873,8 @@ private:
       // We are executing over the rounded range, but there are still
       // items/ids that are are constructed in ther range rounded
       // kernel use items/ids in the user range, which means that
-      // __SYCL_ASSUME_INT can still be violated. So check the bounds
+      // ID range assumptions can still be violated. So check the bounds
       // of the user range, instead of the rounded range.
-      detail::checkValueRange<Dims>(UserRange);
       convertToRangeViewAndSetDescriptor(RoundedRange);
       StoreLambda<KName, decltype(Wrapper), Dims, TransformedArgType>(
           std::move(Wrapper));
@@ -895,16 +894,14 @@ private:
       if constexpr (ext::oneapi::experimental::detail::
                         HasKernelPropertiesGetMethod<
                             const KernelType &>::value) {
-        SetKernelLaunchpropertiesIf(
-            detail::extractKernelProperties<Info.IsESIMD>(
-                KernelFunc.get(ext::oneapi::experimental::properties_tag{})));
+        setKernelLaunchProperties(detail::extractKernelProperties<Info.IsESIMD>(
+            KernelFunc.get(ext::oneapi::experimental::properties_tag{})));
       }
 
 #ifndef __SYCL_DEVICE_ONLY__
       verifyUsedKernelBundleInternal(Info.Name);
-      SetKernelLaunchproperties(
+      setKernelLaunchProperties(
           detail::extractKernelProperties<Info.IsESIMD>(Props));
-      detail::checkValueRange<Dims>(UserRange);
       convertToRangeViewAndSetDescriptor(std::move(UserRange));
       StoreLambda<NameT, KernelType, Dims, TransformedArgType>(
           std::move(KernelFunc));
@@ -930,9 +927,8 @@ private:
 #ifndef __SYCL_DEVICE_ONLY__
     throwIfActionIsCreated();
     setDeviceKernelInfo(std::move(Kernel));
-    detail::checkValueRange<Dims>(NumWorkItems);
     convertToRangeViewAndSetDescriptor(std::move(NumWorkItems));
-    SetKernelLaunchproperties(detail::extractKernelProperties(Props));
+    setKernelLaunchProperties(detail::extractKernelProperties(Props));
     extractArgsAndReqs();
 #endif
   }
@@ -953,9 +949,8 @@ private:
 #ifndef __SYCL_DEVICE_ONLY__
     throwIfActionIsCreated();
     setDeviceKernelInfo(std::move(Kernel));
-    detail::checkValueRange<Dims>(NDRange);
     convertToRangeViewAndSetDescriptor(std::move(NDRange));
-    SetKernelLaunchproperties(detail::extractKernelProperties(Props));
+    setKernelLaunchProperties(detail::extractKernelProperties(Props));
     extractArgsAndReqs();
 #endif
   }
@@ -978,7 +973,7 @@ private:
 
     if constexpr (ext::oneapi::experimental::detail::
                       HasKernelPropertiesGetMethod<const KernelType &>::value) {
-      SetKernelLaunchproperties(detail::extractKernelProperties<Info.IsESIMD>(
+      setKernelLaunchProperties(detail::extractKernelProperties<Info.IsESIMD>(
           KernelFunc.get(ext::oneapi::experimental::properties_tag{})));
     }
 
@@ -989,7 +984,6 @@ private:
     throwIfActionIsCreated();
     verifyUsedKernelBundleInternal(Info.Name);
 
-    detail::checkValueRange<Dims>(params...);
     if constexpr (SetNumWorkGroups) {
       convertToRangeViewAndSetDescriptor(std::move(params)...,
                                          /*SetNumWorkGroups=*/true);
@@ -998,7 +992,7 @@ private:
     }
 
     StoreLambda<NameT, KernelType, Dims, ElementType>(std::move(KernelFunc));
-    SetKernelLaunchproperties(
+    setKernelLaunchProperties(
         detail::extractKernelProperties<Info.IsESIMD>(Props));
 #endif
   }
@@ -1018,6 +1012,7 @@ private:
   void setHandlerKernelBundle(SharedPtrT &&NewKernelBundleImpPtr);
 
   void SetHostTask(std::function<void()> Func);
+  void SetHostTaskFromExtEnqueueFunctions(std::function<void()> Func);
   void SetHostTask(std::function<void(interop_handle)> Func);
 
   template <typename FuncT>
@@ -1033,6 +1028,19 @@ private:
     setArgsToAssociatedAccessors();
 
     SetHostTask(std::forward<FuncT>(Func));
+  }
+
+  template <typename FuncT>
+  std::enable_if_t<
+      detail::check_fn_signature<std::remove_reference_t<FuncT>, void()>::value>
+  host_task_from_enqueue_function_impl(FuncT &&Func) {
+    throwIfActionIsCreated();
+
+    // Need to copy these rather than move so that we can check associated
+    // accessors during finalize
+    setArgsToAssociatedAccessors();
+
+    SetHostTaskFromExtEnqueueFunctions(std::forward<FuncT>(Func));
   }
 
   template <typename FuncT>
@@ -1444,7 +1452,6 @@ public:
 #ifndef __SYCL_DEVICE_ONLY__
     throwIfActionIsCreated();
     setDeviceKernelInfo(std::move(Kernel));
-    detail::checkValueRange<Dims>(NumWorkItems, WorkItemOffset);
     setNDRangeDescriptor(std::move(NumWorkItems), std::move(WorkItemOffset));
     extractArgsAndReqs();
 #endif
@@ -2841,6 +2848,18 @@ private:
   inline void SetKernelLaunchproperties(
       const detail::KernelPropertyHolderStructTy &KernelLaunchProperties);
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  inline constexpr void SetKernelLaunchpropertiesIfNotEmpty(
+      const detail::KernelPropertyHolderStructTy &KernelLaunchProperties) {
+    (void)KernelLaunchProperties;
+
+#ifndef __SYCL_DEVICE_ONLY__
+    if (!KernelLaunchProperties.isEmpty())
+      setKernelLaunchProperties(KernelLaunchProperties);
+#endif // __SYCL_DEVICE_ONLY
+  }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+
   // Various checks that are only meaningful for host compilation, because they
   // result in runtime errors (i.e. exceptions being thrown). To save time
   // during device compilations (by reducing amount of templates we have to
@@ -2991,6 +3010,13 @@ class HandlerAccess {
 public:
   static void internalProfilingTagImpl(handler &Handler) {
     Handler.internalProfilingTagImpl();
+  }
+
+  template <typename FuncT>
+  static std::enable_if_t<
+      detail::check_fn_signature<std::remove_reference_t<FuncT>, void()>::value>
+  hostTaskFromEnqueueFunction(handler &Handler, FuncT &&Func) {
+    Handler.host_task_from_enqueue_function_impl(std::forward<FuncT>(Func));
   }
 
   template <typename RangeT, typename PropertiesT>

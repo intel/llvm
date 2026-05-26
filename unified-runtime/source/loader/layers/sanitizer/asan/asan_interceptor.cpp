@@ -1,10 +1,9 @@
 //===----------------------------------------------------------------------===//
 /*
  *
- * Copyright (C) 2024 Intel Corporation
  *
- * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
- * Exceptions. See LICENSE.TXT
+ * Part of the LLVM Project, under the Apache License v2.0 with LLVM
+ * Exceptions. See https://llvm.org/LICENSE.txt for license information.
  *
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
@@ -61,8 +60,7 @@ AsanInterceptor::~AsanInterceptor() {
 /// ref: "compiler-rt/lib/asan/asan_allocator.cpp" Allocator::Allocate
 ur_result_t AsanInterceptor::allocateMemory(ur_context_handle_t Context,
                                             ur_device_handle_t Device,
-                                            const ur_usm_desc_t *Properties,
-                                            ur_usm_pool_handle_t Pool,
+                                            const AllocMemoryParams &Params,
                                             size_t Size, AllocType Type,
                                             void **ResultPtr) {
 
@@ -70,8 +68,7 @@ ur_result_t AsanInterceptor::allocateMemory(ur_context_handle_t Context,
   std::shared_ptr<DeviceInfo> DeviceInfo =
       Device ? getDeviceInfo(Device) : nullptr;
 
-  /// Modified from llvm/compiler-rt/lib/asan/asan_allocator.cpp
-  uint32_t Alignment = Properties ? Properties->align : 0;
+  size_t Alignment = Params.USMDesc ? Params.USMDesc->align : Params.Alignment;
   // Alignment must be zero or a power-of-two
   if (0 != (Alignment & (Alignment - 1))) {
     return UR_RESULT_ERROR_INVALID_ARGUMENT;
@@ -95,14 +92,18 @@ ur_result_t AsanInterceptor::allocateMemory(ur_context_handle_t Context,
 
   void *Allocated = nullptr;
 
-  if (Pool == nullptr) {
-    Pool = ContextInfo->getUSMPool();
+  if (Type != AllocType::EXPORTABLE_MEM) {
+    UR_CALL(SafeAllocate(Context, Device, NeededSize, Params.USMDesc,
+                         Params.Pool ? Params.Pool : ContextInfo->getUSMPool(),
+                         Type, &Allocated));
+  } else {
+    UR_CALL(
+        getContext()->urDdiTable.MemoryExportExp.pfnAllocExportableMemoryExp(
+            Context, Device, Alignment, NeededSize, Params.HandleTypeToExport,
+            &Allocated));
   }
 
-  UR_CALL(SafeAllocate(Context, Device, NeededSize, Properties, Pool, Type,
-                       &Allocated));
-
-  // Udpate statistics
+  // Update statistics
   ContextInfo->Stats.UpdateUSMMalloced(NeededSize, NeededSize - Size);
 
   uptr AllocBegin = reinterpret_cast<uptr>(Allocated);
@@ -217,8 +218,14 @@ ur_result_t AsanInterceptor::releaseMemory(ur_context_handle_t Context,
     std::scoped_lock<ur_shared_mutex> Guard(m_AllocationMapMutex);
     m_AllocationMap.erase(AllocInfoIt);
 
-    return getContext()->urDdiTable.USM.pfnFree(
-        Context, (void *)(AllocInfo->AllocBegin));
+    if (AllocInfo->Type != AllocType::EXPORTABLE_MEM) {
+      return getContext()->urDdiTable.USM.pfnFree(
+          Context, (void *)(AllocInfo->AllocBegin));
+    } else {
+      return getContext()
+          ->urDdiTable.MemoryExportExp.pfnFreeExportableMemoryExp(
+              Context, AllocInfo->Device, (void *)(AllocInfo->AllocBegin));
+    }
   }
 
   // If quarantine is enabled, cache it
@@ -234,8 +241,15 @@ ur_result_t AsanInterceptor::releaseMemory(ur_context_handle_t Context,
       ContextInfo->Stats.UpdateUSMRealFreed(ToFreeAllocInfo->AllocSize,
                                             ToFreeAllocInfo->getRedzoneSize());
 
-      UR_CALL(getContext()->urDdiTable.USM.pfnFree(
-          Context, (void *)(ToFreeAllocInfo->AllocBegin)));
+      if (ToFreeAllocInfo->Type != AllocType::EXPORTABLE_MEM) {
+        UR_CALL(getContext()->urDdiTable.USM.pfnFree(
+            Context, (void *)(ToFreeAllocInfo->AllocBegin)));
+      } else {
+        UR_CALL(
+            getContext()->urDdiTable.MemoryExportExp.pfnFreeExportableMemoryExp(
+                Context, ToFreeAllocInfo->Device,
+                (void *)(ToFreeAllocInfo->AllocBegin)));
+      }
 
       // Erase it at last to avoid use-after-free.
       m_AllocationMap.erase(It);
@@ -256,18 +270,6 @@ ur_result_t AsanInterceptor::preLaunchKernel(ur_kernel_handle_t Kernel,
 
   ur_queue_handle_t InternalQueue = ContextInfo->getInternalQueue(Device);
 
-  // To get right shadow boundary, shadow memory should be updated before
-  // prepareLaunch
-  {
-    // Force to allocate membuffer before prepareLaunch
-    auto &KernelInfo = getOrCreateKernelInfo(Kernel);
-    std::shared_lock<ur_shared_mutex> Guard(KernelInfo.Mutex);
-    for (const auto &[ArgIndex, MemBuffer] : KernelInfo.BufferArgs) {
-      char *ArgPointer = nullptr;
-      UR_CALL(MemBuffer->getHandle(DeviceInfo->Handle, ArgPointer));
-      (void)ArgPointer;
-    }
-  }
   UR_CALL(updateShadowMemory(DeviceInfo, InternalQueue));
 
   UR_CALL(prepareLaunch(ContextInfo, DeviceInfo, InternalQueue, Kernel,
@@ -354,6 +356,9 @@ AsanInterceptor::enqueueAllocInfo(std::shared_ptr<DeviceInfo> &DeviceInfo,
     case AllocType::MEM_BUFFER:
       ShadowByte = &kMemBufferDeallocatedMagic;
       break;
+    case AllocType::EXPORTABLE_MEM:
+      ShadowByte = &kExportableMemDeallocatedMagic;
+      break;
     default:
       ShadowByte = &kUnknownMagic;
       assert(false && "Unknow AllocInfo Type");
@@ -400,6 +405,9 @@ AsanInterceptor::enqueueAllocInfo(std::shared_ptr<DeviceInfo> &DeviceInfo,
     break;
   case AllocType::DEVICE_GLOBAL:
     ShadowByte = &kDeviceGlobalRedzoneMagic;
+    break;
+  case AllocType::EXPORTABLE_MEM:
+    ShadowByte = &kExportableMemRedzoneMagic;
     break;
   default:
     ShadowByte = &kUnknownMagic;
@@ -757,20 +765,6 @@ ur_result_t AsanInterceptor::prepareLaunch(
     }
   }
 
-  // Set membuffer arguments
-  for (const auto &[ArgIndex, MemBuffer] : KernelInfo.BufferArgs) {
-    char *ArgPointer = nullptr;
-    UR_CALL(MemBuffer->getHandle(DeviceInfo->Handle, ArgPointer));
-    ur_result_t URes = getContext()->urDdiTable.Kernel.pfnSetArgPointer(
-        Kernel, ArgIndex, nullptr, ArgPointer);
-    if (URes != UR_RESULT_SUCCESS) {
-      UR_LOG_L(getContext()->logger, ERR,
-               "Failed to set buffer {} as the {} arg to kernel {}: {}",
-               ur_cast<ur_mem_handle_t>(MemBuffer.get()), ArgIndex, Kernel,
-               URes);
-    }
-  }
-
   if (!KernelInfo.IsInstrumented) {
     return UR_RESULT_SUCCESS;
   }
@@ -782,8 +776,6 @@ ur_result_t AsanInterceptor::prepareLaunch(
     assert(ArgNums >= 1 &&
            "Sanitized Kernel should have at least one argument");
 
-    ur_result_t URes = getContext()->urDdiTable.Kernel.pfnSetArgPointer(
-        Kernel, ArgNums - 1, nullptr, LaunchInfo.Data.getDevicePtr());
     KernelInfo.ArgProps.push_back(ur_exp_kernel_arg_properties_t{
         UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
         nullptr,
@@ -791,18 +783,16 @@ ur_result_t AsanInterceptor::prepareLaunch(
         ArgNums - 1,
         sizeof(void *),
         {LaunchInfo.Data.getDevicePtr()}});
-    if (URes != UR_RESULT_SUCCESS) {
-      UR_LOG_L(getContext()->logger, ERR, "Failed to set launch info: {}",
-               URes);
-      return URes;
-    }
   }
 
   if (LaunchInfo.LocalWorkSize.empty()) {
     LaunchInfo.LocalWorkSize.resize(LaunchInfo.WorkDim);
-    auto URes = getContext()->urDdiTable.Kernel.pfnGetSuggestedLocalWorkSize(
-        Kernel, Queue, LaunchInfo.WorkDim, LaunchInfo.GlobalWorkOffset.data(),
-        LaunchInfo.GlobalWorkSize, LaunchInfo.LocalWorkSize.data());
+    auto URes =
+        getContext()->urDdiTable.Kernel.pfnGetSuggestedLocalWorkSizeWithArgs(
+            Kernel, Queue, LaunchInfo.WorkDim,
+            LaunchInfo.GlobalWorkOffset.data(), LaunchInfo.GlobalWorkSize,
+            ArgNums, KernelInfo.ArgProps.data(),
+            LaunchInfo.LocalWorkSize.data());
     if (URes != UR_RESULT_SUCCESS) {
       if (URes != UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
         return URes;
@@ -961,6 +951,8 @@ ProgramInfo::getKernelMetadata(ur_kernel_handle_t Kernel) const {
 }
 
 ContextInfo::~ContextInfo() {
+  DeferredEvents.releaseAll();
+
   Stats.Print(Handle);
 
   InternalQueueMap.clear();

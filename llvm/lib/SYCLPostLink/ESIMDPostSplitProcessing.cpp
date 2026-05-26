@@ -32,8 +32,8 @@ using namespace llvm::module_split;
 
 namespace {
 
-ModulePassManager
-buildESIMDLoweringPipeline(const sycl::ESIMDProcessingOptions &Options) {
+ModulePassManager buildESIMDLoweringPipeline(
+    const sycl_post_link::ESIMDProcessingOptions &Options) {
   ModulePassManager MPM;
   MPM.addPass(SYCLLowerESIMDPass(!Options.SplitESIMD));
 
@@ -84,10 +84,24 @@ linkModules(std::unique_ptr<ModuleDesc> MD1, std::unique_ptr<ModuleDesc> MD2) {
 
 } // anonymous namespace
 
+SmallString<0> sycl_post_link::convertESIMDOptionsToString(
+    const sycl_post_link::ESIMDProcessingOptions &Options) {
+  return formatv(
+             "esimd.split_mode: {0}, esimd.EmitOnlyKernelsAsEntryPoints: {1}, "
+             "esimd.AllowDeviceImageDependencies: {2}, esimd.LowerESIMD: {3}, "
+             "esimd.SplitESIMD: {4}, esimd.OptLevel: {5}, "
+             "esimd.ForceDisableESIMDOpt: {6}",
+             module_split::convertSplitModeToString(Options.SplitMode),
+             Options.EmitOnlyKernelsAsEntryPoints,
+             Options.AllowDeviceImageDependencies, Options.LowerESIMD,
+             Options.SplitESIMD, Options.OptLevel, Options.ForceDisableESIMDOpt)
+      .sstr<0>();
+}
+
 // When ESIMD code was separated from the regular SYCL code,
 // we can safely process ESIMD part.
-bool sycl::lowerESIMDConstructs(ModuleDesc &MD,
-                                const sycl::ESIMDProcessingOptions &Options) {
+bool sycl_post_link::lowerESIMDConstructs(
+    ModuleDesc &MD, const sycl_post_link::ESIMDProcessingOptions &Options) {
   // TODO: support options like -debug-pass, -print-[before|after], and others
   LoopAnalysisManager LAM;
   CGSCCAnalysisManager CGAM;
@@ -113,9 +127,10 @@ bool sycl::lowerESIMDConstructs(ModuleDesc &MD,
 }
 
 Expected<SmallVector<std::unique_ptr<ModuleDesc>, 2>>
-llvm::sycl::handleESIMD(std::unique_ptr<ModuleDesc> MDesc,
-                        const sycl::ESIMDProcessingOptions &Options,
-                        bool &Modified, bool &SplitOccurred) {
+llvm::sycl_post_link::handleESIMD(
+    std::unique_ptr<ModuleDesc> MDesc,
+    const sycl_post_link::ESIMDProcessingOptions &Options, bool &Modified,
+    bool &SplitOccurred) {
   SmallVector<std::unique_ptr<ModuleDesc>, 2> Result =
       splitByESIMD(std::move(MDesc), Options.EmitOnlyKernelsAsEntryPoints,
                    Options.AllowDeviceImageDependencies);

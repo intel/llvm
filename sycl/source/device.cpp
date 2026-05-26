@@ -178,17 +178,17 @@ __SYCL_EXPORT bool device::get_info_impl<info::device::image_support>() const {
   return impl->template get_info<info::device::image_support>();
 }
 
-#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
+#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, UrCode)              \
   template __SYCL_EXPORT detail::ABINeutralT_t<ReturnT>                        \
   device::get_info_impl<info::device::Desc>() const;
 
-#define __SYCL_PARAM_TRAITS_SPEC_SPECIALIZED(DescType, Desc, ReturnT, PiCode)
+#define __SYCL_PARAM_TRAITS_SPEC_SPECIALIZED(DescType, Desc, ReturnT, UrCode)
 
 #include <sycl/info/device_traits.def>
 #undef __SYCL_PARAM_TRAITS_SPEC_SPECIALIZED
 #undef __SYCL_PARAM_TRAITS_SPEC
 
-#define __SYCL_PARAM_TRAITS_SPEC(Namespace, DescType, Desc, ReturnT, PiCode)   \
+#define __SYCL_PARAM_TRAITS_SPEC(Namespace, DescType, Desc, ReturnT, UrCode)   \
   template __SYCL_EXPORT detail::ABINeutralT_t<ReturnT>                        \
   device::get_info_impl<Namespace::info::DescType::Desc>() const;
 
@@ -209,22 +209,32 @@ ur_native_handle_t device::getNative() const { return impl->getNative(); }
 
 bool device::has(aspect Aspect) const { return impl->has(Aspect); }
 
+template <detail::UrApiKind ApiKind>
+static void p2pAccessHelper(const device &self, const device &peer,
+                            ur_device_handle_t Device, ur_device_handle_t Peer,
+                            detail::adapter_impl &Adapter,
+                            const char *errorMsg) {
+  if (Device == Peer)
+    return;
+
+  if (peer.get_platform() != self.get_platform())
+    throw exception(errc::invalid, errorMsg);
+
+  Adapter.call<ApiKind>(Device, Peer);
+}
+
 void device::ext_oneapi_enable_peer_access(const device &peer) {
-  ur_device_handle_t Device = impl->getHandleRef();
-  ur_device_handle_t Peer = peer.impl->getHandleRef();
-  if (Device != Peer) {
-    detail::adapter_impl &Adapter = impl->getAdapter();
-    Adapter.call<detail::UrApiKind::urUsmP2PEnablePeerAccessExp>(Device, Peer);
-  }
+  p2pAccessHelper<detail::UrApiKind::urUsmP2PEnablePeerAccessExp>(
+      *this, peer, impl->getHandleRef(), peer.impl->getHandleRef(),
+      impl->getAdapter(),
+      "Cannot enable peer access between different platforms");
 }
 
 void device::ext_oneapi_disable_peer_access(const device &peer) {
-  ur_device_handle_t Device = impl->getHandleRef();
-  ur_device_handle_t Peer = peer.impl->getHandleRef();
-  if (Device != Peer) {
-    detail::adapter_impl &Adapter = impl->getAdapter();
-    Adapter.call<detail::UrApiKind::urUsmP2PDisablePeerAccessExp>(Device, Peer);
-  }
+  p2pAccessHelper<detail::UrApiKind::urUsmP2PDisablePeerAccessExp>(
+      *this, peer, impl->getHandleRef(), peer.impl->getHandleRef(),
+      impl->getAdapter(),
+      "Cannot disable peer access between different platforms");
 }
 
 bool device::ext_oneapi_can_access_peer(const device &peer,

@@ -1,6 +1,5 @@
-# Copyright (C) 2022-2025 Intel Corporation
-# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
-# See LICENSE.TXT
+# Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+# See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 cmake_minimum_required(VERSION 3.20.0 FATAL_ERROR)
@@ -53,7 +52,8 @@ option(UR_BUILD_EXAMPLE_CODEGEN "Build the codegen example." OFF)
 option(VAL_USE_LIBBACKTRACE_BACKTRACE "enable libbacktrace validation backtrace for linux" OFF)
 option(UR_ENABLE_ASSERTIONS "Enable assertions for all build types" OFF)
 option(UR_BUILD_XPTI_LIBS "Build the XPTI libraries when tracing is enabled" ON)
-option(UR_STATIC_LOADER "Build loader as a static library" OFF)
+option(UR_STATIC_LOADER "Build loader as a static library" ON)
+option(UR_ADAPTER_SEARCH_LOADER_DIR_FIRST "Prefer loader library directory over OS search paths when discovering adapters" ON)
 option(UR_FORCE_LIBSTDCXX "Force use of libstdc++ in a build using libc++ on Linux" OFF)
 option(UR_ENABLE_LATENCY_HISTOGRAM "Enable latncy histogram" OFF)
 option(UR_FORCE_FETCH_LEVEL_ZERO "Force fetching Level Zero even if preinstalled loader is found" OFF)
@@ -67,6 +67,7 @@ set(UR_SYCL_LIBRARY_DIR "" CACHE PATH
 set(UR_CONFORMANCE_TARGET_TRIPLES "" CACHE STRING
     "List of sycl targets to build CTS device binaries for")
 set(UR_CONFORMANCE_AMD_ARCH "" CACHE STRING "AMD device target ID to build CTS binaries for")
+set(UR_CONFORMANCE_NVIDIA_ARCH "" CACHE STRING "NVIDIA shader model to build CTS binaries for")
 set(UR_CONFORMANCE_SELECTOR "" CACHE STRING "If nonempty, the device selector for conformance tests")
 option(UR_USE_DEBUG_POSTFIX "Enable debug postfix 'd' for libraries" OFF)
 set(UR_ADAPTER_LEVEL_ZERO_SOURCE_DIR "" CACHE PATH

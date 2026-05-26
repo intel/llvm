@@ -1,8 +1,8 @@
 cmake_minimum_required(VERSION 3.20.0)
 
-set(XPTI_VERSION 1.0.1)
+set(XPTIFW_VERSION 1.0.1)
 
-project (xptifw VERSION "${XPTI_VERSION}" LANGUAGES CXX)
+project (xptifw VERSION "${XPTIFW_VERSION}" LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 
 set(XPTIFW_DIR ${CMAKE_CURRENT_LIST_DIR})
@@ -74,4 +74,52 @@ endif()
 
 if (XPTI_BUILD_BENCHMARK)
   add_subdirectory(benchmark)
+endif()
+
+# Install CMake config files
+include(CMakePackageConfigHelpers)
+set(INCLUDE_INSTALL_DIR ${CMAKE_INSTALL_INCLUDEDIR})
+set(LIB_INSTALL_DIR ${CMAKE_INSTALL_LIBDIR}${LLVM_LIBDIR_SUFFIX})
+set(CONFIG_INSTALL_DIR ${LIB_INSTALL_DIR}/cmake/xptifw)
+
+configure_package_config_file(
+  ${CMAKE_CURRENT_SOURCE_DIR}/xptifwConfig.cmake.in
+  ${CMAKE_CURRENT_BINARY_DIR}/xptifwConfig.cmake
+  INSTALL_DESTINATION ${CONFIG_INSTALL_DIR}
+  PATH_VARS INCLUDE_INSTALL_DIR
+)
+
+write_basic_package_version_file(
+  ${CMAKE_CURRENT_BINARY_DIR}/xptifwConfigVersion.cmake
+  VERSION ${XPTIFW_VERSION}
+  COMPATIBILITY SameMajorVersion
+)
+
+install(EXPORT xptifwTargets
+  FILE xptifwTargets.cmake
+  NAMESPACE xptifw::
+  DESTINATION ${CONFIG_INSTALL_DIR}
+  COMPONENT xptifw
+)
+
+install(FILES
+  ${CMAKE_CURRENT_BINARY_DIR}/xptifwConfig.cmake
+  ${CMAKE_CURRENT_BINARY_DIR}/xptifwConfigVersion.cmake
+  DESTINATION ${CONFIG_INSTALL_DIR}
+  COMPONENT xptifw
+  )
+
+if(NOT WIN32)
+  # Install pkg-config file
+  configure_file(
+    ${CMAKE_CURRENT_SOURCE_DIR}/xptifw.pc.in
+    ${CMAKE_CURRENT_BINARY_DIR}/xptifw.pc
+    @ONLY
+  )
+
+  install(FILES
+    ${CMAKE_CURRENT_BINARY_DIR}/xptifw.pc
+    DESTINATION ${LIB_INSTALL_DIR}/pkgconfig
+    COMPONENT xptifw
+  )
 endif()

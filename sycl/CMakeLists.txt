@@ -358,6 +358,16 @@ if (NOT WIN32)
       DESTINATION "lib${LLVM_LIBDIR_SUFFIX}/"
       COMPONENT sycl-headers-extras)
   endif()
+
+  configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/pkgconfig/sycl.pc.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/sycl-dpcpp-${DPCPP_VERSION_MAJOR}.pc"
+    @ONLY)
+
+  install(
+    FILES "${CMAKE_CURRENT_BINARY_DIR}/sycl-dpcpp-${DPCPP_VERSION_MAJOR}.pc"
+    DESTINATION "lib${LLVM_LIBDIR_SUFFIX}/pkgconfig"
+    COMPONENT sycl)
 endif()
 
 if(SYCL_ENABLE_XPTI_TRACING AND
@@ -433,8 +443,8 @@ option(SYCL_INCLUDE_TESTS
   ${LLVM_INCLUDE_TESTS})
 
 # Ensure that HIP platform is uppercase, to match buildbot's output.
-if(NOT "${SYCL_BUILD_PI_HIP_PLATFORM}" STREQUAL "")
-  string(TOUPPER ${SYCL_BUILD_PI_HIP_PLATFORM} SYCL_BUILD_PI_HIP_PLATFORM)
+if(NOT "${SYCL_BUILD_UR_HIP_PLATFORM}" STREQUAL "")
+  string(TOUPPER ${SYCL_BUILD_UR_HIP_PLATFORM} SYCL_BUILD_UR_HIP_PLATFORM)
 endif()
 
 add_subdirectory(tools)
@@ -519,15 +529,22 @@ if("lld" IN_LIST LLVM_ENABLE_PROJECTS)
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS lld)
 endif()
 
-if("libclc" IN_LIST LLVM_ENABLE_PROJECTS)
-  add_dependencies(sycl-toolchain libspirv-builtins)
+set(libclc_enabled FALSE)
+foreach(target IN LISTS LLVM_RUNTIME_TARGETS)
+  if("libclc" IN_LIST RUNTIMES_${target}_LLVM_ENABLE_RUNTIMES)
+    set(libclc_enabled TRUE)
+    break()
+  endif()
+endforeach()
+
+if(libclc_enabled)
+  add_dependencies(sycl-toolchain libclc)
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS libspirv-builtins)
 endif()
 
 if("cuda" IN_LIST SYCL_ENABLE_BACKENDS)
   # Ensure that libclc is enabled.
-  list(FIND LLVM_ENABLE_PROJECTS libclc LIBCLC_FOUND)
-  if( LIBCLC_FOUND EQUAL -1 )
+  if(NOT libclc_enabled)
     message(FATAL_ERROR
       "CUDA support requires adding \"libclc\" to the CMake argument \"LLVM_ENABLE_PROJECTS\"")
   endif()
@@ -538,13 +555,12 @@ endif()
 
 if("hip" IN_LIST SYCL_ENABLE_BACKENDS)
   # Ensure that libclc is enabled.
-  list(FIND LLVM_ENABLE_PROJECTS libclc LIBCLC_FOUND)
-  if( LIBCLC_FOUND EQUAL -1 )
+  if(NOT libclc_enabled)
     message(FATAL_ERROR
       "HIP support requires adding \"libclc\" to the CMake argument \"LLVM_ENABLE_PROJECTS\"")
   endif()
 
-  if(NOT TARGET lld AND "${SYCL_BUILD_PI_HIP_PLATFORM}" STREQUAL "AMD")
+  if(NOT TARGET lld AND "${SYCL_BUILD_UR_HIP_PLATFORM}" STREQUAL "AMD")
     message(FATAL_ERROR
       "HIP support requires adding \"lld\" to the CMake argument \"LLVM_ENABLE_PROJECTS\"")
   endif()
@@ -569,22 +585,40 @@ add_custom_command(OUTPUT __force_it
 #Serialize installation to avoid missing components due to build race conditions
 set(__chain_dep __force_it)
 
-set(manifest_list)
-foreach( comp ${SYCL_TOOLCHAIN_DEPLOY_COMPONENTS} )
-  message( STATUS "Adding component ${comp} to deploy")
+set(manifest_list "")
+function(sycl_add_install_command component manifest_suffix install_script deps)
+  set(manifest_file "${CMAKE_CURRENT_BINARY_DIR}/install_manifest_${manifest_suffix}.txt")
 
-  set (manifest_file ${CMAKE_CURRENT_BINARY_DIR}/install_manifest_${comp}.txt)
-  add_custom_command(OUTPUT ${manifest_file}
+  add_custom_command(OUTPUT "${manifest_file}"
     COMMAND "${CMAKE_COMMAND}"
-    "-DCMAKE_INSTALL_COMPONENT=${comp}"
-    -P "${CMAKE_BINARY_DIR}/cmake_install.cmake"
-    DEPENDS  ${__chain_dep}
-    COMMENT "Deploying component ${comp}"
+    "-DCMAKE_INSTALL_COMPONENT=${component}"
+    -P "${install_script}"
+    DEPENDS ${__chain_dep} ${deps}
+    COMMENT "Deploying component ${component} (${manifest_suffix})"
     USES_TERMINAL
   )
-  list(APPEND manifest_list ${manifest_file})
-  set(__chain_dep ${manifest_file})
-endforeach( comp )
+
+  list(APPEND manifest_list "${manifest_file}")
+  set(__chain_dep "${manifest_file}")
+
+  set(manifest_list "${manifest_list}" PARENT_SCOPE)
+  set(__chain_dep "${__chain_dep}" PARENT_SCOPE)
+endfunction()
+
+foreach(component IN LISTS SYCL_TOOLCHAIN_DEPLOY_COMPONENTS)
+  message(STATUS "Adding component ${component} to deploy")
+  if("${component}" MATCHES "libspirv-builtins")
+    foreach(tgt IN LISTS LLVM_RUNTIME_TARGETS)
+      if("libclc" IN_LIST RUNTIMES_${tgt}_LLVM_ENABLE_RUNTIMES)
+        set(INSTALL_SCRIPT "${CMAKE_BINARY_DIR}/runtimes/runtimes-${tgt}-bins/libclc/cmake_install.cmake")
+        sycl_add_install_command("${component}" "${component}_${tgt}" "${INSTALL_SCRIPT}" "libclc")
+      endif()
+    endforeach()
+  else()
+    set(INSTALL_SCRIPT "${CMAKE_BINARY_DIR}/cmake_install.cmake")
+    sycl_add_install_command("${component}" "${component}" "${INSTALL_SCRIPT}" "")
+  endif()
+endforeach()
 
 add_custom_target(deploy-sycl-toolchain
   DEPENDS sycl-toolchain ${manifest_list}

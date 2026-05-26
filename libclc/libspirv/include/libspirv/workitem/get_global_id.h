@@ -6,6 +6,4 @@
 //
 //===----------------------------------------------------------------------===//
 
-_CLC_DECL _CLC_OVERLOAD size_t __spirv_GlobalInvocationId_x();
-_CLC_DECL _CLC_OVERLOAD size_t __spirv_GlobalInvocationId_y();
-_CLC_DECL _CLC_OVERLOAD size_t __spirv_GlobalInvocationId_z();
+_CLC_DECL _CLC_OVERLOAD size_t __spirv_BuiltInGlobalInvocationId(int);

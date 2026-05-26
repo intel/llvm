@@ -9,8 +9,13 @@
 #pragma once
 #include <sycl/context.hpp>
 #include <sycl/detail/export.hpp>
+#include <sycl/detail/get_device_kernel_info.hpp>
+#include <sycl/detail/get_kernel_info_impl.hpp>
+#include <sycl/detail/impl_utils.hpp>
 #include <sycl/detail/info_desc_helpers.hpp>
 #include <sycl/device.hpp>
+#include <sycl/ext/oneapi/experimental/free_function_traits.hpp>
+#include <sycl/info/info_desc.hpp>
 #include <sycl/kernel_bundle.hpp>
 #include <sycl/kernel_bundle_enums.hpp>
 #include <sycl/queue.hpp>
@@ -28,6 +33,7 @@ kernel_bundle<State> get_kernel_bundle(const context &,
 
 namespace ext::oneapi {
 
+// Non-device-specific query - keep inline fallback via kernel_bundle.
 template <typename KernelName, typename Param>
 typename sycl::detail::is_kernel_info_desc<Param>::return_type
 get_kernel_info(const context &Ctx) {
@@ -36,23 +42,26 @@ get_kernel_info(const context &Ctx) {
   return Bundle.template get_kernel<KernelName>().template get_info<Param>();
 }
 
+// Device-specific query - uses fast kernel cache (O(1) lookup) via the
+// ABI-exported get_kernel_info_impl, which performs spec-mandated validation
+// and dispatches to get_kernel_device_specific_info inside the library.
 template <typename KernelName, typename Param>
 typename sycl::detail::is_kernel_device_specific_info_desc<Param>::return_type
 get_kernel_info(const context &Ctx, const device &Dev) {
-  auto Bundle =
-      sycl::get_kernel_bundle<KernelName, sycl::bundle_state::executable>(
-          Ctx, {Dev});
-  return Bundle.template get_kernel<KernelName>().template get_info<Param>(Dev);
+  static_assert(sycl::detail::is_kernel_device_specific_info_desc<Param>::value,
+                "Invalid kernel_device_specific information descriptor");
+  auto &CtxImpl = *sycl::detail::getSyclObjImpl(Ctx);
+  auto &DevImpl = *sycl::detail::getSyclObjImpl(Dev);
+  sycl::detail::DeviceKernelInfo &DKI =
+      sycl::detail::getDeviceKernelInfo<KernelName>();
+  return sycl::detail::get_kernel_info_impl<Param>(CtxImpl, DevImpl, DKI);
 }
 
+// Queue variant - delegates to context+device
 template <typename KernelName, typename Param>
 typename sycl::detail::is_kernel_device_specific_info_desc<Param>::return_type
 get_kernel_info(const queue &Q) {
-  auto Bundle =
-      sycl::get_kernel_bundle<KernelName, sycl::bundle_state::executable>(
-          Q.get_context(), {Q.get_device()});
-  return Bundle.template get_kernel<KernelName>().template get_info<Param>(
-      Q.get_device());
+  return get_kernel_info<KernelName, Param>(Q.get_context(), Q.get_device());
 }
 
 // For free functions.
@@ -73,10 +82,13 @@ std::enable_if_t<ext::oneapi::experimental::is_kernel_v<Func>,
                  typename sycl::detail::is_kernel_device_specific_info_desc<
                      Param>::return_type>
 get_kernel_info(const context &ctxt, const device &dev) {
-  auto Bundle = sycl::ext::oneapi::experimental::get_kernel_bundle<
-      Func, sycl::bundle_state::executable>(ctxt, {dev});
-  return Bundle.template ext_oneapi_get_kernel<Func>().template get_info<Param>(
-      dev);
+  static_assert(sycl::detail::is_kernel_device_specific_info_desc<Param>::value,
+                "Invalid kernel_device_specific information descriptor");
+  auto &CtxImpl = *sycl::detail::getSyclObjImpl(ctxt);
+  auto &DevImpl = *sycl::detail::getSyclObjImpl(dev);
+  sycl::detail::DeviceKernelInfo &DKI =
+      sycl::detail::getDeviceKernelInfo<Func>();
+  return sycl::detail::get_kernel_info_impl<Param>(CtxImpl, DevImpl, DKI);
 }
 
 template <auto *Func, typename Param>

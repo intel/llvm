@@ -1,4 +1,4 @@
-// RUN: %{build} -DENABLE_64_BIT=false -o %t.out %if target-nvidia %{ -Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_60 %}
+// RUN: %{build} -DENABLE_64_BIT=false -o %t.out %if target-nvidia %{ -Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_75 %}
 // RUN: %{run} %t.out
 
 #include "reduction_utils.hpp"

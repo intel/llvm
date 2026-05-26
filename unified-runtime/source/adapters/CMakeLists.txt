@@ -1,6 +1,5 @@
-# Copyright (C) 2022-2024 Intel Corporation
-# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
-# See LICENSE.TXT
+# Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+# See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 function(add_ur_adapter name)
@@ -20,6 +19,11 @@ function(add_ur_adapter name)
         )
     elseif(APPLE)
         target_compile_options(${name} PRIVATE "-fvisibility=hidden")
+        # @loader_path is the macOS equivalent of $ORIGIN: it resolves
+        # relative to the directory containing the loading library.
+        set_target_properties(${name} PROPERTIES
+            INSTALL_RPATH "@loader_path"
+        )
     else()
         set(TARGET_LIBNAME lib${name}_${PROJECT_VERSION_MAJOR}.0)
         string(TOUPPER ${TARGET_LIBNAME} TARGET_LIBNAME)
@@ -32,6 +36,15 @@ function(add_ur_adapter name)
         )
         target_link_options(${name} PRIVATE
             "-Wl,--version-script=${ADAPTER_VERSION_SCRIPT}"
+        )
+        # Set the install RPATH so installed adapters can find co-located
+        # dependencies (e.g. libumf.so, libze_loader.so) without requiring
+        # LD_LIBRARY_PATH. BUILD_WITH_INSTALL_RPATH is intentionally not set:
+        # CMAKE_BUILD_RPATH already points to the build output directory for
+        # the build tree, and $ORIGIN is only correct at install time when
+        # all libraries reside in the same directory.
+        set_target_properties(${name} PROPERTIES
+            INSTALL_RPATH "\$ORIGIN"
         )
     endif()
     add_dependencies(ur_loader ${name})

@@ -126,6 +126,7 @@ void CodeGenFunction::EmitDecl(const Decl &D, bool EvaluateConditionDecl) {
   case Decl::Function:     // void X();
   case Decl::EnumConstant: // enum ? { X = ? }
   case Decl::StaticAssert: // static_assert(X, ""); [C++0x]
+  case Decl::ExplicitInstantiation:
   case Decl::Label:        // __label__ x;
   case Decl::Import:
   case Decl::MSGuid:    // __declspec(uuid("..."))
@@ -1106,7 +1107,7 @@ static llvm::Constant *constStructWithPadding(CodeGenModule &CGM,
       Values.push_back(patternOrZeroFor(CGM, isPattern, PadTy));
     }
     llvm::Constant *CurOp;
-    if (constant->isZeroValue())
+    if (constant->isNullValue())
       CurOp = llvm::Constant::getNullValue(STy->getElementType(i));
     else
       CurOp = cast<llvm::Constant>(constant->getAggregateElement(i));
@@ -1568,7 +1569,7 @@ CodeGenFunction::EmitAutoVarAlloca(const VarDecl &D) {
         (D.isConstexpr() ||
          ((Ty.isPODType(getContext()) ||
            getContext().getBaseElementType(Ty)->isObjCObjectPointerType()) &&
-          D.getInit()->isConstantInitializer(getContext(), false)))) {
+          D.getInit()->isConstantInitializer(getContext())))) {
 
       // If the variable's a const type, and it's neither an NRVO
       // candidate nor a __block variable and has no mutable members,
@@ -1770,24 +1771,6 @@ CodeGenFunction::EmitAutoVarAlloca(const VarDecl &D) {
     }
     (void)DI->EmitDeclareOfAutoVariable(&D, AllocaAddr.getPointer(), Builder,
                                         UsePointerValue);
-  }
-
-  // Emit Intel FPGA attribute annotation for a local variable.
-  if (getLangOpts().SYCLIsDevice) {
-    SmallString<256> AnnotStr;
-    CGM.generateIntelFPGAAnnotation(&D, AnnotStr);
-    if (!AnnotStr.empty()) {
-      llvm::Value *V = address.emitRawPointer(*this);
-      llvm::Type *DestPtrTy = llvm::PointerType::get(
-          CGM.getLLVMContext(), address.getAddressSpace());
-      llvm::Value *Arg = Builder.CreateBitCast(V, DestPtrTy, V->getName());
-      if (address.getAddressSpace() != 0)
-        Arg = Builder.CreateAddrSpaceCast(Arg, CGM.Int8PtrTy, V->getName());
-      EmitAnnotationCall(
-          CGM.getIntrinsic(llvm::Intrinsic::var_annotation,
-                           {CGM.Int8PtrTy, CGM.ConstGlobalsPtrTy}),
-          Arg, AnnotStr, D.getLocation());
-    }
   }
 
   if (D.hasAttr<AnnotateAttr>() && HaveInsertPoint())
@@ -2081,7 +2064,7 @@ void CodeGenFunction::EmitAutoVarInit(const AutoVarEmission &emission) {
       D.mightBeUsableInConstantExpressions(getContext())) {
     assert(!capturedByInit && "constant init contains a capturing block?");
     constant = ConstantEmitter(*this).tryEmitAbstractForInitializer(D);
-    if (constant && !constant->isZeroValue() &&
+    if (constant && !constant->isNullValue() &&
         (trivialAutoVarInit !=
          LangOptions::TrivialAutoVarInitKind::Uninitialized)) {
       IsPattern isPattern =
@@ -2286,8 +2269,8 @@ void CodeGenFunction::EmitAutoVarCleanups(const AutoVarEmission &emission) {
 
   // Check the type for a cleanup.
   if (QualType::DestructionKind dtorKind = D.needsDestruction(getContext())) {
-    // Check if we're in a SEH block with EHa, prevent it
-    if (getLangOpts().EHAsynch && currentFunctionUsesSEHTry())
+    // Check if we're in a SEH block with /EH, prevent it
+    if (getLangOpts().CXXExceptions && currentFunctionUsesSEHTry())
       getContext().getDiagnostics().Report(D.getLocation(),
                                            diag::err_seh_object_unwinding);
     emitAutoVarTypeCleanup(emission, dtorKind);
@@ -2741,6 +2724,8 @@ void CodeGenFunction::EmitParmDecl(const VarDecl &D, ParamValue Arg,
     Arg.getAnyValue()->setName(D.getName());
 
   QualType Ty = D.getType();
+  assert((getLangOpts().OpenCL || Ty.getAddressSpace() == LangAS::Default) &&
+         "parameter has non-default address space in non-OpenCL mode");
 
   // Use better IR generation for certain implicit parameters.
   if (auto IPD = dyn_cast<ImplicitParamDecl>(&D)) {
@@ -2835,7 +2820,9 @@ void CodeGenFunction::EmitParmDecl(const VarDecl &D, ParamValue Arg,
   llvm::Value *ArgVal = (DoStore ? Arg.getDirectValue() : nullptr);
 
   LValue lv = MakeAddrLValue(DeclPtr, Ty);
-  if (IsScalar) {
+  // If this is a thunk, don't bother with ARC lifetime management.
+  // The true implementation will take care of that.
+  if (IsScalar && !CurFuncIsThunk) {
     Qualifiers qs = Ty.getQualifiers();
     if (Qualifiers::ObjCLifetime lt = qs.getObjCLifetime()) {
       // We honor __attribute__((ns_consumed)) for types with lifetime.

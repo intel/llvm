@@ -73,6 +73,8 @@ static const char *LegalSYCLFunctions[] = {
     "^sycl::_V1::ext::oneapi::experimental::this_work_item::get_root_group<.+>",
     "^sycl::_V1::ext::oneapi::experimental::uniform<.+>::.+",
     "^sycl::_V1::ext::oneapi::bfloat16::.+",
+    "^sycl::_V1::ext::intel::experimental::experimental::hf8::.+",
+    "^sycl::_V1::ext::intel::experimental::experimental::bf8::.+",
     "^sycl::_V1::ext::oneapi::experimental::if_architecture_is"};
 
 static const char *LegalSYCLFunctionsInStatelessMode[] = {

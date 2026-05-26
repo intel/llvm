@@ -16,6 +16,8 @@
 #include <sycl/ext/intel/esimd/detail/math_intrin.hpp>
 #include <sycl/ext/intel/esimd/detail/types.hpp>
 #include <sycl/ext/intel/esimd/xmx/common.hpp>
+#include <sycl/ext/intel/experimental/esimd/bf8.hpp>
+#include <sycl/ext/intel/experimental/esimd/hf8.hpp>
 
 #define __ESIMD_raw_vec_t(T, SZ)                                               \
   sycl::ext::intel::esimd::detail::vector_type_t<                              \
@@ -91,12 +93,53 @@ template <uint8_t FuncControl, typename T, int N>
 __ESIMD_INTRIN __ESIMD_raw_vec_t(T, N)
     __esimd_bfn(__ESIMD_raw_vec_t(T, N) src0, __ESIMD_raw_vec_t(T, N) src1,
                 __ESIMD_raw_vec_t(T, N) src2) __ESIMD_INTRIN_END;
+template <int N, typename DstType, typename SrcType>
+__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<DstType, N>
+__esimd_qf_cvt(__ESIMD_DNS::vector_type_t<SrcType, N> src) __ESIMD_INTRIN_END;
+
+template <int N, typename DstType, typename SrcType>
+__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<DstType, N>
+__esimd_hf8_cvt(__ESIMD_DNS::vector_type_t<SrcType, N> src) __ESIMD_INTRIN_END;
+
+template <int N, typename DstType, typename SrcType>
+__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<DstType, N>
+__esimd_srnd(__ESIMD_DNS::vector_type_t<SrcType, N> src1,
+             __ESIMD_DNS::vector_type_t<SrcType, N> src2) __ESIMD_INTRIN_END;
+
+template <int N>
+__ESIMD_INTRIN __ESIMD_raw_vec_t(sycl::ext::intel::experimental::esimd::bf8, N)
+    __esimd_srnd(__ESIMD_raw_vec_t(sycl::half, N) src1,
+                 __ESIMD_DNS::vector_type_t<uint8_t, N> src2)
+        __ESIMD_INTRIN_END;
 
 template <int N>
 __ESIMD_INTRIN __ESIMD_raw_vec_t(sycl::half, N)
     __esimd_srnd(__ESIMD_DNS::vector_type_t<float, N> src1,
                  __ESIMD_DNS::vector_type_t<uint16_t, N> src2)
         __ESIMD_INTRIN_END;
+
+template <__ESIMD_XMX_NS::dpas_argument_type src1_precision,
+          __ESIMD_XMX_NS::dpas_argument_type src2_precision, int systolic_depth,
+          int repeat_count, typename T, typename T0, typename T1, typename T2,
+          int N, int N1, int N2, int N3, int N4>
+__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<T, N> __esimd_bdpas(
+    __ESIMD_DNS::vector_type_t<T0, N> src0,
+    __ESIMD_DNS::vector_type_t<T1, N1> src1,
+    __ESIMD_DNS::vector_type_t<T2, N2> src2,
+    __ESIMD_DNS::vector_type_t<uint8_t, N3> src1Scale,
+    __ESIMD_DNS::vector_type_t<uint8_t, N4> src2Scale) __ESIMD_INTRIN_END;
+
+template <int N, typename DstType, typename SrcType>
+__ESIMD_INTRIN __ESIMD_raw_vec_t(DstType, N)
+    __esimd_biased_rounding_hf8(__ESIMD_raw_vec_t(SrcType, N) src0,
+                                __ESIMD_raw_vec_t(uint8_t, N)
+                                    bias) __ESIMD_INTRIN_END;
+
+template <int N, typename DstType, typename SrcType>
+__ESIMD_INTRIN __ESIMD_raw_vec_t(DstType, N)
+    __esimd_biased_rounding_bf8(__ESIMD_raw_vec_t(SrcType, N) src0,
+                                __ESIMD_raw_vec_t(uint8_t, N)
+                                    bias) __ESIMD_INTRIN_END;
 
 template <typename T, int N>
 __ESIMD_INTRIN __ESIMD_raw_vec_t(T, N)

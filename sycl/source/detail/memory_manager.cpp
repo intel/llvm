@@ -1048,7 +1048,7 @@ memcpyToDeviceGlobalUSM(queue_impl &Queue,
       DeviceGlobalEntry->getOrAllocateDeviceGlobalUSM(Queue);
   void *Dest = DeviceGlobalUSM.getPtr();
 
-  // OwnedPiEvent will keep the initialization event alive for the duration
+  // OwnedUrEvent will keep the initialization event alive for the duration
   // of this function call.
   OwnedUrEvent ZIEvent = DeviceGlobalUSM.getInitEvent(Queue.getAdapter());
 
@@ -1080,7 +1080,7 @@ static void memcpyFromDeviceGlobalUSM(
       DeviceGlobalEntry->getOrAllocateDeviceGlobalUSM(Queue);
   void *Src = DeviceGlobalUSM.getPtr();
 
-  // OwnedPiEvent will keep the initialization event alive for the duration
+  // OwnedUrEvent will keep the initialization event alive for the duration
   // of this function call.
   OwnedUrEvent ZIEvent = DeviceGlobalUSM.getInitEvent(Queue.getAdapter());
 

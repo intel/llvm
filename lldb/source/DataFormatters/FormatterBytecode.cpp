@@ -12,6 +12,7 @@
 #include "lldb/ValueObject/ValueObjectConstResult.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Support/DataExtractor.h"
+#include "llvm/Support/Error.h"
 #include "llvm/Support/Format.h"
 #include "llvm/Support/FormatProviders.h"
 #include "llvm/Support/FormatVariadicDetails.h"
@@ -181,13 +182,12 @@ static llvm::Error TypeCheck(llvm::ArrayRef<DataStackElement> data,
   return TypeCheck(data.drop_back(1), type2, type1);
 }
 
-llvm::Error Interpret(std::vector<ControlStackElement> &control,
-                      DataStack &data, Selectors sel) {
+llvm::Error Interpret(ControlStack &control, DataStack &data, Signatures sig) {
   if (control.empty())
     return llvm::Error::success();
   // Since the only data types are single endian and ULEBs, the
   // endianness should not matter.
-  llvm::DataExtractor cur_block(control.back(), true, 64);
+  llvm::DataExtractor cur_block(control.back(), true);
   llvm::DataExtractor::Cursor pc(0);
 
   while (!control.empty()) {
@@ -196,7 +196,7 @@ llvm::Error Interpret(std::vector<ControlStackElement> &control,
       // Save the return address.
       if (control.size() > 1)
         control[control.size() - 2] = cur_block.getData().drop_front(pc.tell());
-      cur_block = llvm::DataExtractor(control.back(), true, 64);
+      cur_block = llvm::DataExtractor(control.back(), true);
       if (pc)
         pc = llvm::DataExtractor::Cursor(0);
     };
@@ -222,9 +222,10 @@ llvm::Error Interpret(std::vector<ControlStackElement> &control,
     if (control.empty() || !pc)
       return pc.takeError();
 
-    LLDB_LOGV(GetLog(LLDBLog::DataFormatters),
-              "[eval {0}] opcode={1}, control={2}, data={3}", toString(sel),
-              toString(opcode), control.size(), toString(data));
+    LLDB_LOG_VERBOSE(GetLog(LLDBLog::DataFormatters),
+                     "[eval {0}] opcode={1}, control={2}, data={3}",
+                     toString(sig), toString(opcode), control.size(),
+                     toString(data));
 
     // Various shorthands to improve the readability of error handling.
 #define TYPE_CHECK(...)                                                        \
@@ -509,6 +510,18 @@ llvm::Error Interpret(std::vector<ControlStackElement> &control,
         auto type = data.Pop<CompilerType>();
         // FIXME: There is more code in SBType::GetTemplateArgumentType().
         data.Push(type.GetTypeTemplateArgument(index, true));
+        break;
+      }
+      case sel_get_synthetic_value: {
+        TYPE_CHECK(Object);
+        POP_VALOBJ(valobj);
+        data.Push(valobj->GetSyntheticValue());
+        break;
+      }
+      case sel_get_non_synthetic_value: {
+        TYPE_CHECK(Object);
+        POP_VALOBJ(valobj);
+        data.Push(valobj->GetNonSyntheticValue());
         break;
       }
       case sel_get_value: {

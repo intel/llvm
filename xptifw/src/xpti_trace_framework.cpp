@@ -15,6 +15,7 @@
 
 #include "xpti/xpti_trace_framework.hpp"
 #include "parallel_hashmap/phmap.h"
+#include "spin_lock.hpp"
 #include "xpti/xpti_trace_framework.h"
 #include "xpti_int64_hash_table.hpp"
 #include "xpti_object_table.hpp"
@@ -29,7 +30,6 @@
 #include <iostream>
 #include <map>
 #include <mutex>
-#include <shared_mutex>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -139,6 +139,12 @@ xpti::utils::SpinLock g_framework_mutex;
 /// @brief A uint8_t variable initialized with 0.
 /// This variable represents the default stream ID in the XPTI trace framework.
 uint8_t g_default_stream_id = 0;
+
+/// @var STREAM_ID_MAX
+/// @brief This variable represents the maximum stream ID in the XPTI trace
+/// framework, inclusive. Since stream IDs are represented as uint8_t, the
+/// maximum value is 255.
+constexpr uint8_t STREAM_ID_MAX = 255;
 
 /// @var g_default_event_type
 /// @brief A variable of type xpti::trace_event_type_t, initialized with
@@ -392,6 +398,8 @@ public:
     xpti::plugin_init_t init = nullptr;
     /// The finalization entry point
     xpti::plugin_fini_t fini = nullptr;
+    /// Optional callback for querying stream detail level (optional)
+    xpti::query_subscriber_stream_detail_level_t query_detail_level = nullptr;
     /// The name of the shared object (in UTF8?))
     std::string name;
     /// indicates whether the data structure is valid
@@ -399,7 +407,7 @@ public:
   };
 
   // Data structures defined to hold the plugin data that can be looked up by
-  // plugin name or the handle
+  // plugin name or library handle
   using plugin_handle_lut_t = std::map<xpti_plugin_handle_t, plugin_data_t>;
   using plugin_name_lut_t = std::map<std::string, plugin_data_t>;
 
@@ -463,17 +471,24 @@ public:
           g_helper.findFunction(Handle, "xptiTraceFinish"));
       if (InitFunc && FiniFunc) {
         //  We appear to have loaded a valid plugin, so we will insert the
-        //  plugin information into the two maps guarded by a lock
+        //  plugin information into the maps guarded by a lock
         plugin_data_t Data;
         Data.valid = true;
         Data.handle = Handle;
         Data.name = Path;
         Data.init = InitFunc;
         Data.fini = FiniFunc;
+
+        // Look for optional detail level query callback
+        Data.query_detail_level =
+            reinterpret_cast<xpti::query_subscriber_stream_detail_level_t>(
+                g_helper.findFunction(Handle,
+                                      "xptiQuerySubscriberStreamDetailLevel"));
+
         {
           std::lock_guard<std::mutex> Lock(MMutex);
           MNameLUT[Path] = Data;
-          MHandleLUT[Handle] = Data;
+          MHandleLUT[Handle] = std::move(Data);
         }
       } else {
         // We may have loaded another shared object that is not a tool plugin
@@ -585,6 +600,28 @@ public:
     }
     MHandleLUT.clear();
     MNameLUT.clear();
+  }
+
+  /// Query all subscribers for requested detail level, return max.
+  xpti::stream_detail_level_t
+  querySubscribersForStreamDetailLevel(const char *stream_name) {
+    std::lock_guard<std::mutex> Lock(MMutex);
+
+    xpti::stream_detail_level_t max_level =
+        xpti::stream_detail_level_t::XPTI_STREAM_DETAIL_LEVEL_NONE;
+
+    for (const auto &handle_entry : MHandleLUT) {
+      const plugin_data_t &plugin = handle_entry.second;
+      xpti::stream_detail_level_t sub_level =
+          xpti::stream_detail_level_t::XPTI_STREAM_DETAIL_LEVEL_NORMAL;
+      if (plugin.query_detail_level)
+        plugin.query_detail_level(stream_name, &sub_level);
+
+      if (static_cast<uint8_t>(sub_level) > static_cast<uint8_t>(max_level))
+        max_level = sub_level;
+    }
+
+    return max_level;
   }
 
 private:
@@ -862,6 +899,8 @@ public:
     if (!UId)
       return nullptr;
 
+    xpti::SharedLock Lock(MTracepointMutex);
+
     if (MUID64Check.count(UId) == 0)
       return nullptr;
 
@@ -914,6 +953,8 @@ public:
     if (!Event || Event->unique_id == xpti::invalid_uid)
       return;
 
+    std::lock_guard<xpti::SharedSpinLock> Lock(MTracepointMutex);
+
     if (MUID64Check.count(Event->unique_id) == 0)
       return;
 
@@ -922,18 +963,15 @@ public:
         reinterpret_cast<xpti::TracePointImpl *>(Event->unique_id);
 
     xpti::uid128_t UId = TP->MUId;
-    {
-      std::unique_lock<std::shared_mutex> Lock(MTracepointMutex);
-      // Find the event list for a given UID
-      auto &Instances = MTracepoints[UId];
-      MUID64Check.erase(UId.uid64);
-      // Now release the event associated with the UID instance
-      delete Instances[UId.instance];
-      Instances.erase(UId.instance);
-      // If there are no more events associated with the UID, we can release
-      // the Payload as well, but we will not as the same payload may be
-      // revisited and we need to keep the instance count going
-    }
+    // Find the event list for a given UID
+    auto &Instances = MTracepoints[UId];
+    MUID64Check.erase(UId.uid64);
+    // Now release the event associated with the UID instance
+    delete Instances[UId.instance];
+    Instances.erase(UId.instance);
+    // If there are no more events associated with the UID, we can release
+    // the Payload as well, but we will not as the same payload may be
+    // revisited and we need to keep the instance count going
   }
 
   /// @brief Adds metadata to a trace event.
@@ -1060,7 +1098,7 @@ public:
     // Check is Key is valid; If the payload is fully populated, then we will
     // have both Key.p1 and Key.p2 set. However, if only a function name is
     // provided, then we will have Key.p1 populated.
-    std::unique_lock<std::shared_mutex> Lock(MPayloadMutex);
+    std::lock_guard<xpti::SharedSpinLock> Lock(MPayloadMutex);
     auto &PayloadEntry = MPayloads[Key];
     if (PayloadEntry.first.Payload.flags == 0) {
 #ifdef XPTI_STATISTICS
@@ -1133,7 +1171,7 @@ public:
       return nullptr;
 
     // Lock the mutex to ensure thread-safe access to the tracepoints map
-    std::unique_lock<std::shared_mutex> Lock(MTracepointMutex);
+    std::lock_guard<xpti::SharedSpinLock> Lock(MTracepointMutex);
     // Access or create the tracepoint instance associated with the universal ID
     auto &Tracepoint = MTracepoints[UniversalId];
     // Access or create the specific instance of the tracepoint based on the
@@ -1166,9 +1204,9 @@ public:
       return xpti::result_t::XPTI_RESULT_INVALIDARG;
 
     {
-      xpti::uid128_t UId = TP->MUId;
       // Lock the mutex to ensure thread-safe access to the tracepoints map
-      std::unique_lock<std::shared_mutex> Lock(MTracepointMutex);
+      std::lock_guard<xpti::SharedSpinLock> Lock(MTracepointMutex);
+      xpti::uid128_t UId = TP->MUId;
       // Find the tracepoint for a given UID
       auto &Instances = MTracepoints[UId];
       // Now release the 64-bit UID associated with tracepoint instance
@@ -1316,7 +1354,55 @@ public:
   /// @return Returns true if the UID exists in the set, indicating it is valid;
   ///         otherwise, returns false.
   ///
-  bool isValidUID64(uint64_t UId) { return (MUID64Check.count(UId) > 0); }
+  bool isValidUID64(uint64_t UId) {
+    xpti::SharedLock Lock(MTracepointMutex);
+    return (MUID64Check.count(UId) > 0);
+  }
+
+  const xpti::trace_event_data_t *findEvent(uint64_t UId) {
+    if (UId == xpti::invalid_uid)
+      return nullptr;
+
+    xpti::SharedLock Lock(MTracepointMutex);
+
+    if (MUID64Check.count(UId) == 0)
+      return nullptr;
+
+    xpti::TracePointImpl *TP = reinterpret_cast<xpti::TracePointImpl *>(UId);
+    if (TP && xpti::is_valid_event(&TP->MEvent))
+      return &TP->MEvent;
+    return nullptr;
+  }
+
+  const xpti::payload_t *queryPayloadByUID(uint64_t UId) {
+    if (UId == xpti::invalid_uid)
+      return nullptr;
+
+    xpti::SharedLock Lock(MTracepointMutex);
+
+    if (MUID64Check.count(UId) == 0)
+      return nullptr;
+
+    xpti::TracePointImpl *TP = reinterpret_cast<xpti::TracePointImpl *>(UId);
+    if (TP && xpti::is_valid_payload(&TP->MPayload))
+      return &TP->MPayload;
+    return nullptr;
+  }
+
+  const xpti_payload_t *lookupPayload(uint64_t UId) {
+    if (UId == xpti::invalid_uid)
+      return nullptr;
+
+    xpti::SharedLock Lock(MTracepointMutex);
+
+    if (MUID64Check.count(UId) == 0)
+      return nullptr;
+
+    xpti::TracePointImpl *TP = reinterpret_cast<xpti::TracePointImpl *>(UId);
+    if (TP && xpti::is_valid_payload(&TP->MPayload))
+      return TP->payload();
+    return nullptr;
+  }
 
 private:
   /// @brief Registers an event with a given payload and returns the event
@@ -1438,23 +1524,24 @@ private:
   /// information.
   std::mutex MMetadataMutex;
 
-  /// @var mutable std::shared_mutex MTracepointMutex
-  /// @brief Shared mutex for protecting access to the event lookup table.
+  /// @var mutable xpti::SharedSpinLock MTracepointMutex
+  /// @brief Shared spin lock for protecting access to the event lookup table.
   ///
-  /// This shared mutex allows multiple readers or a single writer to access
+  /// This shared spin lock allows multiple readers or a single writer to access
   /// the `MEvents` lookup table, ensuring thread-safe operations. The
   /// `mutable` keyword allows the mutex to be locked even in const member
-  /// functions.
-  mutable std::shared_mutex MTracepointMutex;
+  /// functions. Uses SharedSpinLock for better performance in low-contention
+  /// scenarios.
+  mutable xpti::SharedSpinLock MTracepointMutex;
 
-  /// @var mutable std::shared_mutex MPayloadMutex
-  /// @brief Reader/Writer mutex for protecting access to the payload lookup
+  /// @var mutable xpti::SharedSpinLock MPayloadMutex
+  /// @brief Reader/Writer spin lock for protecting access to the payload lookup
   /// table.
   ///
-  /// Similar to `MTracepointMutex`, this shared mutex ensures thread-safe
+  /// Similar to `MTracepointMutex`, this shared spin lock ensures thread-safe
   /// access to the `MPayloads` lookup table, allowing multiple readers or a
-  /// single writer.
-  mutable std::shared_mutex MPayloadMutex;
+  /// single writer. Uses SharedSpinLock for better performance.
+  mutable xpti::SharedSpinLock MPayloadMutex;
 };
 
 /// @brief Helper class to manage subscriber callbacks for a given tracepoint
@@ -1566,26 +1653,21 @@ public:
     }
 #endif
     {
-      std::unique_lock<std::shared_mutex> Lock(MFlagsLock);
+      std::lock_guard<xpti::SharedSpinLock> Lock(MFlagsLock);
       // Get the flags for the stream
       auto &TraceFlags = MStreamFlags[StreamID];
       TraceFlags[TraceType] = true; // Set the trace type flag to true
     }
     // If reader-writer locks were emplyed, this is where the writer lock can
     // be used
-    std::unique_lock<std::shared_mutex> Lock(MCBsLock);
+    std::lock_guard<xpti::SharedSpinLock> Lock(MCBsLock);
 
     auto &StreamCBs =
         MCallbacksByStream[StreamID]; // thread-safe
                                       // What we get is a concurrent_hash_map
                                       // of vectors holding the callbacks we
                                       // need access to;
-    auto Acc = StreamCBs.find(TraceType);
-    if (Acc == StreamCBs.end()) {
-      // Create a new slot and return the accessor for the trace type
-      auto Tmp = StreamCBs[TraceType];
-      Acc = StreamCBs.find(TraceType);
-    }
+    auto &Acc = StreamCBs[TraceType];
     // If the key does not exist, a new entry is created and an accessor to it
     // is returned. If it exists, we have access to the previous entry.
     //
@@ -1595,7 +1677,7 @@ public:
     // If not, we set the first element of new entry to 'true' indicating that
     // it is valid. Unregister will just set this flag to false, indicating
     // that it is no longer valid and is unregistered.
-    for (auto &Ele : Acc->second) {
+    for (auto &Ele : Acc) {
       if (Ele.second == cbFunc) {
         if (Ele.first) // Already here and active
           return xpti::result_t::XPTI_RESULT_DUPLICATE;
@@ -1607,7 +1689,7 @@ public:
     }
     // If we come here, then we did not find the callback being registered
     // already in the framework. So, we insert it.
-    Acc->second.push_back(std::make_pair(true, cbFunc));
+    Acc.push_back(std::make_pair(true, cbFunc));
     return xpti::result_t::XPTI_RESULT_SUCCESS;
   }
 
@@ -1644,7 +1726,7 @@ public:
       return xpti::result_t::XPTI_RESULT_INVALIDARG;
 
     {
-      std::unique_lock<std::shared_mutex> Lock(MFlagsLock);
+      std::lock_guard<xpti::SharedSpinLock> Lock(MFlagsLock);
       auto &TraceFlags = MStreamFlags[StreamID]; // Get the trace flags for the
                                                  // stream ID
       TraceFlags[TraceType] = false; // Set the trace type flag to false
@@ -1652,7 +1734,7 @@ public:
     // Since we do not remove the callback function when they are unregistered
     // and only reset the flag, the writer lock is not held for very long; use
     // writer lock here.
-    std::unique_lock<std::shared_mutex> Lock(MCBsLock);
+    std::lock_guard<xpti::SharedSpinLock> Lock(MCBsLock);
     auto &StreamCBs =
         MCallbacksByStream[StreamID]; // thread-safe
                                       //  What we get is a concurrent_hash_map
@@ -1694,20 +1776,19 @@ public:
   ///         successful. Returns `xpti::result_t::XPTI_RESULT_NOTFOUND` if no
   ///         callbacks are registered for the specified StreamID.
   ///
-  /// @note This function uses a `std::unique_lock` to ensure thread safety when
-  /// modifying the callbacks and stream flags. If the implementation evolves to
-  /// use reader-writer locks, a reader lock should be used where appropriate.
+  /// @note This function uses a `std::lock_guard` with `SharedSpinLock` to
+  /// ensure thread safety when modifying the callbacks and stream flags.
 
   xpti::result_t unregisterStream(xpti::stream_id_t StreamID) {
     {
-      std::unique_lock<std::shared_mutex> Lock(MFlagsLock);
+      std::lock_guard<xpti::SharedSpinLock> Lock(MFlagsLock);
       // Get the trace flags for the stream
       MStreamFlags.erase(StreamID);
     }
     // If there are no callbacks registered for the requested stream ID, we
     // return not found; use reader lock here if the implementation moves to
     // reader-writer locks.
-    std::unique_lock<std::shared_mutex> Lock(MCBsLock);
+    std::lock_guard<xpti::SharedSpinLock> Lock(MCBsLock);
     if (MCallbacksByStream.count(StreamID) == 0)
       return xpti::result_t::XPTI_RESULT_NOTFOUND;
 
@@ -1742,7 +1823,7 @@ public:
     if (StreamID == 0)
       return false;
 
-    std::shared_lock<std::shared_mutex> Lock(MFlagsLock);
+    xpti::SharedLock Lock(MFlagsLock);
     // Instead of checking the MCallbacksByStream to see if there are
     // registered callbacks for a given stream/trace type query, we check
     // this against a shadow data structure that sets a boolean flag equals
@@ -1751,7 +1832,11 @@ public:
     // present. This will be a lock-free operation and if trace type is not
     // set or is going to be set simultaneously, we may miss an event if we
     // access it earlier than the the write operation.
-    auto &StreamFlags = MStreamFlags[StreamID];
+    auto StreamIt = MStreamFlags.find(StreamID);
+    if (StreamIt == MStreamFlags.end())
+      return false; // Stream has no registered callbacks
+
+    auto &StreamFlags = StreamIt->second;
     // When it is required that a particular stream has at least one active
     // subscriber, the TraceType will be set to 0. In this case we scan the
     // booleans of all set TraceType active subscribers and bail on the first
@@ -1765,10 +1850,11 @@ public:
     } else {
       // If a specific TraceType has to be examined, we returns tis boolean
       // value
-      if (StreamFlags.count(TraceType) == 0)
+      auto TypeIt = StreamFlags.find(TraceType);
+      if (TypeIt == StreamFlags.end())
         return false;
       // Otherwise, it is success
-      return StreamFlags[TraceType];
+      return TypeIt->second;
     }
   }
 
@@ -1796,8 +1882,7 @@ public:
   ///
   /// @return Always returns `xpti::result_t::XPTI_RESULT_SUCCESS`.
   ///
-  /// @note This function uses a `std::shared_lock` (when compiled with C++14 or
-  /// later) to allow
+  /// @note This function uses `xpti::SharedLock` (shared reader lock) to allow
   ///       multiple readers for the callback registration data, improving
   ///       concurrency. The lock is released before invoking the callbacks to
   ///       prevent deadlocks and reduce lock contention. In environments where
@@ -1819,8 +1904,12 @@ public:
       // the notification functions when the lock is held and then releases
       // the lock before calling the notification functions. When using
       // reader-writer locks, use reader lock here.
-      std::shared_lock<std::shared_mutex> Lock(MCBsLock);
-      cb_t &Stream = MCallbacksByStream[StreamID]; // Thread-safe
+      xpti::SharedLock Lock(MCBsLock);
+      auto StreamIt = MCallbacksByStream.find(StreamID);
+      if (StreamIt == MCallbacksByStream.end())
+        return xpti::result_t::XPTI_RESULT_SUCCESS; // No callbacks registered
+
+      cb_t &Stream = StreamIt->second;
       Acc = Stream.find(TraceType);
       Success = (Acc != Stream.end());
       if (Success) {
@@ -1910,9 +1999,9 @@ private:
   }
 #endif
   stream_cb_t MCallbacksByStream;
-  mutable std::shared_mutex MCBsLock;
-  mutable std::shared_mutex MFlagsLock;
   std::mutex MStatsLock;
+  mutable xpti::SharedSpinLock MCBsLock;
+  mutable xpti::SharedSpinLock MFlagsLock;
   statistics_t MStats;
   stream_flags_t MStreamFlags;
 };
@@ -1971,6 +2060,15 @@ public:
     MSubscribers.loadFromEnvironmentVariable();
     MTraceEnabled =
         (g_helper.checkTraceEnv() && MSubscribers.hasValidSubscribers());
+
+    // Initialize all effective stream detail levels to default (NORMAL)
+    for (size_t i = 0; i <= STREAM_ID_MAX; ++i) {
+      MEffectiveStreamDetailLevels[i].store(
+          static_cast<uint8_t>(
+              xpti::stream_detail_level_t::XPTI_STREAM_DETAIL_LEVEL_NORMAL),
+          std::memory_order_relaxed);
+    }
+
     //  We create a default stream "xpti.framework" and save it in
     //  `g_default_stream
     g_default_stream_id = registerStream(g_default_stream);
@@ -1992,6 +2090,13 @@ public:
     MTracepoints.clear();
     MStringTableRef.clear();
     MNotifier.clear();
+    // Reset all effective levels to default
+    for (size_t i = 0; i <= STREAM_ID_MAX; ++i) {
+      MEffectiveStreamDetailLevels[i].store(
+          static_cast<uint8_t>(
+              xpti::stream_detail_level_t::XPTI_STREAM_DETAIL_LEVEL_NORMAL),
+          std::memory_order_relaxed);
+    }
   }
 
   /// @brief Enables or disables tracing globally.
@@ -2209,19 +2314,7 @@ public:
   /// nullptr otherwise.
   ///
   inline const xpti::trace_event_data_t *findEvent(uint64_t UniversalID) {
-    if (UniversalID == xpti::invalid_uid)
-      return nullptr;
-
-    if (MTracepoints.isValidUID64(UniversalID)) {
-      xpti::TracePointImpl *TP =
-          reinterpret_cast<xpti::TracePointImpl *>(UniversalID);
-      if (TP && xpti::is_valid_event(&TP->MEvent))
-        return &TP->MEvent;
-      else
-        return nullptr;
-    }
-
-    return nullptr;
+    return MTracepoints.findEvent(UniversalID);
   }
 
   ///
@@ -2263,8 +2356,15 @@ public:
     if (!Stream || !VersionString)
       return xpti::result_t::XPTI_RESULT_INVALIDARG;
 
+    // Initialize subscribers for the stream
     MSubscribers.initializeForStream(Stream, MajorRevision, MinorRevision,
                                      VersionString);
+
+    // Query subscribers for their requested detail level and compute effective
+    // level
+    xpti::stream_id_t stream_id = registerStream(Stream);
+    computeEffectiveStreamDetailLevel(stream_id, Stream);
+
     return xpti::result_t::XPTI_RESULT_SUCCESS;
   }
 
@@ -2466,6 +2566,42 @@ public:
 
   bool hasSubscribers() { return MSubscribers.hasValidSubscribers(); }
 
+  /// @brief Computes effective detail level by querying all subscribers.
+  ///
+  /// Queries all registered subscribers for their requested detail level for
+  /// the given stream and caches the maximum (most verbose) level requested.
+  /// This allows lock-free reads via getEffectiveStreamDetailLevel.
+  ///
+  /// @param stream The stream ID to compute.
+  /// @param stream_name The stream name for querying subscribers.
+  void computeEffectiveStreamDetailLevel(xpti::stream_id_t stream,
+                                         const char *stream_name) {
+    // Query all subscribers for their requested detail level for this stream
+    xpti::stream_detail_level_t max_level =
+        MSubscribers.querySubscribersForStreamDetailLevel(stream_name);
+
+    // Update the cached effective level atomically
+    MEffectiveStreamDetailLevels[stream].store(static_cast<uint8_t>(max_level),
+                                               std::memory_order_release);
+  }
+
+  /// @brief Gets the effective stream detail level for a stream.
+  ///
+  /// The effective detail level is the maximum requested level across all
+  /// subscribers for the given stream. If no subscriber has set a level for
+  /// the stream, the default (NORMAL) is returned.
+  ///
+  /// @param stream The stream ID for which the effective detail level is
+  ///               requested.
+  ///
+  /// @return The effective detail level for the stream.
+  xpti::stream_detail_level_t
+  getEffectiveStreamDetailLevel(xpti::stream_id_t stream) {
+    uint8_t level =
+        MEffectiveStreamDetailLevels[stream].load(std::memory_order_acquire);
+    return static_cast<xpti::stream_detail_level_t>(level);
+  }
+
   xpti::result_t finalizeStream(const char *Stream) {
     if (!Stream)
       return xpti::result_t::XPTI_RESULT_INVALIDARG;
@@ -2478,26 +2614,11 @@ public:
   }
 
   const xpti::payload_t *queryPayloadByUID(uint64_t uid) {
-    if (uid == xpti::invalid_uid)
-      return nullptr;
-    if (!MTracepoints.isValidUID64(uid))
-      return nullptr;
-
-    xpti::TracePointImpl *TP = reinterpret_cast<xpti::TracePointImpl *>(uid);
-    if (xpti::is_valid_payload(&TP->MPayload))
-      return &TP->MPayload;
-
-    return nullptr;
+    return MTracepoints.queryPayloadByUID(uid);
   }
 
   inline const xpti_payload_t *lookupPayload(uint64_t uid) {
-    if (!MTracepoints.isValidUID64(uid))
-      return nullptr;
-    xpti::TracePointImpl *TP = reinterpret_cast<xpti::TracePointImpl *>(uid);
-    if (TP && xpti::is_valid_payload(&TP->MPayload))
-      return TP->payload();
-    else
-      return nullptr;
+    return MTracepoints.lookupPayload(uid);
   }
 
   void printStatistics() {
@@ -2569,6 +2690,10 @@ private:
   xpti::Tracepoints MTracepoints;
   /// Flag indicates whether tracing should be enabled
   bool MTraceEnabled;
+  /// Cached effective detail levels per stream (indexed by stream_id)
+  /// Lock-free array of atomics for fast reads by producers
+  std::array<std::atomic<uint8_t>, STREAM_ID_MAX + 1>
+      MEffectiveStreamDetailLevels;
 };
 
 /// @var static int GFrameworkReferenceCounter
@@ -3722,6 +3847,11 @@ xptiSetDefaultTraceType(xpti::trace_point_type_t DefaultTraceType) {
 
 XPTI_EXPORT_API void xptiReleaseEvent(xpti::trace_event_data_t *Event) {
   return xpti::Framework::instance().releaseEvent(Event);
+}
+
+XPTI_EXPORT_API xpti::stream_detail_level_t
+xptiGetEffectiveStreamDetailLevel(xpti::stream_id_t stream) {
+  return xpti::Framework::instance().getEffectiveStreamDetailLevel(stream);
 }
 
 } // extern "C"

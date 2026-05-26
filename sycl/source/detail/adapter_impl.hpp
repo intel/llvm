@@ -54,7 +54,7 @@ public:
       : MAdapter(adapter), MBackend(UseBackend),
         MAdapterMutex(std::make_shared<std::mutex>()) {
 
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(SYCL_UR_STATIC_LOADER)
     UrLoaderHandle = ur::getURLoaderLibrary();
     PopulateUrFuncPtrTable(&UrFuncPtrs, UrLoaderHandle);
 #endif
@@ -218,7 +218,7 @@ private:
   // represents the unique ids of the last device of each platform
   // index of this vector corresponds to the index in UrPlatforms vector.
   std::vector<int> LastDeviceIds;
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(SYCL_UR_STATIC_LOADER)
   void *UrLoaderHandle = nullptr;
 #endif
   UrFuncPtrMapT UrFuncPtrs;

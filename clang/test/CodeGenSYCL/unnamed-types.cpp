@@ -24,6 +24,9 @@ namespace QL {
   auto dg_template = [] { return N; };
 }
 
+template <typename KernelName, typename... Ts>
+void sycl_kernel_launch(const char *, Ts...) {}
+
 using namespace QL;
 template<typename T>
 [[clang::sycl_kernel_entry_point(T)]] void f(T t) {

@@ -69,7 +69,7 @@ ur_native_handle_t platform::getNative() const { return impl->getNative(); }
 
 bool platform::has(aspect Aspect) const { return impl->has(Aspect); }
 
-#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
+#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, UrCode)              \
   template __SYCL_EXPORT detail::ABINeutralT_t<ReturnT>                        \
   platform::get_info_impl<info::platform::Desc>() const;
 

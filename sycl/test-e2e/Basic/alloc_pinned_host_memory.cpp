@@ -1,5 +1,8 @@
 // REQUIRES: level_zero || cuda
 
+// UNSUPPORTED: windows && gpu-intel-gen12
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21556
+
 // RUN: %{build} -o %t2.out
 // RUN: env SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t2.out %if level_zero %{ 2>&1 | FileCheck %s %}
 // RUN: %{run} %t2.out

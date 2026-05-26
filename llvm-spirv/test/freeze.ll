@@ -4,6 +4,10 @@
 ; All freeze instructions should be deleted and uses of freeze's result should be replaced
 ; with freeze's source or a random constant if freeze's source is poison or undef.
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM --implicit-check-not="= freeze"
+; RUN: %if spirv-backend %{ llc -O0 -mtriple=spirv64-unknown-unknown -filetype=obj %s -o %t.llc.spv %}
+; RUN: %if spirv-backend %{ llvm-spirv -r %t.llc.spv -o %t.llc.rev.bc %}
+; RUN: %if spirv-backend %{ llvm-dis %t.llc.rev.bc -o %t.llc.rev.ll %}
+; RUN: %if spirv-backend %{ FileCheck %s --check-prefix=CHECK-LLC --implicit-check-not="= freeze" < %t.llc.rev.ll %}
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
 target triple = "spir64-unknown-unknown"
@@ -21,6 +25,9 @@ define spir_func i32 @testfunction_i32A(i32 %val) {
    ret i32 %2
 }
 
+; CHECK-LLC: @testfunction_i32A
+; CHECK-LLC-NEXT: add i32 %val, 1
+
 ; CHECK-LLVM: @testfunction_i32B
 ; Frozen poison/undef should produce a constant.
 ; add should be deleted since both inputs are constant.
@@ -31,6 +38,9 @@ define spir_func i32 @testfunction_i32B(i32 %val) {
    ret i32 %2
 }
 
+; CHECK-LLC: @testfunction_i32B
+; CHECK-LLC-NEXT: ret i32
+
 ; CHECK-LLVM: @testfunction_i32C
 ; Frozen poison/undef should produce a constant.
 ; add should be deleted since both inputs are constant.
@@ -40,6 +50,9 @@ define spir_func i32 @testfunction_i32C(i32 %val) {
    %2 = add nsw i32 %1, 1   
    ret i32 %2
 }
+
+; CHECK-LLC: @testfunction_i32C
+; CHECK-LLC-NEXT: ret i32
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; test float
@@ -55,6 +68,9 @@ define spir_func float @testfunction_floatA(float %val) {
    ret float %2
 }
 
+; CHECK-LLC: @testfunction_floatA
+; CHECK-LLC-NEXT: fadd float %val
+
 ; CHECK-LLVM: @testfunction_floatB
 ; Frozen poison/undef should produce a constant.
 ; add should be deleted since both inputs are constant.
@@ -65,6 +81,9 @@ define spir_func float @testfunction_floatB(float %val) {
    ret float %2
 }
 
+; CHECK-LLC: @testfunction_floatB
+; CHECK-LLC-NEXT: ret float
+
 ; CHECK-LLVM: @testfunction_floatC
 ; Frozen poison/undef should produce a constant.
 ; add should be deleted since both inputs are constant.
@@ -74,6 +93,9 @@ define spir_func float @testfunction_floatC(float %val) {
    %2 = fadd float %1, 1.0
    ret float %2
 }
+
+; CHECK-LLC: @testfunction_floatC
+; CHECK-LLC-NEXT: ret float
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; test ptr
@@ -89,6 +111,9 @@ define spir_func i64 @testfunction_ptrA(ptr %val) {
    ret i64 %2
 }
 
+; CHECK-LLC: @testfunction_ptrA
+; CHECK-LLC-NEXT: ptrtoint ptr %val to i64
+
 ; CHECK-LLVM: @testfunction_ptrB
 ; Frozen poison/undef should produce a constant.
 ; For ptr type this constant is null.
@@ -99,6 +124,9 @@ define spir_func i64 @testfunction_ptrB(ptr addrspace(1) %val) {
    ret i64 %2
 }
 
+; CHECK-LLC: @testfunction_ptrB
+; CHECK-LLC-NEXT: ptrtoint ptr undef to i64
+
 ; CHECK-LLVM: @testfunction_ptrC
 ; Frozen poison/undef should produce a constant.
 ; For ptr type this constant is null.
@@ -108,3 +136,6 @@ define spir_func i64 @testfunction_ptrC(ptr addrspace(1) %val) {
    %2 = ptrtoint ptr %1 to i64
    ret i64 %2
 }
+
+; CHECK-LLC: @testfunction_ptrC
+; CHECK-LLC-NEXT: ptrtoint ptr undef to i64

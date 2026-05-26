@@ -1,9 +1,8 @@
 //===--------- device.hpp - Level Zero Adapter ----------------------------===//
 //
-// Copyright (C) 2023 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
@@ -256,22 +255,35 @@ struct ur_device_handle_t_ : ur_object {
 #endif // ZE_INTEL_DEVICE_BLOCK_ARRAY_EXP_NAME
   ZeCache<ZeStruct<ze_device_vector_width_properties_ext_t>>
       ZeDeviceVectorWidthPropertiesExt;
+  ZeCache<ZexStruct<ze_intel_xe_device_exp_properties_t>> ZeXEDeviceProperties;
 
   // Map device bindless image offset to corresponding host image handle.
   std::unordered_map<ur_exp_image_native_handle_t, ze_image_handle_t>
       ZeOffsetToImageHandleMap;
 
-  // unique ephemeral identifer of the device in the adapter
+  // Devices which user enabled p2p access by
+  // urUsmP2P(Enable|Disable)PeerAccessExp. Devices are indexed by device id.
+  enum class PeerStatus : char { ENABLED, DISABLED, NO_CONNECTION };
+  std::vector<PeerStatus>
+      peers; // info if our device can access given peer device allocations
+
+  // unique ephemeral identifier of the device in the adapter
   std::optional<DeviceId> Id;
 
   ur::RefCount RefCount;
 };
+
+std::ostream &operator<<(std::ostream &os,
+                         ur_device_handle_t_ const &device_handle);
+std::ostream &operator<<(std::ostream &os,
+                         ur_device_handle_t_::PeerStatus peer_status);
 
 // Collects a flat vector of unique devices for USM memory pool creation.
 // Traverses the input devices and their sub-devices, ensuring each Level Zero
 // device handle appears only once in the result.
 inline std::vector<ur_device_handle_t> CollectDevicesForUsmPoolCreation(
     const std::vector<ur_device_handle_t> &Devices) {
+
   std::vector<ur_device_handle_t> DevicesAndSubDevices;
   std::unordered_set<ze_device_handle_t> Seen;
 
