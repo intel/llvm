@@ -768,7 +768,7 @@ EventImplPtr queue_impl::submit_kernel_direct_impl(
     KData.extractArgsAndReqsFromLambda();
 
     // Extract data to move KData
-    auto KernelCacheConfig = KData.getKernelCacheConfig();
+    ur_kernel_cache_config_t KernelCacheConfig = KData.getKernelCacheConfig();
     bool IsCooperative = KData.isCooperative();
     bool UsesClusterLaunch = KData.usesClusterLaunch();
     size_t KernelWorkGroupMemorySize = KData.getKernelWorkGroupMemorySize();
