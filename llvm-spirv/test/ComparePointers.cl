@@ -8,6 +8,7 @@ kernel void test(int global *in, int global *in2) {
   if (in < in2)
     return;
 }
+// clang-format off
 // RUN: %clang_cc1 -triple spir64 -x cl -cl-std=CL2.0 -O0 -emit-llvm-bc %s -o %t.bc
 // RUN: llvm-spirv %t.bc --spirv-max-version=1.3 -o %t.spv
 // RUN: spirv-val %t.spv
@@ -18,6 +19,7 @@ kernel void test(int global *in, int global *in2) {
 // RUN: spirv-val %t.spv
 // RUN: llvm-spirv %t.bc -spirv-text -o %t.spt
 // RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV-14
+// clang-format on
 
 // CHECK-SPIRV:ConvertPtrToU 
 // CHECK-SPIRV:ConvertPtrToU
