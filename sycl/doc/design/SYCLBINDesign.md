@@ -76,7 +76,7 @@ reader reconstructs the abstract-module structure from `am_index`. Tools that
 emit SYCLBIN should keep entries belonging to the same abstract module
 contiguous for human readability of `syclbin-dump` output.
 
-#### Global metadata
+### Global metadata
 
 The global metadata entry contains a single property set with the identifying
 name "SYCLBIN/global metadata", as described in the

@@ -219,25 +219,22 @@ Error SYCLBIN::write(const SYCLBIN::SYCLBINDesc &Desc, raw_ostream &OS) {
 
   // Per-image helper: serialize IR/native metadata PropertySetRegistry into
   // a SmallString.
-  auto serializeImageMetadata =
-      [](const SYCLBINDesc::ImageDesc &ID, StringRef Category,
-         SmallString<0> &Out) {
-        raw_svector_ostream MetadataOS(Out);
-        llvm::util::PropertySetRegistry Reg;
-        if (Category ==
-            llvm::util::PropertySetRegistry::SYCLBIN_IR_MODULE_METADATA) {
-          Reg.add(Category, "type", ID.IRType);
-          Reg.add(Category, "target", StringRef(ID.TargetTripleStr));
-        } else {
-          assert(
-              Category ==
-              llvm::util::PropertySetRegistry::
-                  SYCLBIN_NATIVE_DEVICE_CODE_IMAGE_METADATA);
-          Reg.add(Category, "arch", StringRef(ID.ArchString));
-          Reg.add(Category, "target", StringRef(ID.TargetTripleStr));
-        }
-        Reg.write(MetadataOS);
-      };
+  auto serializeImageMetadata = [](const SYCLBINDesc::ImageDesc &ID,
+                                   StringRef Category, SmallString<0> &Out) {
+    raw_svector_ostream MetadataOS(Out);
+    llvm::util::PropertySetRegistry Reg;
+    if (Category ==
+        llvm::util::PropertySetRegistry::SYCLBIN_IR_MODULE_METADATA) {
+      Reg.add(Category, "type", ID.IRType);
+      Reg.add(Category, "target", StringRef(ID.TargetTripleStr));
+    } else {
+      assert(Category == llvm::util::PropertySetRegistry::
+                             SYCLBIN_NATIVE_DEVICE_CODE_IMAGE_METADATA);
+      Reg.add(Category, "arch", StringRef(ID.ArchString));
+      Reg.add(Category, "target", StringRef(ID.TargetTripleStr));
+    }
+    Reg.write(MetadataOS);
+  };
 
   // Entry 0: global metadata.
   {
@@ -312,11 +309,10 @@ Error SYCLBIN::write(const SYCLBIN::SYCLBINDesc &Desc, raw_ostream &OS) {
         return createFileError(NDCID.FilePath, FileBufferOrError.getError());
 
       SmallString<0> MetadataBlob;
-      serializeImageMetadata(
-          NDCID,
-          llvm::util::PropertySetRegistry::
-              SYCLBIN_NATIVE_DEVICE_CODE_IMAGE_METADATA,
-          MetadataBlob);
+      serializeImageMetadata(NDCID,
+                             llvm::util::PropertySetRegistry::
+                                 SYCLBIN_NATIVE_DEVICE_CODE_IMAGE_METADATA,
+                             MetadataBlob);
 
       if (Error E = buildPayload(MetadataBlob,
                                  (*FileBufferOrError)->getBuffer(), S.Image))
@@ -339,8 +335,8 @@ Error SYCLBIN::write(const SYCLBIN::SYCLBINDesc &Desc, raw_ostream &OS) {
   for (size_t I = 0; I < Images.size(); ++I)
     Images[I].Image =
         MemoryBuffer::getMemBuffer(Storage[I].Image->getBuffer(),
-                                    /*BufferName=*/"",
-                                    /*RequiresNullTerminator=*/false);
+                                   /*BufferName=*/"",
+                                   /*RequiresNullTerminator=*/false);
 
   // Pass 3: hand everything to OffloadBinary::write.
   SmallString<0> Bytes = OffloadBinary::write(Images);
@@ -374,8 +370,8 @@ Expected<std::unique_ptr<SYCLBIN>> SYCLBIN::read(MemoryBufferRef Source) {
   // Discriminator: v1 -> first entry's image starts with SYBI magic.
   if (hasLegacyMagic(OBVec[0]->getImage())) {
     // Hand the inner SYBI-magic image to the v1 reader.
-    return readV1(MemoryBufferRef(OBVec[0]->getImage(),
-                                  Source.getBufferIdentifier()));
+    return readV1(
+        MemoryBufferRef(OBVec[0]->getImage(), Source.getBufferIdentifier()));
   }
 
   // v2: dispatch to the multi-entry reader.
@@ -528,8 +524,7 @@ Error splitImagePayload(StringRef Image, StringRef &Metadata,
   if (Image.size() < sizeof(uint64_t))
     return createStringError(inconvertibleErrorCode(),
                              "SYCLBIN v2 entry image too small.");
-  uint64_t MetadataSize =
-      support::endian::read64le(Image.data());
+  uint64_t MetadataSize = support::endian::read64le(Image.data());
   if (MetadataSize > Image.size() - sizeof(uint64_t))
     return createStringError(inconvertibleErrorCode(),
                              "SYCLBIN v2 entry metadata size out of range.");
@@ -612,8 +607,7 @@ Expected<std::unique_ptr<SYCLBIN>> SYCLBIN::readV2(MemoryBufferRef Source) {
             inconvertibleErrorCode(),
             "SYCLBIN v2 has duplicate am_metadata for am_index " +
                 std::to_string(*IdxOrErr) + ".");
-      if (Error E = parsePropertyRegistry(OB->getImage())
-                        .moveInto(AM.Metadata))
+      if (Error E = parsePropertyRegistry(OB->getImage()).moveInto(AM.Metadata))
         return std::move(E);
     } else if (Role == "ir" || Role == "native") {
       StringRef MetadataBlob, RawBytes;
@@ -641,10 +635,9 @@ Expected<std::unique_ptr<SYCLBIN>> SYCLBIN::readV2(MemoryBufferRef Source) {
   // Validate every AM has metadata.
   for (size_t I = 0; I < Result->AbstractModules.size(); ++I) {
     if (!Result->AbstractModules[I].Metadata)
-      return createStringError(
-          inconvertibleErrorCode(),
-          "SYCLBIN v2 missing am_metadata for am_index " + std::to_string(I) +
-              ".");
+      return createStringError(inconvertibleErrorCode(),
+                               "SYCLBIN v2 missing am_metadata for am_index " +
+                                   std::to_string(I) + ".");
   }
 
   return std::move(Result);
