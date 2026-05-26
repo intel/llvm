@@ -5,15 +5,11 @@
 
 #include <type_traits>
 
-namespace {
-
 using sycl::access::address_space;
 using sycl::access::decorated;
 
 template <typename ElementType, address_space Space, decorated IsDecorated>
 using multi_ptr_t = sycl::multi_ptr<ElementType, Space, IsDecorated>;
-
-} // namespace
 
 TEST(MultiPtrAccessors, AccessorDevice) {
   using rw_acc = sycl::accessor<int, 1, sycl::access_mode::read_write,
