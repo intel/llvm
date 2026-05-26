@@ -91,18 +91,22 @@
 // RUN: %{run} %t.exe --type int8 --channels 4 --sampled 32x33
 
 // Semaphore coverage tests
-// RUN: %{run} %t.exe --type float --channels 4 --semaphores 32x33
-// RUN: %{run} %t.exe --type half --channels 2 --semaphores 32x33
-// RUN: %{run} %t.exe --type int32 --channels 1 --semaphores 32x33
-// RUN: %{run} %t.exe --type uint32 --channels 4 --semaphores 32x33
-// RUN: %{run} %t.exe --type int16 --channels 2 --semaphores 32x33
-// RUN: %{run} %t.exe --type uint16 --channels 1 --semaphores 32x33
-// RUN: %{run} %t.exe --type uint8 --channels 4 --semaphores 32x33
-// RUN: %{run} %t.exe --type int8 --channels 2 --semaphores 32x33
-// RUN: %{run} %t.exe --type float --channels 4 --sampled --semaphores 32x33
-// RUN: %{run} %t.exe --type half --channels 2 --sampled --semaphores 32x33
-// RUN: %{run} %t.exe --type int32 --channels 1 --sampled --semaphores 32x33
-// RUN: %{run} %t.exe --type uint32 --channels 4 --sampled --semaphores 32x33
+// On Windows, we require driver 38303 or later to avoid semaphore issues, which the CI does not yet have. 
+// Rather than mark the WHOLE test as requiring 38303, which would mean no testing nowhere,
+// we are limiting it with R U N - I F 
+
+// RUN-IF: (!gpu-intel-dg2 && !arch-intel_gpu_bmg_g21), %{run} %t.exe --type float --channels 4 --semaphores 32x33
+// RUN-IF: (!gpu-intel-dg2 && !arch-intel_gpu_bmg_g21), %{run} %t.exe --type half --channels 2 --semaphores 32x33
+// RUN-IF: (!gpu-intel-dg2 && !arch-intel_gpu_bmg_g21), %{run} %t.exe --type int32 --channels 1 --semaphores 32x33
+// RUN-IF: (!gpu-intel-dg2 && !arch-intel_gpu_bmg_g21), %{run} %t.exe --type uint32 --channels 4 --semaphores 32x33
+// RUN-IF: (!gpu-intel-dg2 && !arch-intel_gpu_bmg_g21), %{run} %t.exe --type int16 --channels 2 --semaphores 32x33
+// RUN-IF: (!gpu-intel-dg2 && !arch-intel_gpu_bmg_g21), %{run} %t.exe --type uint16 --channels 1 --semaphores 32x33
+// RUN-IF: (!gpu-intel-dg2 && !arch-intel_gpu_bmg_g21), %{run} %t.exe --type uint8 --channels 4 --semaphores 32x33
+// RUN-IF: (!gpu-intel-dg2 && !arch-intel_gpu_bmg_g21), %{run} %t.exe --type int8 --channels 2 --semaphores 32x33
+// RUN-IF: (!gpu-intel-dg2 && !arch-intel_gpu_bmg_g21), %{run} %t.exe --type float --channels 4 --sampled --semaphores 32x33
+// RUN-IF: (!gpu-intel-dg2 && !arch-intel_gpu_bmg_g21), %{run} %t.exe --type half --channels 2 --sampled --semaphores 32x33
+// RUN-IF: (!gpu-intel-dg2 && !arch-intel_gpu_bmg_g21), %{run} %t.exe --type int32 --channels 1 --sampled --semaphores 32x33
+// RUN-IF: (!gpu-intel-dg2 && !arch-intel_gpu_bmg_g21), %{run} %t.exe --type uint32 --channels 4 --sampled --semaphores 32x33
 
 // clang-format on
 

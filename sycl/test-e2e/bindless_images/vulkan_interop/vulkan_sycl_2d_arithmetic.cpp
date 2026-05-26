@@ -110,8 +110,6 @@
     WxH            Set custom Width x Height (e.g. 8x4)
     --sampled
 
-  // RUN: %{run} %t.out --type float --semaphores
-  // RUN: %{run} %t.out --type unorm8 --sampled --semaphores
 */
 
 // clang-format on
@@ -227,6 +225,7 @@ int runTest(
 
   VkSemaphore semA = VK_NULL_HANDLE;
   VkSemaphore semB = VK_NULL_HANDLE;
+  VkSemaphore semOutVk = VK_NULL_HANDLE;
   if (useSemaphores) {
     semA = createExportableSemaphore(vkCtx);
     semB = createExportableSemaphore(vkCtx);
@@ -288,7 +287,6 @@ int runTest(
 #endif
 
     syclexp::external_semaphore extSemA, extSemB, extSemOut;
-    VkSemaphore semOutVk = VK_NULL_HANDLE;
     if (useSemaphores) {
       semOutVk = createExportableSemaphore(vkCtx);
 #ifdef _WIN32
@@ -606,6 +604,8 @@ int runTest(
         vkDestroySemaphore(vkCtx.device, semA, nullptr);
       if (semB)
         vkDestroySemaphore(vkCtx.device, semB, nullptr);
+      if (semOutVk)
+        vkDestroySemaphore(vkCtx.device, semOutVk, nullptr);
     }
     cleanupImageResources(vkCtx, imgA);
     cleanupImageResources(vkCtx, imgB);

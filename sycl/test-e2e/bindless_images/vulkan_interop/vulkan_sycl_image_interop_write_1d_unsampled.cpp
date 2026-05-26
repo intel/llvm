@@ -49,7 +49,7 @@
 // RUN: %{run} %t.out --type int8 --channels 4 32
 
 // On Linux L0, there are problem with semaphores and latest drivers.
-// GSD-12371 GSD-12339
+// GSD-12371 GSD-12339  We need driver version 38362 or later.
 
 // RUN-IF: !level_zero, %{run} %t.out --type float --channels 1 32 --semaphores
 // RUN-IF: !level_zero, %{run} %t.out --type half --channels 2 32 --semaphores
