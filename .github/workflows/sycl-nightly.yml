@@ -233,18 +233,18 @@ jobs:
   #     toolchain_artifact_filename: ${{ needs.ubuntu2404_oneapi_build.outputs.toolchain_artifact_filename }}
   #     toolchain_decompress_command: ${{ needs.ubuntu2404_oneapi_build.outputs.toolchain_decompress_command }}
 
-  # build-win:
-  #   needs: get_date
-  #   uses: ./.github/workflows/sycl-windows-build.yml
-  #   if: github.repository == 'intel/llvm'
-  #   with:
-  #     retention-days: 90
-  #     # We upload both Linux/Windows build via Github's "Releases"
-  #     # functionality, make sure Linux/Windows names follow the same pattern.
-  #     toolchain_artifact_filename: sycl_windows.tar.gz
-  #     # Disable the spirv-dis requirement as to not require SPIR-V Tools.
-  #     build_configure_extra_args: -DLLVM_SPIRV_ENABLE_LIBSPIRV_DIS=off -DSYCL_BUILD_INFO="Nightly ${{ needs.get_date.outputs.date }}"
-  #     build_target: all
+  build-win:
+    needs: get_date
+    uses: ./.github/workflows/sycl-windows-build.yml
+    if: github.repository == 'intel/llvm'
+    with:
+      retention-days: 90
+      # We upload both Linux/Windows build via Github's "Releases"
+      # functionality, make sure Linux/Windows names follow the same pattern.
+      toolchain_artifact_filename: sycl_windows.tar.gz
+      # Disable the spirv-dis requirement as to not require SPIR-V Tools.
+      build_configure_extra_args: -DLLVM_SPIRV_ENABLE_LIBSPIRV_DIS=off -DSYCL_BUILD_INFO="Nightly ${{ needs.get_date.outputs.date }}"
+      build_target: all
 
   # e2e-win:
   #   needs: build-win
