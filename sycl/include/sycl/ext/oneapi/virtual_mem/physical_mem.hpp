@@ -43,7 +43,7 @@ public:
                size_t NumBytes,
                const PropertyListT &PropList = empty_properties_t{}) {
 
-    bool EnableIPC = PropertyListT::template has_property<enable_ipc_key>();
+    bool EnableIPC = PropList.template has_property<enable_ipc_key>();
 
     create(SyclDevice, SyclContext, NumBytes, EnableIPC);
   }
