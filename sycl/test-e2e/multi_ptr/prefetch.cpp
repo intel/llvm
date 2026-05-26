@@ -34,31 +34,31 @@ template <access::decorated IsDecorated> void testPrefetchWithDecoration() {
   Q.submit([&](handler &CGH) {
     auto Acc = Buf.get_access<access::mode::read_write>(CGH);
 
-    CGH.parallel_for<PrefetchKernel<IsDecorated>>(range<1>(Size),
-                                                  [=](id<1> Index) {
-      auto Ptr = Acc.template get_multi_ptr<IsDecorated>();
+    CGH.parallel_for<PrefetchKernel<IsDecorated>>(
+        range<1>(Size), [=](id<1> Index) {
+          auto Ptr = Acc.template get_multi_ptr<IsDecorated>();
 
-      // Test prefetch with different element counts
-      if (Index[0] == 0) {
-        Ptr.prefetch(1);
-        Ptr.prefetch(16);
-        Ptr.prefetch(64);
-        Ptr.prefetch(256);
-      }
+          // Test prefetch with different element counts
+          if (Index[0] == 0) {
+            Ptr.prefetch(1);
+            Ptr.prefetch(16);
+            Ptr.prefetch(64);
+            Ptr.prefetch(256);
+          }
 
-      // Test prefetch at different offsets
-      if (Index[0] < Size - 100) {
-        auto OffsetPtr = Ptr + Index[0];
-        OffsetPtr.prefetch(10);
-      }
+          // Test prefetch at different offsets
+          if (Index[0] < Size - 100) {
+            auto OffsetPtr = Ptr + Index[0];
+            OffsetPtr.prefetch(10);
+          }
 
-      // Actual computation to ensure prefetch is useful
-      int Sum = 0;
-      for (size_t i = 0; i < 10 && Index[0] + i < Size; ++i) {
-        Sum += Ptr[Index[0] + i];
-      }
-      Acc[Index] = Sum;
-    });
+          // Actual computation to ensure prefetch is useful
+          int Sum = 0;
+          for (size_t i = 0; i < 10 && Index[0] + i < Size; ++i) {
+            Sum += Ptr[Index[0] + i];
+          }
+          Acc[Index] = Sum;
+        });
   });
 
   Q.wait();
