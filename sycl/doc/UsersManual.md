@@ -187,7 +187,7 @@ and not recommended to use in production environment.
     file (translation unit) will always be launched with a global range that is
     less than or equal to INT_MAX, UINT_MAX, or SIZE_MAX. The application is
     responsible for ensuring that it never invokes these kernels with a larger
-    global range. Application code may assume that the return values from the
+    global range. The compiler may assume that the return values from the
     following functions fit within the data type specified by this option:
 
     * id class get() member function and operator[]
