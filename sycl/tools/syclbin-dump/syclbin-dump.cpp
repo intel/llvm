@@ -118,9 +118,8 @@ int main(int argc, char **argv) {
   // the v1 (legacy SYBI-magic) and v2 (multi-entry OffloadBinary) layouts
   // internally.
   std::unique_ptr<llvm::object::SYCLBIN> ParsedSYCLBIN;
-  if (llvm::Error E =
-          llvm::object::SYCLBIN::read(**FileMemBufferOrError)
-              .moveInto(ParsedSYCLBIN)) {
+  if (llvm::Error E = llvm::object::SYCLBIN::read(**FileMemBufferOrError)
+                          .moveInto(ParsedSYCLBIN)) {
     errs() << "Failed to parse SYCLBIN file: " << E << "\n";
     std::abort();
   }

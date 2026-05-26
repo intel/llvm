@@ -411,9 +411,8 @@ std::vector<uint8_t> buildLegacyV1Buffer() {
 // (legacy SYBI-magic) on-disk format produced by pre-v2 toolchains.
 TEST(SYCLBINTest, checkLegacyV1ReaderBackwardCompat) {
   std::vector<uint8_t> Buf = buildLegacyV1Buffer();
-  std::unique_ptr<MemoryBuffer> MemBuf =
-      MemoryBuffer::getMemBufferCopy(StringRef(
-          reinterpret_cast<const char *>(Buf.data()), Buf.size()));
+  std::unique_ptr<MemoryBuffer> MemBuf = MemoryBuffer::getMemBufferCopy(
+      StringRef(reinterpret_cast<const char *>(Buf.data()), Buf.size()));
 
   Expected<std::unique_ptr<SYCLBIN>> Result = SYCLBIN::read(*MemBuf);
   ASSERT_THAT_EXPECTED(Result, Succeeded());

@@ -185,8 +185,9 @@ void SYCLBINBinaries::Impl::populateBinaries() {
       const auto &NDCI = AM.NativeDeviceCodeImages[J];
 
       assert(NDCI.Metadata != nullptr);
-      auto &NDCIMetadataProps = (*NDCI.Metadata)[llvm::util::
-          PropertySetRegistry::SYCLBIN_NATIVE_DEVICE_CODE_IMAGE_METADATA];
+      auto &NDCIMetadataProps =
+          (*NDCI.Metadata)[llvm::util::PropertySetRegistry::
+                               SYCLBIN_NATIVE_DEVICE_CODE_IMAGE_METADATA];
 
       auto &TargetTripleProp = NDCIMetadataProps[llvm::StringRef("target")];
       std::string_view TargetTriple{
