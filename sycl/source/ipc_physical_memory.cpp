@@ -28,12 +28,6 @@ openIPCPhysicalMemHandle(const std::byte *HandleData, size_t HandleDataSize,
   auto CtxImpl = sycl::detail::getSyclObjImpl(Ctx);
   sycl::detail::adapter_impl &Adapter = CtxImpl->getAdapter();
 
-  size_t NumBytes;
-  std::memcpy(&NumBytes, HandleData, sizeof(size_t));
-
-  const std::byte *ActualHandleData = HandleData + sizeof(size_t);
-  size_t ActualHandleSize = HandleDataSize - sizeof(size_t);
-
   ur_physical_mem_handle_t PhysMemHandle = nullptr;
   ur_result_t UrRes = UR_RESULT_SUCCESS;
   // TODO IPC physical memory
@@ -41,7 +35,7 @@ openIPCPhysicalMemHandle(const std::byte *HandleData, size_t HandleDataSize,
   UrRes =
   Adapter.call_nocheck<sycl::detail::UrApiKind::urIPCOpenPhysMemHandleExp>(
       CtxImpl->getHandleRef(), getSyclObjImpl(Dev)->getHandleRef(),
-      ActualHandleData, ActualHandleSize, &PhysMemHandle);
+      HandleData, HandleDataSize, &PhysMemHandle);
   */
   if (UrRes == UR_RESULT_ERROR_INVALID_VALUE)
     throw sycl::exception(
@@ -55,10 +49,26 @@ openIPCPhysicalMemHandle(const std::byte *HandleData, size_t HandleDataSize,
         "urIPCOpenPhysMemHandleExp returned success but did not produce a "
         "valid physical memory handle.");
 
-  auto PhysMemImpl = std::make_shared<sycl::detail::physical_mem_impl>(
+  try {
+    // Query the actual allocation size from the opened handle so that
+    // physical_mem::size() returns the correct value.
+    size_t NumBytes = 0;
+    Adapter.call<sycl::detail::UrApiKind::urPhysicalMemGetInfo>(
+        PhysMemHandle, UR_PHYSICAL_MEM_INFO_SIZE, sizeof(size_t), &NumBytes,
+        nullptr);
+
+    auto PhysMemImpl = std::make_shared<sycl::detail::physical_mem_impl>(
       *getSyclObjImpl(Dev), Ctx, NumBytes, PhysMemHandle);
-  return sycl::detail::createSyclObjFromImpl<
+    return sycl::detail::createSyclObjFromImpl<
       ext::oneapi::experimental::physical_mem>(PhysMemImpl);
+  } catch (...) {
+    // TODO IPC physical memory
+    /*
+    Adapter.call_nocheck<sycl::detail::UrApiKind::urIPCClosePhysMemHandleExp>(
+        CtxImpl->getHandleRef(), PhysMemHandle);
+    */
+    throw;
+  }
 }
 
 } // namespace detail
@@ -78,9 +88,6 @@ __SYCL_EXPORT handle get(physical_mem &physmem) {
 
   void *HandlePtr = nullptr;
   size_t HandleSize = 0;
-  // Additional memory space required to store the physical memory size. This
-  // space is allocated by UR at the beginning of the whole handle allocation.
-  size_t HandleExtensionSize = sizeof(size_t);
   auto UrRes = UR_RESULT_SUCCESS;
   // TODO IPC physical memory
   // UR returns total handle size (including the extension)
@@ -88,12 +95,8 @@ __SYCL_EXPORT handle get(physical_mem &physmem) {
   UrRes =
   Adapter.call_nocheck<sycl::detail::UrApiKind::urIPCGetPhysMemHandleExp>(
     CtxImpl->getHandleRef(), PhysMemImpl->getHandleRef(), &HandlePtr,
-    &HandleSize, HandleExtensionSize);
+    &HandleSize);
   */
-
-  // Copy the physical memory allocation size to the handle
-  size_t NumBytes = physmem.size();
-  std::memcpy(HandlePtr, &NumBytes, sizeof(size_t));
 
   return {HandlePtr, HandleSize};
 }
