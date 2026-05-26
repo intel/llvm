@@ -31,6 +31,7 @@
 #include "llvm/Object/Archive.h"
 #include "llvm/Object/ArchiveWriter.h"
 #include "llvm/Object/Binary.h"
+#include "llvm/Object/Error.h"
 #include "llvm/Object/ObjectFile.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Compiler.h"
@@ -1172,6 +1173,26 @@ class ArchiveFileHandler final : public FileHandler {
 public:
   ArchiveFileHandler(const OffloadBundlerConfig &BC) : BundlerConfig(BC) {}
   ~ArchiveFileHandler() = default;
+
+  /// Override listBundleIDs to prevent base class from doing multi-bundle iteration
+  /// which is not appropriate for archives.
+  Error listBundleIDs(MemoryBuffer &Input) override {
+    // For archives, we only call ReadHeader once on the whole archive
+    StringRef BufferString = Input.getBuffer();
+    Error Err = ReadHeader(BufferString);
+    if (Err)
+      return Err;
+
+    Err = forEachBundle(BufferString, [&](const BundleInfo &Info) -> Error {
+      llvm::outs() << Info.BundleID << '\n';
+      Error Err = listBundleIDsCallback(Input, Info);
+      if (Err)
+        return Err;
+      return Error::success();
+    });
+
+    return Err;
+  }
 
   Error ReadHeader(StringRef Input) override {
     assert(Mode != OutputType::Unknown && "unknown output mode");
