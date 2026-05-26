@@ -58,9 +58,9 @@ openIPCPhysicalMemHandle(const std::byte *HandleData, size_t HandleDataSize,
         nullptr);
 
     auto PhysMemImpl = std::make_shared<sycl::detail::physical_mem_impl>(
-      *getSyclObjImpl(Dev), Ctx, NumBytes, PhysMemHandle);
+        *getSyclObjImpl(Dev), Ctx, NumBytes, PhysMemHandle);
     return sycl::detail::createSyclObjFromImpl<
-      ext::oneapi::experimental::physical_mem>(PhysMemImpl);
+        ext::oneapi::experimental::physical_mem>(PhysMemImpl);
   } catch (...) {
     // TODO IPC physical memory
     /*
