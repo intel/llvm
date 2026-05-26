@@ -7,6 +7,11 @@
 #include <sycl/ext/oneapi/bfloat16.hpp>
 #include <sycl/half_type.hpp>
 
+#if defined(_MSC_VER)
+#define _Float16 sycl::half
+#define __bf16 sycl::ext::oneapi::bfloat16
+#endif
+
 // Force code path that uses helpers.hpp wrappers.
 #ifndef __SYCL_DEVICE_ONLY__
 #define __SYCL_DEVICE_ONLY__ 1

@@ -409,7 +409,7 @@ static inline uint8_t ConvertFloatToFP8_CPU(T f, rounding R,
   };
 
   UInt bits;
-  __builtin_memcpy(&bits, &f, sizeof(bits));
+  std::memcpy(&bits, &f, sizeof(bits));
 
   const uint8_t sign = (bits & SignMask) ? 0x80u : 0x00u;
   bits &= ~SignMask;
@@ -541,7 +541,7 @@ static inline uint8_t ConvertFloatToE8M0_CPU(T f, rounding R,
   constexpr int TargetEmax = 127;
 
   UInt h;
-  __builtin_memcpy(&h, &f, sizeof(h));
+  std::memcpy(&h, &f, sizeof(h));
   h &= ~SignMask;
 
   UInt exp = (h & ExpMask) >> Traits::FracBits;
