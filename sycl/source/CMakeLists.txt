@@ -122,10 +122,17 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
   # runtime. LLVM headers are confined to the syclbin.cpp translation unit via
   # PIMPL on SYCLBINBinaries, so no LLVM types leak into runtime headers and
   # no LLVM symbols are exported from libsycl.
+  #
+  # On MSVC the LLVM libraries are built once for a single CRT. The runtime
+  # builds two flavours (sycl9 / sycl9d) with different CRTs, so we can only
+  # link LLVM into the flavour whose CRT matches the LLVM build's CRT. The
+  # other flavour gets a fallback build of detail/syclbin.cpp that compiles
+  # the SYCLBINBinaries methods as throwing stubs (see SYCL_RT_HAS_LLVMOBJECT).
   if(NOT MSVC OR (CMAKE_BUILD_TYPE STREQUAL "Debug" AND ARG_COMPILE_OPTIONS MATCHES ".*MDd.*") OR
     (NOT CMAKE_BUILD_TYPE STREQUAL "Debug" AND NOT ARG_COMPILE_OPTIONS MATCHES ".*MDd.*"))
       add_dependencies(${LIB_NAME} LLVMObject)
       target_link_libraries(${LIB_NAME} PRIVATE LLVMObject)
+      target_compile_definitions(${LIB_OBJ_NAME} PRIVATE SYCL_RT_HAS_LLVMOBJECT)
   endif()
 
   # TODO: Enabled for MSVC

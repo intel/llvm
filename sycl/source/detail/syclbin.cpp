@@ -11,10 +11,17 @@
 #include <detail/program_manager/program_manager.hpp>
 #include <detail/syclbin.hpp>
 
+// SYCL_RT_HAS_LLVMOBJECT is defined by sycl/source/CMakeLists.txt for the
+// runtime flavour whose CRT matches the LLVM build. The other flavour (for
+// example, sycl9d when LLVM is built with the release CRT) compiles this TU
+// with the macro undefined and falls back to throwing stubs so the runtime
+// still links without referencing any LLVM symbols.
+#ifdef SYCL_RT_HAS_LLVMOBJECT
 #include "llvm/Object/SYCLBIN.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/PropertySetIO.h"
+#endif
 
 #include <cstring>
 #include <deque>
@@ -27,6 +34,8 @@
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
+
+#ifdef SYCL_RT_HAS_LLVMOBJECT
 
 namespace {
 
@@ -325,6 +334,48 @@ SYCLBINBinaries::getNativeBinaryImages(device_impl &Dev) {
   }
   return Images;
 }
+
+#else // SYCL_RT_HAS_LLVMOBJECT
+
+// Stub implementation for runtime flavours that cannot link LLVMObject (for
+// example, the MSVC sycl runtime DLL whose CRT does not match the CRT used to
+// build the LLVM libraries). Any attempt to construct or query a
+// SYCLBINBinaries throws errc::feature_not_supported -- the runtime can still
+// link and operate, just without SYCLBIN parsing support.
+
+struct SYCLBINBinaries::Impl {};
+
+[[noreturn]] static void throwUnsupported() {
+  throw sycl::exception(
+      make_error_code(errc::feature_not_supported),
+      "SYCLBIN parsing is not available in this build of the SYCL runtime "
+      "library (LLVM SYCLBIN reader was not linked into this runtime "
+      "flavour).");
+}
+
+SYCLBINBinaries::SYCLBINBinaries(const char *, size_t) { throwUnsupported(); }
+
+SYCLBINBinaries::SYCLBINBinaries(SYCLBINBinaries &&) noexcept = default;
+SYCLBINBinaries &
+SYCLBINBinaries::operator=(SYCLBINBinaries &&) noexcept = default;
+SYCLBINBinaries::~SYCLBINBinaries() = default;
+
+uint8_t SYCLBINBinaries::getState() const { throwUnsupported(); }
+
+std::vector<const RTDeviceBinaryImage *>
+SYCLBINBinaries::getBestCompatibleImages(device_impl &, bundle_state) {
+  throwUnsupported();
+}
+
+std::vector<const RTDeviceBinaryImage *>
+SYCLBINBinaries::getBestCompatibleImages(devices_range, bundle_state) {
+  throwUnsupported();
+}
+
+std::vector<const RTDeviceBinaryImage *>
+SYCLBINBinaries::getNativeBinaryImages(device_impl &) { throwUnsupported(); }
+
+#endif // SYCL_RT_HAS_LLVMOBJECT
 
 } // namespace detail
 } // namespace _V1
