@@ -108,6 +108,12 @@ struct SYCLBINBinaries::Impl {
   std::deque<std::vector<_sycl_device_binary_property_struct>> BinaryProperties;
   std::deque<std::vector<_sycl_device_binary_property_set_struct>>
       BinaryPropertySets;
+  // PropertySetRegistry keys are llvm::SmallString<16>, whose data() is not
+  // guaranteed to be null-terminated. The C-ABI sycl_device_binary_property*
+  // structs require null-terminated char* names, so we own null-terminated
+  // copies here. std::deque keeps element pointers stable as more strings
+  // are appended for subsequent abstract modules.
+  std::deque<std::string> PropertyNameStorage;
 
   std::vector<sycl_device_binary_struct> DeviceBinaries;
 
@@ -244,7 +250,9 @@ SYCLBINBinaries::Impl::convertAbstractModuleProperties(
       auto &PropName = PropIt.first;
       auto &PropVal = PropIt.second;
       _sycl_device_binary_property_struct &BinProp = PropsList.emplace_back();
-      BinProp.Name = const_cast<char *>(PropName.data());
+      auto &OwnedName = PropertyNameStorage.emplace_back(PropName.data(),
+                                                          PropName.size());
+      BinProp.Name = const_cast<char *>(OwnedName.c_str());
       BinProp.Type = static_cast<uint32_t>(PropVal.getType());
       if (BinProp.Type == SYCL_PROPERTY_TYPE_UINT32) {
         // UINT32 properties have their value stored in the size instead.
@@ -258,7 +266,9 @@ SYCLBINBinaries::Impl::convertAbstractModuleProperties(
 
     _sycl_device_binary_property_set_struct &BinPropSet =
         BinPropSets.emplace_back();
-    BinPropSet.Name = const_cast<char *>(PropSetName.data());
+    auto &OwnedSetName = PropertyNameStorage.emplace_back(PropSetName.data(),
+                                                           PropSetName.size());
+    BinPropSet.Name = const_cast<char *>(OwnedSetName.c_str());
     BinPropSet.PropertiesBegin = PropsList.data();
     BinPropSet.PropertiesEnd = PropsList.data() + PropsList.size();
   }
