@@ -15,8 +15,8 @@
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/raw_ostream.h"
 
-using namespace llvm;
-using namespace llvm::SPIR;
+namespace llvm {
+namespace SPIR {
 
 namespace {
 
@@ -291,3 +291,6 @@ void NameMangler::mangle(StringRef Name, ArrayRef<RefParamType> Params,
   for (const auto &P : Params)
     P->accept(&Visitor);
 }
+
+} // namespace SPIR
+} // namespace llvm
