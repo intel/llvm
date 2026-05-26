@@ -19,6 +19,7 @@
 #include "llvm/Support/Program.h"
 #include "llvm/Support/SystemUtils.h"
 #include "llvm/Support/Threading.h"
+#include "llvm/Support/raw_ostream.h"
 
 #include <list>
 #include <thread>
@@ -85,6 +86,35 @@ static cl::alias JobsInParallelShort{"j", cl::desc("Alias for --jobs"),
 
 static constexpr int JobPollSleepIntervalMS = 100;
 
+namespace {
+
+struct RunningJob {
+  sys::ProcessInfo Process;
+  std::string Command;
+};
+
+static std::string formatCommand(ArrayRef<StringRef> Args) {
+  std::string Command;
+  raw_string_ostream OS(Command);
+  for (size_t I = 0; I < Args.size(); ++I) {
+    if (I)
+      OS << ' ';
+    sys::printArg(OS, Args[I], /*Quote=*/true);
+  }
+  return Command;
+}
+
+static void printCommandFailure(int ReturnCode, StringRef ErrMsg,
+                                StringRef Command) {
+  errs() << "llvm-foreach: command failed";
+  if (ReturnCode != 0)
+    errs() << " with error code: " << ReturnCode;
+  if (!ErrMsg.empty())
+    errs() << ": " << ErrMsg;
+  errs() << "\n"
+         << "llvm-foreach: command: " << Command << '\n';
+}
+
 static void error(const Twine &Msg) {
   errs() << "llvm-foreach: " << Msg << '\n';
   exit(1);
@@ -99,19 +129,18 @@ static void error(std::error_code EC, const Twine &Prefix) {
 // Try to find a finished job with a non-blocking wait.
 // If no job found then sleep and repeat.
 // If found one job, removes it from Jobs and returns its exit code..
-static int waitForAnyJob(std::list<sys::ProcessInfo> &Jobs) {
+static int waitForAnyJob(std::list<RunningJob> &Jobs) {
   while (true) {
     std::string ErrMsg;
     for (auto It = Jobs.begin(); It != Jobs.end(); ++It) {
       // Non-blocking wait: returns Pid==0 if still running.
       sys::ProcessInfo WaitResult =
-          sys::Wait(*It, /*SecondsToWait=*/0, &ErrMsg);
+          sys::Wait(It->Process, /*SecondsToWait=*/0, &ErrMsg);
       if (WaitResult.Pid == 0)
         continue; // Job is in progress. Move on.
 
       if (WaitResult.ReturnCode != 0)
-        errs() << "llvm-foreach: failed with error code: "
-               << WaitResult.ReturnCode << ": " << ErrMsg << '\n';
+        printCommandFailure(WaitResult.ReturnCode, ErrMsg, It->Command);
 
       int RC = WaitResult.ReturnCode;
       Jobs.erase(It);
@@ -122,6 +151,8 @@ static int waitForAnyJob(std::list<sys::ProcessInfo> &Jobs) {
         std::chrono::milliseconds(JobPollSleepIntervalMS));
   }
 }
+
+} // namespace
 
 int main(int argc, char **argv) {
   cl::ParseCommandLineOptions(
@@ -164,23 +195,23 @@ int main(int argc, char **argv) {
   std::vector<ArgumentReplace> InReplaceArgs;
   ArgumentReplace OutReplaceArg;
   ArgumentReplace OutIncrementArg;
-  for (size_t i = 1; i < Args.size(); ++i) {
+  for (size_t I = 1; I < Args.size(); ++I) {
     for (auto &Replace : Replaces) {
-      size_t ReplaceStart = Args[i].find(Replace);
+      size_t ReplaceStart = Args[I].find(Replace);
       if (ReplaceStart != StringRef::npos)
-        InReplaceArgs.push_back({i, ReplaceStart, Replace.size()});
+        InReplaceArgs.push_back({I, ReplaceStart, Replace.size()});
     }
 
-    if (!OutReplace.empty() && Args[i].contains(OutReplace)) {
-      size_t ReplaceStart = Args[i].find(OutReplace);
+    if (!OutReplace.empty() && Args[I].contains(OutReplace)) {
+      size_t ReplaceStart = Args[I].find(OutReplace);
       if (ReplaceStart != StringRef::npos)
-        OutReplaceArg = {i, ReplaceStart, OutReplace.size()};
+        OutReplaceArg = {I, ReplaceStart, OutReplace.size()};
     }
 
-    if (!OutIncrement.empty() && Args[i].contains(OutIncrement)) {
-      size_t IncrementStart = Args[i].find(OutIncrement);
+    if (!OutIncrement.empty() && Args[I].contains(OutIncrement)) {
+      size_t IncrementStart = Args[I].find(OutIncrement);
       if (IncrementStart != StringRef::npos)
-        OutIncrementArg = {i, IncrementStart, OutIncrement.size()};
+        OutIncrementArg = {I, IncrementStart, OutIncrement.size()};
     }
   }
 
@@ -190,18 +221,23 @@ int main(int argc, char **argv) {
     error("Couldn't find replace string for output in the command.");
 
   // Make sure that specified program exists, emit an error if not.
-  std::string Prog =
-      ExitOnErr(errorOrToExpected(sys::findProgramByName(Args[0])));
+  ErrorOr<std::string> ProgOrErr = sys::findProgramByName(Args[0]);
+  if (!ProgOrErr) {
+    printCommandFailure(/*ReturnCode=*/0, ProgOrErr.getError().message(),
+                        formatCommand(Args));
+    return 1;
+  }
+  std::string Prog = *ProgOrErr;
 
   std::vector<std::vector<std::string>> FileLists(LineIterators.size());
   size_t PrevNumOfLines = 0;
-  for (size_t i = 0; i < FileLists.size(); ++i) {
-    for (; !LineIterators[i].is_at_eof(); ++LineIterators[i]) {
-      FileLists[i].push_back(LineIterators[i]->str());
+  for (size_t I = 0; I < FileLists.size(); ++I) {
+    for (; !LineIterators[I].is_at_eof(); ++LineIterators[I]) {
+      FileLists[I].push_back(LineIterators[I]->str());
     }
-    if (i != 0 && FileLists[i].size() != PrevNumOfLines)
+    if (I != 0 && FileLists[I].size() != PrevNumOfLines)
       error("All input file lists must have same number of lines!");
-    PrevNumOfLines = FileLists[i].size();
+    PrevNumOfLines = FileLists[I].size();
   }
 
   if (!JobsInParallel)
@@ -224,17 +260,17 @@ int main(int argc, char **argv) {
   std::string IncOutArg;
   std::vector<std::string> ResInArgs(InReplaceArgs.size());
   std::string ResFileList = "";
-  std::list<sys::ProcessInfo> JobsSubmitted;
-  for (size_t j = 0; j != FileLists[0].size(); ++j) {
-    for (size_t i = 0; i < InReplaceArgs.size(); ++i) {
-      ArgumentReplace CurReplace = InReplaceArgs[i];
+  std::list<RunningJob> JobsSubmitted;
+  for (size_t J = 0; J != FileLists[0].size(); ++J) {
+    for (size_t I = 0; I < InReplaceArgs.size(); ++I) {
+      ArgumentReplace CurReplace = InReplaceArgs[I];
       std::string OriginalString = InputCommandArgs[CurReplace.ArgNum];
-      ResInArgs[i] = (Twine(OriginalString.substr(0, CurReplace.Start)) +
-                      Twine(FileLists[i][j]) +
+      ResInArgs[I] = (Twine(OriginalString.substr(0, CurReplace.Start)) +
+                      Twine(FileLists[I][J]) +
                       Twine(OriginalString.substr(CurReplace.Start +
                                                   CurReplace.ReplaceLen)))
                          .str();
-      Args[CurReplace.ArgNum] = ResInArgs[i];
+      Args[CurReplace.ArgNum] = ResInArgs[I];
     }
 
     SmallString<128> Path;
@@ -271,8 +307,8 @@ int main(int argc, char **argv) {
     if (!OutIncrement.empty()) {
       // Name the file by adding the current file list index to the name.
       IncOutArg = InputCommandArgs[OutIncrementArg.ArgNum];
-      if (j > 0)
-        IncOutArg += ("_" + Twine(j)).str();
+      if (J > 0)
+        IncOutArg += ("_" + Twine(J)).str();
       Args[OutIncrementArg.ArgNum] = IncOutArg;
     }
     // Do not start execution of a new job until previous one(s) are finished,
@@ -282,20 +318,30 @@ int main(int argc, char **argv) {
         Res = ReturnCode;
     }
 
-    JobsSubmitted.emplace_back(
-        sys::ExecuteNoWait(Prog, Args, /*Env=*/std::nullopt,
-                           /*Redirects=*/{}, /*MemoryLimit=*/0));
+    std::string CommandToRun = formatCommand(Args);
+    std::string ErrMsg;
+    bool ExecutionFailed = false;
+    sys::ProcessInfo PI =
+        sys::ExecuteNoWait(Prog, Args, /*Env=*/std::nullopt, /*Redirects=*/{},
+                           /*MemoryLimit=*/0, &ErrMsg, &ExecutionFailed);
+    if (ExecutionFailed) {
+      printCommandFailure(/*ReturnCode=*/0, ErrMsg, CommandToRun);
+      Res = 1;
+      continue;
+    }
+
+    JobsSubmitted.emplace_back(RunningJob{PI, std::move(CommandToRun)});
   }
 
   // Wait for all commands to be executed (blocking wait, no sleep needed).
   while (!JobsSubmitted.empty()) {
     std::string ErrMsg;
-    sys::ProcessInfo WaitResult = sys::Wait(
-        JobsSubmitted.front(), /*SecondsToWait=*/std::nullopt, &ErrMsg);
+    RunningJob &Job = JobsSubmitted.front();
+    sys::ProcessInfo WaitResult =
+        sys::Wait(Job.Process, /*SecondsToWait=*/std::nullopt, &ErrMsg);
     assert(WaitResult.Pid && "sys::Wait should return positive pid");
     if (WaitResult.ReturnCode != 0) {
-      errs() << "llvm-foreach: failed with error code: "
-             << WaitResult.ReturnCode << ": " << ErrMsg << '\n';
+      printCommandFailure(WaitResult.ReturnCode, ErrMsg, Job.Command);
       Res = WaitResult.ReturnCode;
     }
 

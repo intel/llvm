@@ -92,6 +92,15 @@ add_subdirectory(${UNIFIED_RUNTIME_SOURCE_DIR} ${UR_INTREE_BINARY_DIR})
 # Restore original flags
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS_BAK}")
 
+if(WIN32 AND UR_STATIC_LOADER)
+  foreach(_ur_static_target ur_loader ur_common)
+    if(TARGET ${_ur_static_target})
+      set_target_properties(${_ur_static_target} PROPERTIES
+        MSVC_RUNTIME_LIBRARY "MultiThreadedDLL")
+    endif()
+  endforeach()
+endif()
+
 set(UNIFIED_RUNTIME_INCLUDE_DIR "${UNIFIED_RUNTIME_SOURCE_DIR}/include")
 set(UNIFIED_RUNTIME_SRC_INCLUDE_DIR "${UNIFIED_RUNTIME_SOURCE_DIR}/source")
 set(UNIFIED_RUNTIME_COMMON_INCLUDE_DIR "${UNIFIED_RUNTIME_SOURCE_DIR}/source/common")
@@ -210,6 +219,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL Windows)
       -DUR_BUILD_ADAPTER_CUDA:BOOL=${UR_BUILD_ADAPTER_CUDA}
       -DUR_BUILD_ADAPTER_HIP:BOOL=${UR_BUILD_ADAPTER_HIP}
       -DUR_BUILD_ADAPTER_NATIVE_CPU:BOOL=${UR_BUILD_ADAPTER_NATIVE_CPU}
+      -DUR_STATIC_LOADER:BOOL=${UR_STATIC_LOADER}
       -DUMF_BUILD_EXAMPLES:BOOL=${UMF_BUILD_EXAMPLES}
       -DUMF_BUILD_SHARED_LIBRARY:BOOL=${UMF_BUILD_SHARED_LIBRARY}
       -DUMF_LINK_HWLOC_STATICALLY:BOOL=${UMF_LINK_HWLOC_STATICALLY}
@@ -248,6 +258,17 @@ if(CMAKE_SYSTEM_NAME STREQUAL Windows)
   endmacro()
 
   urd_copy_library_to_build(ur_loaderd "NOT;${UR_STATIC_LOADER}")
+  if(UR_STATIC_LOADER)
+    # sycld can't reuse the release UnifiedRuntimeLoader target (CRT
+    # mismatch). Bundle static debug deps as INTERFACE so we can
+    # link using one name.
+    urd_copy_library_to_build(ur_commond FALSE)
+    add_library(UnifiedRuntimeLoaderDebug INTERFACE)
+    target_link_libraries(UnifiedRuntimeLoaderDebug INTERFACE
+      ${LLVM_BINARY_DIR}/lib/ur_loaderd.lib
+      ${LLVM_BINARY_DIR}/lib/ur_commond.lib
+      dbghelp)
+  endif()
   foreach(adatper ${SYCL_ENABLE_BACKENDS})
     if(adapter MATCHES "level_zero")
       set(shared "NOT;${UR_STATIC_ADAPTER_L0}")
@@ -263,9 +284,11 @@ if(CMAKE_SYSTEM_NAME STREQUAL Windows)
   add_dependencies(unified-runtimed-build unified-runtimed)
 
   # Add the debug UR runtime libraries to the parent install.
-  install(
-    FILES ${URD_INSTALL_DIR}/bin/ur_loaderd.dll
-    DESTINATION "bin" COMPONENT unified-runtime-loader)
+  if(NOT UR_STATIC_LOADER)
+    install(
+      FILES ${URD_INSTALL_DIR}/bin/ur_loaderd.dll
+      DESTINATION "bin" COMPONENT unified-runtime-loader)
+  endif()
   foreach(adapter ${SYCL_ENABLE_BACKENDS})
     install(
       FILES ${URD_INSTALL_DIR}/bin/ur_adapter_${adapter}d.dll

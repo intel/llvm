@@ -22,7 +22,18 @@ install_ur_library(ur_loader)
 
 target_compile_definitions(ur_loader PRIVATE
     UR_USE_DEBUG_POSTFIX=$<BOOL:${UR_USE_DEBUG_POSTFIX}>
+    UR_ADAPTER_SEARCH_LOADER_DIR_FIRST=$<BOOL:${UR_ADAPTER_SEARCH_LOADER_DIR_FIRST}>
+    UR_STATIC_LOADER=$<BOOL:${UR_STATIC_LOADER}>
 )
+
+if(UR_STATIC_LOADER AND WIN32)
+    # When the loader is linked statically into SYCL,
+    # the UR API symbols must not be re-exported from that DLL.
+    target_compile_definitions(ur_loader PUBLIC
+        UR_APIEXPORT=
+        UR_DLLEXPORT=
+    )
+endif()
 
 if (MSVC)
     set(TARGET_LIBNAME ur_loader)
@@ -207,6 +218,7 @@ if(UR_ENABLE_SANITIZER)
         )
         target_include_directories(ur_loader PRIVATE ${LLVM_INCLUDE_DIRS})
         target_link_libraries(ur_loader PRIVATE LLVMSupport LLVMSymbolize)
+        target_compile_definitions(ur_loader PRIVATE UR_HAVE_SYMBOLIZER)
         # In in-tree build, if LLVM is built with libc++, we also need to build
         # symbolizer.cpp with libc++ abi and link libc++ in.
         if(NOT UR_STANDALONE_BUILD AND LLVM_LIBCXX_USED)

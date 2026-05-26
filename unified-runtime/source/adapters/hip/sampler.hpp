@@ -28,9 +28,9 @@
 struct ur_sampler_handle_t_ : ur::hip::handle_base {
   ur::RefCount RefCount;
   uint32_t Props;
-  float MinMipmapLevelClamp;
-  float MaxMipmapLevelClamp;
-  float MaxAnisotropy;
+  float MinMipmapLevelClamp{};
+  float MaxMipmapLevelClamp{};
+  float MaxAnisotropy{};
   ur_context_handle_t Context;
 
   ur_sampler_handle_t_(ur_context_handle_t Context)
