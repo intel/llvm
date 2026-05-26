@@ -80,7 +80,7 @@ DIFile *
 SPIRVToLLVMDbgTran::getDIFile(const std::string &FileName,
                               std::optional<DIFile::ChecksumInfo<StringRef>> CS,
                               std::optional<StringRef> Source) {
-  return getOrInsert(FileMap, FileName, [=]() {
+  return getOrInsert(FileMap, FileName, [this, FileName, CS, Source]() {
     SplitFileName Split(FileName);
     // Use the first builder from the map to crete DIFile since it's
     // relations with other debug metadata is not going through DICompileUnit

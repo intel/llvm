@@ -1354,7 +1354,7 @@ SPIRVToLLVM::expandOCLBuiltinWithScalarArg(CallInst *CI,
     auto VecElemCount =
         cast<VectorType>(CI->getOperand(1)->getType())->getElementCount();
     auto Mutator = mutateCallInst(CI, FuncName);
-    Mutator.mapArg(0, [=](Value *Arg) {
+    Mutator.mapArg(0, [this, CI, VecElemCount](Value *Arg) {
       Value *NewVec = nullptr;
       if (auto *CA = dyn_cast<Constant>(Arg))
         NewVec = ConstantVector::getSplat(VecElemCount, CA);
@@ -4874,7 +4874,7 @@ void SPIRVToLLVM::transFunctionDecorationsToMetadata(SPIRVFunction *BF,
 
   // Generate metadata for spirv.ParameterDecorations
   addKernelArgumentMetadata(Context, SPIRV_MD_PARAMETER_DECORATIONS, BF, F,
-                            [=](SPIRVFunctionParameter *Arg) {
+                            [this](SPIRVFunctionParameter *Arg) {
                               return transDecorationsToMetadataList(
                                   Context, Arg->getDecorations());
                             });
@@ -5117,7 +5117,7 @@ bool SPIRVToLLVM::transOCLMetadata(SPIRVFunction *BF) {
   // Generate metadata for kernel_arg_addr_space
   addKernelArgumentMetadata(
       Context, SPIR_MD_KERNEL_ARG_ADDR_SPACE, BF, F,
-      [=](SPIRVFunctionParameter *Arg) {
+      [this](SPIRVFunctionParameter *Arg) {
         SPIRVType *ArgTy = Arg->getType();
         SPIRAddressSpace AS = SPIRAS_Private;
         if (ArgTy->isTypePointer())
@@ -5129,7 +5129,7 @@ bool SPIRVToLLVM::transOCLMetadata(SPIRVFunction *BF) {
       });
   // Generate metadata for kernel_arg_access_qual
   addKernelArgumentMetadata(Context, SPIR_MD_KERNEL_ARG_ACCESS_QUAL, BF, F,
-                            [=](SPIRVFunctionParameter *Arg) {
+                            [this](SPIRVFunctionParameter *Arg) {
                               std::string Qual;
                               auto *T = Arg->getType();
                               if (T->isTypeOCLImage()) {
@@ -5146,7 +5146,7 @@ bool SPIRVToLLVM::transOCLMetadata(SPIRVFunction *BF) {
   if (!transKernelArgTypeMedataFromString(Context, BM, F,
                                           SPIR_MD_KERNEL_ARG_TYPE))
     addKernelArgumentMetadata(Context, SPIR_MD_KERNEL_ARG_TYPE, BF, F,
-                              [=](SPIRVFunctionParameter *Arg) {
+                              [this](SPIRVFunctionParameter *Arg) {
                                 return transOCLKernelArgTypeName(Arg);
                               });
   // Generate metadata for kernel_arg_type_qual
@@ -5154,7 +5154,7 @@ bool SPIRVToLLVM::transOCLMetadata(SPIRVFunction *BF) {
                                           SPIR_MD_KERNEL_ARG_TYPE_QUAL))
     addKernelArgumentMetadata(
         Context, SPIR_MD_KERNEL_ARG_TYPE_QUAL, BF, F,
-        [=](SPIRVFunctionParameter *Arg) {
+        [this](SPIRVFunctionParameter *Arg) {
           std::string Qual;
           if (Arg->hasDecorate(DecorationVolatile))
             Qual = kOCLTypeQualifierName::Volatile;
@@ -5171,33 +5171,36 @@ bool SPIRVToLLVM::transOCLMetadata(SPIRVFunction *BF) {
         });
   // Generate metadata for kernel_arg_base_type
   addKernelArgumentMetadata(Context, SPIR_MD_KERNEL_ARG_BASE_TYPE, BF, F,
-                            [=](SPIRVFunctionParameter *Arg) {
+                            [this](SPIRVFunctionParameter *Arg) {
                               return transOCLKernelArgTypeName(Arg);
                             });
   // Generate metadata for kernel_arg_name
   if (BM->isGenArgNameMDEnabled()) {
     addKernelArgumentMetadata(Context, SPIR_MD_KERNEL_ARG_NAME, BF, F,
-                              [=](SPIRVFunctionParameter *Arg) {
+                              [this](SPIRVFunctionParameter *Arg) {
                                 return MDString::get(*Context, Arg->getName());
                               });
   }
   // Generate metadata for kernel_arg_buffer_location
-  addBufferLocationMetadata(Context, BF, F, [=](SPIRVFunctionParameter *Arg) {
-    auto Literals = Arg->getDecorationLiterals(DecorationBufferLocationINTEL);
-    assert(Literals.size() == 1 &&
-           "BufferLocationINTEL decoration shall have 1 ID literal");
+  addBufferLocationMetadata(
+      Context, BF, F, [this](SPIRVFunctionParameter *Arg) {
+        auto Literals =
+            Arg->getDecorationLiterals(DecorationBufferLocationINTEL);
+        assert(Literals.size() == 1 &&
+               "BufferLocationINTEL decoration shall have 1 ID literal");
 
-    return ConstantAsMetadata::get(
-        ConstantInt::get(Type::getInt32Ty(*Context), Literals[0]));
-  });
+        return ConstantAsMetadata::get(
+            ConstantInt::get(Type::getInt32Ty(*Context), Literals[0]));
+      });
   // Generate metadata for kernel_arg_runtime_aligned
-  addRuntimeAlignedMetadata(Context, BF, F, [=](SPIRVFunctionParameter *Arg) {
-    return ConstantAsMetadata::get(
-        ConstantInt::get(Type::getInt1Ty(*Context), 1));
-  });
+  addRuntimeAlignedMetadata(
+      Context, BF, F, [this](SPIRVFunctionParameter *Arg) {
+        return ConstantAsMetadata::get(
+            ConstantInt::get(Type::getInt1Ty(*Context), 1));
+      });
   // Generate metadata for spirv.ParameterDecorations
   addKernelArgumentMetadata(Context, SPIRV_MD_PARAMETER_DECORATIONS, BF, F,
-                            [=](SPIRVFunctionParameter *Arg) {
+                            [this](SPIRVFunctionParameter *Arg) {
                               return transDecorationsToMetadataList(
                                   Context, Arg->getDecorations());
                             });

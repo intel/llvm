@@ -1071,7 +1071,7 @@ public:
     assert(WordCount == Pairs.size() + FixedWordCount);
     assert(OpCode == OC);
     assert(Pairs.size() % 2 == 0);
-    foreachPair([=](SPIRVValue *IncomingV, SPIRVBasicBlock *IncomingBB) {
+    foreachPair([this](SPIRVValue *IncomingV, SPIRVBasicBlock *IncomingBB) {
       assert(IncomingV->isForward() || IncomingV->getType() == Type);
       assert(IncomingBB->isBasicBlock() || IncomingBB->isForward());
     });
