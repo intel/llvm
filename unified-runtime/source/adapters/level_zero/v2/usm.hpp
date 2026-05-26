@@ -1,9 +1,8 @@
 //===--------- usm.cpp - Level Zero Adapter ------------------------------===//
 //
-// Copyright (C) 2024 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
@@ -79,6 +78,8 @@ struct ur_usm_pool_handle_t_ : ur_object {
   size_t getPeakReservedSize();
   size_t getTotalUsedSize();
   size_t getPeakUsedSize();
+  void changeResidentDevice(ur_device_handle_t hDevice,
+                            ur_device_handle_t peerDevice, bool isAdding);
 
   UsmPool *getPool(const usm::pool_descriptor &desc);
 

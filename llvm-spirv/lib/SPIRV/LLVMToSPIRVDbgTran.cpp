@@ -1347,7 +1347,8 @@ SPIRVEntry *LLVMToSPIRVDbgTran::transDbgFuncDefinition(SPIRVValue *FuncDef,
   SPIRVId ExtSetId = BM->getExtInstSetId(BM->getDebugInfoEIS());
 
   return BM->addExtInst(getVoidTy(), ExtSetId, SPIRVDebug::FunctionDefinition,
-                        Ops, BB, BB->getInst(0));
+                        Ops, BB,
+                        BB ? BB->getVariableInsertionPoint() : nullptr);
 }
 
 SPIRVEntry *LLVMToSPIRVDbgTran::transDbgEntryPoint(const DISubprogram *Func,

@@ -335,11 +335,10 @@ bool Heuristics::shouldVectorize() {
   const unsigned entryBlockWeight = getWeight(BB);
 
   Instruction *TI = BB.getTerminator();
-  if (BranchInst *BI = dyn_cast<BranchInst>(TI)) {
-    if (BI->isConditional()) {
-      const BrClauseKind clause = shouldVectorizeVisitBr(BI->getCondition());
-      unsigned succWeight = 0;
-      if (clause != BrClauseKind::None) {
+  if (CondBrInst *BI = dyn_cast<CondBrInst>(TI)) {
+    const BrClauseKind clause = shouldVectorizeVisitBr(BI->getCondition());
+    unsigned succWeight = 0;
+    if (clause != BrClauseKind::None) {
         BasicBlock *start = nullptr;
         BasicBlock *terminatingBlock = nullptr;
         if (clause == BrClauseKind::True) {
@@ -369,14 +368,13 @@ bool Heuristics::shouldVectorize() {
           }
         }
 
-        // We don't want to vectorize if the path that will be taken the most
-        // is the exit block of the function and does nothing else but return.
-        if (isa<ReturnInst>(terminatingBlock->getTerminator()) &&
-            (terminatingBlock->size() == 1) &&
-            // Arbitrary limit.
-            (entryBlockWeight < succWeight)) {
-          return false;
-        }
+      // We don't want to vectorize if the path that will be taken the most
+      // is the exit block of the function and does nothing else but return.
+      if (isa<ReturnInst>(terminatingBlock->getTerminator()) &&
+          (terminatingBlock->size() == 1) &&
+          // Arbitrary limit.
+          (entryBlockWeight < succWeight)) {
+        return false;
       }
     }
   }

@@ -17,7 +17,7 @@
 #include <sycl/detail/export.hpp>                     // for __SYCL_EXPORT
 #include <sycl/detail/generic_type_traits.hpp>        // for is_genint, Try...
 #include <sycl/detail/handler_proxy.hpp>              // for associateWithH...
-#include <sycl/detail/helpers.hpp>                    // for loop
+#include <sycl/detail/loop.hpp>                       // for loop
 #include <sycl/detail/owner_less_base.hpp>            // for OwnerLessBase
 #include <sycl/detail/property_helper.hpp>            // for PropWithDataKind
 #include <sycl/detail/property_list_base.hpp>         // for PropertyListBase
@@ -755,10 +755,6 @@ protected:
   }
 
   ConcreteASPtrType getQualifiedPtr() const noexcept { return MData; }
-
-#ifndef __SYCL_DEVICE_ONLY__
-  using AccessorBaseHost::impl;
-#endif
 
 public:
   // Default constructor for objects later initialized with __init member.

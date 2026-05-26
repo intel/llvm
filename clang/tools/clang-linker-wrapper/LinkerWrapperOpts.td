@@ -141,8 +141,7 @@ def library_EQ : Joined<["--", "-"], "library=">, Flags<[HelpHidden]>,
 def rpath : Separate<["--", "-"], "rpath">;
 def rpath_EQ : Joined<["--", "-"], "rpath=">, Flags<[HelpHidden]>, Alias<rpath>;
 
-def v : Flag<["--", "-"], "v">, HelpText<"Display the version number and exit">;
-def version : Flag<["--", "-"], "version">, Flags<[HelpHidden]>, Alias<v>;
+def version : Flag<["--", "-"], "version">, Flags<[HelpHidden]>;
 
 def whole_archive : Flag<["--", "-"], "whole-archive">, Flags<[HelpHidden]>;
 def no_whole_archive : Flag<["--", "-"], "no-whole-archive">, Flags<[HelpHidden]>;
@@ -160,9 +159,6 @@ def libpath : Joined<["/", "-", "/?", "-?"], "libpath:">, Flags<[HelpHidden]>;
 def wholearchive_flag : Joined<["/", "-", "/?", "-?"], "wholearchive">, Flags<[HelpHidden]>;
 
 // Options to specify SYCL device library files
-def sycl_device_lib_EQ : CommaJoined<["--", "-"], "sycl-device-libraries=">,
-  Flags<[WrapperOnlyOption]>,
-  HelpText<"A comma separated list of device libraries that are linked during the device link.">;
 def sycl_device_library_location_EQ : Joined<["--", "-"],
   "sycl-device-library-location=">, Flags<[WrapperOnlyOption]>,
   HelpText<"Location of SYCL device library files">;

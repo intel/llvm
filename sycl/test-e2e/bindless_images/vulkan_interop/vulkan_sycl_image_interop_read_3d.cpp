@@ -178,6 +178,8 @@ int runTest(
                                             ? syclOverride.value()
                                             : getSyclChannelType<T>();
 
+    // bindless image use (x,y,z) order,
+    // differening from SYCL 2020 "fastest incrementing" convention.
     syclexp::image_descriptor imgDesc(sycl::range<3>(width, height, depth),
                                       channels, syclType);
 
@@ -221,11 +223,13 @@ int runTest(
          h.depends_on(dependencyEvent);
        sycl::accessor outAcc(checkBuf, h, sycl::write_only);
 
+       // ranges for parallel_for use "fastest incrementing" order (z,y,x),
+       // but bindless images ranges use (x,y,z) order.
        h.parallel_for(
-           sycl::range<3>(width, height, depth), [=](sycl::item<3> item) {
-             int x = item.get_id(0);
+           sycl::range<3>(depth, height, width), [=](sycl::item<3> item) {
+             int x = item.get_id(2);
              int y = item.get_id(1);
-             int z = item.get_id(2);
+             int z = item.get_id(0);
              size_t baseIdx = (z * width * height + y * width + x) * channels;
 
              // Special handling for unorm8 (normalized 0.0-1.0)

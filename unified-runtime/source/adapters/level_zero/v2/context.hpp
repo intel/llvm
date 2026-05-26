@@ -1,9 +1,8 @@
 //===--------- context.hpp - Level Zero Adapter --------------------------===//
 //
-// Copyright (C) 2024 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
@@ -16,6 +15,7 @@
 #include "common.hpp"
 #include "common/ur_ref_count.hpp"
 #include "event_pool_cache.hpp"
+#include "logger/ur_logger.hpp"
 #include "usm.hpp"
 
 enum class PoolCacheType { Immediate, Regular };
@@ -25,7 +25,6 @@ struct ur_context_handle_t_ : ur_object {
                        const ur_device_handle_t *phDevices, bool ownZeContext);
 
   ur_result_t retain();
-  ur_result_t release();
 
   inline ze_context_handle_t getZeHandle() const { return hContext.get(); }
   ur_platform_handle_t getPlatform() const;
@@ -36,6 +35,8 @@ struct ur_context_handle_t_ : ur_object {
 
   void addUsmPool(ur_usm_pool_handle_t hPool);
   void removeUsmPool(ur_usm_pool_handle_t hPool);
+  void changeResidentDevice(ur_device_handle_t hDevice,
+                            ur_device_handle_t peerDevice, bool isAdding);
 
   template <typename Func> void forEachUsmPool(Func func) {
     std::shared_lock<ur_shared_mutex> lock(Mutex);
@@ -45,8 +46,11 @@ struct ur_context_handle_t_ : ur_object {
     }
   }
 
-  const std::vector<ur_device_handle_t> &
-  getP2PDevices(ur_device_handle_t hDevice) const;
+  std::vector<ur_device_handle_t>
+  getDevicesWhoseAllocationsCanBeAccessedFrom(ur_device_handle_t hDevice);
+
+  std::vector<ur_device_handle_t>
+  getDevicesWhichCanAccessAllocationsPresentOn(ur_device_handle_t hDevice);
 
   v2::event_pool &getNativeEventsPool() { return nativeEventsPool; }
   v2::command_list_cache_t &getCommandListCache() { return commandListCache; }
@@ -63,11 +67,29 @@ struct ur_context_handle_t_ : ur_object {
   // For that the Device or its root devices need to be in the context.
   bool isValidDevice(ur_device_handle_t Device) const;
 
+  ur_exp_graph_handle_t getGraphFromZeHandle(ze_graph_handle_t zeGraph) {
+    auto it = zeToUrGraphMap.find(zeGraph);
+    return (it != zeToUrGraphMap.end()) ? it->second : nullptr;
+  }
+
+  void registerGraph(ze_graph_handle_t zeGraph, ur_exp_graph_handle_t hGraph) {
+    zeToUrGraphMap[zeGraph] = hGraph;
+  }
+
+  void unregisterGraph(ze_graph_handle_t zeGraph) {
+    zeToUrGraphMap.erase(zeGraph);
+  }
+
   ur::RefCount RefCount;
+
+  ur_shared_mutex GraphMapMutex;
 
 private:
   const v2::raii::ze_context_handle_t hContext;
-  const std::vector<ur_device_handle_t> hDevices;
+  const std::vector<ur_device_handle_t>
+      hDevices; // possibly without subdevices, only what was passed to ctor,
+                // context may have user-defined, limited subset of available
+                // devices
   v2::command_list_cache_t commandListCache;
   v2::event_pool_cache eventPoolCacheImmediate;
   v2::event_pool_cache eventPoolCacheRegular;
@@ -76,10 +98,12 @@ private:
   // (uses non-counter based events to allow for signaling from host)
   v2::event_pool nativeEventsPool;
 
-  // P2P devices for each device in the context, indexed by device id.
-  const std::vector<std::vector<ur_device_handle_t>> p2pAccessDevices;
-
   ur_usm_pool_handle_t_ defaultUSMPool;
   ur_usm_pool_handle_t_ asyncPool;
   std::list<ur_usm_pool_handle_t> usmPoolHandles;
+
+  // Graph fork-join may occur from direct L0 submissions, so we must map
+  // L0 graph handles to UR handles to query across different command list
+  // managers. Caller must protect accesses with GraphMapMutex.
+  std::unordered_map<ze_graph_handle_t, ur_exp_graph_handle_t> zeToUrGraphMap;
 };

@@ -223,7 +223,7 @@ public:
   tryGetSYCLKernelID(std::string_view KernelName) const {
     std::lock_guard<std::mutex> Guard(m_DeviceKernelInfoMapMutex);
 
-    auto It = m_DeviceKernelInfoMap.find(KernelName);
+    auto It = m_DeviceKernelInfoMap.find(std::string(KernelName));
     if (It == m_DeviceKernelInfoMap.end())
       return std::nullopt;
 
@@ -369,7 +369,7 @@ public:
   SanitizerType kernelUsesSanitizer() const { return m_SanitizerFoundInImage; }
 
   void cacheKernelImplicitLocalArg(const RTDeviceBinaryImage &Img);
-
+  void cacheKernelWorkGroupDynamicLocalMem(const RTDeviceBinaryImage &Img);
   DeviceKernelInfo &getDeviceKernelInfo(const CompileTimeKernelInfoTy &Info);
   DeviceKernelInfo &getDeviceKernelInfo(std::string_view KernelName);
   DeviceKernelInfo *tryGetDeviceKernelInfo(std::string_view KernelName);
@@ -408,6 +408,10 @@ private:
   bool isBfloat16DeviceImage(const RTDeviceBinaryImage *BinImage);
   bool shouldBF16DeviceImageBeUsed(const RTDeviceBinaryImage *BinImage,
                                    const device_impl &DeviceImpl);
+
+  /// Returns a comma-separated list of available image target names for the
+  /// given kernel ID, for use in error messages.
+  std::string getKernelTargetList(const kernel_id &KernelID);
 
 protected:
   using RTDeviceBinaryImageUPtr = std::unique_ptr<RTDeviceBinaryImage>;
@@ -505,7 +509,9 @@ protected:
 
   // Map for storing device kernel information. Runtime lookup should be avoided
   // by caching the pointers when possible.
-  std::unordered_map<std::string_view, DeviceKernelInfo> m_DeviceKernelInfoMap;
+  // Uses std::string keys (not string_view) because the backing storage for
+  // kernel names lives in DSO offload tables that may be unmapped on dlclose.
+  std::unordered_map<std::string, DeviceKernelInfo> m_DeviceKernelInfoMap;
 
   // Protects m_DeviceKernelInfoMap.
   mutable std::mutex m_DeviceKernelInfoMapMutex;

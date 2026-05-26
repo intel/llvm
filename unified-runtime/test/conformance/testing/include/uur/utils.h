@@ -1,6 +1,5 @@
-// Copyright (C) 2022-2023 Intel Corporation
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
@@ -17,6 +16,23 @@ namespace uur {
 
 inline size_t RoundUpToNearestFactor(size_t num, size_t factor) {
   return ((num + factor - 1) / factor) * factor;
+}
+
+inline std::pair<bool, std::vector<ur_device_handle_t>>
+GetDevices(ur_platform_handle_t platform) {
+  uint32_t count = 0;
+  if (urDeviceGet(platform, UR_DEVICE_TYPE_ALL, 0, nullptr, &count)) {
+    return {false, {}};
+  }
+  if (count == 0) {
+    return {false, {}};
+  }
+  std::vector<ur_device_handle_t> devices(count);
+  if (urDeviceGet(platform, UR_DEVICE_TYPE_ALL, count, devices.data(),
+                  nullptr)) {
+    return {false, {}};
+  }
+  return {true, devices};
 }
 
 /// @brief Make a string a valid identifier for gtest.
@@ -243,6 +259,8 @@ ur_result_t GetDevicePreferredVectorWidthInt(ur_device_handle_t device,
                                              uint32_t &pref_width);
 ur_result_t GetDevicePreferredVectorWidthLong(ur_device_handle_t device,
                                               uint32_t &pref_width);
+ur_result_t GetDevicePreferredVectorWidthLongLong(ur_device_handle_t device,
+                                                  uint32_t &pref_width);
 ur_result_t GetDevicePreferredVectorWidthFloat(ur_device_handle_t device,
                                                uint32_t &pref_width);
 ur_result_t GetDevicePreferredVectorWidthDouble(ur_device_handle_t device,
@@ -257,6 +275,8 @@ ur_result_t GetDeviceNativeVectorWithInt(ur_device_handle_t device,
                                          uint32_t &vec_width);
 ur_result_t GetDeviceNativeVectorWithLong(ur_device_handle_t device,
                                           uint32_t &vec_width);
+ur_result_t GetDeviceNativeVectorWithLongLong(ur_device_handle_t device,
+                                              uint32_t &vec_width);
 ur_result_t GetDeviceNativeVectorWithFloat(ur_device_handle_t device,
                                            uint32_t &vec_width);
 ur_result_t GetDeviceNativeVectorWithDouble(ur_device_handle_t device,
@@ -519,9 +539,11 @@ inline void isQueueBatched(ur_queue_handle_t queue, bool *info) {
 // when that is stable.
 static inline bool isPVC(ur_device_handle_t hDevice) {
   uint32_t deviceId;
-  EXPECT_EQ(urDeviceGetInfo(hDevice, UR_DEVICE_INFO_DEVICE_ID, sizeof(uint32_t),
-                            &deviceId, nullptr),
-            UR_RESULT_SUCCESS);
+  ur_result_t result = urDeviceGetInfo(hDevice, UR_DEVICE_INFO_DEVICE_ID,
+                                       sizeof(uint32_t), &deviceId, nullptr);
+  if (result != UR_RESULT_SUCCESS) {
+    return false;
+  }
   return (deviceId & 0xff0) == 0xbd0 || (deviceId & 0xff0) == 0xb60;
 }
 
@@ -558,6 +580,16 @@ MakeValueArgProp(uint32_t index, const void *data, size_t size) {
           index,
           size,
           val};
+}
+
+// Creates a UR event handle from a null native handle. The returned event is
+// NOT a valid event - it cannot be waited on, profiled, or otherwise used.
+// Its only purpose is to provide a non-null ur_event_handle_t so that the
+// validation layer's wait-list argument checks can be exercised in tests
+// without enqueuing any real work on the queue.
+inline ur_result_t MakeDummyEventForWaitList(ur_context_handle_t hContext,
+                                             ur_event_handle_t *phEvent) {
+  return urEventCreateWithNativeHandle(0, hContext, nullptr, phEvent);
 }
 
 } // namespace uur

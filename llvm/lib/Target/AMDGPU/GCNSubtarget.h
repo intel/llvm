@@ -66,6 +66,9 @@ protected:
   int LDSBankCount = 0;
   unsigned MaxPrivateElementSize = 0;
 
+  // Instruction cache line size in bytes; set from TableGen subtarget features.
+  unsigned InstCacheLineSize = 0;
+
   // Dynamically set bits that enable features.
   bool DynamicVGPR = false;
   bool DynamicVGPRBlockSize32 = false;
@@ -84,6 +87,15 @@ private:
   SIInstrInfo InstrInfo;
   SITargetLowering TLInfo;
   SIFrameLowering FrameLowering;
+
+  /// Get the register that represents the actual dependency between the
+  /// definition and the use. The definition might only affect a subregister
+  /// that is not actually used. Works for both virtual and physical registers.
+  /// Note: Currently supports VOP3P instructions (without WMMA an SWMMAC).
+  /// Returns the definition register if there is a real dependency and no
+  /// better match is found.
+  Register getRealSchedDependency(const MachineInstr &DefI, int DefOpIdx,
+                                  const MachineInstr &UseI, int UseOpIdx) const;
 
 public:
   GCNSubtarget(const Triple &TT, StringRef GPU, StringRef FS,
@@ -170,6 +182,9 @@ public:
 
   int getLDSBankCount() const { return LDSBankCount; }
 
+  /// Instruction cache line size in bytes (64 for pre-GFX11, 128 for GFX11+).
+  unsigned getInstCacheLineSize() const { return InstCacheLineSize; }
+
   unsigned getMaxPrivateElementSize(bool ForBufferRSrc = false) const {
     return (ForBufferRSrc || !hasFlatScratchEnabled()) ? MaxPrivateElementSize
                                                        : 16;
@@ -219,6 +234,8 @@ public:
   bool hasScalarMulHiInsts() const { return HasGFX9Insts; }
 
   bool hasScalarSubwordLoads() const { return getGeneration() >= GFX12; }
+
+  bool hasAsyncMark() const { return hasVMemToLDSLoad() || HasAsynccnt; }
 
   TrapHandlerAbi getTrapHandlerAbi() const {
     return isAmdHsaOS() ? TrapHandlerAbi::AMDHSA : TrapHandlerAbi::NONE;
@@ -394,10 +411,6 @@ public:
   // Covers VS/PS/CS graphics shaders
   bool isMesaGfxShader(const Function &F) const {
     return isMesa3DOS() && AMDGPU::isShader(F.getCallingConv());
-  }
-
-  bool isGFX1170() const {
-    return getGeneration() == GFX11 && hasWMMA128bInsts();
   }
 
   bool hasMad64_32() const { return getGeneration() >= SEA_ISLANDS; }
@@ -619,12 +632,6 @@ public:
   /// \returns true if the target uses LOADcnt/SAMPLEcnt/BVHcnt, DScnt/KMcnt
   /// and STOREcnt rather than VMcnt, LGKMcnt and VScnt respectively.
   bool hasExtendedWaitCounts() const { return getGeneration() >= GFX12; }
-
-  /// \returns true if inline constants are not supported for F16 pseudo
-  /// scalar transcendentals.
-  bool hasNoF16PseudoScalarTransInlineConstants() const {
-    return getGeneration() == GFX12;
-  }
 
   /// \returns true if the target has packed f32 instructions that only read 32
   /// bits from a scalar operand (SGPR or literal) and replicates the bits to
@@ -907,7 +914,7 @@ public:
 
   /// \returns Maximum flat work group size supported by the subtarget.
   unsigned getMaxFlatWorkGroupSize() const override {
-    return AMDGPU::IsaInfo::getMaxFlatWorkGroupSize(this);
+    return AMDGPU::IsaInfo::getMaxFlatWorkGroupSize();
   }
 
   /// \returns Number of waves per execution unit required to support the given

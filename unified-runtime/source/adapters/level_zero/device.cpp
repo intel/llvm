@@ -1,9 +1,8 @@
 //===--------- device.cpp - Level Zero Adapter ----------------------------===//
 //
-// Copyright (C) 2023-2026 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
@@ -472,6 +471,14 @@ ur_result_t urDeviceGetInfo(
                          Device->ZeDeviceComputeProperties->maxGroupCountZ}};
     return ReturnValue(MaxGroupCounts);
   }
+  case UR_DEVICE_INFO_MAX_WORK_GROUPS: {
+    // Multiply the max group counts in each dimension to get the total max
+    // number of work groups. Prevent overflow.
+    return ReturnValue(multiplyWithOverflowCheck(
+        Device->ZeDeviceComputeProperties->maxGroupCountX,
+        Device->ZeDeviceComputeProperties->maxGroupCountY,
+        Device->ZeDeviceComputeProperties->maxGroupCountZ));
+  }
   case UR_DEVICE_INFO_MAX_CLOCK_FREQUENCY:
     return ReturnValue(uint32_t{Device->ZeDeviceProperties->coreClockRate});
   case UR_DEVICE_INFO_ADDRESS_BITS: {
@@ -783,9 +790,11 @@ ur_result_t urDeviceGetInfo(
     return ReturnValue(
         Device->ZeDeviceVectorWidthPropertiesExt->preferred_vector_width_int);
   case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG:
+  case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG_LONG:
     return ReturnValue(
         Device->ZeDeviceVectorWidthPropertiesExt->native_vector_width_long);
   case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_LONG:
+  case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_LONG_LONG:
     return ReturnValue(
         Device->ZeDeviceVectorWidthPropertiesExt->preferred_vector_width_long);
   case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_FLOAT:
@@ -1566,7 +1575,25 @@ ur_result_t urDeviceGetInfo(
     return ReturnValue(static_cast<ur_bool_t>(Device->isIntegrated() != 0));
   case UR_DEVICE_INFO_GRAPH_RECORD_AND_REPLAY_SUPPORT_EXP:
 #ifdef UR_ADAPTER_LEVEL_ZERO_V2
-    return ReturnValue(Device->Platform->ZeGraphExt.Supported);
+  {
+    if (!Device->Platform->ZeGraphExt.Supported) {
+      return ReturnValue(false);
+    }
+
+    ze_record_replay_graph_exp_properties_t GraphProperties{};
+    GraphProperties.stype =
+        ZE_STRUCTURE_TYPE_RECORD_REPLAY_GRAPH_EXP_PROPERTIES;
+    GraphProperties.pNext = nullptr;
+    ZeStruct<ze_device_properties_t> DeviceProperties;
+    DeviceProperties.pNext = &GraphProperties;
+    ZE2UR_CALL(zeDeviceGetProperties, (ZeDevice, &DeviceProperties));
+
+    constexpr ze_record_replay_graph_exp_flags_t GraphModeMask =
+        ZE_RECORD_REPLAY_GRAPH_EXP_FLAG_IMMUTABLE_GRAPH |
+        ZE_RECORD_REPLAY_GRAPH_EXP_FLAG_MUTABLE_GRAPH;
+    return ReturnValue(static_cast<ur_bool_t>(
+        (GraphProperties.graphFlags & GraphModeMask) != 0));
+  }
 #else
     return ReturnValue(false);
 #endif
@@ -1576,6 +1603,23 @@ ur_result_t urDeviceGetInfo(
 #else
     return ReturnValue(false);
 #endif
+  case UR_DEVICE_INFO_XE_STACK_COUNT:
+    return ReturnValue(uint32_t{Device->ZeXEDeviceProperties->numXeStacks});
+  case UR_DEVICE_INFO_XE_REGIONS_PER_STACK:
+    return ReturnValue(
+        uint32_t{Device->ZeXEDeviceProperties->numXeRegionsPerStack});
+  case UR_DEVICE_INFO_XE_CLUSTERS_PER_REGION:
+    return ReturnValue(
+        uint32_t{Device->ZeXEDeviceProperties->numXeClustersPerRegion});
+  case UR_DEVICE_INFO_XE_CORES_PER_CLUSTER:
+    return ReturnValue(
+        uint32_t{Device->ZeXEDeviceProperties->numXeCorePerCluster});
+  case UR_DEVICE_INFO_EUS_PER_XE_CORE:
+    return ReturnValue(
+        uint32_t{Device->ZeXEDeviceProperties->numExecutionEnginesPerXeCore});
+  case UR_DEVICE_INFO_MAX_LANES_PER_HW_THREAD:
+    return ReturnValue(
+        uint32_t{Device->ZeXEDeviceProperties->maxNumLanesPerHwThread});
   default:
     UR_LOG(ERR, "Unsupported ParamName in urGetDeviceInfo");
     UR_LOG(ERR, "ParamNameParamName={}(0x{})", ParamName,
@@ -2161,6 +2205,23 @@ ur_result_t ur_device_handle_t_::initialize(int SubSubDeviceOrdinal,
         }
       };
 
+  ZeXEDeviceProperties.Compute =
+      [ZeDevice](ze_intel_xe_device_exp_properties_t &Properties) {
+        // Set up default values of 0
+        Properties.numXeStacks = 0;
+        Properties.numXeRegionsPerStack = 0;
+        Properties.numXeClustersPerRegion = 0;
+        Properties.numXeCorePerCluster = 0;
+        Properties.numExecutionEnginesPerXeCore = 0;
+        Properties.maxNumHwThreadsPerExecutionEngine = 0;
+        Properties.maxNumLanesPerHwThread = 0;
+
+        ze_device_properties_t P;
+        P.stype = ZE_STRUCTURE_TYPE_DEVICE_PROPERTIES;
+        P.pNext = (void *)&Properties;
+        ZE_CALL_NOCHECK(zeDeviceGetProperties, (ZeDevice, &P));
+      };
+
   ImmCommandListUsed = this->useImmediateCommandLists();
 
   uint32_t numQueueGroups = 0;
@@ -2317,4 +2378,25 @@ void ZeUSMImportExtension::doZeUSMImport(ze_driver_handle_t DriverHandle,
 void ZeUSMImportExtension::doZeUSMRelease(ze_driver_handle_t DriverHandle,
                                           void *HostPtr) {
   ZE_CALL_NOCHECK(zexDriverReleaseImportedPointer, (DriverHandle, HostPtr));
+}
+
+std::ostream &operator<<(std::ostream &os,
+                         ur_device_handle_t_ const &device_handle) {
+  if (device_handle.Id.has_value()) {
+    return os << device_handle.Id.value();
+  }
+  return os << "NONE";
+}
+
+std::ostream &operator<<(std::ostream &os,
+                         ur_device_handle_t_::PeerStatus peer_status) {
+  switch (peer_status) {
+  case ur_device_handle_t_::PeerStatus::DISABLED:
+    return os << "DISABLED";
+  case ur_device_handle_t_::PeerStatus::ENABLED:
+    return os << "ENABLED";
+  case ur_device_handle_t_::PeerStatus::NO_CONNECTION:
+    return os << "NO_CONNECTION";
+  }
+  return os << "UNKNOWN";
 }

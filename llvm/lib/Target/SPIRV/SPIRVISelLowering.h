@@ -52,6 +52,8 @@ public:
                           const CallBase &I, MachineFunction &MF,
                           unsigned Intrinsic) const override;
 
+  ConstraintType getConstraintType(StringRef Constraint) const override;
+
   std::pair<unsigned, const TargetRegisterClass *>
   getRegForInlineAsmConstraint(const TargetRegisterInfo *TRI,
                                StringRef Constraint, MVT VT) const override;
@@ -80,6 +82,10 @@ public:
   shouldExpandAtomicRMWInIR(const AtomicRMWInst *RMW) const override;
   AtomicExpansionKind
   shouldCastAtomicRMWIInIR(AtomicRMWInst *RMWI) const override;
+
+  bool shouldIssueAtomicLoadForAtomicEmulationLoop() const override {
+    return false;
+  }
 };
 } // namespace llvm
 

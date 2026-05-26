@@ -20,9 +20,11 @@ runs:
             if ($envVar -match "^(.*?)=(.*)$") {
                 $name = $matches[1]
                 $value = $matches[2]
-                $envBeforeVar = $envBefore | Where-Object { $_ -like "$name=*" }
-                if (-not $envBeforeVar -or $envBeforeVar -ne "$name=$value") {
-                    Add-Content -Path $githubEnvFilePath -Value "$name=$value"
+                if ($name -ne "CMAKE_PREFIX_PATH") {
+                    $envBeforeVar = $envBefore | Where-Object { $_ -like "$name=*" }
+                    if (-not $envBeforeVar -or $envBeforeVar -ne "$name=$value") {
+                        Add-Content -Path $githubEnvFilePath -Value "$name=$value"
+                    }
                 }
             }
          }

@@ -1254,6 +1254,22 @@ const char *getArchName(const device_impl &DeviceImpl) {
   return "unknown";
 }
 
+// Get a human-readable target label for a device binary image, usable in
+// error messages.
+// - For AOT-compiled images with a compile_target property returns the
+// architecture name (e.g. "intel_gpu_bdw")
+// - For JIT / generic images returns the raw DeviceTargetSpec string
+static std::string_view getImageTargetLabel(const RTDeviceBinaryImage &Img) {
+  auto PropRange = Img.getDeviceRequirements();
+  auto PropIt =
+      std::find_if(PropRange.begin(), PropRange.end(), [](const auto &Prop) {
+        return Prop->Name == std::string_view("compile_target");
+      });
+  if (PropIt != PropRange.end())
+    return DeviceBinaryProperty(*PropIt).asStringView();
+  return Img.getRawData().DeviceTargetSpec;
+}
+
 template <typename StorageKey>
 const RTDeviceBinaryImage *getBinImageFromMultiMap(
     const std::unordered_multimap<StorageKey, const RTDeviceBinaryImage *>
@@ -1308,6 +1324,19 @@ const RTDeviceBinaryImage *getBinImageFromMultiMap(
   return DeviceFilteredImgs[ImgInd];
 }
 
+std::string ProgramManager::getKernelTargetList(const kernel_id &KernelID) {
+  std::lock_guard<std::mutex> Guard(m_ImgMapsMutex);
+  auto [ItBegin, ItEnd] = m_KernelIDs2BinImage.equal_range(KernelID);
+  assert(ItBegin != ItEnd && "Expected at least one image");
+
+  std::string TargetList{getImageTargetLabel(*ItBegin->second)};
+  for (auto It = std::next(ItBegin); It != ItEnd; ++It) {
+    TargetList += ", ";
+    TargetList += getImageTargetLabel(*It->second);
+  }
+  return TargetList;
+}
+
 const RTDeviceBinaryImage &
 ProgramManager::getDeviceImage(std::string_view KernelName,
                                context_impl &ContextImpl,
@@ -1328,23 +1357,34 @@ ProgramManager::getDeviceImage(std::string_view KernelName,
   }
 
   const RTDeviceBinaryImage *Img = nullptr;
+  std::optional<kernel_id> FoundKernelID;
   {
     std::lock_guard<std::mutex> Guard(m_DeviceKernelInfoMapMutex);
-    if (auto It = m_DeviceKernelInfoMap.find(KernelName);
+    if (auto It = m_DeviceKernelInfoMap.find(std::string(KernelName));
         It != m_DeviceKernelInfoMap.end()) {
-      Img = getBinImageFromMultiMap(m_KernelIDs2BinImage,
-                                    It->second.getKernelID(), ContextImpl,
-                                    DeviceImpl);
+      FoundKernelID = It->second.getKernelID();
+      Img = getBinImageFromMultiMap(m_KernelIDs2BinImage, *FoundKernelID,
+                                    ContextImpl, DeviceImpl);
     }
   }
 
   // Decompress the image if it is compressed.
   CheckAndDecompressImage(Img);
 
-  if (!Img)
+  if (!Img) {
+    if (!FoundKernelID)
+      throw exception(make_error_code(errc::runtime),
+                      "No kernel named " + std::string(KernelName) +
+                          " was found");
+    // The kernel is registered but none of its images target the selected
+    // device. Enumerate the available targets so the user can see what the
+    // binary supports.
     throw exception(make_error_code(errc::runtime),
-                    "No kernel named " + std::string(KernelName) +
-                        " was found");
+                    "Kernel " + std::string(KernelName) +
+                        " has no image for the selected device. "
+                        "Its available images target: [" +
+                        getKernelTargetList(*FoundKernelID) + "].");
+  }
 
   if constexpr (DbgProgMgr > 0) {
     std::cerr << "selected device image: " << &Img->getRawData() << "\n";
@@ -1513,10 +1553,22 @@ void ProgramManager::cacheKernelImplicitLocalArg(
     }
 }
 
+void ProgramManager::cacheKernelWorkGroupDynamicLocalMem(
+    const RTDeviceBinaryImage &Img) {
+  const RTDeviceBinaryImage::PropertyRange &WorkGroupDynamicLocalMemRange =
+      Img.getWorkGroupDynamicLocalMem();
+  if (WorkGroupDynamicLocalMemRange.isAvailable())
+    for (auto Prop : WorkGroupDynamicLocalMemRange) {
+      auto It = m_DeviceKernelInfoMap.find(Prop->Name);
+      assert(It != m_DeviceKernelInfoMap.end());
+      It->second.setWorkGroupDynamicLocalMem();
+    }
+}
+
 DeviceKernelInfo &
 ProgramManager::getDeviceKernelInfo(const CompileTimeKernelInfoTy &Info) {
   std::lock_guard<std::mutex> Guard(m_DeviceKernelInfoMapMutex);
-  auto It = m_DeviceKernelInfoMap.find(Info.Name);
+  auto It = m_DeviceKernelInfoMap.find(std::string(Info.Name));
   assert(It != m_DeviceKernelInfoMap.end());
   It->second.setCompileTimeInfoIfNeeded(Info);
   return It->second;
@@ -1525,7 +1577,7 @@ ProgramManager::getDeviceKernelInfo(const CompileTimeKernelInfoTy &Info) {
 DeviceKernelInfo &
 ProgramManager::getDeviceKernelInfo(std::string_view KernelName) {
   std::lock_guard<std::mutex> Guard(m_DeviceKernelInfoMapMutex);
-  auto It = m_DeviceKernelInfoMap.find(KernelName);
+  auto It = m_DeviceKernelInfoMap.find(std::string(KernelName));
   assert(It != m_DeviceKernelInfoMap.end());
   return It->second;
 }
@@ -1533,7 +1585,7 @@ ProgramManager::getDeviceKernelInfo(std::string_view KernelName) {
 DeviceKernelInfo *
 ProgramManager::tryGetDeviceKernelInfo(std::string_view KernelName) {
   std::lock_guard<std::mutex> Guard(m_DeviceKernelInfoMapMutex);
-  auto It = m_DeviceKernelInfoMap.find(KernelName);
+  auto It = m_DeviceKernelInfoMap.find(std::string(KernelName));
   return It != m_DeviceKernelInfoMap.end() ? &It->second : nullptr;
 }
 
@@ -1726,14 +1778,15 @@ void ProgramManager::addImage(sycl_device_binary RawImg,
     if (m_ExportedSymbolImages.find(name) != m_ExportedSymbolImages.end())
       continue;
 
-    auto It = m_DeviceKernelInfoMap.find(std::string_view(name));
+    auto It = m_DeviceKernelInfoMap.find(name);
     if (It == m_DeviceKernelInfoMap.end()) {
       sycl::kernel_id KernelID = detail::createSyclObjFromImpl<sycl::kernel_id>(
           std::make_shared<detail::kernel_id_impl>(name));
       CompileTimeKernelInfoTy DefaultCompileTimeInfo{std::string_view(name)};
-      It = m_DeviceKernelInfoMap.emplace_hint(
-          It, std::piecewise_construct, std::forward_as_tuple(name),
-          std::forward_as_tuple(DefaultCompileTimeInfo, KernelID));
+      It = m_DeviceKernelInfoMap
+               .emplace(std::piecewise_construct, std::forward_as_tuple(name),
+                        std::forward_as_tuple(DefaultCompileTimeInfo, KernelID))
+               .first;
     }
     m_KernelIDs2BinImage.insert(
         std::make_pair(It->second.getKernelID(), Img.get()));
@@ -1759,7 +1812,7 @@ void ProgramManager::addImage(sycl_device_binary RawImg,
   }
 
   cacheKernelImplicitLocalArg(*Img);
-
+  cacheKernelWorkGroupDynamicLocalMem(*Img);
   // Sort kernel ids for faster search
   std::sort(KernelIDs->begin(), KernelIDs->end(), LessByHash<kernel_id>{});
 
@@ -1846,6 +1899,7 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
         auto CurIt = It++;
         if (CurIt->second.second == Img) {
           if (auto ContextImpl = CurIt->second.first.lock()) {
+            ContextImpl->removeDeviceGlobalInitializer(CurIt->first, Img);
             ContextImpl->getKernelProgramCache().removeAllRelatedEntries(
                 Img->getImageID());
           }
@@ -1866,7 +1920,7 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
         continue;
       }
 
-      auto DKIIt = m_DeviceKernelInfoMap.find(Name);
+      auto DKIIt = m_DeviceKernelInfoMap.find(std::string(Name));
       assert(DKIIt != m_DeviceKernelInfoMap.end());
       removeFromMultimapByVal(m_KernelIDs2BinImage, DKIIt->second.getKernelID(),
                               Img);
@@ -1998,8 +2052,7 @@ std::vector<kernel_id> ProgramManager::getAllSYCLKernelIDs() {
 
   std::vector<sycl::kernel_id> AllKernelIDs;
   AllKernelIDs.reserve(m_DeviceKernelInfoMap.size());
-  for (const std::pair<const std::string_view, DeviceKernelInfo> &Pair :
-       m_DeviceKernelInfoMap) {
+  for (const auto &Pair : m_DeviceKernelInfoMap) {
     AllKernelIDs.push_back(Pair.second.getKernelID());
   }
   return AllKernelIDs;
@@ -2183,8 +2236,7 @@ ProgramManager::getSYCLDeviceImagesWithCompatibleState(
     // Track the highest image state for each requested kernel.
     using StateImagesPairT =
         std::pair<bundle_state, std::vector<const RTDeviceBinaryImage *>>;
-    using KernelImageMapT =
-        std::map<kernel_id, StateImagesPairT, LessByNameComp>;
+    using KernelImageMapT = std::unordered_map<kernel_id, StateImagesPairT>;
     KernelImageMapT KernelImageMap;
     if (!KernelIDs.empty())
       for (const kernel_id &KernelID : KernelIDs)
@@ -3474,12 +3526,7 @@ bool doesImageTargetMatchDevice(const RTDeviceBinaryImage &Img,
 
   // Device image has the compile_target property, so it is AOT compiled for
   // some device, check if that architecture is Device's architecture.
-  auto CompileTargetByteArray = DeviceBinaryProperty(*PropIt).asByteArray();
-  // Drop 8 bytes describing the size of the byte array.
-  CompileTargetByteArray.dropBytes(8);
-  std::string_view CompileTarget(
-      reinterpret_cast<const char *>(&CompileTargetByteArray[0]),
-      CompileTargetByteArray.size());
+  std::string_view CompileTarget = DeviceBinaryProperty(*PropIt).asStringView();
   std::string_view ArchName = getArchName(DevImpl);
   // Note: there are no explicit targets for CPUs, so on x86_64,
   // intel_cpu_spr, and intel_cpu_gnr, we use a spir64_x86_64

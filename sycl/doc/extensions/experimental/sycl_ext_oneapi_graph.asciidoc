@@ -20,7 +20,7 @@
 
 == Notice
 
-Copyright (c) 2022-2025 Intel Corporation.  All rights reserved.
+Copyright (c) 2022-2026 Intel Corporation.  All rights reserved.
 
 Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
 of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
@@ -59,6 +59,8 @@ Ronan Keryell, AMD +
 Andrey Alekseenko, KTH Royal Institute of Technology +
 Fábio Mestre, Codeplay +
 Konrad Kusiak, Codeplay +
+Adam Fidel, Intel +
+Matthew Michel, Intel +
 
 == Dependencies
 
@@ -1240,6 +1242,13 @@ capture the constructor will throw `feature_not_supported`.
 
 See the <<native-recording, Native Recording>> section for a full description
 of the feature.
+
+===== Interaction with the SYCL_GRAPH_FORCE_NATIVE_RECORDING environment variable
+
+{dpcpp} supports an environment variable `SYCL_GRAPH_FORCE_NATIVE_RECORDING`.
+When set to `1`, all `command_graph` instances behave as if
+`property::graph::enable_native_recording` were included in the property list
+at construction time.
 
 ==== Graph Member Functions
 

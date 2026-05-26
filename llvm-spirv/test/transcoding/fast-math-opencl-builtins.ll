@@ -11,7 +11,10 @@
 ; RUN: llvm-spirv -r --spirv-target-env=SPV-IR %t.fc2.spv -o - | llvm-dis -o - | FileCheck %s --check-prefixes=CHECK-LLVM-SPV,CHECK-LLVM-SPV-FC2
 
 ; RUN: llvm-spirv -spirv-text --spirv-max-version=1.5 %t.bc -o - | FileCheck %s --check-prefix=CHECK-SPIRV-NEG
-; FIXME: FILECHECK_FAIL during llvm-spirv -r in llc compilation flow
+; RUN: %if spirv-backend %{ llc -O0 -mtriple=spirv64-unknown-unknown -filetype=obj %s -o %t.llc.spv %}
+; RUN: %if spirv-backend %{ llvm-spirv -r %t.llc.spv -o %t.llc.rev.bc %}
+; RUN: %if spirv-backend %{ llvm-dis %t.llc.rev.bc -o %t.llc.rev.ll %}
+; RUN: %if spirv-backend %{ FileCheck %s --check-prefix=CHECK-LLVM-OCL < %t.llc.rev.ll %}
 
 ; CHECK-SPIRV: Decorate [[#FPDec1:]] FPFastMathMode 3
 ; CHECK-SPIRV: Decorate [[#FPDec2:]] FPFastMathMode 2

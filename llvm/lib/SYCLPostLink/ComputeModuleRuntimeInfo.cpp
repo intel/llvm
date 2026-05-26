@@ -118,7 +118,8 @@ PropSetRegTy computeDeviceLibProperties(const Module &M,
 PropSetRegTy computeModuleProperties(const Module &M,
                                      const EntryPointSet &EntryPoints,
                                      const GlobalBinImageProps &GlobProps,
-                                     bool AllowDeviceImageDependencies) {
+                                     bool AllowDeviceImageDependencies,
+                                     int IdQueriesRange) {
 
   PropSetRegTy PropSet;
   {
@@ -378,11 +379,24 @@ PropSetRegTy computeModuleProperties(const Module &M,
       PropSet.add(PropSetRegTy::SYCL_MISC_PROP, "optLevel", OptLevel);
   }
   {
+    // Add device image property only if the image has a non-default
+    // SYCL Id range. The default range is 0 (signed int).
+    if (IdQueriesRange != 0)
+      PropSet.add(PropSetRegTy::SYCL_MISC_PROP, "idQueriesRange",
+                  IdQueriesRange);
+  }
+  {
     std::vector<std::pair<StringRef, int>> ArgPos =
         getKernelNamesUsingImplicitLocalMem(M);
     for (const auto &FuncAndArgPos : ArgPos)
       PropSet.add(PropSetRegTy::SYCL_IMPLICIT_LOCAL_ARG, FuncAndArgPos.first,
                   FuncAndArgPos.second);
+  }
+
+  {
+    SmallVector<StringRef> Kernels = getKernelNamesUsingWorkGroupDynamicMem(M);
+    for (const auto &Kernel : Kernels)
+      PropSet.add(PropSetRegTy::SYCL_WORK_GROUP_DYNAMIC_LOCAL_MEM, Kernel, 1);
   }
 
   {

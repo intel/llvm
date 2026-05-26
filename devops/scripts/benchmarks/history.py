@@ -1,6 +1,5 @@
-# Copyright (C) 2024-2026 Intel Corporation
-# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
-# See LICENSE.TXT
+# Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+# See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import os
@@ -189,11 +188,19 @@ class BenchmarkHistory:
             log.warning("GPU information detection failed.")
             platform_info.gpu_info = []
 
+        run_date = (
+            datetime.strptime(
+                options.timestamp_override, options.TIMESTAMP_FORMAT
+            ).replace(tzinfo=timezone.utc)
+            if options.timestamp_override is not None
+            else datetime.now(tz=timezone.utc)
+        )
+
         return BenchmarkRun(
             name=name,
             git_hash=git_hash,
             github_repo=github_repo,
-            date=datetime.now(tz=timezone.utc),
+            date=run_date,
             results=results,
             hostname=hostname,
             compute_runtime=compute_runtime,

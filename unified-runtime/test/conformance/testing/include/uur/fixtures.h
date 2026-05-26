@@ -1,6 +1,5 @@
-// Copyright (C) 2022-2026 Intel Corporation
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
@@ -74,23 +73,6 @@ struct urPlatformTest : ::testing::Test,
 
   ur_platform_handle_t platform = nullptr;
 };
-
-inline std::pair<bool, std::vector<ur_device_handle_t>>
-GetDevices(ur_platform_handle_t platform) {
-  uint32_t count = 0;
-  if (urDeviceGet(platform, UR_DEVICE_TYPE_ALL, 0, nullptr, &count)) {
-    return {false, {}};
-  }
-  if (count == 0) {
-    return {false, {}};
-  }
-  std::vector<ur_device_handle_t> devices(count);
-  if (urDeviceGet(platform, UR_DEVICE_TYPE_ALL, count, devices.data(),
-                  nullptr)) {
-    return {false, {}};
-  }
-  return {true, devices};
-}
 
 inline bool hasDevicePartitionSupport(ur_device_handle_t device,
                                       const ur_device_partition_t property) {
@@ -674,6 +656,33 @@ struct urMultiQueueTest : urContextTest {
     }
     UUR_RETURN_ON_FATAL_FAILURE(urContextTest::TearDown());
   }
+
+  ur_queue_handle_t queue1 = nullptr;
+  ur_queue_handle_t queue2 = nullptr;
+};
+
+struct urMultiQueueMultiTypeTest : urContextTest {
+  void SetUp() override {
+    UUR_RETURN_ON_FATAL_FAILURE(urContextTest::SetUp());
+
+    ur_queue_flag_t queueMode = this->getQueueFlag();
+    ur_queue_properties_t props = {UR_STRUCTURE_TYPE_QUEUE_PROPERTIES, nullptr,
+                                   queueMode};
+    ASSERT_SUCCESS(urQueueCreate(this->context, this->device, &props, &queue1));
+    ASSERT_SUCCESS(urQueueCreate(this->context, this->device, &props, &queue2));
+  }
+
+  void TearDown() override {
+    if (queue1 != nullptr) {
+      EXPECT_SUCCESS(urQueueRelease(queue1));
+    }
+    if (queue2 != nullptr) {
+      EXPECT_SUCCESS(urQueueRelease(queue2));
+    }
+    UUR_RETURN_ON_FATAL_FAILURE(urContextTest::TearDown());
+  }
+
+  ur_queue_flag_t getQueueFlag() { return std::get<1>(GetParam()); }
 
   ur_queue_handle_t queue1 = nullptr;
   ur_queue_handle_t queue2 = nullptr;

@@ -130,7 +130,7 @@ InstructionCost calculateBoolReductionCost(LLVMContext &context, Module *module,
   return cost;
 }
 
-bool hoistInstructions(BasicBlock &BB, BranchInst &Branch, bool exceptions) {
+bool hoistInstructions(BasicBlock &BB, CondBrInst &Branch, bool exceptions) {
   const auto &DL = BB.getModule()->getDataLayout();
   const bool TrueBranch = (Branch.getSuccessor(0) == &BB);
   DenseMap<Value *, Value *> safeDivisors;
@@ -329,7 +329,7 @@ PreservedAnalyses PreLinearizePass::run(Function &F,
       if (total_cost <= branch_cost) {
         // The Lower Switch Pass ought to guarantee we can only get branch
         // instructions here, but in case it didn't, we don't want to crash.
-        if (auto *const Branch = dyn_cast<BranchInst>(T)) {
+        if (auto *const Branch = dyn_cast<CondBrInst>(T)) {
           for (auto *succ : hoistable) {
             modified |= hoistInstructions(*succ, *Branch, div_exceptions);
           }

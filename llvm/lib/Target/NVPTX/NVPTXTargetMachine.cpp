@@ -120,6 +120,7 @@ extern "C" LLVM_ABI LLVM_EXTERNAL_VISIBILITY void LLVMInitializeNVPTXTarget() {
   initializeNVPTXAssignValidGlobalNamesPass(PR);
   initializeNVPTXAtomicLowerPass(PR);
   initializeNVPTXLowerArgsLegacyPassPass(PR);
+  initializeNVPTXSetByValParamAlignLegacyPassPass(PR);
   initializeNVPTXMarkKernelPtrsGlobalLegacyPassPass(PR);
   initializeNVPTXLowerAllocaPass(PR);
   initializeNVPTXLowerUnreachablePass(PR);
@@ -380,6 +381,7 @@ void NVPTXPassConfig::addIRPasses() {
   // before the address space inference passes.
   if (getNVPTXTargetMachine().getDrvInterface() == NVPTX::CUDA)
     addPass(createNVPTXMarkKernelPtrsGlobalPass());
+  addPass(createNVPTXSetByValParamAlignPass());
   addPass(createNVPTXLowerArgsPass());
   if (getOptLevel() != CodeGenOptLevel::None) {
     addAddressSpaceInferencePasses();

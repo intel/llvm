@@ -54,12 +54,10 @@ bool isReturnBlock(const llvm::BasicBlock &BB) {
   }
 
   auto *T = BB.getTerminator();
-  if (auto *const branch = dyn_cast<BranchInst>(T)) {
-    if (branch->isUnconditional()) {
-      // We can see straight through a block that only contains a single
-      // unconditional branch.
-      return isReturnBlock(*branch->getSuccessor(0));
-    }
+  if (auto *const branch = dyn_cast<UncondBrInst>(T)) {
+    // We can see straight through a block that only contains a single
+    // unconditional branch.
+    return isReturnBlock(*branch->getSuccessor(0));
   }
 
   return isa<ReturnInst>(T);
@@ -69,7 +67,7 @@ bool isReturnBlock(const llvm::BasicBlock &BB) {
 bool ControlFlowConversionState::ROSCCGadget::run(Function &F) {
   bool changed = false;
 
-  SmallVector<BranchInst *, 4> RetBranches;
+  SmallVector<CondBrInst *, 4> RetBranches;
   for (auto &BB : F) {
     if (LI->getLoopFor(&BB)) {
       // No need to do this transform on loop exits
@@ -77,21 +75,19 @@ bool ControlFlowConversionState::ROSCCGadget::run(Function &F) {
     }
 
     auto *T = BB.getTerminator();
-    if (auto *Branch = dyn_cast<BranchInst>(T)) {
-      if (Branch->isConditional() && Branch->getNumSuccessors() == 2) {
-        Value *cond = Branch->getCondition();
-        if (UVR->isVarying(cond)) {
-          size_t countReturns = 0;
-          for (auto *succ : Branch->successors()) {
-            if (isReturnBlock(*succ)) {
-              ++countReturns;
-            }
+    if (auto *Branch = dyn_cast<CondBrInst>(T)) {
+      Value *cond = Branch->getCondition();
+      if (UVR->isVarying(cond)) {
+        size_t countReturns = 0;
+        for (auto *succ : Branch->successors()) {
+          if (isReturnBlock(*succ)) {
+            ++countReturns;
           }
+        }
 
-          // Only consider ROSCC when there is exactly one returning successor.
-          if (countReturns == 1) {
-            RetBranches.push_back(Branch);
-          }
+        // Only consider ROSCC when there is exactly one returning successor.
+        if (countReturns == 1) {
+          RetBranches.push_back(Branch);
         }
       }
     }
@@ -131,7 +127,7 @@ bool ControlFlowConversionState::ROSCCGadget::run(Function &F) {
     auto *newCond = CmpInst::Create(Instruction::ICmp, CmpInst::ICMP_EQ, Cond,
                                     Which ? falseCI : trueCI, "", BB);
     newCond->setName(Twine(Cond->getName(), ".ROSCC"));
-    BranchInst::Create(newBB, ReturnBlock, newCond, BB);
+    CondBrInst::Create(newCond, newBB, ReturnBlock, BB);
 
     // Update Dominator and PostDominator trees..
     DT->insertEdge(BB, ReturnBlock);

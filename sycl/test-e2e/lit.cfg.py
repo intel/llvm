@@ -686,6 +686,13 @@ with test_env():
     if "opencl:cpu" in sycl_ls_output:
         config.available_features.add("opencl-cpu-rt")
 
+    # Count physical GPU devices: each physical GPU produces one output line
+    # that contains ":gpu]". Add a feature when at least two are present so
+    # tests requiring multi-GPU hardware can be skipped on single-GPU machines.
+    gpu_device_lines = [l for l in sycl_ls_output.splitlines() if ":gpu]" in l]
+    if len(gpu_device_lines) >= 2:
+        config.available_features.add("two-or-more-gpu-devices")
+
     if len(config.sycl_devices) == 1 and config.sycl_devices[0] == "all":
         devices = set()
         for line in sycl_ls_output.splitlines():
@@ -995,6 +1002,10 @@ if lit_config.params.get("enable_new_offload_model", "False") != "False":
     config.available_features.add("new-offload-model")
     config.cxx_flags += " --offload-new-driver "
 
+# Add O0 feature for unoptimized builds
+if re.search(r"(^|\s)(-O0|/Od)(\s|$)", config.cxx_flags):
+    config.available_features.add("O0")
+
 # That has to be executed last so that all device-independent features have been
 # discovered already.
 config.sycl_dev_features = {}
@@ -1014,6 +1025,7 @@ for full_name, sycl_device in zip(
     dev_aspects = []
     dev_sg_sizes = []
     architectures = set()
+    device_names = set()
     # See format.py's parse_min_intel_driver_req for explanation.
     is_intel_driver = False
     intel_driver_ver = {}
@@ -1055,8 +1067,11 @@ for full_name, sycl_device in zip(
         if re.match(r" *Architecture:", line):
             _, architecture = line.strip().split(":", 1)
             architectures.add(architecture.strip())
-        if re.match(r" *Name *:", line) and "Level-Zero V2" in line:
-            features.add("level_zero_v2_adapter")
+        if re.match(r" *Name *:", line):
+            _, device_name_str = line.strip().split(":", 1)
+            device_names.add(device_name_str.strip())
+            if "Level-Zero V2" in line:
+                features.add("level_zero_v2_adapter")
 
         # TODO change to the set of backends
         if re.match(r"\[offload:.*", line) and not is_offload_preferred_backend_set:
@@ -1124,10 +1139,24 @@ for full_name, sycl_device in zip(
             )
         )
 
+    # Add a normalized device-name feature, e.g. "gpu-nvidia-geforce-rtx-3090"
+    # derived from the "Name :" field reported by sycl-ls --verbose.
+    device_name_features = set(
+        "gpu-" + re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
+        for name in device_names
+    )
+    if device_name_features:
+        lit_config.note(
+            "Device name features for {}: {}".format(
+                sycl_device, ", ".join(device_name_features)
+            )
+        )
+
     features.update(aspect_features)
     features.update(sg_size_features)
     features.update(architecture_feature)
     features.update(device_family)
+    features.update(device_name_features)
 
     be, dev = sycl_device.split(":")
     if dev.isdigit():

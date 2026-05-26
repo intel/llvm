@@ -1,10 +1,9 @@
 /*
  *
- * Copyright (C) 2022 Intel Corporation
  *
- * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
+ * Part of the LLVM Project, under the Apache License v2.0 with LLVM
  * Exceptions.
- * See LICENSE.TXT
+ * See https://llvm.org/LICENSE.txt for license information.
  *
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
@@ -509,6 +508,8 @@ typedef enum ur_function_t {
   UR_FUNCTION_USM_HOST_ALLOC_REGISTER_EXP = 312,
   /// Enumerator for ::urUSMHostAllocUnregisterExp
   UR_FUNCTION_USM_HOST_ALLOC_UNREGISTER_EXP = 313,
+  /// Enumerator for ::urQueueGetGraphExp
+  UR_FUNCTION_QUEUE_GET_GRAPH_EXP = 314,
   /// @cond
   UR_FUNCTION_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -2130,8 +2131,8 @@ typedef enum ur_device_info_t {
   /// [uint32_t] max number of image objects arguments of a kernel declared
   /// with the write_only qualifier
   UR_DEVICE_INFO_MAX_WRITE_IMAGE_ARGS = 31,
-  /// [uint32_t] max number of image objects arguments of a kernel declared
-  /// with the read_write qualifier
+  /// [uint32_t][optional-query] max number of image objects arguments of a
+  /// kernel declared with the read_write qualifier
   UR_DEVICE_INFO_MAX_READ_WRITE_IMAGE_ARGS = 32,
   /// [size_t] max width of Image2D object
   UR_DEVICE_INFO_IMAGE2D_MAX_WIDTH = 33,
@@ -2203,7 +2204,8 @@ typedef enum ur_device_info_t {
   /// It is unsuitable for general use in applications. This feature is
   /// provided for identifying memory leaks.
   UR_DEVICE_INFO_REFERENCE_COUNT = 64,
-  /// [char[]] null-terminated IL version
+  /// [char[]][optional-query] null-terminated IL version. Optional as not
+  /// all adapters support IL (e.g., NativeCPU).
   UR_DEVICE_INFO_IL_VERSION = 65,
   /// [char[]] null-terminated device name
   UR_DEVICE_INFO_NAME = 66,
@@ -2374,6 +2376,30 @@ typedef enum ur_device_info_t {
   UR_DEVICE_INFO_LUID = 129,
   /// [uint32_t][optional-query] return device Windows node mask
   UR_DEVICE_INFO_NODE_MASK = 130,
+  /// [uint32_t] preferred vector width for long long
+  UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_LONG_LONG = 131,
+  /// [uint32_t] native vector width for long long
+  UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG_LONG = 132,
+  /// [size_t] return max total number of work groups
+  UR_DEVICE_INFO_MAX_WORK_GROUPS = 133,
+  /// [uint32_t][optional-query] return Intel GPU number of
+  /// stacks/chiplets/tiles
+  UR_DEVICE_INFO_XE_STACK_COUNT = 134,
+  /// [uint32_t][optional-query] return Intel GPU number of regions sharing
+  /// local L2/L3 (XE_CU) per stack
+  UR_DEVICE_INFO_XE_REGIONS_PER_STACK = 135,
+  /// [uint32_t][optional-query] return Intel GPU number of clusters
+  /// (slices) per region
+  UR_DEVICE_INFO_XE_CLUSTERS_PER_REGION = 136,
+  /// [uint32_t][optional-query] return Intel GPU number of XE cores per
+  /// cluster
+  UR_DEVICE_INFO_XE_CORES_PER_CLUSTER = 137,
+  /// [uint32_t][optional-query] return Intel GPU number of execution
+  /// engines (EUs) per XE Core
+  UR_DEVICE_INFO_EUS_PER_XE_CORE = 138,
+  /// [uint32_t][optional-query] return Intel GPU maximal number of lanes
+  /// (virtual SIMD size) per hardware thread
+  UR_DEVICE_INFO_MAX_LANES_PER_HW_THREAD = 139,
   /// [::ur_bool_t] Returns true if the device supports the use of
   /// command-buffers.
   UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP = 0x1000,
@@ -3171,6 +3197,10 @@ typedef struct ur_context_properties_t {
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `NULL != pProperties && ::UR_CONTEXT_FLAGS_MASK &
 ///         pProperties->flags`
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         + `DeviceCount == 0`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE - "If device handles in
+///     phDevices are not valid handles."
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY
 UR_APIEXPORT ur_result_t UR_APICALL urContextCreate(
@@ -9954,6 +9984,8 @@ typedef enum ur_exp_external_semaphore_type_t {
   UR_EXP_EXTERNAL_SEMAPHORE_TYPE_TIMELINE_FD = 3,
   /// Timeline semaphore Win32 NT handle
   UR_EXP_EXTERNAL_SEMAPHORE_TYPE_TIMELINE_WIN32_NT = 4,
+  /// Fence semaphore Win32 NT DirectX 11 handle
+  UR_EXP_EXTERNAL_SEMAPHORE_TYPE_WIN32_NT_DX11_FENCE = 5,
   /// @cond
   UR_EXP_EXTERNAL_SEMAPHORE_TYPE_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -10852,7 +10884,7 @@ urBindlessImagesSupportsImportingHandleTypeExp(
 ///         + `NULL == hContext`
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_EXP_EXTERNAL_SEMAPHORE_TYPE_TIMELINE_WIN32_NT <
+///         + `::UR_EXP_EXTERNAL_SEMAPHORE_TYPE_WIN32_NT_DX11_FENCE <
 ///         semHandleType`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pExternalSemaphoreDesc`
@@ -11000,7 +11032,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesSignalExternalSemaphoreExp(
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hDevice`
-///         + `hDevice == nullptr`
 ///     - ::UR_RESULT_ERROR_INVALID_DEVICE
 UR_APIEXPORT ur_result_t UR_APICALL urDeviceWaitExp(
     /// [in] handle of the device instance.
@@ -13804,6 +13835,27 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueIsGraphCaptureEnabledExp(
     bool *pResult);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Get the graph handle currently being captured on the specified queue.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hQueue`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == phGraph`
+///     - ::UR_RESULT_ERROR_INVALID_OPERATION
+///         + The queue is not in graph capture mode.
+UR_APIEXPORT ur_result_t UR_APICALL urQueueGetGraphExp(
+    /// [in] Handle of the queue to query.
+    ur_queue_handle_t hQueue,
+    /// [out] Pointer to the handle of the graph being captured. Set to
+    /// nullptr if queue is not in capture mode.
+    ur_exp_graph_handle_t *phGraph);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Return whether the given recorded graph contains any nodes.
 ///
 /// @returns
@@ -14652,6 +14704,15 @@ typedef struct ur_queue_is_graph_capture_enabled_exp_params_t {
   ur_queue_handle_t *phQueue;
   bool **ppResult;
 } ur_queue_is_graph_capture_enabled_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urQueueGetGraphExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_queue_get_graph_exp_params_t {
+  ur_queue_handle_t *phQueue;
+  ur_exp_graph_handle_t **pphGraph;
+} ur_queue_get_graph_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urSamplerCreate

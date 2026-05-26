@@ -1,0 +1,23 @@
+@PACKAGE_INIT@
+
+set(XPTI_VERSION_MAJOR @PROJECT_VERSION_MAJOR@)
+set(XPTI_VERSION_MINOR @PROJECT_VERSION_MINOR@)
+set(XPTI_VERSION_PATCH @PROJECT_VERSION_PATCH@)
+set(XPTI_VERSION @PROJECT_VERSION@)
+
+get_filename_component(XPTI_CMAKE_DIR "${CMAKE_CURRENT_LIST_FILE}" PATH)
+list(APPEND CMAKE_MODULE_PATH "${XPTI_CMAKE_DIR}")
+
+if(NOT TARGET xpti::xpti)
+  include("${XPTI_CMAKE_DIR}/xptiTargets.cmake")
+endif()
+
+if(MSVC)
+  set(XPTI_LIBRARIES "$<IF:$<CONFIG:Debug>,xpti::xptid,xpti::xpti>")
+else()
+  set(XPTI_LIBRARIES xpti::xpti)
+endif()
+
+set(XPTI_INCLUDE_DIRS "@PACKAGE_INCLUDE_INSTALL_DIR@")
+
+check_required_components(xpti)

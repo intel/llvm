@@ -1,6 +1,5 @@
-# Copyright (C) 2023 Intel Corporation
-# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
-# See LICENSE.TXT
+# Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+# See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 add_conformance_kernels_test(enqueue
@@ -15,10 +14,8 @@ add_conformance_kernels_test(enqueue
     urEnqueueMemBufferCopy.cpp
     urEnqueueMemBufferFill.cpp
     urEnqueueMemBufferMap.cpp
-    # Enqueue memory buffer read tests ran simultenously lead to timeouts.
-    # Tracker: https://jira.devtools.intel.com/browse/URT-1026
-    # urEnqueueMemBufferRead.cpp
-    # urEnqueueMemBufferReadRect.cpp
+    urEnqueueMemBufferRead.cpp
+    urEnqueueMemBufferReadRect.cpp
     urEnqueueMemBufferWrite.cpp
     urEnqueueMemBufferWriteRect.cpp
     urEnqueueMemImageCopy.cpp

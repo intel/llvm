@@ -107,7 +107,7 @@ OffloadTargetInfo::OffloadTargetInfo(const StringRef Target,
     auto TripleOrGPU = TargetFeatures.first.rsplit('-');
 
     if (clang::StringToOffloadArch(TripleOrGPU.second) !=
-        clang::OffloadArch::UNKNOWN) {
+        clang::OffloadArch::Unknown) {
       auto KindTriple = TripleOrGPU.first.split('-');
       this->OffloadKind = KindTriple.first;
 
@@ -137,7 +137,7 @@ OffloadTargetInfo::OffloadTargetInfo(const StringRef Target,
       Components.size() == 6 ? Components.back() : "";
   StringRef TargetId = TargetIdWithFeature.split(':').first;
   if (!TargetId.empty() &&
-      clang::StringToOffloadArch(TargetId) != clang::OffloadArch::UNKNOWN)
+      clang::StringToOffloadArch(TargetId) != clang::OffloadArch::Unknown)
     this->TargetID = TargetIdWithFeature;
   else
     this->TargetID = "";

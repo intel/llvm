@@ -44,7 +44,6 @@ void llvm::initializeCodeGen(PassRegistry &Registry) {
   initializeEarlyMachineLICMPass(Registry);
   initializeEarlyTailDuplicateLegacyPass(Registry);
   initializeExpandIRInstsLegacyPassPass(Registry);
-  initializeExpandMemCmpLegacyPassPass(Registry);
   initializeExpandPostRALegacyPass(Registry);
   initializeFPBuiltinFnSelectionLegacyPassPass(Registry);
   initializeExpandReductionsPass(Registry);
@@ -161,7 +160,7 @@ void llvm::initializeCodeGen(PassRegistry &Registry) {
   initializeTargetPassConfigPass(Registry);
   initializeTwoAddressInstructionLegacyPassPass(Registry);
   initializeTypePromotionLegacyPass(Registry);
-  initializeUnpackMachineBundlesPass(Registry);
+  initializeUnpackMachineBundlesLegacyPass(Registry);
   initializeUnreachableBlockElimLegacyPassPass(Registry);
   initializeUnreachableMachineBlockElimLegacyPass(Registry);
   initializeVirtRegMapWrapperLegacyPass(Registry);

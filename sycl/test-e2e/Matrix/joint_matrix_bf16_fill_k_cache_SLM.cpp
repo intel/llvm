@@ -9,9 +9,6 @@
 
 // REQUIRES: aspect-ext_intel_matrix, gpu
 
-// XFAIL: run-mode
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/21612
-
 // XFAIL: arch-intel_gpu_pvc
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/21094
 

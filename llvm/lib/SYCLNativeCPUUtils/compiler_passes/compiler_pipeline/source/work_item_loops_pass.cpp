@@ -341,7 +341,7 @@ struct ScheduleGenerator {
       auto *const needLoop = CmpInst::Create(
           Instruction::ICmp, CmpInst::ICMP_NE, zero, totalSize, "", block);
 
-      BranchInst::Create(preheader, exitBlock, needLoop, block);
+      CondBrInst::Create(needLoop, preheader, exitBlock, block);
 
       resultPhi = PHINode::Create(accTy, 2, "WGC_reduce", exitBlock);
       resultPhi->addIncoming(accumulator, block);
@@ -479,7 +479,7 @@ struct ScheduleGenerator {
 
         auto *const needTail = CmpInst::Create(
             Instruction::ICmp, CmpInst::ICMP_EQ, totalSize, zero, "", block);
-        BranchInst::Create(tailUniformBlock, mainUniformBlock, needTail, block);
+        CondBrInst::Create(needTail, tailUniformBlock, mainUniformBlock, block);
       }
 
       if (!mainUniformBlock && !tailUniformBlock) {
@@ -508,8 +508,8 @@ struct ScheduleGenerator {
           // If both barrier structs had to be used, we need to merge the
           // result.
           block = BasicBlock::Create(context, "ca_merge_uniform_load", func);
-          BranchInst::Create(block, tailUniformBlock);
-          BranchInst::Create(block, mainUniformBlock);
+          UncondBrInst::Create(block, tailUniformBlock);
+          UncondBrInst::Create(block, mainUniformBlock);
 
           for (size_t i = 0; i != 3; ++i) {
             auto *mergePhi = PHINode::Create(idsMain[i]->getType(), 2,
@@ -632,7 +632,7 @@ struct ScheduleGenerator {
             CmpInst::Create(Instruction::ICmp, CmpInst::ICMP_NE, zero,
                             mainLoopLimit, "", block);
 
-        BranchInst::Create(mainPreheaderBB, mainExitBB, needMain, block);
+        CondBrInst::Create(needMain, mainPreheaderBB, mainExitBB, block);
       }
     }
 
@@ -757,7 +757,7 @@ struct ScheduleGenerator {
         auto *const needPeeling = CmpInst::Create(
             Instruction::ICmp, CmpInst::ICMP_NE, zero, peel, "", mainExitBB);
 
-        BranchInst::Create(tailPreheaderBB, tailExitBB, needPeeling,
+        CondBrInst::Create(needPeeling, tailPreheaderBB, tailExitBB,
                            mainExitBB);
       }
     } else {
@@ -968,7 +968,7 @@ struct ScheduleGenerator {
                         CmpInst::Create(Instruction::ICmp, CmpInst::ICMP_NE,
                                         zero, mainLoopLimit, "", block);
 
-                    BranchInst::Create(mainPreheaderBB, mainExitBB, needMain,
+                    CondBrInst::Create(needMain, mainPreheaderBB, mainExitBB,
                                        block);
                   }
                 }
@@ -1083,7 +1083,7 @@ struct ScheduleGenerator {
                         CmpInst::Create(Instruction::ICmp, CmpInst::ICMP_NE,
                                         zero, peel, "", mainExitBB);
 
-                    BranchInst::Create(tailPreheaderBB, tailExitBB, needPeeling,
+                    CondBrInst::Create(needPeeling, tailPreheaderBB, tailExitBB,
                                        mainExitBB);
                   }
                 } else {
@@ -1667,8 +1667,8 @@ Function *compiler::utils::WorkItemLoopsPass::makeWrapperFunction(
         auto *const cmp_id =
             CmpInst::Create(Instruction::ICmp, CmpInst::ICMP_EQ, ld_next_id,
                             bb_id, "", br_block);
-        BranchInst::Create(bbs.find(successors[0])->second,
-                           bbs.find(successors[1])->second, cmp_id, br_block);
+        CondBrInst::Create(cmp_id, bbs.find(successors[0])->second,
+                           bbs.find(successors[1])->second, br_block);
 
         exitIR.CreateBr(br_block);
       } else if (num_succ == 0) {

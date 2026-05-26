@@ -1,9 +1,8 @@
 /*
  *
- * Copyright (C) 2024 Intel Corporation
  *
- * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
- * Exceptions. See LICENSE.TXT
+ * Part of the LLVM Project, under the Apache License v2.0 with LLVM
+ * Exceptions. See https://llvm.org/LICENSE.txt for license information.
  *
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
@@ -19,6 +18,7 @@
 #include "msan_shadow.hpp"
 #include "sanitizer_common/sanitizer_common.hpp"
 #include "sanitizer_common/sanitizer_options.hpp"
+#include "sanitizer_common/sanitizer_utils.hpp"
 #include "ur_sanitizer_layer.hpp"
 
 #include <memory>
@@ -142,6 +142,7 @@ struct ContextInfo {
   std::atomic<int32_t> RefCount = 1;
 
   std::vector<ur_device_handle_t> DeviceList;
+  DeferredEventList DeferredEvents;
 
   explicit ContextInfo(ur_context_handle_t Context) : Handle(Context) {
     [[maybe_unused]] auto Result =
@@ -285,8 +286,7 @@ public:
 
   ur_result_t allocateMemory(ur_context_handle_t Context,
                              ur_device_handle_t Device,
-                             const ur_usm_desc_t *Properties,
-                             ur_usm_pool_handle_t Pool, size_t Size,
+                             const AllocMemoryParams &Params, size_t Size,
                              AllocType Type, void **ResultPtr);
   ur_result_t releaseMemory(ur_context_handle_t Context, void *Ptr);
 

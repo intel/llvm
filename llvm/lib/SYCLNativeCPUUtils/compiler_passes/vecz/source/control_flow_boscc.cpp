@@ -539,7 +539,7 @@ bool ControlFlowConversionState::BOSCCGadget::connectBOSCCRegions() {
         BasicBlock *newPreheader = BasicBlock::Create(
             F.getContext(), predicatedPreheader->getName() + ".blend", &F,
             header);
-        BranchInst::Create(header, newPreheader);
+        UncondBrInst::Create(header, newPreheader);
 
         // Set the successor of both preheaders to be the new preheader.
         auto *predicatedPreheaderT = predicatedPreheader->getTerminator();
@@ -597,8 +597,8 @@ bool ControlFlowConversionState::BOSCCGadget::connectBOSCCRegions() {
       // predicated loop header (even though we will never branch to it) to ease
       // some needed blendings later on.
       IRCleanup::deleteInstructionNow(T);
-      BranchInst::Create(DR->getTag(uniformL).header, LTag.header,
-                         ConstantInt::getTrue(F.getContext()), preheader);
+      CondBrInst::Create(ConstantInt::getTrue(F.getContext()),
+                         DR->getTag(uniformL).header, LTag.header, preheader);
     }
   }
 
@@ -762,7 +762,7 @@ bool ControlFlowConversionState::BOSCCGadget::connectUniformRegion(
         CmpInst::Create(Instruction::ICmp, CmpInst::ICMP_EQ,
                         PassState.getMaskInfo(uniformB).exitMasks.lookup(succ),
                         trueCI, "", runtimeCheckerBlock);
-    BranchInst::Create(succ, BOSCCIndir, cond, runtimeCheckerBlock);
+    CondBrInst::Create(cond, succ, BOSCCIndir, runtimeCheckerBlock);
 
     if (i > 0) {
       // Update the incoming block of the phi nodes in 'succ' from 'uniformB'
@@ -813,7 +813,7 @@ bool ControlFlowConversionState::BOSCCGadget::connectUniformRegion(
       }
     }
 
-    BranchInst::Create(connectionPoint, store);
+    UncondBrInst::Create(connectionPoint, store);
 
     // 'store' belongs in the first outer loop non duplicated.
     Loop *parentLoop = LTag->loop->getParentLoop();
@@ -830,7 +830,7 @@ bool ControlFlowConversionState::BOSCCGadget::connectUniformRegion(
 
   // 1.c. 'uniformB' has a new runtime check, we can remove its old one.
   IRCleanup::deleteInstructionNow(T);
-  BranchInst::Create(succ, target, cond, runtimeCheckerBlock);
+  CondBrInst::Create(cond, succ, target, runtimeCheckerBlock);
 
   // Update the incoming block of the new successors of 'runTimeCheckerBlock'.
   replaceIncomingBlock(succ, uniformB, runtimeCheckerBlock);

@@ -25,6 +25,25 @@ __esimd_sbarrier(__ESIMD_ENS::split_barrier_action flag) __ESIMD_INTRIN_END;
 __ESIMD_INTRIN void __esimd_wait(uint16_t value);
 #endif // __SYCL_DEVICE_ONLY__
 
+template <typename T, int N>
+__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<uint32_t, N>
+__esimd_packed_4bit_upconvert_lut(
+    __ESIMD_DNS::vector_type_t<uint32_t, 16> lookup_table,
+    __ESIMD_DNS::vector_type_t<T, N> src)
+#ifdef __SYCL_DEVICE_ONLY__
+    ;
+#else
+{
+  __ESIMD_UNSUPPORTED_ON_HOST;
+}
+#endif // __SYCL_DEVICE_ONLY__
+
+template <uint8_t ConvType, uint8_t PackingMode, uint8_t RoundingMode, int N>
+__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<uint32_t, N> __esimd_4bit_downconvert(
+    __ESIMD_DNS::vector_type_t<uint32_t, N> src0,
+    __ESIMD_DNS::vector_type_t<uint32_t, N> src1,
+    __ESIMD_DNS::vector_type_t<uint32_t, N> bias) __ESIMD_INTRIN_END;
+
 /// Memory fence.
 /// Supported platforms: DG2, PVC
 ///

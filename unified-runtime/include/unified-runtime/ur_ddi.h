@@ -1,10 +1,9 @@
 /*
  *
- * Copyright (C) 2022 Intel Corporation
  *
- * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
+ * Part of the LLVM Project, under the Apache License v2.0 with LLVM
  * Exceptions.
- * See LICENSE.TXT
+ * See https://llvm.org/LICENSE.txt for license information.
  *
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
@@ -678,12 +677,18 @@ typedef ur_result_t(UR_APICALL *ur_pfnQueueIsGraphCaptureEnabledExp_t)(
     ur_queue_handle_t, bool *);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urQueueGetGraphExp
+typedef ur_result_t(UR_APICALL *ur_pfnQueueGetGraphExp_t)(
+    ur_queue_handle_t, ur_exp_graph_handle_t *);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of QueueExp functions pointers
 typedef struct ur_queue_exp_dditable_t {
   ur_pfnQueueBeginGraphCaptureExp_t pfnBeginGraphCaptureExp;
   ur_pfnQueueBeginCaptureIntoGraphExp_t pfnBeginCaptureIntoGraphExp;
   ur_pfnQueueEndGraphCaptureExp_t pfnEndGraphCaptureExp;
   ur_pfnQueueIsGraphCaptureEnabledExp_t pfnIsGraphCaptureEnabledExp;
+  ur_pfnQueueGetGraphExp_t pfnGetGraphExp;
 } ur_queue_exp_dditable_t;
 
 ///////////////////////////////////////////////////////////////////////////////

@@ -3,7 +3,10 @@
 ; RUN: llvm-spirv %t.spv -to-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv -r %t.spv -o %t_4mspirv.bc
 ; RUN: llvm-dis %t_4mspirv.bc -o - | FileCheck %s --check-prefix=CHECK-LLVM
-; FIXME: FILECHECK_FAIL during llvm-spirv -r in llc compilation flow
+; RUN: %if spirv-backend %{ llc -O0 -mtriple=spirv32-unknown-unknown -filetype=obj %s -o %t.llc.spv %}
+; RUN: %if spirv-backend %{ llvm-spirv -r %t.llc.spv -o %t.llc.rev.bc %}
+; RUN: %if spirv-backend %{ llvm-dis %t.llc.rev.bc -o %t.llc.rev.ll %}
+; RUN: %if spirv-backend %{ FileCheck %s --input-file %t.llc.rev.ll -check-prefix=CHECK-LLVM %}
 ;
 ; CHECK-SPIRV-DAG: TypeInt [[i32:[0-9]+]] 32 0
 ; CHECK-SPIRV-DAG: Constant [[i32]] [[one:[0-9]+]] 1

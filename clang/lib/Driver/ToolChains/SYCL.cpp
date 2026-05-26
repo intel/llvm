@@ -25,17 +25,29 @@ using namespace llvm::opt;
 SYCLInstallationDetector::SYCLInstallationDetector(
     const Driver &D, const llvm::Triple &HostTriple,
     const llvm::opt::ArgList &Args)
-    : D(D), InstallationCandidates() {
-  // Detect the presence of the SYCL runtime library (libsycl.so) in the
-  // filesystem. This is used to determine whether a usable SYCL installation
-  // is available for the current driver invocation.
+    : D(D), InstallationCandidates()  {
+  // When -fsycl is active, locate the SYCL runtime library and record its
+  // directory in SYCLRTLibPath for use by the linker.
   StringRef SysRoot = D.SysRoot;
   SmallString<128> DriverDir(D.Dir);
+  SmallString<128> LibPath(DriverDir);
+  llvm::sys::path::append(LibPath, "..", "lib", HostTriple.str(),
+                          "libsycl.so");
+  // Flat lib path for LLVM_ENABLE_PER_TARGET_RUNTIME_DIR=OFF builds,
+  // where the library is installed directly in lib/ with no triple subdir.
+  SmallString<128> FlatLibPath(DriverDir);
+  llvm::sys::path::append(FlatLibPath, "..", "lib", "libsycl.so");
+
   if (DriverDir.starts_with(SysRoot) &&
-      (Args.hasArg(options::OPT_fsycl) ||
-       D.getVFS().exists(DriverDir + "/../lib/libsycl.so"))) {
-    llvm::sys::path::append(DriverDir, "..", "lib");
-    SYCLRTLibPath = DriverDir;
+      Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false)) {
+    // LLVM_ENABLE_PER_TARGET_RUNTIME_DIR=ON: library is in lib/<triple>/
+    if (D.getVFS().exists(LibPath))
+      llvm::sys::path::append(DriverDir, "..", "lib", HostTriple.str());
+    // LLVM_ENABLE_PER_TARGET_RUNTIME_DIR=OFF: library is in lib/
+    else if (D.getVFS().exists(FlatLibPath))
+      llvm::sys::path::append(DriverDir, "..", "lib");
+    if (!DriverDir.equals(D.Dir))
+      SYCLRTLibPath = DriverDir;
   }
   InstallationCandidates.emplace_back(D.Dir + "/..");
 }
@@ -235,11 +247,8 @@ static bool selectBfloatLibs(const llvm::opt::ArgList &Args,
                              const llvm::Triple &Triple, const ToolChain &TC,
                              bool &UseNative) {
   static llvm::SmallSet<StringRef, 8> GPUArchsWithNBF16{
-      "intel_gpu_pvc",     "intel_gpu_acm_g10", "intel_gpu_acm_g11",
-      "intel_gpu_acm_g12", "intel_gpu_dg2_g10", "intel_gpu_dg2_g11",
-      "intel_dg2_g12",     "intel_gpu_bmg_g21", "intel_gpu_lnl_m",
-      "intel_gpu_ptl_h",   "intel_gpu_ptl_u",   "intel_gpu_wcl",
-      "intel_gpu_cri"};
+      "pvc",   "acm_g10", "acm_g11", "acm_g12", "bmg_g21", "lnl_m", "ptl_h",
+      "ptl_u", "wcl",     "cri",     "nvl_s",   "nvl_u",   "nvl_p"};
   bool NeedLibs = false;
 
   // spir64 target is actually JIT compilation, so we defer selection of
@@ -269,14 +278,24 @@ static bool selectBfloatLibs(const llvm::opt::ArgList &Args,
 
     auto checkBF = [](StringRef Device) {
       return Device.starts_with("pvc") || Device.starts_with("ats") ||
-             Device.starts_with("dg2") || Device.starts_with("bmg") ||
-             Device.starts_with("lnl") || Device.starts_with("ptl") ||
-             Device.starts_with("wcl") || Device.starts_with("cri");
+             Device.starts_with("acm") || Device.starts_with("dg2") ||
+             Device.starts_with("bmg") || Device.starts_with("lnl") ||
+             Device.starts_with("ptl") || Device.starts_with("wcl") ||
+             Device.starts_with("cri") || Device.starts_with("nvl");
     };
 
     auto checkSpirvJIT = [](StringRef Target) {
       return Target.starts_with("spir64-") || Target.starts_with("spirv64-") ||
              (Target == "spir64") || (Target == "spirv64");
+    };
+
+    auto checkIntelGPUBF16 = [&](StringRef Target) {
+      if (!Target.starts_with("intel_gpu_"))
+        return false;
+      StringRef IntelGPUDevice = SYCL::gen::resolveGenDevice(Target);
+      if (IntelGPUDevice.empty())
+        return false;
+      return GPUArchsWithNBF16.contains(IntelGPUDevice);
     };
 
     size_t DevicesPos = Params.find("-device ");
@@ -297,7 +316,7 @@ static bool selectBfloatLibs(const llvm::opt::ArgList &Args,
           if (!checkSpirvJIT(StringRef(TargetsV)) &&
               !StringRef(TargetsV).starts_with("spir64_gen") &&
               !StringRef(TargetsV).starts_with("spir64_x86_64") &&
-              !GPUArchsWithNBF16.contains(StringRef(TargetsV))) {
+              !checkIntelGPUBF16(StringRef(TargetsV))) {
             UseNative = false;
             break;
           }
@@ -316,7 +335,7 @@ static bool selectBfloatLibs(const llvm::opt::ArgList &Args,
       if (Arg *SYCLTarget = Args.getLastArg(options::OPT_offload_targets_EQ)) {
         for (auto TargetsV : SYCLTarget->getValues()) {
           if (!checkSpirvJIT(StringRef(TargetsV)) &&
-              !GPUArchsWithNBF16.contains(StringRef(TargetsV))) {
+              !checkIntelGPUBF16(StringRef(TargetsV))) {
             UseNative = false;
             break;
           }
@@ -581,25 +600,11 @@ SYCLToolChain::getDeviceLibNames(const Driver &D,
   }
 
   using SYCLDeviceLibsList = SmallVector<StringRef>;
-  const SYCLDeviceLibsList SYCLDeviceLibs = {"libsycl-crt",
-                                             "libsycl-complex",
-                                             "libsycl-complex-fp64",
-                                             "libsycl-cmath",
-                                             "libsycl-cmath-fp64",
+  const SYCLDeviceLibsList SYCLDeviceLibs = {"libsycl-crt", "libsycl-cmath",
 #if defined(_WIN32)
                                              "libsycl-msvc-math",
 #endif
-                                             "libsycl-imf",
-                                             "libsycl-imf-fp64",
-                                             "libsycl-imf-bf16",
-                                             "libsycl-fallback-cstring",
-                                             "libsycl-fallback-complex",
-                                             "libsycl-fallback-complex-fp64",
-                                             "libsycl-fallback-cmath",
-                                             "libsycl-fallback-cmath-fp64",
-                                             "libsycl-fallback-imf",
-                                             "libsycl-fallback-imf-fp64",
-                                             "libsycl-fallback-imf-bf16"};
+                                             "libsycl-imf"};
   auto addLibraries = [&](const SYCLDeviceLibsList &LibsList) {
     for (const StringRef &Lib : LibsList)
       addLibToList(Args.MakeArgString(Lib + ".bc"));
@@ -743,9 +748,6 @@ static llvm::SmallVector<StringRef, 16> SYCLDeviceLibList{
     "bfloat16",
     "crt",
     "cmath",
-    "cmath-fp64",
-    "complex",
-    "complex-fp64",
 #if defined(_WIN32)
     "msvc-math",
 #else
@@ -761,19 +763,9 @@ static llvm::SmallVector<StringRef, 16> SYCLDeviceLibList{
     "tsan-cpu",
 #endif
     "imf",
-    "imf-fp64",
-    "imf-bf16",
     "itt-compiler-wrappers",
     "itt-stubs",
     "itt-user-wrappers",
-    "fallback-cstring",
-    "fallback-cmath",
-    "fallback-cmath-fp64",
-    "fallback-complex",
-    "fallback-complex-fp64",
-    "fallback-imf",
-    "fallback-imf-fp64",
-    "fallback-imf-bf16",
     "fallback-bfloat16",
     "native-bfloat16"};
 
@@ -815,10 +807,6 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
       const bool IsSYCLNativeCPU =
           this->getToolChain().getTriple().isNativeCPU();
       StringRef LibPostfix = ".bc";
-      StringRef NewLibPostfix = ".new.o";
-      if (HostTC->getTriple().isWindowsMSVCEnvironment() &&
-          C.getDriver().IsCLMode())
-        NewLibPostfix = ".new.obj";
       std::string FileName = this->getToolChain().getInputFilename(II);
       StringRef InputFilename = llvm::sys::path::filename(FileName);
       // NativeCPU links against libclc (libspirv)
@@ -835,8 +823,7 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
         return true;
       StringRef LibSyclPrefix("libsycl-");
       if (!InputFilename.starts_with(LibSyclPrefix) ||
-          !InputFilename.ends_with(LibPostfix) ||
-          InputFilename.ends_with(NewLibPostfix))
+          !InputFilename.ends_with(LibPostfix))
         return false;
       // Skip the prefix "libsycl-"
       std::string PureLibName =

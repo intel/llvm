@@ -7,6 +7,12 @@
 // UNSUPPORTED: linux
 // UNSUPPORTED-TRACKER: GSD-12357
 
+// XFAIL: windows && gpu-intel-dg2
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/21985
+
+// XFAIL: windows && arch-intel_gpu_bmg_g21
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/21986
+
 /*
     Run ALL the vulkan formats through the gauntlet. sampled and unsampled.
     This entire test takes less than 30 seconds on a slow machine.  MUCH faster
@@ -279,6 +285,8 @@ int runTest(
                                             ? syclOverride.value()
                                             : getSyclChannelType<T>();
 
+    // bindless image use (x,y,z) order,
+    // differening from SYCL 2020 "fastest incrementing" convention.
     syclexp::image_descriptor imgDesc(sycl::range<2>(width, height), channels,
                                       syclType);
 
@@ -322,9 +330,11 @@ int runTest(
          h.depends_on(dependencyEvent);
        sycl::accessor outAcc(checkBuf, h, sycl::write_only);
 
-       h.parallel_for(sycl::range<2>(width, height), [=](sycl::item<2> item) {
-         int x = item.get_id(0);
-         int y = item.get_id(1);
+       // ranges for parallel_for use "fastest incrementing" order (z,y,x),
+       // but bindless images ranges use (x,y,z) order.
+       h.parallel_for(sycl::range<2>(height, width), [=](sycl::item<2> item) {
+         int x = item.get_id(1);
+         int y = item.get_id(0);
 
          if (useSampled) {
            // Sampled path: use sample_image with float coordinates

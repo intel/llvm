@@ -209,8 +209,7 @@ void AMDGCN::Linker::ConstructJob(Compilation &C, const JobAction &JA,
                                   const InputInfoList &Inputs,
                                   const ArgList &Args,
                                   const char *LinkingOutput) const {
-  if (Inputs.size() > 0 &&
-      Inputs[0].getType() == types::TY_Image &&
+  if (!Inputs.empty() && Inputs[0].getType() == types::TY_Image &&
       JA.getType() == types::TY_Object)
     return HIP::constructGenerateObjFileFromHIPFatBinary(C, Output, Inputs,
                                                          Args, JA, *this);
@@ -266,8 +265,10 @@ void HIPAMDToolChain::addClangTargetOptions(
 
   // Default to "hidden" visibility, as object level linking will not be
   // supported for the foreseeable future.
+  // TODO: remove the SPIR-V bypass once it can encode (hidden) visibility.
   if (!DriverArgs.hasArg(options::OPT_fvisibility_EQ,
-                         options::OPT_fvisibility_ms_compat)) {
+                         options::OPT_fvisibility_ms_compat) &&
+      !getEffectiveTriple().isSPIRV()) {
     if (DeviceOffloadingKind != Action::OFK_SYCL)
       CC1Args.append({"-fvisibility=hidden"});
     CC1Args.push_back("-fapply-global-visibility-to-externs");
