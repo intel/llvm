@@ -10,9 +10,19 @@
 #define LLVM_OBJECT_SYCLBIN_H
 
 #include "llvm/ADT/SmallString.h"
-#include "llvm/SYCLPostLink/ModuleSplitter.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/MemoryBuffer.h"
+#include "llvm/Support/PropertySetIO.h"
+#include "llvm/TargetParser/Triple.h"
+#include <memory>
 #include <string>
+#include <vector>
+
+namespace llvm {
+namespace module_split {
+struct SplitModule;
+} // namespace module_split
+} // namespace llvm
 
 namespace llvm {
 

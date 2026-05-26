@@ -412,6 +412,16 @@ if (HAS_SEMANTIC_INTERPOSITION_FLAG AND NOT CMAKE_SYSTEM_NAME STREQUAL Darwin)
   set_source_files_properties(device_selector.cpp PROPERTIES COMPILE_FLAGS -fsemantic-interposition)
 endif()
 
+# detail/syclbin.cpp pulls LLVMObject / LLVMSupport headers (Casting.h via
+# MemoryBuffer.h -> CBindingWrapping.h). Those headers do not compile clean
+# under the runtime's -Wall -Wextra -Werror policy because they contain
+# unused-parameter warnings in inline templates. Suppress the warning for
+# this single TU; we don't own those headers.
+if (NOT MSVC)
+  set_source_files_properties(detail/syclbin.cpp PROPERTIES
+    COMPILE_FLAGS "-Wno-unused-parameter")
+endif()
+
 if (WIN32)
 set(LIB_NAME "sycl${SYCL_MAJOR_VERSION}")
 else()
