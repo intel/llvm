@@ -85,4 +85,3 @@ bool private_equals_local = private_ptr_instance == local;
 
 // expected-warning@+1 2 {{'operator int *' is deprecated: Conversion to pointer type is deprecated since SYCL 2020. Please use get() instead.}}
 bool private_less_than_local = private_ptr_instance < local;
-

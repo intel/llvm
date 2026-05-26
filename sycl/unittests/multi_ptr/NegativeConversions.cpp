@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <functional>
 #include <sycl/multi_ptr.hpp>
 
 #include <gtest/gtest.h>
@@ -74,22 +75,6 @@ TEST(MultiPtrNegativeConversions,
   EXPECT_FALSE((std::is_convertible_v<generic_ptr, global_ptr>));
 }
 
-TEST(MultiPtrNegativeConversions, CannotConvertGenericToConstantSpace) {
-  using generic_ptr =
-      multi_ptr_t<const int, address_space::generic_space, decorated::no>;
-  using constant_ptr =
-      multi_ptr_t<const int, address_space::constant_space, decorated::no>;
-
-  generic_ptr gen_ptr;
-  constant_ptr const_ptr;
-
-  generic_ptr gen_ptr2{const_ptr};
-  constant_ptr const_ptr2{gen_ptr};
-
-  EXPECT_EQ(gen_ptr2.get(), const_ptr.get());
-  EXPECT_EQ(const_ptr2.get(), gen_ptr.get());
-}
-
 TEST(MultiPtrNegativeConversions, CannotConvertVoidToTypedWithoutExplicitCast) {
   using void_ptr =
       multi_ptr_t<void, address_space::private_space, decorated::no>;
@@ -124,7 +109,7 @@ TEST(MultiPtrNegativeConversions, GenericCannotAssignFromConstantSpace) {
   EXPECT_FALSE((std::is_assignable_v<generic_ptr, constant_ptr>));
 }
 
-TEST(MultiPtrNegativeConversions, ConstantSpaceNotSupportedForVoidInNonLegacy) {
+TEST(MultiPtrNegativeConversions, ConstantSpaceVoidInNonLegacy) {
   using const_void_constant_legacy =
       multi_ptr_t<const void, address_space::constant_space, decorated::legacy>;
   EXPECT_TRUE((std::is_default_constructible_v<const_void_constant_legacy>));

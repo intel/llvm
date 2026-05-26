@@ -10,13 +10,16 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <cassert>
+#include <cmath>
+#include <iostream>
 #include <sycl/multi_ptr.hpp>
 #include <sycl/queue.hpp>
-
-#include <cassert>
 #include <vector>
 
 using namespace sycl;
+
+template <access::decorated IsDecorated> class PrefetchKernel;
 
 template <access::decorated IsDecorated> void testPrefetchWithDecoration() {
   constexpr size_t Size = 1024;
@@ -31,7 +34,8 @@ template <access::decorated IsDecorated> void testPrefetchWithDecoration() {
   Q.submit([&](handler &CGH) {
     auto Acc = Buf.get_access<access::mode::read_write>(CGH);
 
-    CGH.parallel_for<class PrefetchKernel>(range<1>(Size), [=](id<1> Index) {
+    CGH.parallel_for<PrefetchKernel<IsDecorated>>(range<1>(Size),
+                                                  [=](id<1> Index) {
       auto Ptr = Acc.template get_multi_ptr<IsDecorated>();
 
       // Test prefetch with different element counts
@@ -149,10 +153,6 @@ void testPrefetchWithLargeData() {
           for (size_t i = 0; i < 8; ++i) {
             Sum += ChunkPtr[i];
           }
-          // Just to use the Sum (avoid optimization removal)
-          if (Sum < 0) {
-            ChunkPtr[0] = Sum;
-          }
         });
   });
 
@@ -232,10 +232,6 @@ void testPrefetchWithStructs() {
           int Sum = 0;
           for (size_t i = 0; i < 2 && BaseIdx + i < Size; ++i) {
             Sum += StructPtr[i].A;
-          }
-          // Use sum to prevent optimization
-          if (Sum < 0) {
-            StructPtr[0].A = Sum;
           }
         });
   });

@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <sycl/multi_ptr.hpp>
+#include <utility>
 
 #include <gtest/gtest.h>
 
@@ -216,18 +217,13 @@ template <decorated IsDecorated> void checkVoidPointerGetMethods() {
       makePtr<TestData, address_space::private_space, IsDecorated>(&Data);
   void_ptr VoidPtr = TypedPtr;
 
-  // Check get() returns non-null pointer
   EXPECT_NE(VoidPtr.get(), nullptr);
 
   if constexpr (IsDecorated == decorated::legacy) {
-    // Legacy has get_raw() method
     EXPECT_EQ(VoidPtr.get_raw(), static_cast<void *>(&Data));
     EXPECT_EQ(VoidPtr.get(), VoidPtr.get_decorated());
-  } else {
-    // Non-legacy void specialization doesn't have get_raw()
-    // Just verify get() works
+  } else
     EXPECT_NE(VoidPtr.get(), nullptr);
-  }
 }
 
 template <decorated IsDecorated> void checkVoidPointerDecorationConversion() {
