@@ -26,7 +26,7 @@ jobs:
         git diff --exit-code -I "^# RUN" origin/sycl-rel-6_3:sycl/test/abi/sycl_symbols_windows.dump sycl/test/abi/sycl_symbols_windows-sycl-rel-6_3.dump
 
   get_date:
-    runs-on: ubuntu-latest
+    runs-on: [Linux, aux-tasks]
     outputs:
       date: ${{ steps.get_date.outputs.date }}
     steps:
