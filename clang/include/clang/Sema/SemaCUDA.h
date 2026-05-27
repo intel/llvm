@@ -286,6 +286,9 @@ public:
   void recordPotentialODRUsedVariable(MultiExprArg Args,
                                       OverloadCandidateSet &CandidateSet);
 
+  /// Null-tolerant wrapper for FunctionDecl::isImplicitHDExplicitInstantiation.
+  static bool isImplicitHDExplicitInstantiation(const FunctionDecl *FD);
+
 private:
   unsigned ForceHostDeviceDepth = 0;
 

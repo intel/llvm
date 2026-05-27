@@ -4649,6 +4649,10 @@ bool CodeGenModule::MayBeEmittedEagerly(const ValueDecl *Global) {
     // compilation.
     if (LangOpts.SYCLIsDevice && FD->hasAttr<SYCLKernelEntryPointAttr>())
       return false;
+    // Wait for Sema's end-of-TU classification to decide between real body
+    // and trap body (see Sema::emitDeferredDiags).
+    if (LangOpts.CUDAIsDevice && FD->isImplicitHDExplicitInstantiation())
+      return false;
   }
   if (const auto *VD = dyn_cast<VarDecl>(Global)) {
     if (Context.getInlineVariableDefinitionKind(VD) ==
@@ -7574,7 +7578,8 @@ void CodeGenModule::EmitGlobalFunctionDefinition(GlobalDecl GD,
 
   maybeSetTrivialComdat(*D, *Fn);
 
-  CodeGenFunction(*this).GenerateCode(GD, Fn, FI);
+  if (!tryEmitCUDADeviceInvalidFunctionBody(GD, Fn))
+    CodeGenFunction(*this).GenerateCode(GD, Fn, FI);
 
   setNonAliasAttributes(GD, Fn);
 

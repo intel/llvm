@@ -506,6 +506,10 @@ bool SemaCUDA::isImplicitHostDeviceFunction(const FunctionDecl *D) {
   return IsImplicitDevAttr && IsImplicitHostAttr;
 }
 
+bool SemaCUDA::isImplicitHDExplicitInstantiation(const FunctionDecl *FD) {
+  return FD && FD->isImplicitHDExplicitInstantiation();
+}
+
 void SemaCUDA::EraseUnwantedMatches(
     const FunctionDecl *Caller,
     SmallVectorImpl<std::pair<DeclAccessPair, FunctionDecl *>> &Matches) {
@@ -564,21 +568,6 @@ bool SemaCUDA::inferTargetForImplicitSpecialMember(CXXRecordDecl *ClassDecl,
                                                    CXXMethodDecl *MemberDecl,
                                                    bool ConstRHS,
                                                    bool Diagnose) {
-  // If MemberDecl is virtual destructor of an explicit template class
-  // instantiation, it must be emitted, therefore it needs to be inferred
-  // conservatively by ignoring implicit host/device attrs of member and parent
-  // dtors called by it. Also, it needs to be checed by deferred diag visitor.
-  bool IsExpVDtor = false;
-  if (isa<CXXDestructorDecl>(MemberDecl) && MemberDecl->isVirtual()) {
-    if (auto *Spec = dyn_cast<ClassTemplateSpecializationDecl>(ClassDecl)) {
-      TemplateSpecializationKind TSK = Spec->getTemplateSpecializationKind();
-      IsExpVDtor = TSK == TSK_ExplicitInstantiationDeclaration ||
-                   TSK == TSK_ExplicitInstantiationDefinition;
-    }
-  }
-  if (IsExpVDtor)
-    SemaRef.DeclsToCheckForDeferredDiags.insert(MemberDecl);
-
   // If the defaulted special member is defined lexically outside of its
   // owning class, or the special member already has explicit device or host
   // attributes, do not infer.
@@ -628,8 +617,7 @@ bool SemaCUDA::inferTargetForImplicitSpecialMember(CXXRecordDecl *ClassDecl,
     if (!SMOR.getMethod())
       continue;
 
-    CUDAFunctionTarget BaseMethodTarget =
-        IdentifyTarget(SMOR.getMethod(), IsExpVDtor);
+    CUDAFunctionTarget BaseMethodTarget = IdentifyTarget(SMOR.getMethod());
 
     if (!InferredTarget) {
       InferredTarget = BaseMethodTarget;
@@ -671,8 +659,7 @@ bool SemaCUDA::inferTargetForImplicitSpecialMember(CXXRecordDecl *ClassDecl,
     if (!SMOR.getMethod())
       continue;
 
-    CUDAFunctionTarget FieldMethodTarget =
-        IdentifyTarget(SMOR.getMethod(), IsExpVDtor);
+    CUDAFunctionTarget FieldMethodTarget = IdentifyTarget(SMOR.getMethod());
 
     if (!InferredTarget) {
       InferredTarget = FieldMethodTarget;
@@ -1046,6 +1033,8 @@ SemaBase::SemaDiagnosticBuilder SemaCUDA::DiagIfDeviceCode(SourceLocation Loc,
       if (SemaRef.IsLastErrorImmediate &&
           getDiagnostics().getDiagnosticIDs()->isNote(DiagID))
         return SemaDiagnosticBuilder::K_Immediate;
+      if (isImplicitHDExplicitInstantiation(CurFunContext))
+        return SemaDiagnosticBuilder::K_Deferred;
       return (SemaRef.getEmissionStatus(CurFunContext) ==
               Sema::FunctionEmissionStatus::Emitted)
                  ? SemaDiagnosticBuilder::K_ImmediateWithCallStack
@@ -1115,8 +1104,11 @@ bool SemaCUDA::CheckCall(SourceLocation Loc, FunctionDecl *Callee) {
   // Otherwise, mark the call in our call graph so we can traverse it later.
   bool CallerKnownEmitted = SemaRef.getEmissionStatus(Caller) ==
                             Sema::FunctionEmissionStatus::Emitted;
+  bool CallerIsImplicitHDExplicitInst =
+      isImplicitHDExplicitInstantiation(Caller);
   SemaDiagnosticBuilder::Kind DiagKind = [this, Caller, Callee,
-                                          CallerKnownEmitted] {
+                                          CallerKnownEmitted,
+                                          CallerIsImplicitHDExplicitInst] {
     switch (IdentifyPreference(Caller, Callee)) {
     case CFP_Never:
     case CFP_WrongSide:
@@ -1124,7 +1116,7 @@ bool SemaCUDA::CheckCall(SourceLocation Loc, FunctionDecl *Callee) {
       // If we know the caller will be emitted, we know this wrong-side call
       // will be emitted, so it's an immediate error.  Otherwise, defer the
       // error until we know the caller is emitted.
-      return CallerKnownEmitted
+      return (CallerKnownEmitted && !CallerIsImplicitHDExplicitInst)
                  ? SemaDiagnosticBuilder::K_ImmediateWithCallStack
                  : SemaDiagnosticBuilder::K_Deferred;
     default:
