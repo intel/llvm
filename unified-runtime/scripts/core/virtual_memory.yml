@@ -246,8 +246,9 @@ desc: "Physical memory creation properties."
 class: $xPhysicalMem
 name: $x_physical_mem_flags_t
 etors:
-    - name: TBD
-      desc: "reserved for future use."
+    - name: ENABLE_IPC
+      value: "$X_BIT(1)"
+      desc: "allocate physical memory that can be shared via IPC handles."
 
 --- #--------------------------------------------------------------------------
 type: struct
@@ -326,6 +327,12 @@ etors:
             [uint32_t] Reference count of the physical memory object.
             The reference count returned should be considered immediately stale.
             It is unsuitable for general use in applications. This feature is provided for identifying memory leaks.
+    - name: IPC_VIRTUAL_ADDRESS
+      desc: |
+            [void*] For physical memory objects opened from an IPC handle via
+            $xIPCOpenPhysMemHandleExp, returns the virtual address established
+            by the driver (i.e. the address returned by zeMemOpenIpcHandle).
+            Returns nullptr for non-IPC physical memory objects.
 
 --- #--------------------------------------------------------------------------
 type: function
