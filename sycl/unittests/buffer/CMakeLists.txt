@@ -4,5 +4,6 @@ add_sycl_unittest(BufferTests OBJECT
   BufferReleaseBase.cpp
   KernelArgMemObj.cpp
   SubbufferLargeSize.cpp
+  BufferUrApi.cpp
   Properties.cpp
 )

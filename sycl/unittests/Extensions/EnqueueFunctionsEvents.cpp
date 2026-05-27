@@ -12,12 +12,48 @@
 #include <helpers/TestKernel.hpp>
 #include <sycl/ext/oneapi/experimental/enqueue_functions.hpp>
 
+#include <vector>
+
 using namespace sycl;
 using namespace FreeFunctionEventsHelpers;
 
 namespace oneapiext = ext::oneapi::experimental;
 
 namespace {
+
+struct PrefetchCallRecord {
+  const void *Ptr;
+  size_t Size;
+};
+
+struct MemAdviseCallRecord {
+  const void *Ptr;
+  size_t Size;
+  ur_usm_advice_flags_t Advice;
+};
+
+static std::vector<PrefetchCallRecord> PrefetchCallRecords;
+static std::vector<MemAdviseCallRecord> MemAdviseCallRecords;
+static size_t counter_urEnqueueEventsWaitWithBarrierExt = 0;
+
+inline ur_result_t after_urUSMEnqueuePrefetchRecord(void *pParams) {
+  auto Params = *static_cast<ur_enqueue_usm_prefetch_params_t *>(pParams);
+  PrefetchCallRecords.push_back({*Params.ppMem, *Params.psize});
+  return UR_RESULT_SUCCESS;
+}
+
+inline ur_result_t after_urUSMEnqueueMemAdviseRecord(void *pParams) {
+  auto Params = *static_cast<ur_enqueue_usm_advise_params_t *>(pParams);
+  MemAdviseCallRecords.push_back(
+      {*Params.ppMem, *Params.psize, *Params.padvice});
+  return UR_RESULT_SUCCESS;
+}
+
+inline ur_result_t after_urEnqueueEventsWaitWithBarrierExtRecord(void *pParams) {
+  (void)pParams;
+  ++counter_urEnqueueEventsWaitWithBarrierExt;
+  return UR_RESULT_SUCCESS;
+}
 
 class EnqueueFunctionsEventsTests : public ::testing::Test {
 public:
@@ -33,6 +69,9 @@ protected:
     counter_urUSMEnqueuePrefetch = 0;
     counter_urUSMEnqueueMemAdvise = 0;
     counter_urEnqueueEventsWaitWithBarrier = 0;
+    counter_urEnqueueEventsWaitWithBarrierExt = 0;
+    PrefetchCallRecords.clear();
+    MemAdviseCallRecords.clear();
   }
 
   unittest::UrMock<> Mock;
@@ -355,6 +394,41 @@ TEST_F(EnqueueFunctionsEventsTests, PrefetchShortcutNoEvent) {
   free(Dst, Q);
 }
 
+TEST_F(EnqueueFunctionsEventsTests, PrefetchAllFormsUseExpectedUrCalls) {
+  mock::getCallbacks().set_after_callback("urEnqueueUSMPrefetch",
+                                          &after_urUSMEnqueuePrefetchRecord);
+
+  constexpr size_t N = 1024;
+  constexpr size_t ChunkSize = N / 3;
+  int *Memory = malloc_shared<int>(N, Q);
+
+  oneapiext::prefetch(Q, Memory, ChunkSize);
+
+  oneapiext::submit(Q, [&](handler &CGH) {
+    oneapiext::prefetch(CGH, Memory + ChunkSize, ChunkSize);
+  });
+
+  event E = oneapiext::submit_with_event(Q, [&](handler &CGH) {
+    oneapiext::prefetch(CGH, Memory + ChunkSize * 2, ChunkSize);
+  });
+
+  E.wait();
+  Q.wait();
+
+  ASSERT_EQ(PrefetchCallRecords.size(), size_t{3});
+  EXPECT_EQ(PrefetchCallRecords[0].Ptr,
+            reinterpret_cast<const void *>(Memory));
+  EXPECT_EQ(PrefetchCallRecords[0].Size, ChunkSize);
+  EXPECT_EQ(PrefetchCallRecords[1].Ptr,
+            reinterpret_cast<const void *>(Memory + ChunkSize));
+  EXPECT_EQ(PrefetchCallRecords[1].Size, ChunkSize);
+  EXPECT_EQ(PrefetchCallRecords[2].Ptr,
+            reinterpret_cast<const void *>(Memory + ChunkSize * 2));
+  EXPECT_EQ(PrefetchCallRecords[2].Size, ChunkSize);
+
+  free(Memory, Q);
+}
+
 TEST_F(EnqueueFunctionsEventsTests, SubmitMemAdviseNoEvent) {
   mock::getCallbacks().set_replace_callback("urEnqueueUSMAdvise",
                                             redefined_urUSMEnqueueMemAdvise);
@@ -383,6 +457,95 @@ TEST_F(EnqueueFunctionsEventsTests, MemAdviseShortcutNoEvent) {
   ASSERT_EQ(counter_urUSMEnqueueMemAdvise, size_t{1});
 
   free(Dst, Q);
+}
+
+TEST_F(EnqueueFunctionsEventsTests, MemAdviseAllFormsUseExpectedUrCalls) {
+  mock::getCallbacks().set_after_callback("urEnqueueUSMAdvise",
+                                          &after_urUSMEnqueueMemAdviseRecord);
+
+  constexpr size_t N = 1024;
+  constexpr size_t ChunkSize = N / 3;
+  int *Memory = malloc_shared<int>(N, Q);
+
+  oneapiext::mem_advise(Q, Memory, ChunkSize, 0);
+
+  oneapiext::submit(Q, [&](handler &CGH) {
+    oneapiext::mem_advise(CGH, Memory + ChunkSize, ChunkSize, 0);
+  });
+
+  event E = oneapiext::submit_with_event(Q, [&](handler &CGH) {
+    oneapiext::mem_advise(CGH, Memory + ChunkSize * 2, ChunkSize, 0);
+  });
+
+  E.wait();
+  Q.wait();
+
+  ASSERT_EQ(MemAdviseCallRecords.size(), size_t{3});
+  EXPECT_EQ(MemAdviseCallRecords[0].Ptr,
+            reinterpret_cast<const void *>(Memory));
+  EXPECT_EQ(MemAdviseCallRecords[0].Size, ChunkSize);
+  EXPECT_EQ(MemAdviseCallRecords[0].Advice, ur_usm_advice_flags_t{0});
+
+  EXPECT_EQ(MemAdviseCallRecords[1].Ptr,
+            reinterpret_cast<const void *>(Memory + ChunkSize));
+  EXPECT_EQ(MemAdviseCallRecords[1].Size, ChunkSize);
+  EXPECT_EQ(MemAdviseCallRecords[1].Advice, ur_usm_advice_flags_t{0});
+
+  EXPECT_EQ(MemAdviseCallRecords[2].Ptr,
+            reinterpret_cast<const void *>(Memory + ChunkSize * 2));
+  EXPECT_EQ(MemAdviseCallRecords[2].Size, ChunkSize);
+  EXPECT_EQ(MemAdviseCallRecords[2].Advice, ur_usm_advice_flags_t{0});
+
+  free(Memory, Q);
+}
+
+TEST_F(EnqueueFunctionsEventsTests,
+       BarrierAndPartialBarrierUseExpectedUrCalls) {
+  mock::getCallbacks().set_after_callback(
+      "urEnqueueEventsWaitWithBarrierExt",
+      &after_urEnqueueEventsWaitWithBarrierExtRecord);
+
+  context Ctx;
+  queue Q1(Ctx, default_selector_v);
+
+  oneapiext::single_task<TestKernel>(Q1, []() {});
+  oneapiext::single_task<TestKernel>(Q1, []() {});
+  oneapiext::barrier(Q1);
+
+  oneapiext::single_task<TestKernel>(Q1, []() {});
+  oneapiext::single_task<TestKernel>(Q1, []() {});
+  oneapiext::barrier(Q1);
+
+  queue Q2(Ctx, default_selector_v);
+  queue Q3(Ctx, default_selector_v);
+
+  event Event1 = oneapiext::submit_with_event(Q1, [&](handler &CGH) {
+    oneapiext::single_task<TestKernel>(CGH, []() {});
+  });
+
+  event Event2 = oneapiext::submit_with_event(Q2, [&](handler &CGH) {
+    oneapiext::single_task<TestKernel>(CGH, []() {});
+  });
+
+  oneapiext::partial_barrier(Q3, {Event1, Event2});
+  oneapiext::single_task<TestKernel>(Q3, []() {});
+
+  event Event3 = oneapiext::submit_with_event(Q1, [&](handler &CGH) {
+    oneapiext::single_task<TestKernel>(CGH, []() {});
+  });
+
+  event Event4 = oneapiext::submit_with_event(Q2, [&](handler &CGH) {
+    oneapiext::single_task<TestKernel>(CGH, []() {});
+  });
+
+  oneapiext::partial_barrier(Q3, {Event3, Event4});
+  oneapiext::single_task<TestKernel>(Q3, []() {});
+
+  Q1.wait();
+  Q2.wait();
+  Q3.wait();
+
+  ASSERT_EQ(counter_urEnqueueEventsWaitWithBarrierExt, size_t{4});
 }
 
 TEST_F(EnqueueFunctionsEventsTests, BarrierBeforeHostTask) {
