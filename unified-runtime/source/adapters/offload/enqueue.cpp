@@ -19,8 +19,7 @@
 #include "ur2offload.hpp"
 
 namespace {
-constexpr ol_event_flags_t OL_DEFAULT_EVENT_FLAGS =
-    static_cast<ol_event_flags_t>(0);
+constexpr ol_event_flags_t OL_DEFAULT_EVENT_FLAGS = 0;
 
 ol_result_t waitOnEvents(ol_queue_handle_t Queue,
                          const ur_event_handle_t *UrEvents, size_t NumEvents) {
