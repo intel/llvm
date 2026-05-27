@@ -43,15 +43,13 @@ public:
         MNumBytes(NumBytes), MIPCEnabled(EnableIPC) {
     adapter_impl &Adapter = MContext->getAdapter();
 
-    // TODO IPC physical memory
-    // TODO: Pass IPC flags to UR once the API is available
-    // ur_physical_mem_properties_t Props{};
-    // if (EnableIPC) {
-    //   Props.flags = UR_PHYSICAL_MEM_FLAG_IPC_EXPORTABLE;
-    // }
+     ur_physical_mem_properties_t Props{};
+     if (EnableIPC) {
+       Props.flags = UR_PHYSICAL_MEM_FLAG_ENABLE_IPC;
+     }
 
     auto Err = Adapter.call_nocheck<UrApiKind::urPhysicalMemCreate>(
-        MContext->getHandleRef(), MDevice.getHandleRef(), MNumBytes, nullptr,
+        MContext->getHandleRef(), MDevice.getHandleRef(), MNumBytes, &Props,
         &MPhysicalMem);
 
     if (Err == UR_RESULT_ERROR_OUT_OF_RESOURCES ||
@@ -72,9 +70,8 @@ public:
     adapter_impl &Adapter = MContext->getAdapter();
 
     if (MOpenedFromIpc) {
-      // TODO IPC physical memory
-      // Adapter.call<UrApiKind::urIPCClosePhysMemHandleExp>(
-      //    MContext->getHandleRef(), MPhysicalMem);
+       Adapter.call<UrApiKind::urIPCClosePhysMemHandleExp>(
+          MContext->getHandleRef(), MPhysicalMem);
     } else {
       Adapter.call<UrApiKind::urPhysicalMemRelease>(MPhysicalMem);
     }

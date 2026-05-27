@@ -29,14 +29,10 @@ openIPCPhysicalMemHandle(const std::byte *HandleData, size_t HandleDataSize,
   sycl::detail::adapter_impl &Adapter = CtxImpl->getAdapter();
 
   ur_physical_mem_handle_t PhysMemHandle = nullptr;
-  ur_result_t UrRes = UR_RESULT_SUCCESS;
-  // TODO IPC physical memory
-  /*
-  UrRes =
-  Adapter.call_nocheck<sycl::detail::UrApiKind::urIPCOpenPhysMemHandleExp>(
-      CtxImpl->getHandleRef(), getSyclObjImpl(Dev)->getHandleRef(),
-      HandleData, HandleDataSize, &PhysMemHandle);
-  */
+  ur_result_t UrRes =
+      Adapter.call_nocheck<sycl::detail::UrApiKind::urIPCOpenPhysMemHandleExp>(
+          CtxImpl->getHandleRef(), getSyclObjImpl(Dev)->getHandleRef(),
+          HandleData, HandleDataSize, &PhysMemHandle);
   if (UrRes == UR_RESULT_ERROR_INVALID_VALUE)
     throw sycl::exception(
         sycl::make_error_code(errc::invalid),
@@ -62,11 +58,8 @@ openIPCPhysicalMemHandle(const std::byte *HandleData, size_t HandleDataSize,
     return sycl::detail::createSyclObjFromImpl<
         ext::oneapi::experimental::physical_mem>(PhysMemImpl);
   } catch (...) {
-    // TODO IPC physical memory
-    /*
     Adapter.call_nocheck<sycl::detail::UrApiKind::urIPCClosePhysMemHandleExp>(
         CtxImpl->getHandleRef(), PhysMemHandle);
-    */
     throw;
   }
 }
@@ -88,15 +81,10 @@ __SYCL_EXPORT handle get(physical_mem &physmem) {
 
   void *HandlePtr = nullptr;
   size_t HandleSize = 0;
-  auto UrRes = UR_RESULT_SUCCESS;
-  // TODO IPC physical memory
-  // UR returns total handle size (including the extension)
-  /*
-  UrRes =
-  Adapter.call_nocheck<sycl::detail::UrApiKind::urIPCGetPhysMemHandleExp>(
+  auto UrRes = Adapter.call_nocheck<sycl::detail::UrApiKind::urIPCGetPhysMemHandleExp>(
     CtxImpl->getHandleRef(), PhysMemImpl->getHandleRef(), &HandlePtr,
     &HandleSize);
-  */
+  Adapter.checkUrResult(UrRes);
 
   return {HandlePtr, HandleSize};
 }
@@ -105,13 +93,8 @@ __SYCL_EXPORT void put(handle &ipc_handle, const sycl::context &ctx) {
   auto CtxImpl = sycl::detail::getSyclObjImpl(ctx);
   sycl::detail::adapter_impl &Adapter = CtxImpl->getAdapter();
 
-  ur_result_t UrRes = UR_RESULT_SUCCESS;
-  // TODO IPC physical memory
-  /*
-  UrRes =
-  Adapter.call_nocheck<sycl::detail::UrApiKind::urIPCPutPhysMemHandleExp>(
+  ur_result_t UrRes = Adapter.call_nocheck<sycl::detail::UrApiKind::urIPCPutPhysMemHandleExp>(
       CtxImpl->getHandleRef(), ipc_handle.MData);
-  */
   Adapter.checkUrResult(UrRes);
 }
 

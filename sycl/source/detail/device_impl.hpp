@@ -1612,14 +1612,11 @@ public:
       return get_info_impl_nocheck<UR_DEVICE_INFO_DEVICE_WAIT_SUPPORT_EXP>()
           .value_or(0);
     }
-    // TODO IPC physical memory
-    /*
     CASE(ext_oneapi_ipc_physical_memory) {
       return
     get_info_impl_nocheck<UR_DEVICE_INFO_IPC_PHYSICAL_MEMORY_SUPPORT_EXP>()
           .value_or(0);
     }
-    */
     else {
       return false; // This device aspect has not been implemented yet.
     }
