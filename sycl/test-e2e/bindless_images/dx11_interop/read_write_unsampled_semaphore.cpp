@@ -6,6 +6,9 @@
 // UNSUPPORTED-INTENDED: Unknown issue with integrated GPU failing
 //                       when importing memory
 
+// UNSUPPORTED: gpu-intel-dg2
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21159
+
 // RUN: %{build} %link-directx -o %t.out
 // RUN: %{run-unfiltered-devices} %t.out
 
