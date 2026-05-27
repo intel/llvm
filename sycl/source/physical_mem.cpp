@@ -13,6 +13,11 @@ namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental {
 
+physical_mem::physical_mem(const device &SyclDevice, const context &SyclContext,
+                           size_t NumBytes) {
+  create(SyclDevice, SyclContext, NumBytes, false);
+}
+
 void *physical_mem::map(uintptr_t Ptr, size_t NumBytes,
                         address_access_mode Mode, size_t Offset) const {
   return impl->map(Ptr, NumBytes, Mode, Offset);

@@ -54,6 +54,13 @@ public:
       : physical_mem(SyclQueue.get_device(), SyclQueue.get_context(), NumBytes,
                      PropList) {}
 
+  physical_mem(const device &SyclDevice, const context &SyclContext,
+               size_t NumBytes);
+
+  physical_mem(const queue &SyclQueue, size_t NumBytes)
+      : physical_mem(SyclQueue.get_device(), SyclQueue.get_context(),
+                     NumBytes) {}
+
   physical_mem(const physical_mem &rhs) = default;
   physical_mem(physical_mem &&rhs) = default;
 
