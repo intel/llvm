@@ -145,6 +145,7 @@
 		urGraphExecutableGraphDestroyExp;
 		urGraphInstantiateGraphExp;
 		urGraphIsEmptyExp;
+		urGraphSetDestructionCallbackExp;
 		urIPCCloseMemHandleExp;
 		urIPCGetMemHandleExp;
 		urIPCOpenMemHandleExp;
@@ -392,6 +393,7 @@
 		urPrintGraphExecutableGraphDestroyExpParams;
 		urPrintGraphInstantiateGraphExpParams;
 		urPrintGraphIsEmptyExpParams;
+		urPrintGraphSetDestructionCallbackExpParams;
 		urPrintImageChannelOrder;
 		urPrintImageChannelType;
 		urPrintImageDesc;

@@ -589,10 +589,14 @@ ur_result_t ur_platform_handle_t_::initialize() {
   // Optional graph functions. If the function is not supported due to driver
   // version, then still mark graphs as supported and only return unsupported
   // code in affected function.
-  std::unordered_map<std::string, void **> ZeGraphOptionalFuncNameToAddrMap = {
-      {"zeCommandListGetGraphExp",
-       reinterpret_cast<void **>(&ZeGraphExt.zeCommandListGetGraphExp)},
-  };
+  std::unordered_map<std::string, void **> ZeGraphOptionalFuncNameToAddrMap =
+      {
+          {"zeCommandListGetGraphExp",
+            reinterpret_cast<void **>(&ZeGraphExt.zeCommandListGetGraphExp)},
+          {"zeGraphSetDestructionCallbackExp",
+            reinterpret_cast<void **>(
+                &ZeGraphExt.zeGraphSetDestructionCallbackExp)},
+      };
 
   for (auto &[funcName, funcAddr] : ZeGraphOptionalFuncNameToAddrMap) {
     ZE_CALL_NOCHECK(zeDriverGetExtensionFunctionAddress,
