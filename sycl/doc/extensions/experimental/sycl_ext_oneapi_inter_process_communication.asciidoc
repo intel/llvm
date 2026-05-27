@@ -956,8 +956,8 @@ void put(handle &ipc_handle, const sycl::context &ctx)
 _Preconditions:_
 
  * `ipc_handle` is the IPC "handle" to physical memory that was returned from
-   a call to `get`. The `put` function has not been previously called on the
-   handle.
+   a call to `get` in this same process. The `put` function has not been
+   previously called on the handle.
  * `ctx` is a context associated with the `physical_mem` object, which was
    passed to the `get` function call that produced `ipc_handle`.
 
