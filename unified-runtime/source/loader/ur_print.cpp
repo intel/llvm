@@ -2155,6 +2155,14 @@ ur_result_t urPrintGraphIsEmptyExpParams(
   return str_copy(&ss, buffer, buff_size, out_size);
 }
 
+ur_result_t urPrintGraphSetDestructionCallbackExpParams(
+    const struct ur_graph_set_destruction_callback_exp_params_t *params,
+    char *buffer, const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
 ur_result_t urPrintGraphDumpContentsExpParams(
     const struct ur_graph_dump_contents_exp_params_t *params, char *buffer,
     const size_t buff_size, size_t *out_size) {
