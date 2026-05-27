@@ -90,8 +90,8 @@ static _iml_bf16_internal __double2bfloat16(double d) {
     if (!fp64_mant) {
       return bf16_sign ? 0xFF80 : 0x7F80;
     } else {
-      // returns a quiet NaN
-      return 0x7FC0;
+      // returns a signaling or quite Nan
+      return (fp64_mant & 0x8'0000'0000'0000) ? 0x7FC0 : 0x7F81;
     }
   }
 
