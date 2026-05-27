@@ -18,6 +18,7 @@
 #include "clang/Basic/TargetID.h"
 #include "clang/Basic/Version.h"
 #include "llvm/ADT/MapVector.h"
+#include "llvm/ADT/STLFunctionalExtras.h"
 #include "llvm/BinaryFormat/Magic.h"
 #include "llvm/Bitcode/BitcodeWriter.h"
 #include "llvm/CodeGen/CommandFlags.h"
@@ -1845,22 +1846,20 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args,
 }
 } // namespace generic
 
-Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
-                               const ArgList &Args, bool IsSYCLKind = false,
+// This part is located here because it uses a functionality from generic namespace.
+namespace sycl {
+
+// TODO: make the name more convenient.
+// CallBackend?
+Expected<StringRef> linkSYCLDevice(ArrayRef<StringRef> InputFiles,
+                               const ArgList &Args,
                                StringRef SYCLBackendOptions = StringRef()) {
   const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
   switch (Triple.getArch()) {
   case Triple::nvptx:
   case Triple::nvptx64:
   case Triple::amdgcn:
-  case Triple::x86:
-  case Triple::x86_64:
-  case Triple::aarch64:
-  case Triple::aarch64_be:
-  case Triple::ppc64:
-  case Triple::ppc64le:
-  case Triple::systemz:
-    return generic::clang(InputFiles, Args, IsSYCLKind);
+    return generic::clang(InputFiles, Args, /*IsSYCLKind*/ true);
   case Triple::spirv32:
   case Triple::spirv64:
   case Triple::spir:
@@ -1872,31 +1871,186 @@ Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
           inconvertibleErrorCode(),
           "For SPIR targets, Linking is supported only for JIT compilations "
           "and AOT compilations for Intel CPUs/GPUs");
-    if (IsSYCLKind) {
-      auto SPVFile = sycl::runLLVMToSPIRVTranslation(InputFiles[0], Args);
-      if (!SPVFile)
-        return SPVFile.takeError();
-      // TODO(NOM6): Add AOT support for other targets
-      bool NeedAOTCompile =
-          (Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen ||
-           Triple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64);
-      auto AOTFile = (NeedAOTCompile) ? sycl::runAOTCompile(*SPVFile, Args,
-                                                            SYCLBackendOptions)
-                                      : *SPVFile;
-      if (!AOTFile)
-        return AOTFile.takeError();
-      return NeedAOTCompile ? *AOTFile : *SPVFile;
-    }
-    // Return empty file
-    return StringRef("");
+    auto SPVFile = sycl::runLLVMToSPIRVTranslation(InputFiles[0], Args);
+    if (!SPVFile)
+      return SPVFile.takeError();
+    // TODO(NOM6): Add AOT support for other targets
+    bool NeedAOTCompile =
+        (Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen ||
+          Triple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64);
+    auto AOTFile = (NeedAOTCompile) ? sycl::runAOTCompile(*SPVFile, Args,
+                                                          SYCLBackendOptions)
+                                    : *SPVFile;
+    if (!AOTFile)
+      return AOTFile.takeError();
+    return NeedAOTCompile ? *AOTFile : *SPVFile;
   }
-  case Triple::loongarch64:
-    return generic::clang(InputFiles, Args, IsSYCLKind);
   case Triple::native_cpu:
-    if (IsSYCLKind)
-      return generic::clang(InputFiles, Args, IsSYCLKind);
+    return generic::clang(InputFiles, Args, /*IsSYCLKind*/ true);
+  default:
     return createStringError(Triple.getArchName() +
-                             " linking is not supported other than for SYCL");
+                             " linking is not supported");
+  }
+}
+
+// TODO: make a comment.
+Expected<StringRef> linkDeviceAndBundle(StringRef ModuleFilePath,
+                                        const ArgList &LinkerArgs,
+                                        const llvm::Triple &Triple,
+                                        StringRef AdditionalCompileOptions) {
+  SmallVector<StringRef> Files = {ModuleFilePath};
+  Expected<StringRef> OutputOrErr = linkSYCLDevice(
+      Files, LinkerArgs, AdditionalCompileOptions);
+  if (!OutputOrErr)
+    return OutputOrErr.takeError();
+
+  if (Triple.isNVPTX() || Triple.isAMDGCN()) {
+    StringRef Arch = LinkerArgs.getLastArgValue(OPT_arch_EQ);
+    if (Arch.empty())
+      Arch = "native";
+
+    return sycl::bundleDeviceModule(*OutputOrErr, LinkerArgs, Triple,
+                                    Arch);
+  }
+
+  return OutputOrErr;
+}
+
+// Steps:
+// * sycl-post-link
+// * device linking
+// * backend compilation
+// * bundling
+Expected<std::vector<module_split::SplitModule>> processSYCLModule(
+    StringRef ModuleFilePath, const ArgList &LinkerArgs,
+    const std::pair<std::string, std::string> &CompileLinkOptions,
+    function_ref<void(StringRef)> WrappedOutputCallback) {
+  // FIXME: maybe remove that.
+  SmallVector<StringRef, 16> CompileArgsSplit;
+  StringRef(CompileLinkOptions.first).split(CompileArgsSplit, ' ');
+  bool IsDevicePassedWithSyclTargetBackend =
+      std::find(CompileArgsSplit.begin(), CompileArgsSplit.end(), "-device") !=
+      CompileArgsSplit.end();
+
+  // FIXME: that shouldn't be a list.
+  SmallVector<StringRef> InputFilesSYCL = {ModuleFilePath};
+  Expected<std::vector<module_split::SplitModule>> SplitModulesOrErr =
+      UseSYCLPostLinkTool
+          ? sycl::runSYCLPostLinkTool(InputFilesSYCL, LinkerArgs,
+                                      IsDevicePassedWithSyclTargetBackend)
+          : sycl::runSYCLPostLinkLibrary(InputFilesSYCL, LinkerArgs,
+                                         *SYCLModuleSplitMode);
+  if (!SplitModulesOrErr)
+    return SplitModulesOrErr.takeError();
+
+  std::vector<module_split::SplitModule> &SplitModules = *SplitModulesOrErr;
+  const llvm::Triple Triple(LinkerArgs.getLastArgValue(OPT_triple_EQ));
+  if ((Triple.isNVPTX() || Triple.isAMDGCN()) &&
+      LinkerArgs.hasArg(
+          OPT_sycl_embed_ir)) { // TODO: maybe move this function out.
+    // When compiling for Nvidia/AMD devices and the user requested the
+    // IR to be embedded in the application (via option), run the output
+    // of sycl-post-link (filetable referencing LLVM Bitcode + symbols)
+    // through the offload wrapper and link the resulting object to the
+    // application.
+    Expected<StringRef> OutputFile = sycl::runWrapperAndCompile(
+        SplitModules, LinkerArgs, /* IsEmbeddedIR */ true);
+    if (!OutputFile)
+      return OutputFile.takeError();
+
+    WrappedOutputCallback(*OutputFile);
+    // TODO: return after that?
+  }
+
+  // TODO: Take into account Arch values considered as JIT: "native",
+  // "spir64", "spir", "spirv32" and "spirv64" for SPIR targets.
+  // For now we only consider NoSubArch target as JIT.
+  bool IsJIT =
+      Triple.isSPIROrSPIRV() && Triple.getSubArch() == llvm::Triple::NoSubArch;
+  if (IsJIT)
+    std::for_each(SplitModules.begin(), SplitModules.end(),
+                  [&CompileLinkOptions](module_split::SplitModule &M) {
+                    M.CompileOptions = CompileLinkOptions.first;
+                    M.LinkOptions = CompileLinkOptions.second;
+                  });
+
+  for (size_t I = 0, E = SplitModules.size(); I != E;
+       ++I) { // move the body out.
+    Expected<StringRef> OutputOrErr =
+        linkDeviceAndBundle(SplitModules[I].ModuleFilePath, LinkerArgs, Triple,
+                            CompileLinkOptions.first);
+    if (!OutputOrErr)
+      return OutputOrErr.takeError();
+
+    SplitModules[I].ModuleFilePath = *OutputOrErr;
+
+    if (Triple.isNativeCPU()) { // move top or reorganize?
+      // Add to WrappedOutput directly rather than combining this with
+      // the below because WrappedOutput holds references and
+      // SplitModules[I].ModuleFilePath will go out of scope too soon.
+      WrappedOutputCallback(*OutputOrErr);
+    }
+  }
+
+  return std::move(SplitModules);
+}
+
+/// Run SYCL offloading pipeline for the given \p InputModules.
+/// 
+Expected<std::vector<module_split::SplitModule>> runSYCLOffloadingPipeline(
+    ArrayRef<StringRef> InputModules, const ArgList &LinkerArgs,
+    const std::pair<std::string, std::string> &CompileLinkOptions,
+    function_ref<void(StringRef)> WrappedOutputCallback) {
+  // Note: pipeline can skip linking due to -fno-sycl-rdc option.
+  // In that case, we apply sycl processing to several modules.
+  std::vector<StringRef> Modules;
+  if (LinkerArgs.hasArg(OPT_no_sycl_rdc)) {
+    // No need to perform any linking.
+    Modules = std::vector(InputModules.begin(), InputModules.end());
+  } else {
+    Expected<StringRef> OutputOrErr = sycl::linkDevice(InputModules, LinkerArgs);
+    if (!OutputOrErr)
+      return OutputOrErr.takeError();
+
+    Modules.push_back(*OutputOrErr);
+  }
+
+  std::vector<module_split::SplitModule> OutputModules;
+  for (StringRef Module : Modules) {
+    // Note: sycl-post-link can produce more modules than incoming due to module
+    // split.
+    Expected<std::vector<module_split::SplitModule>> ModulesOrErr =
+        processSYCLModule(Module, LinkerArgs, CompileLinkOptions, WrappedOutputCallback);
+    if (!ModulesOrErr)
+      return ModulesOrErr.takeError();
+
+    for (module_split::SplitModule &M : *ModulesOrErr)
+      OutputModules.push_back(std::move(M));
+  }
+
+  return OutputModules;
+}
+
+} // namespace sycl
+
+Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
+                               const ArgList &Args,
+                               uint16_t ActiveOffloadKindMask) {
+  const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
+  switch (Triple.getArch()) {
+  case Triple::nvptx:
+  case Triple::nvptx64:
+  case Triple::amdgcn:
+  case Triple::x86:
+  case Triple::x86_64:
+  case Triple::aarch64:
+  case Triple::aarch64_be:
+  case Triple::ppc64:
+  case Triple::ppc64le:
+  case Triple::spirv64:
+  case Triple::systemz:
+  case Triple::loongarch64:
+    return generic::clang(InputFiles, Args, ActiveOffloadKindMask);
   default:
     return createStringError(Triple.getArchName() +
                              " linking is not supported");
@@ -2294,11 +2448,19 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
         HasNonSYCLOffloadKinds = true;
     }
 
+      auto AppendImageToWrapperOutput = [&WrappedOutput, &ImageMtx](StringRef ImagePath) {
+        std::scoped_lock Guard(ImageMtx);
+        WrappedOutput.push_back(ImagePath);
+      };
+
     if (HasSYCLOffloadKind) {
       Expected<std::pair<std::string, std::string>> CompileLinkOptionsOrErr =
           extractSYCLCompileLinkOptions(Input);
       if (!CompileLinkOptionsOrErr)
         return CompileLinkOptionsOrErr.takeError();
+
+      std::pair<std::string, std::string> &CompileLinkOptions =
+          *CompileLinkOptionsOrErr;
 
       // Append device compiler and linker options passed via
       // -device-compiler= and -device-linker= to clang-linker-warpper,
@@ -2306,14 +2468,14 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
       StringRef DeviceCompilerArgs =
           LinkerArgs.getLastArgValue(OPT_compiler_arg_EQ);
       if (!DeviceCompilerArgs.empty()) {
-        CompileLinkOptionsOrErr->first += " ";
-        CompileLinkOptionsOrErr->first += DeviceCompilerArgs;
+        CompileLinkOptions.first += " ";
+        CompileLinkOptions.first += DeviceCompilerArgs;
       }
       StringRef DeviceLinkerArgs =
           LinkerArgs.getLastArgValue(OPT_linker_arg_EQ);
       if (!DeviceLinkerArgs.empty()) {
-        CompileLinkOptionsOrErr->second += " ";
-        CompileLinkOptionsOrErr->second += DeviceLinkerArgs;
+        CompileLinkOptions.second += " ";
+        CompileLinkOptions.second += DeviceLinkerArgs;
       }
 
       SmallVector<StringRef> InputFiles;
@@ -2324,101 +2486,36 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
           return FileNameOrErr.takeError();
         InputFiles.emplace_back(*FileNameOrErr);
       }
-      // Link the input device files using the device linker for SYCL
-      // offload.
-      auto TmpOutputOrErr = sycl::linkDevice(InputFiles, LinkerArgs);
-      if (!TmpOutputOrErr)
-        return TmpOutputOrErr.takeError();
-      SmallVector<StringRef> InputFilesSYCL;
-      InputFilesSYCL.emplace_back(*TmpOutputOrErr);
 
-      SmallVector<StringRef, 16> Args;
-      StringRef(CompileLinkOptionsOrErr->first).split(Args, ' ');
-      bool IsDevicePassedWithSyclTargetBackend =
-          std::find(Args.begin(), Args.end(), "-device") != Args.end();
-      auto SplitModulesOrErr =
-          UseSYCLPostLinkTool
-              ? sycl::runSYCLPostLinkTool(InputFilesSYCL, LinkerArgs,
-                                          IsDevicePassedWithSyclTargetBackend)
-              : sycl::runSYCLPostLinkLibrary(InputFilesSYCL, LinkerArgs,
-                                             *SYCLModuleSplitMode);
-      if (!SplitModulesOrErr)
-        return SplitModulesOrErr.takeError();
+      Expected<std::vector<module_split::SplitModule>> ModulesOrErr =
+          sycl::runSYCLOffloadingPipeline(InputFiles, LinkerArgs, CompileLinkOptions, AppendImageToWrapperOutput);
+      if (!ModulesOrErr)
+        return ModulesOrErr.takeError();
 
-      auto &SplitModules = *SplitModulesOrErr;
-      const llvm::Triple Triple(LinkerArgs.getLastArgValue(OPT_triple_EQ));
-      StringRef Arch = LinkerArgs.getLastArgValue(OPT_arch_EQ);
-      if (Arch.empty())
-        Arch = "native";
-      // TODO: Take into account Arch values considered as JIT: "native",
-      // "spir64", "spir", "spirv32" and "spirv64" for SPIR targets.
-      // For now we only consider NoSubArch target as JIT.
-      bool IsJIT = Triple.isSPIROrSPIRV() &&
-                   Triple.getSubArch() == llvm::Triple::NoSubArch;
-      if ((Triple.isNVPTX() || Triple.isAMDGCN()) &&
-          LinkerArgs.hasArg(OPT_sycl_embed_ir)) {
-        // When compiling for Nvidia/AMD devices and the user requested the
-        // IR to be embedded in the application (via option), run the output
-        // of sycl-post-link (filetable referencing LLVM Bitcode + symbols)
-        // through the offload wrapper and link the resulting object to the
-        // application.
-        auto OutputFile = sycl::runWrapperAndCompile(SplitModules, LinkerArgs,
-                                                     /* IsEmbeddedIR */ true);
-        if (!OutputFile)
-          return OutputFile.takeError();
-        WrappedOutput.push_back(*OutputFile);
-      }
-      for (size_t I = 0, E = SplitModules.size(); I != E; ++I) {
-        SmallVector<StringRef> Files = {SplitModules[I].ModuleFilePath};
-        auto ClangOutputOrErr =
-            linkDevice(Files, LinkerArgs, true /* IsSYCLKind */,
-                       CompileLinkOptionsOrErr->first);
-        if (!ClangOutputOrErr)
-          return ClangOutputOrErr.takeError();
-        if (Triple.isNVPTX() || Triple.isAMDGCN()) {
-          auto BundledFileOrErr = sycl::bundleDeviceModule(
-              *ClangOutputOrErr, LinkerArgs, Triple, Arch);
-          if (!BundledFileOrErr)
-            return BundledFileOrErr.takeError();
-          SplitModules[I].ModuleFilePath = *BundledFileOrErr;
-        } else {
-          SplitModules[I].ModuleFilePath = *ClangOutputOrErr;
-          if (IsJIT) {
-            SplitModules[I].CompileOptions = CompileLinkOptionsOrErr->first;
-            SplitModules[I].LinkOptions = CompileLinkOptionsOrErr->second;
-          }
-
-          if (Triple.isNativeCPU()) {
-            // Add to WrappedOutput directly rather than combining this with the
-            // below because WrappedOutput holds references and
-            // SplitModules[I].ModuleFilePath will go out of scope too soon.
-            std::scoped_lock Guard(ImageMtx);
-            WrappedOutput.push_back(*ClangOutputOrErr);
-          }
-        }
-      }
-
+      std::vector<module_split::SplitModule> &Modules = *ModulesOrErr;
       if (OutputSYCLBIN) {
         SYCLBIN::SYCLBINModuleDesc MD;
         MD.ArchString = LinkerArgs.getLastArgValue(OPT_arch_EQ);
         MD.TargetTriple =
             llvm::Triple{LinkerArgs.getLastArgValue(OPT_triple_EQ)};
-        MD.SplitModules = std::move(SplitModules);
+        MD.SplitModules = std::move(Modules);
         std::scoped_lock<std::mutex> Guard(SYCLBINModulesMtx);
         SYCLBINModules.emplace_back(std::move(MD));
       } else {
         // TODO(NOM7): Remove this call and use community flow for bundle/wrap
-        auto OutputFile = sycl::runWrapperAndCompile(SplitModules, LinkerArgs);
+        Expected<StringRef> OutputFile =
+            sycl::runWrapperAndCompile(Modules, LinkerArgs);
         if (!OutputFile)
           return OutputFile.takeError();
 
         // SYCL offload kind images are all ready to be sent to host linker.
         // TODO: Currently, device code wrapping for SYCL offload happens in a
         // separate path inside 'linkDevice' call seen above.
-        // This will eventually be refactored to use the 'common' wrapping logic
-        // that is used for other offload kinds.
-        std::scoped_lock Guard(ImageMtx);
-        WrappedOutput.push_back(*OutputFile);
+        // This will eventually be refactored to use the 'common' wrapping
+        // logic that is used for other offload kinds.
+        //std::scoped_lock Guard(ImageMtx);
+        //WrappedOutput.push_back(*OutputFile);
+        AppendImageToWrapperOutput(*OutputFile);
       }
     }
     if (HasNonSYCLOffloadKinds) {
@@ -2432,7 +2529,7 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
       }
 
       // Link the remaining device files using the device linker.
-      auto OutputOrErr = linkDevice(InputFiles, LinkerArgs);
+      auto OutputOrErr = linkDevice(InputFiles, LinkerArgs, ActiveOffloadKindMask);
       if (!OutputOrErr)
         return OutputOrErr.takeError();
 
