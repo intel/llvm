@@ -145,11 +145,22 @@ else()
             "${CMAKE_INSTALL_LIBDIR}"
             lib
             lib64
-            "lib/${LLVM_HOST_TRIPLE}"
-            "lib/${LLVM_DEFAULT_TARGET_TRIPLE}"
         NO_DEFAULT_PATH
-        REQUIRED
     )
+    if(NOT UR_OFFLOAD_LLVMOFFLOAD_LIBRARY)
+        file(GLOB UR_OFFLOAD_LLVMOFFLOAD_LIBRARY_CANDIDATES
+            "${UR_OFFLOAD_INSTALL_DIR}/lib*/libLLVMOffload${CMAKE_SHARED_LIBRARY_SUFFIX}"
+            "${UR_OFFLOAD_INSTALL_DIR}/lib*/*/libLLVMOffload${CMAKE_SHARED_LIBRARY_SUFFIX}"
+        )
+        if(UR_OFFLOAD_LLVMOFFLOAD_LIBRARY_CANDIDATES)
+            list(SORT UR_OFFLOAD_LLVMOFFLOAD_LIBRARY_CANDIDATES)
+            list(GET UR_OFFLOAD_LLVMOFFLOAD_LIBRARY_CANDIDATES 0 UR_OFFLOAD_LLVMOFFLOAD_LIBRARY)
+        endif()
+    endif()
+    if(NOT UR_OFFLOAD_LLVMOFFLOAD_LIBRARY)
+        message(FATAL_ERROR
+            "Failed to find libLLVMOffload in ${UR_OFFLOAD_INSTALL_DIR}")
+    endif()
 endif()
 
 target_link_libraries(${TARGET_NAME} PRIVATE
