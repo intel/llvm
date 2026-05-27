@@ -1468,15 +1468,9 @@ static Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
     ExtractedDeviceLibFiles.emplace_back(LibraryPath.str());
   }
 
-  // Make sure that SYCL device library files are available.
-  // Note: For AMD targets, we do not pass any SYCL device libraries.
-  if (ExtractedDeviceLibFiles.empty()) {
-    // TODO: Add NVPTX when ready
-    if (Triple.isSPIROrSPIRV())
-      WithColor::warning(errs(), LinkerExecutable)
-          << "SYCL device library file list is empty\n";
+  // No device library files provided, second device linking step not required.
+  if (ExtractedDeviceLibFiles.empty())
     return *LinkedFile;
-  }
 
   for (auto &File : ExtractedDeviceLibFiles)
     InputFilesVec.emplace_back(File);

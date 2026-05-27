@@ -13,7 +13,7 @@
 #include <cstdint>
 
 #define RAND_NEXT_LEN 1024
-DeviceGlobal<uint64_t[RAND_NEXT_LEN]> RandNext;
+__attribute__((weak)) DeviceGlobal<uint64_t[RAND_NEXT_LEN]> RandNext;
 
 #if defined(__SPIR__) || defined(__SPIRV__) || defined(__NVPTX__) ||           \
     defined(__AMDGCN__)
