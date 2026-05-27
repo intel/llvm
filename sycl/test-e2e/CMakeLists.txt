@@ -101,7 +101,7 @@ if(CMPLR_RESULT EQUAL 0 AND CMPLR_VER)
 endif()
 
 if("${DPCPP_VERSION_MAJOR}" STREQUAL "")
-message(FATAL_ERROR "Could not detect SYCL compiler version")
+  message(FATAL_ERROR "Could not detect SYCL compiler version")
 endif()
 
 if(SYCL_TEST_E2E_STANDALONE)
