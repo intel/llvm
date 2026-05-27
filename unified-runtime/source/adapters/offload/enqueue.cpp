@@ -19,7 +19,8 @@
 #include "ur2offload.hpp"
 
 namespace {
-constexpr ol_event_flags_t DefaultEventFlags = static_cast<ol_event_flags_t>(0);
+constexpr ol_event_flags_t OL_DEFAULT_EVENT_FLAGS =
+    static_cast<ol_event_flags_t>(0);
 
 ol_result_t waitOnEvents(ol_queue_handle_t Queue,
                          const ur_event_handle_t *UrEvents, size_t NumEvents) {
@@ -43,7 +44,7 @@ ol_result_t makeEvent(ur_command_t Type, ol_queue_handle_t OlQueue,
                       ur_queue_handle_t UrQueue, ur_event_handle_t *UrEvent) {
   if (UrEvent) {
     auto *Event = new ur_event_handle_t_(Type, UrQueue);
-    if (auto Res = olCreateEvent(OlQueue, DefaultEventFlags,
+    if (auto Res = olCreateEvent(OlQueue, OL_DEFAULT_EVENT_FLAGS,
                                  &Event->OffloadEvent)) {
       delete Event;
       return Res;
@@ -87,7 +88,7 @@ ur_result_t doWait(ur_queue_handle_t hQueue, uint32_t numEventsInWaitList,
       if (Q == TargetQueue) {
         continue;
       }
-      OL_RETURN_ON_ERR(olCreateEvent(Q, DefaultEventFlags,
+      OL_RETURN_ON_ERR(olCreateEvent(Q, OL_DEFAULT_EVENT_FLAGS,
                                      &OffloadHandles.emplace_back()));
     }
     OL_RETURN_ON_ERR(olWaitEvents(TargetQueue, OffloadHandles.data(),
@@ -266,7 +267,7 @@ ur_result_t doMemcpy(ur_command_t Command, ur_queue_handle_t hQueue,
       olMemcpy(Queue, DestPtr, DestDevice, SrcPtr, SrcDevice, size));
   if (phEvent) {
     auto *Event = new ur_event_handle_t_(Command, hQueue);
-    if (auto Res = olCreateEvent(Queue, DefaultEventFlags,
+    if (auto Res = olCreateEvent(Queue, OL_DEFAULT_EVENT_FLAGS,
                                  &Event->OffloadEvent)) {
       delete Event;
       return offloadResultToUR(Res);
