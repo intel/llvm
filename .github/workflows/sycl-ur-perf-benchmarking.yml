@@ -184,7 +184,7 @@ jobs:
       build_ref: ${{ needs.sanitize_inputs_dispatch.outputs.build_ref }}
       build_cache_root: "/__w/"
       build_cache_suffix: "prod_noassert"
-      build_configure_extra_args: "--no-assertions"
+      build_configure_extra_args: "--no-assertions --cmake-opt='-DUR_STATIC_LOADER=OFF'"
       build_image: "ghcr.io/intel/llvm/sycl_ubuntu2404_nightly:latest"
       changes: '[]'
       toolchain_artifact: sycl_linux_prod_noassert
@@ -231,7 +231,7 @@ jobs:
     with:
       build_cache_root: "/__w/"
       build_cache_suffix: "prod_noassert"
-      build_configure_extra_args: '--no-assertions'
+      build_configure_extra_args: '--no-assertions --cmake-opt="-DUR_STATIC_LOADER=OFF"'
       build_image: ghcr.io/intel/llvm/sycl_ubuntu2404_nightly:latest
       changes: '[]'
       toolchain_artifact: sycl_linux_prod_noassert
