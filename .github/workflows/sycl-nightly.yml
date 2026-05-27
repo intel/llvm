@@ -393,7 +393,7 @@ jobs:
       fail-fast: false
       matrix:
         enable_new_offload_model: ['False', 'True']
-        target_devices: ['level_zero:gpu']
+        target_device: ['level_zero:gpu']
     uses: ./.github/workflows/sycl-windows-run-tests.yml
     with:
       name: SYCL-CTS with ${{ matrix.target_device }}, ${{ matrix.enable_new_offload_model == 'True' && 'New Offload Model' || 'Old Offload Model' }}
