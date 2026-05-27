@@ -54,8 +54,7 @@ int main() {
   });
 
   Queue.submit([&](handler &CGH) {
-    CGH.parallel_for(range<1>{N},
-                     [=](id<1> idx) { Data[idx] += 10; });
+    CGH.parallel_for(range<1>{N}, [=](id<1> idx) { Data[idx] += 10; });
   });
 
   Graph.end_recording(Queue);

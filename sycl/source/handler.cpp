@@ -768,9 +768,9 @@ detail::EventImplPtr handler::finalize() {
   if (type == detail::CGType::CodeplayHostTask && Queue->isNativeRecording()) {
     auto *HT = static_cast<detail::CGHostTask *>(CommandGroup.get());
     if (!HT->MHostTask->isCreatedFromEnqueueFunction()) {
-      throw sycl::exception(
-          make_error_code(errc::feature_not_supported),
-          "Only restricted host tasks may be captured in native recording mode.");
+      throw sycl::exception(make_error_code(errc::feature_not_supported),
+                            "Only restricted host tasks may be captured in "
+                            "native recording mode.");
     }
 
     bool NativeHostTaskSupport = false;
@@ -779,10 +779,10 @@ detail::EventImplPtr handler::finalize() {
         UR_DEVICE_INFO_ENQUEUE_HOST_TASK_SUPPORT_EXP,
         sizeof(NativeHostTaskSupport), &NativeHostTaskSupport, nullptr);
     if (!NativeHostTaskSupport) {
-      throw sycl::exception(
-          make_error_code(errc::feature_not_supported),
-          "Recording host tasks in native recording mode requires backend support"
-          "not available on this device.");
+      throw sycl::exception(make_error_code(errc::feature_not_supported),
+                            "Recording host tasks in native recording mode "
+                            "requires backend support"
+                            "not available on this device.");
     }
 
     auto CallbackData = std::make_unique<std::function<void()>>(

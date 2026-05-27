@@ -78,8 +78,7 @@ public:
   friend class sycl::detail::HandlerAccess;
 };
 
-inline std::function<void()>
-HandlerAccess::getHostTaskFunc(HostTask &HT) {
+inline std::function<void()> HandlerAccess::getHostTaskFunc(HostTask &HT) {
   return std::move(HT.MHostTask);
 }
 
