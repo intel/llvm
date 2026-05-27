@@ -292,14 +292,14 @@ jobs:
     if: ${{ !cancelled() && needs.build_test.outputs.build_conclusion == 'success' }}
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
-      name: 'Framework test only: L0, Minimal preset, dry-run'
+      name: 'Framework test only: L0, Core preset, dry-run'
       runner: '["TEST_PERF"]'
       image: ghcr.io/intel/llvm/sycl_ubuntu2404_nightly:latest
       image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
       target_devices: 'level_zero:gpu'
       tests_selector: benchmarks
       benchmark_upload_results: false
-      benchmark_preset: 'Minimal'
+      benchmark_preset: 'Core'
       benchmark_dry_run: true
       benchmark_exit_on_failure: true
       repo_ref: ${{ github.sha }}

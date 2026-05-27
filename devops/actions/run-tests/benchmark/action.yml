@@ -323,7 +323,7 @@ runs:
       echo "::endgroup::"
       echo "::group::compare_results"
 
-      if [ "$LLVM_BENCHMARKS_USE_GDB" == "0" ]; then
+      if [ "1" == "0" ]; then
         python3 ./devops/scripts/benchmarks/compare.py to_hist \
           --avg-type EWMA \
           --cutoff "$(date -u -d '7 days ago' +'%Y%m%d_%H%M%S')" \
@@ -336,7 +336,7 @@ runs:
           --produce-github-summary \
           ${{ inputs.dry_run == 'true' && '--dry-run' || '' }}
       else
-        echo "Skipping regression comparison due to GDB mode enabled."
+        echo "Skipping regression comparison due to XXX mode enabled."
       fi
 
       echo "::endgroup::"
@@ -347,13 +347,25 @@ runs:
       BENCH_WORKDIR: ${{ steps.establish_outputs.outputs.BENCH_WORKDIR }}
       LLVM_BENCHMARKS_UNIT_TESTING: 1
       COMPUTE_BENCHMARKS_BUILD_PATH: ${{ steps.establish_outputs.outputs.BENCH_WORKDIR }}/compute-benchmarks-build
+      SYCL_UR_TRACE: 1
+      UR_L0_DEBUG: 1
+      UMF_LOG: "level:debug;flush:debug;output:stderr;pid:no"
+      UR_LOG_LEVEL_ZERO: "level:error;flush:error"
+      UR_LOG_LOADER: "level:error;flush:error"
+      ZE_DEBUG: 1
+      ZE_ENABLE_LOADER_DEBUG_TRACE: 1
+      ZEL_ENABLE_LOADER_LOGGING: 1
+      ZEL_LOADER_LOGGING_LEVEL: trace
+      ZE_ENABLE_VALIDATION_LAYER: 1
+      ZEL_LOADER_LOG_CONSOLE: 1
     run: |
       # Run benchmarks' integration tests
 
       # NOTE: Each integration test prints its own group name as part of test script
-      python3 ./devops/scripts/benchmarks/tests/test_integration.py
+      python3 ./devops/scripts/benchmarks/tests/test_integration.py --verbose
   - name: Upload github summaries and cache changes
-    if: always()
+    # if: always()
+    if: false
     shell: bash
     env:
       BENCHMARK_RESULTS_REPO_PATH: ${{ steps.establish_outputs.outputs.BENCHMARK_RESULTS_REPO_PATH }}
@@ -369,7 +381,8 @@ runs:
         cp "$diff" "../cached_changes/$diff"
       done
   - name: Push benchmarks results
-    if: always() && inputs.upload_results == 'true' &&  inputs.gdb_mode == '0'
+    # if: always() && inputs.upload_results == 'true' &&  inputs.gdb_mode == '0'
+    if: false
     shell: bash
     env:
       BENCH_WORKDIR: ${{ steps.establish_outputs.outputs.BENCH_WORKDIR }}
@@ -421,7 +434,8 @@ runs:
         cd -
       done
   - name: Archive benchmark results
-    if: always()
+    # if: always()
+    if: false
     uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
     with:
       name: Benchmark run ${{ github.run_id }} (${{ env.SAVE_NAME }})
