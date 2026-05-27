@@ -14,6 +14,7 @@ add_conformance_kernels_test(enqueue
     urEnqueueMemBufferCopy.cpp
     urEnqueueMemBufferFill.cpp
     urEnqueueMemBufferMap.cpp
+    urEnqueueMemBufferMultiDeviceMigration.cpp
     urEnqueueMemBufferRead.cpp
     urEnqueueMemBufferReadRect.cpp
     urEnqueueMemBufferWrite.cpp

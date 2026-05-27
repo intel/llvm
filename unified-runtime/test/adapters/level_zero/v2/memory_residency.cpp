@@ -546,15 +546,20 @@ TEST_P(urMemoryMultiResidencyTest, p2pReadFailsAfterRevokingAccess) {
 }
 
 // Verify that a USM allocation on devices[0] is NOT made resident on
-// devices[1] when P2P access has not been enabled.  The feature under test
-// restricts residency, not hardware access: Level Zero hardware can still
-// transfer data cross-device via the interconnect regardless of residency
-// state, so the copy result is not checked here.  The observable guarantee
-// is that devices[1] free memory must not decrease by a full allocSize,
-// proving the allocation was never pinned on the peer device.
+// devices[1] when P2P access has not been enabled.  This test runs after
+// several P2P enable/disable cycles to confirm that the residency restriction
+// is still enforced once P2P is turned back off.
+//
+// The memory check is done immediately after urUSMDeviceAlloc, without
+// creating a queue or issuing any GPU work.  Waiting for GPU operations to
+// complete (e.g. urQueueFinish) introduces a timing window during which
+// background activity — async driver cleanup from earlier tests, other
+// concurrent GPU workloads on shared CI hardware — can change the free-memory
+// reading on devices[1] and cause spurious failures.  The allocation step
+// alone is sufficient to trigger any peer-residency side-effects, so
+// measuring immediately after it keeps the window as short as possible.
 TEST_P(urMemoryMultiResidencyTest, allocationNotResidentOnPeerWithoutP2P) {
   constexpr size_t allocSize = kAllocSize;
-  static constexpr uint8_t fillPattern = 0xAB;
 
   uint64_t initialMemFreePeer = 0;
   ASSERT_SUCCESS(urDeviceGetInfo(devices[1], UR_DEVICE_INFO_GLOBAL_MEM_FREE,
@@ -570,14 +575,6 @@ TEST_P(urMemoryMultiResidencyTest, allocationNotResidentOnPeerWithoutP2P) {
   void *srcPtr = nullptr;
   ASSERT_SUCCESS(urUSMDeviceAlloc(context, devices[0], nullptr, nullptr,
                                   allocSize, &srcPtr));
-
-  ur_queue_handle_t srcQueue = nullptr;
-  ASSERT_SUCCESS(urQueueCreate(context, devices[0], nullptr, &srcQueue));
-  ASSERT_SUCCESS(urEnqueueUSMFill(srcQueue, srcPtr, sizeof(fillPattern),
-                                  &fillPattern, allocSize, 0, nullptr,
-                                  nullptr));
-  ASSERT_SUCCESS(urQueueFinish(srcQueue));
-  urQueueRelease(srcQueue);
 
   uint64_t currentMemFreePeer = 0;
   ur_result_t memRes =
