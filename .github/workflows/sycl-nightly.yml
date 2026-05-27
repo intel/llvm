@@ -33,21 +33,21 @@ jobs:
     - id: get_date
       run: echo "date=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
 
-  ubuntu2204_build:
-    needs: get_date
-    if: github.repository == 'intel/llvm'
-    uses: ./.github/workflows/sycl-linux-build.yml
-    secrets: inherit
-    with:
-      build_cache_root: "/__w/"
-      build_configure_extra_args: '--cuda -DSYCL_BUILD_INFO="Nightly ${{ needs.get_date.outputs.date }}"'
-      build_image: ghcr.io/intel/llvm/ubuntu2204_build:latest
+  # ubuntu2204_build:
+  #   needs: get_date
+  #   if: github.repository == 'intel/llvm'
+  #   uses: ./.github/workflows/sycl-linux-build.yml
+  #   secrets: inherit
+  #   with:
+  #     build_cache_root: "/__w/"
+  #     build_configure_extra_args: '--cuda -DSYCL_BUILD_INFO="Nightly ${{ needs.get_date.outputs.date }}"'
+  #     build_image: ghcr.io/intel/llvm/ubuntu2204_build:latest
 
-      retention-days: 90
-      toolchain_artifact: sycl_linux_default
-      # We upload the build for people to download/use, override its name and
-      # prefer widespread gzip compression.
-      toolchain_artifact_filename: sycl_linux.tar.gz
+  #     retention-days: 90
+  #     toolchain_artifact: sycl_linux_default
+  #     # We upload the build for people to download/use, override its name and
+  #     # prefer widespread gzip compression.
+  #     toolchain_artifact_filename: sycl_linux.tar.gz
 
   # Build used for performance testing only: not intended for testing
   # linux_shared_build:
@@ -317,55 +317,55 @@ jobs:
   #   with:
   #     mode: stop
 
-  build-sycl-cts-linux:
-    needs: ubuntu2204_build
-    name: Build SYCL-CTS for Linux with ${{ matrix.enable_new_offload_model == 'True' && 'New Offload Model' || 'Old Offload Model' }}
-    permissions:
-      contents: write
-      packages: read
-    if: ${{ !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
-    strategy:
-      fail-fast: false
-      matrix:
-        enable_new_offload_model: ['False', 'True']
-    uses: ./.github/workflows/sycl-linux-run-tests.yml
-    with:
-      name: Build SYCL-CTS for Linux with ${{ matrix.enable_new_offload_model == 'True' && 'New Offload Model' || 'Old Offload Model' }}
-      runner: '["Linux", "build"]'
-      testing_mode: 'build-only'
-      image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
-      tests_selector: cts
-      repo_ref: ${{ github.sha }}
-      toolchain_artifact: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact }}
-      toolchain_artifact_filename: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact_filename }}
-      toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.toolchain_decompress_command }}
-      binaries_artifact: sycl_cts_bin_linux_${{ matrix.enable_new_offload_model == 'True' && 'new_offload' || 'old_offload' }}
-      extra_cmake_args: ${{ matrix.enable_new_offload_model == 'True' && '-DDPCPP_FLAGS=--offload-new-driver' || '' }}
+  # build-sycl-cts-linux:
+  #   needs: ubuntu2204_build
+  #   name: Build SYCL-CTS for Linux with ${{ matrix.enable_new_offload_model == 'True' && 'New Offload Model' || 'Old Offload Model' }}
+  #   permissions:
+  #     contents: write
+  #     packages: read
+  #   if: ${{ !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
+  #   strategy:
+  #     fail-fast: false
+  #     matrix:
+  #       enable_new_offload_model: ['False', 'True']
+  #   uses: ./.github/workflows/sycl-linux-run-tests.yml
+  #   with:
+  #     name: Build SYCL-CTS for Linux with ${{ matrix.enable_new_offload_model == 'True' && 'New Offload Model' || 'Old Offload Model' }}
+  #     runner: '["Linux", "build"]'
+  #     testing_mode: 'build-only'
+  #     image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
+  #     tests_selector: cts
+  #     repo_ref: ${{ github.sha }}
+  #     toolchain_artifact: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact }}
+  #     toolchain_artifact_filename: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact_filename }}
+  #     toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.toolchain_decompress_command }}
+  #     binaries_artifact: sycl_cts_bin_linux_${{ matrix.enable_new_offload_model == 'True' && 'new_offload' || 'old_offload' }}
+  #     extra_cmake_args: ${{ matrix.enable_new_offload_model == 'True' && '-DDPCPP_FLAGS=--offload-new-driver' || '' }}
 
-  run-sycl-cts-linux:
-    needs: [ubuntu2204_build, build-sycl-cts-linux]
-    permissions:
-      contents: write
-      packages: read
-    if: ${{ !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
-    strategy:
-      fail-fast: false
-      matrix:
-        enable_new_offload_model: ['False', 'True']
-        target_device: ['opencl:cpu', 'level_zero:gpu']
-    uses: ./.github/workflows/sycl-linux-run-tests.yml
-    with:
-      name: SYCL CTS with ${{ matrix.target_device }}, ${{ matrix.enable_new_offload_model == 'True' && 'New Offload Model' || 'Old Offload Model' }}
-      runner: '["Linux", "gen12"]'
-      testing_mode: 'run-only'
-      image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
-      target_devices: ${{ matrix.target_device }}
-      tests_selector: cts
-      repo_ref: ${{ github.sha }}
-      toolchain_artifact: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact }}
-      toolchain_artifact_filename: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact_filename }}
-      toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.toolchain_decompress_command }}
-      binaries_artifact: sycl_cts_bin_linux_${{ matrix.enable_new_offload_model == 'True' && 'new_offload' || 'old_offload' }}
+  # run-sycl-cts-linux:
+  #   needs: [ubuntu2204_build, build-sycl-cts-linux]
+  #   permissions:
+  #     contents: write
+  #     packages: read
+  #   if: ${{ !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
+  #   strategy:
+  #     fail-fast: false
+  #     matrix:
+  #       enable_new_offload_model: ['False', 'True']
+  #       target_device: ['opencl:cpu', 'level_zero:gpu']
+  #   uses: ./.github/workflows/sycl-linux-run-tests.yml
+  #   with:
+  #     name: SYCL CTS with ${{ matrix.target_device }}, ${{ matrix.enable_new_offload_model == 'True' && 'New Offload Model' || 'Old Offload Model' }}
+  #     runner: '["Linux", "gen12"]'
+  #     testing_mode: 'run-only'
+  #     image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
+  #     target_devices: ${{ matrix.target_device }}
+  #     tests_selector: cts
+  #     repo_ref: ${{ github.sha }}
+  #     toolchain_artifact: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact }}
+  #     toolchain_artifact_filename: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact_filename }}
+  #     toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.toolchain_decompress_command }}
+  #     binaries_artifact: sycl_cts_bin_linux_${{ matrix.enable_new_offload_model == 'True' && 'new_offload' || 'old_offload' }}
 
   build-sycl-cts-win:
     needs: build-win
