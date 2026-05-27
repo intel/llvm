@@ -425,7 +425,7 @@ void test3(sycl::queue &q, std::initializer_list<InputTy1> Input1,
   }
 }
 
-bool is_bfloat16_nan(uint16_t x, bool &signaling) {
+inline bool is_bfloat16_nan(uint16_t x, bool &signaling) {
   uint16_t exp_bits = x & 0x7F80;
   uint16_t man_bits = x & 0x7F;
   if (!(exp_bits == 0x7F80) || (man_bits == 0))
@@ -435,13 +435,13 @@ bool is_bfloat16_nan(uint16_t x, bool &signaling) {
 }
 
 // x is nan value
-bool is_signaling_nan(float x) {
+inline bool is_signaling_nan(float x) {
   uint32_t fp32_bits = __builtin_bit_cast(uint32_t, x);
   uint32_t man_bits = fp32_bits & 0x400000;
   return (man_bits & 0x400000) == 0x0;
 }
 
-bool is_signaling_nan(double x) {
+inline bool is_signaling_nan(double x) {
   uint64_t fp64_bits = __builtin_bit_cast(uint64_t, x);
   uint64_t man_bits = fp64_bits & 0x8'0000'0000'0000;
   return (man_bits & 0x8'0000'0000'0000) == 0x0;
