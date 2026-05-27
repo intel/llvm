@@ -617,6 +617,9 @@ protected:
     /// Removes the MemObjRecord for the memory object passed.
     void removeRecordForMemObj(SYCLMemObjI *MemObject);
 
+    /// Removes the scheduler-owned entry for the memory record passed.
+    void removeRecordForMemObj(const std::shared_ptr<MemObjRecord> &Record);
+
     /// Adds new command to leaves if needed.
     void addNodeToLeaves(MemObjRecord *Record, Command *Cmd,
                          access::mode AccessMode,
@@ -655,7 +658,12 @@ protected:
         std::vector<detail::EventImplPtr> &Events,
         std::vector<Command *> &ToEnqueue);
 
-    std::vector<SYCLMemObjI *> MMemObjs;
+    struct MemObjEntry {
+      SYCLMemObjI *MMemObj;
+      std::shared_ptr<MemObjRecord> MRecord;
+    };
+
+    std::vector<MemObjEntry> MMemObjs;
 
   private:
     /// Inserts the command required to update the memory object state in the
@@ -870,6 +878,8 @@ protected:
   /// function, GraphReadLock will be left in locked state.
   void waitForRecordToFinish(MemObjRecord *Record, ReadLockT &GraphReadLock);
   bool checkLeavesCompletion(MemObjRecord *Record);
+  bool removeMemoryRecord(const std::shared_ptr<MemObjRecord> &Record,
+                          bool StrictLock = true);
 
   GraphBuilder MGraphBuilder;
   RWLockT MGraphLock;
