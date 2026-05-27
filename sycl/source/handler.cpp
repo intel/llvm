@@ -766,10 +766,41 @@ detail::EventImplPtr handler::finalize() {
 
   // Native graph recording limitation
   if (type == detail::CGType::CodeplayHostTask && Queue->isNativeRecording()) {
-    throw sycl::exception(
-        make_error_code(errc::feature_not_supported),
-        "SYCL host_task is not supported in native recording mode. Use "
-        "zeCommandListAppendHostFunction as a workaround.");
+    auto *HT = static_cast<detail::CGHostTask *>(CommandGroup.get());
+    if (!HT->MHostTask->isCreatedFromEnqueueFunction()) {
+      throw sycl::exception(
+          make_error_code(errc::feature_not_supported),
+          "Only restricted host tasks may be captured in native recording mode.");
+    }
+
+    bool NativeHostTaskSupport = false;
+    Queue->getAdapter().call<detail::UrApiKind::urDeviceGetInfo>(
+        detail::getSyclObjImpl(Queue->get_device())->getHandleRef(),
+        UR_DEVICE_INFO_ENQUEUE_HOST_TASK_SUPPORT_EXP,
+        sizeof(NativeHostTaskSupport), &NativeHostTaskSupport, nullptr);
+    if (!NativeHostTaskSupport) {
+      throw sycl::exception(
+          make_error_code(errc::feature_not_supported),
+          "Recording host tasks in native recording mode requires backend support"
+          "not available on this device.");
+    }
+
+    auto CallbackData = std::make_unique<std::function<void()>>(
+        detail::HandlerAccess::getHostTaskFunc(*HT->MHostTask));
+
+    auto HostTaskCallback = [](void *Data) {
+      std::unique_ptr<std::function<void()>> F(
+          static_cast<std::function<void()> *>(Data));
+      (*F)();
+    };
+
+    Queue->getAdapter().call<detail::UrApiKind::urEnqueueHostTaskExp>(
+        Queue->getHandleRef(), HostTaskCallback, CallbackData.get(), nullptr, 0,
+        nullptr, nullptr);
+    // Ownership transferred on success.
+    (void)CallbackData.release();
+
+    return detail::event_impl::create_completed_host_event();
   }
   if (!CommandGroup->getRequirements().empty() && Queue->isNativeRecording()) {
     throw sycl::exception(

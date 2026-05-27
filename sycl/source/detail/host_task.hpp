@@ -75,7 +75,13 @@ public:
 
   friend class DispatchHostTask;
   friend class ExecCGCommand;
+  friend class sycl::detail::HandlerAccess;
 };
+
+inline std::function<void()>
+HandlerAccess::getHostTaskFunc(HostTask &HT) {
+  return std::move(HT.MHostTask);
+}
 
 } // namespace detail
 } // namespace _V1
