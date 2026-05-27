@@ -6228,6 +6228,29 @@ __urdlllocal ur_result_t UR_APICALL urGraphIsEmptyExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urGraphSetDestructionCallbackExp
+__urdlllocal ur_result_t UR_APICALL urGraphSetDestructionCallbackExp(
+    /// [in] Handle of the graph to register the callback for.
+    ur_exp_graph_handle_t hGraph,
+    /// [in] Function pointer to the callback. The callback must not access
+    /// hGraph.
+    ur_exp_graph_destruction_callback_t pfnCallback,
+    /// [in][optional] Pointer to user data to be passed to the callback. The
+    /// user data must not reference hGraph.
+    void *pUserData) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hGraph);
+
+  auto *pfnSetDestructionCallbackExp =
+      dditable->GraphExp.pfnSetDestructionCallbackExp;
+  if (nullptr == pfnSetDestructionCallbackExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnSetDestructionCallbackExp(hGraph, pfnCallback, pUserData);
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urGraphDumpContentsExp
 __urdlllocal ur_result_t UR_APICALL urGraphDumpContentsExp(
     /// [in] Handle of the graph to dump.
@@ -6817,6 +6840,8 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetGraphExpProcAddrTable(
       pDdiTable->pfnExecutableGraphDestroyExp =
           ur_loader::urGraphExecutableGraphDestroyExp;
       pDdiTable->pfnIsEmptyExp = ur_loader::urGraphIsEmptyExp;
+      pDdiTable->pfnSetDestructionCallbackExp =
+          ur_loader::urGraphSetDestructionCallbackExp;
       pDdiTable->pfnDumpContentsExp = ur_loader::urGraphDumpContentsExp;
     } else {
       // return pointers directly to platform's DDIs
