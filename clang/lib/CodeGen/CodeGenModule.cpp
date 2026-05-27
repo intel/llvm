@@ -52,6 +52,7 @@
 #include "clang/Frontend/FrontendDiagnostic.h"
 #include "clang/Sema/Sema.h"
 #include "clang/Sema/SemaSYCL.h"
+#include "clang/Lex/Preprocessor.h"
 #include "llvm/ABI/IRTypeMapper.h"
 #include "llvm/ABI/TargetInfo.h"
 #include "llvm/ADT/STLExtras.h"
@@ -612,13 +613,10 @@ CodeGenModule::CodeGenModule(ASTContext &C,
   // Generate the module name hash here if needed.
   if (CodeGenOpts.UniqueInternalLinkageNames &&
       !getModule().getSourceFileName().empty()) {
-    std::string Path = getModule().getSourceFileName();
+    SmallString<256> Path(getModule().getSourceFileName());
     // Check if a path substitution is needed from the MacroPrefixMap.
-    for (const auto &Entry : LangOpts.MacroPrefixMap)
-      if (Path.rfind(Entry.first, 0) != std::string::npos) {
-        Path = Entry.second + Path.substr(Entry.first.size());
-        break;
-      }
+    clang::Preprocessor::processPathForFileMacro(Path, LangOpts,
+                                                 Context.getTargetInfo());
     ModuleNameHash = llvm::getUniqueInternalLinkagePostfix(Path);
   }
 

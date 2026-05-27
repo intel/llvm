@@ -79,7 +79,7 @@ public:
       : ShouldHackArguments(ShouldHackArguments),
         CheckSYCLKernels(CheckSYCLKernels) {}
 
-  PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
+  LLVM_ABI PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
 
   /// Convenience wrapper
   RetOrArg createRet(const Function *F, unsigned Idx) {
