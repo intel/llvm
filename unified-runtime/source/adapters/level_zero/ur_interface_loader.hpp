@@ -629,6 +629,19 @@ ur_result_t urIPCOpenMemHandleExp(ur_context_handle_t hContext,
                                   void *pIPCMemHandleData,
                                   size_t ipcMemHandleDataSize, void **ppMem);
 ur_result_t urIPCCloseMemHandleExp(ur_context_handle_t hContext, void *pMem);
+ur_result_t urIPCGetPhysMemHandleExp(ur_context_handle_t hContext,
+                                     ur_physical_mem_handle_t hPhysMem,
+                                     void **ppIPCPhysMemHandleData,
+                                     size_t *pIPCPhysMemHandleDataSizeRet);
+ur_result_t urIPCPutPhysMemHandleExp(ur_context_handle_t hContext,
+                                     void *pIPCPhysMemHandleData);
+ur_result_t urIPCOpenPhysMemHandleExp(ur_context_handle_t hContext,
+                                      ur_device_handle_t hDevice,
+                                      void *pIPCPhysMemHandleData,
+                                      size_t ipcPhysMemHandleDataSize,
+                                      ur_physical_mem_handle_t *phPhysMem);
+ur_result_t urIPCClosePhysMemHandleExp(ur_context_handle_t hContext,
+                                       ur_physical_mem_handle_t hPhysMem);
 ur_result_t urMemoryExportAllocExportableMemoryExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice, size_t alignment,
     size_t size, ur_exp_external_mem_type_t handleTypeToExport, void **ppMem);

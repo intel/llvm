@@ -1951,12 +1951,37 @@ typedef ur_result_t(UR_APICALL *ur_pfnIPCCloseMemHandleExp_t)(
     ur_context_handle_t, void *);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urIPCGetPhysMemHandleExp
+typedef ur_result_t(UR_APICALL *ur_pfnIPCGetPhysMemHandleExp_t)(
+    ur_context_handle_t, ur_physical_mem_handle_t, void **, size_t *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urIPCPutPhysMemHandleExp
+typedef ur_result_t(UR_APICALL *ur_pfnIPCPutPhysMemHandleExp_t)(
+    ur_context_handle_t, void *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urIPCOpenPhysMemHandleExp
+typedef ur_result_t(UR_APICALL *ur_pfnIPCOpenPhysMemHandleExp_t)(
+    ur_context_handle_t, ur_device_handle_t, void *, size_t,
+    ur_physical_mem_handle_t *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urIPCClosePhysMemHandleExp
+typedef ur_result_t(UR_APICALL *ur_pfnIPCClosePhysMemHandleExp_t)(
+    ur_context_handle_t, ur_physical_mem_handle_t);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of IPCExp functions pointers
 typedef struct ur_ipc_exp_dditable_t {
   ur_pfnIPCGetMemHandleExp_t pfnGetMemHandleExp;
   ur_pfnIPCPutMemHandleExp_t pfnPutMemHandleExp;
   ur_pfnIPCOpenMemHandleExp_t pfnOpenMemHandleExp;
   ur_pfnIPCCloseMemHandleExp_t pfnCloseMemHandleExp;
+  ur_pfnIPCGetPhysMemHandleExp_t pfnGetPhysMemHandleExp;
+  ur_pfnIPCPutPhysMemHandleExp_t pfnPutPhysMemHandleExp;
+  ur_pfnIPCOpenPhysMemHandleExp_t pfnOpenPhysMemHandleExp;
+  ur_pfnIPCClosePhysMemHandleExp_t pfnClosePhysMemHandleExp;
 } ur_ipc_exp_dditable_t;
 
 ///////////////////////////////////////////////////////////////////////////////

@@ -9662,6 +9662,198 @@ __urdlllocal ur_result_t UR_APICALL urIPCCloseMemHandleExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urIPCGetPhysMemHandleExp
+__urdlllocal ur_result_t UR_APICALL urIPCGetPhysMemHandleExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the physical memory object
+    ur_physical_mem_handle_t hPhysMem,
+    /// [out] a pointer to the IPC physical memory handle data
+    void **ppIPCPhysMemHandleData,
+    /// [out] size of the resulting IPC physical memory handle data
+    size_t *pIPCPhysMemHandleDataSizeRet) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_ipc_get_phys_mem_handle_exp_params_t params = {
+      &hContext, &hPhysMem, &ppIPCPhysMemHandleData,
+      &pIPCPhysMemHandleDataSizeRet};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback("urIPCGetPhysMemHandleExp"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback("urIPCGetPhysMemHandleExp"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback("urIPCGetPhysMemHandleExp"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urIPCPutPhysMemHandleExp
+__urdlllocal ur_result_t UR_APICALL urIPCPutPhysMemHandleExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] a pointer to the IPC physical memory handle data
+    void *pIPCPhysMemHandleData) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_ipc_put_phys_mem_handle_exp_params_t params = {&hContext,
+                                                    &pIPCPhysMemHandleData};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback("urIPCPutPhysMemHandleExp"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback("urIPCPutPhysMemHandleExp"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback("urIPCPutPhysMemHandleExp"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urIPCOpenPhysMemHandleExp
+__urdlllocal ur_result_t UR_APICALL urIPCOpenPhysMemHandleExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device object the physical memory was allocated on
+    ur_device_handle_t hDevice,
+    /// [in] the IPC physical memory handle data
+    void *pIPCPhysMemHandleData,
+    /// [in] size of the IPC physical memory handle data
+    size_t ipcPhysMemHandleDataSize,
+    /// [out] pointer to the physical memory handle
+    ur_physical_mem_handle_t *phPhysMem) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_ipc_open_phys_mem_handle_exp_params_t params = {
+      &hContext, &hDevice, &pIPCPhysMemHandleData, &ipcPhysMemHandleDataSize,
+      &phPhysMem};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback("urIPCOpenPhysMemHandleExp"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback("urIPCOpenPhysMemHandleExp"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    *phPhysMem = mock::createDummyHandle<ur_physical_mem_handle_t>();
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback("urIPCOpenPhysMemHandleExp"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urIPCClosePhysMemHandleExp
+__urdlllocal ur_result_t UR_APICALL urIPCClosePhysMemHandleExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] physical memory handle opened through urIPCOpenPhysMemHandleExp
+    ur_physical_mem_handle_t hPhysMem) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_ipc_close_phys_mem_handle_exp_params_t params = {&hContext, &hPhysMem};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback("urIPCClosePhysMemHandleExp"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback("urIPCClosePhysMemHandleExp"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback("urIPCClosePhysMemHandleExp"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urMemoryExportAllocExportableMemoryExp
 __urdlllocal ur_result_t UR_APICALL urMemoryExportAllocExportableMemoryExp(
     /// [in] Handle to context in which to allocate memory.
@@ -13546,6 +13738,14 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetIPCExpProcAddrTable(
   pDdiTable->pfnOpenMemHandleExp = driver::urIPCOpenMemHandleExp;
 
   pDdiTable->pfnCloseMemHandleExp = driver::urIPCCloseMemHandleExp;
+
+  pDdiTable->pfnGetPhysMemHandleExp = driver::urIPCGetPhysMemHandleExp;
+
+  pDdiTable->pfnPutPhysMemHandleExp = driver::urIPCPutPhysMemHandleExp;
+
+  pDdiTable->pfnOpenPhysMemHandleExp = driver::urIPCOpenPhysMemHandleExp;
+
+  pDdiTable->pfnClosePhysMemHandleExp = driver::urIPCClosePhysMemHandleExp;
 
   return result;
 } catch (...) {
