@@ -821,7 +821,7 @@ template <size_t N> class fp8_e4m3_x {
 #ifdef __SYCL_DEVICE_ONLY__
     _Float16 v{0};
     if constexpr (std::is_same_v<std::decay_t<T>, sycl::half>)
-      v = static_cast<_Float16>(static_cast<float>(h));
+      v = sycl::bit_cast<_Float16>(h);
     else
       v = static_cast<_Float16>(h);
     return __builtin_spirv_ClampConvertFP16ToE4M3INTEL(v);
@@ -1177,7 +1177,7 @@ template <size_t N> class fp8_e5m2_x {
 #ifdef __SYCL_DEVICE_ONLY__
     _Float16 v{0};
     if constexpr (std::is_same_v<std::decay_t<T>, sycl::half>)
-      v = static_cast<_Float16>(static_cast<float>(h));
+      v = sycl::bit_cast<_Float16>(h);
     else
       v = static_cast<_Float16>(h);
     return s == saturation::finite
