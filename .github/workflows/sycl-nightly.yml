@@ -352,14 +352,14 @@ jobs:
       fail-fast: false
       matrix:
         enable_new_offload_model: ['False', 'True']
-        target_device: ['opencl:cpu', 'level_zero:gpu']
+        target_devices: ['opencl:cpu', 'level_zero:gpu']
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
-      name: SYCL CTS with ${{ matrix.target_device }}, ${{ matrix.enable_new_offload_model == 'True' && 'New Offload Model' || 'Old Offload Model' }}
+      name: SYCL CTS with ${{ matrix.target_devices }}, ${{ matrix.enable_new_offload_model == 'True' && 'New Offload Model' || 'Old Offload Model' }}
       runner: '["Linux", "gen12"]'
       testing_mode: 'run-only'
       image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
-      target_devices: ${{ matrix.target_device }}
+      target_devices: ${{ matrix.target_devices }}
       tests_selector: cts
       repo_ref: ${{ github.sha }}
       toolchain_artifact: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact }}
@@ -393,13 +393,13 @@ jobs:
       fail-fast: false
       matrix:
         enable_new_offload_model: ['False', 'True']
-        target_device: ['level_zero:gpu']
+        target_devices: ['level_zero:gpu']
     uses: ./.github/workflows/sycl-windows-run-tests.yml
     with:
-      name: SYCL-CTS with ${{ matrix.target_device }}, ${{ matrix.enable_new_offload_model == 'True' && 'New Offload Model' || 'Old Offload Model' }}
+      name: SYCL-CTS with ${{ matrix.target_devices }}, ${{ matrix.enable_new_offload_model == 'True' && 'New Offload Model' || 'Old Offload Model' }}
       runner: '["Windows", "gen12"]'
       testing_mode: 'run-only'
-      target_devices: ${{ matrix.target_device }}
+      target_devices: ${{ matrix.target_devices }}
       tests_selector: cts
       repo_ref: ${{ github.sha }}
       toolchain_artifact_filename: ${{ needs.build-win.outputs.toolchain_artifact_filename }}
