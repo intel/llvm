@@ -9,6 +9,8 @@
 
 #include <unified-runtime/ur_api.h>
 
+namespace ur::opencl {
+
 UR_APIEXPORT ur_result_t UR_APICALL urGraphCreateExp(
     ur_context_handle_t /* hContext */, ur_exp_graph_handle_t * /* phGraph */) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -46,3 +48,5 @@ UR_APIEXPORT ur_result_t UR_APICALL urGraphInstantiateGraphExp(
     ur_exp_executable_graph_handle_t * /* phExecutableGraph */) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
+
+} // namespace ur::opencl

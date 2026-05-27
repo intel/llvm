@@ -8,7 +8,7 @@ from templates import helper as th
     x=tags['$x']
     X=x.upper()
     Adapter=adapter.upper()
-%>//===--------- ${n}_interface_loader.hpp - Level Zero Adapter ------------===//
+%>//===--------- ${n}_interface_loader.hpp - ${adapter} Adapter ------------===//
 //
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM
@@ -40,7 +40,7 @@ ${x}_result_t ${th.make_func_name(n, tags, obj)}(
 %endif
 %endfor
 %endfor
-#ifdef UR_STATIC_ADAPTER_LEVEL_ZERO
+#ifdef UR_STATIC_ADAPTER_${Adapter}
 ur_result_t urAdapterGetDdiTables(ur_dditable_t *ddi);
 #endif
 

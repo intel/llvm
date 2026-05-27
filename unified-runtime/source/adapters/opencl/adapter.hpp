@@ -35,7 +35,7 @@ struct ur_adapter_handle_t_ : ur::opencl::handle_base {
   // Function pointers to core OpenCL entry points which may not exist in older
   // versions of the OpenCL-ICD-Loader are tracked here and initialized by
   // dynamically loading the symbol by name.
-#define CL_CORE_FUNCTION(FUNC) decltype(::FUNC) *FUNC = nullptr;
+#define CL_CORE_FUNCTION(FUNC, FIELD) decltype(::FUNC) *FIELD = nullptr;
 #include "core_functions.def"
 #undef CL_CORE_FUNCTION
 };
@@ -45,10 +45,3 @@ namespace cl {
 ur_adapter_handle_t getAdapter();
 } // namespace cl
 } // namespace ur
-
-#ifdef UR_STATIC_ADAPTER_OPENCL
-namespace ur::opencl {
-ur_result_t urAdapterGet(uint32_t NumEntries, ur_adapter_handle_t *phAdapters,
-                         uint32_t *pNumAdapters);
-} // namespace ur::opencl
-#endif

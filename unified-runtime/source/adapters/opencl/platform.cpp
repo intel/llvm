@@ -73,6 +73,8 @@ static bool isBannedOpenCLDevice(cl_device_id device) {
   return isBanned;
 }
 
+namespace ur::opencl {
+
 UR_DLLEXPORT ur_result_t UR_APICALL
 urPlatformGetInfo(ur_platform_handle_t hPlatform, ur_platform_info_t propName,
                   size_t propSize, void *pPropValue, size_t *pSizeRet) {
@@ -114,11 +116,7 @@ urPlatformGet(ur_adapter_handle_t, uint32_t NumEntries,
               ur_platform_handle_t *phPlatforms, uint32_t *pNumPlatforms) {
   static std::mutex adapterPopulationMutex{};
   ur_adapter_handle_t Adapter = nullptr;
-#ifdef UR_STATIC_ADAPTER_OPENCL
   UR_RETURN_ON_FAILURE(ur::opencl::urAdapterGet(1, &Adapter, nullptr));
-#else
-  UR_RETURN_ON_FAILURE(urAdapterGet(1, &Adapter, nullptr));
-#endif
   if (!Adapter) {
     // The only operation urAdapterGet really performs is allocating the adapter
     // handle via new, so no adapter handle here almost certainly means memory
@@ -203,10 +201,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformCreateWithNativeHandle(
       reinterpret_cast<cl_platform_id>(hNativePlatform);
 
   uint32_t NumPlatforms = 0;
-  UR_RETURN_ON_FAILURE(urPlatformGet(nullptr, 0, nullptr, &NumPlatforms));
-  std::vector<ur_platform_handle_t> Platforms(NumPlatforms);
   UR_RETURN_ON_FAILURE(
-      urPlatformGet(nullptr, NumPlatforms, Platforms.data(), nullptr));
+      ur::opencl::urPlatformGet(nullptr, 0, nullptr, &NumPlatforms));
+  std::vector<ur_platform_handle_t> Platforms(NumPlatforms);
+  UR_RETURN_ON_FAILURE(ur::opencl::urPlatformGet(nullptr, NumPlatforms,
+                                                 Platforms.data(), nullptr));
 
   for (uint32_t i = 0; i < NumPlatforms; i++) {
     if (Platforms[i]->CLPlatform == NativeHandle) {
@@ -251,6 +250,8 @@ urPlatformGetBackendOption(ur_platform_handle_t, const char *pFrontendOption,
   }
   return UR_RESULT_ERROR_INVALID_VALUE;
 }
+
+} // namespace ur::opencl
 
 ur_result_t ur_platform_handle_t_::InitDevices() {
   if (Devices.empty()) {

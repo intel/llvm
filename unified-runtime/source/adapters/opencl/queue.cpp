@@ -106,6 +106,8 @@ ur_result_t ur_queue_handle_t_::makeWithNative(native_type NativeQueue,
   return UR_RESULT_SUCCESS;
 }
 
+namespace ur::opencl {
+
 UR_APIEXPORT ur_result_t UR_APICALL urQueueCreate(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     const ur_queue_properties_t *pProperties, ur_queue_handle_t *phQueue) {
@@ -188,7 +190,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueGetInfo(ur_queue_handle_t hQueue,
       return ReturnValue(false);
     } else {
       ur_event_status_t Status;
-      UR_RETURN_ON_FAILURE(urEventGetInfo(
+      UR_RETURN_ON_FAILURE(ur::opencl::urEventGetInfo(
           hQueue->LastEvent, UR_EVENT_INFO_COMMAND_EXECUTION_STATUS,
           sizeof(ur_event_status_t), (void *)&Status, nullptr));
       if (Status == UR_EVENT_STATUS_COMPLETE) {
@@ -217,7 +219,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueGetInfo(ur_queue_handle_t hQueue,
 
     // If we have an existing default device, release it
     if (hQueue->DeviceDefault.has_value()) {
-      urQueueRelease(*hQueue->DeviceDefault);
+      ur::opencl::urQueueRelease(*hQueue->DeviceDefault);
       hQueue->DeviceDefault.reset();
     }
 
@@ -355,3 +357,5 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueHostTaskExp(
     ur_event_handle_t * /* phEvent */) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
+
+} // namespace ur::opencl

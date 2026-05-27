@@ -133,6 +133,8 @@ void cl2URSamplerInfoValue(cl_sampler_info Info, void *InfoValue) {
 
 } // namespace
 
+namespace ur::opencl {
+
 ur_result_t urSamplerCreate(ur_context_handle_t hContext,
                             const ur_sampler_desc_t *pDesc,
                             ur_sampler_handle_t *phSampler) {
@@ -257,3 +259,5 @@ UR_APIEXPORT ur_result_t UR_APICALL urSamplerCreateWithNativeHandle(
 
   return UR_RESULT_SUCCESS;
 }
+
+} // namespace ur::opencl

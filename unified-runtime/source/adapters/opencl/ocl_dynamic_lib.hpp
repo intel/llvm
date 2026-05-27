@@ -96,12 +96,9 @@ void unloadOCLLibrary();
 #define clSetKernelArg ocl::clSetKernelArg_ptr
 #define clSetKernelExecInfo ocl::clSetKernelExecInfo_ptr
 #define clWaitForEvents ocl::clWaitForEvents_ptr
-// Intentionally NOT redirected: clSetProgramSpecializationConstant,
-// clSetContextDestructorCallback. These names are also struct fields of
-// ur_adapter_handle_t_ (see core_functions.def), and the redirect macro would
-// rewrite member-access expressions like `adapter->clSetProgram...` into
-// invalid syntax. In static mode those fields are populated from
-// ocl::*_ptr by the adapter constructor instead.
+// clSetProgramSpecializationConstant and clSetContextDestructorCallback are
+// not redirected here; they are accessed via per-adapter struct fields
+// (clSetProgramSpecializationConstantFn / clSetContextDestructorCallbackFn).
 
 #endif // OCL_DYNAMIC_LIB_IMPL
 

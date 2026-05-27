@@ -1,4 +1,4 @@
-//===--------- ur_interface_loader.hpp - Level Zero Adapter ------------===//
+//===--------- ur_interface_loader.hpp - level_zero Adapter ------------===//
 //
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM

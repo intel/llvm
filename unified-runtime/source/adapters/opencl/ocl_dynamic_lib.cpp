@@ -6,9 +6,9 @@
 //
 //===-----------------------------------------------------------------===//
 
-#ifdef UR_STATIC_ADAPTER_OPENCL
-
-// Define this before including the header to prevent macro redefinitions
+// This translation unit is only compiled when UR_STATIC_ADAPTER_OPENCL is set
+// (see opencl/CMakeLists.txt). Define OCL_DYNAMIC_LIB_IMPL before including the
+// header to suppress the symbol-redirect macros for our own definitions.
 #define OCL_DYNAMIC_LIB_IMPL
 #include "ocl_dynamic_lib.hpp"
 
@@ -32,7 +32,6 @@ namespace ocl {
 static void *OCLLibHandle = nullptr;
 static std::mutex OCLLoadMutex;
 static bool OCLLoaded = false;
-static bool OCLLoadSuccess = false;
 
 template <typename T>
 static bool getSymbolAddr(void *handle, const char *name, T *funcPtr) {
@@ -105,10 +104,7 @@ static void loadOCLLibraryImpl() {
 #define OCL_FUNC(name) name##_ptr = nullptr;
 #include "ocl_functions.def"
 #undef OCL_FUNC
-    return;
   }
-
-  OCLLoadSuccess = true;
 }
 
 bool loadOCLLibrary() {
@@ -117,7 +113,7 @@ bool loadOCLLibrary() {
     loadOCLLibraryImpl();
     OCLLoaded = true;
   }
-  return OCLLoadSuccess;
+  return OCLLibHandle != nullptr;
 }
 
 void unloadOCLLibrary() {
@@ -135,9 +131,6 @@ void unloadOCLLibrary() {
 #undef OCL_FUNC
   }
   OCLLoaded = false;
-  OCLLoadSuccess = false;
 }
 
 } // namespace ocl
-
-#endif // UR_STATIC_ADAPTER_OPENCL

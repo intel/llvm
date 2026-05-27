@@ -8,7 +8,7 @@ from templates import helper as th
     x=tags['$x']
     X=x.upper()
     Adapter=adapter.upper()
-%>//===--------- ${n}_interface_loader.cpp - Level Zero Adapter ------------===//
+%>//===--------- ${n}_interface_loader.cpp - ${adapter} Adapter ------------===//
 //
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM

@@ -11,9 +11,7 @@
 #include "common.hpp"
 #include "ur/ur.hpp"
 
-#ifdef UR_STATIC_ADAPTER_OPENCL
-#include "ocl_dynamic_lib.hpp"
-#else
+#ifndef UR_STATIC_ADAPTER_OPENCL
 #ifdef _MSC_VER
 #include <Windows.h>
 #else
@@ -32,8 +30,8 @@ ur_adapter_handle_t_::ur_adapter_handle_t_() : handle_base() {
     return;
   }
   // Mirror the symbols already resolved by ocl_dynamic_lib into the per-adapter
-  // struct fields, so call sites like `getAdapter()->FUNC(...)` work.
-#define CL_CORE_FUNCTION(FUNC) FUNC = ocl::FUNC##_ptr;
+  // struct fields, so call sites like `getAdapter()->FIELD(...)` work.
+#define CL_CORE_FUNCTION(FUNC, FIELD) FIELD = ocl::FUNC##_ptr;
 #include "core_functions.def"
 #undef CL_CORE_FUNCTION
 #else
@@ -44,16 +42,16 @@ ur_adapter_handle_t_::ur_adapter_handle_t_() : handle_base() {
   auto handle = GetModuleHandleA("OpenCL.dll");
   assert(handle);
 
-#define CL_CORE_FUNCTION(FUNC)                                                 \
-  FUNC = reinterpret_cast<decltype(::FUNC) *>(GetProcAddress(handle, #FUNC));
+#define CL_CORE_FUNCTION(FUNC, FIELD)                                          \
+  FIELD = reinterpret_cast<decltype(::FUNC) *>(GetProcAddress(handle, #FUNC));
 #include "core_functions.def"
 #undef CL_CORE_FUNCTION
 #else // _MSC_VER
 
   // Use the default shared object search order (RTLD_DEFAULT) since the
   // OpenCL-ICD-Loader has already been loaded into the process.
-#define CL_CORE_FUNCTION(FUNC)                                                 \
-  FUNC = reinterpret_cast<decltype(::FUNC) *>(dlsym(RTLD_DEFAULT, #FUNC));
+#define CL_CORE_FUNCTION(FUNC, FIELD)                                          \
+  FIELD = reinterpret_cast<decltype(::FUNC) *>(dlsym(RTLD_DEFAULT, #FUNC));
 #include "core_functions.def"
 #undef CL_CORE_FUNCTION
 
@@ -84,9 +82,7 @@ ur_adapter_handle_t ur::cl::getAdapter() {
   return liveAdapter;
 }
 
-#ifdef UR_STATIC_ADAPTER_OPENCL
 namespace ur::opencl {
-#endif
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urAdapterGet(uint32_t NumEntries, ur_adapter_handle_t *phAdapters,
@@ -112,13 +108,7 @@ urAdapterGet(uint32_t NumEntries, ur_adapter_handle_t *phAdapters,
   }
 
   if (pNumAdapters) {
-#ifdef UR_STATIC_ADAPTER_OPENCL
-    // Probe libOpenCL for the count-only query pattern (NumEntries == 0);
-    // loadOCLLibrary() is idempotent.
-    *pNumAdapters = (liveAdapter || ocl::loadOCLLibrary()) ? 1 : 0;
-#else
-    *pNumAdapters = 1;
-#endif
+    *pNumAdapters = liveAdapter != nullptr ? 1 : 0;
   }
 
   return UR_RESULT_SUCCESS;
@@ -186,6 +176,4 @@ UR_APIEXPORT ur_result_t UR_APICALL urAdapterSetLoggerCallbackLevel(
   return UR_RESULT_SUCCESS;
 }
 
-#ifdef UR_STATIC_ADAPTER_OPENCL
 } // namespace ur::opencl
-#endif
