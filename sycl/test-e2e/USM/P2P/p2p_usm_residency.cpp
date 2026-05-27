@@ -17,9 +17,12 @@
 // different pattern, enables P2P access from dev0 to dev1, then uses dev0's
 // queue to copy the data to the host and verifies correctness.
 //
-// Phase 3 (negative): Allocates memory on dev0, enables then disables P2P
-// access from dev1, and verifies that a subsequent device-to-device memcpy
-// via dev1's queue throws an exception.
+// Phase 3: Allocates memory on dev0, enables then disables P2P access from
+// dev1, and verifies that a subsequent device-to-device memcpy via dev1's
+// queue still succeeds (P2P controls residency, not hardware data transfer).
+//
+// Phase 4: Verify that a device-to-device memcpy succeeds after enabling P2P
+// and that the transferred data matches the fill pattern.
 //
 // REQUIRES: level_zero && two-or-more-gpu-devices
 // UNSUPPORTED: level_zero_v1_adapter
@@ -76,13 +79,14 @@ static bool testP2PRead(context &ctx, queue &srcQueue, device &srcDev,
 }
 
 // Allocate N ints on srcQueue's device, fill with fillVal, enable P2P, then
-// disable P2P, and verify that a device-to-device memcpy from dstQueue fails
-// (since dstDev should no longer be able to access srcDev's allocations after
-// P2P is disabled).
-static bool testP2PReadFailsAfterDisable(context &ctx, queue &srcQueue,
-                                         device &srcDev, queue &dstQueue,
-                                         device &dstDev, size_t N, int fillVal,
-                                         const char *label) {
+// disable P2P, and verify that a device-to-device memcpy from dstQueue still
+// succeeds.  P2P access controls memory residency, not hardware data transfer:
+// Level Zero can still move data between devices via the interconnect
+// regardless of residency state.
+static bool testP2PCopySucceedsAfterDisable(context &ctx, queue &srcQueue,
+                                            device &srcDev, queue &dstQueue,
+                                            device &dstDev, size_t N,
+                                            int fillVal, const char *label) {
   int *src = sycl::malloc_device<int>(N, srcQueue);
   if (!src) {
     std::cout << label << ": device alloc failed (src). Skipping.\n";
@@ -98,46 +102,40 @@ static bool testP2PReadFailsAfterDisable(context &ctx, queue &srcQueue,
 
   srcQueue.fill(src, fillVal, N).wait();
 
-  // Enable then disable P2P: dstDev should no longer be able to access
-  // allocations on srcDev.
+  // Enable then disable P2P.
   std::cout << "Enabling P2P (temporarily).\n";
   dstDev.ext_oneapi_enable_peer_access(srcDev);
-  std::cout << "Disabling P2P: dstDev should no longer access srcDev.\n";
+  std::cout << "Disabling P2P.\n";
   dstDev.ext_oneapi_disable_peer_access(srcDev);
 
-  // Attempt a device-to-device memcpy from src (on srcDev) to dst (on dstDev)
-  // via dstQueue after P2P has been revoked — this should fail.
-  bool gotException = false;
+  // Attempt a device-to-device memcpy after P2P has been revoked — must still
+  // succeed because the adapter no longer blocks cross-device copies.
+  bool copyOk = true;
   try {
     dstQueue.memcpy(dst, src, N * sizeof(int)).wait();
   } catch (sycl::exception &e) {
     std::cout << label << ": memcpy threw exception: " << e.what() << "\n";
-    gotException = true;
+    copyOk = false;
   }
 
   sycl::free(dst, ctx);
   sycl::free(src, ctx);
 
-  if (!gotException) {
+  if (!copyOk) {
     std::cout << label
-              << ": FAIL — device-to-device memcpy succeeded after P2P was "
-                 "disabled\n";
+              << ": FAIL — device-to-device memcpy failed after P2P disable\n";
     return false;
   }
-  std::cout << label << ": OK (memcpy correctly failed after P2P disable)\n";
+  std::cout << label << ": OK (memcpy succeeded after P2P disable)\n";
   return true;
 }
 
-// Allocate N ints on srcQueue's device, fill with fillVal, and verify that a
-// device-to-device memcpy from dstQueue fails without ever enabling P2P (since
-// dstDev must not access srcDev's allocations when P2P has never been enabled).
-static bool testP2PReadFailsWithoutEnable(context &ctx, queue &srcQueue,
-                                          device &srcDev, queue &dstQueue,
-                                          device &dstDev, size_t N, int fillVal,
-                                          const char *label) {
-  (void)srcDev;
-  (void)dstDev;
-
+// Verify that a device-to-device memcpy from dstQueue succeeds after P2P is
+// enabled and that the transferred data matches the fill pattern.
+static bool testP2PReadSucceedsAfterEnable(context &ctx, queue &srcQueue,
+                                           device &srcDev, queue &dstQueue,
+                                           device &dstDev, size_t N,
+                                           int fillVal, const char *label) {
   int *src = sycl::malloc_device<int>(N, srcQueue);
   if (!src) {
     std::cout << label << ": device alloc failed (src). Skipping.\n";
@@ -152,70 +150,11 @@ static bool testP2PReadFailsWithoutEnable(context &ctx, queue &srcQueue,
   }
 
   srcQueue.fill(src, fillVal, N).wait();
-
-  // Attempt a device-to-device memcpy without ever enabling P2P — must fail.
-  bool gotException = false;
-  try {
-    dstQueue.memcpy(dst, src, N * sizeof(int)).wait();
-  } catch (sycl::exception &e) {
-    std::cout << label << ": memcpy threw exception: " << e.what() << "\n";
-    gotException = true;
-  }
-
-  sycl::free(dst, ctx);
-  sycl::free(src, ctx);
-
-  if (!gotException) {
-    std::cout << label
-              << ": FAIL — device-to-device memcpy succeeded without P2P\n";
-    return false;
-  }
-  std::cout << label << ": OK (memcpy correctly failed without P2P)\n";
-  return true;
-}
-
-// Verify the transition from blocked to permitted using the same allocation:
-// first attempt a device-to-device memcpy from dstQueue without P2P (must
-// fail), then enable P2P and retry the copy (must succeed with correct data).
-static bool testP2PReadFailsThenSucceedsAfterEnable(
-    context &ctx, queue &srcQueue, device &srcDev, queue &dstQueue,
-    device &dstDev, size_t N, int fillVal, const char *label) {
-  int *src = sycl::malloc_device<int>(N, srcQueue);
-  if (!src) {
-    std::cout << label << ": device alloc failed (src). Skipping.\n";
-    return true;
-  }
-
-  int *dst = sycl::malloc_device<int>(N, dstQueue);
-  if (!dst) {
-    std::cout << label << ": device alloc failed (dst). Skipping.\n";
-    sycl::free(src, ctx);
-    return true;
-  }
-
-  srcQueue.fill(src, fillVal, N).wait();
-
-  // Without P2P the copy must fail.
-  bool gotException = false;
-  try {
-    dstQueue.memcpy(dst, src, N * sizeof(int)).wait();
-  } catch (sycl::exception &e) {
-    std::cout << label << ": first memcpy (no P2P) threw: " << e.what() << "\n";
-    gotException = true;
-  }
-
-  if (!gotException) {
-    std::cout << label << ": FAIL — first memcpy succeeded without P2P\n";
-    sycl::free(dst, ctx);
-    sycl::free(src, ctx);
-    return false;
-  }
 
   // Enable P2P: dstDev may now access allocations on srcDev.
   std::cout << label << ": enabling P2P.\n";
   dstDev.ext_oneapi_enable_peer_access(srcDev);
 
-  // Retry — must succeed now.
   bool copyOk = true;
   std::vector<int> result(N, 0);
   try {
@@ -223,8 +162,7 @@ static bool testP2PReadFailsThenSucceedsAfterEnable(
     // Read back to host for verification.
     dstQueue.memcpy(result.data(), dst, N * sizeof(int)).wait();
   } catch (sycl::exception &e) {
-    std::cout << label << ": second memcpy (P2P enabled) threw: " << e.what()
-              << "\n";
+    std::cout << label << ": memcpy (P2P enabled) threw: " << e.what() << "\n";
     copyOk = false;
   }
 
@@ -243,7 +181,7 @@ static bool testP2PReadFailsThenSucceedsAfterEnable(
       return false;
     }
   }
-  std::cout << label << ": OK (failed without P2P, succeeded after enable)\n";
+  std::cout << label << ": OK\n";
   return true;
 }
 
@@ -302,24 +240,17 @@ int main() {
                    "Phase 2 (dev0 reads dev1)"))
     return 1;
 
-  // Phase 3: verify that memcpy fails after P2P is disabled.
-  std::cout << "Phase 3: verify memcpy fails after P2P is disabled.\n";
-  if (!testP2PReadFailsAfterDisable(ctx, q0, dev0, q1, dev1, N, 0x77,
-                                    "Phase 3 (dev1 reads dev0 after disable)"))
+  // Phase 3: verify that memcpy still succeeds after P2P is disabled.
+  std::cout << "Phase 3: verify memcpy still succeeds after P2P is disabled.\n";
+  if (!testP2PCopySucceedsAfterDisable(
+          ctx, q0, dev0, q1, dev1, N, 0x77,
+          "Phase 3 (dev1 reads dev0 after disable)"))
     return 1;
 
-  // Phase 4: verify that memcpy fails without ever enabling P2P.
-  std::cout << "Phase 4: verify memcpy fails without ever enabling P2P.\n";
-  if (!testP2PReadFailsWithoutEnable(ctx, q0, dev0, q1, dev1, N, 0x99,
-                                     "Phase 4 (dev1 reads dev0 without P2P)"))
-    return 1;
-
-  // Phase 5: verify the transition from blocked to permitted.
-  std::cout << "Phase 5: verify memcpy fails without P2P then succeeds after "
-               "enabling it.\n";
-  if (!testP2PReadFailsThenSucceedsAfterEnable(
-          ctx, q0, dev0, q1, dev1, N, 0xAA,
-          "Phase 5 (dev1 reads dev0: fail then succeed)"))
+  // Phase 4: verify that memcpy succeeds after enabling P2P.
+  std::cout << "Phase 4: verify memcpy succeeds after enabling P2P.\n";
+  if (!testP2PReadSucceedsAfterEnable(ctx, q0, dev0, q1, dev1, N, 0xAA,
+                                      "Phase 4 (dev1 reads dev0 after enable)"))
     return 1;
 
   std::cout << "PASS\n";
