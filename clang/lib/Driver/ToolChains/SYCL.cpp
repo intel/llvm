@@ -6,12 +6,14 @@
 //
 //===----------------------------------------------------------------------===//
 #include "SYCL.h"
+#include "clang/Basic/Version.h"
 #include "clang/Driver/CommonArgs.h"
 #include "clang/Driver/Compilation.h"
 #include "clang/Driver/Driver.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/SYCLLowerIR/DeviceConfigFile.hpp"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/VirtualFileSystem.h"
 #include <sstream>
@@ -25,7 +27,7 @@ using namespace llvm::opt;
 SYCLInstallationDetector::SYCLInstallationDetector(
     const Driver &D, const llvm::Triple &HostTriple,
     const llvm::opt::ArgList &Args)
-    : D(D), InstallationCandidates()  {
+    : D(D), InstallationCandidates(), HostTriple(HostTriple) {
   // When -fsycl is active, locate the SYCL runtime library and record its
   // directory in SYCLRTLibPath for use by the linker.
   StringRef SysRoot = D.SysRoot;
@@ -110,13 +112,28 @@ void SYCLInstallationDetector::addLibspirvLinkArgs(
 
 void SYCLInstallationDetector::getSYCLDeviceLibPath(
     llvm::SmallVector<llvm::SmallString<128>, 4> &DeviceLibPaths) const {
+  std::string LinuxDirSuffix =
+      llvm::formatv("/lib/dpcpp-{0}/sycl", DPCPP_VERSION_MAJOR);
   for (const auto &IC : InstallationCandidates) {
-    llvm::SmallString<128> InstallLibPath(IC.str());
-    InstallLibPath.append("/lib");
-    DeviceLibPaths.emplace_back(InstallLibPath);
+    if (!HostTriple.isWindowsMSVCEnvironment() &&
+        !HostTriple.isWindowsItaniumEnvironment()) {
+      SmallString<128> InstallPath(IC);
+      llvm::sys::path::append(InstallPath, LinuxDirSuffix);
+      DeviceLibPaths.emplace_back(InstallPath);
+    }
+    SmallString<128> InstallPath(IC);
+    llvm::sys::path::append(InstallPath, "lib");
+    DeviceLibPaths.emplace_back(InstallPath);
   }
-
-  DeviceLibPaths.emplace_back(D.SysRoot + "/lib");
+  if (!HostTriple.isWindowsMSVCEnvironment() &&
+      !HostTriple.isWindowsItaniumEnvironment()) {
+    SmallString<128> Path(D.SysRoot);
+    llvm::sys::path::append(Path, LinuxDirSuffix);
+    DeviceLibPaths.emplace_back(Path.str());
+  }
+  SmallString<128> Path(D.SysRoot);
+  llvm::sys::path::append(Path, "lib");
+  DeviceLibPaths.emplace_back(Path.str());
 }
 
 void SYCLInstallationDetector::addSYCLIncludeArgs(

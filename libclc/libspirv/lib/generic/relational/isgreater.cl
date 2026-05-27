@@ -16,5 +16,5 @@
 #undef _CLC_BUILTIN_IMPL
 
 #define _CLC_SPIRV_BUILTIN __spirv_FUnordGreaterThan
-#define _CLC_BUILTIN_IMPL(X, Y) X > Y
+#define _CLC_BUILTIN_IMPL(X, Y) ((__spirv_Unordered(X, Y)) || (X > Y))
 #include "genbinrelational.inc"

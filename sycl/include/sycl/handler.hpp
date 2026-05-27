@@ -48,6 +48,7 @@
 #include <sycl/property_list.hpp>
 #include <sycl/range.hpp>
 #include <sycl/sampler.hpp>
+#include <sycl/usm/usm_enums.hpp>
 
 #include <assert.h>
 #include <functional>
@@ -137,12 +138,11 @@ inline namespace _V1 {
 
 template <bundle_state State> class kernel_bundle;
 class handler;
-template <typename T, int Dimensions, typename AllocatorT, typename Enable>
-class buffer;
 
 namespace ext ::oneapi ::experimental {
 template <typename, typename> class work_group_memory;
 template <typename, typename> class dynamic_work_group_memory;
+class memory_pool;
 struct image_descriptor;
 enum class prefetch_type;
 
@@ -421,10 +421,9 @@ private:
   /// only after the command group finishes the work on device/host.
   ///
   /// @param ReduBuf is a pointer to buffer that must be stored.
-  template <typename T, int Dimensions, typename AllocatorT, typename Enable>
-  void
-  addReduction(const std::shared_ptr<buffer<T, Dimensions, AllocatorT, Enable>>
-                   &ReduBuf) {
+  template <typename T, int Dimensions, typename AllocatorT>
+  void addReduction(
+      const std::shared_ptr<buffer<T, Dimensions, AllocatorT>> &ReduBuf) {
     detail::markBufferAsInternal(getSyclObjImpl(*ReduBuf));
     addReduction(std::shared_ptr<const void>(ReduBuf));
   }
