@@ -128,6 +128,7 @@
 // CHECK-NEXT: device.hpp
 // CHECK-NEXT: detail/string_view.hpp
 // CHECK-NEXT: detail/util.hpp
+// CHECK-NEXT: detail/abi_neutral.hpp
 // CHECK-NEXT: device_selector.hpp
 // CHECK-NEXT: kernel_bundle_enums.hpp
 // CHECK-NEXT: event.hpp
