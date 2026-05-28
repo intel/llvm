@@ -27,6 +27,14 @@ bool checkCode(float Input, rounding Mode, uint8_t Expected) {
 
 } // namespace
 
+TEST(FP8E8M0Test, DeductionGuide) {
+  fp8_e8m0_x one(1.0f);
+  fp8_e8m0_x pair(1.0f, 2.0f);
+
+  EXPECT_TRUE((std::is_same_v<decltype(one), fp8_e8m0>));
+  EXPECT_TRUE((std::is_same_v<decltype(pair), fp8_e8m0_x2>));
+}
+
 TEST(FP8E8M0Test, VariadicFloat) {
   fp8_e8m0_x2 a(1.0f, 2.0f);
   fp8_e8m0_x2 a1(1.1f, 0.0f);

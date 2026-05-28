@@ -13,6 +13,14 @@ code thus unit tests check only API
 
 using namespace sycl::ext::oneapi::experimental;
 
+TEST(FP8E5M2Test, DeductionGuide) {
+  fp8_e5m2_x one(1.0f);
+  fp8_e5m2_x pair(1.0f, 2.0f);
+
+  EXPECT_TRUE((std::is_same_v<decltype(one), fp8_e5m2>));
+  EXPECT_TRUE((std::is_same_v<decltype(pair), fp8_e5m2_x2>));
+}
+
 TEST(FP8E5M2Test, VariadicHalf) {
   fp8_e5m2_x2 a(sycl::half(1.0f), sycl::half(2.0f));
 
@@ -315,6 +323,62 @@ TEST(FP8E5M2Test, MarrayAndOperators) {
   EXPECT_EQ(out2[1], 57344.0f);
   EXPECT_EQ(out3[0], 0.0000152587890625f);
   EXPECT_EQ(out3[1], -1.5f);
+}
+
+TEST(FP8E5M2Test, StochasticMarrayHalfConstructorThrowsOnHost) {
+  sycl::marray<sycl::half, 2> in = {sycl::half(1.0f), sycl::half(2.0f)};
+  uint32_t seed_value = 1234;
+  stochastic_seed seed(&seed_value);
+
+  EXPECT_THROW(
+      {
+        fp8_e5m2_x2 value(in, seed);
+        (void)value;
+      },
+      std::runtime_error);
+}
+
+TEST(FP8E5M2Test, StochasticCArrayHalfConstructorThrowsOnHost) {
+  const sycl::half in[2] = {sycl::half(1.0f), sycl::half(2.0f)};
+  uint32_t seed_value = 2345;
+  stochastic_seed seed(&seed_value);
+
+  EXPECT_THROW(
+      {
+        fp8_e5m2_x2 value(in, seed);
+        (void)value;
+      },
+      std::runtime_error);
+}
+
+TEST(FP8E5M2Test, StochasticMarrayBFloat16ConstructorThrowsOnHost) {
+  sycl::marray<sycl::ext::oneapi::bfloat16, 2> in = {
+      sycl::ext::oneapi::bfloat16(1.0f),
+      sycl::ext::oneapi::bfloat16(2.0f)};
+  uint32_t seed_value = 5678;
+  stochastic_seed seed(&seed_value);
+
+  EXPECT_THROW(
+      {
+        fp8_e5m2_x2 value(in, seed);
+        (void)value;
+      },
+      std::runtime_error);
+}
+
+TEST(FP8E5M2Test, StochasticCArrayBFloat16ConstructorThrowsOnHost) {
+  const sycl::ext::oneapi::bfloat16 in[2] = {
+      sycl::ext::oneapi::bfloat16(1.0f),
+      sycl::ext::oneapi::bfloat16(2.0f)};
+  uint32_t seed_value = 6789;
+  stochastic_seed seed(&seed_value);
+
+  EXPECT_THROW(
+      {
+        fp8_e5m2_x2 value(in, seed);
+        (void)value;
+      },
+      std::runtime_error);
 }
 
 TEST(FP8E5M2Test, FloatingPointConversionOperatorsMoreTypes) {
@@ -688,3 +752,4 @@ TEST(FP8E5M2Test, VariadicFloatReferences) {
   EXPECT_EQ(a.vals[0], 0x3C);
   EXPECT_EQ(a.vals[1], 0x40);
 }
+

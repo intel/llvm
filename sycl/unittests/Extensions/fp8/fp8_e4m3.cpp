@@ -13,6 +13,14 @@ code thus unit tests check only API
 
 using namespace sycl::ext::oneapi::experimental;
 
+TEST(FP8E4M3Test, DeductionGuide) {
+  fp8_e4m3_x one(1.0f);
+  fp8_e4m3_x pair(1.0f, 2.0f);
+
+  EXPECT_TRUE((std::is_same_v<decltype(one), fp8_e4m3>));
+  EXPECT_TRUE((std::is_same_v<decltype(pair), fp8_e4m3_x2>));
+}
+
 TEST(FP8E4M3Test, TrivialSpecialMembers) {
   EXPECT_TRUE((std::is_trivially_default_constructible_v<fp8_e4m3>));
   EXPECT_TRUE((std::is_trivially_copy_constructible_v<fp8_e4m3>));

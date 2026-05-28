@@ -1334,6 +1334,9 @@ public:
       }
       current_seed = *seed.pseed;
     }
+#else
+    throw std::runtime_error(
+        "stochastic rounding constructors are not supported on host");
 #endif
   }
 
@@ -1352,6 +1355,9 @@ public:
       }
       current_seed = *seed.pseed;
     }
+#else
+    throw std::runtime_error(
+        "stochastic rounding constructors are not supported on host");
 #endif
   }
 
@@ -1375,6 +1381,9 @@ public:
       }
       current_seed = *seed.pseed;
     }
+#else
+    throw std::runtime_error(
+        "stochastic rounding constructors are not supported on host");
 #endif
   }
 
@@ -1393,6 +1402,9 @@ public:
       }
       current_seed = *seed.pseed;
     }
+#else
+    throw std::runtime_error(
+        "stochastic rounding constructors are not supported on host");
 #endif
   }
 
@@ -1898,6 +1910,10 @@ public:
 
   uint8_t vals[N];
 };
+
+template <typename... Ts> fp8_e4m3_x(Ts...) -> fp8_e4m3_x<sizeof...(Ts)>;
+template <typename... Ts> fp8_e5m2_x(Ts...) -> fp8_e5m2_x<sizeof...(Ts)>;
+template <typename... Ts> fp8_e8m0_x(Ts...) -> fp8_e8m0_x<sizeof...(Ts)>;
 
 using fp8_e4m3 = fp8_e4m3_x<1>;
 using fp8_e4m3_x2 = fp8_e4m3_x<2>;
