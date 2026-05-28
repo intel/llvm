@@ -385,8 +385,7 @@ public:
             ur_event_handle_t HostTaskEvent{};
             Queue->getAdapter().call<UrApiKind::urEnqueueHostTaskExp>(
                 Queue->getHandleRef(), detail::NativeHostTask,
-                NativeHostTaskData.get(),
-                nullptr, 0, nullptr, &HostTaskEvent);
+                NativeHostTaskData.get(), nullptr, 0, nullptr, &HostTaskEvent);
             // Ownership is transferred to NativeHostTask callback on success.
             (void)NativeHostTaskData.release();
 
