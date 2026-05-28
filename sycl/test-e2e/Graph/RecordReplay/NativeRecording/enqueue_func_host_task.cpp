@@ -2,7 +2,8 @@
 // REQUIRES: level_zero_dev_kit
 // REQUIRES: arch-intel_gpu_bmg_g21
 // UNSUPPORTED: windows && gpu-intel-gen12
-// UNSUPPORTED-INTENDED: UR_DEVICE_INFO_ENQUEUE_HOST_TASK_SUPPORT_EXP is not supported on win&gen12.
+// UNSUPPORTED-INTENDED: UR_DEVICE_INFO_ENQUEUE_HOST_TASK_SUPPORT_EXP is not
+// supported on win&gen12.
 
 // RUN: %{build} %level_zero_options -o %t.out
 // RUN: %{run} %t.out
