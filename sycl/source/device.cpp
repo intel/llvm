@@ -15,6 +15,7 @@
 #include <sycl/detail/export.hpp>
 #include <sycl/device.hpp>
 #include <sycl/device_selector.hpp>
+#include <sycl/ext/oneapi/matrix/query-types.hpp>
 #include <sycl/info/info_desc.hpp>
 
 // Trying to force MSVC to generate the symbol/export for the inline function
@@ -196,6 +197,13 @@ __SYCL_EXPORT bool device::get_info_impl<info::device::image_support>() const {
 #include <sycl/info/ext_intel_device_traits.def>
 #include <sycl/info/ext_oneapi_device_traits.def>
 #undef __SYCL_PARAM_TRAITS_SPEC
+
+// Self-describing extension traits: explicit instantiation for the ABI
+// surface lives here until the matching trait moves to a dedicated TU.
+template __SYCL_EXPORT detail::ABINeutralT_t<
+    std::vector<ext::oneapi::experimental::matrix::combination>>
+device::get_info_impl<
+    ext::oneapi::experimental::info::device::matrix_combinations>() const;
 
 template <typename Param>
 typename detail::is_backend_info_desc<Param>::return_type
