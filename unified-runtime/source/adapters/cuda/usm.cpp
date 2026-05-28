@@ -586,17 +586,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMContextMemcpyExp(
   //
   // Set the context
   ScopedContext Active(hContext->getDevices().front());
-  
+
   // Ensure all pending operations in all streams have completed
   UR_CHECK_ERROR(cuCtxSynchronize());
-  
+
   // Perform the copy using async API with default stream
-  UR_CHECK_ERROR(
-      cuMemcpyAsync((CUdeviceptr)pDst, (CUdeviceptr)pSrc, Size, 0));
-  
+  UR_CHECK_ERROR(cuMemcpyAsync((CUdeviceptr)pDst, (CUdeviceptr)pSrc, Size, 0));
+
   // Synchronize the stream to ensure the copy has completed
   UR_CHECK_ERROR(cuStreamSynchronize(0));
-  
+
   return UR_RESULT_SUCCESS;
 }
 
