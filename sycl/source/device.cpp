@@ -17,6 +17,12 @@
 #include <sycl/device_selector.hpp>
 #include <sycl/ext/codeplay/experimental/max_registers_query.hpp>
 #include <sycl/ext/intel/info/device.hpp>
+#include <sycl/ext/oneapi/experimental/bindless_image_info.hpp>
+#include <sycl/ext/oneapi/experimental/composite_device.hpp>
+#include <sycl/ext/oneapi/experimental/device_architecture.hpp>
+#include <sycl/ext/oneapi/experimental/forward_progress.hpp>
+#include <sycl/ext/oneapi/experimental/max_work_groups.hpp>
+#include <sycl/ext/oneapi/info/device.hpp>
 #include <sycl/ext/oneapi/matrix/query-types.hpp>
 #include <sycl/info/info_desc.hpp>
 
@@ -252,6 +258,50 @@ __SYCL_INTEL_DEVICE_INST(ext::intel::info::device, eus_per_xe_core, uint32_t)
 __SYCL_INTEL_DEVICE_INST(ext::intel::info::device, max_lanes_per_hw_thread,
                          uint32_t)
 #undef __SYCL_INTEL_DEVICE_INST
+
+#define __SYCL_ONEAPI_DEVICE_INST(NS, NAME, RETURN_T)                          \
+  template __SYCL_EXPORT detail::ABINeutralT_t<RETURN_T>                       \
+  device::get_info_impl<NS::NAME>() const;
+__SYCL_ONEAPI_DEVICE_INST(ext::oneapi::experimental::info::device,
+                          max_global_work_groups, size_t)
+__SYCL_ONEAPI_DEVICE_INST(ext::oneapi::experimental::info::device,
+                          max_work_groups<1>, id<1>)
+__SYCL_ONEAPI_DEVICE_INST(ext::oneapi::experimental::info::device,
+                          max_work_groups<2>, id<2>)
+__SYCL_ONEAPI_DEVICE_INST(ext::oneapi::experimental::info::device,
+                          max_work_groups<3>, id<3>)
+__SYCL_ONEAPI_DEVICE_INST(ext::oneapi::experimental::info::device, architecture,
+                          ext::oneapi::experimental::architecture)
+__SYCL_ONEAPI_DEVICE_INST(ext::oneapi::experimental::info::device,
+                          image_row_pitch_align, uint32_t)
+__SYCL_ONEAPI_DEVICE_INST(ext::oneapi::experimental::info::device,
+                          max_image_linear_row_pitch, size_t)
+__SYCL_ONEAPI_DEVICE_INST(ext::oneapi::experimental::info::device,
+                          max_image_linear_width, size_t)
+__SYCL_ONEAPI_DEVICE_INST(ext::oneapi::experimental::info::device,
+                          max_image_linear_height, size_t)
+__SYCL_ONEAPI_DEVICE_INST(ext::oneapi::experimental::info::device,
+                          mipmap_max_anisotropy, float)
+__SYCL_ONEAPI_DEVICE_INST(ext::oneapi::experimental::info::device,
+                          component_devices, std::vector<sycl::device>)
+__SYCL_ONEAPI_DEVICE_INST(ext::oneapi::experimental::info::device,
+                          composite_device, sycl::device)
+__SYCL_ONEAPI_DEVICE_INST(ext::oneapi::info::device, num_compute_units, size_t)
+#undef __SYCL_ONEAPI_DEVICE_INST
+
+#define __SYCL_ONEAPI_PROGRESS_INST(NAME, SCOPE)                               \
+  template __SYCL_EXPORT detail::ABINeutralT_t<                                \
+      std::vector<ext::oneapi::experimental::forward_progress_guarantee>>     \
+  device::get_info_impl<                                                       \
+      ext::oneapi::experimental::info::device::NAME<                           \
+          ext::oneapi::experimental::execution_scope::SCOPE>>() const;
+__SYCL_ONEAPI_PROGRESS_INST(work_group_progress_capabilities, root_group)
+__SYCL_ONEAPI_PROGRESS_INST(sub_group_progress_capabilities, root_group)
+__SYCL_ONEAPI_PROGRESS_INST(sub_group_progress_capabilities, work_group)
+__SYCL_ONEAPI_PROGRESS_INST(work_item_progress_capabilities, root_group)
+__SYCL_ONEAPI_PROGRESS_INST(work_item_progress_capabilities, work_group)
+__SYCL_ONEAPI_PROGRESS_INST(work_item_progress_capabilities, sub_group)
+#undef __SYCL_ONEAPI_PROGRESS_INST
 
 template <typename Param>
 typename detail::is_backend_info_desc<Param>::return_type

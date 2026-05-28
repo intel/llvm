@@ -8,6 +8,9 @@
 
 #pragma once
 
+#include <sycl/detail/info_desc_traits.hpp>
+#include <unified-runtime/ur_api.h>
+
 #include <cstdint> // for uint64_t
 #include <optional>
 #include <utility> // for std::integer_sequence
@@ -62,6 +65,14 @@ enum class arch_category {
   amd_gpu = 2,
   // TODO: add intel_cpu = 3,
 };
+
+namespace info::device {
+struct architecture {
+  using return_type = sycl::ext::oneapi::experimental::architecture;
+  using info_class = sycl::detail::info_class::device;
+  static constexpr ur_device_info_t ur_code = UR_DEVICE_INFO_IP_VERSION;
+};
+} // namespace info::device
 
 } // namespace ext::oneapi::experimental
 

@@ -20,9 +20,13 @@
 #include <sycl/ext/codeplay/experimental/max_registers_query.hpp>
 #include <sycl/ext/intel/info/device.hpp>
 #include <sycl/ext/intel/info/kernel.hpp>
+#include <sycl/ext/oneapi/experimental/bindless_image_info.hpp>
+#include <sycl/ext/oneapi/experimental/composite_device.hpp>
 #include <sycl/ext/oneapi/experimental/device_architecture.hpp>
 #include <sycl/ext/oneapi/experimental/forward_progress.hpp>
 #include <sycl/ext/oneapi/experimental/kernel_queue_info.hpp>
+#include <sycl/ext/oneapi/experimental/max_work_groups.hpp>
+#include <sycl/ext/oneapi/info/device.hpp>
 #include <sycl/ext/oneapi/matrix/query-types.hpp>
 
 #include <sycl/range.hpp>
@@ -204,17 +208,6 @@ namespace event_profiling {
   };                                                                           \
   }                                                                            \
   }
-
-namespace ext::oneapi::experimental::info::device {
-template <int Dimensions> struct max_work_groups;
-template <ext::oneapi::experimental::execution_scope CoordinationScope>
-struct work_group_progress_capabilities;
-template <ext::oneapi::experimental::execution_scope CoordinationScope>
-struct sub_group_progress_capabilities;
-template <ext::oneapi::experimental::execution_scope CoordinationScope>
-struct work_item_progress_capabilities;
-
-} // namespace ext::oneapi::experimental::info::device
 
 #include <sycl/info/ext_codeplay_device_traits.def>
 #include <sycl/info/ext_intel_device_traits.def>

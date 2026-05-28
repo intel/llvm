@@ -8,6 +8,11 @@
 
 #pragma once
 
+#include <sycl/detail/info_desc_traits.hpp>
+#include <unified-runtime/ur_api.h>
+
+#include <vector>
+
 namespace sycl {
 inline namespace _V1 {
 namespace ext {
@@ -22,6 +27,31 @@ enum class execution_scope {
   work_group,
   root_group,
 };
+
+namespace info::device {
+
+template <execution_scope CoordinationScope>
+struct work_group_progress_capabilities {
+  using return_type = std::vector<forward_progress_guarantee>;
+  using info_class = sycl::detail::info_class::device;
+  static constexpr ur_device_info_t ur_code = ur_device_info_t(0);
+};
+
+template <execution_scope CoordinationScope>
+struct sub_group_progress_capabilities {
+  using return_type = std::vector<forward_progress_guarantee>;
+  using info_class = sycl::detail::info_class::device;
+  static constexpr ur_device_info_t ur_code = ur_device_info_t(0);
+};
+
+template <execution_scope CoordinationScope>
+struct work_item_progress_capabilities {
+  using return_type = std::vector<forward_progress_guarantee>;
+  using info_class = sycl::detail::info_class::device;
+  static constexpr ur_device_info_t ur_code = ur_device_info_t(0);
+};
+
+} // namespace info::device
 
 } // namespace experimental
 } // namespace oneapi
