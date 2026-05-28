@@ -108,7 +108,8 @@ SYCL_EXTERNAL void test_uint16_write(OCLImageTyWrite img, uint16_t val) {
 // CHECK: call spir_func void @{{.*}}__spirv_ImageWrite
 // CHECK-SAME: <4 x i32>
 // CHECK-NOT: call spir_func void @{{.*}}__spirv_ImageWrite{{.*}} <2 x i8>
-SYCL_EXTERNAL void test_uint8_vec2_write(OCLImageTyWrite img, sycl::vec<uint8_t, 2> val) {
+SYCL_EXTERNAL void test_uint8_vec2_write(OCLImageTyWrite img,
+                                         sycl::vec<uint8_t, 2> val) {
   __invoke__ImageWrite(img, sycl::int2(0, 0), val);
 }
 
@@ -215,7 +216,8 @@ SYCL_EXTERNAL uint16_t test_uint16_sampled_array_fetch(OCLSampledImageTy img) {
 // CHECK: call {{.*}} <4 x i32> @{{.*}}__spirv_ImageSampleCubemap
 // CHECK-NOT: call {{.*}} i8 @{{.*}}__spirv_ImageSampleCubemap
 SYCL_EXTERNAL int8_t test_int8_read_cubemap(OCLSampledImageTy img) {
-  return __invoke__ImageReadCubemap<int8_t>(img, sycl::float3(0.0f, 0.0f, 0.0f));
+  return __invoke__ImageReadCubemap<int8_t>(img,
+                                            sycl::float3(0.0f, 0.0f, 0.0f));
 }
 
 // Test uint16_t cubemap read - should widen to <4 x i32>
@@ -223,7 +225,8 @@ SYCL_EXTERNAL int8_t test_int8_read_cubemap(OCLSampledImageTy img) {
 // CHECK: call {{.*}} <4 x i32> @{{.*}}__spirv_ImageSampleCubemap
 // CHECK-NOT: call {{.*}} i16 @{{.*}}__spirv_ImageSampleCubemap
 SYCL_EXTERNAL uint16_t test_uint16_read_cubemap(OCLSampledImageTy img) {
-  return __invoke__ImageReadCubemap<uint16_t>(img, sycl::float3(0.0f, 0.0f, 0.0f));
+  return __invoke__ImageReadCubemap<uint16_t>(img,
+                                              sycl::float3(0.0f, 0.0f, 0.0f));
 }
 
 // Test int8_t lod read - should widen to <4 x i32>
@@ -258,8 +261,8 @@ SYCL_EXTERNAL int8_t test_int8_read_grad(OCLSampledImageTy img) {
 // CHECK-NOT: call {{.*}} i16 @{{.*}}__spirv_ImageSampleExplicitLod
 SYCL_EXTERNAL uint16_t test_uint16_read_grad(OCLSampledImageTy img) {
   return __invoke__ImageReadGrad<uint16_t>(img, sycl::float2(0.0f, 0.0f),
-                                            sycl::float2(0.0f, 0.0f),
-                                            sycl::float2(0.0f, 0.0f));
+                                           sycl::float2(0.0f, 0.0f),
+                                           sycl::float2(0.0f, 0.0f));
 }
 
 // Test int8_t sampler read - should widen to <4 x i32>
@@ -267,8 +270,9 @@ SYCL_EXTERNAL uint16_t test_uint16_read_grad(OCLSampledImageTy img) {
 // CHECK: call {{.*}} <4 x i32> @{{.*}}__spirv_ImageSampleExplicitLod
 // CHECK-NOT: call {{.*}} i8 @{{.*}}__spirv_ImageSampleExplicitLod
 SYCL_EXTERNAL int8_t test_int8_read_sampler(OCLImageTyRead img,
-                                             const __ocl_sampler_t &smpl) {
-  return __invoke__ImageReadSampler<int8_t>(img, sycl::float2(0.0f, 0.0f), smpl);
+                                            const __ocl_sampler_t &smpl) {
+  return __invoke__ImageReadSampler<int8_t>(img, sycl::float2(0.0f, 0.0f),
+                                            smpl);
 }
 
 // Test uint16_t sampler read - should widen to <4 x i32>
@@ -276,6 +280,7 @@ SYCL_EXTERNAL int8_t test_int8_read_sampler(OCLImageTyRead img,
 // CHECK: call {{.*}} <4 x i32> @{{.*}}__spirv_ImageSampleExplicitLod
 // CHECK-NOT: call {{.*}} i16 @{{.*}}__spirv_ImageSampleExplicitLod
 SYCL_EXTERNAL uint16_t test_uint16_read_sampler(OCLImageTyRead img,
-                                                 const __ocl_sampler_t &smpl) {
-  return __invoke__ImageReadSampler<uint16_t>(img, sycl::float2(0.0f, 0.0f), smpl);
+                                                const __ocl_sampler_t &smpl) {
+  return __invoke__ImageReadSampler<uint16_t>(img, sycl::float2(0.0f, 0.0f),
+                                              smpl);
 }
