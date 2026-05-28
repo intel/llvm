@@ -510,6 +510,8 @@ typedef enum ur_function_t {
   UR_FUNCTION_USM_HOST_ALLOC_UNREGISTER_EXP = 313,
   /// Enumerator for ::urQueueGetGraphExp
   UR_FUNCTION_QUEUE_GET_GRAPH_EXP = 314,
+  /// Enumerator for ::urGraphSetDestructionCallbackExp
+  UR_FUNCTION_GRAPH_SET_DESTRUCTION_CALLBACK_EXP = 315,
   /// @cond
   UR_FUNCTION_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -13875,6 +13877,34 @@ UR_APIEXPORT ur_result_t UR_APICALL urGraphIsEmptyExp(
     bool *pResult);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Callback function invoked when a graph is destroyed.
+typedef void (*ur_exp_graph_destruction_callback_t)(
+    /// [in] pointer to user data to be passed to the callback
+    void *pUserData);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Register a callback to be invoked when the graph is destroyed.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hGraph`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pfnCallback`
+UR_APIEXPORT ur_result_t UR_APICALL urGraphSetDestructionCallbackExp(
+    /// [in] Handle of the graph to register the callback for.
+    ur_exp_graph_handle_t hGraph,
+    /// [in] Function pointer to the callback. The callback must not access
+    /// hGraph.
+    ur_exp_graph_destruction_callback_t pfnCallback,
+    /// [in][optional] Pointer to user data to be passed to the callback. The
+    /// user data must not reference hGraph.
+    void *pUserData);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Dump the contents of the recorded graph to the provided file path.
 ///
 /// @returns
@@ -16413,6 +16443,16 @@ typedef struct ur_graph_is_empty_exp_params_t {
   ur_exp_graph_handle_t *phGraph;
   bool **ppResult;
 } ur_graph_is_empty_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urGraphSetDestructionCallbackExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_graph_set_destruction_callback_exp_params_t {
+  ur_exp_graph_handle_t *phGraph;
+  ur_exp_graph_destruction_callback_t *ppfnCallback;
+  void **ppUserData;
+} ur_graph_set_destruction_callback_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urGraphDumpContentsExp

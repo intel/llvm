@@ -13,6 +13,11 @@
 #include <sycl/ext/intel/esimd/detail/elem_type_traits.hpp>
 #include <sycl/ext/intel/esimd/detail/intrin.hpp>
 
+// <ostream> is required for the inline operator<< below. Including it adds
+// non-trivial compile-time overhead; kept here for backwards compatibility
+// only so this header stays self-contained.
+#include <ostream>
+
 #include <sycl/ext/oneapi/bfloat16.hpp>
 
 /// @cond ESIMD_DETAIL

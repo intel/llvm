@@ -51,6 +51,7 @@
 #include <llvm/Support/BinaryStreamReader.h>
 #include <llvm/Support/BinaryStreamWriter.h>
 #include <llvm/Support/Caching.h>
+#include <llvm/Support/FormatVariadic.h>
 #include <llvm/Support/PropertySetIO.h>
 #include <llvm/Support/TimeProfiler.h>
 #include <llvm/TargetParser/TargetParser.h>
@@ -167,6 +168,13 @@ template <> struct std::hash<auto_pch_key> {
 };
 
 namespace {
+std::string getLibPathSuffix() {
+#ifdef _WIN32
+  return "/lib/";
+#else
+  return llvm::formatv("/lib/dpcpp-{0}/sycl/", DPCPP_VERSION_MAJOR);
+#endif
+}
 class SYCLToolchain {
   static auto &getToolchainFS() {
     // TODO: For some reason, removing `thread_local` results in data races
@@ -848,7 +856,7 @@ Error jit_compiler::linkDeviceLibraries(llvm::Module &Module,
       LibPath =
           (TC.getPrefix() + "/lib/spirv64-unknown-unknown/" + LibName).str();
     else
-      LibPath = (TC.getPrefix() + "/lib/" + LibName).str();
+      LibPath = (TC.getPrefix() + getLibPathSuffix() + LibName).str();
 
     ModuleUPtr LibModule;
     if (auto Error =
@@ -1130,7 +1138,8 @@ jit_compiler::performPostLink(ModuleUPtr Module,
     auto &Ctx = Modules.front()->getContext();
     auto WrapLibraryInDevImg = [&](const std::string &LibName) -> Error {
       std::string LibPath =
-          (SYCLToolchain::instance().getPrefix() + "/lib/" + LibName).str();
+          (SYCLToolchain::instance().getPrefix() + getLibPathSuffix() + LibName)
+              .str();
       ModuleUPtr LibModule;
       if (auto Error = SYCLToolchain::instance()
                            .loadBitcodeLibrary(LibPath, Ctx)
