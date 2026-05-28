@@ -12,10 +12,16 @@ int main() {
   sycl::device dev;
 
   try {
+    // Extension: get pitch alignment information from device -- device info
+    // Make sure our pitch alignment queries work properly
+    // These can be different depending on the device so we cannot test that the
+    // values are correct
+    // But we should at least see that the query itself works
+    
     size_t pitchAlign = 0;
     size_t maxPitch = 0;
     size_t maxWidth = 0;
-    size_t maxheight = 0;
+    size_t maxHeight = 0;
 
     pitchAlign = dev.get_info<
         sycl::ext::oneapi::experimental::info::device::image_row_pitch_align>();
@@ -26,9 +32,9 @@ int main() {
     maxWidth = dev.get_info<sycl::ext::oneapi::experimental::info::device::
                                 max_image_linear_width>();
     std::cout << "Max image linear width = " << maxWidth << std::endl;
-    maxheight = dev.get_info<sycl::ext::oneapi::experimental::info::device::
+    maxHeight = dev.get_info<sycl::ext::oneapi::experimental::info::device::
                                  max_image_linear_height>();
-    std::cout << "Max image linear height = " << maxheight << std::endl;
+    std::cout << "Max image linear height = " << maxHeight << std::endl;
 
   } catch (const sycl::exception &e) {
     std::cerr << "SYCL exception caught! : " << e.what() << "\n";
