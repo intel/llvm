@@ -17,7 +17,7 @@ int main() {
     // These can be different depending on the device so we cannot test that the
     // values are correct
     // But we should at least see that the query itself works
-    
+
     size_t pitchAlign = 0;
     size_t maxPitch = 0;
     size_t maxWidth = 0;
