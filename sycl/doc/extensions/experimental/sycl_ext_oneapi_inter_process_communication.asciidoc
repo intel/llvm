@@ -1005,7 +1005,12 @@ _Preconditions:_
    that was returned from a call to the `get` function either in this process
    or in some other process on the same system.
  * `dev` is the same device that was associated with the `physical_mem` object
-   passed to the `get` function call that produced `handle_data`.
+   passed to the `get` function call that produced `handle_data`, or the
+   devices can P2P access each other. The P2P access between devices can be
+   queried using the `device::ext_oneapi_can_access_peer` function and enabled
+   using the `device::ext_oneapi_enable_peer_access` function defined in the
+   link:../experimental/sycl_ext_oneapi_peer_access.asciidoc[
+   sycl_ext_oneapi_peer_access] extension.
 
 _Returns:_ A physical memory object represented by `handle_data`. The returned
 object is associated with context `ctx` and device `dev`.
