@@ -163,12 +163,10 @@ int main() {
 
   ret |= test_marray_conversion<float>(queue);
   ret |= test_marray_conversion<sycl::half>(queue);
-  // TODO: uncomment when bfloat16 conversion is fixed
   ret |= test_marray_conversion<sycl::ext::oneapi::bfloat16>(queue);
 
   ret |= test_carray_conversion<float>(queue);
   ret |= test_carray_conversion<sycl::half>(queue);
-  // TODO: uncomment when bfloat16 conversion is fixed
   ret |= test_carray_conversion<sycl::ext::oneapi::bfloat16>(queue);
   return ret;
 }
