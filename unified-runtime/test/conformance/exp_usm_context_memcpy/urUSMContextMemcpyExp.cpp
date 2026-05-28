@@ -100,6 +100,12 @@ TEST_P(urUSMContextMemcpyExpTestDevice, Success) {
   }
   std::cout << "[urUSMContextMemcpyExpTestDevice] All " << NumIterations
             << " iterations passed successfully!" << std::endl;
+  
+  // TEMPORARY: Force test to fail so we can see the success message in CI logs
+  // TODO: Remove this forced failure before final PR
+  FAIL() << "✅ SUCCESS: All " << NumIterations 
+         << " iterations completed without race condition! "
+         << "Test is working correctly. Remove this forced failure.";
 }
 
 // Arbitrarily do the negative tests with device allocations. These are mostly a
