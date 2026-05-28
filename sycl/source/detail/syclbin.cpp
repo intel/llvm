@@ -356,7 +356,7 @@ std::vector<char> SYCLBIN::write(const SYCLBINDesc &Desc) {
   // an OffloadBinary entry, so emit that wrapping here. Mirrors the wrapping
   // that clang-linker-wrapper does for on-disk SYCLBIN files.
   std::string SYCLBINBytes = OS.str();
-  std::ostringstream OB{std::ios::binary};
+  std::ostringstream OB;
   OffloadBinaryHeaderType OBHeader{};
   std::memcpy(OBHeader.Magic, OffloadBinaryMagic, sizeof(OBHeader.Magic));
   OBHeader.Version = 2;
