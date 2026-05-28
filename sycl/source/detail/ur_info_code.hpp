@@ -15,7 +15,18 @@
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
-template <typename T> struct UrInfoCode;
+// Primary template picks up `T::ur_code` for self-describing traits (those
+// carrying `info_class`, `return_type`, `ur_code` members). Explicit
+// specializations emitted below from the .def files override the primary
+// template for legacy traits. Both forms coexist while migration is in
+// progress; SFINAE on `T::ur_code` keeps the primary inert for non-trait
+// types so misuse still produces a clean diagnostic.
+template <typename T, typename = void> struct UrInfoCode;
+
+template <typename T>
+struct UrInfoCode<T, std::void_t<decltype(T::ur_code)>> {
+  static constexpr auto value = T::ur_code;
+};
 
 #define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, UrCode)              \
   template <> struct UrInfoCode<info::DescType::Desc> {                        \
