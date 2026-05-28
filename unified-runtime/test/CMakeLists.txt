@@ -86,7 +86,7 @@ function(add_ur_lit_testsuite suite)
 
   if(UR_STANDALONE_BUILD)
     add_custom_target(${TARGET}
-      COMMAND "${URLIT_LIT_BINARY}" "${CMAKE_CURRENT_BINARY_DIR}" -sv
+      COMMAND "${URLIT_LIT_BINARY}" "${CMAKE_CURRENT_BINARY_DIR}" --show-unsupported --show-pass --show-xfail
       USES_TERMINAL
     )
   else()

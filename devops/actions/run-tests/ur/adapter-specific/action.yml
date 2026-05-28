@@ -1,0 +1,132 @@
+name: 'Run UR Adapter Specific Tests'
+
+inputs:
+  build_dir:
+    required: false
+    default: 'build'
+
+runs:
+  using: "composite"
+  steps:
+  - name: Run adapter specific tests
+    id: run_tests
+    continue-on-error: true
+    shell: bash
+    env:
+      BUILD_DIR: ${{ inputs.build_dir }}
+      ZE_ENABLE_LOADER_DEBUG_TRACE: 1
+      LIT_OPTS: "--show-unsupported --show-pass --show-xfail --no-progress-bar --succinct --timeout 120 -j 50"
+      LIT_FILTER_OUT: "(adapters/level_zero/memcheck.test|adapters/level_zero/v2/deferred_kernel_memcheck.test)"
+    run: |
+      if [[ "$BUILD_DIR" =~ [^a-zA-Z0-9/_-] ]] || [[ "$BUILD_DIR" =~ \.\. ]]; then
+        echo "::error::Invalid build_dir: contains disallowed characters or path traversal"
+        exit 1
+      fi
+      
+      echo "::group::Show Full Test Adapter Specific Logs"
+      set -x
+      pwd
+      cmake --build "$BUILD_DIR" -j $(($(nproc)/3)) -- check-unified-runtime-adapter 2>&1 | tee adapter_tests.log
+      EXIT_CODE=${PIPESTATUS[0]}
+      set +x
+      echo "Build exit code: $EXIT_CODE"
+      if [ -f adapter_tests.log ]; then
+        echo "Log file size: $(wc -l < adapter_tests.log) lines"
+      else
+        echo "ERROR: adapter_tests.log not created!"
+      fi
+      echo "::endgroup::"
+      exit $EXIT_CODE
+  
+  - name: Report adapter specific failures
+    if: steps.run_tests.outcome != 'success'
+    shell: bash
+    run: |
+      awk '/^(FAIL|TIMEOUT):/ {flag=1} flag && /^(Passed|Skipped|Unsupported|Failed|Expectedly Failed|Timed Out|Unexpectedly Passed|Unresolved) Tests \(/ {exit} flag' adapter_tests.log >> $GITHUB_STEP_SUMMARY
+      awk '/^(FAIL|TIMEOUT):/ {flag=1} flag && /^(Passed|Skipped|Unsupported|Failed|Expectedly Failed|Timed Out|Unexpectedly Passed|Unresolved) Tests \(/ {exit} flag' adapter_tests.log
+      exit 1
+  
+  - name: Show adapter specific test statistics and lists
+    if: ${{ always() }}
+    shell: bash
+    run: |
+      if [ ! -f adapter_tests.log ]; then
+        echo "Log file not found"
+        exit 0
+      fi
+      
+      echo "=== Adapter Tests Statistics ==="
+      awk '/^ *(Total Discovered|Expected Passes|Expectedly Failed|Unsupported|Skipped|Passed|Failed|Timed Out|Unexpectedly Passed|Unresolved) *(Tests)? *:/ {print}' adapter_tests.log
+      echo ""
+      
+      if grep -q "^Passed Tests ([0-9]\+):" adapter_tests.log; then
+        count=$(grep "^Passed Tests ([0-9]\+):" adapter_tests.log | sed 's/Passed Tests (\([0-9]\+\)):/\1/' | head -1)
+        if [[ "$count" =~ ^[0-9]+$ ]]; then
+          echo "::group::Passed Tests ($count)"
+          awk '/^Passed Tests \([0-9]+\):/ {flag=1; next} /^$/ {flag=0} flag' adapter_tests.log
+          echo "::endgroup::"
+        fi
+      fi
+      
+      if grep -q "^Skipped Tests ([0-9]\+):" adapter_tests.log; then
+        count=$(grep "^Skipped Tests ([0-9]\+):" adapter_tests.log | sed 's/Skipped Tests (\([0-9]\+\)):/\1/' | head -1)
+        if [[ "$count" =~ ^[0-9]+$ ]]; then
+          echo "::group::Skipped Tests ($count)"
+          awk '/^Skipped Tests \([0-9]+\):/ {flag=1; next} /^$/ {flag=0} flag' adapter_tests.log
+          echo "::endgroup::"
+        fi
+      fi
+      
+      if grep -q "^Unsupported Tests ([0-9]\+):" adapter_tests.log; then
+        count=$(grep "^Unsupported Tests ([0-9]\+):" adapter_tests.log | sed 's/Unsupported Tests (\([0-9]\+\)):/\1/' | head -1)
+        if [[ "$count" =~ ^[0-9]+$ ]]; then
+          echo "::group::Unsupported Tests ($count)"
+          awk '/^Unsupported Tests \([0-9]+\):/ {flag=1; next} /^$/ {flag=0} flag' adapter_tests.log
+          echo "::endgroup::"
+        fi
+      fi
+      
+      if grep -q "^Failed Tests ([0-9]\+):" adapter_tests.log; then
+        count=$(grep "^Failed Tests ([0-9]\+):" adapter_tests.log | sed 's/Failed Tests (\([0-9]\+\)):/\1/' | head -1)
+        if [[ "$count" =~ ^[0-9]+$ ]]; then
+          echo "::group::Failed Tests ($count)"
+          awk '/^Failed Tests \([0-9]+\):/ {flag=1; next} /^$/ {flag=0} flag' adapter_tests.log
+          echo "::endgroup::"
+        fi
+      fi
+      
+      if grep -q "^Expectedly Failed Tests ([0-9]\+):" adapter_tests.log; then
+        count=$(grep "^Expectedly Failed Tests ([0-9]\+):" adapter_tests.log | sed 's/Expectedly Failed Tests (\([0-9]\+\)):/\1/' | head -1)
+        if [[ "$count" =~ ^[0-9]+$ ]]; then
+          echo "::group::Expectedly Failed Tests ($count)"
+          awk '/^Expectedly Failed Tests \([0-9]+\):/ {flag=1; next} /^$/ {flag=0} flag' adapter_tests.log
+          echo "::endgroup::"
+        fi
+      fi
+      
+      if grep -q "^Timed Out Tests ([0-9]\+):" adapter_tests.log; then
+        count=$(grep "^Timed Out Tests ([0-9]\+):" adapter_tests.log | sed 's/Timed Out Tests (\([0-9]\+\)):/\1/' | head -1)
+        if [[ "$count" =~ ^[0-9]+$ ]]; then
+          echo "::group::Timed Out Tests ($count)"
+          awk '/^Timed Out Tests \([0-9]+\):/ {flag=1; next} /^$/ {flag=0} flag' adapter_tests.log
+          echo "::endgroup::"
+        fi
+      fi
+      
+      if grep -q "^Unexpectedly Passed Tests ([0-9]\+):" adapter_tests.log; then
+        count=$(grep "^Unexpectedly Passed Tests ([0-9]\+):" adapter_tests.log | sed 's/Unexpectedly Passed Tests (\([0-9]\+\)):/\1/' | head -1)
+        if [[ "$count" =~ ^[0-9]+$ ]]; then
+          echo "::group::Unexpectedly Passed Tests ($count)"
+          awk '/^Unexpectedly Passed Tests \([0-9]+\):/ {flag=1; next} /^$/ {flag=0} flag' adapter_tests.log
+          echo "::endgroup::"
+        fi
+      fi
+      
+      if grep -q "^Unresolved Tests ([0-9]\+):" adapter_tests.log; then
+        count=$(grep "^Unresolved Tests ([0-9]\+):" adapter_tests.log | sed 's/Unresolved Tests (\([0-9]\+\)):/\1/' | head -1)
+        if [[ "$count" =~ ^[0-9]+$ ]]; then
+          echo "::group::Unresolved Tests ($count)"
+          awk '/^Unresolved Tests \([0-9]+\):/ {flag=1; next} /^$/ {flag=0} flag' adapter_tests.log
+          echo "::endgroup::"
+        fi
+      fi
