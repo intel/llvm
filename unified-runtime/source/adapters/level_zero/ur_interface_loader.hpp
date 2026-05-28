@@ -254,6 +254,7 @@ ur_result_t urQueueCreateWithNativeHandle(
     ur_queue_handle_t *phQueue);
 ur_result_t urQueueFinish(ur_queue_handle_t hQueue);
 ur_result_t urQueueFlush(ur_queue_handle_t hQueue);
+ur_result_t urKhrFlush(ur_queue_handle_t hQueue);
 ur_result_t urEventGetInfo(ur_event_handle_t hEvent, ur_event_info_t propName,
                            size_t propSize, void *pPropValue,
                            size_t *pPropSizeRet);

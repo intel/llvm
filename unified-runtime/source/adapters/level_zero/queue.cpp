@@ -929,6 +929,12 @@ ur_result_t urQueueFlush(
   return Queue->executeAllOpenCommandLists();
 }
 
+ur_result_t urKhrFlush(
+    /// [in] handle of the queue to be flushed.
+    ur_queue_handle_t Queue) {
+  return Queue->executeAllOpenCommandLists();
+}
+
 ur_result_t urQueueBeginGraphCaptureExp(ur_queue_handle_t /* hQueue */) {
   UR_LOG_LEGACY(ERR,
                 logger::LegacyMessage("[UR][L0] {} function not implemented!"),
