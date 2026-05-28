@@ -40,6 +40,7 @@ public:
 private:
   const Driver &D;
   llvm::SmallVector<llvm::SmallString<128>, 4> InstallationCandidates;
+  llvm::Triple HostTriple;
 };
 
 } // namespace driver

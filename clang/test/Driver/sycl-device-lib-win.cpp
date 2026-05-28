@@ -9,22 +9,22 @@
 /// test behavior of device library default link
 // RUN: %clangxx -fsycl %s --sysroot=%S/Inputs/SYCL -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_LINK_DEFAULT
-// SYCL_DEVICE_LIB_LINK_DEFAULT: llvm-link{{.*}} "{{.*}}libsycl-crt.bc"
-// SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: "{{.*}}libsycl-complex.bc"
-// SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: "{{.*}}libsycl-complex-fp64.bc"
-// SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: "{{.*}}libsycl-cmath.bc"
-// SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: "{{.*}}libsycl-cmath-fp64.bc"
-// SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: "{{.*}}libsycl-imf.bc"
-// SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: "{{.*}}libsycl-imf-fp64.bc"
-// SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: "{{.*}}libsycl-imf-bf16.bc"
-// SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: "{{.*}}libsycl-fallback-cstring.bc"
-// SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: "{{.*}}libsycl-fallback-complex.bc"
-// SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: "{{.*}}libsycl-fallback-complex-fp64.bc"
-// SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: "{{.*}}libsycl-fallback-cmath.bc"
-// SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: "{{.*}}libsycl-fallback-cmath-fp64.bc"
-// SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: "{{.*}}libsycl-fallback-imf.bc"
-// SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: "{{.*}}libsycl-fallback-imf-fp64.bc"
-// SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: "{{.*}}libsycl-fallback-imf-bf16.bc"
+// SYCL_DEVICE_LIB_LINK_DEFAULT: llvm-link{{.*}} "{{.*}}lib\\libsycl-crt.bc"
+// SYCL_DEVICE_LIB\\LIB_LINK_DEFAULT-SAME: "{{.*}}lib\\libsycl-complex.bc"
+// SYCL_DEVICE_LIB\\LIB_LINK_DEFAULT-SAME: "{{.*}}lib\\libsycl-complex-fp64.bc"
+// SYCL_DEVICE_LIB\\LIB_LINK_DEFAULT-SAME: "{{.*}}lib\\libsycl-cmath.bc"
+// SYCL_DEVICE_LIB\\LIB_LINK_DEFAULT-SAME: "{{.*}}lib\\libsycl-cmath-fp64.bc"
+// SYCL_DEVICE_LIB\\LIB_LINK_DEFAULT-SAME: "{{.*}}lib\\libsycl-imf.bc"
+// SYCL_DEVICE_LIB\\LIB_LINK_DEFAULT-SAME: "{{.*}}lib\\libsycl-imf-fp64.bc"
+// SYCL_DEVICE_LIB\\LIB_LINK_DEFAULT-SAME: "{{.*}}lib\\libsycl-imf-bf16.bc"
+// SYCL_DEVICE_LIB\\LIB_LINK_DEFAULT-SAME: "{{.*}}lib\\libsycl-fallback-cstring.bc"
+// SYCL_DEVICE_LIB\\LIB_LINK_DEFAULT-SAME: "{{.*}}lib\\libsycl-fallback-complex.bc"
+// SYCL_DEVICE_LIB\\LIB_LINK_DEFAULT-SAME: "{{.*}}lib\\libsycl-fallback-complex-fp64.bc"
+// SYCL_DEVICE_LIB\\LIB_LINK_DEFAULT-SAME: "{{.*}}lib\\libsycl-fallback-cmath.bc"
+// SYCL_DEVICE_LIB\\LIB_LINK_DEFAULT-SAME: "{{.*}}lib\\libsycl-fallback-cmath-fp64.bc"
+// SYCL_DEVICE_LIB\\LIB_LINK_DEFAULT-SAME: "{{.*}}lib\\libsycl-fallback-imf.bc"
+// SYCL_DEVICE_LIB\\LIB_LINK_DEFAULT-SAME: "{{.*}}lib\\libsycl-fallback-imf-fp64.bc"
+// SYCL_DEVICE_LIB\\LIB_LINK_DEFAULT-SAME: "{{.*}}lib\\libsycl-fallback-imf-bf16.bc"
 
 /// ###########################################################################
 

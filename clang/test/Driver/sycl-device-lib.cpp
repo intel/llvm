@@ -9,22 +9,22 @@
 /// test behavior of device library default link
 // RUN: %clangxx -fsycl --offload-new-driver %s --sysroot=%S/Inputs/SYCL -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_LINK_DEFAULT
-// SYCL_DEVICE_LIB_LINK_DEFAULT: clang{{.*}} "-mlink-builtin-bitcode" "{{.*}}libsycl-crt.bc"
-// SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: {{.*}}libsycl-complex.bc
-// SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: {{.*}}libsycl-complex-fp64.bc
-// SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: {{.*}}libsycl-cmath.bc
-// SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: {{.*}}libsycl-cmath-fp64.bc
-// SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: {{.*}}libsycl-imf.bc
-// SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: {{.*}}libsycl-imf-fp64.bc
-// SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: {{.*}}libsycl-imf-bf16.bc
-// SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: {{.*}}libsycl-fallback-cstring.bc
-// SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: {{.*}}libsycl-fallback-complex.bc
-// SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: {{.*}}libsycl-fallback-complex-fp64.bc
-// SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: {{.*}}libsycl-fallback-cmath.bc
-// SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: {{.*}}libsycl-fallback-cmath-fp64.bc
-// SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: {{.*}}libsycl-fallback-imf.bc
-// SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: {{.*}}libsycl-fallback-imf-fp64.bc
-// SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: {{.*}}libsycl-fallback-imf-bf16.bc
+// SYCL_DEVICE_LIB_LINK_DEFAULT: clang{{.*}} "-mlink-builtin-bitcode" "{{.*}}/lib/dpcpp-{{[0-9]+}}/sycl/libsycl-crt.bc"
+// SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: {{.*}}/lib/dpcpp-{{[0-9]+}}/sycl/libsycl-complex.bc
+// SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: {{.*}}/lib/dpcpp-{{[0-9]+}}/sycl/libsycl-complex-fp64.bc
+// SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: {{.*}}/lib/dpcpp-{{[0-9]+}}/sycl/libsycl-cmath.bc
+// SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: {{.*}}/lib/dpcpp-{{[0-9]+}}/sycl/libsycl-cmath-fp64.bc
+// SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: {{.*}}/lib/dpcpp-{{[0-9]+}}/sycl/libsycl-imf.bc
+// SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: {{.*}}/lib/dpcpp-{{[0-9]+}}/sycl/libsycl-imf-fp64.bc
+// SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: {{.*}}/lib/dpcpp-{{[0-9]+}}/sycl/libsycl-imf-bf16.bc
+// SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: {{.*}}/lib/dpcpp-{{[0-9]+}}/sycl/libsycl-fallback-cstring.bc
+// SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: {{.*}}/lib/dpcpp-{{[0-9]+}}/sycl/libsycl-fallback-complex.bc
+// SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: {{.*}}/lib/dpcpp-{{[0-9]+}}/sycl/libsycl-fallback-complex-fp64.bc
+// SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: {{.*}}/lib/dpcpp-{{[0-9]+}}/sycl/libsycl-fallback-cmath.bc
+// SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: {{.*}}/lib/dpcpp-{{[0-9]+}}/sycl/libsycl-fallback-cmath-fp64.bc
+// SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: {{.*}}/lib/dpcpp-{{[0-9]+}}/sycl/libsycl-fallback-imf.bc
+// SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: {{.*}}/lib/dpcpp-{{[0-9]+}}/sycl/libsycl-fallback-imf-fp64.bc
+// SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: {{.*}}/lib/dpcpp-{{[0-9]+}}/sycl/libsycl-fallback-imf-bf16.bc
 // SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: "-mlink-builtin-bitcode-postopt"
 
 /// ###########################################################################
