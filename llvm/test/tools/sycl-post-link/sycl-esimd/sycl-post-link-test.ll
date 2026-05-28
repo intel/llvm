@@ -1,6 +1,6 @@
 ; -O0 lowering, requires `-force-disable-esimd-opt` to disable all optimizations.
 ; RUN: sycl-post-link -properties -split-esimd -lower-esimd -O0 -force-disable-esimd-opt -S < %s -o %t.table
-; RUN: FileCheck %s -input-file=%t_esimd_0.ll
+; RUN: FileCheck %s -input-file=%t_0.esimd.ll
 ; This test checks that IR code below can be successfully processed by
 ; sycl-post-link. In this IR no extractelement instruction and no casting are used
 

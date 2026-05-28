@@ -1,9 +1,8 @@
 /*
  *
- * Copyright (C) 2024 Intel Corporation
  *
- * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
- * Exceptions. See LICENSE.TXT
+ * Part of the LLVM Project, under the Apache License v2.0 with LLVM
+ * Exceptions. See https://llvm.org/LICENSE.txt for license information.
  *
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
@@ -19,7 +18,7 @@
 #include "queue_batched.hpp"
 #include "queue_immediate_in_order.hpp"
 #include "queue_immediate_out_of_order.hpp"
-#include <ur_api.h>
+#include <unified-runtime/ur_api.h>
 
 struct ur_queue_handle_t_ : ur::handle_base<ur::level_zero::ddi_getter> {
   using data_variant = std::variant<v2::ur_queue_immediate_in_order_t,

@@ -197,6 +197,116 @@ raw_send(__ESIMD_NS::simd<T1, n1> msgSrc0, uint32_t exDesc, uint32_t msgDesc,
                                             msgSrc0.data());
 }
 
+/// Up-conversion from 4-bit (fp4 or int4) to into 8 or 16-bit values using a
+/// lookup table.
+///
+/// @tparam index is the source element index within a DWord.
+/// @tparam T is the storage type for packed 4-bit input values. Must be uchar
+/// for 4-to-16 bit conversion or ushort for 4-to-8 bit conversion.
+/// @tparam N is the width of the operation, only 16 and 32 are supported
+/// (optional).
+/// @tparam stride is the source vector access stride. The operation access
+/// single element of \p T per dword, so the stride value must be equal to
+/// number of \p T elements in dword (optional).
+/// @param lookup_table is the lookup table used for the upconvert operation.
+/// @param src is the vector of the packed input values.
+template <int index, typename T, int N = 16,
+          int stride = sizeof(uint32_t) / sizeof(T)>
+__ESIMD_API __ESIMD_NS::simd<uint32_t, N>
+packed_4bit_upconvert_lut(__ESIMD_NS::simd<uint32_t, 16> lookup_table,
+                          __ESIMD_NS::simd<T, N * stride> src) {
+  static_assert(sizeof(T) == 1 || sizeof(T) == 2,
+                "Source data type must be a byte or word type");
+  static_assert(index * sizeof(T) < sizeof(uint32_t),
+                "Index must be within dword size");
+  static_assert(N == 16 || N == 32, "N must be 16 or 32");
+  auto loc_src = __esimd_rdregion<T, N * stride, N, stride, 1, 0>(
+      src.data(), index * sizeof(T));
+  return __esimd_packed_4bit_upconvert_lut<T, N>(lookup_table.data(), loc_src);
+}
+
+/// Down-conversion from 16-bit (bfloat16 or half) to 4-bit (S1E2M1, or
+/// int4).
+///
+/// @tparam packing_mode is the packing mode.
+/// @tparam rounding_mode is the rounding mode.
+/// @tparam output_mode is the output mode.
+/// @tparam InputT is the input_type. Must be bfloat16 or half (autodeduced).
+/// @tparam N is the input vector length (autodeduced).
+/// @param src0 The first input vector. Each element must be bfloat16 or half.
+/// @param src1 The second input vector. Each element must bfloat16 or half.
+/// @param bias The bias to use for biased rounding when \p rounding_mode is \p
+/// biased_round. Each 16-bit element must be packed into a 32-bit integer.
+/// @return The downconverted vector.
+template <downconvert_packing_mode packing_mode,
+          downconvert_rounding_mode rounding_mode,
+          downconvert_output_mode output_mode, typename InputT, int N>
+__ESIMD_NS::simd<uint32_t, N / 2>
+downconvert(__ESIMD_NS::simd<InputT, N> src0, __ESIMD_NS::simd<InputT, N> src1,
+            __ESIMD_NS::simd<uint32_t, N / 2> bias = 0) {
+  static_assert(sizeof(InputT) == 2, "Element type must be 2 bytes");
+  static_assert(
+      std::is_same_v<InputT, sycl::half> ||
+          std::is_same_v<InputT, sycl::ext::oneapi::bfloat16>,
+      "Element type must be sycl::half or sycl::ext::oneapi::bfloat16");
+  auto CastedSrc0 = src0.template bit_cast_view<uint32_t>();
+  auto CastedSrc1 = src1.template bit_cast_view<uint32_t>();
+  constexpr int ConvType = std::is_same_v<InputT, sycl::ext::oneapi::bfloat16>
+                               ? static_cast<int>(output_mode)
+                               : static_cast<int>(output_mode) + 3;
+  constexpr int PackingMode = static_cast<int>(packing_mode);
+  constexpr int RoundingMode = static_cast<int>(rounding_mode);
+  __ESIMD_NS::simd<uint32_t, N / 2> Ret =
+      __esimd_4bit_downconvert<ConvType, PackingMode, RoundingMode, N / 2>(
+          CastedSrc0.data(), CastedSrc1.data(), bias.data());
+  return Ret;
+}
+
+/// Down-conversion from 16-bit (bfloat16 or half) to 4-bit (S1E2M1, or
+/// int4).
+/// Variant of the API reducing number of template parameters by assuming round
+/// to the nearest even.
+///
+/// @tparam packing_mode is the packing mode.
+/// @tparam output_mode is the output mode.
+/// @tparam InputT is the input_type. Must be bfloat16 or half (autodeduced).
+/// @tparam N is the input vector length (autodeduced).
+/// @param src0 The first input vector. Each element must be bfloat16 or half.
+/// @param src1 The second input vector. Each element must bfloat16 or half.
+/// @return The downconverted vector.
+template <downconvert_packing_mode packing_mode,
+          downconvert_output_mode output_mode, typename InputT, int N>
+__ESIMD_NS::simd<uint32_t, N / 2>
+downconvert(__ESIMD_NS::simd<InputT, N> src0,
+            __ESIMD_NS::simd<InputT, N> src1) {
+  return downconvert<packing_mode,
+                     downconvert_rounding_mode::round_to_nearest_even,
+                     output_mode>(src0, src1);
+}
+
+/// Down-conversion from 16-bit (bfloat16 or half) to 4-bit (S1E2M1, or
+/// int4).
+/// Variant of the API reducing number of template parameters by assuming biased
+/// rounding.
+///
+/// @tparam packing_mode is the packing mode.
+/// @tparam output_mode is the output mode.
+/// @tparam InputT is the input_type. Must be bfloat16 or half (autodeduced).
+/// @tparam N is the input vector length (autodeduced).
+/// @param src0 The first input vector. Each element must be bfloat16 or half.
+/// @param src1 The second input vector. Each element must bfloat16 or half.
+/// @param bias The bias to use for rounding. Each 16-bit element must be
+/// packed into a 32-bit integer.
+/// @return The downconverted vector.
+template <downconvert_packing_mode packing_mode,
+          downconvert_output_mode output_mode, typename InputT, int N>
+__ESIMD_NS::simd<uint32_t, N / 2>
+downconvert(__ESIMD_NS::simd<InputT, N> src0, __ESIMD_NS::simd<InputT, N> src1,
+            __ESIMD_NS::simd<uint32_t, N / 2> bias) {
+  return downconvert<packing_mode, downconvert_rounding_mode::biased_round,
+                     output_mode>(src0, src1, bias);
+}
+
 /// @} sycl_esimd_raw_send
 
 /// @defgroup sycl_esimd_memory_nbarrier Named barrier APIs.

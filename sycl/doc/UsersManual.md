@@ -181,14 +181,29 @@ and not recommended to use in production environment.
     Currently has effect only on spir64\* targets.
     Enabled by default.
 
+**`-fsycl-id-queries-range={int,uint,size_t}`**
+
+    Asserts that the kernels and SYCL_EXTERNAL functions defined in this source
+    file (translation unit) will always be launched with a global range that is
+    less than or equal to INT_MAX, UINT_MAX, or SIZE_MAX. The application is
+    responsible for ensuring that it never invokes these kernels with a larger
+    global range. The compiler may assume that the return values from the
+    following functions fit within the data type specified by this option:
+
+    * id class get() member function and operator[]
+    * item class get_id()/get_linear_id() member function and operator[]
+    * nd_item class get_global_id()/get_global_linear_id() member functions
+
+    The compiler uses these assumptions to optimize code generation. When an
+    assumption is specified, the runtime validates kernel launch parameters and
+    throws an exception if they would violate the assumption.
+
+    Default value is "int".
+
 **`-f[no-]sycl-id-queries-fit-in-int`**
 
-    Assume/Do not assume that SYCL ID queries fit within MAX_INT. It assumes
-    that these values fit within MAX_INT:
-    * id class get() member function and operator[]
-    * item class get_id() member function and operator[]
-    * nd_item class get_global_id()/get_global_linear_id() member functions
-    Enabled by default.
+    -fsycl-id-queries-fit-in-int is equivalent to -fsycl-id-queries-range=int.
+    -fno-sycl-id-queries-fit-in-int is equivalent to -fsycl-id-queries-range=size_t.
 
 **`-f[no-]sycl-force-inline-kernel-lambda`**
 

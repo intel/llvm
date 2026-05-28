@@ -1,11 +1,11 @@
-// Copyright (C) 2023 Intel Corporation
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include <uur/fixtures.h>
 #include <uur/known_failure.h>
+#include <uur/raii.h>
 
 struct urEnqueueUSMPrefetchWithParamTest
     : uur::urUSMDeviceAllocTestWithParam<ur_usm_migration_flag_t> {
@@ -143,19 +143,17 @@ TEST_P(urEnqueueUSMPrefetchTest, InvalidEventWaitList) {
                                         UR_USM_MIGRATION_FLAG_HOST_TO_DEVICE, 1,
                                         nullptr, nullptr));
 
-  ur_event_handle_t validEvent;
-  ASSERT_SUCCESS(urEnqueueEventsWait(queue, 0, nullptr, &validEvent));
+  uur::raii::Event eventDummy = nullptr;
+  ASSERT_SUCCESS(uur::MakeDummyEventForWaitList(context, eventDummy.ptr()));
 
   ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST,
                    urEnqueueUSMPrefetch(queue, ptr, allocation_size,
                                         UR_USM_MIGRATION_FLAG_HOST_TO_DEVICE, 0,
-                                        &validEvent, nullptr));
+                                        eventDummy.ptr(), nullptr));
 
   ur_event_handle_t inv_evt = nullptr;
   ASSERT_EQ_RESULT(urEnqueueUSMPrefetch(queue, ptr, allocation_size,
                                         UR_USM_MIGRATION_FLAG_HOST_TO_DEVICE, 1,
                                         &inv_evt, nullptr),
                    UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
-
-  ASSERT_SUCCESS(urEventRelease(validEvent));
 }

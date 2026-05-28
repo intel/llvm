@@ -11,15 +11,15 @@ OpMemoryModel Physical64 OpenCL
 OpEntryPoint Kernel %1 "test"
 %uint = OpTypeInt 32 0
 %uint_0 = OpConstantNull %uint
+%scope_sg = OpConstant %uint 3
 %uint_12 = OpConstant %uint 12
-%uint_2 = OpConstant %uint 2
 %void = OpTypeVoid
 %fnTy = OpTypeFunction %void
-%matTy = OpTypeCooperativeMatrixKHR %uint %uint_0 %uint_12 %uint_12 %uint_0
+%matTy = OpTypeCooperativeMatrixKHR %uint %scope_sg %uint_12 %uint_12 %uint_0
 %1 = OpFunction %void None %fnTy
 %2 = OpLabel
 %3 = OpCompositeConstruct %matTy %uint_0
 OpReturn
 OpFunctionEnd
 
-; CHECK: call spir_func target("spirv.CooperativeMatrixKHR", i32, 0, 12, 12, 0) @_Z26__spirv_CompositeConstructi(i32 0)
+; CHECK: call spir_func target("spirv.CooperativeMatrixKHR", i32, 3, 12, 12, 0) @_Z26__spirv_CompositeConstructi(i32 0)

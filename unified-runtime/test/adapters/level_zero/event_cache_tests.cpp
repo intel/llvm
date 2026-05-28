@@ -1,6 +1,5 @@
-// Copyright (C) 2024 Intel Corporation
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
@@ -9,7 +8,7 @@
 // UNSUPPORTED: system-windows
 // REQUIRES: v1
 
-#include "ur_print.hpp"
+#include "unified-runtime/ur_print.hpp"
 #include "uur/fixtures.h"
 #include "uur/raii.h"
 

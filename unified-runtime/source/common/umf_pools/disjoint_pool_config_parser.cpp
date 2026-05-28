@@ -1,6 +1,6 @@
 //===--- disjoint_pool_config_parser.cpp -configuration for USM memory pool-==//
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
 // Exceptions. See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -40,12 +40,14 @@ DisjointPoolAllConfigs::DisjointPoolAllConfigs(int trace) {
   Configs[DisjointPoolMemType::Shared].Name = "Shared";
   Configs[DisjointPoolMemType::SharedReadOnly].Name = "SharedReadOnly";
 
-  // Buckets for Host use a minimum of the cache line size of 64 bytes.
-  // This prevents two separate allocations residing in the same cache line.
+  // Buckets for Host use 256-byte minimum (Intel GPU cache line size) to
+  // prevent separate allocations from sharing cache lines, avoiding cache
+  // coherency issues during GPU-to-Host copies.
+
   // Buckets for Device and Shared allocations will use starting size of 512.
   // This is because memory compression on newer GPUs makes the
   // minimum granularity 512 bytes instead of 64.
-  Configs[DisjointPoolMemType::Host].MinBucketSize = 64;
+  Configs[DisjointPoolMemType::Host].MinBucketSize = 256;
   Configs[DisjointPoolMemType::Device].MinBucketSize = 512;
   Configs[DisjointPoolMemType::Shared].MinBucketSize = 512;
   Configs[DisjointPoolMemType::SharedReadOnly].MinBucketSize = 512;

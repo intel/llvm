@@ -30,7 +30,7 @@ template <typename DataT, int Dimensions, access::mode AccessMode,
           access::target AccessTarget, access::placeholder IsPlaceholder,
           typename PropertyListT>
 class accessor;
-template <typename T, int Dimensions, typename AllocatorT, typename Enable>
+template <typename T, int Dimensions, typename AllocatorT, typename __Enabled>
 class buffer;
 template <typename DataT, int Dimensions, access::mode AccessMode>
 class host_accessor;

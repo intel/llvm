@@ -1,6 +1,5 @@
-// Copyright (C) 2023 Intel Corporation
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
@@ -122,8 +121,8 @@ TEST_P(urMemBufferCreateTest, CopyHostPointer) {
 TEST_P(urMemBufferCreateTest, UseHostPointer) {
   // These all copy memory instead of mapping it
   // https://github.com/intel/llvm/issues/18836
-  UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{}, uur::HIP{},
-                       uur::CUDA{}, uur::OpenCL{"Intel(R) UHD Graphics 770"},
+  UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{},
+                       uur::OpenCL{"Intel(R) UHD Graphics 770"},
                        uur::Offload{});
 
   std::vector<unsigned char> dataWrite{};

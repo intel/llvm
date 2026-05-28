@@ -12,7 +12,6 @@
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/StringExtras.h"
-#include "llvm/Bitcode/BitcodeWriterPass.h"
 #include "llvm/Demangle/Demangle.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/Function.h"
@@ -20,9 +19,9 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
+#include "llvm/IR/PassInstrumentation.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/IR/PassManagerImpl.h"
-#include "llvm/IRPrinter/IRPrintingPasses.h"
 #include "llvm/SYCLLowerIR/CleanupSYCLMetadata.h"
 #include "llvm/SYCLLowerIR/DeviceGlobals.h"
 #include "llvm/SYCLLowerIR/ESIMD/LowerESIMD.h"
@@ -35,8 +34,7 @@
 #include "llvm/SYCLPostLink/ComputeModuleRuntimeInfo.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Error.h"
-#include "llvm/Support/FileSystem.h"
-#include "llvm/Support/LineIterator.h"
+#include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/WithColor.h"
 #include "llvm/Transforms/IPO.h"
 #include "llvm/Transforms/IPO/GlobalDCE.h"
@@ -115,12 +113,6 @@ bool isGenericBuiltin(StringRef FName) {
   return FName.starts_with("__builtin_");
 }
 
-bool isKernel(const Function &F) {
-  const auto CC = F.getCallingConv();
-  return CC == CallingConv::SPIR_KERNEL || CC == CallingConv::AMDGPU_KERNEL ||
-         CC == CallingConv::PTX_Kernel;
-}
-
 bool isEntryPoint(const Function &F, bool EmitOnlyKernelsAsEntryPoints) {
   // Skip declarations, if any: they should not be included into a vector of
   // entry points groups or otherwise we will end up with incorrectly generated
@@ -129,7 +121,7 @@ bool isEntryPoint(const Function &F, bool EmitOnlyKernelsAsEntryPoints) {
     return false;
 
   // Kernels are always considered to be entry points
-  if (isKernel(F))
+  if (F.hasKernelCallingConv())
     return true;
 
   if (!EmitOnlyKernelsAsEntryPoints) {
@@ -179,7 +171,7 @@ public:
         FuncTypeToFuncsMap;
     for (const auto &F : M.functions()) {
       // Kernels can't be called (either directly or indirectly) in SYCL
-      if (isKernel(F))
+      if (F.hasKernelCallingConv())
         continue;
 
       // Only functions which are marked with "referenced-indireclty" attribute
@@ -490,6 +482,21 @@ std::optional<IRSplitMode> convertStringToSplitMode(StringRef S) {
   return It->second;
 }
 
+StringRef convertSplitModeToString(IRSplitMode Mode) {
+  switch (Mode) {
+  case IRSplitMode::SPLIT_PER_TU:
+    return "source";
+  case IRSplitMode::SPLIT_PER_KERNEL:
+    return "kernel";
+  case IRSplitMode::SPLIT_AUTO:
+    return "auto";
+  case IRSplitMode::SPLIT_NONE:
+    return "none";
+  }
+
+  llvm_unreachable("uncovered input value");
+}
+
 bool isESIMDFunction(const Function &F) {
   return F.getMetadata(ESIMD_MARKER_MD) != nullptr;
 }
@@ -651,11 +658,7 @@ static bool mustPreserveGV(const GlobalValue &GV,
     // cannot be imported which also means that there is no point of having it
     // visible outside of the current module.
     if (AllowDeviceImageDependencies) {
-      const auto CC = F->getCallingConv();
-      const bool SpirOrGPU = CC == CallingConv::SPIR_KERNEL ||
-                             CC == CallingConv::AMDGPU_KERNEL ||
-                             CC == CallingConv::PTX_Kernel;
-      return SpirOrGPU ||
+      return F->hasKernelCallingConv() ||
              canBeImportedFunction(*F, AllowDeviceImageDependencies);
     }
 
@@ -1185,94 +1188,6 @@ splitByESIMD(std::unique_ptr<ModuleDesc> MD, bool EmitOnlyKernelsAsEntryPoints,
   return Result;
 }
 
-static Error saveModuleIRInFile(Module &M, StringRef FilePath,
-                                bool OutputAssembly) {
-  int FD = -1;
-  if (std::error_code EC = sys::fs::openFileForWrite(FilePath, FD))
-    return errorCodeToError(EC);
-
-  raw_fd_ostream OS(FD, true);
-  ModulePassManager MPM;
-  ModuleAnalysisManager MAM;
-  MAM.registerPass([&] { return PassInstrumentationAnalysis(); });
-  if (OutputAssembly)
-    MPM.addPass(PrintModulePass(OS));
-  else
-    MPM.addPass(BitcodeWriterPass(OS));
-
-  MPM.run(M, MAM);
-  return Error::success();
-}
-
-static Expected<SplitModule> saveModuleDesc(ModuleDesc &MD, std::string Prefix,
-                                            bool OutputAssembly) {
-  SplitModule SM;
-  Prefix += OutputAssembly ? ".ll" : ".bc";
-  MD.saveSplitInformationAsMetadata();
-  Error E = saveModuleIRInFile(MD.getModule(), Prefix, OutputAssembly);
-  if (E)
-    return E;
-
-  SM.ModuleFilePath = Prefix;
-  SM.Symbols = MD.makeSymbolTable();
-  return SM;
-}
-
-Expected<std::vector<SplitModule>> parseSplitModulesFromFile(StringRef File) {
-  auto EntriesMBOrErr = llvm::MemoryBuffer::getFile(File);
-
-  if (!EntriesMBOrErr)
-    return createFileError(File, EntriesMBOrErr.getError());
-
-  line_iterator LI(**EntriesMBOrErr);
-  if (LI.is_at_eof() || *LI != "[Code|Properties|Symbols]")
-    return createStringError(inconvertibleErrorCode(),
-                             "invalid SYCL Table file.");
-
-  ++LI;
-  std::vector<module_split::SplitModule> Modules;
-  while (!LI.is_at_eof()) {
-    StringRef Line = *LI;
-    if (Line.empty())
-      return createStringError(inconvertibleErrorCode(),
-                               "invalid SYCL table row.");
-
-    SmallVector<StringRef, 3> Parts;
-    Line.split(Parts, "|");
-    if (Parts.size() != 3)
-      return createStringError(inconvertibleErrorCode(),
-                               "invalid SYCL Table row.");
-
-    auto [IRFilePath, PropertyFilePath, SymbolsFilePath] =
-        std::tie(Parts[0], Parts[1], Parts[2]);
-    if (PropertyFilePath.empty() || SymbolsFilePath.empty())
-      return createStringError(inconvertibleErrorCode(),
-                               "invalid SYCL Table row.");
-
-    auto MBOrErr = MemoryBuffer::getFile(PropertyFilePath);
-    if (!MBOrErr)
-      return createFileError(PropertyFilePath, MBOrErr.getError());
-
-    auto &MB = **MBOrErr;
-    auto PropSetOrErr = llvm::util::PropertySetRegistry::read(&MB);
-    if (!PropSetOrErr)
-      return PropSetOrErr.takeError();
-
-    llvm::util::PropertySetRegistry Properties = std::move(**PropSetOrErr);
-    MBOrErr = MemoryBuffer::getFile(SymbolsFilePath);
-    if (!MBOrErr)
-      return createFileError(SymbolsFilePath, MBOrErr.getError());
-
-    auto &MB2 = *MBOrErr;
-    std::string Symbols =
-        std::string(MB2->getBufferStart(), MB2->getBufferEnd());
-    Modules.emplace_back(IRFilePath, std::move(Properties), std::move(Symbols));
-    ++LI;
-  }
-
-  return Modules;
-}
-
 bool runPreSplitProcessingPipeline(Module &M) {
   ModulePassManager MPM;
   ModuleAnalysisManager MAM;
@@ -1314,8 +1229,9 @@ bool runPreSplitProcessingPipeline(Module &M) {
   return !MPM.run(M, MAM).areAllPreserved();
 }
 
-Expected<std::vector<SplitModule>>
-splitSYCLModule(std::unique_ptr<Module> M, ModuleSplitterSettings Settings) {
+Error splitSYCLModule(
+    std::unique_ptr<Module> M, ModuleSplitterSettings Settings,
+    function_ref<Error(std::unique_ptr<ModuleDesc>)> PostSplitCallback) {
   auto MD = std::make_unique<ModuleDesc>(std::move(M));
   // FIXME: false arguments are temporary for now.
   auto Splitter = getDeviceCodeSplitter(std::move(MD), Settings.Mode,
@@ -1324,22 +1240,16 @@ splitSYCLModule(std::unique_ptr<Module> M, ModuleSplitterSettings Settings) {
                                         Settings.AllowDeviceImageDependencies);
 
   size_t ID = 0;
-  std::vector<SplitModule> OutputImages;
   while (Splitter->hasMoreSplits()) {
     std::unique_ptr<ModuleDesc> MD2 = Splitter->nextSplit();
-    MD2->fixupLinkageOfDirectInvokeSimdTargets();
+    if (Error E = PostSplitCallback(std::move(MD2)); E)
+      return createStringError(formatv(
+          "SYCL Module split failed for part index {0}. error: {1}", ID, E));
 
-    std::string OutIRFileName = (Settings.OutputPrefix + "_" + Twine(ID)).str();
-    auto SplittedImageOrErr =
-        saveModuleDesc(*MD2, OutIRFileName, Settings.OutputAssembly);
-    if (!SplittedImageOrErr)
-      return SplittedImageOrErr.takeError();
-
-    OutputImages.emplace_back(std::move(*SplittedImageOrErr));
     ++ID;
   }
 
-  return OutputImages;
+  return Error::success();
 }
 
 bool canBeImportedFunction(const Function &F,

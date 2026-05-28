@@ -9,11 +9,10 @@ from templates import helper as th
     X=x.upper()
 %>/*
  *
- * Copyright (C) 2023 Intel Corporation
  *
- * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
+ * Part of the LLVM Project, under the Apache License v2.0 with LLVM
  * Exceptions.
- * See LICENSE.TXT
+ * See https://llvm.org/LICENSE.txt for license information.
  *
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
@@ -23,7 +22,7 @@ from templates import helper as th
 
 #pragma once
 
-#include <ur_api.h>
+#include <unified-runtime/ur_api.h>
 #include "utils.hpp"
 #include <cstdlib>
 #include <string_view>

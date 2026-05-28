@@ -3,7 +3,7 @@
 #include <sycl/ext/oneapi/virtual_mem/physical_mem.hpp>
 #include <sycl/ext/oneapi/virtual_mem/virtual_mem.hpp>
 
-#include "ur_api.h"
+#include "unified-runtime/ur_api.h"
 
 #include <helpers/UrMock.hpp>
 

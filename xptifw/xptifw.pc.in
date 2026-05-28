@@ -1,0 +1,11 @@
+prefix=@CMAKE_INSTALL_PREFIX@
+includedir=${prefix}/include
+libdir=${prefix}/lib@LLVM_LIBDIR_SUFFIX@
+
+Name: XPTIFW
+Description: XPTI Framework Library
+URL: https://github.com/intel/llvm
+Version: @PROJECT_VERSION@
+Requires: xpti
+Libs: -L${libdir} -lxptifw -ldl -lpthread
+Cflags: -I${includedir}

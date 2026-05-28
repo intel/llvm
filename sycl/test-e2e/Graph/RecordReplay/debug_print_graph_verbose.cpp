@@ -8,16 +8,16 @@
 //
 // CHECK: digraph dot {
 // CHECK-NEXT: "0x[[#%x,NODE1:]]"
-// CHECK-SAME: [style=bold, label="ID = 0x[[#NODE1]]\nTYPE = CGExecKernel \nNAME = _ZTSZZ11run_kernelsItEN4sycl3_V15eventENS1_5queueEmNS1_6bufferIT_Li1ENS1_6detail17aligned_allocatorINSt12remove_constIS5_E4typeEEEvEESC_SC_ENKUlRNS1_7handlerEE_clESE_EUlNS1_4itemILi1ELb1EEEE_\n
+// CHECK-SAME: [style=bold, label="ID = 0x[[#NODE1]]\nTYPE = CGExecKernel \nNAME = typeinfo name for run_kernels<unsigned short>(sycl::_V1::queue, unsigned long, sycl::_V1::buffer<unsigned short, 1, sycl::_V1::detail::aligned_allocator<std::remove_const<unsigned short>::type>, void>, sycl::_V1::buffer<unsigned short, 1, sycl::_V1::detail::aligned_allocator<std::remove_const<unsigned short>::type>, void>, sycl::_V1::buffer<unsigned short, 1, sycl::_V1::detail::aligned_allocator<std::remove_const<unsigned short>::type>, void>)::{lambda(sycl::_V1::handler&)#1}::operator()(sycl::_V1::handler&) const::{lambda(sycl::_V1::item<1, true>)#1}\n
 // CHECK-SAME: ARGS = \n0) Type: Accessor Ptr: 0x[[#%x,ADDR1:]]\n1) Type: STD_Layout Ptr: 0x[[#%x,ADDR2:]]\n2) Type: STD_Layout Ptr: 0x[[#%x,ADDR3:]]\n
 // CHECK-SAME: 3) Type: STD_Layout Ptr: 0x[[#ADDR1]]\n"];
 // CHECK-NEXT: "0x[[#%x,NODE2:]]"
-// CHECK-SAME: [style=bold, label="ID = 0x[[#NODE2]]\nTYPE = CGExecKernel \nNAME = _ZTSZZ11run_kernelsItEN4sycl3_V15eventENS1_5queueEmNS1_6bufferIT_Li1ENS1_6detail17aligned_allocatorINSt12remove_constIS5_E4typeEEEvEESC_SC_ENKUlRNS1_7handlerEE0_clESE_EUlNS1_4itemILi1ELb1EEEE_\n
+// CHECK-SAME: [style=bold, label="ID = 0x[[#NODE2]]\nTYPE = CGExecKernel \nNAME = typeinfo name for run_kernels<unsigned short>(sycl::_V1::queue, unsigned long, sycl::_V1::buffer<unsigned short, 1, sycl::_V1::detail::aligned_allocator<std::remove_const<unsigned short>::type>, void>, sycl::_V1::buffer<unsigned short, 1, sycl::_V1::detail::aligned_allocator<std::remove_const<unsigned short>::type>, void>, sycl::_V1::buffer<unsigned short, 1, sycl::_V1::detail::aligned_allocator<std::remove_const<unsigned short>::type>, void>)::{lambda(sycl::_V1::handler&)#2}::operator()(sycl::_V1::handler&) const::{lambda(sycl::_V1::item<1, true>)#1}\n
 // CHECK-SAME: ARGS = \n0) Type: Accessor Ptr: 0x[[#%x,ADDR4:]]\n1) Type: STD_Layout Ptr: 0x[[#%x,ADDR5:]]\n2) Type: STD_Layout Ptr: 0x[[#%x,ADDR6:]]\n
 // CHECK-SAME: 3) Type: STD_Layout Ptr: 0x[[#ADDR4]]\n4) Type: Accessor Ptr: 0x[[#%x,ADDR7:]]\n5) Type: STD_Layout Ptr: 0x[[#%x,ADDR8:]]\n6) Type: STD_Layout Ptr: 0x[[#%x,ADDR9:]]\n7) Type: STD_Layout Ptr: 0x[[#%x,ADDR10:]]\n"];
 // CHECK-NEXT: "0x[[#NODE1]]" -> "0x[[#NODE2]]"
 // CHECK-NEXT: "0x[[#%x,NODE3:]]"
-// CHECK-SAME: [style=bold, label="ID = 0x[[#NODE3]]\nTYPE = CGExecKernel \nNAME = _ZTSZZ11run_kernelsItEN4sycl3_V15eventENS1_5queueEmNS1_6bufferIT_Li1ENS1_6detail17aligned_allocatorINSt12remove_constIS5_E4typeEEEvEESC_SC_ENKUlRNS1_7handlerEE2_clESE_EUlNS1_4itemILi1ELb1EEEE_\n
+// CHECK-SAME: [style=bold, label="ID = 0x[[#NODE3]]\nTYPE = CGExecKernel \nNAME = typeinfo name for run_kernels<unsigned short>(sycl::_V1::queue, unsigned long, sycl::_V1::buffer<unsigned short, 1, sycl::_V1::detail::aligned_allocator<std::remove_const<unsigned short>::type>, void>, sycl::_V1::buffer<unsigned short, 1, sycl::_V1::detail::aligned_allocator<std::remove_const<unsigned short>::type>, void>, sycl::_V1::buffer<unsigned short, 1, sycl::_V1::detail::aligned_allocator<std::remove_const<unsigned short>::type>, void>)::{lambda(sycl::_V1::handler&)#4}::operator()(sycl::_V1::handler&) const::{lambda(sycl::_V1::item<1, true>)#1}\n
 // CHECK-SAME: ARGS = \n0) Type: Accessor Ptr: 0x[[#%x,ADDR11:]]\n1) Type: STD_Layout Ptr: 0x[[#%x,ADDR12:]]\n2) Type: STD_Layout Ptr: 0x[[#%x,ADDR13:]]\n
 // CHECK-SAME: 3) Type: STD_Layout Ptr: 0x[[#ADDR11]]\n4) Type: Accessor Ptr: 0x[[#%x,ADDR14:]]\n5) Type: STD_Layout Ptr: 0x[[#%x,ADDR15:]]\n6) Type: STD_Layout Ptr: 0x[[#%x,ADDR16:]]\n7) Type: STD_Layout Ptr: 0x[[#%x,ADDR17:]]\n"];
 // CHECK-DAG: "0x[[#NODE2]]" -> "0x[[#NODE3]]"
@@ -33,7 +33,7 @@
 // CHECK-SAME: [style=bold, label="ID = 0x[[#NODE6]]\nTYPE = None \n"];
 // CHECK-DAG: "0x[[#NODE5]]" -> "0x[[#NODE6]]"
 // CHECK-NEXT: "0x[[#NODE7]]"
-// CHECK-SAME: [style=bold, label="ID = 0x[[#NODE7]]\nTYPE = CGExecKernel \nNAME = _ZTSZZ11run_kernelsItEN4sycl3_V15eventENS1_5queueEmNS1_6bufferIT_Li1ENS1_6detail17aligned_allocatorINSt12remove_constIS5_E4typeEEEvEESC_SC_ENKUlRNS1_7handlerEE1_clESE_EUlNS1_4itemILi1ELb1EEEE_\n
+// CHECK-SAME: [style=bold, label="ID = 0x[[#NODE7]]\nTYPE = CGExecKernel \nNAME = typeinfo name for run_kernels<unsigned short>(sycl::_V1::queue, unsigned long, sycl::_V1::buffer<unsigned short, 1, sycl::_V1::detail::aligned_allocator<std::remove_const<unsigned short>::type>, void>, sycl::_V1::buffer<unsigned short, 1, sycl::_V1::detail::aligned_allocator<std::remove_const<unsigned short>::type>, void>, sycl::_V1::buffer<unsigned short, 1, sycl::_V1::detail::aligned_allocator<std::remove_const<unsigned short>::type>, void>)::{lambda(sycl::_V1::handler&)#3}::operator()(sycl::_V1::handler&) const::{lambda(sycl::_V1::item<1, true>)#1}\n
 // CHECK-SAME: ARGS = \n0) Type: Accessor Ptr: 0x[[#%x,ADDR22:]]\n1) Type: STD_Layout Ptr: 0x[[#%x,ADDR23:]]\n2) Type: STD_Layout Ptr: 0x[[#%x,ADDR24:]]\n
 // CHECK-SAME: 3) Type: STD_Layout Ptr: 0x[[#ADDR22]]\n4) Type: Accessor Ptr: 0x[[#%x,ADDR25:]]\n5) Type: STD_Layout Ptr: 0x[[#%x,ADDR26:]]\n6) Type: STD_Layout Ptr: 0x[[#%x,ADDR27:]]\n7) Type: STD_Layout Ptr: 0x[[#%x,ADDR28:]]\n"];
 // CHECK-DAG: "0x[[#NODE1]]" -> "0x[[#NODE7]]"

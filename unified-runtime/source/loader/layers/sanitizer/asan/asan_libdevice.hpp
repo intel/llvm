@@ -1,9 +1,8 @@
 /*
  *
- * Copyright (C) 2024 Intel Corporation
  *
- * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
- * Exceptions. See LICENSE.TXT
+ * Part of the LLVM Project, under the Apache License v2.0 with LLVM
+ * Exceptions. See https://llvm.org/LICENSE.txt for license information.
  *
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
@@ -94,11 +93,13 @@ constexpr int8_t kUsmSharedRedzoneMagic = (int8_t)0x83;
 constexpr int8_t kMemBufferRedzoneMagic = (int8_t)0x84;
 constexpr int8_t kDeviceGlobalRedzoneMagic = (int8_t)0x85;
 constexpr int8_t kNullPointerRedzoneMagic = (int8_t)0x86;
+constexpr int8_t kExportableMemRedzoneMagic = (int8_t)0x87;
 
 constexpr int8_t kUsmDeviceDeallocatedMagic = (int8_t)0x91;
 constexpr int8_t kUsmHostDeallocatedMagic = (int8_t)0x92;
 constexpr int8_t kUsmSharedDeallocatedMagic = (int8_t)0x93;
-constexpr int8_t kMemBufferDeallocatedMagic = (int8_t)0x93;
+constexpr int8_t kMemBufferDeallocatedMagic = (int8_t)0x94;
+constexpr int8_t kExportableMemDeallocatedMagic = (int8_t)0x95;
 
 constexpr int8_t kSharedLocalRedzoneMagic = (int8_t)0xa1;
 

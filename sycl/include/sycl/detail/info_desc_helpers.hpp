@@ -84,8 +84,8 @@ template <typename T> struct is_backend_info_desc : std::false_type {};
   struct is_##DescType##_info_desc<info::DescType::Desc> : std::true_type {    \
     using return_type = info::DescType::Desc::return_type;                     \
   };
-#define __SYCL_PARAM_TRAITS_SPEC_SPECIALIZED(DescType, Desc, ReturnT, PiCode)  \
-  __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)
+#define __SYCL_PARAM_TRAITS_SPEC_SPECIALIZED(DescType, Desc, ReturnT, UrCode)  \
+  __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, UrCode)
 
 #include <sycl/info/device_traits.def>
 
@@ -103,7 +103,7 @@ template <typename T> struct is_backend_info_desc : std::false_type {};
 #include <sycl/info/ext_oneapi_device_traits.def>
 #undef __SYCL_PARAM_TRAITS_SPEC
 
-#define __SYCL_PARAM_TRAITS_SPEC(Namespace, DescType, Desc, ReturnT, PiCode)   \
+#define __SYCL_PARAM_TRAITS_SPEC(Namespace, DescType, Desc, ReturnT, UrCode)   \
   template <>                                                                  \
   struct is_##DescType##_info_desc<Namespace::info::DescType::Desc>            \
       : std::true_type {                                                       \

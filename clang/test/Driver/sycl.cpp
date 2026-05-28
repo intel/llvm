@@ -84,9 +84,10 @@
 // DEVICE-32: clang{{.*}} "-triple" "spir-unknown-unknown" "-aux-triple" "i386-unknown-linux-gnu"
 
 /// Verify that the sycl header directory is before /usr/include
-// RUN: %clangxx -### -fsycl-device-only %s 2>&1 | FileCheck %s --check-prefix=HEADER_ORDER
-// RUN: %clangxx -### -fsycl %s 2>&1 | FileCheck %s --check-prefix=HEADER_ORDER
-// HEADER_ORDER-NOT: clang{{.*}} "/usr/include"{{.*}} "-internal-isystem" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}
+// RUN: %clangxx -### -fsycl-device-only %s 2>&1 | FileCheck %s --check-prefix=HEADER-ORDER
+// RUN: %clangxx -### -fsycl %s 2>&1 | FileCheck %s --check-prefix=HEADER-ORDER
+// HEADER-ORDER-NOT: clang{{.*}} "/usr/include"
+// HEADER-ORDER: "-internal-isystem" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include"
 
 /// Verify -fsycl-device-only phases
 // RUN: %clang -### -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl-device-only %s 2>&1 | FileCheck %s --check-prefix=DEFAULT-PHASES
@@ -117,17 +118,27 @@
 // SYCL_HELP_ORDER: Emitting help information for opencl-aot
 // SYCL_HELP_ORDER: opencl-aot{{(\.exe)?}}" "--help"
 
-// -fsycl-id-queries-fit-in-int
-// RUN: %clang -### -fsycl -fsycl-id-queries-fit-in-int  %s 2>&1 | FileCheck %s --check-prefix=ID_QUERIES
-// RUN: %clang_cl -### -fsycl -fsycl-id-queries-fit-in-int  %s 2>&1 | FileCheck %s --check-prefix=ID_QUERIES
-// RUN: %clang -### -fsycl-device-only -fsycl-id-queries-fit-in-int  %s 2>&1 | FileCheck %s --check-prefix=ID_QUERIES
-// RUN: %clang_cl -### -fsycl-device-only -fsycl-id-queries-fit-in-int  %s 2>&1 | FileCheck %s --check-prefix=ID_QUERIES
-// RUN: %clang -### -fsycl -fno-sycl-id-queries-fit-in-int  %s 2>&1 | FileCheck %s --check-prefix=NO_ID_QUERIES
-// RUN: %clang_cl -### -fsycl -fno-sycl-id-queries-fit-in-int  %s 2>&1 | FileCheck %s --check-prefix=NO_ID_QUERIES
-// RUN: %clang -### -fsycl-device-only -fno-sycl-id-queries-fit-in-int  %s 2>&1 | FileCheck %s --check-prefix=NO_ID_QUERIES
-// RUN: %clang_cl -### -fsycl-device-only -fno-sycl-id-queries-fit-in-int  %s 2>&1 | FileCheck %s --check-prefix=NO_ID_QUERIES
-// ID_QUERIES: "-fsycl-id-queries-fit-in-int"
-// NO_ID_QUERIES: "-fno-sycl-id-queries-fit-in-int"
+// -fsycl-id-queries-range and compatibility flags
+// Test new normalized option
+// RUN: %clang -### -fsycl -fsycl-id-queries-range=int  %s 2>&1 | FileCheck %s --check-prefix=ID_QUERIES_INT
+// RUN: %clang -### -fsycl -fsycl-id-queries-range=uint  %s 2>&1 | FileCheck %s --check-prefix=ID_QUERIES_UINT
+// RUN: %clang -### -fsycl -fsycl-id-queries-range=size_t  %s 2>&1 | FileCheck %s --check-prefix=ID_QUERIES_SIZET
+// Test legacy compatibility flags (should be rewritten to new option)
+// RUN: %clang -### -fsycl -fsycl-id-queries-fit-in-int  %s 2>&1 | FileCheck %s --check-prefix=ID_QUERIES_INT
+// RUN: %clang_cl -### -fsycl -fsycl-id-queries-fit-in-int  %s 2>&1 | FileCheck %s --check-prefix=ID_QUERIES_INT
+// RUN: %clang -### -fsycl-device-only -fsycl-id-queries-fit-in-int  %s 2>&1 | FileCheck %s --check-prefix=ID_QUERIES_INT
+// RUN: %clang_cl -### -fsycl-device-only -fsycl-id-queries-fit-in-int  %s 2>&1 | FileCheck %s --check-prefix=ID_QUERIES_INT
+// RUN: %clang -### -fsycl -fno-sycl-id-queries-fit-in-int  %s 2>&1 | FileCheck %s --check-prefix=ID_QUERIES_SIZET
+// RUN: %clang_cl -### -fsycl -fno-sycl-id-queries-fit-in-int  %s 2>&1 | FileCheck %s --check-prefix=ID_QUERIES_SIZET
+// RUN: %clang -### -fsycl-device-only -fno-sycl-id-queries-fit-in-int  %s 2>&1 | FileCheck %s --check-prefix=ID_QUERIES_SIZET
+// RUN: %clang_cl -### -fsycl-device-only -fno-sycl-id-queries-fit-in-int  %s 2>&1 | FileCheck %s --check-prefix=ID_QUERIES_SIZET
+// Test precedence: last one wins
+// RUN: %clang -### -fsycl -fsycl-id-queries-fit-in-int -fsycl-id-queries-range=uint  %s 2>&1 | FileCheck %s --check-prefix=ID_QUERIES_UINT
+// RUN: %clang -### -fsycl -fsycl-id-queries-range=uint -fno-sycl-id-queries-fit-in-int  %s 2>&1 | FileCheck %s --check-prefix=ID_QUERIES_SIZET
+// RUN: %clang -### -fsycl -fsycl-id-queries-range=size_t -fsycl-id-queries-fit-in-int  %s 2>&1 | FileCheck %s --check-prefix=ID_QUERIES_INT
+// ID_QUERIES_INT: "-fsycl-id-queries-range=int"
+// ID_QUERIES_UINT: "-fsycl-id-queries-range=uint"
+// ID_QUERIES_SIZET: "-fsycl-id-queries-range=size_t"
 
 // RUN: %clang -### -fsycl  %s 2>&1 | FileCheck %s --check-prefix=DEFAULT_STD
 // RUN: %clangxx -### -fsycl %s 2>&1 | FileCheck %s --check-prefix=DEFAULT_STD

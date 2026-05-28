@@ -126,9 +126,9 @@ Application Binary Interface
 
 ## --validate=off
 The Unified Runtime C APIs are provided to applications by a shared import library.
-C/C++ applications must include "${x}_api.h" and link with "${x}_api.lib".
+C/C++ applications must include "unified-runtime/${x}_api.h" and link with "${x}_api.lib".
 The Unified Runtime C Device-Driver Interfaces (DDIs) are provided to the import library by the shared loader or runtime and driver libraries.
-C/C++ loaders and drivers must include "${x}_ddi.h".
+C/C++ loaders and drivers must include "unified-runtime/${x}_ddi.h".
 ## --validate=on
 
 The implementation of these libraries must use the default Application Binary Interface (ABI) of the standard C compiler for the platform.
@@ -148,11 +148,11 @@ This allows the Unified Runtime shared library to be updated with additional sym
 Printing API
 ------------
 ## --validate=off
-The header "${x}_print.hpp" contains output stream operator (<<) overloads for Unified Runtime objects.
+The header "unified-runtime/${x}_print.hpp" contains output stream operator (<<) overloads for Unified Runtime objects.
 There is also the "${x}::extras::printFunctionParams" function for printing function parameters. These parameters have to be provided in a \*params_t struct format suitable for
 a given function.
 
-The ${x}_print.h header provides the same functionality with a C interface. Each object has a print function named urPrint<object name without both prefix and suffix>,
+The unified-runtime/${x}_print.h header provides the same functionality with a C interface. Each object has a print function named urPrint<object name without both prefix and suffix>,
 ie. for printing ur_result_t use urPrintResult.
 ## --validate=on
 

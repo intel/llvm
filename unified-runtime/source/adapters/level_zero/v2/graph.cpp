@@ -1,9 +1,8 @@
 //===--------- graph.cpp - Level Zero Adapter -----------------------------===//
 //
-// Copyright (C) 2025 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
@@ -13,6 +12,8 @@
 #include "../ur_interface_loader.hpp"
 #include "common.hpp"
 #include "context.hpp"
+
+#include <memory>
 
 ur_exp_graph_handle_t_::ur_exp_graph_handle_t_(ur_context_handle_t hContext)
     : hContext(hContext) {
@@ -54,6 +55,23 @@ ur_exp_executable_graph_handle_t_::~ur_exp_executable_graph_handle_t_() {
   }
 }
 
+namespace {
+
+// L0 imposes specific callback conventions. We must wrap the UR callback in
+// order to not violate this requirement.
+struct DestructionCallbackContext {
+  ur_exp_graph_destruction_callback_t callback;
+  void *userData;
+};
+
+void ZE_CALLBACK destructionCallbackWrapper(void *pUserData) {
+  auto *CbData = static_cast<DestructionCallbackContext *>(pUserData);
+  CbData->callback(CbData->userData);
+  delete CbData;
+}
+
+} // namespace
+
 namespace ur::level_zero {
 
 ur_result_t urGraphCreateExp(ur_context_handle_t hContext,
@@ -63,6 +81,8 @@ ur_result_t urGraphCreateExp(ur_context_handle_t hContext,
   }
 
   *phGraph = new ur_exp_graph_handle_t_(hContext);
+  std::scoped_lock<ur_shared_mutex> lock(hContext->GraphMapMutex);
+  hContext->registerGraph((*phGraph)->getZeHandle(), *phGraph);
   return UR_RESULT_SUCCESS;
 } catch (...) {
   return exceptionToResult(std::current_exception());
@@ -74,6 +94,10 @@ ur_result_t urGraphDestroyExp(ur_exp_graph_handle_t hGraph) try {
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
 
+  {
+    std::scoped_lock<ur_shared_mutex> lock(hContext->GraphMapMutex);
+    hContext->unregisterGraph(hGraph->getZeHandle());
+  }
   delete hGraph;
   return UR_RESULT_SUCCESS;
 } catch (...) {
@@ -124,9 +148,43 @@ ur_result_t urGraphIsEmptyExp(ur_exp_graph_handle_t hGraph, bool *pIsEmpty) {
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t urGraphDumpContentsExp(ur_exp_graph_handle_t, const char *) {
-  UR_LOG(ERR, "{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+ur_result_t urGraphSetDestructionCallbackExp(
+    ur_exp_graph_handle_t hGraph,
+    ur_exp_graph_destruction_callback_t pfnCallback, void *pUserData) {
+  ur_context_handle_t hContext = hGraph->getContext();
+  auto ZeSetCallback =
+      hContext->getPlatform()->ZeGraphExt.zeGraphSetDestructionCallbackExp;
+  if (!checkGraphExtensionSupport(hContext) || !ZeSetCallback) {
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  }
+
+  auto CbData = std::make_unique<DestructionCallbackContext>(
+      DestructionCallbackContext{pfnCallback, pUserData});
+
+  ze_result_t ZeResult = ZE_CALL_NOCHECK(
+      ZeSetCallback, (hGraph->getZeHandle(), destructionCallbackWrapper,
+                      static_cast<void *>(CbData.get()), nullptr));
+
+  if (ZeResult != ZE_RESULT_SUCCESS) {
+    return ze2urResult(ZeResult);
+  }
+
+  // Ownership is transfered to the graph destruction callback for deletion
+  CbData.release();
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t urGraphDumpContentsExp(ur_exp_graph_handle_t hGraph,
+                                   const char *filePath) {
+  ur_context_handle_t hContext = hGraph->getContext();
+  if (!checkGraphExtensionSupport(hContext)) {
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  }
+
+  ZE2UR_CALL(hContext->getPlatform()->ZeGraphExt.zeGraphDumpContentsExp,
+             (hGraph->getZeHandle(), filePath, nullptr));
+
+  return UR_RESULT_SUCCESS;
 }
 
 } // namespace ur::level_zero

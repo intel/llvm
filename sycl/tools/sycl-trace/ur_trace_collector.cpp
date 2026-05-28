@@ -12,7 +12,7 @@
 #include "xpti/xpti_trace_framework.h"
 
 #include <sycl/detail/spinlock.hpp>
-#include <ur_print.hpp>
+#include <unified-runtime/ur_print.hpp>
 
 #include <iostream>
 #include <mutex>
@@ -88,7 +88,8 @@ static void setupPrettyPrinter(bool Verbose) {
 }
 
 void urPrintersInit() {
-  std::string_view PrinterType(std::getenv("SYCL_TRACE_PRINT_FORMAT"));
+  const char *PrinterTypeEnv = std::getenv("SYCL_TRACE_PRINT_FORMAT");
+  std::string_view PrinterType = PrinterTypeEnv ? PrinterTypeEnv : "";
 
   if (PrinterType == "classic") {
     setupClassicPrinter();

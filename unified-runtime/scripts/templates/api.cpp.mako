@@ -9,11 +9,10 @@ from templates import helper as th
     X=x.upper()
 %>/*
  *
- * Copyright (C) 2020 Intel Corporation
  *
- * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
+ * Part of the LLVM Project, under the Apache License v2.0 with LLVM
  * Exceptions.
- * See LICENSE.TXT
+ * See https://llvm.org/LICENSE.txt for license information.
  *
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
@@ -21,7 +20,7 @@ from templates import helper as th
  * @version v${ver}-r${rev}
  *
  */
-#include "${n}_api.h"
+#include "unified-runtime/${n}_api.h"
 
 %for obj in th.extract_objs(specs, r"function"):
 %if 'guard' in obj:

@@ -1,8 +1,16 @@
 ; RUN: llvm-as %s -o %t.bc
-; RUN: llvm-spirv -spirv-text %t.bc -o - | FileCheck %s --check-prefix=CHECK-SPIRV
+; RUN: llvm-spirv -spirv-text %t.bc -o - | FileCheck %s --check-prefixes=CHECK-SPIRV,CHECK-SPIRV-DEFAULT
+; RUN: llvm-spirv -spirv-text %t.bc --spirv-ext=+SPV_KHR_float_controls2 -o - | FileCheck %s --check-prefixes=CHECK-SPIRV,CHECK-SPIRV-FC2
 ; RUN: llvm-spirv %t.bc -o %t.spv
+; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_KHR_float_controls2 -o %t.fc2.spv
 ; RUN: spirv-val %t.spv
-; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o - | FileCheck %s --check-prefix=CHECK-LLVM
+; RUN: spirv-val %t.fc2.spv
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o - | FileCheck %s --check-prefixes=CHECK-LLVM,CHECK-LLVM-DEFAULT
+; RUN: llvm-spirv -r %t.fc2.spv -o - | llvm-dis -o - | FileCheck %s --check-prefixes=CHECK-LLVM,CHECK-LLVM-FC2
+; RUN: %if spirv-backend %{ llc -O0 -mtriple=spirv32-unknown-unknown -filetype=obj %s -o %t.llc.spv %}
+; RUN: %if spirv-backend %{ llvm-spirv -r %t.llc.spv -o %t.llc.rev.bc %}
+; RUN: %if spirv-backend %{ llvm-dis %t.llc.rev.bc -o %t.llc.rev.ll %}
+; RUN: %if spirv-backend %{ FileCheck %s --check-prefix=CHECK-LLVM < %t.llc.rev.ll %}
 
 ; CHECK-SPIRV: 3 Name [[#r1:]] "r1"
 ; CHECK-SPIRV: 3 Name [[#r2:]] "r2"
@@ -11,13 +19,20 @@
 ; CHECK-SPIRV: 3 Name [[#r5:]] "r5"
 ; CHECK-SPIRV: 3 Name [[#r6:]] "r6"
 ; CHECK-SPIRV: 3 Name [[#r7:]] "r7"
+; CHECK-SPIRV: 3 Name [[#r8:]] "r8"
+; CHECK-SPIRV: 3 Name [[#r9:]] "r9"
 ; CHECK-SPIRV-NOT: 4 Decorate [[#r1]] FPFastMathMode
 ; CHECK-SPIRV-DAG: 4 Decorate [[#r2]] FPFastMathMode 1
 ; CHECK-SPIRV-DAG: 4 Decorate [[#r3]] FPFastMathMode 2
 ; CHECK-SPIRV-DAG: 4 Decorate [[#r4]] FPFastMathMode 4
 ; CHECK-SPIRV-DAG: 4 Decorate [[#r5]] FPFastMathMode 8
-; CHECK-SPIRV-DAG: 4 Decorate [[#r6]] FPFastMathMode 16
+; CHECK-SPIRV-DEFAULT-DAG: 4 Decorate [[#r6]] FPFastMathMode 16
+; CHECK-SPIRV-FC2-DAG: 4 Decorate [[#r6]] FPFastMathMode 458767
 ; CHECK-SPIRV-DAG: 4 Decorate [[#r7]] FPFastMathMode 3
+; CHECK-SPIRV-DEFAULT-NOT: 4 Decorate [[#r8]] FPFastMathMode
+; CHECK-SPIRV-FC2-DAG: 4 Decorate [[#r8]] FPFastMathMode 65536
+; CHECK-SPIRV-DEFAULT-NOT: 4 Decorate [[#r9]] FPFastMathMode
+; CHECK-SPIRV-FC2-DAG: 4 Decorate [[#r9]] FPFastMathMode 458752
 ; CHECK-SPIRV: 3 TypeFloat [[float:[0-9]+]] 32
 ; CHECK-SPIRV: 5 FRem [[float]] [[#r1]]
 ; CHECK-SPIRV: 5 FRem [[float]] [[#r2]]
@@ -26,14 +41,21 @@
 ; CHECK-SPIRV: 5 FRem [[float]] [[#r5]]
 ; CHECK-SPIRV: 5 FRem [[float]] [[#r6]]
 ; CHECK-SPIRV: 5 FRem [[float]] [[#r7]]
+; CHECK-SPIRV: 5 FRem [[float]] [[#r8]]
+; CHECK-SPIRV: 5 FRem [[float]] [[#r9]]
 
-; CHECK-LLVM: %r1 = frem float %a, %b
-; CHECK-LLVM: %r2 = frem nnan float %a, %b
-; CHECK-LLVM: %r3 = frem ninf float %a, %b
-; CHECK-LLVM: %r4 = frem nsz float %a, %b
-; CHECK-LLVM: %r5 = frem arcp float %a, %b
-; CHECK-LLVM: %r6 = frem fast float %a, %b
-; CHECK-LLVM: %r7 = frem nnan ninf float %a, %b
+; CHECK-LLVM: frem float %a, %b
+; CHECK-LLVM: frem nnan float %a, %b
+; CHECK-LLVM: frem ninf float %a, %b
+; CHECK-LLVM: frem nsz float %a, %b
+; CHECK-LLVM: frem arcp float %a, %b
+; CHECK-LLVM-DEFAULT: frem fast float %a, %b
+; CHECK-LLVM-FC2: frem reassoc nnan ninf nsz arcp contract float %a, %b
+; CHECK-LLVM: frem nnan ninf float %a, %b
+; CHECK-LLVM-DEFAULT: frem float %a, %b
+; CHECK-LLVM-FC2: frem contract float %a, %b
+; CHECK-LLVM-DEFAULT: frem float %a, %b
+; CHECK-LLVM-FC2: frem reassoc contract float %a, %b
 
 target datalayout = "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
 target triple = "spir-unknown-unknown"
@@ -41,13 +63,25 @@ target triple = "spir-unknown-unknown"
 ; Function Attrs: nounwind
 define spir_kernel void @testFRem(float %a, float %b) local_unnamed_addr #0 !kernel_arg_addr_space !2 !kernel_arg_access_qual !3 !kernel_arg_type !4 !kernel_arg_base_type !4 !kernel_arg_type_qual !5 {
 entry:
+  %tmp = alloca float, align 4
   %r1 = frem float %a, %b
+  store volatile float %r1, ptr %tmp, align 4
   %r2 = frem nnan float %a, %b
+  store volatile float %r2, ptr %tmp, align 4
   %r3 = frem ninf float %a, %b
+  store volatile float %r3, ptr %tmp, align 4
   %r4 = frem nsz float %a, %b
+  store volatile float %r4, ptr %tmp, align 4
   %r5 = frem arcp float %a, %b
+  store volatile float %r5, ptr %tmp, align 4
   %r6 = frem fast float %a, %b
+  store volatile float %r6, ptr %tmp, align 4
   %r7 = frem nnan ninf float %a, %b
+  store volatile float %r7, ptr %tmp, align 4
+  %r8 = frem contract float %a, %b
+  store volatile float %r8, ptr %tmp, align 4
+  %r9 = frem reassoc float %a, %b
+  store volatile float %r9, ptr %tmp, align 4
   ret void
 }
 

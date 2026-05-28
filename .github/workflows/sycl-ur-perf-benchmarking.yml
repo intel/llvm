@@ -5,8 +5,8 @@ name: SYCL Run Benchmarks
 
 on:
   schedule:
-    # 2 hours after SYCL nightly
-    - cron: '0 5 * * *'
+    # 2 hours after SYCL nightly, every day after weekday (we built in the morning the next day)
+    - cron: '0 5 * * 2-6'
   # Run on pull requests only when a benchmark-related files were changed.
   pull_request:
     # These paths are exactly the same as in sycl-linux/windows-precommit.yml (to ignore over there)
@@ -64,9 +64,10 @@ on:
         description: Self-hosted runner to use for the benchmarks
         type: choice
         options:
-          - '["PVC_PERF"]'
           - '["BMG_PERF"]'
+          - '["PVC_PERF"]'
           - '["TEST_PERF"]'
+        default: '["BMG_PERF"]'
       backend:
         description: Backend to use
         type: choice
@@ -185,8 +186,6 @@ jobs:
       build_cache_suffix: "prod_noassert"
       build_configure_extra_args: "--no-assertions"
       build_image: "ghcr.io/intel/llvm/sycl_ubuntu2404_nightly:latest"
-      cc: clang
-      cxx: clang++
       changes: '[]'
       toolchain_artifact: sycl_linux_prod_noassert
 
@@ -229,14 +228,13 @@ jobs:
     name: '[Nightly] Build SYCL'
     if: ${{ github.repository == 'intel/llvm' && (github.event_name == 'schedule' || inputs.trigger_nightly == 'true') }}
     uses: ./.github/workflows/sycl-linux-build.yml
-    secrets: inherit
     with:
       build_cache_root: "/__w/"
+      build_cache_suffix: "prod_noassert"
       build_configure_extra_args: '--no-assertions'
-      build_image: ghcr.io/intel/llvm/ubuntu2404_build:latest
-
-      toolchain_artifact: sycl_linux_default
-      toolchain_artifact_filename: sycl_linux.tar.gz
+      build_image: ghcr.io/intel/llvm/sycl_ubuntu2404_nightly:latest
+      changes: '[]'
+      toolchain_artifact: sycl_linux_prod_noassert
 
   benchmark_nightly:
     name: '[Nightly] Benchmarks'
@@ -273,7 +271,6 @@ jobs:
   # END nightly benchmarking path
 
   # BEGIN benchmark framework builds and runs on PRs path
-  # TODO: When we have stable BMG runner(s), consider moving this job to that runner.
   test_benchmark_framework:
     name: '[PR] Benchmark suite testing'
     permissions:

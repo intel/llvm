@@ -8,6 +8,9 @@
 // RUN: %{run} %t.out 2>&1 | FileCheck %s
 // UNSUPPORTED: ze_debug
 
+// UNSUPPORTED: windows && gpu-intel-gen12
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21954
+
 #include <iostream>
 #include <level_zero/ze_api.h>
 #include <sycl/detail/core.hpp>

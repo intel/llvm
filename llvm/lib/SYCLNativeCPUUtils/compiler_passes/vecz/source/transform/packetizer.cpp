@@ -949,25 +949,23 @@ Packetizer::Result Packetizer::Impl::packetize(Value *V) {
 
   auto *const Ins = cast<Instruction>(V);
 
-  if (auto *const Branch = dyn_cast<BranchInst>(Ins)) {
-    if (Branch->isConditional()) {
-      // varying reductions need to be packetized
-      auto *newCond = packetize(Branch->getCondition()).getAsValue();
-      if (!newCond) {
-        return Packetizer::Result(*this);
-      }
-
-      // Packetization should normally have produced a reduction to scalar.
-      // However, when Packetize Uniform is on, a uniform branch won't have
-      // a divergence reduction so it will need reducing manually here.
-      if (newCond->getType()->isVectorTy()) {
-        IRBuilder<> B(Branch);
-        const RecurKind kind = RecurKind::Or;
-        newCond = createMaybeVPReduction(B, newCond, kind, VL);
-      }
-
-      Branch->setCondition(newCond);
+  if (auto *const Branch = dyn_cast<CondBrInst>(Ins)) {
+    // varying reductions need to be packetized
+    auto *newCond = packetize(Branch->getCondition()).getAsValue();
+    if (!newCond) {
+      return Packetizer::Result(*this);
     }
+
+    // Packetization should normally have produced a reduction to scalar.
+    // However, when Packetize Uniform is on, a uniform branch won't have
+    // a divergence reduction so it will need reducing manually here.
+    if (newCond->getType()->isVectorTy()) {
+      IRBuilder<> B(Branch);
+      const RecurKind kind = RecurKind::Or;
+      newCond = createMaybeVPReduction(B, newCond, kind, VL);
+    }
+
+    Branch->setCondition(newCond);
     return broadcast(Ins);
   }
 

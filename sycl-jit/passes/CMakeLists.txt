@@ -41,6 +41,11 @@ add_llvm_library(SYCLJITPasses
   SYCLJITPasses.cpp
   materializer/SYCLSpecConstMaterializer.cpp
 
+# INTEL_CUSTOMIZATION
+# Reusing PCH for Core would cause extra warnings in ADT
+  DISABLE_PCH_REUSE
+#end INTEL_CUSTOMIZATION
+
   DEPENDS
   intrinsics_gen
 

@@ -5,6 +5,9 @@
 
 // REQUIRES: level_zero
 
+// UNSUPPORTED: linux && arch-intel_gpu_bmg_g21
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21769
+
 // Tests updating an accessor argument to a graph node created from SPIR-V
 // using dynamic command-groups.
 

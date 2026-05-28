@@ -130,6 +130,8 @@ std::unique_ptr<TargetInfo> AllocateTarget(const llvm::Triple &Triple,
     if (os == llvm::Triple::Linux &&
         Triple.getEnvironment() == llvm::Triple::Musl)
       return std::make_unique<LinuxTargetInfo<HexagonTargetInfo>>(Triple, Opts);
+    if (Triple.isOSQurt())
+      return std::make_unique<QURTTargetInfo<HexagonTargetInfo>>(Triple, Opts);
     return std::make_unique<HexagonTargetInfo>(Triple, Opts);
 
   case llvm::Triple::lanai:
@@ -179,6 +181,9 @@ std::unique_ptr<TargetInfo> AllocateTarget(const llvm::Triple &Triple,
     case llvm::Triple::Hurd:
       return std::make_unique<HurdTargetInfo<AArch64leTargetInfo>>(Triple,
                                                                    Opts);
+    case llvm::Triple::Serenity:
+      return std::make_unique<SerenityTargetInfo<AArch64leTargetInfo>>(Triple,
+                                                                       Opts);
     case llvm::Triple::Win32:
       switch (Triple.getEnvironment()) {
       case llvm::Triple::GNU:
@@ -436,6 +441,7 @@ std::unique_ptr<TargetInfo> AllocateTarget(const llvm::Triple &Triple,
     return std::make_unique<AMDGPUTargetInfo>(Triple, Opts);
 
   case llvm::Triple::riscv32:
+  case llvm::Triple::riscv32be:
     switch (os) {
     case llvm::Triple::NetBSD:
       return std::make_unique<NetBSDTargetInfo<RISCV32TargetInfo>>(Triple,
@@ -447,6 +453,7 @@ std::unique_ptr<TargetInfo> AllocateTarget(const llvm::Triple &Triple,
     }
 
   case llvm::Triple::riscv64:
+  case llvm::Triple::riscv64be:
     switch (os) {
     case llvm::Triple::FreeBSD:
       return std::make_unique<FreeBSDTargetInfo<RISCV64TargetInfo>>(Triple,
@@ -477,6 +484,10 @@ std::unique_ptr<TargetInfo> AllocateTarget(const llvm::Triple &Triple,
                                                                      Opts);
     case llvm::Triple::Hurd:
       return std::make_unique<HurdTargetInfo<RISCV64TargetInfo>>(Triple, Opts);
+
+    case llvm::Triple::Serenity:
+      return std::make_unique<SerenityTargetInfo<RISCV64TargetInfo>>(Triple,
+                                                                     Opts);
     default:
       return std::make_unique<RISCV64TargetInfo>(Triple, Opts);
     }
@@ -544,6 +555,9 @@ std::unique_ptr<TargetInfo> AllocateTarget(const llvm::Triple &Triple,
 
   case llvm::Triple::tcele:
     return std::make_unique<TCELETargetInfo>(Triple, Opts);
+
+  case llvm::Triple::tcele64:
+    return std::make_unique<TCELE64TargetInfo>(Triple, Opts);
 
   case llvm::Triple::x86:
     if (Triple.isOSDarwin())
@@ -664,6 +678,9 @@ std::unique_ptr<TargetInfo> AllocateTarget(const llvm::Triple &Triple,
     case llvm::Triple::Managarm:
       return std::make_unique<ManagarmTargetInfo<X86_64TargetInfo>>(Triple,
                                                                     Opts);
+    case llvm::Triple::Serenity:
+      return std::make_unique<SerenityTargetInfo<X86_64TargetInfo>>(Triple,
+                                                                    Opts);
     default:
       return std::make_unique<X86_64TargetInfo>(Triple, Opts);
     }
@@ -721,7 +738,7 @@ std::unique_ptr<TargetInfo> AllocateTarget(const llvm::Triple &Triple,
     return std::make_unique<SPIRVTargetInfo>(Triple, Opts);
   }
   case llvm::Triple::spirv32: {
-    if (os != llvm::Triple::UnknownOS ||
+    if ((os != llvm::Triple::UnknownOS && os != llvm::Triple::ChipStar) ||
         Triple.getEnvironment() != llvm::Triple::UnknownEnvironment)
       return nullptr;
     llvm::Triple HT(Opts.HostTriple);
@@ -739,7 +756,7 @@ std::unique_ptr<TargetInfo> AllocateTarget(const llvm::Triple &Triple,
     }
   }
   case llvm::Triple::spirv64: {
-    if (os != llvm::Triple::UnknownOS ||
+    if ((os != llvm::Triple::UnknownOS && os != llvm::Triple::ChipStar) ||
         Triple.getEnvironment() != llvm::Triple::UnknownEnvironment) {
       if (os == llvm::Triple::OSType::AMDHSA)
         return std::make_unique<SPIRV64AMDGCNTargetInfo>(Triple, Opts);

@@ -1,9 +1,8 @@
 //===--------- event_pool.hpp - Level Zero Adapter ------------------------===//
 //
-// Copyright (C) 2024 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
@@ -13,9 +12,9 @@
 #include <mutex>
 #include <stack>
 
+#include <unified-runtime/ur_api.h>
 #include <unordered_map>
 #include <ur/ur.hpp>
-#include <ur_api.h>
 #include <vector>
 #include <ze_api.h>
 
@@ -74,20 +73,31 @@ createEventIfRequested(event_pool *eventPool, ur_event_handle_t *phEvent,
 }
 
 // Always creates an event (used in functions that need to store the event
-// internally). If event was requested by the user, also increase ref count of
-// that event to avoid pre-mature release.
-static inline ur_event_handle_t createEventAndRetain(event_pool *eventPool,
-                                                     ur_event_handle_t *phEvent,
-                                                     ur_queue_t_ *queue) {
+// internally).
+static inline ur_event_handle_t createEvent(event_pool *eventPool,
+                                            ur_event_handle_t *phEvent,
+                                            ur_queue_t_ *queue) {
   auto hEvent = eventPool->allocate();
   hEvent->setQueue(queue);
 
   if (phEvent) {
     (*phEvent) = hEvent;
-    hEvent->retain();
   }
 
   return hEvent;
+}
+
+// Always creates an event (used in functions that need to store the event
+// internally). If event was requested by the user, also increase ref count of
+// that event to avoid pre-mature release.
+static inline ur_event_handle_t createEventAndRetain(event_pool *eventPool,
+                                                     ur_event_handle_t *phEvent,
+                                                     ur_queue_t_ *queue) {
+  auto *event = createEvent(eventPool, phEvent, queue);
+  if (phEvent) {
+    (*phEvent)->retain();
+  }
+  return event;
 }
 
 } // namespace v2

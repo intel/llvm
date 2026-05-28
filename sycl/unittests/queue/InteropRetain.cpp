@@ -24,7 +24,7 @@ ur_result_t redefinedQueueRetain(void *) {
   return UR_RESULT_SUCCESS;
 }
 
-TEST(PiInteropTest, CheckRetain) {
+TEST(UrInteropTest, CheckRetain) {
   sycl::unittest::UrMock<> Mock;
   sycl::platform Plt = sycl::platform();
   context Ctx{Plt.get_devices()[0]};

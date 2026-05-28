@@ -546,6 +546,35 @@ order.
 |====
 
 
+==== Host tasks
+
+|====
+a|
+[frame=all,grid=none]
+!====
+a!
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+template <typename T>
+void host_task(sycl::queue q, T&& hostTaskCallable);
+
+template <typename T>
+void host_task(sycl::handler &h, T&& hostTaskCallable);
+
+}
+----
+!====
+_Preconditions_: The callable function `hostTaskCallable` does not call any
+function in the `sycl` namespace.
+
+_Effects_: Enqueues a command to the `sycl::queue` or `sycl::handler` that
+executes `hostTaskCallable` exactly once on an unspecified host thread.
+
+|====
+
+
 ==== Memory operations
 
 |====

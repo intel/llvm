@@ -1,9 +1,8 @@
 /*
  *
- * Copyright (C) 2024 Intel Corporation
  *
- * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
- * Exceptions. See LICENSE.TXT
+ * Part of the LLVM Project, under the Apache License v2.0 with LLVM
+ * Exceptions. See https://llvm.org/LICENSE.txt for license information.
  *
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
@@ -100,11 +99,12 @@ struct KernelInfo {
 
   // lock this mutex if following fields are accessed
   ur_shared_mutex Mutex;
-  std::unordered_map<uint32_t, std::shared_ptr<MemBuffer>> BufferArgs;
   std::unordered_map<uint32_t, std::pair<const void *, StackTrace>> PointerArgs;
 
   // Need preserve the order of local arguments
   std::map<uint32_t, LocalArgsInfo> LocalArgs;
+
+  std::vector<ur_exp_kernel_arg_properties_t> ArgProps;
 
   explicit KernelInfo(ur_kernel_handle_t Kernel) : Handle(Kernel) {
     [[maybe_unused]] auto Result =
@@ -162,6 +162,8 @@ struct ContextInfo {
       InternalQueueMap;
 
   std::optional<Quarantine> m_Quarantine;
+
+  DeferredEventList DeferredEvents;
 
   AsanStatsWrapper Stats;
 
@@ -300,9 +302,9 @@ public:
 
   ur_result_t allocateMemory(ur_context_handle_t Context,
                              ur_device_handle_t Device,
-                             const ur_usm_desc_t *Properties,
-                             ur_usm_pool_handle_t Pool, size_t Size,
+                             const AllocMemoryParams &Params, size_t Size,
                              AllocType Type, void **ResultPtr);
+
   ur_result_t releaseMemory(ur_context_handle_t Context, void *Ptr);
 
   ur_result_t registerProgram(ur_program_handle_t Program);

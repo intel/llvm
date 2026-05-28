@@ -1,9 +1,8 @@
 /*
  *
- * Copyright (C) 2024 Intel Corporation
  *
- * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
- * Exceptions. See LICENSE.TXT
+ * Part of the LLVM Project, under the Apache License v2.0 with LLVM
+ * Exceptions. See https://llvm.org/LICENSE.txt for license information.
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
  * @file queue_api.cpp
@@ -15,7 +14,7 @@
 #include "queue_batched.hpp"
 #include "queue_handle.hpp"
 #include "queue_immediate_in_order.hpp"
-#include "ur_api.h"
+#include "unified-runtime/ur_api.h"
 
 static const bool ForceBatched = getenv_tobool("UR_L0_V2_FORCE_BATCHED");
 

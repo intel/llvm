@@ -196,7 +196,7 @@ namespace {
       list.push_back(UnqualUsingEntry(UD->getNominatedNamespace(), Common));
     }
 
-    void done() { llvm::sort(list, UnqualUsingEntry::Comparator()); }
+    void done() { llvm::stable_sort(list, UnqualUsingEntry::Comparator()); }
 
     typedef ListTy::const_iterator const_iterator;
 
@@ -1627,7 +1627,7 @@ void Sema::makeMergedDefinitionVisible(NamedDecl *ND) {
   if (auto *ED = dyn_cast<EnumDecl>(ND);
       ED && ED->isFromGlobalModule() && !ED->isScoped()) {
     for (auto *ECD : ED->enumerators()) {
-      ECD->setVisibleDespiteOwningModule();
+      ECD->setVisiblePromoted();
       DeclContext *RedeclCtx = ED->getDeclContext()->getRedeclContext();
       if (RedeclCtx->lookup(ECD->getDeclName()).empty())
         RedeclCtx->makeDeclVisibleInContext(ECD);
@@ -3352,6 +3352,8 @@ addAssociatedClassesAndNamespaces(AssociatedLookup &Result, QualType Ty) {
     // Inline SPIR-V types are treated as fundamental types.
     case Type::HLSLInlineSpirv:
       break;
+    case Type::OverflowBehavior:
+      T = cast<OverflowBehaviorType>(T)->getUnderlyingType().getTypePtr();
     }
 
     if (Queue.empty())
@@ -4800,7 +4802,7 @@ void TypoCorrectionConsumer::addCorrection(TypoCorrection Correction) {
           RI->getAsString(SemaRef.getLangOpts())};
 
       if (NewKey < PrevKey)
-        *RI = Correction;
+        *RI = std::move(Correction);
       return;
     }
   }
@@ -5537,7 +5539,7 @@ TypoCorrection Sema::CorrectTypo(const DeclarationNameInfo &TypoName,
 
     if (BestTC.getCorrection().getAsString() != "super") {
       if (SecondBestTC.getCorrection().getAsString() == "super")
-        BestTC = SecondBestTC;
+        BestTC = std::move(SecondBestTC);
       else if ((*Consumer)["super"].front().isKeyword())
         BestTC = (*Consumer)["super"].front();
     }

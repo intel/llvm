@@ -49,6 +49,7 @@ Functions
    * ${x}QueueBeginCaptureIntoGraphExp
    * ${x}QueueEndGraphCaptureExp
    * ${x}QueueIsGraphCaptureEnabledExp
+   * ${x}QueueGetGraphExp
    * ${x}EnqueueGraphExp
 
 Changelog
@@ -68,6 +69,13 @@ Changelog
 |           | Rename QueueAppendGraphExp into             |
 |           | EnqueueGraphExp.                            |
 +-----------+---------------------------------------------+
+| 1.3       | Add ${x}QueueGetGraphExp to retrieve graph  |
+|           | handle from queue in capture mode.          |
++-----------+---------------------------------------------+
+| 1.4       | Add ${x}GraphSetDestructionCallbackExp to   |
+|           | register user callbacks invoked on graph    |
+|           | destruction.                                |
++-----------+---------------------------------------------+
 
 Support
 --------------------------------------------------------------------------------
@@ -80,3 +88,4 @@ Contributors
 
 * Krzysztof, Filipek `krzysztof.filipek@intel.com <krzysztof.filipek@intel.com>`_
 * Krzysztof, Swiecicki `krzysztof.swiecicki@intel.com <krzysztof.swiecicki@intel.com>`_
+* Matthew, Michel `matthew.michel@intel.com <matthew.michel@intel.com>`_

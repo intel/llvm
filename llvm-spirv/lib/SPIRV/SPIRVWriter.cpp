@@ -394,6 +394,8 @@ SPIRVType *LLVMToSPIRVBase::transType(Type *T) {
     // capabilities.
     if (BM->isAllowedToUseExtension(
             ExtensionID::SPV_INTEL_arbitrary_precision_integers) ||
+        BM->isAllowedToUseExtension(
+            ExtensionID::SPV_ALTERA_arbitrary_precision_integers) ||
         BM->getErrorLog().checkError(
             (BitWidth == 4 &&
              BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_int4)) ||
@@ -1406,7 +1408,9 @@ SPIRVValue *LLVMToSPIRVBase::transConstant(Value *V) {
     if (BitWidth > 64) {
       BM->getErrorLog().checkError(
           BM->isAllowedToUseExtension(
-              ExtensionID::SPV_INTEL_arbitrary_precision_integers),
+              ExtensionID::SPV_INTEL_arbitrary_precision_integers) ||
+              BM->isAllowedToUseExtension(
+                  ExtensionID::SPV_ALTERA_arbitrary_precision_integers),
           SPIRVEC_InvalidBitWidth, std::to_string(BitWidth));
       return BM->addConstant(ExpectedType, ConstI->getValue());
     }
@@ -1414,6 +1418,16 @@ SPIRVValue *LLVMToSPIRVBase::transConstant(Value *V) {
   }
 
   if (auto *ConstFP = dyn_cast<ConstantFP>(V)) {
+    if (V->getType()->isVectorTy()) {
+      SPIRVType *InnerTy = ExpectedType->getScalarType();
+      SPIRVValue *ScalarVal =
+          transConstantUse(ConstantFP::get(V->getType()->getScalarType(),
+                                           ConstFP->getValueAPF()),
+                           InnerTy);
+      unsigned NumElts = cast<FixedVectorType>(V->getType())->getNumElements();
+      std::vector<SPIRVValue *> BV(NumElts, ScalarVal);
+      return BM->addCompositeConstant(ExpectedType, BV);
+    }
     auto *BT = static_cast<SPIRVType *>(ExpectedType);
     return BM->addConstant(
         BT, ConstFP->getValueAPF().bitcastToAPInt().getZExtValue());
@@ -1685,7 +1699,13 @@ SPIRVValue *LLVMToSPIRVBase::transUnaryInst(UnaryInstruction *U,
     }
   } else {
     auto OpCode = U->getOpcode();
-    BOC = OpCodeMap::map(OpCode);
+    // PtrToAddr extracts only the address bits from a pointer, unlike PtrToInt
+    // which converts all pointer representation bits. In SPIR-V, both map to
+    // OpConvertPtrToU since SPIR-V targets use flat address spaces.
+    if (OpCode == Instruction::PtrToAddr)
+      BOC = OpConvertPtrToU;
+    else
+      BOC = OpCodeMap::map(OpCode);
   }
 
   auto *Op = transValue(U->getOperand(0), BB, true, FuncTransMode::Pointer);
@@ -1762,7 +1782,7 @@ private:
 /// instruction, fill the Loop Control mask and possible parameters for its
 /// fields.
 spv::LoopControlMask
-LLVMToSPIRVBase::getLoopControl(const BranchInst *Branch,
+LLVMToSPIRVBase::getLoopControl(const Instruction *Branch,
                                 std::vector<SPIRVWord> &Parameters) {
   if (!Branch)
     return spv::LoopControlMaskNone;
@@ -2468,7 +2488,7 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
                              Pairs, BB));
   }
 
-  if (BranchInst *Branch = dyn_cast<BranchInst>(V)) {
+  if (auto *Branch = dyn_cast<CondBrInst>(V)) {
     SPIRVLabel *SuccessorTrue =
         static_cast<SPIRVLabel *>(transValue(Branch->getSuccessor(0), BB));
 
@@ -2485,29 +2505,6 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
     std::vector<SPIRVWord> Parameters;
     spv::LoopControlMask LoopControl = getLoopControl(Branch, Parameters);
 
-    if (Branch->isUnconditional()) {
-      // Usually, "for" and "while" loops llvm.loop metadata is attached to an
-      // unconditional branch instruction.
-      if (LoopControl != spv::LoopControlMaskNone) {
-        // SuccessorTrue is the loop header BB.
-        const SPIRVInstruction *Term = SuccessorTrue->getTerminateInstr();
-        if (Term && Term->getOpCode() == OpBranchConditional) {
-          const auto *Br = static_cast<const SPIRVBranchConditional *>(Term);
-          BM->addLoopMergeInst(Br->getFalseLabel()->getId(), // Merge Block
-                               BB->getId(),                  // Continue Target
-                               LoopControl, Parameters, SuccessorTrue);
-        } else {
-          if (BM->isAllowedToUseExtension(
-                  ExtensionID::SPV_INTEL_unstructured_loop_controls)) {
-            // For unstructured loop we add a special loop control instruction.
-            // Simple example of unstructured loop is an infinite loop, that has
-            // no terminate instruction.
-            BM->addLoopControlINTELInst(LoopControl, Parameters, SuccessorTrue);
-          }
-        }
-      }
-      return mapValue(V, BM->addBranchInst(SuccessorTrue, BB));
-    }
     // For "do-while" (and in some cases, for "for" and "while") loops,
     // llvm.loop metadata is attached to a conditional branch instructions
     SPIRVLabel *SuccessorFalse =
@@ -2544,6 +2541,46 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
     return mapValue(
         V, BM->addBranchConditionalInst(transValue(Branch->getCondition(), BB),
                                         SuccessorTrue, SuccessorFalse, BB));
+  }
+
+  if (auto *Branch = dyn_cast<UncondBrInst>(V)) {
+    SPIRVLabel *Successor =
+        static_cast<SPIRVLabel *>(transValue(Branch->getSuccessor(0), BB));
+
+    /// Clang attaches !llvm.loop metadata to "latch" BB. This kind of blocks
+    /// has an edge directed to the loop header. Thus latch BB matching to
+    /// "Continue Target" per the SPIR-V spec. This statement is true only after
+    /// applying the loop-simplify pass to the LLVM module.
+    /// For "for" and "while" loops latch BB is terminated by an
+    /// unconditional branch. Also for this kind of loops "Merge Block" can
+    /// be found as block targeted by false edge of the "Header" BB.
+    /// For "do while" loop the latch is terminated by a conditional branch
+    /// with true edge going to the header and the false edge going out of
+    /// the loop, which corresponds to a "Merge Block" per the SPIR-V spec.
+    std::vector<SPIRVWord> Parameters;
+    spv::LoopControlMask LoopControl = getLoopControl(Branch, Parameters);
+
+    // Usually, "for" and "while" loops llvm.loop metadata is attached to an
+    // unconditional branch instruction.
+    if (LoopControl != spv::LoopControlMaskNone) {
+      // SuccessorTrue is the loop header BB.
+      const SPIRVInstruction *Term = Successor->getTerminateInstr();
+      if (Term && Term->getOpCode() == OpBranchConditional) {
+        const auto *Br = static_cast<const SPIRVBranchConditional *>(Term);
+        BM->addLoopMergeInst(Br->getFalseLabel()->getId(), // Merge Block
+                             BB->getId(),                  // Continue Target
+                             LoopControl, Parameters, Successor);
+      } else {
+        if (BM->isAllowedToUseExtension(
+                ExtensionID::SPV_INTEL_unstructured_loop_controls)) {
+          // For unstructured loop we add a special loop control instruction.
+          // Simple example of unstructured loop is an infinite loop, that has
+          // no terminate instruction.
+          BM->addLoopControlINTELInst(LoopControl, Parameters, Successor);
+        }
+      }
+    }
+    return mapValue(V, BM->addBranchInst(Successor, BB));
   }
 
   if (auto *Phi = dyn_cast<PHINode>(V)) {
@@ -3126,6 +3163,13 @@ static void transMetadataDecorations(Metadata *MD, SPIRVValue *Target) {
           static_cast<StoreCacheControl>(CacheControl->getZExtValue())));
       break;
     }
+    case DecorationFPFastMathMode: {
+      // Ignore this decoration. FPFastMathMode is set through the LLVM-IR
+      // fast-math flags (e.g. reassoc, contract) associated with the
+      // instruction. It should not be set through metadata, since LLVM passes
+      // are free to ignore it.
+      break;
+    }
     default: {
       if (NumOperands == 1) {
         Target->addDecorate(new SPIRVDecorate(DecoKind, Target));
@@ -3187,11 +3231,26 @@ bool LLVMToSPIRVBase::transDecoration(Value *V, SPIRVValue *BV) {
         ((Opcode == Instruction::FNeg || Opcode == Instruction::FCmp ||
           BV->isExtInst()) &&
          BM->isAllowedToUseVersion(VersionNumber::SPIRV_1_6))) {
+      bool AllowFloatControls2 =
+          BM->isAllowedToUseExtension(ExtensionID::SPV_KHR_float_controls2);
+      bool AllowIntelFpFastMathMode =
+          BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_fp_fast_math_mode);
       FastMathFlags FMF = BVF->getFastMathFlags();
       SPIRVWord M{0};
-      if (FMF.isFast())
-        M |= FPFastMathModeFastMask;
-      else {
+      if (FMF.isFast()) {
+        if (AllowFloatControls2) {
+          // When SPV_KHR_float_controls2 is used, setting the fast math flag
+          // bit is deprecated. Set the rest of the bits instead.
+          M |= FPFastMathModeNotNaNMask | FPFastMathModeNotInfMask |
+               FPFastMathModeNSZMask | FPFastMathModeAllowRecipMask |
+               FPFastMathModeAllowTransformMask |
+               FPFastMathModeAllowReassocMask | FPFastMathModeAllowContractMask;
+          BM->addCapability(CapabilityFloatControls2);
+          BM->addExtension(ExtensionID::SPV_KHR_float_controls2);
+        } else {
+          M |= FPFastMathModeFastMask;
+        }
+      } else {
         if (FMF.noNaNs())
           M |= FPFastMathModeNotNaNMask;
         if (FMF.noInfs())
@@ -3200,14 +3259,31 @@ bool LLVMToSPIRVBase::transDecoration(Value *V, SPIRVValue *BV) {
           M |= FPFastMathModeNSZMask;
         if (FMF.allowReciprocal())
           M |= FPFastMathModeAllowRecipMask;
-        if (BM->isAllowedToUseExtension(
-                ExtensionID::SPV_INTEL_fp_fast_math_mode)) {
-          if (FMF.allowContract()) {
-            M |= FPFastMathModeAllowContractFastINTELMask;
-            BM->addCapability(CapabilityFPFastMathModeINTEL);
-            BM->addExtension(ExtensionID::SPV_INTEL_fp_fast_math_mode);
+        if (FMF.allowContract()) {
+          if (AllowFloatControls2 || AllowIntelFpFastMathMode) {
+            static_assert(FPFastMathModeAllowContractFastINTELMask ==
+                          FPFastMathModeAllowContractMask);
+            M |= FPFastMathModeAllowContractMask;
+            BM->addCapability(AllowFloatControls2
+                                  ? CapabilityFloatControls2
+                                  : CapabilityFPFastMathModeINTEL);
+            BM->addExtension(AllowFloatControls2
+                                 ? ExtensionID::SPV_KHR_float_controls2
+                                 : ExtensionID::SPV_INTEL_fp_fast_math_mode);
           }
-          if (FMF.allowReassoc()) {
+        }
+        if (FMF.allowReassoc()) {
+          if (AllowFloatControls2) {
+            // LLVM reassoc maps to SPIRV transform, see
+            // https://github.com/KhronosGroup/SPIRV-Registry/issues/326 for
+            // details. Because we are enabling AllowTransform, we must enable
+            // AllowReassoc and AllowContract too, as required by SPIRV spec.
+            M |= FPFastMathModeAllowTransformMask |
+                 FPFastMathModeAllowReassocMask |
+                 FPFastMathModeAllowContractMask;
+            BM->addCapability(CapabilityFloatControls2);
+            BM->addExtension(ExtensionID::SPV_KHR_float_controls2);
+          } else if (AllowIntelFpFastMathMode) {
             M |= FPFastMathModeAllowReassocINTELMask;
             BM->addCapability(CapabilityFPFastMathModeINTEL);
             BM->addExtension(ExtensionID::SPV_INTEL_fp_fast_math_mode);
@@ -4135,6 +4211,8 @@ static SPIRVWord getBuiltinIdForIntrinsic(Intrinsic::ID IID) {
     return OpenCLLIB::Floor;
   case Intrinsic::fma:
     return OpenCLLIB::Fma;
+  case Intrinsic::ldexp:
+    return OpenCLLIB::Ldexp;
   case Intrinsic::frexp:
     return OpenCLLIB::Frexp;
   case Intrinsic::log:
@@ -4435,6 +4513,7 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
   // Binary FP intrinsics
   case Intrinsic::atan2:
   case Intrinsic::copysign:
+  case Intrinsic::ldexp:
   case Intrinsic::pow:
   case Intrinsic::powi:
   case Intrinsic::maximumnum:
@@ -4888,7 +4967,7 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
     auto *AT = ArrayType::get(Val->getType(), NumElements);
     SPIRVTypeArray *CompositeTy = static_cast<SPIRVTypeArray *>(transType(AT));
     SPIRVValue *Init;
-    if (cast<Constant>(Val)->isZeroValue()) {
+    if (cast<Constant>(Val)->isNullValue()) {
       Init = BM->addNullConstant(CompositeTy);
     } else {
       // On 32-bit systems, size_type of std::vector is not a 64-bit type. Let's
@@ -5585,21 +5664,18 @@ processMiniFPOrInt4Type(Type *LLVMTy, FPEncodingWrap Encoding,
   unsigned TyWidth = cast<IntegerType>(ScalarTy)->getBitWidth();
   unsigned VecSize = 0;
 
-  if (TyWidth == 32) {
-    // Int4 or FP4 packed in 32-bit integer, change type and vector size.
-    assert((Encoding == FPEncodingWrap::E2M1 ||
-            Encoding == FPEncodingWrap::Integer) &&
-           "Unknown FP encoding");
+  bool IsPacked =
+      Encoding == FPEncodingWrap::E2M1 || Encoding == FPEncodingWrap::Integer;
+  if (IsPacked &&
+      (TyWidth == 8 || TyWidth == 16 || TyWidth == 32 || TyWidth == 64)) {
+    // Int4 or FP4 packed in an integer: each N-bit integer holds N/4 values.
     assert(!isLLVMCooperativeMatrixType(LLVMTy) &&
            "FP4 and Int4 matrices must not be packed");
-    VecSize = 8;
-    TyWidth = 4;
-  } else if (TyWidth == 8 && (Encoding == FPEncodingWrap::E2M1 ||
-                              Encoding == FPEncodingWrap::Integer)) {
-    assert(!isLLVMCooperativeMatrixType(LLVMTy) &&
-           "FP4 and Int4 matrices must not be packed");
-    // Int4 or FP4 packed in 8-bit integer, change type and vector size.
-    VecSize = 2;
+    unsigned OuterVecLen =
+        LLVMTy->isVectorTy()
+            ? cast<VectorType>(LLVMTy)->getElementCount().getFixedValue()
+            : 1;
+    VecSize = (TyWidth / 4) * OuterVecLen;
     TyWidth = 4;
   } else {
     if (LLVMTy->isVectorTy())
@@ -5695,14 +5771,16 @@ SPIRVValue *LLVMToSPIRVBase::transDirectCallInst(CallInst *CI,
                   ->getArgs());
           SrcOp = BM->addUnaryInst(OpBitcast, SrcTy, SrcOp, BB);
         } else if (FPDesc.SrcEncoding != FPEncodingWrap::Integer ||
-                   (SrcTy->isTypeVector() && !LLVMSrcTy->isVectorTy())) {
-          // Create bitcast for FP4, FP8 and packed Int4.
+                   SrcVecSize > 0) {
+          // Create bitcast for FP4, FP8 and packed Int4 (including cases where
+          // both the LLVM and SPIR-V types are vectors but with different
+          // sizes, e.g. <2 x i8> repacked as <4 x Int4>).
           SrcOp = BM->addUnaryInst(OpBitcast, SrcTy, SrcOp, BB);
         }
       }
+      unsigned DstVecSize = 0;
       if (!DstTy) {
         // Dst type is 'mini' float or int4.
-        unsigned DstVecSize = 0;
         DstTy = processMiniFPOrInt4Type(LLVMDstTy, FPDesc.DstEncoding,
                                         GetScalarTy, BM, DstVecSize);
 
@@ -5730,10 +5808,9 @@ SPIRVValue *LLVMToSPIRVBase::transDirectCallInst(CallInst *CI,
       if (FPDesc.DstEncoding == FPEncodingWrap::IEEE754 ||
           FPDesc.DstEncoding == FPEncodingWrap::BF16)
         return Conv;
-      // Originally not-packed integer.
+      // Originally not-packed integer (no repacking, or cooperative matrix).
       if (FPDesc.DstEncoding == FPEncodingWrap::Integer &&
-          (DstTy->isTypeVector() == LLVMDstTy->isVectorTy() ||
-           isLLVMCooperativeMatrixType(LLVMDstTy)))
+          (DstVecSize == 0 || isLLVMCooperativeMatrixType(LLVMDstTy)))
         return Conv;
       // Need to adjust types: create bitcast for FP8 and packed Int4.
       SPIRVValue *BitCast =
@@ -5780,9 +5857,35 @@ SPIRVValue *LLVMToSPIRVBase::transDirectCallInst(CallInst *CI,
                                    BB, transScavengedType(CI));
     }
 
+    SPIRVType *Ty = transScavengedType(CI);
+    SPIRVId ExtSetId = BM->getExtInstSetId(ExtSetKind);
+
+    bool IsFMinMaxCommon =
+        ExtSetKind == SPIRVEIS_OpenCL &&
+        (ExtOp == OpenCLLIB::FMin_common || ExtOp == OpenCLLIB::FMax_common);
+    if (IsFMinMaxCommon &&
+        BM->isAllowedToUseExtension(ExtensionID::SPV_KHR_float_controls2)) {
+      // Acording to float_controls2 spec:
+      // This extension deprecates the following features: [...]
+      // * The OpenCL.std instructions fmin_common, fmax_common. Use fmin, fmax
+      // with NInf and NNaN instead.
+      BM->addCapability(CapabilityFloatControls2);
+      BM->addExtension(ExtensionID::SPV_KHR_float_controls2);
+      ExtOp =
+          ExtOp == OpenCLLIB::FMin_common ? OpenCLLIB::Fmin : OpenCLLIB::Fmax;
+      SPIRVInstruction *ExtInst = BM->addExtInst(
+          Ty, ExtSetId, ExtOp,
+          transArguments(CI, BB,
+                         SPIRVEntry::createUnique(ExtSetKind, ExtOp).get()),
+          BB);
+      ExtInst->setFPFastMathMode(FPFastMathModeNotInfMask |
+                                 FPFastMathModeNotNaNMask);
+      return addDecorations(ExtInst, Dec);
+    }
+
     return addDecorations(
         BM->addExtInst(
-            transScavengedType(CI), BM->getExtInstSetId(ExtSetKind), ExtOp,
+            Ty, ExtSetId, ExtOp,
             transArguments(CI, BB,
                            SPIRVEntry::createUnique(ExtSetKind, ExtOp).get()),
             BB),
@@ -6424,7 +6527,25 @@ SPIRVInstruction *LLVMToSPIRVBase::transBuiltinToInst(StringRef DemangledName,
   return Inst;
 }
 
+void LLVMToSPIRVBase::setExecutionModeFPFastMathDefault(
+    SPIRVFunction *BF, ArrayRef<SPIRVTypeFloat *> FloatSPIRVTypes,
+    SPIRVWord FlagsLiteral) {
+  assert(BM->isAllowedToUseExtension(ExtensionID::SPV_KHR_float_controls2));
+
+  SPIRVConstant *Flags = BM->getLiteralAsConstant(FlagsLiteral);
+  for (SPIRVTypeFloat *FloatSPIRVType : FloatSPIRVTypes) {
+    BF->addExecutionMode(
+        new SPIRVExecutionModeId(BF, spv::ExecutionModeFPFastMathDefault,
+                                 FloatSPIRVType->getId(), Flags->getId()));
+  }
+
+  BM->addCapability(CapabilityFloatControls2);
+  BM->addExtension(ExtensionID::SPV_KHR_float_controls2);
+}
+
 bool LLVMToSPIRVBase::transExecutionMode() {
+  transFPContract();
+
   if (auto NMD = SPIRVMDWalker(*M).getNamedMD(kSPIRVMD::ExecutionMode)) {
     while (!NMD.atEnd()) {
       unsigned EMode = ~0U;
@@ -6446,8 +6567,35 @@ bool LLVMToSPIRVBase::transExecutionMode() {
 
       switch (EMode) {
       case spv::ExecutionModeContractionOff:
-        BF->addExecutionMode(BM->add(new SPIRVExecutionMode(
-            OpExecutionMode, BF, static_cast<ExecutionMode>(EMode))));
+        // With SPV_KHR_float_controls2 this execution mode is deprecated.
+        // We cannot set only the contract flag to 0, so we set all flags to 0.
+        if (BM->isAllowedToUseExtension(ExtensionID::SPV_KHR_float_controls2)) {
+          SmallVector<SPIRVTypeFloat *> FloatSPIRVTypes;
+          for (auto [_, FloatSPIRVType] : TypeMap)
+            if (FloatSPIRVType->isTypeFloat())
+              FloatSPIRVTypes.push_back(
+                  static_cast<SPIRVTypeFloat *>(FloatSPIRVType));
+
+          // Sort the types to ensure they are always emited in a consistent
+          // order.
+          auto SortByFloatBitWidthAndEncoding = [](SPIRVTypeFloat *A,
+                                                   SPIRVTypeFloat *B) {
+            unsigned BitWidthA = A->getFloatBitWidth();
+            unsigned BitWidthB = B->getFloatBitWidth();
+            if (BitWidthA < BitWidthB)
+              return true;
+            if (BitWidthA > BitWidthB)
+              return false;
+            return A->getFloatingPointEncoding() <
+                   B->getFloatingPointEncoding();
+          };
+          llvm::sort(FloatSPIRVTypes, SortByFloatBitWidthAndEncoding);
+
+          setExecutionModeFPFastMathDefault(BF, FloatSPIRVTypes, 0);
+        } else {
+          BF->addExecutionMode(BM->add(new SPIRVExecutionMode(
+              OpExecutionMode, BF, static_cast<ExecutionMode>(EMode))));
+        }
         break;
       case spv::ExecutionModeInitializer:
       case spv::ExecutionModeFinalizer:
@@ -6534,9 +6682,21 @@ bool LLVMToSPIRVBase::transExecutionMode() {
         BM->addCapability(CapabilityVectorComputeINTEL);
       } break;
 
+      case spv::ExecutionModeSignedZeroInfNanPreserve:
+        // With SPV_KHR_float_controls2 this execution mode is deprecated.
+        // Map this execution mode to the FPFastMathDefault with all flags set
+        // to 0.
+        if (BM->isAllowedToUseExtension(ExtensionID::SPV_KHR_float_controls2)) {
+          unsigned BitWidth;
+          N.get(BitWidth);
+
+          SPIRVTypeFloat *FloatSPIRVType = BM->addFloatType(BitWidth);
+          setExecutionModeFPFastMathDefault(BF, FloatSPIRVType, 0);
+          break;
+        }
+        [[fallthrough]];
       case spv::ExecutionModeDenormPreserve:
       case spv::ExecutionModeDenormFlushToZero:
-      case spv::ExecutionModeSignedZeroInfNanPreserve:
       case spv::ExecutionModeRoundingModeRTE:
       case spv::ExecutionModeRoundingModeRTZ: {
         if (BM->isAllowedToUseVersion(VersionNumber::SPIRV_1_4)) {
@@ -6563,13 +6723,26 @@ bool LLVMToSPIRVBase::transExecutionMode() {
           break;
         AddSingleArgExecutionMode(static_cast<ExecutionMode>(EMode));
       } break;
+      case spv::ExecutionModeFPFastMathDefault: {
+        if (!BM->isAllowedToUseExtension(ExtensionID::SPV_KHR_float_controls2))
+          break;
+        assert(F);
+        BM->addCapability(CapabilityFloatControls2);
+        BM->addExtension(ExtensionID::SPV_KHR_float_controls2);
+        PoisonValue *V = nullptr;
+        unsigned FlagsLiteral;
+        N.get(V).get(FlagsLiteral);
+        assert(V && V->getType()->isFloatingPointTy());
+        SPIRVTypeFloat *FloatSPIRVType =
+            static_cast<SPIRVTypeFloat *>(transType(V->getType()));
+        setExecutionModeFPFastMathDefault(BF, FloatSPIRVType, FlagsLiteral);
+        break;
+      }
       default:
         llvm_unreachable("invalid execution mode");
       }
     }
   }
-
-  transFPContract();
 
   return true;
 }
@@ -6577,6 +6750,7 @@ bool LLVMToSPIRVBase::transExecutionMode() {
 void LLVMToSPIRVBase::transFPContract() {
   FPContractMode Mode = BM->getFPContractMode();
 
+  LLVMContext &C = M->getContext();
   for (Function &F : *M) {
     SPIRVValue *TranslatedF = getTranslatedValue(&F);
     if (!TranslatedF) {
@@ -6585,7 +6759,7 @@ void LLVMToSPIRVBase::transFPContract() {
     SPIRVFunction *BF = static_cast<SPIRVFunction *>(TranslatedF);
 
     bool IsKernelEntryPoint =
-        BF->getModule()->isEntryPoint(spv::ExecutionModelKernel, BF->getId());
+        BM->isEntryPoint(spv::ExecutionModelKernel, BF->getId());
     if (!IsKernelEntryPoint)
       continue;
 
@@ -6606,8 +6780,12 @@ void LLVMToSPIRVBase::transFPContract() {
     }
 
     if (DisableContraction) {
-      BF->addExecutionMode(BF->getModule()->add(new SPIRVExecutionMode(
-          OpExecutionMode, BF, spv::ExecutionModeContractionOff)));
+      NamedMDNode *ExecModeMD =
+          M->getOrInsertNamedMetadata(kSPIRVMD::ExecutionMode);
+      Metadata *ContractionOff[2] = {ConstantAsMetadata::get(&F),
+                                     ConstantAsMetadata::get(getUInt32(
+                                         M, spv::ExecutionModeContractionOff))};
+      ExecModeMD->addOperand(MDNode::get(C, ContractionOff));
     }
   }
 }

@@ -1,9 +1,8 @@
 /*
  *
- * Copyright (C) 2023 Intel Corporation
  *
- * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
- * Exceptions. See LICENSE.TXT
+ * Part of the LLVM Project, under the Apache License v2.0 with LLVM
+ * Exceptions. See https://llvm.org/LICENSE.txt for license information.
  *
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
@@ -19,7 +18,7 @@
 #include <sstream>
 #include <string_view>
 
-#include "ur_api.h"
+#include "unified-runtime/ur_api.h"
 #include "xpti/xpti_trace_framework.h"
 
 constexpr uint16_t TRACE_FN_BEGIN =

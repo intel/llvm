@@ -1,9 +1,8 @@
 //===----------- queue.cpp - Native CPU Adapter ---------------------------===//
 //
-// Copyright (C) 2023-2026 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
@@ -11,8 +10,8 @@
 #include "queue.hpp"
 #include "common.hpp"
 
+#include "unified-runtime/ur_api.h"
 #include "ur/ur.hpp"
-#include "ur_api.h"
 
 UR_APIEXPORT ur_result_t UR_APICALL urQueueGetInfo(ur_queue_handle_t hQueue,
                                                    ur_queue_info_t propName,
@@ -125,6 +124,12 @@ urEnqueueGraphExp(ur_queue_handle_t /* hQueue */,
 
 UR_APIEXPORT ur_result_t urQueueIsGraphCaptureEnabledExp(
     ur_queue_handle_t /* hQueue */, bool * /* hResult */) {
+
+  DIE_NO_IMPLEMENTATION;
+}
+
+UR_APIEXPORT ur_result_t urQueueGetGraphExp(
+    ur_queue_handle_t /* hQueue */, ur_exp_graph_handle_t * /* phGraph */) {
 
   DIE_NO_IMPLEMENTATION;
 }

@@ -100,28 +100,55 @@ using device queries, as shown in the example below.
 
 [source,c++]
 ----
-auto bundle = sycl::get_kernel_bundle(q.get_context());
-auto kernel = bundle.get_kernel<class KernelName>();
-auto maxWGs = kernel.ext_oneapi_get_info<sycl::ext::oneapi::experimental::info::kernel_queue_specific::max_num_work_group_sync>(q);
-auto range = sycl::nd_range<1>{maxWGs * 32, 32};
-auto props = sycl::ext::oneapi::experimental::properties{sycl::ext::oneapi::experimental::use_root_sync};
-q.parallel_for<class KernelName>(range, props, [=](sycl::nd_item<1> it) {
+#include <sycl/sycl.hpp>
+namespace syclex = sycl::ext::oneapi::experimental;
 
-    // Get a handle to the root-group
+struct KernelName {
+  KernelName(size_t *data) : data{data} {}
+
+  void operator()(sycl::nd_item<1> it) const {
+    // Get a handle to the root-group.
     auto root = it.ext_oneapi_get_root_group();
 
-    // Write to some global memory location
-    data[root.get_local_id()] = root.get_local_id();
+    // Write to some global memory location.
+    data[root.get_local_linear_id()] = root.get_local_linear_id();
 
-    // Synchronize all work-items executing the kernel, making all writes visible
+    // Synchronize all work-items executing the kernel, making all writes visible.
     sycl::group_barrier(root);
+  }
 
-});
+  auto get(syclex::properties_tag) const {
+    // Kernels that use root-group synchronization must be decorated with the
+    // "use_root_sync" kernel property.
+    return syclex::properties{syclex::use_root_sync};
+  }
+
+  size_t *data;
+};
+
+int main() {
+  sycl::queue q;
+
+  // When a kernel uses root-group synchronization, the total number of
+  // work-groups is limited.  This limit can vary depending on the kernel,
+  // so get a "kernel" object representing the kernel when plan to launch.
+  auto bundle = sycl::get_kernel_bundle<KernelName, sycl::bundle_state::executable>(
+    q.get_context());
+  auto kernel = bundle.get_kernel<KernelName>();
+
+  // Get the maximum number of work-groups for this kernel.  The limit also
+  // depends on the size of each work-group (which is 32 in this example), and
+  // on the amount of work-group local memory (which is 0 in this example).
+  auto maxWGs = kernel.ext_oneapi_get_info<
+    syclex::info::kernel_queue_specific::max_num_work_groups>(q, 32, 0);
+
+  // Construct an nd-range which launches the maximum number of work-groups.
+  auto ndr = sycl::nd_range<1>{maxWGs * 32, 32};
+
+  size_t *data = sycl::malloc_device<size_t>(maxWGs * 32, q);
+  q.parallel_for(ndr, KernelName{data}).wait();
+}
 ----
-
-NOTE: SYCL 2020 requires lambdas to be named in order to locate the associated
-`sycl::kernel` object used to query information descriptors. Reducing the
-verbosity of the queries shown above is left to a future extension.
 
 
 == Specification
@@ -151,20 +178,14 @@ supports.
 
 [source,c++]
 ----
-namespace sycl {
-namespace ext {
-namespace oneapi {
-namespace experimental {
+namespace sycl::ext::oneapi::experimental {
 
 struct use_root_sync_key {
   using value_t = property_value<use_root_sync_key>;
 };
 inline constexpr use_root_sync_key::value_t use_root_sync;
 
-} // namespace experimental
-} // namespace oneapi
-} // namespace ext
-} // namespace sycl
+} // namespace sycl::ext::oneapi::experimental
 ----
 
 |===
@@ -188,10 +209,7 @@ additional functions.
 
 [source,c++]
 ----
-namespace sycl {
-namespace ext {
-namespace oneapi {
-namespace experimental {
+namespace sycl::ext::oneapi::experimental {
 
 enum class execution_scope {
   work_item,
@@ -257,10 +275,7 @@ public:
 
 };
 
-} // namespace experimental
-} // namespace oneapi
-} // namespace ext
-} // namespace sycl
+} // namespace sycl::ext::oneapi::experimental
 ----
 
 [source,c++]
@@ -421,13 +436,13 @@ NOTE: Support for passing the `root_group` to other group functions and
 algorithms may be added in a future version of this extension.
 
 These group functions and algorithms act as synchronization points, and can
-only be used in kernels launched with the `use_root_sync` property.
-Attempting to call these functions in kernels that were not launched with the
+only be used in kernels decorated with the `use_root_sync` property.
+Attempting to call these functions in kernels that were not decorated with the
 `use_root_sync` property results in undefined behavior.
 
 NOTE: Implementations are encouraged to throw a synchronous error with the
 `errc::invalid` error code if they are able to detect that a developer has
-attempted to synchronize a `root_group` from an incompatible kernel launch.
+attempted to synchronize a `root_group` from an incompatible kernel.
 
 
 === Accessing the `root_group` instance
@@ -506,12 +521,12 @@ implementation of this extension.  It is not part of the specification of the
 extension's API.
 
 An implementation of this extension using Level Zero could launch kernels
-associated with the `use_root_sync` property via
+decorated with the `use_root_sync` property via
 `zeCommandListAppendLaunchCooperativeKernel`, and could query launch
 configuration requirements using `zeKernelSuggestMaxCooperativeGroupCount`.
 
 Similarly, an implementation of this extension using CUDA could launch kernels
-associated with the `use_root_sync` property via
+decorated with the `use_root_sync` property via
 `cudaLaunchCooperativeKernel`, and could query launch configuration
 requirements using a combination of
 `cudaOccupancyMaxActiveBlocksPerMultiprocessor` and
@@ -544,4 +559,3 @@ template argument for `sycl::nd_item<>`. Adding a runtime query would require
 callstack. It's unclear if this functionality is necessary or just nice to
 have -- resolution of this issue depends on user and implementation experience.
 --
-

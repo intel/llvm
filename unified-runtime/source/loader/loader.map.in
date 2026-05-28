@@ -31,6 +31,7 @@
 		urBindlessImagesUnsampledImageHandleDestroyExp;
 		urBindlessImagesWaitExternalSemaphoreExp;
 		urCommandBufferAppendKernelLaunchExp;
+		urCommandBufferAppendKernelLaunchWithArgsExp;
 		urCommandBufferAppendMemBufferCopyExp;
 		urCommandBufferAppendMemBufferCopyRectExp;
 		urCommandBufferAppendMemBufferFillExp;
@@ -78,7 +79,6 @@
 		urEnqueueEventsWaitWithBarrierExt;
 		urEnqueueGraphExp;
 		urEnqueueHostTaskExp;
-		urEnqueueKernelLaunch;
 		urEnqueueKernelLaunchWithArgsExp;
 		urEnqueueMemBufferCopy;
 		urEnqueueMemBufferCopyRect;
@@ -145,6 +145,7 @@
 		urGraphExecutableGraphDestroyExp;
 		urGraphInstantiateGraphExp;
 		urGraphIsEmptyExp;
+		urGraphSetDestructionCallbackExp;
 		urIPCCloseMemHandleExp;
 		urIPCGetMemHandleExp;
 		urIPCOpenMemHandleExp;
@@ -156,13 +157,9 @@
 		urKernelGetNativeHandle;
 		urKernelGetSubGroupInfo;
 		urKernelGetSuggestedLocalWorkSize;
+		urKernelGetSuggestedLocalWorkSizeWithArgs;
 		urKernelRelease;
 		urKernelRetain;
-		urKernelSetArgLocal;
-		urKernelSetArgMemObj;
-		urKernelSetArgPointer;
-		urKernelSetArgSampler;
-		urKernelSetArgValue;
 		urKernelSetExecInfo;
 		urKernelSetSpecializationConstants;
 		urKernelSuggestMaxCooperativeGroupCount;
@@ -241,6 +238,7 @@
 		urPrintCodeLocation;
 		urPrintCommand;
 		urPrintCommandBufferAppendKernelLaunchExpParams;
+		urPrintCommandBufferAppendKernelLaunchWithArgsExpParams;
 		urPrintCommandBufferAppendMemBufferCopyExpParams;
 		urPrintCommandBufferAppendMemBufferCopyRectExpParams;
 		urPrintCommandBufferAppendMemBufferFillExpParams;
@@ -308,7 +306,6 @@
 		urPrintEnqueueEventsWaitWithBarrierParams;
 		urPrintEnqueueGraphExpParams;
 		urPrintEnqueueHostTaskExpParams;
-		urPrintEnqueueKernelLaunchParams;
 		urPrintEnqueueKernelLaunchWithArgsExpParams;
 		urPrintEnqueueMemBufferCopyParams;
 		urPrintEnqueueMemBufferCopyRectParams;
@@ -382,6 +379,8 @@
 		urPrintExpSamplerCubemapFilterMode;
 		urPrintExpSamplerCubemapProperties;
 		urPrintExpSamplerMipProperties;
+		urPrintExpUsmHostAllocRegisterFlags;
+		urPrintExpUsmHostAllocRegisterProperties;
 		urPrintExpWin32Handle;
 		urPrintFunction;
 		urPrintFunctionParams;
@@ -391,6 +390,7 @@
 		urPrintGraphExecutableGraphDestroyExpParams;
 		urPrintGraphInstantiateGraphExpParams;
 		urPrintGraphIsEmptyExpParams;
+		urPrintGraphSetDestructionCallbackExpParams;
 		urPrintImageChannelOrder;
 		urPrintImageChannelType;
 		urPrintImageDesc;
@@ -415,6 +415,7 @@
 		urPrintKernelGetNativeHandleParams;
 		urPrintKernelGetSubGroupInfoParams;
 		urPrintKernelGetSuggestedLocalWorkSizeParams;
+		urPrintKernelGetSuggestedLocalWorkSizeWithArgsParams;
 		urPrintKernelGroupInfo;
 		urPrintKernelInfo;
 		urPrintKernelLaunchClusterProperty;
@@ -425,11 +426,6 @@
 		urPrintKernelNativeProperties;
 		urPrintKernelReleaseParams;
 		urPrintKernelRetainParams;
-		urPrintKernelSetArgLocalParams;
-		urPrintKernelSetArgMemObjParams;
-		urPrintKernelSetArgPointerParams;
-		urPrintKernelSetArgSamplerParams;
-		urPrintKernelSetArgValueParams;
 		urPrintKernelSetExecInfoParams;
 		urPrintKernelSetSpecializationConstantsParams;
 		urPrintKernelSubGroupInfo;
@@ -515,6 +511,7 @@
 		urPrintQueueFinishParams;
 		urPrintQueueFlags;
 		urPrintQueueFlushParams;
+		urPrintQueueGetGraphExpParams;
 		urPrintQueueGetInfoParams;
 		urPrintQueueGetNativeHandleParams;
 		urPrintQueueIndexProperties;
@@ -552,6 +549,8 @@
 		urPrintUsmFreeParams;
 		urPrintUsmGetMemAllocInfoParams;
 		urPrintUsmHostAllocParams;
+		urPrintUsmHostAllocRegisterExpParams;
+		urPrintUsmHostAllocUnregisterExpParams;
 		urPrintUsmHostDesc;
 		urPrintUsmHostMemFlags;
 		urPrintUsmImportExpParams;
@@ -615,6 +614,7 @@
 		urQueueEndGraphCaptureExp;
 		urQueueFinish;
 		urQueueFlush;
+		urQueueGetGraphExp;
 		urQueueGetInfo;
 		urQueueGetNativeHandle;
 		urQueueIsGraphCaptureEnabledExp;
@@ -631,6 +631,8 @@
 		urUSMFree;
 		urUSMGetMemAllocInfo;
 		urUSMHostAlloc;
+		urUSMHostAllocRegisterExp;
+		urUSMHostAllocUnregisterExp;
 		urUSMImportExp;
 		urUSMPitchedAllocExp;
 		urUSMPoolCreate;

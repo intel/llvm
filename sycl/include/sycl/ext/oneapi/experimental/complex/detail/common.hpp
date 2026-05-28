@@ -10,7 +10,7 @@
 
 #include <type_traits>
 
-#include <sycl/half_type.hpp>
+#include <sycl/detail/half_type_impl.hpp>
 
 namespace sycl {
 inline namespace _V1 {

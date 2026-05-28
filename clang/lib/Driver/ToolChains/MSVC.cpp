@@ -366,9 +366,22 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     A.renderAsInput(Args, CmdArgs);
   }
 
-  addHIPRuntimeLibArgs(TC, C, Args, CmdArgs);
+  TC.addOffloadRTLibs(C.getActiveOffloadKinds(), Args, CmdArgs);
 
   TC.addProfileRTLibs(Args, CmdArgs);
+
+  // -fsycl-allow-device-image-dependencies explicitly indicates that device
+  // code may depend on external device images contained in linked libraries. On
+  // Windows, /OPT:REF can incorrectly discard those libraries when no host-side
+  // symbol references exist, because the dependency is only visible through
+  // device-side usage. Adding /OPT:NOREF here (after user arguments) ensures it
+  // overrides any user-specified /OPT:REF, preserving required dependencies and
+  // preventing runtime failures such as "No device image found."
+  if (Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false) &&
+      Args.hasFlag(options::OPT_fsycl_allow_device_image_dependencies,
+                   options::OPT_fno_sycl_allow_device_image_dependencies,
+                   false))
+    CmdArgs.push_back("/OPT:NOREF");
 
   std::vector<const char *> Environment;
 
@@ -557,11 +570,18 @@ void MSVCToolChain::addSYCLIncludeArgs(const ArgList &DriverArgs,
   SYCLInstallation->addSYCLIncludeArgs(DriverArgs, CC1Args);
 }
 
-void MSVCToolChain::AddHIPRuntimeLibArgs(const ArgList &Args,
-                                         ArgStringList &CmdArgs) const {
-  CmdArgs.append({Args.MakeArgString(StringRef("-libpath:") +
-                                     RocmInstallation->getLibPath()),
-                  "amdhip64.lib"});
+void MSVCToolChain::addOffloadRTLibs(unsigned ActiveKinds, const ArgList &Args,
+                                     ArgStringList &CmdArgs) const {
+  if (!Args.hasFlag(options::OPT_offloadlib, options::OPT_no_offloadlib,
+                    true) ||
+      Args.hasArg(options::OPT_no_hip_rt) || Args.hasArg(options::OPT_r))
+    return;
+
+  if (ActiveKinds & Action::OFK_HIP) {
+    CmdArgs.append({Args.MakeArgString(StringRef("-libpath:") +
+                                       RocmInstallation->getLibPath()),
+                    "amdhip64.lib"});
+  }
 }
 
 void MSVCToolChain::printVerboseInfo(raw_ostream &OS) const {

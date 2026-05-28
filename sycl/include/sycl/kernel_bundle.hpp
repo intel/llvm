@@ -9,6 +9,7 @@
 #pragma once
 
 #include <sycl/backend_types.hpp>          // for backend, backend_return_t
+#include <sycl/context.hpp>                // for context
 #include <sycl/detail/export.hpp>          // for __SYCL_EXPORT
 #include <sycl/detail/kernel_desc.hpp>     // for get_spec_constant_symboli...
 #include <sycl/detail/owner_less_base.hpp> // for OwnerLessBase
@@ -20,13 +21,14 @@
 #include <sycl/kernel_bundle_enums.hpp> // for bundle_state
 #include <sycl/property_list.hpp>       // for property_list
 #include <sycl/sycl_span.hpp>
-#include <ur_api.h>
+#include <unified-runtime/ur_api.h>
 
 #include <sycl/ext/oneapi/experimental/free_function_traits.hpp>
-#include <sycl/ext/oneapi/properties/properties.hpp>     // PropertyT
+#include <sycl/ext/oneapi/properties.hpp>                // PropertyT
 #include <sycl/ext/oneapi/properties/property.hpp>       // build_options
 #include <sycl/ext/oneapi/properties/property_value.hpp> // and log
 
+#include <algorithm> // for find_if
 #include <array>      // for array
 #include <cstddef>    // for std::byte
 #include <cstring>    // for size_t, memcpy

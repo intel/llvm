@@ -2,6 +2,9 @@
 // RUN: %{run} %t.out
 // REQUIRES: target-nvidia, cuda_dev_kit
 
+// UNSUPPORTED: cuda
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21343
+
 #include <cuda.h>
 #include <sycl/backend.hpp>
 #include <sycl/ext/oneapi/experimental/graph.hpp>
