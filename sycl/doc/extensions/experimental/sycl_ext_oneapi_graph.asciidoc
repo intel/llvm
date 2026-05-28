@@ -2119,6 +2119,13 @@ auto node = graph.add([&](sycl::handler& cgh){
 
 Host-tasks can be updated using <<executable-graph-update, Executable Graph Update>>.
 
+When using `property::graph::enable_native_recording`, host tasks submitted via
+`sycl::handler::host_task` are not supported and will throw an exception. Host
+tasks submitted via
+`sycl::ext::oneapi::experimental::host_task` from the
+link:../experimental/sycl_ext_oneapi_enqueue_functions.asciidoc[sycl_ext_oneapi_enqueue_functions]
+extension are supported.
+
 
 === Queue Behavior In Recording Mode
 
@@ -2648,7 +2655,11 @@ if used in application code.
 
 . Using reductions in a graph node.
 . Using sycl streams in a graph node.
-. Using host tasks via `sycl::handler::host_task` in a graph node when `property::graph::enable_native_recording` is set.
+. Using host tasks via `sycl::handler::host_task` in a graph node when
+  `property::graph::enable_native_recording` is set. Host tasks submitted via
+  `sycl::ext::oneapi::experimental::host_task` from
+  link:../experimental/sycl_ext_oneapi_enqueue_functions.asciidoc[sycl_ext_oneapi_enqueue_functions]
+  are supported in native recording mode.
 . Calling `update()` on an executable graph created from a graph with
   `property::graph::enable_native_recording`.
 . Using an out-of-order queue with `property::graph::enable_native_recording`.
