@@ -512,6 +512,8 @@ typedef enum ur_function_t {
   UR_FUNCTION_QUEUE_GET_GRAPH_EXP = 314,
   /// Enumerator for ::urGraphSetDestructionCallbackExp
   UR_FUNCTION_GRAPH_SET_DESTRUCTION_CALLBACK_EXP = 315,
+  /// Enumerator for ::urKhrFlush
+  UR_FUNCTION_KHR_FLUSH = 316,
   /// @cond
   UR_FUNCTION_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -6604,6 +6606,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueFinish(
 ///     - ::UR_RESULT_ERROR_INVALID_QUEUE
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 UR_APIEXPORT ur_result_t UR_APICALL urQueueFlush(
+    /// [in] handle of the queue to be flushed.
+    ur_queue_handle_t hQueue);
+
+UR_APIEXPORT ur_result_t UR_APICALL urKhrFlush(
     /// [in] handle of the queue to be flushed.
     ur_queue_handle_t hQueue);
 
@@ -14699,6 +14705,14 @@ typedef struct ur_queue_finish_params_t {
 typedef struct ur_queue_flush_params_t {
   ur_queue_handle_t *phQueue;
 } ur_queue_flush_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urKhrFlush
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_khr_flush_params_t {
+  ur_queue_handle_t *phQueue;
+} ur_khr_flush_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urQueueBeginGraphCaptureExp

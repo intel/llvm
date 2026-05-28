@@ -624,6 +624,10 @@ typedef ur_result_t(UR_APICALL *ur_pfnQueueFinish_t)(ur_queue_handle_t);
 typedef ur_result_t(UR_APICALL *ur_pfnQueueFlush_t)(ur_queue_handle_t);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urQueueFlush
+typedef ur_result_t(UR_APICALL *ur_pfnKhrFlush_t)(ur_queue_handle_t);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of Queue functions pointers
 typedef struct ur_queue_dditable_t {
   ur_pfnQueueGetInfo_t pfnGetInfo;
@@ -634,6 +638,7 @@ typedef struct ur_queue_dditable_t {
   ur_pfnQueueCreateWithNativeHandle_t pfnCreateWithNativeHandle;
   ur_pfnQueueFinish_t pfnFinish;
   ur_pfnQueueFlush_t pfnFlush;
+  ur_pfnKhrFlush_t pfnKhrFlush;
 } ur_queue_dditable_t;
 
 ///////////////////////////////////////////////////////////////////////////////

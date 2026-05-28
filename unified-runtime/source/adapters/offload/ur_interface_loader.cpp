@@ -249,6 +249,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetQueueProcAddrTable(
   pDdiTable->pfnCreateWithNativeHandle = urQueueCreateWithNativeHandle;
   pDdiTable->pfnFinish = urQueueFinish;
   pDdiTable->pfnFlush = urQueueFlush;
+  pDdiTable->pfnKhrFlush = urKhrFlush;
   pDdiTable->pfnGetInfo = urQueueGetInfo;
   pDdiTable->pfnGetNativeHandle = urQueueGetNativeHandle;
   pDdiTable->pfnRelease = urQueueRelease;

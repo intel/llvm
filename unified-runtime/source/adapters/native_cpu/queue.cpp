@@ -94,6 +94,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueFlush(ur_queue_handle_t /*hQueue*/) {
   DIE_NO_IMPLEMENTATION;
 }
 
+UR_APIEXPORT ur_result_t UR_APICALL urKhrFlush(ur_queue_handle_t /*hQueue*/) {
+
+  DIE_NO_IMPLEMENTATION;
+}
+
 UR_APIEXPORT ur_result_t
 urQueueBeginGraphCaptureExp(ur_queue_handle_t /* hQueue */) {
 

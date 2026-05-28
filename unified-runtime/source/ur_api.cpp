@@ -3582,6 +3582,13 @@ ur_result_t UR_APICALL urQueueFlush(
   return result;
 }
 
+ur_result_t UR_APICALL urKhrFlush(
+    /// [in] handle of the queue to be flushed.
+    ur_queue_handle_t hQueue) {
+  ur_result_t result = UR_RESULT_SUCCESS;
+  return result;
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Get event object information
 ///
