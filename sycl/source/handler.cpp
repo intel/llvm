@@ -881,7 +881,12 @@ void handler::verifyUsedKernelBundleInternal(detail::string_view KernelName) {
   if (!impl->isStateExplicitKernelBundle())
     return;
 
-  kernel_id KernelID = detail::get_kernel_id_impl(KernelName);
+  // Use the name's data pointer as anchor to resolve the per-DSO kernel_id.
+  // The caller passes CompileTimeKernelInfo<KernelName>.Name which is
+  // DLL_LOCAL, so its data() pointer is unique per DSO and can be used to
+  // identify the caller's module.
+  kernel_id KernelID =
+      detail::get_kernel_id_impl(KernelName, KernelName.data());
   if (!UsedKernelBundleImplPtr->has_kernel(
           KernelID, detail::createSyclObjFromImpl<device>(impl->get_device())))
     throw sycl::exception(

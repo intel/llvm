@@ -585,6 +585,8 @@ namespace detail {
 // Internal non-template versions of get_kernel_id API which is used by public
 // onces
 __SYCL_EXPORT kernel_id get_kernel_id_impl(string_view KernelName);
+__SYCL_EXPORT kernel_id get_kernel_id_impl(string_view KernelName,
+                                           const void *Anchor);
 } // namespace detail
 
 /// \returns the kernel_id associated with the KernelName
@@ -592,7 +594,8 @@ template <typename KernelName> kernel_id get_kernel_id() {
   // FIXME: This must fail at link-time if KernelName not in any available
   // translation units.
   return detail::get_kernel_id_impl(
-      detail::CompileTimeKernelInfo<KernelName>.Name);
+      detail::CompileTimeKernelInfo<KernelName>.Name,
+      detail::CompileTimeKernelInfo<KernelName>.Name.data());
 }
 
 /// \returns a vector with all kernel_id's defined in the application

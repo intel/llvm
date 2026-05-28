@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
+#include <sycl/detail/export.hpp>
 #include <sycl/detail/kernel_desc.hpp>
 #include <sycl/detail/string_view.hpp>
 
@@ -15,7 +16,7 @@ inline namespace _V1 {
 namespace detail {
 
 template <typename KernelNameType>
-constexpr kernel_param_desc_t getKernelParamDesc(int Idx) {
+__SYCL_DLL_LOCAL constexpr kernel_param_desc_t getKernelParamDesc(int Idx) {
 #ifndef __INTEL_SYCL_USE_INTEGRATION_HEADERS
   kernel_param_desc_t ParamDesc;
   ParamDesc.kind =
@@ -68,7 +69,7 @@ struct CompileTimeKernelInfoTy {
 };
 
 template <class Kernel>
-inline constexpr CompileTimeKernelInfoTy CompileTimeKernelInfo{
+__SYCL_DLL_LOCAL inline constexpr CompileTimeKernelInfoTy CompileTimeKernelInfo{
 #ifndef __INTEL_SYCL_USE_INTEGRATION_HEADERS
     __builtin_sycl_kernel_name(KernelIdentity<Kernel>()),
     __builtin_sycl_kernel_param_count(KernelIdentity<Kernel>()),
