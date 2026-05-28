@@ -1809,6 +1809,37 @@ __urdlllocal ur_result_t UR_APICALL urMemoryExportAllocExportableMemoryExp(
   return UR_RESULT_SUCCESS;
 }
 
+/// @brief Intercept function for urIPCOpenMemHandleExp
+__urdlllocal ur_result_t UR_APICALL urIPCOpenMemHandleExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device object the corresponding USM device memory
+    /// was allocated on
+    ur_device_handle_t hDevice,
+    /// [in] the IPC memory handle data
+    void *pIPCMemHandleData,
+    /// [in] size of the IPC memory handle data
+    size_t ipcMemHandleDataSize,
+    /// [out] pointer to a pointer to device USM memory
+    void **ppMem) {
+  UR_LOG_L(getContext()->logger, DEBUG, "==== urIPCOpenMemHandleExp");
+
+  UR_CALL(getContext()->urDdiTable.IPCExp.pfnOpenMemHandleExp(
+      hContext, hDevice, pIPCMemHandleData, ipcMemHandleDataSize, ppMem));
+
+  // Mark IPC memory as initialized in shadow memory
+  size_t MemSize;
+  UR_CALL(getContext()->urDdiTable.USM.pfnGetMemAllocInfo(
+      hContext, *ppMem, UR_USM_ALLOC_INFO_SIZE, sizeof(MemSize), &MemSize,
+      nullptr));
+  std::shared_ptr<DeviceInfo> DI = getMsanInterceptor()->getDeviceInfo(hDevice);
+  ManagedQueue Queue(hContext, hDevice);
+  UR_CALL(DI->Shadow->EnqueuePoisonShadow(Queue, reinterpret_cast<uptr>(*ppMem),
+                                          MemSize, &kMemInitializedMagic));
+
+  return UR_RESULT_SUCCESS;
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Exported function for filling application's Adapter table
 ///        with current process' addresses
@@ -2022,6 +2053,23 @@ urGetMemoryExportExpProcAddrTable(ur_memory_export_exp_dditable_t *pDdiTable) {
   return UR_RESULT_SUCCESS;
 }
 
+/// @brief Exported function for filling application's IPCExp table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+ur_result_t urGetIPCExpProcAddrTable(
+    /// [in,out] pointer to table of DDI function pointers
+    ur_ipc_exp_dditable_t *pDdiTable) {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  pDdiTable->pfnOpenMemHandleExp =
+      ur_sanitizer_layer::msan::urIPCOpenMemHandleExp;
+
+  return result;
+}
+
 ur_result_t urCheckVersion(ur_api_version_t version) {
   if (UR_MAJOR_VERSION(ur_sanitizer_layer::getContext()->version) !=
           UR_MAJOR_VERSION(version) ||
@@ -2094,6 +2142,11 @@ ur_result_t initMsanDDITable(ur_dditable_t *dditable) {
   if (UR_RESULT_SUCCESS == result) {
     result = ur_sanitizer_layer::msan::urGetMemoryExportExpProcAddrTable(
         &dditable->MemoryExportExp);
+  }
+
+  if (UR_RESULT_SUCCESS == result) {
+    result =
+        ur_sanitizer_layer::msan::urGetIPCExpProcAddrTable(&dditable->IPCExp);
   }
 
   if (result != UR_RESULT_SUCCESS) {

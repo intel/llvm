@@ -319,7 +319,7 @@ class SYCLToolchain {
       PCHFS->addFile(PCHPath, 0, std::move(PrecompiledPreamble));
       auto OverlayFS =
           llvm::makeIntrusiveRefCnt<llvm::vfs::OverlayFileSystem>(VFS);
-      OverlayFS->pushOverlay(PCHFS);
+      OverlayFS->pushOverlay(std::move(PCHFS));
       VFS = std::move(OverlayFS);
     }
 
