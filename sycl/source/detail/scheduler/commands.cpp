@@ -7,6 +7,7 @@
 
 #include "unified-runtime/ur_api.h"
 #include <detail/error_handling/error_handling.hpp>
+#include <detail/host_task.hpp>
 
 #include <detail/context_impl.hpp>
 #include <detail/event_impl.hpp>
@@ -250,20 +251,6 @@ void InteropFreeFunc(ur_queue_handle_t, void *InteropData) {
   return Data->func(Data->ih);
 }
 
-struct EnqueueHostTaskData {
-  explicit EnqueueHostTaskData(std::function<void()> HostTask)
-      : Func(std::move(HostTask)) {}
-
-  std::function<void()> Func;
-};
-
-void NativeHostTask(void *Data) {
-  // Callback data is heap-allocated at enqueue time and released here once
-  // the backend invokes the host task callback.
-  auto HostTaskData = std::unique_ptr<EnqueueHostTaskData>(
-      static_cast<EnqueueHostTaskData *>(Data));
-  HostTaskData->Func();
-}
 } // namespace
 
 class DispatchHostTask {
@@ -393,11 +380,13 @@ public:
               UR_DEVICE_INFO_ENQUEUE_HOST_TASK_SUPPORT_EXP,
               sizeof(NativeHostTaskSupport), &NativeHostTaskSupport, nullptr);
           if (NativeHostTaskSupport) {
-            auto NativeHostTaskData = std::make_unique<EnqueueHostTaskData>(
-                std::move(HostTask.MHostTask->MHostTask));
+            auto NativeHostTaskData =
+                std::make_unique<detail::EnqueueHostTaskData>(
+                    std::move(HostTask.MHostTask->MHostTask));
             ur_event_handle_t HostTaskEvent{};
             Queue->getAdapter().call<UrApiKind::urEnqueueHostTaskExp>(
-                Queue->getHandleRef(), NativeHostTask, NativeHostTaskData.get(),
+                Queue->getHandleRef(), detail::NativeHostTask,
+                NativeHostTaskData.get(),
                 nullptr, 0, nullptr, &HostTaskEvent);
             // Ownership is transferred to NativeHostTask callback on success.
             (void)NativeHostTaskData.release();

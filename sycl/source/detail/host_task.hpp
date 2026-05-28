@@ -82,6 +82,19 @@ inline std::function<void()> HandlerAccess::getHostTaskFunc(HostTask &HT) {
   return std::move(HT.MHostTask);
 }
 
+struct EnqueueHostTaskData {
+  explicit EnqueueHostTaskData(std::function<void()> HostTask)
+      : Func(std::move(HostTask)) {}
+
+  std::function<void()> Func;
+};
+
+inline void NativeHostTask(void *Data) {
+  auto HostTaskData = std::unique_ptr<EnqueueHostTaskData>(
+      static_cast<EnqueueHostTaskData *>(Data));
+  HostTaskData->Func();
+}
+
 } // namespace detail
 } // namespace _V1
 } // namespace sycl
