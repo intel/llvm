@@ -13,6 +13,7 @@
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/owner_less_base.hpp>
 #include <sycl/device.hpp>
+#include <sycl/ext/oneapi/properties/properties.hpp>
 #include <sycl/queue.hpp>
 
 namespace sycl {
@@ -26,17 +27,42 @@ namespace ext::oneapi::experimental {
 
 enum class address_access_mode : char { none = 0, read = 1, read_write = 2 };
 
+// Property controlling whether a physical_mem object can be shared across
+// processes via IPC.
+struct enable_ipc
+    : detail::run_time_property_key<enable_ipc, detail::PropKind::EnableIpc> {
+  enable_ipc(bool enable = true) : value(enable) {}
+  bool value;
+};
+
+using enable_ipc_key = enable_ipc;
+
+inline bool operator==(const enable_ipc &lhs, const enable_ipc &rhs) {
+  return lhs.value == rhs.value;
+}
+inline bool operator!=(const enable_ipc &lhs, const enable_ipc &rhs) {
+  return !(lhs == rhs);
+}
+
 class __SYCL_EXPORT physical_mem
     : public sycl::detail::OwnerLessBase<physical_mem> {
   friend sycl::detail::ImplUtils;
 
 public:
+  template <typename PropertyListT = empty_properties_t>
   physical_mem(const device &SyclDevice, const context &SyclContext,
-               size_t NumBytes);
+               size_t NumBytes, PropertyListT Props = {})
+      : physical_mem(SyclDevice, SyclContext, NumBytes, [&Props]() -> bool {
+          if constexpr (PropertyListT::template has_property<enable_ipc_key>())
+            return Props.template get_property<enable_ipc_key>().value;
+          return false;
+        }()) {}
 
-  physical_mem(const queue &SyclQueue, size_t NumBytes)
-      : physical_mem(SyclQueue.get_device(), SyclQueue.get_context(),
-                     NumBytes) {}
+  template <typename PropertyListT = empty_properties_t>
+  physical_mem(const queue &SyclQueue, size_t NumBytes,
+               PropertyListT Props = {})
+      : physical_mem(SyclQueue.get_device(), SyclQueue.get_context(), NumBytes,
+                     Props) {}
 
   physical_mem(const physical_mem &rhs) = default;
   physical_mem(physical_mem &&rhs) = default;
@@ -57,9 +83,29 @@ public:
 
   size_t size() const noexcept;
 
+  bool ext_oneapi_ipc_enabled() const;
+  bool ipc_enabled() const { return ext_oneapi_ipc_enabled(); }
+
+  // Original public constructors preserved for ABI and source compatibility.
+  physical_mem(const device &SyclDevice, const context &SyclContext,
+               size_t NumBytes);
+  physical_mem(const queue &SyclQueue, size_t NumBytes);
+
 private:
+  // Internal constructor used when IPC is requested via properties.
+  physical_mem(const device &SyclDevice, const context &SyclContext,
+               size_t NumBytes, bool EnableIpc);
+
+  // Internal constructor for creating a physical_mem from an existing impl
+  // (used by createSyclObjFromImpl, e.g. when opening from an IPC handle).
+  explicit physical_mem(std::shared_ptr<sycl::detail::physical_mem_impl> Impl)
+      : impl(std::move(Impl)) {}
+
   std::shared_ptr<sycl::detail::physical_mem_impl> impl;
 };
+
+template <>
+struct is_property_key_of<enable_ipc_key, physical_mem> : std::true_type {};
 
 } // namespace ext::oneapi::experimental
 } // namespace _V1

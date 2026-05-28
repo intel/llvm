@@ -14,6 +14,7 @@
 #include <sycl/detail/defines_elementary.hpp>
 #include <sycl/detail/export.hpp>
 #include <sycl/device.hpp>
+#include <sycl/ext/oneapi/virtual_mem/physical_mem.hpp>
 #include <sycl/platform.hpp>
 
 #include "detail/ipc_common.hpp"
@@ -32,7 +33,11 @@ __SYCL_EXPORT void *openIPCMemHandle(const std::byte *HandleData,
                                      size_t HandleDataSize,
                                      const sycl::context &Ctx,
                                      const sycl::device &Dev);
-}
+
+__SYCL_EXPORT ext::oneapi::experimental::physical_mem
+openIPCPhysMemHandle(const std::byte *HandleData, size_t HandleDataSize,
+                     const sycl::context &Ctx, const sycl::device &Dev);
+} // namespace detail
 
 namespace ext::oneapi::experimental::ipc::memory {
 
@@ -96,6 +101,60 @@ inline void close(void *Ptr) {
   ipc::memory::close(Ptr, Ctx);
 }
 } // namespace ext::oneapi::experimental::ipc::memory
+
+namespace ext::oneapi::experimental::ipc::physical_memory {
+
+__SYCL_EXPORT ipc::handle
+get(const ext::oneapi::experimental::physical_mem &PhysMem);
+
+__SYCL_EXPORT void put(ipc::handle &HandleData, const sycl::context &Ctx);
+
+inline void put(ipc::handle &HandleData) {
+  sycl::device Dev;
+  sycl::context Ctx = Dev.get_platform().khr_get_default_context();
+  ipc::physical_memory::put(HandleData, Ctx);
+}
+
+__SYCL_EXPORT ext::oneapi::experimental::physical_mem
+open(const ipc::handle_data_t &HandleData, const sycl::context &Ctx,
+     const sycl::device &Dev);
+
+inline ext::oneapi::experimental::physical_mem
+open(const ipc::handle_data_t &HandleData, const sycl::device &Dev) {
+  sycl::context Ctx = Dev.get_platform().khr_get_default_context();
+  return ipc::physical_memory::open(HandleData, Ctx, Dev);
+}
+
+inline ext::oneapi::experimental::physical_mem
+open(const ipc::handle_data_t &HandleData) {
+  sycl::device Dev;
+  sycl::context Ctx = Dev.get_platform().khr_get_default_context();
+  return ipc::physical_memory::open(HandleData, Ctx, Dev);
+}
+
+#if __cpp_lib_span
+inline ext::oneapi::experimental::physical_mem
+open(const ipc::handle_data_view_t &HandleDataView, const sycl::context &Ctx,
+     const sycl::device &Dev) {
+  ipc::handle_data_t HandleData{HandleDataView.begin(), HandleDataView.end()};
+  return ipc::physical_memory::open(HandleData, Ctx, Dev);
+}
+
+inline ext::oneapi::experimental::physical_mem
+open(const ipc::handle_data_view_t &HandleDataView, const sycl::device &Dev) {
+  sycl::context Ctx = Dev.get_platform().khr_get_default_context();
+  return ipc::physical_memory::open(HandleDataView, Ctx, Dev);
+}
+
+inline ext::oneapi::experimental::physical_mem
+open(const ipc::handle_data_view_t &HandleDataView) {
+  sycl::device Dev;
+  sycl::context Ctx = Dev.get_platform().khr_get_default_context();
+  return ipc::physical_memory::open(HandleDataView, Ctx, Dev);
+}
+#endif
+
+} // namespace ext::oneapi::experimental::ipc::physical_memory
 
 namespace ext::oneapi::experimental {
 namespace __SYCL_DEPRECATED("The ipc_memory namespace is deprecated. Use the "
