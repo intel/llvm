@@ -18,6 +18,7 @@
 #include <sycl/detail/device_info_types.hpp>
 #include <sycl/detail/type_traits.hpp>
 #include <sycl/ext/codeplay/experimental/max_registers_query.hpp>
+#include <sycl/ext/intel/info/device.hpp>
 #include <sycl/ext/intel/info/kernel.hpp>
 #include <sycl/ext/oneapi/experimental/device_architecture.hpp>
 #include <sycl/ext/oneapi/experimental/forward_progress.hpp>
@@ -214,18 +215,6 @@ template <ext::oneapi::experimental::execution_scope CoordinationScope>
 struct work_item_progress_capabilities;
 
 } // namespace ext::oneapi::experimental::info::device
-
-namespace ext::intel {
-enum class throttle_reason {
-  power_cap,
-  current_limit,
-  thermal_limit,
-  psu_alert,
-  sw_range,
-  hw_range,
-  other
-};
-} // namespace ext::intel
 
 #include <sycl/info/ext_codeplay_device_traits.def>
 #include <sycl/info/ext_intel_device_traits.def>

@@ -16,6 +16,7 @@
 #include <sycl/device.hpp>
 #include <sycl/device_selector.hpp>
 #include <sycl/ext/codeplay/experimental/max_registers_query.hpp>
+#include <sycl/ext/intel/info/device.hpp>
 #include <sycl/ext/oneapi/matrix/query-types.hpp>
 #include <sycl/info/info_desc.hpp>
 
@@ -208,6 +209,49 @@ device::get_info_impl<
 template __SYCL_EXPORT detail::ABINeutralT_t<uint32_t>
 device::get_info_impl<ext::codeplay::experimental::info::device::
                           max_registers_per_work_group>() const;
+
+#define __SYCL_INTEL_DEVICE_INST(NS, NAME, RETURN_T)                           \
+  template __SYCL_EXPORT detail::ABINeutralT_t<RETURN_T>                       \
+  device::get_info_impl<NS::NAME>() const;
+__SYCL_INTEL_DEVICE_INST(ext::intel::info::device, device_id, uint32_t)
+__SYCL_INTEL_DEVICE_INST(ext::intel::info::device, pci_address, std::string)
+__SYCL_INTEL_DEVICE_INST(ext::intel::info::device, gpu_eu_count, uint32_t)
+__SYCL_INTEL_DEVICE_INST(ext::intel::info::device, gpu_eu_simd_width, uint32_t)
+__SYCL_INTEL_DEVICE_INST(ext::intel::info::device, gpu_slices, uint32_t)
+__SYCL_INTEL_DEVICE_INST(ext::intel::info::device, gpu_subslices_per_slice,
+                         uint32_t)
+__SYCL_INTEL_DEVICE_INST(ext::intel::info::device, gpu_eu_count_per_subslice,
+                         uint32_t)
+__SYCL_INTEL_DEVICE_INST(ext::intel::info::device, gpu_hw_threads_per_eu,
+                         uint32_t)
+__SYCL_INTEL_DEVICE_INST(ext::intel::info::device, max_mem_bandwidth, uint64_t)
+__SYCL_INTEL_DEVICE_INST(ext::intel::info::device, uuid, detail::uuid_type)
+__SYCL_INTEL_DEVICE_INST(ext::intel::info::device, free_memory, uint64_t)
+__SYCL_INTEL_DEVICE_INST(ext::intel::info::device, memory_clock_rate, uint32_t)
+__SYCL_INTEL_DEVICE_INST(ext::intel::info::device, memory_bus_width, uint32_t)
+__SYCL_INTEL_DEVICE_INST(ext::intel::info::device, max_compute_queue_indices,
+                         int32_t)
+__SYCL_INTEL_DEVICE_INST(ext::intel::esimd::info::device,
+                         has_2d_block_io_support, bool)
+__SYCL_INTEL_DEVICE_INST(ext::intel::info::device,
+                         current_clock_throttle_reasons,
+                         std::vector<ext::intel::throttle_reason>)
+__SYCL_INTEL_DEVICE_INST(ext::intel::info::device, fan_speed, int32_t)
+__SYCL_INTEL_DEVICE_INST(ext::intel::info::device, min_power_limit, int32_t)
+__SYCL_INTEL_DEVICE_INST(ext::intel::info::device, max_power_limit, int32_t)
+__SYCL_INTEL_DEVICE_INST(ext::intel::info::device, luid, detail::luid_type)
+__SYCL_INTEL_DEVICE_INST(ext::intel::info::device, node_mask, uint32_t)
+__SYCL_INTEL_DEVICE_INST(ext::intel::info::device, xe_stack_count, uint32_t)
+__SYCL_INTEL_DEVICE_INST(ext::intel::info::device, xe_regions_per_stack,
+                         uint32_t)
+__SYCL_INTEL_DEVICE_INST(ext::intel::info::device, xe_clusters_per_region,
+                         uint32_t)
+__SYCL_INTEL_DEVICE_INST(ext::intel::info::device, xe_cores_per_cluster,
+                         uint32_t)
+__SYCL_INTEL_DEVICE_INST(ext::intel::info::device, eus_per_xe_core, uint32_t)
+__SYCL_INTEL_DEVICE_INST(ext::intel::info::device, max_lanes_per_hw_thread,
+                         uint32_t)
+#undef __SYCL_INTEL_DEVICE_INST
 
 template <typename Param>
 typename detail::is_backend_info_desc<Param>::return_type
