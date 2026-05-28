@@ -81,18 +81,25 @@ UUR_INSTANTIATE_DEVICE_TEST_SUITE_MULTI_QUEUE(urUSMContextMemcpyExpTestDevice);
 
 TEST_P(urUSMContextMemcpyExpTestDevice, Success) {
   // https://github.com/intel/llvm/issues/19688
-  // Testing fix with multiple iterations to verify race condition is resolved
-  constexpr int NumIterations = 20;
+  constexpr int NumIterations = 100;
+  std::cout << "[urUSMContextMemcpyExpTestDevice] Running " << NumIterations
+            << " iterations to verify race condition fix..." << std::endl;
   for (int i = 0; i < NumIterations; ++i) {
     ASSERT_SUCCESS(
         urUSMContextMemcpyExp(context, dst_ptr, src_ptr, allocation_size));
     verifyData();
 
-    // Re-initialize for next iteration
     if (i < NumIterations - 1) {
       initAllocations();
     }
+
+    if ((i + 1) % 25 == 0) {
+      std::cout << "  Completed " << (i + 1) << "/" << NumIterations
+                << " iterations" << std::endl;
+    }
   }
+  std::cout << "[urUSMContextMemcpyExpTestDevice] All " << NumIterations
+            << " iterations passed successfully!" << std::endl;
 }
 
 // Arbitrarily do the negative tests with device allocations. These are mostly a
