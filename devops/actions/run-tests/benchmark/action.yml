@@ -134,7 +134,7 @@ runs:
       # Check if SYCL dir exists and has SYCL lib; set CMPLR_ROOT if so
       if [ -d "$SYCL_DIR" ] && [ -f "$SYCL_DIR/lib/libsycl.so" ]; then
         echo "Using SYCL from: $SYCL_DIR"
-        export CMPLR_ROOT=$SYCL_DIR
+        export CMPLR_ROOT=$(realpath "$SYCL_DIR")
         echo "CMPLR_ROOT=$CMPLR_ROOT" >> $GITHUB_ENV
 
         # Set timestamp based on the compiler library's time.
@@ -147,9 +147,9 @@ runs:
         which sycl-ls
         sycl-ls
         export CMPLR_ROOT="$(dirname $(dirname $(which sycl-ls)))"
-        echo "Using SYCL from: $CMPLR_ROOT !"
         echo "CMPLR_ROOT=$CMPLR_ROOT" >> $GITHUB_ENV
       fi
+      echo "Using SYCL from: $CMPLR_ROOT !"
 
       if [ -z "$SAVE_TIMESTAMP" ]; then
         export SAVE_TIMESTAMP="$(date -u +'%Y%m%d_%H%M%S')"  # Current timestamp in UTC time
