@@ -575,12 +575,68 @@ urUSMPoolTrimToExp(ur_context_handle_t hContext, ur_device_handle_t hDevice,
 
 UR_APIEXPORT ur_result_t UR_APICALL urUSMContextMemcpyExp(
     ur_context_handle_t hContext, void *pDst, const void *pSrc, size_t Size) {
-  // cuMemcpy for device-to-device copies can execute asynchronously.
-  // Use full synchronization to ensure correctness.
-  ScopedContext Active(hContext->getDevices().front());
-  UR_CHECK_ERROR(cuCtxSynchronize());
-  UR_CHECK_ERROR(cuMemcpyAsync((CUdeviceptr)pDst, (CUdeviceptr)pSrc, Size, 0));
-  UR_CHECK_ERROR(cuStreamSynchronize(0));
+  // Detect memory types to determine if this is a device-to-device copy
+  CUmemorytype memTypeDst, memTypeSrc;
+  CUresult dstResult = cuPointerGetAttribute(
+      &memTypeDst, CU_POINTER_ATTRIBUTE_MEMORY_TYPE, (CUdeviceptr)pDst);
+  CUresult srcResult = cuPointerGetAttribute(
+      &memTypeSrc, CU_POINTER_ATTRIBUTE_MEMORY_TYPE, (CUdeviceptr)pSrc);
+
+  bool isDstDevice = (dstResult == CUDA_SUCCESS &&
+                      memTypeDst == CU_MEMORYTYPE_DEVICE);
+  bool isSrcDevice = (srcResult == CUDA_SUCCESS &&
+                      memTypeSrc == CU_MEMORYTYPE_DEVICE);
+
+  // For host-to-device or device-to-host, use simple synchronous copy
+  // cuMemcpy is synchronous and works correctly for these cases
+  if (!isDstDevice || !isSrcDevice) {
+    UR_CHECK_ERROR(cuMemcpy((CUdeviceptr)pDst, (CUdeviceptr)pSrc, Size));
+    return UR_RESULT_SUCCESS;
+  }
+
+  // Device-to-device copy requires special handling:
+  // cuMemcpy can execute asynchronously for D2D, so we need explicit sync.
+  // See: https://docs.nvidia.com/cuda/cuda-driver-api/api-sync-behavior.html
+
+  // Detect which device owns the destination pointer
+  unsigned int devIdx = 0;
+  UR_CHECK_ERROR(cuPointerGetAttribute(
+      &devIdx, CU_POINTER_ATTRIBUTE_DEVICE_ORDINAL, (CUdeviceptr)pDst));
+
+  if (devIdx >= hContext->getDevices().size()) {
+    return UR_RESULT_ERROR_INVALID_CONTEXT;
+  }
+
+  // Activate the context for the device that owns the destination
+  ur_device_handle_t owningDev = hContext->getDevices()[devIdx];
+  ScopedContext Active(owningDev);
+
+  // Create a dedicated non-blocking stream for this copy
+  // This isolates the operation from other streams and avoids blocking
+  // the entire context (unlike cuCtxSynchronize)
+  CUstream copyStream;
+  UR_CHECK_ERROR(cuStreamCreate(&copyStream, CU_STREAM_NON_BLOCKING));
+
+  try {
+    // Perform async copy on dedicated stream
+    UR_CHECK_ERROR(
+        cuMemcpyAsync((CUdeviceptr)pDst, (CUdeviceptr)pSrc, Size, copyStream));
+
+    // Synchronize only this stream (not the entire context)
+    UR_CHECK_ERROR(cuStreamSynchronize(copyStream));
+
+    // Cleanup
+    UR_CHECK_ERROR(cuStreamDestroy(copyStream));
+
+  } catch (ur_result_t Err) {
+    // Ensure stream is destroyed even on error
+    cuStreamDestroy(copyStream);
+    return Err;
+  } catch (...) {
+    cuStreamDestroy(copyStream);
+    throw;
+  }
+
   return UR_RESULT_SUCCESS;
 }
 
