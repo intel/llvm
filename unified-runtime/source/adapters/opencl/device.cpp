@@ -1416,8 +1416,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   }
   case UR_DEVICE_INFO_PROGRAM_SET_SPECIALIZATION_CONSTANTS: {
     return ReturnValue(
-        ur::cl::getAdapter()->clSetProgramSpecializationConstantFn !=
-        nullptr);
+        ur::cl::getAdapter()->clSetProgramSpecializationConstantFn != nullptr);
   }
   case UR_DEVICE_INFO_USE_NATIVE_ASSERT: {
     bool Supported = false;
@@ -1731,9 +1730,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
     UR_RETURN_ON_FAILURE(ur::opencl::urDeviceGet(
         Platforms[i], UR_DEVICE_TYPE_ALL, 0, nullptr, &NumDevices));
     std::vector<ur_device_handle_t> Devices(NumDevices);
-    UR_RETURN_ON_FAILURE(ur::opencl::urDeviceGet(Platforms[i],
-                                                 UR_DEVICE_TYPE_ALL, NumDevices,
-                                                 Devices.data(), nullptr));
+    UR_RETURN_ON_FAILURE(ur::opencl::urDeviceGet(
+        Platforms[i], UR_DEVICE_TYPE_ALL, NumDevices, Devices.data(), nullptr));
 
     for (auto &Device : Devices) {
       if (Device->CLDevice == NativeHandle) {

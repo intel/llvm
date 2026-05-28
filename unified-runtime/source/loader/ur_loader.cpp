@@ -37,14 +37,27 @@ ur_result_t context_t::init() {
 #if defined(UR_STATIC_ADAPTER_LEVEL_ZERO) || defined(UR_STATIC_ADAPTER_OPENCL)
   // If the adapters were force loaded, it means the user wants to use
   // a specific adapter library. Don't load any static adapters.
+  //
+  // TODO: when L0 and L0v2 also become statically linkable, the L0 block
+  // below must adopt the same probe-and-conditionally-register pattern used
+  // for OpenCL.
   if (!adapter_registry.adaptersForceLoaded()) {
 #ifdef UR_STATIC_ADAPTER_LEVEL_ZERO
     auto &level_zero = platforms.emplace_back(nullptr);
     ur::level_zero::urAdapterGetDdiTables(&level_zero.dditable);
 #endif
 #ifdef UR_STATIC_ADAPTER_OPENCL
-    auto &opencl = platforms.emplace_back(nullptr);
-    ur::opencl::urAdapterGetDdiTables(&opencl.dditable);
+    {
+      // Only register the static OpenCL adapter if the OpenCL runtime can
+      // actually be probed at startup. Otherwise (e.g. libOpenCL missing on
+      // an L0-only system) skip it cleanly so the loader falls back to L0.
+      ur_dditable_t opencl_dditable = {};
+      if (ur::opencl::urAdapterGetDdiTables(&opencl_dditable) ==
+          UR_RESULT_SUCCESS) {
+        auto &opencl = platforms.emplace_back(nullptr);
+        opencl.dditable = opencl_dditable;
+      }
+    }
 #endif
   }
 #endif

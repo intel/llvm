@@ -13,6 +13,10 @@
 
 #include "ur_interface_loader.hpp"
 
+#ifdef UR_STATIC_ADAPTER_OPENCL
+#include "ocl_dynamic_lib.hpp"
+#endif
+
 static ur_result_t validateProcInputs(ur_api_version_t version,
                                       void *pDdiTable) {
   if (nullptr == pDdiTable) {
@@ -740,6 +744,19 @@ const ur_dditable_t *ddi_getter::value() {
 
 #ifdef UR_STATIC_ADAPTER_OPENCL
 ur_result_t urAdapterGetDdiTables(ur_dditable_t *ddi) {
+  // Probe the OpenCL runtime before exposing the DDI tables so the loader
+  // can cleanly skip this adapter on systems where OpenCL isn't usable
+  // (libOpenCL missing, or present as a stub with no real ICD installed).
+  // Skipping at registration time keeps the OCL adapter out of the loader's
+  // platform vector entirely, so L0/L0v2 take its place without being masked.
+  if (!ocl::loadOCLLibrary()) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+  cl_uint NumPlatforms = 0;
+  cl_int Res = ocl::clGetPlatformIDs_ptr(0, nullptr, &NumPlatforms);
+  if (Res != CL_SUCCESS || NumPlatforms == 0) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
   return populateDdiTable(ddi);
 }
 #endif

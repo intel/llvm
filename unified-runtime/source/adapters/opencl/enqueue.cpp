@@ -76,8 +76,8 @@ UR_APIEXPORT ur_result_t urEnqueueEventsWaitWithBarrierExt(
     ur_queue_handle_t hQueue, const ur_exp_enqueue_ext_properties_t *,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
-  return ur::opencl::urEnqueueEventsWaitWithBarrier(
-      hQueue, numEventsInWaitList, phEventWaitList, phEvent);
+  return ur::opencl::urEnqueueEventsWaitWithBarrier(hQueue, numEventsInWaitList,
+                                                    phEventWaitList, phEvent);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferRead(

@@ -82,8 +82,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferCreateExp(
   if (!IsInOrder) {
     QueueProperties.flags = UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE;
   }
-  UR_RETURN_ON_FAILURE(ur::opencl::urQueueCreate(hContext, hDevice,
-                                                 &QueueProperties, &Queue));
+  UR_RETURN_ON_FAILURE(
+      ur::opencl::urQueueCreate(hContext, hDevice, &QueueProperties, &Queue));
 
   cl_int Res = CL_SUCCESS;
   const cl_command_queue CLQueue = Queue->CLQueue;

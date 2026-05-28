@@ -89,7 +89,10 @@ urAdapterGet(uint32_t NumEntries, ur_adapter_handle_t *phAdapters,
              uint32_t *pNumAdapters) {
   static std::mutex AdapterConstructionMutex{};
 
-  if (NumEntries > 0 && phAdapters) {
+  // Always construct the adapter, even for count-only queries (NumEntries==0),
+  // because the loader may bypass the intercept and call this directly when
+  // there is only one platform registered.
+  {
     std::lock_guard<std::mutex> Lock{AdapterConstructionMutex};
 
     if (!liveAdapter) {
@@ -102,7 +105,9 @@ urAdapterGet(uint32_t NumEntries, ur_adapter_handle_t *phAdapters,
         return UR_RESULT_ERROR_UNINITIALIZED;
       }
     }
+  }
 
+  if (NumEntries > 0 && phAdapters) {
     *phAdapters = liveAdapter;
     liveAdapter->RefCount.retain();
   }

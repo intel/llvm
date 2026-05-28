@@ -86,7 +86,7 @@ if(UR_STATIC_ADAPTER_L0)
     target_compile_definitions(ur_loader PRIVATE UR_STATIC_ADAPTER_LEVEL_ZERO)
 endif()
 
-if(UR_STATIC_ADAPTER_OPENCL)
+if(UR_STATIC_ADAPTER_OPENCL AND (UR_BUILD_ADAPTER_OPENCL OR UR_BUILD_ADAPTER_ALL))
     target_link_libraries(ur_loader PRIVATE ur_adapter_opencl)
     target_compile_definitions(ur_loader PRIVATE UR_STATIC_ADAPTER_OPENCL)
 endif()
