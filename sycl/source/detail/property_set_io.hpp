@@ -384,8 +384,12 @@ public:
           break;
         }
         default:
-          throw sycl::exception(make_error_code(errc::invalid),
-                                "Unsupported property type.");
+          throw sycl::exception(
+              make_error_code(errc::invalid),
+              "Unsupported property type: " +
+                  std::to_string(static_cast<int>(Prop.second.getType())) +
+                  " (property '" + Prop.first + "' in set '" + PropSet.first +
+                  "').");
         }
         Out << '\n';
       }

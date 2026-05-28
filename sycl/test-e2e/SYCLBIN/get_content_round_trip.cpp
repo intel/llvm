@@ -19,14 +19,16 @@
 #include <vector>
 
 namespace syclexp = sycl::ext::oneapi::experimental;
-namespace syclext = sycl::ext::oneapi;
 
 static constexpr size_t NUM = 1024;
 static constexpr size_t WGSIZE = 16;
 static constexpr float EPS = 0.001f;
 
 int main(int argc, char *argv[]) {
-  assert(argc == 2);
+  if (argc != 2) {
+    std::cerr << "Usage: " << argv[0] << " <syclbin-file>\n";
+    return 1;
+  }
 
   sycl::queue Q;
   const sycl::context Ctx = Q.get_context();
