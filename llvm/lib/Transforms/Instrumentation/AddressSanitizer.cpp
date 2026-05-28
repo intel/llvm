@@ -3798,6 +3798,51 @@ void AddressSanitizer::initializeCallbacks(const TargetLibraryInfo *TLI) {
           AL1 = AL1.addParamAttribute(*C, 1, AK);
         }
       }
+
+      // __asan_loadX/__asan_storeX(
+      //   ...
+      //   char* file,
+      //   unsigned int line,
+      //   char* func
+      // )
+      if (TargetTriple.isSPIROrSPIRV()) {
+        auto *Int8PtrTy = PointerType::get(*C, kSpirOffloadConstantAS);
+
+        Args1.push_back(Int8PtrTy);            // file
+        Args1.push_back(Type::getInt32Ty(*C)); // line
+        Args1.push_back(Int8PtrTy);            // func
+
+        Args2.push_back(Int8PtrTy);            // file
+        Args2.push_back(Type::getInt32Ty(*C)); // line
+        Args2.push_back(Int8PtrTy);            // func
+
+        for (size_t AddressSpaceIndex = 0;
+             AddressSpaceIndex < kNumberOfAddressSpace; AddressSpaceIndex++) {
+          AsanMemoryAccessCallbackSizedAS
+              [AccessIsWrite][Exp][AddressSpaceIndex] = Inserter.insertFunction(
+                  ClMemoryAccessCallbackPrefix + ExpStr + TypeStr + "N" +
+                      "_as" + itostr(AddressSpaceIndex) + EndingStr,
+                  FunctionType::get(IRB.getVoidTy(), Args2, false), AL2);
+
+          for (size_t AccessSizeIndex = 0;
+               AccessSizeIndex < kNumberOfAccessSizes; AccessSizeIndex++) {
+            const std::string Suffix = TypeStr +
+                                       itostr(1ULL << AccessSizeIndex) + "_as" +
+                                       itostr(AddressSpaceIndex);
+            AsanMemoryAccessCallbackAS[AccessIsWrite][Exp][AccessSizeIndex]
+                                      [AddressSpaceIndex] =
+                                          Inserter.insertFunction(
+                                              ClMemoryAccessCallbackPrefix +
+                                                  ExpStr + Suffix + EndingStr,
+                                              FunctionType::get(IRB.getVoidTy(),
+                                                                Args1, false),
+                                              AL1);
+          }
+        }
+
+        continue;
+      }
+
       AsanErrorCallbackSized[AccessIsWrite][Exp] = Inserter.insertFunction(
           kAsanReportErrorTemplate + ExpStr + TypeStr + "_n" + EndingStr,
           FunctionType::get(IRB.getVoidTy(), Args2, false), AL2);
