@@ -6,16 +6,16 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef __CLC_RELATIONAL_CLC_SIGNBIT_H__
-#define __CLC_RELATIONAL_CLC_SIGNBIT_H__
+#include "clc/utils.h"
 
-#include "clc/internal/clc.h"
+#if __CLC_VECSIZE_OR_1 == 1
+#define __CLC_RETTYPE bool
+#else
+#define __CLC_RETTYPE __CLC_CHARN
+#endif
 
-#define __CLC_FUNCTION __clc_signbit
-#define __CLC_BODY "clc/relational/unary_decl.inc"
+_CLC_OVERLOAD _CLC_DEF __CLC_RETTYPE __CLC_FUNCTION(__CLC_GENTYPE x) {
+  return __CLC_CONVERT_CHARN(__CLC_IMPL_FUNCTION(__CLC_FUNCTION)(x));
+}
 
-#include "clc/math/gentype.inc"
-
-#undef __CLC_FUNCTION
-
-#endif // __CLC_RELATIONAL_CLC_SIGNBIT_H__
+#undef __CLC_RETTYPE
