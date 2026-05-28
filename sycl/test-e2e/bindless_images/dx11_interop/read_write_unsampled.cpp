@@ -2,8 +2,7 @@
 // REQUIRES: windows
 
 // UNSUPPORTED: gpu-intel-gen12
-// UNSUPPORTED-INTENDED: Unknown issue with integrated GPU failing
-//                       when importing memory
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22148 
 
 // UNSUPPORTED: gpu-intel-dg2
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21159

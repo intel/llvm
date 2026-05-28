@@ -3,8 +3,7 @@
 // REQUIRES: windows
 
 // UNSUPPORTED: gpu-intel-gen12
-// UNSUPPORTED-INTENDED: Unknown issue with integrated GPU failing
-//                       when importing memory
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22148
 
 // RUN: %{build} %link-directx -o %t.out
 // RUN: %{run-unfiltered-devices} %t.out
