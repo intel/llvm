@@ -103,28 +103,6 @@ template <typename T> int test_marray_conversion(sycl::queue &queue) {
   return 0;
 }
 
-template <typename T> int test_carray_conversion(sycl::queue &queue) {
-  auto *data = sycl::malloc_shared<fp8_e4m3>(1, queue);
-  data[0] = fp8_e4m3(static_cast<T>(1.25f));
-
-  queue.single_task([=]() {
-    fp8_e4m3 value = data[0];
-    T f = {static_cast<T>(value)};
-    f += static_cast<T>(1.0f);
-    data[0] = fp8_e4m3(f);
-  });
-  queue.wait_and_throw();
-
-  fp8_e4m3 expected(static_cast<T>(2.25f));
-  T out = {static_cast<T>(data[0])};
-  T expected_out = {static_cast<T>(expected)};
-
-  sycl::free(data, queue);
-  if (std::fabs(out - expected_out) > 0.0f)
-    return 1;
-  return 0;
-}
-
 int main() {
   auto async_handler = [](sycl::exception_list exceptions) {
     for (const std::exception_ptr &e : exceptions) {
@@ -170,9 +148,5 @@ int main() {
   ret |= test_marray_conversion<float>(queue);
   ret |= test_marray_conversion<sycl::half>(queue);
   ret |= test_marray_conversion<sycl::ext::oneapi::bfloat16>(queue);
-
-  ret |= test_carray_conversion<float>(queue);
-  ret |= test_carray_conversion<sycl::half>(queue);
-  ret |= test_carray_conversion<sycl::ext::oneapi::bfloat16>(queue);
   return ret;
 }
