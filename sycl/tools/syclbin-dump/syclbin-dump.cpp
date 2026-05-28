@@ -10,7 +10,6 @@
 // human-readable format.
 //
 
-#include "llvm/Object/OffloadBinary.h"
 #include "llvm/Object/SYCLBIN.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileSystem.h"
@@ -115,24 +114,11 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  SmallVector<std::unique_ptr<llvm::object::OffloadBinary>> ParsedOffloadBinary;
-  MemoryBufferRef SYCLBINImageBuffer = [&]() {
-    if (llvm::Error E =
-            llvm::object::OffloadBinary::create(**FileMemBufferOrError)
-                .moveInto(ParsedOffloadBinary)) {
-      // If we failed to load as an offload binary, it may still be a SYCLBIN at
-      // an outer level.
-      std::ignore = (bool)llvm::handleErrors(
-          std::move(E),
-          [](std::unique_ptr<ECError>) -> Error { return Error::success(); });
-      return MemoryBufferRef(**FileMemBufferOrError);
-    } else {
-      return MemoryBufferRef(ParsedOffloadBinary[0]->getImage(), "");
-    }
-  }();
-
+  // SYCLBIN::read accepts the whole on-disk file; it dispatches between
+  // the v1 (legacy SYBI-magic) and v2 (multi-entry OffloadBinary) layouts
+  // internally.
   std::unique_ptr<llvm::object::SYCLBIN> ParsedSYCLBIN;
-  if (llvm::Error E = llvm::object::SYCLBIN::read(SYCLBINImageBuffer)
+  if (llvm::Error E = llvm::object::SYCLBIN::read(**FileMemBufferOrError)
                           .moveInto(ParsedSYCLBIN)) {
     errs() << "Failed to parse SYCLBIN file: " << E << "\n";
     std::abort();

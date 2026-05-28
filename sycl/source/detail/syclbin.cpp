@@ -5,132 +5,44 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// Adjusted copy of llvm/lib/Object/SYCLBIN.cpp.
-// TODO: Remove once we can consistently link the SYCL runtime library with
-// LLVMObject.
 
 #include <detail/compiler.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
 #include <detail/syclbin.hpp>
 
+// SYCL_RT_HAS_LLVMOBJECT is defined by sycl/source/CMakeLists.txt for the
+// runtime flavour whose CRT matches the LLVM build. The other flavour (for
+// example, sycl9d when LLVM is built with the release CRT) compiles this TU
+// with the macro undefined and falls back to throwing stubs so the runtime
+// still links without referencing any LLVM symbols.
+#ifdef SYCL_RT_HAS_LLVMOBJECT
+#include "llvm/Object/SYCLBIN.h"
+#include "llvm/Support/Error.h"
+#include "llvm/Support/MemoryBuffer.h"
+#include "llvm/Support/PropertySetIO.h"
+#endif
+
+#include <cstring>
+#include <deque>
+#include <memory>
+#include <set>
+#include <string_view>
+#include <utility>
+#include <vector>
+
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
+#ifdef SYCL_RT_HAS_LLVMOBJECT
+
 namespace {
 
-std::unique_ptr<char[]> ContentCopy(const char *Data, size_t Size) {
+std::unique_ptr<char[]> copyContent(const char *Data, size_t Size) {
   std::unique_ptr<char[]> Result{new char[Size]};
   std::memcpy(Result.get(), Data, Size);
   return Result;
-}
-
-// Offload binary header and entry.
-constexpr uint8_t OffloadBinaryMagic[4] = {0x10, 0xFF, 0x10, 0xAD};
-struct OffloadBinaryHeaderType {
-  uint8_t Magic[4];
-  uint32_t Version;
-  uint64_t Size;
-  uint64_t EntriesOffset; // V2: Renamed from EntryOffset
-  uint64_t EntriesCount;  // V2: Renamed from EntrySize, now stores count
-};
-struct OffloadBinaryEntryType {
-  uint16_t ImageKind;
-  uint16_t OffloadKind;
-  uint32_t Flags;
-  uint64_t StringOffset;
-  uint64_t NumStrings;
-  uint64_t ImageOffset;
-  uint64_t ImageSize;
-};
-
-class BlockReader {
-protected:
-  BlockReader(const char *Data, size_t Size) : Data{Data}, Size{Size} {}
-
-  void ReadSizeCheck(size_t ByteOffset, size_t ReadSize) {
-    if (ByteOffset + ReadSize > Size)
-      throw sycl::exception(make_error_code(errc::invalid),
-                            "Unexpected file contents size.");
-  }
-
-  const char *Data = nullptr;
-  size_t Size = 0;
-};
-
-class HeaderBlockReader : public BlockReader {
-public:
-  HeaderBlockReader(const char *Data, size_t Size) : BlockReader(Data, Size) {}
-
-  template <typename HeaderT> const HeaderT *GetHeaderPtr(size_t ByteOffset) {
-    ReadSizeCheck(ByteOffset, sizeof(HeaderT));
-    return reinterpret_cast<const HeaderT *>(Data + ByteOffset);
-  }
-};
-
-class SYCLBINByteTableBlockReader : public BlockReader {
-public:
-  SYCLBINByteTableBlockReader(const char *Data, size_t Size)
-      : BlockReader(Data, Size) {}
-
-  std::string_view GetBinaryBlob(size_t ByteOffset, uint64_t BlobSize) {
-    ReadSizeCheck(ByteOffset, BlobSize);
-    return {Data + ByteOffset, BlobSize};
-  }
-
-  std::unique_ptr<PropertySetRegistry> GetMetadata(size_t ByteOffset,
-                                                   uint64_t MetadataSize) {
-    return PropertySetRegistry::read(GetBinaryBlob(ByteOffset, MetadataSize));
-  }
-};
-
-std::pair<const char *, size_t> getImageInOffloadBinary(const char *Data,
-                                                        size_t Size) {
-  if (sizeof(OffloadBinaryHeaderType) > Size)
-    throw sycl::exception(make_error_code(errc::invalid),
-                          "Invalid Offload Binary size.");
-
-  // Read the header.
-  const OffloadBinaryHeaderType *Header =
-      reinterpret_cast<const OffloadBinaryHeaderType *>(Data);
-  if (memcmp(Header->Magic, OffloadBinaryMagic, 4) != 0)
-    throw sycl::exception(make_error_code(errc::invalid),
-                          "Incorrect Offload Binary magic number.");
-
-  // Support both v1 and v2 formats
-  if (Header->Version == 0 || Header->Version > 2)
-    throw sycl::exception(make_error_code(errc::invalid),
-                          "Unsupported Offload Binary version number.");
-
-  // V1: EntriesCount was EntrySize and stored sizeof(Entry)
-  // V2: EntriesCount stores the number of entries
-  uint64_t EntriesCount = (Header->Version == 1) ? 1 : Header->EntriesCount;
-  uint64_t EntriesSize = sizeof(OffloadBinaryEntryType) * EntriesCount;
-
-  if (Header->Version == 1 &&
-      Header->EntriesCount != sizeof(OffloadBinaryEntryType))
-    throw sycl::exception(make_error_code(errc::invalid),
-                          "Unexpected entry size for v1 format.");
-
-  if (Header->EntriesOffset + EntriesSize > Size)
-    throw sycl::exception(make_error_code(errc::invalid),
-                          "Invalid entries offset.");
-
-  // Read the first entry (for SYCLBIN, we expect a single entry)
-  const OffloadBinaryEntryType *Entry =
-      reinterpret_cast<const OffloadBinaryEntryType *>(Data +
-                                                       Header->EntriesOffset);
-
-  if (Entry->ImageKind != /*IMG_SYCLBIN*/ 7)
-    throw sycl::exception(make_error_code(errc::invalid),
-                          "Unexpected image type.");
-
-  if (Entry->ImageOffset + Entry->ImageSize > Size)
-    throw sycl::exception(make_error_code(errc::invalid),
-                          "Invalid image offset and size.");
-
-  return std::make_pair(Data + Entry->ImageOffset, Entry->ImageSize);
 }
 
 const char *getDeviceTargetSpecFromTriple(std::string_view Triple) {
@@ -159,129 +71,89 @@ const char *getDeviceTargetSpecFromTriple(std::string_view Triple) {
   return UR_DEVICE_BINARY_TARGET_UNKNOWN;
 }
 
-} // namespace
-
-SYCLBIN::SYCLBIN(const char *Data, size_t Size) {
-  auto [SYCLBINData, SYCLBINSize] = getImageInOffloadBinary(Data, Size);
-
-  if (SYCLBINSize < sizeof(FileHeaderType))
-    throw sycl::exception(make_error_code(errc::invalid),
-                          "Unexpected file contents size.");
-
-  // Read the file header.
-  const FileHeaderType *FileHeader =
-      reinterpret_cast<const FileHeaderType *>(SYCLBINData);
-  if (FileHeader->Magic != MagicNumber)
-    throw sycl::exception(make_error_code(errc::invalid),
-                          "Incorrect SYCLBIN magic number.");
-
-  if (FileHeader->Version > CurrentVersion)
-    throw sycl::exception(make_error_code(errc::invalid),
-                          "Unsupported SYCLBIN version " +
-                              std::to_string(FileHeader->Version) + ".");
-  Version = FileHeader->Version;
-
-  const uint64_t AMHeaderBlockSize =
-      sizeof(AbstractModuleHeaderType) * FileHeader->AbstractModuleCount;
-  const uint64_t IRMHeaderBlockSize =
-      sizeof(IRModuleHeaderType) * FileHeader->IRModuleCount;
-  const uint64_t NDCIHeaderBlockSize = sizeof(NativeDeviceCodeImageHeaderType) *
-                                       FileHeader->NativeDeviceCodeImageCount;
-  const uint64_t HeaderBlockSize = sizeof(FileHeaderType) + AMHeaderBlockSize +
-                                   IRMHeaderBlockSize + NDCIHeaderBlockSize;
-  // Align metadata table size to 8.
-  const uint64_t AlignedMetadataByteTableSize =
-      FileHeader->MetadataByteTableSize +
-      (-FileHeader->MetadataByteTableSize & 7);
-  if (SYCLBINSize < HeaderBlockSize + AlignedMetadataByteTableSize +
-                        FileHeader->BinaryByteTableSize)
-    throw sycl::exception(make_error_code(errc::invalid),
-                          "Unexpected file contents size.");
-
-  // Create reader objects. These help with checking out-of-bounds access.
-  HeaderBlockReader HeaderBlockReader{SYCLBINData, HeaderBlockSize};
-  SYCLBINByteTableBlockReader MetadataByteTableBlockReader{
-      SYCLBINData + HeaderBlockSize, FileHeader->MetadataByteTableSize};
-  SYCLBINByteTableBlockReader BinaryByteTableBlockReader{
-      SYCLBINData + HeaderBlockSize + AlignedMetadataByteTableSize,
-      FileHeader->BinaryByteTableSize};
-
-  // Read global metadata.
-  GlobalMetadata = MetadataByteTableBlockReader.GetMetadata(
-      FileHeader->GlobalMetadataOffset, FileHeader->GlobalMetadataSize);
-
-  // Read the abstract modules.
-  AbstractModules.resize(FileHeader->AbstractModuleCount);
-  for (uint32_t I = 0; I < FileHeader->AbstractModuleCount; ++I) {
-    AbstractModule &AM = AbstractModules[I];
-
-    // Read the header for the current abstract module.
-    const uint64_t AMHeaderByteOffset =
-        sizeof(FileHeaderType) + sizeof(AbstractModuleHeaderType) * I;
-    const AbstractModuleHeaderType *AMHeader =
-        HeaderBlockReader.GetHeaderPtr<AbstractModuleHeaderType>(
-            AMHeaderByteOffset);
-
-    // Read the metadata for the current abstract module.
-    AM.Metadata = MetadataByteTableBlockReader.GetMetadata(
-        AMHeader->MetadataOffset, AMHeader->MetadataSize);
-
-    // Read the IR modules of the current abstract module.
-    AM.IRModules.resize(AMHeader->IRModuleCount);
-    for (uint32_t J = 0; J < AMHeader->IRModuleCount; ++J) {
-      IRModule &IRM = AM.IRModules[J];
-
-      // Read the header for the current IR module.
-      const uint64_t IRMHeaderByteOffset =
-          sizeof(FileHeaderType) + AMHeaderBlockSize +
-          sizeof(IRModuleHeaderType) * (AMHeader->IRModuleOffset + J);
-      const IRModuleHeaderType *IRMHeader =
-          HeaderBlockReader.GetHeaderPtr<IRModuleHeaderType>(
-              IRMHeaderByteOffset);
-
-      // Read the metadata for the current IR module.
-      IRM.Metadata = MetadataByteTableBlockReader.GetMetadata(
-          IRMHeader->MetadataOffset, IRMHeader->MetadataSize);
-
-      // Read the binary blob for the current IR module.
-      IRM.RawIRBytes = BinaryByteTableBlockReader.GetBinaryBlob(
-          IRMHeader->RawIRBytesOffset, IRMHeader->RawIRBytesSize);
-    }
-
-    // Read the native device code images of the current abstract module.
-    AM.NativeDeviceCodeImages.resize(AMHeader->NativeDeviceCodeImageCount);
-    for (uint32_t J = 0; J < AMHeader->NativeDeviceCodeImageCount; ++J) {
-      NativeDeviceCodeImage &NDCI = AM.NativeDeviceCodeImages[J];
-
-      // Read the header for the current native device code image.
-      const uint64_t NDCIHeaderByteOffset =
-          sizeof(FileHeaderType) + AMHeaderBlockSize + IRMHeaderBlockSize +
-          sizeof(NativeDeviceCodeImageHeaderType) *
-              (AMHeader->NativeDeviceCodeImageOffset + J);
-      const NativeDeviceCodeImageHeaderType *NDCIHeader =
-          HeaderBlockReader.GetHeaderPtr<NativeDeviceCodeImageHeaderType>(
-              NDCIHeaderByteOffset);
-
-      // Read the metadata for the current native device code image.
-      NDCI.Metadata = MetadataByteTableBlockReader.GetMetadata(
-          NDCIHeader->MetadataOffset, NDCIHeader->MetadataSize);
-
-      // Read the binary blob for the current native device code image.
-      NDCI.RawDeviceCodeImageBytes = BinaryByteTableBlockReader.GetBinaryBlob(
-          NDCIHeader->BinaryBytesOffset, NDCIHeader->BinaryBytesSize);
-    }
-  }
+[[noreturn]] void throwInvalid(llvm::Error E) {
+  std::string Msg = llvm::toString(std::move(E));
+  throw sycl::exception(make_error_code(errc::invalid), std::move(Msg));
 }
 
-SYCLBINBinaries::SYCLBINBinaries(const char *SYCLBINContent, size_t SYCLBINSize)
-    : SYCLBINContentCopy{ContentCopy(SYCLBINContent, SYCLBINSize)},
-      SYCLBINContentCopySize{SYCLBINSize},
-      ParsedSYCLBIN(SYCLBIN{SYCLBINContentCopy.get(), SYCLBINSize}) {
+template <typename T> T expectOrThrow(llvm::Expected<T> &&E) {
+  if (!E)
+    throwInvalid(E.takeError());
+  return std::move(*E);
+}
+
+} // namespace
+
+// Opaque implementation. Holds all LLVM-typed state so no LLVM headers are
+// pulled into runtime headers transitively.
+struct SYCLBINBinaries::Impl {
+  Impl(const char *Data, size_t Size)
+      : ContentCopy{copyContent(Data, Size)}, ContentSize{Size} {
+    llvm::MemoryBufferRef Buffer(
+        llvm::StringRef(ContentCopy.get(), ContentSize), "");
+    // SYCLBIN::read accepts the whole on-disk file and dispatches between
+    // the v1 (legacy SYBI-magic) and v2 (multi-entry OffloadBinary) layouts
+    // internally.
+    ParsedSYCLBIN = expectOrThrow(llvm::object::SYCLBIN::read(Buffer));
+    populateBinaries();
+  }
+
+  // Deferred buffers for sycl_device_binary_struct fields. Use std::deque so
+  // pointers into the holders remain stable as new entries are appended.
+  std::unique_ptr<char[]> ContentCopy;
+  size_t ContentSize = 0;
+
+  std::unique_ptr<llvm::object::SYCLBIN> ParsedSYCLBIN;
+
+  std::deque<std::vector<_sycl_device_binary_property_struct>> BinaryProperties;
+  std::deque<std::vector<_sycl_device_binary_property_set_struct>>
+      BinaryPropertySets;
+  // PropertySetRegistry keys are llvm::SmallString<16>, whose data() is not
+  // guaranteed to be null-terminated. The C-ABI sycl_device_binary_property*
+  // structs require null-terminated char* names, so we own null-terminated
+  // copies here. std::deque keeps element pointers stable as more strings
+  // are appended for subsequent abstract modules.
+  std::deque<std::string> PropertyNameStorage;
+
+  std::vector<sycl_device_binary_struct> DeviceBinaries;
+
+  struct AbstractModuleDesc {
+    size_t NumJITBinaries = 0;
+    size_t NumNativeBinaries = 0;
+    RTDeviceBinaryImage *JITBinaries = nullptr;
+    RTDeviceBinaryImage *NativeBinaries = nullptr;
+  };
+  std::unique_ptr<AbstractModuleDesc[]> AbstractModuleDescriptors;
+  std::unique_ptr<RTDeviceBinaryImage[]> BinaryImages;
+
+  uint8_t getState() const {
+    auto &Global = (*ParsedSYCLBIN->GlobalMetadata)
+        [llvm::util::PropertySetRegistry::SYCLBIN_GLOBAL_METADATA];
+    auto It = Global.find(llvm::StringRef("state"));
+    if (It == Global.end())
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "SYCLBIN global metadata missing 'state'.");
+    return static_cast<uint8_t>(It->second.asUint32());
+  }
+
+  size_t getNumAbstractModules() const {
+    return ParsedSYCLBIN->AbstractModules.size();
+  }
+
+private:
+  void populateBinaries();
+
+  std::vector<_sycl_device_binary_property_set_struct> &
+  convertAbstractModuleProperties(
+      const llvm::object::SYCLBIN::AbstractModule &AM);
+};
+
+void SYCLBINBinaries::Impl::populateBinaries() {
   AbstractModuleDescriptors = std::unique_ptr<AbstractModuleDesc[]>(
-      new AbstractModuleDesc[ParsedSYCLBIN.AbstractModules.size()]);
+      new AbstractModuleDesc[ParsedSYCLBIN->AbstractModules.size()]);
 
   size_t NumBinaries = 0;
-  for (const SYCLBIN::AbstractModule &AM : ParsedSYCLBIN.AbstractModules)
+  for (const auto &AM : ParsedSYCLBIN->AbstractModules)
     NumBinaries += AM.IRModules.size() + AM.NativeDeviceCodeImages.size();
   DeviceBinaries.reserve(NumBinaries);
   BinaryImages = std::unique_ptr<RTDeviceBinaryImage[]>(
@@ -289,10 +161,9 @@ SYCLBINBinaries::SYCLBINBinaries(const char *SYCLBINContent, size_t SYCLBINSize)
 
   RTDeviceBinaryImage *CurrentBinaryImagesStart = BinaryImages.get();
   for (size_t I = 0; I < getNumAbstractModules(); ++I) {
-    SYCLBIN::AbstractModule &AM = ParsedSYCLBIN.AbstractModules[I];
+    const auto &AM = ParsedSYCLBIN->AbstractModules[I];
     AbstractModuleDesc &AMDesc = AbstractModuleDescriptors[I];
 
-    // Set up the abstract module descriptor.
     AMDesc.NumJITBinaries = AM.IRModules.size();
     AMDesc.NumNativeBinaries = AM.NativeDeviceCodeImages.size();
     AMDesc.JITBinaries = CurrentBinaryImagesStart;
@@ -300,12 +171,10 @@ SYCLBINBinaries::SYCLBINBinaries(const char *SYCLBINContent, size_t SYCLBINSize)
     CurrentBinaryImagesStart +=
         AMDesc.NumJITBinaries + AM.NativeDeviceCodeImages.size();
 
-    // Construct properties from SYCLBIN metadata.
-    std::vector<_sycl_device_binary_property_set_struct> &BinPropertySets =
-        convertAbstractModuleProperties(AM);
+    auto &BinPropertySets = convertAbstractModuleProperties(AM);
 
     for (size_t J = 0; J < AM.IRModules.size(); ++J) {
-      SYCLBIN::IRModule &IRM = AM.IRModules[J];
+      const auto &IRM = AM.IRModules[J];
 
       sycl_device_binary_struct &DeviceBinary = DeviceBinaries.emplace_back();
       DeviceBinary.Version = SYCL_DEVICE_BINARY_VERSION;
@@ -324,21 +193,21 @@ SYCLBINBinaries::SYCLBINBinaries(const char *SYCLBINContent, size_t SYCLBINSize)
       DeviceBinary.PropertySetsBegin = BinPropertySets.data();
       DeviceBinary.PropertySetsEnd =
           BinPropertySets.data() + BinPropertySets.size();
-      // Create an image from it.
       AMDesc.JITBinaries[J] = RTDeviceBinaryImage{&DeviceBinary};
     }
 
     for (size_t J = 0; J < AM.NativeDeviceCodeImages.size(); ++J) {
-      const SYCLBIN::NativeDeviceCodeImage &NDCI = AM.NativeDeviceCodeImages[J];
+      const auto &NDCI = AM.NativeDeviceCodeImages[J];
 
       assert(NDCI.Metadata != nullptr);
-      PropertySet &NDCIMetadataProps = (*NDCI.Metadata)
-          [PropertySetRegistry::SYCLBIN_NATIVE_DEVICE_CODE_IMAGE_METADATA];
+      auto &NDCIMetadataProps =
+          (*NDCI.Metadata)[llvm::util::PropertySetRegistry::
+                               SYCLBIN_NATIVE_DEVICE_CODE_IMAGE_METADATA];
 
-      auto &TargetTripleProp = NDCIMetadataProps["target"];
-      std::string_view TargetTriple = std::string_view{
+      auto &TargetTripleProp = NDCIMetadataProps[llvm::StringRef("target")];
+      std::string_view TargetTriple{
           reinterpret_cast<const char *>(TargetTripleProp.asByteArray()),
-          TargetTripleProp.getByteArraySize()};
+          static_cast<size_t>(TargetTripleProp.getByteArraySize())};
 
       sycl_device_binary_struct &DeviceBinary = DeviceBinaries.emplace_back();
       DeviceBinary.Version = SYCL_DEVICE_BINARY_VERSION;
@@ -358,34 +227,40 @@ SYCLBINBinaries::SYCLBINBinaries(const char *SYCLBINContent, size_t SYCLBINSize)
       DeviceBinary.PropertySetsBegin = BinPropertySets.data();
       DeviceBinary.PropertySetsEnd =
           BinPropertySets.data() + BinPropertySets.size();
-      // Create an image from it.
       AMDesc.NativeBinaries[J] = RTDeviceBinaryImage{&DeviceBinary};
     }
   }
 }
 
 std::vector<_sycl_device_binary_property_set_struct> &
-SYCLBINBinaries::convertAbstractModuleProperties(SYCLBIN::AbstractModule &AM) {
-  std::vector<_sycl_device_binary_property_set_struct> &BinPropertySets =
+SYCLBINBinaries::Impl::convertAbstractModuleProperties(
+    const llvm::object::SYCLBIN::AbstractModule &AM) {
+  std::vector<_sycl_device_binary_property_set_struct> &BinPropSets =
       BinaryPropertySets.emplace_back();
-  BinPropertySets.reserve(AM.Metadata->getPropSets().size());
+  BinPropSets.reserve(AM.Metadata->getPropSets().size());
   for (auto &PropSetIt : *AM.Metadata) {
     auto &PropSetName = PropSetIt.first;
     auto &PropSetVal = PropSetIt.second;
 
-    // Add a new vector to BinaryProperties and reserve room for all the
-    // properties we are converting.
     std::vector<_sycl_device_binary_property_struct> &PropsList =
         BinaryProperties.emplace_back();
     PropsList.reserve(PropSetVal.size());
 
-    // Then convert all properties in the property set.
     for (auto &PropIt : PropSetVal) {
       auto &PropName = PropIt.first;
       auto &PropVal = PropIt.second;
       _sycl_device_binary_property_struct &BinProp = PropsList.emplace_back();
-      BinProp.Name = const_cast<char *>(PropName.data());
-      BinProp.Type = PropVal.getType();
+      // _sycl_device_binary_property_struct is a plain-C struct with no
+      // in-class initializers, so emplace_back leaves every field
+      // uninitialized. Zero-init explicitly: the UINT32 path below only
+      // writes the lower 4 bytes of the uint64_t ValSize field, and we want
+      // the upper 4 bytes to be deterministically zero rather than stack /
+      // freelist garbage.
+      BinProp = {};
+      auto &OwnedName =
+          PropertyNameStorage.emplace_back(PropName.data(), PropName.size());
+      BinProp.Name = const_cast<char *>(OwnedName.c_str());
+      BinProp.Type = static_cast<uint32_t>(PropVal.getType());
       if (BinProp.Type == SYCL_PROPERTY_TYPE_UINT32) {
         // UINT32 properties have their value stored in the size instead.
         BinProp.ValAddr = nullptr;
@@ -396,15 +271,26 @@ SYCLBINBinaries::convertAbstractModuleProperties(SYCLBIN::AbstractModule &AM) {
       }
     }
 
-    // Add a new property set to the list.
     _sycl_device_binary_property_set_struct &BinPropSet =
-        BinPropertySets.emplace_back();
-    BinPropSet.Name = const_cast<char *>(PropSetName.data());
+        BinPropSets.emplace_back();
+    auto &OwnedSetName = PropertyNameStorage.emplace_back(PropSetName.data(),
+                                                          PropSetName.size());
+    BinPropSet.Name = const_cast<char *>(OwnedSetName.c_str());
     BinPropSet.PropertiesBegin = PropsList.data();
     BinPropSet.PropertiesEnd = PropsList.data() + PropsList.size();
   }
-  return BinPropertySets;
+  return BinPropSets;
 }
+
+SYCLBINBinaries::SYCLBINBinaries(const char *SYCLBINContent, size_t SYCLBINSize)
+    : PImpl{std::make_unique<Impl>(SYCLBINContent, SYCLBINSize)} {}
+
+SYCLBINBinaries::SYCLBINBinaries(SYCLBINBinaries &&) noexcept = default;
+SYCLBINBinaries &
+SYCLBINBinaries::operator=(SYCLBINBinaries &&) noexcept = default;
+SYCLBINBinaries::~SYCLBINBinaries() = default;
+
+uint8_t SYCLBINBinaries::getState() const { return PImpl->getState(); }
 
 std::vector<const RTDeviceBinaryImage *>
 SYCLBINBinaries::getBestCompatibleImages(device_impl &Dev, bundle_state State) {
@@ -419,9 +305,8 @@ SYCLBINBinaries::getBestCompatibleImages(device_impl &Dev, bundle_state State) {
   };
 
   std::vector<const RTDeviceBinaryImage *> Images;
-  for (size_t I = 0; I < getNumAbstractModules(); ++I) {
-    const AbstractModuleDesc &AMDesc = AbstractModuleDescriptors[I];
-    // If the target state is executable, try with native images first.
+  for (size_t I = 0; I < PImpl->getNumAbstractModules(); ++I) {
+    const auto &AMDesc = PImpl->AbstractModuleDescriptors[I];
     if (State == bundle_state::executable) {
       if (const RTDeviceBinaryImage *CompatImagePtr = GetCompatibleImage(
               AMDesc.NativeBinaries, AMDesc.NumNativeBinaries)) {
@@ -430,7 +315,6 @@ SYCLBINBinaries::getBestCompatibleImages(device_impl &Dev, bundle_state State) {
       }
     }
 
-    // Otherwise, select the first compatible JIT binary.
     if (const RTDeviceBinaryImage *CompatImagePtr =
             GetCompatibleImage(AMDesc.JITBinaries, AMDesc.NumJITBinaries))
       Images.push_back(CompatImagePtr);
@@ -453,9 +337,8 @@ SYCLBINBinaries::getBestCompatibleImages(devices_range Devs,
 std::vector<const RTDeviceBinaryImage *>
 SYCLBINBinaries::getNativeBinaryImages(device_impl &Dev) {
   std::vector<const RTDeviceBinaryImage *> Images;
-  for (size_t I = 0; I < getNumAbstractModules(); ++I) {
-    const AbstractModuleDesc &AMDesc = AbstractModuleDescriptors[I];
-    // If the target state is executable, try with native images first.
+  for (size_t I = 0; I < PImpl->getNumAbstractModules(); ++I) {
+    const auto &AMDesc = PImpl->AbstractModuleDescriptors[I];
 
     const RTDeviceBinaryImage *CompatImagePtr = std::find_if(
         AMDesc.NativeBinaries, AMDesc.NativeBinaries + AMDesc.NumNativeBinaries,
@@ -468,6 +351,50 @@ SYCLBINBinaries::getNativeBinaryImages(device_impl &Dev) {
   }
   return Images;
 }
+
+#else // SYCL_RT_HAS_LLVMOBJECT
+
+// Stub implementation for runtime flavours that cannot link LLVMObject (for
+// example, the MSVC sycl runtime DLL whose CRT does not match the CRT used to
+// build the LLVM libraries). Any attempt to construct or query a
+// SYCLBINBinaries throws errc::feature_not_supported -- the runtime can still
+// link and operate, just without SYCLBIN parsing support.
+
+struct SYCLBINBinaries::Impl {};
+
+[[noreturn]] static void throwUnsupported() {
+  throw sycl::exception(
+      make_error_code(errc::feature_not_supported),
+      "SYCLBIN parsing is not available in this build of the SYCL runtime "
+      "library (LLVM SYCLBIN reader was not linked into this runtime "
+      "flavour).");
+}
+
+SYCLBINBinaries::SYCLBINBinaries(const char *, size_t) { throwUnsupported(); }
+
+SYCLBINBinaries::SYCLBINBinaries(SYCLBINBinaries &&) noexcept = default;
+SYCLBINBinaries &
+SYCLBINBinaries::operator=(SYCLBINBinaries &&) noexcept = default;
+SYCLBINBinaries::~SYCLBINBinaries() = default;
+
+uint8_t SYCLBINBinaries::getState() const { throwUnsupported(); }
+
+std::vector<const RTDeviceBinaryImage *>
+SYCLBINBinaries::getBestCompatibleImages(device_impl &, bundle_state) {
+  throwUnsupported();
+}
+
+std::vector<const RTDeviceBinaryImage *>
+SYCLBINBinaries::getBestCompatibleImages(devices_range, bundle_state) {
+  throwUnsupported();
+}
+
+std::vector<const RTDeviceBinaryImage *>
+SYCLBINBinaries::getNativeBinaryImages(device_impl &) {
+  throwUnsupported();
+}
+
+#endif // SYCL_RT_HAS_LLVMOBJECT
 
 } // namespace detail
 } // namespace _V1

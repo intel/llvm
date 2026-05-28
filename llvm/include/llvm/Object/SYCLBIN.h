@@ -10,16 +10,48 @@
 #define LLVM_OBJECT_SYCLBIN_H
 
 #include "llvm/ADT/SmallString.h"
-#include "llvm/SYCLPostLink/ModuleSplitter.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/MemoryBuffer.h"
+#include "llvm/Support/PropertySetIO.h"
+#include "llvm/TargetParser/Triple.h"
+#include <memory>
 #include <string>
+#include <vector>
+
+namespace llvm {
+namespace module_split {
+struct SplitModule;
+} // namespace module_split
+} // namespace llvm
 
 namespace llvm {
 
 namespace object {
 
-// Representation of a SYCLBIN binary object. This is intended for use as an
-// image inside a OffloadBinary.
+// Representation of a SYCLBIN binary object.
+//
+// Format versions:
+//
+//   v1: A SYCL Binary file is an OffloadBinary envelope wrapping a single
+//       Entry with ImageKind == IMG_SYCLBIN whose image bytes carry a
+//       SYBI-magic header followed by SYCLBIN-private FileHeader,
+//       AbstractModuleHeader, IRModuleHeader, NativeDeviceCodeImageHeader
+//       tables, a metadata byte table and a binary byte table.
+//       Reader retained for backward compatibility with existing files.
+//
+//   v2: A SYCL Binary file is a multi-entry OffloadBinary. Each Entry has
+//       ImageKind == IMG_SYCLBIN and its StringData carries:
+//         "role"     : "global_metadata" | "am_metadata" | "ir" | "native"
+//         "am_index" : decimal abstract-module index ("ir", "native",
+//                      "am_metadata" only)
+//         "ir_type"  : decimal IR type tag ("ir" only)
+//         "arch"     : architecture name ("native" only)
+//         "triple"   : LLVM target triple ("ir", "native" only)
+//       The Entry image bytes encode:
+//         "global_metadata", "am_metadata": serialized PropertySetRegistry
+//         "ir", "native": [u64 little-endian metadata_size][serialized
+//                         PropertySetRegistry of metadata_size bytes][raw
+//                         IR / native code bytes]
 class SYCLBIN {
 public:
   SYCLBIN(MemoryBufferRef Source) : Data{Source} {}
@@ -50,13 +82,14 @@ public:
     SYCLBINDesc &operator=(const SYCLBINDesc &Other) = delete;
     SYCLBINDesc &operator=(SYCLBINDesc &&Other) = default;
 
-    size_t getMetadataTableByteSize() const;
-    Expected<size_t> getBinaryTableByteSize() const;
-    Expected<size_t> getSYCLBINByteSize() const;
-
   private:
     struct ImageDesc {
-      SmallString<0> Metadata;
+      // Set for "ir" entries only.
+      uint32_t IRType = 0;
+      // Set for "native" entries only.
+      SmallString<0> ArchString;
+      // Triple as serialized string. Set for "ir" and "native" entries.
+      SmallString<0> TargetTripleStr;
       SmallString<0> FilePath;
     };
 
@@ -72,16 +105,27 @@ public:
     friend class SYCLBIN;
   };
 
-  /// The current version of the binary used for backwards compatibility.
-  static constexpr uint32_t CurrentVersion = 1;
+  /// The current on-disk SYCLBIN format version produced by SYCLBIN::write.
+  static constexpr uint32_t CurrentVersion = 2;
 
-  /// Magic number used to identify SYCLBIN files.
-  static constexpr uint32_t MagicNumber = 0x53594249;
+  /// Magic number used to identify v1 SYCLBIN images.
+  /// The character sequence "SYBI" little-endian. Retained so the v2 reader
+  /// can detect and dispatch to the v1 backward-compatibility path.
+  static constexpr uint32_t LegacyMagicNumber = 0x53594249;
 
-  /// Serialize \p Desc to \p OS .
+  /// Serialize \p Desc to \p OS as a v2 multi-entry OffloadBinary.
   static Error write(const SYCLBIN::SYCLBINDesc &Desc, raw_ostream &OS);
 
   /// Deserialize the contents of \p Source to produce a SYCLBIN object.
+  /// Accepts both the v1 and v2 on-disk formats; the v1 reader is retained
+  /// for backward compatibility with files produced by older toolchains.
+  ///
+  /// Lifetime contract: \p Source's underlying memory must outlive the
+  /// returned SYCLBIN. Every StringRef inside the result's AbstractModules
+  /// (RawIRBytes, RawDeviceCodeImageBytes) points directly into the source
+  /// buffer; the SYCLBIN does not own its byte storage. Callers that load
+  /// from a file should hold the backing MemoryBuffer for at least as long
+  /// as they keep the SYCLBIN around.
   static Expected<std::unique_ptr<SYCLBIN>> read(MemoryBufferRef Source);
 
   struct IRModule {
@@ -99,13 +143,22 @@ public:
     SmallVector<NativeDeviceCodeImage> NativeDeviceCodeImages;
   };
 
-  uint32_t Version;
+  /// On-disk format version that produced this in-memory object. 1 for legacy
+  /// SYBI-magic files, 2 for the multi-entry OffloadBinary format.
+  uint32_t Version = 0;
   std::unique_ptr<llvm::util::PropertySetRegistry> GlobalMetadata;
   SmallVector<AbstractModule, 4> AbstractModules;
 
 private:
+  // The MemoryBufferRef passed to read() must outlive this SYCLBIN, because
+  // every StringRef inside AbstractModules (RawIRBytes,
+  // RawDeviceCodeImageBytes) points directly into its bytes. We keep the
+  // reference here for diagnostic / round-trip purposes; we deliberately do
+  // not own the storage to avoid copying potentially large device images.
   MemoryBufferRef Data;
 
+  // Legacy v1 on-disk header types. Retained verbatim so the v1 reader path
+  // continues to work for files produced by pre-v2 toolchains.
   struct alignas(8) FileHeaderType {
     uint32_t Magic;
     uint32_t Version;
@@ -140,6 +193,10 @@ private:
     uint64_t BinaryBytesOffset;
     uint64_t BinaryBytesSize;
   };
+
+  // Internal readers.
+  static Expected<std::unique_ptr<SYCLBIN>> readV1(MemoryBufferRef Source);
+  static Expected<std::unique_ptr<SYCLBIN>> readV2(MemoryBufferRef Source);
 };
 
 } // namespace object
