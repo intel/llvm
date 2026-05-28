@@ -133,7 +133,6 @@ runs:
 
       # Check if SYCL dir exists and has SYCL lib; set CMPLR_ROOT if so
       if [ -d "$SYCL_DIR" ] && [ -f "$SYCL_DIR/lib/libsycl.so" ]; then
-        echo "Using SYCL from: $SYCL_DIR"
         export CMPLR_ROOT=$(realpath "$SYCL_DIR")
         echo "CMPLR_ROOT=$CMPLR_ROOT" >> $GITHUB_ENV
 
@@ -347,22 +346,11 @@ runs:
       BENCH_WORKDIR: ${{ steps.establish_outputs.outputs.BENCH_WORKDIR }}
       LLVM_BENCHMARKS_UNIT_TESTING: 1
       COMPUTE_BENCHMARKS_BUILD_PATH: ${{ steps.establish_outputs.outputs.BENCH_WORKDIR }}/compute-benchmarks-build
-      SYCL_UR_TRACE: 1
-      UR_L0_DEBUG: 1
-      UMF_LOG: "level:debug;flush:debug;output:stderr;pid:no"
-      UR_LOG_LEVEL_ZERO: "level:error;flush:error"
-      UR_LOG_LOADER: "level:error;flush:error"
-      ZE_DEBUG: 1
-      ZE_ENABLE_LOADER_DEBUG_TRACE: 1
-      ZEL_ENABLE_LOADER_LOGGING: 1
-      ZEL_LOADER_LOGGING_LEVEL: trace
-      ZE_ENABLE_VALIDATION_LAYER: 1
-      ZEL_LOADER_LOG_CONSOLE: 1
     run: |
       # Run benchmarks' integration tests
 
       # NOTE: Each integration test prints its own group name as part of test script
-      python3 ./devops/scripts/benchmarks/tests/test_integration.py --verbose
+      python3 ./devops/scripts/benchmarks/tests/test_integration.py
   - name: Upload github summaries and cache changes
     # if: always()
     if: false
