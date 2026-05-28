@@ -271,6 +271,11 @@ jobs:
   # END nightly benchmarking path
 
   # BEGIN benchmark framework builds and runs on PRs path:
+  #
+  # Note: we needed to add custom SYCL build, instead of using the nightly build (from docker),
+  #   because we need shared ur_loader library, instead of default static one.
+  #   There's an issue in linking with other static libraries in CB build.
+  #
   build_test:
     name: '[PR] Build SYCL'
     if: ${{ github.repository == 'intel/llvm' && (github.event_name == 'pull_request' && inputs.trigger_nightly != 'true') }}

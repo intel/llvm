@@ -148,7 +148,7 @@ runs:
         export CMPLR_ROOT="$(dirname $(dirname $(which sycl-ls)))"
         echo "CMPLR_ROOT=$CMPLR_ROOT" >> $GITHUB_ENV
       fi
-      echo "Using SYCL from: $CMPLR_ROOT !"
+      echo "Using SYCL from: $CMPLR_ROOT"
 
       if [ -z "$SAVE_TIMESTAMP" ]; then
         export SAVE_TIMESTAMP="$(date -u +'%Y%m%d_%H%M%S')"  # Current timestamp in UTC time
