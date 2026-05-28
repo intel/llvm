@@ -501,8 +501,7 @@ TEST(SYCLBINSerialize, OffloadAndSYCLBINMagicsPresent) {
   std::vector<char> Bytes =
       sycl::detail::getSyclObjImpl(KB)->ext_oneapi_get_content();
 
-  std::optional<std::string_view> SYCLBINBytesOpt =
-      stripOffloadWrapper(Bytes);
+  std::optional<std::string_view> SYCLBINBytesOpt = stripOffloadWrapper(Bytes);
   ASSERT_TRUE(SYCLBINBytesOpt.has_value())
       << "OffloadBinary wrapper failed to parse from ext_oneapi_get_content "
          "output.";
