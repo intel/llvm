@@ -36,6 +36,9 @@ def device_compiler_args_EQ : Joined<["--"], "device-compiler=">,
 def clang_backend : Flag<["--"], "clang-backend">,
   Flags<[WrapperOnlyOption]>,
   HelpText<"Run the backend using clang rather than the LTO backend">;
+def use_clang_sycl_linker : Flag<["--"], "use-clang-sycl-linker">,
+  Flags<[WrapperOnlyOption]>,
+  HelpText<"Use clang-sycl-linker for SYCL device linking">;
 def dry_run : Flag<["--"], "dry-run">,
   Flags<[WrapperOnlyOption]>,
   HelpText<"Print program arguments without running">;
