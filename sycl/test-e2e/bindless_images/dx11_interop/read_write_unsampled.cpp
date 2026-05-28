@@ -2,10 +2,7 @@
 // REQUIRES: windows
 
 // UNSUPPORTED: gpu-intel-gen12
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22148 
-
-// UNSUPPORTED: gpu-intel-dg2
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21159
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22148
 
 // RUN: %{build} %link-directx -o %t.out
 // RUN: %{run-unfiltered-devices} env NEOReadDebugKeys=1 UseBindlessMode=1 UseExternalAllocatorForSshAndDsh=1 %t.out
