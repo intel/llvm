@@ -16,6 +16,8 @@
 
 #include <gtest/gtest.h>
 
+#include <optional>
+
 class SYCLBINSerializeKernel;
 MOCK_INTEGRATION_HEADER(SYCLBINSerializeKernel)
 
@@ -60,8 +62,11 @@ sycl::unittest::MockDeviceImage Imgs[] = {
 sycl::unittest::MockDeviceImageArray<std::size(Imgs)> ImgArray{Imgs};
 
 // Strips the OffloadBinary wrapper that ext_oneapi_get_content emits and
-// returns a string_view over the contained raw SYCLBIN bytes.
-std::string_view stripOffloadWrapper(const std::vector<char> &Bytes) {
+// returns a string_view over the contained raw SYCLBIN bytes. Returns
+// std::nullopt if the wrapper does not parse cleanly; callers should ASSERT
+// on the optional rather than dereferencing unconditionally.
+std::optional<std::string_view>
+stripOffloadWrapper(const std::vector<char> &Bytes) {
   // OffloadBinary v2 layout: 32-byte header, then a single entry pointing at
   // the SYCLBIN payload. See sycl/source/detail/syclbin.cpp for layout.
   struct OffloadBinaryHeader {
@@ -80,18 +85,26 @@ std::string_view stripOffloadWrapper(const std::vector<char> &Bytes) {
     uint64_t ImageOffset;
     uint64_t ImageSize;
   };
-  EXPECT_GE(Bytes.size(), sizeof(OffloadBinaryHeader));
+
+  if (Bytes.size() < sizeof(OffloadBinaryHeader))
+    return std::nullopt;
   const auto *H = reinterpret_cast<const OffloadBinaryHeader *>(Bytes.data());
-  EXPECT_EQ(H->Magic[0], 0x10);
-  EXPECT_EQ(H->Magic[1], 0xFF);
-  EXPECT_EQ(H->Magic[2], 0x10);
-  EXPECT_EQ(H->Magic[3], 0xAD);
-  EXPECT_EQ(H->Version, 2u);
-  EXPECT_EQ(H->EntriesCount, 1u);
+  if (H->Magic[0] != 0x10 || H->Magic[1] != 0xFF || H->Magic[2] != 0x10 ||
+      H->Magic[3] != 0xAD)
+    return std::nullopt;
+  if (H->Version != 2u || H->EntriesCount != 1u)
+    return std::nullopt;
+  if (H->EntriesOffset + sizeof(OffloadBinaryEntry) > Bytes.size())
+    return std::nullopt;
+
   const auto *E = reinterpret_cast<const OffloadBinaryEntry *>(
       Bytes.data() + H->EntriesOffset);
-  EXPECT_EQ(E->ImageKind, /*IMG_SYCLBIN*/ 7);
-  return {Bytes.data() + E->ImageOffset, static_cast<size_t>(E->ImageSize)};
+  if (E->ImageKind != /*IMG_SYCLBIN*/ 7)
+    return std::nullopt;
+  if (E->ImageOffset + E->ImageSize > Bytes.size())
+    return std::nullopt;
+  return std::string_view{Bytes.data() + E->ImageOffset,
+                          static_cast<size_t>(E->ImageSize)};
 }
 
 } // namespace
@@ -488,7 +501,12 @@ TEST(SYCLBINSerialize, OffloadAndSYCLBINMagicsPresent) {
   std::vector<char> Bytes =
       sycl::detail::getSyclObjImpl(KB)->ext_oneapi_get_content();
 
-  std::string_view SYCLBINBytes = stripOffloadWrapper(Bytes);
+  std::optional<std::string_view> SYCLBINBytesOpt =
+      stripOffloadWrapper(Bytes);
+  ASSERT_TRUE(SYCLBINBytesOpt.has_value())
+      << "OffloadBinary wrapper failed to parse from ext_oneapi_get_content "
+         "output.";
+  std::string_view SYCLBINBytes = *SYCLBINBytesOpt;
 
   ASSERT_GE(SYCLBINBytes.size(), 2 * sizeof(uint32_t));
   uint32_t Magic = 0;

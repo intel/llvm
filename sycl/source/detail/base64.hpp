@@ -23,12 +23,33 @@ namespace detail {
 
 class Base64 {
 private:
-  // Encoding table: 6-bit index -> base64 character. Used by encode() only.
-  // Decoding uses arithmetic decode() below since the input domain is sparse.
+  // Encoding table: 6-bit index -> base64 character.
+  //
+  // Base64 packs every 3 bytes (24 bits) of input into 4 output characters,
+  // each carrying 6 bits of the input. The table indexes by the 6-bit value
+  // and produces the corresponding character per RFC 4648:
+  //
+  //   index  0..25  -> 'A'..'Z'
+  //   index 26..51  -> 'a'..'z'
+  //   index 52..61  -> '0'..'9'
+  //   index 62      -> '+'
+  //   index 63      -> '/'
+  //
+  // Used by encode() only. decode() uses arithmetic on the input character
+  // (see below) since its 7-bit ASCII input domain is sparse and a reverse
+  // lookup table would be mostly invalid entries.
   static constexpr char EncodingTable[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
                                           "abcdefghijklmnopqrstuvwxyz"
                                           "0123456789+/";
 
+  // Compose a 6-bit base64 index that straddles a byte boundary in the input
+  // stream. \p ByteLo holds the most-significant bits of the index in its
+  // \p BitsLo low bits; \p ByteHi holds the least-significant bits of the
+  // index in its high (8 - \p BitsLo) bits. The two are stitched together and
+  // masked to 6 bits to yield a value in [0, 63] suitable for indexing into
+  // EncodingTable. Used by encode() to handle the 2nd and 3rd output
+  // characters of every 3-byte input triple, where the 6-bit slice is not
+  // byte-aligned.
   static inline int composeInd(uint8_t ByteLo, uint8_t ByteHi, int BitsLo) {
     return ((ByteHi << BitsLo) | (ByteLo >> (8 - BitsLo))) & 0x3F;
   }

@@ -259,7 +259,7 @@ std::vector<char> SYCLBIN::write(const SYCLBINDesc &Desc) {
     }
   }
 
-  std::ostringstream OS{std::ios::binary};
+  std::ostringstream OS;
 
   // File header.
   FileHeaderType FileHeader{};
