@@ -201,7 +201,7 @@ class TestE2E(unittest.TestCase):
         self.assertEqual(set(metadata.tags), tags)
         self._checkGroup(groupName, metadata, out)
 
-    def _test_record_and_replay(self):
+    def test_record_and_replay(self):
         self._checkCase(
             "record_and_replay_benchmark_l0 AppendCopy 1, AppendKern 10, CmdSetsInLvl 10, ForksInLvl 2, Instantiations 10, Lvls 4, Rec",
             "RecordGraph large",
@@ -215,7 +215,7 @@ class TestE2E(unittest.TestCase):
             {"UR", "latency", "micro", "submit"},
         )
 
-    def _test_submit_kernel(self):
+    def test_submit_kernel(self):
         self._checkCase(
             "api_overhead_benchmark_l0 SubmitKernel out of order with measure completion",
             "SubmitKernel out of order with completion using events",
