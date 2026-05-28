@@ -781,22 +781,16 @@ detail::EventImplPtr handler::finalize() {
     if (!NativeHostTaskSupport) {
       throw sycl::exception(make_error_code(errc::feature_not_supported),
                             "Recording host tasks in native recording mode "
-                            "requires backend support"
+                            "requires backend support "
                             "not available on this device.");
     }
 
-    auto CallbackData = std::make_unique<std::function<void()>>(
+    auto CallbackData = std::make_unique<detail::EnqueueHostTaskData>(
         detail::HandlerAccess::getHostTaskFunc(*HT->MHostTask));
 
-    auto HostTaskCallback = [](void *Data) {
-      std::unique_ptr<std::function<void()>> F(
-          static_cast<std::function<void()> *>(Data));
-      (*F)();
-    };
-
     Queue->getAdapter().call<detail::UrApiKind::urEnqueueHostTaskExp>(
-        Queue->getHandleRef(), HostTaskCallback, CallbackData.get(), nullptr, 0,
-        nullptr, nullptr);
+        Queue->getHandleRef(), detail::NativeHostTask, CallbackData.get(),
+        nullptr, 0, nullptr, nullptr);
     // Ownership transferred on success.
     (void)CallbackData.release();
 
