@@ -21,6 +21,7 @@
 #include <sycl/ext/intel/info/kernel.hpp>
 #include <sycl/ext/oneapi/experimental/device_architecture.hpp>
 #include <sycl/ext/oneapi/experimental/forward_progress.hpp>
+#include <sycl/ext/oneapi/experimental/kernel_queue_info.hpp>
 #include <sycl/ext/oneapi/matrix/query-types.hpp>
 
 #include <sycl/range.hpp>
