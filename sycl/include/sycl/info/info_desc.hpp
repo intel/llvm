@@ -18,6 +18,7 @@
 #include <sycl/detail/device_info_types.hpp>
 #include <sycl/detail/type_traits.hpp>
 #include <sycl/ext/codeplay/experimental/max_registers_query.hpp>
+#include <sycl/ext/intel/info/kernel.hpp>
 #include <sycl/ext/oneapi/experimental/device_architecture.hpp>
 #include <sycl/ext/oneapi/experimental/forward_progress.hpp>
 #include <sycl/ext/oneapi/matrix/query-types.hpp>

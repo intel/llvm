@@ -1,1 +1,2 @@
-__SYCL_PARAM_TRAITS_SPEC(ext::intel, kernel_device_specific, spill_memory_size, size_t, UR_KERNEL_INFO_SPILL_MEM_SIZE)
+// spill_memory_size migrated to a self-describing trait struct in
+// sycl/ext/intel/info/kernel.hpp.

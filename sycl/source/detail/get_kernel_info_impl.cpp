@@ -8,6 +8,7 @@
 
 #include <sycl/detail/get_kernel_info_impl.hpp>
 #include <sycl/detail/kernel_desc.hpp>
+#include <sycl/ext/intel/info/kernel.hpp>
 
 #include <detail/context_impl.hpp>
 #include <detail/device_impl.hpp>
@@ -82,6 +83,12 @@ typename Param::return_type get_kernel_info_impl(context_impl &CtxImpl,
       context_impl &, device_impl &, DeviceKernelInfo &);
 #include <sycl/info/ext_intel_kernel_info_traits.def>
 #undef __SYCL_PARAM_TRAITS_SPEC
+
+// Self-describing extension traits: explicit instantiation for the ABI
+// surface lives here until the matching trait moves to a dedicated TU.
+template __SYCL_EXPORT size_t
+get_kernel_info_impl<ext::intel::info::kernel_device_specific::spill_memory_size>(
+    context_impl &, device_impl &, DeviceKernelInfo &);
 
 } // namespace detail
 } // namespace _V1

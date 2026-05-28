@@ -11,6 +11,7 @@
 #include <detail/kernel_impl.hpp>
 #include <detail/ur.hpp>
 #include <sycl/detail/export.hpp>
+#include <sycl/ext/intel/info/kernel.hpp>
 #include <sycl/kernel.hpp>
 
 namespace sycl {
@@ -101,6 +102,12 @@ kernel::get_info(const device &Device, const range<3> &WGSize) const {
 #include <sycl/info/ext_intel_kernel_info_traits.def>
 
 #undef __SYCL_PARAM_TRAITS_SPEC
+
+// Self-describing extension traits: explicit instantiation for the ABI
+// surface lives here until the matching trait moves to a dedicated TU.
+template __SYCL_EXPORT size_t kernel::get_info<
+    ext::intel::info::kernel_device_specific::spill_memory_size>(
+    const device &) const;
 
 template __SYCL_EXPORT uint32_t
 kernel::get_info<info::kernel_device_specific::max_sub_group_size>(
