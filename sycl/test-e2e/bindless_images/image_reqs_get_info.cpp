@@ -30,13 +30,14 @@ int main() {
                                  max_image_linear_height>();
     std::cout << "Max image linear height = " << maxheight << std::endl;
 
-  } catch (sycl::exception e) {
+  } catch (const sycl::exception &e) {
     std::cerr << "SYCL exception caught! : " << e.what() << "\n";
     return 1;
   } catch (...) {
     std::cerr << "Unknown exception caught!\n";
     return 2;
   }
+  std::cout << "Test passed!" << std::endl;
 
   return 0;
 }
