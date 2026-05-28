@@ -91,8 +91,17 @@ execute_process(
     )
 
 if(CMPLR_RESULT EQUAL 0 AND CMPLR_VER)
-  string(REGEX MATCH "DPC\\+\\+ compiler ([0-9]+)" _ ${CMPLR_VER})
+  if(CMAKE_CXX_COMPILER_ID MATCHES "IntelLLVM")
+    set(CMPLR_REGEX "Intel\\(R\\) oneAPI DPC\\+\\+/C\\+\\++ Compiler ([0-9]+)")
+  else()
+    set(CMPLR_REGEX "DPC\\+\\+ compiler ([0-9]+)")
+  endif()
+  string(REGEX MATCH ${CMPLR_REGEX} _ ${CMPLR_VER})
   set(DPCPP_VERSION_MAJOR "${CMAKE_MATCH_1}")
+endif()
+
+if("${DPCPP_VERSION_MAJOR}" STREQUAL "")
+  message(FATAL_ERROR "Could not detect SYCL compiler version")
 endif()
 
 if(SYCL_TEST_E2E_STANDALONE)
