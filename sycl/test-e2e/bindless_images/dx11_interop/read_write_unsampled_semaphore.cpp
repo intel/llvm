@@ -6,7 +6,7 @@
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22148
 
 // UNSUPPORTED: gpu-intel-dg2
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21159
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22155
 
 // RUN: %{build} %link-directx -o %t.out
 // RUN: %{run-unfiltered-devices} %t.out
