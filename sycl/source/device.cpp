@@ -15,6 +15,7 @@
 #include <sycl/detail/export.hpp>
 #include <sycl/device.hpp>
 #include <sycl/device_selector.hpp>
+#include <sycl/ext/codeplay/experimental/max_registers_query.hpp>
 #include <sycl/ext/oneapi/matrix/query-types.hpp>
 #include <sycl/info/info_desc.hpp>
 
@@ -204,6 +205,9 @@ template __SYCL_EXPORT detail::ABINeutralT_t<
     std::vector<ext::oneapi::experimental::matrix::combination>>
 device::get_info_impl<
     ext::oneapi::experimental::info::device::matrix_combinations>() const;
+template __SYCL_EXPORT detail::ABINeutralT_t<uint32_t>
+device::get_info_impl<ext::codeplay::experimental::info::device::
+                          max_registers_per_work_group>() const;
 
 template <typename Param>
 typename detail::is_backend_info_desc<Param>::return_type
