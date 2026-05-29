@@ -365,6 +365,23 @@ fill_copy_args(detail::handler_impl *impl,
                  DestOffset, DestExtent, CopyExtent);
 }
 
+static bool checkDeviceSupports(device_impl &DeviceImpl,
+                                ur_device_info_t InfoQuery) {
+  ur_bool_t SupportsOp = false;
+  DeviceImpl.getAdapter().call<UrApiKind::urDeviceGetInfo>(
+      DeviceImpl.getHandleRef(), InfoQuery, sizeof(ur_bool_t), &SupportsOp,
+      nullptr);
+  return SupportsOp;
+}
+
+static std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
+getNativeGraphImpl(queue_impl &Queue) {
+  ur_exp_graph_handle_t UrGraphHandle = nullptr;
+  Queue.getAdapter().call<UrApiKind::urQueueGetGraphExp>(Queue.getHandleRef(),
+                                                         &UrGraphHandle);
+  return Queue.getContextImpl().getNativeGraph(UrGraphHandle);
+}
+
 } // namespace detail
 
 handler::handler(detail::handler_impl &HandlerImpl) : impl(&HandlerImpl) {}
@@ -773,12 +790,8 @@ detail::EventImplPtr handler::finalize() {
                             "native recording mode.");
     }
 
-    bool NativeHostTaskSupport = false;
-    Queue->getAdapter().call<detail::UrApiKind::urDeviceGetInfo>(
-        detail::getSyclObjImpl(Queue->get_device())->getHandleRef(),
-        UR_DEVICE_INFO_ENQUEUE_HOST_TASK_SUPPORT_EXP,
-        sizeof(NativeHostTaskSupport), &NativeHostTaskSupport, nullptr);
-    if (!NativeHostTaskSupport) {
+    if (!checkDeviceSupports(*detail::getSyclObjImpl(Queue->get_device()),
+                             UR_DEVICE_INFO_ENQUEUE_HOST_TASK_SUPPORT_EXP)) {
       throw sycl::exception(make_error_code(errc::feature_not_supported),
                             "Recording host tasks in native recording mode "
                             "requires backend support "
@@ -786,10 +799,7 @@ detail::EventImplPtr handler::finalize() {
     }
 
     // Store callback in the graph so it is available during replays.
-    ur_exp_graph_handle_t UrGraphHandle = nullptr;
-    Queue->getAdapter().call<detail::UrApiKind::urQueueGetGraphExp>(
-        Queue->getHandleRef(), &UrGraphHandle);
-    auto GraphImpl = Queue->getContextImpl().getNativeGraph(UrGraphHandle);
+    auto GraphImpl = detail::getNativeGraphImpl(*Queue);
     auto *CallbackData = GraphImpl->addNativeHostTaskCallback(
         std::make_unique<detail::EnqueueHostTaskData>(
             detail::HandlerAccess::getHostTaskFunc(*HT->MHostTask)));
