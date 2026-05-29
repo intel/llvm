@@ -1889,7 +1889,7 @@ Expected<StringRef> compileDeviceAndBundle(StringRef ModuleFilePath,
 /// * Handle -fsycl-embed-ir case (early wrap + compile + transfer output to the
 /// given
 /// \p WrappedOutputCallback).
-/// * Handle NaticeCPU case (early transfer output to the given \p
+/// * Handle NativeCPU case (early transfer output to the given \p
 /// WrappedOutputCallback).
 /// * Set Compile/Link options to the output Modules.
 /// * Invokes device backend compilation + bundling.
