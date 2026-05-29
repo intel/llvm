@@ -4104,6 +4104,7 @@ bool LLVMToSPIRVBase::isKnownIntrinsic(Intrinsic::ID Id) {
   case Intrinsic::cos:
   case Intrinsic::exp:
   case Intrinsic::exp2:
+  case Intrinsic::exp10:
   case Intrinsic::fabs:
   case Intrinsic::floor:
   case Intrinsic::fma:
@@ -4243,6 +4244,8 @@ static SPIRVWord getBuiltinIdForIntrinsic(Intrinsic::ID IID) {
     return OpenCLLIB::Exp;
   case Intrinsic::exp2:
     return OpenCLLIB::Exp2;
+  case Intrinsic::exp10:
+    return OpenCLLIB::Exp10;
   case Intrinsic::fabs:
     return OpenCLLIB::Fabs;
   case Intrinsic::floor:
@@ -4307,6 +4310,8 @@ static SPIRVWord getNativeBuiltinIdForIntrinsic(Intrinsic::ID IID) {
     return OpenCLLIB::Native_exp;
   case Intrinsic::exp2:
     return OpenCLLIB::Native_exp2;
+  case Intrinsic::exp10:
+    return OpenCLLIB::Native_exp10;
   case Intrinsic::log:
     return OpenCLLIB::Native_log;
   case Intrinsic::log10:
@@ -4445,6 +4450,7 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
   case Intrinsic::cosh:
   case Intrinsic::exp:
   case Intrinsic::exp2:
+  case Intrinsic::exp10:
   case Intrinsic::fabs:
   case Intrinsic::floor:
   case Intrinsic::log:
