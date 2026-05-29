@@ -10,6 +10,10 @@
 #include <algorithm>
 #include <climits>
 #include <string.h>
+#ifdef __linux__
+#include <sys/syscall.h>
+#include <unistd.h>
+#endif
 #include <ur/ur.hpp>
 
 #include "context.hpp"
@@ -17,6 +21,7 @@
 #include "helpers/memory_helpers.hpp"
 #include "image_common.hpp"
 #include "logger/ur_logger.hpp"
+#include "physical_mem.hpp"
 #include "queue.hpp"
 #include "ur_interface_loader.hpp"
 #include "ur_level_zero.hpp"

@@ -24,6 +24,10 @@
 namespace sycl {
 inline namespace _V1 {
 
+namespace ext::oneapi::experimental {
+class physical_mem;
+} // namespace ext::oneapi::experimental
+
 namespace ext::oneapi::experimental::ipc {
 struct handle;
 }
@@ -32,6 +36,12 @@ namespace ext::oneapi::experimental::ipc::memory {
 __SYCL_EXPORT handle get(void *Ptr, const sycl::context &Ctx);
 __SYCL_EXPORT void put(handle &HandleData, const sycl::context &Ctx);
 } // namespace ext::oneapi::experimental::ipc::memory
+
+namespace ext::oneapi::experimental::ipc::physical_memory {
+__SYCL_EXPORT handle
+get(const ext::oneapi::experimental::physical_mem &PhysMem);
+__SYCL_EXPORT void put(handle &HandleData, const sycl::context &Ctx);
+} // namespace ext::oneapi::experimental::ipc::physical_memory
 
 namespace ext::oneapi::experimental::ipc {
 
@@ -59,6 +69,10 @@ private:
   friend __SYCL_EXPORT handle memory::get(void *Ptr, const sycl::context &Ctx);
   friend __SYCL_EXPORT void memory::put(handle &HandleData,
                                         const sycl::context &Ctx);
+  friend __SYCL_EXPORT handle
+  physical_memory::get(const ext::oneapi::experimental::physical_mem &PhysMem);
+  friend __SYCL_EXPORT void physical_memory::put(handle &HandleData,
+                                                 const sycl::context &Ctx);
 };
 
 } // namespace ext::oneapi::experimental::ipc

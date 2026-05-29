@@ -80,6 +80,12 @@ ur_result_t urVirtualMemMap(ur_context_handle_t hContext, const void *pStart,
                             size_t size, ur_physical_mem_handle_t hPhysicalMem,
                             size_t offset,
                             ur_virtual_mem_access_flags_t flags) {
+  // For IPC-opened physical memory handles the virtual address was already
+  // established by zeMemOpenIpcHandle.  A zeVirtualMemMap call with a null
+  // ZePhysicalMem handle would crash, so skip it and report success.
+  if (hPhysicalMem->IpcVirtualAddress)
+    return UR_RESULT_SUCCESS;
+
   ze_memory_access_attribute_t AccessAttr = ZE_MEMORY_ACCESS_ATTRIBUTE_NONE;
   if (flags & UR_VIRTUAL_MEM_ACCESS_FLAG_READ_WRITE)
     AccessAttr = ZE_MEMORY_ACCESS_ATTRIBUTE_READWRITE;
