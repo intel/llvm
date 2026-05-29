@@ -64,7 +64,6 @@ template <typename T> struct is_backend_info_desc : std::false_type {};
   struct is_##DescType##_info_desc<info::DescType::Desc> : std::true_type {    \
     using return_type = info::DescType::Desc::return_type;                     \
   };
-#include <sycl/info/context_traits.def>
 #include <sycl/info/event_traits.def>
 #include <sycl/info/kernel_traits.def>
 #include <sycl/info/queue_traits.def>

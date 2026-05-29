@@ -44,7 +44,6 @@ struct UrInfoCode<T, std::void_t<decltype(T::ur_code)>> {
   template <> struct UrInfoCode<info::DescType::Desc> {                        \
     static constexpr auto value = UrCode;                                      \
   };
-#include <sycl/info/context_traits.def>
 #include <sycl/info/event_profiling_traits.def>
 #include <sycl/info/event_traits.def>
 #include <sycl/info/kernel_device_specific_traits.def>

@@ -88,7 +88,36 @@ struct vendor {
 } // namespace platform
 // A.2 Context information desctiptors
 namespace context {
-#include <sycl/info/context_traits.def>
+struct reference_count {
+  using return_type = uint32_t;
+  using info_class = sycl::detail::info_class::context;
+  static constexpr ur_context_info_t ur_code = UR_CONTEXT_INFO_REFERENCE_COUNT;
+};
+struct platform {
+  using return_type = sycl::platform;
+  using info_class = sycl::detail::info_class::context;
+};
+struct devices {
+  using return_type = std::vector<sycl::device>;
+  using info_class = sycl::detail::info_class::context;
+  static constexpr ur_context_info_t ur_code = UR_CONTEXT_INFO_DEVICES;
+};
+struct atomic_memory_order_capabilities {
+  using return_type = std::vector<sycl::memory_order>;
+  using info_class = sycl::detail::info_class::context;
+};
+struct atomic_memory_scope_capabilities {
+  using return_type = std::vector<sycl::memory_scope>;
+  using info_class = sycl::detail::info_class::context;
+};
+struct atomic_fence_order_capabilities {
+  using return_type = std::vector<sycl::memory_order>;
+  using info_class = sycl::detail::info_class::context;
+};
+struct atomic_fence_scope_capabilities {
+  using return_type = std::vector<sycl::memory_scope>;
+  using info_class = sycl::detail::info_class::context;
+};
 } // namespace context
 
 // A.3 Device information descriptors
