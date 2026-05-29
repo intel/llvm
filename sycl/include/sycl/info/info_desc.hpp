@@ -216,7 +216,31 @@ struct reference_count {
 
 // A.5 Kernel information desctiptors
 namespace kernel {
-#include <sycl/info/kernel_traits.def>
+struct num_args {
+  using return_type = uint32_t;
+  using info_class = sycl::detail::info_class::kernel;
+  static constexpr ur_kernel_info_t ur_code = UR_KERNEL_INFO_NUM_ARGS;
+};
+struct attributes {
+  using return_type = std::string;
+  using info_class = sycl::detail::info_class::kernel;
+  static constexpr ur_kernel_info_t ur_code = UR_KERNEL_INFO_ATTRIBUTES;
+};
+struct function_name {
+  using return_type = std::string;
+  using info_class = sycl::detail::info_class::kernel;
+  static constexpr ur_kernel_info_t ur_code = UR_KERNEL_INFO_FUNCTION_NAME;
+};
+struct reference_count {
+  using return_type = uint32_t;
+  using info_class = sycl::detail::info_class::kernel;
+  static constexpr ur_kernel_info_t ur_code = UR_KERNEL_INFO_REFERENCE_COUNT;
+};
+struct context {
+  using return_type = sycl::context;
+  using info_class = sycl::detail::info_class::kernel;
+  static constexpr ur_kernel_info_t ur_code = UR_KERNEL_INFO_CONTEXT;
+};
 } // namespace kernel
 
 namespace kernel_device_specific {

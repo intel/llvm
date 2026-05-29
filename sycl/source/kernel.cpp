@@ -56,13 +56,15 @@ kernel::get_info_impl() const {
   return detail::convert_to_abi_neutral(impl->template get_info<Param>());
 }
 
-#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, UrCode)              \
-  template __SYCL_EXPORT detail::ABINeutralT_t<ReturnT>                        \
-  kernel::get_info_impl<info::kernel::Desc>() const;
-
-#include <sycl/info/kernel_traits.def>
-
-#undef __SYCL_PARAM_TRAITS_SPEC
+#define __SYCL_KERNEL_INFO_INST(NAME, RETURN_T)                                \
+  template __SYCL_EXPORT detail::ABINeutralT_t<RETURN_T>                       \
+  kernel::get_info_impl<info::kernel::NAME>() const;
+__SYCL_KERNEL_INFO_INST(num_args, uint32_t)
+__SYCL_KERNEL_INFO_INST(attributes, std::string)
+__SYCL_KERNEL_INFO_INST(function_name, std::string)
+__SYCL_KERNEL_INFO_INST(reference_count, uint32_t)
+__SYCL_KERNEL_INFO_INST(context, sycl::context)
+#undef __SYCL_KERNEL_INFO_INST
 
 template <typename Param>
 typename detail::is_backend_info_desc<Param>::return_type
