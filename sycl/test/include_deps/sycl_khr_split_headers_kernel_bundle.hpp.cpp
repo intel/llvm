@@ -59,6 +59,7 @@
 // CHECK-NEXT: __spirv/spirv_vars.hpp
 // CHECK-NEXT: ext/oneapi/weak_object_base.hpp
 // CHECK-NEXT: detail/util.hpp
+// CHECK-NEXT: detail/abi_neutral.hpp
 // CHECK-NEXT: detail/string.hpp
 // CHECK-NEXT: kernel_bundle_enums.hpp
 // CHECK-NEXT: kernel_bundle.hpp
