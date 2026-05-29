@@ -27,8 +27,7 @@
 #if defined(__SYCL_DEVICE_ONLY__) && defined(_MSC_VER)
 namespace std {
 extern "C" {
-int __isa_available __attribute__((sycl_global_var))
-    __attribute__((weak)) = 0;
+int __isa_available __attribute__((sycl_global_var)) __attribute__((weak)) = 0;
 }
 } // namespace std
 #endif // defined(__SYCL_DEVICE_ONLY__) && defined(_MSC_VER)
