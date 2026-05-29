@@ -11,9 +11,6 @@
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
 #include <unified-runtime/ur_api.h>
 
-// FIXME: .def files included to this file use all sorts of SYCL objects like
-// id, range, traits, etc. We have to include some headers before including .def
-// files.
 #include <sycl/aspects.hpp>
 #include <sycl/detail/device_info_types.hpp>
 #include <sycl/detail/info_desc_traits.hpp>
@@ -35,10 +32,6 @@
 #include <string>
 #include <vector>
 
-// This is used in trait .def files when there isn't a corresponding backend
-// query but we still need a value to instantiate the template.
-#define __SYCL_TRAIT_HANDLED_IN_RT 0
-
 namespace sycl {
 inline namespace _V1 {
 
@@ -51,10 +44,6 @@ enum class memory_order;
 
 // TODO: stop using OpenCL directly, use UR.
 namespace info {
-#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, UrCode)              \
-  struct Desc {                                                                \
-    using return_type = ReturnT;                                               \
-  };
 // A.1 Platform information desctiptors
 namespace platform {
 // TODO Despite giving this deprecation warning, we're still yet to implement
@@ -647,51 +636,8 @@ struct command_end {
   static constexpr ur_profiling_info_t ur_code = UR_PROFILING_INFO_COMMAND_END;
 };
 } // namespace event_profiling
-#undef __SYCL_PARAM_TRAITS_SPEC
 
 } // namespace info
 
-#define __SYCL_PARAM_TRAITS_SPEC(Namespace, DescType, Desc, ReturnT, UrCode)   \
-  namespace Namespace {                                                        \
-  namespace info {                                                             \
-  namespace DescType {                                                         \
-  struct Desc {                                                                \
-    using return_type = ReturnT;                                               \
-  };                                                                           \
-  } /*DescType*/                                                               \
-  } /*info*/                                                                   \
-  } /*Namespace*/
-
-#define __SYCL_PARAM_TRAITS_TEMPLATE_SPEC(Namespace, DescType, Desc, ReturnT,  \
-                                          UrCode)                              \
-  namespace Namespace {                                                        \
-  namespace info {                                                             \
-  namespace DescType {                                                         \
-  template <> struct Desc {                                                    \
-    using return_type = ReturnT;                                               \
-  };                                                                           \
-  } /*namespace DescType */                                                    \
-  } /*namespace info */                                                        \
-  } /*namespace Namespace */
-
-#define __SYCL_PARAM_TRAITS_TEMPLATE_PARTIAL_SPEC(Namespace, Desctype, Desc,   \
-                                                  ReturnT, UrCode)             \
-  namespace Namespace::info {                                                  \
-  namespace Desctype {                                                         \
-  template <int Dimensions> struct Desc {                                      \
-    using return_type = ReturnT<Dimensions>;                                   \
-  };                                                                           \
-  }                                                                            \
-  }
-
-#include <sycl/info/ext_codeplay_device_traits.def>
-#include <sycl/info/ext_intel_device_traits.def>
-#include <sycl/info/ext_intel_kernel_info_traits.def>
-#include <sycl/info/ext_oneapi_device_traits.def>
-#include <sycl/info/ext_oneapi_kernel_queue_specific_traits.def>
-
-#undef __SYCL_PARAM_TRAITS_SPEC
-#undef __SYCL_PARAM_TRAITS_TEMPLATE_SPEC
-#undef __SYCL_PARAM_TRAITS_TEMPLATE_PARTIAL_SPEC
 } // namespace _V1
 } // namespace sycl

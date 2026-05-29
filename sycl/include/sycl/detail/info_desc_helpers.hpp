@@ -8,27 +8,20 @@
 
 #pragma once
 
-#include <type_traits> // for true_type
+#include <type_traits> // for false_type
 
-// FIXME: .def files included to this file use all sorts of SYCL objects like
-// id, range, traits, etc. We have to include some headers before including .def
-// files.
-#include <sycl/aspects.hpp>
 #include <sycl/detail/info_desc_traits.hpp>
-#include <sycl/id.hpp>
 #include <sycl/info/info_desc.hpp>
 
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
-// Primary templates derive from `is_info_desc_for<T, info_class::X>`, which
-// matches new self-describing traits (those carrying `info_class`, `return_type`
-// and `ur_code` members). Explicit specializations emitted below from the .def
-// files override the primary template for legacy traits. Both forms coexist
-// while migration is in progress.
+// Each `is_*_info_desc<T>` matches self-describing trait structs that carry
+// `info_class`, `return_type`, and (optionally) `ur_code` members. Mangling
+// of `get_info` template arguments depends on the `return_type` alias exposed
+// here, so the alias must remain stable across changes.
 template <typename T>
-struct is_platform_info_desc
-    : is_info_desc_for<T, info_class::platform> {};
+struct is_platform_info_desc : is_info_desc_for<T, info_class::platform> {};
 template <typename T>
 struct is_context_info_desc : is_info_desc_for<T, info_class::context> {};
 template <typename T>
@@ -58,36 +51,6 @@ struct is_event_profiling_info_desc
 
 template <typename T> struct is_backend_info_desc : std::false_type {};
 // Similar approach to limit valid get_backend_info template argument
-
-#define __SYCL_PARAM_TRAITS_SPEC(Namespace, DescType, Desc, ReturnT, UrCode)   \
-  template <>                                                                  \
-  struct is_##DescType##_info_desc<Namespace::info::DescType::Desc>            \
-      : std::true_type {                                                       \
-    using return_type = Namespace::info::DescType::Desc::return_type;          \
-  };
-#include <sycl/info/ext_intel_kernel_info_traits.def>
-#undef __SYCL_PARAM_TRAITS_SPEC
-
-
-#define __SYCL_PARAM_TRAITS_SPEC(Namespace, DescType, Desc, ReturnT, UrCode)   \
-  template <>                                                                  \
-  struct is_##DescType##_info_desc<Namespace::info::DescType::Desc>            \
-      : std::true_type {                                                       \
-    using return_type = Namespace::info::DescType::Desc::return_type;          \
-  };
-
-#define __SYCL_PARAM_TRAITS_TEMPLATE_PARTIAL_SPEC(Namespace, Desctype, Desc,   \
-                                                  ReturnT, UrCode)             \
-  template <int Dimensions>                                                    \
-  struct is_##Desctype##_info_desc<                                            \
-      Namespace::info::Desctype::Desc<Dimensions>> : std::true_type {          \
-    using return_type =                                                        \
-        typename Namespace::info::Desctype::Desc<Dimensions>::return_type;     \
-  };
-
-#include <sycl/info/ext_oneapi_kernel_queue_specific_traits.def>
-#undef __SYCL_PARAM_TRAITS_SPEC
-#undef __SYCL_PARAM_TRAITS_TEMPLATE_PARTIAL_SPEC
 
 } // namespace detail
 } // namespace _V1

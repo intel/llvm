@@ -1,2 +1,0 @@
-// All ext::intel device traits migrated to self-describing trait structs in
-// sycl/ext/intel/info/device.hpp.

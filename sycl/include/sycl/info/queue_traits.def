@@ -1,2 +1,0 @@
-// Queue info-descriptor traits migrated to self-describing structs in
-// sycl/include/sycl/info/info_desc.hpp (namespace info::queue).

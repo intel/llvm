@@ -1,3 +1,0 @@
-// kernel_device_specific info-descriptor traits migrated to self-describing
-// structs in sycl/include/sycl/info/info_desc.hpp (namespace
-// info::kernel_device_specific).

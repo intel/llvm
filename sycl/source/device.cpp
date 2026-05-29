@@ -147,7 +147,8 @@ device::get_info_impl() const {
   return detail::convert_to_abi_neutral(impl->template get_info<Param>());
 }
 
-// Explicit override. Not fulfilled by #include device_traits.def below.
+// Explicit override; the macro-generated instantiation block below skips this
+// trait so the runtime can apply the sub-device check.
 template <>
 __SYCL_EXPORT device
 device::get_info_impl<info::device::parent_device>() const {

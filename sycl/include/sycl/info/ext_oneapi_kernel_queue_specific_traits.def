@@ -1,2 +1,0 @@
-// kernel_queue_specific traits migrated to self-describing trait structs in
-// sycl/ext/oneapi/experimental/kernel_queue_info.hpp.

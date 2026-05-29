@@ -104,14 +104,6 @@ __SYCL_KDS_INFO_INST(compile_sub_group_size, uint32_t)
 __SYCL_KDS_INFO_INST(ext_codeplay_num_regs, uint32_t)
 #undef __SYCL_KDS_INFO_INST
 
-#define __SYCL_PARAM_TRAITS_SPEC(Namespace, DescType, Desc, ReturnT, UrCode)   \
-  template __SYCL_EXPORT ReturnT                                               \
-  kernel::get_info<Namespace::info::DescType::Desc>(const device &) const;
-
-#include <sycl/info/ext_intel_kernel_info_traits.def>
-
-#undef __SYCL_PARAM_TRAITS_SPEC
-
 // Self-describing extension traits: explicit instantiation for the ABI
 // surface lives here until the matching trait moves to a dedicated TU.
 template __SYCL_EXPORT size_t kernel::get_info<
@@ -242,8 +234,8 @@ template __SYCL_EXPORT typename ext::oneapi::experimental::info::
   template __SYCL_EXPORT ReturnT                                               \
   kernel::ext_oneapi_get_info<Namespace::info::DescType::Desc>(                \
       queue, const range<3> &, size_t) const;
-// Not including "ext_oneapi_kernel_queue_specific_traits.def" because not all
-// kernel_queue_specific queries require the above-defined get_info interface.
+// Only kernel_queue_specific queries that take a work-group size + dynamic
+// local mem size go through this overload; the rest are instantiated above.
 // clang-format off
 __SYCL_PARAM_TRAITS_SPEC(ext::oneapi::experimental, kernel_queue_specific, max_num_work_groups, size_t)
 // clang-format on

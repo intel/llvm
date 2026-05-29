@@ -87,13 +87,6 @@ __SYCL_KDS_INFO_INST(compile_sub_group_size, uint32_t)
 __SYCL_KDS_INFO_INST(ext_codeplay_num_regs, uint32_t)
 #undef __SYCL_KDS_INFO_INST
 
-#define __SYCL_PARAM_TRAITS_SPEC(Namespace, DescType, Desc, ReturnT, UrCode)   \
-  template __SYCL_EXPORT ReturnT                                               \
-  get_kernel_info_impl<Namespace::info::DescType::Desc>(                       \
-      context_impl &, device_impl &, DeviceKernelInfo &);
-#include <sycl/info/ext_intel_kernel_info_traits.def>
-#undef __SYCL_PARAM_TRAITS_SPEC
-
 // Self-describing extension traits: explicit instantiation for the ABI
 // surface lives here until the matching trait moves to a dedicated TU.
 template __SYCL_EXPORT size_t
