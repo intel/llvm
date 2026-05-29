@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#pragma once
+#pragma once 
 
 // Throw warning when including sycl.hpp without using -fsycl flag.
 // Warning can be disabled by defining SYCL_DISABLE_FSYCL_SYCLHPP_WARNING macro.
