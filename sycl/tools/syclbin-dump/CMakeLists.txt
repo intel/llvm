@@ -22,4 +22,4 @@ endif()
 add_dependencies(sycl-toolchain syclbin-dump)
 
 install(TARGETS syclbin-dump
-  RUNTIME DESTINATION "bin" COMPONENT syclbin-dump)
+  RUNTIME DESTINATION ${DPCPP_INSTALL_INTERNAL_BINDIR} COMPONENT syclbin-dump)

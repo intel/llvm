@@ -183,11 +183,11 @@ macro(add_clang_tool name)
       get_target_export_arg(${name} Clang export_to_clangtargets)
       install(TARGETS ${name}
         ${export_to_clangtargets}
-        RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
+        RUNTIME DESTINATION "${DPCPP_INSTALL_INTERNAL_BINDIR}"
         COMPONENT ${name})
 
       if (LLVM_ENABLE_PDB)
-        install(FILES $<TARGET_PDB_FILE:${name}> DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT ${name} OPTIONAL)
+        install(FILES $<TARGET_PDB_FILE:${name}> DESTINATION "${DPCPP_INSTALL_INTERNAL_BINDIR}" COMPONENT ${name} OPTIONAL)
       endif()
 
       if(NOT LLVM_ENABLE_IDE)

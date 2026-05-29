@@ -93,6 +93,52 @@ foreach(link ${CLANG_LINKS_TO_CREATE} ${HLSL_LINK})
   add_clang_symlink(${link} clang)
 endforeach()
 
+# Install public dpclang* symlinks in ${CMAKE_INSTALL_BINDIR}.
+# These versioned names avoid conflicts with a system LLVM installation while
+# the real binaries live in ${DPCPP_INSTALL_INTERNAL_BINDIR} alongside all companion
+# tools so that the driver can find them via its own executable path.
+if(CLANG_BUILD_TOOLS)
+  # Ensure ${CMAKE_INSTALL_BINDIR} exists — no real binaries install there
+  # anymore so it would otherwise never be created.
+  install(DIRECTORY DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT clang)
+
+  foreach(path ${CMAKE_MODULE_PATH})
+    if(EXISTS ${path}/LLVMInstallSymlink.cmake)
+      set(INSTALL_SYMLINK ${path}/LLVMInstallSymlink.cmake)
+      break()
+    endif()
+  endforeach()
+
+  if(LLVM_USE_SYMLINKS)
+    set(_dpclang_link_or_copy create_symlink)
+  else()
+    set(_dpclang_link_or_copy copy)
+  endif()
+
+  # Compute the relative path from $bindir to clang++ inside the tools dir so
+  # the symlinks work regardless of the installation prefix.
+  set(_abs_bindir "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR}")
+  set(_abs_toolsdir "${CMAKE_INSTALL_PREFIX}/${DPCPP_INSTALL_INTERNAL_BINDIR}")
+  file(RELATIVE_PATH _dpclang_clangpp "${_abs_bindir}" "${_abs_toolsdir}/clang++")
+
+  # dpclang-MAJOR is the versioned public entry-point; it chains through clang++
+  # (itself a symlink to the versioned clang binary) so realpath resolves to the
+  # tools directory where all companion tools reside.
+  install(SCRIPT ${INSTALL_SYMLINK}
+          CODE "install_symlink(\"dpclang-${DPCPP_VERSION_MAJOR}\" \"${_dpclang_clangpp}\" \"${CMAKE_INSTALL_BINDIR}\" \"${_dpclang_link_or_copy}\")"
+          COMPONENT clang)
+
+  install(SCRIPT ${INSTALL_SYMLINK}
+          CODE "install_symlink(\"dpclang\" \"dpclang-${DPCPP_VERSION_MAJOR}\" \"${CMAKE_INSTALL_BINDIR}\" \"${_dpclang_link_or_copy}\")"
+          COMPONENT clang)
+
+  foreach(_link dpclang++ dpclang-cl dpclang-cpp)
+    install(SCRIPT ${INSTALL_SYMLINK}
+            CODE "install_symlink(\"${_link}\" \"dpclang-${DPCPP_VERSION_MAJOR}\" \"${CMAKE_INSTALL_BINDIR}\" \"${_dpclang_link_or_copy}\")"
+            COMPONENT clang)
+  endforeach()
+endif()
+
 # Configure plist creation for OS X.
 set (TOOL_INFO_PLIST "Info.plist" CACHE STRING "Plist name")
 if (APPLE)

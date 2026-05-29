@@ -26,7 +26,7 @@ add_dependencies(sycl-toolchain sycl-sanitize)
 
 include(GNUInstallDirs)
 install(TARGETS sycl-sanitize sycl_sanitizer_collector
-  RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT sycl-sanitize
+  RUNTIME DESTINATION ${DPCPP_INSTALL_INTERNAL_BINDIR} COMPONENT sycl-sanitize
   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT sycl-sanitize
   ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT sycl-sanitize
 )

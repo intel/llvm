@@ -43,6 +43,12 @@ mark_as_advanced(LLVM_UNVERSIONED_LIBLTO_ON_DARWIN)
 include(${LLVM_COMMON_CMAKE_UTILS}/Modules/LLVMVersion.cmake)
 include(${LLVM_COMMON_CMAKE_UTILS}/Modules/DPCPPVersion.cmake)
 
+# Redirect all compiler tools into the versioned DPC++ library directory so
+# they don't conflict with a system LLVM installation.  The public dpclang*
+# entry-points in ${CMAKE_INSTALL_BINDIR} are added by clang/tools/driver.
+set(LLVM_TOOLS_INSTALL_DIR "${DPCPP_INSTALL_INTERNAL_BINDIR}" CACHE STRING "" FORCE)
+set(CLANG_TOOLS_INSTALL_DIR "${DPCPP_INSTALL_INTERNAL_BINDIR}" CACHE PATH "" FORCE)
+
 set_directory_properties(PROPERTIES LLVM_VERSION_MAJOR "${LLVM_VERSION_MAJOR}")
 
 if (NOT PACKAGE_VERSION)
