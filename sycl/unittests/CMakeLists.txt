@@ -51,6 +51,7 @@ add_subdirectory(accessor)
 add_subdirectory(handler)
 add_subdirectory(builtins)
 add_subdirectory(buffer/l0_specific)
+add_subdirectory(multi_ptr)
 
 # Enable compression unit-tests only if zstd is present.
 if (LLVM_ENABLE_ZSTD)
