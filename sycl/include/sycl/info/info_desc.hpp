@@ -16,6 +16,7 @@
 // files.
 #include <sycl/aspects.hpp>
 #include <sycl/detail/device_info_types.hpp>
+#include <sycl/detail/info_desc_traits.hpp>
 #include <sycl/detail/type_traits.hpp>
 #include <sycl/ext/codeplay/experimental/max_registers_query.hpp>
 #include <sycl/ext/intel/info/device.hpp>
@@ -59,8 +60,31 @@ namespace platform {
 // TODO Despite giving this deprecation warning, we're still yet to implement
 // info::device::aspects.
 struct __SYCL2020_DEPRECATED("deprecated in SYCL 2020, use device::get_info() "
-                             "with info::device::aspects instead") extensions;
-#include <sycl/info/platform_traits.def>
+                             "with info::device::aspects instead") extensions {
+  using return_type = std::vector<std::string>;
+  using info_class = sycl::detail::info_class::platform;
+  static constexpr ur_platform_info_t ur_code = UR_PLATFORM_INFO_EXTENSIONS;
+};
+struct profile {
+  using return_type = std::string;
+  using info_class = sycl::detail::info_class::platform;
+  static constexpr ur_platform_info_t ur_code = UR_PLATFORM_INFO_PROFILE;
+};
+struct version {
+  using return_type = std::string;
+  using info_class = sycl::detail::info_class::platform;
+  static constexpr ur_platform_info_t ur_code = UR_PLATFORM_INFO_VERSION;
+};
+struct name {
+  using return_type = std::string;
+  using info_class = sycl::detail::info_class::platform;
+  static constexpr ur_platform_info_t ur_code = UR_PLATFORM_INFO_NAME;
+};
+struct vendor {
+  using return_type = std::string;
+  using info_class = sycl::detail::info_class::platform;
+  static constexpr ur_platform_info_t ur_code = UR_PLATFORM_INFO_VENDOR_NAME;
+};
 } // namespace platform
 // A.2 Context information desctiptors
 namespace context {

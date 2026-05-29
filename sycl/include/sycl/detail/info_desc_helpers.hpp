@@ -67,7 +67,6 @@ template <typename T> struct is_backend_info_desc : std::false_type {};
 #include <sycl/info/context_traits.def>
 #include <sycl/info/event_traits.def>
 #include <sycl/info/kernel_traits.def>
-#include <sycl/info/platform_traits.def>
 #include <sycl/info/queue_traits.def>
 #undef __SYCL_PARAM_TRAITS_SPEC
 
