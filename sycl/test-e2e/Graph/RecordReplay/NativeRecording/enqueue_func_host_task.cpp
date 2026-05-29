@@ -29,6 +29,7 @@ int main() {
   const sycl::device Device = Queue.get_device();
 
   uint32_t *Data = malloc_shared<uint32_t>(N, Queue);
+  std::fill(Data, Data + N, 0);
 
   ze_command_list_handle_t ZeCommandList;
   bool success = getCommandListFromQueue(Queue, ZeCommandList);
@@ -45,7 +46,7 @@ int main() {
 
   Queue.submit([&](handler &CGH) {
     CGH.parallel_for(range<1>{N}, [=](id<1> idx) {
-      Data[idx] = static_cast<uint32_t>(idx[0]) + 1;
+      Data[idx] += static_cast<uint32_t>(idx[0]) + 1;
     });
   });
 
@@ -63,11 +64,20 @@ int main() {
   verifier.verify(EXECUTING);
 
   auto ExecutableGraph = Graph.finalize();
+
   Queue.submit([&](handler &CGH) { CGH.ext_oneapi_graph(ExecutableGraph); });
   Queue.wait();
 
   for (size_t i = 0; i < N; i++) {
     uint32_t Expected = static_cast<uint32_t>((i + 1) * 2 + 10);
+    assert(check_value(i, Expected, Data[i], "Data"));
+  }
+
+  Queue.submit([&](handler &CGH) { CGH.ext_oneapi_graph(ExecutableGraph); });
+  Queue.wait();
+
+  for (size_t i = 0; i < N; i++) {
+    uint32_t Expected = static_cast<uint32_t>((i + 1) * 6 + 30);
     assert(check_value(i, Expected, Data[i], "Data"));
   }
 
