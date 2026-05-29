@@ -1010,6 +1010,27 @@ public:
 
   bundle_state get_bundle_state() const { return MState; }
 
+  // Serialize this kernel_bundle into the SYCLBIN binary format. Always
+  // re-serializes from the live device images to reflect any state-promotion
+  // (compile/link/build) that may have replaced the original images, even when
+  // the bundle was originally constructed from a SYCLBIN file.
+  std::vector<char> ext_oneapi_get_content() const {
+    // Per the sycl_ext_oneapi_syclbin extension, the public surface uses a
+    // _Constraints:_ clause that excludes ext_oneapi_source via SFINAE on
+    // kernel_bundle<State>::ext_oneapi_get_content. This assert backstops the
+    // SFINAE in case the impl is reached through a different path.
+    assert(MState != bundle_state::ext_oneapi_source &&
+           "ext_oneapi_get_content reached on a source-state kernel_bundle.");
+
+    std::vector<const RTDeviceBinaryImage *> Images;
+    Images.reserve(MUniqueDeviceImages.size());
+    for (device_image_impl &DevImg : device_images())
+      if (const RTDeviceBinaryImage *Bin = DevImg.get_bin_image_ref())
+        Images.push_back(Bin);
+
+    return SYCLBIN::serializeImages(Images, static_cast<uint8_t>(MState));
+  }
+
   const SpecConstMapT &get_spec_const_map_ref() const noexcept {
     return MSpecConstValues;
   }

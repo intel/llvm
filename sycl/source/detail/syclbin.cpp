@@ -14,6 +14,8 @@
 #include <detail/program_manager/program_manager.hpp>
 #include <detail/syclbin.hpp>
 
+#include <sstream>
+
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
@@ -159,7 +161,316 @@ const char *getDeviceTargetSpecFromTriple(std::string_view Triple) {
   return UR_DEVICE_BINARY_TARGET_UNKNOWN;
 }
 
+// Returns the triple string corresponding to the given runtime
+// DeviceTargetSpec. The SYCLBIN reader only inspects the first '-'-separated
+// segment of the triple to recover the target spec, so emitting
+// "<spec>-unknown-unknown" is sufficient for round-tripping.
+std::string getTripleFromTargetSpec(const char *TargetSpec) {
+  return std::string{TargetSpec ? TargetSpec : ""} + "-unknown-unknown";
+}
+
+// Determines whether the given device image format should be packaged as an IR
+// module or a native device code image inside a SYCLBIN.
+bool isIRModuleFormat(ur::DeviceBinaryType Format) {
+  return Format == SYCL_DEVICE_BINARY_TYPE_SPIRV ||
+         Format == SYCL_DEVICE_BINARY_TYPE_LLVMIR_BITCODE;
+}
+
+// Maps a runtime device image format to its SYCLBIN IR module type enum
+// value. The list of valid IR types is currently SPIR-V (0), PTX (1) and
+// AMDGCN (2). Today the runtime only emits SPIR-V IR modules, so we hardcode 0
+// here. Mirrors the same hardcode in llvm/lib/Object/SYCLBIN.cpp.
+// TODO: Determine type from the input.
+uint32_t getIRModuleType(ur::DeviceBinaryType /*Format*/) { return 0; }
+
+// Serializes a property set (name + entries) into the textual format consumed
+// by PropertySetRegistry::read by routing through PropertySetRegistry::write.
+// The source data lives in a sycl_device_binary_property_set_struct produced by
+// either offline compilation or the SYCLBIN reader.
+void appendPropSetTo(PropertySetRegistry &Registry,
+                     sycl_device_binary_property_set PropSet) {
+  std::string_view Category{PropSet->Name};
+  PropertySet &Set = Registry[Category];
+  for (sycl_device_binary_property Prop = PropSet->PropertiesBegin;
+       Prop != PropSet->PropertiesEnd; ++Prop) {
+    PropertyValue::Type Ty =
+        PropertyValue::getTypeTag(static_cast<int>(Prop->Type));
+    PropertyValue Value(Ty);
+    if (Ty == PropertyValue::UINT32) {
+      // For UINT32 properties the value is encoded directly in ValSize.
+      Value.set(static_cast<uint32_t>(Prop->ValSize));
+    } else {
+      // BYTE_ARRAY: Prop->ValAddr is laid out as [8-byte size header][payload]
+      // and Prop->ValSize covers the entire blob. Recompute payload size from
+      // ValSize rather than reading the header (the header is the encoded
+      // bit-count and is not always set consistently in synthetic images).
+      assert(Prop->ValSize >= sizeof(PropertyValue::SizeTy) &&
+             "BYTE_ARRAY property smaller than its 8-byte size header.");
+      const PropertyValue::byte *Payload =
+          reinterpret_cast<const PropertyValue::byte *>(Prop->ValAddr) +
+          sizeof(PropertyValue::SizeTy);
+      const PropertyValue::SizeTy PayloadBytes =
+          Prop->ValSize - sizeof(PropertyValue::SizeTy);
+      Value = PropertyValue(Payload, PayloadBytes * 8);
+    }
+    Set[std::string{Prop->Name}] = std::move(Value);
+  }
+}
+
+// Serializes a PropertySetRegistry to a std::string suitable for stuffing into
+// a SYCLBIN metadata blob.
+std::string serializePropSetRegistry(const PropertySetRegistry &Registry) {
+  std::ostringstream OS;
+  Registry.write(OS);
+  return OS.str();
+}
+
+// Pads OS so that its current size is a multiple of 8 bytes by appending zero
+// bytes.
+void padTo8(std::ostream &OS) {
+  size_t Pos = static_cast<size_t>(OS.tellp());
+  size_t Pad = (8 - (Pos & 7)) & 7;
+  for (size_t I = 0; I < Pad; ++I)
+    OS.put('\0');
+}
+
+template <typename T> void writeRaw(std::ostream &OS, const T &Val) {
+  OS.write(reinterpret_cast<const char *>(&Val), sizeof(T));
+}
+
 } // namespace
+
+std::vector<char> SYCLBIN::write(const SYCLBINDesc &Desc) {
+  uint32_t IRModuleCount = 0;
+  uint32_t NativeDeviceCodeImageCount = 0;
+  uint64_t MetadataTableSize = Desc.GlobalMetadata.size();
+  uint64_t BinaryTableSize = 0;
+  for (const AbstractModuleDesc &AMD : Desc.AbstractModules) {
+    IRModuleCount += AMD.IRModules.size();
+    NativeDeviceCodeImageCount += AMD.NativeDeviceCodeImages.size();
+    MetadataTableSize += AMD.Metadata.size();
+    for (const ImageDesc &IRMD : AMD.IRModules) {
+      MetadataTableSize += IRMD.Metadata.size();
+      BinaryTableSize += IRMD.Bytes.size();
+    }
+    for (const ImageDesc &NDCID : AMD.NativeDeviceCodeImages) {
+      MetadataTableSize += NDCID.Metadata.size();
+      BinaryTableSize += NDCID.Bytes.size();
+    }
+  }
+
+  std::ostringstream OS;
+
+  // File header.
+  FileHeaderType FileHeader{};
+  FileHeader.Magic = MagicNumber;
+  FileHeader.Version = CurrentVersion;
+  FileHeader.AbstractModuleCount =
+      static_cast<uint32_t>(Desc.AbstractModules.size());
+  FileHeader.IRModuleCount = IRModuleCount;
+  FileHeader.NativeDeviceCodeImageCount = NativeDeviceCodeImageCount;
+  FileHeader.MetadataByteTableSize = MetadataTableSize;
+  FileHeader.BinaryByteTableSize = BinaryTableSize;
+  FileHeader.GlobalMetadataOffset = 0;
+  FileHeader.GlobalMetadataSize = Desc.GlobalMetadata.size();
+  writeRaw(OS, FileHeader);
+  padTo8(OS);
+
+  // Track running offsets into the metadata and binary byte tables.
+  uint64_t MetadataOffset = FileHeader.GlobalMetadataSize;
+  uint64_t BinaryOffset = 0;
+
+  // Abstract module headers.
+  uint32_t IRModuleOffset = 0;
+  uint32_t NativeDeviceCodeImageOffset = 0;
+  for (const AbstractModuleDesc &AMD : Desc.AbstractModules) {
+    AbstractModuleHeaderType AMHeader{};
+    AMHeader.MetadataOffset = MetadataOffset;
+    AMHeader.MetadataSize = AMD.Metadata.size();
+    AMHeader.IRModuleCount = static_cast<uint32_t>(AMD.IRModules.size());
+    AMHeader.IRModuleOffset = IRModuleOffset;
+    AMHeader.NativeDeviceCodeImageCount =
+        static_cast<uint32_t>(AMD.NativeDeviceCodeImages.size());
+    AMHeader.NativeDeviceCodeImageOffset = NativeDeviceCodeImageOffset;
+    writeRaw(OS, AMHeader);
+    padTo8(OS);
+    MetadataOffset += AMHeader.MetadataSize;
+    IRModuleOffset += AMHeader.IRModuleCount;
+    NativeDeviceCodeImageOffset += AMHeader.NativeDeviceCodeImageCount;
+  }
+
+  // IR module headers.
+  for (const AbstractModuleDesc &AMD : Desc.AbstractModules) {
+    for (const ImageDesc &IRMD : AMD.IRModules) {
+      IRModuleHeaderType IRMHeader{};
+      IRMHeader.MetadataOffset = MetadataOffset;
+      IRMHeader.MetadataSize = IRMD.Metadata.size();
+      IRMHeader.RawIRBytesOffset = BinaryOffset;
+      IRMHeader.RawIRBytesSize = IRMD.Bytes.size();
+      writeRaw(OS, IRMHeader);
+      padTo8(OS);
+      MetadataOffset += IRMHeader.MetadataSize;
+      BinaryOffset += IRMHeader.RawIRBytesSize;
+    }
+  }
+
+  // Native device code image headers.
+  for (const AbstractModuleDesc &AMD : Desc.AbstractModules) {
+    for (const ImageDesc &NDCID : AMD.NativeDeviceCodeImages) {
+      NativeDeviceCodeImageHeaderType NDCIHeader{};
+      NDCIHeader.MetadataOffset = MetadataOffset;
+      NDCIHeader.MetadataSize = NDCID.Metadata.size();
+      NDCIHeader.BinaryBytesOffset = BinaryOffset;
+      NDCIHeader.BinaryBytesSize = NDCID.Bytes.size();
+      writeRaw(OS, NDCIHeader);
+      padTo8(OS);
+      MetadataOffset += NDCIHeader.MetadataSize;
+      BinaryOffset += NDCIHeader.BinaryBytesSize;
+    }
+  }
+
+  // Metadata byte table.
+  OS.write(Desc.GlobalMetadata.data(), Desc.GlobalMetadata.size());
+  for (const AbstractModuleDesc &AMD : Desc.AbstractModules)
+    OS.write(AMD.Metadata.data(), AMD.Metadata.size());
+  for (const AbstractModuleDesc &AMD : Desc.AbstractModules)
+    for (const ImageDesc &IRMD : AMD.IRModules)
+      OS.write(IRMD.Metadata.data(), IRMD.Metadata.size());
+  for (const AbstractModuleDesc &AMD : Desc.AbstractModules)
+    for (const ImageDesc &NDCID : AMD.NativeDeviceCodeImages)
+      OS.write(NDCID.Metadata.data(), NDCID.Metadata.size());
+  padTo8(OS);
+
+  // Binary byte table. Order must match the offsets baked into the IR and
+  // native module headers above: all IR module bytes first, then all native
+  // device code image bytes.
+  for (const AbstractModuleDesc &AMD : Desc.AbstractModules)
+    for (const ImageDesc &IRMD : AMD.IRModules)
+      OS.write(IRMD.Bytes.data(), IRMD.Bytes.size());
+  for (const AbstractModuleDesc &AMD : Desc.AbstractModules)
+    for (const ImageDesc &NDCID : AMD.NativeDeviceCodeImages)
+      OS.write(NDCID.Bytes.data(), NDCID.Bytes.size());
+  padTo8(OS);
+
+  // The runtime SYCLBIN reader expects the raw SYCLBIN bytes to be wrapped in
+  // an OffloadBinary entry, so emit that wrapping here. Mirrors the wrapping
+  // that clang-linker-wrapper does for on-disk SYCLBIN files.
+  std::string SYCLBINBytes = OS.str();
+  std::ostringstream OB;
+  OffloadBinaryHeaderType OBHeader{};
+  std::memcpy(OBHeader.Magic, OffloadBinaryMagic, sizeof(OBHeader.Magic));
+  OBHeader.Version = 2;
+  OBHeader.EntriesOffset = sizeof(OffloadBinaryHeaderType);
+  OBHeader.EntriesCount = 1;
+  // Single entry pointing at the SYCLBIN payload following the entry array.
+  OffloadBinaryEntryType OBEntry{};
+  OBEntry.ImageKind = /*IMG_SYCLBIN*/ 7;
+  OBEntry.OffloadKind = /*OFK_SYCL*/ 5;
+  OBEntry.ImageOffset =
+      sizeof(OffloadBinaryHeaderType) + sizeof(OffloadBinaryEntryType);
+  OBEntry.ImageSize = SYCLBINBytes.size();
+  OBHeader.Size = OBEntry.ImageOffset + SYCLBINBytes.size();
+  writeRaw(OB, OBHeader);
+  writeRaw(OB, OBEntry);
+  OB.write(SYCLBINBytes.data(), SYCLBINBytes.size());
+
+  std::string Buf = OB.str();
+  return std::vector<char>(Buf.begin(), Buf.end());
+}
+
+std::vector<char>
+SYCLBIN::serializeImages(const std::vector<const RTDeviceBinaryImage *> &Images,
+                         uint8_t State) {
+  SYCLBINDesc Desc;
+
+  // Global metadata: just the bundle state.
+  {
+    PropertySetRegistry GlobalProps;
+    GlobalProps.add(PropertySetRegistry::SYCLBIN_GLOBAL_METADATA, "state",
+                    static_cast<uint32_t>(State));
+    Desc.GlobalMetadata = serializePropSetRegistry(GlobalProps);
+  }
+
+  // Each runtime image becomes its own abstract module.
+  Desc.AbstractModules.reserve(Images.size());
+  for (const RTDeviceBinaryImage *Image : Images) {
+    if (!Image)
+      continue;
+    AbstractModuleDesc &AMD = Desc.AbstractModules.emplace_back();
+
+    // Forward all property sets from the source image into the abstract
+    // module metadata. This carries [SYCL/device requirements],
+    // [SYCL/specialization constants], etc., verbatim so that compatibility
+    // matching at re-load time uses the same predicates.
+    {
+      PropertySetRegistry AMProps;
+      const sycl_device_binary_struct &Raw = Image->getRawData();
+      for (sycl_device_binary_property_set PS = Raw.PropertySetsBegin;
+           PS != Raw.PropertySetsEnd; ++PS) {
+        // Skip SYCLBIN-reserved property sets; those are reconstructed below
+        // for IR/native modules and globally above.
+        std::string_view Name{PS->Name};
+        if (Name == PropertySetRegistry::SYCLBIN_GLOBAL_METADATA ||
+            Name == PropertySetRegistry::SYCLBIN_IR_MODULE_METADATA ||
+            Name ==
+                PropertySetRegistry::SYCLBIN_NATIVE_DEVICE_CODE_IMAGE_METADATA)
+          continue;
+        appendPropSetTo(AMProps, PS);
+      }
+      AMD.Metadata = serializePropSetRegistry(AMProps);
+    }
+
+    // Image bytes view.
+    const sycl_device_binary_struct &Raw = Image->getRawData();
+    std::string_view Bytes{
+        reinterpret_cast<const char *>(Raw.BinaryStart),
+        static_cast<size_t>(Raw.BinaryEnd - Raw.BinaryStart)};
+
+    const std::string Triple = getTripleFromTargetSpec(Raw.DeviceTargetSpec);
+
+    if (isIRModuleFormat(Image->getFormat())) {
+      ImageDesc &ID = AMD.IRModules.emplace_back();
+      ID.Bytes = Bytes;
+      PropertySetRegistry IRMProps;
+      IRMProps.add(PropertySetRegistry::SYCLBIN_IR_MODULE_METADATA, "type",
+                   getIRModuleType(Image->getFormat()));
+      IRMProps.add(PropertySetRegistry::SYCLBIN_IR_MODULE_METADATA, "target",
+                   std::string_view{Triple});
+      ID.Metadata = serializePropSetRegistry(IRMProps);
+    } else {
+      ImageDesc &ID = AMD.NativeDeviceCodeImages.emplace_back();
+      ID.Bytes = Bytes;
+      PropertySetRegistry NDCIProps;
+      // arch is informational; the SYCLBIN reader does not consume it. Forward
+      // the compile_target property (already carried in the abstract module
+      // metadata above) as the arch string when present, otherwise leave it
+      // empty.
+      std::string_view Arch{};
+      if (sycl_device_binary_property CT =
+              Image->getProperty("compile_target")) {
+        // BYTE_ARRAY layout: [8-byte size header][payload], with
+        // ValSize covering the whole blob. Guard against malformed images
+        // whose ValSize is smaller than the mandatory 8-byte header.
+        assert(CT->ValSize >= sizeof(PropertyValue::SizeTy) &&
+               "compile_target BYTE_ARRAY smaller than its 8-byte header.");
+        if (CT->ValSize >= sizeof(PropertyValue::SizeTy)) {
+          const char *Bytes = reinterpret_cast<const char *>(CT->ValAddr);
+          Arch = std::string_view{Bytes + sizeof(PropertyValue::SizeTy),
+                                  CT->ValSize - sizeof(PropertyValue::SizeTy)};
+        }
+      }
+      NDCIProps.add(
+          PropertySetRegistry::SYCLBIN_NATIVE_DEVICE_CODE_IMAGE_METADATA,
+          "arch", Arch);
+      NDCIProps.add(
+          PropertySetRegistry::SYCLBIN_NATIVE_DEVICE_CODE_IMAGE_METADATA,
+          "target", std::string_view{Triple});
+      ID.Metadata = serializePropSetRegistry(NDCIProps);
+    }
+  }
+
+  return write(Desc);
+}
 
 SYCLBIN::SYCLBIN(const char *Data, size_t Size) {
   auto [SYCLBINData, SYCLBINSize] = getImageInOffloadBinary(Data, Size);

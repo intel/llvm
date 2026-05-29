@@ -13,6 +13,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <ostream>
 #include <string>
 #include <vector>
 
@@ -22,6 +23,37 @@ namespace detail {
 
 class Base64 {
 private:
+  // Encoding table: 6-bit index -> base64 character.
+  //
+  // Base64 packs every 3 bytes (24 bits) of input into 4 output characters,
+  // each carrying 6 bits of the input. The table indexes by the 6-bit value
+  // and produces the corresponding character per RFC 4648:
+  //
+  //   index  0..25  -> 'A'..'Z'
+  //   index 26..51  -> 'a'..'z'
+  //   index 52..61  -> '0'..'9'
+  //   index 62      -> '+'
+  //   index 63      -> '/'
+  //
+  // Used by encode() only. decode() uses arithmetic on the input character
+  // (see below) since its 7-bit ASCII input domain is sparse and a reverse
+  // lookup table would be mostly invalid entries.
+  static constexpr char EncodingTable[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                                          "abcdefghijklmnopqrstuvwxyz"
+                                          "0123456789+/";
+
+  // Compose a 6-bit base64 index that straddles a byte boundary in the input
+  // stream. \p ByteLo holds the most-significant bits of the index in its
+  // \p BitsLo low bits; \p ByteHi holds the least-significant bits of the
+  // index in its high (8 - \p BitsLo) bits. The two are stitched together and
+  // masked to 6 bits to yield a value in [0, 63] suitable for indexing into
+  // EncodingTable. Used by encode() to handle the 2nd and 3rd output
+  // characters of every 3-byte input triple, where the 6-bit slice is not
+  // byte-aligned.
+  static inline int composeInd(uint8_t ByteLo, uint8_t ByteHi, int BitsLo) {
+    return ((ByteHi << BitsLo) | (ByteLo >> (8 - BitsLo))) & 0x3F;
+  }
+
   // Decode a single character.
   static inline int decode(char Ch) {
     if (Ch >= 'A' && Ch <= 'Z') // 0..25
@@ -58,6 +90,48 @@ private:
 
 public:
   using byte = uint8_t;
+
+  // Get the size of the encoded byte sequence of given size.
+  static size_t getEncodedSize(size_t SrcSize) {
+    constexpr int ByteSizeInBits = 8;
+    constexpr int EncBitsPerChar = 6;
+    return (SrcSize * ByteSizeInBits + (EncBitsPerChar - 1)) / EncBitsPerChar;
+  }
+
+  // Encode a byte sequence of given size into the output stream.
+  // Returns the number of bytes in the encoded result.
+  static size_t encode(const byte *Src, std::ostream &Out, size_t SrcSize) {
+    size_t Off = 0;
+
+    // Encode full byte triples.
+    for (size_t TriB = 0; TriB < SrcSize / 3; ++TriB) {
+      Off = TriB * 3;
+      byte Byte0 = Src[Off++];
+      byte Byte1 = Src[Off++];
+      byte Byte2 = Src[Off++];
+
+      Out << EncodingTable[Byte0 & 0x3F];
+      Out << EncodingTable[composeInd(Byte0, Byte1, 2)];
+      Out << EncodingTable[composeInd(Byte1, Byte2, 4)];
+      Out << EncodingTable[(Byte2 >> 2) & 0x3F];
+    }
+    // Encode the remainder, if any.
+    int RemBytes = static_cast<int>(SrcSize - Off);
+
+    if (RemBytes > 0) {
+      byte Byte0 = Src[Off + 0];
+      Out << EncodingTable[Byte0 & 0x3F];
+
+      if (RemBytes > 1) {
+        byte Byte1 = Src[Off + 1];
+        Out << EncodingTable[composeInd(Byte0, Byte1, 2)];
+        Out << EncodingTable[(Byte1 >> 4) & 0x3F];
+      } else {
+        Out << EncodingTable[(Byte0 >> 6) & 0x3F];
+      }
+    }
+    return getEncodedSize(SrcSize);
+  }
 
   // Get the size of the encoded byte sequence of given size.
   static size_t getDecodedSize(size_t SrcSize) { return (SrcSize * 3 + 3) / 4; }
