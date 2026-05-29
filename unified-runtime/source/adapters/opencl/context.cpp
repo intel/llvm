@@ -15,6 +15,18 @@
 #include <set>
 #include <unordered_map>
 
+cl_command_queue ur_context_handle_t_::getSyncQueue() {
+  std::lock_guard<std::mutex> Lock(SyncQueueMtx);
+  if (!SyncQueue) {
+    cl_int Err;
+    SyncQueue =
+        clCreateCommandQueue(CLContext, Devices[0]->CLDevice, 0, &Err);
+    assert(Err == CL_SUCCESS);
+    (void)Err;
+  }
+  return SyncQueue;
+}
+
 ur_result_t
 ur_context_handle_t_::makeWithNative(native_type Ctx, uint32_t DevCount,
                                      const ur_device_handle_t *phDevices,
