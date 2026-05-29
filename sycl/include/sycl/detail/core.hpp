@@ -20,6 +20,7 @@
 
 #include <sycl/accessor.hpp>
 #include <sycl/buffer.hpp>
+#include <sycl/detail/backend_types_io.hpp>
 #include <sycl/queue.hpp>
 
 // TODO: We assume that this is the property of a vendor's implementation and

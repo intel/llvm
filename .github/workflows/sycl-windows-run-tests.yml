@@ -99,7 +99,7 @@ jobs:
         sparse-checkout: |
           devops/actions
           sycl/cts_exclude_filter
-    - uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756
+    - uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1.13.0
       with:
         arch: amd64
     - name: Setup oneAPI env
@@ -121,7 +121,7 @@ jobs:
           llvm/utils/lit
           sycl/test-e2e          
     - name: Download compiler toolchain
-      uses: actions/download-artifact@v7
+      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
       with:
         name: ${{ inputs.toolchain_artifact }}
     - name: Extract SYCL toolchain

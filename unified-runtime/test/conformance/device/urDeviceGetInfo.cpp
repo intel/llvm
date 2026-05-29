@@ -1,6 +1,5 @@
-// Copyright (C) 2022-2023 Intel Corporation
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
@@ -326,6 +325,23 @@ TEST_P(urDeviceGetInfoTest, SuccessPreferredVectorWidthHalf) {
                              property_value);
 }
 
+TEST_P(urDeviceGetInfoTest, SuccessPreferredVectorWidthLongLong) {
+  size_t property_size = 0;
+  const ur_device_info_t property_name =
+      UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_LONG_LONG;
+
+  ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+      urDeviceGetInfo(device, property_name, 0, nullptr, &property_size),
+      property_name);
+  ASSERT_EQ(property_size, sizeof(uint32_t));
+
+  uint32_t property_value = 0;
+  ASSERT_QUERY_RETURNS_VALUE(urDeviceGetInfo(device, property_name,
+                                             property_size, &property_value,
+                                             nullptr),
+                             property_value);
+}
+
 TEST_P(urDeviceGetInfoTest, SuccessNativeVectorWidthChar) {
   size_t property_size = 0;
   const ur_device_info_t property_name =
@@ -431,6 +447,23 @@ TEST_P(urDeviceGetInfoTest, SuccessNativeVectorWidthHalf) {
   size_t property_size = 0;
   const ur_device_info_t property_name =
       UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_HALF;
+
+  ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+      urDeviceGetInfo(device, property_name, 0, nullptr, &property_size),
+      property_name);
+  ASSERT_EQ(property_size, sizeof(uint32_t));
+
+  uint32_t property_value = 0;
+  ASSERT_QUERY_RETURNS_VALUE(urDeviceGetInfo(device, property_name,
+                                             property_size, &property_value,
+                                             nullptr),
+                             property_value);
+}
+
+TEST_P(urDeviceGetInfoTest, SuccessNativeVectorWidthLongLong) {
+  size_t property_size = 0;
+  const ur_device_info_t property_name =
+      UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG_LONG;
 
   ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
       urDeviceGetInfo(device, property_name, 0, nullptr, &property_size),
@@ -559,9 +592,10 @@ TEST_P(urDeviceGetInfoTest, SuccessMaxWriteImageArgs) {
                              property_value);
 }
 
+// Optional query: CUDA has separate texture (read-only) and surface
+// (write-only) objects but no combined read-write image type.
+// NativeCPU has no image support.
 TEST_P(urDeviceGetInfoTest, SuccessMaxReadWriteImageArgs) {
-  UUR_KNOWN_FAILURE_ON(uur::CUDA{}, uur::NativeCPU{});
-
   size_t property_size = 0;
   const ur_device_info_t property_name =
       UR_DEVICE_INFO_MAX_READ_WRITE_IMAGE_ARGS;
@@ -1112,9 +1146,9 @@ TEST_P(urDeviceGetInfoTest, SuccessReferenceCount) {
                              property_value);
 }
 
+// Optional query: Not all adapters support intermediate language (IL).
+// NativeCPU executes native code directly without IL support.
 TEST_P(urDeviceGetInfoTest, SuccessILVersion) {
-  UUR_KNOWN_FAILURE_ON(uur::CUDA{}, uur::NativeCPU{});
-
   size_t property_size = 0;
   const ur_device_info_t property_name = UR_DEVICE_INFO_IL_VERSION;
 
@@ -1814,6 +1848,23 @@ TEST_P(urDeviceGetInfoTest, SuccessMemoryBusWidth) {
                              property_value);
 }
 
+TEST_P(urDeviceGetInfoTest, SuccessMaxGlobalWorkGroups) {
+  UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
+
+  size_t property_size = 0;
+  const ur_device_info_t property_name = UR_DEVICE_INFO_MAX_WORK_GROUPS;
+
+  ASSERT_SUCCESS(
+      urDeviceGetInfo(device, property_name, 0, nullptr, &property_size));
+  ASSERT_EQ(property_size, sizeof(size_t));
+
+  size_t max_global_work_groups = 0;
+  ASSERT_SUCCESS(urDeviceGetInfo(device, property_name,
+                                 sizeof(max_global_work_groups),
+                                 &max_global_work_groups, nullptr));
+  ASSERT_GT(max_global_work_groups, 0u);
+}
+
 TEST_P(urDeviceGetInfoTest, SuccessMaxWorkGroups3D) {
   UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
 
@@ -1825,7 +1876,7 @@ TEST_P(urDeviceGetInfoTest, SuccessMaxWorkGroups3D) {
   ASSERT_EQ(property_size, sizeof(size_t) * 3);
 
   std::array<size_t, 3> max_work_group_sizes = {};
-  ASSERT_SUCCESS(urDeviceGetInfo(device, UR_DEVICE_INFO_MAX_WORK_GROUPS_3D,
+  ASSERT_SUCCESS(urDeviceGetInfo(device, property_name,
                                  sizeof(max_work_group_sizes),
                                  max_work_group_sizes.data(), nullptr));
   for (size_t i = 0; i < 3; i++) {
@@ -2560,11 +2611,8 @@ TEST_P(urDeviceGetInfoTest, SuccessBfloat16ConversionsNative) {
                              property_value);
 }
 
+// This test uses NVML which requires driver/library version match.
 TEST_P(urDeviceGetInfoTest, SuccessThrottleReasons) {
-  // TODO: enable when driver/library version mismatch is fixed in CI.
-  // See https://github.com/intel/llvm/issues/17614
-  UUR_KNOWN_FAILURE_ON(uur::CUDA{});
-
   size_t property_size = 0;
   const ur_device_info_t property_name =
       UR_DEVICE_INFO_CURRENT_CLOCK_THROTTLE_REASONS;
@@ -2581,11 +2629,8 @@ TEST_P(urDeviceGetInfoTest, SuccessThrottleReasons) {
   ASSERT_EQ(property_value & UR_DEVICE_THROTTLE_REASONS_FLAGS_MASK, 0);
 }
 
+// This test uses NVML which requires driver/library version match.
 TEST_P(urDeviceGetInfoTest, SuccessFanSpeed) {
-  // TODO: enable when driver/library version mismatch is fixed in CI.
-  // See https://github.com/intel/llvm/issues/17614
-  UUR_KNOWN_FAILURE_ON(uur::CUDA{});
-
   size_t property_size = 0;
   const ur_device_info_t property_name = UR_DEVICE_INFO_FAN_SPEED;
 
@@ -2602,11 +2647,8 @@ TEST_P(urDeviceGetInfoTest, SuccessFanSpeed) {
                              property_value);
 }
 
+// This test uses NVML which requires driver/library version match.
 TEST_P(urDeviceGetInfoTest, SuccessMaxPowerLimit) {
-  // TODO: enable when driver/library version mismatch is fixed in CI.
-  // See https://github.com/intel/llvm/issues/17614
-  UUR_KNOWN_FAILURE_ON(uur::CUDA{});
-
   size_t property_size = 0;
   const ur_device_info_t property_name = UR_DEVICE_INFO_MAX_POWER_LIMIT;
 
@@ -2623,11 +2665,8 @@ TEST_P(urDeviceGetInfoTest, SuccessMaxPowerLimit) {
                              property_value);
 }
 
+// This test uses NVML which requires driver/library version match.
 TEST_P(urDeviceGetInfoTest, SuccessMinPowerLimit) {
-  // TODO: enable when driver/library version mismatch is fixed in CI.
-  // See https://github.com/intel/llvm/issues/17614
-  UUR_KNOWN_FAILURE_ON(uur::CUDA{});
-
   size_t property_size = 0;
   const ur_device_info_t property_name = UR_DEVICE_INFO_MIN_POWER_LIMIT;
 

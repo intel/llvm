@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include <sycl/__spirv/spirv_ops.hpp>
+#include <sycl/__spirv/spirv_ops_atomic.hpp>
 #include <sycl/__spirv/spirv_types.hpp> // for Scope, MemorySemanticsMask
 #include <sycl/aliases.hpp>
 #include <sycl/bit_cast.hpp>

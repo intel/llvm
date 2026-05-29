@@ -1,10 +1,9 @@
 /*
  *
- * Copyright (C) 2020 Intel Corporation
  *
- * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
+ * Part of the LLVM Project, under the Apache License v2.0 with LLVM
  * Exceptions.
- * See LICENSE.TXT
+ * See https://llvm.org/LICENSE.txt for license information.
  *
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
@@ -1153,6 +1152,10 @@ ur_result_t UR_APICALL urDeviceGetGlobalTimestamps(
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `NULL != pProperties && ::UR_CONTEXT_FLAGS_MASK &
 ///         pProperties->flags`
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         + `DeviceCount == 0`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE - "If device handles in
+///     phDevices are not valid handles."
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY
 ur_result_t UR_APICALL urContextCreate(
@@ -3855,83 +3858,6 @@ ur_result_t UR_APICALL urEventSetCallback(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Enqueue a command to execute a kernel
-///
-/// @details
-///     - Providing invalid kernel arguments is Undefined Behavior.
-///
-/// @remarks
-///   _Analogues_
-///     - **clEnqueueNDRangeKernel**
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hQueue`
-///         + `NULL == hKernel`
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == pGlobalWorkSize`
-///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `NULL != launchPropList && ::UR_KERNEL_LAUNCH_FLAGS_MASK &
-///         launchPropList->flags`
-///     - ::UR_RESULT_ERROR_INVALID_QUEUE
-///     - ::UR_RESULT_ERROR_INVALID_KERNEL
-///     - ::UR_RESULT_ERROR_INVALID_EVENT
-///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
-///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
-///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
-///         + If event objects in phEventWaitList are not valid events.
-///     - ::UR_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS
-///         + An event in `phEventWaitList` has ::UR_EVENT_STATUS_ERROR.
-///     - ::UR_RESULT_ERROR_INVALID_WORK_DIMENSION
-///     - ::UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE
-///     - ::UR_RESULT_ERROR_INVALID_VALUE
-///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
-///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
-///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
-///         + If any property in `launchPropList` isn't supported by the device.
-ur_result_t UR_APICALL urEnqueueKernelLaunch(
-    /// [in] handle of the queue object
-    ur_queue_handle_t hQueue,
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] number of dimensions, from 1 to 3, to specify the global and
-    /// work-group work-items
-    uint32_t workDim,
-    /// [in][optional] pointer to an array of workDim unsigned values that
-    /// specify the offset used to calculate the global ID of a work-item
-    const size_t *pGlobalWorkOffset,
-    /// [in] pointer to an array of workDim unsigned values that specify the
-    /// number of global work-items in workDim that will execute the kernel
-    /// function
-    const size_t *pGlobalWorkSize,
-    /// [in][optional] pointer to an array of workDim unsigned values that
-    /// specify the number of local work-items forming a work-group that will
-    /// execute the kernel function.
-    /// If nullptr, the runtime implementation will choose the work-group size.
-    const size_t *pLocalWorkSize,
-    /// [in][optional] pointer to a single linked list of launch properties
-    const ur_kernel_launch_ext_properties_t *launchPropList,
-    /// [in] size of the event wait list
-    uint32_t numEventsInWaitList,
-    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
-    /// events that must be complete before the kernel execution.
-    /// If nullptr, the numEventsInWaitList must be 0, indicating that no wait
-    /// event.
-    const ur_event_handle_t *phEventWaitList,
-    /// [out][optional][alloc] return an event object that identifies this
-    /// particular kernel execution instance. If phEventWaitList and phEvent
-    /// are not NULL, phEvent must not refer to an element of the
-    /// phEventWaitList array.
-    ur_event_handle_t *phEvent) {
-  ur_result_t result = UR_RESULT_SUCCESS;
-  return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Enqueue a command which waits a list of events to complete before it
 ///        completes
 ///
@@ -5441,11 +5367,12 @@ ur_result_t UR_APICALL urEnqueueWriteHostPipe(
 ///     - ::UR_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS
 ///         + An event in `phEventWaitList` has ::UR_EVENT_STATUS_ERROR.
 ///     - ::UR_RESULT_ERROR_INVALID_WORK_DIMENSION
-///         + `pGlobalWorkSize[0] == 0 || pGlobalWorkSize[1] == 0 ||
-///         pGlobalWorkSize[2] == 0`
+///         + `pGlobalWorkSize[0] == 0 || (workDim >= 2 && pGlobalWorkSize[1] ==
+///         0) || (workDim >= 3 && pGlobalWorkSize[2] == 0)`
 ///     - ::UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE
-///         + `pLocalWorkSize && (pLocalWorkSize[0] == 0 || pLocalWorkSize[1] ==
-///         0 || pLocalWorkSize[2] == 0)`
+///         + `pLocalWorkSize && (pLocalWorkSize[0] == 0 || (workDim >= 2 &&
+///         pLocalWorkSize[1] == 0) || (workDim >= 3 && pLocalWorkSize[2] ==
+///         0))`
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGS - "The kernel argument values
 ///     have not been specified."
@@ -5522,72 +5449,6 @@ ur_result_t UR_APICALL urKernelCreate(
     const char *pKernelName,
     /// [out][alloc] pointer to handle of kernel object created.
     ur_kernel_handle_t *phKernel) {
-  ur_result_t result = UR_RESULT_SUCCESS;
-  return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Set kernel argument to a value.
-///
-/// @details
-///     - The application may call this function from simultaneous threads with
-///       the same kernel handle.
-///     - The implementation of this function should be lock-free.
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hKernel`
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == pArgValue`
-///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX
-///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE
-ur_result_t UR_APICALL urKernelSetArgValue(
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] argument index in range [0, num args - 1]
-    uint32_t argIndex,
-    /// [in] size of argument type
-    size_t argSize,
-    /// [in][optional] pointer to value properties.
-    const ur_kernel_arg_value_properties_t *pProperties,
-    /// [in] argument value represented as matching arg type.
-    /// The data pointed to will be copied and therefore can be reused on
-    /// return.
-    const void *pArgValue) {
-  ur_result_t result = UR_RESULT_SUCCESS;
-  return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Set kernel argument to a local buffer.
-///
-/// @details
-///     - The application may call this function from simultaneous threads with
-///       the same kernel handle.
-///     - The implementation of this function should be lock-free.
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hKernel`
-///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX
-///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE
-ur_result_t UR_APICALL urKernelSetArgLocal(
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] argument index in range [0, num args - 1]
-    uint32_t argIndex,
-    /// [in] size of the local buffer to be allocated by the runtime
-    size_t argSize,
-    /// [in][optional] pointer to local buffer properties.
-    const ur_kernel_arg_local_properties_t *pProperties) {
   ur_result_t result = UR_RESULT_SUCCESS;
   return result;
 }
@@ -5765,40 +5626,6 @@ ur_result_t UR_APICALL urKernelRelease(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Set a USM pointer as the argument value of a Kernel.
-///
-/// @details
-///     - The application may call this function from simultaneous threads with
-///       the same kernel handle.
-///     - The implementation of this function should be lock-free.
-///
-/// @remarks
-///   _Analogues_
-///     - **clSetKernelArgSVMPointer**
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hKernel`
-///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX
-ur_result_t UR_APICALL urKernelSetArgPointer(
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] argument index in range [0, num args - 1]
-    uint32_t argIndex,
-    /// [in][optional] pointer to USM pointer properties.
-    const ur_kernel_arg_pointer_properties_t *pProperties,
-    /// [in][optional] Pointer obtained by USM allocation or virtual memory
-    /// mapping operation. If null then argument value is considered null.
-    const void *pArgValue) {
-  ur_result_t result = UR_RESULT_SUCCESS;
-  return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Set additional Kernel execution attributes.
 ///
 /// @details
@@ -5838,70 +5665,6 @@ ur_result_t UR_APICALL urKernelSetExecInfo(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Set a Sampler object as the argument value of a Kernel.
-///
-/// @details
-///     - The application may call this function from simultaneous threads with
-///       the same kernel handle.
-///     - The implementation of this function should be lock-free.
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hKernel`
-///         + `NULL == hArgValue`
-///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX
-///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
-///         + Device `::UR_DEVICE_INFO_IMAGE_SUPPORT` is false
-ur_result_t UR_APICALL urKernelSetArgSampler(
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] argument index in range [0, num args - 1]
-    uint32_t argIndex,
-    /// [in][optional] pointer to sampler properties.
-    const ur_kernel_arg_sampler_properties_t *pProperties,
-    /// [in] handle of Sampler object.
-    ur_sampler_handle_t hArgValue) {
-  ur_result_t result = UR_RESULT_SUCCESS;
-  return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Set a Memory object as the argument value of a Kernel.
-///
-/// @details
-///     - The application may call this function from simultaneous threads with
-///       the same kernel handle.
-///     - The implementation of this function should be lock-free.
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hKernel`
-///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `NULL != pProperties && ::UR_MEM_FLAGS_MASK &
-///         pProperties->memoryAccess`
-///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX
-ur_result_t UR_APICALL urKernelSetArgMemObj(
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] argument index in range [0, num args - 1]
-    uint32_t argIndex,
-    /// [in][optional] pointer to Memory object properties.
-    const ur_kernel_arg_mem_obj_properties_t *pProperties,
-    /// [in][optional] handle of Memory object.
-    ur_mem_handle_t hArgValue) {
-  ur_result_t result = UR_RESULT_SUCCESS;
-  return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Set an array of specialization constants on a Kernel.
 ///
 /// @details
@@ -5909,8 +5672,8 @@ ur_result_t UR_APICALL urKernelSetArgMemObj(
 ///       with device query ::UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS
 ///       passed to ::urDeviceGetInfo.
 ///     - Adapters which are capable of setting specialization constants
-///       immediately prior to ::urEnqueueKernelLaunch with low overhead should
-///       implement this entry point.
+///       immediately prior to ::urEnqueueKernelLaunchWithArgsExp with low
+///       overhead should implement this entry point.
 ///     - Otherwise, if setting specialization constants late requires
 ///       recompiling or linking a program, adapters should not implement this
 ///       entry point.
@@ -7401,7 +7164,7 @@ ur_result_t UR_APICALL urBindlessImagesSupportsImportingHandleTypeExp(
 ///         + `NULL == hContext`
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_EXP_EXTERNAL_SEMAPHORE_TYPE_TIMELINE_WIN32_NT <
+///         + `::UR_EXP_EXTERNAL_SEMAPHORE_TYPE_WIN32_NT_DX11_FENCE <
 ///         semHandleType`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pExternalSemaphoreDesc`
@@ -7553,7 +7316,6 @@ ur_result_t UR_APICALL urBindlessImagesSignalExternalSemaphoreExp(
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hDevice`
-///         + `hDevice == nullptr`
 ///     - ::UR_RESULT_ERROR_INVALID_DEVICE
 ur_result_t UR_APICALL urDeviceWaitExp(
     /// [in] handle of the device instance.
@@ -8056,6 +7818,62 @@ ur_result_t UR_APICALL urUSMContextMemcpyExp(
     const void *pSrc,
     /// [in] Size in bytes to be copied.
     size_t size) {
+  ur_result_t result = UR_RESULT_SUCCESS;
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Maps a host memory range to make it recognizable by the underlying
+///        adapter. The host memory must remain valid throughout the
+///        registration lifetime.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pHostMem`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `NULL != pProperties &&
+///         ::UR_EXP_USM_HOST_ALLOC_REGISTER_FLAGS_MASK & pProperties->flags`
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///         + `size == 0`
+ur_result_t UR_APICALL urUSMHostAllocRegisterExp(
+    /// [in] Handle of the context.
+    ur_context_handle_t hContext,
+    /// [in] Pointer to the host memory range to register.
+    void *pHostMem,
+    /// [in] Size in bytes of the host memory range to register, must be
+    /// page-aligned.
+    size_t size,
+    /// [in][optional] Pointer to host memory registration properties.
+    const ur_exp_usm_host_alloc_register_properties_t *pProperties) {
+  ur_result_t result = UR_RESULT_SUCCESS;
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Unregister a previously registered host memory range.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pHostMem`
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///         + Invalid host memory range.
+ur_result_t UR_APICALL urUSMHostAllocUnregisterExp(
+    /// [in] Handle of the context.
+    ur_context_handle_t hContext,
+    /// [in][release] Pointer to the registered host memory range.
+    void *pHostMem) {
   ur_result_t result = UR_RESULT_SUCCESS;
   return result;
 }
@@ -9987,6 +9805,30 @@ ur_result_t UR_APICALL urQueueIsGraphCaptureEnabledExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Get the graph handle currently being captured on the specified queue.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hQueue`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == phGraph`
+///     - ::UR_RESULT_ERROR_INVALID_OPERATION
+///         + The queue is not in graph capture mode.
+ur_result_t UR_APICALL urQueueGetGraphExp(
+    /// [in] Handle of the queue to query.
+    ur_queue_handle_t hQueue,
+    /// [out] Pointer to the handle of the graph being captured. Set to
+    /// nullptr if queue is not in capture mode.
+    ur_exp_graph_handle_t *phGraph) {
+  ur_result_t result = UR_RESULT_SUCCESS;
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Return whether the given recorded graph contains any nodes.
 ///
 /// @returns
@@ -10004,6 +9846,31 @@ ur_result_t UR_APICALL urGraphIsEmptyExp(
     ur_exp_graph_handle_t hGraph,
     /// [out] Pointer to a boolean where the result will be stored.
     bool *pResult) {
+  ur_result_t result = UR_RESULT_SUCCESS;
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Register a callback to be invoked when the graph is destroyed.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hGraph`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pfnCallback`
+ur_result_t UR_APICALL urGraphSetDestructionCallbackExp(
+    /// [in] Handle of the graph to register the callback for.
+    ur_exp_graph_handle_t hGraph,
+    /// [in] Function pointer to the callback. The callback must not access
+    /// hGraph.
+    ur_exp_graph_destruction_callback_t pfnCallback,
+    /// [in][optional] Pointer to user data to be passed to the callback. The
+    /// user data must not reference hGraph.
+    void *pUserData) {
   ur_result_t result = UR_RESULT_SUCCESS;
   return result;
 }

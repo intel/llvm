@@ -180,7 +180,7 @@ llvm::sycl_post_link::performPostLinkProcessing(
       if (!SplitImageOrErr)
         return SplitImageOrErr.takeError();
 
-      MD.release();
+      MD.reset();
       SplitModules.push_back(std::move(*SplitImageOrErr));
     }
 

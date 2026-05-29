@@ -1,9 +1,8 @@
 //===--------- command_list_manager.cpp - Level Zero Adapter --------------===//
 //
-// Copyright (C) 2024-2026 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
@@ -353,10 +352,60 @@ ur_result_t ur_command_list_manager::appendKernelLaunch(
   return UR_RESULT_SUCCESS;
 }
 
+// Check P2P access for a device-to-device memcpy.  Returns
+// UR_RESULT_ERROR_INVALID_OPERATION when the destination is device memory,
+// the source is device memory residing on a different device, and peer access
+// between those two devices has not been enabled.  In all other cases
+// (host/shared memory, same device, or unknown allocation type) returns
+// UR_RESULT_SUCCESS so the copy can proceed.
+static ur_result_t checkP2PAccess(ze_context_handle_t zeContext,
+                                  const void *pDst, const void *pSrc,
+                                  ur_context_handle_t urContext,
+                                  ur_device_handle_t urDevice) {
+  ZeStruct<ze_memory_allocation_properties_t> dstProps;
+  ze_device_handle_t dstZeDevice = nullptr;
+  if (ZE_CALL_NOCHECK(zeMemGetAllocProperties,
+                      (zeContext, pDst, &dstProps, &dstZeDevice)) !=
+          ZE_RESULT_SUCCESS ||
+      dstProps.type != ZE_MEMORY_TYPE_DEVICE) {
+    return UR_RESULT_SUCCESS;
+  }
+
+  ZeStruct<ze_memory_allocation_properties_t> srcProps;
+  ze_device_handle_t srcZeDevice = nullptr;
+  if (ZE_CALL_NOCHECK(zeMemGetAllocProperties,
+                      (zeContext, pSrc, &srcProps, &srcZeDevice)) !=
+          ZE_RESULT_SUCCESS ||
+      srcProps.type != ZE_MEMORY_TYPE_DEVICE || !srcZeDevice ||
+      srcZeDevice == urDevice->ZeDevice) {
+    return UR_RESULT_SUCCESS;
+  }
+
+  auto *srcDevice =
+      urContext->getPlatform()->getDeviceFromNativeHandle(srcZeDevice);
+  if (!srcDevice || !srcDevice->Id.has_value() || !urDevice->Id.has_value() ||
+      urDevice->Id.value() >= srcDevice->peers.size()) {
+    return UR_RESULT_SUCCESS;
+  }
+
+  std::scoped_lock<ur_shared_mutex> lock(srcDevice->Mutex);
+  if (srcDevice->peers[urDevice->Id.value()] !=
+      ur_device_handle_t_::PeerStatus::ENABLED) {
+    return UR_RESULT_ERROR_INVALID_OPERATION;
+  }
+
+  return UR_RESULT_SUCCESS;
+}
+
 ur_result_t ur_command_list_manager::appendUSMMemcpy(
     bool blocking, void *pDst, const void *pSrc, size_t size,
     wait_list_view &waitListView, ur_event_handle_t phEvent) {
   TRACK_SCOPE_LATENCY("ur_command_list_manager::appendUSMMemcpy");
+
+  // Verify P2P access when copying between device allocations on different
+  // devices.  Copies to/from host or shared memory always succeed.
+  UR_CALL(checkP2PAccess(hContext.get()->getZeHandle(), pDst, pSrc,
+                         hContext.get(), hDevice.get()));
 
   auto zeSignalEvent = getSignalEvent(phEvent, UR_COMMAND_USM_MEMCPY);
   auto [pWaitEvents, numWaitEvents, _] = waitListView;
@@ -1321,7 +1370,7 @@ ur_result_t ur_command_list_manager::appendKernelLaunchWithArgsExp(
   } else {
     // We cannot pass cooperativeKernelLaunchRequested to
     // appendKernelLaunchWithArgsExpOld() because appendKernelLaunch() must
-    // check it on its own since it is called also from enqueueKernelLaunch().
+    // check it on its own since it is called from other kernel launch paths.
     return appendKernelLaunchWithArgsExpOld(
         hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize, pLocalWorkSize,
         numArgs, pArgs, launchPropList, waitListView, phEvent);
@@ -1372,8 +1421,15 @@ ur_command_list_manager::endGraphCapture(ur_exp_graph_handle_t *phGraph) {
   auto graph = graphCapture.getGraph();
   graphCapture.disableCapture();
 
-  *phGraph =
-      graph ? graph : new ur_exp_graph_handle_t_(hContext.get(), zeGraph);
+  if (!graph) {
+    std::scoped_lock<ur_shared_mutex> lock(hContext.get()->GraphMapMutex);
+    graph = hContext.get()->getGraphFromZeHandle(zeGraph);
+    if (!graph) {
+      graph = new ur_exp_graph_handle_t_(hContext.get(), zeGraph);
+      hContext.get()->registerGraph(zeGraph, graph);
+    }
+  }
+  *phGraph = graph;
 
   return UR_RESULT_SUCCESS;
 }
@@ -1395,7 +1451,7 @@ ur_command_list_manager::appendGraph(ur_exp_executable_graph_handle_t hGraph,
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t ur_command_list_manager::isGraphCaptureActive(bool *pResult) {
+ur_result_t ur_command_list_manager::queryGraphCaptureActive(bool *pResult) {
   if (!checkGraphExtensionSupport(hContext.get())) {
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
@@ -1407,6 +1463,46 @@ ur_result_t ur_command_list_manager::isGraphCaptureActive(bool *pResult) {
                       (getZeCommandList()));
 
   *pResult = (ZeResult == ZE_RESULT_QUERY_TRUE);
+
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t ur_command_list_manager::getGraph(ur_exp_graph_handle_t *phGraph) {
+  auto zeGetGraph =
+      hContext.get()->getPlatform()->ZeGraphExt.zeCommandListGetGraphExp;
+  if (!checkGraphExtensionSupport(hContext.get()) || !zeGetGraph) {
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  }
+
+  auto hCachedGraph = graphCapture.getGraph();
+  if (hCachedGraph) {
+    *phGraph = hCachedGraph;
+    return UR_RESULT_SUCCESS;
+  }
+
+  // Fork-join and implicit capture scenarios
+  ze_graph_handle_t hZeGraph = nullptr;
+  ze_result_t ZeResult =
+      ZE_CALL_NOCHECK(zeGetGraph, (getZeCommandList(), &hZeGraph));
+
+  if (ZeResult != ZE_RESULT_SUCCESS || !hZeGraph) {
+    *phGraph = nullptr;
+    return UR_RESULT_ERROR_INVALID_OPERATION;
+  }
+
+  ur_exp_graph_handle_t hUrGraph = nullptr;
+  {
+    std::scoped_lock<ur_shared_mutex> lock(hContext.get()->GraphMapMutex);
+    hUrGraph = hContext.get()->getGraphFromZeHandle(hZeGraph);
+    if (!hUrGraph) {
+      hUrGraph = new ur_exp_graph_handle_t_(hContext.get(), hZeGraph);
+      hContext.get()->registerGraph(hZeGraph, hUrGraph);
+      if (graphCapture.isActive()) {
+        graphCapture.enableCapture(hUrGraph);
+      }
+    }
+  }
+  *phGraph = hUrGraph;
 
   return UR_RESULT_SUCCESS;
 }

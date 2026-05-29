@@ -1,9 +1,8 @@
 /*
  *
- * Copyright (C) 2024 Intel Corporation
  *
- * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
- * Exceptions. See LICENSE.TXT
+ * Part of the LLVM Project, under the Apache License v2.0 with LLVM
+ * Exceptions. See https://llvm.org/LICENSE.txt for license information.
  *
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
@@ -137,11 +136,12 @@ struct SourceInfo {
 
 bool IsInASanContext();
 
-uptr MmapFixedNoReserve(uptr Addr, uptr Size);
+bool MmapFixedNoReserve(uptr Addr, uptr Size);
 uptr MmapNoReserve(uptr Addr, uptr Size);
 bool Munmap(uptr Addr, uptr Size);
-uptr ProtectMemoryRange(uptr Addr, uptr Size);
+bool ProtectMemoryRange(uptr Addr, uptr Size);
 bool DontCoredumpRange(uptr Addr, uptr Size);
+void TryReExecWithoutASLR();
 
 void *GetMemFunctionPointer(const char *);
 

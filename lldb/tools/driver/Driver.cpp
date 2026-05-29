@@ -400,7 +400,8 @@ SBError Driver::ProcessArgs(const opt::InputArgList &args, bool &exiting) {
   }
 
   if (m_option_data.m_print_python_path) {
-    SBFileSpec python_file_spec = SBHostOS::GetLLDBPythonPath();
+    SBFileSpec python_file_spec =
+        SBHostOS::GetScriptPath(lldb::eScriptLanguagePython);
     if (python_file_spec.IsValid()) {
       char python_path[PATH_MAX];
       size_t num_chars = python_file_spec.GetPath(python_path, PATH_MAX);
@@ -448,12 +449,7 @@ int Driver::MainLoop() {
     atexit(reset_stdin_termios);
   }
 
-#ifndef _MSC_VER
-  // Disabling stdin buffering with MSVC's 2015 CRT exposes a bug in fgets
-  // which causes it to miss newlines depending on whether there have been an
-  // odd or even number of characters.  Bug has been reported to MS via Connect.
   ::setbuf(stdin, nullptr);
-#endif
   ::setbuf(stdout, nullptr);
 
   m_debugger.SetErrorFileHandle(stderr, false);
@@ -737,8 +733,10 @@ int main(int argc, char const *argv[]) {
 #endif
 
 #ifdef _WIN32
-  if (llvm::Error error = SetupPythonRuntimeLibrary())
-    llvm::WithColor::error() << llvm::toString(std::move(error)) << '\n';
+  auto python_path_or_err = SetupPythonRuntimeLibrary();
+  if (!python_path_or_err)
+    llvm::WithColor::error()
+        << llvm::toString(python_path_or_err.takeError()) << '\n';
 #endif
 
   // Parse arguments.

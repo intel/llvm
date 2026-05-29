@@ -1,9 +1,8 @@
 //===--------- graph.cpp - HIP Adapter ------------------------------------===//
 //
-// Copyright (C) 2025 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
@@ -27,6 +26,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urGraphExecutableGraphDestroyExp(
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urGraphIsEmptyExp(ur_exp_graph_handle_t /* hGraph */, bool * /* pIsEmpty */) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urGraphSetDestructionCallbackExp(
+    ur_exp_graph_handle_t /* hGraph */,
+    ur_exp_graph_destruction_callback_t /* pfnCallback */,
+    void * /* pUserData */) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 

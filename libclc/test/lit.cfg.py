@@ -1,4 +1,7 @@
 # -*- Python -*-
+"""
+Lit configuration file for libclc tests.
+"""
 
 import os
 
@@ -15,15 +18,6 @@ def quote(s):
 
 
 # Configuration file for the 'lit' test runner.
-
-if config.libclc_target is None:
-    lit_config.fatal("libclc_target parameter must be set when running directly")
-
-if config.libclc_target not in config.libclc_targets_to_test:
-    lit_config.fatal(
-        f"libclc_target '{config.libclc_target}' is not built. "
-        f"Available targets: {', '.join(quote(s) for s in config.libclc_targets_to_test)}"
-    )
 
 # name: The name of this test suite.
 config.name = f"LIBCLC-{config.libclc_target.upper()}"
@@ -50,6 +44,8 @@ config.test_exec_root = os.path.join(
     config.libclc_pertarget_test_dir, config.libclc_target
 )
 
+config.target_triple = config.libclc_target
+
 llvm_config.use_default_substitutions()
 
 clang_flags = [
@@ -67,17 +63,23 @@ clang_flags = [
     "-nogpulib",
 ]
 
-if config.libclc_target == "amdgcn-amd-amdhsa":
+if config.libclc_target == "amdgcn-amd-amdhsa-llvm":
     # libclc for amdgcn is currently built for tahiti which doesn't support
     # fp16 so disable the extension for the tests
     clang_flags += ["-Xclang", "-cl-ext=-cl_khr_fp16"]
 
 llvm_config.use_clang(additional_flags=clang_flags)
 
-config.substitutions.append(("%PATH%", config.environment["PATH"]))
-
 tool_dirs = [config.llvm_tools_dir]
 
 tools = ["llvm-dis", "not"]
 
 llvm_config.add_tool_substitutions(tools, tool_dirs)
+
+# Propagate PATH from environment
+if "PATH" in os.environ:
+    config.environment["PATH"] = os.path.pathsep.join(
+        [config.llvm_tools_dir, os.environ["PATH"]]
+    )
+else:
+    config.environment["PATH"] = config.llvm_tools_dir

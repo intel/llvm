@@ -6,12 +6,14 @@
 //
 //===----------------------------------------------------------------------===//
 #include "SYCL.h"
+#include "clang/Basic/Version.h"
 #include "clang/Driver/CommonArgs.h"
 #include "clang/Driver/Compilation.h"
 #include "clang/Driver/Driver.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/SYCLLowerIR/DeviceConfigFile.hpp"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/VirtualFileSystem.h"
 #include <sstream>
@@ -22,15 +24,35 @@ using namespace clang::driver::tools;
 using namespace clang;
 using namespace llvm::opt;
 
-SYCLInstallationDetector::SYCLInstallationDetector(const Driver &D)
-    : D(D), InstallationCandidates() {
-  InstallationCandidates.emplace_back(D.Dir + "/..");
-}
-
 SYCLInstallationDetector::SYCLInstallationDetector(
     const Driver &D, const llvm::Triple &HostTriple,
     const llvm::opt::ArgList &Args)
-    : SYCLInstallationDetector(D) {}
+    : D(D), InstallationCandidates(), HostTriple(HostTriple) {
+  // When -fsycl is active, locate the SYCL runtime library and record its
+  // directory in SYCLRTLibPath for use by the linker.
+  StringRef SysRoot = D.SysRoot;
+  SmallString<128> DriverDir(D.Dir);
+  SmallString<128> LibPath(DriverDir);
+  llvm::sys::path::append(LibPath, "..", "lib", HostTriple.str(),
+                          "libsycl.so");
+  // Flat lib path for LLVM_ENABLE_PER_TARGET_RUNTIME_DIR=OFF builds,
+  // where the library is installed directly in lib/ with no triple subdir.
+  SmallString<128> FlatLibPath(DriverDir);
+  llvm::sys::path::append(FlatLibPath, "..", "lib", "libsycl.so");
+
+  if (DriverDir.starts_with(SysRoot) &&
+      Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false)) {
+    // LLVM_ENABLE_PER_TARGET_RUNTIME_DIR=ON: library is in lib/<triple>/
+    if (D.getVFS().exists(LibPath))
+      llvm::sys::path::append(DriverDir, "..", "lib", HostTriple.str());
+    // LLVM_ENABLE_PER_TARGET_RUNTIME_DIR=OFF: library is in lib/
+    else if (D.getVFS().exists(FlatLibPath))
+      llvm::sys::path::append(DriverDir, "..", "lib");
+    if (!DriverDir.equals(D.Dir))
+      SYCLRTLibPath = DriverDir;
+  }
+  InstallationCandidates.emplace_back(D.Dir + "/..");
+}
 
 static llvm::SmallString<64>
 getLibSpirvBasename(const llvm::Triple &HostTriple) {
@@ -40,8 +62,8 @@ getLibSpirvBasename(const llvm::Triple &HostTriple) {
   // All known windows environments except Cygwin use 32-bit long.
   llvm::SmallString<64> Result(HostTriple.isOSWindows() &&
                                        !HostTriple.isWindowsCygwinEnvironment()
-                                   ? "remangled-l32-signed_char.libspirv.bc"
-                                   : "remangled-l64-signed_char.libspirv.bc");
+                                   ? "libspirv.l32.signed_char.bc"
+                                   : "libspirv.l64.signed_char.bc");
   return Result;
 }
 
@@ -90,13 +112,28 @@ void SYCLInstallationDetector::addLibspirvLinkArgs(
 
 void SYCLInstallationDetector::getSYCLDeviceLibPath(
     llvm::SmallVector<llvm::SmallString<128>, 4> &DeviceLibPaths) const {
+  std::string LinuxDirSuffix =
+      llvm::formatv("/lib/dpcpp-{0}/sycl", DPCPP_VERSION_MAJOR);
   for (const auto &IC : InstallationCandidates) {
-    llvm::SmallString<128> InstallLibPath(IC.str());
-    InstallLibPath.append("/lib");
-    DeviceLibPaths.emplace_back(InstallLibPath);
+    if (!HostTriple.isWindowsMSVCEnvironment() &&
+        !HostTriple.isWindowsItaniumEnvironment()) {
+      SmallString<128> InstallPath(IC);
+      llvm::sys::path::append(InstallPath, LinuxDirSuffix);
+      DeviceLibPaths.emplace_back(InstallPath);
+    }
+    SmallString<128> InstallPath(IC);
+    llvm::sys::path::append(InstallPath, "lib");
+    DeviceLibPaths.emplace_back(InstallPath);
   }
-
-  DeviceLibPaths.emplace_back(D.SysRoot + "/lib");
+  if (!HostTriple.isWindowsMSVCEnvironment() &&
+      !HostTriple.isWindowsItaniumEnvironment()) {
+    SmallString<128> Path(D.SysRoot);
+    llvm::sys::path::append(Path, LinuxDirSuffix);
+    DeviceLibPaths.emplace_back(Path.str());
+  }
+  SmallString<128> Path(D.SysRoot);
+  llvm::sys::path::append(Path, "lib");
+  DeviceLibPaths.emplace_back(Path.str());
 }
 
 void SYCLInstallationDetector::addSYCLIncludeArgs(
@@ -223,15 +260,12 @@ bool SYCL::shouldDoPerObjectFileLinking(const Compilation &C) {
 }
 
 // Return whether to use native bfloat16 library.
-static bool selectBfloatLibs(const llvm::Triple &Triple, const Compilation &C,
+static bool selectBfloatLibs(const llvm::opt::ArgList &Args,
+                             const llvm::Triple &Triple, const ToolChain &TC,
                              bool &UseNative) {
-
   static llvm::SmallSet<StringRef, 8> GPUArchsWithNBF16{
-      "intel_gpu_pvc",     "intel_gpu_acm_g10", "intel_gpu_acm_g11",
-      "intel_gpu_acm_g12", "intel_gpu_dg2_g10", "intel_gpu_dg2_g11",
-      "intel_dg2_g12",     "intel_gpu_bmg_g21", "intel_gpu_lnl_m",
-      "intel_gpu_ptl_h",   "intel_gpu_ptl_u",   "intel_gpu_wcl"};
-  const llvm::opt::ArgList &Args = C.getArgs();
+      "pvc",   "acm_g10", "acm_g11", "acm_g12", "bmg_g21", "lnl_m", "ptl_h",
+      "ptl_u", "wcl",     "cri",     "nvl_s",   "nvl_u",   "nvl_p"};
   bool NeedLibs = false;
 
   // spir64 target is actually JIT compilation, so we defer selection of
@@ -240,21 +274,11 @@ static bool selectBfloatLibs(const llvm::Triple &Triple, const Compilation &C,
   NeedLibs = Triple.getSubArch() != llvm::Triple::NoSubArch &&
              !Triple.isNVPTX() && !Triple.isAMDGCN();
   UseNative = false;
-  if (NeedLibs && Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen &&
-      C.hasOffloadToolChain<Action::OFK_SYCL>()) {
+  if (NeedLibs && Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen) {
     ArgStringList TargArgs;
-    auto ToolChains = C.getOffloadToolChains<Action::OFK_SYCL>();
-    // Match up the toolchain with the incoming Triple so we are grabbing the
-    // expected arguments to scrutinize.
-    for (auto TI = ToolChains.first, TE = ToolChains.second; TI != TE; ++TI) {
-      llvm::Triple SYCLTriple = TI->second->getTriple();
-      if (SYCLTriple == Triple) {
-        const toolchains::SYCLToolChain *SYCLTC =
-            static_cast<const toolchains::SYCLToolChain *>(TI->second);
-        SYCLTC->TranslateBackendTargetArgs(Triple, Args, TargArgs);
-        break;
-      }
-    }
+    const toolchains::SYCLToolChain &SYCLTC =
+        static_cast<const toolchains::SYCLToolChain &>(TC);
+    SYCLTC.TranslateBackendTargetArgs(Triple, Args, TargArgs);
 
     // We need to select fallback/native bfloat16 devicelib in AOT compilation
     // targetting for Intel GPU devices. Users have 2 ways to apply AOT,
@@ -271,14 +295,24 @@ static bool selectBfloatLibs(const llvm::Triple &Triple, const Compilation &C,
 
     auto checkBF = [](StringRef Device) {
       return Device.starts_with("pvc") || Device.starts_with("ats") ||
-             Device.starts_with("dg2") || Device.starts_with("bmg") ||
-             Device.starts_with("lnl") || Device.starts_with("ptl") ||
-             Device.starts_with("wcl");
+             Device.starts_with("acm") || Device.starts_with("dg2") ||
+             Device.starts_with("bmg") || Device.starts_with("lnl") ||
+             Device.starts_with("ptl") || Device.starts_with("wcl") ||
+             Device.starts_with("cri") || Device.starts_with("nvl");
     };
 
     auto checkSpirvJIT = [](StringRef Target) {
       return Target.starts_with("spir64-") || Target.starts_with("spirv64-") ||
              (Target == "spir64") || (Target == "spirv64");
+    };
+
+    auto checkIntelGPUBF16 = [&](StringRef Target) {
+      if (!Target.starts_with("intel_gpu_"))
+        return false;
+      StringRef IntelGPUDevice = SYCL::gen::resolveGenDevice(Target);
+      if (IntelGPUDevice.empty())
+        return false;
+      return GPUArchsWithNBF16.contains(IntelGPUDevice);
     };
 
     size_t DevicesPos = Params.find("-device ");
@@ -299,7 +333,7 @@ static bool selectBfloatLibs(const llvm::Triple &Triple, const Compilation &C,
           if (!checkSpirvJIT(StringRef(TargetsV)) &&
               !StringRef(TargetsV).starts_with("spir64_gen") &&
               !StringRef(TargetsV).starts_with("spir64_x86_64") &&
-              !GPUArchsWithNBF16.contains(StringRef(TargetsV))) {
+              !checkIntelGPUBF16(StringRef(TargetsV))) {
             UseNative = false;
             break;
           }
@@ -318,7 +352,7 @@ static bool selectBfloatLibs(const llvm::Triple &Triple, const Compilation &C,
       if (Arg *SYCLTarget = Args.getLastArg(options::OPT_offload_targets_EQ)) {
         for (auto TargetsV : SYCLTarget->getValues()) {
           if (!checkSpirvJIT(StringRef(TargetsV)) &&
-              !GPUArchsWithNBF16.contains(StringRef(TargetsV))) {
+              !checkIntelGPUBF16(StringRef(TargetsV))) {
             UseNative = false;
             break;
           }
@@ -409,14 +443,23 @@ static bool checkPVCDevice(std::string SingleArg, std::string &DevArg) {
 }
 
 #if !defined(_WIN32)
-static void
-addSYCLDeviceSanitizerLibs(const Compilation &C, bool IsSpirvAOT,
-                           StringRef LibSuffix,
-                           SmallVector<std::string, 8> &LibraryList) {
-  const llvm::opt::ArgList &Args = C.getArgs();
+static void addSYCLDeviceSanitizerLibs(
+    const llvm::opt::ArgList &Args,
+    SmallVector<ToolChain::BitCodeLibraryInfo, 8> &LibraryList) {
   enum { JIT = 0, AOT_CPU, AOT_DG2, AOT_PVC };
-  auto addSingleLibrary = [&](StringRef DeviceLibName) {
-    LibraryList.push_back(Args.MakeArgString(Twine(DeviceLibName) + LibSuffix));
+  // TODO: Device code linking during the compilation phase provides the
+  // opportunity to link in the specific arch related sanitizer libraries
+  // without having to default to the fallback device sanitizer library when
+  // compiling for multiple targets.
+
+  // Default internalization to 'false' for these libraries, as they are
+  // expected to link with -mlink-bitcode-file, which does not link with
+  // only-needed.
+  auto addSingleLibrary = [&](StringRef DeviceLibName,
+                              bool Internalize = false) {
+    std::string FullLibName(Args.MakeArgString(DeviceLibName + ".bc"));
+    ToolChain::BitCodeLibraryInfo BitCodeLibrary({FullLibName, Internalize});
+    LibraryList.push_back(BitCodeLibrary);
   };
 
   // This function is used to check whether there is only one GPU device
@@ -439,9 +482,6 @@ addSYCLDeviceSanitizerLibs(const Compilation &C, bool IsSpirvAOT,
   };
 
   auto getSingleBuildTarget = [&]() -> size_t {
-    if (!IsSpirvAOT)
-      return JIT;
-
     llvm::opt::Arg *SYCLTarget =
         Args.getLastArg(options::OPT_offload_targets_EQ);
     if (!SYCLTarget || (SYCLTarget->getValues().size() != 1))
@@ -542,66 +582,49 @@ addSYCLDeviceSanitizerLibs(const Compilation &C, bool IsSpirvAOT,
 }
 #endif
 
-// Get the list of SYCL device libraries to link with user's device image.
-SmallVector<std::string, 8>
-SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
-                         bool IsSpirvAOT) {
-  SmallVector<std::string, 8> LibraryList;
-  const llvm::opt::ArgList &Args = C.getArgs();
+// Returns the list of SYCL device library names for the given target.
+SmallVector<ToolChain::BitCodeLibraryInfo, 8>
+SYCLToolChain::getDeviceLibNames(const Driver &D,
+                                 const llvm::opt::ArgList &Args,
+                                 const llvm::Triple &TargetTriple) const {
+  SmallVector<ToolChain::BitCodeLibraryInfo, 8> LibraryList;
   bool NoOffloadLib =
       !Args.hasFlag(options::OPT_offloadlib, options::OPT_no_offloadlib, true);
+  // Default internalization to 'true' for these libraries, as they are
+  // expected to link with -mlink-builtin-bitcode.
+  auto addLibToList = [&LibraryList](StringRef LibName,
+                                     bool Internalize = true) {
+    BitCodeLibraryInfo BitCodeLibrary({LibName, Internalize});
+    LibraryList.emplace_back(BitCodeLibrary);
+  };
   if (TargetTriple.isNVPTX()) {
     if (!NoOffloadLib)
-      LibraryList.push_back(
-          Args.MakeArgString("devicelib-nvptx64-nvidia-cuda.bc"));
+      addLibToList("devicelib-nvptx64-nvidia-cuda.bc");
     return LibraryList;
   }
 
   if (TargetTriple.isAMDGCN()) {
     if (!NoOffloadLib)
-      LibraryList.push_back(
-          Args.MakeArgString("devicelib-amdgcn-amd-amdhsa.bc"));
+      addLibToList("devicelib-amdgcn-amd-amdhsa.bc");
     return LibraryList;
   }
 
   // Ignore no-offloadlib for NativeCPU device library, it provides some
   // critical builtins which must be linked with user's device image.
   if (TargetTriple.isNativeCPU()) {
-    LibraryList.push_back(Args.MakeArgString("libsycl-nativecpu_utils.bc"));
+    addLibToList("libsycl-nativecpu_utils.bc");
     return LibraryList;
   }
 
   using SYCLDeviceLibsList = SmallVector<StringRef>;
-  const SYCLDeviceLibsList SYCLDeviceLibs = {"libsycl-crt",
-                                             "libsycl-complex",
-                                             "libsycl-complex-fp64",
-                                             "libsycl-cmath",
-                                             "libsycl-cmath-fp64",
+  const SYCLDeviceLibsList SYCLDeviceLibs = {"libsycl-crt", "libsycl-cmath",
 #if defined(_WIN32)
                                              "libsycl-msvc-math",
 #endif
-                                             "libsycl-imf",
-                                             "libsycl-imf-fp64",
-                                             "libsycl-imf-bf16",
-                                             "libsycl-fallback-cstring",
-                                             "libsycl-fallback-complex",
-                                             "libsycl-fallback-complex-fp64",
-                                             "libsycl-fallback-cmath",
-                                             "libsycl-fallback-cmath-fp64",
-                                             "libsycl-fallback-imf",
-                                             "libsycl-fallback-imf-fp64",
-                                             "libsycl-fallback-imf-bf16"};
-  bool IsWindowsMSVCEnv =
-      C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment();
-  bool IsNewOffload = C.getDriver().getUseNewOffloadingDriver();
-  StringRef LibSuffix = ".bc";
-  if (IsNewOffload)
-    // For new offload model, we use packaged .bc files.
-    LibSuffix = IsWindowsMSVCEnv ? ".new.obj" : ".new.o";
+                                             "libsycl-imf"};
   auto addLibraries = [&](const SYCLDeviceLibsList &LibsList) {
-    for (const StringRef &Lib : LibsList) {
-      LibraryList.push_back(Args.MakeArgString(Twine(Lib) + LibSuffix));
-    }
+    for (const StringRef &Lib : LibsList)
+      addLibToList(Args.MakeArgString(Lib + ".bc"));
   };
 
   if (!NoOffloadLib)
@@ -621,7 +644,8 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
   const SYCLDeviceLibsList SYCLDeviceBfloat16NativeLib = {
       "libsycl-native-bfloat16"};
   bool NativeBfloatLibs;
-  bool NeedBfloatLibs = selectBfloatLibs(TargetTriple, C, NativeBfloatLibs);
+  bool NeedBfloatLibs =
+      selectBfloatLibs(Args, TargetTriple, *this, NativeBfloatLibs);
   if (NeedBfloatLibs && !NoOffloadLib) {
     // Add native or fallback bfloat16 library.
     if (NativeBfloatLibs)
@@ -634,7 +658,7 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
   // Linux platform only, so compiler only provides device sanitizer libraries
   // on Linux platform.
 #if !defined(_WIN32)
-  addSYCLDeviceSanitizerLibs(C, IsSpirvAOT, LibSuffix, LibraryList);
+  addSYCLDeviceSanitizerLibs(Args, LibraryList);
 #endif
 
   return LibraryList;
@@ -741,9 +765,6 @@ static llvm::SmallVector<StringRef, 16> SYCLDeviceLibList{
     "bfloat16",
     "crt",
     "cmath",
-    "cmath-fp64",
-    "complex",
-    "complex-fp64",
 #if defined(_WIN32)
     "msvc-math",
 #else
@@ -759,19 +780,9 @@ static llvm::SmallVector<StringRef, 16> SYCLDeviceLibList{
     "tsan-cpu",
 #endif
     "imf",
-    "imf-fp64",
-    "imf-bf16",
     "itt-compiler-wrappers",
     "itt-stubs",
     "itt-user-wrappers",
-    "fallback-cstring",
-    "fallback-cmath",
-    "fallback-cmath-fp64",
-    "fallback-complex",
-    "fallback-complex-fp64",
-    "fallback-imf",
-    "fallback-imf-fp64",
-    "fallback-imf-bf16",
     "fallback-bfloat16",
     "native-bfloat16"};
 
@@ -813,10 +824,6 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
       const bool IsSYCLNativeCPU =
           this->getToolChain().getTriple().isNativeCPU();
       StringRef LibPostfix = ".bc";
-      StringRef NewLibPostfix = ".new.o";
-      if (HostTC->getTriple().isWindowsMSVCEnvironment() &&
-          C.getDriver().IsCLMode())
-        NewLibPostfix = ".new.obj";
       std::string FileName = this->getToolChain().getInputFilename(II);
       StringRef InputFilename = llvm::sys::path::filename(FileName);
       // NativeCPU links against libclc (libspirv)
@@ -833,8 +840,7 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
         return true;
       StringRef LibSyclPrefix("libsycl-");
       if (!InputFilename.starts_with(LibSyclPrefix) ||
-          !InputFilename.ends_with(LibPostfix) ||
-          InputFilename.ends_with(NewLibPostfix))
+          !InputFilename.ends_with(LibPostfix))
         return false;
       // Skip the prefix "libsycl-"
       std::string PureLibName =
@@ -1450,6 +1456,30 @@ void SYCLToolChain::addClangTargetOptions(
     SYCLInstallation.addLibspirvLinkArgs(getEffectiveTriple(), DriverArgs,
                                          HostTC.getTriple(), CC1Args);
   }
+  // Only link device libraries at compile time for SPIR/SPIRV targets.
+  // Other targets (NVPTX, AMD) link at link time via clang-linker-wrapper.
+  // This is only done with the new offloading model, to fit with LLVM community
+  // implementation.
+  if (!getDriver().getUseNewOffloadingDriver() || !getTriple().isSPIROrSPIRV())
+    return;
+
+  llvm::SmallVector<BitCodeLibraryInfo, 12> BCLibs;
+  BCLibs.append(SYCLToolChain::getDeviceLibs(DriverArgs, DeviceOffloadingKind));
+  for (const auto &BCFile : BCLibs) {
+    CC1Args.push_back(BCFile.ShouldInternalize ? "-mlink-builtin-bitcode"
+                                               : "-mlink-bitcode-file");
+    CC1Args.push_back(DriverArgs.MakeArgString(BCFile.Path));
+  }
+  // Use -mlink-builtin-bitcode-postopt to link the device libraries after the
+  // middle-end passes. This makes sure the device libraries are added after
+  // the user code has been instrumented with the dependent calls to the
+  // added device libraries.
+  if (!BCLibs.empty())
+    CC1Args.push_back("-mlink-builtin-bitcode-postopt");
+
+  // FIXME: Turn off potential linker warnings when linking in device library
+  // files that are built for spir64, but we are compiling for AOT.
+  CC1Args.push_back("-Wno-linker-warnings");
 }
 
 llvm::opt::DerivedArgList *
@@ -1884,6 +1914,42 @@ void SYCLToolChain::AddClangSystemIncludeArgs(const ArgList &DriverArgs,
 void SYCLToolChain::AddClangCXXStdlibIncludeArgs(const ArgList &Args,
                                                  ArgStringList &CC1Args) const {
   HostTC.AddClangCXXStdlibIncludeArgs(Args, CC1Args);
+}
+
+llvm::SmallVector<ToolChain::BitCodeLibraryInfo, 12>
+SYCLToolChain::getDeviceLibs(
+    const llvm::opt::ArgList &DriverArgs,
+    const Action::OffloadKind DeviceOffloadingKind) const {
+  llvm::SmallVector<ToolChain::BitCodeLibraryInfo, 12> BCLibs;
+
+  SmallVector<SmallString<128>, 4> LibraryPaths;
+  SYCLInstallation.getSYCLDeviceLibPath(LibraryPaths);
+
+  // Formulate all of the device libraries needed for this compilation.
+  SmallVector<BitCodeLibraryInfo, 8> DeviceLibs =
+      getDeviceLibNames(getDriver(), DriverArgs, getTriple());
+
+  // Create full path names to each device library.  If found, add to the list
+  // of device libraries that will be linked against.
+  for (const auto &DeviceLib : DeviceLibs) {
+    bool DeviceLibFound = false;
+    for (const auto &LibraryPath : LibraryPaths) {
+      SmallString<128> FullLibName(LibraryPath);
+      llvm::sys::path::append(FullLibName, DeviceLib.Path);
+      if (llvm::sys::fs::exists(FullLibName)) {
+        BitCodeLibraryInfo BitCodeLibrary(
+            {FullLibName, DeviceLib.ShouldInternalize});
+        BCLibs.emplace_back(BitCodeLibrary);
+        DeviceLibFound = true;
+        break;
+      }
+    }
+    // The device libraries are all known internal libraries.  If any are not
+    // found, emit an error.
+    if (!DeviceLibFound)
+      getDriver().Diag(diag::err_drv_no_sycl_device_lib) << DeviceLib.Path;
+  }
+  return BCLibs;
 }
 
 SanitizerMask SYCLToolChain::getSupportedSanitizers() const {

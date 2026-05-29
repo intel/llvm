@@ -15,7 +15,7 @@
 #include <sycl/ext/oneapi/experimental/enqueue_types.hpp>
 #include <sycl/ext/oneapi/experimental/free_function_traits.hpp>
 #include <sycl/ext/oneapi/experimental/graph.hpp>
-#include <sycl/ext/oneapi/properties/properties.hpp>
+#include <sycl/ext/oneapi/properties.hpp>
 #include <sycl/handler.hpp>
 #include <sycl/nd_range.hpp>
 #include <sycl/queue.hpp>
@@ -202,13 +202,15 @@ void host_task(sycl::queue Q, T &&hostTaskCallable,
   submit(
       std::move(Q),
       [&](sycl::handler &cgh) {
-        cgh.host_task(std::forward<T>(hostTaskCallable));
+        sycl::detail::HandlerAccess::hostTaskFromEnqueueFunction(
+            cgh, std::forward<T>(hostTaskCallable));
       },
       CodeLoc);
 }
 
 template <typename T> void host_task(handler &CGH, T &&hostTaskCallable) {
-  CGH.host_task(std::forward<T>(hostTaskCallable));
+  sycl::detail::HandlerAccess::hostTaskFromEnqueueFunction(
+      CGH, std::forward<T>(hostTaskCallable));
 }
 
 // TODO: Make overloads for scalar arguments for range.

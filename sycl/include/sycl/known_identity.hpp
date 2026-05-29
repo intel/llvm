@@ -10,8 +10,8 @@
 
 #include <sycl/aliases.hpp>                    // for half
 #include <sycl/detail/generic_type_traits.hpp> // for is_genbool, is_genint...
+#include <sycl/detail/half_type_impl.hpp>      // for half
 #include <sycl/functional.hpp>                 // for bit_and, bit_or, bit_xor
-#include <sycl/half_type.hpp>                  // for half
 #include <sycl/marray.hpp>                     // for marray
 #include <sycl/vector.hpp>                     // for vec
 

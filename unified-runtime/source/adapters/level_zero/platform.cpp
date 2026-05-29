@@ -1,9 +1,8 @@
 //===--------- platform.cpp - Level Zero Adapter --------------------------===//
 //
-// Copyright (C) 2023-2026 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
@@ -11,6 +10,10 @@
 #include "platform.hpp"
 #include "adapter.hpp"
 #include "ur_level_zero.hpp"
+
+// The default value of the driver versions skiplist
+// (SYCL_UR_L0_DRIVER_SKIPLIST)
+static const std::vector<std::string> DriverSkiplistDefault = {};
 
 namespace ur::level_zero {
 
@@ -293,8 +296,20 @@ ur_result_t ur_platform_handle_t_::initialize() {
         ZeLUIDSupported = true;
       }
     }
+    if (strncmp(extension.name, ZE_EXTERNAL_MEMORY_MAPPING_EXT_NAME,
+                strlen(ZE_EXTERNAL_MEMORY_MAPPING_EXT_NAME) + 1) == 0) {
+      if (extension.version == ZE_EXTERNAL_MEMMAP_SYSMEM_EXT_VERSION_CURRENT) {
+        ZeExternalMemoryMappingExtensionSupported = true;
+      }
+    }
     zeDriverExtensionMap[extension.name] = extension.version;
   }
+
+  const auto GraphExtension =
+      zeDriverExtensionMap.find(ZE_RECORD_REPLAY_GRAPH_EXP_NAME);
+  const bool ZeGraphExtensionSupported =
+      GraphExtension != zeDriverExtensionMap.end() &&
+      GraphExtension->second >= ZE_RECORD_REPLAY_GRAPH_EXP_VERSION_1_0;
 
   ZE2UR_CALL(zelLoaderTranslateHandle, (ZEL_HANDLE_DRIVER, ZeDriver,
                                         (void **)&ZeDriverHandleExpTranslated));
@@ -321,6 +336,26 @@ ur_result_t ur_platform_handle_t_::initialize() {
     ZeDriverVersionString.getDriverVersionString(ZeDriverHandleExpTranslated,
                                                  ZeDriverVersion.data(),
                                                  &sizeOfDriverString);
+  }
+
+  auto DriverSkiplist = getenv_to_vec("SYCL_UR_L0_DRIVER_SKIPLIST");
+  if (!DriverSkiplist.has_value()) {
+    DriverSkiplist = DriverSkiplistDefault;
+  }
+
+  UR_LOG(DEBUG, "Level Zero Driver version: {}", ZeDriverVersion);
+  for (const auto &version : DriverSkiplist.value()) {
+    UR_LOG(DEBUG, "Checking driver version {} against skiplist entry {}",
+           ZeDriverVersion, version);
+    if (version == ZeDriverVersion) {
+      UR_LOG(WARN,
+             "Skipping Level Zero driver due to the driver version: {} "
+             "matches a skiplist entry (set SYCL_UR_L0_DRIVER_SKIPLIST to "
+             "override)",
+             version);
+      IsDriverVersionSkipListed = true;
+      return UR_RESULT_ERROR_UNINITIALIZED;
+    }
   }
 
   // Check if import user ptr into USM feature has been requested.
@@ -510,56 +545,83 @@ ur_result_t ur_platform_handle_t_::initialize() {
             .zeCommandListImmediateAppendCommandListsExp != nullptr;
   }
 
-  ZE_CALL_NOCHECK(zeDriverGetExtensionFunctionAddress,
-                  (ZeDriver, "zeImageGetDeviceOffsetExp",
-                   reinterpret_cast<void **>(
-                       &ZeImageGetDeviceOffsetExt.zeImageGetDeviceOffsetExp)));
+  if (ZeApiVersion >= ZE_API_VERSION_1_15) {
+    ZeImageGetDeviceOffsetExt.zeImageGetDeviceOffsetExp =
+        zeImageGetDeviceOffsetExp;
+    ZeMemGetPitchFor2dImageExt.zeMemGetPitchFor2dImage =
+        zeMemGetPitchFor2dImage;
+  } else {
+    ZE_CALL_NOCHECK(
+        zeDriverGetExtensionFunctionAddress,
+        (ZeDriver, "zeImageGetDeviceOffsetExp",
+         reinterpret_cast<void **>(
+             &ZeImageGetDeviceOffsetExt.zeImageGetDeviceOffsetExp)));
+    ZE_CALL_NOCHECK(zeDriverGetExtensionFunctionAddress,
+                    (ZeDriver, "zeMemGetPitchFor2dImage",
+                     reinterpret_cast<void **>(
+                         &ZeMemGetPitchFor2dImageExt.zeMemGetPitchFor2dImage)));
+  }
 
   ZeImageGetDeviceOffsetExt.Supported =
       ZeImageGetDeviceOffsetExt.zeImageGetDeviceOffsetExp != nullptr;
-
-  ZE_CALL_NOCHECK(zeDriverGetExtensionFunctionAddress,
-                  (ZeDriver, "zeMemGetPitchFor2dImage",
-                   reinterpret_cast<void **>(
-                       &ZeMemGetPitchFor2dImageExt.zeMemGetPitchFor2dImage)));
-
   ZeMemGetPitchFor2dImageExt.Supported =
       ZeMemGetPitchFor2dImageExt.zeMemGetPitchFor2dImage != nullptr;
 
-  // Populate Graph Extension structure.
-  std::unordered_map<std::string, void **> ZeGraphFuncNameToAddrMap = {
-      {"zeGraphCreateExp",
-       reinterpret_cast<void **>(&ZeGraphExt.zeGraphCreateExp)},
-      {"zeCommandListBeginGraphCaptureExp",
-       reinterpret_cast<void **>(
-           &ZeGraphExt.zeCommandListBeginGraphCaptureExp)},
-      {"zeCommandListBeginCaptureIntoGraphExp",
-       reinterpret_cast<void **>(
-           &ZeGraphExt.zeCommandListBeginCaptureIntoGraphExp)},
-      {"zeCommandListEndGraphCaptureExp",
-       reinterpret_cast<void **>(&ZeGraphExt.zeCommandListEndGraphCaptureExp)},
-      {"zeCommandListInstantiateGraphExp",
-       reinterpret_cast<void **>(&ZeGraphExt.zeCommandListInstantiateGraphExp)},
-      {"zeCommandListAppendGraphExp",
-       reinterpret_cast<void **>(&ZeGraphExt.zeCommandListAppendGraphExp)},
-      {"zeGraphDestroyExp",
-       reinterpret_cast<void **>(&ZeGraphExt.zeGraphDestroyExp)},
-      {"zeExecutableGraphDestroyExp",
-       reinterpret_cast<void **>(&ZeGraphExt.zeExecutableGraphDestroyExp)},
-      {"zeCommandListIsGraphCaptureEnabledExp",
-       reinterpret_cast<void **>(
-           &ZeGraphExt.zeCommandListIsGraphCaptureEnabledExp)},
-      {"zeGraphIsEmptyExp",
-       reinterpret_cast<void **>(&ZeGraphExt.zeGraphIsEmptyExp)},
-      {"zeGraphDumpContentsExp",
-       reinterpret_cast<void **>(&ZeGraphExt.zeGraphDumpContentsExp)},
-  };
+  if (ZeGraphExtensionSupported) {
+    // Populate Graph Extension structure. Mandatory graph functions.
+    std::unordered_map<std::string, void **> ZeGraphFuncNameToAddrMap = {
+        {"zeGraphCreateExp",
+         reinterpret_cast<void **>(&ZeGraphExt.zeGraphCreateExp)},
+        {"zeCommandListBeginGraphCaptureExp",
+         reinterpret_cast<void **>(
+             &ZeGraphExt.zeCommandListBeginGraphCaptureExp)},
+        {"zeCommandListBeginCaptureIntoGraphExp",
+         reinterpret_cast<void **>(
+             &ZeGraphExt.zeCommandListBeginCaptureIntoGraphExp)},
+        {"zeCommandListEndGraphCaptureExp",
+         reinterpret_cast<void **>(
+             &ZeGraphExt.zeCommandListEndGraphCaptureExp)},
+        {"zeCommandListInstantiateGraphExp",
+         reinterpret_cast<void **>(
+             &ZeGraphExt.zeCommandListInstantiateGraphExp)},
+        {"zeCommandListAppendGraphExp",
+         reinterpret_cast<void **>(&ZeGraphExt.zeCommandListAppendGraphExp)},
+        {"zeGraphDestroyExp",
+         reinterpret_cast<void **>(&ZeGraphExt.zeGraphDestroyExp)},
+        {"zeExecutableGraphDestroyExp",
+         reinterpret_cast<void **>(&ZeGraphExt.zeExecutableGraphDestroyExp)},
+        {"zeCommandListIsGraphCaptureEnabledExp",
+         reinterpret_cast<void **>(
+             &ZeGraphExt.zeCommandListIsGraphCaptureEnabledExp)},
+        {"zeGraphIsEmptyExp",
+         reinterpret_cast<void **>(&ZeGraphExt.zeGraphIsEmptyExp)},
+        {"zeGraphDumpContentsExp",
+         reinterpret_cast<void **>(&ZeGraphExt.zeGraphDumpContentsExp)},
+    };
 
-  ZeGraphExt.Supported = true;
-  for (auto &[funcName, funcAddr] : ZeGraphFuncNameToAddrMap) {
-    ZE_CALL_NOCHECK(zeDriverGetExtensionFunctionAddress,
-                    (ZeDriver, funcName.c_str(), funcAddr));
-    ZeGraphExt.Supported &= (*funcAddr != nullptr);
+    ZeGraphExt.Supported = true;
+    for (auto &[funcName, funcAddr] : ZeGraphFuncNameToAddrMap) {
+      ZE_CALL_NOCHECK(zeDriverGetExtensionFunctionAddress,
+                      (ZeDriver, funcName.c_str(), funcAddr));
+      ZeGraphExt.Supported &= (*funcAddr != nullptr);
+    }
+
+    // Optional graph functions. If the function is not supported due to driver
+    // version, then still mark graphs as supported and only return unsupported
+    // code in affected function.
+    std::unordered_map<std::string, void **> ZeGraphOptionalFuncNameToAddrMap =
+        {
+            {"zeCommandListGetGraphExp",
+             reinterpret_cast<void **>(&ZeGraphExt.zeCommandListGetGraphExp)},
+            {"zeGraphSetDestructionCallbackExp",
+             reinterpret_cast<void **>(
+                 &ZeGraphExt.zeGraphSetDestructionCallbackExp)},
+        };
+
+    for (auto &[funcName, funcAddr] : ZeGraphOptionalFuncNameToAddrMap) {
+      ZE_CALL_NOCHECK(zeDriverGetExtensionFunctionAddress,
+                      (ZeDriver, funcName.c_str(), funcAddr));
+    }
   }
 
   if (this->isDriverVersionNewerOrSimilar(1, 14, 36035)) {
@@ -698,9 +760,9 @@ ur_platform_handle_t_::getDeviceFromNativeHandle(ze_device_handle_t ZeDevice) {
   std::shared_lock<ur_shared_mutex> Lock(URDevicesCacheMutex);
   auto it = std::find_if(URDevicesCache.begin(), URDevicesCache.end(),
                          [&](std::unique_ptr<ur_device_handle_t_> &D) {
-                           return D.get()->ZeDevice == ZeDevice &&
-                                  (D.get()->RootDevice == nullptr ||
-                                   D.get()->RootDevice->RootDevice == nullptr);
+                           return D->ZeDevice == ZeDevice &&
+                                  (D->RootDevice == nullptr ||
+                                   D->RootDevice->RootDevice == nullptr);
                          });
   if (it != URDevicesCache.end()) {
     return (*it).get();
@@ -864,6 +926,43 @@ ur_result_t ur_platform_handle_t_::populateDeviceCacheIfNeeded() {
     bool Supported = (ZeResult != ZE_RESULT_ERROR_UNSUPPORTED_FEATURE &&
                       ZeResult != ZE_RESULT_ERROR_UNSUPPORTED_VERSION);
     ZeDeviceSynchronizeSupported = Supported;
+  }
+
+  for (auto &dev : URDevicesCache) {
+    dev->peers = std::vector<ur_device_handle_t_::PeerStatus>(
+        URDevicesCache.size(), ur_device_handle_t_::PeerStatus::NO_CONNECTION);
+
+    for (size_t peerId = 0; peerId < URDevicesCache.size(); ++peerId) {
+      if (peerId == dev->Id.value())
+        continue;
+
+      ZeStruct<ze_device_p2p_properties_t> p2pProperties;
+      ZE2UR_CALL(
+          zeDeviceGetP2PProperties,
+          (dev->ZeDevice, URDevicesCache[peerId]->ZeDevice, &p2pProperties));
+      if (!(p2pProperties.flags & ZE_DEVICE_P2P_PROPERTY_FLAG_ACCESS)) {
+        UR_LOG(INFO,
+               "p2p access to memory of dev:{} from dev:{} not possible due to "
+               "lack of p2p property",
+               peerId, dev->Id.value());
+        continue;
+      }
+
+      ze_bool_t p2p;
+      ZE2UR_CALL(zeDeviceCanAccessPeer,
+                 (dev->ZeDevice, URDevicesCache[peerId]->ZeDevice, &p2p));
+      if (!p2p) {
+        UR_LOG(INFO,
+               "p2p access to memory of dev:{} from dev:{} not possible due to "
+               "no connection",
+               peerId, dev->Id.value());
+        continue;
+      }
+
+      UR_LOG(INFO, "p2p access to memory of dev:{} from dev:{} can be enabled",
+             peerId, dev->Id.value());
+      dev->peers[peerId] = ur_device_handle_t_::PeerStatus::DISABLED;
+    }
   }
 
   return UR_RESULT_SUCCESS;

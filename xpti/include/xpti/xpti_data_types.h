@@ -352,6 +352,24 @@ enum class payload_flag_t {
 
 using stream_id_t = uint8_t;
 
+/// @enum stream_detail_level_t
+/// @brief Defines detail level for optional stream data emission.
+/// Values are ordered to allow threshold checks. Effective level is the
+/// maximum requested across all subscribers for a stream.
+enum class stream_detail_level_t : uint8_t {
+  XPTI_STREAM_DETAIL_LEVEL_NONE = 0,   ///< No optional data
+  XPTI_STREAM_DETAIL_LEVEL_BASIC = 1,  ///< Basic optional data
+  XPTI_STREAM_DETAIL_LEVEL_NORMAL = 2, ///< Normal detail (default)
+  XPTI_STREAM_DETAIL_LEVEL_VERBOSE = 3 ///< Maximum detail
+};
+
+/// @def XPTI_HAS_STREAM_DETAIL_LEVEL
+/// @brief Feature detection macro for stream detail level support.
+/// Subscribers can use this macro to conditionally compile code that uses
+/// stream_detail_level_t, xptiQuerySubscriberStreamDetailLevel, and
+/// xptiGetEffectiveStreamDetailLevel.
+#define XPTI_HAS_STREAM_DETAIL_LEVEL 1
+
 //
 //  Helper macros for creating new tracepoint and
 //  event types
@@ -1246,6 +1264,16 @@ typedef void (*plugin_init_t)(unsigned int, unsigned int, const char *,
                               const char *);
 typedef void (*plugin_fini_t)(const char *);
 
+/// @typedef query_subscriber_stream_detail_level_t
+/// @brief Optional callback for querying subscriber's requested detail level
+/// per stream.
+/// @param stream_name Stream name being queried.
+/// @param level Output: subscriber's desired detail level for the stream.
+/// @return true if level was set, false otherwise.
+/// @note If not implemented, defaults to NORMAL for all streams.
+typedef bool (*query_subscriber_stream_detail_level_t)(
+    const char *stream_name, xpti::stream_detail_level_t *level);
+
 constexpr uint16_t trace_task_begin =
     static_cast<uint16_t>(xpti::trace_point_type_t::task_begin);
 constexpr uint16_t trace_task_end =
@@ -1445,4 +1473,15 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int major_version,
 /// subscribed to this stream can now free up all internal data structures and
 /// memory that has been allocated to manage the stream data.
 XPTI_CALLBACK_API void xptiTraceFinish(const char *stream_name);
+
+/// @brief Optional callback for querying subscriber's stream detail level
+/// preference. Called by framework during stream initialization to compute
+/// effective detail level.
+/// @param stream_name Stream name being queried.
+/// @param level Output: subscriber's requested detail level.
+/// @return true if level was set, false otherwise.
+/// @note Optional. If not implemented, defaults to NORMAL.
+XPTI_CALLBACK_API bool
+xptiQuerySubscriberStreamDetailLevel(const char *stream_name,
+                                     xpti::stream_detail_level_t *level);
 }

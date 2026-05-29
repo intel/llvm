@@ -1,9 +1,7 @@
-/*
- * Copyright (C) 2025 Intel Corporation
- *
- * SPDX-License-Identifier: MIT
- *
- */
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
+//
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #pragma once
 
@@ -17,13 +15,10 @@ typedef struct _zex_variable_handle_t *zex_variable_handle_t;
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Variable descriptor
 typedef struct _zex_variable_desc_t {
-  ze_structure_type_ext_t stype =
-      ZEX_STRUCTURE_TYPE_VARIABLE_DESCRIPTOR; ///< [in] type of this structure
-  const void *pNext =
-      nullptr; ///< [in][optional] pointer to extension-specific structure
-
-  const char *name =
-      nullptr; ///< [in][optional] null-terminated name of the variable
+  ze_structure_type_ext_t stype; ///< [in] type of this structure
+                                 ///< ZEX_STRUCTURE_TYPE_VARIABLE_DESCRIPTOR
+  const void *pNext; ///< [in][optional] pointer to extension-specific structure
+  const char *name;  ///< [in][optional] null-terminated name of the variable
 } zex_variable_desc_t;
 
 #if defined(__cplusplus)

@@ -2,14 +2,7 @@
 // REQUIRES: windows
 
 // UNSUPPORTED: gpu-intel-gen12
-// UNSUPPORTED-INTENDED: Unknown issue with integrated GPU failing
-//                       when importing memory
-
-// UNSUPPORTED: gpu-intel-dg2
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21159
-
-// XFAIL: windows && arch-intel_gpu_bmg_g21
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20384
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22148
 
 // RUN: %{build} %link-directx -o %t.out
 // RUN: %{run-unfiltered-devices} env NEOReadDebugKeys=1 UseBindlessMode=1 UseExternalAllocatorForSshAndDsh=1 %t.out
@@ -18,7 +11,11 @@
 
 #include <sycl/ext/oneapi/bindless_images.hpp>
 
-#include <d3d11_3.h>
+#ifdef TEST_SEMAPHORE_IMPORT
+#include <d3d11_4.h> // Used for ID3D11Device5 / ID3D11DeviceContext4 / ID3D11Fence
+#else
+#include <d3d11_3.h> // Used for ID3D11Device3
+#endif               // TEST_SEMAPHORE_IMPORT
 
 #include <limits>
 
@@ -76,6 +73,25 @@ syclImportTextureMem(HANDLE sharedHandle, size_t allocationSize,
   return syclImageHandle;
 }
 
+#ifdef TEST_SEMAPHORE_IMPORT
+syclexp::external_semaphore syclImportDX11FenceSemaphore(HANDLE sharedHandle,
+                                                         sycl::queue queue) {
+  syclexp::external_semaphore_descriptor<syclexp::resource_win32_handle>
+      semDesc{sharedHandle,
+              syclexp::external_semaphore_handle_type::win32_nt_dx11_fence};
+  auto ret = syclexp::import_external_semaphore(semDesc, queue);
+  return ret;
+}
+
+void waitD3D11Fence(ID3D11Fence *fence, UINT64 value, HANDLE eventHandle,
+                    DWORD msecTimeout = INFINITE) {
+  ThrowIfFailed(fence->SetEventOnCompletion(value, eventHandle));
+  if (WaitForSingleObject(eventHandle, msecTimeout) != WAIT_OBJECT_0) {
+    throw std::runtime_error("Timed out waiting for D3D11 fence.");
+  }
+}
+#endif // TEST_SEMAPHORE_IMPORT
+
 template <int NDims, typename DType, int NChannels>
 void callSyclKernel(sycl::queue syclQueue,
                     syclexp::unsampled_image_handle syclImageHandle,
@@ -86,50 +102,52 @@ void callSyclKernel(sycl::queue syclQueue,
     using VecType = sycl::vec<DType, NChannels>;
 
     // All we are doing is doubling the value of each pixel in the texture.
-    syclQueue
-        .submit([&](sycl::handler &cgh) {
-          cgh.parallel_for(
-              sycl::nd_range<NDims>{globalSize, localSize},
-              [=](sycl::nd_item<NDims> it) {
-                if constexpr (NDims == 3) {
-                  size_t dim0 = it.get_global_id(0);
-                  size_t dim1 = it.get_global_id(1);
-                  size_t dim2 = it.get_global_id(2);
-                  // We simulate 3d textures through very tall 2D textures where
-                  // the depth dimension has been collapsed onto the height
-                  // dimension.
-                  // So, logically speaking, the texture has
-                  // dimensions Width x Height x Depth but practically speaking,
-                  // it is a 2D texture with dimensions Width x (Height *
-                  // Depth). So the calculation below globalSize[1] * dim2 +
-                  // dim1 simply does this conversion from a 3D index to a 2D
-                  // index.
-                  auto px = syclexp::fetch_image<
-                      std::conditional_t<NChannels == 1, DType, VecType>>(
-                      imgHandle, sycl::int2(dim0, globalSize[1] * dim2 + dim1));
-                  px *= static_cast<DType>(2);
-                  syclexp::write_image(
-                      imgHandle, sycl::int2(dim0, globalSize[1] * dim2 + dim1),
-                      px);
-                } else if constexpr (NDims == 2) {
-                  size_t dim0 = it.get_global_id(0);
-                  size_t dim1 = it.get_global_id(1);
-                  auto px = syclexp::fetch_image<
-                      std::conditional_t<NChannels == 1, DType, VecType>>(
-                      imgHandle, sycl::int2(dim0, dim1));
-                  px *= static_cast<DType>(2);
-                  syclexp::write_image(imgHandle, sycl::int2(dim0, dim1), px);
-                } else {
-                  size_t dim0 = it.get_global_id(0);
-                  auto px = syclexp::fetch_image<
-                      std::conditional_t<NChannels == 1, DType, VecType>>(
-                      imgHandle, int(dim0));
-                  px *= static_cast<DType>(2);
-                  syclexp::write_image(imgHandle, int(dim0), px);
-                }
-              });
-        })
-        .wait_and_throw();
+    auto e = syclQueue.submit([&](sycl::handler &cgh) {
+      cgh.parallel_for(
+          sycl::nd_range<NDims>{globalSize, localSize},
+          [=](sycl::nd_item<NDims> it) {
+            if constexpr (NDims == 3) {
+              size_t dim0 = it.get_global_id(0);
+              size_t dim1 = it.get_global_id(1);
+              size_t dim2 = it.get_global_id(2);
+              // We simulate 3d textures through very tall 2D textures where
+              // the depth dimension has been collapsed onto the height
+              // dimension.
+              // So, logically speaking, the texture has
+              // dimensions Width x Height x Depth but practically speaking,
+              // it is a 2D texture with dimensions Width x (Height *
+              // Depth). So the calculation below globalSize[1] * dim2 +
+              // dim1 simply does this conversion from a 3D index to a 2D
+              // index.
+              // For 1D and 2D textures, the conversion is trivial.
+              auto px = syclexp::fetch_image<
+                  std::conditional_t<NChannels == 1, DType, VecType>>(
+                  imgHandle, sycl::int2(dim0, globalSize[1] * dim2 + dim1));
+              px *= static_cast<DType>(2);
+              syclexp::write_image(
+                  imgHandle, sycl::int2(dim0, globalSize[1] * dim2 + dim1), px);
+            } else if constexpr (NDims == 2) {
+              size_t dim0 = it.get_global_id(0);
+              size_t dim1 = it.get_global_id(1);
+              auto px = syclexp::fetch_image<
+                  std::conditional_t<NChannels == 1, DType, VecType>>(
+                  imgHandle, sycl::int2(dim0, dim1));
+              px *= static_cast<DType>(2);
+              syclexp::write_image(imgHandle, sycl::int2(dim0, dim1), px);
+            } else {
+              size_t dim0 = it.get_global_id(0);
+              auto px = syclexp::fetch_image<
+                  std::conditional_t<NChannels == 1, DType, VecType>>(
+                  imgHandle, sycl::int2(dim0, 0));
+              px *= static_cast<DType>(2);
+              syclexp::write_image(imgHandle, sycl::int2(dim0, 0), px);
+            }
+          });
+    });
+#ifndef TEST_SEMAPHORE_IMPORT
+    e.wait_and_throw();
+#endif
+
     // Instead of wait_and_throw here, we may want to import and use the
     // ID3D11Fence interface to synchronize the SYCL queue with the D3D11
     // device by signaling the completion of the work and waiting for it on
@@ -226,7 +244,22 @@ int runTest(D3D11ProgramState &d3d11ProgramState, sycl::queue syclQueue,
   auto *pDevice = d3d11ProgramState.device;
   auto *pDeviceContext = d3d11ProgramState.deviceContext;
 
-  syclexp::image_descriptor syclImageDesc{globalSize, NChannels, channelType};
+  // The texture that we use throughout this test is 2D. Therefore, even though
+  // the iteration space of the SYCL kernel may be 1, 2 0r 3 dimensional, we
+  // convert them into a 2D range that we can use to create the SYCL image
+  // descriptor. If we were to not do this, we would have a bindless image and a
+  // texture that may have different dimensions and yet refer to the same
+  // underlying memory ,which smells like undefined behavior.
+  sycl::range<2> Range2D;
+  if constexpr (NDims == 1) {
+    Range2D = sycl::range{globalSize[0], 1};
+  } else if constexpr (NDims == 2) {
+    Range2D = globalSize;
+  } else {
+    Range2D = sycl::range{globalSize[0], globalSize[1] * globalSize[2]};
+  }
+
+  syclexp::image_descriptor syclImageDesc{Range2D, NChannels, channelType};
   // Verify ability to allocate the above image descriptor.
   // E.g. LevelZero does not support `unorm` channel types.
   if (!bindless_helpers::memoryAllocationSupported(
@@ -250,13 +283,6 @@ int runTest(D3D11ProgramState &d3d11ProgramState, sycl::queue syclQueue,
 
   DXGI_FORMAT texFormat = toDXGIFormat(NChannels, channelType);
 
-  // DirectX 11 does not allow us to specify a row major layout for 2D textures
-  // that have ArraySize > 1 and we would like to specify it in order to
-  // accurately calculate the allocation size for the texture so that we can
-  // import it from SYCL side. Hence, in light of this restriction, instead of
-  // using ArraySize > 1 to simulate 3D textures, we simulate them by simply
-  // collapsing the depth dimension onto the height dimension and set ArraySize
-  // to 1.
   // Create a shared texture
   ComPtr<ID3D11Texture2D1> texture;
   // Initialize the texture description.
@@ -277,7 +303,6 @@ int runTest(D3D11ProgramState &d3d11ProgramState, sycl::queue syclQueue,
   // it is only applicable to 2D textures.
   texDesc.MiscFlags = D3D11_RESOURCE_MISC_SHARED_NTHANDLE |
                       D3D11_RESOURCE_MISC_SHARED_KEYEDMUTEX;
-  texDesc.TextureLayout = D3D11_TEXTURE_LAYOUT_ROW_MAJOR;
 
   ComPtr<ID3D11Device3> device3;
   pDevice->QueryInterface(IID_PPV_ARGS(&device3));
@@ -287,6 +312,32 @@ int runTest(D3D11ProgramState &d3d11ProgramState, sycl::queue syclQueue,
   ComPtr<IDXGIKeyedMutex> keyedMutex;
   ThrowIfFailed(texture.As(&keyedMutex));
   d3d11ProgramState.key = 0;
+
+#ifdef TEST_SEMAPHORE_IMPORT
+  ComPtr<ID3D11Device5> device5;
+  ThrowIfFailed(pDevice->QueryInterface(IID_PPV_ARGS(&device5)));
+
+  ComPtr<ID3D11DeviceContext4> context4;
+  ThrowIfFailed(
+      d3d11ProgramState.deviceContext->QueryInterface(IID_PPV_ARGS(&context4)));
+
+  ComPtr<ID3D11Fence> fence;
+  uint64_t fenceVal = 0;
+  ThrowIfFailed(device5->CreateFence(fenceVal, D3D11_FENCE_FLAG_SHARED,
+                                     IID_PPV_ARGS(&fence)));
+
+  HANDLE sharedFence = INVALID_HANDLE_VALUE;
+  ThrowIfFailed(
+      fence->CreateSharedHandle(nullptr, GENERIC_ALL, nullptr, &sharedFence));
+
+  syclexp::external_semaphore syclSemaphore =
+      syclImportDX11FenceSemaphore(sharedFence, syclQueue);
+
+  HANDLE fenceEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
+  if (fenceEvent == nullptr) {
+    ThrowIfFailed(HRESULT_FROM_WIN32(GetLastError()));
+  }
+#endif // TEST_SEMAPHORE_IMPORT
 
   // Create an NT handle to a shared resource referring to our texture.
   // Opening the shared resource gives access to it for use on the SYCL device.
@@ -322,13 +373,16 @@ int runTest(D3D11ProgramState &d3d11ProgramState, sycl::queue syclQueue,
 
   // Unfortunately, DX11 does not expose the texture allocation information
   // like DX12, so we have to calculate it manually the best we can (no mips).
-  // The fact that the texture has been requested to have a row major layout
-  // should support this speculative calculation.
   const size_t allocationSize =
       texWidth * texHeight * texDepth * NChannels * sizeof(DType);
   syclexp::unsampled_image_handle syclImageHandle = syclImportTextureMem(
       sharedHandle, allocationSize, syclImageDesc, syclQueue);
 
+#ifdef TEST_SEMAPHORE_IMPORT
+  ThrowIfFailed(context4->Signal(fence.Get(), fenceVal));
+  syclQueue.ext_oneapi_wait_external_semaphore(syclSemaphore, fenceVal);
+  fenceVal++;
+#endif
   // Submit the SYCL kernel.
   // When IDXGIKeyedMutex importing into SYCL is implemented, we'll be able to
   // call it from the SYCL API. All it does is ensuring only one device has
@@ -338,6 +392,14 @@ int runTest(D3D11ProgramState &d3d11ProgramState, sycl::queue syclQueue,
                                           globalSize, localSize);
   // Back to the D3D11 process
   ThrowIfFailed(keyedMutex->ReleaseSync(d3d11ProgramState.key));
+
+#ifdef TEST_SEMAPHORE_IMPORT
+  syclQueue.submit([&](sycl::handler &cgh) {
+    cgh.ext_oneapi_signal_external_semaphore(syclSemaphore, fenceVal);
+  });
+  waitD3D11Fence(fence.Get(), fenceVal, fenceEvent);
+  fenceVal++;
+#endif
 
   // Read-back and verify
   int errc = 1;
@@ -351,6 +413,11 @@ int runTest(D3D11ProgramState &d3d11ProgramState, sycl::queue syclQueue,
 
   // cleanup of the shared handle.
   CloseNTHandle(sharedHandle);
+
+#ifdef TEST_SEMAPHORE_IMPORT
+  CloseNTHandle(sharedFence);
+  CloseNTHandle(fenceEvent);
+#endif
 
 #ifdef VERBOSE_PRINT
   if (errc == 1) {

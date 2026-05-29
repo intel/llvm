@@ -11,13 +11,13 @@ using namespace sycl::ext::oneapi;
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[AGG_TMP14_I:%.*]] = alloca %"class.sycl::_V1::vec", align 8
 // CHECK-NEXT:    [[REF_TMP:%.*]] = alloca %"class.sycl::_V1::vec", align 8
-// CHECK-NEXT:    [[ARRAYIDX:%.*]] = getelementptr inbounds nuw %"class.sycl::_V1::vec", ptr addrspace(4) [[BUF:%.*]], i64 [[ID:%.*]]
+// CHECK-NEXT:    [[ARRAYIDX:%.*]] = getelementptr inbounds nuw [8 x i8], ptr addrspace(4) [[BUF:%.*]], i64 [[ID:%.*]]
 // CHECK-NEXT:    [[TMP0:%.*]] = load i64, ptr addrspace(4) [[ARRAYIDX]], align 8
 // CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[REF_TMP]]) #[[ATTR5:[0-9]+]]
-// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META11:![0-9]+]])
-// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META14:![0-9]+]])
-// CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[AGG_TMP14_I]]), !noalias [[META11]]
-// CHECK-NEXT:    store i64 [[TMP0]], ptr [[AGG_TMP14_I]], align 8, !noalias [[META11]]
+// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META10:![0-9]+]])
+// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META13:![0-9]+]])
+// CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[AGG_TMP14_I]]), !noalias [[META10]]
+// CHECK-NEXT:    store i64 [[TMP0]], ptr [[AGG_TMP14_I]], align 8, !noalias [[META10]]
 // CHECK-NEXT:    br label [[FOR_COND_I_I:%.*]]
 // CHECK:       for.cond.i.i:
 // CHECK-NEXT:    [[S_0_I_I:%.*]] = phi i32 [ 0, [[ENTRY:%.*]] ], [ [[INC_I_I:%.*]], [[FOR_BODY_I_I:%.*]] ]
@@ -25,15 +25,15 @@ using namespace sycl::ext::oneapi;
 // CHECK-NEXT:    br i1 [[CMP_I_I]], label [[FOR_BODY_I_I]], label [[_ZN4SYCL3_V117SELECT_FROM_GROUPINS0_9SUB_GROUPENS0_3VECINS0_3EXT6ONEAPI8BFLOAT16ELI4EEEEENST9ENABLE_IFIXAAOOSR3STDE9IS_SAME_VINST5DECAYIT_E4TYPEES2_ESR4SYCL3EXT6ONEAPI12EXPERIMENTALE27IS_USER_CONSTRUCTED_GROUP_VISC_EOOSR3STDE23IS_TRIVIALLY_COPYABLE_VIT0_ESR6DETAIL6IS_VECISD_EE5VALUEESD_E4TYPEESA_SD_NSA_7ID_TYPEE_EXIT:%.*]]
 // CHECK:       for.body.i.i:
 // CHECK-NEXT:    [[IDXPROM_I_I_I:%.*]] = zext nneg i32 [[S_0_I_I]] to i64
-// CHECK-NEXT:    [[ARRAYIDX_I_I_I:%.*]] = getelementptr inbounds %"class.sycl::_V1::ext::oneapi::bfloat16", ptr [[AGG_TMP14_I]], i64 [[IDXPROM_I_I_I]]
-// CHECK-NEXT:    [[TMP1:%.*]] = load i16, ptr [[ARRAYIDX_I_I_I]], align 2, !tbaa [[TBAA17:![0-9]+]], !noalias [[META19:![0-9]+]]
-// CHECK-NEXT:    [[CALL3_I_I_I_I:%.*]] = tail call spir_func noundef zeroext i16 @_Z28__spirv_SubgroupShuffleINTELtj(i16 noundef zeroext [[TMP1]], i32 noundef 1) #[[ATTR6:[0-9]+]], !noalias [[META20:![0-9]+]]
-// CHECK-NEXT:    [[ARRAYIDX_I12_I_I:%.*]] = getelementptr inbounds %"class.sycl::_V1::ext::oneapi::bfloat16", ptr [[REF_TMP]], i64 [[IDXPROM_I_I_I]]
-// CHECK-NEXT:    store i16 [[CALL3_I_I_I_I]], ptr [[ARRAYIDX_I12_I_I]], align 2, !tbaa [[TBAA17]], !alias.scope [[META19]]
+// CHECK-NEXT:    [[ARRAYIDX_I_I_I:%.*]] = getelementptr inbounds [2 x i8], ptr [[AGG_TMP14_I]], i64 [[IDXPROM_I_I_I]]
+// CHECK-NEXT:    [[TMP1:%.*]] = load i16, ptr [[ARRAYIDX_I_I_I]], align 2, !tbaa [[TBAA16:![0-9]+]], !noalias [[META18:![0-9]+]]
+// CHECK-NEXT:    [[CALL3_I_I_I_I:%.*]] = tail call spir_func noundef zeroext i16 @_Z28__spirv_SubgroupShuffleINTELtj(i16 noundef zeroext [[TMP1]], i32 noundef 1) #[[ATTR6:[0-9]+]], !noalias [[META19:![0-9]+]]
+// CHECK-NEXT:    [[ARRAYIDX_I12_I_I:%.*]] = getelementptr inbounds [2 x i8], ptr [[REF_TMP]], i64 [[IDXPROM_I_I_I]]
+// CHECK-NEXT:    store i16 [[CALL3_I_I_I_I]], ptr [[ARRAYIDX_I12_I_I]], align 2, !tbaa [[TBAA16]], !alias.scope [[META18]]
 // CHECK-NEXT:    [[INC_I_I]] = add nuw nsw i32 [[S_0_I_I]], 1
-// CHECK-NEXT:    br label [[FOR_COND_I_I]], !llvm.loop [[LOOP23:![0-9]+]]
+// CHECK-NEXT:    br label [[FOR_COND_I_I]], !llvm.loop [[LOOP22:![0-9]+]]
 // CHECK:       _ZN4sycl3_V117select_from_groupINS0_9sub_groupENS0_3vecINS0_3ext6oneapi8bfloat16ELi4EEEEENSt9enable_ifIXaaoosr3stdE9is_same_vINSt5decayIT_E4typeES2_Esr4sycl3ext6oneapi12experimentalE27is_user_constructed_group_vISC_Eoosr3stdE23is_trivially_copyable_vIT0_Esr6detail6is_vecISD_EE5valueESD_E4typeESA_SD_NSA_7id_typeE.exit:
-// CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[AGG_TMP14_I]]), !noalias [[META11]]
+// CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[AGG_TMP14_I]]), !noalias [[META10]]
 // CHECK-NEXT:    [[TMP2:%.*]] = load i64, ptr [[REF_TMP]], align 8
 // CHECK-NEXT:    store i64 [[TMP2]], ptr addrspace(4) [[ARRAYIDX]], align 8
 // CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[REF_TMP]]) #[[ATTR5]]
@@ -49,13 +49,13 @@ SYCL_EXTERNAL void test_shuffle1(sycl::sub_group &sg, vec<bfloat16, 4> *buf,
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[AGG_TMP14_I:%.*]] = alloca %"class.sycl::_V1::marray", align 8
 // CHECK-NEXT:    [[REF_TMP:%.*]] = alloca %"class.sycl::_V1::marray", align 2
-// CHECK-NEXT:    [[ARRAYIDX:%.*]] = getelementptr inbounds nuw %"class.sycl::_V1::marray", ptr addrspace(4) [[BUF:%.*]], i64 [[ID:%.*]]
-// CHECK-NEXT:    [[TMP0:%.*]] = load i64, ptr addrspace(4) [[ARRAYIDX]], align 2, !tbaa [[TBAA25:![0-9]+]]
+// CHECK-NEXT:    [[ARRAYIDX:%.*]] = getelementptr inbounds nuw [8 x i8], ptr addrspace(4) [[BUF:%.*]], i64 [[ID:%.*]]
+// CHECK-NEXT:    [[TMP0:%.*]] = load i64, ptr addrspace(4) [[ARRAYIDX]], align 2, !tbaa [[TBAA24:![0-9]+]]
 // CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[REF_TMP]]) #[[ATTR5]]
-// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META26:![0-9]+]])
-// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META29:![0-9]+]])
-// CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[AGG_TMP14_I]]), !noalias [[META26]]
-// CHECK-NEXT:    store i64 [[TMP0]], ptr [[AGG_TMP14_I]], align 8, !noalias [[META26]]
+// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META25:![0-9]+]])
+// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META28:![0-9]+]])
+// CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[AGG_TMP14_I]]), !noalias [[META25]]
+// CHECK-NEXT:    store i64 [[TMP0]], ptr [[AGG_TMP14_I]], align 8, !noalias [[META25]]
 // CHECK-NEXT:    br label [[FOR_COND_I_I:%.*]]
 // CHECK:       for.cond.i.i:
 // CHECK-NEXT:    [[S_0_I_I:%.*]] = phi i32 [ 0, [[ENTRY:%.*]] ], [ [[INC_I_I:%.*]], [[FOR_BODY_I_I:%.*]] ]
@@ -63,17 +63,17 @@ SYCL_EXTERNAL void test_shuffle1(sycl::sub_group &sg, vec<bfloat16, 4> *buf,
 // CHECK-NEXT:    br i1 [[CMP_I_I]], label [[FOR_BODY_I_I]], label [[_ZN4SYCL3_V117SELECT_FROM_GROUPINS0_9SUB_GROUPENS0_6MARRAYINS0_3EXT6ONEAPI8BFLOAT16ELM4EEEEENST9ENABLE_IFIXAAOOSR3STDE9IS_SAME_VINST5DECAYIT_E4TYPEES2_ESR4SYCL3EXT6ONEAPI12EXPERIMENTALE27IS_USER_CONSTRUCTED_GROUP_VISC_EOOSR3STDE23IS_TRIVIALLY_COPYABLE_VIT0_ESR6DETAIL6IS_VECISD_EE5VALUEESD_E4TYPEESA_SD_NSA_7ID_TYPEE_EXIT:%.*]]
 // CHECK:       for.body.i.i:
 // CHECK-NEXT:    [[CONV_I_I:%.*]] = zext nneg i32 [[S_0_I_I]] to i64
-// CHECK-NEXT:    [[ARRAYIDX_I_I_I:%.*]] = getelementptr inbounds %"class.sycl::_V1::ext::oneapi::bfloat16", ptr [[AGG_TMP14_I]], i64 [[CONV_I_I]]
-// CHECK-NEXT:    [[TMP1:%.*]] = load i16, ptr [[ARRAYIDX_I_I_I]], align 2, !tbaa [[TBAA17]], !noalias [[META32:![0-9]+]]
-// CHECK-NEXT:    [[CALL3_I_I_I_I:%.*]] = tail call spir_func noundef zeroext i16 @_Z28__spirv_SubgroupShuffleINTELtj(i16 noundef zeroext [[TMP1]], i32 noundef 1) #[[ATTR6]], !noalias [[META33:![0-9]+]]
-// CHECK-NEXT:    [[ARRAYIDX_I13_I_I:%.*]] = getelementptr inbounds %"class.sycl::_V1::ext::oneapi::bfloat16", ptr [[REF_TMP]], i64 [[CONV_I_I]]
-// CHECK-NEXT:    store i16 [[CALL3_I_I_I_I]], ptr [[ARRAYIDX_I13_I_I]], align 2, !tbaa [[TBAA17]], !alias.scope [[META32]]
+// CHECK-NEXT:    [[ARRAYIDX_I_I_I:%.*]] = getelementptr inbounds [2 x i8], ptr [[AGG_TMP14_I]], i64 [[CONV_I_I]]
+// CHECK-NEXT:    [[TMP1:%.*]] = load i16, ptr [[ARRAYIDX_I_I_I]], align 2, !tbaa [[TBAA16]], !noalias [[META31:![0-9]+]]
+// CHECK-NEXT:    [[CALL3_I_I_I_I:%.*]] = tail call spir_func noundef zeroext i16 @_Z28__spirv_SubgroupShuffleINTELtj(i16 noundef zeroext [[TMP1]], i32 noundef 1) #[[ATTR6]], !noalias [[META32:![0-9]+]]
+// CHECK-NEXT:    [[ARRAYIDX_I13_I_I:%.*]] = getelementptr inbounds [2 x i8], ptr [[REF_TMP]], i64 [[CONV_I_I]]
+// CHECK-NEXT:    store i16 [[CALL3_I_I_I_I]], ptr [[ARRAYIDX_I13_I_I]], align 2, !tbaa [[TBAA16]], !alias.scope [[META31]]
 // CHECK-NEXT:    [[INC_I_I]] = add nuw nsw i32 [[S_0_I_I]], 1
-// CHECK-NEXT:    br label [[FOR_COND_I_I]], !llvm.loop [[LOOP36:![0-9]+]]
+// CHECK-NEXT:    br label [[FOR_COND_I_I]], !llvm.loop [[LOOP35:![0-9]+]]
 // CHECK:       _ZN4sycl3_V117select_from_groupINS0_9sub_groupENS0_6marrayINS0_3ext6oneapi8bfloat16ELm4EEEEENSt9enable_ifIXaaoosr3stdE9is_same_vINSt5decayIT_E4typeES2_Esr4sycl3ext6oneapi12experimentalE27is_user_constructed_group_vISC_Eoosr3stdE23is_trivially_copyable_vIT0_Esr6detail6is_vecISD_EE5valueESD_E4typeESA_SD_NSA_7id_typeE.exit:
-// CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[AGG_TMP14_I]]), !noalias [[META26]]
-// CHECK-NEXT:    [[TMP2:%.*]] = load i64, ptr [[REF_TMP]], align 2, !tbaa [[TBAA25]]
-// CHECK-NEXT:    store i64 [[TMP2]], ptr addrspace(4) [[ARRAYIDX]], align 2, !tbaa [[TBAA25]]
+// CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[AGG_TMP14_I]]), !noalias [[META25]]
+// CHECK-NEXT:    [[TMP2:%.*]] = load i64, ptr [[REF_TMP]], align 2, !tbaa [[TBAA24]]
+// CHECK-NEXT:    store i64 [[TMP2]], ptr addrspace(4) [[ARRAYIDX]], align 2, !tbaa [[TBAA24]]
 // CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[REF_TMP]]) #[[ATTR5]]
 // CHECK-NEXT:    ret void
 //
@@ -87,12 +87,12 @@ SYCL_EXTERNAL void test_shuffle2(sycl::sub_group &sg, marray<bfloat16, 4> *buf,
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[AGG_TMP14_I:%.*]] = alloca %"class.sycl::_V1::marray.32", align 8
 // CHECK-NEXT:    [[REF_TMP:%.*]] = alloca %"class.sycl::_V1::marray.32", align 2
-// CHECK-NEXT:    [[ARRAYIDX:%.*]] = getelementptr inbounds nuw %"class.sycl::_V1::marray.32", ptr addrspace(4) [[BUF:%.*]], i64 [[ID:%.*]]
+// CHECK-NEXT:    [[ARRAYIDX:%.*]] = getelementptr inbounds nuw [10 x i8], ptr addrspace(4) [[BUF:%.*]], i64 [[ID:%.*]]
 // CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[REF_TMP]]) #[[ATTR5]]
-// CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[AGG_TMP14_I]]), !noalias [[META37:![0-9]+]]
+// CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[AGG_TMP14_I]]), !noalias [[META36:![0-9]+]]
 // CHECK-NEXT:    call void @llvm.memcpy.p0.p4.i64(ptr noundef nonnull align 8 dereferenceable(10) [[AGG_TMP14_I]], ptr addrspace(4) noundef align 2 dereferenceable(10) [[ARRAYIDX]], i64 10, i1 false)
-// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META37]])
-// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META40:![0-9]+]])
+// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META36]])
+// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META39:![0-9]+]])
 // CHECK-NEXT:    br label [[FOR_COND_I_I:%.*]]
 // CHECK:       for.cond.i.i:
 // CHECK-NEXT:    [[S_0_I_I:%.*]] = phi i32 [ 0, [[ENTRY:%.*]] ], [ [[INC_I_I:%.*]], [[FOR_BODY_I_I:%.*]] ]
@@ -100,16 +100,16 @@ SYCL_EXTERNAL void test_shuffle2(sycl::sub_group &sg, marray<bfloat16, 4> *buf,
 // CHECK-NEXT:    br i1 [[CMP_I_I]], label [[FOR_BODY_I_I]], label [[_ZN4SYCL3_V117SELECT_FROM_GROUPINS0_9SUB_GROUPENS0_6MARRAYINS0_3EXT6ONEAPI8BFLOAT16ELM5EEEEENST9ENABLE_IFIXAAOOSR3STDE9IS_SAME_VINST5DECAYIT_E4TYPEES2_ESR4SYCL3EXT6ONEAPI12EXPERIMENTALE27IS_USER_CONSTRUCTED_GROUP_VISC_EOOSR3STDE23IS_TRIVIALLY_COPYABLE_VIT0_ESR6DETAIL6IS_VECISD_EE5VALUEESD_E4TYPEESA_SD_NSA_7ID_TYPEE_EXIT:%.*]]
 // CHECK:       for.body.i.i:
 // CHECK-NEXT:    [[CONV_I_I:%.*]] = zext nneg i32 [[S_0_I_I]] to i64
-// CHECK-NEXT:    [[ARRAYIDX_I_I_I:%.*]] = getelementptr inbounds %"class.sycl::_V1::ext::oneapi::bfloat16", ptr [[AGG_TMP14_I]], i64 [[CONV_I_I]]
-// CHECK-NEXT:    [[TMP0:%.*]] = load i16, ptr [[ARRAYIDX_I_I_I]], align 2, !tbaa [[TBAA17]], !noalias [[META43:![0-9]+]]
-// CHECK-NEXT:    [[CALL3_I_I_I_I:%.*]] = tail call spir_func noundef zeroext i16 @_Z28__spirv_SubgroupShuffleINTELtj(i16 noundef zeroext [[TMP0]], i32 noundef 1) #[[ATTR6]], !noalias [[META44:![0-9]+]]
-// CHECK-NEXT:    [[ARRAYIDX_I13_I_I:%.*]] = getelementptr inbounds %"class.sycl::_V1::ext::oneapi::bfloat16", ptr [[REF_TMP]], i64 [[CONV_I_I]]
-// CHECK-NEXT:    store i16 [[CALL3_I_I_I_I]], ptr [[ARRAYIDX_I13_I_I]], align 2, !tbaa [[TBAA17]], !alias.scope [[META43]]
+// CHECK-NEXT:    [[ARRAYIDX_I_I_I:%.*]] = getelementptr inbounds [2 x i8], ptr [[AGG_TMP14_I]], i64 [[CONV_I_I]]
+// CHECK-NEXT:    [[TMP0:%.*]] = load i16, ptr [[ARRAYIDX_I_I_I]], align 2, !tbaa [[TBAA16]], !noalias [[META42:![0-9]+]]
+// CHECK-NEXT:    [[CALL3_I_I_I_I:%.*]] = tail call spir_func noundef zeroext i16 @_Z28__spirv_SubgroupShuffleINTELtj(i16 noundef zeroext [[TMP0]], i32 noundef 1) #[[ATTR6]], !noalias [[META43:![0-9]+]]
+// CHECK-NEXT:    [[ARRAYIDX_I13_I_I:%.*]] = getelementptr inbounds [2 x i8], ptr [[REF_TMP]], i64 [[CONV_I_I]]
+// CHECK-NEXT:    store i16 [[CALL3_I_I_I_I]], ptr [[ARRAYIDX_I13_I_I]], align 2, !tbaa [[TBAA16]], !alias.scope [[META42]]
 // CHECK-NEXT:    [[INC_I_I]] = add nuw nsw i32 [[S_0_I_I]], 1
-// CHECK-NEXT:    br label [[FOR_COND_I_I]], !llvm.loop [[LOOP47:![0-9]+]]
+// CHECK-NEXT:    br label [[FOR_COND_I_I]], !llvm.loop [[LOOP46:![0-9]+]]
 // CHECK:       _ZN4sycl3_V117select_from_groupINS0_9sub_groupENS0_6marrayINS0_3ext6oneapi8bfloat16ELm5EEEEENSt9enable_ifIXaaoosr3stdE9is_same_vINSt5decayIT_E4typeES2_Esr4sycl3ext6oneapi12experimentalE27is_user_constructed_group_vISC_Eoosr3stdE23is_trivially_copyable_vIT0_Esr6detail6is_vecISD_EE5valueESD_E4typeESA_SD_NSA_7id_typeE.exit:
-// CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[AGG_TMP14_I]]), !noalias [[META37]]
-// CHECK-NEXT:    call void @llvm.memcpy.p4.p0.i64(ptr addrspace(4) align 2 [[ARRAYIDX]], ptr align 2 [[REF_TMP]], i64 10, i1 false), !tbaa.struct [[TBAA_STRUCT48:![0-9]+]]
+// CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[AGG_TMP14_I]]), !noalias [[META36]]
+// CHECK-NEXT:    call void @llvm.memcpy.p4.p0.i64(ptr addrspace(4) align 2 [[ARRAYIDX]], ptr align 2 [[REF_TMP]], i64 10, i1 false), !tbaa.struct [[TBAA_STRUCT47:![0-9]+]]
 // CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[REF_TMP]]) #[[ATTR5]]
 // CHECK-NEXT:    ret void
 //
@@ -119,14 +119,15 @@ SYCL_EXTERNAL void test_shuffle3(sycl::sub_group &sg, marray<bfloat16, 5> *buf,
   buf[id] = sycl::select_from_group(sg, ItemVal, 1);
 }
 
+//
 // CHECK-LABEL: @_Z13test_shuffle4RN4sycl3_V19sub_groupEPPim(
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    [[ARRAYIDX:%.*]] = getelementptr inbounds nuw ptr addrspace(4), ptr addrspace(4) [[BUF:%.*]], i64 [[ID:%.*]]
-// CHECK-NEXT:    [[TMP0:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[ARRAYIDX]], align 8, !tbaa [[TBAA49:![0-9]+]]
+// CHECK-NEXT:    [[ARRAYIDX:%.*]] = getelementptr inbounds nuw [8 x i8], ptr addrspace(4) [[BUF:%.*]], i64 [[ID:%.*]]
+// CHECK-NEXT:    [[TMP0:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[ARRAYIDX]], align 8, !tbaa [[TBAA48:![0-9]+]]
 // CHECK-NEXT:    [[TMP1:%.*]] = ptrtoint ptr addrspace(4) [[TMP0]] to i64
 // CHECK-NEXT:    [[CALL3_I_I_I:%.*]] = tail call spir_func noundef i64 @_Z28__spirv_SubgroupShuffleINTELmj(i64 noundef [[TMP1]], i32 noundef 1) #[[ATTR6]]
 // CHECK-NEXT:    [[TMP2:%.*]] = inttoptr i64 [[CALL3_I_I_I]] to ptr addrspace(4)
-// CHECK-NEXT:    store ptr addrspace(4) [[TMP2]], ptr addrspace(4) [[ARRAYIDX]], align 8, !tbaa [[TBAA49]]
+// CHECK-NEXT:    store ptr addrspace(4) [[TMP2]], ptr addrspace(4) [[ARRAYIDX]], align 8, !tbaa [[TBAA48]]
 // CHECK-NEXT:    ret void
 //
 SYCL_EXTERNAL void test_shuffle4(sycl::sub_group &sg, int **buf, size_t id) {
@@ -136,12 +137,12 @@ SYCL_EXTERNAL void test_shuffle4(sycl::sub_group &sg, int **buf, size_t id) {
 
 // CHECK-LABEL: @_Z13test_shuffle5RN4sycl3_V19sub_groupEPPVim(
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    [[ARRAYIDX:%.*]] = getelementptr inbounds nuw ptr addrspace(4), ptr addrspace(4) [[BUF:%.*]], i64 [[ID:%.*]]
-// CHECK-NEXT:    [[TMP0:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[ARRAYIDX]], align 8, !tbaa [[TBAA49]]
+// CHECK-NEXT:    [[ARRAYIDX:%.*]] = getelementptr inbounds nuw [8 x i8], ptr addrspace(4) [[BUF:%.*]], i64 [[ID:%.*]]
+// CHECK-NEXT:    [[TMP0:%.*]] = load ptr addrspace(4), ptr addrspace(4) [[ARRAYIDX]], align 8, !tbaa [[TBAA48]]
 // CHECK-NEXT:    [[TMP1:%.*]] = ptrtoint ptr addrspace(4) [[TMP0]] to i64
 // CHECK-NEXT:    [[CALL3_I_I_I:%.*]] = tail call spir_func noundef i64 @_Z28__spirv_SubgroupShuffleINTELmj(i64 noundef [[TMP1]], i32 noundef 1) #[[ATTR6]]
 // CHECK-NEXT:    [[TMP2:%.*]] = inttoptr i64 [[CALL3_I_I_I]] to ptr addrspace(4)
-// CHECK-NEXT:    store ptr addrspace(4) [[TMP2]], ptr addrspace(4) [[ARRAYIDX]], align 8, !tbaa [[TBAA49]]
+// CHECK-NEXT:    store ptr addrspace(4) [[TMP2]], ptr addrspace(4) [[ARRAYIDX]], align 8, !tbaa [[TBAA48]]
 // CHECK-NEXT:    ret void
 //
 SYCL_EXTERNAL void test_shuffle5(sycl::sub_group &sg, volatile int **buf,

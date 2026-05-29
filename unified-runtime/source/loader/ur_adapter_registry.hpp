@@ -1,9 +1,8 @@
 /*
  *
- * Copyright (C) 2023 Intel Corporation
  *
- * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
- * Exceptions. See LICENSE.TXT
+ * Part of the LLVM Project, under the Apache License v2.0 with LLVM
+ * Exceptions. See https://llvm.org/LICENSE.txt for license information.
  *
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
@@ -361,22 +360,34 @@ private:
       // 1. Every path from UR_ADAPTERS_SEARCH_PATH.
       // 2. OS search paths.
       // 3. Loader library directory.
+      // If UR_ADAPTER_SEARCH_LOADER_DIR_FIRST is set,
+      // then the order of 2 and 3 is switched.
       if (searchPathsEnvOpt.has_value()) {
         for (const auto &p : searchPathsEnvOpt.value()) {
           loadPaths.emplace_back(p / adapterName);
         }
       }
 
-      auto adapterNamePathOpt = getAdapterNameAsPath(adapterName);
-      if (adapterNamePathOpt.has_value()) {
-        const auto &adapterNamePath = adapterNamePathOpt.value();
-        loadPaths.emplace_back(adapterNamePath);
-      }
+      auto AddOsSearchPath = [&] {
+        auto AdapterNamePathOpt = getAdapterNameAsPath(adapterName);
+        if (AdapterNamePathOpt.has_value()) {
+          loadPaths.emplace_back(AdapterNamePathOpt.value());
+        }
+      };
 
-      if (loaderLibPathOpt.has_value()) {
-        const auto &loaderLibPath = loaderLibPathOpt.value();
-        loadPaths.emplace_back(loaderLibPath / adapterName);
-      }
+      auto AddLoaderLibPath = [&] {
+        if (loaderLibPathOpt.has_value()) {
+          loadPaths.emplace_back(loaderLibPathOpt.value() / adapterName);
+        }
+      };
+
+#if UR_ADAPTER_SEARCH_LOADER_DIR_FIRST
+      AddLoaderLibPath();
+      AddOsSearchPath();
+#else
+      AddOsSearchPath();
+      AddLoaderLibPath();
+#endif
 
       adaptersLoadPaths.emplace_back(loadPaths);
     }

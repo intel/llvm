@@ -370,6 +370,19 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
 
   TC.addProfileRTLibs(Args, CmdArgs);
 
+  // -fsycl-allow-device-image-dependencies explicitly indicates that device
+  // code may depend on external device images contained in linked libraries. On
+  // Windows, /OPT:REF can incorrectly discard those libraries when no host-side
+  // symbol references exist, because the dependency is only visible through
+  // device-side usage. Adding /OPT:NOREF here (after user arguments) ensures it
+  // overrides any user-specified /OPT:REF, preserving required dependencies and
+  // preventing runtime failures such as "No device image found."
+  if (Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false) &&
+      Args.hasFlag(options::OPT_fsycl_allow_device_image_dependencies,
+                   options::OPT_fno_sycl_allow_device_image_dependencies,
+                   false))
+    CmdArgs.push_back("/OPT:NOREF");
+
   std::vector<const char *> Environment;
 
   // We need to special case some linker paths. In the case of the regular msvc

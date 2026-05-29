@@ -1,6 +1,5 @@
-// Copyright (C) 2026 Intel Corporation
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
@@ -45,9 +44,9 @@ TEST_P(urEnqueueHostTaskTest, SuccessWithEvents) {
   AddBuffer1DArg(sizeof(val) * global_size, &buffer);
   AddPodArg(val);
   ur_event_handle_t KernelEvent;
-  ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, n_dimensions,
-                                       &global_offset, &global_size, nullptr,
-                                       nullptr, 0, nullptr, &KernelEvent));
+  ASSERT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
+      queue, kernel, n_dimensions, &global_offset, &global_size, nullptr,
+      GetNumArgs(), GetArgs(), nullptr, 0, nullptr, &KernelEvent));
   int userdata = 1;
   ur_event_handle_t HostTaskEvent;
   urEnqueueHostTaskExp(queue, IncHostTask, &userdata, nullptr, 1, &KernelEvent,

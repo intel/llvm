@@ -79,7 +79,6 @@ EXPORTS
 	urEnqueueEventsWaitWithBarrierExt
 	urEnqueueGraphExp
 	urEnqueueHostTaskExp
-	urEnqueueKernelLaunch
 	urEnqueueKernelLaunchWithArgsExp
 	urEnqueueMemBufferCopy
 	urEnqueueMemBufferCopyRect
@@ -146,6 +145,7 @@ EXPORTS
 	urGraphExecutableGraphDestroyExp
 	urGraphInstantiateGraphExp
 	urGraphIsEmptyExp
+	urGraphSetDestructionCallbackExp
 	urIPCCloseMemHandleExp
 	urIPCGetMemHandleExp
 	urIPCOpenMemHandleExp
@@ -160,11 +160,6 @@ EXPORTS
 	urKernelGetSuggestedLocalWorkSizeWithArgs
 	urKernelRelease
 	urKernelRetain
-	urKernelSetArgLocal
-	urKernelSetArgMemObj
-	urKernelSetArgPointer
-	urKernelSetArgSampler
-	urKernelSetArgValue
 	urKernelSetExecInfo
 	urKernelSetSpecializationConstants
 	urKernelSuggestMaxCooperativeGroupCount
@@ -311,7 +306,6 @@ EXPORTS
 	urPrintEnqueueEventsWaitWithBarrierParams
 	urPrintEnqueueGraphExpParams
 	urPrintEnqueueHostTaskExpParams
-	urPrintEnqueueKernelLaunchParams
 	urPrintEnqueueKernelLaunchWithArgsExpParams
 	urPrintEnqueueMemBufferCopyParams
 	urPrintEnqueueMemBufferCopyRectParams
@@ -385,6 +379,8 @@ EXPORTS
 	urPrintExpSamplerCubemapFilterMode
 	urPrintExpSamplerCubemapProperties
 	urPrintExpSamplerMipProperties
+	urPrintExpUsmHostAllocRegisterFlags
+	urPrintExpUsmHostAllocRegisterProperties
 	urPrintExpWin32Handle
 	urPrintFunction
 	urPrintFunctionParams
@@ -394,6 +390,7 @@ EXPORTS
 	urPrintGraphExecutableGraphDestroyExpParams
 	urPrintGraphInstantiateGraphExpParams
 	urPrintGraphIsEmptyExpParams
+	urPrintGraphSetDestructionCallbackExpParams
 	urPrintImageChannelOrder
 	urPrintImageChannelType
 	urPrintImageDesc
@@ -429,11 +426,6 @@ EXPORTS
 	urPrintKernelNativeProperties
 	urPrintKernelReleaseParams
 	urPrintKernelRetainParams
-	urPrintKernelSetArgLocalParams
-	urPrintKernelSetArgMemObjParams
-	urPrintKernelSetArgPointerParams
-	urPrintKernelSetArgSamplerParams
-	urPrintKernelSetArgValueParams
 	urPrintKernelSetExecInfoParams
 	urPrintKernelSetSpecializationConstantsParams
 	urPrintKernelSubGroupInfo
@@ -519,6 +511,7 @@ EXPORTS
 	urPrintQueueFinishParams
 	urPrintQueueFlags
 	urPrintQueueFlushParams
+	urPrintQueueGetGraphExpParams
 	urPrintQueueGetInfoParams
 	urPrintQueueGetNativeHandleParams
 	urPrintQueueIndexProperties
@@ -556,6 +549,8 @@ EXPORTS
 	urPrintUsmFreeParams
 	urPrintUsmGetMemAllocInfoParams
 	urPrintUsmHostAllocParams
+	urPrintUsmHostAllocRegisterExpParams
+	urPrintUsmHostAllocUnregisterExpParams
 	urPrintUsmHostDesc
 	urPrintUsmHostMemFlags
 	urPrintUsmImportExpParams
@@ -619,6 +614,7 @@ EXPORTS
 	urQueueEndGraphCaptureExp
 	urQueueFinish
 	urQueueFlush
+	urQueueGetGraphExp
 	urQueueGetInfo
 	urQueueGetNativeHandle
 	urQueueIsGraphCaptureEnabledExp
@@ -635,6 +631,8 @@ EXPORTS
 	urUSMFree
 	urUSMGetMemAllocInfo
 	urUSMHostAlloc
+	urUSMHostAllocRegisterExp
+	urUSMHostAllocUnregisterExp
 	urUSMImportExp
 	urUSMPitchedAllocExp
 	urUSMPoolCreate
