@@ -80,7 +80,6 @@ struct urUSMContextMemcpyExpTestDevice : urUSMContextMemcpyExpTest {
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_MULTI_QUEUE(urUSMContextMemcpyExpTestDevice);
 
 TEST_P(urUSMContextMemcpyExpTestDevice, Success) {
-  // https://github.com/intel/llvm/issues/19688
   constexpr int NumIterations = 100;
   std::cout << "[urUSMContextMemcpyExpTestDevice] Running " << NumIterations
             << " iterations to verify race condition fix..." << std::endl;
@@ -100,12 +99,11 @@ TEST_P(urUSMContextMemcpyExpTestDevice, Success) {
   }
   std::cout << "[urUSMContextMemcpyExpTestDevice] All " << NumIterations
             << " iterations passed successfully!" << std::endl;
-  
+
   // TEMPORARY: Force test to fail so we can see the success message in CI logs
-  // TODO: Remove this forced failure before final PR
-  FAIL() << "✅ SUCCESS: All " << NumIterations 
+  FAIL() << "SUCCESS: All " << NumIterations
          << " iterations completed without race condition! "
-         << "Test is working correctly. Remove this forced failure.";
+         << "Test is working correctly.";
 }
 
 // Arbitrarily do the negative tests with device allocations. These are mostly a
