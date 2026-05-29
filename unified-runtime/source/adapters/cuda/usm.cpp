@@ -608,31 +608,35 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMContextMemcpyExp(
   ur_device_handle_t owningDev = hContext->getDevices()[devIdx];
   ScopedContext Active(owningDev);
 
-  // Create a dedicated non-blocking stream for this copy
-  // This isolates the operation from other streams and avoids blocking
-  // the entire context
-  CUstream copyStream;
+  // Create a dedicated stream for this copy operation
+  // Using CU_STREAM_NON_BLOCKING to avoid blocking other streams in context
+  CUstream copyStream = nullptr;
   UR_CHECK_ERROR(cuStreamCreate(&copyStream, CU_STREAM_NON_BLOCKING));
+
+  // RAII-style cleanup to ensure stream is always destroyed
+  auto streamCleanup = [&copyStream]() {
+    if (copyStream) {
+      cuStreamDestroy(copyStream);
+    }
+  };
 
   try {
     UR_CHECK_ERROR(
         cuMemcpyAsync((CUdeviceptr)pDst, (CUdeviceptr)pSrc, Size, copyStream));
 
-    // Synchronize only this stream (not the entire context)
+    // Wait for copy to complete on this stream only (not entire context)
     UR_CHECK_ERROR(cuStreamSynchronize(copyStream));
 
-    UR_CHECK_ERROR(cuStreamDestroy(copyStream));
+    streamCleanup();
+    return UR_RESULT_SUCCESS;
 
   } catch (ur_result_t Err) {
-    // Ensure stream is destroyed even on error
-    cuStreamDestroy(copyStream);
+    streamCleanup();
     return Err;
   } catch (...) {
-    cuStreamDestroy(copyStream);
+    streamCleanup();
     throw;
   }
-
-  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urUSMHostAllocRegisterExp(
