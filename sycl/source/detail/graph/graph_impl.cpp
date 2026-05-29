@@ -679,7 +679,6 @@ void graph_impl::clearQueues(bool NeedsLock) {
                                 "Failed to end native graph capture");
         }
         // CapturedGraph should be the same as MNativeGraphHandle
-        ValidQueue->setNativeRecordingGraph(nullptr);
       } else {
         // Only call setCommandGraph for traditional recording
         ValidQueue->setCommandGraph(nullptr);
@@ -855,7 +854,6 @@ void graph_impl::beginRecordingImpl(sycl::detail::queue_impl &Queue,
         throw sycl::exception(sycl::make_error_code(errc::runtime),
                               "Failed to begin native UR graph capture");
       }
-      Queue.setNativeRecordingGraph(shared_from_this());
     } else {
       // Non-native recording path
       if (AcquireQueueLock) {

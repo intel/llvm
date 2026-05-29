@@ -653,17 +653,6 @@ public:
 
   bool isNativeRecording() const;
 
-  void setNativeRecordingGraph(
-      const std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
-          &Graph) {
-    MNativeRecordingGraph = Graph;
-  }
-
-  std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
-  getNativeRecordingGraph() const {
-    return MNativeRecordingGraph.lock();
-  }
-
   ext::oneapi::experimental::queue_state ext_oneapi_get_state_impl() const;
 
   std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
@@ -1140,9 +1129,6 @@ protected:
   // Command graph which is associated with this queue for the purposes of
   // recording commands to it.
   std::weak_ptr<ext::oneapi::experimental::detail::graph_impl> MGraph{};
-
-  std::weak_ptr<ext::oneapi::experimental::detail::graph_impl>
-      MNativeRecordingGraph{};
 
   unsigned long long MQueueID;
   static std::atomic<unsigned long long> MNextAvailableQueueID;

@@ -785,8 +785,11 @@ detail::EventImplPtr handler::finalize() {
                             "not available on this device.");
     }
 
-    // Store callback in the graph so it is available during replays
-    auto GraphImpl = Queue->getNativeRecordingGraph();
+    // Store callback in the graph so it is available during replays.
+    ur_exp_graph_handle_t UrGraphHandle = nullptr;
+    Queue->getAdapter().call<detail::UrApiKind::urQueueGetGraphExp>(
+        Queue->getHandleRef(), &UrGraphHandle);
+    auto GraphImpl = Queue->getContextImpl().getNativeGraph(UrGraphHandle);
     auto *CallbackData = GraphImpl->addNativeHostTaskCallback(
         std::make_unique<detail::EnqueueHostTaskData>(
             detail::HandlerAccess::getHostTaskFunc(*HT->MHostTask)));
