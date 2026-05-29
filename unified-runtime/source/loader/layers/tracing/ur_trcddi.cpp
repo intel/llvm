@@ -8209,8 +8209,9 @@ __urdlllocal ur_result_t UR_APICALL urIPCGetPhysMemHandleExp(
 __urdlllocal ur_result_t UR_APICALL urIPCPutPhysMemHandleExp(
     /// [in] handle of the context object
     ur_context_handle_t hContext,
-    /// [in] a pointer to the IPC physical memory handle data
-    void *pIPCPhysMemHandleData) {
+    /// [in] a pointer to the IPC physical memory handle data obtained with
+    /// urIPCGetPhysMemHandleExp
+    const void *pIPCPhysMemHandleData) {
   auto pfnPutPhysMemHandleExp =
       getContext()->urDdiTable.IPCExp.pfnPutPhysMemHandleExp;
 
@@ -8250,8 +8251,9 @@ __urdlllocal ur_result_t UR_APICALL urIPCOpenPhysMemHandleExp(
     ur_context_handle_t hContext,
     /// [in] handle of the device object the physical memory was allocated on
     ur_device_handle_t hDevice,
-    /// [in] the IPC physical memory handle data
-    void *pIPCPhysMemHandleData,
+    /// [in] the IPC physical memory handle data obtained with
+    /// urIPCGetPhysMemHandleExp
+    const void *pIPCPhysMemHandleData,
     /// [in] size of the IPC physical memory handle data
     size_t ipcPhysMemHandleDataSize,
     /// [out] pointer to the physical memory handle

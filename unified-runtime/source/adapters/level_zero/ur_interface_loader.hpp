@@ -634,10 +634,10 @@ ur_result_t urIPCGetPhysMemHandleExp(ur_context_handle_t hContext,
                                      void **ppIPCPhysMemHandleData,
                                      size_t *pIPCPhysMemHandleDataSizeRet);
 ur_result_t urIPCPutPhysMemHandleExp(ur_context_handle_t hContext,
-                                     void *pIPCPhysMemHandleData);
+                                     const void *pIPCPhysMemHandleData);
 ur_result_t urIPCOpenPhysMemHandleExp(ur_context_handle_t hContext,
                                       ur_device_handle_t hDevice,
-                                      void *pIPCPhysMemHandleData,
+                                      const void *pIPCPhysMemHandleData,
                                       size_t ipcPhysMemHandleDataSize,
                                       ur_physical_mem_handle_t *phPhysMem);
 ur_result_t urIPCClosePhysMemHandleExp(ur_context_handle_t hContext,

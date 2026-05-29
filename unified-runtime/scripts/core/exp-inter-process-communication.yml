@@ -177,9 +177,9 @@ params:
     - type: $x_context_handle_t
       name: hContext
       desc: "[in] handle of the context object"
-    - type: void*
+    - type: const void*
       name: pIPCPhysMemHandleData
-      desc: "[in] a pointer to the IPC physical memory handle data"
+      desc: "[in] a pointer to the IPC physical memory handle data obtained with urIPCGetPhysMemHandleExp"
 returns:
     - $X_RESULT_ERROR_INVALID_CONTEXT
     - $X_RESULT_ERROR_INVALID_NULL_HANDLE:
@@ -201,9 +201,9 @@ params:
     - type: $x_device_handle_t
       name: hDevice
       desc: "[in] handle of the device object the physical memory was allocated on"
-    - type: void *
+    - type: const void *
       name: pIPCPhysMemHandleData
-      desc: "[in] the IPC physical memory handle data"
+      desc: "[in] the IPC physical memory handle data obtained with urIPCGetPhysMemHandleExp"
     - type: size_t
       name: ipcPhysMemHandleDataSize
       desc: "[in] size of the IPC physical memory handle data"

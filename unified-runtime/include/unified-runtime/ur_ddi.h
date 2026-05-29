@@ -1958,12 +1958,12 @@ typedef ur_result_t(UR_APICALL *ur_pfnIPCGetPhysMemHandleExp_t)(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urIPCPutPhysMemHandleExp
 typedef ur_result_t(UR_APICALL *ur_pfnIPCPutPhysMemHandleExp_t)(
-    ur_context_handle_t, void *);
+    ur_context_handle_t, const void *);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urIPCOpenPhysMemHandleExp
 typedef ur_result_t(UR_APICALL *ur_pfnIPCOpenPhysMemHandleExp_t)(
-    ur_context_handle_t, ur_device_handle_t, void *, size_t,
+    ur_context_handle_t, ur_device_handle_t, const void *, size_t,
     ur_physical_mem_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////

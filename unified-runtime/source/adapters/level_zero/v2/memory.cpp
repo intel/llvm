@@ -9,11 +9,17 @@
 
 #include "memory.hpp"
 
+#ifdef __linux__
+#include <sys/syscall.h>
+#include <unistd.h>
+#endif
+
 #include "../ur_interface_loader.hpp"
 #include "context.hpp"
 
 #include "../helpers/memory_helpers.hpp"
 #include "../image_common.hpp"
+#include "../physical_mem.hpp"
 
 static bool isAccessCompatible(ur_mem_buffer_t::device_access_mode_t requested,
                                ur_mem_buffer_t::device_access_mode_t actual) {

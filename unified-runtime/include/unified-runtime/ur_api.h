@@ -11306,8 +11306,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urIPCGetPhysMemHandleExp(
 UR_APIEXPORT ur_result_t UR_APICALL urIPCPutPhysMemHandleExp(
     /// [in] handle of the context object
     ur_context_handle_t hContext,
-    /// [in] a pointer to the IPC physical memory handle data
-    void *pIPCPhysMemHandleData);
+    /// [in] a pointer to the IPC physical memory handle data obtained with
+    /// urIPCGetPhysMemHandleExp
+    const void *pIPCPhysMemHandleData);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Opens an inter-process physical memory handle to get the
@@ -11336,8 +11337,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urIPCOpenPhysMemHandleExp(
     ur_context_handle_t hContext,
     /// [in] handle of the device object the physical memory was allocated on
     ur_device_handle_t hDevice,
-    /// [in] the IPC physical memory handle data
-    void *pIPCPhysMemHandleData,
+    /// [in] the IPC physical memory handle data obtained with
+    /// urIPCGetPhysMemHandleExp
+    const void *pIPCPhysMemHandleData,
     /// [in] size of the IPC physical memory handle data
     size_t ipcPhysMemHandleDataSize,
     /// [out] pointer to the physical memory handle
@@ -16642,7 +16644,7 @@ typedef struct ur_ipc_get_phys_mem_handle_exp_params_t {
 ///     allowing the callback the ability to modify the parameter's value
 typedef struct ur_ipc_put_phys_mem_handle_exp_params_t {
   ur_context_handle_t *phContext;
-  void **ppIPCPhysMemHandleData;
+  const void **ppIPCPhysMemHandleData;
 } ur_ipc_put_phys_mem_handle_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -16652,7 +16654,7 @@ typedef struct ur_ipc_put_phys_mem_handle_exp_params_t {
 typedef struct ur_ipc_open_phys_mem_handle_exp_params_t {
   ur_context_handle_t *phContext;
   ur_device_handle_t *phDevice;
-  void **ppIPCPhysMemHandleData;
+  const void **ppIPCPhysMemHandleData;
   size_t *pipcPhysMemHandleDataSize;
   ur_physical_mem_handle_t **pphPhysMem;
 } ur_ipc_open_phys_mem_handle_exp_params_t;
