@@ -321,10 +321,36 @@ enum class event_command_status : int32_t {
 };
 
 namespace event {
-#include <sycl/info/event_traits.def>
+struct command_execution_status {
+  using return_type = info::event_command_status;
+  using info_class = sycl::detail::info_class::event;
+  static constexpr ur_event_info_t ur_code =
+      UR_EVENT_INFO_COMMAND_EXECUTION_STATUS;
+};
+struct reference_count {
+  using return_type = uint32_t;
+  using info_class = sycl::detail::info_class::event;
+  static constexpr ur_event_info_t ur_code = UR_EVENT_INFO_REFERENCE_COUNT;
+};
 } // namespace event
 namespace event_profiling {
-#include <sycl/info/event_profiling_traits.def>
+struct command_submit {
+  using return_type = uint64_t;
+  using info_class = sycl::detail::info_class::event_profiling;
+  static constexpr ur_profiling_info_t ur_code =
+      UR_PROFILING_INFO_COMMAND_SUBMIT;
+};
+struct command_start {
+  using return_type = uint64_t;
+  using info_class = sycl::detail::info_class::event_profiling;
+  static constexpr ur_profiling_info_t ur_code =
+      UR_PROFILING_INFO_COMMAND_START;
+};
+struct command_end {
+  using return_type = uint64_t;
+  using info_class = sycl::detail::info_class::event_profiling;
+  static constexpr ur_profiling_info_t ur_code = UR_PROFILING_INFO_COMMAND_END;
+};
 } // namespace event_profiling
 #undef __SYCL_PARAM_TRAITS_SPEC
 
