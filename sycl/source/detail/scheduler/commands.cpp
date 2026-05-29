@@ -385,7 +385,7 @@ public:
                     std::move(HostTask.MHostTask->MHostTask));
             ur_event_handle_t HostTaskEvent{};
             Queue->getAdapter().call<UrApiKind::urEnqueueHostTaskExp>(
-                Queue->getHandleRef(), detail::NativeHostTask,
+                Queue->getHandleRef(), detail::NativeHostTask<true>,
                 NativeHostTaskData.get(), nullptr, 0, nullptr, &HostTaskEvent);
             // Ownership is transferred to NativeHostTask callback on success.
             (void)NativeHostTaskData.release();

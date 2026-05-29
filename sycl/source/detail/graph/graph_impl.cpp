@@ -11,8 +11,9 @@
 #include "graph_impl.hpp"
 #include "dynamic_impl.hpp" // for dynamic classes
 #include "node_impl.hpp"    // for node_impl
-#include <detail/cg.hpp> // for CG, CGExecKernel, CGHostTask, ArgDesc, NDRDescT
-#include <detail/config.hpp>                          // for SYCLConfig
+#include <detail/cg.hpp>        // for CG, CGExecKernel, CGHostTask, ArgDesc, NDRDescT
+#include <detail/config.hpp>    // for SYCLConfig
+#include <detail/host_task.hpp> // for EnqueueHostTaskData
 #include <detail/event_impl.hpp>                      // for event_impl
 #include <detail/handler_impl.hpp>                    // for handler_impl
 #include <detail/kernel_arg_mask.hpp>                 // for KernelArgMask
@@ -685,6 +686,12 @@ void graph_impl::setDestructionCallback(std::function<void()> Callback) {
   }
 }
 
+sycl::detail::EnqueueHostTaskData *graph_impl::addNativeHostTaskCallback(
+    std::unique_ptr<sycl::detail::EnqueueHostTaskData> Data) {
+  MNativeHostTaskCallbacks.push_back(std::move(Data));
+  return MNativeHostTaskCallbacks.back().get();
+}
+
 void graph_impl::clearQueues(bool NeedsLock) {
   graph_impl::RecQueuesStorage SwappedQueues;
   {
@@ -711,6 +718,7 @@ void graph_impl::clearQueues(bool NeedsLock) {
                                 "Failed to end native graph capture");
         }
         // CapturedGraph should be the same as MNativeGraphHandle
+        ValidQueue->setNativeRecordingGraph(nullptr);
       } else {
         // Only call setCommandGraph for traditional recording
         ValidQueue->setCommandGraph(nullptr);
@@ -886,6 +894,7 @@ void graph_impl::beginRecordingImpl(sycl::detail::queue_impl &Queue,
         throw sycl::exception(sycl::make_error_code(errc::runtime),
                               "Failed to begin native UR graph capture");
       }
+      Queue.setNativeRecordingGraph(shared_from_this());
     } else {
       // Non-native recording path
       if (AcquireQueueLock) {
