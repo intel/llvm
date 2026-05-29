@@ -128,6 +128,19 @@ void device_libs_kernel(float *ptr) {
 
   // cl_intel_devicelib_bfloat16
   ptr[3] = sycl::ext::oneapi::bfloat16{ptr[3] / 0.25f};
+
+  // cl_intel_devicelib_complex - additional std::complex math functions
+  std::complex<float> c{ptr[4], ptr[4]};
+  ptr[4] = std::sin(c).real();
+  ptr[5] = std::cos(std::complex<float>{ptr[5], ptr[5]}).real();
+  ptr[6] = std::tan(std::complex<float>{ptr[6], ptr[6]}).real();
+  ptr[7] = std::exp(std::complex<float>{ptr[7], ptr[7]}).real();
+  ptr[8] = std::log(std::complex<float>{ptr[8], ptr[8]}).real();
+  ptr[9] = std::sqrt(std::complex<float>{ptr[9], ptr[9]}).real();
+  ptr[10] = std::pow(std::complex<float>{ptr[10], ptr[10]},
+                     std::complex<float>{2.0f, 0.0f})
+                .real();
+  ptr[11] = std::sinh(std::complex<float>{ptr[11], ptr[11]}).real();
 }
 )===";
 
@@ -348,7 +361,7 @@ int test_device_libraries(sycl::queue q) {
   exe_kb kbExe = syclex::build(kbSrc);
 
   sycl::kernel k = kbExe.ext_oneapi_get_kernel("device_libs_kernel");
-  constexpr size_t nElem = 4;
+  constexpr size_t nElem = 12;
   float *ptr = sycl::malloc_shared<float>(nElem, q);
   for (int i = 0; i < nElem; ++i)
     ptr[i] = 1.0f;
@@ -360,7 +373,8 @@ int test_device_libraries(sycl::queue q) {
   q.wait_and_throw();
 
   // Check that the kernel was executed. Given the {1.0, ..., 1.0} input,
-  // the expected result is approximately {0.84, 1.41, 0.0, 1.41, 0.5, 4.0}.
+  // each element should have been updated by its corresponding device-library
+  // call, so none of them should still equal the initial 1.0f value.
   for (unsigned i = 0; i < nElem; ++i) {
     std::cout << ptr[i] << ' ';
     assert(ptr[i] != 1.0f);
