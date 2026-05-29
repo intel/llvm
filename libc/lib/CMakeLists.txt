@@ -40,17 +40,37 @@ foreach(archive IN ZIP_LISTS
   # Add the offloading version of the library for offloading languages. These
   # are installed in the standard search path separate from the other libraries.
   if(LIBC_TARGET_OS_IS_GPU)
-    add_bitcode_entrypoint_library(
-      ${archive_1}bitcode
-      ${archive_1}
-      DEPENDS
-        ${${archive_2}}
-    )
-    set_target_properties(
-      ${archive_1}bitcode
-      PROPERTIES
-        OUTPUT_NAME ${archive_1}.bc
-    )
+    if (NOT WIN32)
+      add_bitcode_entrypoint_library(
+        ${archive_1}bitcode
+        ${archive_1}
+        DEPENDS
+          ${${archive_2}}
+      )
+      set_target_properties(
+        ${archive_1}bitcode
+        PROPERTIES
+          OUTPUT_NAME ${archive_1}.bc
+      )
+    else()
+      link_bitcode_library(
+       ${archive_1}bitcode
+       ${archive_1}
+       ${archive_1}.bc
+       DEPENDS
+          ${${archive_2}}
+      )
+      set_target_properties(
+        ${archive_1}bitcode
+        PROPERTIES
+       LINK_OUTPUT_NAME ${CMAKE_BINARY_DIR}/libc/lib/${archive_1}.bc
+      )
+      set_target_properties(
+        ${archive_1}bitcode
+        PROPERTIES
+          OUTPUT_NAME ${archive_1}.bc
+      )
+    endif()
     list(APPEND added_bitcode_targets ${archive_1}bitcode)
   endif()
 endforeach()
@@ -61,13 +81,23 @@ install(
   COMPONENT libc
 )
 
-foreach(file ${added_bitcode_targets})
-  install(FILES $<TARGET_FILE:${file}>
-          DESTINATION ${LIBC_INSTALL_LIBRARY_DIR}
-          RENAME $<TARGET_PROPERTY:${file},OUTPUT_NAME>
-          COMPONENT libc
-  )
-endforeach()
+if(WIN32)
+  foreach(file ${added_bitcode_targets})
+         install(FILES $<TARGET_PROPERTY:${file},LINK_OUTPUT_NAME>
+            DESTINATION ${LIBC_INSTALL_LIBRARY_DIR}
+            RENAME $<TARGET_PROPERTY:${file},OUTPUT_NAME>
+            COMPONENT libc
+    )
+  endforeach()
+else()
+  foreach(file ${added_bitcode_targets})
+    install(FILES $<TARGET_FILE:${file}>
+            DESTINATION ${LIBC_INSTALL_LIBRARY_DIR}
+            RENAME $<TARGET_PROPERTY:${file},OUTPUT_NAME>
+            COMPONENT libc
+    )
+  endforeach()
+endif()
 
 if(NOT LIBC_TARGET_OS_IS_BAREMETAL)
   # For now we will disable libc-startup installation for baremetal. The
@@ -80,19 +110,17 @@ if(LLVM_LIBC_FULL_BUILD)
   set(header_install_target install-libc-headers)
 endif()
 
+set(install-libc-depends ${added_archive_targets} ${added_bitcode_targets} ${header_install_target})
+if (NOT LIBC_TARGET_ARCHITECTURE_IS_SPIRV)
+  list(APPEND install-libc-depends ${startup_target})
+endif()
 add_custom_target(install-libc
-                  DEPENDS ${added_archive_targets}
-                          ${added_bitcode_targets}
-                          ${startup_target}
-                          ${header_install_target}
+                  DEPENDS ${install-libc-depends}
                   COMMAND "${CMAKE_COMMAND}"
                           -DCMAKE_INSTALL_COMPONENT=libc
                           -P "${CMAKE_BINARY_DIR}/cmake_install.cmake")
 add_custom_target(install-libc-stripped
-                  DEPENDS ${added_archive_targets}
-                          ${added_bitcode_targets}
-                          ${startup_target}
-                          ${header_install_target}
+                  DEPENDS ${install-libc-depends}
                   COMMAND "${CMAKE_COMMAND}"
                           -DCMAKE_INSTALL_COMPONENT=libc
                           -DCMAKE_INSTALL_DO_STRIP=1
