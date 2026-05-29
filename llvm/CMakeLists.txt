@@ -43,12 +43,6 @@ mark_as_advanced(LLVM_UNVERSIONED_LIBLTO_ON_DARWIN)
 include(${LLVM_COMMON_CMAKE_UTILS}/Modules/LLVMVersion.cmake)
 include(${LLVM_COMMON_CMAKE_UTILS}/Modules/DPCPPVersion.cmake)
 
-# Redirect all compiler tools into the versioned DPC++ library directory so
-# they don't conflict with a system LLVM installation.  The public dpclang*
-# entry-points in ${CMAKE_INSTALL_BINDIR} are added by clang/tools/driver.
-set(LLVM_TOOLS_INSTALL_DIR "${DPCPP_INSTALL_INTERNAL_BINDIR}" CACHE STRING "" FORCE)
-set(CLANG_TOOLS_INSTALL_DIR "${DPCPP_INSTALL_INTERNAL_BINDIR}" CACHE PATH "" FORCE)
-
 set_directory_properties(PROPERTIES LLVM_VERSION_MAJOR "${LLVM_VERSION_MAJOR}")
 
 if (NOT PACKAGE_VERSION)
@@ -539,6 +533,28 @@ endif()
 include(GNUInstallPackageDir)
 set(LLVM_INSTALL_PACKAGE_DIR "${CMAKE_INSTALL_PACKAGEDIR}/llvm" CACHE STRING
   "Path for CMake subdirectory for LLVM (defaults to '${CMAKE_INSTALL_PACKAGEDIR}/llvm')")
+
+# Redirect all compiler tools into the versioned DPC++ library directory so
+# they don't conflict with a system LLVM installation.  The public dpclang*
+# entry-points in ${CMAKE_INSTALL_BINDIR} are added by clang/tools/driver.
+# This block must be after project() so that CMAKE_SYSTEM_NAME is defined.
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  set(DPCPP_INSTALL_INTERNAL_BINDIR "lib/dpcpp-${DPCPP_VERSION_MAJOR}/bin")
+else()
+  set(DPCPP_INSTALL_INTERNAL_BINDIR "bin")
+endif()
+set(LLVM_TOOLS_INSTALL_DIR "${DPCPP_INSTALL_INTERNAL_BINDIR}" CACHE STRING "" FORCE)
+set(CLANG_TOOLS_INSTALL_DIR "${DPCPP_INSTALL_INTERNAL_BINDIR}" CACHE PATH "" FORCE)
+
+# Fix the clang resource directory path.  The default is computed as
+# dirname(binary)/../lib/clang/VERSION, which breaks when the binary lives in
+# ${DPCPP_INSTALL_INTERNAL_BINDIR} instead of bin/.  Compute the correct
+# relative path from the internal bin dir to lib/clang/VERSION.
+file(RELATIVE_PATH _clang_resource_dir
+     "/dummy/${DPCPP_INSTALL_INTERNAL_BINDIR}"
+     "/dummy/lib/clang/${LLVM_VERSION_MAJOR}")
+set(CLANG_RESOURCE_DIR "${_clang_resource_dir}" CACHE STRING "" FORCE)
+unset(_clang_resource_dir)
 
 set(LLVM_TOOLS_INSTALL_DIR "${CMAKE_INSTALL_BINDIR}" CACHE STRING
     "Path for binary subdirectory (defaults to '${CMAKE_INSTALL_BINDIR}')")

@@ -2690,7 +2690,22 @@ function(llvm_setup_rpath name)
     set(_install_rpath "${LLVM_LIBRARY_OUTPUT_INTDIR}" "${CMAKE_INSTALL_PREFIX}/lib${LLVM_LIBDIR_SUFFIX}" ${extra_libdir})
   elseif(UNIX)
     set(_build_rpath "\$ORIGIN/../lib${LLVM_LIBDIR_SUFFIX}" ${extra_libdir})
-    set(_install_rpath "\$ORIGIN/../lib${LLVM_LIBDIR_SUFFIX}")
+    # For executables installed in DPCPP_INSTALL_INTERNAL_BINDIR (Linux only),
+    # compute the relative path from that directory to the lib directory so
+    # the dynamic linker can find the shared libraries at runtime.
+    get_target_property(_target_type ${name} TYPE)
+    if(_target_type STREQUAL "EXECUTABLE" AND
+       CMAKE_SYSTEM_NAME STREQUAL "Linux" AND
+       DEFINED DPCPP_INSTALL_INTERNAL_BINDIR)
+      file(RELATIVE_PATH _rpath_to_lib
+           "/dummy/${DPCPP_INSTALL_INTERNAL_BINDIR}"
+           "/dummy/lib${LLVM_LIBDIR_SUFFIX}")
+      set(_install_rpath "\$ORIGIN/${_rpath_to_lib}")
+      unset(_rpath_to_lib)
+    else()
+      set(_install_rpath "\$ORIGIN/../lib${LLVM_LIBDIR_SUFFIX}")
+    endif()
+    unset(_target_type)
     if("${CMAKE_SYSTEM_NAME}" MATCHES "(FreeBSD|DragonFly)")
       set_property(TARGET ${name} APPEND_STRING PROPERTY
                    LINK_FLAGS " -Wl,-z,origin ")
