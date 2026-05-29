@@ -988,7 +988,7 @@ getTripleBasedSPIRVTransOpts(const ArgList &Args,
       ",+SPV_KHR_uniform_group_instructions"
       ",+SPV_INTEL_masked_gather_scatter"
       ",+SPV_INTEL_tensor_float32_conversion"
-      ",+SPV_INTEL_optnone"
+      ",+SPV_EXT_optnone"
       ",+SPV_KHR_non_semantic_info"
       ",+SPV_KHR_cooperative_matrix"
       ",+SPV_EXT_shader_atomic_float16_add"
