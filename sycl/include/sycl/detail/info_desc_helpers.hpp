@@ -68,29 +68,6 @@ template <typename T> struct is_backend_info_desc : std::false_type {};
 #include <sycl/info/ext_intel_kernel_info_traits.def>
 #undef __SYCL_PARAM_TRAITS_SPEC
 
-#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, UrCode)              \
-  template <>                                                                  \
-  struct is_##DescType##_info_desc<info::DescType::Desc> : std::true_type {    \
-    using return_type = info::DescType::Desc::return_type;                     \
-  };
-#define __SYCL_PARAM_TRAITS_SPEC_SPECIALIZED(DescType, Desc, ReturnT, UrCode)  \
-  __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, UrCode)
-
-#include <sycl/info/device_traits.def>
-
-#undef __SYCL_PARAM_TRAITS_SPEC
-#undef __SYCL_PARAM_TRAITS_SPEC_SPECIALIZED
-
-#define __SYCL_PARAM_TRAITS_SPEC(Namespace, DescType, Desc, ReturnT, UrCode)   \
-  template <>                                                                  \
-  struct is_##DescType##_info_desc<Namespace::info::DescType::Desc>            \
-      : std::true_type {                                                       \
-    using return_type = Namespace::info::DescType::Desc::return_type;          \
-  };
-#include <sycl/info/ext_codeplay_device_traits.def>
-#include <sycl/info/ext_intel_device_traits.def>
-#include <sycl/info/ext_oneapi_device_traits.def>
-#undef __SYCL_PARAM_TRAITS_SPEC
 
 #define __SYCL_PARAM_TRAITS_SPEC(Namespace, DescType, Desc, ReturnT, UrCode)   \
   template <>                                                                  \

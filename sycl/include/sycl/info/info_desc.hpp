@@ -172,28 +172,323 @@ enum class execution_capability : unsigned int {
 
 namespace device {
 
-#define __SYCL_PARAM_TRAITS_DEPRECATED(Desc, Message)                          \
-  struct __SYCL2020_DEPRECATED(Message) Desc;
-#include <sycl/info/device_traits_2020_deprecated.def>
-#undef __SYCL_PARAM_TRAITS_DEPRECATED
+#define __SYCL_DEVICE_INFO(NAME, RETURN_T, UR_CODE)                            \
+  struct NAME {                                                                \
+    using return_type = RETURN_T;                                              \
+    using info_class = sycl::detail::info_class::device;                       \
+    static constexpr ur_device_info_t ur_code = UR_CODE;                       \
+  };
+#define __SYCL_DEVICE_INFO_RT(NAME, RETURN_T)                                  \
+  struct NAME {                                                                \
+    using return_type = RETURN_T;                                              \
+    using info_class = sycl::detail::info_class::device;                       \
+  };
+#define __SYCL_DEVICE_INFO_2020_DEP(NAME, RETURN_T, UR_CODE, MSG)              \
+  struct __SYCL2020_DEPRECATED(MSG) NAME {                                     \
+    using return_type = RETURN_T;                                              \
+    using info_class = sycl::detail::info_class::device;                       \
+    static constexpr ur_device_info_t ur_code = UR_CODE;                       \
+  };
+#define __SYCL_DEVICE_INFO_2020_DEP_RT(NAME, RETURN_T, MSG)                    \
+  struct __SYCL2020_DEPRECATED(MSG) NAME {                                     \
+    using return_type = RETURN_T;                                              \
+    using info_class = sycl::detail::info_class::device;                       \
+  };
+#define __SYCL_DEVICE_INFO_DEP(NAME, RETURN_T, UR_CODE, MSG)                   \
+  struct __SYCL_DEPRECATED(MSG) NAME {                                         \
+    using return_type = RETURN_T;                                              \
+    using info_class = sycl::detail::info_class::device;                       \
+    static constexpr ur_device_info_t ur_code = UR_CODE;                       \
+  };
+#define __SYCL_DEVICE_INFO_DEP_RT(NAME, RETURN_T, MSG)                         \
+  struct __SYCL_DEPRECATED(MSG) NAME {                                         \
+    using return_type = RETURN_T;                                              \
+    using info_class = sycl::detail::info_class::device;                       \
+  };
 
-#define __SYCL_PARAM_TRAITS_DEPRECATED(Desc, Message)                          \
-  struct __SYCL_DEPRECATED(Message) Desc;
-#include <sycl/info/device_traits_deprecated.def>
-#undef __SYCL_PARAM_TRAITS_DEPRECATED
+__SYCL_DEVICE_INFO(device_type, info::device_type, UR_DEVICE_INFO_TYPE)
+__SYCL_DEVICE_INFO(vendor_id, uint32_t, UR_DEVICE_INFO_VENDOR_ID)
+__SYCL_DEVICE_INFO(max_compute_units, uint32_t,
+                   UR_DEVICE_INFO_MAX_COMPUTE_UNITS)
+__SYCL_DEVICE_INFO(max_work_item_dimensions, uint32_t,
+                   UR_DEVICE_INFO_MAX_WORK_ITEM_DIMENSIONS)
 
 template <int Dimensions = 3> struct max_work_item_sizes;
-#define __SYCL_PARAM_TRAITS_TEMPLATE_SPEC(DescType, Desc, ReturnT, UrCode)     \
-  template <> struct Desc {                                                    \
-    using return_type = ReturnT;                                               \
-  };
-#define __SYCL_PARAM_TRAITS_SPEC_SPECIALIZED(DescType, Desc, ReturnT, UrCode)  \
-  __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, UrCode)
+template <> struct max_work_item_sizes<1> {
+  using return_type = range<1>;
+  using info_class = sycl::detail::info_class::device;
+  static constexpr ur_device_info_t ur_code =
+      UR_DEVICE_INFO_MAX_WORK_ITEM_SIZES;
+};
+template <> struct max_work_item_sizes<2> {
+  using return_type = range<2>;
+  using info_class = sycl::detail::info_class::device;
+  static constexpr ur_device_info_t ur_code =
+      UR_DEVICE_INFO_MAX_WORK_ITEM_SIZES;
+};
+template <> struct max_work_item_sizes<3> {
+  using return_type = range<3>;
+  using info_class = sycl::detail::info_class::device;
+  static constexpr ur_device_info_t ur_code =
+      UR_DEVICE_INFO_MAX_WORK_ITEM_SIZES;
+};
 
-#include <sycl/info/device_traits.def>
+__SYCL_DEVICE_INFO(max_work_group_size, size_t,
+                   UR_DEVICE_INFO_MAX_WORK_GROUP_SIZE)
+__SYCL_DEVICE_INFO(max_num_sub_groups, uint32_t,
+                   UR_DEVICE_INFO_MAX_NUM_SUB_GROUPS)
+__SYCL_DEVICE_INFO(sub_group_sizes, std::vector<size_t>,
+                   UR_DEVICE_INFO_SUB_GROUP_SIZES_INTEL)
+__SYCL_DEVICE_INFO(preferred_vector_width_char, uint32_t,
+                   UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_CHAR)
+__SYCL_DEVICE_INFO(preferred_vector_width_short, uint32_t,
+                   UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_SHORT)
+__SYCL_DEVICE_INFO(preferred_vector_width_int, uint32_t,
+                   UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_INT)
+__SYCL_DEVICE_INFO(preferred_vector_width_long, uint32_t,
+                   UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_LONG)
+__SYCL_DEVICE_INFO(preferred_vector_width_long_long, uint32_t,
+                   UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_LONG_LONG)
+__SYCL_DEVICE_INFO(preferred_vector_width_float, uint32_t,
+                   UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_FLOAT)
+__SYCL_DEVICE_INFO(preferred_vector_width_double, uint32_t,
+                   UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_DOUBLE)
+__SYCL_DEVICE_INFO(preferred_vector_width_half, uint32_t,
+                   UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_HALF)
+__SYCL_DEVICE_INFO(native_vector_width_char, uint32_t,
+                   UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_CHAR)
+__SYCL_DEVICE_INFO(native_vector_width_short, uint32_t,
+                   UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_SHORT)
+__SYCL_DEVICE_INFO(native_vector_width_int, uint32_t,
+                   UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_INT)
+__SYCL_DEVICE_INFO(native_vector_width_long, uint32_t,
+                   UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG)
+__SYCL_DEVICE_INFO(native_vector_width_long_long, uint32_t,
+                   UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG_LONG)
+__SYCL_DEVICE_INFO(native_vector_width_float, uint32_t,
+                   UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_FLOAT)
+__SYCL_DEVICE_INFO(native_vector_width_double, uint32_t,
+                   UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_DOUBLE)
+__SYCL_DEVICE_INFO(native_vector_width_half, uint32_t,
+                   UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_HALF)
+__SYCL_DEVICE_INFO(max_clock_frequency, uint32_t,
+                   UR_DEVICE_INFO_MAX_CLOCK_FREQUENCY)
+__SYCL_DEVICE_INFO(address_bits, uint32_t, UR_DEVICE_INFO_ADDRESS_BITS)
+__SYCL_DEVICE_INFO(max_mem_alloc_size, uint64_t,
+                   UR_DEVICE_INFO_MAX_MEM_ALLOC_SIZE)
+__SYCL_DEVICE_INFO(max_read_image_args, uint32_t,
+                   UR_DEVICE_INFO_MAX_READ_IMAGE_ARGS)
+__SYCL_DEVICE_INFO(max_write_image_args, uint32_t,
+                   UR_DEVICE_INFO_MAX_WRITE_IMAGE_ARGS)
+__SYCL_DEVICE_INFO(image2d_max_width, size_t, UR_DEVICE_INFO_IMAGE2D_MAX_WIDTH)
+__SYCL_DEVICE_INFO(image2d_max_height, size_t,
+                   UR_DEVICE_INFO_IMAGE2D_MAX_HEIGHT)
+__SYCL_DEVICE_INFO(image3d_max_width, size_t, UR_DEVICE_INFO_IMAGE3D_MAX_WIDTH)
+__SYCL_DEVICE_INFO(image3d_max_height, size_t,
+                   UR_DEVICE_INFO_IMAGE3D_MAX_HEIGHT)
+__SYCL_DEVICE_INFO(image3d_max_depth, size_t, UR_DEVICE_INFO_IMAGE3D_MAX_DEPTH)
+__SYCL_DEVICE_INFO(image_max_buffer_size, size_t,
+                   UR_DEVICE_INFO_IMAGE_MAX_BUFFER_SIZE)
+__SYCL_DEVICE_INFO(max_samplers, uint32_t, UR_DEVICE_INFO_MAX_SAMPLERS)
+__SYCL_DEVICE_INFO(max_parameter_size, size_t,
+                   UR_DEVICE_INFO_MAX_PARAMETER_SIZE)
+__SYCL_DEVICE_INFO(mem_base_addr_align, uint32_t,
+                   UR_DEVICE_INFO_MEM_BASE_ADDR_ALIGN)
+__SYCL_DEVICE_INFO(half_fp_config, std::vector<info::fp_config>,
+                   UR_DEVICE_INFO_HALF_FP_CONFIG)
+__SYCL_DEVICE_INFO(single_fp_config, std::vector<info::fp_config>,
+                   UR_DEVICE_INFO_SINGLE_FP_CONFIG)
+__SYCL_DEVICE_INFO(double_fp_config, std::vector<info::fp_config>,
+                   UR_DEVICE_INFO_DOUBLE_FP_CONFIG)
+__SYCL_DEVICE_INFO(global_mem_cache_type, info::global_mem_cache_type,
+                   UR_DEVICE_INFO_GLOBAL_MEM_CACHE_TYPE)
+__SYCL_DEVICE_INFO(global_mem_cache_line_size, uint32_t,
+                   UR_DEVICE_INFO_GLOBAL_MEM_CACHELINE_SIZE)
+__SYCL_DEVICE_INFO(global_mem_cache_size, uint64_t,
+                   UR_DEVICE_INFO_GLOBAL_MEM_CACHE_SIZE)
+__SYCL_DEVICE_INFO(global_mem_size, uint64_t, UR_DEVICE_INFO_GLOBAL_MEM_SIZE)
+__SYCL_DEVICE_INFO_2020_DEP(max_constant_buffer_size, uint64_t,
+                            UR_DEVICE_INFO_MAX_CONSTANT_BUFFER_SIZE,
+                            "deprecated in SYCL 2020")
+__SYCL_DEVICE_INFO_2020_DEP(max_constant_args, uint32_t,
+                            UR_DEVICE_INFO_MAX_CONSTANT_ARGS,
+                            "deprecated in SYCL 2020")
+__SYCL_DEVICE_INFO(local_mem_type, info::local_mem_type,
+                   UR_DEVICE_INFO_LOCAL_MEM_TYPE)
+__SYCL_DEVICE_INFO(local_mem_size, uint64_t, UR_DEVICE_INFO_LOCAL_MEM_SIZE)
+__SYCL_DEVICE_INFO(error_correction_support, bool,
+                   UR_DEVICE_INFO_ERROR_CORRECTION_SUPPORT)
+__SYCL_DEVICE_INFO_2020_DEP(host_unified_memory, bool,
+                            UR_DEVICE_INFO_HOST_UNIFIED_MEMORY,
+                            "deprecated in SYCL 2020, use device::has() with "
+                            "one of the aspect::usm_* aspects instead")
+__SYCL_DEVICE_INFO(atomic_memory_order_capabilities,
+                   std::vector<sycl::memory_order>,
+                   UR_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES)
+__SYCL_DEVICE_INFO(atomic_fence_order_capabilities,
+                   std::vector<sycl::memory_order>,
+                   UR_DEVICE_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES)
+__SYCL_DEVICE_INFO(atomic_memory_scope_capabilities,
+                   std::vector<sycl::memory_scope>,
+                   UR_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES)
+__SYCL_DEVICE_INFO(atomic_fence_scope_capabilities,
+                   std::vector<sycl::memory_scope>,
+                   UR_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES)
+__SYCL_DEVICE_INFO(profiling_timer_resolution, size_t,
+                   UR_DEVICE_INFO_PROFILING_TIMER_RESOLUTION)
+__SYCL_DEVICE_INFO_2020_DEP(is_endian_little, bool,
+                            UR_DEVICE_INFO_ENDIAN_LITTLE,
+                            "deprecated in SYCL 2020, check the byte order of "
+                            "the host system instead, the host and the device "
+                            "are required to have the same byte order")
+__SYCL_DEVICE_INFO(is_available, bool, UR_DEVICE_INFO_AVAILABLE)
+__SYCL_DEVICE_INFO_2020_DEP(is_compiler_available, bool,
+                            UR_DEVICE_INFO_COMPILER_AVAILABLE,
+                            "deprecated in SYCL 2020, use "
+                            "device::has(aspect::online_compiler) instead")
+__SYCL_DEVICE_INFO_2020_DEP(is_linker_available, bool,
+                            UR_DEVICE_INFO_LINKER_AVAILABLE,
+                            "deprecated in SYCL 2020, use "
+                            "device::has(aspect::online_linker) instead")
+__SYCL_DEVICE_INFO(execution_capabilities,
+                   std::vector<info::execution_capability>,
+                   UR_DEVICE_INFO_EXECUTION_CAPABILITIES)
+__SYCL_DEVICE_INFO_2020_DEP(queue_profiling, bool,
+                            UR_DEVICE_INFO_QUEUE_PROPERTIES,
+                            "deprecated in SYCL 2020, use "
+                            "device::has(aspect::queue_profiling) instead")
+// TODO: UR_DEVICE_INFO_FORCE_UINT32 looks wrong here:
+__SYCL_DEVICE_INFO(built_in_kernel_ids, std::vector<sycl::kernel_id>,
+                   UR_DEVICE_INFO_FORCE_UINT32)
+__SYCL_DEVICE_INFO_2020_DEP(built_in_kernels, std::vector<std::string>,
+                            UR_DEVICE_INFO_BUILT_IN_KERNELS,
+                            "deprecated in SYCL 2020, use "
+                            "info::device::built_in_kernel_ids instead")
+__SYCL_DEVICE_INFO(platform, sycl::platform, UR_DEVICE_INFO_PLATFORM)
+__SYCL_DEVICE_INFO(name, std::string, UR_DEVICE_INFO_NAME)
+__SYCL_DEVICE_INFO(vendor, std::string, UR_DEVICE_INFO_VENDOR)
+__SYCL_DEVICE_INFO(driver_version, std::string,
+                   UR_DEVICE_INFO_DRIVER_VERSION)
+__SYCL_DEVICE_INFO_2020_DEP(profile, std::string, UR_DEVICE_INFO_PROFILE,
+                            "deprecated in SYCL 2020")
+__SYCL_DEVICE_INFO(version, std::string, UR_DEVICE_INFO_VERSION)
+__SYCL_DEVICE_INFO(backend_version, std::string,
+                   UR_DEVICE_INFO_BACKEND_RUNTIME_VERSION)
+__SYCL_DEVICE_INFO_2020_DEP(extensions, std::vector<std::string>,
+                            UR_DEVICE_INFO_EXTENSIONS,
+                            "deprecated in SYCL 2020, use "
+                            "info::device::aspects instead")
+__SYCL_DEVICE_INFO_2020_DEP(printf_buffer_size, size_t,
+                            UR_DEVICE_INFO_PRINTF_BUFFER_SIZE,
+                            "deprecated in SYCL 2020")
+__SYCL_DEVICE_INFO_2020_DEP(preferred_interop_user_sync, bool,
+                            UR_DEVICE_INFO_PREFERRED_INTEROP_USER_SYNC,
+                            "deprecated in SYCL 2020")
+__SYCL_DEVICE_INFO(partition_max_sub_devices, uint32_t,
+                   UR_DEVICE_INFO_PARTITION_MAX_SUB_DEVICES)
+__SYCL_DEVICE_INFO(partition_properties,
+                   std::vector<info::partition_property>,
+                   UR_DEVICE_INFO_SUPPORTED_PARTITIONS)
+__SYCL_DEVICE_INFO(partition_affinity_domains,
+                   std::vector<info::partition_affinity_domain>,
+                   UR_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN)
+__SYCL_DEVICE_INFO(partition_type_property, info::partition_property,
+                   UR_DEVICE_INFO_PARTITION_TYPE)
+__SYCL_DEVICE_INFO(partition_type_affinity_domain,
+                   info::partition_affinity_domain,
+                   UR_DEVICE_INFO_PARTITION_TYPE)
+
+// Has custom specialization in device.cpp.
+__SYCL_DEVICE_INFO(parent_device, sycl::device, UR_DEVICE_INFO_PARENT_DEVICE)
+__SYCL_DEVICE_INFO(aspects, std::vector<sycl::aspect>,
+                   UR_DEVICE_INFO_FORCE_UINT32)
+__SYCL_DEVICE_INFO_2020_DEP(image_support, bool, UR_DEVICE_INFO_FORCE_UINT32,
+                            "deprecated in SYCL 2020, use "
+                            "device::has(aspect::ext_intel_legacy_image) to "
+                            "query for SYCL 1.2.1 image support")
+
+// Extensions/deprecated
+__SYCL_DEVICE_INFO_DEP(atomic64, bool, UR_DEVICE_INFO_ATOMIC_64,
+                       "use sycl::aspect::atomic64 instead")
+__SYCL_DEVICE_INFO(reference_count, uint32_t,
+                   UR_DEVICE_INFO_REFERENCE_COUNT)
+// To be dropped (has alternatives/not needed)
+__SYCL_DEVICE_INFO(usm_device_allocations, bool,
+                   UR_DEVICE_INFO_USM_DEVICE_SUPPORT)
+__SYCL_DEVICE_INFO(usm_host_allocations, bool, UR_DEVICE_INFO_USM_HOST_SUPPORT)
+__SYCL_DEVICE_INFO(usm_shared_allocations, bool,
+                   UR_DEVICE_INFO_USM_SINGLE_SHARED_SUPPORT)
+__SYCL_DEVICE_INFO(usm_restricted_shared_allocations, bool,
+                   UR_DEVICE_INFO_USM_CROSS_SHARED_SUPPORT)
+__SYCL_DEVICE_INFO(usm_system_allocations, bool,
+                   UR_DEVICE_INFO_USM_SYSTEM_SHARED_SUPPORT)
+__SYCL_DEVICE_INFO_DEP(image_max_array_size, size_t,
+                       UR_DEVICE_INFO_IMAGE_MAX_ARRAY_SIZE,
+                       "support for image arrays has been removed in SYCL "
+                       "2020")
+// To be dropped (no alternatives)
+__SYCL_DEVICE_INFO_DEP_RT(opencl_c_version, std::string,
+                          "use device::get_info instead")
+// Extensions
+__SYCL_DEVICE_INFO(sub_group_independent_forward_progress, bool,
+                   UR_DEVICE_INFO_SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS)
+__SYCL_DEVICE_INFO(ext_oneapi_srgb, bool, UR_DEVICE_INFO_IMAGE_SRGB)
+
+// Deprecated oneapi/intel extension
+// TODO: Remove when possible
+__SYCL_DEVICE_INFO_DEP(ext_intel_pci_address, std::string,
+                       UR_DEVICE_INFO_PCI_ADDRESS,
+                       "use ext::intel::info::device::pci_address instead")
+__SYCL_DEVICE_INFO_DEP(ext_intel_gpu_eu_count, uint32_t,
+                       UR_DEVICE_INFO_GPU_EU_COUNT,
+                       "use ext::intel::info::device::gpu_eu_count instead")
+__SYCL_DEVICE_INFO_DEP(ext_intel_gpu_eu_simd_width, uint32_t,
+                       UR_DEVICE_INFO_GPU_EU_SIMD_WIDTH,
+                       "use ext::intel::info::device::gpu_eu_simd_width "
+                       "instead")
+__SYCL_DEVICE_INFO_DEP(ext_intel_gpu_slices, uint32_t,
+                       UR_DEVICE_INFO_GPU_EU_SLICES,
+                       "use ext::intel::info::device::gpu_slices instead")
+__SYCL_DEVICE_INFO_DEP(ext_intel_gpu_subslices_per_slice, uint32_t,
+                       UR_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE,
+                       "use ext::intel::info::device::gpu_subslices_per_slice"
+                       " instead")
+__SYCL_DEVICE_INFO_DEP(ext_intel_gpu_eu_count_per_subslice, uint32_t,
+                       UR_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE,
+                       "use ext::intel::info::device::"
+                       "gpu_eu_count_per_subslice instead")
+__SYCL_DEVICE_INFO_DEP(ext_intel_gpu_hw_threads_per_eu, uint32_t,
+                       UR_DEVICE_INFO_GPU_HW_THREADS_PER_EU,
+                       "use ext::intel::info::device::gpu_hw_threads_per_eu "
+                       "instead")
+__SYCL_DEVICE_INFO_DEP(ext_intel_device_info_uuid, detail::uuid_type,
+                       UR_DEVICE_INFO_UUID,
+                       "use ext::intel::info::device::uuid instead")
+__SYCL_DEVICE_INFO_DEP(ext_intel_max_mem_bandwidth, uint64_t,
+                       UR_DEVICE_INFO_MAX_MEMORY_BANDWIDTH,
+                       "use ext::intel::info::device::max_mem_bandwidth "
+                       "instead")
+
+__SYCL_DEVICE_INFO_DEP_RT(ext_oneapi_max_work_groups_1d, id<1>,
+                          "use ext::oneapi::experimental::info::device::"
+                          "max_work_groups<1> instead")
+__SYCL_DEVICE_INFO_DEP_RT(ext_oneapi_max_work_groups_2d, id<2>,
+                          "use ext::oneapi::experimental::info::device::"
+                          "max_work_groups<2> instead")
+__SYCL_DEVICE_INFO_DEP(ext_oneapi_max_work_groups_3d, id<3>,
+                       UR_DEVICE_INFO_MAX_WORK_GROUPS_3D,
+                       "use ext::oneapi::experimental::info::device::"
+                       "max_work_groups<3> instead")
+__SYCL_DEVICE_INFO_RT(ext_oneapi_max_global_work_groups, size_t)
+__SYCL_DEVICE_INFO_RT(ext_oneapi_cuda_cluster_group, bool)
+
+#undef __SYCL_DEVICE_INFO
+#undef __SYCL_DEVICE_INFO_RT
+#undef __SYCL_DEVICE_INFO_2020_DEP
+#undef __SYCL_DEVICE_INFO_2020_DEP_RT
+#undef __SYCL_DEVICE_INFO_DEP
+#undef __SYCL_DEVICE_INFO_DEP_RT
 } // namespace device
-#undef __SYCL_PARAM_TRAITS_SPEC_SPECIALIZED
-#undef __SYCL_PARAM_TRAITS_TEMPLATE_SPEC
 
 // A.4 Queue information descriptors
 namespace queue {

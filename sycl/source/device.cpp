@@ -187,24 +187,124 @@ __SYCL_EXPORT bool device::get_info_impl<info::device::image_support>() const {
   return impl->template get_info<info::device::image_support>();
 }
 
-#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, UrCode)              \
-  template __SYCL_EXPORT detail::ABINeutralT_t<ReturnT>                        \
-  device::get_info_impl<info::device::Desc>() const;
-
-#define __SYCL_PARAM_TRAITS_SPEC_SPECIALIZED(DescType, Desc, ReturnT, UrCode)
-
-#include <sycl/info/device_traits.def>
-#undef __SYCL_PARAM_TRAITS_SPEC_SPECIALIZED
-#undef __SYCL_PARAM_TRAITS_SPEC
-
-#define __SYCL_PARAM_TRAITS_SPEC(Namespace, DescType, Desc, ReturnT, UrCode)   \
-  template __SYCL_EXPORT detail::ABINeutralT_t<ReturnT>                        \
-  device::get_info_impl<Namespace::info::DescType::Desc>() const;
-
-#include <sycl/info/ext_codeplay_device_traits.def>
-#include <sycl/info/ext_intel_device_traits.def>
-#include <sycl/info/ext_oneapi_device_traits.def>
-#undef __SYCL_PARAM_TRAITS_SPEC
+#define __SYCL_DEVICE_INFO_INST(NAME, RETURN_T)                                \
+  template __SYCL_EXPORT detail::ABINeutralT_t<RETURN_T>                       \
+  device::get_info_impl<info::device::NAME>() const;
+__SYCL_DEVICE_INFO_INST(device_type, info::device_type)
+__SYCL_DEVICE_INFO_INST(vendor_id, uint32_t)
+__SYCL_DEVICE_INFO_INST(max_compute_units, uint32_t)
+__SYCL_DEVICE_INFO_INST(max_work_item_dimensions, uint32_t)
+__SYCL_DEVICE_INFO_INST(max_work_item_sizes<1>, range<1>)
+__SYCL_DEVICE_INFO_INST(max_work_item_sizes<2>, range<2>)
+__SYCL_DEVICE_INFO_INST(max_work_item_sizes<3>, range<3>)
+__SYCL_DEVICE_INFO_INST(max_work_group_size, size_t)
+__SYCL_DEVICE_INFO_INST(max_num_sub_groups, uint32_t)
+__SYCL_DEVICE_INFO_INST(sub_group_sizes, std::vector<size_t>)
+__SYCL_DEVICE_INFO_INST(preferred_vector_width_char, uint32_t)
+__SYCL_DEVICE_INFO_INST(preferred_vector_width_short, uint32_t)
+__SYCL_DEVICE_INFO_INST(preferred_vector_width_int, uint32_t)
+__SYCL_DEVICE_INFO_INST(preferred_vector_width_long, uint32_t)
+__SYCL_DEVICE_INFO_INST(preferred_vector_width_long_long, uint32_t)
+__SYCL_DEVICE_INFO_INST(preferred_vector_width_float, uint32_t)
+__SYCL_DEVICE_INFO_INST(preferred_vector_width_double, uint32_t)
+__SYCL_DEVICE_INFO_INST(preferred_vector_width_half, uint32_t)
+__SYCL_DEVICE_INFO_INST(native_vector_width_char, uint32_t)
+__SYCL_DEVICE_INFO_INST(native_vector_width_short, uint32_t)
+__SYCL_DEVICE_INFO_INST(native_vector_width_int, uint32_t)
+__SYCL_DEVICE_INFO_INST(native_vector_width_long, uint32_t)
+__SYCL_DEVICE_INFO_INST(native_vector_width_long_long, uint32_t)
+__SYCL_DEVICE_INFO_INST(native_vector_width_float, uint32_t)
+__SYCL_DEVICE_INFO_INST(native_vector_width_double, uint32_t)
+__SYCL_DEVICE_INFO_INST(native_vector_width_half, uint32_t)
+__SYCL_DEVICE_INFO_INST(max_clock_frequency, uint32_t)
+__SYCL_DEVICE_INFO_INST(address_bits, uint32_t)
+__SYCL_DEVICE_INFO_INST(max_mem_alloc_size, uint64_t)
+__SYCL_DEVICE_INFO_INST(max_read_image_args, uint32_t)
+__SYCL_DEVICE_INFO_INST(max_write_image_args, uint32_t)
+__SYCL_DEVICE_INFO_INST(image2d_max_width, size_t)
+__SYCL_DEVICE_INFO_INST(image2d_max_height, size_t)
+__SYCL_DEVICE_INFO_INST(image3d_max_width, size_t)
+__SYCL_DEVICE_INFO_INST(image3d_max_height, size_t)
+__SYCL_DEVICE_INFO_INST(image3d_max_depth, size_t)
+__SYCL_DEVICE_INFO_INST(image_max_buffer_size, size_t)
+__SYCL_DEVICE_INFO_INST(max_samplers, uint32_t)
+__SYCL_DEVICE_INFO_INST(max_parameter_size, size_t)
+__SYCL_DEVICE_INFO_INST(mem_base_addr_align, uint32_t)
+__SYCL_DEVICE_INFO_INST(half_fp_config, std::vector<info::fp_config>)
+__SYCL_DEVICE_INFO_INST(single_fp_config, std::vector<info::fp_config>)
+__SYCL_DEVICE_INFO_INST(double_fp_config, std::vector<info::fp_config>)
+__SYCL_DEVICE_INFO_INST(global_mem_cache_type, info::global_mem_cache_type)
+__SYCL_DEVICE_INFO_INST(global_mem_cache_line_size, uint32_t)
+__SYCL_DEVICE_INFO_INST(global_mem_cache_size, uint64_t)
+__SYCL_DEVICE_INFO_INST(global_mem_size, uint64_t)
+__SYCL_DEVICE_INFO_INST(max_constant_buffer_size, uint64_t)
+__SYCL_DEVICE_INFO_INST(max_constant_args, uint32_t)
+__SYCL_DEVICE_INFO_INST(local_mem_type, info::local_mem_type)
+__SYCL_DEVICE_INFO_INST(local_mem_size, uint64_t)
+__SYCL_DEVICE_INFO_INST(error_correction_support, bool)
+__SYCL_DEVICE_INFO_INST(host_unified_memory, bool)
+__SYCL_DEVICE_INFO_INST(atomic_memory_order_capabilities,
+                        std::vector<sycl::memory_order>)
+__SYCL_DEVICE_INFO_INST(atomic_fence_order_capabilities,
+                        std::vector<sycl::memory_order>)
+__SYCL_DEVICE_INFO_INST(atomic_memory_scope_capabilities,
+                        std::vector<sycl::memory_scope>)
+__SYCL_DEVICE_INFO_INST(atomic_fence_scope_capabilities,
+                        std::vector<sycl::memory_scope>)
+__SYCL_DEVICE_INFO_INST(profiling_timer_resolution, size_t)
+__SYCL_DEVICE_INFO_INST(is_endian_little, bool)
+__SYCL_DEVICE_INFO_INST(is_available, bool)
+__SYCL_DEVICE_INFO_INST(is_compiler_available, bool)
+__SYCL_DEVICE_INFO_INST(is_linker_available, bool)
+__SYCL_DEVICE_INFO_INST(execution_capabilities,
+                        std::vector<info::execution_capability>)
+__SYCL_DEVICE_INFO_INST(queue_profiling, bool)
+__SYCL_DEVICE_INFO_INST(built_in_kernel_ids, std::vector<sycl::kernel_id>)
+__SYCL_DEVICE_INFO_INST(built_in_kernels, std::vector<std::string>)
+__SYCL_DEVICE_INFO_INST(platform, sycl::platform)
+__SYCL_DEVICE_INFO_INST(name, std::string)
+__SYCL_DEVICE_INFO_INST(vendor, std::string)
+__SYCL_DEVICE_INFO_INST(driver_version, std::string)
+__SYCL_DEVICE_INFO_INST(profile, std::string)
+__SYCL_DEVICE_INFO_INST(version, std::string)
+__SYCL_DEVICE_INFO_INST(backend_version, std::string)
+__SYCL_DEVICE_INFO_INST(extensions, std::vector<std::string>)
+__SYCL_DEVICE_INFO_INST(printf_buffer_size, size_t)
+__SYCL_DEVICE_INFO_INST(preferred_interop_user_sync, bool)
+__SYCL_DEVICE_INFO_INST(partition_max_sub_devices, uint32_t)
+__SYCL_DEVICE_INFO_INST(partition_properties,
+                        std::vector<info::partition_property>)
+__SYCL_DEVICE_INFO_INST(partition_affinity_domains,
+                        std::vector<info::partition_affinity_domain>)
+__SYCL_DEVICE_INFO_INST(partition_type_property, info::partition_property)
+__SYCL_DEVICE_INFO_INST(partition_type_affinity_domain,
+                        info::partition_affinity_domain)
+__SYCL_DEVICE_INFO_INST(atomic64, bool)
+__SYCL_DEVICE_INFO_INST(reference_count, uint32_t)
+__SYCL_DEVICE_INFO_INST(usm_device_allocations, bool)
+__SYCL_DEVICE_INFO_INST(usm_host_allocations, bool)
+__SYCL_DEVICE_INFO_INST(usm_shared_allocations, bool)
+__SYCL_DEVICE_INFO_INST(usm_restricted_shared_allocations, bool)
+__SYCL_DEVICE_INFO_INST(usm_system_allocations, bool)
+__SYCL_DEVICE_INFO_INST(image_max_array_size, size_t)
+__SYCL_DEVICE_INFO_INST(opencl_c_version, std::string)
+__SYCL_DEVICE_INFO_INST(sub_group_independent_forward_progress, bool)
+__SYCL_DEVICE_INFO_INST(ext_oneapi_srgb, bool)
+__SYCL_DEVICE_INFO_INST(ext_intel_pci_address, std::string)
+__SYCL_DEVICE_INFO_INST(ext_intel_gpu_eu_count, uint32_t)
+__SYCL_DEVICE_INFO_INST(ext_intel_gpu_eu_simd_width, uint32_t)
+__SYCL_DEVICE_INFO_INST(ext_intel_gpu_slices, uint32_t)
+__SYCL_DEVICE_INFO_INST(ext_intel_gpu_subslices_per_slice, uint32_t)
+__SYCL_DEVICE_INFO_INST(ext_intel_gpu_eu_count_per_subslice, uint32_t)
+__SYCL_DEVICE_INFO_INST(ext_intel_gpu_hw_threads_per_eu, uint32_t)
+__SYCL_DEVICE_INFO_INST(ext_intel_device_info_uuid, detail::uuid_type)
+__SYCL_DEVICE_INFO_INST(ext_intel_max_mem_bandwidth, uint64_t)
+__SYCL_DEVICE_INFO_INST(ext_oneapi_max_work_groups_1d, id<1>)
+__SYCL_DEVICE_INFO_INST(ext_oneapi_max_work_groups_2d, id<2>)
+__SYCL_DEVICE_INFO_INST(ext_oneapi_max_work_groups_3d, id<3>)
+__SYCL_DEVICE_INFO_INST(ext_oneapi_max_global_work_groups, size_t)
+__SYCL_DEVICE_INFO_INST(ext_oneapi_cuda_cluster_group, bool)
+#undef __SYCL_DEVICE_INFO_INST
 
 // Self-describing extension traits: explicit instantiation for the ABI
 // surface lives here until the matching trait moves to a dedicated TU.
