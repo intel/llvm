@@ -33,6 +33,7 @@ SYCLInstallationDetector::SYCLInstallationDetector(
   StringRef SysRoot = D.SysRoot;
   SmallString<128> DriverDir(D.Dir);
 
+#if 0 // !INTEL_CUSTOMIZATION
   if (HostTriple.isWindowsMSVCEnvironment() ||
       HostTriple.isWindowsItaniumEnvironment()) {
     // Windows: Check for LLVMSYCL.lib
@@ -52,7 +53,6 @@ SYCLInstallationDetector::SYCLInstallationDetector(
         SYCLRTLibPath = LibDir;
     }
   } else {
-    // Linux/Unix: Check for libsycl.so
     SmallString<128> LibPath(DriverDir);
     llvm::sys::path::append(LibPath, "..", "lib", HostTriple.str(),
                             "libsycl.so");
@@ -76,6 +76,26 @@ SYCLInstallationDetector::SYCLInstallationDetector(
       SYCLRTLibPath = DriverDir;
     }
   }
+#else // !INTEL_CUSTOMIZATION
+  // Intel: SYCL RT is libsycl.so; Windows lib path is handled at link stage.
+  SmallString<128> LibPath(DriverDir);
+  llvm::sys::path::append(LibPath, "..", "lib", HostTriple.str(), "libsycl.so");
+  // Flat lib path for LLVM_ENABLE_PER_TARGET_RUNTIME_DIR=OFF builds,
+  // where the library is installed directly in lib/ with no triple subdir.
+  SmallString<128> FlatLibPath(DriverDir);
+  llvm::sys::path::append(FlatLibPath, "..", "lib", "libsycl.so");
+
+  if (DriverDir.starts_with(SysRoot) &&
+      Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false)) {
+    // We put driver in bin/compiler, so one more ../ than llorg.
+    if (D.getVFS().exists(DriverDir + "/../../lib/libsycl.so"))
+      llvm::sys::path::append(DriverDir, "..", "..", "lib");
+    else
+      llvm::sys::path::append(DriverDir, "..", "lib");
+
+    SYCLRTLibPath = DriverDir;
+  }
+#endif // !INTEL_CUSTOMIZATION
   InstallationCandidates.emplace_back(D.Dir + "/..");
 }
 
