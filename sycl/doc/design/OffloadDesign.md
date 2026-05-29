@@ -251,7 +251,7 @@ The `--device-compiler` option uses the format `--device-compiler=[<kind>:][<tri
 
 In clang-linker-wrapper, the `<kind>` and `<triple>` are matched against the current compilation target. Only arguments that match both the offloading kind and target triple will be passed to the backend compiler. If `<kind>` is not specified, the arguments will match any offloading kind; if `<triple>` is not specified, the arguments will match any target triple; and if neither is specified, the arguments will be applied to all targets. 
 
-To support multiple device architectures, a new `--device-compiler` option must be specified for each device. For example, to compile for Ponte Vecchio (PVC) and Skylake (SKL) architectures and put them in a FAT binary, the user must add the following two `--device-compiler` options:
+To support multiple device architectures, a new `--device-compiler` option must be specified for each device. For example, to compile for Ponte Vecchio (PVC) and Skylake (SKL) architectures and put them in a fat binary, the user must add the following two `--device-compiler` options:
 
 `--device-compiler=sycl:spir64_gen-unknown-unknown=-device pvc -options ...`
 
