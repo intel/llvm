@@ -197,7 +197,21 @@ template <int Dimensions = 3> struct max_work_item_sizes;
 
 // A.4 Queue information descriptors
 namespace queue {
-#include <sycl/info/queue_traits.def>
+struct context {
+  using return_type = sycl::context;
+  using info_class = sycl::detail::info_class::queue;
+  static constexpr ur_queue_info_t ur_code = UR_QUEUE_INFO_CONTEXT;
+};
+struct device {
+  using return_type = sycl::device;
+  using info_class = sycl::detail::info_class::queue;
+  static constexpr ur_queue_info_t ur_code = UR_QUEUE_INFO_DEVICE;
+};
+struct reference_count {
+  using return_type = uint32_t;
+  using info_class = sycl::detail::info_class::queue;
+  static constexpr ur_queue_info_t ur_code = UR_QUEUE_INFO_REFERENCE_COUNT;
+};
 } // namespace queue
 
 // A.5 Kernel information desctiptors

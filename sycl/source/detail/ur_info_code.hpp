@@ -48,7 +48,6 @@ struct UrInfoCode<T, std::void_t<decltype(T::ur_code)>> {
 #include <sycl/info/event_traits.def>
 #include <sycl/info/kernel_device_specific_traits.def>
 #include <sycl/info/kernel_traits.def>
-#include <sycl/info/queue_traits.def>
 #define __SYCL_PARAM_TRAITS_SPEC_SPECIALIZED(DescType, Desc, ReturnT, UrCode)  \
   __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, UrCode)
 #include <sycl/info/device_traits.def>
