@@ -3010,6 +3010,8 @@ public:
     Handler.internalProfilingTagImpl();
   }
 
+  static std::function<void()> getHostTaskFunc(detail::HostTask &HT);
+
   template <typename FuncT>
   static std::enable_if_t<
       detail::check_fn_signature<std::remove_reference_t<FuncT>, void()>::value>
