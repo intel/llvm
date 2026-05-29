@@ -53,7 +53,8 @@ llvm_config.with_system_environment(
 
 config.substitutions.append(("%python", '"%s"' % (sys.executable)))
 config.substitutions.append(
-    ("%dpclangxx", os.path.join(config.install_bin_dir, "dpclang++")))
+    ("%dpclangxx", os.path.join(config.install_bin_dir, "dpclang++"))
+)
 
 # Propagate extra environment variables
 if config.extra_environment:
