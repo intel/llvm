@@ -785,14 +785,15 @@ detail::EventImplPtr handler::finalize() {
                             "not available on this device.");
     }
 
-    auto CallbackData = std::make_unique<detail::EnqueueHostTaskData>(
-        detail::HandlerAccess::getHostTaskFunc(*HT->MHostTask));
+    // Store callback in the graph so it is available during replays
+    auto GraphImpl = Queue->getNativeRecordingGraph();
+    auto *CallbackData = GraphImpl->addNativeHostTaskCallback(
+        std::make_unique<detail::EnqueueHostTaskData>(
+            detail::HandlerAccess::getHostTaskFunc(*HT->MHostTask)));
 
     Queue->getAdapter().call<detail::UrApiKind::urEnqueueHostTaskExp>(
-        Queue->getHandleRef(), detail::NativeHostTask, CallbackData.get(),
+        Queue->getHandleRef(), detail::NativeHostTask<false>, CallbackData,
         nullptr, 0, nullptr, nullptr);
-    // Ownership transferred on success.
-    (void)CallbackData.release();
 
     return detail::event_impl::create_completed_host_event();
   }

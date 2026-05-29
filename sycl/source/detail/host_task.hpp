@@ -89,10 +89,11 @@ struct EnqueueHostTaskData {
   std::function<void()> Func;
 };
 
-inline void NativeHostTask(void *Data) {
-  auto HostTaskData = std::unique_ptr<EnqueueHostTaskData>(
-      static_cast<EnqueueHostTaskData *>(Data));
+template <bool OwnsData> inline void NativeHostTask(void *Data) {
+  auto *HostTaskData = static_cast<EnqueueHostTaskData *>(Data);
   HostTaskData->Func();
+  if constexpr (OwnsData)
+    delete HostTaskData;
 }
 
 } // namespace detail

@@ -44,6 +44,7 @@ class queue_impl;
 class NDRDescT;
 class ArgDesc;
 class CG;
+struct EnqueueHostTaskData;
 } // namespace detail
 
 namespace ext {
@@ -550,6 +551,11 @@ public:
   /// @return True if the queue is recording to this graph, false otherwise.
   bool isQueueRecording(sycl::detail::queue_impl &Queue);
 
+  /// Take ownership of callback data for a native-recorded host task and
+  /// returns a non-owning pointer for passing to UR
+  detail::EnqueueHostTaskData *
+  addNativeHostTaskCallback(std::unique_ptr<detail::EnqueueHostTaskData> Data);
+
 private:
   /// Common implementation for beginRecording and beginRecordingUnlockedQueue.
   /// @param[in] Queue The queue to be recorded from.
@@ -627,6 +633,10 @@ private:
   ///
   /// @note Native recording requires immediate command lists.
   ur_exp_graph_handle_t MNativeGraphHandle = nullptr;
+
+  /// Callback data for host tasks recorded in native recording mode.
+  std::vector<std::unique_ptr<detail::EnqueueHostTaskData>>
+      MNativeHostTaskCallbacks;
 
   /// Mapping from queues to barrier nodes. For each queue the last barrier
   /// node recorded to the graph from the queue is stored.
