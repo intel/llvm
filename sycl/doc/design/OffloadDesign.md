@@ -257,7 +257,7 @@ To support multiple device architectures, a new `--device-compiler` option must 
 
 `--device-compiler=sycl:spir64_gen-unknown-unknown=-device skl -options ...`
 
-Device specific optimizations for each of the device architectures should be specified after `-device <name>`.
+Device specific options for each of the device architectures should be specified after `-device <name>`.
 
 Here is an example of a clang-linker-wrapper invocation where ther user wants to create a FAT binary with PVC and SKL architectures to be run on a x86_64 Linux host. In addition, they would like to enable aggressive mathematical optimizations and are tolerant for slightly imprecise floating-point values just for SKL, that is, use the `-cl-unsafe-math-optimizations` flag. For PVC, they would like to enable the multiply and add instruction usage (`-cl-mad-enable`). The source binaries are called host.o and kernel.o and the output should be called out.exe.
 
