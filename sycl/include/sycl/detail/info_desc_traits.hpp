@@ -52,7 +52,14 @@ struct kernel {
   using ur_code_type = ur_kernel_info_t;
 };
 struct kernel_device_specific {
-  using ur_code_type = ur_kernel_group_info_t;
+  // kernel_device_specific traits dispatch through three different UR APIs
+  // (urKernelGetGroupInfo, urKernelGetSubGroupInfo, urKernelGetInfo) and so
+  // mix three native UR enum families. The runtime helper picks the right
+  // call via IsSubGroupInfo / IsKernelInfo trait tags, passing
+  // `UrInfoCode<T>::value` directly to the chosen API. We therefore allow
+  // each trait to declare ur_code with its own native UR enum type and skip
+  // the family static_assert by leaving ur_code_type as void.
+  using ur_code_type = void;
 };
 struct kernel_queue_specific {
   // No UR enum lookup applies; queries dispatch through dedicated kernel/queue

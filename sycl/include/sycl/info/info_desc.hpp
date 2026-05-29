@@ -244,7 +244,70 @@ struct context {
 } // namespace kernel
 
 namespace kernel_device_specific {
-#include <sycl/info/kernel_device_specific_traits.def>
+struct global_work_size {
+  using return_type = sycl::range<3>;
+  using info_class = sycl::detail::info_class::kernel_device_specific;
+  static constexpr ur_kernel_group_info_t ur_code =
+      UR_KERNEL_GROUP_INFO_GLOBAL_WORK_SIZE;
+};
+struct work_group_size {
+  using return_type = size_t;
+  using info_class = sycl::detail::info_class::kernel_device_specific;
+  static constexpr ur_kernel_group_info_t ur_code =
+      UR_KERNEL_GROUP_INFO_WORK_GROUP_SIZE;
+};
+struct compile_work_group_size {
+  using return_type = sycl::range<3>;
+  using info_class = sycl::detail::info_class::kernel_device_specific;
+  static constexpr ur_kernel_group_info_t ur_code =
+      UR_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE;
+};
+struct preferred_work_group_size_multiple {
+  using return_type = size_t;
+  using info_class = sycl::detail::info_class::kernel_device_specific;
+  static constexpr ur_kernel_group_info_t ur_code =
+      UR_KERNEL_GROUP_INFO_PREFERRED_WORK_GROUP_SIZE_MULTIPLE;
+};
+struct private_mem_size {
+  using return_type = size_t;
+  using info_class = sycl::detail::info_class::kernel_device_specific;
+  static constexpr ur_kernel_group_info_t ur_code =
+      UR_KERNEL_GROUP_INFO_PRIVATE_MEM_SIZE;
+};
+// The next five traits dispatch through different UR APIs than the four
+// above (urKernelGetSubGroupInfo / urKernelGetInfo rather than
+// urKernelGetGroupInfo). They each carry their own native UR enum type;
+// info_class::kernel_device_specific has ur_code_type = void to permit the
+// mismatch.
+struct max_num_sub_groups {
+  using return_type = uint32_t;
+  using info_class = sycl::detail::info_class::kernel_device_specific;
+  static constexpr ur_kernel_sub_group_info_t ur_code =
+      UR_KERNEL_SUB_GROUP_INFO_MAX_NUM_SUB_GROUPS;
+};
+struct compile_num_sub_groups {
+  using return_type = uint32_t;
+  using info_class = sycl::detail::info_class::kernel_device_specific;
+  static constexpr ur_kernel_sub_group_info_t ur_code =
+      UR_KERNEL_SUB_GROUP_INFO_COMPILE_NUM_SUB_GROUPS;
+};
+struct max_sub_group_size {
+  using return_type = uint32_t;
+  using info_class = sycl::detail::info_class::kernel_device_specific;
+  static constexpr ur_kernel_sub_group_info_t ur_code =
+      UR_KERNEL_SUB_GROUP_INFO_MAX_SUB_GROUP_SIZE;
+};
+struct compile_sub_group_size {
+  using return_type = uint32_t;
+  using info_class = sycl::detail::info_class::kernel_device_specific;
+  static constexpr ur_kernel_sub_group_info_t ur_code =
+      UR_KERNEL_SUB_GROUP_INFO_SUB_GROUP_SIZE_INTEL;
+};
+struct ext_codeplay_num_regs {
+  using return_type = uint32_t;
+  using info_class = sycl::detail::info_class::kernel_device_specific;
+  static constexpr ur_kernel_info_t ur_code = UR_KERNEL_INFO_NUM_REGS;
+};
 } // namespace kernel_device_specific
 
 // A.6 Event information desctiptors

@@ -71,11 +71,21 @@ typename Param::return_type get_kernel_info_impl(context_impl &CtxImpl,
                                                 CtxImpl.getAdapter());
 }
 
-#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, UrCode)              \
-  template __SYCL_EXPORT ReturnT get_kernel_info_impl<info::DescType::Desc>(   \
+#define __SYCL_KDS_INFO_INST(NAME, RETURN_T)                                   \
+  template __SYCL_EXPORT RETURN_T                                              \
+  get_kernel_info_impl<info::kernel_device_specific::NAME>(                    \
       context_impl &, device_impl &, DeviceKernelInfo &);
-#include <sycl/info/kernel_device_specific_traits.def>
-#undef __SYCL_PARAM_TRAITS_SPEC
+__SYCL_KDS_INFO_INST(global_work_size, sycl::range<3>)
+__SYCL_KDS_INFO_INST(work_group_size, size_t)
+__SYCL_KDS_INFO_INST(compile_work_group_size, sycl::range<3>)
+__SYCL_KDS_INFO_INST(preferred_work_group_size_multiple, size_t)
+__SYCL_KDS_INFO_INST(private_mem_size, size_t)
+__SYCL_KDS_INFO_INST(max_num_sub_groups, uint32_t)
+__SYCL_KDS_INFO_INST(compile_num_sub_groups, uint32_t)
+__SYCL_KDS_INFO_INST(max_sub_group_size, uint32_t)
+__SYCL_KDS_INFO_INST(compile_sub_group_size, uint32_t)
+__SYCL_KDS_INFO_INST(ext_codeplay_num_regs, uint32_t)
+#undef __SYCL_KDS_INFO_INST
 
 #define __SYCL_PARAM_TRAITS_SPEC(Namespace, DescType, Desc, ReturnT, UrCode)   \
   template __SYCL_EXPORT ReturnT                                               \

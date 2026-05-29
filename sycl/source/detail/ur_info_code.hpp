@@ -33,6 +33,7 @@ template <typename T>
 struct UrInfoCode<T, std::void_t<decltype(T::ur_code)>> {
   static_assert(
       !is_self_describing_info_desc<T>::value ||
+          std::is_void_v<typename T::info_class::ur_code_type> ||
           std::is_same_v<std::remove_cv_t<decltype(T::ur_code)>,
                          typename T::info_class::ur_code_type>,
       "info-descriptor trait `ur_code` member must match the UR enum type for "
@@ -46,7 +47,6 @@ struct UrInfoCode<T, std::void_t<decltype(T::ur_code)>> {
   };
 #include <sycl/info/event_profiling_traits.def>
 #include <sycl/info/event_traits.def>
-#include <sycl/info/kernel_device_specific_traits.def>
 #define __SYCL_PARAM_TRAITS_SPEC_SPECIALIZED(DescType, Desc, ReturnT, UrCode)  \
   __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, UrCode)
 #include <sycl/info/device_traits.def>

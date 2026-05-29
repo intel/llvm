@@ -75,14 +75,6 @@ template <typename T> struct is_backend_info_desc : std::false_type {};
 #include <sycl/info/event_profiling_traits.def>
 #undef __SYCL_PARAM_TRAITS_SPEC
 
-#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, UrCode)              \
-  template <>                                                                  \
-  struct is_##DescType##_info_desc<info::DescType::Desc> : std::true_type {    \
-    using return_type = info::DescType::Desc::return_type;                     \
-  };
-#include <sycl/info/kernel_device_specific_traits.def>
-#undef __SYCL_PARAM_TRAITS_SPEC
-
 #define __SYCL_PARAM_TRAITS_SPEC(Namespace, DescType, Desc, ReturnT, UrCode)   \
   template <>                                                                  \
   struct is_##DescType##_info_desc<Namespace::info::DescType::Desc>            \
