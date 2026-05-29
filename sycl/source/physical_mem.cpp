@@ -14,14 +14,26 @@ inline namespace _V1 {
 namespace ext::oneapi::experimental {
 
 physical_mem::physical_mem(const device &SyclDevice, const context &SyclContext,
-                           size_t NumBytes) {
+                           size_t NumBytes)
+    : physical_mem(SyclDevice, SyclContext, NumBytes, false) {}
+
+physical_mem::physical_mem(const queue &SyclQueue, size_t NumBytes)
+    : physical_mem(SyclQueue.get_device(), SyclQueue.get_context(), NumBytes) {}
+
+physical_mem::physical_mem(const device &SyclDevice, const context &SyclContext,
+                           size_t NumBytes, bool EnableIpc) {
   if (!SyclDevice.has(aspect::ext_oneapi_virtual_mem))
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
         "Device does not support aspect::ext_oneapi_virtual_mem.");
 
+  if (EnableIpc && !SyclDevice.has(aspect::ext_oneapi_ipc_physical_memory))
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Device does not support aspect::ext_oneapi_ipc_physical_memory.");
+
   impl = std::make_shared<sycl::detail::physical_mem_impl>(
-      *detail::getSyclObjImpl(SyclDevice), SyclContext, NumBytes);
+      *detail::getSyclObjImpl(SyclDevice), SyclContext, NumBytes, EnableIpc);
 }
 
 void *physical_mem::map(uintptr_t Ptr, size_t NumBytes,
@@ -32,6 +44,9 @@ void *physical_mem::map(uintptr_t Ptr, size_t NumBytes,
 context physical_mem::get_context() const { return impl->get_context(); }
 device physical_mem::get_device() const { return impl->get_device(); }
 size_t physical_mem::size() const noexcept { return impl->size(); }
+bool physical_mem::ext_oneapi_ipc_enabled() const {
+  return impl->isEnabledIpc();
+}
 
 } // namespace ext::oneapi::experimental
 } // namespace _V1

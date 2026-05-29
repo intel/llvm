@@ -97,6 +97,7 @@ def Aspectext_oneapi_clock_work_group : Aspect<"ext_oneapi_clock_work_group">;
 def Aspectext_oneapi_clock_device : Aspect<"ext_oneapi_clock_device">;
 def Aspectext_oneapi_is_integrated_gpu : Aspect<"ext_oneapi_is_integrated_gpu">;
 def Aspectext_oneapi_ipc_memory : Aspect<"ext_oneapi_ipc_memory">;
+def Aspectext_oneapi_ipc_physical_memory : Aspect<"ext_oneapi_ipc_physical_memory">;
 def Aspectext_oneapi_device_wait : Aspect<"ext_oneapi_device_wait">;
 def Aspectext_intel_xe_stack_count : Aspect<"ext_intel_xe_stack_count">;
 def Aspectext_intel_xe_regions_per_stack : Aspect<"ext_intel_xe_regions_per_stack">;
@@ -183,6 +184,7 @@ def : TargetInfo<"__TestAspectList",
     Aspectext_oneapi_clock_device,
     Aspectext_oneapi_is_integrated_gpu,
     Aspectext_oneapi_ipc_memory,
+    Aspectext_oneapi_ipc_physical_memory,
     Aspectext_oneapi_device_wait,
     Aspectext_intel_xe_stack_count,
     Aspectext_intel_xe_regions_per_stack,

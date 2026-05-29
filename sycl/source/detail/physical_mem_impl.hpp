@@ -38,13 +38,19 @@ inline ur_virtual_mem_access_flag_t AccessModeToVirtualAccessFlags(
 class physical_mem_impl {
 public:
   physical_mem_impl(device_impl &DeviceImpl, const context &SyclContext,
-                    size_t NumBytes)
+                    size_t NumBytes, bool EnableIpc = false)
       : MDevice(DeviceImpl), MContext(getSyclObjImpl(SyclContext)),
-        MNumBytes(NumBytes) {
+        MNumBytes(NumBytes), MEnabledIpc(EnableIpc) {
     adapter_impl &Adapter = MContext->getAdapter();
 
+    ur_physical_mem_flags_t Flags = ur_physical_mem_flags_t(0);
+    if (EnableIpc)
+      Flags = UR_PHYSICAL_MEM_FLAG_ENABLE_IPC;
+    ur_physical_mem_properties_t Props = {
+        UR_STRUCTURE_TYPE_PHYSICAL_MEM_PROPERTIES, nullptr, Flags};
+
     auto Err = Adapter.call_nocheck<UrApiKind::urPhysicalMemCreate>(
-        MContext->getHandleRef(), MDevice.getHandleRef(), MNumBytes, nullptr,
+        MContext->getHandleRef(), MDevice.getHandleRef(), MNumBytes, &Props,
         &MPhysicalMem);
 
     if (Err == UR_RESULT_ERROR_OUT_OF_RESOURCES ||
@@ -55,14 +61,35 @@ public:
     Adapter.checkUrResult(Err);
   }
 
+  // Constructor used when opening a physical memory object from an IPC handle.
+  physical_mem_impl(device_impl &DeviceImpl, const context &SyclContext,
+                    size_t NumBytes, ur_physical_mem_handle_t PhysicalMem,
+                    void *IpcVirtualAddress)
+      : MPhysicalMem(PhysicalMem), MDevice(DeviceImpl),
+        MContext(getSyclObjImpl(SyclContext)), MNumBytes(NumBytes),
+        MEnabledIpc(false), MOpenedFromIpc(true),
+        MIpcVirtualAddress(IpcVirtualAddress) {}
+
   ~physical_mem_impl() noexcept(false) {
     adapter_impl &Adapter = MContext->getAdapter();
-    Adapter.call<UrApiKind::urPhysicalMemRelease>(MPhysicalMem);
+    // Handles opened via urIPCOpenPhysMemHandleExp must be released with
+    // urIPCClosePhysMemHandleExp, not urPhysicalMemRelease.
+    if (MOpenedFromIpc)
+      Adapter.call<UrApiKind::urIPCClosePhysMemHandleExp>(
+          MContext->getHandleRef(), MPhysicalMem);
+    else
+      Adapter.call<UrApiKind::urPhysicalMemRelease>(MPhysicalMem);
   }
 
   void *map(uintptr_t Ptr, size_t NumBytes,
             ext::oneapi::experimental::address_access_mode Mode,
             size_t Offset) const {
+    // For IPC-opened handles the virtual mapping was already established by
+    // urIPCOpenPhysMemHandleExp (via zeMemOpenIpcHandle).  The driver chose
+    // the virtual address; the caller's Ptr hint is unused.
+    if (MOpenedFromIpc)
+      return MIpcVirtualAddress;
+
     auto AccessFlags = AccessModeToVirtualAccessFlags(Mode);
     adapter_impl &Adapter = MContext->getAdapter();
     void *ResultPtr = reinterpret_cast<void *>(Ptr);
@@ -77,6 +104,7 @@ public:
   }
   device get_device() const { return createSyclObjFromImpl<device>(MDevice); }
   size_t size() const noexcept { return MNumBytes; }
+  bool isEnabledIpc() const noexcept { return MEnabledIpc; }
 
   ur_physical_mem_handle_t &getHandleRef() { return MPhysicalMem; }
   const ur_physical_mem_handle_t &getHandleRef() const { return MPhysicalMem; }
@@ -86,6 +114,9 @@ private:
   device_impl &MDevice;
   const std::shared_ptr<context_impl> MContext;
   const size_t MNumBytes;
+  bool MEnabledIpc;
+  bool MOpenedFromIpc = false;
+  void *MIpcVirtualAddress = nullptr;
 };
 
 } // namespace detail
