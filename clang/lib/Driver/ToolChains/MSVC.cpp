@@ -85,38 +85,27 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back(Args.MakeArgString("--dependent-lib=amath"));
   }
 
-  // SYCL requires dynamic CRT because STL objects cross DLL boundaries.
-  // Library dependency is added via --dependent-lib at compiler stage.
-  // Here we validate CRT compatibility and add the library search path.
+#if 1 // INTEL_CUSTOMIZATION
+  // Diagnose SYCL + static CRT: STL objects cross DLL boundaries so dynamic
+  // CRT (/MD or /MDd) is required.
   if (Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false) &&
       !Args.hasArg(options::OPT_nolibsycl) &&
       !Args.hasArg(options::OPT_nostdlib, options::OPT_nostartfiles)) {
-
-    // Check if static CRT is being used. Use getLastArg to handle overriding
-    // options (e.g., /MT /MD -> /MD wins).
     bool HasStaticCRT = false;
-
     if (const Arg *A = Args.getLastArg(options::OPT_fms_runtime_lib_EQ)) {
       StringRef RuntimeLib = A->getValue();
       if (RuntimeLib == "static" || RuntimeLib == "static_dbg")
         HasStaticCRT = true;
     }
-
     if (const Arg *A = Args.getLastArg(options::OPT__SLASH_M_Group)) {
       if (A->getOption().matches(options::OPT__SLASH_MT) ||
           A->getOption().matches(options::OPT__SLASH_MTd))
         HasStaticCRT = true;
     }
-
-    if (HasStaticCRT) {
+    if (HasStaticCRT)
       TC.getDriver().Diag(diag::err_drv_sycl_requires_dynamic_crt);
-    } else {
-      // Add library search path so linker can find LLVMSYCL[d].lib.
-      SmallString<128> LibPath(TC.getDriver().Dir);
-      llvm::sys::path::append(LibPath, "..", "lib");
-      CmdArgs.push_back(Args.MakeArgString(Twine("-libpath:") + LibPath));
-    }
   }
+#endif // INTEL_CUSTOMIZATION
 
   if (!Args.hasArg(options::OPT_nostdlib, options::OPT_nostartfiles) &&
       !C.getDriver().IsCLMode() && !C.getDriver().IsFlangMode()) {
@@ -126,6 +115,7 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back("-defaultlib:libcmt");
     CmdArgs.push_back("-defaultlib:oldnames");
 
+#if 0 //!INTEL_CUSTOMIZATION
     // SYCL: Add runtime library for clang (non-clang-cl) with MSVC target.
     // For clang-cl, --dependent-lib is used at compiler stage instead.
     if (Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false) &&
@@ -139,6 +129,7 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back(IsDebugBuild ? "-defaultlib:LLVMSYCLd"
                                      : "-defaultlib:LLVMSYCL");
     }
+#endif // !INTEL_CUSTOMIZATION
   }
 
   if ((!C.getDriver().IsCLMode() && Args.hasArg(options::OPT_fsycl) &&
