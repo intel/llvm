@@ -2,14 +2,7 @@
 // REQUIRES: aspect-ext_oneapi_external_semaphore_import
 // REQUIRES: windows
 
-// UNSUPPORTED: gpu-intel-dg2
-// UNSUPPORTED-TRACKER: GSD-12428
-
-// UNSUPPORTED: gpu-intel-gen12
-// UNSUPPORTED-TRACKER: GSD-12427
-
-// UNSUPPORTED: arch-intel_gpu_bmg_g21
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22028
+// REQUIRES-INTEL-DRIVER: lin: 38303 win: 101.9999
 
 // RUN: %{build} %link-directx -o %t.exe %if target-spir %{ -Wno-ignored-attributes %}
 // RUN: %{run} %t.exe --no-sem
@@ -35,6 +28,7 @@
 #include <string>
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/bindless_images.hpp>
+#include <sycl/properties/queue_properties.hpp>
 #include <vector>
 
 #define WIN32_LEAN_AND_MEAN
@@ -183,7 +177,15 @@ int main(int argc, char **argv) {
 
   // SYCL INTEROP - using resource_win32_name NATIVELY
   try {
-    sycl::queue q;
+    // Bindless image interop requires an in-order queue (per spec). External
+    // semaphore ops additionally require immediate command lists; see
+    // sycl_ext_oneapi_bindless_images.asciidoc.
+    sycl::property_list qProps =
+        useSemaphores ? sycl::property_list{sycl::property::queue::in_order{},
+                                            sycl::ext::intel::property::queue::
+                                                immediate_command_list{}}
+                      : sycl::property_list{sycl::property::queue::in_order{}};
+    sycl::queue q{qProps};
     auto device = q.get_device();
     auto context = q.get_context();
 
