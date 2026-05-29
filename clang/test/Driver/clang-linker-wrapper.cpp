@@ -1,4 +1,5 @@
 /// Check for list of commands for standalone clang-linker-wrapper run for sycl
+// REQUIRES: libdevice
 // -------
 // Generate .o file as linker wrapper input.
 //

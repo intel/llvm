@@ -1,9 +1,9 @@
 /// Perform several driver tests for SYCL offloading for JIT
 
 /// Check the phases graph with -fsycl. Use of -fsycl enables offload
-// RUN: %clang --offload-new-driver -ccc-print-phases --target=x86_64-unknown-linux-gnu -fsycl %s 2>&1 \
+// RUN: %clang --offload-new-driver --sysroot=%S/Inputs/SYCL -ccc-print-phases --target=x86_64-unknown-linux-gnu -fsycl %s 2>&1 \
 // RUN:   | FileCheck -check-prefixes=CHK-PHASES %s
-// RUN: %clang_cl --offload-new-driver -ccc-print-phases --target=x86_64-pc-windows-msvc -fsycl -- %s 2>&1 \
+// RUN: %clang_cl --offload-new-driver /clang:--sysroot=%S/Inputs/SYCL -ccc-print-phases --target=x86_64-pc-windows-msvc -fsycl -- %s 2>&1 \
 // RUN:   | FileCheck -check-prefixes=CHK-PHASES %s
 // CHK-PHASES: 0: input, "[[INPUT:.+\.cpp]]", c++, (host-sycl)
 // CHK-PHASES-NEXT: 1: preprocessor, {0}, c++-cpp-output, (host-sycl)
@@ -21,7 +21,7 @@
 
 /// Check expected default values for device compilation when using -fsycl as
 /// well as llvm-offload-binary inputs.
-// RUN: %clang --offload-new-driver -### -fsycl -c --target=x86_64-unknown-linux-gnu %s 2>&1 \
+// RUN: %clang --offload-new-driver --sysroot=%S/Inputs/SYCL -### -fsycl -c --target=x86_64-unknown-linux-gnu %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-DEVICE-TRIPLE %s
 // CHK-DEVICE-TRIPLE: "-cc1"{{.*}} "-triple" "spir64-unknown-unknown"
 // CHK-DEVICE-TRIPLE-SAME: "-aux-triple" "x86_64-unknown-linux-gnu"
@@ -31,7 +31,7 @@
 
 // Check if path to libsycl.so is passed to clang-linker-wrapper tool by default for SYCL compilation.
 // The test also checks if SYCL header include paths are added to the SYCL host and device compilation.
-// INTEL-RUN: %clang --offload-new-driver -### --target=x86_64-unknown-linux-gnu -fsycl %s 2>&1 \
+// INTEL-RUN: %clang --offload-new-driver --sysroot=%S/Inputs/SYCL -### --target=x86_64-unknown-linux-gnu -fsycl %s 2>&1 \
 // RUN:   | FileCheck -check-prefixes=CHECK-LSYCL,CHECK-SYCL-HEADERS-HOST,CHECK-SYCL-HEADERS-DEVICE %s
 // CHECK-SYCL-HEADERS-DEVICE: "-fsycl-is-device"{{.*}} "-internal-isystem" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include"
 // CHECK-SYCL-HEADERS-HOST: "-fsycl-is-host"{{.*}} "-internal-isystem" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include"
@@ -43,13 +43,13 @@
 
 /// Check -fsycl-is-device is passed when compiling for the device.
 /// Check -fsycl-is-host is passed when compiling for host.
-// RUN: %clang --offload-new-driver -### -fsycl -c %s 2>&1 \
+// RUN: %clang --offload-new-driver --sysroot=%S/Inputs/SYCL -### -fsycl -c %s 2>&1 \
 // RUN:   | FileCheck -check-prefixes=CHK-FSYCL-IS-DEVICE,CHK-FSYCL-IS-HOST %s
-// RUN: %clang --offload-new-driver -### -fsycl -fsycl-device-only %s 2>&1 \
+// RUN: %clang --offload-new-driver --sysroot=%S/Inputs/SYCL -### -fsycl -fsycl-device-only %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-FSYCL-IS-DEVICE %s
-// RUN: %clang_cl --offload-new-driver -### -fsycl -c -- %s 2>&1 \
+// RUN: %clang_cl --offload-new-driver /clang:--sysroot=%S/Inputs/SYCL -### -fsycl -c -- %s 2>&1 \
 // RUN:   | FileCheck -check-prefixes=CHK-FSYCL-IS-DEVICE,CHK-FSYCL-IS-HOST %s
-// RUN: %clang --offload-new-driver -### -fsycl -fsycl-host-only %s 2>&1 \
+// RUN: %clang --offload-new-driver --sysroot=%S/Inputs/SYCL -### -fsycl -fsycl-host-only %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-FSYCL-IS-HOST %s
 // CHK-FSYCL-IS-DEVICE: "-cc1"{{.*}} "-fsycl-is-device" {{.*}} "-emit-llvm-bc"
 // CHK-FSYCL-IS-HOST: "-cc1"{{.*}} "-fsycl-is-host"

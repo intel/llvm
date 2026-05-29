@@ -719,6 +719,9 @@ private:
       MNodes;
 };
 
+void checkNDRangeBoundsAndThrow(const NDRDescT &NDRDesc,
+                                const uint32_t IdQueriesRange);
+
 // Enqueues a given kernel to a ur_exp_command_buffer_handle_t
 ur_result_t enqueueImpCommandBufferKernel(
     const context &Ctx, device_impl &DeviceImpl,
