@@ -97,7 +97,7 @@ endforeach()
 # These versioned names avoid conflicts with a system LLVM installation while
 # the real binaries live in ${DPCPP_INSTALL_INTERNAL_BINDIR} alongside all companion
 # tools so that the driver can find them via its own executable path.
-if(CLANG_BUILD_TOOLS)
+if(CLANG_BUILD_TOOLS AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
   # Ensure ${CMAKE_INSTALL_BINDIR} exists — no real binaries install there
   # anymore so it would otherwise never be created.
   install(DIRECTORY DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT clang)
