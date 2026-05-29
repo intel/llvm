@@ -305,7 +305,7 @@ Address AtomicInfo::CreateTempAlloca() const {
                        ? ValueTy
                        : AtomicTy.getUnqualifiedType();
   Address TempAlloca =
-      CGF.CreateMemTempWithoutCast(TmpTy, getAtomicAlignment(), "atomic-temp");
+      CGF.CreateMemTemp(TmpTy, getAtomicAlignment(), "atomic-temp");
   // Cast to pointer to value type for bitfields.
   if (LVal.isBitField())
     return CGF.Builder.CreatePointerBitCastOrAddrSpaceCast(
@@ -827,7 +827,7 @@ static void EmitAtomicOp(CodeGenFunction &CGF, AtomicExpr *E, Address Dest,
 // into a temporary alloca.
 static Address
 EmitValToTemp(CodeGenFunction &CGF, Expr *E) {
-  Address DeclPtr = CGF.CreateMemTempWithoutCast(E->getType(), ".atomictmp");
+  Address DeclPtr = CGF.CreateMemTemp(E->getType(), ".atomictmp");
   CGF.EmitAnyExprToMem(E, DeclPtr, E->getType().getQualifiers(),
                        /*Init*/ true);
   return DeclPtr;
@@ -1026,7 +1026,7 @@ RValue CodeGenFunction::EmitAtomicExpr(AtomicExpr *E) {
       CharUnits PointeeIncAmt =
           getContext().getTypeSizeInChars(MemTy->getPointeeType());
       Val1Scalar = Builder.CreateMul(Val1Scalar, CGM.getSize(PointeeIncAmt));
-      auto Temp = CreateMemTempWithoutCast(Val1Ty, ".atomictmp");
+      auto Temp = CreateMemTemp(Val1Ty, ".atomictmp");
       Val1 = Temp;
       EmitStoreOfScalar(Val1Scalar, MakeAddrLValue(Temp, Val1Ty));
       break;
@@ -1122,7 +1122,7 @@ RValue CodeGenFunction::EmitAtomicExpr(AtomicExpr *E) {
     if (ShouldCastToIntPtrTy)
       Dest = Atomics.castToAtomicIntPointer(Dest);
   } else if (E->isCmpXChg())
-    Dest = CreateMemTempWithoutCast(RValTy, "cmpxchg.bool");
+    Dest = CreateMemTemp(RValTy, "cmpxchg.bool");
   else if (!RValTy->isVoidType()) {
     Dest = Atomics.CreateTempAlloca();
     if (ShouldCastToIntPtrTy)

@@ -2774,8 +2774,7 @@ void CodeGenFunction::EmitParmDecl(const VarDecl &D, ParamValue Arg,
       auto PtrTy = getContext().getPointerType(Ty);
       AllocaPtr = CreateMemTempWithoutCast(PtrTy, getContext().getTypeAlignInChars(PtrTy),
                                 D.getName() + ".indirect_addr");
-      EmitStoreOfScalar(DeclPtr.emitRawPointer(*this), AllocaPtr, /* Volatile */ false,
-                        PtrTy);
+      EmitStoreOfScalar(V, AllocaPtr, /* Volatile */ false, PtrTy);
     }
 
     // Push a destructor cleanup for this parameter if the ABI requires it.
@@ -2803,7 +2802,7 @@ void CodeGenFunction::EmitParmDecl(const VarDecl &D, ParamValue Arg,
       DeclPtr = OpenMPLocalAddr;
       AllocaPtr = DeclPtr;
     } else {
-      // Otherwise, create a casted temporary to hold the value.
+      // Otherwise, create a temporary to hold the value.
       DeclPtr = CreateMemTemp(Ty, getContext().getDeclAlign(&D),
                               D.getName() + ".addr", &AllocaPtr);
     }

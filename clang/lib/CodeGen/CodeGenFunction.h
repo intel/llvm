@@ -2984,13 +2984,13 @@ public:
                              RawAddress *Alloca = nullptr) {
     RawAddress Addr = CGM.getCodeGenOpts().UseAllocaASForSrets
                           ? CreateMemTempWithoutCast(T, Name)
-                          : CreateMemTemp(T, Name, Alloca);
+                          : CreateMemTemp(T.getUnqualifiedType(), Name, Alloca);
     if (CGM.getCodeGenOpts().UseAllocaASForSrets && Alloca)
       *Alloca = Addr;
     return AggValueSlot::forAddr(
-        Addr, T.getQualifiers(), AggValueSlot::IsNotDestructed,
-        AggValueSlot::DoesNotNeedGCBarriers, AggValueSlot::IsNotAliased,
-        AggValueSlot::DoesNotOverlap);
+        Addr, T.getQualifiers(),
+        AggValueSlot::IsNotDestructed, AggValueSlot::DoesNotNeedGCBarriers,
+        AggValueSlot::IsNotAliased, AggValueSlot::DoesNotOverlap);
   }
 
   /// EvaluateExprAsBool - Perform the usual unary conversions on the specified
