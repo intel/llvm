@@ -100,6 +100,22 @@ struct urMemoryMultiResidencyTest : uur::urMultiDeviceContextTestTemplate<2> {
     return supported != 0;
   }
 
+  // Allocate allocSize bytes on devices[0], submit a fill command, wait for
+  // completion, and release the queue.  The allocation is NOT freed; the caller
+  // is responsible for calling urUSMFree(*outPtr).
+  void allocAndFillOnDevice0(size_t allocSize, uint8_t fillPattern,
+                             void **outPtr) {
+    ASSERT_SUCCESS(urUSMDeviceAlloc(context, devices[0], nullptr, nullptr,
+                                    allocSize, outPtr));
+    ur_queue_handle_t queue = nullptr;
+    ASSERT_SUCCESS(urQueueCreate(context, devices[0], nullptr, &queue));
+    ASSERT_SUCCESS(urEnqueueUSMFill(queue, *outPtr, sizeof(fillPattern),
+                                    &fillPattern, allocSize, 0, nullptr,
+                                    nullptr));
+    ASSERT_SUCCESS(urQueueFinish(queue));
+    urQueueRelease(queue);
+  }
+
   // Whether peer access from devices[1] to devices[0] has been enabled by
   // this test and must be disabled in TearDown.
   bool peerAccessEnabled = false;
@@ -556,6 +572,18 @@ TEST_P(urMemoryMultiResidencyTest, allocationNotResidentOnPeerWithoutP2P) {
   constexpr size_t allocSize = kAllocSize;
   static constexpr uint8_t fillPattern = 0xAB;
 
+  // Warm-up pass: perform one full alloc+fill+free cycle before taking the
+  // baseline.  The first submission to a queue can trigger one-time driver
+  // initialization (command-list pool creation, kernel loading, event-pool
+  // allocation, etc.) that transiently affects free-memory counters on both
+  // devices.  Completing this initialization up-front ensures the baseline
+  // measurement is taken in a stable state and avoids sporadic failures caused
+  // by first-time overhead being counted against the test's budget.
+  void *warmupPtr = nullptr;
+  ASSERT_NO_FATAL_FAILURE(
+      allocAndFillOnDevice0(allocSize, fillPattern, &warmupPtr));
+  ASSERT_SUCCESS(urUSMFree(context, warmupPtr));
+
   uint64_t initialMemFreePeer = 0;
   ASSERT_SUCCESS(urDeviceGetInfo(devices[1], UR_DEVICE_INFO_GLOBAL_MEM_FREE,
                                  sizeof(uint64_t), &initialMemFreePeer,
@@ -568,16 +596,8 @@ TEST_P(urMemoryMultiResidencyTest, allocationNotResidentOnPeerWithoutP2P) {
   // Allocate on devices[0] WITHOUT enabling P2P — must not consume
   // devices[1] memory.
   void *srcPtr = nullptr;
-  ASSERT_SUCCESS(urUSMDeviceAlloc(context, devices[0], nullptr, nullptr,
-                                  allocSize, &srcPtr));
-
-  ur_queue_handle_t srcQueue = nullptr;
-  ASSERT_SUCCESS(urQueueCreate(context, devices[0], nullptr, &srcQueue));
-  ASSERT_SUCCESS(urEnqueueUSMFill(srcQueue, srcPtr, sizeof(fillPattern),
-                                  &fillPattern, allocSize, 0, nullptr,
-                                  nullptr));
-  ASSERT_SUCCESS(urQueueFinish(srcQueue));
-  urQueueRelease(srcQueue);
+  ASSERT_NO_FATAL_FAILURE(
+      allocAndFillOnDevice0(allocSize, fillPattern, &srcPtr));
 
   uint64_t currentMemFreePeer = 0;
   ur_result_t memRes =

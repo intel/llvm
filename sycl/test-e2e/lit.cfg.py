@@ -215,16 +215,13 @@ class test_env:
 
 
 config.substitutions.append(("%sycl_libs_dir", config.sycl_libs_dir))
+config.substitutions.append(("%sycl_static_libs_dir", config.sycl_device_libs_dir))
 if platform.system() == "Windows":
-    config.substitutions.append(
-        ("%sycl_static_libs_dir", config.sycl_libs_dir + "/../lib")
-    )
     config.substitutions.append(("%obj_ext", ".obj"))
     config.substitutions.append(
         ("%sycl_include", "-Xclang -isystem -Xclang " + config.sycl_include)
     )
 elif platform.system() == "Linux":
-    config.substitutions.append(("%sycl_static_libs_dir", config.sycl_libs_dir))
     config.substitutions.append(("%obj_ext", ".o"))
     config.substitutions.append(("%sycl_include", "-isystem " + config.sycl_include))
 

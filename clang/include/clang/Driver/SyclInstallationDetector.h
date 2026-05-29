@@ -44,6 +44,7 @@ private:
   const Driver &D;
   SmallString<0> SYCLRTLibPath;
   llvm::SmallVector<llvm::SmallString<128>, 4> InstallationCandidates;
+  llvm::Triple HostTriple;
 };
 
 } // namespace driver

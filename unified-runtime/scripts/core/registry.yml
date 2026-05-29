@@ -724,7 +724,10 @@ etors:
 - name: QUEUE_GET_GRAPH_EXP
   desc: Enumerator for $xQueueGetGraphExp
   value: '314'
-max_id: '314'
+- name: GRAPH_SET_DESTRUCTION_CALLBACK_EXP
+  desc: Enumerator for $xGraphSetDestructionCallbackExp
+  value: '315'
+max_id: '315'
 ---
 type: enum
 desc: Defines structure types

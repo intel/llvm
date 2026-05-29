@@ -9,9 +9,9 @@
 /// test behavior of device library default link
 // RUN: %clangxx -fsycl %s --sysroot=%S/Inputs/SYCL -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_LINK_DEFAULT
-// SYCL_DEVICE_LIB_LINK_DEFAULT: llvm-link{{.*}} "{{.*}}libsycl-crt.bc"
-// SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: "{{.*}}libsycl-cmath.bc"
-// SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: "{{.*}}libsycl-imf.bc"
+// SYCL_DEVICE_LIB_LINK_DEFAULT: llvm-link{{.*}} "{{.*}}lib\\libsycl-crt.bc"
+// SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: "{{.*}}lib\\libsycl-cmath.bc"
+// SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: "{{.*}}lib\\libsycl-imf.bc"
 
 /// ###########################################################################
 
