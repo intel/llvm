@@ -57,7 +57,7 @@ struct matrix_combinations {
   using return_type =
       std::vector<sycl::ext::oneapi::experimental::matrix::combination>;
   using info_class = sycl::detail::info_class::device;
-  static constexpr int ur_code = 0; // __SYCL_TRAIT_HANDLED_IN_RT
+  // RT-only: dispatched via explicit CASE in device_impl.hpp; no UR enum.
 };
 } // namespace ext::oneapi::experimental::info::device
 

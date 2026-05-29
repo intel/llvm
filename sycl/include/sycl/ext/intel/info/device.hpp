@@ -83,18 +83,15 @@ __SYCL_INTEL_DEVICE_TRAIT(eus_per_xe_core, uint32_t,
 __SYCL_INTEL_DEVICE_TRAIT(max_lanes_per_hw_thread, uint32_t,
                           UR_DEVICE_INFO_MAX_LANES_PER_HW_THREAD)
 
-// __SYCL_TRAIT_HANDLED_IN_RT: dispatched via switch in device_impl.hpp,
-// not via UR enum lookup. ur_code value is unused for these traits.
+// RT-only: dispatched via explicit CASE in device_impl.hpp; no UR enum.
 struct luid {
   using return_type = sycl::detail::luid_type;
   using info_class = sycl::detail::info_class::device;
-  static constexpr ur_device_info_t ur_code = ur_device_info_t(0);
 };
 
 struct node_mask {
   using return_type = uint32_t;
   using info_class = sycl::detail::info_class::device;
-  static constexpr ur_device_info_t ur_code = ur_device_info_t(0);
 };
 
 #undef __SYCL_INTEL_DEVICE_TRAIT

@@ -8,14 +8,23 @@
 
 #pragma once
 
+#include <unified-runtime/ur_api.h>
+
 #include <type_traits>
 
 // Self-describing info-descriptor model.
 //
-// A trait struct describes itself via three nested members:
+// A trait struct describes itself via these nested members:
 //   * `using return_type = ...;`     return type of `get_info<Trait>()`
 //   * `using info_class  = ...;`     class tag (one of the structs below)
-//   * `static constexpr auto ur_code = ...;`  UR enum or __SYCL_TRAIT_HANDLED_IN_RT
+//   * `static constexpr auto ur_code = ...;`  UR enum value
+//
+// `ur_code` is OPTIONAL. Traits dispatched via UR enum lookup must define it,
+// of the family-specific UR enum type (see `ur_code_type` member of each
+// info_class tag). Traits handled entirely SYCL-side (formerly tagged
+// `__SYCL_TRAIT_HANDLED_IN_RT`) simply omit `ur_code`; runtime dispatch hits an
+// explicit `CASE` switch in the *_impl headers and the UR fallthrough is never
+// instantiated for them.
 //
 // This header replaces the .def-file + macro-iterator pattern used by
 // `is_*_info_desc` / `UrInfoCode`. Both models coexist during migration; new
@@ -27,15 +36,35 @@ inline namespace _V1 {
 namespace detail {
 
 namespace info_class {
-struct platform {};
-struct context {};
-struct device {};
-struct queue {};
-struct kernel {};
-struct kernel_device_specific {};
-struct kernel_queue_specific {};
-struct event {};
-struct event_profiling {};
+struct platform {
+  using ur_code_type = ur_platform_info_t;
+};
+struct context {
+  using ur_code_type = ur_context_info_t;
+};
+struct device {
+  using ur_code_type = ur_device_info_t;
+};
+struct queue {
+  using ur_code_type = ur_queue_info_t;
+};
+struct kernel {
+  using ur_code_type = ur_kernel_info_t;
+};
+struct kernel_device_specific {
+  using ur_code_type = ur_kernel_group_info_t;
+};
+struct kernel_queue_specific {
+  // No UR enum lookup applies; queries dispatch through dedicated kernel/queue
+  // call paths. Kept for type uniformity.
+  using ur_code_type = void;
+};
+struct event {
+  using ur_code_type = ur_event_info_t;
+};
+struct event_profiling {
+  using ur_code_type = ur_profiling_info_t;
+};
 } // namespace info_class
 
 template <typename T, typename = void>
@@ -43,8 +72,15 @@ struct is_self_describing_info_desc : std::false_type {};
 
 template <typename T>
 struct is_self_describing_info_desc<
-    T, std::void_t<typename T::return_type, typename T::info_class,
-                   decltype(T::ur_code)>> : std::true_type {};
+    T, std::void_t<typename T::return_type, typename T::info_class>>
+    : std::true_type {};
+
+template <typename T, typename = void>
+struct is_ur_dispatched : std::false_type {};
+
+template <typename T>
+struct is_ur_dispatched<T, std::void_t<decltype(T::ur_code)>>
+    : std::true_type {};
 
 template <typename T, typename Class, typename = void>
 struct is_info_desc_for : std::false_type {};

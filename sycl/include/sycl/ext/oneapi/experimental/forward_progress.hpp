@@ -34,21 +34,21 @@ template <execution_scope CoordinationScope>
 struct work_group_progress_capabilities {
   using return_type = std::vector<forward_progress_guarantee>;
   using info_class = sycl::detail::info_class::device;
-  static constexpr ur_device_info_t ur_code = ur_device_info_t(0);
+  // RT-only: dispatched via explicit CASE in device_impl.hpp; no UR enum.
 };
 
 template <execution_scope CoordinationScope>
 struct sub_group_progress_capabilities {
   using return_type = std::vector<forward_progress_guarantee>;
   using info_class = sycl::detail::info_class::device;
-  static constexpr ur_device_info_t ur_code = ur_device_info_t(0);
+  // RT-only: dispatched via explicit CASE in device_impl.hpp; no UR enum.
 };
 
 template <execution_scope CoordinationScope>
 struct work_item_progress_capabilities {
   using return_type = std::vector<forward_progress_guarantee>;
   using info_class = sycl::detail::info_class::device;
-  static constexpr ur_device_info_t ur_code = ur_device_info_t(0);
+  // RT-only: dispatched via explicit CASE in device_impl.hpp; no UR enum.
 };
 
 } // namespace info::device

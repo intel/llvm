@@ -24,11 +24,25 @@ struct max_global_work_groups {
   static constexpr ur_device_info_t ur_code = UR_DEVICE_INFO_MAX_WORK_GROUPS;
 };
 
-template <int Dim> struct max_work_groups {
-  using return_type = sycl::id<Dim>;
+template <int Dim> struct max_work_groups;
+
+template <> struct max_work_groups<1> {
+  using return_type = sycl::id<1>;
+  using info_class = sycl::detail::info_class::device;
+  // RT-only: dispatched via explicit CASE in device_impl.hpp; no UR enum.
+};
+
+template <> struct max_work_groups<2> {
+  using return_type = sycl::id<2>;
+  using info_class = sycl::detail::info_class::device;
+  // RT-only: dispatched via explicit CASE in device_impl.hpp; no UR enum.
+};
+
+template <> struct max_work_groups<3> {
+  using return_type = sycl::id<3>;
   using info_class = sycl::detail::info_class::device;
   static constexpr ur_device_info_t ur_code =
-      Dim == 3 ? UR_DEVICE_INFO_MAX_WORK_GROUPS_3D : ur_device_info_t(0);
+      UR_DEVICE_INFO_MAX_WORK_GROUPS_3D;
 };
 
 } // namespace ext::oneapi::experimental::info::device

@@ -21,31 +21,26 @@ namespace ext::oneapi::experimental::info::kernel_queue_specific {
 struct max_num_work_groups {
   using return_type = size_t;
   using info_class = sycl::detail::info_class::kernel_queue_specific;
-  static constexpr int ur_code = 0;
 };
 
 struct max_work_group_size {
   using return_type = size_t;
   using info_class = sycl::detail::info_class::kernel_queue_specific;
-  static constexpr int ur_code = 0;
 };
 
 struct max_sub_group_size {
   using return_type = uint32_t;
   using info_class = sycl::detail::info_class::kernel_queue_specific;
-  static constexpr int ur_code = 0;
 };
 
 struct num_sub_groups {
   using return_type = uint32_t;
   using info_class = sycl::detail::info_class::kernel_queue_specific;
-  static constexpr int ur_code = 0;
 };
 
 template <int Dim> struct max_work_item_sizes {
   using return_type = sycl::id<Dim>;
   using info_class = sycl::detail::info_class::kernel_queue_specific;
-  static constexpr int ur_code = 0;
 };
 
 } // namespace ext::oneapi::experimental::info::kernel_queue_specific
