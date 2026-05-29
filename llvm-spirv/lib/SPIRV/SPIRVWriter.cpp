@@ -5017,7 +5017,7 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
       std::vector<SPIRVValue *> Elts(TNumElts, transValue(Val, BB));
       Init = BM->addCompositeConstant(CompositeTy, Elts);
     }
-    SPIRVType *VarTy = transPointerType(AT, SPIRV::SPIRAS_Private);
+    SPIRVType *VarTy = transPointerType(AT, SPIRAS_Private);
     SPIRVBasicBlock *EntryBB = BB->getParent()->getBasicBlock(0);
     SPIRVValue *Var = BM->addVariable(VarTy, nullptr, /*isConstant*/ false,
                                       spv::internal::LinkageTypeInternal, Init,
@@ -5026,8 +5026,7 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
         MSI, BM->isAllowedToUseVersion(VersionNumber::SPIRV_1_4));
     if (!MemAccess.empty() && MemAccess[0] == MemoryAccessAlignedMask)
       Var->setAlignment(MemAccess[1]);
-    SPIRVType *SourceTy =
-        transPointerType(Val->getType(), SPIRV::SPIRAS_Private);
+    SPIRVType *SourceTy = transPointerType(Val->getType(), SPIRAS_Private);
     SPIRVValue *Source = BM->addUnaryInst(OpBitcast, SourceTy, Var, BB);
     SPIRVValue *Target = transValue(MSI->getRawDest(), BB);
     return BM->addCopyMemorySizedInst(Target, Source, CompositeTy->getLength(),
