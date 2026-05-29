@@ -566,19 +566,15 @@ llvm_config.with_system_environment("ROCM_PATH")
 
 # Check for OpenCL ICD
 if config.opencl_libs_dir:
-    tmp_opencl_libs_dir = config.opencl_libs_dir
+    opencl_lib = config.opencl_libs_dir  + "/OpenCL.lib"
     config.opencl_libs_dir = quote_path(config.opencl_libs_dir)
     config.opencl_include_dir = quote_path(config.opencl_include_dir)
     if cl_options:
-        if is_windows_unc_network_path(tmp_opencl_libs_dir):
-            tmp_opencl_libs_dir = quote_path(normalize_windows_network_path(tmp_opencl_libs_dir) + "\\\\OpenCL.lib")
-            config.substitutions.append(
-                ("%opencl_lib", " " + tmp_opencl_libs_dir)
-            )
-        else:
-            config.substitutions.append(
-                ("%opencl_lib", " " + config.opencl_libs_dir + "/OpenCL.lib")
-            )
+        if is_windows_unc_network_path(opencl_lib):
+            opencl_lib = normalize_windows_network_path(opencl_lib)
+        config.substitutions.append(
+            ("%opencl_lib", " " + quote_path(opencl_lib))
+        )
     else:
         config.substitutions.append(
             ("%opencl_lib", "-L" + config.opencl_libs_dir + " -lOpenCL")
