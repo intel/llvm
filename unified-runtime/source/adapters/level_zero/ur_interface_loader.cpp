@@ -459,6 +459,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetQueueProcAddrTable(
       ur::level_zero::urQueueCreateWithNativeHandle;
   pDdiTable->pfnFinish = ur::level_zero::urQueueFinish;
   pDdiTable->pfnFlush = ur::level_zero::urQueueFlush;
+  pDdiTable->pfnKhrFlush = ur::level_zero::urKhrFlush;
 
   return result;
 }

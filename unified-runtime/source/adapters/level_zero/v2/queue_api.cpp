@@ -55,6 +55,11 @@ ur_result_t urQueueFlush(ur_queue_handle_t hQueue) try {
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
+ur_result_t urKhrFlush(ur_queue_handle_t hQueue) try {
+  return hQueue->get().queueFlush();
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
 ur_result_t urEnqueueEventsWait(ur_queue_handle_t hQueue,
                                 uint32_t numEventsInWaitList,
                                 const ur_event_handle_t *phEventWaitList,

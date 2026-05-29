@@ -171,6 +171,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueFlush(ur_queue_handle_t /*hQueue*/) {
   return UR_RESULT_SUCCESS;
 }
 
+UR_APIEXPORT ur_result_t UR_APICALL urKhrFlush(ur_queue_handle_t /*hQueue*/) {
+  return UR_RESULT_SUCCESS;
+}
+
 UR_APIEXPORT ur_result_t UR_APICALL urQueueGetNativeHandle(
     ur_queue_handle_t hQueue, ur_queue_native_desc_t * /*pDesc*/,
     ur_native_handle_t *phNativeQueue) {

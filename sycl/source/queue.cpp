@@ -247,6 +247,8 @@ bool queue::ext_oneapi_empty() const { return impl->queue_empty(); }
 
 bool queue::khr_empty() const { return impl->queue_empty(); }
 
+void queue::khr_flush() const { return impl->queue_flush(); }
+
 void queue::ext_oneapi_prod() { impl->flush(); }
 
 ur_native_handle_t queue::getNative(int32_t &NativeHandleDesc) const {
