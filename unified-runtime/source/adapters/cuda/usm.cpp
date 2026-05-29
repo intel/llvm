@@ -573,12 +573,70 @@ urUSMPoolTrimToExp(ur_context_handle_t hContext, ur_device_handle_t hDevice,
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urUSMContextMemcpyExp(ur_context_handle_t,
-                                                          void *pDst,
-                                                          const void *pSrc,
-                                                          size_t Size) {
-  UR_CHECK_ERROR(cuMemcpy((CUdeviceptr)pDst, (CUdeviceptr)pSrc, Size));
-  return UR_RESULT_SUCCESS;
+UR_APIEXPORT ur_result_t UR_APICALL urUSMContextMemcpyExp(
+    ur_context_handle_t hContext, void *pDst, const void *pSrc, size_t Size) {
+  // Detect memory types to determine if this is a device-to-device copy
+  CUmemorytype memTypeDst, memTypeSrc;
+  CUresult dstResult = cuPointerGetAttribute(
+      &memTypeDst, CU_POINTER_ATTRIBUTE_MEMORY_TYPE, (CUdeviceptr)pDst);
+  CUresult srcResult = cuPointerGetAttribute(
+      &memTypeSrc, CU_POINTER_ATTRIBUTE_MEMORY_TYPE, (CUdeviceptr)pSrc);
+
+  bool isDstDevice =
+      (dstResult == CUDA_SUCCESS && memTypeDst == CU_MEMORYTYPE_DEVICE);
+  bool isSrcDevice =
+      (srcResult == CUDA_SUCCESS && memTypeSrc == CU_MEMORYTYPE_DEVICE);
+
+  // For host-to-device or device-to-host, use simple synchronous copy
+  if (!isDstDevice || !isSrcDevice) {
+    UR_CHECK_ERROR(cuMemcpy((CUdeviceptr)pDst, (CUdeviceptr)pSrc, Size));
+    return UR_RESULT_SUCCESS;
+  }
+
+  // Device-to-device copy requires special handling:
+  // cuMemcpy can execute asynchronously for D2D, so we need explicit sync.
+  // See: https://docs.nvidia.com/cuda/cuda-driver-api/api-sync-behavior.html
+
+  unsigned int devIdx = 0;
+  UR_CHECK_ERROR(cuPointerGetAttribute(
+      &devIdx, CU_POINTER_ATTRIBUTE_DEVICE_ORDINAL, (CUdeviceptr)pDst));
+
+  if (devIdx >= hContext->getDevices().size()) {
+    return UR_RESULT_ERROR_INVALID_CONTEXT;
+  }
+
+  ur_device_handle_t owningDev = hContext->getDevices()[devIdx];
+  ScopedContext Active(owningDev);
+
+  // Create a dedicated stream for this copy operation
+  // Using CU_STREAM_NON_BLOCKING to avoid blocking other streams in context
+  CUstream copyStream = nullptr;
+  UR_CHECK_ERROR(cuStreamCreate(&copyStream, CU_STREAM_NON_BLOCKING));
+
+  // RAII-style cleanup to ensure stream is always destroyed
+  auto streamCleanup = [&copyStream]() {
+    if (copyStream) {
+      cuStreamDestroy(copyStream);
+    }
+  };
+
+  try {
+    UR_CHECK_ERROR(
+        cuMemcpyAsync((CUdeviceptr)pDst, (CUdeviceptr)pSrc, Size, copyStream));
+
+    // Wait for copy to complete on this stream only (not entire context)
+    UR_CHECK_ERROR(cuStreamSynchronize(copyStream));
+
+    streamCleanup();
+    return UR_RESULT_SUCCESS;
+
+  } catch (ur_result_t Err) {
+    streamCleanup();
+    return Err;
+  } catch (...) {
+    streamCleanup();
+    throw;
+  }
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urUSMHostAllocRegisterExp(
