@@ -625,6 +625,7 @@ public:
   std::string_view getPrefix() const { return Prefix; }
   std::string_view getClangXXExe() const { return ClangXXExe; }
   std::string_view getLibclcDir() const { return LibclcDir; }
+  std::string_view getCompilerRTPath() const { return CompilerRTPath; }
 
 private:
   clang::IgnoringDiagConsumer IgnoreDiag;
@@ -632,6 +633,7 @@ private:
                           jit_compiler::resource::ToolchainPrefix.Size};
   std::string ClangXXExe = (Prefix + "/bin/clang++").str();
   std::string LibclcDir = GetResourcesPath(ClangXXExe) + "/lib/";
+  std::string CompilerRTPath = LibclcDir;
 
   PrecompiledPreambles Preambles;
 };
@@ -796,7 +798,8 @@ static void getDeviceLibraries(const ArgList &Args,
 #if defined(_WIN32)
                                              "libsycl-msvc-math",
 #endif
-                                             "libsycl-imf"};
+                                             "libsycl-imf",
+                                             "libclang_rt.builtins"};
 
   StringRef LibSuffix = ".bc";
   auto AddLibraries = [&](const SYCLDeviceLibsList &LibsList) {
@@ -845,15 +848,22 @@ Error jit_compiler::linkDeviceLibraries(llvm::Module &Module,
 
   LLVMContext &Context = Module.getContext();
   SYCLToolchain &TC = SYCLToolchain::instance();
-  for (const std::string &LibName : LibNames) {
-    std::string TripleName = (Format == BinaryFormat::PTX)
-                                 ? "nvptx64-nvidia-cuda"
-                                 : "amdgcn-amd-amdhsa";
+  std::string TripleName;
+  if (Format == BinaryFormat::PTX)
+    TripleName = "nvptx64-nvidia-cuda";
+  else if (Format == BinaryFormat::AMDGCN)
+    TripleName = "amdgcn-amd-amdhsa";
+  else
+    TripleName = "spirv64-unknown-unknown";
 
-    std::string LibPath =
-        (LibName.find("libspirv") != std::string::npos)
-            ? (TC.getLibclcDir() + TripleName + "/" + LibName).str()
-            : (TC.getPrefix() + getLibPathSuffix() + LibName).str();
+  for (const std::string &LibName : LibNames) {
+    std::string LibPath;
+    if (LibName.find("libspirv") != std::string::npos)
+      LibPath = (TC.getLibclcDir() + TripleName + "/" + LibName).str();
+    else if (LibName == "libclang_rt.builtins.bc")
+      LibPath = (TC.getCompilerRTPath() + TripleName + "/" + LibName).str();
+    else
+      LibPath = (TC.getPrefix() + getLibPathSuffix() + LibName).str();
 
     ModuleUPtr LibModule;
     if (auto Error =
