@@ -730,9 +730,9 @@ class LLVMConfig(object):
 
         paths = self._get_clang_paths(additional_tool_dirs)
 
-        # Discover the 'dpclang' and 'clangcc' to use.
+        # Discover the 'clang' and 'clangcc' to use.
         self.config.clang = self.use_llvm_tool(
-            "dpclang",
+            "clang",
             search_env="CLANG",
             required=required,
             search_paths=paths,
@@ -791,24 +791,24 @@ class LLVMConfig(object):
         def prefer(this, to):
             return '''\"*** Do not use '%s' in tests, use '%s'. ***\"''' % (to, this)
 
-        self.config.substitutions.append((" dpclang ", prefer("%clang", "dpclang")))
+        self.config.substitutions.append((" clang ", prefer("%clang", "clang")))
         self.config.substitutions.append(
-            (r" dpclang\+\+ ", prefer("%clangxx", "dpclang++"))
+            (r" clang\+\+ ", prefer("%clangxx", "clang++"))
         )
         self.config.substitutions.append(
-            (" dpclang-cc ", prefer("%clang_cc1", "dpclang-cc"))
+            (" clang-cc ", prefer("%clang_cc1", "clang-cc"))
         )
         self.config.substitutions.append(
-            (" dpclang-cl ", prefer("%clang_cl", "dpclang-cl"))
+            (" clang-cl ", prefer("%clang_cl", "clang-cl"))
         )
         self.config.substitutions.append(
             (
-                " dpclang -cc1 -analyze ",
-                prefer("%clang_analyze_cc1", "dpclang -cc1 -analyze"),
+                " clang -cc1 -analyze ",
+                prefer("%clang_analyze_cc1", "clang -cc1 -analyze"),
             )
         )
         self.config.substitutions.append(
-            (" dpclang -cc1 ", prefer("%clang_cc1", "dpclang -cc1"))
+            (" clang -cc1 ", prefer("%clang_cc1", "clang -cc1"))
         )
         self.config.substitutions.append(
             (" %clang-cc1 ", '''\"*** invalid substitution, use '%clang_cc1'. ***\"''')
