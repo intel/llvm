@@ -251,6 +251,32 @@ void *ur_discrete_buffer_handle_t::allocateOnDevice(ur_device_handle_t hDevice,
   return ptr;
 }
 
+void *ur_discrete_buffer_handle_t::ensureDeviceAlloc(ur_device_handle_t hDevice,
+                                                     size_t size) {
+  assert(hDevice);
+
+  auto id = hDevice->Id.value();
+  if (void *existing = deviceAllocations[id].get()) {
+    return existing;
+  }
+
+  // Allocate without touching activeAllocationDevice; the caller is
+  // responsible for updating it at the correct point in the migration flow.
+  void *ptr;
+  UR_CALL_THROWS(hContext->getDefaultUSMPool()->allocate(
+      hContext, hDevice, nullptr, UR_USM_TYPE_DEVICE, size, &ptr));
+
+  deviceAllocations[id] =
+      usm_unique_ptr_t(ptr, [hContext = this->hContext](void *ptr) {
+        auto ret = hContext->getDefaultUSMPool()->free(ptr);
+        if (ret != UR_RESULT_SUCCESS) {
+          UR_LOG(ERR, "Failed to free device memory: {}", ret);
+        }
+      });
+
+  return ptr;
+}
+
 ur_result_t
 ur_discrete_buffer_handle_t::migrateBufferTo(ur_device_handle_t hDevice,
                                              void *src, size_t size) {
@@ -340,8 +366,8 @@ void *ur_discrete_buffer_handle_t::getActiveDeviceAlloc(size_t offset) {
 
 void *ur_discrete_buffer_handle_t::getDevicePtr(
     ur_device_handle_t hDevice, device_access_mode_t /*access*/, size_t offset,
-    size_t /*size*/, ze_command_list_handle_t /*cmdList*/,
-    wait_list_view & /*waitListView*/) {
+    size_t /*size*/, ze_command_list_handle_t cmdList,
+    wait_list_view &waitListView) {
   TRACK_SCOPE_LATENCY("ur_discrete_buffer_handle_t::getDevicePtr");
 
   if (!activeAllocationDevice) {
@@ -366,12 +392,95 @@ void *ur_discrete_buffer_handle_t::getDevicePtr(
                                  activeAllocationDevice) != p2pDevices.end();
 
   if (!p2pAccessible) {
-    // TODO: migrate buffer through the host
-    UR_LOG(WARN,
-           "p2p is not accessible: requesting device ptr:{} cannot access "
-           "allocation on device ptr:{}",
-           (void *)hDevice, (void *)activeAllocationDevice);
-    throw UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    // P2P is not accessible between the two devices; migrate through the host.
+    UR_LOG(DEBUG,
+           "p2p is not accessible, migrating buffer through host: "
+           "src device ptr:{} -> dst device ptr:{}",
+           (void *)activeAllocationDevice, (void *)hDevice);
+
+    auto bufferSize = getSize();
+
+    // Allocate a USM HOST staging buffer for the migration.
+    void *hostBuf = nullptr;
+    UR_CALL_THROWS(hContext->getDefaultUSMPool()->allocate(
+        hContext, nullptr, nullptr, UR_USM_TYPE_HOST, bufferSize, &hostBuf));
+    usm_unique_ptr_t hostBufPtr(
+        hostBuf, [hContext = this->hContext](void *ptr) {
+          auto ret = hContext->getDefaultUSMPool()->free(ptr);
+          if (ret != UR_RESULT_SUCCESS) {
+            UR_LOG(ERR, "Failed to free migration staging buffer: {}", ret);
+          }
+        });
+
+    if (cmdList) {
+      ze_bool_t isImmediate = false;
+      ZE2UR_CALL_THROWS(zeCommandListIsImmediate, (cmdList, &isImmediate));
+
+      if (isImmediate) {
+        // Order the migration relative to both the explicit wait events and any
+        // in-flight work already on the destination command list, then drain it
+        // so the host can safely read from the source device.
+        if (waitListView.num > 0) {
+          ZE2UR_CALL_THROWS(zeCommandListAppendWaitOnEvents,
+                            (cmdList, waitListView.num, waitListView.handles));
+        }
+        ZE2UR_CALL_THROWS(zeCommandListHostSynchronize, (cmdList, UINT64_MAX));
+        waitListView.clear();
+
+        // The destination device's command list cannot access source device
+        // memory (P2P is not available), so use the source device's own
+        // synchronous command list for the device->host copy.
+        UR_CALL_THROWS(synchronousZeCopy(hContext, activeAllocationDevice,
+                                         hostBuf, getActiveDeviceAlloc(),
+                                         bufferSize));
+
+        // Use ensureDeviceAlloc instead of allocateOnDevice: the latter has a
+        // side-effect of setting activeAllocationDevice = hDevice immediately,
+        // before the copy is enqueued. activeAllocationDevice must only be
+        // updated after the copy is successfully complete (see below).
+        void *dstDevPtr = ensureDeviceAlloc(hDevice, bufferSize);
+
+        // Host memory is accessible by all devices; enqueue the host->dest
+        // copy on the provided command list.
+        ZE2UR_CALL_THROWS(
+            zeCommandListAppendMemoryCopy,
+            (cmdList, dstDevPtr, hostBuf, bufferSize, nullptr, 0, nullptr));
+
+        // Drain the command list so the staging buffer is fully consumed and
+        // can be freed immediately when hostBufPtr goes out of scope.
+        ZE2UR_CALL_THROWS(zeCommandListHostSynchronize, (cmdList, UINT64_MAX));
+      } else {
+        // zeCommandListHostSynchronize is only valid for immediate command
+        // lists. For non-immediate (batched) command lists fall back to the
+        // same synchronous host-staged migration used when cmdList is null.
+        for (uint32_t i = 0; i < waitListView.num; i++) {
+          ZE2UR_CALL_THROWS(zeEventHostSynchronize,
+                            (waitListView.handles[i], UINT64_MAX));
+        }
+        waitListView.clear();
+
+        UR_CALL_THROWS(synchronousZeCopy(hContext, activeAllocationDevice,
+                                         hostBuf, getActiveDeviceAlloc(),
+                                         bufferSize));
+        UR_CALL_THROWS(migrateBufferTo(hDevice, hostBuf, bufferSize));
+      }
+    } else {
+      // Synchronous fallback when no command list is available
+      // (e.g. urMemGetNativeHandle).
+      for (uint32_t i = 0; i < waitListView.num; i++) {
+        ZE2UR_CALL_THROWS(zeEventHostSynchronize,
+                          (waitListView.handles[i], UINT64_MAX));
+      }
+      waitListView.clear();
+
+      UR_CALL_THROWS(synchronousZeCopy(hContext, activeAllocationDevice,
+                                       hostBuf, getActiveDeviceAlloc(),
+                                       bufferSize));
+      UR_CALL_THROWS(migrateBufferTo(hDevice, hostBuf, bufferSize));
+    }
+
+    activeAllocationDevice = hDevice;
+    return getActiveDeviceAlloc(offset);
   }
 
   // TODO: see if it's better to migrate the memory to the specified device

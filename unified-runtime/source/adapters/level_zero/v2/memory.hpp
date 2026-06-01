@@ -173,6 +173,10 @@ private:
 
   void *getActiveDeviceAlloc(size_t offset = 0);
   void *allocateOnDevice(ur_device_handle_t hDevice, size_t size);
+  // Ensures a device allocation exists for hDevice and returns its pointer.
+  // Unlike allocateOnDevice, does NOT update activeAllocationDevice, so it
+  // is safe to call before the data migration is complete.
+  void *ensureDeviceAlloc(ur_device_handle_t hDevice, size_t size);
   ur_result_t migrateBufferTo(ur_device_handle_t hDevice, void *src,
                               size_t size);
 };
