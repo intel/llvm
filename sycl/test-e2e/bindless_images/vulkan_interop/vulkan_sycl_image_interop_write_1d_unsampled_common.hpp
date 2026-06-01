@@ -1,12 +1,4 @@
-
-// REQUIRES: aspect-ext_oneapi_bindless_images
-// REQUIRES: aspect-ext_oneapi_external_memory_import || (windows && level_zero && aspect-ext_oneapi_bindless_images)
-// REQUIRES: vulkan
-
-// UNSUPPORTED: windows
-// UNSUPPORTED-TRACKER: CMPLRLLVM-73525
-
-// RUN: %{build} %link-vulkan -o %t.out %if target-spir %{ -Wno-ignored-attributes %}
+// Shared implementation for the Vulkan/SYCL 1D unsampled write interop tests.
 
 /*
   Run all the vulkan formats through a write test. Note this is unsampled only,
@@ -14,81 +6,40 @@
 
   IF a particular variant is having problems on some platform, please do NOT
   just disable the whole test, instead use   RUN~IF: (SOMETHING) yadda-yadda
-    to enable/disable that variant.
+  to enable/disable that variant.
 
-    For semaphore testing, we run just a sampling. Note, that on Linux if there
+  For semaphore testing, we run just a sampling. Note, that on Linux if there
   is a failure in the first section, then likely ALL semaphore tests afterwards
   will fail. This is being tracked as a separate issue.
-
 */
+
 // clang-format off
-
-// RUN: %{run} %t.out --type float --channels 1 32
-// RUN: %{run} %t.out --type float --channels 2 32
-// RUN: %{run} %t.out --type float --channels 4 32
-// RUN: %{run} %t.out --type half --channels 1 32
-// RUN: %{run} %t.out --type half --channels 2 32
-// RUN: %{run} %t.out --type half --channels 4 32
-// RUN: %{run} %t.out --type int32 --channels 1 32
-// RUN: %{run} %t.out --type int32 --channels 2 32
-// RUN: %{run} %t.out --type int32 --channels 4 32
-// RUN: %{run} %t.out --type uint32 --channels 1 32
-// RUN: %{run} %t.out --type uint32 --channels 2 32
-// RUN: %{run} %t.out --type uint32 --channels 4 32
-// RUN: %{run} %t.out --type int16 --channels 1 32
-// RUN: %{run} %t.out --type int16 --channels 2 32
-// RUN: %{run} %t.out --type int16 --channels 4 32
-// RUN: %{run} %t.out --type uint16 --channels 1 32
-// RUN: %{run} %t.out --type uint16 --channels 2 32
-// RUN: %{run} %t.out --type uint16 --channels 4 32
-// RUN: %{run} %t.out --type uint8 --channels 1 32
-// RUN: %{run} %t.out --type uint8 --channels 2 32
-// RUN: %{run} %t.out --type uint8 --channels 4 32
-// RUN: %{run} %t.out --type int8 --channels 1 32
-// RUN: %{run} %t.out --type int8 --channels 2 32
-// RUN: %{run} %t.out --type int8 --channels 4 32
-// RUN-IF: !cuda, %{run} %t.out --type unorm8 --channels 1 32
-// RUN-IF: !cuda, %{run} %t.out --type unorm8 --channels 2 32
-// RUN-IF: !cuda, %{run} %t.out --type unorm8 --channels 4 32
-
-// On Linux L0, there are problem with semaphores and latest drivers.
-// GSD-12371 GSD-12339
-
-// RUN-IF: !level_zero, %{run} %t.out --type float --channels 1 32 --semaphores
-// RUN-IF: !level_zero, %{run} %t.out --type half --channels 2 32 --semaphores
-// RUN-IF: !level_zero, %{run} %t.out --type int32 --channels 4 32 --semaphores
-// RUN-IF: !level_zero, %{run} %t.out --type uint32 --channels 1 32 --semaphores
-// RUN-IF: !level_zero, %{run} %t.out --type int16 --channels 2 32 --semaphores
-// RUN-IF: !level_zero, %{run} %t.out --type uint16 --channels 4 32 --semaphores
-// RUN-IF: !level_zero, %{run} %t.out --type uint8 --channels 1 32 --semaphores
-// RUN-IF: !level_zero, %{run} %t.out --type int8 --channels 4 32 --semaphores
-// CUDA doesn't support unorm8, level_zero has issues with semaphores
-// XXX-IF: !cuda, %{run} %t.out --type unorm8 --channels 2 32 --semaphores
-
-
 /*
-  Vulkan/SYCL  1D Unsampled Write Image
-
+  Vulkan/SYCL 1D Unsampled Write Image
 
   clang++ -fsycl -o vsw_1d_test.bin vulkan_sycl_image_interop_write_1d_unsampled.cpp -lvulkan -I$VULKAN_SDK/include -L$VULKAN_SDK/lib
 
   clang++ -fsycl -o vsw_1d_test.exe vulkan_sycl_image_interop_write_1d_unsampled.cpp -Wno-ignored-attributes -lvulkan-1 -I$VULKAN_SDK/Include -L$VULKAN_SDK/Lib
 
-
+  USAGE:
     ./vsw_1d_test.bin
     ./vsw_1d_test.bin --semaphores
-    FLAGS
+  
+  FLAGS:
     --sampled      ERROR: Sampled image writes are not supported
     --semaphores   Use Vulkan Semaphores for SYCL Interop Sync
     --linear       Use LINEAR tiling for the Vulkan Image (default is OPTIMAL)
     --channels  X  Set number of channels (1, 2, or 4). Default is 4 (RGBA)
     --type  XXX    Set data type (float, half, uint32, int32, uint16, int16, uint8, int8, unorm8). Default is float 
     Wx             Set custom Width .  Put "x" after
-
+  
+  EXAMPLES:
     ./vsw_1d_test.bin --semaphores --channels 2 --linear 64x
 
- */
+*/
 // clang-format on
+
+#pragma once
 
 #include "vulkan_setup.hpp"
 

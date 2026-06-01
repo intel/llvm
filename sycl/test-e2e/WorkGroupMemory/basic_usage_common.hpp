@@ -1,22 +1,18 @@
-// UNSUPPORTED: hip
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/17339
-// RUN: %{build} -o %t.out
-// RUN: %{run} %t.out
-// XFAIL: spirv-backend
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/18230
+// Shared implementation for the work-group memory basic usage tests.
+
+#pragma once
 
 #include <sycl/builtins.hpp>
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/work_group_memory.hpp>
 #include <sycl/group_barrier.hpp>
 #include <sycl/half_type.hpp>
+#include <sycl/queue.hpp>
 
 #include <cassert>
 #include <cstring>
 
 namespace syclexp = sycl::ext::oneapi::experimental;
-
-sycl::queue q;
 
 // This test performs a swap of two scalars/arrays inside a kernel using a
 // work_group_memory object as a temporary buffer. The test is done for scalar
@@ -406,20 +402,4 @@ template <typename T> void test_ptr() {
     swap_array_1d(arr1[i], arr2[i], 8);
   }
   swap_array_2d(arr1, arr2, 8);
-}
-
-int main() {
-  test<int>();
-  test<char>();
-  test<uint16_t>();
-  if (q.get_device().has(sycl::aspect::fp16))
-    test<sycl::half>();
-  test_ptr<float *>();
-  test_ptr<int *>();
-  test_ptr<char *>();
-  test_ptr<uint16_t *>();
-  if (q.get_device().has(sycl::aspect::fp16))
-    test_ptr<sycl::half *>();
-  test_ptr<float *>();
-  return 0;
 }
