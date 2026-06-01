@@ -3528,16 +3528,29 @@ bool doesImageTargetMatchDevice(const RTDeviceBinaryImage &Img,
   // some device, check if that architecture is Device's architecture.
   std::string_view CompileTarget = DeviceBinaryProperty(*PropIt).asStringView();
   std::string_view ArchName = getArchName(DevImpl);
+  if (ArchName == CompileTarget)
+    return true;
   // Note: there are no explicit targets for CPUs, so on x86_64,
   // intel_cpu_spr, and intel_cpu_gnr, we use a spir64_x86_64
   // compile target image.
   // TODO: When dedicated targets for CPU are added, (i.e.
   // -fsycl-targets=intel_cpu_spr etc.) remove this special
   // handling of CPU targets.
-  return ((ArchName == CompileTarget) ||
-          (CompileTarget == "spir64_x86_64" &&
-           (ArchName == "x86_64" || ArchName == "intel_cpu_spr" ||
-            ArchName == "intel_cpu_gnr" || ArchName == "intel_cpu_dmr")));
+  if (CompileTarget == "spir64_x86_64")
+    return ArchName == "x86_64" || ArchName == "intel_cpu_spr" ||
+           ArchName == "intel_cpu_gnr" || ArchName == "intel_cpu_dmr";
+  // Targets compatible with multiple GPU architectures
+  if (CompileTarget == "intel_gpu_bmg")
+    return ArchName == "intel_gpu_bmg_g21" || ArchName == "intel_gpu_bmg_g31" ||
+           ArchName == "intel_gpu_lnl_m";
+  if (CompileTarget == "intel_gpu_dg2")
+    return ArchName == "intel_gpu_acm_g10" || ArchName == "intel_gpu_acm_g11" ||
+           ArchName == "intel_gpu_acm_g12";
+  if (CompileTarget == "intel_gpu_mtl")
+    return ArchName == "intel_gpu_mtl_h" || ArchName == "intel_gpu_mtl_u";
+  if (CompileTarget == "intel_gpu_ptl")
+    return ArchName == "intel_gpu_ptl_h" || ArchName == "intel_gpu_ptl_u";
+  return false;
 }
 
 } // namespace detail
