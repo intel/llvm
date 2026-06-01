@@ -38,10 +38,17 @@ inline ur_virtual_mem_access_flag_t AccessModeToVirtualAccessFlags(
 class physical_mem_impl {
 public:
   physical_mem_impl(device_impl &DeviceImpl, const context &SyclContext,
-                    size_t NumBytes)
+                    size_t NumBytes, bool EnableIPC = false)
       : MDevice(DeviceImpl), MContext(getSyclObjImpl(SyclContext)),
-        MNumBytes(NumBytes) {
+        MNumBytes(NumBytes), MIPCEnabled(EnableIPC) {
     adapter_impl &Adapter = MContext->getAdapter();
+
+    // TODO IPC physical memory
+    // TODO: Pass IPC flags to UR once the API is available
+    // ur_physical_mem_properties_t Props{};
+    // if (EnableIPC) {
+    //   Props.flags = UR_PHYSICAL_MEM_FLAG_IPC_EXPORTABLE;
+    // }
 
     auto Err = Adapter.call_nocheck<UrApiKind::urPhysicalMemCreate>(
         MContext->getHandleRef(), MDevice.getHandleRef(), MNumBytes, nullptr,
@@ -55,9 +62,22 @@ public:
     Adapter.checkUrResult(Err);
   }
 
+  physical_mem_impl(device_impl &DeviceImpl, const context &SyclContext,
+                    size_t NumBytes, ur_physical_mem_handle_t PhysicalMem)
+      : MPhysicalMem(PhysicalMem), MDevice(DeviceImpl),
+        MContext(getSyclObjImpl(SyclContext)), MNumBytes(NumBytes),
+        MOpenedFromIpc(true) {}
+
   ~physical_mem_impl() noexcept(false) {
     adapter_impl &Adapter = MContext->getAdapter();
-    Adapter.call<UrApiKind::urPhysicalMemRelease>(MPhysicalMem);
+
+    if (MOpenedFromIpc) {
+      // TODO IPC physical memory
+      // Adapter.call<UrApiKind::urIPCClosePhysMemHandleExp>(
+      //    MContext->getHandleRef(), MPhysicalMem);
+    } else {
+      Adapter.call<UrApiKind::urPhysicalMemRelease>(MPhysicalMem);
+    }
   }
 
   void *map(uintptr_t Ptr, size_t NumBytes,
@@ -77,6 +97,7 @@ public:
   }
   device get_device() const { return createSyclObjFromImpl<device>(MDevice); }
   size_t size() const noexcept { return MNumBytes; }
+  bool ipc_enabled() const noexcept { return MIPCEnabled; }
 
   ur_physical_mem_handle_t &getHandleRef() { return MPhysicalMem; }
   const ur_physical_mem_handle_t &getHandleRef() const { return MPhysicalMem; }
@@ -86,6 +107,8 @@ private:
   device_impl &MDevice;
   const std::shared_ptr<context_impl> MContext;
   const size_t MNumBytes;
+  const bool MIPCEnabled = false;
+  const bool MOpenedFromIpc = false;
 };
 
 } // namespace detail

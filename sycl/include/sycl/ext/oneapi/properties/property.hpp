@@ -194,6 +194,7 @@ enum PropKind : uint32_t {
   FastLink = 49,
   // PropKindSize must always be the last value.
   PropKindSize = 50,
+  PhysicalMemoryEnableIPC = 51,
 };
 
 template <typename PropertyT> struct PropertyToKind {
