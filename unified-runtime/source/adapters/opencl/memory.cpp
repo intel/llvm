@@ -335,10 +335,53 @@ ur_result_t ur_mem_handle_t_::makeWithNative(native_type NativeMem,
   return UR_RESULT_SUCCESS;
 }
 
+static bool canUseHostPtrDirectly(ur_context_handle_t hContext, void *HostPtr) {
+  if (!HostPtr)
+    return false;
+
+  cl_uint MaxAlignBits = 0;
+  bool AllUnifiedMem = true;
+
+  for (uint32_t I = 0; I < hContext->DeviceCount; ++I) {
+    cl_uint AlignBits = 0;
+    clGetDeviceInfo(hContext->Devices[I]->CLDevice,
+                    CL_DEVICE_MEM_BASE_ADDR_ALIGN, sizeof(AlignBits),
+                    &AlignBits, nullptr);
+    if (AlignBits > MaxAlignBits)
+      MaxAlignBits = AlignBits;
+
+    cl_bool Unified = CL_FALSE;
+    clGetDeviceInfo(hContext->Devices[I]->CLDevice,
+                    CL_DEVICE_HOST_UNIFIED_MEMORY, sizeof(Unified), &Unified,
+                    nullptr);
+    if (!Unified)
+      AllUnifiedMem = false;
+  }
+
+  size_t RequiredAlign = MaxAlignBits / 8;
+  bool IsAligned =
+      RequiredAlign == 0 ||
+      (reinterpret_cast<uintptr_t>(HostPtr) % RequiredAlign) == 0;
+
+  return IsAligned && AllUnifiedMem;
+}
+
 UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreate(
     ur_context_handle_t hContext, ur_mem_flags_t flags, size_t size,
     const ur_buffer_properties_t *pProperties, ur_mem_handle_t *phBuffer) {
   cl_int RetErr = CL_INVALID_OPERATION;
+
+  void *HostPtr = pProperties ? pProperties->pHost : nullptr;
+  cl_mem_flags CLFlags = convertURMemFlagsToCL(flags);
+
+  bool NeedsWriteBack = false;
+  if (HostPtr && (CLFlags & CL_MEM_USE_HOST_PTR)) {
+    if (!canUseHostPtrDirectly(hContext, HostPtr)) {
+      CLFlags = (CLFlags & ~CL_MEM_USE_HOST_PTR) | CL_MEM_COPY_HOST_PTR;
+      NeedsWriteBack = true;
+    }
+  }
+
   if (pProperties) {
     // TODO: need to check if all properties are supported by OpenCL RT and
     // ignore unsupported
@@ -376,11 +419,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreate(
       PropertiesIntel.push_back(0);
 
       try {
-        cl_mem Buffer = FuncPtr(
-            CLContext, PropertiesIntel.data(), static_cast<cl_mem_flags>(flags),
-            size, pProperties->pHost, static_cast<cl_int *>(&RetErr));
+        cl_mem Buffer =
+            FuncPtr(CLContext, PropertiesIntel.data(), CLFlags, size, HostPtr,
+                    static_cast<cl_int *>(&RetErr));
         CL_RETURN_ON_FAILURE(RetErr);
         auto URMem = std::make_unique<ur_mem_handle_t_>(Buffer, hContext);
+        if (NeedsWriteBack) {
+          URMem->WriteBackPtr = HostPtr;
+          URMem->Size = size;
+        }
         *phBuffer = URMem.release();
       } catch (std::bad_alloc &) {
         return UR_RESULT_ERROR_OUT_OF_RESOURCES;
@@ -391,13 +438,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreate(
     }
   }
 
-  void *HostPtr = pProperties ? pProperties->pHost : nullptr;
   try {
     cl_mem Buffer =
-        clCreateBuffer(hContext->CLContext, static_cast<cl_mem_flags>(flags),
-                       size, HostPtr, static_cast<cl_int *>(&RetErr));
+        clCreateBuffer(hContext->CLContext, CLFlags, size, HostPtr,
+                       static_cast<cl_int *>(&RetErr));
     CL_RETURN_ON_FAILURE(RetErr);
     auto URMem = std::make_unique<ur_mem_handle_t_>(Buffer, hContext);
+    if (NeedsWriteBack) {
+      URMem->WriteBackPtr = HostPtr;
+      URMem->Size = size;
+    }
     *phBuffer = URMem.release();
   } catch (std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_RESOURCES;

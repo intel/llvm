@@ -13,6 +13,7 @@
 #include "common/ur_ref_count.hpp"
 #include "device.hpp"
 
+#include <mutex>
 #include <vector>
 
 struct ur_context_handle_t_ : ur::opencl::handle_base {
@@ -22,6 +23,9 @@ struct ur_context_handle_t_ : ur::opencl::handle_base {
   uint32_t DeviceCount;
   bool IsNativeHandleOwned = true;
   ur::RefCount RefCount;
+
+  cl_command_queue SyncQueue = nullptr;
+  std::mutex SyncQueueMtx;
 
   ur_context_handle_t_(const ur_context_handle_t_ &) = delete;
   ur_context_handle_t_ &operator=(const ur_context_handle_t_ &) = delete;
@@ -38,7 +42,13 @@ struct ur_context_handle_t_ : ur::opencl::handle_base {
   static ur_result_t makeWithNative(native_type Ctx, uint32_t DevCount,
                                     const ur_device_handle_t *phDevices,
                                     ur_context_handle_t &Context);
+
+  cl_command_queue getSyncQueue();
+
   ~ur_context_handle_t_() noexcept {
+    if (SyncQueue) {
+      clReleaseCommandQueue(SyncQueue);
+    }
     // If we're reasonably sure this context is about to be destroyed we should
     // clear the ext function pointer cache. This isn't foolproof sadly but it
     // should drastically reduce the chances of the pathological case described
