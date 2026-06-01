@@ -313,9 +313,9 @@ template __SYCL_EXPORT detail::ABINeutralT_t<
     std::vector<ext::oneapi::experimental::matrix::combination>>
 device::get_info_impl<
     ext::oneapi::experimental::info::device::matrix_combinations>() const;
-template __SYCL_EXPORT detail::ABINeutralT_t<uint32_t>
-device::get_info_impl<ext::codeplay::experimental::info::device::
-                          max_registers_per_work_group>() const;
+template __SYCL_EXPORT detail::ABINeutralT_t<uint32_t> device::get_info_impl<
+    ext::codeplay::experimental::info::device::max_registers_per_work_group>()
+    const;
 
 #define __SYCL_INTEL_DEVICE_INST(NS, NAME, RETURN_T)                           \
   template __SYCL_EXPORT detail::ABINeutralT_t<RETURN_T>                       \
@@ -392,10 +392,9 @@ __SYCL_ONEAPI_DEVICE_INST(ext::oneapi::info::device, num_compute_units, size_t)
 
 #define __SYCL_ONEAPI_PROGRESS_INST(NAME, SCOPE)                               \
   template __SYCL_EXPORT detail::ABINeutralT_t<                                \
-      std::vector<ext::oneapi::experimental::forward_progress_guarantee>>     \
-  device::get_info_impl<                                                       \
-      ext::oneapi::experimental::info::device::NAME<                           \
-          ext::oneapi::experimental::execution_scope::SCOPE>>() const;
+      std::vector<ext::oneapi::experimental::forward_progress_guarantee>>      \
+  device::get_info_impl<ext::oneapi::experimental::info::device::NAME<         \
+      ext::oneapi::experimental::execution_scope::SCOPE>>() const;
 __SYCL_ONEAPI_PROGRESS_INST(work_group_progress_capabilities, root_group)
 __SYCL_ONEAPI_PROGRESS_INST(sub_group_progress_capabilities, root_group)
 __SYCL_ONEAPI_PROGRESS_INST(sub_group_progress_capabilities, work_group)

@@ -54,8 +54,7 @@ __SYCL_INTEL_DEVICE_TRAIT(gpu_hw_threads_per_eu, uint32_t,
 __SYCL_INTEL_DEVICE_TRAIT(max_mem_bandwidth, uint64_t,
                           UR_DEVICE_INFO_MAX_MEMORY_BANDWIDTH)
 __SYCL_INTEL_DEVICE_TRAIT(uuid, sycl::detail::uuid_type, UR_DEVICE_INFO_UUID)
-__SYCL_INTEL_DEVICE_TRAIT(free_memory, uint64_t,
-                          UR_DEVICE_INFO_GLOBAL_MEM_FREE)
+__SYCL_INTEL_DEVICE_TRAIT(free_memory, uint64_t, UR_DEVICE_INFO_GLOBAL_MEM_FREE)
 __SYCL_INTEL_DEVICE_TRAIT(memory_clock_rate, uint32_t,
                           UR_DEVICE_INFO_MEMORY_CLOCK_RATE)
 __SYCL_INTEL_DEVICE_TRAIT(memory_bus_width, uint32_t,

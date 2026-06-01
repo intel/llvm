@@ -20,8 +20,7 @@ namespace ext::oneapi::info::device {
 struct num_compute_units {
   using return_type = size_t;
   using info_class = sycl::detail::info_class::device;
-  static constexpr ur_device_info_t ur_code =
-      UR_DEVICE_INFO_NUM_COMPUTE_UNITS;
+  static constexpr ur_device_info_t ur_code = UR_DEVICE_INFO_NUM_COMPUTE_UNITS;
 };
 
 } // namespace ext::oneapi::info::device

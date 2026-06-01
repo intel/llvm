@@ -356,8 +356,7 @@ __SYCL_DEVICE_INFO_2020_DEP(built_in_kernels, std::vector<std::string>,
 __SYCL_DEVICE_INFO(platform, sycl::platform, UR_DEVICE_INFO_PLATFORM)
 __SYCL_DEVICE_INFO(name, std::string, UR_DEVICE_INFO_NAME)
 __SYCL_DEVICE_INFO(vendor, std::string, UR_DEVICE_INFO_VENDOR)
-__SYCL_DEVICE_INFO(driver_version, std::string,
-                   UR_DEVICE_INFO_DRIVER_VERSION)
+__SYCL_DEVICE_INFO(driver_version, std::string, UR_DEVICE_INFO_DRIVER_VERSION)
 __SYCL_DEVICE_INFO_2020_DEP(profile, std::string, UR_DEVICE_INFO_PROFILE,
                             "deprecated in SYCL 2020")
 __SYCL_DEVICE_INFO(version, std::string, UR_DEVICE_INFO_VERSION)
@@ -375,8 +374,7 @@ __SYCL_DEVICE_INFO_2020_DEP(preferred_interop_user_sync, bool,
                             "deprecated in SYCL 2020")
 __SYCL_DEVICE_INFO(partition_max_sub_devices, uint32_t,
                    UR_DEVICE_INFO_PARTITION_MAX_SUB_DEVICES)
-__SYCL_DEVICE_INFO(partition_properties,
-                   std::vector<info::partition_property>,
+__SYCL_DEVICE_INFO(partition_properties, std::vector<info::partition_property>,
                    UR_DEVICE_INFO_SUPPORTED_PARTITIONS)
 __SYCL_DEVICE_INFO(partition_affinity_domains,
                    std::vector<info::partition_affinity_domain>,
@@ -399,8 +397,7 @@ __SYCL_DEVICE_INFO_2020_DEP(image_support, bool, UR_DEVICE_INFO_FORCE_UINT32,
 // Extensions/deprecated
 __SYCL_DEVICE_INFO_DEP(atomic64, bool, UR_DEVICE_INFO_ATOMIC_64,
                        "use sycl::aspect::atomic64 instead")
-__SYCL_DEVICE_INFO(reference_count, uint32_t,
-                   UR_DEVICE_INFO_REFERENCE_COUNT)
+__SYCL_DEVICE_INFO(reference_count, uint32_t, UR_DEVICE_INFO_REFERENCE_COUNT)
 // To be dropped (has alternatives/not needed)
 __SYCL_DEVICE_INFO(usm_device_allocations, bool,
                    UR_DEVICE_INFO_USM_DEVICE_SUPPORT)

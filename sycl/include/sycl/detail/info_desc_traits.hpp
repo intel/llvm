@@ -86,8 +86,8 @@ template <typename T, typename = void>
 struct is_ur_dispatched : std::false_type {};
 
 template <typename T>
-struct is_ur_dispatched<T, std::void_t<decltype(T::ur_code)>>
-    : std::true_type {};
+struct is_ur_dispatched<T, std::void_t<decltype(T::ur_code)>> : std::true_type {
+};
 
 template <typename T, typename Class, typename = void>
 struct is_info_desc_for : std::false_type {};

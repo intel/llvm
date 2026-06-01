@@ -106,8 +106,8 @@ __SYCL_KDS_INFO_INST(ext_codeplay_num_regs, uint32_t)
 
 // Self-describing extension traits: explicit instantiation for the ABI
 // surface lives here until the matching trait moves to a dedicated TU.
-template __SYCL_EXPORT size_t kernel::get_info<
-    ext::intel::info::kernel_device_specific::spill_memory_size>(
+template __SYCL_EXPORT size_t
+kernel::get_info<ext::intel::info::kernel_device_specific::spill_memory_size>(
     const device &) const;
 
 template __SYCL_EXPORT uint32_t

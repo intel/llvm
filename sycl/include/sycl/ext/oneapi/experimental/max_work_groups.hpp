@@ -41,8 +41,7 @@ template <> struct max_work_groups<2> {
 template <> struct max_work_groups<3> {
   using return_type = sycl::id<3>;
   using info_class = sycl::detail::info_class::device;
-  static constexpr ur_device_info_t ur_code =
-      UR_DEVICE_INFO_MAX_WORK_GROUPS_3D;
+  static constexpr ur_device_info_t ur_code = UR_DEVICE_INFO_MAX_WORK_GROUPS_3D;
 };
 
 } // namespace ext::oneapi::experimental::info::device
