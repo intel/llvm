@@ -397,6 +397,12 @@ ur_result_t urEventGetNativeHandle(ur_event_handle_t hEvent,
   return exceptionToResult(std::current_exception());
 }
 
+ur_result_t urEventCreateExp(ur_context_handle_t, ur_device_handle_t,
+                             const ur_exp_event_create_properties_t *,
+                             ur_event_handle_t *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
 ur_result_t
 urEventCreateWithNativeHandle(ur_native_handle_t hNativeEvent,
                               ur_context_handle_t hContext,

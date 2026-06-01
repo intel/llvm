@@ -106,6 +106,7 @@
 		urEnqueueUSMPrefetch;
 		urEnqueueUSMSharedAllocExp;
 		urEnqueueWriteHostPipe;
+		urEventCreateExp;
 		urEventCreateWithNativeHandle;
 		urEventGetInfo;
 		urEventGetNativeHandle;
@@ -122,6 +123,7 @@
 		urGetDeviceProcAddrTable;
 		urGetEnqueueExpProcAddrTable;
 		urGetEnqueueProcAddrTable;
+		urGetEventExpProcAddrTable;
 		urGetEventProcAddrTable;
 		urGetGraphExpProcAddrTable;
 		urGetIPCExpProcAddrTable;
@@ -333,6 +335,7 @@
 		urPrintEnqueueUsmPrefetchParams;
 		urPrintEnqueueUsmSharedAllocExpParams;
 		urPrintEnqueueWriteHostPipeParams;
+		urPrintEventCreateExpParams;
 		urPrintEventCreateWithNativeHandleParams;
 		urPrintEventGetInfoParams;
 		urPrintEventGetNativeHandleParams;
@@ -359,6 +362,9 @@
 		urPrintExpEnqueueExtProperties;
 		urPrintExpEnqueueNativeCommandFlags;
 		urPrintExpEnqueueNativeCommandProperties;
+		urPrintExpEnqueueSignalEventProperties;
+		urPrintExpEventCreateFlags;
+		urPrintExpEventCreateProperties;
 		urPrintExpExternalMemDesc;
 		urPrintExpExternalMemType;
 		urPrintExpExternalSemaphoreDesc;

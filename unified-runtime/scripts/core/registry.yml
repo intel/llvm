@@ -727,7 +727,10 @@ etors:
 - name: GRAPH_SET_DESTRUCTION_CALLBACK_EXP
   desc: Enumerator for $xGraphSetDestructionCallbackExp
   value: '315'
-max_id: '315'
+- name: EVENT_CREATE_EXP
+  desc: Enumerator for $xEventCreateExp
+  value: '316'
+max_id: '316'
 ---
 type: enum
 desc: Defines structure types

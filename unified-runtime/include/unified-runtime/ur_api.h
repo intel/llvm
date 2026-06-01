@@ -512,6 +512,8 @@ typedef enum ur_function_t {
   UR_FUNCTION_QUEUE_GET_GRAPH_EXP = 314,
   /// Enumerator for ::urGraphSetDestructionCallbackExp
   UR_FUNCTION_GRAPH_SET_DESTRUCTION_CALLBACK_EXP = 315,
+  /// Enumerator for ::urEventCreateExp
+  UR_FUNCTION_EVENT_CREATE_EXP = 316,
   /// @cond
   UR_FUNCTION_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -631,6 +633,10 @@ typedef enum ur_structure_type_t {
   UR_STRUCTURE_TYPE_EXP_ENQUEUE_NATIVE_COMMAND_PROPERTIES = 0x3000,
   /// ::ur_exp_enqueue_ext_properties_t
   UR_STRUCTURE_TYPE_EXP_ENQUEUE_EXT_PROPERTIES = 0x4000,
+  /// ::ur_exp_event_create_properties_t
+  UR_STRUCTURE_TYPE_EXP_EVENT_CREATE_PROPERTIES = 0x4001,
+  /// ::ur_exp_enqueue_signal_event_properties_t
+  UR_STRUCTURE_TYPE_EXP_ENQUEUE_SIGNAL_EVENT_PROPERTIES = 0x4002,
   /// ::ur_exp_kernel_arg_properties_t
   UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES = 0x5000,
   /// ::ur_exp_host_task_properties_t
@@ -2504,6 +2510,12 @@ typedef enum ur_device_info_t {
   /// [::ur_bool_t] returns true if the device supports inter-process
   /// communicable memory handles
   UR_DEVICE_INFO_IPC_MEMORY_SUPPORT_EXP = 0x2023,
+  /// [::ur_bool_t] returns true if the device supports reusable events
+  /// created with ::urEventCreateExp.
+  UR_DEVICE_INFO_REUSABLE_EVENTS_EXP = 0x2024,
+  /// [::ur_bool_t] returns true if the device supports profiling timestamps
+  /// for reusable events created with ::urEventCreateExp.
+  UR_DEVICE_INFO_REUSABLE_EVENTS_PROFILING_EXP = 0x2025,
   /// [::ur_bool_t] returns true if the device supports enqueueing of
   /// allocations and frees.
   UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_SUPPORT_EXP = 0x2050,
@@ -13652,6 +13664,107 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueNativeCommandExp(
 #if !defined(__GNUC__)
 #pragma endregion
 #endif
+// Intel 'oneAPI' Unified Runtime Experimental API for reusable events
+#if !defined(__GNUC__)
+#pragma region reusable_events_(experimental)
+#endif
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Flags for creating a reusable event.
+typedef uint32_t ur_exp_event_create_flags_t;
+typedef enum ur_exp_event_create_flag_t {
+  /// Enables profiling timestamps for the event.
+  UR_EXP_EVENT_CREATE_FLAG_PROFILING_ENABLE = UR_BIT(0),
+  /// @cond
+  UR_EXP_EVENT_CREATE_FLAG_FORCE_UINT32 = 0x7fffffff
+  /// @endcond
+
+} ur_exp_event_create_flag_t;
+/// @brief Bit Mask for validating ur_exp_event_create_flags_t
+#define UR_EXP_EVENT_CREATE_FLAGS_MASK 0xfffffffe
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Properties for ::urEventCreateExp.
+typedef struct ur_exp_event_create_properties_t {
+  /// [in] type of this structure, must be
+  /// ::UR_STRUCTURE_TYPE_EXP_EVENT_CREATE_PROPERTIES
+  ur_structure_type_t stype;
+  /// [in,out][optional] pointer to extension-specific structure
+  void *pNext;
+  /// [in] event creation flags
+  ur_exp_event_create_flags_t flags;
+
+} ur_exp_event_create_properties_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Extended enqueue properties for specifying a pre-existing event to
+///        signal. This structure may be passed via the pNext chain of
+///        ::ur_exp_enqueue_ext_properties_t when calling
+///        ::urEnqueueEventsWaitWithBarrierExt. When present, the implementation
+///        signals hSignalEvent on completion instead of allocating a new event.
+///        The handle value pointed to by hSignalEvent is never overwritten by
+///        the implementation.
+typedef struct ur_exp_enqueue_signal_event_properties_t {
+  /// [in] type of this structure, must be
+  /// ::UR_STRUCTURE_TYPE_EXP_ENQUEUE_SIGNAL_EVENT_PROPERTIES
+  ur_structure_type_t stype;
+  /// [in,out][optional] pointer to extension-specific structure
+  void *pNext;
+  /// [in] handle of an existing reusable event to signal on completion. The
+  /// handle value is not modified by the implementation. The event must
+  /// have been created with ::urEventCreateExp.
+  ur_event_handle_t hSignalEvent;
+
+} ur_exp_enqueue_signal_event_properties_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Create a reusable event object.
+///
+/// @details
+///     - A reusable event can be associated with at most one in-flight command
+///       at a time, but may be reused across multiple successive commands.
+///     - The event is initially in the completed state.
+///     - The context and device must be compatible: hDevice must be one of the
+///       devices associated with hContext.
+///     - To enable profiling timestamps, pass
+///       ::UR_EXP_EVENT_CREATE_FLAG_PROFILING_ENABLE in pProperties->flags.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///         + `NULL == hDevice`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `NULL != pProperties && ::UR_EXP_EVENT_CREATE_FLAGS_MASK &
+///         pProperties->flags`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == phEvent`
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_INVALID_DEVICE
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///         + `pProperties != NULL && pProperties->flags &
+///         ~::UR_EXP_EVENT_CREATE_FLAG_PROFILING_ENABLE`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If ::UR_DEVICE_INFO_REUSABLE_EVENTS_EXP is false.
+///         + If ::UR_EXP_EVENT_CREATE_FLAG_PROFILING_ENABLE is set and
+///         ::UR_DEVICE_INFO_REUSABLE_EVENTS_PROFILING_EXP is false.
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+UR_APIEXPORT ur_result_t UR_APICALL urEventCreateExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device on which the event will be used
+    ur_device_handle_t hDevice,
+    /// [in][optional] pointer to event creation properties
+    const ur_exp_event_create_properties_t *pProperties,
+    /// [out][alloc] pointer to handle of the created event object
+    ur_event_handle_t *phEvent);
+
+#if !defined(__GNUC__)
+#pragma endregion
+#endif
 // Intel 'oneAPI' Unified Runtime Experimental APIs for Graph Record and Replay
 #if !defined(__GNUC__)
 #pragma region graph_(experimental)
@@ -14272,6 +14385,17 @@ typedef struct ur_event_set_callback_params_t {
   ur_event_callback_t *ppfnNotify;
   void **ppUserData;
 } ur_event_set_callback_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urEventCreateExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_event_create_exp_params_t {
+  ur_context_handle_t *phContext;
+  ur_device_handle_t *phDevice;
+  const ur_exp_event_create_properties_t **ppProperties;
+  ur_event_handle_t **pphEvent;
+} ur_event_create_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urProgramCreateWithIL

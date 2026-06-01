@@ -6017,6 +6017,28 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueNativeCommandExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urEventCreateExp
+__urdlllocal ur_result_t UR_APICALL urEventCreateExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device on which the event will be used
+    ur_device_handle_t hDevice,
+    /// [in][optional] pointer to event creation properties
+    const ur_exp_event_create_properties_t *pProperties,
+    /// [out][alloc] pointer to handle of the created event object
+    ur_event_handle_t *phEvent) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+
+  auto *pfnCreateExp = dditable->EventExp.pfnCreateExp;
+  if (nullptr == pfnCreateExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnCreateExp(hContext, hDevice, pProperties, phEvent);
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urGraphCreateExp
 __urdlllocal ur_result_t UR_APICALL urGraphCreateExp(
     /// [in] Handle of the context object.
@@ -6785,6 +6807,59 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEventProcAddrTable(
     } else {
       // return pointers directly to platform's DDIs
       *pDdiTable = ur_loader::getContext()->platforms.front().dditable.Event;
+    }
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's EventExp table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+UR_DLLEXPORT ur_result_t UR_APICALL urGetEventExpProcAddrTable(
+    /// [in] API version requested
+    ur_api_version_t version,
+    /// [in,out] pointer to table of DDI function pointers
+    ur_event_exp_dditable_t *pDdiTable) {
+  if (nullptr == pDdiTable)
+    return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+  if (ur_loader::getContext()->version < version)
+    return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
+
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  // Load the device-platform DDI tables
+  for (auto &platform : ur_loader::getContext()->platforms) {
+    // statically linked adapter inside of the loader
+    if (platform.handle == nullptr)
+      continue;
+
+    if (platform.initStatus != UR_RESULT_SUCCESS)
+      continue;
+
+    auto getTable = reinterpret_cast<ur_pfnGetEventExpProcAddrTable_t>(
+        ur_loader::LibLoader::getFunctionPtr(platform.handle.get(),
+                                             "urGetEventExpProcAddrTable"));
+    if (!getTable)
+      continue;
+    platform.initStatus = getTable(version, &platform.dditable.EventExp);
+  }
+
+  if (UR_RESULT_SUCCESS == result) {
+    if (ur_loader::getContext()->platforms.size() != 1 ||
+        ur_loader::getContext()->forceIntercept) {
+      // return pointers to loader's DDIs
+      pDdiTable->pfnCreateExp = ur_loader::urEventCreateExp;
+    } else {
+      // return pointers directly to platform's DDIs
+      *pDdiTable = ur_loader::getContext()->platforms.front().dditable.EventExp;
     }
   }
 

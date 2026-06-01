@@ -9608,6 +9608,55 @@ ur_result_t UR_APICALL urEnqueueNativeCommandExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Create a reusable event object.
+///
+/// @details
+///     - A reusable event can be associated with at most one in-flight command
+///       at a time, but may be reused across multiple successive commands.
+///     - The event is initially in the completed state.
+///     - The context and device must be compatible: hDevice must be one of the
+///       devices associated with hContext.
+///     - To enable profiling timestamps, pass
+///       ::UR_EXP_EVENT_CREATE_FLAG_PROFILING_ENABLE in pProperties->flags.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///         + `NULL == hDevice`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `NULL != pProperties && ::UR_EXP_EVENT_CREATE_FLAGS_MASK &
+///         pProperties->flags`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == phEvent`
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_INVALID_DEVICE
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///         + `pProperties != NULL && pProperties->flags &
+///         ~::UR_EXP_EVENT_CREATE_FLAG_PROFILING_ENABLE`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If ::UR_DEVICE_INFO_REUSABLE_EVENTS_EXP is false.
+///         + If ::UR_EXP_EVENT_CREATE_FLAG_PROFILING_ENABLE is set and
+///         ::UR_DEVICE_INFO_REUSABLE_EVENTS_PROFILING_EXP is false.
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+ur_result_t UR_APICALL urEventCreateExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device on which the event will be used
+    ur_device_handle_t hDevice,
+    /// [in][optional] pointer to event creation properties
+    const ur_exp_event_create_properties_t *pProperties,
+    /// [out][alloc] pointer to handle of the created event object
+    ur_event_handle_t *phEvent) {
+  ur_result_t result = UR_RESULT_SUCCESS;
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Create a new record & replay graph instance explicitly.
 ///
 /// @returns

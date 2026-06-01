@@ -1565,6 +1565,36 @@ UR_APIEXPORT ur_result_t UR_APICALL urPrintExpEnqueueNativeCommandProperties(
     char *buffer, const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_exp_event_create_flag_t enum
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL
+urPrintExpEventCreateFlags(enum ur_exp_event_create_flag_t value, char *buffer,
+                           const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_exp_event_create_properties_t struct
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL urPrintExpEventCreateProperties(
+    const struct ur_exp_event_create_properties_t params, char *buffer,
+    const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_exp_enqueue_signal_event_properties_t struct
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL urPrintExpEnqueueSignalEventProperties(
+    const struct ur_exp_enqueue_signal_event_properties_t params, char *buffer,
+    const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_loader_config_create_params_t struct
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -1913,6 +1943,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urPrintEventCreateWithNativeHandleParams(
 ///         - `buff_size < out_size`
 UR_APIEXPORT ur_result_t UR_APICALL urPrintEventSetCallbackParams(
     const struct ur_event_set_callback_params_t *params, char *buffer,
+    const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_event_create_exp_params_t struct
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL urPrintEventCreateExpParams(
+    const struct ur_event_create_exp_params_t *params, char *buffer,
     const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////

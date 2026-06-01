@@ -248,6 +248,17 @@ urGetUSMProcAddrTable(ur_api_version_t Version, ur_usm_dditable_t *pDdiTable) {
   return UR_RESULT_SUCCESS;
 }
 
+UR_DLLEXPORT ur_result_t UR_APICALL urGetEventExpProcAddrTable(
+    ur_api_version_t Version, ur_event_exp_dditable_t *pDdiTable) {
+  auto Result = validateProcInputs(Version, pDdiTable);
+  if (UR_RESULT_SUCCESS != Result) {
+    return Result;
+  }
+
+  pDdiTable->pfnCreateExp = urEventCreateExp;
+  return UR_RESULT_SUCCESS;
+}
+
 UR_DLLEXPORT ur_result_t UR_APICALL urGetUSMExpProcAddrTable(
     ur_api_version_t Version, ur_usm_exp_dditable_t *pDdiTable) {
   auto Result = validateProcInputs(Version, pDdiTable);
@@ -520,6 +531,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urAllAddrTable(ur_api_version_t version,
   urGetEnqueueExpProcAddrTable(version, &pDdiTable->EnqueueExp);
   urGetIPCExpProcAddrTable(version, &pDdiTable->IPCExp);
   urGetEventProcAddrTable(version, &pDdiTable->Event);
+  urGetEventExpProcAddrTable(version, &pDdiTable->EventExp);
   urGetGraphExpProcAddrTable(version, &pDdiTable->GraphExp);
   urGetKernelProcAddrTable(version, &pDdiTable->Kernel);
   urGetMemProcAddrTable(version, &pDdiTable->Mem);

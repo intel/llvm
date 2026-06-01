@@ -11415,6 +11415,62 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueNativeCommandExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urEventCreateExp
+__urdlllocal ur_result_t UR_APICALL urEventCreateExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device on which the event will be used
+    ur_device_handle_t hDevice,
+    /// [in][optional] pointer to event creation properties
+    const ur_exp_event_create_properties_t *pProperties,
+    /// [out][alloc] pointer to handle of the created event object
+    ur_event_handle_t *phEvent) {
+  auto pfnCreateExp = getContext()->urDdiTable.EventExp.pfnCreateExp;
+
+  if (nullptr == pfnCreateExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == phEvent)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hDevice)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL != pProperties &&
+        UR_EXP_EVENT_CREATE_FLAGS_MASK & pProperties->flags)
+      return UR_RESULT_ERROR_INVALID_ENUMERATION;
+
+    if (pProperties != NULL &&
+        pProperties->flags & ~UR_EXP_EVENT_CREATE_FLAG_PROFILING_ENABLE)
+      return UR_RESULT_ERROR_INVALID_VALUE;
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hContext)) {
+    URLOG_CTX_INVALID_REFERENCE(hContext);
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hDevice)) {
+    URLOG_CTX_INVALID_REFERENCE(hDevice);
+  }
+
+  ur_result_t result = pfnCreateExp(hContext, hDevice, pProperties, phEvent);
+
+  if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
+      phEvent) {
+    getContext()->refCountContext->createRefCount(*phEvent);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urGraphCreateExp
 __urdlllocal ur_result_t UR_APICALL urGraphCreateExp(
     /// [in] Handle of the context object.
@@ -12405,6 +12461,38 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEventProcAddrTable(
 
   dditable.pfnSetCallback = pDdiTable->pfnSetCallback;
   pDdiTable->pfnSetCallback = ur_validation_layer::urEventSetCallback;
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's EventExp table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+UR_DLLEXPORT ur_result_t UR_APICALL urGetEventExpProcAddrTable(
+    /// [in] API version requested
+    ur_api_version_t version,
+    /// [in,out] pointer to table of DDI function pointers
+    ur_event_exp_dditable_t *pDdiTable) {
+  auto &dditable = ur_validation_layer::getContext()->urDdiTable.EventExp;
+
+  if (nullptr == pDdiTable)
+    return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+  if (UR_MAJOR_VERSION(ur_validation_layer::getContext()->version) !=
+          UR_MAJOR_VERSION(version) ||
+      UR_MINOR_VERSION(ur_validation_layer::getContext()->version) >
+          UR_MINOR_VERSION(version))
+    return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
+
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  dditable.pfnCreateExp = pDdiTable->pfnCreateExp;
+  pDdiTable->pfnCreateExp = ur_validation_layer::urEventCreateExp;
 
   return result;
 }
@@ -13426,6 +13514,11 @@ ur_result_t context_t::init(ur_dditable_t *dditable,
   if (UR_RESULT_SUCCESS == result) {
     result = ur_validation_layer::urGetEventProcAddrTable(
         UR_API_VERSION_CURRENT, &dditable->Event);
+  }
+
+  if (UR_RESULT_SUCCESS == result) {
+    result = ur_validation_layer::urGetEventExpProcAddrTable(
+        UR_API_VERSION_CURRENT, &dditable->EventExp);
   }
 
   if (UR_RESULT_SUCCESS == result) {

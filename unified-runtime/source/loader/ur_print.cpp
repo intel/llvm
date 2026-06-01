@@ -1257,6 +1257,30 @@ ur_result_t urPrintExpEnqueueNativeCommandProperties(
   return str_copy(&ss, buffer, buff_size, out_size);
 }
 
+ur_result_t urPrintExpEventCreateFlags(enum ur_exp_event_create_flag_t value,
+                                       char *buffer, const size_t buff_size,
+                                       size_t *out_size) {
+  std::stringstream ss;
+  ss << value;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintExpEventCreateProperties(
+    const struct ur_exp_event_create_properties_t params, char *buffer,
+    const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintExpEnqueueSignalEventProperties(
+    const struct ur_exp_enqueue_signal_event_properties_t params, char *buffer,
+    const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
 ur_result_t
 urPrintAdapterGetParams(const struct ur_adapter_get_params_t *params,
                         char *buffer, const size_t buff_size,
@@ -2108,6 +2132,15 @@ ur_result_t urPrintEventCreateWithNativeHandleParams(
 ur_result_t urPrintEventSetCallbackParams(
     const struct ur_event_set_callback_params_t *params, char *buffer,
     const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t
+urPrintEventCreateExpParams(const struct ur_event_create_exp_params_t *params,
+                            char *buffer, const size_t buff_size,
+                            size_t *out_size) {
   std::stringstream ss;
   ss << params;
   return str_copy(&ss, buffer, buff_size, out_size);

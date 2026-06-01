@@ -177,6 +177,12 @@ template <>
 struct stype_map<ur_exp_enqueue_ext_properties_t>
     : stype_map_impl<UR_STRUCTURE_TYPE_EXP_ENQUEUE_EXT_PROPERTIES> {};
 template <>
+struct stype_map<ur_exp_event_create_properties_t>
+    : stype_map_impl<UR_STRUCTURE_TYPE_EXP_EVENT_CREATE_PROPERTIES> {};
+template <>
+struct stype_map<ur_exp_enqueue_signal_event_properties_t>
+    : stype_map_impl<UR_STRUCTURE_TYPE_EXP_ENQUEUE_SIGNAL_EVENT_PROPERTIES> {};
+template <>
 struct stype_map<ur_exp_kernel_arg_properties_t>
     : stype_map_impl<UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES> {};
 template <>

@@ -1013,6 +1013,12 @@ ur_result_t urEventSetCallback(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
+ur_result_t urEventCreateExp(ur_context_handle_t, ur_device_handle_t,
+                             const ur_exp_event_create_properties_t *,
+                             ur_event_handle_t *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
 } // namespace ur::level_zero
 
 ur_result_t ur_event_handle_t_::getOrCreateHostVisibleEvent(
@@ -1773,7 +1779,7 @@ ur_result_t ur_ze_event_list_t::collectEventsForReleaseAndDestroyUrZeEventList(
   return UR_RESULT_SUCCESS;
 }
 
-// Tells if this event is with profiling capabilities.
+// Tells if this event is with profiling capabilities:
 bool ur_event_handle_t_::isProfilingEnabled() const {
   return !UrQueue || // tentatively assume user events are profiling enabled
          (UrQueue->Properties & UR_QUEUE_FLAG_PROFILING_ENABLE) != 0;
