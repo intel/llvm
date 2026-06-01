@@ -89,12 +89,12 @@ if(MSVC)
   endif()
 endif()
 
-if(NOT SYCL_HEADERS_ONLY)
-  include(FetchEmhash)
-  include(BuildUnifiedRuntime)
-else()
+if(SYCL_HEADERS_ONLY)
   set(UNIFIED_RUNTIME_INCLUDE_DIR "${LLVM_SOURCE_DIR}/../unified-runtime/include")
   cmake_path(NORMAL_PATH UNIFIED_RUNTIME_INCLUDE_DIR)
+else()
+  include(FetchEmhash)
+  include(BuildUnifiedRuntime)
 endif()
 
 # The change in SYCL_MAJOR_VERSION must be accompanied with the same update in
