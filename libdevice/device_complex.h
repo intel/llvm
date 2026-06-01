@@ -21,5 +21,18 @@
 #ifndef CMPLXF
 #define CMPLXF(r, i) ((float __complex__){(float)(r), (float)(i)})
 #endif
+
+DEVICE_EXTERN_C
+float __complex__ __mulsc3(float a, float b, float c, float d);
+
+DEVICE_EXTERN_C
+double __complex__ __muldc3(double a, double b, double c, double d);
+
+DEVICE_EXTERN_C
+float __complex__ __divsc3(float a, float b, float c, float d);
+
+DEVICE_EXTERN_C
+double __complex__ __divdc3(double a, double b, double c, double d);
+
 #endif // __SPIR__ || __SPIRV__
 #endif // __LIBDEVICE_DEVICE_COMPLEX_H_

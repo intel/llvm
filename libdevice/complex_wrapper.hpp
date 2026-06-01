@@ -88,20 +88,6 @@ float __complex__ catanhf(float __complex__ z) {
 DEVICE_EXTERN_C_INLINE
 float __complex__ catanf(float __complex__ z) { return __devicelib_catanf(z); }
 
-// __mulsc3
-// Returns: the product of a + ib and c + id
-DEVICE_EXTERN_C_INLINE
-float __complex__ __mulsc3(float __a, float __b, float __c, float __d) {
-  return __devicelib___mulsc3(__a, __b, __c, __d);
-}
-
-// __divsc3
-// Returns: the quotient of (a + ib) / (c + id)
-DEVICE_EXTERN_C_INLINE
-float __complex__ __divsc3(float __a, float __b, float __c, float __d) {
-  return __devicelib___divsc3(__a, __b, __c, __d);
-}
-
 DEVICE_EXTERN_C_INLINE
 double cimag(double __complex__ z) { return __devicelib_cimag(z); }
 
@@ -178,17 +164,4 @@ double __complex__ catanh(double __complex__ z) {
 DEVICE_EXTERN_C_INLINE
 double __complex__ catan(double __complex__ z) { return __devicelib_catan(z); }
 
-// __muldc3
-// Returns: the product of a + ib and c + id
-DEVICE_EXTERN_C_INLINE
-double __complex__ __muldc3(double __a, double __b, double __c, double __d) {
-  return __devicelib___muldc3(__a, __b, __c, __d);
-}
-
-// __divdc3
-// Returns: the quotient of (a + ib) / (c + id)
-DEVICE_EXTERN_C_INLINE
-double __complex__ __divdc3(double __a, double __b, double __c, double __d) {
-  return __devicelib___divdc3(__a, __b, __c, __d);
-}
 #endif // __SPIR__ || __SPIRV__

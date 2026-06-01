@@ -430,6 +430,10 @@ macro(construct_compiler_rt_default_triple)
       set(COMPILER_RT_GPU_BUILD ON)
       set(CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS} -flto -c")
     endif()
+
+    if("${COMPILER_RT_DEFAULT_TARGET_ARCH}" MATCHES "spirv64")
+      set(COMPILER_RT_SPIRV_BUILD ON)
+    endif()
   endif()
 
   # Try to locate the GPU loader utility for GPU unit tests.

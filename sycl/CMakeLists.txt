@@ -534,6 +534,13 @@ if("lld" IN_LIST LLVM_ENABLE_PROJECTS)
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS lld)
 endif()
 
+if ("compiler-rt" IN_LIST RUNTIMES_spirv64-unknown-unknown_LLVM_ENABLE_RUNTIMES OR
+    ("compiler-rt" IN_LIST LLVM_ENABLE_RUNTIMES AND
+     "spirv64-unknown-unknown" IN_LIST LLVM_BUILTIN_TARGETS))
+  add_dependencies(sycl-toolchain builtins-spirv64-unknown-unknown)
+  list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS builtins-spirv64-unknown-unknown)
+endif()
+
 set(libclc_enabled FALSE)
 foreach(target IN LISTS LLVM_RUNTIME_TARGETS)
   if("libclc" IN_LIST RUNTIMES_${target}_LLVM_ENABLE_RUNTIMES)

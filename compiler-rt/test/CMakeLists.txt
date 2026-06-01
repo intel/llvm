@@ -76,7 +76,9 @@ if(COMPILER_RT_CAN_EXECUTE_TESTS)
   # COMPILER_RT_TEST_EXTERNAL_BUILTINS allows running tests against builtins built
   # in an independent build. This option is only indended to be used by
   # LLVM_ENABLE_RUNTIMES-based builds.
-  if(COMPILER_RT_BUILD_BUILTINS OR COMPILER_RT_TEST_EXTERNAL_BUILTINS)
+  # CompilerRT builtin for SPIRV64 testing requires llvm gpu loader support which is
+  # not ready for now.
+  if(COMPILER_RT_BUILD_BUILTINS OR COMPILER_RT_TEST_EXTERNAL_BUILTINS AND NOT COMPILER_RT_GPU_BUILD)
     add_subdirectory(builtins)
   endif()
   if(COMPILER_RT_BUILD_SANITIZERS)
