@@ -277,15 +277,18 @@ def check_igc_tag_and_add_feature():
         with open(config.igc_tag_file, "r") as tag_file:
             contents = tag_file.read()
 
+
 def is_windows_unc_network_path(path):
     if not path or platform.system() != "Windows":
         return false
     return path.startswith("//") or path.startswith(r"\\")
 
+
 def normalize_windows_network_path(path):
     if is_windows_unc_network_path(path):
         path = path.replace("/", r"\\")
     return path
+
 
 def quote_path(path):
     if not path:
@@ -566,15 +569,13 @@ llvm_config.with_system_environment("ROCM_PATH")
 
 # Check for OpenCL ICD
 if config.opencl_libs_dir:
-    opencl_lib = config.opencl_libs_dir  + "/OpenCL.lib"
+    opencl_lib = config.opencl_libs_dir + "/OpenCL.lib"
     config.opencl_libs_dir = quote_path(config.opencl_libs_dir)
     config.opencl_include_dir = quote_path(config.opencl_include_dir)
     if cl_options:
         if is_windows_unc_network_path(opencl_lib):
             opencl_lib = normalize_windows_network_path(opencl_lib)
-        config.substitutions.append(
-            ("%opencl_lib", " " + quote_path(opencl_lib))
-        )
+        config.substitutions.append(("%opencl_lib", " " + quote_path(opencl_lib)))
     else:
         config.substitutions.append(
             ("%opencl_lib", "-L" + config.opencl_libs_dir + " -lOpenCL")
