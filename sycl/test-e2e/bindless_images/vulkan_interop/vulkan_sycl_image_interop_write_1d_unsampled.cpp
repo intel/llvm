@@ -47,6 +47,10 @@
 // RUN: %{run} %t.out --type int8 --channels 1 32
 // RUN: %{run} %t.out --type int8 --channels 2 32
 // RUN: %{run} %t.out --type int8 --channels 4 32
+// CUDA doesn't support unorm8
+// RUN-IF: !cuda, %{run} %t.out --type unorm8 --channels 1 32
+// RUN-IF: !cuda, %{run} %t.out --type unorm8 --channels 2 32
+// RUN-IF: !cuda, %{run} %t.out --type unorm8 --channels 4 32
 
 // On Linux L0, there are problem with semaphores and latest drivers.
 // GSD-12371 GSD-12339  We need driver version 38362 or later.
