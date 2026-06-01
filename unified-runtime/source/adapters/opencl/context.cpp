@@ -43,7 +43,7 @@ ur_context_handle_t_::makeWithNative(native_type Ctx, uint32_t DevCount,
         ur_device_handle_t UrDevice = nullptr;
         ur_native_handle_t hNativeHandle =
             reinterpret_cast<ur_native_handle_t>(CLDevices[i]);
-        UR_RETURN_ON_FAILURE(urDeviceCreateWithNativeHandle(
+        UR_RETURN_ON_FAILURE(ur::opencl::urDeviceCreateWithNativeHandle(
             hNativeHandle, nullptr, nullptr, &UrDevice));
         URDevices.push_back(UrDevice);
       }
@@ -60,6 +60,8 @@ ur_context_handle_t_::makeWithNative(native_type Ctx, uint32_t DevCount,
 
   return UR_RESULT_SUCCESS;
 }
+
+namespace ur::opencl {
 
 UR_APIEXPORT ur_result_t UR_APICALL urContextCreate(
     uint32_t DeviceCount, const ur_device_handle_t *phDevices,
@@ -153,7 +155,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextCreateWithNativeHandle(
 UR_APIEXPORT ur_result_t UR_APICALL urContextSetExtendedDeleter(
     ur_context_handle_t hContext, ur_context_extended_deleter_t pfnDeleter,
     void *pUserData) {
-  if (!ur::cl::getAdapter()->clSetContextDestructorCallback) {
+  if (!ur::cl::getAdapter()->clSetContextDestructorCallbackFn) {
     UR_LOG_L(ur::cl::getAdapter()->log, WARN,
              "clSetContextDestructorCallback not found, consider upgrading the "
              "OpenCL-ICD-Loader to the latest version.");
@@ -203,8 +205,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextSetExtendedDeleter(
     auto *C = static_cast<ContextCallback *>(pUserData);
     C->execute();
   };
-  CL_RETURN_ON_FAILURE(ur::cl::getAdapter()->clSetContextDestructorCallback(
+  CL_RETURN_ON_FAILURE(ur::cl::getAdapter()->clSetContextDestructorCallbackFn(
       hContext->CLContext, ClCallback, Callback));
 
   return UR_RESULT_SUCCESS;
 }
+
+} // namespace ur::opencl

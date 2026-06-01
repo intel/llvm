@@ -14,6 +14,12 @@
 
 #include <CL/cl.h>
 #include <CL/cl_ext.h>
+
+// In static-adapter builds this redirects OpenCL calls to dynamically-loaded
+// function pointers. The header is self-guarded and expands to nothing
+// otherwise.
+#include "ocl_dynamic_lib.hpp"
+
 #include <climits>
 #include <map>
 #include <mutex>
@@ -162,10 +168,9 @@ extern thread_local char ErrorMessage[MaxMessageSize];
 [[maybe_unused]] void setErrorMessage(const char *Message, int32_t ErrorCode);
 } // namespace cl_adapter
 
+#include "ur_interface_loader.hpp"
+
 namespace ur::opencl {
-struct ddi_getter {
-  const static ur_dditable_t *value();
-};
 using handle_base = ur::handle_base<ur::opencl::ddi_getter>;
 } // namespace ur::opencl
 

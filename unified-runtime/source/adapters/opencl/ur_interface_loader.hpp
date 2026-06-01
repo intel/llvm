@@ -1,4 +1,4 @@
-//===--------- ur_interface_loader.hpp - level_zero Adapter ------------===//
+//===--------- ur_interface_loader.hpp - opencl Adapter ------------===//
 //
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM
@@ -12,7 +12,7 @@
 #include <unified-runtime/ur_api.h>
 #include <unified-runtime/ur_ddi.h>
 
-namespace ur::level_zero {
+namespace ur::opencl {
 ur_result_t urAdapterGet(uint32_t NumEntries, ur_adapter_handle_t *phAdapters,
                          uint32_t *pNumAdapters);
 ur_result_t urAdapterRelease(ur_adapter_handle_t hAdapter);
@@ -870,11 +870,11 @@ ur_result_t urGraphSetDestructionCallbackExp(
     ur_exp_graph_destruction_callback_t pfnCallback, void *pUserData);
 ur_result_t urGraphDumpContentsExp(ur_exp_graph_handle_t hGraph,
                                    const char *filePath);
-#ifdef UR_STATIC_ADAPTER_LEVEL_ZERO
+#ifdef UR_STATIC_ADAPTER_OPENCL
 ur_result_t urAdapterGetDdiTables(ur_dditable_t *ddi);
 #endif
 
 struct ddi_getter {
   const static ur_dditable_t *value();
 };
-} // namespace ur::level_zero
+} // namespace ur::opencl

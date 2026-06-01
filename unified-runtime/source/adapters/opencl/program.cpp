@@ -42,6 +42,8 @@ ur_result_t ur_program_handle_t_::makeWithNative(native_type NativeProg,
   return UR_RESULT_SUCCESS;
 }
 
+namespace ur::opencl {
+
 UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithIL(
     ur_context_handle_t hContext, const void *pIL, size_t length,
     const ur_program_properties_t *, ur_program_handle_t *phProgram) {
@@ -438,10 +440,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramSetSpecializationConstants(
     return UR_RESULT_ERROR_INVALID_CONTEXT;
   }
 
-  if (ur::cl::getAdapter()->clSetProgramSpecializationConstant) {
+  if (ur::cl::getAdapter()->clSetProgramSpecializationConstantFn) {
     for (uint32_t i = 0; i < count; ++i) {
       CL_RETURN_ON_FAILURE(
-          ur::cl::getAdapter()->clSetProgramSpecializationConstant(
+          ur::cl::getAdapter()->clSetProgramSpecializationConstantFn(
               CLProg, pSpecConstants[i].id, pSpecConstants[i].size,
               pSpecConstants[i].pValue));
     }
@@ -565,3 +567,5 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramGetGlobalVariablePointer(
 
   return UR_RESULT_SUCCESS;
 }
+
+} // namespace ur::opencl

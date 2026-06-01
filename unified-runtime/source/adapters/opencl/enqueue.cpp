@@ -42,6 +42,8 @@ void MapUREventsToCL(uint32_t numEvents, const ur_event_handle_t *UREvents,
   }
 }
 
+namespace ur::opencl {
+
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWait(
     ur_queue_handle_t hQueue, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
@@ -74,8 +76,8 @@ UR_APIEXPORT ur_result_t urEnqueueEventsWaitWithBarrierExt(
     ur_queue_handle_t hQueue, const ur_exp_enqueue_ext_properties_t *,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
-  return urEnqueueEventsWaitWithBarrier(hQueue, numEventsInWaitList,
-                                        phEventWaitList, phEvent);
+  return ur::opencl::urEnqueueEventsWaitWithBarrier(hQueue, numEventsInWaitList,
+                                                    phEventWaitList, phEvent);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferRead(
@@ -562,3 +564,5 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunchWithArgsExp(
   UR_RETURN_ON_FAILURE(createUREvent(Event, hQueue->Context, hQueue, phEvent));
   return UR_RESULT_SUCCESS;
 }
+
+} // namespace ur::opencl

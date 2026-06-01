@@ -14,6 +14,8 @@
 #include <array>
 #include <cassert>
 
+namespace ur::opencl {
+
 UR_APIEXPORT ur_result_t UR_APICALL urDeviceGet(ur_platform_handle_t hPlatform,
                                                 ur_device_type_t DeviceType,
                                                 uint32_t,
@@ -1414,7 +1416,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   }
   case UR_DEVICE_INFO_PROGRAM_SET_SPECIALIZATION_CONSTANTS: {
     return ReturnValue(
-        ur::cl::getAdapter()->clSetProgramSpecializationConstant != nullptr);
+        ur::cl::getAdapter()->clSetProgramSpecializationConstantFn != nullptr);
   }
   case UR_DEVICE_INFO_USE_NATIVE_ASSERT: {
     bool Supported = false;
@@ -1717,18 +1719,19 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
   cl_device_id NativeHandle = reinterpret_cast<cl_device_id>(hNativeDevice);
 
   uint32_t NumPlatforms = 0;
-  UR_RETURN_ON_FAILURE(urPlatformGet(nullptr, 0, nullptr, &NumPlatforms));
-  std::vector<ur_platform_handle_t> Platforms(NumPlatforms);
   UR_RETURN_ON_FAILURE(
-      urPlatformGet(nullptr, NumPlatforms, Platforms.data(), nullptr));
+      ur::opencl::urPlatformGet(nullptr, 0, nullptr, &NumPlatforms));
+  std::vector<ur_platform_handle_t> Platforms(NumPlatforms);
+  UR_RETURN_ON_FAILURE(ur::opencl::urPlatformGet(nullptr, NumPlatforms,
+                                                 Platforms.data(), nullptr));
 
   for (uint32_t i = 0; i < NumPlatforms; i++) {
     uint32_t NumDevices = 0;
-    UR_RETURN_ON_FAILURE(
-        urDeviceGet(Platforms[i], UR_DEVICE_TYPE_ALL, 0, nullptr, &NumDevices));
+    UR_RETURN_ON_FAILURE(ur::opencl::urDeviceGet(
+        Platforms[i], UR_DEVICE_TYPE_ALL, 0, nullptr, &NumDevices));
     std::vector<ur_device_handle_t> Devices(NumDevices);
-    UR_RETURN_ON_FAILURE(urDeviceGet(Platforms[i], UR_DEVICE_TYPE_ALL,
-                                     NumDevices, Devices.data(), nullptr));
+    UR_RETURN_ON_FAILURE(ur::opencl::urDeviceGet(
+        Platforms[i], UR_DEVICE_TYPE_ALL, NumDevices, Devices.data(), nullptr));
 
     for (auto &Device : Devices) {
       if (Device->CLDevice == NativeHandle) {
@@ -1746,7 +1749,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
   if (Parent != nullptr) {
     ur_device_handle_t ParentUrHandle;
     // This will either create a new device handle, or return an existing one
-    UR_RETURN_ON_FAILURE(urDeviceCreateWithNativeHandle(
+    UR_RETURN_ON_FAILURE(ur::opencl::urDeviceCreateWithNativeHandle(
         reinterpret_cast<ur_native_handle_t>(Parent), nullptr, nullptr,
         &ParentUrHandle));
 
@@ -1878,3 +1881,5 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceSelectBinary(
 UR_APIEXPORT ur_result_t UR_APICALL urDeviceWaitExp(ur_device_handle_t) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
+
+} // namespace ur::opencl

@@ -11,6 +11,8 @@
 #include "common.hpp"
 #include "context.hpp"
 
+namespace ur::opencl {
+
 UR_APIEXPORT ur_result_t UR_APICALL urPhysicalMemCreate(
     ur_context_handle_t, ur_device_handle_t, size_t,
     const ur_physical_mem_properties_t *, ur_physical_mem_handle_t *) {
@@ -32,3 +34,5 @@ urPhysicalMemGetInfo(ur_physical_mem_handle_t, ur_physical_mem_info_t, size_t,
                      void *, size_t *) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
+
+} // namespace ur::opencl
