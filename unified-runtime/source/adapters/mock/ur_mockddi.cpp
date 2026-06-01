@@ -1747,7 +1747,7 @@ __urdlllocal ur_result_t UR_APICALL urMemGetNativeHandle(
     result = replaceCallback(&params);
   } else {
 
-    *phNativeMem = reinterpret_cast<ur_native_handle_t>(hMem);
+    *phNativeMem = reinterpret_cast<ur_native_handle_t>(hDevice);
     result = UR_RESULT_SUCCESS;
   }
 
@@ -4220,7 +4220,7 @@ __urdlllocal ur_result_t UR_APICALL urQueueGetNativeHandle(
     result = replaceCallback(&params);
   } else {
 
-    *phNativeQueue = reinterpret_cast<ur_native_handle_t>(hQueue);
+    *phNativeQueue = reinterpret_cast<ur_native_handle_t>(pDesc);
     result = UR_RESULT_SUCCESS;
   }
 
@@ -13121,7 +13121,8 @@ __urdlllocal ur_result_t UR_APICALL urGraphExecutableGraphGetNativeHandleExp(
     result = replaceCallback(&params);
   } else {
 
-    *phNativeGraph = reinterpret_cast<ur_native_handle_t>(hGraph);
+    *phNativeExecutableGraph =
+        reinterpret_cast<ur_native_handle_t>(hExecutableGraph);
     result = UR_RESULT_SUCCESS;
   }
 
