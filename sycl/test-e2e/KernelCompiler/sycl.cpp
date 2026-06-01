@@ -106,7 +106,10 @@ void vec_add(T* in1, T* in2, T* out){
 auto constexpr DeviceLibrariesSource = R"===(
 #include <sycl/sycl.hpp>
 #include <cmath>
-#include <complex>
+#include <complex.h>
+
+// C99 complex construction macro.
+#define CMPLXF(r, i) ((float _Complex){(float)(r), (float)(i)})
 
 extern "C" SYCL_EXTERNAL 
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(sycl::ext::oneapi::experimental::single_task_kernel)
@@ -121,13 +124,24 @@ void device_libs_kernel(float *ptr) {
   ptr[0] = erff(ptr[0]);
 
   // cl_intel_devicelib_complex
-  ptr[1] = std::abs(std::complex<float>{1.0f, ptr[1]});
+  ptr[1] = cabsf(CMPLXF(1.0f, ptr[1]));
 
   // cl_intel_devicelib_cstring
   ptr[2] = memcmp(ptr + 2, ptr + 2, sizeof(float));
 
   // cl_intel_devicelib_bfloat16
   ptr[3] = sycl::ext::oneapi::bfloat16{ptr[3] / 0.25f};
+
+  // cl_intel_devicelib_complex - additional C99 complex math functions
+  float _Complex input = CMPLXF(1.0f, 1.0f);
+  ptr[4] = crealf(csinf(input));
+  ptr[5] = crealf(ccosf(input));
+  ptr[6] = crealf(ctanf(input));
+  ptr[7] = crealf(cexpf(input));
+  ptr[8] = crealf(clogf(input));
+  ptr[9] = crealf(csqrtf(input));
+  ptr[10] = crealf(cpowf(input, CMPLXF(2.0f, 0.0f)));
+  ptr[11] = crealf(csinhf(input));
 }
 )===";
 
@@ -348,7 +362,7 @@ int test_device_libraries(sycl::queue q) {
   exe_kb kbExe = syclex::build(kbSrc);
 
   sycl::kernel k = kbExe.ext_oneapi_get_kernel("device_libs_kernel");
-  constexpr size_t nElem = 4;
+  constexpr size_t nElem = 12;
   float *ptr = sycl::malloc_shared<float>(nElem, q);
   for (int i = 0; i < nElem; ++i)
     ptr[i] = 1.0f;
@@ -360,7 +374,8 @@ int test_device_libraries(sycl::queue q) {
   q.wait_and_throw();
 
   // Check that the kernel was executed. Given the {1.0, ..., 1.0} input,
-  // the expected result is approximately {0.84, 1.41, 0.0, 1.41, 0.5, 4.0}.
+  // each element should have been updated by its corresponding device-library
+  // call, so none of them should still equal the initial 1.0f value.
   for (unsigned i = 0; i < nElem; ++i) {
     std::cout << ptr[i] << ' ';
     assert(ptr[i] != 1.0f);
