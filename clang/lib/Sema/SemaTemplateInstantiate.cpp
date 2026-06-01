@@ -3909,8 +3909,7 @@ bool Sema::usesPartialOrExplicitSpecialization(
     //   given (implicit) specialization of the enclosing class template, the
     //   primary member template and its other partial specializations are still
     //   considered for this specialization of the enclosing class template.
-    if (CTD->getMostRecentDecl()->isMemberSpecialization() &&
-        !CTPSD->getMostRecentDecl()->isMemberSpecialization())
+    if (CTD->isMemberSpecialization() && !CTPSD->isMemberSpecialization())
       continue;
 
     TemplateDeductionInfo Info(Loc);
@@ -3966,8 +3965,8 @@ static ActionResult<CXXRecordDecl *> getPatternForClassTemplateSpecialization(
       //   primary member template and its other partial specializations are
       //   still considered for this specialization of the enclosing class
       //   template.
-      if (Template->getMostRecentDecl()->isMemberSpecialization() &&
-          !Partial->getMostRecentDecl()->isMemberSpecialization())
+      if (Template->isMemberSpecialization() &&
+          !Partial->isMemberSpecialization())
         continue;
 
       TemplateDeductionInfo Info(FailedCandidates.getLocation());

@@ -1006,9 +1006,6 @@ llvm::GlobalVariable *CodeGenVTables::GenerateConstructionVTable(
   llvm::GlobalVariable *VTable =
       CGM.CreateOrReplaceCXXRuntimeVariable(Name, VTType, Linkage, Align);
 
-  // V-tables are always unnamed_addr.
-  VTable->setUnnamedAddr(llvm::GlobalValue::UnnamedAddr::Global);
-
   llvm::Constant *RTTI = CGM.GetAddrOfRTTIDescriptor(
       CGM.getContext().getCanonicalTagType(Base.getBase()));
 
@@ -1092,7 +1089,6 @@ void CodeGenVTables::GenerateRelativeVTableAlias(llvm::GlobalVariable *VTable,
     assert(VTableAlias->getLinkage() == Linkage);
   }
   VTableAlias->setVisibility(VTable->getVisibility());
-  VTableAlias->setUnnamedAddr(VTable->getUnnamedAddr());
 
   // Both of these will now imply dso_local for the vtable.
   if (!VTable->hasComdat()) {
