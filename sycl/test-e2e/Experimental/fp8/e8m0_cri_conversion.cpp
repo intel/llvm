@@ -3,11 +3,6 @@
 // RUN: %{build} -Xclang -freg-struct-return -Xspirv-translator=spir64 --spirv-ext=+SPV_INTEL_fp_conversions,+SPV_EXT_float8,+SPV_KHR_bfloat16 -o %t.out
 // RUN: %{run} SYCL_UR_TRACE=1 %t.out
 
-// make it XFAIL until driver will be installed on CI machines and the test will
-// be enabled in the test suite
-// XFAIL: *
-// XFAIL-TRACKER: CMPLRLLVM-69851
-
 #include <cmath>
 #include <limits>
 #include <sycl/ext/oneapi/experimental/float_8bit/types.hpp>
@@ -165,14 +160,14 @@ int test_rounding_upward(sycl::queue &queue) {
   queue.single_task([=]() {
     fp8_e8m0 value = data[0];
     float out = static_cast<float>(value);
-    float expected[1] = {out};
+    float expected[1] = {out + 1.0f};
     data[0] = fp8_e8m0(expected, rounding::upward);
   });
   queue.wait_and_throw();
 
   float out = static_cast<float>(data[0]);
   sycl::free(data, queue);
-  if (out != 4.0f)
+  if (out != 8.0f)
     return 1;
   return 0;
 }
