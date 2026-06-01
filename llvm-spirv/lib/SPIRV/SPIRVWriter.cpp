@@ -51,6 +51,7 @@
 #include "SPIRVInstruction.h"
 #include "SPIRVInternal.h"
 #include "SPIRVLLVMUtil.h"
+#include "SPIRVLegalizeNonStandardIntegers.h"
 #include "SPIRVLowerBitCastToNonStandardType.h"
 #include "SPIRVLowerBool.h"
 #include "SPIRVLowerConstExpr.h"
@@ -7520,6 +7521,9 @@ void addPassesForSPIRV(ModulePassManager &PassMgr,
   PassMgr.addPass(SPIRVLowerBoolPass());
   PassMgr.addPass(SPIRVLowerMemmovePass());
   PassMgr.addPass(SPIRVLowerLLVMIntrinsicPass(Opts));
+  // Legalize non-standard integers (i6, i24, i48, etc.) to standard widths
+  // This must run before SPIRVLowerBitCastToNonStandardTypePass
+  PassMgr.addPass(SPIRVLegalizeNonStandardIntegersPass(Opts));
   PassMgr.addPass(createModuleToFunctionPassAdaptor(
       SPIRVLowerBitCastToNonStandardTypePass(Opts)));
 }
