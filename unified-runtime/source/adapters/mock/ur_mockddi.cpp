@@ -1747,7 +1747,7 @@ __urdlllocal ur_result_t UR_APICALL urMemGetNativeHandle(
     result = replaceCallback(&params);
   } else {
 
-    *phNativeMem = reinterpret_cast<ur_native_handle_t>(hMem);
+    *phNativeMem = reinterpret_cast<ur_native_handle_t>(hDevice);
     result = UR_RESULT_SUCCESS;
   }
 
@@ -4220,7 +4220,7 @@ __urdlllocal ur_result_t UR_APICALL urQueueGetNativeHandle(
     result = replaceCallback(&params);
   } else {
 
-    *phNativeQueue = reinterpret_cast<ur_native_handle_t>(hQueue);
+    *phNativeQueue = reinterpret_cast<ur_native_handle_t>(pDesc);
     result = UR_RESULT_SUCCESS;
   }
 
@@ -13047,6 +13047,101 @@ __urdlllocal ur_result_t UR_APICALL urGraphDumpContentsExp(
   return exceptionToResult(std::current_exception());
 }
 
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urGraphGetNativeHandleExp
+__urdlllocal ur_result_t UR_APICALL urGraphGetNativeHandleExp(
+    /// [in] Handle of the graph.
+    ur_exp_graph_handle_t hGraph,
+    /// [out] A pointer to the native handle of the graph.
+    ur_native_handle_t *phNativeGraph) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_graph_get_native_handle_exp_params_t params = {&hGraph, &phNativeGraph};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback("urGraphGetNativeHandleExp"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback("urGraphGetNativeHandleExp"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    *phNativeGraph = reinterpret_cast<ur_native_handle_t>(hGraph);
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback("urGraphGetNativeHandleExp"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urGraphExecutableGraphGetNativeHandleExp
+__urdlllocal ur_result_t UR_APICALL urGraphExecutableGraphGetNativeHandleExp(
+    /// [in] Handle of the executable graph.
+    ur_exp_executable_graph_handle_t hExecutableGraph,
+    /// [out] A pointer to the native handle of the executable graph.
+    ur_native_handle_t *phNativeExecutableGraph) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_graph_executable_graph_get_native_handle_exp_params_t params = {
+      &hExecutableGraph, &phNativeExecutableGraph};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback(
+          "urGraphExecutableGraphGetNativeHandleExp"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback(
+          "urGraphExecutableGraphGetNativeHandleExp"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    *phNativeExecutableGraph =
+        reinterpret_cast<ur_native_handle_t>(hExecutableGraph);
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback(
+          "urGraphExecutableGraphGetNativeHandleExp"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
 } // namespace driver
 
 extern "C" {
@@ -13512,6 +13607,11 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetGraphExpProcAddrTable(
       driver::urGraphSetDestructionCallbackExp;
 
   pDdiTable->pfnDumpContentsExp = driver::urGraphDumpContentsExp;
+
+  pDdiTable->pfnGetNativeHandleExp = driver::urGraphGetNativeHandleExp;
+
+  pDdiTable->pfnExecutableGraphGetNativeHandleExp =
+      driver::urGraphExecutableGraphGetNativeHandleExp;
 
   return result;
 } catch (...) {
