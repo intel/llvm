@@ -106,9 +106,10 @@ TEST(FP8E4M3Test, VariadicBoundaryEncodingsFloat) {
 
 TEST(FP8E4M3Test, VariadicNaNEncodingFloat) {
   // NaN is encoded as S.1111.111; sign is permitted.
-  fp8_e4m3_x2 a(std::numeric_limits<float>::quiet_NaN(),
-                -std::numeric_limits<float>::quiet_NaN());
+  float pos_nan = std::numeric_limits<float>::quiet_NaN();
+  float neg_nan = std::copysign(pos_nan, -1.0f);
 
+  fp8_e4m3_x2 a(pos_nan, neg_nan);
   EXPECT_EQ(a.vals[0], 0x7F); // +NaN -> 0b0_1111_111
   EXPECT_EQ(a.vals[1], 0xFF); // -NaN -> 0b1_1111_111
 }

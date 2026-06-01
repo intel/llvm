@@ -85,8 +85,9 @@ TEST(FP8E5M2Test, VariadicBoundaryEncodingsFloat) {
 }
 
 TEST(FP8E5M2Test, VariadicNaNEncodingFloat) {
-  fp8_e5m2_x2 a(std::numeric_limits<float>::quiet_NaN(),
-                -std::numeric_limits<float>::quiet_NaN());
+  float pos_nan = std::numeric_limits<float>::quiet_NaN();
+  float neg_nan = std::copysign(pos_nan, -1.0f);
+  fp8_e5m2_x2 a(pos_nan, neg_nan);
 
   EXPECT_EQ(sizeof(a.vals), 2u);
   EXPECT_EQ(a.vals[0], 0x7F); // +NaN -> 0b0_11111_11
