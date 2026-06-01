@@ -2206,8 +2206,7 @@ typedef enum ur_device_info_t {
   /// It is unsuitable for general use in applications. This feature is
   /// provided for identifying memory leaks.
   UR_DEVICE_INFO_REFERENCE_COUNT = 64,
-  /// [char[]][optional-query] null-terminated IL version. Optional as not
-  /// all adapters support IL (e.g., NativeCPU).
+  /// [char[]][optional-query] null-terminated IL version.
   UR_DEVICE_INFO_IL_VERSION = 65,
   /// [char[]] null-terminated device name
   UR_DEVICE_INFO_NAME = 66,
