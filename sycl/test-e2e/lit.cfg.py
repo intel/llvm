@@ -577,9 +577,7 @@ if config.opencl_libs_dir:
             opencl_lib = normalize_windows_network_path(opencl_lib)
         config.substitutions.append(("%opencl_lib", " " + quote_path(opencl_lib)))
     else:
-        config.substitutions.append(
-            ("%opencl_lib", "-L" + config.opencl_libs_dir + " -lOpenCL")
-        )
+        config.substitutions.append(("%opencl_lib", "-L" + config.opencl_libs_dir + " -lOpenCL"))
     config.available_features.add("opencl_icd")
 config.substitutions.append(("%opencl_include_dir", config.opencl_include_dir))
 
