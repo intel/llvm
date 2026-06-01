@@ -653,6 +653,7 @@ bool graph_impl::isQueueRecording(sycl::detail::queue_impl &Queue) {
 }
 
 void graph_impl::setDestructionCallback(std::function<void()> Callback) {
+  graph_impl::WriteLock Lock(MMutex);
   if (MNativeGraphHandle) {
     auto Data = std::make_unique<std::function<void()>>(std::move(Callback));
     context_impl &ContextImpl = *sycl::detail::getSyclObjImpl(MContext);
