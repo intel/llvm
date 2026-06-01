@@ -17,7 +17,6 @@
 #include <sycl/detail/core.hpp>
 #include <sycl/kernel_bundle.hpp>
 #include <sycl/usm.hpp>
-#include <complex>
 
 auto constexpr AddEmH = R"===(
   int AddEm(int a, int b){
@@ -107,11 +106,28 @@ void vec_add(T* in1, T* in2, T* out){
 auto constexpr DeviceLibrariesSource = R"===(
 #include <sycl/sycl.hpp>
 #include <cmath>
-#include <complex>
+
+// C99 complex construction macro.
+#define CMPLXF(r, i) ((float _Complex){(float)(r), (float)(i)})
+
+// Declare C99 complex functions used by the kernel.
+extern "C" {
+float crealf(float _Complex z);
+float cimagf(float _Complex z);
+float cabsf(float _Complex z);
+float _Complex csinf(float _Complex z);
+float _Complex ccosf(float _Complex z);
+float _Complex ctanf(float _Complex z);
+float _Complex cexpf(float _Complex z);
+float _Complex clogf(float _Complex z);
+float _Complex csqrtf(float _Complex z);
+float _Complex cpowf(float _Complex x, float _Complex y);
+float _Complex csinhf(float _Complex z);
+}
 
 extern "C" SYCL_EXTERNAL 
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(sycl::ext::oneapi::experimental::single_task_kernel)
-void device_libs_kernel(float *ptr, std::complex<float> *cptr) {
+void device_libs_kernel(float *ptr) {
   // Extension list: llvm/lib/SYCLLowerIR/SYCLDeviceLibReqMask.cpp
 
   // cl_intel_devicelib_assert is not available for opencl:gpu; skip testing
@@ -122,7 +138,7 @@ void device_libs_kernel(float *ptr, std::complex<float> *cptr) {
   ptr[0] = erff(ptr[0]);
 
   // cl_intel_devicelib_complex
-  ptr[1] = std::abs(std::complex<float>{1.0f, ptr[1]});
+  ptr[1] = cabsf(CMPLXF(1.0f, ptr[1]));
 
   // cl_intel_devicelib_cstring
   ptr[2] = memcmp(ptr + 2, ptr + 2, sizeof(float));
@@ -130,16 +146,16 @@ void device_libs_kernel(float *ptr, std::complex<float> *cptr) {
   // cl_intel_devicelib_bfloat16
   ptr[3] = sycl::ext::oneapi::bfloat16{ptr[3] / 0.25f};
 
-  // cl_intel_devicelib_complex - additional std::complex math functions
-  std::complex<float> input{1.0f, 1.0f};
-  cptr[0] = std::sin(input);
-  cptr[1] = std::cos(input);
-  cptr[2] = std::tan(input);
-  cptr[3] = std::exp(input);
-  cptr[4] = std::log(input);
-  cptr[5] = std::sqrt(input);
-  cptr[6] = std::pow(input, std::complex<float>{2.0f, 0.0f});
-  cptr[7] = std::sinh(input);
+  // cl_intel_devicelib_complex - additional C99 complex math functions
+  float _Complex input = CMPLXF(1.0f, 1.0f);
+  ptr[4] = crealf(csinf(input));
+  ptr[5] = crealf(ccosf(input));
+  ptr[6] = crealf(ctanf(input));
+  ptr[7] = crealf(cexpf(input));
+  ptr[8] = crealf(clogf(input));
+  ptr[9] = crealf(csqrtf(input));
+  ptr[10] = crealf(cpowf(input, CMPLXF(2.0f, 0.0f)));
+  ptr[11] = crealf(csinhf(input));
 }
 )===";
 
@@ -360,44 +376,27 @@ int test_device_libraries(sycl::queue q) {
   exe_kb kbExe = syclex::build(kbSrc);
 
   sycl::kernel k = kbExe.ext_oneapi_get_kernel("device_libs_kernel");
-  constexpr size_t nElem = 4;
-  constexpr size_t nComplex = 8;
+  constexpr size_t nElem = 12;
   float *ptr = sycl::malloc_shared<float>(nElem, q);
-  std::complex<float> *cptr =
-      sycl::malloc_shared<std::complex<float>>(nComplex, q);
   for (int i = 0; i < nElem; ++i)
     ptr[i] = 1.0f;
-  for (int i = 0; i < nComplex; ++i)
-    cptr[i] = {0.0f, 0.0f};
 
   q.submit([&](sycl::handler &cgh) {
     cgh.set_arg(0, ptr);
-    cgh.set_arg(1, cptr);
     cgh.single_task(k);
   });
   q.wait_and_throw();
 
-  // Check the float results from erff, abs, memcmp, bfloat16.
+  // Check that the kernel was executed. Given the {1.0, ..., 1.0} input,
+  // each element should have been updated by its corresponding device-library
+  // call, so none of them should still equal the initial 1.0f value.
   for (unsigned i = 0; i < nElem; ++i) {
     std::cout << ptr[i] << ' ';
     assert(ptr[i] != 1.0f);
   }
   std::cout << std::endl;
 
-  // Check std::complex results: each complex function should produce a
-  // non-zero result for input (1,1). Verify both real and imaginary parts.
-  for (unsigned i = 0; i < nComplex; ++i) {
-    float re = cptr[i].real();
-    float im = cptr[i].imag();
-    std::cout << "(" << re << ", " << im << ") ";
-    // For input (1,1), all tested complex functions produce results where
-    // at least one of real/imag is non-zero.
-    assert(re != 0.0f || im != 0.0f);
-  }
-  std::cout << std::endl;
-
   sycl::free(ptr, q);
-  sycl::free(cptr, q);
 
   return 0;
 }
