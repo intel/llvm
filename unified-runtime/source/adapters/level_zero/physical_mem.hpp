@@ -11,17 +11,30 @@
 #include "common.hpp"
 #include "common/ur_ref_count.hpp"
 
+// Discriminates between the two IPC physical-memory sharing paths.
+enum class ZeIPCPhysMemHandleKind : uint32_t {
+  // BMG and newer (Xe2+): opaque 64-byte IPC handle obtained from
+  // zeMemGetIpcHandleWithProperties.  Can be transferred as raw bytes.
+  OpaqueBMGOrNewer = 0,
+  // Pre-BMG (DG2, PVC, MTL, ARL): Linux DMA-BUF file descriptor obtained
+  // via zePhysicalMemGetProperties.  The importing process duplicates the fd
+  // with pidfd_getfd(2) (Linux 5.6+) using the exporting process's PID and fd.
+  DmaBufFd = 1,
+};
+
 // Opaque handle data exchanged between processes for physical memory IPC.
-// Contains the IPC handle obtained from zeMemGetIpcHandleWithProperties
-// plus the allocation size required to reconstruct the physical_mem on import.
-// When the driver correctly implements ZE_IPC_MEM_HANDLE_TYPE_FLAG_DEFAULT for
-// physical memory, ze_ipc_mem_handle_t is a self-contained 64-byte opaque blob
-// that can be transferred to another process without fd passing.  On drivers
-// that fall back to an fd-based handle, urIPCGetPhysMemHandleExp detects and
-// rejects the fd handle, returning UR_RESULT_ERROR_UNSUPPORTED_FEATURE.
+// Supports two paths discriminated by Kind (always zero-initialize before use):
+//  - OpaqueBMGOrNewer: self-contained blob; IpcHandle is valid.
+//  - DmaBufFd: Pid/Fd are valid (Linux only); Fd stays open until
+//    urIPCPutPhysMemHandleExp is called by the exporter.
 struct ZeIPCPhysMemHandleData {
-  ze_ipc_mem_handle_t IpcHandle; // opaque IPC handle (64 bytes)
+  ZeIPCPhysMemHandleKind Kind;
   size_t Size;
+  ze_ipc_mem_handle_t IpcHandle; // valid when Kind == OpaqueBMGOrNewer
+#ifdef __linux__
+  pid_t Pid; // valid when Kind == DmaBufFd: PID of the exporting process
+  int Fd;    // valid when Kind == DmaBufFd: DMA-BUF fd in exporting process
+#endif
 };
 
 struct ur_physical_mem_handle_t_ : ur_object {
