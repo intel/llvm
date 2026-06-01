@@ -10983,6 +10983,51 @@ __urdlllocal ur_result_t UR_APICALL urGraphIsEmptyExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urGraphSetDestructionCallbackExp
+__urdlllocal ur_result_t UR_APICALL urGraphSetDestructionCallbackExp(
+    /// [in] Handle of the graph to register the callback for.
+    ur_exp_graph_handle_t hGraph,
+    /// [in] Function pointer to the callback. The callback must not access
+    /// hGraph.
+    ur_exp_graph_destruction_callback_t pfnCallback,
+    /// [in][optional] Pointer to user data to be passed to the callback. The
+    /// user data must not reference hGraph.
+    void *pUserData) {
+  auto pfnSetDestructionCallbackExp =
+      getContext()->urDdiTable.GraphExp.pfnSetDestructionCallbackExp;
+
+  if (nullptr == pfnSetDestructionCallbackExp)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_graph_set_destruction_callback_exp_params_t params = {
+      &hGraph, &pfnCallback, &pUserData};
+  uint64_t instance =
+      getContext()->notify_begin(UR_FUNCTION_GRAPH_SET_DESTRUCTION_CALLBACK_EXP,
+                                 "urGraphSetDestructionCallbackExp", &params);
+
+  auto &logger = getContext()->logger;
+  UR_LOG_L(logger, INFO, "   ---> urGraphSetDestructionCallbackExp\n");
+
+  ur_result_t result =
+      pfnSetDestructionCallbackExp(hGraph, pfnCallback, pUserData);
+
+  getContext()->notify_end(UR_FUNCTION_GRAPH_SET_DESTRUCTION_CALLBACK_EXP,
+                           "urGraphSetDestructionCallbackExp", &params, &result,
+                           instance);
+
+  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_GRAPH_SET_DESTRUCTION_CALLBACK_EXP, &params);
+    UR_LOG_L(logger, INFO,
+             "   <--- urGraphSetDestructionCallbackExp({}) -> {};\n",
+             args_str.str(), result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urGraphDumpContentsExp
 __urdlllocal ur_result_t UR_APICALL urGraphDumpContentsExp(
     /// [in] Handle of the graph to dump.
@@ -11637,6 +11682,11 @@ __urdlllocal ur_result_t UR_APICALL urGetGraphExpProcAddrTable(
 
   dditable.pfnIsEmptyExp = pDdiTable->pfnIsEmptyExp;
   pDdiTable->pfnIsEmptyExp = ur_tracing_layer::urGraphIsEmptyExp;
+
+  dditable.pfnSetDestructionCallbackExp =
+      pDdiTable->pfnSetDestructionCallbackExp;
+  pDdiTable->pfnSetDestructionCallbackExp =
+      ur_tracing_layer::urGraphSetDestructionCallbackExp;
 
   dditable.pfnDumpContentsExp = pDdiTable->pfnDumpContentsExp;
   pDdiTable->pfnDumpContentsExp = ur_tracing_layer::urGraphDumpContentsExp;

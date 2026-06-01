@@ -12,6 +12,7 @@
 #include "dynamic_impl.hpp" // for dynamic classes
 #include "node_impl.hpp"    // for node_impl
 #include <detail/cg.hpp> // for CG, CGExecKernel, CGHostTask, ArgDesc, NDRDescT
+#include <detail/config.hpp>                          // for SYCLConfig
 #include <detail/event_impl.hpp>                      // for event_impl
 #include <detail/handler_impl.hpp>                    // for handler_impl
 #include <detail/kernel_arg_mask.hpp>                 // for KernelArgMask
@@ -314,7 +315,9 @@ graph_impl::graph_impl(const sycl::context &SyclContext,
   if (PropList.has_property<property::graph::assume_buffer_outlives_graph>()) {
     MAllowBuffers = true;
   }
-  if (PropList.has_property<property::graph::enable_native_recording>()) {
+  if (PropList.has_property<property::graph::enable_native_recording>() ||
+      sycl::detail::SYCLConfig<
+          sycl::detail::SYCL_GRAPH_FORCE_NATIVE_RECORDING>::get()) {
     // Create native UR graph when native recording is enabled
     // Note: Native recording only works with immediate command lists,
     // this is validated when recording begins
@@ -1094,6 +1097,11 @@ exec_graph_impl::exec_graph_impl(sycl::context Context,
   // Create native UR executable graph if the modifiable graph uses native
   // recording
   if (isNativeRecordingEnabledForGraph(*GraphImpl)) {
+    if (MIsUpdatable) {
+      throw sycl::exception(
+          sycl::make_error_code(errc::feature_not_supported),
+          "Updatable graphs are not supported in native recording mode");
+    }
     context_impl &ContextImpl = *sycl::detail::getSyclObjImpl(MContext);
     sycl::detail::adapter_impl &Adapter = ContextImpl.getAdapter();
     ur_result_t Result =
@@ -1649,12 +1657,6 @@ void exec_graph_impl::duplicateNodes() {
 }
 
 void exec_graph_impl::update(std::shared_ptr<graph_impl> GraphImpl) {
-  if (MNativeExecutableGraphHandle) {
-    throw sycl::exception(
-        sycl::make_error_code(errc::feature_not_supported),
-        "Graph update is not supported in native recording mode");
-  }
-
   if (MDevice != GraphImpl->getDevice()) {
     throw sycl::exception(
         sycl::make_error_code(errc::invalid),
@@ -1726,11 +1728,6 @@ void exec_graph_impl::update(node_impl &Node) {
 }
 
 void exec_graph_impl::update(nodes_range Nodes) {
-  if (MNativeExecutableGraphHandle) {
-    throw sycl::exception(
-        sycl::make_error_code(errc::feature_not_supported),
-        "Graph update is not supported in native recording mode");
-  }
   if (!MIsUpdatable) {
     throw sycl::exception(sycl::make_error_code(errc::invalid),
                           "update() cannot be called on a executable graph "

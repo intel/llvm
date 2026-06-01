@@ -7,6 +7,9 @@
 // UNSUPPORTED: windows && gpu-intel-gen12
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21556
 
+// UNSUPPORTED: windows && arch-intel_gpu_bmg_g21
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22163
+
 #include <sycl/detail/core.hpp>
 
 #include <sycl/properties/all_properties.hpp>
@@ -24,6 +27,6 @@ int main() {
   try {
     q.memcpy(mdlImag, 0, sizeof(XFLOAT));
   } catch (...) {
-    // CHECK: Exception caught at File: {{.*}}report_code_loc.cpp | Function: main | Line: 25 | Column: 7
+    // CHECK: Exception caught at File: {{.*}}report_code_loc.cpp | Function: main | Line: 28 | Column: 7
   }
 }

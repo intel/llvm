@@ -623,7 +623,7 @@ private:
   /// Native UR graph handle used for native recording mode.
   ///
   /// This handle is non-null only when native recording is enabled via the
-  /// enable_native_recording property.
+  /// enable_native_recording property or SYCL_GRAPH_FORCE_NATIVE_RECORDING=1.
   ///
   /// @note Native recording requires immediate command lists.
   ur_exp_graph_handle_t MNativeGraphHandle = nullptr;

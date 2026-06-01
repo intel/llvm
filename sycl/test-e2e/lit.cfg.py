@@ -215,16 +215,13 @@ class test_env:
 
 
 config.substitutions.append(("%sycl_libs_dir", config.sycl_libs_dir))
+config.substitutions.append(("%sycl_static_libs_dir", config.sycl_device_libs_dir))
 if platform.system() == "Windows":
-    config.substitutions.append(
-        ("%sycl_static_libs_dir", config.sycl_libs_dir + "/../lib")
-    )
     config.substitutions.append(("%obj_ext", ".obj"))
     config.substitutions.append(
         ("%sycl_include", "-Xclang -isystem -Xclang " + config.sycl_include)
     )
 elif platform.system() == "Linux":
-    config.substitutions.append(("%sycl_static_libs_dir", config.sycl_libs_dir))
     config.substitutions.append(("%obj_ext", ".o"))
     config.substitutions.append(("%sycl_include", "-isystem " + config.sycl_include))
 
@@ -689,9 +686,11 @@ with test_env():
     # Count physical GPU devices: each physical GPU produces one output line
     # that contains ":gpu]". Add a feature when at least two are present so
     # tests requiring multi-GPU hardware can be skipped on single-GPU machines.
-    gpu_device_lines = [l for l in sycl_ls_output.splitlines() if ":gpu]" in l]
-    if len(gpu_device_lines) >= 2:
-        config.available_features.add("two-or-more-gpu-devices")
+    # This is a runtime-only feature since it queries actual hardware.
+    if config.test_mode != "build-only":
+        gpu_device_lines = [l for l in sycl_ls_output.splitlines() if ":gpu]" in l]
+        if len(gpu_device_lines) >= 2:
+            config.available_features.add("two-or-more-gpu-devices")
 
     if len(config.sycl_devices) == 1 and config.sycl_devices[0] == "all":
         devices = set()

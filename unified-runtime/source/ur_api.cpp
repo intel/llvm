@@ -9851,6 +9851,31 @@ ur_result_t UR_APICALL urGraphIsEmptyExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Register a callback to be invoked when the graph is destroyed.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hGraph`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pfnCallback`
+ur_result_t UR_APICALL urGraphSetDestructionCallbackExp(
+    /// [in] Handle of the graph to register the callback for.
+    ur_exp_graph_handle_t hGraph,
+    /// [in] Function pointer to the callback. The callback must not access
+    /// hGraph.
+    ur_exp_graph_destruction_callback_t pfnCallback,
+    /// [in][optional] Pointer to user data to be passed to the callback. The
+    /// user data must not reference hGraph.
+    void *pUserData) {
+  ur_result_t result = UR_RESULT_SUCCESS;
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Dump the contents of the recorded graph to the provided file path.
 ///
 /// @returns
