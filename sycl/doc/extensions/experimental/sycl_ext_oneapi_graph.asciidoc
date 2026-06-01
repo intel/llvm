@@ -1531,17 +1531,17 @@ template <typename Func, typename... ArgTs>
 void set_destruction_callback(Func&& Callback, ArgTs&&... CbArgs);
 ----
 
-_Effects:_ Registers a user callback that will be invoked when the last
-reference to the underlying graph object is destroyed. All arguments are stored
-as their decayed types (`std::decay_t<ArgTs>...`); references are not preserved.
-If `Callback` or any argument in `CbArgs` is passed as an lvalue, it is
-copy-constructed into internal storage. If passed as an rvalue, it is
+_Effects:_ Registers a user callback that is invoked when the graph and any
+executable graphs finalized from it have all been destroyed. All arguments are
+stored as their decayed types (`std::decay_t<ArgTs>...`); references are not
+preserved. If `Callback` or any argument in `CbArgs` is passed as an lvalue, it
+is copy-constructed into internal storage. If passed as an rvalue, it is
 move-constructed into internal storage. Users who require reference semantics
 must pass `std::ref` or `std::cref` and are responsible for ensuring the
 referenced object outlives the graph. When the graph is destroyed the stored
 callable is invoked with the stored arguments. Multiple callbacks may be
-registered on the same graph and all will be invoked on destruction, in an
-unspecified order.
+registered on the same graph and will be invoked on destruction in order of
+registration.
 
 The following restrictions apply to the callback and callback arguments:
 
