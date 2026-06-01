@@ -1825,6 +1825,7 @@ compileSYCLDevice(ArrayRef<StringRef> InputFiles, const ArgList &Args,
   case Triple::nvptx:
   case Triple::nvptx64:
   case Triple::amdgcn:
+  case Triple::native_cpu:
     return generic::clang(InputFiles, Args, /*IsSYCLKind*/ true);
   case Triple::spirv32:
   case Triple::spirv64:
@@ -1853,8 +1854,6 @@ compileSYCLDevice(ArrayRef<StringRef> InputFiles, const ArgList &Args,
       return AOTFile.takeError();
     return NeedAOTCompile ? *AOTFile : *SPVFile;
   }
-  case Triple::native_cpu:
-    return generic::clang(InputFiles, Args, /*IsSYCLKind*/ true);
   default:
     return createStringError(Triple.getArchName() +
                              " linking is not supported");
@@ -1887,10 +1886,9 @@ Expected<StringRef> compileDeviceAndBundle(StringRef ModuleFilePath,
 /// Processing consists of steps:
 /// * Invoke sycl-post-link (module split, spec-const lowering, esimd lowering).
 /// * Handle -fsycl-embed-ir case (early wrap + compile + transfer output to the
-/// given
-/// \p WrappedOutputCallback).
-/// * Handle NativeCPU case (early transfer output to the given \p
-/// WrappedOutputCallback).
+///   given \p WrappedOutputCallback).
+/// * Handle NativeCPU case (early transfer output to
+///   the given \p WrappedOutputCallback).
 /// * Set Compile/Link options to the output Modules.
 /// * Invokes device backend compilation + bundling.
 ///
@@ -1933,7 +1931,7 @@ Expected<std::vector<module_split::SplitModule>> postLinkProcessModule(
   }
 
   // TODO: Take into account Arch values considered as JIT: "native",
-  // "spir64", "spir", "spirv32" and "spirv64" for SPIR targets.
+  // "spir64", "spir", "spirv32" and "spirv64" for SPIR and SPIR-V targets.
   // For now we only consider NoSubArch target as JIT.
   bool IsJIT =
       Triple.isSPIROrSPIRV() && Triple.getSubArch() == llvm::Triple::NoSubArch;
