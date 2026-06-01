@@ -1888,6 +1888,11 @@ typedef ur_result_t(UR_APICALL *ur_pfnGraphIsEmptyExp_t)(ur_exp_graph_handle_t,
                                                          bool *);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urGraphSetDestructionCallbackExp
+typedef ur_result_t(UR_APICALL *ur_pfnGraphSetDestructionCallbackExp_t)(
+    ur_exp_graph_handle_t, ur_exp_graph_destruction_callback_t, void *);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urGraphDumpContentsExp
 typedef ur_result_t(UR_APICALL *ur_pfnGraphDumpContentsExp_t)(
     ur_exp_graph_handle_t, const char *);
@@ -1900,6 +1905,7 @@ typedef struct ur_graph_exp_dditable_t {
   ur_pfnGraphDestroyExp_t pfnDestroyExp;
   ur_pfnGraphExecutableGraphDestroyExp_t pfnExecutableGraphDestroyExp;
   ur_pfnGraphIsEmptyExp_t pfnIsEmptyExp;
+  ur_pfnGraphSetDestructionCallbackExp_t pfnSetDestructionCallbackExp;
   ur_pfnGraphDumpContentsExp_t pfnDumpContentsExp;
 } ur_graph_exp_dditable_t;
 

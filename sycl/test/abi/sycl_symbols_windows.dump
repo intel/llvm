@@ -233,14 +233,10 @@
 ??$import_external_memory@Uresource_fd@experimental@oneapi@ext@_V1@sycl@@@experimental@oneapi@ext@_V1@sycl@@YA?AUexternal_mem@01234@U?$external_mem_descriptor@Uresource_fd@experimental@oneapi@ext@_V1@sycl@@@01234@AEBVqueue@34@@Z
 ??$import_external_memory@Uresource_win32_handle@experimental@oneapi@ext@_V1@sycl@@@experimental@oneapi@ext@_V1@sycl@@YA?AUexternal_mem@01234@U?$external_mem_descriptor@Uresource_win32_handle@experimental@oneapi@ext@_V1@sycl@@@01234@AEBVdevice@34@AEBVcontext@34@@Z
 ??$import_external_memory@Uresource_win32_handle@experimental@oneapi@ext@_V1@sycl@@@experimental@oneapi@ext@_V1@sycl@@YA?AUexternal_mem@01234@U?$external_mem_descriptor@Uresource_win32_handle@experimental@oneapi@ext@_V1@sycl@@@01234@AEBVqueue@34@@Z
-??$import_external_memory@Uresource_win32_name@experimental@oneapi@ext@_V1@sycl@@@experimental@oneapi@ext@_V1@sycl@@YA?AUexternal_mem@01234@U?$external_mem_descriptor@Uresource_win32_name@experimental@oneapi@ext@_V1@sycl@@@01234@AEBVdevice@34@AEBVcontext@34@@Z
-??$import_external_memory@Uresource_win32_name@experimental@oneapi@ext@_V1@sycl@@@experimental@oneapi@ext@_V1@sycl@@YA?AUexternal_mem@01234@U?$external_mem_descriptor@Uresource_win32_name@experimental@oneapi@ext@_V1@sycl@@@01234@AEBVqueue@34@@Z
 ??$import_external_semaphore@Uresource_fd@experimental@oneapi@ext@_V1@sycl@@@experimental@oneapi@ext@_V1@sycl@@YA?AUexternal_semaphore@01234@U?$external_semaphore_descriptor@Uresource_fd@experimental@oneapi@ext@_V1@sycl@@@01234@AEBVdevice@34@AEBVcontext@34@@Z
 ??$import_external_semaphore@Uresource_fd@experimental@oneapi@ext@_V1@sycl@@@experimental@oneapi@ext@_V1@sycl@@YA?AUexternal_semaphore@01234@U?$external_semaphore_descriptor@Uresource_fd@experimental@oneapi@ext@_V1@sycl@@@01234@AEBVqueue@34@@Z
 ??$import_external_semaphore@Uresource_win32_handle@experimental@oneapi@ext@_V1@sycl@@@experimental@oneapi@ext@_V1@sycl@@YA?AUexternal_semaphore@01234@U?$external_semaphore_descriptor@Uresource_win32_handle@experimental@oneapi@ext@_V1@sycl@@@01234@AEBVdevice@34@AEBVcontext@34@@Z
 ??$import_external_semaphore@Uresource_win32_handle@experimental@oneapi@ext@_V1@sycl@@@experimental@oneapi@ext@_V1@sycl@@YA?AUexternal_semaphore@01234@U?$external_semaphore_descriptor@Uresource_win32_handle@experimental@oneapi@ext@_V1@sycl@@@01234@AEBVqueue@34@@Z
-??$import_external_semaphore@Uresource_win32_name@experimental@oneapi@ext@_V1@sycl@@@experimental@oneapi@ext@_V1@sycl@@YA?AUexternal_semaphore@01234@U?$external_semaphore_descriptor@Uresource_win32_name@experimental@oneapi@ext@_V1@sycl@@@01234@AEBVdevice@34@AEBVcontext@34@@Z
-??$import_external_semaphore@Uresource_win32_name@experimental@oneapi@ext@_V1@sycl@@@experimental@oneapi@ext@_V1@sycl@@YA?AUexternal_semaphore@01234@U?$external_semaphore_descriptor@Uresource_win32_name@experimental@oneapi@ext@_V1@sycl@@@01234@AEBVqueue@34@@Z
 ??$is_image_handle_supported@Usampled_image_handle@experimental@oneapi@ext@_V1@sycl@@@experimental@oneapi@ext@_V1@sycl@@YA_NAEBUimage_descriptor@01234@W4image_memory_handle_type@01234@AEBVdevice@34@AEBVcontext@34@@Z
 ??$is_image_handle_supported@Usampled_image_handle@experimental@oneapi@ext@_V1@sycl@@@experimental@oneapi@ext@_V1@sycl@@YA_NAEBUimage_descriptor@01234@W4image_memory_handle_type@01234@AEBVqueue@34@@Z
 ??$is_image_handle_supported@Uunsampled_image_handle@experimental@oneapi@ext@_V1@sycl@@@experimental@oneapi@ext@_V1@sycl@@YA_NAEBUimage_descriptor@01234@W4image_memory_handle_type@01234@AEBVdevice@34@AEBVcontext@34@@Z
@@ -3747,6 +3743,7 @@
 ?begin_recording@modifiable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@QEAAXAEBV?$vector@Vqueue@_V1@sycl@@V?$allocator@Vqueue@_V1@sycl@@@std@@@std@@AEBVproperty_list@67@@Z
 ?build_from_source@detail@experimental@oneapi@ext@_V1@sycl@@YA?AV?$kernel_bundle@$01@56@AEAV?$kernel_bundle@$02@56@AEBV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@std@@AEBV?$vector@Vstring_view@detail@_V1@sycl@@V?$allocator@Vstring_view@detail@_V1@sycl@@@std@@@std@@PEAVstring@156@2@Z
 ?build_impl@detail@_V1@sycl@@YA?AV?$shared_ptr@Vkernel_bundle_impl@detail@_V1@sycl@@@std@@AEBV?$kernel_bundle@$0A@@23@AEBV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@5@AEBVproperty_list@23@@Z
+?cannot_be_called_on_host@detail@_V1@sycl@@YAXPEBD@Z
 ?category@exception@_V1@sycl@@QEBAAEBVerror_category@std@@XZ
 ?checkNodePropertiesAndThrow@modifiable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@KAXAEBVproperty_list@67@@Z
 ?close@ipc_memory@experimental@oneapi@ext@_V1@sycl@@YAXPEAXAEBVcontext@56@@Z
