@@ -106,24 +106,10 @@ void vec_add(T* in1, T* in2, T* out){
 auto constexpr DeviceLibrariesSource = R"===(
 #include <sycl/sycl.hpp>
 #include <cmath>
+#include <complex.h>
 
 // C99 complex construction macro.
 #define CMPLXF(r, i) ((float _Complex){(float)(r), (float)(i)})
-
-// Declare C99 complex functions used by the kernel.
-extern "C" {
-float crealf(float _Complex z);
-float cimagf(float _Complex z);
-float cabsf(float _Complex z);
-float _Complex csinf(float _Complex z);
-float _Complex ccosf(float _Complex z);
-float _Complex ctanf(float _Complex z);
-float _Complex cexpf(float _Complex z);
-float _Complex clogf(float _Complex z);
-float _Complex csqrtf(float _Complex z);
-float _Complex cpowf(float _Complex x, float _Complex y);
-float _Complex csinhf(float _Complex z);
-}
 
 extern "C" SYCL_EXTERNAL 
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(sycl::ext::oneapi::experimental::single_task_kernel)
