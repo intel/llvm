@@ -1,13 +1,8 @@
-// REQUIRES: intel_feature_gpu_cri
 // RUN: %{build} -Xclang -freg-struct-return -Xspirv-translator=spir64 --spirv-ext=+SPV_INTEL_fp_conversions,+SPV_EXT_float8,+SPV_KHR_bfloat16 -o %t.out
 // RUN: %{run} SYCL_UR_TRACE=1 %t.out
 
-// make it XFAIL until driver will be installed on CI machines and the test will
-// be enabled in the test suite
-// XFAIL: *
-// XFAIL-TRACKER: CMPLRLLVM-69851
-
 #include <cmath>
+#include <cstdint>
 #include <limits>
 #include <sycl/ext/oneapi/experimental/builtins.hpp>
 #include <sycl/ext/oneapi/experimental/float_8bit/types.hpp>
@@ -17,6 +12,8 @@
 using namespace sycl::ext::oneapi::experimental;
 
 namespace {
+
+constexpr float E5M2MaxNormal = 57344.0f;
 
 bool equal_or_both_nan(float actual, float expected) {
   if (std::isnan(expected))
@@ -30,6 +27,81 @@ bool equal_with_zero_sign(float actual, float expected) {
   if (expected == 0.0f)
     return std::signbit(actual) == std::signbit(expected);
   return true;
+}
+
+bool is_positive_infinity(float value) {
+  return std::isinf(value) && !std::signbit(value);
+}
+
+bool is_negative_infinity(float value) {
+  return std::isinf(value) && std::signbit(value);
+}
+
+template <typename T, bool UseMarray, saturation Sat>
+int test_stochastic_constructor(sycl::queue &queue) {
+  auto *out = sycl::malloc_shared<float>(2, queue);
+  auto *seed = sycl::malloc_shared<uint32_t>(1, queue);
+  auto *seed_updated = sycl::malloc_shared<bool>(1, queue);
+  seed[0] = 0x89abcdefu;
+  seed_updated[0] = false;
+
+  queue.single_task([=]() {
+    const float positive_input = std::numeric_limits<float>::infinity();
+    const float negative_input = -std::numeric_limits<float>::infinity();
+    const uint32_t initial_seed = seed[0];
+
+    if constexpr (UseMarray) {
+      sycl::marray<T, 2> input(static_cast<T>(positive_input),
+                               static_cast<T>(negative_input));
+      if constexpr (Sat == saturation::finite) {
+        fp8_e5m2_x2 value(input, stochastic_seed(seed));
+        sycl::marray<float, 2> unpacked = static_cast<sycl::marray<float, 2>>(value);
+        out[0] = unpacked[0];
+        out[1] = unpacked[1];
+      } else {
+        fp8_e5m2_x2 value(input, stochastic_seed(seed), saturation::none);
+        sycl::marray<float, 2> unpacked = static_cast<sycl::marray<float, 2>>(value);
+        out[0] = unpacked[0];
+        out[1] = unpacked[1];
+      }
+    } else {
+      T input[2] = {static_cast<T>(positive_input), static_cast<T>(negative_input)};
+      if constexpr (Sat == saturation::finite) {
+        fp8_e5m2_x2 value(input, stochastic_seed(seed));
+        sycl::marray<float, 2> unpacked = static_cast<sycl::marray<float, 2>>(value);
+        out[0] = unpacked[0];
+        out[1] = unpacked[1];
+      } else {
+        fp8_e5m2_x2 value(input, stochastic_seed(seed), saturation::none);
+        sycl::marray<float, 2> unpacked = static_cast<sycl::marray<float, 2>>(value);
+        out[0] = unpacked[0];
+        out[1] = unpacked[1];
+      }
+    }
+
+    seed_updated[0] = seed[0] != initial_seed;
+  });
+  queue.wait_and_throw();
+
+  int ret = 0;
+  if (!seed_updated[0])
+    ret = 1;
+  if constexpr (Sat == saturation::finite) {
+    if (out[0] != E5M2MaxNormal)
+      ret = 1;
+    if (out[1] != -E5M2MaxNormal)
+      ret = 1;
+  } else {
+    if (!is_positive_infinity(out[0]))
+      ret = 1;
+    if (!is_negative_infinity(out[1]))
+      ret = 1;
+  }
+
+  sycl::free(out, queue);
+  sycl::free(seed, queue);
+  sycl::free(seed_updated, queue);
+  return ret;
 }
 
 template <typename T>
@@ -436,5 +508,22 @@ int main() {
   ret |= test_boundary_round_trip_saturation_and_infinity_clamp(queue);
   ret |= test_boundary_infinity_no_saturation(queue);
   ret |= test_boundary_overflow_no_saturation(queue);
+
+    ret |= test_stochastic_constructor<sycl::half, false, saturation::finite>(
+      queue);
+    ret |= test_stochastic_constructor<sycl::half, false, saturation::none>(
+      queue);
+    ret |= test_stochastic_constructor<sycl::half, true, saturation::finite>(
+      queue);
+    ret |= test_stochastic_constructor<sycl::half, true, saturation::none>(
+      queue);
+    ret |= test_stochastic_constructor<sycl::ext::oneapi::bfloat16, false,
+                     saturation::finite>(queue);
+    ret |= test_stochastic_constructor<sycl::ext::oneapi::bfloat16, false,
+                     saturation::none>(queue);
+    ret |= test_stochastic_constructor<sycl::ext::oneapi::bfloat16, true,
+                     saturation::finite>(queue);
+    ret |= test_stochastic_constructor<sycl::ext::oneapi::bfloat16, true,
+                     saturation::none>(queue);
   return ret;
 }

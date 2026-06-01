@@ -1,20 +1,79 @@
 
-// REQUIRES: intel_feature_gpu_cri
 // RUN: %{build} -Xclang -freg-struct-return -Xspirv-translator=spir64 --spirv-ext=+SPV_INTEL_fp_conversions,+SPV_EXT_float8,+SPV_KHR_bfloat16 -o %t.out
 // RUN: %{run} SYCL_UR_TRACE=1 %t.out
 
-// make it XFAIL until driver will be installed on CI machines and the test will
-// be enabled in the test suite
-// XFAIL: *
-// XFAIL-TRACKER: CMPLRLLVM-69851
-
 #include <cmath>
+#include <cstdint>
 #include <limits>
 #include <sycl/ext/oneapi/experimental/float_8bit/types.hpp>
 #include <sycl/queue.hpp>
 #include <sycl/usm.hpp>
 
 using namespace sycl::ext::oneapi::experimental;
+
+namespace {
+
+constexpr float E5M2MaxNormal = 57344.0f;
+
+bool is_positive_infinity(float value) {
+  return std::isinf(value) && !std::signbit(value);
+}
+
+template <typename T, bool UseMarray, saturation Sat>
+int test_stochastic_constructor(sycl::queue &queue) {
+  auto *out = sycl::malloc_shared<float>(1, queue);
+  auto *seed = sycl::malloc_shared<uint32_t>(1, queue);
+  auto *seed_updated = sycl::malloc_shared<bool>(1, queue);
+  seed[0] = 0x12345678u;
+  seed_updated[0] = false;
+
+  queue.single_task([=]() {
+    const float input_value =
+        Sat == saturation::finite ? -std::numeric_limits<float>::infinity()
+                                  : std::numeric_limits<float>::infinity();
+    const uint32_t initial_seed = seed[0];
+
+    if constexpr (UseMarray) {
+      sycl::marray<T, 1> input(static_cast<T>(input_value));
+      if constexpr (Sat == saturation::finite) {
+        fp8_e5m2 value(input, stochastic_seed(seed));
+        out[0] = static_cast<float>(value);
+      } else {
+        fp8_e5m2 value(input, stochastic_seed(seed), saturation::none);
+        out[0] = static_cast<float>(value);
+      }
+    } else {
+      T input[1] = {static_cast<T>(input_value)};
+      if constexpr (Sat == saturation::finite) {
+        fp8_e5m2 value(input, stochastic_seed(seed));
+        out[0] = static_cast<float>(value);
+      } else {
+        fp8_e5m2 value(input, stochastic_seed(seed), saturation::none);
+        out[0] = static_cast<float>(value);
+      }
+    }
+
+    seed_updated[0] = seed[0] != initial_seed;
+  });
+  queue.wait_and_throw();
+
+  int ret = 0;
+  if (!seed_updated[0])
+    ret = 1;
+  if constexpr (Sat == saturation::finite) {
+    if (out[0] != -E5M2MaxNormal)
+      ret = 1;
+  } else if (!is_positive_infinity(out[0])) {
+    ret = 1;
+  }
+
+  sycl::free(out, queue);
+  sycl::free(seed, queue);
+  sycl::free(seed_updated, queue);
+  return ret;
+}
+
+} // namespace
 
 template <typename T> int test_fp8_simple_type_conversion(sycl::queue &queue) {
   auto *data = sycl::malloc_shared<fp8_e5m2>(1, queue);
@@ -142,5 +201,22 @@ int main() {
   ret |= test_marray_conversion<float>(queue);
   ret |= test_marray_conversion<sycl::half>(queue);
   ret |= test_marray_conversion<sycl::ext::oneapi::bfloat16>(queue);
+
+    ret |= test_stochastic_constructor<sycl::half, false, saturation::finite>(
+      queue);
+    ret |= test_stochastic_constructor<sycl::half, false, saturation::none>(
+      queue);
+    ret |= test_stochastic_constructor<sycl::half, true, saturation::finite>(
+      queue);
+    ret |= test_stochastic_constructor<sycl::half, true, saturation::none>(
+      queue);
+    ret |= test_stochastic_constructor<sycl::ext::oneapi::bfloat16, false,
+                     saturation::finite>(queue);
+    ret |= test_stochastic_constructor<sycl::ext::oneapi::bfloat16, false,
+                     saturation::none>(queue);
+    ret |= test_stochastic_constructor<sycl::ext::oneapi::bfloat16, true,
+                     saturation::finite>(queue);
+    ret |= test_stochastic_constructor<sycl::ext::oneapi::bfloat16, true,
+                     saturation::none>(queue);
   return ret;
 }
