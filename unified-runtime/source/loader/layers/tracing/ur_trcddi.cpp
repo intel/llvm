@@ -12199,6 +12199,9 @@ __urdlllocal ur_result_t UR_APICALL urGetQueueProcAddrTable(
   dditable.pfnKhrFlush = pDdiTable->pfnKhrFlush;
   pDdiTable->pfnKhrFlush = ur_tracing_layer::urKhrFlush;
 
+  dditable.pfnKhrFlush = pDdiTable->pfnKhrFlush;
+  pDdiTable->pfnKhrFlush = ur_tracing_layer::urKhrFlush;
+
   return result;
 }
 ///////////////////////////////////////////////////////////////////////////////
