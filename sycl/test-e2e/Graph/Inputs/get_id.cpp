@@ -16,16 +16,14 @@ int main() {
     for (int i = 0; i < N; ++i)
       Graphs.emplace_back(Ctx, Dev);
     for (int i = 1; i < N; ++i) {
-      assert(Graphs[i].get_id() >
-                 Graphs[i - 1].get_id() &&
+      assert(Graphs[i].get_id() > Graphs[i - 1].get_id() &&
              "IDs must be strictly increasing");
     }
 
     // All distinct (implied by strictly increasing, but check explicitly).
     for (int i = 0; i < N; ++i)
       for (int j = i + 1; j < N; ++j)
-        assert(Graphs[i].get_id() !=
-                   Graphs[j].get_id() &&
+        assert(Graphs[i].get_id() != Graphs[j].get_id() &&
                "IDs must be distinct");
   }
 
