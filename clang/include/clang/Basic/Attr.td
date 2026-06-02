@@ -547,10 +547,6 @@ def TargetWindowsArm64EC : TargetSpec {
   let CustomCode = [{ Target.getTriple().isWindowsArm64EC() }];
 }
 
-def TargetSupportsInitPriority : TargetSpec {
-  let CustomCode = [{ !Target.getTriple().isOSzOS() }];
-}
-
 class TargetSpecificSpelling<TargetSpec target, list<Spelling> spellings> {
   TargetSpec Target = target;
   list<Spelling> Spellings = spellings;
@@ -4014,7 +4010,7 @@ def SYCLWorkGroupSizeHint :  InheritableAttr, LanguageOptionsSpecificAttr {
   let ParseKind = "WorkGroupSizeHint";
 }
 
-def InitPriority : InheritableAttr, TargetSpecificAttr<TargetSupportsInitPriority> {
+def InitPriority : InheritableAttr {
   let Spellings = [GCC<"init_priority", /*AllowInC*/0>];
   let Args = [UnsignedArgument<"Priority">];
   let Subjects = SubjectList<[Var], ErrorDiag>;
