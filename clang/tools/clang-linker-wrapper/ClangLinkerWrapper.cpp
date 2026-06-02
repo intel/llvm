@@ -1181,8 +1181,7 @@ wrapSYCLBinariesFromFile(ArrayRef<module_split::SplitModule> SplitModules,
     StringRef ImageTarget =
         IsEmbeddedIR ? StringRef(EmbeddedIRTarget) : StringRef(RegularTarget);
     Images.emplace_back(std::move(*MBOrDesc), SI.Properties, SI.Symbols,
-                        ImageTarget, SI.CompileOptions,
-                        SI.LinkOptions);
+                        ImageTarget, SI.CompileOptions, SI.LinkOptions);
   }
 
   LLVMContext C;
