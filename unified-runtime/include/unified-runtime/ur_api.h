@@ -619,14 +619,14 @@ typedef enum ur_structure_type_t {
   UR_STRUCTURE_TYPE_EXP_FILE_DESCRIPTOR = 0x2003,
   /// ::ur_exp_win32_handle_t
   UR_STRUCTURE_TYPE_EXP_WIN32_HANDLE = 0x2004,
-  /// ::ur_exp_win32_name_t
-  UR_STRUCTURE_TYPE_EXP_WIN32_NAME = 0x2008,
   /// ::ur_exp_sampler_addr_modes_t
   UR_STRUCTURE_TYPE_EXP_SAMPLER_ADDR_MODES = 0x2005,
   /// ::ur_exp_sampler_cubemap_properties_t
   UR_STRUCTURE_TYPE_EXP_SAMPLER_CUBEMAP_PROPERTIES = 0x2006,
   /// ::ur_exp_image_copy_region_t
   UR_STRUCTURE_TYPE_EXP_IMAGE_COPY_REGION = 0x2007,
+  /// ::ur_exp_win32_name_t
+  UR_STRUCTURE_TYPE_EXP_WIN32_NAME = 0x2008,
   /// ::ur_exp_async_usm_alloc_properties_t
   UR_STRUCTURE_TYPE_EXP_ASYNC_USM_ALLOC_PROPERTIES = 0x2050,
   /// ::ur_exp_enqueue_native_command_properties_t
