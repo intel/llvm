@@ -1261,13 +1261,11 @@ _Preconditions:_
  * `ctx` is a context associated with the `evt` object, which was passed to the
    `get` function call that produced `ipc_handle`.
 
-_Effects:_ Deallocates resources associated with the handle. These resources are
-automatically deallocated when the event object is destroyed, so it is not
-strictly necessary to call the `put` function. After the resources associated
-with the handle have been deallocated, i.e. through a call to the `put`
-function or through destruction of the event object, the handle data is invalid
-and using it in the `put` and `open` functions will result in undefined
-behavior.
+_Effects:_ Deallocates resources associated with the handle. After the
+resources associated with the handle have been deallocated, i.e. through a call
+to the `put` function or through destruction of the event object, the handle
+data is invalid and using it in the `put` and `open` functions will result in
+undefined behavior.
 
 [_Note:_ Any objects retrieved through a call to the `open` function in any
 process on the system will still be valid after a call to the `put` function.
