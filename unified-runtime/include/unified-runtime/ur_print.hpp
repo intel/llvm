@@ -926,6 +926,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
   case UR_FUNCTION_QUEUE_FLUSH:
     os << "UR_FUNCTION_QUEUE_FLUSH";
     break;
+  case UR_FUNCTION_KHR_FLUSH:
+    os << "UR_FUNCTION_KHR_FLUSH";
+    break;
   case UR_FUNCTION_SAMPLER_CREATE:
     os << "UR_FUNCTION_SAMPLER_CREATE";
     break;
@@ -22810,6 +22813,9 @@ inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os,
   } break;
   case UR_FUNCTION_QUEUE_FLUSH: {
     os << (const struct ur_queue_flush_params_t *)params;
+  } break;
+  case UR_FUNCTION_KHR_FLUSH: {
+    os << (const struct ur_khr_flush_params_t *)params;
   } break;
   case UR_FUNCTION_QUEUE_BEGIN_GRAPH_CAPTURE_EXP: {
     os << (const struct ur_queue_begin_graph_capture_exp_params_t *)params;

@@ -3604,6 +3604,38 @@ __urdlllocal ur_result_t UR_APICALL urQueueFlush(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urKhrFlush
+__urdlllocal ur_result_t UR_APICALL urKhrFlush(
+    /// [in] handle of the queue to be flushed.
+    ur_queue_handle_t hQueue) {
+  auto pfnKhrFlush = getContext()->urDdiTable.Queue.pfnKhrFlush;
+
+  if (nullptr == pfnKhrFlush)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_khr_flush_params_t params = {&hQueue};
+  uint64_t instance = getContext()->notify_begin(UR_FUNCTION_KHR_FLUSH,
+                                                 "urKhrFlush", &params);
+
+  auto &logger = getContext()->logger;
+  UR_LOG_L(logger, INFO, "   ---> urKhrFlush\n");
+
+  ur_result_t result = pfnKhrFlush(hQueue);
+
+  getContext()->notify_end(UR_FUNCTION_KHR_FLUSH, "urKhrFlush", &params,
+                           &result, instance);
+
+  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_KHR_FLUSH, &params);
+    UR_LOG_L(logger, INFO, "   <--- urKhrFlush({}) -> {};\n", args_str.str(),
+             result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urEventGetInfo
 __urdlllocal ur_result_t UR_APICALL urEventGetInfo(
     /// [in] handle of the event object
@@ -12163,6 +12195,9 @@ __urdlllocal ur_result_t UR_APICALL urGetQueueProcAddrTable(
 
   dditable.pfnFlush = pDdiTable->pfnFlush;
   pDdiTable->pfnFlush = ur_tracing_layer::urQueueFlush;
+
+  dditable.pfnKhrFlush = pDdiTable->pfnKhrFlush;
+  pDdiTable->pfnKhrFlush = ur_tracing_layer::urKhrFlush;
 
   return result;
 }

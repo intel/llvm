@@ -3542,6 +3542,32 @@ __urdlllocal ur_result_t UR_APICALL urQueueFlush(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urKhrFlush
+__urdlllocal ur_result_t UR_APICALL urKhrFlush(
+    /// [in] handle of the queue to be flushed.
+    ur_queue_handle_t hQueue) {
+  auto pfnKhrFlush = getContext()->urDdiTable.Queue.pfnKhrFlush;
+
+  if (nullptr == pfnKhrFlush) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == hQueue)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hQueue)) {
+    URLOG_CTX_INVALID_REFERENCE(hQueue);
+  }
+
+  ur_result_t result = pfnKhrFlush(hQueue);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urEventGetInfo
 __urdlllocal ur_result_t UR_APICALL urEventGetInfo(
     /// [in] handle of the event object
@@ -12946,6 +12972,9 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetQueueProcAddrTable(
 
   dditable.pfnFlush = pDdiTable->pfnFlush;
   pDdiTable->pfnFlush = ur_validation_layer::urQueueFlush;
+
+  dditable.pfnKhrFlush = pDdiTable->pfnKhrFlush;
+  pDdiTable->pfnKhrFlush = ur_validation_layer::urKhrFlush;
 
   return result;
 }

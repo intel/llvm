@@ -624,7 +624,7 @@ typedef ur_result_t(UR_APICALL *ur_pfnQueueFinish_t)(ur_queue_handle_t);
 typedef ur_result_t(UR_APICALL *ur_pfnQueueFlush_t)(ur_queue_handle_t);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urQueueFlush
+/// @brief Function-pointer for urKhrFlush
 typedef ur_result_t(UR_APICALL *ur_pfnKhrFlush_t)(ur_queue_handle_t);
 
 ///////////////////////////////////////////////////////////////////////////////

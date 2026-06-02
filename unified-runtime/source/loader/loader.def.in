@@ -163,6 +163,7 @@ EXPORTS
 	urKernelSetExecInfo
 	urKernelSetSpecializationConstants
 	urKernelSuggestMaxCooperativeGroupCount
+	urKhrFlush
 	urLoaderConfigCreate
 	urLoaderConfigEnableLayer
 	urLoaderConfigGetInfo
