@@ -8,6 +8,8 @@
 
 #pragma once
 
+#include <sycl/access/access.hpp>
+#include <sycl/detail/address_space_cast.hpp>
 #include <sycl/ext/oneapi/bfloat16.hpp>
 #include <sycl/marray.hpp>
 
@@ -45,15 +47,19 @@ __builtin_spirv_ConvertBF16ToE5M2EXT(__bf16) noexcept;
 extern __DPCPP_SYCL_EXTERNAL __bf16
 __builtin_spirv_ConvertE5M2ToBF16EXT(uint8_t) noexcept;
 extern __DPCPP_SYCL_EXTERNAL uint8_t
-__builtin_spirv_ClampStochasticRoundFP16ToE5M2INTEL(_Float16, uint32_t,
-                                                    uint32_t *) noexcept;
+__builtin_spirv_ClampStochasticRoundFP16ToE5M2INTEL(
+    _Float16, uint32_t, __attribute__((opencl_private)) uint32_t *) noexcept;
 extern __DPCPP_SYCL_EXTERNAL uint8_t
 __builtin_spirv_StochasticRoundFP16ToE5M2INTEL(_Float16, uint32_t,
+                                               __attribute__((opencl_private))
                                                uint32_t *) noexcept;
 extern __DPCPP_SYCL_EXTERNAL uint8_t
-__builtin_spirv_ClampStochasticRoundBF16ToE5M2INTEL(__bf16, uint32_t) noexcept;
+__builtin_spirv_ClampStochasticRoundBF16ToE5M2INTEL(
+    __bf16, uint32_t, __attribute__((opencl_private)) uint32_t *) noexcept;
 extern __DPCPP_SYCL_EXTERNAL uint8_t
-__builtin_spirv_StochasticRoundBF16ToE5M2INTEL(__bf16, uint32_t) noexcept;
+__builtin_spirv_StochasticRoundBF16ToE5M2INTEL(__bf16, uint32_t,
+                                               __attribute__((opencl_private))
+                                               uint32_t *) noexcept;
 #endif // __SYCL_DEVICE_ONLY__
 
 namespace sycl {
@@ -1353,16 +1359,22 @@ public:
                       [[maybe_unused]] saturation s = saturation::finite) {
 #ifdef __SYCL_DEVICE_ONLY__
     uint32_t current_seed = *seed.pseed;
+    uint32_t next_seed = 0;
     for (size_t i = 0; i < N; ++i) {
       const _Float16 v = sycl::bit_cast<_Float16>(in[i]);
       if (s == saturation::finite) {
         vals[i] = __builtin_spirv_ClampStochasticRoundFP16ToE5M2INTEL(
-            v, current_seed, seed.pseed);
+            v, current_seed,
+            sycl::detail::static_address_cast<
+                sycl::access::address_space::private_space>(&next_seed));
       } else {
         vals[i] = __builtin_spirv_StochasticRoundFP16ToE5M2INTEL(
-            v, current_seed, seed.pseed);
+            v, current_seed,
+            sycl::detail::static_address_cast<
+                sycl::access::address_space::private_space>(&next_seed));
       }
-      current_seed = *seed.pseed;
+      current_seed = next_seed;
+      next_seed = 0;
     }
 #else
     throw std::runtime_error(
@@ -1375,15 +1387,21 @@ public:
                       [[maybe_unused]] saturation s = saturation::finite) {
 #ifdef __SYCL_DEVICE_ONLY__
     uint32_t current_seed = *seed.pseed;
+    uint32_t next_seed = 0;
     for (size_t i = 0; i < N; ++i) {
       if (s == saturation::finite) {
         vals[i] = __builtin_spirv_ClampStochasticRoundBF16ToE5M2INTEL(
-            sycl::bit_cast<__bf16>(in[i]), current_seed);
+            sycl::bit_cast<__bf16>(in[i]), current_seed,
+            sycl::detail::static_address_cast<
+                sycl::access::address_space::private_space>(&next_seed));
       } else {
         vals[i] = __builtin_spirv_StochasticRoundBF16ToE5M2INTEL(
-            sycl::bit_cast<__bf16>(in[i]), current_seed);
+            sycl::bit_cast<__bf16>(in[i]), current_seed,
+            sycl::detail::static_address_cast<
+                sycl::access::address_space::private_space>(&next_seed));
       }
-      current_seed = *seed.pseed;
+      current_seed = next_seed;
+      next_seed = 0;
     }
 #else
     throw std::runtime_error(
@@ -1399,16 +1417,22 @@ public:
                       [[maybe_unused]] saturation s = saturation::finite) {
 #ifdef __SYCL_DEVICE_ONLY__
     uint32_t current_seed = *seed.pseed;
+    uint32_t next_seed = 0;
     for (size_t i = 0; i < N; ++i) {
       _Float16 v = sycl::bit_cast<_Float16>(in[i]);
       if (s == saturation::finite) {
         vals[i] = __builtin_spirv_ClampStochasticRoundFP16ToE5M2INTEL(
-            v, current_seed, seed.pseed);
+            v, current_seed,
+            sycl::detail::static_address_cast<
+                sycl::access::address_space::private_space>(&next_seed));
       } else {
         vals[i] = __builtin_spirv_StochasticRoundFP16ToE5M2INTEL(
-            v, current_seed, seed.pseed);
+            v, current_seed,
+            sycl::detail::static_address_cast<
+                sycl::access::address_space::private_space>(&next_seed));
       }
-      current_seed = *seed.pseed;
+      current_seed = next_seed;
+      next_seed = 0;
     }
 #else
     throw std::runtime_error(
@@ -1421,15 +1445,21 @@ public:
                       [[maybe_unused]] saturation s = saturation::finite) {
 #ifdef __SYCL_DEVICE_ONLY__
     uint32_t current_seed = *seed.pseed;
+    uint32_t next_seed = 0;
     for (size_t i = 0; i < N; ++i) {
       if (s == saturation::finite) {
         vals[i] = __builtin_spirv_ClampStochasticRoundBF16ToE5M2INTEL(
-            sycl::bit_cast<__bf16>(in[i]), current_seed);
+            sycl::bit_cast<__bf16>(in[i]), current_seed,
+            sycl::detail::static_address_cast<
+                sycl::access::address_space::private_space>(&next_seed));
       } else {
         vals[i] = __builtin_spirv_StochasticRoundBF16ToE5M2INTEL(
-            sycl::bit_cast<__bf16>(in[i]), current_seed);
+            sycl::bit_cast<__bf16>(in[i]), current_seed,
+            sycl::detail::static_address_cast<
+                sycl::access::address_space::private_space>(&next_seed));
       }
-      current_seed = *seed.pseed;
+      current_seed = next_seed;
+      next_seed = 0;
     }
 #else
     throw std::runtime_error(

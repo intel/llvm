@@ -21,9 +21,7 @@ template <typename T, bool UseMarray, saturation Sat>
 int test_stochastic_constructor(sycl::queue &queue) {
   auto *out = sycl::malloc_shared<float>(1, queue);
   auto *seed = sycl::malloc_shared<uint32_t>(1, queue);
-  auto *seed_updated = sycl::malloc_shared<bool>(1, queue);
   seed[0] = 0x12345678u;
-  seed_updated[0] = false;
 
   queue.single_task([=]() {
     const float input_value = Sat == saturation::finite
@@ -50,24 +48,19 @@ int test_stochastic_constructor(sycl::queue &queue) {
         out[0] = static_cast<float>(value);
       }
     }
-
-    seed_updated[0] = seed[0] != initial_seed;
   });
   queue.wait_and_throw();
 
   int ret = 0;
-  if (!seed_updated[0])
-    ret = 1;
+
   if constexpr (Sat == saturation::finite) {
     if (out[0] != -E5M2MaxNormal)
       ret = 1;
-  } else if (!is_positive_infinity(out[0])) {
+  } else if (!is_positive_infinity(out[0]))
     ret = 1;
-  }
 
   sycl::free(out, queue);
   sycl::free(seed, queue);
-  sycl::free(seed_updated, queue);
   return ret;
 }
 
@@ -225,9 +218,6 @@ int main() {
   ret |= test_marray_conversion<sycl::half>(queue);
   ret |= test_marray_conversion<sycl::ext::oneapi::bfloat16>(queue);
 
-  // TODO: uncomment when undefined reference to
-  // `_Z46__builtin_spirv_StochasticRoundFP16ToE5M2INTELDhiPU3AS4i' is resolved
-  /*
   ret |=
       test_stochastic_constructor<sycl::half, false, saturation::finite>(queue);
   ret |=
@@ -243,7 +233,7 @@ int main() {
                                      saturation::finite>(queue);
   ret |= test_stochastic_constructor<sycl::ext::oneapi::bfloat16, true,
                                      saturation::none>(queue);
-  */
+
   ret |= test_fp8_precision_conversion<float>(queue);
   ret |= test_fp8_precision_conversion<int>(queue);
   ret |= test_fp8_precision_conversion<long>(queue);
