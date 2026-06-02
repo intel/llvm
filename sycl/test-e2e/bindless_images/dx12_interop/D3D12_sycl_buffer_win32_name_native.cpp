@@ -5,7 +5,6 @@
 // XFAIL: windows
 // XFAIL-TRACKER: GSD-12837
 
-
 // RUN: %{build} %link-directx -o %t.exe %if target-spir %{ -Wno-ignored-attributes %}
 // RUN: %{run} %t.exe --no-sem
 // RUN: %{run} %t.exe
