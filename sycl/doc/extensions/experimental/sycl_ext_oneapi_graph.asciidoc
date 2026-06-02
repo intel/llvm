@@ -733,7 +733,7 @@ public:
   template <typename Func, typename... ArgTs>
   void set_destruction_callback(Func&& callback, ArgTs&&... cbArgs);
 
-  size_t ext_oneapi_get_id() const noexcept;
+  size_t get_id() const noexcept;
 };
 
 template<>
@@ -1571,7 +1571,7 @@ state is `graph_state::modifiable`.
 
 [source,c++]
 ----
-size_t ext_oneapi_get_id() const noexcept;
+size_t get_id() const noexcept;
 ----
 
 _Constraints:_ This member function is only available when the `command_graph`
@@ -1589,7 +1589,7 @@ Example: querying the graph ID during recording to select a memory pool:
 ----
 sycl::ext::oneapi::experimental::command_graph graph{ctx, dev};
 graph.begin_recording(queue);
-size_t id = graph.ext_oneapi_get_id();
+size_t id = graph.get_id();
 // id uniquely identifies this graph object within the process; use it
 // to look up or create a per-graph memory pool.
 auto& pool = memory_pools[id];
