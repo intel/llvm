@@ -2558,9 +2558,8 @@ ProgramManager::compile(const DevImgPlainWithDeps &ImgWithDeps,
     // a different option (-create-library) and is not in scope here.
     {
       const auto *Bin = InputImpl.get_bin_image_ref();
-      bool HasCrossImageSymbols =
-          Bin && (!Bin->getExportedSymbols().empty() ||
-                  !Bin->getImportedSymbols().empty());
+      bool HasCrossImageSymbols = Bin && (!Bin->getExportedSymbols().empty() ||
+                                          !Bin->getImportedSymbols().empty());
       backend Be = InputImpl.get_context().get_backend();
       if (HasCrossImageSymbols && Be == backend::ext_oneapi_level_zero) {
         if (!CompileOptions.empty())

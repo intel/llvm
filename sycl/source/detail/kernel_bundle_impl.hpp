@@ -542,8 +542,8 @@ public:
           }
           ur_result_t BErr = Adapter.call_nocheck<UrApiKind::urProgramBuildExp>(
               AOTImg.get_ur_program(),
-              static_cast<uint32_t>(URDevicesAOT.size()),
-              URDevicesAOT.data(), AOTBuildFlags, /*pOptions=*/"");
+              static_cast<uint32_t>(URDevicesAOT.size()), URDevicesAOT.data(),
+              AOTBuildFlags, /*pOptions=*/"");
           if (BErr == UR_RESULT_ERROR_UNSUPPORTED_FEATURE)
             BErr = Adapter.call_nocheck<UrApiKind::urProgramBuild>(
                 ContextImplLocal.getHandleRef(), AOTImg.get_ur_program(),
