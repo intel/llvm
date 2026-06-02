@@ -584,6 +584,9 @@ operator<<(std::ostream &os,
 inline std::ostream &
 operator<<(std::ostream &os,
            [[maybe_unused]] const struct ur_exp_win32_handle_t params);
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_exp_win32_name_t params);
 inline std::ostream &operator<<(
     std::ostream &os,
     [[maybe_unused]] const struct ur_exp_sampler_mip_properties_t params);
@@ -1540,6 +1543,9 @@ inline std::ostream &operator<<(std::ostream &os,
   case UR_STRUCTURE_TYPE_EXP_WIN32_HANDLE:
     os << "UR_STRUCTURE_TYPE_EXP_WIN32_HANDLE";
     break;
+  case UR_STRUCTURE_TYPE_EXP_WIN32_NAME:
+    os << "UR_STRUCTURE_TYPE_EXP_WIN32_NAME";
+    break;
   case UR_STRUCTURE_TYPE_EXP_SAMPLER_ADDR_MODES:
     os << "UR_STRUCTURE_TYPE_EXP_SAMPLER_ADDR_MODES";
     break;
@@ -1863,6 +1869,11 @@ inline ur_result_t printStruct(std::ostream &os, const void *ptr) {
 
   case UR_STRUCTURE_TYPE_EXP_WIN32_HANDLE: {
     const ur_exp_win32_handle_t *pstruct = (const ur_exp_win32_handle_t *)ptr;
+    printPtr(os, pstruct);
+  } break;
+
+  case UR_STRUCTURE_TYPE_EXP_WIN32_NAME: {
+    const ur_exp_win32_name_t *pstruct = (const ur_exp_win32_name_t *)ptr;
     printPtr(os, pstruct);
   } break;
 
@@ -12174,6 +12185,27 @@ inline std::ostream &operator<<(std::ostream &os,
   os << ".handle = ";
 
   ur::details::printPtr(os, (params.handle));
+
+  os << "}";
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_exp_win32_name_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os,
+                                const struct ur_exp_win32_name_t params) {
+  os << "(struct ur_exp_win32_name_t){";
+
+  os << ".stype = ";
+
+  os << (params.stype);
+
+  os << ", ";
+  os << ".pNext = ";
+
+  ur::details::printStruct(os, (params.pNext));
 
   os << ", ";
   os << ".name = ";

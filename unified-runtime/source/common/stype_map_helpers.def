@@ -158,6 +158,9 @@ template <>
 struct stype_map<ur_exp_win32_handle_t>
     : stype_map_impl<UR_STRUCTURE_TYPE_EXP_WIN32_HANDLE> {};
 template <>
+struct stype_map<ur_exp_win32_name_t>
+    : stype_map_impl<UR_STRUCTURE_TYPE_EXP_WIN32_NAME> {};
+template <>
 struct stype_map<ur_exp_sampler_addr_modes_t>
     : stype_map_impl<UR_STRUCTURE_TYPE_EXP_SAMPLER_ADDR_MODES> {};
 template <>

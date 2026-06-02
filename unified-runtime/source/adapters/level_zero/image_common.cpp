@@ -1286,17 +1286,31 @@ ur_result_t urBindlessImagesImportExternalMemoryExp(
       importFd->flags = ZE_EXTERNAL_MEMORY_TYPE_FLAG_OPAQUE_FD;
       externalMemoryData->importExtensionDesc = importFd;
       externalMemoryData->type = UR_ZE_EXTERNAL_OPAQUE_FD;
-    } else if (BaseDesc->stype == UR_STRUCTURE_TYPE_EXP_WIN32_HANDLE) {
+    } else if (BaseDesc->stype == UR_STRUCTURE_TYPE_EXP_WIN32_HANDLE ||
+               BaseDesc->stype == UR_STRUCTURE_TYPE_EXP_WIN32_NAME) {
       ze_external_memory_import_win32_handle_t *importWin32 =
           new ze_external_memory_import_win32_handle_t;
       importWin32->stype = ZE_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMPORT_WIN32;
       importWin32->pNext = nullptr;
-      auto Win32Handle = static_cast<const ur_exp_win32_handle_t *>(pNext);
+      importWin32->handle = nullptr;
+      importWin32->name = nullptr;
 
-      if ((Win32Handle->handle == nullptr) == (Win32Handle->name == nullptr)) {
-        delete importWin32;
-        delete externalMemoryData;
-        return UR_RESULT_ERROR_INVALID_VALUE;
+      if (BaseDesc->stype == UR_STRUCTURE_TYPE_EXP_WIN32_HANDLE) {
+        auto Win32Handle = static_cast<const ur_exp_win32_handle_t *>(pNext);
+        if (Win32Handle->handle == nullptr) {
+          delete importWin32;
+          delete externalMemoryData;
+          return UR_RESULT_ERROR_INVALID_VALUE;
+        }
+        importWin32->handle = Win32Handle->handle;
+      } else {
+        auto Win32Name = static_cast<const ur_exp_win32_name_t *>(pNext);
+        if (Win32Name->name == nullptr) {
+          delete importWin32;
+          delete externalMemoryData;
+          return UR_RESULT_ERROR_INVALID_VALUE;
+        }
+        importWin32->name = Win32Name->name;
       }
 
       switch (memHandleType) {
@@ -1314,8 +1328,6 @@ ur_result_t urBindlessImagesImportExternalMemoryExp(
         delete externalMemoryData;
         return UR_RESULT_ERROR_INVALID_VALUE;
       }
-      importWin32->handle = Win32Handle->handle;
-      importWin32->name = Win32Handle->name;
       externalMemoryData->importExtensionDesc = importWin32;
       externalMemoryData->type = UR_ZE_EXTERNAL_WIN32;
     }
@@ -1424,12 +1436,9 @@ ur_result_t urBindlessImagesImportExternalSemaphoreExp(
       default:
         return UR_RESULT_ERROR_INVALID_VALUE;
       }
-    } else if (BaseDesc->stype == UR_STRUCTURE_TYPE_EXP_WIN32_HANDLE) {
+    } else if (BaseDesc->stype == UR_STRUCTURE_TYPE_EXP_WIN32_HANDLE ||
+               BaseDesc->stype == UR_STRUCTURE_TYPE_EXP_WIN32_NAME) {
       SemDesc.pNext = &Win32ExpDesc;
-      auto Win32Handle = static_cast<const ur_exp_win32_handle_t *>(pNext);
-      if ((Win32Handle->handle == nullptr) == (Win32Handle->name == nullptr)) {
-        return UR_RESULT_ERROR_INVALID_VALUE;
-      }
       switch (semHandleType) {
       case UR_EXP_EXTERNAL_SEMAPHORE_TYPE_WIN32_NT:
         SemDesc.flags = ZE_EXTERNAL_SEMAPHORE_EXT_FLAG_OPAQUE_WIN32;
@@ -1447,8 +1456,19 @@ ur_result_t urBindlessImagesImportExternalSemaphoreExp(
       default:
         return UR_RESULT_ERROR_INVALID_VALUE;
       }
-      Win32ExpDesc.handle = Win32Handle->handle;
-      Win32ExpDesc.name = static_cast<const char *>(Win32Handle->name);
+      if (BaseDesc->stype == UR_STRUCTURE_TYPE_EXP_WIN32_HANDLE) {
+        auto Win32Handle = static_cast<const ur_exp_win32_handle_t *>(pNext);
+        if (Win32Handle->handle == nullptr) {
+          return UR_RESULT_ERROR_INVALID_VALUE;
+        }
+        Win32ExpDesc.handle = Win32Handle->handle;
+      } else {
+        auto Win32Name = static_cast<const ur_exp_win32_name_t *>(pNext);
+        if (Win32Name->name == nullptr) {
+          return UR_RESULT_ERROR_INVALID_VALUE;
+        }
+        Win32ExpDesc.name = static_cast<const char *>(Win32Name->name);
+      }
     }
     pNext = const_cast<void *>(BaseDesc->pNext);
   }

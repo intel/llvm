@@ -619,6 +619,8 @@ typedef enum ur_structure_type_t {
   UR_STRUCTURE_TYPE_EXP_FILE_DESCRIPTOR = 0x2003,
   /// ::ur_exp_win32_handle_t
   UR_STRUCTURE_TYPE_EXP_WIN32_HANDLE = 0x2004,
+  /// ::ur_exp_win32_name_t
+  UR_STRUCTURE_TYPE_EXP_WIN32_NAME = 0x2008,
   /// ::ur_exp_sampler_addr_modes_t
   UR_STRUCTURE_TYPE_EXP_SAMPLER_ADDR_MODES = 0x2005,
   /// ::ur_exp_sampler_cubemap_properties_t
@@ -10021,27 +10023,38 @@ typedef struct ur_exp_file_descriptor_t {
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Windows specific file handle
-///
-/// @details
-///     - Exactly one of `handle` and `name` must be non-null. When `name` is
-///       used, the adapter is expected to open the named NT object on the
-///       caller's behalf (equivalent to the application calling
-///       `OpenSharedHandleByName` and then importing by handle).
-///     - Adapters that do not support importing by name must return
-///       ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE when `name` is non-null.
 typedef struct ur_exp_win32_handle_t {
   /// [in] type of this structure, must be
   /// ::UR_STRUCTURE_TYPE_EXP_WIN32_HANDLE
   ur_structure_type_t stype;
   /// [in][optional] pointer to extension-specific structure
   const void *pNext;
-  /// [in][optional] A win32 file handle. Mutually exclusive with `name`.
+  /// [in] A win32 file handle.
   void *handle;
-  /// [in][optional] NT object name of the win32 object to import (a
-  /// null-terminated wide string). Mutually exclusive with `handle`.
-  const void *name;
 
 } ur_exp_win32_handle_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Windows specific named object
+///
+/// @details
+///     - An NT object name identifying a shareable Win32 object (e.g. the name
+///       passed to `ID3D12Device::CreateSharedHandle` or to
+///       `CreateEvent`/`CreateSemaphore`). The adapter is expected to open the
+///       named object on the caller's behalf (equivalent to the application
+///       calling `OpenSharedHandleByName` and then importing by handle).
+///     - Adapters that do not support importing by name must return
+///       ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE.
+typedef struct ur_exp_win32_name_t {
+  /// [in] type of this structure, must be
+  /// ::UR_STRUCTURE_TYPE_EXP_WIN32_NAME
+  ur_structure_type_t stype;
+  /// [in][optional] pointer to extension-specific structure
+  const void *pNext;
+  /// [in] NT object name (null-terminated wide string).
+  const void *name;
+
+} ur_exp_win32_name_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Describes mipmap sampler properties
