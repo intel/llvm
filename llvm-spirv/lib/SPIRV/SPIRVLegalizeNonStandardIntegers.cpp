@@ -35,7 +35,7 @@ static bool isNonStdIntType(Type *Ty) {
   if (!Ty->isIntegerTy())
     return false;
   unsigned BitWidth = Ty->getIntegerBitWidth();
-  return BitWidth > 64 || (BitWidth & (BitWidth-1)) != 0;
+  return BitWidth > 64 || (BitWidth & (BitWidth - 1)) != 0;
 }
 
 // Widen bit width to next power of 2 (capped at 64).
@@ -43,8 +43,9 @@ static unsigned widenBitWidth(unsigned BitWidth) {
   if (BitWidth == 1)
     return 1;
   if (BitWidth > 64)
-    report_fatal_error(Twine("BitWidth value cannot be greater than 64, found ")
-                       + Twine(BitWidth));
+    report_fatal_error(
+        Twine("BitWidth value cannot be greater than 64, found ") +
+        Twine(BitWidth));
   return std::max(1u << Log2_32_Ceil(BitWidth), 8u);
 }
 
@@ -65,8 +66,8 @@ static Value *maskToWidth(IRBuilder<> &Builder, Value *V, unsigned Width) {
   return Builder.CreateAnd(V, ConstantInt::get(Ty, Mask));
 }
 
-// Replace a ZExt of a non-std int with the appropriately extended widened value.
-// Returns true if the ZExt was replaced and erased.
+// Replace a ZExt of a non-std int with the appropriately extended widened
+// value. Returns true if the ZExt was replaced and erased.
 static bool replaceZExt(IRBuilder<> &Builder, ZExtInst *ZExt, Value *WidenedVal,
                         Type *WidenedTy) {
   Builder.SetInsertPoint(ZExt);
@@ -121,8 +122,8 @@ static void legalizeBinaryOp(IRBuilder<> &Builder, BinaryOperator *BinOp,
     WidenedOther = maskToWidth(Builder, OtherWide, OldWidth);
   } else if (auto *CI = dyn_cast<ConstantInt>(OtherOp)) {
     APInt Mask = APInt::getLowBitsSet(NewTy->getIntegerBitWidth(), OldWidth);
-    WidenedOther = ConstantInt::get(NewTy,
-                                    CI->getZExtValue() & Mask.getZExtValue());
+    WidenedOther =
+        ConstantInt::get(NewTy, CI->getZExtValue() & Mask.getZExtValue());
   } else {
     WidenedOther = Builder.CreateZExt(OtherOp, NewTy);
   }
@@ -163,7 +164,8 @@ static bool legalizeNonStdIntChain(Function &F) {
     unsigned NewWidth = widenBitWidth(OldWidth);
     Type *NewTy = IntegerType::get(F.getContext(), NewWidth);
 
-    // Convert the trunc source to the widened type, then mask to original width.
+    // Convert the trunc source to the widened type, then mask to original
+    // width.
     Builder.SetInsertPoint(TI);
     Value *WidenedSrc = convertToType(Builder, TI->getOperand(0), NewTy);
     Value *MaskedVal = maskToWidth(Builder, WidenedSrc, OldWidth);
