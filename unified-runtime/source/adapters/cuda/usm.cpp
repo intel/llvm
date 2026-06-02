@@ -617,6 +617,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMContextMemcpyExp(
   auto streamCleanup = [&copyStream]() {
     if (copyStream) {
       cuStreamDestroy(copyStream);
+      copyStream = nullptr;
     }
   };
 
@@ -624,7 +625,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMContextMemcpyExp(
     UR_CHECK_ERROR(
         cuMemcpyAsync((CUdeviceptr)pDst, (CUdeviceptr)pSrc, Size, copyStream));
 
-    // Wait for copy to complete on this stream only (not entire context)
+    // Wait for copy to complete on this stream only
     UR_CHECK_ERROR(cuStreamSynchronize(copyStream));
 
     streamCleanup();
