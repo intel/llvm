@@ -2361,6 +2361,10 @@ bool modifiable_command_graph::empty() const {
   return impl->empty();
 }
 
+size_t modifiable_command_graph::ext_oneapi_get_id() const noexcept {
+  return impl->getID();
+}
+
 void modifiable_command_graph::checkNodePropertiesAndThrow(
     const property_list &Properties) {
   auto CheckDataLessProperties = [](int PropertyKind) {
