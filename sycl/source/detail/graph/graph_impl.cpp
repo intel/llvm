@@ -2361,7 +2361,7 @@ bool modifiable_command_graph::empty() const {
   return impl->empty();
 }
 
-size_t modifiable_command_graph::ext_oneapi_get_id() const noexcept {
+size_t modifiable_command_graph::get_id() const noexcept {
   return impl->getID();
 }
 

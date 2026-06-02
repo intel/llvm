@@ -176,7 +176,7 @@ public:
   }
 
   /// Returns a process-unique ID associated with this graph object.
-  size_t ext_oneapi_get_id() const noexcept;
+  size_t get_id() const noexcept;
 
   /// Common Reference Semantics
   friend bool operator==(const modifiable_command_graph &LHS,
