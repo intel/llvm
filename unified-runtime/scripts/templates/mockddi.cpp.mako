@@ -74,17 +74,32 @@ namespace driver
                     mock::retainDummyHandle(*ph${func_class});
                 %else:
                     <%
-                        in_handle = None
-                        out_native = None
-                        for p in obj['params']:
-                            if th.param_traits.is_mbz(p):
-                                continue
-                            pname = th.subt(namespace, tags, p['name'])
-                            ptype = th.subt(namespace, tags, p['type'])
-                            if th.type_traits.is_native_handle(ptype):
-                                out_native = pname
-                            elif th.param_traits.is_input(p):
-                                in_handle = pname
+                        param_names = [
+                            th.subt(namespace, tags, p['name'])
+                            for p in obj['params']
+                            if not th.param_traits.is_mbz(p)
+                        ]
+                        default_in = f"h{func_class}"
+                        default_out = f"phNative{func_class}"
+                        if default_in in param_names and default_out in param_names:
+                            in_handle = default_in
+                            out_native = default_out
+                        else:
+                            in_handle = None
+                            out_native = None
+                            for p in obj['params']:
+                                if th.param_traits.is_mbz(p):
+                                    continue
+                                pname = th.subt(namespace, tags, p['name'])
+                                ptype = th.subt(namespace, tags, p['type'])
+                                if th.type_traits.is_native_handle(ptype):
+                                    out_native = pname
+                                elif (
+                                    in_handle is None
+                                    and th.param_traits.is_input(p)
+                                    and th.type_traits.is_handle(ptype)
+                                ):
+                                    in_handle = pname
                     %>
                     *${out_native} = reinterpret_cast<ur_native_handle_t>(${in_handle});
                 %endif
