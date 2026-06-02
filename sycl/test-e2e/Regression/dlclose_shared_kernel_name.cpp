@@ -18,7 +18,7 @@
 
 #ifdef BUILD_LIB
 // Both DSOs get the same SYCL mangled kernel name.
-void run_kernel() {
+extern "C" void run_kernel() {
   sycl::queue q;
   sycl::buffer<int, 1> b(1);
   q.submit([&](sycl::handler &cgh) {
@@ -36,8 +36,8 @@ int main() {
   void *hB = dlopen("libB_" STRINGIFY(FNAME) ".so", RTLD_NOW | RTLD_LOCAL);
   assert(hB && "failed to dlopen libB");
 
-  auto *fnA = (void (*)())dlsym(hA, "_Z10run_kernelv");
-  auto *fnB = (void (*)())dlsym(hB, "_Z10run_kernelv");
+  auto *fnA = (void (*)())dlsym(hA, "run_kernel");
+  auto *fnB = (void (*)())dlsym(hB, "run_kernel");
   assert(fnA && fnB && "failed to dlsym run_kernel");
 
   fnA();
