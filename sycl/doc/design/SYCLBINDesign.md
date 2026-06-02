@@ -236,10 +236,65 @@ based), this option currently requires `--offload-new-driver` to be set.
 <td>`--offload-rdc`</td>
 <td>This is an alias of `-fgpu-rdc`.</td>
 </tr>
+<tr>
+<td>`-f[no-]sycl-allow-device-image-dependencies`</td>
+<td>
+Allow dependencies between separately compiled device code images. When
+enabled, sycl-post-link emits the `SYCL/exported symbols` and
+`SYCL/imported symbols` property sets on each device image, recording the
+`SYCL_EXTERNAL` functions the image defines and the ones it requires.
+The SYCL runtime uses these property sets to build the link graph and
+resolve cross-image symbols at `sycl::link` time.
+
+Required when producing a SYCLBIN whose kernels or `SYCL_EXTERNAL`
+functions reference symbols defined in another SYCLBIN or in a
+runtime-compiled (`ext_oneapi_kernel_compiler`) source bundle. Without
+this option, post-link drops the cross-image symbol metadata and the
+runtime `sycl::link` throws `errc::invalid` with the message
+`No exported symbol "X" found in linked images.`
+
+The same option must be passed to `compile`/`build` of a runtime-compiled
+source bundle (via `ext::oneapi::experimental::build_options`) that is
+intended to participate in the link.
+</td>
+</tr>
 </table>
 
-Additionally, `-fsycl-link` should work with .syclbin files. Semantics of how
-SYCLBIN files are linked together is yet to be specified.
+Additionally, `-fsycl-link` should work with .syclbin files.
+
+### Linking SYCLBIN files
+
+`sycl::link` of two or more `kernel_bundle<bundle_state::object>` objects
+that originate from SYCLBIN files (or from a mix of SYCLBIN and
+runtime-compiled source bundles) is supported. The runtime treats each
+`device_image` carried by the input bundles as a node in a per-device
+link graph and uses the `SYCL/exported symbols` / `SYCL/imported symbols`
+property sets emitted by sycl-post-link to drive resolution:
+
+* Each exported symbol entry maps to its defining image.
+* Each imported symbol must resolve to exactly one exported entry across
+  the input images. Unresolved imports throw `errc::invalid`.
+* Duplicate exports across input images throw `errc::invalid`.
+* Duplicate kernel names across input images throw `errc::invalid`
+  (`Conflicting kernel definitions: ...`).
+
+The producer of every participating image must therefore be compiled with
+`-fsycl-allow-device-image-dependencies`; without it the post-link stage
+strips the symbol property sets and the runtime cannot resolve the
+references.
+
+Three supported configurations:
+
+1. *SYCLBIN object + SYCLBIN object*. Each `.syclbin` is loaded with
+   `get_kernel_bundle<bundle_state::object>(ctx, file)`; both bundles are
+   passed to `sycl::link`.
+2. *SYCLBIN object + runtime-compiled object*. The SYCLBIN bundle is
+   loaded as in (1); the source bundle is produced with
+   `create_kernel_bundle_from_source` followed by `compile` with the
+   `build_options{"-fsycl-allow-device-image-dependencies"}` property.
+3. *SYCLBIN input*. Loaded with
+   `get_kernel_bundle<bundle_state::input>(ctx, devs, file)` and brought
+   to object state via `sycl::compile` before linking.
 
 
 ## clang-linker-wrapper changes

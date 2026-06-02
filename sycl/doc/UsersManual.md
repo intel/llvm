@@ -343,6 +343,17 @@ and not recommended to use in production environment.
     additional device linking parallism for fat static archives.
     Relocatable device code is enabled by default.
 
+**`-f[no-]sycl-allow-device-image-dependencies`**
+
+    Enables/disables dependencies between separately compiled device code
+    images. When enabled, post-link emits the exported and imported symbol
+    metadata that the SYCL runtime uses to resolve SYCL_EXTERNAL references
+    at sycl::link time across SYCLBIN files and runtime-compiled source
+    bundles. Required when producing or linking such bundles; without it
+    sycl::link reports unresolved exported symbols.
+    Requires --offload-new-driver.
+    Disabled by default.
+
 ## Other options
 
 **`-f[no-]offload-fp32-prec-sqrt`**
