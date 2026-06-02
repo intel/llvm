@@ -2,16 +2,9 @@
 // REQUIRES: aspect-ext_oneapi_external_semaphore_import
 // REQUIRES: windows
 
-// UNSUPPORTED: gpu-intel-dg2
-// UNSUPPORTED-TRACKER: GSD-12428
+// XFAIL: windows
+// XFAIL-TRACKER: GSD-12837
 
-// UNSUPPORTED: gpu-intel-gen12
-// UNSUPPORTED-TRACKER: GSD-12427
-
-// UNSUPPORTED: arch-intel_gpu_bmg_g21
-// UNSUPPORTED-TRACKER: GSD-12436
-// works on BMG, but if run in parallel with itself or other semaphore
-// tests, can hang.
 
 // RUN: %{build} %link-directx -o %t.exe %if target-spir %{ -Wno-ignored-attributes %}
 // RUN: %{run} %t.exe --no-sem
