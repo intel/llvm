@@ -67,7 +67,8 @@ kernel_impl::kernel_impl(Managed<ur_kernel_handle_t> &&Kernel,
   // Enable USM indirect access for interop and non-sycl-jit source kernels.
   // sycl-jit kernels will enable this if needed through the regular kernel
   // path.
-  if (MCreatedFromSource || MIsInterop)
+  if (MCreatedFromSource || MIsInterop ||
+      (MDeviceImageImpl->getOriginMask() & ImageOriginSYCLBIN))
     enableUSMIndirectAccess();
 }
 
