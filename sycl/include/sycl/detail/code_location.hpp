@@ -8,7 +8,8 @@
 
 #pragma once
 
-#include <sycl/detail/export.hpp> // for __SYCL_EXPORT
+#include <sycl/detail/defines_elementary.hpp> // for __has_builtin fallback
+#include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
 
 #include <cstdint>
 
