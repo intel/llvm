@@ -59,36 +59,32 @@ endforeach()
 
 add_subdirectory(testing)
 
-# TEMPORARY: Disable most tests to reduce CI load during development
-# TODO: Re-enable before final PR
-# add_subdirectory(adapter)
-# add_subdirectory(platform)
-# add_subdirectory(device)
-# add_subdirectory(context)
-# add_subdirectory(memory)
-# add_subdirectory(event)
-# add_subdirectory(queue)
-# add_subdirectory(sampler)
-# add_subdirectory(virtual_memory)
-add_subdirectory(exp_usm_context_memcpy)  # ← ONLY THIS TEST
-# add_subdirectory(exp_graph)
-# add_subdirectory(exp_usm_host_mem_register)
+add_subdirectory(adapter)
+add_subdirectory(platform)
+add_subdirectory(device)
+add_subdirectory(context)
+add_subdirectory(memory)
+add_subdirectory(event)
+add_subdirectory(queue)
+add_subdirectory(sampler)
+add_subdirectory(virtual_memory)
+add_subdirectory(exp_usm_context_memcpy)
+add_subdirectory(exp_graph)
+add_subdirectory(exp_usm_host_mem_register)
 
 set(TEST_SUBDIRECTORIES_DPCXX
-    # TEMPORARY: Disable DPCXX tests to reduce CI load
-    # TODO: Re-enable before final PR
-    # "device_code"
-    # "kernel"
-    # "program"
-    # "enqueue"
-    # "integration"
-    # "exp_command_buffer"
-    # "exp_enqueue_native"
-    # "exp_enqueue_kernel_launch_with_args"
-    # "exp_usm_p2p"
-    # "memory-migrate"
-    # "usm"
-    # "exp_host_task"
+    "device_code"
+    "kernel"
+    "program"
+    "enqueue"
+    "integration"
+    "exp_command_buffer"
+    "exp_enqueue_native"
+    "exp_enqueue_kernel_launch_with_args"
+    "exp_usm_p2p"
+    "memory-migrate"
+    "usm"
+    "exp_host_task"
 )
 
 if(UR_FOUND_DPCXX)
