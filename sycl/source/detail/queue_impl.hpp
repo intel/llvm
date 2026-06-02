@@ -613,6 +613,8 @@ public:
 
   bool queue_empty() const;
 
+  void queue_flush() const;
+
   EventImplPtr memcpyToDeviceGlobal(void *DeviceGlobalPtr, const void *Src,
                                     bool IsDeviceImageScope, size_t NumBytes,
                                     size_t Offset,

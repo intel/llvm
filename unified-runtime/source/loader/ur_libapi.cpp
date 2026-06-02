@@ -4085,6 +4085,18 @@ ur_result_t UR_APICALL urQueueFlush(
   return exceptionToResult(std::current_exception());
 }
 
+ur_result_t UR_APICALL urKhrFlush(
+    /// [in] handle of the queue to be flushed.
+    ur_queue_handle_t hQueue) try {
+  auto pfnKhrFlush = ur_lib::getContext()->urDdiTable.Queue.pfnKhrFlush;
+  if (nullptr == pfnKhrFlush)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  return pfnKhrFlush(hQueue);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Get event object information
 ///

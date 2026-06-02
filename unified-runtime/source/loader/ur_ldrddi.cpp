@@ -1989,6 +1989,22 @@ __urdlllocal ur_result_t UR_APICALL urQueueFlush(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urKhrFlush
+__urdlllocal ur_result_t UR_APICALL urKhrFlush(
+    /// [in] handle of the queue to be flushed.
+    ur_queue_handle_t hQueue) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hQueue);
+
+  auto *pfnKhrFlush = dditable->Queue.pfnKhrFlush;
+  if (nullptr == pfnKhrFlush)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnKhrFlush(hQueue);
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urEventGetInfo
 __urdlllocal ur_result_t UR_APICALL urEventGetInfo(
     /// [in] handle of the event object
@@ -7395,6 +7411,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetQueueProcAddrTable(
           ur_loader::urQueueCreateWithNativeHandle;
       pDdiTable->pfnFinish = ur_loader::urQueueFinish;
       pDdiTable->pfnFlush = ur_loader::urQueueFlush;
+      pDdiTable->pfnKhrFlush = ur_loader::urKhrFlush;
     } else {
       // return pointers directly to platform's DDIs
       *pDdiTable = ur_loader::getContext()->platforms.front().dditable.Queue;

@@ -3583,6 +3583,36 @@ ur_result_t UR_APICALL urQueueFlush(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Issues all previously enqueued commands in a command queue to the
+///        device.
+///
+/// @details
+///     - Guarantees that all enqueued commands will be issued to the
+///       appropriate device.
+///     - There is no guarantee that they will be completed after ::urKhrFlush
+///       returns.
+///
+/// @remarks
+///   _Analogues_
+///     - **clFlush**
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hQueue`
+///     - ::UR_RESULT_ERROR_INVALID_QUEUE
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+ur_result_t UR_APICALL urKhrFlush(
+    /// [in] handle of the queue to be flushed.
+    ur_queue_handle_t hQueue) {
+  ur_result_t result = UR_RESULT_SUCCESS;
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Get event object information
 ///
 /// @remarks

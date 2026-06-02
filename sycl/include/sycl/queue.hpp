@@ -3611,6 +3611,11 @@ public:
   /// completed, otherwise returns false.
   bool khr_empty() const;
 
+  /// Flushes all commands in the queue to the device, but doesn't wait for them
+  /// to complete unlike wait().
+  ///
+  void khr_flush() const;
+
   std::optional<event> ext_oneapi_get_last_event() const {
     return static_cast<std::optional<event>>(ext_oneapi_get_last_event_impl());
   }
