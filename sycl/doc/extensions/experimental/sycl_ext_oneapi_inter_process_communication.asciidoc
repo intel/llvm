@@ -1201,6 +1201,10 @@ namespace sycl::ext::oneapi::experimental::ipc::event {
 
 handle get(const sycl::event &evt);
 
+void put(handle &ipc_handle, const sycl::context &ctx);
+
+void put(handle &ipc_handle);
+
 sycl::event open(const handle_data_t &handle_data, const sycl::context &ctx,
                  const sycl::device &dev);
 
@@ -1240,6 +1244,51 @@ call to the `open` function.
 
 _Throws:_ An exception with the `errc::invalid` error code if event `evt` was
 not created with the `enable_ipc` property.
+
+!====
+a!
+[source]
+----
+void put(handle &ipc_handle, const sycl::context &ctx)
+----
+!====
+
+_Preconditions:_
+
+ * `ipc_handle` is the IPC "handle" to an event that was returned from a call
+   to `get` in this same process. The `put` function has not been previously
+   called on the handle.
+ * `ctx` is a context associated with the `evt` object, which was passed to the
+   `get` function call that produced `ipc_handle`.
+
+_Effects:_ Deallocates resources associated with the handle. These resources are
+automatically deallocated when the event object is destroyed, so it is not
+strictly necessary to call the `put` function. After the resources associated
+with the handle have been deallocated, i.e. through a call to the `put`
+function or through destruction of the event object, the handle data is invalid
+and using it in the `put` and `open` functions will result in undefined
+behavior.
+
+[_Note:_ Any objects retrieved through a call to the `open` function in any
+process on the system will still be valid after a call to the `put` function.
+_{endnote}_]
+
+!====
+a!
+[source]
+----
+void put(handle &ipc_handle)
+----
+!====
+
+_Effects_: Equivalent to:
+
+[source,c++,indent=2]
+----
+sycl::device d;
+sycl::context ctxt = d.get_platform().khr_get_default_context();
+ipc::event::put(ipc_handle, ctxt);
+----
 
 !====
 a!
