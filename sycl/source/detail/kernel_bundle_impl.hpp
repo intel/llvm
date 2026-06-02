@@ -479,25 +479,32 @@ public:
 
       auto [JITImgs, AOTImgs] =
           [&]() -> std::pair<device_images_range, device_images_range> {
-        // If we are not fast-linking, all images must be JIT.
-        if (!FastLink)
-          return {GraphImgs, {}};
-
-        std::sort(
-            GraphImgs.begin(), GraphImgs.end(),
-            [](const device_image_plain &LHS, const device_image_plain &RHS) {
-              // Sort by state: That leaves objects (JIT) at the beginning and
-              // executables (AOT) at the end.
-              return getSyclObjImpl(LHS)->get_state() <
-                     getSyclObjImpl(RHS)->get_state();
-            });
-        auto AOTImgsBegin =
-            std::find_if(GraphImgs.begin(), GraphImgs.end(),
-                         [](const device_image_plain &Img) {
-                           return getSyclObjImpl(Img)->get_state() ==
-                                  bundle_state::executable;
-                         });
-        size_t NumJITImgs = std::distance(GraphImgs.begin(), AOTImgsBegin);
+        // Native AOT images cannot participate in urProgramLinkExp (which
+        // expects SPIR-V) and have to be routed through dynamicLink
+        // instead. Partition by intrinsic image format rather than by
+        // bundle_state: an AOT object SYCLBIN with unresolved imports
+        // arrives in bundle_state::object, which the previous logic
+        // (state-based partition under fast-link only) classified as JIT.
+        auto IsAOTImage = [](const device_image_plain &Img) {
+          const RTDeviceBinaryImage *Bin =
+              getSyclObjImpl(Img)->get_bin_image_ref();
+          if (!Bin)
+            return false;
+          const char *Target = Bin->getRawData().DeviceTargetSpec;
+          return Target &&
+                 (std::strcmp(Target,
+                              __SYCL_DEVICE_BINARY_TARGET_SPIRV64_X86_64) ==
+                      0 ||
+                  std::strcmp(Target,
+                              __SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN) == 0);
+        };
+        std::stable_partition(GraphImgs.begin(), GraphImgs.end(),
+                              [&IsAOTImage](const device_image_plain &Img) {
+                                return !IsAOTImage(Img);
+                              });
+        auto AOTBegin =
+            std::find_if(GraphImgs.begin(), GraphImgs.end(), IsAOTImage);
+        size_t NumJITImgs = std::distance(GraphImgs.begin(), AOTBegin);
         return {{GraphImgs.begin(), GraphImgs.begin() + NumJITImgs},
                 {GraphImgs.begin() + NumJITImgs, GraphImgs.end()}};
       }();
@@ -509,11 +516,47 @@ public:
               /*AllowUnresolvedSymbols=*/!AOTImgs.empty());
 
       if (!AOTImgs.empty()) {
-        // In dynamic linking, AOT binaries count as results as well.
+        // Each AOT image must enter dynamicLink with an already-built
+        // ze_module: zeModuleDynamicLink iterates only programs whose
+        // module was created via zeModuleCreate. createURProgram by itself
+        // leaves the ur_program in Native state with no ze_module, so we
+        // explicitly build each AOT program here with
+        // ALLOW_UNRESOLVED_SYMBOLS to keep its imported references intact
+        // until the cross-image dynamic link below.
+        context_impl &ContextImplLocal = *getSyclObjImpl(MContext);
+        adapter_impl &Adapter = ContextImplLocal.getAdapter();
+        std::vector<ur_device_handle_t> URDevicesAOT;
+        URDevicesAOT.reserve(GraphDevs.size());
+        for (device_impl *D : GraphDevs)
+          URDevicesAOT.push_back(D->getHandleRef());
+        ur_exp_program_flags_t AOTBuildFlags =
+            UR_EXP_PROGRAM_FLAG_ALLOW_UNRESOLVED_SYMBOLS;
         LinkedResults.reserve(LinkedResults.size() + AOTImgs.size());
-        for (device_image_impl &AOTImg : AOTImgs)
+        for (device_image_impl &AOTImg : AOTImgs) {
+          if (AOTImg.get_ur_program() == nullptr) {
+            const detail::RTDeviceBinaryImage *Bin = AOTImg.get_bin_image_ref();
+            assert(Bin && "AOT image is missing its binary");
+            AOTImg.set_ur_program(
+                detail::ProgramManager::getInstance().createURProgram(
+                    *Bin, ContextImplLocal, GraphDevs));
+          }
+          ur_result_t BErr = Adapter.call_nocheck<UrApiKind::urProgramBuildExp>(
+              AOTImg.get_ur_program(),
+              static_cast<uint32_t>(URDevicesAOT.size()),
+              URDevicesAOT.data(), AOTBuildFlags, /*pOptions=*/"");
+          if (BErr == UR_RESULT_ERROR_UNSUPPORTED_FEATURE)
+            BErr = Adapter.call_nocheck<UrApiKind::urProgramBuild>(
+                ContextImplLocal.getHandleRef(), AOTImg.get_ur_program(),
+                /*pOptions=*/"");
+          if (BErr != UR_RESULT_SUCCESS)
+            throw set_ur_error(
+                exception(make_error_code(errc::build),
+                          "AOT image build failed prior to dynamic link"),
+                BErr);
+          AOTImg.set_state(bundle_state::executable);
           LinkedResults.push_back(
               createSyclObjFromImpl<device_image_plain>(AOTImg));
+        }
         detail::ProgramManager::getInstance().dynamicLink(LinkedResults);
       }
 

@@ -2548,6 +2548,26 @@ ProgramManager::compile(const DevImgPlainWithDeps &ImgWithDeps,
     applyCompileOptionsFromEnvironment(CompileOptions);
     appendCompileOptionsFromImage(
         CompileOptions, *(InputImpl.get_bin_image_ref()), Devs, Adapter);
+    // When the image was produced with -fsycl-allow-device-image-dependencies
+    // (the only path that emits SYCL/exported symbols and SYCL/imported
+    // symbols property sets), keep symbol visibility through compile so that
+    // cross-image resolution at sycl::link time via zeModuleDynamicLink can
+    // see those symbols. Without this option IGC internalizes them and the
+    // dynamic link fails with "Unresolved Symbol". The flag is currently
+    // only plumbed for Level Zero; OpenCL CPU/GPU AOT cross-image link uses
+    // a different option (-create-library) and is not in scope here.
+    {
+      const auto *Bin = InputImpl.get_bin_image_ref();
+      bool HasCrossImageSymbols =
+          Bin && (!Bin->getExportedSymbols().empty() ||
+                  !Bin->getImportedSymbols().empty());
+      backend Be = InputImpl.get_context().get_backend();
+      if (HasCrossImageSymbols && Be == backend::ext_oneapi_level_zero) {
+        if (!CompileOptions.empty())
+          CompileOptions += ' ';
+        CompileOptions += "-library-compilation";
+      }
+    }
     // Should always come last!
     appendCompileEnvironmentVariablesThatAppend(CompileOptions);
     ur_result_t Error = doCompile(
@@ -2664,7 +2684,7 @@ ProgramManager::link(device_images_range Imgs, devices_range Devs,
 
   ur_exp_program_flags_t UrLinkFlags{};
   if (AllowUnresolvedSymbols)
-    UrLinkFlags &= UR_EXP_PROGRAM_FLAG_ALLOW_UNRESOLVED_SYMBOLS;
+    UrLinkFlags |= UR_EXP_PROGRAM_FLAG_ALLOW_UNRESOLVED_SYMBOLS;
 
   Managed<ur_program_handle_t> LinkedProg{Adapter};
   auto doLink = [&] {
