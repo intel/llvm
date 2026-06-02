@@ -1118,7 +1118,7 @@ static Expected<StringRef> runAOTCompile(StringRef InputFile,
 ///
 /// \returns A path to the LLVM Module that contains wrapped images.
 Expected<StringRef>
-wrapSYCLBinariesFromFile(std::vector<module_split::SplitModule> &SplitModules,
+wrapSYCLBinariesFromFile(ArrayRef<module_split::SplitModule> SplitModules,
                          const ArgList &Args, bool IsEmbeddedIR) {
   auto OutputFileOrErr = createOutputFile(
       sys::path::filename(ExecutableName) + ".sycl.image.wrapper", "bc");
@@ -1130,7 +1130,7 @@ wrapSYCLBinariesFromFile(std::vector<module_split::SplitModule> &SplitModules,
     std::string InputFiles;
     SmallString<0> Msg;
     for (size_t I = 0, E = SplitModules.size(); I != E; ++I) {
-      module_split::SplitModule &SM = SplitModules[I];
+      const module_split::SplitModule &SM = SplitModules[I];
       Msg.append(formatv(" input: {0}, compile-opts: {1}, link-opts: {2}",
                          SM.ModuleFilePath, SM.CompileOptions, SM.LinkOptions)
                      .sstr<128>());
@@ -1161,7 +1161,7 @@ wrapSYCLBinariesFromFile(std::vector<module_split::SplitModule> &SplitModules,
   if (RegularTarget == "spirv64")
     RegularTarget = "spir64";
 
-  for (auto &SI : SplitModules) {
+  for (const module_split::SplitModule &SI : SplitModules) {
     if (!OffloadImageDumpDir.empty()) {
       StringRef CopyFrom = SI.ModuleFilePath;
       SmallString<128> CopyTo = OffloadImageDumpDir;
@@ -1181,8 +1181,8 @@ wrapSYCLBinariesFromFile(std::vector<module_split::SplitModule> &SplitModules,
     StringRef ImageTarget =
         IsEmbeddedIR ? StringRef(EmbeddedIRTarget) : StringRef(RegularTarget);
     Images.emplace_back(std::move(*MBOrDesc), SI.Properties, SI.Symbols,
-                        ImageTarget, std::move(SI.CompileOptions),
-                        std::move(SI.LinkOptions));
+                        ImageTarget, SI.CompileOptions,
+                        SI.LinkOptions);
   }
 
   LLVMContext C;
@@ -1321,7 +1321,7 @@ Error mergeSYCLBIN(ArrayRef<StringRef> Files, const ArgList &Args) {
 
 // Run wrapping library and clang
 static Expected<StringRef>
-runWrapperAndCompile(std::vector<module_split::SplitModule> &SplitModules,
+runWrapperAndCompile(ArrayRef<module_split::SplitModule> SplitModules,
                      const ArgList &Args, bool IsEmbeddedIR = false) {
   auto OutputFile =
       sycl::wrapSYCLBinariesFromFile(SplitModules, Args, IsEmbeddedIR);
@@ -1645,7 +1645,7 @@ Expected<StringRef> bundleDeviceModule(StringRef ClangOutput,
 
 namespace generic {
 Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args,
-                          bool IsSYCLKind = false) {
+                          uint16_t ActiveOffloadKindMask) {
   llvm::TimeTraceScope TimeScope("Clang");
   // Use `clang` to invoke the appropriate device tools.
   Expected<std::string> ClangPath =
@@ -1699,10 +1699,10 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args,
   if (!Triple.isNVPTX() && !Triple.isSPIRV() && !Triple.isNativeCPU())
     CmdArgs.push_back("-Wl,--no-undefined");
 
-  if (IsSYCLKind && Triple.isNVPTX())
+  if ((ActiveOffloadKindMask & OFK_SYCL) && Triple.isNVPTX())
     CmdArgs.push_back("-S");
 
-  if (IsSYCLKind && Triple.isNativeCPU()) {
+  if ((ActiveOffloadKindMask & OFK_SYCL) && Triple.isNativeCPU()) {
     CmdArgs.push_back("-Wno-override-module");
     CmdArgs.push_back("-mllvm");
     CmdArgs.push_back("-sycl-native-cpu-backend");
@@ -1818,15 +1818,16 @@ namespace sycl {
 /// For spir[v]{32,64} performs SPIRV translation (JIT case) + possible AOT
 /// compilation (Intel CPU/GPU).
 Expected<StringRef>
-compileSYCLDevice(ArrayRef<StringRef> InputFiles, const ArgList &Args,
-                  StringRef SYCLBackendOptions = StringRef()) {
+invokeBackendForSYCLDevice(StringRef InputFile, const ArgList &Args,
+                           StringRef SYCLBackendOptions = StringRef()) {
   const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
   switch (Triple.getArch()) {
   case Triple::nvptx:
   case Triple::nvptx64:
   case Triple::amdgcn:
   case Triple::native_cpu:
-    return generic::clang(InputFiles, Args, /*IsSYCLKind*/ true);
+    return generic::clang({InputFile}, Args,
+                          /*ActiveOffloadKindMask*/ OFK_SYCL);
   case Triple::spirv32:
   case Triple::spirv64:
   case Triple::spir:
@@ -1839,7 +1840,7 @@ compileSYCLDevice(ArrayRef<StringRef> InputFiles, const ArgList &Args,
           "For SPIR targets, Linking is supported only for JIT compilations "
           "and AOT compilations for Intel CPUs/GPUs");
     Expected<StringRef> SPVFile =
-        sycl::runLLVMToSPIRVTranslation(InputFiles[0], Args);
+        sycl::runLLVMToSPIRVTranslation(InputFile, Args);
     if (!SPVFile)
       return SPVFile.takeError();
     // TODO(NOM6): Add AOT support for other targets
@@ -1861,13 +1862,11 @@ compileSYCLDevice(ArrayRef<StringRef> InputFiles, const ArgList &Args,
 }
 
 /// Function invokes device compilation and bundling for NVPTX and AMDGCN cases.
-Expected<StringRef> compileDeviceAndBundle(StringRef ModuleFilePath,
-                                           const ArgList &LinkerArgs,
-                                           const llvm::Triple &Triple,
-                                           StringRef AdditionalCompileOptions) {
-  SmallVector<StringRef> Files = {ModuleFilePath};
-  Expected<StringRef> OutputOrErr =
-      compileSYCLDevice(Files, LinkerArgs, AdditionalCompileOptions);
+Expected<StringRef> compileDeviceAndBundleNVPTXAndAMDGCN(
+    StringRef ModuleFilePath, const ArgList &LinkerArgs,
+    const llvm::Triple &Triple, StringRef AdditionalCompileOptions) {
+  Expected<StringRef> OutputOrErr = invokeBackendForSYCLDevice(
+      ModuleFilePath, LinkerArgs, AdditionalCompileOptions);
   if (!OutputOrErr)
     return OutputOrErr.takeError();
 
@@ -1943,9 +1942,9 @@ Expected<std::vector<module_split::SplitModule>> postLinkProcessModule(
                   });
 
   for (size_t I = 0, E = SplitModules.size(); I != E; ++I) {
-    Expected<StringRef> OutputOrErr =
-        compileDeviceAndBundle(SplitModules[I].ModuleFilePath, LinkerArgs,
-                               Triple, CompileLinkOptions.first);
+    Expected<StringRef> OutputOrErr = compileDeviceAndBundleNVPTXAndAMDGCN(
+        SplitModules[I].ModuleFilePath, LinkerArgs, Triple,
+        CompileLinkOptions.first);
     if (!OutputOrErr)
       return OutputOrErr.takeError();
 
