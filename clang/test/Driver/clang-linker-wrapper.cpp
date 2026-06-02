@@ -353,4 +353,4 @@
 // RUN:                      --bitcode-library=spir64_gen-unknown-unknown=%t1.devicelib.bc \
 // RUN:                      %t.without_triple.o -o %t.out 2>&1 --linker-path="/usr/bin/ld" | FileCheck %s --check-prefix=CHECK-ERROR-WITH-NO-TRIPLE
 
-// CHECK-ERROR-WITH-NO-TRIPLE: linking is not supported
+// CHECK-ERROR-WITH-NO-TRIPLE: can't compile a SYCL device code. target is unknown

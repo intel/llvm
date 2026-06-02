@@ -1835,9 +1835,8 @@ invokeBackendForSYCLDevice(StringRef InputFile, const ArgList &Args,
         Triple.getSubArch() != llvm::Triple::SPIRSubArch_gen &&
         Triple.getSubArch() != llvm::Triple::SPIRSubArch_x86_64)
       return createStringError(
-          inconvertibleErrorCode(),
-          "For SPIR targets, Linking is supported only for JIT compilations "
-          "and AOT compilations for Intel CPUs/GPUs");
+          "For SPIR targets, compilation is supported only for JIT mode"
+          "and AOT mode for Intel CPUs/GPUs");
     Expected<StringRef> SPVFile =
         sycl::runLLVMToSPIRVTranslation(InputFile, Args);
     if (!SPVFile)
@@ -1855,8 +1854,12 @@ invokeBackendForSYCLDevice(StringRef InputFile, const ArgList &Args,
     return NeedAOTCompile ? *AOTFile : *SPVFile;
   }
   default:
-    return createStringError(Triple.getArchName() +
-                             " linking is not supported");
+    if (Triple.getArchName().empty())
+      return createStringError(
+          "can't compile a SYCL device code. target is unknown");
+
+    return createStringError(formatv(
+        "SYCL compilation for {0} is not supported", Triple.getArchName()));
   }
 }
 
