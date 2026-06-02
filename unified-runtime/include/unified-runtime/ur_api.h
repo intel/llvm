@@ -10021,14 +10021,25 @@ typedef struct ur_exp_file_descriptor_t {
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Windows specific file handle
+///
+/// @details
+///     - Exactly one of `handle` and `name` must be non-null. When `name` is
+///       used, the adapter is expected to open the named NT object on the
+///       caller's behalf (equivalent to the application calling
+///       `OpenSharedHandleByName` and then importing by handle).
+///     - Adapters that do not support importing by name must return
+///       ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE when `name` is non-null.
 typedef struct ur_exp_win32_handle_t {
   /// [in] type of this structure, must be
   /// ::UR_STRUCTURE_TYPE_EXP_WIN32_HANDLE
   ur_structure_type_t stype;
   /// [in][optional] pointer to extension-specific structure
   const void *pNext;
-  /// [in] A win32 file handle.
+  /// [in][optional] A win32 file handle. Mutually exclusive with `name`.
   void *handle;
+  /// [in][optional] NT object name of the win32 object to import (a
+  /// null-terminated wide string). Mutually exclusive with `handle`.
+  const void *name;
 
 } ur_exp_win32_handle_t;
 

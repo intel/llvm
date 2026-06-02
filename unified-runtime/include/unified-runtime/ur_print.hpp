@@ -12175,6 +12175,11 @@ inline std::ostream &operator<<(std::ostream &os,
 
   ur::details::printPtr(os, (params.handle));
 
+  os << ", ";
+  os << ".name = ";
+
+  ur::details::printPtr(os, (params.name));
+
   os << "}";
   return os;
 }

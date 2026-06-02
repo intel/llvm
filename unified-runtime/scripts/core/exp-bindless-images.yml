@@ -269,12 +269,23 @@ members:
 --- #--------------------------------------------------------------------------
 type: struct
 desc: "Windows specific file handle"
+details:
+    - "Exactly one of `handle` and `name` must be non-null. When `name` is
+       used, the adapter is expected to open the named NT object on the
+       caller's behalf (equivalent to the application calling
+       `OpenSharedHandleByName` and then importing by handle)."
+    - "Adapters that do not support importing by name must return
+       $X_RESULT_ERROR_UNSUPPORTED_FEATURE when `name` is non-null."
 name: $x_exp_win32_handle_t
 base: $x_base_desc_t
 members:
     - type: void*
       name: handle
-      desc: "[in] A win32 file handle."
+      desc: "[in][optional] A win32 file handle. Mutually exclusive with `name`."
+    - type: const void*
+      name: name
+      desc: "[in][optional] NT object name of the win32 object to import (a
+             null-terminated wide string). Mutually exclusive with `handle`."
 --- #--------------------------------------------------------------------------
 type: struct
 desc: "Describes mipmap sampler properties"
