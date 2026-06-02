@@ -745,7 +745,10 @@ etors:
 - name: GRAPH_EXECUTABLE_GRAPH_GET_NATIVE_HANDLE_EXP
   desc: Enumerator for $xGraphExecutableGraphGetNativeHandleExp
   value: '321'
-max_id: '321'
+- name: EVENT_CREATE_EXP
+  desc: Enumerator for $xEventCreateExp
+  value: '322'
+max_id: '322'
 ---
 type: enum
 desc: Defines structure types

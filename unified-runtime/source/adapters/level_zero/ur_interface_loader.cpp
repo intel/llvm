@@ -261,6 +261,18 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetEventProcAddrTable(
   return result;
 }
 
+UR_APIEXPORT ur_result_t UR_APICALL urGetEventExpProcAddrTable(
+    ur_api_version_t version, ur_event_exp_dditable_t *pDdiTable) {
+  auto result = validateProcInputs(version, pDdiTable);
+  if (UR_RESULT_SUCCESS != result) {
+    return result;
+  }
+
+  pDdiTable->pfnCreateExp = ur::level_zero::urEventCreateExp;
+
+  return result;
+}
+
 UR_APIEXPORT ur_result_t UR_APICALL urGetGraphExpProcAddrTable(
     ur_api_version_t version, ur_graph_exp_dditable_t *pDdiTable) {
   auto result = validateProcInputs(version, pDdiTable);
@@ -675,6 +687,10 @@ ur_result_t populateDdiTable(ur_dditable_t *ddi) {
     return result;
   result =
       NAMESPACE_::urGetEventProcAddrTable(UR_API_VERSION_CURRENT, &ddi->Event);
+  if (result != UR_RESULT_SUCCESS)
+    return result;
+  result = NAMESPACE_::urGetEventExpProcAddrTable(UR_API_VERSION_CURRENT,
+                                                  &ddi->EventExp);
   if (result != UR_RESULT_SUCCESS)
     return result;
   result = NAMESPACE_::urGetGraphExpProcAddrTable(UR_API_VERSION_CURRENT,
