@@ -9,7 +9,8 @@
 #pragma once
 
 #include <sycl/access/access.hpp>
-#include <sycl/detail/address_space_cast.hpp>
+#include <sycl/multi_ptr.hpp>
+
 #include <sycl/ext/oneapi/bfloat16.hpp>
 #include <sycl/marray.hpp>
 
@@ -1365,13 +1366,13 @@ public:
       if (s == saturation::finite) {
         vals[i] = __builtin_spirv_ClampStochasticRoundFP16ToE5M2INTEL(
             v, current_seed,
-            sycl::detail::static_address_cast<
-                sycl::access::address_space::private_space>(&next_seed));
+            sycl::address_space_cast<sycl::access::address_space::private_space,
+                                     sycl::access::decorated::yes>(&next_seed));
       } else {
         vals[i] = __builtin_spirv_StochasticRoundFP16ToE5M2INTEL(
             v, current_seed,
-            sycl::detail::static_address_cast<
-                sycl::access::address_space::private_space>(&next_seed));
+            sycl::address_space_cast<sycl::access::address_space::private_space,
+                                     sycl::access::decorated::yes>(&next_seed));
       }
       current_seed = next_seed;
       next_seed = 0;
@@ -1392,13 +1393,13 @@ public:
       if (s == saturation::finite) {
         vals[i] = __builtin_spirv_ClampStochasticRoundBF16ToE5M2INTEL(
             sycl::bit_cast<__bf16>(in[i]), current_seed,
-            sycl::detail::static_address_cast<
-                sycl::access::address_space::private_space>(&next_seed));
+            sycl::address_space_cast<sycl::access::address_space::private_space,
+                                     sycl::access::decorated::yes>(&next_seed));
       } else {
         vals[i] = __builtin_spirv_StochasticRoundBF16ToE5M2INTEL(
             sycl::bit_cast<__bf16>(in[i]), current_seed,
-            sycl::detail::static_address_cast<
-                sycl::access::address_space::private_space>(&next_seed));
+            sycl::address_space_cast<sycl::access::address_space::private_space,
+                                     sycl::access::decorated::yes>(&next_seed));
       }
       current_seed = next_seed;
       next_seed = 0;
@@ -1423,13 +1424,13 @@ public:
       if (s == saturation::finite) {
         vals[i] = __builtin_spirv_ClampStochasticRoundFP16ToE5M2INTEL(
             v, current_seed,
-            sycl::detail::static_address_cast<
-                sycl::access::address_space::private_space>(&next_seed));
+            sycl::address_space_cast<sycl::access::address_space::private_space,
+                                     sycl::access::decorated::yes>(&next_seed));
       } else {
         vals[i] = __builtin_spirv_StochasticRoundFP16ToE5M2INTEL(
             v, current_seed,
-            sycl::detail::static_address_cast<
-                sycl::access::address_space::private_space>(&next_seed));
+            sycl::address_space_cast<sycl::access::address_space::private_space,
+                                     sycl::access::decorated::yes>(&next_seed));
       }
       current_seed = next_seed;
       next_seed = 0;
@@ -1450,13 +1451,13 @@ public:
       if (s == saturation::finite) {
         vals[i] = __builtin_spirv_ClampStochasticRoundBF16ToE5M2INTEL(
             sycl::bit_cast<__bf16>(in[i]), current_seed,
-            sycl::detail::static_address_cast<
-                sycl::access::address_space::private_space>(&next_seed));
+            sycl::address_space_cast<sycl::access::address_space::private_space,
+                                     sycl::access::decorated::yes>(&next_seed));
       } else {
         vals[i] = __builtin_spirv_StochasticRoundBF16ToE5M2INTEL(
             sycl::bit_cast<__bf16>(in[i]), current_seed,
-            sycl::detail::static_address_cast<
-                sycl::access::address_space::private_space>(&next_seed));
+            sycl::address_space_cast<sycl::access::address_space::private_space,
+                                     sycl::access::decorated::yes>(&next_seed));
       }
       current_seed = next_seed;
       next_seed = 0;
