@@ -1543,9 +1543,6 @@ inline std::ostream &operator<<(std::ostream &os,
   case UR_STRUCTURE_TYPE_EXP_WIN32_HANDLE:
     os << "UR_STRUCTURE_TYPE_EXP_WIN32_HANDLE";
     break;
-  case UR_STRUCTURE_TYPE_EXP_WIN32_NAME:
-    os << "UR_STRUCTURE_TYPE_EXP_WIN32_NAME";
-    break;
   case UR_STRUCTURE_TYPE_EXP_SAMPLER_ADDR_MODES:
     os << "UR_STRUCTURE_TYPE_EXP_SAMPLER_ADDR_MODES";
     break;
@@ -1554,6 +1551,9 @@ inline std::ostream &operator<<(std::ostream &os,
     break;
   case UR_STRUCTURE_TYPE_EXP_IMAGE_COPY_REGION:
     os << "UR_STRUCTURE_TYPE_EXP_IMAGE_COPY_REGION";
+    break;
+  case UR_STRUCTURE_TYPE_EXP_WIN32_NAME:
+    os << "UR_STRUCTURE_TYPE_EXP_WIN32_NAME";
     break;
   case UR_STRUCTURE_TYPE_EXP_ASYNC_USM_ALLOC_PROPERTIES:
     os << "UR_STRUCTURE_TYPE_EXP_ASYNC_USM_ALLOC_PROPERTIES";
@@ -1872,11 +1872,6 @@ inline ur_result_t printStruct(std::ostream &os, const void *ptr) {
     printPtr(os, pstruct);
   } break;
 
-  case UR_STRUCTURE_TYPE_EXP_WIN32_NAME: {
-    const ur_exp_win32_name_t *pstruct = (const ur_exp_win32_name_t *)ptr;
-    printPtr(os, pstruct);
-  } break;
-
   case UR_STRUCTURE_TYPE_EXP_SAMPLER_ADDR_MODES: {
     const ur_exp_sampler_addr_modes_t *pstruct =
         (const ur_exp_sampler_addr_modes_t *)ptr;
@@ -1892,6 +1887,11 @@ inline ur_result_t printStruct(std::ostream &os, const void *ptr) {
   case UR_STRUCTURE_TYPE_EXP_IMAGE_COPY_REGION: {
     const ur_exp_image_copy_region_t *pstruct =
         (const ur_exp_image_copy_region_t *)ptr;
+    printPtr(os, pstruct);
+  } break;
+
+  case UR_STRUCTURE_TYPE_EXP_WIN32_NAME: {
+    const ur_exp_win32_name_t *pstruct = (const ur_exp_win32_name_t *)ptr;
     printPtr(os, pstruct);
   } break;
 
@@ -12189,7 +12189,6 @@ inline std::ostream &operator<<(std::ostream &os,
   os << "}";
   return os;
 }
-
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_exp_win32_name_t type
 /// @returns
