@@ -386,7 +386,11 @@ graph_impl::~graph_impl() {
       MNativeGraphHandle = nullptr;
     }
     for (auto &Cb : MDestructionCallbacks) {
-      Cb();
+      // Catch exceptions to match native graph callback behavior
+      try {
+        Cb();
+      } catch (...) {
+      }
     }
   } catch (std::exception &e) {
     __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~graph_impl", e);
@@ -663,7 +667,11 @@ void graph_impl::setDestructionCallback(std::function<void()> Callback) {
         MNativeGraphHandle,
         [](void *UserData) {
           auto *Fn = static_cast<std::function<void()> *>(UserData);
-          (*Fn)();
+          // Catch all exceptions to prevent leaking Fn
+          try {
+            (*Fn)();
+          } catch (...) {
+          }
           delete Fn;
         },
         Data.get());
