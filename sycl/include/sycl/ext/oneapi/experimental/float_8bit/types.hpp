@@ -813,23 +813,39 @@ template <size_t N> class fp8_e4m3_x {
   static_assert(N == 1 || N == 2,
                 "fp8_e4m3_x: Template argument N must be 1 or 2");
 
-  template <typename T> uint8_t ConvertToFP8(T h) {
+  template <typename T,
+            typename = std::enable_if_t<std::is_integral_v<std::decay_t<T>>>>
+  uint8_t ConvertToFP8(T h) {
 #ifdef __SYCL_DEVICE_ONLY__
-    _Float16 v{0};
-    if constexpr (std::is_same_v<std::decay_t<T>, sycl::half>)
-      v = sycl::bit_cast<_Float16>(h);
-    else
-      v = static_cast<_Float16>(h);
+    if constexpr (std::is_same_v<std::decay_t<T>, char> ||
+                  std::is_same_v<std::decay_t<T>, unsigned char> ||
+                  std::is_same_v<std::decay_t<T>, short> ||
+                  std::is_same_v<std::decay_t<T>, unsigned short>) {
+      const _Float16 v = static_cast<_Float16>(h);
+      return __builtin_spirv_ClampConvertFP16ToE4M3INTEL(v);
+    }
+    return detail::ConvertIntToFP8_CPU<NExpBits, NFracBits, T>(
+        h, rounding::to_even, saturation::finite);
+#else
+    return detail::ConvertIntToFP8_CPU<NExpBits, NFracBits, T>(
+        h, rounding::to_even, saturation::finite);
+#endif
+  }
+
+  uint8_t ConvertToFP8(sycl::half h) {
+#ifdef __SYCL_DEVICE_ONLY__
+    const _Float16 v = sycl::bit_cast<_Float16>(h);
     return __builtin_spirv_ClampConvertFP16ToE4M3INTEL(v);
 #else
-    if constexpr (std::is_same_v<std::decay_t<T>, sycl::half> ||
-                  std::is_same_v<std::decay_t<T>, float>) {
-      return detail::ConvertFloatToFP8_CPU<NExpBits, NFracBits, T>(
-          h, rounding::to_even, saturation::finite);
-    } else if constexpr (std::is_integral_v<std::decay_t<T>>) {
-      return detail::ConvertIntToFP8_CPU<NExpBits, NFracBits, T>(
-          h, rounding::to_even, saturation::finite);
-    }
+    return detail::ConvertFloatToFP8_CPU<NExpBits, NFracBits, sycl::half>(
+        h, rounding::to_even, saturation::finite);
+#endif
+  }
+
+  uint8_t ConvertToFP8(float h) {
+#if __SYCL_DEVICE_ONLY__ || !defined(__SYCL_DEVICE_ONLY__)
+    return detail::ConvertFloatToFP8_CPU<NExpBits, NFracBits, float>(
+        h, rounding::to_even, saturation::finite);
 #endif
   }
 
