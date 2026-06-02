@@ -238,8 +238,35 @@ based), this option currently requires `--offload-new-driver` to be set.
 </tr>
 </table>
 
-Additionally, `-fsycl-link` should work with .syclbin files. Semantics of how
-SYCLBIN files are linked together is yet to be specified.
+Additionally, `-fsycl-link` should work with .syclbin files.
+
+### Linking SYCLBIN files
+
+`sycl::link` of two or more `kernel_bundle<bundle_state::object>` objects
+that originate from SYCLBIN files (or from a mix of SYCLBIN and
+runtime-compiled source bundles) is supported. The runtime treats each
+`device_image` carried by the input bundles as a node in a per-device
+link graph and uses the `SYCL/exported symbols` / `SYCL/imported symbols`
+property sets emitted by sycl-post-link to drive resolution:
+
+* Each exported symbol entry maps to its defining image.
+* Each imported symbol must resolve to exactly one exported entry across
+  the input images. Unresolved imports throw `errc::invalid`.
+* Duplicate exports across input images throw `errc::invalid`.
+* Duplicate kernel names across input images throw `errc::invalid`
+  (`Conflicting kernel definitions: ...`).
+
+Three supported configurations:
+
+1. *SYCLBIN object + SYCLBIN object*. Each `.syclbin` is loaded with
+   `get_kernel_bundle<bundle_state::object>(ctx, file)`; both bundles are
+   passed to `sycl::link`.
+2. *SYCLBIN object + runtime-compiled object*. The SYCLBIN bundle is
+   loaded as in (1); the source bundle is produced with
+   `create_kernel_bundle_from_source` followed by `compile`.
+3. *SYCLBIN input*. Loaded with
+   `get_kernel_bundle<bundle_state::input>(ctx, devs, file)` and brought
+   to object state via `sycl::compile` before linking.
 
 
 ## clang-linker-wrapper changes
