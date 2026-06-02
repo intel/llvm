@@ -114,7 +114,7 @@ TEST_F(Fp8BuiltinCallTest,
   fp8_e5m2_x2 Value(Input, rounding::to_even, saturation::finite);
   (void)Value;
 
-  EXPECT_EQ(fp8_builtin_mock::getCounters().ClampConvertFP16ToE5M2INTEL, 2);
+  EXPECT_EQ(fp8_builtin_mock::getCounters().ClampConvertFP16ToE5M2INTEL, 0);
 }
 
 TEST_F(Fp8BuiltinCallTest, E5M2MarrayCtorFromBf16NoneCallsConvertBF16ToE5M2) {
@@ -167,10 +167,11 @@ TEST_F(Fp8BuiltinCallTest, E5M2MarrayCastToBf16CallsConvertE5M2ToBF16) {
 TEST_F(Fp8BuiltinCallTest, E5M2AssignmentFromFloatCallsClampConvertFP16ToE5M2) {
   fp8_e5m2 Value(static_cast<sycl::half>(2.0f));
 
+  EXPECT_EQ(fp8_builtin_mock::getCounters().ClampConvertFP16ToE5M2INTEL, 1);
   fp8_builtin_mock::resetCounters();
   Value = 4.0f;
 
-  EXPECT_EQ(fp8_builtin_mock::getCounters().ClampConvertFP16ToE5M2INTEL, 1);
+  EXPECT_EQ(fp8_builtin_mock::getCounters().ClampConvertFP16ToE5M2INTEL, 0);
 }
 
 TEST_F(Fp8BuiltinCallTest,

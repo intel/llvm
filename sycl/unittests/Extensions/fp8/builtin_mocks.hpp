@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <cstring>
 #include <cstdint>
 #include <sycl/ext/oneapi/bfloat16.hpp>
 #include <sycl/half_type.hpp>
@@ -36,6 +37,8 @@ struct Counters {
   int StochasticRoundBF16ToE5M2INTEL = 0;
   int ClampStochasticRoundFP16ToE5M2INTEL = 0;
   int ClampStochasticRoundBF16ToE5M2INTEL = 0;
+  uint16_t LastFP16ArgBitsForClampConvertFP16ToE5M2INTEL = 0;
+  uint16_t LastFP16ArgBitsForConvertFP16ToE5M2EXT = 0;
 };
 
 inline Counters &getCounters() {
@@ -87,12 +90,17 @@ inline uint8_t __builtin_spirv_ClampConvertBF16ToE4M3INTEL(__bf16) noexcept {
   return 0x12;
 }
 
-inline uint8_t __builtin_spirv_ConvertFP16ToE5M2EXT(_Float16) noexcept {
+inline uint8_t __builtin_spirv_ConvertFP16ToE5M2EXT(_Float16 Value) noexcept {
+  std::memcpy(&fp8_builtin_mock::getCounters().LastFP16ArgBitsForConvertFP16ToE5M2EXT,
+              &Value, sizeof(uint16_t));
   ++fp8_builtin_mock::getCounters().ConvertFP16ToE5M2EXT;
   return 0x03;
 }
 
-inline uint8_t __builtin_spirv_ClampConvertFP16ToE5M2INTEL(_Float16) noexcept {
+inline uint8_t __builtin_spirv_ClampConvertFP16ToE5M2INTEL(_Float16 Value) noexcept {
+  std::memcpy(
+      &fp8_builtin_mock::getCounters().LastFP16ArgBitsForClampConvertFP16ToE5M2INTEL,
+      &Value, sizeof(uint16_t));
   ++fp8_builtin_mock::getCounters().ClampConvertFP16ToE5M2INTEL;
   return 0x21;
 }
@@ -122,11 +130,8 @@ __builtin_spirv_StochasticRoundFP16ToE4M3INTEL(_Float16) noexcept {
 }
 
 inline uint8_t
-__builtin_spirv_StochasticRoundBF16ToE5M2INTEL(__bf16, uint32_t Seed,
-                                               uint32_t *NextSeed) noexcept {
+__builtin_spirv_StochasticRoundBF16ToE5M2INTEL(__bf16, uint32_t) noexcept {
   ++fp8_builtin_mock::getCounters().StochasticRoundBF16ToE5M2INTEL;
-  if (NextSeed)
-    *NextSeed = Seed + 1;
   return 0x32;
 }
 
@@ -148,10 +153,8 @@ __builtin_spirv_ClampStochasticRoundFP16ToE4M3INTEL(_Float16) noexcept {
 }
 
 inline uint8_t __builtin_spirv_ClampStochasticRoundBF16ToE5M2INTEL(
-    __bf16, uint32_t Seed, uint32_t *NextSeed) noexcept {
+    __bf16, uint32_t) noexcept {
   ++fp8_builtin_mock::getCounters().ClampStochasticRoundBF16ToE5M2INTEL;
-  if (NextSeed)
-    *NextSeed = Seed + 1;
   return 0x42;
 }
 

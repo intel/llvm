@@ -11,8 +11,6 @@
 
 using namespace sycl::ext::oneapi::experimental;
 
-namespace {
-
 constexpr float E5M2MaxNormal = 57344.0f;
 
 bool equal_or_both_nan(float actual, float expected) {
@@ -377,8 +375,6 @@ int test_boundary_overflow_no_saturation(sycl::queue &queue) {
   sycl::free(out, queue);
   return ret;
 }
-
-} // namespace
 
 template <typename T> int test_fp8_simple_type_conversion(sycl::queue &queue) {
   auto *data = sycl::malloc_shared<fp8_e5m2_x2>(1, queue);

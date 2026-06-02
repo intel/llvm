@@ -16,8 +16,6 @@
 
 using namespace sycl::ext::oneapi::experimental;
 
-namespace {
-
 template <typename T>
 int test_explicit_upward_carray_constructor(sycl::queue &queue) {
   T input[2] = {static_cast<T>(4.0f), static_cast<T>(16.0f)};
@@ -331,8 +329,6 @@ int test_raw_vals_access(sycl::queue &queue) {
   sycl::free(out, queue);
   return ret;
 }
-
-} // namespace
 
 template <typename T> int test_fp8_simple_type_conversion(sycl::queue &queue) {
 

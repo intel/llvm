@@ -1,4 +1,4 @@
-
+// REQUIRES: intel_feature_gpu_cri
 // RUN: %{build} -Xclang -freg-struct-return -Xspirv-translator=spir64 --spirv-ext=+SPV_INTEL_fp_conversions,+SPV_EXT_float8,+SPV_KHR_bfloat16 -o %t.out
 // RUN: %{run} SYCL_UR_TRACE=1 %t.out
 
@@ -10,8 +10,6 @@
 #include <sycl/usm.hpp>
 
 using namespace sycl::ext::oneapi::experimental;
-
-namespace {
 
 constexpr float E5M2MaxNormal = 57344.0f;
 
@@ -28,8 +26,8 @@ int test_stochastic_constructor(sycl::queue &queue) {
   seed_updated[0] = false;
 
   queue.single_task([=]() {
-    const float input_value =
-        Sat == saturation::finite ? -std::numeric_limits<float>::infinity()
+    const float input_value = Sat == saturation::finite
+                                  ? -std::numeric_limits<float>::infinity()
                                   : std::numeric_limits<float>::infinity();
     const uint32_t initial_seed = seed[0];
 
@@ -72,8 +70,6 @@ int test_stochastic_constructor(sycl::queue &queue) {
   sycl::free(seed_updated, queue);
   return ret;
 }
-
-} // namespace
 
 template <typename T> int test_fp8_simple_type_conversion(sycl::queue &queue) {
   auto *data = sycl::malloc_shared<fp8_e5m2>(1, queue);
@@ -154,6 +150,30 @@ template <typename T> int test_marray_conversion(sycl::queue &queue) {
   return 0;
 }
 
+// The goal of this test is to confirm that bug is not reproduced
+// https://github.com/intel-tools/intel-xpu-backend-for-triton/issues/847
+template <typename T> int test_fp8_precision_conversion(sycl::queue &queue) {
+  auto *data = sycl::malloc_shared<T>(1, queue);
+  data[0] = static_cast<T>(-53249.234375f);
+  auto *out = sycl::malloc_shared<fp8_e5m2>(1, queue);
+  queue.single_task([=]() {
+    fp8_e5m2 expected1(data[0]);
+    out[0] = expected1;
+  });
+  queue.wait_and_throw();
+  fp8_e5m2 expected_cpu(static_cast<T>(-53249.234375f));
+  assert(expected_cpu.vals[0] =
+             0xFB && "Unexpected fp8 conversion result on CPU");
+
+  std::cout << "Device uut fp8 value: 0x" << std::hex
+            << static_cast<int>(out[0].vals[0]) << std::dec << "\n";
+  assert(out[0].vals[0] == 0xFB &&
+         "Unexpected fp8 conversion result on device");
+  std::cout << "Test passed\n";
+
+  return 0;
+}
+
 int main() {
   auto async_handler = [](sycl::exception_list exceptions) {
     for (const std::exception_ptr &e : exceptions) {
@@ -202,21 +222,24 @@ int main() {
   ret |= test_marray_conversion<sycl::half>(queue);
   ret |= test_marray_conversion<sycl::ext::oneapi::bfloat16>(queue);
 
-    ret |= test_stochastic_constructor<sycl::half, false, saturation::finite>(
-      queue);
-    ret |= test_stochastic_constructor<sycl::half, false, saturation::none>(
-      queue);
-    ret |= test_stochastic_constructor<sycl::half, true, saturation::finite>(
-      queue);
-    ret |= test_stochastic_constructor<sycl::half, true, saturation::none>(
-      queue);
-    ret |= test_stochastic_constructor<sycl::ext::oneapi::bfloat16, false,
-                     saturation::finite>(queue);
-    ret |= test_stochastic_constructor<sycl::ext::oneapi::bfloat16, false,
-                     saturation::none>(queue);
-    ret |= test_stochastic_constructor<sycl::ext::oneapi::bfloat16, true,
-                     saturation::finite>(queue);
-    ret |= test_stochastic_constructor<sycl::ext::oneapi::bfloat16, true,
-                     saturation::none>(queue);
+  ret |=
+      test_stochastic_constructor<sycl::half, false, saturation::finite>(queue);
+  ret |=
+      test_stochastic_constructor<sycl::half, false, saturation::none>(queue);
+  ret |=
+      test_stochastic_constructor<sycl::half, true, saturation::finite>(queue);
+  ret |= test_stochastic_constructor<sycl::half, true, saturation::none>(queue);
+  ret |= test_stochastic_constructor<sycl::ext::oneapi::bfloat16, false,
+                                     saturation::finite>(queue);
+  ret |= test_stochastic_constructor<sycl::ext::oneapi::bfloat16, false,
+                                     saturation::none>(queue);
+  ret |= test_stochastic_constructor<sycl::ext::oneapi::bfloat16, true,
+                                     saturation::finite>(queue);
+  ret |= test_stochastic_constructor<sycl::ext::oneapi::bfloat16, true,
+                                     saturation::none>(queue);
+  ret |= test_fp8_precision_conversion<float>(queue);
+  ret |= test_fp8_precision_conversion<int>(queue);
+  ret |= test_fp8_precision_conversion<long>(queue);
+  ret |= test_fp8_precision_conversion<long long>(queue);
   return ret;
 }

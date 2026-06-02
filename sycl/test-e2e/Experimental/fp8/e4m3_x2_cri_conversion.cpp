@@ -3,10 +3,6 @@
 // RUN: %{build} -Xclang -freg-struct-return -Xspirv-translator=spir64 --spirv-ext=+SPV_INTEL_fp_conversions,+SPV_EXT_float8,+SPV_KHR_bfloat16 -o %t.out
 // RUN: %{run} SYCL_UR_TRACE=1 %t.out
 
-// make it XFAIL until driver will be installed on CI machines and the test will
-// be enabled in the test suite
-// XFAIL: *
-// XFAIL-TRACKER: CMPLRLLVM-69851
 
 #include <cmath>
 #include <limits>
@@ -15,8 +11,6 @@
 #include <sycl/usm.hpp>
 
 using namespace sycl::ext::oneapi::experimental;
-
-namespace {
 
 bool equal_or_both_nan(float actual, float expected) {
   if (std::isnan(expected))
@@ -252,8 +246,6 @@ int test_boundary_round_trip_saturation_and_infinity_clamp(sycl::queue &queue) {
   sycl::free(out, queue);
   return ret;
 }
-
-} // namespace
 
 template <typename T> int test_fp8_simple_type_conversion(sycl::queue &queue) {
   auto *data = sycl::malloc_shared<fp8_e4m3_x2>(1, queue);

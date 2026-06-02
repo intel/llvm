@@ -51,11 +51,9 @@ extern __DPCPP_SYCL_EXTERNAL uint8_t
 __builtin_spirv_StochasticRoundFP16ToE5M2INTEL(_Float16, uint32_t,
                                                uint32_t *) noexcept;
 extern __DPCPP_SYCL_EXTERNAL uint8_t
-__builtin_spirv_ClampStochasticRoundBF16ToE5M2INTEL(__bf16, uint32_t,
-                                                    uint32_t *) noexcept;
+__builtin_spirv_ClampStochasticRoundBF16ToE5M2INTEL(__bf16, uint32_t) noexcept;
 extern __DPCPP_SYCL_EXTERNAL uint8_t
-__builtin_spirv_StochasticRoundBF16ToE5M2INTEL(__bf16, uint32_t,
-                                               uint32_t *) noexcept;
+__builtin_spirv_StochasticRoundBF16ToE5M2INTEL(__bf16, uint32_t) noexcept;
 #endif // __SYCL_DEVICE_ONLY__
 
 namespace sycl {
@@ -1171,25 +1169,43 @@ template <size_t N> class fp8_e5m2_x {
   static_assert(N == 1 || N == 2,
                 "fp8_e5m2_x: Template argument N must be 1 or 2");
 
-  template <typename T> uint8_t ConvertToFP8(T h, saturation s) {
+  template <typename T,
+            typename = std::enable_if_t<std::is_integral_v<std::decay_t<T>>>>
+  uint8_t ConvertToFP8(T h, saturation s) {
 #ifdef __SYCL_DEVICE_ONLY__
-    _Float16 v{0};
-    if constexpr (std::is_same_v<std::decay_t<T>, sycl::half>)
-      v = sycl::bit_cast<_Float16>(h);
-    else
-      v = static_cast<_Float16>(h);
+    if constexpr (std::is_same_v<std::decay_t<T>, char> ||
+                  std::is_same_v<std::decay_t<T>, unsigned char> ||
+                  std::is_same_v<std::decay_t<T>, short> ||
+                  std::is_same_v<std::decay_t<T>, unsigned short>) {
+      const _Float16 v = static_cast<_Float16>(h);
+      return s == saturation::finite
+                 ? __builtin_spirv_ClampConvertFP16ToE5M2INTEL(v)
+                 : __builtin_spirv_ConvertFP16ToE5M2EXT(v);
+    }
+    return detail::ConvertIntToFP8_CPU<NExpBits, NFracBits, T>(
+        h, rounding::to_even, s);
+#else
+    return detail::ConvertIntToFP8_CPU<NExpBits, NFracBits, T>(
+        h, rounding::to_even, s);
+#endif
+  }
+
+  uint8_t ConvertToFP8(sycl::half h, saturation s) {
+#ifdef __SYCL_DEVICE_ONLY__
+    const _Float16 v = sycl::bit_cast<_Float16>(h);
     return s == saturation::finite
                ? __builtin_spirv_ClampConvertFP16ToE5M2INTEL(v)
                : __builtin_spirv_ConvertFP16ToE5M2EXT(v);
 #else
-    if constexpr (std::is_same_v<std::decay_t<T>, sycl::half> ||
-                  std::is_same_v<std::decay_t<T>, float>) {
-      return detail::ConvertFloatToFP8_CPU<NExpBits, NFracBits, T>(
-          h, rounding::to_even, s);
-    } else if constexpr (std::is_integral_v<std::decay_t<T>>) {
-      return detail::ConvertIntToFP8_CPU<NExpBits, NFracBits, T>(
-          h, rounding::to_even, s);
-    }
+    return detail::ConvertFloatToFP8_CPU<NExpBits, NFracBits, sycl::half>(
+        h, rounding::to_even, s);
+#endif
+  }
+
+  uint8_t ConvertToFP8(float h, saturation s) {
+#if __SYCL_DEVICE_ONLY__ || !defined(__SYCL_DEVICE_ONLY__)
+    return detail::ConvertFloatToFP8_CPU<NExpBits, NFracBits, float>(
+        h, rounding::to_even, s);
 #endif
   }
 
@@ -1322,7 +1338,7 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     uint32_t current_seed = *seed.pseed;
     for (size_t i = 0; i < N; ++i) {
-      const _Float16 v = static_cast<_Float16>(static_cast<float>(in[i]));
+      const _Float16 v = sycl::bit_cast<_Float16>(in[i]);
       if (s == saturation::finite) {
         vals[i] = __builtin_spirv_ClampStochasticRoundFP16ToE5M2INTEL(
             v, current_seed, seed.pseed);
@@ -1346,10 +1362,10 @@ public:
     for (size_t i = 0; i < N; ++i) {
       if (s == saturation::finite) {
         vals[i] = __builtin_spirv_ClampStochasticRoundBF16ToE5M2INTEL(
-            sycl::bit_cast<__bf16>(in[i]), current_seed, seed.pseed);
+            sycl::bit_cast<__bf16>(in[i]), current_seed);
       } else {
         vals[i] = __builtin_spirv_StochasticRoundBF16ToE5M2INTEL(
-            sycl::bit_cast<__bf16>(in[i]), current_seed, seed.pseed);
+            sycl::bit_cast<__bf16>(in[i]), current_seed);
       }
       current_seed = *seed.pseed;
     }
@@ -1368,8 +1384,7 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     uint32_t current_seed = *seed.pseed;
     for (size_t i = 0; i < N; ++i) {
-
-      _Float16 v = static_cast<_Float16>(static_cast<float>(in[i]));
+      _Float16 v = sycl::bit_cast<_Float16>(in[i]);
       if (s == saturation::finite) {
         vals[i] = __builtin_spirv_ClampStochasticRoundFP16ToE5M2INTEL(
             v, current_seed, seed.pseed);
@@ -1393,10 +1408,10 @@ public:
     for (size_t i = 0; i < N; ++i) {
       if (s == saturation::finite) {
         vals[i] = __builtin_spirv_ClampStochasticRoundBF16ToE5M2INTEL(
-            sycl::bit_cast<__bf16>(in[i]), current_seed, seed.pseed);
+            sycl::bit_cast<__bf16>(in[i]), current_seed);
       } else {
         vals[i] = __builtin_spirv_StochasticRoundBF16ToE5M2INTEL(
-            sycl::bit_cast<__bf16>(in[i]), current_seed, seed.pseed);
+            sycl::bit_cast<__bf16>(in[i]), current_seed);
       }
       current_seed = *seed.pseed;
     }
