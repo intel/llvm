@@ -1598,33 +1598,6 @@ state is `graph_state::modifiable`.
 
 [source,c++]
 ----
-size_t get_id() const noexcept;
-----
-
-_Constraints:_ This member function is only available when the `command_graph`
-state is `graph_state::modifiable`.
-
-_Returns:_ A process-unique ID associated with this graph object. The ID is stable across
-`begin_recording`/`end_recording` cycles on the same graph object. That is, multiple
-recording sessions on the same graph return the same ID.
-
-[NOTE]
-====
-Example: querying the graph ID during recording to select a memory pool:
-
-[source,c++]
-----
-sycl::ext::oneapi::experimental::command_graph graph{ctx, dev};
-graph.begin_recording(queue);
-size_t id = graph.get_id();
-// id uniquely identifies this graph object within the process; use it
-// to look up or create a per-graph memory pool.
-auto& pool = memory_pools[id];
-----
-====
-
-[source,c++]
-----
 size_t get_required_mem_size() const noexcept;
 ----
 
