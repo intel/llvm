@@ -6,8 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-// Issue with OpenCL CPU runtime implementation of OpGenericCastToPtrExplicit
-// UNSUPPORTED: cpu
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 

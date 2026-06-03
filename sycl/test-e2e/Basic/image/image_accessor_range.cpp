@@ -1,6 +1,4 @@
 // REQUIRES: aspect-ext_intel_legacy_image
-// FIXME: Investigate OS-agnostic failures
-// UNSUPPORTED: true
 
 // UNSUPPORTED: cuda
 // UNSUPPORTED-INTENDED: CUDA doesn't fully support SYCL 1.2.1 images. Bindless

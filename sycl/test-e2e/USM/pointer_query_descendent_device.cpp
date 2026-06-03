@@ -1,8 +1,6 @@
 // RUN: %{build} -o %t1.out
 // RUN: %{run} %t1.out
 
-// Use of descendent devices in opencl contexts is not supported yet.
-// UNSUPPORTED: opencl
 //==------ pointer_query_descendent_device.cpp - Pointer Query test --------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.

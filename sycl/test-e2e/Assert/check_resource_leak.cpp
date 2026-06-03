@@ -1,9 +1,6 @@
 // RUN: %{build} -Wno-error=#warnings -o %t.out
 // RUN: %{run} %t.out
 
-// Device globals aren't supported on opencl:gpu yet.
-// UNSUPPORTED: opencl && gpu
-
 // TODO: Fails at JIT compilation for some reason.
 // UNSUPPORTED: hip
 
