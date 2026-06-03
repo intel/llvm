@@ -1,11 +1,7 @@
-; Test legalization of non-standard integer types (i6, i24, i48, etc.)
-; when the SPV_INTEL_arbitrary_precision_integers extension is disabled.
+; Test legalization of non-standard integer types (i6, i24, i48, etc.).
 ; Non-standard widths should be widened to the next power-of-2 standard width.
 ;
-; RUN: llvm-as %s -o %t.bc
-; RUN: llvm-spirv %t.bc -o %t.spv -spirv-ext=-all,+SPV_KHR_linkonce_odr
-; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
-; RUN: llvm-dis %t.rev.bc -o - | FileCheck %s --check-prefix=CHECK-LLVM
+; RUN: opt -passes=sycl-legalize-nonstandard-integers -S < %s | FileCheck %s
 
 target triple = "spir64-unknown-unknown"
 
@@ -37,15 +33,15 @@ entry:
   ret void
 }
 
-; After round-trip, no non-standard integer operations should remain
-; CHECK-LLVM: define spir_kernel void @test_i48_bitcast
-; CHECK-LLVM-NOT: bitcast{{.*}}i48
-; CHECK-LLVM-NOT: zext i48
+; After legalization, no non-standard integer operations should remain
+; CHECK-LABEL: define spir_kernel void @test_i48_bitcast
+; CHECK-NOT: bitcast{{.*}}i48
+; CHECK-NOT: zext i48
 ;
-; CHECK-LLVM: define spir_kernel void @test_trunc_op_zext
-; CHECK-LLVM-NOT: trunc{{.*}}i6
-; CHECK-LLVM-NOT: trunc{{.*}}i24
-; CHECK-LLVM-NOT: add i6
-; CHECK-LLVM-NOT: add i24
-; CHECK-LLVM-NOT: zext i6
-; CHECK-LLVM-NOT: zext i24
+; CHECK-LABEL: define spir_kernel void @test_trunc_op_zext
+; CHECK-NOT: trunc{{.*}}i6
+; CHECK-NOT: trunc{{.*}}i24
+; CHECK-NOT: add i6
+; CHECK-NOT: add i24
+; CHECK-NOT: zext i6
+; CHECK-NOT: zext i24

@@ -1,9 +1,8 @@
-//===- SPIRVLegalizeNonStandardIntegers.cpp - Legalize int types ---------===//
+//===- SYCLLegalizeNonStandardIntegers.cpp - Legalize int types ---------===//
 //
-//                     The LLVM/SPIRV Translator
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -18,17 +17,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "SPIRVLegalizeNonStandardIntegers.h"
+#include "llvm/SYCLLowerIR/SYCLLegalizeNonStandardIntegers.h"
 
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instructions.h"
 
-#define DEBUG_TYPE "spirv-legalize-nonstandard-integers"
+#define DEBUG_TYPE "sycl-legalize-nonstandard-integers"
 
 using namespace llvm;
-
-namespace SPIRV {
 
 // Check if an integer type has non-standard bit width.
 static bool isNonStdIntType(Type *Ty) {
@@ -243,15 +240,8 @@ static bool legalizeNonStdBitcasts(Function &F) {
 }
 
 PreservedAnalyses
-SPIRVLegalizeNonStandardIntegersPass::run(Module &M,
-                                          ModuleAnalysisManager &MAM) {
-  // Skip legalization when arbitrary precision integer extensions are enabled.
-  if (Opts.isAllowedToUseExtension(
-          ExtensionID::SPV_INTEL_arbitrary_precision_integers) ||
-      Opts.isAllowedToUseExtension(
-          ExtensionID::SPV_ALTERA_arbitrary_precision_integers))
-    return PreservedAnalyses::all();
-
+SYCLLegalizeNonStandardIntegersPass::run(Module &M,
+                                         ModuleAnalysisManager &MAM) {
   bool Changed = false;
   for (Function &F : M) {
     if (F.isDeclaration())
@@ -262,5 +252,3 @@ SPIRVLegalizeNonStandardIntegersPass::run(Module &M,
 
   return Changed ? PreservedAnalyses::none() : PreservedAnalyses::all();
 }
-
-} // namespace SPIRV
