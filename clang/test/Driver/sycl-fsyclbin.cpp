@@ -97,3 +97,55 @@
 // RUN: | FileCheck %s --check-prefix=CHECK_WIN_DEFAULT_OUTPUT
 // CHECK_WIN_DEFAULT_OUTPUT: clang-linker-wrapper
 // CHECK_WIN_DEFAULT_OUTPUT-SAME: "-out:{{.*}}fsyclbin.syclbin"
+
+/// -fsyclbin=input and -fsyclbin=object imply
+/// -fsycl-allow-device-image-dependencies, since cross-image symbol
+/// resolution is required for those bundle states.
+// RUN: %clangxx -fsyclbin=input --offload-new-driver --sysroot=%S/Inputs/SYCL %s -### 2>&1 \
+// RUN: | FileCheck %s --check-prefix=CHECK_DEPS_IMPLIED
+// RUN: %clangxx -fsyclbin=object --offload-new-driver --sysroot=%S/Inputs/SYCL %s -### 2>&1 \
+// RUN: | FileCheck %s --check-prefix=CHECK_DEPS_IMPLIED
+// CHECK_DEPS_IMPLIED: clang-linker-wrapper
+// CHECK_DEPS_IMPLIED-SAME: "-sycl-allow-device-image-dependencies"
+// CHECK_DEPS_IMPLIED-SAME: --sycl-post-link-options={{.*}}-allow-device-image-dependencies
+
+/// -fsyclbin=executable does not imply
+/// -fsycl-allow-device-image-dependencies, since the resulting bundle
+/// is fully linked and does not participate in cross-image link.
+// RUN: %clangxx -fsyclbin=executable --offload-new-driver --sysroot=%S/Inputs/SYCL %s -### 2>&1 \
+// RUN: | FileCheck %s --check-prefix=CHECK_DEPS_NOT_IMPLIED
+// CHECK_DEPS_NOT_IMPLIED-NOT: -sycl-allow-device-image-dependencies
+
+/// For AOT spir64_gen, -fsyclbin=input/object additionally implies
+/// -library-compilation in the backend options so symbols stay
+/// externally visible for runtime cross-image resolution.
+// RUN: %clangxx -fsyclbin=object -fsycl-targets=spir64_gen \
+// RUN:   --offload-new-driver --sysroot=%S/Inputs/SYCL %s -### 2>&1 \
+// RUN: | FileCheck %s --check-prefix=CHECK_LIBCOMP_IMPLIED
+// CHECK_LIBCOMP_IMPLIED: -library-compilation
+
+// RUN: %clangxx -fsyclbin=executable -fsycl-targets=spir64_gen \
+// RUN:   --offload-new-driver --sysroot=%S/Inputs/SYCL %s -### 2>&1 \
+// RUN: | FileCheck %s --check-prefix=CHECK_LIBCOMP_NOT_IMPLIED
+// CHECK_LIBCOMP_NOT_IMPLIED-NOT: -library-compilation
+
+/// Combining -fsyclbin=input/object with
+/// -fno-sycl-allow-device-image-dependencies is a contradiction: an
+/// object SYCLBIN that forbids cross-image dependencies has no use
+/// case, so the driver emits an error and redirects users to
+/// -fsyclbin=executable.
+// RUN: not %clangxx -fsyclbin=object -fno-sycl-allow-device-image-dependencies \
+// RUN:   --offload-new-driver --sysroot=%S/Inputs/SYCL %s -### 2>&1 \
+// RUN: | FileCheck %s --check-prefix=CHECK_DEPS_CONFLICT
+// RUN: not %clangxx -fsyclbin=input -fno-sycl-allow-device-image-dependencies \
+// RUN:   --offload-new-driver --sysroot=%S/Inputs/SYCL %s -### 2>&1 \
+// RUN: | FileCheck %s --check-prefix=CHECK_DEPS_CONFLICT
+// CHECK_DEPS_CONFLICT: error: invalid argument '-fno-sycl-allow-device-image-dependencies' not allowed with '-fsyclbin={{input|object}}'
+
+/// Combining -fsyclbin=executable with
+/// -fsycl-allow-device-image-dependencies is harmless but pointless,
+/// so the driver emits a warning.
+// RUN: %clangxx -fsyclbin=executable -fsycl-allow-device-image-dependencies \
+// RUN:   --offload-new-driver --sysroot=%S/Inputs/SYCL %s -### 2>&1 \
+// RUN: | FileCheck %s --check-prefix=CHECK_DEPS_REDUNDANT
+// CHECK_DEPS_REDUNDANT: warning: '-fsycl-allow-device-image-dependencies' has no effect with '-fsyclbin=executable'
