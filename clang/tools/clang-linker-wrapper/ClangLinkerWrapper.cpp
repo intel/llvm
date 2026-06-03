@@ -2277,7 +2277,6 @@ DerivedArgList getLinkerArgs(ArrayRef<OffloadFile> Input,
   DAL.AddJoinedArg(nullptr, Tbl.getOption(OPT_triple_EQ),
                    Args.MakeArgString(Input.front().getBinary()->getTriple()));
   llvm::Triple T(Input.front().getBinary()->getTriple());
-  dbgs() << "DEBUG: " << T.getSubArch() << "\n";
 
   // If every input file is bitcode we have whole program visibility as we
   // do only support static linking with bitcode.
