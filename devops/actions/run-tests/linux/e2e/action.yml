@@ -110,4 +110,4 @@ runs:
     if: ${{ !cancelled() }}
     shell: bash
     run: |
-      rm -rf build-e2e
+      # rm -rf build-e2e
