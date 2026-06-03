@@ -27,7 +27,7 @@
 ; CHECK-SPIRV: FConvert [[#FP8MatrixTy]] [[#Conv:]] [[#M]]
 ; CHECK-SPIRV: Bitcast [[#Int8MatrixTy]] [[#]] [[#Conv]]
 
-; CHECK-LLVM: %[[#M:]] = call spir_func target("spirv.CooperativeMatrixKHR", half, 3, 12, 12, 2) @_Z26__spirv_CompositeConstructDh(half 0xH0000)
+; CHECK-LLVM: %[[#M:]] = call spir_func target("spirv.CooperativeMatrixKHR", half, 3, 12, 12, 2) @_Z26__spirv_CompositeConstructDh(half 0.000000e+00)
 ; CHECK-LLVM: call target("spirv.CooperativeMatrixKHR", i8, 3, 12, 12, 2) @_Z36__builtin_spirv_ConvertFP16ToE4M3EXTPU3AS144__spirv_CooperativeMatrixKHR__half_3_12_12_2(target("spirv.CooperativeMatrixKHR", half, 3, 12, 12, 2) %[[#M]])
 
 ; ModuleID = 'test.bc'
