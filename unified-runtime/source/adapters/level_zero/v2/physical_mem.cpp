@@ -108,10 +108,11 @@ ur_result_t urPhysicalMemGetInfo(ur_physical_mem_handle_t hPhysicalMem,
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t urIPCGetPhysMemHandleExp(ur_context_handle_t hContext,
-                                     ur_physical_mem_handle_t hPhysMem,
-                                     void **ppIPCPhysMemHandleData,
-                                     size_t *pIPCPhysMemHandleDataSizeRet) {
+ur_result_t
+urIPCGetPhysMemHandleExp([[maybe_unused]] ur_context_handle_t hContext,
+                         ur_physical_mem_handle_t hPhysMem,
+                         void **ppIPCPhysMemHandleData,
+                         size_t *pIPCPhysMemHandleDataSizeRet) {
 #ifdef __linux__
   if (!hPhysMem->EnableIpc)
     return UR_RESULT_ERROR_INVALID_ARGUMENT;
@@ -131,9 +132,12 @@ ur_result_t urIPCGetPhysMemHandleExp(ur_context_handle_t hContext,
 
   // Use ZE_CALL_NOCHECK so we can close any fd the driver may have opened
   // before returning an error, rather than leaking it via an early return.
+  // Use hPhysMem->Context (the creation context) rather than the caller's
+  // hContext: zePhysicalMemGetProperties requires the same context that was
+  // used to create the object.
   ze_result_t ZeRes = ZE_CALL_NOCHECK(
       zePhysicalMemGetProperties,
-      (hContext->getZeHandle(), hPhysMem->ZePhysicalMem, &Props));
+      (hPhysMem->Context->getZeHandle(), hPhysMem->ZePhysicalMem, &Props));
   if (ZeRes != ZE_RESULT_SUCCESS) {
     if (ExportFd.fd >= 0)
       close(ExportFd.fd);
@@ -157,7 +161,6 @@ ur_result_t urIPCGetPhysMemHandleExp(ur_context_handle_t hContext,
   *pIPCPhysMemHandleDataSizeRet = sizeof(ZeIPCPhysMemHandleData);
   return UR_RESULT_SUCCESS;
 #else
-  (void)hContext;
   (void)hPhysMem;
   (void)ppIPCPhysMemHandleData;
   (void)pIPCPhysMemHandleDataSizeRet;
