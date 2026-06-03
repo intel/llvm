@@ -53,25 +53,30 @@ int test_stochastic_constructor(sycl::queue &queue) {
                                static_cast<T>(negative_input));
       if constexpr (Sat == saturation::finite) {
         fp8_e5m2_x2 value(input, stochastic_seed(seed));
-        sycl::marray<float, 2> unpacked = static_cast<sycl::marray<float, 2>>(value);
+        sycl::marray<float, 2> unpacked =
+            static_cast<sycl::marray<float, 2>>(value);
         out[0] = unpacked[0];
         out[1] = unpacked[1];
       } else {
         fp8_e5m2_x2 value(input, stochastic_seed(seed), saturation::none);
-        sycl::marray<float, 2> unpacked = static_cast<sycl::marray<float, 2>>(value);
+        sycl::marray<float, 2> unpacked =
+            static_cast<sycl::marray<float, 2>>(value);
         out[0] = unpacked[0];
         out[1] = unpacked[1];
       }
     } else {
-      T input[2] = {static_cast<T>(positive_input), static_cast<T>(negative_input)};
+      T input[2] = {static_cast<T>(positive_input),
+                    static_cast<T>(negative_input)};
       if constexpr (Sat == saturation::finite) {
         fp8_e5m2_x2 value(input, stochastic_seed(seed));
-        sycl::marray<float, 2> unpacked = static_cast<sycl::marray<float, 2>>(value);
+        sycl::marray<float, 2> unpacked =
+            static_cast<sycl::marray<float, 2>>(value);
         out[0] = unpacked[0];
         out[1] = unpacked[1];
       } else {
         fp8_e5m2_x2 value(input, stochastic_seed(seed), saturation::none);
-        sycl::marray<float, 2> unpacked = static_cast<sycl::marray<float, 2>>(value);
+        sycl::marray<float, 2> unpacked =
+            static_cast<sycl::marray<float, 2>>(value);
         out[0] = unpacked[0];
         out[1] = unpacked[1];
       }
@@ -505,21 +510,20 @@ int main() {
   ret |= test_boundary_infinity_no_saturation(queue);
   ret |= test_boundary_overflow_no_saturation(queue);
 
-    ret |= test_stochastic_constructor<sycl::half, false, saturation::finite>(
-      queue);
-    ret |= test_stochastic_constructor<sycl::half, false, saturation::none>(
-      queue);
-    ret |= test_stochastic_constructor<sycl::half, true, saturation::finite>(
-      queue);
-    ret |= test_stochastic_constructor<sycl::half, true, saturation::none>(
-      queue);
-    ret |= test_stochastic_constructor<sycl::ext::oneapi::bfloat16, false,
-                     saturation::finite>(queue);
-    ret |= test_stochastic_constructor<sycl::ext::oneapi::bfloat16, false,
-                     saturation::none>(queue);
-    ret |= test_stochastic_constructor<sycl::ext::oneapi::bfloat16, true,
-                     saturation::finite>(queue);
-    ret |= test_stochastic_constructor<sycl::ext::oneapi::bfloat16, true,
-                     saturation::none>(queue);
+  ret |=
+      test_stochastic_constructor<sycl::half, false, saturation::finite>(queue);
+  ret |=
+      test_stochastic_constructor<sycl::half, false, saturation::none>(queue);
+  ret |=
+      test_stochastic_constructor<sycl::half, true, saturation::finite>(queue);
+  ret |= test_stochastic_constructor<sycl::half, true, saturation::none>(queue);
+  ret |= test_stochastic_constructor<sycl::ext::oneapi::bfloat16, false,
+                                     saturation::finite>(queue);
+  ret |= test_stochastic_constructor<sycl::ext::oneapi::bfloat16, false,
+                                     saturation::none>(queue);
+  ret |= test_stochastic_constructor<sycl::ext::oneapi::bfloat16, true,
+                                     saturation::finite>(queue);
+  ret |= test_stochastic_constructor<sycl::ext::oneapi::bfloat16, true,
+                                     saturation::none>(queue);
   return ret;
 }
