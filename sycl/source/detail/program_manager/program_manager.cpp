@@ -2017,24 +2017,44 @@ ProgramManager::getEliminatedKernelArgMask(ur_program_handle_t NativePrg,
   return nullptr;
 }
 
+bool ProgramManager::isAOTBinaryTarget(const char *DeviceTargetSpec) {
+  if (!DeviceTargetSpec)
+    return false;
+  return strcmp(DeviceTargetSpec, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_X86_64) ==
+             0 ||
+         strcmp(DeviceTargetSpec, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN) == 0;
+}
+
 bundle_state
 ProgramManager::getBinImageState(const RTDeviceBinaryImage *BinImage) {
-  auto IsAOTBinary = [](const char *Format) {
-    return ((strcmp(Format, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_X86_64) == 0) ||
-            (strcmp(Format, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN) == 0));
-  };
-
   // Three possible initial states:
   // - SPIRV that needs to be compiled and linked
   // - AOT compiled binary with dependnecies, needs linking.
   // - AOT compiled binary without dependencies.
 
-  const bool IsAOT = IsAOTBinary(BinImage->getRawData().DeviceTargetSpec);
+  const bool IsAOT = isAOTBinaryTarget(BinImage->getRawData().DeviceTargetSpec);
 
   if (!IsAOT)
     return sycl::bundle_state::input;
   return BinImage->getImportedSymbols().empty() ? sycl::bundle_state::executable
                                                 : sycl::bundle_state::object;
+}
+
+ur_result_t ProgramManager::buildProgramWithFlags(
+    adapter_impl &Adapter, ur_context_handle_t Context,
+    ur_program_handle_t Program, devices_range Devices,
+    bool AllowUnresolvedSymbols) {
+  auto URDevices = Devices.to<std::vector<ur_device_handle_t>>();
+  ur_exp_program_flags_t Flags{};
+  if (AllowUnresolvedSymbols)
+    Flags |= UR_EXP_PROGRAM_FLAG_ALLOW_UNRESOLVED_SYMBOLS;
+  ur_result_t Err = Adapter.call_nocheck<UrApiKind::urProgramBuildExp>(
+      Program, static_cast<uint32_t>(URDevices.size()), URDevices.data(), Flags,
+      /*pOptions=*/"");
+  if (Err == UR_RESULT_ERROR_UNSUPPORTED_FEATURE)
+    Err = Adapter.call_nocheck<UrApiKind::urProgramBuild>(Context, Program,
+                                                          /*pOptions=*/"");
+  return Err;
 }
 
 bool ProgramManager::hasCompatibleImage(const device_impl &DeviceImpl) {

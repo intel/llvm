@@ -387,6 +387,28 @@ public:
 
   static bundle_state getBinImageState(const RTDeviceBinaryImage *BinImage);
 
+  // True when the image's DeviceTargetSpec identifies a native AOT binary
+  // that goes through the linker-wrapper / IGC AOT pipeline. Currently
+  // only spir64_x86_64 (OpenCL CPU AOT) and spir64_gen (Intel GPU AOT) emit
+  // native object images that participate in the runtime native-link path.
+  // SYCLBIN/JIT (spir64), CUDA (nvptx64), HIP (amdgcn) and native_cpu paths
+  // either go through the JIT branch or use a different runtime link
+  // mechanism; they are intentionally excluded here. Sites that branch on
+  // "is this image native AOT?" should use this helper to keep the answer
+  // in one place.
+  static bool isAOTBinaryTarget(const char *DeviceTargetSpec);
+
+  // Build the given program with optional ALLOW_UNRESOLVED_SYMBOLS, falling
+  // back to the non-Exp build entry point when the adapter does not support
+  // urProgramBuildExp. Used by the link path to bring an AOT image with
+  // unresolved imported symbols into a built ze_module so it can participate
+  // in the cross-image dynamic link below.
+  ur_result_t buildProgramWithFlags(adapter_impl &Adapter,
+                                    ur_context_handle_t Context,
+                                    ur_program_handle_t Program,
+                                    devices_range Devices,
+                                    bool AllowUnresolvedSymbols);
+
 private:
   ProgramManager(ProgramManager const &) = delete;
   ProgramManager &operator=(ProgramManager const &) = delete;
