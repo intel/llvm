@@ -17,6 +17,8 @@
 #include <unistd.h>
 #endif
 
+#include <optional>
+
 #include "context.hpp"
 
 namespace ur::level_zero {
@@ -31,14 +33,16 @@ ur_result_t urPhysicalMemCreate(ur_context_handle_t hContext,
 
   // If IPC export is requested, chain in the export descriptor so the
   // physical memory can later be shared via urIPCGetPhysMemHandleExp.
-  ze_external_memory_export_desc_t ExportDesc = {};
-  ExportDesc.stype = ZE_STRUCTURE_TYPE_EXTERNAL_MEMORY_EXPORT_DESC;
-  ExportDesc.pNext = nullptr;
-  ExportDesc.flags = ZE_EXTERNAL_MEMORY_TYPE_FLAG_OPAQUE_FD;
   bool EnableIpc =
       pProperties && (pProperties->flags & UR_PHYSICAL_MEM_FLAG_ENABLE_IPC);
-  if (EnableIpc)
-    PhysicalMemDesc.pNext = &ExportDesc;
+  std::optional<ze_external_memory_export_desc_t> ExportDesc;
+  if (EnableIpc) {
+    ExportDesc = ze_external_memory_export_desc_t{};
+    ExportDesc->stype = ZE_STRUCTURE_TYPE_EXTERNAL_MEMORY_EXPORT_DESC;
+    ExportDesc->pNext = nullptr;
+    ExportDesc->flags = ZE_EXTERNAL_MEMORY_TYPE_FLAG_OPAQUE_FD;
+    PhysicalMemDesc.pNext = &ExportDesc.value();
+  }
 
   ze_physical_mem_handle_t ZePhysicalMem;
   ZE2UR_CALL(zePhysicalMemCreate, (hContext->getZeHandle(), hDevice->ZeDevice,
