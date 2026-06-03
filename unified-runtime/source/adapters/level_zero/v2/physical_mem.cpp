@@ -108,11 +108,10 @@ ur_result_t urPhysicalMemGetInfo(ur_physical_mem_handle_t hPhysicalMem,
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t
-urIPCGetPhysMemHandleExp([[maybe_unused]] ur_context_handle_t hContext,
-                         ur_physical_mem_handle_t hPhysMem,
-                         void **ppIPCPhysMemHandleData,
-                         size_t *pIPCPhysMemHandleDataSizeRet) {
+ur_result_t urIPCGetPhysMemHandleExp(ur_context_handle_t,
+                                     ur_physical_mem_handle_t hPhysMem,
+                                     void **ppIPCPhysMemHandleData,
+                                     size_t *pIPCPhysMemHandleDataSizeRet) {
 #ifdef __linux__
   if (!hPhysMem->EnableIpc)
     return UR_RESULT_ERROR_INVALID_ARGUMENT;
@@ -168,9 +167,8 @@ urIPCGetPhysMemHandleExp([[maybe_unused]] ur_context_handle_t hContext,
 #endif // __linux__
 }
 
-ur_result_t
-urIPCPutPhysMemHandleExp([[maybe_unused]] ur_context_handle_t hContext,
-                         const void *pIPCPhysMemHandleData) {
+ur_result_t urIPCPutPhysMemHandleExp(ur_context_handle_t,
+                                     const void *pIPCPhysMemHandleData) {
 #ifdef __linux__
   auto *HandleData =
       static_cast<const ZeIPCPhysMemHandleData *>(pIPCPhysMemHandleData);
@@ -263,9 +261,8 @@ ur_result_t urIPCOpenPhysMemHandleExp(ur_context_handle_t hContext,
 #endif // __linux__
 }
 
-ur_result_t
-urIPCClosePhysMemHandleExp([[maybe_unused]] ur_context_handle_t hContext,
-                           ur_physical_mem_handle_t hPhysMem) {
+ur_result_t urIPCClosePhysMemHandleExp(ur_context_handle_t,
+                                       ur_physical_mem_handle_t hPhysMem) {
   // Delegate to urPhysicalMemRelease so the refcount is respected: if the
   // handle has been retained (refcount > 1) it will not be destroyed until
   // all references are released.
