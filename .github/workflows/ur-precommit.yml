@@ -81,9 +81,9 @@ jobs:
             image_options: -u 1001 --privileged --cap-add SYS_ADMIN --gpus all
 
           # 12.6.3
-          # - name: CUDA
-          #   runner: UR_CUDA
-          #   image_options: -u 1001 --privileged --cap-add SYS_ADMIN --gpus all
+          - name: CUDA
+            runner: UR_CUDA
+            image_options: -u 1001 --privileged --cap-add SYS_ADMIN --gpus all
           # - name: OPENCL
           #   runner: UR_OPENCL
           #   docker_image: "ghcr.io/intel/llvm/ubuntu2204_build:latest"
