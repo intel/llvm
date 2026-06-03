@@ -61,7 +61,9 @@ int main() {
     Graph.begin_recording(Q);
     auto ForkEvent = Q.ext_oneapi_submit_barrier();
     // Q2 transitions to recording via transitive dependency.
-    Q2.ext_oneapi_submit_barrier({ForkEvent});
+    auto Q2Event = Q2.ext_oneapi_submit_barrier({ForkEvent});
+
+    Q.ext_oneapi_submit_barrier({Q2Event});
 
     auto GFromQ1 = Q.ext_oneapi_get_graph();
     auto GFromQ2 = Q2.ext_oneapi_get_graph();
