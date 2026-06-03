@@ -2,14 +2,7 @@
 // REQUIRES: windows
 
 // UNSUPPORTED: gpu-intel-gen12
-// UNSUPPORTED-INTENDED: Unknown issue with integrated GPU failing
-//                       when importing memory
-
-// UNSUPPORTED: gpu-intel-dg2
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21159
-
-// XFAIL: windows && arch-intel_gpu_bmg_g21
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20384
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22148
 
 // RUN: %{build} %link-directx -o %t.out
 // RUN: %{run-unfiltered-devices} env NEOReadDebugKeys=1 UseBindlessMode=1 UseExternalAllocatorForSshAndDsh=1 %t.out
@@ -17,6 +10,7 @@
 #include "dx11_interop.h"
 
 #include <sycl/ext/oneapi/bindless_images.hpp>
+#include <sycl/properties/queue_properties.hpp>
 
 #ifdef TEST_SEMAPHORE_IMPORT
 #include <d3d11_4.h> // Used for ID3D11Device5 / ID3D11DeviceContext4 / ID3D11Fence
@@ -109,49 +103,48 @@ void callSyclKernel(sycl::queue syclQueue,
     using VecType = sycl::vec<DType, NChannels>;
 
     // All we are doing is doubling the value of each pixel in the texture.
-    auto e =
-        syclQueue.submit([&](sycl::handler &cgh) {
-          cgh.parallel_for(
-              sycl::nd_range<NDims>{globalSize, localSize},
-              [=](sycl::nd_item<NDims> it) {
-                if constexpr (NDims == 3) {
-                  size_t dim0 = it.get_global_id(0);
-                  size_t dim1 = it.get_global_id(1);
-                  size_t dim2 = it.get_global_id(2);
-                  // We simulate 3d textures through very tall 2D textures where
-                  // the depth dimension has been collapsed onto the height
-                  // dimension.
-                  // So, logically speaking, the texture has
-                  // dimensions Width x Height x Depth but practically speaking,
-                  // it is a 2D texture with dimensions Width x (Height *
-                  // Depth). So the calculation below globalSize[1] * dim2 +
-                  // dim1 simply does this conversion from a 3D index to a 2D
-                  // index.
-                  auto px = syclexp::fetch_image<
-                      std::conditional_t<NChannels == 1, DType, VecType>>(
-                      imgHandle, sycl::int2(dim0, globalSize[1] * dim2 + dim1));
-                  px *= static_cast<DType>(2);
-                  syclexp::write_image(
-                      imgHandle, sycl::int2(dim0, globalSize[1] * dim2 + dim1),
-                      px);
-                } else if constexpr (NDims == 2) {
-                  size_t dim0 = it.get_global_id(0);
-                  size_t dim1 = it.get_global_id(1);
-                  auto px = syclexp::fetch_image<
-                      std::conditional_t<NChannels == 1, DType, VecType>>(
-                      imgHandle, sycl::int2(dim0, dim1));
-                  px *= static_cast<DType>(2);
-                  syclexp::write_image(imgHandle, sycl::int2(dim0, dim1), px);
-                } else {
-                  size_t dim0 = it.get_global_id(0);
-                  auto px = syclexp::fetch_image<
-                      std::conditional_t<NChannels == 1, DType, VecType>>(
-                      imgHandle, int(dim0));
-                  px *= static_cast<DType>(2);
-                  syclexp::write_image(imgHandle, int(dim0), px);
-                }
-              });
-        });
+    auto e = syclQueue.submit([&](sycl::handler &cgh) {
+      cgh.parallel_for(
+          sycl::nd_range<NDims>{globalSize, localSize},
+          [=](sycl::nd_item<NDims> it) {
+            if constexpr (NDims == 3) {
+              size_t dim0 = it.get_global_id(0);
+              size_t dim1 = it.get_global_id(1);
+              size_t dim2 = it.get_global_id(2);
+              // We simulate 3d textures through very tall 2D textures where
+              // the depth dimension has been collapsed onto the height
+              // dimension.
+              // So, logically speaking, the texture has
+              // dimensions Width x Height x Depth but practically speaking,
+              // it is a 2D texture with dimensions Width x (Height *
+              // Depth). So the calculation below globalSize[1] * dim2 +
+              // dim1 simply does this conversion from a 3D index to a 2D
+              // index.
+              // For 1D and 2D textures, the conversion is trivial.
+              auto px = syclexp::fetch_image<
+                  std::conditional_t<NChannels == 1, DType, VecType>>(
+                  imgHandle, sycl::int2(dim0, globalSize[1] * dim2 + dim1));
+              px *= static_cast<DType>(2);
+              syclexp::write_image(
+                  imgHandle, sycl::int2(dim0, globalSize[1] * dim2 + dim1), px);
+            } else if constexpr (NDims == 2) {
+              size_t dim0 = it.get_global_id(0);
+              size_t dim1 = it.get_global_id(1);
+              auto px = syclexp::fetch_image<
+                  std::conditional_t<NChannels == 1, DType, VecType>>(
+                  imgHandle, sycl::int2(dim0, dim1));
+              px *= static_cast<DType>(2);
+              syclexp::write_image(imgHandle, sycl::int2(dim0, dim1), px);
+            } else {
+              size_t dim0 = it.get_global_id(0);
+              auto px = syclexp::fetch_image<
+                  std::conditional_t<NChannels == 1, DType, VecType>>(
+                  imgHandle, sycl::int2(dim0, 0));
+              px *= static_cast<DType>(2);
+              syclexp::write_image(imgHandle, sycl::int2(dim0, 0), px);
+            }
+          });
+    });
 #ifndef TEST_SEMAPHORE_IMPORT
     e.wait_and_throw();
 #endif
@@ -252,7 +245,22 @@ int runTest(D3D11ProgramState &d3d11ProgramState, sycl::queue syclQueue,
   auto *pDevice = d3d11ProgramState.device;
   auto *pDeviceContext = d3d11ProgramState.deviceContext;
 
-  syclexp::image_descriptor syclImageDesc{globalSize, NChannels, channelType};
+  // The texture that we use throughout this test is 2D. Therefore, even though
+  // the iteration space of the SYCL kernel may be 1, 2 0r 3 dimensional, we
+  // convert them into a 2D range that we can use to create the SYCL image
+  // descriptor. If we were to not do this, we would have a bindless image and a
+  // texture that may have different dimensions and yet refer to the same
+  // underlying memory ,which smells like undefined behavior.
+  sycl::range<2> Range2D;
+  if constexpr (NDims == 1) {
+    Range2D = sycl::range{globalSize[0], 1};
+  } else if constexpr (NDims == 2) {
+    Range2D = globalSize;
+  } else {
+    Range2D = sycl::range{globalSize[0], globalSize[1] * globalSize[2]};
+  }
+
+  syclexp::image_descriptor syclImageDesc{Range2D, NChannels, channelType};
   // Verify ability to allocate the above image descriptor.
   // E.g. LevelZero does not support `unorm` channel types.
   if (!bindless_helpers::memoryAllocationSupported(
@@ -276,13 +284,6 @@ int runTest(D3D11ProgramState &d3d11ProgramState, sycl::queue syclQueue,
 
   DXGI_FORMAT texFormat = toDXGIFormat(NChannels, channelType);
 
-  // DirectX 11 does not allow us to specify a row major layout for 2D textures
-  // that have ArraySize > 1 and we would like to specify it in order to
-  // accurately calculate the allocation size for the texture so that we can
-  // import it from SYCL side. Hence, in light of this restriction, instead of
-  // using ArraySize > 1 to simulate 3D textures, we simulate them by simply
-  // collapsing the depth dimension onto the height dimension and set ArraySize
-  // to 1.
   // Create a shared texture
   ComPtr<ID3D11Texture2D1> texture;
   // Initialize the texture description.
@@ -303,7 +304,6 @@ int runTest(D3D11ProgramState &d3d11ProgramState, sycl::queue syclQueue,
   // it is only applicable to 2D textures.
   texDesc.MiscFlags = D3D11_RESOURCE_MISC_SHARED_NTHANDLE |
                       D3D11_RESOURCE_MISC_SHARED_KEYEDMUTEX;
-  texDesc.TextureLayout = D3D11_TEXTURE_LAYOUT_ROW_MAJOR;
 
   ComPtr<ID3D11Device3> device3;
   pDevice->QueryInterface(IID_PPV_ARGS(&device3));
@@ -374,8 +374,6 @@ int runTest(D3D11ProgramState &d3d11ProgramState, sycl::queue syclQueue,
 
   // Unfortunately, DX11 does not expose the texture allocation information
   // like DX12, so we have to calculate it manually the best we can (no mips).
-  // The fact that the texture has been requested to have a row major layout
-  // should support this speculative calculation.
   const size_t allocationSize =
       texWidth * texHeight * texDepth * NChannels * sizeof(DType);
   syclexp::unsampled_image_handle syclImageHandle = syclImportTextureMem(
@@ -438,8 +436,16 @@ int runTest(D3D11ProgramState &d3d11ProgramState, sycl::queue syclQueue,
 }
 
 int main() {
-  // Create SYCL queue, relying on SYCL device selection
+  // Create SYCL queue, relying on SYCL device selection.
+#ifdef TEST_SEMAPHORE_IMPORT
+  // External semaphore ops require an in-order queue backed by immediate
+  // command lists (see sycl_ext_oneapi_bindless_images.asciidoc).
+  sycl::queue syclQueue{
+      {sycl::property::queue::in_order{},
+       sycl::ext::intel::property::queue::immediate_command_list{}}};
+#else
   sycl::queue syclQueue;
+#endif
   sycl::device syclDevice = syclQueue.get_device();
 
   // Initialize D3D11 and create DX11 programs state from the SYCL device

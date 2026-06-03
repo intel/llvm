@@ -177,6 +177,9 @@ struct urMultiDeviceContextMemBufferTest : urMultiDeviceContextTest {
 UUR_INSTANTIATE_PLATFORM_TEST_SUITE(urMultiDeviceContextMemBufferTest);
 
 TEST_P(urMultiDeviceContextMemBufferTest, WriteRead) {
+  // Related issue: https://github.com/intel/llvm/issues/22058.
+  UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{"Data Center GPU Max"});
+
   if (num_devices <= 1) {
     GTEST_SKIP();
   }
@@ -201,6 +204,9 @@ TEST_P(urMultiDeviceContextMemBufferTest, WriteRead) {
 }
 
 TEST_P(urMultiDeviceContextMemBufferTest, FillRead) {
+  // Related issue: https://github.com/intel/llvm/issues/22058.
+  UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{"Data Center GPU Max"});
+
   if (num_devices <= 1) {
     GTEST_SKIP();
   }
@@ -225,6 +231,9 @@ TEST_P(urMultiDeviceContextMemBufferTest, FillRead) {
 }
 
 TEST_P(urMultiDeviceContextMemBufferTest, WriteKernelRead) {
+  // Related issue: https://github.com/intel/llvm/issues/22058.
+  UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{"Data Center GPU Max"});
+
   if (num_devices <= 1) {
     GTEST_SKIP();
   }
@@ -262,6 +271,9 @@ TEST_P(urMultiDeviceContextMemBufferTest, WriteKernelRead) {
 }
 
 TEST_P(urMultiDeviceContextMemBufferTest, WriteKernelKernelRead) {
+  // Related issue: https://github.com/intel/llvm/issues/22058.
+  UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{"Data Center GPU Max"});
+
   if (num_devices <= 1) {
     GTEST_SKIP();
   }
@@ -305,6 +317,9 @@ TEST_P(urMultiDeviceContextMemBufferTest, WriteKernelKernelRead) {
 }
 
 TEST_P(urMultiDeviceContextMemBufferTest, PingPongKernelExecution) {
+  // Related issue: https://github.com/intel/llvm/issues/22058.
+  UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{"Data Center GPU Max"});
+
   if (num_devices <= 1) {
     GTEST_SKIP();
   }
@@ -353,6 +368,9 @@ TEST_P(urMultiDeviceContextMemBufferTest, PingPongKernelExecution) {
 }
 
 TEST_P(urMultiDeviceContextMemBufferTest, ComplexMigrationPattern) {
+  // Related issue: https://github.com/intel/llvm/issues/22058.
+  UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{"Data Center GPU Max"});
+
   if (num_devices <= 1) {
     GTEST_SKIP();
   }
@@ -419,6 +437,9 @@ TEST_P(urMultiDeviceContextMemBufferTest, ComplexMigrationPattern) {
 }
 
 TEST_P(urMultiDeviceContextMemBufferTest, KernelsExecutionWithThreads) {
+  // Related issue: https://github.com/intel/llvm/issues/22058.
+  UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{"Data Center GPU Max"});
+
   if (num_devices <= 1) {
     GTEST_SKIP();
   }

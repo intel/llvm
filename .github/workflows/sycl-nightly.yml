@@ -26,7 +26,7 @@ jobs:
         git diff --exit-code -I "^# RUN" origin/sycl-rel-6_3:sycl/test/abi/sycl_symbols_windows.dump sycl/test/abi/sycl_symbols_windows-sycl-rel-6_3.dump
 
   get_date:
-    runs-on: ubuntu-latest
+    runs-on: [Linux, aux-tasks]
     outputs:
       date: ${{ steps.get_date.outputs.date }}
     steps:
@@ -352,22 +352,13 @@ jobs:
       fail-fast: false
       matrix:
         enable_new_offload_model: ['False', 'True']
-        include:
-          - name: SYCL-CTS on OCL CPU
-            runner: '["Linux", "gen12"]'
-            image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
-            target_devices: opencl:cpu
-
-          - name: SYCL-CTS on L0 gen12
-            runner: '["Linux", "gen12"]'
-            image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
-            target_devices: level_zero:gpu
+        target_devices: ['opencl:cpu', 'level_zero:gpu']
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
-      name: ${{ matrix.name }} with ${{ matrix.enable_new_offload_model == 'True' && 'New Offload Model' || 'Old Offload Model' }}
-      runner: ${{ matrix.runner }}
+      name: SYCL CTS with ${{ matrix.target_devices }}, ${{ matrix.enable_new_offload_model == 'True' && 'New Offload Model' || 'Old Offload Model' }}
+      runner: '["Linux", "gen12"]'
       testing_mode: 'run-only'
-      image_options: ${{ matrix.image_options }}
+      image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
       target_devices: ${{ matrix.target_devices }}
       tests_selector: cts
       repo_ref: ${{ github.sha }}
@@ -402,14 +393,11 @@ jobs:
       fail-fast: false
       matrix:
         enable_new_offload_model: ['False', 'True']
-        include:
-          - name: SYCL-CTS on L0 gen12
-            runner: '["Windows", "gen12"]'
-            target_devices: level_zero:gpu
+        target_devices: ['level_zero:gpu']
     uses: ./.github/workflows/sycl-windows-run-tests.yml
     with:
-      name: ${{ matrix.name }} with ${{ matrix.enable_new_offload_model == 'True' && 'New Offload Model' || 'Old Offload Model' }}
-      runner: ${{ matrix.runner }}
+      name: SYCL-CTS with ${{ matrix.target_devices }}, ${{ matrix.enable_new_offload_model == 'True' && 'New Offload Model' || 'Old Offload Model' }}
+      runner: '["Windows", "gen12"]'
       testing_mode: 'run-only'
       target_devices: ${{ matrix.target_devices }}
       tests_selector: cts

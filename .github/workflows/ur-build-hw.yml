@@ -113,6 +113,10 @@ jobs:
       run: |
         sudo -E bash devops/scripts/install_drivers.sh devops/dependencies.json --igfx
 
+    - name: Check NVML version compatibility
+      if: ${{ inputs.adapter_name == 'CUDA' }}
+      run: python3 devops/scripts/check_nvml_version.py
+
     - name: Configure Unified Runtime project
       # ">" is used to avoid adding "\" at the end of each line; this command is quite long
       run: >

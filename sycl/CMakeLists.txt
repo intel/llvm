@@ -1,6 +1,11 @@
 cmake_minimum_required(VERSION 3.20.0)
 
 project(sycl-solution)
+
+if(WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 4)
+  message(FATAL_ERROR "Building SYCL for 32-bit x86 is not supported.")
+endif()
+
 # Requirements
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
