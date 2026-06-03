@@ -373,14 +373,6 @@ is implemented by submitting an actual kernel, which has non-zero execution
 time.
 _{endnote}_]
 
-_Throws:_ An `exception` with the `errc::invalid` error code if the device
-associated with `evt` differs from the device associated with `q` and the
-devices cannot P2P access each other. The P2P access between devices can be
-queried using the `device::ext_oneapi_can_access_peer` function and enabled
-using the `device::ext_oneapi_enable_peer_access` function defined in the
-link:../experimental/sycl_ext_oneapi_peer_access.asciidoc[
-sycl_ext_oneapi_peer_access] extension.
-
 === Interaction with other event APIs
 
 An event _E_ created via `make_event` can be used as a command dependency (e.g.
