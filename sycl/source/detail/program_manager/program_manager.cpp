@@ -3549,7 +3549,9 @@ bool doesImageTargetMatchDevice(const RTDeviceBinaryImage &Img,
   if (CompileTarget == "intel_gpu_mtl")
     return ArchName == "intel_gpu_mtl_h" || ArchName == "intel_gpu_mtl_u";
   if (CompileTarget == "intel_gpu_ptl")
-    return ArchName == "intel_gpu_ptl_h" || ArchName == "intel_gpu_ptl_u";
+    return ArchName == "intel_gpu_ptl_h" || ArchName == "intel_gpu_ptl_u" ||
+           ArchName == "intel_gpu_wcl" || ArchName == "intel_gpu_nvl_u" ||
+           ArchName == "intel_gpu_nvl_s";
   return false;
 }
 
