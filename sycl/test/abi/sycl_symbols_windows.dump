@@ -4090,6 +4090,7 @@
 ?get_filtering_mode@sampler@_V1@sycl@@QEBA?AW4filtering_mode@23@XZ
 ?get_flags@stream@_V1@sycl@@AEBAIXZ
 ?get_handle@image_mem@experimental@oneapi@ext@_V1@sycl@@QEBA?AUimage_mem_handle@23456@XZ
+?get_id@modifiable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@QEBA_KXZ
 ?get_image_channel_type@experimental@oneapi@ext@_V1@sycl@@YA?AW4image_channel_type@45@Uimage_mem_handle@12345@AEBVdevice@45@AEBVcontext@45@@Z
 ?get_image_channel_type@experimental@oneapi@ext@_V1@sycl@@YA?AW4image_channel_type@45@Uimage_mem_handle@12345@AEBVqueue@45@@Z
 ?get_image_memory_support@experimental@oneapi@ext@_V1@sycl@@YA?AV?$vector@W4image_memory_handle_type@experimental@oneapi@ext@_V1@sycl@@V?$allocator@W4image_memory_handle_type@experimental@oneapi@ext@_V1@sycl@@@std@@@std@@AEBUimage_descriptor@12345@AEBVdevice@45@AEBVcontext@45@@Z
