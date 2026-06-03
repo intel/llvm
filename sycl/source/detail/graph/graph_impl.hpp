@@ -550,6 +550,12 @@ public:
   /// @return True if the queue is recording to this graph, false otherwise.
   bool isQueueRecording(sycl::detail::queue_impl &Queue);
 
+  /// Register a destruction callback to be invoked when the graph is destroyed.
+  /// Uses the native UR callback if a native graph handle exists, otherwise
+  /// stores locally for invocation in ~graph_impl().
+  /// @param Callback Callable to invoke on graph destruction.
+  void setDestructionCallback(std::function<void()> Callback);
+
 private:
   /// Common implementation for beginRecording and beginRecordingUnlockedQueue.
   /// @param[in] Queue The queue to be recorded from.
@@ -623,7 +629,7 @@ private:
   /// Native UR graph handle used for native recording mode.
   ///
   /// This handle is non-null only when native recording is enabled via the
-  /// enable_native_recording property.
+  /// enable_native_recording property or SYCL_GRAPH_FORCE_NATIVE_RECORDING=1.
   ///
   /// @note Native recording requires immediate command lists.
   ur_exp_graph_handle_t MNativeGraphHandle = nullptr;
@@ -644,6 +650,10 @@ private:
   // The number of live executable graphs that have been created from this
   // modifiable graph
   std::atomic<size_t> MExecGraphCount = 0;
+
+  /// Destruction callbacks registered for the command buffer path.
+  /// Invoked in ~graph_impl() when native recording is not enabled.
+  std::vector<std::function<void()>> MDestructionCallbacks;
 };
 
 /// Get whether native recording is enabled for this graph.

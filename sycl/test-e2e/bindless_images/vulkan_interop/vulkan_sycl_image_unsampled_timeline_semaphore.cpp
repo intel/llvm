@@ -2,11 +2,10 @@
 // REQUIRES: aspect-ext_oneapi_external_memory_import || (windows && level_zero && aspect-ext_oneapi_bindless_images)
 // REQUIRES: vulkan
 
-// UNSUPPORTED: linux && (gpu-intel-dg2 || arch-intel_gpu_mtl_u)
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21764
+// REQUIRES-INTEL-DRIVER: lin: 38303 win: 101.9999
 
-// XFAIL: windows && gpu-intel-dg2
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/21985
+// UNSUPPORTED: linux && gpu-intel-dg2
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21764
 
 // RUN: %{build} %link-vulkan -o %t.out %if target-spir %{ -Wno-ignored-attributes %}
 
@@ -35,12 +34,6 @@
 // RUN: %{run} %t.out --type int8 --channels 2
 // RUN: %{run} %t.out --type int8 --channels 4
 
-// CUDA doesn't support unorm8 on unsampled images.
-// https://github.com/intel/llvm/issues/21888
-// RUN-IF: !cuda, %{run} %t.out --type unorm8 --channels 1
-// RUN-IF: !cuda, %{run} %t.out --type unorm8 --channels 2
-// RUN-IF: !cuda, %{run} %t.out --type unorm8 --channels 4
-
 // clang-format off
 /*
   Vulkan/SYCL 2D Image with Timeline Semaphore Interop with image size 32x32
@@ -60,6 +53,7 @@
 #include <sycl/builtins.hpp>
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/bindless_images.hpp>
+#include <sycl/properties/queue_properties.hpp>
 
 namespace syclexp = sycl::ext::oneapi::experimental;
 
@@ -174,7 +168,11 @@ int runTest(
   uint64_t syclSignalVal = 2;
 
   try {
-    sycl::queue q;
+    // External semaphore ops require an in-order queue backed by immediate
+    // command lists (see sycl_ext_oneapi_bindless_images.asciidoc).
+    sycl::queue q{
+        {sycl::property::queue::in_order{},
+         sycl::ext::intel::property::queue::immediate_command_list{}}};
 
 #ifdef _WIN32
     HANDLE memHandle = getMemHandle(vkCtx, imgResc.memory);

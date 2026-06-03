@@ -1,4 +1,4 @@
-/// Tests the behaviors of using -fsycl --offload-new-driver 
+/// Tests the behaviors of using -fsycl --offload-new-driver
 //  --offload-arch=<intel-gpu-values>.
 
 // SYCL AOT compilation to Intel GPUs using --offload-arch
