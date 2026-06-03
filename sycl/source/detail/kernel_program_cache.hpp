@@ -253,8 +253,10 @@ public:
     ur_context_handle_t MUrContext = nullptr;
   };
 
+  // Key is std::string (not string_view) because the backing storage for kernel
+  // names lives in DSO offload tables that may be unmapped on dlclose.
   using FastKernelCacheT =
-      emhash8::HashMap<std::string_view, FastKernelSubcacheWrapper>;
+      emhash8::HashMap<std::string, FastKernelSubcacheWrapper>;
 
   // DS to hold data and functions related to Program cache eviction.
   struct EvictionList {
@@ -474,7 +476,8 @@ public:
     // smth in the cache
     traceKernel("Kernel inserted.", KernelName, true);
     MFastKernelCache.try_emplace(
-        KernelName, FastKernelSubcacheWrapper(KernelSubcache, getURContext()));
+        std::string(KernelName),
+        FastKernelSubcacheWrapper(KernelSubcache, getURContext()));
 
     FastKernelSubcacheWriteLockT SubcacheLock{KernelSubcache.Mutex};
     ur_context_handle_t Context = getURContext();
@@ -833,9 +836,8 @@ private:
 
   // Map between fast kernel cache keys and program handle.
   // MFastKernelCacheMutex will be used for synchronization.
-  std::unordered_map<
-      ur_program_handle_t,
-      std::vector<std::pair<std::string_view, ur_device_handle_t>>>
+  std::unordered_map<ur_program_handle_t,
+                     std::vector<std::pair<std::string, ur_device_handle_t>>>
       MProgramToFastKernelCacheKeyMap;
 
   EvictionList MEvictionList;
