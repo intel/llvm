@@ -7,6 +7,9 @@
 // UNSUPPORTED: windows && gpu-intel-gen12
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21556
 
+// UNSUPPORTED: windows && (gpu-intel-dg2 || arch-intel_gpu_bmg_g21)
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22163
+
 #include <sycl/detail/core.hpp>
 
 #include <sycl/properties/all_properties.hpp>
