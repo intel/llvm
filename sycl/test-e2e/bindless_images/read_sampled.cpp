@@ -1,6 +1,13 @@
-// Shared implementation for the sampled image read tests.
+// REQUIRES: aspect-ext_oneapi_bindless_images
 
-#pragma once
+// UNSUPPORTED: hip
+// UNSUPPORTED-INTENDED: Returning non-FP values from sampling fails on HIP.
+
+// UNSUPPORTED: linux && arch-intel_gpu_bmg_g21 && level_zero_v2_adapter
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20223
+
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 // Print test names and pass status
 // #define VERBOSE_LV1
@@ -19,8 +26,6 @@
 #include <iostream>
 #include <sycl/accessor_image.hpp>
 #include <sycl/detail/core.hpp>
-#include <sycl/image.hpp>
-#include <type_traits>
 
 #include <sycl/ext/oneapi/bindless_images.hpp>
 
@@ -483,7 +488,7 @@ bool runTests(sycl::range<2> dims, sycl::range<2> localSize, float offset,
               int seed, sycl::coordinate_normalization_mode normMode) {
 
   // addressing_mode::none currently removed due to
-  // inconsistent behaviour when switching between
+  // inconsistent behavour when switching between
   // normalized and unnormalized coords.
   sycl::addressing_mode addrModes[4] = {
       sycl::addressing_mode::repeat, sycl::addressing_mode::mirrored_repeat,
@@ -713,10 +718,22 @@ bool runAll(sycl::range<NDims> dims, sycl::range<NDims> localSize, float offset,
   return offsetPassed && noOffsetPassed;
 }
 
-inline bool runAll1D(float offset, int seed) {
-  return runAll<1>(sycl::range<1>{128}, sycl::range<1>{32}, offset, seed);
-}
+int main() {
 
-inline bool runAll2D(float offset, int seed) {
-  return runAll<2>(sycl::range<2>{16, 16}, sycl::range<2>{8, 8}, offset, seed);
+  const unsigned int seed = 0;
+  const float offset = 20.0;
+
+  std::cout << "Running 1D Sampled Image Tests!\n";
+  bool result1D = runAll<1>({128}, {32}, offset, seed);
+  std::cout << "Running 2D Sampled Image Tests!\n";
+  bool result2D = runAll<2>({16, 16}, {8, 8}, offset, seed);
+
+  if (result1D && result2D) {
+    std::cout << "All tests passed!\n";
+  } else {
+    std::cerr << "An error has occurred!\n";
+    return 1;
+  }
+
+  return 0;
 }

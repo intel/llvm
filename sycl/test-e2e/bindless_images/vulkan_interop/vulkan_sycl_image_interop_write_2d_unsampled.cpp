@@ -1,4 +1,11 @@
-// Shared implementation for the Vulkan/SYCL 2D unsampled write interop tests.
+// REQUIRES: aspect-ext_oneapi_bindless_images
+// REQUIRES: aspect-ext_oneapi_external_memory_import || (windows && level_zero && aspect-ext_oneapi_bindless_images)
+// REQUIRES: vulkan
+
+// RUN: %{build} %link-vulkan -o %t.out %if target-spir %{ -Wno-ignored-attributes %}
+
+// UNSUPPORTED: linux
+// UNSUPPORTED-TRACKER: GSD-12357
 
 // XFAIL: windows && gpu-intel-dg2
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/21985
@@ -7,19 +14,56 @@
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21986
 
 /*
+    Run all the vulkan formats through a write test. Note this is unsampled
+   only, you can't "write" with the image sampler.
 
-  Run all the vulkan formats through a write test. Note this is unsampled
-  only, you can't "write" with the image sampler.
+    IF a particular variant is having problems on some platform, please do NOT
+   just disable the whole test, instead use   RUN~IF: (SOMETHING) yadda-yadda
+    to enable/disable that variant.
 
-  IF a particular variant is having problems on some platform, please do NOT
-  just disable the whole test, instead use   RUN~IF: (SOMETHING) yadda-yadda
-  to enable/disable that variant.
-
-  For semaphore testing, we run just a sampling. Note, that on Linux if there
-  is a failure in the first section, then likely ALL semaphore tests afterwards
-  will fail. This is being tracked as a separate issue.
+    For semaphore testing, we run just a sampling. Note, that on Linux if there
+   is a failure in the first section, then likely ALL semaphore tests afterwards
+   will fail. This is being tracked as a separate issue.
 
 */
+
+// RUN: %{run} %t.out --type float --channels 1 32x33
+// RUN: %{run} %t.out --type float --channels 2 32x33
+// RUN: %{run} %t.out --type float --channels 4 32x33
+// RUN: %{run} %t.out --type half --channels 1 32x33
+// RUN: %{run} %t.out --type half --channels 2 32x33
+// RUN: %{run} %t.out --type half --channels 4 32x33
+// RUN: %{run} %t.out --type int32 --channels 1 32x33
+// RUN: %{run} %t.out --type int32 --channels 2 32x33
+// RUN: %{run} %t.out --type int32 --channels 4 32x33
+// RUN: %{run} %t.out --type uint32 --channels 1 32x33
+// RUN: %{run} %t.out --type uint32 --channels 2 32x33
+// RUN: %{run} %t.out --type uint32 --channels 4 32x33
+// RUN: %{run} %t.out --type int16 --channels 1 32x33
+// RUN: %{run} %t.out --type int16 --channels 2 32x33
+// RUN: %{run} %t.out --type int16 --channels 4 32x33
+// RUN: %{run} %t.out --type uint16 --channels 1 32x33
+// RUN: %{run} %t.out --type uint16 --channels 2 32x33
+// RUN: %{run} %t.out --type uint16 --channels 4 32x33
+// RUN: %{run} %t.out --type uint8 --channels 1 32x33
+// RUN: %{run} %t.out --type uint8 --channels 2 32x33
+// RUN: %{run} %t.out --type uint8 --channels 4 32x33
+// RUN: %{run} %t.out --type int8 --channels 1 32x33
+// RUN: %{run} %t.out --type int8 --channels 2 32x33
+// RUN: %{run} %t.out --type int8 --channels 4 32x33
+// RUN: %{run} %t.out --type unorm8 --channels 1 32x33
+// RUN: %{run} %t.out --type unorm8 --channels 2 32x33
+// RUN: %{run} %t.out --type unorm8 --channels 4 32x33
+
+// RUN: %{run} %t.out --type float --channels 1 32x33 --semaphores
+// RUN: %{run} %t.out --type half --channels 2 32x33 --semaphores
+// RUN: %{run} %t.out --type int32 --channels 4 32x33 --semaphores
+// RUN: %{run} %t.out --type uint32 --channels 1 32x33 --semaphores
+// RUN: %{run} %t.out --type int16 --channels 2 32x33 --semaphores
+// RUN: %{run} %t.out --type uint16 --channels 4 32x33 --semaphores
+// RUN: %{run} %t.out --type uint8 --channels 1 32x33 --semaphores
+// RUN: %{run} %t.out --type int8 --channels 2 32x33 --semaphores
+// RUN: %{run} %t.out --type unorm8 --channels 4 32x33 --semaphores
 
 // clang-format off
 /*
@@ -27,10 +71,9 @@
 
   clang++ -fsycl -o vsw_2d_test.exe vulkan_sycl_image_interop_write_2d_unsampled.cpp -Wno-ignored-attributes -lvulkan-1 -I$VULKAN_SDK/Include -L$VULKAN_SDK/Lib
 
-  USAGE:
     ./vsw_2d_test.bin
 
-  FLAGS:
+    FLAGS
     --sampled      ERROR: Sampled image writes are not supported
     --semaphores   Use Vulkan Semaphores for SYCL Interop Sync
     --linear       Use LINEAR tiling for the Vulkan Image (default is OPTIMAL)
@@ -39,13 +82,10 @@
                    Default is float 
     WxH            Set custom Width x Height (e.g. 8x4)
 
-  EXAMPLES:
     ./vsw_2d_test.bin --semaphores --channels 2 --linear 8x4
 
 */
 // clang-format on
-
-#pragma once
 
 #include "vulkan_setup.hpp"
 
