@@ -11981,44 +11981,53 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back(
           Args.MakeArgString("-sycl-allow-device-image-dependencies"));
 
-    // Pass backend compiler and linker options specified at link time to
-    // clang-linker-wrapper. Link-time options passed via -Xsycl-target-backend
-    // are forwarded using --device-compiler, while options passed via
-    // -Xsycl-target-linker are forwarded using --device-linker.
-    const toolchains::SYCLToolChain &SYCLTC =
-        static_cast<const toolchains::SYCLToolChain &>(getToolChain());
     for (auto &ToolChainMember :
          llvm::make_range(ToolChainRange.first, ToolChainRange.second)) {
       const ToolChain *TC = ToolChainMember.second;
       if (!TC->getTriple().isSPIROrSPIRV())
         continue;
-      ArgStringList BuildArgs;
-      SmallString<128> BackendOptString;
-      SmallString<128> LinkOptString;
-      SYCLTC.TranslateBackendTargetArgs(TC->getTriple(), Args, BuildArgs);
-      for (const auto &A : BuildArgs)
-        appendOption(BackendOptString, A);
+      const llvm::Triple &TCTriple = TC->getTriple();
+      const StringRef TCTripleStr = TC->getTripleString();
+      const StringRef SYCLKind = Action::GetOffloadKindName(Action::OFK_SYCL);
 
-      BuildArgs.clear();
-      SYCLTC.TranslateLinkerTargetArgs(TC->getTriple(), Args, BuildArgs);
-      for (const auto &A : BuildArgs) {
-        if (TC->getTriple().getSubArch() == llvm::Triple::NoSubArch)
-          appendOption(LinkOptString, A);
-        else
-          // For AOT, combine the Backend and Linker strings into one.
-          appendOption(BackendOptString, A);
-      }
+      auto emitDeviceArg = [&](StringRef Wrapper, StringRef Payload) {
+        if (Payload.empty())
+          return;
+        CmdArgs.push_back(Args.MakeArgString(Wrapper + "=" + SYCLKind + ":" +
+                                             TCTripleStr + "=" + Payload));
+      };
 
-      if (!BackendOptString.empty()) {
-        CmdArgs.push_back(Args.MakeArgString(
-            "--device-compiler=" +
-            Action::GetOffloadKindName(Action::OFK_SYCL) + ":" +
-            TC->getTripleString() + "=" + BackendOptString));
-      }
-      if (!LinkOptString.empty()) {
-        CmdArgs.push_back(Args.MakeArgString(
-            "--device-linker=" + Action::GetOffloadKindName(Action::OFK_SYCL) +
-            ":" + TC->getTripleString() + "=" + LinkOptString));
+      // Forward -Xsycl-target-backend / -Xsycl-target-backend=<triple> raw.
+      // For the typed form, only forward when the triple matches.
+      auto forwardTargetOpt = [&](options::ID OptNoTriple,
+                                  options::ID OptWithTriple,
+                                  StringRef Wrapper) {
+        for (Arg *A : Args) {
+          if (A->getOption().matches(OptNoTriple)) {
+            emitDeviceArg(Wrapper, A->getValue());
+            continue;
+          }
+          if (!A->getOption().matches(OptWithTriple))
+            continue;
+          if (llvm::Triple(A->getValue()) != TCTriple)
+            continue;
+          emitDeviceArg(Wrapper, A->getValue(1));
+        }
+      };
+      forwardTargetOpt(options::OPT_Xsycl_backend,
+                       options::OPT_Xsycl_backend_EQ, "--device-compiler");
+      forwardTargetOpt(options::OPT_Xsycl_linker, options::OPT_Xsycl_linker_EQ,
+                       "--device-linker");
+
+      // -Xs/-Xs<sep> are not associated with a specific triple, so forward
+      // them to every SYCL device toolchain (matching the legacy semantics).
+      for (Arg *A : Args) {
+        if (A->getOption().matches(options::OPT_Xs)) {
+          emitDeviceArg("--device-compiler",
+                        Args.MakeArgString(Twine("-") + A->getValue()));
+        } else if (A->getOption().matches(options::OPT_Xs_separate)) {
+          emitDeviceArg("--device-compiler", A->getValue());
+        }
       }
     }
 

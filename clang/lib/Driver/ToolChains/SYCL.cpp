@@ -10,12 +10,15 @@
 #include "clang/Driver/CommonArgs.h"
 #include "clang/Driver/Compilation.h"
 #include "clang/Driver/Driver.h"
+#include "clang/Options/Options.h"
 #include "llvm/ADT/SmallSet.h"
+#include "llvm/Frontend/Offloading/SYCLBackendArgs.h"
 #include "llvm/SYCLLowerIR/DeviceConfigFile.hpp"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/VirtualFileSystem.h"
+#include <functional>
 #include <sstream>
 
 using namespace clang::driver;
@@ -1051,36 +1054,8 @@ static const char *makeExeName(Compilation &C, StringRef Name) {
   return C.getArgs().MakeArgString(ExeName);
 }
 
-// Determine if any of the given arguments contain any PVC based values for
-// the -device option.
-static bool hasPVCDevice(const ArgStringList &CmdArgs, std::string &DevArg) {
-  std::string Res = getDeviceArg(CmdArgs);
-  if (Res.empty())
-    return false;
-  // Go through all of the arguments to '-device' and determine if any of these
-  // are pvc based.  We only match literal values and will not find a match
-  // when ranges or wildcards are used.
-  // Here we parse the targets, tokenizing via ','
-  StringRef DeviceArg(Res.c_str());
-  SmallVector<StringRef> SplitArgs;
-  DeviceArg.split(SplitArgs, ",");
-  for (const auto &SingleArg : SplitArgs) {
-    bool IsPVC = checkPVCDevice(SingleArg.str(), DevArg);
-    if (IsPVC)
-      return true;
-  }
-  return false;
-}
-
-static llvm::StringMap<StringRef> GRFModeFlagMap{
-    {"auto", "-ze-intel-enable-auto-large-GRF-mode"},
-    {"small", "-ze-intel-128-GRF-per-thread"},
-    {"large", "-ze-opt-large-register-file"}};
-
 StringRef SYCL::gen::getGenGRFFlag(StringRef GRFMode) {
-  if (!GRFModeFlagMap.contains(GRFMode))
-    return "";
-  return GRFModeFlagMap[GRFMode];
+  return llvm::offloading::sycl::getGenGRFFlag(GRFMode);
 }
 
 void SYCL::gen::BackendCompiler::ConstructJob(Compilation &C,
@@ -1129,120 +1104,7 @@ void SYCL::gen::BackendCompiler::ConstructJob(Compilation &C,
 }
 
 StringRef SYCL::gen::resolveGenDevice(StringRef DeviceName) {
-  StringRef Device;
-  Device =
-      llvm::StringSwitch<StringRef>(DeviceName)
-          .Cases({"intel_gpu_bdw", "intel_gpu_8_0_0"}, "bdw")
-          .Cases({"intel_gpu_skl", "intel_gpu_9_0_9"}, "skl")
-          .Cases({"intel_gpu_kbl", "intel_gpu_9_1_9"}, "kbl")
-          .Cases({"intel_gpu_cfl", "intel_gpu_9_2_9"}, "cfl")
-          .Cases({"intel_gpu_apl", "intel_gpu_bxt", "intel_gpu_9_3_0"}, "apl")
-          .Cases({"intel_gpu_glk", "intel_gpu_9_4_0"}, "glk")
-          .Cases({"intel_gpu_whl", "intel_gpu_9_5_0"}, "whl")
-          .Cases({"intel_gpu_aml", "intel_gpu_9_6_0"}, "aml")
-          .Cases({"intel_gpu_cml", "intel_gpu_9_7_0"}, "cml")
-          .Cases({"intel_gpu_icllp", "intel_gpu_icl", "intel_gpu_11_0_0"},
-                 "icllp")
-          .Cases({"intel_gpu_ehl", "intel_gpu_jsl", "intel_gpu_11_2_0"}, "ehl")
-          .Cases({"intel_gpu_tgllp", "intel_gpu_tgl", "intel_gpu_12_0_0"},
-                 "tgllp")
-          .Cases({"intel_gpu_rkl", "intel_gpu_12_1_0"}, "rkl")
-          .Cases({"intel_gpu_adl_s", "intel_gpu_rpl_s", "intel_gpu_12_2_0"},
-                 "adl_s")
-          .Cases({"intel_gpu_adl_p", "intel_gpu_12_3_0"}, "adl_p")
-          .Cases({"intel_gpu_adl_n", "intel_gpu_12_4_0"}, "adl_n")
-          .Cases({"intel_gpu_dg1", "intel_gpu_12_10_0"}, "dg1")
-          .Cases(
-              {"intel_gpu_acm_g10", "intel_gpu_dg2_g10", "intel_gpu_12_55_8"},
-              "acm_g10")
-          .Cases(
-              {"intel_gpu_acm_g11", "intel_gpu_dg2_g11", "intel_gpu_12_56_5"},
-              "acm_g11")
-          .Cases(
-              {"intel_gpu_acm_g12", "intel_gpu_dg2_g12", "intel_gpu_12_57_0"},
-              "acm_g12")
-          .Cases({"intel_gpu_pvc", "intel_gpu_12_60_7"}, "pvc")
-          .Cases({"intel_gpu_pvc_vg", "intel_gpu_12_61_7"}, "pvc_vg")
-          .Cases({"intel_gpu_mtl_u", "intel_gpu_mtl_s", "intel_gpu_arl_u",
-                  "intel_gpu_arl_s", "intel_gpu_12_70_4"},
-                 "mtl_u")
-          .Cases({"intel_gpu_mtl_h", "intel_gpu_12_71_4"}, "mtl_h")
-          .Cases({"intel_gpu_arl_h", "intel_gpu_12_74_4"}, "arl_h")
-          .Cases({"intel_gpu_bmg_g21", "intel_gpu_20_1_4"}, "bmg_g21")
-          .Cases({"intel_gpu_bmg_g31", "intel_gpu_20_2_0"}, "bmg_g31")
-          .Cases({"intel_gpu_lnl_m", "intel_gpu_20_4_4"}, "lnl_m")
-          .Cases({"intel_gpu_ptl_h", "intel_gpu_30_0_4"}, "ptl_h")
-          .Cases({"intel_gpu_ptl_u", "intel_gpu_30_1_1"}, "ptl_u")
-          .Cases({"intel_gpu_wcl", "intel_gpu_30_3_0"}, "wcl")
-          .Cases({"intel_gpu_nvl_s", "intel_gpu_nvl_hx", "intel_gpu_nvl_ul",
-                  "intel_gpu_30_4_0"},
-                 "nvl_s")
-          .Cases({"intel_gpu_nvl_u", "intel_gpu_nvl_h", "intel_gpu_30_5_0"},
-                 "nvl_u")
-          .Cases({"intel_gpu_nvl_p", "intel_gpu_35_10_0"}, "nvl_p")
-          .Cases({"intel_gpu_cri", "intel_gpu_35_11_0"}, "cri")
-          .Case("intel_gpu_dg2", "dg2")
-          .Case("intel_gpu_mtl", "mtl")
-          .Case("intel_gpu_bmg", "bmg")
-          .Case("intel_gpu_ptl", "ptl")
-          .Case("nvidia_gpu_sm_50", "sm_50")
-          .Case("nvidia_gpu_sm_52", "sm_52")
-          .Case("nvidia_gpu_sm_53", "sm_53")
-          .Case("nvidia_gpu_sm_60", "sm_60")
-          .Case("nvidia_gpu_sm_61", "sm_61")
-          .Case("nvidia_gpu_sm_62", "sm_62")
-          .Case("nvidia_gpu_sm_70", "sm_70")
-          .Case("nvidia_gpu_sm_72", "sm_72")
-          .Case("nvidia_gpu_sm_75", "sm_75")
-          .Case("nvidia_gpu_sm_80", "sm_80")
-          .Case("nvidia_gpu_sm_86", "sm_86")
-          .Case("nvidia_gpu_sm_87", "sm_87")
-          .Case("nvidia_gpu_sm_89", "sm_89")
-          .Case("nvidia_gpu_sm_90", "sm_90")
-          .Case("nvidia_gpu_sm_90a", "sm_90a")
-          .Case("amd_gpu_gfx700", "gfx700")
-          .Case("amd_gpu_gfx701", "gfx701")
-          .Case("amd_gpu_gfx702", "gfx702")
-          .Case("amd_gpu_gfx703", "gfx703")
-          .Case("amd_gpu_gfx704", "gfx704")
-          .Case("amd_gpu_gfx705", "gfx705")
-          .Case("amd_gpu_gfx801", "gfx801")
-          .Case("amd_gpu_gfx802", "gfx802")
-          .Case("amd_gpu_gfx803", "gfx803")
-          .Case("amd_gpu_gfx805", "gfx805")
-          .Case("amd_gpu_gfx810", "gfx810")
-          .Case("amd_gpu_gfx900", "gfx900")
-          .Case("amd_gpu_gfx902", "gfx902")
-          .Case("amd_gpu_gfx904", "gfx904")
-          .Case("amd_gpu_gfx906", "gfx906")
-          .Case("amd_gpu_gfx908", "gfx908")
-          .Case("amd_gpu_gfx909", "gfx909")
-          .Case("amd_gpu_gfx90a", "gfx90a")
-          .Case("amd_gpu_gfx90c", "gfx90c")
-          .Case("amd_gpu_gfx940", "gfx940")
-          .Case("amd_gpu_gfx941", "gfx941")
-          .Case("amd_gpu_gfx942", "gfx942")
-          .Case("amd_gpu_gfx1010", "gfx1010")
-          .Case("amd_gpu_gfx1011", "gfx1011")
-          .Case("amd_gpu_gfx1012", "gfx1012")
-          .Case("amd_gpu_gfx1013", "gfx1013")
-          .Case("amd_gpu_gfx1030", "gfx1030")
-          .Case("amd_gpu_gfx1031", "gfx1031")
-          .Case("amd_gpu_gfx1032", "gfx1032")
-          .Case("amd_gpu_gfx1033", "gfx1033")
-          .Case("amd_gpu_gfx1034", "gfx1034")
-          .Case("amd_gpu_gfx1035", "gfx1035")
-          .Case("amd_gpu_gfx1036", "gfx1036")
-          .Case("amd_gpu_gfx1100", "gfx1100")
-          .Case("amd_gpu_gfx1101", "gfx1101")
-          .Case("amd_gpu_gfx1102", "gfx1102")
-          .Case("amd_gpu_gfx1103", "gfx1103")
-          .Case("amd_gpu_gfx1150", "gfx1150")
-          .Case("amd_gpu_gfx1151", "gfx1151")
-          .Case("amd_gpu_gfx1200", "gfx1200")
-          .Case("amd_gpu_gfx1201", "gfx1201")
-          .Default("");
-  return Device;
+  return llvm::offloading::sycl::resolveGenDevice(DeviceName);
 }
 
 // This is a mapping between the user provided --offload-arch value for Intel
@@ -1588,105 +1450,109 @@ SYCLToolChain::TranslateArgs(const llvm::opt::DerivedArgList &Args,
   return DAL;
 }
 
-static void parseTargetOpts(StringRef ArgString, const llvm::opt::ArgList &Args,
-                            llvm::opt::ArgStringList &CmdArgs) {
-  // Tokenize the string.
-  SmallVector<const char *, 8> TargetArgs;
-  llvm::BumpPtrAllocator A;
-  llvm::StringSaver S(A);
-  llvm::cl::TokenizeGNUCommandLine(ArgString, S, TargetArgs);
-  for (StringRef TA : TargetArgs)
-    CmdArgs.push_back(Args.MakeArgString(TA));
+// Populate the OptIds struct used by the relocated translators in
+// llvm::offloading::sycl. The numeric IDs come from the Driver's OptTable.
+static llvm::offloading::sycl::BackendOptIds makeBackendOptIds() {
+  using namespace clang::options;
+  llvm::offloading::sycl::BackendOptIds Ids;
+  Ids.g_Group = OPT_g_Group;
+  Ids.g0 = OPT_g0;
+  Ids._SLASH_Z7 = OPT__SLASH_Z7;
+  Ids.O_Group = OPT_O_Group;
+  Ids.O0 = OPT_O0;
+  Ids.Xs = OPT_Xs;
+  Ids.Xs_separate = OPT_Xs_separate;
+  Ids.Xsycl_backend = OPT_Xsycl_backend;
+  Ids.Xsycl_backend_EQ = OPT_Xsycl_backend_EQ;
+  Ids.Xsycl_linker = OPT_Xsycl_linker;
+  Ids.Xsycl_linker_EQ = OPT_Xsycl_linker_EQ;
+  Ids.ftarget_register_alloc_mode_EQ = OPT_ftarget_register_alloc_mode_EQ;
+  Ids.fsycl_fp64_conv_emu = OPT_fsycl_fp64_conv_emu;
+  Ids.ftarget_compile_fast = OPT_ftarget_compile_fast;
+  Ids.ftarget_export_symbols = OPT_ftarget_export_symbols;
+  Ids.fno_target_export_symbols = OPT_fno_target_export_symbols;
+  Ids.foffload_fp32_prec_div = OPT_foffload_fp32_prec_div;
+  Ids.foffload_fp32_prec_sqrt = OPT_foffload_fp32_prec_sqrt;
+  Ids.offload_targets_EQ = OPT_offload_targets_EQ;
+  return Ids;
+}
+
+// Holds the four diagnostic-emitting lambdas plus the triple-resolver lambda
+// in storage that stays alive for the duration of a single translator call.
+// The lambdas capture `Driver &` by reference; constructing this struct as a
+// local in the caller and feeding it into a BackendArgsInput keeps the
+// `function_ref`s pointing at live closure objects.
+namespace {
+struct DriverDiagBindings {
+  std::function<llvm::Triple(StringRef, const Arg *)> ResolveDeviceTriple;
+  std::function<void(StringRef, StringRef)> WarnPVCDeprecatedGRF;
+  std::function<void(StringRef, StringRef)> ErrUnsupportedOptionArgument;
+  std::function<void(StringRef)> ErrXsyclTargetMissingTriple;
+  std::function<void(StringRef, StringRef)> ErrUnsupportedOptForTarget;
+  explicit DriverDiagBindings(const Driver &D)
+      : ResolveDeviceTriple([&D](StringRef V,
+                                 const Arg *A) { return D.getSYCLDeviceTriple(V, A); }),
+        WarnPVCDeprecatedGRF([&D](StringRef Flag, StringRef Mode) {
+          D.Diag(diag::warn_drv_ftarget_register_alloc_mode_pvc)
+              << Flag << Mode;
+        }),
+        ErrUnsupportedOptionArgument([&D](StringRef Spelling, StringRef Bad) {
+          D.Diag(diag::err_drv_unsupported_option_argument)
+              << Spelling << Bad;
+        }),
+        ErrXsyclTargetMissingTriple([&D](StringRef Spelling) {
+          D.Diag(diag::err_drv_Xsycl_target_missing_triple) << Spelling;
+        }),
+        ErrUnsupportedOptForTarget([&D](StringRef Option, StringRef Target) {
+          D.Diag(diag::err_drv_unsupported_opt_for_target) << Option << Target;
+        }) {}
+};
+} // namespace
+
+// Build a BackendArgsInput from Driver state. \p Diags must outlive every
+// translator invocation that uses the returned input.
+static llvm::offloading::sycl::BackendArgsInput
+makeBackendArgsInput(const Driver &D, const DriverDiagBindings &Diags,
+                     const llvm::Triple &Triple,
+                     const llvm::opt::ArgList &Args, StringRef Device,
+                     bool HostIsWindowsMSVCEnv, StringRef JobOffloadingArch) {
+  llvm::offloading::sycl::BackendArgsInput In{
+      Args,
+      Triple,
+      Device,
+      D.isSYCLDefaultTripleImplied(),
+      HostIsWindowsMSVCEnv,
+      JobOffloadingArch,
+      makeBackendOptIds(),
+      Diags.ResolveDeviceTriple,
+      Diags.WarnPVCDeprecatedGRF,
+      Diags.ErrUnsupportedOptionArgument,
+      Diags.ErrXsyclTargetMissingTriple,
+      Diags.ErrUnsupportedOptForTarget};
+  return In;
 }
 
 void SYCLToolChain::TranslateGPUTargetOpt(const llvm::opt::ArgList &Args,
                                           llvm::opt::ArgStringList &CmdArgs,
                                           OptSpecifier Opt_EQ) const {
-  if (const Arg *TargetArg = Args.getLastArg(Opt_EQ)) {
-    StringRef Val = TargetArg->getValue();
-    if (auto GpuDevice =
-            tools::SYCL::gen::isGPUTarget<tools::SYCL::gen::AmdGPU>(Val)) {
-      SmallString<64> OffloadArch("--offload-arch=");
-      OffloadArch += GpuDevice->data();
-      parseTargetOpts(OffloadArch, Args, CmdArgs);
-    }
-  }
+  DriverDiagBindings Diags(getDriver());
+  auto In = makeBackendArgsInput(getDriver(), Diags, getTriple(), Args,
+                                 /*Device=*/"",
+                                 /*HostIsWindowsMSVCEnv=*/false,
+                                 /*JobOffloadingArch=*/"");
+  llvm::offloading::sycl::translateGPUTargetOpt(In, Opt_EQ, CmdArgs);
 }
 
-static void WarnForDeprecatedBackendOpts(const Driver &D,
-                                         const llvm::Triple &Triple,
-                                         StringRef Device, StringRef ArgString,
-                                         const llvm::opt::Arg *A) {
-  // Suggest users passing GRF backend opts on PVC to use
-  // -ftarget-register-alloc-mode and
-
-  if (!ArgString.contains("-device pvc") && !Device.contains("pvc"))
-    return;
-  // Make sure to only warn for once for gen targets as the translate
-  // options tree is called twice but only the second time has the
-  // device set.
-  if (Triple.isSPIR() && Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen &&
-      !A->isClaimed())
-    return;
-  for (const auto &[Mode, Flag] : GRFModeFlagMap)
-    if (ArgString.contains(Flag))
-      D.Diag(diag::warn_drv_ftarget_register_alloc_mode_pvc) << Flag << Mode;
-}
-
-// Expects a specific type of option (e.g. -Xsycl-target-backend) and will
-// extract the arguments.
 void SYCLToolChain::TranslateTargetOpt(const llvm::Triple &Triple,
                                        const llvm::opt::ArgList &Args,
                                        llvm::opt::ArgStringList &CmdArgs,
                                        OptSpecifier Opt, OptSpecifier Opt_EQ,
                                        StringRef Device) const {
-  for (auto *A : Args) {
-    bool OptNoTriple;
-    OptNoTriple = A->getOption().matches(Opt);
-    if (A->getOption().matches(Opt_EQ)) {
-      const llvm::Triple OptTargetTriple =
-          getDriver().getSYCLDeviceTriple(A->getValue(), A);
-      // Passing device args: -X<Opt>=<triple> -opt=val.
-      StringRef GenDevice = SYCL::gen::resolveGenDevice(A->getValue());
-      bool IsGenTriple = Triple.isSPIR() &&
-                         Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen;
-      if (IsGenTriple) {
-        if (Device != GenDevice && !Device.empty())
-          continue;
-        if (OptTargetTriple != Triple && GenDevice.empty())
-          // Triples do not match, but only skip when we know we are not
-          // comparing against intel_gpu_*
-          continue;
-        if (OptTargetTriple == Triple && !Device.empty())
-          // Triples match, but we are expecting a specific device to be set.
-          continue;
-      } else if (OptTargetTriple != Triple)
-        continue;
-    } else if (!OptNoTriple)
-      // Don't worry about any of the other args, we only want to pass what is
-      // passed in -X<Opt>
-      continue;
-
-    // Add the argument from -X<Opt>
-    StringRef ArgString;
-    if (OptNoTriple) {
-      // With multiple -fsycl-targets, a triple is required so we know where
-      // the options should go.
-      const Arg *TargetArg = Args.getLastArg(options::OPT_offload_targets_EQ);
-      if (TargetArg && TargetArg->getValues().size() != 1) {
-        getDriver().Diag(diag::err_drv_Xsycl_target_missing_triple)
-            << A->getSpelling();
-        continue;
-      }
-      // No triple, so just add the argument.
-      ArgString = A->getValue();
-    } else
-      // Triple found, add the next argument in line.
-      ArgString = A->getValue(1);
-    WarnForDeprecatedBackendOpts(getDriver(), Triple, Device, ArgString, A);
-    parseTargetOpts(ArgString, Args, CmdArgs);
-    A->claim();
-  }
+  DriverDiagBindings Diags(getDriver());
+  auto In = makeBackendArgsInput(getDriver(), Diags, Triple, Args, Device,
+                                 /*HostIsWindowsMSVCEnv=*/false,
+                                 /*JobOffloadingArch=*/"");
+  llvm::offloading::sycl::translateTargetOpt(In, Opt, Opt_EQ, CmdArgs);
 }
 
 void SYCLToolChain::AddSPIRVImpliedTargetArgs(const llvm::Triple &Triple,
@@ -1695,242 +1561,32 @@ void SYCLToolChain::AddSPIRVImpliedTargetArgs(const llvm::Triple &Triple,
                                               const JobAction &JA,
                                               const ToolChain &HostTC,
                                               StringRef Device) const {
-  // Current implied args are for debug information and disabling of
-  // optimizations.  They are passed along to the respective areas as follows:
-  // Default device AOT: -g -cl-opt-disable
-  // Default device JIT: -g (-O0 is handled by the runtime)
-  // GEN:  -options "-g -O0"
-  // CPU: "--bo=-g" "-bo=-cl-opt-disable"
-  llvm::opt::ArgStringList BeArgs;
-  // Per-device argument vector storing the device name and the backend argument
-  // string
-  llvm::SmallVector<std::pair<StringRef, StringRef>, 16> PerDeviceArgs;
-  bool IsGen = Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen;
-  bool IsJIT =
-      Triple.isSPIROrSPIRV() && Triple.getSubArch() == llvm::Triple::NoSubArch;
-  if (IsGen && Args.hasArg(options::OPT_fsycl_fp64_conv_emu))
-    BeArgs.push_back("-ze-fp64-gen-conv-emu");
-  if (Arg *A = Args.getLastArg(options::OPT_g_Group, options::OPT__SLASH_Z7))
-    if (!A->getOption().matches(options::OPT_g0))
-      BeArgs.push_back("-g");
-  // Only pass -cl-opt-disable for non-JIT, as the runtime
-  // handles O0 for the JIT case.
-  if (Triple.getSubArch() != llvm::Triple::NoSubArch)
-    if (Arg *A = Args.getLastArg(options::OPT_O_Group))
-      if (A->getOption().matches(options::OPT_O0))
-        BeArgs.push_back("-cl-opt-disable");
-  StringRef RegAllocModeOptName = "-ftarget-register-alloc-mode=";
-  if (Arg *A = Args.getLastArg(options::OPT_ftarget_register_alloc_mode_EQ)) {
-    StringRef RegAllocModeVal = A->getValue(0);
-    auto ProcessElement = [&](StringRef Ele) {
-      auto [DeviceName, RegAllocMode] = Ele.split(':');
-      StringRef BackendOptName = SYCL::gen::getGenGRFFlag(RegAllocMode);
-      bool IsDefault = RegAllocMode == "default";
-      if (RegAllocMode.empty() || DeviceName != "pvc" ||
-          (BackendOptName.empty() && !IsDefault)) {
-        getDriver().Diag(diag::err_drv_unsupported_option_argument)
-            << A->getSpelling() << Ele;
-      }
-      // "default" means "provide no specification to the backend", so
-      // we don't need to do anything here.
-      if (IsDefault)
-        return;
-      if (IsGen) {
-        // For AOT, Use ocloc's per-device options flag with the correct ocloc
-        // option to honor the user's specification.
-        PerDeviceArgs.push_back(
-            {DeviceName, Args.MakeArgString(BackendOptName)});
-      } else if (IsJIT) {
-        // For JIT, pass -ftarget-register-alloc-mode=Device:BackendOpt to
-        // clang-offload-wrapper to be processed by the runtime.
-        BeArgs.push_back(Args.MakeArgString(RegAllocModeOptName + DeviceName +
-                                            ":" + BackendOptName));
-      }
-    };
-    llvm::SmallVector<StringRef, 16> RegAllocModeArgs;
-    RegAllocModeVal.split(RegAllocModeArgs, ',');
-    for (StringRef Elem : RegAllocModeArgs)
-      ProcessElement(Elem);
-  } else if (!HostTC.getTriple().isWindowsMSVCEnvironment()) {
-    // If -ftarget-register-alloc-mode is not specified, the default is
-    // pvc:default on Windows and and pvc:auto otherwise when -device pvc is
-    // provided by the user.
-    ArgStringList TargArgs;
-    Args.AddAllArgValues(TargArgs, options::OPT_Xs, options::OPT_Xs_separate);
-    Args.AddAllArgValues(TargArgs, options::OPT_Xsycl_backend);
-    // For -Xsycl-target-backend=<triple> the triple value is used to push
-    // specific options to the matching device compilation using that triple.
-    // Scrutinize this to make sure we are only checking the values needed
-    // for the current device compilation.
-    for (auto *A : Args) {
-      if (!A->getOption().matches(options::OPT_Xsycl_backend_EQ))
-        continue;
-      if (getDriver().getSYCLDeviceTriple(A->getValue()) == Triple)
-        TargArgs.push_back(A->getValue(1));
-    }
-    // Check for any -device settings.
-    std::string DevArg;
-    if (IsJIT || Device == "pvc" || hasPVCDevice(TargArgs, DevArg)) {
-      // The -device option passed in by the user may not be 'pvc'. Use the
-      // value provided by the user if it was specified.
-      StringRef DeviceName = "pvc";
-      if (!DevArg.empty())
-        DeviceName = DevArg;
-      StringRef BackendOptName = SYCL::gen::getGenGRFFlag("auto");
-      if (IsGen)
-        PerDeviceArgs.push_back({Args.MakeArgString(DeviceName),
-                                 Args.MakeArgString(BackendOptName)});
-      else if (IsJIT)
-        BeArgs.push_back(Args.MakeArgString(RegAllocModeOptName + DeviceName +
-                                            ":" + BackendOptName));
-    }
-  }
-  if (IsGen) {
-    // For GEN (spir64_gen) we have implied -device settings given usage
-    // of intel_gpu_ as a target.  Handle those here, and also check that no
-    // other -device was passed, as that is a conflict.
-    StringRef DepInfo = JA.getOffloadingArch();
-    if (!DepInfo.empty()) {
-      ArgStringList TargArgs;
-      Args.AddAllArgValues(TargArgs, options::OPT_Xs, options::OPT_Xs_separate);
-      Args.AddAllArgValues(TargArgs, options::OPT_Xsycl_backend);
-      // For -Xsycl-target-backend=<triple> we need to scrutinize the triple
-      for (auto *A : Args) {
-        if (!A->getOption().matches(options::OPT_Xsycl_backend_EQ))
-          continue;
-        if (StringRef(A->getValue()).starts_with("intel_gpu"))
-          TargArgs.push_back(A->getValue(1));
-      }
-      if (llvm::find_if(TargArgs, [&](auto Cur) {
-            return !strncmp(Cur, "-device", sizeof("-device") - 1);
-          }) != TargArgs.end()) {
-        SmallString<64> Target("intel_gpu_");
-        Target += DepInfo;
-        getDriver().Diag(diag::err_drv_unsupported_opt_for_target)
-            << "-device" << Target;
-      }
-      // ocloc has different names for some of the newer architectures;
-      // translate them to the apropriate value here.
-      DepInfo =
-          llvm::StringSwitch<StringRef>(DepInfo)
-              .Cases({"pvc_vg", "12_61_7"}, "pvc_xt_c0_vg")
-              .Cases({"mtl_u", "mtl_s", "arl_u", "arl_s", "12_70_4"}, "mtl_s")
-              .Cases({"mtl_h", "12_71_4"}, "mtl_p")
-              .Cases({"arl_h", "12_74_4"}, "xe_lpgplus_b0")
-              .Default(DepInfo);
-      CmdArgs.push_back("-device");
-      CmdArgs.push_back(Args.MakeArgString(DepInfo));
-    }
-    // -ftarget-compile-fast AOT
-    if (Args.hasArg(options::OPT_ftarget_compile_fast))
-      BeArgs.push_back("-igc_opts 'PartitionUnit=1,SubroutineThreshold=50000'");
-    // -ftarget-export-symbols
-    if (Args.hasFlag(options::OPT_ftarget_export_symbols,
-                     options::OPT_fno_target_export_symbols, false))
-      BeArgs.push_back("-library-compilation");
-    // -foffload-fp32-prec-[sqrt/div]
-    if (Args.hasArg(options::OPT_foffload_fp32_prec_div) ||
-        Args.hasArg(options::OPT_foffload_fp32_prec_sqrt))
-      BeArgs.push_back("-ze-fp32-correctly-rounded-divide-sqrt");
-  } else if (IsJIT) {
-    // -ftarget-compile-fast JIT
-    Args.AddLastArg(BeArgs, options::OPT_ftarget_compile_fast);
-    // -foffload-fp32-prec-div JIT
-    Args.AddLastArg(BeArgs, options::OPT_foffload_fp32_prec_div);
-    // -foffload-fp32-prec-sqrt JIT
-    Args.AddLastArg(BeArgs, options::OPT_foffload_fp32_prec_sqrt);
-  }
-  if (IsGen) {
-    for (auto [DeviceName, BackendArgStr] : PerDeviceArgs) {
-      CmdArgs.push_back("-device_options");
-      CmdArgs.push_back(Args.MakeArgString(DeviceName));
-      CmdArgs.push_back(Args.MakeArgString(BackendArgStr));
-    }
-  }
-  if (BeArgs.empty())
-    return;
-  if (Triple.getSubArch() == llvm::Triple::NoSubArch) {
-    for (StringRef A : BeArgs)
-      CmdArgs.push_back(Args.MakeArgString(A));
-    return;
-  }
-  if (IsGen) {
-    SmallString<128> BeOpt;
-    CmdArgs.push_back("-options");
-    for (unsigned I = 0; I < BeArgs.size(); ++I) {
-      if (I)
-        BeOpt += ' ';
-      BeOpt += BeArgs[I];
-    }
-    CmdArgs.push_back(Args.MakeArgString(BeOpt));
-  } else {
-    for (unsigned I = 0; I < BeArgs.size(); ++I) {
-      SmallString<128> BeOpt;
-      BeOpt += "--bo=";
-      BeOpt += BeArgs[I];
-      CmdArgs.push_back(Args.MakeArgString(BeOpt));
-    }
-  }
+  DriverDiagBindings Diags(getDriver());
+  auto In = makeBackendArgsInput(
+      getDriver(), Diags, Triple, Args, Device,
+      HostTC.getTriple().isWindowsMSVCEnvironment(), JA.getOffloadingArch());
+  llvm::offloading::sycl::addSPIRVImpliedTargetArgs(In, CmdArgs);
 }
 
 void SYCLToolChain::TranslateBackendTargetArgs(
     const llvm::Triple &Triple, const llvm::opt::ArgList &Args,
     llvm::opt::ArgStringList &CmdArgs, StringRef Device) const {
-  // Handle -Xs flags.
-  for (auto *A : Args) {
-    // When parsing the target args, the -Xs<opt> type option applies to all
-    // target compilations is not associated with a specific triple.  The
-    // option can be used in 3 different ways:
-    //   -Xs -DFOO -Xs -DBAR
-    //   -Xs "-DFOO -DBAR"
-    //   -XsDFOO -XsDBAR
-    // All of the above examples will pass -DFOO -DBAR to the backend compiler.
-
-    // Do not add the -Xs to the default SYCL triple when we know we have
-    // implied the setting.
-    if ((A->getOption().matches(options::OPT_Xs) ||
-         A->getOption().matches(options::OPT_Xs_separate)) &&
-        Triple.getSubArch() == llvm::Triple::NoSubArch &&
-        Triple.isSPIROrSPIRV() && getDriver().isSYCLDefaultTripleImplied())
-      continue;
-
-    if (A->getOption().matches(options::OPT_Xs)) {
-      // Take the arg and create an option out of it.
-      CmdArgs.push_back(Args.MakeArgString(Twine("-") + A->getValue()));
-      WarnForDeprecatedBackendOpts(getDriver(), Triple, Device, A->getValue(),
-                                   A);
-      A->claim();
-      continue;
-    }
-    if (A->getOption().matches(options::OPT_Xs_separate)) {
-      StringRef ArgString(A->getValue());
-      parseTargetOpts(ArgString, Args, CmdArgs);
-      WarnForDeprecatedBackendOpts(getDriver(), Triple, Device, ArgString, A);
-      A->claim();
-      continue;
-    }
-  }
-  // Do not process -Xsycl-target-backend for implied spir64/spirv64
-  if (Triple.getSubArch() == llvm::Triple::NoSubArch &&
-      Triple.isSPIROrSPIRV() && getDriver().isSYCLDefaultTripleImplied())
-    return;
-  // Handle -Xsycl-target-backend.
-  TranslateTargetOpt(Triple, Args, CmdArgs, options::OPT_Xsycl_backend,
-                     options::OPT_Xsycl_backend_EQ, Device);
-  TranslateGPUTargetOpt(Args, CmdArgs, options::OPT_offload_targets_EQ);
+  DriverDiagBindings Diags(getDriver());
+  auto In = makeBackendArgsInput(getDriver(), Diags, Triple, Args, Device,
+                                 /*HostIsWindowsMSVCEnv=*/false,
+                                 /*JobOffloadingArch=*/"");
+  llvm::offloading::sycl::translateBackendTargetArgs(In, CmdArgs);
 }
 
 void SYCLToolChain::TranslateLinkerTargetArgs(const llvm::Triple &Triple,
                                               const llvm::opt::ArgList &Args,
                                               llvm::opt::ArgStringList &CmdArgs,
                                               StringRef Device) const {
-  // Do not process -Xsycl-target-linker for implied spir64/spirv64
-  if (Triple.getSubArch() == llvm::Triple::NoSubArch &&
-      Triple.isSPIROrSPIRV() && getDriver().isSYCLDefaultTripleImplied())
-    return;
-  // Handle -Xsycl-target-linker.
-  TranslateTargetOpt(Triple, Args, CmdArgs, options::OPT_Xsycl_linker,
-                     options::OPT_Xsycl_linker_EQ, Device);
+  DriverDiagBindings Diags(getDriver());
+  auto In = makeBackendArgsInput(getDriver(), Diags, Triple, Args, Device,
+                                 /*HostIsWindowsMSVCEnv=*/false,
+                                 /*JobOffloadingArch=*/"");
+  llvm::offloading::sycl::translateLinkerTargetArgs(In, CmdArgs);
 }
 
 Tool *SYCLToolChain::buildBackendCompiler() const {

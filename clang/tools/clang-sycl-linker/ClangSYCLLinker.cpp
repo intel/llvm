@@ -217,6 +217,41 @@ Expected<std::unique_ptr<Module>> getBitcodeModule(StringRef File,
   return createStringError(Err.getMessage());
 }
 
+/// Filter values of \p OptID (one of OPT_device_compiler_args_EQ /
+/// OPT_device_linker_args_EQ), keeping only those whose `[<kind>:][<triple>=]`
+/// prefix matches the SYCL offload kind and the run's target triple
+/// (OPT_triple_EQ). Same algorithm as `ProcessDeviceArgs` in
+/// clang-linker-wrapper.cpp.
+SmallVector<std::string> filterDeviceArgs(const ArgList &Args,
+                                          opt::OptSpecifier OptID) {
+  SmallVector<std::string> Result;
+  StringRef TripleStr = Args.getLastArgValue(OPT_triple_EQ);
+  for (StringRef Value : Args.getAllArgValues(OptID)) {
+    size_t ColonPos = Value.find(':');
+    if (ColonPos != StringRef::npos) {
+      StringRef Kind = Value.take_front(ColonPos);
+      if (object::getOffloadKind(Kind) != object::OFK_SYCL)
+        continue;
+      Value = Value.drop_front(ColonPos + 1);
+    }
+    size_t EqPos = Value.find('=');
+    if (EqPos != StringRef::npos) {
+      StringRef ArgTripleStr = Value.take_front(EqPos);
+      llvm::Triple ArgTriple(ArgTripleStr);
+      // If this isn't a recognized triple then it's an `arg=value` option.
+      if (ArgTriple.getArch() != Triple::ArchType::UnknownArch) {
+        if (ArgTripleStr != TripleStr)
+          continue;
+        Value = Value.drop_front(EqPos + 1);
+      }
+    }
+    if (Value.empty())
+      continue;
+    Result.emplace_back(Value);
+  }
+  return Result;
+}
+
 /// Gather all SYCL device library files that will be linked with input device
 /// files.
 /// The list of files and its location are passed from driver.
@@ -430,6 +465,9 @@ static Error runAOTCompileIntelCPU(StringRef InputFile, StringRef OutputFile,
   CmdArgs.push_back("--device=cpu");
   StringRef ExtraArgs = Args.getLastArgValue(OPT_opencl_aot_options_EQ);
   ExtraArgs.split(CmdArgs, " ", /*MaxSplit=*/-1, /*KeepEmpty=*/false);
+  for (const std::string &Val :
+       filterDeviceArgs(Args, OPT_device_compiler_args_EQ))
+    StringRef(Val).split(CmdArgs, " ", /*MaxSplit=*/-1, /*KeepEmpty=*/false);
   CmdArgs.push_back("-o");
   CmdArgs.push_back(OutputFile);
   CmdArgs.push_back(InputFile);
@@ -466,6 +504,9 @@ static Error runAOTCompileIntelGPU(StringRef InputFile, StringRef OutputFile,
 
   StringRef ExtraArgs = Args.getLastArgValue(OPT_ocloc_options_EQ);
   ExtraArgs.split(CmdArgs, " ", /*MaxSplit=*/-1, /*KeepEmpty=*/false);
+  for (const std::string &Val :
+       filterDeviceArgs(Args, OPT_device_compiler_args_EQ))
+    StringRef(Val).split(CmdArgs, " ", /*MaxSplit=*/-1, /*KeepEmpty=*/false);
 
   CmdArgs.push_back("-output");
   CmdArgs.push_back(OutputFile);
