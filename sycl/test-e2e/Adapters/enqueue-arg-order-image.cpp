@@ -5,7 +5,8 @@
 
 // spir-v gen for legacy images at O0 not working
 // UNSUPPORTED: O0
-// UNSUPPORTED-INTENDED: Won't fix. See https://github.com/intel/llvm/issues/10793.
+// UNSUPPORTED-INTENDED: Won't fix. See
+// https://github.com/intel/llvm/issues/10793.
 
 // RUN: %{build} -o %t.out
 // Native images are created with host pointers only with host unified memory
