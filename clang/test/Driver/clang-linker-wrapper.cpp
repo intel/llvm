@@ -354,3 +354,21 @@
 // RUN:                      %t.without_triple.o -o %t.out 2>&1 --linker-path="/usr/bin/ld" | FileCheck %s --check-prefix=CHECK-ERROR-WITH-NO-TRIPLE
 
 // CHECK-ERROR-WITH-NO-TRIPLE: can't compile a SYCL device code. target is unknown
+
+// Check that unsupported triple in image causes an error.
+// RUN: llvm-offload-binary -o %t.wrong_triple.fat "--image=file=%t.o,triple=x86_64,arch=pvc,kind=sycl"
+// RUN: %clang -cc1 %s -triple=x86_64-unknown-linux-gnu -emit-obj -o %t.wrong_triple.o -fembed-offload-object=%t.wrong_triple.fat
+// RUN: not clang-linker-wrapper --verbose --dry-run -host-triple=x86_64-unknown-linux-gnu \
+// RUN:                      --bitcode-library=spir64_gen-unknown-unknown=%t1.devicelib.bc \
+// RUN:                      %t.wrong_triple.o -o %t.out 2>&1 --linker-path="/usr/bin/ld" | FileCheck %s --check-prefix=CHECK-ERROR-WITH-WRONG-TRIPLE
+
+// CHECK-ERROR-WITH-WRONG-TRIPLE: SYCL compilation for x86_64 is not supported
+
+// Check that unsupported spirv subarch in image causes an error.
+// RUN: llvm-offload-binary -o %t.wrong_spirv_subarch.fat "--image=file=%t.o,triple=spirv64v1.0,kind=sycl"
+// RUN: %clang -cc1 %s -triple=x86_64-unknown-linux-gnu -emit-obj -o %t.wrong_spirv_subarch.o -fembed-offload-object=%t.wrong_spirv_subarch.fat
+// RUN: not clang-linker-wrapper --verbose --dry-run -host-triple=x86_64-unknown-linux-gnu \
+// RUN:                      --bitcode-library=spir64_gen-unknown-unknown=%t1.devicelib.bc \
+// RUN:                      %t.wrong_spirv_subarch.o -o %t.out 2>&1 --linker-path="/usr/bin/ld" | FileCheck %s --check-prefix=CHECK-ERROR-WITH-WRONG-SPIRV-SUBARCH
+
+// CHECK-ERROR-WITH-WRONG-SPIRV-SUBARCH: SYCL device compilation is not supported for the target: spirv64v1.0

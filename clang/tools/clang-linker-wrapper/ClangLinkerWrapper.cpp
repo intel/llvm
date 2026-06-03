@@ -1834,9 +1834,9 @@ invokeBackendForSYCLDevice(StringRef InputFile, const ArgList &Args,
     if (Triple.getSubArch() != llvm::Triple::NoSubArch &&
         Triple.getSubArch() != llvm::Triple::SPIRSubArch_gen &&
         Triple.getSubArch() != llvm::Triple::SPIRSubArch_x86_64)
-      return createStringError(
-          "For SPIR targets, compilation is supported only for JIT mode"
-          "and AOT mode for Intel CPUs/GPUs");
+      return createStringError(formatv(
+          "SYCL device compilation is not supported for the target: {0}",
+          Triple.str()));
     Expected<StringRef> SPVFile =
         sycl::runLLVMToSPIRVTranslation(InputFile, Args);
     if (!SPVFile)
@@ -1863,10 +1863,10 @@ invokeBackendForSYCLDevice(StringRef InputFile, const ArgList &Args,
   }
 }
 
-/// Function invokes device compilation and bundling for NVPTX and AMDGCN cases.
-Expected<StringRef> compileDeviceAndBundleNVPTXAndAMDGCN(
-    StringRef ModuleFilePath, const ArgList &LinkerArgs,
-    const llvm::Triple &Triple, StringRef AdditionalCompileOptions) {
+Expected<StringRef> compileDeviceAndBundle(StringRef ModuleFilePath,
+                                           const ArgList &LinkerArgs,
+                                           const llvm::Triple &Triple,
+                                           StringRef AdditionalCompileOptions) {
   Expected<StringRef> OutputOrErr = invokeBackendForSYCLDevice(
       ModuleFilePath, LinkerArgs, AdditionalCompileOptions);
   if (!OutputOrErr)
@@ -1944,9 +1944,9 @@ Expected<std::vector<module_split::SplitModule>> postLinkProcessModule(
                   });
 
   for (size_t I = 0, E = SplitModules.size(); I != E; ++I) {
-    Expected<StringRef> OutputOrErr = compileDeviceAndBundleNVPTXAndAMDGCN(
-        SplitModules[I].ModuleFilePath, LinkerArgs, Triple,
-        CompileLinkOptions.first);
+    Expected<StringRef> OutputOrErr =
+        compileDeviceAndBundle(SplitModules[I].ModuleFilePath, LinkerArgs,
+                               Triple, CompileLinkOptions.first);
     if (!OutputOrErr)
       return OutputOrErr.takeError();
 
@@ -2276,6 +2276,8 @@ DerivedArgList getLinkerArgs(ArrayRef<OffloadFile> Input,
                    Arch == "generic" ? "" : Arch);
   DAL.AddJoinedArg(nullptr, Tbl.getOption(OPT_triple_EQ),
                    Args.MakeArgString(Input.front().getBinary()->getTriple()));
+  llvm::Triple T(Input.front().getBinary()->getTriple());
+  dbgs() << "DEBUG: " << T.getSubArch() << "\n";
 
   // If every input file is bitcode we have whole program visibility as we
   // do only support static linking with bitcode.
