@@ -15,18 +15,14 @@
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
-// Primary template picks up `T::ur_code` for self-describing traits (those
-// carrying `info_class`, `return_type`, `ur_code` members). Explicit
-// specializations emitted below from the .def files override the primary
-// template for legacy traits. Both forms coexist while migration is in
-// progress; SFINAE on `T::ur_code` keeps the primary inert for non-trait
-// types so misuse still produces a clean diagnostic.
-//
-// Self-describing traits without a `ur_code` member (RT-only dispatch) cause
-// `UrInfoCode<T>::value` to be undefined; runtime code paths gate on
-// `is_ur_dispatched<T>` and never instantiate this primary for those traits.
-// `static_assert` here cross-checks ur_code's type against
-// `info_class::ur_code_type` to catch wrong-family enum values at compile time.
+// `UrInfoCode<T>::value` exposes the UR enum used to query an info trait.
+// Self-describing traits carry their `ur_code` as a static member; the
+// SFINAE specialization below picks it up. Traits without a `ur_code` member
+// (RT-only dispatch) leave `UrInfoCode<T>::value` undefined; runtime code
+// paths gate on `is_ur_dispatched<T>` and never instantiate this template
+// for those traits. `static_assert` cross-checks `ur_code`'s type against
+// `info_class::ur_code_type` to catch wrong-family enum values at compile
+// time.
 template <typename T, typename = void> struct UrInfoCode;
 
 template <typename T> struct UrInfoCode<T, std::void_t<decltype(T::ur_code)>> {

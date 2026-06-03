@@ -9,7 +9,6 @@
 #pragma once
 
 #include <sycl/detail/info_desc_traits.hpp>
-#include <unified-runtime/ur_api.h>
 
 #include <vector>
 
