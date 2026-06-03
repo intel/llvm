@@ -6,6 +6,7 @@
 
 // spir-v gen for legacy images at O0 not working
 // UNSUPPORTED: O0
+// UNSUPPORTED-INTENDED: Won't fix. See https://github.com/intel/llvm/issues/10793.
 
 // 1. There is a SPIR-V spec issue that blocks generation of valid SPIR-V code
 // for the OpenCL environments support of the "Unknown" image format:
