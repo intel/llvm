@@ -11156,6 +11156,19 @@ static void addArgs(ArgStringList &DstArgs, const llvm::opt::ArgList &Alloc,
 }
 
 static bool allowDeviceImageDependencies(const llvm::opt::ArgList &TCArgs) {
+  // -fsyclbin=input and -fsyclbin=object request a linkable SYCLBIN
+  // artifact whose cross-image SYCL_EXTERNAL references must be resolved
+  // at runtime via sycl::link. That requires the exported/imported symbol
+  // property sets emitted by sycl-post-link, so device-image dependencies
+  // are implied by these states unless the user explicitly opts out.
+  // -fsyclbin=executable does not imply, since it produces a fully linked
+  // artifact with no cross-image references.
+  bool SYCLBINImplies = false;
+  if (Arg *A = TCArgs.getLastArg(options::OPT_fsyclbin_EQ)) {
+    StringRef State = A->getValue();
+    SYCLBINImplies = (State == "input" || State == "object");
+  }
+
   // deprecated
   if (TCArgs.hasFlag(options::OPT_fsycl_allow_device_dependencies,
                      options::OPT_fno_sycl_allow_device_dependencies, false))
@@ -11163,7 +11176,8 @@ static bool allowDeviceImageDependencies(const llvm::opt::ArgList &TCArgs) {
 
   // preferred
   if (TCArgs.hasFlag(options::OPT_fsycl_allow_device_image_dependencies,
-                     options::OPT_fno_sycl_allow_device_image_dependencies, false))
+                     options::OPT_fno_sycl_allow_device_image_dependencies,
+                     SYCLBINImplies))
     return true;
 
   return false;
@@ -11928,9 +11942,42 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     if (Args.hasArg(options::OPT_fsycl_embed_ir))
       CmdArgs.push_back(Args.MakeArgString("-sycl-embed-ir"));
 
+    // -fsyclbin=input and -fsyclbin=object semantically request a linkable
+    // SYCLBIN artifact. Cross-image SYCL_EXTERNAL resolution at runtime
+    // requires the exported/imported symbol property sets emitted by
+    // sycl-post-link, so default -fsycl-allow-device-image-dependencies to
+    // true for those states. Users who want a single-image, fully
+    // optimized artifact should use -fsyclbin=executable instead.
+    //
+    // It is an error to combine -fsyclbin=input/object with
+    // -fno-sycl-allow-device-image-dependencies: an object SYCLBIN that
+    // forbids cross-image dependencies has no use case (it would be a
+    // worse-codegen equivalent of -fsyclbin=executable).
+    //
+    // Combining -fsyclbin=executable with
+    // -fsycl-allow-device-image-dependencies is harmless but pointless,
+    // so it is diagnosed as a warning.
+    bool SYCLBINImpliesAllowDeps = false;
+    if (Arg *A = Args.getLastArg(options::OPT_fsyclbin_EQ)) {
+      StringRef State = A->getValue();
+      bool IsLinkableState = (State == "input" || State == "object");
+      SYCLBINImpliesAllowDeps = IsLinkableState;
+      const Driver &D = getToolChain().getDriver();
+      if (Arg *NoDeps = Args.getLastArg(
+              options::OPT_fno_sycl_allow_device_image_dependencies);
+          NoDeps && IsLinkableState) {
+        D.Diag(diag::err_drv_argument_not_allowed_with)
+            << NoDeps->getAsString(Args) << A->getAsString(Args);
+      } else if (Arg *Deps = Args.getLastArg(
+                     options::OPT_fsycl_allow_device_image_dependencies);
+                 Deps && State == "executable") {
+        D.Diag(diag::warn_drv_argument_not_allowed_with)
+            << Deps->getAsString(Args) << A->getAsString(Args);
+      }
+    }
     if (Args.hasFlag(options::OPT_fsycl_allow_device_image_dependencies,
                      options::OPT_fno_sycl_allow_device_image_dependencies,
-                     false))
+                     SYCLBINImpliesAllowDeps))
       CmdArgs.push_back(
           Args.MakeArgString("-sycl-allow-device-image-dependencies"));
 
