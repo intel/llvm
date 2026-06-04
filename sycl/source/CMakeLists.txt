@@ -120,8 +120,8 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
 
   # Feature-specific compilation and link step setup
 
-  # Unlike for sycl library, for LLVMSupport we have only one version for a given build,
-  # so, we link LLVMSupport lib to matching sycl version only.
+  # Unlike for sycl library, for LLVM libraries we have only one version for a
+  # given build, so, we link LLVM libraries to matching sycl version only.
   if (SYCL_ENABLE_STACK_PRINTING)
     if(NOT MSVC OR (CMAKE_BUILD_TYPE STREQUAL "Debug" AND ARG_COMPILE_OPTIONS MATCHES ".*MDd.*") OR
       (NOT CMAKE_BUILD_TYPE STREQUAL "Debug" AND NOT ARG_COMPILE_OPTIONS MATCHES ".*MDd.*"))
@@ -129,6 +129,23 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
         target_compile_definitions(${LIB_OBJ_NAME} PUBLIC ENABLE_STACK_TRACE)
         target_link_libraries(${LIB_NAME} PRIVATE LLVMSupport)
     endif()
+  endif()
+
+  # Link LLVMObject (and transitively LLVMSupport) for SYCLBIN parsing in the
+  # runtime. LLVM headers are confined to the syclbin.cpp translation unit via
+  # PIMPL on SYCLBINBinaries, so no LLVM types leak into runtime headers and
+  # no LLVM symbols are exported from libsycl.
+  #
+  # On MSVC the LLVM libraries are built once for a single CRT. The runtime
+  # builds two flavours (sycl9 / sycl9d) with different CRTs, so we can only
+  # link LLVM into the flavour whose CRT matches the LLVM build's CRT. The
+  # other flavour gets a fallback build of detail/syclbin.cpp that compiles
+  # the SYCLBINBinaries methods as throwing stubs (see SYCL_RT_HAS_LLVMOBJECT).
+  if(NOT MSVC OR (CMAKE_BUILD_TYPE STREQUAL "Debug" AND ARG_COMPILE_OPTIONS MATCHES ".*MDd.*") OR
+    (NOT CMAKE_BUILD_TYPE STREQUAL "Debug" AND NOT ARG_COMPILE_OPTIONS MATCHES ".*MDd.*"))
+      add_dependencies(${LIB_NAME} LLVMObject)
+      target_link_libraries(${LIB_NAME} PRIVATE LLVMObject)
+      target_compile_definitions(${LIB_OBJ_NAME} PRIVATE SYCL_RT_HAS_LLVMOBJECT)
   endif()
 
   # TODO: Enabled for MSVC
@@ -413,6 +430,16 @@ check_cxx_compiler_flag(-fsemantic-interposition HAS_SEMANTIC_INTERPOSITION_FLAG
 if (HAS_SEMANTIC_INTERPOSITION_FLAG AND NOT CMAKE_SYSTEM_NAME STREQUAL Darwin)
   # See https://github.com/llvm/llvm-project/issues/58295.
   set_source_files_properties(device_selector.cpp PROPERTIES COMPILE_FLAGS -fsemantic-interposition)
+endif()
+
+# detail/syclbin.cpp pulls LLVMObject / LLVMSupport headers (Casting.h via
+# MemoryBuffer.h -> CBindingWrapping.h). Those headers do not compile clean
+# under the runtime's -Wall -Wextra -Werror policy because they contain
+# unused-parameter warnings in inline templates. Suppress the warning for
+# this single TU; we don't own those headers.
+if (NOT MSVC)
+  set_source_files_properties(detail/syclbin.cpp PROPERTIES
+    COMPILE_FLAGS "-Wno-unused-parameter")
 endif()
 
 if (WIN32)

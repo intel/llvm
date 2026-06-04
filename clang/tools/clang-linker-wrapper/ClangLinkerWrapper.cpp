@@ -1284,30 +1284,21 @@ static Expected<StringRef> runCompile(StringRef &InputFile,
   return *OutputFileOrErr;
 }
 
-/// Write an OffloadBinary containing the serialized SYCLBIN resulting from
-/// \p ModuleDescs to the ExecutableName file with the .syclbin extension.
+/// Write the serialized SYCLBIN resulting from \p ModuleDescs to the
+/// ExecutableName file with the .syclbin extension.
+///
+/// SYCLBIN::write produces a complete on-disk SYCLBIN (a multi-entry
+/// OffloadBinary in v2). The caller no longer wraps the result in an outer
+/// OffloadBinary envelope.
 static Expected<StringRef>
 packageSYCLBIN(SYCLBIN::BundleState State,
                const ArrayRef<SYCLBIN::SYCLBINModuleDesc> Modules) {
   SYCLBIN::SYCLBINDesc SYCLBIND{State, Modules};
-  size_t SYCLBINByteSize = 0;
-  if (Error E = SYCLBIND.getSYCLBINByteSize().moveInto(SYCLBINByteSize))
+
+  SmallString<0> SYCLBINBytes;
+  raw_svector_ostream SYCLBINOS{SYCLBINBytes};
+  if (Error E = SYCLBIN::write(SYCLBIND, SYCLBINOS))
     return std::move(E);
-
-  SmallString<0> SYCLBINImage;
-  SYCLBINImage.reserve(SYCLBINByteSize);
-  raw_svector_ostream SYCLBINImageOS{SYCLBINImage};
-  if (Error E = SYCLBIN::write(SYCLBIND, SYCLBINImageOS))
-    return std::move(E);
-
-  OffloadingImage Image{};
-  Image.TheImageKind = IMG_SYCLBIN;
-  Image.TheOffloadKind = OFK_SYCL;
-  Image.Image = MemoryBuffer::getMemBuffer(SYCLBINImage, /*BufferName=*/"",
-                                           /*RequiresNullTerminator=*/false);
-
-  std::unique_ptr<MemoryBuffer> Binary = MemoryBuffer::getMemBufferCopy(
-      OffloadBinary::write(Image), Image.Image->getBufferIdentifier());
 
   auto OutFileOrErr =
       createOutputFile(sys::path::filename(ExecutableName), "syclbin");
@@ -1315,11 +1306,11 @@ packageSYCLBIN(SYCLBIN::BundleState State,
     return OutFileOrErr.takeError();
 
   Expected<std::unique_ptr<FileOutputBuffer>> OutputOrErr =
-      FileOutputBuffer::create(*OutFileOrErr, Binary->getBufferSize());
+      FileOutputBuffer::create(*OutFileOrErr, SYCLBINBytes.size());
   if (!OutputOrErr)
     return OutputOrErr.takeError();
   std::unique_ptr<FileOutputBuffer> Output = std::move(*OutputOrErr);
-  llvm::copy(Binary->getBuffer(), Output->getBufferStart());
+  llvm::copy(SYCLBINBytes, Output->getBufferStart());
   if (Error E = Output->commit())
     return std::move(E);
 
