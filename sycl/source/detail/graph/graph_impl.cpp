@@ -11,11 +11,11 @@
 #include "graph_impl.hpp"
 #include "dynamic_impl.hpp" // for dynamic classes
 #include "node_impl.hpp"    // for node_impl
-#include <detail/cg.hpp>        // for CG, CGExecKernel, CGHostTask, ArgDesc, NDRDescT
-#include <detail/config.hpp>    // for SYCLConfig
-#include <detail/host_task.hpp> // for EnqueueHostTaskData
+#include <detail/cg.hpp> // for CG, CGExecKernel, CGHostTask, ArgDesc, NDRDescT
+#include <detail/config.hpp>                          // for SYCLConfig
 #include <detail/event_impl.hpp>                      // for event_impl
 #include <detail/handler_impl.hpp>                    // for handler_impl
+#include <detail/host_task.hpp>                       // for EnqueueHostTaskData
 #include <detail/kernel_arg_mask.hpp>                 // for KernelArgMask
 #include <detail/kernel_impl.hpp>                     // for kernel_impl
 #include <detail/program_manager/program_manager.hpp> // ProgramManager
