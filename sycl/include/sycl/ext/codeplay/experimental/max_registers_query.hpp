@@ -18,8 +18,9 @@ inline namespace _V1 {
 namespace ext::codeplay::experimental::info::device {
 
 struct max_registers_per_work_group
-    : sycl::detail::ur_traits_base<sycl::detail::info_class::device,
-                                   UR_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP> {
+    : sycl::detail::ur_traits_base<
+          sycl::detail::info_class::device,
+          UR_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP> {
   using return_type = uint32_t;
 };
 

@@ -17,9 +17,9 @@ namespace sycl {
 inline namespace _V1 {
 namespace ext::intel::info::kernel_device_specific {
 
-struct spill_memory_size
-    : sycl::detail::ur_traits_base<sycl::detail::info_class::kernel_device_specific,
-                                   UR_KERNEL_INFO_SPILL_MEM_SIZE> {
+struct spill_memory_size : sycl::detail::ur_traits_base<
+                               sycl::detail::info_class::kernel_device_specific,
+                               UR_KERNEL_INFO_SPILL_MEM_SIZE> {
   using return_type = size_t;
 };
 

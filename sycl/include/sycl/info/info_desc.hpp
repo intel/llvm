@@ -374,11 +374,10 @@ struct profiling_timer_resolution
     : device_traits<UR_DEVICE_INFO_PROFILING_TIMER_RESOLUTION> {
   using return_type = size_t;
 };
-struct __SYCL2020_DEPRECATED(
-    "deprecated in SYCL 2020, check the byte order of "
-    "the host system instead, the host and the device "
-    "are required to have the same byte order") is_endian_little
-    : device_traits<UR_DEVICE_INFO_ENDIAN_LITTLE> {
+struct __SYCL2020_DEPRECATED("deprecated in SYCL 2020, check the byte order of "
+                             "the host system instead, the host and the device "
+                             "are required to have the same byte order")
+    is_endian_little : device_traits<UR_DEVICE_INFO_ENDIAN_LITTLE> {
   using return_type = bool;
 };
 struct is_available : device_traits<UR_DEVICE_INFO_AVAILABLE> {
@@ -386,8 +385,7 @@ struct is_available : device_traits<UR_DEVICE_INFO_AVAILABLE> {
 };
 struct __SYCL2020_DEPRECATED("deprecated in SYCL 2020, use "
                              "device::has(aspect::online_compiler) instead")
-    is_compiler_available
-    : device_traits<UR_DEVICE_INFO_COMPILER_AVAILABLE> {
+    is_compiler_available : device_traits<UR_DEVICE_INFO_COMPILER_AVAILABLE> {
   using return_type = bool;
 };
 struct __SYCL2020_DEPRECATED("deprecated in SYCL 2020, use "
@@ -453,15 +451,15 @@ struct partition_max_sub_devices
     : device_traits<UR_DEVICE_INFO_PARTITION_MAX_SUB_DEVICES> {
   using return_type = uint32_t;
 };
-struct partition_properties : device_traits<UR_DEVICE_INFO_SUPPORTED_PARTITIONS> {
+struct partition_properties
+    : device_traits<UR_DEVICE_INFO_SUPPORTED_PARTITIONS> {
   using return_type = std::vector<info::partition_property>;
 };
 struct partition_affinity_domains
     : device_traits<UR_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN> {
   using return_type = std::vector<info::partition_affinity_domain>;
 };
-struct partition_type_property
-    : device_traits<UR_DEVICE_INFO_PARTITION_TYPE> {
+struct partition_type_property : device_traits<UR_DEVICE_INFO_PARTITION_TYPE> {
   using return_type = info::partition_property;
 };
 struct partition_type_affinity_domain
@@ -476,10 +474,9 @@ struct parent_device : device_traits<UR_DEVICE_INFO_PARENT_DEVICE> {
 struct aspects : device_traits<UR_DEVICE_INFO_FORCE_UINT32> {
   using return_type = std::vector<sycl::aspect>;
 };
-struct __SYCL2020_DEPRECATED(
-    "deprecated in SYCL 2020, use "
-    "device::has(aspect::ext_intel_legacy_image) to "
-    "query for SYCL 1.2.1 image support") image_support
+struct __SYCL2020_DEPRECATED("deprecated in SYCL 2020, use "
+                             "device::has(aspect::ext_intel_legacy_image) to "
+                             "query for SYCL 1.2.1 image support") image_support
     : device_traits<UR_DEVICE_INFO_FORCE_UINT32> {
   using return_type = bool;
 };
@@ -493,7 +490,8 @@ struct reference_count : device_traits<UR_DEVICE_INFO_REFERENCE_COUNT> {
   using return_type = uint32_t;
 };
 // To be dropped (has alternatives/not needed)
-struct usm_device_allocations : device_traits<UR_DEVICE_INFO_USM_DEVICE_SUPPORT> {
+struct usm_device_allocations
+    : device_traits<UR_DEVICE_INFO_USM_DEVICE_SUPPORT> {
   using return_type = bool;
 };
 struct usm_host_allocations : device_traits<UR_DEVICE_INFO_USM_HOST_SUPPORT> {
@@ -650,17 +648,14 @@ namespace kernel_device_specific {
 // ur_code_type = void to permit the mismatch. Use the matching alias for
 // each family.
 template <ur_kernel_group_info_t UrCode>
-using group_traits =
-    sycl::detail::ur_traits_base<sycl::detail::info_class::kernel_device_specific,
-                                 UrCode>;
+using group_traits = sycl::detail::ur_traits_base<
+    sycl::detail::info_class::kernel_device_specific, UrCode>;
 template <ur_kernel_sub_group_info_t UrCode>
-using sub_group_traits =
-    sycl::detail::ur_traits_base<sycl::detail::info_class::kernel_device_specific,
-                                 UrCode>;
+using sub_group_traits = sycl::detail::ur_traits_base<
+    sycl::detail::info_class::kernel_device_specific, UrCode>;
 template <ur_kernel_info_t UrCode>
-using kernel_info_traits =
-    sycl::detail::ur_traits_base<sycl::detail::info_class::kernel_device_specific,
-                                 UrCode>;
+using kernel_info_traits = sycl::detail::ur_traits_base<
+    sycl::detail::info_class::kernel_device_specific, UrCode>;
 
 struct global_work_size : group_traits<UR_KERNEL_GROUP_INFO_GLOBAL_WORK_SIZE> {
   using return_type = sycl::range<3>;

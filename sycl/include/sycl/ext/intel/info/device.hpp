@@ -133,8 +133,9 @@ struct node_mask : device_runtime_traits {
 
 namespace esimd::info::device {
 struct has_2d_block_io_support
-    : sycl::detail::ur_traits_base<sycl::detail::info_class::device,
-                                   UR_DEVICE_INFO_2D_BLOCK_ARRAY_CAPABILITIES_EXP> {
+    : sycl::detail::ur_traits_base<
+          sycl::detail::info_class::device,
+          UR_DEVICE_INFO_2D_BLOCK_ARRAY_CAPABILITIES_EXP> {
   using return_type = bool;
 };
 } // namespace esimd::info::device

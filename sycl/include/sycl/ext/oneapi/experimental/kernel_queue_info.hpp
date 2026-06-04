@@ -18,8 +18,8 @@ namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental::info::kernel_queue_specific {
 
-using kqs_traits =
-    sycl::detail::rt_traits_base<sycl::detail::info_class::kernel_queue_specific>;
+using kqs_traits = sycl::detail::rt_traits_base<
+    sycl::detail::info_class::kernel_queue_specific>;
 
 struct max_num_work_groups : kqs_traits {
   using return_type = size_t;

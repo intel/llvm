@@ -42,7 +42,9 @@ namespace info_class {
 // type so wrong-family enum values fail to compile with a clear diagnostic.
 // Tags whose traits dispatch through multiple UR APIs (or none) leave
 // `ur_code_type` as `void` to opt out of the family check.
-template <typename T> struct info_class_base { using ur_code_type = T; };
+template <typename T> struct info_class_base {
+  using ur_code_type = T;
+};
 
 struct platform : info_class_base<ur_platform_info_t> {};
 struct context : info_class_base<ur_context_info_t> {};
