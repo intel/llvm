@@ -1,8 +1,12 @@
 // REQUIRES: ocloc
 
-// UNSUPPORTED: cuda, hip
+// UNSUPPORTED: cuda, hip, cpu
 // UNSUPPORTED-INTENDED: CUDA and HIP targets produce only native device
-// binaries and can therefore not produce object-state SYCLBIN files.
+// binaries and can therefore not produce object-state SYCLBIN files. The
+// CPU device cannot consume the spir64_gen AOT image produced by this
+// test; the CPU AOT pipeline does not currently support the
+// unresolved-import / object-state path exercised here, so opencl:cpu is
+// excluded.
 
 // -- Regression test for CMPLRLLVM-75983: loading an AOT-only SYCLBIN in
 // -- bundle_state::object must produce a non-empty kernel_bundle when the
