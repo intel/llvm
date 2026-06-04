@@ -382,7 +382,7 @@ public:
           if (NativeHostTaskSupport) {
             auto NativeHostTaskData =
                 std::make_unique<detail::EnqueueHostTaskData>(
-                    std::move(HostTask.MHostTask->MHostTask));
+                    HostTask.MHostTask->MHostTask);
             ur_event_handle_t HostTaskEvent{};
             Queue->getAdapter().call<UrApiKind::urEnqueueHostTaskExp>(
                 Queue->getHandleRef(), detail::NativeHostTask<true>,
