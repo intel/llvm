@@ -5,7 +5,7 @@
 
 // RUN: %clangxx --offload-new-driver -fsyclbin=executable %{sycl_target_opts} %{syclbin_exec_opts} %S/Inputs/basic_kernel.cpp -o %t.syclbin
 // RUN: %{build} -o %t.out
-// RUN: %{run} env SYCL_UR_TRACE=-1 %t.out %t.syclbin | FileCheck %s
+// RUN: env SYCL_UR_TRACE=-1 %{run} %t.out %t.syclbin | FileCheck %s
 
 #define SYCLBIN_EXECUTABLE_STATE
 
