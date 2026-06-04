@@ -18,29 +18,24 @@ namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental::info::kernel_queue_specific {
 
-struct max_num_work_groups {
+using kqs_traits =
+    sycl::detail::rt_traits_base<sycl::detail::info_class::kernel_queue_specific>;
+
+struct max_num_work_groups : kqs_traits {
   using return_type = size_t;
-  using info_class = sycl::detail::info_class::kernel_queue_specific;
 };
-
-struct max_work_group_size {
+struct max_work_group_size : kqs_traits {
   using return_type = size_t;
-  using info_class = sycl::detail::info_class::kernel_queue_specific;
 };
-
-struct max_sub_group_size {
+struct max_sub_group_size : kqs_traits {
   using return_type = uint32_t;
-  using info_class = sycl::detail::info_class::kernel_queue_specific;
 };
-
-struct num_sub_groups {
+struct num_sub_groups : kqs_traits {
   using return_type = uint32_t;
-  using info_class = sycl::detail::info_class::kernel_queue_specific;
 };
 
-template <int Dim> struct max_work_item_sizes {
+template <int Dim> struct max_work_item_sizes : kqs_traits {
   using return_type = sycl::id<Dim>;
-  using info_class = sycl::detail::info_class::kernel_queue_specific;
 };
 
 } // namespace ext::oneapi::experimental::info::kernel_queue_specific

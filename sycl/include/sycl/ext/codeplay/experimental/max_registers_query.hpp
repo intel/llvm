@@ -17,11 +17,10 @@ namespace sycl {
 inline namespace _V1 {
 namespace ext::codeplay::experimental::info::device {
 
-struct max_registers_per_work_group {
+struct max_registers_per_work_group
+    : sycl::detail::ur_traits_base<sycl::detail::info_class::device,
+                                   UR_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP> {
   using return_type = uint32_t;
-  using info_class = sycl::detail::info_class::device;
-  static constexpr ur_device_info_t ur_code =
-      UR_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP;
 };
 
 } // namespace ext::codeplay::experimental::info::device

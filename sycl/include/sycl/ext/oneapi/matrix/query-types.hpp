@@ -53,11 +53,11 @@ struct combination {
 // by the matrix extension header so consumers that don't query matrices
 // don't pay for matrix-unified-utils transitively.
 namespace ext::oneapi::experimental::info::device {
-struct matrix_combinations {
+// RT-only: dispatched via explicit CASE in device_impl.hpp; no UR enum.
+struct matrix_combinations
+    : sycl::detail::rt_traits_base<sycl::detail::info_class::device> {
   using return_type =
       std::vector<sycl::ext::oneapi::experimental::matrix::combination>;
-  using info_class = sycl::detail::info_class::device;
-  // RT-only: dispatched via explicit CASE in device_impl.hpp; no UR enum.
 };
 } // namespace ext::oneapi::experimental::info::device
 

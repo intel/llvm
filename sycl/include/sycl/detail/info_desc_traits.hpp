@@ -21,59 +21,71 @@
 //
 // `ur_code` is OPTIONAL. Traits dispatched via UR enum lookup must define it,
 // of the family-specific UR enum type (see `ur_code_type` member of each
-// info_class tag). Traits handled entirely SYCL-side (formerly tagged
-// `__SYCL_TRAIT_HANDLED_IN_RT`) simply omit `ur_code`; runtime dispatch hits an
-// explicit `CASE` switch in the *_impl headers and the UR fallthrough is never
-// instantiated for them.
+// info_class tag). Traits handled entirely SYCL-side simply omit `ur_code`;
+// runtime dispatch hits an explicit `CASE` switch in the *_impl headers and
+// the UR fallthrough is never instantiated for them.
 //
-// This header replaces the .def-file + macro-iterator pattern used by
-// `is_*_info_desc` / `UrInfoCode`. Both models coexist during migration; new
-// traits should use the self-describing form, old traits will be migrated
-// incrementally.
+// Most traits derive from `ur_traits_base` (UR-dispatched) or
+// `rt_traits_base` (RT-only) and add `using return_type = ...;` in the
+// derived body. The base intentionally does NOT carry `return_type` as a
+// template parameter — that would mangle `std::string`/`std::list` into the
+// derived layout name and trip the dual-ABI guard in
+// `sycl/test/abi/sycl_classes_abi_neutral_test.cpp`.
 
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
 namespace info_class {
-struct platform {
-  using ur_code_type = ur_platform_info_t;
-};
-struct context {
-  using ur_code_type = ur_context_info_t;
-};
-struct device {
-  using ur_code_type = ur_device_info_t;
-};
-struct queue {
-  using ur_code_type = ur_queue_info_t;
-};
-struct kernel {
-  using ur_code_type = ur_kernel_info_t;
-};
-struct kernel_device_specific {
-  // kernel_device_specific traits dispatch through three different UR APIs
-  // (urKernelGetGroupInfo, urKernelGetSubGroupInfo, urKernelGetInfo) and so
-  // mix three native UR enum families. The runtime helper picks the right
-  // call via IsSubGroupInfo / IsKernelInfo trait tags, passing
-  // `UrInfoCode<T>::value` directly to the chosen API. We therefore allow
-  // each trait to declare ur_code with its own native UR enum type and skip
-  // the family static_assert by leaving ur_code_type as void.
-  using ur_code_type = void;
-};
-struct kernel_queue_specific {
-  // No UR enum lookup applies; queries dispatch through dedicated kernel/queue
-  // call paths. Kept for type uniformity.
-  using ur_code_type = void;
-};
-struct event {
-  using ur_code_type = ur_event_info_t;
-};
-struct event_profiling {
-  using ur_code_type = ur_profiling_info_t;
-};
+// Common shape: each tag exposes the UR enum family used to query traits in
+// this class. `UrInfoCode` static_asserts each trait's `ur_code` against this
+// type so wrong-family enum values fail to compile with a clear diagnostic.
+// Tags whose traits dispatch through multiple UR APIs (or none) leave
+// `ur_code_type` as `void` to opt out of the family check.
+template <typename T> struct info_class_base { using ur_code_type = T; };
+
+struct platform : info_class_base<ur_platform_info_t> {};
+struct context : info_class_base<ur_context_info_t> {};
+struct device : info_class_base<ur_device_info_t> {};
+struct queue : info_class_base<ur_queue_info_t> {};
+struct kernel : info_class_base<ur_kernel_info_t> {};
+// kernel_device_specific traits dispatch through three different UR APIs
+// (urKernelGetGroupInfo, urKernelGetSubGroupInfo, urKernelGetInfo) and so
+// mix three native UR enum families. The runtime helper picks the right
+// call via IsSubGroupInfo / IsKernelInfo trait tags, passing
+// `UrInfoCode<T>::value` directly to the chosen API. We therefore allow
+// each trait to declare ur_code with its own native UR enum type and skip
+// the family static_assert by leaving ur_code_type as void.
+struct kernel_device_specific : info_class_base<void> {};
+// No UR enum lookup applies; queries dispatch through dedicated kernel/queue
+// call paths. Kept for type uniformity.
+struct kernel_queue_specific : info_class_base<void> {};
+struct event : info_class_base<ur_event_info_t> {};
+struct event_profiling : info_class_base<ur_profiling_info_t> {};
 } // namespace info_class
 
+// Common base for UR-dispatched traits. Derived structs inherit `info_class`
+// and `ur_code` and add `using return_type = ...;` in their body. `auto
+// UrCode` lets each derived trait pass its own native UR enum type
+// (ur_device_info_t, ur_kernel_group_info_t, etc.) without forcing a single
+// enum family at the base. Note: `return_type` is intentionally NOT a base
+// template parameter — see file-level comment.
+template <typename ClassT, auto UrCode> struct ur_traits_base {
+  using info_class = ClassT;
+  static constexpr decltype(UrCode) ur_code = UrCode;
+};
+
+// Common base for RT-only traits (no UR enum lookup). Derived structs inherit
+// `info_class` and add `using return_type = ...;`. Runtime dispatch hits an
+// explicit CASE in *_impl.hpp.
+template <typename ClassT> struct rt_traits_base {
+  using info_class = ClassT;
+};
+
+// Detects whether T looks like a self-describing info trait, i.e. it carries
+// both `return_type` and `info_class` members. Used to gate cross-checks that
+// only make sense once both members are present (e.g. UR enum family
+// validation in `UrInfoCode`).
 template <typename T, typename = void>
 struct is_self_describing_info_desc : std::false_type {};
 
@@ -82,6 +94,9 @@ struct is_self_describing_info_desc<
     T, std::void_t<typename T::return_type, typename T::info_class>>
     : std::true_type {};
 
+// Detects whether T carries a `ur_code` static member. RT-only traits omit
+// `ur_code`; runtime code paths gate UR fallthrough on this trait so the
+// `UrInfoCode<T>` template is never instantiated for non-UR traits.
 template <typename T, typename = void>
 struct is_ur_dispatched : std::false_type {};
 
@@ -89,6 +104,12 @@ template <typename T>
 struct is_ur_dispatched<T, std::void_t<decltype(T::ur_code)>> : std::true_type {
 };
 
+// Per-class type predicate plus return-type accessor. Used by per-object
+// `get_info_impl<T>()` dispatch helpers (e.g. `is_device_info_desc<T>`) to
+// confine each object's `get_info` to traits in the matching info_class
+// family, and to expose the trait's `return_type` for the function's return
+// signature. The `return_type` typedef here is load-bearing for ABI symbol
+// mangling — keep stable.
 template <typename T, typename Class, typename = void>
 struct is_info_desc_for : std::false_type {};
 

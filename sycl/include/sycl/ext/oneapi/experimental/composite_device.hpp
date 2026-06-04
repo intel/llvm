@@ -25,16 +25,16 @@ __SYCL_EXPORT std::vector<device> get_composite_devices();
 
 namespace info::device {
 
-struct component_devices {
+struct component_devices
+    : sycl::detail::ur_traits_base<sycl::detail::info_class::device,
+                                   UR_DEVICE_INFO_COMPONENT_DEVICES> {
   using return_type = std::vector<sycl::device>;
-  using info_class = sycl::detail::info_class::device;
-  static constexpr ur_device_info_t ur_code = UR_DEVICE_INFO_COMPONENT_DEVICES;
 };
 
-struct composite_device {
+struct composite_device
+    : sycl::detail::ur_traits_base<sycl::detail::info_class::device,
+                                   UR_DEVICE_INFO_COMPOSITE_DEVICE> {
   using return_type = sycl::device;
-  using info_class = sycl::detail::info_class::device;
-  static constexpr ur_device_info_t ur_code = UR_DEVICE_INFO_COMPOSITE_DEVICE;
 };
 
 } // namespace info::device

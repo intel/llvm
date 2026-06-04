@@ -29,25 +29,23 @@ enum class execution_scope {
 
 namespace info::device {
 
+// RT-only: dispatched via explicit CASE in device_impl.hpp; no UR enum.
 template <execution_scope CoordinationScope>
-struct work_group_progress_capabilities {
+struct work_group_progress_capabilities
+    : sycl::detail::rt_traits_base<sycl::detail::info_class::device> {
   using return_type = std::vector<forward_progress_guarantee>;
-  using info_class = sycl::detail::info_class::device;
-  // RT-only: dispatched via explicit CASE in device_impl.hpp; no UR enum.
 };
 
 template <execution_scope CoordinationScope>
-struct sub_group_progress_capabilities {
+struct sub_group_progress_capabilities
+    : sycl::detail::rt_traits_base<sycl::detail::info_class::device> {
   using return_type = std::vector<forward_progress_guarantee>;
-  using info_class = sycl::detail::info_class::device;
-  // RT-only: dispatched via explicit CASE in device_impl.hpp; no UR enum.
 };
 
 template <execution_scope CoordinationScope>
-struct work_item_progress_capabilities {
+struct work_item_progress_capabilities
+    : sycl::detail::rt_traits_base<sycl::detail::info_class::device> {
   using return_type = std::vector<forward_progress_guarantee>;
-  using info_class = sycl::detail::info_class::device;
-  // RT-only: dispatched via explicit CASE in device_impl.hpp; no UR enum.
 };
 
 } // namespace info::device

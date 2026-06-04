@@ -46,66 +46,58 @@ enum class memory_order;
 namespace info {
 // A.1 Platform information desctiptors
 namespace platform {
+template <ur_platform_info_t UrCode>
+using platform_traits =
+    sycl::detail::ur_traits_base<sycl::detail::info_class::platform, UrCode>;
+
 // TODO Despite giving this deprecation warning, we're still yet to implement
 // info::device::aspects.
 struct __SYCL2020_DEPRECATED("deprecated in SYCL 2020, use device::get_info() "
-                             "with info::device::aspects instead") extensions {
+                             "with info::device::aspects instead") extensions
+    : platform_traits<UR_PLATFORM_INFO_EXTENSIONS> {
   using return_type = std::vector<std::string>;
-  using info_class = sycl::detail::info_class::platform;
-  static constexpr ur_platform_info_t ur_code = UR_PLATFORM_INFO_EXTENSIONS;
 };
-struct profile {
+struct profile : platform_traits<UR_PLATFORM_INFO_PROFILE> {
   using return_type = std::string;
-  using info_class = sycl::detail::info_class::platform;
-  static constexpr ur_platform_info_t ur_code = UR_PLATFORM_INFO_PROFILE;
 };
-struct version {
+struct version : platform_traits<UR_PLATFORM_INFO_VERSION> {
   using return_type = std::string;
-  using info_class = sycl::detail::info_class::platform;
-  static constexpr ur_platform_info_t ur_code = UR_PLATFORM_INFO_VERSION;
 };
-struct name {
+struct name : platform_traits<UR_PLATFORM_INFO_NAME> {
   using return_type = std::string;
-  using info_class = sycl::detail::info_class::platform;
-  static constexpr ur_platform_info_t ur_code = UR_PLATFORM_INFO_NAME;
 };
-struct vendor {
+struct vendor : platform_traits<UR_PLATFORM_INFO_VENDOR_NAME> {
   using return_type = std::string;
-  using info_class = sycl::detail::info_class::platform;
-  static constexpr ur_platform_info_t ur_code = UR_PLATFORM_INFO_VENDOR_NAME;
 };
 } // namespace platform
 // A.2 Context information desctiptors
 namespace context {
-struct reference_count {
+template <ur_context_info_t UrCode>
+using context_traits =
+    sycl::detail::ur_traits_base<sycl::detail::info_class::context, UrCode>;
+using context_runtime_traits =
+    sycl::detail::rt_traits_base<sycl::detail::info_class::context>;
+
+struct reference_count : context_traits<UR_CONTEXT_INFO_REFERENCE_COUNT> {
   using return_type = uint32_t;
-  using info_class = sycl::detail::info_class::context;
-  static constexpr ur_context_info_t ur_code = UR_CONTEXT_INFO_REFERENCE_COUNT;
 };
-struct platform {
+struct platform : context_runtime_traits {
   using return_type = sycl::platform;
-  using info_class = sycl::detail::info_class::context;
 };
-struct devices {
+struct devices : context_traits<UR_CONTEXT_INFO_DEVICES> {
   using return_type = std::vector<sycl::device>;
-  using info_class = sycl::detail::info_class::context;
-  static constexpr ur_context_info_t ur_code = UR_CONTEXT_INFO_DEVICES;
 };
-struct atomic_memory_order_capabilities {
+struct atomic_memory_order_capabilities : context_runtime_traits {
   using return_type = std::vector<sycl::memory_order>;
-  using info_class = sycl::detail::info_class::context;
 };
-struct atomic_memory_scope_capabilities {
+struct atomic_memory_scope_capabilities : context_runtime_traits {
   using return_type = std::vector<sycl::memory_scope>;
-  using info_class = sycl::detail::info_class::context;
 };
-struct atomic_fence_order_capabilities {
+struct atomic_fence_order_capabilities : context_runtime_traits {
   using return_type = std::vector<sycl::memory_order>;
-  using info_class = sycl::detail::info_class::context;
 };
-struct atomic_fence_scope_capabilities {
+struct atomic_fence_scope_capabilities : context_runtime_traits {
   using return_type = std::vector<sycl::memory_scope>;
-  using info_class = sycl::detail::info_class::context;
 };
 } // namespace context
 
@@ -161,433 +153,550 @@ enum class execution_capability : unsigned int {
 
 namespace device {
 
-#define __SYCL_DEVICE_INFO(NAME, RETURN_T, UR_CODE)                            \
-  struct NAME {                                                                \
-    using return_type = RETURN_T;                                              \
-    using info_class = sycl::detail::info_class::device;                       \
-    static constexpr ur_device_info_t ur_code = UR_CODE;                       \
-  };
-#define __SYCL_DEVICE_INFO_RT(NAME, RETURN_T)                                  \
-  struct NAME {                                                                \
-    using return_type = RETURN_T;                                              \
-    using info_class = sycl::detail::info_class::device;                       \
-  };
-#define __SYCL_DEVICE_INFO_2020_DEP(NAME, RETURN_T, UR_CODE, MSG)              \
-  struct __SYCL2020_DEPRECATED(MSG) NAME {                                     \
-    using return_type = RETURN_T;                                              \
-    using info_class = sycl::detail::info_class::device;                       \
-    static constexpr ur_device_info_t ur_code = UR_CODE;                       \
-  };
-#define __SYCL_DEVICE_INFO_2020_DEP_RT(NAME, RETURN_T, MSG)                    \
-  struct __SYCL2020_DEPRECATED(MSG) NAME {                                     \
-    using return_type = RETURN_T;                                              \
-    using info_class = sycl::detail::info_class::device;                       \
-  };
-#define __SYCL_DEVICE_INFO_DEP(NAME, RETURN_T, UR_CODE, MSG)                   \
-  struct __SYCL_DEPRECATED(MSG) NAME {                                         \
-    using return_type = RETURN_T;                                              \
-    using info_class = sycl::detail::info_class::device;                       \
-    static constexpr ur_device_info_t ur_code = UR_CODE;                       \
-  };
-#define __SYCL_DEVICE_INFO_DEP_RT(NAME, RETURN_T, MSG)                         \
-  struct __SYCL_DEPRECATED(MSG) NAME {                                         \
-    using return_type = RETURN_T;                                              \
-    using info_class = sycl::detail::info_class::device;                       \
-  };
+template <ur_device_info_t UrCode>
+using device_traits =
+    sycl::detail::ur_traits_base<sycl::detail::info_class::device, UrCode>;
+using device_runtime_traits =
+    sycl::detail::rt_traits_base<sycl::detail::info_class::device>;
 
-__SYCL_DEVICE_INFO(device_type, info::device_type, UR_DEVICE_INFO_TYPE)
-__SYCL_DEVICE_INFO(vendor_id, uint32_t, UR_DEVICE_INFO_VENDOR_ID)
-__SYCL_DEVICE_INFO(max_compute_units, uint32_t,
-                   UR_DEVICE_INFO_MAX_COMPUTE_UNITS)
-__SYCL_DEVICE_INFO(max_work_item_dimensions, uint32_t,
-                   UR_DEVICE_INFO_MAX_WORK_ITEM_DIMENSIONS)
+struct device_type : device_traits<UR_DEVICE_INFO_TYPE> {
+  using return_type = info::device_type;
+};
+struct vendor_id : device_traits<UR_DEVICE_INFO_VENDOR_ID> {
+  using return_type = uint32_t;
+};
+struct max_compute_units : device_traits<UR_DEVICE_INFO_MAX_COMPUTE_UNITS> {
+  using return_type = uint32_t;
+};
+struct max_work_item_dimensions
+    : device_traits<UR_DEVICE_INFO_MAX_WORK_ITEM_DIMENSIONS> {
+  using return_type = uint32_t;
+};
 
 template <int Dimensions = 3> struct max_work_item_sizes;
-template <> struct max_work_item_sizes<1> {
+template <>
+struct max_work_item_sizes<1>
+    : device_traits<UR_DEVICE_INFO_MAX_WORK_ITEM_SIZES> {
   using return_type = range<1>;
-  using info_class = sycl::detail::info_class::device;
-  static constexpr ur_device_info_t ur_code =
-      UR_DEVICE_INFO_MAX_WORK_ITEM_SIZES;
 };
-template <> struct max_work_item_sizes<2> {
+template <>
+struct max_work_item_sizes<2>
+    : device_traits<UR_DEVICE_INFO_MAX_WORK_ITEM_SIZES> {
   using return_type = range<2>;
-  using info_class = sycl::detail::info_class::device;
-  static constexpr ur_device_info_t ur_code =
-      UR_DEVICE_INFO_MAX_WORK_ITEM_SIZES;
 };
-template <> struct max_work_item_sizes<3> {
+template <>
+struct max_work_item_sizes<3>
+    : device_traits<UR_DEVICE_INFO_MAX_WORK_ITEM_SIZES> {
   using return_type = range<3>;
-  using info_class = sycl::detail::info_class::device;
-  static constexpr ur_device_info_t ur_code =
-      UR_DEVICE_INFO_MAX_WORK_ITEM_SIZES;
 };
 
-__SYCL_DEVICE_INFO(max_work_group_size, size_t,
-                   UR_DEVICE_INFO_MAX_WORK_GROUP_SIZE)
-__SYCL_DEVICE_INFO(max_num_sub_groups, uint32_t,
-                   UR_DEVICE_INFO_MAX_NUM_SUB_GROUPS)
-__SYCL_DEVICE_INFO(sub_group_sizes, std::vector<size_t>,
-                   UR_DEVICE_INFO_SUB_GROUP_SIZES_INTEL)
-__SYCL_DEVICE_INFO(preferred_vector_width_char, uint32_t,
-                   UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_CHAR)
-__SYCL_DEVICE_INFO(preferred_vector_width_short, uint32_t,
-                   UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_SHORT)
-__SYCL_DEVICE_INFO(preferred_vector_width_int, uint32_t,
-                   UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_INT)
-__SYCL_DEVICE_INFO(preferred_vector_width_long, uint32_t,
-                   UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_LONG)
-__SYCL_DEVICE_INFO(preferred_vector_width_long_long, uint32_t,
-                   UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_LONG_LONG)
-__SYCL_DEVICE_INFO(preferred_vector_width_float, uint32_t,
-                   UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_FLOAT)
-__SYCL_DEVICE_INFO(preferred_vector_width_double, uint32_t,
-                   UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_DOUBLE)
-__SYCL_DEVICE_INFO(preferred_vector_width_half, uint32_t,
-                   UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_HALF)
-__SYCL_DEVICE_INFO(native_vector_width_char, uint32_t,
-                   UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_CHAR)
-__SYCL_DEVICE_INFO(native_vector_width_short, uint32_t,
-                   UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_SHORT)
-__SYCL_DEVICE_INFO(native_vector_width_int, uint32_t,
-                   UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_INT)
-__SYCL_DEVICE_INFO(native_vector_width_long, uint32_t,
-                   UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG)
-__SYCL_DEVICE_INFO(native_vector_width_long_long, uint32_t,
-                   UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG_LONG)
-__SYCL_DEVICE_INFO(native_vector_width_float, uint32_t,
-                   UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_FLOAT)
-__SYCL_DEVICE_INFO(native_vector_width_double, uint32_t,
-                   UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_DOUBLE)
-__SYCL_DEVICE_INFO(native_vector_width_half, uint32_t,
-                   UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_HALF)
-__SYCL_DEVICE_INFO(max_clock_frequency, uint32_t,
-                   UR_DEVICE_INFO_MAX_CLOCK_FREQUENCY)
-__SYCL_DEVICE_INFO(address_bits, uint32_t, UR_DEVICE_INFO_ADDRESS_BITS)
-__SYCL_DEVICE_INFO(max_mem_alloc_size, uint64_t,
-                   UR_DEVICE_INFO_MAX_MEM_ALLOC_SIZE)
-__SYCL_DEVICE_INFO(max_read_image_args, uint32_t,
-                   UR_DEVICE_INFO_MAX_READ_IMAGE_ARGS)
-__SYCL_DEVICE_INFO(max_write_image_args, uint32_t,
-                   UR_DEVICE_INFO_MAX_WRITE_IMAGE_ARGS)
-__SYCL_DEVICE_INFO(image2d_max_width, size_t, UR_DEVICE_INFO_IMAGE2D_MAX_WIDTH)
-__SYCL_DEVICE_INFO(image2d_max_height, size_t,
-                   UR_DEVICE_INFO_IMAGE2D_MAX_HEIGHT)
-__SYCL_DEVICE_INFO(image3d_max_width, size_t, UR_DEVICE_INFO_IMAGE3D_MAX_WIDTH)
-__SYCL_DEVICE_INFO(image3d_max_height, size_t,
-                   UR_DEVICE_INFO_IMAGE3D_MAX_HEIGHT)
-__SYCL_DEVICE_INFO(image3d_max_depth, size_t, UR_DEVICE_INFO_IMAGE3D_MAX_DEPTH)
-__SYCL_DEVICE_INFO(image_max_buffer_size, size_t,
-                   UR_DEVICE_INFO_IMAGE_MAX_BUFFER_SIZE)
-__SYCL_DEVICE_INFO(max_samplers, uint32_t, UR_DEVICE_INFO_MAX_SAMPLERS)
-__SYCL_DEVICE_INFO(max_parameter_size, size_t,
-                   UR_DEVICE_INFO_MAX_PARAMETER_SIZE)
-__SYCL_DEVICE_INFO(mem_base_addr_align, uint32_t,
-                   UR_DEVICE_INFO_MEM_BASE_ADDR_ALIGN)
-__SYCL_DEVICE_INFO(half_fp_config, std::vector<info::fp_config>,
-                   UR_DEVICE_INFO_HALF_FP_CONFIG)
-__SYCL_DEVICE_INFO(single_fp_config, std::vector<info::fp_config>,
-                   UR_DEVICE_INFO_SINGLE_FP_CONFIG)
-__SYCL_DEVICE_INFO(double_fp_config, std::vector<info::fp_config>,
-                   UR_DEVICE_INFO_DOUBLE_FP_CONFIG)
-__SYCL_DEVICE_INFO(global_mem_cache_type, info::global_mem_cache_type,
-                   UR_DEVICE_INFO_GLOBAL_MEM_CACHE_TYPE)
-__SYCL_DEVICE_INFO(global_mem_cache_line_size, uint32_t,
-                   UR_DEVICE_INFO_GLOBAL_MEM_CACHELINE_SIZE)
-__SYCL_DEVICE_INFO(global_mem_cache_size, uint64_t,
-                   UR_DEVICE_INFO_GLOBAL_MEM_CACHE_SIZE)
-__SYCL_DEVICE_INFO(global_mem_size, uint64_t, UR_DEVICE_INFO_GLOBAL_MEM_SIZE)
-__SYCL_DEVICE_INFO_2020_DEP(max_constant_buffer_size, uint64_t,
-                            UR_DEVICE_INFO_MAX_CONSTANT_BUFFER_SIZE,
-                            "deprecated in SYCL 2020")
-__SYCL_DEVICE_INFO_2020_DEP(max_constant_args, uint32_t,
-                            UR_DEVICE_INFO_MAX_CONSTANT_ARGS,
-                            "deprecated in SYCL 2020")
-__SYCL_DEVICE_INFO(local_mem_type, info::local_mem_type,
-                   UR_DEVICE_INFO_LOCAL_MEM_TYPE)
-__SYCL_DEVICE_INFO(local_mem_size, uint64_t, UR_DEVICE_INFO_LOCAL_MEM_SIZE)
-__SYCL_DEVICE_INFO(error_correction_support, bool,
-                   UR_DEVICE_INFO_ERROR_CORRECTION_SUPPORT)
-__SYCL_DEVICE_INFO_2020_DEP(host_unified_memory, bool,
-                            UR_DEVICE_INFO_HOST_UNIFIED_MEMORY,
-                            "deprecated in SYCL 2020, use device::has() with "
-                            "one of the aspect::usm_* aspects instead")
-__SYCL_DEVICE_INFO(atomic_memory_order_capabilities,
-                   std::vector<sycl::memory_order>,
-                   UR_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES)
-__SYCL_DEVICE_INFO(atomic_fence_order_capabilities,
-                   std::vector<sycl::memory_order>,
-                   UR_DEVICE_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES)
-__SYCL_DEVICE_INFO(atomic_memory_scope_capabilities,
-                   std::vector<sycl::memory_scope>,
-                   UR_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES)
-__SYCL_DEVICE_INFO(atomic_fence_scope_capabilities,
-                   std::vector<sycl::memory_scope>,
-                   UR_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES)
-__SYCL_DEVICE_INFO(profiling_timer_resolution, size_t,
-                   UR_DEVICE_INFO_PROFILING_TIMER_RESOLUTION)
-__SYCL_DEVICE_INFO_2020_DEP(is_endian_little, bool,
-                            UR_DEVICE_INFO_ENDIAN_LITTLE,
-                            "deprecated in SYCL 2020, check the byte order of "
-                            "the host system instead, the host and the device "
-                            "are required to have the same byte order")
-__SYCL_DEVICE_INFO(is_available, bool, UR_DEVICE_INFO_AVAILABLE)
-__SYCL_DEVICE_INFO_2020_DEP(is_compiler_available, bool,
-                            UR_DEVICE_INFO_COMPILER_AVAILABLE,
-                            "deprecated in SYCL 2020, use "
-                            "device::has(aspect::online_compiler) instead")
-__SYCL_DEVICE_INFO_2020_DEP(is_linker_available, bool,
-                            UR_DEVICE_INFO_LINKER_AVAILABLE,
-                            "deprecated in SYCL 2020, use "
-                            "device::has(aspect::online_linker) instead")
-__SYCL_DEVICE_INFO(execution_capabilities,
-                   std::vector<info::execution_capability>,
-                   UR_DEVICE_INFO_EXECUTION_CAPABILITIES)
-__SYCL_DEVICE_INFO_2020_DEP(queue_profiling, bool,
-                            UR_DEVICE_INFO_QUEUE_PROPERTIES,
-                            "deprecated in SYCL 2020, use "
-                            "device::has(aspect::queue_profiling) instead")
+struct max_work_group_size : device_traits<UR_DEVICE_INFO_MAX_WORK_GROUP_SIZE> {
+  using return_type = size_t;
+};
+struct max_num_sub_groups : device_traits<UR_DEVICE_INFO_MAX_NUM_SUB_GROUPS> {
+  using return_type = uint32_t;
+};
+struct sub_group_sizes : device_traits<UR_DEVICE_INFO_SUB_GROUP_SIZES_INTEL> {
+  using return_type = std::vector<size_t>;
+};
+struct preferred_vector_width_char
+    : device_traits<UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_CHAR> {
+  using return_type = uint32_t;
+};
+struct preferred_vector_width_short
+    : device_traits<UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_SHORT> {
+  using return_type = uint32_t;
+};
+struct preferred_vector_width_int
+    : device_traits<UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_INT> {
+  using return_type = uint32_t;
+};
+struct preferred_vector_width_long
+    : device_traits<UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_LONG> {
+  using return_type = uint32_t;
+};
+struct preferred_vector_width_long_long
+    : device_traits<UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_LONG_LONG> {
+  using return_type = uint32_t;
+};
+struct preferred_vector_width_float
+    : device_traits<UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_FLOAT> {
+  using return_type = uint32_t;
+};
+struct preferred_vector_width_double
+    : device_traits<UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_DOUBLE> {
+  using return_type = uint32_t;
+};
+struct preferred_vector_width_half
+    : device_traits<UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_HALF> {
+  using return_type = uint32_t;
+};
+struct native_vector_width_char
+    : device_traits<UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_CHAR> {
+  using return_type = uint32_t;
+};
+struct native_vector_width_short
+    : device_traits<UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_SHORT> {
+  using return_type = uint32_t;
+};
+struct native_vector_width_int
+    : device_traits<UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_INT> {
+  using return_type = uint32_t;
+};
+struct native_vector_width_long
+    : device_traits<UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG> {
+  using return_type = uint32_t;
+};
+struct native_vector_width_long_long
+    : device_traits<UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG_LONG> {
+  using return_type = uint32_t;
+};
+struct native_vector_width_float
+    : device_traits<UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_FLOAT> {
+  using return_type = uint32_t;
+};
+struct native_vector_width_double
+    : device_traits<UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_DOUBLE> {
+  using return_type = uint32_t;
+};
+struct native_vector_width_half
+    : device_traits<UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_HALF> {
+  using return_type = uint32_t;
+};
+struct max_clock_frequency : device_traits<UR_DEVICE_INFO_MAX_CLOCK_FREQUENCY> {
+  using return_type = uint32_t;
+};
+struct address_bits : device_traits<UR_DEVICE_INFO_ADDRESS_BITS> {
+  using return_type = uint32_t;
+};
+struct max_mem_alloc_size : device_traits<UR_DEVICE_INFO_MAX_MEM_ALLOC_SIZE> {
+  using return_type = uint64_t;
+};
+struct max_read_image_args : device_traits<UR_DEVICE_INFO_MAX_READ_IMAGE_ARGS> {
+  using return_type = uint32_t;
+};
+struct max_write_image_args
+    : device_traits<UR_DEVICE_INFO_MAX_WRITE_IMAGE_ARGS> {
+  using return_type = uint32_t;
+};
+struct image2d_max_width : device_traits<UR_DEVICE_INFO_IMAGE2D_MAX_WIDTH> {
+  using return_type = size_t;
+};
+struct image2d_max_height : device_traits<UR_DEVICE_INFO_IMAGE2D_MAX_HEIGHT> {
+  using return_type = size_t;
+};
+struct image3d_max_width : device_traits<UR_DEVICE_INFO_IMAGE3D_MAX_WIDTH> {
+  using return_type = size_t;
+};
+struct image3d_max_height : device_traits<UR_DEVICE_INFO_IMAGE3D_MAX_HEIGHT> {
+  using return_type = size_t;
+};
+struct image3d_max_depth : device_traits<UR_DEVICE_INFO_IMAGE3D_MAX_DEPTH> {
+  using return_type = size_t;
+};
+struct image_max_buffer_size
+    : device_traits<UR_DEVICE_INFO_IMAGE_MAX_BUFFER_SIZE> {
+  using return_type = size_t;
+};
+struct max_samplers : device_traits<UR_DEVICE_INFO_MAX_SAMPLERS> {
+  using return_type = uint32_t;
+};
+struct max_parameter_size : device_traits<UR_DEVICE_INFO_MAX_PARAMETER_SIZE> {
+  using return_type = size_t;
+};
+struct mem_base_addr_align : device_traits<UR_DEVICE_INFO_MEM_BASE_ADDR_ALIGN> {
+  using return_type = uint32_t;
+};
+struct half_fp_config : device_traits<UR_DEVICE_INFO_HALF_FP_CONFIG> {
+  using return_type = std::vector<info::fp_config>;
+};
+struct single_fp_config : device_traits<UR_DEVICE_INFO_SINGLE_FP_CONFIG> {
+  using return_type = std::vector<info::fp_config>;
+};
+struct double_fp_config : device_traits<UR_DEVICE_INFO_DOUBLE_FP_CONFIG> {
+  using return_type = std::vector<info::fp_config>;
+};
+struct global_mem_cache_type
+    : device_traits<UR_DEVICE_INFO_GLOBAL_MEM_CACHE_TYPE> {
+  using return_type = info::global_mem_cache_type;
+};
+struct global_mem_cache_line_size
+    : device_traits<UR_DEVICE_INFO_GLOBAL_MEM_CACHELINE_SIZE> {
+  using return_type = uint32_t;
+};
+struct global_mem_cache_size
+    : device_traits<UR_DEVICE_INFO_GLOBAL_MEM_CACHE_SIZE> {
+  using return_type = uint64_t;
+};
+struct global_mem_size : device_traits<UR_DEVICE_INFO_GLOBAL_MEM_SIZE> {
+  using return_type = uint64_t;
+};
+struct __SYCL2020_DEPRECATED("deprecated in SYCL 2020") max_constant_buffer_size
+    : device_traits<UR_DEVICE_INFO_MAX_CONSTANT_BUFFER_SIZE> {
+  using return_type = uint64_t;
+};
+struct __SYCL2020_DEPRECATED("deprecated in SYCL 2020") max_constant_args
+    : device_traits<UR_DEVICE_INFO_MAX_CONSTANT_ARGS> {
+  using return_type = uint32_t;
+};
+struct local_mem_type : device_traits<UR_DEVICE_INFO_LOCAL_MEM_TYPE> {
+  using return_type = info::local_mem_type;
+};
+struct local_mem_size : device_traits<UR_DEVICE_INFO_LOCAL_MEM_SIZE> {
+  using return_type = uint64_t;
+};
+struct error_correction_support
+    : device_traits<UR_DEVICE_INFO_ERROR_CORRECTION_SUPPORT> {
+  using return_type = bool;
+};
+struct __SYCL2020_DEPRECATED("deprecated in SYCL 2020, use device::has() with "
+                             "one of the aspect::usm_* aspects instead")
+    host_unified_memory : device_traits<UR_DEVICE_INFO_HOST_UNIFIED_MEMORY> {
+  using return_type = bool;
+};
+struct atomic_memory_order_capabilities
+    : device_traits<UR_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES> {
+  using return_type = std::vector<sycl::memory_order>;
+};
+struct atomic_fence_order_capabilities
+    : device_traits<UR_DEVICE_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES> {
+  using return_type = std::vector<sycl::memory_order>;
+};
+struct atomic_memory_scope_capabilities
+    : device_traits<UR_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES> {
+  using return_type = std::vector<sycl::memory_scope>;
+};
+struct atomic_fence_scope_capabilities
+    : device_traits<UR_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES> {
+  using return_type = std::vector<sycl::memory_scope>;
+};
+struct profiling_timer_resolution
+    : device_traits<UR_DEVICE_INFO_PROFILING_TIMER_RESOLUTION> {
+  using return_type = size_t;
+};
+struct __SYCL2020_DEPRECATED(
+    "deprecated in SYCL 2020, check the byte order of "
+    "the host system instead, the host and the device "
+    "are required to have the same byte order") is_endian_little
+    : device_traits<UR_DEVICE_INFO_ENDIAN_LITTLE> {
+  using return_type = bool;
+};
+struct is_available : device_traits<UR_DEVICE_INFO_AVAILABLE> {
+  using return_type = bool;
+};
+struct __SYCL2020_DEPRECATED("deprecated in SYCL 2020, use "
+                             "device::has(aspect::online_compiler) instead")
+    is_compiler_available
+    : device_traits<UR_DEVICE_INFO_COMPILER_AVAILABLE> {
+  using return_type = bool;
+};
+struct __SYCL2020_DEPRECATED("deprecated in SYCL 2020, use "
+                             "device::has(aspect::online_linker) instead")
+    is_linker_available : device_traits<UR_DEVICE_INFO_LINKER_AVAILABLE> {
+  using return_type = bool;
+};
+struct execution_capabilities
+    : device_traits<UR_DEVICE_INFO_EXECUTION_CAPABILITIES> {
+  using return_type = std::vector<info::execution_capability>;
+};
+struct __SYCL2020_DEPRECATED("deprecated in SYCL 2020, use "
+                             "device::has(aspect::queue_profiling) instead")
+    queue_profiling : device_traits<UR_DEVICE_INFO_QUEUE_PROPERTIES> {
+  using return_type = bool;
+};
 // TODO: UR_DEVICE_INFO_FORCE_UINT32 looks wrong here:
-__SYCL_DEVICE_INFO(built_in_kernel_ids, std::vector<sycl::kernel_id>,
-                   UR_DEVICE_INFO_FORCE_UINT32)
-__SYCL_DEVICE_INFO_2020_DEP(built_in_kernels, std::vector<std::string>,
-                            UR_DEVICE_INFO_BUILT_IN_KERNELS,
-                            "deprecated in SYCL 2020, use "
-                            "info::device::built_in_kernel_ids instead")
-__SYCL_DEVICE_INFO(platform, sycl::platform, UR_DEVICE_INFO_PLATFORM)
-__SYCL_DEVICE_INFO(name, std::string, UR_DEVICE_INFO_NAME)
-__SYCL_DEVICE_INFO(vendor, std::string, UR_DEVICE_INFO_VENDOR)
-__SYCL_DEVICE_INFO(driver_version, std::string, UR_DEVICE_INFO_DRIVER_VERSION)
-__SYCL_DEVICE_INFO_2020_DEP(profile, std::string, UR_DEVICE_INFO_PROFILE,
-                            "deprecated in SYCL 2020")
-__SYCL_DEVICE_INFO(version, std::string, UR_DEVICE_INFO_VERSION)
-__SYCL_DEVICE_INFO(backend_version, std::string,
-                   UR_DEVICE_INFO_BACKEND_RUNTIME_VERSION)
-__SYCL_DEVICE_INFO_2020_DEP(extensions, std::vector<std::string>,
-                            UR_DEVICE_INFO_EXTENSIONS,
-                            "deprecated in SYCL 2020, use "
-                            "info::device::aspects instead")
-__SYCL_DEVICE_INFO_2020_DEP(printf_buffer_size, size_t,
-                            UR_DEVICE_INFO_PRINTF_BUFFER_SIZE,
-                            "deprecated in SYCL 2020")
-__SYCL_DEVICE_INFO_2020_DEP(preferred_interop_user_sync, bool,
-                            UR_DEVICE_INFO_PREFERRED_INTEROP_USER_SYNC,
-                            "deprecated in SYCL 2020")
-__SYCL_DEVICE_INFO(partition_max_sub_devices, uint32_t,
-                   UR_DEVICE_INFO_PARTITION_MAX_SUB_DEVICES)
-__SYCL_DEVICE_INFO(partition_properties, std::vector<info::partition_property>,
-                   UR_DEVICE_INFO_SUPPORTED_PARTITIONS)
-__SYCL_DEVICE_INFO(partition_affinity_domains,
-                   std::vector<info::partition_affinity_domain>,
-                   UR_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN)
-__SYCL_DEVICE_INFO(partition_type_property, info::partition_property,
-                   UR_DEVICE_INFO_PARTITION_TYPE)
-__SYCL_DEVICE_INFO(partition_type_affinity_domain,
-                   info::partition_affinity_domain,
-                   UR_DEVICE_INFO_PARTITION_TYPE)
+struct built_in_kernel_ids : device_traits<UR_DEVICE_INFO_FORCE_UINT32> {
+  using return_type = std::vector<sycl::kernel_id>;
+};
+struct __SYCL2020_DEPRECATED("deprecated in SYCL 2020, use "
+                             "info::device::built_in_kernel_ids instead")
+    built_in_kernels : device_traits<UR_DEVICE_INFO_BUILT_IN_KERNELS> {
+  using return_type = std::vector<std::string>;
+};
+struct platform : device_traits<UR_DEVICE_INFO_PLATFORM> {
+  using return_type = sycl::platform;
+};
+struct name : device_traits<UR_DEVICE_INFO_NAME> {
+  using return_type = std::string;
+};
+struct vendor : device_traits<UR_DEVICE_INFO_VENDOR> {
+  using return_type = std::string;
+};
+struct driver_version : device_traits<UR_DEVICE_INFO_DRIVER_VERSION> {
+  using return_type = std::string;
+};
+struct __SYCL2020_DEPRECATED("deprecated in SYCL 2020") profile
+    : device_traits<UR_DEVICE_INFO_PROFILE> {
+  using return_type = std::string;
+};
+struct version : device_traits<UR_DEVICE_INFO_VERSION> {
+  using return_type = std::string;
+};
+struct backend_version : device_traits<UR_DEVICE_INFO_BACKEND_RUNTIME_VERSION> {
+  using return_type = std::string;
+};
+struct __SYCL2020_DEPRECATED("deprecated in SYCL 2020, use "
+                             "info::device::aspects instead") extensions
+    : device_traits<UR_DEVICE_INFO_EXTENSIONS> {
+  using return_type = std::vector<std::string>;
+};
+struct __SYCL2020_DEPRECATED("deprecated in SYCL 2020") printf_buffer_size
+    : device_traits<UR_DEVICE_INFO_PRINTF_BUFFER_SIZE> {
+  using return_type = size_t;
+};
+struct __SYCL2020_DEPRECATED("deprecated in SYCL 2020")
+    preferred_interop_user_sync
+    : device_traits<UR_DEVICE_INFO_PREFERRED_INTEROP_USER_SYNC> {
+  using return_type = bool;
+};
+struct partition_max_sub_devices
+    : device_traits<UR_DEVICE_INFO_PARTITION_MAX_SUB_DEVICES> {
+  using return_type = uint32_t;
+};
+struct partition_properties : device_traits<UR_DEVICE_INFO_SUPPORTED_PARTITIONS> {
+  using return_type = std::vector<info::partition_property>;
+};
+struct partition_affinity_domains
+    : device_traits<UR_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN> {
+  using return_type = std::vector<info::partition_affinity_domain>;
+};
+struct partition_type_property
+    : device_traits<UR_DEVICE_INFO_PARTITION_TYPE> {
+  using return_type = info::partition_property;
+};
+struct partition_type_affinity_domain
+    : device_traits<UR_DEVICE_INFO_PARTITION_TYPE> {
+  using return_type = info::partition_affinity_domain;
+};
 
 // Has custom specialization in device.cpp.
-__SYCL_DEVICE_INFO(parent_device, sycl::device, UR_DEVICE_INFO_PARENT_DEVICE)
-__SYCL_DEVICE_INFO(aspects, std::vector<sycl::aspect>,
-                   UR_DEVICE_INFO_FORCE_UINT32)
-__SYCL_DEVICE_INFO_2020_DEP(image_support, bool, UR_DEVICE_INFO_FORCE_UINT32,
-                            "deprecated in SYCL 2020, use "
-                            "device::has(aspect::ext_intel_legacy_image) to "
-                            "query for SYCL 1.2.1 image support")
+struct parent_device : device_traits<UR_DEVICE_INFO_PARENT_DEVICE> {
+  using return_type = sycl::device;
+};
+struct aspects : device_traits<UR_DEVICE_INFO_FORCE_UINT32> {
+  using return_type = std::vector<sycl::aspect>;
+};
+struct __SYCL2020_DEPRECATED(
+    "deprecated in SYCL 2020, use "
+    "device::has(aspect::ext_intel_legacy_image) to "
+    "query for SYCL 1.2.1 image support") image_support
+    : device_traits<UR_DEVICE_INFO_FORCE_UINT32> {
+  using return_type = bool;
+};
 
 // Extensions/deprecated
-__SYCL_DEVICE_INFO_DEP(atomic64, bool, UR_DEVICE_INFO_ATOMIC_64,
-                       "use sycl::aspect::atomic64 instead")
-__SYCL_DEVICE_INFO(reference_count, uint32_t, UR_DEVICE_INFO_REFERENCE_COUNT)
+struct __SYCL_DEPRECATED("use sycl::aspect::atomic64 instead") atomic64
+    : device_traits<UR_DEVICE_INFO_ATOMIC_64> {
+  using return_type = bool;
+};
+struct reference_count : device_traits<UR_DEVICE_INFO_REFERENCE_COUNT> {
+  using return_type = uint32_t;
+};
 // To be dropped (has alternatives/not needed)
-__SYCL_DEVICE_INFO(usm_device_allocations, bool,
-                   UR_DEVICE_INFO_USM_DEVICE_SUPPORT)
-__SYCL_DEVICE_INFO(usm_host_allocations, bool, UR_DEVICE_INFO_USM_HOST_SUPPORT)
-__SYCL_DEVICE_INFO(usm_shared_allocations, bool,
-                   UR_DEVICE_INFO_USM_SINGLE_SHARED_SUPPORT)
-__SYCL_DEVICE_INFO(usm_restricted_shared_allocations, bool,
-                   UR_DEVICE_INFO_USM_CROSS_SHARED_SUPPORT)
-__SYCL_DEVICE_INFO(usm_system_allocations, bool,
-                   UR_DEVICE_INFO_USM_SYSTEM_SHARED_SUPPORT)
-__SYCL_DEVICE_INFO_DEP(image_max_array_size, size_t,
-                       UR_DEVICE_INFO_IMAGE_MAX_ARRAY_SIZE,
-                       "support for image arrays has been removed in SYCL "
-                       "2020")
+struct usm_device_allocations : device_traits<UR_DEVICE_INFO_USM_DEVICE_SUPPORT> {
+  using return_type = bool;
+};
+struct usm_host_allocations : device_traits<UR_DEVICE_INFO_USM_HOST_SUPPORT> {
+  using return_type = bool;
+};
+struct usm_shared_allocations
+    : device_traits<UR_DEVICE_INFO_USM_SINGLE_SHARED_SUPPORT> {
+  using return_type = bool;
+};
+struct usm_restricted_shared_allocations
+    : device_traits<UR_DEVICE_INFO_USM_CROSS_SHARED_SUPPORT> {
+  using return_type = bool;
+};
+struct usm_system_allocations
+    : device_traits<UR_DEVICE_INFO_USM_SYSTEM_SHARED_SUPPORT> {
+  using return_type = bool;
+};
+struct __SYCL_DEPRECATED("support for image arrays has been removed in SYCL "
+                         "2020") image_max_array_size
+    : device_traits<UR_DEVICE_INFO_IMAGE_MAX_ARRAY_SIZE> {
+  using return_type = size_t;
+};
 // To be dropped (no alternatives)
-__SYCL_DEVICE_INFO_DEP_RT(opencl_c_version, std::string,
-                          "use device::get_info instead")
+struct __SYCL_DEPRECATED("use device::get_info instead") opencl_c_version
+    : device_runtime_traits {
+  using return_type = std::string;
+};
 // Extensions
-__SYCL_DEVICE_INFO(sub_group_independent_forward_progress, bool,
-                   UR_DEVICE_INFO_SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS)
-__SYCL_DEVICE_INFO(ext_oneapi_srgb, bool, UR_DEVICE_INFO_IMAGE_SRGB)
+struct sub_group_independent_forward_progress
+    : device_traits<UR_DEVICE_INFO_SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS> {
+  using return_type = bool;
+};
+struct ext_oneapi_srgb : device_traits<UR_DEVICE_INFO_IMAGE_SRGB> {
+  using return_type = bool;
+};
 
 // Deprecated oneapi/intel extension
 // TODO: Remove when possible
-__SYCL_DEVICE_INFO_DEP(ext_intel_pci_address, std::string,
-                       UR_DEVICE_INFO_PCI_ADDRESS,
-                       "use ext::intel::info::device::pci_address instead")
-__SYCL_DEVICE_INFO_DEP(ext_intel_gpu_eu_count, uint32_t,
-                       UR_DEVICE_INFO_GPU_EU_COUNT,
-                       "use ext::intel::info::device::gpu_eu_count instead")
-__SYCL_DEVICE_INFO_DEP(ext_intel_gpu_eu_simd_width, uint32_t,
-                       UR_DEVICE_INFO_GPU_EU_SIMD_WIDTH,
-                       "use ext::intel::info::device::gpu_eu_simd_width "
-                       "instead")
-__SYCL_DEVICE_INFO_DEP(ext_intel_gpu_slices, uint32_t,
-                       UR_DEVICE_INFO_GPU_EU_SLICES,
-                       "use ext::intel::info::device::gpu_slices instead")
-__SYCL_DEVICE_INFO_DEP(ext_intel_gpu_subslices_per_slice, uint32_t,
-                       UR_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE,
-                       "use ext::intel::info::device::gpu_subslices_per_slice"
-                       " instead")
-__SYCL_DEVICE_INFO_DEP(ext_intel_gpu_eu_count_per_subslice, uint32_t,
-                       UR_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE,
-                       "use ext::intel::info::device::"
-                       "gpu_eu_count_per_subslice instead")
-__SYCL_DEVICE_INFO_DEP(ext_intel_gpu_hw_threads_per_eu, uint32_t,
-                       UR_DEVICE_INFO_GPU_HW_THREADS_PER_EU,
-                       "use ext::intel::info::device::gpu_hw_threads_per_eu "
-                       "instead")
-__SYCL_DEVICE_INFO_DEP(ext_intel_device_info_uuid, detail::uuid_type,
-                       UR_DEVICE_INFO_UUID,
-                       "use ext::intel::info::device::uuid instead")
-__SYCL_DEVICE_INFO_DEP(ext_intel_max_mem_bandwidth, uint64_t,
-                       UR_DEVICE_INFO_MAX_MEMORY_BANDWIDTH,
-                       "use ext::intel::info::device::max_mem_bandwidth "
-                       "instead")
+struct __SYCL_DEPRECATED("use ext::intel::info::device::pci_address instead")
+    ext_intel_pci_address : device_traits<UR_DEVICE_INFO_PCI_ADDRESS> {
+  using return_type = std::string;
+};
+struct __SYCL_DEPRECATED("use ext::intel::info::device::gpu_eu_count instead")
+    ext_intel_gpu_eu_count : device_traits<UR_DEVICE_INFO_GPU_EU_COUNT> {
+  using return_type = uint32_t;
+};
+struct __SYCL_DEPRECATED(
+    "use ext::intel::info::device::gpu_eu_simd_width instead")
+    ext_intel_gpu_eu_simd_width
+    : device_traits<UR_DEVICE_INFO_GPU_EU_SIMD_WIDTH> {
+  using return_type = uint32_t;
+};
+struct __SYCL_DEPRECATED("use ext::intel::info::device::gpu_slices instead")
+    ext_intel_gpu_slices : device_traits<UR_DEVICE_INFO_GPU_EU_SLICES> {
+  using return_type = uint32_t;
+};
+struct __SYCL_DEPRECATED(
+    "use ext::intel::info::device::gpu_subslices_per_slice instead")
+    ext_intel_gpu_subslices_per_slice
+    : device_traits<UR_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE> {
+  using return_type = uint32_t;
+};
+struct __SYCL_DEPRECATED(
+    "use ext::intel::info::device::gpu_eu_count_per_subslice instead")
+    ext_intel_gpu_eu_count_per_subslice
+    : device_traits<UR_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE> {
+  using return_type = uint32_t;
+};
+struct __SYCL_DEPRECATED(
+    "use ext::intel::info::device::gpu_hw_threads_per_eu instead")
+    ext_intel_gpu_hw_threads_per_eu
+    : device_traits<UR_DEVICE_INFO_GPU_HW_THREADS_PER_EU> {
+  using return_type = uint32_t;
+};
+struct __SYCL_DEPRECATED("use ext::intel::info::device::uuid instead")
+    ext_intel_device_info_uuid : device_traits<UR_DEVICE_INFO_UUID> {
+  using return_type = detail::uuid_type;
+};
+struct __SYCL_DEPRECATED(
+    "use ext::intel::info::device::max_mem_bandwidth instead")
+    ext_intel_max_mem_bandwidth
+    : device_traits<UR_DEVICE_INFO_MAX_MEMORY_BANDWIDTH> {
+  using return_type = uint64_t;
+};
 
-__SYCL_DEVICE_INFO_DEP_RT(ext_oneapi_max_work_groups_1d, id<1>,
-                          "use ext::oneapi::experimental::info::device::"
-                          "max_work_groups<1> instead")
-__SYCL_DEVICE_INFO_DEP_RT(ext_oneapi_max_work_groups_2d, id<2>,
-                          "use ext::oneapi::experimental::info::device::"
-                          "max_work_groups<2> instead")
-__SYCL_DEVICE_INFO_DEP(ext_oneapi_max_work_groups_3d, id<3>,
-                       UR_DEVICE_INFO_MAX_WORK_GROUPS_3D,
-                       "use ext::oneapi::experimental::info::device::"
-                       "max_work_groups<3> instead")
-__SYCL_DEVICE_INFO_RT(ext_oneapi_max_global_work_groups, size_t)
-__SYCL_DEVICE_INFO_RT(ext_oneapi_cuda_cluster_group, bool)
+struct __SYCL_DEPRECATED(
+    "use ext::oneapi::experimental::info::device::max_work_groups<1> instead")
+    ext_oneapi_max_work_groups_1d : device_runtime_traits {
+  using return_type = id<1>;
+};
+struct __SYCL_DEPRECATED(
+    "use ext::oneapi::experimental::info::device::max_work_groups<2> instead")
+    ext_oneapi_max_work_groups_2d : device_runtime_traits {
+  using return_type = id<2>;
+};
+struct __SYCL_DEPRECATED(
+    "use ext::oneapi::experimental::info::device::max_work_groups<3> instead")
+    ext_oneapi_max_work_groups_3d
+    : device_traits<UR_DEVICE_INFO_MAX_WORK_GROUPS_3D> {
+  using return_type = id<3>;
+};
+struct ext_oneapi_max_global_work_groups : device_runtime_traits {
+  using return_type = size_t;
+};
+struct ext_oneapi_cuda_cluster_group : device_runtime_traits {
+  using return_type = bool;
+};
 
-#undef __SYCL_DEVICE_INFO
-#undef __SYCL_DEVICE_INFO_RT
-#undef __SYCL_DEVICE_INFO_2020_DEP
-#undef __SYCL_DEVICE_INFO_2020_DEP_RT
-#undef __SYCL_DEVICE_INFO_DEP
-#undef __SYCL_DEVICE_INFO_DEP_RT
 } // namespace device
 
 // A.4 Queue information descriptors
 namespace queue {
-struct context {
+template <ur_queue_info_t UrCode>
+using queue_traits =
+    sycl::detail::ur_traits_base<sycl::detail::info_class::queue, UrCode>;
+
+struct context : queue_traits<UR_QUEUE_INFO_CONTEXT> {
   using return_type = sycl::context;
-  using info_class = sycl::detail::info_class::queue;
-  static constexpr ur_queue_info_t ur_code = UR_QUEUE_INFO_CONTEXT;
 };
-struct device {
+struct device : queue_traits<UR_QUEUE_INFO_DEVICE> {
   using return_type = sycl::device;
-  using info_class = sycl::detail::info_class::queue;
-  static constexpr ur_queue_info_t ur_code = UR_QUEUE_INFO_DEVICE;
 };
-struct reference_count {
+struct reference_count : queue_traits<UR_QUEUE_INFO_REFERENCE_COUNT> {
   using return_type = uint32_t;
-  using info_class = sycl::detail::info_class::queue;
-  static constexpr ur_queue_info_t ur_code = UR_QUEUE_INFO_REFERENCE_COUNT;
 };
 } // namespace queue
 
 // A.5 Kernel information desctiptors
 namespace kernel {
-struct num_args {
+template <ur_kernel_info_t UrCode>
+using kernel_traits =
+    sycl::detail::ur_traits_base<sycl::detail::info_class::kernel, UrCode>;
+
+struct num_args : kernel_traits<UR_KERNEL_INFO_NUM_ARGS> {
   using return_type = uint32_t;
-  using info_class = sycl::detail::info_class::kernel;
-  static constexpr ur_kernel_info_t ur_code = UR_KERNEL_INFO_NUM_ARGS;
 };
-struct attributes {
+struct attributes : kernel_traits<UR_KERNEL_INFO_ATTRIBUTES> {
   using return_type = std::string;
-  using info_class = sycl::detail::info_class::kernel;
-  static constexpr ur_kernel_info_t ur_code = UR_KERNEL_INFO_ATTRIBUTES;
 };
-struct function_name {
+struct function_name : kernel_traits<UR_KERNEL_INFO_FUNCTION_NAME> {
   using return_type = std::string;
-  using info_class = sycl::detail::info_class::kernel;
-  static constexpr ur_kernel_info_t ur_code = UR_KERNEL_INFO_FUNCTION_NAME;
 };
-struct reference_count {
+struct reference_count : kernel_traits<UR_KERNEL_INFO_REFERENCE_COUNT> {
   using return_type = uint32_t;
-  using info_class = sycl::detail::info_class::kernel;
-  static constexpr ur_kernel_info_t ur_code = UR_KERNEL_INFO_REFERENCE_COUNT;
 };
-struct context {
+struct context : kernel_traits<UR_KERNEL_INFO_CONTEXT> {
   using return_type = sycl::context;
-  using info_class = sycl::detail::info_class::kernel;
-  static constexpr ur_kernel_info_t ur_code = UR_KERNEL_INFO_CONTEXT;
 };
 } // namespace kernel
 
 namespace kernel_device_specific {
-struct global_work_size {
+// kernel_device_specific traits dispatch through three UR APIs and so mix
+// three native UR enum families; info_class::kernel_device_specific has
+// ur_code_type = void to permit the mismatch. Use the matching alias for
+// each family.
+template <ur_kernel_group_info_t UrCode>
+using group_traits =
+    sycl::detail::ur_traits_base<sycl::detail::info_class::kernel_device_specific,
+                                 UrCode>;
+template <ur_kernel_sub_group_info_t UrCode>
+using sub_group_traits =
+    sycl::detail::ur_traits_base<sycl::detail::info_class::kernel_device_specific,
+                                 UrCode>;
+template <ur_kernel_info_t UrCode>
+using kernel_info_traits =
+    sycl::detail::ur_traits_base<sycl::detail::info_class::kernel_device_specific,
+                                 UrCode>;
+
+struct global_work_size : group_traits<UR_KERNEL_GROUP_INFO_GLOBAL_WORK_SIZE> {
   using return_type = sycl::range<3>;
-  using info_class = sycl::detail::info_class::kernel_device_specific;
-  static constexpr ur_kernel_group_info_t ur_code =
-      UR_KERNEL_GROUP_INFO_GLOBAL_WORK_SIZE;
 };
-struct work_group_size {
+struct work_group_size : group_traits<UR_KERNEL_GROUP_INFO_WORK_GROUP_SIZE> {
   using return_type = size_t;
-  using info_class = sycl::detail::info_class::kernel_device_specific;
-  static constexpr ur_kernel_group_info_t ur_code =
-      UR_KERNEL_GROUP_INFO_WORK_GROUP_SIZE;
 };
-struct compile_work_group_size {
+struct compile_work_group_size
+    : group_traits<UR_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE> {
   using return_type = sycl::range<3>;
-  using info_class = sycl::detail::info_class::kernel_device_specific;
-  static constexpr ur_kernel_group_info_t ur_code =
-      UR_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE;
 };
-struct preferred_work_group_size_multiple {
+struct preferred_work_group_size_multiple
+    : group_traits<UR_KERNEL_GROUP_INFO_PREFERRED_WORK_GROUP_SIZE_MULTIPLE> {
   using return_type = size_t;
-  using info_class = sycl::detail::info_class::kernel_device_specific;
-  static constexpr ur_kernel_group_info_t ur_code =
-      UR_KERNEL_GROUP_INFO_PREFERRED_WORK_GROUP_SIZE_MULTIPLE;
 };
-struct private_mem_size {
+struct private_mem_size : group_traits<UR_KERNEL_GROUP_INFO_PRIVATE_MEM_SIZE> {
   using return_type = size_t;
-  using info_class = sycl::detail::info_class::kernel_device_specific;
-  static constexpr ur_kernel_group_info_t ur_code =
-      UR_KERNEL_GROUP_INFO_PRIVATE_MEM_SIZE;
 };
-// The next five traits dispatch through different UR APIs than the four
-// above (urKernelGetSubGroupInfo / urKernelGetInfo rather than
-// urKernelGetGroupInfo). They each carry their own native UR enum type;
-// info_class::kernel_device_specific has ur_code_type = void to permit the
-// mismatch.
-struct max_num_sub_groups {
+struct max_num_sub_groups
+    : sub_group_traits<UR_KERNEL_SUB_GROUP_INFO_MAX_NUM_SUB_GROUPS> {
   using return_type = uint32_t;
-  using info_class = sycl::detail::info_class::kernel_device_specific;
-  static constexpr ur_kernel_sub_group_info_t ur_code =
-      UR_KERNEL_SUB_GROUP_INFO_MAX_NUM_SUB_GROUPS;
 };
-struct compile_num_sub_groups {
+struct compile_num_sub_groups
+    : sub_group_traits<UR_KERNEL_SUB_GROUP_INFO_COMPILE_NUM_SUB_GROUPS> {
   using return_type = uint32_t;
-  using info_class = sycl::detail::info_class::kernel_device_specific;
-  static constexpr ur_kernel_sub_group_info_t ur_code =
-      UR_KERNEL_SUB_GROUP_INFO_COMPILE_NUM_SUB_GROUPS;
 };
-struct max_sub_group_size {
+struct max_sub_group_size
+    : sub_group_traits<UR_KERNEL_SUB_GROUP_INFO_MAX_SUB_GROUP_SIZE> {
   using return_type = uint32_t;
-  using info_class = sycl::detail::info_class::kernel_device_specific;
-  static constexpr ur_kernel_sub_group_info_t ur_code =
-      UR_KERNEL_SUB_GROUP_INFO_MAX_SUB_GROUP_SIZE;
 };
-struct compile_sub_group_size {
+struct compile_sub_group_size
+    : sub_group_traits<UR_KERNEL_SUB_GROUP_INFO_SUB_GROUP_SIZE_INTEL> {
   using return_type = uint32_t;
-  using info_class = sycl::detail::info_class::kernel_device_specific;
-  static constexpr ur_kernel_sub_group_info_t ur_code =
-      UR_KERNEL_SUB_GROUP_INFO_SUB_GROUP_SIZE_INTEL;
 };
-struct ext_codeplay_num_regs {
+struct ext_codeplay_num_regs : kernel_info_traits<UR_KERNEL_INFO_NUM_REGS> {
   using return_type = uint32_t;
-  using info_class = sycl::detail::info_class::kernel_device_specific;
-  static constexpr ur_kernel_info_t ur_code = UR_KERNEL_INFO_NUM_REGS;
 };
 } // namespace kernel_device_specific
 
@@ -602,35 +711,32 @@ enum class event_command_status : int32_t {
 };
 
 namespace event {
-struct command_execution_status {
+template <ur_event_info_t UrCode>
+using event_traits =
+    sycl::detail::ur_traits_base<sycl::detail::info_class::event, UrCode>;
+
+struct command_execution_status
+    : event_traits<UR_EVENT_INFO_COMMAND_EXECUTION_STATUS> {
   using return_type = info::event_command_status;
-  using info_class = sycl::detail::info_class::event;
-  static constexpr ur_event_info_t ur_code =
-      UR_EVENT_INFO_COMMAND_EXECUTION_STATUS;
 };
-struct reference_count {
+struct reference_count : event_traits<UR_EVENT_INFO_REFERENCE_COUNT> {
   using return_type = uint32_t;
-  using info_class = sycl::detail::info_class::event;
-  static constexpr ur_event_info_t ur_code = UR_EVENT_INFO_REFERENCE_COUNT;
 };
 } // namespace event
 namespace event_profiling {
-struct command_submit {
+template <ur_profiling_info_t UrCode>
+using profiling_traits =
+    sycl::detail::ur_traits_base<sycl::detail::info_class::event_profiling,
+                                 UrCode>;
+
+struct command_submit : profiling_traits<UR_PROFILING_INFO_COMMAND_SUBMIT> {
   using return_type = uint64_t;
-  using info_class = sycl::detail::info_class::event_profiling;
-  static constexpr ur_profiling_info_t ur_code =
-      UR_PROFILING_INFO_COMMAND_SUBMIT;
 };
-struct command_start {
+struct command_start : profiling_traits<UR_PROFILING_INFO_COMMAND_START> {
   using return_type = uint64_t;
-  using info_class = sycl::detail::info_class::event_profiling;
-  static constexpr ur_profiling_info_t ur_code =
-      UR_PROFILING_INFO_COMMAND_START;
 };
-struct command_end {
+struct command_end : profiling_traits<UR_PROFILING_INFO_COMMAND_END> {
   using return_type = uint64_t;
-  using info_class = sycl::detail::info_class::event_profiling;
-  static constexpr ur_profiling_info_t ur_code = UR_PROFILING_INFO_COMMAND_END;
 };
 } // namespace event_profiling
 

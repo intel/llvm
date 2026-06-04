@@ -18,39 +18,29 @@ namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental::info::device {
 
-struct image_row_pitch_align {
+template <ur_device_info_t UrCode>
+using device_traits =
+    sycl::detail::ur_traits_base<sycl::detail::info_class::device, UrCode>;
+
+struct image_row_pitch_align
+    : device_traits<UR_DEVICE_INFO_IMAGE_PITCH_ALIGN_EXP> {
   using return_type = uint32_t;
-  using info_class = sycl::detail::info_class::device;
-  static constexpr ur_device_info_t ur_code =
-      UR_DEVICE_INFO_IMAGE_PITCH_ALIGN_EXP;
 };
-
-struct max_image_linear_row_pitch {
+struct max_image_linear_row_pitch
+    : device_traits<UR_DEVICE_INFO_MAX_IMAGE_LINEAR_PITCH_EXP> {
   using return_type = size_t;
-  using info_class = sycl::detail::info_class::device;
-  static constexpr ur_device_info_t ur_code =
-      UR_DEVICE_INFO_MAX_IMAGE_LINEAR_PITCH_EXP;
 };
-
-struct max_image_linear_width {
+struct max_image_linear_width
+    : device_traits<UR_DEVICE_INFO_MAX_IMAGE_LINEAR_WIDTH_EXP> {
   using return_type = size_t;
-  using info_class = sycl::detail::info_class::device;
-  static constexpr ur_device_info_t ur_code =
-      UR_DEVICE_INFO_MAX_IMAGE_LINEAR_WIDTH_EXP;
 };
-
-struct max_image_linear_height {
+struct max_image_linear_height
+    : device_traits<UR_DEVICE_INFO_MAX_IMAGE_LINEAR_HEIGHT_EXP> {
   using return_type = size_t;
-  using info_class = sycl::detail::info_class::device;
-  static constexpr ur_device_info_t ur_code =
-      UR_DEVICE_INFO_MAX_IMAGE_LINEAR_HEIGHT_EXP;
 };
-
-struct mipmap_max_anisotropy {
+struct mipmap_max_anisotropy
+    : device_traits<UR_DEVICE_INFO_MIPMAP_MAX_ANISOTROPY_EXP> {
   using return_type = float;
-  using info_class = sycl::detail::info_class::device;
-  static constexpr ur_device_info_t ur_code =
-      UR_DEVICE_INFO_MIPMAP_MAX_ANISOTROPY_EXP;
 };
 
 } // namespace ext::oneapi::experimental::info::device
