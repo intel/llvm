@@ -144,7 +144,8 @@ static cl::opt<PGOOptions::ColdFuncOpt> ClPGOColdFuncAttr(
                clEnumValN(PGOOptions::ColdFuncOpt::OptNone, "optnone",
                           "Mark cold functions with optnone.")));
 
-LLVM_ABI extern cl::opt<InstrProfCorrelator::ProfCorrelatorKind> ProfileCorrelate;
+LLVM_ABI extern cl::opt<InstrProfCorrelator::ProfCorrelatorKind>
+    ProfileCorrelate;
 
 static cl::opt<bool> SYCLNativeCPUBackend(
     "sycl-native-cpu-backend", cl::init(false),
@@ -199,7 +200,7 @@ class EmitAssemblyHelper {
   std::unique_ptr<llvm::ToolOutputFile> openOutputFile(StringRef Path) {
     std::error_code EC;
     auto F = std::make_unique<llvm::ToolOutputFile>(Path, EC,
-                                                     llvm::sys::fs::OF_None);
+                                                    llvm::sys::fs::OF_None);
     if (EC) {
       Diags.Report(diag::err_fe_unable_to_open_output) << Path << EC.message();
       F.reset();
@@ -856,18 +857,18 @@ void addLowerAllowCheckPass(const CodeGenOptions &CodeGenOpts,
       CodeGenOpts.AllowRuntimeCheckSkipHotCutoff.has_value() ||
       LowerAllowSanitize) {
     // We want to call it after inline, which is about OptimizerEarlyEPCallback.
-    PB.registerOptimizerEarlyEPCallback(
-        [ScaledCutoffs, AllowRuntimeCheckSkipHotCutoff](
-            ModulePassManager &MPM, OptimizationLevel Level,
-            ThinOrFullLTOPhase Phase) {
-          LowerAllowCheckPass::Options Opts;
-          // TODO: after removing IsRequested(), make this unconditional
-          if (ScaledCutoffs.has_value())
-            Opts.cutoffs = ScaledCutoffs.value();
-          Opts.runtime_check = AllowRuntimeCheckSkipHotCutoff;
-          MPM.addPass(
-              createModuleToFunctionPassAdaptor(LowerAllowCheckPass(Opts)));
-        });
+    PB.registerOptimizerEarlyEPCallback([ScaledCutoffs,
+                                         AllowRuntimeCheckSkipHotCutoff](
+                                            ModulePassManager &MPM,
+                                            OptimizationLevel Level,
+                                            ThinOrFullLTOPhase Phase) {
+      LowerAllowCheckPass::Options Opts;
+      // TODO: after removing IsRequested(), make this unconditional
+      if (ScaledCutoffs.has_value())
+        Opts.cutoffs = ScaledCutoffs.value();
+      Opts.runtime_check = AllowRuntimeCheckSkipHotCutoff;
+      MPM.addPass(createModuleToFunctionPassAdaptor(LowerAllowCheckPass(Opts)));
+    });
   }
 }
 
@@ -1099,19 +1100,22 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
     // Add the InferAddressSpaces and SYCLOptimizeBarriers passes for all
     // the SPIR[V] targets
     if (TargetTriple.isSPIR() || TargetTriple.isSPIRV()) {
-      PB.registerOptimizerLastEPCallback(
-          [](ModulePassManager &MPM, OptimizationLevel Level,
-             ThinOrFullLTOPhase) {
-            MPM.addPass(createModuleToFunctionPassAdaptor(
-                InferAddressSpacesPass(clang::targets::SPIR_GENERIC_AS)));
-            if (Level != OptimizationLevel::O0)
-              MPM.addPass(createModuleToFunctionPassAdaptor(
-                  SYCLOptimizeBarriersPass()));
-          });
-        PB.registerOptimizerLastEPCallback(
-          [](ModulePassManager &MPM, OptimizationLevel, ThinOrFullLTOPhase)->void {
-            MPM.addPass(SYCLLegalizeNonStandardIntegersPass());
-          });
+      PB.registerOptimizerLastEPCallback([](ModulePassManager &MPM,
+                                            OptimizationLevel Level,
+                                            ThinOrFullLTOPhase) {
+        MPM.addPass(createModuleToFunctionPassAdaptor(
+            InferAddressSpacesPass(clang::targets::SPIR_GENERIC_AS)));
+        if (Level != OptimizationLevel::O0)
+          MPM.addPass(
+              createModuleToFunctionPassAdaptor(SYCLOptimizeBarriersPass()));
+      });
+      // Also add SYCLLegalizeNonStandardInteger to ceil all bitwidths to a
+      // power of 2.
+      PB.registerOptimizerLastEPCallback([](ModulePassManager &MPM,
+                                            OptimizationLevel,
+                                            ThinOrFullLTOPhase) -> void {
+        MPM.addPass(SYCLLegalizeNonStandardIntegersPass());
+      });
     }
 
     if (CodeGenOpts.SYCLRemangleLibspirv) {
@@ -1125,12 +1129,11 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
     const bool PrepareForLTO = CodeGenOpts.PrepareForLTO;
 
     if (LangOpts.ObjCAutoRefCount) {
-      PB.registerPipelineStartEPCallback(
-          [](ModulePassManager &MPM, OptimizationLevel Level) {
-            if (Level != OptimizationLevel::O0)
-              MPM.addPass(
-                  createModuleToFunctionPassAdaptor(ObjCARCExpandPass()));
-          });
+      PB.registerPipelineStartEPCallback([](ModulePassManager &MPM,
+                                            OptimizationLevel Level) {
+        if (Level != OptimizationLevel::O0)
+          MPM.addPass(createModuleToFunctionPassAdaptor(ObjCARCExpandPass()));
+      });
       PB.registerScalarOptimizerLateEPCallback(
           [](FunctionPassManager &FPM, OptimizationLevel Level) {
             if (Level != OptimizationLevel::O0)
@@ -1248,8 +1251,8 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
     if (SYCLNativeCPUBackend) {
       llvm::sycl::utils::addSYCLNativeCPUBackendPasses(MPM, MAM, Level);
       // Run optimization passes after all the changes we made to the kernels.
-      // Todo: maybe we could find a set of relevant passes instead of re-running
-      // the full optimization pipeline.
+      // Todo: maybe we could find a set of relevant passes instead of
+      // re-running the full optimization pipeline.
       MPM.addPass(PB.buildPerModuleDefaultPipeline(Level));
     }
     if (LangOpts.SYCLIsDevice) {
@@ -1317,8 +1320,8 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
           if (!ThinLinkOS)
             return;
         }
-        MPM.addPass(ThinLTOBitcodeWriterPass(
-            *OS, ThinLinkOS ? &ThinLinkOS->os() : nullptr));
+        MPM.addPass(ThinLTOBitcodeWriterPass(*OS, ThinLinkOS ? &ThinLinkOS->os()
+                                                             : nullptr));
       } else if (Action == Backend_EmitLL) {
         MPM.addPass(PrintModulePass(*OS, "", CodeGenOpts.EmitLLVMUseLists,
                                     /*EmitLTOSummary=*/true));
@@ -1609,7 +1612,7 @@ void clang::emitBackendOutput(CompilerInstance &CI, CodeGenOptions &CGOpts,
                       .moveInto(CombinedIndex)) {
       logAllUnhandledErrors(std::move(E), errs(),
                             "Error loading index file '" +
-                            CGOpts.ThinLTOIndexFile + "': ");
+                                CGOpts.ThinLTOIndexFile + "': ");
       return;
     }
 
