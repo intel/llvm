@@ -19,7 +19,7 @@
 #define CL_ENABLE_BETA_EXTENSIONS
 #endif
 
-#ifdef __SYCL_DEVICE_ONLY__
+#if defined(__SYCL_DEVICE_ONLY__) && defined(__SYCL_JIT__)
 // Don't include the OpenCL headers when compiling for SYCL device, as they only
 // define the host-side API. Instead, define the necessary types as opaque
 // pointers to not break the SYCL headers that include this header.
@@ -32,7 +32,7 @@ using cl_mem = void *;
 using cl_platform_id = void *;
 using cl_program = void *;
 using cl_sampler = void *;
-#else // __SYCL_DEVICE_ONLY__
+#else // !defined(__SYCL_DEVICE_ONLY__) || !defined(__SYCL_JIT__)
 #include <CL/cl.h>
 #include <CL/cl_ext.h>
-#endif // __SYCL_DEVICE_ONLY__
+#endif // defined(__SYCL_DEVICE_ONLY__) && defined(__SYCL_JIT__)
