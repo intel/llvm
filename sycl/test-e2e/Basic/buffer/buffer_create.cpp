@@ -8,7 +8,7 @@
 // RUN: %{run} %t.out 2>&1 | FileCheck %s
 // UNSUPPORTED: ze_debug
 
-// UNSUPPORTED: windows && gpu-intel-gen12
+// UNSUPPORTED: windows && (gpu-intel-gen12 || gpu-intel-dg2 || arch-intel_gpu_bmg_g21)
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21954
 
 #include <iostream>

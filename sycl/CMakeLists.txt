@@ -17,6 +17,7 @@ option(SYCL_ENABLE_COVERAGE "Enables code coverage for runtime and unit tests" O
 option(SYCL_ENABLE_STACK_PRINTING "Enables stack printing on crashes of SYCL applications" OFF)
 option(SYCL_LIB_WITH_DEBUG_SYMBOLS "Builds SYCL runtime libraries with debug symbols" OFF)
 option(SYCL_ENABLE_IPO "Builds SYCL runtime libraries with interprocedural optimization" OFF)
+option(SYCL_HEADERS_ONLY "Only build SYCL headers, skip runtime and dependencies" OFF)
 
 if (NOT SYCL_COVERAGE_PATH)
   set(SYCL_COVERAGE_PATH "${CMAKE_CURRENT_BINARY_DIR}/profiles")
@@ -88,8 +89,13 @@ if(MSVC)
   endif()
 endif()
 
-include(FetchEmhash)
-include(BuildUnifiedRuntime)
+if(SYCL_HEADERS_ONLY)
+  set(UNIFIED_RUNTIME_INCLUDE_DIR "${LLVM_SOURCE_DIR}/../unified-runtime/include")
+  cmake_path(NORMAL_PATH UNIFIED_RUNTIME_INCLUDE_DIR)
+else()
+  include(FetchEmhash)
+  include(BuildUnifiedRuntime)
+endif()
 
 # The change in SYCL_MAJOR_VERSION must be accompanied with the same update in
 # llvm/clang/lib/Driver/CMakeLists.txt.
@@ -150,22 +156,24 @@ set(CLANG_VERSION "${CLANG_VERSION_MAJOR}.${CLANG_VERSION_MINOR}.${CLANG_VERSION
 set(SYCL_INCLUDE_DIR "include")
 set(SYCL_INCLUDE_BUILD_DIR ${LLVM_BINARY_DIR}/${SYCL_INCLUDE_DIR})
 
-add_llvm_external_project(opencl)
-list(FIND LLVM_ENABLE_PROJECTS opencl OPENCL_PROJ_FOUND)
-if(OPENCL_PROJ_FOUND EQUAL -1)
-  message(FATAL_ERROR "opencl external project required but not found.")
-endif()
+if(NOT SYCL_HEADERS_ONLY)
+  add_llvm_external_project(opencl)
+  list(FIND LLVM_ENABLE_PROJECTS opencl OPENCL_PROJ_FOUND)
+  if(OPENCL_PROJ_FOUND EQUAL -1)
+    message(FATAL_ERROR "opencl external project required but not found.")
+  endif()
 
-if(NOT OpenCL_FOUND)
-  # Copy OpenCL Headers into sycl headers build directory
-  # Compiler does automatic lookup bin/../include based on clang binary location,
-  # e.g. when run LIT tests
-  file(COPY ${OpenCL_INCLUDE_DIR}/CL DESTINATION ${SYCL_INCLUDE_BUILD_DIR})
+  if(NOT OpenCL_FOUND)
+    # Copy OpenCL Headers into sycl headers build directory
+    # Compiler does automatic lookup bin/../include based on clang binary location,
+    # e.g. when run LIT tests
+    file(COPY ${OpenCL_INCLUDE_DIR}/CL DESTINATION ${SYCL_INCLUDE_BUILD_DIR})
 
-  # Include OpenCL Headers into final bundle.
-  install(DIRECTORY ${OpenCL_INCLUDE_DIR}/CL
-          DESTINATION ${SYCL_INCLUDE_DIR}
-          COMPONENT OpenCL-Headers)
+    # Include OpenCL Headers into final bundle.
+    install(DIRECTORY ${OpenCL_INCLUDE_DIR}/CL
+            DESTINATION ${SYCL_INCLUDE_DIR}
+            COMPONENT OpenCL-Headers)
+  endif()
 endif()
 
 # Option for enabling building the SYCL major release preview library.
@@ -345,6 +353,10 @@ if (LLVM_ENABLE_ASSERTIONS AND NOT SYCL_DISABLE_STL_ASSERTIONS AND NOT WIN32)
 endif()
 
 set(SYCL_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
+
+if(SYCL_HEADERS_ONLY)
+  return()
+endif()
 
 # SYCL runtime library
 add_subdirectory( source )
