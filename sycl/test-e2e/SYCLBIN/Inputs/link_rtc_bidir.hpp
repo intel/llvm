@@ -9,13 +9,14 @@
 // SYCLBIN-origin kernel (TestKernelBin) must be reachable via
 // ext_oneapi_get_kernel and produce correct results.
 auto constexpr SYCLSource = R"===(
-#include <sycl/sycl.hpp>
+#include <sycl/ext/oneapi/free_function_kernel_properties.hpp>
+#include <sycl/khr/work_item_queries.hpp>
 
-namespace syclext = sycl::ext::oneapi;
+namespace syclkhr = sycl::khr;
 namespace syclexp = sycl::ext::oneapi::experimental;
 
 SYCL_EXTERNAL void TestFunc(int *Ptr, int Size) {
-  size_t I = syclext::this_work_item::get_nd_item<1>().get_global_linear_id();
+  size_t I = syclkhr::this_nd_item<1>().get_global_linear_id();
   if (static_cast<int>(I) < Size)
     Ptr[I] = static_cast<int>(I);
 }
