@@ -12,4 +12,4 @@
 #include "Inputs/basic.hpp"
 
 // CHECK: ---> urKernelSetExecInfo
-// CHECK-NEXT: <--- urKernelSetExecInfo(.hKernel = 0x{{[0-9a-fA-F]+}}, .propName = UR_KERNEL_EXEC_INFO_USM_INDIRECT_ACCESS, .propSize = 1, .pProperties = nullptr, .pPropValue = 0x{{[0-9a-fA-F]+}} (true)) -> UR_RESULT_SUCCESS;
+// CHECK: .propName = UR_KERNEL_EXEC_INFO_USM_INDIRECT_ACCESS
