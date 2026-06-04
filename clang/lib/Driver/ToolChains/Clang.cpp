@@ -10902,6 +10902,7 @@ static void getSPIRVBackendOpts(const llvm::opt::ArgList &TCArgs,
                               ",+SPV_EXT_shader_atomic_float_add"
                               ",+SPV_EXT_shader_atomic_float_min_max";
   std::string IntelExtArg = ",+SPV_INTEL_2d_block_io"
+                            ",+SPV_ALTERA_arbitrary_precision_integers"
                             ",+SPV_INTEL_bfloat16_conversion"
                             ",+SPV_INTEL_bindless_images"
                             ",+SPV_INTEL_cache_controls"
@@ -10982,6 +10983,7 @@ static void getTripleBasedSPIRVTransOpts(Compilation &C,
       ",+SPV_INTEL_fpga_reg,+SPV_INTEL_blocking_pipes"
       ",+SPV_INTEL_function_pointers,+SPV_INTEL_kernel_attributes"
       ",+SPV_INTEL_io_pipes,+SPV_INTEL_inline_assembly"
+      ",+SPV_INTEL_arbitrary_precision_integers"
       ",+SPV_INTEL_float_controls2,+SPV_INTEL_vector_compute"
       ",+SPV_INTEL_arbitrary_precision_fixed_point"
       ",+SPV_INTEL_arbitrary_precision_floating_point"
