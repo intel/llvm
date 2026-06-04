@@ -357,6 +357,7 @@ with open_check_file(check_l0_file) as fp:
         file=fp,
     )
 
+level_zero_lib = config.level_zero_libs_dir + "/ze_loader.lib"
 config.level_zero_libs_dir = quote_path(
     lit_config.params.get("level_zero_libs_dir", config.level_zero_libs_dir)
 )
@@ -378,10 +379,12 @@ level_zero_options = level_zero_options = (
     + config.level_zero_include
 )
 if cl_options:
+    if is_windows_unc_network_path(level_zero_lib):
+        level_zero_lib = normalize_windows_network_path(level_zero_lib)
     level_zero_options = (
         " "
         + (
-            config.level_zero_libs_dir + "/ze_loader.lib "
+            quote_path(level_zero_lib)
             if config.level_zero_libs_dir
             else "ze_loader.lib"
         )
@@ -471,6 +474,7 @@ with open_check_file(check_cuda_file) as fp:
         file=fp,
     )
 
+cuda_lib = config.cuda_libs_dir + "/cuda.lib"
 config.cuda_libs_dir = quote_path(
     lit_config.params.get("cuda_libs_dir", config.cuda_libs_dir)
 )
@@ -488,9 +492,11 @@ cuda_options = (
     + config.cuda_include
 )
 if cl_options:
+    if is_windows_unc_network_path(cuda_lib):
+        cuda_lib = normalize_windows_network_path(cuda_lib)
     cuda_options = (
         " "
-        + (config.cuda_libs_dir + "/cuda.lib " if config.cuda_libs_dir else "cuda.lib")
+        + (quote_path(cuda_lib) if config.cuda_libs_dir else "cuda.lib")
         + " /I"
         + config.cuda_include
     )
@@ -524,6 +530,7 @@ with open_check_file(check_hip_file) as fp:
         ),
         file=fp,
     )
+hip_lib = config.hip_libs_dir + "/amdhip64.lib"
 config.hip_libs_dir = quote_path(
     lit_config.params.get("hip_libs_dir", config.hip_libs_dir)
 )
@@ -541,10 +548,12 @@ hip_options = (
     + config.hip_include
 )
 if cl_options:
+    if is_windows_unc_network_path(hip_lib):
+        hip_lib = normalize_windows_network_path(hip_lib)
     hip_options = (
         " "
         + (
-            config.hip_libs_dir + "/amdhip64.lib "
+            quote_path(hip_lib)
             if config.hip_libs_dir
             else "amdhip64.lib"
         )
