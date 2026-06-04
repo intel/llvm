@@ -8,7 +8,8 @@
 // -- is in object state and was previously dropped by
 // -- SYCLBINBinaries::getBestCompatibleImages.
 //
-// -- The test targets spir64_gen via ocloc with -device * (%gpu_aot_target_opts)
+// -- The test targets spir64_gen via ocloc with -device *
+// (%gpu_aot_target_opts)
 // -- so it is not locked to a single Intel GPU architecture. spir64_x86_64
 // -- is intentionally not exercised here: the Intel OpenCL CPU runtime's
 // -- clBuildProgram does not accept unresolved imported symbols (no

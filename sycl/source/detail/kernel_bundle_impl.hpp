@@ -544,10 +544,10 @@ public:
             AOTImg.set_ur_program(
                 PM.createURProgram(*Bin, ContextImplLocal, GraphDevs));
           }
-          ur_result_t BErr = PM.buildProgramWithFlags(
-              Adapter, ContextImplLocal.getHandleRef(),
-              AOTImg.get_ur_program(), GraphDevs,
-              /*AllowUnresolvedSymbols=*/true);
+          ur_result_t BErr =
+              PM.buildProgramWithFlags(Adapter, ContextImplLocal.getHandleRef(),
+                                       AOTImg.get_ur_program(), GraphDevs,
+                                       /*AllowUnresolvedSymbols=*/true);
           if (BErr != UR_RESULT_SUCCESS)
             throw set_ur_error(
                 exception(make_error_code(errc::build),

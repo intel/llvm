@@ -2040,10 +2040,11 @@ ProgramManager::getBinImageState(const RTDeviceBinaryImage *BinImage) {
                                                 : sycl::bundle_state::object;
 }
 
-ur_result_t ProgramManager::buildProgramWithFlags(
-    adapter_impl &Adapter, ur_context_handle_t Context,
-    ur_program_handle_t Program, devices_range Devices,
-    bool AllowUnresolvedSymbols) {
+ur_result_t ProgramManager::buildProgramWithFlags(adapter_impl &Adapter,
+                                                  ur_context_handle_t Context,
+                                                  ur_program_handle_t Program,
+                                                  devices_range Devices,
+                                                  bool AllowUnresolvedSymbols) {
   auto URDevices = Devices.to<std::vector<ur_device_handle_t>>();
   ur_exp_program_flags_t Flags{};
   if (AllowUnresolvedSymbols)
