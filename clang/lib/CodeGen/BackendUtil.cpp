@@ -1108,10 +1108,11 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
               MPM.addPass(createModuleToFunctionPassAdaptor(
                   SYCLOptimizeBarriersPass()));
           });
-        PB.registerOptimizerLastEPCallback(
-          [](ModulePassManager &MPM, OptimizationLevel, ThinOrFullLTOPhase)->void {
-            MPM.addPass(SYCLLegalizeNonStandardIntegersPass());
-          });
+      PB.registerOptimizerLastEPCallback([](ModulePassManager &MPM,
+                                            OptimizationLevel,
+                                            ThinOrFullLTOPhase) -> void {
+        MPM.addPass(SYCLLegalizeNonStandardIntegersPass());
+      });
     }
 
     if (CodeGenOpts.SYCLRemangleLibspirv) {
