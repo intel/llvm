@@ -3,8 +3,8 @@
 // REQUIRES: ocloc, gpu, target-spir
 
 // Build the early AOT device binaries
-// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen %gpu_aot_target_opts -fno-sycl-rdc -c -DADD_CPP %s -o %t_add.o
-// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen %gpu_aot_target_opts -fno-sycl-rdc -c -DSUB_CPP %s -o %t_sub.o
+// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen %gpu_aot_target_opts -fno-sycl-rdc -c -DADD_CPP %s -o %t_add.o -Werror=unused-command-line-argument
+// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen %gpu_aot_target_opts -fno-sycl-rdc -c -DSUB_CPP %s -o %t_sub.o -Werror=unused-command-line-argument
 // RUN: %clangxx -fsycl -DMAIN_CPP %s %t_add.o %t_sub.o -o %t.out
 
 // RUN: %{run} %t.out

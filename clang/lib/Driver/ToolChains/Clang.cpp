@@ -5386,8 +5386,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                     (C.getActiveOffloadKinds() != Action::OFK_None &&
                      C.getActiveOffloadKinds() != Action::OFK_SYCL)));
 
-  bool IsRDCMode =
-      Args.hasFlag(options::OPT_fgpu_rdc, options::OPT_fno_gpu_rdc, IsSYCL);
+  bool IsRDCMode = Args.hasFlagNoClaim(options::OPT_fgpu_rdc,
+                                       options::OPT_fno_gpu_rdc, IsSYCL);
   auto LTOMode = IsDeviceOffloadAction ? D.getOffloadLTOMode() : D.getLTOMode();
   bool IsUsingLTO = LTOMode != LTOK_None;
   const bool IsSYCLCUDACompat = isSYCLCudaCompatEnabled(Args);
