@@ -5456,7 +5456,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
   bool IsRDCMode =
       Args.hasFlag(options::OPT_fgpu_rdc, options::OPT_fno_gpu_rdc, IsSYCL);
-  auto LTOMode = IsDeviceOffloadAction ? D.getOffloadLTOMode() : D.getLTOMode();
+  auto LTOMode = TC.getLTOMode(Args, JA.getOffloadingDeviceKind());
   bool IsUsingLTO = LTOMode != LTOK_None;
   const bool IsSYCLCUDACompat = isSYCLCudaCompatEnabled(Args);
 
@@ -6181,8 +6181,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
             Twine("-flto=") + (LTOMode == LTOK_Thin ? "thin" : "full")));
         // PS4 uses the legacy LTO API, which does not support some of the
         // features enabled by -flto-unit.
-        if (!RawTriple.isPS4() ||
-            (D.getLTOMode() == LTOK_Full) || !UnifiedLTO)
+        if (!RawTriple.isPS4() || (LTOMode == LTOK_Full) || !UnifiedLTO)
           CmdArgs.push_back("-flto-unit");
       }
     }
@@ -9103,12 +9102,14 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     // Check if we are using PS4 in regular LTO mode.
     // Otherwise, issue an error.
 
-    auto OtherLTOMode =
-        IsDeviceOffloadAction ? D.getLTOMode() : D.getOffloadLTOMode();
+    auto OtherLTOMode = TC.getLTOMode(
+        Args, IsDeviceOffloadAction ? Action::OFK_None
+                                    : static_cast<Action::OffloadKind>(
+                                          C.getActiveOffloadKinds()));
     auto OtherIsUsingLTO = OtherLTOMode != LTOK_None;
 
     if ((!IsUsingLTO && !OtherIsUsingLTO) ||
-        (IsPS4 && !UnifiedLTO && (D.getLTOMode() != LTOK_Full)))
+        (IsPS4 && !UnifiedLTO && (TC.getLTOMode(Args) != LTOK_Full)))
       D.Diag(diag::err_drv_argument_only_allowed_with)
           << "-fwhole-program-vtables"
           << ((IsPS4 && !UnifiedLTO) ? "-flto=full" : "-flto");
@@ -10750,7 +10751,7 @@ void OffloadPackager::ConstructJob(Compilation &C, const JobAction &JA,
       Parts[2] = "arch=" + llvm::join(Archs, ",arch=");
     }
 
-    if (TC->getDriver().isUsingOffloadLTO())
+    if (TC->isUsingLTO(TCArgs, OffloadAction->getOffloadingDeviceKind()))
       for (StringRef Feature : FeatureArgs)
         Parts.emplace_back("feature=" + Feature.str());
 
@@ -11298,8 +11299,8 @@ static bool shouldEmitOnlyKernelsAsEntryPoints(const ToolChain &TC,
     return false;
   if (Triple.isNVPTX() || Triple.isAMDGPU())
     return false;
-  bool IsUsingLTO = TC.getDriver().isUsingOffloadLTO();
-  auto LTOMode = TC.getDriver().getOffloadLTOMode();
+  auto LTOMode = TC.getLTOMode(TCArgs, Action::OFK_SYCL);
+  bool IsUsingLTO = LTOMode != LTOK_None;
   // With thinLTO, final entry point handing is done in clang-linker-wrapper
   if (IsUsingLTO && LTOMode == LTOK_Thin)
     return false;
@@ -11319,8 +11320,8 @@ static void getTripleBasedSYCLPostLinkOpts(const ToolChain &TC,
                                            bool SpecConstsSupported,
                                            types::ID OutputType) {
 
-  bool IsUsingLTO = TC.getDriver().isUsingOffloadLTO();
-  auto LTOMode = TC.getDriver().getOffloadLTOMode();
+  auto LTOMode = TC.getLTOMode(TCArgs, Action::OFK_SYCL);
+  bool IsUsingLTO = LTOMode != LTOK_None;
   if (OutputType == types::TY_LLVM_BC) {
     // single file output requested - this means only perform necessary IR
     // transformations (like specialization constant intrinsic lowering) and
@@ -11350,8 +11351,8 @@ static void getTripleBasedSYCLPostLinkOpts(const ToolChain &TC,
     bool SplitEsimd = TCArgs.hasFlag(
         options::OPT_fsycl_device_code_split_esimd,
         options::OPT_fno_sycl_device_code_split_esimd, SplitEsimdByDefault);
-    bool IsUsingLTO = TC.getDriver().isUsingOffloadLTO();
-    auto LTOMode = TC.getDriver().getOffloadLTOMode();
+    auto LTOMode = TC.getLTOMode(TCArgs, Action::OFK_SYCL);
+    bool IsUsingLTO = LTOMode != LTOK_None;
     if (!IsUsingLTO || LTOMode != LTOK_Thin)
       addArgs(PostLinkArgs, TCArgs, {"-symbols"});
     // Specialization constant info generation is mandatory -
@@ -11798,8 +11799,7 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       // flags. SYCL uses clang-sycl-linker instead of spirv-link, so skip it.
       if (TC->getTriple().isSPIRV() &&
           TC->getTriple().getVendor() != llvm::Triple::VendorType::AMD &&
-          Kind != Action::OFK_SYCL && !C.getDriver().isUsingLTO() &&
-          !C.getDriver().isUsingOffloadLTO()) {
+          Kind != Action::OFK_SYCL && !TC->isUsingLTO(ToolChainArgs, Kind)) {
         // For SPIR-V some functions will be defined by the runtime so allow
         // unresolved symbols in `spirv-link`.
         LinkerArgs.emplace_back("--allow-partial-linkage");
@@ -11815,11 +11815,12 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
         CmdArgs.push_back(Args.MakeArgString(
             "--device-linker=" + TC->getTripleString() + "=" + Arg));
 
-      // Forward the LTO mode relying on the Driver's parsing.
-      if (C.getDriver().getOffloadLTOMode() == LTOK_Full)
+      // Forward the LTO mode for this toolchain.
+      auto DeviceLTOMode = TC->getLTOMode(ToolChainArgs, Kind);
+      if (DeviceLTOMode == LTOK_Full)
         CmdArgs.push_back(Args.MakeArgString(
             "--device-compiler=" + TC->getTripleString() + "=-flto=full"));
-      else if (C.getDriver().getOffloadLTOMode() == LTOK_Thin) {
+      else if (DeviceLTOMode == LTOK_Thin) {
         CmdArgs.push_back(Args.MakeArgString(
             "--device-compiler=" + TC->getTripleString() + "=-flto=thin"));
         if (TC->getTriple().isAMDGPU()) {
@@ -12007,8 +12008,8 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     if (C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment())
       CmdArgs.push_back("-sycl-is-windows-msvc-env");
 
-    bool IsUsingLTO = D.isUsingOffloadLTO();
-    auto LTOMode = D.getOffloadLTOMode();
+    auto LTOMode = C.getDefaultToolChain().getLTOMode(Args, Action::OFK_SYCL);
+    bool IsUsingLTO = LTOMode != LTOK_None;
     if (IsUsingLTO && LTOMode == LTOK_Thin)
       CmdArgs.push_back(Args.MakeArgString("-sycl-thin-lto"));
 
@@ -12159,7 +12160,9 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
         options::OPT_fprofile_generate, options::OPT_fprofile_generate_EQ,
         options::OPT_fprofile_instr_generate,
         options::OPT_fprofile_instr_generate_EQ);
-    if (C.getDriver().getOffloadLTOMode() == LTOK_None && !UsesProfileGenerate)
+    if (C.getDefaultToolChain().getLTOMode(Args, Action::OFK_HIP) ==
+            LTOK_None &&
+        !UsesProfileGenerate)
       CmdArgs.push_back("--no-lto");
     CmdArgs.append({"-o", Output.getFilename()});
     for (auto Input : Inputs)
