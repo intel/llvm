@@ -2,6 +2,10 @@
 // RUN: %{build} %level_zero_options -o %t.out
 // RUN: env UR_L0_ENABLE_RELAXED_ALLOCATION_LIMITS=1 SYCL_PROGRAM_COMPILE_OPTIONS=-ze-intel-greater-than-4GB-buffer-required %{run} %t.out
 
+// TODO: Temporarily disabled on Linux due to failures.
+// UNSUPPORTED: linux
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22227
+
 #include <iostream>
 #include <sycl/detail/core.hpp>
 #include <sycl/usm.hpp>

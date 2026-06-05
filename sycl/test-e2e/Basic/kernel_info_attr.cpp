@@ -1,6 +1,10 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //
+// Fail is flaky for level_zero, enable when fixed.
+// UNSUPPORTED: level_zero
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22226
+//
 // Consistently fails with opencl gpu, enable when fixed.
 // XFAIL: opencl && gpu
 // XFAIL-TRACKER: GSD-8971

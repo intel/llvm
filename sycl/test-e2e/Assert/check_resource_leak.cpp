@@ -1,6 +1,10 @@
 // RUN: %{build} -Wno-error=#warnings -o %t.out
 // RUN: %{run} %t.out
 
+// Device globals aren't supported on opencl:gpu yet.
+// UNSUPPORTED: opencl && gpu
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22228
+
 // TODO: Fails at JIT compilation for some reason.
 // UNSUPPORTED: hip
 
