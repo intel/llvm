@@ -6,7 +6,7 @@
 // RUN: env IGC_VISALTO=63 IGC_VCSaveStackCallLinkage=1 IGC_VCDirectCallsOnly=1 %{run} %t.out
 
 // UNSUPPORTED: gpu
-// UNSUPPORTED-INTENDED: Won't fix. See GSD-10143. 
+// UNSUPPORTED-INTENDED: Won't fix. See GSD-10143.
 
 // Tests invoke_simd support in the compiler/headers
 /* This program is basically an extension of the standard vector addition
