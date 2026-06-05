@@ -10,14 +10,13 @@
 
 #include <sycl/backend_types.hpp>
 
-#if !defined(__SYCL_DEVICE_ONLY__)
-
 #include <ostream>
 
 namespace sycl {
 inline namespace _V1 {
 
 inline std::ostream &operator<<(std::ostream &Out, backend be) {
+#if !defined(__SYCL_DEVICE_ONLY__)
   switch (be) {
   case backend::host:
     Out << "host";
@@ -43,10 +42,9 @@ inline std::ostream &operator<<(std::ostream &Out, backend be) {
   case backend::all:
     Out << "all";
   }
+#endif // !defined(__SYCL_DEVICE_ONLY__)
   return Out;
 }
 
 } // namespace _V1
 } // namespace sycl
-
-#endif // !defined(__SYCL_DEVICE_ONLY__)
