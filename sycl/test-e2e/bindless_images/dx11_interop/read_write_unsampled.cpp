@@ -1,7 +1,7 @@
 // REQUIRES: aspect-ext_oneapi_external_memory_import
 // REQUIRES: windows
 
-// UNSUPPORTED: gpu-intel-gen12
+// UNSUPPORTED: gpu-intel-gen12 || arch-intel_gpu_bmg_g21 || arch-intel_gpu_mtl_u
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22148
 
 // RUN: %{build} %link-directx -o %t.out
