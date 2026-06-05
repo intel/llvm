@@ -182,7 +182,8 @@ public:
   getBuiltURProgram(const BinImgWithDeps &ImgWithDeps,
                     context_impl &ContextImpl, devices_range Devs,
                     const DevImgPlainWithDeps *DevImgWithDeps = nullptr,
-                    const SerializedObj &SpecConsts = {});
+                    const SerializedObj &SpecConsts = {},
+                    bool AllowUnresolvedSymbols = false);
 
   FastKernelCacheValPtr getOrCreateKernel(context_impl &ContextImpl,
                                           device_impl &DeviceImpl,
@@ -355,9 +356,13 @@ public:
   void dynamicLink(device_images_range Imgs);
 
   // Produces new device image by converting input device image to the
-  // executable state
+  // executable state. AllowUnresolvedSymbols defers cross-image
+  // SYCL_EXTERNAL resolution to a subsequent dynamicLink() call; used for
+  // native AOT objects loaded as part of a sycl::link with unresolved
+  // imported symbols.
   device_image_plain build(const DevImgPlainWithDeps &ImgWithDeps,
-                           devices_range Devs, const property_list &PropList);
+                           devices_range Devs, const property_list &PropList,
+                           bool AllowUnresolvedSymbols = false);
 
   std::tuple<Managed<ur_kernel_handle_t>, std::mutex *, const KernelArgMask *>
   getOrCreateKernel(const context &Context, std::string_view KernelName,
@@ -398,17 +403,6 @@ public:
   // in one place.
   static bool isAOTBinaryTarget(const char *DeviceTargetSpec);
 
-  // Build the given program with optional ALLOW_UNRESOLVED_SYMBOLS, falling
-  // back to the non-Exp build entry point when the adapter does not support
-  // urProgramBuildExp. Used by the link path to bring an AOT image with
-  // unresolved imported symbols into a built ze_module so it can participate
-  // in the cross-image dynamic link below.
-  ur_result_t buildProgramWithFlags(adapter_impl &Adapter,
-                                    ur_context_handle_t Context,
-                                    ur_program_handle_t Program,
-                                    devices_range Devices,
-                                    bool AllowUnresolvedSymbols);
-
 private:
   ProgramManager(ProgramManager const &) = delete;
   ProgramManager &operator=(ProgramManager const &) = delete;
@@ -418,7 +412,8 @@ private:
         const std::string &CompileOptions, const std::string &LinkOptions,
         std::vector<ur_device_handle_t> &Devices,
         const std::vector<Managed<ur_program_handle_t>> &ProgramsToLink,
-        bool CreatedFromBinary = false);
+        bool CreatedFromBinary = false,
+        bool AllowUnresolvedSymbols = false);
 
   /// Dumps image to current directory
   void dumpImage(const RTDeviceBinaryImage &Img, uint32_t SequenceID = 0) const;

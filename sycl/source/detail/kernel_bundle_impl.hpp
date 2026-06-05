@@ -525,39 +525,25 @@ public:
         // SPIR-V-derived JIT-link result with the native AOT inputs in one
         // call. Build each AOT program independently with
         // ALLOW_UNRESOLVED_SYMBOLS (keeping its imported references intact),
-        // then resolve the cross-module references via
-        // urProgramDynamicLinkExp, which is the L0 API designed for linking
-        // already-built modules of arbitrary formats.
+        // then resolve the cross-module references via dynamicLink(), which
+        // is the L0 API designed for linking already-built modules of
+        // arbitrary formats.
         //
-        // Each AOT image must enter dynamicLink with an already-built
-        // ze_module: zeModuleDynamicLink iterates only programs whose
-        // module was created via zeModuleCreate, so urProgramCreateWithBinary
-        // alone (which leaves the ur_program in Native state) is not enough.
+        // Routing the AOT build through ProgramManager::build (rather than
+        // calling urProgramCreateWithBinary + urProgramBuildExp inline)
+        // keeps the result image plumbed through the standard build path
+        // and reuses NativePrograms registration, addDeviceGlobalInitializer,
+        // the program cache, kernel-id collection, and origin tracking.
         auto &PM = detail::ProgramManager::getInstance();
-        context_impl &ContextImplLocal = *getSyclObjImpl(MContext);
-        adapter_impl &Adapter = ContextImplLocal.getAdapter();
         LinkedResults.reserve(LinkedResults.size() + AOTImgs.size());
         for (device_image_impl &AOTImg : AOTImgs) {
-          if (AOTImg.get_ur_program() == nullptr) {
-            const detail::RTDeviceBinaryImage *Bin = AOTImg.get_bin_image_ref();
-            assert(Bin && "AOT image is missing its binary");
-            AOTImg.set_ur_program(
-                PM.createURProgram(*Bin, ContextImplLocal, GraphDevs));
-          }
-          ur_result_t BErr =
-              PM.buildProgramWithFlags(Adapter, ContextImplLocal.getHandleRef(),
-                                       AOTImg.get_ur_program(), GraphDevs,
-                                       /*AllowUnresolvedSymbols=*/true);
-          if (BErr != UR_RESULT_SUCCESS)
-            throw set_ur_error(
-                exception(make_error_code(errc::build),
-                          "AOT image build failed prior to dynamic link"),
-                BErr);
-          AOTImg.set_state(bundle_state::executable);
-          LinkedResults.push_back(
-              createSyclObjFromImpl<device_image_plain>(AOTImg));
+          LinkedResults.push_back(PM.build(
+              DevImgPlainWithDeps{
+                  createSyclObjFromImpl<device_image_plain>(AOTImg)},
+              GraphDevs, PropList,
+              /*AllowUnresolvedSymbols=*/true));
         }
-        detail::ProgramManager::getInstance().dynamicLink(LinkedResults);
+        PM.dynamicLink(LinkedResults);
       }
 
       MDeviceImages.insert(MDeviceImages.end(), LinkedResults.begin(),
