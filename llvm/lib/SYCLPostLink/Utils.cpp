@@ -27,7 +27,8 @@ PropSetRegTy
 computeModulePropertiesHelper(const module_split::ModuleDesc &MD,
                               const sycl::GlobalBinImageProps &GlobProps,
                               bool AllowDeviceImageDependencies,
-                              module_split::IRSplitMode SplitMode) {
+                              module_split::IRSplitMode SplitMode,
+                              int IdQueriesRange) {
   PropSetRegTy PropSet;
   // For bf16 devicelib module, no kernel included and no specialization
   // constant used, skip regular Prop emit. However, we have fallback and
@@ -35,7 +36,8 @@ computeModulePropertiesHelper(const module_split::ModuleDesc &MD,
   // indicate all exported function.
   if (!MD.isSYCLDeviceLib())
     PropSet = sycl::computeModuleProperties(
-        MD.getModule(), MD.entries(), GlobProps, AllowDeviceImageDependencies);
+        MD.getModule(), MD.entries(), GlobProps, AllowDeviceImageDependencies,
+        IdQueriesRange);
   else
     PropSet = sycl::computeDeviceLibProperties(MD.getModule(), MD.Name);
 
@@ -116,9 +118,9 @@ Error llvm::sycl_post_link::saveModuleProperties(
     const module_split::ModuleDesc &MD,
     const sycl::GlobalBinImageProps &GlobProps, StringRef Filename,
     StringRef Target, bool AllowDeviceImageDependencies,
-    module_split::IRSplitMode SplitMode) {
+    module_split::IRSplitMode SplitMode, int IdQueriesRange) {
   PropSetRegTy PropSet = computeModulePropertiesHelper(
-      MD, GlobProps, AllowDeviceImageDependencies, SplitMode);
+      MD, GlobProps, AllowDeviceImageDependencies, SplitMode, IdQueriesRange);
 
   if (!Target.empty())
     PropSet.add(PropSetRegTy::SYCL_DEVICE_REQUIREMENTS, "compile_target",

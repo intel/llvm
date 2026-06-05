@@ -8,9 +8,18 @@ else()
   set(devicelib_host_static_obj libsycl-devicelib-host.a)
 endif()
 set(bc-suffix bc)
-set(bc_binary_dir "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
 set(install_dest_obj lib${LLVM_LIBDIR_SUFFIX})
-set(install_dest_bc lib${LLVM_LIBDIR_SUFFIX})
+
+if(WIN32)
+  # On Windows, install to lib/
+  set(install_dest_bc lib${LLVM_LIBDIR_SUFFIX})
+  set(bc_binary_dir "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
+else()
+  # On other platforms, install to lib/dpcpp-<major_ver>/sycl
+  set(bc_dir "lib/dpcpp-${DPCPP_VERSION_MAJOR}/sycl")
+  set(install_dest_bc ${bc_dir})
+  set(bc_binary_dir "${CMAKE_BINARY_DIR}/${bc_dir}")
+endif()
 
 string(CONCAT sycl_pvc_target_opt
   "-fsycl-targets="
@@ -754,7 +763,7 @@ install( FILES ${obj_binary_dir}/${devicelib_host_static_obj}
 
 foreach(ftype IN LISTS filetypes)
   install(
-    FILES ${obj_binary_dir}/libsycl-imf.${${ftype}-suffix}
+    FILES ${bc_binary_dir}/libsycl-imf.${${ftype}-suffix}
     DESTINATION ${install_dest_${ftype}}
     COMPONENT libsycldevice)
 endforeach()

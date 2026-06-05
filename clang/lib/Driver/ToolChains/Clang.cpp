@@ -5383,7 +5383,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       (JA.isHostOffloading(C.getActiveOffloadKinds()) &&
        Args.hasFlag(options::OPT_offload_new_driver,
                     options::OPT_no_offload_new_driver,
-                    C.getActiveOffloadKinds() != Action::OFK_None));
+                    (C.getActiveOffloadKinds() != Action::OFK_None &&
+                     C.getActiveOffloadKinds() != Action::OFK_SYCL)));
 
   bool IsRDCMode =
       Args.hasFlag(options::OPT_fgpu_rdc, options::OPT_fno_gpu_rdc, IsSYCL);
@@ -7789,7 +7790,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.append({"--offload-new-driver", "-foffload-via-llvm"});
   } else if (Args.hasFlag(options::OPT_offload_new_driver,
                           options::OPT_no_offload_new_driver,
-                          C.getActiveOffloadKinds() != Action::OFK_None)) {
+                          (C.getActiveOffloadKinds() != Action::OFK_None &&
+                           C.getActiveOffloadKinds() != Action::OFK_SYCL))) {
     CmdArgs.push_back("--offload-new-driver");
   }
 
@@ -11198,6 +11200,12 @@ static void getNonTripleBasedSYCLPostLinkOpts(const ToolChain &TC,
   if (allowDeviceImageDependencies(TCArgs))
     addArgs(PostLinkArgs, TCArgs, {"-allow-device-image-dependencies"});
 
+  // Forward -fsycl-id-queries-range= to sycl-post-link.
+  if (Arg *A = TCArgs.getLastArg(options::OPT_fsycl_id_queries_range_EQ)) {
+    PostLinkArgs.push_back(
+        TCArgs.MakeArgString(Twine("-id-queries-range=") + A->getValue()));
+  }
+
   // For bfloat16 conversions LLVM IR devicelib, we only need to embed it
   // when non-AOT compilation is used.
   if (TC.getTriple().isSPIROrSPIRV() && !TC.getTriple().isSPIRAOT()) {
@@ -11788,12 +11796,8 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     SYCLInstallationDetector SYCLInstallation(D, getToolChain().getTriple(),
                                               Args);
     SYCLInstallation.getSYCLDeviceLibPath(LibLocCandidates);
-    SmallString<128> LibName("libsycl-crt");
+    SmallString<128> LibName("libsycl-crt.bc");
     bool IsNewOffload = D.getUseNewOffloadingDriver();
-    StringRef LibSuffix = TheTriple.isWindowsMSVCEnvironment()
-                              ? (IsNewOffload ? ".new.obj" : ".obj")
-                              : (IsNewOffload ? ".new.o" : ".o");
-    llvm::sys::path::replace_extension(LibName, LibSuffix);
     for (const auto &LibLoc : LibLocCandidates) {
       SmallString<128> FullLibName(LibLoc);
       llvm::sys::path::append(FullLibName, LibName);

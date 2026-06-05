@@ -15,7 +15,6 @@
 #include <sycl/detail/defines_elementary.hpp>
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/get_device_kernel_info.hpp>
-#include <sycl/detail/id_queries_fit_in_int.hpp>
 #include <sycl/detail/impl_utils.hpp>
 #include <sycl/detail/kernel_desc.hpp>
 #include <sycl/detail/kernel_launch_helper.hpp>
@@ -49,6 +48,7 @@
 #include <sycl/property_list.hpp>
 #include <sycl/range.hpp>
 #include <sycl/sampler.hpp>
+#include <sycl/usm/usm_enums.hpp>
 
 #include <assert.h>
 #include <functional>
@@ -138,12 +138,11 @@ inline namespace _V1 {
 
 template <bundle_state State> class kernel_bundle;
 class handler;
-template <typename T, int Dimensions, typename AllocatorT, typename Enable>
-class buffer;
 
 namespace ext ::oneapi ::experimental {
 template <typename, typename> class work_group_memory;
 template <typename, typename> class dynamic_work_group_memory;
+class memory_pool;
 struct image_descriptor;
 enum class prefetch_type;
 
@@ -422,10 +421,9 @@ private:
   /// only after the command group finishes the work on device/host.
   ///
   /// @param ReduBuf is a pointer to buffer that must be stored.
-  template <typename T, int Dimensions, typename AllocatorT, typename Enable>
-  void
-  addReduction(const std::shared_ptr<buffer<T, Dimensions, AllocatorT, Enable>>
-                   &ReduBuf) {
+  template <typename T, int Dimensions, typename AllocatorT>
+  void addReduction(
+      const std::shared_ptr<buffer<T, Dimensions, AllocatorT>> &ReduBuf) {
     detail::markBufferAsInternal(getSyclObjImpl(*ReduBuf));
     addReduction(std::shared_ptr<const void>(ReduBuf));
   }
@@ -875,7 +873,6 @@ private:
       // kernel use items/ids in the user range, which means that
       // ID range assumptions can still be violated. So check the bounds
       // of the user range, instead of the rounded range.
-      detail::checkValueRange<Dims>(UserRange);
       convertToRangeViewAndSetDescriptor(RoundedRange);
       StoreLambda<KName, decltype(Wrapper), Dims, TransformedArgType>(
           std::move(Wrapper));
@@ -903,7 +900,6 @@ private:
       verifyUsedKernelBundleInternal(Info.Name);
       setKernelLaunchProperties(
           detail::extractKernelProperties<Info.IsESIMD>(Props));
-      detail::checkValueRange<Dims>(UserRange);
       convertToRangeViewAndSetDescriptor(std::move(UserRange));
       StoreLambda<NameT, KernelType, Dims, TransformedArgType>(
           std::move(KernelFunc));
@@ -929,7 +925,6 @@ private:
 #ifndef __SYCL_DEVICE_ONLY__
     throwIfActionIsCreated();
     setDeviceKernelInfo(std::move(Kernel));
-    detail::checkValueRange<Dims>(NumWorkItems);
     convertToRangeViewAndSetDescriptor(std::move(NumWorkItems));
     setKernelLaunchProperties(detail::extractKernelProperties(Props));
     extractArgsAndReqs();
@@ -952,7 +947,6 @@ private:
 #ifndef __SYCL_DEVICE_ONLY__
     throwIfActionIsCreated();
     setDeviceKernelInfo(std::move(Kernel));
-    detail::checkValueRange<Dims>(NDRange);
     convertToRangeViewAndSetDescriptor(std::move(NDRange));
     setKernelLaunchProperties(detail::extractKernelProperties(Props));
     extractArgsAndReqs();
@@ -988,7 +982,6 @@ private:
     throwIfActionIsCreated();
     verifyUsedKernelBundleInternal(Info.Name);
 
-    detail::checkValueRange<Dims>(params...);
     if constexpr (SetNumWorkGroups) {
       convertToRangeViewAndSetDescriptor(std::move(params)...,
                                          /*SetNumWorkGroups=*/true);
@@ -1457,7 +1450,6 @@ public:
 #ifndef __SYCL_DEVICE_ONLY__
     throwIfActionIsCreated();
     setDeviceKernelInfo(std::move(Kernel));
-    detail::checkValueRange<Dims>(NumWorkItems, WorkItemOffset);
     setNDRangeDescriptor(std::move(NumWorkItems), std::move(WorkItemOffset));
     extractArgsAndReqs();
 #endif

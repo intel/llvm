@@ -5,6 +5,23 @@
 // need to check whether underlying device supports bf16 or not.
 #include "imf_utils.hpp"
 #include <sycl/ext/intel/math.hpp>
+int check_nan_convert(std::initializer_list<float> Inputs,
+                      const std::vector<uint16_t> &Outputs) {
+  assert(Inputs.size() == Outputs.size());
+  size_t Idx = 0;
+  bool Signaling = false;
+  for (const float *It = Inputs.begin(); It != Inputs.end(); ++It) {
+    uint16_t bf16_bits = Outputs[Idx];
+    if (is_bfloat16_nan(bf16_bits, Signaling)) {
+      if (Signaling != is_signaling_nan(*It))
+        return 1;
+    } else
+      return 1;
+    ++Idx;
+  }
+
+  return 0;
+}
 
 int main() {
   sycl::queue device_queue(sycl::default_selector_v);
@@ -71,5 +88,19 @@ int main() {
     test(device_queue, input_vals, ref_vals_rz,
          FT(uint16_t, sycl::ext::intel::math::float2bfloat16_rz));
   }
-  return 0;
+
+  int ret = 0;
+  // Test float2bfloat16 for nan inputs
+  {
+    std::initializer_list<float> input_vals = {
+        __builtin_bit_cast(float, 0x7F800001),  // sNan
+        __builtin_bit_cast(float, 0x7F8000F1),  // sNan
+        __builtin_bit_cast(float, 0x7FC00000),  // qNan
+        __builtin_bit_cast(float, 0x7FC00010)}; // qNan
+    std::vector<uint16_t> output_vals(input_vals.size());
+    run_on_device(device_queue, input_vals, output_vals,
+                  FT(uint16_t, sycl::ext::intel::math::float2bfloat16));
+    ret = check_nan_convert(input_vals, output_vals);
+  }
+  return ret;
 }

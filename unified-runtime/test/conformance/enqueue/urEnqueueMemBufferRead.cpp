@@ -138,6 +138,9 @@ using urEnqueueMemBufferReadMultiDeviceTest =
 UUR_INSTANTIATE_PLATFORM_TEST_SUITE(urEnqueueMemBufferReadMultiDeviceTest);
 
 TEST_P(urEnqueueMemBufferReadMultiDeviceTest, WriteReadDifferentQueues) {
+  // Related issue: https://github.com/intel/llvm/issues/22058.
+  UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{"Data Center GPU Max"});
+
   // First queue does a blocking write of 42 into the buffer.
   std::vector<uint32_t> input(count, 42);
   ASSERT_SUCCESS(urEnqueueMemBufferWrite(queues[0], buffer, true, 0, size,
