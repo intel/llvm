@@ -1,8 +1,11 @@
 // REQUIRES: aspect-ext_oneapi_external_memory_import
 // REQUIRES: windows
 
-// UNSUPPORTED: gpu-intel-gen12 || arch-intel_gpu_bmg_g21 || arch-intel_gpu_mtl_u
+// UNSUPPORTED: gpu-intel-gen12
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22148
+
+// UNSUPPORTED: arch-intel_gpu_bmg_g21
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22234
 
 // RUN: %{build} %link-directx -o %t.out
 // RUN: %{run-unfiltered-devices} env NEOReadDebugKeys=1 UseBindlessMode=1 UseExternalAllocatorForSshAndDsh=1 %t.out
