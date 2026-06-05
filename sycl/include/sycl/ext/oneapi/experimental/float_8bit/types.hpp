@@ -41,23 +41,36 @@ extern __DPCPP_SYCL_EXTERNAL __bf16
 __builtin_spirv_ConvertE4M3ToBF16EXT(uint8_t) noexcept;
 extern __DPCPP_SYCL_EXTERNAL
     bfloat16_vec2 __builtin_spirv_ConvertE4M3ToBF16EXT(uint8_vec2) noexcept;
-
 extern __DPCPP_SYCL_EXTERNAL uint8_t
 __builtin_spirv_ClampConvertBF16ToE4M3INTEL(__bf16) noexcept;
 extern __DPCPP_SYCL_EXTERNAL uint8_vec2
     __builtin_spirv_ClampConvertBF16ToE4M3INTEL(bfloat16_vec2) noexcept;
+
 extern __DPCPP_SYCL_EXTERNAL uint8_t
 __builtin_spirv_ClampConvertFP16ToE5M2INTEL(_Float16) noexcept;
+extern __DPCPP_SYCL_EXTERNAL uint8_vec2
+    __builtin_spirv_ClampConvertFP16ToE5M2INTEL(float16_vec2) noexcept;
 extern __DPCPP_SYCL_EXTERNAL uint8_t
 __builtin_spirv_ConvertFP16ToE5M2EXT(_Float16) noexcept;
+extern __DPCPP_SYCL_EXTERNAL
+    uint8_vec2 __builtin_spirv_ConvertFP16ToE5M2EXT(float16_vec2) noexcept;
 extern __DPCPP_SYCL_EXTERNAL _Float16
 __builtin_spirv_ConvertE5M2ToFP16EXT(uint8_t) noexcept;
+extern __DPCPP_SYCL_EXTERNAL
+    float16_vec2 __builtin_spirv_ConvertE5M2ToFP16EXT(uint8_vec2) noexcept;
+
 extern __DPCPP_SYCL_EXTERNAL uint8_t
 __builtin_spirv_ClampConvertBF16ToE5M2INTEL(__bf16) noexcept;
+extern __DPCPP_SYCL_EXTERNAL uint8_vec2
+    __builtin_spirv_ClampConvertBF16ToE5M2INTEL(bfloat16_vec2) noexcept;
 extern __DPCPP_SYCL_EXTERNAL uint8_t
 __builtin_spirv_ConvertBF16ToE5M2EXT(__bf16) noexcept;
+extern __DPCPP_SYCL_EXTERNAL
+    uint8_vec2 __builtin_spirv_ConvertBF16ToE5M2EXT(bfloat16_vec2) noexcept;
 extern __DPCPP_SYCL_EXTERNAL __bf16
 __builtin_spirv_ConvertE5M2ToBF16EXT(uint8_t) noexcept;
+extern __DPCPP_SYCL_EXTERNAL
+    bfloat16_vec2 __builtin_spirv_ConvertE5M2ToBF16EXT(uint8_vec2) noexcept;
 extern __DPCPP_SYCL_EXTERNAL uint8_t
 __builtin_spirv_ClampStochasticRoundFP16ToE5M2INTEL(
     _Float16, uint32_t, __attribute__((opencl_private)) uint32_t *) noexcept;
@@ -860,16 +873,11 @@ template <size_t N> class fp8_e4m3_x {
 #endif
   }
 
-  uint8_vec2 ConvertToFP8_Vec2(float16_vec2 h) {
 #ifdef __SYCL_DEVICE_ONLY__
+  uint8_vec2 ConvertToFP8_Vec2(float16_vec2 h) {
     return __builtin_spirv_ClampConvertFP16ToE4M3INTEL(h);
-#else
-    uint8_vec2 result;
-    for (size_t i = 0; i < 2; ++i)
-      result[i] = ConvertToFP8(sycl::bit_cast<sycl::half>(h[i]));
-    return result;
-#endif
   }
+#endif
 
   uint8_t ConvertToFP8(float h) {
 #if __SYCL_DEVICE_ONLY__ || !defined(__SYCL_DEVICE_ONLY__)
@@ -878,16 +886,11 @@ template <size_t N> class fp8_e4m3_x {
 #endif
   }
 
-  uint8_vec2 ConvertBF16ToFP8_Vec2(bfloat16_vec2 h) {
 #ifdef __SYCL_DEVICE_ONLY__
+  uint8_vec2 ConvertBF16ToFP8_Vec2(bfloat16_vec2 h) {
     return __builtin_spirv_ClampConvertBF16ToE4M3INTEL(h);
-#else
-    uint8_vec2 result;
-    for (size_t i = 0; i < 2; ++i)
-      result[i] = ConvertBF16ToFP8(h[i]);
-    return result;
-#endif
   }
+#endif
 
   uint8_t ConvertBF16ToFP8(bfloat16 h) {
 #ifdef __SYCL_DEVICE_ONLY__
@@ -913,7 +916,7 @@ template <size_t N> class fp8_e4m3_x {
   void ConvertFromFP8_Vec2(sycl::marray<sycl::half, N> &ret,
                            rounding r = rounding::to_even) const {
 #ifdef __SYCL_DEVICE_ONLY__
-    const uint8_vec2 packed = {vals[0], vals[1]};
+    const uint8_vec2 packed{vals[0], vals[1]};
     float16_vec2 hi = __builtin_spirv_ConvertE4M3ToFP16EXT(packed);
     ret[0] = sycl::bit_cast<sycl::half>(hi[0]);
     ret[1] = sycl::bit_cast<sycl::half>(hi[1]);
@@ -937,7 +940,7 @@ template <size_t N> class fp8_e4m3_x {
   void ConvertBF16FromFP8_Vec2(sycl::marray<bfloat16, N> &ret,
                                rounding r = rounding::to_even) const {
 #ifdef __SYCL_DEVICE_ONLY__
-    const uint8_vec2 packed = {vals[0], vals[1]};
+    const uint8_vec2 packed{vals[0], vals[1]};
     bfloat16_vec2 hi = __builtin_spirv_ConvertE4M3ToBF16EXT(packed);
     ret[0] = sycl::bit_cast<bfloat16>(hi[0]);
     ret[1] = sycl::bit_cast<bfloat16>(hi[1]);
@@ -953,15 +956,21 @@ template <size_t N> class fp8_e4m3_x {
            "fp8_e4m3_x: only rounding::to_even is supported");
   }
 
+#ifdef __SYCL_DEVICE_ONLY__
 #define CONVERT_TO_FP8(VecType, CastType, in, Prefix)                          \
   if constexpr (N == 1) {                                                      \
     vals[0] = Convert##Prefix##ToFP8(in[0]);                                   \
   } else {                                                                     \
-    const VecType vec = {sycl::bit_cast<CastType>(in[0]),                      \
-                         sycl::bit_cast<CastType>(in[1])};                     \
+    const VecType vec{sycl::bit_cast<CastType>(in[0]),                         \
+                      sycl::bit_cast<CastType>(in[1])};                        \
     const uint8_vec2 result = Convert##Prefix##ToFP8_Vec2(vec);                \
     std::memcpy(vals, &result, sizeof(vals));                                  \
   }
+#else
+#define CONVERT_TO_FP8(VecType, CastType, in, Prefix)                          \
+  for (size_t _cvt_i = 0; _cvt_i < N; ++_cvt_i)                                \
+    vals[_cvt_i] = Convert##Prefix##ToFP8(in[_cvt_i]);
+#endif
 
 public:
   fp8_e4m3_x() = default;
@@ -1255,6 +1264,7 @@ public:
 
   // Intentionally public to allow access to the raw values.
   uint8_t vals[N];
+#undef CONVERT_TO_FP8
 };
 
 template <size_t N> class fp8_e5m2_x {
@@ -1297,6 +1307,14 @@ template <size_t N> class fp8_e5m2_x {
 #endif
   }
 
+#ifdef __SYCL_DEVICE_ONLY__
+  uint8_vec2 ConvertToFP8_Vec2(float16_vec2 h, saturation s) {
+    return s == saturation::finite
+               ? __builtin_spirv_ClampConvertFP16ToE5M2INTEL(h)
+               : __builtin_spirv_ConvertFP16ToE5M2EXT(h);
+  }
+#endif
+
   uint8_t ConvertToFP8(float h, saturation s) {
 #if __SYCL_DEVICE_ONLY__ || !defined(__SYCL_DEVICE_ONLY__)
     return detail::ConvertFloatToFP8_CPU<NExpBits, NFracBits, float>(
@@ -1317,6 +1335,14 @@ template <size_t N> class fp8_e5m2_x {
 #endif
   }
 
+#ifdef __SYCL_DEVICE_ONLY__
+  uint8_vec2 ConvertBF16ToFP8_Vec2(bfloat16_vec2 h, saturation s) {
+    return s == saturation::finite
+               ? __builtin_spirv_ClampConvertBF16ToE5M2INTEL(h)
+               : __builtin_spirv_ConvertBF16ToE5M2EXT(h);
+  }
+#endif
+
   template <typename T>
   T ConvertFromFP8(uint8_t v, rounding r = rounding::to_even) const {
 #ifdef __SYCL_DEVICE_ONLY__
@@ -1325,6 +1351,20 @@ template <size_t N> class fp8_e5m2_x {
 #else
     return detail::ConvertFromFP8ToBinaryFloat_CPU<NExpBits, NFracBits, T>(v,
                                                                            r);
+#endif
+  }
+
+  void ConvertFromFP8_Vec2(sycl::marray<sycl::half, N> &ret,
+                           rounding r = rounding::to_even) const {
+#ifdef __SYCL_DEVICE_ONLY__
+    const uint8_vec2 packed{vals[0], vals[1]};
+    float16_vec2 hi = __builtin_spirv_ConvertE5M2ToFP16EXT(packed);
+    ret[0] = sycl::bit_cast<sycl::half>(hi[0]);
+    ret[1] = sycl::bit_cast<sycl::half>(hi[1]);
+#else
+    for (size_t i = 0; i < 2; ++i)
+      ret[i] = detail::ConvertFromFP8ToBinaryFloat_CPU<NExpBits, NFracBits,
+                                                       sycl::half>(vals[i], r);
 #endif
   }
 
@@ -1338,10 +1378,40 @@ template <size_t N> class fp8_e5m2_x {
 #endif
   }
 
+  void ConvertBF16FromFP8_Vec2(sycl::marray<bfloat16, N> &ret,
+                               rounding r = rounding::to_even) const {
+#ifdef __SYCL_DEVICE_ONLY__
+    const uint8_vec2 packed{vals[0], vals[1]};
+    bfloat16_vec2 hi = __builtin_spirv_ConvertE5M2ToBF16EXT(packed);
+    ret[0] = sycl::bit_cast<bfloat16>(hi[0]);
+    ret[1] = sycl::bit_cast<bfloat16>(hi[1]);
+#else
+    for (size_t i = 0; i < 2; ++i)
+      ret[i] = detail::ConvertFromFP8ToBinaryFloat_CPU<NExpBits, NFracBits,
+                                                       bfloat16>(vals[i], r);
+#endif
+  }
+
   void CheckConstraints(rounding r) const {
     assert(r == rounding::to_even &&
            "fp8_e5m2_x: only rounding::to_even is supported");
   }
+
+#ifdef __SYCL_DEVICE_ONLY__
+#define CONVERT_TO_FP8(VecType, CastType, in, s, Prefix)                       \
+  if constexpr (N == 1) {                                                      \
+    vals[0] = Convert##Prefix##ToFP8(in[0], s);                                \
+  } else {                                                                     \
+    const VecType vec{sycl::bit_cast<CastType>(in[0]),                         \
+                      sycl::bit_cast<CastType>(in[1])};                        \
+    const uint8_vec2 result = Convert##Prefix##ToFP8_Vec2(vec, s);             \
+    std::memcpy(vals, &result, sizeof(vals));                                  \
+  }
+#else
+#define CONVERT_TO_FP8(VecType, CastType, in, s, Prefix)                       \
+  for (size_t _cvt_i = 0; _cvt_i < N; ++_cvt_i)                                \
+    vals[_cvt_i] = Convert##Prefix##ToFP8(in[_cvt_i], s);
+#endif
 
 public:
   fp8_e5m2_x() = default;
@@ -1363,8 +1433,10 @@ public:
   explicit fp8_e5m2_x(Types... v) {
     if constexpr (((std::is_same_v<std::decay_t<Types>, bfloat16>) && ...)) {
       const bfloat16 in[N] = {static_cast<bfloat16>(v)...};
-      for (size_t i = 0; i < N; ++i)
-        vals[i] = ConvertBF16ToFP8(in[i], saturation::finite);
+      CONVERT_TO_FP8(bfloat16_vec2, __bf16, in, saturation::finite, BF16);
+    } else if constexpr (((std::is_same_v<std::decay_t<Types>, half>) && ...)) {
+      const sycl::half in[N] = {v...};
+      CONVERT_TO_FP8(float16_vec2, _Float16, in, saturation::finite, );
     } else {
       using InT = std::common_type_t<std::decay_t<Types>...>;
       const InT in[N] = {v...};
@@ -1378,17 +1450,13 @@ public:
   explicit fp8_e5m2_x(half const (&v)[N], rounding r = rounding::to_even,
                       saturation s = saturation::finite) {
     CheckConstraints(r);
-    // TODO: optimize with vectorized builtin calls
-    for (size_t i = 0; i < N; ++i)
-      vals[i] = ConvertToFP8(v[i], s);
+    CONVERT_TO_FP8(float16_vec2, _Float16, v, s, );
   }
 
   explicit fp8_e5m2_x(bfloat16 const (&v)[N], rounding r = rounding::to_even,
                       saturation s = saturation::finite) {
     CheckConstraints(r);
-    // TODO: optimize with vectorized builtin calls
-    for (size_t i = 0; i < N; ++i)
-      vals[i] = ConvertBF16ToFP8(v[i], s);
+    CONVERT_TO_FP8(bfloat16_vec2, __bf16, v, s, BF16);
   }
 
   explicit fp8_e5m2_x(float const (&v)[N], rounding r = rounding::to_even,
@@ -1404,16 +1472,14 @@ public:
                       rounding r = rounding::to_even,
                       saturation s = saturation::finite) {
     CheckConstraints(r);
-    for (size_t i = 0; i < N; ++i)
-      vals[i] = ConvertToFP8(v[i], s);
+    CONVERT_TO_FP8(float16_vec2, _Float16, v, s, );
   }
 
   explicit fp8_e5m2_x(const sycl::marray<bfloat16, N> &v,
                       rounding r = rounding::to_even,
                       saturation s = saturation::finite) {
     CheckConstraints(r);
-    for (size_t i = 0; i < N; ++i)
-      vals[i] = ConvertBF16ToFP8(v[i], s);
+    CONVERT_TO_FP8(bfloat16_vec2, __bf16, v, s, BF16);
   }
 
   explicit fp8_e5m2_x(const sycl::marray<float, N> &v,
@@ -1424,8 +1490,8 @@ public:
       vals[i] = ConvertToFP8(v[i], s);
   }
 
-  // Construct with stochastic rounding with user provided seed from an array of
-  // half, bfloat16.
+  // Construct with stochastic rounding with user provided seed from an array
+  // of half, bfloat16.
 
   explicit fp8_e5m2_x([[maybe_unused]] half const (&in)[N],
                       [[maybe_unused]] const stochastic_seed &seed,
@@ -1738,17 +1804,23 @@ public:
   }
 
   explicit operator sycl::marray<sycl::half, N>() const {
-    sycl::marray<sycl::half, N> out;
-    for (size_t i = 0; i < N; ++i)
-      out[i] = ConvertFromFP8<sycl::half>(vals[i]);
-    return out;
+    sycl::marray<sycl::half, N> ret;
+    if constexpr (N == 1)
+      ret[0] = ConvertFromFP8<sycl::half>(vals[0]);
+    else
+      ConvertFromFP8_Vec2(ret);
+    return ret;
   }
+
   explicit operator sycl::marray<bfloat16, N>() const {
-    sycl::marray<bfloat16, N> out;
-    for (size_t i = 0; i < N; ++i)
-      out[i] = ConvertBF16FromFP8(vals[i]);
-    return out;
+    sycl::marray<bfloat16, N> ret;
+    if constexpr (N == 1)
+      ret[0] = ConvertBF16FromFP8(vals[0]);
+    else
+      ConvertBF16FromFP8_Vec2(ret);
+    return ret;
   }
+
   explicit operator sycl::marray<float, N>() const {
     sycl::marray<float, N> out;
     for (size_t i = 0; i < N; ++i)
@@ -1759,6 +1831,7 @@ public:
   // Intentionally public to allow access to the raw values.
 
   uint8_t vals[N];
+#undef CONVERT_TO_FP8
 };
 
 template <size_t N> class fp8_e8m0_x {

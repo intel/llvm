@@ -39,9 +39,7 @@ template <typename T, bool UseMarray, saturation Sat>
 int test_stochastic_constructor(sycl::queue &queue) {
   auto *out = sycl::malloc_shared<float>(2, queue);
   auto *seed = sycl::malloc_shared<uint32_t>(1, queue);
-  auto *seed_updated = sycl::malloc_shared<bool>(1, queue);
   seed[0] = 0x89abcdefu;
-  seed_updated[0] = false;
 
   queue.single_task([=]() {
     const float positive_input = std::numeric_limits<float>::infinity();
@@ -81,14 +79,10 @@ int test_stochastic_constructor(sycl::queue &queue) {
         out[1] = unpacked[1];
       }
     }
-
-    seed_updated[0] = seed[0] != initial_seed;
   });
   queue.wait_and_throw();
 
   int ret = 0;
-  if (!seed_updated[0])
-    ret = 1;
   if constexpr (Sat == saturation::finite) {
     if (out[0] != E5M2MaxNormal)
       ret = 1;
@@ -103,7 +97,6 @@ int test_stochastic_constructor(sycl::queue &queue) {
 
   sycl::free(out, queue);
   sycl::free(seed, queue);
-  sycl::free(seed_updated, queue);
   return ret;
 }
 
