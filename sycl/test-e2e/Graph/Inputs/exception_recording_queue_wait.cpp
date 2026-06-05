@@ -23,12 +23,12 @@ int main() {
   // SYCL code along with a descriptive message to the user.
 #ifdef GRAPH_E2E_NATIVE_RECORDING
   if (!expectException([&]() { Queue.wait(); },
-                       "event wait during graph recording", errc::runtime)) {
+                       "queue wait during graph recording", errc::runtime)) {
     return 1;
   }
 #else
   if (!expectException([&]() { Queue.wait(); },
-                       "event wait during graph recording", errc::invalid)) {
+                       "queue wait during graph recording", errc::invalid)) {
     return 1;
   }
 #endif
