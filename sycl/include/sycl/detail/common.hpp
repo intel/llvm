@@ -244,7 +244,7 @@ struct ArrayCreator<DataT, FlattenF> {
 };
 
 // to output exceptions caught in ~destructors
-#ifndef NDEBUG
+#if !defined(NDEBUG) && !defined(__SYCL_DEVICE_ONLY__)
 #define __SYCL_REPORT_EXCEPTION_TO_STREAM(str, e)                              \
   {                                                                            \
     std::cerr << str << " " << e.what() << std::endl;                          \

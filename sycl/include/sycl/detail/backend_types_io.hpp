@@ -10,6 +10,8 @@
 
 #include <sycl/backend_types.hpp>
 
+#if !defined(__SYCL_DEVICE_ONLY__)
+
 #include <ostream>
 
 namespace sycl {
@@ -46,3 +48,5 @@ inline std::ostream &operator<<(std::ostream &Out, backend be) {
 
 } // namespace _V1
 } // namespace sycl
+
+#endif // !defined(__SYCL_DEVICE_ONLY__)

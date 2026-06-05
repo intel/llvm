@@ -227,9 +227,11 @@ std::tuple<range<Dims>, bool> getRoundedRange(range<Dims> UserRange,
 
   bool DidAdjust = false;
   auto Adjust = [&](int Dim, size_t Value) {
+#if !defined(__SYCL_DEVICE_ONLY__)
     if (RangeRoundingTrace())
       std::cout << "parallel_for range adjusted at dim " << Dim << " from "
                 << RoundedRange[Dim] << " to " << Value << std::endl;
+#endif // !defined(__SYCL_DEVICE_ONLY__)
     RoundedRange[Dim] = Value;
     DidAdjust = true;
   };
