@@ -172,8 +172,7 @@ public:
              LHS.first.second == RHS.first.second &&
              // Check equality of devices
              std::equal(LHS.second.first.begin(), LHS.second.first.end(),
-                        RHS.second.first.begin(),
-                        RHS.second.first.end()) &&
+                        RHS.second.first.begin(), RHS.second.first.end()) &&
              // Check equality of AllowUnresolvedSymbols flag
              LHS.second.second == RHS.second.second;
     }

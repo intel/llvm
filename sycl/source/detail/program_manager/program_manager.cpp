@@ -862,18 +862,15 @@ Managed<ur_program_handle_t> ProgramManager::getBuiltURProgram(
   return getBuiltURProgram(std::move(AllImages), ContextImpl, {*BuildDev});
 }
 
-Managed<ur_program_handle_t>
-ProgramManager::getBuiltURProgram(const BinImgWithDeps &ImgWithDeps,
-                                  context_impl &ContextImpl, devices_range Devs,
-                                  const DevImgPlainWithDeps *DevImgWithDeps,
-                                  const SerializedObj &SpecConsts,
-                                  bool AllowUnresolvedSymbols) {
+Managed<ur_program_handle_t> ProgramManager::getBuiltURProgram(
+    const BinImgWithDeps &ImgWithDeps, context_impl &ContextImpl,
+    devices_range Devs, const DevImgPlainWithDeps *DevImgWithDeps,
+    const SerializedObj &SpecConsts, bool AllowUnresolvedSymbols) {
   std::string CompileOpts;
   std::string LinkOpts;
   applyOptionsFromEnvironment(CompileOpts, LinkOpts);
   auto BuildF = [this, &ImgWithDeps, &DevImgWithDeps, &ContextImpl, &Devs,
-                 &CompileOpts, &LinkOpts, &SpecConsts,
-                 AllowUnresolvedSymbols] {
+                 &CompileOpts, &LinkOpts, &SpecConsts, AllowUnresolvedSymbols] {
     adapter_impl &Adapter = ContextImpl.getAdapter();
     const RTDeviceBinaryImage &MainImg = *ImgWithDeps.getMain();
     applyOptionsFromImage(CompileOpts, LinkOpts, MainImg, Devs, Adapter);

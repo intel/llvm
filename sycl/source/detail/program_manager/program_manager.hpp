@@ -412,8 +412,7 @@ private:
         const std::string &CompileOptions, const std::string &LinkOptions,
         std::vector<ur_device_handle_t> &Devices,
         const std::vector<Managed<ur_program_handle_t>> &ProgramsToLink,
-        bool CreatedFromBinary = false,
-        bool AllowUnresolvedSymbols = false);
+        bool CreatedFromBinary = false, bool AllowUnresolvedSymbols = false);
 
   /// Dumps image to current directory
   void dumpImage(const RTDeviceBinaryImage &Img, uint32_t SequenceID = 0) const;
