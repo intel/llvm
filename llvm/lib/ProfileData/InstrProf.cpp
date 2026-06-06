@@ -482,7 +482,8 @@ std::string getPGOFuncNameVarName(StringRef FuncName,
 
 bool isGPUProfTarget(const Module &M) {
   const Triple &T = M.getTargetTriple();
-  return T.isGPU();
+  // SPIR is not using GPU Prof path yet
+  return !T.isSPIR() && T.isGPU();
 }
 
 void setPGOFuncVisibility(Module &M, GlobalVariable *FuncNameVar) {
