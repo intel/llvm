@@ -10220,29 +10220,11 @@ void OffloadBundler::ConstructJob(Compilation &C, const JobAction &JA,
       else
         Triples += CurTC->getTriple().normalize();
     }
-    if ((CurKind == Action::OFK_HIP || CurKind == Action::OFK_OpenMP ||
-         CurKind == Action::OFK_Cuda || CurKind == Action::OFK_SYCL) &&
+    if (CurKind != Action::OFK_Host &&
         !StringRef(CurDep->getOffloadingArch()).empty() &&
         !TCArgs.hasArg(options::OPT_fno_bundle_offload_arch)) {
       Triples += '-';
       Triples += CurDep->getOffloadingArch();
-    }
-
-    // TODO: Replace parsing of -march flag. Can be done by storing GPUArch
-    //       with each toolchain.
-    StringRef GPUArchName;
-    if (CurKind == Action::OFK_OpenMP) {
-      // Extract GPUArch from -march argument in TC argument list.
-      for (unsigned ArgIndex = 0; ArgIndex < TCArgs.size(); ArgIndex++) {
-        auto ArchStr = StringRef(TCArgs.getArgString(ArgIndex));
-        auto Arch = ArchStr.starts_with_insensitive("-march=");
-        if (Arch) {
-          GPUArchName = ArchStr.substr(7);
-          Triples += "-";
-          break;
-        }
-      }
-      Triples += GPUArchName.str();
     }
   }
   CmdArgs.push_back(TCArgs.MakeArgString(Triples));
@@ -10361,30 +10343,11 @@ void OffloadBundler::ConstructJobMultipleOutputs(
       else
         Triples += Dep.DependentToolChain->getTriple().normalize();
     }
-    if ((Dep.DependentOffloadKind == Action::OFK_HIP ||
-         Dep.DependentOffloadKind == Action::OFK_OpenMP ||
-         Dep.DependentOffloadKind == Action::OFK_Cuda ||
-         Dep.DependentOffloadKind == Action::OFK_SYCL) &&
+    if (Dep.DependentOffloadKind != Action::OFK_Host &&
         !Dep.DependentBoundArch.empty() &&
         !TCArgs.hasArg(options::OPT_fno_bundle_offload_arch)) {
       Triples += '-';
       Triples += Dep.DependentBoundArch;
-    }
-    // TODO: Replace parsing of -march flag. Can be done by storing GPUArch
-    //       with each toolchain.
-    StringRef GPUArchName;
-    if (Dep.DependentOffloadKind == Action::OFK_OpenMP) {
-      // Extract GPUArch from -march argument in TC argument list.
-      for (unsigned ArgIndex = 0; ArgIndex < TCArgs.size(); ArgIndex++) {
-        StringRef ArchStr = StringRef(TCArgs.getArgString(ArgIndex));
-        auto Arch = ArchStr.starts_with_insensitive("-march=");
-        if (Arch) {
-          GPUArchName = ArchStr.substr(7);
-          Triples += "-";
-          break;
-        }
-      }
-      Triples += GPUArchName.str();
     }
   }
   std::string TargetString(UA.getTargetString());
