@@ -255,7 +255,7 @@ namespace {
 // Mirrors `WarnForDeprecatedBackendOpts` from SYCL.cpp: warn when a user is
 // using a deprecated ocloc GRF backend opt against PVC.
 void warnForDeprecatedBackendOpts(const BackendArgsInput &In, StringRef Device,
-                                   StringRef ArgString, const Arg *A) {
+                                  StringRef ArgString, const Arg *A) {
   if (!ArgString.contains("-device pvc") && !Device.contains("pvc"))
     return;
   // Only warn the second time around for gen targets; the translators run
@@ -319,8 +319,8 @@ void llvm::offloading::sycl::translateTargetOpt(const BackendArgsInput &In,
 }
 
 void llvm::offloading::sycl::translateGPUTargetOpt(const BackendArgsInput &In,
-                                                    OptSpecifier Opt_EQ,
-                                                    ArgStringList &CmdArgs) {
+                                                   OptSpecifier Opt_EQ,
+                                                   ArgStringList &CmdArgs) {
   if (const Arg *TargetArg = In.Args.getLastArg(Opt_EQ)) {
     StringRef Val = TargetArg->getValue();
     // The legacy code calls `tools::SYCL::gen::isGPUTarget<AmdGPU>(Val)`,
@@ -485,13 +485,13 @@ void llvm::offloading::sycl::addSPIRVImpliedTargetArgs(
         }
       }
       // ocloc renames for newer architectures.
-      DepInfo = StringSwitch<StringRef>(DepInfo)
-                    .Cases({"pvc_vg", "12_61_7"}, "pvc_xt_c0_vg")
-                    .Cases({"mtl_u", "mtl_s", "arl_u", "arl_s", "12_70_4"},
-                           "mtl_s")
-                    .Cases({"mtl_h", "12_71_4"}, "mtl_p")
-                    .Cases({"arl_h", "12_74_4"}, "xe_lpgplus_b0")
-                    .Default(DepInfo);
+      DepInfo =
+          StringSwitch<StringRef>(DepInfo)
+              .Cases({"pvc_vg", "12_61_7"}, "pvc_xt_c0_vg")
+              .Cases({"mtl_u", "mtl_s", "arl_u", "arl_s", "12_70_4"}, "mtl_s")
+              .Cases({"mtl_h", "12_71_4"}, "mtl_p")
+              .Cases({"arl_h", "12_74_4"}, "xe_lpgplus_b0")
+              .Default(DepInfo);
       CmdArgs.push_back("-device");
       CmdArgs.push_back(In.Args.MakeArgString(DepInfo));
     }

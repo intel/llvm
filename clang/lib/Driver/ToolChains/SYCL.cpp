@@ -1490,15 +1490,15 @@ struct DriverDiagBindings {
   std::function<void(StringRef)> ErrXsyclTargetMissingTriple;
   std::function<void(StringRef, StringRef)> ErrUnsupportedOptForTarget;
   explicit DriverDiagBindings(const Driver &D)
-      : ResolveDeviceTriple([&D](StringRef V,
-                                 const Arg *A) { return D.getSYCLDeviceTriple(V, A); }),
+      : ResolveDeviceTriple([&D](StringRef V, const Arg *A) {
+          return D.getSYCLDeviceTriple(V, A);
+        }),
         WarnPVCDeprecatedGRF([&D](StringRef Flag, StringRef Mode) {
           D.Diag(diag::warn_drv_ftarget_register_alloc_mode_pvc)
               << Flag << Mode;
         }),
         ErrUnsupportedOptionArgument([&D](StringRef Spelling, StringRef Bad) {
-          D.Diag(diag::err_drv_unsupported_option_argument)
-              << Spelling << Bad;
+          D.Diag(diag::err_drv_unsupported_option_argument) << Spelling << Bad;
         }),
         ErrXsyclTargetMissingTriple([&D](StringRef Spelling) {
           D.Diag(diag::err_drv_Xsycl_target_missing_triple) << Spelling;
@@ -1513,9 +1513,9 @@ struct DriverDiagBindings {
 // translator invocation that uses the returned input.
 static llvm::offloading::sycl::BackendArgsInput
 makeBackendArgsInput(const Driver &D, const DriverDiagBindings &Diags,
-                     const llvm::Triple &Triple,
-                     const llvm::opt::ArgList &Args, StringRef Device,
-                     bool HostIsWindowsMSVCEnv, StringRef JobOffloadingArch) {
+                     const llvm::Triple &Triple, const llvm::opt::ArgList &Args,
+                     StringRef Device, bool HostIsWindowsMSVCEnv,
+                     StringRef JobOffloadingArch) {
   llvm::offloading::sycl::BackendArgsInput In{
       Args,
       Triple,
@@ -1562,9 +1562,9 @@ void SYCLToolChain::AddSPIRVImpliedTargetArgs(const llvm::Triple &Triple,
                                               const ToolChain &HostTC,
                                               StringRef Device) const {
   DriverDiagBindings Diags(getDriver());
-  auto In = makeBackendArgsInput(
-      getDriver(), Diags, Triple, Args, Device,
-      HostTC.getTriple().isWindowsMSVCEnvironment(), JA.getOffloadingArch());
+  auto In = makeBackendArgsInput(getDriver(), Diags, Triple, Args, Device,
+                                 HostTC.getTriple().isWindowsMSVCEnvironment(),
+                                 JA.getOffloadingArch());
   llvm::offloading::sycl::addSPIRVImpliedTargetArgs(In, CmdArgs);
 }
 
