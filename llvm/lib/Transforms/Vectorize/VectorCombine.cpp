@@ -3032,8 +3032,11 @@ bool VectorCombine::foldShuffleOfShuffles(Instruction &I) {
     }
   }
 
-  if (!NewX)
-    return PoisonValue::get(ShuffleDstTy);
+  if (!NewX) {
+    replaceValue(I, *PoisonValue::get(ShuffleDstTy));
+    return true;
+  }
+
   if (!NewY)
     NewY = PoisonValue::get(ShuffleSrcTy);
 

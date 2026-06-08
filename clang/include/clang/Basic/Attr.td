@@ -780,10 +780,13 @@ class Attr {
   // Note: Any additional data members will leak and should be constructed
   // externally on the ASTContext.
   code AdditionalMembers = [{}];
+
+  string comparisonFn = "";
+  string profileFn = "";
+
   // Any documentation that should be associated with the attribute. Since an
   // attribute may be documented under multiple categories, more than one
   // Documentation entry may be listed.
-  string comparisonFn = "";
   list<Documentation> Documentation;
   // The SYCL specification allows attributes on lambdas as a nonconforming
   // extension to C++. The attributes are written in the type position but will
@@ -938,6 +941,7 @@ def Aligned : InheritableAttr {
                                           CustomKeyword<"_Alignas">]>,
                    Accessor<"isDeclspec",[Declspec<"align">]>];
   let comparisonFn = "areAlignedAttrsEqual";
+  let profileFn = "profileAlignedAttr";
   let Documentation = [Undocumented];
 }
 
@@ -4106,7 +4110,7 @@ def Sentinel : InheritableAttr {
   let Args = [DefaultIntArgument<"Sentinel", 0>,
               DefaultIntArgument<"NullPos", 0>];
 //  let Subjects = SubjectList<[Function, ObjCMethod, Block, Var]>;
-  let Documentation = [Undocumented];
+  let Documentation = [SentinelDocs];
 }
 
 def StdCall : DeclOrTypeAttr {
