@@ -67,10 +67,10 @@ enum class arch_category {
 };
 
 namespace info::device {
-struct architecture {
+struct architecture
+    : sycl::detail::ur_traits_base<sycl::detail::info_class::device,
+                                   UR_DEVICE_INFO_IP_VERSION> {
   using return_type = sycl::ext::oneapi::experimental::architecture;
-  using info_class = sycl::detail::info_class::device;
-  static constexpr ur_device_info_t ur_code = UR_DEVICE_INFO_IP_VERSION;
 };
 } // namespace info::device
 

@@ -66,6 +66,17 @@ struct event : info_class_base<ur_event_info_t> {};
 struct event_profiling : info_class_base<ur_profiling_info_t> {};
 } // namespace info_class
 
+// Detects that `T` is one of the `info_class::*` tags above. Holds when `T`
+// inherits from any `info_class_base<U>` instantiation, so the check stays
+// closed against future tags as long as they keep the same shape.
+template <typename T, typename = void>
+struct is_info_class_tag : std::false_type {};
+
+template <typename T>
+struct is_info_class_tag<T, std::void_t<typename T::ur_code_type>>
+    : std::is_base_of<info_class::info_class_base<typename T::ur_code_type>,
+                      T> {};
+
 // Common base for UR-dispatched traits. Derived structs inherit `info_class`
 // and `ur_code` and add `using return_type = ...;` in their body. `auto
 // UrCode` lets each derived trait pass its own native UR enum type
@@ -73,6 +84,9 @@ struct event_profiling : info_class_base<ur_profiling_info_t> {};
 // enum family at the base. Note: `return_type` is intentionally NOT a base
 // template parameter — see file-level comment.
 template <typename ClassT, auto UrCode> struct ur_traits_base {
+  static_assert(is_info_class_tag<ClassT>::value,
+                "ur_traits_base ClassT must be one of the info_class::* tags "
+                "(i.e. derive from info_class::info_class_base).");
   using info_class = ClassT;
   static constexpr decltype(UrCode) ur_code = UrCode;
 };
@@ -81,6 +95,9 @@ template <typename ClassT, auto UrCode> struct ur_traits_base {
 // `info_class` and add `using return_type = ...;`. Runtime dispatch hits an
 // explicit CASE in *_impl.hpp.
 template <typename ClassT> struct rt_traits_base {
+  static_assert(is_info_class_tag<ClassT>::value,
+                "rt_traits_base ClassT must be one of the info_class::* tags "
+                "(i.e. derive from info_class::info_class_base).");
   using info_class = ClassT;
 };
 
