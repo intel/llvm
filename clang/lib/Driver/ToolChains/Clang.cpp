@@ -12007,14 +12007,12 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     bool SYCLBINImpliesAllowDeps = false;
     if (const Arg *A = Args.getLastArg(options::OPT_fsyclbin_EQ)) {
       StringRef State = A->getValue();
-      bool IsLinkableState = (State == "input" || State == "object");
-      SYCLBINImpliesAllowDeps = State == "input" || State == "object";
+      SYCLBINImpliesAllowDeps = (State == "input" || State == "object");
 
-      And re - use SYCLBINImpliesAllowDeps instead of
-                   IsLinkableState const Driver &D = getToolChain().getDriver();
+      const Driver &D = getToolChain().getDriver();
       if (const Arg *NoDeps = Args.getLastArg(
               options::OPT_fno_sycl_allow_device_image_dependencies);
-          NoDeps && IsLinkableState) {
+          NoDeps && SYCLBINImpliesAllowDeps) {
         D.Diag(diag::err_drv_argument_not_allowed_with)
             << NoDeps->getAsString(Args) << A->getAsString(Args);
       } else if (const Arg *Deps = Args.getLastArg(
