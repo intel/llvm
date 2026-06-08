@@ -45,5 +45,7 @@ entry:
 !4 = !{i32 2, !"Debug Info Version", i32 3}
 !5 = !{i32 1, !"wchar_size", i32 4}
 !6 = !{i32 2, i32 0}
-!7 = distinct !DISubprogram(name: "func", scope: !8, file: !8, line: 1, scopeLine: 2, flags: DIFlagPrototyped | DIFlagAllCallsDescribed, spFlags: DISPFlagDefinition | DISPFlagOptimized, unit: !0, retainedNodes: !2)
+!7 = distinct !DISubprogram(name: "func", scope: !8, file: !8, line: 1, scopeLine: 2, flags: DIFlagPrototyped | DIFlagAllCallsDescribed, spFlags: DISPFlagDefinition | DISPFlagOptimized, type: !9, unit: !0, retainedNodes: !2)
 !8 = !DIFile(filename: "test.cl", directory: "/tmp", checksumkind: CSK_MD5, checksum: "18aa9ce738eaafc7b7b7181c19092815")
+!9 = !DISubroutineType(types: !10)
+!10 = !{null}
