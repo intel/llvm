@@ -248,14 +248,21 @@ ur_result_t urEnqueueEventsWaitWithBarrierExt(
   ur_event_handle_t ResultEvent = nullptr;
   bool IsInternal = OutEvent == nullptr;
 
-  // For in-order queue and wait-list which is empty or has events from
-  // the same queue just use the last command event as the barrier event.
-  // This optimization is disabled when profiling is enabled to ensure
-  // accurate profiling values & the overhead that profiling incurs.
+  // For in-order queues with no explicit wait list, the last command event
+  // is equivalent to a full barrier because commands execute in submission
+  // order.  Return it directly without inserting an additional barrier command.
+  //
+  // The optimisation is intentionally restricted to NumEventsInWaitList == 0.
+  // When callers supply explicit events we must append a real barrier so that
+  // the returned event correctly tracks completion of every listed dependency,
+  // even if some of those events originate from a different queue or represent
+  // cross-queue work that is not yet reflected in LastCommandEvent.
+  //
+  // The optimisation is also disabled when profiling is enabled to ensure
+  // accurate timestamps (see zeCommandListAppendSignalEvent spec note).
   if (Queue->isInOrderQueue() && !Queue->isProfilingEnabled() &&
-      WaitListEmptyOrAllEventsFromSameQueue(Queue, NumEventsInWaitList,
-                                            EventWaitList) &&
-      Queue->LastCommandEvent && !Queue->LastCommandEvent->IsDiscarded) {
+      NumEventsInWaitList == 0 && Queue->LastCommandEvent &&
+      !Queue->LastCommandEvent->IsDiscarded) {
     UR_CALL(ur::level_zero::urEventRetain(Queue->LastCommandEvent));
     ResultEvent = Queue->LastCommandEvent;
     if (OutEvent) {
