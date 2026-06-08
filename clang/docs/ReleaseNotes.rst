@@ -240,6 +240,8 @@ C2y Feature Support
 C23 Feature Support
 ^^^^^^^^^^^^^^^^^^^
 - Clang now allows C23 ``constexpr`` struct member access through the dot operator in constant expressions. (#GH178349)
+- Fixed a failing assertion when validating an invalid structure redefinition
+  with a member which uses an incomplete enumeration type. (#GH190227)
 - Clang now supports the C23 ``wN`` and ``wfN`` length modifiers. (#GH116962)
 
 Objective-C Language Changes
@@ -925,6 +927,9 @@ libclang
 - Fix crash in clang_getBinaryOperatorKindSpelling and clang_getUnaryOperatorKindSpelling
 - The clang_Module_getASTFile API is deprecated and now always returns nullptr
 - The clang_Cursor_getCommentRange API will now return a comment range for macro definitions that have documentation comments.
+- Added CXType_PredefinedSugar for __ptrdiff_t, __size_t, and
+  __signed_size_t types, which are no longer exposed as
+  CXType_Unexposed.
 
 Code Completion
 ---------------
