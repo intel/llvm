@@ -96,12 +96,6 @@
 // CHECK-NEXT: nd_range.hpp
 // CHECK-NEXT: detail/optional.hpp
 // CHECK-NEXT: detail/range_rounding.hpp
-// CHECK-NEXT: device.hpp
-// CHECK-NEXT: detail/string_view.hpp
-// CHECK-NEXT: detail/util.hpp
-// CHECK-NEXT: detail/abi_neutral.hpp
-// CHECK-NEXT: device_selector.hpp
-// CHECK-NEXT: kernel_bundle_enums.hpp
 // CHECK-NEXT: ext/oneapi/kernel_properties.hpp
 // CHECK-NEXT: ext/oneapi/free_function_kernel_properties.hpp
 // CHECK-NEXT: ext/oneapi/properties/property_value.hpp
@@ -113,6 +107,7 @@
 // CHECK-NEXT: device.hpp
 // CHECK-NEXT: detail/string_view.hpp
 // CHECK-NEXT: detail/util.hpp
+// CHECK-NEXT: detail/abi_neutral.hpp
 // CHECK-NEXT: device_selector.hpp
 // CHECK-NEXT: kernel_bundle_enums.hpp
 // CHECK-NEXT: event.hpp
