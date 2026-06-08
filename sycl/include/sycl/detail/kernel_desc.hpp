@@ -235,7 +235,8 @@ template <typename KN, typename KernelInfo> struct KernelRegistrar {
 #if defined(__GNUG__) || defined(__clang__)
   __attribute__((used))
 #endif
-  friend const char *getKernelNameHelper(KernelIdentity<KN>) noexcept {
+  friend const char *
+  getKernelNameHelper(KernelIdentity<KN>) noexcept {
     return KernelInfo::getName();
   }
   operator KernelIdentity<KN>() const noexcept { return KernelIdentity<KN>{}; }
@@ -255,7 +256,7 @@ template <typename KN, typename KernelInfo> struct KernelRegistrar {
 // class is passed as an argument which is convertible to the kernel
 // name wrapper type.
 template <typename KN> struct KernelRegistry {
-#if  defined(__GNUC__) && !defined(__clang__)
+#if defined(__GNUC__) && !defined(__clang__)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wnon-template-friend"
 #endif

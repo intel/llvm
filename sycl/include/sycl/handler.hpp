@@ -967,7 +967,7 @@ private:
     (void)Props;
     constexpr auto Info = detail::CompileTimeKernelInfo<NameT>;
     detail::KernelRegistrar<NameT,
-                                  detail::KernelInfo<NameT>>::registerKernelName();
+                            detail::KernelInfo<NameT>>::registerKernelName();
     detail::KernelWrapper<WrapAsVal, NameT, KernelType, ElementType,
                           PropertiesT>::wrap(KernelFunc);
 
