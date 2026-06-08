@@ -108,6 +108,8 @@ auto constexpr DeviceLibrariesSource = R"===(
 #include <cmath>
 #include <complex.h>
 
+extern "C" SYCL_EXTERNAL float cabsf(float _Complex);
+extern "C" SYCL_EXTERNAL float _Complex cpowf(float _Complex, float _Complex);
 // C99 complex construction macro.
 #define CMPLXF(r, i) ((float _Complex){(float)(r), (float)(i)})
 
