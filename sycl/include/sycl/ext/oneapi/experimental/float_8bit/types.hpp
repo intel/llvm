@@ -1844,6 +1844,17 @@ template <size_t N> class fp8_e8m0_x {
            "supported");
   }
 
+  template <typename T> inline sycl::marray<T, N> ConvertFromFP8_Loop() const {
+    sycl::marray<T, N> out;
+    for (size_t i = 0; i < N; ++i)
+      out[i] = detail::ConvertFromE8M0_CPU<T>(vals[i], rounding::to_even);
+    return out;
+  }
+
+#define CONVERT_TO_FP8(in, r)                                                  \
+  for (size_t i = 0; i < N; ++i)                                               \
+    vals[i] = detail::ConvertFloatToE8M0_CPU(in[i], r, saturation::finite);
+
 public:
   fp8_e8m0_x() = default;
   fp8_e8m0_x(const fp8_e8m0_x &) = default;
@@ -1859,48 +1870,40 @@ public:
   explicit fp8_e8m0_x(Types... v) {
     using InT = std::common_type_t<std::decay_t<Types>...>;
     const InT in[N] = {v...};
-    for (size_t i = 0; i < N; ++i)
-      vals[i] = detail::ConvertFloatToE8M0_CPU(in[i], rounding::upward,
-                                               saturation::finite);
+    CONVERT_TO_FP8(in, rounding::upward);
   }
 
   explicit fp8_e8m0_x(half const (&in)[N], rounding r = rounding::upward) {
     CheckConstraints(r);
-    for (size_t i = 0; i < N; ++i)
-      vals[i] = detail::ConvertFloatToE8M0_CPU(in[i], r, saturation::finite);
+    CONVERT_TO_FP8(in, r);
   }
 
   explicit fp8_e8m0_x(bfloat16 const (&in)[N], rounding r = rounding::upward) {
     CheckConstraints(r);
-    for (size_t i = 0; i < N; ++i)
-      vals[i] = detail::ConvertFloatToE8M0_CPU(in[i], r, saturation::finite);
+    CONVERT_TO_FP8(in, r);
   }
 
   explicit fp8_e8m0_x(float const (&in)[N], rounding r = rounding::upward) {
     CheckConstraints(r);
-    for (size_t i = 0; i < N; ++i)
-      vals[i] = detail::ConvertFloatToE8M0_CPU(in[i], r, saturation::finite);
+    CONVERT_TO_FP8(in, r);
   }
 
   explicit fp8_e8m0_x(const marray<half, N> &in,
                       rounding r = rounding::upward) {
     CheckConstraints(r);
-    for (size_t i = 0; i < N; ++i)
-      vals[i] = detail::ConvertFloatToE8M0_CPU(in[i], r, saturation::finite);
+    CONVERT_TO_FP8(in, r);
   }
 
   explicit fp8_e8m0_x(const marray<bfloat16, N> &in,
                       rounding r = rounding::upward) {
     CheckConstraints(r);
-    for (size_t i = 0; i < N; ++i)
-      vals[i] = detail::ConvertFloatToE8M0_CPU(in[i], r, saturation::finite);
+    CONVERT_TO_FP8(in, r);
   }
 
   explicit fp8_e8m0_x(const marray<float, N> &in,
                       rounding r = rounding::upward) {
     CheckConstraints(r);
-    for (size_t i = 0; i < N; ++i)
-      vals[i] = detail::ConvertFloatToE8M0_CPU(in[i], r, saturation::finite);
+    CONVERT_TO_FP8(in, r);
   }
 
   // Construct from integer types.
@@ -2092,28 +2095,21 @@ public:
   }
 
   explicit operator sycl::marray<half, N>() const {
-    sycl::marray<half, N> out;
-    for (size_t i = 0; i < N; ++i)
-      out[i] = detail::ConvertFromE8M0_CPU<half>(vals[i], rounding::to_even);
-    return out;
+    return ConvertFromFP8_Loop<half>();
   }
+
   explicit operator sycl::marray<bfloat16, N>() const {
-    sycl::marray<bfloat16, N> out;
-    for (size_t i = 0; i < N; ++i)
-      out[i] =
-          detail::ConvertFromE8M0_CPU<bfloat16>(vals[i], rounding::to_even);
-    return out;
+    return ConvertFromFP8_Loop<bfloat16>();
   }
+
   explicit operator sycl::marray<float, N>() const {
-    sycl::marray<float, N> out;
-    for (size_t i = 0; i < N; ++i)
-      out[i] = detail::ConvertFromE8M0_CPU<float>(vals[i], rounding::to_even);
-    return out;
+    return ConvertFromFP8_Loop<float>();
   }
 
   // Intentionally public to allow access to the raw values.
 
   uint8_t vals[N];
+#undef CONVERT_TO_FP8
 };
 
 template <typename... Ts> fp8_e4m3_x(Ts...) -> fp8_e4m3_x<sizeof...(Ts)>;
