@@ -11796,12 +11796,8 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     SYCLInstallationDetector SYCLInstallation(D, getToolChain().getTriple(),
                                               Args);
     SYCLInstallation.getSYCLDeviceLibPath(LibLocCandidates);
-    SmallString<128> LibName("libsycl-crt");
+    SmallString<128> LibName("libsycl-crt.bc");
     bool IsNewOffload = D.getUseNewOffloadingDriver();
-    StringRef LibSuffix = TheTriple.isWindowsMSVCEnvironment()
-                              ? (IsNewOffload ? ".new.obj" : ".obj")
-                              : (IsNewOffload ? ".new.o" : ".o");
-    llvm::sys::path::replace_extension(LibName, LibSuffix);
     for (const auto &LibLoc : LibLocCandidates) {
       SmallString<128> FullLibName(LibLoc);
       llvm::sys::path::append(FullLibName, LibName);

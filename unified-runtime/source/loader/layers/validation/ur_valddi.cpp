@@ -11762,6 +11762,38 @@ __urdlllocal ur_result_t UR_APICALL urGraphIsEmptyExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urGraphSetDestructionCallbackExp
+__urdlllocal ur_result_t UR_APICALL urGraphSetDestructionCallbackExp(
+    /// [in] Handle of the graph to register the callback for.
+    ur_exp_graph_handle_t hGraph,
+    /// [in] Function pointer to the callback. The callback must not access
+    /// hGraph.
+    ur_exp_graph_destruction_callback_t pfnCallback,
+    /// [in][optional] Pointer to user data to be passed to the callback. The
+    /// user data must not reference hGraph.
+    void *pUserData) {
+  auto pfnSetDestructionCallbackExp =
+      getContext()->urDdiTable.GraphExp.pfnSetDestructionCallbackExp;
+
+  if (nullptr == pfnSetDestructionCallbackExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == pfnCallback)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hGraph)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+  }
+
+  ur_result_t result =
+      pfnSetDestructionCallbackExp(hGraph, pfnCallback, pUserData);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urGraphDumpContentsExp
 __urdlllocal ur_result_t UR_APICALL urGraphDumpContentsExp(
     /// [in] Handle of the graph to dump.
@@ -12420,6 +12452,11 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetGraphExpProcAddrTable(
 
   dditable.pfnIsEmptyExp = pDdiTable->pfnIsEmptyExp;
   pDdiTable->pfnIsEmptyExp = ur_validation_layer::urGraphIsEmptyExp;
+
+  dditable.pfnSetDestructionCallbackExp =
+      pDdiTable->pfnSetDestructionCallbackExp;
+  pDdiTable->pfnSetDestructionCallbackExp =
+      ur_validation_layer::urGraphSetDestructionCallbackExp;
 
   dditable.pfnDumpContentsExp = pDdiTable->pfnDumpContentsExp;
   pDdiTable->pfnDumpContentsExp = ur_validation_layer::urGraphDumpContentsExp;

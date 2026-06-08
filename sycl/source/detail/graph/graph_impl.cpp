@@ -385,6 +385,13 @@ graph_impl::~graph_impl() {
       }
       MNativeGraphHandle = nullptr;
     }
+    for (auto &Cb : MDestructionCallbacks) {
+      // Catch exceptions to match native graph callback behavior
+      try {
+        Cb();
+      } catch (...) {
+      }
+    }
   } catch (std::exception &e) {
     __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~graph_impl", e);
   }
@@ -647,6 +654,35 @@ void graph_impl::removeQueue(sycl::detail::queue_impl &RecordingQueue) {
 bool graph_impl::isQueueRecording(sycl::detail::queue_impl &Queue) {
 
   return MRecordingQueues.count(Queue.weak_from_this()) > 0;
+}
+
+void graph_impl::setDestructionCallback(std::function<void()> Callback) {
+  graph_impl::WriteLock Lock(MMutex);
+  if (MNativeGraphHandle) {
+    auto Data = std::make_unique<std::function<void()>>(std::move(Callback));
+    context_impl &ContextImpl = *sycl::detail::getSyclObjImpl(MContext);
+    sycl::detail::adapter_impl &Adapter = ContextImpl.getAdapter();
+    ur_result_t Result = Adapter.call_nocheck<
+        sycl::detail::UrApiKind::urGraphSetDestructionCallbackExp>(
+        MNativeGraphHandle,
+        [](void *UserData) {
+          auto *Fn = static_cast<std::function<void()> *>(UserData);
+          // Catch all exceptions to prevent leaking Fn
+          try {
+            (*Fn)();
+          } catch (...) {
+          }
+          delete Fn;
+        },
+        Data.get());
+    if (Result != UR_RESULT_SUCCESS) {
+      throw sycl::exception(sycl::make_error_code(errc::runtime),
+                            "Failed to register graph destruction callback");
+    }
+    Data.release();
+  } else {
+    MDestructionCallbacks.push_back(std::move(Callback));
+  }
 }
 
 void graph_impl::clearQueues(bool NeedsLock) {
@@ -1097,6 +1133,11 @@ exec_graph_impl::exec_graph_impl(sycl::context Context,
   // Create native UR executable graph if the modifiable graph uses native
   // recording
   if (isNativeRecordingEnabledForGraph(*GraphImpl)) {
+    if (MIsUpdatable) {
+      throw sycl::exception(
+          sycl::make_error_code(errc::feature_not_supported),
+          "Updatable graphs are not supported in native recording mode");
+    }
     context_impl &ContextImpl = *sycl::detail::getSyclObjImpl(MContext);
     sycl::detail::adapter_impl &Adapter = ContextImpl.getAdapter();
     ur_result_t Result =
@@ -1652,12 +1693,6 @@ void exec_graph_impl::duplicateNodes() {
 }
 
 void exec_graph_impl::update(std::shared_ptr<graph_impl> GraphImpl) {
-  if (MNativeExecutableGraphHandle) {
-    throw sycl::exception(
-        sycl::make_error_code(errc::feature_not_supported),
-        "Graph update is not supported in native recording mode");
-  }
-
   if (MDevice != GraphImpl->getDevice()) {
     throw sycl::exception(
         sycl::make_error_code(errc::invalid),
@@ -1729,11 +1764,6 @@ void exec_graph_impl::update(node_impl &Node) {
 }
 
 void exec_graph_impl::update(nodes_range Nodes) {
-  if (MNativeExecutableGraphHandle) {
-    throw sycl::exception(
-        sycl::make_error_code(errc::feature_not_supported),
-        "Graph update is not supported in native recording mode");
-  }
   if (!MIsUpdatable) {
     throw sycl::exception(sycl::make_error_code(errc::invalid),
                           "update() cannot be called on a executable graph "
@@ -2357,6 +2387,11 @@ void modifiable_command_graph::checkNodePropertiesAndThrow(
   };
   sycl::detail::PropertyValidator::checkPropsAndThrow(
       Properties, CheckDataLessProperties, CheckPropertiesWithData);
+}
+
+void modifiable_command_graph::setDestructionCallbackImpl(
+    std::function<void()> Callback) {
+  impl->setDestructionCallback(std::move(Callback));
 }
 
 executable_command_graph::executable_command_graph(

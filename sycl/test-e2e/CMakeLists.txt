@@ -81,6 +81,31 @@ if(hip_FOUND)
   set(HIP_INCLUDE "${hip_INCLUDE_DIRS}")
 endif()
 
+# Extract the DPC++ version from the compiler output.
+execute_process(
+      COMMAND ${SYCL_CXX_COMPILER} --version
+      WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+      RESULT_VARIABLE CMPLR_RESULT
+      OUTPUT_VARIABLE CMPLR_VER
+      OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
+
+if(CMPLR_RESULT EQUAL 0 AND CMPLR_VER)
+  # CMAKE_CXX_COMPILER_ID will only be set in standalone mode, otherwise
+  # the compiler must be the just-built clang.
+  if(SYCL_TEST_E2E_STANDALONE AND CMAKE_CXX_COMPILER_ID MATCHES "IntelLLVM")
+    set(CMPLR_REGEX "Intel\\(R\\) oneAPI DPC\\+\\+/C\\+\\++ Compiler ([0-9]+)")
+  else()
+    set(CMPLR_REGEX "DPC\\+\\+ compiler ([0-9]+)")
+  endif()
+  string(REGEX MATCH ${CMPLR_REGEX} _ ${CMPLR_VER})
+  set(DPCPP_VERSION_MAJOR "${CMAKE_MATCH_1}")
+endif()
+
+if("${DPCPP_VERSION_MAJOR}" STREQUAL "")
+  message(FATAL_ERROR "Could not detect SYCL compiler version")
+endif()
+
 if(SYCL_TEST_E2E_STANDALONE)
   configure_file("${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.py.in"
                  "${CMAKE_CURRENT_BINARY_DIR}/lit.site.cfg.py")
