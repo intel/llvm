@@ -520,7 +520,12 @@ void Command::waitForEvents(queue_impl *Queue,
       flushCrossQueueDeps(EventImpls);
       adapter_impl &Adapter = Queue->getAdapter();
 
-      Adapter.call<UrApiKind::urEnqueueEventsWait>(
+      // Use a barrier rather than a plain event-wait so that all prior
+      // in-flight work on the queue is included in the dependency, not only
+      // the explicitly listed events.  This provides the stronger ordering
+      // guarantee needed when this node is used as a completion checkpoint
+      // (e.g. before a host-visible copy or an accessor creation).
+      Adapter.call<UrApiKind::urEnqueueEventsWaitWithBarrier>(
           Queue->getHandleRef(), RawEvents.size(), &RawEvents[0], &Event);
     }
   }
