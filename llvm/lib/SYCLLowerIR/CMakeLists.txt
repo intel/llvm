@@ -6,9 +6,9 @@ if (NOT TARGET LLVMGenXIntrinsics)
   if (NOT LLVMGenXIntrinsics_FOUND)
     set(LLVMGenXIntrinsics_GIT_REPO https://github.com/intel/vc-intrinsics.git)
 
-    # Date: April 01, 2026
-    # Fix build.
-    set(LLVMGenXIntrinsics_GIT_TAG dpcpp_staging)
+    # Date: April 03, 2026
+    # Fix build again.
+    set(LLVMGenXIntrinsics_GIT_TAG 4fc83e12979096db72c129bd432238d5ca397e4d)
     if(NOT FETCHCONTENT_SOURCE_DIR_VC-INTRINSICS)
       message(STATUS "vc-intrinsics repo is missing. Will try to download "
         "${LLVMGenXIntrinsics_GIT_TAG} from ${LLVMGenXIntrinsics_GIT_REPO}")

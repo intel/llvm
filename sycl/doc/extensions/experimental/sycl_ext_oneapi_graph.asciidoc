@@ -729,6 +729,9 @@ public:
   std::vector<node> get_root_nodes() const;
 
   bool empty() const;
+
+  template <typename Func, typename... ArgTs>
+  void set_destruction_callback(Func&& callback, ArgTs&&... cbArgs);
 };
 
 template<>
@@ -1243,6 +1246,13 @@ capture the constructor will throw `feature_not_supported`.
 See the <<native-recording, Native Recording>> section for a full description
 of the feature.
 
+===== Interaction with the SYCL_GRAPH_FORCE_NATIVE_RECORDING environment variable
+
+{dpcpp} supports an environment variable `SYCL_GRAPH_FORCE_NATIVE_RECORDING`.
+When set to `1`, all `command_graph` instances behave as if
+`property::graph::enable_native_recording` were included in the property list
+at construction time.
+
 ==== Graph Member Functions
 
 ===== Constructor of the `command_graph` class
@@ -1521,6 +1531,41 @@ bool empty() const;
 ----
 
 _Returns:_ `true` if the graph contains no nodes, otherwise `false`.
+
+[source,c++]
+----
+template <typename Func, typename... ArgTs>
+void set_destruction_callback(Func&& Callback, ArgTs&&... CbArgs);
+----
+
+_Effects:_ Registers a user callback that is invoked when the graph and any
+executable graphs finalized from it have all been destroyed. All arguments are
+stored as their decayed types (`std::decay_t<ArgTs>...`); references are not
+preserved. If `Callback` or any argument in `CbArgs` is passed as an lvalue, it
+is copy-constructed into internal storage. If passed as an rvalue, it is
+move-constructed into internal storage. Users who require reference semantics
+must pass `std::ref` or `std::cref` and are responsible for ensuring the
+referenced object outlives the graph. When the graph is destroyed the stored
+callable is invoked with the stored arguments. Multiple callbacks may be
+registered on the same graph and will be invoked on destruction in order of
+registration.
+
+The following restrictions apply to the callback and callback arguments:
+
+* `Func` must be _Callable_ with parameter types matching
+  `std::decay_t<ArgTs>...`.
+* `std::decay_t<Func>` must be _CopyConstructible_. If passed as an rvalue,
+  _MoveConstructible_ is used as an optimization and no copies are performed.
+* Each type in `std::decay_t<ArgTs>...` must be _CopyConstructible_. If passed
+  as an rvalue, _MoveConstructible_ is used as an optimization and no copies are performed.
+* The callback must not throw exceptions. If an exception escapes the callback
+  the behavior is undefined.
+* `Func` and `CbArgs` must not capture or reference the `command_graph` object
+  being destroyed, either directly or indirectly. Violating this requirement is
+  undefined behavior.
+
+_Constraints:_ This member function is only available when the `command_graph`
+state is `graph_state::modifiable`.
 
 [source,c++]
 ----
@@ -2623,7 +2668,7 @@ exception if attempted:
 
 | Out-of-order queue
 | Native recording requires an in-order queue backed by an immediate command list.
-| `invalid`
+| `feature_not_supported`
 
 |===
 

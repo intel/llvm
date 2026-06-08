@@ -11,7 +11,6 @@
 
 #include <detail/context_impl.hpp>
 #include <detail/device_impl.hpp>
-#include <detail/global_handler.hpp>
 #include <detail/kernel_info.hpp>
 #include <detail/program_manager/program_manager.hpp>
 

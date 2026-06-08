@@ -97,11 +97,10 @@ struct ur_platform_handle_t_ : ur::handle_base<ur::level_zero::ddi_getter>,
                                      uint32_t VersionMinor,
                                      uint32_t VersionBuild);
 
-  // Keep track of all contexts in the platform. This is needed to manage
-  // a lifetime of memory allocations in each context when there are kernels
-  // with indirect access.
-  // TODO: should be deleted when memory isolation in the context is implemented
-  // in the driver.
+  // Keep track of all contexts in the platform. In v1 L0 this is needed to
+  // manage a lifetime of memory allocations in each context when there are
+  // kernels with indirect access. In v2 it is used during
+  // ext_oneapi_enable_peer_access and ext_oneapi_disable_peer_access calls.
   std::list<ur_context_handle_t> Contexts;
   ur_shared_mutex ContextsMutex;
 
@@ -204,6 +203,9 @@ struct ur_platform_handle_t_ : ur::handle_base<ur::level_zero::ddi_getter>,
     ze_result_t (*zeGraphIsEmptyExp)(ze_graph_handle_t hGraph);
     ze_result_t (*zeGraphDumpContentsExp)(ze_graph_handle_t hGraph,
                                           const char *filePath, void *pNext);
+    ze_result_t (*zeGraphSetDestructionCallbackExp)(
+        ze_graph_handle_t hGraph, zex_mem_graph_free_callback_fn_t pfnCallback,
+        void *pUserData, void *pNext);
   } ZeGraphExt;
 
   struct ZeHostTaskExtension {

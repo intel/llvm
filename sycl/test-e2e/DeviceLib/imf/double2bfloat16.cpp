@@ -5,6 +5,23 @@
 
 #include "imf_utils.hpp"
 #include <sycl/ext/intel/math.hpp>
+int check_nan_convert(std::initializer_list<double> Inputs,
+                      const std::vector<uint16_t> &Outputs) {
+  assert(Inputs.size() == Outputs.size());
+  size_t Idx = 0;
+  bool Signaling = false;
+  for (const double *It = Inputs.begin(); It != Inputs.end(); ++It) {
+    uint16_t bf16_bits = Outputs[Idx];
+    if (is_bfloat16_nan(bf16_bits, Signaling)) {
+      if (Signaling != is_signaling_nan(*It))
+        return 1;
+    } else
+      return 1;
+    ++Idx;
+  }
+
+  return 0;
+}
 
 int main() {
 
@@ -51,5 +68,19 @@ int main() {
          FT(uint16_t, sycl::ext::intel::math::double2bfloat16));
   }
 
-  return 0;
+  int ret = 0;
+  // Test double2bfloat16 for nan inputs
+  {
+    std::initializer_list<double> input_vals = {
+        __builtin_bit_cast(double, 0x7FF0'0000'0000'0001),  // sNan
+        __builtin_bit_cast(double, 0x7FF0'0000'FFFF'0000),  // sNan
+        __builtin_bit_cast(double, 0x7FF8'0000'0000'0000),  // qNan
+        __builtin_bit_cast(double, 0x7FF8'0000'FFFF'0001)}; // qNan
+    std::vector<uint16_t> output_vals(input_vals.size());
+    run_on_device(device_queue, input_vals, output_vals,
+                  FT(uint16_t, sycl::ext::intel::math::double2bfloat16));
+    ret = check_nan_convert(input_vals, output_vals);
+  }
+
+  return ret;
 }

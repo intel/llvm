@@ -1377,6 +1377,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
   case UR_FUNCTION_QUEUE_GET_GRAPH_EXP:
     os << "UR_FUNCTION_QUEUE_GET_GRAPH_EXP";
     break;
+  case UR_FUNCTION_GRAPH_SET_DESTRUCTION_CALLBACK_EXP:
+    os << "UR_FUNCTION_GRAPH_SET_DESTRUCTION_CALLBACK_EXP";
+    break;
   default:
     os << "unknown enumerator";
     break;
@@ -21569,6 +21572,33 @@ inline std::ostream &operator<<(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_graph_set_destruction_callback_exp_params_t
+/// type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_graph_set_destruction_callback_exp_params_t
+        *params) {
+
+  os << ".hGraph = ";
+
+  ur::details::printPtr(os, *(params->phGraph));
+
+  os << ", ";
+  os << ".pfnCallback = ";
+
+  os << reinterpret_cast<void *>(*(params->ppfnCallback));
+
+  os << ", ";
+  os << ".pUserData = ";
+
+  ur::details::printPtr(os, *(params->ppUserData));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_graph_dump_contents_exp_params_t type
 /// @returns
 ///     std::ostream &
@@ -23231,6 +23261,9 @@ inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os,
   } break;
   case UR_FUNCTION_GRAPH_IS_EMPTY_EXP: {
     os << (const struct ur_graph_is_empty_exp_params_t *)params;
+  } break;
+  case UR_FUNCTION_GRAPH_SET_DESTRUCTION_CALLBACK_EXP: {
+    os << (const struct ur_graph_set_destruction_callback_exp_params_t *)params;
   } break;
   case UR_FUNCTION_GRAPH_DUMP_CONTENTS_EXP: {
     os << (const struct ur_graph_dump_contents_exp_params_t *)params;

@@ -74,23 +74,6 @@ struct urPlatformTest : ::testing::Test,
   ur_platform_handle_t platform = nullptr;
 };
 
-inline std::pair<bool, std::vector<ur_device_handle_t>>
-GetDevices(ur_platform_handle_t platform) {
-  uint32_t count = 0;
-  if (urDeviceGet(platform, UR_DEVICE_TYPE_ALL, 0, nullptr, &count)) {
-    return {false, {}};
-  }
-  if (count == 0) {
-    return {false, {}};
-  }
-  std::vector<ur_device_handle_t> devices(count);
-  if (urDeviceGet(platform, UR_DEVICE_TYPE_ALL, count, devices.data(),
-                  nullptr)) {
-    return {false, {}};
-  }
-  return {true, devices};
-}
-
 inline bool hasDevicePartitionSupport(ur_device_handle_t device,
                                       const ur_device_partition_t property) {
   std::vector<ur_device_partition_t> properties;

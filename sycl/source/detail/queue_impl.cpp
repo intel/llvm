@@ -469,8 +469,7 @@ EventImplPtr queue_impl::submit_kernel_scheduler_bypass(
     ResultEvent->setEnqueued();
     // connect returned event with dependent events
     if (!isInOrder()) {
-      // DepEvents is not used anymore, so can move.
-      ResultEvent->getPreparedDepsEvents() = std::move(DepEvents);
+      ResultEvent->getPreparedDepsEvents() = DepEvents;
       // ResultEvent is local for current thread, no need to lock.
       ResultEvent->cleanDepEventsThroughOneLevelUnlocked();
     }
@@ -767,6 +766,12 @@ EventImplPtr queue_impl::submit_kernel_direct_impl(
 
     KData.extractArgsAndReqsFromLambda();
 
+    // Extract data to move KData
+    ur_kernel_cache_config_t KernelCacheConfig = KData.getKernelCacheConfig();
+    bool IsCooperative = KData.isCooperative();
+    bool UsesClusterLaunch = KData.usesClusterLaunch();
+    size_t KernelWorkGroupMemorySize = KData.getKernelWorkGroupMemorySize();
+
     CommandGroup.reset(new detail::CGExecKernel(
         KData.getNDRDesc(), std::move(HostKernelPtr),
         nullptr, // Kernel
@@ -774,9 +779,8 @@ EventImplPtr queue_impl::submit_kernel_direct_impl(
         std::move(CGData), std::move(KData).getArgs(),
         *KData.getDeviceKernelInfoPtr(), std::move(StreamStorage),
         std::move(AuxiliaryResources), detail::CGType::Kernel,
-        KData.getKernelCacheConfig(), KData.isCooperative(),
-        KData.usesClusterLaunch(), KData.getKernelWorkGroupMemorySize(),
-        CodeLoc));
+        KernelCacheConfig, IsCooperative, UsesClusterLaunch,
+        KernelWorkGroupMemorySize, CodeLoc));
     CommandGroup->MIsTopCodeLoc = IsTopCodeLoc;
 
     if (auto GraphImpl = getCommandGraph(); GraphImpl) {
