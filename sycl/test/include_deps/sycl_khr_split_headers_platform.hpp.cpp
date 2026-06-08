@@ -10,6 +10,8 @@
 // CHECK-NEXT: feature_test.hpp
 // CHECK-NEXT: platform.hpp
 // CHECK-NEXT: backend_types.hpp
+// CHECK-NEXT: detail/abi_neutral.hpp
+// CHECK-NEXT: detail/string.hpp
 // CHECK-NEXT: detail/export.hpp
 // CHECK-NEXT: detail/info_desc_helpers.hpp
 // CHECK-NEXT: aspects.hpp
@@ -58,8 +60,6 @@
 // CHECK-NEXT: detail/impl_utils.hpp
 // CHECK-NEXT: __spirv/spirv_vars.hpp
 // CHECK-NEXT: ext/oneapi/weak_object_base.hpp
-// CHECK-NEXT: detail/string.hpp
 // CHECK-NEXT: detail/string_view.hpp
-// CHECK-NEXT: detail/util.hpp
 // CHECK-NEXT: device_selector.hpp
 // CHECK-EMPTY:

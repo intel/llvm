@@ -862,16 +862,15 @@ Managed<ur_program_handle_t> ProgramManager::getBuiltURProgram(
   return getBuiltURProgram(std::move(AllImages), ContextImpl, {*BuildDev});
 }
 
-Managed<ur_program_handle_t>
-ProgramManager::getBuiltURProgram(const BinImgWithDeps &ImgWithDeps,
-                                  context_impl &ContextImpl, devices_range Devs,
-                                  const DevImgPlainWithDeps *DevImgWithDeps,
-                                  const SerializedObj &SpecConsts) {
+Managed<ur_program_handle_t> ProgramManager::getBuiltURProgram(
+    const BinImgWithDeps &ImgWithDeps, context_impl &ContextImpl,
+    devices_range Devs, const DevImgPlainWithDeps *DevImgWithDeps,
+    const SerializedObj &SpecConsts, bool AllowUnresolvedSymbols) {
   std::string CompileOpts;
   std::string LinkOpts;
   applyOptionsFromEnvironment(CompileOpts, LinkOpts);
   auto BuildF = [this, &ImgWithDeps, &DevImgWithDeps, &ContextImpl, &Devs,
-                 &CompileOpts, &LinkOpts, &SpecConsts] {
+                 &CompileOpts, &LinkOpts, &SpecConsts, AllowUnresolvedSymbols] {
     adapter_impl &Adapter = ContextImpl.getAdapter();
     const RTDeviceBinaryImage &MainImg = *ImgWithDeps.getMain();
     applyOptionsFromImage(CompileOpts, LinkOpts, MainImg, Devs, Adapter);
@@ -920,7 +919,8 @@ ProgramManager::getBuiltURProgram(const BinImgWithDeps &ImgWithDeps,
         build(std::move(NativePrg), ContextImpl, CompileOpts, LinkOpts,
               URDevices, ProgramsToLink,
               /*CreatedFromBinary*/ MainImg.getFormat() !=
-                  SYCL_DEVICE_BINARY_TYPE_SPIRV);
+                  SYCL_DEVICE_BINARY_TYPE_SPIRV,
+              AllowUnresolvedSymbols);
 
     // Those extra programs won't be used anymore, just the final
     // linked result:
@@ -981,7 +981,8 @@ ProgramManager::getBuiltURProgram(const BinImgWithDeps &ImgWithDeps,
                  std::inserter(URDevicesSet, URDevicesSet.begin()),
                  [](device_impl &Dev) { return Dev.getHandleRef(); });
   auto CacheKey =
-      std::make_pair(std::make_pair(SpecConsts, ImgId), URDevicesSet);
+      std::make_pair(std::make_pair(SpecConsts, ImgId),
+                     std::make_pair(URDevicesSet, AllowUnresolvedSymbols));
 
   KernelProgramCache &Cache = ContextImpl.getKernelProgramCache();
   auto GetCachedBuildF = [&Cache, &CacheKey]() {
@@ -1039,7 +1040,7 @@ ProgramManager::getBuiltURProgram(const BinImgWithDeps &ImgWithDeps,
         }
       }
       // Change device in the cache key to reduce copying of spec const data.
-      CacheKey.second = std::move(Subset);
+      CacheKey.second.first = std::move(Subset);
       bool DidInsert = Cache.insertBuiltProgram(CacheKey, ResProgram);
       (void)DidInsert;
       CacheLinkedImages();
@@ -1448,7 +1449,7 @@ Managed<ur_program_handle_t> ProgramManager::build(
     const std::string &CompileOptions, const std::string &LinkOptions,
     std::vector<ur_device_handle_t> &Devices,
     const std::vector<Managed<ur_program_handle_t>> &ExtraProgramsToLink,
-    bool CreatedFromBinary) {
+    bool CreatedFromBinary, bool AllowUnresolvedSymbols) {
 
   if constexpr (DbgProgMgr > 0) {
     std::cerr << ">>> ProgramManager::build("
@@ -1456,7 +1457,7 @@ Managed<ur_program_handle_t> ProgramManager::build(
               << CompileOptions << ", " << LinkOptions << ", "
               << VecToString(Devices) << ", " << std::dec << ", "
               << VecToString(ExtraProgramsToLink) << ", " << CreatedFromBinary
-              << ")\n";
+              << ", " << AllowUnresolvedSymbols << ")\n";
   }
 
   std::vector<ur_program_handle_t> LinkPrograms;
@@ -1464,15 +1465,27 @@ Managed<ur_program_handle_t> ProgramManager::build(
   static const char *ForceLinkEnv = std::getenv("SYCL_FORCE_LINK");
   static bool ForceLink = ForceLinkEnv && (*ForceLinkEnv == '1');
 
+  ur_exp_program_flags_t Flags{};
+  if (AllowUnresolvedSymbols)
+    Flags |= UR_EXP_PROGRAM_FLAG_ALLOW_UNRESOLVED_SYMBOLS;
+
   adapter_impl &Adapter = Context.getAdapter();
   if (ExtraProgramsToLink.empty() && !ForceLink) {
     const std::string &Options = LinkOptions.empty()
                                      ? CompileOptions
                                      : (CompileOptions + " " + LinkOptions);
     ur_result_t Error = Adapter.call_nocheck<UrApiKind::urProgramBuildExp>(
-        Program, Devices.size(), Devices.data(), ur_exp_program_flags_t{},
-        Options.c_str());
+        Program, Devices.size(), Devices.data(), Flags, Options.c_str());
     if (Error == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
+      // The non-Exp build entry point cannot carry program flags, so any
+      // non-default flag value (e.g. ALLOW_UNRESOLVED_SYMBOLS for a SYCLBIN
+      // AOT image whose imported symbols will be resolved at the cross-image
+      // dynamic link below) cannot be honored on this adapter.
+      if (AllowUnresolvedSymbols)
+        throw exception(make_error_code(errc::feature_not_supported),
+                        "Cross-image link with unresolved symbols requires "
+                        "urProgramBuildExp; the active adapter does not "
+                        "support it.");
       Error = Adapter.call_nocheck<UrApiKind::urProgramBuild>(
           Context.getHandleRef(), Program, Options.c_str());
     }
@@ -1506,10 +1519,19 @@ Managed<ur_program_handle_t> ProgramManager::build(
   Managed<ur_program_handle_t> LinkedProg{Adapter};
   auto doLink = [&] {
     auto Res = Adapter.call_nocheck<UrApiKind::urProgramLinkExp>(
-        Context.getHandleRef(), Devices.size(), Devices.data(),
-        ur_exp_program_flags_t{}, LinkPrograms.size(), LinkPrograms.data(),
-        LinkOptions.c_str(), &LinkedProg);
+        Context.getHandleRef(), Devices.size(), Devices.data(), Flags,
+        LinkPrograms.size(), LinkPrograms.data(), LinkOptions.c_str(),
+        &LinkedProg);
     if (Res == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
+      // urProgramLink (non-Exp) cannot carry the ALLOW_UNRESOLVED_SYMBOLS
+      // flag; reject the configuration on adapters that do not implement
+      // urProgramLinkExp rather than silently dropping the requested
+      // semantics.
+      if (AllowUnresolvedSymbols)
+        throw exception(make_error_code(errc::feature_not_supported),
+                        "Cross-image link with unresolved symbols requires "
+                        "urProgramLinkExp; the active adapter does not "
+                        "support it.");
       Res = Adapter.call_nocheck<UrApiKind::urProgramLink>(
           Context.getHandleRef(), LinkPrograms.size(), LinkPrograms.data(),
           LinkOptions.c_str(), &LinkedProg);
@@ -2017,19 +2039,22 @@ ProgramManager::getEliminatedKernelArgMask(ur_program_handle_t NativePrg,
   return nullptr;
 }
 
+bool ProgramManager::isAOTBinaryTarget(const char *DeviceTargetSpec) {
+  if (!DeviceTargetSpec)
+    return false;
+  return strcmp(DeviceTargetSpec, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_X86_64) ==
+             0 ||
+         strcmp(DeviceTargetSpec, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN) == 0;
+}
+
 bundle_state
 ProgramManager::getBinImageState(const RTDeviceBinaryImage *BinImage) {
-  auto IsAOTBinary = [](const char *Format) {
-    return ((strcmp(Format, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_X86_64) == 0) ||
-            (strcmp(Format, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN) == 0));
-  };
-
   // Three possible initial states:
   // - SPIRV that needs to be compiled and linked
   // - AOT compiled binary with dependnecies, needs linking.
   // - AOT compiled binary without dependencies.
 
-  const bool IsAOT = IsAOTBinary(BinImage->getRawData().DeviceTargetSpec);
+  const bool IsAOT = isAOTBinaryTarget(BinImage->getRawData().DeviceTargetSpec);
 
   if (!IsAOT)
     return sycl::bundle_state::input;
@@ -2548,6 +2573,25 @@ ProgramManager::compile(const DevImgPlainWithDeps &ImgWithDeps,
     applyCompileOptionsFromEnvironment(CompileOptions);
     appendCompileOptionsFromImage(
         CompileOptions, *(InputImpl.get_bin_image_ref()), Devs, Adapter);
+    // When the image was produced with -fsycl-allow-device-image-dependencies
+    // (the only path that emits SYCL/exported symbols and SYCL/imported
+    // symbols property sets), keep symbol visibility through compile so that
+    // cross-image resolution at sycl::link time via zeModuleDynamicLink can
+    // see those symbols. Without this option IGC internalizes them and the
+    // dynamic link fails with "Unresolved Symbol". The flag is currently
+    // only plumbed for Level Zero; OpenCL CPU/GPU AOT cross-image link uses
+    // a different option (-create-library) and is not in scope here.
+    {
+      const auto *Bin = InputImpl.get_bin_image_ref();
+      bool HasCrossImageSymbols = Bin && (!Bin->getExportedSymbols().empty() ||
+                                          !Bin->getImportedSymbols().empty());
+      backend Be = InputImpl.get_context().get_backend();
+      if (HasCrossImageSymbols && Be == backend::ext_oneapi_level_zero) {
+        if (!CompileOptions.empty())
+          CompileOptions += ' ';
+        CompileOptions += "-library-compilation";
+      }
+    }
     // Should always come last!
     appendCompileEnvironmentVariablesThatAppend(CompileOptions);
     ur_result_t Error = doCompile(
@@ -2664,7 +2708,7 @@ ProgramManager::link(device_images_range Imgs, devices_range Devs,
 
   ur_exp_program_flags_t UrLinkFlags{};
   if (AllowUnresolvedSymbols)
-    UrLinkFlags &= UR_EXP_PROGRAM_FLAG_ALLOW_UNRESOLVED_SYMBOLS;
+    UrLinkFlags |= UR_EXP_PROGRAM_FLAG_ALLOW_UNRESOLVED_SYMBOLS;
 
   Managed<ur_program_handle_t> LinkedProg{Adapter};
   auto doLink = [&] {
@@ -2765,7 +2809,8 @@ void ProgramManager::dynamicLink(device_images_range Imgs) {
 
 device_image_plain
 ProgramManager::build(const DevImgPlainWithDeps &DevImgWithDeps,
-                      devices_range Devs, const property_list &PropList) {
+                      devices_range Devs, const property_list &PropList,
+                      bool AllowUnresolvedSymbols) {
   {
     auto NoAllowedPropertiesCheck = [](int) { return false; };
     detail::PropertyValidator::checkPropsAndThrow(
@@ -2806,8 +2851,9 @@ ProgramManager::build(const DevImgPlainWithDeps &DevImgWithDeps,
     SpecConstMap = MainInputImpl.get_spec_const_data_ref();
   }
 
-  Managed<ur_program_handle_t> ResProgram = getBuiltURProgram(
-      std::move(BinImgs), ContextImpl, Devs, &DevImgWithDeps, SpecConstBlob);
+  Managed<ur_program_handle_t> ResProgram =
+      getBuiltURProgram(std::move(BinImgs), ContextImpl, Devs, &DevImgWithDeps,
+                        SpecConstBlob, AllowUnresolvedSymbols);
 
   // The origin becomes the combination of all the origins.
   uint8_t CombinedOrigins = 0;
