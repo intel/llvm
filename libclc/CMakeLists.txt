@@ -167,6 +167,13 @@ elseif(LIBCLC_TARGET_ARCH IN_LIST LIBCLC_ARCHS_NVPTX)
   list(APPEND target_compile_flags "SHELL:-Xclang -target-feature"
         "SHELL:-Xclang +ptx72" -march=sm_86
         "SHELL:-mllvm --nvvm-reflect-enable=false")
+elseif(LIBCLC_TARGET_ARCH IN_LIST LIBCLC_ARCHS_NATIVE_CPU)
+  # SYCL-specific: native_cpu builtins must use the libclc_call calling
+  # convention (see clc/clcfunc.h) so their ABI matches the spirv builtin
+  # declarations emitted in device code. Without this define the library is
+  # built with the host calling convention and geometric/common builtins
+  # taking small vectors (e.g. cross/dot) silently receive garbage arguments.
+  list(APPEND target_extra_defines CLC_NATIVE_CPU)
 endif()
 if(LIBCLC_TARGET_ARCH IN_LIST LIBCLC_ARCHS_AMDGPU OR LIBCLC_TARGET_ARCH IN_LIST LIBCLC_ARCHS_NVPTX)
   list(APPEND target_compile_flags -fvisibility=hidden)

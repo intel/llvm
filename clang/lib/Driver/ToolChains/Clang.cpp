@@ -5375,6 +5375,7 @@ static void ProcessVSRuntimeLibrary(const ToolChain &TC, const ArgList &Args,
     }
   }
 
+#if 0 // !INTEL_CUSTOMIZATION
   // SYCL: Add SYCL runtime library dependency
   // SYCL runtime is a required dependency similar to CRT, so we use
   // --dependent-lib to embed it in the object file metadata
@@ -5403,6 +5404,7 @@ static void ProcessVSRuntimeLibrary(const ToolChain &TC, const ArgList &Args,
     CmdArgs.push_back(IsDebugBuild ? "--dependent-lib=LLVMSYCLd"
                                    : "--dependent-lib=LLVMSYCL");
   }
+#endif // !INTEL_CUSTOMIZATION
 
   // All Arm64EC object files implicitly add softintrin.lib. This is necessary
   // even if the file doesn't actually refer to any of the routines because

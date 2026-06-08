@@ -4,6 +4,9 @@
 // --dependent-lib (embedded in object file), similar to CRT libraries.
 // Tests check for --dependent-lib in compiler (-cc1) output and
 // -libpath: in linker output.
+//
+// XFAIL: *
+// Intel builds use sycl9/sycl9d library names instead of LLVMSYCL/LLVMSYCLd.
 
 /// Test 1: /MD (explicit) and release library dependency
 // RUN: %clang_cl -### -fsycl /MD --target=x86_64-pc-windows-msvc -- %s 2>&1 \
