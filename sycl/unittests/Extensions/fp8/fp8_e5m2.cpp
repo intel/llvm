@@ -354,8 +354,7 @@ TEST(FP8E5M2Test, StochasticCArrayHalfConstructorThrowsOnHost) {
 
 TEST(FP8E5M2Test, StochasticMarrayBFloat16ConstructorThrowsOnHost) {
   sycl::marray<sycl::ext::oneapi::bfloat16, 2> in = {
-      sycl::ext::oneapi::bfloat16(1.0f),
-      sycl::ext::oneapi::bfloat16(2.0f)};
+      sycl::ext::oneapi::bfloat16(1.0f), sycl::ext::oneapi::bfloat16(2.0f)};
   uint32_t seed_value = 5678;
   stochastic_seed seed(&seed_value);
 
@@ -368,9 +367,8 @@ TEST(FP8E5M2Test, StochasticMarrayBFloat16ConstructorThrowsOnHost) {
 }
 
 TEST(FP8E5M2Test, StochasticCArrayBFloat16ConstructorThrowsOnHost) {
-  const sycl::ext::oneapi::bfloat16 in[2] = {
-      sycl::ext::oneapi::bfloat16(1.0f),
-      sycl::ext::oneapi::bfloat16(2.0f)};
+  const sycl::ext::oneapi::bfloat16 in[2] = {sycl::ext::oneapi::bfloat16(1.0f),
+                                             sycl::ext::oneapi::bfloat16(2.0f)};
   uint32_t seed_value = 6789;
   stochastic_seed seed(&seed_value);
 
@@ -753,4 +751,3 @@ TEST(FP8E5M2Test, VariadicFloatReferences) {
   EXPECT_EQ(a.vals[0], 0x3C);
   EXPECT_EQ(a.vals[1], 0x40);
 }
-
