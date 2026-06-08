@@ -1752,7 +1752,9 @@ ur_result_t MemCpyCommandHost::enqueueImp() {
   if (MDstReq.MAccessMode == access::mode::discard_read_write ||
       MDstReq.MAccessMode == access::mode::discard_write) {
     Command::waitForEvents(Queue, EventImpls, UREvent);
-
+    // Store the event so downstream commands can correctly depend on this
+    // node even when no actual copy is performed.
+    MEvent->setHandle(UREvent);
     return UR_RESULT_SUCCESS;
   }
 
