@@ -111,8 +111,7 @@ public:
   group<Dimensions> get_group() const {
     // TODO: ideally Group object should be stateless and have a contructor with
     // no arguments.
-    return detail::Builder::createGroup(get_global_range(), get_local_range(),
-                                        get_group_range(), get_group_id());
+    return group<Dimensions>();
   }
 
   // Out-of-class definition in sub_group.hpp

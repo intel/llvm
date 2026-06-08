@@ -30,6 +30,8 @@
 #include <memory> // for unique_ptr
 #endif
 
+#include <sycl/__spirv/spirv_vars.hpp>
+
 #include <stddef.h>    // for size_t
 #include <stdint.h>    // for uint8_t, uint32_t
 #include <type_traits> // for enable_if_t, remove_c...
@@ -37,6 +39,8 @@
 namespace sycl {
 inline namespace _V1 {
 template <int Dimensions> class h_item;
+
+template <int Dimensions> class nd_item;
 
 namespace detail {
 // Implements a barrier across work items within a work group.
@@ -113,24 +117,38 @@ public:
   static constexpr sycl::memory_scope fence_scope =
       sycl::memory_scope::work_group;
 
-  group() = delete;
+  // group() = delete;
 
   __SYCL2020_DEPRECATED("use sycl::group::get_group_id() instead")
-  id<Dimensions> get_id() const { return index; }
+  id<Dimensions> get_id() const { return get_group_id(); }
 
   __SYCL2020_DEPRECATED("use sycl::group::get_group_id() instead")
-  size_t get_id(int dimension) const { return index[dimension]; }
+  size_t get_id(int dimension) const { return get_group_id(dimension); }
 
-  id<Dimensions> get_group_id() const { return index; }
+  id<Dimensions> get_group_id() const {
+#ifdef __SYCL_DEVICE_ONLY__
+    return {__spirv::initBuiltInWorkgroupId<Dimensions, id<Dimensions>>()};
+#else
+    throw sycl::exception(make_error_code(errc::feature_not_supported),
+                          "get_group_id() is not implemented on host");
+#endif
+  }
 
-  size_t get_group_id(int dimension) const { return index[dimension]; }
+  size_t get_group_id(int dimension) const { return get_group_id()[dimension]; }
 
   __SYCL2020_DEPRECATED("calculate sycl::group::get_group_range() * "
                         "sycl::group::get_max_local_range() instead")
-  range<Dimensions> get_global_range() const { return globalRange; }
+  range<Dimensions> get_global_range() const {
+#ifdef __SYCL_DEVICE_ONLY__
+    return {__spirv::initBuiltInGlobalSize<Dimensions, range<Dimensions>>()};
+#else
+    throw sycl::exception(make_error_code(errc::feature_not_supported),
+                          "get_global_range() is not implemented on host");
+#endif
+  }
 
   size_t get_global_range(int dimension) const {
-    return globalRange[dimension];
+    return get_global_range()[dimension];
   }
 
   id<Dimensions> get_local_id() const {
@@ -148,15 +166,31 @@ public:
     return get_local_linear_id_impl<Dimensions>();
   }
 
-  range<Dimensions> get_local_range() const { return localRange; }
+  range<Dimensions> get_local_range() const {
+#ifdef __SYCL_DEVICE_ONLY__
+    return {__spirv::initBuiltInWorkgroupSize<Dimensions, range<Dimensions>>()};
+#else
+    throw sycl::exception(make_error_code(errc::feature_not_supported),
+                          "get_local_range() is not implemented on host");
+#endif
+  }
 
-  size_t get_local_range(int dimension) const { return localRange[dimension]; }
+  size_t get_local_range(int dimension) const {
+    return get_local_range()[dimension];
+  }
 
   size_t get_local_linear_range() const {
     return get_local_linear_range_impl();
   }
 
-  range<Dimensions> get_group_range() const { return groupRange; }
+  range<Dimensions> get_group_range() const {
+#ifdef __SYCL_DEVICE_ONLY__
+    return {__spirv::initBuiltInNumWorkgroups<Dimensions, range<Dimensions>>()};
+#else
+    throw sycl::exception(make_error_code(errc::feature_not_supported),
+                          "get_group_range() is not implemented on host");
+#endif
+  }
 
   size_t get_group_range(int dimension) const {
     return get_group_range()[dimension];
@@ -168,7 +202,7 @@ public:
 
   range<Dimensions> get_max_local_range() const { return get_local_range(); }
 
-  size_t operator[](int dimension) const { return index[dimension]; }
+  size_t operator[](int dimension) const { return get_group_id(dimension); }
 
   __SYCL2020_DEPRECATED("use sycl::group::get_group_linear_id() instead")
   size_t get_linear_id() const { return get_group_linear_id(); }
@@ -215,16 +249,17 @@ public:
 
     Func(HItem);
 #else
-    id<Dimensions> GroupStartID = index * id<Dimensions>{localRange};
+    id<Dimensions> GroupStartID =
+        get_group_id() * id<Dimensions>{get_local_range()};
 
     // ... host variant needs explicit 'iterate' because it is serial
     detail::NDLoop<Dimensions>::iterate(
-        localRange, [&](const id<Dimensions> &LocalID) {
+        get_local_range(), [&](const id<Dimensions> &LocalID) {
           item<Dimensions, false> GlobalItem =
               detail::Builder::createItem<Dimensions, false>(
-                  globalRange, GroupStartID + LocalID);
+                  get_global_range(), GroupStartID + LocalID);
           item<Dimensions, false> LocalItem =
-              detail::Builder::createItem<Dimensions, false>(localRange,
+              detail::Builder::createItem<Dimensions, false>(get_local_range(),
                                                              LocalID);
           h_item<Dimensions> HItem =
               detail::Builder::createHItem<Dimensions>(GlobalItem, LocalItem);
@@ -273,21 +308,22 @@ public:
           Func(HItem);
         });
 #else
-    id<Dimensions> GroupStartID = index * localRange;
+    id<Dimensions> GroupStartID =
+        get_group_id() * id<Dimensions>{get_local_range()};
 
     detail::NDLoop<Dimensions>::iterate(
-        localRange, [&](const id<Dimensions> &LocalID) {
+        get_local_range(), [&](const id<Dimensions> &LocalID) {
           item<Dimensions, false> GlobalItem =
               detail::Builder::createItem<Dimensions, false>(
-                  globalRange, GroupStartID + LocalID);
+                  get_global_range(), GroupStartID + LocalID);
           item<Dimensions, false> LocalItem =
-              detail::Builder::createItem<Dimensions, false>(localRange,
+              detail::Builder::createItem<Dimensions, false>(get_local_range(),
                                                              LocalID);
           h_item<Dimensions> HItem = detail::Builder::createHItem<Dimensions>(
               GlobalItem, LocalItem, flexibleRange);
 
           detail::NDLoop<Dimensions>::iterate(
-              LocalID, localRange, flexibleRange,
+              LocalID, get_local_range(), flexibleRange,
               [&](const id<Dimensions> &LogicalLocalID) {
                 HItem.setLogicalLocalID(LogicalLocalID);
                 Func(HItem);
@@ -595,9 +631,11 @@ public:
   }
 
   bool operator==(const group<Dimensions> &rhs) const {
-    bool Result = (rhs.globalRange == globalRange) &&
-                  (rhs.localRange == localRange) && (rhs.index == index);
-    __SYCL_ASSERT(rhs.groupRange == groupRange &&
+    bool Result = (rhs.get_global_range() == get_global_range()) &&
+                  (rhs.get_local_range() == get_local_range()) &&
+                  (rhs.get_group_range() == get_group_range()) &&
+                  (rhs.get_group_id() == get_group_id());
+    __SYCL_ASSERT(rhs.get_group_range() == get_group_range() &&
                   "inconsistent group class fields");
     return Result;
   }
@@ -607,10 +645,10 @@ public:
   }
 
 private:
-  range<Dimensions> globalRange;
-  range<Dimensions> localRange;
-  range<Dimensions> groupRange;
-  id<Dimensions> index;
+  // range<Dimensions> globalRange;
+  // range<Dimensions> localRange;
+  // range<Dimensions> groupRange;
+  // id<Dimensions> index;
 
   template <int dims = Dimensions>
   typename std::enable_if_t<(dims == 1), size_t>
@@ -623,15 +661,15 @@ private:
   typename std::enable_if_t<(dims == 2), size_t>
   get_local_linear_id_impl() const {
     id<Dimensions> localId = get_local_id();
-    return localId[0] * localRange[1] + localId[1];
+    return localId[0] * get_local_range()[1] + localId[1];
   }
 
   template <int dims = Dimensions>
   typename std::enable_if_t<(dims == 3), size_t>
   get_local_linear_id_impl() const {
     id<Dimensions> localId = get_local_id();
-    return (localId[0] * localRange[1] * localRange[2]) +
-           (localId[1] * localRange[2]) + localId[2];
+    return (localId[0] * get_local_range()[1] * get_local_range()[2]) +
+           (localId[1] * get_local_range()[2]) + localId[2];
   }
 
   template <int dims = Dimensions>
@@ -679,13 +717,13 @@ private:
   template <int dims = Dimensions>
   typename std::enable_if_t<(dims == 1), size_t>
   get_group_linear_id_impl() const {
-    return index[0];
+    return get_group_id()[0];
   }
 
   template <int dims = Dimensions>
   typename std::enable_if_t<(dims == 2), size_t>
   get_group_linear_id_impl() const {
-    return index[0] * groupRange[1] + index[1];
+    return get_group_id()[0] * get_group_range()[1] + get_group_id()[1];
   }
 
   // SYCL specification 1.2.1rev5, section 4.7.6.5 "Buffer accessor":
@@ -701,8 +739,8 @@ private:
   template <int dims = Dimensions>
   typename std::enable_if_t<(dims == 3), size_t>
   get_group_linear_id_impl() const {
-    return (index[0] * groupRange[1] * groupRange[2]) +
-           (index[1] * groupRange[2]) + index[2];
+    return (get_group_id()[0] * get_group_range()[1] * get_group_range()[2]) +
+           (get_group_id()[1] * get_group_range()[2]) + get_group_id()[2];
   }
 
   void waitForHelper() const {}
@@ -716,10 +754,17 @@ private:
   }
 
 protected:
+  template <int DimensionsNDItem> friend class nd_item;
   friend class detail::Builder;
-  group(const range<Dimensions> &G, const range<Dimensions> &L,
-        const range<Dimensions> GroupRange, const id<Dimensions> &I)
-      : globalRange(G), localRange(L), groupRange(GroupRange), index(I) {}
+
+  group() {
+    // #ifdef __SYCL_DEVICE_ONLY__
+    // globalRange = {__spirv::initBuiltInGlobalSize<Dims, range<Dims>>()};
+    // localRange = {__spirv::initBuiltInWorkgroupSize<Dims, range<Dims>>()};
+    // groupRange = {__spirv::initBuiltInNumWorkgroups<Dims, range<Dims>>()};
+    // index = {__spirv::initBuiltInWorkgroupId<Dims, id<Dims>>()};
+    // #endif
+  }
 };
 } // namespace _V1
 } // namespace sycl

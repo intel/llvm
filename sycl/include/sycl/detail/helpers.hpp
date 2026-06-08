@@ -52,17 +52,15 @@ public:
   Builder() = delete;
 
   template <int Dims>
-  static group<Dims>
-  createGroup(const range<Dims> &Global, const range<Dims> &Local,
-              const range<Dims> &Group, const id<Dims> &Index) {
-    return group<Dims>(Global, Local, Group, Index);
+  static group<Dims> createGroup(const range<Dims> &, const range<Dims> &,
+                                 const range<Dims> &, const id<Dims> &) {
+    return group<Dims>();
   }
 
   template <int Dims>
-  static group<Dims> createGroup(const range<Dims> &Global,
-                                 const range<Dims> &Local,
-                                 const id<Dims> &Index) {
-    return group<Dims>(Global, Local, Global / Local, Index);
+  static group<Dims> createGroup(const range<Dims> &, const range<Dims> &,
+                                 const id<Dims> &) {
+    return group<Dims>();
   }
 
   template <class ResType, typename BitsType>
