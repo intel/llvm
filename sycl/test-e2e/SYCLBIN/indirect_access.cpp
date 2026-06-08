@@ -1,0 +1,15 @@
+// REQUIRES: aspect-usm_device_allocations
+
+// Check to ensure that the SYCL runtime sets the
+// UR_KERNEL_EXEC_INFO_USM_INDIRECT_ACCESS property to true for SYCLBIN kernels.
+
+// RUN: %clangxx --offload-new-driver -fsyclbin=executable %{sycl_target_opts} %{syclbin_exec_opts} %S/Inputs/basic_kernel.cpp -o %t.syclbin
+// RUN: %{build} -o %t.out
+// RUN: env SYCL_UR_TRACE=-1 %{run} %t.out %t.syclbin | FileCheck %s
+
+#define SYCLBIN_EXECUTABLE_STATE
+
+#include "Inputs/basic.hpp"
+
+// CHECK: ---> urKernelSetExecInfo
+// CHECK: .propName = UR_KERNEL_EXEC_INFO_USM_INDIRECT_ACCESS

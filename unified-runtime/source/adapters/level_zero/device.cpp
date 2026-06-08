@@ -1242,34 +1242,21 @@ ur_result_t urDeviceGetInfo(
                        Device->ZeDeviceImageProperties->maxImageDims2D > 0);
   }
   case UR_DEVICE_INFO_MAX_IMAGE_LINEAR_WIDTH_EXP: {
-    ze_device_image_properties_t imageProps = {};
-    imageProps.stype = ZE_STRUCTURE_TYPE_DEVICE_IMAGE_PROPERTIES;
-    ze_device_pitched_alloc_exp_properties_t imageAllocProps = {};
-    imageAllocProps.stype =
-        ZE_STRUCTURE_TYPE_PITCHED_ALLOC_DEVICE_EXP_PROPERTIES;
-    imageProps.pNext = (void *)&imageAllocProps;
-
-    ZE_CALL_NOCHECK(zeDeviceGetImageProperties, (ZeDevice, &imageProps));
-
-    return ReturnValue(imageAllocProps.maxImageLinearWidth);
+    return ReturnValue(
+        Device->ZeDevicePitchedAllocProperties->AllocProps.maxImageLinearWidth);
   }
   case UR_DEVICE_INFO_MAX_IMAGE_LINEAR_HEIGHT_EXP: {
-    ze_device_image_properties_t imageProps = {};
-    imageProps.stype = ZE_STRUCTURE_TYPE_DEVICE_IMAGE_PROPERTIES;
-    ze_device_pitched_alloc_exp_properties_t imageAllocProps = {};
-    imageAllocProps.stype =
-        ZE_STRUCTURE_TYPE_PITCHED_ALLOC_DEVICE_EXP_PROPERTIES;
-    imageProps.pNext = (void *)&imageAllocProps;
-
-    ZE_CALL_NOCHECK(zeDeviceGetImageProperties, (ZeDevice, &imageProps));
-
-    return ReturnValue(imageAllocProps.maxImageLinearHeight);
+    return ReturnValue(Device->ZeDevicePitchedAllocProperties->AllocProps
+                           .maxImageLinearHeight);
   }
-  case UR_DEVICE_INFO_IMAGE_PITCH_ALIGN_EXP:
-  case UR_DEVICE_INFO_MAX_IMAGE_LINEAR_PITCH_EXP:
-    UR_LOG(ERR, "Unsupported ParamName in urGetDeviceInfo");
-    UR_LOG(ERR, "ParamName=%{}(0x{})", ParamName, logger::toHex(ParamName));
-    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+  case UR_DEVICE_INFO_IMAGE_PITCH_ALIGN_EXP: {
+    return ReturnValue(static_cast<uint32_t>(
+        Device->ZeDevicePitchedAllocProperties->PitchInfo.pitchAlign));
+  }
+  case UR_DEVICE_INFO_MAX_IMAGE_LINEAR_PITCH_EXP: {
+    return ReturnValue(
+        Device->ZeDevicePitchedAllocProperties->PitchInfo.maxSupportedPitch);
+  }
   case UR_DEVICE_INFO_MIPMAP_SUPPORT_EXP: {
     // L0 does not support mipmaps.
     return ReturnValue(false);
@@ -2220,6 +2207,15 @@ ur_result_t ur_device_handle_t_::initialize(int SubSubDeviceOrdinal,
         P.stype = ZE_STRUCTURE_TYPE_DEVICE_PROPERTIES;
         P.pNext = (void *)&Properties;
         ZE_CALL_NOCHECK(zeDeviceGetProperties, (ZeDevice, &P));
+      };
+
+  ZeDevicePitchedAllocProperties.Compute =
+      [ZeDevice](ZeDevicePitchedAllocInfo &Properties) {
+        ze_device_image_properties_t ImageProps = {};
+        ImageProps.stype = ZE_STRUCTURE_TYPE_DEVICE_IMAGE_PROPERTIES;
+        ImageProps.pNext = &Properties.AllocProps;
+        Properties.AllocProps.pNext = &Properties.PitchInfo;
+        ZE_CALL_NOCHECK(zeDeviceGetImageProperties, (ZeDevice, &ImageProps));
       };
 
   ImmCommandListUsed = this->useImmediateCommandLists();
