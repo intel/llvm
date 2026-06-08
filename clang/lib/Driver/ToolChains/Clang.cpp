@@ -11211,7 +11211,7 @@ static bool allowDeviceImageDependencies(const llvm::opt::ArgList &TCArgs) {
   // -fsyclbin=executable does not imply, since it produces a fully linked
   // artifact with no cross-image references.
   bool SYCLBINImplies = false;
-  if (Arg *A = TCArgs.getLastArg(options::OPT_fsyclbin_EQ)) {
+  if (const Arg *A = TCArgs.getLastArg(options::OPT_fsyclbin_EQ)) {
     StringRef State = A->getValue();
     SYCLBINImplies = (State == "input" || State == "object");
   }
@@ -12005,17 +12005,19 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     // -fsycl-allow-device-image-dependencies is harmless but pointless,
     // so it is diagnosed as a warning.
     bool SYCLBINImpliesAllowDeps = false;
-    if (Arg *A = Args.getLastArg(options::OPT_fsyclbin_EQ)) {
+    if (const Arg *A = Args.getLastArg(options::OPT_fsyclbin_EQ)) {
       StringRef State = A->getValue();
       bool IsLinkableState = (State == "input" || State == "object");
-      SYCLBINImpliesAllowDeps = IsLinkableState;
+      SYCLBINImpliesAllowDeps = State == "input" || State == "object";
+      
+      And re-use SYCLBINImpliesAllowDeps instead of IsLinkableState
       const Driver &D = getToolChain().getDriver();
-      if (Arg *NoDeps = Args.getLastArg(
+      if (const Arg *NoDeps = Args.getLastArg(
               options::OPT_fno_sycl_allow_device_image_dependencies);
           NoDeps && IsLinkableState) {
         D.Diag(diag::err_drv_argument_not_allowed_with)
             << NoDeps->getAsString(Args) << A->getAsString(Args);
-      } else if (Arg *Deps = Args.getLastArg(
+      } else if (const Arg *Deps = Args.getLastArg(
                      options::OPT_fsycl_allow_device_image_dependencies);
                  Deps && State == "executable") {
         D.Diag(diag::warn_drv_argument_has_no_effect_with)

@@ -1835,7 +1835,7 @@ void SYCLToolChain::AddSPIRVImpliedTargetArgs(const llvm::Triple &Triple,
     // implication aligned with the device-image-dependencies setting so
     // that an explicit opt-out for non-SYCLBIN AOT scenarios is honored.
     bool SYCLBINImpliesExportSymbols = false;
-    if (Arg *A = Args.getLastArg(options::OPT_fsyclbin_EQ)) {
+    if (const Arg *A = Args.getLastArg(options::OPT_fsyclbin_EQ)) {
       StringRef State = A->getValue();
       SYCLBINImpliesExportSymbols = (State == "input" || State == "object");
     }
