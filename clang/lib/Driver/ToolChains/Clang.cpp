@@ -12005,13 +12005,17 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
         for (Arg *A : Args) {
           if (A->getOption().matches(OptNoTriple)) {
             emitDeviceArg(Wrapper, A->getValue());
+            A->claim();
             continue;
           }
           if (!A->getOption().matches(OptWithTriple))
             continue;
-          if (llvm::Triple(A->getValue()) != TCTriple)
+          // Use the Driver's triple resolver so short forms like
+          // `spir64_gen` normalize to `spir64_gen-unknown-unknown`.
+          if (C.getDriver().getSYCLDeviceTriple(A->getValue()) != TCTriple)
             continue;
           emitDeviceArg(Wrapper, A->getValue(1));
+          A->claim();
         }
       };
       forwardTargetOpt(options::OPT_Xsycl_backend,
@@ -12025,8 +12029,10 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
         if (A->getOption().matches(options::OPT_Xs)) {
           emitDeviceArg("--device-compiler",
                         Args.MakeArgString(Twine("-") + A->getValue()));
+          A->claim();
         } else if (A->getOption().matches(options::OPT_Xs_separate)) {
           emitDeviceArg("--device-compiler", A->getValue());
+          A->claim();
         }
       }
     }
