@@ -32,9 +32,9 @@ struct MockKernelInfoBase {
   static constexpr unsigned getColumnNumber() { return 0; }
 };
 
-
-// Instantiating this function registers kernel names in KernelRegistry,
-// as would normally be done by a kernel wrapper at its submisison.
+// Instantiating this function template registers kernel names in
+// KernelRegistry, as would normally be done by kernel wrappers at their
+// submisison.
 template <typename... KernelNames> void registerKernelNames() {
   (sycl::detail::KernelRegistrar<
        KernelNames,
