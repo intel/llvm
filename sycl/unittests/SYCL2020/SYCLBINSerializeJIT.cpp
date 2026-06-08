@@ -52,12 +52,15 @@ sycl::unittest::MockDeviceImageArray<std::size(Imgs)> ImgArray{Imgs};
 
 // Narrow the kernel_bundle to just our SPIR-V mock image to avoid contamination
 // from images registered by sibling test files (e.g. SYCLBINSerialize.cpp).
-sycl::kernel_bundle<sycl::bundle_state::executable>
+// We use input-state bundles here so that the IR payload survives serialization
+// verbatim. Executable-state bundles whose source image is SPIR-V trigger the
+// JIT-binary extraction path (getProgramBinaryData) which produces native
+// device code images instead of IR modules.
+sycl::kernel_bundle<sycl::bundle_state::input>
 getKBForKernel(const sycl::context &Ctx, const sycl::device &Dev) {
   std::vector<sycl::kernel_id> KIDs{
       sycl::get_kernel_id<SYCLBINSerializeJITKernel>()};
-  return sycl::get_kernel_bundle<sycl::bundle_state::executable>(Ctx, {Dev},
-                                                                 KIDs);
+  return sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx, {Dev}, KIDs);
 }
 
 // Tests for SYCL runtime library, test plan section 10.3 (JIT branch): a SPIR-V

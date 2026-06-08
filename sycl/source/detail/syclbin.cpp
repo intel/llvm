@@ -365,7 +365,7 @@ std::vector<char> SYCLBIN::write(const SYCLBINDesc &Desc) {
   // Single entry pointing at the SYCLBIN payload following the entry array.
   OffloadBinaryEntryType OBEntry{};
   OBEntry.ImageKind = /*IMG_SYCLBIN*/ 7;
-  OBEntry.OffloadKind = /*OFK_SYCL*/ 5;
+  OBEntry.OffloadKind = /*OFK_SYCL = 1 << 3*/ 8;
   OBEntry.ImageOffset =
       sizeof(OffloadBinaryHeaderType) + sizeof(OffloadBinaryEntryType);
   OBEntry.ImageSize = SYCLBINBytes.size();
@@ -379,8 +379,7 @@ std::vector<char> SYCLBIN::write(const SYCLBINDesc &Desc) {
 }
 
 std::vector<char>
-SYCLBIN::serializeImages(const std::vector<const RTDeviceBinaryImage *> &Images,
-                         uint8_t State) {
+SYCLBIN::serializeImages(const std::vector<ImageInput> &Inputs, uint8_t State) {
   SYCLBINDesc Desc;
 
   // Global metadata: just the bundle state.
@@ -392,8 +391,9 @@ SYCLBIN::serializeImages(const std::vector<const RTDeviceBinaryImage *> &Images,
   }
 
   // Each runtime image becomes its own abstract module.
-  Desc.AbstractModules.reserve(Images.size());
-  for (const RTDeviceBinaryImage *Image : Images) {
+  Desc.AbstractModules.reserve(Inputs.size());
+  for (const ImageInput &Input : Inputs) {
+    const RTDeviceBinaryImage *Image = Input.Image;
     if (!Image)
       continue;
     AbstractModuleDesc &AMD = Desc.AbstractModules.emplace_back();
@@ -420,13 +420,41 @@ SYCLBIN::serializeImages(const std::vector<const RTDeviceBinaryImage *> &Images,
       AMD.Metadata = serializePropSetRegistry(AMProps);
     }
 
-    // Image bytes view.
     const sycl_device_binary_struct &Raw = Image->getRawData();
+    const std::string Triple = getTripleFromTargetSpec(Raw.DeviceTargetSpec);
+
+    // Path A: a UR program supplied native binaries for this image. Emit
+    // each as its own NativeDeviceCodeImage labeled with the device's arch.
+    // This is the JIT-built executable case where the source image is
+    // SPIR-V/IR but the bundle's executable payload only exists in the UR
+    // program.
+    if (!Input.NativeBinaries.empty()) {
+      assert(Input.NativeBinaries.size() == Input.Devices.size() &&
+             "NativeBinaries/Devices length mismatch.");
+      for (size_t I = 0; I < Input.NativeBinaries.size(); ++I) {
+        ImageDesc &ID = AMD.NativeDeviceCodeImages.emplace_back();
+        ID.Bytes = std::string_view{Input.NativeBinaries[I].data(),
+                                    Input.NativeBinaries[I].size()};
+        PropertySetRegistry NDCIProps;
+        std::string_view Arch{Input.Devices[I] ? getArchName(*Input.Devices[I])
+                                               : ""};
+        NDCIProps.add(
+            PropertySetRegistry::SYCLBIN_NATIVE_DEVICE_CODE_IMAGE_METADATA,
+            "arch", Arch);
+        NDCIProps.add(
+            PropertySetRegistry::SYCLBIN_NATIVE_DEVICE_CODE_IMAGE_METADATA,
+            "target", std::string_view{Triple});
+        ID.Metadata = serializePropSetRegistry(NDCIProps);
+      }
+      continue;
+    }
+
+    // Path B: no native binaries available -> serialize the source image
+    // bytes verbatim. Used for AOT-native images and for any path where the
+    // bundle has not (yet) been JIT'd.
     std::string_view Bytes{
         reinterpret_cast<const char *>(Raw.BinaryStart),
         static_cast<size_t>(Raw.BinaryEnd - Raw.BinaryStart)};
-
-    const std::string Triple = getTripleFromTargetSpec(Raw.DeviceTargetSpec);
 
     if (isIRModuleFormat(Image->getFormat())) {
       ImageDesc &ID = AMD.IRModules.emplace_back();

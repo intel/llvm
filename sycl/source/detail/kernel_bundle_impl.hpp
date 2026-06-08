@@ -13,6 +13,7 @@
 #include <detail/device_impl.hpp>
 #include <detail/kernel_impl.hpp>
 #include <detail/link_graph.hpp>
+#include <detail/persistent_device_code_cache.hpp>
 #include <detail/program_manager/program_manager.hpp>
 #include <detail/syclbin.hpp>
 #include <sycl/backend_types.hpp>
@@ -1043,6 +1044,12 @@ public:
   // re-serializes from the live device images to reflect any state-promotion
   // (compile/link/build) that may have replaced the original images, even when
   // the bundle was originally constructed from a SYCLBIN file.
+  //
+  // For executable-state bundles whose source image is IR (SPIR-V) and which
+  // therefore have a built UR program, the per-device native binaries are
+  // extracted from the program via getProgramBinaryData and emitted as
+  // NativeDeviceCodeImages. This satisfies the spec requirement that an
+  // executable-state SYCLBIN contain native, ready-to-run binaries.
   std::vector<char> ext_oneapi_get_content() const {
     // Per the sycl_ext_oneapi_syclbin extension, the public surface uses a
     // _Constraints:_ clause that excludes ext_oneapi_source via SFINAE on
@@ -1051,13 +1058,36 @@ public:
     assert(MState != bundle_state::ext_oneapi_source &&
            "ext_oneapi_get_content reached on a source-state kernel_bundle.");
 
-    std::vector<const RTDeviceBinaryImage *> Images;
-    Images.reserve(MUniqueDeviceImages.size());
-    for (device_image_impl &DevImg : device_images())
-      if (const RTDeviceBinaryImage *Bin = DevImg.get_bin_image_ref())
-        Images.push_back(Bin);
+    std::vector<SYCLBIN::ImageInput> Inputs;
+    Inputs.reserve(MUniqueDeviceImages.size());
+    for (device_image_impl &DevImg : device_images()) {
+      const RTDeviceBinaryImage *Bin = DevImg.get_bin_image_ref();
+      if (!Bin)
+        continue;
+      SYCLBIN::ImageInput &In = Inputs.emplace_back();
+      In.Image = Bin;
 
-    return SYCLBIN::serializeImages(Images, static_cast<uint8_t>(MState));
+      // Promote IR -> native by reading back the JIT-built program bytes,
+      // but only when we're emitting an executable-state SYCLBIN. For
+      // input/object states we want to keep the IR payload as-is so the
+      // re-loaded bundle preserves the same source-side state.
+      const bool IsExecutable = MState == bundle_state::executable;
+      const bool IsIRSource =
+          Bin->getFormat() == SYCL_DEVICE_BINARY_TYPE_SPIRV ||
+          Bin->getFormat() == SYCL_DEVICE_BINARY_TYPE_LLVMIR_BITCODE;
+      if (IsExecutable && IsIRSource && DevImg.get_ur_program() != nullptr) {
+        devices_range Devs = DevImg.get_devices();
+        if (!Devs.empty()) {
+          In.NativeBinaries =
+              sycl::detail::getProgramBinaryData(DevImg.get_ur_program(), Devs);
+          In.Devices.reserve(Devs.size());
+          for (device_impl &D : Devs)
+            In.Devices.push_back(&D);
+        }
+      }
+    }
+
+    return SYCLBIN::serializeImages(Inputs, static_cast<uint8_t>(MState));
   }
 
   const SpecConstMapT &get_spec_const_map_ref() const noexcept {

@@ -64,8 +64,10 @@ TEST(SYCLBINSerializeMulti, OneAbstractModulePerImage) {
       sycl::get_kernel_id<SYCLBINSerializeMultiKernelA>(),
       sycl::get_kernel_id<SYCLBINSerializeMultiKernelB>(),
       sycl::get_kernel_id<SYCLBINSerializeMultiKernelC>()};
+  // Use input-state bundle so that SPIR-V images are preserved as IR modules.
+  // Executable-state bundles trigger native binary extraction via UR.
   auto KB =
-      sycl::get_kernel_bundle<sycl::bundle_state::executable>(Ctx, {Dev}, KIDs);
+      sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx, {Dev}, KIDs);
 
   std::vector<char> Bytes =
       sycl::detail::getSyclObjImpl(KB)->ext_oneapi_get_content();

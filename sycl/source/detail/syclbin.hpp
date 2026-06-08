@@ -28,6 +28,8 @@ class device;
 
 namespace detail {
 
+class device_impl;
+
 // Representation of a SYCLBIN binary object. This is intended for use as an
 // image inside a OffloadBinary.
 // Adjusted from llvm/include/llvm/Object/SYCLBIN.h and can be removed if
@@ -109,18 +111,38 @@ public:
   // dereferenced during serialization (see SYCLBINDesc lifetime contract).
   static std::vector<char> write(const SYCLBINDesc &Desc);
 
+  // Per-image input for serializeImages. \p Image carries metadata
+  // (property sets, format, target spec) used to build the abstract module
+  // metadata. \p NativeBinaries, when non-empty, supplies device-specific
+  // native binary bytes (one entry per device) extracted from a built UR
+  // program; in that case the abstract module emits one
+  // NativeDeviceCodeImage per entry rather than re-emitting \p Image's own
+  // bytes. Used for JIT-built executable bundles where the source image is
+  // SPIR-V/IR but the bundle's native payload only exists in a UR program.
+  // \p Devices matches \p NativeBinaries 1:1 and is used to label each native
+  // image with its device's architecture string.
+  struct ImageInput {
+    const RTDeviceBinaryImage *Image;
+    std::vector<std::vector<char>> NativeBinaries;
+    std::vector<device_impl *> Devices;
+  };
+
   // Build and serialize a SYCLBIN representing the given runtime device images
-  // at the given bundle state. Each image becomes its own abstract module.
+  // at the given bundle state. Each input becomes its own abstract module.
   // Property sets carried on the source image are forwarded verbatim into the
   // abstract module metadata so device-requirement-driven matching (e.g.
   // `compile_target`) survives a round-trip.
   //
-  // The Images pointers must remain valid for the duration of the call: the
-  // intermediate SYCLBINDesc holds non-owning views into each image's binary
-  // payload (see ImageDesc::Bytes).
+  // When ImageInput::NativeBinaries is non-empty, those bytes are emitted as
+  // NativeDeviceCodeImages (replacing what would otherwise be IR module
+  // serialization of the source image). Otherwise the source image's own
+  // bytes are emitted, mirroring its on-disk format (IR vs. native).
+  //
+  // The Image pointers and NativeBinaries storage must remain valid for the
+  // duration of the call: the intermediate SYCLBINDesc holds non-owning views
+  // into each input's binary payload (see ImageDesc::Bytes).
   static std::vector<char>
-  serializeImages(const std::vector<const RTDeviceBinaryImage *> &Images,
-                  uint8_t State);
+  serializeImages(const std::vector<ImageInput> &Inputs, uint8_t State);
 
 private:
   struct alignas(8) FileHeaderType {
