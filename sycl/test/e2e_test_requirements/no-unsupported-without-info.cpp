@@ -54,18 +54,14 @@
 // tests to match the required format and in that case you should just update
 // (i.e. reduce) the number and the list below.
 //
-// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 135
+// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 131
 //
 // List of improperly UNSUPPORTED tests.
 // Remove the CHECK once the test has been properly UNSUPPORTED.
 //
-// CHECK: Adapters/enqueue-arg-order-image.cpp
-// CHECK-NEXT: Adapters/level_zero/batch_event_status.cpp
+// CHECK: Adapters/level_zero/batch_event_status.cpp
 // CHECK-NEXT: Adapters/level_zero/interop-buffer-ownership.cpp
-// CHECK-NEXT: Adapters/level_zero/interop-image-get-native-mem.cpp
 // CHECK-NEXT: Adapters/level_zero/interop-image-ownership.cpp
-// CHECK-NEXT: Adapters/level_zero/interop-image-ownership.cpp
-// CHECK-NEXT: Adapters/level_zero/interop-image.cpp
 // CHECK-NEXT: Adapters/level_zero/interop.cpp
 // CHECK-NEXT: Adapters/level_zero/queue_profiling.cpp
 // CHECK-NEXT: Adapters/level_zero/usm_device_read_only.cpp
