@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include <detail/spinlock.hpp>
+#include <spinlock.hpp>
 #include <sycl/detail/util.hpp>
 
 #include <memory>

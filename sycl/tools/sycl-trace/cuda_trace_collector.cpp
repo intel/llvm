@@ -11,7 +11,7 @@
 
 #include "xpti/xpti_trace_framework.h"
 
-#include <sycl/detail/spinlock.hpp>
+#include <spinlock.hpp>
 
 #include <cuda.h>
 #include <cupti.h>

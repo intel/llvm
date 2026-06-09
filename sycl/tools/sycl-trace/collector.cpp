@@ -12,7 +12,7 @@
 #include <iostream>
 #include <mutex>
 #include <string>
-#include <sycl/detail/spinlock.hpp>
+#include <spinlock.hpp>
 
 sycl::detail::SpinLock GlobalLock;
 
