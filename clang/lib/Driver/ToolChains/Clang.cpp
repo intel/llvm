@@ -11211,7 +11211,7 @@ static bool allowDeviceImageDependencies(const llvm::opt::ArgList &TCArgs) {
   // -fsyclbin=executable does not imply, since it produces a fully linked
   // artifact with no cross-image references.
   bool SYCLBINImplies = false;
-  if (const Arg *A = TCArgs.getLastArg(options::OPT_fsyclbin_EQ)) {
+  if (const Arg *A = TCArgs.getLastArgNoClaim(options::OPT_fsyclbin_EQ)) {
     StringRef State = A->getValue();
     SYCLBINImplies = (State == "input" || State == "object");
   }
