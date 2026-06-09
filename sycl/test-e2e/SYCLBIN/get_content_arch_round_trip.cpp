@@ -14,8 +14,8 @@
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out %t.first.syclbin %t.second.syclbin
-// RUN: syclbin-dump %t.first.syclbin  | FileCheck %s --check-prefix CHECK-FIRST
-// RUN: syclbin-dump %t.second.syclbin | FileCheck %s --check-prefix CHECK-SECOND
+// RUN: %{run-aux} syclbin-dump %t.first.syclbin  | FileCheck %s --check-prefix CHECK-FIRST
+// RUN: %{run-aux} syclbin-dump %t.second.syclbin | FileCheck %s --check-prefix CHECK-SECOND
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/syclbin_kernel_bundle.hpp>
