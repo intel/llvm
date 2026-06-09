@@ -465,8 +465,10 @@ static Error runAOTCompileIntelCPU(StringRef InputFile, StringRef OutputFile,
   CmdArgs.push_back("--device=cpu");
   StringRef ExtraArgs = Args.getLastArgValue(OPT_opencl_aot_options_EQ);
   ExtraArgs.split(CmdArgs, " ", /*MaxSplit=*/-1, /*KeepEmpty=*/false);
-  for (const std::string &Val :
-       filterDeviceArgs(Args, OPT_device_compiler_args_EQ))
+
+  SmallVector<std::string> DeviceCompilerArgs =
+      filterDeviceArgs(Args, OPT_device_compiler_args_EQ);
+  for (const std::string &Val : DeviceCompilerArgs)
     StringRef(Val).split(CmdArgs, " ", /*MaxSplit=*/-1, /*KeepEmpty=*/false);
   CmdArgs.push_back("-o");
   CmdArgs.push_back(OutputFile);
@@ -504,8 +506,11 @@ static Error runAOTCompileIntelGPU(StringRef InputFile, StringRef OutputFile,
 
   StringRef ExtraArgs = Args.getLastArgValue(OPT_ocloc_options_EQ);
   ExtraArgs.split(CmdArgs, " ", /*MaxSplit=*/-1, /*KeepEmpty=*/false);
-  for (const std::string &Val :
-       filterDeviceArgs(Args, OPT_device_compiler_args_EQ))
+  // Keep the filtered strings alive until executeCommands returns; CmdArgs
+  // holds StringRefs into their buffers.
+  SmallVector<std::string> DeviceCompilerArgs =
+      filterDeviceArgs(Args, OPT_device_compiler_args_EQ);
+  for (const std::string &Val : DeviceCompilerArgs)
     StringRef(Val).split(CmdArgs, " ", /*MaxSplit=*/-1, /*KeepEmpty=*/false);
 
   CmdArgs.push_back("-output");
