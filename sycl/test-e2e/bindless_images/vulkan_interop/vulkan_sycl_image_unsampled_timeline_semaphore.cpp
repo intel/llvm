@@ -108,7 +108,9 @@ int runTest(
 
   std::cout << "  VK Format: " << getFormatString(vkFormat) << std::endl;
 
+  interop_monitor::logHostSnapshot("timeline before createVulkanContext");
   VulkanContext vkCtx = createVulkanContext();
+  interop_monitor::logHostSnapshot("timeline after createVulkanContext");
   VkExtent3D extent = {(uint32_t)imageWidth, (uint32_t)imageHeight, 1};
 
   VkImageUsageFlags usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
@@ -154,6 +156,7 @@ int runTest(
   }
 
   auto cleanupVulkanResourcesFn = [&]() {
+    interop_monitor::logHostSnapshot("timeline cleanup begin");
     vkDestroyFence(vkCtx.device, fence, nullptr);
     vkDestroyCommandPool(vkCtx.device, pool, nullptr);
     vkDestroySemaphore(vkCtx.device, timelineSemaphore, nullptr);
@@ -171,6 +174,7 @@ int runTest(
     sycl::queue q{
         {sycl::property::queue::in_order{},
          sycl::ext::intel::property::queue::immediate_command_list{}}};
+    interop_monitor::logHostSnapshot("timeline after create_sycl_queue");
 
 #ifdef _WIN32
     HANDLE memHandle = getMemHandle(vkCtx, imgResc.memory);
@@ -438,6 +442,7 @@ int runTest(
     syclexp::free_image_mem(imgMemHandle, syclexp::image_type::standard, q);
     syclexp::release_external_memory(extMem, q);
     syclexp::release_external_semaphore(syclSem, q);
+    interop_monitor::logHostSnapshot("timeline before cleanup");
     cleanupVulkanResourcesFn();
 
     if (passed)
@@ -449,6 +454,7 @@ int runTest(
 
   } catch (sycl::exception &e) {
     std::cerr << "SYCL Exception: " << e.what() << std::endl;
+    interop_monitor::logHostSnapshot("timeline cleanup after exception");
     cleanupVulkanResourcesFn();
     return 1;
   }

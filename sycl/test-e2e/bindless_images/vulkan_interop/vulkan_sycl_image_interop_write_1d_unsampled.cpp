@@ -157,7 +157,9 @@ int runTest(
                           : getVulkanFormat<T>(channels);
   std::cout << "VK Format: " << getFormatString(vkFormat) << std::endl;
 
+  interop_monitor::logHostSnapshot("write_1d before createVulkanContext");
   VulkanContext vkCtx = createVulkanContext();
+  interop_monitor::logHostSnapshot("write_1d after createVulkanContext");
   VkExtent3D extent = {(uint32_t)width, 1, 1};
   ImageResources imgRes =
       createExportableImage(vkCtx, extent, vkFormat, VK_IMAGE_TYPE_1D, tiling);
@@ -217,6 +219,7 @@ int runTest(
                                                 immediate_command_list{}}
                       : sycl::property_list{sycl::property::queue::in_order{}};
     sycl::queue q{qProps};
+    interop_monitor::logHostSnapshot("write_1d after create_sycl_queue");
 
     // IMPORT MEMORY
 #ifdef _WIN32
@@ -402,11 +405,13 @@ int runTest(
                                           q.get_context());
       vkDestroySemaphore(vkCtx.device, vkSem, nullptr);
     }
+    interop_monitor::logHostSnapshot("write_1d before cleanup");
     cleanupVulkan(vkCtx, imgRes);
     return passed ? 0 : 1;
 
   } catch (std::exception &e) {
     std::cerr << "SYCL Exception: " << e.what() << std::endl;
+    interop_monitor::logHostSnapshot("write_1d cleanup after exception");
     cleanupVulkan(vkCtx, imgRes);
     return 1;
   }
