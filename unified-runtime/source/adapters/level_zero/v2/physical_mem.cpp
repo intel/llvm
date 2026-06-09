@@ -13,10 +13,10 @@
 
 #ifdef __linux__
 #include <cerrno>
-#include <sys/syscall.h>
 #include <unistd.h>
 #endif
 
+#include "ur_util.hpp"
 #include <optional>
 
 #include "context.hpp"
@@ -198,25 +198,19 @@ ur_result_t urIPCOpenPhysMemHandleExp(ur_context_handle_t hContext,
 
   // Obtain a usable fd in the current process.  For same-process opens
   // (e.g. conformance tests) dup() suffices.  For cross-process opens
-  // use pidfd_getfd(2) which requires the exporting process to be
-  // ptrace-accessible (e.g. via prctl(PR_SET_PTRACER, PR_SET_PTRACER_ANY)).
+  // use ur_duplicate_fd() which calls pidfd_getfd(2) (Linux 5.6+) and
+  // requires the exporting process to be ptrace-accessible.
   int ImportFdNum = -1;
   if (HandleData->Pid == getpid()) {
     ImportFdNum = dup(HandleData->Fd);
     if (ImportFdNum < 0)
       return UR_RESULT_ERROR_INVALID_VALUE;
   } else {
-    int PidFd = static_cast<int>(syscall(SYS_pidfd_open, HandleData->Pid, 0));
-    if (PidFd < 0)
-      return errno == EPERM ? UR_RESULT_ERROR_INVALID_ARGUMENT
-                            : UR_RESULT_ERROR_INVALID_VALUE;
-    ImportFdNum =
-        static_cast<int>(syscall(SYS_pidfd_getfd, PidFd, HandleData->Fd, 0));
-    int SavedErrno = errno; // save before close() may overwrite it
-    close(PidFd);
+    ImportFdNum = ur_duplicate_fd(HandleData->Pid, HandleData->Fd);
     if (ImportFdNum < 0)
-      return SavedErrno == EPERM ? UR_RESULT_ERROR_INVALID_ARGUMENT
-                                 : UR_RESULT_ERROR_INVALID_VALUE;
+      return errno == EPERM     ? UR_RESULT_ERROR_INVALID_ARGUMENT
+             : errno == ENOTSUP ? UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+                                : UR_RESULT_ERROR_INVALID_VALUE;
   }
 
   ze_external_memory_import_fd_t ImportFd = {};
