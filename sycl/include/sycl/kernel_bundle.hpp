@@ -592,7 +592,7 @@ template <typename KernelName> kernel_id get_kernel_id() {
   // FIXME: This must fail at link-time if KernelName not in any available
   // translation units.
   return detail::get_kernel_id_impl(
-      detail::CompileTimeKernelInfo<KernelName>.Name);
+      std::string_view(detail::KernelRegistry<KernelName>::getKernelName()));
 }
 
 /// \returns a vector with all kernel_id's defined in the application
