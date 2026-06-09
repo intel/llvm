@@ -210,7 +210,8 @@ def do_configure(args, passthrough_args):
             ),
 
             "-DRUNTIMES_spirv64-unknown-unknown_COMPILER_RT_SANITIZERS_TO_BUILD={}".format(
-                llvm_spirv64_sanitizers),
+                llvm_spirv64_sanitizers
+            ),
         ]
     )
 
