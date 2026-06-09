@@ -29,6 +29,7 @@ class device;
 namespace detail {
 
 class device_impl;
+class device_image_impl;
 
 // Representation of a SYCLBIN binary object. This is intended for use as an
 // image inside a OffloadBinary.
@@ -111,18 +112,47 @@ public:
   // dereferenced during serialization (see SYCLBINDesc lifetime contract).
   static std::vector<char> write(const SYCLBINDesc &Desc);
 
-  // Per-image input for serializeImages. \p Image carries metadata
-  // (property sets, format, target spec) used to build the abstract module
-  // metadata. \p NativeBinaries, when non-empty, supplies device-specific
-  // native binary bytes (one entry per device) extracted from a built UR
-  // program; in that case the abstract module emits one
-  // NativeDeviceCodeImage per entry rather than re-emitting \p Image's own
-  // bytes. Used for JIT-built executable bundles where the source image is
-  // SPIR-V/IR but the bundle's native payload only exists in a UR program.
-  // \p Devices matches \p NativeBinaries 1:1 and is used to label each native
-  // image with its device's architecture string.
+  // Per-image input for serializeImages.
+  //
+  // The serializer composes the abstract-module property registry from two
+  // layers:
+  //
+  // 1. Raw forward pass: every property set carried on \p Image's static
+  //    sycl_device_binary_struct is forwarded verbatim into the registry,
+  //    excluding the SYCLBIN-reserved sets (which are reconstructed by the
+  //    serializer itself).
+  //
+  // 2. Runtime-overlay pass: a fixed table of category-specific overrides
+  //    edits the registry with information that lives on the runtime
+  //    \p DevImg / \p Devices instead of (or in addition to) the static
+  //    image. This catches everything the runtime has layered onto the
+  //    bundle since __sycl_register_lib registered the static image:
+  //    runtime-tracked kernel names, eliminated kernel arg masks, current
+  //    spec-constant values and descriptors, etc. Without this pass, a
+  //    kernel_bundle assembled in the normal -fsycl flow would round-trip
+  //    through ext_oneapi_get_content with empty / stale metadata for any
+  //    category whose authoritative source is the runtime view.
+  //
+  // \p NativeBinaries, when non-empty, supplies device-specific native
+  // binary bytes (one entry per device) extracted from a built UR program;
+  // in that case the abstract module emits one NativeDeviceCodeImage per
+  // entry rather than re-emitting \p Image's own bytes. Used for JIT-built
+  // executable bundles where the source image is SPIR-V/IR but the bundle's
+  // native payload only exists in a UR program.
+  //
+  // \p Devices is always populated with the bundle's associated devices for
+  // \p Image. When \p NativeBinaries is non-empty it matches it 1:1 (one
+  // device per native binary). When \p NativeBinaries is empty the
+  // serializer also uses \p Devices[0] as the fallback source for the
+  // per-image "arch" string when the source image carries no compile_target
+  // property.
+  //
+  // \p DevImg is the runtime view of this image. Used by the runtime-overlay
+  // pass; may be left null only when no runtime overlays apply (e.g. tests
+  // that drive serializeImages with synthetic inputs).
   struct ImageInput {
-    const RTDeviceBinaryImage *Image;
+    const RTDeviceBinaryImage *Image = nullptr;
+    device_image_impl *DevImg = nullptr;
     std::vector<std::vector<char>> NativeBinaries;
     std::vector<device_impl *> Devices;
   };

@@ -757,11 +757,28 @@ public:
     std::vector<const detail::RTDeviceBinaryImage *> BestImages =
         SYCLBIN->getBestCompatibleImages(Devs, State);
     MDeviceImages.reserve(BestImages.size());
-    for (const detail::RTDeviceBinaryImage *Image : BestImages)
+    auto &PM = ProgramManager::getInstance();
+    for (const detail::RTDeviceBinaryImage *Image : BestImages) {
+      // Build per-image kernel-id list from the [SYCL/kernel names] property
+      // set so that the C++ kernel_id-based APIs (has_kernel<K>(),
+      // get_kernel_ids(), ...) work on the reloaded bundle. The lookup goes
+      // through ProgramManager's name->kernel_id registry, which is
+      // populated at app start by the static integration-header registration
+      // of every kernel the host TU knows about. Names that have no
+      // registered kernel id (e.g. kernels defined in a different DSO that
+      // is not loaded) are silently skipped.
+      auto KernelIDs = std::make_shared<std::vector<kernel_id>>();
+      for (const sycl_device_binary_property &KNProp : Image->getKernelNames())
+        if (std::optional<kernel_id> MaybeID =
+                PM.tryGetSYCLKernelID(KNProp->Name))
+          KernelIDs->push_back(*MaybeID);
+      std::sort(KernelIDs->begin(), KernelIDs->end(), LessByHash<kernel_id>{});
+
       MDeviceImages.emplace_back(device_image_impl::create(
           Image, Context, Devs, ProgramManager::getBinImageState(Image),
-          /*KernelIDs=*/nullptr, Managed<ur_program_handle_t>{},
+          std::move(KernelIDs), Managed<ur_program_handle_t>{},
           ImageOriginSYCLBIN));
+    }
     ProgramManager::getInstance().bringSYCLDeviceImagesToState(MDeviceImages,
                                                                State);
     fillUniqueDeviceImages();
@@ -1066,6 +1083,15 @@ public:
         continue;
       SYCLBIN::ImageInput &In = Inputs.emplace_back();
       In.Image = Bin;
+      In.DevImg = &DevImg;
+
+      // Always populate the device list so the serializer can use it as a
+      // fallback source for the per-image arch string when the static image
+      // carries no compile_target property.
+      devices_range Devs = DevImg.get_devices();
+      In.Devices.reserve(Devs.size());
+      for (device_impl &D : Devs)
+        In.Devices.push_back(&D);
 
       // Promote IR -> native by reading back the JIT-built program bytes,
       // but only when we're emitting an executable-state SYCLBIN. For
@@ -1075,15 +1101,11 @@ public:
       const bool IsIRSource =
           Bin->getFormat() == SYCL_DEVICE_BINARY_TYPE_SPIRV ||
           Bin->getFormat() == SYCL_DEVICE_BINARY_TYPE_LLVMIR_BITCODE;
-      if (IsExecutable && IsIRSource && DevImg.get_ur_program() != nullptr) {
-        devices_range Devs = DevImg.get_devices();
-        if (!Devs.empty()) {
-          In.NativeBinaries =
-              sycl::detail::getProgramBinaryData(DevImg.get_ur_program(), Devs);
-          In.Devices.reserve(Devs.size());
-          for (device_impl &D : Devs)
-            In.Devices.push_back(&D);
-        }
+      if (IsExecutable && IsIRSource && DevImg.get_ur_program() != nullptr &&
+          !Devs.empty()) {
+        In.NativeBinaries =
+            sycl::detail::getProgramBinaryData(DevImg.get_ur_program(), Devs);
+        // NativeBinaries is keyed 1:1 with Devices (already populated above).
       }
     }
 

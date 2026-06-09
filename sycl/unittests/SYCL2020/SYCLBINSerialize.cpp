@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <detail/kernel_arg_mask.hpp>
 #include <detail/kernel_bundle_impl.hpp>
 #include <detail/syclbin.hpp>
 #include <sycl/sycl.hpp>
@@ -522,4 +523,49 @@ TEST(SYCLBINSerialize, OffloadAndSYCLBINMagicsPresent) {
   // version field as the raw bytes carry.
   sycl::detail::SYCLBIN Parsed{Bytes.data(), Bytes.size()};
   EXPECT_EQ(Parsed.Version, 1u);
+}
+
+
+// Round-trip property of the new serializeKernelArgMask helper:
+// serializeKernelArgMask must produce a byte layout that createKernelArgMask
+// reads back into the exact same bit sequence. This is the inverse property
+// the SYCLBIN [SYCL/kernel param opt] override relies on.
+TEST(SYCLBINSerialize, KernelArgMaskRoundTrip) {
+  using namespace sycl::detail;
+
+  auto roundTrip = [](const KernelArgMask &Mask) {
+    std::vector<std::uint8_t> Packed = serializeKernelArgMask(Mask);
+    // Wrap into ByteArray, which is what createKernelArgMask consumes.
+    ByteArray BA{Packed.data(), Packed.size()};
+    return createKernelArgMask(BA);
+  };
+
+  // Empty.
+  {
+    KernelArgMask M;
+    EXPECT_EQ(roundTrip(M), M);
+  }
+  // All zeros.
+  {
+    KernelArgMask M(13, false);
+    EXPECT_EQ(roundTrip(M), M);
+  }
+  // All ones.
+  {
+    KernelArgMask M(13, true);
+    EXPECT_EQ(roundTrip(M), M);
+  }
+  // Mixed, non-multiple-of-8 length.
+  {
+    KernelArgMask M{true,  false, true, true,  false, false, true,
+                    false, true,  true, false, true,  false};
+    EXPECT_EQ(roundTrip(M), M);
+  }
+  // Long mask spanning multiple bytes.
+  {
+    KernelArgMask M(67, false);
+    for (size_t I = 0; I < M.size(); ++I)
+      M[I] = (I % 3 == 0);
+    EXPECT_EQ(roundTrip(M), M);
+  }
 }

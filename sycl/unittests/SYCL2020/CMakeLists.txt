@@ -16,5 +16,7 @@ add_sycl_unittest(SYCL2020Tests OBJECT
   SYCLBINSerialize.cpp
   SYCLBINSerializeJIT.cpp
   SYCLBINSerializeMulti.cpp
+  SYCLBINSerializeOverrides.cpp
+  SYCLBINSerializeSpecConst.cpp
 )
 

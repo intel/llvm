@@ -10,7 +10,9 @@
 // LLVMObject.
 
 #include <detail/compiler.hpp>
+#include <detail/device_image_impl.hpp>
 #include <detail/device_impl.hpp>
+#include <detail/kernel_arg_mask.hpp>
 #include <detail/program_manager/program_manager.hpp>
 #include <detail/syclbin.hpp>
 
@@ -238,6 +240,147 @@ template <typename T> void writeRaw(std::ostream &OS, const T &Val) {
   OS.write(reinterpret_cast<const char *>(&Val), sizeof(T));
 }
 
+// === Runtime overlay pass ====================================================
+//
+// Each override below is responsible for one [SYCL/...] property set whose
+// authoritative content lives on the runtime device_image_impl rather than on
+// the static RTDeviceBinaryImage. After the raw forward pass, the serializer
+// invokes every override on the abstract-module property registry; an
+// override may either fill in a property set the static image does not carry
+// (e.g. SYCL/kernel names for ordinary -fsycl bundles) or replace a stale one
+// the static image carries with the runtime-effective version.
+//
+// To register a new runtime-overridden category: add a new function with the
+// signature below and append it to the OverrideTable array.
+
+using OverrideFn = void (*)(PropertySetRegistry &, device_image_impl &);
+
+struct CategoryOverride {
+  std::string_view Category;
+  OverrideFn Apply;
+};
+
+// Replace the [SYCL/kernel names] property set with the runtime-tracked
+// kernel name set. Lambda kernels in ordinary -fsycl bundles never carry a
+// [SYCL/kernel names] property set in their static image. Two runtime
+// sources are queried, in order:
+//   1. device_image_impl::MKernelNames - populated for SYCLBIN-origin and
+//      kernel-compiler-origin images.
+//   2. The kernel-id list attached to the image (MKernelIDs) - populated
+//      for ordinary offline images by ProgramManager via
+//      m_BinImg2KernelIDs.
+// The union of both sources is emitted so the reloaded bundle has enough
+// information to repopulate kernel-id registration (see the
+// kernel_bundle_impl SYCLBIN ctor, which looks up each name through
+// ProgramManager::tryGetSYCLKernelID).
+void overrideKernelNames(PropertySetRegistry &Reg, device_image_impl &Img) {
+  PropertySet &Set = Reg["SYCL/kernel names"];
+  Set.clear();
+  for (const std::string &Name : Img.getKernelNames())
+    Set[Name] = PropertyValue{static_cast<uint32_t>(1)};
+  for (const kernel_id &KID : Img.get_kernel_ids())
+    Set[std::string{KID.get_name()}] = PropertyValue{static_cast<uint32_t>(1)};
+}
+
+// Replace the [SYCL/kernel param opt] property set with the runtime-tracked
+// eliminated kernel arg masks. These can differ from the static image when
+// the bundle was assembled from RTC kernels or when masks were injected at
+// runtime; round-tripping them preserves dead-arg-elimination behavior on
+// reload.
+void overrideKernelParamOpt(PropertySetRegistry &Reg, device_image_impl &Img) {
+  const KernelNameToArgMaskMap &Masks = Img.getEliminatedKernelArgMasks();
+  if (Masks.empty())
+    return;
+  PropertySet &Set = Reg["SYCL/kernel param opt"];
+  Set.clear();
+  for (const auto &[KernelName, Mask] : Masks) {
+    std::vector<std::uint8_t> Bytes = serializeKernelArgMask(Mask);
+    Set[KernelName] = PropertyValue{
+        Bytes.data(),
+        static_cast<PropertyValue::SizeTy>(Bytes.size() * 8)};
+  }
+}
+
+// Replace the [SYCL/specialization constants] descriptor set and the
+// [SYCL/specialization constants default values] blob with the runtime-
+// effective view. The descriptor set is re-emitted from
+// device_image_impl::MSpecConstSymMap; the default-value blob is re-emitted
+// from MSpecConstsBlob, which holds the current value (default, or the value
+// most recently set via set_specialization_constant) for each scalar leaf.
+//
+// This is the channel through which user-set spec-constant overrides reach
+// the serialized SYCLBIN: a value set via set_specialization_constant on an
+// input bundle, then ext_oneapi_get_content'd, will appear as the new
+// "default" in the emitted SYCLBIN, so a re-loaded bundle starts at that
+// value without the user re-setting it.
+void overrideSpecConstants(PropertySetRegistry &Reg, device_image_impl &Img) {
+  using device_image_impl_for_spec = sycl::detail::device_image_impl;
+  const device_image_impl_for_spec::SpecConstMapT &SymMap =
+      Img.get_spec_const_data_ref();
+  if (SymMap.empty())
+    return;
+
+  // Spec constant scalar descriptor: { ID, CompositeOffset, Size } as 3
+  // little-endian uint32_t. Matches the layout consumed by
+  // ProgramManager / device_image_impl on read.
+  PropertySet &Descriptors = Reg["SYCL/specialization constants"];
+  Descriptors.clear();
+  for (const auto &[Name, Descs] : SymMap) {
+    std::vector<std::uint32_t> Packed;
+    Packed.reserve(Descs.size() * 3);
+    for (const auto &Desc : Descs) {
+      Packed.push_back(static_cast<std::uint32_t>(Desc.ID));
+      Packed.push_back(static_cast<std::uint32_t>(Desc.CompositeOffset));
+      Packed.push_back(static_cast<std::uint32_t>(Desc.Size));
+    }
+    Descriptors[Name] = PropertyValue{
+        reinterpret_cast<const PropertyValue::byte *>(Packed.data()),
+        static_cast<PropertyValue::SizeTy>(Packed.size() * sizeof(std::uint32_t)
+                                           * 8)};
+  }
+
+  // Default-value blob, sliced per spec constant from MSpecConstsBlob.
+  const std::vector<unsigned char> &Blob =
+      const_cast<device_image_impl &>(Img).get_spec_const_blob_ref();
+  if (Blob.empty())
+    return;
+  PropertySet &Defaults = Reg["SYCL/specialization constants default values"];
+  Defaults.clear();
+  for (const auto &[Name, Descs] : SymMap) {
+    if (Descs.empty())
+      continue;
+    // Find the byte range covering this spec const in the blob: lowest
+    // BlobOffset to (last leaf's BlobOffset + last leaf's Size).
+    unsigned int Lo = std::numeric_limits<unsigned int>::max();
+    unsigned int Hi = 0;
+    for (const auto &Desc : Descs) {
+      if (Desc.BlobOffset < Lo)
+        Lo = Desc.BlobOffset;
+      const unsigned int End = Desc.BlobOffset + Desc.Size;
+      if (End > Hi)
+        Hi = End;
+    }
+    if (Lo >= Hi || Hi > Blob.size())
+      continue;
+    Defaults[Name] = PropertyValue{
+        reinterpret_cast<const PropertyValue::byte *>(Blob.data() + Lo),
+        static_cast<PropertyValue::SizeTy>((Hi - Lo) * 8)};
+  }
+}
+
+constexpr CategoryOverride OverrideTable[] = {
+    {"SYCL/kernel names", &overrideKernelNames},
+    {"SYCL/kernel param opt", &overrideKernelParamOpt},
+    {"SYCL/specialization constants", &overrideSpecConstants},
+};
+
+// Apply every registered override to \p Reg using \p Img as the runtime
+// view. Called once per ImageInput after the raw-image forward pass.
+void applyRuntimeOverrides(PropertySetRegistry &Reg, device_image_impl &Img) {
+  for (const CategoryOverride &Ov : OverrideTable)
+    Ov.Apply(Reg, Img);
+}
+
 } // namespace
 
 std::vector<char> SYCLBIN::write(const SYCLBINDesc &Desc) {
@@ -398,17 +541,20 @@ SYCLBIN::serializeImages(const std::vector<ImageInput> &Inputs, uint8_t State) {
       continue;
     AbstractModuleDesc &AMD = Desc.AbstractModules.emplace_back();
 
-    // Forward all property sets from the source image into the abstract
-    // module metadata. This carries [SYCL/device requirements],
-    // [SYCL/specialization constants], etc., verbatim so that compatibility
-    // matching at re-load time uses the same predicates.
+    // Build the abstract-module property registry in two passes:
+    //   1. Raw forward: pull every property set from the static image (skip
+    //      the SYCLBIN-reserved sets, which are reconstructed below for the
+    //      IR/native modules and globally above).
+    //   2. Runtime overlay: let category-specific overrides edit the
+    //      registry with information that lives on the runtime
+    //      device_image_impl (kernel names, eliminated arg masks, spec
+    //      constant descriptors and current values, ...). See OverrideTable
+    //      above.
     {
       PropertySetRegistry AMProps;
       const sycl_device_binary_struct &Raw = Image->getRawData();
       for (sycl_device_binary_property_set PS = Raw.PropertySetsBegin;
            PS != Raw.PropertySetsEnd; ++PS) {
-        // Skip SYCLBIN-reserved property sets; those are reconstructed below
-        // for IR/native modules and globally above.
         std::string_view Name{PS->Name};
         if (Name == PropertySetRegistry::SYCLBIN_GLOBAL_METADATA ||
             Name == PropertySetRegistry::SYCLBIN_IR_MODULE_METADATA ||
@@ -417,6 +563,8 @@ SYCLBIN::serializeImages(const std::vector<ImageInput> &Inputs, uint8_t State) {
           continue;
         appendPropSetTo(AMProps, PS);
       }
+      if (Input.DevImg)
+        applyRuntimeOverrides(AMProps, *Input.DevImg);
       AMD.Metadata = serializePropSetRegistry(AMProps);
     }
 
@@ -473,6 +621,17 @@ SYCLBIN::serializeImages(const std::vector<ImageInput> &Inputs, uint8_t State) {
       // the compile_target property (already carried in the abstract module
       // metadata above) as the arch string when present, otherwise leave it
       // empty.
+      // arch is informational; the SYCLBIN reader does not consume it.
+      // Sourcing priority:
+      //   1. compile_target property on the source image (set by AOT
+      //      compilation with -fsycl-targets=intel_gpu_*, etc.).
+      //   2. getArchName of the bundle's first associated device, used as a
+      //      fallback when the image carries no compile_target. This covers
+      //      both "native AOT image with no compile_target" and the
+      //      reload-then-reserialize case where the source image's
+      //      [SYCL/device requirements] have already been stripped of
+      //      compile_target by the SYCLBIN reader's normalization.
+      //   3. Empty string when neither is available.
       std::string_view Arch{};
       if (sycl_device_binary_property CT =
               Image->getProperty("compile_target")) {
@@ -487,6 +646,8 @@ SYCLBIN::serializeImages(const std::vector<ImageInput> &Inputs, uint8_t State) {
                                   CT->ValSize - sizeof(PropertyValue::SizeTy)};
         }
       }
+      if (Arch.empty() && !Input.Devices.empty() && Input.Devices[0])
+        Arch = std::string_view{getArchName(*Input.Devices[0])};
       NDCIProps.add(
           PropertySetRegistry::SYCLBIN_NATIVE_DEVICE_CODE_IMAGE_METADATA,
           "arch", Arch);
