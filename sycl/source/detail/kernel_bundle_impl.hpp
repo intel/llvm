@@ -1081,6 +1081,17 @@ public:
       const RTDeviceBinaryImage *Bin = DevImg.get_bin_image_ref();
       if (!Bin)
         continue;
+      // Free-function kernels are not yet supported by the SYCLBIN
+      // serializer: their kernel-id registration would not survive a
+      // round-trip through the reader's name->kernel_id lookup. Detect at
+      // serialize time and surface a clear error instead of silently
+      // emitting a SYCLBIN whose kernels are unreachable on reload.
+      if (!Bin->getRegisteredKernels().empty())
+        throw sycl::exception(
+            make_error_code(errc::invalid),
+            "ext_oneapi_get_content: free-function kernels are not yet "
+            "supported.");
+
       SYCLBIN::ImageInput &In = Inputs.emplace_back();
       In.Image = Bin;
       In.DevImg = &DevImg;
