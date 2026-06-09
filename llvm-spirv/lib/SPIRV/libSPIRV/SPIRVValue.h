@@ -300,6 +300,26 @@ protected:
   void validate() const override { SPIRVConstantEmpty::validate(); }
 };
 
+class SPIRVPoisonKHR : public SPIRVConstantEmpty<OpPoisonKHR> {
+public:
+  SPIRVPoisonKHR(SPIRVModule *M, SPIRVType *TheType, SPIRVId TheId)
+      : SPIRVConstantEmpty(M, TheType, TheId) {
+    validate();
+  }
+  SPIRVPoisonKHR() {}
+
+  SPIRVCapVec getRequiredCapability() const override {
+    return getVec(CapabilityPoisonFreezeKHR);
+  }
+
+  std::optional<ExtensionID> getRequiredExtension() const override {
+    return ExtensionID::SPV_KHR_poison_freeze;
+  }
+
+protected:
+  void validate() const override { SPIRVConstantEmpty::validate(); }
+};
+
 template <spv::Op OC> class SPIRVConstantCompositeBase : public SPIRVValue {
 public:
   // There are always 3 words in this instruction except constituents:

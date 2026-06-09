@@ -8,7 +8,8 @@
 // REQUIRES: arch-intel_gpu_pvc || gpu-intel-dg2
 // TODO: GPU Driver fails with "add3 src operand only supports integer D/W type"
 // error. Enable the test when it is fixed.
-// UNSUPPORTED: gpu
+// UNSUPPORTED: gpu-intel-dg2 && level_zero
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22231
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 

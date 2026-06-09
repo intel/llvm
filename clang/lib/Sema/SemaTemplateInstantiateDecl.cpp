@@ -995,7 +995,8 @@ void Sema::InstantiateAttrsForDecl(
 
       Attr *NewAttr = sema::instantiateTemplateAttributeForDecl(
           TmplAttr, Context, *this, TemplateArgs);
-      if (NewAttr && isRelevantAttr(*this, New, NewAttr))
+      if (NewAttr && isRelevantAttr(*this, New, NewAttr) &&
+          checkInstantiatedThreadSafetyAttrs(New, NewAttr))
         New->addAttr(NewAttr);
     }
   }
@@ -1291,7 +1292,8 @@ void Sema::InstantiateAttrs(const MultiLevelTemplateArgumentList &TemplateArgs,
 
       Attr *NewAttr = sema::instantiateTemplateAttribute(TmplAttr, Context,
                                                          *this, TemplateArgs);
-      if (NewAttr && isRelevantAttr(*this, New, TmplAttr))
+      if (NewAttr && isRelevantAttr(*this, New, TmplAttr) &&
+          checkInstantiatedThreadSafetyAttrs(New, NewAttr))
         New->addAttr(NewAttr);
     }
   }

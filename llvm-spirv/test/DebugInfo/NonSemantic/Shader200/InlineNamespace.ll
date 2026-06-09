@@ -1,6 +1,7 @@
 ; RUN: llvm-spirv -spirv-text %s -o %t.spt --spirv-debug-info-version=nonsemantic-shader-200
 ; RUN: FileCheck < %t.spt %s -check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv -to-binary %t.spt -o %t.spv
+; RUN: spirv-val %t.spv
 
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis %t.rev.bc -o %t.rev.ll
@@ -21,9 +22,12 @@
 
 ; CHECK-SPIRV: String [[#StrOuter:]] "Outer"
 ; CHECK-SPIRV: String [[#StrInner:]] "Inner"
+; CHECK-SPIRV: TypeVoid [[#VoidTy:]]
 ; CHECK-SPIRV: TypeBool [[#TypeBool:]]
 ; CHECK-SPIRV: ConstantTrue [[#TypeBool]] [[#ConstTrue:]]
 ; CHECK-SPIRV: ConstantFalse [[#TypeBool]] [[#ConstFalse:]]
+; Void-returning function: ReturnType must be VoidTy, not DebugInfoNone.
+; CHECK-SPIRV: ExtInst [[#VoidTy]] [[#]] [[#]] DebugTypeFunction [[#]] [[#VoidTy]]
 ; CHECK-SPIRV: ExtInst [[#]] [[#]] [[#]] DebugLexicalBlock [[#]] [[#]] [[#]] [[#]] [[#StrOuter]] [[#ConstTrue]]
 ; CHECK-SPIRV: ExtInst [[#]] [[#]] [[#]] DebugLexicalBlock [[#]] [[#]] [[#]] [[#]] [[#StrInner]] [[#ConstFalse]]
 
