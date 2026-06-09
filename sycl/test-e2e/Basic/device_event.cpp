@@ -93,7 +93,7 @@ int test_strideN(size_t stride) {
         out_ptr[item.get_global_id()[0]] = item.get_global_id()[0] + 700;
         // Just a check of get_range() API.
         local_acc.get_range();
-        item.barrier();
+        group_barrier(item.get_group());
 
         // Copy from local memory to global memory.
         device_event dev_event =

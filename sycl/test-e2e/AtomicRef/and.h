@@ -40,14 +40,14 @@ void and_local_test(queue q) {
          int gid = it.get_global_id(0);
          if (gid == 0)
            loc[0] = T((1ll << N) - 1);
-         it.barrier(access::fence_space::local_space);
+         group_barrier(it.get_group());
          auto atm = AtomicRef < T,
               (order == memory_order::acquire || order == memory_order::release)
                   ? memory_order::relaxed
                   : order,
               scope, space > (loc[0]);
          out[gid] = atm.fetch_and(~T(1ll << gid), order);
-         it.barrier(access::fence_space::local_space);
+         group_barrier(it.get_group());
          if (gid == 0)
            cum[0] = loc[0];
        });

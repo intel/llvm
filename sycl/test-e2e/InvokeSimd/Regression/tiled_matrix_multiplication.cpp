@@ -159,7 +159,7 @@ int main(void) {
 
                   // After computation, synchronize again, to ensure all
                   // reads from local memory tile are complete.
-                  ndi.barrier();
+                  sycl::group_barrier(ndi.get_group());
                 } // END outer loop
               } else {
                 int res = SPMD_CALLEE_doVadd(acc_a[m][n], acc_b[m][n]);

@@ -26,7 +26,7 @@ int main() {
             int pos = idx & 1;
             int opp = pos ^ 1;
             local_acc[pos] = acc[idx];
-            item.barrier(access::fence_space::local_space);
+            sycl::group_barrier(item.get_group(), sycl::memory_scope::work_group);
             acc[idx] = local_acc[opp];
           });
     });

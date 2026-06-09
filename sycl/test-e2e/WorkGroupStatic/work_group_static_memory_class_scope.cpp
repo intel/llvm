@@ -55,7 +55,7 @@ int main() {
             LocalMem::localIDBuff[Item.get_local_linear_id()] =
                 Item.get_local_linear_id();
 
-            Item.barrier();
+            sycl::group_barrier(Item.get_group());
             // Check that the memory is accessible from other work-items
             size_t LocalIdx = Item.get_local_linear_id() ^ 1;
             size_t GlobalIdx = Item.get_global_linear_id() ^ 1;
@@ -81,7 +81,7 @@ int main() {
             if (Item.get_group().leader())
               localIDBuff = id;
 
-            Item.barrier();
+            sycl::group_barrier(Item.get_group());
             // Check that the memory is accessible from other work-items
             size_t GlobalIdx = Item.get_global_linear_id();
             Acc[GlobalIdx] = localIDBuff;

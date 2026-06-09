@@ -36,7 +36,7 @@ template <sycl::access::address_space addr_space> int test(sycl::queue &q) {
 
       if constexpr (addr_space == access::address_space::local_space) {
         sycl_exp::group_store(g, span{data}, local_acc.begin());
-        ndi.barrier(access::fence_space::local_space);
+        sycl::group_barrier(ndi.get_group(), sycl::memory_scope::work_group);
         for (int i = lid * 2; i < lid * 2 + 2; i++) {
           output[i] = local_acc[i];
         }

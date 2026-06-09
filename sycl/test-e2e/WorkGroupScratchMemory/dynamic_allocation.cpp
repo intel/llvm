@@ -38,7 +38,7 @@ template <typename T1, typename T2> struct KernelFunctor {
       Ptr[WgSize * I + Item.get_local_linear_id()] = Item.get_local_linear_id();
     }
 
-    Item.barrier();
+    sycl::group_barrier(Item.get_group());
     for (size_t I = 0; I < RepeatWG; ++I) {
       // Check that the memory is accessible from other
       // work-items

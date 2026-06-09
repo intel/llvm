@@ -22,7 +22,7 @@ int main() {
                                    acc[0] += item.get_global_linear_id();
                                    check(&acc[0], item.get_local_linear_id());
 
-                                   item.barrier();
+                                   sycl::group_barrier(item.get_group());
                                    if (item.get_global_linear_id() == 0)
                                      *sum = acc[0];
                                  });

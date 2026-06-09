@@ -42,7 +42,7 @@ void compare_exchange_local_test(queue q, size_t N) {
          int gid = it.get_global_id(0);
          if (gid == 0)
            loc[0] = initial;
-         it.barrier(access::fence_space::local_space);
+         group_barrier(it.get_group());
          auto atm = AtomicRef < T,
               (order == memory_order::acquire || order == memory_order::release)
                   ? memory_order::relaxed
@@ -55,7 +55,7 @@ void compare_exchange_local_test(queue q, size_t N) {
          } else {
            out[gid] = T(gid);
          }
-         it.barrier(access::fence_space::local_space);
+         group_barrier(it.get_group());
          if (gid == 0)
            compare_exchange[0] = loc[0];
        });

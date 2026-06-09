@@ -41,7 +41,7 @@ template <sycl::access::address_space addr_space> int test(sycl::queue &q) {
         for (int i = lid * 2; i < lid * 2 + 2; i++) {
           local_acc[i] = input[i];
         }
-        ndi.barrier(access::fence_space::local_space);
+        sycl::group_barrier(ndi.get_group(), sycl::memory_scope::work_group);
         sycl_exp::group_load(g, local_acc.begin(), span{data});
       } else {
         sycl_exp::group_load(g, input.begin(), span{data});

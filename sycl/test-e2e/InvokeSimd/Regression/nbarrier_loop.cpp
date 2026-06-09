@@ -175,7 +175,7 @@ int main() {
             uint32_t slm_id = item.get_local_id(0);
             auto local_acc_copy = local_acc;
             local_acc_copy[slm_id] = -1;
-            item.barrier();
+            sycl::group_barrier(item.get_group());
 
 #ifdef USE_ACC_PTR
             auto local_acc_arg = uniform{&local_acc_copy};

@@ -59,7 +59,7 @@ template <access::address_space addr_space> int test(queue &q) {
              i++) {
           local_acc[i] = input[offset + i];
         }
-        ndi.barrier(access::fence_space::local_space);
+        sycl::group_barrier(ndi.get_group(), sycl::memory_scope::work_group);
       }
 
       // default

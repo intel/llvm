@@ -33,21 +33,21 @@ int main() {
                       sg.get_local_linear_id() == 0)
                     array[0]++;
 
-                  item.barrier();
+                  sycl::group_barrier(item.get_group());
 
                   if (item.get_group_linear_id() == 0 &&
                       sg.get_group_linear_id() == 1 &&
                       sg.get_local_linear_id() == 0)
                     array[0]++;
 
-                  item.barrier();
+                  sycl::group_barrier(item.get_group());
 
                   if (item.get_group_linear_id() == 0 &&
                       sg.get_group_linear_id() == 2 &&
                       sg.get_local_linear_id() == 0)
                     array[0]++;
 
-                  item.barrier();
+                  sycl::group_barrier(item.get_group());
 
                   if (item.get_group_linear_id() == 0 &&
                       sg.get_group_linear_id() == 3 &&
