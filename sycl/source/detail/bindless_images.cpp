@@ -50,8 +50,8 @@ void populate_ur_structs(const image_descriptor &desc, ur_image_desc_t &urDesc,
 
   urFormat = {};
   urFormat.channelType = sycl::detail::convertChannelType(desc.channel_type);
-  urFormat.channelOrder = sycl::detail::convertChannelOrder(
-      desc.channel_order.value_or(
+  urFormat.channelOrder =
+      sycl::detail::convertChannelOrder(desc.channel_order.value_or(
           sycl::ext::oneapi::experimental::detail::
               get_image_default_channel_order(desc.num_channels)));
 }

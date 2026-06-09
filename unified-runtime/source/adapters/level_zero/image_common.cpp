@@ -311,10 +311,10 @@ ur_result_t bindlessImagesCreateImpl(ur_context_handle_t hContext,
     ze_api_version_t ZeApiVersion = hContext->getPlatform()->ZeApiVersion;
     UR_CALL(ur2zeSamplerDesc(ZeApiVersion, pSamplerDesc, ZeSamplerDesc));
     if (pImageFormat->channelOrder == UR_IMAGE_CHANNEL_ORDER_SRGBA) {
-        ZeSrgbDesc.pNext = reinterpret_cast<ze_base_desc_t *>(&ZeSamplerDesc);
-        BindlessDesc.pNext = &ZeSrgbDesc;
+      ZeSrgbDesc.pNext = reinterpret_cast<ze_base_desc_t *>(&ZeSamplerDesc);
+      BindlessDesc.pNext = &ZeSrgbDesc;
     } else {
-        BindlessDesc.pNext = &ZeSamplerDesc;
+      BindlessDesc.pNext = &ZeSamplerDesc;
     }
     BindlessDesc.flags |= ZE_IMAGE_BINDLESS_EXP_FLAG_SAMPLED_IMAGE;
   }
@@ -677,7 +677,7 @@ ur_result_t ur2zeImageDesc(const ur_image_format_t *ImageFormat,
                     ZE_IMAGE_FORMAT_SWIZZLE_B, ZE_IMAGE_FORMAT_SWIZZLE_A};
     break;
   case UR_IMAGE_CHANNEL_ORDER_SRGBA:
-      ZeFormatDesc = {ZeImageFormatLayout,       ZeImageFormatType,
+    ZeFormatDesc = {ZeImageFormatLayout,       ZeImageFormatType,
                     ZE_IMAGE_FORMAT_SWIZZLE_R, ZE_IMAGE_FORMAT_SWIZZLE_G,
                     ZE_IMAGE_FORMAT_SWIZZLE_B, ZE_IMAGE_FORMAT_SWIZZLE_A};
     break;

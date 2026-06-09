@@ -13,10 +13,10 @@
 #include <sycl/image.hpp>        // for image_channel_order, image_channel_type
 #include <sycl/range.hpp>        // for range
 
-#include <algorithm>    // for max
+#include <algorithm> // for max
+#include <optional>
 #include <stddef.h>     // for size_t
 #include <system_error> // for error_code
-#include <optional>
 
 namespace sycl {
 inline namespace _V1 {
@@ -129,15 +129,17 @@ struct image_descriptor {
                             "Images must have 1, 2, 3, or 4 channels.");
     }
     if (channel_order.has_value() &&
-    channel_order.value() == image_channel_order::ext_oneapi_srgba) {
-    if (num_channels != 4) {
-        throw sycl::exception(sycl::errc::invalid,
+        channel_order.value() == image_channel_order::ext_oneapi_srgba) {
+      if (num_channels != 4) {
+        throw sycl::exception(
+            sycl::errc::invalid,
             "ext_oneapi_srgba channel order requires num_channels == 4");
-    }
-    if (channel_type != image_channel_type::unorm_int8) {
-        throw sycl::exception(sycl::errc::invalid,
+      }
+      if (channel_type != image_channel_type::unorm_int8) {
+        throw sycl::exception(
+            sycl::errc::invalid,
             "ext_oneapi_srgba channel order requires unorm_int8 channel type");
-    }
+      }
     }
     switch (this->type) {
     case image_type::standard:
