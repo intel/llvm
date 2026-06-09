@@ -2,20 +2,14 @@
 ; RUN: llvm-spirv %t.bc -spirv-text -o %t.txt
 ; RUN: FileCheck < %t.txt %s --check-prefixes=CHECK-SPIRV,CHECK-SPIRV-TYPED-PTR
 ; RUN: llvm-spirv %t.bc -o %t.spv
-; INTEL_CUSTOMIZATION begin
-; https://github.com/intel/llvm/issues/22248
-; RUNx: spirv-val %t.spv
-; INTEL_CUSTOMIZATION end
+; RUN: spirv-val %t.spv
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
 ; RUN: llvm-spirv %t.bc -spirv-text -o %t.txt --spirv-ext=+SPV_KHR_untyped_pointers
 ; RUN: FileCheck < %t.txt %s --check-prefixes=CHECK-SPIRV,CHECK-SPIRV-UNTYPED-PTR
 ; RUN: llvm-spirv %t.bc -o %t.spv --spirv-ext=+SPV_KHR_untyped_pointers
-; INTEL_CUSTOMIZATION begin
-; https://github.com/intel/llvm/issues/22248
-; RUNx: spirv-val %t.spv
-; INTEL_CUSTOMIZATION end
+; RUN: spirv-val %t.spv
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
@@ -36,16 +30,13 @@
 ; CHECK-SPIRV: FunctionParameter [[#I8GLOBAL_PTR]] [[#ARG_IN:]]
 ; CHECK-SPIRV: FunctionParameter [[#I8GLOBAL_PTR]] [[#ARG_OUT:]]
 ;
-; INTEL_CUSTOMIZATION begin
 ; CHECK-SPIRV: Variable [[#]] [[#MEM:]]
 ; CHECK-SPIRV: Bitcast [[#]] [[#I8_ARG_IN:]] [[#ARG_IN]]
 ; CHECK-SPIRV: Bitcast [[#]] [[#I8_ARG_OUT:]] [[#ARG_OUT]]
-; CHECK-SPIRV: Bitcast [[#]] [[#MEM_CAST_1:]] [[#MEM]]
-; CHECK-SPIRV: LifetimeStart [[#MEM_CAST_1]]
+; CHECK-SPIRV: LifetimeStart [[#MEM]]
 ; CHECK-SPIRV: CopyMemorySized [[#MEM]] [[#I8_ARG_IN]] [[#C128]] 2 64
 ; CHECK-SPIRV: CopyMemorySized [[#I8_ARG_OUT]] [[#MEM]] [[#C128]] 2 64
-; CHECK-SPIRV: Bitcast [[#]] [[#MEM_CAST_2:]] [[#MEM]]
-; CHECK-SPIRV: LifetimeStop [[#MEM_CAST_2]]
+; CHECK-SPIRV: LifetimeStop [[#MEM]]
 
 ; CHECK-SPIRV-LABEL: [[#]] Function [[#]]
 ; CHECK-SPIRV: FunctionParameter [[#I8GLOBAL_PTR]] [[#ARG_IN:]]
@@ -55,25 +46,20 @@
 ; CHECK-SPIRV: Bitcast [[#]] [[#I8_ARG_IN:]] [[#ARG_IN]]
 ; CHECK-SPIRV: Bitcast [[#]] [[#I8_ARG_OUT_GENERIC:]] [[#ARG_OUT]]
 ; CHECK-SPIRV: GenericCastToPtr [[#]] [[#I8_ARG_OUT:]] [[#I8_ARG_OUT_GENERIC]]
-; CHECK-SPIRV: Bitcast [[#]] [[#MEM_CAST_1:]] [[#MEM]]
-; CHECK-SPIRV: LifetimeStart [[#MEM_CAST_1]]
+; CHECK-SPIRV: LifetimeStart [[#MEM]]
 ; CHECK-SPIRV: CopyMemorySized [[#MEM]] [[#I8_ARG_IN]] [[#C68]] 2 64
 ; CHECK-SPIRV: CopyMemorySized [[#I8_ARG_OUT]] [[#MEM]] [[#C68]] 2 64
-; CHECK-SPIRV: Bitcast [[#]] [[#MEM_CAST_2:]] [[#MEM]]
-; CHECK-SPIRV: LifetimeStop [[#MEM_CAST_2]]
+; CHECK-SPIRV: LifetimeStop [[#MEM]]
 
 ; CHECK-SPIRV-LABEL: [[#]] Function [[#]]
 ; CHECK-SPIRV: FunctionParameter [[#]] [[#ARG_IN:]]
 ; CHECK-SPIRV: FunctionParameter [[#]] [[#ARG_OUT:]]
 ;
 ; CHECK-SPIRV: Variable [[#]] [[#MEM:]]
-; CHECK-SPIRV: Bitcast [[#]] [[#MEM_CAST_1:]] [[#MEM]]
-; CHECK-SPIRV: LifetimeStart [[#MEM_CAST_1]]
+; CHECK-SPIRV: LifetimeStart [[#MEM]]
 ; CHECK-SPIRV: CopyMemorySized [[#MEM]] [[#ARG_IN]] [[#C72]] 0
 ; CHECK-SPIRV: CopyMemorySized [[#ARG_OUT]] [[#MEM]] [[#C72]] 0
-; CHECK-SPIRV: Bitcast [[#]] [[#MEM_CAST_2:]] [[#MEM]]
-; CHECK-SPIRV: LifetimeStop [[#MEM_CAST_2]]
-; INTEL_CUSTOMIZATION end
+; CHECK-SPIRV: LifetimeStop [[#MEM]]
 
 ; xCHECK-SPIRV-LABEL: [[#]] Function [[#]]
 ;
