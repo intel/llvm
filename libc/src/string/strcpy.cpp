@@ -16,6 +16,15 @@
 
 namespace LIBC_NAMESPACE_DECL {
 
+#ifdef __SPIRV__
+#define __generic __attribute__((opencl_generic))
+extern "C"
+__generic char * strcpy(__generic char * __restrict dest, __generic char * __restrict src) {
+  size_t size = internal::string_length(src) + 1;
+  __builtin_memcpy(dest, src, size);
+  return dest;
+}
+#else
 LLVM_LIBC_FUNCTION(char *, strcpy,
                    (char *__restrict dest, const char *__restrict src)) {
   LIBC_CRASH_ON_NULLPTR(dest);
@@ -23,5 +32,6 @@ LLVM_LIBC_FUNCTION(char *, strcpy,
   inline_memcpy(dest, src, size);
   return dest;
 }
+#endif
 
 } // namespace LIBC_NAMESPACE_DECL
