@@ -256,7 +256,7 @@ property sets emitted by sycl-post-link to drive resolution:
 * Duplicate kernel names across input images throw `errc::invalid`
   (`Conflicting kernel definitions: ...`).
 
-Three supported configurations:
+There are three supported configurations:
 
 1. *SYCLBIN object + SYCLBIN object*. Each `.syclbin` is loaded with
    `get_kernel_bundle<bundle_state::object>(ctx, file)`; both bundles are
