@@ -14,7 +14,14 @@
 #include <stddef.h> // size_t
 
 namespace LIBC_NAMESPACE_DECL {
+#ifdef __SPIRV__
 
+#define __generic __attribute__((opencl_generic))
+extern "C"
+int memcmp( __generic const void* lhs,  __generic const void* rhs, size_t count) {
+  return __builtin_memcmp(lhs, rhs, count);
+}
+#else
 LLVM_LIBC_FUNCTION(int, memcmp,
                    (const void *lhs, const void *rhs, size_t count)) {
   if (count) {
@@ -23,5 +30,6 @@ LLVM_LIBC_FUNCTION(int, memcmp,
   }
   return inline_memcmp(lhs, rhs, count);
 }
+#endif
 
 } // namespace LIBC_NAMESPACE_DECL

@@ -13,7 +13,19 @@
 #include "src/string/memory_utils/inline_memcpy.h"
 
 namespace LIBC_NAMESPACE_DECL {
-
+#ifdef __SPIRV__
+#define __generic __attribute__((opencl_generic))
+extern "C"
+__generic void* memcpy( __generic void* __restrict dst,  __generic const void* __restrict src, size_t size) {
+  /*if (size) {
+    LIBC_CRASH_ON_NULLPTR(dst);
+    LIBC_CRASH_ON_NULLPTR(src);
+  }
+  inline_memcpy(dst, src, size);*/
+  __builtin_memcpy(dst, src, size);
+  return dst;
+}
+#else
 LLVM_LIBC_FUNCTION(void *, memcpy,
                    (void *__restrict dst, const void *__restrict src,
                     size_t size)) {
@@ -24,5 +36,6 @@ LLVM_LIBC_FUNCTION(void *, memcpy,
   inline_memcpy(dst, src, size);
   return dst;
 }
+#endif
 
 } // namespace LIBC_NAMESPACE_DECL
