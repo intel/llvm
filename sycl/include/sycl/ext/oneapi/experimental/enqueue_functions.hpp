@@ -180,19 +180,57 @@ void single_task(queue Q, const kernel &KernelObj, ArgsT &&...Args) {
   });
 }
 
+namespace detail {
+template <auto *Func, typename... ArgsT>
+struct SingleTaskFreeFunctionKernelWrapper {
+  std::tuple<ArgsT...> CapturedArgs;
+  template <typename... InArgsT>
+  SingleTaskFreeFunctionKernelWrapper(InArgsT &&...A)
+      : CapturedArgs(std::forward<InArgsT>(A)...) {}
+  void operator()() const { callImpl(std::index_sequence_for<ArgsT...>{}); }
+  template <std::size_t... I>
+  void callImpl(std::index_sequence<I...>) const
+
+  {
+    Func(std::get<I>(CapturedArgs)...);
+  }
+};
+
+template <auto *Func, typename... ArgsT>
+struct SingleTaskFreeFunctionKernelWrapper1
+    : SingleTaskFreeFunctionKernelWrapper<Func, ArgsT...> {
+  template <typename... InArgsT>
+  SingleTaskFreeFunctionKernelWrapper1(InArgsT &&...A)
+      : SingleTaskFreeFunctionKernelWrapper<Func, ArgsT...>(
+            std::forward<InArgsT>(A)...) {}
+};
+template <auto *Func, typename... ArgsT>
+struct SingleTaskFreeFunctionKernelWrapper2
+    : SingleTaskFreeFunctionKernelWrapper<Func, ArgsT...> {
+  template <typename... InArgsT>
+  SingleTaskFreeFunctionKernelWrapper2(InArgsT &&...A)
+      : SingleTaskFreeFunctionKernelWrapper<Func, ArgsT...>(
+            std::forward<InArgsT>(A)...) {}
+};
+} // namespace detail
+
 // Free function kernel single_task enqueue functions
 template <auto *Func, typename... ArgsT>
 void single_task(queue Q, [[maybe_unused]] kernel_function_s<Func> KernelFunc,
                  ArgsT &&...Args) {
-  detail::submit_kernel_direct_single_task(std::move(Q),
-                                           [Args...]() { Func(Args...); });
+  detail::submit_kernel_direct_single_task(
+      std::move(Q),
+      detail::SingleTaskFreeFunctionKernelWrapper1<Func,
+                                                   std::decay_t<ArgsT>...>(
+          std::forward<ArgsT>(Args)...));
 }
 
 template <auto *Func, typename... ArgsT>
 void single_task(handler &CGH,
                  [[maybe_unused]] kernel_function_s<Func> KernelFunc,
                  ArgsT &&...Args) {
-  CGH.single_task([Args...]() { Func(Args...); });
+  CGH.single_task(detail::SingleTaskFreeFunctionKernelWrapper2<
+                  Func, std::decay_t<ArgsT>...>(std::forward<ArgsT>(Args)...));
 }
 
 template <typename T>
@@ -428,14 +466,89 @@ void nd_launch(queue Q, launch_config<nd_range<Dimensions>, Properties> Config,
   });
 }
 
+namespace detail {
+//template <auto * Func> struct Wrapper;
+template <auto *Func, int Dimensions, typename... ArgsT>
+struct FreeFunctionKernelWrapper1 {
+  std::tuple<ArgsT...> CapturedArgs;
+  template <typename... InArgsT>
+  FreeFunctionKernelWrapper1(InArgsT &&...A)
+      : CapturedArgs(std::forward<InArgsT>(A)...) {}
+  void operator()(sycl::nd_item<Dimensions>) const {
+    callImpl(std::index_sequence_for<ArgsT...>{});
+  }
+  template <std::size_t... I>
+  void callImpl(std::index_sequence<I...>) const
+
+  {
+    Func(std::get<I>(CapturedArgs)...);
+  }
+};
+template <auto *Func, int Dimensions, typename... ArgsT>
+struct FreeFunctionKernelWrapper2 {
+  std::tuple<ArgsT...> CapturedArgs;
+  template <typename... InArgsT>
+  FreeFunctionKernelWrapper2(InArgsT &&...A)
+      : CapturedArgs(std::forward<InArgsT>(A)...) {}
+  void operator()(sycl::nd_item<Dimensions>) const {
+    callImpl(std::index_sequence_for<ArgsT...>{});
+  }
+  template <std::size_t... I>
+  void callImpl(std::index_sequence<I...>) const
+
+  {
+    Func(std::get<I>(CapturedArgs)...);
+  }
+};
+template <auto *Func, int Dimensions, typename... ArgsT>
+struct FreeFunctionKernelWrapper3 {
+  std::tuple<ArgsT...> CapturedArgs;
+  template <typename... InArgsT>
+  FreeFunctionKernelWrapper3(InArgsT &&...A)
+      : CapturedArgs(std::forward<InArgsT>(A)...) {}
+  void operator()(sycl::nd_item<Dimensions>) const {
+    callImpl(std::index_sequence_for<ArgsT...>{});
+  }
+  template <std::size_t... I>
+  void callImpl(std::index_sequence<I...>) const
+
+  {
+    Func(std::get<I>(CapturedArgs)...);
+  }
+};
+template <auto *Func, int Dimensions, typename... ArgsT>
+struct FreeFunctionKernelWrapper4 {
+  std::tuple<ArgsT...> CapturedArgs;
+  template <typename... InArgsT>
+  FreeFunctionKernelWrapper4(InArgsT &&...A)
+      : CapturedArgs(std::forward<InArgsT>(A)...) {}
+  void operator()(sycl::nd_item<Dimensions>) const {
+    callImpl(std::index_sequence_for<ArgsT...>{});
+  }
+  template <std::size_t... I>
+  void callImpl(std::index_sequence<I...>) const
+
+  {
+    Func(std::get<I>(CapturedArgs)...);
+  }
+};
+
+
+} // namespace detail
+
 // Free function kernel nd_launch enqueue functions
 template <auto *Func, int Dimensions, typename... ArgsT>
 void nd_launch(queue Q, nd_range<Dimensions> Range,
                [[maybe_unused]] kernel_function_s<Func> KernelFunc,
                ArgsT &&...Args) {
+
   detail::submit_kernel_direct_parallel_for(
       std::move(Q), Range,
-      [Args...](sycl::nd_item<Dimensions>) { Func(Args...); });
+      detail::FreeFunctionKernelWrapper1<Func, Dimensions,
+                                         std::decay_t<ArgsT>...>(
+          std::forward<ArgsT>(Args)...));
+  // detail::submit_kernel_direct_parallel_for<detail::Wrapper<Func>>(std::move(Q),
+  // Range, [Args...](sycl::nd_item<Dimensions>) { Func(Args...); });
 }
 
 template <auto *Func, int Dimensions, typename... ArgsT>
@@ -443,7 +556,9 @@ void nd_launch(handler &CGH, nd_range<Dimensions> Range,
                [[maybe_unused]] kernel_function_s<Func> KernelFunc,
                ArgsT &&...Args) {
   CGH.parallel_for(Range,
-                   [Args...](sycl::nd_item<Dimensions>) { Func(Args...); });
+                   detail::FreeFunctionKernelWrapper2<Func, Dimensions,
+                                                     std::decay_t<ArgsT>...>(
+                       std::forward<ArgsT>(Args)...));
 }
 
 template <auto *Func, int Dimensions, typename Properties, typename... ArgsT>
@@ -456,8 +571,10 @@ void nd_launch(queue Q, launch_config<nd_range<Dimensions>, Properties> Config,
       ConfigAccess(Config);
   detail::submit_kernel_direct_parallel_for(
       std::move(Q), ConfigAccess.getRange(),
-      [Args...](sycl::nd_item<Dimensions>) { Func(Args...); }, {},
-      ConfigAccess.getProperties());
+      detail::FreeFunctionKernelWrapper3<Func, Dimensions,
+                                        std::decay_t<ArgsT>...>(
+          std::forward<ArgsT>(Args)...),
+      {}, ConfigAccess.getProperties());
 }
 
 template <auto *Func, int Dimensions, typename Properties, typename... ArgsT>
@@ -469,7 +586,9 @@ void nd_launch(handler &CGH,
                                                         Properties>
       ConfigAccess(Config);
   CGH.parallel_for(ConfigAccess.getRange(), ConfigAccess.getProperties(),
-                   [Args...](sycl::nd_item<Dimensions>) { Func(Args...); });
+                   detail::FreeFunctionKernelWrapper4<Func, Dimensions,
+                                                     std::decay_t<ArgsT>...>(
+                       std::forward<ArgsT>(Args)...));
 }
 
 inline void memcpy(handler &CGH, void *Dest, const void *Src, size_t NumBytes) {
