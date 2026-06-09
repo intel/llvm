@@ -226,11 +226,11 @@ kernel void testRotateFloat(global float* dst)
 
 // CHECK-COMMON-LABEL: @testRotateHalf
 
-// CHECK-LLVM: call spir_func half @_Z16sub_group_rotateDhi(half 0xH0000, i32 2)
-// CHECK-LLVM: call spir_func half @_Z26sub_group_clustered_rotateDhij(half 0xH0000, i32 2, i32 4)
+// CHECK-LLVM: call spir_func half @_Z16sub_group_rotateDhi(half 0.000000e+00, i32 2)
+// CHECK-LLVM: call spir_func half @_Z26sub_group_clustered_rotateDhij(half 0.000000e+00, i32 2, i32 4)
 
-// CHECK-SPV-IR: call spir_func half @_Z32__spirv_GroupNonUniformRotateKHRiDhi(i32 3, half 0xH0000, i32 2)
-// CHECK-SPV-IR: call spir_func half @_Z32__spirv_GroupNonUniformRotateKHRiDhij(i32 3, half 0xH0000, i32 2, i32 4)
+// CHECK-SPV-IR: call spir_func half @_Z32__spirv_GroupNonUniformRotateKHRiDhi(i32 3, half 0.000000e+00, i32 2)
+// CHECK-SPV-IR: call spir_func half @_Z32__spirv_GroupNonUniformRotateKHRiDhij(i32 3, half 0.000000e+00, i32 2, i32 4)
 kernel void testRotateHalf(global half* dst)
 {
     half v = 0;

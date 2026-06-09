@@ -54,7 +54,7 @@
 #include <llvm/Support/FormatVariadic.h>
 #include <llvm/Support/PropertySetIO.h>
 #include <llvm/Support/TimeProfiler.h>
-#include <llvm/TargetParser/TargetParser.h>
+#include <llvm/TargetParser/AMDGPUTargetParser.h>
 
 #include <algorithm>
 #include <array>

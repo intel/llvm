@@ -2106,6 +2106,9 @@ PreservedAnalyses SYCLLowerESIMDPass::run(Module &M,
   // Check validity of slm_init calls.
   checkSLMInit(M);
 
+  if (M.getContext().getDiagHandlerPtr()->HasErrors)
+    return PreservedAnalyses::all();
+
   // AlwaysInlinerPass is required for correctness.
   bool ForceInline = prepareForAlwaysInliner(M);
   if (ForceInline) {
