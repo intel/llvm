@@ -796,7 +796,7 @@ static void getDeviceLibraries(const ArgList &Args,
 #if defined(_WIN32)
                                              "libsycl-msvc-math",
 #endif
-                                             "libsycl-imf"};
+                                             "libsycl-imf", "libc"};
 
   StringRef LibSuffix = ".bc";
   auto AddLibraries = [&](const SYCLDeviceLibsList &LibsList) {
@@ -850,10 +850,14 @@ Error jit_compiler::linkDeviceLibraries(llvm::Module &Module,
                                  ? "nvptx64-nvidia-cuda"
                                  : "amdgcn-amd-amdhsa";
 
-    std::string LibPath =
-        (LibName.find("libspirv") != std::string::npos)
-            ? (TC.getLibclcDir() + TripleName + "/" + LibName).str()
-            : (TC.getPrefix() + getLibPathSuffix() + LibName).str();
+    std::string LibPath;
+    if (LibName.find("libspirv") != std::string::npos)
+      LibPath = (TC.getLibclcDir() + TripleName + "/" + LibName).str();
+    else if (LibName == "libc.bc")
+      LibPath =
+          (TC.getPrefix() + "/lib/spirv64-unknown-unknown/" + LibName).str();
+    else
+      LibPath = (TC.getPrefix() + getLibPathSuffix() + LibName).str();
 
     ModuleUPtr LibModule;
     if (auto Error =

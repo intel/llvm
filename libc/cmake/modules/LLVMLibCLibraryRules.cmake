@@ -83,7 +83,7 @@ endfunction()
 # A rule to build a library from a collection of entrypoint objects and bundle
 # it in a single LLVM-IR bitcode file.
 # Usage:
-#     add_bitcode_entrypoint_library(
+#     add_gpu_entrypoint_library(
 #       DEPENDS <list of add_entrypoint_object targets>
 #     )
 function(add_bitcode_entrypoint_library target_name base_target_name)
@@ -118,6 +118,51 @@ function(add_bitcode_entrypoint_library target_name base_target_name)
   endif()
   add_dependencies(${base_target_name} ${target_name})
 endfunction(add_bitcode_entrypoint_library)
+
+# A rule to build a library from a collection of entrypoint objects and bundle
+# it in a single LLVM-IR bitcode file with llvm-link
+# Usage:
+#     link_bitcode_library(
+#       DEPENDS <list of add_entrypoint_object targets>
+#     )
+function(link_bitcode_library target_name base_target_name output_name)
+  cmake_parse_arguments(
+    "ENTRYPOINT_LIBRARY"
+    "" # No optional arguments
+    "" # No single value arguments
+    "DEPENDS" # Multi-value arguments
+    ${ARGN}
+  )
+  if(NOT ENTRYPOINT_LIBRARY_DEPENDS)
+    message(FATAL_ERROR "'link_bitcode_library' target requires a DEPENDS list "
+                        "of 'add_entrypoint_object' targets.")
+  endif()
+
+  get_fq_deps_list(fq_deps_list ${ENTRYPOINT_LIBRARY_DEPENDS})
+  get_all_object_file_deps(all_deps "${fq_deps_list}")
+
+  set(objects "")
+  foreach(dep IN LISTS all_deps)
+    set(object $<$<STREQUAL:$<TARGET_NAME_IF_EXISTS:${dep}>,${dep}>:$<TARGET_OBJECTS:${dep}>>)
+    list(APPEND objects ${object})
+  endforeach()
+
+  find_program(LLVM_LINK_EXE
+               NAMES llvm-link
+               PATHS ${LLVM_TOOLS_BINARY_DIR}
+               NO_DEFAULT_PATH)
+  string(REPLACE ";" "\n" rsp_contents "${objects}")
+  file(GENERATE
+       OUTPUT ${CMAKE_BINARY_DIR}/${target_name}.rsp
+       CONTENT "${rsp_contents}")
+  if(LLVM_LINK_EXE)
+    set(bc_file ${CMAKE_BINARY_DIR}/libc/lib/${output_name})
+    add_custom_target(${target_name}
+      COMMAND ${LLVM_LINK_EXE} -o ${bc_file} @${CMAKE_BINARY_DIR}/${target_name}.rsp
+      DEPENDS ${objects})
+    add_dependencies(${base_target_name} ${target_name})
+  endif()
+endfunction(link_bitcode_library)
 
 # A rule to build a library from a collection of entrypoint objects.
 # Usage:
