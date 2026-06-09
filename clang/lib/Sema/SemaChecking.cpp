@@ -8366,6 +8366,10 @@ protected:
                     const char *startSpecifier, unsigned specifierLen,
                     unsigned argIndex);
 
+  bool CheckUnsupportedType(const analyze_format_string::ArgType &AT,
+                            const Expr *E, const char *startSpecifier,
+                            unsigned specifierLen);
+
   template <typename Range>
   void EmitFormatDiagnostic(PartialDiagnostic PDiag, SourceLocation StringLoc,
                             bool IsStringLocation, Range StringRange,
@@ -8401,6 +8405,19 @@ void CheckFormatHandler::HandleIncompleteSpecifier(const char *startSpecifier,
                        getLocationOfByte(startSpecifier),
                        /*IsStringLocation*/ true,
                        getSpecifierRange(startSpecifier, specifierLen));
+}
+
+bool CheckFormatHandler::CheckUnsupportedType(
+    const analyze_format_string::ArgType &AT, const Expr *E,
+    const char *StartSpecifier, unsigned SpecifierLen) {
+  if (!AT.isUnsupported())
+    return false;
+
+  EmitFormatDiagnostic(S.PDiag(diag::warn_format_unsupported_type)
+                           << AT.getRepresentativeTypeName(S.Context),
+                       E->getExprLoc(), /*IsStringLocation=*/false,
+                       getSpecifierRange(StartSpecifier, SpecifierLen));
+  return true;
 }
 
 void CheckFormatHandler::HandleInvalidLengthModifier(
@@ -9710,6 +9727,9 @@ bool CheckPrintfHandler::checkFormatExpr(
     return true;
   }
 
+  if (CheckUnsupportedType(AT, E, StartSpecifier, SpecifierLen))
+    return true;
+
   ArgType::MatchKind ImplicitMatch = ArgType::NoMatch;
   ArgType::MatchKind Match = AT.matchesType(S.Context, ExprTy);
   ArgType::MatchKind OrigMatch = Match;
@@ -10210,6 +10230,9 @@ bool CheckScanfHandler::HandleScanfSpecifier(
   if (!AT.isValid()) {
     return true;
   }
+
+  if (CheckUnsupportedType(AT, Ex, startSpecifier, specifierLen))
+    return true;
 
   analyze_format_string::ArgType::MatchKind Match =
       AT.matchesType(S.Context, Ex->getType());
