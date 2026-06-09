@@ -106,8 +106,8 @@
 // RUN: %clangxx -fsyclbin=object --offload-new-driver --sysroot=%S/Inputs/SYCL %s -### 2>&1 \
 // RUN: | FileCheck %s --check-prefix=CHECK_DEPS_IMPLIED
 // CHECK_DEPS_IMPLIED: clang-linker-wrapper
-// CHECK_DEPS_IMPLIED-DAG: "-sycl-allow-device-image-dependencies"
-// CHECK_DEPS_IMPLIED-DAG: "--sycl-post-link-options={{.*}}-allow-device-image-dependencies{{.*}}"
+// CHECK_DEPS_IMPLIED-SAME: "--sycl-post-link-options={{[^"]*}}-allow-device-image-dependencies{{[^"]*}}"
+// CHECK_DEPS_IMPLIED-SAME: "-sycl-allow-device-image-dependencies"
 
 /// -fsyclbin=executable does not imply
 /// -fsycl-allow-device-image-dependencies, since the resulting bundle
