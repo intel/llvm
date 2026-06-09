@@ -18,10 +18,10 @@
 #include <detail/platform_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
 #include <detail/scheduler/scheduler.hpp>
-#include <spinlock.hpp>
 #include <detail/thread_pool.hpp>
 #include <detail/ur.hpp>
 #include <detail/xpti_registry.hpp>
+#include <spinlock.hpp>
 #include <sycl/detail/device_filter.hpp>
 
 #ifdef _WIN32
