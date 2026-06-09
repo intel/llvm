@@ -641,6 +641,10 @@ static bool FixupInvocation(CompilerInvocation &Invocation,
     Diags.Report(diag::err_opt_not_valid_without_opt)
         << "-fsycl-enable-int-header-diags"
         << "-fsycl-is-host";
+  // SYCL requires C++; reject C inputs on both device and host.
+  if ((LangOpts.SYCLIsDevice || LangOpts.SYCLIsHost) && !LangOpts.CPlusPlus)
+    Diags.Report(diag::err_drv_argument_not_allowed_with)
+        << GetInputKindName(IK) << "-fsycl";
 
   if (Args.hasArg(OPT_fgnu89_inline) && LangOpts.CPlusPlus)
     Diags.Report(diag::err_drv_argument_not_allowed_with)
