@@ -53,7 +53,15 @@
 // CHECK-NEXT: detail/info_desc_traits.hpp
 // CHECK-NEXT: ur_api.h
 // CHECK-NEXT: info/info_desc.hpp
+// CHECK-NEXT: info/context.hpp
+// CHECK-NEXT: info/device.hpp
 // CHECK-NEXT: detail/device_info_types.hpp
+// CHECK-NEXT: range.hpp
+// CHECK-NEXT: detail/array.hpp
+// CHECK-NEXT: info/event.hpp
+// CHECK-NEXT: info/kernel.hpp
+// CHECK-NEXT: info/platform.hpp
+// CHECK-NEXT: info/queue.hpp
 // CHECK-NEXT: ext/codeplay/experimental/max_registers_query.hpp
 // CHECK-NEXT: ext/intel/info/device.hpp
 // CHECK-NEXT: ext/intel/info/kernel.hpp
@@ -64,8 +72,6 @@
 // CHECK-NEXT: ext/oneapi/experimental/forward_progress.hpp
 // CHECK-NEXT: ext/oneapi/experimental/kernel_queue_info.hpp
 // CHECK-NEXT: id.hpp
-// CHECK-NEXT: detail/array.hpp
-// CHECK-NEXT: range.hpp
 // CHECK-NEXT: ext/oneapi/experimental/max_work_groups.hpp
 // CHECK-NEXT: ext/oneapi/info/device.hpp
 // CHECK-NEXT: ext/oneapi/matrix/query-types.hpp
