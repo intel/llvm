@@ -445,7 +445,8 @@ add_devicelibs(libsycl-crt
 add_devicelibs(libsycl-cmath
   SRC cmath_wrapper.cpp
   BUILD_ARCHS ${full_build_archs}
-  DEPENDENCIES ${cmath_obj_deps})
+  DEPENDENCIES ${cmath_obj_deps}
+  EXTRA_OPTS -fno-fast-math)
 if(MSVC)
   add_devicelibs(libsycl-msvc-math
     SRC msvc_math.cpp

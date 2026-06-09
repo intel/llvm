@@ -66,8 +66,7 @@ static inline float __complex__ __devicelib_clogf(float __complex__ z) {
 static inline float __complex__ __devicelib_cpowf(float __complex__ x,
                                                   float __complex__ y) {
   float __complex__ t = __devicelib_clogf(x);
-  float __complex__ w = __mulsc3(__devicelib_crealf(y), __devicelib_cimagf(y),
-                                 __devicelib_crealf(t), __devicelib_cimagf(t));
+  float __complex__ w = y * t;
   return __devicelib_cexpf(w);
 }
 
@@ -302,9 +301,7 @@ static inline float __complex__ __devicelib_catanhf(float __complex__ z) {
                   __spirv_ocl_copysign(0.0f, z_imag));
   float __complex__ t1 = 1.0f + z;
   float __complex__ t2 = 1.0f - z;
-  float __complex__ t3 =
-      __divsc3(__devicelib_crealf(t1), __devicelib_cimagf(t1),
-               __devicelib_crealf(t2), __devicelib_cimagf(t2));
+  float __complex__ t3 = t1 / t2;
   float __complex__ w = __devicelib_clogf(t3) / 2.0f;
   return CMPLXF(__spirv_ocl_copysign(__devicelib_crealf(w), z_real),
                 __spirv_ocl_copysign(__devicelib_cimagf(w), z_imag));
