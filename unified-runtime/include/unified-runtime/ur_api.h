@@ -512,6 +512,14 @@ typedef enum ur_function_t {
   UR_FUNCTION_QUEUE_GET_GRAPH_EXP = 314,
   /// Enumerator for ::urGraphSetDestructionCallbackExp
   UR_FUNCTION_GRAPH_SET_DESTRUCTION_CALLBACK_EXP = 315,
+  /// Enumerator for ::urIPCGetPhysMemHandleExp
+  UR_FUNCTION_IPC_GET_PHYS_MEM_HANDLE_EXP = 316,
+  /// Enumerator for ::urIPCPutPhysMemHandleExp
+  UR_FUNCTION_IPC_PUT_PHYS_MEM_HANDLE_EXP = 317,
+  /// Enumerator for ::urIPCOpenPhysMemHandleExp
+  UR_FUNCTION_IPC_OPEN_PHYS_MEM_HANDLE_EXP = 318,
+  /// Enumerator for ::urIPCClosePhysMemHandleExp
+  UR_FUNCTION_IPC_CLOSE_PHYS_MEM_HANDLE_EXP = 319,
   /// @cond
   UR_FUNCTION_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -2504,6 +2512,9 @@ typedef enum ur_device_info_t {
   /// [::ur_bool_t] returns true if the device supports inter-process
   /// communicable memory handles
   UR_DEVICE_INFO_IPC_MEMORY_SUPPORT_EXP = 0x2023,
+  /// [::ur_bool_t] returns true if the device supports inter-process
+  /// communicable physical memory handles
+  UR_DEVICE_INFO_IPC_PHYSICAL_MEMORY_SUPPORT_EXP = 0x2024,
   /// [::ur_bool_t] returns true if the device supports enqueueing of
   /// allocations and frees.
   UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_SUPPORT_EXP = 0x2050,
@@ -5335,15 +5346,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urVirtualMemGetInfo(
 /// @brief Physical memory creation properties.
 typedef uint32_t ur_physical_mem_flags_t;
 typedef enum ur_physical_mem_flag_t {
-  /// reserved for future use.
-  UR_PHYSICAL_MEM_FLAG_TBD = UR_BIT(0),
+  /// allocate physical memory that can be shared via IPC handles.
+  UR_PHYSICAL_MEM_FLAG_ENABLE_IPC = UR_BIT(1),
   /// @cond
   UR_PHYSICAL_MEM_FLAG_FORCE_UINT32 = 0x7fffffff
   /// @endcond
 
 } ur_physical_mem_flag_t;
 /// @brief Bit Mask for validating ur_physical_mem_flags_t
-#define UR_PHYSICAL_MEM_FLAGS_MASK 0xfffffffe
+#define UR_PHYSICAL_MEM_FLAGS_MASK 0xfffffffd
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Physical memory creation properties.
@@ -11241,6 +11252,113 @@ UR_APIEXPORT ur_result_t UR_APICALL urIPCCloseMemHandleExp(
     /// [in] pointer to device USM memory opened through urIPCOpenMemHandleExp
     void *pMem);
 
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Gets an inter-process handle for a physical memory object
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///         + `NULL == hPhysMem`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == ppIPCPhysMemHandleData`
+///         + `NULL == pIPCPhysMemHandleDataSizeRet`
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_INVALID_ARGUMENT
+///         + `hPhysMem` was not created with the
+///         `::UR_PHYSICAL_MEM_FLAG_ENABLE_IPC` flag
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+UR_APIEXPORT ur_result_t UR_APICALL urIPCGetPhysMemHandleExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the physical memory object
+    ur_physical_mem_handle_t hPhysMem,
+    /// [out] a pointer to the IPC physical memory handle data
+    void **ppIPCPhysMemHandleData,
+    /// [out] size of the resulting IPC physical memory handle data
+    size_t *pIPCPhysMemHandleDataSizeRet);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Releases an inter-process physical memory handle
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pIPCPhysMemHandleData`
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+UR_APIEXPORT ur_result_t UR_APICALL urIPCPutPhysMemHandleExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] a pointer to the IPC physical memory handle data obtained with
+    /// urIPCGetPhysMemHandleExp
+    const void *pIPCPhysMemHandleData);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Opens an inter-process physical memory handle to get the
+/// corresponding
+///        physical memory object
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///         + `NULL == hDevice`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == phPhysMem`
+///         + `NULL == pIPCPhysMemHandleData`
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///         + ipcPhysMemHandleDataSize is not the same as the size of IPC
+///         physical memory handle data
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+UR_APIEXPORT ur_result_t UR_APICALL urIPCOpenPhysMemHandleExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device object the physical memory was allocated on
+    ur_device_handle_t hDevice,
+    /// [in] the IPC physical memory handle data obtained with
+    /// urIPCGetPhysMemHandleExp
+    const void *pIPCPhysMemHandleData,
+    /// [in] size of the IPC physical memory handle data
+    size_t ipcPhysMemHandleDataSize,
+    /// [out] pointer to the physical memory handle
+    ur_physical_mem_handle_t *phPhysMem);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Closes an inter-process physical memory handle
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///         + `NULL == hPhysMem`
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+UR_APIEXPORT ur_result_t UR_APICALL urIPCClosePhysMemHandleExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] physical memory handle opened through urIPCOpenPhysMemHandleExp
+    ur_physical_mem_handle_t hPhysMem);
+
 #if !defined(__GNUC__)
 #pragma endregion
 #endif
@@ -16502,6 +16620,47 @@ typedef struct ur_ipc_close_mem_handle_exp_params_t {
   ur_context_handle_t *phContext;
   void **ppMem;
 } ur_ipc_close_mem_handle_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urIPCGetPhysMemHandleExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_ipc_get_phys_mem_handle_exp_params_t {
+  ur_context_handle_t *phContext;
+  ur_physical_mem_handle_t *phPhysMem;
+  void ***pppIPCPhysMemHandleData;
+  size_t **ppIPCPhysMemHandleDataSizeRet;
+} ur_ipc_get_phys_mem_handle_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urIPCPutPhysMemHandleExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_ipc_put_phys_mem_handle_exp_params_t {
+  ur_context_handle_t *phContext;
+  const void **ppIPCPhysMemHandleData;
+} ur_ipc_put_phys_mem_handle_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urIPCOpenPhysMemHandleExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_ipc_open_phys_mem_handle_exp_params_t {
+  ur_context_handle_t *phContext;
+  ur_device_handle_t *phDevice;
+  const void **ppIPCPhysMemHandleData;
+  size_t *pipcPhysMemHandleDataSize;
+  ur_physical_mem_handle_t **pphPhysMem;
+} ur_ipc_open_phys_mem_handle_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urIPCClosePhysMemHandleExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_ipc_close_phys_mem_handle_exp_params_t {
+  ur_context_handle_t *phContext;
+  ur_physical_mem_handle_t *phPhysMem;
+} ur_ipc_close_phys_mem_handle_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urMemoryExportAllocExportableMemoryExp
