@@ -155,6 +155,7 @@
 // CHECK-NEXT: info/ext_oneapi_device_traits.def
 // CHECK-NEXT: info/ext_oneapi_kernel_queue_specific_traits.def
 // CHECK-NEXT: detail/util.hpp
+// CHECK-NEXT: detail/abi_neutral.hpp
 // CHECK-NEXT: device_selector.hpp
 // CHECK-NEXT: kernel_bundle_enums.hpp
 // CHECK-NEXT: detail/reduction_forward.hpp
