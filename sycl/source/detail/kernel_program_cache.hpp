@@ -13,11 +13,11 @@
 #include <detail/device_kernel_info.hpp>
 #include <detail/kernel_arg_mask.hpp>
 #include <detail/platform_impl.hpp>
+#include <detail/spinlock.hpp>
 #include <detail/unordered_multimap.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/locked.hpp>
 #include <sycl/detail/os_util.hpp>
-#include <sycl/detail/spinlock.hpp>
 #include <sycl/detail/ur.hpp>
 #include <sycl/detail/util.hpp>
 
