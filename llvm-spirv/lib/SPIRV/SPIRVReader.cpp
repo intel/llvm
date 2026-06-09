@@ -1140,9 +1140,10 @@ Value *SPIRVToLLVM::transConvertInst(SPIRVValue *BV, Function *F,
         if (MangledName.empty())
           MangledName = mangleBuiltin(BuiltinName, OpsTys, &Info);
 
-        FunctionType *FTy = FunctionType::get(Dst, OpsTys, false);
-        FunctionCallee Func = M->getOrInsertFunction(MangledName, FTy);
-        return CallInst::Create(Func, Ops, "", BB);
+        Function *Func = getOrCreateFunction(M, Dst, OpsTys, MangledName);
+        auto *CI = CallInst::Create(Func, Ops, "", BB);
+        CI->setCallingConv(CallingConv::SPIR_FUNC);
+        return CI;
       }
     }
     // These conversions can be done without __builtin_spirv prefixed functions
@@ -1205,8 +1206,13 @@ Value *SPIRVToLLVM::transConvertInst(SPIRVValue *BV, Function *F,
   // extension for image-handle-to-index conversion, or redesigning ESIMD
   // accessor storage.
   case OpConvertPtrToU: {
-    if (Src->getType()->isTargetExtTy())
-      return transSPIRVBuiltinFromInst(BC, BB);
+    if (Src->getType()->isTargetExtTy()) {
+      if (BM->getExtension().count("SPV_INTEL_vector_compute"))
+        return transSPIRVBuiltinFromInst(BC, BB);
+      BM->getErrorLog().checkError(false, SPIRVEC_InvalidInstruction,
+                                   "OpConvertPtrToU on a target extension type "
+                                   "requires SPV_INTEL_vector_compute");
+    }
     [[fallthrough]];
   }
   default:
@@ -1348,7 +1354,7 @@ SPIRVToLLVM::expandOCLBuiltinWithScalarArg(CallInst *CI,
     auto VecElemCount =
         cast<VectorType>(CI->getOperand(1)->getType())->getElementCount();
     auto Mutator = mutateCallInst(CI, FuncName);
-    Mutator.mapArg(0, [=](Value *Arg) {
+    Mutator.mapArg(0, [this, CI, VecElemCount](Value *Arg) {
       Value *NewVec = nullptr;
       if (auto *CA = dyn_cast<Constant>(Arg))
         NewVec = ConstantVector::getSplat(VecElemCount, CA);
@@ -1721,6 +1727,16 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
   case OpUndef:
     return mapValue(BV, UndefValue::get(transType(BV->getType())));
 
+  case OpPoisonKHR:
+    return mapValue(BV, PoisonValue::get(transType(BV->getType())));
+
+  case OpFreezeKHR: {
+    auto *BI = static_cast<SPIRVInstTemplateBase *>(BV);
+    Value *Operand = transValue(BI->getOperand(0), F, BB);
+    IRBuilder<> Builder(BB);
+    return mapValue(BV, Builder.CreateFreeze(Operand, BV->getName()));
+  }
+
   case OpSizeOf: {
     Type *ResTy = transType(BV->getType());
     auto *BI = static_cast<SPIRVSizeOf *>(BV);
@@ -1951,6 +1967,21 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     return mapValue(
         BV, ReturnInst::Create(*Context,
                                transValue(RV->getReturnValue(), F, BB), BB));
+  }
+
+  case OpAbortKHR: {
+    // OpAbortKHR is a SPIR-V block terminator. In LLVM IR, model it as a call
+    // to the SPIR-V friendly builtin __spirv_AbortKHR followed by an
+    // 'unreachable' terminator.
+    auto *AbortInst =
+        transSPIRVBuiltinFromInst(static_cast<SPIRVAbortKHR *>(BV), BB);
+    if (auto *Call = dyn_cast<CallInst>(AbortInst)) {
+      Call->setDoesNotReturn();
+      if (auto *Callee = Call->getCalledFunction())
+        Callee->setDoesNotReturn();
+    }
+    new UnreachableInst(*Context, BB);
+    return mapValue(BV, AbortInst);
   }
 
   case OpLifetimeStart: {
@@ -2764,6 +2795,10 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     case SPIRVEIS_NonSemantic_Shader_DebugInfo_100:
     case SPIRVEIS_NonSemantic_Shader_DebugInfo_200:
       DbgTran->transDebugIntrinsic(ExtInst, BB);
+      return mapValue(BV, nullptr);
+    case SPIRVEIS_NonSemantic_Unknown:
+      // Non-semantic instruction sets unknown to the translator are
+      // silently skipped.
       return mapValue(BV, nullptr);
     default:
       llvm_unreachable("Unknown extended instruction set!");
@@ -3850,6 +3885,10 @@ Instruction *SPIRVToLLVM::transBuiltinFromInst(const std::string &FuncName,
   } else {
     Call = CallInst::Create(Func, transValue(Ops, BB->getParent(), BB), "", BB);
   }
+  if (getImageOperandsIndex(OC) != ~0U &&
+      static_cast<SPIRVImageInstBase *>(BI)->hasImageOperand(
+          ImageOperandsMask::ImageOperandsNontemporalMask))
+    transNonTemporalMetadata(Call);
   setName(Call, BI);
   setAttrByCalledFunc(Call);
   SPIRVDBG(spvdbgs() << "[transInstToBuiltinCall] " << *BI << " -> ";
@@ -4768,7 +4807,10 @@ SPIRVToLLVM::transOCLImageTypeAccessQualifier(SPIRV::SPIRVTypeImage *ST) {
 bool SPIRVToLLVM::transNonTemporalMetadata(Instruction *I) {
   Constant *One = ConstantInt::get(Type::getInt32Ty(*Context), 1);
   MDNode *Node = MDNode::get(*Context, ConstantAsMetadata::get(One));
-  I->setMetadata(M->getMDKindID("nontemporal"), Node);
+  if (isa<LoadInst>(I) || isa<StoreInst>(I))
+    I->setMetadata(LLVMContext::MD_nontemporal, Node);
+  else
+    I->setMetadata("spirv.nontemporal", Node);
   return true;
 }
 
@@ -4832,7 +4874,7 @@ void SPIRVToLLVM::transFunctionDecorationsToMetadata(SPIRVFunction *BF,
 
   // Generate metadata for spirv.ParameterDecorations
   addKernelArgumentMetadata(Context, SPIRV_MD_PARAMETER_DECORATIONS, BF, F,
-                            [=](SPIRVFunctionParameter *Arg) {
+                            [this](SPIRVFunctionParameter *Arg) {
                               return transDecorationsToMetadataList(
                                   Context, Arg->getDecorations());
                             });
@@ -5043,6 +5085,16 @@ bool SPIRVToLLVM::transMetadata() {
       ValueVec.push_back(MDString::get(*Context, "AutoINTEL"));
       ExecModeMD->addOperand(MDNode::get(*Context, ValueVec));
     }
+    if (auto *EM = BF->getExecutionMode(ExecutionModeArithmeticPoisonKHR)) {
+      NamedMDNode *ExecModeMD =
+          M->getOrInsertNamedMetadata(kSPIRVMD::ExecutionMode);
+
+      SmallVector<Metadata *, 2> ValueVec;
+      ValueVec.push_back(ConstantAsMetadata::get(F));
+      ValueVec.push_back(
+          ConstantAsMetadata::get(getUInt32(M, EM->getExecutionMode())));
+      ExecModeMD->addOperand(MDNode::get(*Context, ValueVec));
+    }
   }
   NamedMDNode *MemoryModelMD =
       M->getOrInsertNamedMetadata(kSPIRVMD::MemoryModel);
@@ -5065,7 +5117,7 @@ bool SPIRVToLLVM::transOCLMetadata(SPIRVFunction *BF) {
   // Generate metadata for kernel_arg_addr_space
   addKernelArgumentMetadata(
       Context, SPIR_MD_KERNEL_ARG_ADDR_SPACE, BF, F,
-      [=](SPIRVFunctionParameter *Arg) {
+      [this](SPIRVFunctionParameter *Arg) {
         SPIRVType *ArgTy = Arg->getType();
         SPIRAddressSpace AS = SPIRAS_Private;
         if (ArgTy->isTypePointer())
@@ -5077,7 +5129,7 @@ bool SPIRVToLLVM::transOCLMetadata(SPIRVFunction *BF) {
       });
   // Generate metadata for kernel_arg_access_qual
   addKernelArgumentMetadata(Context, SPIR_MD_KERNEL_ARG_ACCESS_QUAL, BF, F,
-                            [=](SPIRVFunctionParameter *Arg) {
+                            [this](SPIRVFunctionParameter *Arg) {
                               std::string Qual;
                               auto *T = Arg->getType();
                               if (T->isTypeOCLImage()) {
@@ -5094,7 +5146,7 @@ bool SPIRVToLLVM::transOCLMetadata(SPIRVFunction *BF) {
   if (!transKernelArgTypeMedataFromString(Context, BM, F,
                                           SPIR_MD_KERNEL_ARG_TYPE))
     addKernelArgumentMetadata(Context, SPIR_MD_KERNEL_ARG_TYPE, BF, F,
-                              [=](SPIRVFunctionParameter *Arg) {
+                              [this](SPIRVFunctionParameter *Arg) {
                                 return transOCLKernelArgTypeName(Arg);
                               });
   // Generate metadata for kernel_arg_type_qual
@@ -5102,7 +5154,7 @@ bool SPIRVToLLVM::transOCLMetadata(SPIRVFunction *BF) {
                                           SPIR_MD_KERNEL_ARG_TYPE_QUAL))
     addKernelArgumentMetadata(
         Context, SPIR_MD_KERNEL_ARG_TYPE_QUAL, BF, F,
-        [=](SPIRVFunctionParameter *Arg) {
+        [this](SPIRVFunctionParameter *Arg) {
           std::string Qual;
           if (Arg->hasDecorate(DecorationVolatile))
             Qual = kOCLTypeQualifierName::Volatile;
@@ -5119,33 +5171,36 @@ bool SPIRVToLLVM::transOCLMetadata(SPIRVFunction *BF) {
         });
   // Generate metadata for kernel_arg_base_type
   addKernelArgumentMetadata(Context, SPIR_MD_KERNEL_ARG_BASE_TYPE, BF, F,
-                            [=](SPIRVFunctionParameter *Arg) {
+                            [this](SPIRVFunctionParameter *Arg) {
                               return transOCLKernelArgTypeName(Arg);
                             });
   // Generate metadata for kernel_arg_name
   if (BM->isGenArgNameMDEnabled()) {
     addKernelArgumentMetadata(Context, SPIR_MD_KERNEL_ARG_NAME, BF, F,
-                              [=](SPIRVFunctionParameter *Arg) {
+                              [this](SPIRVFunctionParameter *Arg) {
                                 return MDString::get(*Context, Arg->getName());
                               });
   }
   // Generate metadata for kernel_arg_buffer_location
-  addBufferLocationMetadata(Context, BF, F, [=](SPIRVFunctionParameter *Arg) {
-    auto Literals = Arg->getDecorationLiterals(DecorationBufferLocationINTEL);
-    assert(Literals.size() == 1 &&
-           "BufferLocationINTEL decoration shall have 1 ID literal");
+  addBufferLocationMetadata(
+      Context, BF, F, [this](SPIRVFunctionParameter *Arg) {
+        auto Literals =
+            Arg->getDecorationLiterals(DecorationBufferLocationINTEL);
+        assert(Literals.size() == 1 &&
+               "BufferLocationINTEL decoration shall have 1 ID literal");
 
-    return ConstantAsMetadata::get(
-        ConstantInt::get(Type::getInt32Ty(*Context), Literals[0]));
-  });
+        return ConstantAsMetadata::get(
+            ConstantInt::get(Type::getInt32Ty(*Context), Literals[0]));
+      });
   // Generate metadata for kernel_arg_runtime_aligned
-  addRuntimeAlignedMetadata(Context, BF, F, [=](SPIRVFunctionParameter *Arg) {
-    return ConstantAsMetadata::get(
-        ConstantInt::get(Type::getInt1Ty(*Context), 1));
-  });
+  addRuntimeAlignedMetadata(
+      Context, BF, F, [this](SPIRVFunctionParameter *Arg) {
+        return ConstantAsMetadata::get(
+            ConstantInt::get(Type::getInt1Ty(*Context), 1));
+      });
   // Generate metadata for spirv.ParameterDecorations
   addKernelArgumentMetadata(Context, SPIRV_MD_PARAMETER_DECORATIONS, BF, F,
-                            [=](SPIRVFunctionParameter *Arg) {
+                            [this](SPIRVFunctionParameter *Arg) {
                               return transDecorationsToMetadataList(
                                   Context, Arg->getDecorations());
                             });
@@ -5479,18 +5534,28 @@ void SPIRVToLLVM::transAuxDataInst(SPIRVExtInst *BC) {
   assert(BC->getExtSetKind() == SPIRV::SPIRVEIS_NonSemantic_AuxData);
   if (!BC->getModule()->preserveAuxData())
     return;
+  switch (BC->getExtOp()) {
+  case NonSemanticAuxData::FunctionAttribute:
+  case NonSemanticAuxData::GlobalVariableAttribute:
+  case NonSemanticAuxData::FunctionMetadata:
+  case NonSemanticAuxData::GlobalVariableMetadata:
+  case NonSemanticAuxData::Linkage:
+    break;
+  default:
+    return;
+  }
   auto Args = BC->getArguments();
-  // Args 0 and 1 are common between attributes and metadata.
-  // 0 is the global object, 1 is the name of the attribute/metadata as a string
+  // Arg 0 is common to all instructions in this set: it identifies the
+  // global object the auxiliary data is attached to.
   auto *Arg0 = BC->getModule()->getValue(Args[0]);
   auto *GO = cast<GlobalObject>(getTranslatedValue(Arg0));
   auto *F = dyn_cast<Function>(GO);
   auto *GV = dyn_cast<GlobalVariable>(GO);
   assert((F || GV) && "Value should already have been translated!");
-  auto AttrOrMDName = BC->getModule()->get<SPIRVString>(Args[1])->getStr();
   switch (BC->getExtOp()) {
   case NonSemanticAuxData::FunctionAttribute:
   case NonSemanticAuxData::GlobalVariableAttribute: {
+    auto AttrOrMDName = BC->getModule()->get<SPIRVString>(Args[1])->getStr();
     assert(Args.size() < 4 && "Unexpected FunctionAttribute Args");
     // If this attr was specially handled and added elsewhere, skip it.
     Attribute::AttrKind AsKind = Attribute::getAttrKindFromName(AttrOrMDName);
@@ -5526,6 +5591,7 @@ void SPIRVToLLVM::transAuxDataInst(SPIRVExtInst *BC) {
   }
   case NonSemanticAuxData::FunctionMetadata:
   case NonSemanticAuxData::GlobalVariableMetadata: {
+    auto AttrOrMDName = BC->getModule()->get<SPIRVString>(Args[1])->getStr();
     // If this metadata was specially handled and added elsewhere, skip it.
     if (GO->hasMetadata(AttrOrMDName))
       return;
@@ -5547,8 +5613,23 @@ void SPIRVToLLVM::transAuxDataInst(SPIRVExtInst *BC) {
     GO->setMetadata(AttrOrMDName, MDNode::get(*Context, MetadataArgs));
     break;
   }
+  case NonSemanticAuxData::Linkage: {
+    auto *LinkageConst =
+        static_cast<SPIRVConstant *>(BC->getModule()->get<SPIRVValue>(Args[1]));
+    switch (LinkageConst->getZExtIntValue()) {
+    case NonSemanticAuxData::AvailableExternally:
+      GO->setLinkage(GlobalValue::AvailableExternallyLinkage);
+      break;
+    default:
+      LLVM_DEBUG(dbgs() << "Unknown NonSemanticAuxDataLinkage value '"
+                        << LinkageConst->getZExtIntValue() << "' on '"
+                        << GO->getName() << "'; ignoring instruction.\n");
+      break;
+    }
+    break;
+  }
   default:
-    llvm_unreachable("Invalid op");
+    break;
   }
 }
 
@@ -5640,6 +5721,8 @@ SPIRVToLLVM::transLinkageType(const SPIRVValue *V) {
     return GlobalValue::ExternalLinkage;
   case LinkageTypeLinkOnceODR:
     return GlobalValue::LinkOnceODRLinkage;
+  case LinkageTypeWeakAMD:
+    return GlobalValue::WeakAnyLinkage;
   default:
     llvm_unreachable("Invalid linkage type");
   }

@@ -18,6 +18,7 @@
 
 #include <sycl/detail/ur.hpp>
 #include <sycl/ext/oneapi/bindless_images_memory.hpp>
+#include <sycl/properties/buffer_properties.hpp>
 #include <sycl/usm/usm_enums.hpp>
 #include <sycl/usm/usm_pointer_info.hpp>
 

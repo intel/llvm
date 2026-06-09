@@ -307,6 +307,12 @@ public:
 
   ur_result_t releaseMemory(ur_context_handle_t Context, void *Ptr);
 
+  ur_result_t registerIPCMemory(ur_context_handle_t Context,
+                                ur_device_handle_t Device, uptr Addr,
+                                size_t Size);
+
+  ur_result_t unregisterIPCMemory(uptr Addr);
+
   ur_result_t registerProgram(ur_program_handle_t Program);
 
   ur_result_t unregisterProgram(ur_program_handle_t Program);

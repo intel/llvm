@@ -1,9 +1,6 @@
 // REQUIRES: aspect-ext_oneapi_external_memory_import
 // REQUIRES: vulkan
 
-// UNSUPPORTED: windows && gpu-intel-gen12
-// UNSUPPORTED-TRACKER: URLZA-723
-
 // clang-format off
 
 // On Linux L0, there are problem with semaphores and latest drivers.
@@ -59,6 +56,7 @@
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/bindless_images.hpp>
 #include <sycl/image.hpp>
+#include <sycl/properties/queue_properties.hpp>
 #include <vector>
 
 namespace syclexp = sycl::ext::oneapi::experimental;
@@ -277,7 +275,15 @@ int main(int argc, char **argv) {
 
   // SYCL INTEROP
   try {
-    sycl::queue q;
+    // Bindless image interop requires an in-order queue (per spec). External
+    // semaphore ops additionally require immediate command lists; see
+    // sycl_ext_oneapi_bindless_images.asciidoc.
+    sycl::property_list qProps =
+        useSemaphores ? sycl::property_list{sycl::property::queue::in_order{},
+                                            sycl::ext::intel::property::queue::
+                                                immediate_command_list{}}
+                      : sycl::property_list{sycl::property::queue::in_order{}};
+    sycl::queue q{qProps};
     auto device = q.get_device();
     auto context = q.get_context();
 

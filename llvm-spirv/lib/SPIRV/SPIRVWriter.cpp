@@ -928,10 +928,10 @@ SPIRVFunction *LLVMToSPIRVBase::transFunctionDecl(Function *F) {
       if (!BM->isAllowedToUseExtension(ExtensionID::SPV_EXT_float8) &&
           !BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_int4) &&
           !BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_float4)) {
-        std::string ErrorStr =
-            "One of the following extensions: SPV_EXT_float8, SPV_INTEL_float4"
-            "SPV_INTEL_int4 should be enabled to process "
-            "conversion builtins";
+        std::string ErrorStr = "One of the following extensions: "
+                               "SPV_EXT_float8, SPV_INTEL_float4, "
+                               "SPV_INTEL_int4 should be enabled to process "
+                               "conversion builtins";
         getErrorLog().checkError(false, SPIRVEC_RequiresExtension, F, ErrorStr);
       }
       return nullptr;
@@ -1345,6 +1345,15 @@ void LLVMToSPIRVBase::transAuxDataInst(SPIRVValue *BV, Value *V) {
                      : NonSemanticAuxData::GlobalVariableMetadata,
                    transType(Type::getVoidTy(V->getContext())), Ops);
   }
+
+  if (GO->hasAvailableExternallyLinkage()) {
+    auto *I32Ty = BM->addIntegerType(32);
+    auto *LinkageVal =
+        BM->addConstant(I32Ty, NonSemanticAuxData::AvailableExternally);
+    std::vector<SPIRVWord> LinkageOps = {BV->getId(), LinkageVal->getId()};
+    BM->addAuxData(NonSemanticAuxData::Linkage,
+                   transType(Type::getVoidTy(V->getContext())), LinkageOps);
+  }
 }
 
 SPIRVValue *LLVMToSPIRVBase::transConstantUse(Constant *C,
@@ -1553,6 +1562,9 @@ SPIRVValue *LLVMToSPIRVBase::transConstant(Value *V) {
   }
 
   if (isa<UndefValue>(V)) {
+    if (isa<PoisonValue>(V) &&
+        BM->isAllowedToUseExtension(ExtensionID::SPV_KHR_poison_freeze))
+      return BM->addPoisonKHR(ExpectedType);
     return BM->addUndef(ExpectedType);
   }
 
@@ -1614,9 +1626,14 @@ SPIRVInstruction *LLVMToSPIRVBase::transCmpInst(CmpInst *Cmp,
   auto *Op0 = Cmp->getOperand(0);
   SPIRVValue *TOp0 = transValue(Op0, BB);
   SPIRVValue *TOp1 = transValue(Cmp->getOperand(1), BB);
-  // TODO: once the translator supports SPIR-V 1.4, update the condition below:
-  // if (/* */->isPointerTy() && /* it is not allowed to use SPIR-V 1.4 */)
   if (Op0->getType()->isPointerTy()) {
+    auto P = Cmp->getPredicate();
+    if (BM->isAllowedToUseVersion(VersionNumber::SPIRV_1_4) &&
+        (P == ICmpInst::ICMP_EQ || P == ICmpInst::ICMP_NE) &&
+        Cmp->getOperand(1)->getType()->isPointerTy()) {
+      Op OC = P == ICmpInst::ICMP_EQ ? OpPtrEqual : OpPtrNotEqual;
+      return BM->addBinaryInst(OC, transType(Cmp->getType()), TOp0, TOp1, BB);
+    }
     unsigned AS = cast<PointerType>(Op0->getType())->getAddressSpace();
     SPIRVType *Ty = transType(getSizetType(AS));
     TOp0 = BM->addUnaryInst(OpConvertPtrToU, Ty, TOp0, BB);
@@ -1639,6 +1656,19 @@ SPIRVValue *LLVMToSPIRVBase::transUnaryInst(UnaryInstruction *U,
       SPIRVType *ExpectedTy = transScavengedType(U);
       return BM->addUndef(ExpectedTy);
     }
+  }
+
+  if (isa<FreezeInst>(U)) {
+    if (BM->isAllowedToUseExtension(ExtensionID::SPV_KHR_poison_freeze)) {
+      auto *Op = transValue(U->getOperand(0), BB);
+      SPIRVType *TransTy = transScavengedType(U);
+      return BM->addFreezeKHRInst(TransTy, Op, BB);
+    }
+    // Without the extension, move the freeze away.
+    Value *Operand = U->getOperand(0);
+    if (isa<UndefValue>(Operand))
+      return BM->addNullConstant(transScavengedType(U));
+    return transValue(Operand, BB);
   }
 
   Op BOC = OpNop;
@@ -2084,12 +2114,20 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
 
   if (auto *GV = dyn_cast<GlobalVariable>(V)) {
     llvm::Type *Ty = Scavenger->getScavengedType(GV);
-    // Though variables with common linkage type are initialized by 0,
-    // they can be represented in SPIR-V as uninitialized variables with
-    // 'Export' linkage type, just as tentative definitions look in C
-    llvm::Constant *Init = GV->hasInitializer() && !GV->hasCommonLinkage()
-                               ? GV->getInitializer()
-                               : nullptr;
+    // Check whether the global has an initializer for SPIR-V.
+    // Variables with common linkage are represented as uninitialized with
+    // 'Export' linkage, just as tentative definitions look in C.
+    // Undef/poison initializers are dropped unless the variable is constant
+    // with an aggregate type
+    auto HasInit = [](const GlobalVariable *GV) {
+      if (!GV->hasInitializer() || GV->hasCommonLinkage())
+        return false;
+      if (isa<UndefValue>(GV->getInitializer()))
+        return GV->isConstant() &&
+               GV->getInitializer()->getType()->isAggregateType();
+      return true;
+    };
+    llvm::Constant *Init = HasInit(GV) ? GV->getInitializer() : nullptr;
     SPIRVValue *BVarInit = nullptr;
     StructType *ST = Init ? dyn_cast<StructType>(Init->getType()) : nullptr;
     if (ST && ST->hasName() && isSPIRVConstantName(ST->getName())) {
@@ -2347,7 +2385,7 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
     return mapValue(V, BI);
   }
 
-  if (dyn_cast<UnreachableInst>(V))
+  if (isa<UnreachableInst>(V))
     return mapValue(V, BM->addUnreachableInst(BB));
 
   if (auto *RI = dyn_cast<ReturnInst>(V)) {
@@ -5168,9 +5206,10 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
   case Intrinsic::invariant_start:
   case Intrinsic::invariant_end:
   case Intrinsic::dbg_label:
-  // llvm.trap and llvm.debugtrap intrinsics are not implemented. But for now
-  // don't crash. This change is pending the trap/abort intrinsic
-  // implementation.
+  // TODO: lower llvm.trap / llvm.ubsantrap / llvm.debugtrap to OpAbortKHR
+  // (with a null/undefined Message) when the SPV_KHR_abort extension is
+  // enabled. For now we silently drop these intrinsics so that the translator
+  // doesn't crash on input that contains them.
   case Intrinsic::trap:
   case Intrinsic::ubsantrap:
   case Intrinsic::debugtrap:
@@ -5330,11 +5369,6 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
       IsInverted = true;
       FPClass = InvertedCheck;
     }
-    auto GetInvertedTestIfNeeded = [&](SPIRVValue *TestInst) -> SPIRVValue * {
-      if (!IsInverted)
-        return TestInst;
-      return BM->addInstTemplate(OpLogicalNot, {TestInst->getId()}, BB, ResTy);
-    };
 
     // TODO: we can add some optimization for fcFinite check by replacing it
     // with fabs + cmp to 0x7FF0000000000000
@@ -5348,7 +5382,7 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
       if (FPClass & fcSNan && FPClass & fcQNan) {
         auto *TestIsNan =
             BM->addInstTemplate(OpIsNan, {InputFloat->getId()}, BB, ResTy);
-        ResultVec.emplace_back(GetInvertedTestIfNeeded(TestIsNan));
+        ResultVec.emplace_back(TestIsNan);
       } else {
         // isquiet(V) ==> abs(V) >= (unsigned(Inf) | quiet_bit)
         APInt QNaNBitMask =
@@ -5361,7 +5395,7 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
         auto *TestIsQNan = BM->addCmpInst(OpUGreaterThanEqual, ResTy,
                                           BitCastToInt, QNanBitConst, BB);
         if (FPClass & fcQNan) {
-          ResultVec.emplace_back(GetInvertedTestIfNeeded(TestIsQNan));
+          ResultVec.emplace_back(TestIsQNan);
         } else {
           // issignaling(V) ==> isnan(V) && !isquiet(V)
           auto *TestIsNan =
@@ -5370,7 +5404,7 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
                                               {TestIsQNan->getId()}, BB, ResTy);
           auto *TestIsSNan = BM->addInstTemplate(
               OpLogicalAnd, {TestIsNan->getId(), NotQNan->getId()}, BB, ResTy);
-          ResultVec.emplace_back(GetInvertedTestIfNeeded(TestIsSNan));
+          ResultVec.emplace_back(TestIsSNan);
         }
       }
     }
@@ -5379,22 +5413,22 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
           BM->addInstTemplate(OpIsInf, {InputFloat->getId()}, BB, ResTy);
       if (FPClass & fcNegInf && FPClass & fcPosInf)
         // Map on OpIsInf if we have both Inf test bits set
-        ResultVec.emplace_back(GetInvertedTestIfNeeded(TestIsInf));
+        ResultVec.emplace_back(TestIsInf);
       else
         // Map on OpIsInf with following check for sign bit
-        ResultVec.emplace_back(GetInvertedTestIfNeeded(
-            GetNegPosInstTest(TestIsInf, FPClass & fcNegInf)));
+        ResultVec.emplace_back(
+            GetNegPosInstTest(TestIsInf, FPClass & fcNegInf));
     }
     if (FPClass & fcNormal) {
       auto *TestIsNormal =
           BM->addInstTemplate(OpIsNormal, {InputFloat->getId()}, BB, ResTy);
       if (FPClass & fcNegNormal && FPClass & fcPosNormal)
         // Map on OpIsNormal if we have both Normal test bits set
-        ResultVec.emplace_back(GetInvertedTestIfNeeded(TestIsNormal));
+        ResultVec.emplace_back(TestIsNormal);
       else
         // Map on OpIsNormal with following check for sign bit
-        ResultVec.emplace_back(GetInvertedTestIfNeeded(
-            GetNegPosInstTest(TestIsNormal, FPClass & fcNegNormal)));
+        ResultVec.emplace_back(
+            GetNegPosInstTest(TestIsNormal, FPClass & fcNegNormal));
     }
     if (FPClass & fcSubnormal) {
       // issubnormal(V) ==> unsigned(abs(V) - 1) < (all mantissa bits set)
@@ -5409,10 +5443,10 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
       auto *TestIsSubnormal =
           BM->addCmpInst(OpULessThan, ResTy, MinusOne, MantissaConst, BB);
       if (FPClass & fcPosSubnormal && FPClass & fcNegSubnormal)
-        ResultVec.emplace_back(GetInvertedTestIfNeeded(TestIsSubnormal));
+        ResultVec.emplace_back(TestIsSubnormal);
       else
-        ResultVec.emplace_back(GetInvertedTestIfNeeded(
-            GetNegPosInstTest(TestIsSubnormal, FPClass & fcNegSubnormal)));
+        ResultVec.emplace_back(
+            GetNegPosInstTest(TestIsSubnormal, FPClass & fcNegSubnormal));
     }
     if (FPClass & fcZero) {
       // Create zero integer constant and check for equality with bitcasted to
@@ -5444,19 +5478,17 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
             OpBitwiseAnd, OpSPIRVTy, BitCastToInt, MaskToClearSignBitConst, BB);
         auto *TestIsZero =
             BM->addCmpInst(OpIEqual, ResTy, BitwiseAndRes, ZeroConst, BB);
-        ResultVec.emplace_back(GetInvertedTestIfNeeded(TestIsZero));
+        ResultVec.emplace_back(TestIsZero);
       } else if (FPClass & fcPosZero) {
         auto *TestIsPosZero =
             SetUpCMPToZero(BitCastToInt, true /*'positive' zero*/);
-        ResultVec.emplace_back(GetInvertedTestIfNeeded(TestIsPosZero));
+        ResultVec.emplace_back(TestIsPosZero);
       } else {
         auto *TestIsNegZero =
             SetUpCMPToZero(BitCastToInt, false /*'negated' zero*/);
-        ResultVec.emplace_back(GetInvertedTestIfNeeded(TestIsNegZero));
+        ResultVec.emplace_back(TestIsNegZero);
       }
     }
-    if (ResultVec.size() == 1)
-      return ResultVec.back();
     SPIRVValue *Result = ResultVec.front();
     for (size_t I = 1; I != ResultVec.size(); ++I) {
       // Create a sequence of LogicalOr instructions from ResultVec to get
@@ -5464,6 +5496,10 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
       std::vector<SPIRVId> LogicOps = {Result->getId(), ResultVec[I]->getId()};
       Result = BM->addInstTemplate(OpLogicalOr, LogicOps, BB, ResTy);
     }
+    // If the FPClass mask was inverted to keep the per-component lowering
+    // simple, negate the final OR-combined result.
+    if (IsInverted)
+      Result = BM->addInstTemplate(OpLogicalNot, {Result->getId()}, BB, ResTy);
     return Result;
   }
   default:
@@ -6358,6 +6394,15 @@ void LLVMToSPIRVBase::transFunction(Function *I) {
     SPIRVBasicBlock *BB =
         static_cast<SPIRVBasicBlock *>(transValue(&FI, nullptr));
     for (auto &BI : FI) {
+      // SPV_KHR_abort: OpAbortKHR is itself a SPIR-V block terminator. Once a
+      // basic block has been terminated by OpAbortKHR, any subsequent LLVM IR
+      // instructions in the same block (typically lifetime intrinsics, a
+      // trailing `unreachable`, or a `ret`) must not be emitted, otherwise
+      // the resulting SPIR-V would have instructions after a block terminator
+      // and fail validation.
+      if (auto *Last = BB->getTerminateInstr();
+          Last && Last->getOpCode() == OpAbortKHR)
+        break;
       transValue(&BI, BB, false);
     }
   }
@@ -6723,6 +6768,12 @@ bool LLVMToSPIRVBase::transExecutionMode() {
           break;
         AddSingleArgExecutionMode(static_cast<ExecutionMode>(EMode));
       } break;
+      case spv::ExecutionModeArithmeticPoisonKHR: {
+        if (!BM->isAllowedToUseExtension(ExtensionID::SPV_KHR_poison_freeze))
+          break;
+        BF->addExecutionMode(BM->add(new SPIRVExecutionMode(
+            OpExecutionMode, BF, static_cast<ExecutionMode>(EMode))));
+      } break;
       case spv::ExecutionModeFPFastMathDefault: {
         if (!BM->isAllowedToUseExtension(ExtensionID::SPV_KHR_float_controls2))
           break;
@@ -6741,6 +6792,20 @@ bool LLVMToSPIRVBase::transExecutionMode() {
       default:
         llvm_unreachable("invalid execution mode");
       }
+    }
+  }
+
+  // Per SPV_KHR_poison_freeze: "If PoisonFreezeKHR capability is declared, all
+  // entry points must use the ArithmeticPoisonKHR execution mode".
+  if (BM->hasCapability(CapabilityPoisonFreezeKHR)) {
+    for (unsigned I = 0, E = BM->getNumFunctions(); I != E; ++I) {
+      SPIRVFunction *EntryBF = BM->getFunction(I);
+      if (!BM->isEntryPoint(ExecutionModelKernel, EntryBF->getId()))
+        continue;
+      if (EntryBF->getExecutionMode(ExecutionModeArithmeticPoisonKHR))
+        continue;
+      EntryBF->addExecutionMode(BM->add(new SPIRVExecutionMode(
+          OpExecutionMode, EntryBF, ExecutionModeArithmeticPoisonKHR)));
     }
   }
 
@@ -6848,7 +6913,7 @@ bool LLVMToSPIRVBase::transOCLMetadata() {
     if (auto *KernelArgName = F.getMetadata(SPIR_MD_KERNEL_ARG_NAME)) {
       foreachKernelArgMD(
           KernelArgName, BF,
-          [=](const std::string &Str, SPIRVFunctionParameter *BA) {
+          [this](const std::string &Str, SPIRVFunctionParameter *BA) {
             BM->setName(BA, Str);
           });
     }
@@ -6930,6 +6995,16 @@ LLVMToSPIRVBase::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
   case OpControlBarrier: {
     auto BArgs = transValue(getArguments(CI), BB);
     return BM->addControlBarrierInst(BArgs[0], BArgs[1], BArgs[2], BB);
+  } break;
+  case OpAbortKHR: {
+    if (!BM->checkExtension(ExtensionID::SPV_KHR_abort,
+                            SPIRVEC_RequiresExtension, "SPV_KHR_abort\n"))
+      return nullptr;
+    BM->getErrorLog().checkError(
+        CI->arg_size() == 1, SPIRVEC_InvalidInstruction,
+        "__spirv_AbortKHR must be called with exactly one Message argument\n");
+    auto *Msg = transValue(CI->getArgOperand(0), BB);
+    return BM->addAbortKHRInst(Msg, BB);
   } break;
   case OpGroupAsyncCopy: {
     auto BArgs = transValue(getArguments(CI), BB);
@@ -7463,6 +7538,9 @@ LLVMToSPIRVBase::transLinkageType(const GlobalValue *GV) {
   if (GV->hasLinkOnceODRLinkage())
     if (BM->isAllowedToUseExtension(ExtensionID::SPV_KHR_linkonce_odr))
       return SPIRVLinkageTypeKind::LinkageTypeLinkOnceODR;
+  if (GV->hasWeakAnyLinkage())
+    if (BM->isAllowedToUseExtension(ExtensionID::SPV_AMD_weak_linkage))
+      return SPIRVLinkageTypeKind::LinkageTypeWeakAMD;
   return SPIRVLinkageTypeKind::LinkageTypeExport;
 }
 
@@ -7609,6 +7687,7 @@ bool runSpirvBackend(Module *M, std::string &Result, std::string &ErrMsg,
       SPIRV::ExtensionID::SPV_KHR_expect_assume,
       SPIRV::ExtensionID::SPV_KHR_bit_instructions,
       SPIRV::ExtensionID::SPV_KHR_linkonce_odr,
+      SPIRV::ExtensionID::SPV_AMD_weak_linkage,
       SPIRV::ExtensionID::SPV_INTEL_inline_assembly,
       SPIRV::ExtensionID::SPV_INTEL_bfloat16_conversion,
       SPIRV::ExtensionID::SPV_KHR_subgroup_rotate,
@@ -7616,7 +7695,8 @@ bool runSpirvBackend(Module *M, std::string &Result, std::string &ErrMsg,
       SPIRV::ExtensionID::SPV_INTEL_function_pointers,
       SPIRV::ExtensionID::SPV_KHR_shader_clock,
       SPIRV::ExtensionID::SPV_KHR_cooperative_matrix,
-      SPIRV::ExtensionID::SPV_KHR_non_semantic_info};
+      SPIRV::ExtensionID::SPV_KHR_non_semantic_info,
+      SPIRV::ExtensionID::SPV_KHR_abort};
   // The fallback for the Triple value.
   static const std::string DefaultTriple = "spirv64-unknown-unknown";
 

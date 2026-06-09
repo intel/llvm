@@ -6,12 +6,14 @@
 //
 //===----------------------------------------------------------------------===//
 #include "SYCL.h"
+#include "clang/Basic/Version.h"
 #include "clang/Driver/CommonArgs.h"
 #include "clang/Driver/Compilation.h"
 #include "clang/Driver/Driver.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/SYCLLowerIR/DeviceConfigFile.hpp"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/VirtualFileSystem.h"
 #include <sstream>
@@ -25,14 +27,59 @@ using namespace llvm::opt;
 SYCLInstallationDetector::SYCLInstallationDetector(
     const Driver &D, const llvm::Triple &HostTriple,
     const llvm::opt::ArgList &Args)
-    : D(D), InstallationCandidates()  {
+    : D(D), InstallationCandidates(), HostTriple(HostTriple) {
   // When -fsycl is active, locate the SYCL runtime library and record its
   // directory in SYCLRTLibPath for use by the linker.
   StringRef SysRoot = D.SysRoot;
   SmallString<128> DriverDir(D.Dir);
+
+#if 0 // !INTEL_CUSTOMIZATION
+  if (HostTriple.isWindowsMSVCEnvironment() ||
+      HostTriple.isWindowsItaniumEnvironment()) {
+    // Windows: Check for LLVMSYCL.lib
+    // NOTE: Only checks for LLVMSYCL.lib existence (release variant).
+    // Debug vs release library selection happens at link time based on CRT
+    // flags.
+    if (DriverDir.starts_with(SysRoot) &&
+        Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false)) {
+      SmallString<128> LibDir(DriverDir);
+      llvm::sys::path::append(LibDir, "..", "lib");
+
+      // Verify SYCL runtime library exists
+      SmallString<128> SYCLLibPath(LibDir);
+      llvm::sys::path::append(SYCLLibPath, "LLVMSYCL.lib");
+
+      if (D.getVFS().exists(SYCLLibPath))
+        SYCLRTLibPath = LibDir;
+    }
+  } else {
+    SmallString<128> LibPath(DriverDir);
+    llvm::sys::path::append(LibPath, "..", "lib", HostTriple.str(),
+                            "libsycl.so");
+    // Flat lib path for LLVM_ENABLE_PER_TARGET_RUNTIME_DIR=OFF builds,
+    // where the library is installed directly in lib/ with no triple subdir.
+    SmallString<128> FlatLibPath(DriverDir);
+    llvm::sys::path::append(FlatLibPath, "..", "lib", "libsycl.so");
+
+    if (DriverDir.starts_with(SysRoot) &&
+        Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false)) {
+      // LLVM_ENABLE_PER_TARGET_RUNTIME_DIR=ON: library is in lib/<triple>/
+      if (D.getVFS().exists(LibPath))
+        llvm::sys::path::append(DriverDir, "..", "lib", HostTriple.str());
+      // LLVM_ENABLE_PER_TARGET_RUNTIME_DIR=OFF: library is in lib/
+      else if (D.getVFS().exists(FlatLibPath))
+        llvm::sys::path::append(DriverDir, "..", "lib");
+      else
+        return; // Neither path exists : broken install, leave SYCLRTLibPath
+                // unset
+
+      SYCLRTLibPath = DriverDir;
+    }
+  }
+#else // !INTEL_CUSTOMIZATION
+  // Intel: SYCL RT is libsycl.so; Windows lib path is handled at link stage.
   SmallString<128> LibPath(DriverDir);
-  llvm::sys::path::append(LibPath, "..", "lib", HostTriple.str(),
-                          "libsycl.so");
+  llvm::sys::path::append(LibPath, "..", "lib", HostTriple.str(), "libsycl.so");
   // Flat lib path for LLVM_ENABLE_PER_TARGET_RUNTIME_DIR=OFF builds,
   // where the library is installed directly in lib/ with no triple subdir.
   SmallString<128> FlatLibPath(DriverDir);
@@ -40,15 +87,15 @@ SYCLInstallationDetector::SYCLInstallationDetector(
 
   if (DriverDir.starts_with(SysRoot) &&
       Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false)) {
-    // LLVM_ENABLE_PER_TARGET_RUNTIME_DIR=ON: library is in lib/<triple>/
-    if (D.getVFS().exists(LibPath))
-      llvm::sys::path::append(DriverDir, "..", "lib", HostTriple.str());
-    // LLVM_ENABLE_PER_TARGET_RUNTIME_DIR=OFF: library is in lib/
-    else if (D.getVFS().exists(FlatLibPath))
+    // We put driver in bin/compiler, so one more ../ than llorg.
+    if (D.getVFS().exists(DriverDir + "/../../lib/libsycl.so"))
+      llvm::sys::path::append(DriverDir, "..", "..", "lib");
+    else
       llvm::sys::path::append(DriverDir, "..", "lib");
-    if (!DriverDir.equals(D.Dir))
-      SYCLRTLibPath = DriverDir;
+
+    SYCLRTLibPath = DriverDir;
   }
+#endif // !INTEL_CUSTOMIZATION
   InstallationCandidates.emplace_back(D.Dir + "/..");
 }
 
@@ -110,13 +157,28 @@ void SYCLInstallationDetector::addLibspirvLinkArgs(
 
 void SYCLInstallationDetector::getSYCLDeviceLibPath(
     llvm::SmallVector<llvm::SmallString<128>, 4> &DeviceLibPaths) const {
+  std::string LinuxDirSuffix =
+      llvm::formatv("/lib/dpcpp-{0}/sycl", DPCPP_VERSION_MAJOR);
   for (const auto &IC : InstallationCandidates) {
-    llvm::SmallString<128> InstallLibPath(IC.str());
-    InstallLibPath.append("/lib");
-    DeviceLibPaths.emplace_back(InstallLibPath);
+    if (!HostTriple.isWindowsMSVCEnvironment() &&
+        !HostTriple.isWindowsItaniumEnvironment()) {
+      SmallString<128> InstallPath(IC);
+      llvm::sys::path::append(InstallPath, LinuxDirSuffix);
+      DeviceLibPaths.emplace_back(InstallPath);
+    }
+    SmallString<128> InstallPath(IC);
+    llvm::sys::path::append(InstallPath, "lib");
+    DeviceLibPaths.emplace_back(InstallPath);
   }
-
-  DeviceLibPaths.emplace_back(D.SysRoot + "/lib");
+  if (!HostTriple.isWindowsMSVCEnvironment() &&
+      !HostTriple.isWindowsItaniumEnvironment()) {
+    SmallString<128> Path(D.SysRoot);
+    llvm::sys::path::append(Path, LinuxDirSuffix);
+    DeviceLibPaths.emplace_back(Path.str());
+  }
+  SmallString<128> Path(D.SysRoot);
+  llvm::sys::path::append(Path, "lib");
+  DeviceLibPaths.emplace_back(Path.str());
 }
 
 void SYCLInstallationDetector::addSYCLIncludeArgs(
@@ -1119,6 +1181,10 @@ StringRef SYCL::gen::resolveGenDevice(StringRef DeviceName) {
                  "nvl_u")
           .Cases({"intel_gpu_nvl_p", "intel_gpu_35_10_0"}, "nvl_p")
           .Cases({"intel_gpu_cri", "intel_gpu_35_11_0"}, "cri")
+          .Case("intel_gpu_dg2", "dg2")
+          .Case("intel_gpu_mtl", "mtl")
+          .Case("intel_gpu_bmg", "bmg")
+          .Case("intel_gpu_ptl", "ptl")
           .Case("nvidia_gpu_sm_50", "sm_50")
           .Case("nvidia_gpu_sm_52", "sm_52")
           .Case("nvidia_gpu_sm_53", "sm_53")
@@ -1237,17 +1303,21 @@ SmallString<64> SYCL::gen::getGenDeviceMacro(StringRef DeviceName) {
           .Case("adl_p", "INTEL_GPU_ADL_P")
           .Case("adl_n", "INTEL_GPU_ADL_N")
           .Case("dg1", "INTEL_GPU_DG1")
+          .Case("dg2", "INTEL_GPU_DG2")
           .Cases({"acm_g10", "dg2_g10"}, "INTEL_GPU_ACM_G10")
           .Cases({"acm_g11", "dg2_g11"}, "INTEL_GPU_ACM_G11")
           .Cases({"acm_g12", "dg2_g12"}, "INTEL_GPU_ACM_G12")
           .Case("pvc", "INTEL_GPU_PVC")
           .Case("pvc_vg", "INTEL_GPU_PVC_VG")
+          .Case("mtl", "INTEL_GPU_MTL")
           .Cases({"mtl_u", "mtl_s", "arl_u", "arl_s"}, "INTEL_GPU_MTL_U")
           .Case("mtl_h", "INTEL_GPU_MTL_H")
           .Case("arl_h", "INTEL_GPU_ARL_H")
+          .Case("bmg", "INTEL_GPU_BMG")
           .Case("bmg_g21", "INTEL_GPU_BMG_G21")
           .Case("bmg_g31", "INTEL_GPU_BMG_G31")
           .Case("lnl_m", "INTEL_GPU_LNL_M")
+          .Case("ptl", "INTEL_GPU_PTL")
           .Case("ptl_h", "INTEL_GPU_PTL_H")
           .Case("ptl_u", "INTEL_GPU_PTL_U")
           .Case("wcl", "INTEL_GPU_WCL")
@@ -1935,6 +2005,8 @@ SYCLToolChain::getDeviceLibs(
   return BCLibs;
 }
 
-SanitizerMask SYCLToolChain::getSupportedSanitizers() const {
+SanitizerMask SYCLToolChain::getSupportedSanitizers(
+    StringRef /*BoundArch*/, Action::OffloadKind /*DeviceOffloadKind*/) const {
+
   return SanitizerKind::Address | SanitizerKind::Memory | SanitizerKind::Thread;
 }
