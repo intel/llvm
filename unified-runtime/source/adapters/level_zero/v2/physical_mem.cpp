@@ -143,17 +143,27 @@ ur_result_t urIPCGetPhysMemHandleExp(ur_context_handle_t,
     return ze2urResult(ZeRes);
   }
 
+  if (ExportFd.fd < 0)
+    return UR_RESULT_ERROR_INVALID_VALUE;
+
+  // dup() the fd so urIPCPutPhysMemHandleExp can close HandleData->Fd without
+  // closing the original fd exported by the driver, which must remain open for
+  // the lifetime of the physical_mem object.  We own only the dup'd copy.
+  int DupFd = dup(ExportFd.fd);
+  if (DupFd < 0)
+    return UR_RESULT_ERROR_UNKNOWN;
+
   auto *HandleData = new (std::nothrow) ZeIPCPhysMemHandleData;
   if (!HandleData) {
-    close(ExportFd.fd);
+    close(DupFd);
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
   }
 
-  // Store the exporting process's PID and fd.  The fd stays open until
+  // Store the exporting process's PID and dup'd fd.  The fd stays open until
   // urIPCPutPhysMemHandleExp is called.  Cross-process consumers use
   // pidfd_getfd(2) to obtain their own duplicate of this fd.
   HandleData->Pid = getpid();
-  HandleData->Fd = ExportFd.fd;
+  HandleData->Fd = DupFd;
   HandleData->Size = hPhysMem->Size;
 
   *ppIPCPhysMemHandleData = HandleData;
