@@ -23,6 +23,16 @@ etors:
       value: "0x2023"
       desc: "[$x_bool_t] returns true if the device supports inter-process communicable memory handles"
 --- #--------------------------------------------------------------------------
+type: enum
+extend: true
+typed_etors: true
+desc: "Extension enums to $x_device_info_t to support inter-process communicable physical memory handles."
+name: $x_device_info_t
+etors:
+    - name: IPC_PHYSICAL_MEMORY_SUPPORT_EXP
+      value: "0x2024"
+      desc: "[$x_bool_t] returns true if the device supports inter-process communicable physical memory handles"
+--- #--------------------------------------------------------------------------
 type: function
 desc: "Gets an inter-process memory handle for a pointer to device USM memory"
 class: $xIPC
@@ -124,5 +134,111 @@ returns:
       - "`NULL == hContext`"
     - $X_RESULT_ERROR_INVALID_NULL_POINTER:
       - "`NULL == pMem`"
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Gets an inter-process handle for a physical memory object"
+class: $xIPC
+name: GetPhysMemHandleExp
+ordinal: "0"
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context object"
+    - type: $x_physical_mem_handle_t
+      name: hPhysMem
+      desc: "[in] handle of the physical memory object"
+    - type: void**
+      name: ppIPCPhysMemHandleData
+      desc: "[out] a pointer to the IPC physical memory handle data"
+    - type: size_t*
+      name: pIPCPhysMemHandleDataSizeRet
+      desc: "[out] size of the resulting IPC physical memory handle data"
+returns:
+    - $X_RESULT_ERROR_INVALID_CONTEXT
+    - $X_RESULT_ERROR_INVALID_NULL_HANDLE:
+      - "`NULL == hContext`"
+      - "`NULL == hPhysMem`"
+    - $X_RESULT_ERROR_INVALID_NULL_POINTER:
+      - "`NULL == ppIPCPhysMemHandleData`"
+      - "`NULL == pIPCPhysMemHandleDataSizeRet`"
+    - $X_RESULT_ERROR_INVALID_ARGUMENT:
+      - "`hPhysMem` was not created with the `$X_PHYSICAL_MEM_FLAG_ENABLE_IPC` flag"
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Releases an inter-process physical memory handle"
+class: $xIPC
+name: PutPhysMemHandleExp
+ordinal: "0"
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context object"
+    - type: const void*
+      name: pIPCPhysMemHandleData
+      desc: "[in] a pointer to the IPC physical memory handle data obtained with urIPCGetPhysMemHandleExp"
+returns:
+    - $X_RESULT_ERROR_INVALID_CONTEXT
+    - $X_RESULT_ERROR_INVALID_NULL_HANDLE:
+      - "`NULL == hContext`"
+    - $X_RESULT_ERROR_INVALID_NULL_POINTER:
+      - "`NULL == pIPCPhysMemHandleData`"
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Opens an inter-process physical memory handle to get the corresponding physical memory object"
+class: $xIPC
+name: OpenPhysMemHandleExp
+ordinal: "0"
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context object"
+    - type: $x_device_handle_t
+      name: hDevice
+      desc: "[in] handle of the device object the physical memory was allocated on"
+    - type: const void *
+      name: pIPCPhysMemHandleData
+      desc: "[in] the IPC physical memory handle data obtained with urIPCGetPhysMemHandleExp"
+    - type: size_t
+      name: ipcPhysMemHandleDataSize
+      desc: "[in] size of the IPC physical memory handle data"
+    - type: $x_physical_mem_handle_t*
+      name: phPhysMem
+      desc: "[out] pointer to the physical memory handle"
+returns:
+    - $X_RESULT_ERROR_INVALID_CONTEXT
+    - $X_RESULT_ERROR_INVALID_NULL_HANDLE:
+      - "`NULL == hContext`"
+      - "`NULL == hDevice`"
+    - $X_RESULT_ERROR_INVALID_NULL_POINTER:
+      - "`NULL == pIPCPhysMemHandleData`"
+      - "`NULL == phPhysMem`"
+    - $X_RESULT_ERROR_INVALID_VALUE:
+      - "ipcPhysMemHandleDataSize is not the same as the size of IPC physical memory handle data"
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Closes an inter-process physical memory handle"
+class: $xIPC
+name: ClosePhysMemHandleExp
+ordinal: "0"
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context object"
+    - type: $x_physical_mem_handle_t
+      name: hPhysMem
+      desc: "[in] physical memory handle opened through urIPCOpenPhysMemHandleExp"
+returns:
+    - $X_RESULT_ERROR_INVALID_CONTEXT
+    - $X_RESULT_ERROR_INVALID_NULL_HANDLE:
+      - "`NULL == hContext`"
+      - "`NULL == hPhysMem`"
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES

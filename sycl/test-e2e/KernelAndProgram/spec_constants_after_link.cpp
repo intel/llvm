@@ -4,8 +4,9 @@
 // HIP backend does not currently implement linking.
 // UNSUPPORTED: hip
 
-// This test uses interop that has the ownership on a kernel.
 // UNSUPPORTED: ze_debug
+// UNSUPPORTED-INTENDED: This test uses interop that has the ownership on a
+// kernel.
 
 // XFAIL: target-native_cpu
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142
