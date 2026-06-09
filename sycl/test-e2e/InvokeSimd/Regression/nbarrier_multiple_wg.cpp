@@ -18,6 +18,7 @@
 #include <sycl/ext/intel/experimental/esimd/memory.hpp>
 #include <sycl/ext/oneapi/experimental/invoke_simd.hpp>
 #include <sycl/usm.hpp>
+#include <sycl/group_barrier.hpp>
 
 #include <functional>
 #include <iostream>

@@ -10,6 +10,7 @@
 //===----------------------------------------------------------------------===//
 #include <iostream>
 #include <sycl/detail/core.hpp>
+#include <sycl/group_barrier.hpp>
 
 using namespace sycl;
 

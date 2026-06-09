@@ -6,6 +6,7 @@
 // XFAIL: spirv-backend && arch-intel_gpu_pvc
 // XFAIL-TRACKER: https://github.com/llvm/llvm-project/issues/160602
 
+#include <sycl/group_barrier.hpp>
 #include "sycl/ext/oneapi/group_local_memory.hpp"
 #include "sycl/detail/core.hpp"
 #include "sycl/usm.hpp"

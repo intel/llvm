@@ -1,6 +1,7 @@
 // RUN: %{build} -Wno-error=unused-command-line-argument -fsycl-instrument-device-code -o %t.out
 // RUN: %{run} %t.out
 
+#include <sycl/group_barrier.hpp>
 #include "sycl/detail/core.hpp"
 #include <vector>
 
@@ -26,7 +27,7 @@ int main() {
             int pos = idx & 1;
             int opp = pos ^ 1;
             local_acc[pos] = acc[idx];
-            sycl::group_barrier(item.get_group(), sycl::memory_scope::work_group);
+            group_barrier(item.get_group());
             acc[idx] = local_acc[opp];
           });
     });
