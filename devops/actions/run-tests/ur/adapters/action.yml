@@ -23,17 +23,8 @@ runs:
       fi
       
       echo "::group::Show Full Test Adapters Logs"
-      set -x
-      pwd
       cmake --build "$BUILD_DIR" -j $(($(nproc)/3)) -- check-unified-runtime-conformance 2>&1 | tee conformance_tests.log
       EXIT_CODE=${PIPESTATUS[0]}
-      set +x
-      echo "Build exit code: $EXIT_CODE"
-      if [ -f conformance_tests.log ]; then
-        echo "Log file size: $(wc -l < conformance_tests.log) lines"
-      else
-        echo "ERROR: conformance_tests.log not created!"
-      fi
       echo "::endgroup::"
       exit $EXIT_CODE
   
@@ -41,8 +32,7 @@ runs:
     if: steps.run_tests.outcome != 'success'
     shell: bash
     run: |
-      python3 devops/scripts/ur_test_summary.py extract-errors conformance_tests.log >> $GITHUB_STEP_SUMMARY
-      python3 devops/scripts/ur_test_summary.py extract-errors conformance_tests.log
+      python3 devops/scripts/ur_test_summary.py extract-errors conformance_tests.log | tee -a $GITHUB_STEP_SUMMARY
       exit 1
   
   - name: Show conformance test statistics and lists

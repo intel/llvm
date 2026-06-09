@@ -24,17 +24,8 @@ runs:
       fi
       
       echo "::group::Show Full Test Adapter Specific Logs"
-      set -x
-      pwd
       cmake --build "$BUILD_DIR" -j $(($(nproc)/3)) -- check-unified-runtime-adapter 2>&1 | tee adapter_tests.log
       EXIT_CODE=${PIPESTATUS[0]}
-      set +x
-      echo "Build exit code: $EXIT_CODE"
-      if [ -f adapter_tests.log ]; then
-        echo "Log file size: $(wc -l < adapter_tests.log) lines"
-      else
-        echo "ERROR: adapter_tests.log not created!"
-      fi
       echo "::endgroup::"
       exit $EXIT_CODE
   
@@ -42,8 +33,7 @@ runs:
     if: steps.run_tests.outcome != 'success'
     shell: bash
     run: |
-      python3 devops/scripts/ur_test_summary.py extract-errors adapter_tests.log >> $GITHUB_STEP_SUMMARY
-      python3 devops/scripts/ur_test_summary.py extract-errors adapter_tests.log
+      python3 devops/scripts/ur_test_summary.py extract-errors adapter_tests.log | tee -a $GITHUB_STEP_SUMMARY
       exit 1
   
   - name: Show adapter specific test statistics and lists
