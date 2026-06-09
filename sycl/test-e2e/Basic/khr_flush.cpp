@@ -7,6 +7,9 @@
 #include <sycl/detail/core.hpp>
 #include <sycl/usm.hpp>
 
+#include <chrono>
+#include <thread>
+
 static void CheckArray(int *x, size_t buffer_size, int expected) {
   for (size_t i = 0; i < buffer_size; ++i) {
     assert(x[i] == expected);
@@ -33,8 +36,15 @@ void TestFunc(queue &Q) {
 
   // Call khr_flush() to flush the commands and wait for them to complete
   Q.khr_flush();
+  auto Deadline = std::chrono::steady_clock::now() + std::chrono::seconds(30);
   while (SingleTaskEv.get_info<sycl::info::event::command_execution_status>() !=
          sycl::info::event_command_status::complete) {
+    if (std::chrono::steady_clock::now() > Deadline) {
+      assert(false &&
+             "single_task in khr_flush test did not complete within 30s");
+      break;
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
   };
 
   // Check that the commands are indeed complete
@@ -48,9 +58,16 @@ void TestFunc(queue &Q) {
   });
 
   Q.khr_flush();
+  Deadline = std::chrono::steady_clock::now() + std::chrono::seconds(60);
   while (
       ParallelTaskEv.get_info<sycl::info::event::command_execution_status>() !=
       sycl::info::event_command_status::complete) {
+    if (std::chrono::steady_clock::now() > Deadline) {
+      assert(false &&
+             "parallel_for in khr_flush test did not complete within 60s");
+      break;
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
   };
 
   CheckArray(Y, Size, 200);
