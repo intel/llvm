@@ -1,11 +1,11 @@
 // REQUIRES: linux, cpu || (gpu && level_zero)
 // RUN: %{build} %device_tsan_flags -O2 -g -o %t1.out
 // RUN: %{run} %t1.out 2>&1 | FileCheck %s
-#include <sycl/group_barrier.hpp>
 #include "sycl/detail/core.hpp"
 #include "sycl/sub_group.hpp"
 #include "sycl/usm.hpp"
 #include <algorithm>
+#include <sycl/group_barrier.hpp>
 
 int main() {
   sycl::queue queue;

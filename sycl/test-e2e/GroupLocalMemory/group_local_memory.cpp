@@ -2,8 +2,8 @@
 // RUN: %{run} %t.out
 
 #include <sycl/detail/core.hpp>
-
 #include <sycl/ext/oneapi/group_local_memory.hpp>
+#include <sycl/group_barrier.hpp>
 
 #include <cassert>
 #include <vector>

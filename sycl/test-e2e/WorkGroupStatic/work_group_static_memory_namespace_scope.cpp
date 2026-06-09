@@ -3,8 +3,8 @@
 //
 
 #include <sycl/detail/core.hpp>
-
 #include <sycl/ext/oneapi/work_group_static.hpp>
+#include <sycl/group_barrier.hpp>
 
 #include <cassert>
 #include <vector>

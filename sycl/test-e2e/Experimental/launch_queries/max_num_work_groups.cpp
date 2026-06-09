@@ -2,8 +2,8 @@
 // RUN: %{run} %t.out
 
 #include <sycl/detail/core.hpp>
-#include <sycl/kernel_bundle.hpp>
 #include <sycl/group_barrier.hpp>
+#include <sycl/kernel_bundle.hpp>
 
 #include <cassert>
 #include <cstdint>

@@ -1,8 +1,8 @@
 // RUN: %{build} -Wno-error=unused-command-line-argument -fsycl-instrument-device-code -o %t.out
 // RUN: %{run} %t.out
 
-#include <sycl/group_barrier.hpp>
 #include "sycl/detail/core.hpp"
+#include <sycl/group_barrier.hpp>
 #include <vector>
 
 using namespace sycl;
