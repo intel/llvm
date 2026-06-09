@@ -108,6 +108,30 @@ TEST(FP8E8M0Test, CArrayFloatRoundingModes) {
                         rounding::upward, 0xFF));
 }
 
+TEST(FP8E8M0Test, CArrayFloatFiniteSaturationClampsToMaxNormal) {
+  EXPECT_TRUE(
+      checkCode(std::numeric_limits<float>::max(), rounding::upward, 0xFE));
+  EXPECT_TRUE(checkCode(std::numeric_limits<float>::max(),
+                        rounding::toward_zero, 0xFE));
+  EXPECT_TRUE(
+      checkCode(-std::numeric_limits<float>::max(), rounding::upward, 0xFE));
+  EXPECT_TRUE(checkCode(-std::numeric_limits<float>::max(),
+                        rounding::toward_zero, 0xFE));
+  EXPECT_TRUE(checkCode(std::numeric_limits<float>::infinity(),
+                        rounding::upward, 0xFE));
+  EXPECT_TRUE(checkCode(-std::numeric_limits<float>::infinity(),
+                        rounding::toward_zero, 0xFE));
+}
+
+TEST(FP8E8M0Test, CArrayFloatNaNDropsSign) {
+  const float PosNaN = std::numeric_limits<float>::quiet_NaN();
+  const float NegNaN = std::copysign(PosNaN, -1.0f);
+
+  EXPECT_TRUE(checkCode(PosNaN, rounding::upward, 0xFF));
+  EXPECT_TRUE(checkCode(NegNaN, rounding::upward, 0xFF));
+  EXPECT_TRUE(checkCode(NegNaN, rounding::toward_zero, 0xFF));
+}
+
 TEST(FP8E8M0Test, CArrayHalfHostUpwardFinite) {
   const sycl::half in[2] = {sycl::half(1.0f), sycl::half(1.1f)};
   const sycl::half in1[2] = {sycl::half(3.0f), sycl::half(0.0f)};
@@ -263,6 +287,40 @@ TEST(FP8E8M0Test, FloatingPointConversionOperators) {
   EXPECT_FALSE(std::signbit(static_cast<float>(hmax)));
 
   EXPECT_EQ(static_cast<float>(min), std::ldexp(1.0f, -127));
+}
+
+TEST(FP8E8M0Test, IntegerConversionOperatorsUseTowardZeroOnMagnitude) {
+  const float NegativeInput[1] = {-1.5f};
+  const float FractionalInput[1] = {0.5f};
+  const fp8_e8m0 from_negative(NegativeInput, rounding::toward_zero);
+  const fp8_e8m0 half(FractionalInput, rounding::toward_zero);
+  const fp8_e8m0 two(2.0f);
+
+  EXPECT_EQ(from_negative.vals[0], 0x7F);
+  EXPECT_EQ(half.vals[0], 0x7E);
+  EXPECT_EQ(two.vals[0], 0x80);
+
+  EXPECT_EQ(static_cast<short>(from_negative), 1);
+  EXPECT_EQ(static_cast<int>(half), 0);
+  EXPECT_EQ(static_cast<unsigned int>(half), 0u);
+  EXPECT_EQ(static_cast<long long>(two), 2);
+}
+
+TEST(FP8E8M0Test, IntegerConversionOperatorsSaturateToTypeMax) {
+  const fp8_e8m0 max(std::ldexp(1.0f, 127));
+
+  EXPECT_EQ(static_cast<short>(max), std::numeric_limits<short>::max());
+  EXPECT_EQ(static_cast<int>(max), std::numeric_limits<int>::max());
+  EXPECT_EQ(static_cast<long>(max), std::numeric_limits<long>::max());
+  EXPECT_EQ(static_cast<long long>(max), std::numeric_limits<long long>::max());
+  EXPECT_EQ(static_cast<unsigned short>(max),
+            std::numeric_limits<unsigned short>::max());
+  EXPECT_EQ(static_cast<unsigned int>(max),
+            std::numeric_limits<unsigned int>::max());
+  EXPECT_EQ(static_cast<unsigned long>(max),
+            std::numeric_limits<unsigned long>::max());
+  EXPECT_EQ(static_cast<unsigned long long>(max),
+            std::numeric_limits<unsigned long long>::max());
 }
 
 TEST(FP8E8M0Test, BoolOperatorAlwaysTrue) {

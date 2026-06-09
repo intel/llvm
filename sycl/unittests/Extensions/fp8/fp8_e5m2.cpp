@@ -90,8 +90,44 @@ TEST(FP8E5M2Test, VariadicNaNEncodingFloat) {
   fp8_e5m2_x2 a(pos_nan, neg_nan);
 
   EXPECT_EQ(sizeof(a.vals), 2u);
-  EXPECT_EQ(a.vals[0], 0x7F); // +NaN -> 0b0_11111_11
-  EXPECT_EQ(a.vals[1], 0xFF); // -NaN -> 0b1_11111_11
+  // Spec says: NaN is converted to NaN with an implementation-defined sign.
+  EXPECT_EQ(a.vals[0] & 0x7F, 0x7F); // NaN -> 0bx_11111_11
+  EXPECT_EQ(a.vals[1] & 0x7F, 0x7F); // NaN -> 0bx_11111_11
+}
+
+TEST(FP8E5M2Test, ScalarInfinityClampsToMaxNormalPreservingSign) {
+  fp8_e5m2 pos(std::numeric_limits<float>::infinity());
+  fp8_e5m2 neg(-std::numeric_limits<float>::infinity());
+
+  EXPECT_EQ(pos.vals[0], 0x7B); // +57344.0 -> 0b0_11110_11
+  EXPECT_EQ(neg.vals[0], 0xFB); // -57344.0 -> 0b1_11110_11
+
+  EXPECT_EQ(static_cast<float>(pos), 57344.0f);
+  EXPECT_EQ(static_cast<float>(neg), -57344.0f);
+}
+
+TEST(FP8E5M2Test, X2InfinityClampsToMaxNormalPreservingSign) {
+  const float in[2] = {std::numeric_limits<float>::infinity(),
+                       -std::numeric_limits<float>::infinity()};
+  fp8_e5m2_x2 value(in);
+
+  EXPECT_EQ(value.vals[0], 0x7B); // +57344.0 -> 0b0_11110_11
+  EXPECT_EQ(value.vals[1], 0xFB); // -57344.0 -> 0b1_11110_11
+
+  sycl::marray<float, 2> out = static_cast<sycl::marray<float, 2>>(value);
+  EXPECT_EQ(out[0], 57344.0f);
+  EXPECT_EQ(out[1], -57344.0f);
+}
+
+TEST(FP8E5M2Test, ScalarFiniteOverflowClampsToMaxNormalPreservingSign) {
+  fp8_e5m2 pos(100000.0f);
+  fp8_e5m2 neg(-100000.0f);
+
+  EXPECT_EQ(pos.vals[0], 0x7B); // +57344.0 -> 0b0_11110_11
+  EXPECT_EQ(neg.vals[0], 0xFB); // -57344.0 -> 0b1_11110_11
+
+  EXPECT_EQ(static_cast<float>(pos), 57344.0f);
+  EXPECT_EQ(static_cast<float>(neg), -57344.0f);
 }
 
 TEST(FP8E5M2Test, RawInfinityAndNaNDecoding) {
@@ -443,6 +479,40 @@ TEST(FP8E5M2Test, IntegerConversionOperators) {
   EXPECT_EQ(static_cast<unsigned long long>(p), 1u);
 }
 
+TEST(FP8E5M2Test, IntegerConversionOperatorsSaturatePositiveOutOfRange) {
+  fp8_e5m2 value(57344.0f);
+
+  signed char sc = static_cast<signed char>(value);
+  unsigned char uc = static_cast<unsigned char>(value);
+
+  EXPECT_EQ(sc, std::numeric_limits<signed char>::max());
+  EXPECT_EQ(uc, std::numeric_limits<unsigned char>::max());
+}
+
+TEST(FP8E5M2Test, IntegerConversionOperatorsSaturateNegativeOutOfRange) {
+  fp8_e5m2 value(-57344.0f);
+
+  signed char sc = static_cast<signed char>(value);
+  unsigned char uc = static_cast<unsigned char>(value);
+
+  EXPECT_EQ(sc, std::numeric_limits<signed char>::min());
+  EXPECT_EQ(uc, 0);
+}
+
+TEST(FP8E5M2Test, IntegerConversionOperatorsInfinitySaturateToTypeBounds) {
+  fp8_e5m2 pos_inf;
+  fp8_e5m2 neg_inf;
+
+  pos_inf.vals[0] = 0x7C; // +inf -> 0b0_11111_00
+  neg_inf.vals[0] = 0xFC; // -inf -> 0b1_11111_00
+
+  EXPECT_EQ(static_cast<int>(pos_inf), std::numeric_limits<int>::max());
+  EXPECT_EQ(static_cast<int>(neg_inf), std::numeric_limits<int>::min());
+  EXPECT_EQ(static_cast<unsigned int>(pos_inf),
+            std::numeric_limits<unsigned int>::max());
+  EXPECT_EQ(static_cast<unsigned int>(neg_inf), 0u);
+}
+
 TEST(FP8E5M2Test, AssignmentOperatorsAllTypes) {
   fp8_e5m2 a(0.0f);
 
@@ -499,6 +569,59 @@ TEST(FP8E5M2Test, BoolOperatorWithNaN) {
   EXPECT_FALSE(static_cast<bool>(zn));
   EXPECT_TRUE(static_cast<bool>(nanv)); // not +0 or -0
   EXPECT_EQ(nanv.vals[0], 0x7F);        // NaN encoding remains S.11111.11
+}
+
+TEST(FP8E5M2Test, CArrayFloatRoundingToEven) {
+  const float in[2] = {1.125f, 100000.0f};
+  fp8_e5m2_x2 a(in, rounding::to_even);
+
+  EXPECT_EQ(a.vals[0], 0x3C); // tie -> to_even => 1.0
+  EXPECT_EQ(a.vals[1], 0x7B); // finite saturation => +57344.0
+}
+
+TEST(FP8E5M2Test, CArrayHalfRoundingToEven) {
+  const sycl::half in[2] = {sycl::half(1.125f), sycl::half(100000.0f)};
+  fp8_e5m2_x2 a(in, rounding::to_even);
+
+  EXPECT_EQ(a.vals[0], 0x3C); // tie -> to_even => 1.0
+  EXPECT_EQ(a.vals[1], 0x7B); // finite saturation => +57344.0
+}
+
+TEST(FP8E5M2Test, CArrayBFloat16RoundingToEven) {
+  const sycl::ext::oneapi::bfloat16 in[2] = {
+      sycl::ext::oneapi::bfloat16(1.125f),
+      sycl::ext::oneapi::bfloat16(100000.0f)};
+  fp8_e5m2_x2 a(in, rounding::to_even);
+
+  EXPECT_EQ(a.vals[0], 0x3C); // tie -> to_even => 1.0
+  EXPECT_EQ(a.vals[1], 0x7B); // finite saturation => +57344.0
+}
+
+TEST(FP8E5M2Test, MarrayHalfRoundingToEven) {
+  const sycl::marray<sycl::half, 2> in = {sycl::half(1.125f),
+                                          sycl::half(-1.375f)};
+  fp8_e5m2_x2 a(in, rounding::to_even);
+
+  EXPECT_EQ(a.vals[0], 0x3C); // tie -> to_even => 1.0
+  EXPECT_EQ(a.vals[1], 0xBE); // tie -> to_even => -1.5
+}
+
+TEST(FP8E5M2Test, MarrayBFloat16RoundingToEven) {
+  const sycl::marray<sycl::ext::oneapi::bfloat16, 2> in = {
+      sycl::ext::oneapi::bfloat16(1.125f),
+      sycl::ext::oneapi::bfloat16(-1.375f)};
+  fp8_e5m2_x2 a(in, rounding::to_even);
+
+  EXPECT_EQ(a.vals[0], 0x3C); // tie -> to_even => 1.0
+  EXPECT_EQ(a.vals[1], 0xBE); // tie -> to_even => -1.5
+}
+
+TEST(FP8E5M2Test, MarrayFloatRoundingToEven) {
+  const sycl::marray<float, 2> in = {1.125f, -1.375f};
+  fp8_e5m2_x2 a(in, rounding::to_even);
+
+  EXPECT_EQ(a.vals[0], 0x3C); // tie -> to_even => 1.0
+  EXPECT_EQ(a.vals[1], 0xBE); // tie -> to_even => -1.5
 }
 
 TEST(FP8E5M2Test, VariadicMixedScalarTypes) {

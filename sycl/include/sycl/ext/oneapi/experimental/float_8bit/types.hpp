@@ -763,8 +763,17 @@ static inline ToT ConvertFromFP8ToBinaryFloat_CPU(uint8_t code,
                        Traits::IsIntegral) {
     using UnsignedT = typename Traits::UnsignedT;
 
-    if (isNaN || isInf)
+    if (isNaN)
       return ToT{};
+
+    if (isInf) {
+      if constexpr (Traits::IsSigned) {
+        return negative ? std::numeric_limits<ToT>::min()
+                        : std::numeric_limits<ToT>::max();
+      } else {
+        return negative ? ToT{0} : std::numeric_limits<ToT>::max();
+      }
+    }
 
     if (significand == 0u)
       return ToT{};
@@ -773,8 +782,13 @@ static inline ToT ConvertFromFP8ToBinaryFloat_CPU(uint8_t code,
     uint64_t magnitude = 0u;
 
     if (shift >= 0) {
-      if (shift >= 64)
-        return ToT{};
+      if (shift >= 64) {
+        // Value is too large - saturate to max
+        if constexpr (Traits::IsSigned)
+          return std::numeric_limits<ToT>::max();
+        else
+          return std::numeric_limits<ToT>::max();
+      }
       magnitude = static_cast<uint64_t>(significand) << shift;
     } else {
       const int rshift = -shift;
@@ -805,8 +819,13 @@ static inline ToT ConvertFromFP8ToBinaryFloat_CPU(uint8_t code,
     if (magnitude == 0u)
       return ToT{};
 
-    if (BitWidth(magnitude) > Traits::ValueBits)
-      return ToT{};
+    if (BitWidth(magnitude) > Traits::ValueBits) {
+      if constexpr (Traits::IsSigned)
+        return negative ? std::numeric_limits<ToT>::min()
+                        : std::numeric_limits<ToT>::max();
+      else
+        return negative ? ToT{0} : std::numeric_limits<ToT>::max();
+    }
 
     const UnsignedT narrowed = static_cast<UnsignedT>(magnitude);
     if constexpr (Traits::IsSigned)

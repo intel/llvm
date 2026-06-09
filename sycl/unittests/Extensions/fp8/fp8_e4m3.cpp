@@ -110,8 +110,10 @@ TEST(FP8E4M3Test, VariadicNaNEncodingFloat) {
   float neg_nan = std::copysign(pos_nan, -1.0f);
 
   fp8_e4m3_x2 a(pos_nan, neg_nan);
-  EXPECT_EQ(a.vals[0], 0x7F); // +NaN -> 0b0_1111_111
-  EXPECT_EQ(a.vals[1], 0xFF); // -NaN -> 0b1_1111_111
+
+  // Spec says: NaN is converted to NaN with an implementation-defined sign.
+  EXPECT_EQ(a.vals[0] & 0x7F, 0x7F); // NaN -> 0bx_11111_11
+  EXPECT_EQ(a.vals[1] & 0x7F, 0x7F); // NaN -> 0bx_11111_11
 }
 
 TEST(FP8E4M3Test, ScalarInfinityClampsToMaxNormalPreservingSign) {
@@ -130,6 +132,29 @@ TEST(FP8E4M3Test, ScalarInfinityClampsToMaxNormalPreservingSign) {
 TEST(FP8E4M3Test, X2InfinityClampsToMaxNormalPreservingSign) {
   const float in[2] = {std::numeric_limits<float>::infinity(),
                        -std::numeric_limits<float>::infinity()};
+  fp8_e4m3_x2 value(in);
+
+  EXPECT_EQ(value.vals[0], 0x7E); // +448.0 -> 0b0_1111_110
+  EXPECT_EQ(value.vals[1], 0xFE); // -448.0 -> 0b1_1111_110
+
+  sycl::marray<float, 2> out = static_cast<sycl::marray<float, 2>>(value);
+  EXPECT_EQ(out[0], 448.0f);
+  EXPECT_EQ(out[1], -448.0f);
+}
+
+TEST(FP8E4M3Test, ScalarFiniteOverflowClampsToMaxNormalPreservingSign) {
+  fp8_e4m3 pos(1000.0f);
+  fp8_e4m3 neg(-1000.0f);
+
+  EXPECT_EQ(pos.vals[0], 0x7E); // +448.0 -> 0b0_1111_110
+  EXPECT_EQ(neg.vals[0], 0xFE); // -448.0 -> 0b1_1111_110
+
+  EXPECT_EQ(static_cast<float>(pos), 448.0f);
+  EXPECT_EQ(static_cast<float>(neg), -448.0f);
+}
+
+TEST(FP8E4M3Test, X2FiniteOverflowClampsToMaxNormalPreservingSign) {
+  const float in[2] = {1000.0f, -1000.0f};
   fp8_e4m3_x2 value(in);
 
   EXPECT_EQ(value.vals[0], 0x7E); // +448.0 -> 0b0_1111_110
@@ -254,7 +279,7 @@ TEST(FP8E4M3Test, IntegerConversionOperatorsTowardZero) {
 }
 
 TEST(FP8E4M3Test, BoolOperatorZeroRules) {
-  // bool operator: false iff +0 or -0; otherwise true.
+  // bool operator: false if +0 or -0; otherwise true.
   fp8_e4m3 zp(0.0f);
   fp8_e4m3 zn(-0.0f);
   fp8_e4m3 one(1.0f);
@@ -471,6 +496,26 @@ TEST(FP8E4M3Test, IntegerConversionOperatorsRemainingWidthsTowardZero) {
   EXPECT_EQ(ui, 30u);
   EXPECT_EQ(ul, 44ul);
   EXPECT_EQ(ull, 88ull);
+}
+
+TEST(FP8E4M3Test, IntegerConversionOperatorsSaturatePositiveOutOfRange) {
+  fp8_e4m3 value(448.0f);
+
+  signed char sc = static_cast<signed char>(value);
+  unsigned char uc = static_cast<unsigned char>(value);
+
+  EXPECT_EQ(sc, std::numeric_limits<signed char>::max());
+  EXPECT_EQ(uc, std::numeric_limits<unsigned char>::max());
+}
+
+TEST(FP8E4M3Test, IntegerConversionOperatorsSaturateNegativeOutOfRange) {
+  fp8_e4m3 value(-448.0f);
+
+  signed char sc = static_cast<signed char>(value);
+  unsigned char uc = static_cast<unsigned char>(value);
+
+  EXPECT_EQ(sc, std::numeric_limits<signed char>::min());
+  EXPECT_EQ(uc, 0);
 }
 
 TEST(FP8E4M3Test, CArrayFloatRoundingToEven) {
