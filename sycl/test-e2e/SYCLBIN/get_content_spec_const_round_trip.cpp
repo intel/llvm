@@ -44,8 +44,7 @@ int main() {
 
   // Build an executable bundle the normal way and prove the kernel reads
   // the spec const's default value.
-  auto KB =
-      sycl::get_kernel_bundle<sycl::bundle_state::executable>(Ctx, {Dev});
+  auto KB = sycl::get_kernel_bundle<sycl::bundle_state::executable>(Ctx, {Dev});
 
   int32_t *Out = sycl::malloc_shared<int32_t>(1, Q);
   *Out = -1;

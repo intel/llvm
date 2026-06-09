@@ -525,7 +525,6 @@ TEST(SYCLBINSerialize, OffloadAndSYCLBINMagicsPresent) {
   EXPECT_EQ(Parsed.Version, 1u);
 }
 
-
 // Round-trip property of the new serializeKernelArgMask helper:
 // serializeKernelArgMask must produce a byte layout that createKernelArgMask
 // reads back into the exact same bit sequence. This is the inverse property

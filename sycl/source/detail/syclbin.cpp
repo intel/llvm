@@ -296,8 +296,7 @@ void overrideKernelParamOpt(PropertySetRegistry &Reg, device_image_impl &Img) {
   for (const auto &[KernelName, Mask] : Masks) {
     std::vector<std::uint8_t> Bytes = serializeKernelArgMask(Mask);
     Set[KernelName] = PropertyValue{
-        Bytes.data(),
-        static_cast<PropertyValue::SizeTy>(Bytes.size() * 8)};
+        Bytes.data(), static_cast<PropertyValue::SizeTy>(Bytes.size() * 8)};
   }
 }
 
@@ -335,8 +334,8 @@ void overrideSpecConstants(PropertySetRegistry &Reg, device_image_impl &Img) {
     }
     Descriptors[Name] = PropertyValue{
         reinterpret_cast<const PropertyValue::byte *>(Packed.data()),
-        static_cast<PropertyValue::SizeTy>(Packed.size() * sizeof(std::uint32_t)
-                                           * 8)};
+        static_cast<PropertyValue::SizeTy>(Packed.size() *
+                                           sizeof(std::uint32_t) * 8)};
   }
 
   // Default-value blob, sliced per spec constant from MSpecConstsBlob.

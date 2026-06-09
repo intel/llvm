@@ -44,12 +44,10 @@ sycl::unittest::MockDeviceImage makeImageWithSpecConst() {
 
   // Build descriptor property using the mock helper.
   std::vector<char> ValData;
-  MockProperty SCDescriptor =
-      makeSpecConstant<uint32_t>(ValData, "my_spec_const",
-                                 {ScalarSpecConst::ID},
-                                 {ScalarSpecConst::Offset},
-                                 std::tuple<uint32_t>{
-                                     ScalarSpecConst::DefaultValue});
+  MockProperty SCDescriptor = makeSpecConstant<uint32_t>(
+      ValData, "my_spec_const", {ScalarSpecConst::ID},
+      {ScalarSpecConst::Offset},
+      std::tuple<uint32_t>{ScalarSpecConst::DefaultValue});
 
   MockPropertySet PropSet;
   addSpecConstants({std::move(SCDescriptor)}, std::move(ValData), PropSet);
@@ -83,8 +81,7 @@ TEST(SYCLBINSerializeSpecConst, DescriptorAndDefaultValueRoundTrip) {
   const sycl::device Dev = sycl::platform().get_devices()[0];
   sycl::context Ctx{Dev};
 
-  auto KB =
-      sycl::get_kernel_bundle<sycl::bundle_state::executable>(Ctx, {Dev});
+  auto KB = sycl::get_kernel_bundle<sycl::bundle_state::executable>(Ctx, {Dev});
 
   std::vector<char> Bytes =
       sycl::detail::getSyclObjImpl(KB)->ext_oneapi_get_content();
@@ -108,8 +105,7 @@ TEST(SYCLBINSerializeSpecConst, DescriptorAndDefaultValueRoundTrip) {
     // Descriptor: 3 little-endian uint32_t per scalar leaf -> ID, Offset,
     // Size.
     ASSERT_EQ(DescIt->second.getType(), PropertyValue::BYTE_ARRAY);
-    const PropertyValue::SizeTy DescBytes =
-        DescIt->second.getByteArraySize();
+    const PropertyValue::SizeTy DescBytes = DescIt->second.getByteArraySize();
     ASSERT_EQ(DescBytes, 3u * sizeof(uint32_t));
     uint32_t Triple[3];
     std::memcpy(Triple, DescIt->second.asByteArray(), sizeof(Triple));

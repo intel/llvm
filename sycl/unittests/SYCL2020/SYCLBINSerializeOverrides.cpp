@@ -46,8 +46,7 @@ sycl::unittest::MockDeviceImageArray<std::size(Imgs)> ImgArray{Imgs};
 
 // Find a property by name in the [SYCL/kernel names] property set of any
 // abstract module.
-bool hasKernelName(const sycl::detail::SYCLBIN &Parsed,
-                   std::string_view Name) {
+bool hasKernelName(const sycl::detail::SYCLBIN &Parsed, std::string_view Name) {
   for (const auto &AM : Parsed.AbstractModules) {
     if (!AM.Metadata)
       continue;
@@ -75,8 +74,8 @@ TEST(SYCLBINSerializeOverrides, KernelNamesPresentForScopedBundle) {
 
   std::vector<sycl::kernel_id> KIDs{
       sycl::get_kernel_id<SYCLBINOverridesKernelA>()};
-  auto KB = sycl::get_kernel_bundle<sycl::bundle_state::executable>(Ctx, {Dev},
-                                                                    KIDs);
+  auto KB =
+      sycl::get_kernel_bundle<sycl::bundle_state::executable>(Ctx, {Dev}, KIDs);
 
   std::vector<char> Bytes =
       sycl::detail::getSyclObjImpl(KB)->ext_oneapi_get_content();
@@ -99,8 +98,8 @@ TEST(SYCLBINSerializeOverrides, KernelNamesAllPresent) {
   std::vector<sycl::kernel_id> KIDs{
       sycl::get_kernel_id<SYCLBINOverridesKernelA>(),
       sycl::get_kernel_id<SYCLBINOverridesKernelB>()};
-  auto KB = sycl::get_kernel_bundle<sycl::bundle_state::executable>(Ctx, {Dev},
-                                                                    KIDs);
+  auto KB =
+      sycl::get_kernel_bundle<sycl::bundle_state::executable>(Ctx, {Dev}, KIDs);
 
   std::vector<char> Bytes =
       sycl::detail::getSyclObjImpl(KB)->ext_oneapi_get_content();
