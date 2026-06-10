@@ -6442,6 +6442,32 @@ public:
     TA.print(Policy, OS, false /* IncludeType */);
   }
 
+  void VisitDeclarationTemplateArgument(const TemplateArgument &TA) {
+    // A non-type template argument that refers to a function template
+    // specialization (e.g. a free function kernel pointer such as
+    // `&vec_add_kernel<int>`) is printed by TemplateArgument::print using only
+    // the function's qualified name, dropping its template arguments. This
+    // produces an ambiguous `<overloaded function type>` initializer in the
+    // integration header. Emit the template arguments explicitly so the
+    // resulting kernel name type names the exact specialization.
+    const ValueDecl *VD = TA.getAsDecl();
+    const auto *FD = dyn_cast<FunctionDecl>(VD);
+    const TemplateArgumentList *TAL =
+        FD ? FD->getTemplateSpecializationArgs() : nullptr;
+    if (!TAL) {
+      VisitTemplateArgument(TA);
+      return;
+    }
+
+    const QualType ParamType = TA.getParamTypeForDecl();
+    if (ParamType->isPointerType() || ParamType->isMemberPointerType())
+      OS << "&";
+    VD->printQualifiedName(OS, Policy);
+    OS << "<";
+    printTemplateArgs(TAL->asArray());
+    OS << ">";
+  }
+
   void VisitTypeTemplateArgument(const TemplateArgument &TA) {
     Policy.SuppressTagKeyword = true;
     QualType T = TA.getAsType();
@@ -7418,6 +7444,13 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   O << "} // namespace detail\n";
   O << "} // namespace _V1\n";
   O << "} // namespace sycl\n";
+
+  // The rest of this function only applies to free-function kernels. However,
+  // in RTC mode, we do not need integration header information for
+  // free-function kernels, so we can return early here.
+  if (S.getLangOpts().SYCLRTCMode) {
+    return;
+  }
 
   unsigned ShimCounter = 1;
   int FreeFunctionCount = 0;
