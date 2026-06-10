@@ -314,7 +314,15 @@ public:
   std::optional<ExtensionID> getRequiredExtension() const override {
     if (getLinkageType() == SPIRVLinkageTypeKind::LinkageTypeLinkOnceODR)
       return ExtensionID::SPV_KHR_linkonce_odr;
+    if (getLinkageType() == SPIRVLinkageTypeKind::LinkageTypeWeakAMD)
+      return ExtensionID::SPV_AMD_weak_linkage;
     return {};
+  }
+
+  SPIRVCapVec getRequiredCapability() const override {
+    if (getLinkageType() == SPIRVLinkageTypeKind::LinkageTypeWeakAMD)
+      return getVec(CapabilityLinkage, CapabilityWeakLinkageAMD);
+    return SPIRVDecorate::getRequiredCapability();
   }
 };
 

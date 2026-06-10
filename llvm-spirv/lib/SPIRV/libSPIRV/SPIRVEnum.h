@@ -81,6 +81,9 @@ enum SPIRVExtInstSetKind {
   SPIRVEIS_NonSemantic_Shader_DebugInfo_100,
   SPIRVEIS_NonSemantic_Shader_DebugInfo_200,
   SPIRVEIS_NonSemantic_AuxData,
+  // Sentinel kind for any "NonSemantic.*" extended instruction set the
+  // translator does not recognize.
+  SPIRVEIS_NonSemantic_Unknown,
   SPIRVEIS_Count,
 };
 
@@ -312,6 +315,7 @@ template <> inline void SPIRVMap<SPIRVExecutionModeKind, SPIRVCapVec>::init() {
                {CapabilityRegisterLimitsINTEL});
   ADD_VEC_INIT(ExecutionModeNamedMaximumRegistersINTEL,
                {CapabilityRegisterLimitsINTEL});
+  ADD_VEC_INIT(ExecutionModeArithmeticPoisonKHR, {CapabilityPoisonFreezeKHR});
 }
 
 template <> inline void SPIRVMap<SPIRVMemoryModelKind, SPIRVCapVec>::init() {

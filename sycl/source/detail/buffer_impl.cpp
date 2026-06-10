@@ -12,6 +12,7 @@
 #include <detail/memory_manager.hpp>
 #include <detail/scheduler/scheduler.hpp>
 #include <detail/xpti_registry.hpp>
+#include <sycl/detail/code_location.hpp>
 #include <sycl/detail/ur.hpp>
 #include <sycl/properties/buffer_properties.hpp>
 
