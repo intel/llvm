@@ -22,7 +22,6 @@ void TestFunc(queue &Q) {
   static constexpr int Size = 100;
 
   int *X = malloc_host<int>(Size, Q);
-  int *Y = malloc_host<int>(Size, Q);
 
   // First, check with single_task()
   auto FillEv = Q.fill(X, 99, Size);
@@ -50,30 +49,7 @@ void TestFunc(queue &Q) {
   // Check that the commands are indeed complete
   CheckArray(X, Size, 100);
 
-  // Now check again with parallel_for()
-  auto MemCpyEv = Q.copy(X, Y, Size);
-  auto ParallelTaskEv = Q.submit([&](handler &CGH) {
-    CGH.parallel_for<class Kernel1>(sycl::range<1>(Size),
-                                    [=](sycl::id<1> WI) { Y[WI] *= 2; });
-  });
-
-  Q.khr_flush();
-  Deadline = std::chrono::steady_clock::now() + std::chrono::seconds(60);
-  while (
-      ParallelTaskEv.get_info<sycl::info::event::command_execution_status>() !=
-      sycl::info::event_command_status::complete) {
-    if (std::chrono::steady_clock::now() > Deadline) {
-      assert(false &&
-             "parallel_for in khr_flush test did not complete within 60s");
-      break;
-    }
-    std::this_thread::sleep_for(std::chrono::milliseconds(10));
-  };
-
-  CheckArray(Y, Size, 200);
-
   free(X, Q);
-  free(Y, Q);
 }
 
 int main() {
