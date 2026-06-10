@@ -13,6 +13,7 @@
 
 #include <sycl/ext/oneapi/bindless_images.hpp>
 #include <sycl/ext/oneapi/memcpy2d.hpp>
+#include <sycl/half_type.hpp>
 #include <sycl/usm.hpp>
 
 // Uncomment to print additional test information
