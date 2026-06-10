@@ -12,6 +12,7 @@
 #include <detail/ur.hpp>
 #include <sycl/backend_types.hpp>
 #include <sycl/detail/common.hpp>
+#include <sycl/detail/defines.hpp>
 #include <sycl/detail/iostream_proxy.hpp>
 #include <sycl/detail/type_traits.hpp>
 
