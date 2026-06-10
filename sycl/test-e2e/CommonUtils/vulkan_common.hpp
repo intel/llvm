@@ -11,6 +11,7 @@
 #include <cstring>
 #include <iostream>
 #include <set>
+#include <sycl/ext/intel/info/device.hpp>
 #include <sycl/ext/oneapi/bindless_images.hpp>
 #include <vector>
 
