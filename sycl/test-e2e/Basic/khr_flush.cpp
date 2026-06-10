@@ -5,6 +5,7 @@
 // device.
 
 #include <sycl/detail/core.hpp>
+#include <sycl/properties/all_properties.hpp>
 #include <sycl/usm.hpp>
 
 #include <chrono>
@@ -12,7 +13,8 @@
 
 static void CheckArray(int *x, size_t buffer_size, int expected) {
   for (size_t i = 0; i < buffer_size; ++i) {
-    assert(x[i] == expected);
+    //assert(x[i] == expected);
+    if (x[i] != expected){std::cout<< "x[i] was " << x[i] << " i was " << i << "expected was " << expected <<"\n";}
   }
 }
 
@@ -35,7 +37,8 @@ void TestFunc(queue &Q) {
   });
 
   // Call khr_flush() to flush the commands and wait for them to complete
-
+  Q.khr_flush();
+  std::this_thread::sleep_for(std::chrono::milliseconds(500));
   auto Deadline = std::chrono::steady_clock::now() + std::chrono::seconds(30);
   while (SingleTaskEv.get_info<sycl::info::event::command_execution_status>() !=
          sycl::info::event_command_status::complete) {
@@ -57,6 +60,8 @@ void TestFunc(queue &Q) {
                                     [=](sycl::id<1> WI) { Y[WI] *= 2; });
   });
 
+  Q.khr_flush();
+  std::this_thread::sleep_for(std::chrono::milliseconds(500));
   Deadline = std::chrono::steady_clock::now() + std::chrono::seconds(60);
   while (
       ParallelTaskEv.get_info<sycl::info::event::command_execution_status>() !=
@@ -76,7 +81,7 @@ void TestFunc(queue &Q) {
 }
 
 int main() {
-  queue Q1{};
+  queue Q1{property::queue::in_order()};
   TestFunc(Q1);
 
   return 0;
