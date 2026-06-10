@@ -700,7 +700,7 @@ void OCLToSPIRVBase::visitCallAtomicLegacy(CallInst *CI, StringRef MangledName,
     PostOps.push_back(OCLLegacyAtomicMemOrder);
   PostOps.push_back(OCLLegacyAtomicMemScope);
 
-  Info.PostProc = [=](BuiltinCallMutator &Mutator) {
+  Info.PostProc = [this, PostOps](BuiltinCallMutator &Mutator) {
     for (auto &I : PostOps) {
       Mutator.appendArg(addInt32(I));
     }
@@ -744,7 +744,7 @@ void OCLToSPIRVBase::visitCallAtomicCpp11(CallInst *CI, StringRef MangledName,
 
   OCLBuiltinTransInfo Info;
   Info.UniqName = std::string("atomic_") + NewStem;
-  Info.PostProc = [=](BuiltinCallMutator &Mutator) {
+  Info.PostProc = [this, PostOps](BuiltinCallMutator &Mutator) {
     for (auto &I : PostOps) {
       Mutator.appendArg(addInt32(I));
     }
@@ -1125,7 +1125,7 @@ void OCLToSPIRVBase::visitCallReadImageWithSampler(CallInst *CI,
   // SPIR-V instruction always returns 4-element vector
   if (IsRetScalar)
     Mutator.changeReturnType(FixedVectorType::get(Ret, 4),
-                             [=](IRBuilder<> &Builder, CallInst *NewCI) {
+                             [this](IRBuilder<> &Builder, CallInst *NewCI) {
                                return Builder.CreateExtractElement(
                                    NewCI, getSizet(M, 0));
                              });
@@ -1279,7 +1279,7 @@ void OCLToSPIRVBase::visitCallRelational(CallInst *CI,
   // i1 or <i1 x N>, depending on whether it returns a vector type.
   Type *BoolTy = CI->getType()->getWithNewType(Type::getInt1Ty(*Ctx));
   mutateCallInst(CI, OC).changeReturnType(
-      BoolTy, [=](IRBuilder<> &Builder, CallInst *NewCI) {
+      BoolTy, [this, CI](IRBuilder<> &Builder, CallInst *NewCI) {
         Value *TrueOp = CI->getType()->isVectorTy()
                             ? Constant::getAllOnesValue(CI->getType())
                             : getInt32(M, 1);
@@ -1697,7 +1697,8 @@ void OCLToSPIRVBase::visitCallKernelQuery(CallInst *CI,
   AttributeList Attrs = CI->getCalledFunction()->getAttributes();
   ::mutateCallInst(
       M, CI,
-      [=](CallInst *CI, std::vector<Value *> &Args) {
+      [this, DemangledName, DL, BlockFIdx, BlockF](CallInst *CI,
+                                                   std::vector<Value *> &Args) {
         Value *Param = *Args.rbegin();
         Type *ParamType = getBlockStructType(Param);
         // Last arg corresponds to SPIRV Param operand.

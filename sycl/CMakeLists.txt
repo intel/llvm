@@ -355,6 +355,26 @@ endif()
 set(SYCL_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 
 if(SYCL_HEADERS_ONLY)
+  # The libdevice project can be built alongside the SYCL headers without the
+  # full SYCL runtime. It depends on the `sycl-compiler` aggregate target to
+  # ensure the tools used to build the device libraries are available. The full
+  # `sycl-compiler` target is defined after this early return, so provide a
+  # minimal equivalent here that aggregates whichever toolchain components are
+  # present in this build (e.g. for SPIR/SPIRV device libraries only clang,
+  # llvm-link and llvm-spirv are required).
+  if(NOT TARGET sycl-compiler)
+    add_custom_target(sycl-compiler)
+    foreach(sycl_compiler_tool
+        append-file clang clang-offload-bundler clang-offload-deps
+        clang-offload-extract clang-offload-wrapper clang-linker-wrapper
+        file-table-tform llc llvm-ar llvm-foreach llvm-link
+        llvm-offload-binary llvm-objcopy llvm-spirv spirv-to-ir-wrapper
+        sycl-post-link)
+      if(TARGET ${sycl_compiler_tool})
+        add_dependencies(sycl-compiler ${sycl_compiler_tool})
+      endif()
+    endforeach()
+  endif()
   return()
 endif()
 

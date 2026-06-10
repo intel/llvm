@@ -147,9 +147,13 @@
 		urGraphIsEmptyExp;
 		urGraphSetDestructionCallbackExp;
 		urIPCCloseMemHandleExp;
+		urIPCClosePhysMemHandleExp;
 		urIPCGetMemHandleExp;
+		urIPCGetPhysMemHandleExp;
 		urIPCOpenMemHandleExp;
+		urIPCOpenPhysMemHandleExp;
 		urIPCPutMemHandleExp;
+		urIPCPutPhysMemHandleExp;
 		urKernelCreate;
 		urKernelCreateWithNativeHandle;
 		urKernelGetGroupInfo;
@@ -397,9 +401,13 @@
 		urPrintImageFormat;
 		urPrintImageInfo;
 		urPrintIpcCloseMemHandleExpParams;
+		urPrintIpcClosePhysMemHandleExpParams;
 		urPrintIpcGetMemHandleExpParams;
+		urPrintIpcGetPhysMemHandleExpParams;
 		urPrintIpcOpenMemHandleExpParams;
+		urPrintIpcOpenPhysMemHandleExpParams;
 		urPrintIpcPutMemHandleExpParams;
+		urPrintIpcPutPhysMemHandleExpParams;
 		urPrintKernelArgLocalProperties;
 		urPrintKernelArgMemObjProperties;
 		urPrintKernelArgPointerProperties;
