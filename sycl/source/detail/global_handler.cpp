@@ -310,10 +310,20 @@ void shutdown_early(bool CanJoinThreads = true) {
   if (!GlobalHandler::RTGlobalObjHandler)
     return;
 
-#if defined(XPTI_ENABLE_INSTRUMENTATION) && defined(_WIN32)
-  if (xptiTraceEnabled())
-    return; // When doing xpti tracing, we can't safely shutdown on Win.
-            // TODO: figure out why XPTI prevents release.
+#if defined(_WIN32)
+  // In Windows ExitProcess all non host threads are forcibly terminated prior
+  // to DLL_PROCESS_DETACH. However, backend calls may rely on these threads
+  // being active. In such cases, making backend calls at DLL_PROCESS_DETACH
+  // can lead to hangs or memory corruption in the backend. Because of this it
+  // is best to not unload the backend after thread destruction.
+  //
+  // Process is exiting
+  if (CanJoinThreads) {
+    // If spawned threads using the Windows CRT are forcibly killed, this can
+    // prevent stdout buffer being flushed at the program end.
+    std::fflush(stdout);
+    return;
+  }
 #endif
 
   // Now that we are shutting down, we will no longer defer MemObj releases.
@@ -355,10 +365,17 @@ void shutdown_late() {
   if (!GlobalHandler::RTGlobalObjHandler)
     return;
 
-#if defined(XPTI_ENABLE_INSTRUMENTATION) && defined(_WIN32)
-  if (xptiTraceEnabled())
-    return; // When doing xpti tracing, we can't safely shutdown on Win.
-            // TODO: figure out why XPTI prevents release.
+#if defined(_WIN32)
+  // In Windows ExitProcess all non host threads are forcibly terminated prior
+  // to DLL_PROCESS_DETACH. However, backend calls may rely on these threads
+  // being active. In such cases, making backend calls at DLL_PROCESS_DETACH
+  // can lead to hangs or use-after-free in the backend. Because of this it is
+  // best to not unload the backend after thread destruction.
+  //
+  // If spawned threads using the Windows CRT are forcibly killed, this can
+  // prevent stdout buffer being flushed at the program end.
+  std::fflush(stdout);
+  return;
 #endif
 
   // First, release resources, that may access adapters.
