@@ -458,7 +458,7 @@ void nd_launch(queue Q, nd_range<Dimensions> Range,
   detail::submit_kernel_direct_parallel_for<
       detail::NdRangeFreeFunctionKernelWrapper<Func, Dimensions, 1, ArgsT...>>(
       std::move(Q), Range,
-      [Args...](sycl::nd_range<Dimensions>) { Func(Args...); });
+      [Args...](sycl::nd_item<Dimensions>) { Func(Args...); });
 }
 
 template <auto *Func, int Dimensions, typename... ArgsT>
@@ -467,7 +467,7 @@ void nd_launch(handler &CGH, nd_range<Dimensions> Range,
                ArgsT &&...Args) {
   CGH.parallel_for<
       detail::NdRangeFreeFunctionKernelWrapper<Func, Dimensions, 2, ArgsT...>>(
-      Range, [Args...](sycl::nd_range<Dimensions>) { Func(Args...); });
+      Range, [Args...](sycl::nd_item<Dimensions>) { Func(Args...); });
 }
 
 template <auto *Func, int Dimensions, typename Properties, typename... ArgsT>
@@ -481,7 +481,7 @@ void nd_launch(queue Q, launch_config<nd_range<Dimensions>, Properties> Config,
   detail::submit_kernel_direct_parallel_for<
       detail::NdRangeFreeFunctionKernelWrapper<Func, Dimensions, 3, ArgsT...>>(
       std::move(Q), ConfigAccess.getRange(),
-      [Args...](sycl::nd_range<Dimensions>) { Func(Args...); }, {},
+      [Args...](sycl::nd_item<Dimensions>) { Func(Args...); }, {},
       ConfigAccess.getProperties());
 }
 
@@ -496,7 +496,7 @@ void nd_launch(handler &CGH,
   CGH.parallel_for<
       detail::NdRangeFreeFunctionKernelWrapper<Func, Dimensions, 4, ArgsT...>>(
       ConfigAccess.getRange(), ConfigAccess.getProperties(),
-      [Args...](sycl::nd_range<Dimensions>) { Func(Args...); });
+      [Args...](sycl::nd_item<Dimensions>) { Func(Args...); });
 }
 
 inline void memcpy(handler &CGH, void *Dest, const void *Src, size_t NumBytes) {
