@@ -15,6 +15,7 @@ static void CheckArray(int *x, size_t buffer_size, int expected) {
   for (size_t i = 0; i < buffer_size; ++i) {
     //assert(x[i] == expected);
     if (x[i] != expected){std::cout<< "x[i] was " << x[i] << " i was " << i << "expected was " << expected <<"\n";}
+    assert(x[i] == expected);
   }
 }
 
