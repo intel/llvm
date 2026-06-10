@@ -317,8 +317,7 @@ ur_result_t bindlessImagesCreateImpl(ur_context_handle_t hContext,
       BindlessDesc.pNext = &ZeSamplerDesc;
     }
     BindlessDesc.flags |= ZE_IMAGE_BINDLESS_EXP_FLAG_SAMPLED_IMAGE;
-  }
-  if (!Sampled && pImageFormat->channelOrder == UR_IMAGE_CHANNEL_ORDER_SRGBA) {
+  } else if (pImageFormat->channelOrder == UR_IMAGE_CHANNEL_ORDER_SRGBA) {
     BindlessDesc.pNext = &ZeSrgbDesc;
   }
 
@@ -672,10 +671,6 @@ ur_result_t ur2zeImageDesc(const ur_image_format_t *ImageFormat,
                     ZE_IMAGE_FORMAT_SWIZZLE_X, ZE_IMAGE_FORMAT_SWIZZLE_1};
     break;
   case UR_IMAGE_CHANNEL_ORDER_RGBA:
-    ZeFormatDesc = {ZeImageFormatLayout,       ZeImageFormatType,
-                    ZE_IMAGE_FORMAT_SWIZZLE_R, ZE_IMAGE_FORMAT_SWIZZLE_G,
-                    ZE_IMAGE_FORMAT_SWIZZLE_B, ZE_IMAGE_FORMAT_SWIZZLE_A};
-    break;
   case UR_IMAGE_CHANNEL_ORDER_SRGBA:
     ZeFormatDesc = {ZeImageFormatLayout,       ZeImageFormatType,
                     ZE_IMAGE_FORMAT_SWIZZLE_R, ZE_IMAGE_FORMAT_SWIZZLE_G,
