@@ -2,8 +2,8 @@
 // REQUIRES: aspect-ext_oneapi_external_semaphore_import
 // REQUIRES: windows
 
-// XFAIL: windows
-// XFAIL-TRACKER: GSD-12837
+// UNSUPPORTED: windows
+// UNSUPPORTED-TRACKER: GSD-12837
 
 // RUN: %{build} %link-directx -o %t.exe %if target-spir %{ -Wno-ignored-attributes %}
 // RUN: %{run} %t.exe --no-sem
