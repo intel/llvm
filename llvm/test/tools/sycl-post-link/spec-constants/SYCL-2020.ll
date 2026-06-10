@@ -71,7 +71,7 @@ entry:
 ; CHECK-DEF: %[[BITCAST:[0-9a-z]+]] = bitcast ptr %[[GEP]] to ptr
 ; CHECK-DEF: %[[LOAD:[0-9a-z]+]] = load half, ptr %[[BITCAST]], align 2
 ;
-; CHECK-RT: call half @_Z20__spirv_SpecConstantiDh(i32 [[#SCID0:]], half 0xH4000)
+; CHECK-RT: call half @_Z20__spirv_SpecConstantiDh(i32 [[#SCID0:]], half 2.000000e+00)
 
   %call.i3 = tail call i32 @_Z37__sycl_getScalar2020SpecConstantValueIiET_PKcPvS3_(ptr getelementptr inbounds ([34 x i8], ptr @__builtin_unique_stable_name._Z27get_specialization_constantIL_Z6id_intE17specialization_idIiEiET1_v, i64 0, i64 0), ptr @id_int, ptr null)
 ; CHECK-DEF: %[[GEP1:[0-9a-z]+]] = getelementptr i8, ptr null, i32 4
@@ -85,7 +85,7 @@ entry:
 ; CHECK-DEF: %[[BITCAST2:[0-9a-z]+]] = bitcast ptr %[[GEP2]] to ptr
 ; CHECK-DEF: %[[LOAD2:[0-9a-z]+]] = load half, ptr %[[BITCAST2]], align 2
 ;
-; CHECK-RT: call half @_Z20__spirv_SpecConstantiDh(i32 [[#SCID0]], half 0xH4000)
+; CHECK-RT: call half @_Z20__spirv_SpecConstantiDh(i32 [[#SCID0]], half 2.000000e+00)
   ret void
 }
 
@@ -104,7 +104,7 @@ entry:
 ; CHECK-RT: %[[#SE1:]] = call i32 @_Z20__spirv_SpecConstantii(i32 [[#SCID2:]], i32 1)
 ; CHECK-RT: %[[#SE2:]] = call double @_Z20__spirv_SpecConstantid(i32 [[#SCID3:]], double 2.000000e+00)
 ; CHECK-RT: %[[#SE3:]] = call i32 @_Z20__spirv_SpecConstantii(i32 [[#SCID4:]], i32 13)
-; CHECK-RT: %[[#SE4:]] = call float @_Z20__spirv_SpecConstantif(i32 [[#SCID5:]], float 0x4020666660000000)
+; CHECK-RT: %[[#SE4:]] = call float @_Z20__spirv_SpecConstantif(i32 [[#SCID5:]], float f0x41033333)
 ; CHECK-RT: %[[#CE1:]] = call %struct.myConst @_Z29__spirv_SpecConstantCompositeif_Rstruct.myConst(i32 %[[#SE3]], float %[[#SE4]])
 ; CHECK-RT: %[[C1:[0-9a-z]+]] = call %struct.ComposConst @_Z29__spirv_SpecConstantCompositeidstruct.myConst_Rstruct.ComposConst(i32 %[[#SE1]], double %[[#SE2]], %struct.myConst %[[#CE1]])
 ;
@@ -120,7 +120,7 @@ entry:
 ;
 ; CHECK-RT: %[[#SE1:]] = call i8 @_Z20__spirv_SpecConstantia(i32 [[#SCID6:]], i8 1)
 ; CHECK-RT: %[[#SE2:]] = call i32 @_Z20__spirv_SpecConstantii(i32 [[#SCID7:]], i32 52)
-; CHECK-RT: %[[#SE3:]] = call float @_Z20__spirv_SpecConstantif(i32 [[#SCID8:]], float 0x40479999A0000000)
+; CHECK-RT: %[[#SE3:]] = call float @_Z20__spirv_SpecConstantif(i32 [[#SCID8:]], float 4.720000e+01)
 ; CHECK-RT: %[[#CE1:]] = call %struct.myConst @_Z29__spirv_SpecConstantCompositeif_Rstruct.myConst(i32 %[[#SE2]], float %[[#SE3]])
 ; CHECK-RT: %[[#SE4:]] = call double @_Z20__spirv_SpecConstantid(i32 [[#SCID9:]], double 2.000000e+00)
 ; CHECK-RT: %[[C2:[0-9a-z]+]] = call %struct.ComposConst2 @_Z29__spirv_SpecConstantCompositeastruct.myConstd_Rstruct.ComposConst2(i8 %[[#SE1]], %struct.myConst %[[#CE1]], double %[[#SE4]])
@@ -136,7 +136,7 @@ entry:
 ; CHECK-RT: %[[#SE1:]] = call i32 @_Z20__spirv_SpecConstantii(i32 [[#SCID2]], i32 1)
 ; CHECK-RT: %[[#SE2:]] = call double @_Z20__spirv_SpecConstantid(i32 [[#SCID3]], double 2.000000e+00)
 ; CHECK-RT: %[[#SE3:]] = call i32 @_Z20__spirv_SpecConstantii(i32 [[#SCID4]], i32 13)
-; CHECK-RT: %[[#SE4:]] = call float @_Z20__spirv_SpecConstantif(i32 [[#SCID5]], float 0x4020666660000000)
+; CHECK-RT: %[[#SE4:]] = call float @_Z20__spirv_SpecConstantif(i32 [[#SCID5]], float f0x41033333)
 ; CHECK-RT: %[[#CE1:]] = call %struct.myConst @_Z29__spirv_SpecConstantCompositeif_Rstruct.myConst(i32 %[[#SE3]], float %[[#SE4]])
 ; CHECK-RT: %[[C3:[0-9a-z]+]] = call %struct.ComposConst @_Z29__spirv_SpecConstantCompositeidstruct.myConst_Rstruct.ComposConst(i32 %[[#SE1]], double %[[#SE2]], %struct.myConst %[[#CE1]])
 ;
@@ -254,11 +254,11 @@ attributes #3 = { nounwind }
 ; CHECK-RT-SAME: i32 [[#SCID8]], i32 8, i32 4,
 ; CHECK-RT-SAME: i32 [[#SCID9]], i32 16, i32 8}
 ;
-; CHECK-DEF: ![[#ID4]] = !{half 0xH4000}
+; CHECK-DEF: ![[#ID4]] = !{half 2.000000e+00}
 ; CHECK-DEF: ![[#ID5_PAD]] = !{[2 x i8] zeroinitializer}
 ; CHECK-DEF: ![[#ID5]] = !{i32 42}
-; CHECK-DEF: ![[#ID6]] = !{%struct.ComposConst { i32 1, double 2.000000e+00, %struct.myConst { i32 13, float 0x4020666660000000 } }}
-; CHECK-DEF: ![[#ID7]] = !{%struct.ComposConst2 { i8 1, %struct.myConst { i32 52, float 0x40479999A0000000 }, double 2.000000e+00 }}
+; CHECK-DEF: ![[#ID6]] = !{%struct.ComposConst { i32 1, double 2.000000e+00, %struct.myConst { i32 13, float f0x41033333 } }}
+; CHECK-DEF: ![[#ID7]] = !{%struct.ComposConst2 { i8 1, %struct.myConst { i32 52, float 4.720000e+01 }, double 2.000000e+00 }}
 ; CHECK-DEF: ![[#ID_COMPOS3_DEFAULT]] = !{%struct.ComposConst3 zeroinitializer}
 ;
 ; CHECK-DEF: ![[#ID8]] = !{%struct.VectorConst { <2 x i32> <i32 1, i32 2> }}
