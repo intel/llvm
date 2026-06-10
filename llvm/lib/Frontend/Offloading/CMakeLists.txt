@@ -1,6 +1,7 @@
 add_llvm_component_library(LLVMFrontendOffloading
   Utility.cpp
   OffloadWrapper.cpp
+  SYCLBackendArgs.cpp
   SYCLOffloadWrapper.cpp
   PropertySet.cpp
 
@@ -15,6 +16,7 @@ add_llvm_component_library(LLVMFrontendOffloading
   BinaryFormat
   Object
   ObjectYAML
+  Option
   Support
   TransformUtils
   TargetParser

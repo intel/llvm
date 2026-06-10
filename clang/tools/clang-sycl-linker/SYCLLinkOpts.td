@@ -62,3 +62,12 @@ def module_split_mode_EQ : Joined<["--", "-"], "module-split-mode=">,
            "at least one entry point;\n"
            "- 'kernel' emits one device image per kernel function;\n"
            "- 'none' emits a single device image.">;
+def device_compiler_args_EQ : Joined<["--", "-"], "device-compiler=">,
+  Flags<[LinkerOnlyOption]>,
+  MetaVarName<"[<kind>:][<triple>=]<value>">,
+  HelpText<"Arguments forwarded to the device compiler invocation">;
+
+def device_linker_args_EQ : Joined<["--", "-"], "device-linker=">,
+  Flags<[LinkerOnlyOption]>,
+  MetaVarName<"[<kind>:][<triple>=]<value>">,
+  HelpText<"Arguments forwarded to the device linker invocation">;

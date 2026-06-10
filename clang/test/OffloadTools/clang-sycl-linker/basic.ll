@@ -63,6 +63,27 @@
 ; Test that IMG_Object image kind is set for AOT compilation (Intel CPU).
 ; RUN: llvm-objdump --offloading %t/aot-cpu.out | FileCheck %s --check-prefix=IMAGE-KIND-OBJECT
 ;
+; --device-compiler=[<kind>:][<triple>=]<value> reaches ocloc only when the
+; SYCL kind and the triple prefix both match this run; mismatches are dropped.
+; RUN: clang-sycl-linker --dry-run -v --module-split-mode=none \
+; RUN:     -triple=spirv64 -arch=bmg_g21 \
+; RUN:     %t/input1.bc %t/input2.bc -o %t/aot-gpu-dc.out \
+; RUN:     "--device-compiler=sycl:spirv64=-DKEPT" \
+; RUN:     "--device-compiler=openmp:spirv64=-DWRONGKIND" \
+; RUN:     "--device-compiler=sycl:spir64_x86_64-unknown-unknown=-DWRONGTRIPLE" 2>&1 \
+; RUN:   | FileCheck %s --check-prefix=DEVCOMP-GPU \
+; RUN:                  --implicit-check-not=-DWRONGKIND \
+; RUN:                  --implicit-check-not=-DWRONGTRIPLE
+; DEVCOMP-GPU: "{{.*}}ocloc{{.*}}" {{.*}}-device bmg_g21 {{.*}}-DKEPT {{.*}}-file
+;
+; AOT for Intel CPU goes through the opencl-aot path.
+; RUN: clang-sycl-linker --dry-run -v --module-split-mode=none \
+; RUN:     -triple=spirv64 -arch=graniterapids \
+; RUN:     %t/input1.bc %t/input2.bc -o %t/aot-cpu-dc.out \
+; RUN:     "--device-compiler=sycl:spirv64=-DCPUARG" 2>&1 \
+; RUN:   | FileCheck %s --check-prefix=DEVCOMP-CPU
+; DEVCOMP-CPU: "{{.*}}opencl-aot{{.*}}" {{.*}}--device=cpu {{.*}}-DCPUARG {{.*}}-o
+;
 ; Check that the output file must be specified.
 ; RUN: not clang-sycl-linker --dry-run %t/input1.bc %t/input2.bc 2>&1 \
 ; RUN:   | FileCheck %s --check-prefix=NOOUTPUT
