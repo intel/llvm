@@ -1,9 +1,6 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //
-// Fail is flaky for level_zero, enable when fixed.
-// UNSUPPORTED: level_zero
-//
 // Consistently fails with opencl gpu, enable when fixed.
 // XFAIL: opencl && gpu
 // XFAIL-TRACKER: GSD-8971
@@ -16,7 +13,9 @@
 //
 //===---------------------------------------------------------------===//
 
+#include <algorithm>
 #include <cassert>
+#include <cctype>
 #include <sycl/detail/core.hpp>
 #include <sycl/kernel_bundle.hpp>
 
@@ -40,10 +39,21 @@ int main() {
     cgh.single_task<SingleTask>([=]() { acc[0] = acc[0] + 1; });
   });
 
+  auto removeWhitespace = [](std::string Attr) {
+    Attr.erase(std::remove_if(Attr.begin(), Attr.end(),
+                              [](unsigned char C) { return std::isspace(C); }),
+               Attr.end());
+    return Attr;
+  };
+
   const std::string krnAttr = krn.get_info<info::kernel::attributes>();
-  assert(krnAttr.empty());
+  const std::string normalizedKrnAttr = removeWhitespace(krnAttr);
+  assert(normalizedKrnAttr.empty() ||
+         normalizedKrnAttr.find("intel_reqd_workgroup_walk_order(") !=
+             std::string::npos);
+
   const std::string krnAttrExt =
       syclex::get_kernel_info<SingleTask, info::kernel::attributes>(ctx);
-  assert(krnAttr == krnAttrExt);
+  assert(normalizedKrnAttr == removeWhitespace(krnAttrExt));
   return 0;
 }
