@@ -4,7 +4,7 @@
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-// RUN: %clangxx -fsycl -fsycl-host-compiler=g++ -o %t.out
+// RUN: %clangxx -fsycl -fno-sycl-unnamed-lambda -o %t.out
 // RUN: %{run} %t.out
 
 // XFAIL: target-native_cpu
