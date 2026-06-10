@@ -6,8 +6,8 @@
 #include <iostream>
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/bindless_images.hpp>
-#include <sycl/half_type.hpp>
 #include <sycl/ext/oneapi/experimental/bindless_image_info.hpp>
+#include <sycl/half_type.hpp>
 
 int main() {
 
