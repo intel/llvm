@@ -7638,8 +7638,6 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   }
 
 
- PrintingPolicy NewPolicy(LO);
-
   O << "// Specializations of KernelInfo for kernel function types:\n";
   O << "namespace sycl {\n";
   O << "inline namespace _V1 {\n";
@@ -7663,7 +7661,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
       O << "> {\n";
     } else {
       O << "template <> struct KernelInfo<";
-      SYCLKernelNameTypePrinter Printer(O, NewPolicy);
+      SYCLKernelNameTypePrinter Printer(O, Policy);
       Printer.Visit(K.NameType);
       O << "> {\n";
     }
@@ -7696,7 +7694,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     O << "  static constexpr const char* getFunctionName() {\n";
     O << "#ifndef NDEBUG\n";
     O << "    return \"";
-    SYCLKernelNameTypePrinter Printer(O, NewPolicy);
+    SYCLKernelNameTypePrinter Printer(O, Policy);
     Printer.Visit(K.NameType);
     O << "\";\n";
     O << "#else\n";
