@@ -19,6 +19,10 @@ template <typename DataT, std::size_t N> class marray;
 
 template <typename T> struct is_device_copyable;
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+#define MARRAY_USE_WIDE_ALIGNMENT 1
+#endif
+
 namespace detail {
 
 // Helper trait for counting the aggregate number of arguments in a type list,
@@ -34,6 +38,27 @@ struct GetMArrayArgsSize<marray<T, N>, Ts...> {
 template <typename T, typename... Ts> struct GetMArrayArgsSize<T, Ts...> {
   static constexpr std::size_t value = 1 + GetMArrayArgsSize<Ts...>::value;
 };
+
+// Computes the storage alignment for marray. NumElements == 3 is padded to 4
+// elements and aligned as 4 elements (matching sycl::vec); all other sizes
+// keep tight packing by using the largest power-of-two alignment that divides
+// the total byte size.
+// The alignment guarantee is limited to 64 bytes because some host compilers
+// (e.g. on Microsoft Windows) limit the maximum alignment of function
+// parameters to this value.
+constexpr std::size_t marrayAlignment(std::size_t NumElements,
+                                      std::size_t ElemSize) {
+  constexpr std::size_t MaxAlign = 64;
+  if (NumElements == 3) {
+    std::size_t Bytes = 4 * ElemSize;
+    return Bytes < MaxAlign ? Bytes : MaxAlign;
+  }
+  std::size_t Bytes = NumElements * ElemSize;
+  std::size_t Align = 1;
+  while ((Align << 1) < MaxAlign && (Bytes % (Align << 1)) == 0)
+    Align <<= 1;
+  return Align;
+}
 
 } // namespace detail
 
@@ -58,7 +83,21 @@ public:
   using const_iterator = const Type *;
 
 private:
+  // For NumElements == 3 this aligns to 4 elements (capped at 64), which adds
+  // trailing padding so sizeof == 4 * sizeof(DataT). For all other sizes the
+  // alignment divides the total size, so no padding is added.
+  static constexpr std::size_t MArrayAlignment =
+      detail::marrayAlignment(NumElements, sizeof(DataT));
+
+// Changing marray's aligmnment may change the ABI, so we need to guard it
+// with a macro. User can either use -fpreview-breaking-changes or define
+// MARRAY_USE_WIDE_ALIGNMENT macro and assume responsibility of ABI breakages
+// of marray is passed across ABI boundary.
+#ifdef MARRAY_USE_WIDE_ALIGNMENT
+  alignas(MArrayAlignment) value_type MData[NumElements];
+#else
   value_type MData[NumElements];
+#endif
 
   // Trait for checking if an argument type is either convertible to the data
   // type or an array of types convertible to the data type.
