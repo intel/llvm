@@ -12,7 +12,6 @@
 #include <detail/ur_info_code.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/info/context.hpp>
-#include <sycl/info/info_desc.hpp>
 
 namespace sycl {
 inline namespace _V1 {

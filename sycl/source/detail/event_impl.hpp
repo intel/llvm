@@ -15,7 +15,6 @@
 #include <sycl/detail/host_profiling_info.hpp>
 #include <sycl/detail/ur.hpp>
 #include <sycl/event.hpp>
-#include <sycl/info/info_desc.hpp>
 
 #include <atomic>
 #include <cassert>

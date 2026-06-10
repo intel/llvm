@@ -3,6 +3,7 @@
 
 #include <sycl/detail/core.hpp>
 #include <sycl/kernel_bundle.hpp>
+#include <sycl/ext/oneapi/experimental/kernel_queue_info.hpp>
 
 #include <cassert>
 #include <cstdint>

@@ -18,7 +18,7 @@
 #include <sycl/detail/util.hpp>
 #include <sycl/device_selector.hpp>
 #include <sycl/ext/oneapi/experimental/device_architecture.hpp>
-#include <sycl/info/info_desc.hpp>
+#include <sycl/info/device.hpp>
 #include <sycl/kernel_bundle_enums.hpp>
 #include <unified-runtime/ur_api.h>
 

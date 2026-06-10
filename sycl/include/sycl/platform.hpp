@@ -14,8 +14,10 @@
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/owner_less_base.hpp>
 #include <sycl/detail/string_view.hpp>
+#include <sycl/aspects.hpp>
 #include <sycl/device_selector.hpp>
-#include <sycl/info/info_desc.hpp>
+#include <sycl/info/device.hpp>
+#include <sycl/info/platform.hpp>
 
 #ifdef __SYCL_INTERNAL_API
 #include <sycl/detail/cl.h>

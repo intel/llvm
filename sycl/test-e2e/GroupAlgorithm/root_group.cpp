@@ -21,6 +21,7 @@
 #include <sycl/ext/oneapi/experimental/root_group.hpp>
 #include <sycl/group_barrier.hpp>
 #include <sycl/kernel_bundle.hpp>
+#include <sycl/ext/oneapi/experimental/kernel_queue_info.hpp>
 
 static constexpr int WorkGroupSize = 32;
 

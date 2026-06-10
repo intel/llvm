@@ -14,6 +14,7 @@
 #include <iostream>
 #include <sycl/detail/core.hpp>
 #include <sycl/vector.hpp>
+#include <sycl/half_type.hpp>
 #include <unordered_set>
 
 using namespace sycl;
