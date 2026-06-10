@@ -1367,6 +1367,12 @@ ur_result_t urDeviceGetInfo(
 #else
     return ReturnValue(true);
 #endif
+  case UR_DEVICE_INFO_IPC_PHYSICAL_MEMORY_SUPPORT_EXP:
+#if defined(UR_ADAPTER_LEVEL_ZERO_V2) && defined(__linux__)
+    return ReturnValue(true);
+#else
+    return ReturnValue(false);
+#endif
   case UR_DEVICE_INFO_ASYNC_BARRIER:
     return ReturnValue(false);
   case UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORT:

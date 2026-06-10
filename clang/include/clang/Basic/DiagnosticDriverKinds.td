@@ -104,6 +104,11 @@ def err_drv_no_sycl_device_lib
     : Error<"cannot find expected SYCL device library '%0'. Pass "
             "'--no-offloadlib' to "
             "build without the SYCL device libraries">;
+// SYCL Windows-specific diagnostics
+def err_drv_sycl_requires_dynamic_crt : Error<
+  "SYCL requires dynamic C++ runtime (/MD or /MDd); "
+  "static C++ runtime (/MT or /MTd) is not supported">;
+
 def err_drv_no_spv_tools : Error<"cannot find SPIR-V Tools binary '%0', which "
                                  "is required for SPIR-V compilation. "
                                  "It can be obtained from your system package "
@@ -186,10 +191,13 @@ def warn_drv_unsupported_option_for_runtime : Warning<
 def warn_drv_unsupported_openmp_library : Warning<
   "the library '%0=%1' is not supported, OpenMP will not be enabled">,
   InGroup<OptionIgnored>;
-def warn_openmp_incomplete : Warning<
+def warn_openmp_impl_incomplete : Warning<
   "OpenMP support for version %0 in flang is still incomplete">,
   InGroup<ExperimentalOption>;
-
+def warn_openmp_spec_incomplete : Warning<
+  "the specification for OpenMP version %0 is still under development; "
+  "the syntax and semantics of new features may be subject to change">,
+  InGroup<ExperimentalOption>;
 def err_drv_invalid_thread_model_for_target : Error<
   "invalid thread model '%0' in '%1' for this target">;
 def err_drv_invalid_linker_name : Error<
@@ -264,6 +272,9 @@ def err_drv_argument_not_allowed_with : Error<
   "invalid argument '%0' not allowed with '%1'">;
 def warn_drv_argument_not_allowed_with : Warning<
   "invalid argument '%0' not allowed with '%1'">,
+  InGroup<OptionIgnored>;
+def warn_drv_argument_has_no_effect_with : Warning<
+  "'%0' has no effect with '%1'">,
   InGroup<OptionIgnored>;
 def err_drv_sycl_requires_cxx17 : Error<
   "SYCL requires C++17 or later; '%0' is not supported">;

@@ -6,6 +6,9 @@ on: [ workflow_call, workflow_dispatch ]
 
 jobs:
   offload_build:
+    # Temporarily disable failing CI job.
+    # Tracker: https://github.com/intel/llvm/issues/22259
+    if: false
     name: Build
     strategy:
       fail-fast: false

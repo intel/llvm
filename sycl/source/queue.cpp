@@ -224,12 +224,12 @@ queue::get_info() const {
   return impl->get_info<Param>();
 }
 
-#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, Picode)              \
-  template __SYCL_EXPORT ReturnT queue::get_info<info::queue::Desc>() const;
-
-#include <sycl/info/queue_traits.def>
-
-#undef __SYCL_PARAM_TRAITS_SPEC
+#define __SYCL_QUEUE_INFO_INST(NAME, RETURN_T)                                 \
+  template __SYCL_EXPORT RETURN_T queue::get_info<info::queue::NAME>() const;
+__SYCL_QUEUE_INFO_INST(context, sycl::context)
+__SYCL_QUEUE_INFO_INST(device, sycl::device)
+__SYCL_QUEUE_INFO_INST(reference_count, uint32_t)
+#undef __SYCL_QUEUE_INFO_INST
 
 template <typename Param>
 typename detail::is_backend_info_desc<Param>::return_type

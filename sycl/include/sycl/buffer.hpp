@@ -11,6 +11,7 @@
 #include <sycl/access/access.hpp>
 #include <sycl/backend_types.hpp>
 #include <sycl/detail/array.hpp>
+#include <sycl/detail/code_location.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/defines_elementary.hpp>
 #include <sycl/detail/export.hpp>
