@@ -35,7 +35,7 @@ void TestFunc(queue &Q) {
   });
 
   // Call khr_flush() to flush the commands and wait for them to complete
-
+  Q.wait();
   auto Deadline = std::chrono::steady_clock::now() + std::chrono::seconds(30);
   while (SingleTaskEv.get_info<sycl::info::event::command_execution_status>() !=
          sycl::info::event_command_status::complete) {
@@ -57,6 +57,7 @@ void TestFunc(queue &Q) {
                                     [=](sycl::id<1> WI) { Y[WI] *= 2; });
   });
 
+  Q.wait();
   Deadline = std::chrono::steady_clock::now() + std::chrono::seconds(60);
   while (
       ParallelTaskEv.get_info<sycl::info::event::command_execution_status>() !=
