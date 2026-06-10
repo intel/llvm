@@ -107,6 +107,9 @@ public:
 
   unsigned GetDefaultDwarfVersion() const override { return 5; }
 
+  /// HIP uses LTO by default to link device bitcode.
+  LTOKind getDefaultLTOMode() const override { return LTOK_Full; }
+
   const ToolChain &HostTC;
   void checkTargetID(const llvm::opt::ArgList &DriverArgs) const override;
   Tool *SelectTool(const JobAction &JA) const override;
@@ -124,6 +127,9 @@ class LLVM_LIBRARY_VISIBILITY SPIRVAMDToolChain final : public ROCMToolChain {
 public:
   SPIRVAMDToolChain(const Driver &D, const llvm::Triple &Triple,
                     const llvm::opt::ArgList &Args);
+
+  /// SPIR-V uses LTO by default to link device bitcode.
+  LTOKind getDefaultLTOMode() const override { return LTOK_Full; }
 
 protected:
   Tool *buildLinker() const override;
