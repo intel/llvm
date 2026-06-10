@@ -16,6 +16,9 @@
 // This tests support of col major layout for matrix B which does transpose and
 // then VNNI transform. This is currently only available on AMX and PVC
 
+// UNSUPPORTED: gpu-intel-dg2
+// UNSUPPORTED-INTENDED: SG size = 32 is not currently supported for SYCL Joint Matrix by IGC on DG2
+
 #include "common.hpp"
 
 using namespace sycl;
