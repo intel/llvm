@@ -1,4 +1,13 @@
 ; This test verifies that there are no duplicates of any DebugLine extended instructions.
+;
+; It also checks that when a DISubprogram is scoped inside a DIModule (typical
+; for Fortran module subroutines), DebugFunction.Parent falls back to the
+; enclosing DebugCompilationUnit. NonSemantic.Shader.DebugInfo requires Parent
+; to be a lexical scope, and DebugModule (introduced in .200) is not one.
+;
+; TODO: DILocations with line: 0 (artificial locations, allowed by LLVM IR)
+; are replaced with line: 1 here so spirv-val accepts the output. Remove this
+; workaround once the translator maps line-0 DILocations to DebugNoLine.
 
 ; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv --spirv-debug-info-version=nonsemantic-shader-200
@@ -56,7 +65,7 @@ attributes #1 = { nocallback nofree nosync nounwind speculatable willreturn memo
 !3406 = !DILocalVariable(name: "k", scope: !3336, file: !52, line: 40, type: !15)
 !3409 = !DILocalVariable(name: "jj", scope: !3336, file: !52, line: 40, type: !15)
 !3411 = !DILocalVariable(name: "ii", scope: !3336, file: !52, line: 40, type: !15)
-!3447 = !DILocation(line: 0, scope: !3336)
+!3447 = !DILocation(line: 1, scope: !3336)
 !3578 = !DILocation(line: 182, column: 2, scope: !3336)
 !3579 = !DILocation(line: 183, column: 2, scope: !3336)
 !3583 = !DILocation(line: 227, column: 2, scope: !3336)

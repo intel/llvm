@@ -15,6 +15,7 @@
 
 ; RUN: llvm-spirv %t.bc -spirv-text --spirv-debug-info-version=nonsemantic-shader-100 -o - | FileCheck %s --check-prefixes=CHECK-SPIRV,CHECK-SPIRV-NONSEM
 ; RUN: llvm-spirv %t.bc --spirv-debug-info-version=nonsemantic-shader-100 -o %t.spv
+; RUN: spirv-val %t.spv
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis %t.rev.bc -o %t.rev.ll
 ; RUN: FileCheck %s --input-file %t.rev.ll --check-prefix CHECK-LLVM
@@ -22,10 +23,10 @@
 ; CHECK-LLVM: !DIBasicType(name: "int", size: 32, encoding: DW_ATE_signed)
 
 ; CHECK-SPIRV: String [[#Name:]] "int"
+; CHECK-SPIRV-NONSEM: Constant [[#]] [[#Flags:]] 0
 ; CHECK-SPIRV-NONSEM: Constant [[#]] [[#Encoding:]] 4
 ; CHECK-SPIRV: Constant [[#]] [[#Size:]] 32
 ; CHECK-SPIRV-OCL: DebugTypeBasic [[#Name]] [[#Size]] 4 {{$}}
-; CHECK-SPIRV-NONSEM: [[#Flags:]] [[#]] DebugInfoNone
 ; CHECK-SPIRV-NONSEM: DebugTypeBasic [[#Name]] [[#Size]] [[#Encoding]] [[#Flags]] {{$}}
 
 target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"

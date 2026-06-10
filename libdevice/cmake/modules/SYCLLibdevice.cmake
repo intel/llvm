@@ -779,4 +779,6 @@ add_custom_target(install-libsycldevice
   COMMAND ${CMAKE_COMMAND} -DCMAKE_INSTALL_COMPONENT=libsycldevice -P ${CMAKE_BINARY_DIR}/cmake_install.cmake
   DEPENDS ${libsycldevice_build_targets}
 )
-add_dependencies(deploy-sycl-toolchain install-libsycldevice)
+if (TARGET deploy-sycl-toolchain)
+  add_dependencies(deploy-sycl-toolchain install-libsycldevice)
+endif()

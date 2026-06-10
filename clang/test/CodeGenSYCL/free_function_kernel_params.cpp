@@ -107,10 +107,6 @@ template void ff_8(sycl::local_accessor<float, 1> lacc);
   // CHECK-NEXT: %agg.tmp3 = alloca %"class.sycl::_V1::local_accessor", align 4
   // CHECK-NEXT: %__arg_Ptr.addr.ascast = addrspacecast ptr %__arg_Ptr.addr to ptr addrspace(4)
   // CHECK-NEXT: %lacc.ascast = addrspacecast ptr %lacc to ptr addrspace(4)
-  // CHECK-NEXT: %agg.tmp.ascast = addrspacecast ptr %agg.tmp to ptr addrspace(4)
-  // CHECK-NEXT: %agg.tmp1.ascast = addrspacecast ptr %agg.tmp1 to ptr addrspace(4)
-  // CHECK-NEXT: %agg.tmp2.ascast = addrspacecast ptr %agg.tmp2 to ptr addrspace(4)
-  // CHECK-NEXT: %agg.tmp3.ascast = addrspacecast ptr %agg.tmp3 to ptr addrspace(4)
   // CHECK-NEXT: store ptr addrspace(3) %__arg_Ptr, ptr addrspace(4) %__arg_Ptr.addr.ascast, align 8
   // CHECK-NEXT: %__arg_AccessRange.ascast = addrspacecast ptr %__arg_AccessRange to ptr addrspace(4)
   // CHECK-NEXT: %__arg_MemRange.ascast = addrspacecast ptr %__arg_MemRange to ptr addrspace(4)
@@ -132,10 +128,6 @@ void ff_8(sycl::local_accessor<int, 1> lacc) {
   // CHECK-NEXT: %agg.tmp3 = alloca %"class.sycl::_V1::local_accessor.0", align 4
   // CHECK-NEXT: %__arg_Ptr.addr.ascast = addrspacecast ptr %__arg_Ptr.addr to ptr addrspace(4)
   // CHECK-NEXT: %lacc.ascast = addrspacecast ptr %lacc to ptr addrspace(4)
-  // CHECK-NEXT: %agg.tmp.ascast = addrspacecast ptr %agg.tmp to ptr addrspace(4)
-  // CHECK-NEXT: %agg.tmp1.ascast = addrspacecast ptr %agg.tmp1 to ptr addrspace(4)
-  // CHECK-NEXT: %agg.tmp2.ascast = addrspacecast ptr %agg.tmp2 to ptr addrspace(4)
-  // CHECK-NEXT: %agg.tmp3.ascast = addrspacecast ptr %agg.tmp3 to ptr addrspace(4)
   // CHECK-NEXT: store ptr addrspace(3) %__arg_Ptr, ptr addrspace(4) %__arg_Ptr.addr.ascast, align 8
   // CHECK-NEXT: %__arg_AccessRange.ascast = addrspacecast ptr %__arg_AccessRange to ptr addrspace(4)
   // CHECK-NEXT: %__arg_MemRange.ascast = addrspacecast ptr %__arg_MemRange to ptr addrspace(4)
@@ -157,10 +149,6 @@ void ff_8(sycl::accessor<int, 1, sycl::access::mode::read_write> acc) {
   // CHECK-NEXT: %agg.tmp3 = alloca %"class.sycl::_V1::accessor.2", align 4
   // CHECK-NEXT: %__arg_Ptr.addr.ascast = addrspacecast ptr %__arg_Ptr.addr to ptr addrspace(4)
   // CHECK-NEXT: %acc.ascast = addrspacecast ptr %acc to ptr addrspace(4)
-  // CHECK-NEXT: %agg.tmp.ascast = addrspacecast ptr %agg.tmp to ptr addrspace(4)
-  // CHECK-NEXT: %agg.tmp1.ascast = addrspacecast ptr %agg.tmp1 to ptr addrspace(4)
-  // CHECK-NEXT: %agg.tmp2.ascast = addrspacecast ptr %agg.tmp2 to ptr addrspace(4)
-  // CHECK-NEXT: %agg.tmp3.ascast = addrspacecast ptr %agg.tmp3 to ptr addrspace(4)
   // CHECK-NEXT: store ptr addrspace(1) %__arg_Ptr, ptr addrspace(4) %__arg_Ptr.addr.ascast, align 8
   // CHECK-NEXT: %__arg_AccessRange.ascast = addrspacecast ptr %__arg_AccessRange to ptr addrspace(4)
   // CHECK-NEXT: %__arg_MemRange.ascast = addrspacecast ptr %__arg_MemRange to ptr addrspace(4)
@@ -179,7 +167,6 @@ void ff_8(sycl::sampler S) {
 // CHECK-NEXT:   %agg.tmp = alloca %"class.sycl::_V1::sampler", align 8
 // CHECK-NEXT:   %__arg_Sampler.addr.ascast = addrspacecast ptr %__arg_Sampler.addr to ptr addrspace(4)
 // CHECK-NEXT:   %S.ascast = addrspacecast ptr %S to ptr addrspace(4)
-// CHECK-NEXT:   %agg.tmp.ascast = addrspacecast ptr %agg.tmp to ptr addrspace(4)
 // CHECK-NEXT:  store target("spirv.Sampler") %__arg_Sampler, ptr addrspace(4) %__arg_Sampler.addr.ascast, align 8
 // CHECK-NEXT:  %0 = load target("spirv.Sampler"), ptr addrspace(4) %__arg_Sampler.addr.ascast, align 8
 // CHECK-NEXT:  call spir_func void @{{.*}}sampler{{.*}}__init{{.*}}
@@ -200,10 +187,6 @@ void ff_8(sycl::stream str) {
 // CHECK-NEXT:   %__arg_Ptr.addr.ascast = addrspacecast ptr %__arg_Ptr.addr to ptr addrspace(4)
 // CHECK-NEXT:   %__arg__FlushBufferSize.addr.ascast = addrspacecast ptr %__arg__FlushBufferSize.addr to ptr addrspace(4)
 // CHECK-NEXT:  %str.ascast = addrspacecast ptr %str to ptr addrspace(4)
-// CHECK-NEXT:   %agg.tmp.ascast = addrspacecast ptr %agg.tmp to ptr addrspace(4)
-// CHECK-NEXT:   %agg.tmp1.ascast = addrspacecast ptr %agg.tmp1 to ptr addrspace(4)
-// CHECK-NEXT:   %agg.tmp2.ascast = addrspacecast ptr %agg.tmp2 to ptr addrspace(4)
-// CHECK-NEXT:   %agg.tmp3.ascast = addrspacecast ptr %agg.tmp3 to ptr addrspace(4)
 // CHECK-NEXT:  store ptr addrspace(1) %__arg_Ptr, ptr addrspace(4) %__arg_Ptr.addr.ascast, align 8
 // CHECK-NEXT:  %__arg_AccessRange.ascast = addrspacecast ptr %__arg_AccessRange to ptr addrspace(4)
 // CHECK-NEXT:  %__arg_MemRange.ascast = addrspacecast ptr %__arg_MemRange to ptr addrspace(4)
@@ -224,7 +207,6 @@ void ff_8(sycl::ext::oneapi::experimental::annotated_arg<int> arg) {
 // CHECK-NEXT:  %agg.tmp = alloca %"class.sycl::_V1::ext::oneapi::experimental::annotated_arg", align 4
 // CHECK-NEXT:  %__arg__obj.addr.ascast = addrspacecast ptr %__arg__obj.addr to ptr addrspace(4)
 // CHECK-NEXT:  %arg.ascast = addrspacecast ptr %arg to ptr addrspace(4)
-// CHECK-NEXT:  %agg.tmp.ascast = addrspacecast ptr %agg.tmp to ptr addrspace(4)
 // CHECK-NEXT:  store i32 %__arg__obj, ptr addrspace(4) %__arg__obj.addr.ascast, align 4
 // CHECK-NEXT:  %0 = load i32, ptr addrspace(4) %__arg__obj.addr.ascast, align 4
 // CHECK-NEXT:  call spir_func void @{{.*}}annotated_arg{{.*}}__init{{.*}}
@@ -240,7 +222,6 @@ void ff_8(sycl::ext::oneapi::experimental::annotated_ptr<int> ptr) {
 // CHECK-NEXT:  %agg.tmp = alloca %"class.sycl::_V1::ext::oneapi::experimental::annotated_ptr", align 8
 // CHECK-NEXT:  %__arg__obj.addr.ascast = addrspacecast ptr %__arg__obj.addr to ptr addrspace(4)
 // CHECK-NEXT:  %ptr.ascast = addrspacecast ptr %ptr to ptr addrspace(4)
-// CHECK-NEXT:  %agg.tmp.ascast = addrspacecast ptr %agg.tmp to ptr addrspace(4)
 // CHECK-NEXT:  store ptr addrspace(4) %__arg__obj, ptr addrspace(4) %__arg__obj.addr.ascast, align 8
 // CHECK-NEXT:  %0 = load ptr addrspace(4), ptr addrspace(4) %__arg__obj.addr.ascast, align 8
 // CHECK-NEXT:  call spir_func void @{{.*}}annotated_ptr{{.*}}__init{{.*}}
