@@ -135,7 +135,13 @@
 // CHECK-NEXT: backend_types.hpp
 // CHECK-NEXT: detail/info_desc_helpers.hpp
 // CHECK-NEXT: info/info_desc.hpp
+// CHECK-NEXT: info/context.hpp
+// CHECK-NEXT: info/device.hpp
 // CHECK-NEXT: detail/device_info_types.hpp
+// CHECK-NEXT: info/event.hpp
+// CHECK-NEXT: info/kernel.hpp
+// CHECK-NEXT: info/platform.hpp
+// CHECK-NEXT: info/queue.hpp
 // CHECK-NEXT: ext/codeplay/experimental/max_registers_query.hpp
 // CHECK-NEXT: ext/intel/info/device.hpp
 // CHECK-NEXT: ext/intel/info/kernel.hpp
