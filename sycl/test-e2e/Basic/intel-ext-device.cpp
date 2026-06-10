@@ -16,8 +16,8 @@
 //===----------------------------------------------------------------------===//
 
 #include <sycl/detail/core.hpp>
-#include <sycl/platform.hpp>
 #include <sycl/ext/intel/info/device.hpp>
+#include <sycl/platform.hpp>
 
 #include <cassert>
 #include <iostream>

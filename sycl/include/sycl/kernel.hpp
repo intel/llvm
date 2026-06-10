@@ -11,9 +11,9 @@
 #include <sycl/backend_types.hpp>             // for backend, backend_return_t
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
 #include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
-#include <sycl/info/kernel.hpp>               // for is_kernel_device_specif...
 #include <sycl/detail/owner_less_base.hpp>    // for OwnerLessBase
 #include <sycl/detail/util.hpp>
+#include <sycl/info/kernel.hpp>         // for is_kernel_device_specif...
 #include <sycl/kernel_bundle_enums.hpp> // for bundle_state
 #include <unified-runtime/ur_api.h>     // for ur_native_handle_t
 

@@ -8,13 +8,13 @@
 
 #pragma once
 
+#include <sycl/aspects.hpp>
 #include <sycl/backend_types.hpp>
 #include <sycl/detail/abi_neutral.hpp>
 #include <sycl/detail/defines_elementary.hpp>
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/owner_less_base.hpp>
 #include <sycl/detail/string_view.hpp>
-#include <sycl/aspects.hpp>
 #include <sycl/device_selector.hpp>
 #include <sycl/info/device.hpp>
 #include <sycl/info/platform.hpp>

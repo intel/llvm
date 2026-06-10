@@ -13,8 +13,8 @@
 #include <sycl/detail/core.hpp>
 #include <sycl/kernel_bundle.hpp>
 
-#include <sycl/ext/oneapi/get_kernel_info.hpp>
 #include <sycl/ext/intel/info/kernel.hpp>
+#include <sycl/ext/oneapi/get_kernel_info.hpp>
 
 using namespace sycl;
 namespace syclex = sycl::ext::oneapi;
