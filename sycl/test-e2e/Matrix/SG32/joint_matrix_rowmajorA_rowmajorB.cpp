@@ -13,6 +13,7 @@
 // REQUIRES-INTEL-DRIVER: lin: 27501, win: 101.4943
 // VNNI transform and sub-group size 32 are not supported yet on DG2 by IGC
 // UNSUPPORTED: gpu-intel-dg2
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22281
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out

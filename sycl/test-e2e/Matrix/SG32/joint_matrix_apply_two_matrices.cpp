@@ -11,6 +11,7 @@
 
 // SG size = 32 is not currently supported for SYCL Joint Matrix by IGC on DG2
 // UNSUPPORTED: gpu-intel-dg2
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22281
 
 // RUN: %{build} %fp-model-precise -o %t.out
 // RUN: %{run} %t.out

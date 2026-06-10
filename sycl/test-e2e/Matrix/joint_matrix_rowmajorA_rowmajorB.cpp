@@ -10,6 +10,7 @@
 // REQUIRES: aspect-ext_intel_matrix
 // VNNI transform is not supported yet by IGC on DG2
 // UNSUPPORTED: gpu-intel-dg2
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22281
 // REQUIRES-INTEL-DRIVER: lin: 30049
 
 // RUN: %{build} -o %t.out
