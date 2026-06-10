@@ -10,6 +10,7 @@
 // XFAIL-TRACKER: https://github.com/llvm/llvm-project/issues/122075
 
 #include <sycl/group.hpp>
+#include <sycl/h_item.hpp>
 #include <sycl/usm.hpp>
 
 using namespace sycl;

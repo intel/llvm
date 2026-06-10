@@ -1375,6 +1375,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   }
   case UR_DEVICE_INFO_IPC_MEMORY_SUPPORT_EXP:
     return ReturnValue(false);
+  case UR_DEVICE_INFO_IPC_PHYSICAL_MEMORY_SUPPORT_EXP:
+    return ReturnValue(false);
   case UR_DEVICE_INFO_BFLOAT16_CONVERSIONS_NATIVE: {
     bool Supported = false;
     UR_RETURN_ON_FAILURE(hDevice->checkDeviceExtensions(

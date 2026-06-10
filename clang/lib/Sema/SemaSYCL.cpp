@@ -3957,7 +3957,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
   InitListExpr *createInitListExpr(QualType InitTy, uint64_t NumChildInits) {
     InitListExpr *ILE = new (SemaSYCLRef.getASTContext())
         InitListExpr(SemaSYCLRef.getASTContext(), KernelCallerSrcLoc, {},
-                     KernelCallerSrcLoc);
+                     KernelCallerSrcLoc, /*isExplicit=*/false);
     ILE->reserveInits(SemaSYCLRef.getASTContext(), NumChildInits);
     ILE->setType(InitTy);
 
@@ -4094,8 +4094,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     Expr *ArrayRef = createSimpleArrayParamReferenceExpr(FieldTy);
     InitializationKind InitKind = InitializationKind::CreateDirect({}, {}, {});
 
-    InitializedEntity Entity =
-        InitializedEntity::InitializeMemberImplicit(FD, &VarEntity.value());
+    InitializedEntity Entity = InitializedEntity::InitializeMemberImplicit(FD);
 
     addFieldInit(FD, FieldTy, ArrayRef, InitKind, Entity);
   }
