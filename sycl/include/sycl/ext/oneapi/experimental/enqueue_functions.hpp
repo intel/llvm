@@ -181,7 +181,7 @@ void single_task(queue Q, const kernel &KernelObj, ArgsT &&...Args) {
 }
 
 namespace detail {
-template <auto *Func, int Kind, typename... ArgsT>
+template <auto *Func, int tag, typename... ArgsT>
 struct SingleTaskFreeFunctionKernelWrapper;
 } // namespace detail
 
