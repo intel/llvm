@@ -20,7 +20,9 @@ template <typename DataT, std::size_t N> class marray;
 template <typename T> struct is_device_copyable;
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+#ifndef MARRAY_USE_WIDE_ALIGNMENT
 #define MARRAY_USE_WIDE_ALIGNMENT 1
+#endif // MARRAY_USE_WIDE_ALIGNMENT
 #endif
 
 namespace detail {
@@ -51,11 +53,11 @@ constexpr std::size_t marrayAlignment(std::size_t NumElements,
   constexpr std::size_t MaxAlign = 64;
   if (NumElements == 3) {
     std::size_t Bytes = 4 * ElemSize;
-    return Bytes < MaxAlign ? Bytes : MaxAlign;
+    return Bytes <= MaxAlign ? Bytes : MaxAlign;
   }
   std::size_t Bytes = NumElements * ElemSize;
   std::size_t Align = 1;
-  while ((Align << 1) < MaxAlign && (Bytes % (Align << 1)) == 0)
+  while ((Align << 1) <= MaxAlign && (Bytes % (Align << 1)) == 0)
     Align <<= 1;
   return Align;
 }
@@ -89,10 +91,10 @@ private:
   static constexpr std::size_t MArrayAlignment =
       detail::marrayAlignment(NumElements, sizeof(DataT));
 
-// Changing marray's aligmnment may change the ABI, so we need to guard it
+// Changing marray's alignment may change the ABI, so we need to guard it
 // with a macro. User can either use -fpreview-breaking-changes or define
 // MARRAY_USE_WIDE_ALIGNMENT macro and assume responsibility of ABI breakages
-// of marray is passed across ABI boundary.
+// if marray is passed across ABI boundary.
 #ifdef MARRAY_USE_WIDE_ALIGNMENT
   alignas(MArrayAlignment) value_type MData[NumElements];
 #else

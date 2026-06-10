@@ -272,7 +272,7 @@ SYCL_EXTERNAL marray<float, 3> TestVariadicCtorF3(float a, float b, float c) {
 // CHECK-NEXT:    ret double [[TMP0]]
 //
 // CHECK-PREVIEW-LABEL: define dso_local spir_func noundef double @_Z13TestSubscriptN4sycl3_V16marrayIdLm8EEEm(
-// CHECK-PREVIEW-SAME: ptr noundef readonly byval(%"class.sycl::_V1::marray.19") align 32 captures(none) [[A:%.*]], i64 noundef [[I:%.*]]) local_unnamed_addr #[[ATTR6:[0-9]+]] {{.*}}{
+// CHECK-PREVIEW-SAME: ptr noundef readonly byval(%"class.sycl::_V1::marray.19") align 64 captures(none) [[A:%.*]], i64 noundef [[I:%.*]]) local_unnamed_addr #[[ATTR6:[0-9]+]] {{.*}}{
 // CHECK-PREVIEW-NEXT:  entry:
 // CHECK-PREVIEW-NEXT:    [[ARRAYIDX_I:%.*]] = getelementptr inbounds [8 x i8], ptr [[A]], i64 [[I]]
 // CHECK-PREVIEW-NEXT:    [[TMP0:%.*]] = load double, ptr [[ARRAYIDX_I]], align 8, !tbaa [[TBAA34:![0-9]+]]
@@ -523,7 +523,7 @@ SYCL_EXTERNAL auto TestAddSR(marray<std::int16_t, 8> a, std::int16_t b) {
 // CHECK-NEXT:    ret void
 //
 // CHECK-PREVIEW-LABEL: define dso_local spir_func void @_Z8TestAddFN4sycl3_V16marrayIdLm16EEES2_(
-// CHECK-PREVIEW-SAME: ptr addrspace(4) dead_on_unwind noalias writable writeonly sret(%"class.sycl::_V1::marray.26") align 32 captures(none) [[AGG_RESULT:%.*]], ptr noundef readonly byval(%"class.sycl::_V1::marray.26") align 32 captures(none) [[A:%.*]], ptr noundef readonly byval(%"class.sycl::_V1::marray.26") align 32 captures(none) [[B:%.*]]) local_unnamed_addr #[[ATTR7]] {{.*}}{
+// CHECK-PREVIEW-SAME: ptr addrspace(4) dead_on_unwind noalias writable writeonly sret(%"class.sycl::_V1::marray.26") align 64 captures(none) [[AGG_RESULT:%.*]], ptr noundef readonly byval(%"class.sycl::_V1::marray.26") align 64 captures(none) [[A:%.*]], ptr noundef readonly byval(%"class.sycl::_V1::marray.26") align 64 captures(none) [[B:%.*]]) local_unnamed_addr #[[ATTR7]] {{.*}}{
 // CHECK-PREVIEW-NEXT:  entry:
 // CHECK-PREVIEW-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META55:![0-9]+]])
 // CHECK-PREVIEW-NEXT:    br label [[FOR_COND_I:%.*]]
@@ -835,12 +835,12 @@ SYCL_EXTERNAL auto TestEq(marray<float, 4> a, marray<float, 4> b) {
 // CHECK-NEXT:    ret void
 //
 // CHECK-PREVIEW-LABEL: define dso_local spir_func void @_Z8TestEqSRN4sycl3_V16marrayIdLm8EEEd(
-// CHECK-PREVIEW-SAME: ptr addrspace(4) dead_on_unwind noalias writable writeonly sret(%"class.sycl::_V1::marray.32") align 8 captures(none) [[AGG_RESULT:%.*]], ptr noundef readonly byval(%"class.sycl::_V1::marray.19") align 32 captures(none) [[A:%.*]], double noundef [[B:%.*]]) local_unnamed_addr #[[ATTR7]] {{.*}}{
+// CHECK-PREVIEW-SAME: ptr addrspace(4) dead_on_unwind noalias writable writeonly sret(%"class.sycl::_V1::marray.32") align 8 captures(none) [[AGG_RESULT:%.*]], ptr noundef readonly byval(%"class.sycl::_V1::marray.19") align 64 captures(none) [[A:%.*]], double noundef [[B:%.*]]) local_unnamed_addr #[[ATTR7]] {{.*}}{
 // CHECK-PREVIEW-NEXT:  entry:
-// CHECK-PREVIEW-NEXT:    [[REF_TMP_I:%.*]] = alloca %"class.sycl::_V1::marray.19", align 32
+// CHECK-PREVIEW-NEXT:    [[REF_TMP_I:%.*]] = alloca %"class.sycl::_V1::marray.19", align 64
 // CHECK-PREVIEW-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META82:![0-9]+]])
 // CHECK-PREVIEW-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[REF_TMP_I]])
-// CHECK-PREVIEW-NEXT:    call void @llvm.memset.p0.i64(ptr align 32 [[REF_TMP_I]], i8 0, i64 64, i1 false), !noalias [[META82]]
+// CHECK-PREVIEW-NEXT:    call void @llvm.memset.p0.i64(ptr align 64 [[REF_TMP_I]], i8 0, i64 64, i1 false), !noalias [[META82]]
 // CHECK-PREVIEW-NEXT:    store double [[B]], ptr [[REF_TMP_I]], align 8, !tbaa [[TBAA34]], !noalias [[META82]]
 // CHECK-PREVIEW-NEXT:    br label [[FOR_COND_I_I_I:%.*]]
 // CHECK-PREVIEW:       for.cond.i.i.i:
@@ -1261,13 +1261,13 @@ SYCL_EXTERNAL auto TestUnaryPlus(marray<std::int16_t, 4> a) { return +a; }
 // CHECK-NEXT:    ret void
 //
 // CHECK-PREVIEW-LABEL: define dso_local spir_func void @_Z10TestPreIncRN4sycl3_V16marrayIlLm8EEE(
-// CHECK-PREVIEW-SAME: ptr addrspace(4) dead_on_unwind noalias writable writeonly sret(%"class.sycl::_V1::marray.38") align 32 captures(none) [[AGG_RESULT:%.*]], ptr addrspace(4) noundef align 32 captures(none) dereferenceable(64) [[A:%.*]]) local_unnamed_addr #[[ATTR7]] {{.*}}{
+// CHECK-PREVIEW-SAME: ptr addrspace(4) dead_on_unwind noalias writable writeonly sret(%"class.sycl::_V1::marray.38") align 64 captures(none) [[AGG_RESULT:%.*]], ptr addrspace(4) noundef align 64 captures(none) dereferenceable(64) [[A:%.*]]) local_unnamed_addr #[[ATTR7]] {{.*}}{
 // CHECK-PREVIEW-NEXT:  entry:
-// CHECK-PREVIEW-NEXT:    [[REF_TMP_I_I:%.*]] = alloca %"class.sycl::_V1::marray.38", align 32
-// CHECK-PREVIEW-NEXT:    [[REF_TMP1_I_I:%.*]] = alloca %"class.sycl::_V1::marray.38", align 32
+// CHECK-PREVIEW-NEXT:    [[REF_TMP_I_I:%.*]] = alloca %"class.sycl::_V1::marray.38", align 64
+// CHECK-PREVIEW-NEXT:    [[REF_TMP1_I_I:%.*]] = alloca %"class.sycl::_V1::marray.38", align 64
 // CHECK-PREVIEW-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[REF_TMP_I_I]])
 // CHECK-PREVIEW-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[REF_TMP1_I_I]])
-// CHECK-PREVIEW-NEXT:    call void @llvm.memset.p0.i64(ptr align 32 [[REF_TMP1_I_I]], i8 0, i64 64, i1 false)
+// CHECK-PREVIEW-NEXT:    call void @llvm.memset.p0.i64(ptr align 64 [[REF_TMP1_I_I]], i8 0, i64 64, i1 false)
 // CHECK-PREVIEW-NEXT:    store i64 1, ptr [[REF_TMP1_I_I]], align 8, !tbaa [[TBAA43]]
 // CHECK-PREVIEW-NEXT:    br label [[FOR_COND_I_I_I_I:%.*]]
 // CHECK-PREVIEW:       for.cond.i.i.i.i:
@@ -1297,10 +1297,10 @@ SYCL_EXTERNAL auto TestUnaryPlus(marray<std::int16_t, 4> a) { return +a; }
 // CHECK-PREVIEW-NEXT:    [[INC_I_I_I]] = add nuw nsw i64 [[I_0_I_I_I]], 1
 // CHECK-PREVIEW-NEXT:    br label [[FOR_COND_I_I_I]], !llvm.loop [[LOOP120:![0-9]+]]
 // CHECK-PREVIEW:       _ZN4sycl3_V1ppIlEERNSt9enable_ifIXntsr3stdE9is_same_vINSt9remove_cvIT_E4typeEbEENS0_6marrayIlLm8EEEE4typeERS8_.exit:
-// CHECK-PREVIEW-NEXT:    call void @llvm.memcpy.p4.p0.i64(ptr addrspace(4) align 32 [[A]], ptr align 32 [[REF_TMP_I_I]], i64 64, i1 false), !tbaa.struct [[TBAA_STRUCT121:![0-9]+]]
+// CHECK-PREVIEW-NEXT:    call void @llvm.memcpy.p4.p0.i64(ptr addrspace(4) align 64 [[A]], ptr align 64 [[REF_TMP_I_I]], i64 64, i1 false), !tbaa.struct [[TBAA_STRUCT121:![0-9]+]]
 // CHECK-PREVIEW-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[REF_TMP_I_I]])
 // CHECK-PREVIEW-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[REF_TMP1_I_I]])
-// CHECK-PREVIEW-NEXT:    tail call void @llvm.memcpy.p4.p4.i64(ptr addrspace(4) noundef align 32 dereferenceable(64) [[AGG_RESULT]], ptr addrspace(4) noundef align 32 dereferenceable(64) [[A]], i64 64, i1 false), !tbaa.struct [[TBAA_STRUCT121]]
+// CHECK-PREVIEW-NEXT:    tail call void @llvm.memcpy.p4.p4.i64(ptr addrspace(4) noundef align 64 dereferenceable(64) [[AGG_RESULT]], ptr addrspace(4) noundef align 64 dereferenceable(64) [[A]], i64 64, i1 false), !tbaa.struct [[TBAA_STRUCT121]]
 // CHECK-PREVIEW-NEXT:    ret void
 //
 SYCL_EXTERNAL auto TestPreInc(marray<std::int64_t, 8> &a) { return ++a; }

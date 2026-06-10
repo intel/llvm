@@ -37,16 +37,22 @@
 // kernel times for both containers and highlights rows where the marray/vec
 // ratio exceeds threshold. It never fails on a performance difference.
 //
-// UNSUPPORTED: *
-// UNSUPPORTED-INTENDED: This test is intended to be run manually to compare
-// the performance of vec and marray. It doesn't check or assert anything.
 //
 // RUN: %{build} -o %t_non_prev.out
 // RUN: %{build} -fpreview-breaking-changes -o %t_prev.out
 // RUN: %{run} %t_non_prev.out
 // RUN: %{run} %t_prev.out
+//
+// UNSUPPORTED: linux || windows
+// UNSUPPORTED-INTENDED: This test is intended to be run manually to compare
+// the performance of vec and marray. It doesn't check or assert anything.
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/bfloat16.hpp>
+#include <sycl/marray.hpp>
+#include <sycl/vector.hpp>
+#include <sycl/usm.hpp>
+#include <sycl/properties/all_properties.hpp>
 
 #include <algorithm>
 #include <array>
@@ -125,7 +131,7 @@ template <BenchKind Mode, typename ContainerT> double bench(queue &q) {
     out = malloc_device<ContainerT>(NumElems, q);
     if (!in || !out)
       throw std::runtime_error("allocation returned null");
-  } catch (const exception &) {
+  } catch (const std::exception &) {
     if (in)
       sycl::free(in, q);
     if (out)
