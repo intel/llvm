@@ -191,7 +191,8 @@ void single_task(queue Q, [[maybe_unused]] kernel_function_s<Func> KernelFunc,
                  ArgsT &&...Args) {
   // Here and in the next function, we use the
   // SingleTaskFreeFunctionKernelWrapper declared above to generate unique
-  // kernel names for the lambda at compile-time.
+  // kernel names for the lambda at compile-time. Unnamed lambdas tend to cause
+  // problems with other host compilers
   detail::submit_kernel_direct_single_task<
       detail::SingleTaskFreeFunctionKernelWrapper<Func, 1, ArgsT...>>(
       std::move(Q), [Args...]() { Func(Args...); });
@@ -452,7 +453,8 @@ void nd_launch(queue Q, nd_range<Dimensions> Range,
                ArgsT &&...Args) {
   // Here and in the next 3 functions, we use the
   // NdRangeFreeFunctionKernelWrapper declared above to generate unique
-  // kernel names for the lambda at compile-time.
+  // kernel names for the lambda at compile-time. Unnamed lambdas tend to cause
+  // problems with other host compilers
   detail::submit_kernel_direct_parallel_for<
       detail::NdRangeFreeFunctionKernelWrapper<Func, Dimensions, 1, ArgsT...>>(
       std::move(Q), Range,
