@@ -1,6 +1,8 @@
 // REQUIRES: aspect-usm_shared_allocations
 // UNSUPPORTED: target-amd
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/16072
+// XFAIL: cuda
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/22291
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
@@ -28,6 +30,9 @@ namespace syclexp = sycl::ext::oneapi::experimental;
 using accType =
     sycl::accessor<int, 1, sycl::access_mode::read_write, sycl::target::device,
                    sycl::access::placeholder::true_t>;
+
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::single_task_kernel))
+void empty() {}
 
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
 void initialize(int *ptr) {
@@ -77,6 +82,8 @@ int main() {
   sycl::queue Q;
   int *Src = sycl::malloc_shared<int>(SIZE, Q);
   int *Dst = sycl::malloc_shared<int>(SIZE, Q);
+
+  syclexp::single_task(Q, syclexp::kernel_function_s<empty>{});
 
   syclexp::nd_launch(
       Q, ::sycl::nd_range<1>(::sycl::range<1>(SIZE), ::sycl::range<1>(SIZE)),
