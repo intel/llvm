@@ -104,7 +104,6 @@
 // CHECK-NEXT: properties/buffer_properties.def
 // CHECK-NEXT: detail/cg_types.hpp
 // CHECK-NEXT: kernel_handler.hpp
-// CHECK-NEXT: info/queue.hpp
 // CHECK-NEXT: detail/kernel_desc.hpp
 // CHECK-NEXT: detail/nd_range_view.hpp
 // CHECK-NEXT: nd_range.hpp
@@ -165,6 +164,7 @@
 // CHECK-NEXT: info/kernel.hpp
 // CHECK-NEXT: nd_item.hpp
 // CHECK-NEXT: sampler.hpp
+// CHECK-NEXT: info/queue.hpp
 // CHECK-NEXT: sycl_span.hpp
 // CHECK-NEXT: usm/usm_pointer_info.hpp
 // CHECK-NEXT: usm/usm_allocator.hpp

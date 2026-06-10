@@ -11,11 +11,6 @@
 // CHECK-NEXT: kernel.hpp
 // CHECK-NEXT: backend_types.hpp
 // CHECK-NEXT: detail/export.hpp
-// CHECK-NEXT: info/kernel.hpp
-// CHECK-NEXT: detail/info_desc_traits.hpp
-// CHECK-NEXT: ur_api.h
-// CHECK-NEXT: range.hpp
-// CHECK-NEXT: detail/array.hpp
 // CHECK-NEXT: detail/owner_less_base.hpp
 // CHECK-NEXT: detail/impl_utils.hpp
 // CHECK-NEXT: __spirv/spirv_vars.hpp
@@ -24,6 +19,11 @@
 // CHECK-NEXT: detail/abi_neutral.hpp
 // CHECK-NEXT: detail/string.hpp
 // CHECK-NEXT: detail/defines.hpp
+// CHECK-NEXT: info/kernel.hpp
+// CHECK-NEXT: detail/info_desc_traits.hpp
+// CHECK-NEXT: ur_api.h
+// CHECK-NEXT: range.hpp
+// CHECK-NEXT: detail/array.hpp
 // CHECK-NEXT: kernel_bundle_enums.hpp
 // CHECK-NEXT: kernel_bundle.hpp
 // CHECK-NEXT: context.hpp

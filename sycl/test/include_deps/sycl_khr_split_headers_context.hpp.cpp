@@ -12,13 +12,13 @@
 // CHECK-NEXT: async_handler.hpp
 // CHECK-NEXT: backend_types.hpp
 // CHECK-NEXT: detail/export.hpp
-// CHECK-NEXT: info/context.hpp
-// CHECK-NEXT: detail/info_desc_traits.hpp
-// CHECK-NEXT: ur_api.h
 // CHECK-NEXT: detail/owner_less_base.hpp
 // CHECK-NEXT: detail/impl_utils.hpp
 // CHECK-NEXT: __spirv/spirv_vars.hpp
 // CHECK-NEXT: ext/oneapi/weak_object_base.hpp
+// CHECK-NEXT: info/context.hpp
+// CHECK-NEXT: detail/info_desc_traits.hpp
+// CHECK-NEXT: ur_api.h
 // CHECK-NEXT: property_list.hpp
 // CHECK-NEXT: detail/property_helper.hpp
 // CHECK-NEXT: detail/property_list_base.hpp

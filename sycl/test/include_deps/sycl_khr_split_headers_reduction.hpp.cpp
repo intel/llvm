@@ -177,9 +177,9 @@
 // CHECK-NEXT: info/kernel.hpp
 // CHECK-NEXT: sampler.hpp
 // CHECK-NEXT: queue.hpp
-// CHECK-NEXT: info/queue.hpp
 // CHECK-NEXT: detail/optional.hpp
 // CHECK-NEXT: ext/oneapi/experimental/event_mode_property.hpp
+// CHECK-NEXT: info/queue.hpp
 // CHECK-NEXT: sycl_span.hpp
 // CHECK-NEXT: usm.hpp
 // CHECK-NEXT: platform.hpp

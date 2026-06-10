@@ -9,6 +9,10 @@
 // CHECK-NEXT: detail/defines_elementary.hpp
 // CHECK-NEXT: feature_test.hpp
 // CHECK-NEXT: platform.hpp
+// CHECK-NEXT: aspects.hpp
+// CHECK-NEXT: detail/defines.hpp
+// CHECK-NEXT: info/aspects.def
+// CHECK-NEXT: info/aspects_deprecated.def
 // CHECK-NEXT: backend_types.hpp
 // CHECK-NEXT: detail/abi_neutral.hpp
 // CHECK-NEXT: detail/string.hpp
@@ -18,10 +22,6 @@
 // CHECK-NEXT: __spirv/spirv_vars.hpp
 // CHECK-NEXT: ext/oneapi/weak_object_base.hpp
 // CHECK-NEXT: detail/string_view.hpp
-// CHECK-NEXT: aspects.hpp
-// CHECK-NEXT: detail/defines.hpp
-// CHECK-NEXT: info/aspects.def
-// CHECK-NEXT: info/aspects_deprecated.def
 // CHECK-NEXT: device_selector.hpp
 // CHECK-NEXT: info/device.hpp
 // CHECK-NEXT: detail/device_info_types.hpp
