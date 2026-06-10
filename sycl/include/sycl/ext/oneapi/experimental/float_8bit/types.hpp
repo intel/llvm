@@ -22,11 +22,10 @@
 #include <stdexcept>
 #include <type_traits>
 
+#ifdef __SYCL_DEVICE_ONLY__
 using float16_vec2 = _Float16 __attribute__((ext_vector_type(2)));
 using uint8_vec2 = uint8_t __attribute__((ext_vector_type(2)));
 using bfloat16_vec2 = __bf16 __attribute__((ext_vector_type(2)));
-
-#ifdef __SYCL_DEVICE_ONLY__
 // FP8 builtins
 
 extern __DPCPP_SYCL_EXTERNAL uint8_t
