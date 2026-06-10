@@ -1,4 +1,4 @@
-//==------------------------- PhysicalMemory.cpp ----------------------------==//
+//==------------------------- PhysicalMemory.cpp ---------------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -22,12 +22,11 @@ namespace {
 constexpr size_t PhysMemSize = 8;
 int DummyPhysicalMemHandleData = 123;
 ur_physical_mem_handle_t DummyPhysicalMemHandle =
-  (ur_physical_mem_handle_t)&DummyPhysicalMemHandleData;
+    (ur_physical_mem_handle_t)&DummyPhysicalMemHandleData;
 constexpr size_t DummyHandleDataSize = 10;
 std::byte DummyHandleData[DummyHandleDataSize] = {
     std::byte{9}, std::byte{8}, std::byte{7}, std::byte{6}, std::byte{5},
     std::byte{4}, std::byte{3}, std::byte{2}, std::byte{1}, std::byte{0}};
-
 
 int urPhysicalMemCreate_counter = 0;
 int urPhysicalMemRelease_counter = 0;
@@ -36,7 +35,6 @@ int urIPCGetPhysMemHandleExp_counter = 0;
 int urIPCPutPhysMemHandleExp_counter = 0;
 int urIPCOpenPhysMemHandleExp_counter = 0;
 int urIPCClosePhysMemHandleExp_counter = 0;
-
 
 ur_result_t replace_urPhysicalMemCreate(void *pParams) {
   ++urPhysicalMemCreate_counter;
@@ -72,7 +70,8 @@ ur_result_t replace_urPhysicalMemGetInfo(void *pParams) {
 
 ur_result_t replace_urIPCGetPhysMemHandleExp(void *pParams) {
   ++urIPCGetPhysMemHandleExp_counter;
-  auto params = *static_cast<ur_ipc_get_phys_mem_handle_exp_params_t *>(pParams);
+  auto params =
+      *static_cast<ur_ipc_get_phys_mem_handle_exp_params_t *>(pParams);
   EXPECT_EQ(*params.phPhysMem, DummyPhysicalMemHandle);
   if (*params.ppIPCPhysMemHandleDataSizeRet)
     **params.ppIPCPhysMemHandleDataSizeRet = DummyHandleDataSize;
@@ -83,17 +82,19 @@ ur_result_t replace_urIPCGetPhysMemHandleExp(void *pParams) {
 
 ur_result_t replace_urIPCPutPhysMemHandleExp(void *pParams) {
   ++urIPCPutPhysMemHandleExp_counter;
-  auto params = *static_cast<ur_ipc_put_phys_mem_handle_exp_params_t *>(pParams);
+  auto params =
+      *static_cast<ur_ipc_put_phys_mem_handle_exp_params_t *>(pParams);
   EXPECT_EQ(*params.ppIPCPhysMemHandleData, (void *)DummyHandleData);
   return UR_RESULT_SUCCESS;
 }
 
 ur_result_t replace_urIPCOpenPhysMemHandleExp(void *pParams) {
   ++urIPCOpenPhysMemHandleExp_counter;
-  auto params = *static_cast<ur_ipc_open_phys_mem_handle_exp_params_t *>(pParams);
-  EXPECT_EQ(
-      memcmp(*params.ppIPCPhysMemHandleData, DummyHandleData, DummyHandleDataSize),
-      0);
+  auto params =
+      *static_cast<ur_ipc_open_phys_mem_handle_exp_params_t *>(pParams);
+  EXPECT_EQ(memcmp(*params.ppIPCPhysMemHandleData, DummyHandleData,
+                   DummyHandleDataSize),
+            0);
   EXPECT_EQ(*params.pipcPhysMemHandleDataSize, DummyHandleDataSize);
   **params.pphPhysMem = DummyPhysicalMemHandle;
   return UR_RESULT_SUCCESS;
@@ -101,7 +102,8 @@ ur_result_t replace_urIPCOpenPhysMemHandleExp(void *pParams) {
 
 ur_result_t replace_urIPCClosePhysMemHandleExp(void *pParams) {
   ++urIPCClosePhysMemHandleExp_counter;
-  auto params = *static_cast<ur_ipc_close_phys_mem_handle_exp_params_t *>(pParams);
+  auto params =
+      *static_cast<ur_ipc_close_phys_mem_handle_exp_params_t *>(pParams);
   EXPECT_EQ(*params.phPhysMem, DummyPhysicalMemHandle);
   return UR_RESULT_SUCCESS;
 }
@@ -122,8 +124,9 @@ ur_result_t after_urDeviceGetInfo(void *pParams) {
 
 class IPCPhysMemTests : public ::testing::Test {
 public:
-  IPCPhysMemTests() : Mock{}, Ctxt(sycl::platform()),
-    Dev(sycl::platform().get_devices()[0]) {}
+  IPCPhysMemTests()
+      : Mock{}, Ctxt(sycl::platform()), Dev(sycl::platform().get_devices()[0]) {
+  }
 
 protected:
   void SetUp() override {
@@ -145,10 +148,10 @@ protected:
                                               replace_urIPCGetPhysMemHandleExp);
     mock::getCallbacks().set_replace_callback("urIPCPutPhysMemHandleExp",
                                               replace_urIPCPutPhysMemHandleExp);
-    mock::getCallbacks().set_replace_callback("urIPCOpenPhysMemHandleExp",
-                                              replace_urIPCOpenPhysMemHandleExp);
-    mock::getCallbacks().set_replace_callback("urIPCClosePhysMemHandleExp",
-                                              replace_urIPCClosePhysMemHandleExp);
+    mock::getCallbacks().set_replace_callback(
+        "urIPCOpenPhysMemHandleExp", replace_urIPCOpenPhysMemHandleExp);
+    mock::getCallbacks().set_replace_callback(
+        "urIPCClosePhysMemHandleExp", replace_urIPCClosePhysMemHandleExp);
     mock::getCallbacks().set_after_callback("urDeviceGetInfo",
                                             after_urDeviceGetInfo);
   }

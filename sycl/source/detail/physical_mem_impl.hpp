@@ -43,10 +43,10 @@ public:
         MNumBytes(NumBytes), MIPCEnabled(EnableIPC) {
     adapter_impl &Adapter = MContext->getAdapter();
 
-     ur_physical_mem_properties_t Props{};
-     if (EnableIPC) {
-       Props.flags = UR_PHYSICAL_MEM_FLAG_ENABLE_IPC;
-     }
+    ur_physical_mem_properties_t Props{};
+    if (EnableIPC) {
+      Props.flags = UR_PHYSICAL_MEM_FLAG_ENABLE_IPC;
+    }
 
     auto Err = Adapter.call_nocheck<UrApiKind::urPhysicalMemCreate>(
         MContext->getHandleRef(), MDevice.getHandleRef(), MNumBytes, &Props,
@@ -70,7 +70,7 @@ public:
     adapter_impl &Adapter = MContext->getAdapter();
 
     if (MOpenedFromIpc) {
-       Adapter.call<UrApiKind::urIPCClosePhysMemHandleExp>(
+      Adapter.call<UrApiKind::urIPCClosePhysMemHandleExp>(
           MContext->getHandleRef(), MPhysicalMem);
     } else {
       Adapter.call<UrApiKind::urPhysicalMemRelease>(MPhysicalMem);

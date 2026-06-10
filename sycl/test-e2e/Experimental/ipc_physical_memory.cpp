@@ -79,9 +79,9 @@ int spawner(int argc, char *argv[]) {
 
   {
     // Write handle data to file.
-  #ifdef USE_VIEW
+#ifdef USE_VIEW
     syclexp::ipc::handle_data_view_t HandleData = IPCHandle.data_view();
-  #else
+#else
     syclexp::ipc::handle_data_t HandleData = IPCHandle.data();
 #endif
     size_t HandleDataSize = HandleData.size();

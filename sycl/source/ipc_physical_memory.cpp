@@ -81,9 +81,10 @@ __SYCL_EXPORT handle get(physical_mem &physmem) {
 
   void *HandlePtr = nullptr;
   size_t HandleSize = 0;
-  auto UrRes = Adapter.call_nocheck<sycl::detail::UrApiKind::urIPCGetPhysMemHandleExp>(
-    CtxImpl->getHandleRef(), PhysMemImpl->getHandleRef(), &HandlePtr,
-    &HandleSize);
+  auto UrRes =
+      Adapter.call_nocheck<sycl::detail::UrApiKind::urIPCGetPhysMemHandleExp>(
+          CtxImpl->getHandleRef(), PhysMemImpl->getHandleRef(), &HandlePtr,
+          &HandleSize);
   Adapter.checkUrResult(UrRes);
 
   return {HandlePtr, HandleSize};
@@ -93,8 +94,9 @@ __SYCL_EXPORT void put(handle &ipc_handle, const sycl::context &ctx) {
   auto CtxImpl = sycl::detail::getSyclObjImpl(ctx);
   sycl::detail::adapter_impl &Adapter = CtxImpl->getAdapter();
 
-  ur_result_t UrRes = Adapter.call_nocheck<sycl::detail::UrApiKind::urIPCPutPhysMemHandleExp>(
-      CtxImpl->getHandleRef(), ipc_handle.MData);
+  ur_result_t UrRes =
+      Adapter.call_nocheck<sycl::detail::UrApiKind::urIPCPutPhysMemHandleExp>(
+          CtxImpl->getHandleRef(), ipc_handle.MData);
   Adapter.checkUrResult(UrRes);
 }
 
