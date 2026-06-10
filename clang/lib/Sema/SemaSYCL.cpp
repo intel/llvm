@@ -7670,7 +7670,6 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     O << "} // namespace\n";
   }
 
-
   O << "// Specializations of KernelInfo for kernel function types:\n";
   O << "namespace sycl {\n";
   O << "inline namespace _V1 {\n";
