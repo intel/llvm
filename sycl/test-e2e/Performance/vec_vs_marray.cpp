@@ -50,9 +50,9 @@
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/bfloat16.hpp>
 #include <sycl/marray.hpp>
-#include <sycl/vector.hpp>
-#include <sycl/usm.hpp>
 #include <sycl/properties/all_properties.hpp>
+#include <sycl/usm.hpp>
+#include <sycl/vector.hpp>
 
 #include <algorithm>
 #include <array>
