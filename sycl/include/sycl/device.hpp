@@ -8,10 +8,10 @@
 
 #pragma once
 
+#include <sycl/aspects.hpp>
 #include <sycl/backend_types.hpp>
 #include <sycl/detail/defines_elementary.hpp>
 #include <sycl/detail/export.hpp>
-#include <sycl/detail/info_desc_helpers.hpp>
 #include <sycl/detail/owner_less_base.hpp>
 #include <sycl/detail/string.hpp>
 #include <sycl/detail/string_view.hpp>
@@ -46,8 +46,6 @@ namespace detail {
 class device_impl;
 auto getDeviceComparisonLambda();
 } // namespace detail
-
-enum class aspect;
 
 namespace ext::oneapi {
 // Forward declaration

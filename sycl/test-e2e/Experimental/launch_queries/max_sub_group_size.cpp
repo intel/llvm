@@ -5,7 +5,7 @@
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142
 
 #include <sycl/detail/core.hpp>
-#include <sycl/detail/info_desc_helpers.hpp>
+#include <sycl/info/kernel.hpp>
 #include <sycl/kernel.hpp>
 #include <sycl/kernel_bundle.hpp>
 #include <sycl/nd_item.hpp>

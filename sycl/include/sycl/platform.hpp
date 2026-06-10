@@ -12,7 +12,6 @@
 #include <sycl/detail/abi_neutral.hpp>
 #include <sycl/detail/defines_elementary.hpp>
 #include <sycl/detail/export.hpp>
-#include <sycl/detail/info_desc_helpers.hpp>
 #include <sycl/detail/owner_less_base.hpp>
 #include <sycl/detail/string_view.hpp>
 #include <sycl/device_selector.hpp>

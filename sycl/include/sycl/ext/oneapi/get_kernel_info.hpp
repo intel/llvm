@@ -12,10 +12,10 @@
 #include <sycl/detail/get_device_kernel_info.hpp>
 #include <sycl/detail/get_kernel_info_impl.hpp>
 #include <sycl/detail/impl_utils.hpp>
-#include <sycl/detail/info_desc_helpers.hpp>
 #include <sycl/device.hpp>
 #include <sycl/ext/oneapi/experimental/free_function_traits.hpp>
 #include <sycl/info/info_desc.hpp>
+#include <sycl/info/kernel.hpp>
 #include <sycl/kernel_bundle.hpp>
 #include <sycl/kernel_bundle_enums.hpp>
 #include <sycl/queue.hpp>

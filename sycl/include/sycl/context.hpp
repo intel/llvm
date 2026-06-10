@@ -12,7 +12,7 @@
 #include <sycl/backend_types.hpp>             // for backend, backend_return_t
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
 #include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
-#include <sycl/detail/info_desc_helpers.hpp>  // for is_context_info_desc
+#include <sycl/info/context.hpp>              // for is_context_info_desc
 #include <sycl/detail/owner_less_base.hpp>    // for OwnerLessBase
 #include <sycl/property_list.hpp>             // for property_list
 #include <sycl/usm/usm_enums.hpp>             // for usm::alloc

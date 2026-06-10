@@ -37,5 +37,12 @@ struct reference_count : queue_traits<UR_QUEUE_INFO_REFERENCE_COUNT> {
 };
 } // namespace queue
 } // namespace info
+
+namespace detail {
+// SFINAE predicate confining `queue::get_info<T>()` to queue traits.
+// `return_type` alias is load-bearing for ABI symbol mangling — keep stable.
+template <typename T>
+struct is_queue_info_desc : is_info_desc_for<T, info_class::queue> {};
+} // namespace detail
 } // namespace _V1
 } // namespace sycl
