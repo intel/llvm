@@ -2,7 +2,7 @@
 // with the new offload model.
 
 /// Enabling with -fsycl-host-compiler
-// RUN: %clangxx -fsycl --offload-new-driver -fsycl-host-compiler=/some/dir/g++ %s -### 2>&1 \
+// RUN: %clangxx -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-host-compiler=/some/dir/g++ %s -### 2>&1 \
 // RUN:  | FileCheck -check-prefix=HOST_COMPILER %s
 // HOST_COMPILER: clang{{.*}} "-fsycl-is-device"
 // HOST_COMPILER-SAME: "-fsycl-int-header=[[INTHEADER:.+\.h]]" "-fsycl-int-footer=[[INTFOOTER:.+\.h]]"
@@ -19,7 +19,7 @@
 // HOST_COMPILER: clang-offload-bundler{{.*}} "-output=[[BUNDLEOBJ:.+\.o]]" "-input=[[DEVICEBC]]" "-input=[[HOSTOBJ]]"
 // HOST_COMPILER: clang-linker-wrapper{{.*}} "[[BUNDLEOBJ]]"
 
-// RUN: %clang_cl -fsycl --offload-new-driver -fsycl-host-compiler=/some/dir/cl %s -### 2>&1 \
+// RUN: %clang_cl -fsycl --offload-new-driver /clang:--sysroot=%S/Inputs/SYCL -fsycl-host-compiler=/some/dir/cl %s -### 2>&1 \
 // RUN:  | FileCheck -check-prefix=HOST_COMPILER_CL %s
 // HOST_COMPILER_CL: clang{{.*}} "-fsycl-is-device"
 // HOST_COMPILER_CL-SAME: "-fsycl-int-header=[[INTHEADER:.+\.h]]" "-fsycl-int-footer=[[INTFOOTER:.+\.h]]"
@@ -36,51 +36,51 @@
 // HOST_COMPILER_CL: clang-linker-wrapper{{.*}} "[[BUNDLEOBJ]]"
 
 /// Check for additional host options.
-// RUN: %clangxx -fsycl --offload-new-driver -fsycl-host-compiler=g++ -fsycl-host-compiler-options="-DFOO -DBAR" %s -### 2>&1 \
+// RUN: %clangxx -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-host-compiler=g++ -fsycl-host-compiler-options="-DFOO -DBAR" %s -### 2>&1 \
 // RUN:  | FileCheck -check-prefix=HOST_OPTIONS %s
 // HOST_OPTIONS: g++{{.*}} "-o" "[[HOSTOBJ:.+\.o]]"{{.*}} "-DFOO" "-DBAR"
 
-// RUN: %clang_cl -fsycl --offload-new-driver -fsycl-host-compiler=cl -fsycl-host-compiler-options="/DFOO /DBAR /O2" %s -### 2>&1 \
+// RUN: %clang_cl -fsycl --offload-new-driver /clang:--sysroot=%S/Inputs/SYCL -fsycl-host-compiler=cl -fsycl-host-compiler-options="/DFOO /DBAR /O2" %s -### 2>&1 \
 // RUN:  | FileCheck -check-prefix=HOST_OPTIONS_CL %s
 // HOST_OPTIONS_CL: cl{{.*}} "-Fo[[HOSTOBJ:.+\.obj]]"{{.*}} "/DFOO" "/DBAR" "/O2"
 
 /// Object output check.
-// RUN: %clangxx -fsycl --offload-new-driver -fsycl-host-compiler=g++ -c %s -### 2>&1 \
+// RUN: %clangxx -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-host-compiler=g++ -c %s -### 2>&1 \
 // RUN:  | FileCheck -check-prefix=HOST_OBJECT %s
 // HOST_OBJECT: g++{{.*}} "-c"{{.*}} "-o" "[[OBJOUT:.+\.o]]"
 // HOST_OBJECT: clang-offload-bundler{{.*}} "-input={{.*}}.bc" "-input=[[OBJOUT]]"
 
-// RUN: %clang_cl -fsycl --offload-new-driver -fsycl-host-compiler=cl -c %s -### 2>&1 \
+// RUN: %clang_cl -fsycl --offload-new-driver /clang:--sysroot=%S/Inputs/SYCL -fsycl-host-compiler=cl -c %s -### 2>&1 \
 // RUN:  | FileCheck -check-prefix=HOST_OBJECT_CL %s
 // HOST_OBJECT_CL: cl{{.*}} "-c"{{.*}} "-Fo[[OBJOUT:.+\.obj]]"
 // HOST_OBJECT_CL: clang-offload-bundler{{.*}} "-input={{.*}}.bc" "-input=[[OBJOUT]]"
 
 /// Missing argument error -fsycl-host-compiler=.
-// RUN: not %clangxx -fsycl --offload-new-driver -fsycl-host-compiler= -c -### %s 2>&1 \
+// RUN: not %clangxx -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-host-compiler= -c -### %s 2>&1 \
 // RUN:  | FileCheck -check-prefix=HOST_COMPILER_NOARG %s
 // HOST_COMPILER_NOARG: missing argument to '-fsycl-host-compiler='
 
 /// Error for -fsycl-host-compiler and -fsycl-unnamed-lambda combination.
-// RUN: not %clangxx -fsycl --offload-new-driver -fsycl-host-compiler=g++ -fsycl-unnamed-lambda -c -### %s 2>&1 \
+// RUN: not %clangxx -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-host-compiler=g++ -fsycl-unnamed-lambda -c -### %s 2>&1 \
 // RUN:  | FileCheck -check-prefix=HOST_COMPILER_AND_UNNAMED_LAMBDA %s
 // HOST_COMPILER_AND_UNNAMED_LAMBDA: error: cannot specify '-fsycl-unnamed-lambda' along with '-fsycl-host-compiler'
 
 // -fsycl-host-compiler implies -fno-sycl-unnamed-lambda.
-// RUN: %clangxx -### -fsycl --offload-new-driver -fsycl-host-compiler=g++ -c -### %s 2>&1 \
+// RUN: %clangxx -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-host-compiler=g++ -c -### %s 2>&1 \
 // RUN:  | FileCheck -check-prefix=IMPLY-NO-SYCL-UNNAMED-LAMBDA %s
 // IMPLY-NO-SYCL-UNNAMED-LAMBDA: clang{{.*}} "-fno-sycl-unnamed-lambda"
 
 // Zc:__cplusplus, Zc:__cplusplus- check.
-// RUN: %clang_cl -### -fsycl-host-compiler=cl -fsycl --offload-new-driver %s 2>&1 | FileCheck -check-prefix=CHECK-ZC-CPLUSPLUS %s
-// RUN: %clang_cl -### -fsycl-host-compiler=cl -fsycl --offload-new-driver -fsycl-host-compiler-options=/Zc:__cplusplus- %s 2>&1 | FileCheck -check-prefix=CHECK-ZC-CPLUSPLUS-MINUS %s
+// RUN: %clang_cl -### -fsycl-host-compiler=cl -fsycl --offload-new-driver /clang:--sysroot=%S/Inputs/SYCL %s 2>&1 | FileCheck -check-prefix=CHECK-ZC-CPLUSPLUS %s
+// RUN: %clang_cl -### -fsycl-host-compiler=cl -fsycl --offload-new-driver /clang:--sysroot=%S/Inputs/SYCL -fsycl-host-compiler-options=/Zc:__cplusplus- %s 2>&1 | FileCheck -check-prefix=CHECK-ZC-CPLUSPLUS-MINUS %s
 // RUN: %clang_cl -### %s 2>&1 | FileCheck -check-prefix=CHECK-NO-ZC-CPLUSPLUS %s
-// RUN: %clang_cl -### -fsycl-host-compiler=g++ -fsycl --offload-new-driver %s 2>&1 | FileCheck -check-prefix=CHECK-NO-ZC-CPLUSPLUS %s
+// RUN: %clang_cl -### -fsycl-host-compiler=g++ -fsycl --offload-new-driver /clang:--sysroot=%S/Inputs/SYCL %s 2>&1 | FileCheck -check-prefix=CHECK-NO-ZC-CPLUSPLUS %s
 // CHECK-ZC-CPLUSPLUS: "/Zc:__cplusplus"
 // CHECK-ZC-CPLUSPLUS-MINUS: "/Zc:__cplusplus-"
 // CHECK-NO-ZC-CPLUSPLUS-NOT: "/Zc:__cplusplus"
 
 /// -fsycl-host-compiler -save-temps behavior
-// RUN: %clangxx -### -fsycl-host-compiler=g++ -fsycl --offload-new-driver \
+// RUN: %clangxx -### -fsycl-host-compiler=g++ -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL \
 // RUN:          -save-temps -c %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHECK_SAVE_TEMPS %s
 // CHECK_SAVE_TEMPS-NOT: error: unsupported output type when using external host compiler
@@ -100,7 +100,7 @@
 // RUN: touch %t/test_path/clang++ && chmod +x %t/test_path/clang++
 // RUN: env "PATH=%t/test_path%{pathsep}%PATH%" \
 // RUN: %clangxx -### -fsycl -fsycl-host-compiler=clang++ \
-// RUN:   -fsycl-host-compiler-options=-DDUMMY_OPT --offload-new-driver \
+// RUN:   -fsycl-host-compiler-options=-DDUMMY_OPT --offload-new-driver --sysroot=%S/Inputs/SYCL \
 // RUN:   %s 2>&1 \
 // RUN: | FileCheck -check-prefix=PATH_CHECK %s
 // PATH_CHECK: {{(/|\\\\)}}test_path{{(/|\\\\)}}clang++{{.*}} "-DDUMMY_OPT"

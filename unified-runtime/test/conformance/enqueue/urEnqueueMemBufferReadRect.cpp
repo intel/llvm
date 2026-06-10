@@ -277,6 +277,9 @@ UUR_INSTANTIATE_PLATFORM_TEST_SUITE(urEnqueueMemBufferReadRectMultiDeviceTest);
 
 TEST_P(urEnqueueMemBufferReadRectMultiDeviceTest,
        WriteRectReadDifferentQueues) {
+  // Related issue: https://github.com/intel/llvm/issues/22058.
+  UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{"Data Center GPU Max"});
+
   // First queue does a blocking write of 42 into the buffer.
   // Then a rectangular write the buffer as 1024x1x1 1D.
   std::vector<uint32_t> input(count, 42);

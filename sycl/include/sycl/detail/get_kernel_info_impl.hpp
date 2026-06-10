@@ -21,7 +21,7 @@ class DeviceKernelInfo;
 // Fetches the cached kernel via the program manager and dispatches to
 // get_kernel_device_specific_info. Validation that kernel_impl::get_info
 // performs is replicated in the library-side definition (see
-// validateDeviceSpecificQuery in source/detail/get_device_kernel_info.cpp).
+// validateDeviceSpecificQuery in source/detail/get_kernel_info_impl.cpp).
 // Explicit instantiations for every kernel_device_specific descriptor form
 // the ABI boundary; user code reaches these through the public entry points
 // in ext/oneapi/get_kernel_info.hpp.

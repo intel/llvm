@@ -479,25 +479,36 @@ public:
 
       auto [JITImgs, AOTImgs] =
           [&]() -> std::pair<device_images_range, device_images_range> {
-        // If we are not fast-linking, all images must be JIT.
-        if (!FastLink)
-          return {GraphImgs, {}};
-
-        std::sort(
-            GraphImgs.begin(), GraphImgs.end(),
-            [](const device_image_plain &LHS, const device_image_plain &RHS) {
-              // Sort by state: That leaves objects (JIT) at the beginning and
-              // executables (AOT) at the end.
-              return getSyclObjImpl(LHS)->get_state() <
-                     getSyclObjImpl(RHS)->get_state();
-            });
-        auto AOTImgsBegin =
-            std::find_if(GraphImgs.begin(), GraphImgs.end(),
-                         [](const device_image_plain &Img) {
-                           return getSyclObjImpl(Img)->get_state() ==
-                                  bundle_state::executable;
-                         });
-        size_t NumJITImgs = std::distance(GraphImgs.begin(), AOTImgsBegin);
+        // Native AOT images cannot participate in urProgramLinkExp (which
+        // expects SPIR-V via ZE_MODULE_FORMAT_IL_SPIRV) and must be routed
+        // through urProgramDynamicLinkExp instead. Partition by intrinsic
+        // image format rather than by bundle_state: an AOT object SYCLBIN
+        // with unresolved imports arrives in bundle_state::object, which
+        // the previous logic (state-based partition under fast-link only)
+        // misclassified as JIT.
+        //
+        // The AOT predicate is shared with ProgramManager::getBinImageState
+        // so the two sites cannot drift. Targets currently classified as
+        // native AOT are spir64_x86_64 (OpenCL CPU) and spir64_gen (Intel
+        // GPU). NVPTX64 (CUDA) and AMDGCN (HIP) SYCLBIN paths emit PTX/HIP
+        // IR rather than native object images, so they go through the JIT
+        // branch below; if/when they grow a native-object pipeline, both
+        // sites should be updated together.
+        auto IsAOTImage = [](const device_image_plain &Img) {
+          const RTDeviceBinaryImage *Bin =
+              getSyclObjImpl(Img)->get_bin_image_ref();
+          if (!Bin)
+            return false;
+          return detail::ProgramManager::isAOTBinaryTarget(
+              Bin->getRawData().DeviceTargetSpec);
+        };
+        std::stable_partition(GraphImgs.begin(), GraphImgs.end(),
+                              [&IsAOTImage](const device_image_plain &Img) {
+                                return !IsAOTImage(Img);
+                              });
+        auto AOTBegin =
+            std::find_if(GraphImgs.begin(), GraphImgs.end(), IsAOTImage);
+        size_t NumJITImgs = std::distance(GraphImgs.begin(), AOTBegin);
         return {{GraphImgs.begin(), GraphImgs.begin() + NumJITImgs},
                 {GraphImgs.begin() + NumJITImgs, GraphImgs.end()}};
       }();
@@ -509,12 +520,30 @@ public:
               /*AllowUnresolvedSymbols=*/!AOTImgs.empty());
 
       if (!AOTImgs.empty()) {
-        // In dynamic linking, AOT binaries count as results as well.
+        // urProgramLinkExp's ze_module_program_exp_desc_t carries a single
+        // ZE_MODULE_FORMAT for the whole descriptor, so it cannot mix the
+        // SPIR-V-derived JIT-link result with the native AOT inputs in one
+        // call. Build each AOT program independently with
+        // ALLOW_UNRESOLVED_SYMBOLS (keeping its imported references intact),
+        // then resolve the cross-module references via dynamicLink(), which
+        // is the L0 API designed for linking already-built modules of
+        // arbitrary formats.
+        //
+        // Routing the AOT build through ProgramManager::build (rather than
+        // calling urProgramCreateWithBinary + urProgramBuildExp inline)
+        // keeps the result image plumbed through the standard build path
+        // and reuses NativePrograms registration, addDeviceGlobalInitializer,
+        // the program cache, kernel-id collection, and origin tracking.
+        auto &PM = detail::ProgramManager::getInstance();
         LinkedResults.reserve(LinkedResults.size() + AOTImgs.size());
-        for (device_image_impl &AOTImg : AOTImgs)
-          LinkedResults.push_back(
-              createSyclObjFromImpl<device_image_plain>(AOTImg));
-        detail::ProgramManager::getInstance().dynamicLink(LinkedResults);
+        for (device_image_impl &AOTImg : AOTImgs) {
+          LinkedResults.push_back(PM.build(
+              DevImgPlainWithDeps{
+                  createSyclObjFromImpl<device_image_plain>(AOTImg)},
+              GraphDevs, PropList,
+              /*AllowUnresolvedSymbols=*/true));
+        }
+        PM.dynamicLink(LinkedResults);
       }
 
       MDeviceImages.insert(MDeviceImages.end(), LinkedResults.begin(),

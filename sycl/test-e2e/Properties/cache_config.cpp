@@ -3,6 +3,9 @@
 // UNSUPPORTED: windows && gpu-intel-gen12
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21556
 
+// UNSUPPORTED: windows && arch-intel_gpu_bmg_g21
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22099
+
 // RUN: %{build} -Wno-deprecated-declarations -o %t.out
 // RUN: env SYCL_UR_TRACE=-1 UR_L0_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s
 
@@ -20,6 +23,7 @@
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/enqueue_functions.hpp>
 #include <sycl/ext/oneapi/free_function_queries.hpp>
+#include <sycl/h_item.hpp>
 #include <sycl/kernel_bundle.hpp>
 #include <sycl/properties/all_properties.hpp>
 #include <sycl/reduction.hpp>

@@ -241,6 +241,21 @@ cl::opt<bool> AllowDeviceImageDependencies{
     cl::desc("Allow dependencies between device images"), cl::cat(PostLinkCat),
     cl::init(false)};
 
+enum class IdQueriesRangeMode { IDQR_INT = 0, IDQR_UINT = 1, IDQR_SIZE_T = 2 };
+
+cl::opt<IdQueriesRangeMode> IdQueriesRange{
+    "id-queries-range",
+    cl::desc("Specify the assumption about SYCL ID query value ranges"),
+    cl::Optional,
+    cl::init(IdQueriesRangeMode::IDQR_INT),
+    cl::values(clEnumValN(IdQueriesRangeMode::IDQR_INT, "int",
+                          "ID query values fit within MAX_INT"),
+               clEnumValN(IdQueriesRangeMode::IDQR_UINT, "uint",
+                          "ID query values fit within MAX_UINT"),
+               clEnumValN(IdQueriesRangeMode::IDQR_SIZE_T, "size_t",
+                          "No restriction on ID query values")),
+    cl::cat(PostLinkCat)};
+
 struct IrPropSymFilenameTriple {
   std::string Ir;
   std::string Prop;
@@ -322,7 +337,7 @@ Error saveModule(
       CopyTriple.Prop = (OutputPrefix + NewSuff + ".prop").str();
       if (Error E = sycl_post_link::saveModuleProperties(
               MD, Props, CopyTriple.Prop, Target, AllowDeviceImageDependencies,
-              SplitMode))
+              SplitMode, static_cast<int>(IdQueriesRange.getValue())))
         return E;
     }
     addTableRow(*Table, CopyTriple);
@@ -680,6 +695,9 @@ int main(int argc, char **argv) {
   std::string OutputPrefix = getOutputPrefix();
   std::vector<std::unique_ptr<util::SimpleTable>> Tables =
       processInputModule(std::move(M), OutputPrefix);
+
+  if (Context.getDiagHandlerPtr()->HasErrors)
+    return 1;
 
   // Input module was processed and a single output file was requested.
   if (IROutputOnly)

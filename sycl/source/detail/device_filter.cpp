@@ -8,6 +8,7 @@
 
 #include <detail/config.hpp>
 #include <detail/device_impl.hpp>
+#include <sycl/detail/backend_types_io.hpp>
 #include <sycl/detail/device_filter.hpp>
 #include <sycl/info/info_desc.hpp>
 

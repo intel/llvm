@@ -2155,6 +2155,14 @@ ur_result_t urPrintGraphIsEmptyExpParams(
   return str_copy(&ss, buffer, buff_size, out_size);
 }
 
+ur_result_t urPrintGraphSetDestructionCallbackExpParams(
+    const struct ur_graph_set_destruction_callback_exp_params_t *params,
+    char *buffer, const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
 ur_result_t urPrintGraphDumpContentsExpParams(
     const struct ur_graph_dump_contents_exp_params_t *params, char *buffer,
     const size_t buff_size, size_t *out_size) {
@@ -2190,6 +2198,38 @@ ur_result_t urPrintIpcOpenMemHandleExpParams(
 ur_result_t urPrintIpcCloseMemHandleExpParams(
     const struct ur_ipc_close_mem_handle_exp_params_t *params, char *buffer,
     const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintIpcGetPhysMemHandleExpParams(
+    const struct ur_ipc_get_phys_mem_handle_exp_params_t *params, char *buffer,
+    const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintIpcPutPhysMemHandleExpParams(
+    const struct ur_ipc_put_phys_mem_handle_exp_params_t *params, char *buffer,
+    const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintIpcOpenPhysMemHandleExpParams(
+    const struct ur_ipc_open_phys_mem_handle_exp_params_t *params, char *buffer,
+    const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintIpcClosePhysMemHandleExpParams(
+    const struct ur_ipc_close_phys_mem_handle_exp_params_t *params,
+    char *buffer, const size_t buff_size, size_t *out_size) {
   std::stringstream ss;
   ss << params;
   return str_copy(&ss, buffer, buff_size, out_size);

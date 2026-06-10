@@ -4,6 +4,7 @@
 
 // TODO: Temporarily disabled on Linux due to failures.
 // UNSUPPORTED: linux
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22227
 
 #include <iostream>
 #include <sycl/detail/core.hpp>

@@ -408,32 +408,49 @@ SYCLBINBinaries::convertAbstractModuleProperties(SYCLBIN::AbstractModule &AM) {
 
 std::vector<const RTDeviceBinaryImage *>
 SYCLBINBinaries::getBestCompatibleImages(device_impl &Dev, bundle_state State) {
-  auto GetCompatibleImage = [&](const RTDeviceBinaryImage *Imgs,
-                                size_t NumImgs) {
-    const RTDeviceBinaryImage *CompatImagePtr =
-        std::find_if(Imgs, Imgs + NumImgs, [&](const RTDeviceBinaryImage &Img) {
-          return doesDevSupportDeviceRequirements(Dev, Img) &&
-                 doesImageTargetMatchDevice(Img, Dev);
-        });
-    return (CompatImagePtr != Imgs + NumImgs) ? CompatImagePtr : nullptr;
+  auto IsDevCompatible = [&](const RTDeviceBinaryImage &Img) {
+    return doesDevSupportDeviceRequirements(Dev, Img) &&
+           doesImageTargetMatchDevice(Img, Dev);
+  };
+  auto FindCompatible = [&](const RTDeviceBinaryImage *Imgs, size_t NumImgs) {
+    auto *It = std::find_if(Imgs, Imgs + NumImgs, IsDevCompatible);
+    return It != Imgs + NumImgs ? It : nullptr;
   };
 
   std::vector<const RTDeviceBinaryImage *> Images;
   for (size_t I = 0; I < getNumAbstractModules(); ++I) {
     const AbstractModuleDesc &AMDesc = AbstractModuleDescriptors[I];
-    // If the target state is executable, try with native images first.
+
+    // For executable state, native binaries are closest to launch and are
+    // preferred. For object/input state, JIT binaries are preferred because
+    // ProgramManager::link uses urProgramLinkExp, which requires SPIR-V.
     if (State == bundle_state::executable) {
-      if (const RTDeviceBinaryImage *CompatImagePtr = GetCompatibleImage(
-              AMDesc.NativeBinaries, AMDesc.NumNativeBinaries)) {
-        Images.push_back(CompatImagePtr);
+      if (const RTDeviceBinaryImage *Native =
+              FindCompatible(AMDesc.NativeBinaries, AMDesc.NumNativeBinaries)) {
+        Images.push_back(Native);
         continue;
       }
     }
 
-    // Otherwise, select the first compatible JIT binary.
-    if (const RTDeviceBinaryImage *CompatImagePtr =
-            GetCompatibleImage(AMDesc.JITBinaries, AMDesc.NumJITBinaries))
-      Images.push_back(CompatImagePtr);
+    if (const RTDeviceBinaryImage *JIT =
+            FindCompatible(AMDesc.JITBinaries, AMDesc.NumJITBinaries)) {
+      Images.push_back(JIT);
+      continue;
+    }
+
+    // No JIT binary available. Native AOT images carry their own notion of
+    // state: an AOT image with imported symbols is in object state (link
+    // still pending) and an AOT image without imports is already in
+    // executable state. Accept the native candidate iff its intrinsic
+    // state, as classified by ProgramManager::getBinImageState, matches
+    // the requested state. The previous selector skipped this case for
+    // non-executable requests, which made AOT-only object SYCLBINs
+    // (produced via -fsyclbin=object with an AOT target) load as an empty
+    // kernel_bundle and broke any subsequent sycl::link.
+    if (const RTDeviceBinaryImage *Native =
+            FindCompatible(AMDesc.NativeBinaries, AMDesc.NumNativeBinaries);
+        Native && ProgramManager::getBinImageState(Native) == State)
+      Images.push_back(Native);
   }
   return Images;
 }

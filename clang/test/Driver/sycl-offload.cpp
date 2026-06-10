@@ -7,27 +7,27 @@
 /// ###########################################################################
 
 /// Check whether an invalid SYCL target is specified:
-// RUN:   not %clang -### -fsycl --offload-new-driver -fsycl-targets=aaa-bbb-ccc-ddd %s 2>&1 \
+// RUN:   not %clang -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-targets=aaa-bbb-ccc-ddd %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-INVALID-TARGET %s
-// RUN:   not %clang_cl -### -fsycl --offload-new-driver -fsycl-targets=aaa-bbb-ccc-ddd %s 2>&1 \
+// RUN:   not %clang_cl -### -fsycl --offload-new-driver /clang:--sysroot=%S/Inputs/SYCL -fsycl-targets=aaa-bbb-ccc-ddd %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-INVALID-TARGET %s
 // CHK-INVALID-TARGET: error: invalid or unsupported offload target: 'aaa-bbb-ccc-ddd'
 
 /// ###########################################################################
 
 /// Check whether an invalid SYCL target is specified:
-// RUN:   not %clang -### -fsycl --offload-new-driver -fsycl-targets=x86_64 %s 2>&1 \
+// RUN:   not %clang -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-targets=x86_64 %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-INVALID-REAL-TARGET %s
-// RUN:   not %clang_cl -### -fsycl --offload-new-driver -fsycl-targets=x86_64 %s 2>&1 \
+// RUN:   not %clang_cl -### -fsycl --offload-new-driver /clang:--sysroot=%S/Inputs/SYCL -fsycl-targets=x86_64 %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-INVALID-REAL-TARGET %s
 // CHK-INVALID-REAL-TARGET: error: invalid or unsupported offload target: 'x86_64'
 
 /// ###########################################################################
 
 /// Check warning for empty -fsycl-targets
-// RUN:   %clang -### -fsycl --offload-new-driver -fsycl-targets=  %s 2>&1 \
+// RUN:   %clang -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-targets=  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-EMPTY-SYCLTARGETS %s
-// RUN:   %clang_cl -### -fsycl --offload-new-driver -fsycl-targets=  %s 2>&1 \
+// RUN:   %clang_cl -### -fsycl --offload-new-driver /clang:--sysroot=%S/Inputs/SYCL -fsycl-targets=  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-EMPTY-SYCLTARGETS %s
 // CHK-EMPTY-SYCLTARGETS: warning: joined argument expects additional value: '-fsycl-targets='
 
@@ -46,26 +46,26 @@
 /// ###########################################################################
 
 /// Validate SYCL option values
-// RUN:   not %clang -### -fsycl-device-code-split=bad_value -fsycl --offload-new-driver  %s 2>&1 \
+// RUN:   not %clang -### -fsycl-device-code-split=bad_value -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-SYCL-BAD-OPT-VALUE -Doption=-fsycl-device-code-split %s
-// RUN:   not %clang -### -fsycl-link=bad_value -fsycl --offload-new-driver  %s 2>&1 \
+// RUN:   not %clang -### -fsycl-link=bad_value -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-SYCL-BAD-OPT-VALUE -Doption=-fsycl-link %s
 // CHK-SYCL-BAD-OPT-VALUE: error: invalid argument 'bad_value' to [[option]]=
 
 /// Check no error for -fsycl-targets with good triple
-// RUN:   %clang -### -fsycl-targets=spir-unknown-unknown -fsycl --offload-new-driver  %s 2>&1 \
+// RUN:   %clang -### -fsycl-targets=spir-unknown-unknown -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-SYCL-TARGET %s
-// RUN:   %clang -### -fsycl-targets=spir64 -fsycl --offload-new-driver  %s 2>&1 \
+// RUN:   %clang -### -fsycl-targets=spir64 -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-SYCL-TARGET %s
-// RUN:   %clang_cl -### -fsycl-targets=spir-unknown-unknown -fsycl --offload-new-driver  %s 2>&1 \
+// RUN:   %clang_cl -### -fsycl-targets=spir-unknown-unknown -fsycl --offload-new-driver /clang:--sysroot=%S/Inputs/SYCL  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-SYCL-TARGET %s
-// RUN:   %clang -### -fsycl-targets=spirv32-unknown-unknown -fsycl --offload-new-driver  %s 2>&1 \
+// RUN:   %clang -### -fsycl-targets=spirv32-unknown-unknown -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-SYCL-TARGET %s
-// RUN:   %clang -### -fsycl-targets=spirv64-unknown-unknown -fsycl --offload-new-driver  %s 2>&1 \
+// RUN:   %clang -### -fsycl-targets=spirv64-unknown-unknown -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-SYCL-TARGET %s
-// RUN:   %clang -### -fsycl-targets=spirv32 -fsycl --offload-new-driver  %s 2>&1 \
+// RUN:   %clang -### -fsycl-targets=spirv32 -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-SYCL-TARGET %s
-// RUN:   %clang -### -fsycl-targets=spirv64 -fsycl --offload-new-driver  %s 2>&1 \
+// RUN:   %clang -### -fsycl-targets=spirv64 -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-SYCL-TARGET %s
 // CHK-SYCL-TARGET-NOT: error: SYCL target is invalid
 
@@ -79,46 +79,46 @@
 /// ###########################################################################
 
 /// Check warning for duplicate offloading targets.
-// RUN:   %clang -### -ccc-print-phases -fsycl --offload-new-driver -fsycl-targets=spir64-unknown-unknown,spir64-unknown-unknown  %s 2>&1 \
+// RUN:   %clang -### -ccc-print-phases -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-targets=spir64-unknown-unknown,spir64-unknown-unknown  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-DUPLICATES %s
 // CHK-DUPLICATES: warning: offloading target 'spir64-unknown-unknown' is similar to target 'spir64-unknown-unknown' already specified; will be ignored
 
-// RUN:   %clang -### -ccc-print-phases -fsycl --offload-new-driver -fsycl-targets=intel_gpu_pvc,intel_gpu_pvc  %s 2>&1 \
+// RUN:   %clang -### -ccc-print-phases -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-targets=intel_gpu_pvc,intel_gpu_pvc  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-DUPLICATES-GPU %s
 // CHK-DUPLICATES-GPU: warning: offloading target 'intel_gpu_pvc' is similar to target 'intel_gpu_pvc' already specified; will be ignored
 
 /// No duplicate warning should be emitted for 'like' triples but different
 /// arch targets.
-// RUN:   %clang -### -ccc-print-phases -fsycl --offload-new-driver -fsycl-targets=intel_gpu_pvc,intel_gpu_bdw  %s 2>&1 \
+// RUN:   %clang -### -ccc-print-phases -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-targets=intel_gpu_pvc,intel_gpu_bdw  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-DIFF-GPU %s
 // CHK-DIFF-GPU-NOT: warning: offloading target 'intel_gpu_bdw' is similar to target 'intel_gpu_pvc' already specified; will be ignored
 
 /// ###########################################################################
 
 /// Check -Xsycl-target-frontend triggers error when multiple triples are used.
-// RUN:   not %clang -### -no-canonical-prefixes -fsycl --offload-new-driver -fsycl-targets=spir64-unknown-unknown,spir-unknown-linux -Xsycl-target-frontend -DFOO %s 2>&1 \
+// RUN:   not %clang -### -no-canonical-prefixes -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-targets=spir64-unknown-unknown,spir-unknown-linux -Xsycl-target-frontend -DFOO %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-FSYCL-COMPILER-AMBIGUOUS-ERROR %s
-// RUN:   not %clang_cl -### -no-canonical-prefixes -fsycl --offload-new-driver -fsycl-targets=spir64-unknown-unknown,spir-unknown-linux -Xsycl-target-frontend -DFOO %s 2>&1 \
+// RUN:   not %clang_cl -### -no-canonical-prefixes -fsycl --offload-new-driver /clang:--sysroot=%S/Inputs/SYCL -fsycl-targets=spir64-unknown-unknown,spir-unknown-linux -Xsycl-target-frontend -DFOO %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-FSYCL-COMPILER-AMBIGUOUS-ERROR %s
 // CHK-FSYCL-COMPILER-AMBIGUOUS-ERROR: clang{{.*}} error: cannot deduce implicit triple value for '-Xsycl-target-frontend', specify triple using '-Xsycl-target-frontend=<triple>'
 
 /// ###########################################################################
 
 /// Check -Xsycl-target-frontend triggers error when an option requiring arguments is passed to it.
-// RUN:   not %clang -### -no-canonical-prefixes -fsycl --offload-new-driver -fsycl-targets=spir64-unknown-unknown -Xsycl-target-frontend -Xsycl-target-frontend -mcpu=none %s 2>&1 \
+// RUN:   not %clang -### -no-canonical-prefixes -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-targets=spir64-unknown-unknown -Xsycl-target-frontend -Xsycl-target-frontend -mcpu=none %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-FSYCL-COMPILER-NESTED-ERROR %s
-// RUN:   not %clang_cl -### -no-canonical-prefixes -fsycl --offload-new-driver -fsycl-targets=spir64-unknown-unknown -Xsycl-target-frontend -Xsycl-target-frontend -mcpu=none %s 2>&1 \
+// RUN:   not %clang_cl -### -no-canonical-prefixes -fsycl --offload-new-driver /clang:--sysroot=%S/Inputs/SYCL -fsycl-targets=spir64-unknown-unknown -Xsycl-target-frontend -Xsycl-target-frontend -mcpu=none %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-FSYCL-COMPILER-NESTED-ERROR %s
 // CHK-FSYCL-COMPILER-NESTED-ERROR: clang{{.*}} error: invalid -Xsycl-target-frontend argument: '-Xsycl-target-frontend -Xsycl-target-frontend', options requiring arguments are unsupported
 
 /// ###########################################################################
 
 /// Check -Xsycl-target-frontend= accepts triple aliases
-// RUN:   %clang -### -fsycl --offload-new-driver -fsycl-targets=spir64 -Xsycl-target-frontend=spir64 -DFOO %s 2>&1 \
+// RUN:   %clang -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-targets=spir64 -Xsycl-target-frontend=spir64 -DFOO %s 2>&1 \
 // RUN:   | FileCheck -DARCH1=spir64 -check-prefixes=CHK-UNUSED-ARG-WARNING-1,CHK-TARGET-1 %s
 // CHK-UNUSED-ARG-WARNING-1-NOT: clang{{.*}} warning: argument unused during compilation: '-Xsycl-target-frontend={{.*}} -DFOO'
 // CHK-TARGET-1: clang{{.*}} "-cc1" "-triple" "[[ARCH1]]-unknown-unknown"{{.*}} "-D" "FOO"
-// RUN:   %clang -### -fsycl --offload-new-driver -fsycl-targets=spirv64 -Xsycl-target-frontend=spirv64 -DFOO %s 2>&1 \
+// RUN:   %clang -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-targets=spirv64 -Xsycl-target-frontend=spirv64 -DFOO %s 2>&1 \
 // RUN:   | FileCheck -DARCH2=spirv64 -check-prefixes=CHK-UNUSED-ARG-WARNING-2,CHK-TARGET-2 %s
 // CHK-UNUSED-ARG-WARNING-2-NOT: clang{{.*}} warning: argument unused during compilation: '-Xsycl-target-frontend={{.*}} -DFOO'
 // CHK-TARGET-2: clang{{.*}} "-cc1" "-triple" "[[ARCH2]]-unknown-unknown"{{.*}} "-D" "FOO"
@@ -129,11 +129,11 @@
 /// We should have an offload action joining the host compile and device
 /// preprocessor and another one joining the device linking outputs to the host
 /// action.
-// RUN:   %clang -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver -fsycl-targets=spir64-unknown-unknown -fno-sycl-instrument-device-code --no-offloadlib %s 2>&1 \
+// RUN:   %clang -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-targets=spir64-unknown-unknown -fno-sycl-instrument-device-code --no-offloadlib %s 2>&1 \
 // RUN:   | FileCheck -check-prefixes=CHK-PHASES %s
-// RUN:   %clang -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver --no-offloadlib %s 2>&1 \
+// RUN:   %clang -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL --no-offloadlib %s 2>&1 \
 // RUN:   | FileCheck -check-prefixes=CHK-PHASES %s
-// RUN:   %clang_cl -ccc-print-phases --target=x86_64-pc-windows-msvc -fsycl --offload-new-driver -fsycl-targets=spir64-unknown-unknown -fno-sycl-instrument-device-code --no-offloadlib %s 2>&1 \
+// RUN:   %clang_cl -ccc-print-phases --target=x86_64-pc-windows-msvc -fsycl --offload-new-driver /clang:--sysroot=%S/Inputs/SYCL -fsycl-targets=spir64-unknown-unknown -fno-sycl-instrument-device-code --no-offloadlib %s 2>&1 \
 // RUN:   | FileCheck -check-prefixes=CHK-PHASES %s
 // CHK-PHASES: 0: input, "[[INPUT:.+\.cpp]]", c++, (host-sycl)
 // CHK-PHASES: 1: preprocessor, {0}, c++-cpp-output, (host-sycl)
@@ -155,9 +155,9 @@
 /// We should have an offload action joining the host compile and device
 /// preprocessor and another one joining the device linking outputs to the host
 /// action.
-// RUN:   %clang -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver -fsycl-targets=spirv64-unknown-unknown -fno-sycl-instrument-device-code --no-offloadlib %s 2>&1 \
+// RUN:   %clang -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-targets=spirv64-unknown-unknown -fno-sycl-instrument-device-code --no-offloadlib %s 2>&1 \
 // RUN:   | FileCheck -check-prefixes=CHK-PHASES-2 %s
-// RUN:   %clang_cl -ccc-print-phases --target=x86_64-pc-windows-msvc -fsycl --offload-new-driver -fsycl-targets=spirv64-unknown-unknown -fno-sycl-instrument-device-code --no-offloadlib %s 2>&1 \
+// RUN:   %clang_cl -ccc-print-phases --target=x86_64-pc-windows-msvc -fsycl --offload-new-driver /clang:--sysroot=%S/Inputs/SYCL -fsycl-targets=spirv64-unknown-unknown -fno-sycl-instrument-device-code --no-offloadlib %s 2>&1 \
 // RUN:   | FileCheck -check-prefixes=CHK-PHASES-2 %s
 // CHK-PHASES-2: 0: input, "[[INPUT:.+\.cpp]]", c++, (host-sycl)
 // CHK-PHASES-2: 1: preprocessor, {0}, c++-cpp-output, (host-sycl)
@@ -176,7 +176,7 @@
 /// ###########################################################################
 
 /// Check the compilation flow to verify that the integrated header is filtered
-// RUN: %clang -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver -c %s -### 2>&1 \
+// RUN: %clang -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -c %s -### 2>&1 \
 // RUN:  | FileCheck %s -check-prefix=CHK-INT-HEADER
 // CHK-INT-HEADER: clang{{.*}} "-fsycl-is-device"{{.*}} "-fsycl-int-header=[[INPUT1:.+\-header.+\.h]]" "-fsycl-int-footer={{.*}}"
 // CHK-INT-HEADER: clang{{.*}} "-triple" "x86_64-unknown-linux-gnu" {{.*}} "-include-internal-header" "[[INPUT1]]" "-dependency-filter" "[[INPUT1]]"
@@ -185,7 +185,7 @@
 
 /// Check the phases also add a library to make sure it is treated as input by
 /// the device.
-// RUN:   %clang -ccc-print-phases -target x86_64-unknown-linux-gnu -lsomelib -fsycl --offload-new-driver -fsycl-targets=spir64-unknown-unknown -fno-sycl-instrument-device-code --no-offloadlib %s 2>&1 \
+// RUN:   %clang -ccc-print-phases -target x86_64-unknown-linux-gnu -lsomelib -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-targets=spir64-unknown-unknown -fno-sycl-instrument-device-code --no-offloadlib %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-PHASES-LIB %s
 // CHK-PHASES-LIB: 0: input, "somelib", object, (host-sycl)
 // CHK-PHASES-LIB: 1: input, "[[INPUT:.+\.cpp]]", c++, (host-sycl)
@@ -206,7 +206,7 @@
 
 /// Check the phases when using and multiple source files
 // RUN:   echo " " > %t.cpp
-// RUN:   %clang -ccc-print-phases -lsomelib -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver -fsycl-targets=spir64-unknown-unknown -fno-sycl-instrument-device-code --no-offloadlib %s %t.cpp 2>&1 \
+// RUN:   %clang -ccc-print-phases -lsomelib -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-targets=spir64-unknown-unknown -fno-sycl-instrument-device-code --no-offloadlib %s %t.cpp 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-PHASES-FILES %s
 // CHK-PHASES-FILES: 0: input, "somelib", object, (host-sycl)
 // CHK-PHASES-FILES: 1: input, "[[INPUT1:.+\.cpp]]", c++, (host-sycl)
@@ -239,9 +239,9 @@
 
 /// Check -fsycl-is-device is passed when compiling for the device.
 /// also check for SPIR-V binary creation
-// RUN:   %clang -### -no-canonical-prefixes -fsycl --offload-new-driver -fsycl-targets=spir64-unknown-unknown %s 2>&1 \
+// RUN:   %clang -### -no-canonical-prefixes -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-targets=spir64-unknown-unknown %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-FSYCL-IS-DEVICE %s
-// RUN:   %clang_cl -### -no-canonical-prefixes -fsycl --offload-new-driver -fsycl-targets=spir64-unknown-unknown %s 2>&1 \
+// RUN:   %clang_cl -### -no-canonical-prefixes -fsycl --offload-new-driver /clang:--sysroot=%S/Inputs/SYCL -fsycl-targets=spir64-unknown-unknown %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-FSYCL-IS-DEVICE %s
 
 // CHK-FSYCL-IS-DEVICE: clang{{.*}} "-fsycl-is-device" {{.*}} "-emit-llvm-bc" {{.*}}.cpp
@@ -250,9 +250,9 @@
 
 /// Check -fsycl-is-device and emitting to .spv when compiling for the device
 /// when using -fsycl-device-obj=spirv
-// RUN:   %clang -### -fsycl-device-obj=spirv -fsycl --offload-new-driver -fsycl-targets=spir64-unknown-unknown %s 2>&1 \
+// RUN:   %clang -### -fsycl-device-obj=spirv -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-targets=spir64-unknown-unknown %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-FSYCL-IS-DEVICE-NO-BITCODE %s
-// RUN:   %clang_cl -### -fsycl-device-obj=spirv -fsycl --offload-new-driver -fsycl-targets=spir64-unknown-unknown %s 2>&1 \
+// RUN:   %clang_cl -### -fsycl-device-obj=spirv -fsycl --offload-new-driver /clang:--sysroot=%S/Inputs/SYCL -fsycl-targets=spir64-unknown-unknown %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-FSYCL-IS-DEVICE-NO-BITCODE %s
 
 // CHK-FSYCL-IS-DEVICE-NO-BITCODE: clang{{.*}} "-fsycl-is-device" {{.*}} "-emit-llvm-bc" {{.*}}.cpp
@@ -260,50 +260,50 @@
 /// ###########################################################################
 
 /// Check for default linking of -lsycl with -fsycl --offload-new-driver usage
-// RUN: %clang -fsycl --offload-new-driver -target x86_64-unknown-linux-gnu %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LD-SYCL %s
+// RUN: %clang -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -target x86_64-unknown-linux-gnu %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LD-SYCL %s
 // CHECK-LD-SYCL: "{{.*}}ld{{(.exe)?}}"
 // CHECK-LD-SYCL: "-lsycl"
 
 /// Check no SYCL runtime is linked with -nolibsycl
-// RUN: %clang -fsycl --offload-new-driver -nolibsycl -target x86_64-unknown-linux-gnu %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LD-NOLIBSYCL %s
+// RUN: %clang -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -nolibsycl -target x86_64-unknown-linux-gnu %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LD-NOLIBSYCL %s
 // CHECK-LD-NOLIBSYCL: "{{.*}}ld{{(.exe)?}}"
 // CHECK-LD-NOLIBSYCL-NOT: "-lsycl"
 
 /// Check no SYCL runtime is linked with -nostdlib
-// RUN: %clang -fsycl --offload-new-driver -nostdlib -target x86_64-unknown-linux-gnu %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LD-NOSTDLIB %s
+// RUN: %clang -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -nostdlib -target x86_64-unknown-linux-gnu %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LD-NOSTDLIB %s
 // CHECK-LD-NOSTDLIB: "{{.*}}ld{{(.exe)?}}"
 // CHECK-LD-NOSTDLIB-NOT: "-lsycl"
 
 /// Check for default linking of syclN.lib with -fsycl --offload-new-driver usage
-// RUN: %clang -fsycl --offload-new-driver -target x86_64-unknown-windows-msvc %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LINK-SYCL %s
-// RUN: %clang_cl -fsycl --offload-new-driver %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LINK-SYCL-CL %s
+// RUN: %clang -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -target x86_64-unknown-windows-msvc %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LINK-SYCL %s
+// RUN: %clang_cl -fsycl --offload-new-driver /clang:--sysroot=%S/Inputs/SYCL %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LINK-SYCL-CL %s
 // CHECK-LINK-SYCL-CL: "--dependent-lib=sycl{{[0-9]*}}"
 // CHECK-LINK-SYCL-CL-NOT: "-defaultlib:sycl{{[0-9]*}}.lib"
 // CHECK-LINK-SYCL: "-defaultlib:sycl{{[0-9]*}}.lib"
 
 /// Check no SYCL runtime is linked with -nolibsycl
-// RUN: %clang -fsycl --offload-new-driver -nolibsycl -target x86_64-unknown-windows-msvc %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LINK-NOLIBSYCL %s
-// RUN: %clang_cl -fsycl --offload-new-driver -nolibsycl %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LINK-NOLIBSYCL-CL %s
+// RUN: %clang -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -nolibsycl -target x86_64-unknown-windows-msvc %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LINK-NOLIBSYCL %s
+// RUN: %clang_cl -fsycl --offload-new-driver /clang:--sysroot=%S/Inputs/SYCL -nolibsycl %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LINK-NOLIBSYCL-CL %s
 // CHECK-LINK-NOLIBSYCL-CL-NOT: "--dependent-lib=sycl{{[0-9]*}}"
 // CHECK-LINK-NOLIBSYCL: "{{.*}}link{{(.exe)?}}"
 // CHECK-LINK-NOLIBSYCL-NOT: "-defaultlib:sycl{{[0-9]*}}.lib"
 
 /// Check SYCL runtime is linked despite -nostdlib on Windows, this is
 /// necessary for the Windows Clang CMake to work
-// RUN: %clang -fsycl --offload-new-driver -nostdlib -target x86_64-unknown-windows-msvc %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LINK-NOSTDLIB %s
-// RUN: %clang_cl -fsycl --offload-new-driver -nostdlib %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LINK-NOSTDLIB-CL %s
+// RUN: %clang -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -nostdlib -target x86_64-unknown-windows-msvc %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LINK-NOSTDLIB %s
+// RUN: %clang_cl -fsycl --offload-new-driver /clang:--sysroot=%S/Inputs/SYCL -nostdlib %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LINK-NOSTDLIB-CL %s
 // CHECK-LINK-NOSTDLIB-CL: "--dependent-lib=sycl{{[0-9]*}}"
 // CHECK-LINK-NOSTDLIB: "{{.*}}link{{(.exe)?}}"
 // CHECK-LINK-NOSTDLIB: "-defaultlib:sycl{{[0-9]*}}.lib"
 
 /// Check sycld.lib is chosen with /MDd
-// RUN:  %clang_cl -fsycl --offload-new-driver /MDd %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LINK-SYCL-DEBUG %s
+// RUN:  %clang_cl -fsycl --offload-new-driver /clang:--sysroot=%S/Inputs/SYCL /MDd %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LINK-SYCL-DEBUG %s
 /// Check sycld is pulled in when msvcrtd is used
-// RUN: %clangxx -fsycl --offload-new-driver -Xclang --dependent-lib=msvcrtd \
+// RUN: %clangxx -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -Xclang --dependent-lib=msvcrtd \
 // RUN:   -target x86_64-unknown-windows-msvc -### %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHECK-LINK-SYCL-DEBUG %s
 /// Check sycld.lib is pulled in with -fms-runtime-lib=dll_dbg
-// RUN: %clangxx -fsycl --offload-new-driver -fms-runtime-lib=dll_dbg \
+// RUN: %clangxx -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fms-runtime-lib=dll_dbg \
 // RUN:   -target x86_64-unknown-windows-msvc -### %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHECK-LINK-SYCL-DEBUG %s
 // CHECK-LINK-SYCL-DEBUG: "--dependent-lib=sycl{{[0-9]*}}d"
@@ -311,7 +311,7 @@
 
 /// Only a single instance of sycld should be pulled in when both the
 /// -Xclang --dependent-lib=msvcrtd and -fms-runtime-lib=dll_dbg is used.
-// RUN: %clangxx -fsycl --offload-new-driver -fms-runtime-lib=dll_dbg -Xclang \
+// RUN: %clangxx -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fms-runtime-lib=dll_dbg -Xclang \
 // RUN:  --dependent-lib=msvcrtd --target=x86_64-unknown-windows-msvc -### %s 2>&1 \
 // RUN:  | FileCheck -check-prefix=CHECK-LINK-SYCLD %s
 // CHECK-LINK-SYCLD: "--dependent-lib=sycl{{[0-9]*}}d"
@@ -320,73 +320,73 @@
 /// ###########################################################################
 
 /// Check -Xsycl-target-frontend does not trigger an error when no -fsycl-targets is specified
-// RUN:   %clang -### -fsycl --offload-new-driver -Xsycl-target-frontend -DFOO %s 2>&1 \
+// RUN:   %clang -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -Xsycl-target-frontend -DFOO %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-NO-FSYCL-TARGET-ERROR %s
 // CHK-NO-FSYCL-TARGET-ERROR-NOT: clang{{.*}} error: cannot deduce implicit triple value for '-Xsycl-target-frontend', specify triple using '-Xsycl-target-frontend=<triple>'
 
 /// ###########################################################################
 
-// RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver -fsycl-targets=spir64-unknown-unknown -Xsycl-target-backend "-DFOO1 -DFOO2" %s 2>&1 \
+// RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-targets=spir64-unknown-unknown -Xsycl-target-backend "-DFOO1 -DFOO2" %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-TOOLS-OPTS %s
 // CHK-TOOLS-OPTS: clang-linker-wrapper{{.*}} "--device-compiler=sycl:spir64-unknown-unknown=-DFOO1 -DFOO2"
 
 /// Check for implied options (-g -O0)
-// RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver -fsycl-targets=spir64-unknown-unknown -g -O0 -Xsycl-target-backend "-DFOO1 -DFOO2" %s 2>&1 \
+// RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-targets=spir64-unknown-unknown -g -O0 -Xsycl-target-backend "-DFOO1 -DFOO2" %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-TOOLS-IMPLIED-OPTS %s
-// RUN:   %clang_cl -### -fsycl --offload-new-driver -fsycl-targets=spir64-unknown-unknown -Zi -Od -Xsycl-target-backend "-DFOO1 -DFOO2" %s 2>&1 \
+// RUN:   %clang_cl -### -fsycl --offload-new-driver /clang:--sysroot=%S/Inputs/SYCL -fsycl-targets=spir64-unknown-unknown -Zi -Od -Xsycl-target-backend "-DFOO1 -DFOO2" %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-TOOLS-IMPLIED-OPTS %s
 // CHK-TOOLS-IMPLIED-OPTS: llvm-offload-binary{{.*}} {{.*}}compile-opts=-g{{.*}}-DFOO1 -DFOO2"
 
 /// Check for implied options (-O0)
-// RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver -fsycl-targets=spir64 -O0 %s 2>&1 \
+// RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-targets=spir64 -O0 %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-TOOLS-IMPLIED-OPTS-O0 %s
-// RUN:   %clang_cl -### -fsycl --offload-new-driver -fsycl-targets=spir64-unknown-unknown -Od %s 2>&1 \
+// RUN:   %clang_cl -### -fsycl --offload-new-driver /clang:--sysroot=%S/Inputs/SYCL -fsycl-targets=spir64-unknown-unknown -Od %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-TOOLS-IMPLIED-OPTS-O0 %s
-// RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver -fsycl-targets=spir64 -O0 -O2 %s 2>&1 \
+// RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-targets=spir64 -O0 -O2 %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-TOOLS-IMPLIED-OPTS-O0 %s
 // CHK-TOOLS-IMPLIED-OPTS-O0-NOT: llvm-offload-binary{{.*}} {{.*}}compile-opts={{.*}}-cl-opt-disable"
 
-// RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver -fsycl-targets=spir64-unknown-unknown -Xsycl-target-linker "-DFOO1 -DFOO2" %s 2>&1 \
+// RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-targets=spir64-unknown-unknown -Xsycl-target-linker "-DFOO1 -DFOO2" %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-TOOLS-OPTS2 %s
 // CHK-TOOLS-OPTS2: clang-linker-wrapper{{.*}} "--device-linker=sycl:spir64-unknown-unknown=-DFOO1 -DFOO2"
 
 /// -fsycl-range-rounding settings
 ///
 /// // Check that driver flag is passed to cc1
-// RUN: %clang -### -fsycl --offload-new-driver -fsycl-range-rounding=disable %s 2>&1 \
+// RUN: %clang -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-range-rounding=disable %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-DRIVER-RANGE-ROUNDING-DISABLE %s
-// RUN: %clang -### -fsycl --offload-new-driver -fsycl-range-rounding=force %s 2>&1 \
+// RUN: %clang -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-range-rounding=force %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-DRIVER-RANGE-ROUNDING-FORCE %s
-// RUN: %clang -### -fsycl --offload-new-driver -fsycl-range-rounding=on %s 2>&1 \
+// RUN: %clang -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-range-rounding=on %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-DRIVER-RANGE-ROUNDING-ON %s
 // CHK-DRIVER-RANGE-ROUNDING-DISABLE: "-cc1{{.*}}-fsycl-range-rounding=disable"
 // CHK-DRIVER-RANGE-ROUNDING-FORCE: "-cc1{{.*}}-fsycl-range-rounding=force"
 // CHK-DRIVER-RANGE-ROUNDING-ON: "-cc1{{.*}}-fsycl-range-rounding=on"
 ///
 ///
-// RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver \
+// RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL \
 // RUN:        -fsycl-targets=spir64 -O0 %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-DISABLE-RANGE-ROUNDING %s
-// RUN: %clang_cl -### -fsycl --offload-new-driver -fsycl-targets=spir64 -Od %s 2>&1 \
+// RUN: %clang_cl -### -fsycl --offload-new-driver /clang:--sysroot=%S/Inputs/SYCL -fsycl-targets=spir64 -Od %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-DISABLE-RANGE-ROUNDING %s
-// RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver \
+// RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL \
 // RUN:        -O0 -fsycl-range-rounding=force %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-OVERRIDE-RANGE-ROUNDING %s
-// RUN: %clang_cl -### -fsycl --offload-new-driver -Od %s 2>&1 -fsycl-range-rounding=force %s 2>&1 \
+// RUN: %clang_cl -### -fsycl --offload-new-driver /clang:--sysroot=%S/Inputs/SYCL -Od %s 2>&1 -fsycl-range-rounding=force %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-OVERRIDE-RANGE-ROUNDING %s
 // CHK-DISABLE-RANGE-ROUNDING: "-fsycl-range-rounding=disable"
 // CHK-OVERRIDE-RANGE-ROUNDING: "-fsycl-range-rounding=force"
 // CHK-OVERRIDE-RANGE-ROUNDING-NOT: "-fsycl-range-rounding=disable"
 
-// RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver \
+// RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL \
 // RUN:        -fsycl-targets=spir64 -O2 %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-RANGE-ROUNDING %s
-// RUN: %clang_cl -### -fsycl --offload-new-driver -fsycl-targets=spir64 -O2 %s 2>&1 \
+// RUN: %clang_cl -### -fsycl --offload-new-driver /clang:--sysroot=%S/Inputs/SYCL -fsycl-targets=spir64 -O2 %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-RANGE-ROUNDING %s
-// RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver \
+// RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL \
 // RUN:        -fsycl-targets=spir64 %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-RANGE-ROUNDING %s
-// RUN: %clang_cl -### -fsycl --offload-new-driver -fsycl-targets=spir64 %s 2>&1 \
+// RUN: %clang_cl -### -fsycl --offload-new-driver /clang:--sysroot=%S/Inputs/SYCL -fsycl-targets=spir64 %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-RANGE-ROUNDING %s
 // CHK-RANGE-ROUNDING-NOT: "-fsycl-disable-range-rounding"
 // CHK-RANGE-ROUNDING-NOT: "-fsycl-range-rounding=disable"
@@ -395,7 +395,7 @@
 /// ###########################################################################
 
 /// Verify that triple-boundarch pairs are correct with multi-targetting
-// RUN:  %clang -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver -fno-sycl-instrument-device-code --no-offloadlib -fsycl-targets=nvptx64-nvidia-cuda,spir64 -ccc-print-phases %s 2>&1 \
+// RUN:  %clang -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fno-sycl-instrument-device-code --no-offloadlib -fsycl-targets=nvptx64-nvidia-cuda,spir64 -ccc-print-phases %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-PHASE-MULTI-TARG-BOUND-ARCH %s
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH: 0: input, "[[INPUT:.+\.cpp]]", c++, (host-sycl)
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH: 1: preprocessor, {0}, c++-cpp-output, (host-sycl)
@@ -416,7 +416,7 @@
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH: 16: assembler, {15}, object, (host-sycl)
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH: 17: clang-linker-wrapper, {16}, image, (host-sycl)
 
-// RUN:  %clang -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver \
+// RUN:  %clang -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL \
 // RUN:     -fno-sycl-instrument-device-code --no-offloadlib \
 // RUN:     -fsycl-targets=nvptx64-nvidia-cuda,spir64_gen \
 // RUN:     -Xsycl-target-backend=spir64_gen "-device skl" \
@@ -444,7 +444,7 @@
 /// ###########################################################################
 
 // Check if valid bound arch behaviour occurs when compiling for spir-v,nvidia-gpu, and amd-gpu
-// RUN:  %clang -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver -fno-sycl-instrument-device-code --no-offloadlib -fsycl-targets=spir64,nvptx64-nvidia-cuda,amdgcn-amd-amdhsa -Xsycl-target-backend=nvptx64-nvidia-cuda --offload-arch=sm_75 -Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=gfx908 -ccc-print-phases %s 2>&1 \
+// RUN:  %clang -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fno-sycl-instrument-device-code --no-offloadlib -fsycl-targets=spir64,nvptx64-nvidia-cuda,amdgcn-amd-amdhsa -Xsycl-target-backend=nvptx64-nvidia-cuda --offload-arch=sm_75 -Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=gfx908 -ccc-print-phases %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD %s
 // CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 0: input, "[[INPUT:.+\.cpp]]", c++, (host-sycl)
 // CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 1: preprocessor, {0}, c++-cpp-output, (host-sycl)
@@ -471,7 +471,7 @@
 // CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 22: clang-linker-wrapper, {21}, image, (host-sycl)
 
 /// -fsycl --offload-new-driver with /Fo testing
-// RUN: %clang_cl -fsycl --offload-new-driver /Fosomefile.obj -c %s -### 2>&1 \
+// RUN: %clang_cl -fsycl --offload-new-driver /clang:--sysroot=%S/Inputs/SYCL /Fosomefile.obj -c %s -### 2>&1 \
 // RUN:   | FileCheck -check-prefix=FO-CHECK %s
 // FO-CHECK: clang{{.*}} "-fsycl-int-header=[[HEADER:.+\.h]]" "-fsycl-int-footer={{.*}}"
 // FO-CHECK: clang{{.*}} "-include-internal-header" "[[HEADER]]" {{.*}} "-o" "somefile.obj"
@@ -492,47 +492,47 @@
 // LIB-NODEVICE: 1: clang-linker-wrapper, {0}, image, (host-sycl)
 
 // Checking for an error if c-compilation is forced
-// RUN: not %clangxx -### -c -fsycl --offload-new-driver -xc %s 2>&1 | FileCheck -check-prefixes=CHECK_XC_FSYCL %s
-// RUN: not %clangxx -### -c -fsycl --offload-new-driver -xc-header %s 2>&1 | FileCheck -check-prefixes=CHECK_XC_FSYCL %s
-// RUN: not %clangxx -### -c -fsycl --offload-new-driver -xcpp-output %s 2>&1 | FileCheck -check-prefixes=CHECK_XC_FSYCL %s
+// RUN: not %clangxx -### -c -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -xc %s 2>&1 | FileCheck -check-prefixes=CHECK_XC_FSYCL %s
+// RUN: not %clangxx -### -c -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -xc-header %s 2>&1 | FileCheck -check-prefixes=CHECK_XC_FSYCL %s
+// RUN: not %clangxx -### -c -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -xcpp-output %s 2>&1 | FileCheck -check-prefixes=CHECK_XC_FSYCL %s
 // CHECK_XC_FSYCL: '-x c{{.*}}' must not be used in conjunction with '-fsycl'
 
 // -std=c++17 check (check all 3 compilations)
-// RUN: %clangxx -### -c -fsycl --offload-new-driver -xc++ %s 2>&1 | FileCheck -check-prefix=CHECK-STD %s
-// RUN: %clang_cl -### -c -fsycl --offload-new-driver -TP %s 2>&1 | FileCheck -check-prefix=CHECK-STD %s
+// RUN: %clangxx -### -c -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -xc++ %s 2>&1 | FileCheck -check-prefix=CHECK-STD %s
+// RUN: %clang_cl -### -c -fsycl --offload-new-driver /clang:--sysroot=%S/Inputs/SYCL -TP %s 2>&1 | FileCheck -check-prefix=CHECK-STD %s
 // CHECK-STD: clang{{.*}} "-emit-llvm-bc" {{.*}} "-std=c++17"
 // CHECK-STD: clang{{.*}} "-emit-obj" {{.*}} "-std=c++17"
 
 // -std=c++17 override check
-// RUN: %clangxx -### -c -fsycl --offload-new-driver -std=c++20 -xc++ %s 2>&1 | FileCheck -check-prefix=CHECK-STD-OVR %s
-// RUN: %clang_cl -### -c -fsycl --offload-new-driver /std:c++20 -TP %s 2>&1 | FileCheck -check-prefix=CHECK-STD-OVR %s
+// RUN: %clangxx -### -c -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -std=c++20 -xc++ %s 2>&1 | FileCheck -check-prefix=CHECK-STD-OVR %s
+// RUN: %clang_cl -### -c -fsycl --offload-new-driver /clang:--sysroot=%S/Inputs/SYCL /std:c++20 -TP %s 2>&1 | FileCheck -check-prefix=CHECK-STD-OVR %s
 // CHECK-STD-OVR: clang{{.*}} "-emit-llvm-bc" {{.*}} "-std=c++20"
 // CHECK-STD-OVR: clang{{.*}} "-emit-obj" {{.*}} "-std=c++20"
 // CHECK-STD-OVR-NOT: clang{{.*}} "-std=c++17"
 
 // Check sycl-post-link optimization level.
 // Default is O2
-// RUN:   %clang    -### -fsycl --offload-new-driver %s 2>&1 | FileCheck %s -check-prefixes=CHK-POST-LINK-OPT-LEVEL-O2
-// RUN:   %clang_cl -### -fsycl --offload-new-driver %s 2>&1 | FileCheck %s -check-prefixes=CHK-POST-LINK-OPT-LEVEL-O2
+// RUN:   %clang    -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL %s 2>&1 | FileCheck %s -check-prefixes=CHK-POST-LINK-OPT-LEVEL-O2
+// RUN:   %clang_cl -### -fsycl --offload-new-driver /clang:--sysroot=%S/Inputs/SYCL %s 2>&1 | FileCheck %s -check-prefixes=CHK-POST-LINK-OPT-LEVEL-O2
 // Common options for %clang and %clang_cl
-// RUN:   %clang    -### -fsycl --offload-new-driver -O1 %s 2>&1 | FileCheck %s -check-prefixes=CHK-POST-LINK-OPT-LEVEL-O1
-// RUN:   %clang_cl -### -fsycl --offload-new-driver /O1 %s 2>&1 | FileCheck %s -check-prefixes=CHK-POST-LINK-OPT-LEVEL-Os
-// RUN:   %clang    -### -fsycl --offload-new-driver -O2 %s 2>&1 | FileCheck %s -check-prefixes=CHK-POST-LINK-OPT-LEVEL-O2
-// RUN:   %clang_cl -### -fsycl --offload-new-driver /O2 %s 2>&1 | FileCheck %s -check-prefixes=CHK-POST-LINK-OPT-LEVEL-O3
-// RUN:   %clang    -### -fsycl --offload-new-driver -Os %s 2>&1 | FileCheck %s -check-prefixes=CHK-POST-LINK-OPT-LEVEL-Os
-// RUN:   %clang_cl -### -fsycl --offload-new-driver /Os %s 2>&1 | FileCheck %s -check-prefixes=CHK-POST-LINK-OPT-LEVEL-Os
+// RUN:   %clang    -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -O1 %s 2>&1 | FileCheck %s -check-prefixes=CHK-POST-LINK-OPT-LEVEL-O1
+// RUN:   %clang_cl -### -fsycl --offload-new-driver /clang:--sysroot=%S/Inputs/SYCL /O1 %s 2>&1 | FileCheck %s -check-prefixes=CHK-POST-LINK-OPT-LEVEL-Os
+// RUN:   %clang    -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -O2 %s 2>&1 | FileCheck %s -check-prefixes=CHK-POST-LINK-OPT-LEVEL-O2
+// RUN:   %clang_cl -### -fsycl --offload-new-driver /clang:--sysroot=%S/Inputs/SYCL /O2 %s 2>&1 | FileCheck %s -check-prefixes=CHK-POST-LINK-OPT-LEVEL-O3
+// RUN:   %clang    -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -Os %s 2>&1 | FileCheck %s -check-prefixes=CHK-POST-LINK-OPT-LEVEL-Os
+// RUN:   %clang_cl -### -fsycl --offload-new-driver /clang:--sysroot=%S/Inputs/SYCL /Os %s 2>&1 | FileCheck %s -check-prefixes=CHK-POST-LINK-OPT-LEVEL-Os
 // %clang options
-// RUN:   %clang    -### -fsycl --offload-new-driver -O0 %s 2>&1 | FileCheck %s -check-prefixes=CHK-POST-LINK-OPT-LEVEL-O0
-// RUN:   %clang    -### -fsycl --offload-new-driver -Ofast %s 2>&1 | FileCheck %s -check-prefixes=CHK-POST-LINK-OPT-LEVEL-O3
-// RUN:   %clang    -### -fsycl --offload-new-driver -O3 %s 2>&1 | FileCheck %s -check-prefixes=CHK-POST-LINK-OPT-LEVEL-O3
-// RUN:   %clang    -### -fsycl --offload-new-driver -Oz %s 2>&1 | FileCheck %s -check-prefixes=CHK-POST-LINK-OPT-LEVEL-Oz
-// RUN:   %clang    -### -fsycl --offload-new-driver -Og %s 2>&1 | FileCheck %s -check-prefixes=CHK-POST-LINK-OPT-LEVEL-O1
+// RUN:   %clang    -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -O0 %s 2>&1 | FileCheck %s -check-prefixes=CHK-POST-LINK-OPT-LEVEL-O0
+// RUN:   %clang    -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -Ofast %s 2>&1 | FileCheck %s -check-prefixes=CHK-POST-LINK-OPT-LEVEL-O3
+// RUN:   %clang    -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -O3 %s 2>&1 | FileCheck %s -check-prefixes=CHK-POST-LINK-OPT-LEVEL-O3
+// RUN:   %clang    -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -Oz %s 2>&1 | FileCheck %s -check-prefixes=CHK-POST-LINK-OPT-LEVEL-Oz
+// RUN:   %clang    -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -Og %s 2>&1 | FileCheck %s -check-prefixes=CHK-POST-LINK-OPT-LEVEL-O1
 // %clang_cl options
-// RUN:   %clang_cl -### -fsycl --offload-new-driver /Od %s 2>&1 | FileCheck %s -check-prefixes=CHK-POST-LINK-OPT-LEVEL-O0
-// RUN:   %clang_cl -### -fsycl --offload-new-driver /Ot %s 2>&1 | FileCheck %s -check-prefixes=CHK-POST-LINK-OPT-LEVEL-O3
+// RUN:   %clang_cl -### -fsycl --offload-new-driver /clang:--sysroot=%S/Inputs/SYCL /Od %s 2>&1 | FileCheck %s -check-prefixes=CHK-POST-LINK-OPT-LEVEL-O0
+// RUN:   %clang_cl -### -fsycl --offload-new-driver /clang:--sysroot=%S/Inputs/SYCL /Ot %s 2>&1 | FileCheck %s -check-prefixes=CHK-POST-LINK-OPT-LEVEL-O3
 // only the last option is considered
-// RUN:   %clang    -### -fsycl --offload-new-driver -O2 -O1 %s 2>&1 | FileCheck %s -check-prefixes=CHK-POST-LINK-OPT-LEVEL-O1
-// RUN:   %clang_cl -### -fsycl --offload-new-driver /O2 /O1 %s 2>&1 | FileCheck %s -check-prefixes=CHK-POST-LINK-OPT-LEVEL-Os
+// RUN:   %clang    -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -O2 -O1 %s 2>&1 | FileCheck %s -check-prefixes=CHK-POST-LINK-OPT-LEVEL-O1
+// RUN:   %clang_cl -### -fsycl --offload-new-driver /clang:--sysroot=%S/Inputs/SYCL /O2 /O1 %s 2>&1 | FileCheck %s -check-prefixes=CHK-POST-LINK-OPT-LEVEL-Os
 // CHK-POST-LINK-OPT-LEVEL-O0: --sycl-post-link-options=-O2
 // CHK-POST-LINK-OPT-LEVEL-O1: --sycl-post-link-options=-O1
 // CHK-POST-LINK-OPT-LEVEL-O2: --sycl-post-link-options=-O2
@@ -541,8 +541,8 @@
 // CHK-POST-LINK-OPT-LEVEL-Oz: --sycl-post-link-options=-Oz
 
 // Verify header search dirs are added with -fsycl
-// RUN: %clang -### -fsycl --offload-new-driver %s 2>&1 | FileCheck %s -check-prefixes=CHECK-HEADER-DIR
-// RUN: %clang_cl -### -fsycl --offload-new-driver %s 2>&1 | FileCheck %s -check-prefixes=CHECK-HEADER-DIR
+// RUN: %clang -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL %s 2>&1 | FileCheck %s -check-prefixes=CHECK-HEADER-DIR
+// RUN: %clang_cl -### -fsycl --offload-new-driver /clang:--sysroot=%S/Inputs/SYCL %s 2>&1 | FileCheck %s -check-prefixes=CHECK-HEADER-DIR
 // CHECK-HEADER-DIR: clang{{.*}} "-fsycl-is-device"
 // CHECK-HEADER-DIR-SAME: "-internal-isystem" "[[ROOT:[^"]*]]bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl{{[/\\]+}}stl_wrappers"
 // CHECK-HEADER-DIR-NOT: -internal-isystem
@@ -553,30 +553,30 @@
 // CHECK-HEADER-DIR-SAME: "-internal-isystem" "[[ROOT]]bin{{[/\\]+}}..{{[/\\]+}}include"
 
 /// Check for option incompatibility with -fsycl
-// RUN:   not %clang -### -fsycl --offload-new-driver -ffreestanding %s 2>&1 \
+// RUN:   not %clang -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -ffreestanding %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-INCOMPATIBILITY %s -DINCOMPATOPT=-ffreestanding
-// RUN:   not %clang -### -fsycl --offload-new-driver -static-libstdc++ %s 2>&1 \
+// RUN:   not %clang -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -static-libstdc++ %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-INCOMPATIBILITY %s -DINCOMPATOPT=-static-libstdc++
 // CHK-INCOMPATIBILITY: error: invalid argument '[[INCOMPATOPT]]' not allowed with '-fsycl'
 
 /// Using -fsyntax-only with -fsycl --offload-new-driver should not emit IR
-// RUN:   %clang -### -fsycl --offload-new-driver -fsyntax-only %s 2>&1 \
+// RUN:   %clang -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsyntax-only %s 2>&1 \
 // RUN:   | FileCheck -check-prefixes=CHK-FSYNTAX-ONLY %s
-// RUN:   %clang -### -fsycl --offload-new-driver -fsycl-device-only -fsyntax-only %s 2>&1 \
+// RUN:   %clang -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-device-only -fsyntax-only %s 2>&1 \
 // RUN:   | FileCheck -check-prefixes=CHK-FSYNTAX-ONLY %s
 // CHK-FSYNTAX-ONLY-NOT: "-emit-llvm-bc"
 // CHK-FSYNTAX-ONLY: "-fsyntax-only"
 
 /// Check for linked sycl lib when using -fpreview-breaking-changes with -fsycl
-// RUN: %clang -### -fsycl --offload-new-driver -fpreview-breaking-changes -target x86_64-unknown-windows-msvc %s 2>&1 | FileCheck -check-prefix FSYCL-PREVIEW-BREAKING-CHANGES-CHECK %s
-// RUN: %clang_cl -### -fsycl --offload-new-driver -fpreview-breaking-changes %s 2>&1 | FileCheck -check-prefix FSYCL-PREVIEW-BREAKING-CHANGES-CHECK-CL %s
+// RUN: %clang -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fpreview-breaking-changes -target x86_64-unknown-windows-msvc %s 2>&1 | FileCheck -check-prefix FSYCL-PREVIEW-BREAKING-CHANGES-CHECK %s
+// RUN: %clang_cl -### -fsycl --offload-new-driver /clang:--sysroot=%S/Inputs/SYCL -fpreview-breaking-changes %s 2>&1 | FileCheck -check-prefix FSYCL-PREVIEW-BREAKING-CHANGES-CHECK-CL %s
 // FSYCL-PREVIEW-BREAKING-CHANGES-CHECK: -defaultlib:sycl{{[0-9]*}}-preview.lib
 // FSYCL-PREVIEW-BREAKING-CHANGES-CHECK-NOT: -defaultlib:sycl{{[0-9]*}}.lib
 // FSYCL-PREVIEW-BREAKING-CHANGES-CHECK-CL: "--dependent-lib=sycl{{[0-9]*}}-preview"
 
 /// Check for linked sycl lib when using -fpreview-breaking-changes with -fsycl
-// RUN: %clang -### -fsycl --offload-new-driver -fpreview-breaking-changes -target x86_64-unknown-windows-msvc -Xclang --dependent-lib=msvcrtd %s 2>&1 | FileCheck -check-prefix FSYCL-PREVIEW-BREAKING-CHANGES-DEBUG-CHECK %s
-// RUN: %clang_cl -### -fsycl --offload-new-driver -fpreview-breaking-changes /MDd %s 2>&1 | FileCheck -check-prefix FSYCL-PREVIEW-BREAKING-CHANGES-DEBUG-CHECK %s
+// RUN: %clang -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fpreview-breaking-changes -target x86_64-unknown-windows-msvc -Xclang --dependent-lib=msvcrtd %s 2>&1 | FileCheck -check-prefix FSYCL-PREVIEW-BREAKING-CHANGES-DEBUG-CHECK %s
+// RUN: %clang_cl -### -fsycl --offload-new-driver /clang:--sysroot=%S/Inputs/SYCL -fpreview-breaking-changes /MDd %s 2>&1 | FileCheck -check-prefix FSYCL-PREVIEW-BREAKING-CHANGES-DEBUG-CHECK %s
 // FSYCL-PREVIEW-BREAKING-CHANGES-DEBUG-CHECK: --dependent-lib=sycl{{[0-9]*}}-previewd
 // FSYCL-PREVIEW-BREAKING-CHANGES-DEBUG-CHECK-NOT: -defaultlib:sycl{{[0-9]*}}.lib
 // FSYCL-PREVIEW-BREAKING-CHANGES-DEBUG-CHECK-NOT: -defaultlib:sycl{{[0-9]*}}-preview.lib
@@ -594,7 +594,7 @@
 /// ###########################################################################
 
 /// Check "-aux-target-cpu" and "target-cpu" are passed when compiling for SYCL offload device and host codes:
-//  RUN:  %clang -### -fsycl --offload-new-driver -c %s 2>&1 | FileCheck -check-prefix=CHECK-OFFLOAD %s
+//  RUN:  %clang -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -c %s 2>&1 | FileCheck -check-prefix=CHECK-OFFLOAD %s
 //  CHECK-OFFLOAD: clang{{.*}} "-cc1" {{.*}} "-fsycl-is-device"
 //  CHECK-OFFLOAD-SAME: "-aux-target-cpu" "[[HOST_CPU_NAME:[^ ]+]]"
 //  CHECK-OFFLOAD: clang{{.*}} "-cc1" {{.*}} "-fsycl-is-host"
@@ -604,7 +604,7 @@
 
 /// Check "-aux-target-cpu" with "-aux-target-feature" and "-target-cpu" with "-target-feature" are passed
 /// when compiling for SYCL offload device and host codes:
-//  RUN:  %clang -fsycl --offload-new-driver -mavx -c %s -### -o %t.o 2>&1 | FileCheck -check-prefix=OFFLOAD-AVX %s
+//  RUN:  %clang -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -mavx -c %s -### -o %t.o 2>&1 | FileCheck -check-prefix=OFFLOAD-AVX %s
 //  OFFLOAD-AVX: clang{{.*}} "-cc1" {{.*}} "-fsycl-is-device"
 //  OFFLOAD-AVX-SAME: "-aux-target-cpu" "[[HOST_CPU_NAME:[^ ]+]]" "-aux-target-feature" "+avx"
 //  OFFLOAD-AVX: clang{{.*}} "-cc1" {{.*}} "-fsycl-is-host"
@@ -615,17 +615,17 @@
 /// Check that the needed -fsycl --offload-new-driver -fsycl-is-device and -fsycl-is-host options
 /// are passed to all of the needed compilation steps regardless of final
 /// phase.
-// RUN:  %clang -### -fsycl --offload-new-driver -c %s 2>&1 | FileCheck -check-prefix=CHECK-OPTS %s
-// RUN:  %clang -### -fsycl --offload-new-driver -E %s 2>&1 | FileCheck -check-prefix=CHECK-OPTS %s
-// RUN:  %clang -### -fsycl --offload-new-driver -S %s 2>&1 | FileCheck -check-prefix=CHECK-OPTS %s
-// RUN:  %clang -### -fsycl --offload-new-driver %s 2>&1 | FileCheck -check-prefix=CHECK-OPTS %s
+// RUN:  %clang -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -c %s 2>&1 | FileCheck -check-prefix=CHECK-OPTS %s
+// RUN:  %clang -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -E %s 2>&1 | FileCheck -check-prefix=CHECK-OPTS %s
+// RUN:  %clang -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -S %s 2>&1 | FileCheck -check-prefix=CHECK-OPTS %s
+// RUN:  %clang -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL %s 2>&1 | FileCheck -check-prefix=CHECK-OPTS %s
 // CHECK-OPTS: clang{{.*}} "-cc1" {{.*}} "-fsycl-is-device"
 // CHECK-OPTS: clang{{.*}} "-cc1" {{.*}} "-fsycl-is-host"
 
 /// ###########################################################################
 
 /// Check that -fcoverage-mapping is disabled for device
-// RUN: %clang -### -fsycl --offload-new-driver -fprofile-instr-generate -fcoverage-mapping -target x86_64-unknown-linux-gnu -c %s 2>&1 \
+// RUN: %clang -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fprofile-instr-generate -fcoverage-mapping -target x86_64-unknown-linux-gnu -c %s 2>&1 \
 // RUN:  | FileCheck -check-prefix=CHECK_COVERAGE_MAPPING %s
 // CHECK_COVERAGE_MAPPING: clang{{.*}} "-cc1" "-triple" "spir64-unknown-unknown"{{.*}} "-fsycl-is-device"{{.*}}
 // CHECK_COVERAGE_MAPPING-NOT: "-fprofile-instrument=clang"
@@ -635,7 +635,7 @@
 /// ###########################################################################
 
 /// Check that -fprofile-arcs -ftest-coverage is disabled for device
-// RUN: %clang -### -fsycl --offload-new-driver -fprofile-arcs -ftest-coverage -target x86_64-unknown-linux-gnu -c %s 2>&1 \
+// RUN: %clang -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fprofile-arcs -ftest-coverage -target x86_64-unknown-linux-gnu -c %s 2>&1 \
 // RUN:  | FileCheck -check-prefix=CHECK_TEST_COVERAGE %s
 // CHECK_TEST_COVERAGE: clang{{.*}} "-cc1" "-triple" "spir64-unknown-unknown"{{.*}} "-fsycl-is-device"{{.*}}
 // CHECK_TEST_COVERAGE-NOT: "-coverage-notes-file={{.*}}"
@@ -644,7 +644,7 @@
 /// ###########################################################################
 
 /// -S -emit-llvm should generate IR for device.
-// RUN: %clangxx -### -fsycl --offload-new-driver -S -emit-llvm %s 2>&1 \
+// RUN: %clangxx -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -S -emit-llvm %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHECK_S_LLVM %s
 // CHECK_S_LLVM: clang{{.*}} "-fsycl-is-device"{{.*}} "-emit-llvm-bc"
 // CHECK_S_LLVM: llvm-offload-binary{{.*}}
@@ -653,9 +653,9 @@
 /// ###########################################################################
 
 // RUN:  touch %t_empty.o
-// RUN:  %clangxx -### -fsycl --offload-new-driver -target x86_64-unknown-linux-gnu -fsycl-targets=spir64_x86_64 %t_empty.o %s 2>&1 \
+// RUN:  %clangxx -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -target x86_64-unknown-linux-gnu -fsycl-targets=spir64_x86_64 %t_empty.o %s 2>&1 \
 // RUN:    | FileCheck -check-prefix DEFAULT_LINK %s
-// RUN:  %clangxx -### -fsycl --offload-new-driver -target x86_64-unknown-linux-gnu -fsycl-targets=spir64_gen %t_empty.o %s 2>&1 \
+// RUN:  %clangxx -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -target x86_64-unknown-linux-gnu -fsycl-targets=spir64_gen %t_empty.o %s 2>&1 \
 // RUN:    | FileCheck -check-prefix DEFAULT_LINK %s
 // DEFAULT_LINK: clang-linker-wrapper{{.*}}
 
@@ -663,17 +663,17 @@
 
 /// Passing in the default triple should allow for -Xsycl-target options, both the
 /// "=<triple>" and the default spelling
-// RUN:  %clangxx -### -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver -fsycl-targets=spir64 -Xsycl-target-backend=spir64 -DFOO -Xsycl-target-linker=spir64 -DFOO2 %S/Inputs/SYCL/objlin64.o 2>&1 \
+// RUN:  %clangxx -### -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-targets=spir64 -Xsycl-target-backend=spir64 -DFOO -Xsycl-target-linker=spir64 -DFOO2 %S/Inputs/SYCL/objlin64.o 2>&1 \
 // RUN:    | FileCheck -check-prefixes=SYCL_TARGET_OPT %s
-// RUN:  %clangxx -### -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver -Xsycl-target-backend=spir64 -DFOO -Xsycl-target-linker=spir64 -DFOO2 %S/Inputs/SYCL/objlin64.o 2>&1 \
+// RUN:  %clangxx -### -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -Xsycl-target-backend=spir64 -DFOO -Xsycl-target-linker=spir64 -DFOO2 %S/Inputs/SYCL/objlin64.o 2>&1 \
 // RUN:    | FileCheck -check-prefixes=SYCL_TARGET_OPT %s
 // SYCL_TARGET_OPT: clang-linker-wrapper{{.*}} "--device-compiler=sycl:spir64-unknown-unknown=-DFOO" "--device-linker=sycl:spir64-unknown-unknown=-DFOO2"
 
 /// ###########################################################################
 
-// RUN:  %clangxx -### -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver -fsycl-targets=spir64_x86_64 -Xsycl-target-backend -DFOO %S/Inputs/SYCL/objlin64.o 2>&1 \
+// RUN:  %clangxx -### -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-targets=spir64_x86_64 -Xsycl-target-backend -DFOO %S/Inputs/SYCL/objlin64.o 2>&1 \
 // RUN:    | FileCheck -check-prefixes=SYCL_TARGET_OPT_AOT,SYCL_TARGET_OPT_CPU %s
-// RUN:  %clangxx -### -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver -fsycl-targets=spir64_gen -Xsycl-target-backend -DFOO %S/Inputs/SYCL/objlin64.o 2>&1 \
+// RUN:  %clangxx -### -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-targets=spir64_gen -Xsycl-target-backend -DFOO %S/Inputs/SYCL/objlin64.o 2>&1 \
 // RUN:    | FileCheck -check-prefixes=SYCL_TARGET_OPT_AOT,SYCL_TARGET_OPT_GPU %s
 // SYCL_TARGET_OPT_AOT-NOT: error: cannot deduce implicit triple value for '-Xsycl-target-backend'
 // SYCL_TARGET_OPT_CPU: clang-linker-wrapper{{.*}} "--device-compiler=sycl:spir64_x86_64-unknown-unknown=-DFOO"
@@ -682,17 +682,17 @@
 /// ###########################################################################
 
 /// Check -fsycl-targets=spir64 enables addition of -ffine-grained-bitfield-accesses option
-// RUN:   %clangxx -### -fsycl-device-only --offload-new-driver %s 2>&1 | FileCheck -check-prefixes=CHECK_BITFIELD_OPTION %s
+// RUN:   %clangxx -### -fsycl-device-only --offload-new-driver --sysroot=%S/Inputs/SYCL %s 2>&1 | FileCheck -check-prefixes=CHECK_BITFIELD_OPTION %s
 // CHECK_BITFIELD_OPTION: clang{{.*}} "-ffine-grained-bitfield-accesses"
 
 /// ###########################################################################
 
 /// Using linker specific items at the end of the command should not fail when
 /// we are performing a non-linking compilation behavior
-// RUN: %clangxx -E -fsycl --offload-new-driver %S/Inputs/SYCL/liblin64.a \
+// RUN: %clangxx -E -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL %S/Inputs/SYCL/liblin64.a \
 // RUN:          -target x86_64-unknown-linux-gnu -### 2>&1 \
 // RUN:  | FileCheck -check-prefix IGNORE_INPUT %s
-// RUN: %clangxx -c -fsycl --offload-new-driver %S/Inputs/SYCL/liblin64.a \
+// RUN: %clangxx -c -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL %S/Inputs/SYCL/liblin64.a \
 // RUN:          -target x86_64-unknown-linux-gnu -### 2>&1 \
 // RUN:  | FileCheck -check-prefix IGNORE_INPUT %s
 // IGNORE_INPUT: input unused
@@ -700,23 +700,23 @@
 /// ###########################################################################
 
 /// Check if the clang with fsycl adds C++ libraries to the link line
-//  RUN:  %clang -### -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver %s 2>&1 | FileCheck -check-prefix=CHECK-FSYCL-WITH-CLANG %s
+//  RUN:  %clang -### -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL %s 2>&1 | FileCheck -check-prefix=CHECK-FSYCL-WITH-CLANG %s
 // CHECK-FSYCL-WITH-CLANG: "-lstdc++"
 
 /// ###########################################################################
 
 /// Check for correct handling of -fsycl-fp64-conv-emu option for different targets
-// RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver -fsycl-targets=spir64 -fsycl-fp64-conv-emu %s 2>&1 | FileCheck -check-prefix=CHECK_WARNING %s
+// RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-targets=spir64 -fsycl-fp64-conv-emu %s 2>&1 | FileCheck -check-prefix=CHECK_WARNING %s
 // CHECK_WARNING: warning: '-fsycl-fp64-conv-emu' option is supported only for AOT compilation of Intel GPUs. It will be ignored for other targets [-Wunused-command-line-argument]
 
-// RUN: %clang -### -Wno-unused-command-line-argument -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver -fsycl-targets=spir64 -fsycl-fp64-conv-emu %s 2>&1 | FileCheck -check-prefix=CHECK_NO_WARNING %s
+// RUN: %clang -### -Wno-unused-command-line-argument -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-targets=spir64 -fsycl-fp64-conv-emu %s 2>&1 | FileCheck -check-prefix=CHECK_NO_WARNING %s
 // CHECK_NO_WARNING-NOT: warning: '-fsycl-fp64-conv-emu' option is supported only for AOT compilation of Intel GPUs. It will be ignored for other targets [-Wunused-command-line-argument]
 
-// RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver -fsycl-targets=intel_gpu_pvc -fsycl-fp64-conv-emu %s 2>&1 | FileCheck -check-prefix=CHECK_FSYCL_FP64_CONV_EMU %s
+// RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-targets=intel_gpu_pvc -fsycl-fp64-conv-emu %s 2>&1 | FileCheck -check-prefix=CHECK_FSYCL_FP64_CONV_EMU %s
 // CHECK_FSYCL_FP64_CONV_EMU-NOT: clang{{.*}} "-cc1" "-triple x86_64-unknown-linux-gnu" {{.*}} "-fsycl-fp64-conv-emu"
 // CHECK_FSYCL_FP64_CONV_EMU-DAG: clang{{.*}} "-cc1" "-triple" "spir64_gen{{.*}}" "-fsycl-fp64-conv-emu"
 // CHECK_FSYCL_FP64_CONV_EMU-DAG: llvm-offload-binary{{.*}} "--image=file={{.*}}.bc,triple=spir64_gen-unknown-unknown,arch=pvc,kind=sycl,compile-opts={{.*}}-options -ze-fp64-gen-conv-emu{{.*}}"
-// RUN: %clang_cl -fsycl --offload-new-driver -fsycl-targets=spir64_gen-unknown-unknown %s -fsycl-fp64-conv-emu -### 2>&1 \
+// RUN: %clang_cl -fsycl --offload-new-driver /clang:--sysroot=%S/Inputs/SYCL -fsycl-targets=spir64_gen-unknown-unknown %s -fsycl-fp64-conv-emu -### 2>&1 \
 // RUN:  | FileCheck %s -check-prefixes=CHECK_FSYCL_FP64_CONV_EMU_WIN
 // CHECK_FSYCL_FP64_CONV_EMU_WIN-NOT: clang{{.*}} "-cc1" "-triple x86_64-unknown-linux-gnu" {{.*}} "-fsycl-fp64-conv-emu"
 // CHECK_FSYCL_FP64_CONV_EMU_WIN-DAG: clang{{.*}} "-cc1" "-triple" "spir64_gen{{.*}}" "-fsycl-fp64-conv-emu"

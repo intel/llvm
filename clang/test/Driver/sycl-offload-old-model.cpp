@@ -1092,3 +1092,12 @@
 // CHECK_FSYCL_FP64_CONV_EMU_WIN-NOT: clang{{.*}} "-cc1" "-triple x86_64-unknown-linux-gnu" {{.*}} "-fsycl-fp64-conv-emu"
 // CHECK_FSYCL_FP64_CONV_EMU_WIN-DAG: clang{{.*}} "-cc1" "-triple" "spir64_gen{{.*}}" "-fsycl-fp64-conv-emu"
 // CHECK_FSYCL_FP64_CONV_EMU_WIN-DAG: ocloc{{.*}} "-options" "-ze-fp64-gen-conv-emu"
+
+/// Check that -fsycl alone does NOT use --offload-new-driver
+// RUN: %clangxx -### -fsycl --target=x86_64-unknown-linux-gnu %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHECK-OLD-MODEL %s
+// RUN: %clangxx -### -fsycl --no-offload-new-driver --target=x86_64-unknown-linux-gnu %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHECK-OLD-MODEL %s
+// RUN: %clang_cl -### -fsycl -- %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHECK-OLD-MODEL %s
+// CHECK-OLD-MODEL-NOT: "--offload-new-driver"

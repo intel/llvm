@@ -719,6 +719,8 @@ public:
     case ExecutionModeMaximumRegistersIdINTEL:
     case ExecutionModeNamedMaximumRegistersINTEL:
       return ExtensionID::SPV_INTEL_maximum_registers;
+    case ExecutionModeArithmeticPoisonKHR:
+      return ExtensionID::SPV_KHR_poison_freeze;
     default:
       return {};
     }
