@@ -8,29 +8,39 @@
 
 #pragma once
 
-#include <type_traits> // for true_type
+#include <type_traits> // for false_type
 
-// FIXME: .def files included to this file use all sorts of SYCL objects like
-// id, range, traits, etc. We have to include some headers before including .def
-// files.
-#include <sycl/aspects.hpp>
-#include <sycl/id.hpp>
+#include <sycl/detail/info_desc_traits.hpp>
 #include <sycl/info/info_desc.hpp>
 
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
-template <typename T> struct is_platform_info_desc : std::false_type {};
-template <typename T> struct is_context_info_desc : std::false_type {};
-template <typename T> struct is_device_info_desc : std::false_type {};
-template <typename T> struct is_queue_info_desc : std::false_type {};
-template <typename T> struct is_kernel_info_desc : std::false_type {};
+// Each `is_*_info_desc<T>` matches self-describing trait structs that carry
+// `info_class`, `return_type`, and (optionally) `ur_code` members. Mangling
+// of `get_info` template arguments depends on the `return_type` alias exposed
+// here, so the alias must remain stable across changes.
 template <typename T>
-struct is_kernel_device_specific_info_desc : std::false_type {};
+struct is_platform_info_desc : is_info_desc_for<T, info_class::platform> {};
 template <typename T>
-struct is_kernel_queue_specific_info_desc : std::false_type {};
-template <typename T> struct is_event_info_desc : std::false_type {};
-template <typename T> struct is_event_profiling_info_desc : std::false_type {};
+struct is_context_info_desc : is_info_desc_for<T, info_class::context> {};
+template <typename T>
+struct is_device_info_desc : is_info_desc_for<T, info_class::device> {};
+template <typename T>
+struct is_queue_info_desc : is_info_desc_for<T, info_class::queue> {};
+template <typename T>
+struct is_kernel_info_desc : is_info_desc_for<T, info_class::kernel> {};
+template <typename T>
+struct is_kernel_device_specific_info_desc
+    : is_info_desc_for<T, info_class::kernel_device_specific> {};
+template <typename T>
+struct is_kernel_queue_specific_info_desc
+    : is_info_desc_for<T, info_class::kernel_queue_specific> {};
+template <typename T>
+struct is_event_info_desc : is_info_desc_for<T, info_class::event> {};
+template <typename T>
+struct is_event_profiling_info_desc
+    : is_info_desc_for<T, info_class::event_profiling> {};
 // Normally we would just use std::enable_if to limit valid get_info template
 // arguments. However, there is a mangling mismatch of
 // "std::enable_if<is*_desc::value>::type" between gcc clang (it appears that
@@ -41,87 +51,6 @@ template <typename T> struct is_event_profiling_info_desc : std::false_type {};
 
 template <typename T> struct is_backend_info_desc : std::false_type {};
 // Similar approach to limit valid get_backend_info template argument
-
-#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, UrCode)              \
-  template <>                                                                  \
-  struct is_##DescType##_info_desc<info::DescType::Desc> : std::true_type {    \
-    using return_type = info::DescType::Desc::return_type;                     \
-  };
-#include <sycl/info/context_traits.def>
-#include <sycl/info/event_traits.def>
-#include <sycl/info/kernel_traits.def>
-#include <sycl/info/platform_traits.def>
-#include <sycl/info/queue_traits.def>
-#undef __SYCL_PARAM_TRAITS_SPEC
-
-#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, UrCode)              \
-  template <>                                                                  \
-  struct is_##DescType##_info_desc<info::DescType::Desc> : std::true_type {    \
-    using return_type = info::DescType::Desc::return_type;                     \
-  };
-#include <sycl/info/event_profiling_traits.def>
-#undef __SYCL_PARAM_TRAITS_SPEC
-
-#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, UrCode)              \
-  template <>                                                                  \
-  struct is_##DescType##_info_desc<info::DescType::Desc> : std::true_type {    \
-    using return_type = info::DescType::Desc::return_type;                     \
-  };
-#include <sycl/info/kernel_device_specific_traits.def>
-#undef __SYCL_PARAM_TRAITS_SPEC
-
-#define __SYCL_PARAM_TRAITS_SPEC(Namespace, DescType, Desc, ReturnT, UrCode)   \
-  template <>                                                                  \
-  struct is_##DescType##_info_desc<Namespace::info::DescType::Desc>            \
-      : std::true_type {                                                       \
-    using return_type = Namespace::info::DescType::Desc::return_type;          \
-  };
-#include <sycl/info/ext_intel_kernel_info_traits.def>
-#undef __SYCL_PARAM_TRAITS_SPEC
-
-#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, UrCode)              \
-  template <>                                                                  \
-  struct is_##DescType##_info_desc<info::DescType::Desc> : std::true_type {    \
-    using return_type = info::DescType::Desc::return_type;                     \
-  };
-#define __SYCL_PARAM_TRAITS_SPEC_SPECIALIZED(DescType, Desc, ReturnT, UrCode)  \
-  __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, UrCode)
-
-#include <sycl/info/device_traits.def>
-
-#undef __SYCL_PARAM_TRAITS_SPEC
-#undef __SYCL_PARAM_TRAITS_SPEC_SPECIALIZED
-
-#define __SYCL_PARAM_TRAITS_SPEC(Namespace, DescType, Desc, ReturnT, UrCode)   \
-  template <>                                                                  \
-  struct is_##DescType##_info_desc<Namespace::info::DescType::Desc>            \
-      : std::true_type {                                                       \
-    using return_type = Namespace::info::DescType::Desc::return_type;          \
-  };
-#include <sycl/info/ext_codeplay_device_traits.def>
-#include <sycl/info/ext_intel_device_traits.def>
-#include <sycl/info/ext_oneapi_device_traits.def>
-#undef __SYCL_PARAM_TRAITS_SPEC
-
-#define __SYCL_PARAM_TRAITS_SPEC(Namespace, DescType, Desc, ReturnT, UrCode)   \
-  template <>                                                                  \
-  struct is_##DescType##_info_desc<Namespace::info::DescType::Desc>            \
-      : std::true_type {                                                       \
-    using return_type = Namespace::info::DescType::Desc::return_type;          \
-  };
-
-#define __SYCL_PARAM_TRAITS_TEMPLATE_PARTIAL_SPEC(Namespace, Desctype, Desc,   \
-                                                  ReturnT, UrCode)             \
-  template <int Dimensions>                                                    \
-  struct is_##Desctype##_info_desc<                                            \
-      Namespace::info::Desctype::Desc<Dimensions>> : std::true_type {          \
-    using return_type =                                                        \
-        typename Namespace::info::Desctype::Desc<Dimensions>::return_type;     \
-  };
-
-#include <sycl/info/ext_oneapi_kernel_queue_specific_traits.def>
-#undef __SYCL_PARAM_TRAITS_SPEC
-#undef __SYCL_PARAM_TRAITS_TEMPLATE_PARTIAL_SPEC
 
 } // namespace detail
 } // namespace _V1
