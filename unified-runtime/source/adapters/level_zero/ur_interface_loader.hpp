@@ -883,6 +883,11 @@ ur_result_t urGraphSetDestructionCallbackExp(
     ur_exp_graph_destruction_callback_t pfnCallback, void *pUserData);
 ur_result_t urGraphDumpContentsExp(ur_exp_graph_handle_t hGraph,
                                    const char *filePath);
+ur_result_t urGraphGetNativeHandleExp(ur_exp_graph_handle_t hGraph,
+                                      ur_native_handle_t *phNativeGraph);
+ur_result_t urGraphExecutableGraphGetNativeHandleExp(
+    ur_exp_executable_graph_handle_t hExecutableGraph,
+    ur_native_handle_t *phNativeExecutableGraph);
 #ifdef UR_STATIC_ADAPTER_LEVEL_ZERO
 ur_result_t urAdapterGetDdiTables(ur_dditable_t *ddi);
 #endif
