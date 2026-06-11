@@ -1613,8 +1613,8 @@ public:
           .value_or(0);
     }
     CASE(ext_oneapi_ipc_physical_memory) {
-      return
-    get_info_impl_nocheck<UR_DEVICE_INFO_IPC_PHYSICAL_MEMORY_SUPPORT_EXP>()
+      return get_info_impl_nocheck<
+                 UR_DEVICE_INFO_IPC_PHYSICAL_MEMORY_SUPPORT_EXP>()
           .value_or(0);
     }
     else {
