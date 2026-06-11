@@ -8,6 +8,9 @@
 // UNSUPPORTED: gpu-intel-dg2
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22155
 
+// UNSUPPORTED: windows && arch-intel_gpu_bmg_g21
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22298
+
 // RUN: %{build} %link-directx -o %t.out
 // RUN: %{run-unfiltered-devices} %t.out
 
