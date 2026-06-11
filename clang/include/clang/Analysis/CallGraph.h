@@ -211,7 +211,8 @@ public:
   Decl *getDecl() const { return FD; }
 
   FunctionDecl *getDefinition() const {
-    return getDecl()->getAsFunction()->getDefinition();
+    FunctionDecl *FD = getDecl()->getAsFunction();
+    return FD ? FD->getDefinition() : nullptr;
   }
 
   void print(raw_ostream &os) const;

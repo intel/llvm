@@ -1482,7 +1482,8 @@ void addPrintfRequirements(const MachineInstr &MI,
                            SPIRV::RequirementHandler &Reqs,
                            const SPIRVSubtarget &ST) {
   SPIRVGlobalRegistry *GR = ST.getSPIRVGlobalRegistry();
-  SPIRVTypeInst PtrType = GR->getSPIRVTypeForVReg(MI.getOperand(4).getReg());
+  SPIRVTypeInst PtrType =
+      GR->getSPIRVTypeForVReg(MI.getOperand(4).getReg(), MI.getMF());
   if (PtrType) {
     MachineOperand ASOp = PtrType->getOperand(1);
     if (ASOp.isImm()) {

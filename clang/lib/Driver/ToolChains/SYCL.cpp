@@ -1501,8 +1501,9 @@ SYCLToolChain::SYCLToolChain(const Driver &D, const llvm::Triple &Triple,
 
 void SYCLToolChain::addClangTargetOptions(
     const llvm::opt::ArgList &DriverArgs, llvm::opt::ArgStringList &CC1Args,
-    Action::OffloadKind DeviceOffloadingKind) const {
-  HostTC.addClangTargetOptions(DriverArgs, CC1Args, DeviceOffloadingKind);
+    llvm::StringRef BoundArch, Action::OffloadKind DeviceOffloadingKind) const {
+  HostTC.addClangTargetOptions(DriverArgs, CC1Args, BoundArch,
+                               DeviceOffloadingKind);
 
   if (DeviceOffloadingKind == Action::OFK_SYCL &&
       !getTriple().isSPIROrSPIRV()) {
