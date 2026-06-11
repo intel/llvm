@@ -15,6 +15,7 @@
 #include <detail/cg.hpp>
 #include <detail/global_handler.hpp>
 #include <sycl/detail/cg_types.hpp>
+#include <sycl/detail/host_profiling_info.hpp>
 #include <sycl/handler.hpp>
 #include <sycl/interop_handle.hpp>
 
