@@ -155,6 +155,20 @@
 // WRAPPER_OPTIONS_BACKEND_AOT-SAME: "--device-compiler=sycl:spir64_gen-unknown-unknown=-backend-gen-opt"
 // WRAPPER_OPTIONS_BACKEND_AOT-SAME: "--device-compiler=sycl:spir64_x86_64-unknown-unknown=-backend-cpu-opt"
 
+/// Test per-device backend options for multiple Intel GPU targets sharing the same triple.
+/// When intel_gpu_pvc and intel_gpu_dg2_g10 are both specified, the driver must emit
+/// separate --device-compiler flags using the intel_gpu_<device> identifier so that the
+/// linker wrapper can route options to the correct per-arch ocloc invocation.
+// RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL \
+// RUN:          -fsycl-targets=intel_gpu_pvc,intel_gpu_dg2_g10 \
+// RUN:          -Xsycl-target-backend=intel_gpu_pvc -pvc-opt \
+// RUN:          -Xsycl-target-backend=intel_gpu_dg2_g10 -dg2-opt \
+// RUN:          -### %s 2>&1 \
+// RUN:   | FileCheck -check-prefix WRAPPER_OPTIONS_MULTI_GPU %s
+// WRAPPER_OPTIONS_MULTI_GPU: clang-linker-wrapper{{.*}} "--host-triple=x86_64-unknown-linux-gnu"
+// WRAPPER_OPTIONS_MULTI_GPU-SAME: "--device-compiler=sycl:intel_gpu_pvc=-pvc-opt"
+// WRAPPER_OPTIONS_MULTI_GPU-SAME: "--device-compiler=sycl:intel_gpu_dg2_g10=-dg2-opt"
+
 /// Verify arch settings for nvptx and amdgcn targets
 // RUN: %clangxx -fsycl -### -fsycl-targets=amdgcn-amd-amdhsa -fno-sycl-libspirv \
 // RUN:          -nocudalib --offload-new-driver --sysroot=%S/Inputs/SYCL \

@@ -61,6 +61,7 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/TargetParser/Host.h"
+#include "llvm/TargetParser/SYCLTargetParser.h"
 #include <optional>
 
 #define COMPILE_OPTS "compile-opts"
@@ -2112,6 +2113,75 @@ bundleLinkedOutput(ArrayRef<OffloadingImage> Images, const ArgList &Args,
   }
 }
 
+// TODO: explain all details
+std::optional<StringRef> recognizeSYCLBackendOptionArgValue(StringRef Arg,
+                                                            StringRef TripleStr,
+                                                            StringRef Arch) {
+  size_t ColonPos = Arg.find(':');
+  if (ColonPos != StringRef::npos) {
+    StringRef Kind = Arg.take_front(ColonPos);
+    if (getOffloadKind(Kind) != OFK_SYCL)
+      return std::nullopt;
+    Arg = Arg.drop_front(ColonPos + 1);
+  }
+
+  size_t EqPos = Arg.find('=');
+  if (EqPos != StringRef::npos) {
+    StringRef ArgTargetTripleStr = Arg.take_front(EqPos);
+    llvm::Triple ArgTargetTriple(ArgTargetTripleStr);
+    // If this isn't a recognized triple then check whether it is an
+    // intel_gpu_<device> (or nvidia_gpu_*/amd_gpu_*) shorthand that
+    // identifies a specific device arch within a shared LLVM triple.
+    if (ArgTargetTriple.getArch() != Triple::ArchType::UnknownArch) {
+      if (ArgTargetTripleStr != TripleStr)
+        return std::nullopt;
+
+      Arg = Arg.drop_front(EqPos + 1);
+    } else {
+      StringRef ResolvedArch =
+          llvm::sycl_target::resolveGenDevice(ArgTargetTripleStr);
+      if (!ResolvedArch.empty()) {
+        // Filter by device arch (e.g. "pvc" stored in OPT_arch_EQ).
+        if (ResolvedArch != Arch)
+          return std::nullopt;
+
+        Arg = Arg.drop_front(EqPos + 1);
+      }
+
+      // If ResolvedArch is empty the prefix is an arg=value pair; fall
+      // through to forward Arg unchanged (existing behaviour).
+    }
+  }
+
+  return Arg;
+}
+
+// This function finds the SYCL device compiler/linker options and forwards them
+// into the given \p DAL. Option selection is done by target triple, target
+// architecture and offload kind. The device_linker_args and
+// device_compiler_args options accept values in the form
+// [<kind>:][<triple>=]<value>. Triple can be a named device shorthand
+// (intel_gpu_pvc, nvidia_gpu_sm_90). Examples of passing such an option to
+// clang-linker-wrapper are:
+// --device-compiler=sycl:spir64_x86_64=opt_val.
+// --device-compiler=sycl:spir64_gen-unknown-unknown=opt_val.
+// --device-compiler=sycl:intel_gpu_pvc=opt_val.
+void SelectSYCLOptions(const InputArgList &Args, const OptTable &Tbl,
+                       DerivedArgList &DAL, llvm::opt::OptSpecifier OptionKind,
+                       llvm::opt::OptSpecifier ForwardOptionID) {
+  StringRef TripleStr = DAL.getLastArgValue(OPT_triple_EQ);
+  StringRef Arch = DAL.getLastArgValue(OPT_arch_EQ);
+  for (StringRef DeviceArgValue : Args.getAllArgValues(OptionKind)) {
+    std::optional<StringRef> ArgValue =
+        recognizeSYCLBackendOptionArgValue(DeviceArgValue, TripleStr, Arch);
+    if (!ArgValue)
+      continue;
+
+    DAL.AddJoinedArg(nullptr, Tbl.getOption(ForwardOptionID),
+                     Args.MakeArgString(*ArgValue));
+  }
+}
+
 /// Returns a new ArgList containing arguments used for the device linking
 /// phase.
 DerivedArgList getLinkerArgs(ArrayRef<OffloadFile> Input,
@@ -2136,43 +2206,12 @@ DerivedArgList getLinkerArgs(ArrayRef<OffloadFile> Input,
   if (llvm::all_of(Input, ContainsBitcode))
     DAL.AddFlagArg(nullptr, Tbl.getOption(OPT_whole_program));
 
-  // This function filters the SYCL device compiler and linker options by target
-  // triple and offload kind.
-  // The device_linker_args and device_compiler_args options accept values
-  // in the form [<kind>:][<triple>=]<value>.
-  // An example of passing such an option to clang-linker-wrapper is:
-  // --device-compiler=sycl:spir64_gen-unknown-unknown=opt_val.
-  const StringRef TripleStr = DAL.getLastArgValue(OPT_triple_EQ);
-  auto ProcessDeviceArgs = [&](llvm::opt::OptSpecifier DeviceArgsOptionID,
-                               llvm::opt::OptSpecifier ForwardedOptionID) {
-    for (StringRef DeviceArgValue : Args.getAllArgValues(DeviceArgsOptionID)) {
-      size_t ColonPos = DeviceArgValue.find(':');
-      if (ColonPos != StringRef::npos) {
-        StringRef Kind = DeviceArgValue.take_front(ColonPos);
-        if (getOffloadKind(Kind) != OFK_SYCL)
-          continue;
-        DeviceArgValue = DeviceArgValue.drop_front(ColonPos + 1);
-      }
-      size_t EqPos = DeviceArgValue.find('=');
-      if (EqPos != StringRef::npos) {
-        StringRef ArgTargetTripleStr = DeviceArgValue.take_front(EqPos);
-        llvm::Triple ArgTargetTriple(ArgTargetTripleStr);
-        // If this isn't a recognized triple then it's an `arg=value` option.
-        if (ArgTargetTriple.getArch() != Triple::ArchType::UnknownArch) {
-          if (ArgTargetTripleStr != TripleStr)
-            continue;
-          DeviceArgValue = DeviceArgValue.drop_front(EqPos + 1);
-        }
-      }
-      if (DeviceArgValue.empty())
-        continue;
-      DAL.AddJoinedArg(nullptr, Tbl.getOption(ForwardedOptionID),
-                       Args.MakeArgString(DeviceArgValue));
-    }
-  };
-
-  ProcessDeviceArgs(OPT_device_linker_args_EQ, OPT_linker_arg_EQ);
-  ProcessDeviceArgs(OPT_device_compiler_args_EQ, OPT_compiler_arg_EQ);
+  // FIXME: here was the upstream version of the forwarding. It has to be
+  // restored.
+  SelectSYCLOptions(Args, Tbl, DAL, OPT_device_linker_args_EQ,
+                    OPT_linker_arg_EQ);
+  SelectSYCLOptions(Args, Tbl, DAL, OPT_device_compiler_args_EQ,
+                    OPT_compiler_arg_EQ);
   return DAL;
 }
 

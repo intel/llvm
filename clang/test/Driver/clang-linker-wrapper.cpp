@@ -354,3 +354,53 @@
 // RUN:                      %t.without_triple.o -o %t.out 2>&1 --linker-path="/usr/bin/ld" | FileCheck %s --check-prefix=CHECK-ERROR-WITH-NO-TRIPLE
 
 // CHECK-ERROR-WITH-NO-TRIPLE: linking is not supported
+
+// Check that --device-compiler=sycl:intel_gpu_<arch>=<opts> is correctly
+// filtered per device arch: sycl-post-link gets the arch-prefixed output path
+// and ocloc receives only the options for the matching target.
+//
+// Generate pvc and dg2 device objects.
+// RUN: %clang %s -fsycl -fsycl-targets=intel_gpu_pvc -c --offload-new-driver --no-offloadlib -fno-sycl-instrument-device-code -o %t_pvc.o
+// RUN: %clang %s -fsycl -fsycl-targets=intel_gpu_dg2_g10 -c --offload-new-driver --no-offloadlib -fno-sycl-instrument-device-code -o %t_dg2.o
+// RUN: touch %t_pvc.devicelib.bc %t_dg2.devicelib.bc
+//
+// Test 1 (pvc): verify full pipeline - sycl-post-link gets "intel_gpu_pvc,..."
+// output prefix and ocloc receives pvc_opt but not dg2_opt.
+// RUN: clang-linker-wrapper --bitcode-library=spir64_gen-unknown-unknown=%t_pvc.devicelib.bc \
+// RUN:   -sycl-post-link-options="SYCL_POST_LINK_OPTIONS" -llvm-spirv-options="LLVM_SPIRV_OPTIONS" \
+// RUN:   "--host-triple=x86_64-unknown-linux-gnu" "--linker-path=/usr/bin/ld" \
+// RUN:   "--device-compiler=sycl:intel_gpu_pvc=pvc_opt" \
+// RUN:   "--device-compiler=sycl:intel_gpu_dg2_g10=dg2_opt" \
+// RUN:   "--" HOST_LINKER_FLAGS "-dynamic-linker" HOST_DYN_LIB "-o" "a.out" HOST_LIB_PATH HOST_STAT_LIB \
+// RUN:   %t_pvc.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-MULTI-ARCH-PVC %s
+// CHK-MULTI-ARCH-PVC: sycl-post-link{{.*}} SYCL_POST_LINK_OPTIONS -o intel_gpu_pvc,[[SYCLPOSTLINKOUT:.*]].table
+// CHK-MULTI-ARCH-PVC: ocloc{{.*}} -device pvc{{.*}} pvc_opt
+// CHK-MULTI-ARCH-PVC-NOT: dg2_opt
+//
+// Test 2 (dg2_g10): verify full pipeline - sycl-post-link gets "intel_gpu_acm_g10,..."
+// output prefix (canonical ocloc arch name) and ocloc receives dg2_opt but not pvc_opt.
+// RUN: clang-linker-wrapper --bitcode-library=spir64_gen-unknown-unknown=%t_dg2.devicelib.bc \
+// RUN:   -sycl-post-link-options="SYCL_POST_LINK_OPTIONS" -llvm-spirv-options="LLVM_SPIRV_OPTIONS" \
+// RUN:   "--host-triple=x86_64-unknown-linux-gnu" "--linker-path=/usr/bin/ld" \
+// RUN:   "--device-compiler=sycl:intel_gpu_pvc=pvc_opt" \
+// RUN:   "--device-compiler=sycl:intel_gpu_dg2_g10=dg2_opt" \
+// RUN:   "--" HOST_LINKER_FLAGS "-dynamic-linker" HOST_DYN_LIB "-o" "a.out" HOST_LIB_PATH HOST_STAT_LIB \
+// RUN:   %t_dg2.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-MULTI-ARCH-DG2 %s
+// CHK-MULTI-ARCH-DG2: sycl-post-link{{.*}} SYCL_POST_LINK_OPTIONS -o intel_gpu_acm_g10,[[SYCLPOSTLINKOUT:.*]].table
+// CHK-MULTI-ARCH-DG2: ocloc{{.*}} -device acm_g10{{.*}} dg2_opt
+// CHK-MULTI-ARCH-DG2-NOT: pvc_opt
+//
+// Test 3 (combined): both pvc and dg2_g10 objects in one linker-wrapper run;
+// each target gets its own sycl-post-link and ocloc invocation with the right options.
+// RUN: clang-linker-wrapper --bitcode-library=spir64_gen-unknown-unknown=%t_pvc.devicelib.bc \
+// RUN:   --bitcode-library=spir64_gen-unknown-unknown=%t_dg2.devicelib.bc \
+// RUN:   -sycl-post-link-options="SYCL_POST_LINK_OPTIONS" -llvm-spirv-options="LLVM_SPIRV_OPTIONS" \
+// RUN:   "--host-triple=x86_64-unknown-linux-gnu" "--linker-path=/usr/bin/ld" \
+// RUN:   "--device-compiler=sycl:intel_gpu_pvc=pvc_opt" \
+// RUN:   "--device-compiler=sycl:intel_gpu_dg2_g10=dg2_opt" \
+// RUN:   "--" HOST_LINKER_FLAGS "-dynamic-linker" HOST_DYN_LIB "-o" "a.out" HOST_LIB_PATH HOST_STAT_LIB \
+// RUN:   %t_pvc.o %t_dg2.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-MULTI-ARCH-BOTH %s
+// CHK-MULTI-ARCH-BOTH-DAG: sycl-post-link{{.*}} -o intel_gpu_pvc,{{.*}}.table
+// CHK-MULTI-ARCH-BOTH-DAG: ocloc{{.*}} -device pvc{{.*}} pvc_opt
+// CHK-MULTI-ARCH-BOTH-DAG: sycl-post-link{{.*}} -o intel_gpu_acm_g10,{{.*}}.table
+// CHK-MULTI-ARCH-BOTH-DAG: ocloc{{.*}} -device acm_g10{{.*}} dg2_opt

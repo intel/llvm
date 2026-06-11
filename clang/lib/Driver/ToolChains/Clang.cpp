@@ -5734,9 +5734,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
             Triple.isNVPTX() || Triple.isAMDGCN()) {
           StringRef Device = JA.getOffloadingArch();
           if (!Device.empty() &&
-              !SYCL::gen::getGenDeviceMacro(Device).empty()) {
+              !llvm::sycl_target::getGenDeviceMacro(Device).empty()) {
             Macro = "-D";
-            Macro += SYCL::gen::getGenDeviceMacro(Device);
+            Macro += llvm::sycl_target::getGenDeviceMacro(Device);
           }
         } else if (Triple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64)
           Macro = "-D__SYCL_TARGET_INTEL_X86_64__";
@@ -11987,11 +11987,73 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     // -Xsycl-target-linker are forwarded using --device-linker.
     const toolchains::SYCLToolChain &SYCLTC =
         static_cast<const toolchains::SYCLToolChain &>(getToolChain());
+
+    // Find the spir64_gen ToolChain to call TranslateBackendTargetArgs.
+    const ToolChain *SPIR64_GEN_TC = nullptr;
+    for (auto &TCM :
+         llvm::make_range(ToolChainRange.first, ToolChainRange.second))
+      if (TCM.second->getTriple().getSubArch() ==
+          llvm::Triple::SPIRSubArch_gen) {
+        SPIR64_GEN_TC = TCM.second;
+        break;
+      }
+
+    assert(SPIR64_GEN_TC &&
+           "spir64_gen toolchain is supposed to be always present");
+
+    // For GPU targets specified using named device shorthands (e.g.
+    // intel_gpu_pvc, intel_gpu_dg2_g10, nvidia_gpu_sm_90), multiple devices
+    // share the same LLVM triple (spir64_gen-unknown-unknown) and are
+    // deduplicated to a single ToolChain.
+    // Iterate over the raw -fsycl-targets list and emit one
+    // --device-compiler per named device so each arch receives only its own
+    // backend options, identified by the name.
+    bool HasNamedTargets = false;
+    for (StringRef Target :
+         Args.getAllArgValues(options::OPT_offload_targets_EQ)) {
+      StringRef Arch = llvm::sycl_target::resolveGenDevice(Target);
+      if (Arch.empty())
+        continue;
+      HasNamedTargets = true;
+
+      ArgStringList BuildArgs;
+      SmallString<128> BackendOptString;
+      // Pass Arch as Device so TranslateTargetOpt filters per-device options.
+      SYCLTC.TranslateBackendTargetArgs(SPIR64_GEN_TC->getTriple(), Args,
+                                        BuildArgs, Arch);
+      for (const char *Arg : BuildArgs)
+        appendOption(BackendOptString, Arg);
+
+      // For Intel GPU AOT, linker options are combined into backend string.
+      BuildArgs.clear();
+      SYCLTC.TranslateLinkerTargetArgs(SPIR64_GEN_TC->getTriple(), Args,
+                                       BuildArgs, Arch);
+      for (const char *Arg : BuildArgs)
+        appendOption(BackendOptString, Arg);
+
+      if (!BackendOptString.empty()) {
+        // Use the intel_gpu_<device> target name as the identifier so that the
+        // linker wrapper can filter per-arch (the triple alone is ambiguous
+        // when multiple Intel GPU devices are present).
+        CmdArgs.push_back(
+            Args.MakeArgString("--device-compiler=" +
+                               Action::GetOffloadKindName(Action::OFK_SYCL) +
+                               ":" + Target + "=" + BackendOptString));
+      }
+    }
+
     for (auto &ToolChainMember :
          llvm::make_range(ToolChainRange.first, ToolChainRange.second)) {
       const ToolChain *TC = ToolChainMember.second;
       if (!TC->getTriple().isSPIROrSPIRV())
         continue;
+      // When intel_gpu_<device> named targets are present, spir64_gen is
+      // handled per-device-arch in the loop above; skip it here to avoid
+      // emitting a duplicate (and arch-ambiguous) --device-compiler entry.
+      if (HasNamedTargets &&
+          TC->getTriple().getSubArch() == llvm::Triple::SPIRSubArch_gen)
+        continue;
+
       ArgStringList BuildArgs;
       SmallString<128> BackendOptString;
       SmallString<128> LinkOptString;

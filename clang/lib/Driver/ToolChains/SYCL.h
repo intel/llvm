@@ -12,6 +12,7 @@
 #include "clang/Driver/SyclInstallationDetector.h"
 #include "clang/Driver/Tool.h"
 #include "clang/Driver/ToolChain.h"
+#include "llvm/TargetParser/SYCLTargetParser.h"
 
 namespace clang {
 namespace driver {
@@ -78,10 +79,6 @@ public:
                     const char *LinkingOutput) const override;
 };
 
-StringRef resolveGenDevice(StringRef DeviceName);
-SmallString<64> getGenDeviceMacro(StringRef DeviceName);
-StringRef getGenGRFFlag(StringRef GRFMode);
-
 // Prefix for GPU specific targets used for -fsycl-targets
 constexpr char IntelGPU[] = "intel_gpu_";
 constexpr char NvidiaGPU[] = "nvidia_gpu_";
@@ -91,7 +88,7 @@ template <auto GPUArh> std::optional<StringRef> isGPUTarget(StringRef Target) {
   // Handle target specifications that resemble '(intel, nvidia, amd)_gpu_*'
   // here.
   if (Target.starts_with(GPUArh)) {
-    return resolveGenDevice(Target);
+    return llvm::sycl_target::resolveGenDevice(Target);
   }
   return std::nullopt;
 }
