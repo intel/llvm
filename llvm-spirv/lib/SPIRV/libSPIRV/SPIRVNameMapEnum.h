@@ -93,6 +93,8 @@ template <> inline void SPIRVMap<Decoration, std::string>::init() {
   add(DecorationUniform, "Uniform");
   add(DecorationUniformId, "UniformId");
   add(DecorationSaturatedConversion, "SaturatedConversion");
+  add(DecorationSaturatedToLargestFloat8NormalConversionEXT,
+      "SaturatedToLargestFloat8NormalConversionEXT");
   add(DecorationStream, "Stream");
   add(DecorationLocation, "Location");
   add(DecorationComponent, "Component");

@@ -1097,10 +1097,29 @@ Value *SPIRVToLLVM::transConvertInst(SPIRVValue *BV, Function *F,
 
       FPEncodingWrap SrcEnc = GetEncodingAndUpdateType(SPVSrcTy);
       FPEncodingWrap DstEnc = GetEncodingAndUpdateType(SPVDstTy);
+      bool IsSaturatedFP8 = BC->hasDecorate(
+          DecorationSaturatedToLargestFloat8NormalConversionEXT);
+      if (IsSaturatedFP8) {
+        BM->getErrorLog().checkError(
+            (OC == OpFConvert || OC == OpConvertSToF || OC == OpConvertUToF) &&
+                (DstEnc == FPEncodingWrap::E4M3 ||
+                 DstEnc == FPEncodingWrap::E5M2),
+            SPIRVEC_InvalidInstruction,
+            "SaturatedToLargestFloat8NormalConversionEXT decoration is only "
+            "valid on OpFConvert/OpConvertSToF/OpConvertUToF whose Result "
+            "Type uses Float8E4M3EXT or Float8E5M2EXT encoding.\n");
+      }
       if (IsFP4OrFP8Encoding(SrcEnc) || IsFP4OrFP8Encoding(DstEnc) ||
           SPVSrcTy->isTypeInt(4) || SPVDstTy->isTypeInt(4)) {
-        FPConversionDesc FPDesc = {
-            SrcEnc, DstEnc, static_cast<SPIRV::SPIRVWord>(BC->getOpCode())};
+        // SPV_EXT_float8: an OpFConvert to E4M3/E5M2 decorated with
+        // SaturatedToLargestFloat8NormalConversionEXT round-trips through the
+        // ClampConvert<Src>To<E4M3|E5M2>INTEL builtin name. Only the FToF
+        // variant has a corresponding SPV_INTEL_fp_conversions builtin name;
+        // for OpConvertSToF/OpConvertUToF the standard mapping is preserved.
+        SPIRV::SPIRVWord LookupOp = (IsSaturatedFP8 && OC == OpFConvert)
+                                        ? internal::OpClampConvertFToFINTEL
+                                        : OC;
+        FPConversionDesc FPDesc = {SrcEnc, DstEnc, LookupOp};
         auto Conv = SPIRV::FPConvertToEncodingMap::rmap(FPDesc);
         std::vector<Value *> Ops = {Src};
         std::vector<Type *> OpsTys = {Src->getType()};

@@ -15,6 +15,11 @@
 ; CHECK-SPIRV-DAG: Capability Float8EXT
 ; CHECK-SPIRV-DAG: Capability FloatConversionsINTEL
 
+; When SPV_INTEL_fp_conversions is enabled, ClampConvert<Src>To<E4M3|E5M2>INTEL
+; must use the OpClampConvertFToFINTEL encoding, not the SPV_EXT_float8
+; OpFConvert + SaturatedToLargestFloat8NormalConversionEXT form.
+; CHECK-SPIRV-NOT: SaturatedToLargestFloat8NormalConversionEXT
+
 ; CHECK-SPIRV-DAG: Extension "SPV_INTEL_int4"
 ; CHECK-SPIRV-DAG: Extension "SPV_EXT_float8"
 ; CHECK-SPIRV-DAG: Extension "SPV_INTEL_float4"
