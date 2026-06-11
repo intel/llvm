@@ -5,9 +5,6 @@
 // RUN: %{build} -I . -o %t.out %if target-nvidia %{ -Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_75 %}
 // RUN: %{run} %t.out
 
-// Disabled temporarily while investigation into the failure is ongoing.
-// UNSUPPORTED: gpu-intel-dg2
-
 // XFAIL: target-native_cpu
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142
 

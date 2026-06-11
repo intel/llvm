@@ -585,7 +585,7 @@ public:
       return MCache.get<Param>();
     }
 #define CASE(PARAM) else if constexpr (std::is_same_v<Param, PARAM>)
-    // device_traits.def
+    // SYCL 2020 info::device traits (defined in sycl/info/info_desc.hpp).
 
     CASE(info::device::device_type) {
       return detail::ConvertDeviceType(get_info_impl<UR_DEVICE_INFO_TYPE>());
@@ -889,7 +889,7 @@ public:
           SupportFlags & UR_KERNEL_LAUNCH_PROPERTIES_FLAG_CLUSTER_DIMENSION);
     }
 
-    // ext_oneapi_device_traits.def
+    // ext::oneapi device traits (defined under sycl/ext/oneapi/...).
 
     CASE(ext::oneapi::experimental::info::device::max_global_work_groups) {
       return get_info_impl<UR_DEVICE_INFO_MAX_WORK_GROUPS>();
@@ -998,7 +998,7 @@ public:
           get_info_impl<UR_DEVICE_INFO_NUM_COMPUTE_UNITS>());
     }
 
-    // ext_intel_device_traits.def
+    // ext::intel device traits (defined under sycl/ext/intel/info/device.hpp).
 
     CASE(ext::intel::info::device::device_id) {
       if (!has(aspect::ext_intel_device_id))

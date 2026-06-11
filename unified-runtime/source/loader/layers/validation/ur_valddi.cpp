@@ -9004,6 +9004,176 @@ __urdlllocal ur_result_t UR_APICALL urIPCCloseMemHandleExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urIPCGetPhysMemHandleExp
+__urdlllocal ur_result_t UR_APICALL urIPCGetPhysMemHandleExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the physical memory object
+    ur_physical_mem_handle_t hPhysMem,
+    /// [out] a pointer to the IPC physical memory handle data
+    void **ppIPCPhysMemHandleData,
+    /// [out] size of the resulting IPC physical memory handle data
+    size_t *pIPCPhysMemHandleDataSizeRet) {
+  auto pfnGetPhysMemHandleExp =
+      getContext()->urDdiTable.IPCExp.pfnGetPhysMemHandleExp;
+
+  if (nullptr == pfnGetPhysMemHandleExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == ppIPCPhysMemHandleData)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == pIPCPhysMemHandleDataSizeRet)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hPhysMem)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hContext)) {
+    URLOG_CTX_INVALID_REFERENCE(hContext);
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hPhysMem)) {
+    URLOG_CTX_INVALID_REFERENCE(hPhysMem);
+  }
+
+  ur_result_t result = pfnGetPhysMemHandleExp(
+      hContext, hPhysMem, ppIPCPhysMemHandleData, pIPCPhysMemHandleDataSizeRet);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urIPCPutPhysMemHandleExp
+__urdlllocal ur_result_t UR_APICALL urIPCPutPhysMemHandleExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] a pointer to the IPC physical memory handle data obtained with
+    /// urIPCGetPhysMemHandleExp
+    const void *pIPCPhysMemHandleData) {
+  auto pfnPutPhysMemHandleExp =
+      getContext()->urDdiTable.IPCExp.pfnPutPhysMemHandleExp;
+
+  if (nullptr == pfnPutPhysMemHandleExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == pIPCPhysMemHandleData)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hContext)) {
+    URLOG_CTX_INVALID_REFERENCE(hContext);
+  }
+
+  ur_result_t result = pfnPutPhysMemHandleExp(hContext, pIPCPhysMemHandleData);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urIPCOpenPhysMemHandleExp
+__urdlllocal ur_result_t UR_APICALL urIPCOpenPhysMemHandleExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device object the physical memory was allocated on
+    ur_device_handle_t hDevice,
+    /// [in] the IPC physical memory handle data obtained with
+    /// urIPCGetPhysMemHandleExp
+    const void *pIPCPhysMemHandleData,
+    /// [in] size of the IPC physical memory handle data
+    size_t ipcPhysMemHandleDataSize,
+    /// [out] pointer to the physical memory handle
+    ur_physical_mem_handle_t *phPhysMem) {
+  auto pfnOpenPhysMemHandleExp =
+      getContext()->urDdiTable.IPCExp.pfnOpenPhysMemHandleExp;
+
+  if (nullptr == pfnOpenPhysMemHandleExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == phPhysMem)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == pIPCPhysMemHandleData)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hDevice)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hContext)) {
+    URLOG_CTX_INVALID_REFERENCE(hContext);
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hDevice)) {
+    URLOG_CTX_INVALID_REFERENCE(hDevice);
+  }
+
+  ur_result_t result =
+      pfnOpenPhysMemHandleExp(hContext, hDevice, pIPCPhysMemHandleData,
+                              ipcPhysMemHandleDataSize, phPhysMem);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urIPCClosePhysMemHandleExp
+__urdlllocal ur_result_t UR_APICALL urIPCClosePhysMemHandleExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] physical memory handle opened through urIPCOpenPhysMemHandleExp
+    ur_physical_mem_handle_t hPhysMem) {
+  auto pfnClosePhysMemHandleExp =
+      getContext()->urDdiTable.IPCExp.pfnClosePhysMemHandleExp;
+
+  if (nullptr == pfnClosePhysMemHandleExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hPhysMem)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hContext)) {
+    URLOG_CTX_INVALID_REFERENCE(hContext);
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hPhysMem)) {
+    URLOG_CTX_INVALID_REFERENCE(hPhysMem);
+  }
+
+  ur_result_t result = pfnClosePhysMemHandleExp(hContext, hPhysMem);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urMemoryExportAllocExportableMemoryExp
 __urdlllocal ur_result_t UR_APICALL urMemoryExportAllocExportableMemoryExp(
     /// [in] Handle to context in which to allocate memory.
@@ -12501,6 +12671,22 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetIPCExpProcAddrTable(
 
   dditable.pfnCloseMemHandleExp = pDdiTable->pfnCloseMemHandleExp;
   pDdiTable->pfnCloseMemHandleExp = ur_validation_layer::urIPCCloseMemHandleExp;
+
+  dditable.pfnGetPhysMemHandleExp = pDdiTable->pfnGetPhysMemHandleExp;
+  pDdiTable->pfnGetPhysMemHandleExp =
+      ur_validation_layer::urIPCGetPhysMemHandleExp;
+
+  dditable.pfnPutPhysMemHandleExp = pDdiTable->pfnPutPhysMemHandleExp;
+  pDdiTable->pfnPutPhysMemHandleExp =
+      ur_validation_layer::urIPCPutPhysMemHandleExp;
+
+  dditable.pfnOpenPhysMemHandleExp = pDdiTable->pfnOpenPhysMemHandleExp;
+  pDdiTable->pfnOpenPhysMemHandleExp =
+      ur_validation_layer::urIPCOpenPhysMemHandleExp;
+
+  dditable.pfnClosePhysMemHandleExp = pDdiTable->pfnClosePhysMemHandleExp;
+  pDdiTable->pfnClosePhysMemHandleExp =
+      ur_validation_layer::urIPCClosePhysMemHandleExp;
 
   return result;
 }
