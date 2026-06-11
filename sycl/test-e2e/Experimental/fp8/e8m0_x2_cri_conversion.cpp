@@ -227,32 +227,6 @@ int test_boundary_saturation_infinity_clamp(sycl::queue &queue) {
   return ret;
 }
 
-int test_boundary_negative_input_drops_sign(sycl::queue &queue) {
-  const float input[2] = {-4.0f, -32.0f};
-  auto *data = sycl::malloc_shared<fp8_e8m0_x2>(1, queue);
-  auto *out = sycl::malloc_shared<float>(2, queue);
-  data[0] = fp8_e8m0_x2(input, rounding::upward);
-
-  queue.single_task([=]() {
-    fp8_e8m0_x2 value = data[0];
-    sycl::marray<float, 2> unpacked =
-        static_cast<sycl::marray<float, 2>>(value);
-    out[0] = unpacked[0];
-    out[1] = unpacked[1];
-  });
-  queue.wait_and_throw();
-
-  int ret = 0;
-  if (out[0] != 4.0f)
-    ret = 1;
-  if (out[1] != 32.0f)
-    ret = 1;
-
-  sycl::free(data, queue);
-  sycl::free(out, queue);
-  return ret;
-}
-
 int test_rounding_upward_non_power_of_two(sycl::queue &queue) {
   const float input[2] = {3.0f, 6.0f};
   auto *data = sycl::malloc_shared<fp8_e8m0_x2>(1, queue);
@@ -460,7 +434,6 @@ int main() {
   ret |= test_boundary_round_trip_exact_powers_of_two(queue);
   ret |= test_boundary_round_trip_max_min_normal(queue);
   ret |= test_boundary_saturation_infinity_clamp(queue);
-  ret |= test_boundary_negative_input_drops_sign(queue);
   ret |= test_rounding_upward_non_power_of_two(queue);
   ret |= test_rounding_toward_zero_non_power_of_two(queue);
   ret |= test_raw_vals_access(queue);

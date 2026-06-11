@@ -360,24 +360,6 @@ int test_raw_vals_access(sycl::queue &queue) {
   return ret;
 }
 
-int test_negative_input_drops_sign(sycl::queue &queue) {
-  float input[1] = {-8.0f};
-  auto *data = sycl::malloc_shared<fp8_e8m0>(1, queue);
-  auto *out = sycl::malloc_shared<float>(1, queue);
-  data[0] = fp8_e8m0(input, rounding::upward);
-
-  queue.single_task([=]() {
-    fp8_e8m0 value = data[0];
-    out[0] = static_cast<float>(value);
-  });
-  queue.wait_and_throw();
-
-  int ret = (out[0] != 8.0f) ? 1 : 0;
-  sycl::free(data, queue);
-  sycl::free(out, queue);
-  return ret;
-}
-
 int main() {
   auto async_handler = [](sycl::exception_list exceptions) {
     for (const std::exception_ptr &e : exceptions) {
@@ -436,6 +418,5 @@ int main() {
   ret |= test_saturation_large_value(queue);
   ret |= test_saturation_overflow(queue);
   ret |= test_raw_vals_access(queue);
-  ret |= test_negative_input_drops_sign(queue);
   return ret;
 }

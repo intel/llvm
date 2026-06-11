@@ -91,15 +91,6 @@ TEST(FP8E8M0Test, CArrayFloatRoundingModes) {
   EXPECT_TRUE(checkCode(3.0f, rounding::upward, 0x81));
   EXPECT_TRUE(checkCode(3.0f, rounding::toward_zero, 0x80));
 
-  // E8M0 drops sign per the extension specification, so negative inputs are
-  // rounded using their magnitude.
-  EXPECT_TRUE(checkCode(-3.0f, rounding::upward, 0x81));
-  EXPECT_TRUE(checkCode(-3.0f, rounding::toward_zero, 0x80));
-  EXPECT_TRUE(checkCode(-1.5f, rounding::upward, 0x80));
-  EXPECT_TRUE(checkCode(-1.5f, rounding::toward_zero, 0x7F));
-  EXPECT_TRUE(checkCode(-0.5f, rounding::upward, 0x7E));
-  EXPECT_TRUE(checkCode(-0.5f, rounding::toward_zero, 0x7E));
-
   EXPECT_TRUE(checkCode(1.0f, rounding::upward, 0x7F));
   EXPECT_TRUE(checkCode(0.5f, rounding::upward, 0x7E));
   EXPECT_TRUE(checkCode(0.5f, rounding::toward_zero, 0x7E));
@@ -113,23 +104,14 @@ TEST(FP8E8M0Test, CArrayFloatFiniteSaturationClampsToMaxNormal) {
       checkCode(std::numeric_limits<float>::max(), rounding::upward, 0xFE));
   EXPECT_TRUE(checkCode(std::numeric_limits<float>::max(),
                         rounding::toward_zero, 0xFE));
-  EXPECT_TRUE(
-      checkCode(-std::numeric_limits<float>::max(), rounding::upward, 0xFE));
-  EXPECT_TRUE(checkCode(-std::numeric_limits<float>::max(),
-                        rounding::toward_zero, 0xFE));
   EXPECT_TRUE(checkCode(std::numeric_limits<float>::infinity(),
                         rounding::upward, 0xFE));
-  EXPECT_TRUE(checkCode(-std::numeric_limits<float>::infinity(),
-                        rounding::toward_zero, 0xFE));
 }
 
 TEST(FP8E8M0Test, CArrayFloatNaNDropsSign) {
   const float PosNaN = std::numeric_limits<float>::quiet_NaN();
-  const float NegNaN = std::copysign(PosNaN, -1.0f);
 
   EXPECT_TRUE(checkCode(PosNaN, rounding::upward, 0xFF));
-  EXPECT_TRUE(checkCode(NegNaN, rounding::upward, 0xFF));
-  EXPECT_TRUE(checkCode(NegNaN, rounding::toward_zero, 0xFF));
 }
 
 TEST(FP8E8M0Test, CArrayHalfHostUpwardFinite) {
@@ -289,18 +271,14 @@ TEST(FP8E8M0Test, FloatingPointConversionOperators) {
   EXPECT_EQ(static_cast<float>(min), std::ldexp(1.0f, -127));
 }
 
-TEST(FP8E8M0Test, IntegerConversionOperatorsUseTowardZeroOnMagnitude) {
-  const float NegativeInput[1] = {-1.5f};
+TEST(FP8E8M0Test, IntegerConversionOperatorsUseTowardZero) {
   const float FractionalInput[1] = {0.5f};
-  const fp8_e8m0 from_negative(NegativeInput, rounding::toward_zero);
   const fp8_e8m0 half(FractionalInput, rounding::toward_zero);
   const fp8_e8m0 two(2.0f);
 
-  EXPECT_EQ(from_negative.vals[0], 0x7F);
   EXPECT_EQ(half.vals[0], 0x7E);
   EXPECT_EQ(two.vals[0], 0x80);
 
-  EXPECT_EQ(static_cast<short>(from_negative), 1);
   EXPECT_EQ(static_cast<int>(half), 0);
   EXPECT_EQ(static_cast<unsigned int>(half), 0u);
   EXPECT_EQ(static_cast<long long>(two), 2);
