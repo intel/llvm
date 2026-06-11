@@ -6,6 +6,9 @@
 // forward compatibility with future SYCL versions.
 //
 // UNSUPPORTED: true
+// UNSUPPORTED-INTENDED: It's not really clear what's the purpose of this test.
+// But I highly doubt that we will enable it one day, so marking as intended
+// instead of creating a tracker for it.
 
 #include "helper.hpp"
 #include <complex>

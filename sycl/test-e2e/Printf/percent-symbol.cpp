@@ -5,6 +5,7 @@
 // [1]: https://en.cppreference.com/w/cpp/io/c/fprintf
 //
 // UNSUPPORTED: target-amd
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22300
 // XFAIL: cuda && windows
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/14733
 // RUN: %{build} -o %t.out
