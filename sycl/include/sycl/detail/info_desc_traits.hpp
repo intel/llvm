@@ -141,6 +141,22 @@ struct is_info_desc_for<
   using return_type = typename T::return_type;
 };
 
+// `is_backend_info_desc<T>` is not info-class-tied; specializations belong to
+// per-backend specs. Removing would break the spec-mandated
+// `get_backend_info<>()` member, so the primary-template `false_type` lives
+// alongside the SFINAE primitives until a backend ships descriptors. Same
+// gcc/clang mangling workaround as the per-class `is_*_info_desc` predicates:
+// using `T::return_type` instead of `std::enable_if<...>::type` avoids a
+// missing `E` terminator in gcc's unresolved-qualifier-level sequence.
+template <typename T> struct is_backend_info_desc : std::false_type {};
+
+// kernel_queue_specific has no per-class `info` header (no UR enum lookup);
+// queries dispatch through dedicated kernel/queue paths. Park the predicate
+// alongside `is_backend_info_desc`.
+template <typename T>
+struct is_kernel_queue_specific_info_desc
+    : is_info_desc_for<T, info_class::kernel_queue_specific> {};
+
 } // namespace detail
 } // namespace _V1
 } // namespace sycl

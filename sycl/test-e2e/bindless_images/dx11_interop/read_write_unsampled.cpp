@@ -13,6 +13,7 @@
 #include "dx11_interop.h"
 
 #include <sycl/ext/oneapi/bindless_images.hpp>
+#include <sycl/half_type.hpp>
 #include <sycl/properties/queue_properties.hpp>
 
 #ifdef TEST_SEMAPHORE_IMPORT

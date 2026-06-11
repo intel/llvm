@@ -54,5 +54,12 @@ struct atomic_fence_scope_capabilities : context_runtime_traits {
 };
 } // namespace context
 } // namespace info
+
+namespace detail {
+// SFINAE predicate confining `context::get_info<T>()` to context traits.
+// `return_type` alias is load-bearing for ABI symbol mangling — keep stable.
+template <typename T>
+struct is_context_info_desc : is_info_desc_for<T, info_class::context> {};
+} // namespace detail
 } // namespace _V1
 } // namespace sycl

@@ -1,12 +1,10 @@
 // REQUIRES: aspect-usm_shared_allocations
 // UNSUPPORTED: target-amd
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/16072
-// XFAIL: cuda
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/22291
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-// RUN: %clangxx -fsycl -fno-sycl-unnamed-lambda %s -o %t.out
+// RUN: %{build} -fno-sycl-unnamed-lambda -o %t.out
 // RUN: %{run} %t.out
 
 // XFAIL: target-native_cpu

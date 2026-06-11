@@ -24,7 +24,6 @@
 #include <sycl/ext/oneapi/experimental/max_work_groups.hpp>
 #include <sycl/ext/oneapi/info/device.hpp>
 #include <sycl/ext/oneapi/matrix/query-types.hpp>
-#include <sycl/info/info_desc.hpp>
 
 // Trying to force MSVC to generate the symbol/export for the inline function
 // that it needs on the import (because the class itself is being exported):
