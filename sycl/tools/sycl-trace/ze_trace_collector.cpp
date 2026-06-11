@@ -11,8 +11,6 @@
 
 #include "xpti/xpti_trace_framework.h"
 
-#include <spinlock.hpp>
-
 #include <zet_api.h>
 
 #include <iostream>
