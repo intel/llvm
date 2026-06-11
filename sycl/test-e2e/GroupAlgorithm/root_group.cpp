@@ -18,6 +18,7 @@
 
 #include <sycl/builtins.hpp>
 #include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/experimental/kernel_queue_info.hpp>
 #include <sycl/ext/oneapi/experimental/root_group.hpp>
 #include <sycl/group_barrier.hpp>
 #include <sycl/kernel_bundle.hpp>

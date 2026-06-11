@@ -14,9 +14,17 @@
 #include <sycl/aspects.hpp>
 #include <sycl/detail/cl.h>
 #include <sycl/detail/ur.hpp>
+#include <sycl/ext/codeplay/experimental/max_registers_query.hpp>
+#include <sycl/ext/intel/info/device.hpp>
+#include <sycl/ext/intel/info/kernel.hpp>
+#include <sycl/ext/oneapi/experimental/bindless_image_info.hpp>
+#include <sycl/ext/oneapi/experimental/composite_device.hpp>
 #include <sycl/ext/oneapi/experimental/device_architecture.hpp>
 #include <sycl/ext/oneapi/experimental/forward_progress.hpp>
-#include <sycl/info/info_desc.hpp>
+#include <sycl/ext/oneapi/experimental/max_work_groups.hpp>
+#include <sycl/ext/oneapi/info/device.hpp>
+#include <sycl/ext/oneapi/matrix/query-types.hpp>
+#include <sycl/info/device.hpp>
 #include <sycl/kernel_bundle.hpp>
 #include <sycl/platform.hpp>
 
@@ -585,7 +593,7 @@ public:
       return MCache.get<Param>();
     }
 #define CASE(PARAM) else if constexpr (std::is_same_v<Param, PARAM>)
-    // SYCL 2020 info::device traits (defined in sycl/info/info_desc.hpp).
+    // SYCL 2020 info::device traits (defined in sycl/info/device.hpp).
 
     CASE(info::device::device_type) {
       return detail::ConvertDeviceType(get_info_impl<UR_DEVICE_INFO_TYPE>());

@@ -13,3 +13,4 @@
 
 #define TEST_SEMAPHORE_IMPORT
 #include "read_write_unsampled.cpp"
+#include <sycl/half_type.hpp>

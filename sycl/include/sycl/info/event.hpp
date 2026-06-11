@@ -58,5 +58,16 @@ struct command_end : profiling_traits<UR_PROFILING_INFO_COMMAND_END> {
 } // namespace event_profiling
 
 } // namespace info
+
+namespace detail {
+// SFINAE predicates confining `event::get_info<T>()` to event traits and
+// `event::get_profiling_info<T>()` to event_profiling traits. The
+// `return_type` alias is load-bearing for ABI symbol mangling — keep stable.
+template <typename T>
+struct is_event_info_desc : is_info_desc_for<T, info_class::event> {};
+template <typename T>
+struct is_event_profiling_info_desc
+    : is_info_desc_for<T, info_class::event_profiling> {};
+} // namespace detail
 } // namespace _V1
 } // namespace sycl

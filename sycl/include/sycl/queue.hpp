@@ -18,7 +18,6 @@
 #include <sycl/detail/common.hpp>             // for code_location
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEP...
 #include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
-#include <sycl/detail/info_desc_helpers.hpp>  // for is_queue_info_...
 #include <sycl/detail/kernel_desc.hpp>        // for KernelInfo
 #include <sycl/detail/nd_range_view.hpp>
 #include <sycl/detail/optional.hpp>
@@ -32,16 +31,17 @@
 #include <sycl/ext/oneapi/device_global/device_global.hpp> // for device_global
 #include <sycl/ext/oneapi/device_global/properties.hpp> // for device_image_s...
 #include <sycl/ext/oneapi/experimental/event_mode_property.hpp>
-#include <sycl/ext/oneapi/experimental/graph.hpp>    // for command_graph...
-#include <sycl/ext/oneapi/properties.hpp>            // for empty_properti...
-#include <sycl/handler.hpp>                          // for handler, isDev...
-#include <sycl/id.hpp>                               // for id
-#include <sycl/kernel.hpp>                           // for auto_name
-#include <sycl/kernel_handler.hpp>                   // for kernel_handler
-#include <sycl/nd_range.hpp>                         // for nd_range
-#include <sycl/property_list.hpp>                    // for property_list
-#include <sycl/range.hpp>                            // for range
-#include <sycl/sycl_span.hpp>                        // for sycl::span
+#include <sycl/ext/oneapi/experimental/graph.hpp> // for command_graph...
+#include <sycl/ext/oneapi/properties.hpp>         // for empty_properti...
+#include <sycl/handler.hpp>                       // for handler, isDev...
+#include <sycl/id.hpp>                            // for id
+#include <sycl/info/queue.hpp>                    // for is_queue_info_...
+#include <sycl/kernel.hpp>                        // for auto_name
+#include <sycl/kernel_handler.hpp>                // for kernel_handler
+#include <sycl/nd_range.hpp>                      // for nd_range
+#include <sycl/property_list.hpp>                 // for property_list
+#include <sycl/range.hpp>                         // for range
+#include <sycl/sycl_span.hpp>                     // for sycl::span
 
 #include <cstddef>     // for size_t
 #include <functional>  // for function

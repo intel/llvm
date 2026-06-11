@@ -15,6 +15,7 @@
 #include <detail/platform_impl.hpp>
 #include <detail/unordered_multimap.hpp>
 #include <sycl/detail/common.hpp>
+#include <sycl/detail/defines.hpp>
 #include <sycl/detail/locked.hpp>
 #include <sycl/detail/os_util.hpp>
 #include <sycl/detail/spinlock.hpp>
