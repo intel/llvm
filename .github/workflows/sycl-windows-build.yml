@@ -69,6 +69,7 @@ on:
           - "[]"
           - '[sycl]'
           - '[llvm, clang, sycl, llvm_spirv, xptifw, libclc]'
+          - '[llvm_spirv]'
       build_cache_suffix:
         type: choice
         options:
