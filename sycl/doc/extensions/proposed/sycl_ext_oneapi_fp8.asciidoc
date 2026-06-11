@@ -1553,6 +1553,7 @@ Conversions to E8M0 using one of the non-stochastic rounding modes and with
 `saturation::finite` work as follows:
 
 * NaN is converted to NaN while dropping the sign.
+* Negative values are converted to an unspecified E8M0 value.
 * Other values are rounded according to the rounding mode.
 * If the resulting value is larger in magnitude than the max normal value, it is
   converted to the max normal value while dropping the sign.
