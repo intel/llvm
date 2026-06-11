@@ -403,14 +403,9 @@ Type *SPIRVToLLVM::transType(SPIRVType *T, bool UseTPT) {
   }
   case OpTypeImage: {
     auto *ST = static_cast<SPIRVTypeImage *>(T);
-    if (ST->isOCLImage())
-      return mapType(T,
-                     getSPIRVType(OpTypeImage, transType(ST->getSampledType()),
-                                  ST->getDescriptor(), getAccessQualifier(ST),
-                                  !UseTPT));
-    else
-      llvm_unreachable("Unsupported image type");
-    return nullptr;
+    return mapType(T, getSPIRVType(OpTypeImage, transType(ST->getSampledType()),
+                                   ST->getDescriptor(), getAccessQualifier(ST),
+                                   !UseTPT));
   }
   case OpTypeSampledImage: {
     const auto *ST = static_cast<SPIRVTypeSampledImage *>(T)->getImageType();
