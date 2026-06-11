@@ -684,7 +684,7 @@ static llvm::Triple computeTargetTriple(const Driver &D,
     if (!DarwinArchName.empty()) {
       tools::darwin::setTripleTypeForMachOArchName(Target, DarwinArchName,
                                                    Args);
-      return Target;
+      return llvm::Triple(Target.normalize());
     }
 
     // Handle the Darwin '-arch' flag.
@@ -702,7 +702,7 @@ static llvm::Triple computeTargetTriple(const Driver &D,
                          ? Target.getLittleEndianArchVariant()
                          : Target.getBigEndianArchVariant();
     if (T.getArch() != llvm::Triple::UnknownArch) {
-      Target = std::move(T);
+      Target = llvm::Triple(T.normalize());
       Args.claimAllArgs(options::OPT_mlittle_endian, options::OPT_mbig_endian);
     }
   }
@@ -728,8 +728,10 @@ static llvm::Triple computeTargetTriple(const Driver &D,
         D.Diag(diag::err_drv_invalid_object_mode) << ObjectMode;
       }
 
-      if (AT != llvm::Triple::UnknownArch && AT != Target.getArch())
+      if (AT != llvm::Triple::UnknownArch && AT != Target.getArch()) {
         Target.setArch(AT);
+        Target = llvm::Triple(Target.normalize());
+      }
     }
   }
 #endif
@@ -789,6 +791,8 @@ static llvm::Triple computeTargetTriple(const Driver &D,
       if (Target.isWindowsGNUEnvironment())
         toolchains::MinGW::fixTripleArch(D, Target, Args);
     }
+
+    Target = llvm::Triple(Target.normalize());
   }
 
   if (Target.isOSzOS()) {
@@ -809,11 +813,9 @@ static llvm::Triple computeTargetTriple(const Driver &D,
 
     Target.setArch(llvm::Triple::x86);
     Target.setArchName("i586");
-    Target.setEnvironment(llvm::Triple::UnknownEnvironment);
     Target.setEnvironmentName("");
     Target.setOS(llvm::Triple::ELFIAMCU);
-    Target.setVendor(llvm::Triple::UnknownVendor);
-    Target.setVendorName("intel");
+    Target.setVendor(llvm::Triple::Intel);
   }
 
   // If target is MIPS adjust the target triple
@@ -845,6 +847,8 @@ static llvm::Triple computeTargetTriple(const Driver &D,
                  Target.getEnvironment() == llvm::Triple::MuslABIN32)
           Target.setEnvironment(llvm::Triple::MuslABI64);
       }
+
+      Target = llvm::Triple(Target.normalize());
     }
   }
 
@@ -863,11 +867,13 @@ static llvm::Triple computeTargetTriple(const Driver &D,
             Target.setArch(llvm::Triple::riscv32);
           else
             Target.setArch(llvm::Triple::riscv32be);
+          Target = llvm::Triple(Target.normalize());
         } else if (XLen == 64) {
           if (Target.isLittleEndian())
             Target.setArch(llvm::Triple::riscv64);
           else
             Target.setArch(llvm::Triple::riscv64be);
+          Target = llvm::Triple(Target.normalize());
         }
       }
     }
@@ -2068,7 +2074,7 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
        TC.getTriple().getSubArch() != llvm::Triple::AArch64SubArch_arm64ec) &&
       UArgs->hasArg(options::OPT__SLASH_arm64EC)) {
     getDiags().Report(clang::diag::warn_target_override_arm64ec)
-        << TC.getTriple().str();
+        << TC.getTripleString();
   }
 
   // A common user mistake is specifying a target of aarch64-none-eabi or
@@ -3258,7 +3264,7 @@ static unsigned PrintActions1(const Compilation &C, Action *A,
           os << '"';
           os << A->getOffloadingKindPrefix();
           os << " (";
-          os << TC->getTriple().normalize();
+          os << TC->getTripleString();
           if (BoundArch)
             os << ":" << BoundArch;
           os << ")";
@@ -8952,7 +8958,7 @@ public:
 static std::string GetTriplePlusArchString(const ToolChain *TC,
                                            StringRef BoundArch,
                                            Action::OffloadKind OffloadKind) {
-  std::string TriplePlusArch = TC->getTriple().normalize();
+  std::string TriplePlusArch = TC->getTriple().str();
   if (!BoundArch.empty()) {
     TriplePlusArch += "-";
     TriplePlusArch += BoundArch;
@@ -9475,7 +9481,7 @@ InputInfoList Driver::BuildJobsForActionNoCache(
       } else {
         std::string OffloadingPrefix = Action::GetOffloadingFileNamePrefix(
           UI.DependentOffloadKind,
-          UI.DependentToolChain->getTriple().normalize(),
+          UI.DependentToolChain->getTripleString(),
           /*CreatePrefixForHost=*/true);
         CurI = InputInfo(
           UA,
