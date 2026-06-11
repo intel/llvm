@@ -11,7 +11,7 @@
 #include <sycl/access/access.hpp>
 #include <sycl/accessor.hpp>
 #include <sycl/detail/cl.h>
-#include <sycl/detail/common.hpp>
+#include <sycl/detail/code_location.hpp>
 #include <sycl/detail/defines_elementary.hpp>
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/get_device_kernel_info.hpp>
@@ -21,9 +21,7 @@
 #include <sycl/detail/nd_range_view.hpp>
 #include <sycl/detail/range_rounding.hpp>
 #include <sycl/detail/reduction_forward.hpp>
-#include <sycl/detail/string.hpp>
 #include <sycl/detail/string_view.hpp>
-#include <sycl/detail/ur.hpp>
 #include <sycl/device.hpp>
 #include <sycl/event.hpp>
 #include <sycl/exception.hpp>
@@ -31,11 +29,9 @@
 #include <sycl/ext/oneapi/bindless_images_mem_handle.hpp>
 #include <sycl/ext/oneapi/device_global/device_global.hpp>
 #include <sycl/ext/oneapi/device_global/properties.hpp>
-#include <sycl/ext/oneapi/experimental/cluster_group_prop.hpp>
 #include <sycl/ext/oneapi/experimental/free_function_traits.hpp>
 #include <sycl/ext/oneapi/experimental/graph.hpp>
 #include <sycl/ext/oneapi/experimental/raw_kernel_arg.hpp>
-#include <sycl/ext/oneapi/experimental/use_root_sync_prop.hpp>
 #include <sycl/ext/oneapi/kernel_properties.hpp>
 #include <sycl/ext/oneapi/properties.hpp>
 #include <sycl/group.hpp>
@@ -56,7 +52,6 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <string>
-#include <tuple>
 #include <type_traits>
 #include <utility>
 #include <vector>
