@@ -160,6 +160,12 @@ static bool CanonicalPrefixes = true;
 
 using OffloadingImage = OffloadBinary::OffloadingImage;
 
+// Controls whether to use clang-sycl-linker for SYCL device linking.
+// Set via --use-clang-sycl-linker flag.
+// TODO: Remove this flag once the linking and backend compilation have been
+// fully migrated to clang-sycl-linker and make it the default behavior.
+static bool UseClangSYCLLinker = false;
+
 namespace llvm {
 // Provide DenseMapInfo so that OffloadKind can be used in a DenseMap.
 template <> struct DenseMapInfo<OffloadKind> {
@@ -1674,11 +1680,85 @@ Expected<StringRef> bundleDeviceModule(StringRef ClangOutput,
   llvm_unreachable("bundleDeviceModule called for non-NVPTX/AMDGCN triple");
 }
 
+/// Append arguments for clang-sycl-linker invocation via -Xlinker.
+/// This function forwards all necessary options from clang-linker-wrapper to
+/// clang-sycl-linker by wrapping them with -Xlinker when invoking
+/// "clang -fsycl --sycl-link".
+///
+/// TODO: The following options are forwarded but not yet defined in
+/// SYCLLinkOpts.td, so clang-sycl-linker currently ignores them. Each should
+/// be added to SYCLLinkOpts.td and wired up in ClangSYCLLinker.cpp as the
+/// corresponding functionality is migrated into clang-sycl-linker:
+///   --print-wrapped-module, --sycl-thin-lto,
+///   --sycl-allow-device-image-dependencies,
+///   --sycl-remove-unused-external-funcs, --sycl-device-code-split-esimd,
+///   --sycl-add-default-spec-consts-image, --sycl-dump-device-code=,
+///   --llvm-spirv-options=, --sycl-post-link-options=,
+///   --device-compiler=, --device-linker=
+///
+/// \param Args The parsed command-line arguments from clang-linker-wrapper.
+/// \param CmdArgs The command arguments list to append to (for clang
+/// invocation).
+/// \param Triple The target triple for the device.
+/// \param Arch The target architecture (e.g., "pvc", "graniterapids").
+static void appendClangSYCLLinkerArgs(const ArgList &Args,
+                                      SmallVectorImpl<StringRef> &CmdArgs,
+                                      const llvm::Triple &Triple,
+                                      StringRef Arch) {
+  auto XLinker = [&](const Twine &Arg) {
+    CmdArgs.append({"-Xlinker", Args.MakeArgString(Arg)});
+  };
+
+  XLinker("--triple=" + Triple.getTriple());
+  if (!Arch.empty())
+    XLinker("--arch=" + Arch);
+
+  static const OptSpecifier DirectOpts[] = {
+      OPT_save_temps,
+      OPT_dry_run,
+      OPT_print_wrapped_module,
+      OPT_sycl_thin_lto,
+      OPT_sycl_allow_device_image_dependencies,
+  };
+  for (OptSpecifier Opt : DirectOpts) {
+    if (Arg *A = Args.getLastArg(Opt))
+      XLinker("--" + A->getOption().getName().str());
+  }
+  if (Arg *A = Args.getLastArg(OPT_sycl_remove_unused_external_funcs,
+                               OPT_no_sycl_remove_unused_external_funcs))
+    XLinker("--" + A->getOption().getName().str());
+  if (Arg *A = Args.getLastArg(OPT_sycl_device_code_split_esimd,
+                               OPT_no_sycl_device_code_split_esimd))
+    XLinker("--" + A->getOption().getName().str());
+  if (Arg *A = Args.getLastArg(OPT_sycl_add_default_spec_consts_image,
+                               OPT_no_sycl_add_default_spec_consts_image))
+    XLinker("--" + A->getOption().getName().str());
+
+  // All options below are single-valued; only the last occurrence is forwarded.
+  static const OptSpecifier ValueOpts[] = {
+      OPT_sycl_dump_device_code_EQ,
+      OPT_llvm_spirv_options_EQ,
+      OPT_sycl_post_link_options_EQ,
+  };
+  for (OptSpecifier Opt : ValueOpts) {
+    if (const opt::Arg *A = Args.getLastArg(Opt))
+      XLinker("--" + A->getOption().getName().str() + A->getValue());
+  }
+
+  // Forward all device compiler and linker options (can have multiple)
+  for (const opt::Arg *A : Args.filtered(OPT_device_compiler_args_EQ)) {
+    XLinker("--" + A->getOption().getName().str() + A->getValue());
+  }
+  for (const opt::Arg *A : Args.filtered(OPT_device_linker_args_EQ)) {
+    XLinker("--" + A->getOption().getName().str() + A->getValue());
+  }
+}
+
 } // namespace sycl
 
 namespace generic {
 Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args,
-                          bool IsSYCLKind = false) {
+                          uint16_t ActiveOffloadKindMask) {
   llvm::TimeTraceScope TimeScope("Clang");
   // Use `clang` to invoke the appropriate device tools.
   Expected<std::string> ClangPath =
@@ -1731,14 +1811,26 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args,
   if (!Triple.isNVPTX() && !Triple.isSPIRV() && !Triple.isNativeCPU())
     CmdArgs.push_back("-Wl,--no-undefined");
 
-  if (IsSYCLKind && Triple.isNVPTX())
+  if ((ActiveOffloadKindMask & OFK_SYCL) && Triple.isNVPTX())
     CmdArgs.push_back("-S");
 
-  if (IsSYCLKind && Triple.isNativeCPU()) {
+  if ((ActiveOffloadKindMask & OFK_SYCL) && Triple.isNativeCPU()) {
     CmdArgs.push_back("-Wno-override-module");
     CmdArgs.push_back("-mllvm");
     CmdArgs.push_back("-sycl-native-cpu-backend");
     CmdArgs.push_back("-c");
+  }
+
+  if (UseClangSYCLLinker && (ActiveOffloadKindMask & OFK_SYCL) &&
+      Triple.isSPIROrSPIRV()) {
+    CmdArgs.push_back("-fsycl");
+    CmdArgs.push_back("--sycl-link");
+    sycl::appendClangSYCLLinkerArgs(Args, CmdArgs, Triple, Arch);
+    for (StringRef InputFile : InputFiles)
+      CmdArgs.append({"-Xlinker", Args.MakeArgString(InputFile)});
+    if (Error Err = executeCommands(*ClangPath, CmdArgs))
+      return std::move(Err);
+    return *TempFileOrErr;
   }
 
   for (StringRef InputFile : InputFiles)
@@ -1843,7 +1935,8 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args,
 } // namespace generic
 
 Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
-                               const ArgList &Args, bool IsSYCLKind = false,
+                               const ArgList &Args,
+                               uint16_t ActiveOffloadKindMask = 0,
                                StringRef SYCLBackendOptions = StringRef()) {
   const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
   switch (Triple.getArch()) {
@@ -1857,7 +1950,7 @@ Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
   case Triple::ppc64:
   case Triple::ppc64le:
   case Triple::systemz:
-    return generic::clang(InputFiles, Args, IsSYCLKind);
+    return generic::clang(InputFiles, Args, ActiveOffloadKindMask);
   case Triple::spirv32:
   case Triple::spirv64:
   case Triple::spir:
@@ -1869,7 +1962,16 @@ Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
           inconvertibleErrorCode(),
           "For SPIR targets, Linking is supported only for JIT compilations "
           "and AOT compilations for Intel CPUs/GPUs");
-    if (IsSYCLKind) {
+    if (ActiveOffloadKindMask & OFK_SYCL) {
+      // When UseClangSYCLLinker is enabled, route spirv64 through
+      // generic::clang() which invokes "clang -fsycl --sycl-link" and forwards
+      // options via -Xlinker. Without this check, spirv64 uses the old
+      // sycl::runLLVMToSPIRVTranslation() path below. Other architectures
+      // (nvptx, amdgcn, etc.) already route through generic::clang() and check
+      // UseClangSYCLLinker there.
+      if (UseClangSYCLLinker)
+        return generic::clang(InputFiles, Args, ActiveOffloadKindMask);
+
       auto SPVFile = sycl::runLLVMToSPIRVTranslation(InputFiles[0], Args);
       if (!SPVFile)
         return SPVFile.takeError();
@@ -1888,10 +1990,10 @@ Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
     return StringRef("");
   }
   case Triple::loongarch64:
-    return generic::clang(InputFiles, Args, IsSYCLKind);
+    return generic::clang(InputFiles, Args, ActiveOffloadKindMask);
   case Triple::native_cpu:
-    if (IsSYCLKind)
-      return generic::clang(InputFiles, Args, IsSYCLKind);
+    if (ActiveOffloadKindMask & OFK_SYCL)
+      return generic::clang(InputFiles, Args, ActiveOffloadKindMask);
     return createStringError(Triple.getArchName() +
                              " linking is not supported other than for SYCL");
   default:
@@ -2364,9 +2466,8 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
       }
       for (size_t I = 0, E = SplitModules.size(); I != E; ++I) {
         SmallVector<StringRef> Files = {SplitModules[I].ModuleFilePath};
-        auto ClangOutputOrErr =
-            linkDevice(Files, LinkerArgs, true /* IsSYCLKind */,
-                       CompileLinkOptionsOrErr->first);
+        auto ClangOutputOrErr = linkDevice(Files, LinkerArgs, OFK_SYCL,
+                                           CompileLinkOptionsOrErr->first);
         if (!ClangOutputOrErr)
           return ClangOutputOrErr.takeError();
         if (Triple.isNVPTX() || Triple.isAMDGCN()) {
@@ -2426,7 +2527,8 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
       }
 
       // Link the remaining device files using the device linker.
-      auto OutputOrErr = linkDevice(InputFiles, LinkerArgs);
+      auto OutputOrErr =
+          linkDevice(InputFiles, LinkerArgs, ActiveOffloadKindMask);
       if (!OutputOrErr)
         return OutputOrErr.takeError();
 
@@ -2751,6 +2853,7 @@ int main(int Argc, char **Argv) {
   SaveTemps = Args.hasArg(OPT_save_temps);
   CudaBinaryPath = Args.getLastArgValue(OPT_cuda_path_EQ).str();
   CanonicalPrefixes = !Args.hasArg(OPT_no_canonical_prefixes);
+  UseClangSYCLLinker = Args.hasArg(OPT_use_clang_sycl_linker);
 
   llvm::Triple Triple(
       Args.getLastArgValue(OPT_host_triple_EQ, sys::getDefaultTargetTriple()));
