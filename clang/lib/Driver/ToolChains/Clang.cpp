@@ -5386,6 +5386,10 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                     (C.getActiveOffloadKinds() != Action::OFK_None &&
                      C.getActiveOffloadKinds() != Action::OFK_SYCL)));
 
+  // Do not claim the RDC arg at this point as it is not indicative of proper
+  // support. Not claiming here allows for the 'unused argument' diagnostic to
+  // be emitted depending on actual support when comparing the old and new
+  // offload model paths.
   bool IsRDCMode = Args.hasFlagNoClaim(options::OPT_fgpu_rdc,
                                        options::OPT_fno_gpu_rdc, IsSYCL);
   auto LTOMode = IsDeviceOffloadAction ? D.getOffloadLTOMode() : D.getLTOMode();
