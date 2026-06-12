@@ -7,6 +7,7 @@
 #include <numeric>
 #include <sycl/aspects.hpp>
 #include <sycl/ext/intel/info/device.hpp>
+#include <sycl/group_barrier.hpp>
 using namespace sycl;
 
 constexpr size_t N_items = 128;

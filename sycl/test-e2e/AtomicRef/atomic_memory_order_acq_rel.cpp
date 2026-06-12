@@ -6,6 +6,7 @@
 #include "atomic_memory_order.h"
 #include <iostream>
 #include <numeric>
+#include <sycl/group_barrier.hpp>
 using namespace sycl;
 
 template <memory_order order> void test_acquire_global() {
