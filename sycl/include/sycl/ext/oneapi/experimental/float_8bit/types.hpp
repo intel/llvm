@@ -12,6 +12,7 @@
 #include <sycl/multi_ptr.hpp>
 
 #include <sycl/ext/oneapi/bfloat16.hpp>
+#include <sycl/khr/static_addrspace_cast.hpp>
 #include <sycl/marray.hpp>
 
 #include <cassert>
@@ -1543,13 +1544,15 @@ public:
       if (s == saturation::finite) {
         vals[i] = __builtin_spirv_ClampStochasticRoundFP16ToE5M2INTEL(
             v, current_seed,
-            sycl::address_space_cast<sycl::access::address_space::private_space,
-                                     sycl::access::decorated::yes>(&next_seed));
+            sycl::khr::static_addrspace_cast<
+                sycl::access::address_space::private_space>(&next_seed)
+                .get_decorated());
       } else {
         vals[i] = __builtin_spirv_StochasticRoundFP16ToE5M2INTEL(
             v, current_seed,
-            sycl::address_space_cast<sycl::access::address_space::private_space,
-                                     sycl::access::decorated::yes>(&next_seed));
+            sycl::khr::static_addrspace_cast<
+                sycl::access::address_space::private_space>(&next_seed)
+                .get_decorated());
       }
       current_seed = next_seed;
       next_seed = 0;
@@ -1570,13 +1573,15 @@ public:
       if (s == saturation::finite) {
         vals[i] = __builtin_spirv_ClampStochasticRoundBF16ToE5M2INTEL(
             sycl::bit_cast<__bf16>(in[i]), current_seed,
-            sycl::address_space_cast<sycl::access::address_space::private_space,
-                                     sycl::access::decorated::yes>(&next_seed));
+            sycl::khr::static_addrspace_cast<
+                sycl::access::address_space::private_space>(&next_seed)
+                .get_decorated());
       } else {
         vals[i] = __builtin_spirv_StochasticRoundBF16ToE5M2INTEL(
             sycl::bit_cast<__bf16>(in[i]), current_seed,
-            sycl::address_space_cast<sycl::access::address_space::private_space,
-                                     sycl::access::decorated::yes>(&next_seed));
+            sycl::khr::static_addrspace_cast<
+                sycl::access::address_space::private_space>(&next_seed)
+                .get_decorated());
       }
       current_seed = next_seed;
       next_seed = 0;
@@ -1601,13 +1606,15 @@ public:
       if (s == saturation::finite) {
         vals[i] = __builtin_spirv_ClampStochasticRoundFP16ToE5M2INTEL(
             v, current_seed,
-            sycl::address_space_cast<sycl::access::address_space::private_space,
-                                     sycl::access::decorated::yes>(&next_seed));
+            sycl::khr::static_addrspace_cast<
+                sycl::access::address_space::private_space>(&next_seed)
+                .get_decorated());
       } else {
         vals[i] = __builtin_spirv_StochasticRoundFP16ToE5M2INTEL(
             v, current_seed,
-            sycl::address_space_cast<sycl::access::address_space::private_space,
-                                     sycl::access::decorated::yes>(&next_seed));
+            sycl::khr::static_addrspace_cast<
+                sycl::access::address_space::private_space>(&next_seed)
+                .get_decorated());
       }
       current_seed = next_seed;
       next_seed = 0;
@@ -1628,13 +1635,15 @@ public:
       if (s == saturation::finite) {
         vals[i] = __builtin_spirv_ClampStochasticRoundBF16ToE5M2INTEL(
             sycl::bit_cast<__bf16>(in[i]), current_seed,
-            sycl::address_space_cast<sycl::access::address_space::private_space,
-                                     sycl::access::decorated::yes>(&next_seed));
+            sycl::khr::static_addrspace_cast<
+                sycl::access::address_space::private_space>(&next_seed)
+                .get_decorated());
       } else {
         vals[i] = __builtin_spirv_StochasticRoundBF16ToE5M2INTEL(
             sycl::bit_cast<__bf16>(in[i]), current_seed,
-            sycl::address_space_cast<sycl::access::address_space::private_space,
-                                     sycl::access::decorated::yes>(&next_seed));
+            sycl::khr::static_addrspace_cast<
+                sycl::access::address_space::private_space>(&next_seed)
+                .get_decorated());
       }
       current_seed = next_seed;
       next_seed = 0;
