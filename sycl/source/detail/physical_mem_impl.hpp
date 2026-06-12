@@ -43,7 +43,8 @@ public:
         MNumBytes(NumBytes), MIPCEnabled(EnableIPC) {
     adapter_impl &Adapter = MContext->getAdapter();
 
-    ur_physical_mem_properties_t Props{};
+    ur_physical_mem_properties_t Props{
+        UR_STRUCTURE_TYPE_PHYSICAL_MEM_PROPERTIES, nullptr, 0};
     if (EnableIPC) {
       Props.flags = UR_PHYSICAL_MEM_FLAG_ENABLE_IPC;
     }
@@ -64,7 +65,7 @@ public:
                     size_t NumBytes, ur_physical_mem_handle_t PhysicalMem)
       : MPhysicalMem(PhysicalMem), MDevice(DeviceImpl),
         MContext(getSyclObjImpl(SyclContext)), MNumBytes(NumBytes),
-        MOpenedFromIpc(true) {}
+        MIPCEnabled(true), MOpenedFromIpc(true) {}
 
   ~physical_mem_impl() noexcept(false) {
     adapter_impl &Adapter = MContext->getAdapter();

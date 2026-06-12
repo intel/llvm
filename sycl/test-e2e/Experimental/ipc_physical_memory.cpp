@@ -1,4 +1,6 @@
-// REQUIRES: aspect-ext_oneapi_virtual_mem && aspect-ext_oneapi_ipc_physical_memory
+// REQUIRES: aspect-ext_oneapi_virtual_mem
+// REQUIRES: aspect-ext_oneapi_ipc_physical_memory
+// REQUIRES: level_zero_v2_adapter
 
 // UNSUPPORTED: level_zero && windows
 // UNSUPPORTED-TRACKER: UMFW-348

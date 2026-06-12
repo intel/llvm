@@ -192,9 +192,9 @@ enum PropKind : uint32_t {
   MaximumSize = 47,
   ZeroInit = 48,
   FastLink = 49,
+  PhysicalMemoryEnableIPC = 50,
   // PropKindSize must always be the last value.
-  PropKindSize = 50,
-  PhysicalMemoryEnableIPC = 51,
+  PropKindSize = 51,
 };
 
 template <typename PropertyT> struct PropertyToKind {
