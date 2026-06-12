@@ -1518,7 +1518,7 @@ void SYCLToolChain::addClangTargetOptions(
     return;
 
   llvm::SmallVector<BitCodeLibraryInfo, 12> BCLibs;
-  BCLibs.append(SYCLToolChain::getDeviceLibs(DriverArgs, DeviceOffloadingKind));
+  BCLibs.append(SYCLToolChain::getDeviceLibs(DriverArgs, BoundArch, DeviceOffloadingKind));
   for (const auto &BCFile : BCLibs) {
     CC1Args.push_back(BCFile.ShouldInternalize ? "-mlink-builtin-bitcode"
                                                : "-mlink-bitcode-file");
@@ -1987,7 +1987,7 @@ void SYCLToolChain::AddClangCXXStdlibIncludeArgs(const ArgList &Args,
 
 llvm::SmallVector<ToolChain::BitCodeLibraryInfo, 12>
 SYCLToolChain::getDeviceLibs(
-    const llvm::opt::ArgList &DriverArgs,
+    const llvm::opt::ArgList &DriverArgs, llvm::StringRef BoundArch,
     const Action::OffloadKind DeviceOffloadingKind) const {
   llvm::SmallVector<ToolChain::BitCodeLibraryInfo, 12> BCLibs;
 

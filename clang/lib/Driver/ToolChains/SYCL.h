@@ -192,7 +192,7 @@ public:
   // Provides a vector of device library names including the full path that are
   // associated with the offloading kind.
   llvm::SmallVector<BitCodeLibraryInfo, 12>
-  getDeviceLibs(const llvm::opt::ArgList &Args,
+  getDeviceLibs(const llvm::opt::ArgList &Args, llvm::StringRef BoundArch,
                 const Action::OffloadKind DeviceOffloadingKind) const override;
 
   SanitizerMask
