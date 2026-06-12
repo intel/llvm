@@ -878,9 +878,8 @@ template <size_t N> class fp8_e4m3_x {
   uint8_t ConvertToFP8(T h) {
 #ifdef __SYCL_DEVICE_ONLY__
     if constexpr (std::is_same_v<std::decay_t<T>, char> ||
-                  std::is_same_v<std::decay_t<T>, unsigned char> ||
-                  std::is_same_v<std::decay_t<T>, short> ||
-                  std::is_same_v<std::decay_t<T>, unsigned short>) {
+                  std::is_same_v<std::decay_t<T>, signed char> ||
+                  std::is_same_v<std::decay_t<T>, unsigned char>) {
       const _Float16 v = static_cast<_Float16>(h);
       return __builtin_spirv_ClampConvertFP16ToE4M3INTEL(v);
     }
@@ -1312,9 +1311,8 @@ template <size_t N> class fp8_e5m2_x {
   uint8_t ConvertToFP8(T h, saturation s) {
 #ifdef __SYCL_DEVICE_ONLY__
     if constexpr (std::is_same_v<std::decay_t<T>, char> ||
-                  std::is_same_v<std::decay_t<T>, unsigned char> ||
-                  std::is_same_v<std::decay_t<T>, short> ||
-                  std::is_same_v<std::decay_t<T>, unsigned short>) {
+                  std::is_same_v<std::decay_t<T>, signed char> ||
+                  std::is_same_v<std::decay_t<T>, unsigned char>) {
       const _Float16 v = static_cast<_Float16>(h);
       return s == saturation::finite
                  ? __builtin_spirv_ClampConvertFP16ToE5M2INTEL(v)
