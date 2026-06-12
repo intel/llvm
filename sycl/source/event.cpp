@@ -14,7 +14,6 @@
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/ur.hpp>
 #include <sycl/event.hpp>
-#include <sycl/info/info_desc.hpp>
 
 #include <memory>
 #include <unordered_set>

@@ -45,5 +45,12 @@ struct vendor : platform_traits<UR_PLATFORM_INFO_VENDOR_NAME> {
 };
 } // namespace platform
 } // namespace info
+
+namespace detail {
+// SFINAE predicate confining `platform::get_info<T>()` to platform traits.
+// `return_type` alias is load-bearing for ABI symbol mangling — keep stable.
+template <typename T>
+struct is_platform_info_desc : is_info_desc_for<T, info_class::platform> {};
+} // namespace detail
 } // namespace _V1
 } // namespace sycl

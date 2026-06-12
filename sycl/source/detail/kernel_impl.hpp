@@ -16,8 +16,9 @@
 #include <sycl/detail/ur.hpp>
 #include <sycl/device.hpp>
 #include <sycl/exception.hpp>
+#include <sycl/ext/oneapi/experimental/kernel_queue_info.hpp>
 #include <sycl/ext/oneapi/experimental/root_group.hpp>
-#include <sycl/info/info_desc.hpp>
+#include <sycl/info/kernel.hpp>
 #include <sycl/queue.hpp>
 
 #include <cassert>

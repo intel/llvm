@@ -8,6 +8,7 @@
 // For more context, see: https://github.com/oneapi-src/level-zero/issues/36.
 
 #include <sycl/detail/core.hpp>
+#include <sycl/ext/intel/info/device.hpp>
 int main() {
   sycl::queue q;
   bool failed = false;

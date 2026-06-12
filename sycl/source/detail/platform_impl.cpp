@@ -17,7 +17,6 @@
 #include <sycl/detail/ur.hpp>
 #include <sycl/detail/util.hpp>
 #include <sycl/device.hpp>
-#include <sycl/info/info_desc.hpp>
 
 #include <algorithm>
 #include <cstring>

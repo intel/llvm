@@ -36,6 +36,7 @@ can be disabled by setting SYCL_DISABLE_FSYCL_SYCLHPP_WARNING macro.")
 #include <sycl/khr/split_headers/version.hpp>
 
 #include <sycl/detail/core.hpp>
+#include <sycl/info/info_desc.hpp>
 
 #include <sycl/accessor_image.hpp>
 #include <sycl/aspects.hpp>
