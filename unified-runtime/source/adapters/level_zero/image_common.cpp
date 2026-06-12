@@ -1283,7 +1283,6 @@ ur_result_t urBindlessImagesImportExternalMemoryExp(
         delete externalMemoryData;
         return UR_RESULT_ERROR_INVALID_VALUE;
       }
-      importFd->flags = ZE_EXTERNAL_MEMORY_TYPE_FLAG_OPAQUE_FD;
       externalMemoryData->importExtensionDesc = importFd;
       externalMemoryData->type = UR_ZE_EXTERNAL_OPAQUE_FD;
     } else if (BaseDesc->stype == UR_STRUCTURE_TYPE_EXP_WIN32_HANDLE ||
@@ -1462,12 +1461,14 @@ ur_result_t urBindlessImagesImportExternalSemaphoreExp(
           return UR_RESULT_ERROR_INVALID_VALUE;
         }
         Win32ExpDesc.handle = Win32Handle->handle;
+        Win32ExpDesc.name = nullptr;
       } else {
         auto Win32Name = static_cast<const ur_exp_win32_name_t *>(pNext);
         if (Win32Name->name == nullptr) {
           return UR_RESULT_ERROR_INVALID_VALUE;
         }
         Win32ExpDesc.name = static_cast<const char *>(Win32Name->name);
+        Win32ExpDesc.handle = nullptr;
       }
     }
     pNext = const_cast<void *>(BaseDesc->pNext);
