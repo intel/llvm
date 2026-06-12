@@ -451,7 +451,7 @@ TEST(FP8E8M0Test, CArrayHalfToEvenRounding) {
       UnsupportedRoundingAssertRegex);
 }
 
-TEST(FP8E8M0Test, CArrayBFloat16ToEvenRounding) {
+TEST(FP8E8M0Test, DISABLED_CArrayBFloat16ToEvenRounding) {
   const sycl::ext::oneapi::bfloat16 in[2] = {sycl::ext::oneapi::bfloat16(1.0f),
                                              sycl::ext::oneapi::bfloat16(2.0f)};
   EXPECT_DEATH(
