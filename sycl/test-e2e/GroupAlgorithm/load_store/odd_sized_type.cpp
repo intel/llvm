@@ -73,7 +73,7 @@ template <access::address_space addr_space> int test(queue &q) {
              i++) {
           local_acc[i] = input[i];
         }
-        sycl::group_barrier(ndi.get_group(), sycl::memory_scope::work_group);
+        sycl::group_barrier(ndi.get_group());
       }
 
       // blocked

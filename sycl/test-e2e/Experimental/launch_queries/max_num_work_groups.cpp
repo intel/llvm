@@ -50,7 +50,7 @@ public:
     const auto gtid = item.get_global_linear_id();
     if (ltid < loc_acc_.size()) {
       loc_acc_[ltid] = ltid + 42;
-      sycl::group_barrier(item.get_group(), sycl::memory_scope::work_group);
+      sycl::group_barrier(item.get_group());
       acc_[gtid] = loc_acc_[ltid];
     } else {
       acc_[gtid] = 0;
