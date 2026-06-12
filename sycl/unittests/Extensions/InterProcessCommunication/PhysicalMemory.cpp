@@ -36,12 +36,17 @@ int urIPCPutPhysMemHandleExp_counter = 0;
 int urIPCOpenPhysMemHandleExp_counter = 0;
 int urIPCClosePhysMemHandleExp_counter = 0;
 
+bool expectEnableIpcFlag = true;
+
 ur_result_t replace_urPhysicalMemCreate(void *pParams) {
   ++urPhysicalMemCreate_counter;
   auto params = *static_cast<ur_physical_mem_create_params_t *>(pParams);
   EXPECT_EQ(*params.psize, PhysMemSize);
   EXPECT_TRUE(*params.ppProperties != nullptr);
-  EXPECT_TRUE((*params.ppProperties)->flags & UR_PHYSICAL_MEM_FLAG_ENABLE_IPC);
+  if (expectEnableIpcFlag) {
+    EXPECT_TRUE((*params.ppProperties)->flags &
+                UR_PHYSICAL_MEM_FLAG_ENABLE_IPC);
+  }
   **params.pphPhysicalMem = DummyPhysicalMemHandle;
   return UR_RESULT_SUCCESS;
 }
@@ -137,6 +142,7 @@ protected:
     urIPCPutPhysMemHandleExp_counter = 0;
     urIPCOpenPhysMemHandleExp_counter = 0;
     urIPCClosePhysMemHandleExp_counter = 0;
+    expectEnableIpcFlag = true;
 
     mock::getCallbacks().set_replace_callback("urPhysicalMemCreate",
                                               replace_urPhysicalMemCreate);
@@ -219,6 +225,44 @@ TEST_F(IPCPhysMemTests, IPCOpenCloseView) {
   EXPECT_EQ(urIPCPutPhysMemHandleExp_counter, 0);
   EXPECT_EQ(urIPCOpenPhysMemHandleExp_counter, 1);
   EXPECT_EQ(urIPCClosePhysMemHandleExp_counter, 1);
+}
+
+TEST_F(IPCPhysMemTests, IPCGetNoFlagEnableIpc) {
+  syclexp::properties PropList{};
+  expectEnableIpcFlag = false;
+  syclexp::physical_mem PhysMem{Dev, Ctxt, PhysMemSize, PropList};
+  bool exception = false;
+
+  try {
+    syclexp::ipc::physical_memory::get(PhysMem);
+  } catch (sycl::exception const &e) {
+    exception = true;
+    EXPECT_EQ(e.code(), sycl::errc::invalid);
+    EXPECT_STREQ(
+        e.what(),
+        "physical_mem was not created with inter-process sharing enabled "
+        "via the enable_ipc property.");
+  }
+
+  EXPECT_TRUE(exception);
+}
+
+TEST_F(IPCPhysMemTests, IPCCreateDevNoAspect) {
+  mock::getCallbacks().set_after_callback("urDeviceGetInfo", nullptr);
+  syclexp::properties PropList{syclexp::enable_ipc};
+  bool exception = false;
+
+  try {
+    syclexp::physical_mem PhysMem{Dev, Ctxt, PhysMemSize, PropList};
+  } catch (sycl::exception const &e) {
+    exception = true;
+    EXPECT_EQ(e.code(), sycl::errc::feature_not_supported);
+    EXPECT_STREQ(
+        e.what(),
+        "Device does not support aspect::ext_oneapi_ipc_physical_memory.");
+  }
+
+  EXPECT_TRUE(exception);
 }
 
 } // namespace
