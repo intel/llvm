@@ -5,6 +5,7 @@
 // in the source regardless of whether they are expressed as lambdas,
 // function objects or free functions.
 
+#include <algorithm>
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/free_function_traits.hpp>
 #include <sycl/kernel_bundle.hpp>

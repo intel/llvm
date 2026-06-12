@@ -1,5 +1,6 @@
 #include <sycl/detail/core.hpp>
 
+#include <algorithm>
 #include <iostream>
 #include <memory>
 #include <vector>

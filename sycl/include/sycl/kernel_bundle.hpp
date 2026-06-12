@@ -28,7 +28,6 @@
 #include <sycl/ext/oneapi/properties/property.hpp>       // build_options
 #include <sycl/ext/oneapi/properties/property_value.hpp> // and log
 
-#include <algorithm> // for find_if
 #include <array>      // for array
 #include <cstddef>    // for std::byte
 #include <cstring>    // for size_t, memcpy
@@ -1014,12 +1013,12 @@ struct include_files
     record.emplace_back(name, content);
   }
   void add(const std::string &name, const std::string &content) {
-    if (std::find_if(record.begin(), record.end(), [&name](auto &p) {
-          return p.first == name;
-        }) != record.end()) {
-      throw sycl::exception(make_error_code(errc::invalid),
-                            "Include file '" + name +
-                                "' is already registered");
+    for (auto &p : record) {
+      if (p.first == name) {
+        throw sycl::exception(make_error_code(errc::invalid),
+                              "Include file '" + name +
+                                  "' is already registered");
+      }
     }
     record.emplace_back(name, content);
   }

@@ -5,6 +5,7 @@
 // -foffload-fp32-prec-div -foffload-fp32-prec-sqrt are passed.
 
 #include <cmath>
+#include <sycl/builtins.hpp>
 #include <sycl/detail/core.hpp>
 #include <sycl/usm.hpp>
 

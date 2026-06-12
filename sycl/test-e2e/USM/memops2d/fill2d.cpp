@@ -11,6 +11,7 @@
 #include <iostream>
 
 #include <sycl/detail/core.hpp>
+#include <sycl/half_type.hpp>
 #include <sycl/usm.hpp>
 
 #include "memops2d_utils.hpp"

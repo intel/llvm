@@ -14,6 +14,7 @@
 #include <sycl/sub_group.hpp>
 #include <sycl/usm.hpp>
 
+#include <algorithm>
 #include <cassert>
 #include <cstdint>
 
