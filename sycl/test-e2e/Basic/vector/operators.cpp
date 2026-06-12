@@ -11,6 +11,7 @@
 
 #define SYCL_SIMPLE_SWIZZLES
 #include <sycl/detail/core.hpp>
+#include <sycl/half_type.hpp>
 #include <sycl/vector.hpp>
 namespace s = sycl;
 

@@ -11,6 +11,7 @@
 #include <sstream>
 #include <sycl/backend.hpp>
 #include <sycl/detail/core.hpp>
+#include <sycl/ext/intel/info/device.hpp>
 
 int main() {
   sycl::device dev;

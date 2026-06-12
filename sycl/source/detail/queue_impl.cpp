@@ -1268,6 +1268,15 @@ bool queue_impl::queue_empty() const {
   return IsReady;
 }
 
+void queue_impl::queue_flush() const {
+  if (MGraph.lock()) {
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "flush cannot be called for a queue which is "
+                          "recording to a command graph.");
+  }
+  getAdapter().call<UrApiKind::urQueueFlush>(MQueue);
+}
+
 void queue_impl::revisitUnenqueuedCommandsState(
     const EventImplPtr &CompletedHostTask) {
   if (MIsInorder)

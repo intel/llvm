@@ -9,7 +9,7 @@
 #pragma once
 
 #include <sycl/detail/defines.hpp>
-#include <sycl/info/info_desc.hpp>
+#include <sycl/info/device.hpp>
 
 #include <optional>
 #include <ostream>

@@ -1021,6 +1021,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
         static_cast<ur_exp_device_2d_block_array_capability_flags_t>(0));
   case UR_DEVICE_INFO_IPC_MEMORY_SUPPORT_EXP:
     return ReturnValue(false);
+  case UR_DEVICE_INFO_IPC_PHYSICAL_MEMORY_SUPPORT_EXP:
+    return ReturnValue(false);
   case UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP: {
     int RuntimeVersion = 0;
     UR_CHECK_ERROR(hipRuntimeGetVersion(&RuntimeVersion));

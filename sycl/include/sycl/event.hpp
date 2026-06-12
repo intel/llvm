@@ -11,8 +11,8 @@
 #include <sycl/backend_types.hpp>             // for backend, backend_return_t
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
 #include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
-#include <sycl/detail/info_desc_helpers.hpp>  // for is_event_info_desc, is_...
 #include <sycl/detail/owner_less_base.hpp>    // for OwnerLessBase
+#include <sycl/info/event.hpp>                // for is_event_info_desc, is_...
 #include <unified-runtime/ur_api.h>           // for ur_native_handle_t
 
 #ifdef __SYCL_INTERNAL_API
