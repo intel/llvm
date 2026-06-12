@@ -6,6 +6,7 @@
 // UNSUPPORTED: target-nvidia, target-amd, spirv-backend
 // UNSUPPORTED-INTENDED: only supported by backends with CRI driver, and the
 // SPIR-V backend does not support the required SPIR-V extensions
+#include <iostream>
 
 #include <cmath>
 #include <limits>

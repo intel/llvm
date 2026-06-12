@@ -1,5 +1,3 @@
-// REQUIRES: linux
-//
 // CUSTOMER REQUIREMENT: the SYCL KHR header surface must NOT pull in
 // <iostream>, <istream>, <ostream> (or the runtime iostream_proxy shim) on
 // any compilation pass, including device. Customers compile their device
@@ -21,7 +19,7 @@
 // scope -- only the KHR set is required to be device-safe today.
 //
 // RUN: %clangxx -fsycl -fsycl-device-only -include %S/Inputs/khr_all.hpp \
-// RUN:   -c -x c++ /dev/null -o /dev/null -MD -MF - | FileCheck %s
+// RUN:   -c %s -o %t.o -MD -MF - | FileCheck %s
 //
 // CHECK-NOT: iostream_proxy.hpp
 // CHECK-NOT: {{/iostream[ \\]}}
