@@ -347,7 +347,8 @@ TEST_P(urUSMContextMemcpyExpTestDevice, MultiThreadedSequential) {
 
   ASSERT_EQ(errors.load(), 0) << "Multi-threaded sequential test failed";
 
-  FAIL() << "MultiThreadedSequential test executed - verifying CI runs this test";
+  FAIL()
+      << "MultiThreadedSequential test executed - verifying CI runs this test";
 }
 
 TEST_P(urUSMContextMemcpyExpTestDevice, UnalignedPointers) {
