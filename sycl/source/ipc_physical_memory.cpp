@@ -25,6 +25,13 @@ openIPCPhysicalMemHandle(const std::byte *HandleData, size_t HandleDataSize,
         sycl::make_error_code(errc::feature_not_supported),
         "Device does not support aspect::ext_oneapi_ipc_physical_memory.");
 
+  auto CtxDevices = Ctx.get_devices();
+  if (std::none_of(CtxDevices.begin(), CtxDevices.end(),
+                   [&Dev](device &CtxDev) { return CtxDev == Dev; })) {
+    throw exception(make_error_code(errc::invalid),
+                    "Specified device is not contained by specified context.");
+  }
+
   auto CtxImpl = sycl::detail::getSyclObjImpl(Ctx);
   sycl::detail::adapter_impl &Adapter = CtxImpl->getAdapter();
 
