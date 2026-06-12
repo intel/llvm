@@ -167,6 +167,16 @@ event_impl::event_impl(ur_event_handle_t Event, const context &SyclContext,
   }
 }
 
+event_impl::event_impl(ur_event_handle_t Event, const context &SyclContext,
+                       IPCRole Role, private_tag tag)
+    : event_impl(Event, SyclContext, tag) {
+  // ext_oneapi_ipc_enabled() is the predicate for "can be exported via
+  // ipc::event::get()"; the spec restricts that to producer-side events
+  // created with the enable_ipc property.
+  MIPCEnabled = (Role == IPCRole::Producer);
+  MOpenedFromIpc = (Role == IPCRole::Imported);
+}
+
 event_impl::event_impl(queue_impl &Queue, private_tag)
     : MQueue{Queue.weak_from_this()},
       MIsProfilingEnabled{Queue.MIsProfilingEnabled} {

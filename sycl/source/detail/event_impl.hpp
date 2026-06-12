@@ -69,6 +69,17 @@ public:
   /// \param SyclContext is an instance of SYCL context.
   event_impl(ur_event_handle_t Event, const context &SyclContext, private_tag);
 
+  /// IPC role of an event constructed from a UR handle.
+  enum class IPCRole {
+    /// Producer-side event created with enable_ipc.
+    Producer,
+    /// Consumer-side event imported via ipc::event::open().
+    Imported,
+  };
+
+  event_impl(ur_event_handle_t Event, const context &SyclContext, IPCRole Role,
+             private_tag);
+
   event_impl(queue_impl &Queue, private_tag);
   event_impl(HostEventState State, private_tag);
 
@@ -93,6 +104,25 @@ public:
 
   static std::shared_ptr<event_impl> create_incomplete_host_event() {
     return std::make_shared<event_impl>(HostEventState::HES_NotComplete,
+                                        private_tag{});
+  }
+
+  /// Producer-side IPC event factory: adopts a UR handle that backs
+  /// make_event(..., enable_ipc). Reports ext_oneapi_ipc_enabled() == true.
+  static std::shared_ptr<event_impl>
+  create_ipc_producer_event(ur_event_handle_t Event,
+                            const context &SyclContext) {
+    return std::make_shared<event_impl>(Event, SyclContext, IPCRole::Producer,
+                                        private_tag{});
+  }
+
+  /// Consumer-side IPC event factory: adopts a UR handle returned by
+  /// ipc::event::open(). Imported events cannot be re-exported, so they
+  /// report ext_oneapi_ipc_enabled() == false.
+  static std::shared_ptr<event_impl>
+  create_ipc_imported_event(ur_event_handle_t Event,
+                            const context &SyclContext) {
+    return std::make_shared<event_impl>(Event, SyclContext, IPCRole::Imported,
                                         private_tag{});
   }
 
@@ -407,6 +437,25 @@ protected:
   // storage.
   std::vector<std::weak_ptr<event_impl>> MWeakPostCompleteEvents;
 
+  /// Both IPC flags are written exactly once, by the constructor that
+  /// the create_ipc_*_event factories invoke. After the
+  /// shared_ptr<event_impl> is returned to the caller these fields are
+  /// observed only read-only, so concurrent reads from any number of
+  /// threads are safe without synchronisation: the construction-then-
+  /// publish ordering is established by std::make_shared's release on
+  /// the produced shared_ptr.
+
+  /// Backs event::ext_oneapi_ipc_enabled().
+  bool MIPCEnabled = false;
+
+  /// True only for events imported via ipc::event::open().
+  bool MOpenedFromIpc = false;
+
+public:
+  bool isIPCEnabled() const noexcept { return MIPCEnabled; }
+  bool isOpenedFromIpc() const noexcept { return MOpenedFromIpc; }
+
+protected:
   /// Indicates that the task associated with this event has been submitted by
   /// the queue to the device.
   std::atomic<bool> MIsFlushed = false;

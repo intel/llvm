@@ -114,6 +114,10 @@ backend event::get_backend() const noexcept try {
   std::abort();
 }
 
+bool event::ext_oneapi_ipc_enabled() const noexcept {
+  return impl->isIPCEnabled();
+}
+
 ur_native_handle_t event::getNative() const { return impl->getNative(); }
 
 std::vector<ur_native_handle_t> event::getNativeVector() const {
