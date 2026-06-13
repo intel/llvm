@@ -239,9 +239,6 @@ HIPAMDToolChain::HIPAMDToolChain(const Driver &D, const llvm::Triple &Triple,
 void HIPAMDToolChain::addClangTargetOptions(
     const llvm::opt::ArgList &DriverArgs, llvm::opt::ArgStringList &CC1Args,
     llvm::StringRef BoundArch, Action::OffloadKind DeviceOffloadingKind) const {
-  HostTC.addClangTargetOptions(DriverArgs, CC1Args, BoundArch,
-                               DeviceOffloadingKind);
-
   assert((DeviceOffloadingKind == Action::OFK_HIP ||
           DeviceOffloadingKind == Action::OFK_SYCL) &&
          "Only HIP and SYCL offloading kinds are supported for GPUs.");
@@ -306,37 +303,14 @@ llvm::opt::DerivedArgList *
 HIPAMDToolChain::TranslateArgs(const llvm::opt::DerivedArgList &Args,
                                StringRef BoundArch,
                                Action::OffloadKind DeviceOffloadKind) const {
-  DerivedArgList *DAL =
-      HostTC.TranslateArgs(Args, BoundArch, DeviceOffloadKind);
-  if (!DAL)
-    DAL = new DerivedArgList(Args.getBaseArgs());
+  llvm::opt::DerivedArgList *DAL =
+      ROCMToolChain::TranslateArgs(Args, BoundArch, DeviceOffloadKind);
 
-  const OptTable &Opts = getDriver().getOpts();
-
-  for (Arg *A : Args) {
-    // Sanitizer coverage is currently not supported for AMDGPU.
-    if (A->getOption().matches(options::OPT_fsan_cov_Group)) {
-      diagnoseUnsupportedOption(A, *DAL, Args);
-      continue;
-    }
-
-    if (A->getOption().matches(options::OPT_fsanitize_EQ) &&
-        !Args.hasFlag(options::OPT_fgpu_sanitize, options::OPT_fno_gpu_sanitize,
-                      true))
-      continue;
-
-    DAL->append(A);
-  }
-
-  if (!BoundArch.empty()) {
-    DAL->eraseArg(options::OPT_mcpu_EQ);
-    DAL->AddJoinedArg(nullptr, Opts.getOption(options::OPT_mcpu_EQ), BoundArch);
-    checkTargetID(*DAL);
-  }
-
-  if (!Args.hasArg(options::OPT_flto_partitions_EQ))
+  if (!Args.hasArg(options::OPT_flto_partitions_EQ)) {
+    const OptTable &Opts = getDriver().getOpts();
     DAL->AddJoinedArg(nullptr, Opts.getOption(options::OPT_flto_partitions_EQ),
                       "8");
+  }
 
   return DAL;
 }
@@ -358,11 +332,6 @@ Tool *HIPAMDToolChain::SelectTool(const JobAction &JA) const {
     }
   }
   return ToolChain::SelectTool(JA);
-}
-
-void HIPAMDToolChain::addClangWarningOptions(ArgStringList &CC1Args) const {
-  AMDGPUToolChain::addClangWarningOptions(CC1Args);
-  HostTC.addClangWarningOptions(CC1Args);
 }
 
 ToolChain::CXXStdlibType

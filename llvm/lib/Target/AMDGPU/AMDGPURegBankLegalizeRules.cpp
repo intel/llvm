@@ -122,6 +122,8 @@ bool matchUniformityAndLLT(Register Reg, UniformityLLTOpPredicateID UniID,
     return MRI.getType(Reg) == LLT::pointer(4, 64) && MUI.isUniformAtDef(Reg);
   case UniP5:
     return MRI.getType(Reg) == LLT::pointer(5, 32) && MUI.isUniformAtDef(Reg);
+  case UniP6:
+    return MRI.getType(Reg) == LLT::pointer(6, 32) && MUI.isUniformAtDef(Reg);
   case UniP8:
     return MRI.getType(Reg) == LLT::pointer(8, 128) && MUI.isUniformAtDef(Reg);
   case UniPtr32:
@@ -1523,6 +1525,31 @@ RegBankLegalizeRules::RegBankLegalizeRules(const GCNSubtarget &_ST,
   addRulesForGOpcs({G_AMDGPU_S_BUFFER_PREFETCH})
       .Any({{}, {{}, {SgprV4S32_ReadFirstLane, Imm, SgprB32_ReadFirstLane}}});
 
+  Predicate IsDataPF([](const MachineInstr &MI) -> bool {
+    // prefetch cache type: 0 == instruction (I$) prefetch, 1 == data prefetch.
+    return MI.getOperand(3).getImm() != 0;
+  });
+
+  bool HasSMemPF = ST->hasSafeSmemPrefetch();
+  bool HasVMemPF = ST->hasVmemPrefInsts();
+  addRulesForGOpcs({G_PREFETCH})
+      // Safe smem prefetch keeps both data and instruction prefetch.
+      .Any({{UniPtr64}, {{}, {SgprPtr64}}}, HasSMemPF)
+      // Vmem prefetch keeps data prefetch only.
+      .Any({{{UniPtr64}, IsDataPF}, {{}, {SgprPtr64}}}, !HasSMemPF && HasVMemPF)
+      .Any({{{UniPtr64}, IsDataPF}, {{}, {}, DeletePrefetch}},
+           !HasSMemPF && !HasVMemPF)
+      .Any({{{UniPtr64}, !IsDataPF}, {{}, {}, DeletePrefetch}}, !HasSMemPF)
+
+      .Any({{{DivPtr64}, IsDataPF}, {{}, {VgprPtr64}}}, HasVMemPF)
+      .Any({{{DivPtr64}, IsDataPF}, {{}, {}, DeletePrefetch}}, !HasVMemPF)
+      .Any({{{DivPtr64}, !IsDataPF}, {{}, {}, DeletePrefetch}})
+
+      .Any({{P3}, {{}, {}, DeletePrefetch}})
+      .Any({{P5}, {{}, {}, DeletePrefetch}})
+      .Any({{UniP6}, {{}, {SgprP6}}}, HasSMemPF)
+      .Any({{UniP6}, {{}, {}, DeletePrefetch}}, !HasSMemPF);
+
   addRulesForGOpcs({G_FPEXT})
       .Any({{DivS32, S16}, {{Vgpr32}, {Vgpr16}}})
       .Any({{UniS64, S32}, {{UniInVgprS64}, {Vgpr32}}})
@@ -2214,7 +2241,7 @@ RegBankLegalizeRules::RegBankLegalizeRules(const GCNSubtarget &_ST,
   addRulesForIOpcs({amdgcn_struct_ptr_buffer_load_lds})
       .Any({{_}, {{}, {IntrId, SgprP8, SgprP3, Imm, Vgpr32, Vgpr32, Sgpr32}}});
 
-  addRulesForIOpcs({amdgcn_global_load_lds})
+  addRulesForIOpcs({amdgcn_global_load_lds, amdgcn_load_to_lds})
       .Any({{}, {{}, {IntrId, VgprP1, SgprB32_M0}}});
 
   addRulesForIOpcs({amdgcn_global_load_async_to_lds_b8,
@@ -2226,6 +2253,9 @@ RegBankLegalizeRules::RegBankLegalizeRules(const GCNSubtarget &_ST,
                     amdgcn_global_store_async_from_lds_b64,
                     amdgcn_global_store_async_from_lds_b128})
       .Any({{}, {{}, {IntrId, VgprP1, VgprP3}}});
+
+  addRulesForIOpcs({amdgcn_global_load_async_lds})
+      .Any({{}, {{}, {IntrId, VgprP1, SgprB32_M0}}});
 
   addRulesForIOpcs({amdgcn_tensor_load_to_lds, amdgcn_tensor_store_from_lds})
       .Any({{},
@@ -2286,6 +2316,8 @@ RegBankLegalizeRules::RegBankLegalizeRules(const GCNSubtarget &_ST,
       .Any({{DivB256}, {{VgprB256}, {IntrId, VgprB256}}})
       .Any({{UniB512}, {{SgprB512}, {IntrId, SgprB512}}})
       .Any({{DivB512}, {{VgprB512}, {IntrId, VgprB512}}});
+
+  addRulesForIOpcs({amdgcn_init_whole_wave}).Any({{DivS1}, {{Vcc}, {IntrId}}});
 
   addRulesForIOpcs({amdgcn_kill, amdgcn_wqm_demote})
       .Any({{}, {{}, {IntrId, Vcc}}});
@@ -2521,13 +2553,21 @@ RegBankLegalizeRules::RegBankLegalizeRules(const GCNSubtarget &_ST,
              {IntrId, VgprAnyTy, VgprAnyTy, VgprOrAgprAnyTy}}});
 
   addRulesForIOpcs(
-      {amdgcn_smfmac_f32_16x16x32_f16, amdgcn_smfmac_f32_32x32x16_f16,
+      {// gfx942+
+       amdgcn_smfmac_f32_16x16x32_f16, amdgcn_smfmac_f32_32x32x16_f16,
        amdgcn_smfmac_f32_16x16x32_bf16, amdgcn_smfmac_f32_32x32x16_bf16,
        amdgcn_smfmac_i32_16x16x64_i8, amdgcn_smfmac_i32_32x32x32_i8,
        amdgcn_smfmac_f32_16x16x64_bf8_bf8, amdgcn_smfmac_f32_16x16x64_bf8_fp8,
        amdgcn_smfmac_f32_16x16x64_fp8_bf8, amdgcn_smfmac_f32_16x16x64_fp8_fp8,
        amdgcn_smfmac_f32_32x32x32_bf8_bf8, amdgcn_smfmac_f32_32x32x32_bf8_fp8,
-       amdgcn_smfmac_f32_32x32x32_fp8_bf8, amdgcn_smfmac_f32_32x32x32_fp8_fp8})
+       amdgcn_smfmac_f32_32x32x32_fp8_bf8, amdgcn_smfmac_f32_32x32x32_fp8_fp8,
+       // gfx950+
+       amdgcn_smfmac_f32_16x16x64_f16, amdgcn_smfmac_f32_32x32x32_f16,
+       amdgcn_smfmac_i32_16x16x128_i8, amdgcn_smfmac_i32_32x32x64_i8,
+       amdgcn_smfmac_f32_16x16x128_bf8_bf8, amdgcn_smfmac_f32_16x16x128_bf8_fp8,
+       amdgcn_smfmac_f32_16x16x128_fp8_bf8, amdgcn_smfmac_f32_16x16x128_fp8_fp8,
+       amdgcn_smfmac_f32_32x32x64_bf8_bf8, amdgcn_smfmac_f32_32x32x64_bf8_fp8,
+       amdgcn_smfmac_f32_32x32x64_fp8_bf8, amdgcn_smfmac_f32_32x32x64_fp8_fp8})
       .Any({{DivAnyTy},
             {{VgprOrAgprAnyTy},
              {IntrId, VgprAnyTy, VgprAnyTy, VgprOrAgprAnyTy, VgprAnyTy}}});
