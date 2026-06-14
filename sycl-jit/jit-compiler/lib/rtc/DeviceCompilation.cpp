@@ -54,7 +54,7 @@
 #include <llvm/Support/FormatVariadic.h>
 #include <llvm/Support/PropertySetIO.h>
 #include <llvm/Support/TimeProfiler.h>
-#include <llvm/TargetParser/TargetParser.h>
+#include <llvm/TargetParser/AMDGPUTargetParser.h>
 
 #include <algorithm>
 #include <array>
@@ -319,7 +319,7 @@ class SYCLToolchain {
       PCHFS->addFile(PCHPath, 0, std::move(PrecompiledPreamble));
       auto OverlayFS =
           llvm::makeIntrusiveRefCnt<llvm::vfs::OverlayFileSystem>(VFS);
-      OverlayFS->pushOverlay(PCHFS);
+      OverlayFS->pushOverlay(std::move(PCHFS));
       VFS = std::move(OverlayFS);
     }
 

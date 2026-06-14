@@ -976,6 +976,9 @@ cases.
 #include <sycl/sycl.hpp>
 namespace syclexp = sycl::ext::oneapi::experimental;
 
+const size_t NUM = 1024;
+const size_t WGSIZE = 256;
+
 template<typename T>
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
 void iota(T start, T *ptr) {
@@ -1007,8 +1010,8 @@ int main() {
 
   // When there are multiple overloads of a free function kernel, use a cast
   // to disambiguate.
-  syclexp::nd_launch(q, ndr, syclexp::kernel_function<(void(*)(float))ping>, fptr);
-  syclexp::nd_launch(q, ndr, syclexp::kernel_function<(void(*)(int))ping>, iptr);
+  syclexp::nd_launch(q, ndr, syclexp::kernel_function<(void(*)(float*))ping>, fptr);
+  syclexp::nd_launch(q, ndr, syclexp::kernel_function<(void(*)(int*))ping>, iptr);
 
   q.wait();
 }

@@ -106,14 +106,19 @@ void vec_add(T* in1, T* in2, T* out){
 auto constexpr DeviceLibrariesSource = R"===(
 #include <sycl/sycl.hpp>
 #include <cmath>
-#include <complex>
+#include <complex.h>
+
+extern "C" SYCL_EXTERNAL float cabsf(float _Complex);
+extern "C" SYCL_EXTERNAL float _Complex cpowf(float _Complex, float _Complex);
+// C99 complex construction macro.
+#define CMPLXF(r, i) ((float _Complex){(float)(r), (float)(i)})
 
 extern "C" SYCL_EXTERNAL 
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(sycl::ext::oneapi::experimental::single_task_kernel)
 void device_libs_kernel(float *ptr) {
   // Extension list: llvm/lib/SYCLLowerIR/SYCLDeviceLibReqMask.cpp
 
-  // cl_intel_devicelib_assert is not available for opencl:gpu; skip testing
+  // assert is not available for opencl:gpu; skip testing
   // it. Only test the fp32 variants of complex and math to keep this test
   // device-agnostic.
   
@@ -121,7 +126,10 @@ void device_libs_kernel(float *ptr) {
   ptr[0] = erff(ptr[0]);
 
   // cl_intel_devicelib_complex
-  ptr[1] = std::abs(std::complex<float>{1.0f, ptr[1]});
+  float _Complex input1 = CMPLXF(1.0f, ptr[1]);
+  float _Complex input2 = CMPLXF(3.0f, 0);
+  float _Complex pow_res = cpowf(input1, input2);
+  ptr[1] = cabsf(pow_res);
 
   // cl_intel_devicelib_cstring
   ptr[2] = memcmp(ptr + 2, ptr + 2, sizeof(float));

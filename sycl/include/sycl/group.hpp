@@ -591,7 +591,7 @@ public:
   }
 
   template <typename... eventTN> void wait_for(eventTN... Events) const {
-    waitForHelper(Events...);
+    (Events.wait(), ...);
   }
 
   bool operator==(const group<Dimensions> &rhs) const {
@@ -703,16 +703,6 @@ private:
   get_group_linear_id_impl() const {
     return (index[0] * groupRange[1] * groupRange[2]) +
            (index[1] * groupRange[2]) + index[2];
-  }
-
-  void waitForHelper() const {}
-
-  void waitForHelper(device_event Event) const { Event.wait(); }
-
-  template <typename T, typename... Ts>
-  void waitForHelper(T E, Ts... Es) const {
-    waitForHelper(E);
-    waitForHelper(Es...);
   }
 
 protected:

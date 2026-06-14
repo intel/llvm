@@ -9,6 +9,7 @@ add_conformance_devices_test(exp_graph
   urGraphDumpContentsExp.cpp
   urGraphInstantiateGraphExp.cpp
   urGraphIsEmptyExp.cpp
+  urGraphSetDestructionCallbackExp.cpp
   urQueueBeginCaptureIntoGraphExp.cpp
   urQueueBeginGraphCaptureExp.cpp
   urQueueEndGraphCaptureExp.cpp

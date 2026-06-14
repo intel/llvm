@@ -18,6 +18,7 @@
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20142
 
 #include <sycl/detail/core.hpp>
+#include <sycl/half_type.hpp>
 
 using namespace sycl;
 

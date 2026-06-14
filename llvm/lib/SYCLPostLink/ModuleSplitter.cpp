@@ -93,7 +93,8 @@ bool isSpirvSyclBuiltin(StringRef FName) {
   // now skip the digits
   FName = FName.drop_while([](char C) { return std::isdigit(C); });
 
-  return FName.starts_with("__spirv_") || FName.starts_with("__sycl_");
+  return FName.starts_with("__spirv_") || FName.starts_with("__sycl_") ||
+         FName.starts_with("__builtin_spirv_");
 }
 
 // Return true if the function is a ESIMD builtin
