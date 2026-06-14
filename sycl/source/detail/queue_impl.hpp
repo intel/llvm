@@ -240,11 +240,12 @@ public:
   static std::shared_ptr<queue_impl> create(Ts &&...args) {
     auto ImplPtr =
         std::make_shared<queue_impl>(std::forward<Ts>(args)..., private_tag{});
-    ImplPtr->getDeviceImpl().registerQueue(ImplPtr);
+    ImplPtr->getDeviceImpl().registerQueue(ImplPtr.get());
     return ImplPtr;
   }
 
   ~queue_impl() {
+    getDeviceImpl().unregisterQueue(this);
     try {
 #if XPTI_ENABLE_INSTRUMENTATION
       // The trace event created in the constructor should be active through the

@@ -2289,12 +2289,14 @@ public:
   // Dispatch all unconsumed asynchronous exception to the appropriate handlers.
   void throwAsynchronous();
 
-  void registerQueue(const std::weak_ptr<queue_impl> &Q) {
+  // Called by queue_impl in its constructor.
+  void registerQueue(queue_impl *Q) {
     std::lock_guard<std::mutex> Lock(MQueuesMutex);
     MQueues.insert(Q);
   }
 
-  void unregisterQueue(const std::weak_ptr<queue_impl> &Q) {
+  // Called by queue_impl in its destructor.
+  void unregisterQueue(queue_impl *Q) {
     std::lock_guard<std::mutex> Lock(MQueuesMutex);
     MQueues.erase(Q);
   }
@@ -2309,9 +2311,7 @@ private:
   // Devices track a list of active queues on it, to allow for synchronization
   // with host_task and not-yet-enqueued commands.
   std::mutex MQueuesMutex;
-  std::set<std::weak_ptr<queue_impl>,
-           std::owner_less<std::weak_ptr<queue_impl>>>
-      MQueues;
+  std::set<queue_impl *> MQueues;
 
   // Order of caches matters! UR must come before SYCL info descriptors (because
   // get_info calls get_info_impl but the opposite never happens) and both
