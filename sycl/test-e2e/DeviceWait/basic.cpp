@@ -24,12 +24,13 @@ int main() try {
       sycl::queue{Contexts[1], D},
       sycl::queue{Contexts[1], D, sycl::property::queue::in_order()}};
 
-  // Queue registers itself to the per-device queue list when it's created,
-  // And unregisters itself when it's destructed. This test verifies that the
-  // queue list is updated correctly when the queue is destructed. Otherwise,
-  // ext_oneapi_wait call would assert fail.
+  // A queue registers itself in the per-device queue list when it is created
+  // and unregisters itself when it is destroyed. This test verifies that the
+  // queue list is updated correctly when the queue is destroyed; otherwise the
+  // ext_oneapi_wait() call would hit an assertion failure.
   {
     sycl::queue QTemp{Contexts[0], D};
+    (void)QTemp;
   }
 
   std::vector<sycl::event> Events;
