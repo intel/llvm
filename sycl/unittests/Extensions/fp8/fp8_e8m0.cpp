@@ -15,9 +15,11 @@ using namespace sycl::ext::oneapi::experimental;
 
 namespace {
 
+#if LLVM_ENABLE_ASSERTIONS
 constexpr const char *UnsupportedRoundingAssertRegex =
     "fp8_e8m0_x: only rounding::upward and rounding::toward_zero are "
     "\" \"supported";
+#endif // LLVM_ENABLE_ASSERTIONS
 
 bool checkCode(float Input, rounding Mode, uint8_t Expected) {
   const float Values[1] = {Input};
