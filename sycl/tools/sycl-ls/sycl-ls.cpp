@@ -26,9 +26,6 @@
 #include <string>
 #include <vector>
 
-// To get backend to str conversion
-#include <backend_helpers.hpp>
-
 #ifdef __linux__
 #include <errno.h>
 #include <fcntl.h>

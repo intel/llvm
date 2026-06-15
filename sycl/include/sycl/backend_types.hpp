@@ -11,7 +11,8 @@
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
 #include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
 
-#include <iosfwd> // for ostream
+#include <iosfwd>      // for ostream
+#include <string_view> // for string_view
 
 namespace sycl {
 inline namespace _V1 {
@@ -39,6 +40,31 @@ using backend_return_t =
     typename backend_traits<Backend>::template return_type<SYCLObjectT>;
 
 __SYCL_EXPORT std::ostream &operator<<(std::ostream &Out, backend be);
+
+namespace detail {
+inline std::string_view get_backend_name_no_vendor(backend Backend) {
+  switch (Backend) {
+  case backend::host:
+    return "host";
+  case backend::opencl:
+    return "opencl";
+  case backend::ext_oneapi_level_zero:
+    return "level_zero";
+  case backend::ext_oneapi_cuda:
+    return "cuda";
+  case backend::ext_oneapi_hip:
+    return "hip";
+  case backend::ext_oneapi_native_cpu:
+    return "native_cpu";
+  case backend::ext_oneapi_offload:
+    return "offload";
+  case backend::all:
+    return "all";
+  }
+
+  return "";
+}
+} // namespace detail
 
 } // namespace _V1
 } // namespace sycl

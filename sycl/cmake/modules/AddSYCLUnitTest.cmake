@@ -139,7 +139,6 @@ function(add_sycl_unittest_internal test_dirname link_variant is_preview)
   target_include_directories(${test_dirname}
     PRIVATE SYSTEM
       ${sycl_inc_dir}
-      ${sycl_internal_dir}
       ${SYCL_SOURCE_DIR}/source/
       ${SYCL_SOURCE_DIR}/unittests/
     )

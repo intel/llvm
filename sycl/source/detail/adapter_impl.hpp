@@ -17,8 +17,6 @@
 #include <sycl/detail/defines.hpp>
 #include <sycl/detail/type_traits.hpp>
 
-#include <backend_helpers.hpp>
-
 #include <unified-runtime/ur_api.h>
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 // Include the headers necessary for emitting traces using the trace framework
