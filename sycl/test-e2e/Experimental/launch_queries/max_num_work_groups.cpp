@@ -3,6 +3,7 @@
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/kernel_queue_info.hpp>
+#include <sycl/group_barrier.hpp>
 #include <sycl/kernel_bundle.hpp>
 
 #include <cassert>
@@ -49,7 +50,7 @@ public:
     const auto gtid = item.get_global_linear_id();
     if (ltid < loc_acc_.size()) {
       loc_acc_[ltid] = ltid + 42;
-      item.barrier(sycl::access::fence_space::local_space);
+      sycl::group_barrier(item.get_group());
       acc_[gtid] = loc_acc_[ltid];
     } else {
       acc_[gtid] = 0;
