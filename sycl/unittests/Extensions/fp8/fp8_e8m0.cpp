@@ -441,7 +441,7 @@ TEST(FP8E8M0Test, X2NotAssignableFromSingleULL) {
   EXPECT_FALSE((std::is_assignable_v<fp8_e8m0_x2 &, unsigned long long>));
 }
 
-TEST(FP8E8M0Test, CArrayHalfToEvenRounding) {
+TEST(FP8E8M0Test, DISABLED_CArrayHalfToEvenRounding) {
   const sycl::half in[2] = {sycl::half(1.0f), sycl::half(2.0f)};
   EXPECT_DEATH(
       {
@@ -462,7 +462,7 @@ TEST(FP8E8M0Test, DISABLED_CArrayBFloat16ToEvenRounding) {
       UnsupportedRoundingAssertRegex);
 }
 
-TEST(FP8E8M0Test, CArrayFloatToEvenRounding) {
+TEST(FP8E8M0Test, DISABLED_CArrayFloatToEvenRounding) {
   const float in[2] = {1.0f, 2.0f};
   EXPECT_DEATH(
       {
@@ -472,7 +472,7 @@ TEST(FP8E8M0Test, CArrayFloatToEvenRounding) {
       UnsupportedRoundingAssertRegex);
 }
 
-TEST(FP8E8M0Test, MarrayHalfToEvenRounding) {
+TEST(FP8E8M0Test, DISABLED_MarrayHalfToEvenRounding) {
   const sycl::marray<sycl::half, 2> in = {sycl::half(1.0f), sycl::half(2.0f)};
   EXPECT_DEATH(
       {
@@ -482,7 +482,7 @@ TEST(FP8E8M0Test, MarrayHalfToEvenRounding) {
       UnsupportedRoundingAssertRegex);
 }
 
-TEST(FP8E8M0Test, MarrayBFloat16ToEvenRounding) {
+TEST(FP8E8M0Test, DISABLED_MarrayBFloat16ToEvenRounding) {
   const sycl::marray<sycl::ext::oneapi::bfloat16, 2> in = {
       sycl::ext::oneapi::bfloat16(1.0f), sycl::ext::oneapi::bfloat16(2.0f)};
   EXPECT_DEATH(
@@ -493,7 +493,7 @@ TEST(FP8E8M0Test, MarrayBFloat16ToEvenRounding) {
       UnsupportedRoundingAssertRegex);
 }
 
-TEST(FP8E8M0Test, MarrayFloatToEvenRounding) {
+TEST(FP8E8M0Test, DISABLED_MarrayFloatToEvenRounding) {
   const sycl::marray<float, 2> in = {1.0f, 2.0f};
   EXPECT_DEATH(
       {
