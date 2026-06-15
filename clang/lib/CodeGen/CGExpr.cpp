@@ -2387,8 +2387,7 @@ LValue CodeGenFunction::EmitMatrixElementExpr(const MatrixElementExpr *E) {
     RawAddress MatAddr = Base.getAddress();
     if (getLangOpts().HLSL &&
         E->getBase()->getType().getAddressSpace() == LangAS::hlsl_constant)
-      MatAddr = CGM.getHLSLRuntime().createBufferMatrixTempAddress(
-          Base, E->getExprLoc(), *this);
+      MatAddr = CGM.getHLSLRuntime().createBufferMatrixTempAddress(Base, *this);
 
     llvm::Constant *CV =
         llvm::ConstantDataVector::get(getLLVMContext(), Indices);
@@ -2501,8 +2500,7 @@ static RValue EmitLoadOfMatrixLValue(LValue LV, SourceLocation Loc,
   // non-padded local alloca before loading.
   if (CGF.getLangOpts().HLSL &&
       LV.getType().getAddressSpace() == LangAS::hlsl_constant)
-    DestAddr =
-        CGF.CGM.getHLSLRuntime().createBufferMatrixTempAddress(LV, Loc, CGF);
+    DestAddr = CGF.CGM.getHLSLRuntime().createBufferMatrixTempAddress(LV, CGF);
 
   Address Addr = MaybeConvertMatrixAddress(DestAddr, CGF);
   LV.setAddress(Addr);
@@ -3468,8 +3466,7 @@ static LValue EmitGlobalVarDeclLValue(CodeGenFunction &CGF,
   // the initialized global resource array.
   if (CGF.getLangOpts().HLSL && VD->getType()->isHLSLResourceRecordArray()) {
     std::optional<LValue> LV =
-        CGF.CGM.getHLSLRuntime().emitGlobalResourceArrayAsLValue(
-            CGF, VD, E->getExprLoc());
+        CGF.CGM.getHLSLRuntime().emitGlobalResourceArrayAsLValue(CGF, VD);
     if (LV.has_value())
       return LV.value();
   }
@@ -5250,8 +5247,7 @@ LValue CodeGenFunction::EmitMatrixSingleSubscriptExpr(
   RawAddress MatAddr = Base.getAddress();
   if (getLangOpts().HLSL &&
       E->getBase()->getType().getAddressSpace() == LangAS::hlsl_constant)
-    MatAddr = CGM.getHLSLRuntime().createBufferMatrixTempAddress(
-        Base, E->getExprLoc(), *this);
+    MatAddr = CGM.getHLSLRuntime().createBufferMatrixTempAddress(Base, *this);
 
   return LValue::MakeMatrixRow(MaybeConvertMatrixAddress(MatAddr, *this),
                                RowIdx, E->getBase()->getType(),

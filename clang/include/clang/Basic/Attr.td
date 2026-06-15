@@ -6179,7 +6179,7 @@ def OverflowBehavior : TypeAttr {
   let Args = [IdentifierArgument<"BehaviorKind">];
   let Subjects = SubjectList<[Var, TypedefName, Field], WarnDiag,
                              "variables, typedefs, and data members">;
-  let Documentation = [Undocumented];
+  let Documentation = [OverflowBehaviorDocs];
 }
 
 def Personality : InheritableAttr {
