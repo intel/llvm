@@ -1722,8 +1722,7 @@ SPIRVValue *LLVMToSPIRVBase::transUnaryInst(UnaryInstruction *U,
       // SPV_INTEL_function_pointers extension is enabled. Translate as
       // OpBitcast between pointer types of different storage classes.
       getErrorLog().checkError(
-          BM->isAllowedToUseExtension(
-              ExtensionID::SPV_INTEL_function_pointers),
+          BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_function_pointers),
           SPIRVEC_InvalidModule, U,
           "Casts from CodeSectionINTEL address space require "
           "SPV_INTEL_function_pointers extension\n");
