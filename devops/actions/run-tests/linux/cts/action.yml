@@ -14,6 +14,10 @@ inputs:
     required: true
   retention-days:
     required: false
+  sycl_compiler:
+    description: "Path to the SYCL compiler (dpclang++). Defaults to 'dpclang++' found in PATH."
+    required: false
+    default: "$(which dpclang++)"
 
 runs:
   using: "composite"
@@ -56,11 +60,11 @@ runs:
         echo "::endgroup::"
       fi
 
-      cmake -GNinja -B./build-cts -S./khronos_sycl_cts -DCMAKE_CXX_COMPILER=$(which clang++) \
+      cmake -GNinja -B./build-cts -S./khronos_sycl_cts -DCMAKE_CXX_COMPILER="${{ inputs.sycl_compiler }}" \
       -DSYCL_IMPLEMENTATION=DPCPP \
       -DSYCL_CTS_EXCLUDE_TEST_CATEGORIES="$cts_exclude_filter" \
       -DSYCL_CTS_ENABLE_OPENCL_INTEROP_TESTS=OFF \
-      -DDPCPP_INSTALL_DIR="$(dirname $(which clang++))/.." \
+      -DDPCPP_INSTALL_DIR="$(dirname ${{ inputs.sycl_compiler }})/.." \
       -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
       $CMAKE_EXTRA_ARGS
       # Ignore errors so that if one category build fails others still have a

@@ -547,11 +547,10 @@ set(LLVM_TOOLS_INSTALL_DIR "${DPCPP_INSTALL_INTERNAL_BINDIR}" CACHE STRING "" FO
 set(CLANG_TOOLS_INSTALL_DIR "${DPCPP_INSTALL_INTERNAL_BINDIR}" CACHE PATH "" FORCE)
 
 # The default resource-dir formula is: dirname(binary)/../lib/clang/VERSION.
-# For binaries installed in lib/dpcpp-N/bin/ this resolves to
-# lib/dpcpp-N/lib/clang/VERSION which is wrong.  Installing a
-# lib -> ../../lib symlink inside lib/dpcpp-N/ makes the formula resolve
-# correctly without baking a path into the binary (which breaks build-tree
-# tests).
+# For binaries installed in lib/dpcpp-N/bin/ this resolves inside lib/dpcpp-N/
+# instead of the install root.  Installing a lib -> ../../lib symlink inside
+# lib/dpcpp-N/ makes the formula resolve correctly without baking a path into
+# the binary (which breaks build-tree tests).
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND LLVM_USE_SYMLINKS)
   cmake_path(GET DPCPP_INSTALL_INTERNAL_BINDIR PARENT_PATH _dpcpp_dir)
   install(CODE "

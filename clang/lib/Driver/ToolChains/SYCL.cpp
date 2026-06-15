@@ -31,27 +31,49 @@ SYCLInstallationDetector::SYCLInstallationDetector(
   // When -fsycl is active, locate the SYCL runtime library and record its
   // directory in SYCLRTLibPath for use by the linker.
   StringRef SysRoot = D.SysRoot;
-  SmallString<128> DriverDir(D.Dir);
-  SmallString<128> LibPath(DriverDir);
-  llvm::sys::path::append(LibPath, "..", "lib", HostTriple.str(),
-                          "libsycl.so");
+
+  // The binary may live in a versioned subdirectory (e.g. lib/dpcpp-N/bin/)
+  // rather than directly in bin/.  Walk up from D.Dir until we find a
+  // directory that looks like the install root (contains include/sycl or
+  // lib/clang), falling back to D.Dir/.. if nothing is found.
+  SmallString<128> InstallRoot(D.Dir);
+  for (int Depth = 0; Depth < 4; ++Depth) {
+    SmallString<128> Probe(InstallRoot);
+    llvm::sys::path::append(Probe, "..", "include", "sycl");
+    llvm::sys::path::remove_dots(Probe, /*remove_dot_dot=*/true);
+    if (D.getVFS().exists(Probe)) {
+      llvm::sys::path::append(InstallRoot, "..");
+      llvm::sys::path::remove_dots(InstallRoot, /*remove_dot_dot=*/true);
+      break;
+    }
+    llvm::sys::path::append(InstallRoot, "..");
+    llvm::sys::path::remove_dots(InstallRoot, /*remove_dot_dot=*/true);
+  }
+
+  SmallString<128> DriverDir(InstallRoot);
+  SmallString<128> LibPath(InstallRoot);
+  llvm::sys::path::append(LibPath, "lib", HostTriple.str(), "libsycl.so");
   // Flat lib path for LLVM_ENABLE_PER_TARGET_RUNTIME_DIR=OFF builds,
   // where the library is installed directly in lib/ with no triple subdir.
-  SmallString<128> FlatLibPath(DriverDir);
-  llvm::sys::path::append(FlatLibPath, "..", "lib", "libsycl.so");
+  SmallString<128> FlatLibPath(InstallRoot);
+  llvm::sys::path::append(FlatLibPath, "lib", "libsycl.so");
 
-  if (DriverDir.starts_with(SysRoot) &&
+  if (InstallRoot.starts_with(SysRoot) &&
       Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false)) {
     // LLVM_ENABLE_PER_TARGET_RUNTIME_DIR=ON: library is in lib/<triple>/
-    if (D.getVFS().exists(LibPath))
-      llvm::sys::path::append(DriverDir, "..", "lib", HostTriple.str());
+    if (D.getVFS().exists(LibPath)) {
+      DriverDir = InstallRoot;
+      llvm::sys::path::append(DriverDir, "lib", HostTriple.str());
+    }
     // LLVM_ENABLE_PER_TARGET_RUNTIME_DIR=OFF: library is in lib/
-    else if (D.getVFS().exists(FlatLibPath))
-      llvm::sys::path::append(DriverDir, "..", "lib");
-    if (!DriverDir.equals(D.Dir))
+    else if (D.getVFS().exists(FlatLibPath)) {
+      DriverDir = InstallRoot;
+      llvm::sys::path::append(DriverDir, "lib");
+    }
+    if (!DriverDir.equals(InstallRoot))
       SYCLRTLibPath = DriverDir;
   }
-  InstallationCandidates.emplace_back(D.Dir + "/..");
+  InstallationCandidates.emplace_back(InstallRoot);
 }
 
 static llvm::SmallString<64>
@@ -142,10 +164,13 @@ void SYCLInstallationDetector::addSYCLIncludeArgs(
     return;
   }
   // Add the SYCL header search locations in the specified order.
-  //   ../include/sycl/stl_wrappers
-  //   ../include
-  SmallString<128> IncludePath(D.Dir);
-  llvm::sys::path::append(IncludePath, "..");
+  //   <install-root>/include/sycl/stl_wrappers
+  //   <install-root>/include
+  // Use the install root from InstallationCandidates (which already accounts
+  // for versioned binary subdirectories like lib/dpcpp-N/bin/).
+  SmallString<128> IncludePath(InstallationCandidates.empty()
+                                   ? StringRef(D.Dir + "/..")
+                                   : StringRef(InstallationCandidates[0]));
   llvm::sys::path::append(IncludePath, "include");
   // This is used to provide our wrappers around STL headers that provide
   // additional functions/template specializations when the user includes those
