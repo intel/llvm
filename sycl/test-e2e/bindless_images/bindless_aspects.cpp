@@ -4,8 +4,10 @@
 // RUN: %{run-unfiltered-devices} %t.out
 
 #include <iostream>
+#include <sycl/aspects.hpp>
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/bindless_images.hpp>
+#include <sycl/ext/oneapi/experimental/bindless_image_info.hpp>
 
 // Uncomment to print additional test information
 // #define VERBOSE_PRINT

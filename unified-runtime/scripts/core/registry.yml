@@ -727,7 +727,19 @@ etors:
 - name: GRAPH_SET_DESTRUCTION_CALLBACK_EXP
   desc: Enumerator for $xGraphSetDestructionCallbackExp
   value: '315'
-max_id: '315'
+- name: IPC_GET_PHYS_MEM_HANDLE_EXP
+  desc: Enumerator for $xIPCGetPhysMemHandleExp
+  value: '316'
+- name: IPC_PUT_PHYS_MEM_HANDLE_EXP
+  desc: Enumerator for $xIPCPutPhysMemHandleExp
+  value: '317'
+- name: IPC_OPEN_PHYS_MEM_HANDLE_EXP
+  desc: Enumerator for $xIPCOpenPhysMemHandleExp
+  value: '318'
+- name: IPC_CLOSE_PHYS_MEM_HANDLE_EXP
+  desc: Enumerator for $xIPCClosePhysMemHandleExp
+  value: '319'
+max_id: '319'
 ---
 type: enum
 desc: Defines structure types
