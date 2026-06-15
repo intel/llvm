@@ -907,6 +907,23 @@ ur_result_t urUSMHostAllocRegisterExp(
   if (!hContext->getPlatform()->ZeExternalMemoryMappingExtensionSupported) {
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
+  if (pHostMem == nullptr || size == 0) {
+    return UR_RESULT_ERROR_INVALID_VALUE;
+  }
+
+  // Check that the half-open address range [pHostMem, pHostMem + size)
+  // does not wrap around the host address space.
+  uintptr_t Begin = reinterpret_cast<uintptr_t>(pHostMem);
+  if (size > std::numeric_limits<uintptr_t>::max() - Begin) {
+    return UR_RESULT_ERROR_INVALID_VALUE;
+  }
+
+  // The pointer and size must be aligned to the host page size.
+  const size_t PageSize = getHostPageSize();
+  if (reinterpret_cast<uintptr_t>(pHostMem) % PageSize != 0 ||
+      size % PageSize != 0) {
+    return UR_RESULT_ERROR_INVALID_VALUE;
+  }
 
   ze_external_memmap_sysmem_ext_desc_t sysMemDesc = {
       ZE_STRUCTURE_TYPE_EXTERNAL_MEMMAP_SYSMEM_EXT_DESC, nullptr, pHostMem,
@@ -918,7 +935,16 @@ ur_result_t urUSMHostAllocRegisterExp(
   void *mappedMem = nullptr;
   ZE2UR_CALL(zeMemAllocHost,
              (hContext->getZeHandle(), &hostDesc, size, 1, &mappedMem));
-  assert(mappedMem == pHostMem);
+
+  // This extension maps the existing host memory in place, so the mapped
+  // device virtual address must match the host pointer that was registered.
+  // If the driver ever returns a different address we cannot honor the
+  // contract, so undo the mapping and report a failure rather than silently
+  // handing back an unusable registration.
+  if (mappedMem != pHostMem) {
+    ZE_CALL_NOCHECK(zeMemFree, (hContext->getZeHandle(), mappedMem));
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  }
 
   return UR_RESULT_SUCCESS;
 }
@@ -927,6 +953,9 @@ ur_result_t urUSMHostAllocUnregisterExp(ur_context_handle_t hContext,
                                         void *pHostMem) {
   if (!hContext->getPlatform()->ZeExternalMemoryMappingExtensionSupported) {
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  }
+  if (pHostMem == nullptr) {
+    return UR_RESULT_ERROR_INVALID_VALUE;
   }
 
   ZE2UR_CALL(zeMemFree, (hContext->getZeHandle(), pHostMem));
