@@ -1998,7 +1998,7 @@ SYCLToolChain::getDeviceLibs(
   if (getTriple().isSPIROrSPIRV()) {
     std::string CompilerRTPath = getCompilerRTPath();
     SmallString<128> SPIRVCompilerRTPath(CompilerRTPath);
-    llvm::sys::path::append(SPIRVCompilerRTPath, "spirv64-unknown-unknown");
+    llvm::sys::path::append(SPIRVCompilerRTPath, "spirv64-intel-unknown");
     if (llvm::sys::fs::exists(SPIRVCompilerRTPath))
       LibraryPaths.emplace_back(SPIRVCompilerRTPath);
   }

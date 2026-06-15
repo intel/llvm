@@ -854,7 +854,7 @@ Error jit_compiler::linkDeviceLibraries(llvm::Module &Module,
   else if (Format == BinaryFormat::AMDGCN)
     TripleName = "amdgcn-amd-amdhsa";
   else
-    TripleName = "spirv64-unknown-unknown";
+    TripleName = "spirv64-intel-unknown";
 
   for (const std::string &LibName : LibNames) {
     std::string LibPath;
