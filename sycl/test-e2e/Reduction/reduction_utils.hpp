@@ -239,11 +239,9 @@ void printTestLabel(const RangeT &Range, bool ToCERR = false) {
 }
 
 template <typename BOp, typename T> constexpr bool isPreciseResultFP() {
-  return (std::is_floating_point_v<T> || std::is_same_v<T, sycl::half>)&&(
-      std::is_same_v<minimum<>, BOp> ||
-      std::is_same_v<minimum<T>, BOp> ||
-      std::is_same_v<maximum<>, BOp> ||
-      std::is_same_v<maximum<T>, BOp>);
+  return (std::is_floating_point_v<T> || std::is_same_v<T, sycl::half>) &&
+         (std::is_same_v<minimum<>, BOp> || std::is_same_v<minimum<T>, BOp> ||
+          std::is_same_v<maximum<>, BOp> || std::is_same_v<maximum<T>, BOp>);
 }
 
 template <typename BinaryOperation, typename T, typename RangeT>

@@ -91,13 +91,11 @@ void check(queue &Queue, size_t G = 256, size_t L = 64) {
   if (std::is_floating_point<T>::value || std::is_same<T, sycl::half>::value) {
     check_op<
         sycl_subgr<SpecializationKernelName, class KernelName_LylCkHSTmrFhMH>,
-        T>(Queue, std::numeric_limits<T>::infinity(), minimum<T>(),
-           true, G, L);
+        T>(Queue, std::numeric_limits<T>::infinity(), minimum<T>(), true, G, L);
   } else {
     check_op<sycl_subgr<SpecializationKernelName,
                         class KernelName_gYWXQQXGnzJEpaftEQly>,
-             T>(Queue, std::numeric_limits<T>::max(), minimum<T>(),
-                true, G, L);
+             T>(Queue, std::numeric_limits<T>::max(), minimum<T>(), true, G, L);
   }
 
   check_op<
@@ -106,12 +104,11 @@ void check(queue &Queue, size_t G = 256, size_t L = 64) {
   if (std::is_floating_point<T>::value || std::is_same<T, sycl::half>::value) {
     check_op<
         sycl_subgr<SpecializationKernelName, class KernelName_EBNigvpxbxYEyRcl>,
-        T>(Queue, -std::numeric_limits<T>::infinity(),
-           maximum<T>(), true, G, L);
+        T>(Queue, -std::numeric_limits<T>::infinity(), maximum<T>(), true, G,
+           L);
   } else {
     check_op<sycl_subgr<SpecializationKernelName, class KernelName_KayihC>, T>(
-        Queue, std::numeric_limits<T>::min(), maximum<T>(), true,
-        G, L);
+        Queue, std::numeric_limits<T>::min(), maximum<T>(), true, G, L);
   }
 
   // Transparent operator functors.
@@ -126,26 +123,22 @@ void check(queue &Queue, size_t G = 256, size_t L = 64) {
   if (std::is_floating_point<T>::value || std::is_same<T, sycl::half>::value) {
     check_op<
         sycl_subgr<SpecializationKernelName, class KernelName_fgMMknFqTMGts>,
-        T>(Queue, std::numeric_limits<T>::infinity(), minimum<>(),
-           true, G, L);
+        T>(Queue, std::numeric_limits<T>::infinity(), minimum<>(), true, G, L);
   } else {
     check_op<sycl_subgr<SpecializationKernelName,
                         class KernelName_FVbXDSctbMnggHMCz>,
-             T>(Queue, std::numeric_limits<T>::max(), minimum<>(),
-                true, G, L);
+             T>(Queue, std::numeric_limits<T>::max(), minimum<>(), true, G, L);
   }
 
   check_op<sycl_subgr<SpecializationKernelName, class KernelName_zzvRru>, T>(
       Queue, T(G), maximum<>(), false, G, L);
   if (std::is_floating_point<T>::value || std::is_same<T, sycl::half>::value) {
     check_op<sycl_subgr<SpecializationKernelName, class KernelName_NJh>, T>(
-        Queue, -std::numeric_limits<T>::infinity(), maximum<>(),
-        true, G, L);
+        Queue, -std::numeric_limits<T>::infinity(), maximum<>(), true, G, L);
   } else {
     check_op<
         sycl_subgr<SpecializationKernelName, class KernelName_XjMHvRfLSQerFi>,
-        T>(Queue, std::numeric_limits<T>::min(), maximum<>(), true,
-           G, L);
+        T>(Queue, std::numeric_limits<T>::min(), maximum<>(), true, G, L);
   }
 }
 

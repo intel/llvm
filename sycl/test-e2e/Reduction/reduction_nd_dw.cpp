@@ -32,10 +32,10 @@ int main() {
   tests<class B3, int>(Q, 0, 99, std::bit_or<>{}, 8, 128);
   tests<class B4, int>(Q, 0, 99, std::bit_xor<>{}, 16, 256);
   tests<class B5, int>(Q, ~0, 99, std::bit_and<>{}, 32, 256);
-  tests<class B6, int>(Q, (std::numeric_limits<int>::max)(), -99,
-                       minimum<>{}, 64, 256);
-  tests<class B7, int>(Q, (std::numeric_limits<int>::min)(), 99,
-                       maximum<>{}, 128, 256);
+  tests<class B6, int>(Q, (std::numeric_limits<int>::max)(), -99, minimum<>{},
+                       64, 256);
+  tests<class B7, int>(Q, (std::numeric_limits<int>::min)(), 99, maximum<>{},
+                       128, 256);
   tests<class B8, int>(Q, 0, 99, std::plus<>{}, 256, 256);
 
   // Check with various types.

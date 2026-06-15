@@ -43,10 +43,10 @@ int main() {
   tests<class C2, int>(Q, 0, 99, std::bit_or<>{}, 8, 128);
   tests<class C3, int>(Q, 0, 99, std::bit_xor<>{}, 16, 256);
   tests<class C4, int>(Q, ~0, 99, std::bit_and<>{}, 32, 256);
-  tests<class C5, int>(Q, (std::numeric_limits<int>::max)(), -99,
-                       minimum<>{}, 64, 256);
-  tests<class C6, int>(Q, (std::numeric_limits<int>::min)(), 99,
-                       maximum<>{}, 128, 256);
+  tests<class C5, int>(Q, (std::numeric_limits<int>::max)(), -99, minimum<>{},
+                       64, 256);
+  tests<class C6, int>(Q, (std::numeric_limits<int>::min)(), 99, maximum<>{},
+                       128, 256);
   tests<class C7, int>(Q, 0, 99, std::plus<>{}, 256, 256);
   tests<class C8, int>(Q, 1, 2, std::multiplies<>{}, 8, 8);
   tests<class C9, float>(Q, 1, 1.2, std::multiplies<>{}, 8, 16);
