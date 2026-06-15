@@ -248,6 +248,7 @@ This extension adds the `fp8_e4m3_x` type, which represents a set of packed E4M3
 values and provides various conversions to other types.
 The number of packed elements is defined by the `N` template parameter, which
 must be either 1 or 2.
+When `N` is 2, objects of this type have 2-byte alignment.
 
 [source,c++]
 ----
@@ -656,6 +657,7 @@ This extension adds the `fp8_e5m2_x` type, which represents a set of packed E5M2
 values and provides various conversions to other types.
 The number of packed elements is defined by the `N` template parameter, which
 must be either 1 or 2.
+When `N` is 2, objects of this type have 2-byte alignment.
 
 [source,c++]
 ----
@@ -1196,6 +1198,7 @@ This extension adds the `fp8_e8m0_x` type, which represents a set of packed E8M0
 values and provides various conversions to other types.
 The number of packed elements is defined by the `N` template parameter, which
 must be either 1 or 2.
+When `N` is 2, objects of this type have 2-byte alignment.
 
 [source,c++]
 ----
@@ -1553,6 +1556,7 @@ Conversions to E8M0 using one of the non-stochastic rounding modes and with
 `saturation::finite` work as follows:
 
 * NaN is converted to NaN while dropping the sign.
+* Negative values are converted to an unspecified E8M0 value.
 * Other values are rounded according to the rounding mode.
 * If the resulting value is larger in magnitude than the max normal value, it is
   converted to the max normal value while dropping the sign.
