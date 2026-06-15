@@ -201,10 +201,10 @@ def do_configure(args, passthrough_args):
     ]
 
     llvm_spirv64_runtimes = "libc"
-    runtime_targets += ";spirv64-unknown-unknown"
+    runtime_targets += ";spirv64-intel-unknown"
     cmake_cmd.extend(
         [
-            "-DRUNTIMES_spirv64-unknown-unknown_LLVM_ENABLE_RUNTIMES={}".format(
+            "-DRUNTIMES_spirv64-intel-unknown_LLVM_ENABLE_RUNTIMES={}".format(
                 llvm_spirv64_runtimes
             ),
         ]
@@ -235,7 +235,7 @@ def do_configure(args, passthrough_args):
 
     if libclc_enabled:
         for target in runtime_targets.split(";"):
-            if target == "default" or target == "spirv64-unknown-unknown":
+            if target == "default" or target == "spirv64-intel-unknown":
                 continue
             cmake_cmd.extend(
                 [
