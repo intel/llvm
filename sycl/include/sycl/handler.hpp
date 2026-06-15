@@ -2728,7 +2728,7 @@ private:
                                        size_t Width, size_t Height) {
     // If both pointers are host USM or unknown (assumed non-USM) we use a
     // host-task to satisfy dependencies.
-    host_task([=] {
+    host_task_from_enqueue_function_impl([=] {
       const T *CastedSrc = static_cast<const T *>(Src);
       T *CastedDest = static_cast<T *>(Dest);
       for (size_t I = 0; I < Height; ++I) {
@@ -2793,7 +2793,7 @@ private:
                                        size_t Height) {
     // If the pointer is host USM or unknown (assumed non-USM) we use a
     // host-task to satisfy dependencies.
-    host_task([=] {
+    host_task_from_enqueue_function_impl([=] {
       T *CastedDest = static_cast<T *>(Dest);
       for (size_t I = 0; I < Height; ++I) {
         T *ItBegin = CastedDest + DestPitch * I;

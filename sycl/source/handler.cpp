@@ -1567,34 +1567,36 @@ void handler::memcpyToHostOnlyDeviceGlobal(const void *DeviceGlobalPtr,
                                            size_t DeviceGlobalTSize,
                                            bool IsDeviceImageScoped,
                                            size_t NumBytes, size_t Offset) {
-  host_task([=, &Dev = impl->get_device(),
-             WeakContextImpl = impl->get_context().weak_from_this()] {
-    // Capture context as weak to avoid keeping it alive for too long. If it is
-    // dead by the time this executes, the operation would not have been visible
-    // anyway. Devices are alive till library shutdown so capturing a reference
-    // to one is fine.
-    if (std::shared_ptr<detail::context_impl> ContextImpl =
-            WeakContextImpl.lock())
-      ContextImpl->memcpyToHostOnlyDeviceGlobal(
-          Dev, DeviceGlobalPtr, Src, DeviceGlobalTSize, IsDeviceImageScoped,
-          NumBytes, Offset);
-  });
+  host_task_from_enqueue_function_impl(
+      [=, &Dev = impl->get_device(),
+       WeakContextImpl = impl->get_context().weak_from_this()] {
+        // Capture context as weak to avoid keeping it alive for too long. If it
+        // is dead by the time this executes, the operation would not have been
+        // visible anyway. Devices are alive till library shutdown so capturing
+        // a reference to one is fine.
+        if (std::shared_ptr<detail::context_impl> ContextImpl =
+                WeakContextImpl.lock())
+          ContextImpl->memcpyToHostOnlyDeviceGlobal(
+              Dev, DeviceGlobalPtr, Src, DeviceGlobalTSize, IsDeviceImageScoped,
+              NumBytes, Offset);
+      });
 }
 
 void handler::memcpyFromHostOnlyDeviceGlobal(void *Dest,
                                              const void *DeviceGlobalPtr,
                                              bool IsDeviceImageScoped,
                                              size_t NumBytes, size_t Offset) {
-  host_task([=, Context = impl->get_context().shared_from_this(),
-             &Dev = impl->get_device()] {
-    // Unlike memcpy to device_global, we need to keep the context alive in the
-    // capture of this operation as we must be able to correctly copy the value
-    // to the user-specified pointer. Device is guaranteed to live until SYCL RT
-    // library shutdown (but even if it wasn't, alive conext has to guarantee
-    // alive device).
-    Context->memcpyFromHostOnlyDeviceGlobal(
-        Dev, Dest, DeviceGlobalPtr, IsDeviceImageScoped, NumBytes, Offset);
-  });
+  host_task_from_enqueue_function_impl(
+      [=, Context = impl->get_context().shared_from_this(),
+       &Dev = impl->get_device()] {
+        // Unlike memcpy to device_global, we need to keep the context alive in
+        // the capture of this operation as we must be able to correctly copy
+        // the value to the user-specified pointer. Device is guaranteed to live
+        // until SYCL RT library shutdown (but even if it wasn't, alive conext
+        // has to guarantee alive device).
+        Context->memcpyFromHostOnlyDeviceGlobal(
+            Dev, Dest, DeviceGlobalPtr, IsDeviceImageScoped, NumBytes, Offset);
+      });
 }
 
 void handler::setKernelLaunchProperties(
