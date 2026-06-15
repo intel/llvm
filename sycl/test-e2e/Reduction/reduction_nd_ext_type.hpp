@@ -35,13 +35,13 @@ template <typename T> int runTests(sycl::aspect ExtAspect) {
   tests<class B2, T>(Q, 0, 33, std::plus<T>{}, 3, 3 * 5);
 
   tests<class C1, T>(Q, getMaximumFPValue<T>(), -10.0,
-                     ext::oneapi::minimum<T>{}, 7, 7 * 512, init_to_identity());
-  tests<class C2, T>(Q, getMaximumFPValue<T>(), 99.0, ext::oneapi::minimum<T>{},
+                     minimum<T>{}, 7, 7 * 512, init_to_identity());
+  tests<class C2, T>(Q, getMaximumFPValue<T>(), 99.0, minimum<T>{},
                      7, 7);
 
-  tests<class D1, T>(Q, getMinimumFPValue<T>(), 99.0, ext::oneapi::maximum<>{},
+  tests<class D1, T>(Q, getMinimumFPValue<T>(), 99.0, maximum<>{},
                      3, 3, init_to_identity());
-  tests<class D2, T>(Q, getMinimumFPValue<T>(), 99.0, ext::oneapi::maximum<>{},
+  tests<class D2, T>(Q, getMinimumFPValue<T>(), 99.0, maximum<>{},
                      7, 7 * 5);
 
   printFinalStatus(NumErrors);

@@ -47,9 +47,9 @@ int main() {
   if constexpr (Enable64Bit)
     tests<class B8, uint64_t>(Q, 1, 2, std::multiplies<>{}, 31);
   tests<class B9, int>(Q, (std::numeric_limits<int>::max)(), -99,
-                       ext::oneapi::minimum<>{}, MaxWGSize * 2);
+                       minimum<>{}, MaxWGSize * 2);
   tests<class B10, int>(Q, (std::numeric_limits<int>::min)(), 99,
-                        ext::oneapi::maximum<>{}, 8);
+                        maximum<>{}, 8);
   tests<class B11, float>(Q, 1, 99, std::multiplies<>{}, 10);
 
   // Check with CUSTOM type.

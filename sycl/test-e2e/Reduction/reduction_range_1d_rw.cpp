@@ -37,9 +37,9 @@ int main() {
   tests<class B4, uint64_t>(Q, 1, 2, std::multiplies<>{}, range<1>(16));
   tests<class B5, float>(Q, 1, 3, std::multiplies<>{}, range<1>(11));
   tests<class B6, int>(Q, (std::numeric_limits<int>::max)(), -99,
-                       ext::oneapi::minimum<>{}, range<1>(MaxWGSize * 2));
+                       minimum<>{}, range<1>(MaxWGSize * 2));
   tests<class B7, int>(Q, (std::numeric_limits<int>::min)(), 99,
-                       ext::oneapi::maximum<>{}, range<1>(8));
+                       maximum<>{}, range<1>(8));
 
   // Check with CUSTOM type.
   tests<class C1, CustomVec<long long>>(Q, 0, 99, CustomVecPlus<long long>{},
