@@ -93,6 +93,11 @@ foreach(link ${CLANG_LINKS_TO_CREATE} ${HLSL_LINK})
   add_clang_symlink(${link} clang)
 endforeach()
 
+# Create dpclang++ build-tree symlink so tests can use it without installing.
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  add_clang_symlink(dpclang++ clang)
+endif()
+
 # Install public dpclang* symlinks in ${CMAKE_INSTALL_BINDIR}.
 # These versioned names avoid conflicts with a system LLVM installation while
 # the real binaries live in ${DPCPP_INSTALL_INTERNAL_BINDIR} alongside all companion
