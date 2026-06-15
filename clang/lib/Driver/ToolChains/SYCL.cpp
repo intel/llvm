@@ -884,7 +884,7 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
                       InputFilename.contains("libdevice")))
         return true;
       if ((InputFilename.compare("libc.bc") == 0) &&
-          (FileName.find("spirv64-unknown-unknown") != std::string::npos))
+          (FileName.find("spirv64-intel-unknown") != std::string::npos))
         return true;
       StringRef LibSyclPrefix("libsycl-");
       if (!InputFilename.starts_with(LibSyclPrefix) ||
@@ -2000,7 +2000,7 @@ SYCLToolChain::getDeviceLibs(
     SmallVector<SmallString<128>, 4> OriginalLibraryPaths(LibraryPaths);
     for (auto LP : OriginalLibraryPaths) {
       SmallString<128> SPIRVLibraryPath(LP);
-      llvm::sys::path::append(SPIRVLibraryPath, "spirv64-unknown-unknown");
+      llvm::sys::path::append(SPIRVLibraryPath, "spirv64-intel-unknown");
       if (llvm::sys::fs::exists(SPIRVLibraryPath))
         LibraryPaths.emplace_back(SPIRVLibraryPath);
     }

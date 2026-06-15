@@ -855,7 +855,7 @@ Error jit_compiler::linkDeviceLibraries(llvm::Module &Module,
       LibPath = (TC.getLibclcDir() + TripleName + "/" + LibName).str();
     else if (LibName == "libc.bc")
       LibPath =
-          (TC.getPrefix() + "/lib/spirv64-unknown-unknown/" + LibName).str();
+          (TC.getPrefix() + "/lib/spirv64-intel-unknown/" + LibName).str();
     else
       LibPath = (TC.getPrefix() + getLibPathSuffix() + LibName).str();
 

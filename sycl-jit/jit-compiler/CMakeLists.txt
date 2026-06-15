@@ -19,7 +19,7 @@ set(SYCL_JIT_RESOURCE_INSTALL_COMPONENTS
   OpenCL-Headers
   clang-resource-headers
   libsycldevice
-  runtimes-spirv64-unknown-unknown)
+  runtimes-spirv64-intel-unknown)
 
 set(libclc_enabled FALSE)
 foreach(target IN LISTS LLVM_RUNTIME_TARGETS)
@@ -54,9 +54,9 @@ foreach(component IN LISTS SYCL_JIT_RESOURCE_INSTALL_COMPONENTS)
         sycl_jit_add_install_command("${component}" "${CMAKE_BINARY_DIR}/runtimes/runtimes-${tgt}-bins/libclc")
       endif()
     endforeach()
-  elseif("${component}" STREQUAL "runtimes-spirv64-unknown-unknown")
-    list(APPEND SYCL_JIT_RESOURCE_DEPS runtimes-spirv64-unknown-unknown)
-    sycl_jit_add_install_command("libc" "${CMAKE_BINARY_DIR}/runtimes/runtimes-spirv64-unknown-unknown-bins/libc")
+  elseif("${component}" STREQUAL "runtimes-spirv64-intel-unknown")
+    list(APPEND SYCL_JIT_RESOURCE_DEPS runtimes-spirv64-intel-unknown)
+    sycl_jit_add_install_command("libc" "${CMAKE_BINARY_DIR}/runtimes/runtimes-spirv64-intel-unknown-bins/libc")
   else()
     list(APPEND SYCL_JIT_RESOURCE_DEPS ${component})
     sycl_jit_add_install_command("${component}" "${CMAKE_BINARY_DIR}")
