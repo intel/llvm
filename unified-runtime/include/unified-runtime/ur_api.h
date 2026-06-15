@@ -10055,7 +10055,8 @@ typedef struct ur_exp_win32_handle_t {
 ///       named object on the caller's behalf (equivalent to the application
 ///       calling `OpenSharedHandleByName` and then importing by handle).
 ///     - Adapters that do not support importing by name must return
-///       ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE.
+///       ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE. Adapters that do not implement
+///       this entry point at all will return ::UR_RESULT_ERROR_UNINITIALIZED.
 typedef struct ur_exp_win32_name_t {
   /// [in] type of this structure, must be
   /// ::UR_STRUCTURE_TYPE_EXP_WIN32_NAME

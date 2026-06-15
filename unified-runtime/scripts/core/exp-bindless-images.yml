@@ -288,7 +288,8 @@ details:
        named object on the caller's behalf (equivalent to the application
        calling `OpenSharedHandleByName` and then importing by handle)."
     - "Adapters that do not support importing by name must return
-       $X_RESULT_ERROR_UNSUPPORTED_FEATURE."
+       $X_RESULT_ERROR_UNSUPPORTED_FEATURE. Adapters that do not implement
+       this entry point at all will return $X_RESULT_ERROR_UNINITIALIZED."
 name: $x_exp_win32_name_t
 base: $x_base_desc_t
 members:
