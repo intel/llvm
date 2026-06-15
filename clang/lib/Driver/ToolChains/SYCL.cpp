@@ -2000,7 +2000,7 @@ SYCLToolChain::getDeviceLibs(
     SmallVector<SmallString<128>, 4> OriginalLibraryPaths(LibraryPaths);
     for (auto LP : OriginalLibraryPaths) {
       SmallString<128> SPIRVLibraryPath(LP);
-      llvm::sys::path::append(SPIRVLibraryPath, "spirv64-unknown-unknown");
+      llvm::sys::path::append(SPIRVLibraryPath, "spirv64-intel-unknown");
       if (llvm::sys::fs::exists(SPIRVLibraryPath))
         LibraryPaths.emplace_back(SPIRVLibraryPath);
     }
