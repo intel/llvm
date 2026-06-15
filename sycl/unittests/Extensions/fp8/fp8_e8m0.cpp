@@ -441,6 +441,7 @@ TEST(FP8E8M0Test, X2NotAssignableFromSingleULL) {
   EXPECT_FALSE((std::is_assignable_v<fp8_e8m0_x2 &, unsigned long long>));
 }
 
+#if LLVM_ENABLE_ASSERTIONS
 TEST(FP8E8M0Test, CArrayHalfToEvenRounding) {
   const sycl::half in[2] = {sycl::half(1.0f), sycl::half(2.0f)};
   EXPECT_DEATH(
@@ -502,6 +503,7 @@ TEST(FP8E8M0Test, MarrayFloatToEvenRounding) {
       },
       UnsupportedRoundingAssertRegex);
 }
+#endif // LLVM_ENABLE_ASSERTIONS
 
 TEST(FP8E8M0Test, VariadicFloatReferences) {
   float x = 1.0f;
