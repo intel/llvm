@@ -201,11 +201,16 @@ def do_configure(args, passthrough_args):
     ]
 
     llvm_spirv64_runtimes = "compiler-rt"
+    llvm_spirv64_sanitizers = ""
     runtime_targets += ";spirv64-intel-unknown"
     cmake_cmd.extend(
         [
             "-DRUNTIMES_spirv64-intel-unknown_LLVM_ENABLE_RUNTIMES={}".format(
                 llvm_spirv64_runtimes
+            ),
+
+            "-DRUNTIMES_spirv64-intel-unknown_COMPILER_RT_SANITIZERS_TO_BUILD={}".format(
+                llvm_spirv64_sanitizers
             ),
         ]
     )
