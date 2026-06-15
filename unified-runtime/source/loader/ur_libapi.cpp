@@ -8641,6 +8641,151 @@ ur_result_t UR_APICALL urIPCCloseMemHandleExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Gets an inter-process handle for a physical memory object
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///         + `NULL == hPhysMem`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == ppIPCPhysMemHandleData`
+///         + `NULL == pIPCPhysMemHandleDataSizeRet`
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_INVALID_ARGUMENT
+///         + `hPhysMem` was not created with the
+///         `::UR_PHYSICAL_MEM_FLAG_ENABLE_IPC` flag
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+ur_result_t UR_APICALL urIPCGetPhysMemHandleExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the physical memory object
+    ur_physical_mem_handle_t hPhysMem,
+    /// [out] a pointer to the IPC physical memory handle data
+    void **ppIPCPhysMemHandleData,
+    /// [out] size of the resulting IPC physical memory handle data
+    size_t *pIPCPhysMemHandleDataSizeRet) try {
+  auto pfnGetPhysMemHandleExp =
+      ur_lib::getContext()->urDdiTable.IPCExp.pfnGetPhysMemHandleExp;
+  if (nullptr == pfnGetPhysMemHandleExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  return pfnGetPhysMemHandleExp(hContext, hPhysMem, ppIPCPhysMemHandleData,
+                                pIPCPhysMemHandleDataSizeRet);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Releases an inter-process physical memory handle
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pIPCPhysMemHandleData`
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+ur_result_t UR_APICALL urIPCPutPhysMemHandleExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] a pointer to the IPC physical memory handle data obtained with
+    /// urIPCGetPhysMemHandleExp
+    const void *pIPCPhysMemHandleData) try {
+  auto pfnPutPhysMemHandleExp =
+      ur_lib::getContext()->urDdiTable.IPCExp.pfnPutPhysMemHandleExp;
+  if (nullptr == pfnPutPhysMemHandleExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  return pfnPutPhysMemHandleExp(hContext, pIPCPhysMemHandleData);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Opens an inter-process physical memory handle to get the
+/// corresponding
+///        physical memory object
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///         + `NULL == hDevice`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == phPhysMem`
+///         + `NULL == pIPCPhysMemHandleData`
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///         + ipcPhysMemHandleDataSize is not the same as the size of IPC
+///         physical memory handle data
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+ur_result_t UR_APICALL urIPCOpenPhysMemHandleExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device object the physical memory was allocated on
+    ur_device_handle_t hDevice,
+    /// [in] the IPC physical memory handle data obtained with
+    /// urIPCGetPhysMemHandleExp
+    const void *pIPCPhysMemHandleData,
+    /// [in] size of the IPC physical memory handle data
+    size_t ipcPhysMemHandleDataSize,
+    /// [out] pointer to the physical memory handle
+    ur_physical_mem_handle_t *phPhysMem) try {
+  auto pfnOpenPhysMemHandleExp =
+      ur_lib::getContext()->urDdiTable.IPCExp.pfnOpenPhysMemHandleExp;
+  if (nullptr == pfnOpenPhysMemHandleExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  return pfnOpenPhysMemHandleExp(hContext, hDevice, pIPCPhysMemHandleData,
+                                 ipcPhysMemHandleDataSize, phPhysMem);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Closes an inter-process physical memory handle
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///         + `NULL == hPhysMem`
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+ur_result_t UR_APICALL urIPCClosePhysMemHandleExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] physical memory handle opened through urIPCOpenPhysMemHandleExp
+    ur_physical_mem_handle_t hPhysMem) try {
+  auto pfnClosePhysMemHandleExp =
+      ur_lib::getContext()->urDdiTable.IPCExp.pfnClosePhysMemHandleExp;
+  if (nullptr == pfnClosePhysMemHandleExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  return pfnClosePhysMemHandleExp(hContext, hPhysMem);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Allocate an exportable memory region and return a pointer to that
 ///        allocation.
 ///

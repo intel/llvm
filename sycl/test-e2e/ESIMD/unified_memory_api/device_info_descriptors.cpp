@@ -6,6 +6,7 @@
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/intel/esimd.hpp>
+#include <sycl/ext/intel/info/device.hpp>
 
 namespace syclex = sycl::ext::oneapi::experimental;
 

@@ -33,6 +33,15 @@ __SYCL_EXPORT handle get(void *Ptr, const sycl::context &Ctx);
 __SYCL_EXPORT void put(handle &HandleData, const sycl::context &Ctx);
 } // namespace ext::oneapi::experimental::ipc::memory
 
+namespace ext::oneapi::experimental {
+class physical_mem;
+} // namespace ext::oneapi::experimental
+
+namespace ext::oneapi::experimental::ipc::physical_memory {
+__SYCL_EXPORT handle get(physical_mem &physmem);
+__SYCL_EXPORT void put(handle &ipc_handle, const sycl::context &ctx);
+} // namespace ext::oneapi::experimental::ipc::physical_memory
+
 namespace ext::oneapi::experimental::ipc {
 
 using handle_data_t = std::vector<std::byte>;
@@ -59,6 +68,9 @@ private:
   friend __SYCL_EXPORT handle memory::get(void *Ptr, const sycl::context &Ctx);
   friend __SYCL_EXPORT void memory::put(handle &HandleData,
                                         const sycl::context &Ctx);
+  friend __SYCL_EXPORT handle physical_memory::get(physical_mem &physmem);
+  friend __SYCL_EXPORT void physical_memory::put(handle &ipc_handle,
+                                                 const sycl::context &ctx);
 };
 
 } // namespace ext::oneapi::experimental::ipc

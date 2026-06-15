@@ -857,6 +857,50 @@ protected:
 typedef SPIRVInstNoOperand<OpReturn> SPIRVReturn;
 typedef SPIRVInstNoOperand<OpUnreachable> SPIRVUnreachable;
 
+class SPIRVAbortKHR : public SPIRVInstruction {
+public:
+  static const Op OC = OpAbortKHR;
+  static const SPIRVWord FixedWordCount = 3;
+  // Complete constructor.
+  SPIRVAbortKHR(SPIRVValue *TheMessage, SPIRVBasicBlock *TheBB)
+      : SPIRVInstruction(FixedWordCount, OC, TheBB),
+        MessageTypeId(TheMessage->getType()->getId()),
+        MessageId(TheMessage->getId()) {
+    setAttr();
+    validate();
+    assert(TheBB && "Invalid BB");
+  }
+  // Incomplete constructor.
+  SPIRVAbortKHR()
+      : SPIRVInstruction(OC), MessageTypeId(SPIRVID_INVALID),
+        MessageId(SPIRVID_INVALID) {
+    setAttr();
+  }
+
+  SPIRVCapVec getRequiredCapability() const override {
+    return getVec(CapabilityAbortKHR);
+  }
+
+  std::optional<ExtensionID> getRequiredExtension() const override {
+    return ExtensionID::SPV_KHR_abort;
+  }
+
+  std::vector<SPIRVValue *> getOperands() override {
+    return std::vector<SPIRVValue *>(1, getValue(MessageId));
+  }
+
+  _SPIRV_DEF_ENCDEC2(MessageTypeId, MessageId)
+
+protected:
+  void setAttr() {
+    setHasNoId();
+    setHasNoType();
+  }
+  void validate() const override { SPIRVInstruction::validate(); }
+  SPIRVId MessageTypeId;
+  SPIRVId MessageId;
+};
+
 class SPIRVReturnValue : public SPIRVInstruction {
 public:
   static const Op OC = OpReturnValue;
@@ -1027,7 +1071,7 @@ public:
     assert(WordCount == Pairs.size() + FixedWordCount);
     assert(OpCode == OC);
     assert(Pairs.size() % 2 == 0);
-    foreachPair([=](SPIRVValue *IncomingV, SPIRVBasicBlock *IncomingBB) {
+    foreachPair([this](SPIRVValue *IncomingV, SPIRVBasicBlock *IncomingBB) {
       assert(IncomingV->isForward() || IncomingV->getType() == Type);
       assert(IncomingBB->isBasicBlock() || IncomingBB->isForward());
     });
@@ -1984,7 +2028,8 @@ public:
             ExtSetKind == SPIRVEIS_OpenCL_DebugInfo_100 ||
             ExtSetKind == SPIRVEIS_NonSemantic_Shader_DebugInfo_100 ||
             ExtSetKind == SPIRVEIS_NonSemantic_Shader_DebugInfo_200 ||
-            ExtSetKind == SPIRVEIS_NonSemantic_AuxData) &&
+            ExtSetKind == SPIRVEIS_NonSemantic_AuxData ||
+            ExtSetKind == SPIRVEIS_NonSemantic_Unknown) &&
            "not supported");
   }
   void encode(spv_ostream &O) const override {
@@ -2001,6 +2046,9 @@ public:
       break;
     case SPIRVEIS_NonSemantic_AuxData:
       getEncoder(O) << ExtOpNonSemanticAuxData;
+      break;
+    case SPIRVEIS_NonSemantic_Unknown:
+      getEncoder(O) << ExtOp;
       break;
     default:
       assert(0 && "not supported");
@@ -2023,6 +2071,9 @@ public:
       break;
     case SPIRVEIS_NonSemantic_AuxData:
       getDecoder(I) >> ExtOpNonSemanticAuxData;
+      break;
+    case SPIRVEIS_NonSemantic_Unknown:
+      getDecoder(I) >> ExtOp;
       break;
     default:
       assert(0 && "not supported");
@@ -2082,9 +2133,11 @@ public:
   }
 
   std::optional<ExtensionID> getRequiredExtension() const override {
-    if (SPIRVBuiltinSetNameMap::map(ExtSetKind).find("NonSemantic.") == 0 &&
-        !Module->isAllowedToUseVersion(VersionNumber::SPIRV_1_6))
-      return ExtensionID::SPV_KHR_non_semantic_info;
+    if (ExtSetKind == SPIRVEIS_NonSemantic_Unknown ||
+        SPIRVBuiltinSetNameMap::map(ExtSetKind).find("NonSemantic.") == 0) {
+      if (!Module->isAllowedToUseVersion(VersionNumber::SPIRV_1_6))
+        return ExtensionID::SPV_KHR_non_semantic_info;
+    }
     return {};
   }
 
@@ -3162,6 +3215,7 @@ public:
   SPIRVCapVec getRequiredCapability() const override {
     return getVec(CapabilityImageBasic);
   }
+  bool hasImageOperand(ImageOperandsMask Mask) const;
 
 protected:
   void setOpWords(const std::vector<SPIRVWord> &OpsArg) override;
@@ -4629,13 +4683,13 @@ public:
     return ExtensionID::SPV_INTEL_predicated_io;
   }
   SPIRVCapVec getRequiredCapability() const override {
-    return getVec(internal::CapabilityPredicatedIOINTEL);
+    return getVec(CapabilityPredicatedIOINTEL);
   }
 };
 
 #define _SPIRV_OP(x, ...)                                                      \
-  typedef SPIRVInstTemplate<SPIRVPredicatedIOINTELInst,                        \
-                            internal::Op##x##INTEL, __VA_ARGS__>               \
+  typedef SPIRVInstTemplate<SPIRVPredicatedIOINTELInst, Op##x##INTEL,          \
+                            __VA_ARGS__>                                       \
       SPIRV##x##INTEL;
 _SPIRV_OP(PredicatedLoad, true, 6, true)
 _SPIRV_OP(PredicatedStore, false, 4, true)
@@ -4734,6 +4788,20 @@ public:
 
 typedef SPIRVInstTemplate<SPIRVFmaKHRInstBase, OpFmaKHR, true, 6, false>
     SPIRVFmaKHR;
+
+class SPIRVFreezeKHRInstBase : public SPIRVInstTemplateBase {
+public:
+  SPIRVCapVec getRequiredCapability() const override {
+    return getVec(CapabilityPoisonFreezeKHR);
+  }
+
+  std::optional<ExtensionID> getRequiredExtension() const override {
+    return ExtensionID::SPV_KHR_poison_freeze;
+  }
+};
+
+typedef SPIRVInstTemplate<SPIRVFreezeKHRInstBase, OpFreezeKHR, true, 4, false>
+    SPIRVFreezeKHR;
 
 } // namespace SPIRV
 #endif // SPIRV_LIBSPIRV_SPIRVINSTRUCTION_H

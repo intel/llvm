@@ -65,6 +65,10 @@
 ; CHECK-SPIRV-DAG: Name [[#ComplexFunc1:]] "test_class_neginf_posnormal_negsubnormal_poszero_snan_f64"
 ; CHECK-SPIRV-DAG: Name [[#ComplexFunc2:]] "test_class_neginf_posnormal_negsubnormal_poszero_snan_v2f16"
 ; CHECK-SPIRV-DAG: Name [[#NotNanFunc:]] "test_class_inverted_is_not_nan_f32"
+; CHECK-SPIRV-DAG: Name [[#NotFiniteFunc:]] "test_class_inverted_not_finite_f32"
+; CHECK-SPIRV-DAG: Name [[#NotPosFiniteFunc:]] "test_class_inverted_not_pos_finite_f32"
+; CHECK-SPIRV-DAG: Name [[#NotNegFiniteFunc:]] "test_class_inverted_not_neg_finite_f32"
+; CHECK-SPIRV-DAG: Name [[#NotZeroFunc:]] "test_class_inverted_not_zero_f32"
 
 ; ModuleID = 'fpclass.bc'
 source_filename = "fpclass.ll"
@@ -438,6 +442,93 @@ define i1 @test_class_inverted_is_not_nan_f32(float %x) {
 ; CHECK-SPIRV-NEXT: LogicalNot [[#BoolTy]] [[#Not:]] [[#IsNan]]
 ; CHECK-SPIRV-NEXT: ReturnValue [[#Not]]
   %val = call i1 @llvm.is.fpclass.f32(float %x, i32 1020)
+  ret i1 %val
+}
+
+; inverted check for finite
+; 519 = ~fcFinite & fcAllFlags == fcNan | fcInf
+define i1 @test_class_inverted_not_finite_f32(float %x) {
+; CHECK-SPIRV: Function [[#]] [[#NotFiniteFunc]]
+; CHECK-SPIRV-NEXT: FunctionParameter [[#]] [[#Val:]]
+; CHECK-SPIRV-EMPTY:
+; CHECK-SPIRV-NEXT: Label
+; CHECK-SPIRV-NEXT: IsNormal [[#BoolTy]] [[#IsNormal:]] [[#Val]]
+; CHECK-SPIRV-NEXT: Bitcast [[#Int32Ty]] [[#BitCast1:]] [[#Val]]
+; CHECK-SPIRV-NEXT: ISub [[#Int32Ty]] [[#Sub:]] [[#BitCast1]] [[#const32One]]
+; CHECK-SPIRV-NEXT: ULessThan [[#BoolTy]] [[#Less:]] [[#Sub]] [[#MantissaConst]]
+; CHECK-SPIRV-NEXT: Bitcast [[#Int32Ty]] [[#BitCast2:]] [[#Val]]
+; CHECK-SPIRV-NEXT: BitwiseAnd [[#Int32Ty]] [[#BitwiseAndRes:]] [[#BitCast2]] [[#MaskToClearSignBit]]
+; CHECK-SPIRV-NEXT: IEqual [[#BoolTy]] [[#EqualZero:]] [[#BitwiseAndRes]] [[#ZeroConst]]
+; CHECK-SPIRV-NEXT: LogicalOr [[#BoolTy]] [[#Or1:]] [[#IsNormal]] [[#Less]]
+; CHECK-SPIRV-NEXT: LogicalOr [[#BoolTy]] [[#Or2:]] [[#Or1]] [[#EqualZero]]
+; CHECK-SPIRV-NEXT: LogicalNot [[#BoolTy]] [[#NotResult:]] [[#Or2]]
+; CHECK-SPIRV-NEXT: ReturnValue [[#NotResult]]
+  %val = call i1 @llvm.is.fpclass.f32(float %x, i32 519)
+  ret i1 %val
+}
+
+; inverted check for pos-finite
+; 575 = ~fcPosFinite & fcAllFlags
+define i1 @test_class_inverted_not_pos_finite_f32(float %x) {
+; CHECK-SPIRV: Function [[#]] [[#NotPosFiniteFunc]]
+; CHECK-SPIRV-NEXT: FunctionParameter [[#]] [[#Val:]]
+; CHECK-SPIRV-EMPTY:
+; CHECK-SPIRV-NEXT: Label
+; CHECK-SPIRV-NEXT: IsNormal [[#BoolTy]] [[#IsNormal:]] [[#Val]]
+; CHECK-SPIRV-NEXT: SignBitSet [[#BoolTy]] [[#Sign:]] [[#Val]]
+; CHECK-SPIRV-NEXT: LogicalNot [[#BoolTy]] [[#NotSign:]] [[#Sign]]
+; CHECK-SPIRV-NEXT: LogicalAnd [[#BoolTy]] [[#AndNorm:]] [[#NotSign]] [[#IsNormal]]
+; CHECK-SPIRV-NEXT: Bitcast [[#Int32Ty]] [[#BitCast1:]] [[#Val]]
+; CHECK-SPIRV-NEXT: ISub [[#Int32Ty]] [[#Sub:]] [[#BitCast1]] [[#const32One]]
+; CHECK-SPIRV-NEXT: ULessThan [[#BoolTy]] [[#Less:]] [[#Sub]] [[#MantissaConst]]
+; CHECK-SPIRV-NEXT: LogicalAnd [[#BoolTy]] [[#AndSub:]] [[#NotSign]] [[#Less]]
+; CHECK-SPIRV-NEXT: Bitcast [[#Int32Ty]] [[#BitCast2:]] [[#Val]]
+; CHECK-SPIRV-NEXT: IEqual [[#BoolTy]] [[#EqualPosZero:]] [[#BitCast2]] [[#ZeroConst]]
+; CHECK-SPIRV-NEXT: LogicalOr [[#BoolTy]] [[#Or1:]] [[#AndNorm]] [[#AndSub]]
+; CHECK-SPIRV-NEXT: LogicalOr [[#BoolTy]] [[#Or2:]] [[#Or1]] [[#EqualPosZero]]
+; CHECK-SPIRV-NEXT: LogicalNot [[#BoolTy]] [[#NotResult:]] [[#Or2]]
+; CHECK-SPIRV-NEXT: ReturnValue [[#NotResult]]
+  %val = call i1 @llvm.is.fpclass.f32(float %x, i32 575)
+  ret i1 %val
+}
+
+; inverted check for neg-finite
+; 967 = ~fcNegFinite & fcAllFlags
+define i1 @test_class_inverted_not_neg_finite_f32(float %x) {
+; CHECK-SPIRV: Function [[#]] [[#NotNegFiniteFunc]]
+; CHECK-SPIRV-NEXT: FunctionParameter [[#]] [[#Val:]]
+; CHECK-SPIRV-EMPTY:
+; CHECK-SPIRV-NEXT: Label
+; CHECK-SPIRV-NEXT: IsNormal [[#BoolTy]] [[#IsNormal:]] [[#Val]]
+; CHECK-SPIRV-NEXT: SignBitSet [[#BoolTy]] [[#Sign:]] [[#Val]]
+; CHECK-SPIRV-NEXT: LogicalAnd [[#BoolTy]] [[#AndNorm:]] [[#Sign]] [[#IsNormal]]
+; CHECK-SPIRV-NEXT: Bitcast [[#Int32Ty]] [[#BitCast1:]] [[#Val]]
+; CHECK-SPIRV-NEXT: ISub [[#Int32Ty]] [[#Sub:]] [[#BitCast1]] [[#const32One]]
+; CHECK-SPIRV-NEXT: ULessThan [[#BoolTy]] [[#Less:]] [[#Sub]] [[#MantissaConst]]
+; CHECK-SPIRV-NEXT: LogicalAnd [[#BoolTy]] [[#AndSub:]] [[#Sign]] [[#Less]]
+; CHECK-SPIRV-NEXT: Bitcast [[#Int32Ty]] [[#BitCast2:]] [[#Val]]
+; CHECK-SPIRV-NEXT: IEqual [[#BoolTy]] [[#EqualNegZero:]] [[#BitCast2]] [[#NegatedZeroConst]]
+; CHECK-SPIRV-NEXT: LogicalOr [[#BoolTy]] [[#Or1:]] [[#AndNorm]] [[#AndSub]]
+; CHECK-SPIRV-NEXT: LogicalOr [[#BoolTy]] [[#Or2:]] [[#Or1]] [[#EqualNegZero]]
+; CHECK-SPIRV-NEXT: LogicalNot [[#BoolTy]] [[#NotResult:]] [[#Or2]]
+; CHECK-SPIRV-NEXT: ReturnValue [[#NotResult]]
+  %val = call i1 @llvm.is.fpclass.f32(float %x, i32 967)
+  ret i1 %val
+}
+
+; inverted check for zero
+; 927 = ~fcZero & fcAllFlags
+define i1 @test_class_inverted_not_zero_f32(float %x) {
+; CHECK-SPIRV: Function [[#]] [[#NotZeroFunc]]
+; CHECK-SPIRV-NEXT: FunctionParameter [[#]] [[#Val:]]
+; CHECK-SPIRV-EMPTY:
+; CHECK-SPIRV-NEXT: Label
+; CHECK-SPIRV-NEXT: Bitcast [[#Int32Ty]] [[#BitCast:]] [[#Val]]
+; CHECK-SPIRV-NEXT: BitwiseAnd [[#Int32Ty]] [[#BitwiseAndRes:]] [[#BitCast]] [[#MaskToClearSignBit]]
+; CHECK-SPIRV-NEXT: IEqual [[#BoolTy]] [[#EqualZero:]] [[#BitwiseAndRes]] [[#ZeroConst]]
+; CHECK-SPIRV-NEXT: LogicalNot [[#BoolTy]] [[#NotResult:]] [[#EqualZero]]
+; CHECK-SPIRV-NEXT: ReturnValue [[#NotResult]]
+  %val = call i1 @llvm.is.fpclass.f32(float %x, i32 927)
   ret i1 %val
 }
 

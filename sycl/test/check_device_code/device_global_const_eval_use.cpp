@@ -35,7 +35,7 @@ constexpr device_global<float, decltype(properties(device_image_scope))>
 // CHECK: @{{[A-Za-z0-9_]*}}g_float = internal addrspace(1) constant { float } { float 4.500000e+00 }, align 4, !spirv.Decorations
 constexpr device_global<float[6], decltype(properties(device_image_scope))>
     dg_float_arr{4.5, 2.1, 3.5, 9.33, 2.33, 2.1};
-// CHECK: @{{[A-Za-z0-9_]*}}dg_float_arr = internal addrspace(1) constant { [6 x float] } { [6 x float] [float 4.500000e+00, float 0x4000CCCCC0000000, float 3.500000e+00, float 0x4022A8F5C0000000, float 0x4002A3D700000000, float 0x4000CCCCC0000000] }, align 4, !spirv.Decorations
+// CHECK: @{{[A-Za-z0-9_]*}}dg_float_arr = internal addrspace(1) constant { [6 x float] } { [6 x float] [float 4.500000e+00, float 2.100000e+00, float 3.500000e+00, float f0x411547AE, float 2.330000e+00, float 2.100000e+00] }, align 4, !spirv.Decorations
 
 // Constant double and array of double device_globals
 constexpr device_global<double, decltype(properties(device_image_scope))>
@@ -43,7 +43,7 @@ constexpr device_global<double, decltype(properties(device_image_scope))>
 // CHECK: @{{[A-Za-z0-9_]*}}dg_double = internal addrspace(1) constant { double  } { double 3.565430e+00 }, align 8, !spirv.Decorations
 constexpr device_global<double[3], decltype(properties(device_image_scope))>
     dg_double_arr{2.2341234, 233.23423, 236.52321};
-// CHECK: @{{[A-Za-z0-9_]*}}dg_double_arr = internal addrspace(1) constant { [3 x double] } { [3 x double] [double 0x4001DF7C16D1D39D, double 0x406D277ECFE9B7BF, double 0x406D90BE22E5DE16] }, align 8, !spirv.Decorations
+// CHECK: @{{[A-Za-z0-9_]*}}dg_double_arr = internal addrspace(1) constant { [3 x double] } { [3 x double] [double f0x4001DF7C16D1D39D, double f0x406D277ECFE9B7BF, double f0x406D90BE22E5DE16] }, align 8, !spirv.Decorations
 
 // Constant bool and array of bool device_globals
 constexpr device_global<bool, decltype(properties(device_image_scope))> dg_bool{
@@ -65,10 +65,10 @@ constexpr TestStruct TS2(7, false, 2.4, {1, 2, 3, 4});
 constexpr TestStruct TS3(6, false, 4.34534, {5, 6, 7, 8});
 constexpr device_global<TestStruct, decltype(properties(device_image_scope))>
     dg_struct{TS3};
-// CHECK: @{{[A-Za-z0-9_]*}}dg_struct = internal addrspace(1) constant { %struct.TestStruct } { %struct.TestStruct { i32 6, i8 0, float 0x401161A0C0000000, [4 x i32] [i32 5, i32 6, i32 7, i32 8] } }, align 4, !spirv.Decorations
+// CHECK: @{{[A-Za-z0-9_]*}}dg_struct = internal addrspace(1) constant { %struct.TestStruct } { %struct.TestStruct { i32 6, i8 0, float 4.345340e+00, [4 x i32] [i32 5, i32 6, i32 7, i32 8] } }, align 4, !spirv.Decorations
 constexpr device_global<TestStruct[2], decltype(properties(device_image_scope))>
     dg_struct_arr{TS1, TS2};
-// CHECK: @{{[A-Za-z0-9_]*}}dg_struct_arr = internal addrspace(1) constant { [2 x %struct.TestStruct] } { [2 x %struct.TestStruct] [%struct.TestStruct { i32 5, i8 1, float 0x4000CCCCC0000000, [4 x i32] [i32 1, i32 2, i32 3, i32 4] }, %struct.TestStruct { i32 7, i8 0, float 0x4003333340000000, [4 x i32] [i32 1, i32 2, i32 3, i32 4] }] }, align 4, !spirv.Decorations
+// CHECK: @{{[A-Za-z0-9_]*}}dg_struct_arr = internal addrspace(1) constant { [2 x %struct.TestStruct] } { [2 x %struct.TestStruct] [%struct.TestStruct { i32 5, i8 1, float 2.100000e+00, [4 x i32] [i32 1, i32 2, i32 3, i32 4] }, %struct.TestStruct { i32 7, i8 0, float 2.400000e+00, [4 x i32] [i32 1, i32 2, i32 3, i32 4] }] }, align 4, !spirv.Decorations
 
 // Struct with constexpr constructor
 struct TestStruct2 {

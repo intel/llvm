@@ -1210,6 +1210,10 @@ StringRef SYCL::gen::resolveGenDevice(StringRef DeviceName) {
                  "nvl_u")
           .Cases({"intel_gpu_nvl_p", "intel_gpu_35_10_0"}, "nvl_p")
           .Cases({"intel_gpu_cri", "intel_gpu_35_11_0"}, "cri")
+          .Case("intel_gpu_dg2", "dg2")
+          .Case("intel_gpu_mtl", "mtl")
+          .Case("intel_gpu_bmg", "bmg")
+          .Case("intel_gpu_ptl", "ptl")
           .Case("nvidia_gpu_sm_50", "sm_50")
           .Case("nvidia_gpu_sm_52", "sm_52")
           .Case("nvidia_gpu_sm_53", "sm_53")
@@ -1328,17 +1332,21 @@ SmallString<64> SYCL::gen::getGenDeviceMacro(StringRef DeviceName) {
           .Case("adl_p", "INTEL_GPU_ADL_P")
           .Case("adl_n", "INTEL_GPU_ADL_N")
           .Case("dg1", "INTEL_GPU_DG1")
+          .Case("dg2", "INTEL_GPU_DG2")
           .Cases({"acm_g10", "dg2_g10"}, "INTEL_GPU_ACM_G10")
           .Cases({"acm_g11", "dg2_g11"}, "INTEL_GPU_ACM_G11")
           .Cases({"acm_g12", "dg2_g12"}, "INTEL_GPU_ACM_G12")
           .Case("pvc", "INTEL_GPU_PVC")
           .Case("pvc_vg", "INTEL_GPU_PVC_VG")
+          .Case("mtl", "INTEL_GPU_MTL")
           .Cases({"mtl_u", "mtl_s", "arl_u", "arl_s"}, "INTEL_GPU_MTL_U")
           .Case("mtl_h", "INTEL_GPU_MTL_H")
           .Case("arl_h", "INTEL_GPU_ARL_H")
+          .Case("bmg", "INTEL_GPU_BMG")
           .Case("bmg_g21", "INTEL_GPU_BMG_G21")
           .Case("bmg_g31", "INTEL_GPU_BMG_G31")
           .Case("lnl_m", "INTEL_GPU_LNL_M")
+          .Case("ptl", "INTEL_GPU_PTL")
           .Case("ptl_h", "INTEL_GPU_PTL_H")
           .Case("ptl_u", "INTEL_GPU_PTL_U")
           .Case("wcl", "INTEL_GPU_WCL")
@@ -1845,9 +1853,24 @@ void SYCLToolChain::AddSPIRVImpliedTargetArgs(const llvm::Triple &Triple,
     // -ftarget-compile-fast AOT
     if (Args.hasArg(options::OPT_ftarget_compile_fast))
       BeArgs.push_back("-igc_opts 'PartitionUnit=1,SubroutineThreshold=50000'");
-    // -ftarget-export-symbols
+    // -ftarget-export-symbols, also implied for -fsyclbin=input/object so
+    // that AOT-compiled native images keep cross-image SYCL_EXTERNAL
+    // symbols externally visible for runtime resolution via
+    // zeModuleDynamicLink. Users who want a fully-linked, internalized
+    // native image should use -fsyclbin=executable instead. The conflict
+    // case (-fsyclbin=input/object with
+    // -fno-sycl-allow-device-image-dependencies) is diagnosed earlier in
+    // the linker-wrapper construction; here we only need to keep the
+    // implication aligned with the device-image-dependencies setting so
+    // that an explicit opt-out for non-SYCLBIN AOT scenarios is honored.
+    bool SYCLBINImpliesExportSymbols = false;
+    if (const Arg *A = Args.getLastArg(options::OPT_fsyclbin_EQ)) {
+      StringRef State = A->getValue();
+      SYCLBINImpliesExportSymbols = (State == "input" || State == "object");
+    }
     if (Args.hasFlag(options::OPT_ftarget_export_symbols,
-                     options::OPT_fno_target_export_symbols, false))
+                     options::OPT_fno_target_export_symbols,
+                     SYCLBINImpliesExportSymbols))
       BeArgs.push_back("-library-compilation");
     // -foffload-fp32-prec-[sqrt/div]
     if (Args.hasArg(options::OPT_foffload_fp32_prec_div) ||
@@ -2026,6 +2049,8 @@ SYCLToolChain::getDeviceLibs(
   return BCLibs;
 }
 
-SanitizerMask SYCLToolChain::getSupportedSanitizers() const {
+SanitizerMask SYCLToolChain::getSupportedSanitizers(
+    StringRef /*BoundArch*/, Action::OffloadKind /*DeviceOffloadKind*/) const {
+
   return SanitizerKind::Address | SanitizerKind::Memory | SanitizerKind::Thread;
 }
