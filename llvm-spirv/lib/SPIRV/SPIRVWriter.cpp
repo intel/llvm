@@ -1726,7 +1726,7 @@ SPIRVValue *LLVMToSPIRVBase::transUnaryInst(UnaryInstruction *U,
               ExtensionID::SPV_INTEL_function_pointers),
           SPIRVEC_InvalidModule, U,
           "Casts from CodeSectionINTEL address space require "
-         "SPV_INTEL_function_pointers extension\n");
+          "SPV_INTEL_function_pointers extension\n");
       BOC = OpBitcast;
     } else {
       getErrorLog().checkError(
