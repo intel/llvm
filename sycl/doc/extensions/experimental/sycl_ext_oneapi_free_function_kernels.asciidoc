@@ -70,22 +70,28 @@ This is different from standard SYCL kernels, where the kernel arguments are
 either captures of a lambda expression or member variables of a callable
 object.
 
-The primary motivation for this extension is the
-link:../experimental/sycl_ext_oneapi_kernel_compiler.asciidoc[
-sycl_ext_oneapi_kernel_compiler], which allows online compilation of a kernel
-from source code.
-These kernels must have a clean separation between host and device code, and
-they must have a defined order to their arguments because the application sets
-the argument values by their "index" via `handler::set_arg(index, value)`.
-Because variables captured by lambda expressions have no defined order, we need
-some other way to define kernel arguments for use with the
-sycl_ext_oneapi_kernel_compiler extension, and the
-sycl_ext_oneapi_free_function_kernels extension provides that mechanism.
-The "free function kernel" feature is a separate extension, though, because it
-can also be used independently from sycl_ext_oneapi_kernel_compiler.
-For example, some users may find it more familiar to define kernels as plain
-functions or they might have other reasons to prefer a clean separation between
-host and device code.
+Because the kernel arguments of a standard SYCL kernel are captures or member
+variables of a callable object, they have no defined order.
+A free function kernel instead exposes each kernel argument as a function
+parameter.
+This gives the kernel arguments a defined order, so the application can set the
+value of each argument by its index via `handler::set_arg(index, value)`.
+When the arguments are restricted to trivially copyable types (see the
+restrictions below), each argument also has a well defined size and
+representation, which gives the kernel a stable argument ABI.
+
+A defined argument order and a stable argument ABI allow a free function kernel
+to be invoked directly through a SYCL backend's native kernel-invocation API,
+using the backend interoperability interface in the core SYCL specification,
+without going through the SYCL host runtime APIs.
+They also provide a clean separation between host and device code, which makes
+free function kernels a useful building block for software layers built on top
+of this extension.
+
+A free function kernel can also be enqueued through the normal SYCL host runtime
+APIs, so the feature does not require any particular backend.
+Kernels that need accessors or buffer-based data management are not a good fit
+for this feature and should use standard SYCL kernels instead.
 
 
 == Specification
