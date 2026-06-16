@@ -24,7 +24,7 @@ runs:
       fi
       
       echo "::group::Show Full Test Adapter Specific Logs"
-      cmake --build "$BUILD_DIR" -j $(($(nproc)/3)) -- check-unified-runtime-adapter 2>&1 | tee adapter_tests.log
+      cmake --build "$BUILD_DIR" -j $(($(nproc)/3)) -- check-unified-runtime-adapter 2>&1 | tee adapter_tests.log | awk '/^Testing Time:/ {exit} /^\*\*\*\*\*\*\*\*\*\*/ {exit} /^(Passed|Unsupported|Failed|Expectedly Failed|Unresolved|Timed Out) Tests \([0-9]+\):/ {exit} {print}'
       EXIT_CODE=${PIPESTATUS[0]}
       echo "::endgroup::"
       exit $EXIT_CODE
