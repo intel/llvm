@@ -1364,6 +1364,10 @@ SPIRVEntry *SPIRVModuleImpl::replaceForward(SPIRVForward *Forward,
     IdEntryMap.erase(Loc);
     Entry->setId(ForwardId);
     IdEntryMap[ForwardId] = Entry;
+    // Need explicit bookkeeping of named IDs here to make it consistent with
+    // IdEntryMap, otherwise in some cases the original Id may be dangling.
+    if (NamedId.erase(Id))
+      NamedId.insert(ForwardId);
     // Replace current Id with ForwardId in decorates.
     Entry->replaceTargetIdInDecorates(ForwardId);
   }
