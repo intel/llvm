@@ -6879,43 +6879,6 @@ public:
     return C.MakeAction<OffloadAction>(HDep, DDeps);
   }
 
-  // Unbundle a fat PCH file.
-  void unbundlePCH(Compilation &C, ActionList &AL, DerivedArgList &Args,
-                   const Arg *MainArg) {
-    // This function is modeled after unbundleStaticArchives.
-    if (!Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false) &&
-        !Args.hasArg(options::OPT_offload_targets_EQ))
-      return;
-    bool isIncludePCHArg = Args.hasArg(options::OPT_include_pch);
-    bool isYuArg = Args.hasArg(options::OPT__SLASH_Yu);
-    assert((isIncludePCHArg || isYuArg) && "Invalid PCH unbundle");
-    SmallString<128> PCHArgValue;
-    if (isIncludePCHArg)
-      PCHArgValue = Args.getLastArg(options::OPT_include_pch)->getValue();
-    else {
-      // /Yu accepts a header file as its argument.
-      PCHArgValue = Args.getLastArg(options::OPT__SLASH_Yu)->getValue();
-      llvm::sys::path::replace_extension(PCHArgValue, "pch");
-    }
-    Arg *InputArg = MakeInputArg(Args, C.getDriver().getOpts(),
-                                 Args.MakeArgString(PCHArgValue));
-    Action *A = C.MakeAction<InputAction>(*InputArg, types::TY_PCH);
-    auto UnbundlingHostAction =
-        C.MakeAction<OffloadUnbundlingJobAction>(A, A->getType());
-    UnbundlingHostAction->registerDependentActionInfo(
-        C.getSingleOffloadToolChain<Action::OFK_Host>(),
-        /*BoundArch=*/StringRef(), Action::OFK_Host);
-    addHostDependenceToDeviceActions(A, MainArg, Args);
-    auto PL = types::getCompilationPhases(types::TY_PCH);
-    addDeviceDependencesToHostAction(A, MainArg, phases::Compile, PL.back(),
-                                     PL);
-    AL.push_back(A);
-    OffloadAction::DeviceDependences DDep;
-    DDep.add(*UnbundlingHostAction,
-             *C.getSingleOffloadToolChain<Action::OFK_Host>(), nullptr,
-             C.getActiveOffloadKinds());
-  }
-
   void unbundleStaticArchives(Compilation &C, DerivedArgList &Args) {
     if (!Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false))
       return;
@@ -7151,11 +7114,19 @@ shouldBundleHIPAsmWithNewDriver(const Compilation &C,
   return HasAMDGCNHIPDevice;
 }
   
-static void unbundlePCH(Compilation &C, DerivedArgList &Args, ActionList &AL,
-                        const ToolChain *TC) {
+/// This routine unbundles individual PCH files from a fat PCH bundle.
+/// In the old offloading driver model, this routine invokes the clang
+/// offload bundler; in the new offloading driver model, it invokes the
+/// llvm offload binary.
+static void
+unbundlePCH(bool UseNewOffloadingDriver, OffloadingActionBuilder *OAB,
+            Compilation &C, DerivedArgList &Args, ActionList &AL,
+            const ToolChain *TC, const Arg *MainArg) {
+  // Unbundle a fat PCH file.
   if (!Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false) &&
       !Args.hasArg(options::OPT_offload_targets_EQ))
     return;
+
   bool isIncludePCHArg = Args.hasArg(options::OPT_include_pch);
   bool isYuArg = Args.hasArg(options::OPT__SLASH_Yu);
   assert((isIncludePCHArg || isYuArg) && "Invalid PCH unbundle");
@@ -7167,13 +7138,32 @@ static void unbundlePCH(Compilation &C, DerivedArgList &Args, ActionList &AL,
     PCHArgValue = Args.getLastArg(options::OPT__SLASH_Yu)->getValue();
     llvm::sys::path::replace_extension(PCHArgValue, "pch");
   }
+
   Arg *InputArg = MakeInputArg(Args, C.getDriver().getOpts(),
                                Args.MakeArgString(PCHArgValue));
   Action *A = C.MakeAction<InputAction>(*InputArg, types::TY_PCH);
-  AL.push_back(A);
-  auto UnbundlingHostAction =
-      C.MakeAction<OffloadPackagerExtractJobAction>(AL, A->getType(), TC);
-  AL.push_back(UnbundlingHostAction);
+  if (!UseNewOffloadingDriver) {
+    assert(OAB && "Non-null builder expected in the old offload driver model");
+    auto UnbundlingHostAction =
+        C.MakeAction<OffloadUnbundlingJobAction>(A, A->getType());
+    UnbundlingHostAction->registerDependentActionInfo(
+        C.getSingleOffloadToolChain<Action::OFK_Host>(),
+        /*BoundArch=*/StringRef(), Action::OFK_Host);
+    OAB->addHostDependenceToDeviceActions(A, MainArg, Args);
+    auto PL = types::getCompilationPhases(types::TY_PCH);
+    OAB->addDeviceDependencesToHostAction(A, MainArg, phases::Compile,
+                                          PL.back(), PL);
+    AL.push_back(A);
+    OffloadAction::DeviceDependences DDep;
+    DDep.add(*UnbundlingHostAction,
+             *C.getSingleOffloadToolChain<Action::OFK_Host>(), nullptr,
+             C.getActiveOffloadKinds());
+  } else {
+    AL.push_back(A);
+    auto PackagerAction =
+        C.MakeAction<OffloadPackagerExtractJobAction>(AL, A->getType(), TC);
+    AL.push_back(PackagerAction);
+  }
 }
 
 void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
@@ -7301,10 +7291,9 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
     if (Args.hasArg(options::OPT_include_pch) ||
         Args.getLastArg(options::OPT__SLASH_Yu)) {
       // Unbundles the fat PCH file for the host.
-      if (!UseNewOffloadingDriver)
-        OffloadBuilder->unbundlePCH(C, Actions, Args, InputArg);
-      else
-        unbundlePCH(C, Args, Actions, nullptr);
+      unbundlePCH(UseNewOffloadingDriver, OffloadBuilder.get(),
+                  C, Args, Actions, /*ToolChain=*/nullptr,
+                  UseNewOffloadingDriver ? nullptr : InputArg);
     }
 
     // Use the current host action in any of the offloading actions, if
@@ -7985,11 +7974,11 @@ Driver::BuildOffloadingActions(Compilation &C, llvm::opt::DerivedArgList &Args,
     // Unbundle the fat PCH files for the offloading devices.
     bool isIncludePCHArg = Args.hasArg(options::OPT_include_pch);
     bool isYuArg = Args.hasArg(options::OPT__SLASH_Yu);
-    SmallString<128> PCHArgValue;
     if (isIncludePCHArg || isYuArg) {
       for (auto *TCAndArch = TCAndArchs.begin();
            TCAndArch != TCAndArchs.end(); ++TCAndArch) {
-        unbundlePCH(C, Args, OffloadActions, TCAndArch->first);
+        unbundlePCH(/*Offloading New Driver=*/true, /*Builder=*/nullptr,
+                    C, Args, OffloadActions, TCAndArch->first, nullptr);
       }
     }
 
