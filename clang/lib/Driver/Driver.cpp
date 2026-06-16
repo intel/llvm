@@ -7139,7 +7139,7 @@ unbundlePCH(bool UseNewOffloadingDriver, OffloadingActionBuilder *OAB,
     llvm::sys::path::replace_extension(PCHArgValue, "pch");
   }
 
-  Arg *InputArg = MakeInputArg(Args, C.getDriver().getOpts(),
+  Arg *InputArg = makeInputArg(Args, C.getDriver().getOpts(),
                                Args.MakeArgString(PCHArgValue));
   Action *A = C.MakeAction<InputAction>(*InputArg, types::TY_PCH);
   if (!UseNewOffloadingDriver) {
