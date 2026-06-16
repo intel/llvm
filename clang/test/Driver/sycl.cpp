@@ -13,7 +13,7 @@
 
 // ENABLED: "-cc1"{{.*}} "-fsycl-is-device"
 // ENABLED-SAME: "-sycl-std={{[-.sycl0-9]+}}"
-// ENABLED-SAME: "-internal-isystem" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl{{[/\\]+}}stl_wrappers"
+// ENABLED-SAME: "-internal-isystem" "{{.*}}include{{[/\\]+}}sycl{{[/\\]+}}stl_wrappers"
 
 // NOT_ENABLED-NOT: "-fsycl-is-device"
 // NOT_ENABLED-NOT: "-fsycl-std-layout-kernel-params"
@@ -44,7 +44,7 @@
 // RUN: %clang_cl -### --target=i386-pc-windows-msvc -fsycl-device-only %s 2>&1 | FileCheck %s --check-prefix=DEFAULT -DSPIRARCH=spir
 
 // DEFAULT: "-triple" "[[SPIRARCH]]-unknown-{{.*}}"{{.*}} "-fsycl-is-device"{{.*}} "-sycl-std=2020"{{.*}} "-emit-llvm-bc"
-// DEFAULT: "-internal-isystem" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl{{[/\\]+}}stl_wrappers"
+// DEFAULT: "-internal-isystem" "{{.*}}include{{[/\\]+}}sycl{{[/\\]+}}stl_wrappers"
 // DEFAULT: "-internal-isystem" "{{.*lib.*clang.*include}}"
 // DEFAULT: "-std=c++17"
 // DEFAULT-NOT: "{{.*}}llvm-spirv"{{.*}}
@@ -87,7 +87,7 @@
 // RUN: %clangxx -### -fsycl-device-only %s 2>&1 | FileCheck %s --check-prefix=HEADER-ORDER
 // RUN: %clangxx -### -fsycl %s 2>&1 | FileCheck %s --check-prefix=HEADER-ORDER
 // HEADER-ORDER-NOT: clang{{.*}} "/usr/include"
-// HEADER-ORDER: "-internal-isystem" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include"
+// HEADER-ORDER: "-internal-isystem" "{{.*}}include"
 
 /// Verify -fsycl-device-only phases
 // RUN: %clang -### -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl-device-only %s 2>&1 | FileCheck %s --check-prefix=DEFAULT-PHASES

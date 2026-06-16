@@ -95,7 +95,7 @@ endforeach()
 
 # Create dpclang++ build-tree symlink so tests can use it without installing.
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-  add_clang_symlink(dpclang++ clang)
+  llvm_add_tool_symlink(CLANG dpclang++ clang ALWAYS_GENERATE)
 endif()
 
 # Install public dpclang* symlinks in ${CMAKE_INSTALL_BINDIR}.
