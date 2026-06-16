@@ -35,6 +35,17 @@ runs:
       python3 devops/scripts/ur_test_summary.py extract-errors conformance_tests.log | tee -a $GITHUB_STEP_SUMMARY
       exit 1
   
+  - name: List all conformance tests
+    if: ${{ always() }}
+    shell: bash
+    env:
+      BUILD_DIR: ${{ inputs.build_dir }}
+    run: |
+      > all_conformance_tests.txt
+      find "$BUILD_DIR/test/conformance" -name "*-test" -type f -executable 2>/dev/null | while read -r binary; do
+        "$binary" --gtest_list_tests 2>/dev/null || true
+      done > all_conformance_tests.txt
+  
   - name: Show conformance test statistics and lists
     if: ${{ always() }}
     shell: bash
@@ -44,4 +55,4 @@ runs:
         exit 0
       fi
       
-      python3 devops/scripts/ur_test_summary.py show-summary conformance_tests.log
+      python3 devops/scripts/ur_test_summary.py show-summary conformance_tests.log all_conformance_tests.txt

@@ -148,6 +148,130 @@ def extract_test_lists(lines: List[str]) -> Dict[str, List[str]]:
     """
     Extract categorized test lists from LIT summary.
 
+    Looks for sections like:
+        Passed Tests (N):
+          test name 1
+          test name 2
+
+    Returns dictionary with category names as keys and test lists as values.
+    """
+    categories = {}
+    current_category = None
+    current_tests = []
+
+    # Pattern: "Category Tests (N):"
+    category_pattern = re.compile(
+        r"^(Passed|Unsupported|Failed|Expectedly Failed|Unresolved|Timed Out) Tests \((\d+)\):"
+    )
+
+    for line in lines:
+        # Check for category header
+        match = category_pattern.match(line)
+        if match:
+            # Save previous category
+            if current_category:
+                categories[current_category] = current_tests
+
+            # Start new category
+            current_category = match.group(1)
+            current_tests = []
+            continue
+
+        # If we're in a category
+        if current_category:
+            # Empty line ends the category
+            if not line.strip():
+                categories[current_category] = current_tests
+                current_category = None
+                current_tests = []
+            else:
+                # Add test to current category (strip leading whitespace)
+                test_name = line.strip()
+                if test_name:
+                    current_tests.append(test_name)
+
+    # Save last category
+    if current_category:
+        categories[current_category] = current_tests
+
+    return categories
+
+
+def parse_gtest_list(all_tests_file: str) -> List[str]:
+    """
+    Parse --gtest_list_tests output to get full test names.
+
+    Format:
+        TestSuite.
+          TestName1/Param  # comment
+          TestName2
+
+    Returns list of full test names: TestSuite.TestName1/Param
+    """
+    if not Path(all_tests_file).exists():
+        return []
+
+    tests = []
+    current_suite = None
+
+    with open(all_tests_file, "r", encoding="utf-8", errors="replace") as f:
+        for line in f:
+            line = line.rstrip()
+            if not line:
+                continue
+
+            # Suite line ends with '.'
+            if line.endswith(".") and not line.startswith(" "):
+                current_suite = line
+            # Test name (indented)
+            elif line.startswith("  ") and current_suite:
+                # Remove leading whitespace and comments
+                test_name = line.strip().split(" #")[0].strip()
+                full_name = f"{current_suite}{test_name}"
+                tests.append(full_name)
+
+    return tests
+
+
+def extract_passed_test_names(test_lists: Dict[str, List[str]]) -> List[str]:
+    """
+    Extract just the GoogleTest names from passed tests.
+
+    LIT format: "Unified Runtime Conformance :: adapter//adapter-test/urAdapterGetInfoTest/InvalidEnumeration/UR_BACKEND_LEVEL_ZERO"
+    GTest --gtest_list_tests format: "urAdapterGetInfoTest.InvalidEnumeration/UR_BACKEND_LEVEL_ZERO"
+
+    Strategy: Find test class and test case in path, combine with '.' and add backend parameter.
+    """
+    passed = test_lists.get("Passed", [])
+    gtest_names = set()
+
+    for test in passed:
+        # Split by '/' to get path components
+        parts = test.split("/")
+
+        # Find test class (typically starts with 'ur' or ends with 'Test')
+        for i, part in enumerate(parts):
+            if ("Test" in part or part.startswith("ur")) and i + 1 < len(parts):
+                test_class = part
+                test_case = parts[i + 1]
+
+                # Build full name: TestClass.TestCase/Parameter
+                gtest_name = f"{test_class}.{test_case}"
+
+                # Add backend parameter if present
+                if i + 2 < len(parts) and parts[i + 2].startswith("UR_BACKEND"):
+                    gtest_name += f"/{parts[i + 2]}"
+
+                gtest_names.add(gtest_name)
+                break
+
+    return list(gtest_names)
+
+
+def show_statistics_and_lists(lines: List[str], all_tests_file: str = None) -> None:
+    """
+    Extract categorized test lists from LIT summary.
+
     Returns dict like:
     {
         'Passed': ['test1', 'test2', ...],
@@ -195,7 +319,7 @@ def extract_test_lists(lines: List[str]) -> Dict[str, List[str]]:
     return categories
 
 
-def show_statistics_and_lists(lines: List[str]) -> None:
+def show_statistics_and_lists(lines: List[str], all_tests_file: str = None) -> None:
     """
     Show test statistics and collapsed test lists for GitHub Actions.
 
@@ -214,9 +338,25 @@ def show_statistics_and_lists(lines: List[str]) -> None:
     # Extract test lists in collapsed sections (LIT format)
     test_lists = extract_test_lists(lines)
 
-    # For GoogleTest format: extract skipped/unsupported from inline output
-    # GoogleTest format doesn't generate "Unsupported Tests (N):" list
-    if "Unsupported" not in test_lists:
+    # For GoogleTest format: try to generate skipped list from all_tests_file
+    if "Unsupported" not in test_lists and all_tests_file:
+        all_tests = parse_gtest_list(all_tests_file)
+        passed_tests = extract_passed_test_names(test_lists)
+
+        if all_tests:
+            # Find skipped: all_tests - passed_tests
+            passed_set = set(passed_tests)
+            skipped = [t for t in all_tests if t not in passed_set]
+
+            if skipped:
+                count = len(skipped)
+                print(f"::group::Skipped Tests ({count})")
+                for test in skipped:
+                    print(test)
+                print("::endgroup::")
+
+    # For GoogleTest format without all_tests_file: extract from inline output
+    elif "Unsupported" not in test_lists:
         # Try GoogleTest SKIPPED first (for test fixtures that use GTEST_SKIP())
         skipped_tests = extract_skipped_from_gtest(lines)
         if skipped_tests:
@@ -235,6 +375,21 @@ def show_statistics_and_lists(lines: List[str]) -> None:
                 print(test)
             print("::endgroup::")
 
+        # If no skipped tests found but GoogleTest format detected,
+        # show informational message
+        if not skipped_tests and not unsupported_tests:
+            # Check if statistics mention skipped tests
+            for stat in stats:
+                if "Skipped:" in stat or "Unsupported:" in stat:
+                    print(
+                        "ℹ️  Skipped test list not available (GoogleTest format limitation)"
+                    )
+                    print(
+                        "   LIT does not generate detailed skip list for GoogleTest binaries."
+                    )
+                    print()
+                    break
+
     # Show remaining test categories from LIT format
     for category, tests in test_lists.items():
         count = len(tests)
@@ -248,14 +403,14 @@ def show_statistics_and_lists(lines: List[str]) -> None:
 def main():
     """Main CLI interface."""
     if len(sys.argv) < 2:
-        print("Usage: ur_test_summary.py <command> <log_file>", file=sys.stderr)
+        print("Usage: ur_test_summary.py <command> <log_file> [all_tests_file]", file=sys.stderr)
         print("\nCommands:", file=sys.stderr)
         print(
             "  extract-errors <log>  - Extract FAIL/TIMEOUT error details",
             file=sys.stderr,
         )
         print(
-            "  show-summary <log>    - Show statistics and collapsed test lists",
+            "  show-summary <log> [all_tests]  - Show statistics and collapsed test lists",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -292,7 +447,15 @@ def main():
             print(line, end="")
 
     elif command == "show-summary":
-        show_statistics_and_lists(lines)
+        # Optional: all tests file for GoogleTest format
+        all_tests_file = sys.argv[3] if len(sys.argv) > 3 else None
+        if all_tests_file and (".." in all_tests_file or all_tests_file.startswith("/")):
+            print(
+                f"Error: Invalid all_tests file path: {all_tests_file}",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        show_statistics_and_lists(lines, all_tests_file)
 
     else:
         print(f"Error: Unknown command: {command}", file=sys.stderr)
