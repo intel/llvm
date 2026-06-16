@@ -67,10 +67,6 @@ struct urQueueIsGraphCaptureEnabledExpMultiQueueTest
     : uur::urGraphSupportedExpMultiQueueTest {
   void SetUp() override {
     UUR_RETURN_ON_FATAL_FAILURE(urGraphSupportedExpMultiQueueTest::SetUp());
-    // Fork-join with out-of-order queue broken due to multi command list capture bug
-    if (getQueueFlag() & UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE) {
-      UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
-    }
   }
   void TearDown() override {
     bool isCaptureEnabled = false;
