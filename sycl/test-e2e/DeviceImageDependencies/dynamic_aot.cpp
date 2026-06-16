@@ -20,7 +20,3 @@
 // RUN:   %{-L%t.dir -ldevice_a -ldevice_b -ldevice_c -ldevice_d -Wl,-rpath=%t.dir%}
 
 // RUN: %{run} %t.dir/%{t:stem}.out
-
-// Remove once the Level Zero runtime supports native binaries in the program
-// module extension.
-// UNSUPPORTED: level_zero
