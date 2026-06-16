@@ -68,7 +68,7 @@ public:
 
 // Increment and decrement operators overloading
 #define OP(op)                                                                 \
-  friend bfloat16 &operator op(bfloat16 &lhs) {                                \
+  friend bfloat16 &operator op(bfloat16 & lhs) {                               \
     float f = to_float(lhs.value);                                             \
     lhs.value = from_float(op f);                                              \
     return lhs;                                                                \
@@ -84,7 +84,7 @@ public:
 
   // Assignment operators overloading
 #define OP(op)                                                                 \
-  friend bfloat16 &operator op(bfloat16 &lhs, const bfloat16 &rhs) {           \
+  friend bfloat16 &operator op(bfloat16 & lhs, const bfloat16 & rhs) {         \
     float f = static_cast<float>(lhs);                                         \
     f op static_cast<float>(rhs);                                              \
     return lhs = f;                                                            \
@@ -102,12 +102,12 @@ public:
   }                                                                            \
   template <typename T>                                                        \
   friend std::enable_if_t<std::is_convertible_v<T, float>, type> operator op(  \
-      const bfloat16 &lhs, const T &rhs) {                                     \
+      const bfloat16 & lhs, const T & rhs) {                                   \
     return type{static_cast<float>(lhs) op static_cast<float>(rhs)};           \
   }                                                                            \
   template <typename T>                                                        \
   friend std::enable_if_t<std::is_convertible_v<T, float>, type> operator op(  \
-      const T &lhs, const bfloat16 &rhs) {                                     \
+      const T & lhs, const bfloat16 & rhs) {                                   \
     return type{static_cast<float>(lhs) op static_cast<float>(rhs)};           \
   }
   OP(bfloat16, +)
