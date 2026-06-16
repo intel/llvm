@@ -12,9 +12,6 @@
 
 struct urUSMContextMemcpyExpTest : uur::urMultiQueueTypeTest {
   void SetUp() override {
-    // https://github.com/intel/llvm/issues/19604
-    // this test uses urEnqueueUSMFill which looks to be bugged with latest driver
-    UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
     UUR_RETURN_ON_FATAL_FAILURE(uur::urMultiQueueTypeTest::SetUp());
 
     bool context_memcpy_support = false;
