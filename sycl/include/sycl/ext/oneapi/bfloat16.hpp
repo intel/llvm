@@ -129,16 +129,8 @@ public:
   // only carries forward declarations so that <ostream>/<istream> are not
   // pulled into device compilation. Consumers that print bfloat16 values
   // must include <iostream> (or <ostream>/<istream>) themselves.
-  __SYCL_DEPRECATED(
-      "Stream operators for bfloat16 are deprecated and will be removed in a "
-      "future release. Please use explicit conversion to "
-      "float for streaming.")
   __SYCL_EXPORT friend std::ostream &operator<<(std::ostream &O,
                                                 bfloat16 const &rhs);
-  __SYCL_DEPRECATED(
-      "Stream operators for bfloat16 are deprecated and will be removed in a "
-      "future release. Please use explicit conversion to "
-      "float for streaming.")
   __SYCL_EXPORT friend std::istream &operator>>(std::istream &I, bfloat16 &rhs);
 
 private:
