@@ -144,6 +144,14 @@ on:
         required: False
         default: ''
 
+      build_unified_runtime_locally:
+        description: |
+          If true, build unified-runtime locally using the container's CUDA
+          toolkit instead of using the prebuilt adapter from the toolchain.
+        type: string
+        required: False
+        default: 'true'
+
       in_workflow_call_mode:
         description: |
           Unlike `github.event_type` that captures the original trigger, we use
@@ -344,6 +352,7 @@ jobs:
         target_devices: ${{ inputs.target_devices }}
         extra_lit_opts: ${{ inputs.extra_lit_opts }}
         retention-days: ${{ inputs.retention-days }}
+        build_unified_runtime_locally: ${{ inputs.build_unified_runtime_locally }}
 
     - name: Run SYCL CTS Tests
       if: inputs.tests_selector == 'cts'
