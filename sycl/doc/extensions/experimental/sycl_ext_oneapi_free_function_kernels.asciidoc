@@ -43,8 +43,7 @@ the SYCL specification refer to that revision.
 
 This extension also depends on the following other SYCL extensions:
 
-* link:../supported/sycl_ext_oneapi_free_function_queries.asciidoc[
-  sycl_ext_oneapi_free_function_queries]
+* `sycl_khr_work_item_queries`
 * `sycl_khr_properties`
 * link:../experimental/sycl_ext_oneapi_kernel_properties.asciidoc[
   sycl_ext_oneapi_kernel_properties]
@@ -850,8 +849,8 @@ parameters are used to pass the kernel arguments instead.
 Therefore, a free function kernel must obtain the iteration ID in some other
 way.
 Typically, a free function kernel uses the functions specified in
-link:../supported/sycl_ext_oneapi_free_function_queries.asciidoc[
-sycl_ext_oneapi_free_function_queries] for this purpose.
+`sycl_khr_work_item_queries` (such as `sycl::khr::this_nd_item`) for this
+purpose.
 
 === Address space of kernel arguments
 
@@ -1222,8 +1221,7 @@ void iota(sycl::nd_item<1> nditem, float start, float *ptr) { /*...*/  }
 ```
 
 The advantage is that the user wouldn't need to use the functions in
-link:../supported/sycl_ext_oneapi_free_function_queries.asciidoc[
-sycl_ext_oneapi_free_function_queries] to get the iteration index.
+`sycl_khr_work_item_queries` to get the iteration index.
 Doing this raises some new questions, though:
 
 ** When the application sets the value of a kernel parameter via `set_arg`,
