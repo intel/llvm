@@ -1,23 +1,13 @@
 ; RUN: llvm-as %s -o %t.bc
-; RUN: llvm-spirv %t.bc -spirv-text -o - | FileCheck %s
+; RUN: llvm-spirv %t.bc -spirv-text -o - | FileCheck %s --implicit-check-not FPRoundingMode
 ; RUN: llvm-spirv %t.bc -o %t.spv
-; TODO: re-enable validation
-; RUNx: spirv-val %t.spv
+; RUN: spirv-val %t.spv
 
 
 ; CHECK: Name [[ad:[0-9]+]] "add"
 ; CHECK: Name [[di:[0-9]+]] "div"
 ; CHECK: Name [[su:[0-9]+]] "sub"
 ; CHECK: Name [[mu:[0-9]+]] "mul"
-
-; CHECK-NOT: Decorate {{[0-9]+}} FPRoundingMode
-
-; CHECK-DAG: Decorate [[ad]] FPRoundingMode 0
-; CHECK-DAG: Decorate [[di]] FPRoundingMode 1
-; CHECK-DAG: Decorate [[su]] FPRoundingMode 2
-; CHECK-DAG: Decorate [[mu]] FPRoundingMode 3
-
-; CHECK-NOT: Decorate {{[0-9]+}} FPRoundingMode
 
 ; CHECK: FAdd {{[0-9]+}} [[ad]]
 ; CHECK: FDiv {{[0-9]+}} [[di]]
