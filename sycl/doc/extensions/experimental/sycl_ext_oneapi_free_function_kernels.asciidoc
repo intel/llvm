@@ -45,12 +45,20 @@ This extension also depends on the following other SYCL extensions:
 
 * link:../supported/sycl_ext_oneapi_free_function_queries.asciidoc[
   sycl_ext_oneapi_free_function_queries]
-* link:../experimental/sycl_ext_oneapi_properties.asciidoc[
-  sycl_ext_oneapi_properties]
+* `sycl_khr_properties`
 * link:../experimental/sycl_ext_oneapi_kernel_properties.asciidoc[
   sycl_ext_oneapi_kernel_properties]
 * link:../experimental/sycl_ext_oneapi_enqueue_functions.asciidoc[
   sycl_ext_oneapi_enqueue_functions]
+
+[_Note:_ This extension's compile-time properties (`nd_range_kernel` and
+`single_task_kernel`) are still defined below using the `property_value` shape
+and the `sycl::ext::oneapi::experimental` namespace from the experimental
+`sycl_ext_oneapi_properties` extension.
+Once `sycl_khr_properties` is finalized, these property definitions need to be
+revisited to use the `sycl::khr::property` shape (reading a compile-time
+property's value through its `value` member) and the `sycl::khr` namespace.
+_{endnote}_]
 
 
 == Status
