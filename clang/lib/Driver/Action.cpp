@@ -503,7 +503,7 @@ OffloadPackagerJobAction::OffloadPackagerJobAction(ActionList &Inputs,
 void OffloadPackagerExtractJobAction::anchor() {}
 
 OffloadPackagerExtractJobAction::OffloadPackagerExtractJobAction(
-    ActionList &Inputs, types::ID Type, const clang::driver::ToolChain* TC)
+    ActionList &Inputs, types::ID Type, const clang::driver::ToolChain *TC)
     : JobAction(OffloadPackagerExtractJobClass, Inputs, Type),
       OPEToolChain(TC) {}
 

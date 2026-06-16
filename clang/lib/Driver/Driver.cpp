@@ -8188,7 +8188,7 @@ Driver::BuildOffloadingActions(Compilation &C, llvm::opt::DerivedArgList &Args,
     }
     PackagerActions.push_back(HostAction);
     Action *PackagerAction =
-       C.MakeAction<OffloadPackagerJobAction>(PackagerActions, types::TY_PCH);
+        C.MakeAction<OffloadPackagerJobAction>(PackagerActions, types::TY_PCH);
     DDeps.add(*PackagerAction, *C.getSingleOffloadToolChain<Action::OFK_Host>(),
               nullptr, C.getActiveOffloadKinds());
   } else if (C.isOffloadingHostKind(Action::OFK_SYCL) &&

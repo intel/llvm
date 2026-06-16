@@ -10838,8 +10838,8 @@ void OffloadPackagerExtract::ConstructJob(Compilation &C, const JobAction &JA,
   const Action *OffloadAction = Inputs[0].getAction();
   const ToolChain *TC =
       isa<OffloadPackagerExtractJobAction>(JA)
-      ? cast<OffloadPackagerExtractJobAction>(JA).getToolChain()
-      : OffloadAction->getOffloadingToolChain();
+          ? cast<OffloadPackagerExtractJobAction>(JA).getToolChain()
+          : OffloadAction->getOffloadingToolChain();
   if (!TC)
     TC = &C.getDefaultToolChain();
   const ArgList &TCArgs =
