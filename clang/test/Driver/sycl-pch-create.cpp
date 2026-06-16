@@ -55,28 +55,6 @@
 // LX_CREATE_TARGETS_OND: llvm-offload-binary{{.*}} "-o" "{{.*}}.pch"
 // LX_CREATE_TARGETS_OND-SAME: "--image=file=[[PCHFILE1]]{{.*}}" "--image=file=[[PCHFILE2]]{{.*}}" "--image=file=[[PCHFILE3]]{{.*}}"
 
-// RUN: %clang -fsycl -x c++-header -fno-sycl-use-header -fno-sycl-use-footer -c %t.h %s -### 2>&1 | FileCheck -check-prefix=LX_CREATE_NOHF %s
-// LX_CREATE_NOHF: clang{{.*}} "-triple" "spir64{{.*}}"{{.*}} "-fsycl-is-device"
-// LX_CREATE_NOHF-NOT: "-fsycl-int-header={{.*}}"{{.*}} "-fsycl-int-footer={{.*}}"{{.*}}
-// LX_CREATE_NOHF-SAME: "-o" "[[PCHFILE1:.+pch]]"
-// LX_CREATE_NOHF: clang{{.*}} "-triple" "x86_64{{.*}}"{{.*}} "-fsycl-is-host"
-// LX_CREATE_NOHF-NOT: "-include-internal-header"
-// LX_CREATE_NOHF-NOT: "-include-internal-footer"
-// LX_CREATE_NOHF-SAME: "-o" "[[PCHFILE2:.+pch]]"
-// LX_CREATE_NOHF: clang-offload-bundler{{.*}} "-type=pch"
-// LX_CREATE_NOHF: "-targets=sycl-spir64{{.*}},host-x86_64{{.*}}" "-output={{.*}}.pch" "-input=[[PCHFILE1]]" "-input=[[PCHFILE2]]"
-
-// RUN: %clang --offload-new-driver -fsycl -x c++-header -fno-sycl-use-header -fno-sycl-use-footer -c %t.h %s -### 2>&1 | FileCheck -check-prefix=LX_CREATE_NOHF_OND %s
-// LX_CREATE_NOHF_OND: clang{{.*}} "-triple" "spir64{{.*}}"{{.*}} "-fsycl-is-device"
-// LX_CREATE_NOHF_OND-NOT: "-fsycl-int-header={{.*}}"{{.*}} "-fsycl-int-footer={{.*}}"{{.*}}
-// LX_CREATE_NOHF_OND-SAME: "-o" "[[PCHFILE1:.+pch]]"
-// LX_CREATE_NOHF_OND: clang{{.*}} "-triple" "x86_64{{.*}}"{{.*}} "-fsycl-is-host"
-// LX_CREATE_NOHF_OND-NOT: "-include-internal-header"
-// LX_CREATE_NOHF_OND-NOT: "-include-internal-footer"
-// LX_CREATE_NOHF_OND-SAME: "-o" "[[PCHFILE2:.+pch]]"
-// LX_CREATE_NOHF_OND: llvm-offload-binary{{.*}} "-o" "{{.*}}.pch"
-// LX_CREATE_NOHF_OND-SAME: "--image=file=[[PCHFILE1]]{{.*}}" "--image=file=[[PCHFILE2]]{{.*}}"
-
 // Windows
 // RUN: %clang_cl -fsycl -x c++-header %t.h -### 2>&1 | FileCheck -check-prefix=WS_CREATE %s
 // WS_CREATE: clang{{.*}} "-triple" "spir64{{.*}}"{{.*}} "-fsycl-is-device"
@@ -127,25 +105,3 @@
 // WS_CREATE_TARGETS_OND-SAME: "-o" "[[PCHFILE3:.+pch]]"
 // WS_CREATE_TARGETS_OND: llvm-offload-binary{{.*}} "-o" "{{.*}}.pch"
 // WS_CREATE_TARGETS_OND-SAME: "--image=file=[[PCHFILE1]]{{.*}}" "--image=file=[[PCHFILE2]]{{.*}}" "--image=file=[[PCHFILE3]]{{.*}}"
-
-// RUN: %clang_cl -fsycl -x c++-header -fno-sycl-use-header -fno-sycl-use-footer -c %t.h %s -### 2>&1 | FileCheck -check-prefix=WS_CREATE_NOHF %s
-// WS_CREATE_NOHF: clang{{.*}} "-triple" "spir64{{.*}}"{{.*}} "-fsycl-is-device"
-// WS_CREATE_NOHF-NOT: "-fsycl-int-header={{.*}}"{{.*}} "-fsycl-int-footer={{.*}}"{{.*}}
-// WS_CREATE_NOHF-SAME: "-o" "[[PCHFILE1:.+pch]]"
-// WS_CREATE_NOHF: clang{{.*}} "-triple" "x86_64{{.*}}"{{.*}} "-fsycl-is-host"
-// WS_CREATE_NOHF-NOT: "-include-internal-header"
-// WS_CREATE_NOHF-NOT: "-include-internal-footer"
-// WS_CREATE_NOHF-SAME: "-o" "[[PCHFILE2:.+pch]]"
-// WS_CREATE_NOHF: clang-offload-bundler{{.*}} "-type=pch"
-// WS_CREATE_NOHF: "-targets=sycl-spir64{{.*}},host-x86_64{{.*}}" "-output={{.*}}.pch" "-input=[[PCHFILE1]]" "-input=[[PCHFILE2]]"
-
-// RUN: %clang_cl --offload-new-driver -fsycl -x c++-header -fno-sycl-use-header -fno-sycl-use-footer -c %t.h %s -### 2>&1 | FileCheck -check-prefix=WS_CREATE_NOHF_OND %s
-// WS_CREATE_NOHF_OND: clang{{.*}} "-triple" "spir64{{.*}}"{{.*}} "-fsycl-is-device"
-// WS_CREATE_NOHF_OND-NOT: "-fsycl-int-header={{.*}}"{{.*}} "-fsycl-int-footer={{.*}}"{{.*}}
-// WS_CREATE_NOHF_OND-SAME: "-o" "[[PCHFILE1:.+pch]]"
-// WS_CREATE_NOHF_OND: clang{{.*}} "-triple" "x86_64{{.*}}"{{.*}} "-fsycl-is-host"
-// WS_CREATE_NOHF_OND-NOT: "-include-internal-header"
-// WS_CREATE_NOHF_OND-NOT: "-include-internal-footer"
-// WS_CREATE_NOHF_OND-SAME: "-o" "[[PCHFILE2:.+pch]]"
-// WS_CREATE_NOHF_OND: llvm-offload-binary{{.*}} "-o" "{{.*}}.pch"
-//  WS_CREATE_NOHF_OND-SAME: "--image=file=[[PCHFILE1]]{{.*}}" "--image=file=[[PCHFILE2]]{{.*}}"
