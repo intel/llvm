@@ -18,7 +18,6 @@
 
 #include <atomic>
 #include <cstring>
-#include <detail/iostream_proxy.hpp>
 #include <memory>
 #include <mutex>
 #include <string_view>

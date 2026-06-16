@@ -16,7 +16,15 @@
 // the header device-clean.
 //
 // <sycl/sycl.hpp> and headers under <sycl/ext/...> are intentionally out of
-// scope -- only the KHR set is required to be device-safe today.
+// scope -- only the KHR set is required to be device-safe today. The OV team
+// will interface mainly through the kernel compiler and the KHR headers. As
+// such this test covers their use case.
+//
+// NOTE: sycl.hpp pulls in iostream indirectly through
+// the filesystem inclusion in:
+// sycl/ext/oneapi/experimental/syclbin_kernel_bundle.hpp:88:get_kernel_bundle.
+// Filesystem transitively pulls in iostream, so we intentionally exclude
+// sycl.hpp from this test.
 //
 // RUN: %clangxx -fsycl -fsycl-device-only -include %S/Inputs/khr_all.hpp \
 // RUN:   -c %s -o %t.o -MD -MF - | FileCheck %s

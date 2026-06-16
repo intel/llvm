@@ -15,7 +15,6 @@
 #include <unified-runtime/ur_api.h>
 
 #include <cstring>
-#include <detail/iostream_proxy.hpp>
 #include <ios>
 
 namespace sycl {
