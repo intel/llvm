@@ -5024,11 +5024,14 @@ bool SPIRVToLLVM::transMetadata() {
     if (BF->getExecutionMode(ExecutionModeInitializer)) {
       CtorKernels.push_back(F);
     }
-    // Generate metadata for intel_reqd_sub_group_size
+    // Generate metadata for reqd_sub_group_size.
     if (auto *EM = BF->getExecutionMode(ExecutionModeSubgroupSize)) {
       auto *SizeMD =
           ConstantAsMetadata::get(getUInt32(M, EM->getLiterals()[0]));
       F->setMetadata(kSPIR2MD::SubgroupSize, MDNode::get(*Context, SizeMD));
+      // Add vendor specific alias for backward compatibility.
+      F->setMetadata("intel_reqd_sub_group_size",
+                     MDNode::get(*Context, SizeMD));
     }
     // Generate metadata for intel_reqd_sub_group_size
     if (BF->getExecutionMode(internal::ExecutionModeNamedSubgroupSizeINTEL)) {
@@ -5040,7 +5043,8 @@ bool SPIRVToLLVM::transMetadata() {
       // On the LLVM IR side, this is represented as the metadata
       // intel_reqd_sub_group_size with value -1.
       auto *SizeMD = ConstantAsMetadata::get(getInt32(M, -1));
-      F->setMetadata(kSPIR2MD::SubgroupSize, MDNode::get(*Context, SizeMD));
+      F->setMetadata("intel_reqd_sub_group_size",
+                     MDNode::get(*Context, SizeMD));
     }
     // Generate metadata for SubgroupsPerWorkgroup/SubgroupsPerWorkgroupId.
     auto EmitSubgroupsPerWorkgroupMD = [this, F](SPIRVExecutionModeKind EMK,
