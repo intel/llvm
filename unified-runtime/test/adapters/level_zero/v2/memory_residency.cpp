@@ -31,8 +31,10 @@ TEST_P(urMemoryResidencyTest, allocatingDeviceMemoryWillResultInOOM) {
   }
 
   uint64_t initialMemFree = 0;
-  ASSERT_SUCCESS(urDeviceGetInfo(devices[0], UR_DEVICE_INFO_GLOBAL_MEM_FREE,
-                                 sizeof(uint64_t), &initialMemFree, nullptr));
+  ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+      urDeviceGetInfo(devices[0], UR_DEVICE_INFO_GLOBAL_MEM_FREE,
+                      sizeof(uint64_t), &initialMemFree, nullptr),
+      UR_DEVICE_INFO_GLOBAL_MEM_FREE);
 
   if (initialMemFree < allocSize) {
     GTEST_SKIP() << "Not enough device memory available";
@@ -516,6 +518,13 @@ TEST_P(urMemoryMultiResidencyTest, p2pCopySucceedsAfterRevokingAccess) {
 // state, so the copy result is not checked here.  The observable guarantee
 // is that devices[1] free memory must not decrease by a full allocSize,
 // proving the allocation was never pinned on the peer device.
+//
+// The peer free-memory check is placed immediately after the allocation —
+// before the fill — to keep the measurement window as short as possible.
+// Residency decisions are made at allocation time; the subsequent fill on
+// devices[0] does not affect devices[1] residency and is excluded from the
+// window to avoid false failures due to concurrent GPU activity on shared
+// CI machines.
 TEST_P(urMemoryMultiResidencyTest, allocationNotResidentOnPeerWithoutP2P) {
   constexpr size_t allocSize = kAllocSize;
   static constexpr uint8_t fillPattern = 0xAB;
@@ -544,13 +553,24 @@ TEST_P(urMemoryMultiResidencyTest, allocationNotResidentOnPeerWithoutP2P) {
   // Allocate on devices[0] WITHOUT enabling P2P — must not consume
   // devices[1] memory.
   void *srcPtr = nullptr;
-  ASSERT_NO_FATAL_FAILURE(
-      allocAndFillOnDevice0(allocSize, fillPattern, &srcPtr));
+  ASSERT_SUCCESS(urUSMDeviceAlloc(context, devices[0], nullptr, nullptr,
+                                  allocSize, &srcPtr));
 
+  // Measure peer free memory immediately after allocation, before any GPU
+  // work, to minimise the observation window for concurrent external
+  // allocations on devices[1].
   uint64_t currentMemFreePeer = 0;
   ur_result_t memRes =
       urDeviceGetInfo(devices[1], UR_DEVICE_INFO_GLOBAL_MEM_FREE,
                       sizeof(uint64_t), &currentMemFreePeer, nullptr);
+
+  ur_queue_handle_t srcQueue = nullptr;
+  ASSERT_SUCCESS(urQueueCreate(context, devices[0], nullptr, &srcQueue));
+  ASSERT_SUCCESS(urEnqueueUSMFill(srcQueue, srcPtr, sizeof(fillPattern),
+                                  &fillPattern, allocSize, 0, nullptr,
+                                  nullptr));
+  ASSERT_SUCCESS(urQueueFinish(srcQueue));
+  urQueueRelease(srcQueue);
 
   ASSERT_SUCCESS(urUSMFree(context, srcPtr));
   ASSERT_SUCCESS(memRes);

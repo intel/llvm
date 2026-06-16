@@ -60,7 +60,7 @@ void test(queue &q) {
                  i < lid * elems_per_wi + elems_per_wi; i++) {
               local_acc[i] = input[offset + i];
             }
-            ndi.barrier(access::fence_space::local_space);
+            group_barrier(ndi.get_group());
           }
 
           // blocked

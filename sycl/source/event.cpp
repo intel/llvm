@@ -14,7 +14,6 @@
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/ur.hpp>
 #include <sycl/event.hpp>
-#include <sycl/info/info_desc.hpp>
 
 #include <memory>
 #include <unordered_set>
@@ -92,20 +91,19 @@ event::get_profiling_info() const {
   return impl->template get_profiling_info<Param>();
 }
 
-#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, UrCode)              \
-  template __SYCL_EXPORT ReturnT event::get_info<info::event::Desc>() const;
+#define __SYCL_EVENT_INFO_INST(NAME, RETURN_T)                                 \
+  template __SYCL_EXPORT RETURN_T event::get_info<info::event::NAME>() const;
+__SYCL_EVENT_INFO_INST(command_execution_status, info::event_command_status)
+__SYCL_EVENT_INFO_INST(reference_count, uint32_t)
+#undef __SYCL_EVENT_INFO_INST
 
-#include <sycl/info/event_traits.def>
-
-#undef __SYCL_PARAM_TRAITS_SPEC
-
-#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, UrCode)              \
-  template __SYCL_EXPORT ReturnT                                               \
-  event::get_profiling_info<info::DescType::Desc>() const;
-
-#include <sycl/info/event_profiling_traits.def>
-
-#undef __SYCL_PARAM_TRAITS_SPEC
+#define __SYCL_EVENT_PROFILING_INFO_INST(NAME, RETURN_T)                       \
+  template __SYCL_EXPORT RETURN_T                                              \
+  event::get_profiling_info<info::event_profiling::NAME>() const;
+__SYCL_EVENT_PROFILING_INFO_INST(command_submit, uint64_t)
+__SYCL_EVENT_PROFILING_INFO_INST(command_start, uint64_t)
+__SYCL_EVENT_PROFILING_INFO_INST(command_end, uint64_t)
+#undef __SYCL_EVENT_PROFILING_INFO_INST
 
 backend event::get_backend() const noexcept try {
   return getImplBackend(impl);

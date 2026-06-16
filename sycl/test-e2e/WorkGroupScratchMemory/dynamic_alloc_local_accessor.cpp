@@ -13,6 +13,7 @@
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/work_group_scratch_memory.hpp>
+#include <sycl/group_barrier.hpp>
 
 #include <vector>
 
@@ -40,14 +41,14 @@ template <typename T1, typename T2, typename T3> struct KernelFunctor {
     for (size_t I = 0; I < RepeatWG; ++I) {
       Ptr[WgSize * I + Item.get_local_linear_id()] = Item.get_local_linear_id();
     }
-    Item.barrier();
+    sycl::group_barrier(Item.get_group());
 
     for (size_t I = 0; I < RepeatWG; ++I) {
       // Check that the local accessor works.
       size_t LocalIdx = Item.get_local_linear_id() ^ 1;
       mLocalAccessor[WgSize * I + LocalIdx] = Ptr[WgSize * I + LocalIdx] + 1;
     }
-    Item.barrier();
+    sycl::group_barrier(Item.get_group());
 
     for (size_t I = 0; I < RepeatWG; ++I) {
       // Check that the memory is accessible from other

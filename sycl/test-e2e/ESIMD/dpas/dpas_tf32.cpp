@@ -12,6 +12,7 @@
 // This test verifies DPAS support for tfloat32.
 
 #include "dpas_common.hpp"
+#include <sycl/half_type.hpp>
 
 int main(int argc, const char *argv[]) {
   queue Q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler());

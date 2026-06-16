@@ -130,7 +130,7 @@ SYCL_EXTERNAL auto geehalf() SYCL_ESIMD_FUNCTION {
 // CHECK: define dso_local spir_func void @_Z7geehalfv({{.*}} %[[RES:[a-zA-Z0-9_\.]+]]){{.*}} {
   simd<half, 2> val(-7);
   return val;
-// CHECK: store <2 x half> splat (half 0xHC700), ptr addrspace(4) %[[RES]]
+// CHECK: store <2 x half> splat (half -7.000000e+00), ptr addrspace(4) %[[RES]]
 // CHECK-NEXT: ret void
 // CHECK-NEXT: }
 }

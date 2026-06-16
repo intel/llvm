@@ -432,10 +432,7 @@ void device_impl::wait() {
   // not-yet-enqueued commands and host_task.
   {
     std::lock_guard<std::mutex> Lock(MQueuesMutex);
-    for (const std::weak_ptr<queue_impl> &WQueue : MQueues) {
-      std::shared_ptr<queue_impl> Queue = WQueue.lock();
-      assert(Queue && "Queue should never be dangling in the list of queues "
-                      "associated with the device!");
+    for (queue_impl *Queue : MQueues) {
       Queue->waitForRuntimeLevelCmdsAndClear();
     }
   }

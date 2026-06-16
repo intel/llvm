@@ -104,6 +104,7 @@ def Aspectext_intel_xe_clusters_per_region : Aspect<"ext_intel_xe_clusters_per_r
 def Aspectext_intel_xe_cores_per_cluster : Aspect<"ext_intel_xe_cores_per_cluster">;
 def Aspectext_intel_eus_per_xe_core : Aspect<"ext_intel_eus_per_xe_core">;
 def Aspectext_intel_max_lanes_per_hw_thread : Aspect<"ext_intel_max_lanes_per_hw_thread">;
+def Aspectext_oneapi_ipc_physical_memory : Aspect<"ext_oneapi_ipc_physical_memory">;
 
 // Deprecated aspects
 def AspectInt64_base_atomics : Aspect<"int64_base_atomics">;
@@ -189,7 +190,8 @@ def : TargetInfo<"__TestAspectList",
     Aspectext_intel_xe_clusters_per_region,
     Aspectext_intel_xe_cores_per_cluster,
     Aspectext_intel_eus_per_xe_core,
-    Aspectext_intel_max_lanes_per_hw_thread],
+    Aspectext_intel_max_lanes_per_hw_thread,
+    Aspectext_oneapi_ipc_physical_memory],
     []>;
 // This definition serves the only purpose of testing whether the deprecated aspect list defined in here and in SYCL RT
 // match.
@@ -258,16 +260,20 @@ def : IntelTargetInfo<"intel_gpu_nvl_p", Fp16Fp64Atomic64, Sg16_32>;
 def : IntelTargetInfo<"intel_gpu_nvl_u", Fp16Fp64Atomic64, Sg16_32>;
 def : IntelTargetInfo<"intel_gpu_nvl_s", Fp16Fp64Atomic64, Sg16_32>;
 def : IntelTargetInfo<"intel_gpu_wcl", Fp16Fp64Atomic64, Sg16_32>;
+def : IntelTargetInfo<"intel_gpu_ptl", Fp16Fp64Atomic64, Sg16_32>;
 def : IntelTargetInfo<"intel_gpu_ptl_u", Fp16Fp64Atomic64, Sg16_32>;
 def : IntelTargetInfo<"intel_gpu_ptl_h", Fp16Fp64Atomic64, Sg16_32>;
+def : IntelTargetInfo<"intel_gpu_bmg", Fp16Fp64Atomic64, Sg16_32>;
 def : IntelTargetInfo<"intel_gpu_lnl_m", Fp16Fp64Atomic64, Sg16_32>;
 def : IntelTargetInfo<"intel_gpu_bmg_g31", Fp16Fp64Atomic64, Sg16_32>;
 def : IntelTargetInfo<"intel_gpu_bmg_g21", Fp16Fp64Atomic64, Sg16_32>;
 def : IntelTargetInfo<"intel_gpu_arl_h", Fp16Fp64Atomic64, Sg8_16_32>;
+def : IntelTargetInfo<"intel_gpu_mtl", Fp16Fp64Atomic64, Sg8_16_32>;
 def : IntelTargetInfo<"intel_gpu_mtl_h", Fp16Fp64Atomic64, Sg8_16_32>;
 def : IntelTargetInfo<"intel_gpu_mtl_u", Fp16Fp64Atomic64, Sg8_16_32>;
 def : IntelTargetInfo<"intel_gpu_pvc_vg", Fp16Fp64Atomic64, Sg16_32>;
 def : IntelTargetInfo<"intel_gpu_pvc", Fp16Fp64Atomic64, Sg16_32>;
+def : IntelTargetInfo<"intel_gpu_dg2", Fp16Atomic64, Sg8_16_32>;
 def : IntelTargetInfo<"intel_gpu_acm_g12", Fp16Atomic64, Sg8_16_32>;
 def : IntelTargetInfo<"intel_gpu_acm_g11", Fp16Atomic64, Sg8_16_32>;
 def : IntelTargetInfo<"intel_gpu_acm_g10", Fp16Atomic64, Sg8_16_32>;
