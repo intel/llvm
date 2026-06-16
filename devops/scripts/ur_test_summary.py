@@ -81,6 +81,43 @@ def extract_statistics(lines: List[str]) -> List[str]:
     return result
 
 
+def extract_skipped_from_gtest(lines: List[str]) -> List[str]:
+    """
+    Extract skipped test names from GoogleTest output.
+
+    GoogleTest shows skipped tests in summary section:
+    [  SKIPPED ] 3 tests, listed below:
+    [  SKIPPED ] TestName1
+    [  SKIPPED ] TestName2
+    ...
+
+    Returns list of skipped test names.
+    """
+    skipped = []
+    in_summary = False
+
+    for line in lines:
+        # Start collecting after "[  SKIPPED ] N tests, listed below:"
+        if re.match(r"^\[  SKIPPED \] \d+ tests, listed below:", line):
+            in_summary = True
+            continue
+
+        # Stop at "X SKIPPED TESTS" line or empty line after list
+        if in_summary and (
+            re.match(r"^ *\d+ SKIPPED TESTS", line) or not line.strip()
+        ):
+            break
+
+        # Collect test names from summary
+        if in_summary:
+            match = re.match(r"^\[  SKIPPED \] (.+)$", line)
+            if match:
+                test_name = match.group(1).strip()
+                skipped.append(test_name)
+
+    return skipped
+
+
 def extract_test_lists(lines: List[str]) -> Dict[str, List[str]]:
     """
     Extract categorized test lists from LIT summary.
@@ -148,7 +185,17 @@ def show_statistics_and_lists(lines: List[str]) -> None:
             print(stat.rstrip())
         print()
 
-    # Extract and show test lists in collapsed sections
+    # Extract skipped tests from GoogleTest output (if present)
+    # GoogleTest format shows skipped in summary, not in LIT test lists
+    skipped_tests = extract_skipped_from_gtest(lines)
+    if skipped_tests:
+        count = len(skipped_tests)
+        print(f"::group::Skipped Tests ({count})")
+        for test in skipped_tests:
+            print(test)
+        print("::endgroup::")
+
+    # Extract and show test lists in collapsed sections (LIT format)
     test_lists = extract_test_lists(lines)
 
     for category, tests in test_lists.items():
