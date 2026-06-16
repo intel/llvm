@@ -10979,7 +10979,8 @@ static void getSPIRVBackendOpts(const llvm::opt::ArgList &TCArgs,
     llvm::StringRef ArgValue(A->getValue());
     if (ArgValue.starts_with("--spirv-ext=")) {
       // Extract the extension list after --spirv-ext=
-      llvm::StringRef ExtList = ArgValue.substr(12); // strlen("--spirv-ext=") == 12
+      llvm::StringRef ExtList =
+          ArgValue.substr(12); // strlen("--spirv-ext=") == 12
       if (!ExtList.empty()) {
         ExtArg += "," + ExtList.str();
       }
