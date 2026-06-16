@@ -1007,11 +1007,11 @@ Expected<Constant *> IRLinker::linkGlobalValueProto(GlobalValue *SGV,
     // destination modules differ in program address space. Wrapping an
     // intrinsic in an addrspacecast would be flagged by the verifier as having
     // its address taken, which is illegal for intrinsics.
-    auto *NewF = dyn_cast<Function>(NewGV);
+    /* auto *NewF = dyn_cast<Function>(NewGV);
     if (NewF && NewF->isIntrinsic() &&
         NewGV->getType() != TypeMap.get(SGV->getType()))
       C = NewGV;
-    else
+    else */
       C = ConstantExpr::getPointerBitCastOrAddrSpaceCast(
           NewGV, TypeMap.get(SGV->getType()));
   }
