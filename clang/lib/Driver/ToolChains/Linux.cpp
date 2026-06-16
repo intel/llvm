@@ -382,10 +382,33 @@ Linux::Linux(const Driver &D, const llvm::Triple &Triple, const ArgList &Args)
   // The deprecated -DLLVM_ENABLE_PROJECTS=libcxx configuration installs
   // libc++.so in D.Dir+"/../lib/". Detect this path.
   // TODO Remove once LLVM_ENABLE_PROJECTS=libcxx is unsupported.
-  if (StringRef(D.Dir).starts_with(SysRoot) &&
-      (Args.hasArg(options::OPT_fsycl) ||
-       D.getVFS().exists(D.Dir + "/../lib/libsycl.so")))
-    addPathIfExists(D, D.Dir + "/../lib", Paths);
+  // Also handles the SYCL runtime library: when binaries live in a versioned
+  // subdirectory (e.g. lib/dpcpp-N/bin/) walk up to find the install root that
+  // contains lib/libsycl.so rather than assuming D.Dir/../lib.
+  {
+    SmallString<128> SYCLRoot(D.Dir);
+    for (int I = 0; I < 4; ++I) {
+      SmallString<128> Probe(SYCLRoot);
+      llvm::sys::path::append(Probe, "..", "include", "sycl");
+      llvm::sys::path::remove_dots(Probe, /*remove_dot_dot=*/true);
+      if (D.getVFS().exists(Probe)) {
+        llvm::sys::path::append(SYCLRoot, "..");
+        llvm::sys::path::remove_dots(SYCLRoot, /*remove_dot_dot=*/true);
+        break;
+      }
+      llvm::sys::path::append(SYCLRoot, "..");
+      llvm::sys::path::remove_dots(SYCLRoot, /*remove_dot_dot=*/true);
+    }
+    SmallString<128> SYCLLibProbe(SYCLRoot);
+    llvm::sys::path::append(SYCLLibProbe, "lib", "libsycl.so");
+    if (StringRef(SYCLRoot).starts_with(SysRoot) &&
+        (Args.hasArg(options::OPT_fsycl) ||
+         D.getVFS().exists(SYCLLibProbe))) {
+      SmallString<128> SYCLLib(SYCLRoot);
+      llvm::sys::path::append(SYCLLib, "lib");
+      addPathIfExists(D, SYCLLib, Paths);
+    }
+  }
 
   addPathIfExists(D, concat(SysRoot, "/lib"), Paths);
   addPathIfExists(D, concat(SysRoot, "/usr/lib"), Paths);
