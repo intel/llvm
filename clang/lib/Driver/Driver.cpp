@@ -7298,11 +7298,9 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
 
     // Use the current host action in any of the offloading actions, if
     // required.
-    if (!UseNewOffloadingDriver) {
-      if (OffloadBuilder->addHostDependenceToDeviceActions(Current, InputArg,
-                                                           Args))
+    if (!UseNewOffloadingDriver)
+      if (OffloadBuilder->addHostDependenceToDeviceActions(Current, InputArg, Args))
         break;
-    }
 
     for (phases::ID Phase : PL) {
 
