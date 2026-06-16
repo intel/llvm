@@ -178,7 +178,10 @@ static const StringMap<SPIRV::Extension::Extension> SPIRVExtensionMap = {
     {"SPV_INTEL_unstructured_loop_controls",
      SPIRV::Extension::Extension::SPV_INTEL_unstructured_loop_controls},
     {"SPV_AMD_weak_linkage", SPIRV::Extension::Extension::SPV_AMD_weak_linkage},
-    {"SPV_KHR_abort", SPIRV::Extension::Extension::SPV_KHR_abort}};
+    {"SPV_KHR_abort", SPIRV::Extension::Extension::SPV_KHR_abort},
+    {"SPV_INTEL_fp_conversions",
+     SPIRV::Extension::Extension::SPV_INTEL_fp_conversions},
+    {"SPV_EXT_float8", SPIRV::Extension::Extension::SPV_EXT_float8}};
 
 bool SPIRVExtensionsParser::parse(cl::Option &O, StringRef ArgName,
                                   StringRef ArgValue, ExtensionSet &Vals) {

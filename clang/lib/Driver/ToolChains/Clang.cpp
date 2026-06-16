@@ -10973,12 +10973,31 @@ static void getSPIRVBackendOpts(const llvm::opt::ArgList &TCArgs,
                           ",+SPV_KHR_shader_clock"
                           ",+SPV_KHR_uniform_group_instructions";
   ExtArg = ExtArg + DefaultExtArg + IntelExtArg + KHRExtArg;
-  BackendArgs.push_back(TCArgs.MakeArgString(ExtArg));
 
-  // TODO:
-  // - handle -Xspirv-translator option to avoid "argument unused during
-  // compilation" error
-  // - handle --spirv-ext=+<extension> and --spirv-ext=-<extension> options
+  // Handle -Xspirv-translator --spirv-ext options
+  for (const auto *A : TCArgs.filtered(options::OPT_Xspirv_translator)) {
+    llvm::StringRef ArgValue(A->getValue());
+    if (ArgValue.starts_with("--spirv-ext=")) {
+      // Extract the extension list after --spirv-ext=
+      llvm::StringRef ExtList = ArgValue.substr(12); // strlen("--spirv-ext=") == 12
+      if (!ExtList.empty()) {
+        ExtArg += "," + ExtList.str();
+      }
+    }
+  }
+  for (const auto *A : TCArgs.filtered(options::OPT_Xspirv_translator_EQ)) {
+    // For -Xspirv-translator=<triple> <arg>, getValue(0) is the triple,
+    // getValue(1) is the actual argument
+    llvm::StringRef ArgValue(A->getValue(1));
+    if (ArgValue.starts_with("--spirv-ext=")) {
+      llvm::StringRef ExtList = ArgValue.substr(12);
+      if (!ExtList.empty()) {
+        ExtArg += "," + ExtList.str();
+      }
+    }
+  }
+
+  BackendArgs.push_back(TCArgs.MakeArgString(ExtArg));
 }
 
 // Utility function to gather all llvm-spirv options.
