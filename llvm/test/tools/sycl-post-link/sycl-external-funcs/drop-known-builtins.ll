@@ -24,10 +24,19 @@ define dso_local spir_func void @_Z33__sXcl_getScalarSpecConstantValue() #0 {
   ret void
 }
 
+define dso_local spir_func void @_Z29__builtin_spirv_foo() #0 {
+  ret void
+}
+define dso_local spir_func void @_Z29__builtin_spXrv_foo() #0 {
+  ret void
+}
+
 attributes #0 = { "sycl-module-id"="a.cpp" }
 
 ; CHECK-NOT: define dso_local spir_func void @_Z28__spirv_GlobalInvocationId_xv()
 ; CHECK-NOT: define dso_local spir_func void @_Z33__sycl_getScalarSpecConstantValue()
+; CHECK-NOT: define dso_local spir_func void @_Z29__builtin_spirv_foo()
 
 ; CHECK-DAG: define dso_local spir_func void @_Z28__spXrv_GlobalInvocationId_xv()
 ; CHECK-DAG: define dso_local spir_func void @_Z33__sXcl_getScalarSpecConstantValue()
+; CHECK-DAG: define dso_local spir_func void @_Z29__builtin_spXrv_foo()

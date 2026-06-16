@@ -83,8 +83,8 @@ template <class T> struct BigCustomVecPlus {
 int main() {
   queue Q;
   printDeviceInfo(Q);
-  int NumErrors = test<class A1, float, 0, ext::oneapi::maximum<>>(
-      Q, getMinimumFPValue<float>());
+  int NumErrors =
+      test<class A1, float, 0, maximum<>>(Q, getMinimumFPValue<float>());
 
   using BCV = BigCustomVec<long long>;
   NumErrors += test<class A2, BCV, 1, BigCustomVecPlus<long long>>(Q, BCV(0));

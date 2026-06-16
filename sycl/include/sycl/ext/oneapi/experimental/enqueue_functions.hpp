@@ -569,7 +569,8 @@ void nd_launch(queue Q, launch_config<nd_range<Dimensions>, Properties> Config,
   ext::oneapi::experimental::detail::LaunchConfigAccess<nd_range<Dimensions>,
                                                         Properties>
       ConfigAccess(Config);
-  detail::submit_kernel_direct_parallel_for(
+  detail::submit_kernel_direct_parallel_for<
+      detail::NdRangeFreeFunctionKernelWrapper<Func, Dimensions, 3, ArgsT...>>(
       std::move(Q), ConfigAccess.getRange(),
       detail::FreeFunctionKernelWrapper3<Func, Dimensions,
                                         std::decay_t<ArgsT>...>(

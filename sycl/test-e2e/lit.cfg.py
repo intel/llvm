@@ -1036,7 +1036,13 @@ for full_name, sycl_device in zip(
         if re.match(r" *Driver *:", line):
             _, driver_str = line.split(":", 1)
             driver_str = driver_str.strip()
-            if sycl_device.endswith("gpu"):
+            if sycl_device.endswith("cpu"):
+                intel_driver_ver["cpu"] = driver_str
+            else:
+                # Treat any non-CPU selector as a GPU candidate. Arch-pinned
+                # selectors like "level_zero:arch-intel_gpu_mtl_u" don't end
+                # in "gpu" but still need driver-version parsing for
+                # REQUIRES-INTEL-DRIVER to work.
                 lin = re.match(r"[0-9]{1,2}\.[0-9]{1,2}\.([0-9]{5})", driver_str)
                 if lin:
                     intel_driver_ver["lin"] = int(lin.group(1))
@@ -1045,8 +1051,6 @@ for full_name, sycl_device in zip(
                 )
                 if win:
                     intel_driver_ver["win"] = (int(win.group(1)), int(win.group(2)))
-            elif sycl_device.endswith("cpu"):
-                intel_driver_ver["cpu"] = driver_str
         if re.match(r" *Aspects *:", line):
             _, aspects_str = line.split(":", 1)
             dev_aspects.append(aspects_str.strip().split(" "))
