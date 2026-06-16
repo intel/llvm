@@ -111,7 +111,7 @@ to determine which of the extension's features the implementation supports.
 === New functions to create an event
 
 This extension adds the following factory functions which can create an event
-with a specific context and device.
+with a specific or a default context.
 
 '''
 
@@ -120,7 +120,7 @@ with a specific context and device.
 namespace sycl::ext::oneapi::experimental {
 
 template<typename PropertyListT = empty_properties_t>
-event make_event(const context &ctxt, const device &dev, PropertyListT props = {});
+event make_event(const context &ctxt, PropertyListT props = {});
 
 } // namespace sycl::ext::oneapi::experimental
 ----
@@ -132,45 +132,13 @@ _Constraints:_
 * `is_property_list_v<PropertyListT>` is `true` and contains no properties other
   than those listed below in section "New property for creating an event".
 
-_Returns:_ An event that is associated with context `ctxt` and device `dev`.
+_Returns:_ An event that is associated with context `ctxt`. The event has
+`info::event_command_status::complete` status.
 
-_Throws:_
-
-* An `exception` with the `errc::feature_not_supported` error code if
-  `PropertyListT` contains an `enable_profiling` property that enables
-  profiling timestamps and if the platform containing `ctxt` does not support
-  creation of such events as reported by the `event_profiling` information
-  descriptor.
-
-* An `exception` with the `errc::invalid` error code if `ctxt` does not contain
-  `dev`.
-
-'''
-
-[source,c++]
-----
-namespace sycl::ext::oneapi::experimental {
-
-template<typename PropertyListT = empty_properties_t>
-event make_event(const device &dev, PropertyListT props = {});
-
-} // namespace sycl::ext::oneapi::experimental
-----
-
-_Constraints:_
-
-* `PropertyListT` is one of the properties listed below in section "New property
-  for creating an event"; or
-* `is_property_list_v<PropertyListT>` is `true` and contains no properties other
-  than those listed below in section "New property for creating an event".
-
-_Effects:_ Equivalent to:
-
-[source,c++,indent=2]
-----
-sycl::context ctxt = dev.get_platform().khr_get_default_context();
-return sycl::ext::oneapi::experimental::make_event(ctxt, dev, props);
-----
+_Throws:_ An `exception` with the `errc::feature_not_supported` error code if
+`PropertyListT` contains an `enable_profiling` property that enables profiling
+timestamps and if the platform containing `ctxt` does not support creation of
+such events as reported by the `event_profiling` information descriptor.
 
 '''
 
@@ -197,47 +165,8 @@ _Effects:_ Equivalent to:
 ----
 sycl::device dev;
 sycl::context ctxt = dev.get_platform().khr_get_default_context();
-return sycl::ext::oneapi::experimental::make_event(ctxt, dev, props);
+return sycl::ext::oneapi::experimental::make_event(ctxt, props);
 ----
-
-'''
-
-=== New event member functions
-
-This extension adds the following new member functions to the event class:
-
-'''
-
-[source,c++]
-----
-namespace sycl {
-
-class event {
-  // ...
-  device ext_oneapi_get_device() const;
-  context ext_oneapi_get_context() const;
-};
-
-} // namespace sycl
-----
-
-'''
-
-[source,c++]
-----
-device ext_oneapi_get_device() const;
-----
-
-_Returns:_ The device object associated with this event.
-
-'''
-
-[source,c++]
-----
-context ext_oneapi_get_context() const;
-----
-
-_Returns:_ The context object associated with this event.
 
 '''
 
@@ -313,7 +242,7 @@ Any commands submitted to the queue after this barrier cannot begin execution
 until all commands associated with `evt` or `evts` have completed.
 
 _Remarks:_ The event `evt` and the events in `evts` do _not_ need to have the
-same context or the same device as `q`.
+same context as `q`.
 
 '''
 
@@ -328,8 +257,8 @@ void enqueue_signal_event(queue q, event& evt);
 
 _Effects:_ The event `evt` is immediately disassociated with any previous
 command, and its status is set to `info::event_command_status::submitted`. The
-event is also disassociated with any previous device and is associated with the
-device returned by `q.get_device()`.
+event is also disassociated with any previous context and is associated with the
+context returned by `q.get_context()`.
 
 If the queue `q` is in-order (i.e. was constructed with
 `property::queue::in_order`), this function enqueues a lightweight "tag"
@@ -361,6 +290,11 @@ Implementations are encouraged to transition the event directly from the
 "submitted" status to the "complete" status and are encouraged to set the
 "command_start" timestamp to the same value as the "command_end" timestamp.
 
+_Throws:_ An `exception` with the `errc::feature_not_supported` error code if
+`evt` was created with the `enable_profiling` property that enables profiling
+timestamps and if the platform associated with `q` does not support creation of
+such events as reported by the `event_profiling` information descriptor.
+
 [_Note:_ In order to understand why the "command_start" and "command_end"
 timestamps are encouraged to be the same, think of the tag operation as an empty
 kernel with an implicit set of dependencies on all previous commands in the
@@ -377,8 +311,7 @@ _{endnote}_]
 
 An event _E_ created via `make_event` can be used as a command dependency (e.g.
 via `handler::depends_on`) for a command submitted to some queue _Q_.
-It is _not_ necessary for the context or device of _E_ to match the context or
-device of _Q_.
+It is _not_ necessary for the context of _E_ to match the context of _Q_.
 
 If an event _E_ is used as a command dependency for some command _C_ (e.g. via
 `handler::depends_on`), the dependency is captured at the point when _C_ is
@@ -397,8 +330,8 @@ class. The default constructor creates an event that is equivalent to calling
 `make_event` with no parameters.
 
 Several of the `queue` class member functions from the core SYCL specification
-return an event. These events are associated with the queue's context and the
-queue's device as though created by `make_event` with that context and device.
+return an event. These events are associated with the queue's context as though
+created by `make_event` with that context.
 These events may be passed to any of the functions in this extension that take
 an event parameter.
 
@@ -418,7 +351,7 @@ int main() {
   sycl::context ctxt = dev.get_platform().khr_get_default_context();
   sycl::queue q1{ctxt, dev, sycl::property::queue::in_order{}};
   sycl::queue q2{ctxt, dev, sycl::property::queue::in_order{}};
-  sycl::event e = syclex::make_event(ctxt, dev);
+  sycl::event e = syclex::make_event(ctxt);
 
   // Launch a kernel on `q1` and then signal an event when the kernel completes.
   syclex::parallel_for(q1, {N}, [=](sycl::item<> it) { /* ... */ });
