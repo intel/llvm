@@ -1064,89 +1064,81 @@ int main() {
 
 
 [[level-zero-and-opencl-compatibility]]
-== {dpcpp} guaranteed compatibility with Level Zero and OpenCL backends
+== Direct invocation through a native backend
 
-The contents of this section are non-normative and apply only to the {dpcpp}
-implementation.
-Kernels written using the free function kernel syntax can be submitted to a
-device by using the Level Zero or OpenCL backends, without going through the
-SYCL host runtime APIs.
+A free function kernel can be invoked directly through a SYCL backend's native
+kernel-invocation API, using the backend interoperability interface in the core
+SYCL specification, without going through the SYCL host runtime APIs.
+This is guaranteed only when the kernel adheres to the following restrictions:
 
-The interface to the kernel in the native device code module is only guaranteed
-when the kernel adheres to the following restrictions:
+* The kernel is written in the free function kernel syntax.
+* The kernel function is declared as `extern "C"`.
+* Each formal argument to the kernel is a {cpp} trivially copyable type, or a
+  type that another SYCL extension specifies as a permitted free function kernel
+  argument.
 
-* The kernel is written in the free function kernel syntax;
-* The kernel function is declared as `extern "C"`;
-* Each formal argument to the kernel is either a {cpp} trivially copyable type
-  or the `work_group_memory` type (see
-  link:../experimental/sycl_ext_oneapi_work_group_memory.asciidoc[
-  sycl_ext_oneapi_work_group_memory]); and
-* The translation unit containing the kernel is compiled with the
-  `-fno-sycl-dead-args-optimization` option.
+A function with C language linkage cannot be a template, so this guarantee is
+not available for free function kernels that are function templates.
+Such kernels can still be enqueued through the SYCL host runtime APIs.
 
-In order to invoke a kernel using Level Zero or OpenCL, the application must
-first obtain the raw backend content of the device image that contains the
-kernel.
-One way to do this is by using
-link:../experimental/sycl_ext_oneapi_device_image_backend_content.asciidoc[
-sycl_ext_oneapi_device_image_backend_content].
-It is also possible to compile the application in AOT mode via the
-`-fsycl-targets` compiler option and then extract the device image's backend
-content from the executable file.
-
-Both Level Zero and OpenCL identify a kernel via a _name_ string.
-(See `zeKernelCreate` and `clCreateKernel` in their respective specifications.)
-When a kernel is defined according to the restrictions above, the _name_ is
-guaranteed to be the same as the name of the kernel's function in the {cpp}
-source code but with "++__sycl_kernel_++" prefixed.
+A native backend identifies a kernel by a _name_ string.
+When a kernel adheres to the restrictions above, this name is the name of the
+kernel's function in the {cpp} source code with "++__sycl_kernel_++" prefixed.
 For example, if the function name is "foo", the kernel's name in the native
 device code module is "++__sycl_kernel_foo++".
+Because the kernel is declared `extern "C"`, this name is not affected by {cpp}
+name mangling.
 
-Both Level Zero and OpenCL set kernel argument values using three pieces of
-information:
+A native backend sets a kernel argument value using three pieces of information:
+the index of the argument, the size (in bytes) of the value, and a pointer to
+the start of the value.
+When a kernel adheres to the restrictions above, the argument indices are the
+same as the positions of the formal kernel arguments in the {cpp} source code:
+the first argument has index 0, the next has index 1, etc.
 
-* The index of the argument;
-* The size (in bytes) of the value; and
-* A pointer to the start of the value.
-
-(See `zeKernelSetArgumentValue` and `clSetKernelArg` in their respective
-specifications.)
-
-When a kernel is defined according to the restrictions above, the argument
-indices are the same as the positions of the formal kernel arguments in the
-{cpp} source code.
-The first argument has index 0, the next has index 1, etc.
-
-If an argument has a trivially copyable type, the size must be the size of that
-type, and the pointer must point to a memory region that has the same size and
+If an argument has a trivially copyable type, the size is the size of that type,
+and the pointer must point to a memory region that has the same size and
 representation as that trivially copyable type.
+An extension that permits an additional free function kernel argument type
+specifies how that argument's size and pointer are set when the kernel is
+invoked through a native backend.
 
-If an argument has the type `work_group_memory`, the size must be the size (in
-bytes) of the device local memory that is represented by the
-`work_group_memory` argument.
-The pointer passed to  `zeKernelSetArgumentValue` or `clSetKernelArg` must be
-NULL in this case.
+Some kernel features are disallowed when invoking a kernel through a native
+backend, and others require the kernel to be invoked in a special way:
 
-Some kernel features are disallowed when submitting a kernel using Level Zero or
-OpenCL.
-Other features require the kernel to be invoked in some special way.
-These features are detailed below:
-
-* When a kernel's static call tree contains a call to
-  `get_work_group_scratch_memory` from
-  link:../experimental/sycl_ext_oneapi_work_group_scratch_memory.asciidoc[
-  sycl_ext_oneapi_work_group_scratch_memory], the kernel has an additional
-  "hidden" argument whose value must be set when the kernel is invoked.
+* A kernel may use work-group local memory whose size is specified by a launch
+  property rather than fixed at compile time, through a mechanism provided by
+  another SYCL extension.
+  When a kernel does so, it has an additional "hidden" argument whose value must
+  be set when the kernel is invoked.
   This argument appears after all other kernel arguments.
-  The value corresponds to the `work_group_scratch_size` launch property, which
-  specifies the size of the dynamic device local memory that is available via
-  `get_work_group_scratch_memory`.
-  The kernel argument's size specifies the size (in bytes) of the dynamic device
-  local memory.
-  The kernel argument's pointer must be NULL.
+  Its value corresponds to the size (in bytes) of the dynamic device local
+  memory, and the kernel argument's pointer must be NULL.
 
 * Kernels must not use specialization constants as defined in section 4.9.5
   "Specialization constants" of the core SYCL specification.
+
+[_Note:_ On the OpenCL and Level Zero backends, the native kernel-invocation API
+described above corresponds to `clCreateKernel` / `clSetKernelArg` and
+`zeKernelCreate` / `zeKernelSetArgumentValue` respectively.
+The `work_group_memory` type (see
+link:../experimental/sycl_ext_oneapi_work_group_memory.asciidoc[
+sycl_ext_oneapi_work_group_memory]) is an example of an additional permitted
+argument type; its native size is the size of the device local memory it
+represents and its pointer must be NULL.
+The dynamic local memory mechanism described above is provided by
+link:../experimental/sycl_ext_oneapi_work_group_scratch_memory.asciidoc[
+sycl_ext_oneapi_work_group_scratch_memory], whose hidden argument corresponds to
+its `work_group_scratch_size` launch property.
+To obtain the raw backend content of the device image that contains the kernel,
+an application can use
+link:../experimental/sycl_ext_oneapi_device_image_backend_content.asciidoc[
+sycl_ext_oneapi_device_image_backend_content], or compile in AOT mode via the
+`-fsycl-targets` compiler option and extract the device image's backend content
+from the executable file.
+The {dpcpp} implementation additionally requires the translation unit containing
+the kernel to be compiled with the `-fno-sycl-dead-args-optimization` option.
+_{endnote}_]
 
 
 == Implementation notes
