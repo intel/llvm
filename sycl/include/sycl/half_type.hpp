@@ -25,7 +25,15 @@ namespace detail::half_impl {
 // only carries forward declarations so that <ostream>/<istream> are not
 // pulled into device compilation. Consumers that print sycl::half values
 // must include <iostream> (or <ostream>/<istream>) themselves.
+__SYCL_DEPRECATED(
+    "Stream operators for half are deprecated and will be removed in a "
+    "future release. Please use explicit conversion to "
+    "float for streaming.")
 __SYCL_EXPORT std::ostream &operator<<(std::ostream &O, sycl::half const &rhs);
+__SYCL_DEPRECATED(
+    "Stream operators for half are deprecated and will be removed in a "
+    "future release. Please use explicit conversion to "
+    "float for streaming.")
 __SYCL_EXPORT std::istream &operator>>(std::istream &I, sycl::half &rhs);
 
 } // namespace detail::half_impl
