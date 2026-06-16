@@ -50,6 +50,14 @@ This extension also depends on the following other SYCL extensions:
 * link:../experimental/sycl_ext_oneapi_enqueue_functions.asciidoc[
   sycl_ext_oneapi_enqueue_functions]
 
+[_Note:_ This extension uses the `single_task` and `nd_launch` function names
+from `sycl_ext_oneapi_enqueue_functions`, but it does not use that extension's
+`launch_config` type in this version (see the note in "New free functions to
+launch a kernel").
+This dependency is expected to be revisited if and when an equivalent of those
+launch functions is provided by a finalized SYCL extension.
+_{endnote}_]
+
 [_Note:_ This extension's compile-time properties (`nd_range_kernel` and
 `single_task_kernel`) are still defined below using the `property_value` shape
 and the `sycl::ext::oneapi::experimental` namespace from the experimental
@@ -476,39 +484,12 @@ kernel, using the number of work-items specified by the ND-range `r`.
 Each value in the `args` pack is passed to the corresponding argument in
 `Func`, converting it to the argument's type if necessary.
 
-'''
-
-[frame=all,grid=none,separator="@"]
-!====
-a@
-[source,c++]
-----
-namespace sycl::ext::oneapi::experimental {
-
-template <auto *Func, int Dimensions,
-          typename Properties, typename... Args>
-void nd_launch(queue q,
-               launch_config<nd_range<Dimensions>, Properties> c,
-               kernel_function_s<Func> k, Args&& args...);
-
-template <auto *Func, int Dimensions,
-          typename Properties, typename... Args>
-void nd_launch(handler &h,
-               launch_config<nd_range<Dimensions>, Properties> c,
-               kernel_function_s<Func> k, Args&& args...);
-
-} // namespace sycl::ext::oneapi::experimental
-----
-!====
-
-_Constraints_: Available only if `is_nd_range_kernel_v<Func, Dimensions>` is
-`true`.
-Available only if `+std::is_invocable_v<decltype(Func), Args...>+` is `true`.
-
-_Effects_: Enqueues a kernel object to the `queue` or `handler` as an ND-range
-kernel, using the launch configuration specified by `c`.
-Each value in the `args` pack is passed to the corresponding argument in
-`Func`, converting it to the argument's type if necessary.
+[_Note:_ A future version of this extension is expected to add `nd_launch`
+overloads that accept a `launch_config` argument, allowing launch-time
+properties (such as a dynamic work-group local memory size) to be specified.
+These overloads are omitted from this version because they depend on the
+`launch_config` type, which is not yet provided by a finalized SYCL extension.
+_{endnote}_]
 
 === New kernel bundle member functions
 
