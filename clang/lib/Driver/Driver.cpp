@@ -9554,10 +9554,6 @@ InputInfoList Driver::BuildJobsForActionNoCache(
     // FIXME: Clean this up.
     bool SubJobAtTopLevel =
         AtTopLevel && (isa<DsymutilJobAction>(A) || isa<VerifyJobAction>(A));
-#if 0
-    JATC = (Input->getType() == types::TY_PCH &&
-            Input->getKind() == clang::driver::Action::OffloadPackagerExtractJobClass) ? TC : JATC;
-#endif
     InputInfos.append(BuildJobsForAction(
         C, Input, JATC, DA ? DA->getOffloadingArch() : BoundArch,
         SubJobAtTopLevel, MultipleArchs, LinkingOutput, CachedResults,
