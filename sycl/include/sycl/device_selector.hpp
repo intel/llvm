@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <sycl/aspects.hpp>
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
 #include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
 
@@ -23,7 +24,6 @@ inline namespace _V1 {
 // Forward declarations
 class device;
 class context;
-enum class aspect;
 
 namespace ext::oneapi {
 class filter_selector;

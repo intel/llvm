@@ -352,6 +352,7 @@ set(SYCL_COMMON_SOURCES
     "image.cpp"
     "interop_handle.cpp"
     "ipc_memory.cpp"
+    "ipc_physical_memory.cpp"
     "kernel.cpp"
     "kernel_bundle.cpp"
     "physical_mem.cpp"

@@ -12,6 +12,7 @@
 #include <iostream>
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/bindless_images.hpp>
+#include <sycl/half_type.hpp>
 
 namespace syclexp = sycl::ext::oneapi::experimental;
 

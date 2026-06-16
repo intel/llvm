@@ -14,9 +14,17 @@
 #include <sycl/aspects.hpp>
 #include <sycl/detail/cl.h>
 #include <sycl/detail/ur.hpp>
+#include <sycl/ext/codeplay/experimental/max_registers_query.hpp>
+#include <sycl/ext/intel/info/device.hpp>
+#include <sycl/ext/intel/info/kernel.hpp>
+#include <sycl/ext/oneapi/experimental/bindless_image_info.hpp>
+#include <sycl/ext/oneapi/experimental/composite_device.hpp>
 #include <sycl/ext/oneapi/experimental/device_architecture.hpp>
 #include <sycl/ext/oneapi/experimental/forward_progress.hpp>
-#include <sycl/info/info_desc.hpp>
+#include <sycl/ext/oneapi/experimental/max_work_groups.hpp>
+#include <sycl/ext/oneapi/info/device.hpp>
+#include <sycl/ext/oneapi/matrix/query-types.hpp>
+#include <sycl/info/device.hpp>
 #include <sycl/kernel_bundle.hpp>
 #include <sycl/platform.hpp>
 
@@ -585,7 +593,7 @@ public:
       return MCache.get<Param>();
     }
 #define CASE(PARAM) else if constexpr (std::is_same_v<Param, PARAM>)
-    // SYCL 2020 info::device traits (defined in sycl/info/info_desc.hpp).
+    // SYCL 2020 info::device traits (defined in sycl/info/device.hpp).
 
     CASE(info::device::device_type) {
       return detail::ConvertDeviceType(get_info_impl<UR_DEVICE_INFO_TYPE>());
@@ -1612,6 +1620,11 @@ public:
       return get_info_impl_nocheck<UR_DEVICE_INFO_DEVICE_WAIT_SUPPORT_EXP>()
           .value_or(0);
     }
+    CASE(ext_oneapi_ipc_physical_memory) {
+      return get_info_impl_nocheck<
+                 UR_DEVICE_INFO_IPC_PHYSICAL_MEMORY_SUPPORT_EXP>()
+          .value_or(0);
+    }
     else {
       return false; // This device aspect has not been implemented yet.
     }
@@ -2289,12 +2302,14 @@ public:
   // Dispatch all unconsumed asynchronous exception to the appropriate handlers.
   void throwAsynchronous();
 
-  void registerQueue(const std::weak_ptr<queue_impl> &Q) {
+  // Called by queue_impl in its constructor.
+  void registerQueue(queue_impl *Q) {
     std::lock_guard<std::mutex> Lock(MQueuesMutex);
     MQueues.insert(Q);
   }
 
-  void unregisterQueue(const std::weak_ptr<queue_impl> &Q) {
+  // Called by queue_impl in its destructor.
+  void unregisterQueue(queue_impl *Q) {
     std::lock_guard<std::mutex> Lock(MQueuesMutex);
     MQueues.erase(Q);
   }
@@ -2309,9 +2324,7 @@ private:
   // Devices track a list of active queues on it, to allow for synchronization
   // with host_task and not-yet-enqueued commands.
   std::mutex MQueuesMutex;
-  std::set<std::weak_ptr<queue_impl>,
-           std::owner_less<std::weak_ptr<queue_impl>>>
-      MQueues;
+  std::set<queue_impl *> MQueues;
 
   // Order of caches matters! UR must come before SYCL info descriptors (because
   // get_info calls get_info_impl but the opposite never happens) and both

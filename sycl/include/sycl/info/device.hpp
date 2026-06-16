@@ -533,5 +533,12 @@ struct ext_oneapi_cuda_cluster_group : device_runtime_traits {
 } // namespace device
 
 } // namespace info
+
+namespace detail {
+// SFINAE predicate confining `device::get_info<T>()` to device traits.
+// `return_type` alias is load-bearing for ABI symbol mangling — keep stable.
+template <typename T>
+struct is_device_info_desc : is_info_desc_for<T, info_class::device> {};
+} // namespace detail
 } // namespace _V1
 } // namespace sycl

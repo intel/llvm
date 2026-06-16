@@ -9,6 +9,7 @@
 #pragma once
 
 #include <sycl/bit_cast.hpp> // for bit_cast
+#include <sycl/detail/defines.hpp>
 #include <sycl/detail/fwd/half.hpp>
 
 #ifdef __SYCL_DEVICE_ONLY__
@@ -17,10 +18,6 @@
 
 #include <cstdint>
 #include <limits> // for float_denorm_style, float_round_style
-
-#if !defined(__has_builtin) || !__has_builtin(__builtin_expect)
-#define __builtin_expect(a, b) (a)
-#endif
 
 #ifdef __SYCL_DEVICE_ONLY__
 // `constexpr` could work because the implicit conversion from `float` to

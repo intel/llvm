@@ -3,6 +3,7 @@
 // RUN: %{run} %t.out
 
 #include <sycl/detail/core.hpp>
+#include <sycl/ext/codeplay/experimental/max_registers_query.hpp>
 
 int main() {
   sycl::queue q;

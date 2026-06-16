@@ -100,5 +100,16 @@ struct ext_codeplay_num_regs : kernel_info_traits<UR_KERNEL_INFO_NUM_REGS> {
 } // namespace kernel_device_specific
 
 } // namespace info
+
+namespace detail {
+// SFINAE predicates confining `kernel::get_info<T>()` to kernel traits and
+// `kernel::get_info<T>(device)` to kernel-device-specific traits. The
+// `return_type` alias is load-bearing for ABI symbol mangling — keep stable.
+template <typename T>
+struct is_kernel_info_desc : is_info_desc_for<T, info_class::kernel> {};
+template <typename T>
+struct is_kernel_device_specific_info_desc
+    : is_info_desc_for<T, info_class::kernel_device_specific> {};
+} // namespace detail
 } // namespace _V1
 } // namespace sycl
