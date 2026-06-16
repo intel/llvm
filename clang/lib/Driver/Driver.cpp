@@ -7113,15 +7113,15 @@ shouldBundleHIPAsmWithNewDriver(const Compilation &C,
   }
   return HasAMDGCNHIPDevice;
 }
-  
+
 /// This routine unbundles individual PCH files from a fat PCH bundle.
 /// In the old offloading driver model, this routine invokes the clang
 /// offload bundler; in the new offloading driver model, it invokes the
 /// llvm offload binary.
-static void
-unbundlePCH(bool UseNewOffloadingDriver, OffloadingActionBuilder *OAB,
-            Compilation &C, DerivedArgList &Args, ActionList &AL,
-            const ToolChain *TC, const Arg *MainArg) {
+static void unbundlePCH(bool UseNewOffloadingDriver,
+                        OffloadingActionBuilder *OAB, Compilation &C,
+                        DerivedArgList &Args, ActionList &AL,
+                        const ToolChain *TC, const Arg *MainArg) {
   // Unbundle a fat PCH file.
   if (!Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false) &&
       !Args.hasArg(options::OPT_offload_targets_EQ))
@@ -7291,16 +7291,16 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
     if (Args.hasArg(options::OPT_include_pch) ||
         Args.getLastArg(options::OPT__SLASH_Yu)) {
       // Unbundles the fat PCH file for the host.
-      unbundlePCH(UseNewOffloadingDriver, OffloadBuilder.get(),
-                  C, Args, Actions, /*ToolChain=*/nullptr,
+      unbundlePCH(UseNewOffloadingDriver, OffloadBuilder.get(), C, Args,
+                  Actions, /*ToolChain=*/nullptr,
                   UseNewOffloadingDriver ? nullptr : InputArg);
     }
 
     // Use the current host action in any of the offloading actions, if
     // required.
     if (!UseNewOffloadingDriver) {
-      if (OffloadBuilder->addHostDependenceToDeviceActions(
-                              Current, InputArg, Args))
+      if (OffloadBuilder->addHostDependenceToDeviceActions(Current, InputArg,
+                                                           Args))
         break;
     }
 
@@ -7975,10 +7975,10 @@ Driver::BuildOffloadingActions(Compilation &C, llvm::opt::DerivedArgList &Args,
     bool isIncludePCHArg = Args.hasArg(options::OPT_include_pch);
     bool isYuArg = Args.hasArg(options::OPT__SLASH_Yu);
     if (isIncludePCHArg || isYuArg) {
-      for (auto *TCAndArch = TCAndArchs.begin();
-           TCAndArch != TCAndArchs.end(); ++TCAndArch) {
-        unbundlePCH(/*Offloading New Driver=*/true, /*Builder=*/nullptr,
-                    C, Args, OffloadActions, TCAndArch->first, nullptr);
+      for (auto *TCAndArch = TCAndArchs.begin(); TCAndArch != TCAndArchs.end();
+           ++TCAndArch) {
+        unbundlePCH(/*Offloading New Driver=*/true, /*Builder=*/nullptr, C,
+                    Args, OffloadActions, TCAndArch->first, nullptr);
       }
     }
 
@@ -8187,8 +8187,8 @@ Driver::BuildOffloadingActions(Compilation &C, llvm::opt::DerivedArgList &Args,
       }
     }
     PackagerActions.push_back(HostAction);
-    Action *PackagerAction = C.MakeAction<OffloadPackagerJobAction>(
-        PackagerActions, types::TY_PCH);
+    Action *PackagerAction =
+       C.MakeAction<OffloadPackagerJobAction>(PackagerActions, types::TY_PCH);
     DDeps.add(*PackagerAction, *C.getSingleOffloadToolChain<Action::OFK_Host>(),
               nullptr, C.getActiveOffloadKinds());
   } else if (C.isOffloadingHostKind(Action::OFK_SYCL) &&
