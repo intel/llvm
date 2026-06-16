@@ -206,8 +206,8 @@ inline uint16_t from_float_to_uint16_t(const float &a) {
 } // namespace detail
 
 #if defined(__SYCL_DEVICE_ONLY__)
-extern "C" __DPCPP_SYCL_EXTERNAL
-    uint16_t __devicelib_ConvertFToBF16INTEL(const float &) noexcept;
+extern "C" __DPCPP_SYCL_EXTERNAL uint16_t
+__devicelib_ConvertFToBF16INTEL(const float &) noexcept;
 #endif
 inline uint16_t bfloat16::from_float(const float &a) {
 #if defined(__SYCL_DEVICE_ONLY__)
