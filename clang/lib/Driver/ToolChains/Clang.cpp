@@ -10715,6 +10715,9 @@ void OffloadPackager::ConstructJob(Compilation &C, const JobAction &JA,
 
   // Create the inputs to bundle the needed metadata.
   for (const InputInfo &Input : Inputs) {
+    // Do not bundle input PCH files into anything other than a PCH file.
+    if (Output.getType() != types::TY_PCH && Input.getType() == types::TY_PCH)
+      continue;
     const Action *OffloadAction = Input.getAction();
     const ToolChain *TC = OffloadAction->getOffloadingToolChain();
     if (!TC)
@@ -10835,7 +10838,10 @@ void OffloadPackagerExtract::ConstructJob(Compilation &C, const JobAction &JA,
                                           const char *LinkingOutput) const {
   ArgStringList CmdArgs;
   const Action *OffloadAction = Inputs[0].getAction();
-  const ToolChain *TC = OffloadAction->getOffloadingToolChain();
+  const ToolChain *TC =
+      isa<OffloadPackagerExtractJobAction>(JA) ?
+      cast<OffloadPackagerExtractJobAction>(JA).getToolChain() :
+      OffloadAction->getOffloadingToolChain();
   if (!TC)
     TC = &C.getDefaultToolChain();
   const ArgList &TCArgs =
@@ -10863,6 +10869,12 @@ void OffloadPackagerExtract::ConstructJob(Compilation &C, const JobAction &JA,
       "kind=" + Kind.str(),
   };
   CmdArgs.push_back(Args.MakeArgString("--image=" + llvm::join(Parts, ",")));
+
+  if (Inputs[0].getType() == types::TY_PCH) {
+      C.getDriver().addSYCLPrecompiledHeaderFiles(
+          TCArgs.MakeArgString(TC->getTripleString().data()),
+          TCArgs.MakeArgString(File.str()));
+  }
 
   C.addCommand(std::make_unique<Command>(
       JA, *this, ResponseFileSupport::None(),
