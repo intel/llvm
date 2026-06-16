@@ -1061,6 +1061,14 @@ ur_result_t urPrintExpWin32Handle(const struct ur_exp_win32_handle_t params,
   return str_copy(&ss, buffer, buff_size, out_size);
 }
 
+ur_result_t urPrintExpWin32Name(const struct ur_exp_win32_name_t params,
+                                char *buffer, const size_t buff_size,
+                                size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
 ur_result_t urPrintExpSamplerMipProperties(
     const struct ur_exp_sampler_mip_properties_t params, char *buffer,
     const size_t buff_size, size_t *out_size) {

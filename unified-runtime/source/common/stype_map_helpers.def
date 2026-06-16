@@ -167,6 +167,9 @@ template <>
 struct stype_map<ur_exp_image_copy_region_t>
     : stype_map_impl<UR_STRUCTURE_TYPE_EXP_IMAGE_COPY_REGION> {};
 template <>
+struct stype_map<ur_exp_win32_name_t>
+    : stype_map_impl<UR_STRUCTURE_TYPE_EXP_WIN32_NAME> {};
+template <>
 struct stype_map<ur_exp_async_usm_alloc_properties_t>
     : stype_map_impl<UR_STRUCTURE_TYPE_EXP_ASYNC_USM_ALLOC_PROPERTIES> {};
 template <>
