@@ -30,7 +30,6 @@ template<typename T>
 [[__sycl_detail__::add_ir_attributes_function("sycl-single-task-kernel", 2)]] 
 void foo(T arg) {}
 
-
 [[__sycl_detail__::add_ir_attributes_function("sycl-single-task-kernel", 2)]] 
 void bar() {}
 

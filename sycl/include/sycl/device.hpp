@@ -8,17 +8,17 @@
 
 #pragma once
 
+#include <sycl/aspects.hpp>
 #include <sycl/backend_types.hpp>
 #include <sycl/detail/defines_elementary.hpp>
 #include <sycl/detail/export.hpp>
-#include <sycl/detail/info_desc_helpers.hpp>
 #include <sycl/detail/owner_less_base.hpp>
 #include <sycl/detail/string.hpp>
 #include <sycl/detail/string_view.hpp>
 #include <sycl/detail/util.hpp>
 #include <sycl/device_selector.hpp>
 #include <sycl/ext/oneapi/experimental/device_architecture.hpp>
-#include <sycl/info/info_desc.hpp>
+#include <sycl/info/device.hpp>
 #include <sycl/kernel_bundle_enums.hpp>
 #include <unified-runtime/ur_api.h>
 
@@ -46,8 +46,6 @@ namespace detail {
 class device_impl;
 auto getDeviceComparisonLambda();
 } // namespace detail
-
-enum class aspect;
 
 namespace ext::oneapi {
 // Forward declaration

@@ -47,12 +47,13 @@
 // RUN: %{run} %t.out --type int8 --channels 1 32
 // RUN: %{run} %t.out --type int8 --channels 2 32
 // RUN: %{run} %t.out --type int8 --channels 4 32
+// CUDA doesn't support unorm8
 // RUN-IF: !cuda, %{run} %t.out --type unorm8 --channels 1 32
 // RUN-IF: !cuda, %{run} %t.out --type unorm8 --channels 2 32
 // RUN-IF: !cuda, %{run} %t.out --type unorm8 --channels 4 32
 
 // On Linux L0, there are problem with semaphores and latest drivers.
-// GSD-12371 GSD-12339
+// GSD-12371 GSD-12339  We need driver version 38362 or later.
 
 // RUN-IF: !level_zero, %{run} %t.out --type float --channels 1 32 --semaphores
 // RUN-IF: !level_zero, %{run} %t.out --type half --channels 2 32 --semaphores
@@ -62,8 +63,6 @@
 // RUN-IF: !level_zero, %{run} %t.out --type uint16 --channels 4 32 --semaphores
 // RUN-IF: !level_zero, %{run} %t.out --type uint8 --channels 1 32 --semaphores
 // RUN-IF: !level_zero, %{run} %t.out --type int8 --channels 4 32 --semaphores
-// CUDA doesn't support unorm8, level_zero has issues with semaphores
-// XXX-IF: !cuda, %{run} %t.out --type unorm8 --channels 2 32 --semaphores
 
 
 /*
@@ -99,6 +98,7 @@
 #include <sycl/ext/oneapi/bindless_images.hpp>
 #include <sycl/ext/oneapi/bindless_images_interop.hpp>
 #include <sycl/image.hpp>
+#include <sycl/properties/queue_properties.hpp>
 
 namespace syclexp = sycl::ext::oneapi::experimental;
 
@@ -212,7 +212,15 @@ int runTest(
   }
 
   try {
-    sycl::queue q;
+    // Bindless image interop requires an in-order queue (per spec). External
+    // semaphore ops additionally require immediate command lists; see
+    // sycl_ext_oneapi_bindless_images.asciidoc.
+    sycl::property_list qProps =
+        useSemaphores ? sycl::property_list{sycl::property::queue::in_order{},
+                                            sycl::ext::intel::property::queue::
+                                                immediate_command_list{}}
+                      : sycl::property_list{sycl::property::queue::in_order{}};
+    sycl::queue q{qProps};
 
     // IMPORT MEMORY
 #ifdef _WIN32
@@ -313,97 +321,99 @@ int runTest(
     syclexp::destroy_image_handle(unsampledHandle, q.get_device(),
                                   q.get_context());
     syclexp::release_external_memory(extMem, q.get_device(), q.get_context());
+
+    // Vulkan Verify
+    vkDeviceWaitIdle(vkCtx.device);
+    VkBuffer verifyBuffer;
+    VkDeviceMemory verifyMem;
+    size_t dataSize = width * channels * sizeof(T);
+    VkBufferCreateInfo bi = {VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
+    bi.size = dataSize;
+    bi.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+    vkCreateBuffer(vkCtx.device, &bi, nullptr, &verifyBuffer);
+    VkMemoryRequirements req;
+    vkGetBufferMemoryRequirements(vkCtx.device, verifyBuffer, &req);
+    VkMemoryAllocateInfo ai = {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
+    ai.allocationSize = req.size;
+    ai.memoryTypeIndex =
+        findMemoryType(vkCtx.physicalDevice, req.memoryTypeBits,
+                       VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                           VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+    vkAllocateMemory(vkCtx.device, &ai, nullptr, &verifyMem);
+    vkBindBufferMemory(vkCtx.device, verifyBuffer, verifyMem, 0);
+
+    {
+      VkCommandPoolCreateInfo poolInfo = {
+          VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO};
+      poolInfo.queueFamilyIndex = vkCtx.queueFamilyIndex;
+      VkCommandPool pool;
+      vkCreateCommandPool(vkCtx.device, &poolInfo, nullptr, &pool);
+      VkCommandBuffer cmd;
+      VkCommandBufferAllocateInfo ca = {
+          VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO};
+      ca.commandPool = pool;
+      ca.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+      ca.commandBufferCount = 1;
+      vkAllocateCommandBuffers(vkCtx.device, &ca, &cmd);
+      VkCommandBufferBeginInfo bi = {
+          VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
+      vkBeginCommandBuffer(cmd, &bi);
+      VkBufferImageCopy reg = {};
+      reg.imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
+      reg.imageExtent = extent;
+      vkCmdCopyImageToBuffer(cmd, imgRes.image, VK_IMAGE_LAYOUT_GENERAL,
+                             verifyBuffer, 1, &reg);
+      vkEndCommandBuffer(cmd);
+      VkSubmitInfo si = {VK_STRUCTURE_TYPE_SUBMIT_INFO};
+      si.commandBufferCount = 1;
+      si.pCommandBuffers = &cmd;
+      std::vector<VkPipelineStageFlags> waitStages = {
+          VK_PIPELINE_STAGE_TRANSFER_BIT};
+      if (useSemaphores) {
+        si.waitSemaphoreCount = 1;
+        si.pWaitSemaphores = &vkSem;
+        si.pWaitDstStageMask = waitStages.data();
+      }
+      vkQueueSubmit(vkCtx.queue, 1, &si, VK_NULL_HANDLE);
+      vkQueueWaitIdle(vkCtx.queue);
+      vkDestroyCommandPool(vkCtx.device, pool, nullptr);
+    }
+
+    void *ptr;
+    vkMapMemory(vkCtx.device, verifyMem, 0, dataSize, 0, &ptr);
+    T *vData = (T *)ptr;
+    bool passed = true;
+    int errorCount = 0;
+    for (size_t i = 0; i < width * channels; ++i) {
+      T expected = generateTestValue<T>(i / channels, i % channels, width);
+      if (!checkValue(vData[i], expected)) {
+        passed = false;
+        if (errorCount++ < 5)
+          std::cout << "Mismatch at " << i << " Got: " << (double)vData[i]
+                    << " Exp: " << (double)expected << std::endl;
+      }
+    }
+    vkUnmapMemory(vkCtx.device, verifyMem);
+    if (passed)
+      std::cout << "SUCCESS!" << std::endl;
+    else
+      std::cout << "FAILURE! (" << errorCount << " errors)" << std::endl;
+
+    vkDestroyBuffer(vkCtx.device, verifyBuffer, nullptr);
+    vkFreeMemory(vkCtx.device, verifyMem, nullptr);
     if (useSemaphores) {
       syclexp::release_external_semaphore(extSem, q.get_device(),
                                           q.get_context());
+      vkDestroySemaphore(vkCtx.device, vkSem, nullptr);
     }
+    cleanupVulkan(vkCtx, imgRes);
+    return passed ? 0 : 1;
+
   } catch (std::exception &e) {
     std::cerr << "SYCL Exception: " << e.what() << std::endl;
+    cleanupVulkan(vkCtx, imgRes);
     return 1;
   }
-
-  // Vulkan Verify
-  vkDeviceWaitIdle(vkCtx.device);
-  VkBuffer verifyBuffer;
-  VkDeviceMemory verifyMem;
-  size_t dataSize = width * channels * sizeof(T);
-  VkBufferCreateInfo bi = {VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
-  bi.size = dataSize;
-  bi.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-  vkCreateBuffer(vkCtx.device, &bi, nullptr, &verifyBuffer);
-  VkMemoryRequirements req;
-  vkGetBufferMemoryRequirements(vkCtx.device, verifyBuffer, &req);
-  VkMemoryAllocateInfo ai = {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
-  ai.allocationSize = req.size;
-  ai.memoryTypeIndex = findMemoryType(vkCtx.physicalDevice, req.memoryTypeBits,
-                                      VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-                                          VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-  vkAllocateMemory(vkCtx.device, &ai, nullptr, &verifyMem);
-  vkBindBufferMemory(vkCtx.device, verifyBuffer, verifyMem, 0);
-
-  {
-    VkCommandPoolCreateInfo poolInfo = {
-        VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO};
-    poolInfo.queueFamilyIndex = vkCtx.queueFamilyIndex;
-    VkCommandPool pool;
-    vkCreateCommandPool(vkCtx.device, &poolInfo, nullptr, &pool);
-    VkCommandBuffer cmd;
-    VkCommandBufferAllocateInfo ca = {
-        VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO};
-    ca.commandPool = pool;
-    ca.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    ca.commandBufferCount = 1;
-    vkAllocateCommandBuffers(vkCtx.device, &ca, &cmd);
-    VkCommandBufferBeginInfo bi = {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
-    vkBeginCommandBuffer(cmd, &bi);
-    VkBufferImageCopy reg = {};
-    reg.imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
-    reg.imageExtent = extent;
-    vkCmdCopyImageToBuffer(cmd, imgRes.image, VK_IMAGE_LAYOUT_GENERAL,
-                           verifyBuffer, 1, &reg);
-    vkEndCommandBuffer(cmd);
-    VkSubmitInfo si = {VK_STRUCTURE_TYPE_SUBMIT_INFO};
-    si.commandBufferCount = 1;
-    si.pCommandBuffers = &cmd;
-    std::vector<VkPipelineStageFlags> waitStages = {
-        VK_PIPELINE_STAGE_TRANSFER_BIT};
-    if (useSemaphores) {
-      si.waitSemaphoreCount = 1;
-      si.pWaitSemaphores = &vkSem;
-      si.pWaitDstStageMask = waitStages.data();
-    }
-    vkQueueSubmit(vkCtx.queue, 1, &si, VK_NULL_HANDLE);
-    vkQueueWaitIdle(vkCtx.queue);
-    vkDestroyCommandPool(vkCtx.device, pool, nullptr);
-  }
-
-  void *ptr;
-  vkMapMemory(vkCtx.device, verifyMem, 0, dataSize, 0, &ptr);
-  T *vData = (T *)ptr;
-  bool passed = true;
-  int errorCount = 0;
-  for (size_t i = 0; i < width * channels; ++i) {
-    T expected = generateTestValue<T>(i / channels, i % channels, width);
-    if (!checkValue(vData[i], expected)) {
-      passed = false;
-      if (errorCount++ < 5)
-        std::cout << "Mismatch at " << i << " Got: " << (double)vData[i]
-                  << " Exp: " << (double)expected << std::endl;
-    }
-  }
-  vkUnmapMemory(vkCtx.device, verifyMem);
-  if (passed)
-    std::cout << "SUCCESS!" << std::endl;
-  else
-    std::cout << "FAILURE! (" << errorCount << " errors)" << std::endl;
-
-  vkDestroyBuffer(vkCtx.device, verifyBuffer, nullptr);
-  vkFreeMemory(vkCtx.device, verifyMem, nullptr);
-  if (useSemaphores)
-    vkDestroySemaphore(vkCtx.device, vkSem, nullptr);
-  cleanupVulkan(vkCtx, imgRes);
-
-  return passed ? 0 : 1;
 }
 
 int main(int argc, char **argv) {

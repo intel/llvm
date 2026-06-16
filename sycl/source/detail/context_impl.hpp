@@ -16,7 +16,6 @@
 #include <sycl/detail/os_util.hpp>
 #include <sycl/detail/ur.hpp>
 #include <sycl/exception_list.hpp>
-#include <sycl/info/info_desc.hpp>
 #include <sycl/property_list.hpp>
 
 #include <map>
