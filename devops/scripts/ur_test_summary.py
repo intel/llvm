@@ -103,9 +103,7 @@ def extract_skipped_from_gtest(lines: List[str]) -> List[str]:
             continue
 
         # Stop at "X SKIPPED TESTS" line or empty line after list
-        if in_summary and (
-            re.match(r"^ *\d+ SKIPPED TESTS", line) or not line.strip()
-        ):
+        if in_summary and (re.match(r"^ *\d+ SKIPPED TESTS", line) or not line.strip()):
             break
 
         # Collect test names from summary
@@ -116,6 +114,34 @@ def extract_skipped_from_gtest(lines: List[str]) -> List[str]:
                 skipped.append(test_name)
 
     return skipped
+
+
+def extract_unsupported_from_lit_inline(lines: List[str]) -> List[str]:
+    """
+    Extract unsupported test names from LIT inline output.
+
+    During test execution, LIT prints:
+    UNSUPPORTED: TestName (reason)
+
+    This is used for GoogleTest format where LIT doesn't generate
+    "Unsupported Tests (N):" summary list, but shows "Skipped" in statistics.
+
+    Returns list of unsupported test names (deduplicated).
+    """
+    unsupported = []
+    seen = set()
+    # Pattern: "UNSUPPORTED: test_name" or "UNSUPPORTED: test_name (reason)"
+    unsupported_pattern = re.compile(r"^UNSUPPORTED:\s+(.+?)(?:\s+\(|$)")
+
+    for line in lines:
+        match = unsupported_pattern.match(line)
+        if match:
+            test_name = match.group(1).strip()
+            if test_name not in seen:
+                seen.add(test_name)
+                unsupported.append(test_name)
+
+    return unsupported
 
 
 def extract_test_lists(lines: List[str]) -> Dict[str, List[str]]:
@@ -146,7 +172,7 @@ def extract_test_lists(lines: List[str]) -> Dict[str, List[str]]:
             # Save previous category
             if current_category:
                 categories[current_category] = current_tests
-        
+
             # Start new category
             current_category = match.group(1)
             current_tests = []
@@ -185,19 +211,31 @@ def show_statistics_and_lists(lines: List[str]) -> None:
             print(stat.rstrip())
         print()
 
-    # Extract skipped tests from GoogleTest output (if present)
-    # GoogleTest format shows skipped in summary, not in LIT test lists
-    skipped_tests = extract_skipped_from_gtest(lines)
-    if skipped_tests:
-        count = len(skipped_tests)
-        print(f"::group::Skipped Tests ({count})")
-        for test in skipped_tests:
-            print(test)
-        print("::endgroup::")
-
-    # Extract and show test lists in collapsed sections (LIT format)
+    # Extract test lists in collapsed sections (LIT format)
     test_lists = extract_test_lists(lines)
 
+    # For GoogleTest format: extract skipped/unsupported from inline output
+    # GoogleTest format doesn't generate "Unsupported Tests (N):" list
+    if "Unsupported" not in test_lists:
+        # Try GoogleTest SKIPPED first (for test fixtures that use GTEST_SKIP())
+        skipped_tests = extract_skipped_from_gtest(lines)
+        if skipped_tests:
+            count = len(skipped_tests)
+            print(f"::group::Skipped Tests ({count})")
+            for test in skipped_tests:
+                print(test)
+            print("::endgroup::")
+
+        # Then extract LIT UNSUPPORTED (for tests with REQUIRES:/UNSUPPORTED: markers)
+        unsupported_tests = extract_unsupported_from_lit_inline(lines)
+        if unsupported_tests:
+            count = len(unsupported_tests)
+            print(f"::group::Skipped Tests ({count})")
+            for test in unsupported_tests:
+                print(test)
+            print("::endgroup::")
+
+    # Show remaining test categories from LIT format
     for category, tests in test_lists.items():
         count = len(tests)
         if count > 0:
