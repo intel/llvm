@@ -155,12 +155,10 @@ following rules must be observed:
 
 * The function must not accept variadic arguments.
 
-* Each of the function's arguments must have a type that is an allowed kernel
-  parameter type as specified in section 4.12.4 "Rules for parameter passing to
-  kernels" of the core SYCL specification.
-  The function must not be declared with parameters of type `reducer` or
-  `kernel_handler`.
-  These special kernel arguments cannot be passed to a free function kernel.
+* Each of the function's arguments must have a type `T` for which
+  `is_valid_free_function_kernel_arg_v<T>` is `true` (see below).
+  In particular, the function must not be declared with parameters of type
+  `accessor`, `local_accessor`, `reducer`, or `kernel_handler`.
 
 * All declarations of the function must provide no default parameter values.
 
@@ -180,6 +178,43 @@ following rules must be observed:
 * If a function is decorated with one of these properties in one translation
   unit, any other translation unit that declares the same function must also
   decorate the function with the same property (with the same argument).
+
+The set of types that may be passed as a free function kernel argument is
+defined by the following trait.
+
+[source]
+----
+namespace sycl::ext::oneapi::experimental {
+
+template<typename T>
+struct is_valid_free_function_kernel_arg;
+
+template<typename T>
+inline constexpr bool is_valid_free_function_kernel_arg_v =
+    is_valid_free_function_kernel_arg<T>::value;
+
+} // namespace sycl::ext::oneapi::experimental
+----
+
+The trait `is_valid_free_function_kernel_arg<T>` provides the member constant
+`value` equal to `true` if `T` is a trivially copyable type, except that `value`
+is `false` for `accessor`, `local_accessor`, and any other type that requires
+the implementation to decompose the argument into multiple backend arguments.
+Otherwise `value` is `false`.
+
+Restricting free function kernel arguments to such types gives each argument a
+defined size and representation, which is what provides the stable argument ABI
+described in the Overview.
+Kernel argument types such as `accessor` are excluded because they require the
+implementation to decompose a single argument into several backend arguments,
+which the application cannot reason about.
+
+Another SYCL extension may specialize this trait so that `value` is `true` for
+an additional type that the extension specifies as a permitted free function
+kernel argument.
+Specializing this trait so that `value` is `true` for a type that does not meet
+the requirements of a permitted free function kernel argument is undefined
+behavior.
 
 The following table provides additional details about these compile-time
 properties.
@@ -1118,26 +1153,10 @@ backend, and others require the kernel to be invoked in a special way:
 * Kernels must not use specialization constants as defined in section 4.9.5
   "Specialization constants" of the core SYCL specification.
 
-[_Note:_ On the OpenCL and Level Zero backends, the native kernel-invocation API
-described above corresponds to `clCreateKernel` / `clSetKernelArg` and
-`zeKernelCreate` / `zeKernelSetArgumentValue` respectively.
-The `work_group_memory` type (see
-link:../experimental/sycl_ext_oneapi_work_group_memory.asciidoc[
-sycl_ext_oneapi_work_group_memory]) is an example of an additional permitted
-argument type; its native size is the size of the device local memory it
-represents and its pointer must be NULL.
-The dynamic local memory mechanism described above is provided by
-link:../experimental/sycl_ext_oneapi_work_group_scratch_memory.asciidoc[
-sycl_ext_oneapi_work_group_scratch_memory], whose hidden argument corresponds to
-its `work_group_scratch_size` launch property.
-To obtain the raw backend content of the device image that contains the kernel,
-an application can use
-link:../experimental/sycl_ext_oneapi_device_image_backend_content.asciidoc[
-sycl_ext_oneapi_device_image_backend_content], or compile in AOT mode via the
-`-fsycl-targets` compiler option and extract the device image's backend content
-from the executable file.
-The {dpcpp} implementation additionally requires the translation unit containing
-the kernel to be compiled with the `-fno-sycl-dead-args-optimization` option.
+[_Note:_ The OpenCL backend is an example of a backend that provides such a
+native kernel-invocation interface, via `clCreateKernel` and `clSetKernelArg`.
+Other extensions may specify additional permitted argument types and how their
+size and pointer are set; see the documentation of those extensions.
 _{endnote}_]
 
 
