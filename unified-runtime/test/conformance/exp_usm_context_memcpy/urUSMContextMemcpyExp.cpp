@@ -202,8 +202,6 @@ TEST_P(urUSMContextMemcpyExpTestDevice, LargeAllocation) {
 
   EXPECT_SUCCESS(urUSMFree(context, large_src));
   EXPECT_SUCCESS(urUSMFree(context, large_dst));
-
-  FAIL() << "LargeAllocation test executed - verifying CI runs this test";
 }
 
 TEST_P(urUSMContextMemcpyExpTestDevice, ConcurrentCopies) {
@@ -264,8 +262,6 @@ TEST_P(urUSMContextMemcpyExpTestDevice, ConcurrentCopies) {
     EXPECT_SUCCESS(urUSMFree(context, thread_data[i].src));
     EXPECT_SUCCESS(urUSMFree(context, thread_data[i].dst));
   }
-
-  FAIL() << "ConcurrentCopies test executed - verifying CI runs this test";
 }
 
 TEST_P(urUSMContextMemcpyExpTestDevice, MultiThreadedSequential) {
@@ -343,9 +339,6 @@ TEST_P(urUSMContextMemcpyExpTestDevice, MultiThreadedSequential) {
   }
 
   ASSERT_EQ(errors.load(), 0) << "Multi-threaded sequential test failed";
-
-  FAIL()
-      << "MultiThreadedSequential test executed - verifying CI runs this test";
 }
 
 TEST_P(urUSMContextMemcpyExpTestDevice, UnalignedPointers) {
@@ -381,6 +374,4 @@ TEST_P(urUSMContextMemcpyExpTestDevice, UnalignedPointers) {
 
   EXPECT_SUCCESS(urUSMFree(context, src_base));
   EXPECT_SUCCESS(urUSMFree(context, dst_base));
-
-  FAIL() << "UnalignedPointers test executed - verifying CI runs this test";
 }
