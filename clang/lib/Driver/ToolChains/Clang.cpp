@@ -10834,8 +10834,10 @@ void OffloadPackagerExtract::ConstructJob(Compilation &C, const JobAction &JA,
                                           const char *LinkingOutput) const {
   ArgStringList CmdArgs;
   const Action *OffloadAction = Inputs[0].getAction();
+  assert(isa<OffloadPackagerExtractJobAction>(JA) &&
+         "unexpected job action in OffloadPackagerExtract.");
   const ToolChain *TC =
-      isa<OffloadPackagerExtractJobAction>(JA)
+      Output.getType() == types::TY_PCH
           ? cast<OffloadPackagerExtractJobAction>(JA).getToolChain()
           : OffloadAction->getOffloadingToolChain();
   if (!TC)
