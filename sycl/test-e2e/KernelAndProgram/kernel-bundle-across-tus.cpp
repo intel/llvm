@@ -3,11 +3,25 @@
 // RUN: %clangxx -fsycl %{sycl_target_opts} %t.main.o %t.kernel.o -o %t.out
 // RUN: %{run} %t.out
 
+// DEFINE: %{dynamic_lib_suffix} = %if windows %{dll%} %else %{so%}
+// RUN: rm -rf %t.dir; mkdir -p %t.dir
+// RUN: %clangxx -fsycl %fPIC %shared_lib %s -o %t.dir/libkernel.%{dynamic_lib_suffix}
+// RUN: %clangxx -fsycl %{sycl_target_opts} %t.main.o -o %t.out -L%t.dir \
+// RUN: %if windows                                                      \
+// RUN:   %{%t.dir/libkernel.lib%}                                       \
+// RUN: %else                                                            \
+// RUN:   %{-L%t.dir -lkernel%}
 #include <sycl/detail/core.hpp>
 #include <sycl/kernel_bundle.hpp>
 
+#if defined(_WIN32)
+#define API_EXPORT __declspec(dllexport)
+#else
+#define API_EXPORT
+#endif
+
 class KernelA;
-void submitKernel(sycl::queue &Q);
+API_EXPORT void submitKernel(sycl::queue &Q);
 #ifndef MAIN
 void submitKernel(sycl::queue &Q) {
   Q.submit([&](sycl::handler &CGH) { CGH.single_task<KernelA>([=]() {}); });

@@ -235,6 +235,9 @@ template <typename KN, typename KernelInfo> struct KernelRegistrar {
 #if defined(__GNUG__) || defined(__clang__)
   __attribute__((used))
 #endif
+#if defined(_WIN32)
+__declspec(dllexport)
+#endif
   friend const char *
   getKernelNameHelper(KernelIdentity<KN>) noexcept {
     return KernelInfo::getName();
