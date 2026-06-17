@@ -6,11 +6,14 @@
 // DEFINE: %{dynamic_lib_suffix} = %if windows %{dll%} %else %{so%}
 // RUN: rm -rf %t.dir; mkdir -p %t.dir
 // RUN: %clangxx -fsycl %fPIC %shared_lib %s -o %t.dir/libkernel.%{dynamic_lib_suffix}
-// RUN: %clangxx -fsycl %{sycl_target_opts} %t.main.o -o %t.out -L%t.dir \
-// RUN: %if windows                                                      \
-// RUN:   %{%t.dir/libkernel.lib%}                                       \
-// RUN: %else                                                            \
-// RUN:   %{-L%t.dir -lkernel%}
+// RUN: %if !windows %{%{run-aux}%} \
+// RUN: %clangxx -fsycl %{sycl_target_opts} %t.main.o -o %t.dir/%{t:stem}.out -L%t.dir \
+// RUN: %if windows                                                                    \
+// RUN:   %{%t.dir/libkernel.lib%}                                                     \
+// RUN: %else                                                                          \
+// RUN:   %{-L%t.dir -lkernel -Wl,-rpath=%t.dir%}
+
+// RUN: %{run} %t.dir/%{t:stem}.out
 #include <sycl/detail/core.hpp>
 #include <sycl/kernel_bundle.hpp>
 
