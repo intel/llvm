@@ -8,11 +8,13 @@
 
 #pragma once
 
+#include <detail/backend_impl.hpp>
 #include <detail/config.hpp>
+#include <detail/iostream_proxy.hpp>
 #include <detail/ur.hpp>
 #include <sycl/backend_types.hpp>
 #include <sycl/detail/common.hpp>
-#include <sycl/detail/iostream_proxy.hpp>
+#include <sycl/detail/defines.hpp>
 #include <sycl/detail/type_traits.hpp>
 
 #include <unified-runtime/ur_api.h>
@@ -21,6 +23,7 @@
 #include "xpti/xpti_trace_framework.h"
 #endif
 
+#include <detail/iostream_proxy.hpp>
 #include <memory>
 #include <mutex>
 

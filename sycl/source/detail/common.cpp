@@ -6,13 +6,25 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <sycl/detail/code_location.hpp>
 #include <sycl/detail/common.hpp>
 
 #include <unified-runtime/ur_api.h>
 
+#include <cassert>
+#include <detail/iostream_proxy.hpp>
+
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
+
+#ifndef NDEBUG
+void reportExceptionToStream(const char *Prefix, const char *What) {
+  std::cerr << Prefix << " " << What << std::endl;
+  assert(false);
+}
+#endif
+
 /// @brief CodeLocation information slot in thread local storage
 /// @details This structure is maintained by the SYCL runtime to manage the
 /// propagation of the code_location data down the stack without breaking ABI

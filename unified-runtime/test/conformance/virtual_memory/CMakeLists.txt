@@ -14,4 +14,8 @@ add_conformance_devices_test(virtual_memory
     urVirtualMemReserve.cpp
     urVirtualMemSetAccess.cpp
     urVirtualMemUnmap.cpp
+    urIPCGetPhysMemHandleExp.cpp
+    urIPCPutPhysMemHandleExp.cpp
+    urIPCOpenPhysMemHandleExp.cpp
+    urIPCClosePhysMemHandleExp.cpp
 )

@@ -11,10 +11,10 @@
 #include <detail/error_handling/error_handling.hpp>
 #include <detail/ur_info_code.hpp>
 #include <sycl/detail/common.hpp>
-#include <sycl/detail/info_desc_helpers.hpp>
 #include <sycl/detail/ur.hpp>
 #include <sycl/device.hpp>
-#include <sycl/info/info_desc.hpp>
+#include <sycl/ext/intel/info/kernel.hpp>
+#include <sycl/info/kernel.hpp>
 
 #include <type_traits>
 

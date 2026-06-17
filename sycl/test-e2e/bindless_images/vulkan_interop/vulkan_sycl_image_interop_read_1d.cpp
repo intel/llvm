@@ -43,6 +43,10 @@
 // RUN: %{run} %t.out --type int8 --channels 1 32
 // RUN: %{run} %t.out --type int8 --channels 2 32
 // RUN: %{run} %t.out --type int8 --channels 4 32
+// CUDA doesn't support unorm8
+// RUN-IF: !cuda, %{run} %t.out --type unorm8 --channels 1 32
+// RUN-IF: !cuda, %{run} %t.out --type unorm8 --channels 2 32
+// RUN-IF: !cuda, %{run} %t.out --type unorm8 --channels 4 32
 // RUN: %{run} %t.out --type float --channels 1 --sampled 32
 // RUN: %{run} %t.out --type float --channels 2 --sampled 32
 // RUN: %{run} %t.out --type float --channels 4 --sampled 32
@@ -67,8 +71,10 @@
 // RUN: %{run} %t.out --type int8 --channels 1 --sampled 32
 // RUN: %{run} %t.out --type int8 --channels 2 --sampled 32
 // RUN: %{run} %t.out --type int8 --channels 4 --sampled 32
-
-
+// CUDA doesn't support unorm8
+// RUN-IF: !cuda, %{run} %t.out --type unorm8 --channels 1 --sampled 32
+// RUN-IF: !cuda, %{run} %t.out --type unorm8 --channels 2 --sampled 32
+// RUN-IF: !cuda, %{run} %t.out --type unorm8 --channels 4 --sampled 32
 
 // On Windows, we require driver 38303 or later to avoid semaphore issues, which the CI does not yet have. 
 // Rather than mark the WHOLE test as requiring 38303, which would mean no testing nowhere,
@@ -88,6 +94,11 @@
 // RUN-IF: !windows, %{run} %t.out --type float --channels 4 --sampled 32 --semaphores
 // RUN-IF: !windows, %{run} %t.out --type int16 --channels 4 --sampled 32 --semaphores
 // RUN-IF: !windows, %{run} %t.out --type int8 --channels 4 --sampled 32 --semaphores
+
+// CUDA doesn't support unorm8
+// RUN-IF: !windows && !cuda, %{run} %t.out --type unorm8 --channels 2 32 --semaphores
+// CUDA doesn't support unorm8
+// RUN-IF: !windows && !cuda, %{run} %t.out --type unorm8 --channels 4 --sampled 32 --semaphores
 
 /*
 
@@ -150,6 +161,7 @@ VK_FORMAT_R8G8B8A8_UNORM
     ./vsr_1d_test.bin --linear --type unorm8 128x
 */
 // clang-format on
+#include <iostream>
 
 #include "vulkan_setup.hpp"
 

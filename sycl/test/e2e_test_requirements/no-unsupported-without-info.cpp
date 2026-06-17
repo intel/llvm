@@ -54,7 +54,7 @@
 // tests to match the required format and in that case you should just update
 // (i.e. reduce) the number and the list below.
 //
-// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 104
+// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 99
 //
 // List of improperly UNSUPPORTED tests.
 // Remove the CHECK once the test has been properly UNSUPPORTED.
@@ -76,11 +76,6 @@
 // CHECK-NEXT: DeprecatedFeatures/DiscardEvents/discard_events_using_assert.cpp
 // CHECK-NEXT: DeviceLib/built-ins/printf.cpp
 // CHECK-NEXT: DeviceLib/separate_compile_test.cpp
-// CHECK-NEXT: ESIMD/PerformanceTests/BitonicSortK.cpp
-// CHECK-NEXT: ESIMD/PerformanceTests/BitonicSortKv2.cpp
-// CHECK-NEXT: ESIMD/PerformanceTests/Stencil.cpp
-// CHECK-NEXT: ESIMD/PerformanceTests/matrix_transpose.cpp
-// CHECK-NEXT: ESIMD/PerformanceTests/stencil2.cpp
 // CHECK-NEXT: ESIMD/api/replicate_smoke.cpp
 // CHECK-NEXT: ESIMD/api/simd_copy_to_from.cpp
 // CHECK-NEXT: ESIMD/api/simd_copy_to_from_stateful.cpp

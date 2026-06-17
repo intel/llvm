@@ -36,6 +36,7 @@
 */
 // clang-format on
 #include "vulkan_setup.hpp"
+#include <iostream>
 
 #include <optional>
 #include <string>

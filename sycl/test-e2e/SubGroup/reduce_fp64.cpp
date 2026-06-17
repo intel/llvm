@@ -3,6 +3,7 @@
 // RUN: %{run} %t.out
 
 // This test verifies the correct work of the sub-group algorithm reduce().
+#include <iostream>
 
 #include "reduce.hpp"
 

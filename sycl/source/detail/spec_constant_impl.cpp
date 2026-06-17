@@ -8,13 +8,14 @@
 
 #include <detail/spec_constant_impl.hpp>
 
+#include <detail/iostream_proxy.hpp>
 #include <sycl/detail/defines.hpp>
-#include <sycl/detail/iostream_proxy.hpp>
 #include <sycl/detail/util.hpp>
 #include <sycl/exception.hpp>
 #include <unified-runtime/ur_api.h>
 
 #include <cstring>
+#include <ios>
 
 namespace sycl {
 inline namespace _V1 {

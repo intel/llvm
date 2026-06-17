@@ -45,6 +45,8 @@ void try_1D(queue &Q) {
     std::cout << "From Device acs1.get_range()=" << X << "\n";
     assert(X == M);
   }
+
+  delete[] host_array;
 }
 
 void try_2D(queue &Q) {
@@ -75,6 +77,8 @@ void try_2D(queue &Q) {
     assert(HABX[0][0] == M);
     assert(HABX[0][1] == N);
   }
+
+  delete[] host_array;
 }
 
 void try_3D(queue &Q) {
@@ -110,6 +114,8 @@ void try_3D(queue &Q) {
     assert(HABX[0][1] == N);
     assert(HABX[0][2] == L);
   }
+
+  free(host_array3_2, Q);
 }
 
 int main() {

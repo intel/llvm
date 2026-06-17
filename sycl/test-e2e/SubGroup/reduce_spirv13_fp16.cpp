@@ -12,6 +12,7 @@
 
 // This test verifies the correct work of SPIR-V 1.3 reduce algorithm
 // used with MUL operation.
+#include <iostream>
 
 #include "reduce.hpp"
 
