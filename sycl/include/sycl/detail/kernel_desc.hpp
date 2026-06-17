@@ -236,7 +236,7 @@ template <typename KN, typename KernelInfo> struct KernelRegistrar {
   __attribute__((used))
 #endif
 #if defined(_WIN32)
-__declspec(dllexport)
+  __declspec(dllexport)
 #endif
   friend const char *
   getKernelNameHelper(KernelIdentity<KN>) noexcept {
@@ -262,6 +262,9 @@ template <typename KN> struct KernelRegistry {
 #if defined(__GNUC__) && !defined(__clang__)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wnon-template-friend"
+#endif
+#if defined(_WIN32)
+  __declspec(dllexport)
 #endif
   friend const char *getKernelNameHelper(KernelIdentity<KN>) noexcept;
 #if defined(__GNUC__) && !defined(__clang__)
