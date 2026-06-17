@@ -403,7 +403,10 @@ def show_statistics_and_lists(lines: List[str], all_tests_file: str = None) -> N
 def main():
     """Main CLI interface."""
     if len(sys.argv) < 2:
-        print("Usage: ur_test_summary.py <command> <log_file> [all_tests_file]", file=sys.stderr)
+        print(
+            "Usage: ur_test_summary.py <command> <log_file> [all_tests_file]",
+            file=sys.stderr,
+        )
         print("\nCommands:", file=sys.stderr)
         print(
             "  extract-errors <log>  - Extract FAIL/TIMEOUT error details",
@@ -449,7 +452,9 @@ def main():
     elif command == "show-summary":
         # Optional: all tests file for GoogleTest format
         all_tests_file = sys.argv[3] if len(sys.argv) > 3 else None
-        if all_tests_file and (".." in all_tests_file or all_tests_file.startswith("/")):
+        if all_tests_file and (
+            ".." in all_tests_file or all_tests_file.startswith("/")
+        ):
             print(
                 f"Error: Invalid all_tests file path: {all_tests_file}",
                 file=sys.stderr,
