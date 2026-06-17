@@ -597,7 +597,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMContextMemcpyExp(
   // cuMemcpy can execute asynchronously for D2D, so we need explicit sync.
   // See: https://docs.nvidia.com/cuda/cuda-driver-api/api-sync-behavior.html
 
-  unsigned int devIdx = 0;
+  // Get the device ordinal for the destination pointer
+  unsigned int devIdx = 0; // Will be set by cuPointerGetAttribute
   UR_CHECK_ERROR(cuPointerGetAttribute(
       &devIdx, CU_POINTER_ATTRIBUTE_DEVICE_ORDINAL, (CUdeviceptr)pDst));
 
