@@ -9,6 +9,7 @@
 // RUN: %{run} %t.out
 //
 // Smoke test for esimd any/all operations APIs.
+#include <iostream>
 
 #include "../esimd_test_utils.hpp"
 

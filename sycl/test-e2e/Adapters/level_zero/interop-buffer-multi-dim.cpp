@@ -3,6 +3,7 @@
 // RUN: %{run} %t.out
 
 // Test 2D and 3D interoperability buffers for the Level Zero backend.
+#include <iostream>
 
 #include "interop-buffer-helpers.hpp"
 #include <sycl/detail/core.hpp>

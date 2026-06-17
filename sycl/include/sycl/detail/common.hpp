@@ -108,11 +108,10 @@ struct ArrayCreator<DataT, FlattenF> {
 
 // to output exceptions caught in ~destructors
 #ifndef NDEBUG
+__SYCL_EXPORT void reportExceptionToStream(const char *Prefix,
+                                           const char *What);
 #define __SYCL_REPORT_EXCEPTION_TO_STREAM(str, e)                              \
-  {                                                                            \
-    std::cerr << str << " " << e.what() << std::endl;                          \
-    assert(false);                                                             \
-  }
+  ::sycl::_V1::detail::reportExceptionToStream(str, e.what())
 #else
 #define __SYCL_REPORT_EXCEPTION_TO_STREAM(str, e) (void)e;
 #endif

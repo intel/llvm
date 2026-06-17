@@ -7,6 +7,7 @@
 #include <numeric>
 #include <sycl/aspects.hpp>
 #include <sycl/ext/intel/info/device.hpp>
+#include <sycl/group_barrier.hpp>
 using namespace sycl;
 
 constexpr size_t N_items = 128;
@@ -126,7 +127,7 @@ template <memory_order order> void test_local(size_t N_iters) {
      local_accessor<int, 1> val(2, cgh);
      cgh.parallel_for(nd_range<1>(N_items, N_items), [=](nd_item<1> it) {
        val[0] = 0;
-       it.barrier(access::fence_space::local_space);
+       group_barrier(it.get_group());
        auto atm = atomic_ref<int, memory_order::acq_rel, memory_scope::device,
                              access::address_space::local_space>(val[0]);
        size_t id = it.get_global_id(0);

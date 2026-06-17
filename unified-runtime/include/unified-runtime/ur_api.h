@@ -633,6 +633,8 @@ typedef enum ur_structure_type_t {
   UR_STRUCTURE_TYPE_EXP_SAMPLER_CUBEMAP_PROPERTIES = 0x2006,
   /// ::ur_exp_image_copy_region_t
   UR_STRUCTURE_TYPE_EXP_IMAGE_COPY_REGION = 0x2007,
+  /// ::ur_exp_win32_name_t
+  UR_STRUCTURE_TYPE_EXP_WIN32_NAME = 0x2008,
   /// ::ur_exp_async_usm_alloc_properties_t
   UR_STRUCTURE_TYPE_EXP_ASYNC_USM_ALLOC_PROPERTIES = 0x2050,
   /// ::ur_exp_enqueue_native_command_properties_t
@@ -10042,6 +10044,29 @@ typedef struct ur_exp_win32_handle_t {
   void *handle;
 
 } ur_exp_win32_handle_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Windows specific named object
+///
+/// @details
+///     - An NT object name identifying a shareable Win32 object (e.g. the name
+///       passed to `ID3D12Device::CreateSharedHandle` or to
+///       `CreateEvent`/`CreateSemaphore`). The adapter is expected to open the
+///       named object on the caller's behalf (equivalent to the application
+///       calling `OpenSharedHandleByName` and then importing by handle).
+///     - Adapters that do not support importing by name must return
+///       ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE. Adapters that do not implement
+///       this entry point at all will return ::UR_RESULT_ERROR_UNINITIALIZED.
+typedef struct ur_exp_win32_name_t {
+  /// [in] type of this structure, must be
+  /// ::UR_STRUCTURE_TYPE_EXP_WIN32_NAME
+  ur_structure_type_t stype;
+  /// [in][optional] pointer to extension-specific structure
+  const void *pNext;
+  /// [in] NT object name (null-terminated wide string).
+  const void *name;
+
+} ur_exp_win32_name_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Describes mipmap sampler properties

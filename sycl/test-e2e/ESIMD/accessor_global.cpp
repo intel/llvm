@@ -3,6 +3,7 @@
 // RUN: %{run} %t.out
 
 // This test verifies usage of accessor methods operator[] and get_multi_ptr().
+#include <iostream>
 
 #include "esimd_test_utils.hpp"
 

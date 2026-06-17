@@ -1,6 +1,7 @@
 // UNSUPPORTED: hip
 // RUN: %{build} -o %t.out -fno-sycl-id-queries-fit-in-int
 // RUN: %{run} %t.out
+#include <iostream>
 
 #include <sycl/detail/core.hpp>
 

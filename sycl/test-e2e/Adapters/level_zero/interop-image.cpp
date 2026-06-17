@@ -23,6 +23,7 @@
 
 // clang++ -fsycl -o ilzi.bin -I$SYCL_HOME/build/install/include/sycl
 // -lze_loader interop-level-zero-image.cpp
+#include <iostream>
 
 #include <level_zero/ze_api.h>
 #include <sycl/accessor_image.hpp>

@@ -1323,6 +1323,16 @@ urPrintExpWin32Handle(const struct ur_exp_win32_handle_t params, char *buffer,
                       const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_exp_win32_name_t struct
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL
+urPrintExpWin32Name(const struct ur_exp_win32_name_t params, char *buffer,
+                    const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_exp_sampler_mip_properties_t struct
 /// @returns
 ///     - ::UR_RESULT_SUCCESS

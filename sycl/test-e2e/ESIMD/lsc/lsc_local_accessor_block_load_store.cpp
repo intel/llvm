@@ -11,6 +11,7 @@
 // RUN: %{run} %t.out
 //
 // This test verifies usage of block_load/block_store for local_accessor.
+#include <iostream>
 
 #include "../esimd_test_utils.hpp"
 

@@ -14,6 +14,7 @@
     MIRROR_REPEAT address_mode and LINEAR filter_mode
 
 */
+#include <iostream>
 
 #include "common.hpp"
 

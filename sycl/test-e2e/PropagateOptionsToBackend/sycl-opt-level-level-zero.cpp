@@ -18,6 +18,7 @@
 //       -O1        |    -ze-opt-level=2
 //       -O2        |    -ze-opt-level=2
 //       -O3        |    -ze-opt-level=2
+#include <iostream>
 
 #include <sycl/detail/core.hpp>
 

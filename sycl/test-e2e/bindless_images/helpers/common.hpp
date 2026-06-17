@@ -1,4 +1,5 @@
 #pragma once
+#include <iostream>
 #include <random>
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/bindless_images.hpp>

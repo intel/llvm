@@ -9,10 +9,29 @@
 // 4.9.2 Exception Class Interface
 #include <sycl/exception_list.hpp>
 
+#include <detail/iostream_proxy.hpp>
+#include <exception>
 #include <utility>
 
 namespace sycl {
 inline namespace _V1 {
+
+namespace detail {
+void defaultAsyncHandler(exception_list Exceptions) {
+  std::cerr << "Default async_handler caught exceptions:";
+  for (auto &EIt : Exceptions) {
+    try {
+      if (EIt) {
+        std::rethrow_exception(EIt);
+      }
+    } catch (const std::exception &E) {
+      std::cerr << "\n\t" << E.what();
+    }
+  }
+  std::cerr << std::endl;
+  std::terminate();
+}
+} // namespace detail
 
 exception_list::size_type exception_list::size() const { return MList.size(); }
 

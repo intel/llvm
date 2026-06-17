@@ -3,6 +3,7 @@
 // RUN: %{run} %t.out
 // This test verifies usage of local_accessor methods operator[]
 // and get_pointer().
+#include <iostream>
 
 #include "esimd_test_utils.hpp"
 
