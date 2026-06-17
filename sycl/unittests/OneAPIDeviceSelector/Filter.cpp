@@ -8,8 +8,6 @@
 //===----------------------------------------------------------------------===//
 
 #include <detail/config.hpp>
-#include <detail/global_handler.hpp>
-#include <helpers/UrMock.hpp>
 #include <sycl/detail/device_filter.hpp>
 #include <sycl/exception.hpp>
 #include <sycl/platform.hpp>
@@ -23,6 +21,7 @@
 #include <algorithm>
 #include <array>
 #include <cstring>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -325,7 +324,7 @@ TEST_P(OneAPIDeviceSelectorParamTest, CheckFiltering) {
     auto It = std::find(ActualDevices.begin(), ActualDevices.end(), Expected);
     EXPECT_NE(It, ActualDevices.end())
         << "Failed to find Expected device: " << Expected.DeviceName
-        << " on backend: " << Expected.PlatformName;
+        << " on platform: " << Expected.PlatformName;
   }
 }
 

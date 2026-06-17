@@ -309,7 +309,7 @@ private:
     if (ValStr[0] == '\0')
       throw exception(make_error_code(errc::invalid),
                       "Invalid value for ONEAPI_DEVICE_SELECTOR environment "
-                      "variable: value should not be null.");
+                      "variable: value should not be empty.");
 
     DeviceTargets =
         &GlobalHandler::instance().getOneapiDeviceSelectorTargets(ValStr);
