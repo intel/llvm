@@ -427,7 +427,8 @@ private:
 ///
 /// \ingroup sycl_api
 template <int Dimensions = 1, typename AllocatorT = sycl::image_allocator>
-class __SYCL2020_DEPRECATED("removed in SYCL 2020") image
+class __SYCL2020_DEPRECATED(
+    "The SYCL 1.2.1 image class has been removed in SYCL 2020") image
     : public detail::unsampled_image_common<Dimensions, AllocatorT> {
 private:
   friend sycl::detail::ImplUtils;
