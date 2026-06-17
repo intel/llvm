@@ -1,10 +1,9 @@
 // RUN: %{build} -o %t.out
 
 // clang-format off
-// RUN-IF: cpu, env ONEAPI_DEVICE_SELECTOR="*:cpu" %{run-unfiltered-devices} %t.out
-// RUN-IF: level_zero && gpu, env ONEAPI_DEVICE_SELECTOR="level_zero:gpu" %{run-unfiltered-devices} %t.out
-// RUN-IF: opencl && gpu, env ONEAPI_DEVICE_SELECTOR="opencl:gpu" %{run-unfiltered-devices} %t.out
-// RUN-IF: cpu && level_zero && gpu, env ONEAPI_DEVICE_SELECTOR="*:cpu;level_zero:gpu" %{run-unfiltered-devices} %t.out
+// RUN: env ONEAPI_DEVICE_SELECTOR="*:cpu" %{run-unfiltered-devices} %t.out
+// RUN: env ONEAPI_DEVICE_SELECTOR="level_zero:gpu" %{run-unfiltered-devices} %t.out
+// RUN: env ONEAPI_DEVICE_SELECTOR="opencl:gpu" %{run-unfiltered-devices} %t.out
 // clang-format on
 
 //
@@ -23,7 +22,24 @@
 using namespace sycl;
 using namespace std;
 
+bool AnyDeviceAvailable() {
+  auto platforms = platform::get_platforms();
+  for (const auto &platform : platforms) {
+    auto devices = platform.get_devices();
+    if (!devices.empty()) {
+      return true;
+    }
+  }
+  return false;
+}
+
 int main() {
+
+  if (!AnyDeviceAvailable()) {
+    std::cerr << "Skipping test as no devices are available." << std::endl;
+    return 0;
+  }
+
   std::string forcedDevice = env::getVal("ONEAPI_DEVICE_SELECTOR");
   if (forcedDevice == "*:*" ||
       forcedDevice.find("level_zero:gpu") != std::string::npos) {

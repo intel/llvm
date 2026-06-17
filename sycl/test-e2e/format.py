@@ -439,9 +439,6 @@ class SYCLEndToEndTest(lit.formats.ShTest):
         script = new_script
 
         conditions = {feature: True for feature in test.config.available_features}
-        for device in devices_for_test:
-            for feature in test.config.sycl_dev_features[device]:
-                conditions[feature] = True
         script = lit.TestRunner.applySubstitutions(
             script,
             substitutions,
