@@ -210,8 +210,6 @@ _Throws:_
 This extension defines the following property, which can be passed to
 `register_host_memory`.
 
-'''
-
 [source,c++]
 ----
 namespace sycl::ext::oneapi::experimental {
