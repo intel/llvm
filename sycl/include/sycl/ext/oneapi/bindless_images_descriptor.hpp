@@ -105,14 +105,14 @@ struct image_descriptor {
 
     // Generate a new descriptor which represents the level accordingly
     // Do not allow height/depth values to be clamped to 1 when naturally 0
-    constexpr auto at_least_1 = [](size_t v) constexpr {
+    constexpr auto clamp_mip_dim = [](size_t v) constexpr {
       return v < size_t{1} ? size_t{1} : v;
     };
-    size_t width = at_least_1(this->width >> level);
+    size_t width = clamp_mip_dim(this->width >> level);
     size_t height =
-        this->height == 0 ? this->height : at_least_1(this->height >> level);
+        this->height == 0 ? this->height : clamp_mip_dim(this->height >> level);
     size_t depth =
-        this->depth == 0 ? this->depth : at_least_1(this->depth >> level);
+        this->depth == 0 ? this->depth : clamp_mip_dim(this->depth >> level);
 
     // This will generate the new descriptor with image_type standard
     // since individual mip levels are standard images
