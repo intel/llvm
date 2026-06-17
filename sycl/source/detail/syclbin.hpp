@@ -17,7 +17,7 @@
 #include "sycl/exception.hpp"
 
 #include <algorithm>
-#include <detail/iostream_proxy.hpp>
+#include <iostream>
 #include <memory>
 #include <string>
 #include <vector>

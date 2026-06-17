@@ -12,18 +12,20 @@
 #include <unified-runtime/ur_api.h>
 
 #include <cassert>
-#include <detail/iostream_proxy.hpp>
+#include <iostream>
 
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
-#ifndef NDEBUG
+// Always defined regardless of the runtime's NDEBUG state: the header gates the
+// *call* on NDEBUG (user build mode), but the symbol must exist in libsycl.so
+// whichever mode the library itself was built in, otherwise a debug user TU
+// links against a release library and gets an undefined reference.
 void reportExceptionToStream(const char *Prefix, const char *What) {
   std::cerr << Prefix << " " << What << std::endl;
   assert(false);
 }
-#endif
 
 /// @brief CodeLocation information slot in thread local storage
 /// @details This structure is maintained by the SYCL runtime to manage the

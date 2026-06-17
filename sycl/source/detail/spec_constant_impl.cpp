@@ -8,7 +8,6 @@
 
 #include <detail/spec_constant_impl.hpp>
 
-#include <detail/iostream_proxy.hpp>
 #include <sycl/detail/defines.hpp>
 #include <sycl/detail/util.hpp>
 #include <sycl/exception.hpp>
@@ -16,6 +15,7 @@
 
 #include <cstring>
 #include <ios>
+#include <iostream>
 
 namespace sycl {
 inline namespace _V1 {
