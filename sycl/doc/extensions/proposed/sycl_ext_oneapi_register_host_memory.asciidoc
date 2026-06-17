@@ -49,51 +49,24 @@ This extension also depends on the following other SYCL extensions:
 
 == Status
 
-This is an experimental extension specification, intended to provide early
-access to features and gather community feedback.  Interfaces defined in this
-specification are implemented in {dpcpp}, but they are not finalized and may
-change incompatibly in future versions of {dpcpp} without prior notice.
+This is a proposed extension specification, intended to gather community
+feedback.
+Interfaces defined in this specification may not be implemented yet or may be in
+a preliminary state.
+The specification itself may also change in incompatible ways before it is
+finalized.
 *Shipping software products should not rely on APIs defined in this
 specification.*
 
-[[overview]]
+
 == Overview
 
-SYCL applications frequently need to move data between memory that the
-application already owns (for example, suitably aligned memory obtained from
-`aligned_alloc`, `posix_memalign`, an operating system mapping API, or a
-third-party library) and a SYCL device.
-When such memory is plain host memory that is unknown to the SYCL runtime,
-copies to and from a device may be slower, and the memory cannot be referenced
-directly from device code.
-
-This extension lets an application *register* an existing host memory range
-with the SYCL runtime.  Once registered, the memory is treated as a USM host
-allocation (see the core SYCL specification, section 4.8 "Unified shared
-memory") for the specific purposes described below and for the lifetime of the
-registration:
-
-* The memory may be referenced from device code in kernels submitted to a queue
-  that is associated with the same context that was used to register it.
-* Pointers into the memory may be passed to any SYCL API that accepts a USM
-  host pointer, with the exception of `sycl::free`.  The memory is released by
-  calling `unregister_host_memory` rather than `sycl::free`.
-* `get_pointer_type` returns `usm::alloc::host` for the registered pointer.
-* Registration may enable the implementation to perform explicit copies to or
-  from the range more efficiently than for unregistered host memory.
-
-This extension differs from
-link:../experimental/sycl_ext_oneapi_copy_optimize.asciidoc[
-sycl_ext_oneapi_copy_optimize] in that the latter only hints that a host memory
-range will be used for copies, while this extension additionally makes the
-memory usable directly from device code.  The two extensions are independent;
-this extension does not deprecate or replace `sycl_ext_oneapi_copy_optimize`.
-
-This extension is an advanced feature.  Most applications that need host memory
-that is accessible from a device should instead allocate it with
-`sycl::malloc_host`.  This extension is intended for the case where the
-application must use a memory range that it has already obtained by other means.
-
+This extension provides a way to register regular host memory with the SYCL
+runtime, such that it can be promoted to USM host memory.  Once registered, the
+memory can be accessed from within kernels, and it can be used with most APIs
+that expect a USM host memory pointer.  Registering host memory can also
+optimize explicit copy operations between that host memory and USM device
+memory.
 
 == Specification
 
@@ -119,48 +92,121 @@ whether the implementation supports this extension.
 
 This extension adds a new device aspect:
 
-```c++
+[source,c++]
+----
 namespace sycl {
 enum class aspect {
   // ...
   ext_oneapi_register_host_memory
 };
 }
-```
+----
 
-A device has the `ext_oneapi_register_host_memory` aspect if the
-implementation supports this extension for that device.
+A device has the `ext_oneapi_register_host_memory` aspect if the implementation
+supports this extension on that device.  Applications can query support using
+`device::has`, and `platform::has` can be used as a conservative check for all
+devices in a platform.
 
-The APIs in this extension may be used only with a `context` whose devices all
-have this aspect. Otherwise, they throw `errc::feature_not_supported`.
+The functions in this extension may be used only with a `context` whose devices
+all have this aspect.  Otherwise, they throw an `exception` with the
+`errc::feature_not_supported` error code.
 
-Applications can query support using `device::has`. `platform::has` may be
-used as a conservative check for all devices in a platform.
+=== Functions to register and unregister memory
 
-[[api-of-the-extension]]
-=== API of the extension
+This extension adds the following free functions.
 
-This extension adds the following free functions:
+'''
 
-```c++
+[source,c++]
+----
 namespace sycl::ext::oneapi::experimental {
 
 template <typename Properties = empty_properties_t>
 void register_host_memory(void *ptr, size_t numBytes, const context &ctxt,
                           Properties props = {});
 
+} // namespace sycl::ext::oneapi::experimental
+----
+
+_Preconditions:_
+
+* `ptr` points to valid host memory that is mapped into the host address space,
+  and the range `[ptr, ptr + numBytes)` remains valid and mapped at the same
+  host virtual address from this call until the matching call to
+  `unregister_host_memory` returns.
+* `ptr` is aligned to the host page size, and `numBytes` is a non-zero multiple
+  of the host page size.
+* The range `[ptr, ptr + numBytes)` does not overlap any range that is
+  currently registered through this extension with any context.
+* If any page in the range is mapped read-only on the host, then `props` must
+  contain the `read_only` property.
+
+_Constraints:_
+
+* `Properties` is one of the properties listed below in section "Properties for
+  registering memory"; or
+* `is_property_list_v<Properties>` is `true` and contains no properties other
+  than those listed below in section "Properties for registering memory".
+
+_Effects:_ Registers the host memory range `[ptr, ptr + numBytes)` with the
+context `ctxt`. While the registration is in effect, the range is treated as a
+USM host allocation associated with `ctxt`. The memory may be accessed from
+device code in kernels submitted to a queue whose context is `ctxt`, and
+pointers into the range may be passed to SYCL APIs that accept a USM host
+pointer associated with `ctxt`, except for `sycl::free`.
+
+_Throws:_
+
+* An `exception` with the `errc::feature_not_supported` error code if any device
+  in `ctxt` does not have `aspect::ext_oneapi_register_host_memory`.
+* An `exception` with the `errc::invalid` error code if `ptr` is null, if
+  `numBytes` is zero, if `ptr` or `numBytes` is not aligned to the host page
+  size, or if the range `[ptr, ptr + numBytes)` is not representable in the host
+  address space.
+* An `exception` with the `errc::invalid` error code if the memory range cannot
+  be registered by the implementation.
+
+[_Note:_ This extension does not provide a query for the host page size.  It can
+be obtained using operating system APIs such as `+sysconf(_SC_PAGESIZE)+` on
+POSIX systems or `GetSystemInfo` on Windows.  Page alignment of `ptr` and `numBytes`
+is required even when the native backend would accept a less restrictive
+alignment, and the implementation does not implicitly round the base address or
+size. _{endnote}_]
+
+'''
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
 void unregister_host_memory(void *ptr, const context &ctxt);
 
 } // namespace sycl::ext::oneapi::experimental
-```
+----
 
-The `Properties` template parameter is a way to pass compile-time properties as
-described in
-link:../experimental/sycl_ext_oneapi_properties.asciidoc[
-sycl_ext_oneapi_properties].  This extension defines the properties listed in
-the table below; passing any other property is ill-formed.  Properties are
-accepted only by `register_host_memory`; `unregister_host_memory` takes only the
-base pointer and context of an active registration.
+_Preconditions:_
+
+* `ptr` is exactly the base pointer passed to a previous successful call to
+  `register_host_memory` with the same context `ctxt`, and that registration is
+  still in effect.
+* All commands that reference the registered range have completed.
+
+_Effects:_ Ends the registration of the host memory range that starts at `ptr`
+in the context `ctxt`.  After this function returns, the range is no longer
+treated as a USM host allocation, and the USM pointer queries behave as they
+would have if the range had never been registered.  This function does not free
+or unmap the underlying host memory; the application remains responsible for
+that.
+
+_Throws:_
+
+* An `exception` with the `errc::feature_not_supported` error code if any device
+  in `ctxt` does not have `aspect::ext_oneapi_register_host_memory`.
+
+=== Properties for registering memory
+
+This extension defines the following property, which can be passed to
+`register_host_memory`.
 
 [%header,cols="1,5"]
 |===
@@ -168,14 +214,14 @@ base pointer and context of an active registration.
 |Description
 
 |`read_only`
-|Indicates that the registered range will only be read, never written, by
- device code.  See <<read-only-property>>.
+|The application guarantees that device code only reads from the registered
+ range and never writes to it.
 |===
 
-[[read-only-property]]
-==== `read_only` property
+'''
 
-```c++
+[source,c++]
+----
 namespace sycl::ext::oneapi::experimental {
 
 struct read_only_key {
@@ -185,231 +231,46 @@ struct read_only_key {
 inline constexpr read_only_key::value_t read_only;
 
 } // namespace sycl::ext::oneapi::experimental
-```
+----
 
-When the `read_only` property is passed to `register_host_memory`, the
-application guarantees that device accesses to the registered range are
-read-only.  Device code may read from the range but must not write to it.
+When this property is passed to `register_host_memory`, the application
+guarantees that device code will not write to the registered range.  This allows
+the range to be registered even when it is not writable by the application, such
+as memory backed by a read-only mapping.  The behavior is undefined if device
+code writes to a range that was registered with this property.
 
-The implementation may use this information to create a read-only device
-mapping for the range.  This property may also allow registration of host
-memory that is readable but not writable by the application, when supported by
-the backend.  If the property is not passed, the registered range must be
-readable and writable by the application for the lifetime of the registration.
+=== Interaction with USM queries
 
-The behavior is undefined if device code writes to a range that was registered
-with the `read_only` property.
-
-[%header,cols="1"]
-|===
-|Function
-
-a|
-```c++
-template <typename Properties = empty_properties_t>
-void register_host_memory(void *ptr, size_t numBytes, const context &ctxt,
-                          Properties props = {});
-```
-
-_Effects:_ Registers the host memory range `[ptr, ptr + numBytes)` with the
-context `ctxt`.  After this function returns, the range is treated as a USM host
-allocation (as described in the <<overview>> and in <<detailed-semantics>>) for
-as long as the registration is in effect.
-
-_Preconditions:_ (violations are undefined behavior unless optionally
-diagnosed, see <<restrictions>>)
-
-* `ptr` points to valid host memory that is already mapped into the host
-  address space, and the range `[ptr, ptr + numBytes)` remains valid and mapped
-  at the same host virtual address for the lifetime of the registration (see
-  <<detailed-semantics>>).
-* The range `[ptr, ptr + numBytes)` is readable by the application for the
-  lifetime of the registration.  If the `read_only` property is not passed, the
-  range must additionally be writable by the application for the lifetime of
-  the registration.
-* The range `[ptr, ptr + numBytes)` does not overlap any range that is
-  currently registered through this extension for the same context.
-
-_Throws:_
-
-* `exception` with `errc::feature_not_supported` if any device in `ctxt` does
-  not have `aspect::ext_oneapi_register_host_memory`.
-* `exception` with `errc::invalid` if `ptr` is null, if `numBytes` is zero, if
-  `ptr` is not aligned to the host page size, if `numBytes` is not a multiple of
-  the host page size, or if the range `[ptr, ptr + numBytes)` is not
-  representable in the host address space.
-* `exception` with `errc::invalid` if the backend diagnoses that the memory type
-  of the range is not importable as registered host memory (see
-  <<restrictions>>).
-* `exception` with `errc::invalid` if the implementation diagnoses that the
-  range `[ptr, ptr + numBytes)` overlaps a range currently registered in `ctxt`.
-  Diagnosing this condition is optional (see <<restrictions>>).
-* `exception` with `errc::memory_allocation` if the implementation cannot
-  allocate internal resources needed to register the range.
-* `exception` with a backend-specific error code if the backend reports any
-  other native failure.
-
-a|
-```c++
-void unregister_host_memory(void *ptr, const context &ctxt);
-```
-
-_Effects:_ Unregisters a host memory range previously registered with
-`register_host_memory`.  After this function returns, the registered range is no
-longer treated as a USM host allocation.  This function does not free or unmap
-the underlying host memory; the application remains responsible for that.
-
-_Preconditions:_ (violations are undefined behavior unless optionally
-diagnosed, see <<restrictions>>)
-
-* `ptr` is exactly the base pointer passed to a previous successful call to
-  `register_host_memory` with the same context `ctxt`, and that registration is
-  still in effect.
-* All commands that reference the registered range have completed.
-
-_Throws:_
-
-* `exception` with `errc::feature_not_supported` if any device in `ctxt` does
-  not have `aspect::ext_oneapi_register_host_memory`.
-* `exception` with `errc::invalid` if the implementation diagnoses that `ptr` is
-  not the base pointer of a registration that is currently in effect for `ctxt`.
-  Diagnosing this condition is optional (see <<restrictions>>).
-* `exception` with a backend-specific error code if the backend reports any
-  other native failure.
-
-|===
-
-The host page size can be obtained using operating system APIs such as
-`sysconf(_SC_PAGESIZE)` on POSIX systems or `GetSystemInfo` on Windows; this
-extension does not provide a SYCL query for it.  Page alignment is part of the
-portable SYCL contract even when the native backend supports less restrictive
-registration.  The implementation does not implicitly round the base address
-or size: `ptr` must be page-aligned and `numBytes` must be a multiple of the
-host page size.
-
-
-[[detailed-semantics]]
-== Detailed semantics
-
-Registration is associated with a specific `context`.  For SYCL operations, the
-registered range is treated as a USM host allocation associated with the context
-that was passed to `register_host_memory`.  The usual SYCL USM context,
-synchronization, and memory visibility rules apply.
-
-The host memory range that is registered must remain valid and mapped at the
-same host virtual address for the entire duration of the registration, that is,
-from the call to `register_host_memory` until the matching call to
-`unregister_host_memory` returns.  The application must not free, unmap, or
-otherwise allow the memory range to leave its lifetime while it is registered.
-Doing so produces undefined behavior.
-
-A registration applies to the exact range `[ptr, ptr + numBytes)`.  Pointers
-that point into the interior of a registered range are valid USM host pointers
-and may be used with SYCL APIs that accept a USM host pointer.  However, only
-the original base pointer `ptr` may be passed to `unregister_host_memory`
-(see <<restrictions>>).
-
-The application is responsible for ensuring that host and device accesses to the
-registered range are properly synchronized.
-
-
-[[restrictions]]
-== Restrictions and limitations
-
-This section elaborates on the preconditions specified in
-<<api-of-the-extension>> and describes additional limitations on registered
-memory.
-
-* *Overlap.* A range passed to `register_host_memory` must not overlap any range
-  currently registered through this extension for the same context.  Registering
-  the exact same range more than once without an intervening
-  `unregister_host_memory` is a special case of overlap.  Violating this rule is
-  undefined behavior, unless the implementation diagnoses the condition and
-  throws `sycl::exception` with `errc::invalid`.  An implementation is not
-  required to maintain a registry of all active ranges solely to diagnose
-  overlap.
-+
-[NOTE]
-====
-This rule exists because overlapping imports of the same host memory can
-invalidate device page-table entries for an overlapping region when one of the
-mappings is released, leaving the other mapping referring to stale translations.
-====
-+
-Portable applications must not rely on duplicate or overlapping registrations
-succeeding, failing, or being reference-counted, even if a particular native
-backend accepts or reference-counts such registrations.
-* *Unregistration.* The pointer passed to `unregister_host_memory` must be the
-  base pointer of a registration that is currently in effect for the same
-  context.  Passing an interior pointer, a pointer that was never registered, or
-  a pointer whose registration has already been unregistered is undefined
-  behavior, unless the implementation diagnoses the condition and throws
-  `sycl::exception` with `errc::invalid`.
-* *Storage duration.* Any host pointer may be passed to `register_host_memory`,
-  including memory obtained from the heap and memory with automatic (stack) or
-  static (global) storage duration, provided it satisfies all requirements of
-  this extension, including page alignment, size alignment, lifetime, and the
-  applicable read/write access.  Note, however, that ordinary stack and global
-  objects typically will not satisfy the page-alignment and size requirements
-  unless they have been specifically arranged to do so (for example, by
-  over-aligning the object and rounding its size up to a multiple of the host
-  page size).
-* *Backend and operating system limitations.* Even when a range is valid host
-  memory from the application's perspective, a backend or operating system may
-  reject registering the range because of the kind of memory involved.  For
-  example, some special mappings, device MMIO mappings, or memory that is
-  already owned by another device allocation mechanism may not be importable as
-  registered host memory.  When the backend reports that the memory type is not
-  importable, the implementation throws `sycl::exception` with `errc::invalid`;
-  for other native failures it reports a backend-specific error.
-* *Access mode.* The access requirements for the registered range depend on
-  whether the `read_only` property is passed; see <<read-only-property>>.
-  Read-only host memory, such as string literals, `const` objects, or read-only
-  memory mappings, may be registered only with the `read_only` property.
-  If the backend cannot register the range with the requested access mode,
-  `register_host_memory` fails with an appropriate `sycl::exception`.
-
-[NOTE]
-====
-An implementation-provided validation or debug layer may optionally track
-active registrations to diagnose overlap and invalid unregistration.
-====
-
-
-== Interaction with USM queries
-
-While a host memory range is registered, the following queries from the core
-SYCL specification behave as follows for any pointer within the registered
-range:
+While a host memory range is registered, the pointer queries from the core SYCL
+specification behave as follows for any pointer within the registered range:
 
 * `get_pointer_type(ptr, ctxt)` returns `usm::alloc::host`.
 * `get_pointer_device(ptr, ctxt)` returns the first device in `ctxt`, following
   the rules for a USM host allocation.
 
-After `unregister_host_memory` returns, this extension no longer causes the
-range to be reported as a USM host allocation.  Pointer queries behave as
-they would have behaved if the range had never been registered.
-
-A pointer to registered host memory must not be passed to `sycl::free`.  Use
-`unregister_host_memory` instead.
+A pointer to registered host memory must not be passed to `sycl::free`.  The
+application uses `unregister_host_memory` to end the registration instead.
 
 
-[[level-zero-impl]]
-== Level Zero backend implementation notes
+== Implementation notes
 
-This non-normative section is informational only and is not part of the
-portable SYCL API contract.
+This section is informational only and is not part of the portable SYCL API
+contract.
+
+=== Mapping on Level Zero
 
 On Level Zero, registration can be implemented using the external system memory
 mapping mechanism, which maps an existing host memory range without taking
-ownership of it.  Unregistration removes that mapping but does not free the
+ownership of it. Unregistration removes that mapping but does not free the
 underlying host memory.
 
-== Examples
+== Example
 
-=== Registering page-aligned host memory
+This example registers a page-aligned host allocation, uses it directly in a
+kernel, queries it like a USM host allocation, and then unregisters it.
 
-```c++
+[source,c++]
+----
 #include <sycl/sycl.hpp>
 #include <unistd.h>   // sysconf
 
@@ -425,11 +286,9 @@ int main() {
 
   // Every device in the context must support the aspect.
   const auto devices = ctxt.get_devices();
-  if (!std::all_of(
-          devices.begin(), devices.end(), [](const sycl::device &dev) {
-            return dev.has(
-                sycl::aspect::ext_oneapi_register_host_memory);
-          }))
+  if (!std::all_of(devices.begin(), devices.end(), [](const sycl::device &dev) {
+        return dev.has(sycl::aspect::ext_oneapi_register_host_memory);
+      }))
     return 0; // Not supported on this context.
 
   const size_t pageSize = static_cast<size_t>(sysconf(_SC_PAGESIZE));
@@ -459,4 +318,4 @@ int main() {
   std::free(data);
   return 0;
 }
-```
+----
