@@ -124,28 +124,23 @@ void testBoth(T Identity, BinaryOperation BOp, T A, T B) {
 }
 
 int main() {
-  testBoth<class KernelName_DpWavJTNjhJtrHmLWt, int>(
-      0, ext::oneapi::plus<int>(), 1, 7);
+  testBoth<class KernelName_DpWavJTNjhJtrHmLWt, int>(0, plus<int>(), 1, 7);
   testBoth<class KernelName_MHRtc, int>(1, std::multiplies<int>(), 1, 7);
-  testBoth<class KernelName_eYhurMyKBZvzctmqwUZ, int>(
-      0, ext::oneapi::bit_or<int>(), 1, 8);
-  testBoth<class KernelName_DpVPIUBjUMGZEwBFHH, int>(
-      0, ext::oneapi::bit_xor<int>(), 7, 3);
-  testBoth<class KernelName_vGKFactgrkngMXd, int>(
-      ~0, ext::oneapi::bit_and<int>(), 7, 3);
+  testBoth<class KernelName_eYhurMyKBZvzctmqwUZ, int>(0, bit_or<int>(), 1, 8);
+  testBoth<class KernelName_DpVPIUBjUMGZEwBFHH, int>(0, bit_xor<int>(), 7, 3);
+  testBoth<class KernelName_vGKFactgrkngMXd, int>(~0, bit_and<int>(), 7, 3);
   testBoth<class KernelName_GLpknSBxclKWjm, int>(
-      (std::numeric_limits<int>::max)(), ext::oneapi::minimum<int>(), 7, 3);
+      (std::numeric_limits<int>::max)(), minimum<int>(), 7, 3);
   testBoth<class KernelName_EvOaOYQ, int>((std::numeric_limits<int>::min)(),
-                                          ext::oneapi::maximum<int>(), 7, 3);
+                                          maximum<int>(), 7, 3);
 
-  testBoth<class KernelName_iFbcoTtPeDtUEK, float>(
-      0, ext::oneapi::plus<float>(), 1, 7);
+  testBoth<class KernelName_iFbcoTtPeDtUEK, float>(0, plus<float>(), 1, 7);
   testBoth<class KernelName_PEMJanstdNezDSXnP, float>(
       1, std::multiplies<float>(), 1, 7);
   testBoth<class KernelName_wOEuftXSjCLpoTOMrYHR, float>(
-      getMaximumFPValue<float>(), ext::oneapi::minimum<float>(), 7, 3);
-  testBoth<class KernelName_HzFCIZQKeV, float>(
-      getMinimumFPValue<float>(), ext::oneapi::maximum<float>(), 7, 3);
+      getMaximumFPValue<float>(), minimum<float>(), 7, 3);
+  testBoth<class KernelName_HzFCIZQKeV, float>(getMinimumFPValue<float>(),
+                                               maximum<float>(), 7, 3);
 
   testUnknown<class KernelName_sJOZPgFeiALyqwIWnFP, CustomVec<float>, 0,
               CustomVecPlus<float>>(CustomVec<float>(0), CustomVecPlus<float>(),
@@ -160,14 +155,12 @@ int main() {
   int2 IdentityI2 = {0, 0};
   int2 AI2 = {1, 2};
   int2 BI2 = {7, 13};
-  testUnknown<class KNI2, int2, 0>(IdentityI2, ext::oneapi::plus<int2>(), AI2,
-                                   BI2);
+  testUnknown<class KNI2, int2, 0>(IdentityI2, plus<int2>(), AI2, BI2);
 
   float4 IdentityF4 = {0, 0, 0, 0};
   float4 AF4 = {1, 2, -1, -34};
   float4 BF4 = {7, 13, 0, 35};
-  testUnknown<class KNF4, float4, 0>(IdentityF4, ext::oneapi::plus<>(), AF4,
-                                     BF4);
+  testUnknown<class KNF4, float4, 0>(IdentityF4, plus<>(), AF4, BF4);
 
   std::cout << "Test passed\n";
   return 0;

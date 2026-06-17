@@ -766,6 +766,12 @@ EventImplPtr queue_impl::submit_kernel_direct_impl(
 
     KData.extractArgsAndReqsFromLambda();
 
+    // Extract data to move KData
+    ur_kernel_cache_config_t KernelCacheConfig = KData.getKernelCacheConfig();
+    bool IsCooperative = KData.isCooperative();
+    bool UsesClusterLaunch = KData.usesClusterLaunch();
+    size_t KernelWorkGroupMemorySize = KData.getKernelWorkGroupMemorySize();
+
     CommandGroup.reset(new detail::CGExecKernel(
         KData.getNDRDesc(), std::move(HostKernelPtr),
         nullptr, // Kernel
@@ -773,9 +779,8 @@ EventImplPtr queue_impl::submit_kernel_direct_impl(
         std::move(CGData), std::move(KData).getArgs(),
         *KData.getDeviceKernelInfoPtr(), std::move(StreamStorage),
         std::move(AuxiliaryResources), detail::CGType::Kernel,
-        KData.getKernelCacheConfig(), KData.isCooperative(),
-        KData.usesClusterLaunch(), KData.getKernelWorkGroupMemorySize(),
-        CodeLoc));
+        KernelCacheConfig, IsCooperative, UsesClusterLaunch,
+        KernelWorkGroupMemorySize, CodeLoc));
     CommandGroup->MIsTopCodeLoc = IsTopCodeLoc;
 
     if (auto GraphImpl = getCommandGraph(); GraphImpl) {
@@ -1261,6 +1266,15 @@ bool queue_impl::queue_empty() const {
   getAdapter().call<UrApiKind::urQueueGetInfo>(
       MQueue, UR_QUEUE_INFO_EMPTY, sizeof(IsReady), &IsReady, nullptr);
   return IsReady;
+}
+
+void queue_impl::queue_flush() const {
+  if (MGraph.lock()) {
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "flush cannot be called for a queue which is "
+                          "recording to a command graph.");
+  }
+  getAdapter().call<UrApiKind::urQueueFlush>(MQueue);
 }
 
 void queue_impl::revisitUnenqueuedCommandsState(

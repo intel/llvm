@@ -17,6 +17,7 @@
 #include <sycl/detail/core.hpp>
 
 #include <sycl/ext/oneapi/bindless_images.hpp>
+#include <sycl/half_type.hpp>
 #include <type_traits>
 
 static sycl::device dev;

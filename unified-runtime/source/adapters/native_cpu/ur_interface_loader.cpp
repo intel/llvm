@@ -89,6 +89,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetGraphExpProcAddrTable(
   pDdiTable->pfnDestroyExp = urGraphDestroyExp;
   pDdiTable->pfnExecutableGraphDestroyExp = urGraphExecutableGraphDestroyExp;
   pDdiTable->pfnIsEmptyExp = urGraphIsEmptyExp;
+  pDdiTable->pfnSetDestructionCallbackExp = urGraphSetDestructionCallbackExp;
   pDdiTable->pfnDumpContentsExp = urGraphDumpContentsExp;
 
   return UR_RESULT_SUCCESS;
@@ -486,6 +487,10 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetIPCExpProcAddrTable(
   pDdiTable->pfnPutMemHandleExp = urIPCPutMemHandleExp;
   pDdiTable->pfnOpenMemHandleExp = urIPCOpenMemHandleExp;
   pDdiTable->pfnCloseMemHandleExp = urIPCCloseMemHandleExp;
+  pDdiTable->pfnGetPhysMemHandleExp = urIPCGetPhysMemHandleExp;
+  pDdiTable->pfnPutPhysMemHandleExp = urIPCPutPhysMemHandleExp;
+  pDdiTable->pfnOpenPhysMemHandleExp = urIPCOpenPhysMemHandleExp;
+  pDdiTable->pfnClosePhysMemHandleExp = urIPCClosePhysMemHandleExp;
 
   return UR_RESULT_SUCCESS;
 }

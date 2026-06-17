@@ -4644,6 +4644,92 @@ __urdlllocal ur_result_t UR_APICALL urIPCCloseMemHandleExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urIPCGetPhysMemHandleExp
+__urdlllocal ur_result_t UR_APICALL urIPCGetPhysMemHandleExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the physical memory object
+    ur_physical_mem_handle_t hPhysMem,
+    /// [out] a pointer to the IPC physical memory handle data
+    void **ppIPCPhysMemHandleData,
+    /// [out] size of the resulting IPC physical memory handle data
+    size_t *pIPCPhysMemHandleDataSizeRet) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+
+  auto *pfnGetPhysMemHandleExp = dditable->IPCExp.pfnGetPhysMemHandleExp;
+  if (nullptr == pfnGetPhysMemHandleExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnGetPhysMemHandleExp(hContext, hPhysMem, ppIPCPhysMemHandleData,
+                                pIPCPhysMemHandleDataSizeRet);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urIPCPutPhysMemHandleExp
+__urdlllocal ur_result_t UR_APICALL urIPCPutPhysMemHandleExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] a pointer to the IPC physical memory handle data obtained with
+    /// urIPCGetPhysMemHandleExp
+    const void *pIPCPhysMemHandleData) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+
+  auto *pfnPutPhysMemHandleExp = dditable->IPCExp.pfnPutPhysMemHandleExp;
+  if (nullptr == pfnPutPhysMemHandleExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnPutPhysMemHandleExp(hContext, pIPCPhysMemHandleData);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urIPCOpenPhysMemHandleExp
+__urdlllocal ur_result_t UR_APICALL urIPCOpenPhysMemHandleExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device object the physical memory was allocated on
+    ur_device_handle_t hDevice,
+    /// [in] the IPC physical memory handle data obtained with
+    /// urIPCGetPhysMemHandleExp
+    const void *pIPCPhysMemHandleData,
+    /// [in] size of the IPC physical memory handle data
+    size_t ipcPhysMemHandleDataSize,
+    /// [out] pointer to the physical memory handle
+    ur_physical_mem_handle_t *phPhysMem) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+
+  auto *pfnOpenPhysMemHandleExp = dditable->IPCExp.pfnOpenPhysMemHandleExp;
+  if (nullptr == pfnOpenPhysMemHandleExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnOpenPhysMemHandleExp(hContext, hDevice, pIPCPhysMemHandleData,
+                                 ipcPhysMemHandleDataSize, phPhysMem);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urIPCClosePhysMemHandleExp
+__urdlllocal ur_result_t UR_APICALL urIPCClosePhysMemHandleExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] physical memory handle opened through urIPCOpenPhysMemHandleExp
+    ur_physical_mem_handle_t hPhysMem) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+
+  auto *pfnClosePhysMemHandleExp = dditable->IPCExp.pfnClosePhysMemHandleExp;
+  if (nullptr == pfnClosePhysMemHandleExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnClosePhysMemHandleExp(hContext, hPhysMem);
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urMemoryExportAllocExportableMemoryExp
 __urdlllocal ur_result_t UR_APICALL urMemoryExportAllocExportableMemoryExp(
     /// [in] Handle to context in which to allocate memory.
@@ -6228,6 +6314,29 @@ __urdlllocal ur_result_t UR_APICALL urGraphIsEmptyExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urGraphSetDestructionCallbackExp
+__urdlllocal ur_result_t UR_APICALL urGraphSetDestructionCallbackExp(
+    /// [in] Handle of the graph to register the callback for.
+    ur_exp_graph_handle_t hGraph,
+    /// [in] Function pointer to the callback. The callback must not access
+    /// hGraph.
+    ur_exp_graph_destruction_callback_t pfnCallback,
+    /// [in][optional] Pointer to user data to be passed to the callback. The
+    /// user data must not reference hGraph.
+    void *pUserData) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hGraph);
+
+  auto *pfnSetDestructionCallbackExp =
+      dditable->GraphExp.pfnSetDestructionCallbackExp;
+  if (nullptr == pfnSetDestructionCallbackExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnSetDestructionCallbackExp(hGraph, pfnCallback, pUserData);
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urGraphDumpContentsExp
 __urdlllocal ur_result_t UR_APICALL urGraphDumpContentsExp(
     /// [in] Handle of the graph to dump.
@@ -6817,6 +6926,8 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetGraphExpProcAddrTable(
       pDdiTable->pfnExecutableGraphDestroyExp =
           ur_loader::urGraphExecutableGraphDestroyExp;
       pDdiTable->pfnIsEmptyExp = ur_loader::urGraphIsEmptyExp;
+      pDdiTable->pfnSetDestructionCallbackExp =
+          ur_loader::urGraphSetDestructionCallbackExp;
       pDdiTable->pfnDumpContentsExp = ur_loader::urGraphDumpContentsExp;
     } else {
       // return pointers directly to platform's DDIs
@@ -6874,6 +6985,11 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetIPCExpProcAddrTable(
       pDdiTable->pfnPutMemHandleExp = ur_loader::urIPCPutMemHandleExp;
       pDdiTable->pfnOpenMemHandleExp = ur_loader::urIPCOpenMemHandleExp;
       pDdiTable->pfnCloseMemHandleExp = ur_loader::urIPCCloseMemHandleExp;
+      pDdiTable->pfnGetPhysMemHandleExp = ur_loader::urIPCGetPhysMemHandleExp;
+      pDdiTable->pfnPutPhysMemHandleExp = ur_loader::urIPCPutPhysMemHandleExp;
+      pDdiTable->pfnOpenPhysMemHandleExp = ur_loader::urIPCOpenPhysMemHandleExp;
+      pDdiTable->pfnClosePhysMemHandleExp =
+          ur_loader::urIPCClosePhysMemHandleExp;
     } else {
       // return pointers directly to platform's DDIs
       *pDdiTable = ur_loader::getContext()->platforms.front().dditable.IPCExp;

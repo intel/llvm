@@ -85,6 +85,28 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back(Args.MakeArgString("--dependent-lib=amath"));
   }
 
+#if 1 // INTEL_CUSTOMIZATION
+  // Diagnose SYCL + static CRT: STL objects cross DLL boundaries so dynamic
+  // CRT (/MD or /MDd) is required.
+  if (Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false) &&
+      !Args.hasArg(options::OPT_nolibsycl) &&
+      !Args.hasArg(options::OPT_nostdlib, options::OPT_nostartfiles)) {
+    bool HasStaticCRT = false;
+    if (const Arg *A = Args.getLastArg(options::OPT_fms_runtime_lib_EQ)) {
+      StringRef RuntimeLib = A->getValue();
+      if (RuntimeLib == "static" || RuntimeLib == "static_dbg")
+        HasStaticCRT = true;
+    }
+    if (const Arg *A = Args.getLastArg(options::OPT__SLASH_M_Group)) {
+      if (A->getOption().matches(options::OPT__SLASH_MT) ||
+          A->getOption().matches(options::OPT__SLASH_MTd))
+        HasStaticCRT = true;
+    }
+    if (HasStaticCRT)
+      TC.getDriver().Diag(diag::err_drv_sycl_requires_dynamic_crt);
+  }
+#endif // INTEL_CUSTOMIZATION
+
   if (!Args.hasArg(options::OPT_nostdlib, options::OPT_nostartfiles) &&
       !C.getDriver().IsCLMode() && !C.getDriver().IsFlangMode()) {
     if (Args.hasArg(options::OPT_fsycl) && !Args.hasArg(options::OPT_nolibsycl))
@@ -92,6 +114,22 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     else
       CmdArgs.push_back("-defaultlib:libcmt");
     CmdArgs.push_back("-defaultlib:oldnames");
+
+#if 0 //!INTEL_CUSTOMIZATION
+    // SYCL: Add runtime library for clang (non-clang-cl) with MSVC target.
+    // For clang-cl, --dependent-lib is used at compiler stage instead.
+    if (Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false) &&
+        !Args.hasArg(options::OPT_nolibsycl)) {
+      bool IsDebugBuild = false;
+      if (const Arg *A = Args.getLastArg(options::OPT_fms_runtime_lib_EQ)) {
+        StringRef RuntimeVal = A->getValue();
+        if (RuntimeVal == "dll_dbg")
+          IsDebugBuild = true;
+      }
+      CmdArgs.push_back(IsDebugBuild ? "-defaultlib:LLVMSYCLd"
+                                     : "-defaultlib:LLVMSYCL");
+    }
+#endif // !INTEL_CUSTOMIZATION
   }
 
   if ((!C.getDriver().IsCLMode() && Args.hasArg(options::OPT_fsycl) &&
@@ -187,6 +225,12 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   auto CRTPath = TC.getCompilerRTPath();
   if (TC.getVFS().exists(CRTPath))
     CmdArgs.push_back(Args.MakeArgString("-libpath:" + CRTPath));
+
+  // SYCL offload compilation creates .llvm.offloading sections in each object
+  // file to store device code and metadata. Suppress linker warning about
+  // multiple sections with different attributes (LNK4078).
+  if (Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false))
+    CmdArgs.push_back("/IGNORE:4078");
 
   CmdArgs.push_back("-nologo");
 
@@ -313,12 +357,24 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     AddRunTimeLibs(TC, TC.getDriver(), CmdArgs, Args);
   }
 
-  StringRef Linker = Args.getLastArgValue(options::OPT_fuse_ld_EQ,
-                                          TC.getDriver().getPreferredLinker());
-  if (Linker.empty())
-    Linker = "link";
+  const Arg *A = Args.getLastArg(options::OPT_fuse_ld_EQ);
+  StringRef Linker = A ? A->getValue() : TC.getDriver().getPreferredLinker();
+
+  if (Linker.empty()) {
+    // If DWARF is requested, use LLD, because MSVC's link.exe will silently
+    // truncate the .debug_* sections to eight characters. PE/COFF doesn't allow
+    // section names longer than eight bytes in executables - LLD uses the same
+    // name length extension as in object files (where long names are allowed).
+    if (Args.hasArg(options::OPT_gdwarf, options::OPT_gdwarf_2,
+                    options::OPT_gdwarf_3, options::OPT_gdwarf_4,
+                    options::OPT_gdwarf_5, options::OPT_gdwarf_6))
+      Linker = "lld-link";
+    else
+      Linker = "link";
+  }
+
   // We need to translate 'lld' into 'lld-link'.
-  else if (Linker.equals_insensitive("lld"))
+  if (Linker.equals_insensitive("lld"))
     Linker = "lld-link";
 
   if (Linker == "lld-link") {
@@ -873,9 +929,8 @@ VersionTuple MSVCToolChain::computeMSVCVersion(const Driver *D,
   return MSVT;
 }
 
-std::string
-MSVCToolChain::ComputeEffectiveClangTriple(const ArgList &Args,
-                                           types::ID InputType) const {
+std::string MSVCToolChain::ComputeEffectiveClangTriple(
+    const ArgList &Args, llvm::StringRef BoundArch, types::ID InputType) const {
   // The MSVC version doesn't care about the architecture, even though it
   // may look at the triple internally.
   VersionTuple MSVT = computeMSVCVersion(/*D=*/nullptr, Args);
@@ -884,7 +939,8 @@ MSVCToolChain::ComputeEffectiveClangTriple(const ArgList &Args,
 
   // For the rest of the triple, however, a computed architecture name may
   // be needed.
-  llvm::Triple Triple(ToolChain::ComputeEffectiveClangTriple(Args, InputType));
+  llvm::Triple Triple(
+      ToolChain::ComputeEffectiveClangTriple(Args, BoundArch, InputType));
   if (Triple.getEnvironment() == llvm::Triple::MSVC) {
     StringRef ObjFmt = Triple.getEnvironmentName().split('-').second;
     if (ObjFmt.empty())
@@ -896,8 +952,10 @@ MSVCToolChain::ComputeEffectiveClangTriple(const ArgList &Args,
   return Triple.getTriple();
 }
 
-SanitizerMask MSVCToolChain::getSupportedSanitizers() const {
-  SanitizerMask Res = ToolChain::getSupportedSanitizers();
+SanitizerMask MSVCToolChain::getSupportedSanitizers(
+    StringRef BoundArch, Action::OffloadKind DeviceOffloadKind) const {
+  SanitizerMask Res =
+      ToolChain::getSupportedSanitizers(BoundArch, DeviceOffloadKind);
   Res |= SanitizerKind::Address;
   Res |= SanitizerKind::PointerCompare;
   Res |= SanitizerKind::PointerSubtract;

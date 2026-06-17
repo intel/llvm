@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <sycl/detail/code_location.hpp>
 #include <sycl/detail/common.hpp>
 
 #include <unified-runtime/ur_api.h>

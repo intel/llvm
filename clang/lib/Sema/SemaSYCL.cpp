@@ -3957,7 +3957,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
   InitListExpr *createInitListExpr(QualType InitTy, uint64_t NumChildInits) {
     InitListExpr *ILE = new (SemaSYCLRef.getASTContext())
         InitListExpr(SemaSYCLRef.getASTContext(), KernelCallerSrcLoc, {},
-                     KernelCallerSrcLoc);
+                     KernelCallerSrcLoc, /*isExplicit=*/false);
     ILE->reserveInits(SemaSYCLRef.getASTContext(), NumChildInits);
     ILE->setType(InitTy);
 
@@ -4094,8 +4094,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     Expr *ArrayRef = createSimpleArrayParamReferenceExpr(FieldTy);
     InitializationKind InitKind = InitializationKind::CreateDirect({}, {}, {});
 
-    InitializedEntity Entity =
-        InitializedEntity::InitializeMemberImplicit(FD, &VarEntity.value());
+    InitializedEntity Entity = InitializedEntity::InitializeMemberImplicit(FD);
 
     addFieldInit(FD, FieldTy, ArrayRef, InitKind, Entity);
   }
@@ -6442,6 +6441,32 @@ public:
     TA.print(Policy, OS, false /* IncludeType */);
   }
 
+  void VisitDeclarationTemplateArgument(const TemplateArgument &TA) {
+    // A non-type template argument that refers to a function template
+    // specialization (e.g. a free function kernel pointer such as
+    // `&vec_add_kernel<int>`) is printed by TemplateArgument::print using only
+    // the function's qualified name, dropping its template arguments. This
+    // produces an ambiguous `<overloaded function type>` initializer in the
+    // integration header. Emit the template arguments explicitly so the
+    // resulting kernel name type names the exact specialization.
+    const ValueDecl *VD = TA.getAsDecl();
+    const auto *FD = dyn_cast<FunctionDecl>(VD);
+    const TemplateArgumentList *TAL =
+        FD ? FD->getTemplateSpecializationArgs() : nullptr;
+    if (!TAL) {
+      VisitTemplateArgument(TA);
+      return;
+    }
+
+    const QualType ParamType = TA.getParamTypeForDecl();
+    if (ParamType->isPointerType() || ParamType->isMemberPointerType())
+      OS << "&";
+    VD->printQualifiedName(OS, Policy);
+    OS << "<";
+    printTemplateArgs(TAL->asArray());
+    OS << ">";
+  }
+
   void VisitTypeTemplateArgument(const TemplateArgument &TA) {
     Policy.SuppressTagKeyword = true;
     QualType T = TA.getAsType();
@@ -7415,95 +7440,6 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   // mathematical error.
   O << "  { kernel_param_kind_t::kind_invalid, -987654321, -987654321 }, \n";
   O << "};\n\n";
-
-  O << "// Specializations of KernelInfo for kernel function types:\n";
-  unsigned CurStart = 0;
-
-  for (const KernelDesc &K : KernelDescs) {
-    const size_t N = K.Params.size();
-    if (S.isFreeFunction(K.SyclKernel)) {
-      CurStart += N;
-      continue;
-    }
-    PresumedLoc PLoc = S.getASTContext().getSourceManager().getPresumedLoc(
-        S.getASTContext()
-            .getSourceManager()
-            .getExpansionRange(K.KernelLocation)
-            .getEnd());
-    if (K.IsUnnamedKernel) {
-      O << "template <> struct KernelInfoData<";
-      OutputStableNameInChars(O, K.StableName);
-      O << "> {\n";
-    } else {
-      O << "template <> struct KernelInfo<";
-      SYCLKernelNameTypePrinter Printer(O, Policy);
-      Printer.Visit(K.NameType);
-      O << "> {\n";
-    }
-
-    O << "  __SYCL_DLL_LOCAL\n";
-    O << "  static constexpr const char* getName() { return \"" << K.Name
-      << "\"; }\n";
-    O << "  __SYCL_DLL_LOCAL\n";
-    O << "  static constexpr unsigned getNumParams() { return " << N << "; }\n";
-    O << "  __SYCL_DLL_LOCAL\n";
-    O << "  static constexpr const kernel_param_desc_t& ";
-    O << "getParamDesc(unsigned i) {\n";
-    O << "    return kernel_signatures[i+" << CurStart << "];\n";
-    O << "  }\n";
-    O << "  __SYCL_DLL_LOCAL\n";
-    O << "  static constexpr bool isESIMD() { return " << K.IsESIMDKernel
-      << "; }\n";
-    O << "  __SYCL_DLL_LOCAL\n";
-    O << "  static constexpr const char* getFileName() {\n";
-    O << "#ifndef NDEBUG\n";
-    O << "    return \""
-      << std::string(PLoc.getFilename())
-             .substr(std::string(PLoc.getFilename()).find_last_of("/\\") + 1);
-    O << "\";\n";
-    O << "#else\n";
-    O << "    return \"\";\n";
-    O << "#endif\n";
-    O << "  }\n";
-    O << "  __SYCL_DLL_LOCAL\n";
-    O << "  static constexpr const char* getFunctionName() {\n";
-    O << "#ifndef NDEBUG\n";
-    O << "    return \"";
-    SYCLKernelNameTypePrinter Printer(O, Policy);
-    Printer.Visit(K.NameType);
-    O << "\";\n";
-    O << "#else\n";
-    O << "    return \"\";\n";
-    O << "#endif\n";
-    O << "  }\n";
-    O << "  __SYCL_DLL_LOCAL\n";
-    O << "  static constexpr unsigned getLineNumber() {\n";
-    O << "#ifndef NDEBUG\n";
-    O << "    return " << PLoc.getLine() << ";\n";
-    O << "#else\n";
-    O << "    return 0;\n";
-    O << "#endif\n";
-    O << "  }\n";
-    O << "  __SYCL_DLL_LOCAL\n";
-    O << "  static constexpr unsigned getColumnNumber() {\n";
-    O << "#ifndef NDEBUG\n";
-    O << "    return " << PLoc.getColumn() << ";\n";
-    O << "#else\n";
-    O << "    return 0;\n";
-    O << "#endif\n";
-    O << "  }\n";
-    StringRef ReturnType = (S.getASTContext().getTargetInfo().getInt64Type() ==
-                            TargetInfo::SignedLong)
-                               ? "long"
-                               : "long long";
-    O << "  // Returns the size of the kernel object in bytes.\n";
-    O << "  __SYCL_DLL_LOCAL\n";
-    O << "  static constexpr " << ReturnType << " getKernelSize() { return "
-      << K.ObjSize << "; }\n";
-    O << "};\n";
-    CurStart += N;
-  }
-  O << "\n";
   O << "} // namespace detail\n";
   O << "} // namespace _V1\n";
   O << "} // namespace sycl\n";
@@ -7732,6 +7668,103 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     O << "static GlobalMapUpdater updater;\n";
     O << "} // namespace\n";
   }
+
+  O << "// Specializations of KernelInfo for kernel function types:\n";
+  O << "namespace sycl {\n";
+  O << "inline namespace _V1 {\n";
+  O << "namespace detail {\n";
+  unsigned CurStart = 0;
+
+  for (const KernelDesc &K : KernelDescs) {
+    const size_t N = K.Params.size();
+    if (S.isFreeFunction(K.SyclKernel)) {
+      CurStart += N;
+      continue;
+    }
+    PresumedLoc PLoc = S.getASTContext().getSourceManager().getPresumedLoc(
+        S.getASTContext()
+            .getSourceManager()
+            .getExpansionRange(K.KernelLocation)
+            .getEnd());
+    if (K.IsUnnamedKernel) {
+      O << "template <> struct KernelInfoData<";
+      OutputStableNameInChars(O, K.StableName);
+      O << "> {\n";
+    } else {
+      Policy.SuppressDefaultTemplateArgs = false;
+      Policy.EnforceDefaultTemplateArgs = true;
+      O << "template <> struct KernelInfo<";
+      SYCLKernelNameTypePrinter Printer(O, Policy);
+      Printer.Visit(K.NameType);
+      O << "> {\n";
+    }
+
+    O << "  __SYCL_DLL_LOCAL\n";
+    O << "  static constexpr const char* getName() { return \"" << K.Name
+      << "\"; }\n";
+    O << "  __SYCL_DLL_LOCAL\n";
+    O << "  static constexpr unsigned getNumParams() { return " << N << "; }\n";
+    O << "  __SYCL_DLL_LOCAL\n";
+    O << "  static constexpr const kernel_param_desc_t& ";
+    O << "getParamDesc(unsigned i) {\n";
+    O << "    return kernel_signatures[i+" << CurStart << "];\n";
+    O << "  }\n";
+    O << "  __SYCL_DLL_LOCAL\n";
+    O << "  static constexpr bool isESIMD() { return " << K.IsESIMDKernel
+      << "; }\n";
+    O << "  __SYCL_DLL_LOCAL\n";
+    O << "  static constexpr const char* getFileName() {\n";
+    O << "#ifndef NDEBUG\n";
+    O << "    return \""
+      << std::string(PLoc.getFilename())
+             .substr(std::string(PLoc.getFilename()).find_last_of("/\\") + 1);
+    O << "\";\n";
+    O << "#else\n";
+    O << "    return \"\";\n";
+    O << "#endif\n";
+    O << "  }\n";
+    O << "  __SYCL_DLL_LOCAL\n";
+    O << "  static constexpr const char* getFunctionName() {\n";
+    O << "#ifndef NDEBUG\n";
+    O << "    return \"";
+    SYCLKernelNameTypePrinter Printer(O, Policy);
+    Printer.Visit(K.NameType);
+    O << "\";\n";
+    O << "#else\n";
+    O << "    return \"\";\n";
+    O << "#endif\n";
+    O << "  }\n";
+    O << "  __SYCL_DLL_LOCAL\n";
+    O << "  static constexpr unsigned getLineNumber() {\n";
+    O << "#ifndef NDEBUG\n";
+    O << "    return " << PLoc.getLine() << ";\n";
+    O << "#else\n";
+    O << "    return 0;\n";
+    O << "#endif\n";
+    O << "  }\n";
+    O << "  __SYCL_DLL_LOCAL\n";
+    O << "  static constexpr unsigned getColumnNumber() {\n";
+    O << "#ifndef NDEBUG\n";
+    O << "    return " << PLoc.getColumn() << ";\n";
+    O << "#else\n";
+    O << "    return 0;\n";
+    O << "#endif\n";
+    O << "  }\n";
+    StringRef ReturnType = (S.getASTContext().getTargetInfo().getInt64Type() ==
+                            TargetInfo::SignedLong)
+                               ? "long"
+                               : "long long";
+    O << "  // Returns the size of the kernel object in bytes.\n";
+    O << "  __SYCL_DLL_LOCAL\n";
+    O << "  static constexpr " << ReturnType << " getKernelSize() { return "
+      << K.ObjSize << "; }\n";
+    O << "};\n";
+    CurStart += N;
+  }
+  O << "\n";
+  O << "} // namespace detail\n";
+  O << "} // namespace _V1\n";
+  O << "} // namespace sycl\n";
 }
 
 bool SYCLIntegrationHeader::emit(StringRef IntHeaderName) {

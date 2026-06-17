@@ -8160,6 +8160,178 @@ __urdlllocal ur_result_t UR_APICALL urIPCCloseMemHandleExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urIPCGetPhysMemHandleExp
+__urdlllocal ur_result_t UR_APICALL urIPCGetPhysMemHandleExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the physical memory object
+    ur_physical_mem_handle_t hPhysMem,
+    /// [out] a pointer to the IPC physical memory handle data
+    void **ppIPCPhysMemHandleData,
+    /// [out] size of the resulting IPC physical memory handle data
+    size_t *pIPCPhysMemHandleDataSizeRet) {
+  auto pfnGetPhysMemHandleExp =
+      getContext()->urDdiTable.IPCExp.pfnGetPhysMemHandleExp;
+
+  if (nullptr == pfnGetPhysMemHandleExp)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_ipc_get_phys_mem_handle_exp_params_t params = {
+      &hContext, &hPhysMem, &ppIPCPhysMemHandleData,
+      &pIPCPhysMemHandleDataSizeRet};
+  uint64_t instance =
+      getContext()->notify_begin(UR_FUNCTION_IPC_GET_PHYS_MEM_HANDLE_EXP,
+                                 "urIPCGetPhysMemHandleExp", &params);
+
+  auto &logger = getContext()->logger;
+  UR_LOG_L(logger, INFO, "   ---> urIPCGetPhysMemHandleExp\n");
+
+  ur_result_t result = pfnGetPhysMemHandleExp(
+      hContext, hPhysMem, ppIPCPhysMemHandleData, pIPCPhysMemHandleDataSizeRet);
+
+  getContext()->notify_end(UR_FUNCTION_IPC_GET_PHYS_MEM_HANDLE_EXP,
+                           "urIPCGetPhysMemHandleExp", &params, &result,
+                           instance);
+
+  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_IPC_GET_PHYS_MEM_HANDLE_EXP, &params);
+    UR_LOG_L(logger, INFO, "   <--- urIPCGetPhysMemHandleExp({}) -> {};\n",
+             args_str.str(), result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urIPCPutPhysMemHandleExp
+__urdlllocal ur_result_t UR_APICALL urIPCPutPhysMemHandleExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] a pointer to the IPC physical memory handle data obtained with
+    /// urIPCGetPhysMemHandleExp
+    const void *pIPCPhysMemHandleData) {
+  auto pfnPutPhysMemHandleExp =
+      getContext()->urDdiTable.IPCExp.pfnPutPhysMemHandleExp;
+
+  if (nullptr == pfnPutPhysMemHandleExp)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_ipc_put_phys_mem_handle_exp_params_t params = {&hContext,
+                                                    &pIPCPhysMemHandleData};
+  uint64_t instance =
+      getContext()->notify_begin(UR_FUNCTION_IPC_PUT_PHYS_MEM_HANDLE_EXP,
+                                 "urIPCPutPhysMemHandleExp", &params);
+
+  auto &logger = getContext()->logger;
+  UR_LOG_L(logger, INFO, "   ---> urIPCPutPhysMemHandleExp\n");
+
+  ur_result_t result = pfnPutPhysMemHandleExp(hContext, pIPCPhysMemHandleData);
+
+  getContext()->notify_end(UR_FUNCTION_IPC_PUT_PHYS_MEM_HANDLE_EXP,
+                           "urIPCPutPhysMemHandleExp", &params, &result,
+                           instance);
+
+  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_IPC_PUT_PHYS_MEM_HANDLE_EXP, &params);
+    UR_LOG_L(logger, INFO, "   <--- urIPCPutPhysMemHandleExp({}) -> {};\n",
+             args_str.str(), result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urIPCOpenPhysMemHandleExp
+__urdlllocal ur_result_t UR_APICALL urIPCOpenPhysMemHandleExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device object the physical memory was allocated on
+    ur_device_handle_t hDevice,
+    /// [in] the IPC physical memory handle data obtained with
+    /// urIPCGetPhysMemHandleExp
+    const void *pIPCPhysMemHandleData,
+    /// [in] size of the IPC physical memory handle data
+    size_t ipcPhysMemHandleDataSize,
+    /// [out] pointer to the physical memory handle
+    ur_physical_mem_handle_t *phPhysMem) {
+  auto pfnOpenPhysMemHandleExp =
+      getContext()->urDdiTable.IPCExp.pfnOpenPhysMemHandleExp;
+
+  if (nullptr == pfnOpenPhysMemHandleExp)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_ipc_open_phys_mem_handle_exp_params_t params = {
+      &hContext, &hDevice, &pIPCPhysMemHandleData, &ipcPhysMemHandleDataSize,
+      &phPhysMem};
+  uint64_t instance =
+      getContext()->notify_begin(UR_FUNCTION_IPC_OPEN_PHYS_MEM_HANDLE_EXP,
+                                 "urIPCOpenPhysMemHandleExp", &params);
+
+  auto &logger = getContext()->logger;
+  UR_LOG_L(logger, INFO, "   ---> urIPCOpenPhysMemHandleExp\n");
+
+  ur_result_t result =
+      pfnOpenPhysMemHandleExp(hContext, hDevice, pIPCPhysMemHandleData,
+                              ipcPhysMemHandleDataSize, phPhysMem);
+
+  getContext()->notify_end(UR_FUNCTION_IPC_OPEN_PHYS_MEM_HANDLE_EXP,
+                           "urIPCOpenPhysMemHandleExp", &params, &result,
+                           instance);
+
+  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_IPC_OPEN_PHYS_MEM_HANDLE_EXP, &params);
+    UR_LOG_L(logger, INFO, "   <--- urIPCOpenPhysMemHandleExp({}) -> {};\n",
+             args_str.str(), result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urIPCClosePhysMemHandleExp
+__urdlllocal ur_result_t UR_APICALL urIPCClosePhysMemHandleExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] physical memory handle opened through urIPCOpenPhysMemHandleExp
+    ur_physical_mem_handle_t hPhysMem) {
+  auto pfnClosePhysMemHandleExp =
+      getContext()->urDdiTable.IPCExp.pfnClosePhysMemHandleExp;
+
+  if (nullptr == pfnClosePhysMemHandleExp)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_ipc_close_phys_mem_handle_exp_params_t params = {&hContext, &hPhysMem};
+  uint64_t instance =
+      getContext()->notify_begin(UR_FUNCTION_IPC_CLOSE_PHYS_MEM_HANDLE_EXP,
+                                 "urIPCClosePhysMemHandleExp", &params);
+
+  auto &logger = getContext()->logger;
+  UR_LOG_L(logger, INFO, "   ---> urIPCClosePhysMemHandleExp\n");
+
+  ur_result_t result = pfnClosePhysMemHandleExp(hContext, hPhysMem);
+
+  getContext()->notify_end(UR_FUNCTION_IPC_CLOSE_PHYS_MEM_HANDLE_EXP,
+                           "urIPCClosePhysMemHandleExp", &params, &result,
+                           instance);
+
+  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_IPC_CLOSE_PHYS_MEM_HANDLE_EXP, &params);
+    UR_LOG_L(logger, INFO, "   <--- urIPCClosePhysMemHandleExp({}) -> {};\n",
+             args_str.str(), result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urMemoryExportAllocExportableMemoryExp
 __urdlllocal ur_result_t UR_APICALL urMemoryExportAllocExportableMemoryExp(
     /// [in] Handle to context in which to allocate memory.
@@ -10983,6 +11155,51 @@ __urdlllocal ur_result_t UR_APICALL urGraphIsEmptyExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urGraphSetDestructionCallbackExp
+__urdlllocal ur_result_t UR_APICALL urGraphSetDestructionCallbackExp(
+    /// [in] Handle of the graph to register the callback for.
+    ur_exp_graph_handle_t hGraph,
+    /// [in] Function pointer to the callback. The callback must not access
+    /// hGraph.
+    ur_exp_graph_destruction_callback_t pfnCallback,
+    /// [in][optional] Pointer to user data to be passed to the callback. The
+    /// user data must not reference hGraph.
+    void *pUserData) {
+  auto pfnSetDestructionCallbackExp =
+      getContext()->urDdiTable.GraphExp.pfnSetDestructionCallbackExp;
+
+  if (nullptr == pfnSetDestructionCallbackExp)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_graph_set_destruction_callback_exp_params_t params = {
+      &hGraph, &pfnCallback, &pUserData};
+  uint64_t instance =
+      getContext()->notify_begin(UR_FUNCTION_GRAPH_SET_DESTRUCTION_CALLBACK_EXP,
+                                 "urGraphSetDestructionCallbackExp", &params);
+
+  auto &logger = getContext()->logger;
+  UR_LOG_L(logger, INFO, "   ---> urGraphSetDestructionCallbackExp\n");
+
+  ur_result_t result =
+      pfnSetDestructionCallbackExp(hGraph, pfnCallback, pUserData);
+
+  getContext()->notify_end(UR_FUNCTION_GRAPH_SET_DESTRUCTION_CALLBACK_EXP,
+                           "urGraphSetDestructionCallbackExp", &params, &result,
+                           instance);
+
+  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_GRAPH_SET_DESTRUCTION_CALLBACK_EXP, &params);
+    UR_LOG_L(logger, INFO,
+             "   <--- urGraphSetDestructionCallbackExp({}) -> {};\n",
+             args_str.str(), result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urGraphDumpContentsExp
 __urdlllocal ur_result_t UR_APICALL urGraphDumpContentsExp(
     /// [in] Handle of the graph to dump.
@@ -11638,6 +11855,11 @@ __urdlllocal ur_result_t UR_APICALL urGetGraphExpProcAddrTable(
   dditable.pfnIsEmptyExp = pDdiTable->pfnIsEmptyExp;
   pDdiTable->pfnIsEmptyExp = ur_tracing_layer::urGraphIsEmptyExp;
 
+  dditable.pfnSetDestructionCallbackExp =
+      pDdiTable->pfnSetDestructionCallbackExp;
+  pDdiTable->pfnSetDestructionCallbackExp =
+      ur_tracing_layer::urGraphSetDestructionCallbackExp;
+
   dditable.pfnDumpContentsExp = pDdiTable->pfnDumpContentsExp;
   pDdiTable->pfnDumpContentsExp = ur_tracing_layer::urGraphDumpContentsExp;
 
@@ -11680,6 +11902,22 @@ __urdlllocal ur_result_t UR_APICALL urGetIPCExpProcAddrTable(
 
   dditable.pfnCloseMemHandleExp = pDdiTable->pfnCloseMemHandleExp;
   pDdiTable->pfnCloseMemHandleExp = ur_tracing_layer::urIPCCloseMemHandleExp;
+
+  dditable.pfnGetPhysMemHandleExp = pDdiTable->pfnGetPhysMemHandleExp;
+  pDdiTable->pfnGetPhysMemHandleExp =
+      ur_tracing_layer::urIPCGetPhysMemHandleExp;
+
+  dditable.pfnPutPhysMemHandleExp = pDdiTable->pfnPutPhysMemHandleExp;
+  pDdiTable->pfnPutPhysMemHandleExp =
+      ur_tracing_layer::urIPCPutPhysMemHandleExp;
+
+  dditable.pfnOpenPhysMemHandleExp = pDdiTable->pfnOpenPhysMemHandleExp;
+  pDdiTable->pfnOpenPhysMemHandleExp =
+      ur_tracing_layer::urIPCOpenPhysMemHandleExp;
+
+  dditable.pfnClosePhysMemHandleExp = pDdiTable->pfnClosePhysMemHandleExp;
+  pDdiTable->pfnClosePhysMemHandleExp =
+      ur_tracing_layer::urIPCClosePhysMemHandleExp;
 
   return result;
 }

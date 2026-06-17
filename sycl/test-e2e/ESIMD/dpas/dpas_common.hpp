@@ -11,6 +11,8 @@
 
 #include "../esimd_test_utils.hpp"
 
+#include <sycl/ext/intel/info/device.hpp>
+
 #include <type_traits>
 
 using namespace sycl;

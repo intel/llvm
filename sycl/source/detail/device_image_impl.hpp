@@ -329,7 +329,7 @@ public:
   device_image_impl(const std::string &Src, const context &Context,
                     devices_range Devices, syclex::source_language Lang,
                     include_pairs_t &&IncludePairsVec, private_tag)
-      : MBinImage(Src), MContext(std::move(Context)),
+      : MBinImage(Src), MContext(Context),
         MDevices(Devices.to<std::vector<device_impl *>>()),
         MState(bundle_state::ext_oneapi_source),
         MSpecConstsDefValBlob(getSpecConstsDefValBlob()),
@@ -1039,6 +1039,46 @@ private:
     assert(MRTCBinInfo->MLanguage == syclex::source_language::sycl);
     assert(std::holds_alternative<std::string>(MBinImage));
 
+    // syclex::compile on an ext_oneapi_source bundle produces a
+    // bundle_state::object kernel_bundle, which the user is expected to
+    // hand to sycl::link for cross-image symbol resolution. Imply
+    // -fsycl-allow-device-image-dependencies for that path so that the
+    // RTC pipeline emits the SYCL/exported and SYCL/imported symbol
+    // property sets the runtime link graph needs. The implication
+    // mirrors the producer-side -fsyclbin=input/object behavior in the
+    // clang driver and is suppressed when the user explicitly opts out
+    // via -fno-sycl-allow-device-image-dependencies. State == executable
+    // is reached via syclex::build, which produces a fully-linked image
+    // with no cross-image references; no implication there.
+    constexpr std::string_view AllowDepsFlag =
+        "-fsycl-allow-device-image-dependencies";
+    constexpr std::string_view NoAllowDepsFlag =
+        "-fno-sycl-allow-device-image-dependencies";
+    auto OptionMatches = [](const sycl::detail::string_view &Opt,
+                            std::string_view Needle) {
+      return std::string_view{Opt.data()} == Needle;
+    };
+    bool UserOptedOut =
+        std::any_of(Options.begin(), Options.end(),
+                    [&](const sycl::detail::string_view &Opt) {
+                      return OptionMatches(Opt, NoAllowDepsFlag);
+                    });
+    bool UserAlreadyOptedIn =
+        std::any_of(Options.begin(), Options.end(),
+                    [&](const sycl::detail::string_view &Opt) {
+                      return OptionMatches(Opt, AllowDepsFlag);
+                    });
+    std::vector<sycl::detail::string_view> EffectiveOptions;
+    const std::vector<sycl::detail::string_view> *OptionsPtr = &Options;
+    if (State != bundle_state::executable && !UserOptedOut &&
+        !UserAlreadyOptedIn) {
+      EffectiveOptions.reserve(Options.size() + 1);
+      EffectiveOptions.emplace_back(AllowDepsFlag.data());
+      EffectiveOptions.insert(EffectiveOptions.end(), Options.begin(),
+                              Options.end());
+      OptionsPtr = &EffectiveOptions;
+    }
+
     // Build device images via the program manager.
     const std::string &SourceStr = std::get<std::string>(MBinImage);
     std::ostringstream SourceExt;
@@ -1064,7 +1104,7 @@ private:
 
     auto [Binaries, Prefix] = syclex::detail::SYCL_JIT_Compile(
         RegisteredKernelNames.empty() ? SourceStr : SourceExt.str(),
-        MRTCBinInfo->MIncludePairs, Options, LogPtr, Format);
+        MRTCBinInfo->MIncludePairs, *OptionsPtr, LogPtr, Format);
 
     auto &PM = detail::ProgramManager::getInstance();
 

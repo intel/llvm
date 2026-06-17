@@ -584,6 +584,9 @@ operator<<(std::ostream &os,
 inline std::ostream &
 operator<<(std::ostream &os,
            [[maybe_unused]] const struct ur_exp_win32_handle_t params);
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_exp_win32_name_t params);
 inline std::ostream &operator<<(
     std::ostream &os,
     [[maybe_unused]] const struct ur_exp_sampler_mip_properties_t params);
@@ -1377,6 +1380,21 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
   case UR_FUNCTION_QUEUE_GET_GRAPH_EXP:
     os << "UR_FUNCTION_QUEUE_GET_GRAPH_EXP";
     break;
+  case UR_FUNCTION_GRAPH_SET_DESTRUCTION_CALLBACK_EXP:
+    os << "UR_FUNCTION_GRAPH_SET_DESTRUCTION_CALLBACK_EXP";
+    break;
+  case UR_FUNCTION_IPC_GET_PHYS_MEM_HANDLE_EXP:
+    os << "UR_FUNCTION_IPC_GET_PHYS_MEM_HANDLE_EXP";
+    break;
+  case UR_FUNCTION_IPC_PUT_PHYS_MEM_HANDLE_EXP:
+    os << "UR_FUNCTION_IPC_PUT_PHYS_MEM_HANDLE_EXP";
+    break;
+  case UR_FUNCTION_IPC_OPEN_PHYS_MEM_HANDLE_EXP:
+    os << "UR_FUNCTION_IPC_OPEN_PHYS_MEM_HANDLE_EXP";
+    break;
+  case UR_FUNCTION_IPC_CLOSE_PHYS_MEM_HANDLE_EXP:
+    os << "UR_FUNCTION_IPC_CLOSE_PHYS_MEM_HANDLE_EXP";
+    break;
   default:
     os << "unknown enumerator";
     break;
@@ -1545,6 +1563,9 @@ inline std::ostream &operator<<(std::ostream &os,
     break;
   case UR_STRUCTURE_TYPE_EXP_IMAGE_COPY_REGION:
     os << "UR_STRUCTURE_TYPE_EXP_IMAGE_COPY_REGION";
+    break;
+  case UR_STRUCTURE_TYPE_EXP_WIN32_NAME:
+    os << "UR_STRUCTURE_TYPE_EXP_WIN32_NAME";
     break;
   case UR_STRUCTURE_TYPE_EXP_ASYNC_USM_ALLOC_PROPERTIES:
     os << "UR_STRUCTURE_TYPE_EXP_ASYNC_USM_ALLOC_PROPERTIES";
@@ -1878,6 +1899,11 @@ inline ur_result_t printStruct(std::ostream &os, const void *ptr) {
   case UR_STRUCTURE_TYPE_EXP_IMAGE_COPY_REGION: {
     const ur_exp_image_copy_region_t *pstruct =
         (const ur_exp_image_copy_region_t *)ptr;
+    printPtr(os, pstruct);
+  } break;
+
+  case UR_STRUCTURE_TYPE_EXP_WIN32_NAME: {
+    const ur_exp_win32_name_t *pstruct = (const ur_exp_win32_name_t *)ptr;
     printPtr(os, pstruct);
   } break;
 
@@ -3305,6 +3331,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
     break;
   case UR_DEVICE_INFO_IPC_MEMORY_SUPPORT_EXP:
     os << "UR_DEVICE_INFO_IPC_MEMORY_SUPPORT_EXP";
+    break;
+  case UR_DEVICE_INFO_IPC_PHYSICAL_MEMORY_SUPPORT_EXP:
+    os << "UR_DEVICE_INFO_IPC_PHYSICAL_MEMORY_SUPPORT_EXP";
     break;
   case UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_SUPPORT_EXP:
     os << "UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_SUPPORT_EXP";
@@ -5579,6 +5608,19 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
     os << ")";
   } break;
   case UR_DEVICE_INFO_IPC_MEMORY_SUPPORT_EXP: {
+    const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+    if (sizeof(ur_bool_t) > size) {
+      os << "invalid size (is: " << size
+         << ", expected: >=" << sizeof(ur_bool_t) << ")";
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    os << (const void *)(tptr) << " (";
+
+    os << *tptr;
+
+    os << ")";
+  } break;
+  case UR_DEVICE_INFO_IPC_PHYSICAL_MEMORY_SUPPORT_EXP: {
     const ur_bool_t *tptr = (const ur_bool_t *)ptr;
     if (sizeof(ur_bool_t) > size) {
       os << "invalid size (is: " << size
@@ -9141,8 +9183,8 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_physical_mem_flag_t value) {
   switch (value) {
-  case UR_PHYSICAL_MEM_FLAG_TBD:
-    os << "UR_PHYSICAL_MEM_FLAG_TBD";
+  case UR_PHYSICAL_MEM_FLAG_ENABLE_IPC:
+    os << "UR_PHYSICAL_MEM_FLAG_ENABLE_IPC";
     break;
   default:
     os << "unknown enumerator";
@@ -9160,14 +9202,15 @@ inline ur_result_t printFlag<ur_physical_mem_flag_t>(std::ostream &os,
   uint32_t val = flag;
   bool first = true;
 
-  if ((val & UR_PHYSICAL_MEM_FLAG_TBD) == (uint32_t)UR_PHYSICAL_MEM_FLAG_TBD) {
-    val ^= (uint32_t)UR_PHYSICAL_MEM_FLAG_TBD;
+  if ((val & UR_PHYSICAL_MEM_FLAG_ENABLE_IPC) ==
+      (uint32_t)UR_PHYSICAL_MEM_FLAG_ENABLE_IPC) {
+    val ^= (uint32_t)UR_PHYSICAL_MEM_FLAG_ENABLE_IPC;
     if (!first) {
       os << " | ";
     } else {
       first = false;
     }
-    os << UR_PHYSICAL_MEM_FLAG_TBD;
+    os << UR_PHYSICAL_MEM_FLAG_ENABLE_IPC;
   }
   if (val != 0) {
     std::bitset<32> bits(val);
@@ -12171,6 +12214,31 @@ inline std::ostream &operator<<(std::ostream &os,
   os << ".handle = ";
 
   ur::details::printPtr(os, (params.handle));
+
+  os << "}";
+  return os;
+}
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_exp_win32_name_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os,
+                                const struct ur_exp_win32_name_t params) {
+  os << "(struct ur_exp_win32_name_t){";
+
+  os << ".stype = ";
+
+  os << (params.stype);
+
+  os << ", ";
+  os << ".pNext = ";
+
+  ur::details::printStruct(os, (params.pNext));
+
+  os << ", ";
+  os << ".name = ";
+
+  ur::details::printPtr(os, (params.name));
 
   os << "}";
   return os;
@@ -21569,6 +21637,33 @@ inline std::ostream &operator<<(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_graph_set_destruction_callback_exp_params_t
+/// type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_graph_set_destruction_callback_exp_params_t
+        *params) {
+
+  os << ".hGraph = ";
+
+  ur::details::printPtr(os, *(params->phGraph));
+
+  os << ", ";
+  os << ".pfnCallback = ";
+
+  os << reinterpret_cast<void *>(*(params->ppfnCallback));
+
+  os << ", ";
+  os << ".pUserData = ";
+
+  ur::details::printPtr(os, *(params->ppUserData));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_graph_dump_contents_exp_params_t type
 /// @returns
 ///     std::ostream &
@@ -21690,6 +21785,115 @@ operator<<(std::ostream &os,
   os << ".pMem = ";
 
   os << *(params->ppMem);
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_ipc_get_phys_mem_handle_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_ipc_get_phys_mem_handle_exp_params_t
+               *params) {
+
+  os << ".hContext = ";
+
+  ur::details::printPtr(os, *(params->phContext));
+
+  os << ", ";
+  os << ".hPhysMem = ";
+
+  ur::details::printPtr(os, *(params->phPhysMem));
+
+  os << ", ";
+  os << ".ppIPCPhysMemHandleData = ";
+
+  ur::details::printPtr(os, *(params->pppIPCPhysMemHandleData));
+
+  os << ", ";
+  os << ".pIPCPhysMemHandleDataSizeRet = ";
+
+  ur::details::printPtr(os, *(params->ppIPCPhysMemHandleDataSizeRet));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_ipc_put_phys_mem_handle_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_ipc_put_phys_mem_handle_exp_params_t
+               *params) {
+
+  os << ".hContext = ";
+
+  ur::details::printPtr(os, *(params->phContext));
+
+  os << ", ";
+  os << ".pIPCPhysMemHandleData = ";
+
+  ur::details::printPtr(os, *(params->ppIPCPhysMemHandleData));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_ipc_open_phys_mem_handle_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_ipc_open_phys_mem_handle_exp_params_t
+        *params) {
+
+  os << ".hContext = ";
+
+  ur::details::printPtr(os, *(params->phContext));
+
+  os << ", ";
+  os << ".hDevice = ";
+
+  ur::details::printPtr(os, *(params->phDevice));
+
+  os << ", ";
+  os << ".pIPCPhysMemHandleData = ";
+
+  os << *(params->ppIPCPhysMemHandleData);
+
+  os << ", ";
+  os << ".ipcPhysMemHandleDataSize = ";
+
+  os << *(params->pipcPhysMemHandleDataSize);
+
+  os << ", ";
+  os << ".phPhysMem = ";
+
+  ur::details::printPtr(os, *(params->pphPhysMem));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_ipc_close_phys_mem_handle_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_ipc_close_phys_mem_handle_exp_params_t
+        *params) {
+
+  os << ".hContext = ";
+
+  ur::details::printPtr(os, *(params->phContext));
+
+  os << ", ";
+  os << ".hPhysMem = ";
+
+  ur::details::printPtr(os, *(params->phPhysMem));
 
   return os;
 }
@@ -23232,6 +23436,9 @@ inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os,
   case UR_FUNCTION_GRAPH_IS_EMPTY_EXP: {
     os << (const struct ur_graph_is_empty_exp_params_t *)params;
   } break;
+  case UR_FUNCTION_GRAPH_SET_DESTRUCTION_CALLBACK_EXP: {
+    os << (const struct ur_graph_set_destruction_callback_exp_params_t *)params;
+  } break;
   case UR_FUNCTION_GRAPH_DUMP_CONTENTS_EXP: {
     os << (const struct ur_graph_dump_contents_exp_params_t *)params;
   } break;
@@ -23246,6 +23453,18 @@ inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os,
   } break;
   case UR_FUNCTION_IPC_CLOSE_MEM_HANDLE_EXP: {
     os << (const struct ur_ipc_close_mem_handle_exp_params_t *)params;
+  } break;
+  case UR_FUNCTION_IPC_GET_PHYS_MEM_HANDLE_EXP: {
+    os << (const struct ur_ipc_get_phys_mem_handle_exp_params_t *)params;
+  } break;
+  case UR_FUNCTION_IPC_PUT_PHYS_MEM_HANDLE_EXP: {
+    os << (const struct ur_ipc_put_phys_mem_handle_exp_params_t *)params;
+  } break;
+  case UR_FUNCTION_IPC_OPEN_PHYS_MEM_HANDLE_EXP: {
+    os << (const struct ur_ipc_open_phys_mem_handle_exp_params_t *)params;
+  } break;
+  case UR_FUNCTION_IPC_CLOSE_PHYS_MEM_HANDLE_EXP: {
+    os << (const struct ur_ipc_close_phys_mem_handle_exp_params_t *)params;
   } break;
   case UR_FUNCTION_MEMORY_EXPORT_ALLOC_EXPORTABLE_MEMORY_EXP: {
     os << (const struct ur_memory_export_alloc_exportable_memory_exp_params_t *)

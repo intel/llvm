@@ -629,6 +629,19 @@ ur_result_t urIPCOpenMemHandleExp(ur_context_handle_t hContext,
                                   void *pIPCMemHandleData,
                                   size_t ipcMemHandleDataSize, void **ppMem);
 ur_result_t urIPCCloseMemHandleExp(ur_context_handle_t hContext, void *pMem);
+ur_result_t urIPCGetPhysMemHandleExp(ur_context_handle_t hContext,
+                                     ur_physical_mem_handle_t hPhysMem,
+                                     void **ppIPCPhysMemHandleData,
+                                     size_t *pIPCPhysMemHandleDataSizeRet);
+ur_result_t urIPCPutPhysMemHandleExp(ur_context_handle_t hContext,
+                                     const void *pIPCPhysMemHandleData);
+ur_result_t urIPCOpenPhysMemHandleExp(ur_context_handle_t hContext,
+                                      ur_device_handle_t hDevice,
+                                      const void *pIPCPhysMemHandleData,
+                                      size_t ipcPhysMemHandleDataSize,
+                                      ur_physical_mem_handle_t *phPhysMem);
+ur_result_t urIPCClosePhysMemHandleExp(ur_context_handle_t hContext,
+                                       ur_physical_mem_handle_t hPhysMem);
 ur_result_t urMemoryExportAllocExportableMemoryExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice, size_t alignment,
     size_t size, ur_exp_external_mem_type_t handleTypeToExport, void **ppMem);
@@ -865,6 +878,9 @@ ur_result_t urQueueIsGraphCaptureEnabledExp(ur_queue_handle_t hQueue,
 ur_result_t urQueueGetGraphExp(ur_queue_handle_t hQueue,
                                ur_exp_graph_handle_t *phGraph);
 ur_result_t urGraphIsEmptyExp(ur_exp_graph_handle_t hGraph, bool *pResult);
+ur_result_t urGraphSetDestructionCallbackExp(
+    ur_exp_graph_handle_t hGraph,
+    ur_exp_graph_destruction_callback_t pfnCallback, void *pUserData);
 ur_result_t urGraphDumpContentsExp(ur_exp_graph_handle_t hGraph,
                                    const char *filePath);
 #ifdef UR_STATIC_ADAPTER_LEVEL_ZERO

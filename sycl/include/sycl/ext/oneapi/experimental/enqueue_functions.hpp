@@ -180,19 +180,31 @@ void single_task(queue Q, const kernel &KernelObj, ArgsT &&...Args) {
   });
 }
 
+namespace detail {
+template <auto *Func, int tag, typename... ArgsT>
+struct SingleTaskFreeFunctionKernelWrapper;
+} // namespace detail
+
 // Free function kernel single_task enqueue functions
 template <auto *Func, typename... ArgsT>
 void single_task(queue Q, [[maybe_unused]] kernel_function_s<Func> KernelFunc,
                  ArgsT &&...Args) {
-  detail::submit_kernel_direct_single_task(std::move(Q),
-                                           [Args...]() { Func(Args...); });
+  // Here and in the next function, we use the
+  // SingleTaskFreeFunctionKernelWrapper declared above to generate unique
+  // kernel names for the lambda at compile-time. Unnamed lambdas tend to cause
+  // problems with other host compilers
+  detail::submit_kernel_direct_single_task<
+      detail::SingleTaskFreeFunctionKernelWrapper<Func, 1, ArgsT...>>(
+      std::move(Q), [Args...]() { Func(Args...); });
 }
 
 template <auto *Func, typename... ArgsT>
 void single_task(handler &CGH,
                  [[maybe_unused]] kernel_function_s<Func> KernelFunc,
                  ArgsT &&...Args) {
-  CGH.single_task([Args...]() { Func(Args...); });
+  CGH.single_task<
+      detail::SingleTaskFreeFunctionKernelWrapper<Func, 2, ArgsT...>>(
+      [Args...]() { Func(Args...); });
 }
 
 template <typename T>
@@ -428,12 +440,23 @@ void nd_launch(queue Q, launch_config<nd_range<Dimensions>, Properties> Config,
   });
 }
 
+namespace detail {
+template <auto *Func, int Dimensions, int tag, typename... ArgsT>
+struct NdRangeFreeFunctionKernelWrapper;
+
+} // namespace detail
+
 // Free function kernel nd_launch enqueue functions
 template <auto *Func, int Dimensions, typename... ArgsT>
 void nd_launch(queue Q, nd_range<Dimensions> Range,
                [[maybe_unused]] kernel_function_s<Func> KernelFunc,
                ArgsT &&...Args) {
-  detail::submit_kernel_direct_parallel_for(
+  // Here and in the next 3 functions, we use the
+  // NdRangeFreeFunctionKernelWrapper declared above to generate unique
+  // kernel names for the lambda at compile-time. Unnamed lambdas tend to cause
+  // problems with other host compilers
+  detail::submit_kernel_direct_parallel_for<
+      detail::NdRangeFreeFunctionKernelWrapper<Func, Dimensions, 1, ArgsT...>>(
       std::move(Q), Range,
       [Args...](sycl::nd_item<Dimensions>) { Func(Args...); });
 }
@@ -442,8 +465,9 @@ template <auto *Func, int Dimensions, typename... ArgsT>
 void nd_launch(handler &CGH, nd_range<Dimensions> Range,
                [[maybe_unused]] kernel_function_s<Func> KernelFunc,
                ArgsT &&...Args) {
-  CGH.parallel_for(Range,
-                   [Args...](sycl::nd_item<Dimensions>) { Func(Args...); });
+  CGH.parallel_for<
+      detail::NdRangeFreeFunctionKernelWrapper<Func, Dimensions, 2, ArgsT...>>(
+      Range, [Args...](sycl::nd_item<Dimensions>) { Func(Args...); });
 }
 
 template <auto *Func, int Dimensions, typename Properties, typename... ArgsT>
@@ -454,7 +478,8 @@ void nd_launch(queue Q, launch_config<nd_range<Dimensions>, Properties> Config,
   ext::oneapi::experimental::detail::LaunchConfigAccess<nd_range<Dimensions>,
                                                         Properties>
       ConfigAccess(Config);
-  detail::submit_kernel_direct_parallel_for(
+  detail::submit_kernel_direct_parallel_for<
+      detail::NdRangeFreeFunctionKernelWrapper<Func, Dimensions, 3, ArgsT...>>(
       std::move(Q), ConfigAccess.getRange(),
       [Args...](sycl::nd_item<Dimensions>) { Func(Args...); }, {},
       ConfigAccess.getProperties());
@@ -468,8 +493,10 @@ void nd_launch(handler &CGH,
   ext::oneapi::experimental::detail::LaunchConfigAccess<nd_range<Dimensions>,
                                                         Properties>
       ConfigAccess(Config);
-  CGH.parallel_for(ConfigAccess.getRange(), ConfigAccess.getProperties(),
-                   [Args...](sycl::nd_item<Dimensions>) { Func(Args...); });
+  CGH.parallel_for<
+      detail::NdRangeFreeFunctionKernelWrapper<Func, Dimensions, 4, ArgsT...>>(
+      ConfigAccess.getRange(), ConfigAccess.getProperties(),
+      [Args...](sycl::nd_item<Dimensions>) { Func(Args...); });
 }
 
 inline void memcpy(handler &CGH, void *Dest, const void *Src, size_t NumBytes) {

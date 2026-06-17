@@ -40,7 +40,9 @@ entry:
 !9 = !DISubrange(count: 3, lowerBound: 0)
 !10 = !{i32 7, !"Dwarf Version", i32 4}
 !11 = !{i32 2, !"Debug Info Version", i32 3}
-!12 = distinct !DISubprogram(name: "bar", linkageName: "_Z3barBase", scope: null, file: !3, line: 1, type: null, scopeLine: 1, flags: DIFlagPrototyped, spFlags: DISPFlagDefinition, unit: !2)
-!13 = distinct !DISubprogram(name: "foo", linkageName: "_Z3fooBase", scope: null, file: !3, line: 3, type: null, scopeLine: 3, flags: DIFlagPrototyped, spFlags: DISPFlagDefinition, unit: !2)
+!12 = distinct !DISubprogram(name: "bar", linkageName: "_Z3barBase", scope: null, file: !3, line: 1, type: !16, scopeLine: 1, flags: DIFlagPrototyped, spFlags: DISPFlagDefinition, unit: !2)
+!13 = distinct !DISubprogram(name: "foo", linkageName: "_Z3fooBase", scope: null, file: !3, line: 3, type: !16, scopeLine: 3, flags: DIFlagPrototyped, spFlags: DISPFlagDefinition, unit: !2)
 !14 = distinct !DILexicalBlock(scope: !13, file: !3, line: 3, column: 1)
 !15 = !DILocation(line: 3, column: 1, scope: !14)
+!16 = !DISubroutineType(types: !17)
+!17 = !{null}

@@ -196,6 +196,7 @@ public:
                                 get_offset());
   }
 
+  __SYCL2020_DEPRECATED("use sycl::group_barrier() free function instead")
   void barrier([[maybe_unused]] access::fence_space accessSpace =
                    access::fence_space::global_and_local) const {
 #ifdef __SYCL_DEVICE_ONLY__
@@ -500,7 +501,7 @@ public:
   }
 
   template <typename... eventTN> void wait_for(eventTN... events) const {
-    waitForHelper(events...);
+    (events.wait(), ...);
   }
 
   sycl::ext::oneapi::experimental::root_group<Dimensions>
@@ -522,16 +523,6 @@ protected:
   nd_item() {}
   nd_item(const item<Dimensions, true> &, const item<Dimensions, false> &,
           const group<Dimensions> &) {}
-
-  void waitForHelper() const {}
-
-  void waitForHelper(device_event Event) const { Event.wait(); }
-
-  template <typename T, typename... Ts>
-  void waitForHelper(T E, Ts... Es) const {
-    waitForHelper(E);
-    waitForHelper(Es...);
-  }
 
   id<Dimensions> get_group_id() const {
 #ifdef __SYCL_DEVICE_ONLY__
