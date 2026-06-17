@@ -81,17 +81,29 @@ public:
   kernel(cl_kernel ClKernel, const context &SyclContext);
 #endif
 
+  kernel() = delete;
+
+  __SYCL2020_DEPRECATED("Not part of any specification")
   kernel(const kernel &RHS) = default;
 
+  __SYCL2020_DEPRECATED("Not part of any specification")
   kernel(kernel &&RHS) = default;
 
+  __SYCL2020_DEPRECATED("Not part of any specification")
   kernel &operator=(const kernel &RHS) = default;
 
+  __SYCL2020_DEPRECATED("Not part of any specification")
   kernel &operator=(kernel &&RHS) = default;
 
-  bool operator==(const kernel &RHS) const { return impl == RHS.impl; }
+  __SYCL2020_DEPRECATED("Not part of any specification")
+  bool operator==(const kernel &RHS) const {
+    return impl == RHS.impl;
+  }
 
-  bool operator!=(const kernel &RHS) const { return !operator==(RHS); }
+  __SYCL2020_DEPRECATED("Not part of any specification")
+  bool operator!=(const kernel &RHS) const {
+    return !operator==(RHS);
+  }
 
   /// Get a valid OpenCL kernel handle
   ///
