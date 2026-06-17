@@ -5208,8 +5208,23 @@ void Clang::ConstructHostCompilerJob(Compilation &C, const JobAction &JA,
 
   if (!TCArgs.hasArg(options::OPT_nostdlibinc, options::OPT_nostdinc)) {
     // Add default header search directories.
-    SmallString<128> BaseDir(C.getDriver().Dir);
-    llvm::sys::path::append(BaseDir, "..", "include");
+    // The binary may live in a versioned subdirectory (e.g. lib/dpcpp-N/bin/).
+    // Walk up from D.Dir until we find the install root (contains include/sycl).
+    SmallString<128> InstallRoot(C.getDriver().Dir);
+    for (int I = 0; I < 4; ++I) {
+      SmallString<128> Probe(InstallRoot);
+      llvm::sys::path::append(Probe, "..", "include", "sycl");
+      llvm::sys::path::remove_dots(Probe, /*remove_dot_dot=*/true);
+      if (C.getDriver().getVFS().exists(Probe)) {
+        llvm::sys::path::append(InstallRoot, "..");
+        llvm::sys::path::remove_dots(InstallRoot, /*remove_dot_dot=*/true);
+        break;
+      }
+      llvm::sys::path::append(InstallRoot, "..");
+      llvm::sys::path::remove_dots(InstallRoot, /*remove_dot_dot=*/true);
+    }
+    SmallString<128> BaseDir(InstallRoot);
+    llvm::sys::path::append(BaseDir, "include");
     SmallString<128> SYCLDir(BaseDir);
     llvm::sys::path::append(SYCLDir, "sycl");
     // This is used to provide our wrappers around STL headers that provide
