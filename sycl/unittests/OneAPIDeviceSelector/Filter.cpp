@@ -23,7 +23,6 @@
 #include <algorithm>
 #include <array>
 #include <cstring>
-#include <format>
 #include <string>
 #include <vector>
 
@@ -53,6 +52,25 @@ struct MockDeviceDesc {
   std::string Name;
 };
 
+struct MockDeviceInfo {
+  std::string PlatformName;
+  std::string DeviceName;
+  sycl::info::device_type Type;
+  sycl::backend Backend;
+
+  bool operator==(const MockDeviceInfo &Other) const {
+    return PlatformName == Other.PlatformName &&
+           DeviceName == Other.DeviceName && Type == Other.Type &&
+           Backend == Other.Backend;
+  }
+};
+
+struct SelectorTestCase {
+  std::string TestName;
+  std::string SelectorString;
+  std::vector<std::reference_wrapper<const MockDeviceDesc>> ExpectedDevices;
+};
+
 const std::array<MockPlatformDesc, 2> MockPlatforms = {{
     {OpenCLPlatform, UR_BACKEND_OPENCL, "Mock OpenCL Platform"},
     {LevelZeroPlatform, UR_BACKEND_LEVEL_ZERO, "Mock Level Zero Platform"},
@@ -64,6 +82,10 @@ const std::array<MockDeviceDesc, 3> MockDevices = {{
     {LevelZeroGpuDevice, LevelZeroPlatform, UR_DEVICE_TYPE_GPU,
      "Mock Level Zero GPU"},
 }};
+
+const MockDeviceDesc &OpenCLCpuDeviceDesc = MockDevices[0];
+const MockDeviceDesc &OpenCLGpuDeviceDesc = MockDevices[1];
+const MockDeviceDesc &LevelZeroGpuDeviceDesc = MockDevices[2];
 
 const MockPlatformDesc *findPlatform(ur_platform_handle_t Handle) {
   auto It = std::find_if(MockPlatforms.begin(), MockPlatforms.end(),
@@ -78,6 +100,37 @@ const MockDeviceDesc *findDevice(ur_device_handle_t Handle) {
       MockDevices.begin(), MockDevices.end(),
       [&](const MockDeviceDesc &Device) { return Device.Handle == Handle; });
   return It == MockDevices.end() ? nullptr : &*It;
+}
+
+MockDeviceInfo getExpectedSYCLInfo(const MockDeviceDesc &UrDevice) {
+  const MockPlatformDesc *UrPlatform = findPlatform(UrDevice.Platform);
+
+  sycl::backend ExpectedBackend{};
+  switch (UrPlatform->Backend) {
+  case UR_BACKEND_OPENCL:
+    ExpectedBackend = sycl::backend::opencl;
+    break;
+  case UR_BACKEND_LEVEL_ZERO:
+    ExpectedBackend = sycl::backend::ext_oneapi_level_zero;
+    break;
+  default:
+    throw std::runtime_error("Unknown backend in mock mapping");
+  }
+
+  sycl::info::device_type ExpectedType{};
+  switch (UrDevice.Type) {
+  case UR_DEVICE_TYPE_CPU:
+    ExpectedType = sycl::info::device_type::cpu;
+    break;
+  case UR_DEVICE_TYPE_GPU:
+    ExpectedType = sycl::info::device_type::gpu;
+    break;
+  default:
+    throw std::runtime_error("Unknown device type in mock mapping");
+  }
+
+  return MockDeviceInfo{UrPlatform->Name, UrDevice.Name, ExpectedType,
+                        ExpectedBackend};
 }
 
 ur_result_t mock_urPlatformGet(void *pParams) {
@@ -229,81 +282,89 @@ ur_result_t mock_urDeviceGetInfo(void *pParams) {
 class OneAPIDeviceSelectorTest : public ::testing::Test {
 protected:
   void SetUp() override {
-    mock_platforms();
-    mock_devices();
-  }
-
-  void TearDown() override {
-    sycl::detail::GlobalHandler::resetGlobalHandler();
-  }
-
-  void mock_platforms() {
     mock::getCallbacks().set_replace_callback("urPlatformGet",
                                               &mock_urPlatformGet);
     mock::getCallbacks().set_replace_callback("urPlatformGetInfo",
                                               &mock_urPlatformGetInfo);
-  }
-
-  void mock_devices() {
     mock::getCallbacks().set_replace_callback("urDeviceGet", &mock_urDeviceGet);
     mock::getCallbacks().set_replace_callback("urDeviceGetInfo",
                                               &mock_urDeviceGetInfo);
+  }
+
+  std::vector<MockDeviceInfo> getAllDevices() {
+    std::vector<MockDeviceInfo> devices;
+
+    for (const auto &platform : sycl::platform::get_platforms()) {
+      auto platformName = platform.get_info<sycl::info::platform::name>();
+
+      for (const auto &device : platform.get_devices()) {
+        devices.push_back(MockDeviceInfo{
+            platformName, device.get_info<sycl::info::device::name>(),
+            device.get_info<sycl::info::device::device_type>(),
+            device.get_backend()});
+      }
+    }
+
+    return devices;
   }
 
 private:
   sycl::unittest::UrMock<> Mock;
 };
 
-TEST_F(OneAPIDeviceSelectorTest, Test1) {
+class OneAPIDeviceSelectorParamTest
+    : public OneAPIDeviceSelectorTest,
+      public ::testing::WithParamInterface<SelectorTestCase> {};
+
+TEST_P(OneAPIDeviceSelectorParamTest, CheckFiltering) {
+  const auto &[TestName, SelectorString, ExpectedDevices] = GetParam();
+
   sycl::unittest::ScopedEnvVar SelectorEnv(
-      "ONEAPI_DEVICE_SELECTOR", "*:cpu", []() {
-        sycl::detail::SYCLConfig<sycl::detail::ONEAPI_DEVICE_SELECTOR>{}
-            .reset();
+      "ONEAPI_DEVICE_SELECTOR", SelectorString.c_str(), []() {
+        sycl::detail::SYCLConfig<sycl::detail::ONEAPI_DEVICE_SELECTOR>::reset();
       });
-  auto platforms = sycl::platform::get_platforms();
-  ASSERT_FALSE(platforms.empty());
-  for (auto platform : platforms) {
-    auto devices = platform.get_devices();
-    ASSERT_FALSE(devices.empty());
-    for (auto device : devices) {
-      auto name = device.get_info<sycl::info::device::name>();
-      auto type = device.get_info<sycl::info::device::device_type>();
-      std::cout << "Platform: "
-                << platform.get_info<sycl::info::platform::name>()
-                << ", Device: " << name << ", Type: "
-                << (type == sycl::info::device_type::cpu
-                        ? "CPU"
-                        : (type == sycl::info::device_type::gpu ? "GPU"
-                                                                : "Other"))
-                << std::endl;
-    }
+
+  auto actualDevices = getAllDevices();
+
+  std::vector<MockDeviceInfo> expectedInfos;
+  for (const auto &DeviceDesc : ExpectedDevices) {
+    expectedInfos.push_back(getExpectedSYCLInfo(DeviceDesc.get()));
+  }
+
+  ASSERT_EQ(actualDevices.size(), expectedInfos.size());
+
+  for (const auto &expected : expectedInfos) {
+    auto it = std::find(actualDevices.begin(), actualDevices.end(), expected);
+    // std::cout << "Found device: " << expected.DeviceName
+    //           << " on platform: " << expected.PlatformName
+    //           << " and backend: " << expected.Backend << std::endl;
+    EXPECT_NE(it, actualDevices.end())
+        << "Failed to find expected device: " << expected.DeviceName
+        << " on backend: " << expected.PlatformName;
   }
 }
 
-TEST_F(OneAPIDeviceSelectorTest, Test2) {
-  sycl::unittest::ScopedEnvVar SelectorEnv(
-      "ONEAPI_DEVICE_SELECTOR", "*:gpu", []() {
-        sycl::detail::SYCLConfig<sycl::detail::ONEAPI_DEVICE_SELECTOR>{}
-            .reset();
-      });
-  auto platforms = sycl::platform::get_platforms();
-  ASSERT_FALSE(platforms.empty());
-  for (auto platform : platforms) {
-    auto devices = platform.get_devices();
-    ASSERT_FALSE(devices.empty());
-    for (auto device : devices) {
-      auto name = device.get_info<sycl::info::device::name>();
-      auto type = device.get_info<sycl::info::device::device_type>();
-      std::cout << "Platform: "
-                << platform.get_info<sycl::info::platform::name>()
-                << ", Device: " << name << ", Type: "
-                << (type == sycl::info::device_type::cpu
-                        ? "CPU"
-                        : (type == sycl::info::device_type::gpu ? "GPU"
-                                                                : "Other"))
-                << std::endl;
-    }
-  }
-}
+INSTANTIATE_TEST_SUITE_P(
+    ValidSelectors, OneAPIDeviceSelectorParamTest,
+    ::testing::Values(
+        SelectorTestCase{
+            "FindAllDevices",
+            "*:*",
+            {OpenCLCpuDeviceDesc, OpenCLGpuDeviceDesc, LevelZeroGpuDeviceDesc}},
+        SelectorTestCase{"FindAllCpuDevices", "*:cpu", {OpenCLCpuDeviceDesc}},
+        SelectorTestCase{"FindAllGpuDevices",
+                         "*:gpu",
+                         {OpenCLGpuDeviceDesc, LevelZeroGpuDeviceDesc}},
+        SelectorTestCase{"FindOpenCLDevices",
+                         "opencl:*",
+                         {OpenCLCpuDeviceDesc, OpenCLGpuDeviceDesc}},
+        SelectorTestCase{
+            "FindLevelZeroDevices", "level_zero:*", {LevelZeroGpuDeviceDesc}},
+        SelectorTestCase{"FindLevelZeroGpuOnly",
+                         "level_zero:gpu",
+                         {LevelZeroGpuDeviceDesc}}),
+    [](const ::testing::TestParamInfo<SelectorTestCase> &Info) {
+      return Info.param.TestName;
+    });
 
 } // namespace
