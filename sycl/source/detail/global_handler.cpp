@@ -203,9 +203,7 @@ std::vector<adapter_impl *> &GlobalHandler::getAdapters() {
 
 ods_target_list &
 GlobalHandler::getOneapiDeviceSelectorTargets(const std::string &InitValue) {
-  static ods_target_list &OneapiDeviceSelectorTargets =
-      getOrCreate(MOneapiDeviceSelectorTargets, InitValue);
-  return OneapiDeviceSelectorTargets;
+  return getOrCreate(MOneapiDeviceSelectorTargets, InitValue);
 }
 
 XPTIRegistry &GlobalHandler::getXPTIRegistry() {

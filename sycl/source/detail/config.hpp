@@ -282,26 +282,37 @@ template <> class SYCLConfig<ONEAPI_DEVICE_SELECTOR> {
   using BaseT = SYCLConfigBase<ONEAPI_DEVICE_SELECTOR>;
 
 public:
-  static ods_target_list *get() {
-    // Configuration parameters are processed only once, like reading a string
-    // from environment and converting it into a typed object.
+  static ods_target_list *get() { return getCachedValue(); }
+
+  static void reset() { (void)getCachedValue(/*ResetCache=*/true); }
+
+private:
+  static ods_target_list *getCachedValue(bool ResetCache = false) {
     static bool Initialized = false;
     static ods_target_list *DeviceTargets = nullptr;
 
-    if (Initialized) {
-      return DeviceTargets;
+    if (ResetCache) {
+      GlobalHandler::resetGlobalHandler();
+      Initialized = false;
+      DeviceTargets = nullptr;
     }
-    const char *ValStr = BaseT::getRawValue();
-    if (ValStr) {
-      // Throw if the input string is empty.
-      if (ValStr[0] == '\0')
-        throw exception(make_error_code(errc::invalid),
-                        "Invalid value for ONEAPI_DEVICE_SELECTOR environment "
-                        "variable: value should not be null.");
 
-      DeviceTargets =
-          &GlobalHandler::instance().getOneapiDeviceSelectorTargets(ValStr);
+    if (Initialized)
+      return DeviceTargets;
+
+    const char *ValStr = BaseT::getRawValue();
+    if (!ValStr) {
+      Initialized = true;
+      return nullptr;
     }
+
+    if (ValStr[0] == '\0')
+      throw exception(make_error_code(errc::invalid),
+                      "Invalid value for ONEAPI_DEVICE_SELECTOR environment "
+                      "variable: value should not be null.");
+
+    DeviceTargets =
+        &GlobalHandler::instance().getOneapiDeviceSelectorTargets(ValStr);
     Initialized = true;
     return DeviceTargets;
   }
