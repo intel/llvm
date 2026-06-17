@@ -29,7 +29,7 @@
 #include <bitset>
 #include <cstdarg>
 #include <cstring>
-#include <detail/iostream_proxy.hpp>
+#include <iostream>
 #include <map>
 #include <sstream>
 #include <stddef.h>
