@@ -383,6 +383,7 @@
 		urPrintExpSamplerCubemapProperties;
 		urPrintExpSamplerMipProperties;
 		urPrintExpWin32Handle;
+		urPrintExpWin32Name;
 		urPrintFunction;
 		urPrintFunctionParams;
 		urPrintGraphCreateExpParams;
