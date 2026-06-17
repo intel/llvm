@@ -39,6 +39,7 @@ int main() {
   }
   if (forcedDevice == "*:*" || forcedDevice.find("cpu") != std::string::npos) {
     device d(cpu_selector_v);
+    assert(d.is_cpu());
   }
   if (forcedDevice.find("cpu") == std::string::npos &&
       forcedDevice.find("opencl") == std::string::npos &&
