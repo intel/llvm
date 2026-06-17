@@ -55,7 +55,6 @@
 // CHECK-NEXT: buffer.hpp
 // CHECK-NEXT: detail/helpers.hpp
 // CHECK-NEXT: memory_enums.hpp
-// CHECK-NEXT: detail/iostream_proxy.hpp
 // CHECK-NEXT: detail/is_device_copyable.hpp
 // CHECK-NEXT: detail/stl_type_traits.hpp
 // CHECK-NEXT: detail/sycl_mem_obj_allocator.hpp

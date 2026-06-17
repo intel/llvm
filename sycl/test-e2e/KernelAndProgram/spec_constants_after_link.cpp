@@ -13,6 +13,7 @@
 
 // This test checks that specialization constant information is available on
 // kernel bundles produced by sycl::link.
+#include <iostream>
 
 #include <sycl/detail/core.hpp>
 

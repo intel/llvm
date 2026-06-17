@@ -10,6 +10,7 @@
 //
 // The test checks negation (operator!) of a simd_view object.
 // The operation `!v` is equivalent to `v == 0`;
+#include <iostream>
 
 #include "../esimd_test_utils.hpp"
 

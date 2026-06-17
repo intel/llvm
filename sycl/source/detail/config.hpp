@@ -17,7 +17,7 @@
 #include <algorithm>
 #include <array>
 #include <cstdlib>
-#include <iostream>
+#include <detail/iostream_proxy.hpp>
 #include <mutex>
 #include <string>
 #include <utility>

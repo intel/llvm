@@ -7,6 +7,7 @@
 // RUN: %{run} %t.out
 // RUN: %{build} -DUSE_DEPRECATED_IPC_MEMORY_NAMESPACE -o %t2.out
 // RUN: %{run} %t2.out
+#include <iostream>
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/ipc_memory.hpp>

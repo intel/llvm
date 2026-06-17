@@ -7,6 +7,7 @@
 // DEFINE: %{O0flags} = %if cl_options %{/clang:-O0%} %else %{-O0%}
 // RUN: %{build} %{O0flags} -o %t0.out
 // RUN: %{run} %t0.out
+#include <iostream>
 
 #include "esimd_test_utils.hpp"
 

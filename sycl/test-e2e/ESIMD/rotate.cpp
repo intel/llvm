@@ -12,6 +12,7 @@
 // RUN: %{run} %t1.out
 
 // This is a basic test to validate the ror/rol functions.
+#include <iostream>
 
 #include "esimd_test_utils.hpp"
 #include <bit>

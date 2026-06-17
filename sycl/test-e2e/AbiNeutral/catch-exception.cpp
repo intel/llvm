@@ -3,6 +3,7 @@
 // REQUIRES: level_zero && gpu
 
 // Most interested in result of Nightly run that sets _GLIBCXX_USE_CXX11_ABI=0.
+#include <iostream>
 
 #include <sycl/detail/core.hpp>
 #include <sycl/platform.hpp>

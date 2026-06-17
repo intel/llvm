@@ -8,6 +8,7 @@
 // SPIR-V backend does not support the required SPIR-V extensions
 
 #include <cmath>
+#include <iostream>
 #include <limits>
 #include <sycl/ext/oneapi/experimental/float_8bit/types.hpp>
 #include <sycl/queue.hpp>

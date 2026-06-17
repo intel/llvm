@@ -48,11 +48,10 @@
 // CHECK-NEXT: pointers.hpp
 // CHECK-NEXT: properties/accessor_properties.hpp
 // CHECK-NEXT: properties/runtime_accessor_properties.def
-// CHECK-NEXT: buffer.hpp
 // CHECK-NEXT: backend_types.hpp
+// CHECK-NEXT: buffer.hpp
 // CHECK-NEXT: detail/helpers.hpp
 // CHECK-NEXT: memory_enums.hpp
-// CHECK-NEXT: detail/iostream_proxy.hpp
 // CHECK-NEXT: detail/is_device_copyable.hpp
 // CHECK-NEXT: detail/stl_type_traits.hpp
 // CHECK-NEXT: detail/sycl_mem_obj_allocator.hpp
@@ -66,7 +65,6 @@
 // CHECK-NEXT: ur_api.h
 // CHECK-NEXT: usm/usm_enums.hpp
 // CHECK-NEXT: properties/buffer_properties.def
-// CHECK-NEXT: detail/backend_types_io.hpp
 // CHECK-NEXT: queue.hpp
 // CHECK-NEXT: aspects.hpp
 // CHECK-NEXT: info/aspects.def

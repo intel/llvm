@@ -7,6 +7,7 @@
 
 // Test to check that we don't insert unnecessary L0 commands for
 // queue::ext_oneapi_submit_barrier() when we have in-order queue.
+#include <iostream>
 
 #include <sycl/detail/core.hpp>
 #include <sycl/properties/all_properties.hpp>

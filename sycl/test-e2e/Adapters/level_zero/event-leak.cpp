@@ -35,6 +35,7 @@
 //              zeMemAllocShared = 0     \--->                     zeMemFree = 0
 //
 // clang-format on
+#include <iostream>
 
 #include <sycl/detail/core.hpp>
 

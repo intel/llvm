@@ -10,6 +10,7 @@
 // REQUIRES-INTEL-DRIVER: lin: 26690, win: 101.4576
 // The test checks functionality of the gather_rgba/scatter_rgba local
 // accessor-based ESIMD intrinsics.
+#include <iostream>
 
 #include "esimd_test_utils.hpp"
 

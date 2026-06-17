@@ -31,6 +31,7 @@
 
 // clang++ -fsycl -o las.bin -I$SYCL_HOME/build/install/include/sycl -lze_loader
 // interop-level-zero-image-get-native-mem.cpp
+#include <iostream>
 
 #include <level_zero/ze_api.h>
 #include <sycl/accessor_image.hpp>
