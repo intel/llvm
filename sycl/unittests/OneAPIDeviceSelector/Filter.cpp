@@ -335,9 +335,6 @@ TEST_P(OneAPIDeviceSelectorParamTest, CheckFiltering) {
 
   for (const auto &expected : expectedInfos) {
     auto it = std::find(actualDevices.begin(), actualDevices.end(), expected);
-    // std::cout << "Found device: " << expected.DeviceName
-    //           << " on platform: " << expected.PlatformName
-    //           << " and backend: " << expected.Backend << std::endl;
     EXPECT_NE(it, actualDevices.end())
         << "Failed to find expected device: " << expected.DeviceName
         << " on backend: " << expected.PlatformName;
@@ -360,9 +357,32 @@ INSTANTIATE_TEST_SUITE_P(
                          {OpenCLCpuDeviceDesc, OpenCLGpuDeviceDesc}},
         SelectorTestCase{
             "FindLevelZeroDevices", "level_zero:*", {LevelZeroGpuDeviceDesc}},
-        SelectorTestCase{"FindLevelZeroGpuOnly",
-                         "level_zero:gpu",
-                         {LevelZeroGpuDeviceDesc}}),
+        SelectorTestCase{
+            "FindLevelZeroGpuOnly", "level_zero:gpu", {LevelZeroGpuDeviceDesc}},
+
+        SelectorTestCase{"ExcludeCpuDevices",
+                         "*:*;!*:cpu",
+                         {OpenCLGpuDeviceDesc, LevelZeroGpuDeviceDesc}},
+
+        SelectorTestCase{
+            "ExcludeGpuDevices", "*:*;!*:gpu", {OpenCLCpuDeviceDesc}},
+
+        SelectorTestCase{
+            "ExcludeOpenCLDevices", "*:*;!opencl:*", {LevelZeroGpuDeviceDesc}},
+        SelectorTestCase{"ExcludeLevelZeroDevices",
+                         "*:*;!level_zero:*",
+                         {OpenCLCpuDeviceDesc, OpenCLGpuDeviceDesc}},
+        SelectorTestCase{"OpenCLCpuAndLevelZeroGpu",
+                         "opencl:cpu;level_zero:gpu",
+                         {OpenCLCpuDeviceDesc, LevelZeroGpuDeviceDesc}},
+        SelectorTestCase{"MultipleSelectorsForSameDevice",
+                         "opencl:cpu;*:cpu",
+                         {OpenCLCpuDeviceDesc}},
+        SelectorTestCase{"AllGpusButNotLevelZero",
+                         "*:gpu;!level_zero:*",
+                         {OpenCLGpuDeviceDesc}}
+
+        ),
     [](const ::testing::TestParamInfo<SelectorTestCase> &Info) {
       return Info.param.TestName;
     });
