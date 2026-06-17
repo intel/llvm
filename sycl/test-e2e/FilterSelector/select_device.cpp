@@ -1,10 +1,8 @@
 // RUN: %{build} -o %t.out
 
-// clang-format off
 // RUN: env ONEAPI_DEVICE_SELECTOR="*:cpu" %{run-unfiltered-devices} %t.out
 // RUN: env ONEAPI_DEVICE_SELECTOR="level_zero:gpu" %{run-unfiltered-devices} %t.out
 // RUN: env ONEAPI_DEVICE_SELECTOR="opencl:gpu" %{run-unfiltered-devices} %t.out
-// clang-format on
 
 //
 // Checks if only specified device types can be acquired from select_device
@@ -47,8 +45,7 @@ int main() {
     string name = d.get_platform().get_info<info::platform::name>();
     assert(name.find("Level-Zero") != string::npos);
   }
-  if (forcedDevice != "*:*" &&
-      forcedDevice.find("opencl:gpu") != std::string::npos) {
+  if (forcedDevice.find("opencl:gpu") != std::string::npos) {
     device d(gpu_selector_v);
     string name = d.get_platform().get_info<info::platform::name>();
     assert(name.find("OpenCL") != string::npos);
@@ -58,8 +55,7 @@ int main() {
     assert(d.is_cpu());
   }
   if (forcedDevice.find("cpu") == std::string::npos &&
-      forcedDevice.find("opencl") == std::string::npos &&
-      forcedDevice.find("*") == std::string::npos) {
+      forcedDevice.find(":*") == std::string::npos) {
     try {
       device d(cpu_selector_v);
     } catch (...) {
