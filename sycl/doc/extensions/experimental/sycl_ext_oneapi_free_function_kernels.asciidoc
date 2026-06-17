@@ -85,15 +85,14 @@ This is different from standard SYCL kernels, where the kernel arguments are
 either captures of a lambda expression or member variables of a callable
 object.
 
-Because the kernel arguments of a standard SYCL kernel are captures or member
-variables of a callable object, they have no defined order.
-A free function kernel instead exposes each kernel argument as a function
-parameter.
-This gives the kernel arguments a defined order, so the application can set the
-value of each argument by its index via `handler::set_arg(index, value)`.
+The captures or member variables of a standard SYCL kernel have no defined
+order.
+A free function kernel instead exposes each argument as a function parameter,
+which gives the arguments a defined order, so the application can set each
+argument by its index via `handler::set_arg(index, value)`.
 When the arguments are restricted to trivially copyable types (see the
 restrictions below), each argument also has a well defined size and
-representation, which gives the kernel a stable argument ABI.
+representation, giving the kernel a stable argument ABI.
 
 A defined argument order and a stable argument ABI allow a free function kernel
 to be invoked directly through a SYCL backend's native kernel-invocation API,
@@ -328,17 +327,16 @@ so results in undefined behavior.
 The function's address may still be taken and is used to identify the kernel
 (see the `Func` template parameter used by the APIs below).
 
-[_Note:_ Many of the APIs specified below have a template parameter `Func`,
-which identifies a free function kernel.
-This kernel function may be defined in any translation unit in the application.
-It is not necessary for the function to be defined in the same translation unit
-as the instantiation of the template taking the `Func` parameter.
+[_Note:_ Many of the APIs below take a template parameter `Func` that identifies
+a free function kernel.
+The kernel need not be defined in the same translation unit as the instantiation
+of the template taking the `Func` parameter.
 _{endnote}_]
 
 === New traits for kernel functions
 
-This extension defines the following traits that can be used to tell whether a
-function is declared as a free function kernel.
+This extension defines the following traits that tell whether a function is
+declared as a free function kernel.
 
 |====
 a|
@@ -795,10 +793,9 @@ defined by the core SYCL specification.
   considers free function kernels defined by the application when computing its
   return value.
 
-The information descriptor `info::kernel::num_args` may be used to query a
-`kernel` object that represents a free function kernel.
-The return value tells the number of formal parameters in the function's
-definition.
+The information descriptor `info::kernel::num_args` may be queried on a `kernel`
+object that represents a free function kernel.
+It returns the number of formal parameters in the function's definition.
 
 === Enqueuing a free function kernel and setting parameter values
 
@@ -823,11 +820,9 @@ enqueued by calling the `handler::parallel_for` overload taking an `nd_range`.
 A free function kernel defined via `single_task_kernel` can be enqueued by
 calling `handler::single_task`.
 
-Attempting to enqueue a free function kernel using a mechanism that does not
-match its type results in undefined behavior.
-Attempting to enqueue a free function kernel with an `nd_range` whose
-dimensionality does not match the free function kernel definition results in
-undefined behavior.
+It is undefined behavior to enqueue a free function kernel using a mechanism
+that does not match its type, or with an `nd_range` whose dimensionality does
+not match the kernel definition.
 
 The application is also responsible for setting the values of any kernel
 arguments when the kernel is enqueued.
@@ -846,15 +841,12 @@ undefined:
 
 === Obtaining the iteration id for a kernel
 
-In a standard SYCL kernel, the iteration ID is passed as a parameter to the
-kernel's callable object.
-However, this is not the case for a free function kernel because the function
-parameters are used to pass the kernel arguments instead.
-Therefore, a free function kernel must obtain the iteration ID in some other
-way.
-Typically, a free function kernel uses the functions specified in
-`sycl_khr_work_item_queries` (such as `sycl::khr::this_nd_item`) for this
-purpose.
+A standard SYCL kernel receives its iteration ID as a parameter to the kernel's
+callable object.
+A free function kernel cannot, because its parameters pass the kernel arguments
+instead.
+It therefore obtains the iteration ID through the functions specified in
+`sycl_khr_work_item_queries`, such as `sycl::khr::this_nd_item`.
 
 === Address space of kernel arguments
 
