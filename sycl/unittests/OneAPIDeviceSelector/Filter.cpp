@@ -87,7 +87,7 @@ const MockDeviceDesc &OpenCLCpuDeviceDesc = MockDevices[0];
 const MockDeviceDesc &OpenCLGpuDeviceDesc = MockDevices[1];
 const MockDeviceDesc &LevelZeroGpuDeviceDesc = MockDevices[2];
 
-const MockPlatformDesc *findPlatform(ur_platform_handle_t Handle) {
+const MockPlatformDesc *FindPlatform(ur_platform_handle_t Handle) {
   auto It = std::find_if(MockPlatforms.begin(), MockPlatforms.end(),
                          [&](const MockPlatformDesc &Platform) {
                            return Platform.Handle == Handle;
@@ -95,15 +95,15 @@ const MockPlatformDesc *findPlatform(ur_platform_handle_t Handle) {
   return It == MockPlatforms.end() ? nullptr : &*It;
 }
 
-const MockDeviceDesc *findDevice(ur_device_handle_t Handle) {
+const MockDeviceDesc *FindDevice(ur_device_handle_t Handle) {
   auto It = std::find_if(
       MockDevices.begin(), MockDevices.end(),
       [&](const MockDeviceDesc &Device) { return Device.Handle == Handle; });
   return It == MockDevices.end() ? nullptr : &*It;
 }
 
-MockDeviceInfo getExpectedSYCLInfo(const MockDeviceDesc &UrDevice) {
-  const MockPlatformDesc *UrPlatform = findPlatform(UrDevice.Platform);
+MockDeviceInfo GetExpectedSYCLInfo(const MockDeviceDesc &UrDevice) {
+  const MockPlatformDesc *UrPlatform = FindPlatform(UrDevice.Platform);
 
   sycl::backend ExpectedBackend{};
   switch (UrPlatform->Backend) {
@@ -134,149 +134,137 @@ MockDeviceInfo getExpectedSYCLInfo(const MockDeviceDesc &UrDevice) {
 }
 
 ur_result_t mock_urPlatformGet(void *pParams) {
-  auto Params = *static_cast<ur_platform_get_params_t *>(pParams);
-  if (*Params.ppNumPlatforms)
-    **Params.ppNumPlatforms = static_cast<uint32_t>(MockPlatforms.size());
+  auto P = *static_cast<ur_platform_get_params_t *>(pParams);
 
-  if (*Params.pphPlatforms && *Params.pNumEntries > 0) {
-    const uint32_t Count = std::min<uint32_t>(
-        *Params.pNumEntries, static_cast<uint32_t>(MockPlatforms.size()));
-    for (uint32_t I = 0; I < Count; ++I)
-      (*Params.pphPlatforms)[I] = MockPlatforms[I].Handle;
+  if (P.ppNumPlatforms && *P.ppNumPlatforms) {
+    **P.ppNumPlatforms = static_cast<uint32_t>(MockPlatforms.size());
   }
 
+  if (P.pphPlatforms && *P.pphPlatforms && P.pNumEntries &&
+      *P.pNumEntries > 0) {
+    const uint32_t Count =
+        std::min(*P.pNumEntries, static_cast<uint32_t>(MockPlatforms.size()));
+    for (uint32_t I = 0; I < Count; ++I) {
+      (*P.pphPlatforms)[I] = MockPlatforms[I].Handle;
+    }
+  }
   return UR_RESULT_SUCCESS;
 }
 
 ur_result_t mock_urPlatformGetInfo(void *pParams) {
-  auto Params = *static_cast<ur_platform_get_info_params_t *>(pParams);
-  const MockPlatformDesc *Platform = findPlatform(*Params.phPlatform);
-  if (!Platform)
+  auto P = *static_cast<ur_platform_get_info_params_t *>(pParams);
+  const auto *Plat = FindPlatform(*P.phPlatform);
+  if (!Plat) {
     return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-  switch (*Params.ppropName) {
-  case UR_PLATFORM_INFO_BACKEND:
-    if (*Params.ppPropValue) {
-      auto BackendPtr = static_cast<ur_backend_t *>(*Params.ppPropValue);
-      *BackendPtr = Platform->Backend;
-    }
-    if (*Params.ppPropSizeRet) {
-
-      **Params.ppPropSizeRet = sizeof(ur_backend_t);
-    }
-    return UR_RESULT_SUCCESS;
-  case UR_PLATFORM_INFO_NAME:
-    if (*Params.ppPropValue) {
-      std::memcpy(*Params.ppPropValue, Platform->Name.c_str(),
-                  Platform->Name.size() + 1);
-    }
-    if (*Params.ppPropSizeRet)
-      **Params.ppPropSizeRet = Platform->Name.size() + 1;
-    return UR_RESULT_SUCCESS;
-  default:
-    if (*Params.ppPropValue)
-      *static_cast<char *>(*Params.ppPropValue) = '\0';
-    if (*Params.ppPropSizeRet)
-      **Params.ppPropSizeRet = 1;
-    return UR_RESULT_SUCCESS;
   }
+
+  if (*P.ppropName == UR_PLATFORM_INFO_BACKEND) {
+    if (P.ppPropValue && *P.ppPropValue) {
+      *static_cast<ur_backend_t *>(*P.ppPropValue) = Plat->Backend;
+    }
+    if (P.ppPropSizeRet && *P.ppPropSizeRet) {
+      **P.ppPropSizeRet = sizeof(ur_backend_t);
+    }
+  } else if (*P.ppropName == UR_PLATFORM_INFO_NAME) {
+    if (P.ppPropValue && *P.ppPropValue) {
+      std::memcpy(*P.ppPropValue, Plat->Name.c_str(), Plat->Name.size() + 1);
+    }
+    if (P.ppPropSizeRet && *P.ppPropSizeRet) {
+      **P.ppPropSizeRet = Plat->Name.size() + 1;
+    }
+  } else {
+    if (P.ppPropValue && *P.ppPropValue) {
+      *static_cast<uint32_t *>(*P.ppPropValue) = 0;
+    }
+    if (P.ppPropSizeRet && *P.ppPropSizeRet) {
+      **P.ppPropSizeRet = sizeof(uint32_t);
+    }
+  }
+  return UR_RESULT_SUCCESS;
 }
 
 ur_result_t mock_urDeviceGet(void *pParams) {
-  auto Params = *static_cast<ur_device_get_params_t *>(pParams);
+  auto P = *static_cast<ur_device_get_params_t *>(pParams);
   std::vector<ur_device_handle_t> CandidateDevices;
 
-  if (*Params.phPlatform == OpenCLPlatform) {
+  if (*P.phPlatform == OpenCLPlatform) {
     CandidateDevices = {OpenCLCpuDevice, OpenCLGpuDevice};
-  } else if (*Params.phPlatform == LevelZeroPlatform) {
+  } else if (*P.phPlatform == LevelZeroPlatform) {
     CandidateDevices = {LevelZeroGpuDevice};
   }
 
   std::vector<ur_device_handle_t> SelectedDevices;
   for (ur_device_handle_t DeviceHandle : CandidateDevices) {
-    const MockDeviceDesc *Device = findDevice(DeviceHandle);
-    if (!Device)
+    const MockDeviceDesc *Device = FindDevice(DeviceHandle);
+    if (!Device) {
       continue;
+    }
 
-    if (*Params.pDeviceType != UR_DEVICE_TYPE_ALL &&
-        *Params.pDeviceType != Device->Type)
+    if (*P.pDeviceType != UR_DEVICE_TYPE_ALL &&
+        *P.pDeviceType != Device->Type) {
       continue;
+    }
 
     SelectedDevices.push_back(DeviceHandle);
   }
 
-  if (*Params.ppNumDevices)
-    **Params.ppNumDevices = static_cast<uint32_t>(SelectedDevices.size());
+  if (P.ppNumDevices && *P.ppNumDevices) {
+    **P.ppNumDevices = static_cast<uint32_t>(SelectedDevices.size());
+  }
 
-  if (*Params.pphDevices && *Params.pNumEntries > 0) {
-    const uint32_t Count = std::min<uint32_t>(
-        *Params.pNumEntries, static_cast<uint32_t>(SelectedDevices.size()));
-    for (uint32_t I = 0; I < Count; ++I)
-      (*Params.pphDevices)[I] = SelectedDevices[I];
+  if (P.pphDevices && *P.pphDevices && P.pNumEntries && *P.pNumEntries > 0) {
+    const uint32_t Count =
+        std::min(*P.pNumEntries, static_cast<uint32_t>(SelectedDevices.size()));
+    for (uint32_t I = 0; I < Count; ++I) {
+      (*P.pphDevices)[I] = SelectedDevices[I];
+    }
   }
 
   return UR_RESULT_SUCCESS;
 }
 
 ur_result_t mock_urDeviceGetInfo(void *pParams) {
-  auto Params = *static_cast<ur_device_get_info_params_t *>(pParams);
-  const MockDeviceDesc *Device = findDevice(*Params.phDevice);
-  if (!Device)
+  auto P = *static_cast<ur_device_get_info_params_t *>(pParams);
+  const auto *Dev = FindDevice(*P.phDevice);
+  if (!Dev) {
     return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-  switch (*Params.ppropName) {
-  case UR_DEVICE_INFO_TYPE:
-    if (*Params.ppPropValue)
-      *static_cast<ur_device_type_t *>(*Params.ppPropValue) = Device->Type;
-    if (*Params.ppPropSizeRet)
-      **Params.ppPropSizeRet = sizeof(ur_device_type_t);
-    return UR_RESULT_SUCCESS;
-  case UR_DEVICE_INFO_PLATFORM:
-    if (*Params.ppPropValue)
-      *static_cast<ur_platform_handle_t *>(*Params.ppPropValue) =
-          Device->Platform;
-    if (*Params.ppPropSizeRet)
-      **Params.ppPropSizeRet = sizeof(ur_platform_handle_t);
-    return UR_RESULT_SUCCESS;
-  case UR_DEVICE_INFO_NAME:
-    if (*Params.ppPropValue) {
-      std::memcpy(*Params.ppPropValue, Device->Name.c_str(),
-                  Device->Name.size() + 1);
-    }
-    if (*Params.ppPropSizeRet)
-      **Params.ppPropSizeRet = Device->Name.size() + 1;
-    return UR_RESULT_SUCCESS;
-  case UR_DEVICE_INFO_PARENT_DEVICE:
-    if (*Params.ppPropValue)
-      *static_cast<ur_device_handle_t *>(*Params.ppPropValue) = nullptr;
-    if (*Params.ppPropSizeRet)
-      **Params.ppPropSizeRet = sizeof(ur_device_handle_t);
-    return UR_RESULT_SUCCESS;
-  case UR_DEVICE_INFO_AVAILABLE:
-  case UR_DEVICE_INFO_LINKER_AVAILABLE:
-  case UR_DEVICE_INFO_COMPILER_AVAILABLE:
-    if (*Params.ppPropValue)
-      *static_cast<ur_bool_t *>(*Params.ppPropValue) = true;
-    if (*Params.ppPropSizeRet)
-      **Params.ppPropSizeRet = sizeof(ur_bool_t);
-    return UR_RESULT_SUCCESS;
-  case UR_DEVICE_INFO_EXTENSIONS:
-    if (*Params.ppPropValue)
-      *static_cast<char *>(*Params.ppPropValue) = '\0';
-    if (*Params.ppPropSizeRet)
-      **Params.ppPropSizeRet = 1;
-    return UR_RESULT_SUCCESS;
-  case UR_DEVICE_INFO_SUPPORTED_PARTITIONS:
-    if (*Params.ppPropSizeRet)
-      **Params.ppPropSizeRet = 0;
-    return UR_RESULT_SUCCESS;
-  default:
-    if (*Params.ppPropValue && *Params.ppropSize != 0)
-      std::memset(*Params.ppPropValue, 0, *Params.ppropSize);
-    if (*Params.ppPropSizeRet)
-      **Params.ppPropSizeRet = 1;
-    return UR_RESULT_SUCCESS;
   }
+
+  switch (*P.ppropName) {
+  case UR_DEVICE_INFO_TYPE:
+    if (P.ppPropValue && *P.ppPropValue) {
+      *static_cast<ur_device_type_t *>(*P.ppPropValue) = Dev->Type;
+    }
+    if (P.ppPropSizeRet && *P.ppPropSizeRet) {
+      **P.ppPropSizeRet = sizeof(ur_device_type_t);
+    }
+    break;
+  case UR_DEVICE_INFO_PLATFORM:
+    if (P.ppPropValue && *P.ppPropValue) {
+      *static_cast<ur_platform_handle_t *>(*P.ppPropValue) = Dev->Platform;
+    }
+    if (P.ppPropSizeRet && *P.ppPropSizeRet) {
+      **P.ppPropSizeRet = sizeof(ur_platform_handle_t);
+    }
+    break;
+  case UR_DEVICE_INFO_NAME:
+    if (P.ppPropValue && *P.ppPropValue) {
+      std::memcpy(*P.ppPropValue, Dev->Name.c_str(), Dev->Name.size() + 1);
+    }
+    if (P.ppPropSizeRet && *P.ppPropSizeRet) {
+      **P.ppPropSizeRet = Dev->Name.size() + 1;
+    }
+    break;
+  default:
+    if (P.ppPropValue && *P.ppPropValue && P.ppropSize && *P.ppropSize > 0) {
+      std::memset(*P.ppPropValue, 0, *P.ppropSize);
+    }
+    if (P.ppPropSizeRet && *P.ppPropSizeRet) {
+      **P.ppPropSizeRet = sizeof(uint32_t);
+    }
+    break;
+  }
+  return UR_RESULT_SUCCESS;
 }
 
 class OneAPIDeviceSelectorTest : public ::testing::Test {
@@ -291,21 +279,21 @@ protected:
                                               &mock_urDeviceGetInfo);
   }
 
-  std::vector<MockDeviceInfo> getAllDevices() {
-    std::vector<MockDeviceInfo> devices;
+  std::vector<MockDeviceInfo> GetAllDevices() {
+    std::vector<MockDeviceInfo> Devices;
 
-    for (const auto &platform : sycl::platform::get_platforms()) {
-      auto platformName = platform.get_info<sycl::info::platform::name>();
+    for (const auto &Platform : sycl::platform::get_platforms()) {
+      auto PlatformName = Platform.get_info<sycl::info::platform::name>();
 
-      for (const auto &device : platform.get_devices()) {
-        devices.push_back(MockDeviceInfo{
-            platformName, device.get_info<sycl::info::device::name>(),
-            device.get_info<sycl::info::device::device_type>(),
-            device.get_backend()});
+      for (const auto &Device : Platform.get_devices()) {
+        Devices.push_back(MockDeviceInfo{
+            PlatformName, Device.get_info<sycl::info::device::name>(),
+            Device.get_info<sycl::info::device::device_type>(),
+            Device.get_backend()});
       }
     }
 
-    return devices;
+    return Devices;
   }
 
 private:
@@ -324,20 +312,20 @@ TEST_P(OneAPIDeviceSelectorParamTest, CheckFiltering) {
         sycl::detail::SYCLConfig<sycl::detail::ONEAPI_DEVICE_SELECTOR>::reset();
       });
 
-  auto actualDevices = getAllDevices();
+  auto ActualDevices = GetAllDevices();
 
-  std::vector<MockDeviceInfo> expectedInfos;
+  std::vector<MockDeviceInfo> ExpectedInfos;
   for (const auto &DeviceDesc : ExpectedDevices) {
-    expectedInfos.push_back(getExpectedSYCLInfo(DeviceDesc.get()));
+    ExpectedInfos.push_back(GetExpectedSYCLInfo(DeviceDesc.get()));
   }
 
-  ASSERT_EQ(actualDevices.size(), expectedInfos.size());
+  ASSERT_EQ(ActualDevices.size(), ExpectedInfos.size());
 
-  for (const auto &expected : expectedInfos) {
-    auto it = std::find(actualDevices.begin(), actualDevices.end(), expected);
-    EXPECT_NE(it, actualDevices.end())
-        << "Failed to find expected device: " << expected.DeviceName
-        << " on backend: " << expected.PlatformName;
+  for (const auto &Expected : ExpectedInfos) {
+    auto It = std::find(ActualDevices.begin(), ActualDevices.end(), Expected);
+    EXPECT_NE(It, ActualDevices.end())
+        << "Failed to find Expected device: " << Expected.DeviceName
+        << " on backend: " << Expected.PlatformName;
   }
 }
 
