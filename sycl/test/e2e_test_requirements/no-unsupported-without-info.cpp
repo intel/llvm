@@ -54,22 +54,15 @@
 // tests to match the required format and in that case you should just update
 // (i.e. reduce) the number and the list below.
 //
-// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 99
+// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 85
 //
 // List of improperly UNSUPPORTED tests.
 // Remove the CHECK once the test has been properly UNSUPPORTED.
 //
-// CHECK: Adapters/level_zero/batch_event_status.cpp
-// CHECK-NEXT: Adapters/level_zero/interop-buffer-ownership.cpp
-// CHECK-NEXT: Adapters/level_zero/interop-image-ownership.cpp
-// CHECK-NEXT: Adapters/level_zero/interop.cpp
-// CHECK-NEXT: Adapters/level_zero/queue_profiling.cpp
-// CHECK-NEXT: Adapters/level_zero/usm_device_read_only.cpp
-// CHECK-NEXT: AmdNvidiaJIT/kernel_and_bundle.cpp
+// CHECK: AmdNvidiaJIT/kernel_and_bundle.cpp
 // CHECK-NEXT: Assert/assert_in_simultaneous_kernels.cpp
 // CHECK-NEXT: Assert/assert_in_simultaneously_multiple_tus.cpp
 // CHECK-NEXT: Assert/check_resource_leak.cpp
-// CHECK-NEXT: Basic/buffer/buffer_create.cpp
 // CHECK-NEXT: Basic/build_log.cpp
 // CHECK-NEXT: Basic/gpu_max_wgs_error.cpp
 // CHECK-NEXT: Basic/submit_time.cpp
@@ -86,21 +79,16 @@
 // CHECK-NEXT: ESIMD/ext_math.cpp
 // CHECK-NEXT: ESIMD/ext_math_fast.cpp
 // CHECK-NEXT: ESIMD/ext_math_saturate.cpp
-// CHECK-NEXT: ESIMD/fp_in_phi.cpp
 // CHECK-NEXT: ESIMD/matrix_transpose2.cpp
 // CHECK-NEXT: ESIMD/private_memory/private_memory.cpp
 // CHECK-NEXT: ESIMD/regression/copyto_char_test.cpp
 // CHECK-NEXT: ESIMD/regression/variable_gather_mask.cpp
-// CHECK-NEXT: Graph/Explicit/interop-level-zero-launch-kernel.cpp
-// CHECK-NEXT: Graph/RecordReplay/interop-level-zero-launch-kernel.cpp
 // CHECK-NEXT: HierPar/hier_par_wgscope.cpp
 // CHECK-NEXT: InvokeSimd/Feature/ImplicitSubgroup/SPMD_invoke_ESIMD_external.cpp
 // CHECK-NEXT: InvokeSimd/Feature/ImplicitSubgroup/popcnt.cpp
 // CHECK-NEXT: InvokeSimd/Feature/popcnt.cpp
-// CHECK-NEXT: KernelAndProgram/cache-build-result.cpp
 // CHECK-NEXT: KernelAndProgram/kernel-bundle-merge-options-env.cpp
 // CHECK-NEXT: KernelAndProgram/kernel-bundle-merge-options.cpp
-// CHECK-NEXT: KernelAndProgram/level-zero-static-link-flow.cpp
 // CHECK-NEXT: KernelAndProgram/multiple-kernel-linking.cpp
 // CHECK-NEXT: KernelAndProgram/spec_constants_after_link.cpp
 // CHECK-NEXT: Matrix/SG32/element_wise_abc.cpp
@@ -140,7 +128,6 @@
 // CHECK-NEXT: Printf/int.cpp
 // CHECK-NEXT: Printf/mixed-address-space.cpp
 // CHECK-NEXT: Printf/percent-symbol.cpp
-// CHECK-NEXT: Regression/barrier_waitlist_with_interop_event.cpp
 // CHECK-NEXT: Regression/invalid_reqd_wg_size_correct_exception.cpp
 // CHECK-NEXT: Regression/kernel_bundle_ignore_sycl_external.cpp
 // CHECK-NEXT: Regression/no-split-reqd-wg-size-2.cpp
@@ -157,4 +144,3 @@
 // CHECK-NEXT: Tracing/usm/queue_copy_released_pointer.cpp
 // CHECK-NEXT: Tracing/usm/queue_single_task_nullptr.cpp
 // CHECK-NEXT: Tracing/usm/queue_single_task_released_pointer.cpp
-// CHECK-NEXT: USM/badmalloc.cpp
