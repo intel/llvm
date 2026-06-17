@@ -12,8 +12,8 @@
 #include <sycl/detail/export.hpp> // for __SYCL_EXPORT
 #include <sycl/detail/nd_loop.hpp>
 
-#include <array>   // for array
-#include <cstddef> // for size_t
+#include <array>       // for array
+#include <cstddef>     // for size_t
 #include <type_traits> // for enable_if_t
 #include <utility>     // for index_sequence, make_i...
 
@@ -114,7 +114,10 @@ __SYCL_EXPORT void reportExceptionToStream(const char *Prefix,
                                            const char *What);
 #ifndef NDEBUG
 #define __SYCL_REPORT_EXCEPTION_TO_STREAM(str, e)                              \
-  ::sycl::_V1::detail::reportExceptionToStream(str, e.what())
+  do {                                                                         \
+    ::sycl::_V1::detail::reportExceptionToStream(str, e.what());               \
+    assert(false);                                                             \
+  } while (0)
 #else
 #define __SYCL_REPORT_EXCEPTION_TO_STREAM(str, e) (void)e;
 #endif

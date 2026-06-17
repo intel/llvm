@@ -15,7 +15,7 @@
 
 #include <cstring>
 #include <ios>
-#include <iostream>
+#include <ostream>
 
 namespace sycl {
 inline namespace _V1 {

@@ -20,7 +20,8 @@
 #include <sycl/ext/oneapi/bfloat16.hpp>
 #include <sycl/half_type.hpp>
 
-#include <iostream>
+#include <istream>
+#include <ostream>
 
 namespace sycl {
 inline namespace _V1 {

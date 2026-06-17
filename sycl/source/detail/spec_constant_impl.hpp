@@ -11,7 +11,7 @@
 #include <sycl/detail/defines.hpp>
 #include <sycl/detail/util.hpp>
 
-#include <iostream>
+#include <iosfwd>
 #include <map>
 #include <vector>
 
