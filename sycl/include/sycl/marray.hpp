@@ -9,8 +9,27 @@
 #pragma once
 
 #include <sycl/aliases.hpp>
+#include <sycl/bit_cast.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/fwd/half.hpp>
+#include <sycl/detail/memcpy.hpp>
+#include <sycl/detail/type_traits.hpp>
+#include <sycl/ext/oneapi/bfloat16.hpp>
+
+// Check if Clang's ext_vector_type attribute is available. Host compiler
+// may not be Clang, and Clang may not be built with the extension.
+#ifdef __clang__
+#ifndef __has_extension
+#define __has_extension(x) 0
+#endif
+#if __has_extension(attribute_ext_vector_type)
+#define __HAS_EXT_VECTOR_TYPE__
+#endif
+#endif // __clang__
+
+#if !defined(__HAS_EXT_VECTOR_TYPE__) && defined(__SYCL_DEVICE_ONLY__)
+#error "SYCL device compiler is built without ext_vector_type support"
+#endif
 
 namespace sycl {
 inline namespace _V1 {
@@ -35,6 +54,18 @@ template <typename T, typename... Ts> struct GetMArrayArgsSize<T, Ts...> {
   static constexpr std::size_t value = 1 + GetMArrayArgsSize<Ts...>::value;
 };
 
+// Helper to define ext_vector_type only when it will actually be used.
+// This avoids the warning about attributes on dependent types.
+template <bool UseExtVector, typename T, std::size_t N>
+struct ExtVectorTypeHelper {
+  using type = void;
+};
+
+#ifdef __SYCL_DEVICE_ONLY__
+template <typename T, std::size_t N> struct ExtVectorTypeHelper<true, T, N> {
+  using type = T __attribute__((ext_vector_type(N)));
+};
+#endif
 } // namespace detail
 
 /// Provides a cross-platform math array class template that works on
@@ -165,6 +196,38 @@ public:
 
   const_iterator end() const { return MData + NumElements; }
 
+  // Use ext_vector_type opportunistically for doing marray operations.
+private:
+  using vec_elem_ty =
+      typename detail::map_type<DataT,
+#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+                                std::byte, /*->*/ std::uint8_t, //
+#endif
+                                bool, /*->*/ std::uint8_t,
+#ifdef __SYCL_DEVICE_ONLY__
+                                half, /*->*/ _Float16,
+#endif
+                                DataT, /*->*/ DataT>::type;
+
+  // Don't use ext_vector_type for:
+  // - Host code (no ext_vector_type support)
+  // - Non-power-of-2 sizes (ext_vector_type pads to next power of 2, marray
+  // doesn't)
+  // - 16-bit types (scalar loop is more efficient on some targets)
+  constexpr static bool use_ext_vector_type =
+#ifdef __SYCL_DEVICE_ONLY__
+      detail::is_valid_type_length_for_ext_vector_v<vec_elem_ty, NumElements> &&
+      (NumElements == 2 || NumElements == 4 || NumElements == 8 ||
+       NumElements == 16);
+#else
+      false;
+#endif
+
+  using ext_vector_t =
+      typename detail::ExtVectorTypeHelper<use_ext_vector_type, vec_elem_ty,
+                                           NumElements>::type;
+
+public:
 #ifdef __SYCL_BINOP
 #error "Undefine __SYCL_BINOP macro"
 #endif
@@ -176,8 +239,15 @@ public:
 #define __SYCL_BINOP(BINOP, OPASSIGN)                                          \
   friend marray operator BINOP(const marray &Lhs, const marray &Rhs) {         \
     marray Ret;                                                                \
-    for (size_t I = 0; I < NumElements; ++I) {                                 \
-      Ret[I] = Lhs[I] BINOP Rhs[I];                                            \
+    if constexpr (use_ext_vector_type) {                                       \
+      ext_vector_t LhsVec = sycl::bit_cast<ext_vector_t>(Lhs.MData);           \
+      ext_vector_t RhsVec = sycl::bit_cast<ext_vector_t>(Rhs.MData);           \
+      ext_vector_t ResVec = LhsVec BINOP RhsVec;                               \
+      sycl::detail::memcpy_no_adl(Ret.MData, &ResVec, sizeof(ResVec));         \
+    } else {                                                                   \
+      for (size_t I = 0; I < NumElements; ++I) {                               \
+        Ret[I] = Lhs[I] BINOP Rhs[I];                                          \
+      }                                                                        \
     }                                                                          \
     return Ret;                                                                \
   }                                                                            \
@@ -215,8 +285,15 @@ public:
             typename = std::enable_if_t<std::is_integral_v<T>, marray>>        \
   friend marray operator BINOP(const marray &Lhs, const marray &Rhs) {         \
     marray Ret;                                                                \
-    for (size_t I = 0; I < NumElements; ++I) {                                 \
-      Ret[I] = Lhs[I] BINOP Rhs[I];                                            \
+    if constexpr (use_ext_vector_type) {                                       \
+      ext_vector_t LhsVec = sycl::bit_cast<ext_vector_t>(Lhs.MData);           \
+      ext_vector_t RhsVec = sycl::bit_cast<ext_vector_t>(Rhs.MData);           \
+      ext_vector_t ResVec = LhsVec BINOP RhsVec;                               \
+      sycl::detail::memcpy_no_adl(Ret.MData, &ResVec, sizeof(ResVec));         \
+    } else {                                                                   \
+      for (size_t I = 0; I < NumElements; ++I) {                               \
+        Ret[I] = Lhs[I] BINOP Rhs[I];                                          \
+      }                                                                        \
     }                                                                          \
     return Ret;                                                                \
   }                                                                            \
@@ -276,8 +353,17 @@ public:
   friend marray<bool, NumElements> operator RELLOGOP(const marray &Lhs,        \
                                                      const marray &Rhs) {      \
     marray<bool, NumElements> Ret;                                             \
-    for (size_t I = 0; I < NumElements; ++I) {                                 \
-      Ret[I] = Lhs[I] RELLOGOP Rhs[I];                                         \
+    if constexpr (use_ext_vector_type) {                                       \
+      ext_vector_t LhsVec = sycl::bit_cast<ext_vector_t>(Lhs.MData);           \
+      ext_vector_t RhsVec = sycl::bit_cast<ext_vector_t>(Rhs.MData);           \
+      auto ResVec = LhsVec RELLOGOP RhsVec; /* returns vec of -1/0 */          \
+      for (size_t I = 0; I < NumElements; ++I) {                               \
+        Ret[I] = ResVec[I] != 0;                                               \
+      }                                                                        \
+    } else {                                                                   \
+      for (size_t I = 0; I < NumElements; ++I) {                               \
+        Ret[I] = Lhs[I] RELLOGOP Rhs[I];                                       \
+      }                                                                        \
     }                                                                          \
     return Ret;                                                                \
   }                                                                            \
@@ -359,32 +445,58 @@ public:
   friend std::enable_if_t<std::is_integral_v<T>, marray>
   operator~(const marray &Lhs) {
     marray Ret;
-    for (size_t I = 0; I < NumElements; ++I) {
-      Ret[I] = ~Lhs[I];
+    if constexpr (use_ext_vector_type) {
+      ext_vector_t LhsVec = sycl::bit_cast<ext_vector_t>(Lhs.MData);
+      ext_vector_t ResVec = ~LhsVec;
+      sycl::detail::memcpy_no_adl(Ret.MData, &ResVec, sizeof(ResVec));
+    } else {
+      for (size_t I = 0; I < NumElements; ++I) {
+        Ret[I] = ~Lhs[I];
+      }
     }
     return Ret;
   }
 
   friend marray<bool, NumElements> operator!(const marray &Lhs) {
     marray<bool, NumElements> Ret;
-    for (size_t I = 0; I < NumElements; ++I) {
-      Ret[I] = !Lhs[I];
+    if constexpr (use_ext_vector_type) {
+      ext_vector_t LhsVec = sycl::bit_cast<ext_vector_t>(Lhs.MData);
+      auto ResVec = !LhsVec; /* returns vec of -1/0 */
+      for (size_t I = 0; I < NumElements; ++I) {
+        Ret[I] = ResVec[I] != 0;
+      }
+    } else {
+      for (size_t I = 0; I < NumElements; ++I) {
+        Ret[I] = !Lhs[I];
+      }
     }
     return Ret;
   }
 
   friend marray operator+(const marray &Lhs) {
     marray Ret;
-    for (size_t I = 0; I < NumElements; ++I) {
-      Ret[I] = +Lhs[I];
+    if constexpr (use_ext_vector_type) {
+      ext_vector_t LhsVec = sycl::bit_cast<ext_vector_t>(Lhs.MData);
+      ext_vector_t ResVec = +LhsVec;
+      sycl::detail::memcpy_no_adl(Ret.MData, &ResVec, sizeof(ResVec));
+    } else {
+      for (size_t I = 0; I < NumElements; ++I) {
+        Ret[I] = +Lhs[I];
+      }
     }
     return Ret;
   }
 
   friend marray operator-(const marray &Lhs) {
     marray Ret;
-    for (size_t I = 0; I < NumElements; ++I) {
-      Ret[I] = -Lhs[I];
+    if constexpr (use_ext_vector_type) {
+      ext_vector_t LhsVec = sycl::bit_cast<ext_vector_t>(Lhs.MData);
+      ext_vector_t ResVec = -LhsVec;
+      sycl::detail::memcpy_no_adl(Ret.MData, &ResVec, sizeof(ResVec));
+    } else {
+      for (size_t I = 0; I < NumElements; ++I) {
+        Ret[I] = -Lhs[I];
+      }
     }
     return Ret;
   }
