@@ -1,0 +1,28 @@
+name: UR - Check Network Cards
+
+on:
+  workflow_dispatch:
+
+jobs:
+  check-network:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [UR_L0, UR_L0_BMG, UR_CUDA, UR_OPENCL, UR_NATIVE_CPU]
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Check network card
+        run: |
+          echo "=== Runner: ${{ matrix.runner }} ==="
+          echo ""
+          echo "=== lspci network devices ==="
+          lspci | grep -i -E 'network|ethernet' || true
+          echo ""
+          echo "=== Network interfaces ==="
+          ip link show
+          echo ""
+          echo "=== Interface details (ethtool) ==="
+          for iface in $(ls /sys/class/net/ | grep -v lo); do
+            echo "--- $iface ---"
+            ethtool -i "$iface" 2>/dev/null || true
+          done
