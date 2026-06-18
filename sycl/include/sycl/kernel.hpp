@@ -100,11 +100,13 @@ public:
                         "Rebuild due to ABI-break will be required.")
   bool operator!=(const kernel &RHS) const { return !operator==(RHS); }
 #else
-  friend bool operator==(const &lhs, const T &rhs) {
+  friend bool operator==(const kernel &lhs, const kernel &rhs) {
     return lhs.impl == rhs.impl;
   }
 
-  friend bool operator!=(const T &lhs, const T &rhs) { return !(lhs == rhs); }
+  friend bool operator!=(const kernel &lhs, const kernel &rhs) {
+    return !(lhs == rhs);
+  }
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   /// Get a valid OpenCL kernel handle
