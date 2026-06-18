@@ -16,16 +16,52 @@ jobs:
     steps:
       - name: Check network card
         run: |
-          echo "=== Runner: ${{ matrix.runner }} ==="
-          echo ""
-          echo "=== lspci network devices ==="
-          lspci | grep -i -E 'network|ethernet' || true
-          echo ""
-          echo "=== Network interfaces ==="
-          ip link show
-          echo ""
-          echo "=== Interface details (ethtool) ==="
-          for iface in $(ls /sys/class/net/ | grep -v lo); do
-            echo "--- $iface ---"
-            ethtool -i "$iface" 2>/dev/null || true
+          {
+            echo "=== Runner: ${{ matrix.runner }} ==="
+            echo ""
+            echo "=== lspci network devices ==="
+            lspci | grep -i -E 'network|ethernet' || true
+            echo ""
+            echo "=== Network interfaces ==="
+            ip link show
+            echo ""
+            echo "=== Interface details (ethtool) ==="
+            for iface in $(ls /sys/class/net/ | grep -v lo); do
+              echo "--- $iface ---"
+              ethtool -i "$iface" 2>/dev/null || true
+            done
+          } 2>&1 | tee network-info.txt
+
+      - name: Upload partial artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: network-info-${{ matrix.runner }}
+          path: network-info.txt
+
+  merge-results:
+    needs: check-network
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: network-info-*
+          path: results
+
+      - name: Combine results
+        run: |
+          for dir in results/network-info-*/; do
+            runner=$(basename "$dir" | sed 's/network-info-//')
+            echo "========================================" >> combined-network-info.txt
+            echo "Runner: $runner" >> combined-network-info.txt
+            echo "========================================" >> combined-network-info.txt
+            cat "$dir/network-info.txt" >> combined-network-info.txt
+            echo "" >> combined-network-info.txt
           done
+
+      - name: Upload combined artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: network-info-all-runners
+          path: combined-network-info.txt
