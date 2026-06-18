@@ -45,7 +45,7 @@ void func_with_ref_arg(B &b);
 // CHECK-NEXT:    [[P:%.*]] = alloca ptr, align 8, addrspace(5)
 // CHECK-NEXT:    [[P_ASCAST:%.*]] = addrspacecast ptr addrspace(5) [[P]] to ptr
 // CHECK-NEXT:    [[A_ASCAST:%.*]] = addrspacecast ptr addrspace(5) [[A]] to ptr
-// CHECK-NEXT:    store ptr [[A_ASCAST]], ptr addrspace(5) [[A_INDIRECT_ADDR]], align 8
+// CHECK-NEXT:    store ptr addrspace(5) [[A]], ptr addrspace(5) [[A_INDIRECT_ADDR]], align 8
 // CHECK-NEXT:    store ptr [[A_ASCAST]], ptr [[P_ASCAST]], align 8
 // CHECK-NEXT:    ret void
 //

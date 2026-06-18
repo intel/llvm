@@ -502,12 +502,6 @@ static RawAddress createReferenceTemporary(CodeGenFunction &CGF,
         // FIXME: Should we put the new global into a COMDAT?
         return RawAddress(C, GV->getValueType(), alignment);
       }
-    if (CGF.CGM.getCodeGenOpts().UseAllocaASForSrets) {
-      RawAddress Addr = CGF.CreateMemTempWithoutCast(Ty, "ref.tmp");
-      if (Alloca)
-        *Alloca = Addr;
-      return Addr;
-    }
     return CGF.CreateMemTemp(Ty, "ref.tmp", Alloca);
   }
   case SD_Thread:
@@ -1635,9 +1629,7 @@ RValue CodeGenFunction::GetUndefRValue(QualType Ty) {
   // identifiable address.  Just because the contents of the value are undefined
   // doesn't mean that the address can't be taken and compared.
   case TEK_Aggregate: {
-    Address DestPtr = CGM.getCodeGenOpts().UseAllocaASForSrets
-                          ? CreateMemTempWithoutCast(Ty, "undef.agg.tmp")
-                          : CreateMemTemp(Ty, "undef.agg.tmp");
+    Address DestPtr = CreateMemTemp(Ty, "undef.agg.tmp");
     return RValue::getAggregate(DestPtr);
   }
 
@@ -6025,7 +6017,9 @@ LValue CodeGenFunction::EmitCompoundLiteralLValue(const CompoundLiteralExpr *E){
     // make sure to emit the VLA size.
     EmitVariablyModifiedType(E->getType());
 
-  Address DeclPtr = CreateMemTempWithoutCast(E->getType(), ".compoundliteral");
+  Address DeclPtr = CGM.getCodeGenOpts().UseAllocaASForSrets
+                        ? CreateMemTempWithoutCast(E->getType(), ".compoundliteral")
+                        : CreateMemTemp(E->getType(), ".compoundliteral");
   const Expr *InitExpr = E->getInitializer();
   LValue Result = MakeAddrLValue(DeclPtr, E->getType(), AlignmentSource::Decl);
 
