@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <detail/context_impl.hpp>
 #include <detail/kernel_bundle_impl.hpp>
 
 #include <helpers/UrMock.hpp>
@@ -196,4 +197,11 @@ TEST(SubDevices, BuildProgramForSubSubDevices) {
 
   // Check that program is built only once.
   EXPECT_EQ(buildCallCount, 1);
+
+  // getBuiltURProgram caches the built program (a Managed<ur_program_handle_t>
+  // that releases via the adapter) in this explicit context's program cache.
+  // Drain it now, while the mock adapter is still alive: UrMock teardown only
+  // resets the default-context caches, so otherwise the cached program would be
+  // released against an already-destroyed adapter at context destruction.
+  sycl::detail::getSyclObjImpl(Ctx)->getKernelProgramCache().reset();
 }

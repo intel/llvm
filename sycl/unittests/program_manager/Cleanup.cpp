@@ -1,5 +1,6 @@
 #include <sycl/sycl.hpp>
 
+#include <detail/context_impl.hpp>
 #include <detail/device_binary_image.hpp>
 #include <detail/device_global_map.hpp>
 #include <detail/device_image_impl.hpp>
@@ -368,6 +369,13 @@ TEST(ImageRemoval, NativePrograms) {
   EXPECT_EQ(PM.getNativePrograms().size(), ImagesToKeepKernelOnly.size());
   EXPECT_TRUE(PM.getNativePrograms().count(ProgramA) > 0);
   EXPECT_TRUE(PM.getNativePrograms().count(ProgramB) > 0);
+
+  // getBuiltURProgram caches the built program (a Managed<ur_program_handle_t>
+  // that releases via the adapter) in this context's program cache. Drain it
+  // now, while the mock adapter is still alive: UrMock teardown only resets the
+  // default-context caches, so otherwise the cached program would be released
+  // against an already-destroyed adapter at context destruction.
+  sycl::detail::getSyclObjImpl(Ctx)->getKernelProgramCache().reset();
 }
 
 // Verify that removeImages cleans up device global initializer entries so that
