@@ -382,3 +382,4 @@
 
 // RUN: clang-linker-wrapper -no-sycl-rdc "--host-triple=x86_64-unknown-linux-gnu" "--linker-path=/usr/bin/ld" "--" "-o" "a.out"  %t.o --dry-run 2>&1 | FileCheck -check-prefix=CHECK-NO-RDC %s
 // CHECK-NO-RDC-NOT: llvm-link{{.*}}
+
