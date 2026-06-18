@@ -360,9 +360,8 @@ static bool canUseHostPtrDirectly(ur_context_handle_t hContext, void *HostPtr) {
   }
 
   size_t RequiredAlign = MaxAlignBits / 8;
-  bool IsAligned =
-      RequiredAlign == 0 ||
-      (reinterpret_cast<uintptr_t>(HostPtr) % RequiredAlign) == 0;
+  bool IsAligned = RequiredAlign == 0 ||
+                   (reinterpret_cast<uintptr_t>(HostPtr) % RequiredAlign) == 0;
 
   return IsAligned && AllUnifiedMem;
 }
@@ -423,9 +422,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreate(
       PropertiesIntel.push_back(0);
 
       try {
-        cl_mem Buffer =
-            FuncPtr(CLContext, PropertiesIntel.data(), CLFlags, size, HostPtr,
-                    static_cast<cl_int *>(&RetErr));
+        cl_mem Buffer = FuncPtr(CLContext, PropertiesIntel.data(), CLFlags,
+                                size, HostPtr, static_cast<cl_int *>(&RetErr));
         CL_RETURN_ON_FAILURE(RetErr);
         auto URMem = std::make_unique<ur_mem_handle_t_>(Buffer, hContext);
         *phBuffer = URMem.release();
@@ -439,9 +437,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreate(
   }
 
   try {
-    cl_mem Buffer =
-        clCreateBuffer(hContext->CLContext, CLFlags, size, HostPtr,
-                       static_cast<cl_int *>(&RetErr));
+    cl_mem Buffer = clCreateBuffer(hContext->CLContext, CLFlags, size, HostPtr,
+                                   static_cast<cl_int *>(&RetErr));
     CL_RETURN_ON_FAILURE(RetErr);
     auto URMem = std::make_unique<ur_mem_handle_t_>(Buffer, hContext);
     *phBuffer = URMem.release();
