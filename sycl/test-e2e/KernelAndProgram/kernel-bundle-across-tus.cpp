@@ -5,7 +5,7 @@
 
 // DEFINE: %{dynamic_lib_suffix} = %if windows %{dll%} %else %{so%}
 // RUN: rm -rf %t.dir; mkdir -p %t.dir
-// RUN: %clangxx -fsycl %fPIC %shared_lib %s -o %t.dir/libkernel.%{dynamic_lib_suffix}
+// RUN: %clangxx -fsycl %{sycl_target_opts} %fPIC %shared_lib %s -o %t.dir/libkernel.%{dynamic_lib_suffix}
 // RUN: %if !windows %{%{run-aux}%} \
 // RUN: %clangxx -fsycl %{sycl_target_opts} %t.main.o -o %t.dir/%{t:stem}.out -L%t.dir \
 // RUN: %if windows                                                                    \
