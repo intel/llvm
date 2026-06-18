@@ -48,7 +48,7 @@ namespace detail {
 /// runtimes for the device-agnostic SYCL runtime.
 ///
 /// \ingroup sycl_ur
-class adapter_impl {
+class adapter_impl : public std::enable_shared_from_this<adapter_impl> {
 public:
   adapter_impl() = delete;
 
@@ -242,10 +242,21 @@ template <typename URResource> class Managed {
 
 public:
   Managed() = default;
-  Managed(URResource R, adapter_impl &Adapter) : R(R), Adapter(&Adapter) {}
-  Managed(adapter_impl &Adapter) : Adapter(&Adapter) {}
+  // The adapter is held as a weak_ptr (adapters are owned by GlobalHandler).
+  // A Managed can be cached (e.g. in a context's KernelProgramCache) or be an
+  // in-flight retain() temporary and thus outlive adapter teardown
+  // (unloadAdapters). Releasing the UR resource through a raw adapter pointer
+  // in that case is a use-after-free that, on Windows/icx, calls a null
+  // function pointer and crashes (SEH 0xC0000005). With a weak_ptr we lock at
+  // point of use and skip the release if the adapter is already gone (its UR
+  // resources are being torn down anyway). Using weak_ptr rather than an owning
+  // shared_ptr avoids extending adapter lifetime, which would perturb
+  // process-shutdown ordering of other globals.
+  Managed(URResource R, adapter_impl &Adapter)
+      : R(R), Adapter(Adapter.weak_from_this()) {}
+  Managed(adapter_impl &Adapter) : Adapter(Adapter.weak_from_this()) {}
   Managed(const Managed &) = delete;
-  Managed(Managed &&Other) : Adapter(Other.Adapter) {
+  Managed(Managed &&Other) : Adapter(std::move(Other.Adapter)) {
     R = Other.R;
     Other.R = nullptr;
   }
@@ -253,11 +264,13 @@ public:
   Managed &operator=(Managed &&Other) {
     URResource Temp = Other.R;
     Other.R = nullptr;
-    if (R)
-      Adapter->call<Release>(R);
+    if (R) {
+      if (std::shared_ptr<adapter_impl> A = Adapter.lock())
+        A->call<Release>(R);
+    }
     R = Temp;
 
-    Adapter = Other.Adapter;
+    Adapter = std::move(Other.Adapter);
     return *this;
   }
 
@@ -271,7 +284,7 @@ public:
 
   URResource *operator&() {
     assert(!R && "Already initialized!");
-    assert(Adapter && "Adapter must be set for this API!");
+    assert(!Adapter.expired() && "Adapter must be set for this API!");
     return &R;
   }
 
@@ -280,7 +293,11 @@ public:
       return;
 
     try {
-      Adapter->call<Release>(R);
+      // If the adapter has already been destroyed there is nothing meaningful
+      // to release (its UR resources are gone); avoid a use-after-free.
+      if (std::shared_ptr<adapter_impl> A = Adapter.lock()) {
+        A->call<Release>(R);
+      }
     } catch (std::exception &e) {
       __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~Managed", e);
     }
@@ -288,19 +305,22 @@ public:
 
   Managed retain() {
     assert(R && "Cannot retain unintialized resource!");
-    Adapter->call<Retain>(R);
-    return Managed{R, *Adapter};
+    std::shared_ptr<adapter_impl> A = Adapter.lock();
+    assert(A && "Cannot retain resource of a released adapter!");
+    A->call<Retain>(R);
+    return Managed{R, *A};
   }
 
   bool operator==(const Managed &Other) const {
-    assert((!Adapter || !Other.Adapter || Adapter == Other.Adapter) &&
+    assert((Adapter.expired() || Other.Adapter.expired() ||
+            Adapter.lock() == Other.Adapter.lock()) &&
            "Objects must belong to the same adapter!");
     return R == Other.R;
   }
 
 private:
   URResource R = nullptr;
-  adapter_impl *Adapter = nullptr;
+  std::weak_ptr<adapter_impl> Adapter;
 };
 } // namespace detail
 } // namespace _V1
