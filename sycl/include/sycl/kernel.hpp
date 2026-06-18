@@ -83,27 +83,29 @@ public:
 
   kernel() = delete;
 
-  __SYCL2020_DEPRECATED("Not part of any specification")
   kernel(const kernel &RHS) = default;
 
-  __SYCL2020_DEPRECATED("Not part of any specification")
   kernel(kernel &&RHS) = default;
 
-  __SYCL2020_DEPRECATED("Not part of any specification")
   kernel &operator=(const kernel &RHS) = default;
 
-  __SYCL2020_DEPRECATED("Not part of any specification")
   kernel &operator=(kernel &&RHS) = default;
 
-  __SYCL2020_DEPRECATED("Not part of any specification")
-  bool operator==(const kernel &RHS) const {
-    return impl == RHS.impl;
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  __SYCL2020_DEPRECATED("Deprecated in favor of hidden friend operator==. "
+                        "Rebuild due to ABI-break will be required.")
+  bool operator==(const kernel &RHS) const { return impl == RHS.impl; }
+
+  __SYCL2020_DEPRECATED("Deprecated in favor of hidden friend operator!=. "
+                        "Rebuild due to ABI-break will be required.")
+  bool operator!=(const kernel &RHS) const { return !operator==(RHS); }
+#else
+  friend bool operator==(const &lhs, const T &rhs) {
+    return lhs.impl == rhs.impl;
   }
 
-  __SYCL2020_DEPRECATED("Not part of any specification")
-  bool operator!=(const kernel &RHS) const {
-    return !operator==(RHS);
-  }
+  friend bool operator!=(const T &lhs, const T &rhs) { return !(lhs == rhs); }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   /// Get a valid OpenCL kernel handle
   ///
