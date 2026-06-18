@@ -11,10 +11,34 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        runner: [UR_L0, UR_L0_BMG, UR_CUDA, UR_OPENCL, UR_NATIVE_CPU]
+        runner:
+          - UR_CP_OPENCLNATIVE_01_01
+          - UR_CP_OPENCLNATIVE_01_02
+          - UR_DNP_06_PVC_03
+          - UR_DNP_06_PVC_03_L0
+          - UR_DNP_INTEL_05_01
+          - UR_DNP_INTEL_05_01_PVC
+          - UR_DNP_INTEL_05_01_WinVM
+          - UR_exaperf-pvc34
+          - UR_MOM_01
+          - UR_MOM_03_WinVM
+          - UR_MOM_12
+          - UR_MOM_56
+          - UR_MOM_58_Build
+          - UR_MOM_58_PVC
+          - UR_MOM_59_PVC
+          - UR_MOM_59_WinVM
+          - UR_PC_AMD_23_01
+          - UR_PC_AMD_34
+          - UR_PC_BMG_46
+          - UR_PC_BMG_47
+          - UR_PC_BMG_JF_WO200
+          - UR_PC_NVIDIA_35
+          - UR_PRE_ESM_01
     runs-on: ${{ matrix.runner }}
     steps:
-      - name: Check network card
+      - name: Check network card (Linux)
+        if: runner.os == 'Linux'
         run: |
           {
             echo "=== Runner: ${{ matrix.runner }} ==="
@@ -31,6 +55,18 @@ jobs:
               ethtool -i "$iface" 2>/dev/null || true
             done
           } 2>&1 | tee network-info.txt
+
+      - name: Check network card (Windows)
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          "=== Runner: ${{ matrix.runner }} ===" | Tee-Object -FilePath network-info.txt
+          "" | Tee-Object -FilePath network-info.txt -Append
+          "=== Network Adapters ===" | Tee-Object -FilePath network-info.txt -Append
+          Get-NetAdapter | Format-Table -AutoSize | Out-String | Tee-Object -FilePath network-info.txt -Append
+          "" | Tee-Object -FilePath network-info.txt -Append
+          "=== Adapter Details ===" | Tee-Object -FilePath network-info.txt -Append
+          Get-NetAdapter | Get-NetAdapterHardwareInfo -ErrorAction SilentlyContinue | Format-List | Out-String | Tee-Object -FilePath network-info.txt -Append
 
       - name: Upload partial artifact
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
