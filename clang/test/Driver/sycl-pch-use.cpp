@@ -2,8 +2,7 @@
 // used while performing host and device compilations in
 // -fsycl mode.
 
-// RUN: echo "" > %t.h
-// RUN: %clang -c -x c++-header %t.h
+// RUN: touch %t.h.pch
 
 // Linux
 // RUN: %clang -fsycl -c -include-pch %t.h.pch %s -### 2>&1 | FileCheck -check-prefix=LX_USE %s

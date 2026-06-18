@@ -7122,8 +7122,7 @@ static void extractPCH(bool UseNewOffloadingDriver,
                        OffloadingActionBuilder *OAB, Compilation &C,
                        DerivedArgList &Args, ActionList &AL,
                        const ToolChain *TC, const Arg *MainArg) {
-  if (!Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false) &&
-      !Args.hasArg(options::OPT_offload_targets_EQ))
+  if (!Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false))
     return;
 
   bool isIncludePCHArg = Args.hasArg(options::OPT_include_pch);
