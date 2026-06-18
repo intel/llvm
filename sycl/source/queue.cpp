@@ -20,6 +20,7 @@
 namespace sycl {
 inline namespace _V1 {
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 queue::queue(const context &SyclContext, const device_selector &DeviceSelector,
              const async_handler &AsyncHandler, const property_list &PropList) {
   const std::vector<device> Devs = SyclContext.get_devices();
@@ -34,6 +35,7 @@ queue::queue(const context &SyclContext, const device_selector &DeviceSelector,
                                     *detail::getSyclObjImpl(SyclContext),
                                     AsyncHandler, PropList);
 }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 queue::queue(const context &SyclContext, const device &SyclDevice,
              const async_handler &AsyncHandler, const property_list &PropList) {
@@ -48,11 +50,13 @@ queue::queue(const device &SyclDevice, const async_handler &AsyncHandler,
                                     AsyncHandler, PropList);
 }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 queue::queue(const context &SyclContext, const device_selector &deviceSelector,
              const property_list &PropList)
     : queue(SyclContext, deviceSelector,
             detail::getSyclObjImpl(SyclContext)->get_async_handler(),
             PropList) {}
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 queue::queue(const context &SyclContext, const device &SyclDevice,
              const property_list &PropList)

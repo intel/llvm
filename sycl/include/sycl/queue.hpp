@@ -273,6 +273,7 @@ public:
       : queue(syclContext, detail::select_device(deviceSelector, syclContext),
               AsyncHandler, propList) {}
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   /// Constructs a SYCL queue instance using the device returned by the
   /// DeviceSelector provided.
   ///
@@ -296,6 +297,7 @@ public:
   queue(const device_selector &DeviceSelector,
         const async_handler &AsyncHandler, const property_list &PropList = {})
       : queue(DeviceSelector.select_device(), AsyncHandler, PropList) {}
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 
   /// Constructs a SYCL queue instance using the device provided.
   ///
@@ -313,6 +315,7 @@ public:
   explicit queue(const device &SyclDevice, const async_handler &AsyncHandler,
                  const property_list &PropList = {});
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   /// Constructs a SYCL queue instance that is associated with the context
   /// provided, using the device returned by the device selector.
   ///
@@ -336,6 +339,7 @@ public:
                         "use SYCL 2020 device selectors instead.")
   queue(const context &SyclContext, const device_selector &DeviceSelector,
         const async_handler &AsyncHandler, const property_list &PropList = {});
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   /// Constructs a SYCL queue associated with the given context, device
   /// and optional properties list.

@@ -249,7 +249,11 @@ aspect_selector(const std::vector<aspect> &RequireList,
 
 // SYCL 1.2.1 device_selector class and sub-classes
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 device device_selector::select_device() const {
+#else
+device detail::device_selector::select_device() const {
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
   return detail::select_device([&](const device &dev) { return (*this)(dev); });
 }
 
@@ -294,7 +298,12 @@ device filter_selector::select_device() const {
   std::lock_guard<std::mutex> Guard(
       sycl::detail::GlobalHandler::instance().getFilterMutex());
 
-  device Result = device_selector::select_device();
+  device Result =
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+    sycl::detail::device_selector::select_device();
+#else
+    sycl::device_selector::select_device();
+#endif
 
   reset();
 
