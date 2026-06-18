@@ -26,7 +26,7 @@
 // CHECK-PCH-HOST-SAME: -include-pch
 
 // Windows
-// RUN: %clang_cl -fsycl --target=x86_64-unknown-linux-gnu /Yupchfile.h /FIpchfile.h -### %s 2>&1 \
+// RUN: %clang_cl -fsycl --target=x86_64-unknown-linux-gnu /Yupchfile.h /FIpchfile.h -### -- %s 2>&1 \
 // RUN:   | FileCheck -check-prefixes=CHECK-YU-HOST,CHECK-YU-DEVICE %s
 // CHECK-YU-DEVICE: -fsycl-is-device
 // CHECK-YU-DEVICE-SAME: -include-pch

@@ -7114,15 +7114,14 @@ shouldBundleHIPAsmWithNewDriver(const Compilation &C,
   return HasAMDGCNHIPDevice;
 }
 
-/// This routine unbundles individual PCH files from a fat PCH bundle.
+/// This routine extracts individual PCH files from a fat PCH bundle.
 /// In the old offloading driver model, this routine invokes the clang
 /// offload bundler; in the new offloading driver model, it invokes the
 /// llvm offload binary.
-static void unbundlePCH(bool UseNewOffloadingDriver,
-                        OffloadingActionBuilder *OAB, Compilation &C,
-                        DerivedArgList &Args, ActionList &AL,
-                        const ToolChain *TC, const Arg *MainArg) {
-  // Unbundle a fat PCH file.
+static void extractPCH(bool UseNewOffloadingDriver,
+                       OffloadingActionBuilder *OAB, Compilation &C,
+                       DerivedArgList &Args, ActionList &AL,
+                       const ToolChain *TC, const Arg *MainArg) {
   if (!Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false) &&
       !Args.hasArg(options::OPT_offload_targets_EQ))
     return;
@@ -7290,10 +7289,10 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
     ActionList HIPAsmDeviceActions;
     if (Args.hasArg(options::OPT_include_pch) ||
         Args.getLastArg(options::OPT__SLASH_Yu)) {
-      // Unbundles the fat PCH file for the host.
-      unbundlePCH(UseNewOffloadingDriver, OffloadBuilder.get(), C, Args,
-                  Actions, /*ToolChain=*/nullptr,
-                  UseNewOffloadingDriver ? nullptr : InputArg);
+      // Extracts the fat PCH file for the host.
+      extractPCH(UseNewOffloadingDriver, OffloadBuilder.get(), C, Args,
+                 Actions, /*ToolChain=*/nullptr,
+                 UseNewOffloadingDriver ? nullptr : InputArg);
     }
 
     // Use the current host action in any of the offloading actions, if
@@ -7975,7 +7974,7 @@ Driver::BuildOffloadingActions(Compilation &C, llvm::opt::DerivedArgList &Args,
     if (isIncludePCHArg || isYuArg) {
       for (auto *TCAndArch = TCAndArchs.begin(); TCAndArch != TCAndArchs.end();
            ++TCAndArch) {
-        unbundlePCH(/*Offloading New Driver=*/true, /*Builder=*/nullptr, C,
+        extractPCH(/*Offloading New Driver=*/true, /*Builder=*/nullptr, C,
                     Args, OffloadActions, TCAndArch->first, nullptr);
       }
     }
@@ -10065,7 +10064,7 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
     StringRef Name = llvm::sys::path::filename(BaseInput);
     std::pair<StringRef, StringRef> Split = Name.split('.');
     const char *Suffix =
-        types::getTypeTempSuffix(JA.getType(), IsCLMode() || IsDXCMode());
+        types::getTypeTempSuffix(JA.getType(), IsCLMode());
     return CreateTempFile(C, Split.first, Suffix, MultipleArchs, BoundArch,
                           JA.getType(), false);
   }

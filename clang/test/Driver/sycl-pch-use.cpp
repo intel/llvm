@@ -49,7 +49,7 @@
 // LX_USE_TARGETS_OND-SAME: "-include-pch" "[[PCHFILE1]]"{{.*}}
 
 // Windows
-// RUN: %clang_cl -fsycl -c /Yu%t.h %s -### 2>&1 | FileCheck -check-prefix=WS_USE %s
+// RUN: %clang_cl -fsycl -c /Yu%t.h -### -- %s 2>&1 | FileCheck -check-prefix=WS_USE %s
 // WS_USE: clang-offload-bundler{{.*}} "-type=pch"
 // WS_USE-SAME: "-targets=host-x86_64{{.*}},sycl-spir64{{.*}}" "-input=[[MAINPCHFILE:.+\.pch]]" "-output=[[PCHFILE1:.+\.pch]]" "-output=[[PCHFILE2:.+\.pch]]" "-unbundle"
 // WS_USE: clang{{.*}} "-triple" "spir64{{.*}}"{{.*}} "-fsycl-is-device"
@@ -57,7 +57,7 @@
 // WS_USE: clang{{.*}} "-triple" "x86_64{{.*}}"{{.*}} "-fsycl-is-host"
 // WS_USE-SAME: "-include-pch" "[[PCHFILE1]]"{{.*}}
 
-// RUN: %clang_cl --offload-new-driver -fsycl -c /Yu%t.h %s -### 2>&1 | FileCheck -check-prefix=WS_USE_OND %s
+// RUN: %clang_cl --offload-new-driver -fsycl -c /Yu%t.h -### -- %s 2>&1 | FileCheck -check-prefix=WS_USE_OND %s
 // WS_USE_OND: llvm-offload-binary{{.*}} "[[MAINPCHFILE:.+\.pch]]"
 // WS_USE_OND-SAME: "--image=file=[[PCHFILE1:.+\.pch]],triple=x86_64{{.*}},arch=generic,kind=host"
 // WS_USE_OND: llvm-offload-binary{{.*}} "[[MAINPCHFILE]]"
@@ -68,7 +68,7 @@
 // WS_USE_OND-SAME: "-include-pch" "[[PCHFILE1]]"{{.*}}
 
 // Windows
-// RUN: %clang_cl -fsycl -fsycl-targets=spir64,spir64_gen -c /Yu%t.h %s -### 2>&1 | FileCheck -check-prefix=WS_USE_TARGETS %s
+// RUN: %clang_cl -fsycl -fsycl-targets=spir64,spir64_gen -c /Yu%t.h -### -- %s 2>&1 | FileCheck -check-prefix=WS_USE_TARGETS %s
 // WS_USE_TARGETS: clang-offload-bundler{{.*}} "-type=pch"
 // WS_USE_TARGETS-SAME: "-targets=host-x86_64{{.*}},sycl-spir64{{.*}},sycl-spir64_gen{{.*}}" "-input=[[MAINPCHFILE:.+\.pch]]" "-output=[[PCHFILE3:.+\.pch]]" "-output=[[PCHFILE4:.+\.pch]]" "-output=[[PCHFILE5:.+\.pch]]" "-unbundle"
 // WS_USE_TARGETS: clang{{.*}} "-triple" "spir64{{.*}}"{{.*}} "-fsycl-is-device"
@@ -78,7 +78,7 @@
 // WS_USE_TARGETS: clang{{.*}} "-triple" "x86_64{{.*}}"{{.*}} "-fsycl-is-host"
 // WS_USE_TARGETS-SAME: "-include-pch" "[[PCHFILE3]]"{{.*}}
 
-// RUN: %clang_cl --offload-new-driver -fsycl -fsycl-targets=spir64,spir64_gen -c /Yu%t.h %s -### 2>&1 | FileCheck -check-prefix=WS_USE_TARGETS_OND %s
+// RUN: %clang_cl --offload-new-driver -fsycl -fsycl-targets=spir64,spir64_gen -c /Yu%t.h -### -- %s 2>&1 | FileCheck -check-prefix=WS_USE_TARGETS_OND %s
 // WS_USE_TARGETS_OND: llvm-offload-binary{{.*}} "[[MAINPCHFILE:.+\.pch]]"
 // WS_USE_TARGETS_OND-SAME: "--image=file=[[PCHFILE1:.+\.pch]],triple=x86_64{{.*}},arch=generic,kind=host"
 // WS_USE_TARGETS_OND: llvm-offload-binary{{.*}} "[[MAINPCHFILE]]"

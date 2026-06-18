@@ -78,7 +78,7 @@
 // WS_CREATE_OND: llvm-offload-binary{{.*}} "-o" "{{.*}}.pch"
 // WS_CREATE_OND-SAME: "--image=file=[[PCHFILE1]]{{.*}}" "--image=file=[[PCHFILE2]]{{.*}}"
 
-// RUN: %clang_cl -fsycl -x c++-header -fsycl-targets=spir64,spir64_gen -c %t.h %s -### 2>&1 | FileCheck -check-prefix=WS_CREATE_TARGETS %s
+// RUN: %clang_cl -fsycl -x c++-header -fsycl-targets=spir64,spir64_gen -c %t.h -### -- %s 2>&1 | FileCheck -check-prefix=WS_CREATE_TARGETS %s
 // WS_CREATE_TARGETS: clang{{.*}} "-triple" "spir64{{.*}}"{{.*}} "-fsycl-is-device"
 // WS_CREATE_TARGETS-SAME: "-fsycl-int-header=[[HEADER1:.+\.h]]"{{.*}} "-fsycl-int-footer=[[FOOTER1:.+\.h]]"{{.*}} "-sycl-std=2020"
 // WS_CREATE_TARGETS-SAME: "-o" "[[PCHFILE1:.+pch]]"
@@ -92,7 +92,7 @@
 // WS_CREATE_TARGETS: clang-offload-bundler{{.*}} "-type=pch"
 // WS_CREATE_TARGETS: "-targets=sycl-spir64{{.*}},sycl-spir64_gen{{.*}},host-x86_64{{.*}}" "-output={{.*}}.pch" "-input=[[PCHFILE1]]" "-input=[[PCHFILE2]]" "-input=[[PCHFILE3]]"
 
-// RUN: %clang_cl --offload-new-driver -fsycl -x c++-header -fsycl-targets=spir64,spir64_gen -c %t.h %s -### 2>&1 | FileCheck -check-prefix=WS_CREATE_TARGETS_OND %s
+// RUN: %clang_cl --offload-new-driver -fsycl -x c++-header -fsycl-targets=spir64,spir64_gen -c %t.h -### -- %s 2>&1 | FileCheck -check-prefix=WS_CREATE_TARGETS_OND %s
 // WS_CREATE_TARGETS_OND: clang{{.*}} "-triple" "spir64{{.*}}"{{.*}} "-fsycl-is-device"
 // WS_CREATE_TARGETS_OND-SAME: "-fsycl-int-header=[[HEADER1:.+\.h]]"{{.*}} "-fsycl-int-footer=[[FOOTER1:.+\.h]]"{{.*}} "-sycl-std=2020"
 // WS_CREATE_TARGETS_OND-SAME: "-o" "[[PCHFILE1:.+pch]]"

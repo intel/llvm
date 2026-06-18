@@ -880,8 +880,8 @@ private:
   mutable llvm::StringMap<const std::pair<StringRef, StringRef>>
       IntegrationFileList;
 
-  /// A list of triples and their corresponding unbundled precompiled header
-  /// file names.  This is generated when unbundling the fat precompiled
+  /// A list of triples and their corresponding extracted precompiled header
+  /// file names.  This is generated when extracting the fat precompiled
   /// header file, and consumed by the host and the device compilations.
   mutable llvm::StringMap<StringRef> SYCLPrecompiledHeaderFileList;
 

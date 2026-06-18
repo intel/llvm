@@ -1068,13 +1068,13 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
 
     if (YcArg || YuArg) {
       StringRef ThroughHeader = YcArg ? YcArg->getValue() : YuArg->getValue();
-      StringRef PCHHeader = ThroughHeader;
-      // If a PCH file is being used, use the unbundled versions for SYCL.
-      if (YuArg && JA.isOffloading(Action::OFK_SYCL))
-        PCHHeader = D.getSYCLPrecompiledHeaderFile(
-            getToolChain().getTriple().getTriple());
       // If a PCH file is available, include it.
       if (!isa<PrecompileJobAction>(JA)) {
+        StringRef PCHHeader = ThroughHeader;
+        // If a PCH file is being used, use the extracted versions for SYCL.
+        if (YuArg && JA.isOffloading(Action::OFK_SYCL))
+          PCHHeader = D.getSYCLPrecompiledHeaderFile(
+              getToolChain().getTriple().getTriple());
         CmdArgs.push_back("-include-pch");
         CmdArgs.push_back(Args.MakeArgString(D.GetClPchPath(
             C, !PCHHeader.empty()
@@ -1109,7 +1109,7 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
       // so that replace_extension does the right thing.
       P += ".dummy";
       llvm::sys::path::replace_extension(P, "pch");
-      // If this is a SYCL compilation, we would have unbundled the PCH
+      // If this is a SYCL compilation, we would have extracted the PCH
       // files from the fat binary, so use that instead.
       if (JA.isOffloading(Action::OFK_SYCL)) {
         SmallString<128> SYCLPCHFile = D.getSYCLPrecompiledHeaderFile(
@@ -10403,7 +10403,7 @@ void OffloadBundler::ConstructJobMultipleOutputs(
   CmdArgs.push_back(
       TCArgs.MakeArgString(Twine("-input=") + InputFileName));
 
-  /* Save the individual arch triples for PCH. */
+  // Save the individual arch triples for PCH.
   if (InputType == types::TY_PCH) {
     auto TripleString = TargetTriples.split('=').second;
     TripleString.split(Archs, ',');
@@ -10419,7 +10419,7 @@ void OffloadBundler::ConstructJobMultipleOutputs(
         DepInfo[I].DependentToolChain->getInputFilename(Outputs[I]);
     UB += IFName;
     CmdArgs.push_back(TCArgs.MakeArgString(UB));
-    /* If this is a bundled PCH file, save the triple-filename pair. */
+    // If this is a bundled PCH file, save the triple-filename pair.
     if (InputType == types::TY_PCH) {
       StringRef ArchName = Archs[I].split('-').second;
       C.getDriver().addSYCLPrecompiledHeaderFiles(
