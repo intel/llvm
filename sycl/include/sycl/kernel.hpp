@@ -92,12 +92,10 @@ public:
   kernel &operator=(kernel &&RHS) = default;
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  __SYCL2020_DEPRECATED("Deprecated in favor of hidden friend operator==. "
-                        "Rebuild due to ABI-break will be required.")
+  // SYCL 2020 declares hidden friend opearators, see 4.5.2. Common reference
+  // semantics.
   bool operator==(const kernel &RHS) const { return impl == RHS.impl; }
 
-  __SYCL2020_DEPRECATED("Deprecated in favor of hidden friend operator!=. "
-                        "Rebuild due to ABI-break will be required.")
   bool operator!=(const kernel &RHS) const { return !operator==(RHS); }
 #else
   friend bool operator==(const kernel &lhs, const kernel &rhs) {
