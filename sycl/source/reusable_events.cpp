@@ -16,9 +16,9 @@ namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental {
 
-template<typename PropertyListT = empty_properties_t>
-sycl::event make_event(const sycl::device &dev, const sycl::context &ctxt, PropertyListT props = {}) {
-
+template <typename PropertyListT = empty_properties_t>
+sycl::event make_event(const sycl::context &ctxt, PropertyListT props = {}) {
+  // TODO reusable events
 }
 
 void enqueue_wait_event(sycl::queue q, const event& evt) {

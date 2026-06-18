@@ -18,19 +18,14 @@ namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental {
 
-template<typename PropertyListT = empty_properties_t>
-sycl::event make_event(const sycl::device &dev, const sycl::context &ctxt, PropertyListT props = {});
+template <typename PropertyListT = empty_properties_t>
+sycl::event make_event(const sycl::context &ctxt, PropertyListT props = {});
 
-template<typename PropertyListT = empty_properties_t>
-sycl::event make_event(const sycl::device &dev, PropertyListT props = {}) {
-	sycl::context Ctx = dev.get_platform().khr_get_default_context();
-	return make_event(dev, Ctx, Props);
-}
-
-template<typename PropertyListT = empty_properties_t>
+template <typename PropertyListT = empty_properties_t>
 sycl::event make_event(PropertyListT props = {}) {
-	sycl::device Dev;
-	return make_event(Dev, Props);
+  sycl::device dev;
+  sycl::context Ctx = dev.get_platform().khr_get_default_context();
+  return make_event(dev, Ctx, Props);
 }
 
 void enqueue_wait_event(sycl::queue q, const event& evt);
