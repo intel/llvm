@@ -338,33 +338,22 @@ void overrideSpecConstants(PropertySetRegistry &Reg, device_image_impl &Img) {
                                            sizeof(std::uint32_t) * 8)};
   }
 
-  // Default-value blob, sliced per spec constant from MSpecConstsBlob.
+  // Default-value blob. The reader (device_image_impl::getSpecConstsDefValBlob)
+  // expects a single property holding the whole flat blob, indexed by each
+  // descriptor's BlobOffset, NOT one property per spec constant. The producer
+  // convention (sycl-post-link) names this single property "all". Emit the
+  // runtime-effective blob (which reflects any set_specialization_constant
+  // overrides applied before serialization) verbatim under that key so the
+  // reloaded bundle's host-side spec-constant reads return the same values.
   const std::vector<unsigned char> &Blob =
       const_cast<device_image_impl &>(Img).get_spec_const_blob_ref();
   if (Blob.empty())
     return;
   PropertySet &Defaults = Reg["SYCL/specialization constants default values"];
   Defaults.clear();
-  for (const auto &[Name, Descs] : SymMap) {
-    if (Descs.empty())
-      continue;
-    // Find the byte range covering this spec const in the blob: lowest
-    // BlobOffset to (last leaf's BlobOffset + last leaf's Size).
-    unsigned int Lo = std::numeric_limits<unsigned int>::max();
-    unsigned int Hi = 0;
-    for (const auto &Desc : Descs) {
-      if (Desc.BlobOffset < Lo)
-        Lo = Desc.BlobOffset;
-      const unsigned int End = Desc.BlobOffset + Desc.Size;
-      if (End > Hi)
-        Hi = End;
-    }
-    if (Lo >= Hi || Hi > Blob.size())
-      continue;
-    Defaults[Name] = PropertyValue{
-        reinterpret_cast<const PropertyValue::byte *>(Blob.data() + Lo),
-        static_cast<PropertyValue::SizeTy>((Hi - Lo) * 8)};
-  }
+  Defaults["all"] = PropertyValue{
+      reinterpret_cast<const PropertyValue::byte *>(Blob.data()),
+      static_cast<PropertyValue::SizeTy>(Blob.size() * 8)};
 }
 
 constexpr CategoryOverride OverrideTable[] = {

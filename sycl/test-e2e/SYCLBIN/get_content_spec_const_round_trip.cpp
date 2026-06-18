@@ -1,22 +1,21 @@
+
 // REQUIRES: aspect-usm_shared_allocations
 
-// -- End-to-end test that a user-set specialization-constant value survives
-// -- the SYCLBIN ext_oneapi_get_content round-trip.
+// -- End-to-end round-trip test for ext_oneapi_get_content() preserving a
+// -- user-set specialization constant value.
 // --
 // -- Flow:
-// --   1. Build an executable kernel_bundle the normal way.
-// --   2. Verify that the kernel reads the SC's compile-time default.
-// --   3. ext_oneapi_get_content() to serialize.
-// --   4. Reload the bytes as an executable kernel_bundle.
-// --   5. Run the kernel from the reloaded bundle. It must still read the
-// --      same default value (override emits MSpecConstsBlob, which holds
-// --      the current/default values).
+// --   1. Build an input-state kernel_bundle. The kernel below references
+// --      the spec const, so it is statically registered with the image.
+// --   2. Override the spec const via set_specialization_constant<>.
+// --   3. sycl::build it to executable; the override is applied at JIT time.
+// --   4. ext_oneapi_get_content() to serialize.
+// --   5. Reload the bytes as an executable kernel_bundle.
+// --   6. Read the spec const value back via the *bundle* host API on the
+// --      reloaded bundle. It must equal the user-set value (12345), not
+// --      the default (42).
 // --
-// -- Spec const overlay correctness for executable-state bundles is what
-// -- this guards: the override pass replaces the
-// -- [SYCL/specialization constants default values] property set with the
-// -- runtime-effective view; the reader rebuilds the spec const symbol map
-// -- from the descriptor property set on reload.
+
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
@@ -27,73 +26,105 @@
 #include <sycl/specialization_id.hpp>
 #include <sycl/usm.hpp>
 
-#include <cstdint>
 #include <iostream>
 #include <vector>
 
 namespace syclexp = sycl::ext::oneapi::experimental;
 
-constexpr sycl::specialization_id<int32_t> SC_Default99{99};
+constexpr static int DefaultValue = 42;
+constexpr static int UserValue = 12345;
 
-class SpecConstK1;
+constexpr sycl::specialization_id<int> SC{DefaultValue};
+
+// A trivial kernel that references the spec const at compile time so the
+// frontend ties the spec const to a registered device image. We do not need
+// to actually run this kernel against the reloaded bundle to verify the
+// round-trip.
+class ReadSpecConstKernel;
 
 int main() {
   sycl::queue Q;
   const sycl::context Ctx = Q.get_context();
   const sycl::device Dev = Q.get_device();
 
-  // Build an executable bundle the normal way and prove the kernel reads
-  // the spec const's default value.
-  auto KB = sycl::get_kernel_bundle<sycl::bundle_state::executable>(Ctx, {Dev});
+  // Touch the kernel once at compile-time so the spec const is associated
+  // with a registered image. We submit it on the side to also exercise the
+  // baseline path; the round-trip work below uses a fresh input-state bundle.
+  {
+    int *Sink = sycl::malloc_shared<int>(1, Q);
+    Q.submit([&](sycl::handler &CGH) {
+       CGH.single_task<ReadSpecConstKernel>([=](sycl::kernel_handler KH) {
+         *Sink = KH.get_specialization_constant<SC>();
+       });
+     }).wait_and_throw();
+    sycl::free(Sink, Q);
+  }
 
-  int32_t *Out = sycl::malloc_shared<int32_t>(1, Q);
-  *Out = -1;
-  Q.submit([&](sycl::handler &CGH) {
-     CGH.use_kernel_bundle(KB);
-     CGH.single_task<SpecConstK1>([=](sycl::kernel_handler KH) {
-       Out[0] = KH.get_specialization_constant<SC_Default99>();
-     });
-   }).wait_and_throw();
-  if (*Out != 99) {
-    std::cout << "Pre-condition failed: baseline read returned " << *Out
-              << " (expected 99).\n";
-    sycl::free(Out, Q);
+  // 1. Input-state bundle.
+  auto KBInput =
+      sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx, {Dev});
+
+  if (!KBInput.contains_specialization_constants()) {
+    std::cout << "FAIL: input bundle has no specialization constants.\n";
     return 1;
   }
 
-  // Serialize.
-  std::vector<char> Bytes = KB.ext_oneapi_get_content();
+  // 2. Override the spec const.
+  if (KBInput.get_specialization_constant<SC>() != DefaultValue) {
+    std::cout << "Pre-condition failed: input bundle did not start with the "
+                 "default spec const value.\n";
+    return 1;
+  }
+  KBInput.set_specialization_constant<SC>(UserValue);
+  if (KBInput.get_specialization_constant<SC>() != UserValue) {
+    std::cout << "Pre-condition failed: host read of input bundle spec const "
+                 "did not return user value after set.\n";
+    return 1;
+  }
+
+  // 3. Build to executable. The override is applied to the UR program here.
+  auto KBExe = sycl::build(KBInput);
+
+  if (KBExe.get_specialization_constant<SC>() != UserValue) {
+    std::cout << "Pre-condition failed: host read of executable bundle "
+                 "spec const did not return user value after build.\n";
+    return 1;
+  }
+
+  // 4. Serialize.
+  std::vector<char> Bytes = KBExe.ext_oneapi_get_content();
   if (Bytes.empty()) {
     std::cout << "ext_oneapi_get_content returned empty bytes.\n";
-    sycl::free(Out, Q);
     return 1;
   }
 
-  // Reload as executable. The reloaded bundle is keyed on names, so we
-  // simply confirm that no exception is thrown. The kernel-launch path used
-  // above goes through use_kernel_bundle(KB); after a SYCLBIN reload,
-  // launching the C++ lambda kernel through the reloaded bundle is not
-  // generally portable (kernel-id resolution depends on names matching the
-  // host registration). We therefore only assert that the reloaded bundle
-  // is non-empty and reports kernel ids; the spec const default value
-  // bytes survived above is what the override-pass guarantee covers.
-  auto KBR = syclexp::get_kernel_bundle<sycl::bundle_state::executable>(
-      Ctx, {Dev}, sycl::span<char>{Bytes});
+  // 5. Reload as executable.
+  auto KBReloaded =
+      syclexp::get_kernel_bundle<sycl::bundle_state::executable>(
+          Ctx, {Dev}, sycl::span<char>{Bytes});
 
-  if (KBR.empty()) {
-    std::cout << "FAIL: reloaded bundle is empty.\n";
-    sycl::free(Out, Q);
-    return 1;
-  }
-  if (KBR.get_kernel_ids().empty()) {
-    std::cout << "FAIL: reloaded bundle reports zero kernel ids.\n";
-    sycl::free(Out, Q);
+  // 6. Compare host-side spec const value on the reloaded bundle.
+  if (!KBReloaded.has_specialization_constant<SC>()) {
+    std::cout
+        << "FAIL: reloaded bundle does not advertise the spec const at all. "
+        << "ext_oneapi_get_content lost the [SYCL/specialization "
+        << "constants] property set on serialization.\n";
     return 1;
   }
 
-  sycl::free(Out, Q);
-  std::cout << "OK: spec-const-bearing bundle round-tripped without loss "
-            << "(reloaded bundle has " << KBR.get_kernel_ids().size()
-            << " kernel id(s)).\n";
-  return 0;
+  const int Got = KBReloaded.get_specialization_constant<SC>();
+  if (Got == UserValue) {
+    std::cout << "OK: round-tripped spec const value " << Got << "\n";
+    return 0;
+  }
+  if (Got == DefaultValue) {
+    std::cout << "FAIL: round-tripped spec const reverted to default "
+              << "(got " << Got << ", expected " << UserValue << "). "
+              << "The user-set override did not survive the SYCLBIN "
+              << "round-trip.\n";
+    return 1;
+  }
+  std::cout << "FAIL: unexpected spec const value " << Got
+            << " (expected " << UserValue << ")\n";
+  return 1;
 }
