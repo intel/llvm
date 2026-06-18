@@ -579,8 +579,8 @@ SYCLBIN::serializeImages(const std::vector<ImageInput> &Inputs, uint8_t State) {
     if (!Input.NativeBinaries.empty()) {
       std::cerr << "[SYCLBIN-DBG] PathA NativeBinaries="
                 << Input.NativeBinaries.size()
-                << " Devices=" << Input.Devices.size()
-                << " Triple=" << Triple << "\n";
+                << " Devices=" << Input.Devices.size() << " Triple=" << Triple
+                << "\n";
       assert(Input.NativeBinaries.size() == Input.Devices.size() &&
              "NativeBinaries/Devices length mismatch.");
       for (size_t I = 0; I < Input.NativeBinaries.size(); ++I) {
@@ -590,8 +590,9 @@ SYCLBIN::serializeImages(const std::vector<ImageInput> &Inputs, uint8_t State) {
         PropertySetRegistry NDCIProps;
         std::string_view Arch{Input.Devices[I] ? getArchName(*Input.Devices[I])
                                                : ""};
-        std::cerr << "[SYCLBIN-DBG] PathA[" << I << "] dev="
-                  << (void *)Input.Devices[I] << " arch='" << Arch << "'\n";
+        std::cerr << "[SYCLBIN-DBG] PathA[" << I
+                  << "] dev=" << (void *)Input.Devices[I] << " arch='" << Arch
+                  << "'\n";
         NDCIProps.add(
             PropertySetRegistry::SYCLBIN_NATIVE_DEVICE_CODE_IMAGE_METADATA,
             "arch", Arch);

@@ -1089,8 +1089,7 @@ public:
         continue;
       }
       std::cerr << "[SYCLBIN-DBG]   image format="
-                << static_cast<int>(Bin->getFormat())
-                << " targetSpec='"
+                << static_cast<int>(Bin->getFormat()) << " targetSpec='"
                 << (Bin->getRawData().DeviceTargetSpec
                         ? Bin->getRawData().DeviceTargetSpec
                         : "(null)")
