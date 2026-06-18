@@ -1141,59 +1141,54 @@ enum class aspect {
 If a SYCL device has this aspect, that device supports inter-process exchange
 of events as described in this section.
 
-==== New property for the make_event function
+==== Use of `enable_ipc` property for the make_event function
 
-This extension adds the following property, which can be used with `make_event`
+This feature uses the `enable_ipc` property (defined above for `physical_mem`),
+which can be used with `make_event`
 (from the link:../proposed/sycl_ext_oneapi_reusable_events.asciidoc[
 sycl_ext_oneapi_reusable_events] extension):
 
-[source,c++]
-----
-namespace sycl::ext::oneapi::experimental {
+The `enable_ipc` property controls whether the event can be shared across
+processes.
 
-struct enable_ipc {
-  enable_ipc(bool enable = true);
-};
-using enable_ipc_key = enable_ipc;
+_Remarks:_
 
-} // namespace sycl::ext::oneapi::experimental
-----
+ * `make_event` throws an exception with the `errc::feature_not_supported`
+   error code if inter-process sharing is enabled via `enable_ipc` and not all
+   devices that are part of the context passed to the `make_event` function
+   have the aspect `aspect::ext_oneapi_ipc_event`.
 
-This property controls whether the event can be shared across processes.
+ * `make_event` throws an exception with the `errc::invalid` error code if
+   both the `enable_profiling` and `enable_ipc` properties are set to true.
 
-_Effects:_ Creates a new `enable_ipc` property with a boolean value
-indicating whether the event can be shared across processes.
+ * `enqueue_signal_event` function throws an exception with the `errc::invalid`
+   error code if inter-process sharing of the event is enabled via `enable_ipc`
+   and profiling is enabled for the queue with the
+   `property::queue::enable_profiling` property.
 
-_Remarks:_ `make_event` throws an exception with the
-`errc::feature_not_supported` error code if inter-process sharing is enabled
-via `enable_ipc` and not all devices that are part of the context passed to the
-`make_event` function have the aspect `aspect::ext_oneapi_ipc_event`.
+ * `enqueue_signal_event`, `enqueue_wait_event`, `enqueue_wait_events` (from
+   the sycl_ext_oneapi_reusable_events extension) and `handler::depends_on`
+   functions throw an exception with the `errc::feature_not_supported` error
+   code if inter-process sharing of the event is enabled via `enable_ipc` and a
+   device associated with the queue (passed to those functions or associated
+   with the `handler`) does not have the aspect `aspect::ext_oneapi_ipc_event`.
 
-`make_event` throws an exception with the `errc::invalid` error code if
-profiling is enabled via `enable_profiling` and inter-process sharing is also
-enabled via `enable_ipc`.
+ * `enqueue_signal_event`, `enqueue_wait_event`, `enqueue_wait_events` (from
+   the sycl_ext_oneapi_reusable_events extension) and `handler::depends_on`
+   functions throw an exception with the `errc::feature_not_supported` error
+   code if inter-process sharing of the event is enabled via `enable_ipc` and a
+   queue (passed to those functions or associated with the `handler`) has an
+   enqueued host task that has not completed (scheduled using the
+   `handler::host_task` function).
 
-`enqueue_signal_event`, `enqueue_wait_event`, `enqueue_wait_events` (from the
-sycl_ext_oneapi_reusable_events extension) and `handler::depends_on` functions
-throw an exception with the `errc::feature_not_supported` error code if
-inter-process sharing is enabled via `enable_ipc` and a device associated with
-the queue (passed to those functions or associated with the `handler`) does not
-have the aspect `aspect::ext_oneapi_ipc_event`.
-
-`enqueue_signal_event`, `enqueue_wait_event`, `enqueue_wait_events` (from the
-sycl_ext_oneapi_reusable_events extension) and `handler::depends_on` functions
-throw an exception with the `errc::feature_not_supported` error code if
-inter-process sharing is enabled via `enable_ipc` and a queue (passed to those
-functions or associated with the `handler`) has an enqueued host task that has
-not completed (scheduled using the `handler::host_task` function).
-
-If the event has been enqueued for signaling (using `enqueue_signal_event`) in
-some process, and the IPC handle associated with that event has been passed to
-the `open` function in another process, then the resulting event can be used as
-a dependency (using `handler::depends_on`) or passed to `enqueue_wait_event` or
-`enqueue_wait_events` functions only if the device associated with the queue
-passed to `enqueue_signal_event` and the device associated with the queue where
-the dependency is set, can P2P access each other.
+ * If the event has been enqueued for signaling (using `enqueue_signal_event`)
+   in some process, and the IPC handle associated with that event has been
+   passed to the `open` function in another process, then the resulting event
+   can be used as a dependency (using `handler::depends_on`) or passed to
+   `enqueue_wait_event` or `enqueue_wait_events` functions only if the device
+   associated with the queue passed to `enqueue_signal_event` and the device
+   associated with the queue where the dependency is set, can P2P access each
+   other.
 
 ==== New event member function
 
@@ -1277,11 +1272,9 @@ _Preconditions:_
  * `ctx` is a context associated with the event object, which was passed to the
    `get` function call that produced `ipc_handle`.
 
-_Effects:_ Deallocates resources associated with the handle. After the
-resources associated with the handle have been deallocated, i.e. through a call
-to the `put` function or through destruction of the event object, the handle
-data is invalid and using it in the `put` and `open` functions will result in
-undefined behavior.
+_Effects:_ Deallocates resources associated with the handle. After the call to
+the `put` function, the handle data is invalid and using it in the `put` and
+`open` functions will result in undefined behavior.
 
 [_Note:_ Any objects retrieved through a call to the `open` function in any
 process on the system will still be valid after a call to the `put` function.
