@@ -7290,8 +7290,8 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
     if (Args.hasArg(options::OPT_include_pch) ||
         Args.getLastArg(options::OPT__SLASH_Yu)) {
       // Extracts the fat PCH file for the host.
-      extractPCH(UseNewOffloadingDriver, OffloadBuilder.get(), C, Args,
-                 Actions, /*ToolChain=*/nullptr,
+      extractPCH(UseNewOffloadingDriver, OffloadBuilder.get(), C, Args, Actions,
+                 /*ToolChain=*/nullptr,
                  UseNewOffloadingDriver ? nullptr : InputArg);
     }
 
@@ -7974,8 +7974,8 @@ Driver::BuildOffloadingActions(Compilation &C, llvm::opt::DerivedArgList &Args,
     if (isIncludePCHArg || isYuArg) {
       for (auto *TCAndArch = TCAndArchs.begin(); TCAndArch != TCAndArchs.end();
            ++TCAndArch) {
-        extractPCH(/*Offloading New Driver=*/true, /*Builder=*/nullptr, C,
-                    Args, OffloadActions, TCAndArch->first, nullptr);
+        extractPCH(/*Offloading New Driver=*/true, /*Builder=*/nullptr, C, Args,
+                   OffloadActions, TCAndArch->first, nullptr);
       }
     }
 
@@ -10063,8 +10063,7 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
       isa<OffloadPackagerExtractJobAction>(JA) && !SaveTempsEnabled) {
     StringRef Name = llvm::sys::path::filename(BaseInput);
     std::pair<StringRef, StringRef> Split = Name.split('.');
-    const char *Suffix =
-        types::getTypeTempSuffix(JA.getType(), IsCLMode());
+    const char *Suffix = types::getTypeTempSuffix(JA.getType(), IsCLMode());
     return CreateTempFile(C, Split.first, Suffix, MultipleArchs, BoundArch,
                           JA.getType(), false);
   }
