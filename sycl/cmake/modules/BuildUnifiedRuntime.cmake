@@ -269,14 +269,32 @@ if(CMAKE_SYSTEM_NAME STREQUAL Windows)
       ${LLVM_BINARY_DIR}/lib/ur_loaderd.lib
       ${LLVM_BINARY_DIR}/lib/ur_commond.lib
       dbghelp)
-    if(UR_STATIC_ADAPTER_OPENCL AND UR_BUILD_ADAPTER_OPENCL)
-      target_link_libraries(UnifiedRuntimeLoaderDebug INTERFACE
-        ${LLVM_BINARY_DIR}/lib/ur_adapter_opencld.lib)
-    endif()
+    # Link static adapters into the loader
+    foreach(adapter ${SYCL_ENABLE_BACKENDS})
+      set(static_var "UR_STATIC_ADAPTER_${adapter}")
+      string(TOUPPER "${static_var}" static_var)
+      if(adapter STREQUAL "level_zero")
+        set(static_var "UR_STATIC_ADAPTER_L0")
+      endif()
+      set(build_var "UR_BUILD_ADAPTER_${adapter}")
+      string(TOUPPER "${build_var}" build_var)
+      if(DEFINED ${static_var} AND ${static_var} AND DEFINED ${build_var} AND ${build_var})
+        target_link_libraries(UnifiedRuntimeLoaderDebug INTERFACE
+          ${LLVM_BINARY_DIR}/lib/ur_adapter_${adapter}d.lib)
+      endif()
+    endforeach()
   endif()
   foreach(adapter ${SYCL_ENABLE_BACKENDS})
-    if(adapter STREQUAL "opencl")
-      set(shared "NOT;${UR_STATIC_ADAPTER_OPENCL}")
+    # Check if this adapter is statically linked by querying the
+    # corresponding UR_STATIC_ADAPTER_* variable (if it exists).
+    set(static_var "UR_STATIC_ADAPTER_${adapter}")
+    string(TOUPPER "${static_var}" static_var)
+    # Special case: level_zero uses UR_STATIC_ADAPTER_L0
+    if(adapter STREQUAL "level_zero")
+      set(static_var "UR_STATIC_ADAPTER_L0")
+    endif()
+    if(DEFINED ${static_var} AND ${static_var})
+      set(shared FALSE)
     else()
       set(shared TRUE)
     endif()
@@ -295,7 +313,13 @@ if(CMAKE_SYSTEM_NAME STREQUAL Windows)
       DESTINATION "bin" COMPONENT unified-runtime-loader)
   endif()
   foreach(adapter ${SYCL_ENABLE_BACKENDS})
-    if(adapter STREQUAL "opencl" AND UR_STATIC_ADAPTER_OPENCL)
+    # Check if this adapter is statically linked (same logic as above).
+    set(static_var "UR_STATIC_ADAPTER_${adapter}")
+    string(TOUPPER "${static_var}" static_var)
+    if(adapter STREQUAL "level_zero")
+      set(static_var "UR_STATIC_ADAPTER_L0")
+    endif()
+    if(DEFINED ${static_var} AND ${static_var})
       # No DLL for statically linked adapter
     else()
       install(

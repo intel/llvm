@@ -101,7 +101,7 @@ ur_result_t mock_urAdapterGetInfo(void *pParams) {
   if (*params.ppropName == UR_ADAPTER_INFO_BACKEND) {
     if (*params.ppPropValue) {
       *reinterpret_cast<ur_backend_t *>(*params.ppPropValue) =
-          UR_BACKEND_OPENCL;
+          UR_BACKEND_UNKNOWN;
     }
     if (*params.ppPropSizeRet) {
       **params.ppPropSizeRet = sizeof(ur_backend_t);

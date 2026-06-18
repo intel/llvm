@@ -98,14 +98,6 @@ if(UR_STATIC_ADAPTER_OPENCL)
     if(UNIX)
         target_link_libraries(${TARGET_NAME} PRIVATE ${CMAKE_DL_LIBS})
     endif()
-    # ur_umf must be in the export set so install(EXPORT ...) can resolve it
-    # for static consumers (mirrors UR_STATIC_ADAPTER_L0 pattern).
-    install(TARGETS ur_umf
-        EXPORT ${PROJECT_NAME}-targets
-        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    )
 else()
     # Standard shared library build - link against OpenCL library
     target_link_libraries(${TARGET_NAME} PRIVATE

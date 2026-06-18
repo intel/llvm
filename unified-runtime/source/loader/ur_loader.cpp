@@ -37,11 +37,11 @@ ur_result_t context_t::init() {
 #if defined(UR_STATIC_ADAPTER_LEVEL_ZERO) || defined(UR_STATIC_ADAPTER_OPENCL)
   // If the adapters were force loaded, it means the user wants to use
   // a specific adapter library. Don't load any static adapters.
-  [[maybe_unused]] bool staticOCLRegistered = false;
   if (!adapter_registry.adaptersForceLoaded()) {
 #ifdef UR_STATIC_ADAPTER_LEVEL_ZERO
     auto &level_zero = platforms.emplace_back(nullptr);
     ur::level_zero::urAdapterGetDdiTables(&level_zero.dditable);
+    adapter_registry.markAdapterAsStaticallyLoaded("ur_adapter_level_zero");
 #endif
 #ifdef UR_STATIC_ADAPTER_OPENCL
     {
@@ -57,7 +57,7 @@ ur_result_t context_t::init() {
         ocl_ddi.Adapter.pfnRelease(hAdapter);
         auto &opencl = platforms.emplace_back(nullptr);
         opencl.dditable = ocl_ddi;
-        staticOCLRegistered = true;
+        adapter_registry.markAdapterAsStaticallyLoaded("ur_adapter_opencl");
       }
     }
 #endif
@@ -65,13 +65,12 @@ ur_result_t context_t::init() {
 #endif
 
   for (const auto &adapterPaths : adapter_registry) {
-#ifdef UR_STATIC_ADAPTER_OPENCL
-    // Skip the dynamic OpenCL adapter when the static one is already
-    // registered — loading both would double-register the OCL backend.
-    if (staticOCLRegistered && !adapterPaths.empty() &&
-        adapterPaths[0].string().find("ur_adapter_opencl") != std::string::npos)
+    // Skip dynamic adapters that have already been statically registered
+    // to avoid double-registration of the same backend.
+    if (!adapterPaths.empty() &&
+        adapter_registry.isStaticallyLoaded(adapterPaths[0])) {
       continue;
-#endif
+    }
     for (const auto &path : adapterPaths) {
       auto handle = LibLoader::loadAdapterLibrary(path.string().c_str());
       if (handle) {
