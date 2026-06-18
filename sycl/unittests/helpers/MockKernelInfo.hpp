@@ -34,7 +34,7 @@ struct MockKernelInfoBase {
 
 // Instantiating this function template registers kernel names in
 // KernelRegistry, as would normally be done by kernel wrappers at their
-// submisison.
+// submission.
 template <typename... KernelNames> void registerKernelNames() {
   (sycl::detail::KernelRegistrar<
        KernelNames,

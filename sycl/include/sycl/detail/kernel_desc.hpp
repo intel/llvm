@@ -229,7 +229,7 @@ template <typename KN, typename KernelInfo> struct KernelRegistrar {
 // Name lookup for getKernelNameHelper() requires argument dependent
 // lookup (ADL); even from within this class definition. The call to
 // getKernelNameHelper() in registerKernelName() therefore passes an
-// instance of this class (dependent on both KN and KEPN) to enable
+// instance of this class (dependent on both KN and KernelInfo) to enable
 // lookup in this class. A conversion operator then enables the argument
 // to be converted to the KernelIdentity wrapper type (only dependent on KN).
 #if defined(__GNUG__) || defined(__clang__)
@@ -249,7 +249,7 @@ template <typename KN, typename KernelInfo> struct KernelRegistrar {
 };
 
 // KernelRegistry enables retrieval of a kernel entry point name given
-// kernel point type KN. Lookup is performed by instantiating a
+// kernel name type KN. Lookup is performed by instantiating a
 // specialization with the kernel name type and then calling the
 // getKernelName() static member function. getKernelName() then calls
 // getKernelNameHelper(); a friend function that is only defined if
