@@ -177,10 +177,46 @@ jobs:
       shell: bash
       run: |        
          cmake --build build --target check-sycl
+    - name: Enable Windows crash dumps (DEBUG)
+      if: ${{ !cancelled() && contains(inputs.changes, 'sycl') }}
+      shell: cmd
+      run: |
+        reg add "HKLM\SOFTWARE\Microsoft\Windows\Windows Error Reporting\LocalDumps" /v DumpType /t REG_DWORD /d 2 /f
+        reg add "HKLM\SOFTWARE\Microsoft\Windows\Windows Error Reporting\LocalDumps" /v DumpFolder /t REG_EXPAND_SZ /d "%GITHUB_WORKSPACE%\crashdumps" /f
+        reg add "HKLM\SOFTWARE\Microsoft\Windows\Windows Error Reporting\LocalDumps" /v DumpCount /t REG_DWORD /d 20 /f
+        if not exist "%GITHUB_WORKSPACE%\crashdumps" mkdir "%GITHUB_WORKSPACE%\crashdumps"
     - name: check-sycl-unittests
       if: ${{ !cancelled() && contains(inputs.changes, 'sycl') }}
       run: |
         cmake --build build --target check-sycl-unittests
+    - name: Capture crashing program_manager test stack (DEBUG)
+      if: ${{ !cancelled() && contains(inputs.changes, 'sycl') }}
+      shell: cmd
+      continue-on-error: true
+      run: |
+        set "PATH=%GITHUB_WORKSPACE%\build\bin;%PATH%"
+        set SYCL_CONFIG_FILE_NAME=null.cfg
+        set SYCL_DEVICELIB_NO_FALLBACK=1
+        set ONEAPI_DEVICE_SELECTOR=*:*
+        set "CDB=C:\Program Files (x86)\Windows Kits\10\Debuggers\x64\cdb.exe"
+        if not exist "%CDB%" set "CDB=C:\Program Files\Windows Kits\10\Debuggers\x64\cdb.exe"
+        echo === SubDevices.BuildProgramForSubSubDevices ===
+        "%CDB%" -g -G -c "kP 200; ~*kP 50; lm; q" build\tools\sycl\unittests\program_manager\ProgramManagerTests-Non_Preview_Tests.exe --gtest_filter=SubDevices.BuildProgramForSubSubDevices
+        echo === ImageRemoval.NativePrograms ===
+        "%CDB%" -g -G -c "kP 200; ~*kP 50; lm; q" build\tools\sycl\unittests\program_manager\ProgramManagerTests-Non_Preview_Tests.exe --gtest_filter=ImageRemoval.NativePrograms
+    - name: Upload crash dumps (DEBUG)
+      if: ${{ !cancelled() && contains(inputs.changes, 'sycl') }}
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      with:
+        name: windows_crashdumps
+        path: |
+          crashdumps
+          build/tools/sycl/unittests/program_manager/ProgramManagerTests-Non_Preview_Tests.exe
+          build/tools/sycl/unittests/program_manager/ProgramManagerTests-Non_Preview_Tests.pdb
+          build/bin/sycl?.dll
+          build/bin/sycl?.pdb
+        if-no-files-found: ignore
+        retention-days: ${{ inputs.retention-days }}
     - name: check-llvm-spirv
       if: ${{ !cancelled() && contains(inputs.changes, 'llvm_spirv') }}
       run: |
