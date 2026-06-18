@@ -19,7 +19,7 @@ __device__ int fun0();
 // CHECK-HOST: define dso_local noundef i32 @{{.*}}fun0{{.*}}()
 // CHECK-HOST: ret i32 0
 
-// CHECK-DEV: declare{{ dso_local | }}noundef i32 @{{.*}}fun0{{.*}}()
+// CHECK-DEV: declare{{( dso_local)?}} spir_func noundef i32 @{{.*}}fun0{{.*}}()
 
 __device__ int fun1() { return 1; }
 __host__ int fun1() { return 2; }
@@ -27,7 +27,7 @@ __host__ int fun1() { return 2; }
 // CHECK-HOST: define dso_local noundef i32 @{{.*}}fun1{{.*}}()
 // CHECK-HOST: ret i32 2
 
-// CHECK-DEV: define weak_odr{{ dso_local | }}noundef i32 @{{.*}}fun1{{.*}}()
+// CHECK-DEV: define weak_odr{{( dso_local)?}} spir_func noundef i32 @{{.*}}fun1{{.*}}()
 // CHECK-DEV: ret i32 1
 
 __host__ __device__ int fun2() { return 3; }
@@ -35,7 +35,7 @@ __host__ __device__ int fun2() { return 3; }
 // CHECK-HOST: define dso_local noundef i32 @{{.*}}fun2{{.*}}()
 // CHECK-HOST: ret i32 3
 
-// CHECK-DEV: define weak_odr{{ dso_local | }}noundef i32 @{{.*}}fun2{{.*}}()
+// CHECK-DEV: define weak_odr{{( dso_local)?}} spir_func noundef i32 @{{.*}}fun2{{.*}}()
 // CHECK-DEV: ret i32 3
 
 __host__ int fun3() { return 4; }
@@ -43,15 +43,15 @@ __host__ int fun3() { return 4; }
 // CHECK-HOST: define dso_local noundef i32 @{{.*}}fun3{{.*}}()
 // CHECK-HOST: ret i32 4
 
-// CHECK-DEV: define weak_odr{{ dso_local | }}noundef i32 @{{.*}}fun3{{.*}}()
+// CHECK-DEV: define weak_odr{{( dso_local)?}} spir_func noundef i32 @{{.*}}fun3{{.*}}()
 // CHECK-DEV: ret i32 4
 
 __device__ int fun4() { return 6; }
 __host__ int fun4();
 
-// CHECK-HOST: declare{{ dso_local | }}noundef i32 @{{.*}}fun4{{.*}}()
+// CHECK-HOST: declare{{( dso_local)?}} noundef i32 @{{.*}}fun4{{.*}}()
 
-// CHECK-DEV: define weak_odr{{ dso_local | }}noundef i32 @{{.*}}fun4{{.*}}()
+// CHECK-DEV: define weak_odr{{( dso_local)?}} spir_func noundef i32 @{{.*}}fun4{{.*}}()
 // CHECK-DEV: ret i32 6
 
 __device__ int fun5() { return 5; }
@@ -59,13 +59,13 @@ __device__ int fun5() { return 5; }
 // CHECK-HOST: define dso_local noundef i32 @{{.*}}fun5{{.*}}()
 // CHECK-HOST: ret i32 undef
 
-// CHECK-DEV: define weak_odr{{ dso_local | }}noundef i32 @{{.*}}fun5{{.*}}()
+// CHECK-DEV: define weak_odr{{( dso_local)?}} spir_func noundef i32 @{{.*}}fun5{{.*}}()
 // CHECK-DEV: ret i32 5
 
 int fun6() { return 7; }
 
-// CHECK-DEV-RDC: define linkonce_odr{{ dso_local | }}noundef i32 @{{.*}}fun6{{.*}}()
-// CHECK-DEV-NORDC: define internal noundef i32 @{{.*}}fun6{{.*}}()
+// CHECK-DEV-RDC: define linkonce_odr{{( dso_local)?}} spir_func noundef i32 @{{.*}}fun6{{.*}}()
+// CHECK-DEV-NORDC: define internal spir_func noundef i32 @{{.*}}fun6{{.*}}()
 // CHECK-DEV: ret i32 7
 
 __attribute((sycl_device)) void test() {

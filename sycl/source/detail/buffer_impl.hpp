@@ -11,6 +11,7 @@
 #include <detail/sycl_mem_obj_t.hpp>
 #include <sycl/access/access.hpp>
 #include <sycl/context.hpp>
+#include <sycl/detail/code_location.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/helpers.hpp>

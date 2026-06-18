@@ -4,6 +4,8 @@
 
 // spir-v gen for legacy images at O0 not working
 // UNSUPPORTED: O0
+// UNSUPPORTED-INTENDED: Won't fix. See
+// https://github.com/intel/llvm/issues/10793.
 
 // 1. There is a SPIR-V spec issue that blocks generation of valid SPIR-V code
 // for the OpenCL environments support of the "Unknown" image format:
@@ -21,6 +23,7 @@
 
 // clang++ -fsycl -o ilzi.bin -I$SYCL_HOME/build/install/include/sycl
 // -lze_loader interop-level-zero-image.cpp
+#include <iostream>
 
 #include <level_zero/ze_api.h>
 #include <sycl/accessor_image.hpp>

@@ -13,6 +13,7 @@
     sampler configured UNNORMALIZED coordinate_normalization_mode
     NONE address_mode and LINEAR filter_mode
 */
+#include <iostream>
 
 #include "common.hpp"
 

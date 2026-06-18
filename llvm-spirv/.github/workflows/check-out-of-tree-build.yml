@@ -47,6 +47,7 @@ on:
 
 env:
   LLVM_VERSION: 23
+  SPIRV_TOOLS_INSTALL: ${{ github.workspace }}/spirv-tools-install
 
 jobs:
   build_and_test:
@@ -60,9 +61,7 @@ jobs:
       - name: Install dependencies
         run: |
           curl -L "https://apt.llvm.org/llvm-snapshot.gpg.key" | sudo apt-key add -
-          curl -L "https://packages.lunarg.com/lunarg-signing-key-pub.asc" | sudo apt-key add -
           echo "deb https://apt.llvm.org/noble/ llvm-toolchain-noble main" | sudo tee -a /etc/apt/sources.list
-          echo "deb https://packages.lunarg.com/vulkan noble main" | sudo tee -a /etc/apt/sources.list
           sudo apt-get update
           sudo apt-get -yq --no-install-suggests --no-install-recommends install \
             clang-${{ env.LLVM_VERSION }} \
@@ -72,11 +71,19 @@ jobs:
             libomp-${{ env.LLVM_VERSION }}-dev \
             llvm-${{ env.LLVM_VERSION }}-tools \
             mlir-${{ env.LLVM_VERSION }}-tools \
-            libpolly-${{ env.LLVM_VERSION }}-dev \
-            spirv-tools
+            libpolly-${{ env.LLVM_VERSION }}-dev
           # Linux systems in GitHub Actions already have older versions of clang
           # pre-installed. Make sure to override these with the relevant version.
           sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-${{ env.LLVM_VERSION }} 1000
+      - name: Restore SPIRV-Tools cache
+        # The prebuild-spirv-tools workflow owns populating this cache.
+        # The primary key never matches (no one saves it); restore-keys
+        # pulls the most recent prebuild entry.
+        uses: actions/cache/restore@v5
+        with:
+          path: ${{ env.SPIRV_TOOLS_INSTALL }}
+          key: spirv-tools-main-latest
+          restore-keys: spirv-tools-main-
       - name:  Checkout the translator sources
         uses: actions/checkout@v5
         with:
@@ -100,6 +107,7 @@ jobs:
             -DLLVM_INCLUDE_TESTS=ON \
             -DLLVM_EXTERNAL_LIT="/usr/lib/llvm-${{ env.LLVM_VERSION }}/bin/lit" \
             -DLLVM_EXTERNAL_SPIRV_HEADERS_SOURCE_DIR=${{ github.workspace }}/SPIRV-Headers \
+            -DCMAKE_PREFIX_PATH=${{ env.SPIRV_TOOLS_INSTALL }} \
             -G "Unix Makefiles"
       - name: Build
         run: |

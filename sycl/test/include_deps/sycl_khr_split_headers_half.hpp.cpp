@@ -9,11 +9,12 @@
 // CHECK-NEXT: detail/defines_elementary.hpp
 // CHECK-NEXT: feature_test.hpp
 // CHECK-NEXT: half_type.hpp
+// CHECK-NEXT: detail/export.hpp
 // CHECK-NEXT: detail/half_type_impl.hpp
 // CHECK-NEXT: bit_cast.hpp
+// CHECK-NEXT: detail/defines.hpp
 // CHECK-NEXT: detail/fwd/half.hpp
 // CHECK-NEXT: aspects.hpp
-// CHECK-NEXT: detail/defines.hpp
 // CHECK-NEXT: info/aspects.def
 // CHECK-NEXT: info/aspects_deprecated.def
 // CHECK-EMPTY:

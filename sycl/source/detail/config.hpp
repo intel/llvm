@@ -13,11 +13,11 @@
 #include <sycl/detail/device_filter.hpp>
 #include <sycl/detail/ur.hpp>
 #include <sycl/exception.hpp>
-#include <sycl/info/info_desc.hpp>
 
 #include <algorithm>
 #include <array>
 #include <cstdlib>
+#include <iostream>
 #include <mutex>
 #include <string>
 #include <utility>

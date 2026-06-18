@@ -4,6 +4,7 @@
 
 // Tests for indirect read of sampled_image using host accessors and linear
 // filtering mode.
+#include <iostream>
 
 #include "common.hpp"
 

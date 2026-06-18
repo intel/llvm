@@ -1,4 +1,5 @@
 // RUN: %clangxx -fsycl -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note %s
+#include <iostream>
 
 #include <sycl/sycl.hpp>
 

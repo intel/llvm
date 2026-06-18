@@ -14,7 +14,7 @@
 #include <sycl/detail/ur.hpp>
 #include <unified-runtime/ur_api.h>
 
-#include <sycl/detail/iostream_proxy.hpp>
+#include <iostream>
 
 #include <atomic>
 #include <cstring>

@@ -4,6 +4,7 @@
 // RUN: %{run} %t_noopt.out
 
 // Tests that aspect::fp64 requirements are affected by optimizations.
+#include <iostream>
 
 #include <sycl/detail/core.hpp>
 

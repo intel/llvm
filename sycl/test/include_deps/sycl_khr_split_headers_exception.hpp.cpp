@@ -12,5 +12,4 @@
 // CHECK-NEXT: detail/export.hpp
 // CHECK-NEXT: detail/string.hpp
 // CHECK-NEXT: exception_list.hpp
-// CHECK-NEXT: detail/iostream_proxy.hpp
 // CHECK-EMPTY:

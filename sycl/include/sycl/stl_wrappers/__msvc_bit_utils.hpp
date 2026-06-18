@@ -8,6 +8,12 @@
 
 #pragma once
 
+// Mark this header as a system header so the `sycl_global_var` attribute
+// below is accepted.
+#ifdef __clang__
+#pragma clang system_header
+#endif
+
 // VS2026 MSVC STL's <__msvc_bit_utils.hpp> declares `__isa_available` (a
 // runtime CPU-feature global) and other STL headers (<bit>, <vector>,
 // <numeric>, <bitset>, <complex>, <__msvc_int128.hpp>) include this header
@@ -36,7 +42,9 @@ int __isa_available __attribute__((sycl_global_var)) __attribute__((weak)) = 0;
 // include search directories.
 #if defined(__has_include_next)
 // GCC/clang support go through this path.
+#if __has_include_next(<__msvc_bit_utils.hpp>)
 #include_next <__msvc_bit_utils.hpp>
+#endif
 #else
 // MSVC doesn't support "#include_next", so we have to be creative.
 // Our header is located in "stl_wrappers/__msvc_bit_utils.hpp" so it won't be
@@ -44,5 +52,7 @@ int __isa_available __attribute__((sycl_global_var)) __attribute__((weak)) = 0;
 // has the layout where the following would result in the
 // <__msvc_bit_utils.hpp> we want. This is obviously hacky, but the best we
 // can do...
+#if __has_include(<../include/__msvc_bit_utils.hpp>)
 #include <../include/__msvc_bit_utils.hpp>
+#endif
 #endif

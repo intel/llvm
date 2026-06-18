@@ -12,11 +12,12 @@
 #include <detail/split_string.hpp>
 #include <detail/ur.hpp>
 #include <detail/ur_info_code.hpp>
+#include <sycl/aspects.hpp>
 #include <sycl/backend_types.hpp>
 #include <sycl/detail/cl.h>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/ur.hpp>
-#include <sycl/info/info_desc.hpp>
+#include <sycl/info/platform.hpp>
 
 namespace sycl {
 inline namespace _V1 {
@@ -24,7 +25,6 @@ inline namespace _V1 {
 // Forward declaration
 class device_selector;
 class device;
-enum class aspect;
 
 namespace detail {
 class device_impl;
