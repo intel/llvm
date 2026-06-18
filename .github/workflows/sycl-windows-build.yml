@@ -198,20 +198,28 @@ jobs:
         $env:SYCL_CONFIG_FILE_NAME = "null.cfg"
         $env:SYCL_DEVICELIB_NO_FALLBACK = "1"
         $env:ONEAPI_DEVICE_SELECTOR = "*:*"
-        # Locate cdb.exe robustly (path/version varies by runner).
+        # Let the access violation propagate instead of gtest swallowing it via
+        # __try/__except, so a debugger / WER actually sees the second-chance AV.
+        $env:GTEST_CATCH_EXCEPTIONS = "0"
+        # Locate cdb.exe; if absent, install the Debugging Tools for Windows.
         $cdb = Get-ChildItem -Path "C:\Program Files (x86)\Windows Kits","C:\Program Files\Windows Kits" -Filter cdb.exe -Recurse -ErrorAction SilentlyContinue |
                Where-Object { $_.FullName -match '\\x64\\' } | Select-Object -First 1 -ExpandProperty FullName
         if (-not $cdb) { $cdb = (Get-Command cdb.exe -ErrorAction SilentlyContinue).Source }
+        if (-not $cdb) {
+          Write-Host "cdb not found; installing WinDbg via winget"
+          winget install --id Microsoft.WinDbg --accept-source-agreements --accept-package-agreements --disable-interactivity 2>&1 | Write-Host
+          $cdb = Get-ChildItem -Path "$env:LOCALAPPDATA\Microsoft\WinDbg","C:\Program Files\Windows Kits" -Filter cdb.exe -Recurse -ErrorAction SilentlyContinue |
+                 Where-Object { $_.FullName -match 'amd64|x64' } | Select-Object -First 1 -ExpandProperty FullName
+        }
         Write-Host "cdb = $cdb"
         $exe = "build\tools\sycl\unittests\program_manager\ProgramManagerTests-Non_Preview_Tests.exe"
         New-Item -ItemType Directory -Force -Path "$env:GITHUB_WORKSPACE\crashdumps" | Out-Null
         foreach ($t in @("SubDevices.BuildProgramForSubSubDevices","ImageRemoval.NativePrograms")) {
           Write-Host "=== $t ==="
           if ($cdb) {
-            # -g -G run to exit; on 2nd-chance AV write full dump, print all-thread stacks + modules.
-            & $cdb -g -G -c ".dump /ma $env:GITHUB_WORKSPACE\crashdumps\$t.dmp; kP 200; ~*kP 40; lmv; q" $exe --gtest_filter=$t 2>&1 | Write-Host
+            & $cdb -g -G -c ".dump /ma $env:GITHUB_WORKSPACE\crashdumps\$t.dmp; .ecxr; kP 200; ~*kP 40; lmv; q" $exe --gtest_filter=$t 2>&1 | Write-Host
           } else {
-            Write-Host "cdb not found; running bare (relies on WER LocalDumps)"
+            Write-Host "cdb still not found; running bare (relies on WER LocalDumps)"
             & ".\$exe" --gtest_filter=$t 2>&1 | Write-Host
           }
         }
