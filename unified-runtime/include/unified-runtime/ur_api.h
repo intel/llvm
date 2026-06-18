@@ -2525,6 +2525,10 @@ typedef enum ur_device_info_t {
   /// [::ur_bool_t] returns true if the device supports inter-process
   /// communicable physical memory handles
   UR_DEVICE_INFO_IPC_PHYSICAL_MEMORY_SUPPORT_EXP = 0x2024,
+  /// [::ur_bool_t] returns true if the device supports reusable events
+  /// created with ::urEventCreateExp and signaled by
+  /// ::urEnqueueEventsWaitWithBarrierExt.
+  UR_DEVICE_INFO_REUSABLE_EVENTS_SUPPORT_EXP = 0x2025,
   /// [::ur_bool_t] returns true if the device supports enqueueing of
   /// allocations and frees.
   UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_SUPPORT_EXP = 0x2050,
@@ -13709,8 +13713,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrierExt(
     /// NULL, phEvent must not refer to an element of the phEventWaitList
     /// array. If *phEvent is not NULL on input and points to a reusable event
     /// created by ::urEventCreateExp, it is signaled by this command instead
-    /// of allocating a new event. Behavior for events not created by
-    /// ::urEventCreateExp is adapter-specific.
+    /// of allocating a new event. A reusable event may only be passed when
+    /// the device associated with hQueue reports
+    /// ::UR_DEVICE_INFO_REUSABLE_EVENTS_SUPPORT_EXP as true.
     ur_event_handle_t *phEvent);
 
 #if !defined(__GNUC__)

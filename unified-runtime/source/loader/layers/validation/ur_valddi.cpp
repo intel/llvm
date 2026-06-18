@@ -11463,8 +11463,9 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrierExt(
     /// NULL, phEvent must not refer to an element of the phEventWaitList
     /// array. If *phEvent is not NULL on input and points to a reusable event
     /// created by ::urEventCreateExp, it is signaled by this command instead
-    /// of allocating a new event. Behavior for events not created by
-    /// ::urEventCreateExp is adapter-specific.
+    /// of allocating a new event. A reusable event may only be passed when
+    /// the device associated with hQueue reports
+    /// ::UR_DEVICE_INFO_REUSABLE_EVENTS_SUPPORT_EXP as true.
     ur_event_handle_t *phEvent) {
   auto pfnEventsWaitWithBarrierExt =
       getContext()->urDdiTable.Enqueue.pfnEventsWaitWithBarrierExt;

@@ -13,6 +13,20 @@ ordinal: "100"
 
 --- #--------------------------------------------------------------------------
 type: enum
+extend: true
+typed_etors: true
+desc: "Extension enums to $x_device_info_t to support reusable events."
+name: $x_device_info_t
+etors:
+    - name: REUSABLE_EVENTS_SUPPORT_EXP
+      value: "0x2025"
+      desc: >
+            [$x_bool_t] returns true if the device supports reusable events
+            created with $xEventCreateExp and signaled by
+            $xEnqueueEventsWaitWithBarrierExt.
+
+--- #--------------------------------------------------------------------------
+type: enum
 desc: "Reusable event creation flags."
 name: $x_exp_event_flags_t
 etors:

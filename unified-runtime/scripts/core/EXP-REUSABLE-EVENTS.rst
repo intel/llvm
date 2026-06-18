@@ -36,6 +36,8 @@ API
 Enums
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+* ${x}_device_info_t
+    * ${X}_DEVICE_INFO_REUSABLE_EVENTS_SUPPORT_EXP
 * ${x}_structure_type_t
     * ${X}_STRUCTURE_TYPE_EXP_EVENT_DESC
 
@@ -63,6 +65,11 @@ Changelog
 
 Support
 --------------------------------------------------------------------------------
+
+Adapters which support this experimental feature *must* return true for the new
+``${X}_DEVICE_INFO_REUSABLE_EVENTS_SUPPORT_EXP`` device info query. A reusable
+event may only be passed to `${x}EnqueueEventsWaitWithBarrierExt` for a queue
+whose device reports this query as true.
 
 For this extension, signaling reusable events is supported through
 `${x}EnqueueEventsWaitWithBarrierExt` by passing a non-``NULL`` `phEvent`

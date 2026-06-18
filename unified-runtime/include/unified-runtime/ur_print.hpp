@@ -3361,6 +3361,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
   case UR_DEVICE_INFO_IPC_PHYSICAL_MEMORY_SUPPORT_EXP:
     os << "UR_DEVICE_INFO_IPC_PHYSICAL_MEMORY_SUPPORT_EXP";
     break;
+  case UR_DEVICE_INFO_REUSABLE_EVENTS_SUPPORT_EXP:
+    os << "UR_DEVICE_INFO_REUSABLE_EVENTS_SUPPORT_EXP";
+    break;
   case UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_SUPPORT_EXP:
     os << "UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_SUPPORT_EXP";
     break;
@@ -5647,6 +5650,19 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
     os << ")";
   } break;
   case UR_DEVICE_INFO_IPC_PHYSICAL_MEMORY_SUPPORT_EXP: {
+    const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+    if (sizeof(ur_bool_t) > size) {
+      os << "invalid size (is: " << size
+         << ", expected: >=" << sizeof(ur_bool_t) << ")";
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    os << (const void *)(tptr) << " (";
+
+    os << *tptr;
+
+    os << ")";
+  } break;
+  case UR_DEVICE_INFO_REUSABLE_EVENTS_SUPPORT_EXP: {
     const ur_bool_t *tptr = (const ur_bool_t *)ptr;
     if (sizeof(ur_bool_t) > size) {
       os << "invalid size (is: " << size
