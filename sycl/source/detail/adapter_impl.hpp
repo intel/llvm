@@ -68,7 +68,10 @@ public:
   adapter_impl &operator=(adapter_impl &&other) noexcept = delete;
   adapter_impl(adapter_impl &&other) noexcept = delete;
 
-  ~adapter_impl() = default;
+  ~adapter_impl() {
+    std::cerr << "[ADBG] ~adapter_impl this=" << static_cast<const void *>(this)
+              << std::endl;
+  }
 
   /// \throw SYCL 2020 exception(errc) if ur_result is not UR_RESULT_SUCCESS
   template <sycl::errc errc = sycl::errc::runtime>
@@ -110,6 +113,11 @@ public:
     if (!adapterReleased) {
       detail::UrFuncInfo<UrApiOffset> UrApiInfo;
       auto F = UrApiInfo.getFuncPtr(&UrFuncPtrs);
+      std::cerr << "[ADBG] call_nocheck this="
+                << static_cast<const void *>(this)
+                << " adapterReleased=" << adapterReleased
+                << " name=" << UrApiInfo.getFuncName()
+                << " F=" << reinterpret_cast<const void *>(F) << std::endl;
       R = F(std::forward<ArgsT>(Args)...);
     }
     return R;
@@ -276,6 +284,9 @@ public:
   }
 
   ~Managed() {
+    std::cerr << "[ADBG] ~Managed this=" << static_cast<const void *>(this)
+              << " R=" << static_cast<const void *>(R)
+              << " Adapter=" << static_cast<const void *>(Adapter) << std::endl;
     if (!R)
       return;
 
@@ -288,6 +299,9 @@ public:
 
   Managed retain() {
     assert(R && "Cannot retain unintialized resource!");
+    std::cerr << "[ADBG] retain this=" << static_cast<const void *>(this)
+              << " R=" << static_cast<const void *>(R)
+              << " Adapter=" << static_cast<const void *>(Adapter) << std::endl;
     Adapter->call<Retain>(R);
     return Managed{R, *Adapter};
   }
