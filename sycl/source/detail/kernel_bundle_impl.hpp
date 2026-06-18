@@ -1075,12 +1075,27 @@ public:
     assert(MState != bundle_state::ext_oneapi_source &&
            "ext_oneapi_get_content reached on a source-state kernel_bundle.");
 
+    std::cerr << "[SYCLBIN-DBG] ext_oneapi_get_content state="
+              << static_cast<int>(MState)
+              << " uniqueImages=" << MUniqueDeviceImages.size()
+              << " bundleDevices=" << MDevices.size() << "\n";
+
     std::vector<SYCLBIN::ImageInput> Inputs;
     Inputs.reserve(MUniqueDeviceImages.size());
     for (device_image_impl &DevImg : device_images()) {
       const RTDeviceBinaryImage *Bin = DevImg.get_bin_image_ref();
-      if (!Bin)
+      if (!Bin) {
+        std::cerr << "[SYCLBIN-DBG]   image: null bin_image_ref, skipped\n";
         continue;
+      }
+      std::cerr << "[SYCLBIN-DBG]   image format="
+                << static_cast<int>(Bin->getFormat())
+                << " targetSpec='"
+                << (Bin->getRawData().DeviceTargetSpec
+                        ? Bin->getRawData().DeviceTargetSpec
+                        : "(null)")
+                << "' imgDevices=" << DevImg.get_devices().size()
+                << " urProgram=" << (void *)DevImg.get_ur_program() << "\n";
       // Free-function kernels are not yet supported by the SYCLBIN
       // serializer: their kernel-id registration would not survive a
       // round-trip through the reader's name->kernel_id lookup. Detect at
