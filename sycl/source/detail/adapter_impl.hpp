@@ -48,7 +48,7 @@ namespace detail {
 /// runtimes for the device-agnostic SYCL runtime.
 ///
 /// \ingroup sycl_ur
-class adapter_impl {
+class adapter_impl : public std::enable_shared_from_this<adapter_impl> {
 public:
   adapter_impl() = delete;
 
@@ -242,10 +242,16 @@ template <typename URResource> class Managed {
 
 public:
   Managed() = default;
-  Managed(URResource R, adapter_impl &Adapter) : R(R), Adapter(&Adapter) {}
-  Managed(adapter_impl &Adapter) : Adapter(&Adapter) {}
+  // The adapter is held by a shared_ptr so that a Managed handle keeps its
+  // owning adapter alive for as long as the handle exists. Otherwise a cached
+  // or in-flight Managed could outlive adapter teardown (unloadAdapters) and
+  // release its UR resource through a freed adapter (a use-after-free that
+  // manifests as a crash calling a null function pointer on Windows).
+  Managed(URResource R, adapter_impl &Adapter)
+      : R(R), Adapter(Adapter.shared_from_this()) {}
+  Managed(adapter_impl &Adapter) : Adapter(Adapter.shared_from_this()) {}
   Managed(const Managed &) = delete;
-  Managed(Managed &&Other) : Adapter(Other.Adapter) {
+  Managed(Managed &&Other) : Adapter(std::move(Other.Adapter)) {
     R = Other.R;
     Other.R = nullptr;
   }
@@ -257,7 +263,7 @@ public:
       Adapter->call<Release>(R);
     R = Temp;
 
-    Adapter = Other.Adapter;
+    Adapter = std::move(Other.Adapter);
     return *this;
   }
 
@@ -300,7 +306,7 @@ public:
 
 private:
   URResource R = nullptr;
-  adapter_impl *Adapter = nullptr;
+  std::shared_ptr<adapter_impl> Adapter = nullptr;
 };
 } // namespace detail
 } // namespace _V1

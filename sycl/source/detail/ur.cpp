@@ -83,11 +83,12 @@ bool trace(TraceLevel Level) {
   return (TraceLevelMask & Level) == Level;
 }
 
-static void initializeAdapters(std::vector<adapter_impl *> &Adapters,
-                               ur_loader_config_handle_t LoaderConfig);
+static void
+initializeAdapters(std::vector<std::shared_ptr<adapter_impl>> &Adapters,
+                   ur_loader_config_handle_t LoaderConfig);
 
 // Initializes all available Adapters.
-std::vector<adapter_impl *> &
+std::vector<std::shared_ptr<adapter_impl>> &
 initializeUr(ur_loader_config_handle_t LoaderConfig) {
   // This uses static variable initialization to work around a gcc bug with
   // std::call_once and exceptions.
@@ -109,8 +110,9 @@ initializeUr(ur_loader_config_handle_t LoaderConfig) {
   return GlobalHandler::instance().getAdapters();
 }
 
-static void initializeAdapters(std::vector<adapter_impl *> &Adapters,
-                               ur_loader_config_handle_t LoaderConfig) {
+static void
+initializeAdapters(std::vector<std::shared_ptr<adapter_impl>> &Adapters,
+                   ur_loader_config_handle_t LoaderConfig) {
 #define CHECK_UR_SUCCESS(Call)                                                 \
   {                                                                            \
     if (ur_result_t error = Call) {                                            \
@@ -244,7 +246,8 @@ static void initializeAdapters(std::vector<adapter_impl *> &Adapters,
                                     sizeof(adapterBackend), &adapterBackend,
                                     nullptr));
     auto syclBackend = UrToSyclBackend(adapterBackend);
-    Adapters.emplace_back(new adapter_impl(UrAdapter, syclBackend));
+    Adapters.emplace_back(
+        std::make_shared<adapter_impl>(UrAdapter, syclBackend));
 
     const char *env_value = std::getenv("UR_LOG_CALLBACK");
     if (env_value == nullptr || std::string(env_value) != "disabled") {
@@ -264,7 +267,7 @@ template <backend BE> adapter_impl &getAdapter() {
 
   for (auto &P : ur::initializeUr())
     if (P->hasBackend(BE)) {
-      Adapter = P;
+      Adapter = P.get();
       return *Adapter;
     }
 
