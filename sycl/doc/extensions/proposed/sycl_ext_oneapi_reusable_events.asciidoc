@@ -108,6 +108,21 @@ to determine which of the extension's features the implementation supports.
  feature-test macro always has this value.
 |===
 
+==== Extension to `enum class aspect` for reusable events
+
+[source]
+----
+namespace sycl {
+enum class aspect {
+  ...
+  ext_oneapi_reusable_events
+}
+}
+----
+
+If a SYCL device has this aspect, that device supports the `make_event` and
+`enqueue_signal_event` functions specified in the following section.
+
 === New functions to create an event
 
 This extension adds the following factory functions which can create an event
@@ -135,10 +150,16 @@ _Constraints:_
 _Returns:_ An event that is associated with context `ctxt`. The event has
 `info::event_command_status::complete` status.
 
-_Throws:_ An `exception` with the `errc::feature_not_supported` error code if
-`PropertyListT` contains an `enable_profiling` property that enables profiling
-timestamps and if the platform containing `ctxt` does not support creation of
-such events as reported by the `event_profiling` information descriptor.
+_Throws:_
+
+ * An `exception` with the `errc::feature_not_supported` error code if
+   `PropertyListT` contains an `enable_profiling` property that enables
+   profiling timestamps and if the platform containing `ctxt` does not support
+   creation of such events as reported by the `event_profiling` information
+   descriptor.
+ * An `exception` with the `errc::feature_not_supported` error code if
+   not all of the devices that are part of `ctxt` have
+   `aspect::ext_oneapi_reusable_events`.
 
 '''
 
@@ -290,10 +311,16 @@ Implementations are encouraged to transition the event directly from the
 "submitted" status to the "complete" status and are encouraged to set the
 "command_start" timestamp to the same value as the "command_end" timestamp.
 
-_Throws:_ An `exception` with the `errc::feature_not_supported` error code if
-`evt` was created with the `enable_profiling` property that enables profiling
-timestamps and if the platform associated with `q` does not support creation of
-such events as reported by the `event_profiling` information descriptor.
+_Throws:_
+
+ * An `exception` with the `errc::feature_not_supported` error code if
+   `evt` was created with the `enable_profiling` property that enables
+   profiling timestamps and if the platform associated with `q` does not
+   support creation of such events as reported by the `event_profiling`
+   information descriptor.
+ * An `exception` with the `errc::feature_not_supported` error code if
+   the device associated with `q` does not have
+   `aspect::ext_oneapi_reusable_events`.
 
 [_Note:_ In order to understand why the "command_start" and "command_end"
 timestamps are encouraged to be the same, think of the tag operation as an empty
