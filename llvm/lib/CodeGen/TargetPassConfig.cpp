@@ -1314,7 +1314,7 @@ void TargetPassConfig::addMachinePasses() {
   addPostBBSections();
 
   if (!DisableCFIFixup && TM->Options.EnableCFIFixup)
-    addPass(createCFIFixup());
+    addPass(createCFIFixupLegacy());
 
   PM->add(createStackFrameLayoutAnalysisPass());
 
