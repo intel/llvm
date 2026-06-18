@@ -4,6 +4,7 @@
 // compares standard vs non-standard element counts.
 //
 // RUN: %clangxx -I %sycl_include -fno-discard-value-names -S -emit-llvm -fno-sycl-instrument-device-code -Xclang -disable-lifetime-markers -fsycl-device-only %s -o - | FileCheck %s
+// REQUIRES: linux
 
 #include <sycl/sycl.hpp>
 
@@ -18,71 +19,74 @@ using namespace sycl;
 // int8_t - Standard size (4) vs Non-standard size (5)
 //------------------------------------------------------------------------------
 
-SYCL_EXTERNAL vec<std::int8_t, 4>
-// CHECK-LABEL: @_Z19arithmetic_i8x4_vecN4sycl3_V13vecIaLi4EEES2_(
-// CHECK-NEXT:  entry:
-// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META10:![0-9]+]])
-// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META13:![0-9]+]])
-// CHECK-NEXT:    [[TMP0:%.*]] = load <4 x i8>, ptr [[A:%.*]], align 4, !tbaa [[TBAA16:![0-9]+]], !noalias [[META17:![0-9]+]]
-// CHECK-NEXT:    [[TMP1:%.*]] = load <4 x i8>, ptr [[B:%.*]], align 4, !tbaa [[TBAA16]], !noalias [[META17]]
-// CHECK-NEXT:    [[ADD_I_I_I_I_I:%.*]] = add <4 x i8> [[TMP0]], [[TMP1]]
-// CHECK-NEXT:    store <4 x i8> [[ADD_I_I_I_I_I]], ptr addrspace(4) [[AGG_RESULT:%.*]], align 4, !alias.scope [[META18:![0-9]+]]
-// CHECK-NEXT:    ret void
-//
-arithmetic_i8x4_vec(vec<std::int8_t, 4> a, vec<std::int8_t, 4> b) {
+SYCL_EXTERNAL
+vec<std::int8_t, 4>
+    // CHECK-LABEL: @_Z19arithmetic_i8x4_vecN4sycl3_V13vecIaLi4EEES2_(
+    // CHECK-NEXT:  entry:
+    // CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META10:![0-9]+]])
+    // CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META13:![0-9]+]])
+    // CHECK-NEXT:    [[TMP0:%.*]] = load <4 x i8>, ptr [[A:%.*]], align 4, !tbaa [[TBAA16:![0-9]+]], !noalias [[META17:![0-9]+]]
+    // CHECK-NEXT:    [[TMP1:%.*]] = load <4 x i8>, ptr [[B:%.*]], align 4, !tbaa [[TBAA16]], !noalias [[META17]]
+    // CHECK-NEXT:    [[ADD_I_I_I_I_I:%.*]] = add <4 x i8> [[TMP0]], [[TMP1]]
+    // CHECK-NEXT:    store <4 x i8> [[ADD_I_I_I_I_I]], ptr addrspace(4) [[AGG_RESULT:%.*]], align 4, !alias.scope [[META18:![0-9]+]]
+    // CHECK-NEXT:    ret void
+    //
+    arithmetic_i8x4_vec(vec<std::int8_t, 4> a, vec<std::int8_t, 4> b) {
   return a + b;
 }
 
-SYCL_EXTERNAL marray<std::int8_t, 4>
-// CHECK-LABEL: @_Z20arithmetic_i8x4_marrN4sycl3_V16marrayIaLm4EEES2_(
-// CHECK-NEXT:  entry:
-// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META21:![0-9]+]])
-// CHECK-NEXT:    br label [[FOR_COND_I:%.*]]
-// CHECK:       for.cond.i:
-// CHECK-NEXT:    [[I_0_I:%.*]] = phi i64 [ 0, [[ENTRY:%.*]] ], [ [[INC_I:%.*]], [[FOR_BODY_I:%.*]] ]
-// CHECK-NEXT:    [[CMP_I:%.*]] = icmp samesign ult i64 [[I_0_I]], 4
-// CHECK-NEXT:    br i1 [[CMP_I]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V1PLERKNS0_6MARRAYIALM4EEES4__EXIT:%.*]]
-// CHECK:       for.body.i:
-// CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds i8, ptr [[A:%.*]], i64 [[I_0_I]]
-// CHECK-NEXT:    [[TMP0:%.*]] = load i8, ptr [[ARRAYIDX_I_I]], align 1, !tbaa [[TBAA16]], !noalias [[META21]]
-// CHECK-NEXT:    [[ARRAYIDX_I9_I:%.*]] = getelementptr inbounds i8, ptr [[B:%.*]], i64 [[I_0_I]]
-// CHECK-NEXT:    [[TMP1:%.*]] = load i8, ptr [[ARRAYIDX_I9_I]], align 1, !tbaa [[TBAA16]], !noalias [[META21]]
-// CHECK-NEXT:    [[ADD_I:%.*]] = add i8 [[TMP0]], [[TMP1]]
-// CHECK-NEXT:    [[ARRAYIDX_I10_I:%.*]] = getelementptr inbounds nuw i8, ptr addrspace(4) [[AGG_RESULT:%.*]], i64 [[I_0_I]]
-// CHECK-NEXT:    store i8 [[ADD_I]], ptr addrspace(4) [[ARRAYIDX_I10_I]], align 1, !tbaa [[TBAA16]], !alias.scope [[META21]]
-// CHECK-NEXT:    [[INC_I]] = add nuw nsw i64 [[I_0_I]], 1
-// CHECK-NEXT:    br label [[FOR_COND_I]], !llvm.loop [[LOOP24:![0-9]+]]
-// CHECK:       _ZN4sycl3_V1plERKNS0_6marrayIaLm4EEES4_.exit:
-// CHECK-NEXT:    ret void
-//
-arithmetic_i8x4_marr(marray<std::int8_t, 4> a, marray<std::int8_t, 4> b) {
+SYCL_EXTERNAL
+marray<std::int8_t, 4>
+    // CHECK-LABEL: @_Z20arithmetic_i8x4_marrN4sycl3_V16marrayIaLm4EEES2_(
+    // CHECK-NEXT:  entry:
+    // CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META21:![0-9]+]])
+    // CHECK-NEXT:    br label [[FOR_COND_I:%.*]]
+    // CHECK:       for.cond.i:
+    // CHECK-NEXT:    [[I_0_I:%.*]] = phi i64 [ 0, [[ENTRY:%.*]] ], [ [[INC_I:%.*]], [[FOR_BODY_I:%.*]] ]
+    // CHECK-NEXT:    [[CMP_I:%.*]] = icmp samesign ult i64 [[I_0_I]], 4
+    // CHECK-NEXT:    br i1 [[CMP_I]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V1PLERKNS0_6MARRAYIALM4EEES4__EXIT:%.*]]
+    // CHECK:       for.body.i:
+    // CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds i8, ptr [[A:%.*]], i64 [[I_0_I]]
+    // CHECK-NEXT:    [[TMP0:%.*]] = load i8, ptr [[ARRAYIDX_I_I]], align 1, !tbaa [[TBAA16]], !noalias [[META21]]
+    // CHECK-NEXT:    [[ARRAYIDX_I9_I:%.*]] = getelementptr inbounds i8, ptr [[B:%.*]], i64 [[I_0_I]]
+    // CHECK-NEXT:    [[TMP1:%.*]] = load i8, ptr [[ARRAYIDX_I9_I]], align 1, !tbaa [[TBAA16]], !noalias [[META21]]
+    // CHECK-NEXT:    [[ADD_I:%.*]] = add i8 [[TMP0]], [[TMP1]]
+    // CHECK-NEXT:    [[ARRAYIDX_I10_I:%.*]] = getelementptr inbounds nuw i8, ptr addrspace(4) [[AGG_RESULT:%.*]], i64 [[I_0_I]]
+    // CHECK-NEXT:    store i8 [[ADD_I]], ptr addrspace(4) [[ARRAYIDX_I10_I]], align 1, !tbaa [[TBAA16]], !alias.scope [[META21]]
+    // CHECK-NEXT:    [[INC_I]] = add nuw nsw i64 [[I_0_I]], 1
+    // CHECK-NEXT:    br label [[FOR_COND_I]], !llvm.loop [[LOOP24:![0-9]+]]
+    // CHECK:       _ZN4sycl3_V1plERKNS0_6marrayIaLm4EEES4_.exit:
+    // CHECK-NEXT:    ret void
+    //
+    arithmetic_i8x4_marr(marray<std::int8_t, 4> a, marray<std::int8_t, 4> b) {
   return a + b;
 }
 
 // Non-standard size - should use loop
-SYCL_EXTERNAL marray<std::int8_t, 5>
-// CHECK-LABEL: @_Z20arithmetic_i8x5_marrN4sycl3_V16marrayIaLm5EEES2_(
-// CHECK-NEXT:  entry:
-// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META26:![0-9]+]])
-// CHECK-NEXT:    br label [[FOR_COND_I:%.*]]
-// CHECK:       for.cond.i:
-// CHECK-NEXT:    [[I_0_I:%.*]] = phi i64 [ 0, [[ENTRY:%.*]] ], [ [[INC_I:%.*]], [[FOR_BODY_I:%.*]] ]
-// CHECK-NEXT:    [[CMP_I:%.*]] = icmp samesign ult i64 [[I_0_I]], 5
-// CHECK-NEXT:    br i1 [[CMP_I]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V1PLERKNS0_6MARRAYIALM5EEES4__EXIT:%.*]]
-// CHECK:       for.body.i:
-// CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds i8, ptr [[A:%.*]], i64 [[I_0_I]]
-// CHECK-NEXT:    [[TMP0:%.*]] = load i8, ptr [[ARRAYIDX_I_I]], align 1, !tbaa [[TBAA16]], !noalias [[META26]]
-// CHECK-NEXT:    [[ARRAYIDX_I9_I:%.*]] = getelementptr inbounds i8, ptr [[B:%.*]], i64 [[I_0_I]]
-// CHECK-NEXT:    [[TMP1:%.*]] = load i8, ptr [[ARRAYIDX_I9_I]], align 1, !tbaa [[TBAA16]], !noalias [[META26]]
-// CHECK-NEXT:    [[ADD_I:%.*]] = add i8 [[TMP0]], [[TMP1]]
-// CHECK-NEXT:    [[ARRAYIDX_I10_I:%.*]] = getelementptr inbounds nuw i8, ptr addrspace(4) [[AGG_RESULT:%.*]], i64 [[I_0_I]]
-// CHECK-NEXT:    store i8 [[ADD_I]], ptr addrspace(4) [[ARRAYIDX_I10_I]], align 1, !tbaa [[TBAA16]], !alias.scope [[META26]]
-// CHECK-NEXT:    [[INC_I]] = add nuw nsw i64 [[I_0_I]], 1
-// CHECK-NEXT:    br label [[FOR_COND_I]], !llvm.loop [[LOOP29:![0-9]+]]
-// CHECK:       _ZN4sycl3_V1plERKNS0_6marrayIaLm5EEES4_.exit:
-// CHECK-NEXT:    ret void
-//
-arithmetic_i8x5_marr(marray<std::int8_t, 5> a, marray<std::int8_t, 5> b) {
+SYCL_EXTERNAL
+marray<std::int8_t, 5>
+    // CHECK-LABEL: @_Z20arithmetic_i8x5_marrN4sycl3_V16marrayIaLm5EEES2_(
+    // CHECK-NEXT:  entry:
+    // CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META26:![0-9]+]])
+    // CHECK-NEXT:    br label [[FOR_COND_I:%.*]]
+    // CHECK:       for.cond.i:
+    // CHECK-NEXT:    [[I_0_I:%.*]] = phi i64 [ 0, [[ENTRY:%.*]] ], [ [[INC_I:%.*]], [[FOR_BODY_I:%.*]] ]
+    // CHECK-NEXT:    [[CMP_I:%.*]] = icmp samesign ult i64 [[I_0_I]], 5
+    // CHECK-NEXT:    br i1 [[CMP_I]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V1PLERKNS0_6MARRAYIALM5EEES4__EXIT:%.*]]
+    // CHECK:       for.body.i:
+    // CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds i8, ptr [[A:%.*]], i64 [[I_0_I]]
+    // CHECK-NEXT:    [[TMP0:%.*]] = load i8, ptr [[ARRAYIDX_I_I]], align 1, !tbaa [[TBAA16]], !noalias [[META26]]
+    // CHECK-NEXT:    [[ARRAYIDX_I9_I:%.*]] = getelementptr inbounds i8, ptr [[B:%.*]], i64 [[I_0_I]]
+    // CHECK-NEXT:    [[TMP1:%.*]] = load i8, ptr [[ARRAYIDX_I9_I]], align 1, !tbaa [[TBAA16]], !noalias [[META26]]
+    // CHECK-NEXT:    [[ADD_I:%.*]] = add i8 [[TMP0]], [[TMP1]]
+    // CHECK-NEXT:    [[ARRAYIDX_I10_I:%.*]] = getelementptr inbounds nuw i8, ptr addrspace(4) [[AGG_RESULT:%.*]], i64 [[I_0_I]]
+    // CHECK-NEXT:    store i8 [[ADD_I]], ptr addrspace(4) [[ARRAYIDX_I10_I]], align 1, !tbaa [[TBAA16]], !alias.scope [[META26]]
+    // CHECK-NEXT:    [[INC_I]] = add nuw nsw i64 [[I_0_I]], 1
+    // CHECK-NEXT:    br label [[FOR_COND_I]], !llvm.loop [[LOOP29:![0-9]+]]
+    // CHECK:       _ZN4sycl3_V1plERKNS0_6marrayIaLm5EEES4_.exit:
+    // CHECK-NEXT:    ret void
+    //
+    arithmetic_i8x5_marr(marray<std::int8_t, 5> a, marray<std::int8_t, 5> b) {
   return a + b;
 }
 
@@ -90,71 +94,76 @@ arithmetic_i8x5_marr(marray<std::int8_t, 5> a, marray<std::int8_t, 5> b) {
 // int16_t - Standard size (8) vs Non-standard size (7)
 //------------------------------------------------------------------------------
 
-SYCL_EXTERNAL vec<std::int16_t, 8>
-// CHECK-LABEL: @_Z20arithmetic_i16x8_vecN4sycl3_V13vecIsLi8EEES2_(
-// CHECK-NEXT:  entry:
-// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META30:![0-9]+]])
-// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META33:![0-9]+]])
-// CHECK-NEXT:    [[TMP0:%.*]] = load <8 x i16>, ptr [[A:%.*]], align 16, !tbaa [[TBAA16]], !noalias [[META36:![0-9]+]]
-// CHECK-NEXT:    [[TMP1:%.*]] = load <8 x i16>, ptr [[B:%.*]], align 16, !tbaa [[TBAA16]], !noalias [[META36]]
-// CHECK-NEXT:    [[SUB_I_I_I_I_I:%.*]] = sub <8 x i16> [[TMP0]], [[TMP1]]
-// CHECK-NEXT:    store <8 x i16> [[SUB_I_I_I_I_I]], ptr addrspace(4) [[AGG_RESULT:%.*]], align 16, !alias.scope [[META36]]
-// CHECK-NEXT:    ret void
-//
-arithmetic_i16x8_vec(vec<std::int16_t, 8> a, vec<std::int16_t, 8> b) {
+SYCL_EXTERNAL
+vec<std::int16_t, 8>
+    // CHECK-LABEL: @_Z20arithmetic_i16x8_vecN4sycl3_V13vecIsLi8EEES2_(
+    // CHECK-NEXT:  entry:
+    // CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META30:![0-9]+]])
+    // CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META33:![0-9]+]])
+    // CHECK-NEXT:    [[TMP0:%.*]] = load <8 x i16>, ptr [[A:%.*]], align 16, !tbaa [[TBAA16]], !noalias [[META36:![0-9]+]]
+    // CHECK-NEXT:    [[TMP1:%.*]] = load <8 x i16>, ptr [[B:%.*]], align 16, !tbaa [[TBAA16]], !noalias [[META36]]
+    // CHECK-NEXT:    [[SUB_I_I_I_I_I:%.*]] = sub <8 x i16> [[TMP0]], [[TMP1]]
+    // CHECK-NEXT:    store <8 x i16> [[SUB_I_I_I_I_I]], ptr addrspace(4) [[AGG_RESULT:%.*]], align 16, !alias.scope [[META36]]
+    // CHECK-NEXT:    ret void
+    //
+    arithmetic_i16x8_vec(vec<std::int16_t, 8> a, vec<std::int16_t, 8> b) {
   return a - b;
 }
 
-SYCL_EXTERNAL marray<std::int16_t, 8>
-// CHECK-LABEL: @_Z21arithmetic_i16x8_marrN4sycl3_V16marrayIsLm8EEES2_(
-// CHECK-NEXT:  entry:
-// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META37:![0-9]+]])
-// CHECK-NEXT:    br label [[FOR_COND_I:%.*]]
-// CHECK:       for.cond.i:
-// CHECK-NEXT:    [[I_0_I:%.*]] = phi i64 [ 0, [[ENTRY:%.*]] ], [ [[INC_I:%.*]], [[FOR_BODY_I:%.*]] ]
-// CHECK-NEXT:    [[CMP_I:%.*]] = icmp samesign ult i64 [[I_0_I]], 8
-// CHECK-NEXT:    br i1 [[CMP_I]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V1MIERKNS0_6MARRAYISLM8EEES4__EXIT:%.*]]
-// CHECK:       for.body.i:
-// CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds [2 x i8], ptr [[A:%.*]], i64 [[I_0_I]]
-// CHECK-NEXT:    [[TMP0:%.*]] = load i16, ptr [[ARRAYIDX_I_I]], align 2, !tbaa [[TBAA40:![0-9]+]], !noalias [[META37]]
-// CHECK-NEXT:    [[ARRAYIDX_I9_I:%.*]] = getelementptr inbounds [2 x i8], ptr [[B:%.*]], i64 [[I_0_I]]
-// CHECK-NEXT:    [[TMP1:%.*]] = load i16, ptr [[ARRAYIDX_I9_I]], align 2, !tbaa [[TBAA40]], !noalias [[META37]]
-// CHECK-NEXT:    [[SUB_I:%.*]] = sub i16 [[TMP0]], [[TMP1]]
-// CHECK-NEXT:    [[ARRAYIDX_I10_I:%.*]] = getelementptr inbounds nuw [2 x i8], ptr addrspace(4) [[AGG_RESULT:%.*]], i64 [[I_0_I]]
-// CHECK-NEXT:    store i16 [[SUB_I]], ptr addrspace(4) [[ARRAYIDX_I10_I]], align 2, !tbaa [[TBAA40]], !alias.scope [[META37]]
-// CHECK-NEXT:    [[INC_I]] = add nuw nsw i64 [[I_0_I]], 1
-// CHECK-NEXT:    br label [[FOR_COND_I]], !llvm.loop [[LOOP42:![0-9]+]]
-// CHECK:       _ZN4sycl3_V1miERKNS0_6marrayIsLm8EEES4_.exit:
-// CHECK-NEXT:    ret void
-//
-arithmetic_i16x8_marr(marray<std::int16_t, 8> a, marray<std::int16_t, 8> b) {
+SYCL_EXTERNAL
+marray<std::int16_t, 8>
+    // CHECK-LABEL: @_Z21arithmetic_i16x8_marrN4sycl3_V16marrayIsLm8EEES2_(
+    // CHECK-NEXT:  entry:
+    // CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META37:![0-9]+]])
+    // CHECK-NEXT:    br label [[FOR_COND_I:%.*]]
+    // CHECK:       for.cond.i:
+    // CHECK-NEXT:    [[I_0_I:%.*]] = phi i64 [ 0, [[ENTRY:%.*]] ], [ [[INC_I:%.*]], [[FOR_BODY_I:%.*]] ]
+    // CHECK-NEXT:    [[CMP_I:%.*]] = icmp samesign ult i64 [[I_0_I]], 8
+    // CHECK-NEXT:    br i1 [[CMP_I]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V1MIERKNS0_6MARRAYISLM8EEES4__EXIT:%.*]]
+    // CHECK:       for.body.i:
+    // CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds [2 x i8], ptr [[A:%.*]], i64 [[I_0_I]]
+    // CHECK-NEXT:    [[TMP0:%.*]] = load i16, ptr [[ARRAYIDX_I_I]], align 2, !tbaa [[TBAA40:![0-9]+]], !noalias [[META37]]
+    // CHECK-NEXT:    [[ARRAYIDX_I9_I:%.*]] = getelementptr inbounds [2 x i8], ptr [[B:%.*]], i64 [[I_0_I]]
+    // CHECK-NEXT:    [[TMP1:%.*]] = load i16, ptr [[ARRAYIDX_I9_I]], align 2, !tbaa [[TBAA40]], !noalias [[META37]]
+    // CHECK-NEXT:    [[SUB_I:%.*]] = sub i16 [[TMP0]], [[TMP1]]
+    // CHECK-NEXT:    [[ARRAYIDX_I10_I:%.*]] = getelementptr inbounds nuw [2 x i8], ptr addrspace(4) [[AGG_RESULT:%.*]], i64 [[I_0_I]]
+    // CHECK-NEXT:    store i16 [[SUB_I]], ptr addrspace(4) [[ARRAYIDX_I10_I]], align 2, !tbaa [[TBAA40]], !alias.scope [[META37]]
+    // CHECK-NEXT:    [[INC_I]] = add nuw nsw i64 [[I_0_I]], 1
+    // CHECK-NEXT:    br label [[FOR_COND_I]], !llvm.loop [[LOOP42:![0-9]+]]
+    // CHECK:       _ZN4sycl3_V1miERKNS0_6marrayIsLm8EEES4_.exit:
+    // CHECK-NEXT:    ret void
+    //
+    arithmetic_i16x8_marr(marray<std::int16_t, 8> a,
+                          marray<std::int16_t, 8> b) {
   return a - b;
 }
 
 // Non-standard size - should use loop
-SYCL_EXTERNAL marray<std::int16_t, 7>
-// CHECK-LABEL: @_Z21arithmetic_i16x7_marrN4sycl3_V16marrayIsLm7EEES2_(
-// CHECK-NEXT:  entry:
-// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META43:![0-9]+]])
-// CHECK-NEXT:    br label [[FOR_COND_I:%.*]]
-// CHECK:       for.cond.i:
-// CHECK-NEXT:    [[I_0_I:%.*]] = phi i64 [ 0, [[ENTRY:%.*]] ], [ [[INC_I:%.*]], [[FOR_BODY_I:%.*]] ]
-// CHECK-NEXT:    [[CMP_I:%.*]] = icmp samesign ult i64 [[I_0_I]], 7
-// CHECK-NEXT:    br i1 [[CMP_I]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V1MIERKNS0_6MARRAYISLM7EEES4__EXIT:%.*]]
-// CHECK:       for.body.i:
-// CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds [2 x i8], ptr [[A:%.*]], i64 [[I_0_I]]
-// CHECK-NEXT:    [[TMP0:%.*]] = load i16, ptr [[ARRAYIDX_I_I]], align 2, !tbaa [[TBAA40]], !noalias [[META43]]
-// CHECK-NEXT:    [[ARRAYIDX_I9_I:%.*]] = getelementptr inbounds [2 x i8], ptr [[B:%.*]], i64 [[I_0_I]]
-// CHECK-NEXT:    [[TMP1:%.*]] = load i16, ptr [[ARRAYIDX_I9_I]], align 2, !tbaa [[TBAA40]], !noalias [[META43]]
-// CHECK-NEXT:    [[SUB_I:%.*]] = sub i16 [[TMP0]], [[TMP1]]
-// CHECK-NEXT:    [[ARRAYIDX_I10_I:%.*]] = getelementptr inbounds nuw [2 x i8], ptr addrspace(4) [[AGG_RESULT:%.*]], i64 [[I_0_I]]
-// CHECK-NEXT:    store i16 [[SUB_I]], ptr addrspace(4) [[ARRAYIDX_I10_I]], align 2, !tbaa [[TBAA40]], !alias.scope [[META43]]
-// CHECK-NEXT:    [[INC_I]] = add nuw nsw i64 [[I_0_I]], 1
-// CHECK-NEXT:    br label [[FOR_COND_I]], !llvm.loop [[LOOP46:![0-9]+]]
-// CHECK:       _ZN4sycl3_V1miERKNS0_6marrayIsLm7EEES4_.exit:
-// CHECK-NEXT:    ret void
-//
-arithmetic_i16x7_marr(marray<std::int16_t, 7> a, marray<std::int16_t, 7> b) {
+SYCL_EXTERNAL
+marray<std::int16_t, 7>
+    // CHECK-LABEL: @_Z21arithmetic_i16x7_marrN4sycl3_V16marrayIsLm7EEES2_(
+    // CHECK-NEXT:  entry:
+    // CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META43:![0-9]+]])
+    // CHECK-NEXT:    br label [[FOR_COND_I:%.*]]
+    // CHECK:       for.cond.i:
+    // CHECK-NEXT:    [[I_0_I:%.*]] = phi i64 [ 0, [[ENTRY:%.*]] ], [ [[INC_I:%.*]], [[FOR_BODY_I:%.*]] ]
+    // CHECK-NEXT:    [[CMP_I:%.*]] = icmp samesign ult i64 [[I_0_I]], 7
+    // CHECK-NEXT:    br i1 [[CMP_I]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V1MIERKNS0_6MARRAYISLM7EEES4__EXIT:%.*]]
+    // CHECK:       for.body.i:
+    // CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds [2 x i8], ptr [[A:%.*]], i64 [[I_0_I]]
+    // CHECK-NEXT:    [[TMP0:%.*]] = load i16, ptr [[ARRAYIDX_I_I]], align 2, !tbaa [[TBAA40]], !noalias [[META43]]
+    // CHECK-NEXT:    [[ARRAYIDX_I9_I:%.*]] = getelementptr inbounds [2 x i8], ptr [[B:%.*]], i64 [[I_0_I]]
+    // CHECK-NEXT:    [[TMP1:%.*]] = load i16, ptr [[ARRAYIDX_I9_I]], align 2, !tbaa [[TBAA40]], !noalias [[META43]]
+    // CHECK-NEXT:    [[SUB_I:%.*]] = sub i16 [[TMP0]], [[TMP1]]
+    // CHECK-NEXT:    [[ARRAYIDX_I10_I:%.*]] = getelementptr inbounds nuw [2 x i8], ptr addrspace(4) [[AGG_RESULT:%.*]], i64 [[I_0_I]]
+    // CHECK-NEXT:    store i16 [[SUB_I]], ptr addrspace(4) [[ARRAYIDX_I10_I]], align 2, !tbaa [[TBAA40]], !alias.scope [[META43]]
+    // CHECK-NEXT:    [[INC_I]] = add nuw nsw i64 [[I_0_I]], 1
+    // CHECK-NEXT:    br label [[FOR_COND_I]], !llvm.loop [[LOOP46:![0-9]+]]
+    // CHECK:       _ZN4sycl3_V1miERKNS0_6marrayIsLm7EEES4_.exit:
+    // CHECK-NEXT:    ret void
+    //
+    arithmetic_i16x7_marr(marray<std::int16_t, 7> a,
+                          marray<std::int16_t, 7> b) {
   return a - b;
 }
 
@@ -162,71 +171,76 @@ arithmetic_i16x7_marr(marray<std::int16_t, 7> a, marray<std::int16_t, 7> b) {
 // int32_t - Standard size (4) vs Non-standard size (6)
 //------------------------------------------------------------------------------
 
-SYCL_EXTERNAL vec<std::int32_t, 4>
-// CHECK-LABEL: @_Z20arithmetic_i32x4_vecN4sycl3_V13vecIiLi4EEES2_(
-// CHECK-NEXT:  entry:
-// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META47:![0-9]+]])
-// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META50:![0-9]+]])
-// CHECK-NEXT:    [[TMP0:%.*]] = load <4 x i32>, ptr [[A:%.*]], align 16, !tbaa [[TBAA16]], !noalias [[META53:![0-9]+]]
-// CHECK-NEXT:    [[TMP1:%.*]] = load <4 x i32>, ptr [[B:%.*]], align 16, !tbaa [[TBAA16]], !noalias [[META53]]
-// CHECK-NEXT:    [[MUL_I_I_I_I_I:%.*]] = mul <4 x i32> [[TMP0]], [[TMP1]]
-// CHECK-NEXT:    store <4 x i32> [[MUL_I_I_I_I_I]], ptr addrspace(4) [[AGG_RESULT:%.*]], align 16, !alias.scope [[META53]]
-// CHECK-NEXT:    ret void
-//
-arithmetic_i32x4_vec(vec<std::int32_t, 4> a, vec<std::int32_t, 4> b) {
+SYCL_EXTERNAL
+vec<std::int32_t, 4>
+    // CHECK-LABEL: @_Z20arithmetic_i32x4_vecN4sycl3_V13vecIiLi4EEES2_(
+    // CHECK-NEXT:  entry:
+    // CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META47:![0-9]+]])
+    // CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META50:![0-9]+]])
+    // CHECK-NEXT:    [[TMP0:%.*]] = load <4 x i32>, ptr [[A:%.*]], align 16, !tbaa [[TBAA16]], !noalias [[META53:![0-9]+]]
+    // CHECK-NEXT:    [[TMP1:%.*]] = load <4 x i32>, ptr [[B:%.*]], align 16, !tbaa [[TBAA16]], !noalias [[META53]]
+    // CHECK-NEXT:    [[MUL_I_I_I_I_I:%.*]] = mul <4 x i32> [[TMP0]], [[TMP1]]
+    // CHECK-NEXT:    store <4 x i32> [[MUL_I_I_I_I_I]], ptr addrspace(4) [[AGG_RESULT:%.*]], align 16, !alias.scope [[META53]]
+    // CHECK-NEXT:    ret void
+    //
+    arithmetic_i32x4_vec(vec<std::int32_t, 4> a, vec<std::int32_t, 4> b) {
   return a * b;
 }
 
-SYCL_EXTERNAL marray<std::int32_t, 4>
-// CHECK-LABEL: @_Z21arithmetic_i32x4_marrN4sycl3_V16marrayIiLm4EEES2_(
-// CHECK-NEXT:  entry:
-// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META54:![0-9]+]])
-// CHECK-NEXT:    br label [[FOR_COND_I:%.*]]
-// CHECK:       for.cond.i:
-// CHECK-NEXT:    [[I_0_I:%.*]] = phi i64 [ 0, [[ENTRY:%.*]] ], [ [[INC_I:%.*]], [[FOR_BODY_I:%.*]] ]
-// CHECK-NEXT:    [[CMP_I:%.*]] = icmp samesign ult i64 [[I_0_I]], 4
-// CHECK-NEXT:    br i1 [[CMP_I]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V1MLERKNS0_6MARRAYIILM4EEES4__EXIT:%.*]]
-// CHECK:       for.body.i:
-// CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds [4 x i8], ptr [[A:%.*]], i64 [[I_0_I]]
-// CHECK-NEXT:    [[TMP0:%.*]] = load i32, ptr [[ARRAYIDX_I_I]], align 4, !tbaa [[TBAA5:![0-9]+]], !noalias [[META54]]
-// CHECK-NEXT:    [[ARRAYIDX_I7_I:%.*]] = getelementptr inbounds [4 x i8], ptr [[B:%.*]], i64 [[I_0_I]]
-// CHECK-NEXT:    [[TMP1:%.*]] = load i32, ptr [[ARRAYIDX_I7_I]], align 4, !tbaa [[TBAA5]], !noalias [[META54]]
-// CHECK-NEXT:    [[MUL_I:%.*]] = mul nsw i32 [[TMP0]], [[TMP1]]
-// CHECK-NEXT:    [[ARRAYIDX_I8_I:%.*]] = getelementptr inbounds nuw [4 x i8], ptr addrspace(4) [[AGG_RESULT:%.*]], i64 [[I_0_I]]
-// CHECK-NEXT:    store i32 [[MUL_I]], ptr addrspace(4) [[ARRAYIDX_I8_I]], align 4, !tbaa [[TBAA5]], !alias.scope [[META54]]
-// CHECK-NEXT:    [[INC_I]] = add nuw nsw i64 [[I_0_I]], 1
-// CHECK-NEXT:    br label [[FOR_COND_I]], !llvm.loop [[LOOP57:![0-9]+]]
-// CHECK:       _ZN4sycl3_V1mlERKNS0_6marrayIiLm4EEES4_.exit:
-// CHECK-NEXT:    ret void
-//
-arithmetic_i32x4_marr(marray<std::int32_t, 4> a, marray<std::int32_t, 4> b) {
+SYCL_EXTERNAL
+marray<std::int32_t, 4>
+    // CHECK-LABEL: @_Z21arithmetic_i32x4_marrN4sycl3_V16marrayIiLm4EEES2_(
+    // CHECK-NEXT:  entry:
+    // CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META54:![0-9]+]])
+    // CHECK-NEXT:    br label [[FOR_COND_I:%.*]]
+    // CHECK:       for.cond.i:
+    // CHECK-NEXT:    [[I_0_I:%.*]] = phi i64 [ 0, [[ENTRY:%.*]] ], [ [[INC_I:%.*]], [[FOR_BODY_I:%.*]] ]
+    // CHECK-NEXT:    [[CMP_I:%.*]] = icmp samesign ult i64 [[I_0_I]], 4
+    // CHECK-NEXT:    br i1 [[CMP_I]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V1MLERKNS0_6MARRAYIILM4EEES4__EXIT:%.*]]
+    // CHECK:       for.body.i:
+    // CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds [4 x i8], ptr [[A:%.*]], i64 [[I_0_I]]
+    // CHECK-NEXT:    [[TMP0:%.*]] = load i32, ptr [[ARRAYIDX_I_I]], align 4, !tbaa [[TBAA5:![0-9]+]], !noalias [[META54]]
+    // CHECK-NEXT:    [[ARRAYIDX_I7_I:%.*]] = getelementptr inbounds [4 x i8], ptr [[B:%.*]], i64 [[I_0_I]]
+    // CHECK-NEXT:    [[TMP1:%.*]] = load i32, ptr [[ARRAYIDX_I7_I]], align 4, !tbaa [[TBAA5]], !noalias [[META54]]
+    // CHECK-NEXT:    [[MUL_I:%.*]] = mul nsw i32 [[TMP0]], [[TMP1]]
+    // CHECK-NEXT:    [[ARRAYIDX_I8_I:%.*]] = getelementptr inbounds nuw [4 x i8], ptr addrspace(4) [[AGG_RESULT:%.*]], i64 [[I_0_I]]
+    // CHECK-NEXT:    store i32 [[MUL_I]], ptr addrspace(4) [[ARRAYIDX_I8_I]], align 4, !tbaa [[TBAA5]], !alias.scope [[META54]]
+    // CHECK-NEXT:    [[INC_I]] = add nuw nsw i64 [[I_0_I]], 1
+    // CHECK-NEXT:    br label [[FOR_COND_I]], !llvm.loop [[LOOP57:![0-9]+]]
+    // CHECK:       _ZN4sycl3_V1mlERKNS0_6marrayIiLm4EEES4_.exit:
+    // CHECK-NEXT:    ret void
+    //
+    arithmetic_i32x4_marr(marray<std::int32_t, 4> a,
+                          marray<std::int32_t, 4> b) {
   return a * b;
 }
 
 // Non-standard size - should use loop
-SYCL_EXTERNAL marray<std::int32_t, 6>
-// CHECK-LABEL: @_Z21arithmetic_i32x6_marrN4sycl3_V16marrayIiLm6EEES2_(
-// CHECK-NEXT:  entry:
-// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META58:![0-9]+]])
-// CHECK-NEXT:    br label [[FOR_COND_I:%.*]]
-// CHECK:       for.cond.i:
-// CHECK-NEXT:    [[I_0_I:%.*]] = phi i64 [ 0, [[ENTRY:%.*]] ], [ [[INC_I:%.*]], [[FOR_BODY_I:%.*]] ]
-// CHECK-NEXT:    [[CMP_I:%.*]] = icmp samesign ult i64 [[I_0_I]], 6
-// CHECK-NEXT:    br i1 [[CMP_I]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V1MLERKNS0_6MARRAYIILM6EEES4__EXIT:%.*]]
-// CHECK:       for.body.i:
-// CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds [4 x i8], ptr [[A:%.*]], i64 [[I_0_I]]
-// CHECK-NEXT:    [[TMP0:%.*]] = load i32, ptr [[ARRAYIDX_I_I]], align 4, !tbaa [[TBAA5]], !noalias [[META58]]
-// CHECK-NEXT:    [[ARRAYIDX_I7_I:%.*]] = getelementptr inbounds [4 x i8], ptr [[B:%.*]], i64 [[I_0_I]]
-// CHECK-NEXT:    [[TMP1:%.*]] = load i32, ptr [[ARRAYIDX_I7_I]], align 4, !tbaa [[TBAA5]], !noalias [[META58]]
-// CHECK-NEXT:    [[MUL_I:%.*]] = mul nsw i32 [[TMP0]], [[TMP1]]
-// CHECK-NEXT:    [[ARRAYIDX_I8_I:%.*]] = getelementptr inbounds nuw [4 x i8], ptr addrspace(4) [[AGG_RESULT:%.*]], i64 [[I_0_I]]
-// CHECK-NEXT:    store i32 [[MUL_I]], ptr addrspace(4) [[ARRAYIDX_I8_I]], align 4, !tbaa [[TBAA5]], !alias.scope [[META58]]
-// CHECK-NEXT:    [[INC_I]] = add nuw nsw i64 [[I_0_I]], 1
-// CHECK-NEXT:    br label [[FOR_COND_I]], !llvm.loop [[LOOP61:![0-9]+]]
-// CHECK:       _ZN4sycl3_V1mlERKNS0_6marrayIiLm6EEES4_.exit:
-// CHECK-NEXT:    ret void
-//
-arithmetic_i32x6_marr(marray<std::int32_t, 6> a, marray<std::int32_t, 6> b) {
+SYCL_EXTERNAL
+marray<std::int32_t, 6>
+    // CHECK-LABEL: @_Z21arithmetic_i32x6_marrN4sycl3_V16marrayIiLm6EEES2_(
+    // CHECK-NEXT:  entry:
+    // CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META58:![0-9]+]])
+    // CHECK-NEXT:    br label [[FOR_COND_I:%.*]]
+    // CHECK:       for.cond.i:
+    // CHECK-NEXT:    [[I_0_I:%.*]] = phi i64 [ 0, [[ENTRY:%.*]] ], [ [[INC_I:%.*]], [[FOR_BODY_I:%.*]] ]
+    // CHECK-NEXT:    [[CMP_I:%.*]] = icmp samesign ult i64 [[I_0_I]], 6
+    // CHECK-NEXT:    br i1 [[CMP_I]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V1MLERKNS0_6MARRAYIILM6EEES4__EXIT:%.*]]
+    // CHECK:       for.body.i:
+    // CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds [4 x i8], ptr [[A:%.*]], i64 [[I_0_I]]
+    // CHECK-NEXT:    [[TMP0:%.*]] = load i32, ptr [[ARRAYIDX_I_I]], align 4, !tbaa [[TBAA5]], !noalias [[META58]]
+    // CHECK-NEXT:    [[ARRAYIDX_I7_I:%.*]] = getelementptr inbounds [4 x i8], ptr [[B:%.*]], i64 [[I_0_I]]
+    // CHECK-NEXT:    [[TMP1:%.*]] = load i32, ptr [[ARRAYIDX_I7_I]], align 4, !tbaa [[TBAA5]], !noalias [[META58]]
+    // CHECK-NEXT:    [[MUL_I:%.*]] = mul nsw i32 [[TMP0]], [[TMP1]]
+    // CHECK-NEXT:    [[ARRAYIDX_I8_I:%.*]] = getelementptr inbounds nuw [4 x i8], ptr addrspace(4) [[AGG_RESULT:%.*]], i64 [[I_0_I]]
+    // CHECK-NEXT:    store i32 [[MUL_I]], ptr addrspace(4) [[ARRAYIDX_I8_I]], align 4, !tbaa [[TBAA5]], !alias.scope [[META58]]
+    // CHECK-NEXT:    [[INC_I]] = add nuw nsw i64 [[I_0_I]], 1
+    // CHECK-NEXT:    br label [[FOR_COND_I]], !llvm.loop [[LOOP61:![0-9]+]]
+    // CHECK:       _ZN4sycl3_V1mlERKNS0_6marrayIiLm6EEES4_.exit:
+    // CHECK-NEXT:    ret void
+    //
+    arithmetic_i32x6_marr(marray<std::int32_t, 6> a,
+                          marray<std::int32_t, 6> b) {
   return a * b;
 }
 
@@ -234,71 +248,76 @@ arithmetic_i32x6_marr(marray<std::int32_t, 6> a, marray<std::int32_t, 6> b) {
 // int64_t - Standard size (16) vs Non-standard size (32)
 //------------------------------------------------------------------------------
 
-SYCL_EXTERNAL vec<std::int64_t, 16>
-// CHECK-LABEL: @_Z21arithmetic_i64x16_vecN4sycl3_V13vecIlLi16EEES2_(
-// CHECK-NEXT:  entry:
-// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META62:![0-9]+]])
-// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META65:![0-9]+]])
-// CHECK-NEXT:    [[TMP0:%.*]] = load <16 x i64>, ptr [[A:%.*]], align 64, !tbaa [[TBAA16]], !noalias [[META68:![0-9]+]]
-// CHECK-NEXT:    [[TMP1:%.*]] = load <16 x i64>, ptr [[B:%.*]], align 64, !tbaa [[TBAA16]], !noalias [[META68]]
-// CHECK-NEXT:    [[OR_I_I_I_I_I:%.*]] = or <16 x i64> [[TMP0]], [[TMP1]]
-// CHECK-NEXT:    store <16 x i64> [[OR_I_I_I_I_I]], ptr addrspace(4) [[AGG_RESULT:%.*]], align 64, !alias.scope [[META68]]
-// CHECK-NEXT:    ret void
-//
-arithmetic_i64x16_vec(vec<std::int64_t, 16> a, vec<std::int64_t, 16> b) {
+SYCL_EXTERNAL
+vec<std::int64_t, 16>
+    // CHECK-LABEL: @_Z21arithmetic_i64x16_vecN4sycl3_V13vecIlLi16EEES2_(
+    // CHECK-NEXT:  entry:
+    // CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META62:![0-9]+]])
+    // CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META65:![0-9]+]])
+    // CHECK-NEXT:    [[TMP0:%.*]] = load <16 x i64>, ptr [[A:%.*]], align 64, !tbaa [[TBAA16]], !noalias [[META68:![0-9]+]]
+    // CHECK-NEXT:    [[TMP1:%.*]] = load <16 x i64>, ptr [[B:%.*]], align 64, !tbaa [[TBAA16]], !noalias [[META68]]
+    // CHECK-NEXT:    [[OR_I_I_I_I_I:%.*]] = or <16 x i64> [[TMP0]], [[TMP1]]
+    // CHECK-NEXT:    store <16 x i64> [[OR_I_I_I_I_I]], ptr addrspace(4) [[AGG_RESULT:%.*]], align 64, !alias.scope [[META68]]
+    // CHECK-NEXT:    ret void
+    //
+    arithmetic_i64x16_vec(vec<std::int64_t, 16> a, vec<std::int64_t, 16> b) {
   return a | b;
 }
 
-SYCL_EXTERNAL marray<std::int64_t, 16>
-// CHECK-LABEL: @_Z22arithmetic_i64x16_marrN4sycl3_V16marrayIlLm16EEES2_(
-// CHECK-NEXT:  entry:
-// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META69:![0-9]+]])
-// CHECK-NEXT:    br label [[FOR_COND_I:%.*]]
-// CHECK:       for.cond.i:
-// CHECK-NEXT:    [[I_0_I:%.*]] = phi i64 [ 0, [[ENTRY:%.*]] ], [ [[INC_I:%.*]], [[FOR_BODY_I:%.*]] ]
-// CHECK-NEXT:    [[CMP_I:%.*]] = icmp samesign ult i64 [[I_0_I]], 16
-// CHECK-NEXT:    br i1 [[CMP_I]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V1ORILNS0_6MARRAYILLM16EEEEES3_RKS3_S5__EXIT:%.*]]
-// CHECK:       for.body.i:
-// CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds [8 x i8], ptr [[A:%.*]], i64 [[I_0_I]]
-// CHECK-NEXT:    [[TMP0:%.*]] = load i64, ptr [[ARRAYIDX_I_I]], align 8, !tbaa [[TBAA72:![0-9]+]], !noalias [[META69]]
-// CHECK-NEXT:    [[ARRAYIDX_I7_I:%.*]] = getelementptr inbounds [8 x i8], ptr [[B:%.*]], i64 [[I_0_I]]
-// CHECK-NEXT:    [[TMP1:%.*]] = load i64, ptr [[ARRAYIDX_I7_I]], align 8, !tbaa [[TBAA72]], !noalias [[META69]]
-// CHECK-NEXT:    [[OR_I:%.*]] = or i64 [[TMP0]], [[TMP1]]
-// CHECK-NEXT:    [[ARRAYIDX_I8_I:%.*]] = getelementptr inbounds nuw [8 x i8], ptr addrspace(4) [[AGG_RESULT:%.*]], i64 [[I_0_I]]
-// CHECK-NEXT:    store i64 [[OR_I]], ptr addrspace(4) [[ARRAYIDX_I8_I]], align 8, !tbaa [[TBAA72]], !alias.scope [[META69]]
-// CHECK-NEXT:    [[INC_I]] = add nuw nsw i64 [[I_0_I]], 1
-// CHECK-NEXT:    br label [[FOR_COND_I]], !llvm.loop [[LOOP74:![0-9]+]]
-// CHECK:       _ZN4sycl3_V1orIlNS0_6marrayIlLm16EEEEES3_RKS3_S5_.exit:
-// CHECK-NEXT:    ret void
-//
-arithmetic_i64x16_marr(marray<std::int64_t, 16> a, marray<std::int64_t, 16> b) {
+SYCL_EXTERNAL
+marray<std::int64_t, 16>
+    // CHECK-LABEL: @_Z22arithmetic_i64x16_marrN4sycl3_V16marrayIlLm16EEES2_(
+    // CHECK-NEXT:  entry:
+    // CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META69:![0-9]+]])
+    // CHECK-NEXT:    br label [[FOR_COND_I:%.*]]
+    // CHECK:       for.cond.i:
+    // CHECK-NEXT:    [[I_0_I:%.*]] = phi i64 [ 0, [[ENTRY:%.*]] ], [ [[INC_I:%.*]], [[FOR_BODY_I:%.*]] ]
+    // CHECK-NEXT:    [[CMP_I:%.*]] = icmp samesign ult i64 [[I_0_I]], 16
+    // CHECK-NEXT:    br i1 [[CMP_I]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V1ORILNS0_6MARRAYILLM16EEEEES3_RKS3_S5__EXIT:%.*]]
+    // CHECK:       for.body.i:
+    // CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds [8 x i8], ptr [[A:%.*]], i64 [[I_0_I]]
+    // CHECK-NEXT:    [[TMP0:%.*]] = load i64, ptr [[ARRAYIDX_I_I]], align 8, !tbaa [[TBAA72:![0-9]+]], !noalias [[META69]]
+    // CHECK-NEXT:    [[ARRAYIDX_I7_I:%.*]] = getelementptr inbounds [8 x i8], ptr [[B:%.*]], i64 [[I_0_I]]
+    // CHECK-NEXT:    [[TMP1:%.*]] = load i64, ptr [[ARRAYIDX_I7_I]], align 8, !tbaa [[TBAA72]], !noalias [[META69]]
+    // CHECK-NEXT:    [[OR_I:%.*]] = or i64 [[TMP0]], [[TMP1]]
+    // CHECK-NEXT:    [[ARRAYIDX_I8_I:%.*]] = getelementptr inbounds nuw [8 x i8], ptr addrspace(4) [[AGG_RESULT:%.*]], i64 [[I_0_I]]
+    // CHECK-NEXT:    store i64 [[OR_I]], ptr addrspace(4) [[ARRAYIDX_I8_I]], align 8, !tbaa [[TBAA72]], !alias.scope [[META69]]
+    // CHECK-NEXT:    [[INC_I]] = add nuw nsw i64 [[I_0_I]], 1
+    // CHECK-NEXT:    br label [[FOR_COND_I]], !llvm.loop [[LOOP74:![0-9]+]]
+    // CHECK:       _ZN4sycl3_V1orIlNS0_6marrayIlLm16EEEEES3_RKS3_S5_.exit:
+    // CHECK-NEXT:    ret void
+    //
+    arithmetic_i64x16_marr(marray<std::int64_t, 16> a,
+                           marray<std::int64_t, 16> b) {
   return a | b;
 }
 
 // Non-standard size - should use loop
-SYCL_EXTERNAL marray<std::int64_t, 32>
-// CHECK-LABEL: @_Z22arithmetic_i64x32_marrN4sycl3_V16marrayIlLm32EEES2_(
-// CHECK-NEXT:  entry:
-// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META75:![0-9]+]])
-// CHECK-NEXT:    br label [[FOR_COND_I:%.*]]
-// CHECK:       for.cond.i:
-// CHECK-NEXT:    [[I_0_I:%.*]] = phi i64 [ 0, [[ENTRY:%.*]] ], [ [[INC_I:%.*]], [[FOR_BODY_I:%.*]] ]
-// CHECK-NEXT:    [[CMP_I:%.*]] = icmp samesign ult i64 [[I_0_I]], 32
-// CHECK-NEXT:    br i1 [[CMP_I]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V1ORILNS0_6MARRAYILLM32EEEEES3_RKS3_S5__EXIT:%.*]]
-// CHECK:       for.body.i:
-// CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds [8 x i8], ptr [[A:%.*]], i64 [[I_0_I]]
-// CHECK-NEXT:    [[TMP0:%.*]] = load i64, ptr [[ARRAYIDX_I_I]], align 8, !tbaa [[TBAA72]], !noalias [[META75]]
-// CHECK-NEXT:    [[ARRAYIDX_I7_I:%.*]] = getelementptr inbounds [8 x i8], ptr [[B:%.*]], i64 [[I_0_I]]
-// CHECK-NEXT:    [[TMP1:%.*]] = load i64, ptr [[ARRAYIDX_I7_I]], align 8, !tbaa [[TBAA72]], !noalias [[META75]]
-// CHECK-NEXT:    [[OR_I:%.*]] = or i64 [[TMP0]], [[TMP1]]
-// CHECK-NEXT:    [[ARRAYIDX_I8_I:%.*]] = getelementptr inbounds nuw [8 x i8], ptr addrspace(4) [[AGG_RESULT:%.*]], i64 [[I_0_I]]
-// CHECK-NEXT:    store i64 [[OR_I]], ptr addrspace(4) [[ARRAYIDX_I8_I]], align 8, !tbaa [[TBAA72]], !alias.scope [[META75]]
-// CHECK-NEXT:    [[INC_I]] = add nuw nsw i64 [[I_0_I]], 1
-// CHECK-NEXT:    br label [[FOR_COND_I]], !llvm.loop [[LOOP78:![0-9]+]]
-// CHECK:       _ZN4sycl3_V1orIlNS0_6marrayIlLm32EEEEES3_RKS3_S5_.exit:
-// CHECK-NEXT:    ret void
-//
-arithmetic_i64x32_marr(marray<std::int64_t, 32> a, marray<std::int64_t, 32> b) {
+SYCL_EXTERNAL
+marray<std::int64_t, 32>
+    // CHECK-LABEL: @_Z22arithmetic_i64x32_marrN4sycl3_V16marrayIlLm32EEES2_(
+    // CHECK-NEXT:  entry:
+    // CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META75:![0-9]+]])
+    // CHECK-NEXT:    br label [[FOR_COND_I:%.*]]
+    // CHECK:       for.cond.i:
+    // CHECK-NEXT:    [[I_0_I:%.*]] = phi i64 [ 0, [[ENTRY:%.*]] ], [ [[INC_I:%.*]], [[FOR_BODY_I:%.*]] ]
+    // CHECK-NEXT:    [[CMP_I:%.*]] = icmp samesign ult i64 [[I_0_I]], 32
+    // CHECK-NEXT:    br i1 [[CMP_I]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V1ORILNS0_6MARRAYILLM32EEEEES3_RKS3_S5__EXIT:%.*]]
+    // CHECK:       for.body.i:
+    // CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds [8 x i8], ptr [[A:%.*]], i64 [[I_0_I]]
+    // CHECK-NEXT:    [[TMP0:%.*]] = load i64, ptr [[ARRAYIDX_I_I]], align 8, !tbaa [[TBAA72]], !noalias [[META75]]
+    // CHECK-NEXT:    [[ARRAYIDX_I7_I:%.*]] = getelementptr inbounds [8 x i8], ptr [[B:%.*]], i64 [[I_0_I]]
+    // CHECK-NEXT:    [[TMP1:%.*]] = load i64, ptr [[ARRAYIDX_I7_I]], align 8, !tbaa [[TBAA72]], !noalias [[META75]]
+    // CHECK-NEXT:    [[OR_I:%.*]] = or i64 [[TMP0]], [[TMP1]]
+    // CHECK-NEXT:    [[ARRAYIDX_I8_I:%.*]] = getelementptr inbounds nuw [8 x i8], ptr addrspace(4) [[AGG_RESULT:%.*]], i64 [[I_0_I]]
+    // CHECK-NEXT:    store i64 [[OR_I]], ptr addrspace(4) [[ARRAYIDX_I8_I]], align 8, !tbaa [[TBAA72]], !alias.scope [[META75]]
+    // CHECK-NEXT:    [[INC_I]] = add nuw nsw i64 [[I_0_I]], 1
+    // CHECK-NEXT:    br label [[FOR_COND_I]], !llvm.loop [[LOOP78:![0-9]+]]
+    // CHECK:       _ZN4sycl3_V1orIlNS0_6marrayIlLm32EEEEES3_RKS3_S5_.exit:
+    // CHECK-NEXT:    ret void
+    //
+    arithmetic_i64x32_marr(marray<std::int64_t, 32> a,
+                           marray<std::int64_t, 32> b) {
   return a | b;
 }
 
@@ -317,7 +336,7 @@ arithmetic_i64x32_marr(marray<std::int64_t, 32> a, marray<std::int64_t, 32> b) {
 // CHECK-NEXT:    ret void
 //
 SYCL_EXTERNAL vec<float, 4> arithmetic_f32x4_vec(vec<float, 4> a,
-                                                  vec<float, 4> b) {
+                                                 vec<float, 4> b) {
   return a + b;
 }
 
@@ -343,7 +362,7 @@ SYCL_EXTERNAL vec<float, 4> arithmetic_f32x4_vec(vec<float, 4> a,
 // CHECK-NEXT:    ret void
 //
 SYCL_EXTERNAL marray<float, 4> arithmetic_f32x4_marr(marray<float, 4> a,
-                                                      marray<float, 4> b) {
+                                                     marray<float, 4> b) {
   return a + b;
 }
 
@@ -370,7 +389,7 @@ SYCL_EXTERNAL marray<float, 4> arithmetic_f32x4_marr(marray<float, 4> a,
 // CHECK-NEXT:    ret void
 //
 SYCL_EXTERNAL marray<float, 5> arithmetic_f32x5_marr(marray<float, 5> a,
-                                                      marray<float, 5> b) {
+                                                     marray<float, 5> b) {
   return a + b;
 }
 
@@ -389,7 +408,7 @@ SYCL_EXTERNAL marray<float, 5> arithmetic_f32x5_marr(marray<float, 5> a,
 // CHECK-NEXT:    ret void
 //
 SYCL_EXTERNAL vec<double, 4> arithmetic_f64x4_vec(vec<double, 4> a,
-                                                   vec<double, 4> b) {
+                                                  vec<double, 4> b) {
   return a - b;
 }
 
@@ -415,7 +434,7 @@ SYCL_EXTERNAL vec<double, 4> arithmetic_f64x4_vec(vec<double, 4> a,
 // CHECK-NEXT:    ret void
 //
 SYCL_EXTERNAL marray<double, 4> arithmetic_f64x4_marr(marray<double, 4> a,
-                                                       marray<double, 4> b) {
+                                                      marray<double, 4> b) {
   return a - b;
 }
 
@@ -442,7 +461,7 @@ SYCL_EXTERNAL marray<double, 4> arithmetic_f64x4_marr(marray<double, 4> a,
 // CHECK-NEXT:    ret void
 //
 SYCL_EXTERNAL marray<double, 5> arithmetic_f64x5_marr(marray<double, 5> a,
-                                                       marray<double, 5> b) {
+                                                      marray<double, 5> b) {
   return a - b;
 }
 
@@ -461,7 +480,7 @@ SYCL_EXTERNAL marray<double, 5> arithmetic_f64x5_marr(marray<double, 5> a,
 // CHECK-NEXT:    ret void
 //
 SYCL_EXTERNAL vec<half, 8> arithmetic_f16x8_vec(vec<half, 8> a,
-                                                 vec<half, 8> b) {
+                                                vec<half, 8> b) {
   return a * b;
 }
 
@@ -487,7 +506,7 @@ SYCL_EXTERNAL vec<half, 8> arithmetic_f16x8_vec(vec<half, 8> a,
 // CHECK-NEXT:    ret void
 //
 SYCL_EXTERNAL marray<half, 8> arithmetic_f16x8_marr(marray<half, 8> a,
-                                                     marray<half, 8> b) {
+                                                    marray<half, 8> b) {
   return a * b;
 }
 
@@ -514,7 +533,7 @@ SYCL_EXTERNAL marray<half, 8> arithmetic_f16x8_marr(marray<half, 8> a,
 // CHECK-NEXT:    ret void
 //
 SYCL_EXTERNAL marray<half, 7> arithmetic_f16x7_marr(marray<half, 7> a,
-                                                     marray<half, 7> b) {
+                                                    marray<half, 7> b) {
   return a * b;
 }
 
@@ -522,77 +541,79 @@ SYCL_EXTERNAL marray<half, 7> arithmetic_f16x7_marr(marray<half, 7> a,
 // bfloat16
 //------------------------------------------------------------------------------
 
-SYCL_EXTERNAL vec<ext::oneapi::bfloat16, 8>
-// CHECK-LABEL: @_Z21arithmetic_bf16x8_vecN4sycl3_V13vecINS0_3ext6oneapi8bfloat16ELi8EEES5_(
-// CHECK-NEXT:  entry:
-// CHECK-NEXT:    [[REF_TMP_I_I_I_I:%.*]] = alloca float, align 4
-// CHECK-NEXT:    [[RES_I_I:%.*]] = alloca %"class.sycl::_V1::vec.280", align 16
-// CHECK-NEXT:    [[A_ASCAST:%.*]] = addrspacecast ptr [[A:%.*]] to ptr addrspace(4)
-// CHECK-NEXT:    [[B_ASCAST:%.*]] = addrspacecast ptr [[B:%.*]] to ptr addrspace(4)
-// CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[RES_I_I]]), !noalias [[META134:![0-9]+]]
-// CHECK-NEXT:    call void @llvm.memset.p0.i64(ptr align 16 [[RES_I_I]], i8 0, i64 16, i1 false), !noalias [[META137:![0-9]+]]
-// CHECK-NEXT:    [[REF_TMP_ASCAST_I_I_I_I:%.*]] = addrspacecast ptr [[REF_TMP_I_I_I_I]] to ptr addrspace(4)
-// CHECK-NEXT:    br label [[FOR_COND_I_I:%.*]]
-// CHECK:       for.cond.i.i:
-// CHECK-NEXT:    [[I_0_I_I:%.*]] = phi i64 [ 0, [[ENTRY:%.*]] ], [ [[INC_I_I:%.*]], [[FOR_BODY_I_I:%.*]] ]
-// CHECK-NEXT:    [[CMP_I_I:%.*]] = icmp samesign ult i64 [[I_0_I_I]], 8
-// CHECK-NEXT:    br i1 [[CMP_I_I]], label [[FOR_BODY_I_I]], label [[_ZN4SYCL3_V16DETAILMLERKNS0_3VECINS0_3EXT6ONEAPI8BFLOAT16ELI8EEES8__EXIT:%.*]]
-// CHECK:       for.body.i.i:
-// CHECK-NEXT:    [[ARRAYIDX_I_I_I:%.*]] = getelementptr inbounds nuw [2 x i8], ptr addrspace(4) [[A_ASCAST]], i64 [[I_0_I_I]]
-// CHECK-NEXT:    [[ARRAYIDX_I12_I_I:%.*]] = getelementptr inbounds nuw [2 x i8], ptr addrspace(4) [[B_ASCAST]], i64 [[I_0_I_I]]
-// CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[REF_TMP_I_I_I_I]]), !noalias [[META140:![0-9]+]]
-// CHECK-NEXT:    [[CALL_I_I_I_I_I_I:%.*]] = call spir_func noundef float @__devicelib_ConvertBF16ToFINTEL(ptr addrspace(4) noundef align 2 dereferenceable(2) dereferenceable_or_null(2) [[ARRAYIDX_I_I_I]]) #[[ATTR9:[0-9]+]], !noalias [[META143:![0-9]+]]
-// CHECK-NEXT:    [[CALL_I_I2_I_I_I_I:%.*]] = call spir_func noundef float @__devicelib_ConvertBF16ToFINTEL(ptr addrspace(4) noundef align 2 dereferenceable(2) dereferenceable_or_null(2) [[ARRAYIDX_I12_I_I]]) #[[ATTR9]], !noalias [[META143]]
-// CHECK-NEXT:    [[MUL_I_I_I_I:%.*]] = fmul float [[CALL_I_I_I_I_I_I]], [[CALL_I_I2_I_I_I_I]]
-// CHECK-NEXT:    store float [[MUL_I_I_I_I]], ptr [[REF_TMP_I_I_I_I]], align 4, !tbaa [[TBAA89]], !noalias [[META143]]
-// CHECK-NEXT:    [[CALL_I_I3_I_I_I_I:%.*]] = call spir_func noundef zeroext i16 @__devicelib_ConvertFToBF16INTEL(ptr addrspace(4) noundef align 4 dereferenceable(4) [[REF_TMP_ASCAST_I_I_I_I]]) #[[ATTR9]], !noalias [[META143]]
-// CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[REF_TMP_I_I_I_I]]), !noalias [[META140]]
-// CHECK-NEXT:    [[ARRAYIDX_I14_I_I:%.*]] = getelementptr inbounds [2 x i8], ptr [[RES_I_I]], i64 [[I_0_I_I]]
-// CHECK-NEXT:    store i16 [[CALL_I_I3_I_I_I_I]], ptr [[ARRAYIDX_I14_I_I]], align 2, !tbaa [[TBAA40]], !noalias [[META137]]
-// CHECK-NEXT:    [[INC_I_I]] = add nuw nsw i64 [[I_0_I_I]], 1
-// CHECK-NEXT:    br label [[FOR_COND_I_I]], !llvm.loop [[LOOP146:![0-9]+]]
-// CHECK:       _ZN4sycl3_V16detailmlERKNS0_3vecINS0_3ext6oneapi8bfloat16ELi8EEES8_.exit:
-// CHECK-NEXT:    call void @llvm.memcpy.p4.p0.i64(ptr addrspace(4) align 16 [[AGG_RESULT:%.*]], ptr align 16 [[RES_I_I]], i64 16, i1 false)
-// CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[RES_I_I]]), !noalias [[META134]]
-// CHECK-NEXT:    ret void
-//
-arithmetic_bf16x8_vec(vec<ext::oneapi::bfloat16, 8> a,
-                      vec<ext::oneapi::bfloat16, 8> b) {
+SYCL_EXTERNAL
+vec<ext::oneapi::bfloat16, 8>
+    // CHECK-LABEL: @_Z21arithmetic_bf16x8_vecN4sycl3_V13vecINS0_3ext6oneapi8bfloat16ELi8EEES5_(
+    // CHECK-NEXT:  entry:
+    // CHECK-NEXT:    [[REF_TMP_I_I_I_I:%.*]] = alloca float, align 4
+    // CHECK-NEXT:    [[RES_I_I:%.*]] = alloca %"class.sycl::_V1::vec.280", align 16
+    // CHECK-NEXT:    [[A_ASCAST:%.*]] = addrspacecast ptr [[A:%.*]] to ptr addrspace(4)
+    // CHECK-NEXT:    [[B_ASCAST:%.*]] = addrspacecast ptr [[B:%.*]] to ptr addrspace(4)
+    // CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[RES_I_I]]), !noalias [[META134:![0-9]+]]
+    // CHECK-NEXT:    call void @llvm.memset.p0.i64(ptr align 16 [[RES_I_I]], i8 0, i64 16, i1 false), !noalias [[META137:![0-9]+]]
+    // CHECK-NEXT:    [[REF_TMP_ASCAST_I_I_I_I:%.*]] = addrspacecast ptr [[REF_TMP_I_I_I_I]] to ptr addrspace(4)
+    // CHECK-NEXT:    br label [[FOR_COND_I_I:%.*]]
+    // CHECK:       for.cond.i.i:
+    // CHECK-NEXT:    [[I_0_I_I:%.*]] = phi i64 [ 0, [[ENTRY:%.*]] ], [ [[INC_I_I:%.*]], [[FOR_BODY_I_I:%.*]] ]
+    // CHECK-NEXT:    [[CMP_I_I:%.*]] = icmp samesign ult i64 [[I_0_I_I]], 8
+    // CHECK-NEXT:    br i1 [[CMP_I_I]], label [[FOR_BODY_I_I]], label [[_ZN4SYCL3_V16DETAILMLERKNS0_3VECINS0_3EXT6ONEAPI8BFLOAT16ELI8EEES8__EXIT:%.*]]
+    // CHECK:       for.body.i.i:
+    // CHECK-NEXT:    [[ARRAYIDX_I_I_I:%.*]] = getelementptr inbounds nuw [2 x i8], ptr addrspace(4) [[A_ASCAST]], i64 [[I_0_I_I]]
+    // CHECK-NEXT:    [[ARRAYIDX_I12_I_I:%.*]] = getelementptr inbounds nuw [2 x i8], ptr addrspace(4) [[B_ASCAST]], i64 [[I_0_I_I]]
+    // CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[REF_TMP_I_I_I_I]]), !noalias [[META140:![0-9]+]]
+    // CHECK-NEXT:    [[CALL_I_I_I_I_I_I:%.*]] = call spir_func noundef float @__devicelib_ConvertBF16ToFINTEL(ptr addrspace(4) noundef align 2 dereferenceable(2) dereferenceable_or_null(2) [[ARRAYIDX_I_I_I]]) #[[ATTR9:[0-9]+]], !noalias [[META143:![0-9]+]]
+    // CHECK-NEXT:    [[CALL_I_I2_I_I_I_I:%.*]] = call spir_func noundef float @__devicelib_ConvertBF16ToFINTEL(ptr addrspace(4) noundef align 2 dereferenceable(2) dereferenceable_or_null(2) [[ARRAYIDX_I12_I_I]]) #[[ATTR9]], !noalias [[META143]]
+    // CHECK-NEXT:    [[MUL_I_I_I_I:%.*]] = fmul float [[CALL_I_I_I_I_I_I]], [[CALL_I_I2_I_I_I_I]]
+    // CHECK-NEXT:    store float [[MUL_I_I_I_I]], ptr [[REF_TMP_I_I_I_I]], align 4, !tbaa [[TBAA89]], !noalias [[META143]]
+    // CHECK-NEXT:    [[CALL_I_I3_I_I_I_I:%.*]] = call spir_func noundef zeroext i16 @__devicelib_ConvertFToBF16INTEL(ptr addrspace(4) noundef align 4 dereferenceable(4) [[REF_TMP_ASCAST_I_I_I_I]]) #[[ATTR9]], !noalias [[META143]]
+    // CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[REF_TMP_I_I_I_I]]), !noalias [[META140]]
+    // CHECK-NEXT:    [[ARRAYIDX_I14_I_I:%.*]] = getelementptr inbounds [2 x i8], ptr [[RES_I_I]], i64 [[I_0_I_I]]
+    // CHECK-NEXT:    store i16 [[CALL_I_I3_I_I_I_I]], ptr [[ARRAYIDX_I14_I_I]], align 2, !tbaa [[TBAA40]], !noalias [[META137]]
+    // CHECK-NEXT:    [[INC_I_I]] = add nuw nsw i64 [[I_0_I_I]], 1
+    // CHECK-NEXT:    br label [[FOR_COND_I_I]], !llvm.loop [[LOOP146:![0-9]+]]
+    // CHECK:       _ZN4sycl3_V16detailmlERKNS0_3vecINS0_3ext6oneapi8bfloat16ELi8EEES8_.exit:
+    // CHECK-NEXT:    call void @llvm.memcpy.p4.p0.i64(ptr addrspace(4) align 16 [[AGG_RESULT:%.*]], ptr align 16 [[RES_I_I]], i64 16, i1 false)
+    // CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[RES_I_I]]), !noalias [[META134]]
+    // CHECK-NEXT:    ret void
+    //
+    arithmetic_bf16x8_vec(vec<ext::oneapi::bfloat16, 8> a,
+                          vec<ext::oneapi::bfloat16, 8> b) {
   return a * b;
 }
 
-SYCL_EXTERNAL marray<ext::oneapi::bfloat16, 8>
-// CHECK-LABEL: @_Z22arithmetic_bf16x8_marrN4sycl3_V16marrayINS0_3ext6oneapi8bfloat16ELm8EEES5_(
-// CHECK-NEXT:  entry:
-// CHECK-NEXT:    [[REF_TMP_I_I:%.*]] = alloca float, align 4
-// CHECK-NEXT:    [[A_ASCAST:%.*]] = addrspacecast ptr [[A:%.*]] to ptr addrspace(4)
-// CHECK-NEXT:    [[B_ASCAST:%.*]] = addrspacecast ptr [[B:%.*]] to ptr addrspace(4)
-// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META147:![0-9]+]])
-// CHECK-NEXT:    [[REF_TMP_ASCAST_I_I:%.*]] = addrspacecast ptr [[REF_TMP_I_I]] to ptr addrspace(4)
-// CHECK-NEXT:    br label [[FOR_COND_I:%.*]]
-// CHECK:       for.cond.i:
-// CHECK-NEXT:    [[I_0_I:%.*]] = phi i64 [ 0, [[ENTRY:%.*]] ], [ [[INC_I:%.*]], [[FOR_BODY_I:%.*]] ]
-// CHECK-NEXT:    [[CMP_I:%.*]] = icmp samesign ult i64 [[I_0_I]], 8
-// CHECK-NEXT:    br i1 [[CMP_I]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V1MLERKNS0_6MARRAYINS0_3EXT6ONEAPI8BFLOAT16ELM8EEES7__EXIT:%.*]]
-// CHECK:       for.body.i:
-// CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds nuw [2 x i8], ptr addrspace(4) [[A_ASCAST]], i64 [[I_0_I]]
-// CHECK-NEXT:    [[ARRAYIDX_I7_I:%.*]] = getelementptr inbounds nuw [2 x i8], ptr addrspace(4) [[B_ASCAST]], i64 [[I_0_I]]
-// CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[REF_TMP_I_I]]), !noalias [[META147]]
-// CHECK-NEXT:    [[CALL_I_I_I_I:%.*]] = call spir_func noundef float @__devicelib_ConvertBF16ToFINTEL(ptr addrspace(4) noundef align 2 dereferenceable(2) dereferenceable_or_null(2) [[ARRAYIDX_I_I]]) #[[ATTR9]], !noalias [[META150:![0-9]+]]
-// CHECK-NEXT:    [[CALL_I_I2_I_I:%.*]] = call spir_func noundef float @__devicelib_ConvertBF16ToFINTEL(ptr addrspace(4) noundef align 2 dereferenceable(2) dereferenceable_or_null(2) [[ARRAYIDX_I7_I]]) #[[ATTR9]], !noalias [[META150]]
-// CHECK-NEXT:    [[MUL_I_I:%.*]] = fmul float [[CALL_I_I_I_I]], [[CALL_I_I2_I_I]]
-// CHECK-NEXT:    store float [[MUL_I_I]], ptr [[REF_TMP_I_I]], align 4, !tbaa [[TBAA89]], !noalias [[META150]]
-// CHECK-NEXT:    [[CALL_I_I3_I_I:%.*]] = call spir_func noundef zeroext i16 @__devicelib_ConvertFToBF16INTEL(ptr addrspace(4) noundef align 4 dereferenceable(4) [[REF_TMP_ASCAST_I_I]]) #[[ATTR9]], !noalias [[META150]]
-// CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[REF_TMP_I_I]]), !noalias [[META147]]
-// CHECK-NEXT:    [[ARRAYIDX_I8_I:%.*]] = getelementptr inbounds nuw [2 x i8], ptr addrspace(4) [[AGG_RESULT:%.*]], i64 [[I_0_I]]
-// CHECK-NEXT:    store i16 [[CALL_I_I3_I_I]], ptr addrspace(4) [[ARRAYIDX_I8_I]], align 2, !tbaa [[TBAA40]], !alias.scope [[META147]]
-// CHECK-NEXT:    [[INC_I]] = add nuw nsw i64 [[I_0_I]], 1
-// CHECK-NEXT:    br label [[FOR_COND_I]], !llvm.loop [[LOOP153:![0-9]+]]
-// CHECK:       _ZN4sycl3_V1mlERKNS0_6marrayINS0_3ext6oneapi8bfloat16ELm8EEES7_.exit:
-// CHECK-NEXT:    ret void
-//
-arithmetic_bf16x8_marr(marray<ext::oneapi::bfloat16, 8> a,
-                       marray<ext::oneapi::bfloat16, 8> b) {
+SYCL_EXTERNAL
+marray<ext::oneapi::bfloat16, 8>
+    // CHECK-LABEL: @_Z22arithmetic_bf16x8_marrN4sycl3_V16marrayINS0_3ext6oneapi8bfloat16ELm8EEES5_(
+    // CHECK-NEXT:  entry:
+    // CHECK-NEXT:    [[REF_TMP_I_I:%.*]] = alloca float, align 4
+    // CHECK-NEXT:    [[A_ASCAST:%.*]] = addrspacecast ptr [[A:%.*]] to ptr addrspace(4)
+    // CHECK-NEXT:    [[B_ASCAST:%.*]] = addrspacecast ptr [[B:%.*]] to ptr addrspace(4)
+    // CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META147:![0-9]+]])
+    // CHECK-NEXT:    [[REF_TMP_ASCAST_I_I:%.*]] = addrspacecast ptr [[REF_TMP_I_I]] to ptr addrspace(4)
+    // CHECK-NEXT:    br label [[FOR_COND_I:%.*]]
+    // CHECK:       for.cond.i:
+    // CHECK-NEXT:    [[I_0_I:%.*]] = phi i64 [ 0, [[ENTRY:%.*]] ], [ [[INC_I:%.*]], [[FOR_BODY_I:%.*]] ]
+    // CHECK-NEXT:    [[CMP_I:%.*]] = icmp samesign ult i64 [[I_0_I]], 8
+    // CHECK-NEXT:    br i1 [[CMP_I]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V1MLERKNS0_6MARRAYINS0_3EXT6ONEAPI8BFLOAT16ELM8EEES7__EXIT:%.*]]
+    // CHECK:       for.body.i:
+    // CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds nuw [2 x i8], ptr addrspace(4) [[A_ASCAST]], i64 [[I_0_I]]
+    // CHECK-NEXT:    [[ARRAYIDX_I7_I:%.*]] = getelementptr inbounds nuw [2 x i8], ptr addrspace(4) [[B_ASCAST]], i64 [[I_0_I]]
+    // CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[REF_TMP_I_I]]), !noalias [[META147]]
+    // CHECK-NEXT:    [[CALL_I_I_I_I:%.*]] = call spir_func noundef float @__devicelib_ConvertBF16ToFINTEL(ptr addrspace(4) noundef align 2 dereferenceable(2) dereferenceable_or_null(2) [[ARRAYIDX_I_I]]) #[[ATTR9]], !noalias [[META150:![0-9]+]]
+    // CHECK-NEXT:    [[CALL_I_I2_I_I:%.*]] = call spir_func noundef float @__devicelib_ConvertBF16ToFINTEL(ptr addrspace(4) noundef align 2 dereferenceable(2) dereferenceable_or_null(2) [[ARRAYIDX_I7_I]]) #[[ATTR9]], !noalias [[META150]]
+    // CHECK-NEXT:    [[MUL_I_I:%.*]] = fmul float [[CALL_I_I_I_I]], [[CALL_I_I2_I_I]]
+    // CHECK-NEXT:    store float [[MUL_I_I]], ptr [[REF_TMP_I_I]], align 4, !tbaa [[TBAA89]], !noalias [[META150]]
+    // CHECK-NEXT:    [[CALL_I_I3_I_I:%.*]] = call spir_func noundef zeroext i16 @__devicelib_ConvertFToBF16INTEL(ptr addrspace(4) noundef align 4 dereferenceable(4) [[REF_TMP_ASCAST_I_I]]) #[[ATTR9]], !noalias [[META150]]
+    // CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[REF_TMP_I_I]]), !noalias [[META147]]
+    // CHECK-NEXT:    [[ARRAYIDX_I8_I:%.*]] = getelementptr inbounds nuw [2 x i8], ptr addrspace(4) [[AGG_RESULT:%.*]], i64 [[I_0_I]]
+    // CHECK-NEXT:    store i16 [[CALL_I_I3_I_I]], ptr addrspace(4) [[ARRAYIDX_I8_I]], align 2, !tbaa [[TBAA40]], !alias.scope [[META147]]
+    // CHECK-NEXT:    [[INC_I]] = add nuw nsw i64 [[I_0_I]], 1
+    // CHECK-NEXT:    br label [[FOR_COND_I]], !llvm.loop [[LOOP153:![0-9]+]]
+    // CHECK:       _ZN4sycl3_V1mlERKNS0_6marrayINS0_3ext6oneapi8bfloat16ELm8EEES7_.exit:
+    // CHECK-NEXT:    ret void
+    //
+    arithmetic_bf16x8_marr(marray<ext::oneapi::bfloat16, 8> a,
+                           marray<ext::oneapi::bfloat16, 8> b) {
   return a * b;
 }
 
@@ -629,7 +650,7 @@ arithmetic_bf16x8_marr(marray<ext::oneapi::bfloat16, 8> a,
 // CHECK-NEXT:    ret void
 //
 SYCL_EXTERNAL marray<bool, 4> logical_i32x4_marr(marray<std::int32_t, 4> a,
-                                                  marray<std::int32_t, 4> b) {
+                                                 marray<std::int32_t, 4> b) {
   return (a && b);
 }
 
@@ -663,7 +684,7 @@ SYCL_EXTERNAL marray<bool, 4> logical_i32x4_marr(marray<std::int32_t, 4> a,
 // CHECK-NEXT:    ret void
 //
 SYCL_EXTERNAL marray<bool, 5> logical_i32x5_marr(marray<std::int32_t, 5> a,
-                                                  marray<std::int32_t, 5> b) {
+                                                 marray<std::int32_t, 5> b) {
   return (a && b);
 }
 
@@ -707,7 +728,8 @@ SYCL_EXTERNAL vec<std::int8_t, 8> bitnot_i8x8_vec(vec<std::int8_t, 8> a) {
 // CHECK:       _ZN4sycl3_V1coIaEENSt9enable_ifIXsr3stdE13is_integral_vIT_EENS0_6marrayIaLm8EEEE4typeERKS5_.exit:
 // CHECK-NEXT:    ret void
 //
-SYCL_EXTERNAL marray<std::int8_t, 8> bitnot_i8x8_marr(marray<std::int8_t, 8> a) {
+SYCL_EXTERNAL marray<std::int8_t, 8>
+bitnot_i8x8_marr(marray<std::int8_t, 8> a) {
   return ~a;
 }
 
@@ -731,7 +753,8 @@ SYCL_EXTERNAL marray<std::int8_t, 8> bitnot_i8x8_marr(marray<std::int8_t, 8> a) 
 // CHECK:       _ZN4sycl3_V1coIaEENSt9enable_ifIXsr3stdE13is_integral_vIT_EENS0_6marrayIaLm7EEEE4typeERKS5_.exit:
 // CHECK-NEXT:    ret void
 //
-SYCL_EXTERNAL marray<std::int8_t, 7> bitnot_i8x7_marr(marray<std::int8_t, 7> a) {
+SYCL_EXTERNAL marray<std::int8_t, 7>
+bitnot_i8x7_marr(marray<std::int8_t, 7> a) {
   return ~a;
 }
 
@@ -887,55 +910,58 @@ SYCL_EXTERNAL void stream_i64x16_marr(marray<std::int64_t, 16> *in,
 // UNSIGNED TYPES
 //==============================================================================
 
-SYCL_EXTERNAL marray<std::uint32_t, 4>
-// CHECK-LABEL: @_Z21arithmetic_u32x4_marrN4sycl3_V16marrayIjLm4EEES2_(
-// CHECK-NEXT:  entry:
-// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META199:![0-9]+]])
-// CHECK-NEXT:    br label [[FOR_COND_I:%.*]]
-// CHECK:       for.cond.i:
-// CHECK-NEXT:    [[I_0_I:%.*]] = phi i64 [ 0, [[ENTRY:%.*]] ], [ [[INC_I:%.*]], [[FOR_BODY_I:%.*]] ]
-// CHECK-NEXT:    [[CMP_I:%.*]] = icmp samesign ult i64 [[I_0_I]], 4
-// CHECK-NEXT:    br i1 [[CMP_I]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V1PLERKNS0_6MARRAYIJLM4EEES4__EXIT:%.*]]
-// CHECK:       for.body.i:
-// CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds [4 x i8], ptr [[A:%.*]], i64 [[I_0_I]]
-// CHECK-NEXT:    [[TMP0:%.*]] = load i32, ptr [[ARRAYIDX_I_I]], align 4, !tbaa [[TBAA5]], !noalias [[META199]]
-// CHECK-NEXT:    [[ARRAYIDX_I7_I:%.*]] = getelementptr inbounds [4 x i8], ptr [[B:%.*]], i64 [[I_0_I]]
-// CHECK-NEXT:    [[TMP1:%.*]] = load i32, ptr [[ARRAYIDX_I7_I]], align 4, !tbaa [[TBAA5]], !noalias [[META199]]
-// CHECK-NEXT:    [[ADD_I:%.*]] = add i32 [[TMP0]], [[TMP1]]
-// CHECK-NEXT:    [[ARRAYIDX_I8_I:%.*]] = getelementptr inbounds nuw [4 x i8], ptr addrspace(4) [[AGG_RESULT:%.*]], i64 [[I_0_I]]
-// CHECK-NEXT:    store i32 [[ADD_I]], ptr addrspace(4) [[ARRAYIDX_I8_I]], align 4, !tbaa [[TBAA5]], !alias.scope [[META199]]
-// CHECK-NEXT:    [[INC_I]] = add nuw nsw i64 [[I_0_I]], 1
-// CHECK-NEXT:    br label [[FOR_COND_I]], !llvm.loop [[LOOP202:![0-9]+]]
-// CHECK:       _ZN4sycl3_V1plERKNS0_6marrayIjLm4EEES4_.exit:
-// CHECK-NEXT:    ret void
-//
-arithmetic_u32x4_marr(marray<std::uint32_t, 4> a, marray<std::uint32_t, 4> b) {
+SYCL_EXTERNAL
+marray<std::uint32_t, 4>
+    // CHECK-LABEL: @_Z21arithmetic_u32x4_marrN4sycl3_V16marrayIjLm4EEES2_(
+    // CHECK-NEXT:  entry:
+    // CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META199:![0-9]+]])
+    // CHECK-NEXT:    br label [[FOR_COND_I:%.*]]
+    // CHECK:       for.cond.i:
+    // CHECK-NEXT:    [[I_0_I:%.*]] = phi i64 [ 0, [[ENTRY:%.*]] ], [ [[INC_I:%.*]], [[FOR_BODY_I:%.*]] ]
+    // CHECK-NEXT:    [[CMP_I:%.*]] = icmp samesign ult i64 [[I_0_I]], 4
+    // CHECK-NEXT:    br i1 [[CMP_I]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V1PLERKNS0_6MARRAYIJLM4EEES4__EXIT:%.*]]
+    // CHECK:       for.body.i:
+    // CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds [4 x i8], ptr [[A:%.*]], i64 [[I_0_I]]
+    // CHECK-NEXT:    [[TMP0:%.*]] = load i32, ptr [[ARRAYIDX_I_I]], align 4, !tbaa [[TBAA5]], !noalias [[META199]]
+    // CHECK-NEXT:    [[ARRAYIDX_I7_I:%.*]] = getelementptr inbounds [4 x i8], ptr [[B:%.*]], i64 [[I_0_I]]
+    // CHECK-NEXT:    [[TMP1:%.*]] = load i32, ptr [[ARRAYIDX_I7_I]], align 4, !tbaa [[TBAA5]], !noalias [[META199]]
+    // CHECK-NEXT:    [[ADD_I:%.*]] = add i32 [[TMP0]], [[TMP1]]
+    // CHECK-NEXT:    [[ARRAYIDX_I8_I:%.*]] = getelementptr inbounds nuw [4 x i8], ptr addrspace(4) [[AGG_RESULT:%.*]], i64 [[I_0_I]]
+    // CHECK-NEXT:    store i32 [[ADD_I]], ptr addrspace(4) [[ARRAYIDX_I8_I]], align 4, !tbaa [[TBAA5]], !alias.scope [[META199]]
+    // CHECK-NEXT:    [[INC_I]] = add nuw nsw i64 [[I_0_I]], 1
+    // CHECK-NEXT:    br label [[FOR_COND_I]], !llvm.loop [[LOOP202:![0-9]+]]
+    // CHECK:       _ZN4sycl3_V1plERKNS0_6marrayIjLm4EEES4_.exit:
+    // CHECK-NEXT:    ret void
+    //
+    arithmetic_u32x4_marr(marray<std::uint32_t, 4> a,
+                          marray<std::uint32_t, 4> b) {
   return a + b;
 }
 
-SYCL_EXTERNAL marray<std::uint64_t, 8>
-// CHECK-LABEL: @_Z18bitwise_u64x8_marrN4sycl3_V16marrayImLm8EEES2_(
-// CHECK-NEXT:  entry:
-// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META203:![0-9]+]])
-// CHECK-NEXT:    br label [[FOR_COND_I:%.*]]
-// CHECK:       for.cond.i:
-// CHECK-NEXT:    [[I_0_I:%.*]] = phi i64 [ 0, [[ENTRY:%.*]] ], [ [[INC_I:%.*]], [[FOR_BODY_I:%.*]] ]
-// CHECK-NEXT:    [[CMP_I:%.*]] = icmp samesign ult i64 [[I_0_I]], 8
-// CHECK-NEXT:    br i1 [[CMP_I]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V1ANIMNS0_6MARRAYIMLM8EEEEES3_RKS3_S5__EXIT:%.*]]
-// CHECK:       for.body.i:
-// CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds [8 x i8], ptr [[A:%.*]], i64 [[I_0_I]]
-// CHECK-NEXT:    [[TMP0:%.*]] = load i64, ptr [[ARRAYIDX_I_I]], align 8, !tbaa [[TBAA72]], !noalias [[META203]]
-// CHECK-NEXT:    [[ARRAYIDX_I7_I:%.*]] = getelementptr inbounds [8 x i8], ptr [[B:%.*]], i64 [[I_0_I]]
-// CHECK-NEXT:    [[TMP1:%.*]] = load i64, ptr [[ARRAYIDX_I7_I]], align 8, !tbaa [[TBAA72]], !noalias [[META203]]
-// CHECK-NEXT:    [[AND_I:%.*]] = and i64 [[TMP0]], [[TMP1]]
-// CHECK-NEXT:    [[ARRAYIDX_I8_I:%.*]] = getelementptr inbounds nuw [8 x i8], ptr addrspace(4) [[AGG_RESULT:%.*]], i64 [[I_0_I]]
-// CHECK-NEXT:    store i64 [[AND_I]], ptr addrspace(4) [[ARRAYIDX_I8_I]], align 8, !tbaa [[TBAA72]], !alias.scope [[META203]]
-// CHECK-NEXT:    [[INC_I]] = add nuw nsw i64 [[I_0_I]], 1
-// CHECK-NEXT:    br label [[FOR_COND_I]], !llvm.loop [[LOOP206:![0-9]+]]
-// CHECK:       _ZN4sycl3_V1anImNS0_6marrayImLm8EEEEES3_RKS3_S5_.exit:
-// CHECK-NEXT:    ret void
-//
-bitwise_u64x8_marr(marray<std::uint64_t, 8> a, marray<std::uint64_t, 8> b) {
+SYCL_EXTERNAL
+marray<std::uint64_t, 8>
+    // CHECK-LABEL: @_Z18bitwise_u64x8_marrN4sycl3_V16marrayImLm8EEES2_(
+    // CHECK-NEXT:  entry:
+    // CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META203:![0-9]+]])
+    // CHECK-NEXT:    br label [[FOR_COND_I:%.*]]
+    // CHECK:       for.cond.i:
+    // CHECK-NEXT:    [[I_0_I:%.*]] = phi i64 [ 0, [[ENTRY:%.*]] ], [ [[INC_I:%.*]], [[FOR_BODY_I:%.*]] ]
+    // CHECK-NEXT:    [[CMP_I:%.*]] = icmp samesign ult i64 [[I_0_I]], 8
+    // CHECK-NEXT:    br i1 [[CMP_I]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V1ANIMNS0_6MARRAYIMLM8EEEEES3_RKS3_S5__EXIT:%.*]]
+    // CHECK:       for.body.i:
+    // CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds [8 x i8], ptr [[A:%.*]], i64 [[I_0_I]]
+    // CHECK-NEXT:    [[TMP0:%.*]] = load i64, ptr [[ARRAYIDX_I_I]], align 8, !tbaa [[TBAA72]], !noalias [[META203]]
+    // CHECK-NEXT:    [[ARRAYIDX_I7_I:%.*]] = getelementptr inbounds [8 x i8], ptr [[B:%.*]], i64 [[I_0_I]]
+    // CHECK-NEXT:    [[TMP1:%.*]] = load i64, ptr [[ARRAYIDX_I7_I]], align 8, !tbaa [[TBAA72]], !noalias [[META203]]
+    // CHECK-NEXT:    [[AND_I:%.*]] = and i64 [[TMP0]], [[TMP1]]
+    // CHECK-NEXT:    [[ARRAYIDX_I8_I:%.*]] = getelementptr inbounds nuw [8 x i8], ptr addrspace(4) [[AGG_RESULT:%.*]], i64 [[I_0_I]]
+    // CHECK-NEXT:    store i64 [[AND_I]], ptr addrspace(4) [[ARRAYIDX_I8_I]], align 8, !tbaa [[TBAA72]], !alias.scope [[META203]]
+    // CHECK-NEXT:    [[INC_I]] = add nuw nsw i64 [[I_0_I]], 1
+    // CHECK-NEXT:    br label [[FOR_COND_I]], !llvm.loop [[LOOP206:![0-9]+]]
+    // CHECK:       _ZN4sycl3_V1anImNS0_6marrayImLm8EEEEES3_RKS3_S5_.exit:
+    // CHECK-NEXT:    ret void
+    //
+    bitwise_u64x8_marr(marray<std::uint64_t, 8> a, marray<std::uint64_t, 8> b) {
   return (a & b);
 }
 
@@ -971,7 +997,7 @@ bitwise_u64x8_marr(marray<std::uint64_t, 8> a, marray<std::uint64_t, 8> b) {
 // CHECK-NEXT:    ret void
 //
 SYCL_EXTERNAL marray<bool, 4> logical_boolx4_marr(marray<bool, 4> a,
-                                                   marray<bool, 4> b) {
+                                                  marray<bool, 4> b) {
   return a && b;
 }
 
@@ -1002,6 +1028,6 @@ SYCL_EXTERNAL marray<bool, 4> logical_boolx4_marr(marray<bool, 4> a,
 // CHECK-NEXT:    ret void
 //
 SYCL_EXTERNAL marray<bool, 5> logical_boolx5_marr(marray<bool, 5> a,
-                                                   marray<bool, 5> b) {
+                                                  marray<bool, 5> b) {
   return a && b;
 }
