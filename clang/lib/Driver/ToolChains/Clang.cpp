@@ -875,8 +875,6 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
                                     const InputInfo &Output,
                                     const InputInfoList &Inputs) const {
   const bool IsIAMCU = getToolChain().getTriple().isOSIAMCU();
-  bool SYCLDeviceCompilation = JA.isOffloading(Action::OFK_SYCL) &&
-                               JA.isDeviceOffloading(Action::OFK_SYCL);
 
   CheckPreprocessingOptions(D, Args);
 
@@ -1070,15 +1068,17 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
 
     if (YcArg || YuArg) {
       StringRef ThroughHeader = YcArg ? YcArg->getValue() : YuArg->getValue();
-      // If PCH file is available, include it while performing
-      // host compilation (-fsycl-is-host) in SYCL mode (-fsycl).
-      // as well as in non-sycl mode.
-
-      if (!isa<PrecompileJobAction>(JA) && !SYCLDeviceCompilation) {
+      StringRef PCHHeader = ThroughHeader;
+      // If a PCH file is being used, use the unbundled versions for SYCL.
+      if (YuArg && JA.isOffloading(Action::OFK_SYCL))
+        PCHHeader = D.getSYCLPrecompiledHeaderFile(
+            getToolChain().getTriple().getTriple());
+      // If a PCH file is available, include it.
+      if (!isa<PrecompileJobAction>(JA)) {
         CmdArgs.push_back("-include-pch");
         CmdArgs.push_back(Args.MakeArgString(D.GetClPchPath(
-            C, !ThroughHeader.empty()
-                   ? ThroughHeader
+            C, !PCHHeader.empty()
+                   ? PCHHeader
                    : llvm::sys::path::filename(Inputs[0].getBaseInput()))));
       }
 
@@ -1109,7 +1109,17 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
       // so that replace_extension does the right thing.
       P += ".dummy";
       llvm::sys::path::replace_extension(P, "pch");
-      if (D.getVFS().exists(P))
+      // If this is a SYCL compilation, we would have unbundled the PCH
+      // files from the fat binary, so use that instead.
+      if (JA.isOffloading(Action::OFK_SYCL)) {
+        SmallString<128> SYCLPCHFile = D.getSYCLPrecompiledHeaderFile(
+            getToolChain().getTriple().getTriple());
+        if (D.getVFS().exists(SYCLPCHFile)) {
+          P = SYCLPCHFile;
+          FoundPCH = true;
+        }
+      }
+      if (!FoundPCH && D.getVFS().exists(P))
         FoundPCH = true;
 
       if (!FoundPCH) {
@@ -1117,11 +1127,8 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
         llvm::sys::path::replace_extension(P, "gch");
         FoundPCH = gchProbe(D, P.str());
       }
-      // If PCH file is available, include it while performing
-      // host compilation (-fsycl-is-host) in SYCL mode (-fsycl).
-      // as well as in non-sycl mode.
-
-      if (FoundPCH && !SYCLDeviceCompilation) {
+      // If a PCH file is available, include it.
+      if (FoundPCH) {
         if (IsFirstImplicitInclude) {
           A->claim();
           CmdArgs.push_back("-include-pch");
@@ -5768,12 +5775,10 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
         // header file.
         CmdArgs.push_back("-dependency-filter");
         CmdArgs.push_back(Args.MakeArgString(Header));
-
         // Since this is a host compilation and the integration header is
         // included, enable the integration header based diagnostics.
         CmdArgs.push_back("-fsycl-enable-int-header-diags");
       }
-
       StringRef Footer = D.getIntegrationFooter(Input.getBaseInput());
       if (types::getPreprocessedType(Input.getType()) != types::TY_INVALID &&
           !Args.hasArg(options::OPT_fno_sycl_use_footer) && !Footer.empty()) {
@@ -10381,11 +10386,14 @@ void OffloadBundler::ConstructJobMultipleOutputs(
     }
   }
   std::string TargetString(UA.getTargetString());
+  StringRef TargetTriples = Triples;
+  SmallVector<StringRef> Archs;
   if (!TargetString.empty()) {
     // The target string was provided, we will override the defaults and use
     // the string provided.
     SmallString<128> TSTriple("-targets=");
     TSTriple += TargetString;
+    TargetTriples = TargetString;
     CmdArgs.push_back(TCArgs.MakeArgString(TSTriple));
   } else {
     CmdArgs.push_back(TCArgs.MakeArgString(Triples));
@@ -10395,12 +10403,28 @@ void OffloadBundler::ConstructJobMultipleOutputs(
   CmdArgs.push_back(
       TCArgs.MakeArgString(Twine("-input=") + InputFileName));
 
+  /* Save the individual arch triples for PCH. */
+  if (InputType == types::TY_PCH) {
+    auto TripleString = TargetTriples.split('=').second;
+    TripleString.split(Archs, ',');
+    assert(Archs.size() == Outputs.size() &&
+           "expected same number of triples as outputs");
+  }
+
   // Get unbundled files command.
   for (unsigned I = 0; I < Outputs.size(); ++I) {
     SmallString<128> UB;
     UB += "-output=";
-    UB += DepInfo[I].DependentToolChain->getInputFilename(Outputs[I]);
+    std::string IFName =
+        DepInfo[I].DependentToolChain->getInputFilename(Outputs[I]);
+    UB += IFName;
     CmdArgs.push_back(TCArgs.MakeArgString(UB));
+    /* If this is a bundled PCH file, save the triple-filename pair. */
+    if (InputType == types::TY_PCH) {
+      StringRef ArchName = Archs[I].split('-').second;
+      C.getDriver().addSYCLPrecompiledHeaderFiles(
+          TCArgs.MakeArgString(ArchName), TCArgs.MakeArgString(IFName));
+    }
   }
   CmdArgs.push_back("-unbundle");
   CmdArgs.push_back("-allow-missing-bundles");
@@ -10687,6 +10711,9 @@ void OffloadPackager::ConstructJob(Compilation &C, const JobAction &JA,
 
   // Create the inputs to bundle the needed metadata.
   for (const InputInfo &Input : Inputs) {
+    // Do not bundle input PCH files into anything other than a PCH file.
+    if (Output.getType() != types::TY_PCH && Input.getType() == types::TY_PCH)
+      continue;
     const Action *OffloadAction = Input.getAction();
     const ToolChain *TC = OffloadAction->getOffloadingToolChain();
     if (!TC)
@@ -10807,7 +10834,12 @@ void OffloadPackagerExtract::ConstructJob(Compilation &C, const JobAction &JA,
                                           const char *LinkingOutput) const {
   ArgStringList CmdArgs;
   const Action *OffloadAction = Inputs[0].getAction();
-  const ToolChain *TC = OffloadAction->getOffloadingToolChain();
+  assert(isa<OffloadPackagerExtractJobAction>(JA) &&
+         "unexpected job action in OffloadPackagerExtract.");
+  const ToolChain *TC =
+      Output.getType() == types::TY_PCH
+          ? cast<OffloadPackagerExtractJobAction>(JA).getToolChain()
+          : OffloadAction->getOffloadingToolChain();
   if (!TC)
     TC = &C.getDefaultToolChain();
   const ArgList &TCArgs =
@@ -10835,6 +10867,12 @@ void OffloadPackagerExtract::ConstructJob(Compilation &C, const JobAction &JA,
       "kind=" + Kind.str(),
   };
   CmdArgs.push_back(Args.MakeArgString("--image=" + llvm::join(Parts, ",")));
+
+  if (Inputs[0].getType() == types::TY_PCH) {
+    C.getDriver().addSYCLPrecompiledHeaderFiles(
+        TCArgs.MakeArgString(TC->getTripleString().data()),
+        TCArgs.MakeArgString(File.str()));
+  }
 
   C.addCommand(std::make_unique<Command>(
       JA, *this, ResponseFileSupport::None(),
