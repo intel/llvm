@@ -1972,13 +1972,36 @@ Expected<std::vector<module_split::SplitModule>> runSYCLOffloadingPipeline(
     ArrayRef<StringRef> InputModules, const ArgList &LinkerArgs,
     const std::pair<std::string, std::string> &CompileLinkOptions,
     function_ref<void(StringRef)> WrappedOutputCallback) {
-  Expected<StringRef> LinkedModuleOrErr =
-      sycl::linkDevice(InputModules, LinkerArgs);
-  if (!LinkedModuleOrErr)
-    return LinkedModuleOrErr.takeError();
+  // Note: pipeline can skip linking due to -fno-sycl-rdc option.
+  // In that case, we apply sycl processing to several modules.
+  std::vector<StringRef> Modules;
+  if (LinkerArgs.hasArg(OPT_no_sycl_rdc)) {
+    // No need to perform any linking.
+    Modules = std::vector(InputModules.begin(), InputModules.end());
+  } else {
+    Expected<StringRef> OutputOrErr =
+        sycl::linkDevice(InputModules, LinkerArgs);
+    if (!OutputOrErr)
+      return OutputOrErr.takeError();
 
-  return postLinkProcessModule(*LinkedModuleOrErr, LinkerArgs,
-                               CompileLinkOptions, WrappedOutputCallback);
+    Modules.push_back(*OutputOrErr);
+  }
+
+  std::vector<module_split::SplitModule> OutputModules;
+  for (StringRef Module : Modules) {
+    // Note: sycl-post-link can produce more modules than incoming due to module
+    // split.
+    Expected<std::vector<module_split::SplitModule>> ModulesOrErr =
+        postLinkProcessModule(Module, LinkerArgs, CompileLinkOptions,
+                              WrappedOutputCallback);
+    if (!ModulesOrErr)
+      return ModulesOrErr.takeError();
+
+    for (module_split::SplitModule &M : *ModulesOrErr)
+      OutputModules.push_back(std::move(M));
+  }
+
+  return OutputModules;
 }
 
 } // namespace sycl

@@ -372,3 +372,13 @@
 // RUN:                      %t.wrong_spirv_subarch.o -o %t.out 2>&1 --linker-path="/usr/bin/ld" | FileCheck %s --check-prefix=CHECK-ERROR-WITH-WRONG-SPIRV-SUBARCH
 
 // CHECK-ERROR-WITH-WRONG-SPIRV-SUBARCH: SYCL device compilation is not supported for the target: spirv64v1.0
+
+// Check -no-sycl-rdc
+//
+// RUN: clang-linker-wrapper "--host-triple=x86_64-unknown-linux-gnu" "--linker-path=/usr/bin/ld" "--" "-o" "a.out"  %t.o --dry-run 2>&1 | FileCheck -check-prefix=CHECK-RDC %s
+// CHECK-RDC: spirv-to-ir-wrapper{{.*}} -o [[FIRSTLLVMLINKIN:.*]].bc --llvm-spirv-opts --spirv-preserve-auxdata --spirv-target-env=SPV-IR --spirv-builtin-format=global
+// CHECK-RDC-NEXT: llvm-link{{.*}} --suppress-warnings [[FIRSTLLVMLINKIN]].bc -o [[LLVMLINKOUT:.*]].bc
+// CHECK-RDC-NEXT: sycl-post-link{{.*}} -o [[SYCLPOSTLINKOUT:.*]].table [[LLVMLINKOUT]].bc
+
+// RUN: clang-linker-wrapper -no-sycl-rdc "--host-triple=x86_64-unknown-linux-gnu" "--linker-path=/usr/bin/ld" "--" "-o" "a.out"  %t.o --dry-run 2>&1 | FileCheck -check-prefix=CHECK-NO-RDC %s
+// CHECK-NO-RDC-NOT: llvm-link{{.*}}
