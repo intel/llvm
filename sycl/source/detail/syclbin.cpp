@@ -16,7 +16,6 @@
 #include <detail/program_manager/program_manager.hpp>
 #include <detail/syclbin.hpp>
 
-#include <iostream>
 #include <sstream>
 
 namespace sycl {
@@ -577,10 +576,6 @@ SYCLBIN::serializeImages(const std::vector<ImageInput> &Inputs, uint8_t State) {
     // SPIR-V/IR but the bundle's executable payload only exists in the UR
     // program.
     if (!Input.NativeBinaries.empty()) {
-      std::cerr << "[SYCLBIN-DBG] PathA NativeBinaries="
-                << Input.NativeBinaries.size()
-                << " Devices=" << Input.Devices.size() << " Triple=" << Triple
-                << "\n";
       assert(Input.NativeBinaries.size() == Input.Devices.size() &&
              "NativeBinaries/Devices length mismatch.");
       for (size_t I = 0; I < Input.NativeBinaries.size(); ++I) {
@@ -590,9 +585,6 @@ SYCLBIN::serializeImages(const std::vector<ImageInput> &Inputs, uint8_t State) {
         PropertySetRegistry NDCIProps;
         std::string_view Arch{Input.Devices[I] ? getArchName(*Input.Devices[I])
                                                : ""};
-        std::cerr << "[SYCLBIN-DBG] PathA[" << I
-                  << "] dev=" << (void *)Input.Devices[I] << " arch='" << Arch
-                  << "'\n";
         NDCIProps.add(
             PropertySetRegistry::SYCLBIN_NATIVE_DEVICE_CODE_IMAGE_METADATA,
             "arch", Arch);
@@ -653,12 +645,8 @@ SYCLBIN::serializeImages(const std::vector<ImageInput> &Inputs, uint8_t State) {
                                   CT->ValSize - sizeof(PropertyValue::SizeTy)};
         }
       }
-      std::cerr << "[SYCLBIN-DBG] PathB compile_target_arch='" << Arch
-                << "' Devices=" << Input.Devices.size() << " Triple=" << Triple
-                << "\n";
       if (Arch.empty() && !Input.Devices.empty() && Input.Devices[0])
         Arch = std::string_view{getArchName(*Input.Devices[0])};
-      std::cerr << "[SYCLBIN-DBG] PathB final_arch='" << Arch << "'\n";
       NDCIProps.add(
           PropertySetRegistry::SYCLBIN_NATIVE_DEVICE_CODE_IMAGE_METADATA,
           "arch", Arch);
