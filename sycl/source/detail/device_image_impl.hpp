@@ -493,6 +493,11 @@ public:
     // operator[] can't be used here, since it's not marked as const
     const std::vector<SpecConstDescT> &Descs =
         MSpecConstSymMap.at(std::string{SpecName});
+    std::cerr << "[SC-DBG] get_raw origins=" << (int)MOrigins
+              << " state=" << (int)MState << " IsSet=" << IsSet
+              << " blob0=" << (MSpecConstsBlob.size() ? (int)MSpecConstsBlob[0] : -1)
+              << " defVal0=" << (MSpecConstsDefValBlob.size() ? (int)MSpecConstsDefValBlob.begin()[0] : -1)
+              << "\n";
     for (const SpecConstDescT &Desc : Descs) {
       auto Blob =
           IsSet ? MSpecConstsBlob.data() : MSpecConstsDefValBlob.begin();
