@@ -233,41 +233,6 @@ def parse_gtest_list(all_tests_file: str) -> List[str]:
     return tests
 
 
-def extract_passed_test_names(test_lists: Dict[str, List[str]]) -> List[str]:
-    """
-    Extract just the GoogleTest names from passed tests.
-
-    LIT format: "Unified Runtime Conformance :: adapter//adapter-test/urAdapterGetInfoTest/InvalidEnumeration/UR_BACKEND_LEVEL_ZERO"
-    GTest --gtest_list_tests format: "urAdapterGetInfoTest.InvalidEnumeration/UR_BACKEND_LEVEL_ZERO"
-
-    Strategy: Find test class and test case in path, combine with '.' and add backend parameter.
-    """
-    passed = test_lists.get("Passed", [])
-    gtest_names = set()
-
-    for test in passed:
-        # Split by '/' to get path components
-        parts = test.split("/")
-
-        # Find test class (typically starts with 'ur' or ends with 'Test')
-        for i, part in enumerate(parts):
-            if ("Test" in part or part.startswith("ur")) and i + 1 < len(parts):
-                test_class = part
-                test_case = parts[i + 1]
-
-                # Build full name: TestClass.TestCase/Parameter
-                gtest_name = f"{test_class}.{test_case}"
-
-                # Add backend parameter if present
-                if i + 2 < len(parts) and parts[i + 2].startswith("UR_BACKEND"):
-                    gtest_name += f"/{parts[i + 2]}"
-
-                gtest_names.add(gtest_name)
-                break
-
-    return list(gtest_names)
-
-
 def show_statistics_and_lists(lines: List[str], all_tests_file: str = None) -> None:
     """
     Extract categorized test lists from LIT summary.
@@ -341,12 +306,28 @@ def show_statistics_and_lists(lines: List[str], all_tests_file: str = None) -> N
     # For GoogleTest format: try to generate skipped list from all_tests_file
     if "Unsupported" not in test_lists and all_tests_file:
         all_tests = parse_gtest_list(all_tests_file)
-        passed_tests = extract_passed_test_names(test_lists)
+        
+        # Extract test names from ALL categories (not just Passed)
+        known_tests = set()
+        for category, tests in test_lists.items():
+            # For each test in this category, extract the GoogleTest name
+            for test in tests:
+                parts = test.split("/")
+                # Find test class (typically starts with 'ur' or ends with 'Test')
+                for i, part in enumerate(parts):
+                    if ("Test" in part or part.startswith("ur")) and i + 1 < len(parts):
+                        test_class = part
+                        test_case = parts[i + 1]
+                        gtest_name = f"{test_class}.{test_case}"
+                        # Add backend parameter if present
+                        if i + 2 < len(parts) and parts[i + 2].startswith("UR_BACKEND"):
+                            gtest_name += f"/{parts[i + 2]}"
+                        known_tests.add(gtest_name)
+                        break
 
         if all_tests:
-            # Find skipped: all_tests - passed_tests
-            passed_set = set(passed_tests)
-            skipped = [t for t in all_tests if t not in passed_set]
+            # Find skipped: all_tests - all_known_tests
+            skipped = [t for t in all_tests if t not in known_tests]
 
             if skipped:
                 count = len(skipped)
