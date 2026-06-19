@@ -4,7 +4,7 @@
 
 /// ###########################################################################
 /// Test phase output with -ccc-print-phases
-// RUN: %clang -fsycl --no-offload-new-driver --offload-host-only -ccc-print-phases -c %s 2>&1 \
+// RUN: %clang -fsycl --target=x86_64-unknown-linux-gnu --no-offload-new-driver --offload-host-only -ccc-print-phases -c %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-PHASES %s
 
 // CHK-PHASES: 0: input, "[[INPUT:.+\.cpp]]", c++, (host-sycl)
@@ -20,7 +20,7 @@
 /// ###########################################################################
 /// Test that device compile generates integration header/footer, and the host
 /// compiler consumes these.
-// RUN: %clang -fsycl --no-offload-new-driver --offload-host-only -### -c %s 2>&1 \
+// RUN: %clang -fsycl --target=x86_64-unknown-linux-gnu --no-offload-new-driver --offload-host-only -### -c %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-INT-HEADER %s
 
 // CHK-INT-HEADER: clang{{.*}} "-cc1" "-triple" "spir64-unknown-unknown"
@@ -38,7 +38,7 @@
 
 /// ###########################################################################
 /// Test with multiple source files
-// RUN: %clang -fsycl --no-offload-new-driver --offload-host-only -### -c %s %s 2>&1 \
+// RUN: %clang -fsycl --target=x86_64-unknown-linux-gnu --no-offload-new-driver --offload-host-only -### -c %s %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-MULTI %s
 
 // CHK-MULTI: clang{{.*}} "-cc1" "-triple" "spir64-unknown-unknown"
