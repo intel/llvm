@@ -9,8 +9,8 @@
 // 4.9.2 Exception Class Interface
 #include <sycl/exception_list.hpp>
 
-#include <detail/iostream_proxy.hpp>
 #include <exception>
+#include <iostream>
 #include <utility>
 
 namespace sycl {

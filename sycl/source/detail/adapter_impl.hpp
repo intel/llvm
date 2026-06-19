@@ -10,7 +10,6 @@
 
 #include <detail/backend_impl.hpp>
 #include <detail/config.hpp>
-#include <detail/iostream_proxy.hpp>
 #include <detail/ur.hpp>
 #include <sycl/backend_types.hpp>
 #include <sycl/detail/common.hpp>
@@ -23,7 +22,7 @@
 #include "xpti/xpti_trace_framework.h"
 #endif
 
-#include <detail/iostream_proxy.hpp>
+#include <iostream>
 #include <memory>
 #include <mutex>
 
