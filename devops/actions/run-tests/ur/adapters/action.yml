@@ -42,9 +42,25 @@ runs:
       BUILD_DIR: ${{ inputs.build_dir }}
     run: |
       > all_conformance_tests.txt
-      find "$BUILD_DIR/test/conformance" -name "*-test" -type f -executable 2>/dev/null | while read -r binary; do
-        "$binary" --gtest_list_tests 2>/dev/null || true
-      done > all_conformance_tests.txt
+      echo "Listing all conformance tests..."
+      binary_count=0
+      test_line_count=0
+      
+      # Use process substitution to avoid subshell issues with pipe
+      while IFS= read -r binary; do
+        binary_count=$((binary_count + 1))
+        echo "Processing binary $binary_count: $(basename $binary)"
+        before=$(wc -l < all_conformance_tests.txt 2>/dev/null || echo 0)
+        "$binary" --gtest_list_tests 2>&1 | tee -a /dev/stderr | grep -v "^$" >> all_conformance_tests.txt || {
+          echo "Warning: $(basename $binary) failed with --gtest_list_tests (exit code $?)"
+        }
+        after=$(wc -l < all_conformance_tests.txt 2>/dev/null || echo 0)
+        added=$((after - before))
+        test_line_count=$((test_line_count + added))
+        echo "  Added $added lines (total test lines: $after)"
+      done < <(find "$BUILD_DIR/test/conformance" -name "*-test" -type f -executable 2>/dev/null)
+      
+      echo "Summary: Processed $binary_count binaries, collected $test_line_count test definition lines"
   
   - name: Show conformance test statistics and lists
     if: ${{ always() }}

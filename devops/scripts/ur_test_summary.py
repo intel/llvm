@@ -311,19 +311,33 @@ def show_statistics_and_lists(lines: List[str], all_tests_file: str = None) -> N
         known_tests = set()
         for category, tests in test_lists.items():
             # For each test in this category, extract the GoogleTest name
+            # LIT format: "Unified Runtime Conformance :: path/to/binary-test/TestClass/TestCase[/Params...]"
             for test in tests:
+                # Split by ' :: ' first to separate suite name from test path
+                if " :: " in test:
+                    test = test.split(" :: ", 1)[1]
+                
                 parts = test.split("/")
-                # Find test class (typically starts with 'ur' or ends with 'Test')
+                
+                # Find binary name (ends with '-test') to locate TestClass/TestCase
+                binary_index = -1
                 for i, part in enumerate(parts):
-                    if ("Test" in part or part.startswith("ur")) and i + 1 < len(parts):
-                        test_class = part
-                        test_case = parts[i + 1]
-                        gtest_name = f"{test_class}.{test_case}"
-                        # Add backend parameter if present
-                        if i + 2 < len(parts) and parts[i + 2].startswith("UR_BACKEND"):
-                            gtest_name += f"/{parts[i + 2]}"
-                        known_tests.add(gtest_name)
+                    if part.endswith("-test"):
+                        binary_index = i
                         break
+                
+                # After binary: TestClass/TestCase[/Params...]
+                if binary_index >= 0 and binary_index + 2 < len(parts):
+                    test_class = parts[binary_index + 1]
+                    test_case = parts[binary_index + 2]
+                    gtest_name = f"{test_class}.{test_case}"
+                    
+                    # Add ALL parameters after test case (not just first one)
+                    if binary_index + 3 < len(parts):
+                        params = "/".join(parts[binary_index + 3:])
+                        gtest_name += f"/{params}"
+                    
+                    known_tests.add(gtest_name)
 
         if all_tests:
             # Find skipped: all_tests - all_known_tests
