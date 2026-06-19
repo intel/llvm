@@ -1703,7 +1703,9 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args,
   // the LTO link and defeat the non-LTO pipeline.
   // FIXME: This is a stop-gap for non-RDC. Longer term, RDC and non-RDC should
   //        share a unified interface.
-  if (Args.hasArg(OPT_no_lto))
+  // SPIR-V has no non-LTO pipeline so a --no-lto leaked from a concrete arch in
+  // a multi-target compile is ignored. Which is a workaround to remove.
+  if (Args.hasArg(OPT_no_lto) && !Triple.isSPIRV())
     CmdArgs.append({"-x", "ir"});
   for (StringRef InputFile : InputFiles)
     CmdArgs.push_back(InputFile);
@@ -1799,7 +1801,7 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args,
   if (Args.hasArg(OPT_clang_backend) || Args.hasArg(OPT_builtin_bitcode_EQ))
     CmdArgs.append({"-mllvm", "-openmp-opt-disable"});
 
-  if (Args.hasArg(OPT_no_lto))
+  if (Args.hasArg(OPT_no_lto) && !Triple.isSPIRV())
     CmdArgs.append({"-flto=none", "-Wno-unused-command-line-argument"});
 
   if (Error Err = executeCommands(*ClangPath, CmdArgs))
