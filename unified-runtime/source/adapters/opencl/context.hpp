@@ -15,10 +15,12 @@
 
 #include <vector>
 
-struct ur_context_handle_t_ : ur::opencl::handle_base {
+namespace ur::opencl {
+
+struct ur_context_handle_t_ : handle_base {
   using native_type = cl_context;
   native_type CLContext;
-  std::vector<ur_device_handle_t> Devices;
+  std::vector<ur_device_handle_t_ *> Devices;
   uint32_t DeviceCount;
   bool IsNativeHandleOwned = true;
   ur::RefCount RefCount;
@@ -27,11 +29,11 @@ struct ur_context_handle_t_ : ur::opencl::handle_base {
   ur_context_handle_t_ &operator=(const ur_context_handle_t_ &) = delete;
 
   ur_context_handle_t_(native_type Ctx, uint32_t DevCount,
-                       const ur_device_handle_t *phDevices)
+                       ur_device_handle_t_ *const *phDevices)
       : handle_base(), CLContext(Ctx), DeviceCount(DevCount) {
     for (uint32_t i = 0; i < DeviceCount; i++) {
       Devices.emplace_back(phDevices[i]);
-      ur::opencl::urDeviceRetain(phDevices[i]);
+      ur::opencl::urDeviceRetain(ur_cast<ur_device_handle_t>(phDevices[i]));
     }
   }
 
@@ -43,13 +45,16 @@ struct ur_context_handle_t_ : ur::opencl::handle_base {
     // clear the ext function pointer cache. This isn't foolproof sadly but it
     // should drastically reduce the chances of the pathological case described
     // in the comments in common.hpp.
-    ur::cl::getAdapter()->fnCache.clearCache(CLContext);
+    ur_cast<ur_adapter_handle_t_ *>(ur::cl::getAdapter())
+        ->fnCache.clearCache(CLContext);
 
     for (uint32_t i = 0; i < DeviceCount; i++) {
-      ur::opencl::urDeviceRelease(Devices[i]);
+      ur::opencl::urDeviceRelease(ur_cast<ur_device_handle_t>(Devices[i]));
     }
     if (IsNativeHandleOwned) {
       clReleaseContext(CLContext);
     }
   }
 };
+
+} // namespace ur::opencl

@@ -92,7 +92,8 @@ urPlatformGetInfo(ur_platform_handle_t hPlatform, ur_platform_info_t propName,
   case UR_PLATFORM_INFO_VERSION:
   case UR_PLATFORM_INFO_EXTENSIONS:
   case UR_PLATFORM_INFO_PROFILE: {
-    cl_platform_id Plat = hPlatform->CLPlatform;
+    auto Platform = ur_cast<ur::opencl::ur_platform_handle_t_ *>(hPlatform);
+    cl_platform_id Plat = Platform->CLPlatform;
 
     CL_RETURN_ON_FAILURE(
         clGetPlatformInfo(Plat, CLPropName, propSize, pPropValue, pSizeRet));
@@ -115,15 +116,16 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urPlatformGet(ur_adapter_handle_t, uint32_t NumEntries,
               ur_platform_handle_t *phPlatforms, uint32_t *pNumPlatforms) {
   static std::mutex adapterPopulationMutex{};
-  ur_adapter_handle_t Adapter = nullptr;
-  UR_RETURN_ON_FAILURE(ur::opencl::urAdapterGet(1, &Adapter, nullptr));
-  if (!Adapter) {
+  ur_adapter_handle_t AdapterHandle = nullptr;
+  UR_RETURN_ON_FAILURE(ur::opencl::urAdapterGet(1, &AdapterHandle, nullptr));
+  if (!AdapterHandle) {
     // The only operation urAdapterGet really performs is allocating the adapter
     // handle via new, so no adapter handle here almost certainly means memory
     // problems.
     return UR_RESULT_ERROR_OUT_OF_RESOURCES;
   }
 
+  auto Adapter = ur_cast<ur::opencl::ur_adapter_handle_t_ *>(AdapterHandle);
   if (Adapter->NumPlatforms == 0) {
     std::lock_guard guard{adapterPopulationMutex};
 
@@ -180,7 +182,8 @@ urPlatformGet(ur_adapter_handle_t, uint32_t NumEntries,
   }
   if (NumEntries && phPlatforms) {
     for (uint32_t i = 0; i < NumEntries; i++) {
-      phPlatforms[i] = Adapter->URPlatforms[i].get();
+      phPlatforms[i] =
+          ur_cast<ur_platform_handle_t>(Adapter->URPlatforms[i].get());
     }
   }
 
@@ -189,8 +192,9 @@ urPlatformGet(ur_adapter_handle_t, uint32_t NumEntries,
 
 UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetNativeHandle(
     ur_platform_handle_t hPlatform, ur_native_handle_t *phNativePlatform) {
+  auto Platform = ur_cast<ur::opencl::ur_platform_handle_t_ *>(hPlatform);
   *phNativePlatform =
-      reinterpret_cast<ur_native_handle_t>(hPlatform->CLPlatform);
+      reinterpret_cast<ur_native_handle_t>(Platform->CLPlatform);
   return UR_RESULT_SUCCESS;
 }
 
@@ -208,8 +212,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformCreateWithNativeHandle(
                                                  Platforms.data(), nullptr));
 
   for (uint32_t i = 0; i < NumPlatforms; i++) {
-    if (Platforms[i]->CLPlatform == NativeHandle) {
-      *phPlatform = Platforms[i];
+    auto Platform = ur_cast<ur::opencl::ur_platform_handle_t_ *>(Platforms[i]);
+    if (Platform->CLPlatform == NativeHandle) {
+      *phPlatform = ur_cast<ur_platform_handle_t>(Platform);
       return UR_RESULT_SUCCESS;
     }
   }
@@ -250,8 +255,6 @@ urPlatformGetBackendOption(ur_platform_handle_t, const char *pFrontendOption,
   }
   return UR_RESULT_ERROR_INVALID_VALUE;
 }
-
-} // namespace ur::opencl
 
 ur_result_t ur_platform_handle_t_::InitDevices() {
   if (Devices.empty()) {
@@ -300,3 +303,5 @@ ur_result_t ur_platform_handle_t_::InitDevices() {
 
   return UR_RESULT_SUCCESS;
 }
+
+} // namespace ur::opencl

@@ -24,7 +24,7 @@
 // it.
 static ur_adapter_handle_t liveAdapter = nullptr;
 
-ur_adapter_handle_t_::ur_adapter_handle_t_() : handle_base() {
+ur::opencl::ur_adapter_handle_t_::ur_adapter_handle_t_() : handle_base() {
 #ifdef UR_STATIC_ADAPTER_OPENCL
   if (!ocl::loadOCLLibrary()) {
     return;
@@ -67,17 +67,17 @@ ur_adapter_handle_t_::ur_adapter_handle_t_() : handle_base() {
 #endif // _MSC_VER
 #endif // UR_STATIC_ADAPTER_OPENCL
   assert(!liveAdapter);
-  liveAdapter = this;
+  liveAdapter = ur_cast<ur_adapter_handle_t>(this);
 }
 
-ur_adapter_handle_t_::~ur_adapter_handle_t_() {
+ur::opencl::ur_adapter_handle_t_::~ur_adapter_handle_t_() {
 #ifdef UR_STATIC_ADAPTER_OPENCL
-  if (liveAdapter == this) {
+  if (liveAdapter == ur_cast<ur_adapter_handle_t>(this)) {
     liveAdapter = nullptr;
     ocl::unloadOCLLibrary();
   }
 #else
-  assert(liveAdapter == this);
+  assert(liveAdapter == ur_cast<ur_adapter_handle_t>(this));
   liveAdapter = nullptr;
 #endif
 }
@@ -102,7 +102,8 @@ urAdapterGet(uint32_t NumEntries, ur_adapter_handle_t *phAdapters,
   std::lock_guard<std::mutex> Lock{AdapterConstructionMutex};
 
   if (!liveAdapter) {
-    ur_adapter_handle_t_ *newAdapter = new ur_adapter_handle_t_();
+    ur::opencl::ur_adapter_handle_t_ *newAdapter =
+        new ur::opencl::ur_adapter_handle_t_();
     if (!liveAdapter) {
       delete newAdapter;
       if (pNumAdapters) {
@@ -114,7 +115,7 @@ urAdapterGet(uint32_t NumEntries, ur_adapter_handle_t *phAdapters,
 
   if (NumEntries > 0 && phAdapters) {
     *phAdapters = liveAdapter;
-    liveAdapter->RefCount.retain();
+    ur_cast<ur::opencl::ur_adapter_handle_t_ *>(liveAdapter)->RefCount.retain();
   }
 
   if (pNumAdapters) {
@@ -126,14 +127,16 @@ urAdapterGet(uint32_t NumEntries, ur_adapter_handle_t *phAdapters,
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urAdapterRetain(ur_adapter_handle_t hAdapter) {
-  hAdapter->RefCount.retain();
+  auto Adapter = ur_cast<ur::opencl::ur_adapter_handle_t_ *>(hAdapter);
+  Adapter->RefCount.retain();
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urAdapterRelease(ur_adapter_handle_t hAdapter) {
-  if (hAdapter->RefCount.release()) {
-    delete hAdapter;
+  auto Adapter = ur_cast<ur::opencl::ur_adapter_handle_t_ *>(hAdapter);
+  if (Adapter->RefCount.release()) {
+    delete Adapter;
   }
   return UR_RESULT_SUCCESS;
 }
@@ -154,8 +157,10 @@ urAdapterGetInfo(ur_adapter_handle_t hAdapter, ur_adapter_info_t propName,
   switch (propName) {
   case UR_ADAPTER_INFO_BACKEND:
     return ReturnValue(UR_BACKEND_OPENCL);
-  case UR_ADAPTER_INFO_REFERENCE_COUNT:
-    return ReturnValue(hAdapter->RefCount.getCount());
+  case UR_ADAPTER_INFO_REFERENCE_COUNT: {
+    auto Adapter = ur_cast<ur::opencl::ur_adapter_handle_t_ *>(hAdapter);
+    return ReturnValue(Adapter->RefCount.getCount());
+  }
   case UR_ADAPTER_INFO_VERSION:
     return ReturnValue(uint32_t{1});
   default:
@@ -170,7 +175,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urAdapterSetLoggerCallback(
     void *pUserData, ur_logger_level_t level = UR_LOGGER_LEVEL_QUIET) {
 
   if (hAdapter) {
-    hAdapter->log.setCallbackSink(pfnLoggerCallback, pUserData, level);
+    auto Adapter = ur_cast<ur::opencl::ur_adapter_handle_t_ *>(hAdapter);
+    Adapter->log.setCallbackSink(pfnLoggerCallback, pUserData, level);
   }
 
   return UR_RESULT_SUCCESS;
@@ -180,7 +186,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urAdapterSetLoggerCallbackLevel(
     ur_adapter_handle_t hAdapter, ur_logger_level_t level) {
 
   if (hAdapter) {
-    hAdapter->log.setCallbackLevel(level);
+    auto Adapter = ur_cast<ur::opencl::ur_adapter_handle_t_ *>(hAdapter);
+    Adapter->log.setCallbackLevel(level);
   }
 
   return UR_RESULT_SUCCESS;

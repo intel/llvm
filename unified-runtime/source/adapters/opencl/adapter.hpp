@@ -17,7 +17,9 @@
 #include "common/ur_ref_count.hpp"
 #include "logger/ur_logger.hpp"
 
-struct ur_adapter_handle_t_ : ur::opencl::handle_base {
+namespace ur::opencl {
+
+struct ur_adapter_handle_t_ : handle_base {
   ur_adapter_handle_t_();
   ~ur_adapter_handle_t_();
 
@@ -39,6 +41,8 @@ struct ur_adapter_handle_t_ : ur::opencl::handle_base {
 #include "core_functions.def"
 #undef CL_CORE_FUNCTION
 };
+
+} // namespace ur::opencl
 
 namespace ur {
 namespace cl {

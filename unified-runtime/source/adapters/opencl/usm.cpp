@@ -105,6 +105,8 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urUSMHostAlloc(ur_context_handle_t Context, const ur_usm_desc_t *pUSMDesc,
                ur_usm_pool_handle_t, size_t size, void **ppMem) {
 
+  auto hContext = ur_cast<ur_context_handle_t_ *>(Context);
+
   void *Ptr = nullptr;
   uint32_t Alignment = pUSMDesc ? pUSMDesc->align : 0;
 
@@ -121,9 +123,11 @@ urUSMHostAlloc(ur_context_handle_t Context, const ur_usm_desc_t *pUSMDesc,
 
   // First we need to look up the function pointer
   clHostMemAllocINTEL_fn FuncPtr = nullptr;
-  cl_context CLContext = Context->CLContext;
+  cl_context CLContext = hContext->CLContext;
   if (auto UrResult = cl_ext::getExtFuncFromContext<clHostMemAllocINTEL_fn>(
-          CLContext, ur::cl::getAdapter()->fnCache.clHostMemAllocINTELCache,
+          CLContext,
+          ur_cast<ur_adapter_handle_t_ *>(ur::cl::getAdapter())
+              ->fnCache.clHostMemAllocINTELCache,
           cl_ext::HostMemAllocName, &FuncPtr)) {
     return UrResult;
   }
@@ -153,6 +157,9 @@ urUSMDeviceAlloc(ur_context_handle_t Context, ur_device_handle_t hDevice,
                  const ur_usm_desc_t *pUSMDesc, ur_usm_pool_handle_t,
                  size_t size, void **ppMem) {
 
+  auto hContext = ur_cast<ur_context_handle_t_ *>(Context);
+  auto Device = ur_cast<ur_device_handle_t_ *>(hDevice);
+
   void *Ptr = nullptr;
   uint32_t Alignment = pUSMDesc ? pUSMDesc->align : 0;
 
@@ -169,16 +176,18 @@ urUSMDeviceAlloc(ur_context_handle_t Context, ur_device_handle_t hDevice,
 
   // First we need to look up the function pointer
   clDeviceMemAllocINTEL_fn FuncPtr = nullptr;
-  cl_context CLContext = Context->CLContext;
+  cl_context CLContext = hContext->CLContext;
   if (auto UrResult = cl_ext::getExtFuncFromContext<clDeviceMemAllocINTEL_fn>(
-          CLContext, ur::cl::getAdapter()->fnCache.clDeviceMemAllocINTELCache,
+          CLContext,
+          ur_cast<ur_adapter_handle_t_ *>(ur::cl::getAdapter())
+              ->fnCache.clDeviceMemAllocINTELCache,
           cl_ext::DeviceMemAllocName, &FuncPtr)) {
     return UrResult;
   }
 
   if (FuncPtr) {
     cl_int ClResult = CL_SUCCESS;
-    Ptr = FuncPtr(CLContext, hDevice->CLDevice,
+    Ptr = FuncPtr(CLContext, Device->CLDevice,
                   AllocProperties.empty() ? nullptr : AllocProperties.data(),
                   size, Alignment, &ClResult);
     if (ClResult == CL_INVALID_BUFFER_SIZE) {
@@ -201,6 +210,9 @@ urUSMSharedAlloc(ur_context_handle_t Context, ur_device_handle_t hDevice,
                  const ur_usm_desc_t *pUSMDesc, ur_usm_pool_handle_t,
                  size_t size, void **ppMem) {
 
+  auto hContext = ur_cast<ur_context_handle_t_ *>(Context);
+  auto Device = ur_cast<ur_device_handle_t_ *>(hDevice);
+
   void *Ptr = nullptr;
   uint32_t Alignment = pUSMDesc ? pUSMDesc->align : 0;
 
@@ -217,16 +229,18 @@ urUSMSharedAlloc(ur_context_handle_t Context, ur_device_handle_t hDevice,
 
   // First we need to look up the function pointer
   clSharedMemAllocINTEL_fn FuncPtr = nullptr;
-  cl_context CLContext = Context->CLContext;
+  cl_context CLContext = hContext->CLContext;
   if (auto UrResult = cl_ext::getExtFuncFromContext<clSharedMemAllocINTEL_fn>(
-          CLContext, ur::cl::getAdapter()->fnCache.clSharedMemAllocINTELCache,
+          CLContext,
+          ur_cast<ur_adapter_handle_t_ *>(ur::cl::getAdapter())
+              ->fnCache.clSharedMemAllocINTELCache,
           cl_ext::SharedMemAllocName, &FuncPtr)) {
     return UrResult;
   }
 
   if (FuncPtr) {
     cl_int ClResult = CL_SUCCESS;
-    Ptr = FuncPtr(CLContext, hDevice->CLDevice,
+    Ptr = FuncPtr(CLContext, Device->CLDevice,
                   AllocProperties.empty() ? nullptr : AllocProperties.data(),
                   size, Alignment, static_cast<cl_int *>(&ClResult));
     if (ClResult == CL_INVALID_BUFFER_SIZE) {
@@ -246,14 +260,18 @@ urUSMSharedAlloc(ur_context_handle_t Context, ur_device_handle_t hDevice,
 UR_APIEXPORT ur_result_t UR_APICALL urUSMFree(ur_context_handle_t Context,
                                               void *pMem) {
 
+  auto hContext = ur_cast<ur_context_handle_t_ *>(Context);
+
   // Use a blocking free to avoid issues with indirect access from kernels that
   // might be still running.
   clMemBlockingFreeINTEL_fn FuncPtr = nullptr;
 
-  cl_context CLContext = Context->CLContext;
+  cl_context CLContext = hContext->CLContext;
   ur_result_t RetVal = UR_RESULT_ERROR_INVALID_OPERATION;
   RetVal = cl_ext::getExtFuncFromContext<clMemBlockingFreeINTEL_fn>(
-      CLContext, ur::cl::getAdapter()->fnCache.clMemBlockingFreeINTELCache,
+      CLContext,
+      ur_cast<ur_adapter_handle_t_ *>(ur::cl::getAdapter())
+          ->fnCache.clMemBlockingFreeINTELCache,
       cl_ext::MemBlockingFreeName, &FuncPtr);
 
   if (FuncPtr) {
@@ -267,27 +285,34 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill(
     ur_queue_handle_t hQueue, void *ptr, size_t patternSize,
     const void *pPattern, size_t size, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+
+  auto Queue = ur_cast<ur_queue_handle_t_ *>(hQueue);
+
   // Have to look up the context from the kernel
-  cl_context CLContext = hQueue->Context->CLContext;
+  cl_context CLContext = Queue->Context->CLContext;
 
   if (patternSize <= 128 && isPowerOf2(patternSize) &&
       isPointerAlignedTo(patternSize, ptr)) {
     clEnqueueMemFillINTEL_fn EnqueueMemFill = nullptr;
     UR_RETURN_ON_FAILURE(
         cl_ext::getExtFuncFromContext<clEnqueueMemFillINTEL_fn>(
-            CLContext, ur::cl::getAdapter()->fnCache.clEnqueueMemFillINTELCache,
+            CLContext,
+            ur_cast<ur_adapter_handle_t_ *>(ur::cl::getAdapter())
+                ->fnCache.clEnqueueMemFillINTELCache,
             cl_ext::EnqueueMemFillName, &EnqueueMemFill));
     cl_event Event;
     std::vector<cl_event> CLWaitEvents(numEventsInWaitList);
     for (uint32_t i = 0; i < numEventsInWaitList; i++) {
-      CLWaitEvents[i] = phEventWaitList[i]->CLEvent;
+      CLWaitEvents[i] =
+          ur_cast<ur_event_handle_t_ *>(phEventWaitList[i])->CLEvent;
     }
     CL_RETURN_ON_FAILURE(EnqueueMemFill(
-        hQueue->CLQueue, ptr, pPattern, patternSize, size, numEventsInWaitList,
+        Queue->CLQueue, ptr, pPattern, patternSize, size, numEventsInWaitList,
         CLWaitEvents.data(), ifUrEvent(phEvent, Event)));
 
     UR_RETURN_ON_FAILURE(
-        createUREvent(Event, hQueue->Context, hQueue, phEvent));
+        createUREvent(Event, ur_cast<ur_context_handle_t>(Queue->Context),
+                      ur_cast<ur_queue_handle_t>(Queue), phEvent));
     return UR_RESULT_SUCCESS;
   }
 
@@ -298,12 +323,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill(
 
   clEnqueueMemcpyINTEL_fn USMMemcpy = nullptr;
   UR_RETURN_ON_FAILURE(cl_ext::getExtFuncFromContext<clEnqueueMemcpyINTEL_fn>(
-      CLContext, ur::cl::getAdapter()->fnCache.clEnqueueMemcpyINTELCache,
+      CLContext,
+      ur_cast<ur_adapter_handle_t_ *>(ur::cl::getAdapter())
+          ->fnCache.clEnqueueMemcpyINTELCache,
       cl_ext::EnqueueMemcpyName, &USMMemcpy));
 
   clMemBlockingFreeINTEL_fn USMFree = nullptr;
   UR_RETURN_ON_FAILURE(cl_ext::getExtFuncFromContext<clMemBlockingFreeINTEL_fn>(
-      CLContext, ur::cl::getAdapter()->fnCache.clMemBlockingFreeINTELCache,
+      CLContext,
+      ur_cast<ur_adapter_handle_t_ *>(ur::cl::getAdapter())
+          ->fnCache.clMemBlockingFreeINTELCache,
       cl_ext::MemBlockingFreeName, &USMFree));
 
   uint8_t *HostBuffer = new uint8_t[size];
@@ -316,9 +345,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill(
   cl_event CopyEvent = nullptr;
   std::vector<cl_event> CLWaitEvents(numEventsInWaitList);
   for (uint32_t i = 0; i < numEventsInWaitList; i++) {
-    CLWaitEvents[i] = phEventWaitList[i]->CLEvent;
+    CLWaitEvents[i] =
+        ur_cast<ur_event_handle_t_ *>(phEventWaitList[i])->CLEvent;
   }
-  CL_RETURN_ON_FAILURE(USMMemcpy(hQueue->CLQueue, false, ptr, HostBuffer, size,
+  CL_RETURN_ON_FAILURE(USMMemcpy(Queue->CLQueue, false, ptr, HostBuffer, size,
                                  numEventsInWaitList, CLWaitEvents.data(),
                                  &CopyEvent));
 
@@ -328,8 +358,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill(
     CL_RETURN_ON_FAILURE(clRetainEvent(CopyEvent));
     try {
       auto UREvent = std::make_unique<ur_event_handle_t_>(
-          CopyEvent, hQueue->Context, hQueue);
-      *phEvent = UREvent.release();
+          CopyEvent, Queue->Context, Queue);
+      *phEvent = ur_cast<ur_event_handle_t>(UREvent.release());
     } catch (std::bad_alloc &) {
       return UR_RESULT_ERROR_OUT_OF_RESOURCES;
     } catch (...) {
@@ -361,23 +391,31 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
     size_t size, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
 
+  auto Queue = ur_cast<ur_queue_handle_t_ *>(hQueue);
+
   // Have to look up the context from the kernel
-  cl_context CLContext = hQueue->Context->CLContext;
+  cl_context CLContext = Queue->Context->CLContext;
 
   cl_int CLErr = CL_SUCCESS;
   clGetMemAllocInfoINTEL_fn GetMemAllocInfo = nullptr;
   UR_RETURN_ON_FAILURE(cl_ext::getExtFuncFromContext<clGetMemAllocInfoINTEL_fn>(
-      CLContext, ur::cl::getAdapter()->fnCache.clGetMemAllocInfoINTELCache,
+      CLContext,
+      ur_cast<ur_adapter_handle_t_ *>(ur::cl::getAdapter())
+          ->fnCache.clGetMemAllocInfoINTELCache,
       cl_ext::GetMemAllocInfoName, &GetMemAllocInfo));
 
   clEnqueueMemcpyINTEL_fn USMMemcpy = nullptr;
   UR_RETURN_ON_FAILURE(cl_ext::getExtFuncFromContext<clEnqueueMemcpyINTEL_fn>(
-      CLContext, ur::cl::getAdapter()->fnCache.clEnqueueMemcpyINTELCache,
+      CLContext,
+      ur_cast<ur_adapter_handle_t_ *>(ur::cl::getAdapter())
+          ->fnCache.clEnqueueMemcpyINTELCache,
       cl_ext::EnqueueMemcpyName, &USMMemcpy));
 
   clMemBlockingFreeINTEL_fn USMFree = nullptr;
   UR_RETURN_ON_FAILURE(cl_ext::getExtFuncFromContext<clMemBlockingFreeINTEL_fn>(
-      CLContext, ur::cl::getAdapter()->fnCache.clMemBlockingFreeINTELCache,
+      CLContext,
+      ur_cast<ur_adapter_handle_t_ *>(ur::cl::getAdapter())
+          ->fnCache.clMemBlockingFreeINTELCache,
       cl_ext::MemBlockingFreeName, &USMFree));
 
   // Check if the two allocations are DEVICE allocations from different
@@ -395,7 +433,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
     // We need a queue associated with each device, so first figure out which
     // one we weren't given.
     cl_device_id QueueDevice = nullptr;
-    CL_RETURN_ON_FAILURE(clGetCommandQueueInfo(hQueue->CLQueue, CL_QUEUE_DEVICE,
+    CL_RETURN_ON_FAILURE(clGetCommandQueueInfo(Queue->CLQueue, CL_QUEUE_DEVICE,
                                                sizeof(QueueDevice),
                                                &QueueDevice, nullptr));
 
@@ -403,11 +441,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
                      DstQueue = nullptr;
     if (QueueDevice == SrcDevice) {
       MissingQueue = clCreateCommandQueue(CLContext, DstDevice, 0, &CLErr);
-      SrcQueue = hQueue->CLQueue;
+      SrcQueue = Queue->CLQueue;
       DstQueue = MissingQueue;
     } else {
       MissingQueue = clCreateCommandQueue(CLContext, SrcDevice, 0, &CLErr);
-      DstQueue = hQueue->CLQueue;
+      DstQueue = Queue->CLQueue;
       SrcQueue = MissingQueue;
     }
     CL_RETURN_ON_FAILURE(CLErr);
@@ -415,7 +453,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
     cl_event HostCopyEvent = nullptr, FinalCopyEvent = nullptr;
     clHostMemAllocINTEL_fn HostMemAlloc = nullptr;
     UR_RETURN_ON_FAILURE(cl_ext::getExtFuncFromContext<clHostMemAllocINTEL_fn>(
-        CLContext, ur::cl::getAdapter()->fnCache.clHostMemAllocINTELCache,
+        CLContext,
+        ur_cast<ur_adapter_handle_t_ *>(ur::cl::getAdapter())
+            ->fnCache.clHostMemAllocINTELCache,
         cl_ext::HostMemAllocName, &HostMemAlloc));
 
     auto HostAlloc = static_cast<uint8_t *>(
@@ -440,7 +480,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
 
     std::vector<cl_event> CLWaitEvents(numEventsInWaitList);
     for (uint32_t i = 0; i < numEventsInWaitList; i++) {
-      CLWaitEvents[i] = phEventWaitList[i]->CLEvent;
+      CLWaitEvents[i] =
+          ur_cast<ur_event_handle_t_ *>(phEventWaitList[i])->CLEvent;
     }
     UR_RETURN_ON_FAILURE(checkCLErr(
         USMMemcpy(SrcQueue, blocking, HostAlloc, pSrc, size,
@@ -459,8 +500,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
       if (phEvent) {
         try {
           auto UREvent = std::make_unique<ur_event_handle_t_>(
-              FinalCopyEvent, hQueue->Context, hQueue);
-          *phEvent = UREvent.release();
+              FinalCopyEvent, Queue->Context, Queue);
+          *phEvent = ur_cast<ur_event_handle_t>(UREvent.release());
         } catch (std::bad_alloc &) {
           return UR_RESULT_ERROR_OUT_OF_RESOURCES;
         } catch (...) {
@@ -473,8 +514,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
       if (phEvent) {
         try {
           auto UREvent = std::make_unique<ur_event_handle_t_>(
-              FinalCopyEvent, hQueue->Context, hQueue);
-          *phEvent = UREvent.release();
+              FinalCopyEvent, Queue->Context, Queue);
+          *phEvent = ur_cast<ur_event_handle_t>(UREvent.release());
         } catch (std::bad_alloc &) {
           return UR_RESULT_ERROR_OUT_OF_RESOURCES;
         } catch (...) {
@@ -507,13 +548,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
     cl_event Event;
     std::vector<cl_event> CLWaitEvents(numEventsInWaitList);
     for (uint32_t i = 0; i < numEventsInWaitList; i++) {
-      CLWaitEvents[i] = phEventWaitList[i]->CLEvent;
+      CLWaitEvents[i] =
+          ur_cast<ur_event_handle_t_ *>(phEventWaitList[i])->CLEvent;
     }
-    CL_RETURN_ON_FAILURE(USMMemcpy(hQueue->CLQueue, blocking, pDst, pSrc, size,
+    CL_RETURN_ON_FAILURE(USMMemcpy(Queue->CLQueue, blocking, pDst, pSrc, size,
                                    numEventsInWaitList, CLWaitEvents.data(),
                                    ifUrEvent(phEvent, Event)));
     UR_RETURN_ON_FAILURE(
-        createUREvent(Event, hQueue->Context, hQueue, phEvent));
+        createUREvent(Event, ur_cast<ur_context_handle_t>(Queue->Context),
+                      ur_cast<ur_queue_handle_t>(Queue), phEvent));
   }
 
   return UR_RESULT_SUCCESS;
@@ -525,6 +568,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
     [[maybe_unused]] ur_usm_migration_flags_t flags,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
+
+  auto Queue = ur_cast<ur_queue_handle_t_ *>(hQueue);
+
   // TODO: Uncomment implementation when issues with impl are resolved.
 
   // cl_mem_migration_flags MigrationFlag;
@@ -562,22 +608,25 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
   cl_event Event = nullptr;
   std::vector<cl_event> CLWaitEvents(numEventsInWaitList);
   for (uint32_t i = 0; i < numEventsInWaitList; i++) {
-    CLWaitEvents[i] = phEventWaitList[i]->CLEvent;
+    CLWaitEvents[i] =
+        ur_cast<ur_event_handle_t_ *>(phEventWaitList[i])->CLEvent;
   }
 
   /*
   CL_RETURN_ON_FAILURE(EnqueueMigrateMem(
-    hQueue->CLQueue, pMem, size, MigrationFlag, numEventsInWaitList,
+    Queue->CLQueue, pMem, size, MigrationFlag, numEventsInWaitList,
     CLWaitEvents.data(), ifUrEvent(phEvent, Event)));
   */
 
   // TODO: when issues with impl are fully resolved, delete this and use
   // waitlisting from EnqueueMigrateMem instead.
   CL_RETURN_ON_FAILURE(clEnqueueMarkerWithWaitList(
-      hQueue->CLQueue, numEventsInWaitList, CLWaitEvents.data(),
+      Queue->CLQueue, numEventsInWaitList, CLWaitEvents.data(),
       ifUrEvent(phEvent, Event)));
 
-  UR_RETURN_ON_FAILURE(createUREvent(Event, hQueue->Context, hQueue, phEvent));
+  UR_RETURN_ON_FAILURE(
+      createUREvent(Event, ur_cast<ur_context_handle_t>(Queue->Context),
+                    ur_cast<ur_queue_handle_t>(Queue), phEvent));
   return UR_RESULT_SUCCESS;
 }
 
@@ -585,10 +634,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMAdvise(
     ur_queue_handle_t hQueue, [[maybe_unused]] const void *pMem,
     [[maybe_unused]] size_t size, [[maybe_unused]] ur_usm_advice_flags_t advice,
     ur_event_handle_t *phEvent) {
+
+  auto Queue = ur_cast<ur_queue_handle_t_ *>(hQueue);
+
   cl_event Event;
-  CL_RETURN_ON_FAILURE(clEnqueueMarkerWithWaitList(hQueue->CLQueue, 0, nullptr,
+  CL_RETURN_ON_FAILURE(clEnqueueMarkerWithWaitList(Queue->CLQueue, 0, nullptr,
                                                    ifUrEvent(phEvent, Event)));
-  UR_RETURN_ON_FAILURE(createUREvent(Event, hQueue->Context, hQueue, phEvent));
+  UR_RETURN_ON_FAILURE(
+      createUREvent(Event, ur_cast<ur_context_handle_t>(Queue->Context),
+                    ur_cast<ur_queue_handle_t>(Queue), phEvent));
   return UR_RESULT_SUCCESS;
   /*
   // Change to use this once drivers support it.
@@ -627,11 +681,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
     const void *pSrc, size_t srcPitch, size_t width, size_t height,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
-  cl_context CLContext = hQueue->Context->CLContext;
+
+  auto Queue = ur_cast<ur_queue_handle_t_ *>(hQueue);
+
+  cl_context CLContext = Queue->Context->CLContext;
 
   clEnqueueMemcpyINTEL_fn FuncPtr = nullptr;
   ur_result_t RetVal = cl_ext::getExtFuncFromContext<clEnqueueMemcpyINTEL_fn>(
-      CLContext, ur::cl::getAdapter()->fnCache.clEnqueueMemcpyINTELCache,
+      CLContext,
+      ur_cast<ur_adapter_handle_t_ *>(ur::cl::getAdapter())
+          ->fnCache.clEnqueueMemcpyINTELCache,
       cl_ext::EnqueueMemcpyName, &FuncPtr);
 
   if (!FuncPtr) {
@@ -643,10 +702,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
     cl_event Event = nullptr;
     std::vector<cl_event> CLWaitEvents(numEventsInWaitList);
     for (uint32_t i = 0; i < numEventsInWaitList; i++) {
-      CLWaitEvents[i] = phEventWaitList[i]->CLEvent;
+      CLWaitEvents[i] =
+          ur_cast<ur_event_handle_t_ *>(phEventWaitList[i])->CLEvent;
     }
     auto ClResult =
-        FuncPtr(hQueue->CLQueue, false,
+        FuncPtr(Queue->CLQueue, false,
                 static_cast<uint8_t *>(pDst) + dstPitch * HeightIndex,
                 static_cast<const uint8_t *>(pSrc) + srcPitch * HeightIndex,
                 width, numEventsInWaitList, CLWaitEvents.data(), &Event);
@@ -665,10 +725,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
   if (phEvent && ClResult == CL_SUCCESS) {
     cl_event Event;
     ClResult =
-        clEnqueueBarrierWithWaitList(hQueue->CLQueue, Events.size(),
+        clEnqueueBarrierWithWaitList(Queue->CLQueue, Events.size(),
                                      Events.data(), ifUrEvent(phEvent, Event));
-    UR_RETURN_ON_FAILURE(
-        createUREvent(Event, hQueue->Context, hQueue, phEvent));
+    UR_RETURN_ON_FAILURE(createUREvent(
+        Event, ur_cast<ur_context_handle_t>(Queue->Context), hQueue, phEvent));
   }
   for (const auto &E : Events) {
     CL_RETURN_ON_FAILURE(clReleaseEvent(E));
@@ -696,10 +756,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMGetMemAllocInfo(
     ur_context_handle_t Context, const void *pMem, ur_usm_alloc_info_t propName,
     size_t propSize, void *pPropValue, size_t *pPropSizeRet) {
 
+  auto hContext = ur_cast<ur_context_handle_t_ *>(Context);
+
   clGetMemAllocInfoINTEL_fn GetMemAllocInfo = nullptr;
-  cl_context CLContext = Context->CLContext;
+  cl_context CLContext = hContext->CLContext;
   UR_RETURN_ON_FAILURE(cl_ext::getExtFuncFromContext<clGetMemAllocInfoINTEL_fn>(
-      CLContext, ur::cl::getAdapter()->fnCache.clGetMemAllocInfoINTELCache,
+      CLContext,
+      ur_cast<ur_adapter_handle_t_ *>(ur::cl::getAdapter())
+          ->fnCache.clGetMemAllocInfoINTELCache,
       cl_ext::GetMemAllocInfoName, &GetMemAllocInfo));
 
   cl_mem_info_intel PropNameCL;
@@ -721,11 +785,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMGetMemAllocInfo(
   }
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
   if (propName == UR_USM_ALLOC_INFO_DEVICE) {
-    return ReturnValue(Context->Devices[0]);
+    return ReturnValue(ur_cast<ur_device_handle_t>(hContext->Devices[0]));
   }
   size_t CheckPropSize = 0;
-  cl_int ClErr = GetMemAllocInfo(Context->CLContext, pMem, PropNameCL, propSize,
-                                 pPropValue, &CheckPropSize);
+  cl_int ClErr = GetMemAllocInfo(hContext->CLContext, pMem, PropNameCL,
+                                 propSize, pPropValue, &CheckPropSize);
   if (pPropValue && CheckPropSize != propSize) {
     return UR_RESULT_ERROR_INVALID_SIZE;
   }
