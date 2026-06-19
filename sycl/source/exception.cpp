@@ -27,15 +27,15 @@ exception::exception(std::error_code EC, std::shared_ptr<context> SharedPtrCtx,
 
 exception::~exception() {}
 
-const std::error_code &exception::code() const noexcept { return MErrC; }
+const std::error_code &exception::code() const { return MErrC; }
 
-const std::error_category &exception::category() const noexcept {
+const std::error_category &exception::category() const {
   return code().category();
 }
 
-const char *exception::what() const noexcept { return MMsg->c_str(); }
+const char *exception::what() const { return MMsg->c_str(); }
 
-bool exception::has_context() const noexcept { return (MContext != nullptr); }
+bool exception::has_context() const { return (MContext != nullptr); }
 
 context exception::get_context() const {
   if (!has_context())
@@ -44,12 +44,12 @@ context exception::get_context() const {
   return *MContext;
 }
 
-const std::error_category &sycl_category() noexcept {
+const std::error_category &sycl_category() {
   static const detail::SYCLCategory SYCLCategoryObj;
   return SYCLCategoryObj;
 }
 
-std::error_code make_error_code(sycl::errc Err) noexcept {
+std::error_code make_error_code(sycl::errc Err) {
   return {static_cast<int>(Err), sycl_category()};
 }
 
