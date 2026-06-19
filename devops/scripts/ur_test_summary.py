@@ -161,7 +161,7 @@ def extract_test_lists(lines: List[str]) -> Dict[str, List[str]]:
 
     # Pattern: "Category Tests (N):"
     category_pattern = re.compile(
-        r"^(Passed|Unsupported|Failed|Expectedly Failed|Unresolved|Timed Out) Tests \((\d+)\):"
+        r"^(Passed|Unsupported|Failed|Expectedly Failed|Unresolved|Timed Out|Unexpectedly Passed) Tests \((\d+)\):"
     )
 
     for line in lines:
@@ -299,6 +299,15 @@ def show_statistics_and_lists(lines: List[str], all_tests_file: str = None) -> N
         for stat in stats:
             print(stat.rstrip())
         print()
+    
+    # Validate totals match sum of categories
+    total_discovered = None
+    for stat in stats:
+        if "Total Discovered" in stat:
+            match = re.search(r"(\d+)", stat)
+            if match:
+                total_discovered = int(match.group(1))
+                break
 
     # Extract test lists in collapsed sections (LIT format)
     test_lists = extract_test_lists(lines)
@@ -405,6 +414,18 @@ def show_statistics_and_lists(lines: List[str], all_tests_file: str = None) -> N
             for test in tests:
                 print(test)
             print("::endgroup::")
+    
+    # Validate that total discovered matches sum of all categories
+    if total_discovered:
+        sum_categories = sum(len(tests) for tests in test_lists.values())
+        
+        if total_discovered != sum_categories:
+            print()
+            print(f"::warning::Test count mismatch: Total Discovered = {total_discovered}, but sum of all categories = {sum_categories}")
+            print(f"⚠️  Warning: {total_discovered - sum_categories} tests are unaccounted for.")
+            print(f"This may indicate tests in unexpected categories or parsing issues.")
+            print(f"Categories found: {', '.join(test_lists.keys())}")
+            print()
 
 
 def main():

@@ -41,7 +41,18 @@ runs:
     shell: bash
     run: |
       if [ ! -f adapter_tests.log ]; then
-        echo "Log file not found"
+        echo "::warning::Adapter specific test log not found - no tests may be available for this adapter"
+        echo "## ⚠️ Adapter Specific Tests Not Available" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "No adapter-specific tests were found or executed for this configuration." >> $GITHUB_STEP_SUMMARY
+        exit 0
+      fi
+      
+      if [ ! -s adapter_tests.log ]; then
+        echo "::warning::Adapter specific test log is empty"
+        echo "## ⚠️ Adapter Specific Tests Log Empty" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "The adapter-specific test log exists but is empty." >> $GITHUB_STEP_SUMMARY
         exit 0
       fi
       
