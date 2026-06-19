@@ -7658,7 +7658,7 @@ RValue CodeGenFunction::EmitIntelSYCLAllocaBuiltin(
     // an `alloca` or an equivalent construct in later compilation stages.
     IRBuilderBase::InsertPointGuard IPG(Builder);
     Builder.SetInsertPoint(AllocaInsertPt);
-    llvm::CallInst *CI = Builder.CreateIntrinsic(
+    llvm::CallInst *CI = Builder.CreateIntrinsicWithoutFolding(
         AllocaTy, Intrinsic::sycl_alloca,
         {UID, SpecConstPtr, RTBufferPtr, EltTyConst, Align}, nullptr, "alloca");
 
