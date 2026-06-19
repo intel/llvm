@@ -104,6 +104,7 @@ struct sub_group {
 #endif
   }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   /* --- synchronization functions --- */
   __SYCL_DEPRECATED(
       "Sub-group barrier with no arguments is deprecated."
@@ -136,6 +137,7 @@ struct sub_group {
                           "Sub-groups are not supported on host.");
 #endif
   }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   linear_id_type get_group_linear_range() const {
 #ifdef __SYCL_DEVICE_ONLY__
