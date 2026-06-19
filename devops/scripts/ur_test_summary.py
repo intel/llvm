@@ -303,87 +303,99 @@ def show_statistics_and_lists(lines: List[str], all_tests_file: str = None) -> N
     # Extract test lists in collapsed sections (LIT format)
     test_lists = extract_test_lists(lines)
 
-    # For GoogleTest format: try to generate skipped list from all_tests_file
-    if "Unsupported" not in test_lists and all_tests_file:
-        all_tests = parse_gtest_list(all_tests_file)
+    # For GoogleTest format: try multiple strategies to get skipped list
+    if "Unsupported" not in test_lists:
+        # Strategy 1: Extract from LIT inline output (always works if LIT prints them)
+        unsupported_inline = extract_unsupported_from_lit_inline(lines)
         
-        # Extract test names from ALL categories (not just Passed)
-        known_tests = set()
-        for category, tests in test_lists.items():
-            # For each test in this category, extract the GoogleTest name
-            # LIT format: "Unified Runtime Conformance :: path/to/binary-test/TestClass/TestCase[/Params...]"
-            for test in tests:
-                # Split by ' :: ' first to separate suite name from test path
-                if " :: " in test:
-                    test = test.split(" :: ", 1)[1]
-                
-                parts = test.split("/")
-                
-                # Find binary name (ends with '-test') to locate TestClass/TestCase
-                binary_index = -1
-                for i, part in enumerate(parts):
-                    if part.endswith("-test"):
-                        binary_index = i
-                        break
-                
-                # After binary: TestClass/TestCase[/Params...]
-                if binary_index >= 0 and binary_index + 2 < len(parts):
-                    test_class = parts[binary_index + 1]
-                    test_case = parts[binary_index + 2]
-                    gtest_name = f"{test_class}.{test_case}"
+        # Strategy 2: Extract from GoogleTest SKIPPED summary (rare, only if test uses GTEST_SKIP())
+        skipped_gtest = extract_skipped_from_gtest(lines)
+        
+        # Strategy 3: Compute from all_tests_file if provided
+        skipped_computed = []
+        if all_tests_file:
+            all_tests = parse_gtest_list(all_tests_file)
+            
+            # Extract test names from ALL categories (Passed, Failed, Timed Out, etc.)
+            known_tests = set()
+            for category, tests in test_lists.items():
+                for test in tests:
+                    # Split by ' :: ' first to separate suite name from test path
+                    if " :: " in test:
+                        test = test.split(" :: ", 1)[1]
                     
-                    # Add ALL parameters after test case (not just first one)
-                    if binary_index + 3 < len(parts):
-                        params = "/".join(parts[binary_index + 3:])
-                        gtest_name += f"/{params}"
+                    parts = test.split("/")
                     
-                    known_tests.add(gtest_name)
-
-        if all_tests:
-            # Find skipped: all_tests - all_known_tests
-            skipped = [t for t in all_tests if t not in known_tests]
-
-            if skipped:
-                count = len(skipped)
-                print(f"::group::Skipped Tests ({count})")
-                for test in skipped:
-                    print(test)
-                print("::endgroup::")
-
-    # For GoogleTest format without all_tests_file: extract from inline output
-    elif "Unsupported" not in test_lists:
-        # Try GoogleTest SKIPPED first (for test fixtures that use GTEST_SKIP())
-        skipped_tests = extract_skipped_from_gtest(lines)
-        if skipped_tests:
-            count = len(skipped_tests)
-            print(f"::group::Skipped Tests ({count})")
-            for test in skipped_tests:
-                print(test)
-            print("::endgroup::")
-
-        # Then extract LIT UNSUPPORTED (for tests with REQUIRES:/UNSUPPORTED: markers)
-        unsupported_tests = extract_unsupported_from_lit_inline(lines)
-        if unsupported_tests:
-            count = len(unsupported_tests)
-            print(f"::group::Skipped Tests ({count})")
-            for test in unsupported_tests:
-                print(test)
-            print("::endgroup::")
-
-        # If no skipped tests found but GoogleTest format detected,
-        # show informational message
-        if not skipped_tests and not unsupported_tests:
-            # Check if statistics mention skipped tests
+                    # Find binary name (ends with '-test') to locate TestClass/TestCase
+                    binary_index = -1
+                    for i, part in enumerate(parts):
+                        if part.endswith("-test"):
+                            binary_index = i
+                            break
+                    
+                    # After binary: TestClass/TestCase[/Params...]
+                    if binary_index >= 0 and binary_index + 2 < len(parts):
+                        test_class = parts[binary_index + 1]
+                        test_case = parts[binary_index + 2]
+                        gtest_name = f"{test_class}.{test_case}"
+                        
+                        # Add ALL parameters after test case
+                        if binary_index + 3 < len(parts):
+                            params = "/".join(parts[binary_index + 3:])
+                            gtest_name += f"/{params}"
+                        
+                        known_tests.add(gtest_name)
+            
+            if all_tests:
+                # Find skipped: all_tests - all_known_tests
+                skipped_computed = [t for t in all_tests if t not in known_tests]
+        
+        # Use the most complete list available
+        # Prefer inline (most accurate) > computed > gtest summary
+        if unsupported_inline:
+            skipped_list = unsupported_inline
+            source = "inline UNSUPPORTED"
+        elif skipped_computed:
+            skipped_list = skipped_computed
+            source = "computed from --gtest_list_tests"
+        elif skipped_gtest:
+            skipped_list = skipped_gtest
+            source = "GoogleTest SKIPPED summary"
+        else:
+            skipped_list = []
+            source = None
+        
+        if skipped_list:
+            count = len(skipped_list)
+            
+            # Check if there's a mismatch between stats and actual list
+            stats_skipped_count = None
             for stat in stats:
-                if "Skipped:" in stat or "Unsupported:" in stat:
-                    print(
-                        "ℹ️  Skipped test list not available (GoogleTest format limitation)"
-                    )
-                    print(
-                        "   LIT does not generate detailed skip list for GoogleTest binaries."
-                    )
-                    print()
-                    break
+                if "Skipped:" in stat:
+                    match = re.search(r"(\d+)", stat)
+                    if match:
+                        stats_skipped_count = int(match.group(1))
+                        break
+            
+            print(f"::group::Skipped Tests ({count})")
+            
+            # If there's a mismatch, note it
+            if stats_skipped_count and abs(stats_skipped_count - count) > 10:
+                diff = stats_skipped_count - count
+                print(f"ℹ️  Note: Statistics show {stats_skipped_count} skipped, list contains {count} ({source}).")
+                if diff > 0:
+                    print(f"Missing {diff} tests - possible causes: test discovery limitations, filtering, or device-specific tests.")
+                print()
+            
+            for test in skipped_list:
+                print(test)
+            print("::endgroup::")
+        elif stats_skipped_count:
+            # Statistics show skipped but we couldn't extract the list
+            print(f"::group::Skipped Tests ({stats_skipped_count})")
+            print(f"⚠️  Could not extract individual skipped test names.")
+            print(f"Statistics show {stats_skipped_count} skipped tests, but they are not available in the output.")
+            print("::endgroup::")
 
     # Show remaining test categories from LIT format
     for category, tests in test_lists.items():
