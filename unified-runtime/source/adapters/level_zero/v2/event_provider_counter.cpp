@@ -113,4 +113,20 @@ std::unique_ptr<event_provider> createProvider(ur_platform_handle_t platform,
   return std::make_unique<provider_normal>(context, queueType, flags);
 }
 
+ur_result_t createIpcCounterBasedEvent(ur_context_handle_t context,
+                                       ur_device_handle_t device,
+                                       ze_event_handle_t *phEvent) {
+  ze_event_counter_based_desc_t desc = {};
+  desc.stype = ZE_STRUCTURE_TYPE_EVENT_COUNTER_BASED_DESC;
+  desc.flags = ZE_EVENT_COUNTER_BASED_FLAG_HOST_VISIBLE |
+               ZE_EVENT_COUNTER_BASED_FLAG_IMMEDIATE |
+               ZE_EVENT_COUNTER_BASED_FLAG_NON_IMMEDIATE |
+               ZE_EVENT_COUNTER_BASED_FLAG_IPC;
+  desc.signal = ZE_EVENT_SCOPE_FLAG_HOST;
+
+  ZE2UR_CALL(zeEventCounterBasedCreate,
+             (context->getZeHandle(), device->ZeDevice, &desc, phEvent));
+  return UR_RESULT_SUCCESS;
+}
+
 } // namespace v2

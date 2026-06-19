@@ -107,6 +107,15 @@ HANDLE_WRAPPER_TYPE(ze_context_handle_t, zeContextDestroy)
 HANDLE_WRAPPER_TYPE(ze_command_list_handle_t, zeCommandListDestroy)
 HANDLE_WRAPPER_TYPE(ze_image_handle_t, zeImageDestroy)
 
+// Counter-based event IPC handle opened via zeEventCounterBasedOpenIpcHandle.
+// Same underlying handle type as ze_event_handle_t but a different teardown
+// function, hence a distinct alias.
+inline constexpr char ipc_event_destroy_name[] =
+    "zeEventCounterBasedCloseIpcHandle";
+using ipc_event_handle_t =
+    ze_handle_wrapper<::ze_event_handle_t, zeEventCounterBasedCloseIpcHandle,
+                      ipc_event_destroy_name>;
+
 template <typename RawHandle, ur_result_t (*retain)(RawHandle),
           ur_result_t (*release)(RawHandle)>
 struct ur_handle {

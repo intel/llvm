@@ -56,10 +56,16 @@ private:
 
 struct ur_event_handle_t_ : ur_object {
 public:
-  // cache_borrowed_event is used for pooled events, whilst ze_event_handle_t is
-  // used for native events
+  // The variant alternative encodes how the L0 event handle is torn down:
+  //  - cache_borrowed_event: returned to the pool.
+  //  - ze_event_handle_t: native event (urEventCreateWithNativeHandle if
+  //    external, urEventCreateExp with IPC flag if adapter-owned); the
+  //    wrapper's ownZeHandle flag controls whether zeEventDestroy runs.
+  //  - ipc_event_handle_t: opened from an IPC handle in another process;
+  //    torn down via zeEventCounterBasedCloseIpcHandle.
   using event_variant =
-      std::variant<v2::raii::cache_borrowed_event, v2::raii::ze_event_handle_t>;
+      std::variant<v2::raii::cache_borrowed_event, v2::raii::ze_event_handle_t,
+                   v2::raii::ipc_event_handle_t>;
 
   ur_event_handle_t_(ur_context_handle_t hContext,
                      v2::raii::cache_borrowed_event eventAllocation,
@@ -68,6 +74,11 @@ public:
   ur_event_handle_t_(ur_context_handle_t hContext,
                      ur_native_handle_t hNativeEvent,
                      const ur_event_native_properties_t *pProperties);
+
+  // Wraps a caller-built event_variant with explicit flags. Used by the IPC
+  // producer (urEventCreateExp) and consumer (urIPCOpenEventHandleExp) paths.
+  ur_event_handle_t_(ur_context_handle_t hContext, event_variant hZeEvent,
+                     v2::event_flags_t flags);
 
   // Set the queue and command that this event is associated with
   void setQueue(ur_queue_t_ *hQueue);
@@ -98,6 +109,12 @@ public:
 
   // Tells if this event comes from a pool that has profiling enabled.
   bool isProfilingEnabled() const;
+
+  // True for IPC-shareable events (both producer and consumer side).
+  bool isIpcCapable() const;
+
+  // True for events opened via urIPCOpenEventHandleExp.
+  bool isIpcImported() const;
 
   // Queue associated with this event. Can be nullptr (for native events)
   ur_queue_t_ *getQueue() const;

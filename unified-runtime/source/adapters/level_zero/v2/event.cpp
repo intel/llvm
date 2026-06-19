@@ -14,9 +14,11 @@
 #include "event.hpp"
 #include "event_pool.hpp"
 #include "event_provider.hpp"
+#include "event_provider_counter.hpp"
 #include "queue_api.hpp"
 #include "queue_handle.hpp"
 
+#include "../device.hpp"
 #include "../ur_interface_loader.hpp"
 
 static uint64_t adjustEndEventTimestamp(uint64_t adjustedStartTimestamp,
@@ -164,11 +166,7 @@ void ur_event_handle_t_::reset() {
 }
 
 ze_event_handle_t ur_event_handle_t_::getZeEvent() const {
-  if (event_pool) {
-    return std::get<v2::raii::cache_borrowed_event>(hZeEvent).get();
-  } else {
-    return std::get<v2::raii::ze_event_handle_t>(hZeEvent).get();
-  }
+  return std::visit([](const auto &h) { return h.get(); }, hZeEvent);
 }
 
 ur_result_t ur_event_handle_t_::retain() {
@@ -182,10 +180,14 @@ ur_result_t ur_event_handle_t_::release() {
 
   if (event_pool) {
     event_pool->free(this);
-  } else {
-    std::get<v2::raii::ze_event_handle_t>(hZeEvent).release();
-    delete this;
+    return UR_RESULT_SUCCESS;
   }
+
+  // The variant destructor runs the correct teardown:
+  //  - ze_event_handle_t honors ownZeHandle (zeEventDestroy if owned, no-op
+  //    for externally-imported events).
+  //  - ipc_event_handle_t runs zeEventCounterBasedCloseIpcHandle.
+  delete this;
   return UR_RESULT_SUCCESS;
 }
 
@@ -195,6 +197,14 @@ bool ur_event_handle_t_::isTimestamped() const {
 
 bool ur_event_handle_t_::isProfilingEnabled() const {
   return flags & v2::EVENT_FLAGS_PROFILING_ENABLED;
+}
+
+bool ur_event_handle_t_::isIpcCapable() const {
+  return flags & v2::EVENT_FLAGS_IPC;
+}
+
+bool ur_event_handle_t_::isIpcImported() const {
+  return flags & v2::EVENT_FLAGS_IPC_IMPORTED;
 }
 
 std::pair<uint64_t *, ze_event_handle_t>
@@ -233,6 +243,11 @@ ur_event_handle_t_::ur_event_handle_t_(
                                                zeEventGetPool */
           ,
           nullptr) {}
+
+ur_event_handle_t_::ur_event_handle_t_(ur_context_handle_t hContext,
+                                       event_variant hZeEvent,
+                                       v2::event_flags_t flags)
+    : ur_event_handle_t_(hContext, std::move(hZeEvent), flags, nullptr) {}
 
 namespace ur::level_zero {
 ur_result_t urEventRetain(ur_event_handle_t hEvent) try {
@@ -416,12 +431,35 @@ urEventCreateWithNativeHandle(ur_native_handle_t hNativeEvent,
   return exceptionToResult(std::current_exception());
 }
 
-ur_result_t urEventCreateExp(ur_context_handle_t /*hContext*/,
-                             ur_device_handle_t /*hDevice*/,
-                             const ur_exp_event_desc_t * /*pEventDesc*/,
-                             ur_event_handle_t * /*phEvent*/) {
-  UR_LOG(ERR, "{} function not implemented!", __FUNCTION__);
+ur_result_t urEventCreateExp(ur_context_handle_t hContext,
+                             ur_device_handle_t hDevice,
+                             const ur_exp_event_desc_t *pEventDesc,
+                             ur_event_handle_t *phEvent) try {
+  if (!hContext || !hDevice)
+    return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+  if (!pEventDesc || !phEvent)
+    return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+  if (pEventDesc->flags & UR_EXP_EVENT_FLAGS_MASK)
+    return UR_RESULT_ERROR_INVALID_ENUMERATION;
+
+  if (pEventDesc->flags & UR_EXP_EVENT_FLAG_IPC_EXP) {
+    if (pEventDesc->flags & UR_EXP_EVENT_FLAG_ENABLE_PROFILING)
+      return UR_RESULT_ERROR_INVALID_VALUE;
+
+    ze_event_handle_t hZeEvent = nullptr;
+    UR_CALL(v2::createIpcCounterBasedEvent(hContext, hDevice, &hZeEvent));
+
+    *phEvent = new ur_event_handle_t_(
+        hContext, v2::raii::ze_event_handle_t{hZeEvent, /*ownZeHandle=*/true},
+        v2::EVENT_FLAGS_COUNTER | v2::EVENT_FLAGS_IPC);
+    return UR_RESULT_SUCCESS;
+  }
+
+  UR_LOG(ERR, "{}: non-IPC reusable events not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
 }
 
 } // namespace ur::level_zero

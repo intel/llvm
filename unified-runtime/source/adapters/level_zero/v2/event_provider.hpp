@@ -24,7 +24,13 @@ using event_flags_t = uint32_t;
 enum event_flag_t {
   EVENT_FLAGS_COUNTER = UR_BIT(0),
   EVENT_FLAGS_PROFILING_ENABLED = UR_BIT(1),
+  // IPC-shareable producer event.
+  EVENT_FLAGS_IPC = UR_BIT(2),
+  // Event opened from an IPC handle.
+  EVENT_FLAGS_IPC_IMPORTED = UR_BIT(3),
 };
+// Bits used to index pooled events in event_pool_cache. IPC events are never
+// pool-allocated, so EVENT_FLAGS_IPC* are excluded from this count.
 static constexpr size_t EVENT_FLAGS_USED_BITS = 2;
 
 enum queue_type {
