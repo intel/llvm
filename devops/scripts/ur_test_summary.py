@@ -299,7 +299,7 @@ def show_statistics_and_lists(lines: List[str], all_tests_file: str = None) -> N
         for stat in stats:
             print(stat.rstrip())
         print()
-    
+
     # Validate totals match sum of categories
     total_discovered = None
     for stat in stats:
@@ -316,15 +316,15 @@ def show_statistics_and_lists(lines: List[str], all_tests_file: str = None) -> N
     if "Unsupported" not in test_lists:
         # Strategy 1: Extract from LIT inline output (always works if LIT prints them)
         unsupported_inline = extract_unsupported_from_lit_inline(lines)
-        
+
         # Strategy 2: Extract from GoogleTest SKIPPED summary (rare, only if test uses GTEST_SKIP())
         skipped_gtest = extract_skipped_from_gtest(lines)
-        
+
         # Strategy 3: Compute from all_tests_file if provided
         skipped_computed = []
         if all_tests_file:
             all_tests = parse_gtest_list(all_tests_file)
-            
+
             # Extract test names from ALL categories (Passed, Failed, Timed Out, etc.)
             known_tests = set()
             for category, tests in test_lists.items():
@@ -332,33 +332,33 @@ def show_statistics_and_lists(lines: List[str], all_tests_file: str = None) -> N
                     # Split by ' :: ' first to separate suite name from test path
                     if " :: " in test:
                         test = test.split(" :: ", 1)[1]
-                    
+
                     parts = test.split("/")
-                    
+
                     # Find binary name (ends with '-test') to locate TestClass/TestCase
                     binary_index = -1
                     for i, part in enumerate(parts):
                         if part.endswith("-test"):
                             binary_index = i
                             break
-                    
+
                     # After binary: TestClass/TestCase[/Params...]
                     if binary_index >= 0 and binary_index + 2 < len(parts):
                         test_class = parts[binary_index + 1]
                         test_case = parts[binary_index + 2]
                         gtest_name = f"{test_class}.{test_case}"
-                        
+
                         # Add ALL parameters after test case
                         if binary_index + 3 < len(parts):
-                            params = "/".join(parts[binary_index + 3:])
+                            params = "/".join(parts[binary_index + 3 :])
                             gtest_name += f"/{params}"
-                        
+
                         known_tests.add(gtest_name)
-            
+
             if all_tests:
                 # Find skipped: all_tests - all_known_tests
                 skipped_computed = [t for t in all_tests if t not in known_tests]
-        
+
         # Use the most complete list available
         # Prefer inline (most accurate) > computed > gtest summary
         if unsupported_inline:
@@ -373,10 +373,10 @@ def show_statistics_and_lists(lines: List[str], all_tests_file: str = None) -> N
         else:
             skipped_list = []
             source = None
-        
+
         if skipped_list:
             count = len(skipped_list)
-            
+
             # Check if there's a mismatch between stats and actual list
             stats_skipped_count = None
             for stat in stats:
@@ -385,25 +385,31 @@ def show_statistics_and_lists(lines: List[str], all_tests_file: str = None) -> N
                     if match:
                         stats_skipped_count = int(match.group(1))
                         break
-            
+
             print(f"::group::Skipped Tests ({count})")
-            
+
             # If there's a mismatch, note it
             if stats_skipped_count and abs(stats_skipped_count - count) > 10:
                 diff = stats_skipped_count - count
-                print(f"ℹ️  Note: Statistics show {stats_skipped_count} skipped, list contains {count} ({source}).")
+                print(
+                    f"Note: Statistics show {stats_skipped_count} skipped, list contains {count} ({source})."
+                )
                 if diff > 0:
-                    print(f"Missing {diff} tests - possible causes: test discovery limitations, filtering, or device-specific tests.")
+                    print(
+                        f"Missing {diff} tests - possible causes: test discovery limitations, filtering, or device-specific tests."
+                    )
                 print()
-            
+
             for test in skipped_list:
                 print(test)
             print("::endgroup::")
         elif stats_skipped_count:
             # Statistics show skipped but we couldn't extract the list
             print(f"::group::Skipped Tests ({stats_skipped_count})")
-            print(f"⚠️  Could not extract individual skipped test names.")
-            print(f"Statistics show {stats_skipped_count} skipped tests, but they are not available in the output.")
+            print(f"Warning: Could not extract individual skipped test names.")
+            print(
+                f"Statistics show {stats_skipped_count} skipped tests, but they are not available in the output."
+            )
             print("::endgroup::")
 
     # Show remaining test categories from LIT format
@@ -414,16 +420,22 @@ def show_statistics_and_lists(lines: List[str], all_tests_file: str = None) -> N
             for test in tests:
                 print(test)
             print("::endgroup::")
-    
+
     # Validate that total discovered matches sum of all categories
     if total_discovered:
         sum_categories = sum(len(tests) for tests in test_lists.values())
-        
+
         if total_discovered != sum_categories:
             print()
-            print(f"::warning::Test count mismatch: Total Discovered = {total_discovered}, but sum of all categories = {sum_categories}")
-            print(f"⚠️  Warning: {total_discovered - sum_categories} tests are unaccounted for.")
-            print(f"This may indicate tests in unexpected categories or parsing issues.")
+            print(
+                f"::warning::Test count mismatch: Total Discovered = {total_discovered}, but sum of all categories = {sum_categories}"
+            )
+            print(
+                f"Warning: {total_discovered - sum_categories} tests are unaccounted for."
+            )
+            print(
+                f"This may indicate tests in unexpected categories or parsing issues."
+            )
             print(f"Categories found: {', '.join(test_lists.keys())}")
             print()
 
