@@ -37,6 +37,7 @@
 
 // clang++ -fsycl -o wfd.bin -I$SYCL_HOME/build/install/include/sycl -lze_loader
 // interop-level-zero-image-ownership.cpp
+#include <iostream>
 
 #include <level_zero/ze_api.h>
 #include <sycl/accessor_image.hpp>

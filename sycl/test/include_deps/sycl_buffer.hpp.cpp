@@ -8,9 +8,9 @@
 // CHECK-NEXT: access/access.hpp
 // CHECK-NEXT: detail/defines_elementary.hpp
 // CHECK-NEXT: backend_types.hpp
+// CHECK-NEXT: detail/export.hpp
 // CHECK-NEXT: detail/array.hpp
 // CHECK-NEXT: detail/code_location.hpp
-// CHECK-NEXT: detail/export.hpp
 // CHECK-NEXT: detail/common.hpp
 // CHECK-NEXT: detail/assert.hpp
 // CHECK-NEXT: __spirv/spirv_vars.hpp
@@ -21,7 +21,6 @@
 // CHECK-NEXT: detail/helpers.hpp
 // CHECK-NEXT: __spirv/spirv_types.hpp
 // CHECK-NEXT: memory_enums.hpp
-// CHECK-NEXT: detail/iostream_proxy.hpp
 // CHECK-NEXT: detail/is_device_copyable.hpp
 // CHECK-NEXT: detail/owner_less_base.hpp
 // CHECK-NEXT: detail/impl_utils.hpp

@@ -7691,6 +7691,8 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
       OutputStableNameInChars(O, K.StableName);
       O << "> {\n";
     } else {
+      Policy.SuppressDefaultTemplateArgs = false;
+      Policy.EnforceDefaultTemplateArgs = true;
       O << "template <> struct KernelInfo<";
       SYCLKernelNameTypePrinter Printer(O, Policy);
       Printer.Visit(K.NameType);

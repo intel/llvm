@@ -357,6 +357,7 @@ set(SYCL_COMMON_SOURCES
     "kernel_bundle.cpp"
     "physical_mem.cpp"
     "platform.cpp"
+    "printers.cpp"
     "queue.cpp"
     "sampler.cpp"
     "stream.cpp"

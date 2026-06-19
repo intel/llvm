@@ -88,7 +88,6 @@
 // CHECK-NEXT: detail/nd_range_view.hpp
 // CHECK-NEXT: nd_range.hpp
 // CHECK-NEXT: detail/range_rounding.hpp
-// CHECK-NEXT: detail/iostream_proxy.hpp
 // CHECK-NEXT: item.hpp
 // CHECK-NEXT: detail/item_base.hpp
 // CHECK-NEXT: detail/reduction_forward.hpp

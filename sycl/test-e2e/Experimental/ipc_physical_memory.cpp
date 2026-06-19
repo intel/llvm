@@ -11,6 +11,7 @@
 // RUN: %{run} %t.out
 // RUN: %{build} -DUSE_VIEW %{cpp20} -o %t.view.out
 // RUN: %{run} %t.view.out
+#include <iostream>
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/ipc_physical_memory.hpp>

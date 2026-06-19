@@ -118,7 +118,6 @@
 // CHECK-NEXT: detail/nd_range_view.hpp
 // CHECK-NEXT: nd_range.hpp
 // CHECK-NEXT: detail/range_rounding.hpp
-// CHECK-NEXT: detail/iostream_proxy.hpp
 // CHECK-NEXT: detail/reduction_forward.hpp
 // CHECK-NEXT: device.hpp
 // CHECK-NEXT: backend_types.hpp

@@ -68,7 +68,6 @@
 // CHECK-NEXT: detail/memcpy.hpp
 // CHECK-NEXT: buffer.hpp
 // CHECK-NEXT: backend_types.hpp
-// CHECK-NEXT: detail/iostream_proxy.hpp
 // CHECK-NEXT: detail/is_device_copyable.hpp
 // CHECK-NEXT: detail/stl_type_traits.hpp
 // CHECK-NEXT: detail/sycl_mem_obj_allocator.hpp

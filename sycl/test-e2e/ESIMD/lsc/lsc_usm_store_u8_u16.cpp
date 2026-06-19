@@ -12,6 +12,7 @@
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22231
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
+#include <iostream>
 
 #include "Inputs/lsc_usm_store.hpp"
 

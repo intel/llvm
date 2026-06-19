@@ -2,6 +2,7 @@
 // RUN: %{run} %t.out
 
 // Tests that marray works in sub-group shuffles.
+#include <iostream>
 
 #include <sycl/detail/core.hpp>
 #include <sycl/group_algorithm.hpp>
