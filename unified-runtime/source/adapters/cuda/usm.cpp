@@ -593,12 +593,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMContextMemcpyExp(
     return UR_RESULT_SUCCESS;
   }
 
-  // Device-to-device copy requires special handling:
-  // cuMemcpy can execute asynchronously for D2D, so we need explicit sync.
-  // See: https://docs.nvidia.com/cuda/cuda-driver-api/api-sync-behavior.html
-
   // Get the device ordinal for the destination pointer
-  unsigned int devIdx = 0; // Will be set by cuPointerGetAttribute
+  unsigned int devIdx = 0;
   UR_CHECK_ERROR(cuPointerGetAttribute(
       &devIdx, CU_POINTER_ATTRIBUTE_DEVICE_ORDINAL, (CUdeviceptr)pDst));
 
@@ -610,11 +606,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMContextMemcpyExp(
   ScopedContext Active(owningDev);
 
   // Create a dedicated stream for this copy operation
-  // Using CU_STREAM_NON_BLOCKING to avoid blocking other streams in context
   CUstream copyStream = nullptr;
   UR_CHECK_ERROR(cuStreamCreate(&copyStream, CU_STREAM_NON_BLOCKING));
 
-  // RAII-style cleanup to ensure stream is always destroyed
   auto streamCleanup = [&copyStream]() {
     if (copyStream) {
       cuStreamDestroy(copyStream);
@@ -626,7 +620,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMContextMemcpyExp(
     UR_CHECK_ERROR(
         cuMemcpyAsync((CUdeviceptr)pDst, (CUdeviceptr)pSrc, Size, copyStream));
 
-    // Wait for copy to complete on this stream only
     UR_CHECK_ERROR(cuStreamSynchronize(copyStream));
 
     streamCleanup();
