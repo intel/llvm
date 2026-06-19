@@ -36,7 +36,7 @@ class filter_selector_impl;
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 class __SYCL_EXPORT filter_selector : public device_selector {
 #else
-class __SYCL_EXPORT filter_selector : public detail::device_selector {
+class __SYCL_EXPORT filter_selector : public sycl::detail::device_selector {
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
 public:
   filter_selector(const std::string &filter)

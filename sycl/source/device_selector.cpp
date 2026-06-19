@@ -300,9 +300,9 @@ device filter_selector::select_device() const {
 
   device Result =
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-    sycl::detail::device_selector::select_device();
+      sycl::detail::device_selector::select_device();
 #else
-    sycl::device_selector::select_device();
+      sycl::device_selector::select_device();
 #endif
 
   reset();

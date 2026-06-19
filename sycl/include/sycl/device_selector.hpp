@@ -153,15 +153,18 @@ void fill_aspect_vector(std::vector<aspect> &V, FirstT F, OtherTs... O) {
 // if descended from SYCL 1.2.1 device_selector.
 // See [FilterSelector not Callable] in device_selector.cpp
 template <typename DeviceSelector>
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 using EnableIfSYCL2020DeviceSelectorInvocable = std::enable_if_t<
     std::is_invocable_r_v<int, DeviceSelector &, const device &> &&
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-    // TODO: Remove "or if descended from SYCL 1.2.1 device_selector" from the
-    // comment above during the ABI-breaking window.
     !std::is_base_of_v<ext::oneapi::filter_selector, DeviceSelector> &&
     !std::is_base_of_v<device_selector, DeviceSelector>>;
 #else
-    !std::is_base_of_v<ext::oneapi::filter_selector, DeviceSelector>;
+// TODO: Remove "or if descended from SYCL 1.2.1 device_selector" from the
+// comment above during the ABI-breaking window. Users can no longer inherit
+// from device_selector.
+using EnableIfSYCL2020DeviceSelectorInvocable = std::enable_if_t<
+    std::is_invocable_r_v<int, DeviceSelector &, const device &> &&
+    !std::is_base_of_v<ext::oneapi::filter_selector, DeviceSelector>>;
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 __SYCL_EXPORT device

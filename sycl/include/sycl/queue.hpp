@@ -297,7 +297,7 @@ public:
   queue(const device_selector &DeviceSelector,
         const async_handler &AsyncHandler, const property_list &PropList = {})
       : queue(DeviceSelector.select_device(), AsyncHandler, PropList) {}
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   /// Constructs a SYCL queue instance using the device provided.
   ///
