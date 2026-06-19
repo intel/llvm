@@ -520,6 +520,10 @@ typedef enum ur_function_t {
   UR_FUNCTION_IPC_OPEN_PHYS_MEM_HANDLE_EXP = 318,
   /// Enumerator for ::urIPCClosePhysMemHandleExp
   UR_FUNCTION_IPC_CLOSE_PHYS_MEM_HANDLE_EXP = 319,
+  /// Enumerator for ::urGraphGetNativeHandleExp
+  UR_FUNCTION_GRAPH_GET_NATIVE_HANDLE_EXP = 320,
+  /// Enumerator for ::urGraphExecutableGraphGetNativeHandleExp
+  UR_FUNCTION_GRAPH_EXECUTABLE_GRAPH_GET_NATIVE_HANDLE_EXP = 321,
   /// @cond
   UR_FUNCTION_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -14064,6 +14068,54 @@ UR_APIEXPORT ur_result_t UR_APICALL urGraphDumpContentsExp(
     /// [in] Path to the file to write the dumped graph contents.
     const char *filePath);
 
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Return platform native graph handle.
+///
+/// @details
+///     - Retrieved native handle can be used for direct interaction with the
+///       native platform driver.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hGraph`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == phNativeGraph`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the adapter has no underlying equivalent handle.
+UR_APIEXPORT ur_result_t UR_APICALL urGraphGetNativeHandleExp(
+    /// [in] Handle of the graph.
+    ur_exp_graph_handle_t hGraph,
+    /// [out] A pointer to the native handle of the graph.
+    ur_native_handle_t *phNativeGraph);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Return platform native executable graph handle.
+///
+/// @details
+///     - Retrieved native handle can be used for direct interaction with the
+///       native platform driver.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hExecutableGraph`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == phNativeExecutableGraph`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the adapter has no underlying equivalent handle.
+UR_APIEXPORT ur_result_t UR_APICALL urGraphExecutableGraphGetNativeHandleExp(
+    /// [in] Handle of the executable graph.
+    ur_exp_executable_graph_handle_t hExecutableGraph,
+    /// [out] A pointer to the native handle of the executable graph.
+    ur_native_handle_t *phNativeExecutableGraph);
+
 #if !defined(__GNUC__)
 #pragma endregion
 #endif
@@ -16604,6 +16656,24 @@ typedef struct ur_graph_dump_contents_exp_params_t {
   ur_exp_graph_handle_t *phGraph;
   const char **pfilePath;
 } ur_graph_dump_contents_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urGraphGetNativeHandleExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_graph_get_native_handle_exp_params_t {
+  ur_exp_graph_handle_t *phGraph;
+  ur_native_handle_t **pphNativeGraph;
+} ur_graph_get_native_handle_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urGraphExecutableGraphGetNativeHandleExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_graph_executable_graph_get_native_handle_exp_params_t {
+  ur_exp_executable_graph_handle_t *phExecutableGraph;
+  ur_native_handle_t **pphNativeExecutableGraph;
+} ur_graph_executable_graph_get_native_handle_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urIPCGetMemHandleExp

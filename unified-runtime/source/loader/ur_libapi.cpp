@@ -11549,4 +11549,72 @@ ur_result_t UR_APICALL urGraphDumpContentsExp(
   return exceptionToResult(std::current_exception());
 }
 
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Return platform native graph handle.
+///
+/// @details
+///     - Retrieved native handle can be used for direct interaction with the
+///       native platform driver.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hGraph`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == phNativeGraph`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the adapter has no underlying equivalent handle.
+ur_result_t UR_APICALL urGraphGetNativeHandleExp(
+    /// [in] Handle of the graph.
+    ur_exp_graph_handle_t hGraph,
+    /// [out] A pointer to the native handle of the graph.
+    ur_native_handle_t *phNativeGraph) try {
+  auto pfnGetNativeHandleExp =
+      ur_lib::getContext()->urDdiTable.GraphExp.pfnGetNativeHandleExp;
+  if (nullptr == pfnGetNativeHandleExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  return pfnGetNativeHandleExp(hGraph, phNativeGraph);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Return platform native executable graph handle.
+///
+/// @details
+///     - Retrieved native handle can be used for direct interaction with the
+///       native platform driver.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hExecutableGraph`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == phNativeExecutableGraph`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the adapter has no underlying equivalent handle.
+ur_result_t UR_APICALL urGraphExecutableGraphGetNativeHandleExp(
+    /// [in] Handle of the executable graph.
+    ur_exp_executable_graph_handle_t hExecutableGraph,
+    /// [out] A pointer to the native handle of the executable graph.
+    ur_native_handle_t *phNativeExecutableGraph) try {
+  auto pfnExecutableGraphGetNativeHandleExp =
+      ur_lib::getContext()
+          ->urDdiTable.GraphExp.pfnExecutableGraphGetNativeHandleExp;
+  if (nullptr == pfnExecutableGraphGetNativeHandleExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  return pfnExecutableGraphGetNativeHandleExp(hExecutableGraph,
+                                              phNativeExecutableGraph);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
 } // extern "C"

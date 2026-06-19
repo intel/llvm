@@ -143,6 +143,8 @@
 		urGraphDestroyExp;
 		urGraphDumpContentsExp;
 		urGraphExecutableGraphDestroyExp;
+		urGraphExecutableGraphGetNativeHandleExp;
+		urGraphGetNativeHandleExp;
 		urGraphInstantiateGraphExp;
 		urGraphIsEmptyExp;
 		urGraphSetDestructionCallbackExp;
@@ -393,6 +395,8 @@
 		urPrintGraphDestroyExpParams;
 		urPrintGraphDumpContentsExpParams;
 		urPrintGraphExecutableGraphDestroyExpParams;
+		urPrintGraphExecutableGraphGetNativeHandleExpParams;
+		urPrintGraphGetNativeHandleExpParams;
 		urPrintGraphInstantiateGraphExpParams;
 		urPrintGraphIsEmptyExpParams;
 		urPrintGraphSetDestructionCallbackExpParams;

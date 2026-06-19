@@ -11991,6 +11991,61 @@ __urdlllocal ur_result_t UR_APICALL urGraphDumpContentsExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urGraphGetNativeHandleExp
+__urdlllocal ur_result_t UR_APICALL urGraphGetNativeHandleExp(
+    /// [in] Handle of the graph.
+    ur_exp_graph_handle_t hGraph,
+    /// [out] A pointer to the native handle of the graph.
+    ur_native_handle_t *phNativeGraph) {
+  auto pfnGetNativeHandleExp =
+      getContext()->urDdiTable.GraphExp.pfnGetNativeHandleExp;
+
+  if (nullptr == pfnGetNativeHandleExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == phNativeGraph)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hGraph)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+  }
+
+  ur_result_t result = pfnGetNativeHandleExp(hGraph, phNativeGraph);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urGraphExecutableGraphGetNativeHandleExp
+__urdlllocal ur_result_t UR_APICALL urGraphExecutableGraphGetNativeHandleExp(
+    /// [in] Handle of the executable graph.
+    ur_exp_executable_graph_handle_t hExecutableGraph,
+    /// [out] A pointer to the native handle of the executable graph.
+    ur_native_handle_t *phNativeExecutableGraph) {
+  auto pfnExecutableGraphGetNativeHandleExp =
+      getContext()->urDdiTable.GraphExp.pfnExecutableGraphGetNativeHandleExp;
+
+  if (nullptr == pfnExecutableGraphGetNativeHandleExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == phNativeExecutableGraph)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hExecutableGraph)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+  }
+
+  ur_result_t result = pfnExecutableGraphGetNativeHandleExp(
+      hExecutableGraph, phNativeExecutableGraph);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Exported function for filling application's Adapter table
 ///        with current process' addresses
 ///
@@ -12630,6 +12685,15 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetGraphExpProcAddrTable(
 
   dditable.pfnDumpContentsExp = pDdiTable->pfnDumpContentsExp;
   pDdiTable->pfnDumpContentsExp = ur_validation_layer::urGraphDumpContentsExp;
+
+  dditable.pfnGetNativeHandleExp = pDdiTable->pfnGetNativeHandleExp;
+  pDdiTable->pfnGetNativeHandleExp =
+      ur_validation_layer::urGraphGetNativeHandleExp;
+
+  dditable.pfnExecutableGraphGetNativeHandleExp =
+      pDdiTable->pfnExecutableGraphGetNativeHandleExp;
+  pDdiTable->pfnExecutableGraphGetNativeHandleExp =
+      ur_validation_layer::urGraphExecutableGraphGetNativeHandleExp;
 
   return result;
 }

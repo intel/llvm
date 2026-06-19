@@ -2179,6 +2179,23 @@ ur_result_t urPrintGraphDumpContentsExpParams(
   return str_copy(&ss, buffer, buff_size, out_size);
 }
 
+ur_result_t urPrintGraphGetNativeHandleExpParams(
+    const struct ur_graph_get_native_handle_exp_params_t *params, char *buffer,
+    const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintGraphExecutableGraphGetNativeHandleExpParams(
+    const struct ur_graph_executable_graph_get_native_handle_exp_params_t
+        *params,
+    char *buffer, const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
 ur_result_t urPrintIpcGetMemHandleExpParams(
     const struct ur_ipc_get_mem_handle_exp_params_t *params, char *buffer,
     const size_t buff_size, size_t *out_size) {

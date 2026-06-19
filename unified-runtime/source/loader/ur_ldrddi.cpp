@@ -6354,6 +6354,44 @@ __urdlllocal ur_result_t UR_APICALL urGraphDumpContentsExp(
   return pfnDumpContentsExp(hGraph, filePath);
 }
 
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urGraphGetNativeHandleExp
+__urdlllocal ur_result_t UR_APICALL urGraphGetNativeHandleExp(
+    /// [in] Handle of the graph.
+    ur_exp_graph_handle_t hGraph,
+    /// [out] A pointer to the native handle of the graph.
+    ur_native_handle_t *phNativeGraph) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hGraph);
+
+  auto *pfnGetNativeHandleExp = dditable->GraphExp.pfnGetNativeHandleExp;
+  if (nullptr == pfnGetNativeHandleExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnGetNativeHandleExp(hGraph, phNativeGraph);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urGraphExecutableGraphGetNativeHandleExp
+__urdlllocal ur_result_t UR_APICALL urGraphExecutableGraphGetNativeHandleExp(
+    /// [in] Handle of the executable graph.
+    ur_exp_executable_graph_handle_t hExecutableGraph,
+    /// [out] A pointer to the native handle of the executable graph.
+    ur_native_handle_t *phNativeExecutableGraph) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hExecutableGraph);
+
+  auto *pfnExecutableGraphGetNativeHandleExp =
+      dditable->GraphExp.pfnExecutableGraphGetNativeHandleExp;
+  if (nullptr == pfnExecutableGraphGetNativeHandleExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnExecutableGraphGetNativeHandleExp(hExecutableGraph,
+                                              phNativeExecutableGraph);
+}
+
 } // namespace ur_loader
 
 extern "C" {
@@ -6929,6 +6967,9 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetGraphExpProcAddrTable(
       pDdiTable->pfnSetDestructionCallbackExp =
           ur_loader::urGraphSetDestructionCallbackExp;
       pDdiTable->pfnDumpContentsExp = ur_loader::urGraphDumpContentsExp;
+      pDdiTable->pfnGetNativeHandleExp = ur_loader::urGraphGetNativeHandleExp;
+      pDdiTable->pfnExecutableGraphGetNativeHandleExp =
+          ur_loader::urGraphExecutableGraphGetNativeHandleExp;
     } else {
       // return pointers directly to platform's DDIs
       *pDdiTable = ur_loader::getContext()->platforms.front().dditable.GraphExp;

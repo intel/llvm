@@ -11237,6 +11237,86 @@ __urdlllocal ur_result_t UR_APICALL urGraphDumpContentsExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urGraphGetNativeHandleExp
+__urdlllocal ur_result_t UR_APICALL urGraphGetNativeHandleExp(
+    /// [in] Handle of the graph.
+    ur_exp_graph_handle_t hGraph,
+    /// [out] A pointer to the native handle of the graph.
+    ur_native_handle_t *phNativeGraph) {
+  auto pfnGetNativeHandleExp =
+      getContext()->urDdiTable.GraphExp.pfnGetNativeHandleExp;
+
+  if (nullptr == pfnGetNativeHandleExp)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_graph_get_native_handle_exp_params_t params = {&hGraph, &phNativeGraph};
+  uint64_t instance =
+      getContext()->notify_begin(UR_FUNCTION_GRAPH_GET_NATIVE_HANDLE_EXP,
+                                 "urGraphGetNativeHandleExp", &params);
+
+  auto &logger = getContext()->logger;
+  UR_LOG_L(logger, INFO, "   ---> urGraphGetNativeHandleExp\n");
+
+  ur_result_t result = pfnGetNativeHandleExp(hGraph, phNativeGraph);
+
+  getContext()->notify_end(UR_FUNCTION_GRAPH_GET_NATIVE_HANDLE_EXP,
+                           "urGraphGetNativeHandleExp", &params, &result,
+                           instance);
+
+  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_GRAPH_GET_NATIVE_HANDLE_EXP, &params);
+    UR_LOG_L(logger, INFO, "   <--- urGraphGetNativeHandleExp({}) -> {};\n",
+             args_str.str(), result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urGraphExecutableGraphGetNativeHandleExp
+__urdlllocal ur_result_t UR_APICALL urGraphExecutableGraphGetNativeHandleExp(
+    /// [in] Handle of the executable graph.
+    ur_exp_executable_graph_handle_t hExecutableGraph,
+    /// [out] A pointer to the native handle of the executable graph.
+    ur_native_handle_t *phNativeExecutableGraph) {
+  auto pfnExecutableGraphGetNativeHandleExp =
+      getContext()->urDdiTable.GraphExp.pfnExecutableGraphGetNativeHandleExp;
+
+  if (nullptr == pfnExecutableGraphGetNativeHandleExp)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_graph_executable_graph_get_native_handle_exp_params_t params = {
+      &hExecutableGraph, &phNativeExecutableGraph};
+  uint64_t instance = getContext()->notify_begin(
+      UR_FUNCTION_GRAPH_EXECUTABLE_GRAPH_GET_NATIVE_HANDLE_EXP,
+      "urGraphExecutableGraphGetNativeHandleExp", &params);
+
+  auto &logger = getContext()->logger;
+  UR_LOG_L(logger, INFO, "   ---> urGraphExecutableGraphGetNativeHandleExp\n");
+
+  ur_result_t result = pfnExecutableGraphGetNativeHandleExp(
+      hExecutableGraph, phNativeExecutableGraph);
+
+  getContext()->notify_end(
+      UR_FUNCTION_GRAPH_EXECUTABLE_GRAPH_GET_NATIVE_HANDLE_EXP,
+      "urGraphExecutableGraphGetNativeHandleExp", &params, &result, instance);
+
+  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_GRAPH_EXECUTABLE_GRAPH_GET_NATIVE_HANDLE_EXP,
+        &params);
+    UR_LOG_L(logger, INFO,
+             "   <--- urGraphExecutableGraphGetNativeHandleExp({}) -> {};\n",
+             args_str.str(), result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Exported function for filling application's Adapter table
 ///        with current process' addresses
 ///
@@ -11862,6 +11942,15 @@ __urdlllocal ur_result_t UR_APICALL urGetGraphExpProcAddrTable(
 
   dditable.pfnDumpContentsExp = pDdiTable->pfnDumpContentsExp;
   pDdiTable->pfnDumpContentsExp = ur_tracing_layer::urGraphDumpContentsExp;
+
+  dditable.pfnGetNativeHandleExp = pDdiTable->pfnGetNativeHandleExp;
+  pDdiTable->pfnGetNativeHandleExp =
+      ur_tracing_layer::urGraphGetNativeHandleExp;
+
+  dditable.pfnExecutableGraphGetNativeHandleExp =
+      pDdiTable->pfnExecutableGraphGetNativeHandleExp;
+  pDdiTable->pfnExecutableGraphGetNativeHandleExp =
+      ur_tracing_layer::urGraphExecutableGraphGetNativeHandleExp;
 
   return result;
 }

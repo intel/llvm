@@ -1898,6 +1898,16 @@ typedef ur_result_t(UR_APICALL *ur_pfnGraphDumpContentsExp_t)(
     ur_exp_graph_handle_t, const char *);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urGraphGetNativeHandleExp
+typedef ur_result_t(UR_APICALL *ur_pfnGraphGetNativeHandleExp_t)(
+    ur_exp_graph_handle_t, ur_native_handle_t *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urGraphExecutableGraphGetNativeHandleExp
+typedef ur_result_t(UR_APICALL *ur_pfnGraphExecutableGraphGetNativeHandleExp_t)(
+    ur_exp_executable_graph_handle_t, ur_native_handle_t *);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of GraphExp functions pointers
 typedef struct ur_graph_exp_dditable_t {
   ur_pfnGraphCreateExp_t pfnCreateExp;
@@ -1907,6 +1917,9 @@ typedef struct ur_graph_exp_dditable_t {
   ur_pfnGraphIsEmptyExp_t pfnIsEmptyExp;
   ur_pfnGraphSetDestructionCallbackExp_t pfnSetDestructionCallbackExp;
   ur_pfnGraphDumpContentsExp_t pfnDumpContentsExp;
+  ur_pfnGraphGetNativeHandleExp_t pfnGetNativeHandleExp;
+  ur_pfnGraphExecutableGraphGetNativeHandleExp_t
+      pfnExecutableGraphGetNativeHandleExp;
 } ur_graph_exp_dditable_t;
 
 ///////////////////////////////////////////////////////////////////////////////

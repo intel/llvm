@@ -1395,6 +1395,12 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
   case UR_FUNCTION_IPC_CLOSE_PHYS_MEM_HANDLE_EXP:
     os << "UR_FUNCTION_IPC_CLOSE_PHYS_MEM_HANDLE_EXP";
     break;
+  case UR_FUNCTION_GRAPH_GET_NATIVE_HANDLE_EXP:
+    os << "UR_FUNCTION_GRAPH_GET_NATIVE_HANDLE_EXP";
+    break;
+  case UR_FUNCTION_GRAPH_EXECUTABLE_GRAPH_GET_NATIVE_HANDLE_EXP:
+    os << "UR_FUNCTION_GRAPH_EXECUTABLE_GRAPH_GET_NATIVE_HANDLE_EXP";
+    break;
   default:
     os << "unknown enumerator";
     break;
@@ -21684,6 +21690,48 @@ inline std::ostream &operator<<(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_graph_get_native_handle_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_graph_get_native_handle_exp_params_t
+               *params) {
+
+  os << ".hGraph = ";
+
+  ur::details::printPtr(os, *(params->phGraph));
+
+  os << ", ";
+  os << ".phNativeGraph = ";
+
+  ur::details::printPtr(os, *(params->pphNativeGraph));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the
+/// ur_graph_executable_graph_get_native_handle_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os, [[maybe_unused]] const struct
+           ur_graph_executable_graph_get_native_handle_exp_params_t *params) {
+
+  os << ".hExecutableGraph = ";
+
+  ur::details::printPtr(os, *(params->phExecutableGraph));
+
+  os << ", ";
+  os << ".phNativeExecutableGraph = ";
+
+  ur::details::printPtr(os, *(params->pphNativeExecutableGraph));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_ipc_get_mem_handle_exp_params_t type
 /// @returns
 ///     std::ostream &
@@ -23441,6 +23489,13 @@ inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os,
   } break;
   case UR_FUNCTION_GRAPH_DUMP_CONTENTS_EXP: {
     os << (const struct ur_graph_dump_contents_exp_params_t *)params;
+  } break;
+  case UR_FUNCTION_GRAPH_GET_NATIVE_HANDLE_EXP: {
+    os << (const struct ur_graph_get_native_handle_exp_params_t *)params;
+  } break;
+  case UR_FUNCTION_GRAPH_EXECUTABLE_GRAPH_GET_NATIVE_HANDLE_EXP: {
+    os << (const struct ur_graph_executable_graph_get_native_handle_exp_params_t
+               *)params;
   } break;
   case UR_FUNCTION_IPC_GET_MEM_HANDLE_EXP: {
     os << (const struct ur_ipc_get_mem_handle_exp_params_t *)params;
