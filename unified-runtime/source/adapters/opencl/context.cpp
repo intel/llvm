@@ -57,7 +57,6 @@ ur_context_handle_t_::makeWithNative(native_type Ctx, uint32_t DevCount,
     auto URContext =
         std::make_unique<ur_context_handle_t_>(Ctx, DevCount, URDevices.data());
     Context = ur_cast<ur_context_handle_t>(URContext.release());
-    Context = ur_cast<ur_context_handle_t>(URContext.release());
   } catch (std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_RESOURCES;
   } catch (...) {
@@ -111,14 +110,11 @@ urContextGetInfo(ur_context_handle_t hContext, ur_context_info_t propName,
   }
   case UR_CONTEXT_INFO_NUM_DEVICES: {
     return ReturnValue(Context->DeviceCount);
-    return ReturnValue(Context->DeviceCount);
   }
   case UR_CONTEXT_INFO_DEVICES: {
     return ReturnValue(&Context->Devices[0], Context->DeviceCount);
-    return ReturnValue(&Context->Devices[0], Context->DeviceCount);
   }
   case UR_CONTEXT_INFO_REFERENCE_COUNT: {
-    return ReturnValue(Context->RefCount.getCount());
     return ReturnValue(Context->RefCount.getCount());
   }
   default:
