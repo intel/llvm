@@ -755,7 +755,7 @@ std::unique_ptr<TargetInfo> AllocateTarget(const llvm::Triple &Triple,
   }
   case llvm::Triple::spirv32: {
     if ((os != llvm::Triple::UnknownOS && os != llvm::Triple::ChipStar &&
-         os != llvm::Triple::Vulkan && os != llvm::Triple::Mesa3D) ||
+         os != llvm::Triple::Vulkan) ||
         Triple.getEnvironment() != llvm::Triple::UnknownEnvironment)
       return nullptr;
     llvm::Triple HT(Opts.HostTriple);
@@ -776,7 +776,7 @@ std::unique_ptr<TargetInfo> AllocateTarget(const llvm::Triple &Triple,
     if (os == llvm::Triple::OSType::AMDHSA)
       return std::make_unique<SPIRV64AMDGCNTargetInfo>(Triple, Opts);
     if ((os != llvm::Triple::UnknownOS && os != llvm::Triple::ChipStar &&
-         os != llvm::Triple::Vulkan && os != llvm::Triple::Mesa3D) ||
+         os != llvm::Triple::Vulkan) ||
         Triple.getEnvironment() != llvm::Triple::UnknownEnvironment)
       return nullptr;
     if (Triple.getVendor() == llvm::Triple::Intel)

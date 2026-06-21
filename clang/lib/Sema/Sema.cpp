@@ -2213,14 +2213,41 @@ void Sema::emitDeferredDiags() {
     ExternalSource->ReadDeclsToCheckForDeferredDiags(
         DeclsToCheckForDeferredDiags);
 
+  // For each implicit-H+D-explicit-inst function with deferred errors but no
+  // organic device caller, drop the diagnostics and mark for a trap body.
+  auto ClassifyImplicitHDExplicitInst = [&]() {
+    if (!LangOpts.CUDAIsDevice)
+      return;
+    for (auto &Pair : DeviceDeferredDiags) {
+      const FunctionDecl *FD = Pair.first;
+      if (!SemaCUDA::isImplicitHDExplicitInstantiation(FD))
+        continue;
+      if (CUDA().DeviceKnownEmittedFns.count(FD))
+        continue;
+      bool HasError =
+          llvm::any_of(Pair.second, [&](const DeviceDeferredDiagnostic &DDiag) {
+            return getDiagnostics().getDiagnosticLevel(
+                       DDiag.getDiag().second.getDiagID(),
+                       DDiag.getDiag().first) >= DiagnosticsEngine::Error;
+          });
+      if (!HasError)
+        continue;
+      Pair.second.clear();
+      Context.CUDADeviceInvalidFuncs.insert(FD->getCanonicalDecl());
+    }
+  };
+
   if ((DeviceDeferredDiags.empty() && !LangOpts.OpenMP &&
        !LangOpts.SYCLIsDevice) ||
-      DeclsToCheckForDeferredDiags.empty())
+      DeclsToCheckForDeferredDiags.empty()) {
+    ClassifyImplicitHDExplicitInst();
     return;
+  }
 
   DeferredDiagnosticsEmitter DDE(*this);
   for (auto *D : DeclsToCheckForDeferredDiags)
     DDE.checkRecordedDecl(D);
+  ClassifyImplicitHDExplicitInst();
 }
 
 // In CUDA, there are some constructs which may appear in semantically-valid
