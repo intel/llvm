@@ -200,6 +200,21 @@ def do_configure(args, passthrough_args):
         "-DBUG_REPORT_URL=https://github.com/intel/llvm/issues",
     ]
 
+    llvm_spirv64_runtimes = "compiler-rt"
+    llvm_spirv64_sanitizers = ""
+    runtime_targets += ";spirv64-intel-unknown"
+    cmake_cmd.extend(
+        [
+            "-DRUNTIMES_spirv64-intel-unknown_LLVM_ENABLE_RUNTIMES={}".format(
+                llvm_spirv64_runtimes
+            ),
+
+            "-DRUNTIMES_spirv64-intel-unknown_COMPILER_RT_SANITIZERS_TO_BUILD={}".format(
+                llvm_spirv64_sanitizers
+            ),
+        ]
+    )
+
     if llvm_enable_runtimes:
         cmake_cmd.extend(
             [
@@ -225,19 +240,19 @@ def do_configure(args, passthrough_args):
 
     if libclc_enabled:
         for target in runtime_targets.split(";"):
-            if target == "default":
+            if target == "default" or target == "spirv64-intel-unknown":
                 continue
             cmake_cmd.extend(
                 [
                     f"-DRUNTIMES_{target}_LLVM_ENABLE_RUNTIMES=libclc",
                 ]
             )
-        cmake_cmd.extend(
-            [
-                "-DLLVM_RUNTIME_TARGETS={}".format(runtime_targets),
-            ]
-        )
 
+    cmake_cmd.extend(
+        [
+            "-DLLVM_RUNTIME_TARGETS={}".format(runtime_targets),
+        ]
+    )
     if args.l0_headers and args.l0_loader:
         cmake_cmd.extend(
             [

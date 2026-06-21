@@ -21,5 +21,6 @@
 #ifndef CMPLXF
 #define CMPLXF(r, i) ((float __complex__){(float)(r), (float)(i)})
 #endif
+
 #endif // __SPIR__ || __SPIRV__
 #endif // __LIBDEVICE_DEVICE_COMPLEX_H_

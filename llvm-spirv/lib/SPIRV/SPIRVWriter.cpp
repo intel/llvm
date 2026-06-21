@@ -1717,6 +1717,17 @@ SPIRVValue *LLVMToSPIRVBase::transUnaryInst(UnaryInstruction *U,
                SrcAddrSpace != SPIRAS_Generic) {
       SPIRVType *TransTy = transScavengedType(U);
       return BM->addNullConstant(bcast<SPIRVTypePointer>(TransTy));
+    } else if (SrcAddrSpace == SPIRAS_CodeSectionINTEL) {
+      // Function pointer address space casts are allowed when the
+      // SPV_INTEL_function_pointers extension is enabled. Translate as
+      // OpBitcast between pointer types of different storage classes.
+      getErrorLog().checkError(
+          BM->isAllowedToUseExtension(
+              ExtensionID::SPV_INTEL_function_pointers),
+          SPIRVEC_InvalidModule, U,
+          "Casts from CodeSectionINTEL address space require "
+          "SPV_INTEL_function_pointers extension\n");
+      BOC = OpBitcast;
     } else {
       getErrorLog().checkError(
           SrcAddrSpace == SPIRAS_Generic, SPIRVEC_InvalidModule, U,
