@@ -20,9 +20,10 @@ typedef unsigned int uint;
 typedef unsigned long ulong;
 
 // Sampled image pack/unpack helpers
-ulong __clc__sampled_image_unpack_image(ulong img, uint sampl) { return img; }
+ulong __clc__sampled_image_unpack_image(ulong img, uint sampl) { (void)sampl; return img; }
 
 uint __clc__sampled_image_unpack_sampler(ulong img, uint sampl) {
+  (void)img;
   return sampl;
 }
 
