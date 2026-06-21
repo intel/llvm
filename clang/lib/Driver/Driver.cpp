@@ -8394,9 +8394,14 @@ Action *Driver::ConstructPhaseAction(
       return C.MakeAction<BackendJobAction>(Input, Output);
     }
     if (Args.hasArg(options::OPT_emit_llvm) ||
-        TargetDeviceOffloadKind == Action::OFK_SYCL) {
+        (TargetDeviceOffloadKind == Action::OFK_SYCL &&
+         getUseNewOffloadingDriver())) {
       types::ID Output =
-          Args.hasArg(options::OPT_S) ? types::TY_LLVM_IR : types::TY_LLVM_BC;
+          Args.hasArg(options::OPT_S) &&
+                  (TargetDeviceOffloadKind == Action::OFK_None ||
+                   offloadDeviceOnly())
+              ? types::TY_LLVM_IR
+              : types::TY_LLVM_BC;
       return C.MakeAction<BackendJobAction>(Input, Output);
     }
 
