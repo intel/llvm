@@ -6182,9 +6182,10 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       if ((IsDeviceOffloadAction &&
            !JA.isDeviceOffloading(Action::OFK_OpenMP) && !Triple.isAMDGPU() &&
            !Triple.isSPIRV() && !IsUsingOffloadNewDriver) ||
-          (JA.isDeviceOffloading(Action::OFK_SYCL) && !IsSYCLLTOSupported)) {
+          (JA.isDeviceOffloading(Action::OFK_SYCL) && !IsSYCLLTOSupported &&
+           LTOArg)) {
         D.Diag(diag::err_drv_unsupported_opt_for_target)
-            << (LTOArg ? LTOArg->getAsString(Args) : "-foffload-lto")
+            << LTOArg->getAsString(Args)
             << Triple.getTriple();
       } else if (Triple.isNVPTX() && !IsRDCMode &&
                  JA.isDeviceOffloading(Action::OFK_Cuda)) {
