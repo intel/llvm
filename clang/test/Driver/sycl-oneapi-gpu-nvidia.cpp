@@ -33,7 +33,7 @@
 // MACRO_NVIDIA: clang{{.*}}  "-fsycl-is-host"
 // MACRO_NVIDIA: "-D__SYCL_TARGET_NVIDIA_GPU_[[MAC_STR]]__"
 // MACRO_NVIDIA: clang{{.*}} "-triple" "nvptx64-nvidia-cuda"
-// DEVICE_NVIDIA: llvm-foreach{{.*}} "--gpu-name" "[[DEV_STR]]"
+// DEVICE_NVIDIA: "-target-cpu" "[[DEV_STR]]"
 
 
 /// test for invalid nvidia arch
@@ -101,11 +101,10 @@
 // NVIDIA_CHECK_PHASES: 11: linker, {9, 10}, ir, (device-sycl, sm_50)
 // NVIDIA_CHECK_PHASES: 12: sycl-post-link, {11}, ir, (device-sycl, sm_50)
 // NVIDIA_CHECK_PHASES: 13: file-table-tform, {12}, ir, (device-sycl, sm_50)
-// NVIDIA_CHECK_PHASES: 14: backend, {13}, assembler, (device-sycl, sm_50)
-// NVIDIA_CHECK_PHASES: 15: assembler, {14}, object, (device-sycl, sm_50)
-// NVIDIA_CHECK_PHASES: 16: linker, {14, 15}, cuda-fatbin, (device-sycl, sm_50)
-// NVIDIA_CHECK_PHASES: 17: foreach, {13, 16}, cuda-fatbin, (device-sycl, sm_50)
-// NVIDIA_CHECK_PHASES: 18: file-table-tform, {12, 17}, tempfiletable, (device-sycl, sm_50)
-// NVIDIA_CHECK_PHASES: 19: clang-offload-wrapper, {18}, object, (device-sycl, sm_50)
-// NVIDIA_CHECK_PHASES: 20: offload, "device-sycl (nvptx64-nvidia-cuda:sm_50)" {19}, object
-// NVIDIA_CHECK_PHASES: 21: linker, {8, 20}, image, (host-sycl)
+// NVIDIA_CHECK_PHASES: 14: backend, {13}, ir, (device-sycl, sm_50)
+// NVIDIA_CHECK_PHASES: 15: linker, {14, 14}, cuda-fatbin, (device-sycl, sm_50)
+// NVIDIA_CHECK_PHASES: 16: foreach, {13, 15}, cuda-fatbin, (device-sycl, sm_50)
+// NVIDIA_CHECK_PHASES: 17: file-table-tform, {12, 16}, tempfiletable, (device-sycl, sm_50)
+// NVIDIA_CHECK_PHASES: 18: clang-offload-wrapper, {17}, object, (device-sycl, sm_50)
+// NVIDIA_CHECK_PHASES: 19: offload, "device-sycl (nvptx64-nvidia-cuda:sm_50)" {18}, object
+// NVIDIA_CHECK_PHASES: 20: linker, {8, 19}, image, (host-sycl)
