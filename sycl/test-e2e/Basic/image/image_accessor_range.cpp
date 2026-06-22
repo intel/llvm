@@ -4,6 +4,9 @@
 // UNSUPPORTED-INTENDED: CUDA doesn't fully support SYCL 1.2.1 images. Bindless
 // images should be used instead.
 //
+// XFAIL: spirv-backend && run-mode
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/22351
+//
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
