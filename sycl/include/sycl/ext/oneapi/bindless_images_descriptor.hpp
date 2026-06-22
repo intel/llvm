@@ -53,8 +53,8 @@ enum class image_type : unsigned int {
 };
 /// image color space enum
 enum class image_color_space : uint32_t {
-    linear = 0,
-    srgb   = 1,
+  linear = 0,
+  srgb = 1,
 };
 /// A struct to describe the properties of an image.
 struct image_descriptor {
@@ -66,7 +66,7 @@ struct image_descriptor {
   image_type type{image_type::standard};
   unsigned int num_levels{1};
   unsigned int array_size{1};
-  image_color_space color_space   = image_color_space::linear;
+  image_color_space color_space = image_color_space::linear;
   image_descriptor() = default;
 
   image_descriptor(range<1> dims, unsigned int num_channels,
@@ -133,17 +133,16 @@ struct image_descriptor {
                             "Images must have 1, 2, 3, or 4 channels.");
     }
     if (color_space == image_color_space::srgb) {
-    if (num_channels != 4) {
-        throw sycl::exception(
-            sycl::errc::invalid,
-            "sRGB color space requires num_channels == 4");
-    }
-    if (channel_type != image_channel_type::unorm_int8) {
+      if (num_channels != 4) {
+        throw sycl::exception(sycl::errc::invalid,
+                              "sRGB color space requires num_channels == 4");
+      }
+      if (channel_type != image_channel_type::unorm_int8) {
         throw sycl::exception(
             sycl::errc::invalid,
             "sRGB color space requires unorm_int8 channel type");
+      }
     }
-}
     switch (this->type) {
     case image_type::standard:
       if (this->array_size > 1) {
