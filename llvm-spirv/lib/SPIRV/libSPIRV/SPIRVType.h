@@ -86,6 +86,7 @@ public:
   bool isTypeReserveId() const;
   bool isTypeFloat(unsigned Bits = 0,
                    unsigned FloatingPointEncoding = FPEncodingMax) const;
+  bool isTypeIEEE754Float() const;
   bool isTypeImage() const;
   bool isTypeOCLImage() const;
   bool isTypePipe() const;

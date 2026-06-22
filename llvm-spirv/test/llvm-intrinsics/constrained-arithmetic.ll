@@ -3,16 +3,30 @@
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: spirv-val %t.spv
 
+; RUN: llvm-spirv %t.bc -spirv-text --spirv-ext=+SPV_INTEL_rounded_divide_sqrt -o - | FileCheck \
+; RUN:   %s --check-prefixes=CHECK,CHECK-EXT --implicit-check-not FPRoundingMode
+; RUN: llvm-spirv %t.bc -o %t.spv --spirv-ext=+SPV_INTEL_rounded_divide_sqrt
+; RUN: spirv-val %t.spv
+
+; CHECK-NOT: Capability RoundedDivideSqrtINTEL
+; CHECK-NOT: Extension "SPV_INTEL_rounded_divide_sqrt"
+; CHECK-EXT: Capability RoundedDivideSqrtINTEL
+; CHECK-EXT: Extension "SPV_INTEL_rounded_divide_sqrt"
 
 ; CHECK: Name [[ad:[0-9]+]] "add"
 ; CHECK: Name [[di:[0-9]+]] "div"
 ; CHECK: Name [[su:[0-9]+]] "sub"
 ; CHECK: Name [[mu:[0-9]+]] "mul"
+; CHECK: Name [[sq:[0-9]+]] "sqrt"
+
+; CHECK-EXT-DAG: Decorate [[di]] FPRoundingMode 1
+; CHECK-EXT-DAG: Decorate [[sq]] FPRoundingMode 3
 
 ; CHECK: FAdd {{[0-9]+}} [[ad]]
 ; CHECK: FDiv {{[0-9]+}} [[di]]
 ; CHECK: FSub {{[0-9]+}} [[su]]
 ; CHECK: FMul {{[0-9]+}} [[mu]]
+; CHECK: ExtInst [[#]] [[sq]] [[#]] sqrt
 ; CHECK: FMul
 ; CHECK: FAdd
 ; CHECK: ExtInst {{[0-9]+}} {{[0-9]+}} {{[0-9]+}} fma
@@ -28,6 +42,7 @@ entry:
   %div = tail call float @llvm.experimental.constrained.fdiv.f32(float %add, float %add, metadata !"round.towardzero", metadata !"fpexcept.strict") #2, !fpmath !10
   %sub = tail call float @llvm.experimental.constrained.fsub.f32(float %div, float %div, metadata !"round.upward", metadata !"fpexcept.strict") #2
   %mul = tail call float @llvm.experimental.constrained.fmul.f32(float %sub, float %sub, metadata !"round.downward", metadata !"fpexcept.strict") #2
+  %sqrt = tail call float @llvm.experimental.constrained.sqrt.f32(float %mul, metadata !"round.downward", metadata !"fpexcept.strict") #2
   %0 = tail call float @llvm.experimental.constrained.fmuladd.f32(float %mul, float %mul, float %mul, metadata !"round.tonearestaway", metadata !"fpexcept.strict") #2
   %1 = tail call float @llvm.experimental.constrained.fma.f32(float %0, float %0, float %0, metadata !"round.dynamic", metadata !"fpexcept.strict") #2
   %2 = tail call float @llvm.experimental.constrained.frem.f32(float %1, float %1, metadata !"round.dynamic", metadata !"fpexcept.strict") #2
@@ -54,6 +69,9 @@ declare float @llvm.experimental.constrained.fma.f32(float, float, float, metada
 
 ; Function Attrs: inaccessiblememonly nounwind willreturn
 declare float @llvm.experimental.constrained.frem.f32(float, float, metadata, metadata) #1
+
+; Function Attrs: inaccessiblememonly nounwind willreturn
+declare float @llvm.experimental.constrained.sqrt.f32(float, metadata, metadata) #1
 
 attributes #0 = { norecurse nounwind strictfp "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "frame-pointer"="all" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="test2.cl" "uniform-work-group-size"="true" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #1 = { inaccessiblememonly nounwind willreturn }
