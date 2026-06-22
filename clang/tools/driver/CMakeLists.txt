@@ -143,9 +143,10 @@ if(CLANG_BUILD_TOOLS)
     endforeach()
   else()
     # On Windows (and other non-Linux), all tools already install into bin/.
-    # Use hardlinks so dpclang* entries share the same inode as clang.exe
-    # without duplicating ~200 MB of binary on disk.
-    set(_dpclang_link_or_copy create_hardlink)
+    # Use copy: hardlinks would save space on the build machine but the savings
+    # are lost after zip/tar extraction on the target machine anyway, and
+    # create_hardlink fails if source and destination are on different volumes.
+    set(_dpclang_link_or_copy copy)
     foreach(_link dpclang dpclang++ dpclang-cl dpclang-cpp)
       install(SCRIPT ${INSTALL_SYMLINK}
               CODE "install_symlink(\"${_link}\" \"clang\" \"${CMAKE_INSTALL_BINDIR}\" \"${_dpclang_link_or_copy}\")"
