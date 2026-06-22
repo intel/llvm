@@ -11,7 +11,8 @@
 
 // Read-only kernel: sum all elements and return the result.
 static int runReadOnlySumKernel(sycl::queue &Q, const int *HostPtr, size_t N) {
-  sycl::buffer<int, 1> Buf(HostPtr, sycl::range<1>(N));
+  sycl::buffer<int, 1> Buf(HostPtr, sycl::range<1>(N),
+                           {sycl::property::buffer::use_host_ptr{}});
   sycl::buffer<int, 1> SumBuf(1);
 
   Q.submit([&](sycl::handler &CGH) {
@@ -33,7 +34,8 @@ static int runReadOnlySumKernel(sycl::queue &Q, const int *HostPtr, size_t N) {
 // Writable kernel path; buffer destruction happens at scope exit.
 static void runWriteKernel(sycl::queue &Q, int *HostPtr, size_t N) {
   {
-    sycl::buffer<int, 1> Buf(HostPtr, sycl::range<1>(N));
+    sycl::buffer<int, 1> Buf(HostPtr, sycl::range<1>(N),
+                             {sycl::property::buffer::use_host_ptr{}});
 
     Q.submit([&](sycl::handler &CGH) {
       auto OutAcc = Buf.get_access<sycl::access::mode::write>(CGH);
@@ -67,7 +69,8 @@ static bool checkExpectedPattern(const int *Ptr, size_t N) {
 // Sequence: kernel writes I -> host reads (map READ) and verifies -> host adds
 // 100 (unmap WRITE-back) -> kernel adds 1 -> scope exit writes I+101 to host.
 static bool runMidLifeHostAccessor(sycl::queue &Q, int *HostPtr, size_t N) {
-  sycl::buffer<int, 1> Buf(HostPtr, sycl::range<1>(N));
+  sycl::buffer<int, 1> Buf(HostPtr, sycl::range<1>(N),
+                           {sycl::property::buffer::use_host_ptr{}});
 
   Q.submit([&](sycl::handler &CGH) {
     auto Acc = Buf.get_access<sycl::access::mode::write>(CGH);
@@ -110,7 +113,8 @@ static bool runReadOnlyImmutability(sycl::queue &Q, const int *HostPtr,
   std::memcpy(Orig.data(), HostPtr, sizeof(int) * N);
 
   {
-    sycl::buffer<int, 1> Buf(HostPtr, sycl::range<1>(N));
+    sycl::buffer<int, 1> Buf(HostPtr, sycl::range<1>(N),
+                             {sycl::property::buffer::use_host_ptr{}});
     sycl::buffer<int, 1> SumBuf(1);
     Q.submit([&](sycl::handler &CGH) {
       auto In = Buf.get_access<sycl::access::mode::read>(CGH);

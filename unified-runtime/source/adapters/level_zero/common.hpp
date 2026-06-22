@@ -328,8 +328,8 @@ public:
   ZeUSMImportExtension() : Supported{false}, Enabled{false} {}
 
   void setZeUSMImport(ur_platform_handle_t_ *Platform);
-  void doZeUSMImport(ze_driver_handle_t DriverHandle, void *HostPtr,
-                     size_t Size);
+  ze_result_t doZeUSMImport(ze_driver_handle_t DriverHandle, void *HostPtr,
+                            size_t Size);
   void doZeUSMRelease(ze_driver_handle_t DriverHandle, void *HostPtr);
 };
 
