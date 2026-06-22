@@ -10308,10 +10308,13 @@ void OffloadBundler::ConstructJob(Compilation &C, const JobAction &JA,
       // TODO: All targets should use the 4-field triple, which can be done
       //       during an ABI breaking juncture.
       if (CurKind == Action::OFK_HIP)
-        Triples += CurTC->getTriple().normalize(
-            llvm::Triple::CanonicalForm::FOUR_IDENT);
+        Triples += llvm::Triple(CurTC->ComputeEffectiveClangTriple(
+                                    TCArgs, CurDep->getOffloadingArch()))
+                       .normalize(llvm::Triple::CanonicalForm::FOUR_IDENT);
       else
-        Triples += CurTC->getTriple().normalize();
+        Triples += llvm::Triple(CurTC->ComputeEffectiveClangTriple(
+                                    TCArgs, CurDep->getOffloadingArch()))
+                       .normalize();
     }
     if (CurKind != Action::OFK_Host &&
         !StringRef(CurDep->getOffloadingArch()).empty() &&
@@ -10431,10 +10434,13 @@ void OffloadBundler::ConstructJobMultipleOutputs(
       // TODO: All targets should use the 4-field triple, which can be done
       //       during an ABI breaking juncture.
       if (Dep.DependentOffloadKind == Action::OFK_HIP)
-        Triples += Dep.DependentToolChain->getTriple().normalize(
-          llvm::Triple::CanonicalForm::FOUR_IDENT);
+        Triples += llvm::Triple(Dep.DependentToolChain->ComputeEffectiveClangTriple(
+                                    TCArgs, Dep.DependentBoundArch))
+                       .normalize(llvm::Triple::CanonicalForm::FOUR_IDENT);
       else
-        Triples += Dep.DependentToolChain->getTriple().normalize();
+        Triples += llvm::Triple(Dep.DependentToolChain->ComputeEffectiveClangTriple(
+                                    TCArgs, Dep.DependentBoundArch))
+                       .normalize();
     }
     if (Dep.DependentOffloadKind != Action::OFK_Host &&
         !Dep.DependentBoundArch.empty() &&
@@ -10812,7 +10818,7 @@ void OffloadPackager::ConstructJob(Compilation &C, const JobAction &JA,
     // linker wrapper.
     SmallVector<std::string> Parts{
         "file=" + File.str(),
-        "triple=" + TC->getTripleString().str(),
+        "triple=" + TC->ComputeEffectiveClangTriple(TCArgs, Arch),
         "arch=" + (Arch.empty() ? "generic" : Arch.str()),
         "kind=" + Kind.str(),
     };
