@@ -113,19 +113,89 @@ TEST(SYCLBINSerializeSpecConst, DescriptorAndDefaultValueRoundTrip) {
     EXPECT_EQ(Triple[1], ScalarSpecConst::Offset);
     EXPECT_EQ(Triple[2], ScalarSpecConst::Size);
 
-    // Default values blob: must contain the original 4-byte payload for our
-    // spec const, byte-equal.
+    // Default values blob: a single "all" property holding the flat blob,
+    // indexed by each descriptor's BlobOffset (0 here). This matches the
+    // reader (device_image_impl::getSpecConstsDefValBlob), which consumes the
+    // single first property, not one property per spec-const name.
     auto DVIt = AM.Metadata->getPropSets().find(
         "SYCL/specialization constants default values");
     ASSERT_NE(DVIt, AM.Metadata->getPropSets().end());
-    auto DVPropIt = DVIt->second.find("my_spec_const");
+    auto DVPropIt = DVIt->second.find("all");
     ASSERT_NE(DVPropIt, DVIt->second.end());
     ASSERT_EQ(DVPropIt->second.getType(), PropertyValue::BYTE_ARRAY);
-    EXPECT_EQ(DVPropIt->second.getByteArraySize(),
+    ASSERT_GE(DVPropIt->second.getByteArraySize(),
               static_cast<PropertyValue::SizeTy>(ScalarSpecConst::Size));
     uint32_t Got = 0;
     std::memcpy(&Got, DVPropIt->second.asByteArray(), sizeof(Got));
     EXPECT_EQ(Got, ScalarSpecConst::DefaultValue);
   }
   EXPECT_TRUE(Found) << "Expected my_spec_const in serialized SYCLBIN";
+
+  // The set-values property set must be ABSENT when no spec constant was
+  // user-set: it is only emitted by ext_oneapi_get_content when at least one
+  // descriptor has IsSet==true.
+  for (const auto &AM : Parsed.AbstractModules) {
+    ASSERT_NE(AM.Metadata, nullptr);
+    EXPECT_EQ(AM.Metadata->getPropSets().find(
+                  "SYCL/specialization constants set values"),
+              AM.Metadata->getPropSets().end())
+        << "set-values property must not be emitted when nothing was set";
+  }
+}
+
+// When a spec constant is user-set before ext_oneapi_get_content, the
+// serializer must additionally emit the optional [SYCL/specialization
+// constants set values] property set carrying the runtime-effective blob, so
+// the reader can restore the per-descriptor IsSet state on reload.
+TEST(SYCLBINSerializeSpecConst, SetValueEmitsSetValuesProperty) {
+  using namespace sycl::detail;
+  sycl::unittest::UrMock<> Mock;
+
+  const sycl::device Dev = sycl::platform().get_devices()[0];
+  sycl::context Ctx{Dev};
+
+  auto KB = sycl::get_kernel_bundle<sycl::bundle_state::executable>(Ctx, {Dev});
+
+  // Apply a user value distinct from the default so IsSet flips to true on the
+  // underlying device_image_impl.
+  const uint32_t UserValue = 0x55667788;
+  ASSERT_NE(UserValue, ScalarSpecConst::DefaultValue);
+  bool Applied = false;
+  for (device_image_impl &DevImg :
+       sycl::detail::getSyclObjImpl(KB)->device_images()) {
+    if (DevImg.has_specialization_constant("my_spec_const")) {
+      DevImg.set_specialization_constant_raw_value("my_spec_const", &UserValue);
+      Applied = true;
+    }
+  }
+  ASSERT_TRUE(Applied) << "my_spec_const not found on any device image";
+
+  std::vector<char> Bytes =
+      sycl::detail::getSyclObjImpl(KB)->ext_oneapi_get_content();
+  ASSERT_FALSE(Bytes.empty());
+
+  SYCLBIN Parsed{Bytes.data(), Bytes.size()};
+
+  bool FoundSetValues = false;
+  for (const auto &AM : Parsed.AbstractModules) {
+    ASSERT_NE(AM.Metadata, nullptr);
+    auto SVIt = AM.Metadata->getPropSets().find(
+        "SYCL/specialization constants set values");
+    if (SVIt == AM.Metadata->getPropSets().end())
+      continue;
+    FoundSetValues = true;
+
+    // Single "all" blob holding the flat value blob, byte-equal to the
+    // user-set value at the descriptor's BlobOffset (0 here).
+    auto AllIt = SVIt->second.find("all");
+    ASSERT_NE(AllIt, SVIt->second.end());
+    ASSERT_EQ(AllIt->second.getType(), PropertyValue::BYTE_ARRAY);
+    ASSERT_GE(AllIt->second.getByteArraySize(),
+              static_cast<PropertyValue::SizeTy>(ScalarSpecConst::Size));
+    uint32_t Got = 0;
+    std::memcpy(&Got, AllIt->second.asByteArray(), sizeof(Got));
+    EXPECT_EQ(Got, UserValue);
+  }
+  EXPECT_TRUE(FoundSetValues)
+      << "Expected set-values property after set_specialization_constant";
 }

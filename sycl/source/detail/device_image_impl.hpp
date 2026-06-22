@@ -493,11 +493,6 @@ public:
     // operator[] can't be used here, since it's not marked as const
     const std::vector<SpecConstDescT> &Descs =
         MSpecConstSymMap.at(std::string{SpecName});
-    std::cerr << "[SC-DBG] get_raw origins=" << (int)MOrigins
-              << " state=" << (int)MState << " IsSet=" << IsSet
-              << " blob0=" << (MSpecConstsBlob.size() ? (int)MSpecConstsBlob[0] : -1)
-              << " defVal0=" << (MSpecConstsDefValBlob.size() ? (int)MSpecConstsDefValBlob.begin()[0] : -1)
-              << "\n";
     for (const SpecConstDescT &Desc : Descs) {
       auto Blob =
           IsSet ? MSpecConstsBlob.data() : MSpecConstsDefValBlob.begin();
@@ -977,6 +972,26 @@ private:
     return DefValDescriptors;
   }
 
+  // Get the optional spec-constant "set values" blob. Only present in SYCLBIN
+  // produced by ext_oneapi_get_content when a value was user-set; see
+  // overrideSpecConstants in syclbin.cpp. Returns an empty ByteArray when the
+  // property set is absent (the common case for compiler-produced images).
+  ByteArray getSpecConstsSetValBlob() const {
+    if (!hasRTDeviceBinaryImage())
+      return ByteArray(nullptr, 0);
+
+    const RTDeviceBinaryImage::PropertyRange &SCSetValRange =
+        get_bin_image_ref()->getSpecConstantsSetValues();
+    if (!SCSetValRange.isAvailable())
+      return ByteArray(nullptr, 0);
+
+    ByteArray SetValDescriptors =
+        DeviceBinaryProperty(*SCSetValRange.begin()).asByteArray();
+    // First 8 bytes are consumed by the size of the property.
+    SetValDescriptors.dropBytes(8);
+    return SetValDescriptors;
+  }
+
   void updateSpecConstSymMap() {
     if (hasRTDeviceBinaryImage()) {
       const RTDeviceBinaryImage::PropertyRange &SCRange =
@@ -1029,6 +1044,31 @@ private:
                                 MSpecConstsDefValBlob.begin() +
                                     MSpecConstsBlob.size(),
                                 MSpecConstsBlob.data());
+      }
+
+      // Optional [SYCL/specialization constants set values] property set,
+      // emitted only by ext_oneapi_get_content when a value was user-set (see
+      // overrideSpecConstants in syclbin.cpp). When present, it carries the
+      // runtime-effective blob of user-set values. SYCLBIN has no per-constant
+      // "user-set vs default" bit, so without this the reloaded image would
+      // start with every descriptor IsSet=false and the host getter
+      // (kernel_bundle::get_specialization_constant) would return the C++
+      // static default instead of the round-tripped value. Restore both the
+      // value blob and the IsSet state from it. Absent property -> leave
+      // IsSet=false (default behavior for compiler-produced images).
+      ByteArray SetValBlob = getSpecConstsSetValBlob();
+      if (SetValBlob.size()) {
+        assert(SetValBlob.size() == MSpecConstsBlob.size() &&
+               "Specialization constant set value blob does not have the "
+               "expected size.");
+        std::copy(SetValBlob.begin(),
+                  SetValBlob.begin() + MSpecConstsBlob.size(),
+                  MSpecConstsBlob.data());
+        for (auto &[Name, Descs] : MSpecConstSymMap) {
+          std::ignore = Name;
+          for (SpecConstDescT &Desc : Descs)
+            Desc.IsSet = true;
+        }
       }
     }
   }
