@@ -351,9 +351,9 @@ void overrideSpecConstants(PropertySetRegistry &Reg, device_image_impl &Img) {
     return;
   PropertySet &Defaults = Reg["SYCL/specialization constants default values"];
   Defaults.clear();
-  Defaults["all"] = PropertyValue{
-      reinterpret_cast<const PropertyValue::byte *>(Blob.data()),
-      static_cast<PropertyValue::SizeTy>(Blob.size() * 8)};
+  Defaults["all"] =
+      PropertyValue{reinterpret_cast<const PropertyValue::byte *>(Blob.data()),
+                    static_cast<PropertyValue::SizeTy>(Blob.size() * 8)};
 
   // Optional [SYCL/specialization constants set values] property set. SYCLBIN
   // (like the offline property-set format) has no notion of "user-set vs

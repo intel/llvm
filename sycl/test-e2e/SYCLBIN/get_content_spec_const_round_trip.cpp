@@ -16,7 +16,6 @@
 // --      the default (42).
 // --
 
-
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
@@ -61,8 +60,7 @@ int main() {
   }
 
   // 1. Input-state bundle.
-  auto KBInput =
-      sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx, {Dev});
+  auto KBInput = sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx, {Dev});
 
   if (!KBInput.contains_specialization_constants()) {
     std::cout << "FAIL: input bundle has no specialization constants.\n";
@@ -99,9 +97,8 @@ int main() {
   }
 
   // 5. Reload as executable.
-  auto KBReloaded =
-      syclexp::get_kernel_bundle<sycl::bundle_state::executable>(
-          Ctx, {Dev}, sycl::span<char>{Bytes});
+  auto KBReloaded = syclexp::get_kernel_bundle<sycl::bundle_state::executable>(
+      Ctx, {Dev}, sycl::span<char>{Bytes});
 
   // 6. Compare host-side spec const value on the reloaded bundle.
   if (!KBReloaded.has_specialization_constant<SC>()) {
@@ -124,7 +121,7 @@ int main() {
               << "round-trip.\n";
     return 1;
   }
-  std::cout << "FAIL: unexpected spec const value " << Got
-            << " (expected " << UserValue << ")\n";
+  std::cout << "FAIL: unexpected spec const value " << Got << " (expected "
+            << UserValue << ")\n";
   return 1;
 }
