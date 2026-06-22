@@ -1022,6 +1022,24 @@ ur_result_t urEventCreateExp(ur_context_handle_t /*hContext*/,
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
+ur_result_t urIPCGetEventHandleExp(ur_event_handle_t /*hEvent*/,
+                                   void ** /*ppIPCEventHandleData*/,
+                                   size_t * /*pIPCEventHandleDataSizeRet*/) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+ur_result_t urIPCPutEventHandleExp(ur_context_handle_t /*hContext*/,
+                                   void * /*pIPCEventHandleData*/) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+ur_result_t urIPCOpenEventHandleExp(ur_context_handle_t /*hContext*/,
+                                    const void * /*pIPCEventHandleData*/,
+                                    size_t /*ipcEventHandleDataSize*/,
+                                    ur_event_handle_t * /*phEvent*/) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
 } // namespace ur::level_zero
 
 ur_result_t ur_event_handle_t_::getOrCreateHostVisibleEvent(
