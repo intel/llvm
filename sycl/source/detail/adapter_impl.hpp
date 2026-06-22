@@ -226,6 +226,15 @@ private:
   UrFuncPtrMapT UrFuncPtrs;
 }; // class adapter_impl
 
+// DIAGNOSTIC (intel/llvm#22367): records, when SYCL_TRACE_ADAPTER_UAF is set in
+// the environment, that a Managed<> was destroyed after its adapter had already
+// been torn down (the weak_ptr lock failed). Writes one record per event --
+// resource handle plus a raw backtrace -- to the file named by the env var, to
+// be symbolized offline. A no-op when the env var is unset. Defined in
+// adapter_impl.cpp to keep the platform backtrace machinery out of this widely
+// included header.
+void traceManagedAdapterExpired(void *Resource);
+
 template <typename URResource> class Managed {
   static constexpr auto Release = []() constexpr {
     if constexpr (std::is_same_v<URResource, ur_program_handle_t>)
@@ -297,6 +306,14 @@ public:
       // to release (its UR resources are gone); avoid a use-after-free.
       if (std::shared_ptr<adapter_impl> A = Adapter.lock()) {
         A->call<Release>(R);
+      } else {
+        // DIAGNOSTIC (intel/llvm#22367): this Managed outlived its adapter.
+        // The weak_ptr lock fails, so we skip the release and would have had a
+        // use-after-free with the raw-pointer design. Record it (gated by env
+        // var, so zero cost when disabled) together with a backtrace so we can
+        // identify which cache/holder kept this Managed alive past adapter
+        // teardown on Windows/icx, where this is the crash site.
+        traceManagedAdapterExpired(static_cast<void *>(R));
       }
     } catch (std::exception &e) {
       __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~Managed", e);

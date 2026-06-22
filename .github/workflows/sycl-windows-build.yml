@@ -179,8 +179,23 @@ jobs:
          cmake --build build --target check-sycl
     - name: check-sycl-unittests
       if: ${{ !cancelled() && contains(inputs.changes, 'sycl') }}
+      # SYCL_TRACE_ADAPTER_UAF (intel/llvm#22367 diagnostic): when set, ~Managed
+      # records every case where it outlived its adapter, with a backtrace, to
+      # this file. The weak_ptr build keeps these tests GREEN, so the records are
+      # the only signal -- captured to a file (not stdout, which lit discards for
+      # passing tests) and uploaded below.
+      env:
+        SYCL_TRACE_ADAPTER_UAF: ${{ github.workspace }}\build\adapter_uaf_trace.txt
       run: |
         cmake --build build --target check-sycl-unittests
+    - name: Upload adapter-UAF trace
+      if: ${{ always() && contains(inputs.changes, 'sycl') }}
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      with:
+        name: adapter_uaf_trace
+        path: build/adapter_uaf_trace.txt
+        if-no-files-found: warn
+        retention-days: ${{ inputs.retention-days }}
     - name: check-llvm-spirv
       if: ${{ !cancelled() && contains(inputs.changes, 'llvm_spirv') }}
       run: |
