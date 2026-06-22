@@ -1413,6 +1413,15 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
   case UR_FUNCTION_EVENT_CREATE_EXP:
     os << "UR_FUNCTION_EVENT_CREATE_EXP";
     break;
+  case UR_FUNCTION_IPC_GET_EVENT_HANDLE_EXP:
+    os << "UR_FUNCTION_IPC_GET_EVENT_HANDLE_EXP";
+    break;
+  case UR_FUNCTION_IPC_PUT_EVENT_HANDLE_EXP:
+    os << "UR_FUNCTION_IPC_PUT_EVENT_HANDLE_EXP";
+    break;
+  case UR_FUNCTION_IPC_OPEN_EVENT_HANDLE_EXP:
+    os << "UR_FUNCTION_IPC_OPEN_EVENT_HANDLE_EXP";
+    break;
   default:
     os << "unknown enumerator";
     break;
@@ -3363,6 +3372,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
     break;
   case UR_DEVICE_INFO_REUSABLE_EVENTS_SUPPORT_EXP:
     os << "UR_DEVICE_INFO_REUSABLE_EVENTS_SUPPORT_EXP";
+    break;
+  case UR_DEVICE_INFO_IPC_EVENT_SUPPORT_EXP:
+    os << "UR_DEVICE_INFO_IPC_EVENT_SUPPORT_EXP";
     break;
   case UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_SUPPORT_EXP:
     os << "UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_SUPPORT_EXP";
@@ -5663,6 +5675,19 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
     os << ")";
   } break;
   case UR_DEVICE_INFO_REUSABLE_EVENTS_SUPPORT_EXP: {
+    const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+    if (sizeof(ur_bool_t) > size) {
+      os << "invalid size (is: " << size
+         << ", expected: >=" << sizeof(ur_bool_t) << ")";
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    os << (const void *)(tptr) << " (";
+
+    os << *tptr;
+
+    os << ")";
+  } break;
+  case UR_DEVICE_INFO_IPC_EVENT_SUPPORT_EXP: {
     const ur_bool_t *tptr = (const ur_bool_t *)ptr;
     if (sizeof(ur_bool_t) > size) {
       os << "invalid size (is: " << size
@@ -13424,6 +13449,9 @@ inline std::ostream &operator<<(std::ostream &os,
   case UR_EXP_EVENT_FLAG_ENABLE_PROFILING:
     os << "UR_EXP_EVENT_FLAG_ENABLE_PROFILING";
     break;
+  case UR_EXP_EVENT_FLAG_IPC_EXP:
+    os << "UR_EXP_EVENT_FLAG_IPC_EXP";
+    break;
   default:
     os << "unknown enumerator";
     break;
@@ -13449,6 +13477,17 @@ inline ur_result_t printFlag<ur_exp_event_flag_t>(std::ostream &os,
       first = false;
     }
     os << UR_EXP_EVENT_FLAG_ENABLE_PROFILING;
+  }
+
+  if ((val & UR_EXP_EVENT_FLAG_IPC_EXP) ==
+      (uint32_t)UR_EXP_EVENT_FLAG_IPC_EXP) {
+    val ^= (uint32_t)UR_EXP_EVENT_FLAG_IPC_EXP;
+    if (!first) {
+      os << " | ";
+    } else {
+      first = false;
+    }
+    os << UR_EXP_EVENT_FLAG_IPC_EXP;
   }
   if (val != 0) {
     std::bitset<32> bits(val);
@@ -22086,6 +22125,84 @@ inline std::ostream &operator<<(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_ipc_get_event_handle_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_ipc_get_event_handle_exp_params_t
+               *params) {
+
+  os << ".hEvent = ";
+
+  ur::details::printPtr(os, *(params->phEvent));
+
+  os << ", ";
+  os << ".ppIPCEventHandleData = ";
+
+  ur::details::printPtr(os, *(params->pppIPCEventHandleData));
+
+  os << ", ";
+  os << ".pIPCEventHandleDataSizeRet = ";
+
+  ur::details::printPtr(os, *(params->ppIPCEventHandleDataSizeRet));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_ipc_put_event_handle_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_ipc_put_event_handle_exp_params_t
+               *params) {
+
+  os << ".hContext = ";
+
+  ur::details::printPtr(os, *(params->phContext));
+
+  os << ", ";
+  os << ".pIPCEventHandleData = ";
+
+  ur::details::printPtr(os, *(params->ppIPCEventHandleData));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_ipc_open_event_handle_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_ipc_open_event_handle_exp_params_t
+               *params) {
+
+  os << ".hContext = ";
+
+  ur::details::printPtr(os, *(params->phContext));
+
+  os << ", ";
+  os << ".pIPCEventHandleData = ";
+
+  os << *(params->ppIPCEventHandleData);
+
+  os << ", ";
+  os << ".ipcEventHandleDataSize = ";
+
+  os << *(params->pipcEventHandleDataSize);
+
+  os << ", ";
+  os << ".phEvent = ";
+
+  ur::details::printPtr(os, *(params->pphEvent));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the
 /// ur_memory_export_alloc_exportable_memory_exp_params_t type
 /// @returns
@@ -23662,6 +23779,15 @@ inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os,
   } break;
   case UR_FUNCTION_IPC_CLOSE_PHYS_MEM_HANDLE_EXP: {
     os << (const struct ur_ipc_close_phys_mem_handle_exp_params_t *)params;
+  } break;
+  case UR_FUNCTION_IPC_GET_EVENT_HANDLE_EXP: {
+    os << (const struct ur_ipc_get_event_handle_exp_params_t *)params;
+  } break;
+  case UR_FUNCTION_IPC_PUT_EVENT_HANDLE_EXP: {
+    os << (const struct ur_ipc_put_event_handle_exp_params_t *)params;
+  } break;
+  case UR_FUNCTION_IPC_OPEN_EVENT_HANDLE_EXP: {
+    os << (const struct ur_ipc_open_event_handle_exp_params_t *)params;
   } break;
   case UR_FUNCTION_MEMORY_EXPORT_ALLOC_EXPORTABLE_MEMORY_EXP: {
     os << (const struct ur_memory_export_alloc_exportable_memory_exp_params_t *)

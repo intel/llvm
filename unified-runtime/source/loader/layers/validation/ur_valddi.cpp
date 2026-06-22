@@ -9174,6 +9174,117 @@ __urdlllocal ur_result_t UR_APICALL urIPCClosePhysMemHandleExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urIPCGetEventHandleExp
+__urdlllocal ur_result_t UR_APICALL urIPCGetEventHandleExp(
+    /// [in] handle of the event object
+    ur_event_handle_t hEvent,
+    /// [out] a pointer to the IPC event handle data
+    void **ppIPCEventHandleData,
+    /// [out] size of the resulting IPC event handle data
+    size_t *pIPCEventHandleDataSizeRet) {
+  auto pfnGetEventHandleExp =
+      getContext()->urDdiTable.IPCExp.pfnGetEventHandleExp;
+
+  if (nullptr == pfnGetEventHandleExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == ppIPCEventHandleData)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == pIPCEventHandleDataSizeRet)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hEvent)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hEvent)) {
+    URLOG_CTX_INVALID_REFERENCE(hEvent);
+  }
+
+  ur_result_t result = pfnGetEventHandleExp(hEvent, ppIPCEventHandleData,
+                                            pIPCEventHandleDataSizeRet);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urIPCPutEventHandleExp
+__urdlllocal ur_result_t UR_APICALL urIPCPutEventHandleExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] a pointer to the IPC event handle data obtained with
+    /// ::urIPCGetEventHandleExp
+    void *pIPCEventHandleData) {
+  auto pfnPutEventHandleExp =
+      getContext()->urDdiTable.IPCExp.pfnPutEventHandleExp;
+
+  if (nullptr == pfnPutEventHandleExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == pIPCEventHandleData)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hContext)) {
+    URLOG_CTX_INVALID_REFERENCE(hContext);
+  }
+
+  ur_result_t result = pfnPutEventHandleExp(hContext, pIPCEventHandleData);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urIPCOpenEventHandleExp
+__urdlllocal ur_result_t UR_APICALL urIPCOpenEventHandleExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] the IPC event handle data
+    const void *pIPCEventHandleData,
+    /// [in] size of the IPC event handle data
+    size_t ipcEventHandleDataSize,
+    /// [out][alloc] pointer to the handle of the event object created
+    ur_event_handle_t *phEvent) {
+  auto pfnOpenEventHandleExp =
+      getContext()->urDdiTable.IPCExp.pfnOpenEventHandleExp;
+
+  if (nullptr == pfnOpenEventHandleExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == phEvent)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == pIPCEventHandleData)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hContext)) {
+    URLOG_CTX_INVALID_REFERENCE(hContext);
+  }
+
+  ur_result_t result = pfnOpenEventHandleExp(hContext, pIPCEventHandleData,
+                                             ipcEventHandleDataSize, phEvent);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urMemoryExportAllocExportableMemoryExp
 __urdlllocal ur_result_t UR_APICALL urMemoryExportAllocExportableMemoryExp(
     /// [in] Handle to context in which to allocate memory.
@@ -12835,6 +12946,16 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetIPCExpProcAddrTable(
   dditable.pfnClosePhysMemHandleExp = pDdiTable->pfnClosePhysMemHandleExp;
   pDdiTable->pfnClosePhysMemHandleExp =
       ur_validation_layer::urIPCClosePhysMemHandleExp;
+
+  dditable.pfnGetEventHandleExp = pDdiTable->pfnGetEventHandleExp;
+  pDdiTable->pfnGetEventHandleExp = ur_validation_layer::urIPCGetEventHandleExp;
+
+  dditable.pfnPutEventHandleExp = pDdiTable->pfnPutEventHandleExp;
+  pDdiTable->pfnPutEventHandleExp = ur_validation_layer::urIPCPutEventHandleExp;
+
+  dditable.pfnOpenEventHandleExp = pDdiTable->pfnOpenEventHandleExp;
+  pDdiTable->pfnOpenEventHandleExp =
+      ur_validation_layer::urIPCOpenEventHandleExp;
 
   return result;
 }

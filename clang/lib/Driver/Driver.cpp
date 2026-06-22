@@ -4975,6 +4975,9 @@ class OffloadingActionBuilder final {
     /// Flag to signal if the user requested device-only compilation.
     bool CompileDeviceOnly = false;
 
+    /// Flag to signal if the user requested host-only compilation.
+    bool CompileHostOnly = false;
+
     /// Flag to signal if the user requested the device object to be wrapped.
     bool WrapDeviceOnlyBinary = false;
 
@@ -5064,7 +5067,10 @@ class OffloadingActionBuilder final {
                       const InputList &Inputs, OffloadingActionBuilder &OAB)
         : DeviceActionBuilder(C, Args, Inputs, Action::OFK_SYCL, OAB),
           SYCLInstallation(C.getDriver(), C.getDefaultToolChain().getTriple(),
-                           Args) {}
+                           Args) {
+      CompileDeviceOnly = C.getDriver().offloadDeviceOnly();
+      CompileHostOnly = C.getDriver().offloadHostOnly();
+    }
 
     void pushForeignAction(Action *A) override {
       // Accept a foreign action from the CudaActionBuilder for compiling CUDA
@@ -5116,6 +5122,35 @@ class OffloadingActionBuilder final {
         // model.
         if (SYCLDeviceActions.empty())
           return ABRT_Success;
+
+        // When performing host only compilations, we need to perform a
+        // device compilation to create the integration header/footer, but
+        // we don't need the full device compilation - just syntax checking
+        // is sufficient to generate the integration files.
+        if (CompileHostOnly) {
+          for (auto TargetActionInfo :
+               llvm::zip(SYCLDeviceActions, SYCLTargetInfoList)) {
+            Action *&A = std::get<0>(TargetActionInfo);
+            auto &TargetInfo = std::get<1>(TargetActionInfo);
+            // Create a syntax-only compile action to generate the integration
+            // header/footer. This action compiles the source file (not a
+            // preprocessed file) to allow for proper control of diagnostics
+            // from system headers. Output type is TY_Nothing since we only
+            // want the integration header side effect, not a device binary.
+            Action *CompileAction =
+                C.MakeAction<CompileJobAction>(A, types::TY_Nothing);
+            // Add to device dependencies so it gets executed, but TY_Nothing
+            // means it won't produce output to bundle.
+            DA.add(*CompileAction, *TargetInfo.TC, TargetInfo.BoundArch,
+                   Action::OFK_SYCL);
+          }
+          // Clear device actions so they don't get processed again in
+          // appendTopLevelActions.
+          SYCLDeviceActions.clear();
+          // Host compilation will proceed normally and consume the generated
+          // integration header/footer files.
+          return ABRT_Success;
+        }
 
         Action *DeviceCompilerInput = nullptr;
         const DeviceTargetInfo &DevTarget = SYCLTargetInfoList.back();
@@ -5253,6 +5288,15 @@ class OffloadingActionBuilder final {
         // to the device tool chain.
         if (IA->getInputArg().getOption().hasFlag(options::LinkerInput))
           return ABRT_Inactive;
+
+        if (CompileHostOnly) {
+          for (auto &TargetInfo : SYCLTargetInfoList) {
+            (void)TargetInfo;
+            SYCLDeviceActions.push_back(
+                C.MakeAction<InputAction>(IA->getInputArg(), IA->getType()));
+          }
+          return ABRT_Success;
+        }
 
         std::string InputName = IA->getInputArg().getAsString(Args);
         // Objects will be consumed as part of the partial link step when
@@ -6657,8 +6701,11 @@ public:
     // bundling one in the resulting list. Otherwise, just append the device
     // actions. For device only compilation, HostAction is a null pointer,
     // therefore only do this when HostAction is not a null pointer.
+    // For host-only compilation, skip bundling even if device actions exist
+    // (they're only for integration header generation).
     if (CanUseBundler && ShouldUseBundler && HostAction &&
-        HostAction->getType() != types::TY_Nothing && !OffloadAL.empty()) {
+        HostAction->getType() != types::TY_Nothing && !OffloadAL.empty() &&
+        !C.getDriver().offloadHostOnly()) {
       // Add the host action to the list in order to create the bundling action.
       OffloadAL.push_back(HostAction);
 
