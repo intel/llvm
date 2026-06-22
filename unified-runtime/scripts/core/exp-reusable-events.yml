@@ -42,9 +42,6 @@ desc: "Descriptor type for creating reusable events."
 name: $x_exp_event_desc_t
 base: $x_base_desc_t
 members:
-    - type: $x_device_handle_t
-      name: hDevice
-      desc: "[in] handle of the device object associated with this event"
     - type: $x_exp_event_flags_t
       name: flags
       desc: >
@@ -80,6 +77,9 @@ params:
     - type: $x_context_handle_t
       name: hContext
       desc: "[in] handle of the context object"
+    - type: $x_device_handle_t
+      name: hDevice
+      desc: "[in] handle of the device object"
     - type: "const $x_exp_event_desc_t*"
       name: pEventDesc
       desc: "[in] pointer to event creation descriptor"
@@ -89,7 +89,7 @@ params:
 returns:
   - $X_RESULT_ERROR_INVALID_NULL_HANDLE:
     - "`NULL == hContext`"
-    - "`NULL == pEventDesc->hDevice`"
+    - "`NULL == hDevice`"
   - $X_RESULT_ERROR_INVALID_NULL_POINTER:
     - "`NULL == pEventDesc`"
     - "`NULL == phEvent`"

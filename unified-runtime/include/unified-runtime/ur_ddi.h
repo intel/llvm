@@ -304,7 +304,8 @@ typedef ur_result_t(UR_APICALL *ur_pfnGetEventProcAddrTable_t)(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urEventCreateExp
 typedef ur_result_t(UR_APICALL *ur_pfnEventCreateExp_t)(
-    ur_context_handle_t, const ur_exp_event_desc_t *, ur_event_handle_t *);
+    ur_context_handle_t, ur_device_handle_t, const ur_exp_event_desc_t *,
+    ur_event_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of EventExp functions pointers
