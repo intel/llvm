@@ -314,6 +314,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetIPCExpProcAddrTable(
       ur::level_zero::urIPCOpenPhysMemHandleExp;
   pDdiTable->pfnClosePhysMemHandleExp =
       ur::level_zero::urIPCClosePhysMemHandleExp;
+  pDdiTable->pfnGetEventHandleExp = ur::level_zero::urIPCGetEventHandleExp;
+  pDdiTable->pfnPutEventHandleExp = ur::level_zero::urIPCPutEventHandleExp;
+  pDdiTable->pfnOpenEventHandleExp = ur::level_zero::urIPCOpenEventHandleExp;
 
   return result;
 }

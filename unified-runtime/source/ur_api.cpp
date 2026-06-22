@@ -7642,6 +7642,136 @@ ur_result_t UR_APICALL urIPCClosePhysMemHandleExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Gets an inter-process event handle for an event object
+///
+/// @details
+///     - The event must have been created by ::urEventCreateExp with the
+///       ::UR_EXP_EVENT_FLAG_IPC_EXP flag set. Events created without that
+///       flag, and events opened with ::urIPCOpenEventHandleExp, cannot be
+///       exported.
+///     - On success, `ppIPCEventHandleData` receives an opaque byte buffer
+///       allocated and owned by the implementation, and
+///       `pIPCEventHandleDataSizeRet` receives its size. The contents of this
+///       buffer may be copied and transferred, by the application's own means,
+///       to another process on the same system, which passes those bytes to
+///       ::urIPCOpenEventHandleExp to obtain an event object that shares state
+///       with `hEvent`.
+///     - The returned handle data must be released in the originating process
+///       with ::urIPCPutEventHandleExp once it is no longer needed.
+///     - Events created with ::UR_EXP_EVENT_FLAG_ENABLE_PROFILING cannot be
+///       exported.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hEvent`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == ppIPCEventHandleData`
+///         + `NULL == pIPCEventHandleDataSizeRet`
+///     - ::UR_RESULT_ERROR_INVALID_EVENT
+///         + `hEvent` was not created with the ::UR_EXP_EVENT_FLAG_IPC_EXP
+///         flag.
+///         + `hEvent` was obtained from ::urIPCOpenEventHandleExp.
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + `hEvent` has profiling or timestamping enabled.
+///         + The device associated with `hEvent` does not support event IPC, as
+///         reported by ::UR_DEVICE_INFO_IPC_EVENT_SUPPORT_EXP.
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+ur_result_t UR_APICALL urIPCGetEventHandleExp(
+    /// [in] handle of the event object
+    ur_event_handle_t hEvent,
+    /// [out] a pointer to the IPC event handle data
+    void **ppIPCEventHandleData,
+    /// [out] size of the resulting IPC event handle data
+    size_t *pIPCEventHandleDataSizeRet) {
+  ur_result_t result = UR_RESULT_SUCCESS;
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Releases an inter-process event handle
+///
+/// @details
+///     - Releases the resources associated with IPC event handle data returned
+///       by ::urIPCGetEventHandleExp. Must be called in the same process that
+///       obtained the handle data. This does not destroy the source event and
+///       does not affect event objects already opened with
+///       ::urIPCOpenEventHandleExp.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pIPCEventHandleData`
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+ur_result_t UR_APICALL urIPCPutEventHandleExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] a pointer to the IPC event handle data obtained with
+    /// ::urIPCGetEventHandleExp
+    void *pIPCEventHandleData) {
+  ur_result_t result = UR_RESULT_SUCCESS;
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Opens an inter-process event handle to get the corresponding event
+///        object in the current process
+///
+/// @details
+///     - Returns an event object that shares state with the event that produced
+///       the IPC handle. Either event can be signaled, waited on, or queried,
+///       and a state change made through one event is observable through the
+///       other.
+///     - The returned event is a normal ::ur_event_handle_t with an initial
+///       reference count of 1. It may be passed to entry points that accept an
+///       event, retained with ::urEventRetain, and must be released with
+///       ::urEventRelease. On the final release, the adapter performs the
+///       native cleanup required for an opened IPC event.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == phEvent`
+///         + `NULL == pIPCEventHandleData`
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///         + `ipcEventHandleDataSize` is not the same as the size of the IPC
+///         event handle data
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + A device in `hContext` does not support event IPC, as reported by
+///         ::UR_DEVICE_INFO_IPC_EVENT_SUPPORT_EXP.
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+ur_result_t UR_APICALL urIPCOpenEventHandleExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] the IPC event handle data
+    const void *pIPCEventHandleData,
+    /// [in] size of the IPC event handle data
+    size_t ipcEventHandleDataSize,
+    /// [out][alloc] pointer to the handle of the event object created
+    ur_event_handle_t *phEvent) {
+  ur_result_t result = UR_RESULT_SUCCESS;
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Allocate an exportable memory region and return a pointer to that
 ///        allocation.
 ///

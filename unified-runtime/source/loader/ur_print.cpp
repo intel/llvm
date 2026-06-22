@@ -2284,6 +2284,30 @@ ur_result_t urPrintIpcClosePhysMemHandleExpParams(
   return str_copy(&ss, buffer, buff_size, out_size);
 }
 
+ur_result_t urPrintIpcGetEventHandleExpParams(
+    const struct ur_ipc_get_event_handle_exp_params_t *params, char *buffer,
+    const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintIpcPutEventHandleExpParams(
+    const struct ur_ipc_put_event_handle_exp_params_t *params, char *buffer,
+    const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintIpcOpenEventHandleExpParams(
+    const struct ur_ipc_open_event_handle_exp_params_t *params, char *buffer,
+    const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
 ur_result_t
 urPrintKernelCreateParams(const struct ur_kernel_create_params_t *params,
                           char *buffer, const size_t buff_size,
