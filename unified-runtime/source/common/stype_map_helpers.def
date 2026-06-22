@@ -189,3 +189,6 @@ template <>
 struct stype_map<ur_exp_usm_host_alloc_register_properties_t>
     : stype_map_impl<UR_STRUCTURE_TYPE_EXP_USM_HOST_ALLOC_REGISTER_PROPERTIES> {
 };
+template <>
+struct stype_map<ur_exp_event_desc_t>
+    : stype_map_impl<UR_STRUCTURE_TYPE_EXP_EVENT_DESC> {};

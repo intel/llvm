@@ -1013,12 +1013,20 @@ ur_result_t urEventSetCallback(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
+ur_result_t urEventCreateExp(ur_context_handle_t /*hContext*/,
+                             const ur_exp_event_desc_t * /*pEventDesc*/,
+                             ur_event_handle_t * /*phEvent*/) {
+  UR_LOG_LEGACY(ERR,
+                logger::LegacyMessage("[UR][L0] {} function not implemented!"),
+                "{} function not implemented!", __FUNCTION__);
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
 } // namespace ur::level_zero
 
 ur_result_t ur_event_handle_t_::getOrCreateHostVisibleEvent(
     ze_event_handle_t &ZeHostVisibleEvent) {
   auto UrQueue = this->UrQueue;
-
   std::scoped_lock<ur_shared_mutex, ur_shared_mutex> Lock(UrQueue->Mutex,
                                                           this->Mutex);
 

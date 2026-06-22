@@ -620,6 +620,12 @@ ur_result_t urDeviceGetInfo(
     return ReturnValue("");
   case UR_DEVICE_INFO_LOW_POWER_EVENTS_SUPPORT_EXP:
     return ReturnValue(static_cast<ur_bool_t>(true));
+  case UR_DEVICE_INFO_REUSABLE_EVENTS_SUPPORT_EXP:
+#ifdef UR_ADAPTER_LEVEL_ZERO_V2
+    return ReturnValue(static_cast<ur_bool_t>(true));
+#else
+    return ReturnValue(static_cast<ur_bool_t>(false));
+#endif
   case UR_DEVICE_INFO_QUEUE_PROPERTIES:
     return ReturnValue(
         ur_queue_flag_t(UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE |

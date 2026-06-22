@@ -3,6 +3,7 @@
 
 // HIP backend does not currently implement linking.
 // UNSUPPORTED: hip
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22300
 
 // UNSUPPORTED: ze_debug
 // UNSUPPORTED-INTENDED: This test uses interop that has the ownership on a
