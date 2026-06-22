@@ -65,9 +65,9 @@ device::device(cl_device_id DeviceId) {
 device::device(const device_selector &deviceSelector) {
 #else
 device::device(const sycl::detail::device_selector &deviceSelector) {
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
   *this = deviceSelector.select_device();
 }
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 std::vector<device> device::get_devices(info::device_type deviceType) {
   std::vector<device> devices;
