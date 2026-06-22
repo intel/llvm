@@ -1009,7 +1009,7 @@ exec_graph_impl::enqueueNode(ur_exp_command_buffer_handle_t CommandBuffer,
   sycl::detail::EventImplPtr Event =
       sycl::detail::Scheduler::getInstance().addCG(
           Node.getCGCopy(), *MQueueImpl,
-          /*EventNeeded=*/true, CommandBuffer, Deps);
+          /*EventNeeded=*/true, nullptr, CommandBuffer, Deps);
 
   if (MIsUpdatable) {
     MCommandMap[&Node] = Event->getCommandBufferCommand();

@@ -530,12 +530,15 @@ void Command::waitForEvents(queue_impl *Queue,
 /// references to event_impl class members because Command
 /// should not outlive the event connected to it.
 Command::Command(
-    CommandType Type, queue_impl *Queue,
+    CommandType Type, queue_impl *Queue, EventImplPtr EventForReuse,
     ur_exp_command_buffer_handle_t CommandBuffer,
     const std::vector<ur_exp_command_buffer_sync_point_t> &SyncPoints)
     : MQueue(Queue ? Queue->shared_from_this() : nullptr),
-      MEvent(Queue ? detail::event_impl::create_device_event(*Queue)
-                   : detail::event_impl::create_incomplete_host_event()),
+      MEvent(EventForReuse
+                 ? EventForReuse
+                 : (Queue
+                        ? detail::event_impl::create_device_event(*Queue)
+                        : detail::event_impl::create_incomplete_host_event())),
       MPreparedDepsEvents(MEvent->getPreparedDepsEvents()),
       MPreparedHostDepsEvents(MEvent->getPreparedHostDepsEvents()), MType(Type),
       MCommandBuffer(CommandBuffer), MSyncPointDeps(SyncPoints) {
@@ -1959,9 +1962,11 @@ static std::string_view cgTypeToString(detail::CGType Type) {
 
 ExecCGCommand::ExecCGCommand(
     std::unique_ptr<detail::CG> CommandGroup, queue_impl *Queue,
-    bool EventNeeded, ur_exp_command_buffer_handle_t CommandBuffer,
+    bool EventNeeded, EventImplPtr EventForReuse,
+    ur_exp_command_buffer_handle_t CommandBuffer,
     const std::vector<ur_exp_command_buffer_sync_point_t> &Dependencies)
-    : Command(CommandType::RUN_CG, Queue, CommandBuffer, Dependencies),
+    : Command(CommandType::RUN_CG, Queue, EventForReuse, CommandBuffer,
+              Dependencies),
       MEventNeeded(EventNeeded), MCommandGroup(std::move(CommandGroup)) {
   if (MCommandGroup->getType() == detail::CGType::CodeplayHostTask) {
     queue_impl *SubmitQueue =

@@ -17,8 +17,9 @@ inline namespace _V1 {
 namespace ext::oneapi::experimental {
 
 template <typename PropertyListT = empty_properties_t>
-sycl::event make_event(const sycl::context &ctxt, PropertyListT props = {}) {
+sycl::event make_event(const sycl::context &ctxt, PropertyListT props) {
   // TODO reusable events
+  return sycl::event();
 }
 
 void enqueue_wait_event(sycl::queue q, const event& evt) {
@@ -30,7 +31,9 @@ void enqueue_wait_events(sycl::queue q, const std::vector<event>& evts) {
 }
 
 void enqueue_signal_event(sycl::queue q, event& evt) {
-	// q.ext_oneapi_enqueue_signal_event(evt);
+  detail::getSyclObjImpl(q)->submit_barrier_direct_without_event(
+      {}, detail::CGType::Barrier, detail::code_location::current(),
+      detail::getSyclObjImpl(evt));
 }
 
 } // namespace ext::oneapi::experimental

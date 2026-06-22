@@ -8,10 +8,11 @@
 
 #pragma once
 
-#include <sycl/ext/oneapi/properties/properties.hpp>
-#include <sycl/event.hpp>
-#include <sycl/device.hpp>
 #include <sycl/context.hpp>
+#include <sycl/device.hpp>
+#include <sycl/event.hpp>
+#include <sycl/ext/oneapi/properties/properties.hpp>
+#include <sycl/platform.hpp>
 #include <sycl/queue.hpp>
 
 namespace sycl {
@@ -23,9 +24,9 @@ sycl::event make_event(const sycl::context &ctxt, PropertyListT props = {});
 
 template <typename PropertyListT = empty_properties_t>
 sycl::event make_event(PropertyListT props = {}) {
-  sycl::device dev;
-  sycl::context Ctx = dev.get_platform().khr_get_default_context();
-  return make_event(dev, Ctx, Props);
+  sycl::device Dev;
+  sycl::context Ctx = Dev.get_platform().khr_get_default_context();
+  return make_event(Ctx, props);
 }
 
 void enqueue_wait_event(sycl::queue q, const event& evt);
