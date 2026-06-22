@@ -53,20 +53,21 @@ void traceManagedAdapterExpired(void *Resource) {
   // symbolized later with: llvm-symbolizer --obj=<sycl dll> <rva>.
   void *Frames[62];
   USHORT N = RtlCaptureStackBackTrace(0, 62, Frames, nullptr);
-  HANDLE Proc = GetCurrentProcess();
   for (USHORT I = 0; I < N; ++I) {
     HMODULE Mod = nullptr;
     uintptr_t Rva = 0;
-    char ModName[MAX_PATH] = {0};
+    // Full on-disk path of the module, so a symbolizer step on the runner can
+    // resolve the RVA directly: llvm-symbolizer --obj=<ModPath> <rva>.
+    char ModPath[MAX_PATH] = {0};
     if (GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
                                GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
                            reinterpret_cast<LPCSTR>(Frames[I]), &Mod)) {
       Rva = reinterpret_cast<uintptr_t>(Frames[I]) -
             reinterpret_cast<uintptr_t>(Mod);
-      GetModuleBaseNameA(Proc, Mod, ModName, sizeof(ModName));
+      GetModuleFileNameA(Mod, ModPath, sizeof(ModPath));
     }
-    OS << "  frame " << I << " abs=" << Frames[I] << " module=" << ModName
-       << " rva=0x" << std::hex << Rva << std::dec << "\n";
+    OS << "  frame " << I << " abs=" << Frames[I] << " rva=0x" << std::hex << Rva
+       << std::dec << " module=" << ModPath << "\n";
   }
 #else
   void *Frames[64];

@@ -188,12 +188,43 @@ jobs:
         SYCL_TRACE_ADAPTER_UAF: ${{ github.workspace }}\build\adapter_uaf_trace.txt
       run: |
         cmake --build build --target check-sycl-unittests
+    - name: Symbolize adapter-UAF trace
+      # Resolve the raw "rva=... module=<path>" frames here on the runner, where
+      # the matching PE + PDB still sit next to the build, into a readable
+      # file:line trace. This avoids shipping the (large) binaries+PDBs as
+      # artifacts just to map the frames. Best-effort: never fails the job.
+      if: ${{ always() && contains(inputs.changes, 'sycl') }}
+      shell: bash
+      run: |
+        TRACE=build/adapter_uaf_trace.txt
+        OUT=build/adapter_uaf_trace.symbolized.txt
+        if [ ! -s "$TRACE" ]; then
+          echo "no adapter-UAF trace recorded (no Managed outlived its adapter)"
+          exit 0
+        fi
+        SYM=build/bin/llvm-symbolizer.exe
+        while IFS= read -r line; do
+          echo "$line" >> "$OUT"
+          # Lines look like: "  frame N abs=0x.. rva=0x.. module=C:\path\foo.dll"
+          if [[ "$line" =~ rva=0x([0-9a-fA-F]+)\ module=(.+)$ ]]; then
+            RVA="0x${BASH_REMATCH[1]}"
+            MOD="${BASH_REMATCH[2]}"
+            if [ -n "$MOD" ] && [ "$RVA" != "0x0" ] && [ -f "$MOD" ]; then
+              "$SYM" --obj="$MOD" --relative-address "$RVA" 2>/dev/null \
+                | sed 's/^/      /' >> "$OUT" || true
+            fi
+          fi
+        done < "$TRACE"
+        echo "===== symbolized adapter-UAF trace ====="
+        cat "$OUT"
     - name: Upload adapter-UAF trace
       if: ${{ always() && contains(inputs.changes, 'sycl') }}
       uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       with:
         name: adapter_uaf_trace
-        path: build/adapter_uaf_trace.txt
+        path: |
+          build/adapter_uaf_trace.txt
+          build/adapter_uaf_trace.symbolized.txt
         if-no-files-found: warn
         retention-days: ${{ inputs.retention-days }}
     - name: check-llvm-spirv
