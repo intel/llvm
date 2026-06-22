@@ -184,10 +184,23 @@ jobs:
       # this file. The weak_ptr build keeps these tests GREEN, so the records are
       # the only signal -- captured to a file (not stdout, which lit discards for
       # passing tests) and uploaded below.
+      #
+      # DIAGNOSTIC RUN: only the program_manager unit tests are needed to
+      # reproduce the orphaned-Managed teardown (SubDevices / ImageRemoval), so
+      # we build and run just that one binary directly instead of the full
+      # check-sycl-unittests target (which builds+runs every unittest exe and is
+      # far slower). The orphan drains at that process's own teardown.
+      shell: bash
       env:
         SYCL_TRACE_ADAPTER_UAF: ${{ github.workspace }}\build\adapter_uaf_trace.txt
       run: |
-        cmake --build build --target check-sycl-unittests
+        cmake --build build --target ProgramManagerTests-Non_Preview_Tests
+        EXE=build/tools/sycl/unittests/program_manager/ProgramManagerTests-Non_Preview_Tests.exe
+        PATH="$(pwd)/build/bin:$PATH" \
+        SYCL_CONFIG_FILE_NAME=null.cfg \
+        SYCL_DEVICELIB_NO_FALLBACK=1 \
+        SYCL_CACHE_DIR="$(pwd)/build/sycl_cache" \
+          "$EXE"
     - name: Symbolize adapter-UAF trace
       # Resolve the raw "rva=... module=<path>" frames here on the runner, where
       # the matching PE + PDB still sit next to the build, into a readable
