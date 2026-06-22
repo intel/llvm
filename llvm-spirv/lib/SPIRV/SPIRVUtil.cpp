@@ -1358,10 +1358,10 @@ static SPIR::TypePrimitiveEnum getOCLTypePrimitiveEnum(TargetExtType *Ty) {
 /// Translates LLVM type to descriptor for mangler.
 /// \param Signed indicates integer type should be translated as signed.
 /// \param VoidPtr indicates i8* should be translated as void*.
-static SPIR::RefParamType transTypeDesc(Type *Ty,
-                                        const BuiltinArgTypeMangleInfo &Info,
-                                        bool IsOpenCL,
-                                        StringRef InstName = "") {
+static SPIR::RefParamType
+transTypeDesc(Type *Ty, const BuiltinArgTypeMangleInfo &Info, bool IsOpenCL,
+              StringRef InstName = "",
+              const SPIRV::AddrSpaceMap *Map = nullptr) {
   bool Signed = Info.IsSigned;
   unsigned Attr = Info.Attr;
   bool VoidPtr = Info.IsVoidPtr;
@@ -1377,7 +1377,7 @@ static SPIR::RefParamType transTypeDesc(Type *Ty,
     BuiltinArgTypeMangleInfo DTInfo = Info;
     DTInfo.IsAtomic = false;
     return SPIR::RefParamType(
-        new SPIR::AtomicType(transTypeDesc(Ty, DTInfo, IsOpenCL)));
+        new SPIR::AtomicType(transTypeDesc(Ty, DTInfo, IsOpenCL, "", Map)));
   }
   if (auto *IntTy = dyn_cast<IntegerType>(Ty)) {
     switch (IntTy->getBitWidth()) {
@@ -1411,12 +1411,12 @@ static SPIR::RefParamType transTypeDesc(Type *Ty,
     return SPIR::RefParamType(new SPIR::PrimitiveType(SPIR::PRIMITIVE_BFLOAT));
   if (auto *VecTy = dyn_cast<FixedVectorType>(Ty)) {
     return SPIR::RefParamType(new SPIR::VectorType(
-        transTypeDesc(VecTy->getElementType(), Info, IsOpenCL),
+        transTypeDesc(VecTy->getElementType(), Info, IsOpenCL, "", Map),
         VecTy->getNumElements()));
   }
   if (Ty->isArrayTy()) {
     return transTypeDesc(TypedPointerType::get(Ty->getArrayElementType(), 0),
-                         Info, IsOpenCL);
+                         Info, IsOpenCL, "", Map);
   }
   if (Ty->isStructTy()) {
     auto Name = Ty->getStructName();
@@ -1458,7 +1458,7 @@ static SPIR::RefParamType transTypeDesc(Type *Ty,
       if (Name.consume_front(kSPIRVTypeName::PrefixAndDelim)) {
         OS << "__spirv_" << Name;
         AS = getOCLOpaqueTypeAddrSpace(
-            SPIRVOpaqueTypeOpCodeMap::map(Name.str()));
+            SPIRVOpaqueTypeOpCodeMap::map(Name.str()), Map);
       } else {
         OS << Name;
       }
@@ -1485,7 +1485,7 @@ static SPIR::RefParamType transTypeDesc(Type *Ty,
       if (InstName.consume_front(kSPIRVName::Prefix) &&
           InstName.starts_with("TaskSequence")) {
         EPT = new SPIR::PointerType(
-            transTypeDesc(FT->getReturnType(), Info, IsOpenCL));
+            transTypeDesc(FT->getReturnType(), Info, IsOpenCL, "", Map));
       } else {
         assert((isVoidFuncTy(FT)) && "Not supported");
         EPT = new SPIR::BlockType;
@@ -1524,7 +1524,7 @@ static SPIR::RefParamType transTypeDesc(Type *Ty,
               Prim == SPIR::PRIMITIVE_PIPE_WO_T) {
             SPIR::RefParamType OpaqueTyRef(new SPIR::PrimitiveType(Prim));
             auto *OpaquePtrTy = new SPIR::PointerType(OpaqueTyRef);
-            OpaquePtrTy->setAddressSpace(getOCLOpaqueTypeAddrSpace(Prim));
+            OpaquePtrTy->setAddressSpace(getOCLOpaqueTypeAddrSpace(Prim, Map));
             EPT = OpaquePtrTy;
           } else {
             EPT = new SPIR::PrimitiveType(Prim);
@@ -1539,7 +1539,8 @@ static SPIR::RefParamType transTypeDesc(Type *Ty,
 
     if (VoidPtr && ET->isIntegerTy(8))
       ET = Type::getVoidTy(ET->getContext());
-    auto *PT = new SPIR::PointerType(transTypeDesc(ET, Info, IsOpenCL));
+    auto *PT =
+        new SPIR::PointerType(transTypeDesc(ET, Info, IsOpenCL, "", Map));
     PT->setAddressSpace(static_cast<SPIR::TypeAttributeEnum>(
         TPT->getAddressSpace() + (unsigned)SPIR::ATTR_ADDR_SPACE_FIRST));
     for (unsigned I = SPIR::ATTR_QUALIFIER_FIRST, E = SPIR::ATTR_QUALIFIER_LAST;
@@ -1793,7 +1794,8 @@ manglePipeOrAddressSpaceCastBuiltin(const SPIR::FunctionDescriptor &Fd,
 }
 
 std::string mangleBuiltin(StringRef UniqName, ArrayRef<Type *> ArgTypes,
-                          BuiltinFuncMangleInfo *BtnInfo) {
+                          BuiltinFuncMangleInfo *BtnInfo,
+                          const SPIRV::AddrSpaceMap *Map) {
   if (!BtnInfo)
     return std::string(UniqName);
   BtnInfo->init(UniqName);
@@ -1822,7 +1824,8 @@ std::string mangleBuiltin(StringRef UniqName, ArrayRef<Type *> ArgTypes,
         T = MangleInfo.PointerTy;
       }
       FD.Parameters.emplace_back(transTypeDesc(T, BtnInfo->getTypeMangleInfo(I),
-                                               BtnInfo->isOpenCL(), UniqName));
+                                               BtnInfo->isOpenCL(), UniqName,
+                                               Map));
     }
   }
   // Ellipsis must be the last argument of any function
@@ -1957,6 +1960,7 @@ bool checkTypeForSPIRVExtendedInstLowering(IntrinsicInst *II, SPIRVModule *BM) {
   case Intrinsic::cosh:
   case Intrinsic::exp:
   case Intrinsic::exp2:
+  case Intrinsic::exp10:
   case Intrinsic::fabs:
   case Intrinsic::floor:
   case Intrinsic::fma:
@@ -2761,17 +2765,18 @@ private:
 
 namespace SPIRV {
 std::string getSPIRVFriendlyIRFunctionName(OCLExtOpKind ExtOpId,
-                                           ArrayRef<Type *> ArgTys,
-                                           Type *RetTy) {
+                                           ArrayRef<Type *> ArgTys, Type *RetTy,
+                                           const SPIRV::AddrSpaceMap *Map) {
   OpenCLStdToSPIRVFriendlyIRMangleInfo MangleInfo(ExtOpId, ArgTys, RetTy);
-  return mangleBuiltin(MangleInfo.getUnmangledName(), ArgTys, &MangleInfo);
+  return mangleBuiltin(MangleInfo.getUnmangledName(), ArgTys, &MangleInfo, Map);
 }
 
 std::string getSPIRVFriendlyIRFunctionName(const std::string &UniqName,
                                            spv::Op OC, ArrayRef<Type *> ArgTys,
-                                           ArrayRef<SPIRVValue *> Ops) {
+                                           ArrayRef<SPIRVValue *> Ops,
+                                           const SPIRV::AddrSpaceMap *Map) {
   SPIRVFriendlyIRMangleInfo MangleInfo(OC, ArgTys, Ops);
-  return mangleBuiltin(UniqName, ArgTys, &MangleInfo);
+  return mangleBuiltin(UniqName, ArgTys, &MangleInfo, Map);
 }
 
 } // namespace SPIRV

@@ -891,34 +891,40 @@ unsigned transVecTypeHint(MDNode *Node) {
   return encodeVecTypeHint(getMDOperandAsType(Node, 0));
 }
 
-SPIRAddressSpace getOCLOpaqueTypeAddrSpace(Op OpCode) {
+SPIRAddressSpace getOCLOpaqueTypeAddrSpace(Op OpCode,
+                                           const SPIRV::AddrSpaceMap *MapPtr) {
+  auto Map = [&](SPIRAddressSpace AS) -> SPIRAddressSpace {
+    return (MapPtr && AS < SPIRAS_Count)
+               ? static_cast<SPIRAddressSpace>((*MapPtr)[AS])
+               : AS;
+  };
   switch ((unsigned)OpCode) {
   case OpTypeQueue:
-    return SPIRV_QUEUE_T_ADDR_SPACE;
+    return Map(SPIRV_QUEUE_T_ADDR_SPACE);
   case OpTypeEvent:
-    return SPIRV_EVENT_T_ADDR_SPACE;
+    return Map(SPIRV_EVENT_T_ADDR_SPACE);
   case OpTypeDeviceEvent:
-    return SPIRV_CLK_EVENT_T_ADDR_SPACE;
+    return Map(SPIRV_CLK_EVENT_T_ADDR_SPACE);
   case OpTypeReserveId:
-    return SPIRV_RESERVE_ID_T_ADDR_SPACE;
+    return Map(SPIRV_RESERVE_ID_T_ADDR_SPACE);
   case OpTypePipe:
   case OpTypePipeStorage:
-    return SPIRV_PIPE_ADDR_SPACE;
+    return Map(SPIRV_PIPE_ADDR_SPACE);
   case OpTypeImage:
   case OpTypeSampledImage:
   case OpTypeVmeImageINTEL:
-    return SPIRV_IMAGE_ADDR_SPACE;
+    return Map(SPIRV_IMAGE_ADDR_SPACE);
   case OpConstantSampler:
   case OpTypeSampler:
-    return SPIRV_SAMPLER_T_ADDR_SPACE;
+    return Map(SPIRV_SAMPLER_T_ADDR_SPACE);
   case OpTypeCooperativeMatrixKHR:
   case internal::OpTypeTaskSequenceINTEL:
     return SPIRAS_Global;
   default:
     if (isSubgroupAvcINTELTypeOpCode(OpCode))
-      return SPIRV_AVC_INTEL_T_ADDR_SPACE;
+      return Map(SPIRV_AVC_INTEL_T_ADDR_SPACE);
     assert(false && "No address space is determined for some OCL type");
-    return SPIRV_OCL_SPECIAL_TYPES_DEFAULT_ADDR_SPACE;
+    return Map(SPIRV_OCL_SPECIAL_TYPES_DEFAULT_ADDR_SPACE);
   }
 }
 
@@ -945,19 +951,25 @@ static SPIR::TypeAttributeEnum mapAddrSpaceEnums(SPIRAddressSpace Addrspace) {
 }
 
 SPIR::TypeAttributeEnum
-getOCLOpaqueTypeAddrSpace(SPIR::TypePrimitiveEnum Prim) {
+getOCLOpaqueTypeAddrSpace(SPIR::TypePrimitiveEnum Prim,
+                          const SPIRV::AddrSpaceMap *MapPtr) {
+  auto Map = [&](SPIRAddressSpace AS) -> SPIRAddressSpace {
+    return (MapPtr && AS < SPIRAS_Count)
+               ? static_cast<SPIRAddressSpace>((*MapPtr)[AS])
+               : AS;
+  };
   switch (Prim) {
   case SPIR::PRIMITIVE_QUEUE_T:
-    return mapAddrSpaceEnums(SPIRV_QUEUE_T_ADDR_SPACE);
+    return mapAddrSpaceEnums(Map(SPIRV_QUEUE_T_ADDR_SPACE));
   case SPIR::PRIMITIVE_EVENT_T:
-    return mapAddrSpaceEnums(SPIRV_EVENT_T_ADDR_SPACE);
+    return mapAddrSpaceEnums(Map(SPIRV_EVENT_T_ADDR_SPACE));
   case SPIR::PRIMITIVE_CLK_EVENT_T:
-    return mapAddrSpaceEnums(SPIRV_CLK_EVENT_T_ADDR_SPACE);
+    return mapAddrSpaceEnums(Map(SPIRV_CLK_EVENT_T_ADDR_SPACE));
   case SPIR::PRIMITIVE_RESERVE_ID_T:
-    return mapAddrSpaceEnums(SPIRV_RESERVE_ID_T_ADDR_SPACE);
+    return mapAddrSpaceEnums(Map(SPIRV_RESERVE_ID_T_ADDR_SPACE));
   case SPIR::PRIMITIVE_PIPE_RO_T:
   case SPIR::PRIMITIVE_PIPE_WO_T:
-    return mapAddrSpaceEnums(SPIRV_PIPE_ADDR_SPACE);
+    return mapAddrSpaceEnums(Map(SPIRV_PIPE_ADDR_SPACE));
   case SPIR::PRIMITIVE_IMAGE1D_RO_T:
   case SPIR::PRIMITIVE_IMAGE1D_ARRAY_RO_T:
   case SPIR::PRIMITIVE_IMAGE1D_BUFFER_RO_T:
@@ -994,7 +1006,7 @@ getOCLOpaqueTypeAddrSpace(SPIR::TypePrimitiveEnum Prim) {
   case SPIR::PRIMITIVE_IMAGE2D_MSAA_DEPTH_RW_T:
   case SPIR::PRIMITIVE_IMAGE2D_ARRAY_MSAA_DEPTH_RW_T:
   case SPIR::PRIMITIVE_IMAGE3D_RW_T:
-    return mapAddrSpaceEnums(SPIRV_IMAGE_ADDR_SPACE);
+    return mapAddrSpaceEnums(Map(SPIRV_IMAGE_ADDR_SPACE));
   default:
     llvm_unreachable("No address space is determined for a SPIR primitive");
   }
@@ -1599,7 +1611,8 @@ Value *SPIRV::transSPIRVMemorySemanticsIntoOCLMemFenceFlags(
 
 void llvm::mangleOpenClBuiltin(const std::string &UniqName,
                                ArrayRef<Type *> ArgTypes,
-                               std::string &MangledName) {
+                               std::string &MangledName,
+                               const SPIRV::AddrSpaceMap *Map) {
   OCLUtil::OCLBuiltinFuncMangleInfo BtnInfo;
-  MangledName = SPIRV::mangleBuiltin(UniqName, ArgTypes, &BtnInfo);
+  MangledName = SPIRV::mangleBuiltin(UniqName, ArgTypes, &BtnInfo, Map);
 }
