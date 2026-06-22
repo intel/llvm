@@ -96,7 +96,7 @@ endforeach()
 # Create dpclang* build-tree symlinks/copies so tests can use them without
 # installing.  Use llvm_add_tool_symlink (not add_clang_symlink) to suppress
 # install rules — these must NOT be installed into lib/dpcpp-N/bin/.
-foreach(_link dpclang dpclang++ dpclang-cl dpclang-cpp)
+foreach(_link dpclang dpclang-${DPCPP_VERSION_MAJOR} dpclang++ dpclang-cl dpclang-cpp)
   llvm_add_tool_symlink(CLANG ${_link} clang ALWAYS_GENERATE)
 endforeach()
 
