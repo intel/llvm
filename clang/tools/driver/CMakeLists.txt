@@ -93,10 +93,12 @@ foreach(link ${CLANG_LINKS_TO_CREATE} ${HLSL_LINK})
   add_clang_symlink(${link} clang)
 endforeach()
 
-# Create dpclang++ build-tree symlink/copy so tests can use it without
-# installing.  llvm_add_tool_symlink (not add_clang_symlink) suppresses the
-# install rule — dpclang++ must NOT be installed into lib/dpcpp-N/bin/.
-llvm_add_tool_symlink(CLANG dpclang++ clang ALWAYS_GENERATE)
+# Create dpclang* build-tree symlinks/copies so tests can use them without
+# installing.  Use llvm_add_tool_symlink (not add_clang_symlink) to suppress
+# install rules — these must NOT be installed into lib/dpcpp-N/bin/.
+foreach(_link dpclang dpclang++ dpclang-cl dpclang-cpp)
+  llvm_add_tool_symlink(CLANG ${_link} clang ALWAYS_GENERATE)
+endforeach()
 
 # Install public dpclang* symlinks in ${CMAKE_INSTALL_BINDIR}.
 # These versioned names avoid conflicts with a system LLVM installation while
@@ -141,8 +143,9 @@ if(CLANG_BUILD_TOOLS)
     endforeach()
   else()
     # On Windows (and other non-Linux), all tools already install into bin/.
-    # Add dpclang* as copies of clang (clang.exe) in the same directory.
-    set(_dpclang_link_or_copy copy)
+    # Use hardlinks so dpclang* entries share the same inode as clang.exe
+    # without duplicating ~200 MB of binary on disk.
+    set(_dpclang_link_or_copy create_hardlink)
     foreach(_link dpclang dpclang++ dpclang-cl dpclang-cpp)
       install(SCRIPT ${INSTALL_SYMLINK}
               CODE "install_symlink(\"${_link}\" \"clang\" \"${CMAKE_INSTALL_BINDIR}\" \"${_dpclang_link_or_copy}\")"

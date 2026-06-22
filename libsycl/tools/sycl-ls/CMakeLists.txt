@@ -25,5 +25,9 @@ if (WIN32)
   # - LOAD_LIBRARY_SEARCH_SYSTEM32     (0x800)
   target_link_options(sycl-ls PRIVATE LINKER:/DEPENDENTLOADFLAG:0x900)
 endif()
+# Intentionally installed into the public "bin/" directory rather than
+# DPCPP_INSTALL_INTERNAL_BINDIR (lib/dpcpp-N/bin/ on Linux).  sycl-ls is a
+# user-facing tool that needs to be on PATH, and the e2e test infrastructure
+# locates it via config.dpcpp_bin_dir (= <root>/bin/).
 install(TARGETS sycl-ls
   RUNTIME DESTINATION "bin" COMPONENT sycl-ls)

@@ -567,8 +567,6 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND LLVM_USE_SYMLINKS)
   unset(_dpcpp_dir)
 endif()
 
-set(LLVM_TOOLS_INSTALL_DIR "${CMAKE_INSTALL_BINDIR}" CACHE STRING
-    "Path for binary subdirectory (defaults to '${CMAKE_INSTALL_BINDIR}')")
 mark_as_advanced(LLVM_TOOLS_INSTALL_DIR)
 
 set(LLVM_UTILS_INSTALL_DIR "${LLVM_TOOLS_INSTALL_DIR}" CACHE STRING

@@ -2697,11 +2697,15 @@ function(llvm_setup_rpath name)
     if(_target_type STREQUAL "EXECUTABLE" AND
        CMAKE_SYSTEM_NAME STREQUAL "Linux" AND
        DEFINED DPCPP_INSTALL_INTERNAL_BINDIR)
-      file(RELATIVE_PATH _rpath_to_lib
-           "/dummy/${DPCPP_INSTALL_INTERNAL_BINDIR}"
-           "/dummy/lib${LLVM_LIBDIR_SUFFIX}")
+      cmake_path(SET _internal_bin_abs NORMALIZE
+                 "/${DPCPP_INSTALL_INTERNAL_BINDIR}")
+      cmake_path(SET _lib_abs NORMALIZE "/lib${LLVM_LIBDIR_SUFFIX}")
+      cmake_path(RELATIVE_PATH _lib_abs BASE_DIRECTORY "${_internal_bin_abs}"
+                 OUTPUT_VARIABLE _rpath_to_lib)
       set(_install_rpath "\$ORIGIN/${_rpath_to_lib}")
       unset(_rpath_to_lib)
+      unset(_internal_bin_abs)
+      unset(_lib_abs)
     else()
       set(_install_rpath "\$ORIGIN/../lib${LLVM_LIBDIR_SUFFIX}")
     endif()

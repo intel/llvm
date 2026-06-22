@@ -68,6 +68,31 @@ using namespace clang::driver::tools;
 using namespace clang;
 using namespace llvm::opt;
 
+llvm::SmallString<128> clang::driver::findSYCLInstallRoot(const Driver &D) {
+  llvm::SmallString<128> Root(D.Dir);
+  bool Found = false;
+  for (int Depth = 0; Depth < 4; ++Depth) {
+    llvm::SmallString<128> Probe(Root);
+    llvm::sys::path::append(Probe, "..", "include", "sycl");
+    llvm::sys::path::remove_dots(Probe, /*remove_dot_dot=*/true);
+    if (D.getVFS().exists(Probe)) {
+      llvm::sys::path::append(Root, "..");
+      llvm::sys::path::remove_dots(Root, /*remove_dot_dot=*/true);
+      Found = true;
+      break;
+    }
+    llvm::sys::path::append(Root, "..");
+    llvm::sys::path::remove_dots(Root, /*remove_dot_dot=*/true);
+  }
+  if (!Found) {
+    // Fallback: one level up from D.Dir (original behaviour).
+    Root = D.Dir;
+    llvm::sys::path::append(Root, "..");
+    llvm::sys::path::remove_dots(Root, /*remove_dot_dot=*/true);
+  }
+  return Root;
+}
+
 static bool useFramePointerForTargetByDefault(const llvm::opt::ArgList &Args,
                                               const llvm::Triple &Triple) {
   if (Args.hasArg(options::OPT_pg) && !Args.hasArg(options::OPT_mfentry))

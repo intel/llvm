@@ -32,23 +32,7 @@ SYCLInstallationDetector::SYCLInstallationDetector(
   // directory in SYCLRTLibPath for use by the linker.
   StringRef SysRoot = D.SysRoot;
 
-  // The binary may live in a versioned subdirectory (e.g. lib/dpcpp-N/bin/)
-  // rather than directly in bin/.  Walk up from D.Dir until we find a
-  // directory that looks like the install root (contains include/sycl),
-  // falling back to D.Dir/.. if nothing is found.
-  SmallString<128> InstallRoot(D.Dir);
-  for (int Depth = 0; Depth < 4; ++Depth) {
-    SmallString<128> Probe(InstallRoot);
-    llvm::sys::path::append(Probe, "..", "include", "sycl");
-    llvm::sys::path::remove_dots(Probe, /*remove_dot_dot=*/true);
-    if (D.getVFS().exists(Probe)) {
-      llvm::sys::path::append(InstallRoot, "..");
-      llvm::sys::path::remove_dots(InstallRoot, /*remove_dot_dot=*/true);
-      break;
-    }
-    llvm::sys::path::append(InstallRoot, "..");
-    llvm::sys::path::remove_dots(InstallRoot, /*remove_dot_dot=*/true);
-  }
+  SmallString<128> InstallRoot = findSYCLInstallRoot(D);
 
   SmallString<128> DriverDir(InstallRoot);
 

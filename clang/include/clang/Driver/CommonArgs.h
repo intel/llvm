@@ -22,6 +22,11 @@
 
 namespace clang {
 namespace driver {
+
+/// Walk up from \p D.Dir until a directory containing include/sycl is found
+/// and return it as the install root.  Falls back to D.Dir/.. if not found.
+llvm::SmallString<128> findSYCLInstallRoot(const Driver &D);
+
 namespace tools {
 
 void addPathIfExists(const Driver &D, const Twine &Path,
