@@ -10626,9 +10626,14 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrierExt(
     /// previously enqueued commands
     /// must be complete.
     const ur_event_handle_t *phEventWaitList,
-    /// [out][optional][alloc] return an event object that identifies this
+    /// [in,out][optional][alloc] return an event object that identifies this
     /// particular command instance. If phEventWaitList and phEvent are not
-    /// NULL, phEvent must not refer to an element of the phEventWaitList array.
+    /// NULL, phEvent must not refer to an element of the phEventWaitList
+    /// array. If *phEvent is not NULL on input and points to a reusable event
+    /// created by ::urEventCreateExp, it is signaled by this command instead
+    /// of allocating a new event. A reusable event may only be passed when
+    /// the device associated with hQueue reports
+    /// ::UR_DEVICE_INFO_REUSABLE_EVENTS_SUPPORT_EXP as true.
     ur_event_handle_t *phEvent) {
   auto pfnEventsWaitWithBarrierExt =
       getContext()->urDdiTable.Enqueue.pfnEventsWaitWithBarrierExt;
@@ -10731,6 +10736,43 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueNativeCommandExp(
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_ENQUEUE_NATIVE_COMMAND_EXP, &params);
     UR_LOG_L(logger, INFO, "   <--- urEnqueueNativeCommandExp({}) -> {};\n",
+             args_str.str(), result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urEventCreateExp
+__urdlllocal ur_result_t UR_APICALL urEventCreateExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] pointer to event creation descriptor
+    const ur_exp_event_desc_t *pEventDesc,
+    /// [out] pointer to the handle of the event object created
+    ur_event_handle_t *phEvent) {
+  auto pfnCreateExp = getContext()->urDdiTable.EventExp.pfnCreateExp;
+
+  if (nullptr == pfnCreateExp)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_event_create_exp_params_t params = {&hContext, &pEventDesc, &phEvent};
+  uint64_t instance = getContext()->notify_begin(UR_FUNCTION_EVENT_CREATE_EXP,
+                                                 "urEventCreateExp", &params);
+
+  auto &logger = getContext()->logger;
+  UR_LOG_L(logger, INFO, "   ---> urEventCreateExp\n");
+
+  ur_result_t result = pfnCreateExp(hContext, pEventDesc, phEvent);
+
+  getContext()->notify_end(UR_FUNCTION_EVENT_CREATE_EXP, "urEventCreateExp",
+                           &params, &result, instance);
+
+  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_EVENT_CREATE_EXP,
+                                    &params);
+    UR_LOG_L(logger, INFO, "   <--- urEventCreateExp({}) -> {};\n",
              args_str.str(), result);
   }
 
@@ -11892,6 +11934,37 @@ __urdlllocal ur_result_t UR_APICALL urGetEventProcAddrTable(
   return result;
 }
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's EventExp table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+__urdlllocal ur_result_t UR_APICALL urGetEventExpProcAddrTable(
+    /// [in] API version requested
+    ur_api_version_t version,
+    /// [in,out] pointer to table of DDI function pointers
+    ur_event_exp_dditable_t *pDdiTable) {
+  auto &dditable = ur_tracing_layer::getContext()->urDdiTable.EventExp;
+
+  if (nullptr == pDdiTable)
+    return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+  if (UR_MAJOR_VERSION(ur_tracing_layer::getContext()->version) !=
+          UR_MAJOR_VERSION(version) ||
+      UR_MINOR_VERSION(ur_tracing_layer::getContext()->version) >
+          UR_MINOR_VERSION(version))
+    return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
+
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  dditable.pfnCreateExp = pDdiTable->pfnCreateExp;
+  pDdiTable->pfnCreateExp = ur_tracing_layer::urEventCreateExp;
+
+  return result;
+}
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Exported function for filling application's GraphExp table
 ///        with current process' addresses
 ///
@@ -12895,6 +12968,11 @@ ur_result_t context_t::init(ur_dditable_t *dditable,
   if (UR_RESULT_SUCCESS == result) {
     result = ur_tracing_layer::urGetEventProcAddrTable(UR_API_VERSION_CURRENT,
                                                        &dditable->Event);
+  }
+
+  if (UR_RESULT_SUCCESS == result) {
+    result = ur_tracing_layer::urGetEventExpProcAddrTable(
+        UR_API_VERSION_CURRENT, &dditable->EventExp);
   }
 
   if (UR_RESULT_SUCCESS == result) {

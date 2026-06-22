@@ -524,6 +524,8 @@ typedef enum ur_function_t {
   UR_FUNCTION_GRAPH_GET_NATIVE_HANDLE_EXP = 320,
   /// Enumerator for ::urGraphExecutableGraphGetNativeHandleExp
   UR_FUNCTION_GRAPH_EXECUTABLE_GRAPH_GET_NATIVE_HANDLE_EXP = 321,
+  /// Enumerator for ::urEventCreateExp
+  UR_FUNCTION_EVENT_CREATE_EXP = 322,
   /// @cond
   UR_FUNCTION_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -651,6 +653,8 @@ typedef enum ur_structure_type_t {
   UR_STRUCTURE_TYPE_EXP_HOST_TASK_PROPERTIES = 0x6000,
   /// ::ur_exp_usm_host_alloc_register_properties_t
   UR_STRUCTURE_TYPE_EXP_USM_HOST_ALLOC_REGISTER_PROPERTIES = 0x7000,
+  /// ::ur_exp_event_desc_t
+  UR_STRUCTURE_TYPE_EXP_EVENT_DESC = 0x8000,
   /// @cond
   UR_STRUCTURE_TYPE_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -2521,6 +2525,10 @@ typedef enum ur_device_info_t {
   /// [::ur_bool_t] returns true if the device supports inter-process
   /// communicable physical memory handles
   UR_DEVICE_INFO_IPC_PHYSICAL_MEMORY_SUPPORT_EXP = 0x2024,
+  /// [::ur_bool_t] returns true if the device supports reusable events
+  /// created with ::urEventCreateExp and signaled by
+  /// ::urEnqueueEventsWaitWithBarrierExt.
+  UR_DEVICE_INFO_REUSABLE_EVENTS_SUPPORT_EXP = 0x2025,
   /// [::ur_bool_t] returns true if the device supports enqueueing of
   /// allocations and frees.
   UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_SUPPORT_EXP = 0x2050,
@@ -13700,9 +13708,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrierExt(
     /// previously enqueued commands
     /// must be complete.
     const ur_event_handle_t *phEventWaitList,
-    /// [out][optional][alloc] return an event object that identifies this
+    /// [in,out][optional][alloc] return an event object that identifies this
     /// particular command instance. If phEventWaitList and phEvent are not
-    /// NULL, phEvent must not refer to an element of the phEventWaitList array.
+    /// NULL, phEvent must not refer to an element of the phEventWaitList
+    /// array. If *phEvent is not NULL on input and points to a reusable event
+    /// created by ::urEventCreateExp, it is signaled by this command instead
+    /// of allocating a new event. A reusable event may only be passed when
+    /// the device associated with hQueue reports
+    /// ::UR_DEVICE_INFO_REUSABLE_EVENTS_SUPPORT_EXP as true.
     ur_event_handle_t *phEvent);
 
 #if !defined(__GNUC__)
@@ -13794,6 +13807,85 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueNativeCommandExp(
     /// been enqueued in nativeEnqueueFunc. If phEventWaitList and phEvent are
     /// not NULL, phEvent must not refer to an element of the phEventWaitList
     /// array.
+    ur_event_handle_t *phEvent);
+
+#if !defined(__GNUC__)
+#pragma endregion
+#endif
+// Intel 'oneAPI' Unified Runtime Experimental API for reusable events
+#if !defined(__GNUC__)
+#pragma region reusable_events_(experimental)
+#endif
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Reusable event creation flags.
+typedef uint32_t ur_exp_event_flags_t;
+typedef enum ur_exp_event_flag_t {
+  /// Event captures UR_PROFILING_INFO_COMMAND_START and
+  /// UR_PROFILING_INFO_COMMAND_END timestamps when signalled.
+  UR_EXP_EVENT_FLAG_ENABLE_PROFILING = UR_BIT(0),
+  /// @cond
+  UR_EXP_EVENT_FLAG_FORCE_UINT32 = 0x7fffffff
+  /// @endcond
+
+} ur_exp_event_flag_t;
+/// @brief Bit Mask for validating ur_exp_event_flags_t
+#define UR_EXP_EVENT_FLAGS_MASK 0xfffffffe
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Descriptor type for creating reusable events.
+typedef struct ur_exp_event_desc_t {
+  /// [in] type of this structure, must be
+  /// ::UR_STRUCTURE_TYPE_EXP_EVENT_DESC
+  ur_structure_type_t stype;
+  /// [in][optional] pointer to extension-specific structure
+  const void *pNext;
+  /// [in] handle of the device object associated with this event
+  ur_device_handle_t hDevice;
+  /// [in] combination of event creation flags. If
+  /// ::UR_EXP_EVENT_FLAG_ENABLE_PROFILING is set, the event captures
+  /// UR_PROFILING_INFO_COMMAND_START and UR_PROFILING_INFO_COMMAND_END
+  /// timestamps when signalled. If it is not set, profiling info queries on
+  /// this event return ::UR_RESULT_ERROR_PROFILING_INFO_NOT_AVAILABLE
+  /// unless the queue used to signal the event has profiling enabled.
+  ur_exp_event_flags_t flags;
+
+} ur_exp_event_desc_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Create a reusable event object that can be passed to
+///        ::urEnqueueEventsWaitWithBarrierExt to signal work. The event is not
+///        associated with any enqueued command.
+///
+/// @details
+///     - If ::UR_EXP_EVENT_FLAG_ENABLE_PROFILING is set in pEventDesc->flags
+///       and the platform does not support per-event profiling, the function
+///       returns ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///         + `NULL == pEventDesc->hDevice`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pEventDesc`
+///         + `NULL == phEvent`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_EXP_EVENT_FLAGS_MASK & pEventDesc->flags`
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + `pEventDesc->flags & ::UR_EXP_EVENT_FLAG_ENABLE_PROFILING` and the
+///         platform does not support per-event profiling
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+UR_APIEXPORT ur_result_t UR_APICALL urEventCreateExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] pointer to event creation descriptor
+    const ur_exp_event_desc_t *pEventDesc,
+    /// [out] pointer to the handle of the event object created
     ur_event_handle_t *phEvent);
 
 #if !defined(__GNUC__)
@@ -14467,6 +14559,16 @@ typedef struct ur_event_set_callback_params_t {
   ur_event_callback_t *ppfnNotify;
   void **ppUserData;
 } ur_event_set_callback_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urEventCreateExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_event_create_exp_params_t {
+  ur_context_handle_t *phContext;
+  const ur_exp_event_desc_t **ppEventDesc;
+  ur_event_handle_t **pphEvent;
+} ur_event_create_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urProgramCreateWithIL

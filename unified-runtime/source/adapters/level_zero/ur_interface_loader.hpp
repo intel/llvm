@@ -855,6 +855,9 @@ ur_result_t urEnqueueNativeCommandExp(
     const ur_exp_enqueue_native_command_properties_t *pProperties,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent);
+ur_result_t urEventCreateExp(ur_context_handle_t hContext,
+                             const ur_exp_event_desc_t *pEventDesc,
+                             ur_event_handle_t *phEvent);
 ur_result_t urGraphCreateExp(ur_context_handle_t hContext,
                              ur_exp_graph_handle_t *phGraph);
 ur_result_t urQueueBeginGraphCaptureExp(ur_queue_handle_t hQueue);
