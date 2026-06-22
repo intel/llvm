@@ -6,11 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <sycl/ext/oneapi/experimental/reusable_events.hpp>
-#include <sycl/detail/ur.hpp>
+#include "detail/context_impl.hpp"
 #include "detail/event_impl.hpp"
 #include "detail/queue_impl.hpp"
 #include <detail/sycl_mem_obj_t.hpp>
+#include <sycl/detail/ur.hpp>
+#include <sycl/ext/oneapi/experimental/reusable_events.hpp>
 
 namespace sycl {
 inline namespace _V1 {
@@ -18,8 +19,32 @@ namespace ext::oneapi::experimental {
 
 template <typename PropertyListT = empty_properties_t>
 sycl::event make_event(const sycl::context &ctxt, PropertyListT props) {
-  // TODO reusable events
-  return sycl::event();
+  ur_exp_event_desc_t Desc = {};
+  std::vector<sycl::device> &ContextDevices = ctxt.get_devices();
+  detail::context_impl &ContextImpl = *sycl::detail::getSyclObjImpl(ctxt);
+  sycl::detail::adapter_impl &Adapter = ContextImpl.getAdapter();
+  ur_event_handle_t EventHandle = nullptr;
+
+  if (ContextDevices.size() == 0) {
+    // TODO exception
+  }
+
+  Desc.stype = UR_STRUCTURE_TYPE_EXP_EVENT_DESC;
+  Desc.hDevice = detail::getSyclObjImpl(ContextDevices[0])->getHandleRef();
+  // TODO Desc.flags
+
+  ur_result_t Result =
+      Adapter.call_nocheck<sycl::detail::UrApiKind::urEventCreateExp>(
+          ContextImpl.getHandleRef(), &Desc, &EventHandle);
+  if (Result != UR_RESULT_SUCCESS) {
+    throw sycl::exception(sycl::make_error_code(errc::runtime),
+                          "Failed to create an event.");
+  }
+
+  auto ResEvent = detail::event_impl::create_from_handle(EventHandle, ctxt);
+  ResEvent->setStateIncomplete();
+
+  return detail::createSyclObjFromImpl<sycl::event>(std::move(ResEvent));
 }
 
 void enqueue_wait_event(sycl::queue q, const event& evt) {
