@@ -855,6 +855,9 @@ ur_result_t urEnqueueNativeCommandExp(
     const ur_exp_enqueue_native_command_properties_t *pProperties,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent);
+ur_result_t urEventCreateExp(ur_context_handle_t hContext,
+                             const ur_exp_event_desc_t *pEventDesc,
+                             ur_event_handle_t *phEvent);
 ur_result_t urGraphCreateExp(ur_context_handle_t hContext,
                              ur_exp_graph_handle_t *phGraph);
 ur_result_t urQueueBeginGraphCaptureExp(ur_queue_handle_t hQueue);
@@ -883,6 +886,11 @@ ur_result_t urGraphSetDestructionCallbackExp(
     ur_exp_graph_destruction_callback_t pfnCallback, void *pUserData);
 ur_result_t urGraphDumpContentsExp(ur_exp_graph_handle_t hGraph,
                                    const char *filePath);
+ur_result_t urGraphGetNativeHandleExp(ur_exp_graph_handle_t hGraph,
+                                      ur_native_handle_t *phNativeGraph);
+ur_result_t urGraphExecutableGraphGetNativeHandleExp(
+    ur_exp_executable_graph_handle_t hExecutableGraph,
+    ur_native_handle_t *phNativeExecutableGraph);
 #ifdef UR_STATIC_ADAPTER_OPENCL
 ur_result_t urAdapterGetDdiTables(ur_dditable_t *ddi);
 #endif
