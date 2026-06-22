@@ -495,7 +495,7 @@
 // RUN: not %clangxx -### -c -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -xc %s 2>&1 | FileCheck -check-prefixes=CHECK_XC_FSYCL %s
 // RUN: not %clangxx -### -c -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -xc-header %s 2>&1 | FileCheck -check-prefixes=CHECK_XC_FSYCL %s
 // RUN: not %clangxx -### -c -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -xcpp-output %s 2>&1 | FileCheck -check-prefixes=CHECK_XC_FSYCL %s
-// CHECK_XC_FSYCL: '-x c{{.*}}' must not be used in conjunction with '-fsycl'
+// CHECK_XC_FSYCL: error: invalid argument 'C' not allowed with '-fsycl'
 
 // -std=c++17 check (check all 3 compilations)
 // RUN: %clangxx -### -c -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -xc++ %s 2>&1 | FileCheck -check-prefix=CHECK-STD %s
