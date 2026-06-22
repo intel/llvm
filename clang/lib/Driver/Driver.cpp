@@ -8393,15 +8393,14 @@ Action *Driver::ConstructPhaseAction(
       }
       return C.MakeAction<BackendJobAction>(Input, Output);
     }
-    if (Args.hasArg(options::OPT_emit_llvm) ||
-        (TargetDeviceOffloadKind == Action::OFK_SYCL &&
-         getUseNewOffloadingDriver())) {
+    // SYCL new-driver device backend output feeds llvm-offload-binary for
+    // packaging and must always be BC regardless of -S.
+    if (TargetDeviceOffloadKind == Action::OFK_SYCL &&
+        getUseNewOffloadingDriver())
+      return C.MakeAction<BackendJobAction>(Input, types::TY_LLVM_BC);
+    if (Args.hasArg(options::OPT_emit_llvm)) {
       types::ID Output =
-          Args.hasArg(options::OPT_S) &&
-                  (TargetDeviceOffloadKind == Action::OFK_None ||
-                   offloadDeviceOnly())
-              ? types::TY_LLVM_IR
-              : types::TY_LLVM_BC;
+          Args.hasArg(options::OPT_S) ? types::TY_LLVM_IR : types::TY_LLVM_BC;
       return C.MakeAction<BackendJobAction>(Input, Output);
     }
 
