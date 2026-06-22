@@ -907,6 +907,21 @@ ur_result_t urUSMHostAllocRegisterExp(
   if (!hContext->getPlatform()->ZeExternalMemoryMappingExtensionSupported) {
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
+  UR_ASSERT(pHostMem, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+  UR_ASSERT(size > 0, UR_RESULT_ERROR_INVALID_VALUE);
+
+  // Check that the half-open address range [pHostMem, pHostMem + size)
+  // does not wrap around the host address space.
+  uintptr_t Begin = reinterpret_cast<uintptr_t>(pHostMem);
+  UR_ASSERT(size <= std::numeric_limits<uintptr_t>::max() - Begin,
+            UR_RESULT_ERROR_INVALID_VALUE);
+
+  // The pointer and size must be aligned to the host page size.
+  const size_t PageSize = getHostPageSize();
+  if (reinterpret_cast<uintptr_t>(pHostMem) % PageSize != 0 ||
+      size % PageSize != 0) {
+    return UR_RESULT_ERROR_INVALID_VALUE;
+  }
 
   ze_external_memmap_sysmem_ext_desc_t sysMemDesc = {
       ZE_STRUCTURE_TYPE_EXTERNAL_MEMMAP_SYSMEM_EXT_DESC, nullptr, pHostMem,
@@ -928,6 +943,7 @@ ur_result_t urUSMHostAllocUnregisterExp(ur_context_handle_t hContext,
   if (!hContext->getPlatform()->ZeExternalMemoryMappingExtensionSupported) {
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
+  UR_ASSERT(pHostMem, UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
   ZE2UR_CALL(zeMemFree, (hContext->getZeHandle(), pHostMem));
 
