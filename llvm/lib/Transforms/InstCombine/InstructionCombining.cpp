@@ -5419,12 +5419,6 @@ bool InstCombinerImpl::freezeOtherUses(FreezeInst &FI) {
     auto *UI = cast<Instruction>(U);
     Worklist.pushUsersToWorkList(*UI);
     Worklist.push(UI);
-
-    for (auto &AssumeVH : AC.assumptionsFor(U)) {
-      if (!AssumeVH)
-        continue;
-      AC.updateAffectedValues(cast<AssumeInst>(AssumeVH));
-    }
   }
 
   return Changed;
