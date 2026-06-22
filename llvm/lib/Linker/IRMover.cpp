@@ -1003,8 +1003,17 @@ Expected<Constant *> IRLinker::linkGlobalValueProto(GlobalValue *SGV,
   // the same as DGV and NewGV, and TypeMap.get() will assert since it
   // assumes it is being invoked on a type in the source module.
   if (DGV && NewGV != SGV) {
-    C = ConstantExpr::getPointerBitCastOrAddrSpaceCast(
-      NewGV, TypeMap.get(SGV->getType()));
+    // Do not create an addrspacecast for intrinsic declarations when source and
+    // destination modules differ in program address space. Wrapping an
+    // intrinsic in an addrspacecast would be flagged by the verifier as having
+    // its address taken, which is illegal for intrinsics.
+    /* auto *NewF = dyn_cast<Function>(NewGV);
+    if (NewF && NewF->isIntrinsic() &&
+        NewGV->getType() != TypeMap.get(SGV->getType()))
+      C = NewGV;
+    else */
+      C = ConstantExpr::getPointerBitCastOrAddrSpaceCast(
+          NewGV, TypeMap.get(SGV->getType()));
   }
 
   if (DGV && NewGV != DGV) {

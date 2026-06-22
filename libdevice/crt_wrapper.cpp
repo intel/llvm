@@ -17,6 +17,7 @@
 __attribute__((weak)) DeviceGlobal<uint64_t[RAND_NEXT_LEN]> RandNext;
 
 #ifdef __LIBDEVICE_TARGET_SUPPORT
+#if defined(__NVPTX__) || defined(__AMDGCN__)
 DEVICE_EXTERN_C_INLINE
 void *memcpy(void *dest, const void *src, size_t n) {
   return __devicelib_memcpy(dest, src, n);
@@ -84,6 +85,7 @@ int strncmp(const char *s1, const char *s2, size_t n) {
 
   return s1[idx] - s2[idx];
 }
+#endif
 
 // This simple rand is for ease of use only, the implementation aligns with
 // LLVM libc rand which is based on xorshift64star pseudo random number
