@@ -108,6 +108,13 @@ urEnqueueTimestampRecordingExp(ur_queue_handle_t /*hQueue*/, bool /*blocking*/,
   DIE_NO_IMPLEMENTATION;
 }
 
+UR_APIEXPORT ur_result_t UR_APICALL
+urEventCreateExp(ur_context_handle_t /*hContext*/,
+                 const ur_exp_event_desc_t * /*pEventDesc*/,
+                 ur_event_handle_t * /*phEvent*/) {
+  DIE_NO_IMPLEMENTATION;
+}
+
 ur_event_handle_t_::ur_event_handle_t_(ur_queue_handle_t queue,
                                        ur_command_t command_type)
     : queue(queue), context(queue->getContext()), command_type(command_type),

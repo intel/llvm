@@ -56,6 +56,11 @@ __urdlllocal ur_result_t context_t::ddiInit() {
   }
 
   if (UR_RESULT_SUCCESS == result) {
+    result = urGetEventExpProcAddrTable(UR_API_VERSION_CURRENT,
+                                        &urDdiTable.EventExp);
+  }
+
+  if (UR_RESULT_SUCCESS == result) {
     result = urGetGraphExpProcAddrTable(UR_API_VERSION_CURRENT,
                                         &urDdiTable.GraphExp);
   }

@@ -11,7 +11,6 @@
 
 #include <sycl/exception.hpp>
 
-#include <detail/iostream_proxy.hpp>
 #include <memory>
 #include <zstd.h>
 

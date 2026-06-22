@@ -187,4 +187,32 @@ ur_result_t urGraphDumpContentsExp(ur_exp_graph_handle_t hGraph,
   return UR_RESULT_SUCCESS;
 }
 
+ur_result_t urGraphGetNativeHandleExp(ur_exp_graph_handle_t hGraph,
+                                      ur_native_handle_t *phNativeGraph) try {
+  ur_context_handle_t hContext = hGraph->getContext();
+  if (!checkGraphExtensionSupport(hContext)) {
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  }
+
+  *phNativeGraph = reinterpret_cast<ur_native_handle_t>(hGraph->getZeHandle());
+  return UR_RESULT_SUCCESS;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+ur_result_t urGraphExecutableGraphGetNativeHandleExp(
+    ur_exp_executable_graph_handle_t hExecutableGraph,
+    ur_native_handle_t *phNativeExecutableGraph) try {
+  ur_context_handle_t hContext = hExecutableGraph->getContext();
+  if (!checkGraphExtensionSupport(hContext)) {
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  }
+
+  *phNativeExecutableGraph =
+      reinterpret_cast<ur_native_handle_t>(hExecutableGraph->getZeHandle());
+  return UR_RESULT_SUCCESS;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
 } // namespace ur::level_zero

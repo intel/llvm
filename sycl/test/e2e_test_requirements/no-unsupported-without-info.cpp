@@ -54,7 +54,7 @@
 // tests to match the required format and in that case you should just update
 // (i.e. reduce) the number and the list below.
 //
-// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 85
+// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 61
 //
 // List of improperly UNSUPPORTED tests.
 // Remove the CHECK once the test has been properly UNSUPPORTED.
@@ -62,12 +62,8 @@
 // CHECK: AmdNvidiaJIT/kernel_and_bundle.cpp
 // CHECK-NEXT: Assert/assert_in_simultaneous_kernels.cpp
 // CHECK-NEXT: Assert/assert_in_simultaneously_multiple_tus.cpp
-// CHECK-NEXT: Assert/check_resource_leak.cpp
-// CHECK-NEXT: Basic/build_log.cpp
 // CHECK-NEXT: Basic/gpu_max_wgs_error.cpp
-// CHECK-NEXT: Basic/submit_time.cpp
 // CHECK-NEXT: DeprecatedFeatures/DiscardEvents/discard_events_using_assert.cpp
-// CHECK-NEXT: DeviceLib/built-ins/printf.cpp
 // CHECK-NEXT: DeviceLib/separate_compile_test.cpp
 // CHECK-NEXT: ESIMD/api/replicate_smoke.cpp
 // CHECK-NEXT: ESIMD/api/simd_copy_to_from.cpp
@@ -83,14 +79,7 @@
 // CHECK-NEXT: ESIMD/private_memory/private_memory.cpp
 // CHECK-NEXT: ESIMD/regression/copyto_char_test.cpp
 // CHECK-NEXT: ESIMD/regression/variable_gather_mask.cpp
-// CHECK-NEXT: HierPar/hier_par_wgscope.cpp
-// CHECK-NEXT: InvokeSimd/Feature/ImplicitSubgroup/SPMD_invoke_ESIMD_external.cpp
-// CHECK-NEXT: InvokeSimd/Feature/ImplicitSubgroup/popcnt.cpp
-// CHECK-NEXT: InvokeSimd/Feature/popcnt.cpp
-// CHECK-NEXT: KernelAndProgram/kernel-bundle-merge-options-env.cpp
-// CHECK-NEXT: KernelAndProgram/kernel-bundle-merge-options.cpp
 // CHECK-NEXT: KernelAndProgram/multiple-kernel-linking.cpp
-// CHECK-NEXT: KernelAndProgram/spec_constants_after_link.cpp
 // CHECK-NEXT: Matrix/SG32/element_wise_abc.cpp
 // CHECK-NEXT: Matrix/SG32/element_wise_all_ops.cpp
 // CHECK-NEXT: Matrix/SG32/element_wise_all_ops_half.cpp
@@ -121,21 +110,8 @@
 // CHECK-NEXT: Matrix/joint_matrix_bf16_fill_k_cache_OOB.cpp
 // CHECK-NEXT: Matrix/joint_matrix_down_convert.cpp
 // CHECK-NEXT: Matrix/joint_matrix_rowmajorA_rowmajorB.cpp
-// CHECK-NEXT: OptionalKernelFeatures/large-reqd-work-group-size.cpp
-// CHECK-NEXT: Printf/char.cpp
-// CHECK-NEXT: Printf/double.cpp
-// CHECK-NEXT: Printf/float.cpp
-// CHECK-NEXT: Printf/int.cpp
 // CHECK-NEXT: Printf/mixed-address-space.cpp
-// CHECK-NEXT: Printf/percent-symbol.cpp
-// CHECK-NEXT: Regression/invalid_reqd_wg_size_correct_exception.cpp
-// CHECK-NEXT: Regression/kernel_bundle_ignore_sycl_external.cpp
-// CHECK-NEXT: Regression/no-split-reqd-wg-size-2.cpp
-// CHECK-NEXT: Regression/no-split-reqd-wg-size.cpp
-// CHECK-NEXT: Regression/static-buffer-dtor.cpp
 // CHECK-NEXT: SpecConstants/2020/kernel-bundle-api.cpp
-// CHECK-NEXT: SpecConstants/2020/non_native/gpu.cpp
-// CHECK-NEXT: SubGroup/generic_reduce.cpp
 // CHECK-NEXT: Tracing/code_location_queue_copy.cpp
 // CHECK-NEXT: Tracing/code_location_queue_parallel_for.cpp
 // CHECK-NEXT: Tracing/code_location_queue_submit.cpp
