@@ -85,6 +85,12 @@ public:
   __SYCL2020_DEPRECATED("SYCL 1.2.1 device selectors are deprecated. Please "
                         "use SYCL 2020 device selectors instead.")
   explicit device(const device_selector &DeviceSelector);
+#else
+  /// Constructs a SYCL device instance using the device selected
+  /// by the DeviceSelector provided.
+  ///
+  /// \param DeviceSelector SYCL 1.2.1 device_selector to be used (see 4.6.1.1).
+  explicit device(const sycl::detail::device_selector &DeviceSelector);
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   /// Constructs a SYCL device instance using the device

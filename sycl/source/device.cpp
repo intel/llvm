@@ -63,6 +63,8 @@ device::device(cl_device_id DeviceId) {
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 device::device(const device_selector &deviceSelector) {
+#else
+device::device(const sycl::detail::device_selector &deviceSelector) {
   *this = deviceSelector.select_device();
 }
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
