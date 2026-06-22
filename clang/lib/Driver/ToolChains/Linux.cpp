@@ -402,8 +402,7 @@ Linux::Linux(const Driver &D, const llvm::Triple &Triple, const ArgList &Args)
     SmallString<128> SYCLLibProbe(SYCLRoot);
     llvm::sys::path::append(SYCLLibProbe, "lib", "libsycl.so");
     if (StringRef(SYCLRoot).starts_with(SysRoot) &&
-        (Args.hasArg(options::OPT_fsycl) ||
-         D.getVFS().exists(SYCLLibProbe))) {
+        (Args.hasArg(options::OPT_fsycl) || D.getVFS().exists(SYCLLibProbe))) {
       SmallString<128> SYCLLib(SYCLRoot);
       llvm::sys::path::append(SYCLLib, "lib");
       addPathIfExists(D, SYCLLib, Paths);

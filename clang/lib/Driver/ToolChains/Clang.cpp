@@ -5209,7 +5209,8 @@ void Clang::ConstructHostCompilerJob(Compilation &C, const JobAction &JA,
   if (!TCArgs.hasArg(options::OPT_nostdlibinc, options::OPT_nostdinc)) {
     // Add default header search directories.
     // The binary may live in a versioned subdirectory (e.g. lib/dpcpp-N/bin/).
-    // Walk up from D.Dir until we find the install root (contains include/sycl).
+    // Walk up from D.Dir until we find the install root (contains
+    // include/sycl).
     SmallString<128> InstallRoot(C.getDriver().Dir);
     for (int I = 0; I < 4; ++I) {
       SmallString<128> Probe(InstallRoot);
