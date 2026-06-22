@@ -1323,6 +1323,16 @@ urPrintExpWin32Handle(const struct ur_exp_win32_handle_t params, char *buffer,
                       const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_exp_win32_name_t struct
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL
+urPrintExpWin32Name(const struct ur_exp_win32_name_t params, char *buffer,
+                    const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_exp_sampler_mip_properties_t struct
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -1563,6 +1573,26 @@ UR_APIEXPORT ur_result_t UR_APICALL urPrintExpEnqueueNativeCommandFlags(
 UR_APIEXPORT ur_result_t UR_APICALL urPrintExpEnqueueNativeCommandProperties(
     const struct ur_exp_enqueue_native_command_properties_t params,
     char *buffer, const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_exp_event_flag_t enum
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL
+urPrintExpEventFlags(enum ur_exp_event_flag_t value, char *buffer,
+                     const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_exp_event_desc_t struct
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL
+urPrintExpEventDesc(const struct ur_exp_event_desc_t params, char *buffer,
+                    const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_loader_config_create_params_t struct
@@ -1913,6 +1943,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urPrintEventCreateWithNativeHandleParams(
 ///         - `buff_size < out_size`
 UR_APIEXPORT ur_result_t UR_APICALL urPrintEventSetCallbackParams(
     const struct ur_event_set_callback_params_t *params, char *buffer,
+    const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_event_create_exp_params_t struct
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL urPrintEventCreateExpParams(
+    const struct ur_event_create_exp_params_t *params, char *buffer,
     const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3744,6 +3784,28 @@ UR_APIEXPORT ur_result_t UR_APICALL urPrintGraphSetDestructionCallbackExpParams(
 UR_APIEXPORT ur_result_t UR_APICALL urPrintGraphDumpContentsExpParams(
     const struct ur_graph_dump_contents_exp_params_t *params, char *buffer,
     const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_graph_get_native_handle_exp_params_t struct
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL urPrintGraphGetNativeHandleExpParams(
+    const struct ur_graph_get_native_handle_exp_params_t *params, char *buffer,
+    const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_graph_executable_graph_get_native_handle_exp_params_t struct
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL
+urPrintGraphExecutableGraphGetNativeHandleExpParams(
+    const struct ur_graph_executable_graph_get_native_handle_exp_params_t
+        *params,
+    char *buffer, const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_ipc_get_mem_handle_exp_params_t struct

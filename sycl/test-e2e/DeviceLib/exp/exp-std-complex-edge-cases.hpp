@@ -1,5 +1,6 @@
 // This test checks edge cases handling for std::exp(std::complex<T>) used
 // in SYCL kernels.
+#include <iostream>
 
 #include <sycl/detail/core.hpp>
 

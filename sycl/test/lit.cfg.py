@@ -205,6 +205,6 @@ if not dump_only_tests:
 try:
     import psutil
 
-    lit_config.maxIndividualTestTime = 600
+    config.maxIndividualTestTime = 600
 except ImportError:
     pass

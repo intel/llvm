@@ -244,7 +244,6 @@ class SYCLToolchain {
 
       const bool Success = Compiler.ExecuteAction(FEAction);
 
-      Files->clearStatCache();
       return Success;
     }
   };

@@ -40,6 +40,10 @@ int main() {
   const size_t N = 64;
   int *Data = malloc_device<int>(N, Queue);
 
+  // Lvalue arg: must be copied into the graph's stored tuple.
+  bool LvalueCopied = false, LvalueMoved = false;
+  // Rvalue arg: move-constructible optimization should kick in.
+  bool RvalueCopied = false, RvalueMoved = false;
   {
 #ifdef GRAPH_E2E_NATIVE_RECORDING
     exp_ext::command_graph Graph{
@@ -69,16 +73,12 @@ int main() {
     SizeCopy = 0;
     assert(!CleanupCallbackInvoked && "Cleanup callback should not fire yet");
 
-    // Lvalue arg: must be copied into the graph's stored tuple.
-    bool LvalueCopied = false, LvalueMoved = false;
     CopyMoveTracker LvalueTracker{42, &LvalueCopied, &LvalueMoved};
     Graph.set_destruction_callback(
         [](CopyMoveTracker T, int *Out) { *Out = T.Value; }, LvalueTracker,
         &ObservedLvalue);
     assert(LvalueCopied && "Lvalue arg should be copied");
 
-    // Rvalue arg: move-constructible optimization should kick in.
-    bool RvalueCopied = false, RvalueMoved = false;
     CopyMoveTracker RvalueTracker{99, &RvalueCopied, &RvalueMoved};
     Graph.set_destruction_callback(
         [](CopyMoveTracker T, int *Out) { *Out = T.Value; },

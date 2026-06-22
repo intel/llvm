@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
 #include <sycl/detail/spirv.hpp>
 #include <sycl/functional.hpp> // for maximum, minimum
 
@@ -17,13 +18,26 @@ namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi {
 
-template <typename T = void> using plus = std::plus<T>;
-template <typename T = void> using multiplies = std::multiplies<T>;
-template <typename T = void> using bit_or = std::bit_or<T>;
-template <typename T = void> using bit_xor = std::bit_xor<T>;
-template <typename T = void> using bit_and = std::bit_and<T>;
-template <typename T = void> using maximum = sycl::maximum<T>;
-template <typename T = void> using minimum = sycl::minimum<T>;
+template <typename T = void>
+using plus __SYCL2020_DEPRECATED("Use sycl::plus<> instead") = std::plus<T>;
+template <typename T = void>
+using multiplies __SYCL2020_DEPRECATED("Use sycl::multiplies<> instead") =
+    std::multiplies<T>;
+template <typename T = void>
+using bit_or
+    __SYCL2020_DEPRECATED("Use sycl::bit_or<> instead") = std::bit_or<T>;
+template <typename T = void>
+using bit_xor
+    __SYCL2020_DEPRECATED("Use sycl::bit_xor<> instead") = std::bit_xor<T>;
+template <typename T = void>
+using bit_and
+    __SYCL2020_DEPRECATED("Use sycl::bit_and<> instead") = std::bit_and<T>;
+template <typename T = void>
+using maximum
+    __SYCL2020_DEPRECATED("Use sycl::maximum<> instead") = sycl::maximum<T>;
+template <typename T = void>
+using minimum
+    __SYCL2020_DEPRECATED("Use sycl::minimum<> instead") = sycl::minimum<T>;
 
 } // namespace ext::oneapi
 

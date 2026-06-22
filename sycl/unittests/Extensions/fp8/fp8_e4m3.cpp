@@ -686,7 +686,8 @@ TEST(FP8E4M3Test, X2NotAssignableFromSingleULL) {
   EXPECT_FALSE((std::is_assignable_v<fp8_e4m3_x2 &, unsigned long long>));
 }
 
-TEST(FP8E4M3Test, DISABLED_CArrayHalfRejectsUpwardRounding) {
+#if LLVM_ENABLE_ASSERTIONS
+TEST(FP8E4M3Test, CArrayHalfRejectsUpwardRounding) {
   const sycl::half in[2] = {sycl::half(1.0f), sycl::half(2.0f)};
   EXPECT_DEATH(
       {
@@ -696,7 +697,7 @@ TEST(FP8E4M3Test, DISABLED_CArrayHalfRejectsUpwardRounding) {
       "fp8_e4m3_x: only rounding::to_even is supported");
 }
 
-TEST(FP8E4M3Test, DISABLED_CArrayHalfRejectsTowardZeroRounding) {
+TEST(FP8E4M3Test, CArrayHalfRejectsTowardZeroRounding) {
   const sycl::half in[2] = {sycl::half(1.0f), sycl::half(2.0f)};
   EXPECT_DEATH(
       {
@@ -706,7 +707,7 @@ TEST(FP8E4M3Test, DISABLED_CArrayHalfRejectsTowardZeroRounding) {
       "fp8_e4m3_x: only rounding::to_even is supported");
 }
 
-TEST(FP8E4M3Test, DISABLED_CArrayBFloat16RejectsUpwardRounding) {
+TEST(FP8E4M3Test, CArrayBFloat16RejectsUpwardRounding) {
   const sycl::ext::oneapi::bfloat16 in[2] = {sycl::ext::oneapi::bfloat16(1.0f),
                                              sycl::ext::oneapi::bfloat16(2.0f)};
   EXPECT_DEATH(
@@ -717,7 +718,7 @@ TEST(FP8E4M3Test, DISABLED_CArrayBFloat16RejectsUpwardRounding) {
       "fp8_e4m3_x: only rounding::to_even is supported");
 }
 
-TEST(FP8E4M3Test, DISABLED_CArrayBFloat16RejectsTowardZeroRounding) {
+TEST(FP8E4M3Test, CArrayBFloat16RejectsTowardZeroRounding) {
   const sycl::ext::oneapi::bfloat16 in[2] = {sycl::ext::oneapi::bfloat16(1.0f),
                                              sycl::ext::oneapi::bfloat16(2.0f)};
   EXPECT_DEATH(
@@ -728,7 +729,7 @@ TEST(FP8E4M3Test, DISABLED_CArrayBFloat16RejectsTowardZeroRounding) {
       "fp8_e4m3_x: only rounding::to_even is supported");
 }
 
-TEST(FP8E4M3Test, DISABLED_CArrayFloatRejectsUpwardRounding) {
+TEST(FP8E4M3Test, CArrayFloatRejectsUpwardRounding) {
   const float in[2] = {1.0f, 2.0f};
   EXPECT_DEATH(
       {
@@ -738,7 +739,7 @@ TEST(FP8E4M3Test, DISABLED_CArrayFloatRejectsUpwardRounding) {
       "fp8_e4m3_x: only rounding::to_even is supported");
 }
 
-TEST(FP8E4M3Test, DISABLED_CArrayFloatRejectsTowardZeroRounding) {
+TEST(FP8E4M3Test, CArrayFloatRejectsTowardZeroRounding) {
   const float in[2] = {1.0f, 2.0f};
   EXPECT_DEATH(
       {
@@ -748,7 +749,7 @@ TEST(FP8E4M3Test, DISABLED_CArrayFloatRejectsTowardZeroRounding) {
       "fp8_e4m3_x: only rounding::to_even is supported");
 }
 
-TEST(FP8E4M3Test, DISABLED_MarrayHalfRejectsUpwardRounding) {
+TEST(FP8E4M3Test, MarrayHalfRejectsUpwardRounding) {
   const sycl::marray<sycl::half, 2> in = {sycl::half(1.0f), sycl::half(2.0f)};
   EXPECT_DEATH(
       {
@@ -758,7 +759,7 @@ TEST(FP8E4M3Test, DISABLED_MarrayHalfRejectsUpwardRounding) {
       "fp8_e4m3_x: only rounding::to_even is supported");
 }
 
-TEST(FP8E4M3Test, DISABLED_MarrayHalfRejectsTowardZeroRounding) {
+TEST(FP8E4M3Test, MarrayHalfRejectsTowardZeroRounding) {
   const sycl::marray<sycl::half, 2> in = {sycl::half(1.0f), sycl::half(2.0f)};
   EXPECT_DEATH(
       {
@@ -768,7 +769,7 @@ TEST(FP8E4M3Test, DISABLED_MarrayHalfRejectsTowardZeroRounding) {
       "fp8_e4m3_x: only rounding::to_even is supported");
 }
 
-TEST(FP8E4M3Test, DISABLED_MarrayBFloat16RejectsUpwardRounding) {
+TEST(FP8E4M3Test, MarrayBFloat16RejectsUpwardRounding) {
   const sycl::marray<sycl::ext::oneapi::bfloat16, 2> in = {
       sycl::ext::oneapi::bfloat16(1.0f), sycl::ext::oneapi::bfloat16(2.0f)};
   EXPECT_DEATH(
@@ -779,7 +780,7 @@ TEST(FP8E4M3Test, DISABLED_MarrayBFloat16RejectsUpwardRounding) {
       "fp8_e4m3_x: only rounding::to_even is supported");
 }
 
-TEST(FP8E4M3Test, DISABLED_MarrayBFloat16RejectsTowardZeroRounding) {
+TEST(FP8E4M3Test, MarrayBFloat16RejectsTowardZeroRounding) {
   const sycl::marray<sycl::ext::oneapi::bfloat16, 2> in = {
       sycl::ext::oneapi::bfloat16(1.0f), sycl::ext::oneapi::bfloat16(2.0f)};
   EXPECT_DEATH(
@@ -790,7 +791,7 @@ TEST(FP8E4M3Test, DISABLED_MarrayBFloat16RejectsTowardZeroRounding) {
       "fp8_e4m3_x: only rounding::to_even is supported");
 }
 
-TEST(FP8E4M3Test, DISABLED_MarrayFloatRejectsUpwardRounding) {
+TEST(FP8E4M3Test, MarrayFloatRejectsUpwardRounding) {
   const sycl::marray<float, 2> in = {1.0f, 2.0f};
   EXPECT_DEATH(
       {
@@ -800,7 +801,7 @@ TEST(FP8E4M3Test, DISABLED_MarrayFloatRejectsUpwardRounding) {
       "fp8_e4m3_x: only rounding::to_even is supported");
 }
 
-TEST(FP8E4M3Test, DISABLED_MarrayFloatRejectsTowardZeroRounding) {
+TEST(FP8E4M3Test, MarrayFloatRejectsTowardZeroRounding) {
   const sycl::marray<float, 2> in = {1.0f, 2.0f};
   EXPECT_DEATH(
       {
@@ -809,6 +810,7 @@ TEST(FP8E4M3Test, DISABLED_MarrayFloatRejectsTowardZeroRounding) {
       },
       "fp8_e4m3_x: only rounding::to_even is supported");
 }
+#endif // LLVM_ENABLE_ASSERTIONS
 
 TEST(FP8E4M3Test, VariadicFloatReferences) {
   float x = 1.0f;

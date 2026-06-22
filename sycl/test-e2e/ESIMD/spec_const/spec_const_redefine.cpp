@@ -14,6 +14,7 @@
 //   after redefinition.
 // - the program is JITted only once per a unique set of specialization
 //   constants values.
+#include <iostream>
 
 #include "../esimd_test_utils.hpp"
 

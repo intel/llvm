@@ -9,6 +9,7 @@
 // CHECK-NEXT: detail/defines_elementary.hpp
 // CHECK-NEXT: feature_test.hpp
 // CHECK-NEXT: half_type.hpp
+// CHECK-NEXT: detail/export.hpp
 // CHECK-NEXT: detail/half_type_impl.hpp
 // CHECK-NEXT: bit_cast.hpp
 // CHECK-NEXT: detail/defines.hpp

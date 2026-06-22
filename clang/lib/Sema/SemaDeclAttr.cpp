@@ -5949,29 +5949,15 @@ bool Sema::CheckCallingConvAttr(const ParsedAttr &Attrs, CallingConv &CC,
       A = HostTI->checkCallingConvention(CC);
     if (A == TargetInfo::CCCR_OK && CheckDevice && DeviceTI)
       A = DeviceTI->checkCallingConvention(CC);
-  } else if (LangOpts.SYCLIsDevice) {
-    // During device compilation, calling conventions that are valid for the
-    // host, for the device, and for both the host and the device may be
-    // encountered. Diagnostics are desired for cases where the calling
-    // convention is not supported by either the host or the device. If Aux is
-    // null (which should rarely be the case), it isn't possible to check
-    // whether the calling convention is supported by the host, so just assume
-    // that it is. If the calling convention is supported for the device, there
-    // is no need to check the host; the device target gets priority since this
-    // check is only performed during device compilation.
+  } else if (LangOpts.SYCLIsDevice && TI.getTriple().isAMDGPU() &&
+             CC == CC_X86VectorCall) {
+    // Assuming SYCL Device AMDGPU CC_X86VectorCall functions are always to be
+    // emitted on the host. The MSVC STL has CC-based specializations so we
+    // cannot change the CC to be the default as that will cause a clash with
+    // another specialization.
     A = TI.checkCallingConvention(CC);
-    if (Aux && A == TargetInfo::CCCR_Warning) {
-      // If the calling convention would provoke a warning for the device, check
-      // the host and preserve the warning only if the calling convention would
-      // provoke an error for the host. Otherwise, assume this calling
-      // convention is only used for host only functions.
+    if (Aux && A != TargetInfo::CCCR_OK)
       A = Aux->checkCallingConvention(CC);
-      if (A == TargetInfo::CCCR_Error)
-        A = TargetInfo::CCCR_Warning;
-    } else if (Aux && A == TargetInfo::CCCR_Error) {
-      // Assume this calling convention is only used for host only functions.
-      A = Aux->checkCallingConvention(CC);
-    }
   } else {
     A = TI.checkCallingConvention(CC);
   }
@@ -8322,9 +8308,6 @@ ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D, const ParsedAttr &AL,
     break;
   case ParsedAttr::AT_HLSLParamModifier:
     S.HLSL().handleParamModifierAttr(D, AL);
-    break;
-  case ParsedAttr::AT_HLSLMatrixLayout:
-    S.HLSL().handleMatrixLayoutAttr(D, AL);
     break;
   case ParsedAttr::AT_HLSLUnparsedSemantic:
     S.HLSL().handleSemanticAttr(D, AL);
