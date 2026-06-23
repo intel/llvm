@@ -44,6 +44,18 @@ inline namespace _V1 {
 enum class backend : char;
 namespace detail {
 
+// DIAGNOSTIC (intel/llvm#22367): track live adapter_impl pointers and emit a
+// record when a Managed<> is about to release through an adapter, so we can tell
+// whether the adapter it points at is (a) currently live, (b) already
+// destroyed/erased (stale), and what its adapterReleased flag / func-ptr table
+// look like -- all WITHOUT dereferencing the suspect pointer first. No-op unless
+// SYCL_TRACE_ADAPTER_UAF is set. Defined in adapter_impl.cpp.
+void diagAdapterRegister(const void *Adapter);
+void diagAdapterUnregister(const void *Adapter);
+// Emits: the Managed's adapter pointer, whether it is in the live set, and (only
+// if live) its adapterReleased flag and first func-ptr-table word.
+void diagManagedRelease(const void *Adapter, const void *Resource);
+
 /// The adapter class provides a unified interface to the underlying low-level
 /// runtimes for the device-agnostic SYCL runtime.
 ///
@@ -60,6 +72,7 @@ public:
     UrLoaderHandle = ur::getURLoaderLibrary();
     PopulateUrFuncPtrTable(&UrFuncPtrs, UrLoaderHandle);
 #endif
+    diagAdapterRegister(this); // DIAGNOSTIC intel/llvm#22367
   }
 
   // Disallow accidental copies of adapters
@@ -68,7 +81,9 @@ public:
   adapter_impl &operator=(adapter_impl &&other) noexcept = delete;
   adapter_impl(adapter_impl &&other) noexcept = delete;
 
-  ~adapter_impl() = default;
+  ~adapter_impl() {
+    diagAdapterUnregister(this); // DIAGNOSTIC intel/llvm#22367
+  }
 
   /// \throw SYCL 2020 exception(errc) if ur_result is not UR_RESULT_SUCCESS
   template <sycl::errc errc = sycl::errc::runtime>
@@ -205,6 +220,11 @@ public:
   std::shared_ptr<std::mutex> getAdapterMutex() { return MAdapterMutex; }
   bool adapterReleased = false;
 
+  // DIAGNOSTIC (intel/llvm#22367): allow the trace helper to inspect this
+  // adapter's released flag and func-ptr table once it has confirmed (via the
+  // live registry) that the pointer is safe to dereference.
+  friend void diagManagedRelease(const void *Adapter, const void *Resource);
+
 private:
   void ur_failed_throw_exception(sycl::errc errc, ur_result_t ur_result) const;
 
@@ -280,6 +300,7 @@ public:
       return;
 
     try {
+      diagManagedRelease(Adapter, R); // DIAGNOSTIC intel/llvm#22367
       Adapter->call<Release>(R);
     } catch (std::exception &e) {
       __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~Managed", e);
