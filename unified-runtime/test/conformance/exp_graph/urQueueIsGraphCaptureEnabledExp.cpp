@@ -129,3 +129,55 @@ TEST_P(urQueueIsGraphCaptureEnabledExpMultiQueueTest, ForkJoinPattern) {
   ASSERT_SUCCESS(urQueueIsGraphCaptureEnabledExp(queue2, &isEnabled));
   ASSERT_FALSE(isEnabled);
 }
+
+// Tests that, once an out-of-order queue has joined a capture via the fork-join
+// pattern, operations subsequently submitted to it *without* an explicit
+// dependency on the recording queue are still recorded. The secondary queue
+// stays in the temporary recording state until the primary queue ends the
+// capture. With the L0v2 out-of-order queue this would otherwise round-robin
+// the dependency-less operation onto a non-capture command list, escaping the
+// capture.
+TEST_P(urQueueIsGraphCaptureEnabledExpMultiQueueTest,
+       ForkJoinSubsequentOpsWithoutDependency) {
+  bool isEnabled = false;
+
+  // Advance the out-of-order queue's command list selection so the next
+  // operation would not land on the dedicated capture command list by chance.
+  uur::raii::Event preEvent = nullptr;
+  ASSERT_SUCCESS(urEnqueueEventsWait(queue2, 0, nullptr, preEvent.ptr()));
+  ASSERT_SUCCESS(urEventWait(1, preEvent.ptr()));
+
+  ASSERT_SUCCESS(urQueueBeginGraphCaptureExp(queue1));
+
+  // Fork: queue1 produces an event that queue2 waits on, pulling queue2 into
+  // the capture.
+  uur::raii::Event forkEvent = nullptr;
+  ASSERT_SUCCESS(urEnqueueEventsWait(queue1, 0, nullptr, forkEvent.ptr()));
+
+  uur::raii::Event joinEvent = nullptr;
+  ASSERT_SUCCESS(
+      urEnqueueEventsWait(queue2, 1, forkEvent.ptr(), joinEvent.ptr()));
+  ASSERT_SUCCESS(urQueueIsGraphCaptureEnabledExp(queue2, &isEnabled));
+  ASSERT_TRUE(isEnabled);
+
+  // Subsequent operation on queue2 without any dependency on queue1. It must
+  // remain part of the capture: queue2 should still report recording enabled.
+  uur::raii::Event noDepEvent = nullptr;
+  ASSERT_SUCCESS(urEnqueueEventsWait(queue2, 0, nullptr, noDepEvent.ptr()));
+  ASSERT_SUCCESS(urQueueIsGraphCaptureEnabledExp(queue2, &isEnabled));
+  ASSERT_TRUE(isEnabled);
+
+  // Join both queue2 operations back to queue1 and finish recording.
+  ur_event_handle_t joinEvents[] = {joinEvent.get(), noDepEvent.get()};
+  ASSERT_SUCCESS(urEnqueueEventsWait(queue1, 2, joinEvents, nullptr));
+
+  ASSERT_SUCCESS(urQueueEndGraphCaptureExp(queue1, &graph));
+
+  ASSERT_SUCCESS(urQueueIsGraphCaptureEnabledExp(queue1, &isEnabled));
+  ASSERT_FALSE(isEnabled);
+
+  // The primary queue stopped recording, so queue2 must leave the temporary
+  // recording state as well.
+  ASSERT_SUCCESS(urQueueIsGraphCaptureEnabledExp(queue2, &isEnabled));
+  ASSERT_FALSE(isEnabled);
+}
