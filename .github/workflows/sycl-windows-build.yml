@@ -179,8 +179,55 @@ jobs:
          cmake --build build --target check-sycl
     - name: check-sycl-unittests
       if: ${{ !cancelled() && contains(inputs.changes, 'sycl') }}
+      # DIAGNOSTIC RUN for intel/llvm#22367 (NOT for merge).
+      # Goal: identify which Managed<ur_program/kernel> outlives its adapter and
+      # causes the use-after-free at process teardown. Instead of any source-level
+      # tracing, enable UR's own leak-checking validation layer: it refcount-tracks
+      # every UR handle (with a backtrace captured at first sighting) and, the
+      # moment the adapter refcount hits 0 (adapter released in unloadAdapters),
+      # logs every still-retained program/kernel handle and its backtrace -- i.e.
+      # exactly the surviving Managed. UR's Windows backtrace self-symbolizes via
+      # DbgHelp, so the log already contains file:line frames.
+      #   UR_ENABLE_LAYERS    -> turn the layer on
+      #   UR_LOG_VALIDATION   -> level:error, flush each record (so it survives the
+      #                          subsequent SEH crash), output to a file we upload
+      # Only the program_manager tests reproduce the orphaned-Managed teardown, so
+      # build and run just that one binary directly rather than the full
+      # check-sycl-unittests target (which builds+runs every unittest exe and is
+      # far slower / was timing out).
+      shell: bash
+      env:
+        UR_ENABLE_LAYERS: UR_LAYER_LEAK_CHECKING
+        UR_LOG_VALIDATION: level:error;flush:error;output:file,${{ github.workspace }}\build\adapter_uaf_validation.log
       run: |
-        cmake --build build --target check-sycl-unittests
+        cmake --build build --target ProgramManagerTests-Non_Preview_Tests
+        EXE=build/tools/sycl/unittests/program_manager/ProgramManagerTests-Non_Preview_Tests.exe
+        # The leak layer's key report ("Retained N reference(s) to handle ..." +
+        # backtrace) is emitted at adapter teardown, when the layer's own file
+        # sink may already be gone, so it falls back to stderr. Capture BOTH the
+        # combined stdout+stderr and the layer's file sink, and upload both.
+        # Do not let the expected SEH crash (raw-pointer UAF) fail the job before
+        # the upload step runs.
+        PATH="$(pwd)/build/bin:$PATH" \
+        SYCL_CONFIG_FILE_NAME=null.cfg \
+        SYCL_DEVICELIB_NO_FALLBACK=1 \
+        SYCL_CACHE_DIR="$(pwd)/build/sycl_cache" \
+          "$EXE" > build/adapter_uaf_output.log 2>&1 \
+          || echo "test binary exited non-zero (expected: UAF crash) rc=$?"
+        echo "===== combined stdout+stderr (leak-check report lands here) ====="
+        cat build/adapter_uaf_output.log || true
+        echo "===== UR validation file sink ====="
+        cat build/adapter_uaf_validation.log || echo "(no validation log file)"
+    - name: Upload adapter-UAF validation log
+      if: ${{ always() && contains(inputs.changes, 'sycl') }}
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      with:
+        name: adapter_uaf_validation_log
+        path: |
+          build/adapter_uaf_output.log
+          build/adapter_uaf_validation.log
+        if-no-files-found: warn
+        retention-days: ${{ inputs.retention-days }}
     - name: check-llvm-spirv
       if: ${{ !cancelled() && contains(inputs.changes, 'llvm_spirv') }}
       run: |
