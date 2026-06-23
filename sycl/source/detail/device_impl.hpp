@@ -32,6 +32,7 @@
 #include <mutex>
 #include <shared_mutex>
 #include <utility>
+#include <vector>
 
 namespace sycl {
 inline namespace _V1 {
@@ -2305,13 +2306,17 @@ public:
   // Called by queue_impl in its constructor.
   void registerQueue(queue_impl *Q) {
     std::lock_guard<std::mutex> Lock(MQueuesMutex);
-    MQueues.insert(Q);
+    MQueues.push_back(Q);
   }
 
   // Called by queue_impl in its destructor.
   void unregisterQueue(queue_impl *Q) {
     std::lock_guard<std::mutex> Lock(MQueuesMutex);
-    MQueues.erase(Q);
+    auto It = std::find(MQueues.begin(), MQueues.end(), Q);
+    assert(It != MQueues.end() && "Queue not found in device's queue list");
+    // Swap with last element and pop — O(1) removal, order doesn't matter.
+    std::swap(*It, MQueues.back());
+    MQueues.pop_back();
   }
 
 private:
@@ -2324,7 +2329,7 @@ private:
   // Devices track a list of active queues on it, to allow for synchronization
   // with host_task and not-yet-enqueued commands.
   std::mutex MQueuesMutex;
-  std::set<queue_impl *> MQueues;
+  std::vector<queue_impl *> MQueues;
 
   // Order of caches matters! UR must come before SYCL info descriptors (because
   // get_info calls get_info_impl but the opposite never happens) and both

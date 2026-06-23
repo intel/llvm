@@ -903,17 +903,40 @@ ur_result_t UR_APICALL urUSMContextMemcpyExp(ur_context_handle_t hContext,
 
 ur_result_t urUSMHostAllocRegisterExp(
     ur_context_handle_t hContext, void *pHostMem, size_t size,
-    const ur_exp_usm_host_alloc_register_properties_t * /*pProperties*/) {
+    const ur_exp_usm_host_alloc_register_properties_t *pProperties) {
   if (!hContext->getPlatform()->ZeExternalMemoryMappingExtensionSupported) {
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  }
+  UR_ASSERT(pHostMem, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+  UR_ASSERT(size > 0, UR_RESULT_ERROR_INVALID_VALUE);
+
+  // Check that the half-open address range [pHostMem, pHostMem + size)
+  // does not wrap around the host address space.
+  uintptr_t Begin = reinterpret_cast<uintptr_t>(pHostMem);
+  UR_ASSERT(size <= std::numeric_limits<uintptr_t>::max() - Begin,
+            UR_RESULT_ERROR_INVALID_VALUE);
+
+  // The pointer and size must be aligned to the host page size.
+  const size_t PageSize = getHostPageSize();
+  if (reinterpret_cast<uintptr_t>(pHostMem) % PageSize != 0 ||
+      size % PageSize != 0) {
+    return UR_RESULT_ERROR_INVALID_VALUE;
   }
 
   ze_external_memmap_sysmem_ext_desc_t sysMemDesc = {
       ZE_STRUCTURE_TYPE_EXTERNAL_MEMMAP_SYSMEM_EXT_DESC, nullptr, pHostMem,
       size};
 
+  // Map the read-only registration flag onto the Level Zero host allocation
+  // flag, telling the driver that device access to the range is read-only.
+  ze_host_mem_alloc_flags_t hostFlags = 0;
+  if (pProperties &&
+      (pProperties->flags & UR_EXP_USM_HOST_ALLOC_REGISTER_FLAG_READ_ONLY)) {
+    hostFlags |= ZE_HOST_MEM_ALLOC_FLAG_MEM_READ_ONLY;
+  }
+
   ze_host_mem_alloc_desc_t hostDesc = {ZE_STRUCTURE_TYPE_HOST_MEM_ALLOC_DESC,
-                                       &sysMemDesc, 0};
+                                       &sysMemDesc, hostFlags};
 
   void *mappedMem = nullptr;
   ZE2UR_CALL(zeMemAllocHost,
@@ -928,6 +951,7 @@ ur_result_t urUSMHostAllocUnregisterExp(ur_context_handle_t hContext,
   if (!hContext->getPlatform()->ZeExternalMemoryMappingExtensionSupported) {
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
+  UR_ASSERT(pHostMem, UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
   ZE2UR_CALL(zeMemFree, (hContext->getZeHandle(), pHostMem));
 

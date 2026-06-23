@@ -184,10 +184,9 @@ Driver::Driver(StringRef ClangExecutable, StringRef TargetTriple,
     : Diags(Diags), VFS(std::move(VFS)), SaveOffloadCode(false), Mode(GCCMode),
       SaveTemps(SaveTempsNone), BitcodeEmbed(EmbedNone),
       Offload(OffloadHostDevice), CXX20HeaderType(HeaderMode_None),
-      ModulesModeCXX20(false), LTOMode(LTOK_None), OffloadLTOMode(LTOK_None),
-      ClangExecutable(ClangExecutable), SysRoot(DEFAULT_SYSROOT),
-      DriverTitle(Title), CCCPrintBindings(false), CCPrintOptions(false),
-      CCLogDiagnostics(false), CCGenDiagnostics(false),
+      ModulesModeCXX20(false), ClangExecutable(ClangExecutable),
+      SysRoot(DEFAULT_SYSROOT), DriverTitle(Title), CCCPrintBindings(false),
+      CCPrintOptions(false), CCLogDiagnostics(false), CCGenDiagnostics(false),
       CCPrintProcessStats(false), CCPrintInternalStats(false),
       TargetTriple(TargetTriple), Saver(Alloc), PrependArg(nullptr),
       PreferredLinker(CLANG_DEFAULT_LINKER), CheckInputsExist(true),
@@ -882,50 +881,6 @@ static llvm::Triple computeTargetTriple(const Driver &D,
   }
 
   return Target;
-}
-
-// Parse the LTO options and record the type of LTO compilation
-// based on which -f(no-)?lto(=.*)? or -f(no-)?offload-lto(=.*)?
-// option occurs last.
-static driver::LTOKind parseLTOMode(Driver &D, const llvm::opt::ArgList &Args,
-                                    OptSpecifier OptEq, OptSpecifier OptNeg) {
-  if (!Args.hasFlag(OptEq, OptNeg, false))
-    return LTOK_None;
-
-  const Arg *A = Args.getLastArg(OptEq);
-  StringRef LTOName = A->getValue();
-
-  driver::LTOKind LTOMode = llvm::StringSwitch<LTOKind>(LTOName)
-                                .Case("full", LTOK_Full)
-                                .Case("thin", LTOK_Thin)
-                                .Default(LTOK_Unknown);
-
-  if (LTOMode == LTOK_Unknown) {
-    D.Diag(diag::err_drv_unsupported_option_argument)
-        << A->getSpelling() << A->getValue();
-    return LTOK_None;
-  }
-  return LTOMode;
-}
-
-// Parse the LTO options.
-void Driver::setLTOMode(const llvm::opt::ArgList &Args) {
-  LTOMode =
-      parseLTOMode(*this, Args, options::OPT_flto_EQ, options::OPT_fno_lto);
-
-  OffloadLTOMode = parseLTOMode(*this, Args, options::OPT_foffload_lto_EQ,
-                                options::OPT_fno_offload_lto);
-
-  // Try to enable `-foffload-lto=full` if `-fopenmp-target-jit` is on.
-  if (Args.hasFlag(options::OPT_fopenmp_target_jit,
-                   options::OPT_fno_openmp_target_jit, false)) {
-    if (Arg *A = Args.getLastArg(options::OPT_foffload_lto_EQ,
-                                 options::OPT_fno_offload_lto))
-      if (OffloadLTOMode != LTOK_Full)
-        Diag(diag::err_drv_incompatible_options)
-            << A->getSpelling() << "-fopenmp-target-jit";
-    OffloadLTOMode = LTOK_Full;
-  }
 }
 
 /// Compute the desired OpenMP runtime from the flags provided.
@@ -2010,8 +1965,6 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
     else
       Offload = OffloadHostDevice;
   }
-
-  setLTOMode(Args);
 
   // Process -fembed-bitcode= flags.
   if (Arg *A = Args.getLastArg(options::OPT_fembed_bitcode_EQ)) {
@@ -4479,7 +4432,8 @@ class OffloadingActionBuilder final {
               break;
 
             CudaDeviceActions[I] = C.getDriver().ConstructPhaseAction(
-                C, Args, Ph, CudaDeviceActions[I], Action::OFK_Cuda);
+                C, Args, Ph, CudaDeviceActions[I], Action::OFK_Cuda,
+                ToolChains[I]->getLTOMode(Args, Action::OFK_Cuda));
 
             if (Ph == phases::Assemble)
               break;
@@ -4643,7 +4597,7 @@ class OffloadingActionBuilder final {
         // a fat binary containing all the code objects for different GPU's.
         // The fat binary is then an input to the host action.
         for (unsigned I = 0, E = GpuArchList.size(); I != E; ++I) {
-          if (C.getDriver().isUsingOffloadLTO()) {
+          if (ToolChains[I]->isUsingLTO(Args, AssociatedOffloadKind)) {
             // When LTO is enabled, skip the backend and assemble phases and
             // use lld to link the bitcode.
             ActionList AL;
@@ -4668,10 +4622,13 @@ class OffloadingActionBuilder final {
                                      : types::TY_LLVM_BC;
               BackendAction =
                   C.MakeAction<BackendJobAction>(CudaDeviceActions[I], Output);
-            } else
+            } else {
+              auto DevLTO =
+                  ToolChains[I]->getLTOMode(Args, AssociatedOffloadKind);
               BackendAction = C.getDriver().ConstructPhaseAction(
                   C, Args, phases::Backend, CudaDeviceActions[I],
-                  AssociatedOffloadKind);
+                  AssociatedOffloadKind, DevLTO);
+            }
             auto AssembleAction = C.getDriver().ConstructPhaseAction(
                 C, Args, phases::Assemble, BackendAction,
                 AssociatedOffloadKind);
@@ -4736,9 +4693,10 @@ class OffloadingActionBuilder final {
       }
 
       // By default, we produce an action for each device arch.
-      for (Action *&A : CudaDeviceActions)
-        A = C.getDriver().ConstructPhaseAction(C, Args, CurPhase, A,
-                                               AssociatedOffloadKind);
+      for (unsigned I = 0, E = CudaDeviceActions.size(); I != E; ++I)
+        CudaDeviceActions[I] = C.getDriver().ConstructPhaseAction(
+            C, Args, CurPhase, CudaDeviceActions[I], AssociatedOffloadKind,
+            ToolChains[I]->getLTOMode(Args, AssociatedOffloadKind));
 
       if (CompileDeviceOnly && CurPhase == FinalPhase && BundleOutput &&
           *BundleOutput) {
@@ -5017,6 +4975,9 @@ class OffloadingActionBuilder final {
     /// Flag to signal if the user requested device-only compilation.
     bool CompileDeviceOnly = false;
 
+    /// Flag to signal if the user requested host-only compilation.
+    bool CompileHostOnly = false;
+
     /// Flag to signal if the user requested the device object to be wrapped.
     bool WrapDeviceOnlyBinary = false;
 
@@ -5106,7 +5067,10 @@ class OffloadingActionBuilder final {
                       const InputList &Inputs, OffloadingActionBuilder &OAB)
         : DeviceActionBuilder(C, Args, Inputs, Action::OFK_SYCL, OAB),
           SYCLInstallation(C.getDriver(), C.getDefaultToolChain().getTriple(),
-                           Args) {}
+                           Args) {
+      CompileDeviceOnly = C.getDriver().offloadDeviceOnly();
+      CompileHostOnly = C.getDriver().offloadHostOnly();
+    }
 
     void pushForeignAction(Action *A) override {
       // Accept a foreign action from the CudaActionBuilder for compiling CUDA
@@ -5158,6 +5122,35 @@ class OffloadingActionBuilder final {
         // model.
         if (SYCLDeviceActions.empty())
           return ABRT_Success;
+
+        // When performing host only compilations, we need to perform a
+        // device compilation to create the integration header/footer, but
+        // we don't need the full device compilation - just syntax checking
+        // is sufficient to generate the integration files.
+        if (CompileHostOnly) {
+          for (auto TargetActionInfo :
+               llvm::zip(SYCLDeviceActions, SYCLTargetInfoList)) {
+            Action *&A = std::get<0>(TargetActionInfo);
+            auto &TargetInfo = std::get<1>(TargetActionInfo);
+            // Create a syntax-only compile action to generate the integration
+            // header/footer. This action compiles the source file (not a
+            // preprocessed file) to allow for proper control of diagnostics
+            // from system headers. Output type is TY_Nothing since we only
+            // want the integration header side effect, not a device binary.
+            Action *CompileAction =
+                C.MakeAction<CompileJobAction>(A, types::TY_Nothing);
+            // Add to device dependencies so it gets executed, but TY_Nothing
+            // means it won't produce output to bundle.
+            DA.add(*CompileAction, *TargetInfo.TC, TargetInfo.BoundArch,
+                   Action::OFK_SYCL);
+          }
+          // Clear device actions so they don't get processed again in
+          // appendTopLevelActions.
+          SYCLDeviceActions.clear();
+          // Host compilation will proceed normally and consume the generated
+          // integration header/footer files.
+          return ABRT_Success;
+        }
 
         Action *DeviceCompilerInput = nullptr;
         const DeviceTargetInfo &DevTarget = SYCLTargetInfoList.back();
@@ -5295,6 +5288,15 @@ class OffloadingActionBuilder final {
         // to the device tool chain.
         if (IA->getInputArg().getOption().hasFlag(options::LinkerInput))
           return ABRT_Inactive;
+
+        if (CompileHostOnly) {
+          for (auto &TargetInfo : SYCLTargetInfoList) {
+            (void)TargetInfo;
+            SYCLDeviceActions.push_back(
+                C.MakeAction<InputAction>(IA->getInputArg(), IA->getType()));
+          }
+          return ABRT_Success;
+        }
 
         std::string InputName = IA->getInputArg().getAsString(Args);
         // Objects will be consumed as part of the partial link step when
@@ -6699,8 +6701,11 @@ public:
     // bundling one in the resulting list. Otherwise, just append the device
     // actions. For device only compilation, HostAction is a null pointer,
     // therefore only do this when HostAction is not a null pointer.
+    // For host-only compilation, skip bundling even if device actions exist
+    // (they're only for integration header generation).
     if (CanUseBundler && ShouldUseBundler && HostAction &&
-        HostAction->getType() != types::TY_Nothing && !OffloadAL.empty()) {
+        HostAction->getType() != types::TY_Nothing && !OffloadAL.empty() &&
+        !C.getDriver().offloadHostOnly()) {
       // Add the host action to the list in order to create the bundling action.
       OffloadAL.push_back(HostAction);
 
@@ -6976,7 +6981,7 @@ void Driver::handleArguments(Compilation &C, DerivedArgList &Args,
         !C.getDefaultToolChain().getTriple().isSPIRV())
       Diag(clang::diag::err_drv_emit_llvm_link);
     if (C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment() &&
-        LTOMode != LTOK_None &&
+        C.getDefaultToolChain().isUsingLTO(Args) &&
         !Args.getLastArgValue(options::OPT_fuse_ld_EQ)
              .starts_with_insensitive("lld"))
       Diag(clang::diag::err_drv_lto_without_lld);
@@ -7069,8 +7074,10 @@ void Driver::handleArguments(Compilation &C, DerivedArgList &Args,
         const types::ID HeaderType = lookupHeaderTypeForSourceType(InputType);
         // Build the pipeline for the pch file.
         Action *ClangClPch = C.MakeAction<InputAction>(*InputArg, HeaderType);
+        auto HostLTO = C.getDefaultToolChain().getLTOMode(Args);
         for (phases::ID Phase : types::getCompilationPhases(HeaderType))
-          ClangClPch = ConstructPhaseAction(C, Args, Phase, ClangClPch);
+          ClangClPch = ConstructPhaseAction(C, Args, Phase, ClangClPch,
+                                            Action::OFK_None, HostLTO);
         assert(ClangClPch);
         Actions.push_back(ClangClPch);
         // The driver currently exits after the first failed command.  This
@@ -7114,6 +7121,56 @@ shouldBundleHIPAsmWithNewDriver(const Compilation &C,
   return HasAMDGCNHIPDevice;
 }
 
+/// This routine extracts individual PCH files from a fat PCH bundle.
+/// In the old offloading driver model, this routine invokes the clang
+/// offload bundler; in the new offloading driver model, it invokes the
+/// llvm offload binary.
+static void extractPCH(bool UseNewOffloadingDriver,
+                       OffloadingActionBuilder *OAB, Compilation &C,
+                       DerivedArgList &Args, ActionList &AL,
+                       const ToolChain *TC, const Arg *MainArg) {
+  if (!Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false))
+    return;
+
+  bool isIncludePCHArg = Args.hasArg(options::OPT_include_pch);
+  bool isYuArg = Args.hasArg(options::OPT__SLASH_Yu);
+  assert((isIncludePCHArg || isYuArg) && "Invalid PCH unbundle");
+  SmallString<128> PCHArgValue;
+  if (isIncludePCHArg)
+    PCHArgValue = Args.getLastArg(options::OPT_include_pch)->getValue();
+  else {
+    // /Yu accepts a header file as its argument.
+    PCHArgValue = Args.getLastArg(options::OPT__SLASH_Yu)->getValue();
+    llvm::sys::path::replace_extension(PCHArgValue, "pch");
+  }
+
+  Arg *InputArg = makeInputArg(Args, C.getDriver().getOpts(),
+                               Args.MakeArgString(PCHArgValue));
+  Action *A = C.MakeAction<InputAction>(*InputArg, types::TY_PCH);
+  if (!UseNewOffloadingDriver) {
+    assert(OAB && "Non-null builder expected in the old offload driver model");
+    auto UnbundlingHostAction =
+        C.MakeAction<OffloadUnbundlingJobAction>(A, A->getType());
+    UnbundlingHostAction->registerDependentActionInfo(
+        C.getSingleOffloadToolChain<Action::OFK_Host>(),
+        /*BoundArch=*/StringRef(), Action::OFK_Host);
+    OAB->addHostDependenceToDeviceActions(A, MainArg, Args);
+    auto PL = types::getCompilationPhases(types::TY_PCH);
+    OAB->addDeviceDependencesToHostAction(A, MainArg, phases::Compile,
+                                          PL.back(), PL);
+    AL.push_back(A);
+    OffloadAction::DeviceDependences DDep;
+    DDep.add(*UnbundlingHostAction,
+             *C.getSingleOffloadToolChain<Action::OFK_Host>(), nullptr,
+             C.getActiveOffloadKinds());
+  } else {
+    AL.push_back(A);
+    auto PackagerAction =
+        C.MakeAction<OffloadPackagerExtractJobAction>(AL, A->getType(), TC);
+    AL.push_back(PackagerAction);
+  }
+}
+
 void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
                           const InputList &Inputs, ActionList &Actions) const {
   llvm::PrettyStackTraceString CrashInfo("Building compilation actions");
@@ -7141,6 +7198,8 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
     }
     for (auto &I : Inputs) {
       std::string SrcFileName(I.second->getAsString(Args));
+      bool IsHeaderFile =
+          I.first == types::TY_CHeader || I.first == types::TY_CXXHeader;
       if ((I.first == types::TY_PP_C || I.first == types::TY_PP_CXX ||
            types::isSrcFile(I.first))) {
         // Unique ID is generated for source files and preprocessed files.
@@ -7154,7 +7213,10 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
       std::string TmpFileNameHeader;
       std::string TmpFileNameFooter;
       auto StemmedSrcFileName = llvm::sys::path::stem(SrcFileName).str();
-      if (IsSaveTemps) {
+      // If we are compiling a header file, the PCH will contain references
+      // to the integration header/footer files.  Those files need to be
+      // accessible at the time of PCH use, so they cannot be temporary.
+      if (IsSaveTemps || IsHeaderFile) {
         TmpFileNameHeader.append(C.getDriver().GetUniquePath(
             OutFileDir.c_str() + StemmedSrcFileName + "-header", "h"));
         TmpFileNameFooter.append(C.getDriver().GetUniquePath(
@@ -7165,17 +7227,24 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
         TmpFileNameFooter =
             C.getDriver().GetTemporaryPath(StemmedSrcFileName + "-footer", "h");
       }
+      // Also, do not add the integration files to the removal list.
       StringRef TmpFileHeader =
-          C.addTempFile(C.getArgs().MakeArgString(TmpFileNameHeader));
+          IsHeaderFile
+              ? C.getArgs().MakeArgString(TmpFileNameHeader)
+              : C.addTempFile(C.getArgs().MakeArgString(TmpFileNameHeader));
       StringRef TmpFileFooter =
-          C.addTempFile(C.getArgs().MakeArgString(TmpFileNameFooter));
+          IsHeaderFile
+              ? C.getArgs().MakeArgString(TmpFileNameFooter)
+              : C.addTempFile(C.getArgs().MakeArgString(TmpFileNameFooter));
       // Use of -fsycl-footer-path puts the integration footer into that
       // specified location.
       if (Arg *A = C.getArgs().getLastArg(options::OPT_fsycl_footer_path_EQ)) {
         SmallString<128> OutName(A->getValue());
         llvm::sys::path::append(OutName,
                                 llvm::sys::path::filename(TmpFileNameFooter));
-        TmpFileFooter = C.addTempFile(C.getArgs().MakeArgString(OutName));
+        TmpFileFooter = IsHeaderFile
+                            ? C.getArgs().MakeArgString(OutName)
+                            : C.addTempFile(C.getArgs().MakeArgString(OutName));
       }
       addIntegrationFiles(TmpFileHeader, TmpFileFooter, SrcFileName);
     }
@@ -7224,6 +7293,13 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
     }
 
     ActionList HIPAsmDeviceActions;
+    if (Args.hasArg(options::OPT_include_pch) ||
+        Args.getLastArg(options::OPT__SLASH_Yu)) {
+      // Extracts the fat PCH file for the host.
+      extractPCH(UseNewOffloadingDriver, OffloadBuilder.get(), C, Args, Actions,
+                 /*ToolChain=*/nullptr,
+                 UseNewOffloadingDriver ? nullptr : InputArg);
+    }
 
     // Use the current host action in any of the offloading actions, if
     // required.
@@ -7275,7 +7351,9 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
       // later actions in the same command line?
 
       // Otherwise construct the appropriate action.
-      Action *NewCurrent = ConstructPhaseAction(C, Args, Phase, Current);
+      Action *NewCurrent =
+          ConstructPhaseAction(C, Args, Phase, Current, Action::OFK_None,
+                               C.getDefaultToolChain().getLTOMode(Args));
 
       // We didn't create a new action, so we will just move to the next phase.
       if (NewCurrent == Current)
@@ -7839,7 +7917,8 @@ Driver::BuildOffloadingActions(Compilation &C, llvm::opt::DerivedArgList &Args,
   // preprocessing only ignore embedding.  When needing to do bundling for
   // SYCL, allow the building of offloading actions to add the device side to
   // the bundle.
-  if (!(isa<CompileJobAction>(HostAction) || SYCLBundleFile ||
+  if (!(isa<CompileJobAction>(HostAction) ||
+        isa<PrecompileJobAction>(HostAction) || SYCLBundleFile ||
         getFinalPhase(Args) == phases::Preprocess))
     return HostAction;
 
@@ -7849,6 +7928,7 @@ Driver::BuildOffloadingActions(Compilation &C, llvm::opt::DerivedArgList &Args,
   const Action::OffloadKind OffloadKinds[] = {
       Action::OFK_OpenMP, Action::OFK_Cuda, Action::OFK_HIP, Action::OFK_SYCL};
 
+  SmallVector<std::pair<const ToolChain *, StringRef>> TCAndArchs;
   for (Action::OffloadKind Kind : OffloadKinds) {
     SmallVector<const ToolChain *, 2> ToolChains;
     ActionList DeviceActions;
@@ -7869,7 +7949,6 @@ Driver::BuildOffloadingActions(Compilation &C, llvm::opt::DerivedArgList &Args,
       continue;
 
     // Get the product of all bound architectures and toolchains.
-    SmallVector<std::pair<const ToolChain *, StringRef>> TCAndArchs;
     for (const ToolChain *TC : ToolChains) {
       for (StringRef Arch : getOffloadArchs(C, C.getArgs(), Kind, *TC)) {
         TCAndArchs.push_back(std::make_pair(TC, Arch));
@@ -7894,6 +7973,17 @@ Driver::BuildOffloadingActions(Compilation &C, llvm::opt::DerivedArgList &Args,
         }
         DeviceActions.push_back(
             C.MakeAction<InputAction>(*InputArg, InputType, CUID));
+      }
+    }
+
+    // Unbundle the fat PCH files for the offloading devices.
+    bool isIncludePCHArg = Args.hasArg(options::OPT_include_pch);
+    bool isYuArg = Args.hasArg(options::OPT__SLASH_Yu);
+    if (isIncludePCHArg || isYuArg) {
+      for (auto *TCAndArch = TCAndArchs.begin(); TCAndArch != TCAndArchs.end();
+           ++TCAndArch) {
+        extractPCH(/*Offloading New Driver=*/true, /*Builder=*/nullptr, C, Args,
+                   OffloadActions, TCAndArch->first, nullptr);
       }
     }
 
@@ -7930,7 +8020,8 @@ Driver::BuildOffloadingActions(Compilation &C, llvm::opt::DerivedArgList &Args,
         // Propagate the ToolChain so we can use it in ConstructPhaseAction.
         A->propagateDeviceOffloadInfo(Kind, TCAndArch->second.data(),
                                       TCAndArch->first);
-        A = ConstructPhaseAction(C, Args, Phase, A, Kind);
+        A = ConstructPhaseAction(C, Args, Phase, A, Kind,
+                                 TCAndArch->first->getLTOMode(Args, Kind));
 
         if (isa<CompileJobAction>(A) && isa<CompileJobAction>(HostAction) &&
             Kind == Action::OFK_OpenMP &&
@@ -8072,6 +8163,41 @@ Driver::BuildOffloadingActions(Compilation &C, llvm::opt::DerivedArgList &Args,
              nullptr, C.getActiveOffloadKinds());
     return C.MakeAction<OffloadAction>(DDep, types::TY_Nothing);
   } else if (C.isOffloadingHostKind(Action::OFK_SYCL) &&
+             isa<PrecompileJobAction>(HostAction)) {
+    // Performing precompilation only. Take the host and device preprocessed
+    // files and package them together.
+    ActionList PackagerActions;
+    // Only add the precompile actions from the device side.  When one is
+    // found, add an additional compilation to generate the integration
+    // header/footer that is used for the host compile.
+    for (auto OA : OffloadActions) {
+      if (const OffloadAction *CurOA = dyn_cast<OffloadAction>(OA)) {
+        CurOA->doOnEachDependence(
+            [&](Action *A, const ToolChain *TC, const char *BoundArch) {
+              assert(TC && "Unknown toolchain");
+              if (isa<PrecompileJobAction>(A)) {
+                PackagerActions.push_back(OA);
+                A->setCannotBeCollapsedWithNextDependentAction();
+                // The input to the compilation job is the precompiled job.
+                // Take that input action (it should be one input) which is
+                // the source file and compile that file to generate the
+                // integration header/footer.
+                ActionList PCHInputs = A->getInputs();
+                assert(PCHInputs.size() == 1 &&
+                       "Single input size to PCH action expected.");
+                Action *CompileAction = C.MakeAction<CompileJobAction>(
+                    PCHInputs.front(), types::TY_Nothing);
+                DDeps.add(*CompileAction, *TC, BoundArch, Action::OFK_SYCL);
+              }
+            });
+      }
+    }
+    PackagerActions.push_back(HostAction);
+    Action *PackagerAction =
+        C.MakeAction<OffloadPackagerJobAction>(PackagerActions, types::TY_PCH);
+    DDeps.add(*PackagerAction, *C.getSingleOffloadToolChain<Action::OFK_Host>(),
+              nullptr, C.getActiveOffloadKinds());
+  } else if (C.isOffloadingHostKind(Action::OFK_SYCL) &&
              isa<PreprocessJobAction>(HostAction) &&
              getFinalPhase(Args) == phases::Preprocess &&
              Args.hasArg(options::OPT_o, options::OPT__SLASH_P,
@@ -8163,7 +8289,7 @@ Driver::BuildOffloadingActions(Compilation &C, llvm::opt::DerivedArgList &Args,
 
 Action *Driver::ConstructPhaseAction(
     Compilation &C, const ArgList &Args, phases::ID Phase, Action *Input,
-    Action::OffloadKind TargetDeviceOffloadKind) const {
+    Action::OffloadKind TargetDeviceOffloadKind, LTOKind TargetLTOMode) const {
   llvm::PrettyStackTraceString CrashInfo("Constructing phase actions");
 
   // Some types skip the assembler phase (e.g., llvm-bc), but we can't
@@ -8230,6 +8356,13 @@ Action *Driver::ConstructPhaseAction(
     // API extraction should not generate an actual precompilation action.
     if (Args.hasArg(options::OPT_extract_api))
       return C.MakeAction<ExtractAPIJobAction>(Input, types::TY_API_INFO);
+
+    // Standard library modules always precompile in -fmodules-driver mode,
+    // even when -fsyntax-only is specified.
+    if (Input->getType() == types::TY_CXXStdModule ||
+        Input->getType() == types::TY_PP_CXXStdModule)
+      return C.MakeAction<PrecompileJobAction>(
+          Input, getPrecompiledType(Input->getType()));
 
     // With 'fmodules-reduced-bmi', we don't want to run the
     // precompile phase unless the user specified '--precompile' or
@@ -8316,21 +8449,22 @@ Action *Driver::ConstructPhaseAction(
         !(Args.hasArg(options::OPT_S) && !Args.hasArg(options::OPT_emit_llvm)))
       return Input;
 
-    if (isUsingLTO() && TargetDeviceOffloadKind == Action::OFK_None) {
-      types::ID Output;
-      if (Args.hasArg(options::OPT_ffat_lto_objects) &&
-          !Args.hasArg(options::OPT_emit_llvm))
-        Output = types::TY_PP_Asm;
-      else if (Args.hasArg(options::OPT_S))
-        Output = types::TY_LTO_IR;
-      else
-        Output = types::TY_LTO_BC;
-      return C.MakeAction<BackendJobAction>(Input, Output);
-    }
-    if (isUsingOffloadLTO() && TargetDeviceOffloadKind != Action::OFK_None) {
+    if (TargetLTOMode != LTOK_None) {
+      bool IsDeviceOffload = TargetDeviceOffloadKind != Action::OFK_None;
+      if (!IsDeviceOffload) {
+        types::ID Output;
+        if (Args.hasArg(options::OPT_ffat_lto_objects) &&
+            !Args.hasArg(options::OPT_emit_llvm))
+          Output = types::TY_PP_Asm;
+        else if (Args.hasArg(options::OPT_S))
+          Output = types::TY_LTO_IR;
+        else
+          Output = types::TY_LTO_BC;
+        return C.MakeAction<BackendJobAction>(Input, Output);
+      }
       types::ID Output =
           Args.hasArg(options::OPT_S) ? types::TY_LTO_IR : types::TY_LTO_BC;
-      if (getUseNewOffloadingDriver() && getOffloadLTOMode() == LTOK_Thin &&
+      if (getUseNewOffloadingDriver() && TargetLTOMode == LTOK_Thin &&
           TargetDeviceOffloadKind == Action::OFK_SYCL) {
         // For SYCL with thinLTO, run sycl-post-link, extract the BC files from
         // the output table, run the backend on each output table.
@@ -8473,6 +8607,14 @@ void Driver::BuildJobs(Compilation &C) const {
       // The actions below do not increase the number of outputs.
       if (A->getKind() == clang::driver::Action::BinaryAnalyzeJobClass ||
           A->getKind() == clang::driver::Action::BinaryTranslatorJobClass)
+        continue;
+
+      // With -fmodules-driver, Standard library modules should not count toward
+      // the number of outputs, since they are implicitly added to the input
+      // list.
+      if (isa<PrecompileJobAction>(A) && !A->getInputs().empty() &&
+          (A->getInputs().front()->getType() == types::TY_CXXStdModule ||
+           A->getInputs().front()->getType() == types::TY_PP_CXXStdModule))
         continue;
 
       if (A->getType() != types::TY_Nothing &&
@@ -9408,7 +9550,8 @@ InputInfoList Driver::BuildJobsForActionNoCache(
   const ToolChain *JATC = DA ? DA->getHostTC() : TC;
 
   ToolSelector TS(JA, *JATC, C, isSaveTempsEnabled(),
-                  embedBitcodeInObject() && !isUsingLTO());
+                  embedBitcodeInObject() && !JATC->isUsingLTO(C.getArgs()));
+
   const Tool *T = TS.getTool(Inputs, CollapsedOffloadActions);
 
   if (!T)
@@ -9791,6 +9934,31 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
                                        StringRef OffloadingPrefix) const {
   std::string BoundArch = sanitizeTargetIDInFileName(OrigBoundArch);
   llvm::PrettyStackTraceString CrashInfo("Computing output path");
+
+  auto CreateTempOutputPath = [&](StringRef Prefix) {
+    const char *Suffix =
+        types::getTypeTempSuffix(JA.getType(), IsCLMode() || IsDXCMode());
+    // The non-offloading toolchain on Darwin requires deterministic input
+    // file name for binaries to be deterministic, therefore it needs unique
+    // directory.
+    const llvm::Triple Triple(C.getDriver().getTargetTriple());
+    const bool NeedUniqueDirectory =
+        (JA.getOffloadingDeviceKind() == Action::OFK_None ||
+         JA.getOffloadingDeviceKind() == Action::OFK_Host) &&
+        Triple.isOSDarwin();
+    return CreateTempFile(C, Prefix, Suffix, MultipleArchs, BoundArch,
+                          JA.getType(), NeedUniqueDirectory);
+  };
+
+  // Standard library output in -fmodules-driver?
+  if (isa<PrecompileJobAction>(JA) && !JA.getInputs().empty() &&
+      (JA.getInputs().front()->getType() == types::TY_CXXStdModule ||
+       JA.getInputs().front()->getType() == types::TY_PP_CXXStdModule)) {
+    StringRef Filename = llvm::sys::path::filename(BaseInput);
+    StringRef Stem = llvm::sys::path::stem(Filename);
+    return CreateTempOutputPath(Stem);
+  }
+
   // Output to a user requested destination?
   if (AtTopLevel && !isa<DsymutilJobAction>(JA) && !isa<VerifyJobAction>(JA)) {
     if (Arg *FinalOutput = C.getArgs().getLastArg(options::OPT_o))
@@ -9843,12 +10011,18 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
     }
   }
 
-  // When generating preprocessed files (-E) with offloading enabled, redirect
-  // the output to a properly named output file.
-  if (JA.getType() == types::TY_PP_CXX && isa<OffloadPackagerJobAction>(JA)) {
+  // When generating preprocessed files (-E) or PCH files with offloading
+  // enabled, redirect the output to a properly named output file.
+  if ((JA.getType() == types::TY_PP_CXX || JA.getType() == types::TY_PCH) &&
+      isa<OffloadPackagerJobAction>(JA)) {
     if (Arg *FinalOutput =
             C.getArgs().getLastArg(options::OPT_o, options::OPT__SLASH_o))
       return C.addResultFile(FinalOutput->getValue(), &JA);
+    if (JA.getType() == types::TY_PCH) {
+      SmallString<128> BaseName = llvm::sys::path::filename(BaseInput);
+      llvm::sys::path::replace_extension(BaseName, ".pch");
+      return C.addResultFile(C.getArgs().MakeArgString(BaseName), &JA);
+    }
   }
 
   // Default to writing to stdout?
@@ -9935,23 +10109,21 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
   const bool FoInvalidForOffload =
       HasFo && (!IsHostOffloading || isa<OffloadUnbundlingJobAction>(JA) ||
                 JA.getOffloadingHostActiveKinds() > Action::OFK_Host);
+
+  if (JA.getType() == types::TY_PCH &&
+      isa<OffloadPackagerExtractJobAction>(JA) && !SaveTempsEnabled) {
+    StringRef Name = llvm::sys::path::filename(BaseInput);
+    std::pair<StringRef, StringRef> Split = Name.split('.');
+    const char *Suffix = types::getTypeTempSuffix(JA.getType(), IsCLMode());
+    return CreateTempFile(C, Split.first, Suffix, MultipleArchs, BoundArch,
+                          JA.getType(), false);
+  }
+
   // Output to a temporary file?
   if ((!AtTopLevel && !SaveTempsEnabled && (!HasFo || FoInvalidForOffload)) ||
       CCGenDiagnostics) {
     StringRef Name = llvm::sys::path::filename(BaseInput);
-    std::pair<StringRef, StringRef> Split = Name.split('.');
-    const char *Suffix =
-        types::getTypeTempSuffix(JA.getType(), IsCLMode() || IsDXCMode());
-    // The non-offloading toolchain on Darwin requires deterministic input
-    // file name for binaries to be deterministic, therefore it needs unique
-    // directory.
-    llvm::Triple Triple(C.getDriver().getTargetTriple());
-    bool NeedUniqueDirectory =
-        (JA.getOffloadingDeviceKind() == Action::OFK_None ||
-         JA.getOffloadingDeviceKind() == Action::OFK_Host) &&
-        Triple.isOSDarwin();
-    return CreateTempFile(C, Split.first, Suffix, MultipleArchs, BoundArch,
-                          JA.getType(), NeedUniqueDirectory);
+    return CreateTempOutputPath(Name.split('.').first);
   }
 
   SmallString<128> BasePath(BaseInput);
@@ -10144,11 +10316,6 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
     }
   }
 
-  // Emit an error if PCH(Pre-Compiled Header) file generation is forced in
-  // -fsycl mode.
-  if (C.getArgs().hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false) &&
-      JA.getType() == types::TY_PCH)
-    Diag(clang::diag::err_drv_fsycl_with_pch);
   // As an annoying special case, PCH generation doesn't strip the pathname.
   if (JA.getType() == types::TY_PCH && !IsCLMode()) {
     llvm::sys::path::remove_filename(BasePath);

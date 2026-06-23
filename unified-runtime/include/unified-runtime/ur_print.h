@@ -1575,6 +1575,26 @@ UR_APIEXPORT ur_result_t UR_APICALL urPrintExpEnqueueNativeCommandProperties(
     char *buffer, const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_exp_event_flag_t enum
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL
+urPrintExpEventFlags(enum ur_exp_event_flag_t value, char *buffer,
+                     const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_exp_event_desc_t struct
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL
+urPrintExpEventDesc(const struct ur_exp_event_desc_t params, char *buffer,
+                    const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_loader_config_create_params_t struct
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -1923,6 +1943,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urPrintEventCreateWithNativeHandleParams(
 ///         - `buff_size < out_size`
 UR_APIEXPORT ur_result_t UR_APICALL urPrintEventSetCallbackParams(
     const struct ur_event_set_callback_params_t *params, char *buffer,
+    const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_event_create_exp_params_t struct
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL urPrintEventCreateExpParams(
+    const struct ur_event_create_exp_params_t *params, char *buffer,
     const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3756,6 +3786,28 @@ UR_APIEXPORT ur_result_t UR_APICALL urPrintGraphDumpContentsExpParams(
     const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_graph_get_native_handle_exp_params_t struct
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL urPrintGraphGetNativeHandleExpParams(
+    const struct ur_graph_get_native_handle_exp_params_t *params, char *buffer,
+    const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_graph_executable_graph_get_native_handle_exp_params_t struct
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL
+urPrintGraphExecutableGraphGetNativeHandleExpParams(
+    const struct ur_graph_executable_graph_get_native_handle_exp_params_t
+        *params,
+    char *buffer, const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_ipc_get_mem_handle_exp_params_t struct
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -3834,6 +3886,36 @@ UR_APIEXPORT ur_result_t UR_APICALL urPrintIpcOpenPhysMemHandleExpParams(
 UR_APIEXPORT ur_result_t UR_APICALL urPrintIpcClosePhysMemHandleExpParams(
     const struct ur_ipc_close_phys_mem_handle_exp_params_t *params,
     char *buffer, const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_ipc_get_event_handle_exp_params_t struct
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL urPrintIpcGetEventHandleExpParams(
+    const struct ur_ipc_get_event_handle_exp_params_t *params, char *buffer,
+    const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_ipc_put_event_handle_exp_params_t struct
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL urPrintIpcPutEventHandleExpParams(
+    const struct ur_ipc_put_event_handle_exp_params_t *params, char *buffer,
+    const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_ipc_open_event_handle_exp_params_t struct
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL urPrintIpcOpenEventHandleExpParams(
+    const struct ur_ipc_open_event_handle_exp_params_t *params, char *buffer,
+    const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_memory_export_alloc_exportable_memory_exp_params_t struct

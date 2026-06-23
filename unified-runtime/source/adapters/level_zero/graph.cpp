@@ -71,4 +71,22 @@ ur_result_t urGraphInstantiateGraphExp(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
+ur_result_t
+urGraphGetNativeHandleExp(ur_exp_graph_handle_t /* hGraph */,
+                          ur_native_handle_t * /* phNativeGraph */) {
+  UR_LOG_LEGACY(ERR,
+                logger::LegacyMessage("[UR][L0] {} function not implemented!"),
+                "{} function not implemented!", __FUNCTION__);
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+ur_result_t urGraphExecutableGraphGetNativeHandleExp(
+    ur_exp_executable_graph_handle_t /* hExecutableGraph */,
+    ur_native_handle_t * /* phNativeExecutableGraph */) {
+  UR_LOG_LEGACY(ERR,
+                logger::LegacyMessage("[UR][L0] {} function not implemented!"),
+                "{} function not implemented!", __FUNCTION__);
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
 } // namespace ur::level_zero

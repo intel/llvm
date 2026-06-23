@@ -8,7 +8,7 @@ This document presents an extension on top of the SYCL specification.  The goal 
 
 == Filter Selector
 
-The filter selector is a new device selector class that accepts a string of one or more filters that refine the set of devices that may be returned when the selector's `select_device` method is invoked.  Devices that match the specified filter(s) are ranked by the `default_selector` to determine which device is ultimately selected.  The `default_selector` is used to prefer an implementation's preferences for one device over another when multiple devices satisfy the provided filters.
+The filter selector is a new device selector class that accepts a string of one or more filters that refine the set of devices that the selector selects.  Devices that match the specified filter(s) are ranked by the `default_selector` to determine which device is ultimately selected.  The `default_selector` is used to prefer an implementation's preferences for one device over another when multiple devices satisfy the provided filters.
 
 === DSL for Specifying Filters
 

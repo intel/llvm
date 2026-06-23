@@ -547,10 +547,6 @@ def TargetWindowsArm64EC : TargetSpec {
   let CustomCode = [{ Target.getTriple().isWindowsArm64EC() }];
 }
 
-def TargetSupportsInitPriority : TargetSpec {
-  let CustomCode = [{ !Target.getTriple().isOSzOS() }];
-}
-
 class TargetSpecificSpelling<TargetSpec target, list<Spelling> spellings> {
   TargetSpec Target = target;
   list<Spelling> Spellings = spellings;
@@ -4014,7 +4010,7 @@ def SYCLWorkGroupSizeHint :  InheritableAttr, LanguageOptionsSpecificAttr {
   let ParseKind = "WorkGroupSizeHint";
 }
 
-def InitPriority : InheritableAttr, TargetSpecificAttr<TargetSupportsInitPriority> {
+def InitPriority : InheritableAttr {
   let Spellings = [GCC<"init_priority", /*AllowInC*/0>];
   let Args = [UnsignedArgument<"Priority">];
   let Subjects = SubjectList<[Var], ErrorDiag>;
@@ -5992,9 +5988,16 @@ def HLSLVkLocation : HLSLAnnotationAttr {
   let Documentation = [HLSLVkLocationDocs];
 }
 
-def HLSLMatrixLayout : InheritableAttr {
-  let Spellings = [CustomKeyword<"row_major">, CustomKeyword<"column_major">];
-  let Subjects = SubjectList<[Var, TypedefName, Field, Function]>;
+// `row_major` / `column_major` are HLSL keywords that select the in-memory
+// layout of a matrix-typed declaration. 
+def HLSLRowMajor : TypeAttr {
+  let Spellings = [CustomKeyword<"row_major">];
+  let LangOpts = [HLSL];
+  let Documentation = [HLSLMatrixLayoutDocs];
+}
+
+def HLSLColumnMajor : TypeAttr {
+  let Spellings = [CustomKeyword<"column_major">];
   let LangOpts = [HLSL];
   let Documentation = [HLSLMatrixLayoutDocs];
 }
