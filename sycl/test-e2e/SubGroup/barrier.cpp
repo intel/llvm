@@ -1,4 +1,4 @@
-// RUN: %{build} -Wno-error=deprecated-declarations -fsycl-device-code-split=per_kernel -o %t.out
+// RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out
 
 // XFAIL: windows && gpu-intel-gen12
@@ -18,9 +18,9 @@
 #include <numeric>
 #include <sycl/group_barrier.hpp>
 
-template <typename T, bool UseNewSyntax> class sycl_subgr;
+template <typename T> class sycl_subgr;
 using namespace sycl;
-template <typename T, bool UseNewSyntax = false>
+template <typename T>
 void check(queue &Queue, size_t G = 240, size_t L = 60) {
   try {
     nd_range<1> NdRange(G, L);
@@ -32,7 +32,7 @@ void check(queue &Queue, size_t G = 240, size_t L = 60) {
       auto addacc = addbuf.template get_access<access::mode::read_write>(cgh);
       auto sgsizeacc = sgsizebuf.get_access<access::mode::read_write>(cgh);
 
-      cgh.parallel_for<sycl_subgr<T, UseNewSyntax>>(
+      cgh.parallel_for<sycl_subgr<T>>(
           NdRange, [=](nd_item<1> NdItem) {
             sycl::sub_group SG = NdItem.get_sub_group();
             size_t lid = SG.get_local_id().get(0);
@@ -43,11 +43,7 @@ void check(queue &Queue, size_t G = 240, size_t L = 60) {
             for (size_t i = 0; i <= lid; i++) {
               res += addacc[SGoff + i];
             }
-            if constexpr (UseNewSyntax) {
-              group_barrier(SG);
-            } else {
-              SG.barrier(access::fence_space::global_space);
-            }
+            group_barrier(SG);
             addacc[gid] = res;
             if (NdItem.get_global_id(0) == 0)
               sgsizeacc[0] = SG.get_max_local_range()[0];
@@ -83,14 +79,8 @@ int main() {
   check<long>(Queue);
   check<unsigned long>(Queue);
   check<float>(Queue);
-  check<int, true>(Queue);
-  check<unsigned int, true>(Queue);
-  check<long, true>(Queue);
-  check<unsigned long, true>(Queue);
-  check<float, true>(Queue);
   if (Queue.get_device().has(sycl::aspect::fp64)) {
     check<double>(Queue);
-    check<double, true>(Queue);
   }
   std::cout << "Test passed." << std::endl;
   return 0;
