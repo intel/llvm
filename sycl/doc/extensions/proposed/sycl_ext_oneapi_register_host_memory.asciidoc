@@ -173,6 +173,15 @@ is required even when the native backend would accept a less restrictive
 alignment, and the implementation does not implicitly round the base address or
 size. _{endnote}_]
 
+[_Note:_ This extension defines registration in terms of the properties of the
+host virtual address range, not the mechanism used to allocate or map the
+memory.  For example, the range is not required to come from a C or C++
+allocator.  It may come from heap allocation, static storage, automatic storage,
+anonymous memory mapping, file-backed memory mapping, or huge-page mapping,
+provided the range satisfies the requirements above and can be registered by the
+implementation.  This extension does not guarantee support for every
+operating-system mapping type, protection mode, or backing object. _{endnote}_]
+
 '''
 
 [source,c++]
