@@ -903,7 +903,7 @@ ur_result_t UR_APICALL urUSMContextMemcpyExp(ur_context_handle_t hContext,
 
 ur_result_t urUSMHostAllocRegisterExp(
     ur_context_handle_t hContext, void *pHostMem, size_t size,
-    const ur_exp_usm_host_alloc_register_properties_t * /*pProperties*/) {
+    const ur_exp_usm_host_alloc_register_properties_t *pProperties) {
   if (!hContext->getPlatform()->ZeExternalMemoryMappingExtensionSupported) {
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
@@ -927,8 +927,16 @@ ur_result_t urUSMHostAllocRegisterExp(
       ZE_STRUCTURE_TYPE_EXTERNAL_MEMMAP_SYSMEM_EXT_DESC, nullptr, pHostMem,
       size};
 
+  // Map the read-only registration flag onto the Level Zero host allocation
+  // flag, telling the driver that device access to the range is read-only.
+  ze_host_mem_alloc_flags_t hostFlags = 0;
+  if (pProperties &&
+      (pProperties->flags & UR_EXP_USM_HOST_ALLOC_REGISTER_FLAG_READ_ONLY)) {
+    hostFlags |= ZE_HOST_MEM_ALLOC_FLAG_MEM_READ_ONLY;
+  }
+
   ze_host_mem_alloc_desc_t hostDesc = {ZE_STRUCTURE_TYPE_HOST_MEM_ALLOC_DESC,
-                                       &sysMemDesc, 0};
+                                       &sysMemDesc, hostFlags};
 
   void *mappedMem = nullptr;
   ZE2UR_CALL(zeMemAllocHost,
