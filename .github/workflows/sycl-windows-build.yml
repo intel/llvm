@@ -178,7 +178,11 @@ jobs:
       run: |        
          cmake --build build --target check-sycl
     - name: check-sycl-unittests
-      if: ${{ !cancelled() && contains(inputs.changes, 'sycl') }}
+      # DIAGNOSTIC: run unconditionally (do NOT gate on inputs.changes) so a
+      # workflow_dispatch with empty changes still produces the trace. The last
+      # dispatch passed changes='[]', which skipped every check-* step and the
+      # job came back green with no artifact.
+      if: ${{ !cancelled() }}
       # DIAGNOSTIC RUN for intel/llvm#22367 (NOT for merge).
       # Goal: capture the exact stack of the use-after-free crash that happens
       # *during* SubDevices.BuildProgramForSubSubDevices (a Managed<ur_program>
@@ -229,7 +233,7 @@ jobs:
         echo "===== console (crash stack) =====" ; cat build/adapter_uaf_console.log || true
         echo "===== adapter identity trace =====" ; cat build/adapter_uaf_diag.log || echo "(no diag log)"
     - name: Upload adapter-UAF diag
-      if: ${{ always() && contains(inputs.changes, 'sycl') }}
+      if: ${{ always() }}
       uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       with:
         name: adapter_uaf_diag
