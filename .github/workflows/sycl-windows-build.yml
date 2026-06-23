@@ -192,6 +192,16 @@ jobs:
       # the step is best-effort and tolerates the crash so the upload still runs.
       # Build only the program_manager binary (the full check-sycl-unittests
       # target builds+runs every unittest exe and was timing out).
+      # Two independent capture paths so we are NOT dependent on cdb being on the
+      # runner:
+      #   (1) If cdb.exe (Windows SDK "Debuggers" component) is present, run the
+      #       crashing test under it and print the fault stack inline.
+      #   (2) ALWAYS also arm Windows Error Reporting LocalDumps (registry-only,
+      #       built into Windows -- no tool needed) so the OS writes a full .dmp
+      #       on the crash regardless of cdb. We upload the .dmp and symbolize it
+      #       offline (pip install minidump + llvm-symbolizer --relative-address,
+      #       the recipe already used for this bug). So if cdb is missing we still
+      #       get a dump to analyze, not an empty log.
       shell: bash
       run: |
         cmake --build build --target ProgramManagerTests-Non_Preview_Tests
@@ -201,42 +211,55 @@ jobs:
         export SYCL_DEVICELIB_NO_FALLBACK=1
         export SYCL_CACHE_DIR="$(pwd)/build/sycl_cache"
         LOG="$(pwd)/build/adapter_uaf_crash.log"
+        DUMPDIR_WIN='D:\github\_work\llvm\llvm\build\crashdumps'
+        DUMPDIR_BASH="$(pwd)/build/crashdumps"
+        mkdir -p "$DUMPDIR_BASH"
+        FILTER='SubDevices.BuildProgramForSubSubDevices'
 
-        # Locate cdb.exe under the Windows Kits Debuggers component.
+        # (2) Arm WER LocalDumps for this exe (full dump). Best-effort; needs the
+        # registry write to succeed (runner is admin). DumpType=2 => full dump.
+        EXE_NAME='ProgramManagerTests-Non_Preview_Tests.exe'
+        REGKEY="HKLM\\SOFTWARE\\Microsoft\\Windows\\Windows Error Reporting\\LocalDumps\\$EXE_NAME"
+        reg.exe add "$REGKEY" /v DumpFolder /t REG_EXPAND_SZ /d "$DUMPDIR_WIN" /f || true
+        reg.exe add "$REGKEY" /v DumpType   /t REG_DWORD     /d 2             /f || true
+        reg.exe add "$REGKEY" /v DumpCount  /t REG_DWORD     /d 5             /f || true
+
+        # (1) Locate cdb.exe.
         CDB=""
         for d in "/c/Program Files (x86)/Windows Kits/10/Debuggers/x64" \
                  "/c/Program Files/Windows Kits/10/Debuggers/x64"; do
           if [ -f "$d/cdb.exe" ]; then CDB="$d/cdb.exe"; break; fi
         done
-        # Fallback: search.
         if [ -z "$CDB" ]; then
           CDB="$(find '/c/Program Files (x86)/Windows Kits' '/c/Program Files/Windows Kits' \
                   -name cdb.exe 2>/dev/null | head -n1)"
         fi
-        echo "cdb = ${CDB:-<not found>}"
+        echo "cdb = ${CDB:-<not found>}" | tee "$LOG"
 
-        FILTER='SubDevices.BuildProgramForSubSubDevices'
         if [ -n "$CDB" ]; then
-          # sxe av: break on first-chance access violation. On the break dump all
-          # thread stacks (~*kP), the faulting context (r), and !analyze -v, then
-          # continue/quit. -g -G: ignore initial/final breakpoints.
+          # sxe av: break on first-chance access violation; dump faulting context
+          # (r), faulting stack (kP), all threads (~*kP), and !analyze -v.
           "$CDB" -g -G \
             -c ".symfix; .reload; sxe av; g; .echo ===FAULT===; r; kP 200; ~*kP; !analyze -v; q" \
             "$EXE" --gtest_filter="$FILTER" --gtest_catch_exceptions=0 \
-            > "$LOG" 2>&1 || echo "cdb session exited rc=$?"
+            >> "$LOG" 2>&1 || echo "cdb session exited rc=$?" >> "$LOG"
         else
-          echo "cdb not found; running without debugger (no stack expected)" > "$LOG"
+          # No debugger: run bare so WER produces the .dmp we armed above.
+          echo "cdb not found; relying on WER LocalDumps (.dmp) instead" >> "$LOG"
           "$EXE" --gtest_filter="$FILTER" --gtest_catch_exceptions=0 >> "$LOG" 2>&1 \
-            || echo "test exited rc=$?"
+            || echo "test exited rc=$?" >> "$LOG"
         fi
-        echo "===== cdb / crash log ====="
-        cat "$LOG" || true
-    - name: Upload adapter-UAF crash log
+
+        echo "===== crash log =====" ; cat "$LOG" || true
+        echo "===== dumps produced =====" ; ls -la "$DUMPDIR_BASH" || true
+    - name: Upload adapter-UAF crash log + dump
       if: ${{ always() && contains(inputs.changes, 'sycl') }}
       uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       with:
         name: adapter_uaf_crash_log
-        path: build/adapter_uaf_crash.log
+        path: |
+          build/adapter_uaf_crash.log
+          build/crashdumps/**
         if-no-files-found: warn
         retention-days: ${{ inputs.retention-days }}
     - name: check-llvm-spirv
