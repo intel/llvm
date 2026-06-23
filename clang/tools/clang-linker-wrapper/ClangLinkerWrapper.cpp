@@ -1977,7 +1977,7 @@ Expected<std::vector<module_split::SplitModule>> runSYCLOffloadingPipeline(
   std::vector<StringRef> Modules;
   if (LinkerArgs.hasArg(OPT_no_sycl_rdc)) {
     // No need to perform any linking.
-    Modules = std::vector(InputModules.begin(), InputModules.end());
+    Modules = std::vector<StringRef>(InputModules.begin(), InputModules.end());
   } else {
     Expected<StringRef> OutputOrErr =
         sycl::linkDevice(InputModules, LinkerArgs);
