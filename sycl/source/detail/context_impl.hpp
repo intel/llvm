@@ -269,6 +269,8 @@ public:
   /// @param UrGraphHandle The native UR graph handle to deregister
   void deregisterNativeGraph(ur_exp_graph_handle_t UrGraphHandle);
 
+  bool supportsReusableEvents();
+
 private:
   bool MOwnedByRuntime;
   async_handler MAsyncHandler;
@@ -278,6 +280,7 @@ private:
   property_list MPropList;
   mutable KernelProgramCache MKernelProgramCache;
   mutable PropertySupport MSupportBufferLocationByDevices;
+  std::optional<bool> MReusableEventsSupport;
 
   // Device pools.
   // Weak_ptr preventing circular dependency between memory_pool_impl and

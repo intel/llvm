@@ -17,21 +17,34 @@ namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental {
 
-template <typename PropertyListT = empty_properties_t>
-sycl::event make_event(const sycl::context &ctxt, PropertyListT props) {
-  ur_exp_event_desc_t Desc = {};
-  std::vector<sycl::device> &ContextDevices = ctxt.get_devices();
+namespace detail {
+
+__SYCL_EXPORT sycl::event make_event(const sycl::context &ctxt,
+                                     bool enable_profiling) {
+  const auto &ContextDevices = ctxt.get_devices();
   detail::context_impl &ContextImpl = *sycl::detail::getSyclObjImpl(ctxt);
   sycl::detail::adapter_impl &Adapter = ContextImpl.getAdapter();
-  ur_event_handle_t EventHandle = nullptr;
+
+  // TODO reusable events - check platform support for per-event profiling
 
   if (ContextDevices.size() == 0) {
-    // TODO exception
+    throw sycl::exception(sycl::make_error_code(errc::runtime),
+                          "Context needs to have at least one device.");
   }
 
+  // TODO reusable events
+  if (!ContextImpl.supportsReusableEvents()) {
+    throw sycl::exception(sycl::make_error_code(errc::runtime),
+                          "Not implemented yet.");
+  }
+
+  ur_event_handle_t EventHandle = nullptr;
+  ur_exp_event_desc_t Desc = {};
   Desc.stype = UR_STRUCTURE_TYPE_EXP_EVENT_DESC;
   Desc.hDevice = detail::getSyclObjImpl(ContextDevices[0])->getHandleRef();
-  // TODO Desc.flags
+  if (enable_profiling) {
+    Desc.flags = UR_EXP_EVENT_FLAG_ENABLE_PROFILING;
+  }
 
   ur_result_t Result =
       Adapter.call_nocheck<sycl::detail::UrApiKind::urEventCreateExp>(
@@ -43,19 +56,32 @@ sycl::event make_event(const sycl::context &ctxt, PropertyListT props) {
 
   auto ResEvent = detail::event_impl::create_from_handle(EventHandle, ctxt);
   ResEvent->setStateIncomplete();
+  ResEvent->setProfilingEnabled(enable_profiling);
 
   return detail::createSyclObjFromImpl<sycl::event>(std::move(ResEvent));
 }
 
-void enqueue_wait_event(sycl::queue q, const event& evt) {
-	q.ext_oneapi_submit_barrier({evt});
+} // namespace detail
+
+__SYCL_EXPORT void enqueue_wait_event(sycl::queue q, const event &evt) {
+  q.ext_oneapi_submit_barrier({evt});
 }
 
-void enqueue_wait_events(sycl::queue q, const std::vector<event>& evts) {
-	q.ext_oneapi_submit_barrier(evts);
+__SYCL_EXPORT void enqueue_wait_events(sycl::queue q,
+                                       const std::vector<event> &evts) {
+  q.ext_oneapi_submit_barrier(evts);
 }
 
-void enqueue_signal_event(sycl::queue q, event& evt) {
+__SYCL_EXPORT void enqueue_signal_event(sycl::queue q, event &evt) {
+  detail::context_impl &ContextImpl =
+      *sycl::detail::getSyclObjImpl(q.get_context());
+
+  // TODO reusable events
+  if (!ContextImpl.supportsReusableEvents()) {
+    throw sycl::exception(sycl::make_error_code(errc::runtime),
+                          "Not implemented yet.");
+  }
+
   detail::getSyclObjImpl(q)->submit_barrier_direct_without_event(
       {}, detail::CGType::Barrier, detail::code_location::current(),
       detail::getSyclObjImpl(evt));

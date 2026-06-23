@@ -574,6 +574,25 @@ context_impl::get_default_memory_pool(const context &Context,
   return MemPoolImplPtr;
 }
 
+bool context_impl::supportsReusableEvents() {
+  if (MReusableEventsSupport) {
+    return *MReusableEventsSupport;
+  }
+
+  MReusableEventsSupport = std::all_of(
+      MDevices.cbegin(), MDevices.cend(), [this](detail::device_impl *DevImpl) {
+        bool ReusableEventsSupport = false;
+        ur_result_t Result =
+            getAdapter().call_nocheck<UrApiKind::urDeviceGetInfo>(
+                DevImpl->getHandleRef(),
+                UR_DEVICE_INFO_REUSABLE_EVENTS_SUPPORT_EXP,
+                sizeof(ReusableEventsSupport), &ReusableEventsSupport, nullptr);
+        return (Result == UR_RESULT_SUCCESS) && ReusableEventsSupport;
+      });
+
+  return *MReusableEventsSupport;
+}
+
 } // namespace detail
 } // namespace _V1
 } // namespace sycl
