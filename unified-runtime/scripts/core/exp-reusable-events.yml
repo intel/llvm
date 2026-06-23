@@ -1,0 +1,102 @@
+#
+#
+# Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+# See https://llvm.org/LICENSE.txt for license information.
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+#
+# See YaML.md for syntax definition
+#
+--- #--------------------------------------------------------------------------
+type: header
+desc: "Intel $OneApi Unified Runtime Experimental API for reusable events"
+ordinal: "100"
+
+--- #--------------------------------------------------------------------------
+type: enum
+extend: true
+typed_etors: true
+desc: "Extension enums to $x_device_info_t to support reusable events."
+name: $x_device_info_t
+etors:
+    - name: REUSABLE_EVENTS_SUPPORT_EXP
+      value: "0x2025"
+      desc: >
+            [$x_bool_t] returns true if the device supports reusable events
+            created with $xEventCreateExp and signaled by
+            $xEnqueueEventsWaitWithBarrierExt.
+
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Reusable event creation flags."
+name: $x_exp_event_flags_t
+etors:
+    - name: ENABLE_PROFILING
+      value: "$X_BIT(0)"
+      desc: >
+            Event captures UR_PROFILING_INFO_COMMAND_START and
+            UR_PROFILING_INFO_COMMAND_END timestamps when signalled.
+
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "Descriptor type for creating reusable events."
+name: $x_exp_event_desc_t
+base: $x_base_desc_t
+members:
+    - type: $x_device_handle_t
+      name: hDevice
+      desc: "[in] handle of the device object associated with this event"
+    - type: $x_exp_event_flags_t
+      name: flags
+      desc: >
+            [in] combination of event creation flags. If
+            $X_EXP_EVENT_FLAG_ENABLE_PROFILING is set, the event captures
+            UR_PROFILING_INFO_COMMAND_START and
+            UR_PROFILING_INFO_COMMAND_END timestamps when signalled. If it is
+            not set, profiling info queries on this event return
+            $X_RESULT_ERROR_PROFILING_INFO_NOT_AVAILABLE unless the queue used
+            to signal the event has profiling enabled.
+
+--- #--------------------------------------------------------------------------
+type: enum
+extend: true
+desc: "Structure type experimental enumerations"
+name: $x_structure_type_t
+etors:
+    - name: EXP_EVENT_DESC
+      desc: $x_exp_event_desc_t
+      value: "0x8000"
+
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Create a reusable event object that can be passed to $xEnqueueEventsWaitWithBarrierExt to signal work. The event is not associated with any enqueued command."
+class: $xEvent
+name: CreateExp
+details:
+    - >
+      If $X_EXP_EVENT_FLAG_ENABLE_PROFILING is set in pEventDesc->flags and the
+      platform does not support per-event profiling, the function returns
+      $X_RESULT_ERROR_UNSUPPORTED_FEATURE.
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context object"
+    - type: "const $x_exp_event_desc_t*"
+      name: pEventDesc
+      desc: "[in] pointer to event creation descriptor"
+    - type: $x_event_handle_t*
+      name: phEvent
+      desc: "[out] pointer to the handle of the event object created"
+returns:
+  - $X_RESULT_ERROR_INVALID_NULL_HANDLE:
+    - "`NULL == hContext`"
+    - "`NULL == pEventDesc->hDevice`"
+  - $X_RESULT_ERROR_INVALID_NULL_POINTER:
+    - "`NULL == pEventDesc`"
+    - "`NULL == phEvent`"
+  - $X_RESULT_ERROR_INVALID_ENUMERATION:
+    - "`$X_EXP_EVENT_FLAGS_MASK & pEventDesc->flags`"
+  - $X_RESULT_ERROR_INVALID_CONTEXT
+  - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
+    - "`pEventDesc->flags & $X_EXP_EVENT_FLAG_ENABLE_PROFILING` and the platform does not support per-event profiling"
+  - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+  - $X_RESULT_ERROR_OUT_OF_RESOURCES
