@@ -1283,6 +1283,16 @@ ur_result_t urDeviceGetInfo(
     // L0 supports importing external memory.
     return ReturnValue(true);
   }
+  case UR_DEVICE_INFO_USM_HOST_ALLOC_REGISTER_SUPPORT_EXP: {
+#if defined(UR_ADAPTER_LEVEL_ZERO_V2) && defined(__linux__)
+    // Registering existing host memory as a USM host allocation relies on the
+    // external system memory mapping extension being supported by the driver.
+    return ReturnValue(
+        Device->Platform->ZeExternalMemoryMappingExtensionSupported);
+#else
+    return ReturnValue(false);
+#endif
+  }
   case UR_DEVICE_INFO_EXTERNAL_SEMAPHORE_IMPORT_SUPPORT_EXP: {
     return ReturnValue(Device->Platform->ZeExternalSemaphoreExt.Supported);
   }

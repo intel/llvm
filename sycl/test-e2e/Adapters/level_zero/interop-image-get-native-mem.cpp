@@ -1,5 +1,5 @@
 // REQUIRES: target-spir, level_zero, level_zero_dev_kit, aspect-ext_intel_legacy_image
-// RUN: %{build} %level_zero_options -o %t.out
+// RUN: %{build} %level_zero_options -o %t.out -Wno-error=deprecated-declarations
 // RUN: %{run} %t.out 2>&1 | FileCheck %s
 
 // spir-v gen for legacy images at O0 not working

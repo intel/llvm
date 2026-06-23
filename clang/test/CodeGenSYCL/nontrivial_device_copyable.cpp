@@ -32,4 +32,4 @@ int main() {
 // CHECK: define {{.*}}spir_func void @_Z11device_func20NontriviallyCopyable(ptr noundef dead_on_return %X)
 // CHECK: %X.indirect_addr = alloca ptr addrspace(4)
 // CHECK: %X.ascast = addrspacecast ptr %X to ptr addrspace(4)
-// CHECK: store ptr addrspace(4) %X.ascast, ptr %X.indirect_addr
+// CHECK: store ptr %X, ptr %X.indirect_addr

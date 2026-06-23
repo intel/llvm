@@ -170,6 +170,7 @@ TEST_F(IPCTests, IPCOpenCloseDeprecated) {
   EXPECT_EQ(urIPCCloseMemHandleExp_counter, 1);
 }
 
+#if __cpp_lib_span
 TEST_F(IPCTests, IPCOpenCloseViewDeprecated) {
   syclexp::ipc_memory::handle_data_view_t HandleDataView{DummyHandleData,
                                                          DummyHandleDataSize};
@@ -191,6 +192,7 @@ TEST_F(IPCTests, IPCOpenCloseViewDeprecated) {
   EXPECT_EQ(urIPCOpenMemHandleExp_counter, 1);
   EXPECT_EQ(urIPCCloseMemHandleExp_counter, 1);
 }
+#endif
 
 TEST_F(IPCTests, IPCGetPutImplicit) {
   syclexp::ipc::handle IPCMemHandle = syclexp::ipc::memory::get(DummyPtr, Ctxt);
@@ -252,6 +254,7 @@ TEST_F(IPCTests, IPCOpenClose) {
   EXPECT_EQ(urIPCCloseMemHandleExp_counter, 1);
 }
 
+#if __cpp_lib_span
 TEST_F(IPCTests, IPCOpenCloseView) {
   syclexp::ipc::handle_data_view_t HandleDataView{DummyHandleData,
                                                   DummyHandleDataSize};
@@ -273,5 +276,6 @@ TEST_F(IPCTests, IPCOpenCloseView) {
   EXPECT_EQ(urIPCOpenMemHandleExp_counter, 1);
   EXPECT_EQ(urIPCCloseMemHandleExp_counter, 1);
 }
+#endif
 
 } // namespace
