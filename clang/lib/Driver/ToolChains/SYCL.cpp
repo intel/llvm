@@ -1501,9 +1501,8 @@ SYCLToolChain::SYCLToolChain(const Driver &D, const llvm::Triple &Triple,
 
 void SYCLToolChain::addClangTargetOptions(
     const llvm::opt::ArgList &DriverArgs, llvm::opt::ArgStringList &CC1Args,
-    llvm::StringRef BoundArch, Action::OffloadKind DeviceOffloadingKind) const {
-  HostTC.addClangTargetOptions(DriverArgs, CC1Args, BoundArch,
-                               DeviceOffloadingKind);
+    BoundArch BA, Action::OffloadKind DeviceOffloadingKind) const {
+  HostTC.addClangTargetOptions(DriverArgs, CC1Args, BA, DeviceOffloadingKind);
 
   if (DeviceOffloadingKind == Action::OFK_SYCL &&
       !getTriple().isSPIROrSPIRV()) {
@@ -1518,7 +1517,7 @@ void SYCLToolChain::addClangTargetOptions(
     return;
 
   llvm::SmallVector<BitCodeLibraryInfo, 12> BCLibs;
-  BCLibs.append(SYCLToolChain::getDeviceLibs(DriverArgs, BoundArch, DeviceOffloadingKind));
+  BCLibs.append(SYCLToolChain::getDeviceLibs(DriverArgs, BA, DeviceOffloadingKind));
   for (const auto &BCFile : BCLibs) {
     CC1Args.push_back(BCFile.ShouldInternalize ? "-mlink-builtin-bitcode"
                                                : "-mlink-bitcode-file");
@@ -1538,10 +1537,9 @@ void SYCLToolChain::addClangTargetOptions(
 
 llvm::opt::DerivedArgList *
 SYCLToolChain::TranslateArgs(const llvm::opt::DerivedArgList &Args,
-                             StringRef BoundArch,
+                             BoundArch BA,
                              Action::OffloadKind DeviceOffloadKind) const {
-  DerivedArgList *DAL =
-      HostTC.TranslateArgs(Args, BoundArch, DeviceOffloadKind);
+  DerivedArgList *DAL = HostTC.TranslateArgs(Args, BA, DeviceOffloadKind);
 
   bool IsNewDAL = false;
   if (!DAL) {
@@ -1581,10 +1579,10 @@ SYCLToolChain::TranslateArgs(const llvm::opt::DerivedArgList &Args,
   }
 
   const OptTable &Opts = getDriver().getOpts();
-  if (!BoundArch.empty()) {
+  if (BA) {
     DAL->eraseArg(options::OPT_march_EQ);
     DAL->AddJoinedArg(nullptr, Opts.getOption(options::OPT_march_EQ),
-                      BoundArch);
+                      BA.ArchName);
   }
   return DAL;
 }

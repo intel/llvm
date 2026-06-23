@@ -238,7 +238,7 @@ HIPAMDToolChain::HIPAMDToolChain(const Driver &D, const llvm::Triple &Triple,
 
 void HIPAMDToolChain::addClangTargetOptions(
     const llvm::opt::ArgList &DriverArgs, llvm::opt::ArgStringList &CC1Args,
-    llvm::StringRef BoundArch, Action::OffloadKind DeviceOffloadingKind) const {
+    BoundArch BA, Action::OffloadKind DeviceOffloadingKind) const {
   assert((DeviceOffloadingKind == Action::OFK_HIP ||
           DeviceOffloadingKind == Action::OFK_SYCL) &&
          "Only HIP and SYCL offloading kinds are supported for GPUs.");
@@ -291,8 +291,7 @@ void HIPAMDToolChain::addClangTargetOptions(
                                          HostTC.getTriple(), CC1Args);
   }
 
-  for (auto BCFile :
-       getDeviceLibs(DriverArgs, BoundArch, DeviceOffloadingKind)) {
+  for (auto BCFile : getDeviceLibs(DriverArgs, BA, DeviceOffloadingKind)) {
     CC1Args.push_back(BCFile.ShouldInternalize ? "-mlink-builtin-bitcode"
                                                : "-mlink-bitcode-file");
     CC1Args.push_back(DriverArgs.MakeArgStringRef(BCFile.Path));
@@ -301,10 +300,10 @@ void HIPAMDToolChain::addClangTargetOptions(
 
 llvm::opt::DerivedArgList *
 HIPAMDToolChain::TranslateArgs(const llvm::opt::DerivedArgList &Args,
-                               StringRef BoundArch,
+                               BoundArch BA,
                                Action::OffloadKind DeviceOffloadKind) const {
   llvm::opt::DerivedArgList *DAL =
-      ROCMToolChain::TranslateArgs(Args, BoundArch, DeviceOffloadKind);
+      ROCMToolChain::TranslateArgs(Args, BA, DeviceOffloadKind);
 
   return DAL;
 }
@@ -360,9 +359,9 @@ VersionTuple HIPAMDToolChain::computeMSVCVersion(const Driver *D,
 
 llvm::SmallVector<ToolChain::BitCodeLibraryInfo, 12>
 HIPAMDToolChain::getDeviceLibs(const llvm::opt::ArgList &DriverArgs,
-                               llvm::StringRef BoundArch,
+                               BoundArch BA,
                                Action::OffloadKind DeviceOffloadingKind) const {
-  assert(!BoundArch.empty() && "Must have an explicit GPU arch.");
+  assert(BA && "Must have an explicit GPU arch.");
 
   llvm::SmallVector<BitCodeLibraryInfo, 12> BCLibs;
   const llvm::Triple &TT = getEffectiveTriple();
@@ -372,7 +371,7 @@ HIPAMDToolChain::getDeviceLibs(const llvm::opt::ArgList &DriverArgs,
       TT.getEnvironment() == llvm::Triple::LLVM)
     return {};
 
-  StringRef GpuArch = getProcessorFromTargetID(getTriple(), BoundArch);
+  StringRef GpuArch = getProcessorFromTargetID(getTriple(), BA.ArchName);
   if (GpuArch == "amdgcnspirv")
     return {};
 
@@ -410,7 +409,7 @@ HIPAMDToolChain::getDeviceLibs(const llvm::opt::ArgList &DriverArgs,
     }
 
     // Add common device libraries like ocml etc.
-    for (auto N : getCommonDeviceLibNames(DriverArgs, BoundArch, GpuArch,
+    for (auto N : getCommonDeviceLibNames(DriverArgs, BA.ArchName, GpuArch,
                                           DeviceOffloadingKind))
       BCLibs.emplace_back(N);
 
