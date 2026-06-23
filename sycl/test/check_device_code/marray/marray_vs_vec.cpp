@@ -636,7 +636,7 @@ SYCL_EXTERNAL vec<std::int8_t, 8> bitnot_i8x8_vec(vec<std::int8_t, 8> a) {
 
 //
 SYCL_EXTERNAL
-    marray<std::int8_t, 8>
+marray<std::int8_t, 8>
 // CHECK-LABEL: @_Z16bitnot_i8x8_marrN4sycl3_V16marrayIaLm8EEE(
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META168:![0-9]+]])
@@ -652,7 +652,7 @@ SYCL_EXTERNAL
 // Non-standard size - should use loop
 //
 SYCL_EXTERNAL
-    marray<std::int8_t, 7>
+marray<std::int8_t, 7>
 // CHECK-LABEL: @_Z16bitnot_i8x7_marrN4sycl3_V16marrayIaLm7EEE(
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META171:![0-9]+]])
