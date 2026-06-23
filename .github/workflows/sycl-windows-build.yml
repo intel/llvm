@@ -202,13 +202,18 @@ jobs:
       #       offline (pip install minidump + llvm-symbolizer --relative-address,
       #       the recipe already used for this bug). So if cdb is missing we still
       #       get a dump to analyze, not an empty log.
+      # The crash site is already known (~Managed<ur_program> releasing through an
+      # adapter whose func-ptr table is null). This run answers WHICH adapter:
+      # SYCL_TRACE_ADAPTER_UAF makes adapter_impl ctor/dtor register/unregister in
+      # a live set and ~Managed emit, before releasing, whether its adapter
+      # pointer is still live. LIVE=0 STALE_OR_FREED => use-after-free / two-adapter
+      # lifetime bug; LIVE=1 with a null firstFuncPtr => a live but reset/unpopulated
+      # adapter. My getenv takes the path literally (no UR ':' parsing issue), so a
+      # Windows path is fine here. set +e: the test still crashes (SEH), tolerate it.
       shell: bash
+      env:
+        SYCL_TRACE_ADAPTER_UAF: ${{ github.workspace }}\build\adapter_uaf_diag.log
       run: |
-        # GitHub runs bash with `-e -o pipefail`; this is a best-effort
-        # diagnostic where several probes (reg.exe, find on a missing path, the
-        # expected crash) return nonzero on purpose. Disable -e/pipefail so an
-        # intermediate failure does not abort the step before we run the test and
-        # write/upload the log.
         set +e +o pipefail
         cmake --build build --target ProgramManagerTests-Non_Preview_Tests
         EXE="$(pwd)/build/tools/sycl/unittests/program_manager/ProgramManagerTests-Non_Preview_Tests.exe"
@@ -216,62 +221,21 @@ jobs:
         export SYCL_CONFIG_FILE_NAME=null.cfg
         export SYCL_DEVICELIB_NO_FALLBACK=1
         export SYCL_CACHE_DIR="$(pwd)/build/sycl_cache"
-        LOG="$(pwd)/build/adapter_uaf_crash.log"
-        DUMPDIR_WIN='D:\github\_work\llvm\llvm\build\crashdumps'
-        DUMPDIR_BASH="$(pwd)/build/crashdumps"
-        mkdir -p "$DUMPDIR_BASH"
-        FILTER='SubDevices.BuildProgramForSubSubDevices'
-
-        # (2) Arm WER LocalDumps for this exe (full dump). Best-effort; needs the
-        # registry write to succeed (runner is admin). DumpType=2 => full dump.
-        # MSYS2_ARG_CONV_EXCL='*' stops Git-bash from path-mangling reg's
-        # /v /t /d /f switches (which produced "ERROR: Invalid syntax").
-        EXE_NAME='ProgramManagerTests-Non_Preview_Tests.exe'
-        REGKEY="HKLM\\SOFTWARE\\Microsoft\\Windows\\Windows Error Reporting\\LocalDumps\\$EXE_NAME"
-        export MSYS2_ARG_CONV_EXCL='*'
-        reg.exe add "$REGKEY" /v DumpFolder /t REG_EXPAND_SZ /d "$DUMPDIR_WIN" /f || true
-        reg.exe add "$REGKEY" /v DumpType   /t REG_DWORD     /d 2             /f || true
-        reg.exe add "$REGKEY" /v DumpCount  /t REG_DWORD     /d 5             /f || true
-
-        # (1) Locate cdb.exe.
-        CDB=""
-        for d in "/c/Program Files (x86)/Windows Kits/10/Debuggers/x64" \
-                 "/c/Program Files/Windows Kits/10/Debuggers/x64"; do
-          if [ -f "$d/cdb.exe" ]; then CDB="$d/cdb.exe"; break; fi
-        done
-        if [ -z "$CDB" ]; then
-          for base in '/c/Program Files (x86)/Windows Kits' '/c/Program Files/Windows Kits'; do
-            [ -d "$base" ] || continue
-            CDB="$(find "$base" -name cdb.exe 2>/dev/null | head -n1)"
-            [ -n "$CDB" ] && break
-          done
-        fi
-        echo "cdb = ${CDB:-<not found>}" | tee "$LOG"
-
-        if [ -n "$CDB" ]; then
-          # sxe av: break on first-chance access violation; dump faulting context
-          # (r), faulting stack (kP), all threads (~*kP), and !analyze -v.
-          "$CDB" -g -G \
-            -c ".symfix; .reload; sxe av; g; .echo ===FAULT===; r; kP 200; ~*kP; !analyze -v; q" \
-            "$EXE" --gtest_filter="$FILTER" --gtest_catch_exceptions=0 \
-            >> "$LOG" 2>&1 || echo "cdb session exited rc=$?" >> "$LOG"
-        else
-          # No debugger: run bare so WER produces the .dmp we armed above.
-          echo "cdb not found; relying on WER LocalDumps (.dmp) instead" >> "$LOG"
-          "$EXE" --gtest_filter="$FILTER" --gtest_catch_exceptions=0 >> "$LOG" 2>&1 \
-            || echo "test exited rc=$?" >> "$LOG"
-        fi
-
-        echo "===== crash log =====" ; cat "$LOG" || true
-        echo "===== dumps produced =====" ; ls -la "$DUMPDIR_BASH" || true
-    - name: Upload adapter-UAF crash log + dump
+        # --gtest_catch_exceptions=0 lets the in-process LLVM signal handler print
+        # the symbolized crash stack; combined with the diag trace below it.
+        "$EXE" --gtest_filter='SubDevices.BuildProgramForSubSubDevices' \
+               --gtest_catch_exceptions=0 > build/adapter_uaf_console.log 2>&1
+        echo "test exited rc=$?"
+        echo "===== console (crash stack) =====" ; cat build/adapter_uaf_console.log || true
+        echo "===== adapter identity trace =====" ; cat build/adapter_uaf_diag.log || echo "(no diag log)"
+    - name: Upload adapter-UAF diag
       if: ${{ always() && contains(inputs.changes, 'sycl') }}
       uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       with:
-        name: adapter_uaf_crash_log
+        name: adapter_uaf_diag
         path: |
-          build/adapter_uaf_crash.log
-          build/crashdumps/**
+          build/adapter_uaf_diag.log
+          build/adapter_uaf_console.log
         if-no-files-found: warn
         retention-days: ${{ inputs.retention-days }}
     - name: check-llvm-spirv
