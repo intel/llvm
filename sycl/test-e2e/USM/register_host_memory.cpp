@@ -23,6 +23,7 @@
 
 #if defined(_WIN32)
 #include <malloc.h>
+#include <windows.h>
 #else
 #include <unistd.h>
 #endif

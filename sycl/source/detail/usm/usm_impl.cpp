@@ -20,8 +20,16 @@
 
 #include <array>
 #include <cassert>
+#include <cstdint>
 #include <cstdlib>
+#include <limits>
 #include <memory>
+
+#ifdef _WIN32
+#include <windows.h>
+#else
+#include <unistd.h>
+#endif
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 // Include the headers necessary for emitting
@@ -614,6 +622,16 @@ void release_from_device_copy(const void *Ptr, const queue &Queue) {
 
 namespace detail {
 
+static size_t getHostPageSize() {
+#ifdef _WIN32
+  SYSTEM_INFO Info;
+  GetSystemInfo(&Info);
+  return static_cast<size_t>(Info.dwPageSize);
+#else
+  return static_cast<size_t>(sysconf(_SC_PAGESIZE));
+#endif
+}
+
 // Throws errc::feature_not_supported unless every device in the context
 // reports aspect::ext_oneapi_register_host_memory.
 static void checkRegisterHostMemorySupport(const context &Ctxt) {
@@ -654,6 +672,20 @@ void register_host_memory(void *Ptr, size_t NumBytes, const context &Ctxt,
   if (NumBytes == 0)
     throw sycl::exception(make_error_code(errc::invalid),
                           "register_host_memory: size must not be zero.");
+  const size_t PageSize = getHostPageSize();
+  if (reinterpret_cast<uintptr_t>(Ptr) % PageSize != 0)
+    throw sycl::exception(
+        make_error_code(errc::invalid),
+        "register_host_memory: pointer must be aligned to the host page size.");
+  if (NumBytes % PageSize != 0)
+    throw sycl::exception(
+        make_error_code(errc::invalid),
+        "register_host_memory: size must be a multiple of the host page size.");
+  if (NumBytes >
+      std::numeric_limits<uintptr_t>::max() - reinterpret_cast<uintptr_t>(Ptr))
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "register_host_memory: range is not representable in "
+                          "the host address space.");
   checkRegisterHostMemorySupport(Ctxt);
 
   ur_exp_usm_host_alloc_register_properties_t Props = {

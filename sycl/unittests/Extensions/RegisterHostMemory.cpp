@@ -13,15 +13,32 @@
 
 #include <helpers/UrMock.hpp>
 #include <sycl/detail/core.hpp>
+#include <sycl/detail/os_util.hpp>
 #include <sycl/ext/oneapi/experimental/register_host_memory.hpp>
 #include <sycl/usm.hpp>
 
 #include <cstring>
 
+#ifdef _WIN32
+#include <windows.h>
+#else
+#include <unistd.h>
+#endif
+
 using namespace sycl;
 namespace syclexp = sycl::ext::oneapi::experimental;
 
 namespace {
+
+static size_t getHostPageSize() {
+#ifdef _WIN32
+  SYSTEM_INFO Info;
+  GetSystemInfo(&Info);
+  return static_cast<size_t>(Info.dwPageSize);
+#else
+  return static_cast<size_t>(sysconf(_SC_PAGESIZE));
+#endif
+}
 
 // Whether the mock device should advertise support for host memory
 // registration via aspect::ext_oneapi_register_host_memory.
@@ -102,29 +119,31 @@ protected:
 // A successful registration forwards the exact pointer and size to UR and a
 // matching unregistration forwards the same pointer.
 TEST_F(RegisterHostMemoryTests, RegisterAndUnregisterForwardArguments) {
-  int Storage = 0;
-  void *Ptr = &Storage;
-  constexpr size_t Size = 4096;
+  const size_t PageSize = getHostPageSize();
+  void *Ptr = detail::OSUtil::alignedAlloc(PageSize, PageSize);
+  ASSERT_NE(Ptr, nullptr);
 
-  syclexp::register_host_memory(Ptr, Size, Ctxt);
+  syclexp::register_host_memory(Ptr, PageSize, Ctxt);
   EXPECT_EQ(RegisterCallCount, 1);
   EXPECT_EQ(LastRegisterPtr, Ptr);
-  EXPECT_EQ(LastRegisterSize, Size);
+  EXPECT_EQ(LastRegisterSize, PageSize);
   // No properties passed: no registration flags should be set.
   EXPECT_EQ(LastRegisterFlags, 0u);
 
   syclexp::unregister_host_memory(Ptr, Ctxt);
   EXPECT_EQ(UnregisterCallCount, 1);
   EXPECT_EQ(LastUnregisterPtr, Ptr);
+
+  detail::OSUtil::alignedFree(Ptr);
 }
 
 // The read_only property is lowered to the UR read-only registration flag.
 TEST_F(RegisterHostMemoryTests, ReadOnlyPropertyLowersToFlag) {
-  int Storage = 0;
-  void *Ptr = &Storage;
-  constexpr size_t Size = 4096;
+  const size_t PageSize = getHostPageSize();
+  void *Ptr = detail::OSUtil::alignedAlloc(PageSize, PageSize);
+  ASSERT_NE(Ptr, nullptr);
 
-  syclexp::register_host_memory(Ptr, Size, Ctxt,
+  syclexp::register_host_memory(Ptr, PageSize, Ctxt,
                                 syclexp::properties{syclexp::read_only});
   EXPECT_EQ(RegisterCallCount, 1);
   EXPECT_TRUE(LastRegisterFlags &
@@ -132,6 +151,8 @@ TEST_F(RegisterHostMemoryTests, ReadOnlyPropertyLowersToFlag) {
 
   syclexp::unregister_host_memory(Ptr, Ctxt);
   EXPECT_EQ(UnregisterCallCount, 1);
+
+  detail::OSUtil::alignedFree(Ptr);
 }
 
 // A null pointer is rejected with errc::invalid before reaching UR.
@@ -172,25 +193,30 @@ TEST_F(RegisterHostMemoryTests, UnregisterNullThrowsInvalid) {
 // errc::feature_not_supported and does not reach UR.
 TEST_F(RegisterHostMemoryTests, UnsupportedDeviceThrowsFeatureNotSupported) {
   DeviceSupportsRegister = false;
-  int Storage = 0;
+  const size_t PageSize = getHostPageSize();
+  void *Ptr = detail::OSUtil::alignedAlloc(PageSize, PageSize);
+  ASSERT_NE(Ptr, nullptr);
   try {
-    syclexp::register_host_memory(&Storage, 4096, Ctxt);
+    syclexp::register_host_memory(Ptr, PageSize, Ctxt);
     FAIL() << "Expected an exception.";
   } catch (const sycl::exception &E) {
     EXPECT_EQ(E.code(), make_error_code(errc::feature_not_supported));
   }
   EXPECT_EQ(RegisterCallCount, 0);
+  detail::OSUtil::alignedFree(Ptr);
 }
 
 // The runtime maps a UR INVALID_VALUE result from either registration API to
 // errc::invalid. The result is injected via the mock to test the mapping in
 // isolation.
 TEST_F(RegisterHostMemoryTests, BackendInvalidValueMapsToInvalid) {
-  int Storage = 0;
+  const size_t PageSize = getHostPageSize();
+  void *Ptr = detail::OSUtil::alignedAlloc(PageSize, PageSize);
+  ASSERT_NE(Ptr, nullptr);
 
   RegisterResult = UR_RESULT_ERROR_INVALID_VALUE;
   try {
-    syclexp::register_host_memory(&Storage, 4096, Ctxt);
+    syclexp::register_host_memory(Ptr, PageSize, Ctxt);
     FAIL() << "Expected an exception.";
   } catch (const sycl::exception &E) {
     EXPECT_EQ(E.code(), make_error_code(errc::invalid));
@@ -198,11 +224,13 @@ TEST_F(RegisterHostMemoryTests, BackendInvalidValueMapsToInvalid) {
 
   UnregisterResult = UR_RESULT_ERROR_INVALID_VALUE;
   try {
-    syclexp::unregister_host_memory(&Storage, Ctxt);
+    syclexp::unregister_host_memory(Ptr, Ctxt);
     FAIL() << "Expected an exception.";
   } catch (const sycl::exception &E) {
     EXPECT_EQ(E.code(), make_error_code(errc::invalid));
   }
+
+  detail::OSUtil::alignedFree(Ptr);
 }
 
 } // namespace
