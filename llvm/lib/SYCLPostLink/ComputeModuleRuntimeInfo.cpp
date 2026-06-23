@@ -248,11 +248,12 @@ PropSetRegTy computeModuleProperties(const Module &M,
       if (!GV.hasExternalLinkage())
         continue;
 
+      if (!isa<StructType>(GV.getValueType())
+        continue;
+
       // Check if it's a device_global by type name (declarations don't have
       // attributes).
-      std::string TypeName;
-      raw_string_ostream(TypeName) << *GV.getValueType();
-
+      StringRef TypeName = GV.getValueType()->getStructName();
       if (TypeName.find("device_global") == std::string::npos)
         continue;
 
