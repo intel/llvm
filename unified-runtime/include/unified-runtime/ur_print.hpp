@@ -12533,8 +12533,8 @@ inline ur_result_t printFlag<ur_exp_program_flag_t>(std::ostream &os,
 inline std::ostream &
 operator<<(std::ostream &os, enum ur_exp_usm_host_alloc_register_flag_t value) {
   switch (value) {
-  case UR_EXP_USM_HOST_ALLOC_REGISTER_FLAG_TBD:
-    os << "UR_EXP_USM_HOST_ALLOC_REGISTER_FLAG_TBD";
+  case UR_EXP_USM_HOST_ALLOC_REGISTER_FLAG_READ_ONLY:
+    os << "UR_EXP_USM_HOST_ALLOC_REGISTER_FLAG_READ_ONLY";
     break;
   default:
     os << "unknown enumerator";
@@ -12553,15 +12553,15 @@ printFlag<ur_exp_usm_host_alloc_register_flag_t>(std::ostream &os,
   uint32_t val = flag;
   bool first = true;
 
-  if ((val & UR_EXP_USM_HOST_ALLOC_REGISTER_FLAG_TBD) ==
-      (uint32_t)UR_EXP_USM_HOST_ALLOC_REGISTER_FLAG_TBD) {
-    val ^= (uint32_t)UR_EXP_USM_HOST_ALLOC_REGISTER_FLAG_TBD;
+  if ((val & UR_EXP_USM_HOST_ALLOC_REGISTER_FLAG_READ_ONLY) ==
+      (uint32_t)UR_EXP_USM_HOST_ALLOC_REGISTER_FLAG_READ_ONLY) {
+    val ^= (uint32_t)UR_EXP_USM_HOST_ALLOC_REGISTER_FLAG_READ_ONLY;
     if (!first) {
       os << " | ";
     } else {
       first = false;
     }
-    os << UR_EXP_USM_HOST_ALLOC_REGISTER_FLAG_TBD;
+    os << UR_EXP_USM_HOST_ALLOC_REGISTER_FLAG_READ_ONLY;
   }
   if (val != 0) {
     std::bitset<32> bits(val);
