@@ -52,6 +52,17 @@ static void diagAppend(const char *Text, size_t Len) {
 #endif
 }
 
+// DIAGNOSTIC (intel/llvm#22367): emit an arbitrary, already-formatted line to
+// the trace file. Used by global_handler.cpp to log GlobalHandler construction /
+// resetGlobalHandler / adapter-owning-instance during static init. No-op unless
+// SYCL_TRACE_ADAPTER_UAF is set.
+void diagTraceLine(const char *Msg) {
+  if (!std::getenv("SYCL_TRACE_ADAPTER_UAF"))
+    return;
+  diagAppend(Msg, std::strlen(Msg));
+  diagAppend("\n", 1);
+}
+
 // Live adapter_impl pointers. Used to decide whether a Managed's adapter pointer
 // is safe to dereference (still constructed) or stale (already destroyed).
 static std::mutex &diagMutex() {

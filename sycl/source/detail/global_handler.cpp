@@ -28,6 +28,7 @@
 #include <windows.h>
 #endif
 
+#include <cstdio>
 #include <vector>
 
 namespace sycl {
@@ -74,8 +75,24 @@ private:
 };
 std::atomic_uint ObjectUsageCounter::MCounter{0};
 
-GlobalHandler::GlobalHandler() = default;
-GlobalHandler::~GlobalHandler() = default;
+// DIAGNOSTIC (intel/llvm#22367): format+emit a trace line via the adapter_impl
+// trace sink. No-op unless SYCL_TRACE_ADAPTER_UAF is set.
+static void diagGH(const char *Event, const void *P1, const void *P2 = nullptr) {
+  char Buf[160];
+  std::snprintf(Buf, sizeof(Buf), "GH_%s p1=%p p2=%p", Event, P1, P2);
+  diagTraceLine(Buf);
+}
+
+GlobalHandler::GlobalHandler() { diagGH("CTOR", this); }
+GlobalHandler::~GlobalHandler() { diagGH("DTOR", this); }
+
+void GlobalHandler::resetGlobalHandler() {
+  // DIAGNOSTIC (intel/llvm#22367): log the swap. The old handler is leaked (not
+  // torn down) even though it may still own live adapters / program manager.
+  diagGH("RESET_OLD", RTGlobalObjHandler);
+  RTGlobalObjHandler = new GlobalHandler();
+  diagGH("RESET_NEW", RTGlobalObjHandler);
+}
 
 void GlobalHandler::TraceEventXPTI(const char *Message) {
   if (!Message)
@@ -198,6 +215,10 @@ std::mutex &GlobalHandler::getFilterMutex() {
 std::vector<adapter_impl *> &GlobalHandler::getAdapters() {
   static std::vector<adapter_impl *> &adapters = getOrCreate(MAdapters);
   enableOnCrashStackPrinting();
+  // DIAGNOSTIC (intel/llvm#22367): record which GlobalHandler instance owns this
+  // MAdapters vector, and that instance vs the current RTGlobalObjHandler. If
+  // they ever differ, state is split across two handlers (the bug).
+  diagGH("GET_ADAPTERS", this, RTGlobalObjHandler);
   return adapters;
 }
 

@@ -83,9 +83,9 @@ public:
   void attachScheduler(Scheduler *Scheduler);
 
   // Used in SYCL unit tests to reset the GlobalHandler instance.
-  static void resetGlobalHandler() {
-    RTGlobalObjHandler = new GlobalHandler();
-  };
+  // DIAGNOSTIC (intel/llvm#22367): defined out-of-line in global_handler.cpp so
+  // it can trace the old->new instance swap (which leaks the old handler).
+  static void resetGlobalHandler();
 
 private:
   // Constructor and destructor are declared out-of-line to allow incomplete

@@ -245,6 +245,17 @@ static void initializeAdapters(std::vector<adapter_impl *> &Adapters,
                                     nullptr));
     auto syclBackend = UrToSyclBackend(adapterBackend);
     Adapters.emplace_back(new adapter_impl(UrAdapter, syclBackend));
+    {
+      // DIAGNOSTIC (intel/llvm#22367): tie this freshly created adapter to the
+      // GlobalHandler instance whose MAdapters vector now owns it.
+      char Buf[160];
+      std::snprintf(Buf, sizeof(Buf),
+                    "ADAPTER_CREATED adapter=%p ownerGH=%p backend=%d",
+                    static_cast<void *>(Adapters.back()),
+                    static_cast<void *>(&GlobalHandler::instance()),
+                    static_cast<int>(syclBackend));
+      diagTraceLine(Buf);
+    }
 
     const char *env_value = std::getenv("UR_LOG_CALLBACK");
     if (env_value == nullptr || std::string(env_value) != "disabled") {
@@ -259,12 +270,30 @@ static void initializeAdapters(std::vector<adapter_impl *> &Adapters,
 // Get the adapter serving given backend.
 template <backend BE> adapter_impl &getAdapter() {
   static adapter_impl *Adapter = nullptr;
-  if (Adapter)
+  if (Adapter) {
+    // DIAGNOSTIC (intel/llvm#22367): returning the PROCESS-STATIC cached adapter.
+    // This cache is never invalidated across resetGlobalHandler(), so it can
+    // outlive the GlobalHandler/adapters it came from -> stale adapter.
+    char Buf[160];
+    std::snprintf(Buf, sizeof(Buf),
+                  "GETADAPTER_CACHED adapter=%p curGH=%p backend=%d",
+                  static_cast<void *>(Adapter),
+                  static_cast<void *>(&GlobalHandler::instance()),
+                  static_cast<int>(BE));
+    diagTraceLine(Buf);
     return *Adapter;
+  }
 
   for (auto &P : ur::initializeUr())
     if (P->hasBackend(BE)) {
       Adapter = P;
+      char Buf[160];
+      std::snprintf(Buf, sizeof(Buf),
+                    "GETADAPTER_RESOLVED adapter=%p curGH=%p backend=%d",
+                    static_cast<void *>(Adapter),
+                    static_cast<void *>(&GlobalHandler::instance()),
+                    static_cast<int>(BE));
+      diagTraceLine(Buf);
       return *Adapter;
     }
 

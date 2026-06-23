@@ -55,6 +55,9 @@ void diagAdapterUnregister(const void *Adapter);
 // Emits: the Managed's adapter pointer, whether it is in the live set, and (only
 // if live) its adapterReleased flag and first func-ptr-table word.
 void diagManagedRelease(const void *Adapter, const void *Resource);
+// Emits an arbitrary pre-formatted line (used to trace GlobalHandler static-init
+// ordering / resetGlobalHandler / adapter-owning instance).
+void diagTraceLine(const char *Msg);
 
 /// The adapter class provides a unified interface to the underlying low-level
 /// runtimes for the device-agnostic SYCL runtime.

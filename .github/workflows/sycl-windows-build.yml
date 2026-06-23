@@ -225,13 +225,22 @@ jobs:
         export SYCL_CONFIG_FILE_NAME=null.cfg
         export SYCL_DEVICELIB_NO_FALLBACK=1
         export SYCL_CACHE_DIR="$(pwd)/build/sycl_cache"
-        # --gtest_catch_exceptions=0 lets the in-process LLVM signal handler print
-        # the symbolized crash stack; combined with the diag trace below it.
+        # Pass 1: FULL binary. Every test TU has its own static MockDeviceImageArray
+        # whose ctor may call resetGlobalHandler() at load time; running the whole
+        # binary exercises that cross-TU GlobalHandler reset / instance-swap, which
+        # the trace (GH_CTOR/GH_RESET_*/GH_GET_ADAPTERS/ADAPTER_CREATED/
+        # GETADAPTER_CACHED) records. --gtest_catch_exceptions=0 lets the in-process
+        # LLVM handler print the symbolized crash stack.
+        echo "########## PASS 1: full binary ##########" >> build/adapter_uaf_console.log
+        "$EXE" --gtest_catch_exceptions=0 >> build/adapter_uaf_console.log 2>&1
+        echo "full-binary exited rc=$?"
+        # Pass 2: just the crashing test, for a clean isolated crash stack.
+        echo "########## PASS 2: SubDevices only ##########" >> build/adapter_uaf_console.log
         "$EXE" --gtest_filter='SubDevices.BuildProgramForSubSubDevices' \
-               --gtest_catch_exceptions=0 > build/adapter_uaf_console.log 2>&1
-        echo "test exited rc=$?"
-        echo "===== console (crash stack) =====" ; cat build/adapter_uaf_console.log || true
-        echo "===== adapter identity trace =====" ; cat build/adapter_uaf_diag.log || echo "(no diag log)"
+               --gtest_catch_exceptions=0 >> build/adapter_uaf_console.log 2>&1
+        echo "single-test exited rc=$?"
+        echo "===== console (crash stacks) =====" ; cat build/adapter_uaf_console.log || true
+        echo "===== GlobalHandler/adapter init trace =====" ; cat build/adapter_uaf_diag.log || echo "(no diag log)"
     - name: Upload adapter-UAF diag
       if: ${{ always() }}
       uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
