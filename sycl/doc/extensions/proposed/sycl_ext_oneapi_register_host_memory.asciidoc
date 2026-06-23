@@ -134,6 +134,12 @@ _Preconditions:_
   and the range `[ptr, ptr + numBytes)` remains valid and mapped at the same
   host virtual address from this call until the matching call to
   `unregister_host_memory` returns.
+* The memory range has one of the following storage durations: heap
+  (dynamically-allocated), automatic (stack), or static (global) storage. [
+  _Note:_ Support for memory obtained by other means, such as anonymous or
+  file-backed memory mappings or huge-page mappings, is platform- and
+  implementation-dependent and is not guaranteed by this extension.
+  _{endnote}_]
 * `ptr` is aligned to the host page size, and `numBytes` is a non-zero multiple
   of the host page size.
 * The range `[ptr, ptr + numBytes)` does not overlap any range that is
@@ -172,15 +178,6 @@ POSIX systems or `GetSystemInfo` on Windows.  Page alignment of `ptr` and `numBy
 is required even when the native backend would accept a less restrictive
 alignment, and the implementation does not implicitly round the base address or
 size. _{endnote}_]
-
-[_Note:_ This extension defines registration in terms of the properties of the
-host virtual address range, not the mechanism used to allocate or map the
-memory.  For example, the range is not required to come from a C or C++
-allocator.  It may come from heap allocation, static storage, automatic storage,
-anonymous memory mapping, file-backed memory mapping, or huge-page mapping,
-provided the range satisfies the requirements above and can be registered by the
-implementation.  This extension does not guarantee support for every
-operating-system mapping type, protection mode, or backing object. _{endnote}_]
 
 '''
 
