@@ -314,6 +314,7 @@ def show_statistics_and_lists(lines: List[str], all_tests_file: str = None) -> N
 
     # Track if we display skipped separately (for validation later)
     displayed_skipped_count = 0
+    stats_skipped_count = None
 
     # For GoogleTest format: try multiple strategies to get skipped list
     if "Unsupported" not in test_lists:
@@ -382,7 +383,6 @@ def show_statistics_and_lists(lines: List[str], all_tests_file: str = None) -> N
             displayed_skipped_count = count
 
             # Check if there's a mismatch between stats and actual list
-            stats_skipped_count = None
             for stat in stats:
                 if "Skipped:" in stat:
                     match = re.search(r"(\d+)", stat)
@@ -444,7 +444,9 @@ def show_statistics_and_lists(lines: List[str], all_tests_file: str = None) -> N
             )
             print(f"Categories found: {', '.join(test_lists.keys())}")
             if displayed_skipped_count > 0:
-                print(f"(Plus {displayed_skipped_count} skipped tests displayed separately)")
+                print(
+                    f"(Plus {displayed_skipped_count} skipped tests displayed separately)"
+                )
             print()
 
 
