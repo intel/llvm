@@ -218,8 +218,11 @@ jobs:
 
         # (2) Arm WER LocalDumps for this exe (full dump). Best-effort; needs the
         # registry write to succeed (runner is admin). DumpType=2 => full dump.
+        # MSYS2_ARG_CONV_EXCL='*' stops Git-bash from path-mangling reg's
+        # /v /t /d /f switches (which produced "ERROR: Invalid syntax").
         EXE_NAME='ProgramManagerTests-Non_Preview_Tests.exe'
         REGKEY="HKLM\\SOFTWARE\\Microsoft\\Windows\\Windows Error Reporting\\LocalDumps\\$EXE_NAME"
+        export MSYS2_ARG_CONV_EXCL='*'
         reg.exe add "$REGKEY" /v DumpFolder /t REG_EXPAND_SZ /d "$DUMPDIR_WIN" /f || true
         reg.exe add "$REGKEY" /v DumpType   /t REG_DWORD     /d 2             /f || true
         reg.exe add "$REGKEY" /v DumpCount  /t REG_DWORD     /d 5             /f || true
