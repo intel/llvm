@@ -32,6 +32,7 @@
 
 #pulldown temp folder
 /spirv-patches-*
+/ccache-sycl
 
 #==============================================================================#
 # Explicit files to ignore (only matches one).
