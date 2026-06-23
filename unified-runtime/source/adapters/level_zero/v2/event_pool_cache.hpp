@@ -57,4 +57,8 @@ private:
   std::vector<std::vector<std::unique_ptr<event_pool>>> pools;
 };
 
+struct synchronized_event_pools {
+  ur_mutex mutex;
+  std::unordered_map<event_pool_key, v2::event_pool, event_pool_key_hash> pools;
+};
 } // namespace v2

@@ -84,6 +84,10 @@ struct ur_context_handle_t_ : ur_object {
 
   ur_shared_mutex GraphMapMutex;
 
+  v2::synchronized_event_pools &getReusableEventPools() {
+    return reusableEventPools;
+  }
+
 private:
   const v2::raii::ze_context_handle_t hContext;
   const std::vector<ur_device_handle_t>
@@ -97,6 +101,8 @@ private:
   // pool used for urEventCreateWithNativeHandle when native handle is NULL
   // (uses non-counter based events to allow for signaling from host)
   v2::event_pool nativeEventsPool;
+
+  v2::synchronized_event_pools reusableEventPools;
 
   ur_usm_pool_handle_t_ defaultUSMPool;
   ur_usm_pool_handle_t_ asyncPool;

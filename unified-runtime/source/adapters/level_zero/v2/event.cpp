@@ -13,7 +13,7 @@
 #include "context.hpp"
 #include "event.hpp"
 #include "event_pool.hpp"
-#include "event_provider.hpp"
+#include "event_provider_counter.hpp"
 #include "queue_api.hpp"
 #include "queue_handle.hpp"
 
@@ -416,12 +416,44 @@ urEventCreateWithNativeHandle(ur_native_handle_t hNativeEvent,
   return exceptionToResult(std::current_exception());
 }
 
-ur_result_t urEventCreateExp(ur_context_handle_t /*hContext*/,
-                             ur_device_handle_t /*hDevice*/,
-                             const ur_exp_event_desc_t * /*pEventDesc*/,
-                             ur_event_handle_t * /*phEvent*/) {
-  UR_LOG(ERR, "{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+ur_result_t urEventCreateExp(ur_context_handle_t hContext,
+                             ur_device_handle_t hDevice,
+                             const ur_exp_event_desc_t *pEventDesc,
+                             ur_event_handle_t *phEvent) try {
+  if (!hContext || !hDevice)
+    return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+  if (!pEventDesc || !phEvent)
+    return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+  const v2::event_flags_t flags =
+      v2::EVENT_FLAGS_COUNTER | v2::EVENT_FLAGS_REUSABLE |
+      (pEventDesc->flags & UR_EXP_EVENT_FLAG_ENABLE_PROFILING
+           ? v2::EVENT_FLAGS_PROFILING_ENABLED
+           : 0);
+
+  auto &events = hContext->getReusableEventPools();
+  std::lock_guard<ur_mutex> lock(events.mutex);
+  const v2::event_pool_key id{hDevice, flags};
+  auto &poolMap = events.pools;
+
+  if (!poolMap.count(id)) {
+    auto const queueType = v2::QUEUE_IMMEDIATE;
+    auto const platform = hDevice->Platform;
+
+    auto provider =
+        createProvider(platform, hContext, queueType, hDevice, flags);
+
+    // Using try_emplace because the event_pool class has a deleted move
+    // constructor.
+    poolMap.try_emplace(id, hContext, std::move(provider));
+  }
+
+  v2::event_pool *const pool = &poolMap.at(id);
+  *phEvent = pool->allocate();
+
+  return UR_RESULT_SUCCESS;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
 }
 
 } // namespace ur::level_zero
