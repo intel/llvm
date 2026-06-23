@@ -40,7 +40,7 @@ protected:
 
 TEST_F(LargeBufferSizeTest, MoreThan32bit) {
   sycl::context Context{Plt};
-  sycl::queue Queue{Context, sycl::accelerator_selector{}};
+  sycl::queue Queue{Context, sycl::accelerator_selector_v };
 
   using DataType = double;
   const size_t IndexStart = 16;
