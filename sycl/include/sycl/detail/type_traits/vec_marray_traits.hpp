@@ -24,6 +24,11 @@ template <typename DataT, int NumElements> class __SYCL_EBO vec;
 template <typename DataT, std::size_t N> class marray;
 
 namespace detail {
+
+template <int N>
+inline constexpr bool is_allowed_vec_size_v =
+    N == 1 || N == 2 || N == 3 || N == 4 || N == 8 || N == 16;
+
 #if __SYCL_USE_LIBSYCL8_VEC_IMPL
 template <typename VecT, typename OperationLeftT, typename OperationRightT,
           template <typename> class OperationCurrentT, int... Indexes>
@@ -75,7 +80,9 @@ using ext_vector = T __attribute__((ext_vector_type(N)));
 template <typename T, int N>
 struct is_ext_vector<ext_vector<T, N>> : std::true_type {};
 template <typename T, int N>
-struct is_valid_type_length_for_ext_vector<T, N, std::void_t<ext_vector<T, N>>>
+struct is_valid_type_length_for_ext_vector<
+    T, N,
+    std::enable_if_t<is_allowed_vec_size_v<N>, std::void_t<ext_vector<T, N>>>>
     : std::true_type {};
 #endif
 #endif
@@ -160,11 +167,6 @@ struct element_type<T __attribute__((ext_vector_type(N)))> {
 #endif
 #endif
 template <typename T> using element_type_t = typename element_type<T>::type;
-
-template <int N>
-inline constexpr bool is_allowed_vec_size_v =
-    N == 1 || N == 2 || N == 3 || N == 4 || N == 8 || N == 16;
-
 } // namespace detail
 } // namespace _V1
 } // namespace sycl

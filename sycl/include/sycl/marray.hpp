@@ -14,7 +14,6 @@
 #include <sycl/detail/fwd/half.hpp>
 #include <sycl/detail/memcpy.hpp>
 #include <sycl/detail/type_traits.hpp>
-#include <sycl/ext/oneapi/bfloat16.hpp>
 
 // Check if Clang's ext_vector_type attribute is available. Host compiler
 // may not be Clang, and Clang may not be built with the extension.
@@ -210,15 +209,13 @@ private:
                                 DataT, /*->*/ DataT>::type;
 
   // Don't use ext_vector_type for:
-  // - Host code (no ext_vector_type support)
-  // - Non-power-of-2 sizes (ext_vector_type pads to next power of 2, marray
-  // doesn't)
-  // - 16-bit types (scalar loop is more efficient on some targets)
+  // - Host code (might not have ext_vector_type support)
+  // - When the number of elements is 3, marray doesn't use padding
+  //   while ext_vector_type does, so the results of operations will differ.
   constexpr static bool use_ext_vector_type =
 #ifdef __SYCL_DEVICE_ONLY__
       detail::is_valid_type_length_for_ext_vector_v<vec_elem_ty, NumElements> &&
-      (NumElements == 2 || NumElements == 4 || NumElements == 8 ||
-       NumElements == 16);
+      NumElements != 3;
 #else
       false;
 #endif
@@ -226,6 +223,20 @@ private:
   using ext_vector_t =
       typename detail::ExtVectorTypeHelper<use_ext_vector_type, vec_elem_ty,
                                            NumElements>::type;
+
+  // Writes the result of an ext_vector_type operation back into MData.
+  // When the vector element type matches DataT, a raw byte copy is safe.
+  // Otherwise each lane is converted explicitly so the destination always
+  // holds a valid DataT representation (important for bool, half, byte, ...).
+  template <typename VecT>
+  static void storeVecResult(DataT (&Dst)[NumElements], const VecT &Src) {
+    if constexpr (std::is_same_v<vec_elem_ty, DataT>) {
+      sycl::detail::memcpy_no_adl(Dst, &Src, sizeof(Src));
+    } else {
+      for (size_t I = 0; I < NumElements; ++I)
+        Dst[I] = static_cast<DataT>(Src[I]);
+    }
+  }
 
 public:
 #ifdef __SYCL_BINOP
@@ -243,11 +254,10 @@ public:
       ext_vector_t LhsVec = sycl::bit_cast<ext_vector_t>(Lhs.MData);           \
       ext_vector_t RhsVec = sycl::bit_cast<ext_vector_t>(Rhs.MData);           \
       ext_vector_t ResVec = LhsVec BINOP RhsVec;                               \
-      sycl::detail::memcpy_no_adl(Ret.MData, &ResVec, sizeof(ResVec));         \
+      storeVecResult(Ret.MData, ResVec);                                       \
     } else {                                                                   \
-      for (size_t I = 0; I < NumElements; ++I) {                               \
+      for (size_t I = 0; I < NumElements; ++I)                                 \
         Ret[I] = Lhs[I] BINOP Rhs[I];                                          \
-      }                                                                        \
     }                                                                          \
     return Ret;                                                                \
   }                                                                            \
@@ -289,7 +299,7 @@ public:
       ext_vector_t LhsVec = sycl::bit_cast<ext_vector_t>(Lhs.MData);           \
       ext_vector_t RhsVec = sycl::bit_cast<ext_vector_t>(Rhs.MData);           \
       ext_vector_t ResVec = LhsVec BINOP RhsVec;                               \
-      sycl::detail::memcpy_no_adl(Ret.MData, &ResVec, sizeof(ResVec));         \
+      storeVecResult(Ret.MData, ResVec);                                       \
     } else {                                                                   \
       for (size_t I = 0; I < NumElements; ++I) {                               \
         Ret[I] = Lhs[I] BINOP Rhs[I];                                          \
@@ -478,7 +488,7 @@ public:
     if constexpr (use_ext_vector_type) {
       ext_vector_t LhsVec = sycl::bit_cast<ext_vector_t>(Lhs.MData);
       ext_vector_t ResVec = +LhsVec;
-      sycl::detail::memcpy_no_adl(Ret.MData, &ResVec, sizeof(ResVec));
+      storeVecResult(Ret.MData, ResVec);
     } else {
       for (size_t I = 0; I < NumElements; ++I) {
         Ret[I] = +Lhs[I];
@@ -492,7 +502,7 @@ public:
     if constexpr (use_ext_vector_type) {
       ext_vector_t LhsVec = sycl::bit_cast<ext_vector_t>(Lhs.MData);
       ext_vector_t ResVec = -LhsVec;
-      sycl::detail::memcpy_no_adl(Ret.MData, &ResVec, sizeof(ResVec));
+      storeVecResult(Ret.MData, ResVec);
     } else {
       for (size_t I = 0; I < NumElements; ++I) {
         Ret[I] = -Lhs[I];
