@@ -312,6 +312,9 @@ def show_statistics_and_lists(lines: List[str], all_tests_file: str = None) -> N
     # Extract test lists in collapsed sections (LIT format)
     test_lists = extract_test_lists(lines)
 
+    # Track if we display skipped separately (for validation later)
+    displayed_skipped_count = 0
+
     # For GoogleTest format: try multiple strategies to get skipped list
     if "Unsupported" not in test_lists:
         # Strategy 1: Extract from LIT inline output (always works if LIT prints them)
@@ -376,6 +379,7 @@ def show_statistics_and_lists(lines: List[str], all_tests_file: str = None) -> N
 
         if skipped_list:
             count = len(skipped_list)
+            displayed_skipped_count = count
 
             # Check if there's a mismatch between stats and actual list
             stats_skipped_count = None
@@ -423,7 +427,9 @@ def show_statistics_and_lists(lines: List[str], all_tests_file: str = None) -> N
 
     # Validate that total discovered matches sum of all categories
     if total_discovered:
+        # Sum from test_lists + any skipped we displayed separately
         sum_categories = sum(len(tests) for tests in test_lists.values())
+        sum_categories += displayed_skipped_count
 
         if total_discovered != sum_categories:
             print()
@@ -437,6 +443,8 @@ def show_statistics_and_lists(lines: List[str], all_tests_file: str = None) -> N
                 f"This may indicate tests in unexpected categories or parsing issues."
             )
             print(f"Categories found: {', '.join(test_lists.keys())}")
+            if displayed_skipped_count > 0:
+                print(f"(Plus {displayed_skipped_count} skipped tests displayed separately)")
             print()
 
 
