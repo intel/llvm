@@ -180,51 +180,63 @@ jobs:
     - name: check-sycl-unittests
       if: ${{ !cancelled() && contains(inputs.changes, 'sycl') }}
       # DIAGNOSTIC RUN for intel/llvm#22367 (NOT for merge).
-      # Goal: identify which Managed<ur_program/kernel> outlives its adapter and
-      # causes the use-after-free at process teardown. Instead of any source-level
-      # tracing, enable UR's own leak-checking validation layer: it refcount-tracks
-      # every UR handle (with a backtrace captured at first sighting) and, the
-      # moment the adapter refcount hits 0 (adapter released in unloadAdapters),
-      # logs every still-retained program/kernel handle and its backtrace -- i.e.
-      # exactly the surviving Managed. UR's Windows backtrace self-symbolizes via
-      # DbgHelp, so the log already contains file:line frames.
-      #   UR_ENABLE_LAYERS  -> turn the layer on
-      #   UR_LOG_VALIDATION -> level:error (default is QUIET), flush each record
-      #                        so it survives the subsequent SEH crash.
-      # We deliberately do NOT use output:file,<path>: UR's env parser treats ':'
-      # as the key/value delimiter, so a Windows path's drive-letter colon
-      # ("D:\...") makes it reject the whole value and fall back to QUIET (this is
-      # what muted the first run). Default output is stderr, which we capture with
-      # 2>&1 anyway -- and the teardown report goes to stderr regardless because
-      # the layer's file sink is already torn down by then.
-      # Only the program_manager tests reproduce the orphaned-Managed teardown, so
-      # build and run just that one binary directly rather than the full
-      # check-sycl-unittests target (which builds+runs every unittest exe and is
-      # far slower / was timing out).
+      # Goal: capture the exact stack of the use-after-free crash that happens
+      # *during* SubDevices.BuildProgramForSubSubDevices (a Managed<ur_program>
+      # releasing its UR program through an already-freed adapter_impl). gtest
+      # normally swallows the SEH ("thrown in the test body") and prints no
+      # stack, so we run the single crashing test under the Windows debugger
+      # (cdb) with --gtest_catch_exceptions=0 and break on the access violation.
+      # Even when the raw-pointer build jumps through a nulled func-ptr table
+      # (RIP=0), the return address left on the stack names the call_nocheck /
+      # ~Managed caller. cdb ships with the Windows SDK "Debuggers" component;
+      # the step is best-effort and tolerates the crash so the upload still runs.
+      # Build only the program_manager binary (the full check-sycl-unittests
+      # target builds+runs every unittest exe and was timing out).
       shell: bash
-      env:
-        UR_ENABLE_LAYERS: UR_LAYER_LEAK_CHECKING
-        UR_LOG_VALIDATION: level:error;flush:error
       run: |
         cmake --build build --target ProgramManagerTests-Non_Preview_Tests
-        EXE=build/tools/sycl/unittests/program_manager/ProgramManagerTests-Non_Preview_Tests.exe
-        # Capture combined stdout+stderr: the leak report ("Retained N
-        # reference(s) to handle ..." + backtrace) lands on stderr at teardown.
-        # Tolerate the expected SEH crash (raw-pointer UAF) so the upload runs.
-        PATH="$(pwd)/build/bin:$PATH" \
-        SYCL_CONFIG_FILE_NAME=null.cfg \
-        SYCL_DEVICELIB_NO_FALLBACK=1 \
-        SYCL_CACHE_DIR="$(pwd)/build/sycl_cache" \
-          "$EXE" > build/adapter_uaf_output.log 2>&1 \
-          || echo "test binary exited non-zero (expected: UAF crash) rc=$?"
-        echo "===== combined stdout+stderr (leak-check report lands here) ====="
-        cat build/adapter_uaf_output.log || true
-    - name: Upload adapter-UAF validation log
+        EXE="$(pwd)/build/tools/sycl/unittests/program_manager/ProgramManagerTests-Non_Preview_Tests.exe"
+        export PATH="$(pwd)/build/bin:$PATH"
+        export SYCL_CONFIG_FILE_NAME=null.cfg
+        export SYCL_DEVICELIB_NO_FALLBACK=1
+        export SYCL_CACHE_DIR="$(pwd)/build/sycl_cache"
+        LOG="$(pwd)/build/adapter_uaf_crash.log"
+
+        # Locate cdb.exe under the Windows Kits Debuggers component.
+        CDB=""
+        for d in "/c/Program Files (x86)/Windows Kits/10/Debuggers/x64" \
+                 "/c/Program Files/Windows Kits/10/Debuggers/x64"; do
+          if [ -f "$d/cdb.exe" ]; then CDB="$d/cdb.exe"; break; fi
+        done
+        # Fallback: search.
+        if [ -z "$CDB" ]; then
+          CDB="$(find '/c/Program Files (x86)/Windows Kits' '/c/Program Files/Windows Kits' \
+                  -name cdb.exe 2>/dev/null | head -n1)"
+        fi
+        echo "cdb = ${CDB:-<not found>}"
+
+        FILTER='SubDevices.BuildProgramForSubSubDevices'
+        if [ -n "$CDB" ]; then
+          # sxe av: break on first-chance access violation. On the break dump all
+          # thread stacks (~*kP), the faulting context (r), and !analyze -v, then
+          # continue/quit. -g -G: ignore initial/final breakpoints.
+          "$CDB" -g -G \
+            -c ".symfix; .reload; sxe av; g; .echo ===FAULT===; r; kP 200; ~*kP; !analyze -v; q" \
+            "$EXE" --gtest_filter="$FILTER" --gtest_catch_exceptions=0 \
+            > "$LOG" 2>&1 || echo "cdb session exited rc=$?"
+        else
+          echo "cdb not found; running without debugger (no stack expected)" > "$LOG"
+          "$EXE" --gtest_filter="$FILTER" --gtest_catch_exceptions=0 >> "$LOG" 2>&1 \
+            || echo "test exited rc=$?"
+        fi
+        echo "===== cdb / crash log ====="
+        cat "$LOG" || true
+    - name: Upload adapter-UAF crash log
       if: ${{ always() && contains(inputs.changes, 'sycl') }}
       uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       with:
-        name: adapter_uaf_validation_log
-        path: build/adapter_uaf_output.log
+        name: adapter_uaf_crash_log
+        path: build/adapter_uaf_crash.log
         if-no-files-found: warn
         retention-days: ${{ inputs.retention-days }}
     - name: check-llvm-spirv
