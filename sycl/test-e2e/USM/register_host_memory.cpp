@@ -108,8 +108,8 @@ int main() {
     // A range whose end address would overflow the host address space must
     // throw errc::invalid.
     Threw = false;
-    void *TopPage = reinterpret_cast<void *>(static_cast<uintptr_t>(-1) &
-                                             ~(PageSize - 1));
+    void *TopPage =
+        reinterpret_cast<void *>(static_cast<uintptr_t>(-1) & ~(PageSize - 1));
     try {
       syclexp::register_host_memory(TopPage, PageSize, Ctxt);
     } catch (const sycl::exception &E) {
@@ -161,9 +161,7 @@ int main() {
 
   int *Out = sycl::malloc_host<int>(NumElems, Q);
   assert(Out != nullptr && "host allocation failed");
-  Q.parallel_for(NumElems, [=](sycl::id<1> I) {
-     Out[I] = Data[I] * 2;
-   }).wait();
+  Q.parallel_for(NumElems, [=](sycl::id<1> I) { Out[I] = Data[I] * 2; }).wait();
   for (size_t I = 0; I < NumElems; ++I)
     assert(Out[I] == (static_cast<int>(I) + 1) * 2);
 

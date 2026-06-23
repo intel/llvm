@@ -55,11 +55,11 @@ ur_result_t redefinedDeviceGetInfo(void *pParams) {
 }
 
 ur_result_t redefinedHostAllocRegister(void *pParams) {
-  auto Params = *static_cast<ur_usm_host_alloc_register_exp_params_t *>(pParams);
+  auto Params =
+      *static_cast<ur_usm_host_alloc_register_exp_params_t *>(pParams);
   LastRegisterPtr = *Params.ppHostMem;
   LastRegisterSize = *Params.psize;
-  LastRegisterFlags =
-      *Params.ppProperties ? (*Params.ppProperties)->flags : 0;
+  LastRegisterFlags = *Params.ppProperties ? (*Params.ppProperties)->flags : 0;
   ++RegisterCallCount;
   return RegisterResult;
 }

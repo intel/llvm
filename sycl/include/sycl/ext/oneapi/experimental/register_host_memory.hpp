@@ -23,9 +23,8 @@ namespace ext::oneapi::experimental {
 
 // Indicates that device code will only read from the registered range. Device
 // writes to a range registered with this property are undefined behavior.
-struct read_only_key
-    : detail::compile_time_property_key<detail::PropKind::
-                                            RegisterHostMemoryReadOnly> {
+struct read_only_key : detail::compile_time_property_key<
+                           detail::PropKind::RegisterHostMemoryReadOnly> {
   using value_t = property_value<read_only_key>;
 };
 
@@ -47,7 +46,8 @@ __SYCL_EXPORT void unregister_host_memory(void *Ptr, const context &Ctxt);
 // Lowers a compile-time property list to the runtime flags word.
 template <typename Properties> uint32_t getRegisterHostMemoryFlags() {
   uint32_t Flags = 0;
-  if constexpr (std::decay_t<Properties>::template has_property<read_only_key>())
+  if constexpr (std::decay_t<Properties>::template has_property<
+                    read_only_key>())
     Flags |= register_host_memory_flag_read_only;
   return Flags;
 }
