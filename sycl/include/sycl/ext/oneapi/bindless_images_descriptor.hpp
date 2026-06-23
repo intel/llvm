@@ -132,17 +132,6 @@ struct image_descriptor {
       throw sycl::exception(sycl::errc::invalid,
                             "Images must have 1, 2, 3, or 4 channels.");
     }
-    if (color_space == image_color_space::srgb) {
-      if (num_channels != 4) {
-        throw sycl::exception(sycl::errc::invalid,
-                              "sRGB color space requires num_channels == 4");
-      }
-      if (channel_type != image_channel_type::unorm_int8) {
-        throw sycl::exception(
-            sycl::errc::invalid,
-            "sRGB color space requires unorm_int8 channel type");
-      }
-    }
     switch (this->type) {
     case image_type::standard:
       if (this->array_size > 1) {
