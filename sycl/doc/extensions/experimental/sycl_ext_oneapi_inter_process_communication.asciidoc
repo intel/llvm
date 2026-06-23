@@ -1318,6 +1318,10 @@ _Preconditions:_
  * `handle_data` is the IPC "handle" to an event that was returned from a call
    to the `get` function either in this process or in some other process on the
    same system.
+ * `ctx` is the same context (contains the same set of devices) as the context
+   passed to the `make_event` function (from the
+   sycl_ext_oneapi_reusable_events extension) which was used to create the
+   event which produced `handle_data`.
 
 _Returns:_ An `event` object that represents the same event identified by
 `handle_data`. The returned event is associated with context `ctx`. The
