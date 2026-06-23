@@ -11852,8 +11852,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMContextMemcpyExp(
 /// @brief USM host memory registration flags.
 typedef uint32_t ur_exp_usm_host_alloc_register_flags_t;
 typedef enum ur_exp_usm_host_alloc_register_flag_t {
-  /// Reserved for future use.
-  UR_EXP_USM_HOST_ALLOC_REGISTER_FLAG_TBD = UR_BIT(0),
+  /// Device access to the registered range is read-only.  The behavior
+  /// is undefined if device code writes to a range registered with this
+  /// flag.
+  UR_EXP_USM_HOST_ALLOC_REGISTER_FLAG_READ_ONLY = UR_BIT(0),
   /// @cond
   UR_EXP_USM_HOST_ALLOC_REGISTER_FLAG_FORCE_UINT32 = 0x7fffffff
   /// @endcond
