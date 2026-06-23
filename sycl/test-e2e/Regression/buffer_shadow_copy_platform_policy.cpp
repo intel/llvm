@@ -6,6 +6,7 @@
 #include <cstddef>
 #include <cstring>
 #include <iostream>
+#include <memory>
 #include <vector>
 
 // Read-only kernel: sum all elements and return the result.
@@ -136,64 +137,8 @@ int main() {
   for (size_t I = 0; I < N; ++I)
     AlignedInput[I] = static_cast<int>(I);
 
-  // Build a deliberately misaligned copy: offset by 1 byte so that the int*
-  // is not naturally aligned.
-  std::vector<unsigned char> Storage(sizeof(int) * N + 1);
-  int *UnalignedPtr = reinterpret_cast<int *>(Storage.data() + 1);
-  std::memcpy(UnalignedPtr, AlignedInput.data(), sizeof(int) * N);
-  const int *ReadOnlyUnalignedPtr = UnalignedPtr;
-
   const int ExpectedSum = static_cast<int>((N - 1) * N / 2);
 
-  // --- Read path correctness ---
-  // Both aligned and misaligned host pointers must produce the correct sum.
-  const int AlignedSum = runReadOnlySumKernel(Q, AlignedInput.data(), N);
-  if (AlignedSum != ExpectedSum) {
-    std::cerr << "Unexpected aligned sum: " << AlignedSum << "\n";
-    return 1;
-  }
-
-  const int MisalignedSum = runReadOnlySumKernel(Q, ReadOnlyUnalignedPtr, N);
-  if (MisalignedSum != ExpectedSum) {
-    std::cerr << "Unexpected misaligned sum: " << MisalignedSum << "\n";
-    return 1;
-  }
-
-  // --- Write-back correctness ---
-  // After the buffer goes out of scope the kernel-written pattern must be
-  // visible at the original host pointer, even when that pointer is misaligned.
-  std::vector<int> AlignedWritable(N, 0);
-  std::vector<unsigned char> WritableStorage(sizeof(int) * N + 1, 0);
-  int *UnalignedWritablePtr =
-      reinterpret_cast<int *>(WritableStorage.data() + 1);
-
-  runWriteKernel(Q, AlignedWritable.data(), N);
-  runWriteKernel(Q, UnalignedWritablePtr, N);
-
-  if (!checkExpectedPattern(AlignedWritable.data(), N)) {
-    std::cerr << "Unexpected data in aligned writable buffer\n";
-    return 1;
-  }
-  if (!checkExpectedPattern(UnalignedWritablePtr, N)) {
-    std::cerr << "Unexpected data in misaligned writable buffer\n";
-    return 1;
-  }
-
-  // --- Read-only immutability ---
-  // A read-only buffer must leave the user's source untouched, aligned or not.
-  if (!runReadOnlyImmutability(Q, AlignedInput.data(), N)) {
-    std::cerr << "Read-only buffer modified aligned source data\n";
-    return 1;
-  }
-  if (!runReadOnlyImmutability(Q, ReadOnlyUnalignedPtr, N)) {
-    std::cerr << "Read-only buffer modified misaligned source data\n";
-    return 1;
-  }
-
-  // --- Mid-lifetime host_accessor (map/unmap) + final write-back ---
-  // Exercises the bidirectional map/unmap sync path and the final copy-back.
-  // Expected final pattern at the host pointer: I + 101 (kernel wrote I, host
-  // added 100 via map/unmap, kernel added 1).
   auto checkMidLife = [](const int *Ptr) {
     std::vector<int> Tmp(N);
     std::memcpy(Tmp.data(), Ptr, sizeof(int) * N);
@@ -203,6 +148,24 @@ int main() {
     return true;
   };
 
+  // --- Aligned baseline ---
+  if (runReadOnlySumKernel(Q, AlignedInput.data(), N) != ExpectedSum) {
+    std::cerr << "Unexpected aligned sum\n";
+    return 1;
+  }
+
+  std::vector<int> AlignedWritable(N, 0);
+  runWriteKernel(Q, AlignedWritable.data(), N);
+  if (!checkExpectedPattern(AlignedWritable.data(), N)) {
+    std::cerr << "Unexpected data in aligned writable buffer\n";
+    return 1;
+  }
+
+  if (!runReadOnlyImmutability(Q, AlignedInput.data(), N)) {
+    std::cerr << "Read-only buffer modified aligned source data\n";
+    return 1;
+  }
+
   std::vector<int> AlignedMid(N, 0);
   if (!runMidLifeHostAccessor(Q, AlignedMid.data(), N) ||
       !checkMidLife(AlignedMid.data())) {
@@ -210,12 +173,84 @@ int main() {
     return 1;
   }
 
-  std::vector<unsigned char> MidStorage(sizeof(int) * N + 1, 0);
-  int *UnalignedMidPtr = reinterpret_cast<int *>(MidStorage.data() + 1);
-  if (!runMidLifeHostAccessor(Q, UnalignedMidPtr, N) ||
-      !checkMidLife(UnalignedMidPtr)) {
-    std::cerr << "Mid-life host_accessor failed on misaligned buffer\n";
-    return 1;
+  // --- Misaligned variants ---
+  // Cover several offsets. 1 byte is not even int-aligned; 4 bytes is
+  // int-aligned but typically below a backend's required base-address
+  // alignment (e.g. CL_DEVICE_MEM_BASE_ADDR_ALIGN is normally 64-128 B);
+  // 64 bytes exercises the boundary case where some backends still require
+  // a stricter (e.g. 128 B / page) alignment for zero-copy import.
+  constexpr size_t Offsets[] = {1, 4, 64};
+  for (size_t Offset : Offsets) {
+    std::vector<unsigned char> ROStorage(sizeof(int) * N + Offset);
+    int *UnalignedPtr = reinterpret_cast<int *>(ROStorage.data() + Offset);
+    std::memcpy(UnalignedPtr, AlignedInput.data(), sizeof(int) * N);
+    const int *ReadOnlyUnalignedPtr = UnalignedPtr;
+
+    if (runReadOnlySumKernel(Q, ReadOnlyUnalignedPtr, N) != ExpectedSum) {
+      std::cerr << "Unexpected misaligned sum (offset=" << Offset << ")\n";
+      return 1;
+    }
+
+    std::vector<unsigned char> WritableStorage(sizeof(int) * N + Offset, 0);
+    int *UnalignedWritablePtr =
+        reinterpret_cast<int *>(WritableStorage.data() + Offset);
+    runWriteKernel(Q, UnalignedWritablePtr, N);
+    if (!checkExpectedPattern(UnalignedWritablePtr, N)) {
+      std::cerr << "Unexpected data in misaligned writable buffer (offset="
+                << Offset << ")\n";
+      return 1;
+    }
+
+    if (!runReadOnlyImmutability(Q, ReadOnlyUnalignedPtr, N)) {
+      std::cerr << "Read-only buffer modified misaligned source data (offset="
+                << Offset << ")\n";
+      return 1;
+    }
+
+    std::vector<unsigned char> MidStorage(sizeof(int) * N + Offset, 0);
+    int *UnalignedMidPtr = reinterpret_cast<int *>(MidStorage.data() + Offset);
+    if (!runMidLifeHostAccessor(Q, UnalignedMidPtr, N) ||
+        !checkMidLife(UnalignedMidPtr)) {
+      std::cerr << "Mid-life host_accessor failed on misaligned buffer (offset="
+                << Offset << ")\n";
+      return 1;
+    }
+  }
+
+  // --- Aligned-but-non-importable: raw heap allocation ---
+  // A plain new[] returns a pointer that is naturally aligned for int but
+  // is not USM-imported, not pinned, and not part of any device-visible
+  // allocation. On L0 this exercises the path where maybeImportUSM either
+  // succeeds (and the pointer is promoted) or fails and the adapter must
+  // fall back to its own backing storage with explicit copies.
+  {
+    std::unique_ptr<int[]> HeapInput(new int[N]);
+    for (size_t I = 0; I < N; ++I)
+      HeapInput[I] = static_cast<int>(I);
+
+    if (runReadOnlySumKernel(Q, HeapInput.get(), N) != ExpectedSum) {
+      std::cerr << "Unexpected sum on aligned heap pointer\n";
+      return 1;
+    }
+
+    std::unique_ptr<int[]> HeapWritable(new int[N]());
+    runWriteKernel(Q, HeapWritable.get(), N);
+    if (!checkExpectedPattern(HeapWritable.get(), N)) {
+      std::cerr << "Unexpected data in aligned heap writable buffer\n";
+      return 1;
+    }
+
+    if (!runReadOnlyImmutability(Q, HeapInput.get(), N)) {
+      std::cerr << "Read-only buffer modified aligned heap source data\n";
+      return 1;
+    }
+
+    std::unique_ptr<int[]> HeapMid(new int[N]());
+    if (!runMidLifeHostAccessor(Q, HeapMid.get(), N) ||
+        !checkMidLife(HeapMid.get())) {
+      std::cerr << "Mid-life host_accessor failed on aligned heap buffer\n";
+      return 1;
+    }
   }
 
   return 0;
