@@ -204,6 +204,12 @@ jobs:
       #       get a dump to analyze, not an empty log.
       shell: bash
       run: |
+        # GitHub runs bash with `-e -o pipefail`; this is a best-effort
+        # diagnostic where several probes (reg.exe, find on a missing path, the
+        # expected crash) return nonzero on purpose. Disable -e/pipefail so an
+        # intermediate failure does not abort the step before we run the test and
+        # write/upload the log.
+        set +e +o pipefail
         cmake --build build --target ProgramManagerTests-Non_Preview_Tests
         EXE="$(pwd)/build/tools/sycl/unittests/program_manager/ProgramManagerTests-Non_Preview_Tests.exe"
         export PATH="$(pwd)/build/bin:$PATH"
@@ -234,8 +240,11 @@ jobs:
           if [ -f "$d/cdb.exe" ]; then CDB="$d/cdb.exe"; break; fi
         done
         if [ -z "$CDB" ]; then
-          CDB="$(find '/c/Program Files (x86)/Windows Kits' '/c/Program Files/Windows Kits' \
-                  -name cdb.exe 2>/dev/null | head -n1)"
+          for base in '/c/Program Files (x86)/Windows Kits' '/c/Program Files/Windows Kits'; do
+            [ -d "$base" ] || continue
+            CDB="$(find "$base" -name cdb.exe 2>/dev/null | head -n1)"
+            [ -n "$CDB" ] && break
+          done
         fi
         echo "cdb = ${CDB:-<not found>}" | tee "$LOG"
 
