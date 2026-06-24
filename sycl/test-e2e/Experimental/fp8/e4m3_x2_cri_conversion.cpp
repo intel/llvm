@@ -337,6 +337,9 @@ template <typename T> int test_carray_conversion(sycl::queue &queue) {
 }
 
 int main() {
+  static_assert(alignof(fp8_e4m3_x2) == 2);
+  static_assert(sizeof(fp8_e4m3_x2) == 2);
+
   auto async_handler = [](sycl::exception_list exceptions) {
     for (const std::exception_ptr &e : exceptions) {
       try {
