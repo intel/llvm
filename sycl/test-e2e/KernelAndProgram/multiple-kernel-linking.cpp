@@ -1,4 +1,5 @@
 // UNSUPPORTED: hip
+// UNSUUPORTED-TRACKER: https://github.com/intel/llvm/issues/22300
 
 // RUN: %{build} -fno-sycl-early-optimizations -fsycl-device-code-split=per_kernel -o %t_per_kernel.out
 // RUN: %{build} -fno-sycl-early-optimizations -fsycl-device-code-split=per_source -o %t_per_source.out

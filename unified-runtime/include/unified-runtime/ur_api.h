@@ -524,6 +524,14 @@ typedef enum ur_function_t {
   UR_FUNCTION_GRAPH_GET_NATIVE_HANDLE_EXP = 320,
   /// Enumerator for ::urGraphExecutableGraphGetNativeHandleExp
   UR_FUNCTION_GRAPH_EXECUTABLE_GRAPH_GET_NATIVE_HANDLE_EXP = 321,
+  /// Enumerator for ::urEventCreateExp
+  UR_FUNCTION_EVENT_CREATE_EXP = 322,
+  /// Enumerator for ::urIPCGetEventHandleExp
+  UR_FUNCTION_IPC_GET_EVENT_HANDLE_EXP = 323,
+  /// Enumerator for ::urIPCPutEventHandleExp
+  UR_FUNCTION_IPC_PUT_EVENT_HANDLE_EXP = 324,
+  /// Enumerator for ::urIPCOpenEventHandleExp
+  UR_FUNCTION_IPC_OPEN_EVENT_HANDLE_EXP = 325,
   /// @cond
   UR_FUNCTION_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -651,6 +659,8 @@ typedef enum ur_structure_type_t {
   UR_STRUCTURE_TYPE_EXP_HOST_TASK_PROPERTIES = 0x6000,
   /// ::ur_exp_usm_host_alloc_register_properties_t
   UR_STRUCTURE_TYPE_EXP_USM_HOST_ALLOC_REGISTER_PROPERTIES = 0x7000,
+  /// ::ur_exp_event_desc_t
+  UR_STRUCTURE_TYPE_EXP_EVENT_DESC = 0x8000,
   /// @cond
   UR_STRUCTURE_TYPE_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -2521,6 +2531,13 @@ typedef enum ur_device_info_t {
   /// [::ur_bool_t] returns true if the device supports inter-process
   /// communicable physical memory handles
   UR_DEVICE_INFO_IPC_PHYSICAL_MEMORY_SUPPORT_EXP = 0x2024,
+  /// [::ur_bool_t] returns true if the device supports reusable events
+  /// created with ::urEventCreateExp and signaled by
+  /// ::urEnqueueEventsWaitWithBarrierExt.
+  UR_DEVICE_INFO_REUSABLE_EVENTS_SUPPORT_EXP = 0x2025,
+  /// [::ur_bool_t] returns true if the device supports inter-process
+  /// communicable event handles
+  UR_DEVICE_INFO_IPC_EVENT_SUPPORT_EXP = 0x2026,
   /// [::ur_bool_t] returns true if the device supports enqueueing of
   /// allocations and frees.
   UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_SUPPORT_EXP = 0x2050,
@@ -11388,6 +11405,127 @@ UR_APIEXPORT ur_result_t UR_APICALL urIPCClosePhysMemHandleExp(
     /// [in] physical memory handle opened through urIPCOpenPhysMemHandleExp
     ur_physical_mem_handle_t hPhysMem);
 
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Gets an inter-process event handle for an event object
+///
+/// @details
+///     - The event must have been created by ::urEventCreateExp with the
+///       ::UR_EXP_EVENT_FLAG_IPC_EXP flag set. Events created without that
+///       flag, and events opened with ::urIPCOpenEventHandleExp, cannot be
+///       exported.
+///     - On success, `ppIPCEventHandleData` receives an opaque byte buffer
+///       allocated and owned by the implementation, and
+///       `pIPCEventHandleDataSizeRet` receives its size. The contents of this
+///       buffer may be copied and transferred, by the application's own means,
+///       to another process on the same system, which passes those bytes to
+///       ::urIPCOpenEventHandleExp to obtain an event object that shares state
+///       with `hEvent`.
+///     - The returned handle data must be released in the originating process
+///       with ::urIPCPutEventHandleExp once it is no longer needed.
+///     - Events created with ::UR_EXP_EVENT_FLAG_ENABLE_PROFILING cannot be
+///       exported.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hEvent`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == ppIPCEventHandleData`
+///         + `NULL == pIPCEventHandleDataSizeRet`
+///     - ::UR_RESULT_ERROR_INVALID_EVENT
+///         + `hEvent` was not created with the ::UR_EXP_EVENT_FLAG_IPC_EXP
+///         flag.
+///         + `hEvent` was obtained from ::urIPCOpenEventHandleExp.
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + `hEvent` has profiling or timestamping enabled.
+///         + The device associated with `hEvent` does not support event IPC, as
+///         reported by ::UR_DEVICE_INFO_IPC_EVENT_SUPPORT_EXP.
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+UR_APIEXPORT ur_result_t UR_APICALL urIPCGetEventHandleExp(
+    /// [in] handle of the event object
+    ur_event_handle_t hEvent,
+    /// [out] a pointer to the IPC event handle data
+    void **ppIPCEventHandleData,
+    /// [out] size of the resulting IPC event handle data
+    size_t *pIPCEventHandleDataSizeRet);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Releases an inter-process event handle
+///
+/// @details
+///     - Releases the resources associated with IPC event handle data returned
+///       by ::urIPCGetEventHandleExp. Must be called in the same process that
+///       obtained the handle data. This does not destroy the source event and
+///       does not affect event objects already opened with
+///       ::urIPCOpenEventHandleExp.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pIPCEventHandleData`
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+UR_APIEXPORT ur_result_t UR_APICALL urIPCPutEventHandleExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] a pointer to the IPC event handle data obtained with
+    /// ::urIPCGetEventHandleExp
+    void *pIPCEventHandleData);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Opens an inter-process event handle to get the corresponding event
+///        object in the current process
+///
+/// @details
+///     - Returns an event object that shares state with the event that produced
+///       the IPC handle. Either event can be signaled, waited on, or queried,
+///       and a state change made through one event is observable through the
+///       other.
+///     - The returned event is a normal ::ur_event_handle_t with an initial
+///       reference count of 1. It may be passed to entry points that accept an
+///       event, retained with ::urEventRetain, and must be released with
+///       ::urEventRelease. On the final release, the adapter performs the
+///       native cleanup required for an opened IPC event.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == phEvent`
+///         + `NULL == pIPCEventHandleData`
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///         + `ipcEventHandleDataSize` is not the same as the size of the IPC
+///         event handle data
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + A device in `hContext` does not support event IPC, as reported by
+///         ::UR_DEVICE_INFO_IPC_EVENT_SUPPORT_EXP.
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+UR_APIEXPORT ur_result_t UR_APICALL urIPCOpenEventHandleExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] the IPC event handle data
+    const void *pIPCEventHandleData,
+    /// [in] size of the IPC event handle data
+    size_t ipcEventHandleDataSize,
+    /// [out][alloc] pointer to the handle of the event object created
+    ur_event_handle_t *phEvent);
+
 #if !defined(__GNUC__)
 #pragma endregion
 #endif
@@ -11714,8 +11852,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMContextMemcpyExp(
 /// @brief USM host memory registration flags.
 typedef uint32_t ur_exp_usm_host_alloc_register_flags_t;
 typedef enum ur_exp_usm_host_alloc_register_flag_t {
-  /// Reserved for future use.
-  UR_EXP_USM_HOST_ALLOC_REGISTER_FLAG_TBD = UR_BIT(0),
+  /// Device access to the registered range is read-only.  The behavior
+  /// is undefined if device code writes to a range registered with this
+  /// flag.
+  UR_EXP_USM_HOST_ALLOC_REGISTER_FLAG_READ_ONLY = UR_BIT(0),
   /// @cond
   UR_EXP_USM_HOST_ALLOC_REGISTER_FLAG_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -13700,9 +13840,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrierExt(
     /// previously enqueued commands
     /// must be complete.
     const ur_event_handle_t *phEventWaitList,
-    /// [out][optional][alloc] return an event object that identifies this
+    /// [in,out][optional][alloc] return an event object that identifies this
     /// particular command instance. If phEventWaitList and phEvent are not
-    /// NULL, phEvent must not refer to an element of the phEventWaitList array.
+    /// NULL, phEvent must not refer to an element of the phEventWaitList
+    /// array. If *phEvent is not NULL on input and points to a reusable event
+    /// created by ::urEventCreateExp, it is signaled by this command instead
+    /// of allocating a new event. A reusable event may only be passed when
+    /// the device associated with hQueue reports
+    /// ::UR_DEVICE_INFO_REUSABLE_EVENTS_SUPPORT_EXP as true.
     ur_event_handle_t *phEvent);
 
 #if !defined(__GNUC__)
@@ -13794,6 +13939,91 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueNativeCommandExp(
     /// been enqueued in nativeEnqueueFunc. If phEventWaitList and phEvent are
     /// not NULL, phEvent must not refer to an element of the phEventWaitList
     /// array.
+    ur_event_handle_t *phEvent);
+
+#if !defined(__GNUC__)
+#pragma endregion
+#endif
+// Intel 'oneAPI' Unified Runtime Experimental API for reusable events
+#if !defined(__GNUC__)
+#pragma region reusable_events_(experimental)
+#endif
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Reusable event creation flags.
+typedef uint32_t ur_exp_event_flags_t;
+typedef enum ur_exp_event_flag_t {
+  /// Event captures UR_PROFILING_INFO_COMMAND_START and
+  /// UR_PROFILING_INFO_COMMAND_END timestamps when signalled.
+  UR_EXP_EVENT_FLAG_ENABLE_PROFILING = UR_BIT(0),
+  /// The event can be shared with other processes through the
+  /// ::urIPCGetEventHandleExp and ::urIPCOpenEventHandleExp APIs. This flag
+  /// must be passed to ::urEventCreateExp for any event whose IPC handle
+  /// will later be obtained; it cannot be enabled after creation. Must not
+  /// be combined with ::UR_EXP_EVENT_FLAG_ENABLE_PROFILING.
+  UR_EXP_EVENT_FLAG_IPC_EXP = UR_BIT(1),
+  /// @cond
+  UR_EXP_EVENT_FLAG_FORCE_UINT32 = 0x7fffffff
+  /// @endcond
+
+} ur_exp_event_flag_t;
+/// @brief Bit Mask for validating ur_exp_event_flags_t
+#define UR_EXP_EVENT_FLAGS_MASK 0xfffffffc
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Descriptor type for creating reusable events.
+typedef struct ur_exp_event_desc_t {
+  /// [in] type of this structure, must be
+  /// ::UR_STRUCTURE_TYPE_EXP_EVENT_DESC
+  ur_structure_type_t stype;
+  /// [in][optional] pointer to extension-specific structure
+  const void *pNext;
+  /// [in] handle of the device object associated with this event
+  ur_device_handle_t hDevice;
+  /// [in] combination of event creation flags. If
+  /// ::UR_EXP_EVENT_FLAG_ENABLE_PROFILING is set, the event captures
+  /// UR_PROFILING_INFO_COMMAND_START and UR_PROFILING_INFO_COMMAND_END
+  /// timestamps when signalled. If it is not set, profiling info queries on
+  /// this event return ::UR_RESULT_ERROR_PROFILING_INFO_NOT_AVAILABLE
+  /// unless the queue used to signal the event has profiling enabled.
+  ur_exp_event_flags_t flags;
+
+} ur_exp_event_desc_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Create a reusable event object that can be passed to
+///        ::urEnqueueEventsWaitWithBarrierExt to signal work. The event is not
+///        associated with any enqueued command.
+///
+/// @details
+///     - If ::UR_EXP_EVENT_FLAG_ENABLE_PROFILING is set in pEventDesc->flags
+///       and the platform does not support per-event profiling, the function
+///       returns ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///         + `NULL == pEventDesc->hDevice`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pEventDesc`
+///         + `NULL == phEvent`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_EXP_EVENT_FLAGS_MASK & pEventDesc->flags`
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + `pEventDesc->flags & ::UR_EXP_EVENT_FLAG_ENABLE_PROFILING` and the
+///         platform does not support per-event profiling
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+UR_APIEXPORT ur_result_t UR_APICALL urEventCreateExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] pointer to event creation descriptor
+    const ur_exp_event_desc_t *pEventDesc,
+    /// [out] pointer to the handle of the event object created
     ur_event_handle_t *phEvent);
 
 #if !defined(__GNUC__)
@@ -14467,6 +14697,16 @@ typedef struct ur_event_set_callback_params_t {
   ur_event_callback_t *ppfnNotify;
   void **ppUserData;
 } ur_event_set_callback_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urEventCreateExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_event_create_exp_params_t {
+  ur_context_handle_t *phContext;
+  const ur_exp_event_desc_t **ppEventDesc;
+  ur_event_handle_t **pphEvent;
+} ur_event_create_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urProgramCreateWithIL
@@ -16756,6 +16996,36 @@ typedef struct ur_ipc_close_phys_mem_handle_exp_params_t {
   ur_context_handle_t *phContext;
   ur_physical_mem_handle_t *phPhysMem;
 } ur_ipc_close_phys_mem_handle_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urIPCGetEventHandleExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_ipc_get_event_handle_exp_params_t {
+  ur_event_handle_t *phEvent;
+  void ***pppIPCEventHandleData;
+  size_t **ppIPCEventHandleDataSizeRet;
+} ur_ipc_get_event_handle_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urIPCPutEventHandleExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_ipc_put_event_handle_exp_params_t {
+  ur_context_handle_t *phContext;
+  void **ppIPCEventHandleData;
+} ur_ipc_put_event_handle_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urIPCOpenEventHandleExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_ipc_open_event_handle_exp_params_t {
+  ur_context_handle_t *phContext;
+  const void **ppIPCEventHandleData;
+  size_t *pipcEventHandleDataSize;
+  ur_event_handle_t **pphEvent;
+} ur_ipc_open_event_handle_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urMemoryExportAllocExportableMemoryExp

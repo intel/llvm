@@ -1265,6 +1265,21 @@ ur_result_t urPrintExpEnqueueNativeCommandProperties(
   return str_copy(&ss, buffer, buff_size, out_size);
 }
 
+ur_result_t urPrintExpEventFlags(enum ur_exp_event_flag_t value, char *buffer,
+                                 const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << value;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintExpEventDesc(const struct ur_exp_event_desc_t params,
+                                char *buffer, const size_t buff_size,
+                                size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
 ur_result_t
 urPrintAdapterGetParams(const struct ur_adapter_get_params_t *params,
                         char *buffer, const size_t buff_size,
@@ -2122,6 +2137,15 @@ ur_result_t urPrintEventSetCallbackParams(
 }
 
 ur_result_t
+urPrintEventCreateExpParams(const struct ur_event_create_exp_params_t *params,
+                            char *buffer, const size_t buff_size,
+                            size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t
 urPrintGraphCreateExpParams(const struct ur_graph_create_exp_params_t *params,
                             char *buffer, const size_t buff_size,
                             size_t *out_size) {
@@ -2255,6 +2279,30 @@ ur_result_t urPrintIpcOpenPhysMemHandleExpParams(
 ur_result_t urPrintIpcClosePhysMemHandleExpParams(
     const struct ur_ipc_close_phys_mem_handle_exp_params_t *params,
     char *buffer, const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintIpcGetEventHandleExpParams(
+    const struct ur_ipc_get_event_handle_exp_params_t *params, char *buffer,
+    const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintIpcPutEventHandleExpParams(
+    const struct ur_ipc_put_event_handle_exp_params_t *params, char *buffer,
+    const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintIpcOpenEventHandleExpParams(
+    const struct ur_ipc_open_event_handle_exp_params_t *params, char *buffer,
+    const size_t buff_size, size_t *out_size) {
   std::stringstream ss;
   ss << params;
   return str_copy(&ss, buffer, buff_size, out_size);
