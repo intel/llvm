@@ -4766,26 +4766,42 @@ public:
 _SPIRV_OP(FSigmoidINTEL)
 #undef _SPIRV_OP
 
-class SPIRVFPConversionINTELInstBase : public SPIRVInstTemplateBase {
+class SPIRVFPConversionFtoFINTELInstBase : public SPIRVInstTemplateBase {
 public:
   SPIRVCapVec getRequiredCapability() const override {
-    return getVec(internal::CapabilityFloatConversionsINTEL);
+    return getVec(internal::CapabilityFloatConversionsFtoFINTEL);
   }
 
   std::optional<ExtensionID> getRequiredExtension() const override {
     return ExtensionID::SPV_INTEL_fp_conversions;
   }
 };
-#define _SPIRV_OP(x, ...)                                                      \
-  typedef SPIRVInstTemplate<SPIRVFPConversionINTELInstBase,                    \
+
+#define _SPIRV_OP_FTOF(x, ...)                                                 \
+  typedef SPIRVInstTemplate<SPIRVFPConversionFtoFINTELInstBase,                \
                             internal::Op##x##INTEL, __VA_ARGS__>               \
       SPIRV##x##INTEL;
-_SPIRV_OP(ClampConvertFToF, true, 4, false)
-_SPIRV_OP(ClampConvertFToS, true, 4, false)
-_SPIRV_OP(StochasticRoundFToF, true, 5, true)
-_SPIRV_OP(ClampStochasticRoundFToF, true, 5, true)
-_SPIRV_OP(ClampStochasticRoundFToS, true, 5, true)
-#undef _SPIRV_OP
+_SPIRV_OP_FTOF(StochasticRoundFToF, true, 5, true)
+#undef _SPIRV_OP_FTOF
+
+class SPIRVFPConversionFtoSINTELInstBase : public SPIRVInstTemplateBase {
+public:
+  SPIRVCapVec getRequiredCapability() const override {
+    return getVec(internal::CapabilityFloatConversionsFtoSINTEL);
+  }
+
+  std::optional<ExtensionID> getRequiredExtension() const override {
+    return ExtensionID::SPV_INTEL_fp_conversions;
+  }
+};
+
+#define _SPIRV_OP_FTOS(x, ...)                                                 \
+  typedef SPIRVInstTemplate<SPIRVFPConversionFtoSINTELInstBase,                \
+                            internal::Op##x##INTEL, __VA_ARGS__>               \
+      SPIRV##x##INTEL;
+_SPIRV_OP_FTOS(ClampConvertFToS, true, 4, false)
+_SPIRV_OP_FTOS(ClampStochasticRoundFToS, true, 5, true)
+#undef _SPIRV_OP_FTOS
 
 class SPIRVFmaKHRInstBase : public SPIRVInstTemplateBase {
 public:
