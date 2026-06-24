@@ -876,8 +876,6 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
                                     const InputInfo &Output,
                                     const InputInfoList &Inputs) const {
   const bool IsIAMCU = getToolChain().getTriple().isOSIAMCU();
-  bool SYCLDeviceCompilation = JA.isOffloading(Action::OFK_SYCL) &&
-                               JA.isDeviceOffloading(Action::OFK_SYCL);
 
   CheckPreprocessingOptions(D, Args);
 
@@ -1071,15 +1069,17 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
 
     if (YcArg || YuArg) {
       StringRef ThroughHeader = YcArg ? YcArg->getValue() : YuArg->getValue();
-      // If PCH file is available, include it while performing
-      // host compilation (-fsycl-is-host) in SYCL mode (-fsycl).
-      // as well as in non-sycl mode.
-
-      if (!isa<PrecompileJobAction>(JA) && !SYCLDeviceCompilation) {
+      // If a PCH file is available, include it.
+      if (!isa<PrecompileJobAction>(JA)) {
+        StringRef PCHHeader = ThroughHeader;
+        // If a PCH file is being used, use the extracted versions for SYCL.
+        if (YuArg && JA.isOffloading(Action::OFK_SYCL))
+          PCHHeader = D.getSYCLPrecompiledHeaderFile(
+              getToolChain().getTriple().getTriple());
         CmdArgs.push_back("-include-pch");
         CmdArgs.push_back(Args.MakeArgString(D.GetClPchPath(
-            C, !ThroughHeader.empty()
-                   ? ThroughHeader
+            C, !PCHHeader.empty()
+                   ? PCHHeader
                    : llvm::sys::path::filename(Inputs[0].getBaseInput()))));
       }
 
@@ -1110,7 +1110,17 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
       // so that replace_extension does the right thing.
       P += ".dummy";
       llvm::sys::path::replace_extension(P, "pch");
-      if (D.getVFS().exists(P))
+      // If this is a SYCL compilation, we would have extracted the PCH
+      // files from the fat binary, so use that instead.
+      if (JA.isOffloading(Action::OFK_SYCL)) {
+        SmallString<128> SYCLPCHFile = D.getSYCLPrecompiledHeaderFile(
+            getToolChain().getTriple().getTriple());
+        if (D.getVFS().exists(SYCLPCHFile)) {
+          P = SYCLPCHFile;
+          FoundPCH = true;
+        }
+      }
+      if (!FoundPCH && D.getVFS().exists(P))
         FoundPCH = true;
 
       if (!FoundPCH) {
@@ -1118,11 +1128,8 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
         llvm::sys::path::replace_extension(P, "gch");
         FoundPCH = gchProbe(D, P.str());
       }
-      // If PCH file is available, include it while performing
-      // host compilation (-fsycl-is-host) in SYCL mode (-fsycl).
-      // as well as in non-sycl mode.
-
-      if (FoundPCH && !SYCLDeviceCompilation) {
+      // If a PCH file is available, include it.
+      if (FoundPCH) {
         if (IsFirstImplicitInclude) {
           A->claim();
           CmdArgs.push_back("-include-pch");
@@ -1167,11 +1174,10 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
     std::set<unsigned> ArchIDs;
     for (auto &I : llvm::make_range(C.getOffloadToolChains(Action::OFK_Cuda))) {
       const ToolChain *TC = I.second;
-      for (StringRef Arch :
+      for (BoundArch Arch :
            D.getOffloadArchs(C, C.getArgs(), Action::OFK_Cuda, *TC)) {
-        OffloadArch OA = StringToOffloadArch(Arch);
-        if (IsNVIDIAOffloadArch(OA))
-          ArchIDs.insert(CudaArchToID(OA));
+        if (IsNVIDIAOffloadArch(Arch.Arch))
+          ArchIDs.insert(CudaArchToID(Arch.Arch));
       }
     }
 
@@ -1393,7 +1399,7 @@ static void renderRemarksOptions(const ArgList &Args, ArgStringList &CmdArgs,
         F += Action::GetOffloadingFileNamePrefix(JA.getOffloadingDeviceKind(),
                                                  Triple.str());
         F += "-";
-        F += JA.getOffloadingArch();
+        F += JA.getOffloadingArch().ArchName;
       }
     }
 
@@ -2022,7 +2028,7 @@ void Clang::AddPPCTargetArgs(const ArgList &Args,
   if (Arg *A = Args.getLastArg(options::OPT_mtune_EQ)) {
     CmdArgs.push_back("-tune-cpu");
     StringRef CPU = llvm::PPC::getNormalizedPPCTuneCPU(T, A->getValue());
-    CmdArgs.push_back(Args.MakeArgString(CPU.str()));
+    CmdArgs.push_back(Args.MakeArgString(CPU));
   }
 
   // Select the ABI to use.
@@ -5645,7 +5651,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   if (IsSYCL) {
     if (IsSYCLDevice) {
       if (Triple.isNVPTX()) {
-        StringRef GPUArchName = JA.getOffloadingArch();
+        StringRef GPUArchName = JA.getOffloadingArch().ArchName;
         // TODO: Once default arch is moved to at least SM_53, empty arch should
         // also result in the flag added.
         if (!GPUArchName.empty() &&
@@ -5774,7 +5780,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
         if ((Triple.isSPIR() &&
              Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen) ||
             Triple.isNVPTX() || Triple.isAMDGCN()) {
-          StringRef Device = JA.getOffloadingArch();
+          StringRef Device = JA.getOffloadingArch().ArchName;
           if (!Device.empty() &&
               !SYCL::gen::getGenDeviceMacro(Device).empty()) {
             Macro = "-D";
@@ -5810,12 +5816,10 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
         // header file.
         CmdArgs.push_back("-dependency-filter");
         CmdArgs.push_back(Args.MakeArgString(Header));
-
         // Since this is a host compilation and the integration header is
         // included, enable the integration header based diagnostics.
         CmdArgs.push_back("-fsycl-enable-int-header-diags");
       }
-
       StringRef Footer = D.getIntegrationFooter(Input.getBaseInput());
       if (types::getPreprocessedType(Input.getType()) != types::TY_INVALID &&
           !Args.hasArg(options::OPT_fno_sycl_use_footer) && !Footer.empty()) {
@@ -6182,9 +6186,10 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       if ((IsDeviceOffloadAction &&
            !JA.isDeviceOffloading(Action::OFK_OpenMP) && !Triple.isAMDGPU() &&
            !Triple.isSPIRV() && !IsUsingOffloadNewDriver) ||
-          (JA.isDeviceOffloading(Action::OFK_SYCL) && !IsSYCLLTOSupported)) {
+          (JA.isDeviceOffloading(Action::OFK_SYCL) && !IsSYCLLTOSupported &&
+           LTOArg)) {
         D.Diag(diag::err_drv_unsupported_opt_for_target)
-            << (LTOArg ? LTOArg->getAsString(Args) : "-foffload-lto")
+            << LTOArg->getAsString(Args)
             << Triple.getTriple();
       } else if (Triple.isNVPTX() && !IsRDCMode &&
                  JA.isDeviceOffloading(Action::OFK_Cuda)) {
@@ -7018,9 +7023,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
   Args.AddLastArg(CmdArgs, options::OPT_fno_knr_functions);
 
-  const char *OffloadArch = JA.getOffloadingArch();
-  auto SanitizeArgs = TC.getSanitizerArgs(Args, OffloadArch ? OffloadArch : "",
-                                          JA.getOffloadingDeviceKind());
+  BoundArch OffloadArch = JA.getOffloadingArch();
+  auto SanitizeArgs =
+      TC.getSanitizerArgs(Args, OffloadArch, JA.getOffloadingDeviceKind());
   Args.AddLastArg(CmdArgs,
                   options::OPT_fallow_runtime_check_skip_hot_cutoff_EQ);
 
@@ -7059,7 +7064,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   // `--gpu-use-aux-triple-only` is specified.
   if (AuxTriple && !Args.getLastArg(options::OPT_gpu_use_aux_triple_only)) {
     const ArgList &HostArgs =
-        C.getArgsForToolChain(nullptr, StringRef(), Action::OFK_None);
+        C.getArgsForToolChain(nullptr, BoundArch(), Action::OFK_None);
     std::string HostCPU = getCPUName(D, HostArgs, *AuxTriple, /*FromAs*/ false);
     if (!HostCPU.empty()) {
       CmdArgs.push_back("-aux-target-cpu");
@@ -7538,8 +7543,15 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
   Args.AddLastArg(CmdArgs, options::OPT_fexperimental_library);
 
-  if (Args.hasArg(options::OPT_fexperimental_new_constant_interpreter))
-    CmdArgs.push_back("-fexperimental-new-constant-interpreter");
+  if (CLANG_USE_EXPERIMENTAL_CONST_INTERP) {
+    Args.ClaimAllArgs(options::OPT_fexperimental_new_constant_interpreter);
+    Args.AddLastArg(CmdArgs,
+                    options::OPT_fno_experimental_new_constant_interpreter);
+  } else {
+    Args.ClaimAllArgs(options::OPT_fno_experimental_new_constant_interpreter);
+    Args.AddLastArg(CmdArgs,
+                    options::OPT_fexperimental_new_constant_interpreter);
+  }
 
   if (Arg *A = Args.getLastArg(options::OPT_fbracket_depth_EQ)) {
     CmdArgs.push_back("-fbracket-depth");
@@ -10262,7 +10274,7 @@ void OffloadBundler::ConstructJob(Compilation &C, const JobAction &JA,
 
     if (const auto *OA = dyn_cast<OffloadAction>(CurDep)) {
       CurTC = nullptr;
-      OA->doOnEachDependence([&](Action *A, const ToolChain *TC, const char *) {
+      OA->doOnEachDependence([&](Action *A, const ToolChain *TC, BoundArch BA) {
         assert(CurTC == nullptr && "Expected one dependence!");
         CurKind = A->getOffloadingDeviceKind();
         CurTC = TC;
@@ -10291,21 +10303,14 @@ void OffloadBundler::ConstructJob(Compilation &C, const JobAction &JA,
       T.setArchName(ArchName);
       Triples += T.normalize();
     } else {
-      // Use of the 4-field triple will be done for HIP only, with other
-      // offload targets not being modified.
-      // TODO: All targets should use the 4-field triple, which can be done
-      //       during an ABI breaking juncture.
-      if (CurKind == Action::OFK_HIP)
-        Triples += CurTC->getTriple().normalize(
-            llvm::Triple::CanonicalForm::FOUR_IDENT);
-      else
-        Triples += CurTC->getTriple().normalize();
+      Triples += llvm::Triple(CurTC->ComputeEffectiveClangTriple(
+                                  TCArgs, CurDep->getOffloadingArch()))
+                     .normalize(llvm::Triple::CanonicalForm::FOUR_IDENT);
     }
-    if (CurKind != Action::OFK_Host &&
-        !StringRef(CurDep->getOffloadingArch()).empty() &&
+    if (CurKind != Action::OFK_Host && !CurDep->getOffloadingArch().empty() &&
         !TCArgs.hasArg(options::OPT_fno_bundle_offload_arch)) {
       Triples += '-';
-      Triples += CurDep->getOffloadingArch();
+      Triples += CurDep->getOffloadingArch().ArchName;
     }
   }
   CmdArgs.push_back(TCArgs.MakeArgString(Triples));
@@ -10323,7 +10328,7 @@ void OffloadBundler::ConstructJob(Compilation &C, const JobAction &JA,
     const ToolChain *CurTC = &getToolChain();
     if (const auto *OA = dyn_cast<OffloadAction>(JA.getInputs()[I])) {
       CurTC = nullptr;
-      OA->doOnEachDependence([&](Action *, const ToolChain *TC, const char *) {
+      OA->doOnEachDependence([&](Action *, const ToolChain *TC, BoundArch) {
         assert(CurTC == nullptr && "Expected one dependence!");
         CurTC = TC;
       });
@@ -10419,24 +10424,30 @@ void OffloadBundler::ConstructJobMultipleOutputs(
       // TODO: All targets should use the 4-field triple, which can be done
       //       during an ABI breaking juncture.
       if (Dep.DependentOffloadKind == Action::OFK_HIP)
-        Triples += Dep.DependentToolChain->getTriple().normalize(
-          llvm::Triple::CanonicalForm::FOUR_IDENT);
+        Triples += llvm::Triple(Dep.DependentToolChain->ComputeEffectiveClangTriple(
+                                    TCArgs, Dep.DependentBoundArch))
+                       .normalize(llvm::Triple::CanonicalForm::FOUR_IDENT);
       else
-        Triples += Dep.DependentToolChain->getTriple().normalize();
+        Triples += llvm::Triple(Dep.DependentToolChain->ComputeEffectiveClangTriple(
+                                    TCArgs, Dep.DependentBoundArch))
+                       .normalize();
     }
     if (Dep.DependentOffloadKind != Action::OFK_Host &&
         !Dep.DependentBoundArch.empty() &&
         !TCArgs.hasArg(options::OPT_fno_bundle_offload_arch)) {
       Triples += '-';
-      Triples += Dep.DependentBoundArch;
+      Triples += Dep.DependentBoundArch.ArchName;
     }
   }
   std::string TargetString(UA.getTargetString());
+  StringRef TargetTriples = Triples;
+  SmallVector<StringRef> Archs;
   if (!TargetString.empty()) {
     // The target string was provided, we will override the defaults and use
     // the string provided.
     SmallString<128> TSTriple("-targets=");
     TSTriple += TargetString;
+    TargetTriples = TargetString;
     CmdArgs.push_back(TCArgs.MakeArgString(TSTriple));
   } else {
     CmdArgs.push_back(TCArgs.MakeArgString(Triples));
@@ -10446,12 +10457,28 @@ void OffloadBundler::ConstructJobMultipleOutputs(
   CmdArgs.push_back(
       TCArgs.MakeArgString(Twine("-input=") + InputFileName));
 
+  // Save the individual arch triples for PCH.
+  if (InputType == types::TY_PCH) {
+    auto TripleString = TargetTriples.split('=').second;
+    TripleString.split(Archs, ',');
+    assert(Archs.size() == Outputs.size() &&
+           "expected same number of triples as outputs");
+  }
+
   // Get unbundled files command.
   for (unsigned I = 0; I < Outputs.size(); ++I) {
     SmallString<128> UB;
     UB += "-output=";
-    UB += DepInfo[I].DependentToolChain->getInputFilename(Outputs[I]);
+    std::string IFName =
+        DepInfo[I].DependentToolChain->getInputFilename(Outputs[I]);
+    UB += IFName;
     CmdArgs.push_back(TCArgs.MakeArgString(UB));
+    // If this is a bundled PCH file, save the triple-filename pair.
+    if (InputType == types::TY_PCH) {
+      StringRef ArchName = Archs[I].split('-').second;
+      C.getDriver().addSYCLPrecompiledHeaderFiles(
+          TCArgs.MakeArgString(ArchName), TCArgs.MakeArgString(IFName));
+    }
   }
   CmdArgs.push_back("-unbundle");
   CmdArgs.push_back("-allow-missing-bundles");
@@ -10512,8 +10539,8 @@ static void addRunTimeWrapperOpts(Compilation &C,
   if (TT.getSubArch() == llvm::Triple::NoSubArch) {
     // Only store compile/link opts in the image descriptor for the SPIR-V
     // target; AOT compilation has already been performed otherwise.
-    const ArgList &Args = C.getArgsForToolChain(nullptr, StringRef(),
-                                                DeviceOffloadKind);
+    const ArgList &Args =
+        C.getArgsForToolChain(nullptr, BoundArch{}, DeviceOffloadKind);
     const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
     SYCLTC.AddSPIRVImpliedTargetArgs(TT, Args, BuildArgs, JA, *HostTC);
     SYCLTC.TranslateBackendTargetArgs(TT, Args, BuildArgs);
@@ -10692,7 +10719,7 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
            "Expected one device dependence!");
     Action::OffloadKind DeviceKind = Action::OFK_None;
     const ToolChain *DeviceTC = nullptr;
-    OA->doOnEachDependence([&](Action *A, const ToolChain *TC, const char *) {
+    OA->doOnEachDependence([&](Action *A, const ToolChain *TC, BoundArch) {
       DeviceKind = A->getOffloadingDeviceKind();
       DeviceTC = TC;
     });
@@ -10738,6 +10765,9 @@ void OffloadPackager::ConstructJob(Compilation &C, const JobAction &JA,
 
   // Create the inputs to bundle the needed metadata.
   for (const InputInfo &Input : Inputs) {
+    // Do not bundle input PCH files into anything other than a PCH file.
+    if (Output.getType() != types::TY_PCH && Input.getType() == types::TY_PCH)
+      continue;
     const Action *OffloadAction = Input.getAction();
     const ToolChain *TC = OffloadAction->getOffloadingToolChain();
     if (!TC)
@@ -10753,16 +10783,11 @@ void OffloadPackager::ConstructJob(Compilation &C, const JobAction &JA,
     if (Input.getType() == types::TY_Tempfilelist)
       File = C.getArgs().MakeArgString("@" + File);
 
-    StringRef Arch;
-    if (OffloadAction->getOffloadingArch()) {
-      if (TC->getTripleString() == "spir64_gen-unknown-unknown") {
-        Arch = mapIntelGPUArchName(OffloadAction->getOffloadingArch());
-      } else {
-        Arch = OffloadAction->getOffloadingArch();
-      }
-    } else {
-      TCArgs.getLastArgValue(options::OPT_march_EQ);
-    }
+    BoundArch Arch = OffloadAction->getOffloadingArch();
+    if (Arch.empty())
+      Arch = BoundArch(TCArgs.getLastArgValue(options::OPT_march_EQ));
+    if (!Arch.empty() && TC->getTripleString() == "spir64_gen-unknown-unknown")
+      Arch = BoundArch(mapIntelGPUArchName(Arch.ArchName));
 
     StringRef Kind =
       Action::GetOffloadKindName(OffloadAction->getOffloadingDeviceKind());
@@ -10778,8 +10803,8 @@ void OffloadPackager::ConstructJob(Compilation &C, const JobAction &JA,
     // linker wrapper.
     SmallVector<std::string> Parts{
         "file=" + File.str(),
-        "triple=" + TC->getTripleString().str(),
-        "arch=" + (Arch.empty() ? "generic" : Arch.str()),
+        "triple=" + TC->ComputeEffectiveClangTriple(TCArgs, Arch),
+        "arch=" + (Arch.empty() ? "generic" : Arch.ArchName.str()),
         "kind=" + Kind.str(),
     };
 
@@ -10790,7 +10815,7 @@ void OffloadPackager::ConstructJob(Compilation &C, const JobAction &JA,
     // Instead, we pass it like arch=pvc,arch=bdw, then
     // llvm-offload-binary joins them back to arch=pvc,bdw.
     SmallVector<StringRef> Archs;
-    Arch.split(Archs, ',');
+    Arch.ArchName.split(Archs, ',');
     if (Archs.size() > 1) {
       Parts[2] = "arch=" + llvm::join(Archs, ",arch=");
     }
@@ -10827,12 +10852,12 @@ void OffloadPackager::ConstructJob(Compilation &C, const JobAction &JA,
         }
       };
       const ArgList &Args =
-          C.getArgsForToolChain(nullptr, StringRef(), Action::OFK_SYCL);
+          C.getArgsForToolChain(nullptr, BoundArch{}, Action::OFK_SYCL);
       const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
       const toolchains::SYCLToolChain &SYCLTC =
           static_cast<const toolchains::SYCLToolChain &>(*TC);
       SYCLTC.AddSPIRVImpliedTargetArgs(TC->getTriple(), Args, BuildArgs, JA,
-                                       *HostTC, Arch);
+                                       *HostTC, Arch.ArchName);
       SYCLTC.TranslateBackendTargetArgs(TC->getTriple(), Args, BuildArgs);
       createArgString("compile-opts=");
       BuildArgs.clear();
@@ -10858,7 +10883,12 @@ void OffloadPackagerExtract::ConstructJob(Compilation &C, const JobAction &JA,
                                           const char *LinkingOutput) const {
   ArgStringList CmdArgs;
   const Action *OffloadAction = Inputs[0].getAction();
-  const ToolChain *TC = OffloadAction->getOffloadingToolChain();
+  assert(isa<OffloadPackagerExtractJobAction>(JA) &&
+         "unexpected job action in OffloadPackagerExtract.");
+  const ToolChain *TC =
+      Output.getType() == types::TY_PCH
+          ? cast<OffloadPackagerExtractJobAction>(JA).getToolChain()
+          : OffloadAction->getOffloadingToolChain();
   if (!TC)
     TC = &C.getDefaultToolChain();
   const ArgList &TCArgs =
@@ -10873,8 +10903,8 @@ void OffloadPackagerExtract::ConstructJob(Compilation &C, const JobAction &JA,
   // and associated offload kind.
   assert(Output.isFilename() && "Invalid output.");
   StringRef File = Output.getFilename();
-  StringRef Arch = OffloadAction->getOffloadingArch()
-                       ? OffloadAction->getOffloadingArch()
+  StringRef Arch = !OffloadAction->getOffloadingArch().empty()
+                       ? OffloadAction->getOffloadingArch().ArchName
                        : TCArgs.getLastArgValue(options::OPT_march_EQ);
   StringRef Kind =
       Action::GetOffloadKindName(OffloadAction->getOffloadingDeviceKind());
@@ -10886,6 +10916,12 @@ void OffloadPackagerExtract::ConstructJob(Compilation &C, const JobAction &JA,
       "kind=" + Kind.str(),
   };
   CmdArgs.push_back(Args.MakeArgString("--image=" + llvm::join(Parts, ",")));
+
+  if (Inputs[0].getType() == types::TY_PCH) {
+    C.getDriver().addSYCLPrecompiledHeaderFiles(
+        TCArgs.MakeArgString(TC->getTripleString().data()),
+        TCArgs.MakeArgString(File.str()));
+  }
 
   C.addCommand(std::make_unique<Command>(
       JA, *this, ResponseFileSupport::None(),
@@ -11144,7 +11180,7 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
       // Handle -Xspirv-translator
       TC.TranslateTargetOpt(
           Triple, TCArgs, TranslatorArgs, options::OPT_Xspirv_translator,
-          options::OPT_Xspirv_translator_EQ, JA.getOffloadingArch());
+          options::OPT_Xspirv_translator_EQ, JA.getOffloadingArch().ArchName);
     }
   }
   for (auto I : Inputs) {
@@ -11457,9 +11493,9 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
 
   // Add output file table file option
   assert(Output.isFilename() && "output must be a filename");
-  StringRef Device = JA.getOffloadingArch();
+  StringRef Device = JA.getOffloadingArch().ArchName;
   std::string OutputArg = Output.getFilename();
-  if (T.getSubArch() == llvm::Triple::SPIRSubArch_gen && Device.data())
+  if (T.getSubArch() == llvm::Triple::SPIRSubArch_gen && !Device.empty())
     OutputArg = ("intel_gpu_" + Device + "," + OutputArg).str();
   else if (T.getSubArch() == llvm::Triple::SPIRSubArch_x86_64)
     OutputArg = "spir64_x86_64," + OutputArg;
@@ -11470,7 +11506,7 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
   // Handle -Xdevice-post-link
   TC.TranslateTargetOpt(T, TCArgs, CmdArgs, options::OPT_Xdevice_post_link,
                         options::OPT_Xdevice_post_link_EQ,
-                        JA.getOffloadingArch());
+                        JA.getOffloadingArch().ArchName);
 
   addArgs(CmdArgs, TCArgs, {"-o", OutputArg});
 
@@ -11658,7 +11694,7 @@ void SpirvToIrWrapper::ConstructJob(Compilation &C, const JobAction &JA,
   TC.TranslateTargetOpt(getToolChain().getTriple(), TCArgs, CmdArgs,
                         options::OPT_Xspirv_to_ir_wrapper,
                         options::OPT_Xspirv_to_ir_wrapper_EQ,
-                        JA.getOffloadingArch());
+                        JA.getOffloadingArch().ArchName);
 
   auto Cmd = std::make_unique<Command>(
       JA, *this, ResponseFileSupport::None(),
@@ -11766,7 +11802,9 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       OPT_fsanitize_minimal_runtime,
       OPT_fno_sanitize_minimal_runtime,
       OPT_fsanitize_trap_EQ,
-      OPT_fno_sanitize_trap_EQ};
+      OPT_fno_sanitize_trap_EQ,
+      OPT_fslp_vectorize,
+      OPT_fno_slp_vectorize};
   const llvm::DenseSet<unsigned> LinkerOptions{OPT_mllvm, OPT_Zlinker_input};
   auto ToolChainHasRT = [&](const ToolChain &TC, StringRef Name) {
     return TC.getVFS().exists(
@@ -11812,7 +11850,7 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       ArgStringList CompilerArgs;
       ArgStringList LinkerArgs;
       const DerivedArgList &ToolChainArgs =
-          C.getArgsForToolChain(TC, /*BoundArch=*/"", Kind);
+          C.getArgsForToolChain(TC, /*BA=*/{}, Kind);
       DerivedArgList BaseCompilerArgs(ToolChainArgs.getBaseArgs());
       for (Arg *A : ToolChainArgs) {
         if (A->getOption().matches(OPT_Zlinker_input))
@@ -12173,7 +12211,7 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
 
     // Add option to enable creating of the .syclbin file.
     const ArgList &Args =
-        C.getArgsForToolChain(nullptr, StringRef(), Action::OFK_SYCL);
+        C.getArgsForToolChain(nullptr, BoundArch{}, Action::OFK_SYCL);
     if (Arg *A = Args.getLastArg(options::OPT_fsyclbin_EQ))
       CmdArgs.push_back(
           Args.MakeArgString("--syclbin=" + StringRef{A->getValue()}));
@@ -12259,19 +12297,6 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
          JA.getType() == types::TY_Image);
   if (JA.getType() == types::TY_HIP_FATBIN) {
     CmdArgs.push_back("--emit-fatbin-only");
-    // Non-RDC HIP uses the conventional non-LTO pipeline unless the user opts
-    // into offload LTO. The device backend then runs in the linker wrapper's
-    // parallel device-link step rather than being deferred to the LTO link.
-    // Profile generation still needs LTO so the device profile runtime is
-    // linked and optimized together with the device code.
-    bool UsesProfileGenerate = Args.hasArg(
-        options::OPT_fprofile_generate, options::OPT_fprofile_generate_EQ,
-        options::OPT_fprofile_instr_generate,
-        options::OPT_fprofile_instr_generate_EQ);
-    if (C.getDefaultToolChain().getLTOMode(Args, Action::OFK_HIP) ==
-            LTOK_None &&
-        !UsesProfileGenerate)
-      CmdArgs.push_back("--no-lto");
     CmdArgs.append({"-o", Output.getFilename()});
     for (auto Input : Inputs)
       CmdArgs.push_back(Input.getFilename());

@@ -11,6 +11,7 @@
 // RUN: %{run} %t.out
 //
 // UNSUPPORTED: target-amd
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22300
 // UNSUPPORTED: native_cpu
 
 #include <cstdlib>

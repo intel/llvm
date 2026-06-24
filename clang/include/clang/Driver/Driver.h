@@ -12,6 +12,7 @@
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/HeaderInclude.h"
 #include "clang/Basic/LLVM.h"
+#include "clang/Basic/OffloadArch.h"
 #include "clang/Driver/Action.h"
 #include "clang/Driver/DriverDiagnostic.h"
 #include "clang/Driver/InputInfo.h"
@@ -529,7 +530,7 @@ public:
   /// Returns the set of bound architectures active for this offload kind.
   /// If there are no bound architctures we return a set containing only the
   /// empty string.
-  llvm::SmallVector<StringRef>
+  llvm::SmallVector<BoundArch>
   getOffloadArchs(Compilation &C, const llvm::opt::DerivedArgList &Args,
                   Action::OffloadKind Kind, const ToolChain &TC) const;
 
@@ -675,7 +676,7 @@ public:
   /// return an InputInfo for the result of running \p A.  Will only construct
   /// jobs for a given (Action, ToolChain, BoundArch, DeviceKind) tuple once.
   InputInfoList BuildJobsForAction(
-      Compilation &C, const Action *A, const ToolChain *TC, StringRef BoundArch,
+      Compilation &C, const Action *A, const ToolChain *TC, BoundArch BA,
       bool AtTopLevel, bool MultipleArchs, const char *LinkingOutput,
       std::map<std::pair<const Action *, std::string>, InputInfoList>
           &CachedResults,
@@ -685,17 +686,17 @@ public:
   const char *getDefaultImageName() const;
 
   /// Creates a temp file.
-  /// 1. If \p MultipleArch is false or \p BoundArch is empty, the temp file is
+  /// 1. If \p MultipleArch is false or \p BA is empty, the temp file is
   ///    in the temporary directory with name $Prefix-%%%%%%.$Suffix.
-  /// 2. If \p MultipleArch is true and \p BoundArch is not empty,
+  /// 2. If \p MultipleArch is true and \p BA is not empty,
   ///    2a. If \p NeedUniqueDirectory is false, the temp file is in the
-  ///        temporary directory with name $Prefix-$BoundArch-%%%%%.$Suffix.
+  ///        temporary directory with name $Prefix-$BA-%%%%%.$Suffix.
   ///    2b. If \p NeedUniqueDirectory is true, the temp file is in a unique
   ///        subdiretory with random name under the temporary directory, and
-  ///        the temp file itself has name $Prefix-$BoundArch.$Suffix.
+  ///        the temp file itself has name $Prefix-$BA.$Suffix.
   const char *CreateTempFile(Compilation &C, StringRef Prefix, StringRef Suffix,
                              bool MultipleArchs = false,
-                             StringRef BoundArch = {},
+                             StringRef BoundArchStr = {},
                              types::ID Type = types::TY_Nothing,
                              bool NeedUniqueDirectory = false) const;
 
@@ -707,12 +708,12 @@ public:
   /// \param JA - The action of interest.
   /// \param BaseInput - The original input file that this action was
   /// triggered by.
-  /// \param BoundArch - The bound architecture.
+  /// \param BA - The bound architecture.
   /// \param AtTopLevel - Whether this is a "top-level" action.
   /// \param MultipleArchs - Whether multiple -arch options were supplied.
   /// \param NormalizedTriple - The normalized triple of the relevant target.
   const char *GetNamedOutputPath(Compilation &C, const JobAction &JA,
-                                 const char *BaseInput, StringRef BoundArch,
+                                 const char *BaseInput, BoundArch BA,
                                  bool AtTopLevel, bool MultipleArchs,
                                  StringRef NormalizedTriple) const;
 
@@ -808,7 +809,7 @@ private:
   /// jobs specifically for the given action, but will use the cache when
   /// building jobs for the Action's inputs.
   InputInfoList BuildJobsForActionNoCache(
-      Compilation &C, const Action *A, const ToolChain *TC, StringRef BoundArch,
+      Compilation &C, const Action *A, const ToolChain *TC, BoundArch BA,
       bool AtTopLevel, bool MultipleArchs, const char *LinkingOutput,
       std::map<std::pair<const Action *, std::string>, InputInfoList>
           &CachedResults,
@@ -851,6 +852,11 @@ private:
   /// by the host compilation.
   mutable llvm::StringMap<const std::pair<StringRef, StringRef>>
       IntegrationFileList;
+
+  /// A list of triples and their corresponding extracted precompiled header
+  /// file names.  This is generated when extracting the fat precompiled
+  /// header file, and consumed by the host and the device compilations.
+  mutable llvm::StringMap<StringRef> SYCLPrecompiledHeaderFileList;
 
   /// Unique ID used for SYCL compilations.  Each file will use a different
   /// unique ID, but the same ID will be used for different compilation
@@ -901,6 +907,19 @@ public:
   /// isSYCLDefaultTripleImplied - The default SYCL triple (spir64) has been
   /// added or should be added given proper criteria.
   bool isSYCLDefaultTripleImplied() const { return SYCLDefaultTripleImplied; };
+
+  /// addSYCLPrecompiledHeaderFiles - Add the precompiled header files
+  /// that were unbundled for each triple.
+  void addSYCLPrecompiledHeaderFiles(StringRef Triple,
+                                     StringRef FileName) const {
+    SYCLPrecompiledHeaderFileList.insert({Triple, FileName});
+  }
+
+  /// getSYCLPrecompiledHeaderFile - Get the precompiled header file
+  /// for a specific triple.
+  StringRef getSYCLPrecompiledHeaderFile(StringRef Triple) const {
+    return SYCLPrecompiledHeaderFileList[Triple];
+  }
 
   /// addIntegrationFiles - Add the integration files that will be populated
   /// by the device compilation and used by the host compile.

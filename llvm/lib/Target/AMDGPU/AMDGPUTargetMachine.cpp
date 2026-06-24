@@ -633,12 +633,6 @@ static cl::opt<bool>
                            cl::desc("Enable AMDGPUAttributorPass"),
                            cl::init(true), cl::Hidden);
 
-static cl::opt<bool> NewRegBankSelect(
-    "new-reg-bank-select",
-    cl::desc("Run amdgpu-regbankselect and amdgpu-regbanklegalize instead of "
-             "regbankselect"),
-    cl::init(false), cl::Hidden);
-
 static cl::opt<bool> HasClosedWorldAssumption(
     "amdgpu-link-time-closed-world",
     cl::desc("Whether has closed-world assumption at link time"),
@@ -1643,9 +1637,10 @@ bool GCNPassConfig::addPreISel() {
   addPass(createAMDGPURewriteUndefForPHILegacyPass());
 
   // SDAG requires LCSSA, GlobalISel does not. Disable LCSSA for -global-isel
-  // with -new-reg-bank-select and without any of the fallback options.
-  if (!getCGPassBuilderOption().EnableGlobalISelOption ||
-      !isGlobalISelAbortEnabled() || !NewRegBankSelect)
+  // without any of the fallback options.
+  if (getCGPassBuilderOption().EnableGlobalISelOption !=
+          cl::boolOrDefault::BOU_TRUE ||
+      !isGlobalISelAbortEnabled())
     addPass(createLCSSAPass());
 
   if (TM->getOptLevel() > CodeGenOptLevel::Less)
@@ -1716,12 +1711,8 @@ void GCNPassConfig::addPreRegBankSelect() {
 }
 
 bool GCNPassConfig::addRegBankSelect() {
-  if (NewRegBankSelect) {
-    addPass(createAMDGPURegBankSelectPass());
-    addPass(createAMDGPURegBankLegalizePass());
-  } else {
-    addPass(new RegBankSelect());
-  }
+  addPass(createAMDGPURegBankSelectPass());
+  addPass(createAMDGPURegBankLegalizePass());
   return false;
 }
 
@@ -2408,8 +2399,9 @@ void AMDGPUCodeGenPassBuilder::addPreISel(PassManagerWrapper &PMW) const {
   // control flow modifications.
   addFunctionPass(AMDGPURewriteUndefForPHIPass(), PMW);
 
-  if (!getCGPassBuilderOption().EnableGlobalISelOption ||
-      !isGlobalISelAbortEnabled() || !NewRegBankSelect)
+  if (getCGPassBuilderOption().EnableGlobalISelOption !=
+          cl::boolOrDefault::BOU_TRUE ||
+      !isGlobalISelAbortEnabled())
     addFunctionPass(LCSSAPass(), PMW);
 
   if (TM.getOptLevel() > CodeGenOptLevel::Less) {
