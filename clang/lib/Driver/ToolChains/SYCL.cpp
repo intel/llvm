@@ -1102,7 +1102,7 @@ void SYCL::gen::BackendCompiler::ConstructJob(Compilation &C,
   // The next line prevents ocloc from modifying the image name
   CmdArgs.push_back("-output_no_suffix");
   CmdArgs.push_back("-spirv_input");
-  StringRef Device = JA.getOffloadingArch();
+  StringRef Device = JA.getOffloadingArch().ArchName;
 
   // Add -Xsycl-target* options.
   const toolchains::SYCLToolChain &TC =
@@ -1517,7 +1517,8 @@ void SYCLToolChain::addClangTargetOptions(
     return;
 
   llvm::SmallVector<BitCodeLibraryInfo, 12> BCLibs;
-  BCLibs.append(SYCLToolChain::getDeviceLibs(DriverArgs, BA, DeviceOffloadingKind));
+  BCLibs.append(
+      SYCLToolChain::getDeviceLibs(DriverArgs, BA, DeviceOffloadingKind));
   for (const auto &BCFile : BCLibs) {
     CC1Args.push_back(BCFile.ShouldInternalize ? "-mlink-builtin-bitcode"
                                                : "-mlink-bitcode-file");
@@ -1788,7 +1789,7 @@ void SYCLToolChain::AddSPIRVImpliedTargetArgs(const llvm::Triple &Triple,
     // For GEN (spir64_gen) we have implied -device settings given usage
     // of intel_gpu_ as a target.  Handle those here, and also check that no
     // other -device was passed, as that is a conflict.
-    StringRef DepInfo = JA.getOffloadingArch();
+    StringRef DepInfo = JA.getOffloadingArch().ArchName;
     if (!DepInfo.empty()) {
       ArgStringList TargArgs;
       Args.AddAllArgValues(TargArgs, options::OPT_Xs, options::OPT_Xs_separate);
@@ -1985,7 +1986,7 @@ void SYCLToolChain::AddClangCXXStdlibIncludeArgs(const ArgList &Args,
 
 llvm::SmallVector<ToolChain::BitCodeLibraryInfo, 12>
 SYCLToolChain::getDeviceLibs(
-    const llvm::opt::ArgList &DriverArgs, llvm::StringRef BoundArch,
+    const llvm::opt::ArgList &DriverArgs, BoundArch BA,
     const Action::OffloadKind DeviceOffloadingKind) const {
   llvm::SmallVector<ToolChain::BitCodeLibraryInfo, 12> BCLibs;
 
@@ -2020,7 +2021,7 @@ SYCLToolChain::getDeviceLibs(
 }
 
 SanitizerMask SYCLToolChain::getSupportedSanitizers(
-    StringRef /*BoundArch*/, Action::OffloadKind /*DeviceOffloadKind*/) const {
+    BoundArch /*BA*/, Action::OffloadKind /*DeviceOffloadKind*/) const {
 
   return SanitizerKind::Address | SanitizerKind::Memory | SanitizerKind::Thread;
 }

@@ -1209,7 +1209,7 @@ void CudaToolChain::AddIAMCUIncludeArgs(const ArgList &Args,
 
 llvm::SmallVector<ToolChain::BitCodeLibraryInfo, 12>
 CudaToolChain::getDeviceLibs(
-    const llvm::opt::ArgList &DriverArgs, llvm::StringRef BoundArch,
+    const llvm::opt::ArgList &DriverArgs, BoundArch BA,
     const Action::OffloadKind DeviceOffloadingKind) const {
   StringRef GpuArch = DriverArgs.getLastArgValue(options::OPT_march_EQ);
   std::string LibDeviceFile = CudaInstallation.getLibDeviceFile(GpuArch);
