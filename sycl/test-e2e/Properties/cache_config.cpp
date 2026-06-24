@@ -6,7 +6,7 @@
 // UNSUPPORTED: windows && arch-intel_gpu_bmg_g21
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22099
 
-// UNSUPPORTED: linux && (arch-intel_gpu_pvc || arch-intel_gpu_bmg_g21)
+// UNSUPPORTED: linux && run-mode
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22405
 
 // RUN: %{build} -Wno-deprecated-declarations -o %t.out

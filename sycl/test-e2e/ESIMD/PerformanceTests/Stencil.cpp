@@ -7,6 +7,9 @@
 //===----------------------------------------------------------------------===//
 // REQUIRES: gpu-intel-dg2 && level_zero
 
+// UNSUPPORTED: true
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22419
+
 // RUN: mkdir -p %t.dir && %{build} -o %t.dir/exec.out
 // RUN: env IGC_DumpToCustomDir=%t.dir NEO_CACHE_PERSISTENT=0 IGC_ShaderDumpEnable=1 %{run} %t.dir/exec.out
 // RUN: %{run-aux} python3 %S/instruction_count.py %t.dir 1699 ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E14Stencil_kernel.asm
