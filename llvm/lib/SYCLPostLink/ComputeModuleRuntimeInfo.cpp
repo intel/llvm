@@ -248,12 +248,13 @@ PropSetRegTy computeModuleProperties(const Module &M,
       if (!GV.hasExternalLinkage())
         continue;
 
-      if (!isa<StructType>(GV.getValueType()))
+      auto *ST = dyn_cast<StructType>(GV.getValueType());
+      if (!ST || ST->isLiteral()) // Literal structs don't have names.
         continue;
 
       // Check if it's a device_global by type name (declarations don't have
       // attributes).
-      StringRef TypeName = GV.getValueType()->getStructName();
+      StringRef TypeName = ST->getStructName();
       if (TypeName.find("device_global") == std::string::npos)
         continue;
 
