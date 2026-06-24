@@ -1080,7 +1080,7 @@ def Annotate : InheritableParamOrStmtAttr {
   }];
   let PragmaAttributeSupport = 1;
   let AcceptsExprPack = 1;
-  let Documentation = [Undocumented];
+  let Documentation = [AnnotateDocs];
 }
 
 def AnnotateType : TypeAttr {
