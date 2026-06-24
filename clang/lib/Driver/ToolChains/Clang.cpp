@@ -5651,7 +5651,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   if (IsSYCL) {
     if (IsSYCLDevice) {
       if (Triple.isNVPTX()) {
-        StringRef GPUArchName = JA.getOffloadingArch();
+        StringRef GPUArchName = JA.getOffloadingArch().ArchName;
         // TODO: Once default arch is moved to at least SM_53, empty arch should
         // also result in the flag added.
         if (!GPUArchName.empty() &&
@@ -5780,7 +5780,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
         if ((Triple.isSPIR() &&
              Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen) ||
             Triple.isNVPTX() || Triple.isAMDGCN()) {
-          StringRef Device = JA.getOffloadingArch();
+          StringRef Device = JA.getOffloadingArch().ArchName;
           if (!Device.empty() &&
               !SYCL::gen::getGenDeviceMacro(Device).empty()) {
             Macro = "-D";
@@ -10307,8 +10307,7 @@ void OffloadBundler::ConstructJob(Compilation &C, const JobAction &JA,
                                   TCArgs, CurDep->getOffloadingArch()))
                      .normalize(llvm::Triple::CanonicalForm::FOUR_IDENT);
     }
-    if (CurKind != Action::OFK_Host &&
-        !CurDep->getOffloadingArch().empty() &&
+    if (CurKind != Action::OFK_Host && !CurDep->getOffloadingArch().empty() &&
         !TCArgs.hasArg(options::OPT_fno_bundle_offload_arch)) {
       Triples += '-';
       Triples += CurDep->getOffloadingArch().ArchName;
@@ -10540,8 +10539,8 @@ static void addRunTimeWrapperOpts(Compilation &C,
   if (TT.getSubArch() == llvm::Triple::NoSubArch) {
     // Only store compile/link opts in the image descriptor for the SPIR-V
     // target; AOT compilation has already been performed otherwise.
-    const ArgList &Args = C.getArgsForToolChain(nullptr, StringRef(),
-                                                DeviceOffloadKind);
+    const ArgList &Args =
+        C.getArgsForToolChain(nullptr, BoundArch{}, DeviceOffloadKind);
     const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
     SYCLTC.AddSPIRVImpliedTargetArgs(TT, Args, BuildArgs, JA, *HostTC);
     SYCLTC.TranslateBackendTargetArgs(TT, Args, BuildArgs);
@@ -10720,7 +10719,7 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
            "Expected one device dependence!");
     Action::OffloadKind DeviceKind = Action::OFK_None;
     const ToolChain *DeviceTC = nullptr;
-    OA->doOnEachDependence([&](Action *A, const ToolChain *TC, const char *) {
+    OA->doOnEachDependence([&](Action *A, const ToolChain *TC, BoundArch) {
       DeviceKind = A->getOffloadingDeviceKind();
       DeviceTC = TC;
     });
@@ -10816,7 +10815,7 @@ void OffloadPackager::ConstructJob(Compilation &C, const JobAction &JA,
     // Instead, we pass it like arch=pvc,arch=bdw, then
     // llvm-offload-binary joins them back to arch=pvc,bdw.
     SmallVector<StringRef> Archs;
-    Arch.split(Archs, ',');
+    Arch.ArchName.split(Archs, ',');
     if (Archs.size() > 1) {
       Parts[2] = "arch=" + llvm::join(Archs, ",arch=");
     }
@@ -10853,12 +10852,12 @@ void OffloadPackager::ConstructJob(Compilation &C, const JobAction &JA,
         }
       };
       const ArgList &Args =
-          C.getArgsForToolChain(nullptr, StringRef(), Action::OFK_SYCL);
+          C.getArgsForToolChain(nullptr, BoundArch{}, Action::OFK_SYCL);
       const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
       const toolchains::SYCLToolChain &SYCLTC =
           static_cast<const toolchains::SYCLToolChain &>(*TC);
       SYCLTC.AddSPIRVImpliedTargetArgs(TC->getTriple(), Args, BuildArgs, JA,
-                                       *HostTC, Arch);
+                                       *HostTC, Arch.ArchName);
       SYCLTC.TranslateBackendTargetArgs(TC->getTriple(), Args, BuildArgs);
       createArgString("compile-opts=");
       BuildArgs.clear();
@@ -10904,8 +10903,8 @@ void OffloadPackagerExtract::ConstructJob(Compilation &C, const JobAction &JA,
   // and associated offload kind.
   assert(Output.isFilename() && "Invalid output.");
   StringRef File = Output.getFilename();
-  StringRef Arch = OffloadAction->getOffloadingArch()
-                       ? OffloadAction->getOffloadingArch()
+  StringRef Arch = !OffloadAction->getOffloadingArch().empty()
+                       ? OffloadAction->getOffloadingArch().ArchName
                        : TCArgs.getLastArgValue(options::OPT_march_EQ);
   StringRef Kind =
       Action::GetOffloadKindName(OffloadAction->getOffloadingDeviceKind());
@@ -11181,7 +11180,7 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
       // Handle -Xspirv-translator
       TC.TranslateTargetOpt(
           Triple, TCArgs, TranslatorArgs, options::OPT_Xspirv_translator,
-          options::OPT_Xspirv_translator_EQ, JA.getOffloadingArch());
+          options::OPT_Xspirv_translator_EQ, JA.getOffloadingArch().ArchName);
     }
   }
   for (auto I : Inputs) {
@@ -11494,9 +11493,9 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
 
   // Add output file table file option
   assert(Output.isFilename() && "output must be a filename");
-  StringRef Device = JA.getOffloadingArch();
+  StringRef Device = JA.getOffloadingArch().ArchName;
   std::string OutputArg = Output.getFilename();
-  if (T.getSubArch() == llvm::Triple::SPIRSubArch_gen && Device.data())
+  if (T.getSubArch() == llvm::Triple::SPIRSubArch_gen && !Device.empty())
     OutputArg = ("intel_gpu_" + Device + "," + OutputArg).str();
   else if (T.getSubArch() == llvm::Triple::SPIRSubArch_x86_64)
     OutputArg = "spir64_x86_64," + OutputArg;
@@ -11507,7 +11506,7 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
   // Handle -Xdevice-post-link
   TC.TranslateTargetOpt(T, TCArgs, CmdArgs, options::OPT_Xdevice_post_link,
                         options::OPT_Xdevice_post_link_EQ,
-                        JA.getOffloadingArch());
+                        JA.getOffloadingArch().ArchName);
 
   addArgs(CmdArgs, TCArgs, {"-o", OutputArg});
 
@@ -11695,7 +11694,7 @@ void SpirvToIrWrapper::ConstructJob(Compilation &C, const JobAction &JA,
   TC.TranslateTargetOpt(getToolChain().getTriple(), TCArgs, CmdArgs,
                         options::OPT_Xspirv_to_ir_wrapper,
                         options::OPT_Xspirv_to_ir_wrapper_EQ,
-                        JA.getOffloadingArch());
+                        JA.getOffloadingArch().ArchName);
 
   auto Cmd = std::make_unique<Command>(
       JA, *this, ResponseFileSupport::None(),
@@ -12212,7 +12211,7 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
 
     // Add option to enable creating of the .syclbin file.
     const ArgList &Args =
-        C.getArgsForToolChain(nullptr, StringRef(), Action::OFK_SYCL);
+        C.getArgsForToolChain(nullptr, BoundArch{}, Action::OFK_SYCL);
     if (Arg *A = Args.getLastArg(options::OPT_fsyclbin_EQ))
       CmdArgs.push_back(
           Args.MakeArgString("--syclbin=" + StringRef{A->getValue()}));
