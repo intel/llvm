@@ -1,0 +1,185 @@
+name: Build and Test PyTorch
+
+on:
+  workflow_call:
+    inputs:
+      toolchain_artifact:
+        description: 'Artifact name for toolchain download'
+        required: true
+        type: string
+      toolchain_artifact_filename:
+        description: 'Toolchain artifact downloaded filename'
+        required: true
+        type: string
+      pytorch_ref:
+        description: 'PyTorch git ref to build'
+        required: false
+        type: string
+        default: 'v2.13.0-rc2'
+
+env:
+  # Name of the artifact carrying the built PyTorch wheel from build to test.
+  PYTORCH_WHEEL_ARTIFACT: pytorch_linux
+
+jobs:
+  build:
+    name: Build PyTorch on Linux
+    runs-on: ["Linux", "build"]
+    # Use the intel_drivers container even for build as we need ocloc.
+    container:
+      image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:latest
+      options: -u 1001
+    env:
+      # PyTorch subprojects error about CMake version.
+      CMAKE_POLICY_VERSION_MINIMUM: '3.5'
+    steps:
+      - name: Checkout devops scripts
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          sparse-checkout: |
+            devops/
+          persist-credentials: false
+
+      - name: Setup Environment Variables
+        uses: ./devops/actions/pytorch/setup-env
+
+      - name: Download Toolchain
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ${{ inputs.toolchain_artifact }}
+
+      - name: Extract Toolchain
+        shell: bash
+        env:
+          TOOLCHAIN_ARTIFACT_FILENAME: ${{ inputs.toolchain_artifact_filename }}
+        run: |
+          mkdir install
+          tar -xf $TOOLCHAIN_ARTIFACT_FILENAME -C install
+          rm $TOOLCHAIN_ARTIFACT_FILENAME
+
+      - name: Create dpclang Symlinks
+        shell: bash
+        run: |
+          # Symlink to the expected compiler names until we provide them.
+          ln -sf "$SYCL_INSTALL_DIR/bin/clang" "$SYCL_INSTALL_DIR/bin/dpclang"
+          ln -sf "$SYCL_INSTALL_DIR/bin/clang++" "$SYCL_INSTALL_DIR/bin/dpclang++"
+
+      - name: Clone PyTorch
+        shell: bash
+        env:
+          PYTORCH_REF: ${{ inputs.pytorch_ref }}
+        run: |
+          git clone https://github.com/pytorch/pytorch.git "$PYTORCH_SRC_DIR"
+          cd "$PYTORCH_SRC_DIR"
+          git checkout "$PYTORCH_REF"
+          git submodule update --init --recursive
+
+      - name: Build PyTorch
+        shell: bash
+        run: |
+          python3 -m venv "$VENV_DIR"
+          source "$VENV_DIR/bin/activate"
+
+          cd "$PYTORCH_SRC_DIR"
+          pip install -r requirements.txt
+
+          TORCH_XPU_ARCH_LIST=bmg \
+          XPU_SYCL_COMPILER=dpclang \
+          USE_KINETO=0 \
+          USE_ONEMKL_XPU=0 \
+          USE_CUDA=0 \
+          USE_ROCM=0 \
+            python3 setup.py --verbose bdist_wheel
+
+      - name: Upload PyTorch
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ env.PYTORCH_WHEEL_ARTIFACT }}
+          path: ${{ env.PYTORCH_SRC_DIR }}/dist/*.whl
+
+  test:
+    name: Test PyTorch on Linux
+    needs: build
+    runs-on: ["Linux", "bmg"]
+    container:
+      image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:latest
+      options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
+    steps:
+      - name: Checkout devops scripts
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          sparse-checkout: |
+            devops/
+          persist-credentials: false
+
+      - name: Setup Environment Variables
+        uses: ./devops/actions/pytorch/setup-env
+
+      - name: Download Toolchain
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ${{ inputs.toolchain_artifact }}
+
+      - name: Extract Toolchain
+        shell: bash
+        env:
+          TOOLCHAIN_ARTIFACT_FILENAME: ${{ inputs.toolchain_artifact_filename }}
+        run: |
+          mkdir install
+          tar -xf $TOOLCHAIN_ARTIFACT_FILENAME -C install
+          rm $TOOLCHAIN_ARTIFACT_FILENAME
+
+      - name: Download just-built PyTorch
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ${{ env.PYTORCH_WHEEL_ARTIFACT }}
+          path: dist
+
+      - name: Clone PyTorch Test Sources
+        shell: bash
+        env:
+          PYTORCH_REF: ${{ inputs.pytorch_ref }}
+        run: |
+          # The test suite (test/test_xpu.py) isn't part of the wheel, so get
+          # the matching source tree. We only need the test sources, so do a
+          # shallow clone without submodules.
+          git clone --depth 1 --branch "$PYTORCH_REF" \
+            https://github.com/pytorch/pytorch.git "$PYTORCH_SRC_DIR"
+          # Remove the in-tree 'torch' source package. pytest runs from the repo
+          # root, so an in-tree 'torch/' would shadow the installed wheel on the
+          # import path -- and since it lacks the build-generated torch/version.py
+          # the import fails. Deleting it makes 'import torch' resolve to the wheel.
+          rm -rf "$PYTORCH_SRC_DIR/torch"
+
+      - name: Install just-built PyTorch
+        shell: bash
+        run: |
+          python3 -m venv "$VENV_DIR"
+          source "$VENV_DIR/bin/activate"
+          # Install the test dependencies.
+          pip3 install pytest numpy expecttest
+          # Install PyTorch.
+          pip3 install ./dist/*.whl
+
+      - name: Run sycl-ls
+        run: sycl-ls --verbose
+
+      - name: Run PyTorch XPU Sanity Check
+        shell: bash
+        run: |
+          source "$VENV_DIR/bin/activate"
+          # Print diagnostics, then assert the XPU is available.
+          python -c "import torch; print('torch', torch.__version__); print('device count', torch.xpu.device_count()); print('xpu available', torch.xpu.is_available()); assert torch.xpu.is_available()"
+
+      - name: Run PyTorch XPU Test Suite
+        shell: bash
+        run: |
+          source "$VENV_DIR/bin/activate"
+          cd "$PYTORCH_SRC_DIR"
+          python3 -m pytest -rsf -k "not test_xpu_pluggable_allocator" test/test_xpu.py
+
+      - name: Cleanup
+        shell: bash
+        if: always()
+        run: |
+          rm -rf "$VENV_DIR" "$PYTORCH_SRC_DIR" dist
