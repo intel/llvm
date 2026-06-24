@@ -70,8 +70,10 @@ void device_evt(sycl::device_event) {}
 // CHK-HOST: define dso_local void @_Z5eventN4sycl3_V15eventE({{.*}})
 void event(sycl::event) {}
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 // CHK-HOST: define dso_local void @_Z15device_selectorRN4sycl3_V115device_selectorE({{.*}})
 void device_selector(sycl::device_selector&) {}
+#endif
 
 // CHK-HOST: define dso_local void @_Z7handlerRN4sycl3_V17handlerE({{.*}})
 void handler(sycl::handler&) {}

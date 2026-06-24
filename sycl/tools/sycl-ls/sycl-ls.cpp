@@ -56,12 +56,12 @@ bool DiscardFilters;
 std::vector<std::string> FilterEnvVars;
 
 // Trivial custom selector that selects a device of the given type.
-class custom_selector : public device_selector {
+class custom_selector {
   info::device_type MType;
 
 public:
   custom_selector(info::device_type Type) : MType(Type) {}
-  int operator()(const device &Dev) const override {
+  int operator()(const device &Dev) const {
     return Dev.get_info<info::device::device_type>() == MType ? 1 : -1;
   }
 };
@@ -215,7 +215,8 @@ static void printDeviceInfo(const device &Device, bool Verbose,
   }
 }
 
-static void printSelectorChoice(const device_selector &Selector,
+template <typename SelectorT>
+static void printSelectorChoice(const SelectorT &Selector,
                                 const std::string &Prepend) {
   try {
     const auto &Device = device(Selector);

@@ -50,7 +50,9 @@ int main() {
   check<cpu_selector, 8, 8>();
   check<device, 8, 8>();
   check<device_event, 8, 8>();
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   check<device_selector, 8, 8>();
+#endif
   check<event, 16, 8>();
   check<gpu_selector, 8, 8>();
   check<handler, 176, 8>();

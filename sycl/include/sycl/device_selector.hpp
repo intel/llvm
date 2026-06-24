@@ -29,6 +29,7 @@ namespace ext::oneapi {
 class filter_selector;
 } // namespace ext::oneapi
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 /// The SYCL 1.2.1 device_selector class provides ability to choose the
 /// best SYCL device based on heuristics specified by the user.
 ///
@@ -45,6 +46,7 @@ public:
 
   virtual int operator()(const device &device) const = 0;
 };
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 /// The default selector chooses the first available SYCL device.
 ///
@@ -53,9 +55,17 @@ public:
 /// \ingroup sycl_api_dev_sel
 class __SYCL_EXPORT __SYCL2020_DEPRECATED(
     "Use the callable sycl::default_selector_v instead.") default_selector
-    : public device_selector {
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+    : public device_selector
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+{
 public:
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   int operator()(const device &dev) const override;
+#else
+  device select_device() const;
+  int operator()(const device &dev) const;
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 };
 
 /// Selects any SYCL GPU device.
@@ -65,9 +75,17 @@ public:
 /// \ingroup sycl_api_dev_sel
 class __SYCL_EXPORT __SYCL2020_DEPRECATED(
     "Use the callable sycl::gpu_selector_v instead.") gpu_selector
-    : public device_selector {
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+    : public device_selector
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+{
 public:
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   int operator()(const device &dev) const override;
+#else
+  device select_device() const;
+  int operator()(const device &dev) const;
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 };
 
 /// Selects any SYCL CPU device.
@@ -77,9 +95,17 @@ public:
 /// \ingroup sycl_api_dev_sel
 class __SYCL_EXPORT __SYCL2020_DEPRECATED(
     "Use the callable sycl::cpu_selector_v instead.") cpu_selector
-    : public device_selector {
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+    : public device_selector
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+{
 public:
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   int operator()(const device &dev) const override;
+#else
+  device select_device() const;
+  int operator()(const device &dev) const;
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 };
 
 /// Selects any SYCL accelerator device.
@@ -89,9 +115,18 @@ public:
 /// \ingroup sycl_api_dev_sel
 class __SYCL_EXPORT
 __SYCL2020_DEPRECATED("Use the callable sycl::accelerator_selector_v instead.")
-    accelerator_selector : public device_selector {
+    accelerator_selector
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+    : public device_selector
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+{
 public:
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   int operator()(const device &dev) const override;
+#else
+  device select_device() const;
+  int operator()(const device &dev) const;
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 };
 
 // -------------- SYCL 2020
@@ -122,13 +157,17 @@ void fill_aspect_vector(std::vector<aspect> &V, FirstT F, OtherTs... O) {
 
 // Enable if DeviceSelector callable has matching signature, but
 // exclude if descended from filter_selector which is not purely callable or
-// if descended from it is descended from SYCL 1.2.1 device_selector.
+// if descended from SYCL 1.2.1 device_selector (deprecated & will be removed
+// soon).
 // See [FilterSelector not Callable] in device_selector.cpp
 template <typename DeviceSelector>
 using EnableIfSYCL2020DeviceSelectorInvocable = std::enable_if_t<
     std::is_invocable_r_v<int, DeviceSelector &, const device &> &&
-    !std::is_base_of_v<ext::oneapi::filter_selector, DeviceSelector> &&
-    !std::is_base_of_v<device_selector, DeviceSelector>>;
+    !std::is_base_of_v<ext::oneapi::filter_selector, DeviceSelector>
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+    && !std::is_base_of_v<device_selector, DeviceSelector>
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+    >;
 
 __SYCL_EXPORT device
 select_device(const DSelectorInvocableType &DeviceSelectorInvocable);

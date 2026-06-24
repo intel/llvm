@@ -54,7 +54,8 @@ std::ostream &operator<<(std::ostream &Out,
 
 class TestQueue : public sycl::queue {
 public:
-  TestQueue(const sycl::device_selector &DevSelector,
+  template <typename DeviceSelector>
+  TestQueue(const DeviceSelector &DevSelector,
             const sycl::property_list &PropList = {})
       : sycl::queue(
             DevSelector,

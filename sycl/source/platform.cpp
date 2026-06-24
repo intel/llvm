@@ -37,9 +37,11 @@ platform::platform(cl_platform_id PlatformId) {
 // protected constructor for internal use
 platform::platform(const device &Device) { *this = Device.get_platform(); }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 platform::platform(const device_selector &dev_selector) {
   *this = dev_selector.select_device().get_platform();
 }
+#endif
 
 cl_platform_id platform::get() const { return impl->get(); }
 

@@ -245,25 +245,60 @@ aspect_selector(const std::vector<aspect> &RequireList,
   };
 }
 
+static device selectDeprecatedSelectorDevice(
+    const detail::DSelectorInvocableType &Selector) {
+  return detail::select_device(Selector);
+}
+
 // -------------- SYCL 1.2.1
 
 // SYCL 1.2.1 device_selector class and sub-classes
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 device device_selector::select_device() const {
   return detail::select_device([&](const device &dev) { return (*this)(dev); });
 }
+#endif
+
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+device default_selector::select_device() const {
+  return selectDeprecatedSelectorDevice(
+      [&](const device &dev) { return (*this)(dev); });
+}
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 int default_selector::operator()(const device &dev) const {
   return default_selector_v(dev);
 }
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+device gpu_selector::select_device() const {
+  return selectDeprecatedSelectorDevice(
+      [&](const device &dev) { return (*this)(dev); });
+}
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+
 int gpu_selector::operator()(const device &dev) const {
   return gpu_selector_v(dev);
 }
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+device cpu_selector::select_device() const {
+  return selectDeprecatedSelectorDevice(
+      [&](const device &dev) { return (*this)(dev); });
+}
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+
 int cpu_selector::operator()(const device &dev) const {
   return cpu_selector_v(dev);
 }
+
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+device accelerator_selector::select_device() const {
+  return selectDeprecatedSelectorDevice(
+      [&](const device &dev) { return (*this)(dev); });
+}
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 int accelerator_selector::operator()(const device &dev) const {
   return accelerator_selector_v(dev);
@@ -294,7 +329,8 @@ device filter_selector::select_device() const {
   std::lock_guard<std::mutex> Guard(
       sycl::detail::GlobalHandler::instance().getFilterMutex());
 
-  device Result = device_selector::select_device();
+  device Result = selectDeprecatedSelectorDevice(
+      [&](const device &Dev) { return (*this)(Dev); });
 
   reset();
 

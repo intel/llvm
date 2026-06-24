@@ -58,51 +58,51 @@ int main() {
   }
 
   if (!CPUs.empty()) {
-    device d1(filter_selector("cpu"));
+    device d1 = filter_selector("cpu").select_device();
     assert(d1.is_cpu() && "filter_selector(\"cpu\") failed");
   }
 
   if (!GPUs.empty()) {
-    device d2(filter_selector("gpu"));
+    device d2 = filter_selector("gpu").select_device();
     assert(d2.is_gpu() && "filter_selector(\"gpu\") failed");
   }
 
   if (!CPUs.empty() || !GPUs.empty()) {
-    device d3(filter_selector("cpu,gpu"));
+    device d3 = filter_selector("cpu,gpu").select_device();
     assert((d3.is_gpu() || d3.is_cpu()) &&
            "filter_selector(\"cpu,gpu\") failed");
   }
 
   if (HasOpenCLDevices) {
-    device d4(filter_selector("opencl"));
+    device d4 = filter_selector("opencl").select_device();
     assert(d4.get_platform().get_backend() == backend::opencl &&
            "filter_selector(\"opencl\") failed");
 
     if (!CPUs.empty()) {
-      device d5(filter_selector("opencl:cpu"));
+      device d5 = filter_selector("opencl:cpu").select_device();
       assert(d5.is_cpu() &&
              d5.get_platform().get_backend() == backend::opencl &&
              "filter_selector(\"opencl:cpu\") failed");
 
-      device d6(filter_selector("opencl:cpu:0"));
+      device d6 = filter_selector("opencl:cpu:0").select_device();
       assert(d6.is_cpu() &&
              d6.get_platform().get_backend() == backend::opencl &&
              "filter_selector(\"opencl:cpu:0\") failed");
     }
 
     if (HasOpenCLGPU) {
-      device d7(filter_selector("opencl:gpu"));
+      device d7 = filter_selector("opencl:gpu").select_device();
       assert(d7.is_gpu() &&
              d7.get_platform().get_backend() == backend::opencl &&
              "filter_selector(\"opencl:gpu\") failed");
     }
   }
 
-  device d8(filter_selector("0"));
+  device d8 = filter_selector("0").select_device();
 
   try {
     // pick something crazy
-    device d9(filter_selector("gpu:999"));
+    device d9 = filter_selector("gpu:999").select_device();
   } catch (const sycl::exception &e) {
     assert(e.code() == sycl::errc::runtime);
     const char *ErrorMesg =
@@ -113,7 +113,7 @@ int main() {
 
   try {
     // pick something crazy
-    device d10(filter_selector("bob:gpu"));
+    device d10 = filter_selector("bob:gpu").select_device();
   } catch (const sycl::exception &e) {
     assert(e.code() == sycl::errc::invalid);
     const char *ErrorMesg = "Invalid filter string!";
@@ -123,7 +123,7 @@ int main() {
 
   try {
     // pick something crazy
-    device d11(filter_selector("opencl:bob"));
+    device d11 = filter_selector("opencl:bob").select_device();
   } catch (const sycl::exception &e) {
     assert(e.code() == sycl::errc::invalid);
     const char *ErrorMesg = "Invalid filter string!";
@@ -132,17 +132,17 @@ int main() {
   }
 
   if (HasLevelZeroDevices && HasLevelZeroGPU) {
-    device d12(filter_selector("level_zero"));
+      device d12 = filter_selector("level_zero").select_device();
     assert(d12.get_platform().get_backend() == backend::ext_oneapi_level_zero &&
            "filter_selector(\"level_zero\") failed");
 
-    device d13(filter_selector("level_zero:gpu"));
+      device d13 = filter_selector("level_zero:gpu").select_device();
     assert(d13.is_gpu() &&
            d13.get_platform().get_backend() == backend::ext_oneapi_level_zero &&
            "filter_selector(\"level_zero:gpu\") failed");
 
     if (HasOpenCLDevices && !CPUs.empty()) {
-      device d14(filter_selector("level_zero:gpu,cpu"));
+        device d14 = filter_selector("level_zero:gpu,cpu").select_device();
       assert((d14.is_gpu() || d14.is_cpu()) &&
              "filter_selector(\"level_zero:gpu,cpu\") failed");
       if (d14.is_gpu()) {
@@ -154,26 +154,26 @@ int main() {
   }
 
   if (Devs.size() > 1) {
-    device d15(filter_selector("1"));
+      device d15 = filter_selector("1").select_device();
   }
 
   if (HasCUDADevices) {
-    device d16(filter_selector("cuda"));
+      device d16 = filter_selector("cuda").select_device();
     assert(d16.get_platform().get_backend() == backend::ext_oneapi_cuda &&
            "filter_selector(\"cuda\") failed");
 
-    device d17(filter_selector("cuda:gpu"));
+      device d17 = filter_selector("cuda:gpu").select_device();
     assert(d17.is_gpu() &&
            d17.get_platform().get_backend() == backend::ext_oneapi_cuda &&
            "filter_selector(\"cuda:gpu\") failed");
   }
 
   if (HasHIPDevices) {
-    device d19(ext::oneapi::filter_selector("hip"));
+      device d19 = ext::oneapi::filter_selector("hip").select_device();
     assert(d19.get_platform().get_backend() == backend::ext_oneapi_hip &&
            "filter_selector(\"hip\") failed");
 
-    device d20(ext::oneapi::filter_selector("hip:gpu"));
+      device d20 = ext::oneapi::filter_selector("hip:gpu").select_device();
     assert(d20.is_gpu() &&
            d20.get_platform().get_backend() == backend::ext_oneapi_hip &&
            "filter_selector(\"hip:gpu\") failed");
