@@ -240,11 +240,12 @@ public:
   static std::shared_ptr<queue_impl> create(Ts &&...args) {
     auto ImplPtr =
         std::make_shared<queue_impl>(std::forward<Ts>(args)..., private_tag{});
-    ImplPtr->getDeviceImpl().registerQueue(ImplPtr);
+    ImplPtr->getDeviceImpl().registerQueue(ImplPtr.get());
     return ImplPtr;
   }
 
   ~queue_impl() {
+    getDeviceImpl().unregisterQueue(this);
     try {
 #if XPTI_ENABLE_INSTRUMENTATION
       // The trace event created in the constructor should be active through the
@@ -376,9 +377,10 @@ public:
   }
 
   event submit_barrier_direct_with_event(sycl::span<const event> DepEvents,
+                                         detail::CGType BarrierType,
                                          const detail::code_location &CodeLoc) {
     detail::EventImplPtr EventImpl =
-        submit_barrier_direct_impl(DepEvents, CodeLoc);
+        submit_barrier_direct_impl(DepEvents, BarrierType, CodeLoc);
     return createSyclObjFromImpl<event>(std::move(EventImpl));
   }
 
@@ -424,6 +426,10 @@ public:
       bool EventNeeded, detail::kernel_impl *KernelImplPtr,
       detail::kernel_bundle_impl *KernelBundleImpPtr,
       const detail::code_location &CodeLoc, bool IsTopCodeLoc);
+
+  EventImplPtr submit_barrier_scheduler_bypass(
+      std::vector<detail::EventImplPtr> &BarrierDepEvents,
+      std::vector<detail::EventImplPtr> &DepEvents, detail::CGType BarrierType);
 
   /// Performs a blocking wait for the completion of all enqueued tasks in the
   /// queue.
@@ -608,6 +614,8 @@ public:
 
   bool queue_empty() const;
 
+  void queue_flush() const;
+
   EventImplPtr memcpyToDeviceGlobal(void *DeviceGlobalPtr, const void *Src,
                                     bool IsDeviceImageScope, size_t NumBytes,
                                     size_t Offset,
@@ -645,6 +653,13 @@ public:
   }
 
   bool hasCommandGraph() const { return !MGraph.expired(); }
+
+  bool isNativeRecording() const;
+
+  ext::oneapi::experimental::queue_state ext_oneapi_get_state_impl() const;
+
+  std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
+  ext_oneapi_get_graph_impl() const;
 
   EventImplPtr submit_command_to_graph(
       ext::oneapi::experimental::detail::graph_impl &GraphImpl,
@@ -956,6 +971,7 @@ protected:
   ///
   /// \return a SYCL event representing submitted command group or nullptr.
   EventImplPtr submit_barrier_direct_impl(sycl::span<const event> DepEvents,
+                                          detail::CGType BarrierType,
                                           const detail::code_location &CodeLoc);
 
   /// Helper function for submitting a memory operation with a handler.

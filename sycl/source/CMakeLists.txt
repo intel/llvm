@@ -67,6 +67,7 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
       SYCL2020_DISABLE_DEPRECATION_WARNINGS
       __SYCL_DISABLE_DEPRECATION_WARNINGS
       $<$<BOOL:${MSVC}>:__SYCL_BUILD_SYCL_DLL>
+      $<$<BOOL:${UR_STATIC_LOADER}>:SYCL_UR_STATIC_LOADER>
   )
 
   target_include_directories(
@@ -97,11 +98,23 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
 
   find_package(Threads REQUIRED)
 
+  if(WIN32 AND UR_STATIC_LOADER AND WIN_DUPE)
+    # WIN_DUPE means /MDd, use debug target
+    set(_sycl_ur_loader UnifiedRuntimeLoaderDebug)
+    add_dependencies(${LIB_NAME} unified-runtimed-build)
+  elseif(NOT WIN32 OR UR_STATIC_LOADER)
+    # Linux, or unconditionally when using static linking, link regular UR target
+    set(_sycl_ur_loader UnifiedRuntimeLoader)
+  else()
+    # Windows without static linking uses proxy loader that loads UR at runtime
+    set(_sycl_ur_loader "")
+  endif()
+
   target_link_libraries(${LIB_NAME}
     PRIVATE
       ${CMAKE_DL_LIBS}
       ${CMAKE_THREAD_LIBS_INIT}
-      $<$<NOT:$<BOOL:${WIN32}>>:UnifiedRuntimeLoader>
+      ${_sycl_ur_loader}
       $<$<BOOL:${WIN32}>:shlwapi>
   )
 
@@ -299,6 +312,7 @@ set(SYCL_COMMON_SOURCES
     "detail/kernel_compiler/kernel_compiler_sycl.cpp"
     "detail/kernel_impl.cpp"
     "detail/get_device_kernel_info.cpp"
+    "detail/get_kernel_info_impl.cpp"
     "detail/device_kernel_info.cpp"
     "detail/kernel_program_cache.cpp"
     "detail/memory_export.cpp"
@@ -338,10 +352,12 @@ set(SYCL_COMMON_SOURCES
     "image.cpp"
     "interop_handle.cpp"
     "ipc_memory.cpp"
+    "ipc_physical_memory.cpp"
     "kernel.cpp"
     "kernel_bundle.cpp"
     "physical_mem.cpp"
     "platform.cpp"
+    "printers.cpp"
     "queue.cpp"
     "sampler.cpp"
     "stream.cpp"

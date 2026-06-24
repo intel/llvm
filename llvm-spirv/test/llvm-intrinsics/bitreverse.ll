@@ -5,6 +5,8 @@
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: spirv-val %t.spv
 ; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o - | FileCheck %s --check-prefix=CHECK-LLVM
+; FIXME: LLC_FAIL
+; RUNx: llc -O0 -mtriple=spirv64-unknown-unknown -filetype=obj %s -o %t.llc.spv
 
 ; SPV_KHR_bit_instructions extension was not enabled so BitReverse must not be generated
 ; CHECK-SPIRV-NOT: BitReverse

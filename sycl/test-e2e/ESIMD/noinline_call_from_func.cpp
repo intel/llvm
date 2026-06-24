@@ -10,6 +10,7 @@
 //
 // The test checks that ESIMD kernels support call of noinline function from
 // within other functions.
+#include <iostream>
 
 #include "esimd_test_utils.hpp"
 

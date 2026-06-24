@@ -1,9 +1,8 @@
 //===--------- ur_interface_loader.hpp - Level Zero Adapter ------------===//
 //
-// Copyright (C) 2024 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -276,13 +275,6 @@ urEventCreateWithNativeHandle(ur_native_handle_t hNativeEvent,
 ur_result_t urEventSetCallback(ur_event_handle_t hEvent,
                                ur_execution_info_t execStatus,
                                ur_event_callback_t pfnNotify, void *pUserData);
-ur_result_t urEnqueueKernelLaunch(
-    ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel, uint32_t workDim,
-    const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
-    const size_t *pLocalWorkSize,
-    const ur_kernel_launch_ext_properties_t *launchPropList,
-    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-    ur_event_handle_t *phEvent);
 ur_result_t urEnqueueEventsWait(ur_queue_handle_t hQueue,
                                 uint32_t numEventsInWaitList,
                                 const ur_event_handle_t *phEventWaitList,
@@ -427,13 +419,6 @@ ur_result_t urEnqueueKernelLaunchWithArgsExp(
 ur_result_t urKernelCreate(ur_program_handle_t hProgram,
                            const char *pKernelName,
                            ur_kernel_handle_t *phKernel);
-ur_result_t urKernelSetArgValue(
-    ur_kernel_handle_t hKernel, uint32_t argIndex, size_t argSize,
-    const ur_kernel_arg_value_properties_t *pProperties, const void *pArgValue);
-ur_result_t
-urKernelSetArgLocal(ur_kernel_handle_t hKernel, uint32_t argIndex,
-                    size_t argSize,
-                    const ur_kernel_arg_local_properties_t *pProperties);
 ur_result_t urKernelGetInfo(ur_kernel_handle_t hKernel,
                             ur_kernel_info_t propName, size_t propSize,
                             void *pPropValue, size_t *pPropSizeRet);
@@ -450,22 +435,10 @@ ur_result_t urKernelGetSubGroupInfo(ur_kernel_handle_t hKernel,
 ur_result_t urKernelRetain(ur_kernel_handle_t hKernel);
 ur_result_t urKernelRelease(ur_kernel_handle_t hKernel);
 ur_result_t
-urKernelSetArgPointer(ur_kernel_handle_t hKernel, uint32_t argIndex,
-                      const ur_kernel_arg_pointer_properties_t *pProperties,
-                      const void *pArgValue);
-ur_result_t
 urKernelSetExecInfo(ur_kernel_handle_t hKernel, ur_kernel_exec_info_t propName,
                     size_t propSize,
                     const ur_kernel_exec_info_properties_t *pProperties,
                     const void *pPropValue);
-ur_result_t
-urKernelSetArgSampler(ur_kernel_handle_t hKernel, uint32_t argIndex,
-                      const ur_kernel_arg_sampler_properties_t *pProperties,
-                      ur_sampler_handle_t hArgValue);
-ur_result_t
-urKernelSetArgMemObj(ur_kernel_handle_t hKernel, uint32_t argIndex,
-                     const ur_kernel_arg_mem_obj_properties_t *pProperties,
-                     ur_mem_handle_t hArgValue);
 ur_result_t urKernelSetSpecializationConstants(
     ur_kernel_handle_t hKernel, uint32_t count,
     const ur_specialization_constant_info_t *pSpecConstants);
@@ -656,6 +629,28 @@ ur_result_t urIPCOpenMemHandleExp(ur_context_handle_t hContext,
                                   void *pIPCMemHandleData,
                                   size_t ipcMemHandleDataSize, void **ppMem);
 ur_result_t urIPCCloseMemHandleExp(ur_context_handle_t hContext, void *pMem);
+ur_result_t urIPCGetPhysMemHandleExp(ur_context_handle_t hContext,
+                                     ur_physical_mem_handle_t hPhysMem,
+                                     void **ppIPCPhysMemHandleData,
+                                     size_t *pIPCPhysMemHandleDataSizeRet);
+ur_result_t urIPCPutPhysMemHandleExp(ur_context_handle_t hContext,
+                                     const void *pIPCPhysMemHandleData);
+ur_result_t urIPCOpenPhysMemHandleExp(ur_context_handle_t hContext,
+                                      ur_device_handle_t hDevice,
+                                      const void *pIPCPhysMemHandleData,
+                                      size_t ipcPhysMemHandleDataSize,
+                                      ur_physical_mem_handle_t *phPhysMem);
+ur_result_t urIPCClosePhysMemHandleExp(ur_context_handle_t hContext,
+                                       ur_physical_mem_handle_t hPhysMem);
+ur_result_t urIPCGetEventHandleExp(ur_event_handle_t hEvent,
+                                   void **ppIPCEventHandleData,
+                                   size_t *pIPCEventHandleDataSizeRet);
+ur_result_t urIPCPutEventHandleExp(ur_context_handle_t hContext,
+                                   void *pIPCEventHandleData);
+ur_result_t urIPCOpenEventHandleExp(ur_context_handle_t hContext,
+                                    const void *pIPCEventHandleData,
+                                    size_t ipcEventHandleDataSize,
+                                    ur_event_handle_t *phEvent);
 ur_result_t urMemoryExportAllocExportableMemoryExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice, size_t alignment,
     size_t size, ur_exp_external_mem_type_t handleTypeToExport, void **ppMem);
@@ -869,6 +864,9 @@ ur_result_t urEnqueueNativeCommandExp(
     const ur_exp_enqueue_native_command_properties_t *pProperties,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent);
+ur_result_t urEventCreateExp(ur_context_handle_t hContext,
+                             const ur_exp_event_desc_t *pEventDesc,
+                             ur_event_handle_t *phEvent);
 ur_result_t urGraphCreateExp(ur_context_handle_t hContext,
                              ur_exp_graph_handle_t *phGraph);
 ur_result_t urQueueBeginGraphCaptureExp(ur_queue_handle_t hQueue);
@@ -889,9 +887,19 @@ ur_result_t urGraphExecutableGraphDestroyExp(
     ur_exp_executable_graph_handle_t hExecutableGraph);
 ur_result_t urQueueIsGraphCaptureEnabledExp(ur_queue_handle_t hQueue,
                                             bool *pResult);
+ur_result_t urQueueGetGraphExp(ur_queue_handle_t hQueue,
+                               ur_exp_graph_handle_t *phGraph);
 ur_result_t urGraphIsEmptyExp(ur_exp_graph_handle_t hGraph, bool *pResult);
+ur_result_t urGraphSetDestructionCallbackExp(
+    ur_exp_graph_handle_t hGraph,
+    ur_exp_graph_destruction_callback_t pfnCallback, void *pUserData);
 ur_result_t urGraphDumpContentsExp(ur_exp_graph_handle_t hGraph,
                                    const char *filePath);
+ur_result_t urGraphGetNativeHandleExp(ur_exp_graph_handle_t hGraph,
+                                      ur_native_handle_t *phNativeGraph);
+ur_result_t urGraphExecutableGraphGetNativeHandleExp(
+    ur_exp_executable_graph_handle_t hExecutableGraph,
+    ur_native_handle_t *phNativeExecutableGraph);
 #ifdef UR_STATIC_ADAPTER_LEVEL_ZERO
 ur_result_t urAdapterGetDdiTables(ur_dditable_t *ddi);
 #endif

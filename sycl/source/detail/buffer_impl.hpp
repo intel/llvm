@@ -11,6 +11,7 @@
 #include <detail/sycl_mem_obj_t.hpp>
 #include <sycl/access/access.hpp>
 #include <sycl/context.hpp>
+#include <sycl/detail/code_location.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/helpers.hpp>
@@ -30,7 +31,7 @@ template <typename DataT, int Dimensions, access::mode AccessMode,
           access::target AccessTarget, access::placeholder IsPlaceholder,
           typename PropertyListT>
 class accessor;
-template <typename T, int Dimensions, typename AllocatorT, typename Enable>
+template <typename T, int Dimensions, typename AllocatorT, typename __Enabled>
 class buffer;
 template <typename DataT, int Dimensions, access::mode AccessMode>
 class host_accessor;

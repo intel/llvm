@@ -1,10 +1,9 @@
 /*
  *
- * Copyright (C) 2022 Intel Corporation
  *
- * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
+ * Part of the LLVM Project, under the Apache License v2.0 with LLVM
  * Exceptions.
- * See LICENSE.TXT
+ * See https://llvm.org/LICENSE.txt for license information.
  *
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
@@ -65,8 +64,6 @@ typedef enum ur_function_t {
   UR_FUNCTION_DEVICE_CREATE_WITH_NATIVE_HANDLE = 15,
   /// Enumerator for ::urDeviceGetGlobalTimestamps
   UR_FUNCTION_DEVICE_GET_GLOBAL_TIMESTAMPS = 16,
-  /// Enumerator for ::urEnqueueKernelLaunch
-  UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH = 17,
   /// Enumerator for ::urEnqueueEventsWait
   UR_FUNCTION_ENQUEUE_EVENTS_WAIT = 18,
   /// Enumerator for ::urEnqueueEventsWaitWithBarrier
@@ -125,10 +122,6 @@ typedef enum ur_function_t {
   UR_FUNCTION_EVENT_SET_CALLBACK = 47,
   /// Enumerator for ::urKernelCreate
   UR_FUNCTION_KERNEL_CREATE = 48,
-  /// Enumerator for ::urKernelSetArgValue
-  UR_FUNCTION_KERNEL_SET_ARG_VALUE = 49,
-  /// Enumerator for ::urKernelSetArgLocal
-  UR_FUNCTION_KERNEL_SET_ARG_LOCAL = 50,
   /// Enumerator for ::urKernelGetInfo
   UR_FUNCTION_KERNEL_GET_INFO = 51,
   /// Enumerator for ::urKernelGetGroupInfo
@@ -139,14 +132,8 @@ typedef enum ur_function_t {
   UR_FUNCTION_KERNEL_RETAIN = 54,
   /// Enumerator for ::urKernelRelease
   UR_FUNCTION_KERNEL_RELEASE = 55,
-  /// Enumerator for ::urKernelSetArgPointer
-  UR_FUNCTION_KERNEL_SET_ARG_POINTER = 56,
   /// Enumerator for ::urKernelSetExecInfo
   UR_FUNCTION_KERNEL_SET_EXEC_INFO = 57,
-  /// Enumerator for ::urKernelSetArgSampler
-  UR_FUNCTION_KERNEL_SET_ARG_SAMPLER = 58,
-  /// Enumerator for ::urKernelSetArgMemObj
-  UR_FUNCTION_KERNEL_SET_ARG_MEM_OBJ = 59,
   /// Enumerator for ::urKernelSetSpecializationConstants
   UR_FUNCTION_KERNEL_SET_SPECIALIZATION_CONSTANTS = 60,
   /// Enumerator for ::urKernelGetNativeHandle
@@ -521,6 +508,30 @@ typedef enum ur_function_t {
   UR_FUNCTION_USM_HOST_ALLOC_REGISTER_EXP = 312,
   /// Enumerator for ::urUSMHostAllocUnregisterExp
   UR_FUNCTION_USM_HOST_ALLOC_UNREGISTER_EXP = 313,
+  /// Enumerator for ::urQueueGetGraphExp
+  UR_FUNCTION_QUEUE_GET_GRAPH_EXP = 314,
+  /// Enumerator for ::urGraphSetDestructionCallbackExp
+  UR_FUNCTION_GRAPH_SET_DESTRUCTION_CALLBACK_EXP = 315,
+  /// Enumerator for ::urIPCGetPhysMemHandleExp
+  UR_FUNCTION_IPC_GET_PHYS_MEM_HANDLE_EXP = 316,
+  /// Enumerator for ::urIPCPutPhysMemHandleExp
+  UR_FUNCTION_IPC_PUT_PHYS_MEM_HANDLE_EXP = 317,
+  /// Enumerator for ::urIPCOpenPhysMemHandleExp
+  UR_FUNCTION_IPC_OPEN_PHYS_MEM_HANDLE_EXP = 318,
+  /// Enumerator for ::urIPCClosePhysMemHandleExp
+  UR_FUNCTION_IPC_CLOSE_PHYS_MEM_HANDLE_EXP = 319,
+  /// Enumerator for ::urGraphGetNativeHandleExp
+  UR_FUNCTION_GRAPH_GET_NATIVE_HANDLE_EXP = 320,
+  /// Enumerator for ::urGraphExecutableGraphGetNativeHandleExp
+  UR_FUNCTION_GRAPH_EXECUTABLE_GRAPH_GET_NATIVE_HANDLE_EXP = 321,
+  /// Enumerator for ::urEventCreateExp
+  UR_FUNCTION_EVENT_CREATE_EXP = 322,
+  /// Enumerator for ::urIPCGetEventHandleExp
+  UR_FUNCTION_IPC_GET_EVENT_HANDLE_EXP = 323,
+  /// Enumerator for ::urIPCPutEventHandleExp
+  UR_FUNCTION_IPC_PUT_EVENT_HANDLE_EXP = 324,
+  /// Enumerator for ::urIPCOpenEventHandleExp
+  UR_FUNCTION_IPC_OPEN_EVENT_HANDLE_EXP = 325,
   /// @cond
   UR_FUNCTION_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -634,6 +645,8 @@ typedef enum ur_structure_type_t {
   UR_STRUCTURE_TYPE_EXP_SAMPLER_CUBEMAP_PROPERTIES = 0x2006,
   /// ::ur_exp_image_copy_region_t
   UR_STRUCTURE_TYPE_EXP_IMAGE_COPY_REGION = 0x2007,
+  /// ::ur_exp_win32_name_t
+  UR_STRUCTURE_TYPE_EXP_WIN32_NAME = 0x2008,
   /// ::ur_exp_async_usm_alloc_properties_t
   UR_STRUCTURE_TYPE_EXP_ASYNC_USM_ALLOC_PROPERTIES = 0x2050,
   /// ::ur_exp_enqueue_native_command_properties_t
@@ -646,6 +659,8 @@ typedef enum ur_structure_type_t {
   UR_STRUCTURE_TYPE_EXP_HOST_TASK_PROPERTIES = 0x6000,
   /// ::ur_exp_usm_host_alloc_register_properties_t
   UR_STRUCTURE_TYPE_EXP_USM_HOST_ALLOC_REGISTER_PROPERTIES = 0x7000,
+  /// ::ur_exp_event_desc_t
+  UR_STRUCTURE_TYPE_EXP_EVENT_DESC = 0x8000,
   /// @cond
   UR_STRUCTURE_TYPE_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -2142,8 +2157,8 @@ typedef enum ur_device_info_t {
   /// [uint32_t] max number of image objects arguments of a kernel declared
   /// with the write_only qualifier
   UR_DEVICE_INFO_MAX_WRITE_IMAGE_ARGS = 31,
-  /// [uint32_t] max number of image objects arguments of a kernel declared
-  /// with the read_write qualifier
+  /// [uint32_t][optional-query] max number of image objects arguments of a
+  /// kernel declared with the read_write qualifier
   UR_DEVICE_INFO_MAX_READ_WRITE_IMAGE_ARGS = 32,
   /// [size_t] max width of Image2D object
   UR_DEVICE_INFO_IMAGE2D_MAX_WIDTH = 33,
@@ -2215,7 +2230,7 @@ typedef enum ur_device_info_t {
   /// It is unsuitable for general use in applications. This feature is
   /// provided for identifying memory leaks.
   UR_DEVICE_INFO_REFERENCE_COUNT = 64,
-  /// [char[]] null-terminated IL version
+  /// [char[]][optional-query] null-terminated IL version.
   UR_DEVICE_INFO_IL_VERSION = 65,
   /// [char[]] null-terminated device name
   UR_DEVICE_INFO_NAME = 66,
@@ -2386,6 +2401,30 @@ typedef enum ur_device_info_t {
   UR_DEVICE_INFO_LUID = 129,
   /// [uint32_t][optional-query] return device Windows node mask
   UR_DEVICE_INFO_NODE_MASK = 130,
+  /// [uint32_t] preferred vector width for long long
+  UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_LONG_LONG = 131,
+  /// [uint32_t] native vector width for long long
+  UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG_LONG = 132,
+  /// [size_t] return max total number of work groups
+  UR_DEVICE_INFO_MAX_WORK_GROUPS = 133,
+  /// [uint32_t][optional-query] return Intel GPU number of
+  /// stacks/chiplets/tiles
+  UR_DEVICE_INFO_XE_STACK_COUNT = 134,
+  /// [uint32_t][optional-query] return Intel GPU number of regions sharing
+  /// local L2/L3 (XE_CU) per stack
+  UR_DEVICE_INFO_XE_REGIONS_PER_STACK = 135,
+  /// [uint32_t][optional-query] return Intel GPU number of clusters
+  /// (slices) per region
+  UR_DEVICE_INFO_XE_CLUSTERS_PER_REGION = 136,
+  /// [uint32_t][optional-query] return Intel GPU number of XE cores per
+  /// cluster
+  UR_DEVICE_INFO_XE_CORES_PER_CLUSTER = 137,
+  /// [uint32_t][optional-query] return Intel GPU number of execution
+  /// engines (EUs) per XE Core
+  UR_DEVICE_INFO_EUS_PER_XE_CORE = 138,
+  /// [uint32_t][optional-query] return Intel GPU maximal number of lanes
+  /// (virtual SIMD size) per hardware thread
+  UR_DEVICE_INFO_MAX_LANES_PER_HW_THREAD = 139,
   /// [::ur_bool_t] Returns true if the device supports the use of
   /// command-buffers.
   UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP = 0x1000,
@@ -2489,6 +2528,16 @@ typedef enum ur_device_info_t {
   /// [::ur_bool_t] returns true if the device supports inter-process
   /// communicable memory handles
   UR_DEVICE_INFO_IPC_MEMORY_SUPPORT_EXP = 0x2023,
+  /// [::ur_bool_t] returns true if the device supports inter-process
+  /// communicable physical memory handles
+  UR_DEVICE_INFO_IPC_PHYSICAL_MEMORY_SUPPORT_EXP = 0x2024,
+  /// [::ur_bool_t] returns true if the device supports reusable events
+  /// created with ::urEventCreateExp and signaled by
+  /// ::urEnqueueEventsWaitWithBarrierExt.
+  UR_DEVICE_INFO_REUSABLE_EVENTS_SUPPORT_EXP = 0x2025,
+  /// [::ur_bool_t] returns true if the device supports inter-process
+  /// communicable event handles
+  UR_DEVICE_INFO_IPC_EVENT_SUPPORT_EXP = 0x2026,
   /// [::ur_bool_t] returns true if the device supports enqueueing of
   /// allocations and frees.
   UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_SUPPORT_EXP = 0x2050,
@@ -3183,6 +3232,10 @@ typedef struct ur_context_properties_t {
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `NULL != pProperties && ::UR_CONTEXT_FLAGS_MASK &
 ///         pProperties->flags`
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         + `DeviceCount == 0`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE - "If device handles in
+///     phDevices are not valid handles."
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY
 UR_APIEXPORT ur_result_t UR_APICALL urContextCreate(
@@ -5316,15 +5369,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urVirtualMemGetInfo(
 /// @brief Physical memory creation properties.
 typedef uint32_t ur_physical_mem_flags_t;
 typedef enum ur_physical_mem_flag_t {
-  /// reserved for future use.
-  UR_PHYSICAL_MEM_FLAG_TBD = UR_BIT(0),
+  /// allocate physical memory that can be shared via IPC handles.
+  UR_PHYSICAL_MEM_FLAG_ENABLE_IPC = UR_BIT(1),
   /// @cond
   UR_PHYSICAL_MEM_FLAG_FORCE_UINT32 = 0x7fffffff
   /// @endcond
 
 } ur_physical_mem_flag_t;
 /// @brief Bit Mask for validating ur_physical_mem_flags_t
-#define UR_PHYSICAL_MEM_FLAGS_MASK 0xfffffffe
+#define UR_PHYSICAL_MEM_FLAGS_MASK 0xfffffffd
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Physical memory creation properties.
@@ -6597,7 +6650,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueFlush(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Command type
 typedef enum ur_command_t {
-  /// Event created by ::urEnqueueKernelLaunch
+  /// Event created by ::urEnqueueKernelLaunchWithArgsExp
   UR_COMMAND_KERNEL_LAUNCH = 0,
   /// Event created by ::urEnqueueEventsWait
   UR_COMMAND_EVENTS_WAIT = 1,
@@ -7114,80 +7167,6 @@ typedef struct ur_kernel_launch_workgroup_property_t {
   size_t workgroup_mem_size;
 
 } ur_kernel_launch_workgroup_property_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Enqueue a command to execute a kernel
-///
-/// @details
-///     - Providing invalid kernel arguments is Undefined Behavior.
-///
-/// @remarks
-///   _Analogues_
-///     - **clEnqueueNDRangeKernel**
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hQueue`
-///         + `NULL == hKernel`
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == pGlobalWorkSize`
-///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `NULL != launchPropList && ::UR_KERNEL_LAUNCH_FLAGS_MASK &
-///         launchPropList->flags`
-///     - ::UR_RESULT_ERROR_INVALID_QUEUE
-///     - ::UR_RESULT_ERROR_INVALID_KERNEL
-///     - ::UR_RESULT_ERROR_INVALID_EVENT
-///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
-///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
-///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
-///         + If event objects in phEventWaitList are not valid events.
-///     - ::UR_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS
-///         + An event in `phEventWaitList` has ::UR_EVENT_STATUS_ERROR.
-///     - ::UR_RESULT_ERROR_INVALID_WORK_DIMENSION
-///     - ::UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE
-///     - ::UR_RESULT_ERROR_INVALID_VALUE
-///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
-///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
-///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
-///         + If any property in `launchPropList` isn't supported by the device.
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
-    /// [in] handle of the queue object
-    ur_queue_handle_t hQueue,
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] number of dimensions, from 1 to 3, to specify the global and
-    /// work-group work-items
-    uint32_t workDim,
-    /// [in][optional] pointer to an array of workDim unsigned values that
-    /// specify the offset used to calculate the global ID of a work-item
-    const size_t *pGlobalWorkOffset,
-    /// [in] pointer to an array of workDim unsigned values that specify the
-    /// number of global work-items in workDim that will execute the kernel
-    /// function
-    const size_t *pGlobalWorkSize,
-    /// [in][optional] pointer to an array of workDim unsigned values that
-    /// specify the number of local work-items forming a work-group that will
-    /// execute the kernel function.
-    /// If nullptr, the runtime implementation will choose the work-group size.
-    const size_t *pLocalWorkSize,
-    /// [in][optional] pointer to a single linked list of launch properties
-    const ur_kernel_launch_ext_properties_t *launchPropList,
-    /// [in] size of the event wait list
-    uint32_t numEventsInWaitList,
-    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
-    /// events that must be complete before the kernel execution.
-    /// If nullptr, the numEventsInWaitList must be 0, indicating that no wait
-    /// event.
-    const ur_event_handle_t *phEventWaitList,
-    /// [out][optional][alloc] return an event object that identifies this
-    /// particular kernel execution instance. If phEventWaitList and phEvent
-    /// are not NULL, phEvent must not refer to an element of the
-    /// phEventWaitList array.
-    ur_event_handle_t *phEvent);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Enqueue a command which waits a list of events to complete before it
@@ -8735,11 +8714,12 @@ typedef struct ur_exp_kernel_arg_properties_t {
 ///     - ::UR_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS
 ///         + An event in `phEventWaitList` has ::UR_EVENT_STATUS_ERROR.
 ///     - ::UR_RESULT_ERROR_INVALID_WORK_DIMENSION
-///         + `pGlobalWorkSize[0] == 0 || pGlobalWorkSize[1] == 0 ||
-///         pGlobalWorkSize[2] == 0`
+///         + `pGlobalWorkSize[0] == 0 || (workDim >= 2 && pGlobalWorkSize[1] ==
+///         0) || (workDim >= 3 && pGlobalWorkSize[2] == 0)`
 ///     - ::UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE
-///         + `pLocalWorkSize && (pLocalWorkSize[0] == 0 || pLocalWorkSize[1] ==
-///         0 || pLocalWorkSize[2] == 0)`
+///         + `pLocalWorkSize && (pLocalWorkSize[0] == 0 || (workDim >= 2 &&
+///         pLocalWorkSize[1] == 0) || (workDim >= 3 && pLocalWorkSize[2] ==
+///         0))`
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGS - "The kernel argument values
 ///     have not been specified."
@@ -8822,7 +8802,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelCreate(
     ur_kernel_handle_t *phKernel);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Properties for for ::urKernelSetArgValue.
+/// @brief Properties for kernel argument of a value type.
 typedef struct ur_kernel_arg_value_properties_t {
   /// [in] type of this structure, must be
   /// ::UR_STRUCTURE_TYPE_KERNEL_ARG_VALUE_PROPERTIES
@@ -8833,40 +8813,7 @@ typedef struct ur_kernel_arg_value_properties_t {
 } ur_kernel_arg_value_properties_t;
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Set kernel argument to a value.
-///
-/// @details
-///     - The application may call this function from simultaneous threads with
-///       the same kernel handle.
-///     - The implementation of this function should be lock-free.
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hKernel`
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == pArgValue`
-///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX
-///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE
-UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgValue(
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] argument index in range [0, num args - 1]
-    uint32_t argIndex,
-    /// [in] size of argument type
-    size_t argSize,
-    /// [in][optional] pointer to value properties.
-    const ur_kernel_arg_value_properties_t *pProperties,
-    /// [in] argument value represented as matching arg type.
-    /// The data pointed to will be copied and therefore can be reused on
-    /// return.
-    const void *pArgValue);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Properties for for ::urKernelSetArgLocal.
+/// @brief Properties for kernel argument of a local type.
 typedef struct ur_kernel_arg_local_properties_t {
   /// [in] type of this structure, must be
   /// ::UR_STRUCTURE_TYPE_KERNEL_ARG_LOCAL_PROPERTIES
@@ -8875,33 +8822,6 @@ typedef struct ur_kernel_arg_local_properties_t {
   void *pNext;
 
 } ur_kernel_arg_local_properties_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Set kernel argument to a local buffer.
-///
-/// @details
-///     - The application may call this function from simultaneous threads with
-///       the same kernel handle.
-///     - The implementation of this function should be lock-free.
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hKernel`
-///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX
-///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE
-UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgLocal(
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] argument index in range [0, num args - 1]
-    uint32_t argIndex,
-    /// [in] size of the local buffer to be allocated by the runtime
-    size_t argSize,
-    /// [in][optional] pointer to local buffer properties.
-    const ur_kernel_arg_local_properties_t *pProperties);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Get Kernel object information
@@ -9174,7 +9094,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelRelease(
     ur_kernel_handle_t hKernel);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Properties for for ::urKernelSetArgPointer.
+/// @brief Properties for kernel argument of a pointer type.
 typedef struct ur_kernel_arg_pointer_properties_t {
   /// [in] type of this structure, must be
   /// ::UR_STRUCTURE_TYPE_KERNEL_ARG_POINTER_PROPERTIES
@@ -9183,37 +9103,6 @@ typedef struct ur_kernel_arg_pointer_properties_t {
   void *pNext;
 
 } ur_kernel_arg_pointer_properties_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Set a USM pointer as the argument value of a Kernel.
-///
-/// @details
-///     - The application may call this function from simultaneous threads with
-///       the same kernel handle.
-///     - The implementation of this function should be lock-free.
-///
-/// @remarks
-///   _Analogues_
-///     - **clSetKernelArgSVMPointer**
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hKernel`
-///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX
-UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgPointer(
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] argument index in range [0, num args - 1]
-    uint32_t argIndex,
-    /// [in][optional] pointer to USM pointer properties.
-    const ur_kernel_arg_pointer_properties_t *pProperties,
-    /// [in][optional] Pointer obtained by USM allocation or virtual memory
-    /// mapping operation. If null then argument value is considered null.
-    const void *pArgValue);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Properties for for ::urKernelSetExecInfo.
@@ -9263,7 +9152,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetExecInfo(
     const void *pPropValue);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Properties for for ::urKernelSetArgSampler.
+/// @brief Properties for kernel argument of a sampler type.
 typedef struct ur_kernel_arg_sampler_properties_t {
   /// [in] type of this structure, must be
   /// ::UR_STRUCTURE_TYPE_KERNEL_ARG_SAMPLER_PROPERTIES
@@ -9274,36 +9163,7 @@ typedef struct ur_kernel_arg_sampler_properties_t {
 } ur_kernel_arg_sampler_properties_t;
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Set a Sampler object as the argument value of a Kernel.
-///
-/// @details
-///     - The application may call this function from simultaneous threads with
-///       the same kernel handle.
-///     - The implementation of this function should be lock-free.
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hKernel`
-///         + `NULL == hArgValue`
-///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX
-///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
-///         + Device `::UR_DEVICE_INFO_IMAGE_SUPPORT` is false
-UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgSampler(
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] argument index in range [0, num args - 1]
-    uint32_t argIndex,
-    /// [in][optional] pointer to sampler properties.
-    const ur_kernel_arg_sampler_properties_t *pProperties,
-    /// [in] handle of Sampler object.
-    ur_sampler_handle_t hArgValue);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Properties for for ::urKernelSetArgMemObj.
+/// @brief Properties for kernel argument of a memory object type.
 typedef struct ur_kernel_arg_mem_obj_properties_t {
   /// [in] type of this structure, must be
   /// ::UR_STRUCTURE_TYPE_KERNEL_ARG_MEM_OBJ_PROPERTIES
@@ -9317,35 +9177,6 @@ typedef struct ur_kernel_arg_mem_obj_properties_t {
 } ur_kernel_arg_mem_obj_properties_t;
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Set a Memory object as the argument value of a Kernel.
-///
-/// @details
-///     - The application may call this function from simultaneous threads with
-///       the same kernel handle.
-///     - The implementation of this function should be lock-free.
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hKernel`
-///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `NULL != pProperties && ::UR_MEM_FLAGS_MASK &
-///         pProperties->memoryAccess`
-///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX
-UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgMemObj(
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] argument index in range [0, num args - 1]
-    uint32_t argIndex,
-    /// [in][optional] pointer to Memory object properties.
-    const ur_kernel_arg_mem_obj_properties_t *pProperties,
-    /// [in][optional] handle of Memory object.
-    ur_mem_handle_t hArgValue);
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Set an array of specialization constants on a Kernel.
 ///
 /// @details
@@ -9353,8 +9184,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgMemObj(
 ///       with device query ::UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS
 ///       passed to ::urDeviceGetInfo.
 ///     - Adapters which are capable of setting specialization constants
-///       immediately prior to ::urEnqueueKernelLaunch with low overhead should
-///       implement this entry point.
+///       immediately prior to ::urEnqueueKernelLaunchWithArgsExp with low
+///       overhead should implement this entry point.
 ///     - Otherwise, if setting specialization constants late requires
 ///       recompiling or linking a program, adapters should not implement this
 ///       entry point.
@@ -10188,6 +10019,8 @@ typedef enum ur_exp_external_semaphore_type_t {
   UR_EXP_EXTERNAL_SEMAPHORE_TYPE_TIMELINE_FD = 3,
   /// Timeline semaphore Win32 NT handle
   UR_EXP_EXTERNAL_SEMAPHORE_TYPE_TIMELINE_WIN32_NT = 4,
+  /// Fence semaphore Win32 NT DirectX 11 handle
+  UR_EXP_EXTERNAL_SEMAPHORE_TYPE_WIN32_NT_DX11_FENCE = 5,
   /// @cond
   UR_EXP_EXTERNAL_SEMAPHORE_TYPE_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -10232,6 +10065,29 @@ typedef struct ur_exp_win32_handle_t {
   void *handle;
 
 } ur_exp_win32_handle_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Windows specific named object
+///
+/// @details
+///     - An NT object name identifying a shareable Win32 object (e.g. the name
+///       passed to `ID3D12Device::CreateSharedHandle` or to
+///       `CreateEvent`/`CreateSemaphore`). The adapter is expected to open the
+///       named object on the caller's behalf (equivalent to the application
+///       calling `OpenSharedHandleByName` and then importing by handle).
+///     - Adapters that do not support importing by name must return
+///       ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE. Adapters that do not implement
+///       this entry point at all will return ::UR_RESULT_ERROR_UNINITIALIZED.
+typedef struct ur_exp_win32_name_t {
+  /// [in] type of this structure, must be
+  /// ::UR_STRUCTURE_TYPE_EXP_WIN32_NAME
+  ur_structure_type_t stype;
+  /// [in][optional] pointer to extension-specific structure
+  const void *pNext;
+  /// [in] NT object name (null-terminated wide string).
+  const void *name;
+
+} ur_exp_win32_name_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Describes mipmap sampler properties
@@ -11086,7 +10942,7 @@ urBindlessImagesSupportsImportingHandleTypeExp(
 ///         + `NULL == hContext`
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_EXP_EXTERNAL_SEMAPHORE_TYPE_TIMELINE_WIN32_NT <
+///         + `::UR_EXP_EXTERNAL_SEMAPHORE_TYPE_WIN32_NT_DX11_FENCE <
 ///         semHandleType`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pExternalSemaphoreDesc`
@@ -11234,7 +11090,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesSignalExternalSemaphoreExp(
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hDevice`
-///         + `hDevice == nullptr`
 ///     - ::UR_RESULT_ERROR_INVALID_DEVICE
 UR_APIEXPORT ur_result_t UR_APICALL urDeviceWaitExp(
     /// [in] handle of the device instance.
@@ -11442,6 +11297,234 @@ UR_APIEXPORT ur_result_t UR_APICALL urIPCCloseMemHandleExp(
     ur_context_handle_t hContext,
     /// [in] pointer to device USM memory opened through urIPCOpenMemHandleExp
     void *pMem);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Gets an inter-process handle for a physical memory object
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///         + `NULL == hPhysMem`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == ppIPCPhysMemHandleData`
+///         + `NULL == pIPCPhysMemHandleDataSizeRet`
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_INVALID_ARGUMENT
+///         + `hPhysMem` was not created with the
+///         `::UR_PHYSICAL_MEM_FLAG_ENABLE_IPC` flag
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+UR_APIEXPORT ur_result_t UR_APICALL urIPCGetPhysMemHandleExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the physical memory object
+    ur_physical_mem_handle_t hPhysMem,
+    /// [out] a pointer to the IPC physical memory handle data
+    void **ppIPCPhysMemHandleData,
+    /// [out] size of the resulting IPC physical memory handle data
+    size_t *pIPCPhysMemHandleDataSizeRet);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Releases an inter-process physical memory handle
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pIPCPhysMemHandleData`
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+UR_APIEXPORT ur_result_t UR_APICALL urIPCPutPhysMemHandleExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] a pointer to the IPC physical memory handle data obtained with
+    /// urIPCGetPhysMemHandleExp
+    const void *pIPCPhysMemHandleData);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Opens an inter-process physical memory handle to get the
+/// corresponding
+///        physical memory object
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///         + `NULL == hDevice`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == phPhysMem`
+///         + `NULL == pIPCPhysMemHandleData`
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///         + ipcPhysMemHandleDataSize is not the same as the size of IPC
+///         physical memory handle data
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+UR_APIEXPORT ur_result_t UR_APICALL urIPCOpenPhysMemHandleExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device object the physical memory was allocated on
+    ur_device_handle_t hDevice,
+    /// [in] the IPC physical memory handle data obtained with
+    /// urIPCGetPhysMemHandleExp
+    const void *pIPCPhysMemHandleData,
+    /// [in] size of the IPC physical memory handle data
+    size_t ipcPhysMemHandleDataSize,
+    /// [out] pointer to the physical memory handle
+    ur_physical_mem_handle_t *phPhysMem);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Closes an inter-process physical memory handle
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///         + `NULL == hPhysMem`
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+UR_APIEXPORT ur_result_t UR_APICALL urIPCClosePhysMemHandleExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] physical memory handle opened through urIPCOpenPhysMemHandleExp
+    ur_physical_mem_handle_t hPhysMem);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Gets an inter-process event handle for an event object
+///
+/// @details
+///     - The event must have been created by ::urEventCreateExp with the
+///       ::UR_EXP_EVENT_FLAG_IPC_EXP flag set. Events created without that
+///       flag, and events opened with ::urIPCOpenEventHandleExp, cannot be
+///       exported.
+///     - On success, `ppIPCEventHandleData` receives an opaque byte buffer
+///       allocated and owned by the implementation, and
+///       `pIPCEventHandleDataSizeRet` receives its size. The contents of this
+///       buffer may be copied and transferred, by the application's own means,
+///       to another process on the same system, which passes those bytes to
+///       ::urIPCOpenEventHandleExp to obtain an event object that shares state
+///       with `hEvent`.
+///     - The returned handle data must be released in the originating process
+///       with ::urIPCPutEventHandleExp once it is no longer needed.
+///     - Events created with ::UR_EXP_EVENT_FLAG_ENABLE_PROFILING cannot be
+///       exported.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hEvent`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == ppIPCEventHandleData`
+///         + `NULL == pIPCEventHandleDataSizeRet`
+///     - ::UR_RESULT_ERROR_INVALID_EVENT
+///         + `hEvent` was not created with the ::UR_EXP_EVENT_FLAG_IPC_EXP
+///         flag.
+///         + `hEvent` was obtained from ::urIPCOpenEventHandleExp.
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + `hEvent` has profiling or timestamping enabled.
+///         + The device associated with `hEvent` does not support event IPC, as
+///         reported by ::UR_DEVICE_INFO_IPC_EVENT_SUPPORT_EXP.
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+UR_APIEXPORT ur_result_t UR_APICALL urIPCGetEventHandleExp(
+    /// [in] handle of the event object
+    ur_event_handle_t hEvent,
+    /// [out] a pointer to the IPC event handle data
+    void **ppIPCEventHandleData,
+    /// [out] size of the resulting IPC event handle data
+    size_t *pIPCEventHandleDataSizeRet);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Releases an inter-process event handle
+///
+/// @details
+///     - Releases the resources associated with IPC event handle data returned
+///       by ::urIPCGetEventHandleExp. Must be called in the same process that
+///       obtained the handle data. This does not destroy the source event and
+///       does not affect event objects already opened with
+///       ::urIPCOpenEventHandleExp.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pIPCEventHandleData`
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+UR_APIEXPORT ur_result_t UR_APICALL urIPCPutEventHandleExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] a pointer to the IPC event handle data obtained with
+    /// ::urIPCGetEventHandleExp
+    void *pIPCEventHandleData);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Opens an inter-process event handle to get the corresponding event
+///        object in the current process
+///
+/// @details
+///     - Returns an event object that shares state with the event that produced
+///       the IPC handle. Either event can be signaled, waited on, or queried,
+///       and a state change made through one event is observable through the
+///       other.
+///     - The returned event is a normal ::ur_event_handle_t with an initial
+///       reference count of 1. It may be passed to entry points that accept an
+///       event, retained with ::urEventRetain, and must be released with
+///       ::urEventRelease. On the final release, the adapter performs the
+///       native cleanup required for an opened IPC event.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == phEvent`
+///         + `NULL == pIPCEventHandleData`
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///         + `ipcEventHandleDataSize` is not the same as the size of the IPC
+///         event handle data
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + A device in `hContext` does not support event IPC, as reported by
+///         ::UR_DEVICE_INFO_IPC_EVENT_SUPPORT_EXP.
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+UR_APIEXPORT ur_result_t UR_APICALL urIPCOpenEventHandleExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] the IPC event handle data
+    const void *pIPCEventHandleData,
+    /// [in] size of the IPC event handle data
+    size_t ipcEventHandleDataSize,
+    /// [out][alloc] pointer to the handle of the event object created
+    ur_event_handle_t *phEvent);
 
 #if !defined(__GNUC__)
 #pragma endregion
@@ -11769,8 +11852,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMContextMemcpyExp(
 /// @brief USM host memory registration flags.
 typedef uint32_t ur_exp_usm_host_alloc_register_flags_t;
 typedef enum ur_exp_usm_host_alloc_register_flag_t {
-  /// Reserved for future use.
-  UR_EXP_USM_HOST_ALLOC_REGISTER_FLAG_TBD = UR_BIT(0),
+  /// Device access to the registered range is read-only.  The behavior
+  /// is undefined if device code writes to a range registered with this
+  /// flag.
+  UR_EXP_USM_HOST_ALLOC_REGISTER_FLAG_READ_ONLY = UR_BIT(0),
   /// @cond
   UR_EXP_USM_HOST_ALLOC_REGISTER_FLAG_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -13755,9 +13840,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrierExt(
     /// previously enqueued commands
     /// must be complete.
     const ur_event_handle_t *phEventWaitList,
-    /// [out][optional][alloc] return an event object that identifies this
+    /// [in,out][optional][alloc] return an event object that identifies this
     /// particular command instance. If phEventWaitList and phEvent are not
-    /// NULL, phEvent must not refer to an element of the phEventWaitList array.
+    /// NULL, phEvent must not refer to an element of the phEventWaitList
+    /// array. If *phEvent is not NULL on input and points to a reusable event
+    /// created by ::urEventCreateExp, it is signaled by this command instead
+    /// of allocating a new event. A reusable event may only be passed when
+    /// the device associated with hQueue reports
+    /// ::UR_DEVICE_INFO_REUSABLE_EVENTS_SUPPORT_EXP as true.
     ur_event_handle_t *phEvent);
 
 #if !defined(__GNUC__)
@@ -13849,6 +13939,91 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueNativeCommandExp(
     /// been enqueued in nativeEnqueueFunc. If phEventWaitList and phEvent are
     /// not NULL, phEvent must not refer to an element of the phEventWaitList
     /// array.
+    ur_event_handle_t *phEvent);
+
+#if !defined(__GNUC__)
+#pragma endregion
+#endif
+// Intel 'oneAPI' Unified Runtime Experimental API for reusable events
+#if !defined(__GNUC__)
+#pragma region reusable_events_(experimental)
+#endif
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Reusable event creation flags.
+typedef uint32_t ur_exp_event_flags_t;
+typedef enum ur_exp_event_flag_t {
+  /// Event captures UR_PROFILING_INFO_COMMAND_START and
+  /// UR_PROFILING_INFO_COMMAND_END timestamps when signalled.
+  UR_EXP_EVENT_FLAG_ENABLE_PROFILING = UR_BIT(0),
+  /// The event can be shared with other processes through the
+  /// ::urIPCGetEventHandleExp and ::urIPCOpenEventHandleExp APIs. This flag
+  /// must be passed to ::urEventCreateExp for any event whose IPC handle
+  /// will later be obtained; it cannot be enabled after creation. Must not
+  /// be combined with ::UR_EXP_EVENT_FLAG_ENABLE_PROFILING.
+  UR_EXP_EVENT_FLAG_IPC_EXP = UR_BIT(1),
+  /// @cond
+  UR_EXP_EVENT_FLAG_FORCE_UINT32 = 0x7fffffff
+  /// @endcond
+
+} ur_exp_event_flag_t;
+/// @brief Bit Mask for validating ur_exp_event_flags_t
+#define UR_EXP_EVENT_FLAGS_MASK 0xfffffffc
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Descriptor type for creating reusable events.
+typedef struct ur_exp_event_desc_t {
+  /// [in] type of this structure, must be
+  /// ::UR_STRUCTURE_TYPE_EXP_EVENT_DESC
+  ur_structure_type_t stype;
+  /// [in][optional] pointer to extension-specific structure
+  const void *pNext;
+  /// [in] handle of the device object associated with this event
+  ur_device_handle_t hDevice;
+  /// [in] combination of event creation flags. If
+  /// ::UR_EXP_EVENT_FLAG_ENABLE_PROFILING is set, the event captures
+  /// UR_PROFILING_INFO_COMMAND_START and UR_PROFILING_INFO_COMMAND_END
+  /// timestamps when signalled. If it is not set, profiling info queries on
+  /// this event return ::UR_RESULT_ERROR_PROFILING_INFO_NOT_AVAILABLE
+  /// unless the queue used to signal the event has profiling enabled.
+  ur_exp_event_flags_t flags;
+
+} ur_exp_event_desc_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Create a reusable event object that can be passed to
+///        ::urEnqueueEventsWaitWithBarrierExt to signal work. The event is not
+///        associated with any enqueued command.
+///
+/// @details
+///     - If ::UR_EXP_EVENT_FLAG_ENABLE_PROFILING is set in pEventDesc->flags
+///       and the platform does not support per-event profiling, the function
+///       returns ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///         + `NULL == pEventDesc->hDevice`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pEventDesc`
+///         + `NULL == phEvent`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_EXP_EVENT_FLAGS_MASK & pEventDesc->flags`
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + `pEventDesc->flags & ::UR_EXP_EVENT_FLAG_ENABLE_PROFILING` and the
+///         platform does not support per-event profiling
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+UR_APIEXPORT ur_result_t UR_APICALL urEventCreateExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] pointer to event creation descriptor
+    const ur_exp_event_desc_t *pEventDesc,
+    /// [out] pointer to the handle of the event object created
     ur_event_handle_t *phEvent);
 
 #if !defined(__GNUC__)
@@ -14038,6 +14213,27 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueIsGraphCaptureEnabledExp(
     bool *pResult);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Get the graph handle currently being captured on the specified queue.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hQueue`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == phGraph`
+///     - ::UR_RESULT_ERROR_INVALID_OPERATION
+///         + The queue is not in graph capture mode.
+UR_APIEXPORT ur_result_t UR_APICALL urQueueGetGraphExp(
+    /// [in] Handle of the queue to query.
+    ur_queue_handle_t hQueue,
+    /// [out] Pointer to the handle of the graph being captured. Set to
+    /// nullptr if queue is not in capture mode.
+    ur_exp_graph_handle_t *phGraph);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Return whether the given recorded graph contains any nodes.
 ///
 /// @returns
@@ -14057,6 +14253,34 @@ UR_APIEXPORT ur_result_t UR_APICALL urGraphIsEmptyExp(
     bool *pResult);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Callback function invoked when a graph is destroyed.
+typedef void (*ur_exp_graph_destruction_callback_t)(
+    /// [in] pointer to user data to be passed to the callback
+    void *pUserData);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Register a callback to be invoked when the graph is destroyed.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hGraph`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pfnCallback`
+UR_APIEXPORT ur_result_t UR_APICALL urGraphSetDestructionCallbackExp(
+    /// [in] Handle of the graph to register the callback for.
+    ur_exp_graph_handle_t hGraph,
+    /// [in] Function pointer to the callback. The callback must not access
+    /// hGraph.
+    ur_exp_graph_destruction_callback_t pfnCallback,
+    /// [in][optional] Pointer to user data to be passed to the callback. The
+    /// user data must not reference hGraph.
+    void *pUserData);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Dump the contents of the recorded graph to the provided file path.
 ///
 /// @returns
@@ -14073,6 +14297,54 @@ UR_APIEXPORT ur_result_t UR_APICALL urGraphDumpContentsExp(
     ur_exp_graph_handle_t hGraph,
     /// [in] Path to the file to write the dumped graph contents.
     const char *filePath);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Return platform native graph handle.
+///
+/// @details
+///     - Retrieved native handle can be used for direct interaction with the
+///       native platform driver.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hGraph`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == phNativeGraph`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the adapter has no underlying equivalent handle.
+UR_APIEXPORT ur_result_t UR_APICALL urGraphGetNativeHandleExp(
+    /// [in] Handle of the graph.
+    ur_exp_graph_handle_t hGraph,
+    /// [out] A pointer to the native handle of the graph.
+    ur_native_handle_t *phNativeGraph);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Return platform native executable graph handle.
+///
+/// @details
+///     - Retrieved native handle can be used for direct interaction with the
+///       native platform driver.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hExecutableGraph`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == phNativeExecutableGraph`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the adapter has no underlying equivalent handle.
+UR_APIEXPORT ur_result_t UR_APICALL urGraphExecutableGraphGetNativeHandleExp(
+    /// [in] Handle of the executable graph.
+    ur_exp_executable_graph_handle_t hExecutableGraph,
+    /// [out] A pointer to the native handle of the executable graph.
+    ur_native_handle_t *phNativeExecutableGraph);
 
 #if !defined(__GNUC__)
 #pragma endregion
@@ -14427,6 +14699,16 @@ typedef struct ur_event_set_callback_params_t {
 } ur_event_set_callback_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urEventCreateExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_event_create_exp_params_t {
+  ur_context_handle_t *phContext;
+  const ur_exp_event_desc_t **ppEventDesc;
+  ur_event_handle_t **pphEvent;
+} ur_event_create_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urProgramCreateWithIL
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
@@ -14741,40 +15023,6 @@ typedef struct ur_kernel_get_suggested_local_work_size_with_args_params_t {
 } ur_kernel_get_suggested_local_work_size_with_args_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function parameters for urKernelSetArgValue
-/// @details Each entry is a pointer to the parameter passed to the function;
-///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_kernel_set_arg_value_params_t {
-  ur_kernel_handle_t *phKernel;
-  uint32_t *pargIndex;
-  size_t *pargSize;
-  const ur_kernel_arg_value_properties_t **ppProperties;
-  const void **ppArgValue;
-} ur_kernel_set_arg_value_params_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function parameters for urKernelSetArgLocal
-/// @details Each entry is a pointer to the parameter passed to the function;
-///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_kernel_set_arg_local_params_t {
-  ur_kernel_handle_t *phKernel;
-  uint32_t *pargIndex;
-  size_t *pargSize;
-  const ur_kernel_arg_local_properties_t **ppProperties;
-} ur_kernel_set_arg_local_params_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function parameters for urKernelSetArgPointer
-/// @details Each entry is a pointer to the parameter passed to the function;
-///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_kernel_set_arg_pointer_params_t {
-  ur_kernel_handle_t *phKernel;
-  uint32_t *pargIndex;
-  const ur_kernel_arg_pointer_properties_t **ppProperties;
-  const void **ppArgValue;
-} ur_kernel_set_arg_pointer_params_t;
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urKernelSetExecInfo
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
@@ -14785,28 +15033,6 @@ typedef struct ur_kernel_set_exec_info_params_t {
   const ur_kernel_exec_info_properties_t **ppProperties;
   const void **ppPropValue;
 } ur_kernel_set_exec_info_params_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function parameters for urKernelSetArgSampler
-/// @details Each entry is a pointer to the parameter passed to the function;
-///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_kernel_set_arg_sampler_params_t {
-  ur_kernel_handle_t *phKernel;
-  uint32_t *pargIndex;
-  const ur_kernel_arg_sampler_properties_t **ppProperties;
-  ur_sampler_handle_t *phArgValue;
-} ur_kernel_set_arg_sampler_params_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function parameters for urKernelSetArgMemObj
-/// @details Each entry is a pointer to the parameter passed to the function;
-///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_kernel_set_arg_mem_obj_params_t {
-  ur_kernel_handle_t *phKernel;
-  uint32_t *pargIndex;
-  const ur_kernel_arg_mem_obj_properties_t **ppProperties;
-  ur_mem_handle_t *phArgValue;
-} ur_kernel_set_arg_mem_obj_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urKernelSetSpecializationConstants
@@ -14942,6 +15168,15 @@ typedef struct ur_queue_is_graph_capture_enabled_exp_params_t {
   ur_queue_handle_t *phQueue;
   bool **ppResult;
 } ur_queue_is_graph_capture_enabled_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urQueueGetGraphExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_queue_get_graph_exp_params_t {
+  ur_queue_handle_t *phQueue;
+  ur_exp_graph_handle_t **pphGraph;
+} ur_queue_get_graph_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urSamplerCreate
@@ -15151,23 +15386,6 @@ typedef struct ur_physical_mem_get_info_params_t {
   void **ppPropValue;
   size_t **ppPropSizeRet;
 } ur_physical_mem_get_info_params_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function parameters for urEnqueueKernelLaunch
-/// @details Each entry is a pointer to the parameter passed to the function;
-///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_enqueue_kernel_launch_params_t {
-  ur_queue_handle_t *phQueue;
-  ur_kernel_handle_t *phKernel;
-  uint32_t *pworkDim;
-  const size_t **ppGlobalWorkOffset;
-  const size_t **ppGlobalWorkSize;
-  const size_t **ppLocalWorkSize;
-  const ur_kernel_launch_ext_properties_t **plaunchPropList;
-  uint32_t *pnumEventsInWaitList;
-  const ur_event_handle_t **pphEventWaitList;
-  ur_event_handle_t **pphEvent;
-} ur_enqueue_kernel_launch_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urEnqueueEventsWait
@@ -16661,6 +16879,16 @@ typedef struct ur_graph_is_empty_exp_params_t {
 } ur_graph_is_empty_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urGraphSetDestructionCallbackExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_graph_set_destruction_callback_exp_params_t {
+  ur_exp_graph_handle_t *phGraph;
+  ur_exp_graph_destruction_callback_t *ppfnCallback;
+  void **ppUserData;
+} ur_graph_set_destruction_callback_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urGraphDumpContentsExp
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
@@ -16668,6 +16896,24 @@ typedef struct ur_graph_dump_contents_exp_params_t {
   ur_exp_graph_handle_t *phGraph;
   const char **pfilePath;
 } ur_graph_dump_contents_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urGraphGetNativeHandleExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_graph_get_native_handle_exp_params_t {
+  ur_exp_graph_handle_t *phGraph;
+  ur_native_handle_t **pphNativeGraph;
+} ur_graph_get_native_handle_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urGraphExecutableGraphGetNativeHandleExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_graph_executable_graph_get_native_handle_exp_params_t {
+  ur_exp_executable_graph_handle_t *phExecutableGraph;
+  ur_native_handle_t **pphNativeExecutableGraph;
+} ur_graph_executable_graph_get_native_handle_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urIPCGetMemHandleExp
@@ -16709,6 +16955,77 @@ typedef struct ur_ipc_close_mem_handle_exp_params_t {
   ur_context_handle_t *phContext;
   void **ppMem;
 } ur_ipc_close_mem_handle_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urIPCGetPhysMemHandleExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_ipc_get_phys_mem_handle_exp_params_t {
+  ur_context_handle_t *phContext;
+  ur_physical_mem_handle_t *phPhysMem;
+  void ***pppIPCPhysMemHandleData;
+  size_t **ppIPCPhysMemHandleDataSizeRet;
+} ur_ipc_get_phys_mem_handle_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urIPCPutPhysMemHandleExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_ipc_put_phys_mem_handle_exp_params_t {
+  ur_context_handle_t *phContext;
+  const void **ppIPCPhysMemHandleData;
+} ur_ipc_put_phys_mem_handle_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urIPCOpenPhysMemHandleExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_ipc_open_phys_mem_handle_exp_params_t {
+  ur_context_handle_t *phContext;
+  ur_device_handle_t *phDevice;
+  const void **ppIPCPhysMemHandleData;
+  size_t *pipcPhysMemHandleDataSize;
+  ur_physical_mem_handle_t **pphPhysMem;
+} ur_ipc_open_phys_mem_handle_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urIPCClosePhysMemHandleExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_ipc_close_phys_mem_handle_exp_params_t {
+  ur_context_handle_t *phContext;
+  ur_physical_mem_handle_t *phPhysMem;
+} ur_ipc_close_phys_mem_handle_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urIPCGetEventHandleExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_ipc_get_event_handle_exp_params_t {
+  ur_event_handle_t *phEvent;
+  void ***pppIPCEventHandleData;
+  size_t **ppIPCEventHandleDataSizeRet;
+} ur_ipc_get_event_handle_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urIPCPutEventHandleExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_ipc_put_event_handle_exp_params_t {
+  ur_context_handle_t *phContext;
+  void **ppIPCEventHandleData;
+} ur_ipc_put_event_handle_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urIPCOpenEventHandleExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_ipc_open_event_handle_exp_params_t {
+  ur_context_handle_t *phContext;
+  const void **ppIPCEventHandleData;
+  size_t *pipcEventHandleDataSize;
+  ur_event_handle_t **pphEvent;
+} ur_ipc_open_event_handle_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urMemoryExportAllocExportableMemoryExp

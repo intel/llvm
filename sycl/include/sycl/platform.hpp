@@ -8,27 +8,33 @@
 
 #pragma once
 
+#include <sycl/aspects.hpp>
 #include <sycl/backend_types.hpp>
+#include <sycl/detail/abi_neutral.hpp>
 #include <sycl/detail/defines_elementary.hpp>
 #include <sycl/detail/export.hpp>
-#include <sycl/detail/info_desc_helpers.hpp>
 #include <sycl/detail/owner_less_base.hpp>
-#include <sycl/detail/string.hpp>
 #include <sycl/detail/string_view.hpp>
-#include <sycl/detail/util.hpp>
 #include <sycl/device_selector.hpp>
-#include <sycl/info/info_desc.hpp>
-#include <unified-runtime/ur_api.h>
+#include <sycl/info/device.hpp>
+#include <sycl/info/platform.hpp>
 
 #ifdef __SYCL_INTERNAL_API
 #include <sycl/detail/cl.h>
 #endif
 
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <string>
-#include <variant>
 #include <vector>
+
+// Forward typedef of unified-runtime's `ur_native_handle_t`. Including
+// <unified-runtime/ur_api.h> here pulls a large C API surface; we only need
+// the typedef name for one private member declaration. The typedef target
+// (`uintptr_t`) matches ur_api.h, so a redeclaration in TUs that include both
+// is well-formed.
+typedef std::uintptr_t ur_native_handle_t;
 
 namespace sycl {
 inline namespace _V1 {
@@ -215,7 +221,8 @@ private:
   ur_native_handle_t getNative() const;
 
   std::shared_ptr<detail::platform_impl> impl;
-  platform(std::shared_ptr<detail::platform_impl> impl) : impl(impl) {}
+  platform(std::shared_ptr<detail::platform_impl> impl)
+      : impl(std::move(impl)) {}
 
   platform(const device &Device);
 

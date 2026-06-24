@@ -8,11 +8,12 @@
 
 #pragma once
 
+#include <detail/backend_impl.hpp>
 #include <detail/config.hpp>
 #include <detail/ur.hpp>
 #include <sycl/backend_types.hpp>
 #include <sycl/detail/common.hpp>
-#include <sycl/detail/iostream_proxy.hpp>
+#include <sycl/detail/defines.hpp>
 #include <sycl/detail/type_traits.hpp>
 
 #include <unified-runtime/ur_api.h>
@@ -21,6 +22,7 @@
 #include "xpti/xpti_trace_framework.h"
 #endif
 
+#include <iostream>
 #include <memory>
 #include <mutex>
 
@@ -54,7 +56,7 @@ public:
       : MAdapter(adapter), MBackend(UseBackend),
         MAdapterMutex(std::make_shared<std::mutex>()) {
 
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(SYCL_UR_STATIC_LOADER)
     UrLoaderHandle = ur::getURLoaderLibrary();
     PopulateUrFuncPtrTable(&UrFuncPtrs, UrLoaderHandle);
 #endif
@@ -218,7 +220,7 @@ private:
   // represents the unique ids of the last device of each platform
   // index of this vector corresponds to the index in UrPlatforms vector.
   std::vector<int> LastDeviceIds;
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(SYCL_UR_STATIC_LOADER)
   void *UrLoaderHandle = nullptr;
 #endif
   UrFuncPtrMapT UrFuncPtrs;

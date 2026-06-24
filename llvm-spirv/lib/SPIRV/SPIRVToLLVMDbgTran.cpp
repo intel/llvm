@@ -80,7 +80,7 @@ DIFile *
 SPIRVToLLVMDbgTran::getDIFile(const std::string &FileName,
                               std::optional<DIFile::ChecksumInfo<StringRef>> CS,
                               std::optional<StringRef> Source) {
-  return getOrInsert(FileMap, FileName, [=]() {
+  return getOrInsert(FileMap, FileName, [this, FileName, CS, Source]() {
     SplitFileName Split(FileName);
     // Use the first builder from the map to crete DIFile since it's
     // relations with other debug metadata is not going through DICompileUnit
@@ -847,6 +847,19 @@ DINode *SPIRVToLLVMDbgTran::transTypeFunction(const SPIRVExtInst *DebugInst) {
   return getDIBuilder(DebugInst).createSubroutineType(ArgTypes, Flags);
 }
 
+DISubroutineType *
+SPIRVToLLVMDbgTran::transSubroutineType(const SPIRVExtInst *DebugInst,
+                                        SPIRVId TypeId) {
+  auto *TypeInst = BM->get<SPIRVExtInst>(TypeId);
+  if (auto *Ty = transDebugInst<DISubroutineType>(TypeInst))
+    return Ty;
+
+  // Avoid a null DISubroutineType in case the SPIR-V type was DebugInfoNone.
+  SmallVector<llvm::Metadata *, 1> Elements{nullptr};
+  DITypeArray ArgTypes = getDIBuilder(DebugInst).getOrCreateTypeArray(Elements);
+  return getDIBuilder(DebugInst).createSubroutineType(ArgTypes);
+}
+
 DINode *
 SPIRVToLLVMDbgTran::transTypePtrToMember(const SPIRVExtInst *DebugInst) {
   using namespace SPIRVDebug::Operand::TypePtrToMember;
@@ -904,8 +917,7 @@ DINode *SPIRVToLLVMDbgTran::transFunction(const SPIRVExtInst *DebugInst,
     assert(Ops.size() >= MinOperandCount && "Invalid number of operands");
 
   StringRef Name = getString(Ops[NameIdx]);
-  DISubroutineType *Ty =
-      transDebugInst<DISubroutineType>(BM->get<SPIRVExtInst>(Ops[TypeIdx]));
+  DISubroutineType *Ty = transSubroutineType(DebugInst, Ops[TypeIdx]);
   DIFile *File = getFile(Ops[SourceIdx]);
   SPIRVWord LineNo =
       getConstantValueOrLiteral(Ops, LineIdx, DebugInst->getExtSetKind());
@@ -1007,7 +1019,8 @@ void SPIRVToLLVMDbgTran::transFunctionBody(DISubprogram *DIS, SPIRVId FuncId) {
   SPIRVEntry *E = BM->getEntry(FuncId);
   if (E->getOpCode() == OpFunction) {
     SPIRVFunction *BF = static_cast<SPIRVFunction *>(E);
-    llvm::Function *F = SPIRVReader->transFunction(BF);
+    llvm::Function *F =
+        SPIRVReader->transFunction(BF, BM->getFunctionProgramAddrSpace());
     assert(F && "Translation of function failed!");
     if (!F->hasMetadata("dbg"))
       F->setMetadata("dbg", DIS);
@@ -1037,8 +1050,7 @@ DINode *SPIRVToLLVMDbgTran::transFunctionDecl(const SPIRVExtInst *DebugInst) {
   DIFile *File = getFile(Ops[SourceIdx]);
   SPIRVWord LineNo =
       getConstantValueOrLiteral(Ops, LineIdx, DebugInst->getExtSetKind());
-  DISubroutineType *Ty =
-      transDebugInst<DISubroutineType>(BM->get<SPIRVExtInst>(Ops[TypeIdx]));
+  DISubroutineType *Ty = transSubroutineType(DebugInst, Ops[TypeIdx]);
 
   SPIRVWord SPIRVDebugFlags =
       getConstantValueOrLiteral(Ops, FlagsIdx, DebugInst->getExtSetKind());
@@ -1407,6 +1419,76 @@ DINode *SPIRVToLLVMDbgTran::transModule(const SPIRVExtInst *DebugInst) {
       Scope, Name, ConfigMacros, IncludePath, ApiNotes, File, Line, IsDecl);
 }
 
+DIMacroFile *
+SPIRVToLLVMDbgTran::getOrCreateMacroFile(DIFile *File,
+                                         const SPIRVExtInst *DebugInst) {
+  auto It = MacroFileMap.find(File);
+  if (It != MacroFileMap.end())
+    return It->second;
+
+  // Use nullptr parent (top-level) since SPIR-V DebugMacroDef doesn't preserve
+  // include hierarchy. All macro files are treated as root files.
+  DIMacroFile *MacroFile =
+      getDIBuilder(DebugInst).createTempMacroFile(nullptr, 0, File);
+  MacroFileMap[File] = MacroFile;
+  return MacroFile;
+}
+
+DIMacro *SPIRVToLLVMDbgTran::transMacroDef(const SPIRVExtInst *DebugInst) {
+  using namespace SPIRVDebug::Operand::MacroDef;
+  const SPIRVWordVec &Ops = DebugInst->getArguments();
+  assert(Ops.size() >= MinOperandCount && "Invalid number of operands");
+
+  const std::string &SourceFileName = getString(Ops[SourceIdx]);
+  DIFile *File = getDIFile(SourceFileName);
+
+  DIMacroFile *MacroFile =
+      !File ? nullptr : getOrCreateMacroFile(File, DebugInst);
+
+  SPIRVWord Line =
+      getConstantValueOrLiteral(Ops, LineIdx, DebugInst->getExtSetKind());
+  StringRef Name = getString(Ops[NameIdx]);
+  // ValueIdx is optional - use empty string if not present.
+  StringRef Value;
+  if (Ops.size() > ValueIdx) {
+    Value = getString(Ops[ValueIdx]);
+  }
+
+  return getDIBuilder(DebugInst).createMacro(
+      MacroFile, Line, dwarf::DW_MACINFO_define, Name, Value);
+}
+
+DIMacro *SPIRVToLLVMDbgTran::transMacroUndef(const SPIRVExtInst *DebugInst) {
+  using namespace SPIRVDebug::Operand::MacroUndef;
+  const SPIRVWordVec &Ops = DebugInst->getArguments();
+  assert(Ops.size() >= OperandCount && "Invalid number of operands");
+
+  DIMacro *ReferencedMacro =
+      transDebugInst<DIMacro>(BM->get<SPIRVExtInst>(Ops[MacroIdx]));
+
+  // Edge case handling: LLVM IR allows DW_MACINFO_undef without an available
+  // DW_MACINFO_def (i.e., undefining a macro that was never defined in the CU).
+  // When translated to SPIR-V, this becomes:
+  //   DebugMacroUndef <source> <line> DebugInfoNone
+  //
+  // In SPIR-V, DebugMacroUndef requires a referenece to the DebugMacroDef but
+  // it might not be available. In this case, we emit no debug info for now.
+  if (!ReferencedMacro)
+    return nullptr;
+
+  const std::string &SourceFileName = getString(Ops[SourceIdx]);
+  DIFile *File = getDIFile(SourceFileName);
+
+  DIMacroFile *MacroFile =
+      !File ? nullptr : getOrCreateMacroFile(File, DebugInst);
+
+  SPIRVWord Line =
+      getConstantValueOrLiteral(Ops, LineIdx, DebugInst->getExtSetKind());
+
+  return getDIBuilder(DebugInst).createMacro(
+      MacroFile, Line, dwarf::DW_MACINFO_undef, ReferencedMacro->getName());
+}
+
 MDNode *SPIRVToLLVMDbgTran::transExpression(const SPIRVExtInst *DebugInst) {
   const SPIRVWordVec &Args = DebugInst->getArguments();
   std::vector<uint64_t> Ops;
@@ -1530,6 +1612,12 @@ MDNode *SPIRVToLLVMDbgTran::transDebugInstImpl(const SPIRVExtInst *DebugInst) {
   case SPIRVDebug::ModuleINTEL:
     return transModule(DebugInst);
 
+  case SPIRVDebug::MacroDef:
+    return transMacroDef(DebugInst);
+
+  case SPIRVDebug::MacroUndef:
+    return transMacroUndef(DebugInst);
+
   case SPIRVDebug::Operation: // To be translated with transExpression
   case SPIRVDebug::Source:    // To be used by other instructions
   case SPIRVDebug::SourceContinued:
@@ -1544,6 +1632,15 @@ MDNode *SPIRVToLLVMDbgTran::transDebugInstImpl(const SPIRVExtInst *DebugInst) {
     return transTypeArrayDynamic(DebugInst);
 
   default:
+    // Non-semantic shader debug info opcodes that are unknown to this
+    // translator are silently ignored to avoid crashing on modules produced
+    // by newer producers. The semantic OpenCL/SPIRV.debug paths still
+    // require every opcode to be implemented.
+    // TODO: since introduction of rolling version of NonSemanticDebugInfo, we
+    // must no longer just ignore unknown debug info set, but instead process
+    // instructions, that the translator know.
+    if (isNonSemanticDebugInfo(DebugInst->getExtSetKind()))
+      return nullptr;
     llvm_unreachable("Not implemented SPIR-V debug instruction!");
   }
 }
@@ -1609,6 +1706,8 @@ SPIRVToLLVMDbgTran::transDebugIntrinsic(const SPIRVExtInst *DebugInst,
     return DbgValIntr;
   }
   default:
+    if (isNonSemanticDebugInfo(DebugInst->getExtSetKind()))
+      return nullptr;
     llvm_unreachable("Unknown debug intrinsic!");
   }
 }

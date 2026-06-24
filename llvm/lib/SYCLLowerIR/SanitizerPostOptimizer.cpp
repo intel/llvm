@@ -24,7 +24,7 @@ using namespace llvm;
 namespace llvm {
 
 constexpr StringRef SPIRV_DECOR_MD_KIND = "spirv.Decorations";
-constexpr uint32_t SPIRV_HOST_ACCESS_DECOR = 6188;
+constexpr uint32_t SPIRV_HOST_ACCESS_DECOR = 6147;
 
 struct EliminateDeadCheck : public InstVisitor<EliminateDeadCheck> {
   void visitCallInst(CallInst &CI) {
@@ -37,7 +37,7 @@ struct EliminateDeadCheck : public InstVisitor<EliminateDeadCheck> {
     if (!FuncName.contains("__msan_maybe_warning_"))
       return;
     auto *Shadow = CI.getArgOperand(0);
-    if (isa<ConstantInt>(Shadow) && cast<ConstantInt>(Shadow)->isZeroValue())
+    if (isa<ConstantInt>(Shadow) && cast<ConstantInt>(Shadow)->isNullValue())
       InstToErase.push_back(&CI);
   }
 

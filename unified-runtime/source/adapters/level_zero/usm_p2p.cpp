@@ -1,9 +1,8 @@
 //===----------- usm_p2p.cpp - L0 Adapter ---------------------------------===//
 //
-// Copyright (C) 2023 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
@@ -13,17 +12,23 @@
 
 namespace ur::level_zero {
 
-ur_result_t urUsmP2PEnablePeerAccessExp(ur_device_handle_t /*commandDevice*/,
-                                        ur_device_handle_t /*peerDevice*/) {
+ur_result_t urUsmP2PEnablePeerAccessExp(ur_device_handle_t commandDevice,
+                                        ur_device_handle_t peerDevice) {
 
-  // L0 has peer devices enabled by default
+  UR_LOG(INFO,
+         "ignored enabling peer access from {} to memory of {}, because P2P is "
+         "always enabled in Level Zero V1 adapter",
+         (void *)commandDevice, (void *)peerDevice);
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t urUsmP2PDisablePeerAccessExp(ur_device_handle_t /*commandDevice*/,
-                                         ur_device_handle_t /*peerDevice*/) {
+ur_result_t urUsmP2PDisablePeerAccessExp(ur_device_handle_t commandDevice,
+                                         ur_device_handle_t peerDevice) {
 
-  // L0 has peer devices enabled by default
+  UR_LOG(INFO,
+         "ignored disabling peer access from {} to memory of {}, because P2P "
+         "is always enabled in Level Zero V1 adapter",
+         (void *)commandDevice, (void *)peerDevice);
   return UR_RESULT_SUCCESS;
 }
 

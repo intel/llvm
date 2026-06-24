@@ -1,9 +1,8 @@
 //===--------- event.cpp - Level Zero Adapter -----------------------------===//
 //
-// Copyright (C) 2024 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
@@ -415,6 +414,13 @@ urEventCreateWithNativeHandle(ur_native_handle_t hNativeEvent,
   return UR_RESULT_SUCCESS;
 } catch (...) {
   return exceptionToResult(std::current_exception());
+}
+
+ur_result_t urEventCreateExp(ur_context_handle_t /*hContext*/,
+                             const ur_exp_event_desc_t * /*pEventDesc*/,
+                             ur_event_handle_t * /*phEvent*/) {
+  UR_LOG(ERR, "{} function not implemented!", __FUNCTION__);
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
 } // namespace ur::level_zero

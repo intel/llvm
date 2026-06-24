@@ -119,7 +119,7 @@ template <> struct is_property_key_of<foo, SYCL_OBJ> : std::true_type {};
 
 #pragma once
 
-#include <iosfwd>      // for nullptr_t
+#include <cstddef>     // for nullptr_t
 #include <stdint.h>    // for uint32_t
 #include <type_traits> // for false_type
 
@@ -192,8 +192,9 @@ enum PropKind : uint32_t {
   MaximumSize = 47,
   ZeroInit = 48,
   FastLink = 49,
+  PhysicalMemoryEnableIPC = 50,
   // PropKindSize must always be the last value.
-  PropKindSize = 50,
+  PropKindSize = 51,
 };
 
 template <typename PropertyT> struct PropertyToKind {

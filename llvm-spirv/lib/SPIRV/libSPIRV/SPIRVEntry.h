@@ -719,6 +719,8 @@ public:
     case ExecutionModeMaximumRegistersIdINTEL:
     case ExecutionModeNamedMaximumRegistersINTEL:
       return ExtensionID::SPV_INTEL_maximum_registers;
+    case ExecutionModeArithmeticPoisonKHR:
+      return ExtensionID::SPV_KHR_poison_freeze;
     default:
       return {};
     }
@@ -1012,6 +1014,7 @@ protected:
   void validate() const override;
   void setWordCount(SPIRVWord WordCount) override {
     SPIRVEntry::setWordCount(WordCount);
+    this->SPIRVCK(WordCount, InvalidWordCount, "");
     Elements.resize(WordCount - 1);
   }
   _SPIRV_DCL_ENCDEC

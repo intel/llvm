@@ -1,8 +1,7 @@
 #
-# Copyright (C) 2025 Intel Corporation
 #
-# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
-# See LICENSE.TXT
+# Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+# See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #
 # See YaML.md for syntax definition
@@ -160,6 +159,21 @@ params:
       desc: "[out] Pointer to a boolean where the result will be stored."
 --- #--------------------------------------------------------------------------
 type: function
+desc: "Get the graph handle currently being captured on the specified queue."
+class: $xQueue
+name: GetGraphExp
+params:
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: "[in] Handle of the queue to query."
+    - type: $x_exp_graph_handle_t*
+      name: phGraph
+      desc: "[out] Pointer to the handle of the graph being captured. Set to nullptr if queue is not in capture mode."
+returns:
+    - $X_RESULT_ERROR_INVALID_OPERATION:
+        - "The queue is not in graph capture mode."
+--- #--------------------------------------------------------------------------
+type: function
 desc: "Return whether the given recorded graph contains any nodes."
 class: $xGraph
 name: IsEmptyExp
@@ -173,6 +187,30 @@ params:
 returns:
     - $X_RESULT_ERROR_INVALID_GRAPH
 --- #--------------------------------------------------------------------------
+type: fptr_typedef
+desc: "Callback function invoked when a graph is destroyed."
+name: $x_exp_graph_destruction_callback_t
+return: void
+params:
+    - type: void*
+      name: pUserData
+      desc: "[in] pointer to user data to be passed to the callback"
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Register a callback to be invoked when the graph is destroyed."
+class: $xGraph
+name: SetDestructionCallbackExp
+params:
+    - type: $x_exp_graph_handle_t
+      name: hGraph
+      desc: "[in] Handle of the graph to register the callback for."
+    - type: $x_exp_graph_destruction_callback_t
+      name: pfnCallback
+      desc: "[in] Function pointer to the callback. The callback must not access hGraph."
+    - type: void*
+      name: pUserData
+      desc: "[in][optional] Pointer to user data to be passed to the callback. The user data must not reference hGraph."
+--- #--------------------------------------------------------------------------
 type: function
 desc: "Dump the contents of the recorded graph to the provided file path."
 class: $xGraph
@@ -184,3 +222,41 @@ params:
     - type: const char*
       name: filePath
       desc: "[in] Path to the file to write the dumped graph contents."
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Return platform native graph handle."
+class: $xGraph
+name: GetNativeHandleExp
+details:
+    - "Retrieved native handle can be used for direct interaction with the native platform driver."
+params:
+    - type: "$x_exp_graph_handle_t"
+      name: hGraph
+      desc: |
+            [in] Handle of the graph.
+    - type: $x_native_handle_t*
+      name: phNativeGraph
+      desc: |
+            [out] A pointer to the native handle of the graph.
+returns:
+    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
+        - "If the adapter has no underlying equivalent handle."
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Return platform native executable graph handle."
+class: $xGraph
+name: ExecutableGraphGetNativeHandleExp
+details:
+    - "Retrieved native handle can be used for direct interaction with the native platform driver."
+params:
+    - type: "$x_exp_executable_graph_handle_t"
+      name: hExecutableGraph
+      desc: |
+            [in] Handle of the executable graph.
+    - type: $x_native_handle_t*
+      name: phNativeExecutableGraph
+      desc: |
+            [out] A pointer to the native handle of the executable graph.
+returns:
+    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
+        - "If the adapter has no underlying equivalent handle."

@@ -269,6 +269,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     ReturnSizes.sizes[2] = Max;
     return ReturnValue(ReturnSizes);
   }
+  case UR_DEVICE_INFO_MAX_WORK_GROUPS: {
+    return ReturnValue(std::numeric_limits<size_t>::max());
+  }
   case UR_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES: {
     return ReturnValue(static_cast<uint32_t>(1u));
   }
@@ -887,7 +890,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
 
     return UR_RESULT_SUCCESS;
   }
-  case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_LONG: {
+  case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_LONG:
+  case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_LONG_LONG: {
     CL_RETURN_ON_FAILURE(clGetDeviceInfo(hDevice->CLDevice,
                                          CL_DEVICE_PREFERRED_VECTOR_WIDTH_LONG,
                                          propSize, pPropValue, pPropSizeRet));
@@ -936,7 +940,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
 
     return UR_RESULT_SUCCESS;
   }
-  case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG: {
+  case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG:
+  case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG_LONG: {
     CL_RETURN_ON_FAILURE(clGetDeviceInfo(hDevice->CLDevice,
                                          CL_DEVICE_NATIVE_VECTOR_WIDTH_LONG,
                                          propSize, pPropValue, pPropSizeRet));
@@ -1370,6 +1375,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   }
   case UR_DEVICE_INFO_IPC_MEMORY_SUPPORT_EXP:
     return ReturnValue(false);
+  case UR_DEVICE_INFO_IPC_PHYSICAL_MEMORY_SUPPORT_EXP:
+    return ReturnValue(false);
   case UR_DEVICE_INFO_BFLOAT16_CONVERSIONS_NATIVE: {
     bool Supported = false;
     UR_RETURN_ON_FAILURE(hDevice->checkDeviceExtensions(
@@ -1536,6 +1543,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_COMMAND_BUFFER_EVENT_SUPPORT_EXP:
   case UR_DEVICE_INFO_COMMAND_BUFFER_SUBGRAPH_SUPPORT_EXP:
   case UR_DEVICE_INFO_LOW_POWER_EVENTS_SUPPORT_EXP:
+  case UR_DEVICE_INFO_REUSABLE_EVENTS_SUPPORT_EXP:
   case UR_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT_EXP:
   case UR_DEVICE_INFO_BINDLESS_IMAGES_SHARED_USM_SUPPORT_EXP:
   case UR_DEVICE_INFO_BINDLESS_IMAGES_1D_USM_SUPPORT_EXP:

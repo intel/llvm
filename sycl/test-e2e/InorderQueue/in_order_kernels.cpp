@@ -14,6 +14,7 @@
 #include <iostream>
 
 #include <sycl/detail/core.hpp>
+#include <sycl/h_item.hpp>
 
 #include <sycl/properties/all_properties.hpp>
 #include <sycl/usm.hpp>

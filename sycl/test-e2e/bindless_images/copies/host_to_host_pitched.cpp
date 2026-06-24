@@ -1,7 +1,6 @@
 // REQUIRES: aspect-ext_oneapi_bindless_images
 // REQUIRES: aspect-ext_oneapi_bindless_images_2d_usm
-// XFAIL: level_zero
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/17663
+
 // XFAIL: hip
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/19957
 
@@ -13,7 +12,9 @@
 #include <sycl/detail/core.hpp>
 
 #include <sycl/ext/oneapi/bindless_images.hpp>
+#include <sycl/ext/oneapi/experimental/bindless_image_info.hpp>
 #include <sycl/ext/oneapi/memcpy2d.hpp>
+#include <sycl/half_type.hpp>
 #include <sycl/usm.hpp>
 
 // Uncomment to print additional test information

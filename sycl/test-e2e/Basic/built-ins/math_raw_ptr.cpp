@@ -3,9 +3,11 @@
 
 // RUN: %{build} -D__SYCL_USE_LIBSYCL8_VEC_IMPL=1 -o %t2.out
 // RUN: %{run} %t2.out
+#include <iostream>
 
 #include <sycl/builtins.hpp>
 #include <sycl/detail/core.hpp>
+#include <sycl/vector.hpp>
 
 template <typename T>
 int CheckResult(const T &Actual, const T &Reference, const char *Category,

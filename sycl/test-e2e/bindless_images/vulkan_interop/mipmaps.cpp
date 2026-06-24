@@ -3,12 +3,6 @@
 // REQUIRES: aspect-ext_oneapi_mipmap
 // REQUIRES: vulkan
 
-// XFAIL: linux && run-mode
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/21131
-
-// UNSUPPORTED: cuda
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21131
-
 // RUN: %{build} %link-vulkan -o %t.out %if target-spir %{ -Wno-ignored-attributes %}
 // RUN: %{run} %t.out
 
@@ -17,11 +11,13 @@
 
 // Define NOMINMAX to enable compilation on Windows
 #define NOMINMAX
+#include <iostream>
 
 #include "../../CommonUtils/vulkan_common.hpp"
 #include "../helpers/common.hpp"
 
 #include <sycl/ext/oneapi/bindless_images.hpp>
+#include <sycl/half_type.hpp>
 
 namespace syclexp = sycl::ext::oneapi::experimental;
 

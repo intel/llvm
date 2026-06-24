@@ -1,9 +1,8 @@
 //===--------- event.cpp - NATIVE CPU Adapter -----------------------------===//
 //
-// Copyright (C) 2023 Intel Corporation
 //
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM
+// Exceptions. See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
@@ -106,6 +105,13 @@ urEnqueueTimestampRecordingExp(ur_queue_handle_t /*hQueue*/, bool /*blocking*/,
                                const ur_event_handle_t * /*phEventWaitList*/,
                                ur_event_handle_t * /*phEvent*/) {
 
+  DIE_NO_IMPLEMENTATION;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL
+urEventCreateExp(ur_context_handle_t /*hContext*/,
+                 const ur_exp_event_desc_t * /*pEventDesc*/,
+                 ur_event_handle_t * /*phEvent*/) {
   DIE_NO_IMPLEMENTATION;
 }
 

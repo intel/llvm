@@ -14,6 +14,7 @@
 // and using optional compile-time esimd::properties and local accessors.
 // The copyto_copyfrom() calls in this test
 // requires DG2 features.
+#include <iostream>
 
 #include "Inputs/copyto_copyfrom.hpp"
 

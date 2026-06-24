@@ -17,6 +17,7 @@
 
 #include <iostream>
 #include <numeric>
+#include <sycl/aspects.hpp>
 #include <sycl/ext/oneapi/memory_export.hpp>
 
 #include "../CommonUtils/vulkan_common.hpp"

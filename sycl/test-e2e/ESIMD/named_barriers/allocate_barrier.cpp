@@ -14,6 +14,7 @@
 // Threads are executed in ascending order of their local ID and each thread
 // stores data to addresses that partially overlap with addresses used by
 // previous thread.
+#include <iostream>
 
 #include "../esimd_test_utils.hpp"
 

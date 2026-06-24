@@ -732,7 +732,7 @@ void ThreadSanitizerOnSpirv::instrumentKernelsMetadata() {
   TsanSpirKernelMetadata->addAttribute(
       "sycl-device-global-size", std::to_string(DL.getTypeAllocSize(ArrayTy)));
   TsanSpirKernelMetadata->addAttribute("sycl-device-image-scope");
-  TsanSpirKernelMetadata->addAttribute("sycl-host-access", "1"); // read only
+  TsanSpirKernelMetadata->addAttribute("sycl-host-access", "0"); // read only
   TsanSpirKernelMetadata->addAttribute(
       "sycl-unique-id",
       computeKernelMetadataUniqueId("__TsanKernelMetadata", KernelNamesBytes));
@@ -1171,8 +1171,10 @@ bool ThreadSanitizer::sanitizeFunction(Function &F,
   if ((Res || HasCalls) && ClInstrumentFuncEntryExit) {
     InstrumentationIRBuilder IRB(&F.getEntryBlock(),
                                  F.getEntryBlock().getFirstNonPHIIt());
-    Value *ReturnAddress =
-        IRB.CreateIntrinsic(Intrinsic::returnaddress, IRB.getInt32(0));
+    auto ProgramAsPtrTy = PointerType::get(F.getParent()->getContext(),
+                                           DL.getProgramAddressSpace());
+    Value *ReturnAddress = IRB.CreateIntrinsic(
+        Intrinsic::returnaddress, {ProgramAsPtrTy}, IRB.getInt32(0));
     IRB.CreateCall(TsanFuncEntry, ReturnAddress);
 
     EscapeEnumerator EE(F, "tsan_cleanup", ClHandleCxxExceptions);

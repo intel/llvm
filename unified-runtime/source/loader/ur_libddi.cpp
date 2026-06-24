@@ -1,10 +1,9 @@
 /*
  *
- * Copyright (C) 2022 Intel Corporation
  *
- * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
+ * Part of the LLVM Project, under the Apache License v2.0 with LLVM
  * Exceptions.
- * See LICENSE.TXT
+ * See https://llvm.org/LICENSE.txt for license information.
  *
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
@@ -54,6 +53,11 @@ __urdlllocal ur_result_t context_t::ddiInit() {
 
   if (UR_RESULT_SUCCESS == result) {
     result = urGetEventProcAddrTable(UR_API_VERSION_CURRENT, &urDdiTable.Event);
+  }
+
+  if (UR_RESULT_SUCCESS == result) {
+    result = urGetEventExpProcAddrTable(UR_API_VERSION_CURRENT,
+                                        &urDdiTable.EventExp);
   }
 
   if (UR_RESULT_SUCCESS == result) {

@@ -63,6 +63,7 @@ enum InternalOp {
   IOpTaskSequenceAsyncINTEL = 6164,
   IOpTaskSequenceGetINTEL = 6165,
   IOpTaskSequenceReleaseINTEL = 6166,
+  IOpFSigmoidINTEL = 6168,
   IOpCooperativeMatrixLoadCheckedINTEL = 6193,
   IOpCooperativeMatrixStoreCheckedINTEL = 6194,
   IOpCooperativeMatrixConstructCheckedINTEL = 6195,
@@ -73,8 +74,6 @@ enum InternalOp {
   IOpClampStochasticRoundFToSINTEL = 6219,
   IOpCooperativeMatrixLoadOffsetINTEL = 6239,
   IOpCooperativeMatrixStoreOffsetINTEL = 6240,
-  IOpPredicatedLoadINTEL = 6258,
-  IOpPredicatedStoreINTEL = 6259,
   IOpClampConvertFToSINTEL = 6424,
   IOpMaskedGatherINTEL = 6428,
   IOpMaskedScatterINTEL = 6429,
@@ -84,14 +83,12 @@ enum InternalOp {
   IOpConvertHandleToImageINTEL = 6529,
   IOpConvertHandleToSamplerINTEL = 6530,
   IOpConvertHandleToSampledImageINTEL = 6531,
-  IOpFSigmoidINTEL = 6168,
   IOpPrev = OpMax - 2,
   IOpForward
 };
 
 enum InternalDecoration {
   IDecRuntimeAlignedINTEL = 5940,
-  IDecCallableFunctionINTEL = 6087,
   IDecHostAccessINTEL = 6147,
   IDecInitModeINTEL = 6148,
   IDecImplementInCSRINTEL = 6149,
@@ -114,7 +111,6 @@ enum InternalCapability {
   ICapabilityCooperativeMatrixOffsetInstructionsINTEL = 6238,
   ICapabilityAtomicBFloat16AddINTEL = 6255,
   ICapabilityAtomicBFloat16MinMaxINTEL = 6256,
-  ICapabilityPredicatedIOINTEL = 6257,
   ICapabilityAtomicInt16CompareExchangeINTEL = 6260,
   ICapabilityInt16AtomicsINTEL = 6261,
   ICapabilityAtomicBFloat16LoadStoreINTEL = 6262,
@@ -153,6 +149,17 @@ enum InternalBuiltIn {
   IBuiltInSubDeviceIDINTEL = 6135,
   IBuiltInGlobalHWThreadIDINTEL = 6136,
   IBuiltInDeviceBarrierValidINTEL = 6186,
+};
+
+enum InternalMatrixMultiplyAccumulateOperandsMask {
+  // FP8 matrix operands
+  IMatrixMultiplyAccumulateOperandsMatrixAPackedFloat8E4M3INTELMask = 0x4000,
+  IMatrixMultiplyAccumulateOperandsMatrixBPackedFloat8E4M3INTELMask = 0x8000,
+  IMatrixMultiplyAccumulateOperandsMatrixAPackedFloat8E5M2INTELMask = 0x10000,
+  IMatrixMultiplyAccumulateOperandsMatrixBPackedFloat8E5M2INTELMask = 0x20000,
+  // FP4 matrix operands
+  IMatrixMultiplyAccumulateOperandsMatrixAPackedFloat4E2M1INTELMask = 0x40000,
+  IMatrixMultiplyAccumulateOperandsMatrixBPackedFloat4E2M1INTELMask = 0x80000,
 };
 
 #define _SPIRV_OP(x, y) constexpr x x##y = static_cast<x>(I##x##y);
@@ -203,10 +210,6 @@ _SPIRV_OP(Op, ConvertHandleToSampledImageINTEL)
 
 _SPIRV_OP(Capability, AtomicBFloat16AddINTEL)
 _SPIRV_OP(Capability, AtomicBFloat16MinMaxINTEL)
-
-_SPIRV_OP(Capability, PredicatedIOINTEL)
-_SPIRV_OP(Op, PredicatedLoadINTEL)
-_SPIRV_OP(Op, PredicatedStoreINTEL)
 
 _SPIRV_OP(Capability, SigmoidINTEL)
 _SPIRV_OP(Op, FSigmoidINTEL)

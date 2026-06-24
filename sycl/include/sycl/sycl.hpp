@@ -33,9 +33,10 @@ can be disabled by setting SYCL_DISABLE_FSYCL_SYCLHPP_WARNING macro.")
 #undef __SYCL_STRINGIFY
 
 // All SYCL macro are provided through this header
-#include <sycl/khr/includes/version.hpp>
+#include <sycl/khr/split_headers/version.hpp>
 
 #include <sycl/detail/core.hpp>
+#include <sycl/info/info_desc.hpp>
 
 #include <sycl/accessor_image.hpp>
 #include <sycl/aspects.hpp>
@@ -90,6 +91,7 @@ can be disabled by setting SYCL_DISABLE_FSYCL_SYCLHPP_WARNING macro.")
 #include <sycl/version.hpp>
 
 #include <sycl/ext/intel/experimental/fp_control_kernel_properties.hpp>
+#include <sycl/ext/intel/experimental/grf_size_properties.hpp>
 #include <sycl/ext/intel/experimental/usm_properties.hpp>
 #include <sycl/ext/oneapi/bfloat16.hpp>
 #include <sycl/ext/oneapi/bindless_images.hpp>
@@ -135,11 +137,11 @@ can be disabled by setting SYCL_DISABLE_FSYCL_SYCLHPP_WARNING macro.")
 #include <sycl/ext/oneapi/functional.hpp>
 #include <sycl/ext/oneapi/get_kernel_info.hpp>
 #include <sycl/ext/oneapi/group_local_memory.hpp>
-#include <sycl/ext/oneapi/kernel_properties/properties.hpp>
+#include <sycl/ext/oneapi/kernel_properties.hpp>
 #include <sycl/ext/oneapi/matrix/matrix.hpp>
 #include <sycl/ext/oneapi/memcpy2d.hpp>
 #include <sycl/ext/oneapi/owner_less.hpp>
-#include <sycl/ext/oneapi/properties/properties.hpp>
+#include <sycl/ext/oneapi/properties.hpp>
 #include <sycl/ext/oneapi/properties/property_value.hpp>
 #include <sycl/ext/oneapi/sub_group.hpp>
 #include <sycl/ext/oneapi/sub_group_mask.hpp>

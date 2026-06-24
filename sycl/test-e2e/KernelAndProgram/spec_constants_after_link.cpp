@@ -3,15 +3,18 @@
 
 // HIP backend does not currently implement linking.
 // UNSUPPORTED: hip
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22300
 
-// This test uses interop that has the ownership on a kernel.
 // UNSUPPORTED: ze_debug
+// UNSUPPORTED-INTENDED: This test uses interop that has the ownership on a
+// kernel.
 
 // XFAIL: target-native_cpu
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142
 
 // This test checks that specialization constant information is available on
 // kernel bundles produced by sycl::link.
+#include <iostream>
 
 #include <sycl/detail/core.hpp>
 

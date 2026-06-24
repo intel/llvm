@@ -16,7 +16,6 @@
 #include <sycl/device.hpp>
 #include <sycl/device_selector.hpp>
 #include <sycl/image.hpp>
-#include <sycl/info/info_desc.hpp>
 #include <sycl/platform.hpp>
 
 namespace sycl {
@@ -69,12 +68,15 @@ ur_native_handle_t platform::getNative() const { return impl->getNative(); }
 
 bool platform::has(aspect Aspect) const { return impl->has(Aspect); }
 
-#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, UrCode)              \
-  template __SYCL_EXPORT detail::ABINeutralT_t<ReturnT>                        \
-  platform::get_info_impl<info::platform::Desc>() const;
-
-#include <sycl/info/platform_traits.def>
-#undef __SYCL_PARAM_TRAITS_SPEC
+#define __SYCL_PLATFORM_INFO_INST(NAME, RETURN_T)                              \
+  template __SYCL_EXPORT detail::ABINeutralT_t<RETURN_T>                       \
+  platform::get_info_impl<info::platform::NAME>() const;
+__SYCL_PLATFORM_INFO_INST(profile, std::string)
+__SYCL_PLATFORM_INFO_INST(version, std::string)
+__SYCL_PLATFORM_INFO_INST(name, std::string)
+__SYCL_PLATFORM_INFO_INST(vendor, std::string)
+__SYCL_PLATFORM_INFO_INST(extensions, std::vector<std::string>)
+#undef __SYCL_PLATFORM_INFO_INST
 
 template <typename Param>
 typename detail::is_backend_info_desc<Param>::return_type

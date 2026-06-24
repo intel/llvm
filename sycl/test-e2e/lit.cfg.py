@@ -35,6 +35,9 @@ config.backend_to_triple = {
     k: config.target_to_triple.get(v) for k, v in config.backend_to_target.items()
 }
 
+# The backend set by the user has precedence over backends set during the parsing of the sycl-ls output
+is_offload_preferred_backend_set = config.backend_to_target["offload"] != ""
+
 # name: The name of this test suite.
 config.name = "SYCL"
 
@@ -212,16 +215,13 @@ class test_env:
 
 
 config.substitutions.append(("%sycl_libs_dir", config.sycl_libs_dir))
+config.substitutions.append(("%sycl_static_libs_dir", config.sycl_device_libs_dir))
 if platform.system() == "Windows":
-    config.substitutions.append(
-        ("%sycl_static_libs_dir", config.sycl_libs_dir + "/../lib")
-    )
     config.substitutions.append(("%obj_ext", ".obj"))
     config.substitutions.append(
         ("%sycl_include", "-Xclang -isystem -Xclang " + config.sycl_include)
     )
 elif platform.system() == "Linux":
-    config.substitutions.append(("%sycl_static_libs_dir", config.sycl_libs_dir))
     config.substitutions.append(("%obj_ext", ".o"))
     config.substitutions.append(("%sycl_include", "-isystem " + config.sycl_include))
 
@@ -258,6 +258,7 @@ device_family_arch_map = {
         "intel_gpu_rpl_s",
         "intel_gpu_adl_p",
         "intel_gpu_adl_n",
+        "intel_gpu_mtl_h",
     },
     # Gen11
     "gpu-intel-gen11": {"intel_gpu_icllp", "intel_gpu_icl"},
@@ -639,7 +640,7 @@ config.substitutions.append(("%link-vulkan", link_vulkan))
 
 # Add DirectX 12 libraries to the configuration for substitution.
 if platform.system() == "Windows":
-    directx_libs = ["-ld3d11", "-ld3d12", "-ldxgi", "-ldxguid"]
+    directx_libs = ["-ld3d11", "-ld3d12", "-ldxgi", "-ldxguid", "-ld3dcompiler"]
     if cl_options:
         directx_libs = ["/clang:" + l for l in directx_libs]
     config.substitutions.append(("%link-directx", " ".join(directx_libs)))
@@ -681,6 +682,15 @@ with test_env():
     # to check if we can build cpu AOT tests.
     if "opencl:cpu" in sycl_ls_output:
         config.available_features.add("opencl-cpu-rt")
+
+    # Count physical GPU devices: each physical GPU produces one output line
+    # that contains ":gpu]". Add a feature when at least two are present so
+    # tests requiring multi-GPU hardware can be skipped on single-GPU machines.
+    # This is a runtime-only feature since it queries actual hardware.
+    if config.test_mode != "build-only":
+        gpu_device_lines = [l for l in sycl_ls_output.splitlines() if ":gpu]" in l]
+        if len(gpu_device_lines) >= 2:
+            config.available_features.add("two-or-more-gpu-devices")
 
     if len(config.sycl_devices) == 1 and config.sycl_devices[0] == "all":
         devices = set()
@@ -991,6 +1001,10 @@ if lit_config.params.get("enable_new_offload_model", "False") != "False":
     config.available_features.add("new-offload-model")
     config.cxx_flags += " --offload-new-driver "
 
+# Add O0 feature for unoptimized builds
+if re.search(r"(^|\s)(-O0|/Od)(\s|$)", config.cxx_flags):
+    config.available_features.add("O0")
+
 # That has to be executed last so that all device-independent features have been
 # discovered already.
 config.sycl_dev_features = {}
@@ -1010,17 +1024,25 @@ for full_name, sycl_device in zip(
     dev_aspects = []
     dev_sg_sizes = []
     architectures = set()
+    device_names = set()
     # See format.py's parse_min_intel_driver_req for explanation.
     is_intel_driver = False
     intel_driver_ver = {}
     sycl_ls_sp = get_sycl_ls_verbose(sycl_device, env)
+    offload_assigned_backend = ""
     for line in sycl_ls_sp.stdout.splitlines():
         if re.match(r" *Vendor *: Intel\(R\) Corporation", line):
             is_intel_driver = True
         if re.match(r" *Driver *:", line):
             _, driver_str = line.split(":", 1)
             driver_str = driver_str.strip()
-            if sycl_device.endswith("gpu"):
+            if sycl_device.endswith("cpu"):
+                intel_driver_ver["cpu"] = driver_str
+            else:
+                # Treat any non-CPU selector as a GPU candidate. Arch-pinned
+                # selectors like "level_zero:arch-intel_gpu_mtl_u" don't end
+                # in "gpu" but still need driver-version parsing for
+                # REQUIRES-INTEL-DRIVER to work.
                 lin = re.match(r"[0-9]{1,2}\.[0-9]{1,2}\.([0-9]{5})", driver_str)
                 if lin:
                     intel_driver_ver["lin"] = int(lin.group(1))
@@ -1029,8 +1051,6 @@ for full_name, sycl_device in zip(
                 )
                 if win:
                     intel_driver_ver["win"] = (int(win.group(1)), int(win.group(2)))
-            elif sycl_device.endswith("cpu"):
-                intel_driver_ver["cpu"] = driver_str
         if re.match(r" *Aspects *:", line):
             _, aspects_str = line.split(":", 1)
             dev_aspects.append(aspects_str.strip().split(" "))
@@ -1050,8 +1070,22 @@ for full_name, sycl_device in zip(
         if re.match(r" *Architecture:", line):
             _, architecture = line.strip().split(":", 1)
             architectures.add(architecture.strip())
-        if re.match(r" *Name *:", line) and "Level-Zero V2" in line:
-            features.add("level_zero_v2_adapter")
+        if re.match(r" *Name *:", line):
+            _, device_name_str = line.strip().split(":", 1)
+            device_names.add(device_name_str.strip())
+            if "Level-Zero V2" in line:
+                features.add("level_zero_v2_adapter")
+
+        # TODO change to the set of backends
+        if re.match(r"\[offload:.*", line) and not is_offload_preferred_backend_set:
+            if re.match(".*Level[ _]Zero.*", line, re.IGNORECASE):
+                offload_assigned_backend = config.backend_to_target["level_zero"]
+                is_offload_preferred_backend_set = True
+            elif re.match(".*nvidia.*", line, re.IGNORECASE):
+                offload_assigned_backend = config.backend_to_target["cuda"]
+
+    if offload_assigned_backend != "":
+        config.backend_to_target["offload"] = offload_assigned_backend
 
     if dev_aspects == []:
         lit_config.error(
@@ -1108,10 +1142,24 @@ for full_name, sycl_device in zip(
             )
         )
 
+    # Add a normalized device-name feature, e.g. "gpu-nvidia-geforce-rtx-3090"
+    # derived from the "Name :" field reported by sycl-ls --verbose.
+    device_name_features = set(
+        "gpu-" + re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
+        for name in device_names
+    )
+    if device_name_features:
+        lit_config.note(
+            "Device name features for {}: {}".format(
+                sycl_device, ", ".join(device_name_features)
+            )
+        )
+
     features.update(aspect_features)
     features.update(sg_size_features)
     features.update(architecture_feature)
     features.update(device_family)
+    features.update(device_name_features)
 
     be, dev = sycl_device.split(":")
     if dev.isdigit():
@@ -1198,9 +1246,9 @@ try:
     import psutil
 
     if config.test_mode == "run-only":
-        lit_config.maxIndividualTestTime = 300
+        config.maxIndividualTestTime = 300
     else:
-        lit_config.maxIndividualTestTime = 600
+        config.maxIndividualTestTime = 600
 
 except ImportError:
     pass

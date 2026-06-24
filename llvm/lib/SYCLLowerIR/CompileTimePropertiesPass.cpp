@@ -34,9 +34,11 @@ constexpr StringRef SpirvDecorMdKind = "spirv.Decorations";
 constexpr StringRef SpirvDecorCacheControlMdKind =
     "spirv.DecorationCacheControlINTEL";
 constexpr StringRef SpirvParamDecorMdKind = "spirv.ParameterDecorations";
-
-constexpr uint32_t SpirvHostAccessDecor = 6188;
-constexpr uint32_t SpirvHostAccessDefaultValue = 3; // Read/Write
+// The corresponding SPIR-V OpCode for the host_access property is documented
+// in the SPV_INTEL_global_variable_decorations design document:
+// https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/DeviceGlobal/SPV_INTEL_global_variable_decorations.asciidoc#decoration
+constexpr uint32_t SpirvHostAccessDecor = 6147;
+constexpr uint32_t SpirvHostAccessDefaultValue = 2; // Read/Write
 
 constexpr uint32_t SpirvInitiationIntervalDecor = 5917;
 constexpr uint32_t SpirvPipelineEnableDecor = 5919;

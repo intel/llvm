@@ -2,6 +2,7 @@
 // REQUIRES: linux
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out 16
+#include <iostream>
 
 #include "esimd_test_utils.hpp"
 

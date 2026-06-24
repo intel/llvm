@@ -54,14 +54,14 @@ generateImageWithCompileTarget(std::string KernelName,
 class SingleTaskKernel;
 class NDRangeKernel;
 class RangeKernel;
-class NoDeviceKernel;
+class NoKernelDevice;
 class JITFallbackKernel;
 class SKLOnlyKernel;
 
 MOCK_INTEGRATION_HEADER(SingleTaskKernel)
 MOCK_INTEGRATION_HEADER(NDRangeKernel)
 MOCK_INTEGRATION_HEADER(RangeKernel)
-MOCK_INTEGRATION_HEADER(NoDeviceKernel)
+MOCK_INTEGRATION_HEADER(NoKernelDevice)
 MOCK_INTEGRATION_HEADER(JITFallbackKernel)
 MOCK_INTEGRATION_HEADER(SKLOnlyKernel)
 
@@ -87,7 +87,7 @@ static sycl::unittest::MockDeviceImage Img[] = {
                                                    "intel_gpu_pvc"),
     sycl::unittest::generateImageWithCompileTarget("RangeKernel",
                                                    "intel_gpu_skl"),
-    sycl::unittest::generateImageWithCompileTarget("NoDeviceKernel",
+    sycl::unittest::generateImageWithCompileTarget("NoKernelDevice",
                                                    "intel_gpu_bdw"),
     sycl::unittest::generateDefaultImage({"JITFallbackKernel"}),
     sycl::unittest::generateImageWithCompileTarget("JITFallbackKernel",
@@ -319,12 +319,14 @@ TEST_F(CompileTargetTest, RangeKernel) {
   });
 }
 
-TEST_F(CompileTargetTest, NoDeviceKernel) {
+TEST_F(CompileTargetTest, NoKernelDevice) {
   try {
-    queue{}.single_task<NoDeviceKernel>([]() {});
+    queue{}.single_task<NoKernelDevice>([]() {});
   } catch (sycl::exception &e) {
     ASSERT_EQ(e.what(),
-              std::string("No kernel named NoDeviceKernel was found"));
+              std::string("Kernel NoKernelDevice has no image for the "
+                          "selected device. Its available images target: "
+                          "[intel_gpu_bdw]."));
   }
 }
 

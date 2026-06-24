@@ -16,8 +16,9 @@
 #include <sycl/detail/ur.hpp>
 #include <sycl/device.hpp>
 #include <sycl/exception.hpp>
+#include <sycl/ext/oneapi/experimental/kernel_queue_info.hpp>
 #include <sycl/ext/oneapi/experimental/root_group.hpp>
-#include <sycl/info/info_desc.hpp>
+#include <sycl/info/kernel.hpp>
 #include <sycl/queue.hpp>
 
 #include <cassert>
@@ -333,6 +334,10 @@ inline context kernel_impl::get_info<info::kernel::context>() const {
   return createSyclObjFromImpl<context>(MContext);
 }
 
+// NOTE: the global_work_size and spill_memory_size pre-query checks below are
+// mirrored in validateDeviceSpecificQuery (get_kernel_info_impl.cpp), which
+// serves the ext::oneapi::get_kernel_info<KernelName, Param> fast path that
+// does not go through kernel_impl. Keep both in sync.
 template <typename Param>
 inline typename Param::return_type
 kernel_impl::get_info(const device &Device) const {

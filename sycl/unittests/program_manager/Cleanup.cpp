@@ -50,7 +50,7 @@ public:
     return NativePrograms;
   }
 
-  std::unordered_map<std::string_view, sycl::detail::DeviceKernelInfo> &
+  std::unordered_map<std::string, sycl::detail::DeviceKernelInfo> &
   getDeviceKernelInfoMap() {
     return m_DeviceKernelInfoMap;
   }
@@ -333,6 +333,14 @@ TEST(ImageRemoval, MultipleImagesPerEntry) {
 }
 
 TEST(ImageRemoval, NativePrograms) {
+#if defined(_WIN32) && defined(__INTEL_LLVM_COMPILER)
+  // Disabled on Windows built with icx: a Managed<ur_program_handle_t> can
+  // release its UR program through an already-freed adapter_impl (use-after-
+  // free), which on this configuration calls a null function pointer and
+  // crashes with SEH 0xC0000005. Tracked in
+  // https://github.com/intel/llvm/issues/22367
+  GTEST_SKIP() << "Disabled on Windows/icx, see intel/llvm#22367";
+#endif
   ProgramManagerExposed PM;
 
   sycl_device_binary_struct NativeImages[ImagesToKeepKernelOnly.size()];
@@ -368,5 +376,67 @@ TEST(ImageRemoval, NativePrograms) {
   EXPECT_EQ(PM.getNativePrograms().size(), ImagesToKeepKernelOnly.size());
   EXPECT_TRUE(PM.getNativePrograms().count(ProgramA) > 0);
   EXPECT_TRUE(PM.getNativePrograms().count(ProgramB) > 0);
+}
+
+// Verify that removeImages cleans up device global initializer entries so that
+// a reused program handle does not collide with stale state.
+TEST(ImageRemoval, DeviceGlobalInitializerCleanupOnRemoveImages) {
+  ProgramManagerExposed PM;
+
+  // An image with device globals that we will add and then remove.
+  sycl_device_binary_struct NativeImagesForRemoval[ImagesToRemove.size()];
+  sycl_device_binaries_struct TestBinaries;
+  convertAndAddImages(PM, ImagesToRemove, NativeImagesForRemoval, TestBinaries);
+
+  PM.addOrInitDeviceGlobalEntry(&DeviceGlobalC,
+                                generateRefName("C", "DeviceGlobal").c_str());
+
+  sycl::unittest::UrMock<> Mock;
+  sycl::platform Plt = sycl::platform();
+  const sycl::device Dev = Plt.get_devices()[0];
+  sycl::queue Queue{Dev};
+  auto Ctx = Queue.get_context();
+  auto CtxImpl = sycl::detail::getSyclObjImpl(Ctx);
+
+  // Grab the RTDeviceBinaryImage* for the "C" image that was just added.
+  ASSERT_EQ(PM.getDeviceImages().size(), 1u);
+  const sycl::detail::RTDeviceBinaryImage *BinImg =
+      PM.getDeviceImages().begin()->second.get();
+
+  ur_program_handle_t FakeProgram =
+      reinterpret_cast<ur_program_handle_t>(static_cast<uintptr_t>(0xDEADBEEF));
+
+  // Register the fake program in NativePrograms so that removeImages can find
+  // it and trigger removeDeviceGlobalInitializer, mirroring what
+  // ProgramManager::build() does.
+  PM.getNativePrograms().insert({FakeProgram, {CtxImpl, BinImg}});
+
+  CtxImpl->addDeviceGlobalInitializer(FakeProgram, CtxImpl->getDevices(),
+                                      BinImg);
+
+  EXPECT_EQ(CtxImpl->getDeviceGlobalNotInitializedCnt(), 1u)
+      << "Counter should be 1 after adding the initializer";
+
+  // Simulate program teardown.
+  PM.removeImages(&TestBinaries);
+
+  EXPECT_EQ(CtxImpl->getDeviceGlobalNotInitializedCnt(), 0u)
+      << "Counter should be 0 after removeImages cleans up the initializer";
+
+  // Re-add the same BinImg under the same (reused) program handle — this is
+  // what happens when the adapter allocates a fresh program with the same
+  // handle value. The counter must go back up to 1 cleanly.
+  sycl_device_binary_struct NativeImagesSecond[ImagesToRemove.size()];
+  sycl_device_binaries_struct TestBinariesSecond;
+  convertAndAddImages(PM, ImagesToRemove, NativeImagesSecond,
+                      TestBinariesSecond);
+  const sycl::detail::RTDeviceBinaryImage *BinImgSecond =
+      PM.getDeviceImages().begin()->second.get();
+
+  CtxImpl->addDeviceGlobalInitializer(FakeProgram, CtxImpl->getDevices(),
+                                      BinImgSecond);
+
+  EXPECT_EQ(CtxImpl->getDeviceGlobalNotInitializedCnt(), 1u)
+      << "Counter should be 1 after re-registering the reused program handle";
 }
 } // anonymous namespace

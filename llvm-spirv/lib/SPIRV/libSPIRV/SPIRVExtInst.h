@@ -257,6 +257,8 @@ template <> inline void SPIRVMap<SPIRVDebugExtOpKind, std::string>::init() {
   add(SPIRVDebug::NoScope, "DebugNoScope");
   add(SPIRVDebug::InlinedAt, "DebugInlinedAt");
   add(SPIRVDebug::ImportedEntity, "DebugImportedEntity");
+  add(SPIRVDebug::MacroDef, "DebugMacroDef");
+  add(SPIRVDebug::MacroUndef, "DebugMacroUndef");
   add(SPIRVDebug::ModuleINTEL, "DebugModuleINTEL");
   add(SPIRVDebug::Module, "DebugModule");
   add(SPIRVDebug::Expression, "DebugExpression");
@@ -282,6 +284,7 @@ inline void SPIRVMap<NonSemanticAuxDataOpKind, std::string>::init() {
       "NonSemanticAuxDataGlobalVariableMetadata");
   add(NonSemanticAuxData::GlobalVariableAttribute,
       "NonSemanticAuxDataGlobalVariableAttribute");
+  add(NonSemanticAuxData::Linkage, "NonSemanticAuxDataLinkage");
 }
 SPIRV_DEF_NAMEMAP(NonSemanticAuxDataOpKind, NonSemanticAuxDataOpMap)
 
