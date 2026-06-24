@@ -66,7 +66,8 @@ const char *SYCLInstallationDetector::findLibspirvPath(
   const SmallString<64> Basename =
       getLibSpirvBasename(DeviceTriple, HostTriple);
   SmallString<256> LibclcPath(D.ResourceDir);
-  llvm::sys::path::append(LibclcPath, CLANG_INSTALL_LIBDIR_BASENAME, "libclc", Basename);
+  llvm::sys::path::append(LibclcPath, CLANG_INSTALL_LIBDIR_BASENAME, "libclc",
+                          Basename);
   if (D.getVFS().exists(LibclcPath))
     return Args.MakeArgString(LibclcPath);
 
