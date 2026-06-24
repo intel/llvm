@@ -46,6 +46,7 @@ CHECK-NEXT:	MayAlias
 CHECK-NEXT:	Mips16
 CHECK-NEXT:	Mode
 CHECK-NEXT:	Naked
+CHECK-NEXT:	NativeCPULibclcCall
 CHECK-NEXT:	NeonPolyVectorType
 CHECK-NEXT:	NeonVectorType
 CHECK-NEXT:	NoCommon
@@ -76,9 +77,11 @@ CHECK-NEXT:	PtGuardedBy
 CHECK-NEXT:	PtGuardedVar
 CHECK-NEXT:	Pure
 CHECK-NEXT:	ReentrantCapability
-CHECK-NEXT:	ReqdWorkGroupSize
 CHECK-NEXT:	RequiresCapability
 CHECK-NEXT:	ReturnsTwice
+CHECK-NEXT:	SYCLGlobalVar
+CHECK-NEXT:	SYCLIntelESimdVectorize
+CHECK-NEXT:	SYCLUsesAspects
 CHECK-NEXT:	ScopedLockable
 CHECK-NEXT:	Unavailable
 CHECK-NEXT:	Uuid
@@ -89,5 +92,4 @@ CHECK-NEXT:	VectorSize
 CHECK-NEXT:	Visibility
 CHECK-NEXT:	WeakImport
 CHECK-NEXT:	WeakRef
-CHECK-NEXT:	WorkGroupSizeHint
-CHECK-NEXT: Total: 84
+CHECK-NEXT: Total: 86
