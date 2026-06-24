@@ -13,6 +13,10 @@
 
 #include <type_traits>
 
+#ifdef __SYCL_DEVICE_ONLY__
+#include <__clang_spirv_builtins.h>
+#endif
+
 namespace sycl {
 inline namespace _V1 {
 
