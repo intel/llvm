@@ -152,6 +152,7 @@ ur_result_t urGraphSetDestructionCallbackExp(
     ur_exp_graph_handle_t hGraph,
     ur_exp_graph_destruction_callback_t pfnCallback, void *pUserData) {
   ur_context_handle_t hContext = hGraph->getContext();
+
   auto ZeSetCallback =
       hContext->getPlatform()->ZeGraphExt.zeGraphSetDestructionCallbackExp;
   if (!checkGraphExtensionSupport(hContext) || !ZeSetCallback) {
