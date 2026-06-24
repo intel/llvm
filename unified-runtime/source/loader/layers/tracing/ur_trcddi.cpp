@@ -10871,6 +10871,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueNativeCommandExp(
 __urdlllocal ur_result_t UR_APICALL urEventCreateExp(
     /// [in] handle of the context object
     ur_context_handle_t hContext,
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
     /// [in] pointer to event creation descriptor
     const ur_exp_event_desc_t *pEventDesc,
     /// [out] pointer to the handle of the event object created
@@ -10880,14 +10882,15 @@ __urdlllocal ur_result_t UR_APICALL urEventCreateExp(
   if (nullptr == pfnCreateExp)
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 
-  ur_event_create_exp_params_t params = {&hContext, &pEventDesc, &phEvent};
+  ur_event_create_exp_params_t params = {&hContext, &hDevice, &pEventDesc,
+                                         &phEvent};
   uint64_t instance = getContext()->notify_begin(UR_FUNCTION_EVENT_CREATE_EXP,
                                                  "urEventCreateExp", &params);
 
   auto &logger = getContext()->logger;
   UR_LOG_L(logger, INFO, "   ---> urEventCreateExp\n");
 
-  ur_result_t result = pfnCreateExp(hContext, pEventDesc, phEvent);
+  ur_result_t result = pfnCreateExp(hContext, hDevice, pEventDesc, phEvent);
 
   getContext()->notify_end(UR_FUNCTION_EVENT_CREATE_EXP, "urEventCreateExp",
                            &params, &result, instance);
