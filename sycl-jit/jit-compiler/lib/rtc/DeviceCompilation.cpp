@@ -844,13 +844,12 @@ Error jit_compiler::linkDeviceLibraries(llvm::Module &Module,
     LibNames.push_back(Libclc);
   }
 
+  std::string TripleName = (Format == BinaryFormat::PTX) ? "nvptx64-nvidia-cuda"
+                                                         : "amdgcn-amd-amdhsa";
+
   LLVMContext &Context = Module.getContext();
   SYCLToolchain &TC = SYCLToolchain::instance();
   for (const std::string &LibName : LibNames) {
-    std::string TripleName = (Format == BinaryFormat::PTX)
-                                 ? "nvptx64-nvidia-cuda"
-                                 : "amdgcn-amd-amdhsa";
-
     std::string LibPath =
         (LibName.find("libspirv") != std::string::npos)
             ? (TC.getLibclcDir() + TripleName + "/" + LibName).str()
