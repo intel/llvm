@@ -6,6 +6,9 @@
 // UNSUPPORTED: windows && arch-intel_gpu_bmg_g21
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22287
 
+// UNSUPPORTED: linux && (arch-intel_gpu_pvc || arch-intel_gpu_bmg_g21)
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22405
+
 // RUN: %{build} -o %t2.out
 // RUN: env SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t2.out %if level_zero %{ 2>&1 | FileCheck %s %}
 // RUN: %{run} %t2.out
