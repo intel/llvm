@@ -16,6 +16,7 @@
 #include <clang/Basic/DiagnosticDriver.h>
 #include <clang/Basic/Version.h>
 #include <clang/CodeGen/CodeGenAction.h>
+#include <clang/Config/config.h>
 #include <clang/Driver/Compilation.h>
 #include <clang/Driver/CudaInstallationDetector.h>
 #include <clang/Driver/Driver.h>
@@ -170,9 +171,10 @@ template <> struct std::hash<auto_pch_key> {
 namespace {
 std::string getLibPathSuffix() {
 #ifdef _WIN32
-  return "/lib/";
+  return llvm::formatv("/{0}/", CLANG_INSTALL_LIBDIR_BASENAME);
 #else
-  return llvm::formatv("/lib/dpcpp-{0}/sycl/", DPCPP_VERSION_MAJOR);
+  return llvm::formatv("/{0}/dpcpp-{1}/sycl/", CLANG_INSTALL_LIBDIR_BASENAME,
+                       DPCPP_VERSION_MAJOR);
 #endif
 }
 class SYCLToolchain {

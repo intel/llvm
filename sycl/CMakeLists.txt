@@ -367,7 +367,7 @@ if(SYCL_HEADERS_ONLY)
     foreach(sycl_compiler_tool
         append-file clang clang-offload-bundler clang-offload-deps
         clang-offload-extract clang-offload-wrapper clang-linker-wrapper
-        file-table-tform llc llvm-ar llvm-foreach llvm-link
+        file-table-tform llc llvm-ar llvm-config llvm-foreach llvm-link
         llvm-offload-binary llvm-objcopy llvm-spirv spirv-to-ir-wrapper
         sycl-post-link)
       if(TARGET ${sycl_compiler_tool})
@@ -434,6 +434,7 @@ add_custom_target(sycl-compiler
           file-table-tform
           llc
           llvm-ar
+          llvm-config
           llvm-foreach
           llvm-spirv
           llvm-link
@@ -517,6 +518,7 @@ set( SYCL_TOOLCHAIN_DEPLOY_COMPONENTS
      file-table-tform
      llc
      llvm-ar
+     llvm-config
      llvm-foreach
      llvm-spirv
      llvm-link
