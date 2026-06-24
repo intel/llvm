@@ -1498,8 +1498,8 @@ SYCLToolChain::SYCLToolChain(const Driver &D, const llvm::Triple &Triple,
             SanitizeVal == "thread")
           continue;
       }
-      D.Diag(clang::diag::warn_drv_unsupported_option_for_target)
-          << A->getAsString(Args) << getTriple().str() << 1;
+      D.Diag(clang::diag::warn_drv_unsupported_option_for_target_host_only)
+          << A->getAsString(Args) << getTriple().str();
     }
   }
 }
