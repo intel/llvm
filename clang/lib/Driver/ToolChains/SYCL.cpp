@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 #include "SYCL.h"
 #include "clang/Basic/Version.h"
+#include "clang/Config/config.h"
 #include "clang/Driver/CommonArgs.h"
 #include "clang/Driver/Compilation.h"
 #include "clang/Driver/Driver.h"
@@ -43,7 +44,7 @@ SYCLInstallationDetector::SYCLInstallationDetector(
     if (DriverDir.starts_with(SysRoot) &&
         Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false)) {
       SmallString<128> LibDir(DriverDir);
-      llvm::sys::path::append(LibDir, "..", "lib");
+      llvm::sys::path::append(LibDir, "..", CLANG_INSTALL_LIBDIR_BASENAME);
 
       // Verify SYCL runtime library exists
       SmallString<128> SYCLLibPath(LibDir);
@@ -54,21 +55,21 @@ SYCLInstallationDetector::SYCLInstallationDetector(
     }
   } else {
     SmallString<128> LibPath(DriverDir);
-    llvm::sys::path::append(LibPath, "..", "lib", HostTriple.str(),
+    llvm::sys::path::append(LibPath, "..", CLANG_INSTALL_LIBDIR_BASENAME, HostTriple.str(),
                             "libsycl.so");
     // Flat lib path for LLVM_ENABLE_PER_TARGET_RUNTIME_DIR=OFF builds,
     // where the library is installed directly in lib/ with no triple subdir.
     SmallString<128> FlatLibPath(DriverDir);
-    llvm::sys::path::append(FlatLibPath, "..", "lib", "libsycl.so");
+    llvm::sys::path::append(FlatLibPath, "..", CLANG_INSTALL_LIBDIR_BASENAME, "libsycl.so");
 
     if (DriverDir.starts_with(SysRoot) &&
         Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false)) {
       // LLVM_ENABLE_PER_TARGET_RUNTIME_DIR=ON: library is in lib/<triple>/
       if (D.getVFS().exists(LibPath))
-        llvm::sys::path::append(DriverDir, "..", "lib", HostTriple.str());
+        llvm::sys::path::append(DriverDir, "..", CLANG_INSTALL_LIBDIR_BASENAME, HostTriple.str());
       // LLVM_ENABLE_PER_TARGET_RUNTIME_DIR=OFF: library is in lib/
       else if (D.getVFS().exists(FlatLibPath))
-        llvm::sys::path::append(DriverDir, "..", "lib");
+        llvm::sys::path::append(DriverDir, "..", CLANG_INSTALL_LIBDIR_BASENAME);
       else
         return; // Neither path exists : broken install, leave SYCLRTLibPath
                 // unset
@@ -79,19 +80,22 @@ SYCLInstallationDetector::SYCLInstallationDetector(
 #else // !INTEL_CUSTOMIZATION
   // Intel: SYCL RT is libsycl.so; Windows lib path is handled at link stage.
   SmallString<128> LibPath(DriverDir);
-  llvm::sys::path::append(LibPath, "..", "lib", HostTriple.str(), "libsycl.so");
+  llvm::sys::path::append(LibPath, "..", CLANG_INSTALL_LIBDIR_BASENAME,
+                          HostTriple.str(), "libsycl.so");
   // Flat lib path for LLVM_ENABLE_PER_TARGET_RUNTIME_DIR=OFF builds,
   // where the library is installed directly in lib/ with no triple subdir.
   SmallString<128> FlatLibPath(DriverDir);
-  llvm::sys::path::append(FlatLibPath, "..", "lib", "libsycl.so");
+  llvm::sys::path::append(FlatLibPath, "..", CLANG_INSTALL_LIBDIR_BASENAME,
+                          "libsycl.so");
 
   if (DriverDir.starts_with(SysRoot) &&
       Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false)) {
     // We put driver in bin/compiler, so one more ../ than llorg.
     if (D.getVFS().exists(DriverDir + "/../../lib/libsycl.so"))
-      llvm::sys::path::append(DriverDir, "..", "..", "lib");
+      llvm::sys::path::append(DriverDir, "..", "..",
+                              CLANG_INSTALL_LIBDIR_BASENAME);
     else
-      llvm::sys::path::append(DriverDir, "..", "lib");
+      llvm::sys::path::append(DriverDir, "..", CLANG_INSTALL_LIBDIR_BASENAME);
 
     SYCLRTLibPath = DriverDir;
   }
@@ -126,8 +130,8 @@ const char *SYCLInstallationDetector::findLibspirvPath(
 
   const SmallString<64> Basename = getLibSpirvBasename(HostTriple);
   SmallString<256> LibclcPath(D.ResourceDir);
-  llvm::sys::path::append(LibclcPath, "lib", DeviceTriple.getTriple(),
-                          Basename);
+  llvm::sys::path::append(LibclcPath, CLANG_INSTALL_LIBDIR_BASENAME,
+                          DeviceTriple.getTriple(), Basename);
   if (D.getVFS().exists(LibclcPath))
     return Args.MakeArgString(LibclcPath);
 
@@ -158,7 +162,8 @@ void SYCLInstallationDetector::addLibspirvLinkArgs(
 void SYCLInstallationDetector::getSYCLDeviceLibPath(
     llvm::SmallVector<llvm::SmallString<128>, 4> &DeviceLibPaths) const {
   std::string LinuxDirSuffix =
-      llvm::formatv("/lib/dpcpp-{0}/sycl", DPCPP_VERSION_MAJOR);
+      llvm::formatv("/{0}/dpcpp-{1}/sycl", CLANG_INSTALL_LIBDIR_BASENAME,
+                    DPCPP_VERSION_MAJOR);
   for (const auto &IC : InstallationCandidates) {
     if (!HostTriple.isWindowsMSVCEnvironment() &&
         !HostTriple.isWindowsItaniumEnvironment()) {
@@ -167,7 +172,7 @@ void SYCLInstallationDetector::getSYCLDeviceLibPath(
       DeviceLibPaths.emplace_back(InstallPath);
     }
     SmallString<128> InstallPath(IC);
-    llvm::sys::path::append(InstallPath, "lib");
+    llvm::sys::path::append(InstallPath, CLANG_INSTALL_LIBDIR_BASENAME);
     DeviceLibPaths.emplace_back(InstallPath);
   }
   if (!HostTriple.isWindowsMSVCEnvironment() &&
@@ -177,7 +182,7 @@ void SYCLInstallationDetector::getSYCLDeviceLibPath(
     DeviceLibPaths.emplace_back(Path.str());
   }
   SmallString<128> Path(D.SysRoot);
-  llvm::sys::path::append(Path, "lib");
+  llvm::sys::path::append(Path, CLANG_INSTALL_LIBDIR_BASENAME);
   DeviceLibPaths.emplace_back(Path.str());
 }
 
