@@ -3736,10 +3736,6 @@ void Driver::BuildInputs(const ToolChain &TC, DerivedArgList &Args,
         Diag(clang::diag::err_drv_unknown_language) << A->getValue();
         InputType = types::TY_Object;
       }
-      // Emit an error if c-compilation is forced in -fsycl mode
-      if (IsSYCL && (InputType == types::TY_C || InputType == types::TY_PP_C ||
-                     InputType == types::TY_CHeader))
-        Diag(clang::diag::err_drv_fsycl_with_c_type) << A->getAsString(Args);
 
       // If the user has put -fmodule-header{,=} then we treat C++ headers as
       // header unit inputs.  So we 'promote' -xc++-header appropriately.
