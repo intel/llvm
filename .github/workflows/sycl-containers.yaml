@@ -43,6 +43,10 @@ jobs:
     strategy:
       matrix:
         include:
+          - name: Build Ubuntu 18.04 Docker image
+            file: ubuntu2204_build
+            tag: latest
+            build_args: ""
           - name: Build Ubuntu 22.04 Docker image
             file: ubuntu2204_build
             tag: latest
