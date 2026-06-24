@@ -18,6 +18,9 @@ inputs:
     required: false
   sycl_compiler:
     required: false
+  build_unified_runtime_locally:
+    required: false
+    default: 'true'
 
 
 runs:
@@ -51,6 +54,78 @@ runs:
       mkdir build-e2e llvm
       tar -I 'zstd' -xf /sycl-prebuilt/e2e_binaries.tar.zst -C build-e2e
       tar -I 'zstd' -xf /sycl-prebuilt/e2e_sources.tar.zst -C llvm
+
+  - name: Checkout unified-runtime source
+    if: inputs.build_unified_runtime_locally == 'true'
+    uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+    with:
+      path: unified-runtime-src
+      sparse-checkout: |
+        unified-runtime/
+      ref: ${{ inputs.ref || github.sha }}
+
+  - name: Provide lit binary for UR tests
+    if: inputs.build_unified_runtime_locally == 'true'
+    shell: bash
+    run: |
+      if command -v lit >/dev/null 2>&1; then
+        exit 0
+      fi
+
+      mkdir -p "$HOME/.local/bin"
+
+      if [ -x "$PWD/toolchain/bin/llvm-lit" ]; then
+        ln -sfn "$PWD/toolchain/bin/llvm-lit" "$HOME/.local/bin/lit"
+        echo "$HOME/.local/bin" >> $GITHUB_PATH
+        exit 0
+      fi
+
+      if command -v llvm-lit >/dev/null 2>&1; then
+        ln -sfn "$(command -v llvm-lit)" "$HOME/.local/bin/lit"
+        echo "$HOME/.local/bin" >> $GITHUB_PATH
+        exit 0
+      fi
+
+      python3 -m pip install --user lit
+      echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+  - name: Build unified-runtime with container CUDA
+    if: inputs.build_unified_runtime_locally == 'true'
+    shell: bash
+    run: |
+      cd unified-runtime-src
+      ln -sfn "$PWD/../toolchain" dpcpp_compiler
+      cmake -S unified-runtime -B build \
+        -DCMAKE_C_COMPILER=gcc \
+        -DCMAKE_CXX_COMPILER=g++ \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DUR_ENABLE_TRACING=ON \
+        -DUR_DEVELOPER_MODE=ON \
+        -DUR_BUILD_TESTS=ON \
+        -DUR_BUILD_ADAPTER_L0_V2=ON \
+        -DUR_STATIC_LOADER=OFF \
+        -DUR_STATIC_ADAPTER_L0_V2=OFF \
+        -DUR_DPCXX=./dpcpp_compiler/bin/clang++ \
+        -DUR_SYCL_LIBRARY_DIR=./dpcpp_compiler/lib \
+        -DUR_CONFORMANCE_NVIDIA_ARCH="sm_75" \
+        -DCMAKE_INSTALL_PREFIX=./install
+      cmake --build build
+      cmake --install build
+
+  - name: Install built unified-runtime
+    if: inputs.build_unified_runtime_locally == 'true'
+    shell: bash
+    run: |
+      # Install the locally-built UR libraries over the prebuilt ones
+      mkdir -p "$PWD/toolchain/lib/plugins"
+      cp unified-runtime-src/install/lib/libur_adapter_cuda.so* "$PWD/toolchain/lib/" 2>/dev/null || true
+      cp unified-runtime-src/install/lib/libur_loader.so* "$PWD/toolchain/lib/" 2>/dev/null || true
+      cp unified-runtime-src/install/lib/plugins/* "$PWD/toolchain/lib/plugins/" 2>/dev/null || true
+      cp unified-runtime-src/build/lib/libur_adapter_cuda.so* "$PWD/toolchain/lib/" 2>/dev/null || true
+      cp unified-runtime-src/build/lib/libur_loader.so* "$PWD/toolchain/lib/" 2>/dev/null || true
+      cp unified-runtime-src/build/lib/plugins/* "$PWD/toolchain/lib/plugins/" 2>/dev/null || true
+      # Also ensure the built libs are in LD_LIBRARY_PATH
+      echo LD_LIBRARY_PATH="$PWD/unified-runtime-src/install/lib:$PWD/unified-runtime-src/build/lib:$LD_LIBRARY_PATH" >> $GITHUB_ENV
 
   - name: Deduce E2E CMake options
     if: inputs.testing_mode != 'run-only'
@@ -110,4 +185,4 @@ runs:
     if: ${{ !cancelled() }}
     shell: bash
     run: |
-      rm -rf build-e2e
+      # rm -rf build-e2e
