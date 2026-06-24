@@ -8502,6 +8502,14 @@ Action *Driver::ConstructPhaseAction(
     return C.MakeAction<CompileJobAction>(Input, types::TY_LLVM_BC);
   }
   case phases::Backend: {
+    // SYCL new-driver backend outputs BC for llvm-offload-binary packaging.
+    // ThinLTO excluded (has its own sycl-post-link pipeline).
+    // LTO + -S excluded: AMD needs TY_LTO_IR so the image is .s assembly;
+    // LTOK_None targets (NVPTX, SPIR64) have no LTO branch so always hit this.
+    if (TargetDeviceOffloadKind == Action::OFK_SYCL &&
+        getUseNewOffloadingDriver() && TargetLTOMode != LTOK_Thin &&
+        (TargetLTOMode == LTOK_None || !Args.hasArg(options::OPT_S)))
+      return C.MakeAction<BackendJobAction>(Input, types::TY_LLVM_BC);
     if (TargetLTOMode != LTOK_None) {
       bool IsDeviceOffload = TargetDeviceOffloadKind != Action::OFK_None;
       if (!IsDeviceOffload) {
@@ -8562,8 +8570,7 @@ Action *Driver::ConstructPhaseAction(
       }
       return C.MakeAction<BackendJobAction>(Input, Output);
     }
-    if (Args.hasArg(options::OPT_emit_llvm) ||
-        TargetDeviceOffloadKind == Action::OFK_SYCL) {
+    if (Args.hasArg(options::OPT_emit_llvm)) {
       types::ID Output =
           Args.hasArg(options::OPT_S) ? types::TY_LLVM_IR : types::TY_LLVM_BC;
       return C.MakeAction<BackendJobAction>(Input, Output);
