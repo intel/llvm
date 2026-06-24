@@ -2,8 +2,6 @@
 /// Tests for -fsycl --offload-host-only with the new offloading driver.
 ///
 
-// REQUIRES: x86-registered-target
-
 /// ###########################################################################
 /// Test phase output with -ccc-print-phases
 // RUN: %clang -fsycl --target=x86_64-unknown-linux-gnu --offload-new-driver --offload-host-only -ccc-print-phases -c %s 2>&1 \
