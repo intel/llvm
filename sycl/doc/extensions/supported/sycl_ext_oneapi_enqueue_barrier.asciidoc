@@ -237,7 +237,7 @@ void wait();
 |========================================
 |*Member functions*|*Description*
 |`event ext_oneapi_submit_barrier()` | Same effect as submitting a `handler::ext_oneapi_barrier()` within a command group to this `queue`.  The returned event enters the `info::event_command_status::complete` state when all events that the barrier is dependent on (implicitly from all previously submitted commands to the same queue) have entered the `info::event_command_status::complete` state.
-|`event ext_oneapi_submit_barrier( const std::vector<event> &waitList )` | Same effect as submitting a `handler:ext_oneapi_barrier( const std::vector<event> &waitList )` within a command group to this `queue`.  The returned event enters the `info::event_command_status::complete` state when all events that the barrier is dependent on (explicitly from `waitList`) have entered the `info::event_command_status::complete` state.
+|`event ext_oneapi_submit_barrier( const std::vector<event> &waitList )` | Same effect as submitting a `handler:ext_oneapi_barrier( const std::vector<event> &waitList )` within a command group to this `queue`.  The returned event enters the `info::event_command_status::complete` state when all events that the barrier is dependent on (explicitly from `waitList`) have entered the `info::event_command_status::complete` state. If `waitList` is empty, then the barrier has no effect and the returned event enters the `info::event_command_status::complete` state immediately.
 |========================================
 
 
@@ -297,7 +297,7 @@ Barriers can be created by two members of the `handler` class that force synchro
 |========================================
 |*Member functions*|*Description*
 |`void ext_oneapi_barrier()` | Prevents any commands submitted afterward to this queue from executing until all commands previously submitted to this queue have entered the `info::event_command_status::complete` state.
-|`void ext_oneapi_barrier( const std::vector<event> &waitList` ) | Prevents any commands submitted afterward to this queue from executing until all events in `waitList` have entered the `info::event_command_status::complete` state.  If `waitList` is empty, then the barrier has no effect.
+|`void ext_oneapi_barrier( const std::vector<event> &waitList` ) | Prevents any commands submitted afterward to this queue from executing until all events in `waitList` have entered the `info::event_command_status::complete` state.  If `waitList` is empty and no explicit dependencies were set using `handler::depends_on()`, then the barrier has no effect and the barrier event enters the `info::event_command_status::complete` state immediately. If `waitList` is empty and dependencies were set using `handler::depends_on()`, then the dependencies are honored and the barrier event enters the `info::event_command_status::complete` state once all of those dependent events have entered the `info::event_command_status::complete` state.
 |========================================
 
 == Issues
