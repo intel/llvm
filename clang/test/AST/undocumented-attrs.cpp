@@ -11,7 +11,6 @@ CHECK-NEXT:	AcquiredBefore
 CHECK-NEXT:	Alias
 CHECK-NEXT:	Aligned
 CHECK-NEXT:	AnalyzerNoReturn
-CHECK-NEXT:	Annotate
 CHECK-NEXT:	ArcWeakrefUnavailable
 CHECK-NEXT:	AvailableOnlyInDefaultEvalMethod
 CHECK-NEXT:	Blocks
@@ -92,4 +91,4 @@ CHECK-NEXT:	VectorSize
 CHECK-NEXT:	Visibility
 CHECK-NEXT:	WeakImport
 CHECK-NEXT:	WeakRef
-CHECK-NEXT: Total: 86
+CHECK-NEXT: Total: 85
