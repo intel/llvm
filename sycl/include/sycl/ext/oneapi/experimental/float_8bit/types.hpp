@@ -316,8 +316,7 @@ template <int Ebits, int Mbits> struct FP8FiniteFormatTraits {
 };
 
 template <typename T, typename Traits = SourceTraits<T>>
-static inline uint8_t
-ConvertIntToE8M0_CPU(T f, rounding R, [[maybe_unused]] saturation S) noexcept {
+static inline uint8_t ConvertIntToE8M0_CPU(T f, rounding R) noexcept {
   using UnsignedT = typename Traits::UnsignedT;
   UnsignedT magnitude = f < 0 ? -f : f;
 
@@ -1964,46 +1963,38 @@ public:
 
   template <size_t M = N, typename = std::enable_if_t<M == 1>>
   explicit fp8_e8m0_x(short val) {
-    vals[0] =
-        detail::ConvertIntToE8M0_CPU(val, rounding::upward, saturation::finite);
+    vals[0] = detail::ConvertIntToE8M0_CPU(val, rounding::upward);
   }
 
   template <size_t M = N, typename = std::enable_if_t<M == 1>>
   explicit fp8_e8m0_x(int val) {
-    vals[0] =
-        detail::ConvertIntToE8M0_CPU(val, rounding::upward, saturation::finite);
+    vals[0] = detail::ConvertIntToE8M0_CPU(val, rounding::upward);
   }
 
   template <size_t M = N, typename = std::enable_if_t<M == 1>>
   explicit fp8_e8m0_x(long val) {
-    vals[0] =
-        detail::ConvertIntToE8M0_CPU(val, rounding::upward, saturation::finite);
+    vals[0] = detail::ConvertIntToE8M0_CPU(val, rounding::upward);
   }
 
   template <size_t M = N, typename = std::enable_if_t<M == 1>>
   explicit fp8_e8m0_x(long long val) {
-    vals[0] =
-        detail::ConvertIntToE8M0_CPU(val, rounding::upward, saturation::finite);
+    vals[0] = detail::ConvertIntToE8M0_CPU(val, rounding::upward);
   }
   template <size_t M = N, typename = std::enable_if_t<M == 1>>
   explicit fp8_e8m0_x(unsigned short val) {
-    vals[0] =
-        detail::ConvertIntToE8M0_CPU(val, rounding::upward, saturation::finite);
+    vals[0] = detail::ConvertIntToE8M0_CPU(val, rounding::upward);
   }
   template <size_t M = N, typename = std::enable_if_t<M == 1>>
   explicit fp8_e8m0_x(unsigned int val) {
-    vals[0] =
-        detail::ConvertIntToE8M0_CPU(val, rounding::upward, saturation::finite);
+    vals[0] = detail::ConvertIntToE8M0_CPU(val, rounding::upward);
   }
   template <size_t M = N, typename = std::enable_if_t<M == 1>>
   explicit fp8_e8m0_x(unsigned long val) {
-    vals[0] =
-        detail::ConvertIntToE8M0_CPU(val, rounding::upward, saturation::finite);
+    vals[0] = detail::ConvertIntToE8M0_CPU(val, rounding::upward);
   }
   template <size_t M = N, typename = std::enable_if_t<M == 1>>
   explicit fp8_e8m0_x(unsigned long long val) {
-    vals[0] =
-        detail::ConvertIntToE8M0_CPU(val, rounding::upward, saturation::finite);
+    vals[0] = detail::ConvertIntToE8M0_CPU(val, rounding::upward);
   }
 
   template <size_t M = N, typename = std::enable_if_t<M == 1>>
@@ -2027,50 +2018,42 @@ public:
 
   template <size_t M = N, typename = std::enable_if_t<M == 1>>
   fp8_e8m0_x &operator=(short val) {
-    vals[0] =
-        detail::ConvertIntToE8M0_CPU(val, rounding::upward, saturation::finite);
+    vals[0] = detail::ConvertIntToE8M0_CPU(val, rounding::upward);
     return *this;
   }
   template <size_t M = N, typename = std::enable_if_t<M == 1>>
   fp8_e8m0_x &operator=(int val) {
-    vals[0] =
-        detail::ConvertIntToE8M0_CPU(val, rounding::upward, saturation::finite);
+    vals[0] = detail::ConvertIntToE8M0_CPU(val, rounding::upward);
     return *this;
   }
   template <size_t M = N, typename = std::enable_if_t<M == 1>>
   fp8_e8m0_x &operator=(long val) {
-    vals[0] =
-        detail::ConvertIntToE8M0_CPU(val, rounding::upward, saturation::finite);
+    vals[0] = detail::ConvertIntToE8M0_CPU(val, rounding::upward);
     return *this;
   }
   template <size_t M = N, typename = std::enable_if_t<M == 1>>
   fp8_e8m0_x &operator=(long long val) {
-    vals[0] =
-        detail::ConvertIntToE8M0_CPU(val, rounding::upward, saturation::finite);
+    vals[0] = detail::ConvertIntToE8M0_CPU(val, rounding::upward);
     return *this;
   }
   template <size_t M = N, typename = std::enable_if_t<M == 1>>
   fp8_e8m0_x &operator=(unsigned short val) {
-    vals[0] =
-        detail::ConvertIntToE8M0_CPU(val, rounding::upward, saturation::finite);
+    vals[0] = detail::ConvertIntToE8M0_CPU(val, rounding::upward);
     return *this;
   }
   template <size_t M = N, typename = std::enable_if_t<M == 1>>
   fp8_e8m0_x &operator=(unsigned int val) {
-    vals[0] =
-        detail::ConvertIntToE8M0_CPU(val, rounding::upward, saturation::finite);
+    vals[0] = detail::ConvertIntToE8M0_CPU(val, rounding::upward);
     return *this;
   }
   template <size_t M = N, typename = std::enable_if_t<M == 1>>
   fp8_e8m0_x &operator=(unsigned long val) {
-    vals[0] =
-        detail::ConvertIntToE8M0_CPU(val, rounding::upward, saturation::finite);
+    vals[0] = detail::ConvertIntToE8M0_CPU(val, rounding::upward);
     return *this;
   }
   template <size_t M = N, typename = std::enable_if_t<M == 1>>
   fp8_e8m0_x &operator=(unsigned long long val) {
-    vals[0] =
-        detail::ConvertIntToE8M0_CPU(val, rounding::upward, saturation::finite);
+    vals[0] = detail::ConvertIntToE8M0_CPU(val, rounding::upward);
     return *this;
   }
 
