@@ -125,6 +125,11 @@ public:
                                             context_impl &ContextImpl,
                                             const device_impl &DeviceImpl);
 
+  const RTDeviceBinaryImage &getDeviceImage(const kernel_id &KernelID,
+                                            std::string_view KernelName,
+                                            context_impl &ContextImpl,
+                                            const device_impl &DeviceImpl);
+
   const RTDeviceBinaryImage &getDeviceImage(
       const std::unordered_set<const RTDeviceBinaryImage *> &ImagesToVerify,
       context_impl &ContextImpl, const device_impl &DeviceImpl);
@@ -163,10 +168,12 @@ public:
   /// \param Context the context to build the program with
   /// \param Device the device for which the program is built
   /// \param KernelName the kernel's name
-  Managed<ur_program_handle_t> getBuiltURProgram(context_impl &ContextImpl,
-                                                 device_impl &DeviceImpl,
-                                                 std::string_view KernelName,
-                                                 const NDRDescT &NDRDesc = {});
+  /// When KernelID is provided, the image is looked up directly by kernel_id.
+  /// Otherwise, it is resolved from the kernel name.
+  Managed<ur_program_handle_t>
+  getBuiltURProgram(context_impl &ContextImpl, device_impl &DeviceImpl,
+                    std::string_view KernelName, const NDRDescT &NDRDesc = {},
+                    std::optional<kernel_id> KernelID = std::nullopt);
 
   /// Builds a program from a given set of images or retrieves that program from
   /// cache.
@@ -220,15 +227,17 @@ public:
 
   // The function returns the unique SYCL kernel identifier associated with a
   // kernel name or nullopt if there is no such ID.
+  // When multiple entries exist for the same name (different DSOs),
+  // returns the first entry's kernel ID.
   std::optional<kernel_id>
   tryGetSYCLKernelID(std::string_view KernelName) const {
     std::lock_guard<std::mutex> Guard(m_DeviceKernelInfoMapMutex);
 
     auto It = m_DeviceKernelInfoMap.find(std::string(KernelName));
-    if (It == m_DeviceKernelInfoMap.end())
+    if (It == m_DeviceKernelInfoMap.end() || It->second.empty())
       return std::nullopt;
 
-    return It->second.getKernelID();
+    return It->second.front()->getKernelID();
   }
 
   // The function returns the unique SYCL kernel identifier associated with a
@@ -239,6 +248,11 @@ public:
     throw exception(make_error_code(errc::runtime),
                     "No kernel found with the specified name");
   }
+
+  // Returns the kernel_id for the entry matching the caller's DSO (by OS
+  // module handle). Falls back to first entry if no match found.
+  kernel_id getSYCLKernelID(std::string_view KernelName,
+                            const void *CallerAnchor) const;
 
   // The function returns a vector containing all unique SYCL kernel identifiers
   // in SYCL device images.
@@ -373,10 +387,15 @@ public:
 
   SanitizerType kernelUsesSanitizer() const { return m_SanitizerFoundInImage; }
 
-  void cacheKernelImplicitLocalArg(const RTDeviceBinaryImage &Img);
-  void cacheKernelWorkGroupDynamicLocalMem(const RTDeviceBinaryImage &Img);
-  DeviceKernelInfo &getDeviceKernelInfo(const CompileTimeKernelInfoTy &Info);
+  void cacheKernelImplicitLocalArg(const RTDeviceBinaryImage &Img,
+                                   void *ModuleHandle);
+  void cacheKernelWorkGroupDynamicLocalMem(const RTDeviceBinaryImage &Img,
+                                           void *ModuleHandle);
+  DeviceKernelInfo &getDeviceKernelInfo(const CompileTimeKernelInfoTy &Info,
+                                        const void *CallerAnchor = nullptr);
   DeviceKernelInfo &getDeviceKernelInfo(std::string_view KernelName);
+  DeviceKernelInfo &getDeviceKernelInfo(std::string_view KernelName,
+                                        const void *CallerAnchor);
   DeviceKernelInfo *tryGetDeviceKernelInfo(std::string_view KernelName);
 
   std::set<const RTDeviceBinaryImage *>
@@ -525,9 +544,11 @@ protected:
 
   // Map for storing device kernel information. Runtime lookup should be avoided
   // by caching the pointers when possible.
-  // Uses std::string keys (not string_view) because the backing storage for
-  // kernel names lives in DSO offload tables that may be unmapped on dlclose.
-  std::unordered_map<std::string, DeviceKernelInfo> m_DeviceKernelInfoMap;
+  // Multiple entries per kernel name are possible when different DSOs define
+  // kernels with the same name.
+  std::unordered_map<std::string,
+                     std::vector<std::unique_ptr<DeviceKernelInfo>>>
+      m_DeviceKernelInfoMap;
 
   // Protects m_DeviceKernelInfoMap.
   mutable std::mutex m_DeviceKernelInfoMapMutex;
