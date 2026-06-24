@@ -3668,7 +3668,7 @@ static void RenderSSPOptions(const Driver &D, const ToolChain &TC,
 
     if (EffectiveTriple.isBPF() && StackProtectorLevel != LangOptions::SSPOff) {
       D.Diag(diag::warn_drv_unsupported_option_for_target)
-          << A->getSpelling() << EffectiveTriple.getTriple() << 0;
+          << A->getSpelling() << EffectiveTriple.getTriple();
       StackProtectorLevel = DefaultStackProtectorLevel;
     }
   } else {
