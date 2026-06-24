@@ -164,10 +164,9 @@ def warn_drv_unsupported_option_for_offload_arch_req_feature : Warning<
   "ignoring '%0' option for offload arch '%1' as it is not currently supported "
   "there. Use it with an offload arch containing '%2' instead">,
   InGroup<OptionIgnored>;
-def warn_drv_unsupported_option_for_target
-    : Warning<"ignoring '%0' option as it is not currently supported for "
-              "target '%1'%select{|; only supported for host compilation}2">,
-      InGroup<OptionIgnored>;
+def warn_drv_unsupported_option_for_target : Warning<
+  "ignoring '%0' option as it is not currently supported for target '%1'">,
+  InGroup<OptionIgnored>;
 def err_drv_unsupported_option_for_target : Error<
   "'%0' option is not currently supported for target '%1'">;
 def warn_drv_unsupported_option_part_for_target : Warning<
@@ -175,6 +174,10 @@ def warn_drv_unsupported_option_part_for_target : Warning<
   InGroup<OptionIgnored>;
 def err_drv_unsupported_option_part_for_target : Error<
   "'%0' in '%1' option is not currently supported for target '%2'">;
+def warn_drv_unsupported_option_for_target_host_only
+    : Warning<"ignoring '%0' option as it is not currently supported for "
+              "target '%1'; only supported for host compilation">,
+      InGroup<OptionIgnored>;
 def warn_drv_invalid_argument_for_flang : Warning<
   "'%0' is not valid for Fortran">,
   InGroup<OptionIgnored>;
