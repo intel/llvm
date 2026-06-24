@@ -248,7 +248,7 @@ PropSetRegTy computeModuleProperties(const Module &M,
       if (!GV.hasExternalLinkage())
         continue;
 
-      if (!isa<StructType>(GV.getValueType())
+      if (!isa<StructType>(GV.getValueType()))
         continue;
 
       // Check if it's a device_global by type name (declarations don't have
