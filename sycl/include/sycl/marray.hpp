@@ -266,8 +266,7 @@ public:
       std::is_convertible_v<DataT, T> &&                                       \
           (std::is_fundamental_v<T> ||                                         \
            std::is_same_v<typename std::remove_const<T>::type, half>),         \
-      marray>                                                                  \
-  operator BINOP(const marray &Lhs, const T &Rhs) {                            \
+      marray> operator BINOP(const marray & Lhs, const T & Rhs) {              \
     return Lhs BINOP marray(static_cast<DataT>(Rhs));                          \
   }                                                                            \
   template <typename T>                                                        \
@@ -275,17 +274,16 @@ public:
       std::is_convertible_v<DataT, T> &&                                       \
           (std::is_fundamental_v<T> ||                                         \
            std::is_same_v<typename std::remove_const<T>::type, half>),         \
-      marray>                                                                  \
-  operator BINOP(const T &Lhs, const marray &Rhs) {                            \
+      marray> operator BINOP(const T & Lhs, const marray & Rhs) {              \
     return marray(static_cast<DataT>(Lhs)) BINOP Rhs;                          \
   }                                                                            \
-  friend marray &operator OPASSIGN(marray &Lhs, const marray &Rhs) {           \
+  friend marray &operator OPASSIGN(marray & Lhs, const marray & Rhs) {         \
     Lhs = Lhs BINOP Rhs;                                                       \
     return Lhs;                                                                \
   }                                                                            \
   template <std::size_t Num = NumElements>                                     \
   friend typename std::enable_if_t<Num != 1, marray &> operator OPASSIGN(      \
-      marray &Lhs, const DataT &Rhs) {                                         \
+      marray & Lhs, const DataT & Rhs) {                                       \
     Lhs = Lhs BINOP marray(Rhs);                                               \
     return Lhs;                                                                \
   }
@@ -311,28 +309,29 @@ public:
   friend typename std::enable_if_t<std::is_convertible_v<T, DataT> &&          \
                                        std::is_integral_v<T> &&                \
                                        std::is_integral_v<BaseT>,              \
-                                   marray>                                     \
-  operator BINOP(const marray &Lhs, const T &Rhs) {                            \
+                                   marray> operator BINOP(const marray & Lhs,  \
+                                                          const T & Rhs) {     \
     return Lhs BINOP marray(static_cast<DataT>(Rhs));                          \
   }                                                                            \
   template <typename T, typename BaseT = DataT>                                \
-  friend typename std::enable_if_t<std::is_convertible_v<T, DataT> &&          \
-                                       std::is_integral_v<T> &&                \
-                                       std::is_integral_v<BaseT>,              \
-                                   marray>                                     \
-  operator BINOP(const T &Lhs, const marray &Rhs) {                            \
+  friend                                                                       \
+      typename std::enable_if_t<std::is_convertible_v<T, DataT> &&             \
+                                    std::is_integral_v<T> &&                   \
+                                    std::is_integral_v<BaseT>,                 \
+                                marray> operator BINOP(const T & Lhs,          \
+                                                       const marray & Rhs) {   \
     return marray(static_cast<DataT>(Lhs)) BINOP Rhs;                          \
   }                                                                            \
   template <typename T = DataT,                                                \
             typename = std::enable_if_t<std::is_integral_v<T>, marray>>        \
-  friend marray &operator OPASSIGN(marray &Lhs, const marray &Rhs) {           \
+  friend marray &operator OPASSIGN(marray & Lhs, const marray & Rhs) {         \
     Lhs = Lhs BINOP Rhs;                                                       \
     return Lhs;                                                                \
   }                                                                            \
   template <std::size_t Num = NumElements, typename T = DataT>                 \
   friend                                                                       \
       typename std::enable_if_t<Num != 1 && std::is_integral_v<T>, marray &>   \
-      operator OPASSIGN(marray &Lhs, const DataT &Rhs) {                       \
+      operator OPASSIGN(marray & Lhs, const DataT & Rhs) {                     \
     Lhs = Lhs BINOP marray(Rhs);                                               \
     return Lhs;                                                                \
   }
@@ -360,8 +359,8 @@ public:
 #endif
 
 #define __SYCL_RELLOGOP(RELLOGOP)                                              \
-  friend marray<bool, NumElements> operator RELLOGOP(const marray &Lhs,        \
-                                                     const marray &Rhs) {      \
+  friend marray<bool, NumElements> operator RELLOGOP(const marray & Lhs,       \
+                                                     const marray & Rhs) {     \
     marray<bool, NumElements> Ret;                                             \
     if constexpr (use_ext_vector_type) {                                       \
       ext_vector_t LhsVec = sycl::bit_cast<ext_vector_t>(Lhs.MData);           \
@@ -378,19 +377,19 @@ public:
     return Ret;                                                                \
   }                                                                            \
   template <typename T>                                                        \
-  friend typename std::enable_if_t<std::is_convertible_v<T, DataT> &&          \
-                                       (std::is_fundamental_v<T> ||            \
-                                        std::is_same_v<T, half>),              \
-                                   marray<bool, NumElements>>                  \
-  operator RELLOGOP(const marray &Lhs, const T &Rhs) {                         \
+  friend typename std::enable_if_t<                                            \
+      std::is_convertible_v<T, DataT> &&                                       \
+          (std::is_fundamental_v<T> || std::is_same_v<T, half>),               \
+      marray<bool, NumElements>> operator RELLOGOP(const marray & Lhs,         \
+                                                   const T & Rhs) {            \
     return Lhs RELLOGOP marray(static_cast<const DataT &>(Rhs));               \
   }                                                                            \
   template <typename T>                                                        \
-  friend typename std::enable_if_t<std::is_convertible_v<T, DataT> &&          \
-                                       (std::is_fundamental_v<T> ||            \
-                                        std::is_same_v<T, half>),              \
-                                   marray<bool, NumElements>>                  \
-  operator RELLOGOP(const T &Lhs, const marray &Rhs) {                         \
+  friend typename std::enable_if_t<                                            \
+      std::is_convertible_v<T, DataT> &&                                       \
+          (std::is_fundamental_v<T> || std::is_same_v<T, half>),               \
+      marray<bool, NumElements>> operator RELLOGOP(const T & Lhs,              \
+                                                   const marray & Rhs) {       \
     return marray(static_cast<const DataT &>(Lhs)) RELLOGOP Rhs;               \
   }
 
