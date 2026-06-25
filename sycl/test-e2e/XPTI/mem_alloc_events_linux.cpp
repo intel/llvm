@@ -1,4 +1,6 @@
 // REQUIRES: xptifw, level_zero, gpu, linux
+// UNSUPPORTED: linux && arch-intel_gpu_pvc
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22405
 // RUN: %build_collector
 // RUN: %{build} -o %t.out
 // RUN: env XPTI_TRACE_ENABLE=1 env XPTI_FRAMEWORK_DISPATCHER=%xptifw_dispatcher env XPTI_SUBSCRIBERS=%t_collector.dll %{run} %t.out | FileCheck %s
