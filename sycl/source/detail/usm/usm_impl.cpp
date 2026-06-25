@@ -622,19 +622,6 @@ void release_from_device_copy(const void *Ptr, const queue &Queue) {
 
 namespace detail {
 
-static size_t getHostPageSize() {
-  static const size_t PageSize = []() {
-#ifdef _WIN32
-    SYSTEM_INFO Info;
-    GetSystemInfo(&Info);
-    return static_cast<size_t>(Info.dwPageSize);
-#else
-    return static_cast<size_t>(sysconf(_SC_PAGESIZE));
-#endif
-  }();
-  return PageSize;
-}
-
 // Throws errc::feature_not_supported unless every device in the context
 // reports aspect::ext_oneapi_register_host_memory.
 static void checkRegisterHostMemorySupport(const context &Ctxt) {
@@ -675,7 +662,15 @@ void register_host_memory(void *Ptr, size_t NumBytes, const context &Ctxt,
   if (NumBytes == 0)
     throw sycl::exception(make_error_code(errc::invalid),
                           "register_host_memory: size must not be zero.");
-  const size_t PageSize = getHostPageSize();
+  static const size_t PageSize = []() {
+#ifdef _WIN32
+    SYSTEM_INFO Info;
+    GetSystemInfo(&Info);
+    return static_cast<size_t>(Info.dwPageSize);
+#else
+    return static_cast<size_t>(sysconf(_SC_PAGESIZE));
+#endif
+  }();
   if (reinterpret_cast<uintptr_t>(Ptr) % PageSize != 0)
     throw sycl::exception(
         make_error_code(errc::invalid),
