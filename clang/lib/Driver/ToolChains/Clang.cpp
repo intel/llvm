@@ -10312,9 +10312,13 @@ void OffloadBundler::ConstructJob(Compilation &C, const JobAction &JA,
       T.setArchName(ArchName);
       Triples += T.normalize();
     } else {
-      Triples += llvm::Triple(CurTC->ComputeEffectiveClangTriple(
-                                  TCArgs, CurDep->getOffloadingArch()))
-                     .normalize(llvm::Triple::CanonicalForm::FOUR_IDENT);
+      llvm::Triple EffTriple(CurTC->ComputeEffectiveClangTriple(
+          TCArgs, CurDep->getOffloadingArch()));
+      // SYCL old-model bundler uses 3-component triples for SPIR-V targets.
+      if (CurKind == Action::OFK_SYCL && EffTriple.isSPIROrSPIRV())
+        Triples += EffTriple.normalize();
+      else
+        Triples += EffTriple.normalize(llvm::Triple::CanonicalForm::FOUR_IDENT);
     }
     if (CurKind != Action::OFK_Host && !CurDep->getOffloadingArch().empty() &&
         !TCArgs.hasArg(options::OPT_fno_bundle_offload_arch)) {
