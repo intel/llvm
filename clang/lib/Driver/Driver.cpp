@@ -7951,7 +7951,11 @@ Driver::BuildOffloadingActions(Compilation &C, llvm::opt::DerivedArgList &Args,
                                ActionList *HIPAsmBundleDeviceOut) const {
   // Don't build offloading actions if explicitly disabled or we do not have a
   // valid source input.
-  if (offloadHostOnly() ||
+  // Exception: For SYCL, we need to build device actions even in host-only mode
+  // to generate integration header/footer files.
+  bool IsSYCLHostOnly =
+      offloadHostOnly() && C.isOffloadingHostKind(Action::OFK_SYCL);
+  if ((offloadHostOnly() && !IsSYCLHostOnly) ||
       !(types::isSrcFile(Input.first) || Input.first == types::TY_PP_CXX))
     return HostAction;
 
@@ -8109,6 +8113,27 @@ Driver::BuildOffloadingActions(Compilation &C, llvm::opt::DerivedArgList &Args,
         ++TCAndArch;
       }
     }
+
+    // For SYCL host-only mode, replace device actions with syntax-only compile
+    // actions to generate integration header/footer files without producing
+    // device binaries.
+    if (IsSYCLHostOnly && Kind == Action::OFK_SYCL) {
+      for (Action *&A : DeviceActions) {
+        // Find the input action (should be first in the chain)
+        Action *InputAction = A;
+        while (InputAction->getInputs().size() == 1)
+          InputAction = *InputAction->input_begin();
+
+        // Create a syntax-only compile action from the input
+        A = C.MakeAction<CompileJobAction>(InputAction, types::TY_Nothing);
+
+        // Propagate device offload info
+        auto *TCAndArch = TCAndArchs.begin();
+        A->propagateDeviceOffloadInfo(Kind, TCAndArch->second,
+                                      TCAndArch->first);
+      }
+    }
+
     // Use of -fsycl-device-obj=spirv converts the original LLVM-IR file to
     // SPIR-V for later consumption.
     for (Action *&A : DeviceActions) {
