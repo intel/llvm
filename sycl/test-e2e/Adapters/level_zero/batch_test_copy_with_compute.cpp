@@ -1,5 +1,7 @@
 // REQUIRES: gpu, level_zero
-// UNSUPPORTED: ze_debug, level_zero_v2_adapter
+// UNSUPPORTED: ze_debug
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22347
+// UNSUPPORTED: level_zero_v2_adapter
 // UNSUPPORTED-INTENDED: V1-only; V2 does not preserve zeCommandListClose/
 // zeCommandQueueExecuteCommandLists flush points.
 
