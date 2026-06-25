@@ -10,7 +10,9 @@
 
 #include <sycl/__spirv/spirv_ops_subgroup.hpp>
 #include <sycl/detail/address_space_cast.hpp>
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL_DEPRECATED
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 #include <sycl/id.hpp>                         // for id
 #include <sycl/memory_enums.hpp>               // for memory_scope
 #include <sycl/nd_item.hpp>
