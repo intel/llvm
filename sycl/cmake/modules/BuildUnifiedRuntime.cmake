@@ -182,6 +182,24 @@ if("offload" IN_LIST SYCL_ENABLE_BACKENDS)
   add_sycl_ur_adapter(offload)
 endif()
 
+# Determine whether the given adapter is statically linked into the loader by
+# querying the corresponding UR_STATIC_ADAPTER_* variable (if it exists).
+# Sets OUT_VAR in the caller's scope to TRUE if the adapter is static,
+# FALSE otherwise.
+function(ur_adapter_is_static adapter out_var)
+  set(static_var "UR_STATIC_ADAPTER_${adapter}")
+  string(TOUPPER "${static_var}" static_var)
+  # Special case: level_zero uses UR_STATIC_ADAPTER_L0
+  if(adapter STREQUAL "level_zero")
+    set(static_var "UR_STATIC_ADAPTER_L0")
+  endif()
+  if(DEFINED ${static_var} AND ${static_var})
+    set(${out_var} TRUE PARENT_SCOPE)
+  else()
+    set(${out_var} FALSE PARENT_SCOPE)
+  endif()
+endfunction()
+
 if(CMAKE_SYSTEM_NAME STREQUAL Windows)
   # On Windows, also build/install debug libraries with the d suffix that are
   # compiled with /MDd so users can link against these in debug builds.
@@ -271,29 +289,18 @@ if(CMAKE_SYSTEM_NAME STREQUAL Windows)
       dbghelp)
     # Link static adapters into the loader
     foreach(adapter ${SYCL_ENABLE_BACKENDS})
-      set(static_var "UR_STATIC_ADAPTER_${adapter}")
-      string(TOUPPER "${static_var}" static_var)
-      if(adapter STREQUAL "level_zero")
-        set(static_var "UR_STATIC_ADAPTER_L0")
-      endif()
+      ur_adapter_is_static(${adapter} adapter_is_static)
       set(build_var "UR_BUILD_ADAPTER_${adapter}")
       string(TOUPPER "${build_var}" build_var)
-      if(DEFINED ${static_var} AND ${static_var} AND DEFINED ${build_var} AND ${build_var})
+      if(adapter_is_static AND DEFINED ${build_var} AND ${build_var})
         target_link_libraries(UnifiedRuntimeLoaderDebug INTERFACE
           ${LLVM_BINARY_DIR}/lib/ur_adapter_${adapter}d.lib)
       endif()
     endforeach()
   endif()
   foreach(adapter ${SYCL_ENABLE_BACKENDS})
-    # Check if this adapter is statically linked by querying the
-    # corresponding UR_STATIC_ADAPTER_* variable (if it exists).
-    set(static_var "UR_STATIC_ADAPTER_${adapter}")
-    string(TOUPPER "${static_var}" static_var)
-    # Special case: level_zero uses UR_STATIC_ADAPTER_L0
-    if(adapter STREQUAL "level_zero")
-      set(static_var "UR_STATIC_ADAPTER_L0")
-    endif()
-    if(DEFINED ${static_var} AND ${static_var})
+    ur_adapter_is_static(${adapter} adapter_is_static)
+    if(adapter_is_static)
       set(shared FALSE)
     else()
       set(shared TRUE)
@@ -313,13 +320,8 @@ if(CMAKE_SYSTEM_NAME STREQUAL Windows)
       DESTINATION "bin" COMPONENT unified-runtime-loader)
   endif()
   foreach(adapter ${SYCL_ENABLE_BACKENDS})
-    # Check if this adapter is statically linked (same logic as above).
-    set(static_var "UR_STATIC_ADAPTER_${adapter}")
-    string(TOUPPER "${static_var}" static_var)
-    if(adapter STREQUAL "level_zero")
-      set(static_var "UR_STATIC_ADAPTER_L0")
-    endif()
-    if(DEFINED ${static_var} AND ${static_var})
+    ur_adapter_is_static(${adapter} adapter_is_static)
+    if(adapter_is_static)
       # No DLL for statically linked adapter
     else()
       install(
