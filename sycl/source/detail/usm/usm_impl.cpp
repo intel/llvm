@@ -623,13 +623,16 @@ void release_from_device_copy(const void *Ptr, const queue &Queue) {
 namespace detail {
 
 static size_t getHostPageSize() {
+  static const size_t PageSize = []() {
 #ifdef _WIN32
-  SYSTEM_INFO Info;
-  GetSystemInfo(&Info);
-  return static_cast<size_t>(Info.dwPageSize);
+    SYSTEM_INFO Info;
+    GetSystemInfo(&Info);
+    return static_cast<size_t>(Info.dwPageSize);
 #else
-  return static_cast<size_t>(sysconf(_SC_PAGESIZE));
+    return static_cast<size_t>(sysconf(_SC_PAGESIZE));
 #endif
+  }();
+  return PageSize;
 }
 
 // Throws errc::feature_not_supported unless every device in the context
