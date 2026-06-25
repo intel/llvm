@@ -73,6 +73,14 @@ __SYCL_EXPORT void enqueue_wait_events(sycl::queue q,
 }
 
 __SYCL_EXPORT void enqueue_signal_event(sycl::queue q, event &evt) {
+  detail::queue_impl &QueueImpl = *sycl::detail::getSyclObjImpl(q);
+
+  if (QueueImpl.hasCommandGraph()) {
+    throw sycl::exception(sycl::make_error_code(errc::runtime),
+                          "Enqueueing an event for signaling is not supported "
+                          "on a queue which is recording a graph.");
+  }
+
   detail::context_impl &ContextImpl =
       *sycl::detail::getSyclObjImpl(q.get_context());
 
@@ -90,7 +98,7 @@ __SYCL_EXPORT void enqueue_signal_event(sycl::queue q, event &evt) {
                           "Event context must match the queue context.");
   }
 
-  detail::getSyclObjImpl(q)->submit_barrier_direct_without_event(
+  QueueImpl.submit_barrier_direct_without_event(
       {}, detail::CGType::Barrier, detail::code_location::current(),
       detail::getSyclObjImpl(evt));
 }
