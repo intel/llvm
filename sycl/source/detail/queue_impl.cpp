@@ -483,6 +483,9 @@ EventImplPtr queue_impl::submit_barrier_scheduler_bypass(
     std::vector<detail::EventImplPtr> &DepEvents, detail::CGType BarrierType,
     bool EventNeeded, const EventImplPtr &EventForReuse) {
 
+  // EventForReuse can only be set for BarrierType equal to CGType::Barrier
+  // (enqueue_signal_event function)
+
   ur_event_handle_t UREvent =
       EventForReuse ? EventForReuse->getHandle() : nullptr;
   std::vector<ur_event_handle_t> RawBarrierDepEvents;
@@ -520,7 +523,7 @@ EventImplPtr queue_impl::submit_barrier_scheduler_bypass(
     if (!DiscardEvent) {
       ResEvent->setComplete();
     }
-    return (DiscardEvent || EventForReuse) ? nullptr : ResEvent;
+    return ResEvent;
   }
 
   if (BarrierType == CGType::Barrier) {
@@ -530,7 +533,8 @@ EventImplPtr queue_impl::submit_barrier_scheduler_bypass(
     }
 
     getAdapter().call<UrApiKind::urEnqueueEventsWaitWithBarrierExt>(
-        getHandleRef(), nullptr, 0, nullptr, &UREvent);
+        getHandleRef(), nullptr, 0, nullptr,
+        (DiscardEvent && !EventForReuse) ? nullptr : &UREvent);
   } else {
 
     RawDepEvents.insert(RawDepEvents.end(), RawBarrierDepEvents.begin(),
@@ -538,7 +542,7 @@ EventImplPtr queue_impl::submit_barrier_scheduler_bypass(
 
     getAdapter().call<UrApiKind::urEnqueueEventsWaitWithBarrierExt>(
         getHandleRef(), nullptr, RawDepEvents.size(), RawDepEvents.data(),
-        &UREvent);
+        DiscardEvent ? nullptr : &UREvent);
   }
 
   if (!DiscardEvent && !EventForReuse) {
