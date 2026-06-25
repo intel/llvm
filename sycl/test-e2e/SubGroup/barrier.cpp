@@ -20,8 +20,7 @@
 
 template <typename T> class sycl_subgr;
 using namespace sycl;
-template <typename T>
-void check(queue &Queue, size_t G = 240, size_t L = 60) {
+template <typename T> void check(queue &Queue, size_t G = 240, size_t L = 60) {
   try {
     nd_range<1> NdRange(G, L);
     std::vector<T> data(G);
@@ -32,22 +31,21 @@ void check(queue &Queue, size_t G = 240, size_t L = 60) {
       auto addacc = addbuf.template get_access<access::mode::read_write>(cgh);
       auto sgsizeacc = sgsizebuf.get_access<access::mode::read_write>(cgh);
 
-      cgh.parallel_for<sycl_subgr<T>>(
-          NdRange, [=](nd_item<1> NdItem) {
-            sycl::sub_group SG = NdItem.get_sub_group();
-            size_t lid = SG.get_local_id().get(0);
-            size_t gid = NdItem.get_global_id(0);
-            size_t SGoff = gid - lid;
+      cgh.parallel_for<sycl_subgr<T>>(NdRange, [=](nd_item<1> NdItem) {
+        sycl::sub_group SG = NdItem.get_sub_group();
+        size_t lid = SG.get_local_id().get(0);
+        size_t gid = NdItem.get_global_id(0);
+        size_t SGoff = gid - lid;
 
-            T res = 0;
-            for (size_t i = 0; i <= lid; i++) {
-              res += addacc[SGoff + i];
-            }
-            group_barrier(SG);
-            addacc[gid] = res;
-            if (NdItem.get_global_id(0) == 0)
-              sgsizeacc[0] = SG.get_max_local_range()[0];
-          });
+        T res = 0;
+        for (size_t i = 0; i <= lid; i++) {
+          res += addacc[SGoff + i];
+        }
+        group_barrier(SG);
+        addacc[gid] = res;
+        if (NdItem.get_global_id(0) == 0)
+          sgsizeacc[0] = SG.get_max_local_range()[0];
+      });
     });
     host_accessor addacc(addbuf);
     host_accessor sgsizeacc(sgsizebuf);
