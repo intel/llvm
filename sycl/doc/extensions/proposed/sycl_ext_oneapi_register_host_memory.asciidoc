@@ -135,8 +135,9 @@ _Preconditions:_
   host virtual address from this call until the matching call to
   `unregister_host_memory` returns.
 * The memory range has one of the following storage durations: heap
-  (dynamically-allocated), automatic (stack), or static (global) storage. [
-  _Note:_ Support for memory obtained by other means, such as anonymous or
+  (dynamically-allocated), automatic (stack), or static (global) storage.
++
+  [_Note:_ Support for memory obtained by other means, such as anonymous or
   file-backed memory mappings or huge-page mappings, is platform- and
   implementation-dependent and is not guaranteed by this extension.
   _{endnote}_]
