@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 #include "SYCL.h"
 #include "clang/Basic/Version.h"
+#include "clang/Config/config.h"
 #include "clang/Driver/CommonArgs.h"
 #include "clang/Driver/Compilation.h"
 #include "clang/Driver/Driver.h"
@@ -65,7 +66,8 @@ const char *SYCLInstallationDetector::findLibspirvPath(
   const SmallString<64> Basename =
       getLibSpirvBasename(DeviceTriple, HostTriple);
   SmallString<256> LibclcPath(D.ResourceDir);
-  llvm::sys::path::append(LibclcPath, "lib", "libclc", Basename);
+  llvm::sys::path::append(LibclcPath, CLANG_INSTALL_LIBDIR_BASENAME, "libclc",
+                          Basename);
   if (D.getVFS().exists(LibclcPath))
     return Args.MakeArgString(LibclcPath);
 
@@ -97,7 +99,8 @@ void SYCLInstallationDetector::addLibspirvLinkArgs(
 void SYCLInstallationDetector::getSYCLDeviceLibPath(
     llvm::SmallVector<llvm::SmallString<128>, 4> &DeviceLibPaths) const {
   std::string LinuxDirSuffix =
-      llvm::formatv("/lib/dpcpp-{0}/sycl", DPCPP_VERSION_MAJOR);
+      llvm::formatv("/{0}/dpcpp-{1}/sycl", CLANG_INSTALL_LIBDIR_BASENAME,
+                    DPCPP_VERSION_MAJOR);
   for (const auto &IC : InstallationCandidates) {
     if (!HostTriple.isWindowsMSVCEnvironment() &&
         !HostTriple.isWindowsItaniumEnvironment()) {
@@ -106,7 +109,7 @@ void SYCLInstallationDetector::getSYCLDeviceLibPath(
       DeviceLibPaths.emplace_back(InstallPath);
     }
     SmallString<128> InstallPath(IC);
-    llvm::sys::path::append(InstallPath, "lib");
+    llvm::sys::path::append(InstallPath, CLANG_INSTALL_LIBDIR_BASENAME);
     DeviceLibPaths.emplace_back(InstallPath);
   }
   if (!HostTriple.isWindowsMSVCEnvironment() &&
@@ -116,7 +119,7 @@ void SYCLInstallationDetector::getSYCLDeviceLibPath(
     DeviceLibPaths.emplace_back(Path.str());
   }
   SmallString<128> Path(D.SysRoot);
-  llvm::sys::path::append(Path, "lib");
+  llvm::sys::path::append(Path, CLANG_INSTALL_LIBDIR_BASENAME);
   DeviceLibPaths.emplace_back(Path.str());
 }
 
