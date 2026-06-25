@@ -22,6 +22,7 @@
 #include <sycl/ext/oneapi/experimental/device_architecture.hpp>
 #include <sycl/ext/oneapi/experimental/forward_progress.hpp>
 #include <sycl/ext/oneapi/experimental/max_work_groups.hpp>
+#include <sycl/ext/oneapi/filter_selector.hpp>
 #include <sycl/ext/oneapi/info/device.hpp>
 #include <sycl/ext/oneapi/matrix/query-types.hpp>
 

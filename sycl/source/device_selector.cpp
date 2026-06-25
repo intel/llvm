@@ -296,8 +296,8 @@ device filter_selector::select_device() const {
   std::lock_guard<std::mutex> Guard(
       sycl::detail::GlobalHandler::instance().getFilterMutex());
 
-  device Result =
-      detail::select_device([&](const device &dev) { return (*this)(dev); });
+  device Result = sycl::detail::select_device(
+      [&](const device &dev) { return (*this)(dev); });
 
   reset();
 
