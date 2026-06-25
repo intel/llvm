@@ -724,6 +724,10 @@ llvm::Type *CodeGenTypes::ConvertType(QualType T) {
       }
     }
 
+    if (ETy.getAddressSpace() == LangAS::wasm_funcref) {
+      ResultType = CGM.getTargetCodeGenInfo().getWasmFuncrefReferenceType();
+      break;
+    }
     unsigned AS = getTargetAddressSpace(ETy);
     ResultType = llvm::PointerType::get(getLLVMContext(), AS);
 
