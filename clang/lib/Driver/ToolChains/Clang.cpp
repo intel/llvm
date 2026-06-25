@@ -10449,14 +10449,11 @@ void OffloadBundler::ConstructJobMultipleOutputs(
     }
   }
   std::string TargetString(UA.getTargetString());
-  StringRef TargetTriples = Triples;
-  SmallVector<StringRef> Archs;
   if (!TargetString.empty()) {
     // The target string was provided, we will override the defaults and use
     // the string provided.
     SmallString<128> TSTriple("-targets=");
     TSTriple += TargetString;
-    TargetTriples = TargetString;
     CmdArgs.push_back(TCArgs.MakeArgString(TSTriple));
   } else {
     CmdArgs.push_back(TCArgs.MakeArgString(Triples));
@@ -10465,14 +10462,6 @@ void OffloadBundler::ConstructJobMultipleOutputs(
   // Get bundled file command.
   CmdArgs.push_back(
       TCArgs.MakeArgString(Twine("-input=") + InputFileName));
-
-  // Save the individual arch triples for PCH.
-  if (InputType == types::TY_PCH) {
-    auto TripleString = TargetTriples.split('=').second;
-    TripleString.split(Archs, ',');
-    assert(Archs.size() == Outputs.size() &&
-           "expected same number of triples as outputs");
-  }
 
   // Get unbundled files command.
   for (unsigned I = 0; I < Outputs.size(); ++I) {
@@ -10484,9 +10473,10 @@ void OffloadBundler::ConstructJobMultipleOutputs(
     CmdArgs.push_back(TCArgs.MakeArgString(UB));
     // If this is a bundled PCH file, save the triple-filename pair.
     if (InputType == types::TY_PCH) {
-      StringRef ArchName = Archs[I].split('-').second;
+      StringRef TripleName =
+          DepInfo[I].DependentToolChain->getTriple().getTriple();
       C.getDriver().addSYCLPrecompiledHeaderFiles(
-          TCArgs.MakeArgString(ArchName), TCArgs.MakeArgString(IFName));
+          TCArgs.MakeArgString(TripleName), TCArgs.MakeArgString(IFName));
     }
   }
   CmdArgs.push_back("-unbundle");
