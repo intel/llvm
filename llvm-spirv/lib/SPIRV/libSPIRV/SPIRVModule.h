@@ -604,6 +604,18 @@ public:
     return TranslationOpts.shouldEmitFunctionPtrAddrSpace();
   }
 
+  unsigned mapAddrSpace(unsigned SPIRAS) const noexcept {
+    return TranslationOpts.mapAddrSpace(SPIRAS);
+  }
+
+  const SPIRV::AddrSpaceMap *getAddrSpaceMap() const noexcept {
+    return TranslationOpts.getAddrSpaceMap();
+  }
+
+  unsigned getFunctionProgramAddrSpace() const noexcept {
+    return TranslationOpts.getFunctionProgramAddrSpace();
+  }
+
   bool preserveAuxData() const noexcept {
     return TranslationOpts.preserveAuxData();
   }

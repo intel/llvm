@@ -7,6 +7,9 @@
 // UNSUPPORTED-INTENDED: only supported by backends with CRI driver, and the
 // SPIR-V backend does not support the required SPIR-V extensions
 
+// XFAIL: new-offload-model
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/22372
+
 #include <cmath>
 #include <iostream>
 #include <limits>
