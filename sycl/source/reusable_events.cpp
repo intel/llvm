@@ -82,6 +82,14 @@ __SYCL_EXPORT void enqueue_signal_event(sycl::queue q, event &evt) {
                           "Not implemented yet.");
   }
 
+  detail::context_impl &EventContextImpl =
+      sycl::detail::getSyclObjImpl(evt)->getContextImpl();
+
+  if (&ContextImpl != &EventContextImpl) {
+    throw sycl::exception(sycl::make_error_code(errc::invalid),
+                          "Event context must match the queue context.");
+  }
+
   detail::getSyclObjImpl(q)->submit_barrier_direct_without_event(
       {}, detail::CGType::Barrier, detail::code_location::current(),
       detail::getSyclObjImpl(evt));
