@@ -8,19 +8,20 @@
 
 #pragma once
 
+#ifdef __SYCL_DEVICE_ONLY__
 #include <sycl/access/access.hpp>
-#include <sycl/multi_ptr.hpp>
-
-#include <sycl/ext/oneapi/bfloat16.hpp>
 #include <sycl/khr/static_addrspace_cast.hpp>
+#include <sycl/multi_ptr.hpp>
+#endif
+
+#include <sycl/bit_cast.hpp>
+#include <sycl/ext/oneapi/bfloat16.hpp>
 #include <sycl/marray.hpp>
 
 #include <cassert>
 #include <cmath>
 #include <cstdint>
-#include <cstring>
 #include <limits>
-#include <stdexcept>
 #include <type_traits>
 
 #ifdef __SYCL_DEVICE_ONLY__
@@ -220,8 +221,7 @@ static inline uint8_t ConvertFloatToFP4_CPU(T f, rounding R) noexcept {
                            << Traits::FracBits;
   constexpr UInt ExpAllOnes = (UInt{1} << Traits::ExpBits) - UInt{1};
 
-  UInt bits;
-  std::memcpy(&bits, &f, sizeof(bits));
+  UInt bits = sycl::bit_cast<UInt>(f);
 
   const uint8_t sign = (bits & SignMask) ? 0x8u : 0x0u;
   bits &= ~SignMask;
@@ -335,64 +335,48 @@ struct Fp4HasFloatTraits<ToT,
                                      decltype(Fp4SourceTraits<ToT>::Bias)>>
     : std::true_type {};
 
+// E2M1 has only 16 representable values; a lookup table is faster and
+// simpler than reconstructing the destination bits for each call. Index is
+// the E2M1 nibble (sign bit at 0x8, exponent at 0x6, fraction at 0x1).
+static constexpr float kFp4ToFloatTable[16] = {
+    0.0f,  0.5f,  1.0f,  1.5f,  2.0f,  3.0f,  4.0f,  6.0f,
+    -0.0f, -0.5f, -1.0f, -1.5f, -2.0f, -3.0f, -4.0f, -6.0f,
+};
+
 // CPU host conversion: E2M1 nibble (low 4 bits of `code`) to ToT.
 template <typename ToT>
 static inline ToT ConvertFromFP4ToBinaryFloat_CPU(uint8_t code,
                                                   rounding R) noexcept {
   using Format = FP4E2M1Traits;
-  constexpr uint8_t SignBit = 0x8u;
-  constexpr uint8_t ExpAllOnes = Format::ExpAllOnes;
-  constexpr uint8_t FracMask = Format::MaxFrac;
-
-  const bool negative = (code & SignBit) != 0u;
-  const uint8_t exp = static_cast<uint8_t>((code >> Format::Mbits) & ExpAllOnes);
-  const uint8_t frac = static_cast<uint8_t>(code & FracMask);
-
-  uint32_t significand = 0u;
-  int exp2 = 0;
-
-  if (exp == 0u) {
-    if (frac == 0u) {
-      significand = 0u;
-    } else {
-      significand = frac;
-      exp2 = Format::Emin;
-    }
-  } else {
-    significand =
-        static_cast<uint32_t>((1u << Format::Mbits) + frac);
-    exp2 = static_cast<int>(exp) - Format::Bias;
-  }
 
   if constexpr (Fp4HasFloatTraits<ToT>::value) {
-    using Traits = Fp4SourceTraits<ToT>;
-    using UInt = typename Traits::UInt;
+    (void)R;
+    return static_cast<ToT>(kFp4ToFloatTable[code & 0x0Fu]);
+  } else if constexpr (std::is_integral_v<ToT>) {
+    constexpr uint8_t SignBit = 0x8u;
+    constexpr uint8_t ExpAllOnes = Format::ExpAllOnes;
+    constexpr uint8_t FracMask = Format::MaxFrac;
 
-    constexpr UInt ExpAllOnesDst = ((UInt{1} << Traits::ExpBits) - UInt{1})
-                                   << Traits::FracBits;
-    constexpr UInt FracMaskDst = (UInt{1} << Traits::FracBits) - UInt{1};
+    const bool negative = (code & SignBit) != 0u;
+    const uint8_t exp =
+        static_cast<uint8_t>((code >> Format::Mbits) & ExpAllOnes);
+    const uint8_t frac = static_cast<uint8_t>(code & FracMask);
 
-    UInt bits = 0;
-    if (significand == 0u) {
-      bits =
-          negative ? (UInt{1} << (Traits::ExpBits + Traits::FracBits)) : 0u;
+    uint32_t significand = 0u;
+    int exp2 = 0;
+
+    if (exp == 0u) {
+      if (frac == 0u) {
+        significand = 0u;
+      } else {
+        significand = frac;
+        exp2 = Format::Emin;
+      }
     } else {
-      const int sigBits = Fp4BitWidth(significand);
-      const int unbiasedExp = exp2 + sigBits - 1 - Format::Mbits;
-      const UInt signBit =
-          negative ? (UInt{1} << (Traits::ExpBits + Traits::FracBits)) : 0u;
-
-      const int shift = static_cast<int>(Traits::FracBits) - (sigBits - 1);
-      const UInt aligned = static_cast<UInt>(significand) << shift;
-      const UInt expField = static_cast<UInt>(unbiasedExp + Traits::Bias)
-                            << Traits::FracBits;
-      bits = signBit | expField | (aligned & FracMaskDst);
+      significand = static_cast<uint32_t>((1u << Format::Mbits) + frac);
+      exp2 = static_cast<int>(exp) - Format::Bias;
     }
 
-    (void)R;
-    (void)ExpAllOnesDst;
-    return __builtin_bit_cast(ToT, bits);
-  } else if constexpr (std::is_integral_v<ToT>) {
     using Traits = Fp4IntSourceTraits<ToT>;
     using UnsignedT = typename Traits::UnsignedT;
 
@@ -443,6 +427,9 @@ static inline uint8_t Fp4Extract(uint8_t packed, size_t i) noexcept {
   return static_cast<uint8_t>((packed >> (i * 4)) & 0x0Fu);
 }
 
+// Always-false used to defer static_assert until template instantiation.
+template <size_t> inline constexpr bool kFp4StochasticHostFalse = false;
+
 } // namespace detail
 
 template <size_t N> class fp4_e2m1_x {
@@ -452,17 +439,7 @@ template <size_t N> class fp4_e2m1_x {
   template <typename T,
             typename = std::enable_if_t<std::is_integral_v<std::decay_t<T>>>>
   uint8_t ConvertToFP4(T h) {
-#ifdef __SYCL_DEVICE_ONLY__
-    if constexpr (std::is_same_v<std::decay_t<T>, char> ||
-                  std::is_same_v<std::decay_t<T>, signed char> ||
-                  std::is_same_v<std::decay_t<T>, unsigned char>) {
-      const _Float16 v = static_cast<_Float16>(h);
-      return __builtin_spirv_ClampConvertFP16ToE2M1INTEL(v);
-    }
     return detail::ConvertIntToFP4_CPU<T>(h, rounding::to_even);
-#else
-    return detail::ConvertIntToFP4_CPU<T>(h, rounding::to_even);
-#endif
   }
 
   uint8_t ConvertToFP4(sycl::half h) {
@@ -499,7 +476,12 @@ template <size_t N> class fp4_e2m1_x {
 #endif
   }
 
+  // Decode an E2M1 nibble to half or float. Only `half` and `float` use this;
+  // bfloat16 has its own `ConvertBF16FromFP4` so it can take the BF16 builtin
+  // directly instead of routing through FP16.
   template <typename T> T ConvertFromFP4(uint8_t v) const {
+    static_assert(std::is_same_v<T, sycl::half> || std::is_same_v<T, float>,
+                  "ConvertFromFP4: T must be sycl::half or float");
 #ifdef __SYCL_DEVICE_ONLY__
     sycl::half hi = __builtin_spirv_ConvertE2M1ToFP16INTEL(v);
     return static_cast<T>(hi);
@@ -551,20 +533,71 @@ template <size_t N> class fp4_e2m1_x {
 #endif
   }
 
-  void CheckConstraints(rounding r) const {
+  static constexpr void CheckConstraints(rounding r) {
+    // `rounding` is a compile-time enum; ctors always pass a literal.
+    // The runtime check is left in place for the unlikely caller that
+    // computes the value, but only `to_even` is supported.
     assert(r == rounding::to_even &&
            "fp4_e2m1_x: only rounding::to_even is supported");
   }
 
-  // Store one nibble at element index i (0 or 1).
-  void StoreNibble(size_t i, uint8_t nibble) {
-    if (i == 0)
-      vals[0] = static_cast<uint8_t>((vals[0] & 0xF0u) | (nibble & 0x0Fu));
-    else
-      vals[0] = static_cast<uint8_t>((vals[0] & 0x0Fu) |
-                                     (static_cast<uint8_t>(nibble & 0x0Fu)
-                                      << 4));
+  // Pack two scalar floats (or marray<float, 2> elements) into vals[0].
+  // Used by the float-only ctors which cannot use the FP16/BF16 vec2
+  // builtins.
+  void PackFloats(const float *v) {
+    if constexpr (N == 1) {
+      vals[0] = ConvertToFP4(v[0]);
+    } else {
+      const uint8_t lo = ConvertToFP4(v[0]);
+      const uint8_t hi = ConvertToFP4(v[1]);
+      vals[0] = detail::Fp4Pack(lo, hi);
+    }
   }
+
+#ifdef __SYCL_DEVICE_ONLY__
+  // Stochastic rounding loops shared by the array and marray ctors.
+  // The seed referenced by `seed.pseed` is updated to the final next-seed
+  // value as required by the spec.
+  void StochasticFromHalf(const half *in, const stochastic_seed &seed) {
+    uint32_t current_seed = *seed.pseed;
+    uint32_t next_seed;
+    uint8_t nibbles[2] = {0, 0};
+    for (size_t i = 0; i < N; ++i) {
+      const _Float16 v = sycl::bit_cast<_Float16>(in[i]);
+      nibbles[i] = __builtin_spirv_StochasticRoundFP16ToE2M1INTEL(
+          v, current_seed,
+          sycl::khr::static_addrspace_cast<
+              sycl::access::address_space::private_space>(&next_seed)
+              .get_decorated());
+      current_seed = next_seed;
+    }
+    *seed.pseed = current_seed;
+    if constexpr (N == 1)
+      vals[0] = static_cast<uint8_t>(nibbles[0] & 0x0Fu);
+    else
+      vals[0] = detail::Fp4Pack(nibbles[0], nibbles[1]);
+  }
+
+  void StochasticFromBFloat16(const bfloat16 *in,
+                              const stochastic_seed &seed) {
+    uint32_t current_seed = *seed.pseed;
+    uint32_t next_seed;
+    uint8_t nibbles[2] = {0, 0};
+    for (size_t i = 0; i < N; ++i) {
+      nibbles[i] = __builtin_spirv_StochasticRoundBF16ToE2M1INTEL(
+          sycl::bit_cast<__bf16>(in[i]), current_seed,
+          sycl::khr::static_addrspace_cast<
+              sycl::access::address_space::private_space>(&next_seed)
+              .get_decorated());
+      current_seed = next_seed;
+    }
+    *seed.pseed = current_seed;
+    if constexpr (N == 1)
+      vals[0] = static_cast<uint8_t>(nibbles[0] & 0x0Fu);
+    else
+      vals[0] = detail::Fp4Pack(nibbles[0], nibbles[1]);
+  }
+#endif // __SYCL_DEVICE_ONLY__
 
 #ifdef __SYCL_DEVICE_ONLY__
 #define CONVERT_TO_FP4(VecType, CastType, in, Prefix)                          \
@@ -609,13 +642,7 @@ public:
       CONVERT_TO_FP4(::sycl::detail::fp4_float16_vec2, _Float16, in, );
     } else {
       const float in[N] = {v...};
-      if constexpr (N == 1) {
-        vals[0] = ConvertToFP4(in[0]);
-      } else {
-        const uint8_t lo = ConvertToFP4(in[0]);
-        const uint8_t hi = ConvertToFP4(in[1]);
-        vals[0] = detail::Fp4Pack(lo, hi);
-      }
+      PackFloats(in);
     }
   }
 
@@ -633,13 +660,7 @@ public:
 
   explicit fp4_e2m1_x(float const (&v)[N], rounding r = rounding::to_even) {
     CheckConstraints(r);
-    if constexpr (N == 1) {
-      vals[0] = ConvertToFP4(v[0]);
-    } else {
-      const uint8_t lo = ConvertToFP4(v[0]);
-      const uint8_t hi = ConvertToFP4(v[1]);
-      vals[0] = detail::Fp4Pack(lo, hi);
-    }
+    PackFloats(&v[0]);
   }
 
   // Construct from an marray of half, bfloat16, float.
@@ -658,64 +679,27 @@ public:
   explicit fp4_e2m1_x(const sycl::marray<float, N> &v,
                       rounding r = rounding::to_even) {
     CheckConstraints(r);
-    if constexpr (N == 1) {
-      vals[0] = ConvertToFP4(v[0]);
-    } else {
-      const uint8_t lo = ConvertToFP4(v[0]);
-      const uint8_t hi = ConvertToFP4(v[1]);
-      vals[0] = detail::Fp4Pack(lo, hi);
-    }
+    PackFloats(&v[0]);
   }
 
   // Construct with stochastic rounding from an array of half, bfloat16.
   explicit fp4_e2m1_x([[maybe_unused]] half const (&in)[N],
                       [[maybe_unused]] const stochastic_seed &seed) {
 #ifdef __SYCL_DEVICE_ONLY__
-    uint32_t current_seed = *seed.pseed;
-    uint32_t next_seed = 0;
-    uint8_t nibbles[2] = {0, 0};
-    for (size_t i = 0; i < N; ++i) {
-      const _Float16 v = sycl::bit_cast<_Float16>(in[i]);
-      nibbles[i] = __builtin_spirv_StochasticRoundFP16ToE2M1INTEL(
-          v, current_seed,
-          sycl::khr::static_addrspace_cast<
-              sycl::access::address_space::private_space>(&next_seed)
-              .get_decorated());
-      current_seed = next_seed;
-      next_seed = 0;
-    }
-    if constexpr (N == 1)
-      vals[0] = static_cast<uint8_t>(nibbles[0] & 0x0Fu);
-    else
-      vals[0] = detail::Fp4Pack(nibbles[0], nibbles[1]);
+    StochasticFromHalf(&in[0], seed);
 #else
-    throw std::runtime_error(
-        "stochastic rounding constructors are not supported on host");
+    static_assert(detail::kFp4StochasticHostFalse<N>,
+                  "stochastic rounding constructors are not supported on host");
 #endif
   }
 
   explicit fp4_e2m1_x([[maybe_unused]] bfloat16 const (&in)[N],
                       [[maybe_unused]] const stochastic_seed &seed) {
 #ifdef __SYCL_DEVICE_ONLY__
-    uint32_t current_seed = *seed.pseed;
-    uint32_t next_seed = 0;
-    uint8_t nibbles[2] = {0, 0};
-    for (size_t i = 0; i < N; ++i) {
-      nibbles[i] = __builtin_spirv_StochasticRoundBF16ToE2M1INTEL(
-          sycl::bit_cast<__bf16>(in[i]), current_seed,
-          sycl::khr::static_addrspace_cast<
-              sycl::access::address_space::private_space>(&next_seed)
-              .get_decorated());
-      current_seed = next_seed;
-      next_seed = 0;
-    }
-    if constexpr (N == 1)
-      vals[0] = static_cast<uint8_t>(nibbles[0] & 0x0Fu);
-    else
-      vals[0] = detail::Fp4Pack(nibbles[0], nibbles[1]);
+    StochasticFromBFloat16(&in[0], seed);
 #else
-    throw std::runtime_error(
-        "stochastic rounding constructors are not supported on host");
+    static_assert(detail::kFp4StochasticHostFalse<N>,
+                  "stochastic rounding constructors are not supported on host");
 #endif
   }
 
@@ -723,51 +707,20 @@ public:
   explicit fp4_e2m1_x([[maybe_unused]] const sycl::marray<half, N> &in,
                       [[maybe_unused]] const stochastic_seed &seed) {
 #ifdef __SYCL_DEVICE_ONLY__
-    uint32_t current_seed = *seed.pseed;
-    uint32_t next_seed = 0;
-    uint8_t nibbles[2] = {0, 0};
-    for (size_t i = 0; i < N; ++i) {
-      const _Float16 v = sycl::bit_cast<_Float16>(in[i]);
-      nibbles[i] = __builtin_spirv_StochasticRoundFP16ToE2M1INTEL(
-          v, current_seed,
-          sycl::khr::static_addrspace_cast<
-              sycl::access::address_space::private_space>(&next_seed)
-              .get_decorated());
-      current_seed = next_seed;
-      next_seed = 0;
-    }
-    if constexpr (N == 1)
-      vals[0] = static_cast<uint8_t>(nibbles[0] & 0x0Fu);
-    else
-      vals[0] = detail::Fp4Pack(nibbles[0], nibbles[1]);
+    StochasticFromHalf(&in[0], seed);
 #else
-    throw std::runtime_error(
-        "stochastic rounding constructors are not supported on host");
+    static_assert(detail::kFp4StochasticHostFalse<N>,
+                  "stochastic rounding constructors are not supported on host");
 #endif
   }
 
   explicit fp4_e2m1_x([[maybe_unused]] const sycl::marray<bfloat16, N> &in,
                       [[maybe_unused]] const stochastic_seed &seed) {
 #ifdef __SYCL_DEVICE_ONLY__
-    uint32_t current_seed = *seed.pseed;
-    uint32_t next_seed = 0;
-    uint8_t nibbles[2] = {0, 0};
-    for (size_t i = 0; i < N; ++i) {
-      nibbles[i] = __builtin_spirv_StochasticRoundBF16ToE2M1INTEL(
-          sycl::bit_cast<__bf16>(in[i]), current_seed,
-          sycl::khr::static_addrspace_cast<
-              sycl::access::address_space::private_space>(&next_seed)
-              .get_decorated());
-      current_seed = next_seed;
-      next_seed = 0;
-    }
-    if constexpr (N == 1)
-      vals[0] = static_cast<uint8_t>(nibbles[0] & 0x0Fu);
-    else
-      vals[0] = detail::Fp4Pack(nibbles[0], nibbles[1]);
+    StochasticFromBFloat16(&in[0], seed);
 #else
-    throw std::runtime_error(
-        "stochastic rounding constructors are not supported on host");
+    static_assert(detail::kFp4StochasticHostFalse<N>,
+                  "stochastic rounding constructors are not supported on host");
 #endif
   }
 
