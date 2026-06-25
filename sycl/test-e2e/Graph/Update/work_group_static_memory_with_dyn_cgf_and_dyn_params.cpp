@@ -12,6 +12,7 @@
 
 #include "../graph_common.hpp"
 #include <sycl/ext/oneapi/work_group_static.hpp>
+#include <sycl/group_barrier.hpp>
 
 constexpr size_t WgSize = 32;
 

@@ -6,6 +6,7 @@
 #include <iostream>
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/cuda/barrier.hpp>
+#include <sycl/group_barrier.hpp>
 #include <vector>
 
 using namespace sycl;

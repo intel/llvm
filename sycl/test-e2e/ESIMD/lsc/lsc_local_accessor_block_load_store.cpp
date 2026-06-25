@@ -14,6 +14,7 @@
 #include <iostream>
 
 #include "../esimd_test_utils.hpp"
+#include <sycl/group_barrier.hpp>
 
 using namespace sycl;
 using namespace sycl::ext::intel::esimd;
