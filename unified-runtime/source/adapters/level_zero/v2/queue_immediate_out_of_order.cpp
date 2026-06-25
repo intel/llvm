@@ -193,4 +193,57 @@ ur_result_t ur_queue_immediate_out_of_order_t::enqueueEventsWaitWithBarrier(
   return UR_RESULT_SUCCESS;
 }
 
+ur_result_t ur_queue_immediate_out_of_order_t::enqueueEventsWaitWithBarrierExt(
+    const ur_exp_enqueue_ext_properties_t *, uint32_t numEventsInWaitList,
+    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+  TRACK_SCOPE_LATENCY(
+      "ur_queue_immediate_out_of_order_t::enqueueEventsWaitWithBarrierExt");
+
+  wait_list_view waitListView =
+      wait_list_view(phEventWaitList, numEventsInWaitList);
+
+  auto barrierFn = (flags & UR_QUEUE_FLAG_PROFILING_ENABLE)
+                       ? &ur_command_list_manager::appendEventsWaitWithBarrier
+                       : &ur_command_list_manager::appendEventsWait;
+
+  auto commandListManagersLocked = commandListManagers.lock();
+
+  // Enqueue wait for the user-provider events on the first command list.
+  UR_CALL(commandListManagersLocked[0].appendEventsWait(waitListView,
+                                                        barrierEvents[0]));
+
+  wait_list_view emptyWaitlist = wait_list_view(nullptr, 0);
+
+  // Request barrierEvents[id] to be signaled on remaining command lists.
+  for (size_t id = 1; id < numCommandLists; id++) {
+    UR_CALL(commandListManagersLocked[id].appendEventsWait(emptyWaitlist,
+                                                           barrierEvents[id]));
+  }
+
+  // Enqueue barriers on all command lists by waiting on barrierEvents.
+  wait_list_view barrierEventsWaitList =
+      wait_list_view(barrierEvents.data(), numCommandLists);
+
+  if (phEvent) {
+    ur_event_handle_t event{};
+    if (*phEvent && (*phEvent)->isReusable()) {
+      event = *phEvent;
+      event->reset();
+      event->setQueue(this);
+    }
+
+    if (!event)
+      event = createEventIfRequested(eventPool.get(), phEvent, this);
+
+    UR_CALL(std::invoke(barrierFn, commandListManagersLocked[0],
+                        barrierEventsWaitList, event));
+  }
+
+  for (size_t id = phEvent ? 1 : 0; id < numCommandLists; id++) {
+    UR_CALL(std::invoke(barrierFn, commandListManagersLocked[id],
+                        barrierEventsWaitList, nullptr));
+  }
+
+  return UR_RESULT_SUCCESS;
+}
 } // namespace v2

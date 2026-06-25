@@ -163,4 +163,30 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueEventsWaitWithBarrier(
   }
 }
 
+ur_result_t ur_queue_immediate_in_order_t::enqueueEventsWaitWithBarrierExt(
+    const ur_exp_enqueue_ext_properties_t *, uint32_t numEventsInWaitList,
+    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+  TRACK_SCOPE_LATENCY(
+      "ur_queue_immediate_in_order_t::enqueueEventsWaitWithBarrierExt");
+
+  wait_list_view waitListView =
+      wait_list_view(phEventWaitList, numEventsInWaitList);
+
+  ur_event_handle_t event{};
+  if (phEvent && *phEvent && (*phEvent)->isReusable()) {
+    event = *phEvent;
+    event->reset();
+    event->setQueue(this);
+  }
+
+  if (!event)
+    event = createEventIfRequested(eventPool.get(), phEvent, this);
+
+  auto &&cmdListMan = commandListManager.lock();
+
+  if (flags & UR_QUEUE_FLAG_PROFILING_ENABLE)
+    return cmdListMan->appendEventsWaitWithBarrier(waitListView, event);
+
+  return cmdListMan->appendEventsWait(waitListView, event);
+}
 } // namespace v2

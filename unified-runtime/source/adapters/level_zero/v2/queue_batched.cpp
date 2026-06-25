@@ -582,6 +582,38 @@ ur_result_t ur_queue_batched_t::enqueueEventsWaitWithBarrier(
   return renewBatchUnlocked(lockedBatch);
 }
 
+ur_result_t ur_queue_batched_t::enqueueEventsWaitWithBarrierExt(
+    const ur_exp_enqueue_ext_properties_t *, uint32_t numEventsInWaitList,
+    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+  wait_list_view waitListView =
+      wait_list_view(phEventWaitList, numEventsInWaitList, this);
+
+  auto lockedBatch = currentCmdLists.lock();
+  markIssuedCommandInBatch(lockedBatch);
+
+  ur_event_handle_t event{};
+  if (phEvent && *phEvent && (*phEvent)->isReusable()) {
+    event = *phEvent;
+    event->reset();
+    event->setQueue(this);
+    if (!lockedBatch->isGraphCaptureActive())
+      event->setBatch(lockedBatch->getCurrentGeneration());
+  }
+
+  if (!event)
+    event = getEvent(lockedBatch, phEvent);
+
+  if (flags & UR_QUEUE_FLAG_PROFILING_ENABLE) {
+    UR_CALL(lockedBatch->getListManager().appendEventsWaitWithBarrier(
+        waitListView, event));
+  } else {
+    UR_CALL(
+        lockedBatch->getListManager().appendEventsWait(waitListView, event));
+  }
+
+  return renewBatchUnlocked(lockedBatch);
+}
+
 ur_result_t
 ur_queue_batched_t::enqueueEventsWait(uint32_t numEventsInWaitList,
                                       const ur_event_handle_t *phEventWaitList,
