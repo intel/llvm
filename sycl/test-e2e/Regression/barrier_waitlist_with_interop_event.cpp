@@ -2,6 +2,7 @@
 // RUN: %{build} %level_zero_options -o %t.out
 // RUN: %{run} %t.out
 // UNSUPPORTED: ze_debug
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22347
 
 #include <level_zero/ze_api.h>
 #include <sycl/detail/core.hpp>
