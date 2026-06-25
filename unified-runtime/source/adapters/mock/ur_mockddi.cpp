@@ -12791,13 +12791,16 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueNativeCommandExp(
 __urdlllocal ur_result_t UR_APICALL urEventCreateExp(
     /// [in] handle of the context object
     ur_context_handle_t hContext,
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
     /// [in] pointer to event creation descriptor
     const ur_exp_event_desc_t *pEventDesc,
     /// [out] pointer to the handle of the event object created
     ur_event_handle_t *phEvent) try {
   ur_result_t result = UR_RESULT_SUCCESS;
 
-  ur_event_create_exp_params_t params = {&hContext, &pEventDesc, &phEvent};
+  ur_event_create_exp_params_t params = {&hContext, &hDevice, &pEventDesc,
+                                         &phEvent};
 
   auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
       mock::getCallbacks().get_before_callback("urEventCreateExp"));

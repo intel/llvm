@@ -13519,11 +13519,6 @@ inline std::ostream &operator<<(std::ostream &os,
   ur::details::printStruct(os, (params.pNext));
 
   os << ", ";
-  os << ".hDevice = ";
-
-  ur::details::printPtr(os, (params.hDevice));
-
-  os << ", ";
   os << ".flags = ";
 
   ur::details::printFlag<ur_exp_event_flag_t>(os, (params.flags));
@@ -14469,6 +14464,11 @@ operator<<(std::ostream &os,
   os << ".hContext = ";
 
   ur::details::printPtr(os, *(params->phContext));
+
+  os << ", ";
+  os << ".hDevice = ";
+
+  ur::details::printPtr(os, *(params->phDevice));
 
   os << ", ";
   os << ".pEventDesc = ";

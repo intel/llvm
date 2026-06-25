@@ -13,13 +13,12 @@ TEST_P(urEventCreateExpTest, Success) {
   ur_exp_event_desc_t desc = {
       UR_STRUCTURE_TYPE_EXP_EVENT_DESC,
       nullptr,
-      device,
       static_cast<ur_exp_event_flags_t>(0),
   };
 
   uur::raii::Event event = nullptr;
   UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
-      urEventCreateExp(context, &desc, event.ptr()));
+      urEventCreateExp(context, device, &desc, event.ptr()));
 
   if (!event) {
     return;
@@ -32,13 +31,12 @@ TEST_P(urEventCreateExpTest, SuccessWithProfilingFlag) {
   ur_exp_event_desc_t desc = {
       UR_STRUCTURE_TYPE_EXP_EVENT_DESC,
       nullptr,
-      device,
       UR_EXP_EVENT_FLAG_ENABLE_PROFILING,
   };
 
   uur::raii::Event event = nullptr;
   UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
-      urEventCreateExp(context, &desc, event.ptr()));
+      urEventCreateExp(context, device, &desc, event.ptr()));
 
   if (!event) {
     return;
@@ -51,44 +49,41 @@ TEST_P(urEventCreateExpTest, InvalidNullHandleContext) {
   ur_exp_event_desc_t desc = {
       UR_STRUCTURE_TYPE_EXP_EVENT_DESC,
       nullptr,
-      device,
       static_cast<ur_exp_event_flags_t>(0),
   };
 
   uur::raii::Event event = nullptr;
   ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
-                   urEventCreateExp(nullptr, &desc, event.ptr()));
+                   urEventCreateExp(nullptr, device, &desc, event.ptr()));
 }
 
 TEST_P(urEventCreateExpTest, InvalidNullPointerEventDesc) {
   uur::raii::Event event = nullptr;
   ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_POINTER,
-                   urEventCreateExp(context, nullptr, event.ptr()));
+                   urEventCreateExp(context, device, nullptr, event.ptr()));
 }
 
 TEST_P(urEventCreateExpTest, InvalidNullPointerEventHandle) {
   ur_exp_event_desc_t desc = {
       UR_STRUCTURE_TYPE_EXP_EVENT_DESC,
       nullptr,
-      device,
       static_cast<ur_exp_event_flags_t>(0),
   };
 
   ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_POINTER,
-                   urEventCreateExp(context, &desc, nullptr));
+                   urEventCreateExp(context, device, &desc, nullptr));
 }
 
 TEST_P(urEventCreateExpTest, InvalidNullHandleEventDevice) {
   ur_exp_event_desc_t desc = {
       UR_STRUCTURE_TYPE_EXP_EVENT_DESC,
       nullptr,
-      nullptr,
       static_cast<ur_exp_event_flags_t>(0),
   };
 
   uur::raii::Event event = nullptr;
   ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
-                   urEventCreateExp(context, &desc, event.ptr()));
+                   urEventCreateExp(context, nullptr, &desc, event.ptr()));
 }
 
 struct urEnqueueEventsWaitWithBarrierReusableEventTest : uur::urQueueTest {};
@@ -100,13 +95,12 @@ TEST_P(urEnqueueEventsWaitWithBarrierReusableEventTest,
   ur_exp_event_desc_t desc = {
       UR_STRUCTURE_TYPE_EXP_EVENT_DESC,
       nullptr,
-      device,
       static_cast<ur_exp_event_flags_t>(0),
   };
 
   uur::raii::Event signal_event = nullptr;
   UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
-      urEventCreateExp(context, &desc, signal_event.ptr()));
+      urEventCreateExp(context, device, &desc, signal_event.ptr()));
   if (!signal_event) {
     return;
   }

@@ -865,6 +865,7 @@ ur_result_t urEnqueueNativeCommandExp(
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent);
 ur_result_t urEventCreateExp(ur_context_handle_t hContext,
+                             ur_device_handle_t hDevice,
                              const ur_exp_event_desc_t *pEventDesc,
                              ur_event_handle_t *phEvent);
 ur_result_t urGraphCreateExp(ur_context_handle_t hContext,
