@@ -132,17 +132,17 @@ int main() {
   }
 
   if (HasLevelZeroDevices && HasLevelZeroGPU) {
-      device d12 = filter_selector("level_zero").select_device();
+    device d12 = filter_selector("level_zero").select_device();
     assert(d12.get_platform().get_backend() == backend::ext_oneapi_level_zero &&
            "filter_selector(\"level_zero\") failed");
 
-      device d13 = filter_selector("level_zero:gpu").select_device();
+    device d13 = filter_selector("level_zero:gpu").select_device();
     assert(d13.is_gpu() &&
            d13.get_platform().get_backend() == backend::ext_oneapi_level_zero &&
            "filter_selector(\"level_zero:gpu\") failed");
 
     if (HasOpenCLDevices && !CPUs.empty()) {
-        device d14 = filter_selector("level_zero:gpu,cpu").select_device();
+      device d14 = filter_selector("level_zero:gpu,cpu").select_device();
       assert((d14.is_gpu() || d14.is_cpu()) &&
              "filter_selector(\"level_zero:gpu,cpu\") failed");
       if (d14.is_gpu()) {
@@ -154,26 +154,26 @@ int main() {
   }
 
   if (Devs.size() > 1) {
-      device d15 = filter_selector("1").select_device();
+    device d15 = filter_selector("1").select_device();
   }
 
   if (HasCUDADevices) {
-      device d16 = filter_selector("cuda").select_device();
+    device d16 = filter_selector("cuda").select_device();
     assert(d16.get_platform().get_backend() == backend::ext_oneapi_cuda &&
            "filter_selector(\"cuda\") failed");
 
-      device d17 = filter_selector("cuda:gpu").select_device();
+    device d17 = filter_selector("cuda:gpu").select_device();
     assert(d17.is_gpu() &&
            d17.get_platform().get_backend() == backend::ext_oneapi_cuda &&
            "filter_selector(\"cuda:gpu\") failed");
   }
 
   if (HasHIPDevices) {
-      device d19 = ext::oneapi::filter_selector("hip").select_device();
+    device d19 = ext::oneapi::filter_selector("hip").select_device();
     assert(d19.get_platform().get_backend() == backend::ext_oneapi_hip &&
            "filter_selector(\"hip\") failed");
 
-      device d20 = ext::oneapi::filter_selector("hip:gpu").select_device();
+    device d20 = ext::oneapi::filter_selector("hip:gpu").select_device();
     assert(d20.is_gpu() &&
            d20.get_platform().get_backend() == backend::ext_oneapi_hip &&
            "filter_selector(\"hip:gpu\") failed");
