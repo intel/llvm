@@ -124,7 +124,8 @@ public:
   };
 
   Command(
-      CommandType Type, queue_impl *Queue, EventImplPtr EventForReuse = nullptr,
+      CommandType Type, queue_impl *Queue,
+      const EventImplPtr &EventForReuse = nullptr,
       ur_exp_command_buffer_handle_t CommandBuffer = nullptr,
       const std::vector<ur_exp_command_buffer_sync_point_t> &SyncPoints = {});
 
@@ -629,7 +630,7 @@ class ExecCGCommand : public Command {
 public:
   ExecCGCommand(
       std::unique_ptr<detail::CG> CommandGroup, queue_impl *Queue,
-      bool EventNeeded, EventImplPtr EventForReuse = nullptr,
+      bool EventNeeded, const EventImplPtr &EventForReuse = nullptr,
       ur_exp_command_buffer_handle_t CommandBuffer = nullptr,
       const std::vector<ur_exp_command_buffer_sync_point_t> &Dependencies = {});
 

@@ -64,12 +64,19 @@ __SYCL_EXPORT sycl::event make_event(const sycl::context &ctxt,
 } // namespace detail
 
 __SYCL_EXPORT void enqueue_wait_event(sycl::queue q, const event &evt) {
-  q.ext_oneapi_submit_barrier({evt});
+  detail::queue_impl &QueueImpl = *sycl::detail::getSyclObjImpl(q);
+
+  QueueImpl.submit_barrier_direct_without_event(
+      sycl::span<const event>(&evt, 1), detail::CGType::BarrierWaitlist,
+      detail::code_location::current());
 }
 
 __SYCL_EXPORT void enqueue_wait_events(sycl::queue q,
                                        const std::vector<event> &evts) {
-  q.ext_oneapi_submit_barrier(evts);
+  detail::queue_impl &QueueImpl = *sycl::detail::getSyclObjImpl(q);
+
+  QueueImpl.submit_barrier_direct_without_event(
+      evts, detail::CGType::BarrierWaitlist, detail::code_location::current());
 }
 
 __SYCL_EXPORT void enqueue_signal_event(sycl::queue q, event &evt) {

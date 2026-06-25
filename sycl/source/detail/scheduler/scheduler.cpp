@@ -104,7 +104,7 @@ void Scheduler::waitForRecordToFinish(MemObjRecord *Record,
 
 EventImplPtr Scheduler::addCG(
     std::unique_ptr<detail::CG> CommandGroup, queue_impl &Queue,
-    bool EventNeeded, EventImplPtr EventForReuse,
+    bool EventNeeded, const EventImplPtr &EventForReuse,
     ur_exp_command_buffer_handle_t CommandBuffer,
     const std::vector<ur_exp_command_buffer_sync_point_t> &Dependencies) {
   EventImplPtr NewEvent = nullptr;

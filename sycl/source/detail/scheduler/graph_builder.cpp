@@ -922,7 +922,8 @@ static void combineAccessModesOfReqs(std::vector<Requirement *> &Reqs) {
 Command *Scheduler::GraphBuilder::addCG(
     std::unique_ptr<detail::CG> CommandGroup, queue_impl *Queue,
     std::vector<Command *> &ToEnqueue, bool EventNeeded,
-    EventImplPtr EventForReuse, ur_exp_command_buffer_handle_t CommandBuffer,
+    const EventImplPtr &EventForReuse,
+    ur_exp_command_buffer_handle_t CommandBuffer,
     const std::vector<ur_exp_command_buffer_sync_point_t> &Dependencies) {
   std::vector<Requirement *> &Reqs = CommandGroup->getRequirements();
   std::vector<detail::EventImplPtr> &Events = CommandGroup->getEvents();

@@ -530,7 +530,7 @@ void Command::waitForEvents(queue_impl *Queue,
 /// references to event_impl class members because Command
 /// should not outlive the event connected to it.
 Command::Command(
-    CommandType Type, queue_impl *Queue, EventImplPtr EventForReuse,
+    CommandType Type, queue_impl *Queue, const EventImplPtr &EventForReuse,
     ur_exp_command_buffer_handle_t CommandBuffer,
     const std::vector<ur_exp_command_buffer_sync_point_t> &SyncPoints)
     : MQueue(Queue ? Queue->shared_from_this() : nullptr),
@@ -1962,7 +1962,7 @@ static std::string_view cgTypeToString(detail::CGType Type) {
 
 ExecCGCommand::ExecCGCommand(
     std::unique_ptr<detail::CG> CommandGroup, queue_impl *Queue,
-    bool EventNeeded, EventImplPtr EventForReuse,
+    bool EventNeeded, const EventImplPtr &EventForReuse,
     ur_exp_command_buffer_handle_t CommandBuffer,
     const std::vector<ur_exp_command_buffer_sync_point_t> &Dependencies)
     : Command(CommandType::RUN_CG, Queue, EventForReuse, CommandBuffer,
