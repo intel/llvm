@@ -198,40 +198,40 @@ template <typename KNT> struct KernelIdentity {
 // by arbitrary translation units without requiring registration in each
 // of them.
 template <typename KN, typename KernelInfo> struct KernelRegistrar {
-// getKernelNameHelper() provides an interface to retrieve a kernel
-// entry point name corresponding to a kernel name type. Though dependent
-// on the KN template parameter, this function is not a member of the
-// KernelRegistrar class; it is a namespace scope function that can be
-// redeclared in other class template contexts. Since it is only dependent
-// on KN, note that multiple instantiations of KernelRegistrar with the
-// same kernel name but different kernel entry point name symbol would
-// result in duplicate definitions of getKernelNameHelper(). This is
-// by design.
-//
-// Hidden friend function definitions are implicitly inline. C++17
-// [basic.def.odr]p4 states:
-//   "... An inline function or variable shall be defined in every
-//   translation unit in which it is odr-used outside of a discarded
-//   statement."
-// This requirement is intentionally violated in order to provoke a
-// linker error when a call to sycl::get_kernel_id<KN>() is made for
-// a type that has not been registered as a kernel name type; see
-// the comments associated with the KernelRegistry class definition.
-// The quoted statement allows implementations to not emit definitions
-// of inline functions even if ODR-used within a translation unit (e.g.,
-// because all such uses were inlined). In practice, some implementations
-// do skip emitting such definitions subject to compile-time and link-time
-// optimization. The GNU 'used' attribute is applied to force GCC and
-// Clang to emit such definitions. MSVC does not appear to suppress such
-// definitions, even with whole program analysis (/WP) and link time
-// code generation (/LTCG).
-//
-// Name lookup for getKernelNameHelper() requires argument dependent
-// lookup (ADL); even from within this class definition. The call to
-// getKernelNameHelper() in registerKernelName() therefore passes an
-// instance of this class (dependent on both KN and KernelInfo) to enable
-// lookup in this class. A conversion operator then enables the argument
-// to be converted to the KernelIdentity wrapper type (only dependent on KN).
+  // getKernelNameHelper() provides an interface to retrieve a kernel
+  // entry point name corresponding to a kernel name type. Though dependent
+  // on the KN template parameter, this function is not a member of the
+  // KernelRegistrar class; it is a namespace scope function that can be
+  // redeclared in other class template contexts. Since it is only dependent
+  // on KN, note that multiple instantiations of KernelRegistrar with the
+  // same kernel name but different kernel entry point name symbol would
+  // result in duplicate definitions of getKernelNameHelper(). This is
+  // by design.
+  //
+  // Hidden friend function definitions are implicitly inline. C++17
+  // [basic.def.odr]p4 states:
+  //   "... An inline function or variable shall be defined in every
+  //   translation unit in which it is odr-used outside of a discarded
+  //   statement."
+  // This requirement is intentionally violated in order to provoke a
+  // linker error when a call to sycl::get_kernel_id<KN>() is made for
+  // a type that has not been registered as a kernel name type; see
+  // the comments associated with the KernelRegistry class definition.
+  // The quoted statement allows implementations to not emit definitions
+  // of inline functions even if ODR-used within a translation unit (e.g.,
+  // because all such uses were inlined). In practice, some implementations
+  // do skip emitting such definitions subject to compile-time and link-time
+  // optimization. The GNU 'used' attribute is applied to force GCC and
+  // Clang to emit such definitions. MSVC does not appear to suppress such
+  // definitions, even with whole program analysis (/WP) and link time
+  // code generation (/LTCG).
+  //
+  // Name lookup for getKernelNameHelper() requires argument dependent
+  // lookup (ADL); even from within this class definition. The call to
+  // getKernelNameHelper() in registerKernelName() therefore passes an
+  // instance of this class (dependent on both KN and KernelInfo) to enable
+  // lookup in this class. A conversion operator then enables the argument
+  // to be converted to the KernelIdentity wrapper type (only dependent on KN).
 #if defined(__GNUG__) || defined(__clang__)
   __attribute__((used))
 #endif
