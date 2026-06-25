@@ -4420,7 +4420,7 @@ bool Sema::CheckIntelSYCLPtrAnnotationBuiltinFunctionCall(unsigned BuiltinID,
 static llvm::APSInt getSYCLAllocaDefaultSize(const ASTContext &Ctx,
                                              const VarDecl *VD) {
   assert(VD && "Expecting valid declaration");
-  APValue *SpecializationId = VD->evaluateValue();
+  const APValue *SpecializationId = VD->evaluateValue();
   assert(SpecializationId && "Expecting a non-null SpecializationId");
   assert(SpecializationId->getKind() == APValue::ValueKind::Struct &&
          "Expecting SpecializationId to be of kind Struct");
