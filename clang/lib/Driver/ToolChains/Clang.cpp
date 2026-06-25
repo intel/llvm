@@ -5714,12 +5714,14 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
         CmdArgs.push_back("-Wno-sycl-strict");
       }
 
-      // Add the integration header option to generate the header.
-      StringRef Header(D.getIntegrationHeader(Input.getBaseInput()));
-      if (!Header.empty()) {
-        SmallString<128> HeaderOpt("-fsycl-int-header=");
-        HeaderOpt.append(Header);
-        CmdArgs.push_back(Args.MakeArgString(HeaderOpt));
+      if (!Args.hasArg(options::OPT_fno_sycl_use_header)) {
+        // Add the integration header option to generate the header.
+        StringRef Header(D.getIntegrationHeader(Input.getBaseInput()));
+        if (!Header.empty()) {
+          SmallString<128> HeaderOpt("-fsycl-int-header=");
+          HeaderOpt.append(Header);
+          CmdArgs.push_back(Args.MakeArgString(HeaderOpt));
+        }
       }
 
       if (!Args.hasArg(options::OPT_fno_sycl_use_footer)) {
@@ -5787,7 +5789,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       // integration footer has been applied.  Check for the append job
       // action to determine this.
       if (types::getPreprocessedType(Input.getType()) != types::TY_INVALID &&
-          !Header.empty()) {
+          !Args.hasArg(options::OPT_fno_sycl_use_header) && !Header.empty()) {
         // Add the -include-internal-header option to add the integration header
         CmdArgs.push_back("-include-internal-header");
         CmdArgs.push_back(Args.MakeArgString(Header));
