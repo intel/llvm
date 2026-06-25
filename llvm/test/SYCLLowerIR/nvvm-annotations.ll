@@ -87,8 +87,8 @@ define ptx_kernel void @foo_maxwgpermp() !max_work_groups_per_mp !3 {
 !2 = !{i32 2}
 !3 = !{i32 3}
 
-!4 = !{i32 4}
-!5 = !{i32 4, i32 8}
+!4 = !{i32 4, i32 1, i32 1}
+!5 = !{i32 4, i32 8, i32 1}
 !6 = !{i32 4, i32 8, i32 16}
 
 ;.
@@ -111,9 +111,9 @@ define ptx_kernel void @foo_maxwgpermp() !max_work_groups_per_mp !3 {
 ; CHECK: [[META16:![0-9]+]] = !{ptr @foo_minwgpercu0, !"minctasm", i32 2}
 ; CHECK: [[META17:![0-9]+]] = !{ptr @foo_maxwgpermp, !"maxclusterrank", i32 3}
 ; CHECK: [[META18]] = !{i32 4, i32 8, i32 16}
-; CHECK: [[META19]] = !{i32 4}
+; CHECK: [[META19]] = !{i32 4, i32 1, i32 1}
 ; CHECK: [[META20]] = !{i32 1}
-; CHECK: [[META21]] = !{i32 4, i32 8}
+; CHECK: [[META21]] = !{i32 4, i32 8, i32 1}
 ; CHECK: [[META22]] = !{i32 2}
 ; CHECK: [[META23]] = !{i32 3}
 ;.
