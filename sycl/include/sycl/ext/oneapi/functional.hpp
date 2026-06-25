@@ -40,12 +40,11 @@ using maximum
 template <typename T = void>
 using minimum
     __SYCL2020_DEPRECATED("Use sycl::minimum<> instead") = sycl::minimum<T>;
+} // namespace ext::oneapi
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
-} // namespace ext::oneapi
-
-// TODO: I guess that's not a part of extension anymore, but part of the core
-// functional. Probably should be moved to the sycl dir.
+// TODO: The group operation helpers below are not extension-specific; consider
+// moving them to a non-extension header (e.g. sycl/functional.hpp).
 #ifdef __SYCL_DEVICE_ONLY__
 namespace detail {
 
