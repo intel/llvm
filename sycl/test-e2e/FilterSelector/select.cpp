@@ -169,7 +169,7 @@ int main() {
   }
 
   if (HasHIPDevices) {
-    device d19 = (ext::oneapi::filter_selector("hip"));
+    device d19(ext::oneapi::filter_selector("hip"));
     assert(d19.get_platform().get_backend() == backend::ext_oneapi_hip &&
            "filter_selector(\"hip\") failed");
 
