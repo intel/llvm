@@ -11705,6 +11705,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueNativeCommandExp(
 __urdlllocal ur_result_t UR_APICALL urEventCreateExp(
     /// [in] handle of the context object
     ur_context_handle_t hContext,
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
     /// [in] pointer to event creation descriptor
     const ur_exp_event_desc_t *pEventDesc,
     /// [out] pointer to the handle of the event object created
@@ -11725,7 +11727,7 @@ __urdlllocal ur_result_t UR_APICALL urEventCreateExp(
     if (NULL == hContext)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
-    if (NULL == pEventDesc->hDevice)
+    if (NULL == hDevice)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (UR_EXP_EVENT_FLAGS_MASK & pEventDesc->flags)
@@ -11737,7 +11739,12 @@ __urdlllocal ur_result_t UR_APICALL urEventCreateExp(
     URLOG_CTX_INVALID_REFERENCE(hContext);
   }
 
-  ur_result_t result = pfnCreateExp(hContext, pEventDesc, phEvent);
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hDevice)) {
+    URLOG_CTX_INVALID_REFERENCE(hDevice);
+  }
+
+  ur_result_t result = pfnCreateExp(hContext, hDevice, pEventDesc, phEvent);
 
   if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
       phEvent) {

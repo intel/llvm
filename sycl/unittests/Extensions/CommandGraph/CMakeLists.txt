@@ -1,5 +1,8 @@
 set(CMAKE_CXX_EXTENSIONS OFF)
-
+if(WIN32)
+  # https://github.com/intel/llvm/issues/22425
+  return()
+endif()
 add_sycl_unittest(CommandGraphExtensionTests OBJECT
   Barrier.cpp
   CommandGraph.cpp
