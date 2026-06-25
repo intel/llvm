@@ -16,6 +16,8 @@
 
 namespace sycl {
 inline namespace _V1 {
+
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 namespace ext::oneapi {
 
 template <typename T = void>
@@ -38,9 +40,12 @@ using maximum
 template <typename T = void>
 using minimum
     __SYCL2020_DEPRECATED("Use sycl::minimum<> instead") = sycl::minimum<T>;
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 } // namespace ext::oneapi
 
+// TODO: I guess that's not a part of extension anymore, but part of the core
+// functional. Probably should be moved to the sycl dir.
 #ifdef __SYCL_DEVICE_ONLY__
 namespace detail {
 
