@@ -134,6 +134,13 @@ _Preconditions:_
   and the range `[ptr, ptr + numBytes)` remains valid and mapped at the same
   host virtual address from this call until the matching call to
   `unregister_host_memory` returns.
+* The memory range has one of the following storage durations: heap
+  (dynamically-allocated), automatic (stack), or static (global) storage.
++
+[_Note:_ Support for memory obtained by other means, such as anonymous or
+file-backed memory mappings or huge-page mappings, is platform- and
+implementation-dependent and is not guaranteed by this extension.
+_{endnote}_]
 * `ptr` is aligned to the host page size, and `numBytes` is a non-zero multiple
   of the host page size.
 * The range `[ptr, ptr + numBytes)` does not overlap any range that is

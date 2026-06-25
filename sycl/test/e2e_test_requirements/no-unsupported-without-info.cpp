@@ -54,21 +54,14 @@
 // tests to match the required format and in that case you should just update
 // (i.e. reduce) the number and the list below.
 //
-// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 75
+// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 61
 //
 // List of improperly UNSUPPORTED tests.
 // Remove the CHECK once the test has been properly UNSUPPORTED.
 //
-// CHECK: Adapters/level_zero/batch_event_status.cpp
-// CHECK-NEXT: Adapters/level_zero/interop-buffer-ownership.cpp
-// CHECK-NEXT: Adapters/level_zero/interop-image-ownership.cpp
-// CHECK-NEXT: Adapters/level_zero/interop.cpp
-// CHECK-NEXT: Adapters/level_zero/queue_profiling.cpp
-// CHECK-NEXT: Adapters/level_zero/usm_device_read_only.cpp
-// CHECK-NEXT: AmdNvidiaJIT/kernel_and_bundle.cpp
+// CHECK: AmdNvidiaJIT/kernel_and_bundle.cpp
 // CHECK-NEXT: Assert/assert_in_simultaneous_kernels.cpp
 // CHECK-NEXT: Assert/assert_in_simultaneously_multiple_tus.cpp
-// CHECK-NEXT: Basic/buffer/buffer_create.cpp
 // CHECK-NEXT: Basic/gpu_max_wgs_error.cpp
 // CHECK-NEXT: DeprecatedFeatures/DiscardEvents/discard_events_using_assert.cpp
 // CHECK-NEXT: DeviceLib/separate_compile_test.cpp
@@ -82,15 +75,10 @@
 // CHECK-NEXT: ESIMD/ext_math.cpp
 // CHECK-NEXT: ESIMD/ext_math_fast.cpp
 // CHECK-NEXT: ESIMD/ext_math_saturate.cpp
-// CHECK-NEXT: ESIMD/fp_in_phi.cpp
 // CHECK-NEXT: ESIMD/matrix_transpose2.cpp
 // CHECK-NEXT: ESIMD/private_memory/private_memory.cpp
 // CHECK-NEXT: ESIMD/regression/copyto_char_test.cpp
 // CHECK-NEXT: ESIMD/regression/variable_gather_mask.cpp
-// CHECK-NEXT: Graph/Explicit/interop-level-zero-launch-kernel.cpp
-// CHECK-NEXT: Graph/RecordReplay/interop-level-zero-launch-kernel.cpp
-// CHECK-NEXT: KernelAndProgram/cache-build-result.cpp
-// CHECK-NEXT: KernelAndProgram/level-zero-static-link-flow.cpp
 // CHECK-NEXT: KernelAndProgram/multiple-kernel-linking.cpp
 // CHECK-NEXT: Matrix/SG32/element_wise_abc.cpp
 // CHECK-NEXT: Matrix/SG32/element_wise_all_ops.cpp
@@ -123,7 +111,6 @@
 // CHECK-NEXT: Matrix/joint_matrix_down_convert.cpp
 // CHECK-NEXT: Matrix/joint_matrix_rowmajorA_rowmajorB.cpp
 // CHECK-NEXT: Printf/mixed-address-space.cpp
-// CHECK-NEXT: Regression/barrier_waitlist_with_interop_event.cpp
 // CHECK-NEXT: SpecConstants/2020/kernel-bundle-api.cpp
 // CHECK-NEXT: Tracing/code_location_queue_copy.cpp
 // CHECK-NEXT: Tracing/code_location_queue_parallel_for.cpp
@@ -133,4 +120,3 @@
 // CHECK-NEXT: Tracing/usm/queue_copy_released_pointer.cpp
 // CHECK-NEXT: Tracing/usm/queue_single_task_nullptr.cpp
 // CHECK-NEXT: Tracing/usm/queue_single_task_released_pointer.cpp
-// CHECK-NEXT: USM/badmalloc.cpp
