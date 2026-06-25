@@ -35,7 +35,7 @@ int main() {
     CGH.parallel_for(nd_range({Size}, {WgSize}), [=](nd_item<1> Item) {
       LocalIDBuff[Item.get_local_linear_id()] = Item.get_local_linear_id();
 
-      Item.barrier();
+      group_barrier(Item.get_group());
 
       // Check that the memory is accessible from other work-items
       size_t LocalIdx = Item.get_local_linear_id() ^ 1;
@@ -49,7 +49,7 @@ int main() {
     CGH.parallel_for(nd_range({Size}, {WgSize}), [=](nd_item<1> Item) {
       LocalIDBuff[Item.get_local_linear_id()] = Item.get_local_linear_id();
 
-      Item.barrier();
+      group_barrier(Item.get_group());
 
       // Check that the memory is accessible from other work-items
       size_t LocalIdx = Item.get_local_linear_id() ^ 1;

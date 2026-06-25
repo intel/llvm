@@ -42,7 +42,7 @@ bool test(queue Q, uint32_t LocalRange, uint32_t GlobalRange) {
            block_store(Ptr + GID * VL, Values);
          }
 
-         Item.barrier();
+         group_barrier(Item.get_group());
 
          if (LID == 0) {
            for (int LID = 0; LID < LocalRange; LID++) {

@@ -55,7 +55,7 @@ template <typename T, unsigned VL> bool test(queue q) {
          simd<T, VL> ValuesToSLM(GID * 100, 1);
          ValuesToSLM.copy_to(LocalAcc, LID * VL * sizeof(T));
 
-         Item.barrier();
+         group_barrier(Item.get_group());
 
          if (LID == 0) {
            for (int LID = 0; LID < LocalRange; LID++) {

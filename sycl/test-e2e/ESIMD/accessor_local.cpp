@@ -52,7 +52,7 @@ bool test(queue Q, uint32_t LocalRange, uint32_t GlobalRange) {
            slm_block_store(LocalAccOffset + LID * VL * sizeof(T), ValuesToSLM);
          }
 
-         Item.barrier();
+         group_barrier(Item.get_group());
 
          if (LID == 0) {
            for (int LID = 0; LID < LocalRange; LID++) {
