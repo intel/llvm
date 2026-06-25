@@ -13977,8 +13977,6 @@ typedef struct ur_exp_event_desc_t {
   ur_structure_type_t stype;
   /// [in][optional] pointer to extension-specific structure
   const void *pNext;
-  /// [in] handle of the device object associated with this event
-  ur_device_handle_t hDevice;
   /// [in] combination of event creation flags. If
   /// ::UR_EXP_EVENT_FLAG_ENABLE_PROFILING is set, the event captures
   /// UR_PROFILING_INFO_COMMAND_START and UR_PROFILING_INFO_COMMAND_END
@@ -14006,7 +14004,7 @@ typedef struct ur_exp_event_desc_t {
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
-///         + `NULL == pEventDesc->hDevice`
+///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pEventDesc`
 ///         + `NULL == phEvent`
@@ -14021,6 +14019,8 @@ typedef struct ur_exp_event_desc_t {
 UR_APIEXPORT ur_result_t UR_APICALL urEventCreateExp(
     /// [in] handle of the context object
     ur_context_handle_t hContext,
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
     /// [in] pointer to event creation descriptor
     const ur_exp_event_desc_t *pEventDesc,
     /// [out] pointer to the handle of the event object created
@@ -14704,6 +14704,7 @@ typedef struct ur_event_set_callback_params_t {
 ///     allowing the callback the ability to modify the parameter's value
 typedef struct ur_event_create_exp_params_t {
   ur_context_handle_t *phContext;
+  ur_device_handle_t *phDevice;
   const ur_exp_event_desc_t **ppEventDesc;
   ur_event_handle_t **pphEvent;
 } ur_event_create_exp_params_t;
