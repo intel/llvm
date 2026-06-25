@@ -2772,10 +2772,10 @@ void CodeGenFunction::EmitParmDecl(const VarDecl &D, ParamValue Arg,
       UseIndirectDebugAddress = !ArgInfo.getIndirectByVal();
     if (UseIndirectDebugAddress) {
       auto PtrTy = getContext().getPointerType(Ty);
-      AllocaPtr = CreateMemTempWithoutCast(PtrTy, getContext().getTypeAlignInChars(PtrTy),
-                                D.getName() + ".indirect_addr");
-      EmitStoreOfScalar(DeclPtr.emitRawPointer(*this), AllocaPtr, /* Volatile */ false,
-                        PtrTy);
+      AllocaPtr = CreateMemTempWithoutCast(
+          PtrTy, getContext().getTypeAlignInChars(PtrTy),
+          D.getName() + ".indirect_addr");
+      EmitStoreOfScalar(V, AllocaPtr, /* Volatile */ false, PtrTy);
     }
 
     // Push a destructor cleanup for this parameter if the ABI requires it.

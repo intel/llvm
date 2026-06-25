@@ -151,6 +151,18 @@ entry:
 declare float @llvm.exp2.f32(float)
 
 ; CHECK: Function
+; CHECK: ExtInst [[var1]] {{[0-9]+}} [[extinst_id]] exp10
+; CHECK: FunctionEnd
+
+define spir_func float @TestExp10(float %x) local_unnamed_addr {
+entry:
+  %t = tail call float @llvm.exp10.f32(float %x)
+  ret float %t
+}
+
+declare float @llvm.exp10.f32(float)
+
+; CHECK: Function
 ; CHECK: ExtInst [[var1]] {{[0-9]+}} [[extinst_id]] log
 ; CHECK: FunctionEnd
 

@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <detail/config.hpp>
-#include <detail/iostream_proxy.hpp>
+#include <iostream>
 #include <sycl/backend_types.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/defines_elementary.hpp>

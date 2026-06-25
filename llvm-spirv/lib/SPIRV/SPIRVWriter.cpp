@@ -4104,6 +4104,7 @@ bool LLVMToSPIRVBase::isKnownIntrinsic(Intrinsic::ID Id) {
   case Intrinsic::cos:
   case Intrinsic::exp:
   case Intrinsic::exp2:
+  case Intrinsic::exp10:
   case Intrinsic::fabs:
   case Intrinsic::floor:
   case Intrinsic::fma:
@@ -4243,6 +4244,8 @@ static SPIRVWord getBuiltinIdForIntrinsic(Intrinsic::ID IID) {
     return OpenCLLIB::Exp;
   case Intrinsic::exp2:
     return OpenCLLIB::Exp2;
+  case Intrinsic::exp10:
+    return OpenCLLIB::Exp10;
   case Intrinsic::fabs:
     return OpenCLLIB::Fabs;
   case Intrinsic::floor:
@@ -4307,6 +4310,8 @@ static SPIRVWord getNativeBuiltinIdForIntrinsic(Intrinsic::ID IID) {
     return OpenCLLIB::Native_exp;
   case Intrinsic::exp2:
     return OpenCLLIB::Native_exp2;
+  case Intrinsic::exp10:
+    return OpenCLLIB::Native_exp10;
   case Intrinsic::log:
     return OpenCLLIB::Native_log;
   case Intrinsic::log10:
@@ -4445,6 +4450,7 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
   case Intrinsic::cosh:
   case Intrinsic::exp:
   case Intrinsic::exp2:
+  case Intrinsic::exp10:
   case Intrinsic::fabs:
   case Intrinsic::floor:
   case Intrinsic::log:
@@ -5017,7 +5023,7 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
       std::vector<SPIRVValue *> Elts(TNumElts, transValue(Val, BB));
       Init = BM->addCompositeConstant(CompositeTy, Elts);
     }
-    SPIRVType *VarTy = transPointerType(AT, SPIRV::SPIRAS_Private);
+    SPIRVType *VarTy = transPointerType(AT, SPIRAS_Private);
     SPIRVBasicBlock *EntryBB = BB->getParent()->getBasicBlock(0);
     SPIRVValue *Var = BM->addVariable(VarTy, nullptr, /*isConstant*/ false,
                                       spv::internal::LinkageTypeInternal, Init,
@@ -5026,8 +5032,7 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
         MSI, BM->isAllowedToUseVersion(VersionNumber::SPIRV_1_4));
     if (!MemAccess.empty() && MemAccess[0] == MemoryAccessAlignedMask)
       Var->setAlignment(MemAccess[1]);
-    SPIRVType *SourceTy =
-        transPointerType(Val->getType(), SPIRV::SPIRAS_Private);
+    SPIRVType *SourceTy = transPointerType(Val->getType(), SPIRAS_Private);
     SPIRVValue *Source = BM->addUnaryInst(OpBitcast, SourceTy, Var, BB);
     SPIRVValue *Target = transValue(MSI->getRawDest(), BB);
     return BM->addCopyMemorySizedInst(Target, Source, CompositeTy->getLength(),

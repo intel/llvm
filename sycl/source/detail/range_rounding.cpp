@@ -10,7 +10,7 @@
 #include <detail/device_impl.hpp>
 #include <sycl/detail/range_rounding.hpp>
 
-#include <detail/iostream_proxy.hpp>
+#include <iostream>
 
 namespace sycl {
 inline namespace _V1 {

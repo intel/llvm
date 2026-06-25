@@ -1623,10 +1623,6 @@ StructType *IRMover::StructTypeKeyInfo::getEmptyKey() {
   return DenseMapInfo<StructType *>::getEmptyKey();
 }
 
-StructType *IRMover::StructTypeKeyInfo::getTombstoneKey() {
-  return DenseMapInfo<StructType *>::getTombstoneKey();
-}
-
 unsigned IRMover::StructTypeKeyInfo::getHashValue(const KeyTy &Key) {
   return hash_combine(hash_combine_range(Key.ETypes), Key.IsPacked);
 }
@@ -1637,14 +1633,14 @@ unsigned IRMover::StructTypeKeyInfo::getHashValue(const StructType *ST) {
 
 bool IRMover::StructTypeKeyInfo::isEqual(const KeyTy &LHS,
                                          const StructType *RHS) {
-  if (RHS == getEmptyKey() || RHS == getTombstoneKey())
+  if (RHS == getEmptyKey())
     return false;
   return LHS == KeyTy(RHS);
 }
 
 bool IRMover::StructTypeKeyInfo::isEqual(const StructType *LHS,
                                          const StructType *RHS) {
-  if (RHS == getEmptyKey() || RHS == getTombstoneKey())
+  if (RHS == getEmptyKey())
     return LHS == RHS;
   return KeyTy(LHS) == KeyTy(RHS);
 }

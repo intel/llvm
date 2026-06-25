@@ -1,6 +1,6 @@
 // REQUIRES: aspect-ext_intel_legacy_image
 
-// RUN: %{build} -o %t.out
+// RUN: %{build} -o %t.out -Wno-error=deprecated-declarations
 // RUN: %{run} %t.out
 
 // Test the image-specific printers of UR tracing.
