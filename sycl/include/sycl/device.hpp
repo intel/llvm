@@ -85,6 +85,14 @@ public:
   __SYCL2020_DEPRECATED("SYCL 1.2.1 device selectors are deprecated. Please "
                         "use SYCL 2020 device selectors instead.")
   explicit device(const device_selector &DeviceSelector);
+#else
+  // TODO: consider rewriting the filter_selector class to be used with the new
+  // device(const DeviceSelector &deviceSelector) constructor.
+  /// Constructs a SYCL device instance using the device selected
+  /// by the DeviceSelector provided.
+  ///
+  /// \param DeviceSelector filter_selector to be used (see sycl_ext_oneapi_filter_selector).
+  explicit device(const ext::oneapi::filter_selector &DeviceSelector);
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   /// Constructs a SYCL device instance using the device

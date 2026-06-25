@@ -65,7 +65,11 @@ device::device(cl_device_id DeviceId) {
 device::device(const device_selector &deviceSelector) {
   *this = deviceSelector.select_device();
 }
-#endif
+#else
+device::device(const ext::oneapi::filter_selector &deviceSelector) {
+  *this = deviceSelector.select_device();
+}
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 std::vector<device> device::get_devices(info::device_type deviceType) {
   std::vector<device> devices;

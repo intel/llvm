@@ -63,7 +63,6 @@ public:
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   int operator()(const device &dev) const override;
 #else
-  device select_device() const;
   int operator()(const device &dev) const;
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
 };
@@ -83,7 +82,6 @@ public:
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   int operator()(const device &dev) const override;
 #else
-  device select_device() const;
   int operator()(const device &dev) const;
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
 };
@@ -103,7 +101,6 @@ public:
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   int operator()(const device &dev) const override;
 #else
-  device select_device() const;
   int operator()(const device &dev) const;
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
 };
@@ -124,7 +121,6 @@ public:
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   int operator()(const device &dev) const override;
 #else
-  device select_device() const;
   int operator()(const device &dev) const;
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
 };
@@ -163,8 +159,8 @@ void fill_aspect_vector(std::vector<aspect> &V, FirstT F, OtherTs... O) {
 template <typename DeviceSelector>
 using EnableIfSYCL2020DeviceSelectorInvocable = std::enable_if_t<
     std::is_invocable_r_v<int, DeviceSelector &, const device &> &&
-    !std::is_base_of_v<ext::oneapi::filter_selector, DeviceSelector>
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+    !std::is_base_of_v<ext::oneapi::filter_selector, DeviceSelector>
     && !std::is_base_of_v<device_selector, DeviceSelector>
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
     >;
