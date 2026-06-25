@@ -411,15 +411,15 @@ using enable_if_to_int_vector_t =
   __SYCL_VECTOR_INT_INT_CONVERT(Op, 8, DestType, SPVType)                      \
   __SYCL_VECTOR_INT_INT_CONVERT(Op, 16, DestType, SPVType)
 
-__SYCL_INT_INT_CONVERT(S, char, schar)
+__SYCL_INT_INT_CONVERT(S, char, signed char)
 __SYCL_INT_INT_CONVERT(S, short, short)
 __SYCL_INT_INT_CONVERT(S, int, int)
 __SYCL_INT_INT_CONVERT(S, long, long)
 
-__SYCL_INT_INT_CONVERT(U, uchar, uchar)
-__SYCL_INT_INT_CONVERT(U, ushort, ushort)
-__SYCL_INT_INT_CONVERT(U, uint, uint)
-__SYCL_INT_INT_CONVERT(U, ulong, ulong)
+__SYCL_INT_INT_CONVERT(U, unsigned char, unsigned char)
+__SYCL_INT_INT_CONVERT(U, unsigned short, unsigned short)
+__SYCL_INT_INT_CONVERT(U, unsigned int, unsigned int)
+__SYCL_INT_INT_CONVERT(U, unsigned long, unsigned long)
 
 #undef __SYCL_SCALAR_INT_INT_CONVERT
 #undef __SYCL_VECTOR_INT_INT_CONVERT
@@ -467,15 +467,15 @@ __SYCL_INT_INT_CONVERT(U, ulong, ulong)
   __SYCL_FLOAT_INT_CONVERT(Op, DestType, SPVType, rtp, Rtp)                    \
   __SYCL_FLOAT_INT_CONVERT(Op, DestType, SPVType, rtn, Rtn)
 
-__SYCL_FLOAT_INT_CONVERT_FOR_TYPE(FToS, char, schar)
+__SYCL_FLOAT_INT_CONVERT_FOR_TYPE(FToS, char, signed char)
 __SYCL_FLOAT_INT_CONVERT_FOR_TYPE(FToS, short, short)
 __SYCL_FLOAT_INT_CONVERT_FOR_TYPE(FToS, int, int)
 __SYCL_FLOAT_INT_CONVERT_FOR_TYPE(FToS, long, long)
 
-__SYCL_FLOAT_INT_CONVERT_FOR_TYPE(FToU, uchar, uchar)
-__SYCL_FLOAT_INT_CONVERT_FOR_TYPE(FToU, ushort, ushort)
-__SYCL_FLOAT_INT_CONVERT_FOR_TYPE(FToU, uint, uint)
-__SYCL_FLOAT_INT_CONVERT_FOR_TYPE(FToU, ulong, ulong)
+__SYCL_FLOAT_INT_CONVERT_FOR_TYPE(FToU, unsigned char, unsigned char)
+__SYCL_FLOAT_INT_CONVERT_FOR_TYPE(FToU, unsigned short, unsigned short)
+__SYCL_FLOAT_INT_CONVERT_FOR_TYPE(FToU, unsigned int, unsigned int)
+__SYCL_FLOAT_INT_CONVERT_FOR_TYPE(FToU, unsigned long, unsigned long)
 
 #undef __SYCL_SCALAR_FLOAT_INT_CONVERT
 #undef __SYCL_VECTOR_FLOAT_INT_CONVERT
@@ -688,9 +688,9 @@ inline NativeBFT ConvertFToBF16Vec(NativeFloatT vec) {
   EXPAND_BF16_ROUNDING_MODE(type, type_str, sycl::rounding_mode::rtn, rd)      \
   EXPAND_BF16_ROUNDING_MODE(type, type_str, sycl::rounding_mode::rtz, rz)
 
-EXPAND_BF16_TYPE(uint, uint)
+EXPAND_BF16_TYPE(unsigned int, unsigned int)
 EXPAND_BF16_TYPE(int, int)
-EXPAND_BF16_TYPE(ushort, ushort)
+EXPAND_BF16_TYPE(unsigned short, unsigned short)
 EXPAND_BF16_TYPE(short, short)
 EXPAND_BF16_TYPE(long, ll)
 EXPAND_BF16_TYPE(unsigned long long, ull)
