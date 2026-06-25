@@ -4774,6 +4774,13 @@ SDValue DAGCombiner::visitUSUBO_CARRY(SDNode *N) {
       return DAG.getNode(ISD::USUBO, SDLoc(N), N->getVTList(), N0, N1);
   }
 
+  // Iff the flag result is dead:
+  // (usubo_carry (sub X, Y), 0, Carry) -> (usubo_carry X, Y, Carry)
+  if (N0.getOpcode() == ISD::SUB && isNullConstant(N1) &&
+      !N->hasAnyUseOfValue(1))
+    return DAG.getNode(ISD::USUBO_CARRY, SDLoc(N), N->getVTList(),
+                       N0.getOperand(0), N0.getOperand(1), CarryIn);
+
   return SDValue();
 }
 
@@ -12230,7 +12237,7 @@ SDValue DAGCombiner::visitPEXT(SDNode *N) {
   // pext(x, -1) -> x  (all bits selected, packed into low positions = x)
   if (isAllOnesOrAllOnesSplat(N1))
     return N0;
-  // fold pext(c1, c2) -> compressBits(c1, c2)
+  // fold pext(c1, c2) -> c3
   if (SDValue C = DAG.FoldConstantArithmetic(ISD::PEXT, DL, VT, {N0, N1}))
     return C;
   return SDValue();
@@ -12250,7 +12257,7 @@ SDValue DAGCombiner::visitPDEP(SDNode *N) {
   if (isAllOnesOrAllOnesSplat(N1))
     return N0;
 
-  // fold pdep(c1, c2) -> expandBits(c1, c2)
+  // fold pdep(c1, c2) -> c3
   if (SDValue C = DAG.FoldConstantArithmetic(ISD::PDEP, DL, VT, {N0, N1}))
     return C;
 

@@ -874,9 +874,10 @@ def S_CBRANCH_G_FORK : SOP2_Pseudo <
   let SubtargetPredicate = isGFX6GFX7GFX8GFX9;
 }
 
-let Defs = [SCC] in {
-def S_ABSDIFF_I32 : SOP2_32 <"s_absdiff_i32">;
-} // End Defs = [SCC]
+let isCommutable = 1, Defs = [SCC] in
+def S_ABSDIFF_I32 : SOP2_32 <"s_absdiff_i32",
+  [(set i32:$sdst, (UniformUnaryFrag<abs> (sub_oneuse i32:$src0, i32:$src1)))]
+>;
 
 let SubtargetPredicate = isGFX8GFX9 in {
   def S_RFE_RESTORE_B64 : SOP2_Pseudo <
@@ -2068,6 +2069,23 @@ let AddedComplexity = 20 in {
     (S_CSELECT_B32 SSrc_b32:$src0, SSrc_b32:$src1)
   >;
 }
+
+// Uniform saturating unsigned subtraction: usubsat(a, b) = max(a, b) - b
+// If a >= b, result is a - b; otherwise max(a, b) = b, so b - b = 0.
+// Higher complexity to prefer scalar over VALU patterns for uniform values.
+let AddedComplexity = 20 in {
+  def : GCNPat<
+    (i32 (UniformBinFrag<usubsat> i32:$src0, i32:$src1)),
+    (S_SUB_I32 (S_MAX_U32 $src0, $src1), $src1)
+  >;
+} // End AddedComplexity = 20
+
+// V_ADD_I32_e32/S_ADD_U32 produces carry in VCC/SCC. For the vector
+// case, the sgpr-copies pass will fix this to use the vector version.
+def : GCNPat <
+  (i32 (addc i32:$src0, i32:$src1)),
+  (S_ADD_U32 $src0, $src1)
+>;
 
 // FIXME: We need to use COPY_TO_REGCLASS to work-around the fact that
 // REG_SEQUENCE patterns don't support instructions with multiple

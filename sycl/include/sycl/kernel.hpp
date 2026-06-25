@@ -81,6 +81,8 @@ public:
   kernel(cl_kernel ClKernel, const context &SyclContext);
 #endif
 
+  kernel() = delete;
+
   kernel(const kernel &RHS) = default;
 
   kernel(kernel &&RHS) = default;
@@ -89,9 +91,21 @@ public:
 
   kernel &operator=(kernel &&RHS) = default;
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  // SYCL 2020 declares hidden friend opearators, see 4.5.2. Common reference
+  // semantics.
   bool operator==(const kernel &RHS) const { return impl == RHS.impl; }
 
   bool operator!=(const kernel &RHS) const { return !operator==(RHS); }
+#else
+  friend bool operator==(const kernel &lhs, const kernel &rhs) {
+    return lhs.impl == rhs.impl;
+  }
+
+  friend bool operator!=(const kernel &lhs, const kernel &rhs) {
+    return !(lhs == rhs);
+  }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   /// Get a valid OpenCL kernel handle
   ///

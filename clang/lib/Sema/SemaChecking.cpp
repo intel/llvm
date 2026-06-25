@@ -4420,7 +4420,7 @@ bool Sema::CheckIntelSYCLPtrAnnotationBuiltinFunctionCall(unsigned BuiltinID,
 static llvm::APSInt getSYCLAllocaDefaultSize(const ASTContext &Ctx,
                                              const VarDecl *VD) {
   assert(VD && "Expecting valid declaration");
-  APValue *SpecializationId = VD->evaluateValue();
+  const APValue *SpecializationId = VD->evaluateValue();
   assert(SpecializationId && "Expecting a non-null SpecializationId");
   assert(SpecializationId->getKind() == APValue::ValueKind::Struct &&
          "Expecting SpecializationId to be of kind Struct");
@@ -11008,6 +11008,12 @@ void Sema::CheckAbsoluteValueFunction(const CallExpr *Call,
   // std::abs has overloads which prevent most of the absolute value problems
   // from occurring.
   if (IsStdAbs)
+    return;
+
+  // Prevent reaching unreachable code in getAbsoluteValueKind for unsupported
+  // types.
+  if (!ArgType->isIntegralOrEnumerationType() &&
+      !ArgType->isRealFloatingType() && !ArgType->isAnyComplexType())
     return;
 
   AbsoluteValueKind ArgValueKind = getAbsoluteValueKind(ArgType);

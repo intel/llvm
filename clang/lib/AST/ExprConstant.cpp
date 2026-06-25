@@ -3502,7 +3502,7 @@ static bool evaluateVarDeclInit(EvalInfo &Info, const Expr *E,
     return false;
   }
 
-  Result = VD->getEvaluatedValue();
+  Result = const_cast<APValue *>(VD->getEvaluatedValue());
 
   if (!Result && !AllowConstexprUnknown)
     return false;
@@ -14224,9 +14224,9 @@ bool VectorExprEvaluator::VisitCallExpr(const CallExpr *E) {
   case Builtin::BI__builtin_elementwise_clmul:
     return EvaluateBinOpExpr(llvm::APIntOps::clmul);
   case Builtin::BI__builtin_elementwise_pext:
-    return EvaluateBinOpExpr(llvm::APIntOps::compressBits);
+    return EvaluateBinOpExpr(llvm::APIntOps::pext);
   case Builtin::BI__builtin_elementwise_pdep:
-    return EvaluateBinOpExpr(llvm::APIntOps::expandBits);
+    return EvaluateBinOpExpr(llvm::APIntOps::pdep);
   case Builtin::BI__builtin_elementwise_fshl:
   case Builtin::BI__builtin_elementwise_fshr: {
     APValue SourceHi, SourceLo, SourceShift;
@@ -18098,7 +18098,7 @@ bool IntExprEvaluator::VisitBuiltinCallExpr(const CallExpr *E,
     if (!EvaluateInteger(E->getArg(0), Val, Info) ||
         !EvaluateInteger(E->getArg(1), Msk, Info))
       return false;
-    return Success(llvm::APIntOps::expandBits(Val, Msk), E);
+    return Success(llvm::APIntOps::pdep(Val, Msk), E);
   }
 
   case clang::X86::BI__builtin_ia32_pext_si:
@@ -18108,7 +18108,7 @@ bool IntExprEvaluator::VisitBuiltinCallExpr(const CallExpr *E,
     if (!EvaluateInteger(E->getArg(0), Val, Info) ||
         !EvaluateInteger(E->getArg(1), Msk, Info))
       return false;
-    return Success(llvm::APIntOps::compressBits(Val, Msk), E);
+    return Success(llvm::APIntOps::pext(Val, Msk), E);
   }
   case X86::BI__builtin_ia32_ptestz128:
   case X86::BI__builtin_ia32_ptestz256:
@@ -21800,7 +21800,7 @@ bool VarDecl::evaluateDestruction(
   // Otherwise, treat the value as default-initialized; if the destructor works
   // anyway, then the destruction is constant (and must be essentially empty).
   APValue DestroyedValue;
-  if (getEvaluatedValue() && !getEvaluatedValue()->isAbsent())
+  if (getEvaluatedValue())
     DestroyedValue = *getEvaluatedValue();
   else if (!handleDefaultInitValue(getType(), DestroyedValue))
     return false;

@@ -945,7 +945,8 @@ template <size_t N> class fp8_e4m3_x {
   void ConvertFromFP8_Vec2(sycl::marray<sycl::half, N> &ret,
                            rounding r = rounding::to_even) const {
 #ifdef __SYCL_DEVICE_ONLY__
-    const ::sycl::detail::uint8_vec2 packed{vals[0], vals[1]};
+    const ::sycl::detail::uint8_vec2 packed =
+        *reinterpret_cast<const ::sycl::detail::uint8_vec2 *>(vals);
     ::sycl::detail::float16_vec2 hi =
         __builtin_spirv_ConvertE4M3ToFP16EXT(packed);
     ret[0] = sycl::bit_cast<sycl::half>(hi[0]);
@@ -970,7 +971,8 @@ template <size_t N> class fp8_e4m3_x {
   void ConvertBF16FromFP8_Vec2(sycl::marray<bfloat16, N> &ret,
                                rounding r = rounding::to_even) const {
 #ifdef __SYCL_DEVICE_ONLY__
-    const ::sycl::detail::uint8_vec2 packed{vals[0], vals[1]};
+    const ::sycl::detail::uint8_vec2 packed =
+        *reinterpret_cast<const ::sycl::detail::uint8_vec2 *>(vals);
     ::sycl::detail::bfloat16_vec2 hi =
         __builtin_spirv_ConvertE4M3ToBF16EXT(packed);
     ret[0] = sycl::bit_cast<bfloat16>(hi[0]);
@@ -994,9 +996,8 @@ template <size_t N> class fp8_e4m3_x {
   } else {                                                                     \
     const VecType vec{sycl::bit_cast<CastType>(in[0]),                         \
                       sycl::bit_cast<CastType>(in[1])};                        \
-    const ::sycl::detail::uint8_vec2 result =                                  \
+    *reinterpret_cast<::sycl::detail::uint8_vec2 *>(vals) =                    \
         Convert##Prefix##ToFP8_Vec2(vec);                                      \
-    std::memcpy(vals, &result, sizeof(vals));                                  \
   }
 #else
 #define CONVERT_TO_FP8(VecType, CastType, in, Prefix)                          \
@@ -1295,7 +1296,7 @@ public:
   }
 
   // Intentionally public to allow access to the raw values.
-  uint8_t vals[N];
+  alignas(N == 2 ? 2 : alignof(uint8_t)) uint8_t vals[N];
 #undef CONVERT_TO_FP8
 };
 
@@ -1390,7 +1391,8 @@ template <size_t N> class fp8_e5m2_x {
   void ConvertFromFP8_Vec2(sycl::marray<sycl::half, N> &ret,
                            rounding r = rounding::to_even) const {
 #ifdef __SYCL_DEVICE_ONLY__
-    const ::sycl::detail::uint8_vec2 packed{vals[0], vals[1]};
+    const ::sycl::detail::uint8_vec2 packed =
+        *reinterpret_cast<const ::sycl::detail::uint8_vec2 *>(vals);
     ::sycl::detail::float16_vec2 hi =
         __builtin_spirv_ConvertE5M2ToFP16EXT(packed);
     ret[0] = sycl::bit_cast<sycl::half>(hi[0]);
@@ -1415,7 +1417,8 @@ template <size_t N> class fp8_e5m2_x {
   void ConvertBF16FromFP8_Vec2(sycl::marray<bfloat16, N> &ret,
                                rounding r = rounding::to_even) const {
 #ifdef __SYCL_DEVICE_ONLY__
-    const ::sycl::detail::uint8_vec2 packed{vals[0], vals[1]};
+    const ::sycl::detail::uint8_vec2 packed =
+        *reinterpret_cast<const ::sycl::detail::uint8_vec2 *>(vals);
     ::sycl::detail::bfloat16_vec2 hi =
         __builtin_spirv_ConvertE5M2ToBF16EXT(packed);
     ret[0] = sycl::bit_cast<bfloat16>(hi[0]);
@@ -1439,9 +1442,8 @@ template <size_t N> class fp8_e5m2_x {
   } else {                                                                     \
     const VecType vec{sycl::bit_cast<CastType>(in[0]),                         \
                       sycl::bit_cast<CastType>(in[1])};                        \
-    const ::sycl::detail::uint8_vec2 result =                                  \
+    *reinterpret_cast<::sycl::detail::uint8_vec2 *>(vals) =                    \
         Convert##Prefix##ToFP8_Vec2(vec, s);                                   \
-    std::memcpy(vals, &result, sizeof(vals));                                  \
   }
 #else
 #define CONVERT_TO_FP8(VecType, CastType, in, s, Prefix)                       \
@@ -1875,8 +1877,7 @@ public:
   }
 
   // Intentionally public to allow access to the raw values.
-
-  uint8_t vals[N];
+  alignas(N == 2 ? 2 : alignof(uint8_t)) uint8_t vals[N];
 #undef CONVERT_TO_FP8
 };
 
