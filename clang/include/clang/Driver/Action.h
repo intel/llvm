@@ -728,11 +728,17 @@ class OffloadPackagerExtractJobAction : public JobAction {
   void anchor() override;
 
 public:
-  OffloadPackagerExtractJobAction(ActionList &Inputs, types::ID Type);
+  OffloadPackagerExtractJobAction(ActionList &Inputs, types::ID Type,
+                                  const ToolChain *TC = nullptr);
 
   static bool classof(const Action *A) {
     return A->getKind() == OffloadPackagerExtractJobClass;
   }
+
+  const ToolChain *getToolChain() const { return OPEToolChain; }
+
+private:
+  const ToolChain *OPEToolChain = nullptr;
 };
 
 class OffloadDepsJobAction final : public JobAction {

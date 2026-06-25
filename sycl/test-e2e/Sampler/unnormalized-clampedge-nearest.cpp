@@ -9,6 +9,7 @@
     CLAMPEDGE address_mode and NEAREAST filter_mode
 
 */
+#include <iostream>
 
 #include "common.hpp"
 

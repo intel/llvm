@@ -2,6 +2,7 @@
 // RUN: %{run} %t.out
 //
 // Tests platform::get_devices for each device type.
+#include <iostream>
 
 #include <sycl/detail/core.hpp>
 #include <sycl/platform.hpp>

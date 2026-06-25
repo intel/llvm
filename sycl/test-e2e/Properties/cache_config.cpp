@@ -6,6 +6,9 @@
 // UNSUPPORTED: windows && arch-intel_gpu_bmg_g21
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22099
 
+// UNSUPPORTED: linux && run-mode
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22405
+
 // RUN: %{build} -Wno-deprecated-declarations -o %t.out
 // RUN: env SYCL_UR_TRACE=-1 UR_L0_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s
 
@@ -18,6 +21,7 @@
 //   * A negative case: the property is not set when no property is passed.
 //   * Deprecated APIs: SYCL `queue::single_task`, `queue::parallel_for` and
 //   `queue::parallel_for_work_group` with a property list.
+#include <iostream>
 
 #include <numeric>
 #include <sycl/detail/core.hpp>

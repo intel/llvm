@@ -63,6 +63,7 @@
 // RUN: %{run} %t.exe --type uint32 --channels 2 --semaphores 32x31x33
 
 // clang-format on
+#include <iostream>
 
 #include "d3d12_setup.hpp"
 

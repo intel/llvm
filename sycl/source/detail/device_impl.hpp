@@ -32,6 +32,7 @@
 #include <mutex>
 #include <shared_mutex>
 #include <utility>
+#include <vector>
 
 namespace sycl {
 inline namespace _V1 {
@@ -1620,6 +1621,11 @@ public:
       return get_info_impl_nocheck<UR_DEVICE_INFO_DEVICE_WAIT_SUPPORT_EXP>()
           .value_or(0);
     }
+    CASE(ext_oneapi_ipc_physical_memory) {
+      return get_info_impl_nocheck<
+                 UR_DEVICE_INFO_IPC_PHYSICAL_MEMORY_SUPPORT_EXP>()
+          .value_or(0);
+    }
     else {
       return false; // This device aspect has not been implemented yet.
     }
@@ -2297,14 +2303,20 @@ public:
   // Dispatch all unconsumed asynchronous exception to the appropriate handlers.
   void throwAsynchronous();
 
-  void registerQueue(const std::weak_ptr<queue_impl> &Q) {
+  // Called by queue_impl in its constructor.
+  void registerQueue(queue_impl *Q) {
     std::lock_guard<std::mutex> Lock(MQueuesMutex);
-    MQueues.insert(Q);
+    MQueues.push_back(Q);
   }
 
-  void unregisterQueue(const std::weak_ptr<queue_impl> &Q) {
+  // Called by queue_impl in its destructor.
+  void unregisterQueue(queue_impl *Q) {
     std::lock_guard<std::mutex> Lock(MQueuesMutex);
-    MQueues.erase(Q);
+    auto It = std::find(MQueues.begin(), MQueues.end(), Q);
+    assert(It != MQueues.end() && "Queue not found in device's queue list");
+    // Swap with last element and pop — O(1) removal, order doesn't matter.
+    std::swap(*It, MQueues.back());
+    MQueues.pop_back();
   }
 
 private:
@@ -2317,9 +2329,7 @@ private:
   // Devices track a list of active queues on it, to allow for synchronization
   // with host_task and not-yet-enqueued commands.
   std::mutex MQueuesMutex;
-  std::set<std::weak_ptr<queue_impl>,
-           std::owner_less<std::weak_ptr<queue_impl>>>
-      MQueues;
+  std::vector<queue_impl *> MQueues;
 
   // Order of caches matters! UR must come before SYCL info descriptors (because
   // get_info calls get_info_impl but the opposite never happens) and both

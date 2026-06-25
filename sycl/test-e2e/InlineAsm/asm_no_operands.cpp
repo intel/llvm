@@ -1,6 +1,7 @@
 // REQUIRES: sg-16
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
+#include <iostream>
 
 #include "include/asmhelper.h"
 #include <sycl/detail/core.hpp>

@@ -21,6 +21,7 @@
 // (emulated) results larger than certain threshold. Might need to tune the cr0
 // once this feature is available in ESIMD.
 //
+#include <iostream>
 
 #include "../esimd_test_utils.hpp"
 

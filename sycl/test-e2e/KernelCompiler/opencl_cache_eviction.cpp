@@ -19,6 +19,7 @@
 // RUN: %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s --check-prefix=CHECK
 
 // CHECK: [Persistent Cache]: enabled
+#include <iostream>
 
 #include <sycl/detail/core.hpp>
 #include <sycl/kernel_bundle.hpp>

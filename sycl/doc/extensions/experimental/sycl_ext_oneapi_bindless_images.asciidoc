@@ -221,6 +221,11 @@ The image descriptor represents the image dimensions, number of channels, and
 channel type. An `image_type` member is also present to allow for implementation
 of mipmapped, image array, and cubemapped images.
 
+[NOTE]
+====
+Certain combinations of image format and type may not be supported on all platforms
+====
+
 The `image_descriptor` shall be default constructible and follow by-value 
 semantics.
 
@@ -2114,10 +2119,14 @@ struct external_mem_descriptor {
 }
 ```
 
-The user should create an `external_mem_descriptor` templated on the appropriate 
-handle type, `ResourceType`, for their purposes, e.g. `resource_fd` to describe 
-a POSIX file descriptor resource on Linux systems, or a `resource_win32_handle` 
-for Windows NT resource handles.
+The user should create an `external_mem_descriptor` templated on the appropriate
+handle type, `ResourceType`, for their purposes, e.g. `resource_fd` to describe
+a POSIX file descriptor resource on Linux systems, or a `resource_win32_handle`
+for Windows NT resource handles.  Use `resource_win32_name` instead when the
+external API has produced a named NT object (for example via
+`ID3D12Device::CreateSharedHandle` with a name argument, or `CreateEvent` /
+`CreateSemaphore`); the SYCL implementation opens the named object on the
+caller's behalf, so the application does not pass an already-opened `HANDLE`.
 
 The user must populate the `external_mem_descriptor` with the appropriate 
 `ResourceType` values, a `handle_type`, and the size of the external memory in 
@@ -2298,10 +2307,14 @@ struct external_semaphore_descriptor {
 }
 ```
 
-The user should create an `external_semaphore_descriptor` templated on the 
-appropriate handle type, `ResourceType`, for their purposes, e.g. `resource_fd` 
-to describe a POSIX file descriptor resource on Linux systems, or a 
-`resource_win32_handle` for Windows NT resource handles.
+The user should create an `external_semaphore_descriptor` templated on the
+appropriate handle type, `ResourceType`, for their purposes, e.g. `resource_fd`
+to describe a POSIX file descriptor resource on Linux systems, or a
+`resource_win32_handle` for Windows NT resource handles.  Use
+`resource_win32_name` instead when the external API has produced a named NT
+object (for example a D3D12 fence created via
+`ID3D12Device::CreateSharedHandle` with a name argument); the SYCL
+implementation opens the named object on the caller's behalf.
 
 The user must populate the `external_semaphore_descriptor` with the appropriate 
 `ResourceType` values, and `handle_type`, before they can then import that 

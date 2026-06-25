@@ -8,6 +8,12 @@
 
 #pragma once
 
+// Mark this header as a system header so the `sycl_global_var` attribute
+// below is accepted.
+#ifdef __clang__
+#pragma clang system_header
+#endif
+
 // VS2026 MSVC STL's <__msvc_bit_utils.hpp> declares `__isa_available` (a
 // runtime CPU-feature global) and other STL headers (<bit>, <vector>,
 // <numeric>, <bitset>, <complex>, <__msvc_int128.hpp>) include this header

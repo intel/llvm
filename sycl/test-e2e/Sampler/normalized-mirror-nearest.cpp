@@ -13,6 +13,7 @@
     MIRROR_REPEAT address_mode and NEAREST filter_mode
 
 */
+#include <iostream>
 
 #include "common.hpp"
 
