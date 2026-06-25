@@ -41,14 +41,16 @@ __SYCL_EXPORT sycl::event make_event(const sycl::context &ctxt,
   ur_event_handle_t EventHandle = nullptr;
   ur_exp_event_desc_t Desc = {};
   Desc.stype = UR_STRUCTURE_TYPE_EXP_EVENT_DESC;
-  Desc.hDevice = detail::getSyclObjImpl(ContextDevices[0])->getHandleRef();
   if (enable_profiling) {
     Desc.flags = UR_EXP_EVENT_FLAG_ENABLE_PROFILING;
   }
 
+  ur_device_handle_t FirstDevInCtx =
+      detail::getSyclObjImpl(ContextDevices[0])->getHandleRef();
+
   ur_result_t Result =
       Adapter.call_nocheck<sycl::detail::UrApiKind::urEventCreateExp>(
-          ContextImpl.getHandleRef(), &Desc, &EventHandle);
+          ContextImpl.getHandleRef(), FirstDevInCtx, &Desc, &EventHandle);
   if (Result != UR_RESULT_SUCCESS) {
     throw sycl::exception(sycl::make_error_code(errc::runtime),
                           "Failed to create an event.");
